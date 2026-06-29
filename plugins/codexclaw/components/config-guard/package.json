@@ -1,0 +1,11 @@
+{
+  "name": "@codexclaw/config-guard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Controlled feature-flag activation: enables only codexclaw's declared [features] flags via the official `codex features` CLI, with a revert manifest and backup.",
+  "main": "dist/cli.js",
+  "scripts": {
+    "test": "node --test"
+  }
+}
