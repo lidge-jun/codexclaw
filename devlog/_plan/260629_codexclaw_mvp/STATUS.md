@@ -9,6 +9,7 @@ fine increments (`022.1`) allowed. IPABCD steps appear as suffixes when work sta
 | 016 | 016_session_scope_finding.md | RESEARCH (Finding C: per-session) |
 | 017 | 017_pabcd_loop_plan.md | LOOP PLAN (7 passes) |
 | 018 | 018_pass1_P_plan.md | DONE (Pass 1 P→D, 16/16 tests) |
+| 018.2 | 018.2_pass2_P_plan.md | P (Pass 2: directive hook) |
 | 019 | 019_phase1_implementation_plan.md | mini-P (impl-grade) |
 | 019.1 | 019.1_mini_a_audit.md | mini-A AUDIT |
 | 019.2 | 019.2_mini_a_round2.md | mini-A AUDIT (Finding A/B resolved) |

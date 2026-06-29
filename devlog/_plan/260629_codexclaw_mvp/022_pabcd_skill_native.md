@@ -6,7 +6,7 @@ Status: TODO  ·  Phase 1
 IPABCD runs with no orchestrator server. Skill = human guide; hooks = trigger + continuation;
 files = state.
 
-> **IPABCD (not IPABCD):** the workflow includes an **Interview** phase (I) before Plan.
+> **IPABCD (not plain PABCD):** the workflow includes an **Interview** phase (I) before Plan.
 > See 022.2 for the Interview phase, feature-flag activation, and `request_user_input` mechanism.
 
 ## Pieces
