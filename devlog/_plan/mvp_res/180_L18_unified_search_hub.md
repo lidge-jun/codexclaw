@@ -1,6 +1,6 @@
 # L18 (Decade 180) -- Unified Search Hub + Korean Search Intent Guard
 
-Status: ANALYZED
+Status: PLANNED
 Cluster: 2 (part B) · Phase: expansion · Shorthand: cxc
 Source-of-record: 260629_codexclaw_mvp/120_unified_search_hub.md (J4), 090.1 J-6/J-10
 
@@ -83,7 +83,7 @@ Must-NOT-Have:
 `feat(search): add codex-only unified search hub skill with Korean intent guard`
 
 ## Blocked-on (jun decision id, if any)
-None. J-6 (implicit set = dev+search+pdf) and J-10 (codex-only ladder) resolved.
+None. J-6 (implicit set = dev only; search/pdf/skill-hub on-demand) and J-10 (codex-only ladder) resolved.
 
 ## References (codex-rs paths, omo skills, ouroboros, source-of-record docs)
 - 260629_codexclaw_mvp/120_unified_search_hub.md (J4 full analysis)

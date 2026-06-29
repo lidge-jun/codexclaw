@@ -81,18 +81,18 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 | L8 | 080 | Interview state schema + readiness FSM (tracker/known/unknown/assumptions/contradictions, bound) | DONE | 080, 022.2, 022.3 |
 | L9 | 090 | 5-Mind contradiction dispatcher (subagent contradiction-ONLY) | DONE | 080.1, 080.2, 034.5, ouroboros 030/040 |
 | L10 | 100 | Question generator + auto-mode + freeze->goal | DONE | 080.2, ouroboros 040 |
-| L11 | 110 | goal-mode interview hard deny (PreToolUse) | FROZEN (Q-GM-1-f resolved) | 022.3, 023 |
+| L11 | 110 | goal-mode interview hard deny (PreToolUse) | DONE | 022.3, 023 |
 
 ### Cluster 2 -- Skill real-content porting (port -> absorb -> search -> hub-rewrite)  [L12-L19]
 | Loop | Decade | Slug | Status | Source-of-record |
 |------|--------|------|--------|------------------|
-| L12 | 120 | dev hub + pabcd real-content port (always-on discipline core) | ANALYZED | 110_dev_skills_porting |
-| L13 | 130 | dev-architecture + dev-debugging <- omo(debugging, ast-grep, comment-checker) | ANALYZED | 110 |
-| L14 | 140 | dev-backend + dev-data <- omo(programming) | ANALYZED | 110 |
-| L15 | 150 | dev-frontend + dev-uiux-design <- omo(frontend, visual-qa, designpowers) | ANALYZED | 110 |
-| L16 | 160 | dev-testing + dev-code-reviewer <- omo(review-work, remove-ai-slops) | ANALYZED | 110 |
-| L17 | 170 | dev-security + dev-devops + dev-scaffolding <- omo(refactor, init-deep, git-master) | ANALYZED | 110 |
-| L18 | 180 | Unified search hub + Korean search intent guard (search ON-DEMAND, `allow_implicit_invocation:false`) <- omo(ultimate-browsing, ultraresearch) | ANALYZED | 120_unified_search_hub |
+| L12 | 120 | dev hub + pabcd real-content port (always-on discipline core) | PLANNED | 110_dev_skills_porting |
+| L13 | 130 | dev-architecture + dev-debugging <- omo(debugging, ast-grep, comment-checker) | PLANNED | 110 |
+| L14 | 140 | dev-backend + dev-data <- omo(programming) | PLANNED | 110 |
+| L15 | 150 | dev-frontend + dev-uiux-design <- omo(frontend, visual-qa, designpowers) | PLANNED | 110 |
+| L16 | 160 | dev-testing + dev-code-reviewer <- omo(review-work, remove-ai-slops) | PLANNED | 110 |
+| L17 | 170 | dev-security + dev-devops + dev-scaffolding <- omo(refactor, init-deep, git-master) | PLANNED | 110 |
+| L18 | 180 | Unified search hub + Korean search intent guard (search ON-DEMAND, `allow_implicit_invocation:false`) <- omo(ultimate-browsing, ultraresearch) | PLANNED | 120_unified_search_hub |
 | L19 | 190 | skill_hub REWRITE (codexclaw-specific; default trigger = dev only) | BLOCKED(L12-L17) | 100_skill_hub |
 
 ### Cluster 3 -- Expansion ops  [L20-L22]

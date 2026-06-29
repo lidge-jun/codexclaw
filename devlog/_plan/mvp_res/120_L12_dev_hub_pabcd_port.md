@@ -1,6 +1,6 @@
 # L12 (Decade 120) -- Dev Hub + PABCD Real-Content Port
 
-Status: ANALYZED
+Status: PLANNED
 Cluster: 2 (part A) - Phase: expansion - Shorthand: cxc
 Source-of-record: 260629_codexclaw_mvp/110_dev_skills_porting.md, 024.3_skill_conversion_delta.md, 024.2_cli_jaw_conflict_analysis.md, 021.1_codex_rs_skill_mechanism.md
 
@@ -100,7 +100,7 @@ None. Q-CONV-1 and Q-CONV-2 are resolved by 110: `dev` is always-on, and
 2. **cli-jaw source root**: `/Users/jun/.cli-jaw-3459/skills/`.
 3. **Reference/asset/script directories**: where a source→target map lists `references/`, `scripts/`,
    `assets/`, or `examples/`, the RULE is: port EVERY file under that source dir preserving relative
-   paths into the matching target dir. The exact file list is enumerated at B-time via `ls` of the
+   paths into the matching target dir (default = port all). A file MAY be omitted only with an explicit per-file rationale recorded in the B-phase plan. The exact file list is enumerated at B-time via `ls` of the
    (now-correct) source dir — a plan doc pins the rule, not a frozen list that may drift.
 4. **Strip cli-jaw-isms (per 024.2)**: drop `metadata.keywords`; remove "Always injected by
    orchestrator"; replace boss/employee/dispatch → main agent/subagent; replace "Injected when

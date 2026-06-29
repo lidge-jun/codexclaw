@@ -32,7 +32,7 @@ where the audit confirms all gating decisions are resolved. L19 stays BLOCKED(L1
 
 ## QA channel
 - `grep -n "^Status:" devlog/_plan/mvp_res/12*.md devlog/_plan/mvp_res/13*.md devlog/_plan/mvp_res/14*.md devlog/_plan/mvp_res/15*.md devlog/_plan/mvp_res/16*.md devlog/_plan/mvp_res/17*.md devlog/_plan/mvp_res/18*.md`
-- `grep -rn ".codex/plugins/cache/sisyphuslabs" devlog/_plan/mvp_res/` → 0 (dead root)
+- `grep -rn "sisyphuslabs" devlog/_plan/mvp_res/ | grep -v "does NOT exist"` → 0 (dead root, excluding the intentional L12 warning)
 - gpt-5.5 C-gate re-audit verdict.
 
 ## Commit unit

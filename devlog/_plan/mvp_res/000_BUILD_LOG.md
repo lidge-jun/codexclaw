@@ -31,18 +31,22 @@ Purpose: record how the loop-ordered `mvp_res/` docs were produced, so the `000_
     `<roundId>-<mindId>`, `isGroundedEvidence` validation, side-effect stripping) + DONE mark
     `b4bc75a`, L10 question gen + auto-mode triage + freeze manifest `0034850`.
   - C: doc acceptance criteria verified — BUILD_LOG exists, 0 dangling refs in loop docs,
-    0 RESOLVED-as-status, L8–L11 DONE/DONE/FROZEN/FROZEN, freeze + PreToolUse paths pinned;
-    132/132 tests green. L9 code-review evidence (`.omo/evidence/l9-…-code-review.md`) is a
-    historical A-gate artifact; its blockers were closed in `e762a3c`.
-  - D: Cluster 1 closed. L8/L9 DONE. L10 implemented (132/132) but doc status flip to DONE
-    pending. L11 FROZEN (design complete, impl pending).
+    0 RESOLVED-as-status, freeze + PreToolUse paths pinned; tests green. L9 code-review evidence
+    (`.omo/evidence/l9-…-code-review.md`) is a historical A-gate artifact; its blockers were
+    closed in `e762a3c`.
+  - D: Cluster 1 closed. L8/L9/L10/L11 all DONE. L11 goal-mode interview hard deny shipped:
+    `goal-active.ts` (read-only native `goals_1.sqlite` lookup by thread_id, fail-closed on
+    `unreadable`), `applyGoalModeInterviewGuard` PreToolUse deny for `request_user_input`
+    (cli.ts + goal-gate.ts), I-trigger suppression in hook.ts, narrow matcher hook
+    `pre-tool-use-guarding-interview-in-goal.json`. Tests: goal-active.test.ts +
+    goal-gate/hook guard tests; 147/147 green.
 - Pass 2 (Cluster 2, L12–L19): A-gate audit closed by `5b6dafe` (G1–G5: dead omo source root
   rewritten to repo-local `devlog/.lazycodex/plugins/omo/skills/`, L18 search → on-demand, L19
-  dependency aligned, INDEX + scope targets fixed, L12 canonical porting rules). C-gate re-audit
-  pending — docs still show ANALYZED; decision-completeness + status flip to PLANNED not yet
-  confirmed by independent gpt-5.5 audit.
+  dependency aligned, INDEX + scope targets fixed, L12 canonical porting rules). C-gate flip
+  applied: L12–L18 ANALYZED→PLANNED (decision-complete: full Scope/IPABCD/Acceptance/QA/
+  References/resolved Blocked-on), L19 stays BLOCKED(L12-L17); INDEX Cluster-2 rows match.
 - Concurrent commit `4e6539f` (parallel session): status-legend expansion + search on-demand flip.
 
 ## Verification convention
 - Component code: `node --test` (Node v24 native TS, no build toolchain); build via
-  `node:module.stripTypeScriptTypes` aggregation. Phase-1 gate: 132/132 tests green.
+  `node:module.stripTypeScriptTypes` aggregation. Current gate: 147/147 tests green.
