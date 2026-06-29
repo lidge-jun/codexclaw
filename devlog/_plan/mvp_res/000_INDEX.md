@@ -80,7 +80,7 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 |------|--------|------|--------|------------------|
 | L8 | 080 | Interview state schema + readiness FSM (tracker/known/unknown/assumptions/contradictions, bound) | DONE | 080, 022.2, 022.3 |
 | L9 | 090 | 5-Mind contradiction dispatcher (subagent contradiction-ONLY) | DONE | 080.1, 080.2, 034.5, ouroboros 030/040 |
-| L10 | 100 | Question generator + auto-mode + freeze->goal | FROZEN | 080.2, ouroboros 040 |
+| L10 | 100 | Question generator + auto-mode + freeze->goal | DONE | 080.2, ouroboros 040 |
 | L11 | 110 | goal-mode interview hard deny (PreToolUse) | FROZEN (Q-GM-1-f resolved) | 022.3, 023 |
 
 ### Cluster 2 -- Skill real-content porting (port -> absorb -> search -> hub-rewrite)  [L12-L19]
