@@ -37,10 +37,10 @@ Concrete source -> target map:
 - `/Users/jun/.cli-jaw-3459/skills/dev-architecture/references/*` -> `plugins/codexclaw/skills/dev-architecture/references/`
 - `/Users/jun/.cli-jaw-3459/skills/dev-debugging/SKILL.md` -> `plugins/codexclaw/skills/dev-debugging/SKILL.md`
 - `/Users/jun/.cli-jaw-3459/skills/dev-debugging/references/*` -> `plugins/codexclaw/skills/dev-debugging/references/`
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/debugging/SKILL.md` -> `plugins/codexclaw/skills/dev-debugging/SKILL.md` and debugging references
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/ast-grep/SKILL.md` -> `plugins/codexclaw/skills/dev-architecture/SKILL.md` AST-aware search guidance, not a new skill
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/ast-grep/references/*` -> architecture reference notes only when structural search examples are needed
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/comment-checker/SKILL.md` -> cross-link to review feedback handling, with completion gate owned by `dev` and detailed review owned by L16
+- `devlog/.lazycodex/plugins/omo/skills/debugging/SKILL.md` -> `plugins/codexclaw/skills/dev-debugging/SKILL.md` and debugging references
+- `devlog/.lazycodex/plugins/omo/skills/ast-grep/SKILL.md` -> `plugins/codexclaw/skills/dev-architecture/SKILL.md` AST-aware search guidance, not a new skill
+- `devlog/.lazycodex/plugins/omo/skills/ast-grep/references/*` -> architecture reference notes only when structural search examples are needed
+- `devlog/.lazycodex/plugins/omo/skills/comment-checker/SKILL.md` -> cross-link to review feedback handling, with completion gate owned by `dev` and detailed review owned by L16
 
 Exact behavior:
 - L4 router stubs remain the activation shell; L13 fills the body and
@@ -103,6 +103,6 @@ None.
 - /Users/jun/.cli-jaw-3459/skills/dev-architecture/references/
 - /Users/jun/.cli-jaw-3459/skills/dev-debugging/SKILL.md
 - /Users/jun/.cli-jaw-3459/skills/dev-debugging/references/
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/debugging/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/ast-grep/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/comment-checker/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/debugging/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/ast-grep/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/comment-checker/SKILL.md

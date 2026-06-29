@@ -44,10 +44,10 @@ Concrete source -> target map:
 - `/Users/jun/.cli-jaw-3459/skills/dev-scaffolding/references/*` -> `plugins/codexclaw/skills/dev-scaffolding/references/`
 - `/Users/jun/.cli-jaw-3459/skills/dev-scaffolding/assets/*` -> `plugins/codexclaw/skills/dev-scaffolding/assets/`
 - `/Users/jun/.cli-jaw-3459/skills/dev-scaffolding/scripts/*` -> `plugins/codexclaw/skills/dev-scaffolding/scripts/`
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/review-work/SKILL.md` -> `plugins/codexclaw/skills/dev-security/SKILL.md` security review lane
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/refactor/SKILL.md` -> canonical owners `dev-architecture`, `dev-testing`, and `dev-code-reviewer`; `dev-scaffolding` only cross-links for scaffold restructuring boundaries
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/init-deep/SKILL.md` -> `plugins/codexclaw/skills/dev-scaffolding/SKILL.md`
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/git-master/SKILL.md` -> canonical local git discipline in `dev` + `dev-code-reviewer`; `dev-devops` only cross-links release/delivery notes and remote GitHub remains default `github` skill
+- `devlog/.lazycodex/plugins/omo/skills/review-work/SKILL.md` -> `plugins/codexclaw/skills/dev-security/SKILL.md` security review lane
+- `devlog/.lazycodex/plugins/omo/skills/refactor/SKILL.md` -> canonical owners `dev-architecture`, `dev-testing`, and `dev-code-reviewer`; `dev-scaffolding` only cross-links for scaffold restructuring boundaries
+- `devlog/.lazycodex/plugins/omo/skills/init-deep/SKILL.md` -> `plugins/codexclaw/skills/dev-scaffolding/SKILL.md`
+- `devlog/.lazycodex/plugins/omo/skills/git-master/SKILL.md` -> canonical local git discipline in `dev` + `dev-code-reviewer`; `dev-devops` only cross-links release/delivery notes and remote GitHub remains default `github` skill
 
 Exact behavior:
 - L4 stubs are activation shells; L17 ports real production/security/scaffold
@@ -127,7 +127,7 @@ None.
 - /Users/jun/.cli-jaw-3459/skills/dev-devops/references/
 - /Users/jun/.cli-jaw-3459/skills/dev-scaffolding/SKILL.md
 - /Users/jun/.cli-jaw-3459/skills/dev-scaffolding/references/
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/review-work/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/refactor/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/init-deep/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/git-master/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/review-work/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/refactor/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/init-deep/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/git-master/SKILL.md

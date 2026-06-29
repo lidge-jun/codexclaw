@@ -35,8 +35,8 @@ Concrete source -> target map:
 - `/Users/jun/.cli-jaw-3459/skills/dev-backend/scripts/*` -> `plugins/codexclaw/skills/dev-backend/scripts/`
 - `/Users/jun/.cli-jaw-3459/skills/dev-data/SKILL.md` -> `plugins/codexclaw/skills/dev-data/SKILL.md`
 - `/Users/jun/.cli-jaw-3459/skills/dev-data/references/*` -> `plugins/codexclaw/skills/dev-data/references/`
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/programming/SKILL.md` -> `plugins/codexclaw/skills/dev-backend/SKILL.md` and `plugins/codexclaw/skills/dev-data/SKILL.md`
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/programming/references/code-smells.md` -> backend/data review notes only when language-level smells affect API or pipeline boundaries
+- `devlog/.lazycodex/plugins/omo/skills/programming/SKILL.md` -> `plugins/codexclaw/skills/dev-backend/SKILL.md` and `plugins/codexclaw/skills/dev-data/SKILL.md`
+- `devlog/.lazycodex/plugins/omo/skills/programming/references/code-smells.md` -> backend/data review notes only when language-level smells affect API or pipeline boundaries
 
 Exact behavior:
 - L4 router stubs define activation; L14 ports the real backend/data bodies and
@@ -100,5 +100,5 @@ None.
 - /Users/jun/.cli-jaw-3459/skills/dev-backend/scripts/
 - /Users/jun/.cli-jaw-3459/skills/dev-data/SKILL.md
 - /Users/jun/.cli-jaw-3459/skills/dev-data/references/
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/programming/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/programming/references/code-smells.md
+- devlog/.lazycodex/plugins/omo/skills/programming/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/programming/references/code-smells.md

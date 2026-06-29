@@ -29,10 +29,10 @@ Files to add/edit:
 Concrete source -> target map:
 - `/Users/jun/.cli-jaw-3459/skills/dev/SKILL.md` -> `plugins/codexclaw/skills/dev/SKILL.md`
 - `/Users/jun/.cli-jaw-3459/skills/dev-pabcd/SKILL.md` -> `plugins/codexclaw/skills/pabcd/SKILL.md`
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/comment-checker/SKILL.md` -> `plugins/codexclaw/skills/dev/SKILL.md` completion-gate sentence only
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/programming/SKILL.md` -> `plugins/codexclaw/skills/dev/SKILL.md` strict typing/static-analysis discipline
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/git-master/SKILL.md` -> `plugins/codexclaw/skills/dev/SKILL.md` local git discipline only
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/ultraresearch/SKILL.md` -> `plugins/codexclaw/skills/dev/SKILL.md` guard separating ordinary context gathering from explicit deep research
+- `devlog/.lazycodex/plugins/omo/skills/comment-checker/SKILL.md` -> `plugins/codexclaw/skills/dev/SKILL.md` completion-gate sentence only
+- `devlog/.lazycodex/plugins/omo/skills/programming/SKILL.md` -> `plugins/codexclaw/skills/dev/SKILL.md` strict typing/static-analysis discipline
+- `devlog/.lazycodex/plugins/omo/skills/git-master/SKILL.md` -> `plugins/codexclaw/skills/dev/SKILL.md` local git discipline only
+- `devlog/.lazycodex/plugins/omo/skills/ultraresearch/SKILL.md` -> `plugins/codexclaw/skills/dev/SKILL.md` guard separating ordinary context gathering from explicit deep research
 
 Exact behavior:
 - `dev` is implicit-on in `openai.yaml`; all other dev surface skills remain
@@ -94,6 +94,24 @@ None. Q-CONV-1 and Q-CONV-2 are resolved by 110: `dev` is always-on, and
 ## Resolved (jun 2026-06-30)
 - Decision: codexclaw uses the canonical `pabcd` skill name and Codex built-in ThreadGoal runtime; `dev-pabcd` remains source material only and is not a shipped skill.
 
+## Canonical porting rules (Pass 2, jun 2026-06-30) — applies to ALL Cluster-2 ports (L12–L19)
+1. **OMO source root**: `devlog/.lazycodex/plugins/omo/skills/` (repo-local, gitignored). The old
+   `.codex/plugins/cache/sisyphuslabs/omo/...` path does NOT exist — never cite it.
+2. **cli-jaw source root**: `/Users/jun/.cli-jaw-3459/skills/`.
+3. **Reference/asset/script directories**: where a source→target map lists `references/`, `scripts/`,
+   `assets/`, or `examples/`, the RULE is: port EVERY file under that source dir preserving relative
+   paths into the matching target dir. The exact file list is enumerated at B-time via `ls` of the
+   (now-correct) source dir — a plan doc pins the rule, not a frozen list that may drift.
+4. **Strip cli-jaw-isms (per 024.2)**: drop `metadata.keywords`; remove "Always injected by
+   orchestrator"; replace boss/employee/dispatch → main agent/subagent; replace "Injected when
+   role=…" → "Routes when change surface is…"; remove hard `devlog/`, `structure/`, `verify-counts`,
+   `task_tags`, and absolute cli-jaw paths.
+5. **No standalone absorbed omo skill dirs**: omo content folds INTO the matching dev-* skill; it
+   never ships as its own codexclaw skill directory.
+6. **Acceptance for every port loop** must include: frontmatter schema valid, `agents/openai.yaml`
+   implicit policy correct (`dev`=true, all others=false), target file exists, and a forbidden-token
+   grep (`cli-jaw orchestrate|employee|task_tags|verify-counts`) returns 0 in the ported file.
+
 ## References (codex-rs paths, omo skills, ouroboros, source-of-record docs)
 - 260629_codexclaw_mvp/110_dev_skills_porting.md
 - 260629_codexclaw_mvp/024.3_skill_conversion_delta.md
@@ -101,7 +119,7 @@ None. Q-CONV-1 and Q-CONV-2 are resolved by 110: `dev` is always-on, and
 - 260629_codexclaw_mvp/021.1_codex_rs_skill_mechanism.md
 - /Users/jun/.cli-jaw-3459/skills/dev/SKILL.md
 - /Users/jun/.cli-jaw-3459/skills/dev-pabcd/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/comment-checker/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/programming/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/git-master/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/ultraresearch/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/comment-checker/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/programming/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/git-master/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/ultraresearch/SKILL.md

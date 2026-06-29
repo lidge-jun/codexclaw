@@ -40,11 +40,11 @@ Concrete source -> target map:
 - `/Users/jun/.cli-jaw-3459/skills/dev-testing/examples/*` -> `plugins/codexclaw/skills/dev-testing/examples/`
 - `/Users/jun/.cli-jaw-3459/skills/dev-code-reviewer/SKILL.md` -> `plugins/codexclaw/skills/dev-code-reviewer/SKILL.md`
 - `/Users/jun/.cli-jaw-3459/skills/dev-code-reviewer/references/*` -> `plugins/codexclaw/skills/dev-code-reviewer/references/`
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/review-work/SKILL.md` -> `plugins/codexclaw/skills/dev-code-reviewer/SKILL.md`, `dev-testing/SKILL.md`, and L17 `dev-security`
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/remove-ai-slops/SKILL.md` -> `plugins/codexclaw/skills/dev-code-reviewer/SKILL.md` anti-pattern catalog plus `dev-testing` regression-first invariant
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/comment-checker/SKILL.md` -> `plugins/codexclaw/skills/dev-code-reviewer/SKILL.md` feedback handling
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/visual-qa/SKILL.md` -> `plugins/codexclaw/skills/dev-testing/SKILL.md` visual/TUI verification procedure
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/programming/SKILL.md` -> `plugins/codexclaw/skills/dev-testing/SKILL.md` red-green-refactor and regression lock rules
+- `devlog/.lazycodex/plugins/omo/skills/review-work/SKILL.md` -> `plugins/codexclaw/skills/dev-code-reviewer/SKILL.md`, `dev-testing/SKILL.md`, and L17 `dev-security`
+- `devlog/.lazycodex/plugins/omo/skills/remove-ai-slops/SKILL.md` -> `plugins/codexclaw/skills/dev-code-reviewer/SKILL.md` anti-pattern catalog plus `dev-testing` regression-first invariant
+- `devlog/.lazycodex/plugins/omo/skills/comment-checker/SKILL.md` -> `plugins/codexclaw/skills/dev-code-reviewer/SKILL.md` feedback handling
+- `devlog/.lazycodex/plugins/omo/skills/visual-qa/SKILL.md` -> `plugins/codexclaw/skills/dev-testing/SKILL.md` visual/TUI verification procedure
+- `devlog/.lazycodex/plugins/omo/skills/programming/SKILL.md` -> `plugins/codexclaw/skills/dev-testing/SKILL.md` red-green-refactor and regression lock rules
 
 Exact behavior:
 - L4 router stubs only activated the skills; L16 ports full testing and review
@@ -109,7 +109,7 @@ None.
 - /Users/jun/.cli-jaw-3459/skills/dev-testing/references/
 - /Users/jun/.cli-jaw-3459/skills/dev-code-reviewer/SKILL.md
 - /Users/jun/.cli-jaw-3459/skills/dev-code-reviewer/references/
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/review-work/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/remove-ai-slops/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/comment-checker/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/visual-qa/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/review-work/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/remove-ai-slops/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/comment-checker/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/visual-qa/SKILL.md

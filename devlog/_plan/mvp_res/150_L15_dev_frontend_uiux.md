@@ -35,10 +35,10 @@ Concrete source -> target map:
 - `/Users/jun/.cli-jaw-3459/skills/dev-frontend/examples/*` -> `plugins/codexclaw/skills/dev-frontend/examples/`
 - `/Users/jun/.cli-jaw-3459/skills/dev-uiux-design/SKILL.md` -> `plugins/codexclaw/skills/dev-uiux-design/SKILL.md`
 - `/Users/jun/.cli-jaw-3459/skills/dev-uiux-design/references/*` -> `plugins/codexclaw/skills/dev-uiux-design/references/`
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/frontend/SKILL.md` -> `plugins/codexclaw/skills/dev-frontend/SKILL.md` and cross-link to `dev-uiux-design`
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/visual-qa/SKILL.md` -> `plugins/codexclaw/skills/dev-frontend/SKILL.md` visual-fidelity notes and L16 testing verification
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/visual-qa/references/agent-browser-setup.md` -> `plugins/codexclaw/skills/dev-frontend/SKILL.md` or `dev-testing` cross-reference, not a new router
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/frontend/` designpower routing concepts -> `plugins/codexclaw/skills/dev-uiux-design/` where they are design-judgment, not implementation
+- `devlog/.lazycodex/plugins/omo/skills/frontend/SKILL.md` -> `plugins/codexclaw/skills/dev-frontend/SKILL.md` and cross-link to `dev-uiux-design`
+- `devlog/.lazycodex/plugins/omo/skills/visual-qa/SKILL.md` -> `plugins/codexclaw/skills/dev-frontend/SKILL.md` visual-fidelity notes and L16 testing verification
+- `devlog/.lazycodex/plugins/omo/skills/visual-qa/references/agent-browser-setup.md` -> `plugins/codexclaw/skills/dev-frontend/SKILL.md` or `dev-testing` cross-reference, not a new router
+- `devlog/.lazycodex/plugins/omo/skills/frontend/` designpower routing concepts -> `plugins/codexclaw/skills/dev-uiux-design/` where they are design-judgment, not implementation
 
 Exact behavior:
 - L4 stubs are router shells; L15 ports full content and references.
@@ -104,5 +104,5 @@ None.
 - /Users/jun/.cli-jaw-3459/skills/dev-frontend/examples/
 - /Users/jun/.cli-jaw-3459/skills/dev-uiux-design/SKILL.md
 - /Users/jun/.cli-jaw-3459/skills/dev-uiux-design/references/
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/frontend/SKILL.md
-- /Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/visual-qa/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/frontend/SKILL.md
+- devlog/.lazycodex/plugins/omo/skills/visual-qa/SKILL.md
