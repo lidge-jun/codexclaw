@@ -5,9 +5,11 @@ description: Use for any non-trivial multi-step development task that benefits f
 
 # PABCD Workflow
 
-A Codex-native reimplementation of cli-jaw's PABCD development loop. No orchestrator server, no `cli-jaw orchestrate` calls — state lives in `.codexclaw/state.json` and phase transitions are driven by hooks + this skill.
+A Codex-native reimplementation of cli-jaw's IPABCD development loop (Interview + Plan/Audit/Build/Check/Done). No orchestrator server, no `cli-jaw orchestrate` calls — state lives in `.codexclaw/state.json` and phase transitions are driven by hooks + this skill.
 
 ## Phases
+
+0. **I — Interview**: When requirements are ambiguous or the task is large, clarify first via the request_user_input flow (4 dimensions: goal/constraint/success/ontology). Confirm requirements before Plan. Triggers: "interview me", "기획부터", vague+large requests.
 
 1. **P — Plan**: Explore first (read code, configs, docs). Produce a concrete plan. If requirements are unclear, enter interview mode and ask before building.
 2. **A — Audit**: Read-only review of the plan against the real codebase. Surface rollback gaps, missing callers, phantom constants, risky assumptions. No code changes in this phase.
@@ -17,7 +19,7 @@ A Codex-native reimplementation of cli-jaw's PABCD development loop. No orchestr
 
 ## State
 
-- `.codexclaw/state.json` — current phase + derived flags.
+- `.codexclaw/state.json` — current phase (I/P/A/B/C/D) + derived flags (incl. interview).
 - `.codexclaw/ledger.jsonl` — append-only audit trail of transitions.
 
 ## Notes

@@ -11,6 +11,7 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 | 021.1 | 021.1_codex_rs_skill_mechanism.md | RESEARCH (source-verified) |
 | 022 | 022_pabcd_skill_native.md | TODO |
 | 022.1 | 022.1_pabcd_state_files.md | TODO |
+| 022.2 | 022.2_ipabcd_and_feature_flags.md | RESEARCH+DESIGN |
 | 023 | 023_goal_convention_port.md | TODO |
 | 023.1 | 023.1_interview_ipabcd_prompts.md | TODO |
 | 024 | 024_dev_skills_conversion.md | TODO |
@@ -20,6 +21,7 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 | 026 | 026_minimal_system_prompt.md | TODO |
 | 027 | 027_config_untouched_guard.md | TODO |
 | 028 | 028_phase1_integration.md | TODO |
+| 028.1 | 028.1_install_activation.md | TODO |
 | 029 | 029_phase1_verification.md | TODO |
 
 ## Phase 2 — opencodex + GUI (multi-model subagents)
@@ -49,6 +51,8 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 | 070 | 070_packaging.md | TODO |
 
 ## Notes
+- WORKFLOW = IPABCD (Interview + PABCD). Interview uses feature `default_mode_request_user_input` / `request_user_input`.
+- ACTIVATION: codexclaw enables codex feature flags (multi_agent/goals/hooks/default_mode_request_user_input) via `codex features enable` at install (027 revised: controlled flag flip, backup+revert, not silent).
 - 2026-06-29: Plan restructured into 3 phases. opencodex confirmed = provider proxy, not harness.
 - Phase 3 scheduling feasible via `codex exec` + OS scheduler (launchd/cron). No built-in cron.
 - References: `devlog/.lazycodex` (gitignored); codex-rs sources at
