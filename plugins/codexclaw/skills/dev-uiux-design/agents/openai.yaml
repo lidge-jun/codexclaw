@@ -1,0 +1,5 @@
+interface:
+  display_name: "Dev: UI/UX Design"
+  short_description: "Design judgment for vague briefs, UX states, typography, layout patterns, logos, and brand vocabulary."
+policy:
+  allow_implicit_invocation: false

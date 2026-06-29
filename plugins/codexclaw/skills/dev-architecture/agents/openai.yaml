@@ -1,0 +1,5 @@
+interface:
+  display_name: "Dev: Architecture"
+  short_description: "Module boundaries, circular deps, coupling taxonomy, and boundary-only defensive programming."
+policy:
+  allow_implicit_invocation: false

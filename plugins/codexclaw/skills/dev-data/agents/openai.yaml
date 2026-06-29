@@ -1,0 +1,5 @@
+interface:
+  display_name: "Dev: Data"
+  short_description: "Data pipelines, ETL/ELT design, data quality validation, SQL optimization, and analysis patterns."
+policy:
+  allow_implicit_invocation: false
