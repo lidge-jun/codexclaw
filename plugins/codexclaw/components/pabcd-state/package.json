@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "PABCD finite-state machine backed by .codexclaw/state.json + ledger.jsonl.",
-  "main": "dist/cli.js"
+  "description": "IPABCD finite-state machine backed by per-session .codexclaw/sessions/<sessionId>.json + shared ledger.jsonl.",
+  "main": "dist/cli.js",
+  "scripts": {
+    "test": "node --test"
+  }
 }
