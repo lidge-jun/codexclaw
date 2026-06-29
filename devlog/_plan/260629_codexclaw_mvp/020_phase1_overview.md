@@ -37,3 +37,13 @@ subagents — without opencodex, without touching `~/.codex/config.toml`.
 - 027 config-untouched guard
 - 028 phase 1 integration
 - 029 phase 1 verification gate
+
+## Interactive prompt mechanism (DECISION 2026-06-29)
+- Interview + iPABCD interactive prompts use the codex `request_user_input` selector
+  (numbered choice UI), enabled in Default mode via feature flag
+  `default_mode_request_user_input = true`.
+- VERIFIED: flag exposes the tool in Default mode and renders the same selector as Plan Mode.
+- Fallback (stable, no flag): MCP elicitation (`tool_call_mcp_elicitation`, default ON).
+- See ../260629_research_elicitation/000_findings.md for full evidence + caveats.
+- codexclaw must DETECT the flag and document enabling it; it must NOT auto-write config.toml
+  (phase-1 config-untouched principle).

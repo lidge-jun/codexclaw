@@ -83,3 +83,38 @@ MCP server  --elicitation/create-->  codex core  --EventMsg::ElicitationRequest-
   (Both feed the same core manager, but verify the wiring end-to-end.)
 - Q-E2: Exact JSON wire shape of a single-select enum Form request (capture from a live PoC).
 - Q-E3: How responses (`content`) are keyed back to `properties` field ids for multi-field forms.
+
+---
+
+## CONFIRMED (2026-06-29, live test)
+
+### Two ways to surface the choice selector outside Plan Mode
+1. **`request_user_input` tool** (the same selector seen in cli-jaw Plan Mode):
+   - Plan-Mode-gated by default, BUT a feature flag opens it in Default mode:
+     - flag key: `default_mode_request_user_input` (codex-rs/features/src/lib.rs)
+     - comment: "Allow request_user_input in Default collaboration mode"
+     - stage: `UnderDevelopment`, default_enabled: `false`.
+   - Enable via config (verified: `[features]` is a `key = bool` table):
+     ```toml
+     [features]
+     default_mode_request_user_input = true
+     ```
+     (equivalent to `codex --enable default_mode_request_user_input`)
+   - **VERIFIED working**: with the flag on, `request_user_input` is exposed in Default mode and
+     renders the numbered choice selector (same UI as Plan Mode).
+   - Requires a NEW codex session to pick up the config change; the tool must be in the turn's
+     available tools, then the assistant calls it (prompting can steer this).
+   - Caveat: `UnderDevelopment` stage — may change/disappear across codex updates.
+2. **MCP elicitation** (`tool_call_mcp_elicitation`, Stable, default ON, mode-independent) — the
+   product-stable path; an MCP server issues `elicitation/create`. See the main findings above.
+
+### DECISION (jun, 2026-06-29)
+- **Interview implementation** in codexclaw will use the `request_user_input` selector via the
+  `default_mode_request_user_input` flag (the confirmed path), not assistant-emitted text fences.
+- **PABCD (iPABCD) implementation** will also drive its interactive prompts through this same
+  `request_user_input` selector path.
+- Enabled now in `~/.codex/config.toml` (`[features] default_mode_request_user_input = true`;
+  backup: `config.toml.bak-default_mode_request_user_input-20260629-222710`).
+- Open: reconcile with phase-1 "config untouched" — this flag is a USER-set option, not something
+  codexclaw mutates automatically. codexclaw should DETECT the flag and document enabling it, not
+  silently write it. (MCP elicitation remains the no-flag fallback for stability.)

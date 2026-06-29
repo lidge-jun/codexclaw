@@ -12,6 +12,7 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 | 022 | 022_pabcd_skill_native.md | TODO |
 | 022.1 | 022.1_pabcd_state_files.md | TODO |
 | 023 | 023_goal_convention_port.md | TODO |
+| 023.1 | 023.1_interview_ipabcd_prompts.md | TODO |
 | 024 | 024_dev_skills_conversion.md | TODO |
 | 024.1 | 024.1_dev_skill_pilot.md | TODO |
 | 024.2 | 024.2_cli_jaw_conflict_analysis.md | RESEARCH (source-verified) |
@@ -57,3 +58,4 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 - codex subagent = agent role (role.rs), loaded like config.toml; per-role model override supported.
 - Decisions confirmed (015): all-13 dev skills, omo goal gate, 3 shippable MVP units.
 - Remaining open: Q-P2-1/2 (GUI reuse, ocx-absent multi-model), Q-P3-2 (result delivery).
+- 2026-06-29: Interview + iPABCD prompts decided to use codex request_user_input selector (flag `default_mode_request_user_input`, verified); MCP elicitation as stable fallback. See 260629_research_elicitation.
