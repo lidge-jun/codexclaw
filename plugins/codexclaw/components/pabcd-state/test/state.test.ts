@@ -19,11 +19,11 @@ function freshCwd(): string {
   return mkdtempSync(join(tmpdir(), "codexclaw-state-"));
 }
 
-test("readState: missing dir -> default (carries sessionId, phase I)", () => {
+test("readState: missing dir -> default (carries sessionId, phase IDLE)", () => {
   const cwd = freshCwd();
   try {
     const s = readState(cwd, "sess-1");
-    assert.equal(s.phase, "I");
+    assert.equal(s.phase, "IDLE");
     assert.equal(s.sessionId, "sess-1");
     assert.equal(s.flags.interview, false);
   } finally {
@@ -38,7 +38,7 @@ test("readState: corrupt JSON -> default, never throws", () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "sess-2.json"), "{ not json ");
     const s = readState(cwd, "sess-2");
-    assert.equal(s.phase, "I");
+    assert.equal(s.phase, "IDLE");
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
@@ -51,7 +51,7 @@ test("readState: invalid phase value -> default", () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "sess-z.json"), JSON.stringify({ phase: "Z", sessionId: "sess-z" }));
     const s = readState(cwd, "sess-z");
-    assert.equal(s.phase, "I");
+    assert.equal(s.phase, "IDLE");
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
