@@ -8,7 +8,7 @@ fine increments (`022.1`) allowed. IPABCD steps appear as suffixes when work sta
 |------|------|--------|
 | 016 | 016_session_scope_finding.md | RESEARCH (Finding C: per-session) |
 | 017 | 017_pabcd_loop_plan.md | LOOP PLAN (7 passes) |
-| 018 | 018_pass1_P_plan.md | P (Pass 1: state engine) |
+| 018 | 018_pass1_P_plan.md | DONE (Pass 1 P→D, 16/16 tests) |
 | 019 | 019_phase1_implementation_plan.md | mini-P (impl-grade) |
 | 019.1 | 019.1_mini_a_audit.md | mini-A AUDIT |
 | 019.2 | 019.2_mini_a_round2.md | mini-A AUDIT (Finding A/B resolved) |
@@ -16,7 +16,7 @@ fine increments (`022.1`) allowed. IPABCD steps appear as suffixes when work sta
 | 021 | 021_codex_skill_injection.md | TODO |
 | 021.1 | 021.1_codex_rs_skill_mechanism.md | RESEARCH (source-verified) |
 | 022 | 022_pabcd_skill_native.md | TODO |
-| 022.1 | 022.1_pabcd_state_files.md | TODO (session-scoped) |
+| 022.1 | 022.1_pabcd_state_files.md | DONE (state.ts/fsm.ts impl, Pass 1) |
 | 022.2 | 022.2_ipabcd_and_feature_flags.md | RESEARCH+DESIGN |
 | 022.3 | 022.3_interview_goalmode_rules.md | DESIGN (A3 hybrid resolved) |
 | 023 | 023_goal_convention_port.md | TODO (gate SPLIT: budget ships / interview-deny deferred) |
@@ -79,3 +79,5 @@ fine increments (`022.1`) allowed. IPABCD steps appear as suffixes when work sta
 - 2026-06-29 Pass-1 A (plan audit, codex subagent Avicenna): toolchain PASS (Node v24 native .ts + node:test, type:module set), session_id field PASS (codex-rs user_prompt_submit.rs:24/stop.rs:25), omo parity PASS. Blocker found+FIXED: state.ts ORDER ref → moved PHASES const into state.ts (owner of Phase), fsm.ts imports PHASES one-way (no runtime cycle). Plan A-clean.
 
 - 2026-06-29 Pass-1 B+C: implemented state engine; node --test 16/16 PASS. C-gate adversarial audit (codex subagent Epicurus, codex-rs/omo refs): DONE, no concrete defect. Folded 3 low-risk fixes — strict-reconstruction readState (drop unknown keys, omo fidelity), orphan-.tmp cleanup on writeState failure, +2 hardening tests. FSM semantics + session_id consumption verified vs codex-rs user_prompt_submit.rs.
+
+- 2026-06-29 Pass-1 D: IPABCD state engine COMPLETE (Loop Pass 1/7). Full small P→A→B→C→D with 2 parallel + 1 plan + 1 check subagent audits, all codex-rs/omo grounded. 16/16 node:test green. Orchestrator returned to IDLE. NEXT work-phase = Pass 2 (directive hook, T-022c) re-enters at P. Goal f215682e-a05 still active (6 passes remain).
