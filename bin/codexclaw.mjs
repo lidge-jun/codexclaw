@@ -29,9 +29,26 @@ const configGuardCli = join(
   "cli.js",
 );
 
+const cxcOpsCli = join(
+  here,
+  "..",
+  "plugins",
+  "codexclaw",
+  "components",
+  "cxc-ops",
+  "dist",
+  "cli.js",
+);
+
 /** Delegate a subcommand to the compiled config-guard CLI; returns its exit code. */
 function runConfigGuard(subcommand) {
   const res = spawnSync(process.execPath, [configGuardCli, subcommand], { stdio: "inherit" });
+  return typeof res.status === "number" ? res.status : 1;
+}
+
+/** Delegate to the compiled cxc-ops CLI (doctor/reset/chat-search); returns its exit code. */
+function runCxcOps(args) {
+  const res = spawnSync(process.execPath, [cxcOpsCli, ...args], { stdio: "inherit" });
   return typeof res.status === "number" ? res.status : 1;
 }
 
@@ -47,6 +64,11 @@ switch (cmd) {
   case "status":
     process.exit(runConfigGuard("status"));
     break;
+  case "doctor":
+  case "reset":
+  case "chat-search":
+    process.exit(runCxcOps(process.argv.slice(2)));
+    break;
   case "gui":
     console.log("codexclaw: GUI launcher TBD (Phase 2).");
     break;
@@ -55,5 +77,5 @@ switch (cmd) {
     console.log(`codexclaw: '${cmd}' is a Phase 2 command (subagent model config / ocx bridge).`);
     break;
   default:
-    console.log("codexclaw <enable|uninstall|status|subagents|provider|gui>");
+    console.log("codexclaw <enable|uninstall|status|doctor|reset|chat-search|subagents|provider|gui>");
 }

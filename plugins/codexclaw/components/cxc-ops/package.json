@@ -1,0 +1,10 @@
+{
+  "name": "@codexclaw/cxc-ops",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "codexclaw ops CLI — doctor (plugin health), reset (scoped state cleanup), chat-search (app-server thread/search wrapper).",
+  "scripts": {
+    "test": "node --test"
+  }
+}
