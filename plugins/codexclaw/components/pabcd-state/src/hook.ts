@@ -15,6 +15,7 @@
  *  - output shape:        omo rules/src/hook-output.ts:10-16 (camelCase hookSpecificOutput)
  */
 import { readState, writeState, type Phase } from "./state.ts";
+import { hasStageMarkerForPhase, isContextPressureTail, readTranscriptTail } from "./transcript.ts";
 
 export interface UserPromptSubmitPayload {
   hook_event_name: "UserPromptSubmit";
@@ -174,6 +175,24 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
 
   // fail-closed: no trigger and orchestration never activated -> stay silent.
   if (!state.orchestrationActive) return "";
+
+  // R-11 transcript-grounded idempotency (passive modes only; explicit trigger
+  // above already injected). The local injectedTurns flag dedups within a turn,
+  // but turn_id can churn/reset after compaction. Read the transcript tail and:
+  //  - suppress under context-pressure/compaction recovery (don't pile on), and
+  //  - skip when the current phase's stage marker is already present in the tail.
+  const tail = readTranscriptTail(payload.transcript_path);
+  if (isContextPressureTail(tail)) return "";
+  if (hasStageMarkerForPhase(tail, state.phase)) {
+    if (turn) {
+      writeState(payload.cwd, {
+        ...state,
+        lastInjectedPhase: state.phase,
+        injectedTurns: appendTurn(state.injectedTurns, turn),
+      });
+    }
+    return "";
+  }
 
   // mode 2: phase changed since the last injected phase -> full directive.
   if (state.phase !== state.lastInjectedPhase) {

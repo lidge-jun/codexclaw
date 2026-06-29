@@ -256,3 +256,73 @@ test("hybrid: injectedTurns is bounded to 50 (audit blocker #2)", () => {
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+// ── L2.4: transcript-marker idempotency + context-pressure suppression (R-11) ──
+import { writeFileSync } from "node:fs";
+
+test("R-11: passive re-fire with phase marker already in transcript -> no re-inject", () => {
+  const cwd = freshCwd();
+  try {
+    const tpath = join(cwd, "transcript.jsonl");
+    // transcript tail already shows the BUILD stage was injected this phase
+    writeFileSync(
+      tpath,
+      JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: "[codexclaw — B: BUILD]" } }) + "\n",
+    );
+    // active orchestration, phase B, last injected already B (mode 3 territory)
+    writeState(cwd, { ...defaultState("s1"), phase: "B", orchestrationActive: true, lastInjectedPhase: "B" });
+    const payload: UserPromptSubmitPayload = {
+      hook_event_name: "UserPromptSubmit",
+      session_id: "s1",
+      cwd,
+      prompt: "keep going", // no explicit trigger
+      transcript_path: tpath,
+      turn_id: "fresh-turn-after-compaction",
+    };
+    const out = handleUserPromptSubmit(payload);
+    assert.equal(out, "", "should suppress re-injection when marker present in transcript tail");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("R-11: context-pressure transcript suppresses passive injection", () => {
+  const cwd = freshCwd();
+  try {
+    const tpath = join(cwd, "transcript.jsonl");
+    writeFileSync(tpath, "# Compacted Session Handoff\nsummary...\n");
+    writeState(cwd, { ...defaultState("s2"), phase: "C", orchestrationActive: true, lastInjectedPhase: "B" });
+    const payload: UserPromptSubmitPayload = {
+      hook_event_name: "UserPromptSubmit",
+      session_id: "s2",
+      cwd,
+      prompt: "continue",
+      transcript_path: tpath,
+      turn_id: "t-after-compact",
+    };
+    assert.equal(handleUserPromptSubmit(payload), "", "context-pressure tail must suppress injection");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("R-11: explicit trigger still injects even if a marker is present", () => {
+  const cwd = freshCwd();
+  try {
+    const tpath = join(cwd, "transcript.jsonl");
+    writeFileSync(tpath, "[codexclaw — B: BUILD]\n");
+    writeState(cwd, { ...defaultState("s3"), phase: "B", orchestrationActive: true, lastInjectedPhase: "B" });
+    const payload: UserPromptSubmitPayload = {
+      hook_event_name: "UserPromptSubmit",
+      session_id: "s3",
+      cwd,
+      prompt: "orchestrate c now", // explicit trigger overrides dedup
+      transcript_path: tpath,
+      turn_id: "t-trigger",
+    };
+    const out = handleUserPromptSubmit(payload);
+    assert.match(out, /CHECK/, "explicit trigger must inject despite transcript marker");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
