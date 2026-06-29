@@ -6,6 +6,7 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 ## Phase 1 (MVP core) — state mgmt + dev-skill injection, config untouched
 | Step | File | Status |
 |------|------|--------|
+| 016 | 016_session_scope_finding.md | RESEARCH (Finding C: per-session) |
 | 017 | 017_pabcd_loop_plan.md | LOOP PLAN (7 passes) |
 | 018 | 018_pass1_P_plan.md | P (Pass 1: state engine) |
 | 019 | 019_phase1_implementation_plan.md | mini-P (impl-grade) |
@@ -15,7 +16,7 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 | 021 | 021_codex_skill_injection.md | TODO |
 | 021.1 | 021.1_codex_rs_skill_mechanism.md | RESEARCH (source-verified) |
 | 022 | 022_pabcd_skill_native.md | TODO |
-| 022.1 | 022.1_pabcd_state_files.md | TODO |
+| 022.1 | 022.1_pabcd_state_files.md | TODO (session-scoped) |
 | 022.2 | 022.2_ipabcd_and_feature_flags.md | RESEARCH+DESIGN |
 | 022.3 | 022.3_interview_goalmode_rules.md | DESIGN (A3 hybrid resolved) |
 | 023 | 023_goal_convention_port.md | TODO (gate SPLIT: budget ships / interview-deny deferred) |
