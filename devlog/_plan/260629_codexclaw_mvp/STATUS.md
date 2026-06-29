@@ -30,7 +30,7 @@ fine increments (`022.1`) allowed. IPABCD steps appear as suffixes when work sta
 | 027 | 027_config_untouched_guard.md | DONE (Pass 6 — config-guard backup+revert+drift) |
 | 028 | 028_phase1_integration.md | DONE (Pass 6 — activation integrated via config-guard) |
 | 028.1 | 028.1_install_activation.md | DONE (Pass 6 — codex features enable wrapper) |
-| 029 | 029_phase1_verification.md | TODO |
+| 029 | 029_phase1_verification.md | DONE (Pass 7 — S1-S5 gate, see 029.1) |
 
 ## Phase 2 — opencodex + GUI (multi-model subagents)
 | Step | File | Status |
@@ -70,7 +70,7 @@ Decision ledger + decade map: 090_expansion_moc.md (jun 확정 2026-06-30).
 | 010 | 010_repo_skeleton.md | DONE (2026-06-29) |
 | 015 | 015_decisions.md | CONFIRMED |
 | 015.1 | 015.1_porting_map.md | CONFIRMED (port-not-strip) |
-| 070 | 070_packaging.md | TODO |
+| 070 | 070_packaging.md | DONE (Pass 7 — build aggregation; marketplace install documented) |
 
 ## Expansion work-phases (090+) — cli-jaw command/skill + omo component porting
 Decision ledger + decade map: 090_expansion_moc.md (jun 확정 2026-06-30). Analysis filled by parallel gpt-5.5 subagents (J1–J6).
