@@ -12,6 +12,9 @@ Document and verify EXACTLY how a skill in this plugin reaches codex's runtime r
 4. codex discovers each `skills/<name>/SKILL.md`; frontmatter `description` = routing trigger.
 5. On a user prompt, codex auto-selects the skill whose description matches (no orchestrator).
 
+## Ground truth
+See 021.1 for source-verified schema (loader.rs/skills_config.rs).
+
 ## Open items to confirm
 - Does codex read `metadata.short-description` and/or `agents/openai.yaml` for routing? (omo ships both.)
 - Per-skill `references/` is loaded on demand (progressive disclosure) — confirm codex honors it.

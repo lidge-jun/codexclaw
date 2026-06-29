@@ -8,11 +8,13 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 |------|------|--------|
 | 020 | 020_phase1_overview.md | PLANNING |
 | 021 | 021_codex_skill_injection.md | TODO |
+| 021.1 | 021.1_codex_rs_skill_mechanism.md | RESEARCH (source-verified) |
 | 022 | 022_pabcd_skill_native.md | TODO |
 | 022.1 | 022.1_pabcd_state_files.md | TODO |
 | 023 | 023_goal_convention_port.md | TODO |
 | 024 | 024_dev_skills_conversion.md | TODO |
 | 024.1 | 024.1_dev_skill_pilot.md | TODO |
+| 024.2 | 024.2_cli_jaw_conflict_analysis.md | RESEARCH (source-verified) |
 | 025 | 025_subagent_as_employee.md | TODO |
 | 026 | 026_minimal_system_prompt.md | TODO |
 | 027 | 027_config_untouched_guard.md | TODO |
@@ -47,6 +49,8 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 ## Notes
 - 2026-06-29: Plan restructured into 3 phases. opencodex confirmed = provider proxy, not harness.
 - Phase 3 scheduling feasible via `codex exec` + OS scheduler (launchd/cron). No built-in cron.
-- Reference: `devlog/.lazycodex` (gitignored).
+- References: `devlog/.lazycodex` (gitignored); codex-rs sources at
+  `/Users/jun/Developer/codex/121_openai-codex/codex-rs` (core-skills/loader.rs, config/skills_config.rs).
+- Conversion grounded: 021.1 (codex schema) + 024.2 (8 conflict classes). dev cannot be copied verbatim.
 - Decisions confirmed (015): all-13 dev skills, omo goal gate, 3 shippable MVP units.
 - Remaining open: Q-P2-1/2 (GUI reuse, ocx-absent multi-model), Q-P3-2 (result delivery).

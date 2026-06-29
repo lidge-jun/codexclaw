@@ -10,6 +10,24 @@ Canonical source: `/Users/jun/.cli-jaw-3459/skills/dev*` (all 13 active skills),
 dev, dev-architecture, dev-backend, dev-code-reviewer, dev-data, dev-debugging, dev-devops,
 dev-frontend, dev-pabcd, dev-scaffolding, dev-security, dev-testing, dev-uiux-design.
 
+## Grounding (MUST read before converting)
+- 021.1 — codex-rs skill mechanism (EXACT frontmatter schema, openai.yaml, routing, deny_unknown_fields).
+- 024.2 — cli-jaw conflict analysis (conflict classes C1-C8, per-skill severity, porting order).
+- Exemplar: `devlog/.lazycodex/plugins/omo/skills/*` (working codex skills).
+
+## Exact target frontmatter (codex-rs SkillFrontmatter)
+```yaml
+---
+name: <name>
+description: "MUST USE for ... <trigger phrases>"
+metadata:
+  short-description: <one-liner>
+---
+```
+Optional sidecar `openai.yaml` for interface(display_name/default_prompt) +
+`policy.allow_implicit_invocation` + `dependencies.tools`. NO `keywords`, NO `search_terms` in
+frontmatter (ignored / may error under deny_unknown_fields).
+
 ## Per-skill conversion
 1. `description` → "MUST USE for ..." trigger dictionary (drives codex auto-routing).
 2. `metadata.keywords` → `metadata.short-description` (+ optional `agents/openai.yaml` with
