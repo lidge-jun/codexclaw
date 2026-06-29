@@ -31,7 +31,7 @@ const CREATE_GOAL_TOOL_NAME = "create_goal";
 const CREATE_GOAL_WARNING =
   "Use create_goal with objective only. Omit token_budget so the goal stays unlimited, and put lifecycle status changes on update_goal.";
 
-import { getGoalActiveStatus, suppressesInterview, type GoalActiveDeps } from "./goal-active.ts";
+import { getGoalActiveStatus, suppressesInterview, type GoalActiveDeps, type GoalActiveStatus } from "./goal-active.ts";
 
 const REQUEST_USER_INPUT_TOOL = "request_user_input";
 const GOAL_MODE_DENY_REASON =
@@ -110,6 +110,12 @@ export function applyGoalModeInterviewGuard(payload: PreToolUsePayload, deps: Go
   if (payload.tool_name !== REQUEST_USER_INPUT_TOOL) return "";
   const status = getGoalActiveStatus(payload.session_id, deps);
   if (!suppressesInterview(status)) return ""; // goal inactive -> allow
+  return goalModeInterviewDenyEnvelope(status);
+}
+
+/** The L11.2 deny envelope (trailing newline). Shared by the guard and the
+ *  fail-closed dispatch path so both emit byte-identical output. */
+export function goalModeInterviewDenyEnvelope(status: GoalActiveStatus): string {
   return `${JSON.stringify({
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
@@ -118,4 +124,40 @@ export function applyGoalModeInterviewGuard(payload: PreToolUsePayload, deps: Go
       additionalContext: `${GOAL_MODE_DENY_REASON} (goal-active=${status})`,
     },
   })}\n`;
+}
+
+/** Best-effort detector: does this raw hook payload look like a
+ *  request_user_input PreToolUse call? Never throws. Used so the fail-closed
+ *  path can still deny when full parsing/status lookup throws. */
+export function rawLooksLikeRequestUserInput(raw: string): boolean {
+  try {
+    const parsed = JSON.parse((raw ?? "").trim()) as unknown;
+    return (
+      isRecord(parsed) &&
+      parsed.hook_event_name === "PreToolUse" &&
+      parsed.tool_name === REQUEST_USER_INPUT_TOOL
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Fail-CLOSED PreToolUse dispatch (R-9). Runs the budget guard then the
+ * interview deny. If ANYTHING throws while the payload looks like a
+ * request_user_input call, returns the deny envelope instead of failing open
+ * (status reported as "unreadable"). All other failures pass through ("").
+ *
+ * This must be the cli.ts entry point for pre-tool-use so the global fail-safe
+ * cannot silently allow an interview in goal mode.
+ */
+export function handlePreToolUseFailClosed(raw: string, deps: GoalActiveDeps = {}): string {
+  try {
+    const payload = parsePreToolUse(raw);
+    if (!payload) return "";
+    // Each guard is tool-name-scoped, so at most one fires.
+    return applyGoalBudgetGuard(payload) || applyGoalModeInterviewGuard(payload, deps);
+  } catch {
+    return rawLooksLikeRequestUserInput(raw) ? goalModeInterviewDenyEnvelope("unreadable") : "";
+  }
 }

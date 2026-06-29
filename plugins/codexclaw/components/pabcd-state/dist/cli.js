@@ -19,7 +19,7 @@
 import { readFileSync } from "node:fs";
 import { handleStop, handleUserPromptSubmit } from "./hook.js";
 import { parseStop, parseUserPromptSubmit } from "./parse.js";
-import { applyGoalBudgetGuard, applyGoalModeInterviewGuard, parsePreToolUse } from "./goal-gate.js";
+import { handlePreToolUseFailClosed } from "./goal-gate.js";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.js";
 
 function readStdin()         {
@@ -53,8 +53,17 @@ function main()       {
   const raw = readStdin();
   let output = "";
 
-  // Fail-safe: any handler/state IO failure must not block codex. Swallow the
-  // error, emit nothing, and exit 0 (matches the docstring guarantee).
+  // pre-tool-use is handled by a dedicated FAIL-CLOSED dispatcher: a thrown
+  // error on a request_user_input call must DENY (R-9), never fail open. It is
+  // outside the generic fail-open try below so the swallow cannot reopen the
+  // interview in goal mode.
+  if (event === "pre-tool-use") {
+    process.stdout.write(handlePreToolUseFailClosed(raw));
+    process.exit(0);
+  }
+
+  // Fail-safe: any handler/state IO failure for the remaining events must not
+  // block codex. Swallow the error, emit nothing, and exit 0.
   try {
     if (event === "user-prompt-submit") {
       const payload = parseUserPromptSubmit(raw);
@@ -62,13 +71,6 @@ function main()       {
     } else if (event === "stop") {
       const payload = parseStop(raw);
       if (payload) output = handleStop(payload);
-    } else if (event === "pre-tool-use") {
-      const payload = parsePreToolUse(raw);
-      if (payload) {
-        // goal-budget guard (create_goal) OR goal-mode interview deny
-        // (request_user_input). Each is tool-name-scoped, so at most one fires.
-        output = applyGoalBudgetGuard(payload) || applyGoalModeInterviewGuard(payload);
-      }
     }
   } catch {
     output = "";

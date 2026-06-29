@@ -7,6 +7,8 @@ import {
   parsePreToolUse,
   applyGoalBudgetGuard,
   applyGoalModeInterviewGuard,
+  handlePreToolUseFailClosed,
+  rawLooksLikeRequestUserInput,
   type PreToolUsePayload,
 } from "../src/goal-gate.ts";
 import type { GoalActiveDeps } from "../src/goal-active.ts";
@@ -160,4 +162,83 @@ test("applyGoalModeInterviewGuard: non-request_user_input tool -> passthrough ''
   };
   assert.equal(applyGoalModeInterviewGuard(ptu("shell", { command: "ls" }), spyDeps), "");
   assert.equal(opened, false);
+});
+
+// --- handlePreToolUseFailClosed (L11.2 A-gate: deny must survive a throw) -----
+
+function rawPtu(toolName: string, toolInput: unknown = {}): string {
+  return JSON.stringify({
+    hook_event_name: "PreToolUse",
+    session_id: "s1",
+    cwd: "/tmp/x",
+    tool_name: toolName,
+    tool_input: toolInput,
+  });
+}
+
+test("rawLooksLikeRequestUserInput: detects request_user_input, rejects others/garbage", () => {
+  assert.equal(rawLooksLikeRequestUserInput(rawPtu("request_user_input")), true);
+  assert.equal(rawLooksLikeRequestUserInput(rawPtu("shell")), false);
+  assert.equal(rawLooksLikeRequestUserInput("not json"), false);
+  assert.equal(rawLooksLikeRequestUserInput(""), false);
+});
+
+test("handlePreToolUseFailClosed: throwing status lookup on request_user_input -> DENY (fail closed)", () => {
+  // Simulate the A-gate hole: getGoalActiveStatus throws (not its own internal
+  // catch — an unexpected throw). The dispatcher must DENY, not fail open.
+  const throwingDeps: GoalActiveDeps = {
+    dbPath: realDbPath(),
+    openDb: () => {
+      throw new Error("boom");
+    },
+  };
+  // openDb throwing is caught inside getGoalActiveStatus -> "unreadable" -> deny.
+  const out = handlePreToolUseFailClosed(rawPtu("request_user_input"), throwingDeps);
+  assert.notEqual(out, "");
+  assert.match(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, /goal-active=unreadable/);
+});
+
+test("handlePreToolUseFailClosed: deps that throw OUTSIDE getGoalActiveStatus still DENY request_user_input", () => {
+  // dbPath getter that throws synchronously when resolved would escape the
+  // inner catch; emulate by passing a deps object whose dbPath access throws.
+  const hostileDeps = Object.create(null, {
+    dbPath: {
+      enumerable: true,
+      get() {
+        throw new Error("dbPath explode");
+      },
+    },
+  }) as GoalActiveDeps;
+  const out = handlePreToolUseFailClosed(rawPtu("request_user_input"), hostileDeps);
+  assert.notEqual(out, "", "request_user_input must DENY even when the guard throws");
+  assert.match(JSON.parse(out.trimEnd()).hookSpecificOutput.permissionDecision, /deny/);
+});
+
+test("handlePreToolUseFailClosed: throw on a NON-interview tool -> passthrough '' (fail open is fine)", () => {
+  const hostileDeps = Object.create(null, {
+    dbPath: {
+      enumerable: true,
+      get() {
+        throw new Error("dbPath explode");
+      },
+    },
+  }) as GoalActiveDeps;
+  // shell never reaches the status lookup, but even if a throw happened the
+  // non-interview path is allowed to fail open.
+  assert.equal(handlePreToolUseFailClosed(rawPtu("shell", { command: "ls" }), hostileDeps), "");
+});
+
+test("handlePreToolUseFailClosed: active goal request_user_input -> deny via normal path", () => {
+  const out = handlePreToolUseFailClosed(rawPtu("request_user_input"), depsWithStatus("active"));
+  assert.match(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, /goal-active=active/);
+});
+
+test("handlePreToolUseFailClosed: create_goal budget guard still fires through dispatcher", () => {
+  const out = handlePreToolUseFailClosed(rawPtu("create_goal", { objective: "x", token_budget: 5 }));
+  assert.match(JSON.parse(out.trimEnd()).hookSpecificOutput.permissionDecisionReason, /token_budget/);
+});
+
+test("handlePreToolUseFailClosed: malformed JSON -> passthrough ''", () => {
+  assert.equal(handlePreToolUseFailClosed("not json"), "");
+  assert.equal(handlePreToolUseFailClosed(""), "");
 });
