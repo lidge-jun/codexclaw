@@ -90,7 +90,7 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 | L13 | 130 | dev-architecture + dev-debugging <- omo(debugging, ast-grep, comment-checker) | DONE | 110 |
 | L14 | 140 | dev-backend + dev-data <- omo(programming) | DONE | 110 |
 | L15 | 150 | dev-frontend + dev-uiux-design <- omo(frontend, visual-qa, designpowers) | DONE | 110 |
-| L16 | 160 | dev-testing + dev-code-reviewer <- omo(review-work, remove-ai-slops) | PLANNED | 110 |
+| L16 | 160 | dev-testing + dev-code-reviewer <- omo(review-work, remove-ai-slops) | DONE | 110 |
 | L17 | 170 | dev-security + dev-devops + dev-scaffolding <- omo(refactor, init-deep, git-master) | PLANNED | 110 |
 | L18 | 180 | Unified search hub + Korean search intent guard (search ON-DEMAND, `allow_implicit_invocation:false`) <- omo(ultimate-browsing, ultraresearch) | PLANNED | 120_unified_search_hub |
 | L19 | 190 | skill_hub REWRITE (codexclaw-specific; default trigger = dev only) | BLOCKED(L12-L17) | 100_skill_hub |
