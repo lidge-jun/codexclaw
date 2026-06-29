@@ -39,15 +39,31 @@ the missing control surface using the codex-native `$ + hook` model.
 | Ln | decade | scope | status |
 |----|--------|-------|--------|
 | L1 | 010 | Parity audit: cli-jaw/jawcode/omo vs codexclaw, `$`+hook UX gap map | DONE |
-| L2 | 020 | FSM legal-transition table + four-transition attest gate | PLANNED |
+| L2 | 020 | FSM legal-transition table + four-transition attest gate | DONE |
 | L3 | 030 | `$cxc-orchestrate` grammar + hook wiring to `transition()` (the missing wire) | PLANNED |
 | L4 | 040 | `cxc orchestrate` CLI over the same file state | PLANNED |
-| L5 | 050 | `status` / `reset` / `D` chat affordances + ledger-on-transition | PLANNED |
+| L5 | 050 | `status` / `reset` / `D` chat affordances + phase footer directive + ledger-on-transition | PLANNED |
 | L6 | 060 | Stop-continuation loop with omo termination guards | PLANNED |
-| L7 | 070 | human free-pass vs agent-gated discriminator + pabcd skill-doc rewrite | PLANNED |
+| L7 | 070 | `$cxc-goalplan` + `$cxc-loop` (setGoal-equiv + continuation) + human/agent source split + pabcd skill-doc rewrite | PLANNED |
 
 ## Research result
 
 - `010_L1_parity_audit.md` — synthesized parity-gap findings. Verdict: L1-L28 MVP is shipped,
   but cli-jaw parity is not complete because chat/CLI phase-control is not wired to the FSM yet.
   L2-L7 are the follow-up hardening loops for that control-surface gap.
+
+## Interview decisions (2026-06-30, locked)
+
+- **Control surface**: `$cxc-orchestrate` ships as a real skill (so `$` autocomplete lists it),
+  and the UserPromptSubmit hook parses an inline `orchestrate <phase> [--attest {...}]` token to
+  drive `transition()`. Plus `$cxc-loop` + `$cxc-goalplan` skills for the autonomous goal loop.
+- **Human vs agent split = invocation source** (cli-jaw uses a boss token; codexclaw has none).
+  A chat-submitted `$cxc-orchestrate X` is the human free-pass (advisory, no attest required);
+  an agent/CLI-invoked transition is gated (forward edges require `--attest`). The hook can tell
+  the two apart because a chat submission and an agent tool-call enter through different paths.
+- **Phase footer**: codex has no status UI, so the resting phase is surfaced by a hook-injected
+  directive asking the model to print `IPABCD: <phase>` at the end of each reply. The stable
+  resting states are `IDLE` and the work phases `I/P/A/B/C`; `D` is a transition that closes a
+  work-phase back to IDLE, so it is shown only on the closing turn, never as a resting badge.
+- **Architecture hub**: `structure/INDEX.md` documents the codex-runtime → plugin → skills/hooks/CLI
+  → `.codexclaw/` state model (created this loop).
