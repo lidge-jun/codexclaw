@@ -46,7 +46,12 @@ Purpose: record how the loop-ordered `mvp_res/` docs were produced, so the `000_
   applied: L12–L18 ANALYZED→PLANNED (decision-complete: full Scope/IPABCD/Acceptance/QA/
   References/resolved Blocked-on), L19 stays BLOCKED(L12-L17); INDEX Cluster-2 rows match.
 - Concurrent commit `4e6539f` (parallel session): status-legend expansion + search on-demand flip.
+- Pass 3/4 parity sweep (Cluster 3 + Cluster 4, L20–L28): docs-only B correction recorded in
+  `pass3_B_cluster3_4_parity_sweep.md`. Recent implementation/doc-close commits show L20-L28
+  shipped; the sweep aligned stale sub-loop Status lines (L9.3/L9.4, L12.1-L17.3, L26.1/L26.2)
+  to DONE, clarified that old `260629_codexclaw_mvp/` files are historical source inputs rather
+  than current Status authority, and corrected L20.3 reset wording to match shipped scoped cleanup.
 
 ## Verification convention
 - Component code: `node --test` (Node v24 native TS, no build toolchain); build via
-  `node:module.stripTypeScriptTypes` aggregation. Current gate: 147/147 tests green.
+  `node:module.stripTypeScriptTypes` aggregation. Current gate: 223/223 tests green.

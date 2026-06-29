@@ -3,8 +3,10 @@
 Status: CANONICAL INDEX · 2026-06-30 · supersedes the decade-themed layout in `../260629_codexclaw_mvp/`
 
 > This folder re-expresses the codexclaw plan in **execution (loop) order**, not decade-theme
-> order. The old `260629_codexclaw_mvp/` files remain as the source-of-record reference; here each
-> **loop = one small IPABCD cycle = one decade folder slot**. Research is consolidated up front.
+> order. The old `260629_codexclaw_mvp/` files remain as historical source/reference inputs only;
+> current Status lines, resolved decisions, and verification evidence live in this `mvp_res/`
+> folder. Here each **loop = one small IPABCD cycle = one decade folder slot**. Research is
+> consolidated up front.
 
 ## Naming convention (LOCKED)
 
