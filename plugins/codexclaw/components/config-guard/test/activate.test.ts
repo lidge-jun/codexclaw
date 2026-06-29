@@ -22,9 +22,18 @@ function makeFakeCodex(configPath: string, initial: Record<string, boolean>) {
   const run: CodexRunner = (args) => {
     calls.push([...args]);
     if (args[0] === "features" && args[1] === "list") {
-      const out = Object.entries(state)
-        .map(([k, v]) => `${k} stable ${v ? "enabled" : "disabled"}`)
-        .join("\n");
+      // Emit the REAL `codex features list` format: `{name} {stage} {true|false}`, and include
+      // sibling keys that contain a declared key as a substring (multi_agent_v2, plugin_hooks) so
+      // the integration path also proves exact-first-field parsing (no clobber).
+      const rows: Array<[string, string, boolean]> = [
+        ...Object.entries(state).map(
+          ([k, v]) => [k, "stable", v] as [string, string, boolean],
+        ),
+        ["multi_agent_v2", "under-development", false],
+        ["plugin_hooks", "removed", false],
+      ];
+      rows.sort((a, b) => a[0].localeCompare(b[0]));
+      const out = rows.map(([k, stage, v]) => `${k} ${stage} ${v}`).join("\n");
       return { stdout: out, stderr: "", exitCode: 0 };
     }
     if (args[0] === "features" && args[1] === "enable") {

@@ -25,21 +25,24 @@ export interface CodexRunResult {
 // Injected runner: invokes the real `codex` binary in production, a fake in tests.
 export type CodexRunner = (args: readonly string[]) => CodexRunResult;
 
-// Parse `codex features list` output into a name -> enabled map. The CLI prints one feature
-// per line; we look for the declared keys and a trailing enabled/disabled (or true/false) token.
+// Parse `codex features list` output into a name -> enabled map. The official CLI prints one
+// feature per line as three whitespace-padded columns — `{name}  {stage}  {true|false}` — sorted
+// by name (codex-rs cli/src/main.rs:1427-1429). We match the FIRST field exactly (not a substring)
+// so sibling keys like `multi_agent_v2`/`plugin_hooks` never clobber `multi_agent`/`hooks`, and read
+// the boolean from the LAST field.
 export function parseFeaturesList(stdout: string): Map<string, boolean> {
+  const declared = new Set<string>(DECLARED_FEATURES);
   const result = new Map<string, boolean>();
   for (const rawLine of stdout.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (line.length === 0) continue;
-    for (const key of DECLARED_FEATURES) {
-      if (!line.includes(key)) continue;
-      const lower = line.toLowerCase();
-      // Prefer explicit state tokens; default to false when ambiguous.
-      const enabled =
-        /\b(enabled|on|true|yes)\b/.test(lower) && !/\b(disabled|off|false|no)\b/.test(lower);
-      result.set(key, enabled);
-    }
+    const fields = rawLine.trim().split(/\s+/);
+    if (fields.length < 2) continue;
+    const name = fields[0];
+    if (!declared.has(name)) continue;
+    const last = fields[fields.length - 1].toLowerCase();
+    if (last === "true") result.set(name, true);
+    else if (last === "false") result.set(name, false);
+    // Any other trailing token (unexpected format) is ignored; readDeclaredState then
+    // treats the flag as not-seen -> not-enabled, which is the safe default.
   }
   return result;
 }
