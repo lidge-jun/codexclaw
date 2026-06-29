@@ -136,3 +136,37 @@ test("writeState: no orphan .tmp left after a successful write", () => {
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test("injectedTurns: defaults to [] on fresh state", () => {
+  const cwd = freshCwd();
+  try {
+    const s = readState(cwd, "it-1");
+    assert.deepEqual(s.injectedTurns, []);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("injectedTurns: roundtrips through write -> read", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("it-2"), injectedTurns: ["t1", "t2"] });
+    const s = readState(cwd, "it-2");
+    assert.deepEqual(s.injectedTurns, ["t1", "t2"]);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("injectedTurns: invalid persisted value -> [] (strict reconstruct)", () => {
+  const cwd = freshCwd();
+  try {
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "it-3.json"), JSON.stringify({ phase: "P", sessionId: "it-3", injectedTurns: [1, 2, "ok"] }));
+    const s = readState(cwd, "it-3");
+    assert.deepEqual(s.injectedTurns, []);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

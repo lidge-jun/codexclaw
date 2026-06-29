@@ -17,6 +17,7 @@ export interface State {
   updatedAt: string;
   flags: Flags;
   supersededBy: string | null;
+  injectedTurns: string[];
 }
 
 export interface LedgerEntry {
@@ -45,6 +46,7 @@ export function defaultState(sessionId: string, slug = ""): State {
     updatedAt: new Date().toISOString(),
     flags: { interview: false, auditPassed: false, checkPassed: false },
     supersededBy: null,
+    injectedTurns: [],
   };
 }
 
@@ -76,6 +78,10 @@ export function readState(cwd: string, sessionId: string): State {
         checkPassed: parsed.flags?.checkPassed === true,
       },
       supersededBy: typeof parsed.supersededBy === "string" ? parsed.supersededBy : null,
+      injectedTurns:
+        Array.isArray(parsed.injectedTurns) && parsed.injectedTurns.every((x) => typeof x === "string")
+          ? parsed.injectedTurns
+          : [],
     };
   } catch {
     return defaultState(sessionId);
