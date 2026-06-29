@@ -34,10 +34,11 @@ Three layers, each minding its own job:
 ## Build sequence
 
 See the numbered step files in this folder:
-- 01_repo_and_plugin_skeleton.md   (DONE in this session)
-- 02_provider_bridge.md
-- 03_pabcd_state_machine.md
-- 04_subagent_config.md
-- 05_gui.md
-- 06_dev_skills_migration.md
-- 07_packaging_and_marketplace.md
+- 000_research.md                  (durable context anchor — read first)
+- 010_repo_skeleton.md             (DONE)
+- 020_provider_bridge.md
+- 030_pabcd_state.md
+- 040_subagent_config.md
+- 050_gui.md
+- 060_dev_skills_migration.md
+- 070_packaging.md

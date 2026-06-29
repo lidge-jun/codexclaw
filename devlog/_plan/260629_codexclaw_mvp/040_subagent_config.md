@@ -1,4 +1,4 @@
-# 04 — Subagent Config
+# 040 — Subagent Config
 
 Status: TODO
 

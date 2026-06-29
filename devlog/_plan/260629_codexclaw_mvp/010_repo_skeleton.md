@@ -1,4 +1,4 @@
-# 01 — Repo & Plugin Skeleton
+# 010 — Repo & Plugin Skeleton
 
 Status: DONE (2026-06-29)
 
@@ -18,4 +18,4 @@ Stand up the codexclaw monorepo with a valid single-plugin scaffold + marketplac
 - `python3 .../validate_plugin.py plugins/codexclaw` passes.
 
 ## Next
-02_provider_bridge.
+020_provider_bridge.
