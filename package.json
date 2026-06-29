@@ -20,6 +20,6 @@
   ],
   "scripts": {
     "build": "node plugins/codexclaw/scripts/build.mjs",
-    "test": "node --test \"plugins/codexclaw/components/pabcd-state/test/*.test.ts\" \"plugins/codexclaw/components/config-guard/test/*.test.ts\" \"plugins/codexclaw/components/cxc-ops/test/*.test.ts\" \"plugins/codexclaw/test/*.test.mjs\""
+    "test": "node --test \"plugins/codexclaw/components/pabcd-state/test/*.test.ts\" \"plugins/codexclaw/components/config-guard/test/*.test.ts\" \"plugins/codexclaw/components/cxc-ops/test/*.test.ts\" \"plugins/codexclaw/components/provider-bridge/test/*.test.ts\" \"plugins/codexclaw/test/*.test.mjs\""
   }
 }

@@ -1,29 +1,52 @@
 #!/usr/bin/env node
 /**
- * provider-bridge — SessionStart hook entry.
+ * provider-bridge — SessionStart hook entry (L23, detect-only).
  *
- * Responsibility:
- *  - Detect whether `ocx` (opencodex) is installed and running.
- *  - If installed: DETECT-ONLY — read the available subagent/model list.
- *    Never auto-run `ocx ensure` (jun decision Q-P2-2: detect-only).
- *  - If absent: exit 0 silently (graceful skip) — codexclaw still works
- *    on codex's native model catalog (NATIVE_OPENAI_MODELS), not just one
- *    default model.
- *
- * codexclaw never bundles opencodex. It is an optional external dependency,
- * so updates are tracked by opencodex itself (npm/brew), not by codexclaw.
- *
- * Phase 1 scope: this is a deliberate graceful no-op. Active opencodex
- * DETECTION (detect-only, no ensure) is Phase 2 work (opencodex + GUI),
- * tracked in mvp_res L23 (provider bridge). Shipping it as a silent
- * exit-0 SessionStart hook keeps the plugin valid and side-effect-free
- * until that work lands, rather than asserting behavior it does not have.
-*/
+ * Detects opencodex (`ocx`) and emits a machine-readable provider status line
+ * for downstream catalog (L25) and GUI (L27) consumers. DETECT-ONLY (Q-P2-2):
+ * never runs `ocx ensure`, never mutates codex config, never vendors opencodex.
+ * Always exits 0 — a missing or broken ocx must not fail the session; the status
+ * line carries native/provider/error so consumers can react.
+ */
+import { spawnSync } from "node:child_process";
+import { detectOcx, renderStatusLine, type DetectDeps } from "./detect.ts";
+
+/** Real PATH resolver via the platform `command -v` / `where`. */
+function whichOcx(cmd: string): string | null {
+  const finder = process.platform === "win32" ? "where" : "command";
+  const args = process.platform === "win32" ? [cmd] : ["-v", cmd];
+  try {
+    const res = spawnSync(finder, args, { encoding: "utf8", shell: process.platform !== "win32" });
+    if (res.status === 0 && typeof res.stdout === "string") {
+      const path = res.stdout.split("\n")[0]?.trim();
+      return path && path.length > 0 ? path : null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/** Real ocx status reader (detect-only — `status --json` is read-only; never
+ *  `ensure`/`sync`, which would mutate codex config). */
+function runOcxStatus(ocxPath: string): { status: number | null; stdout: string } {
+  const res = spawnSync(ocxPath, ["status", "--json"], { encoding: "utf8", timeout: 8000 });
+  return { status: res.status, stdout: typeof res.stdout === "string" ? res.stdout : "" };
+}
+
+export function runBridge(deps: DetectDeps = { which: whichOcx, runStatus: runOcxStatus }): number {
+  const status = detectOcx(deps);
+  // SessionStart additionalContext: a single JSON status line for consumers.
+  process.stdout.write(`${renderStatusLine(status)}\n`);
+  return 0; // always 0 — detect-only never fails the session.
+}
+
 const [, , kind, event] = process.argv;
 if (kind === "hook" && event === "session-start") {
-  // Phase 2 (mvp_res L23) adds: DETECT ocx (read model/subagent list), emit additionalContext.
-  // Detect-only — never auto-run `ocx ensure` (Q-P2-2).
-  // Phase 1 intentionally exits 0 so codexclaw runs on the default model unchanged.
-  process.exit(0);
+  process.exit(runBridge());
+}
+// Allow `provider-bridge detect` for cxc doctor / manual probes.
+if (kind === "detect") {
+  process.exit(runBridge());
 }
 process.exit(0);
