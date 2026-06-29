@@ -1,0 +1,5 @@
+interface:
+  display_name: "Dev: Testing"
+  short_description: "Testing and QA router: strategy, harness choice, CI gates, TDD, and coverage."
+policy:
+  allow_implicit_invocation: false

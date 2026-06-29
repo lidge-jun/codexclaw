@@ -1,0 +1,5 @@
+interface:
+  display_name: "Dev: Code Reviewer"
+  short_description: "Code review router: findings, severity, verdicts, and review workflow."
+policy:
+  allow_implicit_invocation: false

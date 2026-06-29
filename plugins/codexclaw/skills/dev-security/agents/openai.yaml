@@ -1,0 +1,5 @@
+interface:
+  display_name: "Dev: Security"
+  short_description: "Security router for auth, validation, secrets, supply chain, and hardening."
+policy:
+  allow_implicit_invocation: false
