@@ -1,7 +1,6 @@
 ---
 name: dev-devops
 description: "MUST USE for DevOps, infrastructure, or delivery work — container builds, deploy pipelines, Kubernetes, Infrastructure as Code, SRE foundations, edge/serverless, and ML infrastructure. Triggers: 'Dockerfile', 'container build', 'deploy', 'CI/CD', 'Kubernetes', 'K8s', 'Terraform', 'Pulumi', 'Helm', 'SRE', 'SLI', 'SLO', 'error budget', 'serverless', 'edge', '배포', '인프라', '쿠버네티스'."
-license: Complete terms in LICENSE.txt
 metadata:
   short-description: "Container, deploy, Kubernetes, IaC, and SRE guidance for production delivery."
 ---

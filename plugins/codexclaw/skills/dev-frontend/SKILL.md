@@ -1,7 +1,6 @@
 ---
 name: dev-frontend
 description: "MUST USE for any frontend, web UI, or visual implementation work — building, styling, or redesigning pages/components, responsive layouts, motion, component architecture, and production-surface polish. Triggers: 'frontend', 'UI', 'component', 'CSS', 'responsive', 'animation', 'React', 'Vue', 'Svelte', 'Tailwind', 'layout', 'styling', 'redesign', 'mockup', 'anti-slop', '프론트엔드', 'UI 작업', '반응형', '디자인 수정'."
-license: Complete terms in LICENSE.txt
 metadata:
   short-description: "Production-grade frontend implementation with responsive, accessible, anti-slop UI guidance."
 ---

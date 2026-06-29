@@ -17,6 +17,33 @@ function readImplicit(yamlPath) {
   return m ? m[1] === "true" : null;
 }
 
+/** Extract the YAML frontmatter block (between the first two `---` lines). */
+function readFrontmatter(skillPath) {
+  const body = readFileSync(skillPath, "utf8");
+  const m = body.match(/^---\n([\s\S]*?)\n---/);
+  return m ? m[1] : null;
+}
+
+test("skill SKILL.md frontmatter carries no forbidden fields (license/keywords)", () => {
+  // L12-L17 Must-NOT-Have + codex skill schema: only name/description/metadata
+  // are allowed at the top level. `license:` and `keywords:` are cli-jaw-source
+  // leaks that must be stripped during the real-content port.
+  const skillsDir = join(pluginRoot, "skills");
+  const offenders = [];
+  for (const name of readdirSync(skillsDir)) {
+    const sd = join(skillsDir, name);
+    if (!statSync(sd).isDirectory()) continue;
+    const skillMd = join(sd, "SKILL.md");
+    if (!existsSync(skillMd)) continue;
+    const fm = readFrontmatter(skillMd);
+    assert.notEqual(fm, null, `skill ${name} SKILL.md has no frontmatter block`);
+    for (const line of fm.split("\n")) {
+      if (/^(license|keywords)\s*:/.test(line)) offenders.push(`${name}: ${line.trim()}`);
+    }
+  }
+  assert.deepEqual(offenders, [], `forbidden frontmatter fields found:\n${offenders.join("\n")}`);
+});
+
 test("S3: only `dev` skill is implicit; all routers + pabcd are on-demand", () => {
   const skillsDir = join(pluginRoot, "skills");
   const implicit = [];
