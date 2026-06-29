@@ -1,6 +1,6 @@
 # L19 (Decade 190) -- skill_hub REWRITE (codexclaw-specific)
 
-Status: BLOCKED(L12-L17)
+Status: DONE
 Cluster: 2 (part B) · Phase: expansion · Shorthand: cxc
 Source-of-record: 260629_codexclaw_mvp/100_skill_hub.md (J2), 090.1 J-6/J-11, J-4/H4
 

@@ -93,7 +93,7 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 | L16 | 160 | dev-testing + dev-code-reviewer <- omo(review-work, remove-ai-slops) | DONE | 110 |
 | L17 | 170 | dev-security + dev-devops + dev-scaffolding <- omo(refactor, init-deep, git-master) | DONE | 110 |
 | L18 | 180 | Unified search hub + Korean search intent guard (search ON-DEMAND, `allow_implicit_invocation:false`) <- omo(ultimate-browsing, ultraresearch) | DONE | 120_unified_search_hub |
-| L19 | 190 | skill_hub REWRITE (codexclaw-specific; default trigger = dev only) | BLOCKED(L12-L17) | 100_skill_hub |
+| L19 | 190 | skill_hub REWRITE (codexclaw-specific; default trigger = dev only) | DONE | 100_skill_hub |
 
 ### Cluster 3 -- Expansion ops  [L20-L22]
 | Loop | Decade | Slug | Status | Source-of-record |
