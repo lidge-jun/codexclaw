@@ -9,7 +9,7 @@ fine increments (`022.1`) allowed. IPABCD steps appear as suffixes when work sta
 | 016 | 016_session_scope_finding.md | RESEARCH (Finding C: per-session) |
 | 017 | 017_pabcd_loop_plan.md | LOOP PLAN (7 passes) |
 | 018 | 018_pass1_P_plan.md | DONE (Pass 1 P→D, 16/16 tests) |
-| 018.2 | 018.2_pass2_P_plan.md | P (Pass 2: directive hook) |
+| 018.2 | 018.2_pass2_P_plan.md | DONE (Pass 2 P→D, 34/34 tests) |
 | 019 | 019_phase1_implementation_plan.md | mini-P (impl-grade) |
 | 019.1 | 019.1_mini_a_audit.md | mini-A AUDIT |
 | 019.2 | 019.2_mini_a_round2.md | mini-A AUDIT (Finding A/B resolved) |
@@ -84,3 +84,5 @@ fine increments (`022.1`) allowed. IPABCD steps appear as suffixes when work sta
 - 2026-06-29 Pass-1 D: IPABCD state engine COMPLETE (Loop Pass 1/7). Full small P→A→B→C→D with 2 parallel + 1 plan + 1 check subagent audits, all codex-rs/omo grounded. 16/16 node:test green. Orchestrator returned to IDLE. NEXT work-phase = Pass 2 (directive hook, T-022c) re-enters at P. Goal f215682e-a05 still active (6 passes remain).
 
 - 2026-06-29 Pass-2 A (plan audit, subagent Arendt; Mill hit 429): payload/output/idempotency/cli-argv/no-cycle PASS vs codex-rs (turn_id always present, snake_case in/camelCase out). BLOCKER #3 ledger-spam (Stop appended every turn) → FIXED: Stop now fully PASSIVE in Pass 2 (no ledger/no phase write). #1 state literal trap flagged for B (must add injectedTurns to spread-less reconstruct literal). Plan A-clean.
+
+- 2026-06-29 Pass-2 B+C+D: directive-injection hook COMPLETE (Loop Pass 2/7). NEW src/parse.ts (defensive snake_case parsers, null-on-corrupt) + src/hook.ts (detectTrigger EN+KO, phaseDirective table, buildContextOutput omo-envelope CRLF/trim/32k cap, handleUserPromptSubmit idempotent per session+turn via injectedTurns, handleStop PASSIVE no-op) + cli.ts stdin dispatch (try/catch exit-0 guard). C-gate: node:test + independent codex subagent (Galileo) adversarial audit vs codex-rs schema.rs + omo hook-output.ts. Verdict FAIL→FIXED 1 blocker: bare 감사 regex injected AUDIT on everyday "감사합니다" (thanks) → AUDIT trigger now requires strong action marker (해줘/해라/하자/좀/진행/부탁). Post-fix node:test 34/34 green. Commits bf7a5ba (B), 8c1d948 (C). Orchestrator IDLE. NEXT = Pass 3 (goal budget gate, T-023) re-enters at P. 5 passes remain.
