@@ -326,3 +326,15 @@ test("R-11: explicit trigger still injects even if a marker is present", () => {
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+// ── L10.1: question-shape directive ──
+import { QUESTION_SHAPE_DIRECTIVE } from "../src/hook.ts";
+
+test("L10.1: question directive mandates background + recommendation-first options + impact + request_user_input", () => {
+  assert.match(QUESTION_SHAPE_DIRECTIVE, /request_user_input only/i);
+  assert.match(QUESTION_SHAPE_DIRECTIVE, /background/i);
+  assert.match(QUESTION_SHAPE_DIRECTIVE, /recommendation FIRST/i);
+  assert.match(QUESTION_SHAPE_DIRECTIVE, /impact\/tradeoff/i);
+  assert.match(QUESTION_SHAPE_DIRECTIVE, /2-3 concrete options/i);
+  assert.match(QUESTION_SHAPE_DIRECTIVE, /subagents never generate/i);
+});

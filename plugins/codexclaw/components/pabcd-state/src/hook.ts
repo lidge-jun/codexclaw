@@ -102,6 +102,24 @@ export function interviewDirective(): string {
   return PHASE_DIRECTIVES.I;
 }
 
+/**
+ * Question-shape directive (L10.1 / 101). The main session (never a subagent)
+ * uses request_user_input with this shape: background + why it matters + where
+ * the answer changes the plan, 2-3 concrete options, recommendation FIRST, and
+ * one impact/tradeoff sentence per option. assistant-emitted choice fences are
+ * not the primary selector.
+ */
+export const QUESTION_SHAPE_DIRECTIVE = [
+  "[codexclaw: INTERVIEW — user question]",
+  "Ask via request_user_input only (not an assistant choice fence). Each question must include:",
+  "- background: what is unresolved and why it matters,",
+  "- where the answer changes the plan,",
+  "- 2-3 concrete options (recommendation FIRST),",
+  "- one impact/tradeoff sentence per option.",
+  "Only the main session asks; subagents never generate or deliver questions.",
+  "While a question is pending, refuse or restate unrelated free-form answers.",
+].join("\n");
+
 const STAGE_LABELS: Partial<Record<Phase, string>> = {
   I: "INTERVIEW",
   P: "PLAN",
