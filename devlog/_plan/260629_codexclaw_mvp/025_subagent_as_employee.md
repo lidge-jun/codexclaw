@@ -2,6 +2,11 @@
 
 Status: TODO  ·  Phase 1
 
+## Decision / blind spot (see 015)
+`multi_agent_v1.*` (spawn_agent/wait_agent) is a codex RUNTIME TOOL, not a CLI command.
+Step 025 MUST first verify: (a) the runtime tool is available in target codex, (b) how agent
+.toml roles get registered so spawn can target them by role. Do this before building on it.
+
 ## Goal
 Make codex subagents behave like cli-jaw employees: named roles with their own
 instructions (and, in phase 2, their own models).

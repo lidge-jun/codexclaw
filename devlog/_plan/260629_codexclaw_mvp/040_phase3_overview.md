@@ -1,6 +1,6 @@
 # 040 — Phase 3 Overview: Periodic / Scheduled Work
 
-Status: PLANNING (feasibility-first)  ·  Phase 3 of 3
+Status: PLANNING  ·  Phase 3 of 3 (3rd MVP — independently shippable, decision 015)
 
 ## Question being answered
 Can codexclaw do cli-jaw-style recurring/heartbeat work using codex's own facilities?
@@ -24,7 +24,7 @@ Can codexclaw do cli-jaw-style recurring/heartbeat work using codex's own facili
 - Q-P3-1: Is OS-scheduler-backed `codex exec` acceptable, or do you want an always-on daemon
   (codex `app-server` / `exec-server` are EXPERIMENTAL alternatives)?
 - Q-P3-2: Where do scheduled-job results go (stdout log, file, messaging channel)?
-- Q-P3-3: Scope for MVP — is phase 3 in the MVP at all, or a post-MVP follow-on?
+- Q-P3-3: RESOLVED — phase 3 is a real shippable MVP unit, not post-MVP (decision 015).
 
 ## Step map (041–)
 - 041 scheduler mechanism decision (launchd/cron vs experimental daemon)

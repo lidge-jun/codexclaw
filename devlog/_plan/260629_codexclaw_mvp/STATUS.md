@@ -41,10 +41,12 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 | 000 | 000_research.md | REFERENCE (read first) |
 | 005 | 005_overview.md | REFERENCE |
 | 010 | 010_repo_skeleton.md | DONE (2026-06-29) |
+| 015 | 015_decisions.md | CONFIRMED |
 | 070 | 070_packaging.md | TODO |
 
 ## Notes
 - 2026-06-29: Plan restructured into 3 phases. opencodex confirmed = provider proxy, not harness.
 - Phase 3 scheduling feasible via `codex exec` + OS scheduler (launchd/cron). No built-in cron.
 - Reference: `devlog/.lazycodex` (gitignored).
-- Open decisions flagged in step docs: Q-GOAL-1/2, Q-DEV-1/2, Q-P2-1/2, Q-P3-1/2/3.
+- Decisions confirmed (015): all-13 dev skills, omo goal gate, 3 shippable MVP units.
+- Remaining open: Q-P2-1/2 (GUI reuse, ocx-absent multi-model), Q-P3-2 (result delivery).
