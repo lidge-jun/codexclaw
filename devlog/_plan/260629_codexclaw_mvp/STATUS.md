@@ -6,12 +6,15 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 ## Phase 1 (MVP core) — state mgmt + dev-skill injection, config untouched
 | Step | File | Status |
 |------|------|--------|
+| 019 | 019_phase1_implementation_plan.md | mini-P (impl-grade) |
+| 019.1 | 019.1_mini_a_audit.md | mini-A AUDIT |
 | 020 | 020_phase1_overview.md | PLANNING |
 | 021 | 021_codex_skill_injection.md | TODO |
 | 021.1 | 021.1_codex_rs_skill_mechanism.md | RESEARCH (source-verified) |
 | 022 | 022_pabcd_skill_native.md | TODO |
 | 022.1 | 022.1_pabcd_state_files.md | TODO |
 | 022.2 | 022.2_ipabcd_and_feature_flags.md | RESEARCH+DESIGN |
+| 022.3 | 022.3_interview_goalmode_rules.md | DESIGN (HARD rules) |
 | 023 | 023_goal_convention_port.md | TODO |
 | 023.1 | 023.1_interview_ipabcd_prompts.md | TODO |
 | 024 | 024_dev_skills_conversion.md | TODO |
@@ -51,6 +54,8 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 | 070 | 070_packaging.md | TODO |
 
 ## Notes
+- mini-P/mini-A loop active: 019 (impl plan) audited by 019.1. BLOCKERS: Finding A (goal-active not in hook payload) + Finding B (role pickup path).
+- Interview HARD-depends on request_user_input; FORBIDDEN in goal mode (022.3) — enforcement path open (Finding A).
 - WORKFLOW = IPABCD (Interview + PABCD). Interview uses feature `default_mode_request_user_input` / `request_user_input`.
 - ACTIVATION: codexclaw enables codex feature flags (multi_agent/goals/hooks/default_mode_request_user_input) via `codex features enable` at install (027 revised: controlled flag flip, backup+revert, not silent).
 - 2026-06-29: Plan restructured into 3 phases. opencodex confirmed = provider proxy, not harness.
