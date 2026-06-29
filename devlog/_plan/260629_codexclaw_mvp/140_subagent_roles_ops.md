@@ -167,3 +167,12 @@ fixture reader로 구성되어 package metadata, hooks, MCP, plugin manifest의 
 (`/Users/jun/Developer/new/700_projects/codexclaw/devlog/.lazycodex/plugins/omo/components/test-support/package-smoke-fixture.ts:5-40`,
 `/Users/jun/Developer/new/700_projects/codexclaw/devlog/.lazycodex/plugins/omo/components/test-support/package-smoke-fixture.ts:88-158`).
 codexclaw packaging/doctor smoke tests에 그대로 유사 구조를 두는 것이 Codex native 대체보다 낫다.
+
+## ✅ JUN 결정 반영 (090.1, 2026-06-30)
+- **role 등록 방식** (J-8) = **inline-only(B-opt2) 유지**. `spawn_agent({message})`에 role 지시를
+  인라인 주입하고 `.toml`은 source-of-truth로만 읽는다. config에 role 설치 안 함(plugin manifest에
+  agents 필드 없음 확인됨). first-class 등록은 Phase 2에서 pickup 경로 검증 후로 보류.
+- **read-only 강제** (J-9) = **프롬프트-only 수용**. tool allowlist로 강제하지 않고 "read-only"는
+  규율 가이드 + 출력 계약(reviewer/Mind는 "수정 금지, 발견만 반환")으로 둔다. codexclaw 신뢰기반 철학 일치.
+- **role namespace** (J-14) = ops role(explorer/reviewer/executor)과 Pass 8 `mind-*` role을 **단일
+  taxonomy + 접두사**로 통합(`mind-*` vs 기능 role). MVP는 둘 다 inline, Phase 2 GUI에서 first-class 승격.

@@ -178,3 +178,12 @@ MVP 구현 제안:
 - output discipline은 rewritten queries, candidate URLs, actually opened/fetched URLs, browser verification command/tool, evidence status, unresolved uncertainty를 요구한다.
 - `ultimate-browsing`의 "blocked URL reader" 로직은 별도 helper/reference로 이식하고, hosted web search 자체를 대체하지 않는다.
 - `ultraresearch`는 Tier 4 orchestration mode로 연결하되, ordinary search에는 자동 발동하지 않는다.
+
+## ✅ JUN 결정 반영 (090.1, 2026-06-30)
+- **ladder 재정의** (J-10) = cli-jaw 4-tier 이름/의미를 그대로 보존하지 않고 **codex-only ladder로
+  재정의**한다. codexclaw 네이티브 등가가 없는 dead tier(progrok, hosted web-ai)는 제거.
+  새 ladder = `built-in web_search` → `browser-use/computer-use(공개 endpoint·fetch ladder)` →
+  `subagent swarm(ultraresearch 모드)`. tier 이름도 codex 기준으로 재명명.
+- **노출** (J-6): `search`(=search-hub) 스킬은 lazycodex 컨벤션대로 implicit 노출(dev+search+pdf 집합).
+- `ultimate-browsing`의 blocked-URL reader는 helper/reference로 흡수(별도 tier 신설 X), `ultraresearch`는
+  최상위 orchestration 모드로만(자동 발동 X) — 기존 결론 유지.

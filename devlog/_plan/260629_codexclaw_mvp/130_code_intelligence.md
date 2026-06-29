@@ -99,3 +99,11 @@ codexclaw 완전 미계획 영역 — 도입 가치와 codex 네이티브 대체
 2. `ast-grep`은 별도 작업으로 `plugins/codexclaw/skills/ast-grep` 포팅 후보를 만든다. binary 자동 설치는 opt-in으로 둔다.
 3. `lsp`는 `required: false` MCP + hook disabled-by-default 실험 브랜치에서 먼저 검증한다. 성공 기준은 TypeScript와 Python 각 1개 repo에서 `lsp.status`, `diagnostics`, `goto_definition`, `rename` roundtrip.
 4. `codegraph`는 대형 repo 탐색 UX가 실제 병목이라는 근거가 생긴 뒤 도입한다.
+
+## ✅ JUN 결정 반영 (090.1, 2026-06-30)
+- **lsp/codegraph 격리** (J-16) = 코어 codexclaw와 **분리된 "별도 설치 확장"**으로만 제공.
+  코어는 no-server/lightweight/config-untouched 전제를 유지하고, MCP서버·detached 데몬·언어서버
+  ·외부 바이너리·workspace 부작용은 전부 그 별도 확장 안에 격리(기본 manifest에 안 들어감).
+- **ast-grep** (J-13) = 기본 제외/ PATH-only가 아니라 **설치하고 lazycodex 컨벤션을 따른다**
+  (omo bootstrap provisioning 패턴: session-start 류에서 `sg` 바이너리 ensure/provision).
+  → 위 권고안 2번의 "binary 자동 설치 opt-in"을 "lazy식 provisioning으로 ensure"로 갱신.

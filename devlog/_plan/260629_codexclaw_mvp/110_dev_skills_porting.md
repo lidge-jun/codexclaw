@@ -95,3 +95,12 @@ Codex convention: `metadata.keywords` / top-level `keywords` 제거, trigger는 
 - Do not preserve `cli-jaw orchestrate`, `cli-jaw dispatch`, `cli-jaw bgtask`, boss token, or `task_tags` mechanics. Port the discipline to codex-native skill routing, hooks, goals, and subagents.
 - Do not make omo `ultimate-browsing`/`ultraresearch` part of the dev 13 body except for cross-links; they belong to the separate search/browser workstream.
 - `dev-pabcd` content is a source, not a destination: absorb into codexclaw `pabcd` rather than shipping a second workflow skill.
+
+## ✅ JUN 결정 반영 (090.1, 2026-06-30)
+- **산출물 카운트** (J-5) = "**12 dev + 1 ipabcd**"로 공식화. dev-pabcd는 standalone 출하 안 하고
+  codexclaw `pabcd`(=ipabcd workflow)로 흡수. 원장의 "13종" 표기는 이 정의로 대체(중복 제거).
+- **github** (J-12) = host의 codex 기본 `github` 스킬에 위임. host에 없으면 git-master의
+  **local git commit/history discipline만** dev에 흡수하고, 원격(PR/CI) 조작은 범위 밖으로 둔다.
+  codexclaw가 github 스킬을 번들하지 않음.
+- **implicit 노출** (J-6, 100과 일치) = dev-* 13(=12+pabcd) 중 `dev`만 implicit, 나머지 router는
+  off + skill-hub. (search/pdf는 dev 계열 아님 — 별도 implicit, 100 참조.)

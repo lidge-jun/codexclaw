@@ -111,3 +111,10 @@ cli-jaw의 운영 커맨드 표면을 codex 런타임 네이티브 기능으로 
 - `bgtask`는 “장기 터미널 프로세스 poll”은 codex-native지만 “서버 소유 재호출/완료 알림”은 Codex 내장 근거가 없으므로 codexclaw 자체 구현 후보로 남긴다.
 - `chat search`는 `thread/search` 프로토콜 근거가 있어 CANDIDATE로 유지하되, CLI/agent-facing wrapper가 없으면 codexclaw 자체 래퍼가 필요하다.
 - `diagram/html render`, codexclaw 전용 `doctor/reset`은 자체 구현으로 남긴다.
+
+## ✅ JUN 결정 반영 (090.1, 2026-06-30)
+- **task** (J-1): codex `update_plan`만 사용으로 확정. cli-jaw task의 영속/assign/`--after`
+  순서/세션-넘는 리스트는 포팅하지 않음(인메모리 턴 체크리스트로 충분 판정).
+- **bgtask** (J-2): 기본 동작 = subagent 폴링(`spawn_agent`+`wait_agent`로 turn 내 추적).
+  "서버 소유 durable 재호출"은 codexclaw(서버없음) 범위 밖 — 진짜 주기성은 Phase 3 OS 스케줄러.
+- **memory** (J-7): PASS 유지 — codex 내장 메모리 위임 확정(CANDIDATE 해소).
