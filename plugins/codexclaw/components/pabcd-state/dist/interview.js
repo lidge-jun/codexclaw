@@ -37,7 +37,7 @@ export const MAX_TRACKER_ARRAY = 50;
  
 
                                 
-             
+                                                                            
                                   
                   
  
@@ -50,7 +50,7 @@ export const MAX_TRACKER_ARRAY = 50;
  
 
                                    
-                  
+                                                                                                  
                                                 
                                   
                             
@@ -62,6 +62,10 @@ function isRecord(v         )                               {
 
 function str(v         , fallback = "")         {
   return typeof v === "string" ? v : fallback;
+}
+
+function roundIdNum(v         )         {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0;
 }
 
 function strArray(v         )           {
@@ -104,10 +108,10 @@ function reconstructScore(v         )                 {
   };
 }
 
-export function defaultInterview(roundId = "")                   {
+export function defaultInterview(roundId = 0)                   {
   const dimensions = {}                                     ;
   for (const d of DIMENSIONS) dimensions[d] = defaultScore();
-  return { roundId, dimensions, contradictions: [], assumptions: [] };
+  return { roundId: roundIdNum(roundId), dimensions, contradictions: [], assumptions: [] };
 }
 
 /**
@@ -123,23 +127,31 @@ export function reconstructInterview(v         )                          {
   const rawDims = isRecord(v.dimensions) ? v.dimensions : {};
   for (const d of DIMENSIONS) dimensions[d] = reconstructScore(rawDims[d]);
 
+  // T3 fail-closed: a malformed (non-object) contradiction entry is NOT dropped —
+  // it becomes a high-severity contradiction so corrupted data keeps blocking readiness.
   const contradictions                  = Array.isArray(v.contradictions)
     ? v.contradictions
-        .filter(isRecord)
-        .map((c) => ({ id: str(c.id), severity: severity(c.severity), summary: str(c.summary) }))
+        .map((c) =>
+          isRecord(c)
+            ? { contradictionId: str(c.contradictionId, str(c.id)), severity: severity(c.severity), summary: str(c.summary) }
+            : { contradictionId: "", severity: "high"                         , summary: "[malformed contradiction entry]" },
+        )
         .slice(-MAX_TRACKER_ARRAY)
     : [];
 
+  // T3 fail-closed: a malformed (non-object) assumption entry is NOT dropped — it
+  // becomes recorded:false so it keeps blocking readiness until explicitly re-recorded.
   const assumptions               = Array.isArray(v.assumptions)
     ? v.assumptions
-        .filter(isRecord)
-        // T3: legacy/invalid assumptions reconstruct to recorded:false (must be
-        // explicitly re-recorded before they stop blocking readiness).
-        .map((a) => ({ id: str(a.id), text: str(a.text), recorded: a.recorded === true }))
+        .map((a) =>
+          isRecord(a)
+            ? { id: str(a.id), text: str(a.text), recorded: a.recorded === true }
+            : { id: "", text: "[malformed assumption entry]", recorded: false },
+        )
         .slice(-MAX_TRACKER_ARRAY)
     : [];
 
-  return { roundId: str(v.roundId), dimensions, contradictions, assumptions };
+  return { roundId: roundIdNum(v.roundId), dimensions, contradictions, assumptions };
 }
 
 /**
@@ -150,14 +162,64 @@ export function reconstructInterview(v         )                          {
  *  - every assumption has recorded:true.
  * Never trusts a `ready` field on the tracker (none exists); always recomputed.
  */
+/** Strict, fail-closed shape check for a single dimension score. */
+function isValidScore(v         )                      {
+  return (
+    isRecord(v) &&
+    typeof v.level === "string" &&
+    (DIMENSION_LEVELS                     ).includes(v.level) &&
+    Array.isArray(v.known) &&
+    v.known.every((x) => typeof x === "string") &&
+    Array.isArray(v.unknown) &&
+    v.unknown.every((x) => typeof x === "string") &&
+    typeof v.confidence === "number" &&
+    Number.isFinite(v.confidence) &&
+    v.confidence >= 0 &&
+    v.confidence <= 1
+  );
+}
+
 export function isInterviewReady(tracker                         )          {
   if (!tracker || !isRecord(tracker)) return false;
   if (!isRecord(tracker.dimensions)) return false;
+  // Every dimension must be a fully-valid score at level "max" (T3: a partial
+  // {level:"max"} object must NOT pass).
   for (const d of DIMENSIONS) {
     const score = tracker.dimensions[d];
-    if (!score || score.level !== "max") return false;
+    if (!isValidScore(score) || score.level !== "max") return false;
   }
+  // Any contradiction (incl. malformed sentinels) blocks; contradictions must be empty.
   if (!Array.isArray(tracker.contradictions) || tracker.contradictions.length > 0) return false;
+  // Every assumption must be a well-formed object with recorded:true.
   if (!Array.isArray(tracker.assumptions)) return false;
-  return tracker.assumptions.every((a) => a && a.recorded === true);
+  return tracker.assumptions.every((a) => isRecord(a) && a.recorded === true);
+}
+
+/**
+ * Write-side normalization (T2): cap every in-state array to MAX_TRACKER_ARRAY
+ * (drop-oldest) before the tracker is persisted, so a writer that appended past
+ * the cap cannot bloat the hot session JSON. Null passes through unchanged.
+ */
+export function normalizeInterview(tracker                         )                          {
+  if (tracker === null || tracker === undefined) return null;
+  if (!isRecord(tracker)) return null;
+  const dimensions = {}                                     ;
+  const rawDims = isRecord(tracker.dimensions) ? tracker.dimensions : ({}                           );
+  for (const d of DIMENSIONS) {
+    const sc = rawDims[d];
+    dimensions[d] = isRecord(sc)
+      ? {
+          level: level((sc                  ).level),
+          known: strArray((sc                  ).known),
+          unknown: strArray((sc                  ).unknown),
+          confidence: confidence((sc                  ).confidence),
+        }
+      : defaultScore();
+  }
+  return {
+    roundId: roundIdNum(tracker.roundId),
+    dimensions,
+    contradictions: Array.isArray(tracker.contradictions) ? tracker.contradictions.slice(-MAX_TRACKER_ARRAY) : [],
+    assumptions: Array.isArray(tracker.assumptions) ? tracker.assumptions.slice(-MAX_TRACKER_ARRAY) : [],
+  };
 }

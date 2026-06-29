@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import {                        reconstructInterview } from "./interview.js";
+import {                        reconstructInterview, normalizeInterview, isInterviewReady } from "./interview.js";
 
                                                                
 // Work phases run the IPABCD cycle; IDLE is the closed/rest state a cycle returns to.
@@ -84,7 +84,9 @@ export function readState(cwd        , sessionId        )        {
       slug: base.slug,
       updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : base.updatedAt,
       flags: {
-        interview: parsed.flags?.interview === true,
+        // HIGH-1: derive from the tracker (single source of truth); a persisted
+        // true flag cannot override a non-ready tracker.
+        interview: isInterviewReady(reconstructInterview(parsed.interview)),
         auditPassed: parsed.flags?.auditPassed === true,
         checkPassed: parsed.flags?.checkPassed === true,
       },
@@ -111,7 +113,10 @@ export function writeState(cwd        , next       )       {
   const finalPath = statePath(cwd, next.sessionId);
   const tmp = `${finalPath}.${process.pid}.${Date.now()}.tmp`;
   try {
-    writeFileSync(tmp, JSON.stringify({ ...next, updatedAt: new Date().toISOString() }, null, 2));
+    // T2: cap tracker arrays on the write side so oversized in-memory trackers
+    // never reach the hot session JSON.
+    const normalized = { ...next, interview: normalizeInterview(next.interview), updatedAt: new Date().toISOString() };
+    writeFileSync(tmp, JSON.stringify(normalized, null, 2));
     renameSync(tmp, finalPath);
   } catch (err) {
     try {

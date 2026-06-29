@@ -64,7 +64,9 @@ test("write -> read roundtrip + flags merge", () => {
     writeState(cwd, next);
     const s = readState(cwd, "sess-3");
     assert.equal(s.phase, "P");
-    assert.equal(s.flags.interview, true);
+    // HIGH-1: flags.interview is DERIVED from the tracker, not the persisted flag.
+    // No tracker -> not ready -> false even though true was written.
+    assert.equal(s.flags.interview, false);
     assert.equal(s.flags.auditPassed, false);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
@@ -119,7 +121,8 @@ test("readState: unknown persisted keys are dropped (strict reconstruction)", ()
     assert.equal(s.phase, "P");
     assert.equal(Object.prototype.hasOwnProperty.call(s, "evil"), false);
     assert.equal(Object.prototype.hasOwnProperty.call(s.flags, "bogus"), false);
-    assert.equal(s.flags.interview, true);
+    // flags.interview is derived from the tracker; no tracker here -> false.
+    assert.equal(s.flags.interview, false);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
@@ -228,7 +231,7 @@ test("L8: readState round-trips a full InterviewTracker and preserves Phase-1 fi
         sessionId: "iv-1",
         orchestrationActive: true,
         injectedTurns: ["t1"],
-        interview: { roundId: "r9", dimensions: dims, contradictions: [], assumptions: [{ id: "a", text: "x", recorded: true }], EVIL: "drop" },
+        interview: { roundId: 9, dimensions: dims, contradictions: [], assumptions: [{ id: "a", text: "x", recorded: true }], EVIL: "drop" },
       }),
     );
     const s = readState(cwd, "iv-1");
@@ -237,7 +240,7 @@ test("L8: readState round-trips a full InterviewTracker and preserves Phase-1 fi
     assert.equal(s.orchestrationActive, true);
     assert.deepEqual(s.injectedTurns, ["t1"]);
     // tracker round-tripped
-    assert.equal(s.interview?.roundId, "r9");
+    assert.equal(s.interview?.roundId, 9);
     assert.equal(s.interview?.dimensions.goal.level, "max");
     // unknown nested keys dropped (strict reconstruct)
     assert.equal("EVIL" in (s.interview?.dimensions.goal ?? {}), false);
@@ -251,6 +254,23 @@ test("L8: fresh session reads interview: null", () => {
   const cwd = freshCwd();
   try {
     assert.equal(readState(cwd, "fresh").interview, null);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L8 HIGH-1: persisted flags.interview:true with a non-ready tracker reads as false (no flag-trust)", () => {
+  const cwd = freshCwd();
+  try {
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    mkdirSync(dir, { recursive: true });
+    // a tracker that is NOT ready (default low dims) but a forged true flag
+    writeFileSync(
+      join(dir, "forge.json"),
+      JSON.stringify({ phase: "I", sessionId: "forge", flags: { interview: true }, interview: { roundId: 1, dimensions: {}, contradictions: [], assumptions: [] } }),
+    );
+    const s = readState(cwd, "forge");
+    assert.equal(s.flags.interview, false, "derived flag must ignore the forged persisted true");
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
