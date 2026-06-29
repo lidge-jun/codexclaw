@@ -100,7 +100,7 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 |------|--------|------|--------|------------------|
 | L20 | 200 | cli-jaw command -> codex-native mapping (doctor/reset self-impl, chat-search wrapper) | DONE | 090_clijaw_command_mapping |
 | L21 | 210 | Subagent role .toml + diagnostics/ops (teammode, lcx-*) | DONE | 140_subagent_roles_ops |
-| L22 | 220 | Code intelligence (ast-grep adopt; lsp/codegraph deferred) | PLANNED (ast-grep only; Q-130-defer resolved) | 130_code_intelligence |
+| L22 | 220 | Code intelligence (ast-grep adopt; lsp/codegraph deferred) | DONE | 130_code_intelligence |
 
 ### Cluster 4 -- Phase 2 (multi-model + GUI)  [L23-L28]
 | Loop | Decade | Slug | Status | Source-of-record |
