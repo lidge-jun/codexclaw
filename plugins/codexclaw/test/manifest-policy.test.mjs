@@ -40,6 +40,9 @@ test("L3: PreToolUse goal-budget hook is registered in the plugin manifest", () 
   const flat = JSON.stringify(hookJson);
   assert.match(flat, /PreToolUse/, "hook is not a PreToolUse hook");
   assert.match(flat, /goal[- ]budget|pre-tool-use/i, "hook does not target the goal-budget guard");
+  // R-10: the PreToolUse entry must narrow to ^create_goal$ (omo parity), not fire on every tool.
+  const entry = hookJson.hooks.PreToolUse[0];
+  assert.equal(entry.matcher, "^create_goal$", "PreToolUse goal-budget hook must match only ^create_goal$");
 });
 
 test("S5: each role TOML is spawn-valid (name + description + default model + instructions)", () => {

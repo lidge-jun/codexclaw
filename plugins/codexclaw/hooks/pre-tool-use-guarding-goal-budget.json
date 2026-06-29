@@ -9,7 +9,8 @@
             "timeout": 15,
             "statusMessage": "(codexclaw) Guarding goal budget"
           }
-        ]
+        ],
+        "matcher": "^create_goal$"
       }
     ]
   }
