@@ -16,6 +16,6 @@
   ],
   "scripts": {
     "build": "node plugins/codexclaw/scripts/build.mjs",
-    "test": "echo \"(no tests yet)\" && exit 0"
+    "test": "node --test \"plugins/codexclaw/components/pabcd-state/test/*.test.ts\" \"plugins/codexclaw/components/config-guard/test/*.test.ts\" \"plugins/codexclaw/test/*.test.mjs\""
   }
 }

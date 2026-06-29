@@ -19,15 +19,15 @@ import { createInterface } from "node:readline";
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_INFO = { name: "codexclaw-subagent-config", version: "0.1.0" };
 
-function send(message: unknown): void {
+function send(message         )       {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
-function reply(id: unknown, result: unknown): void {
+function reply(id         , result         )       {
   send({ jsonrpc: "2.0", id, result });
 }
 
-function handle(msg: { id?: unknown; method?: string }): void {
+function handle(msg                                   )       {
   const { id, method } = msg;
   switch (method) {
     case "initialize":
@@ -52,11 +52,11 @@ function handle(msg: { id?: unknown; method?: string }): void {
 }
 
 const rl = createInterface({ input: process.stdin });
-rl.on("line", (line: string) => {
+rl.on("line", (line        ) => {
   const trimmed = line.trim();
   if (!trimmed) return;
   try {
-    handle(JSON.parse(trimmed) as { id?: unknown; method?: string });
+    handle(JSON.parse(trimmed)                                     );
   } catch {
     // Malformed line: ignore rather than crash the long-lived server.
   }
