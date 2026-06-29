@@ -1,0 +1,5 @@
+interface:
+  display_name: "Dev: Scaffolding"
+  short_description: "Project and module scaffolding with repo-first convention reuse and structural audits."
+policy:
+  allow_implicit_invocation: false
