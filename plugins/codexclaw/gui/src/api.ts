@@ -37,22 +37,38 @@ export const defaultConfig = (): SubagentsConfig => ({
 });
 
 /**
- * Backend base URL. In MVP there is no codexclaw backend wired, so this is
- * empty and the client returns local defaults WITHOUT issuing a request — that
- * keeps the ocx-absent shell free of 404 console noise. A later loop sets
- * `VITE_CXC_API` to a real base to enable live reads.
+ * Backend base URL. The dev server (vite middleware) serves /api/* same-origin,
+ * so the default empty base means "same origin". A failed fetch degrades to the
+ * safe default (no throw), so a static build with no backend still loads cleanly.
  */
 const API_BASE: string = (import.meta.env?.VITE_CXC_API as string | undefined) ?? "";
 
 async function getJson<T>(path: string, fallback: T): Promise<T> {
-  // No backend configured (MVP) -> use the safe default, do not fetch.
-  if (!API_BASE) return fallback;
   try {
     const res = await fetch(`${API_BASE}${path}`, { headers: { accept: "application/json" } });
     if (!res.ok) return fallback;
     return (await res.json()) as T;
   } catch {
-    // No backend wired (MVP) or network blocked -> safe default, no throw.
+    // No backend reachable (static build) -> safe default, no throw.
+    return fallback;
+  }
+}
+
+/** POST a role patch; returns the updated config or the current fallback. */
+export async function setSubagentRole(
+  role: "explorer" | "reviewer" | "executor",
+  patch: Partial<RoleConfig> & { role?: never },
+  fallback: SubagentsConfig,
+): Promise<SubagentsConfig> {
+  try {
+    const res = await fetch(`${API_BASE}/api/subagents`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role, ...patch }),
+    });
+    if (!res.ok) return fallback;
+    return (await res.json()) as SubagentsConfig;
+  } catch {
     return fallback;
   }
 }

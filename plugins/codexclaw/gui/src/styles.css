@@ -22,3 +22,13 @@ table.roles { width: 100%; border-collapse: collapse; }
 table.roles th, table.roles td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 table.roles th { color: var(--muted); font-weight: 500; }
 .hint { color: var(--muted); margin-top: 12px; }
+
+.role-card { border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+.role-head { display: flex; align-items: center; gap: 12px; }
+.role-name { font-weight: 600; text-transform: capitalize; }
+.mode-toggle { color: var(--muted); display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.saving { color: var(--accent); font-size: 12px; }
+.role-body { display: flex; gap: 12px; margin-top: 10px; }
+.model-select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+.model-select:disabled { opacity: 0.5; }
+.prompt-editor { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; resize: vertical; font: inherit; }
