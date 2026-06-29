@@ -110,7 +110,7 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 | L25 | 250 | Model catalog (ocx catalog + main = n+1) | DONE | 033_model_catalog |
 | L26 | 260 | GUI scaffold (Vite + React, layout-ref only) | DONE | 034_gui_scaffold |
 | L27 | 270 | GUI subagent page (role->model+prompt) + 10100 link bar | DONE | 035_gui_subagent_page |
-| L28 | 280 | Phase 2 integration + verification (S6-S10) | PLANNED | 036_phase2_verification |
+| L28 | 280 | Phase 2 integration + verification (S6-S10) | DONE | 036_phase2_verification |
 
 ### Cluster 5 -- Phase 3 (scheduled work)  [L29-L30]
 | Loop | Decade | Slug | Status | Source-of-record |
