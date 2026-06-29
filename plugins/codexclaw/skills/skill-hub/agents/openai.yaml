@@ -1,0 +1,5 @@
+interface:
+  display_name: "Skill Hub: Capability Catalog"
+  short_description: "On-demand router that maps a need to the right hidden skill and tells you to load it."
+policy:
+  allow_implicit_invocation: false

@@ -133,3 +133,32 @@ test("L18: search skill is a codex-native 3-tier on-demand hub with Korean guard
     assert.ok(body.includes(t), `Korean trigger "${t}" missing from search skill`);
   }
 });
+
+test("L19: skill-hub catalog enumerates every codexclaw skill (filesystem-derived)", () => {
+  const skillsDir = join(pluginRoot, "skills");
+  const catalog = readFileSync(join(skillsDir, "skill-hub", "references", "catalog.md"), "utf8");
+
+  // Every skill dir with a SKILL.md must appear as a catalog row. Deriving the
+  // set from the filesystem keeps the catalog honest as skills are added.
+  for (const name of readdirSync(skillsDir)) {
+    const sd = join(skillsDir, name);
+    if (!statSync(sd).isDirectory()) continue;
+    if (!existsSync(join(sd, "SKILL.md"))) continue;
+    assert.match(
+      catalog,
+      new RegExp(`\\|\\s*${name}\\s*\\|`),
+      `skill "${name}" is not catalogued in skill-hub/references/catalog.md`,
+    );
+  }
+
+  // skill-hub is on-demand (implicit-off), not disabled.
+  assert.equal(
+    readImplicit(join(skillsDir, "skill-hub", "agents", "openai.yaml")),
+    false,
+    "skill-hub must be allow_implicit_invocation:false (on-demand)",
+  );
+
+  // renderers native-gap note exists and names the missing renderers.
+  const renderers = readFileSync(join(skillsDir, "skill-hub", "references", "renderers.md"), "utf8");
+  assert.match(renderers, /diagram-html|mermaid|chart-json/, "renderers.md must document the native renderer gap");
+});
