@@ -1,0 +1,5 @@
+interface:
+  display_name: "Dev: DevOps"
+  short_description: "Container, deploy, Kubernetes, IaC, and SRE guidance for production delivery."
+policy:
+  allow_implicit_invocation: false

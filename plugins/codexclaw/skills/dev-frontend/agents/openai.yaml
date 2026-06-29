@@ -1,0 +1,5 @@
+interface:
+  display_name: "Dev: Frontend"
+  short_description: "Production-grade frontend implementation with responsive, accessible, anti-slop UI guidance."
+policy:
+  allow_implicit_invocation: false

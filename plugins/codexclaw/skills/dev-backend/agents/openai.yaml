@@ -1,0 +1,5 @@
+interface:
+  display_name: "Dev: Backend"
+  short_description: "Framework-agnostic backend guidance for APIs, architecture, data access, and operations."
+policy:
+  allow_implicit_invocation: false
