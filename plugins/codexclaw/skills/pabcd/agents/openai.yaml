@@ -1,0 +1,5 @@
+interface:
+  display_name: "PABCD Workflow"
+  short_description: "Structured Plan-Audit-Build-Check-Done workflow discipline for multi-phase work."
+policy:
+  allow_implicit_invocation: false

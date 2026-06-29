@@ -20,7 +20,8 @@
   "hooks": [
     "./hooks/session-start-ensuring-provider-bridge.json",
     "./hooks/user-prompt-submit-checking-pabcd-trigger.json",
-    "./hooks/stop-checking-pabcd-continuation.json"
+    "./hooks/stop-checking-pabcd-continuation.json",
+    "./hooks/pre-tool-use-guarding-goal-budget.json"
   ],
   "mcpServers": "./.mcp.json",
   "interface": {
