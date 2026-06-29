@@ -377,21 +377,199 @@ const MIND_ROLE_PROMPTS: Record<Mind, string> = {
   ].join(" "),
 
   ontologist: [
-+  "ONTOLOGIST: Check entity/relationship completeness against the spec.",
-+  "Find missing entities, undefined fields, circular references, data model gaps.",
-+  "Output contradictions in the ontology dimension. Verify against actual code structures.",
-+  ].join(" "),
-+
-+  evaluator: [
-+    "EVALUATOR: Test success criteria for measurability and parsimony.",
-+    "Find criteria that are implementation steps (not outcomes), unmeasurable predicates, or over-fragmentation.",
-+    "Output contradictions in the success dimension. 3-7 outcome-level items is the target range.",
-+  ].join(" "),
-+
-+  simplifier: [
-+    "SIMPLIFIER: Find over-engineering, redundant constraints, and scope creep.",
-+    "Find complexity that can be removed without losing the core outcome, constraints that overlap.",
-+    "Output contradictions where the plan is more complex than the goal requires.",
-+  ].join(" "),
-+};
-+```
+    "ONTOLOGIST: Check entity/relationship completeness against the spec.",
+    "Find missing entities, undefined fields, circular references, data model gaps.",
+    "Output contradictions in the ontology dimension. Verify against actual code structures.",
+  ].join(" "),
+
+  evaluator: [
+    "EVALUATOR: Test success criteria for measurability and parsimony.",
+    "Find criteria that are implementation steps (not outcomes), unmeasurable predicates, or over-fragmentation.",
+    "Output contradictions in the success dimension. 3-7 outcome-level items is the target range.",
+  ].join(" "),
+
+  simplifier: [
+    "SIMPLIFIER: Find over-engineering, redundant constraints, and scope creep.",
+    "Find complexity that can be removed without losing the core outcome, constraints that overlap.",
+    "Output contradictions where the plan is more complex than the goal requires.",
+  ].join(" "),
+};
+```
+
+### 3.3 Mind 선택 전략 (메인 agent — directive text에 지시)
+
+- 메인은 **필요한 Mind만 1-2개** 호출 (D1, D2 — 9-way fan-out 금지).
+- 선택 기준: **lowest-scoring dimension**에 해당하는 Mind 우선.
+  - goal이 low → contrarian + socratic
+  - constraint가 low → contrarian + simplifier
+  - success가 low → evaluator + socratic
+  - ontology가 low → ontologist + simplifier
+- 최대 2개 동시 spawn (codex native subagent 병렬). 결과 merge 후 step 5(triage)로.
+
+---
+
+## §4 — Hard Gates
+
+### 4.1 request_user_input 가용성 (022.3 + 023.1)
+
+**결정 (기계적 — 022.3에 이미 확정)**:
+- Interview는 `request_user_input`에 **HARD dependency** (022.3). unavailable → interview unavailable,
+  fail-fast report. silent degradation 금지.
+- 탐지: directive text가 메인에게 지시 — feature flag `default_mode_request_user_input` 확인.
+  hook 자체는 config.toml을 읽지 않음 (hook payload에 config 정보 없음).
+- flag off 시: user에게 활성화 안내 (023.1). **NEVER auto-write config.toml** (Phase 1 config-untouched).
+- fallback: MCP elicitation (`tool_call_mcp_elicitation`, Stable, default ON) — 023.1에 명시된 대안.
+
+**어디서 시행**: `interviewDirective()` 내 `INTERVIEW_GATES` 텍스트 (advisory, main agent behavior).
+hook 코드 레벨에서는 시행 불가 (payload에 feature flag 정보 없음). Phase 1 = advisory + native.
+
+### 4.2 Goal-Mode Interview Ban (022.3 A3)
+
+**결정 (기계적 — 022.3 A3에 이미 확정, 변경 없음)**:
+- Goal mode active 시: I-phase 트리거 금지, `request_user_input` 호출 금지.
+- **Phase 1 시행 = ADVISORY + native** (022.3 A3 hybrid):
+  1. directive text (`INTERVIEW_GATES`)에 "NEVER interview in goal mode" 경고 — main agent가 준수.
+  2. codex native suppression (`core/src/goals.rs`: user activity suppresses auto-continuation)에 의존.
+  3. DEFERRED (post-Phase-1): PreToolUse hard-deny on `request_user_input` while goal active —
+     thread-store goal-read path 증명 후 (022.3, 019.2 Q-GM-1-followup). Pass 8 범위 외.
+- **hook.ts에서 goal-check 불가**: goal-active가 hook payload에 없음 (022.3에서 검증 완료).
+  따라서 `handleUserPromptSubmit()`에 goal 분기 추가 X. advisory text만으로 시행.
+
+### 4.3 Dialectic Rhythm Guard (ouroboros 차용)
+
+**결정 (기계적 — ouroboros interview SKILL.md 패턴)**:
+- 연속 3회 auto-resolve (severity low 또는 auto-mode medium) 후, 다음 모순은 **반드시** user에게 승격.
+- auto-mode가 user를 소외시키는 것 방지 (ouroboros "3 consecutive non-user answers" 규칙).
+- 카운터: `interview.rounds` 또는 별도 auto-streak 카운터 (구현 시 선택, 둘 다 기능 동일).
+- user가 직접 답하면 카운터 reset (ouroboros 패턴과 일치).
+
+---
+
+## §5 — node:test Plan
+
+기존 테스트 패턴 (`test/state.test.ts`, `test/hook.test.ts`, `test/fsm.test.ts`) 준수.
+`node:test` + `node:assert/strict`, `mkdtempSync`/`rmSync` fresh-cwd 패턴 유지.
+
+### 5.1 state.test.ts — 신규 테스트
+
+```
+test("interview: defaults to null on fresh state")
+test("interview: null roundtrips through write -> read")
+test("interview: defaultInterview() has all 4 dimensions at low, empty arrays, ready=false")
+test("interview: full tracker roundtrips through write -> read")
+test("interview: unknown keys in nested dimensions are dropped (strict reconstruct)")
+  — persist {interview:{dimensions:{goal:{level:"max",bogus:1}}}} → read → no 'bogus' key
+test("interview: invalid dimension level -> defaults to 'low' (strict reconstruct)")
+  — persist {interview:{dimensions:{goal:{level:"ULTRA"}}}} → read → level === "low"
+test("interview: invalid confidence (NaN, >1, <0) -> defaults to 0")
+test("interview: contradictions with invalid dimension/severity are dropped, valid ones kept")
+test("interview: contradictions: non-array -> []")
+test("isInterviewReady: null -> false")
+test("isInterviewReady: all max + assumptions empty -> true")
+test("isInterviewReady: one dimension not max -> false")
+test("isInterviewReady: all max but assumptions non-empty -> false")
+test("isInterviewReady: all max but contradictions non-empty -> false")
+  — unresolved contradictions mean not ready (they must be triaged first)
+```
+
+### 5.2 hook.test.ts — 신규 테스트
+
+```
+test("interviewDirective: contains 4-dimension names (Goal, Constraint, Success, Ontology)")
+test("interviewDirective: contains loop description (subagent contradictions → main question)")
+test("interviewDirective: contains goal-mode ban text")
+test("interviewDirective: contains request_user_input hard dependency text")
+test("interviewDirective: contains all 5 Mind names")
+test("interviewDirective: length < 32k (buildContextOutput cap)")
+test("handleUserPromptSubmit: interview trigger injects expanded directive (not the old 4-line stub)")
+test("handleUserPromptSubmit: interview directive is idempotent per turn (existing behavior preserved)")
+```
+
+### 5.3 fsm.test.ts — 신규 테스트
+
+```
+test("canEnter P: interview ready flag true -> ok (backward compat, existing test preserved)")
+test("canEnter P: interview ready flag false -> blocked (existing test preserved)")
+  — no new test needed; flags.interview derivation is main-agent behavior, not FSM code
+```
+
+---
+
+## §6 — Slice Ordering + PABCD Integration (D4)
+
+### 6.1 슬라이스 순서 (의존성 기반 — 확정)
+
+| 순서 | 슬라이스 | 파일 | 선행 | 산출물 |
+|------|---------|------|------|--------|
+| S1 | Interview tracker state | `state.ts` | 없음 | `InterviewTracker`, `DimensionScore`, `defaultInterview()`, `reconstructInterview()`, `isInterviewReady()` + 3-처 규칙 |
+| S2 | FSM gate 확인 | `fsm.ts` | S1 | `canEnter("P")` 변경 없음 (backward compat), 주석으로 `flags.interview` 파생 명시 |
+| S3 | Expanded directive | `hook.ts` | S1 | `interviewDirective()` 다중 섹션 (protocol + loop + gates) |
+| S4 | 5-Mind role prompts | `hook.ts` | S3 | `MIND_ROLE_PROMPTS` 상수, `Mind` type, 선택 전략 directive |
+| S5 | Hard gates text | `hook.ts` | S3 | `INTERVIEW_GATES` (request_user_input + goal-mode ban + Rhythm Guard) |
+| S6 | Tests | `test/*.test.ts` | S1, S3, S4 | state.test.ts 신규 ~14 tests, hook.test.ts 신규 ~7 tests |
+| S7 | D4 통합 검증 | (문서) | S1-S6 | 별도 5단계 루프 신설 X 확인, I 단계 강화가 PABCD 반복에 흡수됨 |
+
+S1-S2는 state layer, S3-S5는 hook layer, S6는 검증, S7는 설계 검증. 각 슬라이스는 atomic commit 단위.
+
+### 6.2 D4 — PABCD 반복 루프에 흡수 (별도 5단계 X)
+
+**확인 (D4 원칙 유지)**:
+- ouroboros의 Interview → Seed → Execute → Evaluate → Evolve 5단계를 **verbatim 채용하지 않음**.
+- 인터뷰 하드닝 = 기존 PABCD의 **I 단계 확장**. I 단계가 끝나면 기존대로 P → A → B → C → D → (반복).
+- I 단계 내부의 모순→질문→수정 루프(§2.2)는 I 단계의 내부 구현이지, 별도 phase가 아님.
+- multi-pass 작업 = 여러 PABCD pass (기존 dev-pabcd "work-phase = one PABCD cycle" 원칙 유지).
+  각 pass의 I 단계에서 interview tracker가 초기화되거나 (새 work-phase) 이전 pass의 tracker를
+  이어받아 (같은 goal의 연속 work-phase) 진행. 이어받기 여부는 ❓OPEN FOR JUN.
+
+### 6.3 파일 영향도 요약
+
+| 파일 | 변경 유형 | 라인 추정 |
+|------|-----------|-----------|
+| `src/state.ts` | MODIFY — 신규 타입 + 함수 + reconstruct | +~120 lines (interface ~40, helpers ~80) |
+| `src/hook.ts` | MODIFY — directive 확장 + MIND_ROLE_PROMPTS | +~60 lines |
+| `src/fsm.ts` | MODIFY — 주석만 (코드 변경 없음) | +~3 lines |
+| `test/state.test.ts` | MODIFY — 신규 ~14 tests | +~120 lines |
+| `test/hook.test.ts` | MODIFY — 신규 ~7 tests | +~50 lines |
+| `test/fsm.test.ts` | MODIFY — 주석만 | +~2 lines |
+
+모든 파일 500-line 제한 내 (dev 규칙). `state.ts`는 ~120 + 기존 ~120 = ~240. `hook.ts`는 ~60 + ~130 = ~190.
+
+---
+
+## ❓OPEN FOR JUN — Genuinely Open Product/UX Decisions
+
+아래 항목만 jun의 결정이 필요하다. 나머지는 모두 기계적으로 결정 완료.
+
+1. **Auto-mode 기본 on/off**: severity "medium" 모순을 자동 해결(assumption 기록)할지 user 승격할지의
+   기본값. on = 유저 부담 최소 (ouroboros auto 패턴), off = 모든 medium을 user에게 (cli-jaw 보수).
+   D3가 auto-mode "필요"라고 했으나 기본값은 UX 선택.
+
+2. **Max rounds 기본값**: 인터뷰 루프를 몇 round까지 돌릴지 (ouroboros `max_interview_rounds`).
+   도달 시 closure policy: `safe_default` (남은 gap을 conservative default로 채움) vs `block` (user에게
+   "해결 안 된 모순이 남았다" 보고 후 정지). ouroboros는 `safe_default` + `ledger_only` + genuine-deadlock
+   3종 closure를 구분 — codexclaw는 어디까지 채택할지.
+
+3. **Contrarian aggressiveness 톤 조정**: Contrarian role prompt의 "Be skeptical, not rude" 라인의
+   강도. 너무 약하면 모순 도출 부족, 너무 강하면 user 경험 저하. prompt 튜닝은 jun의 product call.
+
+4. **Interview tracker 이어받기 (cross-pass)**: 같은 goal의 여러 work-phase(PABCD pass) 간에
+   `state.interview`를 초기화할지 이어받을지. 초기화 = 각 pass 독립 인터뷰 (cli-jaw "I 단계는
+   언제든 복귀 가능"와 일치). 이어받기 = goal 단위 인터뷰 추적 (ouroboros session persistence와 유사).
+
+5. **Elicitation fallback 우선순위**: `request_user_input` flag off 시 — MCP elicitation
+   (`tool_call_mcp_elicitation`, Stable)을 즉시 사용할지, 아니면 user에게 flag 활성화를 먼저 권유할지.
+   023.1은 "guide user to enable (or use MCP elicitation)"으로 둘 다 허용. 우선순위는 UX 선택.
+   Plain-text fallback은 022.3이 금지하므로 선택지에서 제외 (fail-fast only).
+
+6. **`flags.interview` 설정 주체**: 메인 agent가 `isInterviewReady()` true 시 자동 설정(현재 설계) vs
+   user가 "인터뷰 끝" 명시적 선언 필요. 자동 = goal-mode와 충돌 시 코너케이스 (goal mode는 인터뷰
+   금지이므로 자동 설정이 goal mode에서 발생할 수 없음 — 자동이 안전). 명시적 = user 통제 강화.
+   현재 설계(자동)가 기계적으로 안전하지만, user 통제 선호도는 product call.
+
+---
+
+## 상태
+
+- 2026-06-30: stub 생성. ouroboros 리서치 폴더와 상호 링크. 실 설계는 Pass 7 이후 착수.
+- 2026-06-30: **hardened** — ouroboros 소스 실측 완료. D1-D4 유지·심화. §1-§6 기계적 결정 충완.
+  ❓OPEN FOR JUN 6항만 잔존. 코드 수정은 Pass 8 착수 시.
