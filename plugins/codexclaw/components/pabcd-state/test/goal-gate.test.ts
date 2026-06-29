@@ -1,6 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parsePreToolUse, applyGoalBudgetGuard, type PreToolUsePayload } from "../src/goal-gate.ts";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  parsePreToolUse,
+  applyGoalBudgetGuard,
+  applyGoalModeInterviewGuard,
+  type PreToolUsePayload,
+} from "../src/goal-gate.ts";
+import type { GoalActiveDeps } from "../src/goal-active.ts";
 
 function ptu(toolName: string, toolInput: unknown): PreToolUsePayload {
   return {
@@ -92,4 +101,63 @@ test("parse -> guard end to end: budgeted create_goal denied", () => {
   assert.ok(p);
   const out = applyGoalBudgetGuard(p as PreToolUsePayload);
   assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.permissionDecision, "deny");
+});
+
+// --- applyGoalModeInterviewGuard (L11.2 / Q-GM-1-f hard deny) ----------------
+
+// Inject a fake goals DB so the guard never touches the real codex DB. The path
+// must exist on disk (getGoalActiveStatus existsSync-gates before opening), so
+// we point at a real temp file and override the opener with a stub.
+function realDbPath(): string {
+  const dir = mkdtempSync(join(tmpdir(), "cxc-gg-"));
+  const p = join(dir, "goals_1.sqlite");
+  writeFileSync(p, "");
+  return p;
+}
+
+function depsWithStatus(status: string | number | null): GoalActiveDeps {
+  return {
+    dbPath: realDbPath(),
+    openDb: () => ({
+      prepare: () => ({
+        get: () => (status === null ? undefined : { status }),
+      }),
+      close: () => {},
+    }),
+  };
+}
+
+test("applyGoalModeInterviewGuard: active goal -> deny request_user_input", () => {
+  const out = applyGoalModeInterviewGuard(ptu("request_user_input", { questions: [] }), depsWithStatus("active"));
+  assert.notEqual(out, "");
+  assert.ok(out.endsWith("\n"));
+  const hso = JSON.parse(out.trimEnd()).hookSpecificOutput;
+  assert.equal(hso.hookEventName, "PreToolUse");
+  assert.equal(hso.permissionDecision, "deny");
+  assert.match(hso.additionalContext, /goal-active=active/);
+});
+
+test("applyGoalModeInterviewGuard: unreadable goal DB -> deny (fail closed)", () => {
+  // A non-string status column -> getGoalActiveStatus returns "unreadable" -> fail closed (deny).
+  const out = applyGoalModeInterviewGuard(ptu("request_user_input", {}), depsWithStatus(123));
+  assert.notEqual(out, "");
+  assert.match(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, /goal-active=unreadable/);
+});
+
+test("applyGoalModeInterviewGuard: inactive goal -> passthrough ''", () => {
+  assert.equal(applyGoalModeInterviewGuard(ptu("request_user_input", {}), depsWithStatus("complete")), "");
+  assert.equal(applyGoalModeInterviewGuard(ptu("request_user_input", {}), depsWithStatus(null)), "");
+});
+
+test("applyGoalModeInterviewGuard: non-request_user_input tool -> passthrough '' (no DB read)", () => {
+  let opened = false;
+  const spyDeps: GoalActiveDeps = {
+    dbPath: realDbPath(),
+    openDb: () => {
+      opened = true;
+      return { prepare: () => ({ get: () => ({ status: "active" }) }), close: () => {} };
+    },
+  };
+  assert.equal(applyGoalModeInterviewGuard(ptu("shell", { command: "ls" }), spyDeps), "");
+  assert.equal(opened, false);
 });

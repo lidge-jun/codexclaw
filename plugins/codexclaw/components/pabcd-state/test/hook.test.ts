@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createRequire } from "node:module";
 import {
   detectTrigger,
   buildContextOutput,
@@ -14,6 +15,30 @@ import {
   type StopPayload,
 } from "../src/hook.ts";
 import { STATE_DIR, LEDGER_FILE, readState, writeState, defaultState } from "../src/state.ts";
+import { GOALS_DB_FILENAME } from "../src/goal-active.ts";
+
+const nodeRequire = createRequire(import.meta.url);
+
+// Build a real goals_1.sqlite under a temp CODEX_SQLITE_HOME so hook.ts's
+// getGoalActiveStatus(session_id) (which reads process.env) resolves it.
+function withGoalsDb(rows: Array<{ thread_id: string; status: string }>, fn: () => void): void {
+  const home = mkdtempSync(join(tmpdir(), "codexclaw-goalsenv-"));
+  const { DatabaseSync } = nodeRequire("node:sqlite") as typeof import("node:sqlite");
+  const db = new DatabaseSync(join(home, GOALS_DB_FILENAME));
+  db.exec(`CREATE TABLE thread_goals (thread_id TEXT PRIMARY KEY NOT NULL, goal_id TEXT NOT NULL, objective TEXT NOT NULL, status TEXT NOT NULL);`);
+  const ins = db.prepare("INSERT INTO thread_goals (thread_id, goal_id, objective, status) VALUES (?,?,?,?)");
+  for (const r of rows) ins.run(r.thread_id, `g-${r.thread_id}`, "obj", r.status);
+  db.close();
+  const prev = process.env.CODEX_SQLITE_HOME;
+  process.env.CODEX_SQLITE_HOME = home;
+  try {
+    fn();
+  } finally {
+    if (prev === undefined) delete process.env.CODEX_SQLITE_HOME;
+    else process.env.CODEX_SQLITE_HOME = prev;
+    rmSync(home, { recursive: true, force: true });
+  }
+}
 
 function freshCwd(): string {
   return mkdtempSync(join(tmpdir(), "codexclaw-hook-"));
@@ -196,6 +221,35 @@ test("hybrid mode 1: explicit trigger activates orchestration + injects directiv
     const st = readState(cwd, "s1");
     assert.equal(st.orchestrationActive, true);
     assert.equal(st.lastInjectedPhase, "P");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L11: active goal suppresses I-trigger (no directive, no interview state)", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "sg1", status: "active" }], () => {
+      const out = handleUserPromptSubmit(ups("please interview me", cwd, "sg1", "t1"));
+      assert.equal(out, "", "I-trigger must be suppressed while the native goal is active");
+      const st = readState(cwd, "sg1");
+      assert.equal(st.orchestrationActive, false, "suppressed I must not activate orchestration");
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L11: inactive goal allows I-trigger (interview directive injected)", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "sg2", status: "complete" }], () => {
+      const out = handleUserPromptSubmit(ups("please interview me", cwd, "sg2", "t1"));
+      assert.notEqual(out, "", "inactive goal must allow the interview directive");
+      const st = readState(cwd, "sg2");
+      assert.equal(st.orchestrationActive, true);
+      assert.equal(st.lastInjectedPhase, "I");
+    });
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

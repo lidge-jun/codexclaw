@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js\" hook pre-tool-use",
+            "timeout": 15,
+            "statusMessage": "(codexclaw) Denying interview/user-input in goal mode"
+          }
+        ],
+        "matcher": "^request_user_input$"
+      }
+    ]
+  }
+}

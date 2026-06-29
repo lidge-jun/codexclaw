@@ -19,7 +19,7 @@
 import { readFileSync } from "node:fs";
 import { handleStop, handleUserPromptSubmit } from "./hook.js";
 import { parseStop, parseUserPromptSubmit } from "./parse.js";
-import { applyGoalBudgetGuard, parsePreToolUse } from "./goal-gate.js";
+import { applyGoalBudgetGuard, applyGoalModeInterviewGuard, parsePreToolUse } from "./goal-gate.js";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.js";
 
 function readStdin()         {
@@ -64,7 +64,11 @@ function main()       {
       if (payload) output = handleStop(payload);
     } else if (event === "pre-tool-use") {
       const payload = parsePreToolUse(raw);
-      if (payload) output = applyGoalBudgetGuard(payload);
+      if (payload) {
+        // goal-budget guard (create_goal) OR goal-mode interview deny
+        // (request_user_input). Each is tool-name-scoped, so at most one fires.
+        output = applyGoalBudgetGuard(payload) || applyGoalModeInterviewGuard(payload);
+      }
     }
   } catch {
     output = "";

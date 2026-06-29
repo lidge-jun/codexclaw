@@ -16,6 +16,7 @@
  */
 import { readState, writeState, type Phase } from "./state.ts";
 import { hasStageMarkerForPhase, isContextPressureTail, readTranscriptTail } from "./transcript.ts";
+import { getGoalActiveStatus, suppressesInterview } from "./goal-active.ts";
 
 export interface UserPromptSubmitPayload {
   hook_event_name: "UserPromptSubmit";
@@ -177,6 +178,13 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
   if (turn && state.injectedTurns.includes(turn)) return "";
 
   const trigger = detectTrigger(payload.prompt);
+
+  // L11: in active goal mode, the Interview (I) phase is suppressed — do not inject
+  // the I directive and do not create/update interview state (HOTL boundary). Other
+  // phase triggers (P/A/B/C) still work; goal mode runs PABCD, just never reopens I.
+  if (trigger === "I" && suppressesInterview(getGoalActiveStatus(payload.session_id))) {
+    return "";
+  }
 
   // mode 1: explicit trigger activates orchestration and injects the full directive.
   if (trigger) {

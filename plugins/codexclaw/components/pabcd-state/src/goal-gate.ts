@@ -31,6 +31,12 @@ const CREATE_GOAL_TOOL_NAME = "create_goal";
 const CREATE_GOAL_WARNING =
   "Use create_goal with objective only. Omit token_budget so the goal stays unlimited, and put lifecycle status changes on update_goal.";
 
+import { getGoalActiveStatus, suppressesInterview, type GoalActiveDeps } from "./goal-active.ts";
+
+const REQUEST_USER_INPUT_TOOL = "request_user_input";
+const GOAL_MODE_DENY_REASON =
+  "Goal mode is active: interview / request_user_input is denied. Autonomous execution must not block on the user. Use autonomous backfill (verified fact, contradiction, or high-severity assumption requiring later review) instead.";
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -86,6 +92,30 @@ export function applyGoalBudgetGuard(payload: PreToolUsePayload): string {
       permissionDecision: "deny",
       permissionDecisionReason: CREATE_GOAL_WARNING,
       additionalContext: CREATE_GOAL_WARNING,
+    },
+  })}\n`;
+}
+
+/**
+ * Strict goal-mode deny for request_user_input (L11.2 / R-9 fail-closed). Returns
+ * a deny envelope when the native goal is Active OR the goal DB row is unreadable
+ * (fail-closed). Returns "" only when goal mode is genuinely inactive. Keyed on
+ * the L11.1 read-only goals_1.sqlite lookup by thread_id (= session_id).
+ *
+ * This path must NOT be swallowed by the global fail-safe: callers invoke it
+ * directly and treat a thrown/empty result conservatively.
+ */
+export function applyGoalModeInterviewGuard(payload: PreToolUsePayload, deps: GoalActiveDeps = {}): string {
+  if (payload.hook_event_name !== "PreToolUse") return "";
+  if (payload.tool_name !== REQUEST_USER_INPUT_TOOL) return "";
+  const status = getGoalActiveStatus(payload.session_id, deps);
+  if (!suppressesInterview(status)) return ""; // goal inactive -> allow
+  return `${JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: GOAL_MODE_DENY_REASON,
+      additionalContext: `${GOAL_MODE_DENY_REASON} (goal-active=${status})`,
     },
   })}\n`;
 }
