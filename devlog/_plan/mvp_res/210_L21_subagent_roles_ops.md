@@ -1,6 +1,6 @@
 # L21 (Decade 210) -- Subagent Role .toml + Diagnostics/Ops
 
-Status: ANALYZED
+Status: DONE
 Cluster: 3 · Phase: expansion · Shorthand: cxc
 Source-of-record: 260629_codexclaw_mvp/140_subagent_roles_ops.md (J6), 090.1 J-8/J-9/J-14
 
