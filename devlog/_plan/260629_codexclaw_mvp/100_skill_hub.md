@@ -29,6 +29,20 @@ openclaw류로 skill_hub를 만들어 codex가 알아서 스킬을 골라 쓰게
 - turn prompt에는 `<skills_instructions>` developer block으로 “name + description + path” 목록이 들어가고, 사용 규칙은 “사용자가 `$SkillName`을 언급하거나 task가 description과 명확히 매칭되면 그 skill을 사용”이라고 명시된다. 근거: `/Users/jun/Developer/codex/121_openai-codex/codex-rs/core-skills/src/render.rs:21`, `/Users/jun/Developer/codex/121_openai-codex/codex-rs/core/src/session/mod.rs:2738`.
 - 명시 mention은 별도 수집된다. turn build에서 explicit skill mention을 수집하고, 선택된 skill body를 주입한다. 근거: `/Users/jun/Developer/codex/121_openai-codex/codex-rs/core/src/session/turn.rs:512`.
 
+### 2.1 ⭐ "감지 안 됨 + grep으로 발견" 2-경로 분리 (jun 요청 실측, 2026-06-30)
+jun의 요구 — "자동 감지는 안 되다가 grep해서 이름으로 파악 가능하게" — 가 codex 네이티브로 성립함을 소스에서 직접 확정했다. 핵심은 **두 주입 경로가 서로 다른 게이트를 쓴다**는 것:
+
+- **경로 1 (implicit, 항상-뜨는 목록)**: `build_available_skills()`가 `outcome.allowed_skills_for_implicit_invocation()`만 렌더링한다. 이 집합은 `is_skill_enabled() && allow_implicit_invocation()`로 필터된다. 따라서 `allow_implicit_invocation: false`인 스킬은 **`<skills_instructions>` 자동 목록에서 빠진다 = 감지 안 됨**. 근거: `/Users/jun/Developer/codex/121_openai-codex/codex-rs/core-skills/src/render.rs:165`, `/Users/jun/Developer/codex/121_openai-codex/codex-rs/core-skills/src/model.rs:105`.
+- **경로 2 (explicit mention)**: `select_skills_from_mentions()`는 후보를 거를 때 **`disabled_paths`와 중복(`seen_paths`)만 검사하고 `allow_implicit_invocation`은 검사하지 않는다**. 즉 이름(`$skill-name`) 또는 SKILL.md 경로로 명시 멘션되면 implicit가 false여도 선택·주입된다. 근거: `/Users/jun/Developer/codex/121_openai-codex/codex-rs/core-skills/src/injection.rs:322`.
+- **결론**: `allow_implicit_invocation: false` = "자동 목록에서 사라지지만 이름을 알면(grep로 찾으면) 명시 호출로 살아남음". 디스크의 `SKILL.md`는 `rg`/`read`로 항상 접근 가능하므로, grep로 이름을 얻은 뒤 명시 호출하면 주입된다. **cli-jaw의 폴더분리(skills_ref 숨김 / skills 활성)와 동일한 효과를 codex는 frontmatter-인접 토글 한 줄로 달성.**
+
+**축 구분(중요)** — 두 개념을 혼동하면 안 됨:
+- `disabled`(`[[skills.config]] enabled=false` / `disabled_paths`): **두 경로 모두 차단**. implicit 목록에서도, 명시 멘션에서도 빠짐 = 완전 비활성.
+- `allow_implicit_invocation: false`: **경로 1만 차단**. 명시 멘션(경로 2)은 통과 = grep-only 발견.
+- codexclaw skill-hub가 원하는 것은 후자(implicit-off)이지 전자(disabled)가 아니다. on-demand 스킬을 `disabled`로 두면 grep로 찾아도 호출 불가가 되므로 설계 의도와 어긋난다.
+
+**policy 위치 정정** — `policy.allow_implicit_invocation`는 `SKILL.md` frontmatter가 아니라 skill 디렉토리의 `agents/openai.yaml`에서 읽힌다(loader.rs:710,836). 본 문서 §5의 `agents/openai.yaml` 예시가 정본이며, frontmatter에는 `name`/`description`/`metadata.short-description`만 둔다.
+
 ### 3. plugin.json skills 연결
 - Codex plugin manifest의 `skills` 필드는 plugin root 기준 `./`로 시작하는 상대 경로여야 한다. 해당 경로는 absolute path로 resolve된다. 근거: `/Users/jun/Developer/codex/121_openai-codex/codex-rs/core-plugins/src/manifest.rs:235`, `/Users/jun/Developer/codex/121_openai-codex/codex-rs/core-plugins/src/manifest.rs:397`.
 - 기본 `skills/`와 custom skill path가 함께 skill roots로 들어갈 수 있다. 테스트상 `"skills": "./custom-skills/"`이면 `custom-skills`와 기본 `skills`가 모두 root에 잡힌다. 근거: `/Users/jun/Developer/codex/121_openai-codex/codex-rs/core-plugins/src/manager_tests.rs:641`.
