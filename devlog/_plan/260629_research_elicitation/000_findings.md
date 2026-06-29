@@ -118,3 +118,13 @@ MCP server  --elicitation/create-->  codex core  --EventMsg::ElicitationRequest-
 - Open: reconcile with phase-1 "config untouched" — this flag is a USER-set option, not something
   codexclaw mutates automatically. codexclaw should DETECT the flag and document enabling it, not
   silently write it. (MCP elicitation remains the no-flag fallback for stability.)
+
+### USAGE RULE (jun, 2026-06-29) — REQUIRED
+- General usage: codexclaw MAY actively use `request_user_input` (the selector) whenever a real
+  choice/clarification would help the user. Be proactive, not shy, in normal interactive turns.
+- Goal mode: `request_user_input` is **STRICTLY FORBIDDEN** during goal-mode autonomous execution.
+  Reason: goal mode self-advances without user turns; popping a selector and waiting would stall
+  or strand the autonomous loop. In goal mode, decide autonomously (or pause via the goal's own
+  mechanism) — never block on an interactive prompt.
+- Implementation requirement: the interview/iPABCD prompt layer MUST check the current execution
+  context and hard-disable `request_user_input` when a goal is active.

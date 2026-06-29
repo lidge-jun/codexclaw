@@ -47,3 +47,4 @@ subagents — without opencodex, without touching `~/.codex/config.toml`.
 - See ../260629_research_elicitation/000_findings.md for full evidence + caveats.
 - codexclaw must DETECT the flag and document enabling it; it must NOT auto-write config.toml
   (phase-1 config-untouched principle).
+- USAGE RULE: actively use the selector in general turns; STRICTLY FORBIDDEN in goal mode (autonomous loop must not block on a prompt). Implementation gates it off when a goal is active.
