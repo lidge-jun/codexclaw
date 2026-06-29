@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 export type Phase = "I" | "P" | "A" | "B" | "C" | "D";
@@ -63,12 +63,19 @@ export function readState(cwd: string, sessionId: string): State {
     if (!parsed || typeof parsed.phase !== "string" || !PHASES.includes(parsed.phase as Phase)) {
       return defaultState(sessionId);
     }
-    const base = defaultState(sessionId, parsed.slug ?? "");
+    const base = defaultState(sessionId, typeof parsed.slug === "string" ? parsed.slug : "");
+    // strict reconstruction: only known fields survive (omo-style discipline, no unknown-key passthrough)
     return {
-      ...base,
-      ...parsed,
+      phase: parsed.phase as Phase,
       sessionId,
-      flags: { ...base.flags, ...(parsed.flags ?? {}) },
+      slug: base.slug,
+      updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : base.updatedAt,
+      flags: {
+        interview: parsed.flags?.interview === true,
+        auditPassed: parsed.flags?.auditPassed === true,
+        checkPassed: parsed.flags?.checkPassed === true,
+      },
+      supersededBy: typeof parsed.supersededBy === "string" ? parsed.supersededBy : null,
     };
   } catch {
     return defaultState(sessionId);
@@ -80,8 +87,17 @@ export function writeState(cwd: string, next: State): void {
   mkdirSync(dir, { recursive: true });
   const finalPath = statePath(cwd, next.sessionId);
   const tmp = `${finalPath}.${process.pid}.${Date.now()}.tmp`;
-  writeFileSync(tmp, JSON.stringify({ ...next, updatedAt: new Date().toISOString() }, null, 2));
-  renameSync(tmp, finalPath);
+  try {
+    writeFileSync(tmp, JSON.stringify({ ...next, updatedAt: new Date().toISOString() }, null, 2));
+    renameSync(tmp, finalPath);
+  } catch (err) {
+    try {
+      rmSync(tmp, { force: true });
+    } catch {
+      // best-effort cleanup of orphan tmp; ignore
+    }
+    throw err;
+  }
 }
 
 export function appendLedger(cwd: string, entry: LedgerEntry): void {

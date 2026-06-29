@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -107,4 +107,32 @@ test("sanitizeKey: strips unsafe chars, falls back to 'missing'", () => {
   assert.equal(sanitizeKey("019f/13ab:cd"), "019f-13ab-cd");
   assert.equal(sanitizeKey(""), "missing");
   assert.equal(sanitizeKey("///"), "missing");
+});
+
+test("readState: unknown persisted keys are dropped (strict reconstruction)", () => {
+  const cwd = freshCwd();
+  try {
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "uk.json"), JSON.stringify({ phase: "P", sessionId: "uk", evil: "x", flags: { interview: true, bogus: 1 } }));
+    const s = readState(cwd, "uk");
+    assert.equal(s.phase, "P");
+    assert.equal(Object.prototype.hasOwnProperty.call(s, "evil"), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(s.flags, "bogus"), false);
+    assert.equal(s.flags.interview, true);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("writeState: no orphan .tmp left after a successful write", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, defaultState("clean"));
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    const leftovers = readdirSync(dir).filter((f) => f.endsWith(".tmp"));
+    assert.deepEqual(leftovers, []);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
