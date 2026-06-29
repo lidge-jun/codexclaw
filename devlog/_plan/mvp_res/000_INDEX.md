@@ -88,7 +88,7 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 |------|--------|------|--------|------------------|
 | L12 | 120 | dev hub + pabcd real-content port (always-on discipline core) | DONE | 110_dev_skills_porting |
 | L13 | 130 | dev-architecture + dev-debugging <- omo(debugging, ast-grep, comment-checker) | DONE | 110 |
-| L14 | 140 | dev-backend + dev-data <- omo(programming) | PLANNED | 110 |
+| L14 | 140 | dev-backend + dev-data <- omo(programming) | DONE | 110 |
 | L15 | 150 | dev-frontend + dev-uiux-design <- omo(frontend, visual-qa, designpowers) | PLANNED | 110 |
 | L16 | 160 | dev-testing + dev-code-reviewer <- omo(review-work, remove-ai-slops) | PLANNED | 110 |
 | L17 | 170 | dev-security + dev-devops + dev-scaffolding <- omo(refactor, init-deep, git-master) | PLANNED | 110 |
