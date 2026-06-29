@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.codexclaw/
+*.log
+.DS_Store
+# reference clone (not part of codexclaw source)
+devlog/.lazycodex/

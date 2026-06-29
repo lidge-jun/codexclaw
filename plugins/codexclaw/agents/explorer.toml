@@ -1,0 +1,8 @@
+# codexclaw subagent role: explorer
+# Fast, read-only codebase investigation. Maps to cli-jaw explorer dispatch.
+name = "explorer"
+description = "Read-only codebase investigation. Answers specific, well-scoped questions about the code."
+# model is resolved at runtime: default model, or a multi-model override
+# from subagent-config (.codexclaw/subagents.json), routed via ocx when present.
+model = "default"
+read_only = true

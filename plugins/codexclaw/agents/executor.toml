@@ -1,0 +1,6 @@
+# codexclaw subagent role: executor
+# Maps to cli-jaw worker dispatch. Makes bounded code changes in a clear write scope.
+name = "executor"
+description = "Implements a bounded, well-scoped code change and reports the files it touched."
+model = "default"
+read_only = false

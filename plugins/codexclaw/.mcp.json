@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "codexclaw": {
+      "command": "node",
+      "args": [
+        "./components/subagent-config/dist/mcp.js"
+      ],
+      "cwd": ".",
+      "required": false
+    }
+  }
+}

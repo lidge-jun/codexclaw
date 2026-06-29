@@ -1,0 +1,11 @@
+{
+  "name": "@codexclaw/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "codexclaw CLI — status, subagent config, provider toggle, GUI launcher.",
+  "bin": {
+    "codexclaw": "../bin/codexclaw.mjs"
+  },
+  "main": "src/index.ts"
+}

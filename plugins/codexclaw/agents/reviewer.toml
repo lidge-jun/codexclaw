@@ -1,0 +1,6 @@
+# codexclaw subagent role: reviewer
+# Maps to cli-jaw dev-code-reviewer. Reviews diffs/plans for risk.
+name = "reviewer"
+description = "Reviews code changes and plans for correctness, risk, and convention adherence."
+model = "default"
+read_only = true

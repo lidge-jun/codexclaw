@@ -1,0 +1,21 @@
+{
+  "name": "codexclaw",
+  "version": "0.1.0",
+  "private": true,
+  "description": "cli-jaw-style dev discipline + multi-model subagents for the OpenAI Codex runtime.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lidge-jun/codexclaw.git"
+  },
+  "license": "MIT",
+  "workspaces": [
+    "plugins/codexclaw/components/*",
+    "plugins/codexclaw/gui",
+    "cli"
+  ],
+  "scripts": {
+    "build": "node plugins/codexclaw/scripts/build.mjs",
+    "test": "echo \"(no tests yet)\" && exit 0"
+  }
+}

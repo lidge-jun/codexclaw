@@ -1,0 +1,41 @@
+{
+  "name": "codexclaw",
+  "version": "0.1.0",
+  "description": "cli-jaw-style dev discipline (dev skills + PABCD) and multi-model subagents for the OpenAI Codex runtime, with optional opencodex provider routing.",
+  "author": {
+    "name": "lidge-jun",
+    "url": "https://github.com/lidge-jun"
+  },
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "codex-plugin",
+    "codexclaw",
+    "pabcd",
+    "subagents",
+    "opencodex",
+    "dev-skills"
+  ],
+  "skills": "./skills/",
+  "hooks": [
+    "./hooks/session-start-ensuring-provider-bridge.json",
+    "./hooks/user-prompt-submit-checking-pabcd-trigger.json",
+    "./hooks/stop-checking-pabcd-continuation.json"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Codexclaw",
+    "shortDescription": "cli-jaw dev discipline + multi-model subagents for Codex.",
+    "longDescription": "Codexclaw reuses the OpenAI Codex runtime and layers cli-jaw-style development discipline (dev-* skills, PABCD workflow), multi-model subagent routing, and an optional opencodex (ocx) provider bridge. Includes a local GUI for subagent model selection and prompt tuning.",
+    "developerName": "lidge-jun",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Skills",
+      "Hooks",
+      "Workflow",
+      "Subagents",
+      "Context Injection"
+    ],
+    "defaultPrompt": "Plan this with codexclaw PABCD and use multi-model subagents."
+  }
+}

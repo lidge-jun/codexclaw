@@ -1,0 +1,8 @@
+{
+  "name": "@codexclaw/pabcd-state",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PABCD finite-state machine backed by .codexclaw/state.json + ledger.jsonl.",
+  "main": "dist/cli.js"
+}
