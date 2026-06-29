@@ -1,5 +1,5 @@
 ---
-name: dev-debugging
+name: cxc-dev-debugging
 description: "MUST USE for any real runtime debugging in any language — crashes, silent failures, wrong output, build/test failures, flaky tests, performance regressions, integration bugs. A 5-phase root-cause method: architecture check → investigate → analyze → hypothesize → implement. Triggers: 'debug this', 'why is X failing', 'this test is flaky', 'fix the crash', 'root cause', '왜 안 돼', '디버깅', '원인 분석'."
 metadata:
   short-description: "5-phase systematic root-cause debugging method (any language)."

@@ -1,5 +1,5 @@
 ---
-name: dev-data
+name: cxc-dev-data
 description: "MUST USE for data engineering and analysis work — pipelines, ETL/ELT, data quality, SQL optimization, schema evolution, backfills, and reporting. Triggers: ETL, ELT, pipeline, data quality, SQL optimization, backfill, migration, schema drift, validation, batch vs streaming, 데이터 파이프라인, 데이터 품질, 백필."
 metadata:
   short-description: "Data pipelines, ETL/ELT design, data quality validation, SQL optimization, and analysis patterns."

@@ -1,5 +1,5 @@
 ---
-name: dev-testing
+name: cxc-dev-testing
 description: "MUST USE for testing, QA, regression protection, and release verification — unit, integration, API, contract, Playwright E2E, CI, security-scan, coverage, and TDD strategy. Activates by change-surface when work adds features, fixes bugs, changes APIs, refactors behavior, or prepares a release. Triggers: 'write tests', 'regression test', 'Playwright', 'E2E', 'contract test', 'coverage', 'CI flake', 'TDD', '테스트', '회귀 테스트', '품질 게이트'."
 metadata:
   short-description: "Testing and QA router: strategy, harness choice, CI gates, TDD, and coverage."

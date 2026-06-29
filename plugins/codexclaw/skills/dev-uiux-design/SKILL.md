@@ -1,5 +1,5 @@
 ---
-name: dev-uiux-design
+name: cxc-dev-uiux-design
 description: "MUST USE for UI/UX direction and design judgment — vague visual briefs, onboarding, empty/error/loading states, layout vocabulary, typography breaks, favicons, logos, and brand identity choices. Triggers: make it look good, modern, clean, aesthetic, onboarding, empty state, error state, favicon, logo, design system, 깔끔하게, 모던하게, 감성적으로."
 metadata:
   short-description: "Design judgment for vague briefs, UX states, typography, layout patterns, logos, and brand vocabulary."

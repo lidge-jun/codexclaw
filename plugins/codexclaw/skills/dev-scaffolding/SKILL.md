@@ -1,5 +1,5 @@
 ---
-name: dev-scaffolding
+name: cxc-dev-scaffolding
 description: "MUST USE for project setup, feature scaffolding, structural audits, or documentation scaffolding — applies feature-based layout, colocation, public boundary exports, repo-first convention reuse, and source-of-truth doc planning. Triggers: scaffold, scaffolding, new project, init project, new feature, add module, project setup, structure audit, architecture docs, source-of-truth docs, monorepo setup, API docs, 스캐폴딩, 새 프로젝트, 새 기능, 구조 점검, 모듈 추가."
 metadata:
   short-description: "Project and module scaffolding with repo-first convention reuse and structural audits."

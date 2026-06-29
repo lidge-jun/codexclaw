@@ -1,5 +1,5 @@
 ---
-name: dev
+name: cxc-dev
 description: "MUST USE for every coding task — classifies work depth (C0-C5), enforces modular limits, pre-write search, verification-before-completion, and safety rules. Always-on discipline that routes to surface-specific dev-* routers by change surface. Triggers: any code change, refactor, bug fix, feature, test, review, scaffolding."
 metadata:
   short-description: "Universal dev discipline: work classifier, modular limits, verification gate, safety rules."

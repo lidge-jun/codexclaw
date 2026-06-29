@@ -27,7 +27,7 @@ never disabled). Load an on-demand skill explicitly by `$name` or SKILL.md path.
 ## Loading rule
 
 On-demand skills do not appear in the auto-rendered `<skills_instructions>`
-list. To use one, mention it explicitly (`$dev-testing`) or open its SKILL.md
+list. To use one, mention it explicitly (`$cxc-dev-testing`) or open its SKILL.md
 path. The `dev` hub also routes to the right surface skill by change-surface.
 
 ## Host-provided (not codexclaw skills)

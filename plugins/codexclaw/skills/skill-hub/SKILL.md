@@ -1,5 +1,5 @@
 ---
-name: skill-hub
+name: cxc-skill-hub
 description: "Read when a task needs a capability beyond the always-on dev discipline — architecture, debugging, backend, data, frontend, UI/UX, testing, code review, security, devops, scaffolding, PABCD planning, or web search. Open references/catalog.md, find the on-demand skill by load_when, then explicitly load it. Triggers: which skill, what skills exist, capability beyond dev, skill catalog, load a skill."
 metadata:
   short-description: "On-demand catalog router: maps a need to the right hidden skill, then tells you to load it explicitly."

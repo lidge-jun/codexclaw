@@ -1,5 +1,5 @@
 ---
-name: dev-security
+name: cxc-dev-security
 description: "MUST USE for security-sensitive coding and review — auth, authorization, validation, secrets, headers, rate limiting, dependency trust, agentic AI safety, and pre-deploy hardening. Activates by change-surface when work touches trust boundaries, PII, uploads, payments, CI integrity, or tool-using agents. Triggers: 'security review', 'auth', 'OAuth', 'token', 'input validation', 'secrets', 'CSP', 'CORS', 'dependency audit', '보안', '인증', '권한', '비밀키'."
 metadata:
   short-description: "Security router for auth, validation, secrets, supply chain, and hardening."

@@ -1,5 +1,5 @@
 ---
-name: dev-architecture
+name: cxc-dev-architecture
 description: "MUST USE for module boundary work, circular dependency detection, coupling review, barrel or re-export changes, and validation placement decisions. Triggers: circular import, module split, layer violation, dependency direction, utils growth, barrel file, re-export, boundary review, architecture refactor, 모듈 경계, 순환 참조."
 metadata:
   short-description: "Module boundaries, circular deps, coupling taxonomy, and boundary-only defensive programming."
