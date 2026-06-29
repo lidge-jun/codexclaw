@@ -2,6 +2,17 @@
 
 Status: TODO  ·  Phase 1
 
+## codex ground truth (role.rs, source-verified)
+- A codex subagent IS an "agent role": role file loaded by the SAME machinery as config.toml
+  (`core/src/agent/role.rs`). Built-ins: explorer, awaiter (`core/src/agent/builtins/`).
+- Spawn: `multi_agent_v1.spawn_agent({agent_type, message:"TASK:..."})`; orchestration owned by
+  the multi-agent tool handler. `wait_agent`/`close_agent` for lifecycle.
+- Role layer = session-flag precedence; caller `model_provider`/`service_tier` sticky unless role
+  sets them → per-role model override works (Phase 2 multi-model basis).
+- Parser: `AgentRoleConfig` + `parse_agent_role_file_contents`. Verify role-file PICKUP location
+  in this build (config agent_roles dir vs plugin-provided) — Q-PORT-1.
+- Mapping: cli-jaw worker/employee/dispatch → this. See 015.1 porting map.
+
 ## Decision / blind spot (see 015)
 `multi_agent_v1.*` (spawn_agent/wait_agent) is a codex RUNTIME TOOL, not a CLI command.
 Step 025 MUST first verify: (a) the runtime tool is available in target codex, (b) how agent

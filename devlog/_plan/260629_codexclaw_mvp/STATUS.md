@@ -44,6 +44,7 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 | 005 | 005_overview.md | REFERENCE |
 | 010 | 010_repo_skeleton.md | DONE (2026-06-29) |
 | 015 | 015_decisions.md | CONFIRMED |
+| 015.1 | 015.1_porting_map.md | CONFIRMED (port-not-strip) |
 | 070 | 070_packaging.md | TODO |
 
 ## Notes
@@ -51,6 +52,8 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 - Phase 3 scheduling feasible via `codex exec` + OS scheduler (launchd/cron). No built-in cron.
 - References: `devlog/.lazycodex` (gitignored); codex-rs sources at
   `/Users/jun/Developer/codex/121_openai-codex/codex-rs` (core-skills/loader.rs, config/skills_config.rs).
-- Conversion grounded: 021.1 (codex schema) + 024.2 (8 conflict classes). dev cannot be copied verbatim.
+- Conversion grounded: 021.1 (codex skill schema) + 024.2 (8 conflict classes) + 015.1 (porting map).
+- DIRECTION: port cli-jaw mechanisms to codex equivalents (commands→native, worker→agent role); keep universal discipline always-on. codexclaw skills are original, fully independent of cli-jaw.
+- codex subagent = agent role (role.rs), loaded like config.toml; per-role model override supported.
 - Decisions confirmed (015): all-13 dev skills, omo goal gate, 3 shippable MVP units.
 - Remaining open: Q-P2-1/2 (GUI reuse, ocx-absent multi-model), Q-P3-2 (result delivery).
