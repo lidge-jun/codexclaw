@@ -4,6 +4,17 @@ Status: DONE
 Cluster: 1 - Phase: 1 - Shorthand: cxc
 Source-of-record: 018_pass1_P_plan.md; 022.1_pabcd_state_files.md; STATUS.md
 
+## ⚠ 보강 필요 (007 findings R-2/R-4) -- 신규 L1.x 보강 loop
+3-레퍼런스 교차검증에서 shipped 상태엔진의 두 구조적 갭 발견. L1은 "DONE"이지만 아래는 신규 보강 loop로 처리:
+- **R-2 attest enforcement**: 현재 `fsm.ts`는 A/C entry가 무조건 `{ok:true}`이고 flag(auditPassed/checkPassed)
+  만 본다 — cli-jaw의 증거게이트(forward에 attest 강제, 무증거 전진 거부)가 prompt prose로 격하됨. → flag를
+  "증거 객체(검사 출력/감사 결과)가 ledger에 기록돼야만 true"로 강제하는 **플러그인-네이티브 attest 게이트** 추가.
+  prompt 텍스트는 게이트가 아니다. (cli-jaw attestation.ts parity)
+- **R-4 IDLE/complete 상태**: 현재 phase = `I|P|A|B|C|D`만, default `I`, D 다음 `nextPhase`=null. 철학문서의
+  "D→IDLE 복귀로 스코프 drift 제어"와 모순. → **IDLE(또는 complete 닫힘 상태)를 명시 추가**하고 D가 orchestration을
+  닫아야 다음 work-phase P 진입 가능하게 한다. (cli-jaw VALID_TRANSITIONS D→IDLE→P parity)
+- 이 두 건은 Cluster 1 인터뷰/goal continuation(L9~L11)이 의존하므로 그 전에 보강한다.
+
 ## Goal (one slice)
 Ship the file-backed IPABCD state core for one Codex session: phase state, gate predicates, and an
 append-only audit ledger, without wiring hooks or skills yet.

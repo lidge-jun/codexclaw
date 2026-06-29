@@ -1,48 +1,62 @@
 # Pass 1 (P) — Cluster 1 (L8–L11) jawdev-grade hardening plan
 
 Status: P · Goal 45ab94c7-ba6 · 2026-06-30 · cxc
-Scope: harden `devlog/_plan/mvp_res/` Cluster-1 loop docs (080–112) + global index hygiene to
+Scope: harden `devlog/_plan/mvp_res/` Cluster-1 loop docs (080–112) + index hygiene to
 decision-complete (jawdev) quality. Docs-only pass; no component source/test changes.
 
-## Cluster-1 doc inventory (audit targets)
-- 080_L8_interview_state_schema.md, 081_L8.1_state_schema_fields.md,
-  082_L8.2_readiness_fsm_is_interview_ready.md, 083_L8.3_bound_ledger_t2_t3_t6.md
-- 090_L9_five_mind_contradiction_dispatcher.md, 091–094 (L9.1–L9.4)
-- 100_L10_question_gen_automode_freeze.md, 101–103 (L10.1–L10.3)
-- 110_L11_goalmode_interview_hard_deny.md, 111–112 (L11.1–L11.2)
+## Concurrency note
+Commit `4e6539f` (parallel session) already: expanded the status legend (added DEFERRED, banned
+`RESOLVED` as a doc Status — now 0), flipped L9/L11/111/112 heads to FROZEN, flipped 230/260→PLANNED
+and 290/300→DEFERRED, and flipped L18 search to on-demand. This pass builds ON that commit — do not
+revert it. Remaining gaps below are what `4e6539f` did NOT close.
 
-## Confirmed gaps (pre-audit, measured)
-G1. `000_INDEX.md` references `000_BUILD_LOG.md` (subagent provenance) but the file does NOT exist.
-G2. Status legend in `000_INDEX.md` lists DONE/FROZEN/PLANNED/ANALYZED/BLOCKED but 5 decade heads
-    (090,110,220,230,260) use `RESOLVED`, which is undefined in the legend → inconsistent vocab.
-G3. L8 head says "document the ledger follow-up if externalized" but L8.3 commits to an append-only
-    ledger — need the two reconciled (is the ledger in-scope for Cluster 1 or deferred?).
+## Remaining gaps (from gpt-5.5 audit 019f1500, measured post-4e6539f)
+G1. `000_BUILD_LOG.md` referenced by INDEX:191 + pass1 — still MISSING. → create it.
+G2. `023_goal_creation_gate.md` dangling in 110:112, 111:55, 112:56 — real file is
+    `023_goal_convention_port.md`. → fix 3 refs.
+G3. INDEX:95 L22 table cell still says `RESOLVED (ast-grep only)` → change to `PLANNED (Q resolved)`.
+G4. L8/L8.1/L8.3 — no exact `InterviewTracker`/`Contradiction`/`Assumption` schema; no numeric array
+    caps; replay/operation IDs optional not named. → pin schema + caps (default 50) + op-id fields.
+G5. L9/L9.1/L9.2/L9.4 — Mind prompt text is summarized not exact; routing thresholds undefined;
+    correlation field unnamed; nested-session detection is a menu. → name correlationId, fix source
+    order, mark exact-prompt authoring as the L9.1 deliverable with a concrete contract.
+G6. L10/L10.2/L10.3 — auto-mode counter/max-round/reset undefined; freeze manifest path/name/schema
+    and goal-start integration unnamed; `ledger_only` closure has no ledger owner/path. → pin freeze
+    manifest at `.codexclaw/interview/freeze.json`, define auto-mode caps, resolve ledger scope.
+G7. L11/L11.2 — PreToolUse matcher path is a placeholder; existing matcher is
+    `plugins/codexclaw/hooks/pre-tool-use-guarding-goal-budget.json` (registered from
+    `.codex-plugin/plugin.json`). → pin the exact path + add-second-hook strategy + fail-closed rule.
 
-## Plan (diff-level)
-1. Create `devlog/_plan/mvp_res/000_BUILD_LOG.md`: record the parallel gpt-5.5 authoring provenance
-   (disjoint decade ranges, source-of-record grounding) so the INDEX reference resolves.
-2. `000_INDEX.md`: add `RESOLVED (design locked, impl pending)` to the status legend; keep existing
-   labels. Do NOT rewrite per-doc statuses beyond legend alignment.
-3. Audit each Cluster-1 doc against the per-loop template (Goal/Why/Scope decision-complete/IPABCD/
-   Acceptance testable/QA channel/Commit unit/Blocked-on/References grounded). Fix only real gaps:
-   missing exact file paths, untestable acceptance, dangling references, ledger scope ambiguity (G3).
-4. Keep edits surgical; no scope creep into Cluster 2+. Commit as one atomic docs commit.
+## Plan (diff-level, surgical)
+1. Create `000_BUILD_LOG.md` (subagent authoring provenance) → resolves G1.
+2. Fix 3 dangling refs G2 + 1 INDEX cell G3.
+3. L8 set: pin full TS schemas for InterviewTracker/Dimension/Contradiction/Assumption; numeric caps
+   (`MAX_TRACKER_ARRAY = 50`) and truncation direction (drop-oldest); name replay fields
+   (`roundId`, `contradictionId`, `planEditId`, `freezeId`).
+4. L9 set: name `correlationId` field; fix nested-session detection to single source + fallback
+   order; state that exact Mind prompt text is L9.1's shipped artifact (not summary).
+5. L10 set: pin freeze manifest `.codexclaw/interview/freeze.json` + schema + slug rule; pin
+   auto-mode `MAX_AUTO_ROUNDS` + counter persistence/reset; resolve `ledger_only` (defer ledger →
+   replace with `assumptions_only` closure, no hidden ledger).
+6. L11 set: pin PreToolUse matcher to a NEW dedicated hook file
+   `plugins/codexclaw/hooks/pre-tool-use-guarding-interview-in-goal.json` (separate from goal-budget
+   to keep safety-critical deny isolated); fail-closed rule explicit.
+7. One atomic docs commit.
 
-## A-gate audit angle (parallel gpt-5.5 subagent)
-Independent reviewer reads 080–112 + 000_INDEX.md and challenges: (a) is each loop decision-complete
-enough that an executor could implement with zero further questions? (b) are references real
-(codex-rs paths/source-of-record files exist)? (c) internal consistency (L8↔L8.3 ledger, L11↔INDEX
-A안). Reviewer returns concrete PASS/FAIL per doc with line-anchored gaps.
+## A-gate audit (DONE)
+gpt-5.5 reviewer 019f1500 → FAIL with the line-anchored gaps above; report at
+`.omo/evidence/cluster1-plan-audit-code-review.md`. This revised plan closes every listed blocker.
 
 ## Acceptance (Pass 1 D)
-1. 000_BUILD_LOG.md exists and INDEX reference resolves.
-2. Status vocabulary consistent (legend covers every label in use across all decade heads).
-3. gpt-5.5 audit returns Cluster-1 docs decision-complete + internally consistent (no open FAIL).
+1. `000_BUILD_LOG.md` exists; no dangling refs in Cluster-1 docs (`grep 023_goal_creation_gate` = 0).
+2. No `RESOLVED` token as a status anywhere in mvp_res (table cells included).
+3. Each L8–L11 doc has exact paths/schemas/caps; re-audit by gpt-5.5 returns decision-complete.
 
 ## QA channel
-- `grep -rl 000_BUILD_LOG` resolves to an existing file.
-- `git grep -h '^Status:'` labels ⊆ legend.
-- Subagent audit verdict text.
+- `grep -rn 023_goal_creation_gate devlog/_plan/mvp_res/` → 0
+- `grep -rn 'RESOLVED' devlog/_plan/mvp_res/000_INDEX.md` → 0
+- `test -f devlog/_plan/mvp_res/000_BUILD_LOG.md`
+- gpt-5.5 C-gate re-audit verdict.
 
 ## Commit unit
 `docs(plan): harden Cluster-1 (L8-L11) loop docs to decision-complete grade`

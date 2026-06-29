@@ -107,9 +107,24 @@ Resolved source = read-only `goals_1.sqlite` lookup by `thread_id` (= hook
 present-yet-unreadable; goal-inactive when no DB / no row. No marker file, no
 prompt-only deny. Implementation proceeds in B; no further jun decision needed.
 
+## Hardening pins (Pass 1, jun 2026-06-30) -- decision-complete closure
+- **PreToolUse matcher path (was placeholder)**: add a NEW dedicated hook file
+  `plugins/codexclaw/hooks/pre-tool-use-guarding-interview-in-goal.json`, registered in
+  `plugins/codexclaw/.codex-plugin/plugin.json` `hooks[]` AFTER
+  `pre-tool-use-guarding-goal-budget.json`. Keep it SEPARATE from the goal-budget matcher so the
+  safety-critical `request_user_input` deny is isolated and independently testable. The hook command
+  invokes the same `pabcd-state` hook CLI entrypoint with a `pre-tool-use` event arg.
+- **Matcher scope**: match tool name `request_user_input` (exact). On match, query goal-active via
+  `goal-active.ts` (read-only `goals_1.sqlite` by thread_id). active -> `permissionDecision: deny`
+  with reason; inactive/unreadable -> see fail rule.
+- **Fail rule (resolves T12)**: goal-active = `active` -> deny. `unreadable` (DB exists but parse
+  fails) -> FAIL-CLOSED (deny, since a goal may be active). `inactive` (no DB / no active row) ->
+  allow (HITL interview permitted). The degraded `unreadable` guarantee is surfaced in `cxc status`
+  and asserted in `goal-active.test.ts`.
+
 ## References (codex-rs paths, omo skills, ouroboros, source-of-record docs)
 - `devlog/_plan/260629_codexclaw_mvp/022.3_interview_goalmode_rules.md`
-- `devlog/_plan/260629_codexclaw_mvp/023_goal_creation_gate.md`
+- `devlog/_plan/260629_codexclaw_mvp/023_goal_convention_port.md`
 - `devlog/_plan/260629_codexclaw_mvp/023.1_interview_ipabcd_prompts.md`
 - `devlog/_plan/260629_codexclaw_mvp/080_pass8_interview_hardening_plan.md`
 - `codex-rs/core/src/goals.rs`

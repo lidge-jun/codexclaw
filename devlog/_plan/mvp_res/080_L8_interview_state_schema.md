@@ -33,7 +33,8 @@ goal-mode hard-deny tests a clear "no interview state mutation" invariant.
 - Add `defaultInterview()`, reconstruct helpers, and `isInterviewReady()`.
 - Preserve strict reconstruct: unknown fields are not passed through.
 - Bound state growth for T2: cap in-state arrays and keep overflow out of the
-  hot session JSON, or document the ledger follow-up if externalized.
+  hot session JSON. NO external ledger ships in Cluster 1 (resolved in L8.3): bounded in-state
+  arrays (`MAX_TRACKER_ARRAY = 50`, drop-oldest) are the only durable surface.
 - T1: extend live state fields only; do not regress existing fields such as
   injection or orchestration markers.
 - T3: corrupted tracker data must fail closed for readiness instead of silently

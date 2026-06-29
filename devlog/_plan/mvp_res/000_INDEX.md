@@ -92,7 +92,7 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 |------|--------|------|--------|------------------|
 | L20 | 200 | cli-jaw command -> codex-native mapping (doctor/reset self-impl, chat-search wrapper) | ANALYZED | 090_clijaw_command_mapping |
 | L21 | 210 | Subagent role .toml + diagnostics/ops (teammode, lcx-*) | ANALYZED | 140_subagent_roles_ops |
-| L22 | 220 | Code intelligence (ast-grep adopt; lsp/codegraph deferred) | RESOLVED (ast-grep only) | 130_code_intelligence |
+| L22 | 220 | Code intelligence (ast-grep adopt; lsp/codegraph deferred) | PLANNED (ast-grep only; Q-130-defer resolved) | 130_code_intelligence |
 
 ### Cluster 4 -- Phase 2 (multi-model + GUI)  [L23-L28]
 | Loop | Decade | Slug | Status | Source-of-record |
@@ -134,8 +134,11 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 codexclaw는 **FSM만 소유하고, goal 생명주기는 codex 내장에 위임**한다 (HITL/HOTL 병존의 토대).
 
 - **FSM (IDLE/I/P/A/B/C/D)**: codexclaw가 `.codexclaw/` 세션 스코프로 소유. (L1~L7 구현 완료)
-- **goal 생명주기 + 자율 continuation**: codex 내장 `ThreadGoal`에 100% 위임. codexclaw는 goal을
-  만들지 않는다. 실측 근거:
+- **goal 생명주기 + 자율 continuation**: codex 내장 `ThreadGoal`에 **continuation 구동만** 위임한다.
+  codexclaw는 goal을 만들지 않지만, plan hash / checkpoints / assumptions / phase-evidence 같은
+  **감사추적은 codexclaw 소유 보조 ledger(`.codexclaw/`)에 둔다** (R-1 정정, 007 findings). jawcode
+  (`.jwc/goal/ledger.jsonl`)·omo(`.omo/ulw-loop/`) 둘 다 native goal은 continuation에만 쓰고 ledger는
+  파일로 따로 든다 — "100% 위임"은 overclaim이었다. 실측 근거:
   - `ThreadGoal` 영속 = `codex-rs/state/src/model/thread_goal.rs:11` (status Active/Paused/Blocked/
     UsageLimited/BudgetLimited/Complete), thread-scoped `goals_1.sqlite`.
   - 자율 재주입 = `codex-rs/core/src/goals.rs:156` `MaybeContinueIfIdle` → `:1341` 새 턴 생성 →
@@ -146,6 +149,21 @@ codexclaw는 **FSM만 소유하고, goal 생명주기는 codex 내장에 위임*
   전진"만 있고 "묻지마"·`request_user_input` 비활성화는 **없다**. 따라서 "goal 모드에서 인터뷰/
   `request_user_input` 금지"는 codexclaw PreToolUse hook이 **직접 hard-deny**로 enforce한다.
   이것이 HITL(IDLE-IPABCD)과 HOTL(goal) 모드 경계를 지키는 지점이다.
+- **⚠ supersede ≠ skip (R-3)**: native goal continuation은 "계속 일해"라 PABCD를 통째로 건너뛸 위험이
+  있다. continuation 턴에 phase directive를 주입하고 증거 없는 전진을 막아, goal 모드여도 P→A→B→C→D를
+  실제로 돈다. "no questions"가 "no PABCD"가 되면 안 된다.
+
+### ⚠ 구현실전 보강 (007_impl_reality_findings.md — cli-jaw/jawcode/omo 3-레퍼런스 교차검증)
+Cluster 1 구현 전 반드시 반영할 high 갭(전체 13건은 007 참조):
+- **R-2 attest 게이트**: shipped `fsm.ts`는 A/C entry가 무조건 open + flag만 — cli-jaw의 증거게이트가
+  prompt prose로 격하됨. FSM에 플러그인-네이티브 구조적 attest enforcement 필요(신규 L1 보강 loop).
+- **R-4 IDLE/complete 상태**: shipped phase에 IDLE/complete 없음(default `I`, D 다음 null) — 철학문서의
+  "D→IDLE로 스코프 drift 제어"와 코드가 모순. IDLE/닫힘 상태 추가 필요(신규 L1 보강 loop).
+- **R-5 evidence carry**: freeze가 objective+hash만 넘김 — interview tracker/seed/AC/research를 구조적
+  evidence bundle로 freeze해 goal 진입 시 주입(L8/L10.3).
+- **R-6 stop/pause 감사**: HOTL 완료/중단에 독립리뷰+evidence 감사 게이트 포팅(신규 loop).
+- **R-7~R-13**: native create_goal 활성화 bridge, continuation 턴 hook 커버리지 실측, fail-closed deny,
+  narrow hook matcher, transcript idempotency, PostCompact/SubagentStop 등록, install bootstrap 경계 — 007 참조.
 
 ### Q2 — L3 budget deny 유지 (RESOLVED, jun 2026-06-30)
 - create_goal에 `token_budget`/`objective` 외 키가 붙으면 PreToolUse **deny 유지**(무제한 goal 강제,

@@ -48,7 +48,7 @@ artifact is and what must not be reopened after a goal starts.
   - after three consecutive auto-resolves, the next contradiction goes to user
 - Max-round closure:
   - `safe_default` is the default closure path for safe, reversible gaps.
-  - `ledger_only` records unresolved but non-blocking ledger items.
+  - (`ledger_only` removed in Pass 1; non-blocking items become recorded assumptions — see L8.3/L10.2)
   - `genuine-deadlock` blocks only for true human-authority gaps.
 - Freeze:
   - plan file under `.codexclaw/plan/` is the canonical spec surface.
