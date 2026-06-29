@@ -78,7 +78,7 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 ### Cluster 1 -- IPABCD Interview completion  [L8-L11]
 | Loop | Decade | Slug | Status | Source-of-record |
 |------|--------|------|--------|------------------|
-| L8 | 080 | Interview state schema + readiness FSM (tracker/known/unknown/assumptions/contradictions, bound) | FROZEN | 080, 022.2, 022.3 |
+| L8 | 080 | Interview state schema + readiness FSM (tracker/known/unknown/assumptions/contradictions, bound) | DONE | 080, 022.2, 022.3 |
 | L9 | 090 | 5-Mind contradiction dispatcher (subagent contradiction-ONLY) | FROZEN (T4=A,T7=A resolved) | 080.1, 080.2, 034.5, ouroboros 030/040 |
 | L10 | 100 | Question generator + auto-mode + freeze->goal | FROZEN | 080.2, ouroboros 040 |
 | L11 | 110 | goal-mode interview hard deny (PreToolUse) | FROZEN (Q-GM-1-f resolved) | 022.3, 023 |

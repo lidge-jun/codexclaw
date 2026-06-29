@@ -1,6 +1,6 @@
 # L8 (Decade 080) -- Interview State Schema
 
-Status: FROZEN
+Status: DONE
 Cluster: 1 - IPABCD Interview completion - Phase: 1 - Shorthand: cxc
 Source-of-record: 080_pass8_interview_hardening_plan.md, 022.2, 022.3
 
