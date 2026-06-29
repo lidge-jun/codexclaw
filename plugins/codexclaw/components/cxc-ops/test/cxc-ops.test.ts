@@ -13,7 +13,11 @@ function makePluginRoot(opts: { hooks?: string[]; skills?: string[]; brokenSkill
   const root = mkdtempSync(join(tmpdir(), "cxc-doctor-"));
   mkdirSync(join(root, ".codex-plugin"), { recursive: true });
   const hooks = opts.hooks ?? ["./hooks/a.json"];
-  writeFileSync(join(root, ".codex-plugin", "plugin.json"), JSON.stringify({ hooks }));
+  writeFileSync(
+    join(root, ".codex-plugin", "plugin.json"),
+    JSON.stringify({ name: "test", version: "0.0.1", hooks, mcpServers: "./.mcp.json" }),
+  );
+  writeFileSync(join(root, ".mcp.json"), JSON.stringify({ mcpServers: { test: { command: "node" } } }));
   for (const h of hooks) {
     const p = join(root, h);
     mkdirSync(join(p, ".."), { recursive: true });

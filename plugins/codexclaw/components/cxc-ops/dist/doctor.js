@@ -113,7 +113,64 @@ export function runDoctor(pluginRoot        )               {
     });
   }
 
+  // 5. source-drift + known-issue section (L21.3).
+  checks.push(...runDriftCheck(pluginRoot));
+
   return { overall: rollup(checks), checks };
+}
+
+/**
+ * Source-drift + known-issue probe (L21.3, lcx-doctor pattern). Reports the
+ * declared plugin version and any MCP-config drift, and surfaces a known-issue
+ * hint line instead of a bare "reinstall". Evidence-first; never blocks.
+ */
+export function runDriftCheck(pluginRoot        )                {
+  const checks                = [];
+  const manifestPath = join(pluginRoot, ".codex-plugin", "plugin.json");
+
+  // declared version presence (drift baseline).
+  try {
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))                                               ;
+    const version = typeof manifest.version === "string" ? manifest.version : null;
+    checks.push({
+      name: "drift:version",
+      severity: version ? "PASS" : "WARN",
+      evidence: version ? `declared plugin version ${version}` : "manifest has no version field (cannot baseline drift)",
+    });
+
+    // MCP config drift: manifest points at a file that must exist and parse.
+    const mcpRef = typeof manifest.mcpServers === "string" ? manifest.mcpServers : null;
+    if (!mcpRef) {
+      checks.push({ name: "drift:mcp", severity: "WARN", evidence: "manifest declares no mcpServers reference" });
+    } else {
+      const mcpPath = join(pluginRoot, mcpRef);
+      if (!existsSync(mcpPath)) {
+        checks.push({ name: "drift:mcp", severity: "FAIL", evidence: `mcpServers -> ${mcpRef} but file is missing` });
+      } else {
+        try {
+          const mcp = JSON.parse(readFileSync(mcpPath, "utf8"))                                            ;
+          const count = mcp.mcpServers ? Object.keys(mcp.mcpServers).length : 0;
+          checks.push({ name: "drift:mcp", severity: "PASS", evidence: `${mcpRef} parses, ${count} server(s) declared` });
+        } catch (err) {
+          checks.push({ name: "drift:mcp", severity: "FAIL", evidence: `${mcpRef} is unparseable: ${String(err)}` });
+        }
+      }
+    }
+  } catch (err) {
+    checks.push({ name: "drift:version", severity: "FAIL", evidence: `cannot read manifest for drift baseline: ${String(err)}` });
+  }
+
+  // known-issue lookup: a debugging handoff hint, not a bare "reinstall".
+  const failing = checks.filter((c) => c.severity === "FAIL").map((c) => c.name);
+  checks.push({
+    name: "known-issues",
+    severity: failing.length ? "WARN" : "PASS",
+    evidence: failing.length
+      ? `drift FAIL in [${failing.join(", ")}] — re-run \`npm run build\`, then inspect the named file before reinstalling`
+      : "no known-issue signature matched",
+  });
+
+  return checks;
 }
 
 /** Render a report as aligned PASS/WARN/FAIL lines for CLI stdout. */
