@@ -71,6 +71,7 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 | L7 | 070 | Build aggregation + Phase-1 verification gate (S1-S5) | DONE | 070, 070.1, 029, 029.1 |
 | L1.4 | 014 | IDLE/complete closed state + structural attest enforcement (R-2/R-4 hardening) | DONE | 014, 007 |
 | L3.4 | 034 | Narrow PreToolUse matcher to ^create_goal$ (R-10 hardening) | DONE | 034, 007 |
+| L2.4 | 024 | Transcript-marker idempotency + context-pressure suppression (R-11 hardening) | DONE | 024, 007 |
 
 ### Cluster 1 -- IPABCD Interview completion  [L8-L11]
 | Loop | Decade | Slug | Status | Source-of-record |
