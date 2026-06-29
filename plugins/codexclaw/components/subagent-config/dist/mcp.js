@@ -15,6 +15,7 @@
  * Zero third-party deps: newline-delimited JSON-RPC over stdin/stdout (node:* only).
  */
 import { createInterface } from "node:readline";
+import { readConfig, setRole, ROLES,               } from "./store.js";
 
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_INFO = { name: "codexclaw-subagent-config", version: "0.1.0" };
@@ -25,6 +26,64 @@ function send(message         )       {
 
 function reply(id         , result         )       {
   send({ jsonrpc: "2.0", id, result });
+}
+
+const TOOLS = [
+  {
+    name: "subagents_get",
+    description: "Read the per-role subagent config (explorer/reviewer/executor): mode, model, promptOverride.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "subagents_set",
+    description: "Update one role's subagent config. mode is 'default' (main model) or 'model' (requires a model id).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        role: { type: "string", enum: [...ROLES] },
+        mode: { type: "string", enum: ["default", "model"] },
+        model: { type: ["string", "null"] },
+        promptOverride: { type: ["string", "null"] },
+      },
+      required: ["role"],
+      additionalProperties: false,
+    },
+  },
+];
+
+function toolResult(id         , payload         )       {
+  reply(id, { content: [{ type: "text", text: JSON.stringify(payload) }] });
+}
+
+function toolError(id         , message        )       {
+  reply(id, { content: [{ type: "text", text: JSON.stringify({ error: message }) }], isError: true });
+}
+
+function callTool(id         , params                                                        )       {
+  const cwd = process.cwd();
+  const args = params.arguments ?? {};
+  if (params.name === "subagents_get") {
+    toolResult(id, readConfig(cwd));
+    return;
+  }
+  if (params.name === "subagents_set") {
+    const role = args.role            ;
+    if (!ROLES.includes(role)) {
+      toolError(id, `unknown role "${String(args.role)}"`);
+      return;
+    }
+    const patch                          = {};
+    if (args.mode !== undefined) patch.mode = args.mode;
+    if (args.model !== undefined) patch.model = args.model;
+    if (args.promptOverride !== undefined) patch.promptOverride = args.promptOverride;
+    try {
+      toolResult(id, setRole(cwd, role, patch));
+    } catch (err) {
+      toolError(id, err instanceof Error ? err.message : String(err));
+    }
+    return;
+  }
+  toolError(id, `unknown tool: ${String(params.name)}`);
 }
 
 function handle(msg                                   )       {
@@ -38,7 +97,10 @@ function handle(msg                                   )       {
       });
       return;
     case "tools/list":
-      reply(id, { tools: [] });
+      reply(id, { tools: TOOLS });
+      return;
+    case "tools/call":
+      callTool(id, (msg                                                                       ).params ?? {});
       return;
     case "ping":
       reply(id, {});
