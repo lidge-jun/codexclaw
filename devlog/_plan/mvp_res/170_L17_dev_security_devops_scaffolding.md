@@ -6,8 +6,9 @@ Source-of-record: 260629_codexclaw_mvp/110_dev_skills_porting.md, 024.3_skill_co
 
 ## Goal (one slice)
 Finish Cluster-2 part A by porting the high-risk security, production delivery,
-and scaffolding routers as real codexclaw content, absorbing omo refactor,
-init-deep, git-master, and the review-work security lane.
+and scaffolding routers as real codexclaw content, absorbing init-deep
+and the review-work security lane while cross-linking canonical refactor and
+git-master owners.
 
 ## Why now / dependencies
 - Upstream: L12-L16 define the universal hub, architecture/debugging,
@@ -44,9 +45,9 @@ Concrete source -> target map:
 - `/Users/jun/.cli-jaw-3459/skills/dev-scaffolding/assets/*` -> `plugins/codexclaw/skills/dev-scaffolding/assets/`
 - `/Users/jun/.cli-jaw-3459/skills/dev-scaffolding/scripts/*` -> `plugins/codexclaw/skills/dev-scaffolding/scripts/`
 - `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/review-work/SKILL.md` -> `plugins/codexclaw/skills/dev-security/SKILL.md` security review lane
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/refactor/SKILL.md` -> `plugins/codexclaw/skills/dev-scaffolding/SKILL.md` and cross-links to L13/L16 for codemap/test/review gates
+- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/refactor/SKILL.md` -> canonical owners `dev-architecture`, `dev-testing`, and `dev-code-reviewer`; `dev-scaffolding` only cross-links for scaffold restructuring boundaries
 - `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/init-deep/SKILL.md` -> `plugins/codexclaw/skills/dev-scaffolding/SKILL.md`
-- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/git-master/SKILL.md` -> `plugins/codexclaw/skills/dev-devops/SKILL.md` only where local release/history discipline affects delivery; remote GitHub remains default `github` skill
+- `/Users/jun/.codex/plugins/cache/sisyphuslabs/omo/4.14.0/skills/git-master/SKILL.md` -> canonical local git discipline in `dev` + `dev-code-reviewer`; `dev-devops` only cross-links release/delivery notes and remote GitHub remains default `github` skill
 
 Exact behavior:
 - L4 stubs are activation shells; L17 ports real production/security/scaffold
@@ -60,12 +61,15 @@ Exact behavior:
   colocation, public boundary export, source-of-truth docs, and repo-first
   convention reuse.
 - omo `refactor` does not become a standalone skill: intent gate/codemap/AST/LSP
-  go to architecture/testing/reviewer, while scaffold-level restructuring
-  guidance lands here.
+  go to `dev-architecture`, `dev-testing`, and `dev-code-reviewer`;
+  `dev-scaffolding` only cross-links when scaffold restructuring touches
+  repo layout or source-of-truth setup.
 - omo `init-deep` is absorbed into scaffolding as existing-repo-first knowledge
   base and AGENTS/convention extraction guidance.
-- omo `git-master` contributes only local git/history/commit discipline; remote
-  GitHub/PR/CI remains with Codex's default `github` skill.
+- omo `git-master` contributes local git/history/commit discipline to `dev`
+  and `dev-code-reviewer`; `dev-devops` cross-links release-history checks
+  without claiming ownership. Remote GitHub/PR/CI remains with Codex's
+  default `github` skill.
 
 Must-NOT-Have:
 - No hard cli-jaw `task_tags`, `structure/`, `devlog/`, `verify-counts`, or
@@ -108,6 +112,9 @@ Must-NOT-Have:
 
 ## Blocked-on (jun decision id, if any)
 None.
+
+## Resolved (jun 2026-06-30)
+- Decision: `refactor` ownership stays with `dev-architecture` + `dev-testing` + `dev-code-reviewer`; `git-master` ownership stays with `dev` + `dev-code-reviewer`, with L17 skills linking only where their surfaces intersect.
 
 ## References (codex-rs paths, omo skills, ouroboros, source-of-record docs)
 - 260629_codexclaw_mvp/110_dev_skills_porting.md

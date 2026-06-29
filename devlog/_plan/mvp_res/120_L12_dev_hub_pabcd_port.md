@@ -13,7 +13,7 @@ shipping as a separate `dev-pabcd` skill.
 ## Why now / dependencies
 - Upstream: L4 created the dev-* router skill directories and proved the Codex
   loader shape. L12 starts the real-content port that L13-L17 build on.
-- Upstream: L1-L3 provide codexclaw state, directives, and goal-budget behavior;
+- Upstream: L1-L3 provide codexclaw directives and native ThreadGoal integration;
   L5 provides subagent roles that replace cli-jaw employee wording.
 - Downstream: L13-L17 need `dev` as the owner of classifier, safety, static
   analysis, verification gate, and local git discipline before they add surface
@@ -90,6 +90,9 @@ Must-NOT-Have:
 ## Blocked-on (jun decision id, if any)
 None. Q-CONV-1 and Q-CONV-2 are resolved by 110: `dev` is always-on, and
 `dev-pabcd` folds into `pabcd`.
+
+## Resolved (jun 2026-06-30)
+- Decision: codexclaw uses the canonical `pabcd` skill name and Codex built-in ThreadGoal runtime; `dev-pabcd` remains source material only and is not a shipped skill.
 
 ## References (codex-rs paths, omo skills, ouroboros, source-of-record docs)
 - 260629_codexclaw_mvp/110_dev_skills_porting.md

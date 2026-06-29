@@ -9,6 +9,10 @@
     "url": "git+https://github.com/lidge-jun/codexclaw.git"
   },
   "license": "MIT",
+  "bin": {
+    "codexclaw": "bin/codexclaw.mjs",
+    "cxc": "bin/codexclaw.mjs"
+  },
   "workspaces": [
     "plugins/codexclaw/components/*",
     "plugins/codexclaw/gui",
