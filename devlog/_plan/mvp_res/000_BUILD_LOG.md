@@ -51,6 +51,13 @@ Purpose: record how the loop-ordered `mvp_res/` docs were produced, so the `000_
   shipped; the sweep aligned stale sub-loop Status lines (L9.3/L9.4, L12.1-L17.3, L26.1/L26.2)
   to DONE, clarified that old `260629_codexclaw_mvp/` files are historical source inputs rather
   than current Status authority, and corrected L20.3 reset wording to match shipped scoped cleanup.
+- Pass 4 final full audit: plan `pass4_P_final_full_audit.md`; independent read-only reviewer
+  returned APPROVE with no blockers in `.omo/evidence/final-mvp-res-full-audit-code-review.md`.
+  Reviewer verified INDEX status parity (L1-L28 DONE, L29-L30 DEFERRED, L31 planned/deferred),
+  required template sections across L1-L28 loop/sub-loop docs, hook test split sizing, no
+  unresolved dead-source path except historical/audit prose, `git diff --check`, targeted hook
+  tests, and `npm test` 223/223. Final C-gate rerun completed: `npm test` 223/223 and
+  `npm run build` OK (27 files compiled) before the evidence commit.
 
 ## Verification convention
 - Component code: `node --test` (Node v24 native TS, no build toolchain); build via
