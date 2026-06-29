@@ -58,7 +58,7 @@ export function detectTrigger(prompt        )               {
   return null;
 }
 
-const PHASE_DIRECTIVES                        = {
+const PHASE_DIRECTIVES                                 = {
   I: [
     "[codexclaw: INTERVIEW]",
     "Clarify requirements before planning. Cover four dimensions — Goal, Constraint,",
@@ -101,7 +101,7 @@ export function interviewDirective()         {
   return PHASE_DIRECTIVES.I;
 }
 
-const STAGE_LABELS                        = {
+const STAGE_LABELS                                 = {
   I: "INTERVIEW",
   P: "PLAN",
   A: "AUDIT",
@@ -112,7 +112,7 @@ const STAGE_LABELS                        = {
 
 /** Short compaction-immune stage header (jwc pabcd-stage-header parity). */
 export function buildStageHeader(phase       )         {
-  return `[codexclaw — ${phase}: ${STAGE_LABELS[phase]}]`;
+  return `[codexclaw — ${phase}: ${STAGE_LABELS[phase] ?? phase}]`;
 }
 
 /** Cap injectedTurns to the most recent N to bound state-file growth (audit blocker #2). */

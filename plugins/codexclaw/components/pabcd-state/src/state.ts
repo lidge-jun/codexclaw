@@ -1,8 +1,12 @@
 import { mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
-export type Phase = "I" | "P" | "A" | "B" | "C" | "D";
-export const PHASES: readonly Phase[] = ["I", "P", "A", "B", "C", "D"];
+export type Phase = "IDLE" | "I" | "P" | "A" | "B" | "C" | "D";
+// Work phases run the IPABCD cycle; IDLE is the closed/rest state a cycle returns to.
+export const WORK_PHASES: readonly Phase[] = ["I", "P", "A", "B", "C", "D"];
+export const ALL_PHASES: readonly Phase[] = ["IDLE", ...WORK_PHASES];
+// PHASES kept as the work-phase list for back-compat (hook directive lookups iterate I..D).
+export const PHASES: readonly Phase[] = WORK_PHASES;
 
 export interface Flags {
   interview: boolean;
@@ -42,7 +46,7 @@ export function sanitizeKey(value: string): string {
 
 export function defaultState(sessionId: string, slug = ""): State {
   return {
-    phase: "I",
+    phase: "IDLE",
     sessionId,
     slug,
     updatedAt: new Date().toISOString(),
@@ -66,7 +70,7 @@ export function readState(cwd: string, sessionId: string): State {
   try {
     const raw = readFileSync(statePath(cwd, sessionId), "utf8");
     const parsed = JSON.parse(raw) as Partial<State> | null;
-    if (!parsed || typeof parsed.phase !== "string" || !PHASES.includes(parsed.phase as Phase)) {
+    if (!parsed || typeof parsed.phase !== "string" || !ALL_PHASES.includes(parsed.phase as Phase)) {
       return defaultState(sessionId);
     }
     const base = defaultState(sessionId, typeof parsed.slug === "string" ? parsed.slug : "");
