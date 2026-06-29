@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "proxy": { "running": true, "pid": 4242 },
+  "listen": { "port": 10100 },
+  "defaultProvider": "openai"
+}
