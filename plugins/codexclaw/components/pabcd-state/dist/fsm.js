@@ -1,5 +1,6 @@
 import { WORK_PHASES,                        } from "./state.js";
 import {                   validateAttest } from "./attest.js";
+import { isInterviewReady } from "./interview.js";
 
 /** Canonical work-phase order (I..D). IDLE is the rest state outside this order. */
 export const ORDER                   = WORK_PHASES;
@@ -49,6 +50,16 @@ export const isAuditGateOpen = (s       )          => s.phase === "A" || s.flags
 export const isBuildGateOpen = (s       )          => s.flags.auditPassed;
 export const isDone = (s       )          => s.phase === "D" && s.flags.checkPassed;
 export const isIdle = (s       )          => s.phase === "IDLE";
+
+/**
+ * Derive flags.interview from the interview tracker (L8.2). The main session calls
+ * this to set the gate; a loose user trigger cannot flip it true. canEnter("P")
+ * continues to read flags.interview, so the FSM interface is unchanged — this only
+ * binds the flag to the readiness predicate. Returns a new State (pure).
+ */
+export function deriveInterviewFlag(state       )        {
+  return { ...state, flags: { ...state.flags, interview: isInterviewReady(state.interview) } };
+}
 
                                    
               

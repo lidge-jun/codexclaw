@@ -1,5 +1,6 @@
 import { WORK_PHASES, type Phase, type State } from "./state.ts";
 import { type Attestation, validateAttest } from "./attest.ts";
+import { isInterviewReady } from "./interview.ts";
 
 /** Canonical work-phase order (I..D). IDLE is the rest state outside this order. */
 export const ORDER: readonly Phase[] = WORK_PHASES;
@@ -49,6 +50,16 @@ export const isAuditGateOpen = (s: State): boolean => s.phase === "A" || s.flags
 export const isBuildGateOpen = (s: State): boolean => s.flags.auditPassed;
 export const isDone = (s: State): boolean => s.phase === "D" && s.flags.checkPassed;
 export const isIdle = (s: State): boolean => s.phase === "IDLE";
+
+/**
+ * Derive flags.interview from the interview tracker (L8.2). The main session calls
+ * this to set the gate; a loose user trigger cannot flip it true. canEnter("P")
+ * continues to read flags.interview, so the FSM interface is unchanged — this only
+ * binds the flag to the readiness predicate. Returns a new State (pure).
+ */
+export function deriveInterviewFlag(state: State): State {
+  return { ...state, flags: { ...state.flags, interview: isInterviewReady(state.interview) } };
+}
 
 export interface TransitionResult {
   ok: boolean;

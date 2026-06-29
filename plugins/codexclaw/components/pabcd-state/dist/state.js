@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import {                        reconstructInterview } from "./interview.js";
 
                                                                
 // Work phases run the IPABCD cycle; IDLE is the closed/rest state a cycle returns to.
@@ -24,6 +25,7 @@ export const PHASES                   = WORK_PHASES;
                           
                                   
                                
+                                     
  
 
                               
@@ -55,6 +57,7 @@ export function defaultState(sessionId        , slug = "")        {
     injectedTurns: [],
     lastInjectedPhase: null,
     orchestrationActive: false,
+    interview: null,
   };
 }
 
@@ -95,6 +98,7 @@ export function readState(cwd        , sessionId        )        {
           ? (parsed.lastInjectedPhase         )
           : null,
       orchestrationActive: parsed.orchestrationActive === true,
+      interview: reconstructInterview(parsed.interview),
     };
   } catch {
     return defaultState(sessionId);

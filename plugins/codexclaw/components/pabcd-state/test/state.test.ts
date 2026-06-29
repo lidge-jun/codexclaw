@@ -210,3 +210,48 @@ test("lastInjectedPhase: invalid persisted value -> null; orchestrationActive no
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+// ── L8: interview tracker round-trip + Phase-1 field preservation ──
+import { DIMENSIONS as IV_DIMENSIONS } from "../src/interview.ts";
+
+test("L8: readState round-trips a full InterviewTracker and preserves Phase-1 fields", () => {
+  const cwd = freshCwd();
+  try {
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    mkdirSync(dir, { recursive: true });
+    const dims = {};
+    for (const d of IV_DIMENSIONS) dims[d] = { level: "max", known: ["k"], unknown: [], confidence: 1, EVIL: 1 };
+    writeFileSync(
+      join(dir, "iv-1.json"),
+      JSON.stringify({
+        phase: "P",
+        sessionId: "iv-1",
+        orchestrationActive: true,
+        injectedTurns: ["t1"],
+        interview: { roundId: "r9", dimensions: dims, contradictions: [], assumptions: [{ id: "a", text: "x", recorded: true }], EVIL: "drop" },
+      }),
+    );
+    const s = readState(cwd, "iv-1");
+    // Phase-1 fields preserved
+    assert.equal(s.phase, "P");
+    assert.equal(s.orchestrationActive, true);
+    assert.deepEqual(s.injectedTurns, ["t1"]);
+    // tracker round-tripped
+    assert.equal(s.interview?.roundId, "r9");
+    assert.equal(s.interview?.dimensions.goal.level, "max");
+    // unknown nested keys dropped (strict reconstruct)
+    assert.equal("EVIL" in (s.interview?.dimensions.goal ?? {}), false);
+    assert.equal("EVIL" in (s.interview ?? {}), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L8: fresh session reads interview: null", () => {
+  const cwd = freshCwd();
+  try {
+    assert.equal(readState(cwd, "fresh").interview, null);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

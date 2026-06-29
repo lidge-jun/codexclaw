@@ -87,3 +87,21 @@ test("transition D->IDLE closes the cycle and resets gate flags", () => {
   assert.equal(closed.state?.flags.checkPassed, false);
   assert.equal(closed.state?.orchestrationActive, false);
 });
+
+// ── L8.2: flags.interview derived from readiness predicate ──
+import { deriveInterviewFlag } from "../src/fsm.ts";
+import { defaultInterview, DIMENSIONS as FSM_DIMENSIONS } from "../src/interview.ts";
+
+test("deriveInterviewFlag: false when tracker not ready, true when ready; canEnter(P) follows", () => {
+  const base = defaultState("t");
+  // no tracker -> flag false -> P blocked (from I)
+  const noTracker = deriveInterviewFlag({ ...base, phase: "I" });
+  assert.equal(noTracker.flags.interview, false);
+  assert.equal(canEnter("P", noTracker).ok, false);
+  // ready tracker -> flag true -> P allowed
+  const tracker = defaultInterview("r");
+  for (const d of FSM_DIMENSIONS) tracker.dimensions[d] = { level: "max", known: [], unknown: [], confidence: 1 };
+  const ready = deriveInterviewFlag({ ...base, phase: "I", interview: tracker });
+  assert.equal(ready.flags.interview, true);
+  assert.equal(canEnter("P", ready).ok, true);
+});

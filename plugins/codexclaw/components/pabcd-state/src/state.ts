@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { type InterviewTracker, reconstructInterview } from "./interview.ts";
 
 export type Phase = "IDLE" | "I" | "P" | "A" | "B" | "C" | "D";
 // Work phases run the IPABCD cycle; IDLE is the closed/rest state a cycle returns to.
@@ -24,6 +25,7 @@ export interface State {
   injectedTurns: string[];
   lastInjectedPhase: Phase | null;
   orchestrationActive: boolean;
+  interview: InterviewTracker | null;
 }
 
 export interface LedgerEntry {
@@ -55,6 +57,7 @@ export function defaultState(sessionId: string, slug = ""): State {
     injectedTurns: [],
     lastInjectedPhase: null,
     orchestrationActive: false,
+    interview: null,
   };
 }
 
@@ -95,6 +98,7 @@ export function readState(cwd: string, sessionId: string): State {
           ? (parsed.lastInjectedPhase as Phase)
           : null,
       orchestrationActive: parsed.orchestrationActive === true,
+      interview: reconstructInterview(parsed.interview),
     };
   } catch {
     return defaultState(sessionId);
