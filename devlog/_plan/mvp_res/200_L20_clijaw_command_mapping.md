@@ -1,6 +1,6 @@
 # L20 (Decade 200) -- cli-jaw Command -> codex-native Mapping
 
-Status: ANALYZED
+Status: DONE
 Cluster: 3 · Phase: expansion · Shorthand: cxc
 Source-of-record: 260629_codexclaw_mvp/090_clijaw_command_mapping.md (J1), 090.1 J-1/J-2/J-7
 
