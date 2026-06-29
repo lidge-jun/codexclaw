@@ -1,5 +1,5 @@
 interface:
-  display_name: "Search: Unified Hub"
+  display_name: "cxc-search"
   short_description: "Codex-native 3-tier search ladder (discover/prove/deep-research) with a Korean intent guard."
 policy:
   allow_implicit_invocation: false

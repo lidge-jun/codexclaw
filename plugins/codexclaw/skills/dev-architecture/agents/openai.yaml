@@ -1,5 +1,5 @@
 interface:
-  display_name: "Dev: Architecture"
+  display_name: "cxc-dev-architecture"
   short_description: "Module boundaries, circular deps, coupling taxonomy, and boundary-only defensive programming."
 policy:
   allow_implicit_invocation: false
