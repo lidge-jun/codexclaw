@@ -20,6 +20,7 @@ import { mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync } fr
 import { join } from "node:path";
 
 export type Phase = "I" | "P" | "A" | "B" | "C" | "D";
+export const PHASES: readonly Phase[] = ["I", "P", "A", "B", "C", "D"];
 export interface Flags { interview: boolean; auditPassed: boolean; checkPassed: boolean }
 export interface State {
   phase: Phase; sessionId: string; slug: string; updatedAt: string;
@@ -52,7 +53,7 @@ export function readState(cwd: string, sessionId: string): State {
   try {
     const raw = readFileSync(statePath(cwd, sessionId), "utf8");
     const p = JSON.parse(raw);
-    if (!p || !ORDER.includes(p.phase)) return defaultState(sessionId);  // validate phase ∈ I..D
+    if (!p || !PHASES.includes(p.phase)) return defaultState(sessionId);  // validate phase ∈ I..D (local const, no fsm import)
     return { ...defaultState(sessionId, p.slug ?? ""), ...p, sessionId,
       flags: { ...defaultState(sessionId).flags, ...(p.flags ?? {}) } };
   } catch { return defaultState(sessionId); }   // missing/corrupt -> safe default, never throw
@@ -76,9 +77,9 @@ export function appendLedger(cwd: string, entry: LedgerEntry): void {
 
 ### NEW `plugins/codexclaw/components/pabcd-state/src/fsm.ts`
 ```ts
-import type { Phase, State } from "./state.ts";
+import { PHASES, type Phase, type State } from "./state.ts";
 
-export const ORDER: Phase[] = ["I", "P", "A", "B", "C", "D"];
+export const ORDER: readonly Phase[] = PHASES;  // single source of truth = state.ts
 
 export function canEnter(to: Phase, state: State): { ok: boolean; reason?: string } {
   switch (to) {
@@ -130,11 +131,17 @@ export const isDone = (s: State) => s.phase === "D" && s.flags.checkPassed;
 - readState never throws on missing/corrupt; writeState atomic; FSM pure.
 
 ## Hardening notes (folded from Pass-1 A pre-audit, Heisenberg)
-- readState validates `phase ∈ ORDER` (not just typeof string) → corrupt `"phase":"Z"` falls back to
-  default instead of surviving. (state.ts imports `ORDER` from fsm.ts, or inlines the literal set.)
+- readState validates `phase ∈ PHASES` (not just typeof string) → corrupt `"phase":"Z"` falls back to
+  default. PHASES lives in state.ts (owner of `Phase`); fsm.ts imports it as ORDER → NO circular
+  import (one-way: fsm.ts → state.ts).
 - appendLedger note: `appendFileSync` is line-atomic only under PIPE_BUF (~4096B). Keep `evidence`
   short; if a large evidence blob is ever needed across concurrent sessions, switch to per-session
   ledger or a lock. Low severity (documented).
+
+## codex-rs ground truth (verified for Pass 2 consumption)
+- Hook payload field is `session_id` (snake_case), serialized from `ThreadId.to_string()`. Present on
+  UserPromptSubmit (`hooks/src/events/user_prompt_submit.rs:24`), Stop (`stop.rs:25`), PreToolUse
+  (`pre_tool_use.rs:24`). Pass 2 hook will read `session_id` and pass it into state.ts.
 
 ## A-phase audit targets (next, small A)
 - Re-confirm session-scope decision (016) against omo path shape — DONE (matches).
