@@ -31,14 +31,10 @@ Three layers, each minding its own job:
 - D3: Interfaces are CLI commands + a web GUI. No TUI.
 - D4: codexclaw ships its own GUI (subagent default/multi-model config + prompt tuning), and shows a link bar to `localhost:10100` when ocx is detected.
 
-## Build sequence
+## Build sequence (3 phases)
 
-See the numbered step files in this folder:
-- 000_research.md                  (durable context anchor — read first)
-- 010_repo_skeleton.md             (DONE)
-- 020_provider_bridge.md
-- 030_pabcd_state.md
-- 040_subagent_config.md
-- 050_gui.md
-- 060_dev_skills_migration.md
-- 070_packaging.md
+See STATUS.md for the full table. High level:
+- Phase 1 (020-029): state mgmt + dev-skill injection, codex config untouched.
+- Phase 2 (030-036): opencodex bridge + GUI, multi-model subagents.
+- Phase 3 (040-): periodic/scheduled work via `codex exec` + OS scheduler.
+- Cross-phase: 000 research, 010 skeleton (done), 070 packaging.
