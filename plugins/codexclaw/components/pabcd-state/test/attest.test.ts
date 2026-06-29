@@ -2,12 +2,21 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { validateAttest, coerceAttest, GATED_TRANSITIONS } from "../src/attest.ts";
 
-test("only A->B and C->D are gated", () => {
-  assert.deepEqual([...GATED_TRANSITIONS].sort(), ["A>B", "C>D"]);
+test("all four forward edges are gated (L2 parity)", () => {
+  assert.deepEqual([...GATED_TRANSITIONS].sort(), ["A>B", "B>C", "C>D", "P>A"]);
   // ungated transitions pass with no attestation
-  assert.equal(validateAttest("P", "A", null).ok, true);
-  assert.equal(validateAttest("B", "C", null).ok, true);
   assert.equal(validateAttest("IDLE", "P", null).ok, true);
+  assert.equal(validateAttest("C", "B", null).ok, true); // backward rebuild
+  assert.equal(validateAttest("C", "P", null).ok, true); // backward replan
+  assert.equal(validateAttest("D", "IDLE", null).ok, true); // cycle close
+});
+
+test("P->A and B->C now require a non-empty, non-placeholder did (L2)", () => {
+  assert.equal(validateAttest("P", "A", null).ok, false);
+  assert.equal(validateAttest("P", "A", { from: "P", to: "A", did: "tbd" }).ok, false);
+  assert.equal(validateAttest("P", "A", { from: "P", to: "A", did: "wrote the plan" }).ok, true);
+  assert.equal(validateAttest("B", "C", null).ok, false);
+  assert.equal(validateAttest("B", "C", { from: "B", to: "C", did: "built the feature" }).ok, true);
 });
 
 test("A->B requires a non-empty, non-placeholder did", () => {

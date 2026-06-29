@@ -5,7 +5,36 @@ import { isInterviewReady } from "./interview.ts";
 /** Canonical work-phase order (I..D). IDLE is the rest state outside this order. */
 export const ORDER: readonly Phase[] = WORK_PHASES;
 
+/**
+ * Legal phase-adjacency table (L2/020), ported byte-faithful from cli-jaw
+ * `orchestrator/state-machine.ts` VALID_TRANSITIONS. An edge not listed here is
+ * illegal regardless of gate flags — `canEnter` rejects it before the flag checks,
+ * so `auditPassed`/`checkPassed` can never unlock an out-of-sequence jump.
+ *   IDLE->I|P · I->P|IDLE · P->I|A · A->I|B · B->I|C · C->I|D|B|P · D->I|IDLE
+ * Backward edges C->B (re-build) and C->P (re-plan) are intentional loop routes.
+ */
+export const VALID_TRANSITIONS: Readonly<Record<Phase, readonly Phase[]>> = {
+  IDLE: ["I", "P"],
+  I: ["P", "IDLE"],
+  P: ["I", "A"],
+  A: ["I", "B"],
+  B: ["I", "C"],
+  C: ["I", "D", "B", "P"],
+  D: ["I", "IDLE"],
+};
+
+/** True when `to` is a legal adjacency from `from` per VALID_TRANSITIONS. */
+export function isLegalEdge(from: Phase, to: Phase): boolean {
+  return (VALID_TRANSITIONS[from] ?? []).includes(to);
+}
+
 export function canEnter(to: Phase, state: State): { ok: boolean; reason?: string } {
+  // Adjacency precheck (L2): an illegal edge is rejected up front, before any
+  // flag-based gate, so a stray auditPassed/checkPassed cannot authorize a jump
+  // that the state machine forbids (e.g. I->B, IDLE->A, P->IDLE).
+  if (!isLegalEdge(state.phase, to)) {
+    return { ok: false, reason: `illegal transition ${state.phase}->${to}` };
+  }
   switch (to) {
     case "IDLE":
       // Closing/resetting to IDLE is always permitted (cycle close or reset).
@@ -14,7 +43,8 @@ export function canEnter(to: Phase, state: State): { ok: boolean; reason?: strin
       return { ok: true };
     case "P":
       // P is enterable from IDLE (interview optional) or from I once interview ran.
-      if (state.phase === "IDLE") return { ok: true };
+      // C->P (replan) is a legal adjacency and needs no interview flag.
+      if (state.phase === "IDLE" || state.phase === "C") return { ok: true };
       return state.flags.interview
         ? { ok: true }
         : { ok: false, reason: "interview not completed (I->P needs interview flag)" };

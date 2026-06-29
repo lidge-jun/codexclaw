@@ -24,8 +24,13 @@ export interface Attestation {
   exitCode?: number;
 }
 
-/** Forward dev transitions that require a valid attestation to advance. */
-export const GATED_TRANSITIONS: ReadonlySet<string> = new Set(["A>B", "C>D"]);
+/**
+ * Forward dev transitions that require a valid attestation to advance (L2/020).
+ * Ported to full cli-jaw parity: all four forward edges P>A, A>B, B>C, C>D are
+ * gated. C>D additionally needs `checkOutput` + a passing `exitCode`. Backward
+ * edges (C>B, C>P), interview entry, and D>IDLE close are NOT gated.
+ */
+export const GATED_TRANSITIONS: ReadonlySet<string> = new Set(["P>A", "A>B", "B>C", "C>D"]);
 
 /** Obvious placeholders that do not count as a real narrative. */
 const PLACEHOLDER_DID = /^(tbd|todo|n\/?a|none|done|ok|\.+|-+)$/i;

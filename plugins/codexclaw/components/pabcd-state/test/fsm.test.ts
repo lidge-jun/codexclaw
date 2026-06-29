@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { canEnter, nextPhase, ORDER, isAuditGateOpen, isBuildGateOpen, isDone } from "../src/fsm.ts";
+import { VALID_TRANSITIONS, isLegalEdge } from "../src/fsm.ts";
 import { defaultState, type State } from "../src/state.ts";
 
 function withFlags(partial: Partial<State["flags"]>, phase: State["phase"] = "I"): State {
@@ -12,18 +13,20 @@ test("I->P blocked without interview flag, allowed with it", () => {
   assert.equal(canEnter("P", withFlags({ interview: true })).ok, true);
 });
 
-test("A is always enterable (plan exists once P done)", () => {
-  assert.equal(canEnter("A", withFlags({})).ok, true);
+test("A enterable from P (legal edge), illegal from I", () => {
+  // L2: A is only reachable from P per VALID_TRANSITIONS; I->A is illegal.
+  assert.equal(canEnter("A", withFlags({}, "P")).ok, true);
+  assert.equal(canEnter("A", withFlags({}, "I")).ok, false);
 });
 
-test("B blocked without auditPassed", () => {
-  assert.equal(canEnter("B", withFlags({ auditPassed: false })).ok, false);
-  assert.equal(canEnter("B", withFlags({ auditPassed: true })).ok, true);
+test("B blocked without auditPassed (from A)", () => {
+  assert.equal(canEnter("B", withFlags({ auditPassed: false }, "A")).ok, false);
+  assert.equal(canEnter("B", withFlags({ auditPassed: true }, "A")).ok, true);
 });
 
-test("D blocked without checkPassed", () => {
-  assert.equal(canEnter("D", withFlags({ checkPassed: false })).ok, false);
-  assert.equal(canEnter("D", withFlags({ checkPassed: true })).ok, true);
+test("D blocked without checkPassed (from C)", () => {
+  assert.equal(canEnter("D", withFlags({ checkPassed: false }, "C")).ok, false);
+  assert.equal(canEnter("D", withFlags({ checkPassed: true }, "C")).ok, true);
 });
 
 test("nextPhase follows ORDER and closes D->IDLE (R-4)", () => {
@@ -104,4 +107,88 @@ test("deriveInterviewFlag: false when tracker not ready, true when ready; canEnt
   const ready = deriveInterviewFlag({ ...base, phase: "I", interview: tracker });
   assert.equal(ready.flags.interview, true);
   assert.equal(canEnter("P", ready).ok, true);
+});
+
+// ── L2/020: legal-transition adjacency table ──
+
+test("VALID_TRANSITIONS matches the cli-jaw table byte-for-byte", () => {
+  assert.deepEqual(VALID_TRANSITIONS, {
+    IDLE: ["I", "P"],
+    I: ["P", "IDLE"],
+    P: ["I", "A"],
+    A: ["I", "B"],
+    B: ["I", "C"],
+    C: ["I", "D", "B", "P"],
+    D: ["I", "IDLE"],
+  });
+});
+
+test("isLegalEdge: legal forward + backward edges, illegal jumps", () => {
+  // legal forward
+  for (const [from, to] of [["IDLE", "P"], ["P", "A"], ["A", "B"], ["B", "C"], ["C", "D"], ["D", "IDLE"]] as const) {
+    assert.equal(isLegalEdge(from, to), true, `${from}->${to} should be legal`);
+  }
+  // legal backward / replan
+  assert.equal(isLegalEdge("C", "B"), true);
+  assert.equal(isLegalEdge("C", "P"), true);
+  // illegal jumps
+  for (const [from, to] of [["IDLE", "A"], ["IDLE", "B"], ["I", "A"], ["P", "C"], ["A", "D"], ["B", "D"]] as const) {
+    assert.equal(isLegalEdge(from, to), false, `${from}->${to} should be illegal`);
+  }
+});
+
+test("canEnter rejects illegal jumps with an 'illegal transition' reason", () => {
+  const r = canEnter("A", withFlags({}, "IDLE"));
+  assert.equal(r.ok, false);
+  assert.match(r.reason ?? "", /illegal transition IDLE->A/);
+});
+
+test("positive gate flags do NOT bypass adjacency", () => {
+  // auditPassed cannot authorize I->B; checkPassed cannot authorize I->D.
+  assert.equal(canEnter("B", withFlags({ auditPassed: true }, "I")).ok, false);
+  assert.equal(canEnter("D", withFlags({ checkPassed: true }, "I")).ok, false);
+});
+
+test("only D and I may close to IDLE; mid-cycle ->IDLE is illegal", () => {
+  assert.equal(canEnter("IDLE", withFlags({}, "D")).ok, true);
+  assert.equal(canEnter("IDLE", withFlags({}, "I")).ok, true);
+  for (const from of ["P", "A", "B", "C"] as const) {
+    assert.equal(canEnter("IDLE", withFlags({}, from)).ok, false, `${from}->IDLE should be illegal`);
+  }
+});
+
+test("C->P (replan) is legal without the interview flag; C->B (rebuild) still needs auditPassed", () => {
+  // Replan: C->P is a legal adjacency and must not demand the interview flag.
+  assert.equal(canEnter("P", withFlags({ interview: false }, "C")).ok, true);
+  // Rebuild: C->B is a legal adjacency, but B entry is still flag-gated on
+  // auditPassed (which is already true mid-loop after A->B). Without it, blocked.
+  assert.equal(canEnter("B", withFlags({ auditPassed: false }, "C")).ok, false);
+  assert.equal(canEnter("B", withFlags({ auditPassed: true }, "C")).ok, true);
+});
+
+test("every nextPhase() output is a legal edge of its from-state", () => {
+  for (const from of ["I", "P", "A", "B", "C", "D"] as const) {
+    const to = nextPhase(withFlags({}, from));
+    if (to !== null) {
+      assert.equal(isLegalEdge(from, to), true, `nextPhase(${from})=${to} must be a legal edge`);
+    }
+  }
+});
+
+test("transition B->C rejected without attest, accepted with a real did", () => {
+  const blocked = transition(withFlags({ auditPassed: true }, "B"), "C");
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.reason ?? "", /attestation|did/i);
+  const ok = transition(withFlags({ auditPassed: true }, "B"), "C", { from: "B", to: "C", did: "implemented the audited plan" });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.state?.phase, "C");
+});
+
+test("transition P->A is now gated: rejected without attest, accepted with a real did", () => {
+  const blocked = transition(withFlags({}, "P"), "A");
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.reason ?? "", /attestation|did/i);
+  const ok = transition(withFlags({}, "P"), "A", { from: "P", to: "A", did: "wrote the diff-level plan" });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.state?.phase, "A");
 });

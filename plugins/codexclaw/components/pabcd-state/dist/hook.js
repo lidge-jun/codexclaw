@@ -7,8 +7,9 @@
  * hook in the same turn does not double-inject.
  *
  * Stop: PASSIVE in Pass 2 — returns "" and writes nothing. Auto-advance / ledger
- * is deferred to a later pass to avoid per-turn ledger spam (gates like
- * canEnter("A") are unconditionally open, so a naive advance would log every turn).
+ * is deferred to a later pass (L6 Stop-continuation) to avoid per-turn ledger spam.
+ * (As of L2, canEnter enforces the VALID_TRANSITIONS adjacency table, so the FSM no
+ * longer permits out-of-sequence jumps; the Stop wire itself is still future work.)
  *
  * Ground truth:
  *  - payload field names: codex-rs hooks/src/events/{user_prompt_submit,stop}.rs (snake_case)
