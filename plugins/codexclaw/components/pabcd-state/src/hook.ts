@@ -46,11 +46,15 @@ const MAX_CTX = 32_000;
  */
 export function detectTrigger(prompt: string): Phase | null {
   const p = (prompt ?? "").toLowerCase();
+  // Korean triggers are anchored to an action marker. 감사 ("audit") is
+  // ambiguous with 감사 ("thanks"), so AUDIT REQUIRES a strong do-it marker
+  // (해줘/해라/하자/좀/진행/부탁) and rejects the bare/polite thanks forms
+  // 감사 / 감사해 / 감사해요 / 감사합니다 (Galileo blocker #1).
   if (/\binterview\b|인터뷰|\borchestrate i\b/.test(p)) return "I";
-  if (/\borchestrate p\b|plan this|계획 세워/.test(p)) return "P";
-  if (/\borchestrate a\b|audit this|감사/.test(p)) return "A";
-  if (/\borchestrate b\b|build this|구현/.test(p)) return "B";
-  if (/\borchestrate c\b|check this|검증/.test(p)) return "C";
+  if (/\borchestrate p\b|plan this|계획(?:을)?\s*세워/.test(p)) return "P";
+  if (/\borchestrate a\b|audit this|감사\s*(?:해줘|해라|하자|좀|진행|부탁)/.test(p)) return "A";
+  if (/\borchestrate b\b|build this|구현\s*(?:해|하자|좀)/.test(p)) return "B";
+  if (/\borchestrate c\b|check this|검증\s*(?:해|하자|좀)/.test(p)) return "C";
   return null;
 }
 

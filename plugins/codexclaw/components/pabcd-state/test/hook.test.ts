@@ -38,7 +38,7 @@ test("detectTrigger: explicit triggers map to phases (EN + Korean)", () => {
   assert.equal(detectTrigger("계획 세워줘"), "P");
   assert.equal(detectTrigger("orchestrate A"), "A");
   assert.equal(detectTrigger("audit this plan"), "A");
-  assert.equal(detectTrigger("이거 감사해"), "A");
+  assert.equal(detectTrigger("이거 감사해줘"), "A");
   assert.equal(detectTrigger("orchestrate B"), "B");
   assert.equal(detectTrigger("build this"), "B");
   assert.equal(detectTrigger("이거 구현해"), "B");
@@ -54,6 +54,18 @@ test("detectTrigger: interview wins over plan when both present", () => {
 test("detectTrigger: non-trigger -> null", () => {
   assert.equal(detectTrigger("just a normal message"), null);
   assert.equal(detectTrigger(""), null);
+});
+
+test("detectTrigger: everyday Korean words do NOT misfire (Galileo blocker #1)", () => {
+  assert.equal(detectTrigger("감사합니다"), null); // "thank you" must NOT trigger AUDIT
+  assert.equal(detectTrigger("정말 감사해요 도와주셔서"), null);
+});
+
+test("detectTrigger: natural Korean with particles/suffixes still matches", () => {
+  assert.equal(detectTrigger("계획을 세워줘"), "P");
+  assert.equal(detectTrigger("이거 감사해줘"), "A");
+  assert.equal(detectTrigger("기능 구현해줘"), "B");
+  assert.equal(detectTrigger("검증 좀 해줘"), "C");
 });
 
 test("buildContextOutput: wraps in omo envelope with trailing newline", () => {

@@ -37,12 +37,18 @@ function main(): void {
   const raw = readStdin();
   let output = "";
 
-  if (event === "user-prompt-submit") {
-    const payload = parseUserPromptSubmit(raw);
-    if (payload) output = handleUserPromptSubmit(payload);
-  } else if (event === "stop") {
-    const payload = parseStop(raw);
-    if (payload) output = handleStop(payload);
+  // Fail-safe: any handler/state IO failure must not block codex. Swallow the
+  // error, emit nothing, and exit 0 (matches the docstring guarantee).
+  try {
+    if (event === "user-prompt-submit") {
+      const payload = parseUserPromptSubmit(raw);
+      if (payload) output = handleUserPromptSubmit(payload);
+    } else if (event === "stop") {
+      const payload = parseStop(raw);
+      if (payload) output = handleStop(payload);
+    }
+  } catch {
+    output = "";
   }
 
   if (output) process.stdout.write(output);
