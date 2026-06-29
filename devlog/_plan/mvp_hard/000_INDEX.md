@@ -38,7 +38,7 @@ the missing control surface using the codex-native `$ + hook` model.
 
 | Ln | decade | scope | status |
 |----|--------|-------|--------|
-| L1 | 010 | Parity audit: cli-jaw/jawcode/omo vs codexclaw, `$`+hook UX gap map | ANALYZED |
+| L1 | 010 | Parity audit: cli-jaw/jawcode/omo vs codexclaw, `$`+hook UX gap map | DONE |
 | L2 | 020 | FSM legal-transition table + four-transition attest gate | PLANNED |
 | L3 | 030 | `$cxc-orchestrate` grammar + hook wiring to `transition()` (the missing wire) | PLANNED |
 | L4 | 040 | `cxc orchestrate` CLI over the same file state | PLANNED |
@@ -46,6 +46,8 @@ the missing control surface using the codex-native `$ + hook` model.
 | L6 | 060 | Stop-continuation loop with omo termination guards | PLANNED |
 | L7 | 070 | human free-pass vs agent-gated discriminator + pabcd skill-doc rewrite | PLANNED |
 
-## Research inbox
+## Research result
 
-- `010_L1_parity_audit.md` — synthesized parity-gap findings (this pass).
+- `010_L1_parity_audit.md` — synthesized parity-gap findings. Verdict: L1-L28 MVP is shipped,
+  but cli-jaw parity is not complete because chat/CLI phase-control is not wired to the FSM yet.
+  L2-L7 are the follow-up hardening loops for that control-surface gap.

@@ -1,6 +1,6 @@
 # L1 / 010 — Parity Audit: `$ + hook` Chat-Driven PABCD Control
 
-Status: ANALYZED · 2026-06-30 · feeds L2+ hardening loops
+Status: DONE · 2026-06-30 · parity audit complete; feeds L2+ hardening loops
 
 > Source: two parallel read-only research dispatches (gpt-5.5 parity auditor + cross-reference
 > researcher) against cli-jaw, jawcode, and lazycodex/omo. All findings are file:line backed.
