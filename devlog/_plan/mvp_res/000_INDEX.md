@@ -69,7 +69,7 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 | L5 | 050 | Subagent roles (explorer/reviewer/executor, B-opt2 inline) | DONE | 025, 025.1 |
 | L6 | 060 | Install / activation (codex features enable wrapper + revert) | DONE | 027, 028, 028.1, 028.2 |
 | L7 | 070 | Build aggregation + Phase-1 verification gate (S1-S5) | DONE | 070, 070.1, 029, 029.1 |
-| L1.4 | 014 | IDLE/complete closed state + structural attest enforcement (R-2/R-4 hardening) | PLANNED | 014, 007 |
+| L1.4 | 014 | IDLE/complete closed state + structural attest enforcement (R-2/R-4 hardening) | DONE | 014, 007 |
 
 ### Cluster 1 -- IPABCD Interview completion  [L8-L11]
 | Loop | Decade | Slug | Status | Source-of-record |
