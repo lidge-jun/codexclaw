@@ -83,3 +83,53 @@ test("S5: each role TOML is spawn-valid (name + description + default model + in
     assert.ok(!/read_only\s*=\s*true/.test(toml), `${role}.toml must not hardcode read_only (B-opt2 inline)`);
   }
 });
+
+test("L18: search skill is a codex-native 3-tier on-demand hub with Korean guard", () => {
+  const skillMd = join(pluginRoot, "skills", "search", "SKILL.md");
+  const yaml = join(pluginRoot, "skills", "search", "agents", "openai.yaml");
+  assert.ok(existsSync(skillMd), "search/SKILL.md missing");
+  assert.ok(existsSync(yaml), "search/agents/openai.yaml missing");
+
+  // on-demand only (the S3 test already pins exactly [dev] implicit; this is the
+  // direct assertion for the search skill).
+  assert.equal(readImplicit(yaml), false, "search skill must be allow_implicit_invocation:false");
+
+  const body = readFileSync(skillMd, "utf8");
+
+  // AC: exactly three tier headings.
+  const tierHeads = body.match(/^### Tier [123] /gm) || [];
+  assert.equal(tierHeads.length, 3, `expected exactly 3 tier headings, got ${tierHeads.length}`);
+
+  // AC: no removed cli-jaw backend named as AVAILABLE. They may appear only in
+  // the "do not reintroduce" non-goal sentence, so assert each forbidden name,
+  // where present, sits on a line that also carries a negation marker.
+  const forbidden = ["progrok", "web-AI", "Grok Expert", "GPT Pro", "Exa", "Tavily", "Perplexity", "Brave"];
+  for (const name of forbidden) {
+    for (const line of body.split("\n")) {
+      if (line.includes(name)) {
+        assert.match(
+          line,
+          /do \*\*not\*\*|reintroduce|removed|non-goal|carry over/i,
+          `forbidden backend "${name}" appears outside a non-goal line: ${line.trim()}`,
+        );
+      }
+    }
+  }
+
+  // AC: source-proof invariant precedes the ladder (discover-vs-prove).
+  const proofIdx = body.indexOf("Source-Proof Invariant");
+  const ladderIdx = body.indexOf("## The Ladder");
+  assert.ok(proofIdx !== -1 && ladderIdx !== -1 && proofIdx < ladderIdx, "source-proof invariant must precede the ladder");
+
+  // AC: Korean intent guard with 8 numbered rules.
+  const guardIdx = body.indexOf("Korean Intent Guard");
+  assert.ok(guardIdx !== -1, "Korean Intent Guard section missing");
+  const guardBlock = body.slice(guardIdx, body.indexOf("## When to stop", guardIdx));
+  const numbered = guardBlock.match(/^\d+\. \*\*/gm) || [];
+  assert.equal(numbered.length, 8, `expected 8 numbered Korean-guard rules, got ${numbered.length}`);
+
+  // AC: Korean trigger words present.
+  for (const t of ["검색", "찾아봐", "찾아줘", "알아봐", "웹검색"]) {
+    assert.ok(body.includes(t), `Korean trigger "${t}" missing from search skill`);
+  }
+});
