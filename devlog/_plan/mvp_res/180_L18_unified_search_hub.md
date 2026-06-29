@@ -11,19 +11,19 @@ the Korean "검색" intent guard ported in. web exploration uses Codex Browser U
 / Computer Use as the primary backend; search discovers, browser proves.
 
 ## Why now / dependencies
-- Upstream: L12-L17 must be at D first, because the skill set (dev hub + dev-*
-  routers) defines what is already implicit-visible. `search` joins `dev` and
-  `pdf` as the only implicit-on skills (090.1 J-6), so it must land after the
-  dev port stabilizes the implicit set.
-- L18 is the last Cluster-2 skill before L19 rewrites the hub; L19 registers
-  `search` in the catalog as an implicit-visible peer of `dev`/`pdf`.
-- Downstream: unblocks L19 (skill_hub rewrite) and feeds L22 librarian-style
-  external research routing.
+- Upstream: L12-L17 stabilize the dev skill set first. `search` is an **on-demand**
+  skill (policy `allow_implicit_invocation: false`); the ONLY implicit-on skill is
+  `dev` (L19.2 default-trigger policy). `search` is NOT implicit-visible.
+- L18 is the last Cluster-2 skill before L19 rewrites the hub; L19 catalogs
+  `search` as an on-demand entry (NOT an implicit peer of `dev`). L18 is NOT a hard
+  prerequisite for L19 (the hub hard-depends on L12-L17 only; `search` is cataloged
+  if present).
+- Downstream: feeds L22 librarian-style external research routing.
 
 ## Scope (decision-complete)
 Files to add/edit:
 - `plugins/codexclaw/skills/search/SKILL.md` (new; trigger-rich description)
-- `plugins/codexclaw/skills/search/agents/openai.yaml` (allow_implicit_invocation: true)
+- `plugins/codexclaw/skills/search/agents/openai.yaml` (allow_implicit_invocation: FALSE — on-demand, trigger-routed)
 - `plugins/codexclaw/skills/search/references/blocked-url-reader.md` (absorbed
   from omo ultimate-browsing reader ladder; helper, not a new tier)
 - `plugins/codexclaw/skills/search/references/query-rewrite.md` (rewriteQueries
@@ -59,16 +59,17 @@ Must-NOT-Have:
   and that proof-before-sufficient is preserved.
 - B: write SKILL.md description with triggers (`search`, `검색`, `웹검색`,
   `찾아봐`, `알아봐`, `latest`, `news`, `real-time`, `X/Twitter`, `deep research`);
-  set openai.yaml implicit true; port intent guard + reader references.
-- C: load skill in a codex session, confirm it appears in `<skills_instructions>`
-  implicit list; run `cxc doctor` skill-presence check; dry-run a Korean query to
-  confirm rewrite -> candidate URLs -> browser verify flow narration.
-- D: done = `search` is implicit-visible, intent guard fires on bare "검색", and
-  the ladder names only built-in web_search / browser-use / subagent swarm.
+  set openai.yaml implicit FALSE (on-demand, routed by trigger description); port
+  intent guard + reader references.
+- C: load skill in a codex session, confirm it is registered as an ON-DEMAND skill
+  (not in the implicit list — only `dev` is implicit); run `cxc doctor` skill-presence
+  check; dry-run a Korean query to confirm rewrite -> candidate URLs -> browser verify.
+- D: done = `search` is registered on-demand, the trigger description fires on bare
+  "검색", and the ladder names only built-in web_search / browser-use / subagent swarm.
 
 ## Acceptance (1-3 testable criteria)
-1. `search/SKILL.md` + `agents/openai.yaml` parse; skill renders in the implicit
-   list alongside `dev` and `pdf` (verify via `codex debug prompt-input`).
+1. `search/SKILL.md` + `agents/openai.yaml` parse; skill registers as ON-DEMAND
+   (NOT in the implicit list — only `dev` is implicit; verify via `codex debug prompt-input`).
 2. Ladder text contains exactly three tiers and no progrok / web-AI tier.
 3. Korean intent guard block present with the 8 numbered rules and the
    candidate-URL-vs-proof invariant.

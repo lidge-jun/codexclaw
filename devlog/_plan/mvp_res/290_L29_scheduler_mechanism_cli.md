@@ -1,6 +1,6 @@
 # L29 (Decade 290) -- Scheduler Mechanism + cxc schedule CLI
 
-Status: BLOCKED(Q-P3-1)
+Status: DEFERRED (Q-P3-1, Phase 3)
 Cluster: 5 - Phase: 3 - Shorthand: cxc
 Source-of-record: 260629_codexclaw_mvp/040_phase3_overview.md, 041/042
 
@@ -81,5 +81,5 @@ enough.
 ## References (codex-rs paths, omo skills, ouroboros, source-of-record docs)
 - 260629_codexclaw_mvp/040_phase3_overview.md (Phase 3 feasibility and step map)
 - 041 scheduler mechanism decision (launchd/cron vs experimental daemon)
-- 042 `codexclaw schedule` CLI + job store
+- 042 `cxc schedule` CLI + job store
 - cli-jaw heartbeat.json shape (mirrored concept only, not vendored)

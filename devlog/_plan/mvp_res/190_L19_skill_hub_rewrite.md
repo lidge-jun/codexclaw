@@ -28,7 +28,7 @@ implicit. Downstream: L19 finalizes Cluster 2; it is the entry point that
 makes on-demand skills (diagram, pptx, xlsx, video, telegram, etc.) reachable.
 
 ## Scope (decision-complete)
-Files to add/edit (after L12-L18 land):
+Files to add/edit (after L12-L17 land):
 - `plugins/codexclaw/skills/skill-hub/SKILL.md` (on-demand catalog router)
 - `plugins/codexclaw/skills/skill-hub/agents/openai.yaml`
   (`allow_implicit_invocation: false` -- explicit trigger or `dev` hub routing)
@@ -62,7 +62,7 @@ Must-NOT-Have:
 ## IPABCD micro-cycle
 - I: not interview-bearing.
 - P: flip per-skill openai.yaml policy flags to the final dev-only implicit set;
-  author catalog.md from the L12-L18 manifest; add renderers.md native-gap note.
+  author catalog.md from the L12-L17 manifest; add renderers.md native-gap note.
 - A: audit angle = "does the implicit set equal exactly {dev}, and is every on-demand skill grep-discoverable (off, not disabled)?"
   reviewer cross-checks H4 three-way (100/110/STATUS) is reconciled.
 - B: edit openai.yaml across skills; write catalog.md + renderers.md; ensure
@@ -70,13 +70,13 @@ Must-NOT-Have:
 - C: `codex debug prompt-input` -> assert implicit list = 1 skill; grep an
   on-demand name (e.g. diagram), explicit-mention it, assert it injects.
 - D: done = implicit set is exactly `dev`, on-demand skills hidden-but-greppable, and
-  the hub catalog enumerates every L12-L18 skill.
+  the hub catalog enumerates every L12-L17 skill.
 
 ## Acceptance (1-3 testable criteria)
 1. `codex debug prompt-input` implicit skills == {dev}.
 2. An on-demand skill (implicit-off) is absent from the implicit list but injects
    on explicit `$name` mention.
-3. `catalog.md` lists every ported L12-L18 skill with path + load_when.
+3. `catalog.md` lists every ported L12-L17 skill with path + load_when.
 
 ## QA channel (node:test path / CLI stdout / tmux / data dump)
 - `codex debug prompt-input` JSON dump of implicit set.

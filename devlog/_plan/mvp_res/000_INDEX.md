@@ -46,8 +46,15 @@ never vendored. References: jawcode, ouroboros/Q00, lazycodex/omo.
 
 ## Loop ledger -- L1..L31 -> decade map
 
-Status legend: DONE (shipped+tested) · FROZEN (design done, impl pending) · PLANNED ·
-ANALYZED (research done, impl unplanned) · BLOCKED (needs jun decision).
+Status legend (decision-state vs impl-state are SEPARATE; never use RESOLVED as a doc Status):
+- DONE — shipped + tested (code lives, tests green).
+- FROZEN — design frozen, impl pending (interview-bearing loops).
+- PLANNED — all gating decisions resolved, impl pending. Append `(Q-x resolved)` to name the decision.
+- ANALYZED — research done, impl not yet planned in detail.
+- DEFERRED — intentionally postponed (e.g. Phase 3); not blocked on a pending decision.
+- BLOCKED(Q-id) — cannot proceed until jun resolves decision Q-id. A resolved decision must NOT stay BLOCKED.
+Rule: when a decision is resolved but code isn't written, the Status is PLANNED (or FROZEN for
+interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decisions table / Resolved notes.
 
 ### Phase 1 -- MVP core (state mgmt + dev-skill injection, config untouched)  [L1-L7 DONE]
 | Loop | Decade | Slug | Status | Source-of-record |
@@ -64,9 +71,9 @@ ANALYZED (research done, impl unplanned) · BLOCKED (needs jun decision).
 | Loop | Decade | Slug | Status | Source-of-record |
 |------|--------|------|--------|------------------|
 | L8 | 080 | Interview state schema + readiness FSM (tracker/known/unknown/assumptions/contradictions, bound) | FROZEN | 080, 022.2, 022.3 |
-| L9 | 090 | 5-Mind contradiction dispatcher (subagent contradiction-ONLY) | RESOLVED (T4=A,T7=A) | 080.1, 080.2, 034.5, ouroboros 030/040 |
+| L9 | 090 | 5-Mind contradiction dispatcher (subagent contradiction-ONLY) | FROZEN (T4=A,T7=A resolved) | 080.1, 080.2, 034.5, ouroboros 030/040 |
 | L10 | 100 | Question generator + auto-mode + freeze->goal | FROZEN | 080.2, ouroboros 040 |
-| L11 | 110 | goal-mode interview hard deny (PreToolUse) | RESOLVED (hybrid) | 022.3, 023 |
+| L11 | 110 | goal-mode interview hard deny (PreToolUse) | FROZEN (Q-GM-1-f resolved) | 022.3, 023 |
 
 ### Cluster 2 -- Skill real-content porting (port -> absorb -> search -> hub-rewrite)  [L12-L19]
 | Loop | Decade | Slug | Status | Source-of-record |
@@ -78,7 +85,7 @@ ANALYZED (research done, impl unplanned) · BLOCKED (needs jun decision).
 | L16 | 160 | dev-testing + dev-code-reviewer <- omo(review-work, remove-ai-slops) | ANALYZED | 110 |
 | L17 | 170 | dev-security + dev-devops + dev-scaffolding <- omo(refactor, init-deep, git-master) | ANALYZED | 110 |
 | L18 | 180 | Unified search hub + Korean search intent guard <- omo(ultimate-browsing, ultraresearch) | ANALYZED | 120_unified_search_hub |
-| L19 | 190 | skill_hub REWRITE (codexclaw-specific; default trigger = dev only) | BLOCKED | 100_skill_hub |
+| L19 | 190 | skill_hub REWRITE (codexclaw-specific; default trigger = dev only) | BLOCKED(L12-L17) | 100_skill_hub |
 
 ### Cluster 3 -- Expansion ops  [L20-L22]
 | Loop | Decade | Slug | Status | Source-of-record |
@@ -90,18 +97,18 @@ ANALYZED (research done, impl unplanned) · BLOCKED (needs jun decision).
 ### Cluster 4 -- Phase 2 (multi-model + GUI)  [L23-L28]
 | Loop | Decade | Slug | Status | Source-of-record |
 |------|--------|------|--------|------------------|
-| L23 | 230 | Provider bridge (ocx ensure / graceful skip) | BLOCKED Q-P2-2 | 031_provider_bridge |
+| L23 | 230 | Provider bridge (ocx DETECT-ONLY / graceful skip) | PLANNED (Q-P2-2 resolved) | 031_provider_bridge |
 | L24 | 240 | Subagent config store (.codexclaw/subagents.json) | PLANNED | 032_subagent_config_store |
 | L25 | 250 | Model catalog (ocx catalog + main = n+1) | PLANNED | 033_model_catalog |
-| L26 | 260 | GUI scaffold (Vite + React) | BLOCKED Q-P2-1 | 034_gui_scaffold |
+| L26 | 260 | GUI scaffold (Vite + React, layout-ref only) | PLANNED (Q-P2-1 resolved) | 034_gui_scaffold |
 | L27 | 270 | GUI subagent page (role->model+prompt) + 10100 link bar | PLANNED | 035_gui_subagent_page |
 | L28 | 280 | Phase 2 integration + verification (S6-S10) | PLANNED | 036_phase2_verification |
 
 ### Cluster 5 -- Phase 3 (scheduled work)  [L29-L30]
 | Loop | Decade | Slug | Status | Source-of-record |
 |------|--------|------|--------|------------------|
-| L29 | 290 | Scheduler mechanism + `cxc schedule` CLI + job store | BLOCKED Q-P3-1 | 040, 041/042 |
-| L30 | 300 | Result delivery + Phase 3 verification | BLOCKED Q-P3-2 | 040, 043/044 |
+| L29 | 290 | Scheduler mechanism + `cxc schedule` CLI + job store | DEFERRED (Q-P3-1, Phase 3) | 040, 041/042 |
+| L30 | 300 | Result delivery + Phase 3 verification | DEFERRED (Q-P3-2, Phase 3) | 040, 043/044 |
 
 ### Cluster 6 -- Deferred  [L31]
 | Loop | Decade | Slug | Status | Source-of-record |

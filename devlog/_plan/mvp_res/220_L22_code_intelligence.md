@@ -1,6 +1,6 @@
 # L22 (Decade 220) -- Code Intelligence (lsp / codegraph / ast-grep)
 
-Status: RESOLVED
+Status: PLANNED (130-defer resolved: ast-grep only; lsp/codegraph deferred)
 Cluster: 3 · Phase: expansion · Shorthand: cxc
 Source-of-record: 260629_codexclaw_mvp/130_code_intelligence.md (J5), 090.1 J-13/J-16
 

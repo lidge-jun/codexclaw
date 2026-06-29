@@ -21,7 +21,7 @@ multi-model subagents and the GUI.
   - `plugins/codexclaw/gui` test/smoke scripts if L26/L27 place them there
   - `devlog/_fin/` done note only when implementation actually completes
 - Exact behavior verified:
-  - S6: ocx present runs `ocx ensure`; ocx absent gracefully skips.
+  - S6: ocx present is DETECTED (read/list); ocx absent gracefully skips. NEVER auto-run `ocx ensure` (detect-only, Q-P2-2).
   - S7: catalog equals ocx-provided models plus the main/default model.
   - S8: assigning a model to explorer/reviewer/executor persists and spawned
     subagent config honors it.

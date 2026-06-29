@@ -2,6 +2,11 @@
 
 Status: AUDIT (2026-06-30) · 5 gpt-5.5 서브에이전트 병렬 (검증 3 + 모순 2) · READ-ONLY
 
+> ✅ SUPERSEDED (2026-06-30): §B의 wiring-gap B1–B4는 모두 후속 커밋으로 해소됨 —
+> `ba20b64`(B1 pre-tool-use 훅 등록 + B2 루트 CLI→config-guard 배선 + B3 pabcd openai.yaml
+> implicit=false)와 `34e43a4`(B4 STATUS/029 closure reconciled, B1–B3 true e2e, npm test 73/73).
+> 이 문서의 "완료 안 됨" 표는 그 시점 스냅샷이며, 현재는 closed. canonical 현황 = mvp_res/000_INDEX.md.
+
 > jun 지시: "pass 1~7 gpt-5.5 병렬검증 + 완료 안 된 것 + pass 8/9/10 확정용 모순 질문 라운드".
 > 검증관 Boole(P1-3)/Pauli(P4-5)/Raman(P6-7), 모순 Noether(P8)/Boyle(P9-10).
 
