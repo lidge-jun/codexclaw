@@ -1,6 +1,6 @@
 # L18 (Decade 180) -- Unified Search Hub + Korean Search Intent Guard
 
-Status: PLANNED
+Status: DONE
 Cluster: 2 (part B) · Phase: expansion · Shorthand: cxc
 Source-of-record: 260629_codexclaw_mvp/120_unified_search_hub.md (J4), 090.1 J-6/J-10
 
