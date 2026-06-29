@@ -72,24 +72,35 @@ export interface AutoResolveResult {
   consecutiveAutoResolves: number;
 }
 
+export interface AutoResolveInput {
+  contradictions: Contradiction[];
+  assumptions: Assumption[];
+  target: Contradiction;
+  assumptionText: string;
+  consecutiveAutoResolves: number;
+  /** PROOF the assumptionText was written into `## OPEN ASSUMPTIONS` (102). */
+  writtenToOpenAssumptions: boolean;
+  /** Set true for goal-backfill high gaps (recorded assumption still needs user review). */
+  requiresUserReview?: boolean;
+}
+
 /**
- * Move one contradiction out of contradictions[] and into assumptions[] as a
- * recorded assumption. The caller MUST have already written the assumption text
- * into `## OPEN ASSUMPTIONS` (recorded:true reflects that visibility, 102).
- * Returns new arrays + the updated rhythm counter (do not mutate inputs).
+ * Move one contradiction out of contradictions[] and into assumptions[]. The
+ * assumption is marked recorded:true ONLY when the caller proves it was written
+ * into `## OPEN ASSUMPTIONS` (writtenToOpenAssumptions:true). Without that proof
+ * the assumption is recorded:false (it keeps blocking readiness, 102 fail-closed).
+ * Pure: does not mutate inputs. Carries the contradiction severity onto the
+ * assumption so goal-backfill high gaps retain their review metadata.
  */
-export function autoResolveToAssumption(
-  contradictions: Contradiction[],
-  assumptions: Assumption[],
-  target: Contradiction,
-  assumptionText: string,
-  consecutiveAutoResolves: number,
-): AutoResolveResult {
+export function autoResolveToAssumption(input: AutoResolveInput): AutoResolveResult {
+  const { contradictions, assumptions, target, assumptionText, consecutiveAutoResolves } = input;
   const remaining = contradictions.filter((c) => c.contradictionId !== target.contradictionId);
   const assumption: Assumption = {
     id: target.contradictionId || `assumption-${assumptions.length + 1}`,
     text: assumptionText,
-    recorded: true,
+    recorded: input.writtenToOpenAssumptions === true,
+    severity: target.severity,
+    ...(input.requiresUserReview === true ? { requiresUserReview: true } : {}),
   };
   return {
     contradictions: remaining,

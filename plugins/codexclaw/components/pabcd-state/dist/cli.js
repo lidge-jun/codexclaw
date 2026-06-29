@@ -20,6 +20,7 @@ import { readFileSync } from "node:fs";
 import { handleStop, handleUserPromptSubmit } from "./hook.js";
 import { parseStop, parseUserPromptSubmit } from "./parse.js";
 import { applyGoalBudgetGuard, parsePreToolUse } from "./goal-gate.js";
+import { parseFreezeArgs, runFreeze } from "./freeze-cli.js";
 
 function readStdin()         {
   try {
@@ -31,6 +32,20 @@ function readStdin()         {
 
 function main()       {
   const [, , kind, event] = process.argv;
+
+  // `freeze` command path (L10.3 runtime wiring): build/preview the freeze
+  // manifest + run a stale check. Separate from the hook stdin path.
+  if (kind === "freeze") {
+    try {
+      const out = runFreeze(parseFreezeArgs(process.argv.slice(3)));
+      process.stdout.write(`${out}\n`);
+      process.exit(0);
+    } catch (err) {
+      process.stderr.write(`freeze failed: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+  }
+
   if (kind !== "hook") {
     process.exit(0);
   }

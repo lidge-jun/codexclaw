@@ -64,7 +64,8 @@ const PHASE_DIRECTIVES: Partial<Record<Phase, string>> = {
     "[codexclaw: INTERVIEW]",
     "Clarify requirements before planning. Cover four dimensions — Goal, Constraint,",
     "Success criteria, Ontology. Research the repo first, then ask focused questions.",
-    "Do NOT start implementing yet.",
+    "When you ask, use request_user_input with background + 2-3 concrete options",
+    "(recommendation FIRST) + one impact/tradeoff sentence per option. Do NOT start implementing yet.",
   ].join("\n"),
   P: [
     "[codexclaw: PLAN]",

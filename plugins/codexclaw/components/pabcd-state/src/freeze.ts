@@ -1,24 +1,24 @@
 /**
  * freeze.ts — interview freeze manifest + stale detection (L10.3 / 103).
  *
- * When the interview is ready, the main session writes the canonical plan under
- * .codexclaw/plan/<slug>/ and freezes it: the manifest records each file's
- * sha256 + a structured evidence bundle (R-5: dimensions, OPEN ASSUMPTIONS,
- * contradictions, seed/AC, research report ref). At goal start the current files
- * are re-hashed and compared; a mismatch refuses stale execution and re-freezes.
+ * Exact manifest pin (103 Hardening pins):
+ *   path  = .codexclaw/interview/freeze.json (per-session; plan content under .codexclaw/plan/)
+ *   shape = { frozenAt, planFiles:[{path,sha256}], planHash, objective, slug, evidenceBundle }
+ *   planHash = sha256(concat of per-file sha256 in path order)
  *
- * The plugin does NOT create the native goal (it is not a fork). It emits an
- * activation directive (R-7) telling the main session to call get_goal then
- * objective-only create_goal; goal lifecycle is owned by codex.
+ * The frozen plan files MUST contain `## OPEN ASSUMPTIONS`; because planHash is
+ * derived from the plan file contents, that section is hash-covered (a changed
+ * assumption changes the file sha256 -> changes planHash -> stale at goal start).
  *
- * Pure hashing + manifest shaping live here; IO (read plan dir, write manifest)
- * is injected so this stays testable without touching the real .codexclaw/.
+ * Pure hashing + manifest shaping live here; file IO is the caller's job so this
+ * stays testable without touching the real .codexclaw/.
  */
 import { createHash } from "node:crypto";
 import type { InterviewTracker } from "./interview.ts";
 
 export const PLAN_SUBDIR = "plan";
-export const FREEZE_MANIFEST = "freeze.json";
+export const FREEZE_MANIFEST_DIR = "interview";
+export const FREEZE_MANIFEST_FILE = "freeze.json";
 
 export interface PlanFileHash {
   path: string; // relative to the plan slug dir
@@ -28,51 +28,62 @@ export interface PlanFileHash {
 /** R-5 structured evidence bundle carried into goal handoff (not objective+hash only). */
 export interface EvidenceBundle {
   dimensions: InterviewTracker["dimensions"] | null;
-  openAssumptions: string[]; // exact `## OPEN ASSUMPTIONS` lines
+  openAssumptions: string[]; // exact `## OPEN ASSUMPTIONS` lines (also live in the hashed plan file)
   contradictions: InterviewTracker["contradictions"];
-  seedAcceptanceCriteria: string[];
+  acceptanceCriteria: string[];
   researchReportRef: string | null;
 }
 
 export interface FreezeManifest {
-  version: 1;
+  frozenAt: string; // ISO8601
+  planFiles: PlanFileHash[];
+  planHash: string; // sha256(concat of per-file sha256 in path order)
+  objective: string;
   slug: string;
-  frozenAt: string;
-  freezeId: string;
-  files: PlanFileHash[];
-  evidence: EvidenceBundle;
+  evidenceBundle: EvidenceBundle;
 }
 
 export function sha256(content: string): string {
   return createHash("sha256").update(content, "utf8").digest("hex");
 }
 
-/** Deterministic freezeId from the sorted file hashes (stable, replayable). */
-export function computeFreezeId(files: PlanFileHash[]): string {
+/** planHash = sha256 of per-file sha256 joined in path order (103 pin). */
+export function computePlanHash(files: PlanFileHash[]): string {
   const joined = [...files]
     .sort((a, b) => a.path.localeCompare(b.path))
-    .map((f) => `${f.path}:${f.sha256}`)
-    .join("\n");
-  return sha256(joined).slice(0, 16);
+    .map((f) => f.sha256)
+    .join("");
+  return sha256(joined);
+}
+
+/** slug = lowercase objective, non-alphanumeric -> '-', collapse repeats, trim, cap 48 (103 pin). */
+export function deriveSlug(objective: string): string {
+  const s = (objective ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48)
+    .replace(/-+$/g, "");
+  return s.length > 0 ? s : "interview";
 }
 
 export interface BuildManifestInput {
-  slug: string;
-  files: PlanFileHash[];
-  evidence: EvidenceBundle;
+  objective: string;
+  planFiles: PlanFileHash[];
+  evidenceBundle: EvidenceBundle;
   now?: () => string;
 }
 
 export function buildFreezeManifest(input: BuildManifestInput): FreezeManifest {
   const now = input.now ?? (() => new Date().toISOString());
-  const files = [...input.files].sort((a, b) => a.path.localeCompare(b.path));
+  const planFiles = [...input.planFiles].sort((a, b) => a.path.localeCompare(b.path));
   return {
-    version: 1,
-    slug: input.slug,
     frozenAt: now(),
-    freezeId: computeFreezeId(files),
-    files,
-    evidence: input.evidence,
+    planFiles,
+    planHash: computePlanHash(planFiles),
+    objective: input.objective,
+    slug: deriveSlug(input.objective),
+    evidenceBundle: input.evidenceBundle,
   };
 }
 
@@ -83,12 +94,13 @@ export interface StaleCheckResult {
 }
 
 /**
- * Compare a frozen manifest against the CURRENT plan file hashes. Stale when any
- * file's hash changed, a frozen file is missing, or a new file appeared. Goal
- * start must refuse stale execution and re-freeze (103).
+ * Goal-start integration: recompute the current planHash and compare it to the
+ * frozen manifest. Stale when planHash differs OR any file changed/missing/new.
+ * Stale -> refuse execution + re-freeze (103). A changed `## OPEN ASSUMPTIONS`
+ * changes the plan file sha256 and is therefore caught here.
  */
 export function checkStale(manifest: FreezeManifest, currentFiles: PlanFileHash[]): StaleCheckResult {
-  const frozen = new Map(manifest.files.map((f) => [f.path, f.sha256]));
+  const frozen = new Map(manifest.planFiles.map((f) => [f.path, f.sha256]));
   const current = new Map(currentFiles.map((f) => [f.path, f.sha256]));
   const changed: string[] = [];
   for (const [path, hash] of frozen) {
@@ -97,12 +109,13 @@ export function checkStale(manifest: FreezeManifest, currentFiles: PlanFileHash[
   for (const path of current.keys()) {
     if (!frozen.has(path)) changed.push(path);
   }
-  const stale = changed.length > 0;
+  const planHashChanged = computePlanHash(currentFiles) !== manifest.planHash;
+  const stale = changed.length > 0 || planHashChanged;
   return {
     stale,
     changedFiles: changed.sort(),
     reason: stale
-      ? `plan changed since freeze (${changed.length} file(s)); re-freeze before goal start — stale execution refused`
+      ? `plan changed since freeze (${changed.length} file(s), planHash ${planHashChanged ? "differs" : "matches"}); re-freeze before goal start — stale execution refused`
       : "frozen manifest matches current plan",
   };
 }
@@ -116,5 +129,6 @@ export const GOAL_ACTIVATION_DIRECTIVE = [
   "3. Verify a goal row was actually created (codex owns goal lifecycle in goals_1.sqlite).",
   "The frozen plan under .codexclaw/plan/ is the READ-ONLY spec the goal consumes; do not reopen",
   "Interview once the goal is active (L11 hard-deny). If create_goal fails, report that goal mode",
-  "did not start — do not proceed as if it did.",
+  "did not start — do not proceed as if it did. On goal start, recompute planHash and compare to",
+  ".codexclaw/interview/freeze.json; on mismatch, re-freeze the current plan before proceeding.",
 ].join("\n");

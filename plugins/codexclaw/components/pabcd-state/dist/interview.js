@@ -29,6 +29,9 @@ export const CONTRADICTION_SEVERITIES = ["low", "medium", "high"]         ;
 /** Cap for every tracker array (drop-oldest) to bound session JSON growth (T2). */
 export const MAX_TRACKER_ARRAY = 50;
 
+/** 102: max auto-resolve rounds per interview before forcing closure/escalation. */
+export const MAX_AUTO_ROUNDS = 5;
+
                                  
                         
                   
@@ -47,6 +50,10 @@ export const MAX_TRACKER_ARRAY = 50;
                
                                                                                     
                     
+                                                                                      
+                                   
+                                                                                              
+                               
  
 
                                    
@@ -54,6 +61,10 @@ export const MAX_TRACKER_ARRAY = 50;
                                                 
                                   
                             
+                                                                                                            
+                           
+                                                                                                      
+                                  
  
 
 function isRecord(v         )                               {
@@ -111,7 +122,7 @@ function reconstructScore(v         )                 {
 export function defaultInterview(roundId = 0)                   {
   const dimensions = {}                                     ;
   for (const d of DIMENSIONS) dimensions[d] = defaultScore();
-  return { roundId: roundIdNum(roundId), dimensions, contradictions: [], assumptions: [] };
+  return { roundId: roundIdNum(roundId), dimensions, contradictions: [], assumptions: [], autoResolveCount: 0, consecutiveAutoResolves: 0 };
 }
 
 /**
@@ -145,13 +156,28 @@ export function reconstructInterview(v         )                          {
     ? v.assumptions
         .map((a) =>
           isRecord(a)
-            ? { id: str(a.id), text: str(a.text), recorded: a.recorded === true }
+            ? {
+                id: str(a.id),
+                text: str(a.text),
+                recorded: a.recorded === true,
+                ...(typeof a.severity === "string" && (CONTRADICTION_SEVERITIES                     ).includes(a.severity)
+                  ? { severity: a.severity                          }
+                  : {}),
+                ...(a.requiresUserReview === true ? { requiresUserReview: true } : {}),
+              }
             : { id: "", text: "[malformed assumption entry]", recorded: false },
         )
         .slice(-MAX_TRACKER_ARRAY)
     : [];
 
-  return { roundId: roundIdNum(v.roundId), dimensions, contradictions, assumptions };
+  return {
+    roundId: roundIdNum(v.roundId),
+    dimensions,
+    contradictions,
+    assumptions,
+    autoResolveCount: roundIdNum(v.autoResolveCount),
+    consecutiveAutoResolves: roundIdNum(v.consecutiveAutoResolves),
+  };
 }
 
 /**
@@ -221,5 +247,7 @@ export function normalizeInterview(tracker                         )            
     dimensions,
     contradictions: Array.isArray(tracker.contradictions) ? tracker.contradictions.slice(-MAX_TRACKER_ARRAY) : [],
     assumptions: Array.isArray(tracker.assumptions) ? tracker.assumptions.slice(-MAX_TRACKER_ARRAY) : [],
+    autoResolveCount: roundIdNum(tracker.autoResolveCount),
+    consecutiveAutoResolves: roundIdNum(tracker.consecutiveAutoResolves),
   };
 }
