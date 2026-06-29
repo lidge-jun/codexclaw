@@ -6,6 +6,7 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 ## Phase 1 (MVP core) — state mgmt + dev-skill injection, config untouched
 | Step | File | Status |
 |------|------|--------|
+| 017 | 017_pabcd_loop_plan.md | LOOP PLAN (7 passes) |
 | 019 | 019_phase1_implementation_plan.md | mini-P (impl-grade) |
 | 019.1 | 019.1_mini_a_audit.md | mini-A AUDIT |
 | 019.2 | 019.2_mini_a_round2.md | mini-A AUDIT (Finding A/B resolved) |
