@@ -1,7 +1,7 @@
 # codexclaw MVP — Status
 
 Numbering: cli-jaw devlog convention. `0X0_` per phase-group; sub-steps `0X1..0X9`;
-fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work starts.
+fine increments (`022.1`) allowed. IPABCD steps appear as suffixes when work starts.
 
 ## Phase 1 (MVP core) — state mgmt + dev-skill injection, config untouched
 | Step | File | Status |
@@ -60,7 +60,7 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 ## Notes
 - mini-P/mini-A loop active: 019 → 019.1 (audit) → 019.2 (round 2). BLOCKERS RESOLVED: Finding A = A3 hybrid (advisory+native now, hard deny deferred); Finding B = B-opt2 (inline subagent roles in spawn_agent, no plugin role-discovery dependency).
 - Interview HARD-depends on request_user_input; FORBIDDEN in goal mode (022.3) — Phase 1 enforcement = advisory ipabcd text + codex-native goals.rs suppression; true hard PreToolUse deny DEFERRED (Q-GM-1-followup).
-- WORKFLOW = IPABCD (Interview + PABCD). Interview uses feature `default_mode_request_user_input` / `request_user_input`.
+- WORKFLOW = IPABCD (Interview + IPABCD). Interview uses feature `default_mode_request_user_input` / `request_user_input`.
 - ACTIVATION: codexclaw enables codex feature flags (multi_agent/goals/hooks/default_mode_request_user_input) via `codex features enable` at install (027 revised: controlled flag flip, backup+revert, not silent).
 - 2026-06-29: Plan restructured into 3 phases. opencodex confirmed = provider proxy, not harness.
 - Phase 3 scheduling feasible via `codex exec` + OS scheduler (launchd/cron). No built-in cron.
@@ -72,4 +72,6 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 - dev-* skills (all 13) = subagent ROUTER roles: dev=always-on discipline; surface dev-* referenced by role via B-opt2 inline instructions. debugging is the recipe anchor, not a reduced deliverable.
 - Decisions confirmed (015): all-13 dev skills, omo goal gate, 3 shippable MVP units.
 - Remaining open: Q-P2-1/2 (GUI reuse, ocx-absent multi-model), Q-P3-2 (result delivery).
-- 2026-06-29: Interview + iPABCD prompts decided to use codex request_user_input selector (flag `default_mode_request_user_input`, verified); MCP elicitation as stable fallback. See 260629_research_elicitation.
+- 2026-06-29: Interview + IPABCD prompts decided to use codex request_user_input selector (flag `default_mode_request_user_input`, verified); MCP elicitation as stable fallback. See 260629_research_elicitation.
+
+- 2026-06-29 mini-A (parallel, 2 codex subagents): IPABCD naming normalized across all phase docs (standalone PABCD→IPABCD; dev-pabcd/pabcd-state/filenames preserved). Session-scope (016) design PASS on consistency+omo-parity+agentId-exclusion; 2 low-sev hardening notes folded into 018 (phase-enum validation, ledger interleave caveat). Phases 2/3 reworded INCREMENTALLY-shippable-on-Phase-1-base.

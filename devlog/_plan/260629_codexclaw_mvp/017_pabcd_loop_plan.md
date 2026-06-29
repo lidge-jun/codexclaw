@@ -1,7 +1,7 @@
-# 017 — Phase 1 PABCD Loop Plan (multi-pass, small per implementation unit)
+# 017 — Phase 1 IPABCD Loop Plan (multi-pass, small per implementation unit)
 
 Status: PLAN (loop map)  ·  Phase 1
-Decision (jun, 2026-06-29): run PABCD MANY times — one small cycle per implementation unit.
+Decision (jun, 2026-06-29): run IPABCD MANY times — one small cycle per implementation unit.
 Plan all passes up front, then enter the FIRST P.
 
 ## Loop principle

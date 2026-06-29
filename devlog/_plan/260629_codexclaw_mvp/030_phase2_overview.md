@@ -2,6 +2,9 @@
 
 Status: PLANNING  ·  Phase 2 of 3
 
+## Layering note
+Phases 2 and 3 are INCREMENTALLY shippable releases layered on Phase 1 (not standalone-from-scratch): P2 reuses Phase-1 subagent roles; P3 needs the installed plugin. Each adds value independently of the OTHER, on the Phase-1 base.
+
 ## Definition
 Bring in opencodex (optional) and codexclaw's own GUI. Multi-model subagents become
 configurable: pull the current subagent model list + the main model (n+1 models), and let the

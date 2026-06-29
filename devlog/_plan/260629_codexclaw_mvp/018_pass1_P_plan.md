@@ -52,7 +52,7 @@ export function readState(cwd: string, sessionId: string): State {
   try {
     const raw = readFileSync(statePath(cwd, sessionId), "utf8");
     const p = JSON.parse(raw);
-    if (!p || typeof p.phase !== "string") return defaultState(sessionId);
+    if (!p || !ORDER.includes(p.phase)) return defaultState(sessionId);  // validate phase ∈ I..D
     return { ...defaultState(sessionId, p.slug ?? ""), ...p, sessionId,
       flags: { ...defaultState(sessionId).flags, ...(p.flags ?? {}) } };
   } catch { return defaultState(sessionId); }   // missing/corrupt -> safe default, never throw
@@ -128,6 +128,13 @@ export const isDone = (s: State) => s.phase === "D" && s.flags.checkPassed;
 - `node --test` green (state + fsm).
 - Session isolation proven: distinct sessionIds keep distinct phase files in one repo.
 - readState never throws on missing/corrupt; writeState atomic; FSM pure.
+
+## Hardening notes (folded from Pass-1 A pre-audit, Heisenberg)
+- readState validates `phase ∈ ORDER` (not just typeof string) → corrupt `"phase":"Z"` falls back to
+  default instead of surviving. (state.ts imports `ORDER` from fsm.ts, or inlines the literal set.)
+- appendLedger note: `appendFileSync` is line-atomic only under PIPE_BUF (~4096B). Keep `evidence`
+  short; if a large evidence blob is ever needed across concurrent sessions, switch to per-session
+  ledger or a lock. Low severity (documented).
 
 ## A-phase audit targets (next, small A)
 - Re-confirm session-scope decision (016) against omo path shape — DONE (matches).

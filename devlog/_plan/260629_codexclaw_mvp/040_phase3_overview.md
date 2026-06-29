@@ -1,6 +1,6 @@
 # 040 — Phase 3 Overview: Periodic / Scheduled Work
 
-Status: PLANNING  ·  Phase 3 of 3 (3rd MVP — independently shippable, decision 015)
+Status: PLANNING  ·  Phase 3 of 3 (3rd MVP — INCREMENTALLY shippable on the Phase-1 base, decision 015)
 
 ## Question being answered
 Can codexclaw do cli-jaw-style recurring/heartbeat work using codex's own facilities?

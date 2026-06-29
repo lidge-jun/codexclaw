@@ -5,7 +5,7 @@ Status: REFERENCE (durable — read this first after any context loss)
 
 ## What codexclaw is (one line)
 A single Codex plugin that **reuses the OpenAI `codex` runtime** and layers cli-jaw-style
-dev discipline (`dev-*` skills + PABCD) plus multi-model subagents, with an **optional**
+dev discipline (`dev-*` skills + IPABCD) plus multi-model subagents, with an **optional**
 opencodex provider bridge.
 
 ## The three-layer model (do not confuse them)
@@ -14,7 +14,7 @@ opencodex provider bridge.
 |-------|-------|------|----------|
 | Harness | OpenAI `codex` (codex-cli 0.142.3) | the actual agent runtime | OpenAI |
 | Provider routing | `opencodex` / `ocx` (@bitkyc08/opencodex 2.6.4) | **provider proxy**, NOT a harness | jun (lidge-jun) |
-| Plugin | `codexclaw` | dev skills + PABCD + subagents + GUI | this repo |
+| Plugin | `codexclaw` | dev skills + IPABCD + subagents + GUI | this repo |
 
 ### Critical correction (verified 2026-06-29)
 - "opencodex 하네스"는 **존재하지 않는다.** `ocx --help` 첫 줄: *"Universal provider proxy for Codex"*.
@@ -51,7 +51,7 @@ Cloned to `devlog/.lazycodex/` (gitignored). Structural lessons:
 ## cli-jaw conventions to mirror
 
 ### devlog _plan numbering (this folder follows it)
-- `0X0_` groups a phase; PABCD steps are suffixes within: `plan → audit → build → check → verification → done`.
+- `0X0_` groups a phase; IPABCD steps are suffixes within: `plan → audit → build → check → verification → done`.
 - Fine-grained increments (`001`, `011`, `021`...) are allowed for sub-items.
 - Example from cli-jaw: `010_000_004_..._plan.md`, `014_..._done.md`, `020_..._plan.md`.
 
@@ -72,7 +72,7 @@ cli-jaw `dev-*` family to port: `dev`, `dev-architecture`, `dev-backend`, `dev-c
 
 ## Confirmed design decisions (jun)
 - D1: Reuse codex runtime. opencodex is a provider proxy, not a harness — do not fork a harness.
-- D2: opencodex is OPTIONAL. ocx-free users still get dev skills + PABCD + default-model subagents.
+- D2: opencodex is OPTIONAL. ocx-free users still get dev skills + IPABCD + default-model subagents.
 - D3: Interfaces = CLI commands + web GUI. No TUI, no install wizard.
 - D4: codexclaw ships its OWN GUI (subagent default/multi-model config + prompt tuning) AND shows
   a link bar to `localhost:10100` when ocx is detected.
@@ -82,7 +82,7 @@ cli-jaw `dev-*` family to port: `dev`, `dev-architecture`, `dev-backend`, `dev-c
 ## Phase map (see numbered files)
 - 010 repo & plugin skeleton — DONE
 - 020 provider bridge (ocx ensure / graceful skip)
-- 030 PABCD state machine (file FSM + hooks)
+- 030 IPABCD state machine (file FSM + hooks)
 - 040 subagent config (default/multi-model + prompt overrides)
 - 050 GUI (subagent config + 10100 link bar)
 - 060 dev-* skills migration (format conversion above)

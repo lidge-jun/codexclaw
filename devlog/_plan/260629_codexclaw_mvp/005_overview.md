@@ -11,7 +11,7 @@ Three layers, each minding its own job:
 
 1. **Harness** — OpenAI `codex` (unchanged, reused as-is).
 2. **Provider routing (optional)** — `opencodex` (`ocx`), an external dependency. codexclaw never bundles it; it only *ensures* it when present and degrades gracefully when absent.
-3. **codexclaw plugin** — skills (`dev-*` + `pabcd`), hooks (session/prompt/stop), subagent role agents, file-based PABCD state, and a local GUI.
+3. **codexclaw plugin** — skills (`dev-*` + `pabcd`), hooks (session/prompt/stop), subagent role agents, file-based IPABCD state, and a local GUI.
 
 ## Reference
 
@@ -27,7 +27,7 @@ Three layers, each minding its own job:
 ## Design decisions (confirmed with jun)
 
 - D1: Reuse codex runtime, not an opencodex fork. opencodex is a *provider proxy*, not a harness.
-- D2: opencodex is optional. Users who don't want it must still get full dev-skills + PABCD + default-model subagents.
+- D2: opencodex is optional. Users who don't want it must still get full dev-skills + IPABCD + default-model subagents.
 - D3: Interfaces are CLI commands + a web GUI. No TUI.
 - D4: codexclaw ships its own GUI (subagent default/multi-model config + prompt tuning), and shows a link bar to `localhost:10100` when ocx is detected.
 

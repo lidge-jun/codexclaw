@@ -3,10 +3,10 @@
 Status: TODO  ·  Phase 1
 
 ## Goal
-PABCD runs with no orchestrator server. Skill = human guide; hooks = trigger + continuation;
+IPABCD runs with no orchestrator server. Skill = human guide; hooks = trigger + continuation;
 files = state.
 
-> **IPABCD (not PABCD):** the workflow includes an **Interview** phase (I) before Plan.
+> **IPABCD (not IPABCD):** the workflow includes an **Interview** phase (I) before Plan.
 > See 022.2 for the Interview phase, feature-flag activation, and `request_user_input` mechanism.
 
 ## Pieces
@@ -16,7 +16,7 @@ files = state.
 - State files: see 022.1.
 
 ## Behavior
-- UserPromptSubmit: if prompt matches a PABCD/interview trigger and not already injected this
+- UserPromptSubmit: if prompt matches a IPABCD/interview trigger and not already injected this
   transcript (idempotent, skip post-compact), inject the matching phase directive via
   `additionalContext`.
 - Stop: read state; if current phase's exit condition met, advance and record to ledger.

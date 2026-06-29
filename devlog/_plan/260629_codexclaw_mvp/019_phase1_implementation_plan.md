@@ -29,7 +29,7 @@ plugins/codexclaw/
   - `type Phase = "I"|"P"|"A"|"B"|"C"|"D"`
   - `interface State { phase: Phase; slug: string; updatedAt: string; flags: {interview:boolean; auditPassed:boolean; checkPassed:boolean}; supersededBy: string|null }`
   - `readState(cwd): State`  (missing/corrupt → safe default {phase:"I"...}, never throw)
-  - `writeState(cwd, State): void`  (atomic write to `.codexclaw/state.json`)
+  - `writeState(cwd, State): void`  (atomic write to `.codexclaw/sessions/<sessionId>.json`; per-session, see 016)
   - `appendLedger(cwd, {ts,from,to,reason,evidence}): void` (→ `.codexclaw/ledger.jsonl`)
 - Accept: unit tests for default/corrupt/roundtrip; pure where possible.
 

@@ -5,12 +5,12 @@ Phase: 1 of 3
 
 ## Definition
 **State management + dev-skill custom injection working, with codex config untouched.**
-After phase 1: a user installs codexclaw and gets PABCD + working dev skills + default-model
+After phase 1: a user installs codexclaw and gets IPABCD + working dev skills + default-model
 subagents — without opencodex, without touching `~/.codex/config.toml`.
 
 ## Success criteria (testable)
 - S1: `codex plugin add codexclaw@personal` installs; skills appear in `codex` skill discovery.
-- S2: A PABCD trigger phrase activates the workflow; `.codexclaw/state.json` transitions P→A.
+- S2: An IPABCD trigger phrase activates the workflow; the session's `.codexclaw/sessions/<sessionId>.json` transitions P→A (per-session, see 016).
 - S3: At least one migrated dev skill (pilot: dev-debugging) routes from a representative prompt.
 - S4: `~/.codex/config.toml` byte-identical before/after install + a full session (guard test).
 - S5: A subagent role (explorer/reviewer/executor) spawns on the default model.
@@ -29,7 +29,7 @@ subagents — without opencodex, without touching `~/.codex/config.toml`.
 
 ## Step map (020–029)
 - 021 codex skill injection path (precise)
-- 022 PABCD native skill + 022.1 state file schema
+- 022 IPABCD native skill + 022.1 state file schema
 - 023 goal convention port (cli-jaw goal → codex create_goal)
 - 024 dev-* conversion rules + 024.1 pilot (dev-debugging)
 - 025 subagent-as-employee injection
@@ -39,7 +39,7 @@ subagents — without opencodex, without touching `~/.codex/config.toml`.
 - 029 phase 1 verification gate
 
 ## Interactive prompt mechanism (DECISION 2026-06-29)
-- Interview + iPABCD interactive prompts use the codex `request_user_input` selector
+- Interview + IPABCD interactive prompts use the codex `request_user_input` selector
   (numbered choice UI), enabled in Default mode via feature flag
   `default_mode_request_user_input = true`.
 - VERIFIED: flag exposes the tool in Default mode and renders the same selector as Plan Mode.

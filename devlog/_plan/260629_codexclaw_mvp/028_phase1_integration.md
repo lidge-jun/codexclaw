@@ -9,7 +9,7 @@ Wire the pieces and prove the end-to-end MVP loop.
 1. Build: `scripts/build.mjs` compiles components → dist, aggregates skills/hooks/agents.
 2. Install: marketplace add + plugin add.
 3. Skill discovery: pabcd + pilot dev skill visible/routable.
-4. PABCD round-trip: trigger → state P→A→...; ledger records.
+4. IPABCD round-trip: trigger → state P→A→...; ledger records.
 5. Subagent: spawn explorer on default model.
 6. Config guard: config.toml unchanged.
 

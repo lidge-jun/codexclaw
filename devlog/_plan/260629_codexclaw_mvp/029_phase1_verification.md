@@ -4,7 +4,7 @@ Status: TODO  ·  Phase 1
 
 ## Gate (all must pass to close Phase 1)
 - [ ] S1 install + skill discovery
-- [ ] S2 PABCD state transition P→A
+- [ ] S2 IPABCD state transition P→A
 - [ ] S3 pilot dev skill routes
 - [ ] S4 config.toml byte-identical (027 guard)
 - [ ] S5 subagent spawns on default model
