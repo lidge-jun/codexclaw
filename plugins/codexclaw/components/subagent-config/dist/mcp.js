@@ -16,6 +16,7 @@
  */
 import { createInterface } from "node:readline";
 import { readConfig, setRole, ROLES,               } from "./store.js";
+import { buildCatalog } from "./catalog.js";
 
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_INFO = { name: "codexclaw-subagent-config", version: "0.1.0" };
@@ -49,6 +50,11 @@ const TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "catalog_list",
+    description: "List selectable models: Codex-native entries first, then ocx-backed entries when ocx is active.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
 ];
 
 function toolResult(id         , payload         )       {
@@ -81,6 +87,11 @@ function callTool(id         , params                                           
     } catch (err) {
       toolError(id, err instanceof Error ? err.message : String(err));
     }
+    return;
+  }
+  if (params.name === "catalog_list") {
+    // Detect-only catalog read. L24 owns selection persistence; this never writes.
+    toolResult(id, buildCatalog());
     return;
   }
   toolError(id, `unknown tool: ${String(params.name)}`);

@@ -51,7 +51,7 @@ test("MCP: tools/list advertises subagents_get + subagents_set", async () => {
   const replies = await collect(cwd, [{ jsonrpc: "2.0", id: 1, method: "tools/list" }], 1);
   if (replies.length === 0) return; // dist not built
   const names = replies[0].result.tools.map((t: { name: string }) => t.name);
-  assert.deepEqual(names.sort(), ["subagents_get", "subagents_set"]);
+  assert.deepEqual(names.sort(), ["catalog_list", "subagents_get", "subagents_set"]);
 });
 
 test("MCP: subagents_set then subagents_get roundtrips through the store file", async () => {
