@@ -72,6 +72,19 @@ Decision ledger + decade map: 090_expansion_moc.md (jun 확정 2026-06-30).
 | 015.1 | 015.1_porting_map.md | CONFIRMED (port-not-strip) |
 | 070 | 070_packaging.md | TODO |
 
+## Expansion work-phases (090+) — cli-jaw command/skill + omo component porting
+Decision ledger + decade map: 090_expansion_moc.md (jun 확정 2026-06-30). Analysis filled by parallel gpt-5.5 subagents (J1–J6).
+| Step | File | Status |
+|------|------|--------|
+| 090 | 090_expansion_moc.md | DECISION LEDGER + decade map |
+| 090 | 090_clijaw_command_mapping.md | RESEARCH (J1 codex-rs system-prompt 실측) |
+| 100 | 100_skill_hub.md | RESEARCHED (J2 + web cross-check: dynamic skill loading confirmed) |
+| 110 | 110_dev_skills_porting.md | RESEARCH COMPLETE (J3: dev 13종 + omo skill 흡수) |
+| 120 | 120_unified_search_hub.md | RESEARCH COMPLETE (J4: 4-tier + omo + codex browser/CU + KO guard) |
+| 130 | 130_code_intelligence.md | RESEARCH COMPLETE (J5: lsp/codegraph defer, ast-grep P2 candidate) |
+| 140 | 140_subagent_roles_ops.md | RESEARCH COMPLETE (J6: .toml roles, teammode, diag/ops) |
+| 150 | 150_channel_delivery.md | TODO (후순위: telegram/discord, 040 결과배달 연동) |
+
 ## Notes
 - mini-P/mini-A loop active: 019 → 019.1 (audit) → 019.2 (round 2). BLOCKERS RESOLVED: Finding A = A3 hybrid (advisory+native now, hard deny deferred); Finding B = B-opt2 (inline subagent roles in spawn_agent, no plugin role-discovery dependency).
 - Interview HARD-depends on request_user_input; FORBIDDEN in goal mode (022.3) — Phase 1 enforcement = advisory ipabcd text + codex-native goals.rs suppression; true hard PreToolUse deny DEFERRED (Q-GM-1-followup).
