@@ -39,21 +39,25 @@ plugins/codexclaw/
   gates `isAuditGateOpen/isBuildGateOpen/isDone`.
 - Accept: table-driven tests for every legal/illegal transition incl. I→P only after interview flag.
 
-### T-022c — directive injection  (→ 022, 022.2)
+### T-022c — directive injection  (→ 022, 022.2; A3 per 019.2)
 - File: `components/pabcd-state/src/directives.ts` + `codex-hook.ts`
-- Behavior: UserPromptSubmit → detect IPABCD/interview triggers; if not goal-mode and not already
-  injected this transcript → emit `{hookSpecificOutput:{additionalContext: <phase directive>}}`.
+- Behavior: UserPromptSubmit → detect EXPLICIT IPABCD/interview triggers only; if triggered and not
+  already injected this transcript → emit `{hookSpecificOutput:{additionalContext: <phase directive>}}`.
   Idempotent (skip if present / post-compact). Reference omo `ulw-loop/src/codex-hook.ts`.
-- Accept: trigger → one injection; repeat prompt → none; goal-mode → none (per 022.3).
+- NOTE (A3): goal-active is NOT in the hook payload, so the hook does NOT branch on goal mode.
+  Goal-mode interview suppression is carried by the advisory `ipabcd` skill rule + codex-native
+  goals.rs continuation suppression. The hook stays conservative (injects only on explicit trigger).
+- Accept: explicit trigger → one injection; repeat prompt → none; no trigger → none.
 
-### T-023 — goal gate  (→ 023, 022.3)
+### T-023 — goal gate  (→ 023, 022.3; SPLIT per 019.2)
 - File: `components/goal-gate/src/gate.ts`
-- `applyCreateGoalBudgetGuard(payload)`: PreToolUse + tool==create_goal + token_budget present →
-  deny w/ unlimited-goal reason (omo parity).
-- `applyInterviewInGoalGuard(payload)`: PreToolUse + tool==request_user_input + goalActive → deny
-  w/ "no interview in goal mode" reason.
-- Hooks json: matchers `^create_goal$` and `^request_user_input$`.
-- Accept: unit tests both deny paths + passthrough; goalActive detection per Q-GM-1.
+- PHASE 1 (ships): `applyCreateGoalBudgetGuard(payload)`: PreToolUse + tool==create_goal +
+  token_budget present → deny w/ unlimited-goal reason (omo parity, stateless).
+- Hooks json: matcher `^create_goal$`.
+- DEFERRED (post-Phase1, A3/Q-GM-1-followup): `applyInterviewInGoalGuard` (PreToolUse +
+  request_user_input + goalActive → deny). Needs thread-store goal-read; NOT shipped Phase 1.
+  Phase 1 "no interview in goal mode" = advisory `ipabcd` text + codex-native goals.rs suppression.
+- Accept: unit tests for budget deny path + passthrough; pure guard fn.
 
 ### T-024p — dev-debugging pilot  (→ 024, 024.1, 024.2)
 - Convert cli-jaw `/Users/jun/.cli-jaw-3459/skills/dev-debugging/SKILL.md` per 024 rules.
@@ -62,11 +66,14 @@ plugins/codexclaw/
 - Strip cli-jaw plumbing; port any orchestrate/worker refs per 015.1 table.
 - Accept: validates vs codex schema; routes on a debugging prompt; zero cli-jaw paths.
 
-### T-025 — agent roles  (→ 025, 015.1)
-- Enrich `agents/{explorer,reviewer,executor}.toml` to codex AgentRoleConfig shape
-  (name, description, model="default" Phase1, developer_instructions).
-- Verify pickup location (Q-PORT-1) via role.rs `resolve_role_config`/registry.rs before finalizing.
-- Accept: `spawn_agent({agent_type:"explorer"})` runs with its instructions on default model.
+### T-025 — agent roles  (→ 025, 015.1; B-opt2 per 019.2)
+- PHASE 1 = B-opt2 (inline): spawn subagents WITHOUT a registered role; pass full role/specialty
+  instructions INLINE in `spawn_agent({message:"TASK: ... SCOPE/DELIVERABLE/VERIFY"})` (omo pattern).
+  Zero dependency on plugin role discovery (Q-PORT-1b unproven).
+- `agents/{explorer,reviewer,executor}.toml` = enriched to codex AgentRoleConfig shape and used as
+  the SOURCE of those inline prompts (and future role files via B-opt1 once pickup is confirmed).
+- Accept: `spawn_agent` with explorer/reviewer/executor inline prompt runs on default model and
+  honors its scope; toml prompt-source matches injected text.
 
 ### T-028.1 — install/activation  (→ 028.1, 027)
 - `codexclaw enable`: backup config.toml; `codex features enable multi_agent goals hooks default_mode_request_user_input` (only if not already true); verify via `codex features list`.
@@ -80,7 +87,9 @@ plugins/codexclaw/
 
 ## Phase 1 done = 029 gate (S1–S5) all green.
 
-## Mini-A targets after this P (carry)
-- Q-GM-1 goal-active detection in hook payload (blocks T-023 interview-deny + T-022c).
-- Q-PORT-1 role file pickup path (blocks T-025).
-- request_user_input invocation path from a skill/turn (informs Interview skill).
+## Mini-A targets — RESOLVED in 019.2
+- Finding A (goal-active not in hook payload) → A3 hybrid: advisory+native Phase 1; hard deny
+  deferred (Q-GM-1-followup). T-023 interview-deny removed from Phase 1; T-022c goal-mode skip uses
+  advisory rule (no payload field needed for the conservative no-inject default).
+- Finding B (role pickup) → B-opt2 inline roles; T-025 no longer blocked on Q-PORT-1.
+- Non-blocking opens: Q-GM-1-followup (thread-store read), Q-PORT-1b (plugin role discovery).
