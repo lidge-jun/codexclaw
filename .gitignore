@@ -5,3 +5,6 @@ dist/
 .DS_Store
 # reference clone (not part of codexclaw source)
 devlog/.lazycodex/
+
+# ouroboros reference clone (Pass 8 interview research)
+devlog/_plan/260630_ouroboros_interview_research/.ouroboros/

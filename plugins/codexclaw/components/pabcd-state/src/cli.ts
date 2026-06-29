@@ -19,6 +19,7 @@
 import { readFileSync } from "node:fs";
 import { handleStop, handleUserPromptSubmit } from "./hook.ts";
 import { parseStop, parseUserPromptSubmit } from "./parse.ts";
+import { applyGoalBudgetGuard, parsePreToolUse } from "./goal-gate.ts";
 
 function readStdin(): string {
   try {
@@ -46,6 +47,9 @@ function main(): void {
     } else if (event === "stop") {
       const payload = parseStop(raw);
       if (payload) output = handleStop(payload);
+    } else if (event === "pre-tool-use") {
+      const payload = parsePreToolUse(raw);
+      if (payload) output = applyGoalBudgetGuard(payload);
     }
   } catch {
     output = "";

@@ -101,6 +101,26 @@ export function interviewDirective(): string {
   return PHASE_DIRECTIVES.I;
 }
 
+const STAGE_LABELS: Record<Phase, string> = {
+  I: "INTERVIEW",
+  P: "PLAN",
+  A: "AUDIT",
+  B: "BUILD",
+  C: "CHECK",
+  D: "DONE",
+};
+
+/** Short compaction-immune stage header (jwc pabcd-stage-header parity). */
+export function buildStageHeader(phase: Phase): string {
+  return `[codexclaw — ${phase}: ${STAGE_LABELS[phase]}]`;
+}
+
+/** Cap injectedTurns to the most recent N to bound state-file growth (audit blocker #2). */
+const MAX_INJECTED_TURNS = 50;
+function appendTurn(turns: string[], turn: string): string[] {
+  return [...turns, turn].slice(-MAX_INJECTED_TURNS);
+}
+
 /**
  * Build the codex hook stdout line. Normalizes CRLF, trims, caps at 32k, and
  * wraps in the omo-parity envelope. Empty context => "" (no injection).
@@ -118,21 +138,64 @@ export function buildContextOutput(eventName: string, ctx: string): string {
 }
 
 /**
- * UserPromptSubmit handler. Idempotent per (session, turn): records turn_id in
- * state.injectedTurns so the same turn never double-injects.
+ * UserPromptSubmit handler — hybrid directive injection (018.3, audit-revised).
+ *
+ * Idempotent per (session, turn) via state.injectedTurns. Three modes, all
+ * gated FAIL-CLOSED behind state.orchestrationActive so an un-orchestrated
+ * session injects NOTHING (jwc parity; audit blocker #1):
+ *  - mode 1 (explicit trigger, any phase): inject the full phase directive and
+ *    turn orchestration ON. This is the ONLY way orchestration activates.
+ *  - mode 2 (active, no trigger, phase changed since last inject): inject the
+ *    full directive for the current phase (state-transition directive).
+ *  - mode 3 (active, no trigger, same phase): inject the short stage header
+ *    every turn (compaction-immune, jwc M2 parity).
  */
 export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string {
   if (payload.hook_event_name !== "UserPromptSubmit") return "";
-  const trigger = detectTrigger(payload.prompt);
-  if (!trigger) return "";
   const turn = payload.turn_id ?? "";
   const state = readState(payload.cwd, payload.session_id);
   if (turn && state.injectedTurns.includes(turn)) return "";
-  const directive = trigger === "I" ? interviewDirective() : phaseDirective(trigger);
-  if (turn) {
-    writeState(payload.cwd, { ...state, injectedTurns: [...state.injectedTurns, turn] });
+
+  const trigger = detectTrigger(payload.prompt);
+
+  // mode 1: explicit trigger activates orchestration and injects the full directive.
+  if (trigger) {
+    const directive = trigger === "I" ? interviewDirective() : phaseDirective(trigger);
+    if (turn) {
+      writeState(payload.cwd, {
+        ...state,
+        orchestrationActive: true,
+        lastInjectedPhase: trigger,
+        injectedTurns: appendTurn(state.injectedTurns, turn),
+      });
+    }
+    return buildContextOutput("UserPromptSubmit", directive);
   }
-  return buildContextOutput("UserPromptSubmit", directive);
+
+  // fail-closed: no trigger and orchestration never activated -> stay silent.
+  if (!state.orchestrationActive) return "";
+
+  // mode 2: phase changed since the last injected phase -> full directive.
+  if (state.phase !== state.lastInjectedPhase) {
+    const directive = state.phase === "I" ? interviewDirective() : phaseDirective(state.phase);
+    if (turn) {
+      writeState(payload.cwd, {
+        ...state,
+        lastInjectedPhase: state.phase,
+        injectedTurns: appendTurn(state.injectedTurns, turn),
+      });
+    }
+    return buildContextOutput("UserPromptSubmit", directive);
+  }
+
+  // mode 3: same phase -> short compaction-immune stage header every turn.
+  if (turn) {
+    writeState(payload.cwd, {
+      ...state,
+      injectedTurns: appendTurn(state.injectedTurns, turn),
+    });
+  }
+  return buildContextOutput("UserPromptSubmit", buildStageHeader(state.phase));
 }
 
 /**

@@ -170,3 +170,43 @@ test("injectedTurns: invalid persisted value -> [] (strict reconstruct)", () => 
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test("lastInjectedPhase + orchestrationActive: defaults", () => {
+  const cwd = freshCwd();
+  try {
+    const s = readState(cwd, "li-1");
+    assert.equal(s.lastInjectedPhase, null);
+    assert.equal(s.orchestrationActive, false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("lastInjectedPhase + orchestrationActive: roundtrip", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("li-2"), lastInjectedPhase: "B", orchestrationActive: true });
+    const s = readState(cwd, "li-2");
+    assert.equal(s.lastInjectedPhase, "B");
+    assert.equal(s.orchestrationActive, true);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("lastInjectedPhase: invalid persisted value -> null; orchestrationActive non-bool -> false", () => {
+  const cwd = freshCwd();
+  try {
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "li-3.json"),
+      JSON.stringify({ phase: "P", sessionId: "li-3", lastInjectedPhase: "Z", orchestrationActive: "yes" }),
+    );
+    const s = readState(cwd, "li-3");
+    assert.equal(s.lastInjectedPhase, null);
+    assert.equal(s.orchestrationActive, false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

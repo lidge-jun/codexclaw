@@ -9,10 +9,11 @@ import {
   handleUserPromptSubmit,
   handleStop,
   phaseDirective,
+  buildStageHeader,
   type UserPromptSubmitPayload,
   type StopPayload,
 } from "../src/hook.ts";
-import { STATE_DIR, LEDGER_FILE } from "../src/state.ts";
+import { STATE_DIR, LEDGER_FILE, readState, writeState, defaultState } from "../src/state.ts";
 
 function freshCwd(): string {
   return mkdtempSync(join(tmpdir(), "codexclaw-hook-"));
@@ -169,6 +170,88 @@ test("handleStop: always '' and creates NO ledger (passive Pass 2)", () => {
     };
     assert.equal(handleStop(payload), "");
     assert.equal(existsSync(join(cwd, STATE_DIR, LEDGER_FILE)), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("hybrid FAIL-CLOSED: fresh session, non-trigger prompt -> '' (no I-phase leak)", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("hello, can you help me", cwd, "s1", "t1"));
+    assert.equal(out, "");
+    // no state written either (nothing to record)
+    assert.equal(existsSync(join(cwd, STATE_DIR)), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("hybrid mode 1: explicit trigger activates orchestration + injects directive", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("orchestrate P", cwd, "s1", "t1"));
+    const parsed = JSON.parse(out.trimEnd());
+    assert.equal(parsed.hookSpecificOutput.additionalContext, phaseDirective("P"));
+    const st = readState(cwd, "s1");
+    assert.equal(st.orchestrationActive, true);
+    assert.equal(st.lastInjectedPhase, "P");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("hybrid mode 2: active + phase changed -> full directive for new phase", () => {
+  const cwd = freshCwd();
+  try {
+    // seed: orchestration active, currently phase A, last injected was P
+    writeState(cwd, { ...defaultState("s1"), phase: "A", orchestrationActive: true, lastInjectedPhase: "P" });
+    const out = handleUserPromptSubmit(ups("here is my work", cwd, "s1", "t2"));
+    const parsed = JSON.parse(out.trimEnd());
+    assert.equal(parsed.hookSpecificOutput.additionalContext, phaseDirective("A"));
+    assert.equal(readState(cwd, "s1").lastInjectedPhase, "A");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("hybrid mode 3: active + same phase -> short stage header every new turn", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("s1"), phase: "A", orchestrationActive: true, lastInjectedPhase: "A" });
+    const out = handleUserPromptSubmit(ups("more work", cwd, "s1", "t3"));
+    const parsed = JSON.parse(out.trimEnd());
+    assert.equal(parsed.hookSpecificOutput.additionalContext, buildStageHeader("A"));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("hybrid: idempotent within same (session,turn) across modes", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("s1"), phase: "A", orchestrationActive: true, lastInjectedPhase: "A" });
+    const first = handleUserPromptSubmit(ups("x", cwd, "s1", "tDup"));
+    const second = handleUserPromptSubmit(ups("x", cwd, "s1", "tDup"));
+    assert.notEqual(first, "");
+    assert.equal(second, "");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("hybrid: injectedTurns is bounded to 50 (audit blocker #2)", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("s1"), phase: "A", orchestrationActive: true, lastInjectedPhase: "A" });
+    for (let n = 0; n < 60; n++) {
+      handleUserPromptSubmit(ups("work", cwd, "s1", `turn-${n}`));
+    }
+    const st = readState(cwd, "s1");
+    assert.ok(st.injectedTurns.length <= 50, `expected <=50, got ${st.injectedTurns.length}`);
+    // most recent turn retained, oldest evicted
+    assert.ok(st.injectedTurns.includes("turn-59"));
+    assert.equal(st.injectedTurns.includes("turn-0"), false);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

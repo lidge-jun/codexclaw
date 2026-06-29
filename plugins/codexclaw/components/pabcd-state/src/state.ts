@@ -18,6 +18,8 @@ export interface State {
   flags: Flags;
   supersededBy: string | null;
   injectedTurns: string[];
+  lastInjectedPhase: Phase | null;
+  orchestrationActive: boolean;
 }
 
 export interface LedgerEntry {
@@ -47,6 +49,8 @@ export function defaultState(sessionId: string, slug = ""): State {
     flags: { interview: false, auditPassed: false, checkPassed: false },
     supersededBy: null,
     injectedTurns: [],
+    lastInjectedPhase: null,
+    orchestrationActive: false,
   };
 }
 
@@ -82,6 +86,11 @@ export function readState(cwd: string, sessionId: string): State {
         Array.isArray(parsed.injectedTurns) && parsed.injectedTurns.every((x) => typeof x === "string")
           ? parsed.injectedTurns
           : [],
+      lastInjectedPhase:
+        typeof parsed.lastInjectedPhase === "string" && PHASES.includes(parsed.lastInjectedPhase as Phase)
+          ? (parsed.lastInjectedPhase as Phase)
+          : null,
+      orchestrationActive: parsed.orchestrationActive === true,
     };
   } catch {
     return defaultState(sessionId);
