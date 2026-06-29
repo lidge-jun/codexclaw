@@ -1,0 +1,5 @@
+interface:
+  display_name: "Dev: Universal Discipline"
+  short_description: "Universal dev discipline: work classifier, modular limits, verification gate, safety rules."
+policy:
+  allow_implicit_invocation: true
