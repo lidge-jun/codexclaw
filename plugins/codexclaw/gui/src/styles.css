@@ -1,0 +1,24 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --line: #262b35;
+  --text: #d7dbe2;
+  --muted: #8a93a3;
+  --accent: #4f8cff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 ui-sans-serif, system-ui, sans-serif; }
+.app { min-height: 100vh; }
+.topbar { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.brand { font-weight: 600; letter-spacing: 0; }
+.tabs { display: flex; gap: 4px; }
+.tab { background: transparent; color: var(--muted); border: 1px solid transparent; border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+.tab.active { color: var(--text); border-color: var(--line); background: var(--bg); }
+.linkbar { margin-left: auto; color: var(--accent); text-decoration: none; font-size: 13px; }
+.linkbar.muted { color: var(--muted); }
+.content { padding: 16px; }
+.panel { border: 1px solid var(--line); border-radius: 6px; background: var(--panel); padding: 16px; max-width: 920px; }
+table.roles { width: 100%; border-collapse: collapse; }
+table.roles th, table.roles td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+table.roles th { color: var(--muted); font-weight: 500; }
+.hint { color: var(--muted); margin-top: 12px; }

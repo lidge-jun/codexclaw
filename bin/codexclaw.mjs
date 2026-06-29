@@ -16,6 +16,7 @@
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const configGuardCli = join(
@@ -69,9 +70,20 @@ switch (cmd) {
   case "chat-search":
     process.exit(runCxcOps(process.argv.slice(2)));
     break;
-  case "gui":
-    console.log("codexclaw: GUI launcher TBD (Phase 2).");
+  case "gui": {
+    const guiDir = join(here, "..", "plugins", "codexclaw", "gui");
+    // npm workspaces hoist deps to the repo root, so check either location.
+    const guiVite = join(guiDir, "node_modules", "vite");
+    const rootVite = join(here, "..", "node_modules", "vite");
+    if (!existsSync(guiVite) && !existsSync(rootVite)) {
+      console.log("codexclaw gui: dependencies not installed. Run `npm install` in plugins/codexclaw/gui first.");
+      process.exit(1);
+    }
+    console.log("codexclaw gui: starting the dashboard (Vite will print the local URL)...");
+    const res = spawnSync("npm", ["run", "dev"], { cwd: guiDir, stdio: "inherit" });
+    process.exit(typeof res.status === "number" ? res.status : 0);
     break;
+  }
   case "subagents":
   case "provider":
     console.log(`codexclaw: '${cmd}' is a Phase 2 command (subagent model config / ocx bridge).`);
