@@ -18,8 +18,8 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 | 022.3 | 022.3_interview_goalmode_rules.md | DESIGN (A3 hybrid resolved) |
 | 023 | 023_goal_convention_port.md | TODO (gate SPLIT: budget ships / interview-deny deferred) |
 | 023.1 | 023.1_interview_ipabcd_prompts.md | TODO |
-| 024 | 024_dev_skills_conversion.md | TODO |
-| 024.1 | 024.1_dev_skill_pilot.md | TODO |
+| 024 | 024_dev_skills_conversion.md | TODO (ALL 13 router skills) |
+| 024.1 | 024.1_dev_skill_pilot.md | TODO (recipe anchor; all 13 ship) |
 | 024.2 | 024.2_cli_jaw_conflict_analysis.md | RESEARCH (source-verified) |
 | 025 | 025_subagent_as_employee.md | TODO (B-opt2 inline roles) |
 | 026 | 026_minimal_system_prompt.md | TODO |
@@ -66,6 +66,7 @@ fine increments (`022.1`) allowed. PABCD steps appear as suffixes when work star
 - Conversion grounded: 021.1 (codex skill schema) + 024.2 (8 conflict classes) + 015.1 (porting map).
 - DIRECTION: port cli-jaw mechanisms to codex equivalents (commands→native, worker→agent role); keep universal discipline always-on. codexclaw skills are original, fully independent of cli-jaw.
 - codex subagent = agent role (role.rs), loaded like config.toml; per-role model override supported.
+- dev-* skills (all 13) = subagent ROUTER roles: dev=always-on discipline; surface dev-* referenced by role via B-opt2 inline instructions. debugging is the recipe anchor, not a reduced deliverable.
 - Decisions confirmed (015): all-13 dev skills, omo goal gate, 3 shippable MVP units.
 - Remaining open: Q-P2-1/2 (GUI reuse, ocx-absent multi-model), Q-P3-2 (result delivery).
 - 2026-06-29: Interview + iPABCD prompts decided to use codex request_user_input selector (flag `default_mode_request_user_input`, verified); MCP elicitation as stable fallback. See 260629_research_elicitation.

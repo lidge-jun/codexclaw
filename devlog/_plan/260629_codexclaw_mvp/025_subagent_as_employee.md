@@ -40,10 +40,12 @@ model_reasoning_effort = "..."  # optional
 developer_instructions = """ ... role system prompt ... """
 ```
 
-## Phase 1 roles
-- explorer — read-only investigation.
-- reviewer — diff/plan review.
-- executor — bounded code changes.
+## Phase 1 roles (reference dev-* router skills)
+- explorer — read-only investigation (may reference dev-architecture/dev-debugging).
+- reviewer — diff/plan review (references dev-code-reviewer, dev-security).
+- executor — bounded code changes (references dev-frontend/dev-backend/dev-testing per surface).
+- Each role's INLINE spawn instructions (B-opt2) name the dev-* router(s) for its surface, so all 13
+  dev skills act as the shared discipline routers behind the roles.
 
 (codexclaw already has stub `plugins/codexclaw/agents/*.toml` — migrate to this richer shape.)
 

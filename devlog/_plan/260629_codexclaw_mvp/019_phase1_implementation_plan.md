@@ -59,12 +59,16 @@ plugins/codexclaw/
   Phase 1 "no interview in goal mode" = advisory `ipabcd` text + codex-native goals.rs suppression.
 - Accept: unit tests for budget deny path + passthrough; pure guard fn.
 
-### T-024p — dev-debugging pilot  (→ 024, 024.1, 024.2)
-- Convert cli-jaw `/Users/jun/.cli-jaw-3459/skills/dev-debugging/SKILL.md` per 024 rules.
+### T-024 — port ALL 13 dev-* router skills  (→ 024, 024.1, 024.2)
+- Convert ALL 13 cli-jaw dev skills (`/Users/jun/.cli-jaw-3459/skills/dev*`) per 024 rules. They are
+  subagent ROUTER roles (dev = always-on universal discipline; surface dev-* referenced by role).
+- Recipe anchor: convert `dev-debugging` first end-to-end (024.1) to lock the recipe, then bulk-port
+  the remaining 12 with the same diff. This is build sequencing, NOT a reduced deliverable.
 - Frontmatter = name/description("MUST USE…")/metadata.short-description ONLY.
 - Optional `openai.yaml` with interface + `policy.allow_implicit_invocation`.
-- Strip cli-jaw plumbing; port any orchestrate/worker refs per 015.1 table.
-- Accept: validates vs codex schema; routes on a debugging prompt; zero cli-jaw paths.
+- Strip cli-jaw plumbing; port any orchestrate/worker refs per 015.1 table. Keep universal discipline.
+- Accept: ALL 13 validate vs codex schema; each routes on a representative surface prompt; zero
+  cli-jaw paths; B-opt2 subagent inline instructions reference the matching dev-* router(s).
 
 ### T-025 — agent roles  (→ 025, 015.1; B-opt2 per 019.2)
 - PHASE 1 = B-opt2 (inline): spawn subagents WITHOUT a registered role; pass full role/specialty

@@ -45,6 +45,16 @@ skills/<name>/
 └── agents/openai.yaml    (optional routing metadata)
 ```
 
+## dev-* skills = subagent ROUTER roles (jun, 2026-06-29)
+- All 13 dev skills ship in Phase 1 (not a subset). They serve as ROUTER roles that subagents
+  reference for discipline: a debugging subagent routes through `dev-debugging`, frontend through
+  `dev-frontend`, review through `dev-code-reviewer`, etc.
+- `dev/SKILL.md` stays the always-on universal-discipline entry (work classifier C0-C5 + build-verify),
+  exactly as in cli-jaw; the surface-specific dev-* are referenced on demand by surface/role.
+- B-opt2 link (see 025): a spawned subagent's INLINE instructions name which dev-* router(s) apply
+  to its surface, so routing happens via skill description + explicit reference, not a runtime
+  role-file registry.
+
 ## Decisions to confirm with jun
 - Q-DEV-1: RESOLVED — port all 13 (decision 015).
 - Q-DEV-2: Reconcile dev-pabcd with codexclaw's own pabcd skill (fold into one)?
