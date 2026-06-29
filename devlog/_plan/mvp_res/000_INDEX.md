@@ -105,7 +105,7 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 ### Cluster 4 -- Phase 2 (multi-model + GUI)  [L23-L28]
 | Loop | Decade | Slug | Status | Source-of-record |
 |------|--------|------|--------|------------------|
-| L23 | 230 | Provider bridge (ocx DETECT-ONLY / graceful skip) | PLANNED (Q-P2-2 resolved) | 031_provider_bridge |
+| L23 | 230 | Provider bridge (ocx DETECT-ONLY / graceful skip) | DONE | 031_provider_bridge |
 | L24 | 240 | Subagent config store (.codexclaw/subagents.json) | PLANNED | 032_subagent_config_store |
 | L25 | 250 | Model catalog (ocx catalog + main = n+1) | PLANNED | 033_model_catalog |
 | L26 | 260 | GUI scaffold (Vite + React, layout-ref only) | PLANNED (Q-P2-1 resolved) | 034_gui_scaffold |
