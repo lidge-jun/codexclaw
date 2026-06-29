@@ -34,6 +34,18 @@ test("applyGoalBudgetGuard: create_goal with any extra key -> deny", () => {
   assert.notEqual(out, "");
 });
 
+test("applyGoalBudgetGuard: extra key denies with the SAME envelope as token_budget (L3.2)", () => {
+  const budget = applyGoalBudgetGuard(ptu("create_goal", { objective: "do x", token_budget: 1000 }));
+  const extra = applyGoalBudgetGuard(ptu("create_goal", { objective: "do x", foo: 1 }));
+  const bp = JSON.parse(budget.trimEnd()).hookSpecificOutput;
+  const ep = JSON.parse(extra.trimEnd()).hookSpecificOutput;
+  assert.equal(ep.hookEventName, bp.hookEventName);
+  assert.equal(ep.permissionDecision, "deny");
+  assert.equal(ep.permissionDecision, bp.permissionDecision);
+  assert.equal(typeof ep.permissionDecisionReason, "string");
+  assert.ok(ep.permissionDecisionReason.length > 0);
+});
+
 test("applyGoalBudgetGuard: non-create_goal tool -> passthrough ''", () => {
   assert.equal(applyGoalBudgetGuard(ptu("shell", { command: "ls", token_budget: 5 })), "");
 });
