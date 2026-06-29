@@ -47,11 +47,36 @@ test("L9.2: malformed top-level output -> [] (never marks ready)", () => {
   assert.deepEqual(normalizeMindOutput("socratic", "[]"), []); // string, not parsed array
 });
 
-test("L9.2: every accepted contradiction carries its Mind correlation key", () => {
-  const raw = [{ dimension: "success", contradiction: "untestable AC", severity: "medium", evidence: "spec:3" }];
+test("L9.2: every accepted contradiction carries its Mind + exact correlationId <roundId>-<mindId>", () => {
+  const raw = [{ dimension: "success", contradiction: "untestable AC", severity: "medium", evidence: "spec.md:3" }];
   for (const m of MINDS) {
-    assert.equal(normalizeMindOutput(m, raw)[0].mind, m);
+    const out = normalizeMindOutput(m, raw, 4);
+    assert.equal(out[0].mind, m);
+    assert.equal(out[0].correlationId, `4-${m}`); // frozen pin format
   }
+  // default round 0 when omitted
+  assert.equal(normalizeMindOutput("contrarian", raw)[0].correlationId, "0-contrarian");
+});
+
+test("L9.2: extra side-effect keys are stripped (only the contract fields + correlation survive)", () => {
+  const raw = [{
+    dimension: "goal", contradiction: "smuggle", severity: "high", evidence: "plan.md:9",
+    action: "edit file", question: "ask the user?", writeState: true, plan: "rewrite",
+  }];
+  const out = normalizeMindOutput("contrarian", raw, 1);
+  assert.equal(out.length, 1);
+  assert.deepEqual(Object.keys(out[0]).sort(), ["contradiction", "correlationId", "dimension", "evidence", "mind", "severity"]);
+});
+
+test("L9.2: ungrounded evidence (bare guess) is rejected; file:line/section/quote accepted", () => {
+  const guess = [{ dimension: "goal", contradiction: "x", severity: "low", evidence: "I think this is wrong" }];
+  assert.equal(normalizeMindOutput("contrarian", guess).length, 0);
+  const grounded = [
+    { dimension: "goal", contradiction: "a", severity: "low", evidence: "src/x.ts:42" },
+    { dimension: "goal", contradiction: "b", severity: "low", evidence: "see section Goals" },
+    { dimension: "goal", contradiction: "c", severity: "low", evidence: "the spec says \"must be max\"" },
+  ];
+  assert.equal(normalizeMindOutput("contrarian", grounded).length, 3);
 });
 
 test("L9: selectMinds picks lowest-scoring dimensions, clamped to cap", () => {

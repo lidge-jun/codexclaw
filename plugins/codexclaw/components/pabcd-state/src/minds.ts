@@ -71,7 +71,8 @@ export const MIND_DISPATCH_DIRECTIVE = [
 ].join("\n");
 
 export interface MindContradiction {
-  mind: Mind; // correlation key (which Mind produced it)
+  mind: Mind; // which Mind produced it
+  correlationId: string; // EXACT frozen pin: `<roundId>-<mindId>` (092 hardening)
   dimension: Dimension;
   contradiction: string;
   severity: ContradictionSeverity;
@@ -85,14 +86,31 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 const SEVERITIES: readonly string[] = ["low", "medium", "high"];
 
 /**
+ * Evidence must look like real grounding, not an unsupported guess (092:18):
+ *  - a file:line reference (e.g. plan.md:12, src/x.ts:3),
+ *  - an explicit section reference (contains "section" or a "##"/"L<n>" marker), or
+ *  - an exact short quote (wrapped in straight/smart quotes).
+ */
+function isGroundedEvidence(s: string): boolean {
+  const v = s.trim();
+  if (v.length === 0) return false;
+  if (/[^\s:]+:\d+/.test(v)) return true; // file:line
+  if (/(^|\b)(section\b|##|L\d+(\.\d+)?)/i.test(v)) return true; // section / loop ref
+  if (/["'\u201c\u201d\u2018\u2019].+["'\u201c\u201d\u2018\u2019]/.test(v)) return true; // quoted span
+  return false;
+}
+
+/**
  * Strict validation of a single Mind's raw output (parsed JSON array). Rejects
  * any item missing a valid dimension, severity, non-empty contradiction, or
  * non-empty evidence. Every accepted item is correlated to `mind`. Malformed
  * input yields [] (never throws) so a bad worker cannot mark interview ready.
  */
-export function normalizeMindOutput(mind: Mind, raw: unknown): MindContradiction[] {
+export function normalizeMindOutput(mind: Mind, raw: unknown, roundId = 0): MindContradiction[] {
   if (!MINDS.includes(mind)) return [];
   if (!Array.isArray(raw)) return [];
+  const round = typeof roundId === "number" && Number.isFinite(roundId) && roundId >= 0 ? Math.floor(roundId) : 0;
+  const correlationId = `${round}-${mind}`;
   const out: MindContradiction[] = [];
   for (const item of raw) {
     if (!isRecord(item)) continue;
@@ -103,9 +121,10 @@ export function normalizeMindOutput(mind: Mind, raw: unknown): MindContradiction
     if (typeof dimension !== "string" || !(DIMENSIONS as readonly string[]).includes(dimension)) continue;
     if (typeof severity !== "string" || !SEVERITIES.includes(severity)) continue;
     if (typeof contradiction !== "string" || contradiction.trim().length === 0) continue;
-    if (typeof evidence !== "string" || evidence.trim().length === 0) continue; // reject unsupported guesses
+    if (typeof evidence !== "string" || !isGroundedEvidence(evidence)) continue; // reject unsupported guesses (092:18)
     out.push({
       mind,
+      correlationId,
       dimension: dimension as Dimension,
       contradiction: contradiction.trim(),
       severity: severity as ContradictionSeverity,
