@@ -108,7 +108,7 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 | L23 | 230 | Provider bridge (ocx DETECT-ONLY / graceful skip) | DONE | 031_provider_bridge |
 | L24 | 240 | Subagent config store (.codexclaw/subagents.json) | DONE | 032_subagent_config_store |
 | L25 | 250 | Model catalog (ocx catalog + main = n+1) | DONE | 033_model_catalog |
-| L26 | 260 | GUI scaffold (Vite + React, layout-ref only) | PLANNED (Q-P2-1 resolved) | 034_gui_scaffold |
+| L26 | 260 | GUI scaffold (Vite + React, layout-ref only) | DONE | 034_gui_scaffold |
 | L27 | 270 | GUI subagent page (role->model+prompt) + 10100 link bar | PLANNED | 035_gui_subagent_page |
 | L28 | 280 | Phase 2 integration + verification (S6-S10) | PLANNED | 036_phase2_verification |
 

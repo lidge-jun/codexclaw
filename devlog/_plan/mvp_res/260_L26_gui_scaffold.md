@@ -1,6 +1,6 @@
 # L26 (Decade 260) -- GUI Scaffold (Vite + React)
 
-Status: PLANNED (Q-P2-1 resolved; layout-ref only, impl pending)
+Status: DONE
 Cluster: 4 - Phase: 2 - Shorthand: cxc
 Source-of-record: 260629_codexclaw_mvp/034_gui_scaffold.md, 030_phase2_overview.md, 000_research.md
 
