@@ -86,7 +86,7 @@ interview loops), NEVER "RESOLVED". "RESOLVED" belongs only in the Open-decision
 ### Cluster 2 -- Skill real-content porting (port -> absorb -> search -> hub-rewrite)  [L12-L19]
 | Loop | Decade | Slug | Status | Source-of-record |
 |------|--------|------|--------|------------------|
-| L12 | 120 | dev hub + pabcd real-content port (always-on discipline core) | PLANNED | 110_dev_skills_porting |
+| L12 | 120 | dev hub + pabcd real-content port (always-on discipline core) | DONE | 110_dev_skills_porting |
 | L13 | 130 | dev-architecture + dev-debugging <- omo(debugging, ast-grep, comment-checker) | PLANNED | 110 |
 | L14 | 140 | dev-backend + dev-data <- omo(programming) | PLANNED | 110 |
 | L15 | 150 | dev-frontend + dev-uiux-design <- omo(frontend, visual-qa, designpowers) | PLANNED | 110 |

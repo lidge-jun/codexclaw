@@ -87,3 +87,4 @@ Determine the actual working repository root before planning (resolve via `pwd -
 
 - This skill is the human-readable guide; the `pabcd-state` hook handles trigger detection, directive injection, and continuation.
 - MVP: phase directives are text-only; forced gates (deny on premature transition) are layered in by the hook component as it hardens.
+- Provenance: the L4 phase shipped the `dev`/`dev-*` and `pabcd` skill directories as activation shells only — frontmatter plus router stubs that proved the Codex loader shape. The real discipline content (this PABCD guide and the universal `dev` hub) was supplied later by the L12 real-content port; treat any remaining stub-era phrasing as superseded by the current body.
