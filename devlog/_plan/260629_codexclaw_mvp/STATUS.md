@@ -22,8 +22,8 @@ fine increments (`022.1`) allowed. IPABCD steps appear as suffixes when work sta
 | 022.3 | 022.3_interview_goalmode_rules.md | DESIGN (A3 hybrid resolved) |
 | 023 | 023_goal_convention_port.md | DONE-budget (Pass 3: budget gate shipped; interview-deny deferred) |
 | 023.1 | 023.1_interview_ipabcd_prompts.md | TODO |
-| 024 | 024_dev_skills_conversion.md | TODO (ALL 13 router skills) |
-| 024.1 | 024.1_dev_skill_pilot.md | TODO (recipe anchor; all 13 ship) |
+| 024 | 024_dev_skills_conversion.md | DONE (Pass 4: all 13 skills converted to Codex; gate empty) |
+| 024.1 | 024.1_dev_skill_pilot.md | DONE (recipe anchor dev-debugging locked + applied to all 13) |
 | 024.2 | 024.2_cli_jaw_conflict_analysis.md | RESEARCH (source-verified) |
 | 025 | 025_subagent_as_employee.md | TODO (B-opt2 inline roles) |
 | 026 | 026_minimal_system_prompt.md | TODO |
@@ -47,6 +47,20 @@ fine increments (`022.1`) allowed. IPABCD steps appear as suffixes when work sta
 | Step | File | Status |
 |------|------|--------|
 | 040 | 040_phase3_overview.md | PLANNING (feasibility) |
+
+## Expansion (090–150) — cli-jaw cmd/skill + omo component porting
+Decision ledger + decade map: 090_expansion_moc.md (jun 확정 2026-06-30).
+| Step | File | Status |
+|------|------|--------|
+| 090 | 090_expansion_moc.md | DECISION LEDGER (decade map) |
+| 090 | 090_clijaw_command_mapping.md | ANALYZED (J1, codex-rs source-verified) |
+| 100 | 100_skill_hub.md | ANALYZED (J2, codex-rs + OpenClaw/ClawHub) |
+| 110 | 110_dev_skills_porting.md | ANALYZED (J3, dev13 + omo12 absorb map) |
+| 120 | 120_unified_search_hub.md | ANALYZED (J4, 4-tier + codex browser/computer) |
+| 130 | 130_code_intelligence.md | ANALYZED (J5, lsp/codegraph/ast-grep) |
+| 140 | 140_subagent_roles_ops.md | ANALYZED (J6, .toml roles + ops) |
+| 150 | 150_channel_delivery.md | TODO (deferred: telegram/discord) |
+| 017.1 | 017.1_loop_continuation_augment.md | ANALYZED (J7, ulw-loop/start-work-continuation augment for 017/080) |
 
 ## Cross-phase
 | Step | File | Status |
@@ -88,3 +102,6 @@ fine increments (`022.1`) allowed. IPABCD steps appear as suffixes when work sta
 - 2026-06-29 Pass-2 B+C+D: directive-injection hook COMPLETE (Loop Pass 2/7). NEW src/parse.ts (defensive snake_case parsers, null-on-corrupt) + src/hook.ts (detectTrigger EN+KO, phaseDirective table, buildContextOutput omo-envelope CRLF/trim/32k cap, handleUserPromptSubmit idempotent per session+turn via injectedTurns, handleStop PASSIVE no-op) + cli.ts stdin dispatch (try/catch exit-0 guard). C-gate: node:test + independent codex subagent (Galileo) adversarial audit vs codex-rs schema.rs + omo hook-output.ts. Verdict FAIL→FIXED 1 blocker: bare 감사 regex injected AUDIT on everyday "감사합니다" (thanks) → AUDIT trigger now requires strong action marker (해줘/해라/하자/좀/진행/부탁). Post-fix node:test 34/34 green. Commits bf7a5ba (B), 8c1d948 (C). Orchestrator IDLE. NEXT = Pass 3 (goal budget gate, T-023) re-enters at P. 5 passes remain.
 
 - 2026-06-30 Pass-3 (P→A→B→C→D): goal budget gate + 018.3 hybrid injection COMPLETE (Loop Pass 3/7). NEW src/goal-gate.ts (parsePreToolUse + applyGoalBudgetGuard — denies budgeted create_goal, omo parity, output verified vs codex-rs PreToolUseHookSpecificOutputWire schema.rs:239-260). 018.3 hybrid injection folded into hook.ts: fail-closed orchestrationActive gate + mode1 explicit trigger / mode2 phase-diff full directive / mode3 short stage header (jwc M2 parity), handleStop still passive. state.ts +lastInjectedPhase +orchestrationActive (3 reconstruct places each), cli.ts +pre-tool-use branch. A-gate audit (subagent Wegener) FAIL→fixed 3 blockers (fail-open I-phase leak→orchestrationActive gate; unbounded injectedTurns→cap 50; Phase|null type). C-gate audit (subagent Bacon) PASS, all 3 fixes verified in code, no new bugs. node:test 52/52 green. Commits: 023.2 plan, Pass3 A, 1331097 (B). Orchestrator IDLE. NEXT = Pass 4 (dev-* skill conversion, see 024.3). 4 passes remain.
+
+- 2026-06-30 Expansion analysis (090–150): jun 결정 원장 기록 + decade map 확정 (090_expansion_moc.md). 7 gpt-5.5 서브에이전트 병렬 파견(J1–J7)으로 7개 분석 문서 작성, 전부 codex-rs/omo 소스 실측 인용. KEY: task→update_plan, dispatch→spawn_agent, worker→list_agents/wait_agent, hooks inspect→codex debug prompt-input 모두 codex-native 매핑 확정; bgtask=exec_command+write_stdin 부분대체(durable 재호출은 자체구현); chat search=app-server thread/search 프로토콜 존재→CANDIDATE 유지(wrapper 필요); diagram/html·codexclaw doctor/reset=자체구현. 100=skill_hub(기본 트리거 dev만 활성, allow_implicit_invocation 기반). 110=dev13 포팅+omo12 흡수표. 120=통합 search(codex browser/computer-use 1차). 130=코드인텔(lsp/codegraph/ast-grep). 140=role.toml+ops. 150=채널배달 후순위. 017.1=ulw-loop/start-work-continuation 보강노트(017/080향). 미커밋(untracked devlog only). NEXT = Pass 4 또는 090+ 구현 진입은 jun 결정 대기.
+- 2026-06-30 Pass-4 (P→A→B→C→D): dev-* SKILL CONVERSION COMPLETE (Loop Pass 4/7). All 13 skills now live under plugins/codexclaw/skills/: dev (hub, agents/openai.yaml allow_implicit_invocation:true) + 11 on-demand routers (architecture/backend/code-reviewer/data/debugging/devops/frontend/scaffolding/security/testing/uiux-design, policy false) + pabcd (folded dev-pabcd discipline: Depth-by-Class, work-phase vs PABCD-phase, anti-skip, subagent delegation; aligned with hook.ts PHASE_DIRECTIVES). Recipe locked on dev-debugging (e8cdec0), bulk via 4 parallel gpt-5.4 worker subagents (disjoint write scopes) + serial dev-hub/pabcd by main agent. Each: MUST-USE trigger frontmatter + metadata.short-description, whole source dirs ported (references/scripts/assets/examples), cli-jaw runtime stripped. A-gate audit (Descartes) FAIL→fixed 2 blockers (anchored grep gate, whole-dir copy) folded into 024.4 plan before build. C-gate audit (subagent Gibbs) PASS, zero blockers: repo-wide PRECISE gate empty, frontmatter valid vs loader.rs (name≤64/desc≤1024/short-description), framework APIs (createEventDispatcher/Dispatchers.IO) preserved, no dangling links. node:test 52/52 green (no .ts touched, regression guard). 6 atomic commits (4 router groups + pabcd/README + dev hub). NEXT = Pass 5 (subagent roles, 025). 3 passes remain.
