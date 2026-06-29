@@ -23,3 +23,7 @@ Persist per-role subagent config (model + prompt override).
 
 ## Verify
 - Write a mapping; spawned role honors model + prompt.
+
+## 접점 — 5-Mind 주입 (Pass 8)
+- 인터뷰 5-Mind(Contrarian/Socratic/Ontologist/Evaluator/Simplifier)를 `roles`에 등록해
+  per-role 모델 차등 지정. 설계: [034.5_mind_model_injection.md](034.5_mind_model_injection.md).
