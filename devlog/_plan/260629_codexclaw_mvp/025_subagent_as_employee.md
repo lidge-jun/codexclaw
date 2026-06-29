@@ -2,6 +2,13 @@
 
 Status: TODO  ·  Phase 1
 
+## Phase 1 implementation = B-opt2 (inline instructions, see 019.2)
+- Plugin-provided agent-role file pickup is NOT proven (plugin.json has no `agents` field).
+- Phase 1 spawns subagents WITHOUT a registered role: pass full role/specialty instructions INLINE in
+  `spawn_agent({message:"TASK: ... DELIVERABLE/SCOPE/VERIFY"})` — omo's proven pattern.
+- `agents/*.toml` remain the SOURCE of those inline prompts (and future role files via B-opt1 once
+  config-layer plugin role discovery is confirmed — Q-PORT-1b).
+
 ## codex ground truth (role.rs, source-verified)
 - A codex subagent IS an "agent role": role file loaded by the SAME machinery as config.toml
   (`core/src/agent/role.rs`). Built-ins: explorer, awaiter (`core/src/agent/builtins/`).
