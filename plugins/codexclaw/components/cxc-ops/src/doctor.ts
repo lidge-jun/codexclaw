@@ -7,6 +7,7 @@
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 
 export type Severity = "PASS" | "WARN" | "FAIL";
 
@@ -41,7 +42,7 @@ export function rollup(checks: CheckResult[]): Severity {
  * Run the codexclaw plugin health checks against a plugin root. Returns a
  * structured report; the caller renders it. Every check carries evidence.
  */
-export function runDoctor(pluginRoot: string): DoctorReport {
+export function runDoctor(pluginRoot: string, agRunner: typeof spawnSync = spawnSync): DoctorReport {
   const checks: CheckResult[] = [];
 
   // 1. plugin manifest parses and references hooks.
@@ -116,6 +117,9 @@ export function runDoctor(pluginRoot: string): DoctorReport {
   // 5. source-drift + known-issue section (L21.3).
   checks.push(...runDriftCheck(pluginRoot));
 
+  // 6. ast-grep runtime status (L22).
+  checks.push(runAstGrepCheck(pluginRoot, agRunner));
+
   return { overall: rollup(checks), checks };
 }
 
@@ -171,6 +175,34 @@ export function runDriftCheck(pluginRoot: string): CheckResult[] {
   });
 
   return checks;
+}
+
+/**
+ * ast-grep runtime status (L22). Reports whether `sg` is resolvable via the
+ * skill helper without crashing when it (or python) is absent. Missing binary
+ * is WARN (install hint), not FAIL — ast-grep is optional, on-demand tooling.
+ */
+export function runAstGrepCheck(pluginRoot: string, runner: typeof spawnSync = spawnSync): CheckResult {
+  const helper = join(pluginRoot, "skills", "ast-grep", "scripts", "ast_grep_helper.py");
+  if (!existsSync(helper)) {
+    return { name: "ast-grep", severity: "WARN", evidence: "ast-grep skill helper not installed" };
+  }
+  try {
+    const res = runner("python3", [helper, "doctor"], { encoding: "utf8", timeout: 8000 });
+    const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
+    const versionMatch = out.match(/ast-grep\s+(\d+\.\d+\.\d+)/);
+    const pathMatch = out.match(/ast-grep binary:\s*(\S+)/);
+    if (res.status === 0 && versionMatch) {
+      return {
+        name: "ast-grep",
+        severity: "PASS",
+        evidence: `sg resolved at ${pathMatch ? pathMatch[1] : "(path n/a)"} (version ${versionMatch[1]})`,
+      };
+    }
+    return { name: "ast-grep", severity: "WARN", evidence: "sg not resolved — run `ast_grep_helper.py install` to provision" };
+  } catch (err) {
+    return { name: "ast-grep", severity: "WARN", evidence: `ast-grep probe skipped: ${err instanceof Error ? err.message : String(err)}` };
+  }
 }
 
 /** Render a report as aligned PASS/WARN/FAIL lines for CLI stdout. */

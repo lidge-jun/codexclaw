@@ -1,0 +1,5 @@
+interface:
+  display_name: "ast-grep: Structural Search"
+  short_description: "AST-aware structural search + codemods across 25 languages; rg-first for byte searches."
+policy:
+  allow_implicit_invocation: false

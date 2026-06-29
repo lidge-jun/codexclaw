@@ -21,6 +21,7 @@ never disabled). Load an on-demand skill explicitly by `$name` or SKILL.md path.
 | dev-devops | `skills/dev-devops/SKILL.md` | surface | containers, deploy pipelines, k8s, IaC, SRE | false | none |
 | dev-scaffolding | `skills/dev-scaffolding/SKILL.md` | surface | new project/module scaffold, structure audits | false | none |
 | search | `skills/search/SKILL.md` | capability | external/current/web lookups, deep research | false | none |
+| ast-grep | `skills/ast-grep/SKILL.md` | capability | AST-shape search / deterministic codemods (rg-first for byte search) | false | needs `sg` binary (lazy-provisioned) |
 | skill-hub | `skills/skill-hub/SKILL.md` | router | "which skill?", capability beyond dev | false | none |
 
 ## Loading rule

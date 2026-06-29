@@ -30,6 +30,13 @@ function makePluginRoot(opts: { hooks?: string[]; skills?: string[]; brokenSkill
   }
   mkdirSync(join(root, "agents"), { recursive: true });
   for (const r of opts.roles ?? ["explorer"]) writeFileSync(join(root, "agents", `${r}.toml`), `name="${r}"\n`);
+  // ast-grep skill stub so the L22 doctor check has a helper to probe AND the
+  // skills check sees a complete skill (SKILL.md + agents/openai.yaml).
+  mkdirSync(join(root, "skills", "ast-grep", "scripts"), { recursive: true });
+  mkdirSync(join(root, "skills", "ast-grep", "agents"), { recursive: true });
+  writeFileSync(join(root, "skills", "ast-grep", "SKILL.md"), "---\nname: ast-grep\n---\n");
+  writeFileSync(join(root, "skills", "ast-grep", "agents", "openai.yaml"), "policy: {}\n");
+  writeFileSync(join(root, "skills", "ast-grep", "scripts", "ast_grep_helper.py"), "# stub\n");
   return root;
 }
 
@@ -41,7 +48,13 @@ test("rollup: FAIL > WARN > PASS", () => {
 
 test("doctor: healthy plugin root -> PASS with evidence on every check", () => {
   const root = makePluginRoot();
-  const report = runDoctor(root);
+  // stub the ast-grep runner so the L22 check resolves PASS without a real sg.
+  const agRunner = (() => ({
+    status: 0,
+    stdout: "ast-grep binary: /stub/sg\n  version: ast-grep 0.44.0\n",
+    stderr: "",
+  })) as unknown as typeof import("node:child_process").spawnSync;
+  const report = runDoctor(root, agRunner);
   assert.equal(report.overall, "PASS");
   for (const c of report.checks) assert.ok(c.evidence.length > 0, `check ${c.name} has no evidence`);
   assert.match(renderDoctor(report), /overall: PASS/);
