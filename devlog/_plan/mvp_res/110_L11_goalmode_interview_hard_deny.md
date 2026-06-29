@@ -44,8 +44,10 @@ after goal starts, only PABCD repeats; I never reopens.
   - `plugins/codexclaw/components/pabcd-state/test/hook.test.ts`
   - `plugins/codexclaw/components/pabcd-state/test/cli.test.ts`
   - `plugins/codexclaw/components/pabcd-state/test/goal-active.test.ts` (NEW)
-  - PreToolUse matcher configuration owned by the codexclaw plugin, exact path
-    to be filled from the existing hook layout.
+  - PreToolUse matcher = NEW dedicated hook file
+    `plugins/codexclaw/hooks/pre-tool-use-guarding-interview-in-goal.json`
+    (exact path; see Hardening pins below), registered in
+    `plugins/codexclaw/.codex-plugin/plugin.json` after the goal-budget hook.
 - Enforce:
   - If a codex goal is active, suppress I-phase directive injection.
   - If a codex goal is active, deny `request_user_input`.

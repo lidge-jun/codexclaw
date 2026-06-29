@@ -47,6 +47,9 @@ never vendored. References: jawcode, ouroboros/Q00, lazycodex/omo.
 ## Loop ledger -- L1..L31 -> decade map
 
 Status legend (decision-state vs impl-state are SEPARATE; never use RESOLVED as a doc Status):
+Scope: this legend governs **loop (L-doc) Status lines only**. Meta/non-loop docs use free-form
+labels outside this enum: `CANONICAL INDEX` (this file), `PROVENANCE` (000_BUILD_LOG), `P` (active
+PABCD pass plans). Those are not loop statuses and are intentionally not in the enum.
 - DONE — shipped + tested (code lives, tests green).
 - FROZEN — design frozen, impl pending (interview-bearing loops).
 - PLANNED — all gating decisions resolved, impl pending. Append `(Q-x resolved)` to name the decision.
