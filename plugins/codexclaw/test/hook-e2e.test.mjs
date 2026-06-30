@@ -1,8 +1,10 @@
 // hook-e2e.test.mjs - manifest-path end-to-end coverage for EVERY declared hook
-// (G19 / L20-WP7). Each test drives the REAL dist entrypoint named in the hook's
-// plugin.json command string, exactly as codex would invoke it (argv hook <event>
-// + a JSON payload on stdin), and asserts exit 0 plus the expected stdout envelope
-// or filesystem side effect.
+// (G19 / L20-WP7 + WP22). Each test drives the REAL dist entrypoint named in the
+// hook's plugin.json command string, exactly as codex would invoke it (argv hook
+// <event> + a JSON payload on stdin), and asserts exit 0 plus the expected stdout
+// envelope or filesystem side effect. WP7 covered 5 of 6 hooks behaviorally + a
+// resolve check across all 6; WP22 added the 6th (user-prompt-submit) behaviorally,
+// so every manifest hook is now exercised, not just resolved.
 //
 // Determinism (per the WP7 A-gate): the interview-in-goal guard reads codex's goals
 // DB, so we point CODEX_HOME/CODEX_SQLITE_HOME at an empty temp dir (no goals_1.sqlite
@@ -202,4 +204,55 @@ test("WP7/G19: session-start provider hook e2e - exit 0 + parseable provider sta
     assert.equal(status.provider, "ocx");
     assert.ok(["native", "provider", "error"].includes(status.mode), `unexpected mode: ${status.mode}`);
   } finally { rmSync(emptyPath, { recursive: true, force: true }); }
+});
+
+// WP22 (Volta completion-audit finding): the manifest's sixth hook,
+// user-prompt-submit, was only path-resolution-checked above, never invoked.
+// These two cases drive its REAL dist entrypoint to close the e2e gap: an
+// orchestration-activating trigger must inject the phase directive envelope, and a
+// non-orchestrated no-trigger prompt must stay silent (fail-closed). Determinism:
+// the loose "P" trigger path never reads the goals DB (only the I paths do), and all
+// state writes land under the temp cwd (.codexclaw/sessions/<key>.json), so no
+// CODEX_HOME seeding is needed.
+test("WP22/G19: user-prompt-submit hook e2e - 'plan this' trigger injects the P directive envelope + footer", () => {
+  const { event, hookEvent, distAbs } = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
+  assert.equal(event, "UserPromptSubmit");
+  const ep = snapshotEntrypoint(distAbs);
+  if (!ep) return;
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-ups-"));
+  try {
+    const res = runHook(ep, hookEvent, {
+      hook_event_name: "UserPromptSubmit", session_id: "s1", cwd: tmp, turn_id: "t1",
+      prompt: "plan this",
+    });
+    assert.equal(res.status, 0, res.stderr);
+    const out = JSON.parse(res.stdout);
+    assert.equal(out.hookSpecificOutput.hookEventName, "UserPromptSubmit");
+    const ctx = out.hookSpecificOutput.additionalContext;
+    assert.match(ctx, /PLAN/, "missing PLAN phase directive");
+    assert.match(ctx, /IPABCD: P \(PLAN\)/, "missing IPABCD P footer");
+    // mode-1 persists orchestration under the temp cwd (turn_id present).
+    const stateFile = join(tmp, ".codexclaw", "sessions", "s1.json");
+    assert.ok(existsSync(stateFile), "session state not persisted");
+    const persisted = JSON.parse(readFileSync(stateFile, "utf8"));
+    assert.equal(persisted.orchestrationActive, true, "trigger must activate orchestration");
+    assert.equal(persisted.lastInjectedPhase, "P", "lastInjectedPhase should be P");
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test("WP22/G19: user-prompt-submit hook e2e - no trigger + un-orchestrated stays silent (fail-closed)", () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
+  const ep = snapshotEntrypoint(distAbs);
+  if (!ep) return;
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-ups0-"));
+  try {
+    const res = runHook(ep, hookEvent, {
+      hook_event_name: "UserPromptSubmit", session_id: "s2", cwd: tmp, turn_id: "t1",
+      prompt: "hello there",
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(res.stdout.trim(), "", "no trigger + never orchestrated => empty stdout");
+    // fail-closed: nothing should have been persisted either.
+    assert.ok(!existsSync(join(tmp, ".codexclaw", "sessions", "s2.json")), "no state should be written");
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
