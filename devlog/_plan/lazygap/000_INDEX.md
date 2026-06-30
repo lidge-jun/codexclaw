@@ -45,9 +45,26 @@ fix is skill attachment (L15 routing), not more TOMLs.
 | Deep research | ultraresearch EXPAND swarm + journal | Tier 3 one paragraph | `007` |
 | Prompt guardrails | first-line marker + authority override + CI gate | prose invariants only | `008` |
 
+## Second sweep — cli-jaw parity (010-012)
+
+A 7-explorer parallel sweep (2026-06-30) widened the comparison from omo to **cli-jaw**
+itself: `skills_ref/` meta-skills, `src/orchestrator/*`, and `src/memory/*`.
+
+| Layer | cli-jaw has | codexclaw today | doc |
+| --- | --- | --- | --- |
+| Context-economy meta-skills | context-budget / agent-harness / compression / eval | none (dev-family only) | `010` |
+| Friction ledger | sha256(tool:error) retry->escalate->stop + oscillation | none (PostToolUse hook unused for this) | `011` |
+| Seed ontology | structured entity/relationship/invariant + render | label-only string | `011` |
+| Workspace-context | project-root resolve + path-hint + symlink-escape block | prose only | `011` |
+| Plan auto-inject | server inlines approved plan into each spawn | doctrine only (runtime force impossible) | `011` |
+| Memory (3-tier) | History/Flush/Snapshot/index/HTTP/federation | non-goal (mostly server-bound) | `012` |
+| Browse/search proof | insane-search engine | **adapt agbrowse** (lazy, no-server) | `007` update |
+
 ---
 
 ## Document map (000-009)
+
+(010-012 added by the cli-jaw second sweep; see the table above.)
 
 | Doc | Scope |
 | --- | --- |
@@ -61,6 +78,9 @@ fix is skill attachment (L15 routing), not more TOMLs.
 | `007_search_and_research.md` | insane-search engine port + ultraresearch depth |
 | `008_skill_attached_dispatch.md` | skill-attached base-role dispatch (the user's core ask) |
 | `009_reinforcement_roadmap.md` | synthesis: gap -> E-tier -> proposed loop, with non-goals |
+| `010_cli_jaw_skill_backlog.md` | cli-jaw `skills_ref` meta-skill import backlog (context-economy) |
+| `011_pabcd_orchestration_parity.md` | Seed / Friction / workspace-context / plan-inject parity |
+| `012_memory_parity_nongoal.md` | memory = confirmed non-goal + chat-search drift fix |
 
 ---
 

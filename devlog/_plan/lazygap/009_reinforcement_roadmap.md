@@ -31,11 +31,18 @@ Status: PLANNED (decision input; no code this pass) · evidence: 001-008
 | L22 | 220 | `003` | work-aware Stop continuation on goalplan remaining tasks |
 | L23 | 230 | `006` | PostCompact recovery hook |
 | L24 | 240 | `004` | rule-injector + comment-lint PostToolUse |
-| L25 | 250 | `007` | insane-search engine port (3-layer) + ultraresearch protocol reference |
+| L25 | 250 | `007` | **agbrowse adapt** (lazy proof helper + Tier-2 rewrite) + ultraresearch protocol reference |
+| L26 | 260 | `010` | cli-jaw meta-skills: context-budget / agent-harness / context-compression (top-3) |
+| L27 | 270 | `011` | friction ledger (E1/E2 gate) + workspace-context block + seed ontology schema |
 
 > L15/L17 already exist in `mvp_hard/141`; `002` folds into L15 as its trust half.
 > L21-L25 are the new lazygap-driven loops. Sequencing: `002`+`008` first (trust +
 > routing), then `001`->`003` (loop substrate -> work-aware Stop), then `006`/`004`/`007`.
+>
+> L26-L27 are the cli-jaw second-sweep loops. `011`'s friction ledger is the single new
+> **runtime** gate (E1/E2) and the PostToolUse hook already exists, so L27 outranks L26
+> (meta-skills, all E7). The chat-search drift fix (`012`) folds into the next L17-class
+> honesty pass — it's a doc edit backed by an already-passing test, not its own loop.
 
 ## Enforcement-tier ledger (what becomes truly enforced)
 

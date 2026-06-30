@@ -40,3 +40,63 @@ swarm runs as base `explorer` subagents with the research protocol/skill attache
 
 Engine: E1-ish executable contract + E8 bias gate. Research protocol: E7 prose + E5
 skill-attachment for the swarm.
+
+---
+
+## DECISION UPDATE (2026-06-30) — adapt agbrowse, do NOT port insane-search
+
+Evidence: explorer Carson reading `../agbrowse/` against `cxc-search`.
+
+> User decision (LOCKED): the insane-search engine port above is **superseded**. Do not
+> port omo's `engine/`. Instead **adapt agbrowse** — cli-jaw's `browse` layer extracted into
+> a standalone, server-free npm package (`agbrowse/README.md:31-32` states it directly).
+> Rationale: agbrowse is already the no-server distillation we'd otherwise rebuild, MIT, one
+> real dep (`playwright-core`), and HTTP-first with browser only as escalation.
+
+### What agbrowse actually is
+
+- `README.md:31-32`: no long-running MCP server; every command is a short-lived Node process
+  that reconnects to CDP (`browser.mjs:965-989`), spawning Chrome detached only when needed
+  (`browser.mjs:793-803`). This matches codexclaw no-server exactly.
+- NOT self-contained per skill: `browser.mjs` is a hub importing `adaptive-fetch/*` and
+  `web-ai/*` (`browser.mjs:64-93,80-83`); `search` lives at `skills/browser/search.mjs` and
+  leans on `adaptive-fetch` (+ optional `web-ai` for `--deep`).
+- `playwright-core` + Chrome are required only at the *browser* layer (`browser.mjs:992-1000`,
+  `package.json:85-89`). `--verify` / adaptive-fetch try HTTP first and only escalate to a
+  browser in `auto` (`adaptive-fetch/index.mjs:93-100,651-720`).
+
+### Minimal adopt path (smallest dependency radius)
+
+Not "port full agbrowse". Add an **agbrowse-proof helper + on-demand skill**:
+1. Rewrite `cxc-search` Tier 2 *proof* to prefer `agbrowse search --verify <url>` /
+   `agbrowse fetch <url>` before Browser Use (HTTP/public-endpoint proof first).
+2. Resolve the `agbrowse` binary lazily, exactly like `ast-grep`
+   (`ast_grep_helper.py:205-281`): runtime dir -> skill cache -> `PATH` -> install hint.
+3. Keep Chrome as **optional escalation** (local CDP only — `EXTERNAL_CDP.md` remote/hosted
+   modes stay out, they'd violate the no-server/local boundary).
+4. Defer `web-ai` and `vision-click` (Codex CLI + heavy browser-runtime coupling).
+
+### `cxc-search` Tier 2 text changes required
+
+- "Open candidate URLs" -> "Prefer `agbrowse search --verify` / `agbrowse fetch` for proof
+  before Browser Use".
+- "Browser Use reads DOM/PDFs" -> "adaptive-fetch proves via HTTP/public endpoints first,
+  then local CDP browser escalation when needed".
+- `blocked-url-reader` helper -> re-scope from Browser-Use-only to "agbrowse/browser fallback
+  tactics".
+- Notes line "no `agbrowse` binary dependency" (`search/SKILL.md:87-89`) -> remove/correct;
+  the dep is now opt-in/lazy, not forbidden.
+
+### Adopt mechanism (pick at L25)
+
+- **lazy global install** (ast-grep pattern) — best fit: no-server, opt-in, idempotent,
+  `CODEXCLAW_AGBROWSE_PATH` override; cost = user-env version variance.
+- bundle-copy — most stable but vendor-drift + manual updates.
+- optional npm dep — easy updates but grows codexclaw's npm graph (currently lean).
+
+### Net effect on the 007 plan
+
+The "insane-search engine port (3-layer)" item in `009`'s L25 row is **replaced** by
+"agbrowse adapt (lazy-resolved proof helper + Tier-2 rewrite)". ultraresearch *protocol*
+(EXPAND/wave/journal/claim-ledger) parity above is unaffected and still rides as an
+`explorer`-attached research skill (`008`).
