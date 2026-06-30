@@ -176,5 +176,5 @@ Open question for Interview: track `dist/` in git, or build-on-install?
 | L15 | 150 | subagent skill-routing attachment (`SpawnPayload.items` + E3/E5) | DONE | DONE |
 | L16 | 160 | dev routing STRICT + selective implicit | DONE | DONE |
 | L17 | 170 | interview runtime honesty + trigger breadth + helper wire/retire | DONE | DONE |
-| L18 | 180 | status-sync + forbidden-claims + count gates (E8) | PLANNED | PLANNED |
-| L19 | 190 | dist packaging contract + test (E8) | PLANNED | PLANNED |
+| L18 | 180 | status-sync + forbidden-claims + count gates (E8) | DONE | DONE |
+| L19 | 190 | dist packaging contract + test (E8) | DONE | DONE |

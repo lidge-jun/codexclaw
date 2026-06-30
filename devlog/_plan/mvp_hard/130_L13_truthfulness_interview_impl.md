@@ -62,7 +62,10 @@ Diff-level changes:
 1. Migrate the loop ledger table to `| Ln | decade | scope | decision-state | impl-state |`.
    `decision-state` uses the LOCKED mvp_res legend (FROZEN/PLANNED/ANALYZED/DEFERRED/BLOCKED/DONE);
    `impl-state` is DONE only when shipped+tested.
-2. L9/L11/L12 → decision-state DONE, impl-state PLANNED/DEFERRED (runtime not shipped).
+2. L9/L11/L12 → decision-state DONE, impl-state PLANNED/DEFERRED (runtime not shipped) — this was
+   the state AT THIS L13 PASS. L9 and L12 runtime SHIPPED afterward (091/092/093, 121/122), so they
+   are now `DONE | DONE` in the ledger; only L11 (docs website) remains impl-PLANNED. This line
+   records the L13-pass plan, not the current ledger (see `000_INDEX.md`).
    L2-L8/L10 → reflect their true impl-state.
 3. Rewrite the "COMPLETE" prose block + `README.md:44` to match the two axes (no aggregate "L2-L11 COMPLETE" lie).
 4. `roadmap.html` self-declares "generated from both ledgers" (`:108`), so it canNOT be excluded — either
