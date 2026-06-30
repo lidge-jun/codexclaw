@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>lazygap roadmap</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel-2: #1c232d;
+    --border: #2a323d;
+    --border-strong: #3a4552;
+    --text: #e6edf3;
+    --muted: #9aa7b4;
+    --faint: #6e7d8c;
+    --accent: #3b82f6;
+    --done: #2ea043;
+    --done-bg: #16321f;
+    --planned: #d29922;
+    --planned-bg: #2e2611;
+    --proposed: #8957e5;
+    --proposed-bg: #241a36;
+    --gate: #e5534b;
+    --gate-bg: #2d1517;
+    --deferred: #6e7d8c;
+    --deferred-bg: #1b222b;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Pretendard, "Apple SD Gothic Neo", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 32px 24px 64px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  header.page { border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 24px; }
+  h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: 0; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0; max-width: 92ch; }
+  .meta { color: var(--faint); font-family: var(--mono); font-size: 12px; margin-top: 10px; }
+
+  .summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .stat .n { font-family: var(--mono); font-size: 24px; font-weight: 600; }
+  .stat .l { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .stat.gate .n { color: var(--gate); }
+  .stat.proposed .n { color: var(--proposed); }
+  .stat.done .n { color: var(--done); }
+  .stat.planned .n { color: var(--planned); }
+  .stat.deferred .n { color: var(--deferred); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  .badge {
+    font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0;
+    padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong);
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .badge.gate { color: var(--gate); background: var(--gate-bg); }
+  .badge.proposed { color: var(--proposed); background: var(--proposed-bg); }
+  .badge.done { color: var(--done); background: var(--done-bg); }
+  .badge.deferred { color: var(--deferred); background: var(--deferred-bg); }
+  .badge.tier { color: var(--accent); background: #11243d; border-color: #1d3a5f; }
+  .badge.tier::before { display: none; }
+  .badge.surf { color: #d29922; background: var(--planned-bg); border-color: #4d3f17; }
+  .badge.surf::before { display: none; }
+
+  .gatebox {
+    background: var(--gate-bg); border: 1px solid #5a2a2a; border-left: 3px solid var(--gate);
+    border-radius: 8px; padding: 16px 18px; margin-bottom: 28px;
+  }
+  .gatebox h3 { margin: 0 0 6px; font-size: 14px; font-family: var(--mono); color: var(--gate); }
+  .gatebox p { margin: 0 0 12px; color: var(--muted); font-size: 13px; max-width: 92ch; }
+  .gatebox .qrow {
+    display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: start;
+    padding: 8px 0; border-top: 1px solid #3a2020;
+  }
+  .gatebox .qrow .qid { font-family: var(--mono); font-weight: 600; color: var(--gate); font-size: 13px; }
+  .gatebox .qrow .qt { font-size: 13px; }
+  .gatebox .qrow .qt .decides { color: var(--faint); font-size: 12px; display: block; margin-top: 2px; }
+
+  section.track { margin-bottom: 36px; }
+  .track-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .track-head h2 { font-size: 16px; margin: 0; font-family: var(--mono); }
+  .track-head .tag { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  .track-desc { color: var(--muted); font-size: 13px; margin: 0 0 16px; max-width: 92ch; }
+
+  .cluster { margin-bottom: 18px; }
+  .cluster h3 { font-size: 12px; letter-spacing: 0.02em; color: var(--faint); margin: 0 0 8px; font-weight: 600; }
+
+  .rows { display: flex; flex-direction: column; gap: 6px; }
+  .row {
+    display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 14px;
+    background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--border-strong);
+    border-radius: 6px; padding: 9px 14px;
+  }
+  .row.proposed { border-left-color: var(--proposed); }
+  .row.done { border-left-color: var(--done); }
+  .row.gate { border-left-color: var(--gate); }
+  .row.deferred { border-left-color: var(--deferred); opacity: 0.82; }
+  .row .dec { font-family: var(--mono); font-weight: 600; font-size: 13px; }
+  .row .slug { font-size: 13px; }
+  .row .slug .src { font-family: var(--mono); color: var(--faint); font-size: 11px; }
+  .row .slug .note { color: var(--muted); font-size: 12px; display: block; margin-top: 2px; }
+  .row .tags { display: inline-flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+  .principles { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; margin-bottom: 28px; }
+  .principles h3 { margin: 0 0 10px; font-size: 13px; color: var(--text); }
+  .principles ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+  .principles li { margin-bottom: 5px; }
+  .principles code { font-family: var(--mono); color: var(--text); font-size: 12px; }
+
+  footer.page { border-top: 1px solid var(--border); margin-top: 32px; padding-top: 16px; color: var(--faint); font-size: 12px; max-width: 92ch; }
+  footer.page code { font-family: var(--mono); color: var(--muted); }
+
+  @media (max-width: 640px) {
+    body { padding: 20px 14px 48px; }
+    .row { grid-template-columns: 48px 1fr; grid-template-areas: "dec slug" "tags tags"; row-gap: 8px; }
+    .row .dec { grid-area: dec; }
+    .row .slug { grid-area: slug; }
+    .row .tags { grid-area: tags; justify-content: flex-start; }
+    .gatebox .qrow { grid-template-columns: 44px 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <h1>lazygap 로드맵 &mdash; 하니스 보강</h1>
+    <p class="sub">codexclaw의 jaw식 하니스가 lazycodex(omo) / cli-jaw에 비해 약한 지점과, 그걸 no-server 철학 <em>안에서</em> 보강하는 방법. 각 루프는 file:line 증거 기반 격차를 강제 티어(E1-E8) + hook surface에 매핑한다. 보강은 서브에이전트 역할을 늘려서가 아니라 3개 base role에 <code>$cxc-*</code> 스킬을 붙여서 한다.</p>
+    <p class="meta">출처: devlog/_plan/lazygap/000-009 &middot; sweep: Darwin / Beauvoir / Plato + cli-jaw 2차 sweep &middot; 2026-06-30 &middot; 상태: RESEARCH &rarr; 구현 트랙 제안</p>
+  </header>
+
+  <div class="summary">
+    <div class="stat gate"><div class="n">2</div><div class="l">런타임 GATE (먼저 통과 필수)</div></div>
+    <div class="stat done"><div class="n">5</div><div class="l">구현 완료 (010-050 shipped)</div></div>
+    <div class="stat proposed"><div class="n">3</div><div class="l">제안 루프 (060-080, plan-ready)</div></div>
+    <div class="stat planned"><div class="n">3</div><div class="l">신규 hook surface</div></div>
+    <div class="stat deferred"><div class="n">1</div><div class="l">확정 비목표 (090)</div></div>
+  </div>
+
+  <div class="gatebox">
+    <h3>000 &mdash; 런타임 GATE (구현 전 검증 필수)</h3>
+    <p>Codex 런타임에 대한 두 가지 사실이 상위 두 루프를 진짜 강제(E1/E3)로 만들지, doctrine(E5/E7)에 그칠지를 가른다. 추측이 아니라 codex-rs 소스로 확인할 질문이다. 둘 다 "아니오"면 010/020이 E1/E3에서 doctrine으로 내려가고 우선순위 전체가 바뀐다. 세 번째 질문은 영수증 컨벤션을 확정한다.</p>
+    <div class="qrow"><span class="qid">G-A</span><span class="qt">런타임이 <code>^spawn_agent$</code> (또는 <code>multi_agent_v1__spawn_agent</code>) PreToolUse matcher를 노출하고, 그 <code>updatedInput</code> 재작성이 v1/v2 spawn surface 모두에서 살아남는가?<span class="decides">020(스킬 첨부 파견) 결정: E3 자동 재작성 vs E5 빌더 doctrine</span></span></div>
+    <div class="qrow"><span class="qid">G-B</span><span class="qt">이 Codex 빌드에서 플러그인이 띄운 서브에이전트에 대해 <code>SubagentStop</code>이 발화하고, child의 최종 어시스턴트 텍스트를 stdin으로 받을 수 있는가?<span class="decides">010(증거 게이트) 결정: E1 런타임 block vs doctrine-only</span></span></div>
+    <div class="qrow"><span class="qid">G-C</span><span class="qt">증거 영수증 컨벤션: omo의 <code>EVIDENCE_RECORDED: &lt;path&gt;</code> 마지막 줄 마커를 재사용할지, codexclaw 기존 <code>--evidence</code> 원장 컨벤션을 쓸지?<span class="decides">010 + 020 + 030이 공유할 영수증 계약 결정</span></span></div>
+  </div>
+
+  <div class="legend">
+    <span class="badge gate">GATE</span>
+    <span class="badge done">DONE (shipped)</span>
+    <span class="badge proposed">PROPOSED</span>
+    <span class="badge deferred">비목표</span>
+    <span class="badge tier">E1-E8 티어</span>
+    <span class="badge surf">신규 hook surface</span>
+  </div>
+
+  <section class="track">
+    <div class="track-head">
+      <h2>lazygap</h2>
+      <span class="tag">하니스 보강 &middot; 의존 순서</span>
+    </div>
+    <p class="track-desc">decade 순서는 단순 우선순위가 아니라 의존 관계를 따른다: 모든 파견이 그 위에 올라타므로 신뢰(010)와 라우팅(020)이 먼저, 그다음 루프 substrate(030)와 그게 풀어주는 work-aware Stop(040), 이어서 복원력/규율 surface(050/060), 그리고 자기완결적 검색 adapt(070)와 orchestrator-internals(080). 090은 일부러 노출해 둔 확정 비목표.</p>
+
+    <div class="cluster">
+      <h3>신뢰 + 라우팅 (파견의 척추)</h3>
+      <div class="rows">
+        <div class="row done"><span class="dec">010</span><span class="slug">SubagentStop 증거-영수증 게이트 <span class="src">(002)</span><span class="note">7번째 hook: 파견된 서브에이전트는 <code>.codexclaw/evidence/</code> 아래 비어있지 않은 영수증 없이는 "완료"할 수 없다. 횟수 제한 block 후 fail-open 해제. 현재 가장 큰 구멍.</span></span><span class="tags"><span class="badge surf">SubagentStop</span><span class="badge tier">E1</span><span class="badge done">DONE</span></span></div>
+        <div class="row done"><span class="dec">020</span><span class="slug">스킬 첨부 base-role 파견 <span class="src">(008 &middot; 핵심 요구)</span><span class="note">SpawnPayload.items가 explorer/reviewer/executor에 <code>$cxc-*</code> 스킬을 붙이고 role&times;intent&rarr;skill 맵을 둔다. "reviewer로 cxc-dev + cxc-dev-frontend 기준 레드팀"이 실제로 동작. 신뢰성은 010 영수증에 달려 있다.</span></span><span class="tags"><span class="badge tier">E3 / E5</span><span class="badge done">DONE</span></span></div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <h3>루프 substrate + work-aware 연속</h3>
+      <div class="rows">
+        <div class="row done"><span class="dec">030</span><span class="slug">영속 goalplan = <code>$cxc-loop</code> 백본 <span class="src">(001)</span><span class="note">goalplan을 <code>$cxc-loop</code>에 통합: 프로젝트 로컬 <code>.codexclaw/goalplans/&lt;slug&gt;/</code>가 workPhases/tasks/criteria + append-only 원장(분해+증거)을 소유. 호스트 goal 레코드는 활성화 신호 <code>{objective,status,token_budget}</code>뿐. 느슨한 1방향 결합: goal active면 Stop이 goalplan을 읽음. 호스트 goal 쓰기는 인터뷰 freeze 승인 경계에서만(<code>thread/goal/set</code>), 루프 중 self-arm 금지. 죽어있던 <code>freeze.ts</code> 합격기준을 살아있는 런타임에 연결.</span></span><span class="tags"><span class="badge tier">E2 + E8</span><span class="badge done">DONE</span></span></div>
+        <div class="row done"><span class="dec">040</span><span class="slug">work-aware Stop 연속 + 정직성 수정 <span class="src">(003)</span><span class="note">handleStop이 phase-aware &rarr; work-aware로 진화: 030의 남은 task를 읽어 block 사유에 다음 task + 필요 증거를 명시. 세션 바인딩 slug(030.3)에만 의존, goalplan 없으면 오늘과 byte-identical.</span></span><span class="tags"><span class="badge tier">E2</span><span class="badge done">DONE</span></span></div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <h3>복원력 + 규율 surface</h3>
+      <div class="rows">
+        <div class="row done"><span class="dec">050</span><span class="slug">PostCompact 복구 hook <span class="src">(006)</span><span class="note">9번째 hook: compaction 후 <code>lastInjectedPhase</code> 재주입 커서를 리셋(side-effect-only, 항상 <code>""</code> 반환). 활성 사이클일 때만 동작. context-pressure bail을 우회하지 않음 &mdash; 데몬 복구도, 캐시 서버도 없음.</span></span><span class="tags"><span class="badge surf">PostCompact</span><span class="badge tier">E4</span><span class="badge done">DONE</span></span></div>
+        <div class="row proposed"><span class="dec">060</span><span class="slug">룰 주입기 + comment-lint PostToolUse <span class="src">(004)</span><span class="note">데몬 없는 <code>.codexclaw/rules/</code> (또는 AGENTS.md)를 SessionStart/UserPromptSubmit에 주입; 정적 comment-lint가 편집류 PostToolUse를 금지 패턴에서 block. 의미론적 AI-slop 판정은 안 함.</span></span><span class="tags"><span class="badge surf">edit PostToolUse</span><span class="badge tier">E4 + E1</span><span class="badge proposed">PROPOSED</span></span></div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <h3>검색 + orchestrator-internals</h3>
+      <div class="rows">
+        <div class="row proposed"><span class="dec">070</span><span class="slug">agbrowse 채택 + ultraresearch 프로토콜 <span class="src">(007)</span><span class="note">결정 변경: omo의 insane-search 엔진은 포팅하지 않는다. <code>agbrowse</code> 바이너리를 지연 해석(ast-grep 방식), cxc-search Tier-2를 브라우저 전에 HTTP/agbrowse로 증명하도록 재작성, 로컬 CDP는 opt-in 에스컬레이션. ultraresearch EXPAND/wave/journal은 explorer 첨부 스킬로 탑승.</span></span><span class="tags"><span class="badge tier">E1/E8 + E5</span><span class="badge proposed">PROPOSED</span></span></div>
+        <div class="row proposed"><span class="dec">080</span><span class="slug">friction 원장 + workspace 경로힌트 + seed 온톨로지 <span class="src">(001 cli-jaw 부록)</span><span class="note">PostToolUse hook은 이미 발화 중: cli-jaw의 인메모리 Map을 <code>.codexclaw/friction.jsonl</code>로 교체(sha256(tool:error) 재시도&rarr;에스컬레이트&rarr;중단 + 진동 가드). 더해 파견 경로힌트(existsSync/realpath) + seed 온톨로지 스키마를 인터뷰 tracker에 흡수.</span></span><span class="tags"><span class="badge tier">E1 + E2</span><span class="badge proposed">PROPOSED</span></span></div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <h3>확정 비목표 (일부러 노출)</h3>
+      <div class="rows">
+        <div class="row deferred"><span class="dec">090</span><span class="slug">코드 인텔리전스 &mdash; 발견성 넛지만 <span class="src">(005)</span><span class="note">LSP 데몬 없음, codegraph MCP 없음, 검색 서버 없음 &mdash; ast-grep 단발이 정답으로 유지. 기껏해야 <code>cxc doctor</code> / 검증 단계 레시피 힌트. 경계를 잊지 않으려고 일부러 등재.</span></span><span class="tags"><span class="badge tier">E4/E7</span><span class="badge deferred">비목표</span></span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="principles">
+    <h3>LOCKED 조타 원칙 2개 (000_INDEX에서 계승)</h3>
+    <ul>
+      <li><strong>역할을 늘리지 않는다.</strong> omo는 역할을 발명해(librarian/planner/gate-reviewer/qa-executor) 전문화한다. codexclaw는 3개 base role에 <code>$cxc-*</code> 스킬을 붙여 전문화한다. Plato의 역할 분할 제안은 명시적으로 기각.</li>
+      <li><strong>host-native 경계.</strong> cli-jaw/omo 기능을 "격차"로 부르기 전에 Codex에서 누가 소유하는지부터 묻는다. goal mode / cwd / 스킬 발견 / hook dispatch / 메모리는 host-native &mdash; codexclaw가 다시 만들 게 아니다. 빠진 <code>cxc</code> 명령은 대개 격차가 아니라 호스트 책임이다.</li>
+    </ul>
+  </div>
+
+  <div class="principles">
+    <h3>강한 비목표 (structure/00_philosophy.md &sect;2)</h3>
+    <ul>
+      <li>LSP 데몬 / codegraph MCP / 검색 서버 없음 (090).</li>
+      <li>SessionStart 자동 업데이트 / 텔레메트리 / 프로비저닝 없음 &mdash; provider bridge는 detect-only 유지.</li>
+      <li>신규 서브에이전트 역할 없음 &mdash; 대신 스킬 첨부 (020).</li>
+      <li>goal-DB 쓰기는 금지가 아니라 게이트됨 (2026-07-01 수정) &mdash; 런타임은 <code>thread/goal/set</code>을 노출하므로, codexclaw는 인터뷰 freeze 승인 경계에서만 호스트 goal을 set하고 루프 중 self-arm은 금지. 분해 상태(workPhases/tasks/criteria)는 여전히 프로젝트 로컬 <code>.codexclaw/goalplan.json</code> (030).</li>
+    </ul>
+  </div>
+
+  <footer class="page">
+    decade 번호는 제안이고 의존 순서를 따른다. mvp_hard의 L-번호를 재사용하지 않는다. <code>$loop</code> 전에 정할 미해결 번호 문제 둘: (1) 009가 "L15/L17은 mvp_hard/141에 이미 존재"라고 언급 &mdash; 010/020이 그 shipped 루프에 대한 소급 추가인지, 새 lazygap 트랙인지. (2) 030의 <code>$cxc-loop</code> 통합(goalplan 백본 + freeze가 호스트 goal을 set)을 030/040 안에 흡수할지, 별도 decade(예: 035)로 박을지.
+    010-050은 <code>DONE</code> (shipped + tested); 060-080은 copy-paste-ready 임플 플랜 (<code>PROPOSED</code>, A-gate 감사 완료). 090은 확정 비목표.
+    source of truth는 devlog/_plan/lazygap/000-009; 이 페이지는 수동 관리.
+  </footer>
+</div>
+</body>
+</html>
