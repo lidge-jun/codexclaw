@@ -13,7 +13,18 @@ A Codex-native reimplementation of the IPABCD development loop (Interview + Plan
 
 ## Interview Trigger
 
-When the user asks for an interview in any form — "인터뷰하자", "인터뷰 모드", "interview", "요구사항 정리", "스펙 정리해줘", "뭘 만들어야 하는지 정리", or any variation — enter Interview first. Cover the four dimensions (Goal, Constraint, Success criteria, Ontology), research the repo before asking, and confirm requirements before Plan.
+Two distinct things, do not conflate them:
+
+- **Hook auto-trigger (narrow):** the `pabcd-state` `UserPromptSubmit` hook only
+  auto-detects the explicit phrases `interview`, `인터뷰`, and `orchestrate i`
+  (`detectTrigger`). These inject the I directive automatically.
+- **Agent judgment (broad):** for other phrasings — "요구사항 정리", "스펙 정리해줘",
+  "뭘 만들어야 하는지 정리", or any variation that signals unclear requirements — the
+  hook does NOT auto-fire; YOU decide to enter Interview by invoking `cxc-interview`
+  (or running `cxc orchestrate I`). The breadth lives in agent judgment, not in a regex.
+
+Either way, once in Interview cover the four dimensions (Goal, Constraint, Success
+criteria, Ontology), research the repo before asking, and confirm requirements before Plan.
 
 The discoverable `cxc-interview` skill is the explicit I-phase entry surface. In
 continuous Interview mode, the main session owns user questions and records; subagents

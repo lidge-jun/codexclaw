@@ -21,6 +21,7 @@ import { getGoalActiveStatus, suppressesInterview } from "./goal-active.js";
 import { parseOrchestrateCommand } from "./orchestrate-grammar.js";
 import { applyHumanTransition } from "./orchestrate-apply.js";
 import { captureInterviewAnswers } from "./interview-ledger.js";
+import { MIND_DISPATCH_DIRECTIVE } from "./minds.js";
 
 
 
@@ -116,7 +117,13 @@ export function phaseDirective(phase       )         {
 }
 
 export function interviewDirective()         {
-  return PHASE_DIRECTIVES.I;
+  // L17: the I directive now carries the Mind-dispatch contract so the main session
+  // actually runs the contradiction-rescan loop (select Minds -> dispatch read-only
+  // lenses -> triage -> ask the user proceed/keep-interviewing). This is what wires
+  // minds.ts into the production hook path. It only ever reaches the agent OUTSIDE a
+  // goal: the goal-active firewall (explicit + passive I-path) suppresses the whole
+  // Interview when a goal is active.
+  return `${PHASE_DIRECTIVES.I}\n\n${MIND_DISPATCH_DIRECTIVE}`;
 }
 
 /**
@@ -245,6 +252,15 @@ export function handleUserPromptSubmit(payload                         )        
 
   // fail-closed: no trigger and orchestration never activated -> stay silent.
   if (!state.orchestrationActive) return "";
+
+  // L17 firewall: the goal-active interview suppression must also cover the PASSIVE
+  // re-injection paths (modes 2/3), not just the explicit `trigger === "I"` path above.
+  // If the session is sitting in phase I and a native goal is (or becomes) active, do
+  // NOT re-inject any Interview directive — goal mode is PABCD-only and the Interview
+  // never fires under a goal. Fail-closed: an unreadable goal DB also suppresses.
+  if (state.phase === "I" && suppressesInterview(getGoalActiveStatus(payload.session_id))) {
+    return "";
+  }
 
   // R-11 transcript-grounded idempotency (passive modes only; explicit trigger
   // above already injected). The local injectedTurns flag dedups within a turn,
@@ -396,6 +412,11 @@ export function handleStop(payload             )         {
   const state = readState(payload.cwd, payload.session_id);
   // guard 2a: no cycle in flight -> nothing to continue.
   if (!state.orchestrationActive || state.phase === "IDLE") return "";
+  // guard 2a': the autonomous Stop loop is PABCD-only. The Interview is HITL-only and
+  // is NEVER driven by Stop — even if a session is sitting at phase=I when a goal is
+  // (or becomes) active, the loop does not continue the interview. This matches the
+  // goal firewall (Interview never fires under a goal) on the Stop surface too.
+  if (state.phase === "I") return "";
   // guard 2b: only an ACTIVE goal arms the autonomous loop (interactive sessions pause).
   if (getGoalActiveStatus(payload.session_id) !== "active") return "";
   // bail: don't pile on during context-pressure/compaction recovery.

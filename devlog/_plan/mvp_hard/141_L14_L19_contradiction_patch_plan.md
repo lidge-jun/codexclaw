@@ -119,6 +119,19 @@ is either wired or gone.
 
 Open question for Interview: keep the 5-mind/triage engine and wire it, or delete it?
 
+**RESOLVED 2026-06-30 (DONE — shipped+tested, 335/335):**
+- L17.1 (A4): `interview/SKILL.md` now has a "Runtime Status (shipped)" section; PostToolUse
+  capture is no longer "planned".
+- L17.2 (A5): chose doc-fix over widening `detectTrigger` (Carson MED-risk on broad regex).
+  `pabcd/SKILL.md` Interview Trigger now splits narrow hook auto-trigger from broad agent judgment.
+- L17.3 (C2/C3/C4): KEEP + WIRE. `hook.ts` imports `MIND_DISPATCH_DIRECTIVE`; `interviewDirective()`
+  emits it into the live I directive (C2 RESOLVED). `triage`/`rescan-coordinator` are documented as
+  directive-reachable helpers (the agent triages/decides proceed-vs-interview when acting on the
+  Mind-dispatch contract) — NOT hook-wired by design, since goal-active suppresses Interview so a
+  Stop-time rescan would contradict the firewall (C3/C4 DOCUMENTED).
+- Carson A-gate HIGH blocker fixed FIRST: passive I re-injection (modes 2/3) now also checks the
+  goal firewall (`hook.ts:261`), not just the explicit trigger path.
+
 ---
 
 ## L18 / 180 — Status-sync + forbidden-claims gate (E8)
@@ -160,8 +173,8 @@ Open question for Interview: track `dist/` in git, or build-on-install?
 
 ## INDEX ledger rows to add (after Interview confirms)
 
-| L15 | 150 | subagent skill-routing attachment (`SpawnPayload.items` + E3/E5) | PLANNED | PLANNED |
-| L16 | 160 | dev routing STRICT + selective implicit | PLANNED | PLANNED |
-| L17 | 170 | interview runtime honesty + trigger breadth + helper wire/retire | PLANNED | PLANNED |
+| L15 | 150 | subagent skill-routing attachment (`SpawnPayload.items` + E3/E5) | DONE | DONE |
+| L16 | 160 | dev routing STRICT + selective implicit | DONE | DONE |
+| L17 | 170 | interview runtime honesty + trigger breadth + helper wire/retire | DONE | DONE |
 | L18 | 180 | status-sync + forbidden-claims + count gates (E8) | PLANNED | PLANNED |
 | L19 | 190 | dist packaging contract + test (E8) | PLANNED | PLANNED |

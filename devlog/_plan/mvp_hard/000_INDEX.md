@@ -53,10 +53,10 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 | L11 | 110 | Developer docs source-of-truth reconciliation + public docs website design record | DONE | PLANNED |
 | L12 | 120 | Skill-internal hardening + interview runtime: PostToolUse answer capture (L12.1/121) + rescan-coordinator & goal=PABCD-only boundary (L12.2/122) shipped+tested; I-phase Stop guard dropped (no valid domain) | DONE | DONE |
 | L13 | 130 | Truthfulness + interview hardening: chat-search retire (WP1), scan-evidence + soft-gate (WP2), 2-axis status (WP3) | DONE | DONE |
-| L14 | 140 | Follow-up patch plan: loop⇄goal activation handoff + `cxc-loop` FSM wiring + dev-* routing enforcement (root-caused, fix deferred to a post-Interview loop) | PLANNED | PLANNED |
-| L15 | 150 | Subagent skill-routing attachment (`SpawnPayload.items` + E3/E5 dispatch) — decomposed in 141 | PLANNED | PLANNED |
-| L16 | 160 | dev routing STRICT + selective implicit visibility — decomposed in 141 | PLANNED | PLANNED |
-| L17 | 170 | Interview runtime honesty + trigger breadth + helper wire/retire — decomposed in 141 | PLANNED | PLANNED |
+| L14 | 140 | Loop/Stop/goalplan honesty fix + `GOAL_ACTIVATION_DIRECTIVE` wired via `cxc freeze` (commit 7283712) — decomposed in 141 | DONE | DONE |
+| L15 | 150 | Subagent skill-routing attachment (`SpawnPayload.items` + `SURFACE_SKILL`/`buildSpawnItems`; E5 dispatch builder, E3 hook = L15.2 follow-up) (commit 60381ac) — decomposed in 141 | DONE | DONE |
+| L16 | 160 | dev routing STRICT (DEV-ROUTE-01) + E6 dev-only-implicit visibility decision (commit 32b84c3) — decomposed in 141 | DONE | DONE |
+| L17 | 170 | Interview runtime honesty (A4) + trigger-doc reconcile (A5) + minds.ts wired to live I directive (C2) + goal firewall on passive re-injection; triage/rescan documented as directive-reachable helpers (C3/C4) — decomposed in 141 | DONE | DONE |
 | L18 | 180 | Status-sync + forbidden-claims + count gates (E8) — decomposed in 141 | PLANNED | PLANNED |
 | L19 | 190 | dist packaging contract + test (E8) — decomposed in 141 | PLANNED | PLANNED |
 | L20 | 200 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | ANALYZED | PLANNED |

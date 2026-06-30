@@ -10,6 +10,7 @@ import {
   handleStop,
   MAX_STOP_BLOCKS,
   phaseDirective,
+  interviewDirective,
   QUESTION_SHAPE_DIRECTIVE,
   withFooter,
   type UserPromptSubmitPayload,
@@ -81,6 +82,41 @@ test("L11: inactive goal allows I-trigger (interview directive injected)", () =>
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
+});
+
+test("L17 firewall: active goal suppresses PASSIVE I re-injection (phase=I already armed)", () => {
+  const cwd = freshCwd();
+  try {
+    // session already armed in phase I, then a native goal becomes active.
+    writeState(cwd, { ...defaultState("g-int"), phase: "I", orchestrationActive: true, lastInjectedPhase: "P" });
+    withGoalsDb([{ thread_id: "g-int", status: "active" }], () => {
+      const out = handleUserPromptSubmit(ups("continue", cwd, "g-int", "t9"));
+      assert.equal(out, "", "passive I re-injection must be suppressed under an active goal");
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L17 firewall: with NO goal, passive I phase still re-injects the interview directive", () => {
+  const cwd = freshCwd();
+  try {
+    // no goals DB -> getGoalActiveStatus inactive -> interview allowed (HITL).
+    writeState(cwd, { ...defaultState("ni"), phase: "I", orchestrationActive: true, lastInjectedPhase: "P" });
+    const out = handleUserPromptSubmit(ups("continue", cwd, "ni", "t9"));
+    assert.notEqual(out, "", "without a goal the interview must still drive (HITL)");
+    const parsed = JSON.parse(out.trimEnd());
+    assert.match(parsed.hookSpecificOutput.additionalContext, /INTERVIEW/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L17 wiring: interviewDirective carries the Mind-dispatch contract", () => {
+  const d = interviewDirective();
+  assert.match(d, /INTERVIEW/);
+  assert.match(d, /Mind dispatch/i);
+  assert.match(d, /contradiction/i);
 });
 
 test("hybrid mode 2: active + phase changed -> full directive for new phase", () => {
@@ -290,6 +326,19 @@ test("L6: guard 2b — no active goal releases even mid-cycle (interactive pause
     withGoalsDb([{ thread_id: "b4", status: "paused" }], () => {
       midCycle(cwd, "b4", "B");
       assert.equal(handleStop(stop(cwd, "b4")), "");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("L17 firewall: Stop NEVER drives an active-goal phase=I session (interview is HITL-only)", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "i1", status: "active" }], () => {
+      // a session armed at phase=I with an active goal must NOT be continued by Stop.
+      writeState(cwd, { ...defaultState("i1"), phase: "I", orchestrationActive: true, lastInjectedPhase: "I" });
+      assert.equal(handleStop(stop(cwd, "i1")), "", "Stop must release at phase=I under an active goal");
+      // and the stop-block counter must not have been armed.
+      assert.equal(readState(cwd, "i1").stopBlockCount, 0);
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

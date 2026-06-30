@@ -20,14 +20,23 @@ Use this skill to enter or continue Codexclaw's IPABCD Interview phase.
 - Do not advance to Plan while a high contradiction or pending question remains.
 - Record medium/low unresolved items as OPEN ASSUMPTIONS before leaving Interview.
 
-## Runtime Status
+## Runtime Status (shipped)
 
-L12 provides this discoverable skill surface. The planned runtime recorder lives
-in the mvp_hard L13+ track:
+The interview runtime is shipped, not planned:
 
-- `PostToolUse` auto-capture for `request_user_input`;
-- `.codexclaw/interviews/<sessionId>.jsonl` append-only events;
-- narrow Stop guard for pending/high Interview work.
+- `PostToolUse` auto-capture for `request_user_input` records each question/answer
+  round to `.codexclaw/interviews/<sessionId>.jsonl` (`handlePostToolUse`,
+  `captureInterviewAnswers`).
+- The I-phase directive carries the Mind-dispatch contract (`MIND_DISPATCH_DIRECTIVE`),
+  so the main session runs the contradiction-rescan loop: select Minds, dispatch
+  read-only contradiction lenses, triage (high -> ask the user; low/medium -> recorded
+  assumption), then ask the user to proceed or keep interviewing.
+- Readiness gating requires recorded scan evidence (`scanRounds >= 1`) before I -> P.
 
-Until that runtime lands, the main session records decisions in devlog and uses
-the existing bounded `InterviewTracker` discipline.
+Goal firewall: the whole Interview is suppressed under an active goal — the explicit
+trigger path, the passive re-injection paths (`UserPromptSubmit` modes 2/3), AND the
+`Stop` continuation loop all check goal-active and refuse to drive the Interview, and
+`request_user_input` is hard-denied. The Interview is HITL-only; `handleStop` releases
+immediately at `phase === "I"` (it never blocks/continues an interview, even mid-cycle
+under an active goal). The `InterviewTracker` discipline still governs the four
+dimensions and OPEN ASSUMPTIONS.
