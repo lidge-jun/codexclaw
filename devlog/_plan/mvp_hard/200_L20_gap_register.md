@@ -34,7 +34,7 @@ Status: DONE (gap scan + all 7 remediation work-phases shipped + tested) · 2026
 | G20 | RESOLVED (WP8) | test gap | `orchestrate-cli.test.ts` | FIXED 2026-06-30: WP1 added `--session` refusal + D-close + cli-bootstrap; WP8 closed the residual ungated-edge coverage — IDLE->I entry, abort-to-I (P/A/B->I), illegal I->B refusal, and the I->P interview-flag contract (refused without a ready interview tracker, advances with one). The earlier "folded into WP7" note was inaccurate (WP7 added hook e2e, not CLI edge coverage); corrected here. 4 tests, 366/366 green. |
 | G21 | RESOLVED (WP5) | tracking | `190...md:52` (src↔dist freshness) + `180...md:46` (C10 mitigation) | FIXED 2026-06-30: promoted both prose follow-ups to tracked, ranked rows F1/F2 (see "Tracked follow-up debt" section), each routed to WP7. F2≡G23 (cross-linked). |
 | G22 | RESOLVED (WP7) | residue | `config-guard/src/cli.ts:18` (C6) | FIXED 2026-06-30: removed the dead prod export and relocated the guard into `config-guard/test/activate.test.ts` as a local helper (prod `main()` is meant to operate on the real `~/.codex`, so the guard has no prod caller — Aristotle confirmed). |
-| G23 | RESOLVED (WP7) | residue | `subagent-config/test/mcp.test.ts:26` (C10) | FIXED 2026-06-30: raised the per-test MCP stdio kill-timer 8s→30s (named `MCP_STDIO_TIMEOUT_MS` + rationale). Also hardened the new hook-e2e suite against the same C10 build/test contention via settle-retry dist snapshots (5 consecutive full-suite runs green). |
+| G23 | RESOLVED (WP7+WP9) | residue | `subagent-config/test/mcp.test.ts:26` (C10) | FIXED 2026-06-30: WP7 raised the per-test MCP stdio kill-timer 8s→30s and hardened hook-e2e with settle-retry dist snapshots. WP9 then fixed the ROOT cause Maxwell's audit exposed: `npm test` ran test files in PARALLEL workers while build.test.mjs rebuilds (rmSync+recompile) the shared committed `dist/` 7×, so sibling readers (packaging.test.mjs, hook-e2e) caught the deleted window. Added `--test-concurrency=1` to the test script so files run sequentially — 8 consecutive full-suite runs green (was flaky ~1/3). |
 
 ## Tracked follow-up debt (G21 — promoted from prose to actionable rows)
 
@@ -44,7 +44,7 @@ ranked, and routed to a real work-phase (not lost). Each carries its origin and 
 | F | Sev | Origin (file:line) | Actionable item | Routed to |
 |---|-----|--------------------|-----------------|-----------|
 | F1 | LOW | `190_L19_dist_packaging_contract.md:52` | No test proves committed `dist/` matches current `src/` BEFORE a build; `build.test.mjs` proves post-build idempotency only. Add a src↔dist freshness assertion (e.g. build into a temp dir, diff against committed `dist/`) so a stale commit fails CI. | WP7 |
-| F2 | RESOLVED (WP7) | `180_L18_enforcement_gate.md:46` | FIXED 2026-06-30 (= G23): per-test MCP stdio timeout raised 8s→30s; the new hook-e2e suite uses settle-retry dist snapshots so concurrent rebuilds can't flake it. The documented contract remains "run `npm run build` and `npm test` separately" for the byte-identical idempotency checks. | WP7 (= G23) |
+| F2 | RESOLVED (WP7+WP9) | `180_L18_enforcement_gate.md:46` | FIXED 2026-06-30 (= G23): per-test MCP stdio timeout raised 8s→30s; hook-e2e uses settle-retry dist snapshots; and WP9 added `--test-concurrency=1` so test files no longer rebuild the shared `dist/` in parallel. The "run build and test separately" contract still holds for the byte-identical idempotency check. | WP7+WP9 (= G23) |
 
 > Note: F2 and G23 are the same defect; G23 stays the canonical row, F2 records the prose origin
 > so the `180...md:46` follow-up is no longer orphaned. F1 complements G19 (test coverage).
@@ -61,6 +61,20 @@ The A-gate explorer surfaced contradictions beyond G8/G10-G16, all in the same d
 - `132_L13.2...md:44` — claimed `020/030/031/040` say `Status: P`; those headers are now `DONE`,
   so the line is annotated as historical drift, already fixed.
 - `roadmap.html` — L9/L12 carried stale `IMPL PLANNED` badges; corrected to `DONE` + counters synced.
+
+## WP9 residual fixes (Maxwell completion-audit, gpt-5.4)
+
+An adversarial completion audit found three live contradictions left by the WP6 sweep + the
+C10 root cause; all fixed in WP9:
+
+- `roadmap.html:217` — L3 row still said "hook wiring to transition()"; corrected to
+  `applyHumanTransition()` (the G16 fix had missed this third surface).
+- `roadmap.html` L20 row — was a stale "Install/deploy hardening … ANALYZED | IMPL PLANNED"
+  backlog row contradicting the INDEX `L20 | DONE | DONE`; replaced with the actual gap-register
+  remediation row (DONE) and the summary counters reconciled (done 39→41, planned 2→1, ANALYZED 1→0).
+- `132_L13.2…md:53` — acceptance criteria still asserted "No surface claims impl-DONE for
+  L9/L11/L12"; annotated as the historical WP3 snapshot (L9/L12 runtime since shipped).
+- C10 root cause — `--test-concurrency=1` added to the `npm test` script (see G23).
 
 ## Remediation work-phase plan (each = 1 full PABCD cycle)
 
