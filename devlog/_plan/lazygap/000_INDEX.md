@@ -45,14 +45,17 @@ fix is skill attachment (L15 routing), not more TOMLs.
 | Deep research | ultraresearch EXPAND swarm + journal | Tier 3 one paragraph | `007` |
 | Prompt guardrails | first-line marker + authority override + CI gate | prose invariants only | `008` |
 
-## Second sweep — cli-jaw parity (010-012)
+## Second sweep — cli-jaw parity (011-012)
 
 A 7-explorer parallel sweep (2026-06-30) widened the comparison from omo to **cli-jaw**
-itself: `skills_ref/` meta-skills, `src/orchestrator/*`, and `src/memory/*`.
+itself. The original question was narrow: **can cli-jaw's built-in tools (`bin/commands/`,
+37 commands) move into codexclaw?** The portability verdict (A portable / B reshaped /
+C server-bound) lives in `009`. The orchestrator-internals and memory parity that fell out
+of that comparison are recorded in `011`/`012`.
 
 | Layer | cli-jaw has | codexclaw today | doc |
 | --- | --- | --- | --- |
-| Context-economy meta-skills | context-budget / agent-harness / compression / eval | none (dev-family only) | `010` |
+| Built-in tool surface | 37 `bin/commands/` | 10 `cxc` subcommands + hooks | `009` (port verdict) |
 | Friction ledger | sha256(tool:error) retry->escalate->stop + oscillation | none (PostToolUse hook unused for this) | `011` |
 | Seed ontology | structured entity/relationship/invariant + render | label-only string | `011` |
 | Workspace-context | project-root resolve + path-hint + symlink-escape block | prose only | `011` |
@@ -64,7 +67,7 @@ itself: `skills_ref/` meta-skills, `src/orchestrator/*`, and `src/memory/*`.
 
 ## Document map (000-009)
 
-(010-012 added by the cli-jaw second sweep; see the table above.)
+(011-012 added by the cli-jaw second sweep; the built-in tool port verdict is in `009`.)
 
 | Doc | Scope |
 | --- | --- |
@@ -78,7 +81,6 @@ itself: `skills_ref/` meta-skills, `src/orchestrator/*`, and `src/memory/*`.
 | `007_search_and_research.md` | insane-search engine port + ultraresearch depth |
 | `008_skill_attached_dispatch.md` | skill-attached base-role dispatch (the user's core ask) |
 | `009_reinforcement_roadmap.md` | synthesis: gap -> E-tier -> proposed loop, with non-goals |
-| `010_cli_jaw_skill_backlog.md` | cli-jaw `skills_ref` meta-skill import backlog (context-economy) |
 | `011_pabcd_orchestration_parity.md` | Seed / Friction / workspace-context / plan-inject parity |
 | `012_memory_parity_nongoal.md` | memory = confirmed non-goal + chat-search drift fix |
 

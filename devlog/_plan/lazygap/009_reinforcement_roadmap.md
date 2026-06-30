@@ -32,17 +32,16 @@ Status: PLANNED (decision input; no code this pass) · evidence: 001-008
 | L23 | 230 | `006` | PostCompact recovery hook |
 | L24 | 240 | `004` | rule-injector + comment-lint PostToolUse |
 | L25 | 250 | `007` | **agbrowse adapt** (lazy proof helper + Tier-2 rewrite) + ultraresearch protocol reference |
-| L26 | 260 | `010` | cli-jaw meta-skills: context-budget / agent-harness / context-compression (top-3) |
 | L27 | 270 | `011` | friction ledger (E1/E2 gate) + workspace-context block + seed ontology schema |
 
 > L15/L17 already exist in `mvp_hard/141`; `002` folds into L15 as its trust half.
 > L21-L25 are the new lazygap-driven loops. Sequencing: `002`+`008` first (trust +
 > routing), then `001`->`003` (loop substrate -> work-aware Stop), then `006`/`004`/`007`.
 >
-> L26-L27 are the cli-jaw second-sweep loops. `011`'s friction ledger is the single new
-> **runtime** gate (E1/E2) and the PostToolUse hook already exists, so L27 outranks L26
-> (meta-skills, all E7). The chat-search drift fix (`012`) folds into the next L17-class
-> honesty pass — it's a doc edit backed by an already-passing test, not its own loop.
+> L27 is the cli-jaw second-sweep loop. `011`'s friction ledger is the single new
+> **runtime** gate (E1/E2) and the PostToolUse hook already exists, so it ranks high.
+> The chat-search drift fix (`012`) folds into the next L17-class honesty pass — it's a
+> doc edit backed by an already-passing test, not its own loop.
 
 ## Enforcement-tier ledger (what becomes truly enforced)
 
@@ -68,3 +67,55 @@ Status: PLANNED (decision input; no code this pass) · evidence: 001-008
    child's final text available? Decides whether `002` is E1 or only doctrine.
 3. Evidence-receipt convention: reuse omo's `EVIDENCE_RECORDED: <path>`, or codexclaw's
    existing `--evidence` ledger convention?
+
+---
+
+## cli-jaw built-in tools — can we port them? (the original question)
+
+> Not a lazycodex/omo comparison. cli-jaw's real tool surface is `bin/commands/` (37
+> commands). codexclaw's is `cxc` (`bin/codexclaw.mjs`: enable/uninstall/status/doctor/
+> reset/orchestrate/freeze/gui/subagents/provider) + the hook layer. The question is which
+> cli-jaw commands can move into codexclaw's single-plugin, no-server model — and which are
+> structurally bound to cli-jaw being a server + agent-CLI orchestrator.
+
+Three buckets, grounded in what each command needs to run:
+
+### A. Portable (no-server, fits codexclaw today)
+
+| cli-jaw command | what it does | codexclaw target |
+| --- | --- | --- |
+| `orchestrate [P/A/B/C/D/status/reset]` | PABCD phase transitions + attest | **already ported** — `cxc orchestrate` + attest gate (parity DONE, see `011`) |
+| `doctor` | environment/health checks | **already present** — `cxc doctor` |
+| `reset` | clear local workflow state | **already present** — `cxc reset` |
+| `goal [set/plan/status/update/done]` | goal lifecycle | partial — codexclaw uses host goal mode + `.codexclaw/`; the *plan/criteria* half maps to `001` goalplan, not a goal-DB write |
+| `skill` | list/inspect skills | portable — read `plugins/codexclaw/skills/*`; thin `cxc skill list` is in-philosophy |
+| `project [set/list]` | project-root registry | portable as **stateless** resolver (workspace-context, `011`); cli-jaw's durable registry is the non-goal part |
+| `init` | scaffold local config | portable — maps to `cxc enable` install flow |
+| `hooks` | list/inspect hooks | portable — read `.codex-plugin/plugin.json`; diagnostic only |
+
+### B. Partial / reshaped (capability fits, mechanism changes)
+
+| cli-jaw command | why it can't move as-is | codexclaw shape |
+| --- | --- | --- |
+| `dispatch` / `worker` | spawn + monitor + session-resume of agent-CLI workers via a run-store | replaced by Codex `spawn_agent` subagents; no worker run-store/monitor (`011` table, by design) |
+| `history` / `chat-search` | query the `messages`/thread index (server + SQLite) | host Codex owns thread search; codexclaw's own `chat-search` was retired (`012` drift fix) |
+| `task` | durable task DB | mapped to host `update_plan` (decided in `mvp_res/201`), not a DB |
+| `browser` / `browser-web-ai` | cli-jaw browse layer | **adapt agbrowse** lazily instead of reimplementing (`007` update) |
+
+### C. Non-portable (structurally server / external-agent bound)
+
+`serve` / `service` / `dashboard` / `dashboard-chat` / `dashboard-memory` (HTTP server +
+federation), `memory` / `reminders` (server + index + scheduler), `employee` / `clone`
+(persistent agent-CLI roster), `bgtask` / `launchd` (OS daemon/long-running tasks),
+`connector` / `mcp` (MCP server management), `lock` (server-side concurrency), `provider`
+(codexclaw keeps this **detect-only**, not management). These all assume cli-jaw is a
+running server that spawns and supervises agent CLIs — exactly the boundary
+`structure/00_philosophy.md` §2 rules out.
+
+### Takeaway
+
+The valuable, in-philosophy carry-overs are mostly **already done** (`orchestrate`/
+`doctor`/`reset`) or already planned under a different name (`goal`/`project`->goalplan +
+workspace-context in `001`/`011`, `browser`->agbrowse in `007`). The big remaining
+*command-shaped* item is the friction/dispatch discipline, which lands as hook logic
+(`011`), not a new `cxc` subcommand. Bucket C is not a backlog — it's the no-server line.
