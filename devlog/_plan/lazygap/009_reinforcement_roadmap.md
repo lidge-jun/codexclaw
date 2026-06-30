@@ -80,18 +80,28 @@ Status: PLANNED (decision input; no code this pass) · evidence: 001-008
 
 Three buckets, grounded in what each command needs to run:
 
-### A. Portable (no-server, fits codexclaw today)
+### A. Portable (no-server) — split by what is ACTUALLY built vs only portable
 
-| cli-jaw command | what it does | codexclaw target |
+`cxc` today has exactly these subcommands (`bin/codexclaw.mjs:113-160`): `enable`,
+`uninstall`/`disable`, `status`, `doctor`, `reset`, `orchestrate`, `freeze`, `gui`,
+`subagents`, `provider`. There is **no** `goal`/`project`/`skill`/`init`/`hooks`
+subcommand. So "portable" below means *fits the philosophy*, not *already shipped*.
+
+| cli-jaw command | what it does | current codexclaw state (verified) |
 | --- | --- | --- |
-| `orchestrate [P/A/B/C/D/status/reset]` | PABCD phase transitions + attest | **already ported** — `cxc orchestrate` + attest gate (parity DONE, see `011`) |
-| `doctor` | environment/health checks | **already present** — `cxc doctor` |
-| `reset` | clear local workflow state | **already present** — `cxc reset` |
-| `goal [set/plan/status/update/done]` | goal lifecycle | partial — codexclaw uses host goal mode + `.codexclaw/`; the *plan/criteria* half maps to `001` goalplan, not a goal-DB write |
-| `skill` | list/inspect skills | portable — read `plugins/codexclaw/skills/*`; thin `cxc skill list` is in-philosophy |
-| `project [set/list]` | project-root registry | portable as **stateless** resolver (workspace-context, `011`); cli-jaw's durable registry is the non-goal part |
-| `init` | scaffold local config | portable — maps to `cxc enable` install flow |
-| `hooks` | list/inspect hooks | portable — read `.codex-plugin/plugin.json`; diagnostic only |
+| `orchestrate [P/A/B/C/D/status/reset]` | PABCD phase transitions + attest | **SHIPPED** — `cxc orchestrate` + attest gate (parity DONE, see `011`) |
+| `doctor` | environment/health checks | **SHIPPED** — `cxc doctor` (`cxc-ops`) |
+| `reset` | clear local workflow state | **SHIPPED** — `cxc reset` (`cxc-ops`) |
+| `goal [set/plan/status/update/done]` | goal lifecycle | **NOT a `cxc` command (by design).** codexclaw never owns a goal DB; it only *reads* host Codex `thread_goals` read-only (`goal-active.ts`). lifecycle/plan/criteria is the unbuilt `001` goalplan, not shipped |
+| `skill` | list/inspect skills | **No `cxc skill` command.** Discovery exists only as the `skill-hub` skill + `references/catalog.md` (prose). CLI surface unbuilt |
+| `project [set/list]` | project-root registry | **Unbuilt.** No `resolveWorkspaceRoot`/project-root resolver in code (grep 0); only prose in `pabcd/SKILL.md`. This is exactly the `011` workspace-context gap |
+| `init` | scaffold local config | **No `cxc init`.** The scaffold role is absorbed into `cxc enable` (config-guard enable flow); no standalone command |
+| `hooks` | list/inspect hooks | **No `cxc hooks` command.** Hooks run via `plugin.json` registration, but there is no list/inspect CLI |
+
+Honest summary of bucket A: only `orchestrate`/`doctor`/`reset` are actually ported.
+`goal`/`project` are deliberately *replaced* by other mechanisms (host goal-read /
+future workspace-context), and `skill`/`init`/`hooks` are either folded into `enable`
+or exist only as a skill/prose — none have a `cxc` subcommand today.
 
 ### B. Partial / reshaped (capability fits, mechanism changes)
 
