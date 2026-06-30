@@ -44,7 +44,10 @@ field (`ConfigToml` uses `deny_unknown_fields`). Read-only intent is encoded in 
 store, MCP/GUI roundtrip, and `resolveSpawnConfig(cwd, role)` resolver are shipped; S8/S10
 tests prove persistence and resolver behavior.
 
-Runtime caveat: there is not yet a production spawn wrapper that consumes
-`resolveSpawnConfig()` when calling Codex `spawn_agent`. Until L9's implementation slices
-land, these TOMLs remain canonical prompt sources and the config store is ready for a wrapper,
-but a configured role model is not automatically applied to every live subagent launch.
+Production wrapper (L9.1, shipped): `components/subagent-config/src/spawn-wrapper.ts` consumes
+`resolveSpawnConfig()` at spawn time. `resolveSpawnPayload(cwd, role, task, agentsDir)` reads the
+per-role store config plus this file's `developer_instructions`, then builds the concrete
+`spawn_agent` payload: `agent_type` from `ROLE_AGENT_TYPE`, the role prompt injected inline in
+`message` (a `promptOverride` replaces this TOML body), and a `model` key included ONLY for a
+non-default (model-mode) role — default mode omits it so the subagent inherits the main model.
+Model selection is owned by the store resolver, not the TOML `model` sentinel.
