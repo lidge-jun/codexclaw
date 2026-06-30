@@ -6,11 +6,13 @@ Status: CANONICAL INDEX (scaffolding; no code shipped yet) · 2026-07-01 · foll
 > This track turns the two **trust+routing** gaps it ranked #1/#2 into shippable PABCD loops.
 > Runtime feasibility is no longer assumed — it is verified in `../lazygap/010` against codex-rs.
 >
-> Scope of THIS track (locked by user): the dispatch spine only.
->   - decade 010 = SubagentStop evidence-receipt gate (`../lazygap/002`)
->   - decade 020 = skill-attached base-role dispatch (`../lazygap/008`, the core ask)
-> Decades 030+ (goalplan/Stop-depth/compaction/rules/search/friction) stay PROPOSED in
-> `../lazygap/009`; they are NOT scaffolded here until 010/020 ship.
+> Scope of THIS track (locked by user): the dispatch spine first, then the reinforcement decades.
+>   - decade 010 = SubagentStop evidence-receipt gate (`../lazygap/002`) — SHIPPED
+>   - decade 020 = skill-attached base-role dispatch (`../lazygap/008`, the core ask) — SHIPPED
+>   - decade 030 = goalplan/cxc-loop substrate (`../lazygap/001`) — SHIPPED
+> Decades 040-080 (Stop-depth/compaction/rules/search/friction) are now SCAFFOLDED here as
+> copy-paste-ready jawdev impl plans (impl-state PROPOSED, A-gate audited); each ships under its
+> own PABCD loop. 090 (code-intelligence) remains a confirmed NON-GOAL per `../lazygap/009`.
 
 ## Naming convention (inherited from mvp_hard)
 
@@ -47,6 +49,11 @@ stamps a distinguishing marker the gate reads. Decide jointly before either loop
 | 010 | 010 | SubagentStop evidence-receipt gate (7th hook) | `lazygap/002` + `010` | SubagentStop | E1 | DONE |
 | 020 | 020 | Skill-attached base-role dispatch (`items` + role×intent map + E3 hook) | `lazygap/008` + `010` | PreToolUse `^spawn_agent$` (v1) / E5 builder | E3+E5 | DONE |
 | 030 | 030 | Goalplan/cxc-loop substrate (`.codexclaw/goalplans/<slug>/` + `cxc goalplan` CLI + validate gate + reset scope) | `lazygap/001` | local artifact / CLI (E7+E8) | E2+E8 | DONE |
+| 040 | 040 | Work-aware Stop continuation (text-only enrichment of Stop reason after all guards; depends on 030.3 slug) | `lazygap/003` | Stop | E4 | PROPOSED |
+| 050 | 050 | PostCompact recovery (reset re-inject cursor; side-effect-only; does NOT bypass context-pressure guard) | `lazygap/006` | PostCompact | E6 | PROPOSED |
+| 060 | 060 | Rule injector (SessionStart additionalContext) + comment-lint PreToolUse on `apply_patch` (fail-open) | `lazygap/004` | SessionStart / PreToolUse `^apply_patch$` | E2+E3 | PROPOSED |
+| 070 | 070 | agbrowse adapt (Tier-2 HTTP proof, `--browser never`) + ultraresearch explorer-attached protocol | `lazygap/007` | skill / bin shim | E8 | PROPOSED |
+| 080 | 080 | Friction ledger (heuristic capture + PreToolUse/Stop read gate) + workspace path-hint + seed ontology | `lazygap/001` | PreToolUse / Stop / spawn items | E1+E5 | PROPOSED |
 
 ## Runtime facts both loops rely on (from `../lazygap/010`, codex-rs verified)
 
