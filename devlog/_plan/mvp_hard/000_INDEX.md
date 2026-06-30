@@ -58,7 +58,7 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 | L16 | 160 | dev routing STRICT (DEV-ROUTE-01) + E6 dev-only-implicit visibility decision (commit 32b84c3) — decomposed in 141 | DONE | DONE |
 | L17 | 170 | Interview runtime honesty (A4) + trigger-doc reconcile (A5) + minds.ts wired to live I directive (C2) + goal firewall on passive re-injection; triage/rescan documented as directive-reachable helpers (C3/C4) — decomposed in 141 | DONE | DONE |
 | L18 | 180 | Status-sync + forbidden-claims + count gates (E8): `gate.mjs` + `gate.test.mjs`, `npm run gate` (commit pending) — decomposed in 141 | DONE | DONE |
-| L19 | 190 | dist packaging contract + test (E8) — decomposed in 141 | PLANNED | PLANNED |
+| L19 | 190 | dist packaging contract: force-track 4 runtime dist + `packaging.test.mjs` import-graph gate (C8, E8) (commit pending) — decomposed in 141 | DONE | DONE |
 | L20 | 200 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | ANALYZED | PLANNED |
 
 ## Track status

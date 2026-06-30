@@ -39,7 +39,6 @@ export const NO_OWN_DOC = new Map([
   ["L15", "141_L14_L19_contradiction_patch_plan.md"],
   ["L16", "141_L14_L19_contradiction_patch_plan.md"],
   ["L17", "141_L14_L19_contradiction_patch_plan.md"],
-  ["L19", "141_L14_L19_contradiction_patch_plan.md"],
   ["L20", "141_L14_L19_contradiction_patch_plan.md"],
 ]);
 
