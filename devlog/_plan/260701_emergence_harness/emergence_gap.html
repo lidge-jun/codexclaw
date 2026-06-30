@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PABCD Emergence Gap — 무엇이 문제인가</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171b21; --panel2:#1e242c; --line:#2a313b;
+    --ink:#e6eaf0; --dim:#9aa6b2; --faint:#6b7682;
+    --conv:#3a7bd5; --conv2:#2c5fa8;
+    --div:#e0a458; --good:#4bb37b; --bad:#d96a6a; --warn:#d9a441;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.55;font-size:15px}
+  .wrap{max-width:1080px;margin:0 auto;padding:40px 24px 80px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:28px}
+  h1{font-size:25px;margin:0 0 6px;letter-spacing:0}
+  .sub{color:var(--dim);font-size:14px}
+  h2{font-size:17px;margin:34px 0 12px;display:flex;align-items:center;gap:9px}
+  h2 .n{font-family:var(--mono);font-size:12px;color:var(--faint);
+    border:1px solid var(--line);border-radius:5px;padding:2px 7px}
+  p{margin:8px 0}
+  .dim{color:var(--dim)}
+  code{font-family:var(--mono);font-size:12.5px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+  .band{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    padding:18px 20px;margin:14px 0}
+
+  /* PABCD pipeline */
+  .pipe{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin:6px 0 4px}
+  .ph{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--line);
+    border-top:3px solid var(--conv);border-radius:7px;padding:11px 12px}
+  .ph .l{font-family:var(--mono);font-size:11px;color:var(--conv);font-weight:700}
+  .ph .t{font-weight:600;font-size:14px;margin:3px 0}
+  .ph .d{font-size:12px;color:var(--dim)}
+  .ph .trap{font-size:11.5px;color:var(--bad);margin-top:7px;border-top:1px dashed var(--line);padding-top:6px}
+  .arrowrow{text-align:center;color:var(--faint);font-family:var(--mono);font-size:13px;margin:2px 0}
+  .loopback{color:var(--conv);font-size:12px;text-align:center;margin-top:4px}
+
+  /* two-axis explainer */
+  .axes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
+  .axis{border:1px solid var(--line);border-radius:8px;padding:14px 16px;background:var(--panel2)}
+  .axis.conv{border-left:4px solid var(--conv)}
+  .axis.div{border-left:4px solid var(--div)}
+  .axis h3{margin:0 0 6px;font-size:14px}
+  .axis .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase}
+  .axis.conv .tag{color:var(--conv)}
+  .axis.div .tag{color:var(--div)}
+  .axis ul{margin:8px 0 0;padding-left:18px}
+  .axis li{margin:3px 0;font-size:13px;color:var(--dim)}
+
+  /* missing pieces table */
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--dim);font-weight:600;font-size:11.5px;
+    text-transform:uppercase;letter-spacing:.03em}
+  td.c{text-align:center;font-family:var(--mono);font-weight:700}
+  .no{color:var(--bad)}.part{color:var(--warn)}.yes{color:var(--good)}
+  td .src{font-family:var(--mono);font-size:11px;color:var(--faint)}
+
+  /* NYPC evidence strip */
+  .evi{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:6px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:14px 15px}
+  .card .big{font-size:26px;font-weight:700;font-family:var(--mono)}
+  .card.localwin .big{color:var(--good)}
+  .card.official .big{color:var(--bad)}
+  .card.phases .big{color:var(--warn)}
+  .card .cap{font-size:12px;color:var(--dim);margin-top:3px}
+
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--dim)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+  footer{margin-top:40px;border-top:1px solid var(--line);padding-top:16px;
+    color:var(--faint);font-size:12px}
+  footer code{font-size:11px}
+  .fix{border-left:4px solid var(--good)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>PABCD Emergence Gap</h1>
+    <div class="sub">왜 같은 루프가 빌드/버그엔 강하고 알고리즘 같은 창발 태스크엔 약한가 — NYPC 봇 3.5/8 정체의 구조적 원인</div>
+  </header>
+
+  <p>핵심 한 줄: <strong>PABCD는 수렴(exploitation) 기계지, 발산(divergence) 기계가 아니다.</strong>
+  모든 페이즈가 이미 정해진 한 타겟으로 좁혀 들어간다. 타겟이 주어진 빌드/버그엔 그게 곧 정답이지만,
+  타겟을 찾아야 하는 알고리즘 태스크엔 첫 접근법에 갇혀 증상만 패치하게 된다.</p>
+
+  <h2><span class="n">01</span> 수렴 vs 발산 — 빠진 축</h2>
+  <div class="band">
+    <div class="axes">
+      <div class="axis conv">
+        <div class="tag">있음 · PABCD가 하는 것</div>
+        <h3>수렴 (Exploitation)</h3>
+        <ul>
+          <li>한 접근법을 깊게 파고든다</li>
+          <li>버그를 잡고 정확성을 높인다</li>
+          <li>증거의 <em>모양</em>을 검증한다 (exit 0 / PASS)</li>
+          <li>페이즈를 순서대로 전진시킨다</li>
+        </ul>
+      </div>
+      <div class="axis div">
+        <div class="tag">없음 · 창발 태스크에 필요한 것</div>
+        <h3>발산 (Divergence)</h3>
+        <ul>
+          <li>경쟁하는 접근법 N개를 만든다</li>
+          <li>진짜 목표 점수로 서로 경쟁시킨다</li>
+          <li>다양성 아카이브를 유지한다</li>
+          <li>정체 시 탐색을 주입한다</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="n">02</span> PABCD 페이즈별로 어디서 갇히나</h2>
+  <div class="band">
+    <div class="pipe">
+      <div class="ph">
+        <div class="l">I</div><div class="t">Interview</div>
+        <div class="d">범위 명확화</div>
+        <div class="trap">전략 후보를 안 띄움 — scope만 물음</div>
+      </div>
+      <div class="ph">
+        <div class="l">P</div><div class="t">Plan</div>
+        <div class="d">diff-level 계획 1개</div>
+        <div class="trap">★ 최대 범인: 첫 페이즈부터 단일 접근법에 커밋</div>
+      </div>
+      <div class="ph">
+        <div class="l">A</div><div class="t">Audit</div>
+        <div class="d">그 계획을 적대 검토</div>
+        <div class="trap">같은 basin 안의 버그만 깎음 "다른 접근?" 안 물음</div>
+      </div>
+      <div class="ph">
+        <div class="l">B</div><div class="t">Build</div>
+        <div class="d">구현</div>
+        <div class="trap">잠긴 그 아이디어 하나만 빌드</div>
+      </div>
+      <div class="ph">
+        <div class="l">C</div><div class="t">Check</div>
+        <div class="d">검증 실행</div>
+        <div class="trap">exitCode+checkOutput만 봄 자가대전 96%로 영원히 통과</div>
+      </div>
+      <div class="ph">
+        <div class="l">D</div><div class="t">Done</div>
+        <div class="d">요약·종료</div>
+        <div class="trap">페이즈 전진=진척으로 착각 점수 델타 안 봄</div>
+      </div>
+    </div>
+    <div class="arrowrow">I → P → A → B → C → D</div>
+    <div class="loopback">↺ 다음 work-phase도 같은 basin에서 P부터 다시 — 정체 감지 없음 (turn-cap만)</div>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--conv)"></span>수렴 페이즈 (전부 같은 방향)</span>
+      <span><span class="sw" style="background:var(--bad)"></span>창발 태스크에서의 함정</span>
+    </div>
+  </div>
+
+  <h2><span class="n">03</span> 두 개의 구조적 뿌리 <span class="dim" style="font-size:12px">(file:line)</span></h2>
+  <div class="band">
+    <p><strong>① 목표-델타 기억이 없다.</strong> <code>state.ts:18</code>은 phase/flag/Stop카운터만 저장.
+    ledger(<code>state.ts:36</code>)는 전이+증거 문자열만, 메트릭 델타는 없음 → 루프가 정체를 <em>알 수가</em> 없다.</p>
+    <p><strong>② C→D가 목표가 아니라 명령 모양에 묶여 있다.</strong> <code>attest.ts:98</code>은
+    <code>checkOutput</code>+<code>exitCode</code>만 게이트 → 공식 저지인지 약한 자가대전인지 구분 못 함.
+    로컬 96%가 C/D를 영원히 통과하는데 진짜 점수는 평평.</p>
+  </div>
+
+  <h2><span class="n">04</span> NYPC 증거 — 프록시와 진짜 목표의 괴리</h2>
+  <div class="band">
+    <div class="evi">
+      <div class="card localwin"><div class="big">96%+</div><div class="cap">로컬 자가대전 승률 (1400게임, WA=0)</div></div>
+      <div class="card official"><div class="big">3.5/8</div><div class="cap">공식 저지 점수 — 15 work-phase 내내 정체</div></div>
+      <div class="card phases"><div class="big">9 / 15</div><div class="cap">하네스 결함이 원인인 work-phase (B=도메인 3개)</div></div>
+    </div>
+    <p class="dim" style="margin-top:12px">루프는 "틀린 타겟(자가대전)"에 두더지잡기 패치를 반복했고,
+    "검증 대상이 틀렸다"는 대화를 강제하는 구조가 없어 9페이즈를 낭비했다. wp10은 결정적 증거 —
+    파싱 버그로 잘못된 진단을 내렸는데 하네스가 못 잡음.</p>
+  </div>
+
+  <h2><span class="n">05</span> 형제 하네스도 같은 천장 <span class="dim" style="font-size:12px">(같은 IPABCD 혈통)</span></h2>
+  <div class="band">
+    <table>
+      <thead><tr>
+        <th>빠진 조각</th><th>출처</th>
+        <th class="c">codexclaw<br>PABCD</th>
+        <th class="c">jawcode<br>autoresearch</th>
+        <th class="c">lazycodex<br>omo</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>후보 <strong>population</strong> (단일 best 아님)</td><td class="src">AlphaEvolve · FunSearch</td>
+          <td class="c no">✗</td><td class="c no">✗</td><td class="c no">✗</td></tr>
+        <tr><td><strong>평가자 = 진짜 목표</strong>가 생존 결정</td><td class="src">AlphaEvolve · FunSearch</td>
+          <td class="c no">✗<br><span class="src">exitCode</span></td>
+          <td class="c part">◐<br><span class="src">METRIC</span></td>
+          <td class="c no">✗<br><span class="src">receipt</span></td></tr>
+        <tr><td><strong>다양성 보존</strong> (islands/MAP-Elites)</td><td class="src">FunSearch · QD</td>
+          <td class="c no">✗</td><td class="c no">✗</td><td class="c no">✗</td></tr>
+        <tr><td><strong>정체→탐색 주입</strong> (abandon-objective)</td><td class="src">Novelty Search</td>
+          <td class="c no">✗<br><span class="src">turn-cap</span></td>
+          <td class="c no">✗<br><span class="src">max-iter</span></td>
+          <td class="c no">✗<br><span class="src">process-cap</span></td></tr>
+        <tr><td>가짜 완료 방지 증거 게이트</td><td class="src">—</td>
+          <td class="c no">✗</td><td class="c part">◐</td>
+          <td class="c yes">✓<br><span class="src">SubagentStop</span></td></tr>
+      </tbody>
+    </table>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--bad)"></span>✗ 없음</span>
+      <span><span class="sw" style="background:var(--warn)"></span>◐ 부분 (사용자가 직접 채워야)</span>
+      <span><span class="sw" style="background:var(--good)"></span>✓ 있음</span>
+    </div>
+    <p class="dim" style="margin-top:10px">셋 다 발산의 핵심 4조각이 비어 있다. jawcode는 "목표 메트릭 바인딩",
+    lazycodex는 "증거 진실성"을 각각 더 잘하지만, <strong>경쟁 후보를 띄워 결과로 가지치기하는 발산은 어디에도 없다.</strong></p>
+  </div>
+
+  <h2><span class="n">06</span> 고칠 방향 <span class="dim" style="font-size:12px">(정직한 E-tier)</span></h2>
+  <div class="band fix">
+    <p><strong>PABCD를 갈아엎지 않는다 — 앞에 발산 패스를 붙인다:</strong>
+    <code>Diverge → (후보마다 PABCD) → Select → Archive → loop</code></p>
+    <table>
+      <thead><tr><th>레버</th><th>메커니즘</th><th class="c">강제 가능 tier</th><th>한계</th></tr></thead>
+      <tbody>
+        <tr><td>1 후보군 생성</td><td>P가 N≥2 접근법 요구</td><td class="c part">E7 + E2 nudge</td><td>훅이 후보를 못 만듦</td></tr>
+        <tr><td>2 진짜 목표 메트릭</td><td><code>evaluate.sh</code> METRIC + ledger</td><td class="c yes">E2 / CLI</td><td>원격 저지→운영자 입력</td></tr>
+        <tr><td>3 다양성 아카이브</td><td>files + ledger (descriptor 키)</td><td class="c yes">E2 데이터모델</td><td>서버 없음·에이전트가 유지</td></tr>
+        <tr><td>4 정체→발산</td><td>Stop이 메트릭 이력 비교</td><td class="c yes">E2 (핵심 레버)</td><td>새 접근 내용은 강제 못 함</td></tr>
+      </tbody>
+    </table>
+    <p class="dim" style="margin-top:10px">레버 2는 jawcode <code>autoresearch</code>를 차용,
+    가짜완료 방지는 lazycodex SubagentStop을 차용. <strong>레버 1·3·4(발산 레이어)는 셋 다 없어 codexclaw가 처음 만드는 차별점.</strong>
+    원격 점수 자동 검증은 불가능(훅이 못 봄) — 운영자 입력으로 정직하게 둔다.</p>
+  </div>
+
+  <footer>
+    근거: <code>structure/50_emergence_gap.md</code> (진단) ·
+    <code>devlog/_plan/260701_emergence_harness/</code> (레퍼런스 트랙: AlphaEvolve arXiv:2506.13131,
+    FunSearch Nature 2024, MAP-Elites arXiv:1504.04909, QD arXiv:2012.04322) ·
+    형제 비교는 jawcode <code>autoresearch/</code> + lazycodex <code>omo/</code> 코드 실측.
+    수치는 NYPC <code>results/wp9–wp15</code> 로그 기준. 정적 진단 페이지 · 2026-07-01.
+  </footer>
+
+</div>
+</body>
+</html>
