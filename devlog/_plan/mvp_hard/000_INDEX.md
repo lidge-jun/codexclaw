@@ -71,7 +71,9 @@ decision loop (decision DONE). The cli-jaw `$ + hook` PABCD
 control-surface gap from the L1 audit is closed: FSM adjacency + 4-edge attest gate (L2),
 chat `$cxc-orchestrate` wire (L3), agent-gated `cxc orchestrate` CLI (L4), phase footer +
 chat D-close (L5), bounded Stop-continuation loop (L6), and skill-doc reconciliation (L7).
-Tests grew 223 → 281, all green; `cxc doctor` PASS.
+Tests grew 223 → 281 across the L2-L7 parity build (all green; `cxc doctor` PASS). That was the
+L7-era snapshot; the suite has since grown with the L8-L20 hardening loops to **367/367 green**
+(current). This line records the L1-L7 milestone, not the present total.
 
 **L8 COMPLETE** (2026-06-30). Post-loop UX hardening removed stale shipped-state claims
 from README/structure/L5-L7 docs and replaced the Stop-continuation `<next>` placeholder
