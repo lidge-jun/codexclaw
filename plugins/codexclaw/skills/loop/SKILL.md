@@ -20,7 +20,9 @@ work-phases.
   this; it never re-enters `P` for you (see Stop-continuation below).
 - There is no I -> P auto-advance. The agent advances every phase, including I -> P,
   by running the explicit `cxc orchestrate <phase> --attest` command. The hook does
-  not move phases.
+  not move phases AUTONOMOUSLY. (It does persist a transition when the agent submits an
+  explicit chat `orchestrate <verb>` command — that is the agent acting, not the hook
+  advancing on its own. Nothing transitions without an explicit agent/CLI command.)
 - The Stop guard blocks termination based on coarse state signals (active goal +
   in-flight cycle + stagnation budget), not a content check for "pending work." It
   keeps the turn alive so the agent can self-advance; the agent decides whether real

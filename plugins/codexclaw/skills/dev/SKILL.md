@@ -1,6 +1,6 @@
 ---
 name: cxc-dev
-description: "MUST USE for every coding task — classifies work depth (C0-C5), enforces modular limits, pre-write search, verification-before-completion, and safety rules. Always-on discipline that routes to surface-specific dev-* routers by change surface. Triggers: any code change, refactor, bug fix, feature, test, review, scaffolding."
+description: "MUST USE for every coding task — classifies work depth (C0-C5), defines modular limits, pre-write search, verification-before-completion, and safety rules. Always-on discipline (agent-followed, not hook-enforced) that routes to surface-specific dev-* routers by change surface. Triggers: any code change, refactor, bug fix, feature, test, review, scaffolding."
 metadata:
   short-description: "Universal dev discipline: work classifier, modular limits, verification gate, safety rules."
 ---
@@ -128,9 +128,12 @@ matching router first.
 
 Why this is wording, not a runtime gate: no Codex hook fires on skill load (see
 `structure/00_philosophy.md` §1), so the main agent self-enforces this STRICT rule. For
-SUBAGENT dispatches the rule is additionally pre-loaded as an attachment — the L15
-spawn-wrapper attaches the matching `cxc-*` skill to the spawn `items` so the subagent
-launches with the discipline already loaded (`structure/10`).
+SUBAGENT dispatches codexclaw provides a spawn-wrapper builder (L15) that CAN attach the
+matching `cxc-*` skill to the spawn `items` — but only WHEN the dispatcher routes through
+`resolveSpawnPayloadWithSkills`. There is no production hook auto-applying it yet (a
+`^spawn_agent$` PreToolUse rewrite is feasible only on the v1 spawn surface; v2 rejects
+extra `items`), so today attachment depends on the agent following the dispatch doctrine
+(E5), not on an automatic gate (`structure/10`).
 
 | Skill File | Routes When (surface) | Covers |
 | ---------- | --------------------- | ------ |

@@ -26,7 +26,9 @@ HITL vs HOTL. An ACTIVE goal is what ARMS the L6 Stop-continuation loop: while a
 active and a PABCD cycle is in flight, the Stop hook BLOCKS premature termination (it
 returns `{decision:"block"}`) so the agent keeps self-advancing with explicit
 `cxc orchestrate <phase> --attest …` commands (agent-gated). The hook does NOT transition
-phases and does NOT re-enter `P` itself — after the agent closes a cycle to IDLE, the
+phases AUTONOMOUSLY and does NOT re-enter `P` itself — it only persists a transition in
+response to an explicit chat `orchestrate <verb>` command (the agent acting). After the
+agent closes a cycle to IDLE, the
 AGENT runs `cxc orchestrate P` to start the next work-phase. Without an active goal, the
 loop never arms and PABCD pauses for the human (HITL).
 

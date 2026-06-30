@@ -93,7 +93,7 @@ See `dev` §0.0 for the full class definitions and tie-break rules.
 
 - `.codexclaw/sessions/<sessionId>.json` — current phase (IDLE/I/P/A/B/C/D), derived flags, injection dedupe, and bounded interview tracker.
 - `.codexclaw/ledger.jsonl` — append-only audit trail of transitions.
-- `.codexclaw/interviews/<sessionId>.jsonl` — planned append-only Interview Q/A and contradiction ledger.
+- `.codexclaw/interviews/<sessionId>.jsonl` — shipped append-only Interview Q/A capture (and scan-evidence) ledger, written by the PostToolUse `request_user_input` hook.
 
 ## Repository Root
 
