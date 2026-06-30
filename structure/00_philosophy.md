@@ -82,9 +82,17 @@ different product. Stop and re-scope rather than quietly crossing the line.
 
 - **DONE means shipped + tested.** "Decision made" or "plan written" is `PLANNED`,
   never `DONE`. A loop reaches `DONE` only with code present, tests green, and a
-  devlog evidence path.
-- **Status tokens are a locked enum.** `DONE` / `PLANNED` / `DEFERRED` / `ANALYZED`.
-  Do not invent new tokens to paper over a half-finished state.
+  devlog evidence path. A pure decision/parity slice that ships no runtime is
+  recorded on its own axis (see the two-axis note below), not as a code-DONE.
+- **Status tokens are a locked enum.** Lifecycle: `PLANNED` / `ANALYZED` /
+  `DESIGN` / `DONE` / `DEFERRED` / `RETIRED`. Interview/freeze: `FROZEN` /
+  `BLOCKED(<Q-id>)`. Do not invent new tokens to paper over a half-finished state;
+  if a genuinely new lifecycle state is needed, add it here in the same change.
+- **Status is two-axis where decision and implementation can diverge.** The
+  `mvp_hard` ledger separates a *decision* column from an *impl* column. A loop may
+  be decision-`DONE` while impl is `PLANNED`. Never collapse the two axes into a
+  single `DONE` that hides un-shipped runtime — that is the most common false-DONE
+  pattern the contradiction register keeps catching.
 - **All four status surfaces stay in sync**: the `mvp_hard` INDEX ledger row, the
   per-loop doc header, this `structure/` SOT, and any roadmap/README. A reviewer that
   finds one surface ahead of another has found a real defect.

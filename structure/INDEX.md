@@ -23,6 +23,8 @@ where" hub; the numbered files carry the durable reasoning.
 | [`INDEX.md`](INDEX.md) | Architecture hub: component/skill/hook/CLI/state map (this file). |
 | [`00_philosophy.md`](00_philosophy.md) | Implementation philosophy: boundary invariants, the model-autonomy vs runtime-enforcement tension, truthfulness regime, HITL/HOTL split, subagent doctrine. |
 | [`10_subagent_skill_routing.md`](10_subagent_skill_routing.md) | L14 design SOT: attaching `cxc-*` skills to subagent spawns + loop/goal handoff hardening. |
+| [`20_pabcd_dispatch_doctrine.md`](20_pabcd_dispatch_doctrine.md) | PABCD + dispatch + routing operating doctrine inherited from cli-jaw, translated to a serverless plugin. |
+| [`30_contradiction_register.md`](30_contradiction_register.md) | Truth table of doc↔code contradictions (claim vs reality, file:line), the input to L14 + any status-sync gate. |
 
 Writing rule: keep this directory flat. Add or extend lexicographically ordered
 `NN_topic.md` files (`00-09` philosophy/foundations, `10-19` subagent/routing, and so
@@ -149,7 +151,7 @@ The `dev` hub routes by change surface toward on-demand `dev-*` skills. `skill-h
 
 ## Hooks
 
-The manifest wires five hook JSON files:
+The manifest wires six hook JSON files:
 
 | Hook event | Hook file | Command | Live behavior |
 |------------|-----------|---------|---------------|
@@ -158,6 +160,7 @@ The manifest wires five hook JSON files:
 | `Stop` | `hooks/stop-checking-pabcd-continuation.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook stop` | active only under a native goal + in-flight PABCD cycle; bounded by re-entry, IDLE/no-goal, context-pressure, and stagnation guards |
 | `PreToolUse` `^create_goal$` | `hooks/pre-tool-use-guarding-goal-budget.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use` | denies `create_goal` inputs with keys other than `objective` |
 | `PreToolUse` `^request_user_input$` | `hooks/pre-tool-use-guarding-interview-in-goal.json` | same pabcd-state CLI | denies user-input/interview tool use while native goal mode is active or unreadable |
+| `PostToolUse` `^request_user_input$` | `hooks/post-tool-use-capturing-interview-answers.json` | same pabcd-state CLI | captures interview question/answer events to the ledger; never blocks (returns empty) |
 
 Hook processes are intentionally short: read stdin JSON, reconstruct state, optionally write `.codexclaw/`, then print either nothing or one JSON hook envelope. `UserPromptSubmit` outputs `hookSpecificOutput.additionalContext`; `PreToolUse` can output `permissionDecision: "deny"` with a reason. Non-PreToolUse errors fail open to avoid blocking Codex; the goal-mode `request_user_input` guard is fail-closed.
 
@@ -177,8 +180,8 @@ Hook processes are intentionally short: read stdin JSON, reconstruct state, opti
 | `cxc chat-search` | RETIRED (D1', L13/WP1) | removed; native `thread/search` has no CLI/agent surface = non-goal; use `cxc-search` |
 | `cxc gui` | `plugins/codexclaw/gui` via `npm run dev` | starts the Vite dashboard when deps exist |
 | `cxc orchestrate` | `components/pabcd-state/dist/cli.js orchestrate` | agent-gated terminal phase control over the same `.codexclaw/` session files |
-| `cxc subagents` | current CLI stub | Phase 2 surface placeholder in the root delegator |
-| `cxc provider` | current CLI stub | Phase 2 provider bridge placeholder in the root delegator |
+| `cxc subagents` | `components/subagent-config/dist/cli.js` (list/get/set) | reads/writes the per-role `.codexclaw/subagents.json` model+prompt config |
+| `cxc provider` | `components/provider-bridge/dist/cli.js` (detect) | read-only ocx provider detect/status; never mutates provider state |
 
 `cxc reset` is an ops cleanup command for `.codexclaw/` state/generated files. `cxc orchestrate reset`
 is the PABCD phase reset command; keep the two meanings distinct when writing docs or tests.
@@ -248,4 +251,4 @@ interview that surfaces its contradictions as questions before any code changes.
 
 ---
 
-*Last updated: 2026-06-30. Grounded in `README.md`, `plugins/codexclaw/.codex-plugin/plugin.json`, `plugins/codexclaw/hooks/*.json`, component `src/` files, skill metadata, subagent TOMLs, `devlog/_plan/mvp_res/000_INDEX.md`, `devlog/_plan/mvp_hard/000_INDEX.md`, `structure/00_philosophy.md`, `structure/10_subagent_skill_routing.md`, and opencodex README/source + `structure/` files.*
+*Last updated: 2026-06-30. Grounded in `README.md`, `plugins/codexclaw/.codex-plugin/plugin.json`, `plugins/codexclaw/hooks/*.json`, component `src/` files, skill metadata, subagent TOMLs, `devlog/_plan/mvp_res/000_INDEX.md`, `devlog/_plan/mvp_hard/000_INDEX.md`, `structure/00_philosophy.md`, `structure/10_subagent_skill_routing.md`, `structure/20_pabcd_dispatch_doctrine.md`, `structure/30_contradiction_register.md`, and opencodex + cli-jaw `structure/` files.*
