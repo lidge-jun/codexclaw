@@ -35,7 +35,7 @@ IDLE ──→ P ──→ A ──→ B ──→ C ──→ D ──→ IDLE
          └──────┴──────┴────→ I (Interview, context preserved)
 ```
 
-You can return to Interview (I) from any phase to clarify requirements; the plan and audit context are preserved. Phases P, A, B pause for confirmation in interactive use; C and D proceed once their work is genuinely done. In goal mode the loop self-advances (see `goal`/`create_goal`), but the P→D sequence is never skipped.
+You can return to Interview (I) from any phase to clarify requirements; the plan and audit context are preserved. Phases P, A, B pause for confirmation in interactive use; C and D proceed once their work is genuinely done. In goal mode the loop self-advances (see `goal`/`create_goal`), but the P→D sequence is never skipped. Goal mode is PABCD-only: while a goal is active the Interview NEVER fires — entry is suppressed and `request_user_input` is hard-denied, so the Interview is HITL-only and runs only with no active goal.
 
 ## Phases
 

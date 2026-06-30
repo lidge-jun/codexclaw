@@ -20,6 +20,9 @@ work-phases.
   exit gate passes in an explicit HOTL/goal/loop context.
 - Stop guards should prevent premature termination only when concrete pending
   work remains.
+- Goal mode is PABCD-only: while a goal is active the Interview NEVER fires (entry is
+  suppressed and `request_user_input` is hard-denied). The Interview is HITL-only and
+  runs only with no active goal; the Stop hook never drives the Interview.
 
 ## Stop-continuation (shipped, L6)
 

@@ -242,3 +242,16 @@ test("handlePreToolUseFailClosed: malformed JSON -> passthrough ''", () => {
   assert.equal(handlePreToolUseFailClosed("not json"), "");
   assert.equal(handlePreToolUseFailClosed(""), "");
 });
+
+// --- L12.2 regression guard: "no interview during a goal" (real status path) ----
+// Asserts the boundary on the REAL goal-status code path with an injected openDb stub
+// (status='active'), not via a missing DB (which would be a false green).
+test("L12.2 boundary: goal active DENIES request_user_input; inactive ALLOWS it", () => {
+  // active goal -> interview/request_user_input is denied (goal mode is PABCD-only).
+  const denied = handlePreToolUseFailClosed(rawPtu("request_user_input"), depsWithStatus("active"));
+  assert.notEqual(denied, "", "active goal must deny request_user_input");
+  assert.match(JSON.parse(denied.trimEnd()).hookSpecificOutput.permissionDecision, /deny/);
+  // inactive goal -> interview is allowed (HITL interactive interview).
+  const allowed = handlePreToolUseFailClosed(rawPtu("request_user_input"), depsWithStatus("complete"));
+  assert.equal(allowed, "", "inactive goal must allow request_user_input (interactive interview)");
+});
