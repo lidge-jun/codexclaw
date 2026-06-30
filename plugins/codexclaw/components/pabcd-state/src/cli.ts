@@ -21,6 +21,8 @@ import { readFileSync } from "node:fs";
 import { handlePostToolUse, handlePostCompact, handleStop, handleUserPromptSubmit } from "./hook.ts";
 import { parsePostCompact, parsePostToolUse, parseStop, parseSubagentStop, parseUserPromptSubmit } from "./parse.ts";
 import { handlePreToolUseFailClosed } from "./goal-gate.ts";
+import { handleApplyPatchLint } from "./comment-lint.ts";
+import { buildRulesContextFromRaw } from "./rules.ts";
 import { runSubagentStopGate } from "./subagent-evidence.ts";
 import { runDivergenceCli } from "./divergence-cli.ts";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.ts";
@@ -125,6 +127,13 @@ function main(): void {
     } else if (event === "post-compact") {
       const payload = parsePostCompact(raw);
       if (payload) output = handlePostCompact(payload); // side-effect only; always ""
+    } else if (event === "pre-tool-use-lint") {
+      // 060.2: FAIL-OPEN apply_patch comment-lint. Distinct from the R-9 fail-closed
+      // `pre-tool-use` branch above — a lint crash must ALLOW the edit, never deny.
+      output = handleApplyPatchLint(raw);
+    } else if (event === "session-start-rules") {
+      // 060.1: surface project rules as SessionStart additionalContext ("" when none).
+      output = buildRulesContextFromRaw(raw, process.cwd());
     }
   } catch {
     output = "";

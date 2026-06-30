@@ -26,7 +26,9 @@
     "./hooks/post-tool-use-capturing-interview-answers.json",
     "./hooks/subagent-stop-verifying-evidence.json",
     "./hooks/pre-tool-use-attaching-skills.json",
-    "./hooks/post-compact-resetting-reinject-cursor.json"
+    "./hooks/post-compact-resetting-reinject-cursor.json",
+    "./hooks/session-start-injecting-project-rules.json",
+    "./hooks/pre-tool-use-linting-apply-patch.json"
   ],
   "mcpServers": "./.mcp.json",
   "interface": {

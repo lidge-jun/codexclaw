@@ -96,7 +96,7 @@ function emptyCodexHome() {
 
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 9, "expected 9 declared hooks");
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 11, "expected 11 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
@@ -370,5 +370,62 @@ test("L050: post-compact hook e2e - active cycle resets cursor, idle is a no-op"
     assert.equal(idleRes.status, 0, idleRes.stderr);
     assert.equal(idleRes.stdout.trim(), "", "idle session => empty stdout");
     assert.equal(JSON.parse(readFileSync(idlePath, "utf8")).updatedAt, "2026-07-01T00:00:00Z", "idle state must be untouched");
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
+// lazygap_impl 060.2: comment-lint PreToolUse on apply_patch. FAIL-OPEN: denies a
+// forbidden pattern on an added line; allows clean patches and any error. Drives the real
+// dist entrypoint via the manifest command (event arg pre-tool-use-lint).
+test("L060: pre-tool-use-lint hook e2e - forbidden pattern denies, clean patch allows", () => {
+  const { event, hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-linting-apply-patch.json");
+  assert.equal(event, "PreToolUse");
+  const ep = snapshotEntrypoint(distAbs);
+  if (!ep) return;
+  const deny = runHook(ep, hookEvent, {
+    hook_event_name: "PreToolUse", session_id: "s1", cwd: process.cwd(),
+    tool_name: "apply_patch", tool_input: { command: "+++ b/x.ts\n+const v = foo as any;\n" },
+  });
+  assert.equal(deny.status, 0, deny.stderr);
+  const out = JSON.parse(deny.stdout);
+  assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(out.hookSpecificOutput.permissionDecisionReason, /comment-lint/);
+
+  const allow = runHook(ep, hookEvent, {
+    hook_event_name: "PreToolUse", session_id: "s1", cwd: process.cwd(),
+    tool_name: "apply_patch", tool_input: { command: "+++ b/x.ts\n+const v: Foo = foo;\n" },
+  });
+  assert.equal(allow.status, 0, allow.stderr);
+  assert.equal(allow.stdout.trim(), "", "clean patch must allow (empty stdout)");
+
+  // FAIL-OPEN: malformed payload => allow
+  const bad = runHook(ep, hookEvent, null);
+  assert.equal(bad.status, 0, bad.stderr);
+  assert.equal(bad.stdout.trim(), "", "malformed stdin must fail open (empty stdout)");
+});
+
+// lazygap_impl 060.1: SessionStart project-rule injector. Emits an additionalContext
+// envelope when rules exist, "" when none. Drives the real dist entrypoint (event arg
+// session-start-rules).
+test("L060: session-start-rules hook e2e - seeded rules inject, empty dir is silent", () => {
+  const { event, hookEvent, distAbs } = readHookCommand("./hooks/session-start-injecting-project-rules.json");
+  assert.equal(event, "SessionStart");
+  const ep = snapshotEntrypoint(distAbs);
+  if (!ep) return;
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-rules-"));
+  try {
+    // no rules => empty
+    const empty = runHook(ep, hookEvent, { hook_event_name: "SessionStart", session_id: "s1", cwd: tmp });
+    assert.equal(empty.status, 0, empty.stderr);
+    assert.equal(empty.stdout.trim(), "", "no rules => empty stdout");
+
+    // seed a rule
+    const rulesDir = join(tmp, ".codexclaw", "rules");
+    mkdirSync(rulesDir, { recursive: true });
+    writeFileSync(join(rulesDir, "a.md"), "Project rule: always run the gate.");
+    const res = runHook(ep, hookEvent, { hook_event_name: "SessionStart", session_id: "s1", cwd: tmp });
+    assert.equal(res.status, 0, res.stderr);
+    const out = JSON.parse(res.stdout);
+    assert.equal(out.hookSpecificOutput.hookEventName, "SessionStart");
+    assert.match(out.hookSpecificOutput.additionalContext, /always run the gate/);
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
