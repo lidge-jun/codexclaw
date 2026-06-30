@@ -26,7 +26,19 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = join(HERE, "..", "..", "..");
-const MVP_HARD = join("devlog", "_plan", "mvp_hard");
+/**
+ * Resolve the mvp_hard plan dir. It originally lived under `devlog/_plan/mvp_hard`, but
+ * finished tracks may be archived to `devlog/_fin/mvp_hard`. Prefer the live `_plan`
+ * location and fall back to the `_fin` archive so the gate keeps validating the canonical
+ * INDEX after a reorg, without hardcoding a single path.
+ */
+function mvpHardDir(repoRoot) {
+  const planDir = join("devlog", "_plan", "mvp_hard");
+  if (existsSync(join(repoRoot, planDir))) return planDir;
+  const finDir = join("devlog", "_fin", "mvp_hard");
+  if (existsSync(join(repoRoot, finDir))) return finDir;
+  return planDir; // default to the live path for the "missing INDEX" violation message
+}
 
 /** LOCKED status vocabulary (decision axis). No new tokens without updating the legend. */
 export const STATUS_TOKENS = new Set([
@@ -64,7 +76,7 @@ export function parseIndexRows(indexText) {
 
 /** Resolve the single loop doc for a decade, or null if zero / multiple top-level docs. */
 function resolveLoopDoc(repoRoot, decade) {
-  const dir = join(repoRoot, MVP_HARD);
+  const dir = join(repoRoot, mvpHardDir(repoRoot));
   if (!existsSync(dir)) return null;
   // a "top-level" loop doc starts with exactly the decade then `_` (e.g. 090_...); a
   // sub-loop (091_...) shares the decade prefix only when decade is itself 09x. Match
@@ -75,7 +87,8 @@ function resolveLoopDoc(repoRoot, decade) {
 
 export function checkStatusSync(repoRoot = REPO_ROOT) {
   const violations = [];
-  const indexPath = join(repoRoot, MVP_HARD, "000_INDEX.md");
+  const mvpHard = mvpHardDir(repoRoot);
+  const indexPath = join(repoRoot, mvpHard, "000_INDEX.md");
   if (!existsSync(indexPath)) return { ok: false, violations: [`missing INDEX: ${indexPath}`] };
   const rows = parseIndexRows(readFileSync(indexPath, "utf8"));
   for (const row of rows) {
@@ -87,7 +100,7 @@ export function checkStatusSync(repoRoot = REPO_ROOT) {
       violations.push(`${row.ln}: INDEX impl-state '${row.impl}' is not in the LOCKED enum`);
     }
     const docName = NO_OWN_DOC.get(row.ln);
-    const docPath = docName ? join(repoRoot, MVP_HARD, docName) : resolveLoopDoc(repoRoot, row.decade);
+    const docPath = docName ? join(repoRoot, mvpHard, docName) : resolveLoopDoc(repoRoot, row.decade);
     if (!docPath || !existsSync(docPath)) {
       violations.push(`${row.ln} (decade ${row.decade}): no single loop doc resolved (add to NO_OWN_DOC or create the decade doc)`);
       continue;
