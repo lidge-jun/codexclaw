@@ -30,6 +30,15 @@ Accepted prefixes include `$codexclaw:cxc-orchestrate`, `$cxc-orchestrate`,
 - `status` is read-only.
 - `reset` is an explicit control action, not a normal phase edge.
 
+## Per-phase artifact obligation (ORCH-ARTIFACT-01)
+
+Advancing a phase is not the same as doing it (see `pabcd` faithful-execution). Each forward
+edge must carry its real artifact, not just an `--attest` string: P = the actual diff-level plan;
+A = an audit/review verdict that names blockers; B = the implementation delta; C = fresh
+`tsc`/test/gate output (`C>D` attest requires a non-empty `checkOutput`; `exitCode` is optional
+but, if supplied, must be `0`); D = a cycle summary with evidence and the next-phase decision.
+A phase whose artifact is absent is not done, regardless of adjacency.
+
 ## Control surfaces (shipped)
 
 - **Chat (human free-pass)** — the hook parses a line-anchored `orchestrate <verb>`

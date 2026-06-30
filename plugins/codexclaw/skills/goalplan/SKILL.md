@@ -18,6 +18,28 @@ chat-local checklist.
 - Reject steering that weakens completion criteria or verification.
 - Require a quality gate before final completion.
 
+## Shipped schema (what `cxc goalplan` actually persists)
+
+This is not an abstract wish list — it is the on-disk shape under
+`.codexclaw/goalplans/<slug>/goalplan.json` (+ `ledger.jsonl`). Fill these fields; do not
+invent parallel ones:
+
+- `objective`, `slug`, `createdAt`, `updatedAt`.
+- `workPhases[]` — each `{ id, title, status: pending|in_progress|done, tasks[], criteriaIds[] }`;
+  `tasks[]` are `{ id, title, status: pending|done }`; `activeWorkPhaseId` marks the current one.
+- `criteria[]` — each `{ id, scenario, expectedEvidence, capturedEvidence, status: open|met }`.
+  A criterion only reaches `met` when `capturedEvidence` is non-empty (fresh proof, not memory).
+- `host` — `GoalplanHostLink { armed, armedAt, source: freeze|none }`. `armed` is provenance,
+  intended to read true only after a freeze-boundary arm (the MAIN session created a host goal).
+  No shipped CLI flips it automatically and codexclaw never writes the goal DB itself; treat it
+  as the slot that records that boundary, not an auto-managed flag.
+
+CLI surface: `cxc goalplan init --objective "<text>" [--session <id>]` writes the local artifact
+(never the host goal DB); `cxc goalplan show` renders it; `cxc goalplan validate` is the E8
+quality gate (FAIL unless the plan is complete AND every `met` criterion carries
+`capturedEvidence`). Ledger events: `created`, `workphase_started`, `workphase_done`,
+`task_done`, `criterion_met`, `host_armed`.
+
 ## Goal state (how it arms the loop)
 
 codexclaw does NOT own a goal store. Goal state lives in the host Codex

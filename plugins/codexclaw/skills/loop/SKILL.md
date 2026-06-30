@@ -36,6 +36,22 @@ work-phases.
   suppressed and `request_user_input` is hard-denied). The Interview is HITL-only and
   runs only with no active goal; the Stop hook never drives the Interview.
 
+## Continuation doctrine (LOOP-CONTINUE-01)
+
+The Stop hook keeps the turn alive, but the agent decides what "remaining work" means. When
+re-entering a loop or after a `D` close:
+
+- **Do not redefine the objective downward.** The success criteria recorded at P (or in the
+  bound goalplan `criteria[]`) are the bar; shrinking scope to escape the loop is not allowed.
+- **Audit completion against current repo state, not memory.** Before any `D`/completion claim,
+  inspect the actual tree/build/tests — a remembered "it passed" is not evidence (see `dev`
+  FAMILY-PROOF-01).
+- **Read durable state first.** When a goalplan is bound, use `cxc goalplan show` for the summary
+  and inspect `.codexclaw/goalplans/<slug>/goalplan.json` + `ledger.jsonl` directly for full state,
+  to recover which work-phases/criteria remain before planning the next pass.
+- **IDLE is not the end while work remains.** After `D` closes to IDLE, if any work-phase or
+  unmet criterion remains under an active goal, start the next work-phase at `P`.
+
 ## Emergence / Divergence Layer
 
 PABCD is convergence-first by default. For ordinary build or bug-fix goals, keep one
