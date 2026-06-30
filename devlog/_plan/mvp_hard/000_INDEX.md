@@ -47,7 +47,7 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 | L6 | 060 | Stop-continuation loop with omo termination guards + bounded stagnation guard | DONE |
 | L7 | 070 | `$cxc-goalplan` + `$cxc-loop` + orchestrate skill-doc reconciliation with shipped L3-L6 reality | DONE |
 | L8 | 080 | Post-loop UX hardening + truth sweep: stale docs, status ledger rows, Stop next-command wording | DONE |
-| L9 | 090 | Subagent/model hardening parity plan: live spawn-wrapper gap, slug catalog parity, operator surface policy | PLANNED |
+| L9 | 090 | Subagent/model hardening parity plan: live spawn-wrapper gap, slug catalog parity, operator surface policy; runtime implementation deferred | DONE |
 | L10 | 100 | Memory/chat/project/task/worklog parity decision: codex-native scope vs explicit non-goals | DONE |
 | L11 | 110 | Developer docs source-of-truth reconciliation + public docs website design record; website implementation remains deferred | DONE |
 | L12 | 120 | Skill-internal hardening: cxc-interview/orchestrate/loop/goalplan surfaces validated; Interview runtime capture/guard deferred | DONE |
@@ -64,6 +64,11 @@ Tests grew 223 → 281, all green; `cxc doctor` PASS.
 **L8 COMPLETE** (2026-06-30). Post-loop UX hardening removed stale shipped-state claims
 from README/structure/L5-L7 docs and replaced the Stop-continuation `<next>` placeholder
 with concrete phase-specific commands, including `cxc orchestrate reset` for D-close.
+
+**L9 COMPLETE** (2026-06-30). The subagent/model hardening parity slice is closed as a
+plan-only record: it identifies the still-missing production spawn wrapper, catalog slug
+parity, and operator CLI/provider surfaces without claiming those runtime pieces are
+shipped.
 
 **L10 COMPLETE** (2026-06-30). Memory/chat/project/task/worklog parity is now bounded
 surface-by-surface: `cxc-search` is public/current lookup, `cxc chat-search` is only a
@@ -90,6 +95,10 @@ and contradiction-rescan coordination.
   cli-jaw, jawcode, OMO/LazyCodex, opencodex, and codexclaw. Verdict: L2 core FSM/attest
   is no longer the principal gap; highest-leverage work is `$cxc-orchestrate`/`cxc orchestrate`
   state wiring, Stop continuation, then goalplan/loop and deployment/subagent parity.
+- `090_L9_subagent_model_hardening.md` — subagent/model parity implementation plan.
+  Verdict: current resolver/persistence/MCP/GUI evidence is real, but production spawn-wrapper
+  consumption, catalog slug parity, and operator CLI/provider surfaces remain deferred runtime
+  work.
 - `100_L10_memory_chat_project_worklog_parity.md` — decision boundary for cli-jaw
   memory/chat/project/task/worklog parity. Verdict: no aggregate parity claim; each surface is
   delegated to native Codex, a thin Codex runtime wrapper, project-local state, or an explicit

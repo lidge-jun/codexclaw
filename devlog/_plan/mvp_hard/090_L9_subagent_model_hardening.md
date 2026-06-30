@@ -1,6 +1,6 @@
 # L9 / 090 - Subagent/Model Hardening Parity Plan
 
-Status: PLANNED · 2026-06-30 · mvp_hard loop L9 · class C3 (subagent/model parity; docs-created, runtime deferred)
+Status: DONE (parity plan only; runtime deferred) · 2026-06-30 · mvp_hard loop L9 · class C3 (subagent/model parity; docs-created, runtime deferred)
 
 ## Goal
 
@@ -72,3 +72,24 @@ catalog parity is still incomplete.
 Independent reviewer `Helmholtz` returned **PASS**. Guardrails folded in:
 root CLI placeholders live at `bin/codexclaw.mjs`, and S8/S10 must be described as
 persistence + resolver evidence rather than proof of production spawn execution.
+
+## Completion Evidence
+
+L9 closes the parity-plan slice only. It does not implement the runtime spawn
+wrapper, slug catalog parity, or operator CLI surfaces. Those remain explicit
+follow-up slices (`L9.1` through `L9.4`) and must not be described as shipped.
+
+Fresh closure review:
+
+- `Fermat` (gpt-5.5 read-only plan audit): PASS - marking L9 as `DONE` is safe
+  when the wording remains plan-only/runtime-deferred and does not overclaim
+  implementation.
+- Stop-audit blocker resolved: `000_INDEX.md` no longer leaves the L8-L12
+  completion span with a single `PLANNED` L9 entry.
+
+Verification for this closure:
+
+- `rg -n "L9|runtime deferred|spawn wrapper|operator" devlog/_plan/mvp_hard/000_INDEX.md devlog/_plan/mvp_hard/090_L9_subagent_model_hardening.md`
+- `git diff --check`
+- `npm test`
+- `node bin/codexclaw.mjs doctor`
