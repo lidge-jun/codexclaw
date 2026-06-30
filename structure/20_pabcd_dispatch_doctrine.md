@@ -123,8 +123,11 @@ skill to the work, not by hoping the model loads it.**
 ### Honesty note (open defect)
 Today only `cxc-dev` is implicit-visible; all `dev-*` siblings are
 `allow_implicit_invocation: false`, and the spawn payload has no `items` channel. So
-routing currently collapses to "dev only" unless the agent deliberately reads further.
-The attachment mechanism is the L14 target, not shipped behavior.
+routing for the implicit-visibility surface collapses to "dev only" unless the agent
+deliberately reads further. The spawn-time attachment mechanism itself, however, HAS
+shipped: L15's E5 dispatch builder (`buildSpawnItems`/`SpawnPayload.items`) attaches the
+surface skill when a dispatcher routes through it. The one unshipped piece is the L15.2
+E3 PreToolUse hook that would attach skills deterministically without an explicit builder call.
 
 ---
 
@@ -159,17 +162,19 @@ feature — raise it against §2 first.
 
 ---
 
-## 7. Inherited gate ideas worth building (forward pointers, not yet shipped)
+## 7. Inherited gate ideas (SHIPPED as the L18 gate)
 
-cli-jaw hardens truth with mechanical gates. codexclaw should grow analogues, tracked
-as future loops (do not claim them DONE until they exist):
+cli-jaw hardens truth with mechanical gates; codexclaw grew analogues. These shipped as
+the L18 E8 gate (`plugins/codexclaw/scripts/gate.mjs` + `gate.test.mjs`, `npm run gate`):
 
-- A **capability/status freshness check** (cli-jaw `check-doc-drift.sh` /
-  `verify-counts.sh`) that fails when a SOT row diverges from code/tests.
-- A **forbidden-claims scan** (cli-jaw `CAPABILITY_TRUTH_TABLE` "Forbidden Claims")
-  that flags any "the hook enforces X" sentence lacking a live hook branch.
-- A **status-sync gate** that diffs the `mvp_hard` ledger row against each loop doc
-  header and this `structure/` SOT.
+- A **status-sync gate** that diffs each `mvp_hard` ledger row's decision-state against
+  its loop-doc `Status:` leading token (`checkStatusSync`).
+- A **forbidden-claims scan** that flags false "the hook loads/enforces X skill" sentences
+  in `skills/**/SKILL.md` and `structure/*.md` lacking a `gate-ok` escape
+  (`checkForbiddenClaims`, extended to `structure/` in L20-WP5).
+- A **count check** that fails when the manifest hook count diverges from `hooks/` on disk
+  (`checkCounts`).
 
-These are the natural next defenses against the false-DONE pattern; they are noted here
-as doctrine direction, not as implemented surfaces.
+A complementary **src↔dist freshness** check shipped separately as `dist-freshness.test.mjs`
+(L20-WP10). Remaining cli-jaw analogues not yet built (e.g. a broad capability-truth-table
+drift check beyond the above) stay doctrine direction, not implemented surfaces.

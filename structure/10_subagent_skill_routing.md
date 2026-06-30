@@ -6,7 +6,7 @@ aliases: [L14 Design, subagent skill routing, cxc skill attachment]
 
 # L14 — Subagent Skill Routing + Loop/Goal Handoff (Design SOT)
 
-Status: DESIGN (hardening; not yet implemented) · 2026-06-30
+Status: DESIGN + SHIPPED (the E5 dispatch builder shipped in L15 — `SURFACE_SKILL`/`buildSpawnItems`/`SpawnPayload.items` in `subagent-config/src/spawn-wrapper.ts`; only the L15.2 E3 PreToolUse hook remains deferred) · 2026-06-30
 
 > This is the design source of truth for the L14 hardening track. The defect
 > diagnosis with file:line evidence lives in
@@ -232,5 +232,6 @@ independent of the loop/goal handoff (14.1/14.2). The routing spine can ship fir
 
 Per the user, after the prior goal finished, the next step is to **re-run subagent
 exploration, return to the `I` phase, and surface these contradictions as questions**
-before implementing L14. So this design SOT is the input to that interview, not a
-license to start coding. Implementation waits for the interview to confirm direction.
+before implementing L14. That interview ran and the L14-L19 work then shipped (the E5
+dispatch builder landed in L15); this design SOT now records shipped behavior, with the
+L15.2 E3 PreToolUse hook as the one remaining deferred piece (see the L15.2 follow-up above).
