@@ -91,6 +91,9 @@ function makeStateTree(): string {
   // 131/D2': plural interviews/ holds per-session scan-evidence ledgers (session state).
   mkdirSync(join(sd, "interviews"), { recursive: true });
   writeFileSync(join(sd, "interviews", "s1.jsonl"), "{}\n");
+  // 030: project-local goalplan substrate.
+  mkdirSync(join(sd, "goalplans", "demo"), { recursive: true });
+  writeFileSync(join(sd, "goalplans", "demo", "goalplan.json"), "{}");
   return cwd;
 }
 
@@ -98,6 +101,7 @@ test("parseResetScope: flags map to scopes, default state", () => {
   assert.equal(parseResetScope([]), "state");
   assert.equal(parseResetScope(["--all"]), "all");
   assert.equal(parseResetScope(["--generated"]), "generated");
+  assert.equal(parseResetScope(["--goalplans"]), "goalplans");
 });
 
 test("reset --state: removes only session json + ledger, leaves interview/ intact", () => {
@@ -117,6 +121,24 @@ test("reset --generated: removes interview/ only, leaves session state", () => {
   runReset(cwd, "generated");
   assert.ok(!existsSync(join(cwd, ".codexclaw", "interview")), "interview/ should be gone");
   assert.ok(existsSync(join(cwd, ".codexclaw", "sessions", "s1.json")), "session state must survive --generated");
+});
+
+test("reset --state: leaves goalplans/ intact (a plan outlives a session reset)", () => {
+  const cwd = makeStateTree();
+  runReset(cwd, "state");
+  assert.ok(
+    existsSync(join(cwd, ".codexclaw", "goalplans", "demo", "goalplan.json")),
+    "goalplans/ must survive --state",
+  );
+});
+
+test("reset --goalplans: removes goalplans/ only, leaves session + interview state", () => {
+  const cwd = makeStateTree();
+  const r = runReset(cwd, "goalplans");
+  assert.ok(!existsSync(join(cwd, ".codexclaw", "goalplans")), "goalplans/ should be gone");
+  assert.ok(existsSync(join(cwd, ".codexclaw", "sessions", "s1.json")), "session state must survive --goalplans");
+  assert.ok(existsSync(join(cwd, ".codexclaw", "interview", "freeze.json")), "interview/ must survive --goalplans");
+  assert.equal(r.scope, "goalplans");
 });
 
 test("reset --all: removes the whole .codexclaw subtree and nothing above it", () => {

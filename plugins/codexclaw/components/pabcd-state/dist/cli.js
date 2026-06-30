@@ -22,9 +22,11 @@ import { handlePostToolUse, handleStop, handleUserPromptSubmit } from "./hook.js
 import { parsePostToolUse, parseStop, parseSubagentStop, parseUserPromptSubmit } from "./parse.js";
 import { handlePreToolUseFailClosed } from "./goal-gate.js";
 import { runSubagentStopGate } from "./subagent-evidence.js";
+import { runDivergenceCli } from "./divergence-cli.js";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.js";
 import { runMetricCli } from "./metric-cli.js";
 import { parseOrchestrateCliArgs, runOrchestrateCli } from "./orchestrate-cli.js";
+import { parseGoalplanCliArgs, runGoalplanCli } from "./goalplan-cli.js";
 
 function readStdin()         {
   try {
@@ -66,6 +68,25 @@ function main()       {
   if (kind === "metric") {
     const stdin = process.argv[3] === "ingest" ? readStdin() : "";
     const result = runMetricCli(process.argv.slice(3), process.cwd(), stdin);
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
+  // `goalplan` command path (030.2): project-local goalplan init/show/validate.
+  if (kind === "goalplan") {
+    const parsed = parseGoalplanCliArgs(process.argv.slice(3), process.cwd());
+    if ("error" in parsed) {
+      process.stderr.write(`goalplan: ${parsed.error}\n`);
+      process.exit(1);
+    }
+    const result = runGoalplanCli(parsed);
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
+  // `divergence` command path (emergence harness): project-local mode + candidate archive.
+  if (kind === "divergence") {
+    const result = runDivergenceCli(process.argv.slice(3), process.cwd());
     process.stdout.write(`${result.output}\n`);
     process.exit(result.code);
   }

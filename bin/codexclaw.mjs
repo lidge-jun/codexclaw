@@ -11,6 +11,7 @@
  *   codexclaw orchestrate         drive IPABCD state with agent-gated attest evidence
  *   codexclaw freeze              freeze the interview plan + surface the goal-activation handoff
  *   codexclaw metric              record/show objective metrics for emergence-harness loops
+ *   codexclaw divergence          record divergence mode + candidate archive state
  *   codexclaw goalplan            init/show/validate the project-local goalplan substrate
  *   codexclaw gui                 launch the codexclaw web dashboard
  *   codexclaw subagents           read/write per-role subagent model+prompt config
@@ -141,6 +142,10 @@ switch (cmd) {
     // pabcd-state CLI expects argv as [kind, ...rest]; kind === "metric".
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
+  case "divergence":
+    // pabcd-state CLI expects argv as [kind, ...rest]; kind === "divergence".
+    process.exit(runPabcdState(process.argv.slice(2)));
+    break;
   case "goalplan":
     // pabcd-state CLI expects argv as [kind, ...rest]; kind === "goalplan".
     // Project-local goalplan substrate (init/show/validate); never writes the host goal DB.
@@ -167,5 +172,5 @@ switch (cmd) {
     process.exit(runProvider());
     break;
   default:
-    console.log("codexclaw <enable|uninstall|status|orchestrate|freeze|metric|goalplan|doctor|reset|subagents|provider|gui>");
+    console.log("codexclaw <enable|uninstall|status|orchestrate|freeze|metric|divergence|goalplan|doctor|reset|subagents|provider|gui>");
 }

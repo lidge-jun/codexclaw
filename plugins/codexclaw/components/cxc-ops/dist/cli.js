@@ -34,7 +34,7 @@ export async function main(argv          , metaUrl        )                  {
       return 0;
     }
     default:
-      process.stdout.write("cxc-ops <doctor|reset [--state|--generated|--all]>\n");
+      process.stdout.write("cxc-ops <doctor|reset [--state|--generated|--goalplans|--all]>\n");
       return 0;
   }
 }

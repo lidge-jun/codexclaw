@@ -5,6 +5,9 @@
  *  - "state":     PABCD state only — .codexclaw/sessions/*.json + .codexclaw/ledger.jsonl
  *                 + .codexclaw/interviews/ (per-session scan-evidence ledgers)
  *  - "generated": generated artifacts — .codexclaw/interview/, freeze manifests
+ *  - "goalplans": project-local goalplan substrate — .codexclaw/goalplans/ (lazygap_impl 030).
+ *                 A goalplan can outlive a session reset (like a freeze manifest), so "state"
+ *                 does NOT touch it; only "goalplans" or "all" remove it.
  *  - "all":       the entire .codexclaw/ working dir
  *
  * Returns the list of removed paths so callers (and tests) can verify the blast
@@ -13,13 +16,14 @@
 import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-export type ResetScope = "state" | "generated" | "all";
+export type ResetScope = "state" | "generated" | "goalplans" | "all";
 
 const STATE_DIR = ".codexclaw";
 const SESSIONS_SUBDIR = "sessions";
 const LEDGER_FILE = "ledger.jsonl";
 const INTERVIEW_SUBDIR = "interview";
 const INTERVIEWS_SUBDIR = "interviews";
+const GOALPLANS_SUBDIR = "goalplans";
 
 export interface ResetResult {
   scope: ResetScope;
@@ -67,6 +71,13 @@ export function runReset(cwd: string, scope: ResetScope): ResetResult {
     return { scope, removed, absent };
   }
 
+  if (scope === "goalplans") {
+    // 030: project-local goalplan substrate. Distinct from session state so a plan
+    // survives a `--state` reset; removed only here or via `--all`.
+    rmIfExists(join(stateDir, GOALPLANS_SUBDIR), removed, absent);
+    return { scope, removed, absent };
+  }
+
   // scope === "generated"
   rmIfExists(join(stateDir, INTERVIEW_SUBDIR), removed, absent);
   return { scope, removed, absent };
@@ -76,6 +87,7 @@ export function runReset(cwd: string, scope: ResetScope): ResetResult {
 export function parseResetScope(args: string[]): ResetScope {
   if (args.includes("--all")) return "all";
   if (args.includes("--generated")) return "generated";
+  if (args.includes("--goalplans")) return "goalplans";
   return "state";
 }
 

@@ -22,6 +22,7 @@ import { handlePostToolUse, handleStop, handleUserPromptSubmit } from "./hook.ts
 import { parsePostToolUse, parseStop, parseSubagentStop, parseUserPromptSubmit } from "./parse.ts";
 import { handlePreToolUseFailClosed } from "./goal-gate.ts";
 import { runSubagentStopGate } from "./subagent-evidence.ts";
+import { runDivergenceCli } from "./divergence-cli.ts";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.ts";
 import { runMetricCli } from "./metric-cli.ts";
 import { parseOrchestrateCliArgs, runOrchestrateCli } from "./orchestrate-cli.ts";
@@ -79,6 +80,13 @@ function main(): void {
       process.exit(1);
     }
     const result = runGoalplanCli(parsed);
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
+  // `divergence` command path (emergence harness): project-local mode + candidate archive.
+  if (kind === "divergence") {
+    const result = runDivergenceCli(process.argv.slice(3), process.cwd());
     process.stdout.write(`${result.output}\n`);
     process.exit(result.code);
   }

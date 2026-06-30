@@ -177,10 +177,17 @@ The doc must state this explicitly so reset semantics stay predictable.
 
 ## Sub-passes
 
-- 030.1 — populate `EvidenceBundle.acceptanceCriteria` at freeze (today `freeze-cli.ts:70` seeds
-  `[]`); without this the goalplan has no criteria to seed from. Pure freeze-cli change + test.
-- 030.2 — `cxc goalplan` CLI surface (`init`/`show`/`validate`) over `goalplan.ts`; `init` is the
-  no-interview local-loop entry (the path that does not go through freeze).
+- 030.2 — `cxc goalplan` CLI surface (`init`/`show`/`validate`) over `goalplan.ts`; `init
+  --objective "<text>"` is the no-interview local-loop entry (the path that does not go through
+  freeze). This is the SHIPPABLE objective source for this cycle: `init` takes a real objective
+  string directly (not a slug placeholder), so the goalplan substrate is usable WITHOUT freeze.
+- 030.1 — DEFERRED (re-scoped per A-gate Volta). Seeding `EvidenceBundle.acceptanceCriteria` at
+  freeze is NOT a "pure freeze-cli change": the `InterviewTracker` (`interview.ts:59`) has no
+  criteria field and `freeze.objective` is itself `state.slug || sessionId` (`freeze-cli.ts:65`),
+  a placeholder — NOT captured prose. So two of the three freeze-seed inputs (objective, criteria)
+  are hollow today. Freeze→goalplan seeding requires a PRIOR "objective + criteria capture"
+  sub-pass that adds those fields to the tracker/state. Until that lands, the freeze-seed path is
+  out-of-scope; `cxc goalplan init --objective` is the supported entry. Tracked as a follow-up.
 - 030.3 — slug provenance (PREREQUISITE for 040, flagged by Kuhn A-gate). `state.slug` defaults to
   `""` (`state.ts:62`) and is only rehydrated if already persisted (`state.ts:87`); no shipped
   `writeState` sets a non-empty slug before Stop time, and `freeze-cli.ts:65` falls back to
@@ -188,6 +195,19 @@ The doc must state this explicitly so reset semantics stay predictable.
   reliable slug. 030.3 persists the slug into `state.json` at freeze/goalplan-init time (derive
   via `deriveSlug(objective)`), so Stop can resolve the goalplan dir. Until 030.3 lands, 040 must
   treat "no resolvable slug" exactly like "no goalplan" (fall back to coarse reason).
+
+## A-gate findings folded (Volta, gpt-5.5)
+
+- B1/B2 (blockers): freeze-seeding deferred — see 030.1 above. No real objective/criteria source
+  exists in the tracker or `State` today; `cxc goalplan init --objective` is the cycle's real
+  objective source instead.
+- Reset (note 4): `--goalplans` requires extending the `ResetScope` union (`reset.ts:16`),
+  `parseResetScope` (`reset.ts:76`), and the help string (`cli.ts:37`). `--state` already leaves
+  `goalplans/` untouched; `--all` already removes it. Implemented accordingly.
+- Line-drift corrections (note 8): `acceptanceCriteria:[]` is `freeze-cli.ts:74`; D-close is
+  `orchestrate-cli.ts:183`; goal-gate hard-deny is `goal-gate.ts:108-113`.
+- Confirmed clean (notes 5/6): no host-goal write path; Stop arming stays host-active-gated and
+  unchanged. Substrate design verified contradiction-free against shipped code.
 
 ## Invariants
 
