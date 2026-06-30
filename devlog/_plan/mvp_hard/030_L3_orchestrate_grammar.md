@@ -1,6 +1,6 @@
 # L3 / 030 — `$cxc-orchestrate` Grammar Parser (pass L3a)
 
-Status: P (plan) · 2026-06-30 · mvp_hard loop L3 pass A · class C3 (new contract, no persistence yet)
+Status: DONE (impl shipped + tested) · 2026-06-30 · mvp_hard loop L3 pass A · class C3 (new contract, no persistence yet)
 
 > L3 is split into two PABCD passes because it crosses a parser↔state boundary:
 > - **L3a / 030 (this doc)**: a pure grammar parser for the orchestrate command. No

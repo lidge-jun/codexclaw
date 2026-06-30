@@ -1,6 +1,6 @@
 # L2 / 020 — FSM Legal-Transition Table + Four-Transition Attest Gate
 
-Status: P (plan) · 2026-06-30 · mvp_hard loop L2 · class C3 (persistence + cross-session FSM contract)
+Status: DONE (impl shipped + tested) · 2026-06-30 · mvp_hard loop L2 · class C3 (persistence + cross-session FSM contract)
 
 > Prereq for L3 (the `$cxc-orchestrate` wire). The wire is only safe once the FSM
 > refuses illegal jumps and the attest gate covers all four forward edges.

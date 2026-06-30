@@ -1,6 +1,6 @@
 # L13 / 130 — Truthfulness + Interview Hardening Implementation Loop
 
-Status: P (plan) · 2026-06-30 · implements interview-confirmed D1'/D2'/D3'
+Status: DONE (shipped + tested) · 2026-06-30 · implements interview-confirmed D1'/D2'/D3'
 Source interview: `../260629_codexclaw_mvp/080.1_interview_contradiction_register.md` (2-round Mind rescan, 0 direction-reversal)
 
 > Three work-phases, each a full PABCD cycle. DONE = shipped + tested only.

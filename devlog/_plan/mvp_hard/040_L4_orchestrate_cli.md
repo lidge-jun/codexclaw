@@ -1,6 +1,6 @@
 # L4 / 040 — `cxc orchestrate` Terminal CLI (agent-gated path)
 
-Status: P (plan) · 2026-06-30 · mvp_hard loop L4 · class C3 (persistence, shares state with the hook)
+Status: DONE (impl shipped + tested) · 2026-06-30 · mvp_hard loop L4 · class C3 (persistence, shares state with the hook)
 
 > L3b gave the HUMAN (chat) path its free-pass wire. L4 gives the AGENT/terminal path:
 > `cxc orchestrate <verb> [--attest <json>]` over the SAME `.codexclaw` file state, but

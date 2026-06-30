@@ -6,7 +6,7 @@ codexclaw does **not** ship its own agent harness. It reuses the `codex` runtime
 
 - **dev skills** — the cli-jaw `dev-*` family normalized to Codex `SKILL.md` convention (project-agnostic discipline: architecture, debugging, testing, review, security, ...).
 - **PABCD workflow** — Plan / Audit / Build / Check / Done, reimplemented as Codex-native skills + hooks + file state (no external orchestrator server).
-- **multi-model subagents** — role-based subagents (explorer / reviewer / executor) that can run on the default model or different models.
+- **multi-model subagents** — role-based subagents (explorer / reviewer / executor). Per-role model/prompt config is persisted and resolvable today; the production wrapper that applies it to live `spawn_agent` calls is planned (L9 impl PLANNED).
 - **optional opencodex (ocx) provider bridge** — when `ocx` is installed, codexclaw detects its read-only status for catalog/link-bar context. It never runs `ocx ensure`/`sync` or mutates Codex provider config; when `ocx` is absent, codexclaw stays on the native Codex path.
 
 ## Layout
@@ -41,8 +41,9 @@ The codexclaw GUI handles subagent configuration (default model vs multi-model),
 
 ## Status
 
-MVP core is implemented and the `mvp_hard` L2-L11 parity hardening track is active:
-`cxc orchestrate` is live, chat-side phase control writes the same `.codexclaw/` state,
+MVP core is implemented and the `mvp_hard` parity hardening track is two-axis (decision vs
+impl): L2-L8 are shipped+tested; L9/L11/L12 are decision-closed with implementation PLANNED;
+L10 is a decision loop. `cxc orchestrate` is live, chat-side phase control writes the same `.codexclaw/` state,
 the IPABCD footer/status affordance is wired, and the Stop-continuation loop runs under
 an active Codex goal with a bounded stagnation guard. See `devlog/_plan/` for the shipped
 ledger and remaining hardening slices.

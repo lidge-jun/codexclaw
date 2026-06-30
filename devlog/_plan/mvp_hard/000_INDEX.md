@@ -37,25 +37,29 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 
 ## Loop ledger — L1.. (filled as research lands)
 
-| Ln | decade | scope | status |
-|----|--------|-------|--------|
-| L1 | 010 | Parity audit: cli-jaw/jawcode/omo vs codexclaw, `$`+hook UX gap map | DONE |
-| L2 | 020 | FSM legal-transition table + four-transition attest gate | DONE |
-| L3 | 030 | `$cxc-orchestrate` grammar (030/L3a) + hook wiring to `transition()` — the missing wire (031/L3b) | DONE |
-| L4 | 040 | `cxc orchestrate` CLI over the same file state (agent-gated path) | DONE |
-| L5 | 050 | `status` / `reset` / `D` chat affordances + phase footer directive + ledger-on-transition | DONE |
-| L6 | 060 | Stop-continuation loop with omo termination guards + bounded stagnation guard | DONE |
-| L7 | 070 | `$cxc-goalplan` + `$cxc-loop` + orchestrate skill-doc reconciliation with shipped L3-L6 reality | DONE |
-| L8 | 080 | Post-loop UX hardening + truth sweep: stale docs, status ledger rows, Stop next-command wording | DONE |
-| L9 | 090 | Subagent/model hardening parity plan: live spawn-wrapper gap, slug catalog parity, operator surface policy; runtime implementation deferred | DONE |
-| L10 | 100 | Memory/chat/project/task/worklog parity decision: codex-native scope vs explicit non-goals | DONE |
-| L11 | 110 | Developer docs source-of-truth reconciliation + public docs website design record; website implementation remains deferred | DONE |
-| L12 | 120 | Skill-internal hardening: cxc-interview/orchestrate/loop/goalplan surfaces validated; Interview runtime capture/guard deferred | DONE |
-| L20 | 200 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | PROPOSED |
+| Ln | decade | scope | decision-state | impl-state |
+|----|--------|-------|----------------|-----------|
+| L1 | 010 | Parity audit: cli-jaw/jawcode/omo vs codexclaw, `$`+hook UX gap map | DONE | DONE |
+| L2 | 020 | FSM legal-transition table + four-transition attest gate | DONE | DONE |
+| L3 | 030 | `$cxc-orchestrate` grammar (030/L3a) + hook wiring to `transition()` — the missing wire (031/L3b) | DONE | DONE |
+| L4 | 040 | `cxc orchestrate` CLI over the same file state (agent-gated path) | DONE | DONE |
+| L5 | 050 | `status` / `reset` / `D` chat affordances + phase footer directive + ledger-on-transition | DONE | DONE |
+| L6 | 060 | Stop-continuation loop with omo termination guards + bounded stagnation guard | DONE | DONE |
+| L7 | 070 | `$cxc-goalplan` + `$cxc-loop` + orchestrate skill-doc reconciliation with shipped L3-L6 reality | DONE | DONE |
+| L8 | 080 | Post-loop UX hardening + truth sweep: stale docs, status ledger rows, Stop next-command wording | DONE | DONE |
+| L9 | 090 | Subagent/model hardening parity plan: live spawn-wrapper gap, slug catalog parity, operator surface policy | DONE | PLANNED |
+| L10 | 100 | Memory/chat/project/task/worklog parity decision: codex-native scope vs explicit non-goals (chat-search retired L13/WP1) | DONE | DONE |
+| L11 | 110 | Developer docs source-of-truth reconciliation + public docs website design record | DONE | PLANNED |
+| L12 | 120 | Skill-internal hardening: cxc-* surfaces validated; continuous-Interview runtime (JSONL scan-evidence + I→P soft-gate shipped in L13/WP2; PostToolUse answer capture pending) | DONE | PLANNED |
+| L13 | 130 | Truthfulness + interview hardening: chat-search retire (WP1), scan-evidence + soft-gate (WP2), 2-axis status (WP3) | DONE | DONE |
+| L20 | 200 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | ANALYZED | PLANNED |
 
 ## Track status
 
-**mvp_hard parity track L2-L7 COMPLETE** (2026-06-30). The cli-jaw `$ + hook` PABCD
+**mvp_hard parity track — control surface SHIPPED, hardening track ongoing** (2026-06-30).
+Status is two-axis (decision-state | impl-state); `DONE` impl means shipped + tested.
+L2-L8 are impl-DONE; L9/L11/L12 are decision-DONE with impl PLANNED; L10 is a decision loop
+(decision DONE). The cli-jaw `$ + hook` PABCD
 control-surface gap from the L1 audit is closed: FSM adjacency + 4-edge attest gate (L2),
 chat `$cxc-orchestrate` wire (L3), agent-gated `cxc orchestrate` CLI (L4), phase footer +
 chat D-close (L5), bounded Stop-continuation loop (L6), and skill-doc reconciliation (L7).
@@ -65,28 +69,31 @@ Tests grew 223 → 281, all green; `cxc doctor` PASS.
 from README/structure/L5-L7 docs and replaced the Stop-continuation `<next>` placeholder
 with concrete phase-specific commands, including `cxc orchestrate reset` for D-close.
 
-**L9 COMPLETE** (2026-06-30). The subagent/model hardening parity slice is closed as a
-plan-only record: it identifies the still-missing production spawn wrapper, catalog slug
-parity, and operator CLI/provider surfaces without claiming those runtime pieces are
-shipped.
+**L9 — decision DONE, impl PLANNED** (2026-06-30). The subagent/model hardening parity slice is
+closed as a plan-only record: it identifies the still-missing production spawn wrapper, catalog
+slug parity, and operator CLI/provider surfaces. Those runtime pieces are NOT shipped (no
+production wrapper consumes the role resolver at `spawn_agent` time), so impl-state is PLANNED.
 
-**L10 COMPLETE** (2026-06-30). Memory/chat/project/task/worklog parity is now bounded
+**L10 — decision DONE** (2026-06-30). Memory/chat/project/task/worklog parity is now bounded
 surface-by-surface: `cxc-search` is public/current lookup, `cxc chat-search` was RETIRED
 (D1', L13/WP1) because Codex app-server `thread/search` has no native CLI/agent surface to
 wrap and a self-implemented wrapper crosses the L10 "native-only" boundary, tasks map to
 native `update_plan`, project state is repo-local `.codexclaw/`, and work evidence remains
-devlog plus PABCD ledger.
+devlog plus PABCD ledger. This was a decision/boundary loop; the decision shipped and no
+deferred runtime remains in its scope, so impl-state is DONE.
 
-**L11 COMPLETE** (2026-06-30). The developer-docs website artifact remains a research/design
-record, not a shipped docs-site. Source-of-truth wording was reconciled with the current
-runtime: live `cxc orchestrate`, Stop continuation, on-demand `cxc-*` skills, detect-only
-provider bridge, and real subagent MCP tools.
+**L11 — decision DONE, impl PLANNED** (2026-06-30). The developer-docs website artifact remains a
+research/design record, NOT a shipped docs-site (no astro/starlight build exists), so impl-state
+is PLANNED. Source-of-truth wording was reconciled with the current runtime: live `cxc
+orchestrate`, Stop continuation, on-demand `cxc-*` skills, detect-only provider bridge, and real
+subagent MCP tools.
 
-**L12 COMPLETE** (2026-06-30). The `cxc-interview`, `cxc-orchestrate`, `cxc-loop`, and
-`cxc-goalplan` skill surfaces are validated as existing Codex-native on-demand skills.
-Remaining continuous-Interview runtime work is explicitly deferred to L13+: PostToolUse
-answer capture, `.codexclaw/interviews/<sessionId>.jsonl`, narrow I-phase Stop guard,
-and contradiction-rescan coordination.
+**L12 — decision DONE, impl PLANNED (partially shipped via L13/WP2)** (2026-06-30). The
+`cxc-interview`, `cxc-orchestrate`, `cxc-loop`, and `cxc-goalplan` skill surfaces are validated as
+existing Codex-native on-demand skills. L13/WP2 SHIPPED part of the continuous-Interview runtime:
+`.codexclaw/interviews/<sessionId>.jsonl` scan-evidence ledger, `scanRounds` readiness gate, and
+the I→P soft-gate with override audit. Still PLANNED: `PostToolUse` answer capture (no PostToolUse
+hook exists yet) and a narrow I-phase Stop guard — so impl-state stays PLANNED until those land.
 
 ## Research result
 

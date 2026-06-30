@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>codexclaw roadmap</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel-2: #1c232d;
+    --border: #2a323d;
+    --border-strong: #3a4552;
+    --text: #e6edf3;
+    --muted: #9aa7b4;
+    --faint: #6e7d8c;
+    --accent: #3b82f6;
+    --done: #2ea043;
+    --done-bg: #16321f;
+    --planned: #d29922;
+    --planned-bg: #2e2611;
+    --proposed: #8957e5;
+    --proposed-bg: #241a36;
+    --deferred: #6e7d8c;
+    --deferred-bg: #1b222b;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Pretendard, "Apple SD Gothic Neo", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 32px 24px 64px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  header.page { border-bottom: 1px solid var(--border); padding-bottom: 20px; margin-bottom: 24px; }
+  h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: 0; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0; }
+  .meta { color: var(--faint); font-family: var(--mono); font-size: 12px; margin-top: 10px; }
+
+  .summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .stat .n { font-family: var(--mono); font-size: 24px; font-weight: 600; }
+  .stat .l { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .stat.done .n { color: var(--done); }
+  .stat.planned .n { color: var(--planned); }
+  .stat.proposed .n { color: var(--proposed); }
+  .stat.deferred .n { color: var(--deferred); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+  .badge {
+    font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0;
+    padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-strong);
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .badge.done { color: var(--done); background: var(--done-bg); }
+  .badge.planned { color: var(--planned); background: var(--planned-bg); }
+  .badge.proposed { color: var(--proposed); background: var(--proposed-bg); }
+  .badge.deferred { color: var(--deferred); background: var(--deferred-bg); }
+
+  section.track { margin-bottom: 36px; }
+  .track-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .track-head h2 { font-size: 16px; margin: 0; font-family: var(--mono); }
+  .track-head .tag { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+  .track-desc { color: var(--muted); font-size: 13px; margin: 0 0 16px; max-width: 80ch; }
+
+  .cluster { margin-bottom: 18px; }
+  .cluster h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); margin: 0 0 8px; font-weight: 600; }
+
+  .rows { display: flex; flex-direction: column; gap: 6px; }
+  .row {
+    display: grid; grid-template-columns: 64px 60px 1fr auto; align-items: center; gap: 14px;
+    background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--border-strong);
+    border-radius: 6px; padding: 9px 14px;
+  }
+  .row.done { border-left-color: var(--done); }
+  .row.planned { border-left-color: var(--planned); }
+  .row.proposed { border-left-color: var(--proposed); }
+  .row.deferred { border-left-color: var(--deferred); opacity: 0.82; }
+  .row .ln { font-family: var(--mono); font-weight: 600; font-size: 13px; }
+  .row .dec { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+  .row .slug { font-size: 13px; }
+  .row .slug .note { color: var(--muted); font-size: 12px; }
+
+  footer.page { border-top: 1px solid var(--border); margin-top: 32px; padding-top: 16px; color: var(--faint); font-size: 12px; }
+  footer.page code { font-family: var(--mono); color: var(--muted); }
+
+  @media (max-width: 640px) {
+    body { padding: 20px 14px 48px; }
+    .row { grid-template-columns: 52px 1fr; grid-template-areas: "ln slug" "dec badge"; row-gap: 6px; }
+    .row .ln { grid-area: ln; }
+    .row .dec { grid-area: dec; }
+    .row .slug { grid-area: slug; }
+    .row .badge { grid-area: badge; justify-self: start; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <h1>codexclaw roadmap</h1>
+    <p class="sub">Single Codex plugin: IPABCD FSM + dev-skill discipline + multi-model subagents + optional ocx detect-only + GUI. Two planning tracks, loop-ordered.</p>
+    <p class="meta">source: devlog/_plan/mvp_res/000_INDEX.md + devlog/_plan/mvp_hard/000_INDEX.md &middot; 2026-06-30</p>
+  </header>
+
+  <div class="summary">
+    <div class="stat done"><div class="n">37</div><div class="l">impl DONE (shipped + tested)</div></div>
+    <div class="stat planned"><div class="n">4</div><div class="l">decision DONE / impl PLANNED</div></div>
+    <div class="stat proposed"><div class="n">1</div><div class="l">backlog (ANALYZED)</div></div>
+    <div class="stat deferred"><div class="n">2</div><div class="l">DEFERRED</div></div>
+  </div>
+
+  <div class="legend">
+    <span class="badge done">DONE</span>
+    <span class="badge planned">PLANNED</span>
+    <span class="badge planned">IMPL PLANNED</span>
+    <span class="badge deferred">DEFERRED</span>
+  </div>
+
+  <section class="track">
+    <div class="track-head">
+      <h2>mvp_res</h2>
+      <span class="tag">codex-native MVP &middot; loop-ordered</span>
+    </div>
+    <p class="track-desc">The shipped MVP track: state management, dev-skill injection, interview completion, skill real-content porting, expansion ops, and Phase 2 multi-model + GUI. L1-L28 DONE; Phase 3 + channel delivery deferred.</p>
+
+    <div class="cluster">
+      <h3>Phase 1 &mdash; MVP core (L1-L7 + hardening)</h3>
+      <div class="rows">
+        <div class="row done"><span class="ln">L1</span><span class="dec">010</span><span class="slug">IPABCD state engine (state.ts + fsm.ts, session-scoped)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L2</span><span class="dec">020</span><span class="slug">Directive-injection hook (UserPromptSubmit + passive Stop)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L3</span><span class="dec">030</span><span class="slug">Goal budget gate (PreToolUse ^create_goal$ deny)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L4</span><span class="dec">040</span><span class="slug">dev-* router skills (13 skills, recipe = dev-debugging)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L5</span><span class="dec">050</span><span class="slug">Subagent roles (explorer / reviewer / executor)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L6</span><span class="dec">060</span><span class="slug">Install / activation (codex features enable wrapper + revert)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L7</span><span class="dec">070</span><span class="slug">Build aggregation + Phase-1 verification gate (S1-S5)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L1.4</span><span class="dec">014</span><span class="slug">IDLE/complete closed state + structural attest enforcement</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L3.4</span><span class="dec">034</span><span class="slug">Narrow PreToolUse matcher to ^create_goal$ (R-10)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L2.4</span><span class="dec">024</span><span class="slug">Transcript-marker idempotency + context-pressure suppression</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L2.5</span><span class="dec">025</span><span class="slug">R-12: PostCompact/SubagentStop not required for MVP</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L6.4</span><span class="dec">064</span><span class="slug">R-13: install-bootstrap boundary (codex owns hook-trust)</span><span class="badge done">DONE</span></div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <h3>Cluster 1 &mdash; IPABCD interview completion (L8-L11)</h3>
+      <div class="rows">
+        <div class="row done"><span class="ln">L8</span><span class="dec">080</span><span class="slug">Interview state schema + readiness FSM</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L9</span><span class="dec">090</span><span class="slug">5-Mind contradiction dispatcher (subagent contradiction-only)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L10</span><span class="dec">100</span><span class="slug">Question generator + auto-mode + freeze &rarr; goal</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L11</span><span class="dec">110</span><span class="slug">goal-mode interview hard deny (PreToolUse)</span><span class="badge done">DONE</span></div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <h3>Cluster 2 &mdash; Skill real-content porting (L12-L19)</h3>
+      <div class="rows">
+        <div class="row done"><span class="ln">L12</span><span class="dec">120</span><span class="slug">dev hub + pabcd real-content port (always-on discipline core)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L13</span><span class="dec">130</span><span class="slug">dev-architecture + dev-debugging</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L14</span><span class="dec">140</span><span class="slug">dev-backend + dev-data</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L15</span><span class="dec">150</span><span class="slug">dev-frontend + dev-uiux-design</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L16</span><span class="dec">160</span><span class="slug">dev-testing + dev-code-reviewer</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L17</span><span class="dec">170</span><span class="slug">dev-security + dev-devops + dev-scaffolding</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L18</span><span class="dec">180</span><span class="slug">Unified search hub + Korean search intent guard (on-demand)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L19</span><span class="dec">190</span><span class="slug">skill_hub rewrite (default trigger = dev only)</span><span class="badge done">DONE</span></div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <h3>Cluster 3 &mdash; Expansion ops (L20-L22)</h3>
+      <div class="rows">
+        <div class="row done"><span class="ln">L20</span><span class="dec">200</span><span class="slug">cli-jaw command &rarr; codex-native mapping (doctor/reset/chat-search)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L21</span><span class="dec">210</span><span class="slug">Subagent role .toml + diagnostics/ops</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L22</span><span class="dec">220</span><span class="slug">Code intelligence (ast-grep adopt; lsp/codegraph deferred)</span><span class="badge done">DONE</span></div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <h3>Cluster 4 &mdash; Phase 2 multi-model + GUI (L23-L28)</h3>
+      <div class="rows">
+        <div class="row done"><span class="ln">L23</span><span class="dec">230</span><span class="slug">Provider bridge (ocx detect-only / graceful skip)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L24</span><span class="dec">240</span><span class="slug">Subagent config store (.codexclaw/subagents.json)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L25</span><span class="dec">250</span><span class="slug">Model catalog (ocx catalog + main = n+1)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L26</span><span class="dec">260</span><span class="slug">GUI scaffold (Vite + React, layout-ref only)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L27</span><span class="dec">270</span><span class="slug">GUI subagent page (role &rarr; model+prompt) + 10100 link bar</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L28</span><span class="dec">280</span><span class="slug">Phase 2 integration + verification (S6-S10)</span><span class="badge done">DONE</span></div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <h3>Cluster 5-6 &mdash; Phase 3 + deferred (L29-L31)</h3>
+      <div class="rows">
+        <div class="row deferred"><span class="ln">L29</span><span class="dec">290</span><span class="slug">Scheduler mechanism + <span class="note">cxc schedule</span> CLI + job store</span><span class="badge deferred">DEFERRED</span></div>
+        <div class="row deferred"><span class="ln">L30</span><span class="dec">300</span><span class="slug">Result delivery + Phase 3 verification</span><span class="badge deferred">DEFERRED</span></div>
+        <div class="row planned"><span class="ln">L31</span><span class="dec">310</span><span class="slug">Channel delivery (telegram / discord)</span><span class="badge planned">PLANNED</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="track">
+    <div class="track-head">
+      <h2>mvp_hard</h2>
+      <span class="tag">parity hardening &middot; follows mvp_res</span>
+    </div>
+    <p class="track-desc">Closes the gap between codexclaw's <code>$</code>-mention + hook UX and the cli-jaw / jawcode <code>orchestrate</code> state-control surface, without re-adding a server. L2-L7 parity complete (tests 223 &rarr; 281 green); L8-L12 hardening + decisions done; only install/deploy hardening proposed.</p>
+
+    <div class="cluster">
+      <h3>Parity control surface (L1-L7)</h3>
+      <div class="rows">
+        <div class="row done"><span class="ln">L1</span><span class="dec">010</span><span class="slug">Parity audit: cli-jaw/jawcode/omo vs codexclaw, <span class="note">$</span>+hook UX gap map</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L2</span><span class="dec">020</span><span class="slug">FSM legal-transition table + four-transition attest gate</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L3</span><span class="dec">030</span><span class="slug">$cxc-orchestrate grammar + hook wiring to transition()</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L4</span><span class="dec">040</span><span class="slug">cxc orchestrate CLI over file state (agent-gated path)</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L5</span><span class="dec">050</span><span class="slug">status / reset / D chat affordances + phase footer + ledger</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L6</span><span class="dec">060</span><span class="slug">Stop-continuation loop with omo termination + stagnation guards</span><span class="badge done">DONE</span></div>
+        <div class="row done"><span class="ln">L7</span><span class="dec">070</span><span class="slug">$cxc-goalplan + $cxc-loop + orchestrate skill-doc reconciliation</span><span class="badge done">DONE</span></div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <h3>Post-parity hardening + decisions (L8-L12)</h3>
+      <div class="rows">
+        <div class="row done"><span class="ln">L8</span><span class="dec">080</span><span class="slug">Post-loop UX hardening + truth sweep (stale docs, status ledger, Stop wording)</span><span class="badge done">DONE</span></div>
+        <div class="row planned"><span class="ln">L9</span><span class="dec">090</span><span class="slug">Subagent/model hardening plan (spawn-wrapper gap, slug catalog parity)</span><span class="badge done">DECISION DONE</span><span class="badge planned">IMPL PLANNED</span></div>
+        <div class="row done"><span class="ln">L10</span><span class="dec">100</span><span class="slug">Memory/chat/project/task/worklog parity decision: scope vs non-goals (chat-search retired)</span><span class="badge done">DECISION DONE</span></div>
+        <div class="row planned"><span class="ln">L11</span><span class="dec">110</span><span class="slug">Developer docs SoT reconciliation + website design record</span><span class="badge done">DECISION DONE</span><span class="badge planned">IMPL PLANNED</span></div>
+        <div class="row planned"><span class="ln">L12</span><span class="dec">120</span><span class="slug">Skill-internal hardening; continuous-Interview JSONL + soft-gate shipped (L13/WP2), PostToolUse capture pending</span><span class="badge done">DECISION DONE</span><span class="badge planned">IMPL PLANNED</span></div>
+        <div class="row done"><span class="ln">L13</span><span class="dec">130</span><span class="slug">Truthfulness + interview hardening: chat-search retire, scan-evidence + soft-gate, 2-axis status</span><span class="badge done">DONE</span></div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <h3>Backlog</h3>
+      <div class="rows">
+        <div class="row planned"><span class="ln">L20</span><span class="dec">200</span><span class="slug">Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests</span><span class="badge proposed">ANALYZED</span><span class="badge planned">IMPL PLANNED</span></div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="page">
+    Hand-maintained from the canonical loop ledgers (mvp_res + mvp_hard); not auto-generated, so
+    treat the ledgers as source of truth. Status is two-axis: a <code>DECISION DONE</code> badge means
+    the decision/plan is closed; an <code>IMPL PLANNED</code> badge means code is not yet shipped.
+    Legend: <code>DONE</code> shipped + tested, <code>PLANNED</code> decisions resolved / impl pending,
+    <code>ANALYZED</code> researched backlog, <code>DEFERRED</code> intentionally postponed.
+  </footer>
+</div>
+</body>
+</html>
