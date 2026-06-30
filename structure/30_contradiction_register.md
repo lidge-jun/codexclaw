@@ -30,7 +30,7 @@ Severity legend: **HIGH** = false capability or false-DONE that misleads executi
 | A3 | RESOLVED (L14) | ~~`loop/SKILL.md`: Stop blocks only on "concrete pending work"~~ | FIXED 2026-06-30: loop SKILL now describes the coarse state-signal guard (goal + in-flight + stagnation), not a content check |
 | A4 | HIGH | `interview/SKILL.md:25-32`: `PostToolUse` auto-capture is "planned runtime / until that runtime lands" | `cli.ts:81-90`, `hook.ts:419-439`: CLI already dispatches `post-tool-use` to `handlePostToolUse`, which captures `request_user_input` results — shipped, not planned |
 | A5 | MED | `pabcd/SKILL.md:16`: interview trigger covers "요구사항 정리", "스펙 정리해줘", "any variation" | `hook.ts:64-75`: `detectTrigger()` I-branch matches only `interview`, `인터뷰`, `orchestrate i` |
-| A6 | HIGH | `dev/SKILL.md:3,119-134`: `cxc-dev` routes to `dev-*` routers by surface | all `dev-*/agents/openai.yaml:5` are `allow_implicit_invocation:false`; only `dev/agents/openai.yaml:5` is `true` — no config-level auto-routing/loading exists |
+| A6 | RESOLVED (L15+L16) | ~~`cxc-dev` routes to `dev-*` but no enforcement~~ | FIXED 2026-06-30: L16 made the dev routing table STRICT (DEV-ROUTE-01: MUST read the router before writing) and documented the E6 dev-only-implicit decision; L15 pre-loads the matching `cxc-*` skill as a subagent spawn attachment. Routing is now a STRICT main-agent rule + a subagent attachment, not weak prose. (No hook enforces skill load — `00_philosophy.md` §1 — so the main-agent side is self-enforced wording.) |
 
 Cluster verdict: the skill prose describes an *enforced* loop/interview runtime that the
 hooks do not implement. This is the central L14 honesty gap (`20_pabcd_dispatch_doctrine.md`
@@ -69,6 +69,7 @@ let an INDEX impl-DONE outrun the loop doc's own "no runtime shipped" admission.
 | C7 | LOW | `structure/INDEX.md` (pre-fix) "manifest wires five hook JSON files" | `plugin.json:20-26` declares six (adds `post-tool-use-capturing-interview-answers.json`) — fixed in INDEX 2026-06-30 |
 | C8 | MED | build compiles every `src/*.ts` -> `dist/*.js` (`build.mjs:62,68,74`) and `.gitignore:2` ignores `dist/` | only a subset of `dist/` is git-tracked; several runtime `dist/*.js` that `bin`/`hook` load are untracked — packaging relies on a local build, not the repo |
 | C9 | LOW | component test surface looks uniform | root `package.json:23` globs all test dirs, but only `config-guard`/`cxc-ops`/`pabcd-state` have a package-local `test` script; `provider-bridge`/`subagent-config` do not |
+| C10 | LOW (flaky) | `subagent-config/test/mcp.test.ts:57` MCP stdio roundtrip assumed reliable | times out (~8s) when the full `npm test` runs concurrently with `npm run build` (process/IO contention). Single-file + standalone `npm test` runs are green (5/5, 332/332). Real but environmental; candidate for an explicit timeout or build/test serialization in the L18 gate work. |
 
 Cluster verdict: the dead-code rows (C1-C6) are mostly the *same* L14 story — wrappers,
 minds/triage/rescan helpers, and the goal-activation directive were built as tested pure

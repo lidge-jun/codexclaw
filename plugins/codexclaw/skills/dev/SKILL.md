@@ -118,8 +118,19 @@ or `dev-frontend` production checklists) condition on this definition.
 
 ## Companion Skills
 
-This skill covers universal guidelines. For domain-specific work, also read the matching
-router skill's `SKILL.md` before writing code in that surface:
+This skill covers universal guidelines. **STRICT (DEV-ROUTE-01): you MUST read the
+matching `dev-*` router `SKILL.md` before writing code in that surface.** Routing is not
+optional discovery — for any change whose surface appears below, reading that router's
+`SKILL.md` (its routing table; references only when the change needs that depth) is a
+precondition for writing code there. Skipping it is a STRICT violation (dev §0.2), the
+same severity as a broken build. When a change spans multiple surfaces, read each
+matching router first.
+
+Why this is wording, not a runtime gate: no Codex hook fires on skill load (see
+`structure/00_philosophy.md` §1), so the main agent self-enforces this STRICT rule. For
+SUBAGENT dispatches the rule is additionally pre-loaded as an attachment — the L15
+spawn-wrapper attaches the matching `cxc-*` skill to the spawn `items` so the subagent
+launches with the discipline already loaded (`structure/10`).
 
 | Skill File | Routes When (surface) | Covers |
 | ---------- | --------------------- | ------ |
@@ -134,6 +145,15 @@ router skill's `SKILL.md` before writing code in that surface:
 | `dev-uiux-design/SKILL.md` | Vague design direction, onboarding/empty/error UX | Intent discovery, design vocabulary, product personalities, typography, layout patterns |
 | `dev-scaffolding/SKILL.md` | New project/feature setup, structural audit, docs generation | Scaffolding, colocation, barrel export, documentation generation |
 | `pabcd/SKILL.md` | Multi-phase planning, interview-first discovery, gated execution | PABCD workflow, phase gates, interview flow |
+
+**Visibility decision (E6, L16):** only `cxc-dev` is implicit-visible
+(`allow_implicit_invocation: true`); every `dev-*` router stays on-demand. This is a
+deliberate context-budget trade — auto-rendering all 13 routers into every turn would
+crowd the window — so the STRICT routing rule above (read the router before writing) is
+how the right surface skill gets loaded, not always-on visibility. Each `dev-*` router
+still carries a strong `MUST USE for <surface>` frontmatter trigger, so it loads on
+explicit mention or trigger match. Re-evaluate promotion only if a single surface proves
+high-traffic enough to justify its always-on cost.
 
 ### Skill Ownership Map
 
