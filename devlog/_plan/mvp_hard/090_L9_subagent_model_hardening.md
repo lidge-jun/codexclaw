@@ -1,6 +1,6 @@
 # L9 / 090 - Subagent/Model Hardening Parity Plan
 
-Status: DONE (parity plan only; runtime deferred) · 2026-06-30 · mvp_hard loop L9 · class C3 (subagent/model parity; docs-created, runtime deferred)
+Status: DONE (parity plan + runtime shipped via 091/092/093) · 2026-06-30 · mvp_hard loop L9 · class C3 (subagent/model parity; this doc was the plan, runtime later shipped in the 09x sub-loops)
 
 ## Goal
 

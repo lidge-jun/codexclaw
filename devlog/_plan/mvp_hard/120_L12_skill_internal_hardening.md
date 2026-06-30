@@ -1,6 +1,6 @@
 # L12 / 120 - Skill Internal Hardening + Continuous Interview Contract
 
-Status: DONE (skill surfaces validated; Interview runtime deferred) - 2026-06-30 - mvp_hard loop L12
+Status: DONE (skill surfaces validated; Interview runtime shipped via 121/122) - 2026-06-30 - mvp_hard loop L12
 
 > L11 is already occupied by developer docs + website planning. This loop uses
 > L12 to avoid overwriting that track. Install/deploy/npx/symlink work is moved
