@@ -22,6 +22,7 @@ import { parseOrchestrateCommand } from "./orchestrate-grammar.js";
 import { applyHumanTransition } from "./orchestrate-apply.js";
 import { captureInterviewAnswers } from "./interview-ledger.js";
 import { MIND_DISPATCH_DIRECTIVE } from "./minds.js";
+import { checkObjectivePlateau, readObjectiveKind,                   } from "./metrics.js";
 
 
 
@@ -394,6 +395,8 @@ function handleOrchestrateCommand(
 
 /** L6 — max consecutive Stop blocks at the SAME phase before the loop releases. */
 export const MAX_STOP_BLOCKS = 3;
+export const PLATEAU_METRIC_RECORDS = 2;
+export const PLATEAU_NOISE_FLOOR = 0;
 
 const STOP_NEXT_COMMAND                                 = {
   I: '`cxc orchestrate P --attest \'{"from":"I","to":"P","did":"interview complete with recorded requirements"}\'`',
@@ -418,6 +421,30 @@ export function buildStopBlock(phase       )         {
     "C→D requires checkOutput+exitCode. D is not a resting state; close the cycle back to IDLE.",
   ].join("\n");
   return `${JSON.stringify({ decision: "block", reason })}\n`;
+}
+
+export function buildPlateauDivergeBlock(phase       , plateau              )         {
+  const label = STAGE_LABELS[phase] ?? phase;
+  const values = plateau.values.length > 0 ? plateau.values.join(" -> ") : "n/a";
+  const reason = [
+    `[codexclaw — objective plateau] You are mid-cycle at ${phase} (${label}) with an active maximize goal.`,
+    `The latest ${PLATEAU_METRIC_RECORDS} ${plateau.metricName ?? "objective"} metric value(s) are non-improving: ${values}.`,
+    "Step back and re-plan with divergence: record at least two grounded candidate approaches, choose the collapse point, then continue PABCD.",
+    "Do not ask the user while the goal is active; record assumptions or an unresolved-tie note for later review.",
+  ].join("\n");
+  return `${JSON.stringify({ decision: "block", reason })}\n`;
+}
+
+function objectivePlateau(cwd        , sessionId        )               {
+  try {
+    if (readObjectiveKind(cwd, sessionId) !== "maximize") return { flat: false, metricName: null, values: [] };
+    return checkObjectivePlateau(cwd, sessionId, {
+      minRecords: PLATEAU_METRIC_RECORDS,
+      noiseFloor: PLATEAU_NOISE_FLOOR,
+    });
+  } catch {
+    return { flat: false, metricName: null, values: [] };
+  }
 }
 
 /**
@@ -455,6 +482,8 @@ export function handleStop(payload             )         {
     return "";
   }
   writeState(payload.cwd, { ...state, stopBlockPhase: state.phase, stopBlockCount: nextCount });
+  const plateau = objectivePlateau(payload.cwd, payload.session_id);
+  if (plateau.flat) return buildPlateauDivergeBlock(state.phase, plateau);
   return buildStopBlock(state.phase);
 }
 

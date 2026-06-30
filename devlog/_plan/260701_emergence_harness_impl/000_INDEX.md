@@ -47,9 +47,9 @@ decade before its prereqs land.
 
 | WP | decade | scope | design src | strongest tier | depends on | impl-state |
 | --- | --- | --- | --- | --- | --- | --- |
-| 010 | 010 | objective-metric state substrate (`State`/ledger + `cxc` verb + tests) | `001`,`005` L2 | E2-ready substrate + E8 | — | PLANNED |
-| 015 | 015 | objective-kind signal (satisfy vs maximize) | `006` | E7 (read by E2 in 020) | — | PLANNED |
-| 020 | 020 | plateau->diverge Stop lever | `005` L3,`006` | **E2 (the key lever)** | 010, 015 | PLANNED |
+| 010 | 010 | objective-metric state substrate (`metrics.jsonl` + `cxc metric` + tests) | `001`,`005` L2 | E2-ready substrate + E8 | — | DONE |
+| 015 | 015 | objective-kind signal (explicit tag or session-scoped metrics -> maximize) | `006` | E7 (read by E2 in 020) | — | DONE |
+| 020 | 020 | plateau->diverge Stop lever | `005` L3,`006` | **E2 (the key lever)** | 010, 015 | DONE |
 | 030 | 030 | divergence-mode + collapse-point doctrine | `004`,`006`,`007` | E7 + persisted state | 010,015,020 | PLANNED |
 | 040 | 040 | N>=2 grounded generation via cxc-search | `007` | E7 | 030 | PLANNED |
 | 045 | 045 | harness-first (`evaluate.sh`) before any candidate | `004` | E7 doctrine + E2 feed | 010,015 | PLANNED |

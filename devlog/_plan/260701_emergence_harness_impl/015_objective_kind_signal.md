@@ -1,6 +1,6 @@
 # 015 — Objective-Kind Signal (satisfy vs maximize)
 
-Status: PLANNED (no code yet) · 2026-07-01 · emergence_harness_impl WP 015 · class C3 (state/runtime)
+Status: DONE (shipped + tested) · 2026-07-01 · emergence_harness_impl WP 015 · class C3 (state/runtime)
 
 > Design source: `../260701_emergence_harness/006` (satisfy vs maximize). A-phase audit finding #1:
 > this signal MUST precede decade 020 — the Stop lever and decade 030's doctrine both gate on
@@ -21,15 +21,17 @@ gate, so ordinary build work would wrongly inherit divergence cost.
 - `goal-active.ts:16-18`: only `active` counts; `inactive`/`unreadable` semantics already fixed.
 - The hook layer reads goal status read-only; this decade adds a parallel read-only objective-kind,
   with NO new write path to the native goal DB (Q-GM-1-f: codexclaw does not own a goal marker).
-- Decade 010 metric substrate: presence of a recorded metric / `evaluate.sh` is the inference signal.
+- Decade 010 metric substrate: presence of a recorded metric for the SAME session is the inference
+  signal. A cwd-level `evaluate.sh` alone is NOT enough because it can be stale across goals.
 
 ## Design (diff-level)
 
-1. 015.1 — define the objective-kind signal `"satisfy" | "maximize"`. Two sources (resolve in P):
-   - explicit: a project-local tag in `.codexclaw/` (e.g. `objective_kind` set by a `cxc` verb or
-     the goalplan skill), OR
-   - inferred: `maximize` when a decade-010 metric or an `evaluate.sh` exists, else `satisfy`.
-   `satisfy` is the DEFAULT so ordinary build work pays zero divergence overhead.
+1. 015.1 — define the objective-kind signal `"satisfy" | "maximize"`. Shipped sources:
+   - explicit: a project-local tag in `.codexclaw/objective-kind/<session>.json`, set by
+     `cxc metric kind --session <id> satisfy|maximize`, OR
+   - inferred: `maximize` when decade-010 has a metric for the SAME session, else `satisfy`.
+   `satisfy` is the DEFAULT so ordinary build work pays zero divergence overhead. A standalone
+   `evaluate.sh` file does not flip objective-kind; it must first feed a session metric.
 2. 015.2 — surface it to the hook layer read-only, alongside goal status, so decade 020 can gate
    on it without writing the native goal DB.
 3. 015.3 — the discriminator is project-local state only; never derived from the goal-DB row.
@@ -63,9 +65,10 @@ gate, so ordinary build work would wrongly inherit divergence cost.
 - C: build + unit + gate.
 - D: close, commit `feat(emergence-015): objective-kind signal`, `goal update`.
 
-## Open Q
+## Closed decision
 
-Explicit tag vs inferred-from-`evaluate.sh` — which is the default source of truth?
+Explicit tag wins. Otherwise, only session-scoped metric history infers `maximize`; no global
+`evaluate.sh` inference, because a stale harness in the cwd can misclassify a later satisfy goal.
 
 ## Depends on / feeds
 

@@ -1,6 +1,6 @@
 # 010 — Objective-Metric State Substrate (E2-ready)
 
-Status: PLANNED (no code yet) · 2026-07-01 · emergence_harness_impl WP 010 · class C3 (state/runtime)
+Status: DONE (shipped + tested) · 2026-07-01 · emergence_harness_impl WP 010 · class C3 (state/runtime)
 
 > Design source: `../260701_emergence_harness/001` + `005` L2. Diagnosis register:
 > `structure/50_emergence_gap.md` root cause #1 (no objective-delta memory). This is the
@@ -25,13 +25,12 @@ number to compare against a prior number. This is the structural reason PABCD on
 
 ## Design (diff-level)
 
-1. 010.1 — add an objective-metric record. Two candidate shapes (resolve in P):
-   - (a) a sibling `.codexclaw/metrics.jsonl` append-only log:
+1. 010.1 — add an objective-metric record. Chosen shape:
+   - a sibling `.codexclaw/metrics.jsonl` append-only log:
      `{ ts, sessionId, workPhaseId, metric_name, value, baseline, best, source }`.
-   - (b) an optional field on the work-phase ledger entry.
    `source` ∈ `{ "operator-entered", "evaluate.sh" }` (remote judge -> operator-entered, the
-   honest limit from the diagnosis). Recommended start: (a), so metric history is independent of
-   transition cadence and survives a fresh context as its own file.
+   honest limit from the diagnosis). Metric history is independent of transition cadence and
+   survives a fresh context as its own file.
 2. 010.2 — a `cxc` CLI verb (e.g. `cxc metric record --name <n> --value <v>` / `cxc metric show`)
    to write/read per work-phase: operator types remote scores; a local harness pipes
    `METRIC name=value` (fed automatically by decade 045).
@@ -70,9 +69,10 @@ number to compare against a prior number. This is the structural reason PABCD on
 - C: build idempotent + unit + gate; capture tails.
 - D: close to IDLE, commit `feat(emergence-010): objective-metric state substrate`, `goal update`.
 
-## Open Q
+## Closed decision
 
-Separate `.codexclaw/metrics.jsonl` vs a field on the work-phase ledger entry? (Recommended: a.)
+Use separate `.codexclaw/metrics.jsonl`, not a field on the transition ledger. Reason: metric
+history has its own cadence and must be reconstructable independently from phase transitions.
 
 ## Depends on / feeds
 

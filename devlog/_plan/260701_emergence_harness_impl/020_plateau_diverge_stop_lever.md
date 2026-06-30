@@ -1,6 +1,6 @@
 # 020 — Plateau->Diverge Stop Lever (the one true E2)
 
-Status: PLANNED (no code yet) · 2026-07-01 · emergence_harness_impl WP 020 · class C3 (hook/runtime) · **E2**
+Status: DONE (shipped + tested) · 2026-07-01 · emergence_harness_impl WP 020 · class C3 (hook/runtime) · **E2**
 
 > Design source: `../260701_emergence_harness/005` L3 + `006` (plateau switch). Diagnosis register:
 > `50_emergence_gap.md` root cause #1/#3. This is the SINGLE genuine runtime lever in the whole
@@ -28,14 +28,14 @@ diverge. This decade makes a flat true metric arm a "diverge / step-back / re-pl
 ## Design (diff-level)
 
 1. 020.1 — in `handleStop`, when objective-kind (015) is `maximize` AND the last N recorded
-   metrics (010) show no improvement above a noise floor, inject a "diverge / step-back / re-PLAN"
+   same-session/same-metric rows (010) show no improvement above a noise floor, inject a "diverge / step-back / re-PLAN"
    directive instead of a plain continuation block. Keep the `MAX_STOP_BLOCKS` cap as the safety
    floor so the loop still can never trap.
    - re-interview is FORBIDDEN under an active goal (`hook.ts:254`, `goal-gate.ts:38`). The in-goal
      directive is re-PLAN only. True re-interview requires pausing/closing the goal first — state
      that in the directive; do NOT emit an interview/ask directive mid-goal.
-2. 020.2 — threshold config: `N` (default 2, matching "after 2 non-improving submissions") + a
-   noise floor so within-noise deltas count as flat.
+2. 020.2 — threshold config: `N=2` (`PLATEAU_METRIC_RECORDS`) + `noiseFloor=0`
+   (`PLATEAU_NOISE_FLOOR`), so equal/falling metric rows count as flat.
 3. 020.3 — satisfy-spec goals never arm (no metric -> the branch is unreachable), so ordinary
    build work is untouched.
 
@@ -73,9 +73,11 @@ diverge. This decade makes a flat true metric arm a "diverge / step-back / re-pl
 - C: build + unit + gate; capture tails.
 - D: close, commit `feat(emergence-020): plateau->diverge Stop lever (E2)`, `goal update`.
 
-## Open Q
+## Closed decision
 
-arm-divergence threshold vs force-re-diverge threshold — same `N` or different?
+The first shipped lever uses one threshold: `N=2`, same-session/same-metric, noise floor `0`.
+Re-diverge escalation can become a later loop if operator evidence says equal/falling twice is
+too twitchy or too slow.
 
 ## Depends on / feeds
 

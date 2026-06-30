@@ -23,6 +23,7 @@ import { parsePostToolUse, parseStop, parseSubagentStop, parseUserPromptSubmit }
 import { handlePreToolUseFailClosed } from "./goal-gate.js";
 import { runSubagentStopGate } from "./subagent-evidence.js";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.js";
+import { runMetricCli } from "./metric-cli.js";
 import { parseOrchestrateCliArgs, runOrchestrateCli } from "./orchestrate-cli.js";
 
 function readStdin()         {
@@ -57,6 +58,14 @@ function main()       {
       process.exit(1);
     }
     const result = runOrchestrateCli(parsed);
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
+  // `metric` command path (emergence harness): record/show true-objective metrics.
+  if (kind === "metric") {
+    const stdin = process.argv[3] === "ingest" ? readStdin() : "";
+    const result = runMetricCli(process.argv.slice(3), process.cwd(), stdin);
     process.stdout.write(`${result.output}\n`);
     process.exit(result.code);
   }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,6 +18,7 @@ import {
 } from "../src/hook.ts";
 import { GOALS_DB_FILENAME } from "../src/goal-active.ts";
 import { defaultState, readState, writeState } from "../src/state.ts";
+import { recordObjectiveMetric, writeObjectiveKind } from "../src/metrics.ts";
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -374,6 +375,67 @@ test("L6: progress resets the stagnation counter (phase change re-arms the budge
       // now blocking at C starts a fresh count.
       handleStop(stop(cwd, "b6"));
       assert.equal(readState(cwd, "b6").stopBlockCount, 1);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("emergence 020: flat maximize metric arms a diverge re-plan Stop block", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "flat1", status: "active" }], () => {
+      midCycle(cwd, "flat1", "B");
+      recordObjectiveMetric(cwd, { sessionId: "flat1", metricName: "score", value: 10, source: "operator-entered" });
+      recordObjectiveMetric(cwd, { sessionId: "flat1", metricName: "score", value: 10, source: "operator-entered" });
+      const out = handleStop(stop(cwd, "flat1"));
+      const parsed = JSON.parse(out.trim());
+      assert.equal(parsed.decision, "block");
+      assert.match(parsed.reason, /objective plateau/);
+      assert.match(parsed.reason, /divergence/);
+      assert.doesNotMatch(parsed.reason, /request_user_input/);
+      assert.equal(readState(cwd, "flat1").stopBlockCount, 1);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("emergence 020: improving maximize metric keeps normal continuation", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "up1", status: "active" }], () => {
+      midCycle(cwd, "up1", "B");
+      recordObjectiveMetric(cwd, { sessionId: "up1", metricName: "score", value: 10, source: "operator-entered" });
+      recordObjectiveMetric(cwd, { sessionId: "up1", metricName: "score", value: 11, source: "operator-entered" });
+      const reason = JSON.parse(handleStop(stop(cwd, "up1")).trim()).reason;
+      assert.match(reason, /continue PABCD/);
+      assert.doesNotMatch(reason, /objective plateau/);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("emergence 020: explicit satisfy objective never arms plateau divergence", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "sat1", status: "active" }], () => {
+      midCycle(cwd, "sat1", "B");
+      writeObjectiveKind(cwd, "sat1", "satisfy");
+      recordObjectiveMetric(cwd, { sessionId: "sat1", metricName: "score", value: 10, source: "operator-entered" });
+      recordObjectiveMetric(cwd, { sessionId: "sat1", metricName: "score", value: 10, source: "operator-entered" });
+      const reason = JSON.parse(handleStop(stop(cwd, "sat1")).trim()).reason;
+      assert.match(reason, /continue PABCD/);
+      assert.doesNotMatch(reason, /objective plateau/);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("emergence 020: malformed metric ledger fails open to normal continuation", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "badmetric", status: "active" }], () => {
+      midCycle(cwd, "badmetric", "B");
+      mkdirSync(join(cwd, ".codexclaw"), { recursive: true });
+      writeFileSync(join(cwd, ".codexclaw", "metrics.jsonl"), "{not json}\n", { flag: "a" });
+      const reason = JSON.parse(handleStop(stop(cwd, "badmetric")).trim()).reason;
+      assert.match(reason, /continue PABCD/);
+      assert.doesNotMatch(reason, /objective plateau/);
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

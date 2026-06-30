@@ -23,7 +23,9 @@ import { parsePostToolUse, parseStop, parseSubagentStop, parseUserPromptSubmit }
 import { handlePreToolUseFailClosed } from "./goal-gate.ts";
 import { runSubagentStopGate } from "./subagent-evidence.ts";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.ts";
+import { runMetricCli } from "./metric-cli.ts";
 import { parseOrchestrateCliArgs, runOrchestrateCli } from "./orchestrate-cli.ts";
+import { parseGoalplanCliArgs, runGoalplanCli } from "./goalplan-cli.ts";
 
 function readStdin(): string {
   try {
@@ -57,6 +59,26 @@ function main(): void {
       process.exit(1);
     }
     const result = runOrchestrateCli(parsed);
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
+  // `metric` command path (emergence harness): record/show true-objective metrics.
+  if (kind === "metric") {
+    const stdin = process.argv[3] === "ingest" ? readStdin() : "";
+    const result = runMetricCli(process.argv.slice(3), process.cwd(), stdin);
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
+  // `goalplan` command path (030.2): project-local goalplan init/show/validate.
+  if (kind === "goalplan") {
+    const parsed = parseGoalplanCliArgs(process.argv.slice(3), process.cwd());
+    if ("error" in parsed) {
+      process.stderr.write(`goalplan: ${parsed.error}\n`);
+      process.exit(1);
+    }
+    const result = runGoalplanCli(parsed);
     process.stdout.write(`${result.output}\n`);
     process.exit(result.code);
   }
