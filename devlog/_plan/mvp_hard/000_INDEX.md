@@ -42,7 +42,7 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 | L1 | 010 | Parity audit: cli-jaw/jawcode/omo vs codexclaw, `$`+hook UX gap map | DONE | DONE |
 | L1.1 | 011 | cli-jaw 10-surface parity matrix (engine PARITY/stricter; server surfaces intentional non-goals; loop⇄goal defect -> L14) | DONE | DONE |
 | L2 | 020 | FSM legal-transition table + four-transition attest gate | DONE | DONE |
-| L3 | 030 | `$cxc-orchestrate` grammar (030/L3a) + hook wiring to `transition()` — the missing wire (031/L3b) | DONE | DONE |
+| L3 | 030 | `$cxc-orchestrate` grammar (030/L3a) + hook wiring via `applyHumanTransition()` — the missing wire (031/L3b) | DONE | DONE |
 | L4 | 040 | `cxc orchestrate` CLI over the same file state (agent-gated path) | DONE | DONE |
 | L5 | 050 | `status` / `reset` / `D` chat affordances + phase footer directive + ledger-on-transition | DONE | DONE |
 | L6 | 060 | Stop-continuation loop with omo termination guards + bounded stagnation guard | DONE | DONE |
@@ -65,8 +65,9 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 
 **mvp_hard parity track — control surface SHIPPED, hardening track ongoing** (2026-06-30).
 Status is two-axis (decision-state | impl-state); `DONE` impl means shipped + tested.
-L2-L8 are impl-DONE; L9/L11/L12 are decision-DONE with impl PLANNED; L10 is a decision loop
-(decision DONE). The cli-jaw `$ + hook` PABCD
+L2-L10 and L12 are impl-DONE (L9 runtime shipped via 091/092/093; L12 runtime via 121/122).
+L11 is decision-DONE with impl PLANNED (the docs website itself is not built). L10 was a
+decision loop (decision DONE). The cli-jaw `$ + hook` PABCD
 control-surface gap from the L1 audit is closed: FSM adjacency + 4-edge attest gate (L2),
 chat `$cxc-orchestrate` wire (L3), agent-gated `cxc orchestrate` CLI (L4), phase footer +
 chat D-close (L5), bounded Stop-continuation loop (L6), and skill-doc reconciliation (L7).
@@ -115,9 +116,9 @@ guarded). The originally-planned narrow I-phase Stop guard was DROPPED — it ha
   is no longer the principal gap; highest-leverage work is `$cxc-orchestrate`/`cxc orchestrate`
   state wiring, Stop continuation, then goalplan/loop and deployment/subagent parity.
 - `090_L9_subagent_model_hardening.md` — subagent/model parity implementation plan.
-  Verdict: current resolver/persistence/MCP/GUI evidence is real, but production spawn-wrapper
-  consumption, catalog slug parity, and operator CLI/provider surfaces remain deferred runtime
-  work.
+  Verdict: resolver/persistence/MCP/GUI evidence is real; the once-deferred runtime then shipped —
+  production spawn-wrapper consumption (091), catalog slug parity (092), and operator CLI/provider
+  surfaces (093, `cxc subagents`/`cxc provider`) are all live + tested.
 - `100_L10_memory_chat_project_worklog_parity.md` — decision boundary for cli-jaw
   memory/chat/project/task/worklog parity. Verdict: no aggregate parity claim; each surface is
   delegated to native Codex, a thin Codex runtime wrapper, project-local state, or an explicit
@@ -154,5 +155,6 @@ guarded). The originally-planned narrow I-phase Stop guard was DROPPED — it ha
   → `.codexclaw/` state model (created this loop).
 - **Continuous Interview**: I phase is main-session-owned. Subagents find contradiction/question
   candidates only; the main session asks via `request_user_input`, records answers, and reruns
-  contradiction scans. Runtime answer capture will use `PostToolUse` and a session-scoped
-  `.codexclaw/interviews/<sessionId>.jsonl` ledger; Stop guard blocks only pending/high I-phase work.
+  contradiction scans. Runtime answer capture is shipped via the `PostToolUse` hook into a
+  session-scoped `.codexclaw/interviews/<sessionId>.jsonl` ledger; the Stop hook releases at
+  phase=I (the I-phase block guard was dropped — no valid domain; see 122_L12.2).

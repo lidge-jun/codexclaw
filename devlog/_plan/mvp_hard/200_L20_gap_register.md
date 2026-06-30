@@ -19,15 +19,15 @@ Status: PLANNED (gap scan DONE; remediation in PABCD work-phases) · 2026-06-30 
 | G5 | RESOLVED (WP4) | wiring | `components/subagent-config/src/catalog.ts` `readNativeCacheDefault` | FIXED 2026-06-30 (user-steered): the real gap was the cache reader hard-filtering to 4 `NATIVE_OPENAI_MODELS`, DROPPING the routed `provider/model` slugs opencodex syncs into the codex config cache. Now admits routed slugs (contain "/") + labels them `ocx`. codexclaw reads codex config (never calls ocx live) — matches user intent "read opencodex's synced config, don't dynamically detect ocx". mcp.ts:9 + catalog_list docs corrected. |
 | G6 | RESOLVED (WP4) | doc/correctness | `gui/src/server/handlers.ts` | FIXED 2026-06-30: GUI already wires `detectOcx()` mode; `ocxModels: undefined` on the provider input is CORRECT by design — ocx models arrive via the native cache (opencodex→codex config sync), not a live ocx call. Reworded the stub comment to state this. The catalog reader fix (G5) is what actually surfaces ocx-synced models. Not a live-HTTP gap. |
 | G7 | RESOLVED (WP5) | gate gap | `scripts/gate.mjs` checkForbiddenClaims | FIXED 2026-06-30: scan now covers `structure/*.md` (declared SOT) in addition to `skills/**/SKILL.md`. Added line-local NEGATION + META exemptions so denied claims ("No hook enforces skill load") and cited examples are not false-flagged. Kant A-gate confirmed the only 2 live structure hits are both negation/meta. Tests: "SCANS structure/*.md and FIRES", "does NOT flag NEGATED or META". |
-| G8 | HIGH | doc/SoT | `devlog/_plan/mvp_hard/000_INDEX.md:68` | canonical two-axis summary still says L9/L11/L12 are decision-DONE/impl-PLANNED, contradicting the same table's `L9|DONE|DONE` and `L12|DONE|DONE` rows → top-level SoT internally false. |
+| G8 | RESOLVED (WP6) | doc/SoT | `000_INDEX.md:68` | FIXED 2026-06-30: prose now reads "L2-L10 and L12 are impl-DONE (L9 via 091/092/093, L12 via 121/122); L11 is decision-DONE/impl-PLANNED". Matches the ledger rows. Cicero (gpt-5.4) A-gate confirmed only L11 is DONE\|PLANNED. |
 | G9 | RESOLVED (WP3) | false-claim | `dev/SKILL.md:3` frontmatter | FIXED 2026-06-30: "enforces" → "defines … (agent-followed, not hook-enforced)". Hubble confirmed no E1/E2/E8 backs skill-load; honest E7 wording now. |
-| G10 | MED | stale doc | `122_L12.2...md:87` | acceptance still claims "pending question blocks at I / handleStop returns block", but the I-phase Stop guard was dropped and shipped code releases at phase=I (L17 firewall). |
-| G11 | MED | stale doc | `structure/INDEX.md:197` CLI Surface | omits live `cxc freeze` (bin dispatches it at :131). |
-| G12 | MED | stale doc | `structure/INDEX.md:219` + `100_L10...md:42` | project-state map omits `.codexclaw/interview/freeze.json` + `.codexclaw/interviews/` runtime paths. |
-| G13 | MED | stale doc | `100_L10...md:64,79` | L10 evidence anchors cite deleted `cxc-ops/src/chat-search.ts` + a verification contract expecting retired `chat-search unavailable` behavior. |
-| G14 | MED | stale doc | `110_L11...md:99,100,102,350` | "Current command reality" still calls subagents/provider CLI placeholder + interview runtime planned + bin header lists chat-search (all shipped/retired since). |
-| G15 | MED | stale doc | `132_L13.2...md:22,26,38` | two-axis migration doc still lists L9/L12 as DONE|PLANNED + requires roadmap.html reconciliation (no roadmap.html in repo). |
-| G16 | MED | doc/INDEX | `000_INDEX.md:45` | L3 row claims "hook wiring to transition()" but shipped path uses applyHumanTransition(); naming overclaim. |
+| G10 | RESOLVED (WP6) | stale doc | `122_L12.2...md:87` | FIXED 2026-06-30: row reworded to "Pending question detected (pure helper) → hasPendingInterviewWork pending:true (NOT a Stop block — handleStop releases at phase=I)". Matches `hook.ts:419` and the same table's "handleStop unchanged" row. |
+| G11 | RESOLVED (WP6) | stale doc | `structure/INDEX.md:197` CLI Surface | FIXED 2026-06-30: added the `cxc freeze` row (delegates to pabcd-state CLI; writes `.codexclaw/interview/freeze.json`). |
+| G12 | RESOLVED (WP6) | stale doc | `structure/INDEX.md:219` | FIXED 2026-06-30: State Model tree now includes `interview/freeze.json` + `interviews/<sessionId>.jsonl`, with a prose paragraph describing each (freeze.ts / interview-ledger.ts). |
+| G13 | RESOLVED (WP6) | stale doc | `100_L10...md:64,79` | FIXED 2026-06-30: chat-search row marked RETIRED; dead `chat-search.ts` anchor marked REMOVED; `transition.ts` source anchor corrected to `fsm.ts`+`appendLedger()`; verification contract now asserts chat-search is GONE (`! rg 'case "chat-search"'`, `test ! -f .../chat-search.ts`) instead of invoking it. Assertions pass. |
+| G14 | RESOLVED (WP6) | stale doc | `110_L11...md:82,99,100,102,121,350` | FIXED 2026-06-30: "Live root commands" now lists `freeze`/`subagents`/`provider`; placeholder list reduced to L11 website + L20 packaging with a "shipped since" note (091/092/093, 121/122); state-reality list adds the two interview paths; the ":350" history snapshot annotated as superseded. |
+| G15 | RESOLVED (WP6) | stale doc | `132_L13.2...md:22,26,44` | FIXED 2026-06-30: L9/L12 lines annotated "DONE\|PLANNED at this L13 pass — SINCE SHIPPED to DONE\|DONE (091/092/093, 121/122)"; §4 corrected to note `roadmap.html` EXISTS (Cicero flagged the absent-premise) and only L11 keeps IMPL PLANNED; §5 stale `Status: P` claim annotated as already-fixed history. roadmap.html badges + counters updated (L9/L12→DONE; done 37→39, planned 4→2). |
+| G16 | RESOLVED (WP6) | doc/INDEX | `000_INDEX.md:45` | FIXED 2026-06-30: L3 row now "hook wiring via `applyHumanTransition()`". Also fixed the same overclaim in `031_L3.1...md:7` (chat path described as `applyHumanTransition()`, not `transition()`) — Cicero additional finding. |
 | G17 | RESOLVED (WP3) | stale doc | `skills/loop/SKILL.md` + `skills/goalplan/SKILL.md` | FIXED 2026-06-30: reworded to "the hook does not move phases AUTONOMOUSLY; it persists a transition only in response to an explicit chat orchestrate command". Matches handleUserPromptSubmit→applyHumanTransition. |
 | G18 | RESOLVED (WP3) | stale doc | `skills/pabcd/SKILL.md:96` | FIXED 2026-06-30: now "shipped append-only Interview Q/A capture ledger, written by the PostToolUse request_user_input hook". |
 | G19 | MED | test gap | hooks/*.json (5 of 6) | only `user-prompt-submit` has a manifest-path e2e (build.test.mjs:87); Stop/PreToolUse×2/PostToolUse/SessionStart hook entrypoints have no e2e through `dist/cli.js hook <event>`. |
@@ -48,6 +48,19 @@ ranked, and routed to a real work-phase (not lost). Each carries its origin and 
 
 > Note: F2 and G23 are the same defect; G23 stays the canonical row, F2 records the prose origin
 > so the `180...md:46` follow-up is no longer orphaned. F1 complements G19 (test coverage).
+
+## WP6 extra findings (Cicero A-gate, folded into the WP6 fix)
+
+The A-gate explorer surfaced contradictions beyond G8/G10-G16, all in the same doc set; fixed in WP6:
+
+- `000_INDEX.md:117` — L9 prose said operator CLI/provider surfaces "remain deferred runtime work";
+  reworded to "shipped + tested (091/092/093, `cxc subagents`/`cxc provider`)".
+- `000_INDEX.md:155` — said answer capture "will use PostToolUse" and "Stop guard blocks pending/high
+  I-phase work"; reworded to "shipped via PostToolUse; Stop releases at phase=I (block guard dropped)".
+- `031_L3.1...md:7` — chat path described as `transition()`; corrected to `applyHumanTransition()`.
+- `132_L13.2...md:44` — claimed `020/030/031/040` say `Status: P`; those headers are now `DONE`,
+  so the line is annotated as historical drift, already fixed.
+- `roadmap.html` — L9/L12 carried stale `IMPL PLANNED` badges; corrected to `DONE` + counters synced.
 
 ## Remediation work-phase plan (each = 1 full PABCD cycle)
 

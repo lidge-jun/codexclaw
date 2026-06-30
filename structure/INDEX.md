@@ -204,6 +204,7 @@ though they have no package-local `test` script. This asymmetry is intentional, 
 | `cxc chat-search` | RETIRED (D1', L13/WP1) | removed; native `thread/search` has no CLI/agent surface = non-goal; use `cxc-search` |
 | `cxc gui` | `plugins/codexclaw/gui` via `npm run dev` | starts the Vite dashboard when deps exist |
 | `cxc orchestrate` | `components/pabcd-state/dist/cli.js orchestrate` | agent-gated terminal phase control over the same `.codexclaw/` session files |
+| `cxc freeze` | `components/pabcd-state/dist/cli.js freeze` | freezes the interview plan + writes the goal-activation handoff manifest at `.codexclaw/interview/freeze.json` |
 | `cxc subagents` | `components/subagent-config/dist/cli.js` (list/get/set) | reads/writes the per-role `.codexclaw/subagents.json` model+prompt config |
 | `cxc provider` | `components/provider-bridge/dist/cli.js` (detect) | read-only ocx provider detect/status; never mutates provider state |
 
@@ -222,6 +223,10 @@ Runtime project state is file-based and rooted at the working directory:
     <sessionId>.json
   ledger.jsonl
   subagents.json
+  interview/
+    freeze.json
+  interviews/
+    <sessionId>.jsonl
 ```
 
 `sessions/<id>.json` follows the `State` shape from `components/pabcd-state/src/state.ts`: `phase`, `sessionId`, `slug`, `updatedAt`, `flags`, `supersededBy`, `injectedTurns`, `lastInjectedPhase`, `orchestrationActive`, and `interview`. Reads are strict reconstruction: unknown fields are dropped, invalid phase values fall back to default state, and the interview flag is derived from the normalized interview tracker.
@@ -233,6 +238,8 @@ phase transitions append transition entries; the Stop hook itself only blocks/re
 continuation and does not append ledger spam on every Stop event.
 
 `subagents.json` is owned separately by `components/subagent-config/src/store.ts` and stores role-level model/prompt selection. It is not part of the PABCD phase session JSON.
+
+`interview/freeze.json` is the per-session interview-plan freeze manifest written by `cxc freeze` (`components/pabcd-state/src/freeze.ts`); on a plan-hash mismatch the plan must be re-frozen before proceeding. `interviews/<sessionId>.jsonl` is the append-only Interview ledger shared by the `PostToolUse` Q/A capture hook and the contradiction-scan evidence rows (`components/pabcd-state/src/interview-ledger.ts`, `state.ts`).
 
 ---
 

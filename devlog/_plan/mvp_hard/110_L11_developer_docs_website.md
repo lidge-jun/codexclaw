@@ -86,6 +86,9 @@ Live root commands:
 - `doctor`
 - `reset`
 - ~~`chat-search`~~ (RETIRED L13/WP1 — use the `cxc-search` skill; kept here struck-through for history)
+- `freeze`
+- `subagents`
+- `provider`
 - `gui`
 
 Live control surfaces:
@@ -96,11 +99,13 @@ Live control surfaces:
 - `$cxc-goalplan` / `$cxc-loop` skill contracts
 
 Placeholder or planned areas:
-- `subagents` CLI
-- `provider` CLI
-- deeper L9 spawn-wrapper/operator surface work
-- L12+ Interview runtime ledger/capture/guard work
+- L11 developer docs website (the docs site itself is not built; impl PLANNED)
 - L20 install/deploy/npx packaging work
+
+Shipped since this doc's first draft (no longer placeholder):
+- `subagents` CLI (L9.3/093) and `provider` CLI (L9.3/093) are live
+- L9 spawn-wrapper/operator surface shipped (091/092/093)
+- L12 Interview runtime ledger/capture/guard shipped (121/122; the I-phase Stop block guard was dropped — no valid domain)
 
 Docs must distinguish shipped control surfaces from remaining placeholder/runtime-deferred
 areas.
@@ -122,6 +127,8 @@ State docs must use:
 - `.codexclaw/sessions/<sessionId>.json`
 - `.codexclaw/ledger.jsonl`
 - `.codexclaw/subagents.json`
+- `.codexclaw/interview/freeze.json` (interview-plan freeze manifest; shipped 121/122)
+- `.codexclaw/interviews/<sessionId>.jsonl` (Interview Q/A capture + scan-evidence ledger; shipped 121/122)
 
 Avoid stale `.codexclaw/state.json` language.
 
@@ -349,6 +356,8 @@ Resolved in this L11 reconciliation pass:
 - `README.md` provider bridge wording now says detect-only / graceful native path.
 - `bin/codexclaw.mjs` header now lists live `doctor`, `reset`, `chat-search`, and
   `orchestrate` delegations and keeps `subagents` / `provider` as placeholders.
+  (Superseded since: `chat-search` was later RETIRED in L13/WP1, and `subagents`/`provider`/`freeze`
+  shipped as live cases in L9.3/093 — the current bin header reflects that, not this snapshot.)
 - `plugins/codexclaw/hooks/session-start-ensuring-provider-bridge.json` status text now
   says detecting, not ensuring.
 - `plugins/codexclaw/components/subagent-config/src/mcp.ts` header now matches the

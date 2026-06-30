@@ -37,7 +37,7 @@ Codex-native replacement.
 | Surface | codexclaw in-scope | Explicitly out of scope |
 |---|---|---|
 | Memory | Native Codex memory, when the host runtime exposes it. codexclaw does not wrap or store it. | No `cxc memory`; no `memory search/read/save/context`; no `.codexclaw/memory`; no dashboard or cross-instance federation. |
-| Chat search | `cxc chat-search "<query>" [--limit N]` as a read-only wrapper over Codex app-server `thread/search`. | No local chat indexer; no chat database; no fallback to `cli-jaw chat search`; no hidden app-server startup; no dashboard chat federation. |
+| Chat search | RETIRED (D1', L13/WP1): the `cxc chat-search` wrapper and `cxc-ops/src/chat-search.ts` were removed. Codex's native `thread/search` has no codexclaw CLI/agent surface (non-goal); use the `cxc-search` skill for public-web lookups instead. | No `cxc chat-search`; no local chat indexer; no chat database; no fallback to `cli-jaw chat search`; no hidden app-server startup; no dashboard chat federation. |
 | Public/current search | `cxc-search` skill for external, current, real-time, and public-web lookup discipline. | Not a memory or chat search tool; no cli-jaw progrok/web-AI/Exa/Tavily/Perplexity/Brave provider promise. |
 | Project root | Resolve from the active repo/cwd and write project-local `.codexclaw/sessions/<id>.json`, `.codexclaw/ledger.jsonl`, `.codexclaw/subagents.json`. | No global `cxc project set/list/clear`; no codexclaw server-side project registry; no durable project selection outside the repo. |
 | Tasks | Use Codex `update_plan` for current-turn planning and progress visibility. | No `cxc task`; no `.codexclaw/tasks.json`; no owner assignment, ordering DAG, cross-session task list, or dashboard task board. |
@@ -60,12 +60,12 @@ persistent task store are allowed only in explicit OUT/future/deferred sections.
 ## Evidence Anchors
 
 - Task mapping decision: `devlog/_plan/mvp_res/201_L20.1_task_update_plan_mapping.md`
-- Chat wrapper decision: `devlog/_plan/mvp_res/204_L20.4_cxc_chat_search_wrapper.md`
-- Chat wrapper source: `plugins/codexclaw/components/cxc-ops/src/chat-search.ts`
+- Chat wrapper decision (now RETIRED): `devlog/_plan/mvp_res/204_L20.4_cxc_chat_search_wrapper.md`
+- Chat wrapper source: REMOVED (was `plugins/codexclaw/components/cxc-ops/src/chat-search.ts`; retired D1', L13/WP1)
 - Search skill scope: `plugins/codexclaw/skills/search/SKILL.md`
 - Architecture/state source: `structure/INDEX.md`
 - PABCD state source: `plugins/codexclaw/components/pabcd-state/src/state.ts`
-- PABCD ledger source: `plugins/codexclaw/components/pabcd-state/src/transition.ts`
+- PABCD transition/ledger source: `plugins/codexclaw/components/pabcd-state/src/fsm.ts` (`transition()`/`nextPhase()`) + `appendLedger()` in `state.ts`
 
 ## Verification Contract
 
@@ -77,7 +77,9 @@ rg -n "L10|100_L10_memory_chat_project_worklog_parity" devlog/_plan/mvp_hard/000
 rg -n 'No `cxc memory`|thread/search|No local chat indexer|project-local `.codexclaw/`|No `cxc task`|PABCD transition ledger' devlog/_plan/mvp_hard/100_L10_memory_chat_project_worklog_parity.md
 ! rg -n 'case "(memory|task|project|worklog)"|cxc (memory|task|project|worklog)' bin/codexclaw.mjs plugins/codexclaw/components
 node --test plugins/codexclaw/components/cxc-ops/test/cxc-ops.test.ts
-CODEX_APP_SERVER_URL=http://127.0.0.1:1 node bin/codexclaw.mjs chat-search "codexclaw"
+# chat-search retired (D1', L13/WP1): assert it is GONE, not callable
+! rg -n 'case "chat-search"' bin/codexclaw.mjs
+test ! -f plugins/codexclaw/components/cxc-ops/src/chat-search.ts
 git diff --check
 ```
 
