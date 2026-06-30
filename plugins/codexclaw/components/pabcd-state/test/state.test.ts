@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync, readdirSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync, readdirSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -294,6 +294,33 @@ test("131: appendInterviewEvent writes parseable scan events; readInterviewEvent
     assert.ok(existsSync(join(cwd, STATE_DIR, INTERVIEWS_SUBDIR, "iv.jsonl")));
     // missing session -> []
     assert.deepEqual(readInterviewEvents(cwd, "nope"), []);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("G3 (L20): readInterviewEvents returns scan-only rows from a MIXED ledger (Q/A rows ignored)", () => {
+  const cwd = freshCwd();
+  try {
+    // a real session interleaves Q/A capture rows and scan rows in the SAME file.
+    appendInterviewEvent(cwd, { ts: new Date().toISOString(), sessionId: "mix", event: "scan_started", roundId: 1, contradictionCount: 2, highContradictionCount: 1 });
+    const file = join(cwd, STATE_DIR, INTERVIEWS_SUBDIR, "mix.jsonl");
+    // hand-write Q/A capture rows (interview-ledger shape) into the shared ledger.
+    const qa = [
+      { ts: new Date().toISOString(), sessionId: "mix", turnId: "t1", event: "question_asked", questionId: "q1", eventId: "t1:q1:question_asked", question: "Goal?" },
+      { ts: new Date().toISOString(), sessionId: "mix", turnId: "t1", event: "answer_recorded", questionId: "q1", eventId: "t1:q1:answer_recorded", answers: ["ship it"] },
+    ];
+    appendFileSync(file, qa.map((e) => JSON.stringify(e)).join("\n") + "\n");
+    appendInterviewEvent(cwd, { ts: new Date().toISOString(), sessionId: "mix", event: "scan_completed", roundId: 1, contradictionCount: 0, highContradictionCount: 0 });
+
+    const events = readInterviewEvents(cwd, "mix");
+    assert.equal(events.length, 2, "only the 2 scan rows must be returned, not the Q/A rows");
+    assert.deepEqual(events.map((e) => e.event), ["scan_started", "scan_completed"]);
+    // every returned row must carry the structural scan fields.
+    for (const e of events) {
+      assert.equal(typeof e.roundId, "number");
+      assert.equal(typeof e.contradictionCount, "number");
+    }
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

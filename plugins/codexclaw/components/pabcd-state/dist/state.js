@@ -162,6 +162,19 @@ export function appendLedger(cwd        , entry             )       {
 /** 131/D2': a recorded interview scan event (durable scan-evidence). */
 
 
+/**
+ * The complete set of scan-event kinds. The per-session interview ledger
+ * (`.codexclaw/interviews/<id>.jsonl`) is SHARED with Q/A capture events
+ * (`question_asked`/`answer_recorded`, written by interview-ledger.ts), so the scan
+ * reader must filter to these kinds — a blind parse would misread Q/A rows as scan
+ * evidence (L20 / G3).
+ */
+export const SCAN_EVENT_KINDS                      = new Set                    ([
+  "scan_started",
+  "scan_completed",
+  "rescan_completed",
+]);
+
 
 
 
@@ -189,15 +202,38 @@ export function appendInterviewEvent(cwd        , entry                )       {
   appendFileSync(interviewLedgerPath(cwd, entry.sessionId), `${JSON.stringify(entry)}\n`);
 }
 
-/** 131/D2': read recorded interview scan events (best-effort; missing file -> []). */
+/**
+ * 131/D2': read recorded interview SCAN events (best-effort; missing file -> []).
+ *
+ * The ledger file is shared with Q/A capture events (interview-ledger.ts), so this
+ * filters to rows whose `event` is a scan kind AND that carry the structural scan
+ * fields (mirrors readQaEvents() robustness). Q/A rows and malformed lines are skipped
+ * rather than misread as scan evidence (L20 / G3).
+ */
 export function readInterviewEvents(cwd        , sessionId        )                   {
+  let raw        ;
   try {
-    const raw = readFileSync(interviewLedgerPath(cwd, sessionId), "utf8");
-    return raw
-      .split("\n")
-      .filter((l) => l.trim().length > 0)
-      .map((l) => JSON.parse(l)                  );
+    raw = readFileSync(interviewLedgerPath(cwd, sessionId), "utf8");
   } catch {
     return [];
   }
+  const out                   = [];
+  for (const line of raw.split("\n")) {
+    const t = line.trim();
+    if (t.length === 0) continue;
+    try {
+      const o = JSON.parse(t)           ;
+      if (
+        typeof o === "object" && o !== null && !Array.isArray(o) &&
+        SCAN_EVENT_KINDS.has((o                       ).event          ) &&
+        typeof (o                         ).roundId === "number" &&
+        typeof (o                                    ).contradictionCount === "number"
+      ) {
+        out.push(o                  );
+      }
+    } catch {
+      // skip malformed line
+    }
+  }
+  return out;
 }
