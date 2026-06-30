@@ -35,14 +35,15 @@ commitments), all already noted elsewhere:
 These overlap with the deferred post-compaction recovery (`006`) and the deferred external
 OS scheduler (`mvp_res/290`). No new commitment here — just keeping the door honest.
 
-## Drift fix (real, must land)
+## Drift fix (RESOLVED 2026-06-30 by commit 301aa0b)
 
 L10 lists `cxc chat-search` (a `thread/search` wrapper) as **in-scope/shipped**, but the
 code **retired it**: there is no `chat-search.ts`, and `cxc-ops.test.ts:131-163` asserts the
 subcommand is *gone* (`cli.ts:24-37` exposes only doctor/reset). The doc is more optimistic
-than the code. Action: correct L10 (`100_L10_*`) and `structure/INDEX.md` (rows ~104, ~181)
-to mark chat-search **retired** (app-server `thread/search` unavailable), not in-scope.
-This is the same false-DONE class the user has flagged before — fix the doc to match code.
+than the code. This was corrected by a parallel session: `100_L10_*` now carries a dated
+SUPERSEDED-IN-PART banner (chat-search retired L13/WP1, history kept), `110_L11_*` strikes
+the command from the live list with a RETIRED note, and the contradiction register B-cluster
+is marked RESOLVED (gate-guarded). Recorded here for the audit trail; no action remains.
 
 ## Enforcement tier
 
@@ -51,6 +52,5 @@ All memory items are E7-or-impossible. The drift fix is an E8 truthfulness corre
 
 ## Proposed slice
 
-No new loop for memory itself (confirmed non-goal). The **chat-search drift correction**
-folds into the next truthfulness/honesty pass (the L17-class doc-vs-code reconciliation),
-since it's a doc edit backed by an existing passing test.
+No new loop for memory itself (confirmed non-goal). The chat-search drift correction is
+already resolved (301aa0b), so nothing remains to schedule here.
