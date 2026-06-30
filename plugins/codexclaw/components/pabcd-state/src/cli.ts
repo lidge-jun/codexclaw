@@ -21,6 +21,7 @@ import { handleStop, handleUserPromptSubmit } from "./hook.ts";
 import { parseStop, parseUserPromptSubmit } from "./parse.ts";
 import { handlePreToolUseFailClosed } from "./goal-gate.ts";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.ts";
+import { parseOrchestrateCliArgs, runOrchestrateCli } from "./orchestrate-cli.ts";
 
 function readStdin(): string {
   try {
@@ -44,6 +45,18 @@ function main(): void {
       process.stderr.write(`freeze failed: ${err instanceof Error ? err.message : String(err)}\n`);
       process.exit(1);
     }
+  }
+
+  // `orchestrate` command path (L4): drive the FSM from the terminal (agent-gated).
+  if (kind === "orchestrate") {
+    const parsed = parseOrchestrateCliArgs(process.argv.slice(3), process.cwd());
+    if ("error" in parsed) {
+      process.stderr.write(`orchestrate: ${parsed.error}\n`);
+      process.exit(1);
+    }
+    const result = runOrchestrateCli(parsed);
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
   }
 
   if (kind !== "hook") {

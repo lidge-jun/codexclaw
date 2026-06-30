@@ -41,6 +41,17 @@ const cxcOpsCli = join(
   "cli.js",
 );
 
+const pabcdStateCli = join(
+  here,
+  "..",
+  "plugins",
+  "codexclaw",
+  "components",
+  "pabcd-state",
+  "dist",
+  "cli.js",
+);
+
 /** Delegate a subcommand to the compiled config-guard CLI; returns its exit code. */
 function runConfigGuard(subcommand) {
   const res = spawnSync(process.execPath, [configGuardCli, subcommand], { stdio: "inherit" });
@@ -50,6 +61,12 @@ function runConfigGuard(subcommand) {
 /** Delegate to the compiled cxc-ops CLI (doctor/reset/chat-search); returns its exit code. */
 function runCxcOps(args) {
   const res = spawnSync(process.execPath, [cxcOpsCli, ...args], { stdio: "inherit" });
+  return typeof res.status === "number" ? res.status : 1;
+}
+
+/** Delegate to the compiled pabcd-state CLI. argv: [kind, ...rest]. */
+function runPabcdState(args) {
+  const res = spawnSync(process.execPath, [pabcdStateCli, ...args], { stdio: "inherit" });
   return typeof res.status === "number" ? res.status : 1;
 }
 
@@ -70,6 +87,10 @@ switch (cmd) {
   case "chat-search":
     process.exit(runCxcOps(process.argv.slice(2)));
     break;
+  case "orchestrate":
+    // pabcd-state CLI expects argv as [kind, ...rest]; kind === "orchestrate".
+    process.exit(runPabcdState(process.argv.slice(2)));
+    break;
   case "gui": {
     const guiDir = join(here, "..", "plugins", "codexclaw", "gui");
     // npm workspaces hoist deps to the repo root, so check either location.
@@ -89,5 +110,5 @@ switch (cmd) {
     console.log(`codexclaw: '${cmd}' is a Phase 2 command (subagent model config / ocx bridge).`);
     break;
   default:
-    console.log("codexclaw <enable|uninstall|status|doctor|reset|chat-search|subagents|provider|gui>");
+    console.log("codexclaw <enable|uninstall|status|orchestrate|doctor|reset|chat-search|subagents|provider|gui>");
 }
