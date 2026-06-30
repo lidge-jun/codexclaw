@@ -47,7 +47,7 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 | L6 | 060 | Stop-continuation loop with omo termination guards + bounded stagnation guard | DONE |
 | L7 | 070 | `$cxc-goalplan` + `$cxc-loop` + orchestrate skill-doc reconciliation with shipped L3-L6 reality | DONE |
 | L8 | 080 | Post-loop UX hardening + truth sweep: stale docs, status ledger rows, Stop next-command wording | DONE |
-| L9 | 090 | Subagent/model hardening: OMO role variants, spawn-wrapper config application, ocx catalog read-only integration | PROPOSED |
+| L9 | 090 | Subagent/model hardening parity plan: live spawn-wrapper gap, slug catalog parity, operator surface policy | PLANNED |
 | L10 | 100 | Memory/chat/project/worklog parity decision: codex-native scope vs explicit non-goals | PROPOSED |
 | L11 | 110 | Developer docs + public docs website: Starlight-style IA, jawdev-style reference docs, visual system, verification gates | PLANNED |
 | L12 | 120 | Skill-internal hardening: cxc-interview/orchestrate/loop/goalplan skeletons + continuous Interview runtime plan | PLANNED |

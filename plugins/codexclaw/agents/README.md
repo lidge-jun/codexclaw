@@ -38,7 +38,13 @@ Note: these files intentionally carry no `read_only` key — that is not a valid
 field (`ConfigToml` uses `deny_unknown_fields`). Read-only intent is encoded in the
 `agent_type` mapping and the developer_instructions.
 
-## Phase 2 (deferred)
+## Model / prompt override status
 
-`model = "default"` means inherit the parent model. Phase 2 adds per-role model overrides
-(GUI-driven selection from the ocx catalog) by setting `model` / `model_reasoning_effort` here.
+`model = "default"` means inherit the parent model. The `.codexclaw/subagents.json`
+store, MCP/GUI roundtrip, and `resolveSpawnConfig(cwd, role)` resolver are shipped; S8/S10
+tests prove persistence and resolver behavior.
+
+Runtime caveat: there is not yet a production spawn wrapper that consumes
+`resolveSpawnConfig()` when calling Codex `spawn_agent`. Until L9's implementation slices
+land, these TOMLs remain canonical prompt sources and the config store is ready for a wrapper,
+but a configured role model is not automatically applied to every live subagent launch.
