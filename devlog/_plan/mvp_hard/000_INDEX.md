@@ -54,6 +54,11 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 | L12 | 120 | Skill-internal hardening + interview runtime: PostToolUse answer capture (L12.1/121) + rescan-coordinator & goal=PABCD-only boundary (L12.2/122) shipped+tested; I-phase Stop guard dropped (no valid domain) | DONE | DONE |
 | L13 | 130 | Truthfulness + interview hardening: chat-search retire (WP1), scan-evidence + soft-gate (WP2), 2-axis status (WP3) | DONE | DONE |
 | L14 | 140 | Follow-up patch plan: loop⇄goal activation handoff + `cxc-loop` FSM wiring + dev-* routing enforcement (root-caused, fix deferred to a post-Interview loop) | PLANNED | PLANNED |
+| L15 | 150 | Subagent skill-routing attachment (`SpawnPayload.items` + E3/E5 dispatch) — decomposed in 141 | PLANNED | PLANNED |
+| L16 | 160 | dev routing STRICT + selective implicit visibility — decomposed in 141 | PLANNED | PLANNED |
+| L17 | 170 | Interview runtime honesty + trigger breadth + helper wire/retire — decomposed in 141 | PLANNED | PLANNED |
+| L18 | 180 | Status-sync + forbidden-claims + count gates (E8) — decomposed in 141 | PLANNED | PLANNED |
+| L19 | 190 | dist packaging contract + test (E8) — decomposed in 141 | PLANNED | PLANNED |
 | L20 | 200 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | ANALYZED | PLANNED |
 
 ## Track status
@@ -125,6 +130,12 @@ guarded). The originally-planned narrow I-phase Stop guard was DROPPED — it ha
   Verdict: `cxc-interview`, `cxc-orchestrate`, `cxc-loop`, and `cxc-goalplan` already exist
   as on-demand Codex skill surfaces; implement `PostToolUse` answer capture,
   session-scoped interview ledger, and narrow I-phase Stop guard in later runtime loops.
+- `140_L14_loop_goal_routing_followup.md` — root-cause diagnosis (file:line) of the
+  loop⇄goal arming gap, `cxc-loop` prose-vs-runtime contradiction, and narrow dev routing.
+- `141_L14_L19_contradiction_patch_plan.md` — decomposition of the
+  `structure/30_contradiction_register.md` findings into per-loop work-phases L14-L19,
+  each tagged with the strongest available enforcement tier (E1-E8) from
+  `structure/40_enforcement_methods.md`. Implementation waits for the L14 Interview round.
 
 ## Interview decisions (2026-06-30, locked)
 

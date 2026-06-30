@@ -25,6 +25,7 @@ where" hub; the numbered files carry the durable reasoning.
 | [`10_subagent_skill_routing.md`](10_subagent_skill_routing.md) | L14 design SOT: attaching `cxc-*` skills to subagent spawns + loop/goal handoff hardening. |
 | [`20_pabcd_dispatch_doctrine.md`](20_pabcd_dispatch_doctrine.md) | PABCD + dispatch + routing operating doctrine inherited from cli-jaw, translated to a serverless plugin. |
 | [`30_contradiction_register.md`](30_contradiction_register.md) | Truth table of doc↔code contradictions (claim vs reality, file:line), the input to L14 + any status-sync gate. |
+| [`40_enforcement_methods.md`](40_enforcement_methods.md) | Enforcement ladder E1-E8: how strongly each intent can be enforced given the four Codex hook surfaces, and which tier to pick per contradiction. |
 
 Writing rule: keep this directory flat. Add or extend lexicographically ordered
 `NN_topic.md` files (`00-09` philosophy/foundations, `10-19` subagent/routing, and so
@@ -251,4 +252,4 @@ interview that surfaces its contradictions as questions before any code changes.
 
 ---
 
-*Last updated: 2026-06-30. Grounded in `README.md`, `plugins/codexclaw/.codex-plugin/plugin.json`, `plugins/codexclaw/hooks/*.json`, component `src/` files, skill metadata, subagent TOMLs, `devlog/_plan/mvp_res/000_INDEX.md`, `devlog/_plan/mvp_hard/000_INDEX.md`, `structure/00_philosophy.md`, `structure/10_subagent_skill_routing.md`, `structure/20_pabcd_dispatch_doctrine.md`, `structure/30_contradiction_register.md`, and opencodex + cli-jaw `structure/` files.*
+*Last updated: 2026-06-30. Grounded in `README.md`, `plugins/codexclaw/.codex-plugin/plugin.json`, `plugins/codexclaw/hooks/*.json`, component `src/` files, skill metadata, subagent TOMLs, `devlog/_plan/mvp_res/000_INDEX.md`, `devlog/_plan/mvp_hard/000_INDEX.md`, `devlog/_plan/mvp_hard/141_L14_L19_contradiction_patch_plan.md`, `structure/00_philosophy.md`, `structure/10_subagent_skill_routing.md`, `structure/20_pabcd_dispatch_doctrine.md`, `structure/30_contradiction_register.md`, `structure/40_enforcement_methods.md`, and opencodex + cli-jaw `structure/` files.*
