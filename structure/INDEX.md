@@ -12,6 +12,25 @@ aliases: [Codexclaw Architecture Reference, codexclaw 구조 허브, structure i
 
 ---
 
+## structure/ SOT 파일
+
+This directory is the maintainer source of truth for the current system shape and the
+design philosophy behind it (opencodex-style flat SOT). `INDEX.md` is the "what is
+where" hub; the numbered files carry the durable reasoning.
+
+| File | Purpose |
+| --- | --- |
+| [`INDEX.md`](INDEX.md) | Architecture hub: component/skill/hook/CLI/state map (this file). |
+| [`00_philosophy.md`](00_philosophy.md) | Implementation philosophy: boundary invariants, the model-autonomy vs runtime-enforcement tension, truthfulness regime, HITL/HOTL split, subagent doctrine. |
+| [`10_subagent_skill_routing.md`](10_subagent_skill_routing.md) | L14 design SOT: attaching `cxc-*` skills to subagent spawns + loop/goal handoff hardening. |
+
+Writing rule: keep this directory flat. Add or extend lexicographically ordered
+`NN_topic.md` files (`00-09` philosophy/foundations, `10-19` subagent/routing, and so
+on); do not nest subfolders. When code and SOT disagree, fix the code or amend the SOT
+in the same change — never leave them silently divergent.
+
+---
+
 ## 시스템 개요
 
 ```mermaid
@@ -210,6 +229,12 @@ The subagent config component can later select per-role models; default mode inh
 
 `devlog/_plan/mvp_hard/` is the parity-hardening lane after the MVP. It documents the gap between codexclaw's current `$cxc-*` + hook UX and cli-jaw/jawcode-style explicit PABCD phase control. Its locked constraints are important: no codex-rs fork, no plugin slash commands, no external orchestrator, file-based state only.
 
+The active hardening design is **L14** (subagent skill routing + loop/goal handoff). Its
+root-cause diagnosis lives in `devlog/_plan/mvp_hard/140_L14_loop_goal_routing_followup.md`,
+and its intended fix shape is the design SOT at [`10_subagent_skill_routing.md`](10_subagent_skill_routing.md).
+Per user instruction, L14 implementation waits for a fresh subagent exploration + an `I`-phase
+interview that surfaces its contradictions as questions before any code changes.
+
 ---
 
 ## Boundary Rules
@@ -223,4 +248,4 @@ The subagent config component can later select per-role models; default mode inh
 
 ---
 
-*Last updated: 2026-06-30. Grounded in `README.md`, `plugins/codexclaw/.codex-plugin/plugin.json`, `plugins/codexclaw/hooks/*.json`, component `src/` files, skill metadata, subagent TOMLs, `devlog/_plan/mvp_res/000_INDEX.md`, `devlog/_plan/mvp_hard/000_INDEX.md`, and opencodex README/source files.*
+*Last updated: 2026-06-30. Grounded in `README.md`, `plugins/codexclaw/.codex-plugin/plugin.json`, `plugins/codexclaw/hooks/*.json`, component `src/` files, skill metadata, subagent TOMLs, `devlog/_plan/mvp_res/000_INDEX.md`, `devlog/_plan/mvp_hard/000_INDEX.md`, `structure/00_philosophy.md`, `structure/10_subagent_skill_routing.md`, and opencodex README/source + `structure/` files.*
