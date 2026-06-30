@@ -9,15 +9,17 @@ Status: RESEARCH (design input; NO code change) · 2026-07-01
 > This supersedes the looser "divergence mode" framing in `006` with a cleaner axis:
 > the COLLAPSE POINT. Upstream: `004`, `006`, `structure/50_emergence_gap.md`.
 
-## The model: I captures INTENT first; divergence is conditional; collapse point is the variable
+## The model: I records N>=2 (kept); the USER-FACING question is conditional; collapse point varies
 
 ```
-I  ── capture the user's INTENT first (I's core job)
-│      • intent clear & directed ("build X this way")  ──► just capture intent, N=1, proceed
-│      • intent open / exploratory / maximize-metric    ──► consider & record N>=2 approaches
+I  ── record N>=2 candidate approaches in devlog/.codexclaw  (KEPT rule; anti-anchoring)
+│      candidates MAY be asymmetric: "strong-1 + add-1" (one primary + one light alternative)
+│      • user intent clear  ──► do NOT interrogate the user with an N>=2 menu;
+│      │                         the agent records strong-1 + add-1 itself, then converges
+│      • user intent open   ──► may surface options / ask the user to choose
 │
 ├─ BUILD / satisfy-spec ──► COLLAPSE EARLY at P
-│     (if N>1 was recorded) P selects ONE approach on paper (no metric race available)
+│     P selects ONE approach on paper from the recorded N (no metric race available)
 │     A → B → C → D run single-candidate (normal PABCD)
 │
 └─ ALGO / maximize, unclear ──► COLLAPSE LATE after C
@@ -25,27 +27,30 @@ I  ── capture the user's INTENT first (I's core job)
       D: race the built candidates on the fixed-seed true metric ("싸우게 하기")
 ```
 
-Diverging IDEAS at I is cheap, but it is NOT mandatory. When the user already carries a
-clear implementation goal, I only needs to grasp that intent — manufacturing >=2
-alternatives there is the over-process trap (dev §0: "if the user already specifies clear
-tech and scope, skip clarification entirely"). Divergence is reserved for when intent is
-open, or for the unclear-algorithmic case where only a real metric can decide.
+Recording >=2 approaches at I is cheap and stays ON — it is the anti-anchoring habit that
+breaks the "first approach lock-in" behind the NYPC plateau. What is CONDITIONAL is the
+user-facing surface: when the user already gave clear intent, the agent does NOT ask them
+to pick between N options (dev §0: "if the user already specifies clear tech and scope,
+skip clarification entirely"). The divergence still happens internally and is logged; the
+user is simply not interrogated.
 
-## I's rule: intent first, N>=2 only when intent is open
+## I's rule: keep N>=2 recording; gate the QUESTION, allow asymmetric candidates
 
-The single biggest defect in `50_emergence_gap.md` was P committing to ONE approach from
-the first phase WITHOUT considering alternatives. The fix is NOT "always log >=2" — that
-would re-introduce over-process on directed builds. The fix is a CONDITIONAL at I:
+The single biggest defect in `50_emergence_gap.md` was P committing to ONE approach
+WITHOUT considering alternatives. The fix keeps the N>=2 recording rule, but separates two
+things that the previous draft wrongly merged:
 
-- **Intent clear & directed** (the user states what to build and how, or it is C0-C2
-  ordinary build work): capture the intent, proceed single-approach. Do not fabricate
-  alternatives. The collapse is immediate and trivial.
-- **Intent open / ambiguous / exploratory, or maximize-metric with no obvious winner**:
-  record N>=2 candidate approaches in the devlog so P (or a late collapse) has real
-  alternatives to weigh. This is where anti-anchoring matters.
+- **Recording (kept, always):** I logs >=2 approaches. The second need not be a co-equal,
+  fully-elaborated plan — **"strong-1 + add-1"** is valid: one primary recommendation plus
+  one lightweight alternative noted for contrast. This keeps anti-anchoring without
+  doubling the planning cost.
+- **User-facing question (conditional):** only ask the user to choose among approaches when
+  intent is open/ambiguous. When intent is clear, capture it, record strong-1 + add-1
+  yourself, and converge at P without a multiple-choice prompt.
 
-So N>=2 at I is an option offered against intent-clarity, not an always-on mandate. The
-floor is "capture intent"; divergence is the exception layered on top when intent is open.
+So N>=2 is NOT downgraded to "only when intent is open" — it stays. What is gated is
+whether the divergence is surfaced to the user as a question, and how heavy the second
+candidate is.
 
 ## Collapse EARLY (build / satisfy-spec): selection at P, no metric race
 
@@ -99,7 +104,8 @@ maximize-metric goal can re-trigger a late collapse in a later work-phase.
 
 | Step | Mechanism | Tier |
 |---|---|---|
-| I captures intent; N>=2 only if intent open | devlog/`.codexclaw` record; conditional on intent-clarity, not forced | E7 |
+| I records N>=2 (strong-1 + add-1 OK) | devlog/`.codexclaw` record; kept rule | E7 |
+| ask the USER to choose | only when intent is open; else converge silently | E7 |
 | classify early vs late collapse | objective-kind (satisfy vs maximize) + winner-clarity | E7 |
 | P early selection | subagent critic + `cxc-search` convention research | E7 (agent runs it) |
 | late parallel build | worktrees (`team` pattern) | E7 + E2 ledger |
@@ -111,8 +117,10 @@ decision and the paper selection are agent doctrine (E7) recorded in the ledger.
 
 ## Open questions (Interview)
 
-- Intent-clarity test: what concretely flips I from "capture intent, N=1" to "record
-  N>=2"? (directed scope + satisfy-spec → N=1; open scope or maximize-metric → N>=2)
+- Asymmetry default: is "strong-1 + add-1" the standard shape, escalating to N co-equal
+  candidates only for the late-collapse algo case?
+- User-question trigger: what concretely flips I from "record silently + converge" to
+  "ask the user to choose"? (clear intent → silent; open/ambiguous → ask)
 - P early-selection: is the subagent critic mandatory, or only when the N approaches are
   close? (cost vs rigor)
 - Late-collapse trigger at the FIRST phase vs only on plateau: do we ever start a goal

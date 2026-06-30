@@ -341,17 +341,21 @@
     <p class="dim" style="margin-top:6px">선택 기준은 항상 고정-시드 true-metric이지 vibes가 아니다. 충족형 goal은 plateau 체크가 사실상 안 터지니 발산 오버헤드 0.</p>
   </div>
 
-  <h2><span class="n">10</span> Collapse-Point 모델 <span class="dim" style="font-size:12px">(I는 의도 파악이 먼저 · collapse 지점이 이동)</span></h2>
+  <h2><span class="n">10</span> Collapse-Point 모델 <span class="dim" style="font-size:12px">(I는 N≥2 기록 유지 · 유저 질문은 조건부)</span></h2>
   <div class="band fix">
-    <p><strong>I의 핵심은 의도 파악이다. 구현 목표가 명확하면 의도만 잡고 N=1로 간다 — 발산(N≥2)은 의도가 열려있을 때만 거는 조건부. 변하는 건 "어디서 하나로 접느냐"다.</strong></p>
+    <p><strong>N≥2 기록 규칙은 유지(anti-anchoring). 후보는 비대칭 OK — "strong-1 + add-1". 변하는 건 ① 유저에게 메뉴처럼 되묻느냐와 ② 어디서 하나로 접느냐다.</strong></p>
     <div class="pipe">
-      <div class="ph" style="border-top-color:var(--good);flex:1 1 48%">
-        <div class="l" style="color:var(--good)">I · 의도 명확</div><div class="t">의도만 파악 → N=1</div>
-        <div class="d">유저가 무엇을·어떻게를 지시했거나 보통 빌드(C0-C2) → 대안 만들지 말고 진행. 과잉-프로세스 함정 회피(dev §0).</div>
+      <div class="ph" style="border-top-color:var(--div);flex:0 0 100%">
+        <div class="l" style="color:var(--div)">I · 항상</div><div class="t">N≥2 접근 기록 (strong-1 + add-1 가능)</div>
+        <div class="d">에이전트 내부 anti-anchoring. 둘째 후보는 co-equal일 필요 없이 가벼운 대안이어도 됨.</div>
       </div>
-      <div class="ph" style="border-top-color:var(--div);flex:1 1 48%">
-        <div class="l" style="color:var(--div)">I · 의도 열림</div><div class="t">N≥2 접근 기록</div>
-        <div class="d">의도가 모호/탐색적이거나 최대화형+승자 불명일 때만 devlog에 대안 기록. 여기서만 anti-anchoring이 의미.</div>
+      <div class="ph" style="border-top-color:var(--good);flex:1 1 48%">
+        <div class="l" style="color:var(--good)">유저 의도 명확</div><div class="t">되묻지 않고 수렴</div>
+        <div class="d">유저가 제대로 말함 → N≥2를 메뉴처럼 질문하지 않고 strong-1을 골라 진행 (dev §0).</div>
+      </div>
+      <div class="ph" style="border-top-color:var(--warn);flex:1 1 48%">
+        <div class="l" style="color:var(--warn)">유저 의도 열림</div><div class="t">옵션 제시·선택 요청</div>
+        <div class="d">의도 모호/탐색적일 때만 유저에게 대안을 보여주고 고르게 함.</div>
       </div>
     </div>
     <div class="arrowrow">┌─────────── 분기 ───────────┐</div>
