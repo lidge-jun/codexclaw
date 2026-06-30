@@ -43,7 +43,7 @@ ranked, and routed to a real work-phase (not lost). Each carries its origin and 
 
 | F | Sev | Origin (file:line) | Actionable item | Routed to |
 |---|-----|--------------------|-----------------|-----------|
-| F1 | LOW | `190_L19_dist_packaging_contract.md:52` | No test proves committed `dist/` matches current `src/` BEFORE a build; `build.test.mjs` proves post-build idempotency only. Add a src↔dist freshness assertion (e.g. build into a temp dir, diff against committed `dist/`) so a stale commit fails CI. | WP7 |
+| F1 | RESOLVED (WP10) | `190_L19_dist_packaging_contract.md:52` | FIXED 2026-06-30: new `test/dist-freshness.test.mjs` recomputes each git-TRACKED dist file in-memory via build.mjs's newly-exported pure `compileSource` and asserts byte-equality with the committed file — a stale or missing committed dist fails CI. Read-only (no rebuild), so immune to C10. Negative control verified (fails on injected drift, passes after restore). 367/367 green. | WP10 |
 | F2 | RESOLVED (WP7+WP9) | `180_L18_enforcement_gate.md:46` | FIXED 2026-06-30 (= G23): per-test MCP stdio timeout raised 8s→30s; hook-e2e uses settle-retry dist snapshots; and WP9 added `--test-concurrency=1` so test files no longer rebuild the shared `dist/` in parallel. The "run build and test separately" contract still holds for the byte-identical idempotency check. | WP7+WP9 (= G23) |
 
 > Note: F2 and G23 are the same defect; G23 stays the canonical row, F2 records the prose origin

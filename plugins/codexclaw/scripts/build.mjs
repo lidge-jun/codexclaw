@@ -22,14 +22,14 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = resolve(here, "..");
-const componentsRoot = join(pluginRoot, "components");
+export const componentsRoot = join(pluginRoot, "components");
 
-const COMPONENTS = ["pabcd-state", "config-guard", "provider-bridge", "subagent-config", "cxc-ops"];
+export const COMPONENTS = ["pabcd-state", "config-guard", "provider-bridge", "subagent-config", "cxc-ops"];
 
 // Markers that must NOT appear in shipped runtime sources or compiled output or the manifest.
 const PLACEHOLDER_RE = /\[TODO\]|TODO\(|FIXME|\bTBD\b/;
 
-function listTsFiles(dir) {
+export function listTsFiles(dir) {
   const out = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
@@ -59,6 +59,13 @@ function normalizeGeneratedJs(js) {
     .join("\n");
 }
 
+// Pure source->dist transform (no filesystem). Single source of truth for what a
+// committed dist file's bytes MUST be, so a freshness test can recompute + diff
+// in-memory without a real rebuild (avoids the C10 shared-dist race).
+export function compileSource(src) {
+  return normalizeGeneratedJs(stripTypeScriptTypes(src, { mode: "strip" }));
+}
+
 function compileComponent(name) {
   const srcDir = join(componentsRoot, name, "src");
   const distDir = join(componentsRoot, name, "dist");
@@ -69,8 +76,7 @@ function compileComponent(name) {
   const emitted = [];
   for (const file of files) {
     const src = readFileSync(file, "utf8");
-    let js = stripTypeScriptTypes(src, { mode: "strip" });
-    js = normalizeGeneratedJs(js);
+    const js = compileSource(src);
     const rel = relative(srcDir, file).replace(/\.ts$/, ".js");
     const outPath = join(distDir, rel);
     mkdirSync(dirname(outPath), { recursive: true });
