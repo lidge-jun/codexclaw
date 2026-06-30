@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applyHumanTransition } from "../src/orchestrate-apply.ts";
 import { defaultState, type State } from "../src/state.ts";
+import { defaultInterview, DIMENSIONS, type InterviewTracker } from "../src/interview.ts";
 
 function at(phase: State["phase"], partial: Partial<State["flags"]> = {}): State {
   return { ...defaultState("t"), phase, flags: { interview: false, auditPassed: false, checkPassed: false, ...partial } };
@@ -70,4 +71,67 @@ test("entering I clears stale gate flags (fresh cycle)", () => {
   assert.equal(r.state?.phase, "I");
   assert.equal(r.state?.flags.checkPassed, false);
   assert.equal(r.state?.flags.auditPassed, false);
+});
+
+// ── 131/D2': I->P soft-gate ─────────────────────────────────────────────────
+
+function readyTracker(): InterviewTracker {
+  const t = defaultInterview("r1");
+  for (const d of DIMENSIONS) t.dimensions[d] = { level: "max", known: ["x"], unknown: [], confidence: 1 };
+  t.scanRounds = 1;
+  t.lastScanRoundId = 1;
+  return t;
+}
+
+function atI(interview: InterviewTracker | null): State {
+  return { ...defaultState("t"), phase: "I", interview, flags: { interview: false, auditPassed: false, checkPassed: false } };
+}
+
+test("soft-gate: ready interview advances I->P", () => {
+  const r = applyHumanTransition(atI(readyTracker()), "P");
+  assert.equal(r.ok, true);
+  assert.equal(r.state?.phase, "P");
+  assert.equal(r.state?.flags.interview, true);
+});
+
+test("soft-gate: no scan recorded -> advise-block (not generic adjacency error)", () => {
+  const t = readyTracker();
+  t.scanRounds = 0; // a scan never ran
+  t.lastScanRoundId = 0;
+  const r = applyHumanTransition(atI(t), "P");
+  assert.equal(r.ok, false);
+  assert.match(r.reason ?? "", /soft-gate/);
+  assert.match(r.reason ?? "", /scan/);
+});
+
+test("soft-gate: high contradiction open -> advise-block", () => {
+  const t = readyTracker();
+  t.contradictions = [{ contradictionId: "c1", severity: "high", summary: "x" }];
+  const r = applyHumanTransition(atI(t), "P");
+  assert.equal(r.ok, false);
+  assert.match(r.reason ?? "", /high-severity/);
+});
+
+test("soft-gate: explicit override advances + records an audit ledger entry", () => {
+  const t = readyTracker();
+  t.scanRounds = 0; // unready
+  const r = applyHumanTransition(atI(t), "P", { from: "I", to: "P", did: "accept risk, proceeding", override: true });
+  assert.equal(r.ok, true);
+  assert.equal(r.state?.phase, "P");
+  assert.equal(r.ledger?.override, true);
+  assert.equal(r.ledger?.actor, "human");
+  assert.equal(r.ledger?.scanEvidence?.scanRounds, 0);
+  assert.equal(r.ledger?.evidence, "accept risk, proceeding");
+});
+
+test("soft-gate: override is goal-mode-agnostic (operates purely on tracker state)", () => {
+  // The soft-gate reads only the tracker; it does not consult goal status, so the
+  // same override behavior holds regardless of any goal-mode context.
+  const t = readyTracker();
+  t.contradictions = [{ contradictionId: "c1", severity: "high", summary: "x" }];
+  const blocked = applyHumanTransition(atI(t), "P");
+  assert.equal(blocked.ok, false);
+  const overridden = applyHumanTransition(atI(t), "P", { from: "I", to: "P", did: "go", override: true });
+  assert.equal(overridden.ok, true);
+  assert.equal(overridden.ledger?.scanEvidence?.highContradictionCount, 1);
 });

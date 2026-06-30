@@ -42,9 +42,17 @@ export const PHASES                   = WORK_PHASES;
 
 
 
+
+
+
+
+
+
 export const STATE_DIR = ".codexclaw";
 export const SESSIONS_SUBDIR = "sessions";
 export const LEDGER_FILE = "ledger.jsonl";
+/** 131/D2': per-session interview scan-evidence ledger (durable source of record). */
+export const INTERVIEWS_SUBDIR = "interviews";
 
 export function sanitizeKey(value        )         {
   const sanitized = (value ?? "").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -149,4 +157,47 @@ export function appendLedger(cwd        , entry             )       {
   const dir = join(cwd, STATE_DIR);
   mkdirSync(dir, { recursive: true });
   appendFileSync(join(dir, LEDGER_FILE), `${JSON.stringify(entry)}\n`);
+}
+
+/** 131/D2': a recorded interview scan event (durable scan-evidence). */
+
+
+
+
+
+
+
+
+
+
+
+function interviewsDir(cwd        )         {
+  return join(cwd, STATE_DIR, INTERVIEWS_SUBDIR);
+}
+
+function interviewLedgerPath(cwd        , sessionId        )         {
+  return join(interviewsDir(cwd), `${sanitizeKey(sessionId)}.jsonl`);
+}
+
+/**
+ * 131/D2': append a scan event to the per-session interview ledger. This is the durable
+ * source of record for "a contradiction scan ran"; the tracker's scanRounds is a cache.
+ */
+export function appendInterviewEvent(cwd        , entry                )       {
+  const dir = interviewsDir(cwd);
+  mkdirSync(dir, { recursive: true });
+  appendFileSync(interviewLedgerPath(cwd, entry.sessionId), `${JSON.stringify(entry)}\n`);
+}
+
+/** 131/D2': read recorded interview scan events (best-effort; missing file -> []). */
+export function readInterviewEvents(cwd        , sessionId        )                   {
+  try {
+    const raw = readFileSync(interviewLedgerPath(cwd, sessionId), "utf8");
+    return raw
+      .split("\n")
+      .filter((l) => l.trim().length > 0)
+      .map((l) => JSON.parse(l)                  );
+  } catch {
+    return [];
+  }
 }

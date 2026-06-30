@@ -10,35 +10,35 @@
  *
  * Pure: returns the next State + an optional LedgerEntry for the caller to persist.
  */
-import { canEnter } from "./fsm.ts";
-import type { OrchestrateVerb } from "./orchestrate-grammar.ts";
-import type { Attestation } from "./attest.ts";
-import { type LedgerEntry, type Phase, type State } from "./state.ts";
-import { evaluateInterviewGate } from "./interview.ts";
+import { canEnter } from "./fsm.js";
 
-export interface ApplyResult {
-  ok: boolean;
-  /** Next state to persist (absent on a no-op or refusal). */
-  state?: State;
-  /** Refusal reason (illegal adjacency, etc.). */
-  reason?: string;
-  /** Ledger entry to append on a successful, state-changing transition. */
-  ledger?: LedgerEntry;
-  /** Control outcomes that are not a plain forward move. */
-  control?: "status" | "reset" | "done";
-  /** True when the command was a recognized no-op (e.g. reset from IDLE). */
-  noop?: boolean;
-}
+
+import {                                          } from "./state.js";
+import { evaluateInterviewGate } from "./interview.js";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /** Gate flag a forward edge unlocks (human asserts the phase work is done). */
-function unlockedFlag(from: Phase, to: Phase): "auditPassed" | "checkPassed" | null {
+function unlockedFlag(from       , to       )                                       {
   if (from === "A" && to === "B") return "auditPassed";
   if (from === "C" && to === "D") return "checkPassed";
   return null;
 }
 
 /** The cleared resting state a reset/close produces (mirrors fsm D->IDLE close). */
-function clearedIdle(state: State): State {
+function clearedIdle(state       )        {
   return {
     ...state,
     phase: "IDLE",
@@ -52,10 +52,10 @@ function clearedIdle(state: State): State {
  * Apply a human (chat) orchestrate command to file state. Never throws.
  */
 export function applyHumanTransition(
-  state: State,
-  verb: OrchestrateVerb,
-  attest?: Attestation | null,
-): ApplyResult {
+  state       ,
+  verb                 ,
+  attest                     ,
+)              {
   // status: read-only, no state change.
   if (verb === "status") {
     return { ok: true, control: "status" };
@@ -76,7 +76,7 @@ export function applyHumanTransition(
     };
   }
 
-  const to = verb as Phase;
+  const to = verb         ;
   const from = state.phase;
 
   // HUMAN D-close (L5): chat "orchestrate d" means "I'm done — close the cycle".
@@ -160,7 +160,7 @@ export function applyHumanTransition(
 
   // D->IDLE is the cycle close (reachable via the loose path, not a verb here since
   // verbs are work phases). A forward move to a work phase just persists phase+flags.
-  const next: State = { ...state, phase: to, flags };
+  const next        = { ...state, phase: to, flags };
   return {
     ok: true,
     state: next,

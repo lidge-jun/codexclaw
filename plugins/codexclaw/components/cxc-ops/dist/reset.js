@@ -3,6 +3,7 @@
  *
  * Scopes (never touches codex global config under ~/.codex):
  *  - "state":     PABCD state only — .codexclaw/sessions/*.json + .codexclaw/ledger.jsonl
+ *                 + .codexclaw/interviews/ (per-session scan-evidence ledgers)
  *  - "generated": generated artifacts — .codexclaw/interview/, freeze manifests
  *  - "all":       the entire .codexclaw/ working dir
  *
@@ -18,6 +19,7 @@ const STATE_DIR = ".codexclaw";
 const SESSIONS_SUBDIR = "sessions";
 const LEDGER_FILE = "ledger.jsonl";
 const INTERVIEW_SUBDIR = "interview";
+const INTERVIEWS_SUBDIR = "interviews";
 
 
 
@@ -60,6 +62,8 @@ export function runReset(cwd        , scope            )              {
       absent.push(sessionsDir);
     }
     rmIfExists(join(stateDir, LEDGER_FILE), removed, absent);
+    // 131/D2': per-session interview scan-evidence ledgers are session state too.
+    rmIfExists(join(stateDir, INTERVIEWS_SUBDIR), removed, absent);
     return { scope, removed, absent };
   }
 

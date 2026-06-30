@@ -45,3 +45,12 @@ test("coerceAttest validates shape", () => {
   assert.equal(a?.did, "trimmed");
   assert.equal(a?.exitCode, 0);
 });
+
+test("131: coerceAttest carries a typed override boolean (ignores non-boolean)", () => {
+  const on = coerceAttest({ from: "I", to: "P", did: "accept", override: true });
+  assert.equal(on?.override, true);
+  const off = coerceAttest({ from: "I", to: "P", did: "x", override: "yes" });
+  assert.equal(off?.override, undefined, "non-boolean override must be dropped");
+  const none = coerceAttest({ from: "I", to: "P", did: "x" });
+  assert.equal(none?.override, undefined);
+});

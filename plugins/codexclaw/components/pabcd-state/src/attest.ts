@@ -22,6 +22,8 @@ export interface Attestation {
   checkOutput?: string;
   /** Optional exit code; if present and non-zero, C->D is rejected. */
   exitCode?: number;
+  /** 131/D2': human I->P soft-gate override. True = "I accept the unready interview". */
+  override?: boolean;
 }
 
 /**
@@ -59,6 +61,9 @@ export function coerceAttest(obj: unknown): Attestation | null {
   if (typeof rec.checkOutput === "string") att.checkOutput = rec.checkOutput.trim();
   if (typeof rec.exitCode === "number" && Number.isFinite(rec.exitCode)) {
     att.exitCode = rec.exitCode;
+  }
+  if (typeof rec.override === "boolean") {
+    att.override = rec.override;
   }
   return att;
 }

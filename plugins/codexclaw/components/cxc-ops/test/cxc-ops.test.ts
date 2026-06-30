@@ -88,6 +88,9 @@ function makeStateTree(): string {
   writeFileSync(join(sd, "ledger.jsonl"), "{}\n");
   mkdirSync(join(sd, "interview"), { recursive: true });
   writeFileSync(join(sd, "interview", "freeze.json"), "{}");
+  // 131/D2': plural interviews/ holds per-session scan-evidence ledgers (session state).
+  mkdirSync(join(sd, "interviews"), { recursive: true });
+  writeFileSync(join(sd, "interviews", "s1.jsonl"), "{}\n");
   return cwd;
 }
 
@@ -103,6 +106,8 @@ test("reset --state: removes only session json + ledger, leaves interview/ intac
   assert.equal(r.removed.filter((p) => p.endsWith(".json") || p.endsWith(".jsonl")).length, 3);
   // interview/ must survive
   assert.ok(existsSync(join(cwd, ".codexclaw", "interview", "freeze.json")), "interview/ must be untouched by --state");
+  // 131/D2': plural interviews/ (scan-evidence) IS session state -> removed by --state
+  assert.ok(!existsSync(join(cwd, ".codexclaw", "interviews")), "interviews/ scan-evidence must be cleaned by --state");
   // sessions dir emptied of json
   assert.equal(readdirSync(join(cwd, ".codexclaw", "sessions")).length, 0);
 });

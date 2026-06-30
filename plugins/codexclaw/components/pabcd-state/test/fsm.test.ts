@@ -104,6 +104,8 @@ test("deriveInterviewFlag: false when tracker not ready, true when ready; canEnt
   // ready tracker -> flag true -> P allowed
   const tracker = defaultInterview("r");
   for (const d of FSM_DIMENSIONS) tracker.dimensions[d] = { level: "max", known: [], unknown: [], confidence: 1 };
+  // 131/D2': readiness requires scan-evidence too.
+  tracker.scanRounds = 1;
   const ready = deriveInterviewFlag({ ...base, phase: "I", interview: tracker });
   assert.equal(ready.flags.interview, true);
   assert.equal(canEnter("P", ready).ok, true);

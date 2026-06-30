@@ -6,12 +6,16 @@ import {
   defaultInterview,
   reconstructInterview,
   isInterviewReady,
+  evaluateInterviewGate,
   type InterviewTracker,
 } from "../src/interview.ts";
 
 function readyTracker(): InterviewTracker {
   const t = defaultInterview("r1");
   for (const d of DIMENSIONS) t.dimensions[d] = { level: "max", known: ["x"], unknown: [], confidence: 1 };
+  // 131/D2': readiness now also requires scan-evidence (a contradiction scan ran).
+  t.scanRounds = 1;
+  t.lastScanRoundId = 1;
   return t;
 }
 
@@ -48,6 +52,45 @@ test("isInterviewReady: an unrecorded assumption blocks readiness", () => {
 test("isInterviewReady: null/malformed -> false (fail-closed)", () => {
   assert.equal(isInterviewReady(null), false);
   assert.equal(isInterviewReady({} as unknown as InterviewTracker), false);
+});
+
+// ── 131/D2': scan-evidence readiness + soft-gate evaluation ──
+
+test("131: scan-evidence is required for readiness (scanRounds:0 blocks, :1 allows)", () => {
+  const t = readyTracker();
+  t.scanRounds = 0;
+  assert.equal(isInterviewReady(t), false, "maxed dims + empty contradictions but no scan -> NOT ready");
+  t.scanRounds = 1;
+  assert.equal(isInterviewReady(t), true);
+});
+
+test("131: reconstruct defaults scan fields to 0 (legacy trackers are not silently ready)", () => {
+  const dims = {} as Record<string, unknown>;
+  for (const d of DIMENSIONS) dims[d] = { level: "max", known: ["k"], unknown: [], confidence: 1 };
+  // legacy persisted tracker WITHOUT scanRounds/lastScanRoundId
+  const r = reconstructInterview({ roundId: 1, dimensions: dims, contradictions: [], assumptions: [{ id: "a", text: "x", recorded: true }] });
+  assert.equal(r?.scanRounds, 0);
+  assert.equal(r?.lastScanRoundId, 0);
+  assert.equal(isInterviewReady(r), false, "legacy ready-shaped tracker must not pass without scan-evidence");
+});
+
+test("131: evaluateInterviewGate reports scanRan/high-contradiction/warnings", () => {
+  const t = readyTracker();
+  const ok = evaluateInterviewGate(t);
+  assert.equal(ok.ready, true);
+  assert.equal(ok.scanRan, true);
+  assert.equal(ok.highContradictionCount, 0);
+  assert.equal(ok.warnings.length, 0);
+
+  t.scanRounds = 0;
+  t.contradictions = [{ contradictionId: "c1", severity: "high", summary: "x" }];
+  const bad = evaluateInterviewGate(t);
+  assert.equal(bad.ready, false);
+  assert.equal(bad.scanRan, false);
+  assert.equal(bad.highContradictionCount, 1);
+  assert.ok(bad.warnings.length >= 2);
+
+  assert.equal(evaluateInterviewGate(null).ready, false);
 });
 
 test("reconstructInterview: null/non-object -> null", () => {

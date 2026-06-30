@@ -12,6 +12,9 @@ import {
   STATE_DIR,
   SESSIONS_SUBDIR,
   LEDGER_FILE,
+  INTERVIEWS_SUBDIR,
+  appendInterviewEvent,
+  readInterviewEvents,
   type State,
 } from "../src/state.ts";
 
@@ -271,6 +274,26 @@ test("L8 HIGH-1: persisted flags.interview:true with a non-ready tracker reads a
     );
     const s = readState(cwd, "forge");
     assert.equal(s.flags.interview, false, "derived flag must ignore the forged persisted true");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+// ── 131/D2': interview scan-evidence JSONL ledger ──
+
+test("131: appendInterviewEvent writes parseable scan events; readInterviewEvents counts them", () => {
+  const cwd = freshCwd();
+  try {
+    appendInterviewEvent(cwd, { ts: new Date().toISOString(), sessionId: "iv", event: "scan_started", roundId: 1, contradictionCount: 3, highContradictionCount: 1 });
+    appendInterviewEvent(cwd, { ts: new Date().toISOString(), sessionId: "iv", event: "scan_completed", roundId: 1, contradictionCount: 0, highContradictionCount: 0 });
+    const events = readInterviewEvents(cwd, "iv");
+    assert.equal(events.length, 2);
+    assert.equal(events[0].event, "scan_started");
+    assert.equal(events[1].event, "scan_completed");
+    // file lives under .codexclaw/interviews/
+    assert.ok(existsSync(join(cwd, STATE_DIR, INTERVIEWS_SUBDIR, "iv.jsonl")));
+    // missing session -> []
+    assert.deepEqual(readInterviewEvents(cwd, "nope"), []);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

@@ -24,6 +24,8 @@
 
 
 
+
+
 /**
  * Forward dev transitions that require a valid attestation to advance (L2/020).
  * Ported to full cli-jaw parity: all four forward edges P>A, A>B, B>C, C>D are
@@ -59,6 +61,9 @@ export function coerceAttest(obj         )                     {
   if (typeof rec.checkOutput === "string") att.checkOutput = rec.checkOutput.trim();
   if (typeof rec.exitCode === "number" && Number.isFinite(rec.exitCode)) {
     att.exitCode = rec.exitCode;
+  }
+  if (typeof rec.override === "boolean") {
+    att.override = rec.override;
   }
   return att;
 }

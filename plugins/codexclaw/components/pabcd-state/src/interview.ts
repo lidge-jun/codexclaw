@@ -65,6 +65,10 @@ export interface InterviewTracker {
   autoResolveCount: number;
   /** 102: consecutive auto-resolves; reset when a contradiction escalates to the user or resolves. */
   consecutiveAutoResolves: number;
+  /** 131/D2': count of contradiction scans recorded this interview (cache of interviews JSONL). */
+  scanRounds: number;
+  /** 131/D2': roundId at the most recent recorded scan (0 = no scan yet). */
+  lastScanRoundId: number;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -122,7 +126,7 @@ function reconstructScore(v: unknown): DimensionScore {
 export function defaultInterview(roundId = 0): InterviewTracker {
   const dimensions = {} as Record<Dimension, DimensionScore>;
   for (const d of DIMENSIONS) dimensions[d] = defaultScore();
-  return { roundId: roundIdNum(roundId), dimensions, contradictions: [], assumptions: [], autoResolveCount: 0, consecutiveAutoResolves: 0 };
+  return { roundId: roundIdNum(roundId), dimensions, contradictions: [], assumptions: [], autoResolveCount: 0, consecutiveAutoResolves: 0, scanRounds: 0, lastScanRoundId: 0 };
 }
 
 /**
@@ -177,6 +181,8 @@ export function reconstructInterview(v: unknown): InterviewTracker | null {
     assumptions,
     autoResolveCount: roundIdNum(v.autoResolveCount),
     consecutiveAutoResolves: roundIdNum(v.consecutiveAutoResolves),
+    scanRounds: roundIdNum(v.scanRounds),
+    lastScanRoundId: roundIdNum(v.lastScanRoundId),
   };
 }
 
@@ -218,7 +224,42 @@ export function isInterviewReady(tracker: InterviewTracker | null): boolean {
   if (!Array.isArray(tracker.contradictions) || tracker.contradictions.length > 0) return false;
   // Every assumption must be a well-formed object with recorded:true.
   if (!Array.isArray(tracker.assumptions)) return false;
-  return tracker.assumptions.every((a) => isRecord(a) && a.recorded === true);
+  if (!tracker.assumptions.every((a) => isRecord(a) && a.recorded === true)) return false;
+  // 131/D2': readiness now requires scan-evidence — at least one contradiction scan
+  // must have been recorded. Data-shape alone (maxed dims, empty contradictions) is not
+  // proof a scan ran; this closes the "ready without ever scanning" gap.
+  return roundIdNum(tracker.scanRounds) >= 1;
+}
+
+/** 131/D2': pure I->P soft-gate evaluation. No IO. */
+export interface InterviewGate {
+  /** True when the interview is fully ready (data-shape AND scan-evidence). */
+  ready: boolean;
+  /** True when at least one contradiction scan was recorded. */
+  scanRan: boolean;
+  /** Count of high-severity contradictions still open. */
+  highContradictionCount: number;
+  /** Human-readable advisory reasons the gate is not ready (empty when ready). */
+  warnings: string[];
+}
+
+/**
+ * Evaluate the I->P soft-gate. This is advisory: the caller may advise-block or, on an
+ * explicit human override, pre-flip the interview flag and proceed (logging the override).
+ */
+export function evaluateInterviewGate(tracker: InterviewTracker | null): InterviewGate {
+  const t = tracker && isRecord(tracker) ? tracker : null;
+  const scanRan = !!t && roundIdNum(t.scanRounds) >= 1;
+  const highContradictionCount =
+    t && Array.isArray(t.contradictions)
+      ? t.contradictions.filter((c) => isRecord(c) && c.severity === "high").length
+      : 0;
+  const warnings: string[] = [];
+  if (!scanRan) warnings.push("no contradiction scan has been recorded for this interview");
+  if (highContradictionCount > 0) warnings.push(`${highContradictionCount} high-severity contradiction(s) still open`);
+  const ready = isInterviewReady(tracker);
+  if (!ready && warnings.length === 0) warnings.push("interview is not ready (dimensions/assumptions incomplete)");
+  return { ready, scanRan, highContradictionCount, warnings };
 }
 
 /**
@@ -249,5 +290,7 @@ export function normalizeInterview(tracker: InterviewTracker | null): InterviewT
     assumptions: Array.isArray(tracker.assumptions) ? tracker.assumptions.slice(-MAX_TRACKER_ARRAY) : [],
     autoResolveCount: roundIdNum(tracker.autoResolveCount),
     consecutiveAutoResolves: roundIdNum(tracker.consecutiveAutoResolves),
+    scanRounds: roundIdNum(tracker.scanRounds),
+    lastScanRoundId: roundIdNum(tracker.lastScanRoundId),
   };
 }

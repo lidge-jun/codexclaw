@@ -67,6 +67,10 @@ export const MAX_AUTO_ROUNDS = 5;
 
 
 
+
+
+
+
 function isRecord(v         )                               {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -122,7 +126,7 @@ function reconstructScore(v         )                 {
 export function defaultInterview(roundId = 0)                   {
   const dimensions = {}                                     ;
   for (const d of DIMENSIONS) dimensions[d] = defaultScore();
-  return { roundId: roundIdNum(roundId), dimensions, contradictions: [], assumptions: [], autoResolveCount: 0, consecutiveAutoResolves: 0 };
+  return { roundId: roundIdNum(roundId), dimensions, contradictions: [], assumptions: [], autoResolveCount: 0, consecutiveAutoResolves: 0, scanRounds: 0, lastScanRoundId: 0 };
 }
 
 /**
@@ -177,6 +181,8 @@ export function reconstructInterview(v         )                          {
     assumptions,
     autoResolveCount: roundIdNum(v.autoResolveCount),
     consecutiveAutoResolves: roundIdNum(v.consecutiveAutoResolves),
+    scanRounds: roundIdNum(v.scanRounds),
+    lastScanRoundId: roundIdNum(v.lastScanRoundId),
   };
 }
 
@@ -218,7 +224,42 @@ export function isInterviewReady(tracker                         )          {
   if (!Array.isArray(tracker.contradictions) || tracker.contradictions.length > 0) return false;
   // Every assumption must be a well-formed object with recorded:true.
   if (!Array.isArray(tracker.assumptions)) return false;
-  return tracker.assumptions.every((a) => isRecord(a) && a.recorded === true);
+  if (!tracker.assumptions.every((a) => isRecord(a) && a.recorded === true)) return false;
+  // 131/D2': readiness now requires scan-evidence — at least one contradiction scan
+  // must have been recorded. Data-shape alone (maxed dims, empty contradictions) is not
+  // proof a scan ran; this closes the "ready without ever scanning" gap.
+  return roundIdNum(tracker.scanRounds) >= 1;
+}
+
+/** 131/D2': pure I->P soft-gate evaluation. No IO. */
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * Evaluate the I->P soft-gate. This is advisory: the caller may advise-block or, on an
+ * explicit human override, pre-flip the interview flag and proceed (logging the override).
+ */
+export function evaluateInterviewGate(tracker                         )                {
+  const t = tracker && isRecord(tracker) ? tracker : null;
+  const scanRan = !!t && roundIdNum(t.scanRounds) >= 1;
+  const highContradictionCount =
+    t && Array.isArray(t.contradictions)
+      ? t.contradictions.filter((c) => isRecord(c) && c.severity === "high").length
+      : 0;
+  const warnings           = [];
+  if (!scanRan) warnings.push("no contradiction scan has been recorded for this interview");
+  if (highContradictionCount > 0) warnings.push(`${highContradictionCount} high-severity contradiction(s) still open`);
+  const ready = isInterviewReady(tracker);
+  if (!ready && warnings.length === 0) warnings.push("interview is not ready (dimensions/assumptions incomplete)");
+  return { ready, scanRan, highContradictionCount, warnings };
 }
 
 /**
@@ -249,5 +290,7 @@ export function normalizeInterview(tracker                         )            
     assumptions: Array.isArray(tracker.assumptions) ? tracker.assumptions.slice(-MAX_TRACKER_ARRAY) : [],
     autoResolveCount: roundIdNum(tracker.autoResolveCount),
     consecutiveAutoResolves: roundIdNum(tracker.consecutiveAutoResolves),
+    scanRounds: roundIdNum(tracker.scanRounds),
+    lastScanRoundId: roundIdNum(tracker.lastScanRoundId),
   };
 }

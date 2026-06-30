@@ -40,11 +40,19 @@ export interface LedgerEntry {
   to: Phase;
   reason: string;
   evidence?: string;
+  /** 131/D2': who drove this transition (human chat vs agent CLI). */
+  actor?: "human" | "agent";
+  /** 131/D2': true when a human overrode the I->P soft-gate. */
+  override?: boolean;
+  /** 131/D2': scan-evidence snapshot captured at an I->P override. */
+  scanEvidence?: { scanRounds: number; highContradictionCount: number };
 }
 
 export const STATE_DIR = ".codexclaw";
 export const SESSIONS_SUBDIR = "sessions";
 export const LEDGER_FILE = "ledger.jsonl";
+/** 131/D2': per-session interview scan-evidence ledger (durable source of record). */
+export const INTERVIEWS_SUBDIR = "interviews";
 
 export function sanitizeKey(value: string): string {
   const sanitized = (value ?? "").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -149,4 +157,47 @@ export function appendLedger(cwd: string, entry: LedgerEntry): void {
   const dir = join(cwd, STATE_DIR);
   mkdirSync(dir, { recursive: true });
   appendFileSync(join(dir, LEDGER_FILE), `${JSON.stringify(entry)}\n`);
+}
+
+/** 131/D2': a recorded interview scan event (durable scan-evidence). */
+export type InterviewScanEvent = "scan_started" | "scan_completed" | "rescan_completed";
+
+export interface InterviewEvent {
+  ts: string;
+  sessionId: string;
+  event: InterviewScanEvent;
+  roundId: number;
+  contradictionCount: number;
+  highContradictionCount: number;
+}
+
+function interviewsDir(cwd: string): string {
+  return join(cwd, STATE_DIR, INTERVIEWS_SUBDIR);
+}
+
+function interviewLedgerPath(cwd: string, sessionId: string): string {
+  return join(interviewsDir(cwd), `${sanitizeKey(sessionId)}.jsonl`);
+}
+
+/**
+ * 131/D2': append a scan event to the per-session interview ledger. This is the durable
+ * source of record for "a contradiction scan ran"; the tracker's scanRounds is a cache.
+ */
+export function appendInterviewEvent(cwd: string, entry: InterviewEvent): void {
+  const dir = interviewsDir(cwd);
+  mkdirSync(dir, { recursive: true });
+  appendFileSync(interviewLedgerPath(cwd, entry.sessionId), `${JSON.stringify(entry)}\n`);
+}
+
+/** 131/D2': read recorded interview scan events (best-effort; missing file -> []). */
+export function readInterviewEvents(cwd: string, sessionId: string): InterviewEvent[] {
+  try {
+    const raw = readFileSync(interviewLedgerPath(cwd, sessionId), "utf8");
+    return raw
+      .split("\n")
+      .filter((l) => l.trim().length > 0)
+      .map((l) => JSON.parse(l) as InterviewEvent);
+  } catch {
+    return [];
+  }
 }
