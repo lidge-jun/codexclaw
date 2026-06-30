@@ -43,7 +43,7 @@ the missing control surface using the codex-native `$ + hook` model.
 | L1 | 010 | Parity audit: cli-jaw/jawcode/omo vs codexclaw, `$`+hook UX gap map | DONE |
 | L2 | 020 | FSM legal-transition table + four-transition attest gate | DONE |
 | L3 | 030 | `$cxc-orchestrate` grammar (030/L3a) + hook wiring to `transition()` — the missing wire (031/L3b) | DONE |
-| L4 | 040 | `cxc orchestrate` CLI over the same file state | PLANNED |
+| L4 | 040 | `cxc orchestrate` CLI over the same file state (agent-gated path) | DONE |
 | L5 | 050 | `status` / `reset` / `D` chat affordances + phase footer directive + ledger-on-transition | PLANNED |
 | L6 | 060 | Stop-continuation loop with omo termination guards | PLANNED |
 | L7 | 070 | `$cxc-goalplan` + `$cxc-loop` (setGoal-equiv + continuation) + human/agent source split + pabcd skill-doc rewrite | PLANNED |

@@ -111,3 +111,36 @@ The hook gets `session_id` from codex; the terminal CLI does not. Strategy:
   (the shell may split it)? Should the CLI read `--attest` as the rest-of-argv joined,
   or require a single quoted arg? Decide and test.
 - Confirm phase verbs use the GATED `transition()`, not the human free-pass.
+
+## Audit verdict (A gate — independent reviewer, 2026-06-30)
+
+Verdict: **PLAN OK with fixes**. Confirmed: phase verbs route through gated
+`transition()` (validates attest before canEnter), so CLI `P->A` without attest fails
+correctly. Folded into the build scope:
+
+1. **HIGH — structural argv parsing (NOT `argv.join(" ")`)**: `parseOrchestrateCommand`
+   is prompt/line-oriented; do not reuse it for argv. The CLI parses argv structurally:
+   first token = verb; scan for `--attest` and consume the NEXT single argv token as the
+   exact JSON string (the shell already quoted it into one token), then JSON.parse +
+   coerceAttest. `--session`/`--cwd`/`--json` are parsed as flag+value. The brace-balanced
+   extractor from grammar is reused only to validate, not to re-split.
+2. **HIGH — session semantics (no silent `cli` divergence)**: the hook keys state by
+   the codex `session_id`; a CLI default `"cli"` would write a DIFFERENT file. Fix:
+   - `status`/read with no session + empty dir → report "no active session".
+   - a MUTATING verb (phase/reset) with no `--session` and no existing session → exit
+     non-zero asking for `--session` (do NOT silently create a divergent `cli` session).
+   - `"cli"` is allowed ONLY when explicitly passed `--session cli` (terminal-only state,
+     documented as such). The "hook and CLI share state" claim holds only when they use
+     the same session id (explicit `--session <codex-id>` or latest-mtime pick of a real
+     hook-created session).
+3. **MEDIUM — deterministic latest-mtime pick**: handle missing/empty dir without
+   throwing; ignore non-`.json` and `*.tmp`; tie-break equal mtimes by filename; never
+   rewrite a raw id to its sanitized form as the selected id. Tests: missing dir, empty
+   dir, equal-mtime tie-break, explicit `--session` overrides latest.
+4. **MEDIUM — malformed `--attest`**: when `--attest` is present but unparseable/
+   uncoercible, the CLI exits non-zero with the parse error (not a generic "missing
+   evidence"), and control verbs (status/reset) ignore a stray `--attest`. Add a test.
+5. **LOW — root-bin integration test**: add a test that actually invokes
+   `bin/codexclaw.mjs orchestrate ...` (spawnSync) and asserts exit code + output, not
+   only `runOrchestrateCli()` in-process. `cli.ts` reads kind from argv[2]; the
+   orchestrate branch parses `process.argv.slice(3)` like the freeze branch.
