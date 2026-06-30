@@ -59,7 +59,7 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 | L17 | 170 | Interview runtime honesty (A4) + trigger-doc reconcile (A5) + minds.ts wired to live I directive (C2) + goal firewall on passive re-injection; triage/rescan documented as directive-reachable helpers (C3/C4) — decomposed in 141 | DONE | DONE |
 | L18 | 180 | Status-sync + forbidden-claims + count gates (E8): `gate.mjs` + `gate.test.mjs`, `npm run gate` (commit pending) — decomposed in 141 | DONE | DONE |
 | L19 | 190 | dist packaging contract: force-track 4 runtime dist + `packaging.test.mjs` import-graph gate (C8, E8) (commit pending) — decomposed in 141 | DONE | DONE |
-| L20 | 200 | L1-L19 full-span gap sweep (5-agent) + 7-work-phase remediation: orchestrate-cli D-close/session bugs, interview-ledger mixed-read, honest enforcement prose, catalog ocx-slug parity, gate structure-scan, doc/SoT truth sweep, hook e2e + residue cleanup — gap register in 200 | DONE | DONE |
+| L20 | 200 | L1-L19 full-span gap sweep (5-agent) + 10-work-phase remediation (WP1-WP10): orchestrate-cli bugs, interview-ledger read, honest enforcement prose, catalog ocx-slug parity, gate structure-scan, doc/SoT truth sweep, hook e2e, residue cleanup + C10 root cause, orchestrate-cli edge coverage, src/dist freshness gate — gap register in 200 | DONE | DONE |
 
 ## Track status
 

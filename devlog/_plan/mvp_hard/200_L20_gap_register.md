@@ -1,6 +1,6 @@
 # L20 / 200 — L1-L19 Gap Register (full-span sweep) + remediation loops
 
-Status: DONE (gap scan + all 7 remediation work-phases shipped + tested) · 2026-06-30 · mvp_hard loop L20 · class C3
+Status: DONE (gap scan + all 10 remediation work-phases WP1-WP10 shipped + tested) · 2026-06-30 · mvp_hard loop L20 · class C3
 
 > Source: 5 parallel read-only gap-scan subagents (gpt-5.4) over L1-L19 deliverables —
 > Pasteur (L1-L7), Leibniz (L8-L10), Raman (L11-L13), Halley (L14-L19 + register residue),
@@ -75,6 +75,21 @@ C10 root cause; all fixed in WP9:
 - `132_L13.2…md:53` — acceptance criteria still asserted "No surface claims impl-DONE for
   L9/L11/L12"; annotated as the historical WP3 snapshot (L9/L12 runtime since shipped).
 - C10 root cause — `--test-concurrency=1` added to the `npm test` script (see G23).
+
+## WP11 residual fixes (Harvey completion-audit, gpt-5.4)
+
+A second completion audit confirmed runtime/tests solid (367/367 x3, C10 flake gone, freshness
+test real) but found three doc/gate residuals from WP9/WP10; all fixed in WP11:
+
+- Work-phase count drift: register said "7", INDEX said "7-work-phase", roadmap said "8", but
+  WP1-WP10 exist. Normalized all three surfaces to "10 work-phases (WP1-WP10)".
+- `gate.mjs` NO_OWN_DOC still mapped L20 → `141`, so the gate EXEMPTED L20 from token-sync even
+  though L20 now has its own loop doc (`200_L20_gap_register.md`, `Status: DONE`). Removed L20 from
+  NO_OWN_DOC so the gate validates it directly (still green: 200 leads `DONE` == INDEX `DONE`).
+  Updated the `structure/INDEX.md` exemption note to match.
+- `roadmap.html` summary counters (41/1/0/2) didn't match the rendered rows. Recounted and set to
+  the real row classes: 46 done, 2 planned (L11 impl-PLANNED + L31), 2 deferred; dropped the empty
+  ANALYZED stat.
 
 ## Remediation work-phase plan (each = 1 full PABCD cycle)
 

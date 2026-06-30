@@ -176,7 +176,8 @@ Hook processes are intentionally short: read stdin JSON, reconstruct state, opti
   the leading `Status:` token of its loop doc (the two-axis legend, `132_L13.2`, makes the
   loop-doc leading token the decision axis; parentheticals express impl and are not parsed).
   Status tokens are a LOCKED enum (`DONE|FROZEN|PLANNED|ANALYZED|DEFERRED|BLOCKED|PROPOSED|PARTIAL`).
-  Rows decomposed inside a shared doc (L15/L16/L17/L19/L20 → `141`) are allowlisted in `NO_OWN_DOC`.
+  Rows decomposed inside a shared doc (L15/L16/L17 → `141`) are allowlisted in `NO_OWN_DOC`.
+  L20 has its own loop doc (`200_L20_gap_register.md`) and is validated directly, not allowlisted.
 - `checkForbiddenClaims`: NARROW false-enforcement phrases in `skills/**/SKILL.md` (e.g.
   "hook automatically loads the X skill") are violations unless the line carries a trailing
   `<!-- gate-ok: <reason> -->` escape for a genuinely hook-backed claim.

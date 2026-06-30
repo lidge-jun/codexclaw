@@ -36,13 +36,13 @@ export const STATUS_TOKENS = new Set([
 /**
  * INDEX rows whose decade has NO own loop doc because the work is decomposed inside
  * another doc. Maps `Ln` -> the doc that actually carries its status narrative.
- * (L14-L19 decomposed in 141; L20 is a backlog row analyzed in mvp_res.)
+ * (L14-L19 decomposed in 141. L20 is NOT here: it has its own loop doc, 200_L20_gap_register.md,
+ * whose leading `Status:` token the gate validates against the INDEX row directly.)
  */
 export const NO_OWN_DOC = new Map([
   ["L15", "141_L14_L19_contradiction_patch_plan.md"],
   ["L16", "141_L14_L19_contradiction_patch_plan.md"],
   ["L17", "141_L14_L19_contradiction_patch_plan.md"],
-  ["L20", "141_L14_L19_contradiction_patch_plan.md"],
 ]);
 
 /** Extract the leading status token from a `Status: <TOKEN> ...` line. */
