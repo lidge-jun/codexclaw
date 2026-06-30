@@ -1,12 +1,12 @@
 # emergence_harness_impl — Divergence Layer Implementation Track (CANONICAL INDEX)
 
-Status: CANONICAL INDEX (phase-decomposed plan; NO code shipped yet) · 2026-07-01 · follows `../260701_emergence_harness/`
+Status: CANONICAL INDEX (010-070 shipped) · 2026-07-01 · follows `../260701_emergence_harness/`
 
 > `../260701_emergence_harness/` (000-007 + `100_patch_plan.md`) is the diagnosis + divergence-layer
 > design + the single-file decade plan. THIS track splits that plan into one file per work-phase,
-> the same way `../lazygap_impl/` split `../lazygap/`. This loop's deliverable is the plan only —
-> per the user instruction "이번 루프는 pabcd 반복하면서 패치플랜까지만 세우는거다." Implementation
-> of any decade is a LATER loop with its own full PABCD cycle.
+> the same way `../lazygap_impl/` split `../lazygap/`. It began as a patch-plan-only track; the
+> later implementation loop shipped 010-060 and is closing 070 as the docs/visual/falsifiability
+> sync pass.
 >
 > Diagnosis SOT: `structure/50_emergence_gap.md`. Design SOT: `../260701_emergence_harness/001`-`007`.
 > Enforcement vocabulary (E1-E8): `structure/40_enforcement_methods.md`.
@@ -16,7 +16,8 @@ Status: CANONICAL INDEX (phase-decomposed plan; NO code shipped yet) · 2026-07-
 - `000` = this INDEX. Each work-phase owns a decade: `010`, `020`, ...
 - Decade head doc `0X0_<slug>.md`; finer sub-passes `0X1_<slug>.md`.
 - Directory sort order == dependency order == execution order. `cxc` is the primary shorthand.
-- DONE = shipped + tested only (two-axis status). Every doc here is PLANNED until its own loop ships it.
+- DONE = shipped + tested only (two-axis status). A row moves to DONE only after its own loop ships
+  code/docs and fresh verification evidence exists.
 
 ## Why this track exists
 
@@ -55,7 +56,7 @@ decade before its prereqs land.
 | 045 | 045 | harness-first (`evaluate.sh`) before any candidate | `004` | E7 doctrine + E2 feed | 010,015 | DONE |
 | 050 | 050 | candidate build fan-out (worktrees) + D race doctrine | `004`,`007` | E7 + E2 ledger | 030,045 | DONE |
 | 060 | 060 | overfitting guard + intent-question gating | `006`,`007` | E7 | 015,030 | DONE |
-| 070 | 070 | docs/visual sync + falsifiability | all,`003` | E8 (drift gate) | all | PLANNED |
+| 070 | 070 | docs/visual sync + falsifiability | all,`003` | E8 (drift gate) | all | DONE |
 
 Final order: 010 -> 015 -> 020 -> 030 -> 040 -> 045 -> 050 -> 060 -> 070.
 
@@ -75,6 +76,16 @@ baked into this track's file split: objective-kind became its own prerequisite (
 harness-first became its own prerequisite (045, precedes 050); the goal-mode `request_user_input`
 collision is handled in 020/050 (no interview/no `request_user_input` under an active goal); only
 020 is labelled E2.
+
+## WP3 A-phase audit (Descartes, 2026-07-01)
+
+The 070 closeout reconciles the apparent 006/007 conflict by making **collapse point** the SOT:
+I records N>=2 approaches as anti-anchoring evidence, but ordinary satisfy-spec/build work collapses
+early at P and still executes one strategy. Late collapse (N worktrees/race at D) is reserved for
+maximize-metric work with an unclear winner, usually after the shipped plateau Stop lever fires.
+Candidate ideas stay grounded by `cxc-search`; harness-first `evaluate.sh` stays before candidate
+build; and falsifiability is old-vs-new seed/fold ablation, not a success story from one official
+resubmission.
 
 ## Document map
 

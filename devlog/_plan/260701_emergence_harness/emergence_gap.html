@@ -236,23 +236,23 @@
     원격 점수 자동 검증은 불가능(훅이 못 봄) — 운영자 입력으로 정직하게 둔다.</p>
   </div>
 
-  <h2><span class="n">07</span> 제안 흐름 — IPABCD에 발산을 매핑 <span class="dim" style="font-size:12px">(알고리즘 태스크 한정, opt-in)</span></h2>
+  <h2><span class="n">07</span> 제안 흐름 — IPABCD에 발산을 매핑 <span class="dim" style="font-size:12px">(기록은 항상, fan-out은 조건부)</span></h2>
   <div class="band fix">
     <div class="pipe">
       <div class="ph" style="border-top-color:var(--div)">
-        <div class="l" style="color:var(--div)">I · Diverge</div><div class="t">발산</div>
-        <div class="d">접근 아이디어 N개 생성</div>
-        <div class="trap" style="color:var(--good);border-color:var(--line)">N=2~3로 bound (autoresearch식)</div>
+        <div class="l" style="color:var(--div)">I · Record</div><div class="t">N≥2 기록</div>
+        <div class="d">strong-1 + add-1 가능</div>
+        <div class="trap" style="color:var(--good);border-color:var(--line)">질문이 아니라 anti-anchoring 로그</div>
       </div>
       <div class="ph" style="border-top-color:var(--div)">
-        <div class="l" style="color:var(--div)">P · Commit</div><div class="t">계획 확정</div>
-        <div class="d">N개 구현 계획 확정</div>
-        <div class="trap" style="color:var(--good);border-color:var(--line)">알고리즘 태스크일 때만</div>
+        <div class="l" style="color:var(--div)">P · Collapse?</div><div class="t">접을 지점 결정</div>
+        <div class="d">충족형은 여기서 1개 선택</div>
+        <div class="trap" style="color:var(--good);border-color:var(--line)">명확한 구현 목표면 조기 수렴</div>
       </div>
       <div class="ph" style="border-top-color:var(--div)">
-        <div class="l" style="color:var(--div)">A+B · Build</div><div class="t">병렬 빌드</div>
-        <div class="d">워크트리에서 ≥2개 순차 빌드</div>
-        <div class="trap" style="color:var(--good);border-color:var(--line)">jawcode team 격리 패턴</div>
+        <div class="l" style="color:var(--div)">A+B · Build</div><div class="t">조건부 fan-out</div>
+        <div class="d">maximize/불명확이면 ≥2개 빌드</div>
+        <div class="trap" style="color:var(--good);border-color:var(--line)">워크트리 격리, owner archive</div>
       </div>
       <div class="ph" style="border-top-color:var(--div)">
         <div class="l" style="color:var(--div)">C · Compare</div><div class="t">비교</div>
@@ -265,12 +265,12 @@
         <div class="trap" style="color:var(--good);border-color:var(--line)">진행 / 재발산 / 더 탐색</div>
       </div>
     </div>
-    <div class="arrowrow">I → P → A+B → C → D <span style="color:var(--div)">(발산은 I·P, 수렴은 각 후보의 빌드 안에서)</span></div>
-    <p class="dim" style="margin-top:10px"><strong>N을 작게 잡는 게 핵심:</strong> 각 후보가 풀 빌드+검증이라
-    토큰 best-of-N보다 비용이 크다 → 기본 N=2~3, 정체가 증명될 때만 다양성을 키운다(Novelty Search).
-    비교는 best-of-N 재랭킹이 아니라 <code>autoresearch</code>의 고정-시드 keep/discard로 같은-시드 ablation을 강제.</p>
+    <div class="arrowrow">I(record N≥2) → P(collapse early or keep N) → A+B → C → D</div>
+    <p class="dim" style="margin-top:10px"><strong>N≥2 규칙은 유지하지만 비용은 collapse point가 제어한다:</strong>
+    충족형 작업은 I에서 가볍게 기록하고 P에서 1개로 접는다. 최대화형·불명확 작업만 N=2~3을 끝까지 끌고 가서
+    고정-시드 keep/discard로 같은-시드 ablation을 강제한다.</p>
     <div class="legend">
-      <span><span class="sw" style="background:var(--div)"></span>발산 페이즈 (I·P)</span>
+      <span><span class="sw" style="background:var(--div)"></span>발산 기록 (I) + collapse 결정 (P/D)</span>
       <span><span class="sw" style="background:var(--good)"></span>안전장치 / bound</span>
     </div>
   </div>
@@ -297,11 +297,11 @@
 
   <h2><span class="n">09</span> 언제 발산하나 + 어떻게 고르나 <span class="dim" style="font-size:12px">(gating + selection — 핵심 결정)</span></h2>
   <div class="band fix">
-    <p><strong>발산은 기본값이 아니라 예외다.</strong> 대부분의 목표 빌드는 한 전략으로 충분하다.
-    판별선은 태스크 종류가 아니라 <strong>목표의 성격</strong>:</p>
+    <p><strong>비싼 fan-out은 기본값이 아니라 예외다.</strong> 기록은 N≥2로 남기지만 대부분의 목표 빌드는
+    P에서 한 전략으로 접어도 충분하다. 판별선은 태스크 종류가 아니라 <strong>목표의 성격</strong>:</p>
     <div class="axes">
       <div class="axis conv">
-        <div class="tag">충족형 → 단일 전략 (N=1)</div>
+        <div class="tag">충족형 → 기록 N≥2, 실행 N=1</div>
         <h3>Satisfy-spec</h3>
         <ul>
           <li>pass/fail, 정답 동작 하나</li>
@@ -311,7 +311,7 @@
         </ul>
       </div>
       <div class="axis div">
-        <div class="tag">최대화형 → 발산 (N≥2)</div>
+        <div class="tag">최대화형 → 기록 N≥2, 필요 시 late fan-out</div>
         <h3>Maximize-metric</h3>
         <ul>
           <li>연속 점수, "더 나음"이 열려있음</li>
@@ -322,23 +322,23 @@
       </div>
     </div>
     <p style="margin-top:14px"><strong>핵심: 발산은 보통 선제가 아니라 정체-트리거다.</strong>
-    항상 N=1로 싸게 시작하고, 진짜 메트릭이 정체했을 때만 발산 모드로 들어갔다 빠져나온다:</p>
+    실행은 싸게 시작하고, 진짜 메트릭이 정체했을 때만 late fan-out 발산 모드로 들어갔다 빠져나온다:</p>
     <div class="pipe">
-      <div class="ph"><div class="l">DEFAULT</div><div class="t">단일 전략</div><div class="d">N=1 보통 PABCD</div></div>
+      <div class="ph"><div class="l">DEFAULT</div><div class="t">조기 collapse</div><div class="d">N≥2 기록 후 P에서 1개 선택</div></div>
       <div class="ph" style="border-top-color:var(--warn)"><div class="l" style="color:var(--warn)">plateau?</div><div class="t">정체 감지</div><div class="d">L3 메트릭-델타 (턴 수 아님)</div></div>
       <div class="ph" style="border-top-color:var(--div)"><div class="l" style="color:var(--div)">DIVERGE</div><div class="t">발산 모드</div><div class="d">다음 work-phase만 N=2~3</div></div>
       <div class="ph" style="border-top-color:var(--good)"><div class="l" style="color:var(--good)">resolved</div><div class="t">복귀</div><div class="d">승자에 수렴, N=1로 복귀</div></div>
     </div>
-    <p class="dim" style="margin-top:6px">선제 발산은 오직 (최대화형 AND 로컬≠진짜목표 AND 아키텍처 우열 불명)이 다 켜질 때만 — NYPC가 그 예외. CRUD는 0개.</p>
+    <p class="dim" style="margin-top:6px">선제 late fan-out은 오직 (최대화형 AND 로컬≠진짜목표 AND 아키텍처 우열 불명)이 다 켜질 때만 — NYPC가 그 예외. CRUD는 I 기록만 남기고 P에서 접는다.</p>
     <p style="margin-top:14px"><strong>선택: 가장 싼 심판부터, 인간은 맨 마지막.</strong></p>
     <div class="pipe">
-      <div class="ph"><div class="l">1</div><div class="t">cheap-screen</div><div class="d">stub로 evaluate.sh 1회 → 메트릭 가지치기</div></div>
+      <div class="ph"><div class="l">1</div><div class="t">optional cheap-screen</div><div class="d">N>2/고비용일 때만 faithful evaluate.sh로 가지치기</div></div>
       <div class="arrowrow" style="align-self:center">→</div>
       <div class="ph"><div class="l">2</div><div class="t">harness 비교</div><div class="d">상위 2개 풀빌드, 같은 시드 keep/discard</div></div>
       <div class="arrowrow" style="align-self:center">→</div>
       <div class="ph" style="border-top-color:var(--good)"><div class="l" style="color:var(--good)">3</div><div class="t">유저 게이트 (D)</div><div class="d">메트릭이 못 정할 때만: 진행/재발산/더탐색</div></div>
     </div>
-    <p class="dim" style="margin-top:6px">선택 기준은 항상 고정-시드 true-metric이지 vibes가 아니다. 충족형 goal은 plateau 체크가 사실상 안 터지니 발산 오버헤드 0.</p>
+    <p class="dim" style="margin-top:6px">선택 기준은 항상 고정-시드 true-metric이지 vibes가 아니다. 충족형 goal은 P에서 조기 collapse하므로 fan-out 오버헤드 0.</p>
   </div>
 
   <h2><span class="n">10</span> Collapse-Point 모델 <span class="dim" style="font-size:12px">(I는 N≥2 기록 유지 · 유저 질문은 조건부)</span></h2>
@@ -384,7 +384,10 @@
     </div>
     <p class="dim" style="margin-top:10px">변수는 <strong>collapse 지점</strong>이다 — 충족형은 P에서 일찍, algo는 C 뒤로 늦게.
     최대화형 goal이 정체하면(섹션 09 plateau) 다음 work-phase에서 늦은 collapse를 다시 켤 수 있다.
-    훅/CLI가 강제하는 건 D의 메트릭 레이스와 plateau 체크(E2)뿐, collapse 지점 판단과 종이 선택은 에이전트 doctrine(E7).</p>
+    훅/CLI가 강제하는 건 plateau 체크(E2)뿐이고, D의 메트릭 레이스는 CLI/evidence-backed 실행이다. collapse 지점 판단과 종이 선택은 에이전트 doctrine(E7).</p>
+    <p class="dim" style="margin-top:10px"><strong>검증은 성공담이 아니라 falsifiability:</strong>
+    OLD-vs-NEW를 미리 정한 동일 seed/fold에서 ablation하고, train/validation/holdout 중 holdout은 튜닝 중 건드리지 않는다.
+    판단은 mean이 아니라 median + worst-10% + variance. 공식 재제출은 smoke이지 causal proof가 아니다.</p>
   </div>
 
   <footer>
