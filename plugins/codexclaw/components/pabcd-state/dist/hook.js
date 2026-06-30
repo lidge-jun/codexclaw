@@ -55,6 +55,28 @@ import { MIND_DISPATCH_DIRECTIVE } from "./minds.js";
 
 
 
+/**
+ * SubagentStop payload (lazygap_impl 010). Fires when a plugin thread-spawned child
+ * ends its turn. Wire shape verified against codex-rs `schema.rs:576`
+ * (`SubagentStopCommandInput`, snake_case). NOTE: `transcript_path` is the PARENT
+ * transcript; the CHILD's transcript is `agent_transcript_path`
+ * (codex-rs `hook_runtime.rs:302`) — the compaction bail must read the child path.
+ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 const MAX_CTX = 32_000;
 
 /**

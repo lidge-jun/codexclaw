@@ -10,7 +10,12 @@
  *  - Stop:             codex-rs hooks/src/events/stop.rs:23-34
  *  - JS shape parity:  omo ulw-loop/comment-checker codex-hook.ts:3-13
  */
-import type { PostToolUsePayload, StopPayload, UserPromptSubmitPayload } from "./hook.ts";
+import type {
+  PostToolUsePayload,
+  StopPayload,
+  SubagentStopPayload,
+  UserPromptSubmitPayload,
+} from "./hook.ts";
 
 function asObject(raw: string): Record<string, unknown> | null {
   const text = (raw ?? "").trim();
@@ -61,6 +66,31 @@ export function parseStop(raw: string): StopPayload | null {
     cwd,
     transcript_path: str(obj.transcript_path) ?? null,
     turn_id: str(obj.turn_id),
+    stop_hook_active: typeof obj.stop_hook_active === "boolean" ? obj.stop_hook_active : undefined,
+    last_assistant_message: str(obj.last_assistant_message) ?? null,
+  };
+}
+
+export function parseSubagentStop(raw: string): SubagentStopPayload | null {
+  const obj = asObject(raw);
+  if (!obj) return null;
+  if (obj.hook_event_name !== "SubagentStop") return null;
+  const sessionId = str(obj.session_id);
+  const cwd = str(obj.cwd);
+  const agentType = str(obj.agent_type);
+  // agent_type is the matcher key + the gate's primary discriminator; require it.
+  if (sessionId === undefined || cwd === undefined || agentType === undefined) return null;
+  return {
+    hook_event_name: "SubagentStop",
+    session_id: sessionId,
+    cwd,
+    agent_type: agentType,
+    agent_id: str(obj.agent_id),
+    turn_id: str(obj.turn_id),
+    transcript_path: str(obj.transcript_path) ?? null,
+    agent_transcript_path: str(obj.agent_transcript_path) ?? null,
+    model: str(obj.model),
+    permission_mode: str(obj.permission_mode),
     stop_hook_active: typeof obj.stop_hook_active === "boolean" ? obj.stop_hook_active : undefined,
     last_assistant_message: str(obj.last_assistant_message) ?? null,
   };

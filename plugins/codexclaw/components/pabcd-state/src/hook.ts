@@ -55,6 +55,28 @@ export interface PostToolUsePayload {
   turn_id?: string;
 }
 
+/**
+ * SubagentStop payload (lazygap_impl 010). Fires when a plugin thread-spawned child
+ * ends its turn. Wire shape verified against codex-rs `schema.rs:576`
+ * (`SubagentStopCommandInput`, snake_case). NOTE: `transcript_path` is the PARENT
+ * transcript; the CHILD's transcript is `agent_transcript_path`
+ * (codex-rs `hook_runtime.rs:302`) — the compaction bail must read the child path.
+ */
+export interface SubagentStopPayload {
+  hook_event_name: "SubagentStop";
+  session_id: string;
+  cwd: string;
+  agent_type: string;
+  agent_id?: string;
+  turn_id?: string;
+  transcript_path?: string | null;
+  agent_transcript_path?: string | null;
+  model?: string;
+  permission_mode?: string;
+  stop_hook_active?: boolean;
+  last_assistant_message?: string | null;
+}
+
 const MAX_CTX = 32_000;
 
 /**

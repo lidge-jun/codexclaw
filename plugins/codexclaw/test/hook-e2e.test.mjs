@@ -14,7 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync, existsSync, rmSync, mkdtempSync, cpSync } from "node:fs";
+import { readFileSync, existsSync, rmSync, mkdtempSync, cpSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -96,7 +96,7 @@ function emptyCodexHome() {
 
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 6, "expected 6 declared hooks");
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 7, "expected 7 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
@@ -254,5 +254,46 @@ test("WP22/G19: user-prompt-submit hook e2e - no trigger + un-orchestrated stays
     assert.equal(res.stdout.trim(), "", "no trigger + never orchestrated => empty stdout");
     // fail-closed: nothing should have been persisted either.
     assert.ok(!existsSync(join(tmp, ".codexclaw", "sessions", "s2.json")), "no state should be written");
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
+// lazygap_impl 010: SubagentStop evidence-receipt gate. A gated worker child with no
+// receipt must be blocked (decision:block); a valid receipt under .codexclaw/evidence/
+// releases. Drives the real dist entrypoint via the manifest command.
+test("L010: subagent-stop hook e2e - worker w/o receipt blocks, valid receipt releases", () => {
+  const { event, hookEvent, distAbs } = readHookCommand("./hooks/subagent-stop-verifying-evidence.json");
+  assert.equal(event, "SubagentStop");
+  const ep = snapshotEntrypoint(distAbs);
+  if (!ep) return;
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-sas-"));
+  try {
+    // 1) worker, no receipt -> block with the EVIDENCE_RECORDED contract.
+    const blocked = runHook(ep, hookEvent, {
+      hook_event_name: "SubagentStop", session_id: "s1", cwd: tmp,
+      agent_type: "worker", agent_id: "a1", last_assistant_message: "all done!",
+    });
+    assert.equal(blocked.status, 0, blocked.stderr);
+    const out = JSON.parse(blocked.stdout);
+    assert.equal(out.decision, "block");
+    assert.match(out.reason, /EVIDENCE_RECORDED/);
+
+    // 2) explorer (non-gated) -> released (empty stdout).
+    const released = runHook(ep, hookEvent, {
+      hook_event_name: "SubagentStop", session_id: "s1", cwd: tmp,
+      agent_type: "explorer", agent_id: "a2", last_assistant_message: "findings...",
+    });
+    assert.equal(released.status, 0, released.stderr);
+    assert.equal(released.stdout.trim(), "", "non-gated agent_type must release");
+
+    // 3) worker WITH a valid receipt -> released.
+    mkdirSync(join(tmp, ".codexclaw", "evidence"), { recursive: true });
+    writeFileSync(join(tmp, ".codexclaw", "evidence", "p.md"), "tests green");
+    const ok = runHook(ep, hookEvent, {
+      hook_event_name: "SubagentStop", session_id: "s3", cwd: tmp,
+      agent_type: "worker", agent_id: "a3",
+      last_assistant_message: "done.\nEVIDENCE_RECORDED: .codexclaw/evidence/p.md",
+    });
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.equal(ok.stdout.trim(), "", "valid receipt must release");
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });

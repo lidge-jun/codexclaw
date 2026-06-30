@@ -12,6 +12,11 @@
  */
 
 
+
+
+
+
+
 function asObject(raw        )                                 {
   const text = (raw ?? "").trim();
   if (!text) return null;
@@ -61,6 +66,31 @@ export function parseStop(raw        )                     {
     cwd,
     transcript_path: str(obj.transcript_path) ?? null,
     turn_id: str(obj.turn_id),
+    stop_hook_active: typeof obj.stop_hook_active === "boolean" ? obj.stop_hook_active : undefined,
+    last_assistant_message: str(obj.last_assistant_message) ?? null,
+  };
+}
+
+export function parseSubagentStop(raw        )                             {
+  const obj = asObject(raw);
+  if (!obj) return null;
+  if (obj.hook_event_name !== "SubagentStop") return null;
+  const sessionId = str(obj.session_id);
+  const cwd = str(obj.cwd);
+  const agentType = str(obj.agent_type);
+  // agent_type is the matcher key + the gate's primary discriminator; require it.
+  if (sessionId === undefined || cwd === undefined || agentType === undefined) return null;
+  return {
+    hook_event_name: "SubagentStop",
+    session_id: sessionId,
+    cwd,
+    agent_type: agentType,
+    agent_id: str(obj.agent_id),
+    turn_id: str(obj.turn_id),
+    transcript_path: str(obj.transcript_path) ?? null,
+    agent_transcript_path: str(obj.agent_transcript_path) ?? null,
+    model: str(obj.model),
+    permission_mode: str(obj.permission_mode),
     stop_hook_active: typeof obj.stop_hook_active === "boolean" ? obj.stop_hook_active : undefined,
     last_assistant_message: str(obj.last_assistant_message) ?? null,
   };

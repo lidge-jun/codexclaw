@@ -19,8 +19,9 @@
  */
 import { readFileSync } from "node:fs";
 import { handlePostToolUse, handleStop, handleUserPromptSubmit } from "./hook.ts";
-import { parsePostToolUse, parseStop, parseUserPromptSubmit } from "./parse.ts";
+import { parsePostToolUse, parseStop, parseSubagentStop, parseUserPromptSubmit } from "./parse.ts";
 import { handlePreToolUseFailClosed } from "./goal-gate.ts";
+import { runSubagentStopGate } from "./subagent-evidence.ts";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.ts";
 import { parseOrchestrateCliArgs, runOrchestrateCli } from "./orchestrate-cli.ts";
 
@@ -88,6 +89,9 @@ function main(): void {
     } else if (event === "post-tool-use") {
       const payload = parsePostToolUse(raw);
       if (payload) output = handlePostToolUse(payload);
+    } else if (event === "subagent-stop") {
+      const payload = parseSubagentStop(raw);
+      if (payload) output = runSubagentStopGate(payload);
     }
   } catch {
     output = "";
