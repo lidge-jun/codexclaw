@@ -28,7 +28,9 @@
     "./hooks/pre-tool-use-attaching-skills.json",
     "./hooks/post-compact-resetting-reinject-cursor.json",
     "./hooks/session-start-injecting-project-rules.json",
-    "./hooks/pre-tool-use-linting-apply-patch.json"
+    "./hooks/pre-tool-use-linting-apply-patch.json",
+    "./hooks/post-tool-use-capturing-shell-friction.json",
+    "./hooks/pre-tool-use-advising-on-friction.json"
   ],
   "mcpServers": "./.mcp.json",
   "interface": {

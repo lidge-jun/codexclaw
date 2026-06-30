@@ -131,7 +131,7 @@ test("reconstructInterview: arrays capped at MAX_TRACKER_ARRAY (T2)", () => {
 });
 
 // ── L8 A-gate regression: reviewer blockers (T3 fail-closed) ──
-import { normalizeInterview } from "../src/interview.ts";
+import { normalizeInterview, reconstructOntologySchema } from "../src/interview.ts";
 
 test("CRITICAL-1: malformed persisted contradiction/assumption entries BLOCK readiness", () => {
   // all-max dimensions but malformed (non-object) array entries must NOT become ready
@@ -167,4 +167,43 @@ test("T6: roundId is a non-negative integer (monotonic horizon)", () => {
   assert.equal(defaultInterview().roundId, 0);
   assert.equal(reconstructInterview({ roundId: "bad" })?.roundId, 0);
   assert.equal(reconstructInterview({ roundId: 7.9 })?.roundId, 7);
+});
+
+// ── 080.3: seed ontology (additive, round-trip-safe) ──
+
+test("080.3: ontologySchema is absent by default and on a fresh tracker", () => {
+  assert.equal(defaultInterview().ontologySchema, undefined);
+});
+
+test("080.3: ontologySchema survives reconstruct + normalize round-trip", () => {
+  const seeded = {
+    roundId: 1,
+    ontologySchema: [
+      { name: "User", fields: ["id", "email"], relationships: [{ to: "Order", kind: "has-many" }] },
+      { name: "Order", fields: ["id"], relationships: [] },
+    ],
+  };
+  const recon = reconstructInterview(seeded);
+  assert.ok(recon?.ontologySchema);
+  assert.equal(recon!.ontologySchema!.length, 2);
+  assert.deepEqual(recon!.ontologySchema![0], {
+    name: "User", fields: ["id", "email"], relationships: [{ to: "Order", kind: "has-many" }],
+  });
+  // normalize (the writeState path) must preserve it
+  const norm = normalizeInterview(recon);
+  assert.ok(norm?.ontologySchema);
+  assert.equal(norm!.ontologySchema!.length, 2);
+});
+
+test("080.3: malformed ontology entries are dropped, empty => undefined", () => {
+  assert.equal(reconstructOntologySchema("nope"), undefined);
+  assert.equal(reconstructOntologySchema([]), undefined);
+  assert.equal(reconstructOntologySchema([{ fields: ["x"] }]), undefined); // no name
+  const ok = reconstructOntologySchema([{ name: "E", fields: ["a", 2, "b"], relationships: [{ to: "F", kind: "ref" }, { kind: "x" }] }]);
+  assert.deepEqual(ok, [{ name: "E", fields: ["a", "b"], relationships: [{ to: "F", kind: "ref" }] }]);
+});
+
+test("080.3: a tracker without ontologySchema normalizes without adding the key", () => {
+  const t = defaultInterview();
+  assert.equal("ontologySchema" in (normalizeInterview(t) ?? {}), false);
 });

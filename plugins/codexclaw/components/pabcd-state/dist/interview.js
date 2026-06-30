@@ -71,6 +71,44 @@ export const MAX_AUTO_ROUNDS = 5;
 
 
 
+
+
+
+
+
+
+/** 080.3: a seed-ontology entity (cli-jaw seed.ts parity, structured + optional). */
+
+
+
+
+
+
+
+
+
+
+/** 080.3: tolerant parse of an unknown value into OntologyEntity[] (or undefined). */
+export function reconstructOntologySchema(v         )                               {
+  if (!Array.isArray(v)) return undefined;
+  const out                   = [];
+  for (const e of v) {
+    if (!isRecord(e) || typeof e.name !== "string" || e.name.length === 0) continue;
+    const fields = Array.isArray(e.fields)
+      ? e.fields.filter((f)              => typeof f === "string").slice(-MAX_TRACKER_ARRAY)
+      : [];
+    const relationships                         = Array.isArray(e.relationships)
+      ? e.relationships
+          .filter(isRecord)
+          .map((r) => ({ to: str(r.to), kind: str(r.kind) }))
+          .filter((r) => r.to.length > 0)
+          .slice(-MAX_TRACKER_ARRAY)
+      : [];
+    out.push({ name: e.name, fields, relationships });
+  }
+  return out.length > 0 ? out.slice(-MAX_TRACKER_ARRAY) : undefined;
+}
+
 function isRecord(v         )                               {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -183,6 +221,7 @@ export function reconstructInterview(v         )                          {
     consecutiveAutoResolves: roundIdNum(v.consecutiveAutoResolves),
     scanRounds: roundIdNum(v.scanRounds),
     lastScanRoundId: roundIdNum(v.lastScanRoundId),
+    ...(reconstructOntologySchema(v.ontologySchema) ? { ontologySchema: reconstructOntologySchema(v.ontologySchema) } : {}),
   };
 }
 
@@ -292,5 +331,6 @@ export function normalizeInterview(tracker                         )            
     consecutiveAutoResolves: roundIdNum(tracker.consecutiveAutoResolves),
     scanRounds: roundIdNum(tracker.scanRounds),
     lastScanRoundId: roundIdNum(tracker.lastScanRoundId),
+    ...(reconstructOntologySchema(tracker.ontologySchema) ? { ontologySchema: reconstructOntologySchema(tracker.ontologySchema) } : {}),
   };
 }

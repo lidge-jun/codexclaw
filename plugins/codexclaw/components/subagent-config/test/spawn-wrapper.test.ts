@@ -270,3 +270,28 @@ test("070: non-research intents do NOT auto-attach ultraresearch", async () => {
   const names = items.filter((i) => i.type === "skill").map((i) => i.name);
   assert.ok(!names.includes("cxc-ultraresearch"), "review must not attach ultraresearch");
 });
+
+test("080.2: buildPathHints resolves existing repo tokens + flags none-existent", async () => {
+  const { buildPathHints } = await import("../src/spawn-wrapper.ts");
+  const repo = resolve(here, "..", "..", "..", "..", ".."); // codexclaw repo root
+  const hints = buildPathHints(repo, "please read package.json and plugins/codexclaw and ghost-nope.xyz");
+  const tokens = hints.map((h) => h.token);
+  assert.ok(tokens.includes("package.json"), "existing file token resolved");
+  assert.ok(tokens.includes("plugins/codexclaw"), "existing dir token resolved");
+  assert.ok(!tokens.includes("ghost-nope.xyz"), "non-existent token dropped");
+  for (const h of hints) assert.equal(h.outsideRepo, false, "in-repo paths not flagged");
+});
+
+test("080.2: path-hint item is opt-in (cwd) and placed before the trailing TASK", async () => {
+  const { buildSpawnItems } = await import("../src/spawn-wrapper.ts");
+  const repo = resolve(here, "..", "..", "..", "..", "..");
+  // no cwd => exactly one text item (the task), back-compat
+  const noHint = buildSpawnItems({ role: "explorer", task: "touch package.json", skillsDir: SKILLS_DIR });
+  assert.equal(noHint.filter((i) => i.type === "text").length, 1);
+  // with cwd => a path-hint text item precedes the TASK text item
+  const withHint = buildSpawnItems({ role: "explorer", task: "touch package.json", skillsDir: SKILLS_DIR, cwd: repo });
+  const texts = withHint.filter((i) => i.type === "text");
+  assert.equal(texts.length, 2, "path-hint + task");
+  assert.match(texts[0].text, /Resolved paths:/);
+  assert.match(texts.at(-1).text, /^TASK:/);
+});

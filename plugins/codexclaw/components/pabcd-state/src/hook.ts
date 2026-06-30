@@ -24,6 +24,7 @@ import { captureInterviewAnswers } from "./interview-ledger.ts";
 import { MIND_DISPATCH_DIRECTIVE } from "./minds.ts";
 import { checkObjectivePlateau, readObjectiveKind, type PlateauCheck } from "./metrics.ts";
 import { readGoalplan, nextOpenTask, unmetCriteria } from "./goalplan.ts";
+import { peakFrictionVerdict, looksLikeFailure, recordFriction } from "./friction.ts";
 
 export interface UserPromptSubmitPayload {
   hook_event_name: "UserPromptSubmit";
@@ -439,7 +440,11 @@ export interface StopWorkContext {
   ledgerPath: string | null;
 }
 
-export function buildStopBlock(phase: Phase, work?: StopWorkContext | null): string {
+export function buildStopBlock(
+  phase: Phase,
+  work?: StopWorkContext | null,
+  friction?: "retry" | "escalate" | "stop" | null,
+): string {
   const label = STAGE_LABELS[phase] ?? phase;
   const nextCommand = STOP_NEXT_COMMAND[phase] ?? "`cxc orchestrate status`";
   const lines = [
@@ -452,6 +457,13 @@ export function buildStopBlock(phase: Phase, work?: StopWorkContext | null): str
     if (work.nextTaskTitle) lines.push(`Remaining work: ${work.nextTaskTitle}`);
     if (work.expectedEvidence) lines.push(`Required evidence: ${work.expectedEvidence}`);
     if (work.ledgerPath) lines.push(`Record progress in: ${work.ledgerPath}`);
+  }
+  // 080: friction is an ADVISORY line only (read after the arming guard); it never changes
+  // whether Stop blocks. `escalate`/`stop` signal a repeated tool failure worth a rethink.
+  if (friction === "escalate" || friction === "stop") {
+    lines.push(
+      `Friction signal (${friction}): a tool failure has recurred — review .codexclaw/friction.jsonl and change approach rather than repeating the same command.`,
+    );
   }
   lines.push("C→D requires checkOutput+exitCode. D is not a resting state; close the cycle back to IDLE.");
   const reason = lines.join("\n");
@@ -544,7 +556,10 @@ export function handleStop(payload: StopPayload): string {
   if (plateau.flat) return buildPlateauDivergeBlock(state.phase, plateau);
   // 040: enrich the block reason with goalplan-derived remaining work (text-only, after
   // every release guard + the cap). null context => byte-identical shipped reason.
-  return buildStopBlock(state.phase, readStopWorkContext(payload.cwd, state));
+  // 080: a HIGH friction signal adds an advisory escalate line to the SAME block — it is
+  // read ONLY here, after the goal-active arming guard + the cap, so it never changes when
+  // Stop blocks vs releases (arming is unchanged). FAIL-OPEN: null verdict => no line.
+  return buildStopBlock(state.phase, readStopWorkContext(payload.cwd, state), peakFrictionVerdict(payload.cwd));
 }
 
 /**
@@ -568,6 +583,32 @@ export function handlePostToolUse(payload: PostToolUsePayload): string {
     toolInput: payload.tool_input,
     toolResponse: payload.tool_response,
   });
+  return "";
+}
+
+/**
+ * PostToolUse friction CAPTURE for shell tools (lazygap_impl 080.1). Matcher `^Bash$`
+ * (both exec_command and shell_command normalize to "Bash"). HEURISTIC by necessity:
+ * codex-rs PostToolUse carries no error/exit_code, only a TRUNCATED `tool_response`
+ * text, and apply_patch failures never reach PostToolUse — so this scans the response
+ * text for failure markers and records a friction signature when it looks like a
+ * failure. It is NOT complete tool-failure observability. Side-effect only (returns "").
+ */
+export function handleBashFrictionCapture(payload: PostToolUsePayload): string {
+  if (payload.hook_event_name !== "PostToolUse") return "";
+  if (payload.tool_name !== "Bash") return "";
+  const text = typeof payload.tool_response === "string"
+    ? payload.tool_response
+    : (() => {
+        try {
+          return JSON.stringify(payload.tool_response ?? "");
+        } catch {
+          return "";
+        }
+      })();
+  if (looksLikeFailure(text)) {
+    recordFriction(payload.cwd, "Bash", text);
+  }
   return "";
 }
 

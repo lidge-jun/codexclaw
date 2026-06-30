@@ -18,10 +18,11 @@
  * argv: [node, cli.ts, kind, event] e.g. ["...", "...", "hook", "user-prompt-submit"].
  */
 import { readFileSync } from "node:fs";
-import { handlePostToolUse, handlePostCompact, handleStop, handleUserPromptSubmit } from "./hook.js";
+import { handlePostToolUse, handleBashFrictionCapture, handlePostCompact, handleStop, handleUserPromptSubmit } from "./hook.js";
 import { parsePostCompact, parsePostToolUse, parseStop, parseSubagentStop, parseUserPromptSubmit } from "./parse.js";
 import { handlePreToolUseFailClosed } from "./goal-gate.js";
 import { handleApplyPatchLint } from "./comment-lint.js";
+import { handleFrictionPreToolUse } from "./friction-gate.js";
 import { buildRulesContextFromRaw } from "./rules.js";
 import { runSubagentStopGate } from "./subagent-evidence.js";
 import { runDivergenceCli } from "./divergence-cli.js";
@@ -131,6 +132,14 @@ function main()       {
       // 060.2: FAIL-OPEN apply_patch comment-lint. Distinct from the R-9 fail-closed
       // `pre-tool-use` branch above — a lint crash must ALLOW the edit, never deny.
       output = handleApplyPatchLint(raw);
+    } else if (event === "pre-tool-use-friction") {
+      // 080.1: FAIL-OPEN friction advisory ("ask") for a stop-level shell signature.
+      // Distinct from the R-9 fail-closed branch; a crash here must never deny a tool.
+      output = handleFrictionPreToolUse(raw);
+    } else if (event === "post-tool-use-friction") {
+      // 080.1: heuristic shell-failure friction capture (matcher ^Bash$); side-effect only.
+      const payload = parsePostToolUse(raw);
+      if (payload) output = handleBashFrictionCapture(payload);
     } else if (event === "session-start-rules") {
       // 060.1: surface project rules as SessionStart additionalContext ("" when none).
       output = buildRulesContextFromRaw(raw, process.cwd());

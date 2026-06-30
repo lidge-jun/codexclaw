@@ -69,6 +69,44 @@ export interface InterviewTracker {
   scanRounds: number;
   /** 131/D2': roundId at the most recent recorded scan (0 = no scan yet). */
   lastScanRoundId: number;
+  /**
+   * 080.3: OPTIONAL structured seed ontology — promotes the label-only `ontology` dimension
+   * into entities/fields/relationships. Additive + round-trip-safe (threaded through
+   * reconstruct/normalize). Does NOT affect freeze planHash or EvidenceBundle.dimensions.
+   */
+  ontologySchema?: OntologyEntity[];
+}
+
+/** 080.3: a seed-ontology entity (cli-jaw seed.ts parity, structured + optional). */
+export interface OntologyRelationship {
+  to: string;
+  kind: string;
+}
+export interface OntologyEntity {
+  name: string;
+  fields: string[];
+  relationships: OntologyRelationship[];
+}
+
+/** 080.3: tolerant parse of an unknown value into OntologyEntity[] (or undefined). */
+export function reconstructOntologySchema(v: unknown): OntologyEntity[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out: OntologyEntity[] = [];
+  for (const e of v) {
+    if (!isRecord(e) || typeof e.name !== "string" || e.name.length === 0) continue;
+    const fields = Array.isArray(e.fields)
+      ? e.fields.filter((f): f is string => typeof f === "string").slice(-MAX_TRACKER_ARRAY)
+      : [];
+    const relationships: OntologyRelationship[] = Array.isArray(e.relationships)
+      ? e.relationships
+          .filter(isRecord)
+          .map((r) => ({ to: str(r.to), kind: str(r.kind) }))
+          .filter((r) => r.to.length > 0)
+          .slice(-MAX_TRACKER_ARRAY)
+      : [];
+    out.push({ name: e.name, fields, relationships });
+  }
+  return out.length > 0 ? out.slice(-MAX_TRACKER_ARRAY) : undefined;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -183,6 +221,7 @@ export function reconstructInterview(v: unknown): InterviewTracker | null {
     consecutiveAutoResolves: roundIdNum(v.consecutiveAutoResolves),
     scanRounds: roundIdNum(v.scanRounds),
     lastScanRoundId: roundIdNum(v.lastScanRoundId),
+    ...(reconstructOntologySchema(v.ontologySchema) ? { ontologySchema: reconstructOntologySchema(v.ontologySchema) } : {}),
   };
 }
 
@@ -292,5 +331,6 @@ export function normalizeInterview(tracker: InterviewTracker | null): InterviewT
     consecutiveAutoResolves: roundIdNum(tracker.consecutiveAutoResolves),
     scanRounds: roundIdNum(tracker.scanRounds),
     lastScanRoundId: roundIdNum(tracker.lastScanRoundId),
+    ...(reconstructOntologySchema(tracker.ontologySchema) ? { ontologySchema: reconstructOntologySchema(tracker.ontologySchema) } : {}),
   };
 }

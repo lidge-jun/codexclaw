@@ -19,8 +19,8 @@
  *
  * Zero third-party deps (node:* only) so the build's type-strip stays sound.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { join, isAbsolute, resolve as resolvePath } from "node:path";
 import { resolveSpawnConfig, type RoleName, type SpawnResolution } from "./store.ts";
 
 /** Built-in codex agent_type each canonical role maps to (core/src/agent/role.rs). */
@@ -96,6 +96,57 @@ export interface SpawnTextItem {
 
 export type SpawnItem = SpawnSkillItem | SpawnTextItem;
 
+/** 080.2: a resolved repo-path token for a dispatch (workspace path-hint). */
+export interface PathHint {
+  token: string;
+  abs: string;
+  /** true when the realpath escapes the repo root (symlink-out), a safety signal. */
+  outsideRepo: boolean;
+}
+
+/**
+ * 080.2 — PURE: resolve repo-path-looking tokens in a task string to absolute paths under
+ * `cwd`, flagging any whose realpath escapes the repo root (symlink-escape). cli-jaw
+ * `buildResolvedPathHints` parity: existsSync + realpathSync only, no network, no registry.
+ * A token is path-like if it contains a `/` or ends in a common file extension and exists.
+ */
+export function buildPathHints(cwd: string, taskText: string): PathHint[] {
+  const out: PathHint[] = [];
+  const seen = new Set<string>();
+  let repoReal: string;
+  try {
+    repoReal = realpathSync(cwd);
+  } catch {
+    repoReal = resolvePath(cwd);
+  }
+  const tokens = (taskText ?? "").split(/[\s,;:()'"`]+/).filter((t) => t.length > 0);
+  for (const token of tokens) {
+    // path-like heuristic: a slash, or a dotted filename; skip urls and flags
+    if (/^https?:\/\//i.test(token) || token.startsWith("-")) continue;
+    if (!token.includes("/") && !/\.[a-z0-9]{1,8}$/i.test(token)) continue;
+    const abs = isAbsolute(token) ? token : resolvePath(cwd, token);
+    if (seen.has(abs)) continue;
+    if (!existsSync(abs)) continue;
+    seen.add(abs);
+    let outsideRepo = false;
+    try {
+      const real = realpathSync(abs);
+      outsideRepo = !real.startsWith(repoReal);
+    } catch {
+      outsideRepo = false;
+    }
+    out.push({ token, abs, outsideRepo });
+  }
+  return out;
+}
+
+/** Render path hints as a single spawn text item, or null when there are none. */
+export function pathHintItem(hints: PathHint[]): SpawnTextItem | null {
+  if (hints.length === 0) return null;
+  const lines = hints.map((h) => `${h.token} -> ${h.abs}${h.outsideRepo ? " (OUTSIDE REPO — symlink escape)" : ""}`);
+  return { type: "text", text: `Resolved paths:\n${lines.join("\n")}` };
+}
+
 /** Map a skill FOLDER name to its `cxc-*` display name + absolute SKILL.md path. */
 export function skillItem(skillsDir: string, folder: string): SpawnSkillItem {
   return { type: "skill", name: `cxc-${folder}`, path: join(skillsDir, folder, "SKILL.md") };
@@ -133,6 +184,9 @@ export function buildSpawnItems(input: {
   skillsDir: string;
   surfaces?: Surface[];
   explicitSkillFolders?: string[];
+  /** 080.2: when provided, repo-path tokens in the task resolve to a path-hint text item
+   *  (placed BEFORE the trailing TASK item). Omitted -> no path-hint (back-compat). */
+  cwd?: string;
 }): SpawnItem[] {
   const folders = resolveAttachedSkillFolders(
     input.role,
@@ -145,6 +199,11 @@ export function buildSpawnItems(input: {
     // Only attach skills that actually exist on disk (a misnamed surface/explicit folder
     // must not produce a dangling skill path the runtime would reject).
     if (existsSync(item.path)) items.push(item);
+  }
+  // 080.2: opt-in workspace path-hint (only when cwd is supplied), placed before the task.
+  if (typeof input.cwd === "string" && input.cwd.length > 0) {
+    const hint = pathHintItem(buildPathHints(input.cwd, input.task ?? ""));
+    if (hint) items.push(hint);
   }
   items.push({ type: "text", text: `TASK: ${(input.task ?? "").trim()}` });
   return items;
@@ -333,6 +392,8 @@ export function routeDispatch(input: {
   skillsDir: string;
   surfaces?: Surface[];
   explicitSkillFolders?: string[];
+  /** 080.2: opt-in workspace path-hint resolution root (passed to buildSpawnItems). */
+  cwd?: string;
 }): { role: RoleName; items: SpawnItem[] } {
   const role = INTENT_ROLE[input.intent] ?? "explorer";
   // 070: fold in any per-intent extra skill folders (e.g. research -> search + ultraresearch)
@@ -345,6 +406,7 @@ export function routeDispatch(input: {
     skillsDir: input.skillsDir,
     surfaces: input.surfaces,
     explicitSkillFolders,
+    cwd: input.cwd,
   });
   return { role, items };
 }

@@ -96,7 +96,7 @@ function emptyCodexHome() {
 
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 11, "expected 11 declared hooks");
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 13, "expected 13 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
@@ -119,6 +119,58 @@ test("WP7/G19: stop hook e2e - no in-flight cycle releases (exit 0, empty stdout
     const res = runHook(ep, hookEvent, { hook_event_name: "Stop", session_id: "s1", cwd: tmp });
     assert.equal(res.status, 0, res.stderr);
     assert.equal(res.stdout.trim(), "", "fresh cwd => IDLE => no block");
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
+// lazygap_impl 080.1: shell friction capture (PostToolUse ^Bash$) + advisory gate
+// (PreToolUse ^Bash$). Capture records a signature on a failure-looking tool_response;
+// the gate asks to change approach once a stop-level signature exists. Both fail-open.
+test("L080: post-tool-use-friction records on a failing Bash response; pre gate advises at stop", () => {
+  const cap = readHookCommand("./hooks/post-tool-use-capturing-shell-friction.json");
+  assert.equal(cap.event, "PostToolUse");
+  const capEp = snapshotEntrypoint(cap.distAbs);
+  if (!capEp) return;
+  const gate = readHookCommand("./hooks/pre-tool-use-advising-on-friction.json");
+  assert.equal(gate.event, "PreToolUse");
+  const gateEp = snapshotEntrypoint(gate.distAbs);
+  if (!gateEp) return;
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-friction-"));
+  try {
+    const failPayload = {
+      hook_event_name: "PostToolUse", session_id: "s1", cwd: tmp,
+      tool_name: "Bash", tool_input: { command: "build" },
+      tool_response: "fatal: boom at x.ts:1:1\nnpm ERR! code E1",
+    };
+    // 3 recurrences of the SAME normalized signature -> stop
+    for (let i = 0; i < 3; i++) {
+      const r = runHook(capEp, cap.hookEvent, { ...failPayload, tool_response: `fatal: boom at x.ts:${i}:1` });
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(r.stdout.trim(), "", "capture is side-effect only");
+    }
+    assert.ok(existsSync(join(tmp, ".codexclaw", "friction.jsonl")), "friction ledger written");
+
+    // the PreToolUse gate now advises (ask) on a Bash call
+    const adv = runHook(gateEp, gate.hookEvent, {
+      hook_event_name: "PreToolUse", session_id: "s1", cwd: tmp, tool_name: "Bash", tool_input: { command: "rerun" },
+    });
+    assert.equal(adv.status, 0, adv.stderr);
+    const out = JSON.parse(adv.stdout);
+    assert.equal(out.hookSpecificOutput.permissionDecision, "ask");
+    assert.match(out.hookSpecificOutput.permissionDecisionReason, /friction/i);
+
+    // a clean response does NOT record; fresh cwd gate stays silent (fail-open allow)
+    const clean = mkdtempSync(join(tmpdir(), "ccx-friction2-"));
+    try {
+      const ok = runHook(capEp, cap.hookEvent, {
+        hook_event_name: "PostToolUse", session_id: "s1", cwd: clean,
+        tool_name: "Bash", tool_input: { command: "ls" }, tool_response: "ok, listing complete",
+      });
+      assert.equal(ok.stdout.trim(), "", "clean response side-effect only");
+      const silent = runHook(gateEp, gate.hookEvent, {
+        hook_event_name: "PreToolUse", session_id: "s1", cwd: clean, tool_name: "Bash", tool_input: {},
+      });
+      assert.equal(silent.stdout.trim(), "", "no stop signature => gate allows (empty stdout)");
+    } finally { rmSync(clean, { recursive: true, force: true }); }
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
