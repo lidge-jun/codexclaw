@@ -10,7 +10,8 @@
  *   codexclaw reset               remove scoped .codexclaw state/generated files (cxc-ops)
  *   codexclaw orchestrate         drive IPABCD state with agent-gated attest evidence
  *   codexclaw gui                 launch the codexclaw web dashboard
- *   codexclaw subagents|provider  currently placeholder root commands
+ *   codexclaw subagents           read/write per-role subagent model+prompt config
+ *   codexclaw provider            show read-only opencodex (ocx) provider status
  *
  * This file is a thin delegator over compiled component CLIs; provider detection is
  * read-only and does not toggle or ensure opencodex.
@@ -54,6 +55,28 @@ const pabcdStateCli = join(
   "cli.js",
 );
 
+const subagentConfigCli = join(
+  here,
+  "..",
+  "plugins",
+  "codexclaw",
+  "components",
+  "subagent-config",
+  "dist",
+  "cli.js",
+);
+
+const providerBridgeCli = join(
+  here,
+  "..",
+  "plugins",
+  "codexclaw",
+  "components",
+  "provider-bridge",
+  "dist",
+  "cli.js",
+);
+
 /** Delegate a subcommand to the compiled config-guard CLI; returns its exit code. */
 function runConfigGuard(subcommand) {
   const res = spawnSync(process.execPath, [configGuardCli, subcommand], { stdio: "inherit" });
@@ -69,6 +92,18 @@ function runCxcOps(args) {
 /** Delegate to the compiled pabcd-state CLI. argv: [kind, ...rest]. */
 function runPabcdState(args) {
   const res = spawnSync(process.execPath, [pabcdStateCli, ...args], { stdio: "inherit" });
+  return typeof res.status === "number" ? res.status : 1;
+}
+
+/** Delegate to the compiled subagent-config CLI. argv: ["subagents", ...rest]. */
+function runSubagents(args) {
+  const res = spawnSync(process.execPath, [subagentConfigCli, ...args], { stdio: "inherit" });
+  return typeof res.status === "number" ? res.status : 1;
+}
+
+/** Delegate to the compiled provider-bridge CLI in detect mode (read-only status). */
+function runProvider() {
+  const res = spawnSync(process.execPath, [providerBridgeCli, "detect"], { stdio: "inherit" });
   return typeof res.status === "number" ? res.status : 1;
 }
 
@@ -107,8 +142,10 @@ switch (cmd) {
     break;
   }
   case "subagents":
+    process.exit(runSubagents(process.argv.slice(2)));
+    break;
   case "provider":
-    console.log(`codexclaw: '${cmd}' is a Phase 2 command (subagent model config / ocx bridge).`);
+    process.exit(runProvider());
     break;
   default:
     console.log("codexclaw <enable|uninstall|status|orchestrate|doctor|reset|subagents|provider|gui>");
