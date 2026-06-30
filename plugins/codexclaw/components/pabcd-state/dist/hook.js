@@ -20,6 +20,18 @@ import { hasStageMarkerForPhase, isContextPressureTail, readTranscriptTail } fro
 import { getGoalActiveStatus, suppressesInterview } from "./goal-active.js";
 import { parseOrchestrateCommand } from "./orchestrate-grammar.js";
 import { applyHumanTransition } from "./orchestrate-apply.js";
+import { captureInterviewAnswers } from "./interview-ledger.js";
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -401,4 +413,28 @@ export function handleStop(payload             )         {
   }
   writeState(payload.cwd, { ...state, stopBlockPhase: state.phase, stopBlockCount: nextCount });
   return buildStopBlock(state.phase);
+}
+
+/**
+ * PostToolUse handler (L12 WP4) — capture a `request_user_input` round into the
+ * durable interview ledger. PURE side-effect recorder: it never blocks or emits a
+ * decision (PostToolUse runs AFTER the tool already executed), so it always returns
+ * "". Only acts on the request_user_input tool; everything else is a no-op.
+ *
+ * Goal-mode note: the PreToolUse interview deny is a SEPARATE hook that fires before
+ * the tool runs, so when a goal is active the call is denied and never reaches here —
+ * no conflict. When goal mode is inactive (interactive interview), this records the
+ * question + answer for replay/evidence.
+ */
+export function handlePostToolUse(payload                    )         {
+  if (payload.hook_event_name !== "PostToolUse") return "";
+  if (payload.tool_name !== "request_user_input") return "";
+  captureInterviewAnswers({
+    cwd: payload.cwd,
+    sessionId: payload.session_id,
+    turnId: payload.turn_id ?? "",
+    toolInput: payload.tool_input,
+    toolResponse: payload.tool_response,
+  });
+  return "";
 }
