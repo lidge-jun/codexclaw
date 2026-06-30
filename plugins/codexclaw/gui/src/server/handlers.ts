@@ -51,8 +51,11 @@ export function postSubagents(cwd: string, body: unknown): ApiResult {
 /** Map provider detection to the catalog's provider input. */
 function providerToCatalogInput(status: ProviderStatus): ProviderCatalogInput {
   if (status.mode === "provider") {
-    // The bridge exposes proxy status, not a model list, so ocx catalog is
-    // unsupported here until a model-list surface exists -> native + unsupported.
+    // The bridge is detect-only: it exposes proxy status, not a live model list.
+    // ocx models are NOT fetched here — opencodex syncs its routed `provider/model`
+    // entries into the Codex config cache, and buildCatalog() reads them from there
+    // (the native-cache source). So `ocxModels` stays undefined on this provider
+    // input; the ocx-synced models still surface via the native cache, not a live call.
     return { mode: "provider", ocxModels: undefined };
   }
   return { mode: status.mode === "error" ? "error" : "native" };

@@ -63,9 +63,21 @@ function entryKey(m         )                {
   return null;
 }
 
+/** A routed catalog slug is the `provider/model` form opencodex syncs into the
+ *  Codex cache (e.g. "kiro/claude-opus-4.6"). Bare ids (no slash) are native. */
+function isRoutedSlug(key        )          {
+  return key.includes("/");
+}
+
 /** Read the Codex live catalog cache (CODEX_MODELS_CACHE_PATH) through the
  *  allowlist. Reads each entry by `id` OR `slug` (live catalog uses slug).
- *  Returns ids or null when absent/unreadable. */
+ *  Returns ids or null when absent/unreadable.
+ *
+ *  L20/WP4: the cache is the codex config catalog, which opencodex SYNCS its
+ *  routed `provider/model` slugs into. codexclaw reads that config (it never
+ *  calls ocx directly). So the allowlist admits BOTH the documented native ids
+ *  AND any routed slug (contains "/") — dropping routed slugs would hide exactly
+ *  the ocx-synced models the subagent config is meant to select. */
 export function readNativeCacheDefault(env                    = process.env)                  {
   const path = env.CODEX_MODELS_CACHE_PATH;
   if (!path || !existsSync(path)) return null;
@@ -74,11 +86,15 @@ export function readNativeCacheDefault(env                    = process.env)    
     const list = Array.isArray(parsed) ? parsed : (parsed                        )?.models;
     if (!Array.isArray(list)) return null;
     const ids = list.map(entryKey).filter((x)              => typeof x === "string");
-    // allowlist: only ship ids that are in the documented native set. Dedup
-    // preserves first-seen order so a slug+id duplicate yields one entry.
+    // allowlist: ship documented native ids AND routed provider/model slugs
+    // (the ocx-synced entries). Dedup preserves first-seen order so a slug+id
+    // duplicate yields one entry.
     const seen = new Set        ();
     const allowed = ids.filter(
-      (id) => (NATIVE_OPENAI_MODELS                     ).includes(id) && !seen.has(id) && (seen.add(id), true),
+      (id) =>
+        ((NATIVE_OPENAI_MODELS                     ).includes(id) || isRoutedSlug(id)) &&
+        !seen.has(id) &&
+        (seen.add(id), true),
     );
     return allowed.length ? allowed : null;
   } catch {
@@ -88,7 +104,14 @@ export function readNativeCacheDefault(env                    = process.env)    
 
 function nativeEntries(deps             )                 {
   const ids = (deps.readNativeCache ?? readNativeCacheDefault)() ?? [...NATIVE_OPENAI_MODELS];
-  return ids.map((id) => ({ id, source: "native"         , label: `${id} (native)` }));
+  // Entries from the codex config cache: bare ids are native; routed `provider/model`
+  // slugs were synced in by opencodex, so label them as ocx-origin even though they
+  // arrive through the native cache (codexclaw never calls ocx directly).
+  return ids.map((id) =>
+    isRoutedSlug(id)
+      ? ({ id, source: "ocx"         , label: `${id} (ocx)` })
+      : ({ id, source: "native"         , label: `${id} (native)` }),
+  );
 }
 
 /**

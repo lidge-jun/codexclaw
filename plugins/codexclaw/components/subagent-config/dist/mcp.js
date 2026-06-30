@@ -6,7 +6,10 @@
  *  - Persist per-role subagent config: default-model vs multi-model mapping,
  *    and per-role prompt overrides (store: .codexclaw/subagents.json).
  *  - Expose the config to the codexclaw GUI and as MCP tools.
- *  - When ocx is present, source the available model catalog from it.
+ *  - Model catalog comes from the Codex config cache (CODEX_MODELS_CACHE_PATH).
+ *    opencodex SYNCS its routed `provider/model` models into that codex config, so
+ *    ocx-backed models appear in the catalog WITHOUT codexclaw calling ocx directly
+ *    (detect-only boundary). `catalog_list` reads that cache via buildCatalog().
  *
  * Current scope: a spec-compliant stdio MCP server that completes the JSON-RPC
  * `initialize` handshake and advertises the subagent config/catalog tools below.
@@ -88,7 +91,8 @@ function callTool(id         , params                                           
     return;
   }
   if (params.name === "catalog_list") {
-    // Detect-only catalog read. L24 owns selection persistence; this never writes.
+    // Catalog read from the Codex config cache (native + ocx-synced routed slugs).
+    // L24 owns selection persistence; this never writes and never calls ocx directly.
     toolResult(id, buildCatalog());
     return;
   }
