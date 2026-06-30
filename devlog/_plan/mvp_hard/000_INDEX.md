@@ -52,6 +52,7 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 | L11 | 110 | Developer docs source-of-truth reconciliation + public docs website design record | DONE | PLANNED |
 | L12 | 120 | Skill-internal hardening: cxc-* surfaces validated; continuous-Interview runtime (JSONL scan-evidence + I→P soft-gate shipped in L13/WP2; PostToolUse answer capture pending) | DONE | PLANNED |
 | L13 | 130 | Truthfulness + interview hardening: chat-search retire (WP1), scan-evidence + soft-gate (WP2), 2-axis status (WP3) | DONE | DONE |
+| L14 | 140 | Follow-up patch plan: loop⇄goal activation handoff + `cxc-loop` FSM wiring + dev-* routing enforcement (root-caused, fix deferred to a post-Interview loop) | PLANNED | PLANNED |
 | L20 | 200 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | ANALYZED | PLANNED |
 
 ## Track status
