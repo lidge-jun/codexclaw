@@ -45,7 +45,7 @@ cells) are stable and corroborated across all four sources.
 | `004_ipabcd_divergence_flow.md` | Operator-proposed IPABCD mapping (I=diverge N, P=N plans, A+B=worktree builds, C=keep/discard compare, D=human gate). N-sizing + compare mechanism backed by best-of-N / beam / population literature + jawcode autoresearch. |
 | `005_loop_continuation_patterns.md` | The same work as a `cxc-loop` improvement: Ralph, jawcode autoresearch, long-running harnesses, SICA → 6 mapped loop levers (durable plan re-read, metric memory, plateau→diverge, ideas/archive, keep/discard, fresh-context resilience). |
 | `006_divergence_gating_and_selection.md` | The gating problem: how to decide AB-needed (maximize-metric) vs single-strategy (satisfy-spec), divergence as a plateau-triggered MODE not a default, and layered selection (cheap-screen → harness compare → human gate). |
-| `007_collapse_point_model.md` | The collapse-point model: I ALWAYS logs N>=2 approaches (anti-anchoring); build/satisfy-spec collapses EARLY at P (subagent critic + convention research); algo/unclear collapses LATE — parallel A-B-C then race at D on the fixed-seed metric. |
+| `007_collapse_point_model.md` | The collapse-point model: I captures INTENT first (clear intent → N=1, no fabricated alternatives; open/maximize → record N>=2); build/satisfy-spec collapses EARLY at P (subagent critic + convention research); algo/unclear collapses LATE — parallel A-B-C then race at D on the fixed-seed metric. |
 | `emergence_gap.html` | Single-page visual diagnosis of the convergence gap (open in browser). |
 
 ## Non-goals (restated from philosophy)

@@ -341,13 +341,17 @@
     <p class="dim" style="margin-top:6px">선택 기준은 항상 고정-시드 true-metric이지 vibes가 아니다. 충족형 goal은 plateau 체크가 사실상 안 터지니 발산 오버헤드 0.</p>
   </div>
 
-  <h2><span class="n">10</span> Collapse-Point 모델 <span class="dim" style="font-size:12px">(I는 항상 발산 · collapse 지점이 이동)</span></h2>
+  <h2><span class="n">10</span> Collapse-Point 모델 <span class="dim" style="font-size:12px">(I는 의도 파악이 먼저 · collapse 지점이 이동)</span></h2>
   <div class="band fix">
-    <p><strong>발산 아이디어는 항상 I에서 기록(N≥2, 싸다·anti-anchoring). 변하는 건 "어디서 하나로 접느냐"다.</strong></p>
+    <p><strong>I의 핵심은 의도 파악이다. 구현 목표가 명확하면 의도만 잡고 N=1로 간다 — 발산(N≥2)은 의도가 열려있을 때만 거는 조건부. 변하는 건 "어디서 하나로 접느냐"다.</strong></p>
     <div class="pipe">
-      <div class="ph" style="border-top-color:var(--div);flex:0 0 100%">
-        <div class="l" style="color:var(--div)">I · 항상</div><div class="t">N≥2 접근을 devlog/.codexclaw에 기록</div>
-        <div class="d">유저 요구에 따라 대안을 적는다 — build든 algo든 항상. 첫 접근 lock-in 방지.</div>
+      <div class="ph" style="border-top-color:var(--good);flex:1 1 48%">
+        <div class="l" style="color:var(--good)">I · 의도 명확</div><div class="t">의도만 파악 → N=1</div>
+        <div class="d">유저가 무엇을·어떻게를 지시했거나 보통 빌드(C0-C2) → 대안 만들지 말고 진행. 과잉-프로세스 함정 회피(dev §0).</div>
+      </div>
+      <div class="ph" style="border-top-color:var(--div);flex:1 1 48%">
+        <div class="l" style="color:var(--div)">I · 의도 열림</div><div class="t">N≥2 접근 기록</div>
+        <div class="d">의도가 모호/탐색적이거나 최대화형+승자 불명일 때만 devlog에 대안 기록. 여기서만 anti-anchoring이 의미.</div>
       </div>
     </div>
     <div class="arrowrow">┌─────────── 분기 ───────────┐</div>

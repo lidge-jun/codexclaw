@@ -9,13 +9,15 @@ Status: RESEARCH (design input; NO code change) · 2026-07-01
 > This supersedes the looser "divergence mode" framing in `006` with a cleaner axis:
 > the COLLAPSE POINT. Upstream: `004`, `006`, `structure/50_emergence_gap.md`.
 
-## The model: divergence is fixed at I; the collapse point is the variable
+## The model: I captures INTENT first; divergence is conditional; collapse point is the variable
 
 ```
-I  ── ALWAYS record N>=2 candidate approaches in devlog/.codexclaw  (cheap; anti-anchoring)
+I  ── capture the user's INTENT first (I's core job)
+│      • intent clear & directed ("build X this way")  ──► just capture intent, N=1, proceed
+│      • intent open / exploratory / maximize-metric    ──► consider & record N>=2 approaches
 │
 ├─ BUILD / satisfy-spec ──► COLLAPSE EARLY at P
-│     P selects ONE approach on paper (no metric race available)
+│     (if N>1 was recorded) P selects ONE approach on paper (no metric race available)
 │     A → B → C → D run single-candidate (normal PABCD)
 │
 └─ ALGO / maximize, unclear ──► COLLAPSE LATE after C
@@ -23,19 +25,27 @@ I  ── ALWAYS record N>=2 candidate approaches in devlog/.codexclaw  (cheap; 
       D: race the built candidates on the fixed-seed true metric ("싸우게 하기")
 ```
 
-Diverging IDEAS at I is always cheap — it is just recording alternatives, and it breaks
-the "first approach lock-in" that caused the NYPC plateau. Diverging BUILDS (carrying N
-through A-B-C) is expensive, so it is reserved for the unclear-algorithmic case where
-only a real metric can decide.
+Diverging IDEAS at I is cheap, but it is NOT mandatory. When the user already carries a
+clear implementation goal, I only needs to grasp that intent — manufacturing >=2
+alternatives there is the over-process trap (dev §0: "if the user already specifies clear
+tech and scope, skip clarification entirely"). Divergence is reserved for when intent is
+open, or for the unclear-algorithmic case where only a real metric can decide.
 
-## Why I always logs N>=2 (even for build tasks)
+## I's rule: intent first, N>=2 only when intent is open
 
 The single biggest defect in `50_emergence_gap.md` was P committing to ONE approach from
-the first phase. Forcing I to record >=2 candidate approaches in the devlog — even when
-the task will collapse immediately at P — is a cheap, always-on anti-anchoring habit. It
-costs a few lines of log and guarantees at least one alternative was considered before
-commitment. For a build task the second candidate may be discarded one line later; that is
-fine. The record exists, and the reviewer/convention check at P has something to compare.
+the first phase WITHOUT considering alternatives. The fix is NOT "always log >=2" — that
+would re-introduce over-process on directed builds. The fix is a CONDITIONAL at I:
+
+- **Intent clear & directed** (the user states what to build and how, or it is C0-C2
+  ordinary build work): capture the intent, proceed single-approach. Do not fabricate
+  alternatives. The collapse is immediate and trivial.
+- **Intent open / ambiguous / exploratory, or maximize-metric with no obvious winner**:
+  record N>=2 candidate approaches in the devlog so P (or a late collapse) has real
+  alternatives to weigh. This is where anti-anchoring matters.
+
+So N>=2 at I is an option offered against intent-clarity, not an always-on mandate. The
+floor is "capture intent"; divergence is the exception layered on top when intent is open.
 
 ## Collapse EARLY (build / satisfy-spec): selection at P, no metric race
 
@@ -89,7 +99,7 @@ maximize-metric goal can re-trigger a late collapse in a later work-phase.
 
 | Step | Mechanism | Tier |
 |---|---|---|
-| I logs N>=2 approaches | devlog/`.codexclaw` record; Stop can refuse P with <2 logged | E7 + E2 nudge |
+| I captures intent; N>=2 only if intent open | devlog/`.codexclaw` record; conditional on intent-clarity, not forced | E7 |
 | classify early vs late collapse | objective-kind (satisfy vs maximize) + winner-clarity | E7 |
 | P early selection | subagent critic + `cxc-search` convention research | E7 (agent runs it) |
 | late parallel build | worktrees (`team` pattern) | E7 + E2 ledger |
@@ -101,7 +111,8 @@ decision and the paper selection are agent doctrine (E7) recorded in the ledger.
 
 ## Open questions (Interview)
 
-- Minimum N at I: hard floor of 2, or "2 unless the task is genuinely single-option"?
+- Intent-clarity test: what concretely flips I from "capture intent, N=1" to "record
+  N>=2"? (directed scope + satisfy-spec → N=1; open scope or maximize-metric → N>=2)
 - P early-selection: is the subagent critic mandatory, or only when the N approaches are
   close? (cost vs rigor)
 - Late-collapse trigger at the FIRST phase vs only on plateau: do we ever start a goal
