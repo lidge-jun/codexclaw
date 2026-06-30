@@ -18,7 +18,7 @@ Status: PLANNED (gap scan DONE; remediation in PABCD work-phases) · 2026-06-30 
 | G4 | RESOLVED (WP3) | wiring/claim | `components/subagent-config/src/spawn-wrapper.ts` | FIXED 2026-06-30 (honesty): `dev/SKILL.md:131` reworded — the builder CAN attach skills only WHEN the dispatcher routes through `resolveSpawnPayloadWithSkills` (E5 doctrine), no auto hook yet. E3 feasibility (Curie): a `^spawn_agent$` PreToolUse `updatedInput` rewrite works ONLY on the v1 spawn surface; MultiAgentV2 spawn has `deny_unknown_fields` and no `items`, so injecting items fails parse. E3 stays DEFERRED (not durable across v1/v2); recorded as G4-followup. |
 | G5 | RESOLVED (WP4) | wiring | `components/subagent-config/src/catalog.ts` `readNativeCacheDefault` | FIXED 2026-06-30 (user-steered): the real gap was the cache reader hard-filtering to 4 `NATIVE_OPENAI_MODELS`, DROPPING the routed `provider/model` slugs opencodex syncs into the codex config cache. Now admits routed slugs (contain "/") + labels them `ocx`. codexclaw reads codex config (never calls ocx live) — matches user intent "read opencodex's synced config, don't dynamically detect ocx". mcp.ts:9 + catalog_list docs corrected. |
 | G6 | RESOLVED (WP4) | doc/correctness | `gui/src/server/handlers.ts` | FIXED 2026-06-30: GUI already wires `detectOcx()` mode; `ocxModels: undefined` on the provider input is CORRECT by design — ocx models arrive via the native cache (opencodex→codex config sync), not a live ocx call. Reworded the stub comment to state this. The catalog reader fix (G5) is what actually surfaces ocx-synced models. Not a live-HTTP gap. |
-| G7 | PENDING (WP5) | gate gap | `scripts/gate.mjs` checkForbiddenClaims | only scans `skills/**/SKILL.md`; `structure/*.md` (declared SOT) not scanned. Scheduled for WP5. |
+| G7 | RESOLVED (WP5) | gate gap | `scripts/gate.mjs` checkForbiddenClaims | FIXED 2026-06-30: scan now covers `structure/*.md` (declared SOT) in addition to `skills/**/SKILL.md`. Added line-local NEGATION + META exemptions so denied claims ("No hook enforces skill load") and cited examples are not false-flagged. Kant A-gate confirmed the only 2 live structure hits are both negation/meta. Tests: "SCANS structure/*.md and FIRES", "does NOT flag NEGATED or META". |
 | G8 | HIGH | doc/SoT | `devlog/_plan/mvp_hard/000_INDEX.md:68` | canonical two-axis summary still says L9/L11/L12 are decision-DONE/impl-PLANNED, contradicting the same table's `L9|DONE|DONE` and `L12|DONE|DONE` rows → top-level SoT internally false. |
 | G9 | RESOLVED (WP3) | false-claim | `dev/SKILL.md:3` frontmatter | FIXED 2026-06-30: "enforces" → "defines … (agent-followed, not hook-enforced)". Hubble confirmed no E1/E2/E8 backs skill-load; honest E7 wording now. |
 | G10 | MED | stale doc | `122_L12.2...md:87` | acceptance still claims "pending question blocks at I / handleStop returns block", but the I-phase Stop guard was dropped and shipped code releases at phase=I (L17 firewall). |
@@ -32,9 +32,22 @@ Status: PLANNED (gap scan DONE; remediation in PABCD work-phases) · 2026-06-30 
 | G18 | RESOLVED (WP3) | stale doc | `skills/pabcd/SKILL.md:96` | FIXED 2026-06-30: now "shipped append-only Interview Q/A capture ledger, written by the PostToolUse request_user_input hook". |
 | G19 | MED | test gap | hooks/*.json (5 of 6) | only `user-prompt-submit` has a manifest-path e2e (build.test.mjs:87); Stop/PreToolUse×2/PostToolUse/SessionStart hook entrypoints have no e2e through `dist/cli.js hook <event>`. |
 | G20 | PARTIAL (WP1) | test gap | `orchestrate-cli.test.ts` | DONE: `--session <unknown>` refusal + D-close + cli-bootstrap tests added. REMAINING: I/P/A Stop-command coverage (folded into WP7 test hardening). |
-| G21 | MED | tracking | `190...md:52` (src↔dist freshness) + `180...md:46` (C10 mitigation) | promised follow-ups exist only as prose, not actionable/tracked. |
+| G21 | RESOLVED (WP5) | tracking | `190...md:52` (src↔dist freshness) + `180...md:46` (C10 mitigation) | FIXED 2026-06-30: promoted both prose follow-ups to tracked, ranked rows F1/F2 (see "Tracked follow-up debt" section), each routed to WP7. F2≡G23 (cross-linked). |
 | G22 | LOW | residue | `config-guard/src/cli.ts:18` (C6) | `assertNotRealCodexHome` exported but imported only by tests. |
 | G23 | LOW | residue | `subagent-config/test/mcp.test.ts:26` (C10) | fixed 8s stdio timeout → flaky under build+test contention. |
+
+## Tracked follow-up debt (G21 — promoted from prose to actionable rows)
+
+These were buried as one-off prose in earlier loop docs. Promoted here so they are tracked,
+ranked, and routed to a real work-phase (not lost). Each carries its origin and target WP.
+
+| F | Sev | Origin (file:line) | Actionable item | Routed to |
+|---|-----|--------------------|-----------------|-----------|
+| F1 | LOW | `190_L19_dist_packaging_contract.md:52` | No test proves committed `dist/` matches current `src/` BEFORE a build; `build.test.mjs` proves post-build idempotency only. Add a src↔dist freshness assertion (e.g. build into a temp dir, diff against committed `dist/`) so a stale commit fails CI. | WP7 |
+| F2 | LOW | `180_L18_enforcement_gate.md:46` | C10 build+test contention flaky: `subagent-config/test/mcp.test.ts` MCP stdio roundtrip (~8s) times out when `npm test` runs immediately after `npm run build`. Mitigate via explicit per-test timeout or serialized build/test, or formally accept the risk with a documented `npm test` standalone contract. | WP7 (= G23) |
+
+> Note: F2 and G23 are the same defect; G23 stays the canonical row, F2 records the prose origin
+> so the `180...md:46` follow-up is no longer orphaned. F1 complements G19 (test coverage).
 
 ## Remediation work-phase plan (each = 1 full PABCD cycle)
 

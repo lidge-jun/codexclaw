@@ -58,6 +58,32 @@ test("L18: checkForbiddenClaims FIRES on a false claim with no escape (negative 
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("L18: checkForbiddenClaims SCANS structure/*.md and FIRES on a bare assertion (G7)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gate-fc-struct-"));
+  try {
+    const sd = join(dir, "structure");
+    mkdirSync(sd, { recursive: true });
+    writeFileSync(join(sd, "10_routing.md"), "Routing is real: the hook automatically loads the dev skill on match.\n");
+    const res = checkForbiddenClaims(dir);
+    assert.equal(res.ok, false, "structure/*.md must be in scope for the forbidden-claims scan");
+    assert.match(res.violations[0], /structure\/10_routing\.md:1: false-enforcement claim/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("L18: checkForbiddenClaims does NOT flag NEGATED or META structure lines (G7 false-positive guard)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gate-fc-neg-"));
+  try {
+    const sd = join(dir, "structure");
+    mkdirSync(sd, { recursive: true });
+    // line 1 negates the phrase; line 2 cites it as an example/violation — both safe.
+    writeFileSync(join(sd, "30_register.md"),
+      "No hook enforces skill load; the main-agent side is self-enforced wording.\n" +
+      "A sentence like \"hook automatically loads the X skill\" is a forbidden example.\n");
+    const res = checkForbiddenClaims(dir);
+    assert.equal(res.ok, true, `negated/meta lines must not flag; got ${res.violations.join("; ")}`);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("L18: checkStatusSync FIRES on decision/loop-doc token drift (negative control)", () => {
   const dir = mkdtempSync(join(tmpdir(), "gate-ss-"));
   try {

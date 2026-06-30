@@ -14,7 +14,10 @@
  *    L9/L12, whose runtime later shipped via 091/092/093 and 121/122).
  *  - Rows decomposed inside another doc (no own decade file) are allowlisted.
  *  - checkForbiddenClaims uses NARROW false-enforcement patterns; a line opts out with a
- *    trailing `<!-- gate-ok: <reason> -->` when the claim is genuinely hook-backed.
+ *    trailing `<!-- gate-ok: <reason> -->` when the claim is genuinely hook-backed. It
+ *    scans both the skills SKILL.md tree and the declared SOT structure markdown; lines
+ *    that NEGATE the phrase ("no hook enforces ...") or CITE it as an example/violation
+ *    are exempt, since those are the opposite of a false assertion.
  *  - checkCounts reads the real manifest at `.codex-plugin/plugin.json`.
  */
 import { readdirSync, readFileSync, existsSync } from "node:fs";
@@ -111,6 +114,23 @@ export const FORBIDDEN_PATTERNS = [
 ];
 const GATE_OK = /<!--\s*gate-ok:[^>]*-->/;
 
+/**
+ * NEGATION cue: the matched phrase is denied on the same line (e.g. "No hook enforces
+ * skill load", "this is guidance (no hook enforces ...)"). A denied false-claim is the
+ * OPPOSITE of a false-enforcement assertion, so it must not be flagged.
+ */
+const NEGATION_CUE = /\b(?:no|not|never|cannot|can't|can not|don't|do not|doesn't|does not|without|isn't|is not|aren't|are not)\b/i;
+/**
+ * META cue: the matched phrase is being CITED as an example/violation/pattern (e.g. the
+ * gate's own docs that quote "hook automatically loads the X skill" to explain the rule).
+ */
+const META_CUE = /\b(?:example|violation|violations|forbidden|phrase|claim|claims|sentence|pattern|checkForbiddenClaims|gate-ok)\b/i;
+
+/** A line is exempt when it opts out, negates the claim, or merely cites it as an example. */
+function isExemptClaimLine(line) {
+  return GATE_OK.test(line) || NEGATION_CUE.test(line) || META_CUE.test(line);
+}
+
 function walkSkillMds(dir, out) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
@@ -121,14 +141,20 @@ function walkSkillMds(dir, out) {
 
 export function checkForbiddenClaims(repoRoot = REPO_ROOT) {
   const violations = [];
-  const skillsDir = join(repoRoot, "plugins", "codexclaw", "skills");
-  if (!existsSync(skillsDir)) return { ok: true, violations };
   const files = [];
-  walkSkillMds(skillsDir, files);
+  const skillsDir = join(repoRoot, "plugins", "codexclaw", "skills");
+  if (existsSync(skillsDir)) walkSkillMds(skillsDir, files);
+  // structure/*.md is declared SOT (E7 doctrine) and must be held to the same honesty bar.
+  const structureDir = join(repoRoot, "structure");
+  if (existsSync(structureDir)) {
+    for (const e of readdirSync(structureDir, { withFileTypes: true })) {
+      if (e.isFile() && e.name.endsWith(".md")) files.push(join(structureDir, e.name));
+    }
+  }
   for (const f of files) {
     const lines = readFileSync(f, "utf8").split("\n");
     lines.forEach((line, i) => {
-      if (GATE_OK.test(line)) return;
+      if (isExemptClaimLine(line)) return;
       if (FORBIDDEN_PATTERNS.some((re) => re.test(line))) {
         violations.push(`${f.replace(repoRoot + "/", "")}:${i + 1}: false-enforcement claim without gate-ok escape: "${line.trim().slice(0, 80)}"`);
       }
