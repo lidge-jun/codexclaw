@@ -6,7 +6,17 @@ import { join } from "node:path";
 import { activate, manifestPath, type InstallManifest } from "../src/activate.ts";
 import { deactivate } from "../src/deactivate.ts";
 import { type CodexRunner } from "../src/features.ts";
-import { assertNotRealCodexHome } from "../src/cli.ts";
+import { homedir } from "node:os";
+
+// Test-only safety guard (G22: previously a dead prod export in cli.ts). A misconfigured
+// fixture must never operate on the real ~/.codex; this lives in the test because prod
+// `main()` is *supposed* to act on the real codex home, so the guard has no prod caller.
+function assertNotRealCodexHome(path: string, env: NodeJS.ProcessEnv = process.env): void {
+  const real = join((env.HOME ?? homedir()), ".codex");
+  if (join(path) === join(real)) {
+    throw new Error(`refusing to operate on the real codex home: ${path}`);
+  }
+}
 
 // A fake codex that holds an in-memory feature state and rewrites a config.toml fixture so the
 // activate snapshot/hash logic exercises a real file — without ever touching ~/.codex.

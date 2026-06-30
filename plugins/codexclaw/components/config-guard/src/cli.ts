@@ -14,14 +14,6 @@ export function resolveCodexHome(env: NodeJS.ProcessEnv = process.env): string {
   return fromEnv && fromEnv.length > 0 ? fromEnv : join(homedir(), ".codex");
 }
 
-// Guard so a misconfigured test can never operate on the real ~/.codex.
-export function assertNotRealCodexHome(path: string, env: NodeJS.ProcessEnv = process.env): void {
-  const real = join((env.HOME ?? homedir()), ".codex");
-  if (join(path) === join(real)) {
-    throw new Error(`refusing to operate on the real codex home: ${path}`);
-  }
-}
-
 export function makeRealRunner(): CodexRunner {
   return (args) => {
     const res = spawnSync("codex", [...args], { encoding: "utf8" });

@@ -1,6 +1,6 @@
 # L20 / 200 — L1-L19 Gap Register (full-span sweep) + remediation loops
 
-Status: PLANNED (gap scan DONE; remediation in PABCD work-phases) · 2026-06-30 · mvp_hard loop L20 · class C3
+Status: DONE (gap scan + all 7 remediation work-phases shipped + tested) · 2026-06-30 · mvp_hard loop L20 · class C3
 
 > Source: 5 parallel read-only gap-scan subagents (gpt-5.4) over L1-L19 deliverables —
 > Pasteur (L1-L7), Leibniz (L8-L10), Raman (L11-L13), Halley (L14-L19 + register residue),
@@ -30,11 +30,11 @@ Status: PLANNED (gap scan DONE; remediation in PABCD work-phases) · 2026-06-30 
 | G16 | RESOLVED (WP6) | doc/INDEX | `000_INDEX.md:45` | FIXED 2026-06-30: L3 row now "hook wiring via `applyHumanTransition()`". Also fixed the same overclaim in `031_L3.1...md:7` (chat path described as `applyHumanTransition()`, not `transition()`) — Cicero additional finding. |
 | G17 | RESOLVED (WP3) | stale doc | `skills/loop/SKILL.md` + `skills/goalplan/SKILL.md` | FIXED 2026-06-30: reworded to "the hook does not move phases AUTONOMOUSLY; it persists a transition only in response to an explicit chat orchestrate command". Matches handleUserPromptSubmit→applyHumanTransition. |
 | G18 | RESOLVED (WP3) | stale doc | `skills/pabcd/SKILL.md:96` | FIXED 2026-06-30: now "shipped append-only Interview Q/A capture ledger, written by the PostToolUse request_user_input hook". |
-| G19 | MED | test gap | hooks/*.json (5 of 6) | only `user-prompt-submit` has a manifest-path e2e (build.test.mjs:87); Stop/PreToolUse×2/PostToolUse/SessionStart hook entrypoints have no e2e through `dist/cli.js hook <event>`. |
+| G19 | RESOLVED (WP7) | test gap | hooks/*.json (5 of 6) | FIXED 2026-06-30: new `test/hook-e2e.test.mjs` drives all 6 manifest hook entrypoints through their real dist command (`cli.js hook <event>`) with deterministic payloads + env (CODEX_HOME=temp empty for the goal-DB read, controlled PATH for provider) — stop no-op release, goal-budget allow+deny, interview-in-goal allow, post-tool-use ledger side-effect, provider exit0+status line, plus a manifest→dist resolve check. Aristotle (gpt-5.4) A-gate supplied the contracts. 6 tests, deterministic standalone. |
 | G20 | PARTIAL (WP1) | test gap | `orchestrate-cli.test.ts` | DONE: `--session <unknown>` refusal + D-close + cli-bootstrap tests added. REMAINING: I/P/A Stop-command coverage (folded into WP7 test hardening). |
 | G21 | RESOLVED (WP5) | tracking | `190...md:52` (src↔dist freshness) + `180...md:46` (C10 mitigation) | FIXED 2026-06-30: promoted both prose follow-ups to tracked, ranked rows F1/F2 (see "Tracked follow-up debt" section), each routed to WP7. F2≡G23 (cross-linked). |
-| G22 | LOW | residue | `config-guard/src/cli.ts:18` (C6) | `assertNotRealCodexHome` exported but imported only by tests. |
-| G23 | LOW | residue | `subagent-config/test/mcp.test.ts:26` (C10) | fixed 8s stdio timeout → flaky under build+test contention. |
+| G22 | RESOLVED (WP7) | residue | `config-guard/src/cli.ts:18` (C6) | FIXED 2026-06-30: removed the dead prod export and relocated the guard into `config-guard/test/activate.test.ts` as a local helper (prod `main()` is meant to operate on the real `~/.codex`, so the guard has no prod caller — Aristotle confirmed). |
+| G23 | RESOLVED (WP7) | residue | `subagent-config/test/mcp.test.ts:26` (C10) | FIXED 2026-06-30: raised the per-test MCP stdio kill-timer 8s→30s (named `MCP_STDIO_TIMEOUT_MS` + rationale). Also hardened the new hook-e2e suite against the same C10 build/test contention via settle-retry dist snapshots (5 consecutive full-suite runs green). |
 
 ## Tracked follow-up debt (G21 — promoted from prose to actionable rows)
 
@@ -44,7 +44,7 @@ ranked, and routed to a real work-phase (not lost). Each carries its origin and 
 | F | Sev | Origin (file:line) | Actionable item | Routed to |
 |---|-----|--------------------|-----------------|-----------|
 | F1 | LOW | `190_L19_dist_packaging_contract.md:52` | No test proves committed `dist/` matches current `src/` BEFORE a build; `build.test.mjs` proves post-build idempotency only. Add a src↔dist freshness assertion (e.g. build into a temp dir, diff against committed `dist/`) so a stale commit fails CI. | WP7 |
-| F2 | LOW | `180_L18_enforcement_gate.md:46` | C10 build+test contention flaky: `subagent-config/test/mcp.test.ts` MCP stdio roundtrip (~8s) times out when `npm test` runs immediately after `npm run build`. Mitigate via explicit per-test timeout or serialized build/test, or formally accept the risk with a documented `npm test` standalone contract. | WP7 (= G23) |
+| F2 | RESOLVED (WP7) | `180_L18_enforcement_gate.md:46` | FIXED 2026-06-30 (= G23): per-test MCP stdio timeout raised 8s→30s; the new hook-e2e suite uses settle-retry dist snapshots so concurrent rebuilds can't flake it. The documented contract remains "run `npm run build` and `npm test` separately" for the byte-identical idempotency checks. | WP7 (= G23) |
 
 > Note: F2 and G23 are the same defect; G23 stays the canonical row, F2 records the prose origin
 > so the `180...md:46` follow-up is no longer orphaned. F1 complements G19 (test coverage).

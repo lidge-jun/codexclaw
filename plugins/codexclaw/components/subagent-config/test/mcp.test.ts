@@ -23,10 +23,15 @@ async function collect(cwd: string, messages: unknown[], expectedReplies: number
     const child = spawn(process.execPath, [serverJs], { cwd, stdio: ["pipe", "pipe", "inherit"] });
     const out: any[] = [];
     let buf = "";
+    // G23: the MCP stdio roundtrip can exceed a tight budget when this file runs
+    // alongside the rest of the suite (parallel node:test workers contend for CPU,
+    // and a cold spawn pays the type-strip cost). 8s was flaky under that load; 30s
+    // is still a real failure ceiling but absorbs scheduling jitter.
+    const MCP_STDIO_TIMEOUT_MS = 30000;
     const timer = setTimeout(() => {
       child.kill();
       rejectP(new Error("mcp server timeout"));
-    }, 8000);
+    }, MCP_STDIO_TIMEOUT_MS);
     child.stdout!.on("data", (d) => {
       buf += d.toString();
       let idx;
