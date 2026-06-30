@@ -167,6 +167,29 @@ Hook processes are intentionally short: read stdin JSON, reconstruct state, opti
 
 ---
 
+## Quality Gate (E8)
+
+`plugins/codexclaw/scripts/gate.mjs` (run via `npm run gate`, enforced by
+`plugins/codexclaw/test/gate.test.mjs` so `npm test` fails on drift) holds three checks:
+
+- `checkStatusSync`: every `mvp_hard/000_INDEX.md` ledger row's **decision-state** must equal
+  the leading `Status:` token of its loop doc (the two-axis legend, `132_L13.2`, makes the
+  loop-doc leading token the decision axis; parentheticals express impl and are not parsed).
+  Status tokens are a LOCKED enum (`DONE|FROZEN|PLANNED|ANALYZED|DEFERRED|BLOCKED|PROPOSED|PARTIAL`).
+  Rows decomposed inside a shared doc (L15/L16/L17/L19/L20 → `141`) are allowlisted in `NO_OWN_DOC`.
+- `checkForbiddenClaims`: NARROW false-enforcement phrases in `skills/**/SKILL.md` (e.g.
+  "hook automatically loads the X skill") are violations unless the line carries a trailing
+  `<!-- gate-ok: <reason> -->` escape for a genuinely hook-backed claim.
+- `checkCounts`: the `.codex-plugin/plugin.json` `hooks[]` length must equal the number of
+  `hooks/*.json` files (locks C7).
+
+Test-script asymmetry (C9): the root `package.json` `test` glob is the single source of test
+discovery; it already globs every component `test/` dir. Component packages do NOT each carry a
+local `test` script by design — the root glob covers `provider-bridge`/`subagent-config` even
+though they have no package-local `test` script. This asymmetry is intentional, not drift.
+
+---
+
 ## CLI Surface
 
 `package.json` exposes both `codexclaw` and `cxc`, with `cxc` as the preferred short alias. `bin/codexclaw.mjs` is a small delegator:

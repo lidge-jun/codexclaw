@@ -1,6 +1,12 @@
 # L14 / 140 — Follow-up Patch Plan: Loop⇄Goal Activation + Skill Routing Enforcement
 
-Status: PLANNED (root-cause documented; NO code change this pass) · 2026-06-30 · mvp_hard loop L14
+Status: DONE (root-cause documented here; fix shipped in commit 7283712 — see 141) · 2026-06-30 · mvp_hard loop L14
+
+> RESOLVED 2026-06-30: this doc captured the root cause only ("NO code change this
+> pass"); the actual L14 fix (honest loop/Stop/goalplan docs + `GOAL_ACTIVATION_DIRECTIVE`
+> wired via `cxc freeze`) shipped in commit `7283712`. The implementation narrative and
+> per-row resolution live in `141_L14_L19_contradiction_patch_plan.md`. Header flipped to
+> DONE so the L18 status-sync gate (INDEX decision-state == loop-doc leading token) passes.
 
 > Captured at user request: "새 버그 원인 패치하지말고 후속 패치 계획으로 문서화 해놔."
 > Three live defects were root-caused by parallel read-only explorers (Ohm/#1,

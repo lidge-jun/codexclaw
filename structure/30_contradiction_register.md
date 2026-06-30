@@ -54,6 +54,17 @@ Cluster verdict: L9/L11/L12 are the recurring false-DONE trio. The fix is the tw
 status rule (`00_philosophy.md` §3): keep decision and impl on separate columns and never
 let an INDEX impl-DONE outrun the loop doc's own "no runtime shipped" admission.
 
+**L18 resolution (E8 gate, 2026-06-30):** `plugins/codexclaw/scripts/gate.mjs` `checkStatusSync`
+now mechanically enforces the decision-axis rule (INDEX decision-state == loop-doc leading
+`Status:` token, LOCKED enum), and `gate.test.mjs` makes `npm test` fail on drift. The B-cluster
+is now gate-guarded: B1/B2/B3 impl-axis truth is carried by the two-axis columns + sub-loop docs
+(091/092/093, 121/122 shipped L9/L12 runtime; L11 impl genuinely PLANNED — docs-site not built),
+and B4-B7 were prose fixes already landed. The gate caught + I fixed the last live drift this loop:
+`140_L14...md` header was stale PLANNED (L14 shipped in 7283712) — flipped to DONE. Gate green on
+the live tree (8/8 gate tests). NOTE: the gate compares the DECISION axis token-for-token; impl
+honesty for "runtime deferred" parentheticals is governed by sub-loop docs + `checkForbiddenClaims`,
+not the status-token diff (a phrase-scan there false-positives on L9/L12 whose runtime later shipped).
+
 ---
 
 ## C. Code / config structure (dead code, packaging, counts)
@@ -67,9 +78,9 @@ let an INDEX impl-DONE outrun the loop doc's own "no runtime shipped" admission.
 | C4 | DOCUMENTED (L17) | `rescan-coordinator.ts:2` "interactive-interview signal helper" | Same as C3: rescan-coordinator computes the "more interview vs proceed" signal the agent surfaces at the end of a rescan. Reachable-via-directive (the Mind-dispatch contract references the rescan loop), not wired to `handleStop` by design — goal-active suppresses Interview entirely, so a Stop-time rescan would contradict the firewall. Documented helper. |
 | C5 | RESOLVED (L14) | ~~`freeze.ts:124` `GOAL_ACTIVATION_DIRECTIVE` test-only~~ | FIXED 2026-06-30: now emitted by the production path `runFreeze` (`freeze-cli.ts`) when the interview is ready, surfaced via `cxc freeze` (`bin/codexclaw.mjs`) |
 | C6 | LOW | `config-guard/src/cli.ts:18` exports `assertNotRealCodexHome` | imported only by `test/activate.test.ts:9` |
-| C7 | LOW | `structure/INDEX.md` (pre-fix) "manifest wires five hook JSON files" | `plugin.json:20-26` declares six (adds `post-tool-use-capturing-interview-answers.json`) — fixed in INDEX 2026-06-30 |
+| C7 | RESOLVED (L18) | ~~`structure/INDEX.md` (pre-fix) "manifest wires five hook JSON files" vs `plugin.json:20-26` declares six~~ | FIXED 2026-06-30: INDEX says "six"; **locked** by `gate.mjs checkCounts` (manifest `hooks[]` length == `hooks/*.json` count) with a negative-control test. Drift now fails `npm test`. |
 | C8 | MED | build compiles every `src/*.ts` -> `dist/*.js` (`build.mjs:62,68,74`) and `.gitignore:2` ignores `dist/` | only a subset of `dist/` is git-tracked; several runtime `dist/*.js` that `bin`/`hook` load are untracked — packaging relies on a local build, not the repo |
-| C9 | LOW | component test surface looks uniform | root `package.json:23` globs all test dirs, but only `config-guard`/`cxc-ops`/`pabcd-state` have a package-local `test` script; `provider-bridge`/`subagent-config` do not |
+| C9 | RESOLVED (L18) | ~~component test surface looks uniform~~ | DOCUMENTED 2026-06-30: `structure/INDEX.md` Quality Gate section records that the root `package.json` `test` glob is the single source of test discovery and component packages intentionally do NOT each carry a local `test` script (the glob already covers `provider-bridge`/`subagent-config`). Intentional asymmetry, not drift. |
 | C10 | LOW (flaky) | `subagent-config/test/mcp.test.ts:57` MCP stdio roundtrip assumed reliable | times out (~8s) when the full `npm test` runs concurrently with `npm run build` (process/IO contention). Single-file + standalone `npm test` runs are green (5/5, 332/332). Real but environmental; candidate for an explicit timeout or build/test serialization in the L18 gate work. |
 
 Cluster verdict: the dead-code rows (C1-C6) are mostly the *same* L14 story — wrappers,
