@@ -46,7 +46,15 @@ the missing control surface using the codex-native `$ + hook` model.
 | L4 | 040 | `cxc orchestrate` CLI over the same file state (agent-gated path) | DONE |
 | L5 | 050 | `status` / `reset` / `D` chat affordances + phase footer directive + ledger-on-transition | DONE |
 | L6 | 060 | Stop-continuation loop with omo termination guards + bounded stagnation guard | DONE |
-| L7 | 070 | `$cxc-goalplan` + `$cxc-loop` (setGoal-equiv + continuation) + human/agent source split + pabcd skill-doc rewrite | PLANNED |
+| L7 | 070 | `$cxc-goalplan` + `$cxc-loop` + orchestrate skill-doc reconciliation with shipped L3-L6 reality | DONE |
+
+## Track status
+
+**mvp_hard parity track L2-L7 COMPLETE** (2026-06-30). The cli-jaw `$ + hook` PABCD
+control-surface gap from the L1 audit is closed: FSM adjacency + 4-edge attest gate (L2),
+chat `$cxc-orchestrate` wire (L3), agent-gated `cxc orchestrate` CLI (L4), phase footer +
+chat D-close (L5), bounded Stop-continuation loop (L6), and skill-doc reconciliation (L7).
+Tests grew 223 → 281, all green; `cxc doctor` PASS.
 | L8 | 080 | Reserved after L7: post-loop UX hardening slice TBD after goalplan/loop design | RESERVED |
 | L9 | 090 | Subagent/model hardening: OMO role variants, spawn-wrapper config application, ocx catalog read-only integration | PROPOSED |
 | L10 | 100 | Memory/chat/project/worklog parity decision: codex-native scope vs explicit non-goals | PROPOSED |
