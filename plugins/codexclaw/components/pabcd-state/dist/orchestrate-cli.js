@@ -15,7 +15,7 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { coerceAttest,                  } from "./attest.js";
 import { transition } from "./fsm.js";
-import { applyHumanTransition } from "./orchestrate-apply.js";
+import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.js";
 
 import {
   appendLedger,
@@ -102,6 +102,20 @@ export function resolveSession(cwd        , explicit         )                {
   return best?.id ?? null;
 }
 
+/**
+ * Reserved explicit terminal session keys the CLI may bootstrap (create-on-write)
+ * without a pre-existing file. A real codex session id is NEVER in this set — those
+ * are created by the hook, and the CLI only rides an existing one. This keeps an
+ * explicit `--session <typo-or-new-uuid>` from silently minting a divergent session
+ * on a mutating verb (G2 / L20). `cli` is the documented terminal bootstrap key.
+ */
+export const RESERVED_SESSION_KEYS                      = new Set(["cli"]);
+
+/** True when a session file already exists for this id under the cwd. */
+function sessionFileExists(cwd        , sessionId        )          {
+  return existsSync(join(cwd, STATE_DIR, SESSIONS_SUBDIR, `${sessionId}.json`));
+}
+
 function renderStatus(state       , json         )         {
   if (json) return JSON.stringify({ phase: state.phase, flags: state.flags, sessionId: state.sessionId });
   return `phase=${state.phase} interview=${state.flags.interview} auditPassed=${state.flags.auditPassed} checkPassed=${state.flags.checkPassed}`;
@@ -128,6 +142,18 @@ export function runOrchestrateCli(args                    )            {
   if (!sessionId) {
     return { code: 1, output: `orchestrate ${args.verb}: no active session — pass --session <id> (the codex session id, or an explicit terminal session like 'cli')` };
   }
+
+  // G2 (L20): an EXPLICIT --session on a mutating verb may target only an existing
+  // session file or a reserved terminal key (cli). An unknown explicit id (e.g. a typo
+  // or a fresh codex-style uuid the hook never created) must NOT silently mint a
+  // divergent session. The implicit most-recent pick and the no-session cli bootstrap
+  // are unaffected (args.session is undefined there).
+  if (args.session && !sessionFileExists(args.cwd, sessionId) && !RESERVED_SESSION_KEYS.has(sessionId)) {
+    return {
+      code: 1,
+      output: `orchestrate ${args.verb}: unknown session '${sessionId}' — no .codexclaw/sessions/${sessionId}.json exists. Target an existing session or use the terminal key 'cli'.`,
+    };
+  }
   const state = readState(args.cwd, sessionId);
 
   // reset: control override (same cleared-IDLE write as the human path).
@@ -147,6 +173,25 @@ export function runOrchestrateCli(args                    )            {
   if (!result.ok || !result.state) {
     return { code: 1, output: `orchestrate ${args.verb}: ${result.reason ?? "transition refused"}` };
   }
+
+  // G1 (L20): D is a CLOSING transition, not a resting badge. Once the C->D attest
+  // gate (checkOutput + exitCode:0, enforced by transition() above) passes, close the
+  // cycle to IDLE atomically — one clearedIdle write + one done ledger (C->IDLE) — so
+  // the terminal path matches the chat done-control and L5/L7's "resting state is
+  // IDLE" contract. No intermediate phase="D" is persisted and no second ledger row.
+  if (to === "D") {
+    writeState(args.cwd, { ...clearedIdle(state), stopBlockPhase: null, stopBlockCount: 0 });
+    appendLedger(args.cwd, {
+      ts: new Date().toISOString(),
+      sessionId: state.sessionId,
+      from: state.phase,
+      to: "IDLE",
+      reason: "done",
+      ...(args.attest?.did ? { evidence: args.attest.did } : {}),
+    });
+    return { code: 0, output: `orchestrate D: ${state.phase} → IDLE (cycle closed, session ${sessionId})` };
+  }
+
   // L6: a real CLI transition is progress -> reset the Stop stagnation guard.
   writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0 });
   appendLedger(args.cwd, {

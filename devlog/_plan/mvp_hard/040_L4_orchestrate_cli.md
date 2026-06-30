@@ -92,6 +92,22 @@ The hook gets `session_id` from codex; the terminal CLI does not. Strategy:
   next hook read).
 - `npm test` green at 258+; `npm run build` idempotent.
 
+## L20 hardening (2026-06-30)
+
+Two CLI correctness gaps found by the L20 gap sweep (200) were fixed (commit pending):
+
+- **D-close (G1):** `cxc orchestrate D` is now a CLOSING transition. After the C->D
+  attest gate (`checkOutput` + `exitCode:0`) passes via `transition()`, the CLI writes
+  one `clearedIdle` state and one `done` ledger row (`C -> IDLE`), so the resting state
+  is IDLE and `D` is never a persistent badge — matching the chat done-control and the
+  L5/L7 D-close contract. A separate `cxc orchestrate reset` after `D` is no longer
+  required (it is now a harmless no-op).
+- **Session policy (G2):** an EXPLICIT `--session <id>` on a mutating verb may target
+  only an existing `.codexclaw/sessions/<id>.json` or the reserved terminal key `cli`.
+  An unknown explicit id (typo or a fresh codex-style uuid the hook never created) is
+  refused with a clear error instead of silently minting a divergent session. The
+  implicit latest-mtime pick and the no-session `cli` bootstrap are unchanged.
+
 ## Risk / rollback
 
 - Risk: session ambiguity (multiple session files). Mitigation: deterministic

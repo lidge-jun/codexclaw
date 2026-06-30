@@ -12,8 +12,8 @@ Status: PLANNED (gap scan DONE; remediation in PABCD work-phases) · 2026-06-30 
 
 | G | Sev | Type | Location | Gap |
 |---|-----|------|----------|-----|
-| G1 | HIGH | code bug | `components/pabcd-state/src/orchestrate-cli.ts` D path | CLI `orchestrate D` persists `phase:"D"` + keeps `orchestrationActive` true; only the chat path auto-closes to IDLE. D-close contract (L5/L7) violated on the terminal surface. |
-| G2 | HIGH | code bug | `components/pabcd-state/src/orchestrate-cli.ts` resolveSession | explicit `--session <missing>` is accepted with no backing-file check; CLI then reads a default state and `writeState()`s it → silently invents a divergent mutable session. |
+| G1 | RESOLVED (WP1) | code bug | `components/pabcd-state/src/orchestrate-cli.ts` D path | FIXED 2026-06-30: CLI `D` now closes to IDLE (single `clearedIdle` write + single `done` C->IDLE ledger) after the C->D attest gate. Test "G1: C->D ... CLOSES to IDLE". |
+| G2 | RESOLVED (WP1) | code bug | `components/pabcd-state/src/orchestrate-cli.ts` mutating path | FIXED 2026-06-30: explicit `--session <unknown>` on a mutating verb is refused (`RESERVED_SESSION_KEYS={cli}` + file-exists check); no divergent session minted. Tests "G2: unknown id refuses", "existing works", "cli bootstrap". |
 | G3 | HIGH | code bug | `components/pabcd-state/src/state.ts:193` `readInterviewEvents()` | parses every line of `.codexclaw/interviews/<id>.jsonl` as scan evidence, but Q/A capture events share that file → mixed ledger misread; scan-evidence gate (L13) corrupted on real data. |
 | G4 | HIGH | wiring | `components/subagent-config/src/spawn-wrapper.ts` (resolveSpawnPayloadWithSkills/buildSpawnItems) | E5 skill-attachment builder has NO non-test caller; `dev/SKILL.md` claims dispatches are "pre-loaded as an attachment" → doctrine-only. Either wire a production caller or downgrade the claim to honest guidance. |
 | G5 | HIGH | wiring | `components/subagent-config/src/mcp.ts:90` `catalog_list` | calls `buildCatalog()` with no `providerStatus`, so the MCP catalog surface can NEVER expose ocx models despite the provider-bridge design + the mcp.ts:9 doc claim. |
@@ -31,7 +31,7 @@ Status: PLANNED (gap scan DONE; remediation in PABCD work-phases) · 2026-06-30 
 | G17 | MED | stale doc | `skills/loop/SKILL.md:21` + `skills/goalplan/SKILL.md:27` | "the hook does not move phases" — but the chat orchestrate path DOES transition+persist via handleUserPromptSubmit→applyHumanTransition. |
 | G18 | LOW | stale doc | `skills/pabcd/SKILL.md:96` | calls `.codexclaw/interviews/<id>.jsonl` a "planned" ledger; capture is shipped. |
 | G19 | MED | test gap | hooks/*.json (5 of 6) | only `user-prompt-submit` has a manifest-path e2e (build.test.mjs:87); Stop/PreToolUse×2/PostToolUse/SessionStart hook entrypoints have no e2e through `dist/cli.js hook <event>`. |
-| G20 | LOW | test gap | `orchestrate-cli.test.ts` | no test that `--session <missing>` refuses mutation (guards G2); no I/P/A Stop-command coverage (only B/C/D). |
+| G20 | PARTIAL (WP1) | test gap | `orchestrate-cli.test.ts` | DONE: `--session <unknown>` refusal + D-close + cli-bootstrap tests added. REMAINING: I/P/A Stop-command coverage (folded into WP7 test hardening). |
 | G21 | MED | tracking | `190...md:52` (src↔dist freshness) + `180...md:46` (C10 mitigation) | promised follow-ups exist only as prose, not actionable/tracked. |
 | G22 | LOW | residue | `config-guard/src/cli.ts:18` (C6) | `assertNotRealCodexHome` exported but imported only by tests. |
 | G23 | LOW | residue | `subagent-config/test/mcp.test.ts:26` (C10) | fixed 8s stdio timeout → flaky under build+test contention. |

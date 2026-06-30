@@ -74,6 +74,59 @@ test("C->D with failing exitCode is rejected (gated check)", () => {
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
+test("G1: C->D with passing attest CLOSES to IDLE (D is not a resting state)", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "s3c", "C");
+    const r = runOrchestrateCli({ verb: "D", attest: { from: "C", to: "D", did: "checks passed", checkOutput: "tests 1 pass 1", exitCode: 0 }, session: "s3c", cwd, json: false });
+    assert.equal(r.code, 0);
+    assert.match(r.output, /→ IDLE/);
+    const st = readState(cwd, "s3c");
+    assert.equal(st.phase, "IDLE", "CLI D must close the cycle to IDLE, not rest at D");
+    assert.equal(st.orchestrationActive, false, "closed cycle must not stay orchestration-active");
+    // exactly one ledger row for the close, recorded as a C->IDLE 'done' (no double row).
+    const led = ledgerLines(cwd);
+    const last = led.at(-1);
+    assert.equal(last?.from, "C");
+    assert.equal(last?.to, "IDLE");
+    assert.equal(last?.reason, "done");
+    assert.equal(led.filter((l) => l.to === "D").length, 0, "no intermediate phase=D ledger row");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("G2: explicit --session with an UNKNOWN id refuses to mutate (no divergent session minted)", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "real-sess", "P");
+    // a typo / never-created codex-style id must not be silently created on a mutating verb.
+    const r = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "x" }, session: "ghost-9999", cwd, json: false });
+    assert.equal(r.code, 1);
+    assert.match(r.output, /unknown session 'ghost-9999'/);
+    assert.ok(!existsSync(join(cwd, STATE_DIR, SESSIONS_SUBDIR, "ghost-9999.json")), "no divergent session file may be written");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("G2: explicit --session targeting an EXISTING file still works", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "real-sess", "P");
+    const r = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "audited" }, session: "real-sess", cwd, json: false });
+    assert.equal(r.code, 0);
+    assert.equal(readState(cwd, "real-sess").phase, "A");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("G2: reserved 'cli' key may bootstrap a terminal session even with no file yet", () => {
+  const cwd = freshCwd();
+  try {
+    mkdirSync(join(cwd, STATE_DIR, SESSIONS_SUBDIR), { recursive: true });
+    // no sessions exist; explicit --session cli is the documented terminal bootstrap.
+    const r = runOrchestrateCli({ verb: "I", attest: { from: "IDLE", to: "I", did: "interview start" }, session: "cli", cwd, json: false });
+    assert.equal(r.code, 0, r.output);
+    assert.equal(readState(cwd, "cli").phase, "I");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
 test("illegal edge from IDLE is refused", () => {
   const cwd = freshCwd();
   try {

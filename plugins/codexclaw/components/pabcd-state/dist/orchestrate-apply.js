@@ -38,7 +38,7 @@ function unlockedFlag(from       , to       )                                   
 }
 
 /** The cleared resting state a reset/close produces (mirrors fsm D->IDLE close). */
-function clearedIdle(state       )        {
+export function clearedIdle(state       )        {
   return {
     ...state,
     phase: "IDLE",
