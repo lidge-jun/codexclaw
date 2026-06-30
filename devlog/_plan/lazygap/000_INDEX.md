@@ -28,6 +28,18 @@ So any "add roles" suggestion from the sweep (Plato's role-split row) is explici
 **rejected** for codexclaw. The gap it points at (reviewer overloaded) is real, but the
 fix is skill attachment (L15 routing), not more TOMLs.
 
+### Second steering lens — the host-native boundary (LOCKED, 2026-06-30)
+
+Before classing any cli-jaw/omo feature as a "gap", ask **who owns it under Codex**.
+cli-jaw and omo are their own orchestrators/servers, so they must build goal mode, cwd
+resolution, skill discovery, hook dispatch, memory, and worker supervision themselves.
+codexclaw runs **on top of the Codex runtime**, which provides those natively. So a
+missing `cxc` command is usually **not** a gap — it is a responsibility the host already
+owns. codexclaw adds a `cxc` command only where Codex has no equivalent (PABCD attest,
+config enable, freeze handoff). Every parity row below is filtered through this lens:
+`host-native` (do nothing), `no-server file/hook import` (real work), or
+`server-bound non-goal` (the boundary line).
+
 ---
 
 ## The three harness layers omo enforces and codexclaw mostly documents
@@ -45,29 +57,32 @@ fix is skill attachment (L15 routing), not more TOMLs.
 | Deep research | ultraresearch EXPAND swarm + journal | Tier 3 one paragraph | `007` |
 | Prompt guardrails | first-line marker + authority override + CI gate | prose invariants only | `008` |
 
-## Second sweep — cli-jaw parity (011-012)
+## Second sweep — cli-jaw parity (folded into 001/006/007/009)
 
 A 7-explorer parallel sweep (2026-06-30) widened the comparison from omo to **cli-jaw**
 itself. The original question was narrow: **can cli-jaw's built-in tools (`bin/commands/`,
 37 commands) move into codexclaw?** The portability verdict (A portable / B reshaped /
-C server-bound) lives in `009`. The orchestrator-internals and memory parity that fell out
-of that comparison are recorded in `011`/`012`.
+C server-bound) lives in `009`. The framing answer: cli-jaw needs those commands because
+it **is its own orchestrator**; codexclaw runs **on the Codex runtime**, which already owns
+goal mode, cwd, skills, and hooks, so most have nothing to port. The orchestrator-internals
+and memory parity that fell out of that comparison are folded into `001` (addendum) and
+`006` (addendum) to keep this track inside 000-009.
 
 | Layer | cli-jaw has | codexclaw today | doc |
 | --- | --- | --- | --- |
 | Built-in tool surface | 37 `bin/commands/` (cli-jaw is its own orchestrator) | `cxc` adds only what Codex lacks; goal/cwd/skills/hooks are host-native | `009` (port verdict) |
-| Friction ledger | sha256(tool:error) retry->escalate->stop + oscillation | none (PostToolUse hook unused for this) | `011` |
-| Seed ontology | structured entity/relationship/invariant + render | label-only string | `011` |
-| Workspace-context | project-root resolve + path-hint + symlink-escape block | prose only | `011` |
-| Plan auto-inject | server inlines approved plan into each spawn | doctrine only (runtime force impossible) | `011` |
-| Memory (3-tier) | History/Flush/Snapshot/index/HTTP/federation | non-goal (mostly server-bound) | `012` |
+| Friction ledger | sha256(tool:error) retry->escalate->stop + oscillation | none (PostToolUse hook unused for this) | `001` addendum |
+| Seed ontology | structured entity/relationship/invariant + render | label-only string | `001` addendum |
+| Workspace-context dispatch path-hint | path-hint + symlink-escape on spawn (NOT a project registry — cwd is host-native) | prose only | `001` addendum |
+| Plan auto-inject | server inlines approved plan into each spawn | doctrine only (runtime force impossible) | `001` addendum |
+| Memory (3-tier) | History/Flush/Snapshot/index/HTTP/federation | non-goal (mostly server-bound) | `006` addendum |
 | Browse/search proof | insane-search engine | **adapt agbrowse** (lazy, no-server) | `007` update |
 
 ---
 
 ## Document map (000-009)
 
-(011-012 added by the cli-jaw second sweep; the built-in tool port verdict is in `009`.)
+(The cli-jaw second sweep folded into `001`/`006` addenda + `007`/`009`; this track stays 000-009.)
 
 | Doc | Scope |
 | --- | --- |
@@ -81,8 +96,6 @@ of that comparison are recorded in `011`/`012`.
 | `007_search_and_research.md` | insane-search engine port + ultraresearch depth |
 | `008_skill_attached_dispatch.md` | skill-attached base-role dispatch (the user's core ask) |
 | `009_reinforcement_roadmap.md` | synthesis: gap -> E-tier -> proposed loop, with non-goals |
-| `011_pabcd_orchestration_parity.md` | Seed / Friction / workspace-context / plan-inject parity |
-| `012_memory_parity_nongoal.md` | memory = confirmed non-goal + chat-search drift fix |
 
 ---
 

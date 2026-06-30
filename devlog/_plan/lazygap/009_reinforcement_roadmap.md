@@ -32,16 +32,16 @@ Status: PLANNED (decision input; no code this pass) · evidence: 001-008
 | L23 | 230 | `006` | PostCompact recovery hook |
 | L24 | 240 | `004` | rule-injector + comment-lint PostToolUse |
 | L25 | 250 | `007` | **agbrowse adapt** (lazy proof helper + Tier-2 rewrite) + ultraresearch protocol reference |
-| L27 | 270 | `011` | friction ledger (E1/E2 gate) + workspace-context block + seed ontology schema |
+| L27 | 270 | `001` (orchestrator-internals addendum) | friction ledger (E1/E2 gate) + workspace-context dispatch path-hint + seed ontology schema |
 
 > L15/L17 already exist in `mvp_hard/141`; `002` folds into L15 as its trust half.
 > L21-L25 are the new lazygap-driven loops. Sequencing: `002`+`008` first (trust +
 > routing), then `001`->`003` (loop substrate -> work-aware Stop), then `006`/`004`/`007`.
 >
-> L27 is the cli-jaw second-sweep loop. `011`'s friction ledger is the single new
-> **runtime** gate (E1/E2) and the PostToolUse hook already exists, so it ranks high.
-> The chat-search drift fix (`012`) folds into the next L17-class honesty pass — it's a
-> doc edit backed by an already-passing test, not its own loop.
+> L27 is the cli-jaw second-sweep loop (orchestrator-internals addendum in `001`). The
+> friction ledger is the single new **runtime** gate (E1/E2) and the PostToolUse hook
+> already exists, so it ranks high. The chat-search drift fix (memory addendum in `006`)
+> was already resolved (301aa0b), so nothing remains to schedule for it.
 
 ## Enforcement-tier ledger (what becomes truly enforced)
 
@@ -93,11 +93,11 @@ config enable, freeze handoff).
 
 | cli-jaw command | who owns it in codexclaw | verified basis |
 | --- | --- | --- |
-| `orchestrate [P/A/B/C/D/status/reset]` | **`cxc` (SHIPPED)** — Codex has no PABCD, so codexclaw adds it | `cxc orchestrate` + attest gate (parity DONE, `011`) |
+| `orchestrate [P/A/B/C/D/status/reset]` | **`cxc` (SHIPPED)** — Codex has no PABCD, so codexclaw adds it | `cxc orchestrate` + attest gate (parity DONE, `001` addendum) |
 | `doctor` | **`cxc` (SHIPPED)** | `cxc doctor` (`cxc-ops`) |
 | `reset` | **`cxc` (SHIPPED)** | `cxc reset` (`cxc-ops`) |
 | `goal [set/plan/status/update/done]` | **HOST-NATIVE.** Codex owns goal mode + the goal DB; codexclaw only *reads* `thread_goals` read-only and never writes it | `goal-active.ts` (reads `goals_1.sqlite`). A `cxc goal` command would duplicate the host and break the no-own-goal-DB rule |
-| `project [set/list]` | **HOST-NATIVE.** Codex runs on `cwd`, so project-root is given by the runtime; no registry needed | the only residual is the subagent-dispatch path-hint/symlink nuance in `011`, not a project-root registry |
+| `project [set/list]` | **HOST-NATIVE.** Codex runs on `cwd`, so project-root is given by the runtime; no registry needed | the only residual is the subagent-dispatch path-hint/symlink nuance in `001` addendum, not a project-root registry |
 | `skill` | **HOST-NATIVE.** Codex discovers skills from `plugin.json` + the skills dir and renders them; codexclaw's skills are already Codex-native `$cxc-*` entries | no `cxc skill` needed; `skill-hub` is just a routing skill, not a CLI |
 | `init` | **Folded into `cxc enable`.** config-guard enable is the scaffold path | `config-guard/src/cli.ts:42` enable flow |
 | `hooks` | **HOST-NATIVE.** Codex loads/dispatches hooks from `plugin.json`; codexclaw doesn't manage a hook registry | hooks fire via `plugin.json` registration; no `cxc hooks` CLI needed |
@@ -105,15 +105,15 @@ config enable, freeze handoff).
 Honest summary of bucket A: codexclaw adds a `cxc` command only where Codex has no
 equivalent (`orchestrate`/`doctor`/`reset`/`enable`/`freeze`). `goal`/`project`/`skill`/
 `hooks` are **host-native** — the Codex runtime already provides them, so there is nothing
-to port. `init` is covered by `enable`. The one genuine code item is the `011`
+to port. `init` is covered by `enable`. The one genuine code item is the `001`-addendum
 workspace-context path-hint for *dispatch* (not a project registry).
 
 ### B. Partial / reshaped (capability fits, mechanism changes)
 
 | cli-jaw command | why it can't move as-is | codexclaw shape |
 | --- | --- | --- |
-| `dispatch` / `worker` | spawn + monitor + session-resume of agent-CLI workers via a run-store | replaced by Codex `spawn_agent` subagents; no worker run-store/monitor (`011` table, by design) |
-| `history` / `chat-search` | query the `messages`/thread index (server + SQLite) | host Codex owns thread search; codexclaw's own `chat-search` was retired (`012` drift fix) |
+| `dispatch` / `worker` | spawn + monitor + session-resume of agent-CLI workers via a run-store | replaced by Codex `spawn_agent` subagents; no worker run-store/monitor (`001` addendum, by design) |
+| `history` / `chat-search` | query the `messages`/thread index (server + SQLite) | host Codex owns thread search; codexclaw's own chat-search was retired (`006` addendum, drift fix) |
 | `task` | durable task DB | mapped to host `update_plan` (decided in `mvp_res/201`), not a DB |
 | `browser` / `browser-web-ai` | cli-jaw browse layer | **adapt agbrowse** lazily instead of reimplementing (`007` update) |
 
@@ -135,4 +135,4 @@ the **Codex runtime** (bucket A host-native rows). codexclaw only adds a `cxc` c
 Codex has no equivalent (`orchestrate`/`doctor`/`reset`/`enable`/`freeze`). The genuinely
 useful carry-overs are `browser`->agbrowse (`007`) and the orchestrator-internal discipline
 (friction ledger / workspace-context path-hints / seed) which lands as **hook logic**
-(`011`), not new `cxc` subcommands. Bucket C is not a backlog; it is the no-server line.
+(`001` addendum), not new `cxc` subcommands. Bucket C is not a backlog; it is the no-server line.
