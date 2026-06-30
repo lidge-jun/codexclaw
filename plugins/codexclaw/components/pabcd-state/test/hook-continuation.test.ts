@@ -13,12 +13,15 @@ import {
   interviewDirective,
   QUESTION_SHAPE_DIRECTIVE,
   withFooter,
+  buildStopBlock,
+  readStopWorkContext,
   type UserPromptSubmitPayload,
   type StopPayload,
 } from "../src/hook.ts";
 import { GOALS_DB_FILENAME } from "../src/goal-active.ts";
 import { defaultState, readState, writeState } from "../src/state.ts";
 import { recordObjectiveMetric, writeObjectiveKind } from "../src/metrics.ts";
+import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -407,6 +410,59 @@ test("emergence 020: improving maximize metric keeps normal continuation", () =>
       const reason = JSON.parse(handleStop(stop(cwd, "up1")).trim()).reason;
       assert.match(reason, /continue PABCD/);
       assert.doesNotMatch(reason, /objective plateau/);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// ── 040: work-aware Stop enrichment (text-only; null context == byte-identical) ──
+
+test("040: buildStopBlock(phase) is byte-identical to buildStopBlock(phase, null)", () => {
+  for (const p of ["P", "A", "B", "C", "D"] as const) {
+    assert.equal(buildStopBlock(p), buildStopBlock(p, null), `phase ${p} must be byte-identical`);
+  }
+});
+
+test("040: readStopWorkContext returns null without a session-bound slug (no dir scan)", () => {
+  const cwd = freshCwd();
+  try {
+    // even with a goalplan on disk, no state.slug => null (no directory-scan fallback)
+    const plan = buildGoalplan({ objective: "Unbound plan", criteria: [{ scenario: "x", expectedEvidence: "ev" }] });
+    writeGoalplan(cwd, plan);
+    const state = { ...defaultState("unbound"), slug: "" };
+    assert.equal(readStopWorkContext(cwd, state), null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("040: with a session-bound slug + goalplan, the block reason names remaining work", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "wp1", status: "active" }], () => {
+      const plan = buildGoalplan({ objective: "Ship feature", criteria: [{ scenario: "tests pass", expectedEvidence: "npm test green" }] });
+      plan.workPhases = [
+        { id: "wp-1", title: "Backend", status: "in_progress", tasks: [{ id: "t-1", title: "add endpoint", status: "pending" }], criteriaIds: ["c-1"] },
+      ];
+      writeGoalplan(cwd, plan);
+      // session-bound slug (030.3)
+      writeState(cwd, { ...defaultState("wp1"), phase: "B", orchestrationActive: true, lastInjectedPhase: "B", slug: plan.slug });
+      const reason = JSON.parse(handleStop(stop(cwd, "wp1")).trim()).reason;
+      assert.match(reason, /continue PABCD/);
+      assert.match(reason, /Remaining work: Backend → add endpoint/);
+      assert.match(reason, /Required evidence: npm test green/);
+      assert.match(reason, new RegExp(`Record progress in: \\.codexclaw/goalplans/${plan.slug}/ledger\\.jsonl`));
+      // enrichment never replaces the phase command or the closing note
+      assert.match(reason, /cxc orchestrate C --attest/);
+      assert.match(reason, /D is not a resting state/);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("040: no goalplan for the bound slug => byte-identical shipped reason", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "wp2", status: "active" }], () => {
+      writeState(cwd, { ...defaultState("wp2"), phase: "B", orchestrationActive: true, lastInjectedPhase: "B", slug: "ghost-slug" });
+      const reason = JSON.parse(handleStop(stop(cwd, "wp2")).trim()).reason;
+      assert.equal(reason, JSON.parse(buildStopBlock("B").trim()).reason);
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

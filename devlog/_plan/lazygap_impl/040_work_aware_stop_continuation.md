@@ -109,6 +109,15 @@ export function readStopWorkContext(cwd: string, state: State): StopWorkContext 
 }
 ```
 
+### 030.3 folded in (session-bound slug — required by A-gate Copernicus)
+
+A-gate (Copernicus, gpt-5.5) rejected a "single goalplan dir" fallback: `GoalplanHostLink` has
+no session/thread binding, so a stale unrelated dir could enrich the wrong goal. The ONLY safe
+key is the per-session `state.slug`. So 040 folds the minimal 030.3: `cxc goalplan init
+--session <id>` (and `--cwd`) persists `state.slug = deriveSlug(objective)` into that session's
+`state.json` via `writeState`. `readStopWorkContext` then keys STRICTLY on `state.slug`:
+`if (!slug) return null` → byte-identical old behavior. No directory-scan fallback exists.
+
 ### What 040 deliberately does NOT do
 
 - Does NOT add a block condition: arming stays exactly the 6 release guards + stagnation cap.

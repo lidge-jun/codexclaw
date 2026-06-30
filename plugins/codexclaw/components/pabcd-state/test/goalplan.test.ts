@@ -18,6 +18,7 @@ import {
 } from "../src/goalplan.ts";
 import { deriveSlug } from "../src/freeze.ts";
 import { parseGoalplanCliArgs, runGoalplanCli } from "../src/goalplan-cli.ts";
+import { readState } from "../src/state.ts";
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), "cxc-goalplan-"));
@@ -151,4 +152,20 @@ test("030.2: unknown verb -> parse error; show/validate need a slug source", () 
   const missing = runGoalplanCli(parseGoalplanCliArgs(["show", "--slug", "ghost"], cwd) as any);
   assert.equal(missing.code, 1);
   assert.match(missing.output, /no plan found/);
+});
+
+test("030.3: init --session persists the derived slug into that session's state", () => {
+  const cwd = tmp();
+  const args = parseGoalplanCliArgs(["init", "--objective", "Bound objective", "--session", "sess-1"], cwd);
+  assert.ok(!("error" in args));
+  assert.equal((args as any).session, "sess-1");
+  assert.equal(runGoalplanCli(args as any).code, 0);
+  assert.equal(readState(cwd, "sess-1").slug, deriveSlug("Bound objective"));
+});
+
+test("030.3: init WITHOUT --session leaves session state untouched (slug stays empty)", () => {
+  const cwd = tmp();
+  assert.equal(runGoalplanCli(parseGoalplanCliArgs(["init", "--objective", "Unbound"], cwd) as any).code, 0);
+  // a fresh read of an unknown session is the default (empty slug)
+  assert.equal(readState(cwd, "never-bound").slug, "");
 });

@@ -15,7 +15,7 @@
  *  - payload field names: codex-rs hooks/src/events/{user_prompt_submit,stop}.rs (snake_case)
  *  - output shape:        omo rules/src/hook-output.ts:10-16 (camelCase hookSpecificOutput)
  */
-import { appendLedger, readState, writeState, type Phase } from "./state.ts";
+import { appendLedger, readState, writeState, type Phase, type State } from "./state.ts";
 import { hasStageMarkerForPhase, isContextPressureTail, readTranscriptTail } from "./transcript.ts";
 import { getGoalActiveStatus, suppressesInterview } from "./goal-active.ts";
 import { parseOrchestrateCommand } from "./orchestrate-grammar.ts";
@@ -23,6 +23,7 @@ import { applyHumanTransition } from "./orchestrate-apply.ts";
 import { captureInterviewAnswers } from "./interview-ledger.ts";
 import { MIND_DISPATCH_DIRECTIVE } from "./minds.ts";
 import { checkObjectivePlateau, readObjectiveKind, type PlateauCheck } from "./metrics.ts";
+import { readGoalplan, nextOpenTask, unmetCriteria } from "./goalplan.ts";
 
 export interface UserPromptSubmitPayload {
   hook_event_name: "UserPromptSubmit";
@@ -410,17 +411,58 @@ const STOP_NEXT_COMMAND: Partial<Record<Phase, string>> = {
 /**
  * L6 — build the Stop `{decision:"block",reason}` envelope (NOT the UserPromptSubmit
  * additionalContext shape). The reason nudges the agent to advance the current phase.
+ *
+ * 040 — an OPTIONAL work context enriches the reason with the next concrete task, the
+ * evidence it must produce, and the goalplan ledger path. The phase-only call
+ * (`work` omitted/null) is byte-identical to the shipped reason — enrichment lines are
+ * appended only when a goalplan resolved, and never replace the phase command.
  */
-export function buildStopBlock(phase: Phase): string {
+export interface StopWorkContext {
+  nextTaskTitle: string | null;
+  expectedEvidence: string | null;
+  ledgerPath: string | null;
+}
+
+export function buildStopBlock(phase: Phase, work?: StopWorkContext | null): string {
   const label = STAGE_LABELS[phase] ?? phase;
   const nextCommand = STOP_NEXT_COMMAND[phase] ?? "`cxc orchestrate status`";
-  const reason = [
+  const lines = [
     `[codexclaw — continue PABCD] You are mid-cycle at ${phase} (${label}) with an active goal.`,
     "Do the real work of this phase, then self-advance with the concrete next command:",
     nextCommand,
-    "C→D requires checkOutput+exitCode. D is not a resting state; close the cycle back to IDLE.",
-  ].join("\n");
+  ];
+  if (work) {
+    // ENRICHMENT ONLY — appended lines; never replaces the phase command above.
+    if (work.nextTaskTitle) lines.push(`Remaining work: ${work.nextTaskTitle}`);
+    if (work.expectedEvidence) lines.push(`Required evidence: ${work.expectedEvidence}`);
+    if (work.ledgerPath) lines.push(`Record progress in: ${work.ledgerPath}`);
+  }
+  lines.push("C→D requires checkOutput+exitCode. D is not a resting state; close the cycle back to IDLE.");
+  const reason = lines.join("\n");
   return `${JSON.stringify({ decision: "block", reason })}\n`;
+}
+
+/**
+ * 040 — resolve the goalplan work context for the Stop block reason. PURE + fail-safe:
+ * keys STRICTLY on the session-bound `state.slug` (persisted by `cxc goalplan init
+ * --session`, 030.3). No directory scan, no DB access — a missing slug or absent/
+ * unreadable goalplan returns null, so `buildStopBlock(phase, null)` is byte-identical
+ * to the shipped reason. The A-gate (Copernicus) rejected any dir-scan fallback because
+ * GoalplanHostLink has no session binding and could enrich the wrong goal.
+ */
+export function readStopWorkContext(cwd: string, state: State): StopWorkContext | null {
+  const slug = state.slug;
+  if (!slug) return null; // no session-bound slug -> exactly today's behavior
+  const plan = readGoalplan(cwd, slug);
+  if (!plan) return null;
+  const next = nextOpenTask(plan);
+  const unmet = unmetCriteria(plan);
+  if (!next && unmet.length === 0) return null; // nothing remaining -> no enrichment
+  return {
+    nextTaskTitle: next ? `${next.wp.title} → ${next.task.title}` : null,
+    expectedEvidence: unmet[0]?.expectedEvidence ?? null,
+    ledgerPath: `.codexclaw/goalplans/${slug}/ledger.jsonl`,
+  };
 }
 
 export function buildPlateauDivergeBlock(phase: Phase, plateau: PlateauCheck): string {
@@ -484,7 +526,9 @@ export function handleStop(payload: StopPayload): string {
   writeState(payload.cwd, { ...state, stopBlockPhase: state.phase, stopBlockCount: nextCount });
   const plateau = objectivePlateau(payload.cwd, payload.session_id);
   if (plateau.flat) return buildPlateauDivergeBlock(state.phase, plateau);
-  return buildStopBlock(state.phase);
+  // 040: enrich the block reason with goalplan-derived remaining work (text-only, after
+  // every release guard + the cap). null context => byte-identical shipped reason.
+  return buildStopBlock(state.phase, readStopWorkContext(payload.cwd, state));
 }
 
 /**

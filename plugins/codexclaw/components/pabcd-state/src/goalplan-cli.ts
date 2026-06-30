@@ -23,6 +23,7 @@ import {
   type Goalplan,
 } from "./goalplan.ts";
 import { deriveSlug } from "./freeze.ts";
+import { readState, writeState } from "./state.ts";
 
 export type GoalplanVerb = "init" | "show" | "validate";
 
@@ -32,6 +33,12 @@ export interface GoalplanCliArgs {
   objective?: string;
   slug?: string;
   criteria: string[];
+  /**
+   * 030.3: when set, `init` persists the derived slug into this session's state.json so the
+   * Stop hook (040) can resolve the goalplan strictly by `state.slug` (session-bound, never a
+   * directory scan). Without it, `init` only writes the local artifact.
+   */
+  session?: string;
 }
 
 export interface GoalplanCliParseError {
@@ -55,6 +62,7 @@ export function parseGoalplanCliArgs(argv: string[], cwd: string): GoalplanCliAr
       const v = argv[++i];
       if (typeof v === "string" && v.length > 0) out.criteria.push(v);
     } else if (a === "--cwd") out.cwd = argv[++i] ?? cwd;
+    else if (a === "--session") out.session = argv[++i];
   }
   return out;
 }
@@ -107,6 +115,12 @@ export function runGoalplanCli(args: GoalplanCliArgs): GoalplanCliResult {
       event: "created",
       detail: `init objective="${objective}" criteria=${args.criteria.length}`,
     });
+    // 030.3: bind the slug to a session so the Stop hook can resolve the goalplan
+    // strictly by state.slug (no directory-scan heuristic).
+    if (typeof args.session === "string" && args.session.length > 0) {
+      const state = readState(args.cwd, args.session);
+      writeState(args.cwd, { ...state, slug });
+    }
     return { output: renderPlan(readGoalplan(args.cwd, slug) ?? plan), code: 0 };
   }
 

@@ -23,6 +23,13 @@ import {
 
 } from "./goalplan.js";
 import { deriveSlug } from "./freeze.js";
+import { readState, writeState } from "./state.js";
+
+
+
+
+
+
 
 
 
@@ -55,6 +62,7 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
       const v = argv[++i];
       if (typeof v === "string" && v.length > 0) out.criteria.push(v);
     } else if (a === "--cwd") out.cwd = argv[++i] ?? cwd;
+    else if (a === "--session") out.session = argv[++i];
   }
   return out;
 }
@@ -107,6 +115,12 @@ export function runGoalplanCli(args                 )                    {
       event: "created",
       detail: `init objective="${objective}" criteria=${args.criteria.length}`,
     });
+    // 030.3: bind the slug to a session so the Stop hook can resolve the goalplan
+    // strictly by state.slug (no directory-scan heuristic).
+    if (typeof args.session === "string" && args.session.length > 0) {
+      const state = readState(args.cwd, args.session);
+      writeState(args.cwd, { ...state, slug });
+    }
     return { output: renderPlan(readGoalplan(args.cwd, slug) ?? plan), code: 0 };
   }
 

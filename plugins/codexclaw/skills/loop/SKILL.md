@@ -27,6 +27,11 @@ work-phases.
   in-flight cycle + stagnation budget), not a content check for "pending work." It
   keeps the turn alive so the agent can self-advance; the agent decides whether real
   work remains.
+- When a goalplan is bound to the session (`cxc goalplan init --session`), the block
+  reason MAY also name the next concrete task + the evidence it should produce + the
+  goalplan ledger path. This is text enrichment only: it does not gate on that content,
+  does not change when the hook blocks vs releases, and never transitions a phase. With
+  no bound goalplan the reason is unchanged.
 - Goal mode is PABCD-only: while a goal is active the Interview NEVER fires (entry is
   suppressed and `request_user_input` is hard-denied). The Interview is HITL-only and
   runs only with no active goal; the Stop hook never drives the Interview.
