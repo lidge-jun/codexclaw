@@ -1,6 +1,6 @@
 # lazygap_impl — Harness Reinforcement Implementation Track (CANONICAL INDEX)
 
-Status: CANONICAL INDEX (scaffolding; no code shipped yet) · 2026-07-01 · follows `../lazygap/` research
+Status: CANONICAL INDEX (decades 010-080 SHIPPED) · 2026-07-01 · follows `../lazygap/` research
 
 > `../lazygap/` (000-010) is the read-only parity sweep + the codex-rs capability verification.
 > This track turns the two **trust+routing** gaps it ranked #1/#2 into shippable PABCD loops.
@@ -12,9 +12,11 @@ Status: CANONICAL INDEX (scaffolding; no code shipped yet) · 2026-07-01 · foll
 >   - decade 030 = goalplan/cxc-loop substrate (`../lazygap/001`) — SHIPPED
 >   - decade 040 = work-aware Stop continuation (`../lazygap/003`) — SHIPPED
 >   - decade 050 = PostCompact recovery hook (`../lazygap/006`) — SHIPPED
-> Decades 060-080 (rules/lint, search adapt, friction/path-hint/seed) are now SCAFFOLDED here as
-> copy-paste-ready jawdev impl plans (impl-state PROPOSED, A-gate audited); each ships under its
-> own PABCD loop. 090 (code-intelligence) remains a confirmed NON-GOAL per `../lazygap/009`.
+>   - decade 060 = rule injector + apply_patch comment-lint (`../lazygap/004`) — SHIPPED
+>   - decade 070 = agbrowse Tier-2 proof + ultraresearch skill (`../lazygap/007`) — SHIPPED
+>   - decade 080 = friction ledger + path-hint + seed ontology (`../lazygap/001`) — SHIPPED
+> All reinforcement decades 010-080 are now SHIPPED (code + tests + atomic commits). 090
+> (code-intelligence) remains a confirmed NON-GOAL per `../lazygap/009`.
 
 ## Naming convention (inherited from mvp_hard)
 
@@ -55,9 +57,7 @@ stamps a distinguishing marker the gate reads. Decide jointly before either loop
 | 050 | 050 | PostCompact recovery hook (9th hook; reset re-inject cursor after compaction) | `lazygap/006` | PostCompact (E4) | E4 | DONE |
 | 060 | 060 | Rule injector (SessionStart) + apply_patch comment-lint (PreToolUse, fail-open) | `lazygap/004` | SessionStart + PreToolUse | E4+E1 | DONE |
 | 070 | 070 | agbrowse Tier-2 proof helper + ultraresearch protocol skill (research-intent attach) | `lazygap/007` | skill/CLI (E5/E7) | E1/E8+E5 | DONE |
-| 050 | 050 | PostCompact recovery (reset re-inject cursor; side-effect-only; does NOT bypass context-pressure guard) | `lazygap/006` | PostCompact | E6 | DONE |
-| 060 | 060 | Rule injector (SessionStart additionalContext) + comment-lint PreToolUse on `apply_patch` (fail-open) | `lazygap/004` | SessionStart / PreToolUse `^apply_patch$` | E2+E3 | PROPOSED |
-| 070 | 070 | agbrowse adapt (Tier-2 HTTP proof, `--browser never`) + ultraresearch explorer-attached protocol | `lazygap/007` | skill / bin shim | E8 | PROPOSED |
+| 080 | 080 | Friction ledger (capture+gate) + workspace path-hint + seed ontology | `lazygap/001` | PostToolUse/PreToolUse/Stop + spawn + interview | E1/E2/E4 | DONE |
 | 080 | 080 | Friction ledger (heuristic capture + PreToolUse/Stop read gate) + workspace path-hint + seed ontology | `lazygap/001` | PreToolUse / Stop / spawn items | E1+E5 | PROPOSED |
 
 ## Runtime facts both loops rely on (from `../lazygap/010`, codex-rs verified)
