@@ -341,6 +341,44 @@
     <p class="dim" style="margin-top:6px">선택 기준은 항상 고정-시드 true-metric이지 vibes가 아니다. 충족형 goal은 plateau 체크가 사실상 안 터지니 발산 오버헤드 0.</p>
   </div>
 
+  <h2><span class="n">10</span> Collapse-Point 모델 <span class="dim" style="font-size:12px">(I는 항상 발산 · collapse 지점이 이동)</span></h2>
+  <div class="band fix">
+    <p><strong>발산 아이디어는 항상 I에서 기록(N≥2, 싸다·anti-anchoring). 변하는 건 "어디서 하나로 접느냐"다.</strong></p>
+    <div class="pipe">
+      <div class="ph" style="border-top-color:var(--div);flex:0 0 100%">
+        <div class="l" style="color:var(--div)">I · 항상</div><div class="t">N≥2 접근을 devlog/.codexclaw에 기록</div>
+        <div class="d">유저 요구에 따라 대안을 적는다 — build든 algo든 항상. 첫 접근 lock-in 방지.</div>
+      </div>
+    </div>
+    <div class="arrowrow">┌─────────── 분기 ───────────┐</div>
+    <div class="axes">
+      <div class="axis conv">
+        <div class="tag">BUILD / 충족형 → P에서 조기 collapse</div>
+        <h3>종이 위 선택 (메트릭 레이스 없음)</h3>
+        <ul>
+          <li><strong>P</strong>: 서브에이전트 critic 비교 + <code>cxc-search</code> 컨벤션/선례 조사로 1개 선택</li>
+          <li>탈락 사유 한 줄 기록</li>
+          <li><strong>A→B→C→D</strong>: 단일 후보로 보통 PABCD</li>
+          <li>워크트리 fan-out 없음 · 비용 = 로그 한 줄 + 리뷰</li>
+        </ul>
+      </div>
+      <div class="axis div">
+        <div class="tag">ALGO / 불명확 → C 이후 늦은 collapse</div>
+        <h3>끝까지 끌고 가서 싸우게 (D에서 레이스)</h3>
+        <ul>
+          <li><strong>P</strong>: N개 구현 계획 유지(안 좁힘)</li>
+          <li><strong>A</strong>: 각 계획 감사(후보별 병렬 서브에이전트)</li>
+          <li><strong>B</strong>: 각 후보 워크트리 빌드(team 격리)</li>
+          <li><strong>C</strong>: 각 후보 같은 harness 검증</li>
+          <li><strong>D</strong>: 고정-시드 메트릭으로 싸움 → keep/discard, 못 가르면 유저</li>
+        </ul>
+      </div>
+    </div>
+    <p class="dim" style="margin-top:10px">변수는 <strong>collapse 지점</strong>이다 — 충족형은 P에서 일찍, algo는 C 뒤로 늦게.
+    최대화형 goal이 정체하면(섹션 09 plateau) 다음 work-phase에서 늦은 collapse를 다시 켤 수 있다.
+    훅/CLI가 강제하는 건 D의 메트릭 레이스와 plateau 체크(E2)뿐, collapse 지점 판단과 종이 선택은 에이전트 doctrine(E7).</p>
+  </div>
+
   <footer>
     근거: <code>structure/50_emergence_gap.md</code> (진단) ·
     <code>devlog/_plan/260701_emergence_harness/</code> (레퍼런스 트랙: AlphaEvolve arXiv:2506.13131,
