@@ -19,12 +19,18 @@ import {
   readRoleToml,
   buildSpawnPayload,
   resolveSpawnPayload,
+  resolveAttachedSkillFolders,
+  buildSpawnItems,
+  skillItem,
+  resolveSpawnPayloadWithSkills,
+  SURFACE_SKILL,
 } from "../src/spawn-wrapper.ts";
 import { resolveSpawnConfig } from "../src/store.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 // Real shipped role TOMLs: plugins/codexclaw/agents/*.toml.
 const AGENTS_DIR = resolve(here, "..", "..", "..", "agents");
+const SKILLS_DIR = resolve(here, "..", "..", "..", "skills");
 
 function tmp() {
   return mkdtempSync(join(tmpdir(), "cxc-spawn-"));
@@ -123,4 +129,82 @@ test("resolveSpawnPayload: end-to-end uses persisted store config + real TOML", 
   const def = resolveSpawnPayload(cwd, "explorer", "find Y", AGENTS_DIR);
   assert.ok(!("model" in def));
   assert.equal(resolveSpawnConfig(cwd, "explorer").usesMainModel, true);
+});
+
+// ---- L15: skill-routing attachment (items channel) ----
+
+test("L15: resolveAttachedSkillFolders prepends role base, adds surfaces, dedups", () => {
+  // explorer base = [dev]; architecture surface -> dev-architecture
+  const a = resolveAttachedSkillFolders("explorer", ["architecture"]);
+  assert.deepEqual(a, ["dev", "dev-architecture"]);
+
+  // reviewer base = [dev, dev-code-reviewer]; security surface adds dev-security;
+  // code-review surface maps to dev-code-reviewer which is already present -> dedup
+  const r = resolveAttachedSkillFolders("reviewer", ["security", "code-review"]);
+  assert.deepEqual(r, ["dev", "dev-code-reviewer", "dev-security"]);
+});
+
+test("L15: explicit skill folder wins even with no matching surface (e.g. search)", () => {
+  const f = resolveAttachedSkillFolders("explorer", [], ["search"]);
+  assert.deepEqual(f, ["dev", "search"]);
+});
+
+test("L15: SURFACE_SKILL maps every surface to an on-disk skill folder", () => {
+  for (const folder of Object.values(SURFACE_SKILL)) {
+    const it = skillItem(SKILLS_DIR, folder);
+    assert.equal(it.type, "skill");
+    assert.equal(it.name, `cxc-${folder}`);
+    assert.match(it.path, new RegExp(`/skills/${folder}/SKILL\\.md$`));
+  }
+});
+
+test("L15: buildSpawnItems emits skill items (existing only) + trailing task text", () => {
+  const items = buildSpawnItems({
+    role: "explorer",
+    task: "investigate the FSM",
+    skillsDir: SKILLS_DIR,
+    surfaces: ["architecture"],
+  });
+  // first items are skills, last is the task text
+  const skills = items.filter((i) => i.type === "skill");
+  const texts = items.filter((i) => i.type === "text");
+  assert.ok(skills.some((s) => s.name === "cxc-dev"));
+  assert.ok(skills.some((s) => s.name === "cxc-dev-architecture"));
+  assert.equal(texts.length, 1);
+  assert.equal(texts[0].text, "TASK: investigate the FSM");
+  // every attached skill path must exist on disk (buildSpawnItems filters dangling)
+  for (const s of skills) {
+    assert.equal(s.type, "skill");
+  }
+});
+
+test("L15: buildSpawnItems drops a dangling explicit folder that has no SKILL.md", () => {
+  const items = buildSpawnItems({
+    role: "explorer",
+    task: "x",
+    skillsDir: SKILLS_DIR,
+    explicitSkillFolders: ["this-skill-does-not-exist"],
+  });
+  assert.ok(!items.some((i) => i.type === "skill" && i.name === "cxc-this-skill-does-not-exist"));
+  // dev base still attaches; task text present
+  assert.ok(items.some((i) => i.type === "skill" && i.name === "cxc-dev"));
+  assert.equal(items.at(-1)?.type, "text");
+});
+
+test("L15: resolveSpawnPayloadWithSkills keeps role prompt in message + attaches items", () => {
+  const cwd = tmp();
+  const payload = resolveSpawnPayloadWithSkills({
+    cwd,
+    role: "explorer",
+    task: "find the goal gate",
+    agentsDir: AGENTS_DIR,
+    skillsDir: SKILLS_DIR,
+    surfaces: ["debugging"],
+  });
+  // role prompt still in message (single source, not duplicated into items)
+  assert.match(payload.message, /TASK: find the goal gate/);
+  assert.ok(Array.isArray(payload.items));
+  assert.ok(payload.items.some((i) => i.type === "skill" && i.name === "cxc-dev-debugging"));
+  // the task text rides in items too (as the trailing text item)
+  assert.equal(payload.items.at(-1)?.type, "text");
 });

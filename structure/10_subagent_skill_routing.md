@@ -59,6 +59,46 @@ default, pre-loaded choice.
 
 ---
 
+## L15 SHIPPED (2026-06-30) — the E5 attachment builder
+
+The skill-attachment builder is implemented in
+`components/subagent-config/src/spawn-wrapper.ts`:
+
+- `SpawnPayload.items?: SpawnItem[]` — the v1 `items` channel (skill items + a trailing
+  task text item).
+- `SURFACE_SKILL` maps a coarse surface (`architecture`, `backend`, `search`, ...) to a
+  `cxc-*` skill folder; `ROLE_BASE_SKILLS` anchors `dev` (and `dev-code-reviewer` for the
+  reviewer) on every dispatch.
+- `resolveAttachedSkillFolders(role, surfaces, explicitFolders)` computes the ordered,
+  deduped folder set; an explicit folder the caller names (e.g. `search`) wins.
+- `buildSpawnItems(...)` emits one `{type:"skill",name:"cxc-<folder>",path}` per folder
+  that exists on disk, then `{type:"text",text:"TASK: ..."}`. Dangling folders are dropped.
+- `resolveSpawnPayloadWithSkills(...)` is the production entry: role prompt stays in
+  `message` (single source), skills + task ride in `items`.
+
+So the builder can turn "dispatch per `cxc-search`" into a real skill attachment, verified
+by tests (`test/spawn-wrapper.test.ts`, the `L15:` cases). This is **E5** strength and only
+takes effect WHEN the main agent routes a v1 spawn through this builder and passes the
+`items` — there is no non-test caller yet, so attachment today depends on following the
+dispatch doctrine, not on an automatic hook. The deterministic (hook-driven) version is
+the L15.2 follow-up below.
+
+### Hard runtime constraint (codex-rs verified)
+Only **v1** `spawn_agent` accepts `items` (`UserInput::Skill { name, path }`). The **v2**
+spawn handler uses `#[serde(deny_unknown_fields)]` with no `items` field, so skill
+attachment is impossible on v2 regardless of mechanism. PreToolUse CAN rewrite spawn input
+(`updatedInput` on a native tool, `permissionDecision:"allow"`), so an **E3** hook that
+deterministically attaches skills is feasible **for v1 only** — tracked as the L15.2
+follow-up below, not shipped.
+
+### L15.2 follow-up (PLANNED, E3)
+A `^spawn_agent$` PreToolUse hook that injects the resolved `items` via `updatedInput`,
+so attachment does not depend on the main agent remembering to route through the builder.
+Gated on: (a) detecting v1 vs v2 at the hook, (b) a no-op on v2, (c) not clobbering items
+the agent already set. Until it ships, attachment is the E5 builder contract above.
+
+---
+
 ## Design 14.A — Skill attachment in the spawn payload
 
 Extend `SpawnPayload` with an `items` channel mirroring the `spawn_agent` tool's

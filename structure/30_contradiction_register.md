@@ -60,7 +60,7 @@ let an INDEX impl-DONE outrun the loop doc's own "no runtime shipped" admission.
 
 | # | Severity | Claim | Reality |
 | --- | --- | --- | --- |
-| C1 | HIGH | `spawn-wrapper.ts:2` "production spawn payload builder" | `resolveSpawnPayload` (`:123`) imported only by `test/spawn-wrapper.test.ts:16` — no production caller |
+| C1 | PARTIAL (L15) | ~~`spawn-wrapper.ts` builder is test-only~~ | L15 added the skill-routing builder (`SURFACE_SKILL`, `buildSpawnItems`, `resolveSpawnPayloadWithSkills`) + tests. The builder is now the documented dispatch contract (E5); a `^spawn_agent$` PreToolUse caller (E3) is the L15.2 follow-up. Until that hook ships, the production caller is the main agent following the doctrine, not a hook. |
 | C2 | MED | `minds.ts:2` "5-Mind contradiction dispatcher surface" | `MINDS`/`selectMinds`/etc. imported only by `test/minds.test.ts:3` |
 | C3 | MED | `triage.ts:2` "severity triage + assumption transition" | `triageContradiction`/`autoResolveToAssumption` imported only by `test/triage.test.ts:3` |
 | C4 | MED | `rescan-coordinator.ts:2` "interactive-interview signal helper" | exports imported only by `test/rescan-coordinator.test.ts:15`; never wired to `handleStop` |

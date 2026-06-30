@@ -21,10 +21,10 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { resolveSpawnConfig, type RoleName, type SpawnResolution } from "./store.ts";
+import { resolveSpawnConfig,                                     } from "./store.js";
 
 /** Built-in codex agent_type each canonical role maps to (core/src/agent/role.rs). */
-export const ROLE_AGENT_TYPE: Record<RoleName, "explorer" | "worker"> = {
+export const ROLE_AGENT_TYPE                                          = {
   explorer: "explorer",
   reviewer: "explorer",
   executor: "worker",
@@ -40,21 +40,21 @@ export const ROLE_AGENT_TYPE: Record<RoleName, "explorer" | "worker"> = {
  * multi_agents_spec: v1 has items, v2 deny_unknown_fields has none), so attachment is a
  * v1-only capability — see structure/10 for the E3 follow-up.
  */
-export type Surface =
-  | "architecture"
-  | "backend"
-  | "frontend"
-  | "data"
-  | "security"
-  | "testing"
-  | "debugging"
-  | "code-review"
-  | "uiux"
-  | "scaffolding"
-  | "devops"
-  | "search";
 
-export const SURFACE_SKILL: Record<Surface, string> = {
+
+
+
+
+
+
+
+
+
+
+
+
+
+export const SURFACE_SKILL                          = {
   architecture: "dev-architecture",
   backend: "dev-backend",
   frontend: "dev-frontend",
@@ -75,29 +75,29 @@ export const SURFACE_SKILL: Record<Surface, string> = {
  * `dev-code-reviewer` review skill (it is read-only adversarial review). Risk surfaces
  * such as `dev-security` are attached per-surface via SURFACE_SKILL, not as a baseline.
  */
-export const ROLE_BASE_SKILLS: Record<RoleName, string[]> = {
+export const ROLE_BASE_SKILLS                             = {
   explorer: ["dev"],
   reviewer: ["dev", "dev-code-reviewer"],
   executor: ["dev"],
 };
 
 /** A `skill` spawn item: codex-rs UserInput::Skill { name, path }. */
-export interface SpawnSkillItem {
-  type: "skill";
-  name: string;
-  path: string;
-}
+
+
+
+
+
 
 /** A `text` spawn item: codex-rs UserInput::Text. */
-export interface SpawnTextItem {
-  type: "text";
-  text: string;
-}
 
-export type SpawnItem = SpawnSkillItem | SpawnTextItem;
+
+
+
+
+
 
 /** Map a skill FOLDER name to its `cxc-*` display name + absolute SKILL.md path. */
-export function skillItem(skillsDir: string, folder: string): SpawnSkillItem {
+export function skillItem(skillsDir        , folder        )                 {
   return { type: "skill", name: `cxc-${folder}`, path: join(skillsDir, folder, "SKILL.md") };
 }
 
@@ -108,12 +108,12 @@ export function skillItem(skillsDir: string, folder: string): SpawnSkillItem {
  * the user names verbatim (e.g. "search") is honored even if no surface maps to it.
  */
 export function resolveAttachedSkillFolders(
-  role: RoleName,
-  surfaces: Surface[] = [],
-  explicitFolders: string[] = [],
-): string[] {
-  const out: string[] = [];
-  const push = (f: string): void => {
+  role          ,
+  surfaces            = [],
+  explicitFolders           = [],
+)           {
+  const out           = [];
+  const push = (f        )       => {
     if (f && !out.includes(f)) out.push(f);
   };
   for (const f of ROLE_BASE_SKILLS[role]) push(f);
@@ -127,19 +127,19 @@ export function resolveAttachedSkillFolders(
  * folder (filtered to those that exist on disk), then a trailing `text` item with the
  * task. Returns the items; the caller passes them as `spawn_agent({ items })`.
  */
-export function buildSpawnItems(input: {
-  role: RoleName;
-  task: string;
-  skillsDir: string;
-  surfaces?: Surface[];
-  explicitSkillFolders?: string[];
-}): SpawnItem[] {
+export function buildSpawnItems(input
+
+
+
+
+
+ )              {
   const folders = resolveAttachedSkillFolders(
     input.role,
     input.surfaces ?? [],
     input.explicitSkillFolders ?? [],
   );
-  const items: SpawnItem[] = [];
+  const items              = [];
   for (const folder of folders) {
     const item = skillItem(input.skillsDir, folder);
     // Only attach skills that actually exist on disk (a misnamed surface/explicit folder
@@ -150,13 +150,13 @@ export function buildSpawnItems(input: {
   return items;
 }
 
-export interface RoleTomlFields {
-  /** The TOML `model` value (usually the "default" inherit sentinel). Informational
-   *  only — the store resolver owns the effective model. null when absent/empty. */
-  model: string | null;
-  /** The triple-quoted developer_instructions body (trimmed). "" when absent. */
-  developerInstructions: string;
-}
+
+
+
+
+
+
+
 
 /**
  * Narrow field reader for a codexclaw role TOML — NOT a general TOML parser. Extracts
@@ -167,9 +167,9 @@ export interface RoleTomlFields {
  * triple-quote (verified across explorer/reviewer/executor.toml); a future body that
  * needed one would have to escape it, which TOML forbids anyway.
  */
-export function parseRoleToml(text: string): RoleTomlFields {
+export function parseRoleToml(text        )                 {
   const src = typeof text === "string" ? text : "";
-  let model: string | null = null;
+  let model                = null;
   // `model = "value"` — first occurrence at a line start (ignore trailing comments).
   const modelMatch = /^\s*model\s*=\s*"([^"]*)"/m.exec(src);
   if (modelMatch && modelMatch[1].length > 0) model = modelMatch[1];
@@ -190,7 +190,7 @@ export function parseRoleToml(text: string): RoleTomlFields {
 }
 
 /** Read + parse `<agentsDir>/<role>.toml`. Missing file -> safe defaults (never throws). */
-export function readRoleToml(agentsDir: string, role: RoleName): RoleTomlFields {
+export function readRoleToml(agentsDir        , role          )                 {
   try {
     const path = join(agentsDir, `${role}.toml`);
     if (!existsSync(path)) return { model: null, developerInstructions: "" };
@@ -201,42 +201,42 @@ export function readRoleToml(agentsDir: string, role: RoleName): RoleTomlFields 
 }
 
 /** Concrete Codex `spawn_agent` payload (the subset codexclaw controls). */
-export interface SpawnPayload {
-  agent_type: "explorer" | "worker";
-  message: string;
-  /** Present ONLY when a non-default model was configured; absent = inherit main model. */
-  model?: string;
-  /**
-   * L15 — present ONLY for skill-routed spawns: the v1 `items` array carrying the
-   * attached `cxc-*` skills + the task text. When set, the caller should pass `items`
-   * to `spawn_agent` and the role prompt still travels in `message`. v1 spawn only
-   * (v2 has no `items` field); see structure/10 for the E3 hook follow-up.
-   */
-  items?: SpawnItem[];
-}
 
-export interface BuildSpawnPayloadInput {
-  role: RoleName;
-  /** The concrete task text the subagent must perform. */
-  task: string;
-  /** Output of resolveSpawnConfig (owns the effective model + promptOverride). */
-  resolution: SpawnResolution;
-  /** developer_instructions from the role TOML (used unless promptOverride replaces it). */
-  developerInstructions: string;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**
  * PURE builder: compose the spawn_agent payload. The effective role prompt is the
  * promptOverride when set, else the TOML developer_instructions. The model key is
  * included only for a non-default (model-mode) resolution with a real id.
  */
-export function buildSpawnPayload(input: BuildSpawnPayloadInput): SpawnPayload {
+export function buildSpawnPayload(input                        )               {
   const { role, task, resolution, developerInstructions } = input;
   const agent_type = ROLE_AGENT_TYPE[role];
   const rolePrompt = (resolution.promptOverride ?? developerInstructions ?? "").trim();
   const taskText = (task ?? "").trim();
   const message = rolePrompt.length > 0 ? `${rolePrompt}\n\nTASK: ${taskText}` : `TASK: ${taskText}`;
-  const payload: SpawnPayload = { agent_type, message };
+  const payload               = { agent_type, message };
   if (!resolution.usesMainModel && typeof resolution.model === "string" && resolution.model.length > 0) {
     payload.model = resolution.model;
   }
@@ -247,7 +247,7 @@ export function buildSpawnPayload(input: BuildSpawnPayloadInput): SpawnPayload {
  * Production entry point: resolve the role config from `.codexclaw/subagents.json`,
  * read the role TOML developer_instructions, and build the spawn payload. Never throws.
  */
-export function resolveSpawnPayload(cwd: string, role: RoleName, task: string, agentsDir: string): SpawnPayload {
+export function resolveSpawnPayload(cwd        , role          , task        , agentsDir        )               {
   const resolution = resolveSpawnConfig(cwd, role);
   const { developerInstructions } = readRoleToml(agentsDir, role);
   return buildSpawnPayload({ role, task, resolution, developerInstructions });
@@ -264,15 +264,15 @@ export function resolveSpawnPayload(cwd: string, role: RoleName, task: string, a
  * (E3) is the L15.2 follow-up (structure/10); until then attachment depends on the agent
  * routing through this builder (E5 doctrine).
  */
-export function resolveSpawnPayloadWithSkills(input: {
-  cwd: string;
-  role: RoleName;
-  task: string;
-  agentsDir: string;
-  skillsDir: string;
-  surfaces?: Surface[];
-  explicitSkillFolders?: string[];
-}): SpawnPayload {
+export function resolveSpawnPayloadWithSkills(input
+
+
+
+
+
+
+
+ )               {
   const base = resolveSpawnPayload(input.cwd, input.role, input.task, input.agentsDir);
   const items = buildSpawnItems({
     role: input.role,
