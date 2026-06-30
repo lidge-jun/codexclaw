@@ -138,10 +138,17 @@ export function isGoalplanComplete(plan: Goalplan): boolean;              // no 
 
 ### Loose, one-directional coupling (LOCKED — the core invariant)
 
-- host goal active  → the cxc-loop contract fires; `040`'s Stop reads goalplan remaining work.
-- goalplan present  → `040`'s Stop reads it; a host goal is NOT required (pure-HOTL local loop runs).
-- NEVER "goal active REQUIRES a goalplan"; NEVER "goalplan REQUIRES a host goal." Either exists
-  alone; when both exist, the host record is the gate and goalplan is the content.
+- host goal active  → the cxc-loop contract fires; `040`'s Stop ALSO reads goalplan to ENRICH the
+  block reason with remaining work. The host-active guard is the ARMING condition, unchanged.
+- goalplan present but NO host goal → the shipped Stop loop does NOT arm (it releases unless
+  `getGoalActiveStatus===active`, `hook.ts:443`). So a goalplan alone does NOT drive Stop today.
+  A goalplan can still be read by the `cxc goalplan` CLI / validate gate without any host goal —
+  that is the pure-local-plan use, NOT autonomous Stop continuation. (Corrected per Kuhn A-gate:
+  the earlier "goalplan alone arms Stop" claim contradicted shipped `handleStop`; arming stays
+  host-active-gated. A goalplan-arms-loop model would be a separate future decision, not 040.)
+- NEVER "goal active REQUIRES a goalplan" (goal can run without one); NEVER "goalplan REQUIRES a
+  host goal" (a plan can exist for CLI/validate use). When both exist, the host record is the
+  ARMING gate and goalplan is the CONTENT that enriches the block reason.
 
 ### Host goal write — freeze boundary ONLY (the gated exception)
 
@@ -174,6 +181,13 @@ The doc must state this explicitly so reset semantics stay predictable.
   `[]`); without this the goalplan has no criteria to seed from. Pure freeze-cli change + test.
 - 030.2 — `cxc goalplan` CLI surface (`init`/`show`/`validate`) over `goalplan.ts`; `init` is the
   no-interview local-loop entry (the path that does not go through freeze).
+- 030.3 — slug provenance (PREREQUISITE for 040, flagged by Kuhn A-gate). `state.slug` defaults to
+  `""` (`state.ts:62`) and is only rehydrated if already persisted (`state.ts:87`); no shipped
+  `writeState` sets a non-empty slug before Stop time, and `freeze-cli.ts:65` falls back to
+  `state.slug || sessionId`. 040's Stop cannot locate `.codexclaw/goalplans/<slug>/` without a
+  reliable slug. 030.3 persists the slug into `state.json` at freeze/goalplan-init time (derive
+  via `deriveSlug(objective)`), so Stop can resolve the goalplan dir. Until 030.3 lands, 040 must
+  treat "no resolvable slug" exactly like "no goalplan" (fall back to coarse reason).
 
 ## Invariants
 
@@ -207,8 +221,8 @@ The doc must state this explicitly so reset semantics stay predictable.
 
 - P: this diff-level design; confirm the slug path + the freeze-seed boundary.
 - A: gpt-5.4 explorer challenges — does goalplan duplicate any freeze field instead of
-  referencing it? does the host-link stay provenance-only (no accidental write path)? is the
-  pure-HOTL (no host goal) path coherent with `040`'s Stop?
+  referencing it? does the host-link stay provenance-only (no accidental write path)? does the
+  doc correctly state that Stop arming stays host-active-gated (goalplan enriches, does not arm)?
 - B: implement `goalplan.ts` + `cxc goalplan` CLI (030.2) + 030.1 freeze criteria seeding + tests.
 - C: build idempotent + unit + gate; capture tails.
 - D: close to IDLE, commit `feat(lazygap-030): goalplan/cxc-loop substrate`, `goal update`.
