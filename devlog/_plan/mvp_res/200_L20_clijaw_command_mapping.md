@@ -4,6 +4,15 @@ Status: DONE
 Cluster: 3 · Phase: expansion · Shorthand: cxc
 Source-of-record: 260629_codexclaw_mvp/090_clijaw_command_mapping.md (J1), 090.1 J-1/J-2/J-7
 
+> AMENDMENT (2026-06-30, interview-confirmed D1', mvp_hard L13/WP1): the `cxc chat-search`
+> wrapper described below has been RETIRED and removed from the codebase (see
+> `204_L20.4_cxc_chat_search_wrapper.md`). Codex app-server `thread/search` exposes no
+> native CLI/agent surface, and wrapping it made codexclaw a self-implemented search
+> surface — against the L10/L20.4 boundary. Native `thread/search` with no CLI/agent
+> surface is now an explicit NON-GOAL; `chat search` maps to "native-only, no wrapper".
+> Lookups route through the `cxc-search` skill. The `chat-search` lines below are
+> historical; the live `cxc` surface is `doctor`/`reset`/`orchestrate` only.
+
 ## Goal (one slice)
 Map the cli-jaw operational command surface onto codex-native tools, and define
 the small `cxc` CLI surface for the gaps codex does not cover. codexclaw has no

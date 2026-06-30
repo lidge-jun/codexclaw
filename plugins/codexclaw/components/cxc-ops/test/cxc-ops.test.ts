@@ -5,8 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runDoctor, rollup, renderDoctor } from "../src/doctor.ts";
 import { runReset, parseResetScope } from "../src/reset.ts";
-import { chatSearch, renderChatSearch } from "../src/chat-search.ts";
-import { parseChatSearchArgs } from "../src/cli.ts";
+import { main } from "../src/cli.ts";
 
 // ---- doctor ---------------------------------------------------------------
 
@@ -124,44 +123,37 @@ test("reset --all: removes the whole .codexclaw subtree and nothing above it", (
   assert.ok(existsSync(join(cwd, "sibling.txt")), "files outside .codexclaw must never be touched");
 });
 
-// ---- chat-search ----------------------------------------------------------
+// ---- chat-search removed (D1', L13/WP1) -----------------------------------
+// The chat-search subcommand was retired: codex app-server `thread/search` has no
+// native CLI/agent surface to wrap, and repo/web lookups route through `cxc-search`.
+// Unknown subcommands are NOT errors here (default prints usage + exit 0), so the
+// positive proof that chat-search is gone is: it falls through to default usage,
+// and the usage string no longer advertises it.
 
-test("chatSearch: empty term -> unavailable", async () => {
-  const out = await chatSearch("  ");
-  assert.equal(out.status, "unavailable");
+async function captureMain(argv: string[]): Promise<{ code: number; out: string }> {
+  const chunks: string[] = [];
+  const original = process.stdout.write.bind(process.stdout);
+  (process.stdout as { write: typeof process.stdout.write }).write = ((chunk: unknown) => {
+    chunks.push(String(chunk));
+    return true;
+  }) as typeof process.stdout.write;
+  try {
+    const code = await main(argv, import.meta.url);
+    return { code, out: chunks.join("") };
+  } finally {
+    (process.stdout as { write: typeof process.stdout.write }).write = original;
+  }
+}
+
+test("chat-search: subcommand is gone (falls to default usage, exit 0)", async () => {
+  const { code, out } = await captureMain(["chat-search", "anything"]);
+  assert.equal(code, 0, "unknown subcommand must exit 0, not error");
+  assert.doesNotMatch(out, /chat-search/, "usage must not advertise chat-search");
 });
 
-test("chatSearch: ok results from a stub app-server", async () => {
-  const fetchImpl = (async () =>
-    new Response(JSON.stringify({ results: [{ thread_id: "t1", snippet: "hello" }] }), { status: 200 })) as unknown as typeof fetch;
-  const out = await chatSearch("hello", { fetchImpl });
-  assert.equal(out.status, "ok");
-  assert.match(renderChatSearch(out), /t1/);
-});
-
-test("chatSearch: empty results -> no_results", async () => {
-  const fetchImpl = (async () => new Response(JSON.stringify({ results: [] }), { status: 200 })) as unknown as typeof fetch;
-  const out = await chatSearch("nope", { fetchImpl });
-  assert.equal(out.status, "no_results");
-});
-
-test("chatSearch: connection failure -> unavailable (graceful, never throws)", async () => {
-  const fetchImpl = (async () => {
-    throw new Error("ECONNREFUSED");
-  }) as unknown as typeof fetch;
-  const out = await chatSearch("x", { fetchImpl });
-  assert.equal(out.status, "unavailable");
-  assert.match(renderChatSearch(out), /unavailable/);
-});
-
-test("chatSearch: HTTP error -> unavailable", async () => {
-  const fetchImpl = (async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
-  const out = await chatSearch("x", { fetchImpl });
-  assert.equal(out.status, "unavailable");
-});
-
-test("parseChatSearchArgs: preserves query without --limit", () => {
-  assert.deepEqual(parseChatSearchArgs(["codexclaw"]), { term: "codexclaw", limit: undefined });
-  assert.deepEqual(parseChatSearchArgs(["codexclaw", "pabcd", "--limit", "3"]), { term: "codexclaw pabcd", limit: 3 });
-  assert.deepEqual(parseChatSearchArgs(["--limit", "2", "codexclaw"]), { term: "codexclaw", limit: 2 });
+test("usage string lists only doctor and reset", async () => {
+  const { out } = await captureMain(["definitely-not-a-command"]);
+  assert.match(out, /doctor/);
+  assert.match(out, /reset/);
+  assert.doesNotMatch(out, /chat-search/);
 });

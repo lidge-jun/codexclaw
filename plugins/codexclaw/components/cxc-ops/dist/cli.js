@@ -1,16 +1,15 @@
 /**
- * cli.ts — `cxc-ops` entry point (L20). Subcommands: doctor | reset | chat-search.
+ * cli.ts — `cxc-ops` entry point (L20). Subcommands: doctor | reset.
  *
  * Resolves the plugin root relative to this compiled file (dist/ -> component ->
- * components -> plugin root). doctor/reset are synchronous; chat-search awaits the
- * app-server wrapper. Exit codes: doctor FAIL -> 1, else 0; reset always 0 on a
- * clean run; chat-search unavailable -> 0 (informational, not an error).
+ * components -> plugin root). doctor/reset are synchronous. Exit codes: doctor
+ * FAIL -> 1, else 0; reset always 0 on a clean run. Unknown subcommands print the
+ * usage line and exit 0 (informational, not an error).
  */
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runDoctor, renderDoctor } from "./doctor.js";
 import { parseResetScope, runReset, renderReset } from "./reset.js";
-import { chatSearch, renderChatSearch } from "./chat-search.js";
 
 function pluginRootFrom(metaUrl        )         {
   // dist/cli.js -> components/cxc-ops/dist -> components/cxc-ops -> components -> <pluginRoot>
@@ -34,25 +33,10 @@ export async function main(argv          , metaUrl        )                  {
       process.stdout.write(`${renderReset(result)}\n`);
       return 0;
     }
-    case "chat-search": {
-      const { term, limit } = parseChatSearchArgs(rest);
-      const outcome = await chatSearch(term, { limit: Number.isFinite(limit) ? limit : undefined });
-      process.stdout.write(`${renderChatSearch(outcome)}\n`);
-      return 0;
-    }
     default:
-      process.stdout.write("cxc-ops <doctor|reset [--state|--generated|--all]|chat-search \"<term>\" [--limit N]>\n");
+      process.stdout.write("cxc-ops <doctor|reset [--state|--generated|--all]>\n");
       return 0;
   }
-}
-
-export function parseChatSearchArgs(args          )                                   {
-  const flagIdx = args.findIndex((a) => a === "--limit");
-  const limit = flagIdx >= 0 ? Number(args[flagIdx + 1]) : undefined;
-  const term = args
-    .filter((a, i) => a !== "--limit" && !(flagIdx >= 0 && i === flagIdx + 1))
-    .join(" ");
-  return { term, limit };
 }
 
 // Direct-exec guard: run only when invoked as a script, not when imported by tests.

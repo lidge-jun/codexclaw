@@ -71,9 +71,11 @@ parity, and operator CLI/provider surfaces without claiming those runtime pieces
 shipped.
 
 **L10 COMPLETE** (2026-06-30). Memory/chat/project/task/worklog parity is now bounded
-surface-by-surface: `cxc-search` is public/current lookup, `cxc chat-search` is only a
-Codex app-server `thread/search` wrapper, tasks map to native `update_plan`, project state
-is repo-local `.codexclaw/`, and work evidence remains devlog plus PABCD ledger.
+surface-by-surface: `cxc-search` is public/current lookup, `cxc chat-search` was RETIRED
+(D1', L13/WP1) because Codex app-server `thread/search` has no native CLI/agent surface to
+wrap and a self-implemented wrapper crosses the L10 "native-only" boundary, tasks map to
+native `update_plan`, project state is repo-local `.codexclaw/`, and work evidence remains
+devlog plus PABCD ledger.
 
 **L11 COMPLETE** (2026-06-30). The developer-docs website artifact remains a research/design
 record, not a shipped docs-site. Source-of-truth wording was reconciled with the current

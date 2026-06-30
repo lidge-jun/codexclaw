@@ -33,7 +33,7 @@ function hashDir(dir) {
   return out.join("\n");
 }
 
-const COMPONENTS = ["pabcd-state", "config-guard", "provider-bridge", "subagent-config"];
+const COMPONENTS = ["pabcd-state", "config-guard", "provider-bridge", "subagent-config", "cxc-ops"];
 
 test("build is idempotent (run twice -> byte-identical dist)", () => {
   runBuild();

@@ -63,7 +63,7 @@ opencodex (`ocx`) is adjacent but optional. opencodex is a local provider proxy 
 | Hooks | `plugins/codexclaw/hooks/*.json` | Codex hook event wiring |
 | PABCD state | `plugins/codexclaw/components/pabcd-state/src/` | IPABCD FSM, state files, directives, goal gates |
 | Feature activation | `plugins/codexclaw/components/config-guard/src/` | Codex feature flags, backup, revert manifest |
-| Ops helpers | `plugins/codexclaw/components/cxc-ops/src/` | doctor, reset, chat-search |
+| Ops helpers | `plugins/codexclaw/components/cxc-ops/src/` | doctor, reset |
 | Provider bridge | `plugins/codexclaw/components/provider-bridge/src/` | ocx detect-only bridge |
 | Subagent config | `plugins/codexclaw/components/subagent-config/src/` | role model/prompt config, MCP tools, catalog |
 | Skills | `plugins/codexclaw/skills/` | `$cxc-*`, display_name autocomplete, dev routers |
@@ -79,7 +79,7 @@ Controlled activation for the Codex features codexclaw needs. `src/features.ts` 
 
 ### `components/cxc-ops`
 
-Local operations that do not require a codexclaw server. `src/doctor.ts` checks manifest parseability, hook file presence, skill metadata, agent TOMLs, MCP config drift, and optional ast-grep availability. `src/reset.ts` removes only scoped `.codexclaw/` working state: `--state`, `--generated`, or `--all`. `src/chat-search.ts` wraps the Codex app-server `thread/search` endpoint when available and returns clean `ok` / `no_results` / `unavailable` outcomes. `src/cli.ts` dispatches `doctor`, `reset`, and `chat-search`.
+Local operations that do not require a codexclaw server. `src/doctor.ts` checks manifest parseability, hook file presence, skill metadata, agent TOMLs, MCP config drift, and optional ast-grep availability. `src/reset.ts` removes only scoped `.codexclaw/` working state: `--state`, `--generated`, or `--all`. `src/cli.ts` dispatches `doctor` and `reset` (unknown subcommands print usage and exit 0). The former `chat-search` wrapper was retired (D1', mvp_hard L13/WP1): Codex app-server `thread/search` has no native CLI/agent surface, so wrapping it made codexclaw a self-implemented search surface; lookups now route through the `cxc-search` skill.
 
 ### `components/pabcd-state`
 
@@ -155,7 +155,7 @@ Hook processes are intentionally short: read stdin JSON, reconstruct state, opti
 | `cxc status` | `components/config-guard/dist/cli.js status` | prints declared feature enabled/disabled state |
 | `cxc doctor` | `components/cxc-ops/dist/cli.js doctor` | plugin health report |
 | `cxc reset` | `components/cxc-ops/dist/cli.js reset` | scoped `.codexclaw/` cleanup |
-| `cxc chat-search` | `components/cxc-ops/dist/cli.js chat-search` | Codex app-server thread search wrapper |
+| `cxc chat-search` | RETIRED (D1', L13/WP1) | removed; native `thread/search` has no CLI/agent surface = non-goal; use `cxc-search` |
 | `cxc gui` | `plugins/codexclaw/gui` via `npm run dev` | starts the Vite dashboard when deps exist |
 | `cxc orchestrate` | `components/pabcd-state/dist/cli.js orchestrate` | agent-gated terminal phase control over the same `.codexclaw/` session files |
 | `cxc subagents` | current CLI stub | Phase 2 surface placeholder in the root delegator |

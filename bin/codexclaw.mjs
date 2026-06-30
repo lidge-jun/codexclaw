@@ -8,7 +8,6 @@
  *   codexclaw status              show declared feature-flag state (config-guard)
  *   codexclaw doctor              run plugin health checks (cxc-ops)
  *   codexclaw reset               remove scoped .codexclaw state/generated files (cxc-ops)
- *   codexclaw chat-search         call Codex app-server thread/search when available (cxc-ops)
  *   codexclaw orchestrate         drive IPABCD state with agent-gated attest evidence
  *   codexclaw gui                 launch the codexclaw web dashboard
  *   codexclaw subagents|provider  currently placeholder root commands
@@ -61,7 +60,7 @@ function runConfigGuard(subcommand) {
   return typeof res.status === "number" ? res.status : 1;
 }
 
-/** Delegate to the compiled cxc-ops CLI (doctor/reset/chat-search); returns its exit code. */
+/** Delegate to the compiled cxc-ops CLI (doctor/reset); returns its exit code. */
 function runCxcOps(args) {
   const res = spawnSync(process.execPath, [cxcOpsCli, ...args], { stdio: "inherit" });
   return typeof res.status === "number" ? res.status : 1;
@@ -87,7 +86,6 @@ switch (cmd) {
     break;
   case "doctor":
   case "reset":
-  case "chat-search":
     process.exit(runCxcOps(process.argv.slice(2)));
     break;
   case "orchestrate":
@@ -113,5 +111,5 @@ switch (cmd) {
     console.log(`codexclaw: '${cmd}' is a Phase 2 command (subagent model config / ocx bridge).`);
     break;
   default:
-    console.log("codexclaw <enable|uninstall|status|orchestrate|doctor|reset|chat-search|subagents|provider|gui>");
+    console.log("codexclaw <enable|uninstall|status|orchestrate|doctor|reset|subagents|provider|gui>");
 }
