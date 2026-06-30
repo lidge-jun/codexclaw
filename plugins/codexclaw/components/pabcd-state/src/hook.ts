@@ -15,9 +15,11 @@
  *  - payload field names: codex-rs hooks/src/events/{user_prompt_submit,stop}.rs (snake_case)
  *  - output shape:        omo rules/src/hook-output.ts:10-16 (camelCase hookSpecificOutput)
  */
-import { readState, writeState, type Phase } from "./state.ts";
+import { appendLedger, readState, writeState, type Phase } from "./state.ts";
 import { hasStageMarkerForPhase, isContextPressureTail, readTranscriptTail } from "./transcript.ts";
 import { getGoalActiveStatus, suppressesInterview } from "./goal-active.ts";
+import { parseOrchestrateCommand } from "./orchestrate-grammar.ts";
+import { applyHumanTransition } from "./orchestrate-apply.ts";
 
 export interface UserPromptSubmitPayload {
   hook_event_name: "UserPromptSubmit";
@@ -178,6 +180,17 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
   const state = readState(payload.cwd, payload.session_id);
   if (turn && state.injectedTurns.includes(turn)) return "";
 
+  // L3b: parser-first AUTHORITATIVE path. An explicit, line-anchored
+  // `orchestrate <verb>` command actually moves the FSM (the missing wire). This is
+  // the HUMAN (chat) source → free-pass: forward edges advance without --attest.
+  // The loose detectTrigger heuristic below runs ONLY when this returns null.
+  const command = parseOrchestrateCommand(payload.prompt);
+  if (command) {
+    const out = handleOrchestrateCommand(payload, state, turn, command);
+    if (out !== null) return out;
+    // null => fall through to the loose path (e.g. suppressed interview).
+  }
+
   const trigger = detectTrigger(payload.prompt);
 
   // L11: in active goal mode, the Interview (I) phase is suppressed — do not inject
@@ -243,6 +256,59 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
     });
   }
   return buildContextOutput("UserPromptSubmit", buildStageHeader(state.phase));
+}
+
+/**
+ * L3b — apply an explicit chat orchestrate command to file state (human free-pass),
+ * persist phase + ledger, and return the directive/status/reset line. Returns null
+ * to defer to the loose path (goal-mode interview suppression only).
+ */
+function handleOrchestrateCommand(
+  payload: UserPromptSubmitPayload,
+  state: ReturnType<typeof readState>,
+  turn: string,
+  command: NonNullable<ReturnType<typeof parseOrchestrateCommand>>,
+): string | null {
+  // HIGH fix: preserve goal-mode Interview suppression on the parser path too,
+  // before any state/ledger write (HOTL boundary).
+  if (command.verb === "I" && suppressesInterview(getGoalActiveStatus(payload.session_id))) {
+    return null;
+  }
+
+  const result = applyHumanTransition(state, command.verb, command.attest);
+  if (!result.ok) {
+    // Refused (illegal adjacency): surface the reason, do not write state/ledger.
+    return buildContextOutput("UserPromptSubmit", `[codexclaw — refused: ${result.reason}]`);
+  }
+
+  // status: read-only, no state change, no ledger.
+  if (result.control === "status") {
+    return buildContextOutput("UserPromptSubmit", buildStageHeader(state.phase));
+  }
+
+  // reset-from-IDLE no-op: recognized but nothing to write.
+  if (result.noop) {
+    return buildContextOutput("UserPromptSubmit", "[codexclaw — already IDLE]");
+  }
+
+  // State-changing command: persist phase + record the turn (same-turn dedup so a
+  // re-fire does not double-append the ledger) BEFORE returning.
+  if (result.state) {
+    writeState(payload.cwd, {
+      ...result.state,
+      orchestrationActive: result.control === "reset" ? false : true,
+      lastInjectedPhase: result.control === "reset" ? null : result.state.phase,
+      injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
+    });
+  }
+  if (result.ledger) appendLedger(payload.cwd, result.ledger);
+
+  if (result.control === "reset") {
+    return buildContextOutput("UserPromptSubmit", "[codexclaw — reset → IDLE]");
+  }
+  const phase = result.state?.phase ?? state.phase;
+  const directive = phase === "I" ? interviewDirective() : phaseDirective(phase);
+  return buildContextOutput("UserPromptSubmit", directive);
 }
 
 /**

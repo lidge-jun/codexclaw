@@ -13,6 +13,7 @@ import {
   type StopPayload,
 } from "../src/hook.ts";
 import { STATE_DIR, LEDGER_FILE, readState } from "../src/state.ts";
+import { readFileSync } from "node:fs";
 
 function freshCwd(): string {
   return mkdtempSync(join(tmpdir(), "codexclaw-hook-"));
@@ -111,8 +112,9 @@ test("handleUserPromptSubmit: trigger emits directive envelope once", () => {
 test("handleUserPromptSubmit: idempotent within same (session,turn)", () => {
   const cwd = freshCwd();
   try {
-    const first = handleUserPromptSubmit(ups("orchestrate A", cwd, "s1", "t1"));
-    const second = handleUserPromptSubmit(ups("orchestrate A", cwd, "s1", "t1"));
+    // loose-trigger path (parser returns null for prose) — exercises turn dedup.
+    const first = handleUserPromptSubmit(ups("plan this", cwd, "s1", "t1"));
+    const second = handleUserPromptSubmit(ups("plan this", cwd, "s1", "t1"));
     assert.notEqual(first, "");
     assert.equal(second, "");
   } finally {
@@ -123,8 +125,8 @@ test("handleUserPromptSubmit: idempotent within same (session,turn)", () => {
 test("handleUserPromptSubmit: new turn re-injects", () => {
   const cwd = freshCwd();
   try {
-    const first = handleUserPromptSubmit(ups("orchestrate B", cwd, "s1", "t1"));
-    const second = handleUserPromptSubmit(ups("orchestrate B", cwd, "s1", "t2"));
+    const first = handleUserPromptSubmit(ups("plan this", cwd, "s1", "t1"));
+    const second = handleUserPromptSubmit(ups("plan this", cwd, "s1", "t2"));
     assert.notEqual(first, "");
     assert.notEqual(second, "");
   } finally {
@@ -135,8 +137,8 @@ test("handleUserPromptSubmit: new turn re-injects", () => {
 test("handleUserPromptSubmit: different sessions are independent", () => {
   const cwd = freshCwd();
   try {
-    const a = handleUserPromptSubmit(ups("orchestrate C", cwd, "alpha", "t1"));
-    const b = handleUserPromptSubmit(ups("orchestrate C", cwd, "beta", "t1"));
+    const a = handleUserPromptSubmit(ups("plan this", cwd, "alpha", "t1"));
+    const b = handleUserPromptSubmit(ups("plan this", cwd, "beta", "t1"));
     assert.notEqual(a, "");
     assert.notEqual(b, "");
   } finally {
@@ -195,6 +197,109 @@ test("hybrid mode 1: explicit trigger activates orchestration + injects directiv
     const st = readState(cwd, "s1");
     assert.equal(st.orchestrationActive, true);
     assert.equal(st.lastInjectedPhase, "P");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+// ── L3b/031: orchestrate command wire (parser-first, human free-pass) ──
+
+function ledgerLines(cwd: string): Array<Record<string, unknown>> {
+  const p = join(cwd, STATE_DIR, LEDGER_FILE);
+  if (!existsSync(p)) return [];
+  return readFileSync(p, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
+}
+
+test("L3b: chat 'orchestrate p' actually moves phase to P + appends one ledger entry", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("orchestrate p", cwd, "s1", "t1"));
+    assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, phaseDirective("P"));
+    const st = readState(cwd, "s1");
+    assert.equal(st.phase, "P"); // the missing wire: phase actually changed
+    const led = ledgerLines(cwd);
+    assert.equal(led.length, 1);
+    assert.equal(led[0].to, "P");
+    assert.equal(led[0].reason, "chat");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L3b: human free-pass advances A->B with no --attest", () => {
+  const cwd = freshCwd();
+  try {
+    handleUserPromptSubmit(ups("orchestrate p", cwd, "s2", "t1"));
+    handleUserPromptSubmit(ups("orchestrate a", cwd, "s2", "t2"));
+    const out = handleUserPromptSubmit(ups("orchestrate b", cwd, "s2", "t3"));
+    assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, phaseDirective("B"));
+    assert.equal(readState(cwd, "s2").phase, "B");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L3b: illegal jump 'orchestrate c' from IDLE is refused, no state/ledger", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("orchestrate c", cwd, "s3", "t1"));
+    assert.match(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, /refused/);
+    assert.equal(readState(cwd, "s3").phase, "IDLE");
+    assert.equal(ledgerLines(cwd).length, 0);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L3b: 'orchestrate reset' returns to IDLE and clears flags", () => {
+  const cwd = freshCwd();
+  try {
+    handleUserPromptSubmit(ups("orchestrate p", cwd, "s4", "t1"));
+    handleUserPromptSubmit(ups("orchestrate a", cwd, "s4", "t2"));
+    const out = handleUserPromptSubmit(ups("orchestrate reset", cwd, "s4", "t3"));
+    assert.match(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, /reset/);
+    const st = readState(cwd, "s4");
+    assert.equal(st.phase, "IDLE");
+    assert.equal(st.flags.auditPassed, false);
+    assert.equal(st.orchestrationActive, false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L3b: 'orchestrate status' is read-only (no phase change, no ledger)", () => {
+  const cwd = freshCwd();
+  try {
+    handleUserPromptSubmit(ups("orchestrate p", cwd, "s5", "t1"));
+    const before = ledgerLines(cwd).length;
+    const out = handleUserPromptSubmit(ups("orchestrate status", cwd, "s5", "t2"));
+    assert.notEqual(out, "");
+    assert.equal(readState(cwd, "s5").phase, "P");
+    assert.equal(ledgerLines(cwd).length, before); // no new ledger entry
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L3b: same-turn re-fire does NOT double-append the ledger", () => {
+  const cwd = freshCwd();
+  try {
+    handleUserPromptSubmit(ups("orchestrate p", cwd, "s6", "t1"));
+    handleUserPromptSubmit(ups("orchestrate p", cwd, "s6", "t1")); // re-fire same turn
+    assert.equal(ledgerLines(cwd).length, 1);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L3b: a prompt with no command still falls through to the loose detectTrigger path", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("plan this feature", cwd, "s7", "t1"));
+    // loose path injects the P directive but does NOT move phase via the wire.
+    assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, phaseDirective("P"));
+    assert.equal(readState(cwd, "s7").phase, "IDLE"); // loose path leaves phase alone
+    assert.equal(ledgerLines(cwd).length, 0);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
