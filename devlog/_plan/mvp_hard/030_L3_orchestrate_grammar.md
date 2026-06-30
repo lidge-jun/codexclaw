@@ -6,7 +6,9 @@ Status: DONE (impl shipped + tested) · 2026-06-30 · mvp_hard loop L3 pass A ·
 > - **L3a / 030 (this doc)**: a pure grammar parser for the orchestrate command. No
 >   state writes, no hook edits — just `parseOrchestrateCommand(prompt)` + tests.
 > - **L3b / 031 (next doc)**: wire the parser into `handleUserPromptSubmit` so a
->   chat-submitted command actually calls `transition()+writeState+appendLedger`.
+>   chat-submitted command actually persists a transition. (Shipped as
+>   `applyHumanTransition()` — the human/chat path that writes state + appends the ledger
+>   without calling the agent-gated `transition()` in `fsm.ts`; see 031.)
 >
 > Splitting keeps each pass independently testable and each commit atomic.
 

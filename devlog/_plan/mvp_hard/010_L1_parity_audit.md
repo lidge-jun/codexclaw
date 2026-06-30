@@ -126,7 +126,7 @@ Do NOT chase these; they fundamentally need a live server/process and have no co
 ## Proposed loop decomposition (to be split into 020+ docs)
 
 - L2 / 020 — FSM legal-transition table + four-transition attest gate (`fsm.ts`, `attest.ts`).
-- L3 / 030 — `$cxc-orchestrate` grammar + hook wiring to `transition()` (the missing wire).
+- L3 / 030 — `$cxc-orchestrate` grammar + hook wiring via `applyHumanTransition()` (the missing wire).
 - L4 / 040 — `cxc orchestrate` CLI over the same file state.
 - L5 / 050 — `status` / `reset` / `D` affordances + ledger-on-transition.
 - L6 / 060 — Stop-continuation loop with omo termination guards.
