@@ -1,6 +1,6 @@
 # L14-L19 / 141 — Contradiction Patch Plan (decomposed)
 
-Status: PLANNED (decomposition; NO code change this pass) · 2026-06-30 · mvp_hard
+Status: DONE (decomposition pass; all decomposed loops L14-L19 since shipped + tested) · 2026-06-30 · mvp_hard
 
 > Decomposes the `30_contradiction_register.md` findings into per-loop work-phases
 > L14-L19, each a full PABCD cycle (`I/P->A->B->C->D --attest`). The diagnosis lives in
