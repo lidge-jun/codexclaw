@@ -138,13 +138,16 @@ guarded). The originally-planned narrow I-phase Stop guard was DROPPED — it ha
 - `141_L14_L19_contradiction_patch_plan.md` — decomposition of the
   `structure/30_contradiction_register.md` findings into per-loop work-phases L14-L19,
   each tagged with the strongest available enforcement tier (E1-E8) from
-  `structure/40_enforcement_methods.md`. Implementation waits for the L14 Interview round.
+  `structure/40_enforcement_methods.md`. All of L14-L19 have since shipped (DONE | DONE), and
+  L20 closed the follow-up gap-remediation loop.
 
 ## Interview decisions (2026-06-30, locked)
 
 - **Control surface**: `$cxc-orchestrate` ships as a real skill (so `$` autocomplete lists it),
   and the UserPromptSubmit hook parses an inline `orchestrate <phase> [--attest {...}]` token to
-  drive `transition()`. Plus `$cxc-loop` + `$cxc-goalplan` skills for the autonomous goal loop.
+  drive a persisted transition (shipped as `applyHumanTransition()`, the human/chat path — it
+  writes state + appends the ledger without calling the agent-gated `transition()` in `fsm.ts`).
+  Plus `$cxc-loop` + `$cxc-goalplan` skills for the autonomous goal loop.
 - **Human vs agent split = invocation source** (cli-jaw uses a boss token; codexclaw has none).
   A chat-submitted `$cxc-orchestrate X` is the human free-pass (advisory, no attest required);
   an agent/CLI-invoked transition is gated (forward edges require `--attest`). The hook can tell
