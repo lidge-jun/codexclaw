@@ -111,6 +111,20 @@ test real) but found three doc/gate residuals from WP9/WP10; all fixed in WP11:
   must stay green; extend it (WP5) so this drift can't recur.
 - **WP7 (G19, G22, G23):** test/residue hardening — manifest-path hook e2e for the 5 uncovered
   hooks; resolve or formally accept C6/C10.
+- **WP8 (G20):** orchestrate-cli ungated-edge coverage — IDLE->I entry, abort-to-I (P/A/B->I),
+  illegal I->B refusal, and the I->P interview-flag contract (the residual G20 left after WP1).
+- **WP9 (completion-audit residuals + C10 root cause):** fix the doc contradictions the first
+  completion audit found (roadmap L3 naming, roadmap L20 row vs INDEX, 132_L13.2 acceptance) and
+  the real C10 root cause — add `--test-concurrency=1` so parallel test workers stop racing the
+  shared `dist/` rebuild (see G23/F2).
+- **WP10 (F1):** src/dist freshness gate — export build.mjs's pure `compileSource` and add a test
+  that recomputes each tracked dist file in-memory and asserts byte-equality with the committed
+  file (a stale/missing committed dist fails CI).
+
+> Note: WP1-WP7 were the original plan from the gap scan; WP8-WP10 were added from two independent
+> adversarial completion audits (gpt-5.4) that surfaced a residual gap (G20) and doc/gate/test
+> contradictions introduced while remediating. All ten are shipped + tested (see the gap table and
+> the WP9/WP11 residual-fix sections).
 
 ## Out of scope (user-owned)
 
