@@ -105,9 +105,11 @@ goal mode (`create_goal`, evidence-backed checkpoints) · subagent
 findings only) · docs-only work (no code gates, docs consistency checks instead).
 
 In goal mode, multi-phase / loop work runs one FULL PABCD cycle per work-phase
-(depth scaled by §0.0 class); after D, re-enter P for the next work-phase. Classify EACH
-work-phase independently — C0-C1 fast-path applies to that work-phase's class, not the
-whole goal. Do each PABCD phase's real work; never rubber-stamp a phase to advance.
+(depth scaled by §0.0 class); after D closes a cycle to IDLE, YOU run `cxc orchestrate P`
+to start the next work-phase — nothing re-enters `P` automatically (the Stop hook only
+blocks premature termination so you do this). Classify EACH work-phase independently —
+C0-C1 fast-path applies to that work-phase's class, not the whole goal. Do each PABCD
+phase's real work; never rubber-stamp a phase to advance.
 
 **Production surface (shared definition):** a surface is production when it is deployed
 for real users beyond the author; prototypes, spikes, and internal demos are not. Skills

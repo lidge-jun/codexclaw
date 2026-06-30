@@ -78,3 +78,56 @@ test("L10.3 runtime: freeze --dry-run produces a summary without writing", () =>
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+// L14.2: freeze must SURFACE the goal-activation handoff when (and only when) the
+// interview is ready — this is the production consumer of GOAL_ACTIVATION_DIRECTIVE,
+// closing the C5 "test-only export" gap. codexclaw still never writes the goal DB.
+function readyTrackerJson(): string {
+  const score = { level: "max", known: ["k"], unknown: [], confidence: 1 };
+  return JSON.stringify({
+    phase: "I",
+    slug: "demo",
+    flags: { interview: true, auditPassed: false, checkPassed: false },
+    orchestrationActive: false,
+    lastInjectedPhase: null,
+    injectedTurns: [],
+    stopBlockPhase: null,
+    stopBlockCount: 0,
+    interview: {
+      dimensions: { goal: score, constraint: score, success: score, ontology: score },
+      contradictions: [],
+      assumptions: [{ text: "Assume X", recorded: true }],
+      scanRounds: 1,
+    },
+  });
+}
+
+test("L14.2: freeze emits GOAL_ACTIVATION_DIRECTIVE when the interview is ready", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-frz-ready-"));
+  try {
+    mkdirSync(join(cwd, ".codexclaw", "sessions"), { recursive: true });
+    writeFileSync(join(cwd, ".codexclaw", "sessions", "s1.json"), readyTrackerJson());
+    const planDir = join(cwd, ".codexclaw", "plan", "demo");
+    mkdirSync(planDir, { recursive: true });
+    writeFileSync(join(planDir, "plan.md"), "# Plan");
+    const out = runFreeze({ cwd, sessionId: "s1", dryRun: true });
+    assert.match(out, /interviewReady: true/);
+    assert.ok(out.includes(GOAL_ACTIVATION_DIRECTIVE), "ready freeze must include the handoff directive");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("L14.2: freeze does NOT emit the directive when the interview is not ready", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-frz-notready-"));
+  try {
+    const planDir = join(cwd, ".codexclaw", "plan", "default");
+    mkdirSync(planDir, { recursive: true });
+    writeFileSync(join(planDir, "plan.md"), "# Plan");
+    const out = runFreeze({ cwd, sessionId: "default", dryRun: true });
+    assert.match(out, /interviewReady: false/);
+    assert.ok(!out.includes(GOAL_ACTIVATION_DIRECTIVE), "not-ready freeze must not surface the handoff");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

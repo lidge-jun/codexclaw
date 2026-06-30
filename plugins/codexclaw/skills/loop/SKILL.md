@@ -1,6 +1,6 @@
 ---
 name: cxc-loop
-description: "Use for Codexclaw autonomous work-loop planning: HOTL goal continuation, repeated PABCD work-phases, Stop-continuation policy, evidence checkpoints, and mode-guarded auto-advance. Triggers: cxc-loop, loop, autonomous continuation, continue until done, HOTL, repeated PABCD, work-phase loop."
+description: "Use for Codexclaw autonomous work-loop planning: HOTL goal continuation, repeated PABCD work-phases, Stop-continuation policy, and evidence checkpoints. Triggers: cxc-loop, loop, autonomous continuation, continue until done, HOTL, repeated PABCD, work-phase loop."
 metadata:
   short-description: "HOTL PABCD continuation loop contract."
 ---
@@ -14,11 +14,16 @@ work-phases.
 
 - One work-phase maps to one full PABCD cycle.
 - D closes the current work-phase and returns the phase to `IDLE`.
-- If work remains and HOTL/goal/loop mode is active, the agent may start the next
-  work-phase after evidence is recorded.
-- Interview auto-advance is mode-guarded: the agent may move I -> P only when the
-  exit gate passes in an explicit HOTL/goal/loop context.
-- Stop guards should prevent premature termination only when concrete pending
+- If work remains and a goal is active, **the agent** starts the next work-phase by
+  running `cxc orchestrate P` after recording evidence. Nothing transitions the phase
+  automatically — the Stop hook only blocks premature termination so the agent does
+  this; it never re-enters `P` for you (see Stop-continuation below).
+- There is no I -> P auto-advance. The agent advances every phase, including I -> P,
+  by running the explicit `cxc orchestrate <phase> --attest` command. The hook does
+  not move phases.
+- The Stop guard blocks termination based on coarse state signals (active goal +
+  in-flight cycle + stagnation budget), not a content check for "pending work." It
+  keeps the turn alive so the agent can self-advance; the agent decides whether real
   work remains.
 - Goal mode is PABCD-only: while a goal is active the Interview NEVER fires (entry is
   suppressed and `request_user_input` is hard-denied). The Interview is HITL-only and

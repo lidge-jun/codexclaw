@@ -19,6 +19,7 @@ import {
   checkStale,
   deriveSlug,
   sha256,
+  GOAL_ACTIVATION_DIRECTIVE,
 
 
 
@@ -94,7 +95,7 @@ export function runFreeze(args               )         {
     writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
   }
 
-  return [
+  const lines = [
     `[codexclaw freeze${args.dryRun ? " --dry-run" : ""}]`,
     `manifest: ${manifestPath}`,
     `slug: ${slug}`,
@@ -103,5 +104,13 @@ export function runFreeze(args               )         {
     `interviewReady: ${ready}`,
     `openAssumptions: ${evidenceBundle.openAssumptions.length}`,
     staleLine,
-  ].join("\n");
+  ];
+  // L14.2: when the interview is ready, surface the goal-activation handoff so the
+  // MAIN session knows to call create_goal (codexclaw stays read-only on the goal DB).
+  // This is the production consumer of GOAL_ACTIVATION_DIRECTIVE — it is emitted to
+  // freeze stdout, which `cxc freeze` exposes to the operator/main session.
+  if (ready) {
+    lines.push("", GOAL_ACTIVATION_DIRECTIVE);
+  }
+  return lines.join("\n");
 }

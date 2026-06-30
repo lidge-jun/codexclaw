@@ -55,11 +55,12 @@ exact command. Narrating "현재는 B입니다" does nothing.** codexclaw keeps 
 - The IPABCD ladder: **I** (Interview, optional) -> **P** (Plan) -> **A** (Plan Audit)
   -> **B** (Build) -> **C** (Check) -> **D** (Done, closes to IDLE).
 
-### Honesty note (open defect)
-The `loop` / `goalplan` skills currently claim the Stop hook re-enters `P` for the next
-work-phase and auto-advances `I -> P`. The runtime `handleStop` does neither — it only
-returns a block/release decision and never transitions phase. This is a tracked L14
-contradiction (see `30_contradiction_register.md`), not shipped behavior.
+### Honesty note (L14 RESOLVED 2026-06-30)
+The `loop` / `goalplan` / `dev` skills previously claimed the Stop hook re-enters `P`
+and auto-advances `I -> P`. L14 corrected that prose: the docs now state plainly that
+the AGENT advances every phase via explicit `cxc orchestrate <phase>`, and `handleStop`
+only blocks premature termination (it never transitions phase). Verified against
+`hook.ts:391-415`. Register rows A1/A2/A3 are closed.
 
 ---
 

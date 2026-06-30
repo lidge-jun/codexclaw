@@ -145,12 +145,13 @@ hook" until the arming path exists.
 
 ### 14.2 — Loop never arms because nothing sets the goal
 `handleStop` arming is `orchestrationActive && phase != IDLE` AND `goal == active`.
-codexclaw is read-only on the goal DB, and the one bridge (`GOAL_ACTIVATION_DIRECTIVE`,
-`freeze.ts:124`) is dead code. Intent: emit that directive on loop/freeze so the
-**main session** calls `create_goal` (objective-only), preserving the read-only
-boundary. Define the reverse path: a goal-active branch that auto-arms
-`orchestrationActive` so "set a goal -> loop runs" holds. The user's mental model:
-**loop sets a goal; a set goal drives the loop.**
+codexclaw is read-only on the goal DB. The forward bridge (`GOAL_ACTIVATION_DIRECTIVE`,
+`freeze.ts:124`) is now LIVE as of L14: `runFreeze` emits it when the interview is ready,
+surfaced via the top-level `cxc freeze` command, so the **main session** is instructed to
+call `create_goal` (objective-only) while codexclaw never writes the DB. Still PLANNED:
+the **reverse** path — a goal-active branch that auto-arms `orchestrationActive` so
+"set a goal -> loop runs" holds without a separate orchestrate trigger. The user's mental
+model remains the target: **loop sets a goal; a set goal drives the loop.**
 
 ### 14.3 — `dev` routing collapses to `dev` alone
 Routing table wording is weak prose and only `cxc-dev` is implicit-visible. Intent:

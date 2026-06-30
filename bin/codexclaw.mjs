@@ -9,6 +9,7 @@
  *   codexclaw doctor              run plugin health checks (cxc-ops)
  *   codexclaw reset               remove scoped .codexclaw state/generated files (cxc-ops)
  *   codexclaw orchestrate         drive IPABCD state with agent-gated attest evidence
+ *   codexclaw freeze              freeze the interview plan + surface the goal-activation handoff
  *   codexclaw gui                 launch the codexclaw web dashboard
  *   codexclaw subagents           read/write per-role subagent model+prompt config
  *   codexclaw provider            show read-only opencodex (ocx) provider status
@@ -127,6 +128,13 @@ switch (cmd) {
     // pabcd-state CLI expects argv as [kind, ...rest]; kind === "orchestrate".
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
+  case "freeze":
+    // pabcd-state CLI expects argv as [kind, ...rest]; kind === "freeze".
+    // Surfaces the goal-activation handoff (GOAL_ACTIVATION_DIRECTIVE) to the
+    // operator/main session when the interview is ready; codexclaw never writes
+    // the goal DB itself.
+    process.exit(runPabcdState(process.argv.slice(2)));
+    break;
   case "gui": {
     const guiDir = join(here, "..", "plugins", "codexclaw", "gui");
     // npm workspaces hoist deps to the repo root, so check either location.
@@ -148,5 +156,5 @@ switch (cmd) {
     process.exit(runProvider());
     break;
   default:
-    console.log("codexclaw <enable|uninstall|status|orchestrate|doctor|reset|subagents|provider|gui>");
+    console.log("codexclaw <enable|uninstall|status|orchestrate|freeze|doctor|reset|subagents|provider|gui>");
 }

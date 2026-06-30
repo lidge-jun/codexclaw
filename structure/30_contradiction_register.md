@@ -25,9 +25,9 @@ Severity legend: **HIGH** = false capability or false-DONE that misleads executi
 
 | # | Severity | Claim | Reality |
 | --- | --- | --- | --- |
-| A1 | HIGH | `loop/SKILL.md:17-18`, `goalplan/SKILL.md:25-28`: active goal -> Stop loop closes the cycle then re-enters next work-phase `P` | `hook.ts:398-415`, `:334-350`: `handleStop` releases on `IDLE`/`!orchestrationActive`; `done/reset` writes `orchestrationActive:false`; no IDLE->P re-entry branch exists |
-| A2 | HIGH | `loop/SKILL.md:19-20`: explicit HOTL/goal/loop context auto-advances `I -> P` on gate pass | `hook.ts:360-382`, `:391-415`: Stop hook only returns `{decision:block,reason}`; never transitions phase |
-| A3 | MED | `loop/SKILL.md:21-22`: Stop guard blocks only when "concrete pending work remains" | `hook.ts:394-415`: branch conditions are `stop_hook_active`, `orchestrationActive`, `phase!=IDLE`, active goal, context pressure, stagnation — no pending-work/evidence predicate |
+| A1 | RESOLVED (L14) | ~~`loop/SKILL.md`, `goalplan/SKILL.md`: Stop re-enters next work-phase `P`~~ | FIXED 2026-06-30: `loop`/`goalplan`/`dev` SKILL now state the AGENT runs `cxc orchestrate P`; `handleStop` only blocks (`hook.ts:391-415`) |
+| A2 | RESOLVED (L14) | ~~`loop/SKILL.md`: auto-advances `I -> P`~~ | FIXED 2026-06-30: docs state no auto-advance; the agent advances every phase via explicit command |
+| A3 | RESOLVED (L14) | ~~`loop/SKILL.md`: Stop blocks only on "concrete pending work"~~ | FIXED 2026-06-30: loop SKILL now describes the coarse state-signal guard (goal + in-flight + stagnation), not a content check |
 | A4 | HIGH | `interview/SKILL.md:25-32`: `PostToolUse` auto-capture is "planned runtime / until that runtime lands" | `cli.ts:81-90`, `hook.ts:419-439`: CLI already dispatches `post-tool-use` to `handlePostToolUse`, which captures `request_user_input` results — shipped, not planned |
 | A5 | MED | `pabcd/SKILL.md:16`: interview trigger covers "요구사항 정리", "스펙 정리해줘", "any variation" | `hook.ts:64-75`: `detectTrigger()` I-branch matches only `interview`, `인터뷰`, `orchestrate i` |
 | A6 | HIGH | `dev/SKILL.md:3,119-134`: `cxc-dev` routes to `dev-*` routers by surface | all `dev-*/agents/openai.yaml:5` are `allow_implicit_invocation:false`; only `dev/agents/openai.yaml:5` is `true` — no config-level auto-routing/loading exists |
@@ -64,7 +64,7 @@ let an INDEX impl-DONE outrun the loop doc's own "no runtime shipped" admission.
 | C2 | MED | `minds.ts:2` "5-Mind contradiction dispatcher surface" | `MINDS`/`selectMinds`/etc. imported only by `test/minds.test.ts:3` |
 | C3 | MED | `triage.ts:2` "severity triage + assumption transition" | `triageContradiction`/`autoResolveToAssumption` imported only by `test/triage.test.ts:3` |
 | C4 | MED | `rescan-coordinator.ts:2` "interactive-interview signal helper" | exports imported only by `test/rescan-coordinator.test.ts:15`; never wired to `handleStop` |
-| C5 | MED | `freeze.ts:124` exports `GOAL_ACTIVATION_DIRECTIVE` | imported only by `test/freeze.test.ts` — the dead loop<->goal bridge (L14.2) |
+| C5 | RESOLVED (L14) | ~~`freeze.ts:124` `GOAL_ACTIVATION_DIRECTIVE` test-only~~ | FIXED 2026-06-30: now emitted by the production path `runFreeze` (`freeze-cli.ts`) when the interview is ready, surfaced via `cxc freeze` (`bin/codexclaw.mjs`) |
 | C6 | LOW | `config-guard/src/cli.ts:18` exports `assertNotRealCodexHome` | imported only by `test/activate.test.ts:9` |
 | C7 | LOW | `structure/INDEX.md` (pre-fix) "manifest wires five hook JSON files" | `plugin.json:20-26` declares six (adds `post-tool-use-capturing-interview-answers.json`) — fixed in INDEX 2026-06-30 |
 | C8 | MED | build compiles every `src/*.ts` -> `dist/*.js` (`build.mjs:62,68,74`) and `.gitignore:2` ignores `dist/` | only a subset of `dist/` is git-tracked; several runtime `dist/*.js` that `bin`/`hook` load are untracked — packaging relies on a local build, not the repo |
