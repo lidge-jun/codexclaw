@@ -48,7 +48,7 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 | L7 | 070 | `$cxc-goalplan` + `$cxc-loop` + orchestrate skill-doc reconciliation with shipped L3-L6 reality | DONE |
 | L8 | 080 | Post-loop UX hardening + truth sweep: stale docs, status ledger rows, Stop next-command wording | DONE |
 | L9 | 090 | Subagent/model hardening parity plan: live spawn-wrapper gap, slug catalog parity, operator surface policy | PLANNED |
-| L10 | 100 | Memory/chat/project/worklog parity decision: codex-native scope vs explicit non-goals | PROPOSED |
+| L10 | 100 | Memory/chat/project/task/worklog parity decision: codex-native scope vs explicit non-goals | DONE |
 | L11 | 110 | Developer docs + public docs website: Starlight-style IA, jawdev-style reference docs, visual system, verification gates | PLANNED |
 | L12 | 120 | Skill-internal hardening: cxc-interview/orchestrate/loop/goalplan skeletons + continuous Interview runtime plan | PLANNED |
 | L20 | 200 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | PROPOSED |
@@ -65,6 +65,11 @@ Tests grew 223 → 281, all green; `cxc doctor` PASS.
 from README/structure/L5-L7 docs and replaced the Stop-continuation `<next>` placeholder
 with concrete phase-specific commands, including `cxc orchestrate reset` for D-close.
 
+**L10 COMPLETE** (2026-06-30). Memory/chat/project/task/worklog parity is now bounded
+surface-by-surface: `cxc-search` is public/current lookup, `cxc chat-search` is only a
+Codex app-server `thread/search` wrapper, tasks map to native `update_plan`, project state
+is repo-local `.codexclaw/`, and work evidence remains devlog plus PABCD ledger.
+
 ## Research result
 
 - `010_L1_parity_audit.md` — synthesized parity-gap findings. Original verdict: L1-L28 MVP
@@ -74,6 +79,10 @@ with concrete phase-specific commands, including `cxc orchestrate reset` for D-c
   cli-jaw, jawcode, OMO/LazyCodex, opencodex, and codexclaw. Verdict: L2 core FSM/attest
   is no longer the principal gap; highest-leverage work is `$cxc-orchestrate`/`cxc orchestrate`
   state wiring, Stop continuation, then goalplan/loop and deployment/subagent parity.
+- `100_L10_memory_chat_project_worklog_parity.md` — decision boundary for cli-jaw
+  memory/chat/project/task/worklog parity. Verdict: no aggregate parity claim; each surface is
+  delegated to native Codex, a thin Codex runtime wrapper, project-local state, or an explicit
+  non-goal.
 - `110_L11_developer_docs_website.md` — 10-agent read-only sweep for developer docs and
   website design. Verdict: build an Astro/Starlight-style docs site with a codexclaw-specific
   developer-control visual system, source-checked reference pages, explicit current/planned

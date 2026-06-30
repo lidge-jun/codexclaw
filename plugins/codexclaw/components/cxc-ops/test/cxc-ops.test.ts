@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { runDoctor, rollup, renderDoctor } from "../src/doctor.ts";
 import { runReset, parseResetScope } from "../src/reset.ts";
 import { chatSearch, renderChatSearch } from "../src/chat-search.ts";
+import { parseChatSearchArgs } from "../src/cli.ts";
 
 // ---- doctor ---------------------------------------------------------------
 
@@ -157,4 +158,10 @@ test("chatSearch: HTTP error -> unavailable", async () => {
   const fetchImpl = (async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
   const out = await chatSearch("x", { fetchImpl });
   assert.equal(out.status, "unavailable");
+});
+
+test("parseChatSearchArgs: preserves query without --limit", () => {
+  assert.deepEqual(parseChatSearchArgs(["codexclaw"]), { term: "codexclaw", limit: undefined });
+  assert.deepEqual(parseChatSearchArgs(["codexclaw", "pabcd", "--limit", "3"]), { term: "codexclaw pabcd", limit: 3 });
+  assert.deepEqual(parseChatSearchArgs(["--limit", "2", "codexclaw"]), { term: "codexclaw", limit: 2 });
 });

@@ -35,9 +35,7 @@ export async function main(argv          , metaUrl        )                  {
       return 0;
     }
     case "chat-search": {
-      const flagIdx = rest.findIndex((a) => a === "--limit");
-      const limit = flagIdx >= 0 ? Number(rest[flagIdx + 1]) : undefined;
-      const term = rest.filter((a, i) => !a.startsWith("--") && i !== flagIdx + 1).join(" ");
+      const { term, limit } = parseChatSearchArgs(rest);
       const outcome = await chatSearch(term, { limit: Number.isFinite(limit) ? limit : undefined });
       process.stdout.write(`${renderChatSearch(outcome)}\n`);
       return 0;
@@ -46,6 +44,15 @@ export async function main(argv          , metaUrl        )                  {
       process.stdout.write("cxc-ops <doctor|reset [--state|--generated|--all]|chat-search \"<term>\" [--limit N]>\n");
       return 0;
   }
+}
+
+export function parseChatSearchArgs(args          )                                   {
+  const flagIdx = args.findIndex((a) => a === "--limit");
+  const limit = flagIdx >= 0 ? Number(args[flagIdx + 1]) : undefined;
+  const term = args
+    .filter((a, i) => a !== "--limit" && !(flagIdx >= 0 && i === flagIdx + 1))
+    .join(" ");
+  return { term, limit };
 }
 
 // Direct-exec guard: run only when invoked as a script, not when imported by tests.
