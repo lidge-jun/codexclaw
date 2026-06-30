@@ -43,6 +43,7 @@ cells) are stable and corroborated across all four sources.
 | `002_divergence_layer_design.md` | How the mechanisms map onto PABCD phases + codexclaw's hook-only / no-server constraints, with an honest E-tier split. |
 | `003_open_questions.md` | What must be resolved (in Interview) before any implementation; non-goals; falsifiability of "did the divergence layer help". |
 | `004_ipabcd_divergence_flow.md` | Operator-proposed IPABCD mapping (I=diverge N, P=N plans, A+B=worktree builds, C=keep/discard compare, D=human gate). N-sizing + compare mechanism backed by best-of-N / beam / population literature + jawcode autoresearch. |
+| `005_loop_continuation_patterns.md` | The same work as a `cxc-loop` improvement: Ralph, jawcode autoresearch, long-running harnesses, SICA → 6 mapped loop levers (durable plan re-read, metric memory, plateau→diverge, ideas/archive, keep/discard, fresh-context resilience). |
 | `emergence_gap.html` | Single-page visual diagnosis of the convergence gap (open in browser). |
 
 ## Non-goals (restated from philosophy)

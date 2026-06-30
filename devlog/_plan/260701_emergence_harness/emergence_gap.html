@@ -275,6 +275,26 @@
     </div>
   </div>
 
+  <h2><span class="n">08</span> 이건 loop 개선이기도 하다 <span class="dim" style="font-size:12px">(Ralph · autoresearch · long-running harness)</span></h2>
+  <div class="band fix">
+    <p><code>cxc-loop</code>은 지금 "한 work-phase = 한 PABCD 사이클" 계약뿐 —
+    Ralph의 <strong>디스크에 박힌 plan을 매 패스 다시 읽기</strong>도, autoresearch의 <strong>baseline/best 메트릭 기억</strong>도 없다.
+    정체 캡이 점수가 아니라 턴 수를 센다. 그래서 발산 작업은 loop 개선으로도 박아야 한다.</p>
+    <table>
+      <thead><tr><th>패턴 (출처)</th><th>cxc-loop 개선</th><th class="c">tier</th></tr></thead>
+      <tbody>
+        <tr><td>L1 디스크 plan 재독 <span class="src">Ralph·harness</span></td><td>매 패스 <code>.codexclaw/plan/*</code> 재독, 진행은 디스크에 (fresh context 부활)</td><td class="c part">E7+E2</td></tr>
+        <tr><td>L2 메트릭 기억 <span class="src">autoresearch·SICA</span></td><td>work-phase마다 true-objective 메트릭 + baseline/best를 ledger에 carry</td><td class="c yes">E2/CLI</td></tr>
+        <tr><td>L3 정체→발산 <span class="src">autoresearch·novelty</span></td><td>turn-cap을 메트릭-델타 체크로: N패스 정체 시 Stop이 "diverge" 주입</td><td class="c yes">E2 (핵심)</td></tr>
+        <tr><td>L4 아이디어 백로그+아카이브 <span class="src">autoresearch</span></td><td>ideas backlog + kept-candidate 아카이브를 <code>.codexclaw/</code>에 영속</td><td class="c yes">E2</td></tr>
+        <tr><td>L5 keep/discard+confidence <span class="src">autoresearch</span></td><td>패스 기록을 메트릭 keep/discard로 (discard 시 워크트리 revert)</td><td class="c part">E7+E2</td></tr>
+        <tr><td>L6 fresh-context 부활 <span class="src">Ralph·harness</span></td><td>압축 후 plan+메트릭+아카이브를 메모리 아닌 디스크에서 reload</td><td class="c yes">E2</td></tr>
+      </tbody>
+    </table>
+    <p class="dim" style="margin-top:10px">Ralph = "fresh context + 디스크 상태 + while 루프". codexclaw의 Stop-hook 연속은 그보다 강하지만(종료를 게이트) 새 접근을 <em>작성</em>하진 못한다 — "more of the same"를 거부할 뿐.
+    진짜 런타임 레버는 <strong>L3</strong> 하나(Stop의 메트릭-델타 정체 체크), 나머지는 loop가 재독하는 파일을 에이전트가 유지하는 구조. 전부 no-server.</p>
+  </div>
+
   <footer>
     근거: <code>structure/50_emergence_gap.md</code> (진단) ·
     <code>devlog/_plan/260701_emergence_harness/</code> (레퍼런스 트랙: AlphaEvolve arXiv:2506.13131,
