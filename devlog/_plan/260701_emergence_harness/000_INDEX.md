@@ -44,6 +44,7 @@ cells) are stable and corroborated across all four sources.
 | `003_open_questions.md` | What must be resolved (in Interview) before any implementation; non-goals; falsifiability of "did the divergence layer help". |
 | `004_ipabcd_divergence_flow.md` | Operator-proposed IPABCD mapping (I=diverge N, P=N plans, A+B=worktree builds, C=keep/discard compare, D=human gate). N-sizing + compare mechanism backed by best-of-N / beam / population literature + jawcode autoresearch. |
 | `005_loop_continuation_patterns.md` | The same work as a `cxc-loop` improvement: Ralph, jawcode autoresearch, long-running harnesses, SICA → 6 mapped loop levers (durable plan re-read, metric memory, plateau→diverge, ideas/archive, keep/discard, fresh-context resilience). |
+| `006_divergence_gating_and_selection.md` | The gating problem: how to decide AB-needed (maximize-metric) vs single-strategy (satisfy-spec), divergence as a plateau-triggered MODE not a default, and layered selection (cheap-screen → harness compare → human gate). |
 | `emergence_gap.html` | Single-page visual diagnosis of the convergence gap (open in browser). |
 
 ## Non-goals (restated from philosophy)
