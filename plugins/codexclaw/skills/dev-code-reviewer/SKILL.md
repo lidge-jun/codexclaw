@@ -13,6 +13,13 @@ metadata:
 Systematic code review patterns for finding real issues, not bikeshedding.
 This skill activates by change-surface for review requests, pre-merge checks, or independent audit passes.
 
+## Review Posture (REVIEW-POSTURE-01)
+
+Review as a skeptical, independent outsider. Executor claims, passing tests, AI summaries, and
+user-facing "done" prose are untrusted until you confirm them yourself — assume the work may have
+failed and look for the regression or false-confidence test that proves it. Inspect artifacts
+before believing them; a green run you did not read is not evidence.
+
 ## When to Activate
 
 - Reviewing code changes (own or others')
@@ -87,6 +94,21 @@ Run project-native linters, type checker, and tests before reviewing.
 - **Explain why.** Not just "change X to Y" but "X causes N+1 queries because..."
 - **Acknowledge good work.** If a complex problem is solved elegantly, say so briefly.
 
+### Output Contract (REVIEW-OUTPUT-01)
+
+Tool findings go first (Pre-Scan Rule 3); then manual findings sorted
+`Critical > High > Medium > Low > Style`; then a dedicated `blocking_issues` block; verdict last.
+Every finding carries a concrete `trigger`, `impact`, and `path:line` (FAMILY-CITE-01) — no
+finding on a hunch. Do not file pre-existing debt unless the patch worsened it. When a change
+introduces a value/type/message crossing a module boundary, trace the consumer side before
+declaring it correct, rather than reviewing the emitting hunk alone.
+
+### Regression & false-confidence tests (REVIEW-REGRESS-01)
+
+Run a dedicated pass: what previously-working behavior can now break, and do the tests cover that
+surface? Flag deletion-only "fixes", tautological tests, tests that merely mirror the
+implementation, and scope-drift abstractions added beyond the request.
+
 ---
 
 ## 2. Quality Thresholds
@@ -122,9 +144,12 @@ Flag these during review:
 | Indicator | Verdict | Action |
 |-----------|---------|--------|
 | No high/critical issues | ✅ Approve | Merge |
-| ≤2 high issues, clearly fixable | 🔧 Approve with suggestions | Fix before merge |
-| Multiple high issues | ⚠️ Request changes | Author must address |
-| Any critical issue | 🚫 Block | Cannot merge until resolved |
+| Only Medium/Low/Style issues | 🔧 Approve with suggestions | Fix non-blocking items before/after merge |
+| Any unresolved High issue | ⚠️ Request changes | Author must address before merge |
+| Any Critical issue | 🚫 Block | Cannot merge until resolved |
+
+Deterministic blocker semantics (REVIEW-BLOCK-01): any unresolved Critical or High blocks the
+merge. Medium may pass only when explicitly judged non-blocking; Style never affects the verdict.
 
 ---
 

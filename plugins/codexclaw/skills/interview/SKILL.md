@@ -20,6 +20,37 @@ Use this skill to enter or continue Codexclaw's IPABCD Interview phase.
 - Do not advance to Plan while a high contradiction or pending question remains.
 - Record medium/low unresolved items as OPEN ASSUMPTIONS before leaving Interview.
 
+## Question quality (INTERVIEW-Q-01)
+
+- Target the weakest dimension first and name why it is the current bottleneck.
+- Ask one focused question that exposes an ASSUMPTION or boundary — not a feature-list roundup.
+- Prefer repo-grounded confirmation ("the code does X — is that intended?") over re-asking what
+  the codebase already answers.
+- Treat every answer as a claim to pressure-test: vague or hedged answers do not raise a
+  dimension's readiness; they keep or deepen the gap.
+
+## Rescan + readiness (INTERVIEW-SCAN-01)
+
+- Run a contradiction rescan after every answer, AND one final rescan before any proceed/close
+  decision — surface what still remains. (This final rescan is process discipline; the runtime
+  does not encode scan recency.)
+- Runtime readiness predicate (`isInterviewReady`): all dimensions at `max` + contradictions
+  empty + assumptions recorded + `scanRounds >= 1`. Treat readiness as a coverage claim on top of
+  that: each dimension has concrete knowns, no unresolved unknown changes scope, and every
+  contradiction has exited into an answer or a recorded assumption. Summarize the remaining OPEN
+  ASSUMPTIONS before claiming I -> P readiness.
+
+## Closeout fork (INTERVIEW-FORK-01)
+
+In non-goal HITL Interview only (under an active goal the Interview is suppressed and
+`request_user_input` is hard-denied — see Goal firewall), after a scan round do not drift forward
+silently. Present a numbered choice and let the user pick: `1. Proceed to Plan` ·
+`2. Ask 1 more question` · `3. Ask 2-3 more questions` · `4. Record assumptions and pause`.
+There is no build/execute path out of Interview — the only forward move is Plan, normally after
+the readiness gate passes, unless the human explicitly overrides (override is recorded as an
+audit entry). `proceed` means "advance to Plan", not permission to implement; the evolving
+plan/devlog stay draft interview artifacts until then.
+
 ## Runtime Status (shipped)
 
 The interview runtime is shipped, not planned:
