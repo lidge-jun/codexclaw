@@ -13,6 +13,7 @@ Status: RESEARCH (design input; NO code change) · 2026-07-01
 
 ```
 I  ── record N>=2 candidate approaches in devlog/.codexclaw  (KEPT rule; anti-anchoring)
+│      approaches are GROUNDED via cxc-search, not invented from memory
 │      candidates MAY be asymmetric: "strong-1 + add-1" (one primary + one light alternative)
 │      • user intent clear  ──► do NOT interrogate the user with an N>=2 menu;
 │      │                         the agent records strong-1 + add-1 itself, then converges
@@ -26,6 +27,32 @@ I  ── record N>=2 candidate approaches in devlog/.codexclaw  (KEPT rule; ant
       P keeps N plans; A audits each; B builds each (worktrees); C runs each on harness
       D: race the built candidates on the fixed-seed true metric ("싸우게 하기")
 ```
+
+## cxc-search grounds the N>=2 generation (mandatory when diverging)
+
+Inventing the N approaches from memory re-creates the anchoring failure — the "alternatives"
+collapse to minor variations of the first idea the model thought of. So whenever I (or a
+late-collapse P) generates N>=2 candidates, the divergence MUST be grounded through
+`cxc-search`, not pulled from memory:
+
+- **Discover real approaches (Tier 1).** Rewrite the problem into focused queries and find
+  what established methods / algorithms / library options / prior art actually exist for
+  this problem class. The candidate set should reflect genuinely different real approaches,
+  not invented placeholders.
+- **Prove before trusting (Tier 2).** Treat search hits as candidate URLs; open the primary
+  source to confirm an approach is real, current, and applicable before it becomes a
+  recorded candidate. (Source-Proof Invariant.)
+- **Classify the target first (Korean Intent Guard rule 1).** External method/library
+  lookup → the web ladder; framework/API docs → official docs; this repo's existing pattern
+  → file search. Convention/precedent for the EARLY collapse (build) is the same skill,
+  used to pick the approach that matches established practice.
+- **Deep research only when warranted (Tier 3, opt-in).** For a genuinely open
+  maximize-metric problem (the late-collapse case), the main agent MAY spawn the ultraresearch
+  swarm to map the approach space before committing N plans — deliberately, not by default.
+
+So the N>=2 rule and the cxc-search rule are linked: **a recorded candidate must trace to a
+real, source-checked approach, not a memory guess.** strong-1 + add-1 still applies — but
+both the strong and the add are grounded, the add at least at Tier 1 discovery depth.
 
 Recording >=2 approaches at I is cheap and stays ON — it is the anti-anchoring habit that
 breaks the "first approach lock-in" behind the NYPC plateau. What is CONDITIONAL is the
@@ -105,6 +132,7 @@ maximize-metric goal can re-trigger a late collapse in a later work-phase.
 | Step | Mechanism | Tier |
 |---|---|---|
 | I records N>=2 (strong-1 + add-1 OK) | devlog/`.codexclaw` record; kept rule | E7 |
+| N>=2 grounded via cxc-search | Tier 1 discover + Tier 2 prove; not from memory | E7 |
 | ask the USER to choose | only when intent is open; else converge silently | E7 |
 | classify early vs late collapse | objective-kind (satisfy vs maximize) + winner-clarity | E7 |
 | P early selection | subagent critic + `cxc-search` convention research | E7 (agent runs it) |
