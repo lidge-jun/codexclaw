@@ -7,7 +7,7 @@ metadata:
 
 # PABCD Workflow
 
-A Codex-native reimplementation of the IPABCD development loop (Interview + Plan / Audit / Build / Check / Done). There is no external orchestrator server. State lives in `.codexclaw/sessions/<sessionId>.json` plus `.codexclaw/ledger.jsonl`; transitions are driven by the `pabcd-state` hook component, the chat-side `cxc-orchestrate` surface, and planned `cxc orchestrate` terminal parity.
+A Codex-native reimplementation of the IPABCD development loop (Interview + Plan / Audit / Build / Check / Done). There is no external orchestrator server. State lives in `.codexclaw/sessions/<sessionId>.json` plus `.codexclaw/ledger.jsonl`; transitions are driven by the `pabcd-state` hook component, the chat-side `cxc-orchestrate` surface (human free-pass), and the live `cxc orchestrate` terminal CLI (agent-gated).
 
 > **C0/C1 work (small in-place patches):** See `dev` §0.0 Work Classifier and §0.1 Patch Fast-Path first — full PABCD is mandatory for C4 and conditional for C3, never the baseline for every task.
 
@@ -91,5 +91,5 @@ Determine the actual working repository root before planning (resolve via `pwd -
 ## Notes
 
 - This skill is the human-readable guide; the `pabcd-state` hook handles trigger detection, directive injection, and continuation.
-- Chat-side `orchestrate <phase|status|reset>` control is the human path. The terminal `cxc orchestrate` path is planned as the attest-gated agent/CLI path.
+- Control surfaces (all shipped): chat `orchestrate <phase|status|reset>` is the human free-pass path; the terminal `cxc orchestrate <phase> [--attest <json>]` CLI is the attest-gated agent path; every injected directive carries an `IPABCD: <phase>` footer; and the Stop hook runs the bounded continuation loop under an active goal (see `cxc-loop`/`cxc-goalplan`).
 - Provenance: the L4 phase shipped the `dev`/`dev-*` and `pabcd` skill directories as activation shells only — frontmatter plus router stubs that proved the Codex loader shape. The real discipline content (this PABCD guide and the universal `dev` hub) was supplied later by the L12 real-content port; treat any remaining stub-era phrasing as superseded by the current body.

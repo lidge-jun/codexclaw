@@ -24,12 +24,23 @@ Accepted prefixes include `$codexclaw:cxc-orchestrate`, `$cxc-orchestrate`,
 
 - Chat-submitted commands are the human path.
 - Human path can advance legal adjacent phases without attestation.
-- Agent/terminal path is planned as `cxc orchestrate` and remains attest-gated.
+- Agent/terminal path is the live `cxc orchestrate` CLI and is attest-gated:
+  forward edges (P>A, A>B, B>C, C>D) require `--attest` evidence.
 - `D` is a closing action that returns to `IDLE`; it is not a resting badge.
 - `status` is read-only.
 - `reset` is an explicit control action, not a normal phase edge.
 
-## Runtime Status
+## Control surfaces (shipped)
 
-Chat-side parsing and state wiring are part of the L3 hardening track. The
-terminal `cxc orchestrate` command is tracked separately in L4.
+- **Chat (human free-pass)** — the hook parses a line-anchored `orchestrate <verb>`
+  and drives the FSM (`transition` + ledger). Forward edges advance without `--attest`
+  because the human asserts the phase is done; illegal adjacency is still refused.
+- **Terminal (agent-gated)** — `cxc orchestrate <verb> [--attest <json>] [--session <id>]
+  [--cwd <path>] [--json]` drives the SAME `.codexclaw/sessions/<id>.json` state through
+  the un-weakened gated `transition()`. An agent MUST supply real `--attest` evidence to
+  advance; `C>D` additionally needs `checkOutput` + a passing `exitCode`.
+- **Phase footer** — every injected directive ends with `IPABCD: <phase> (<LABEL>)` so
+  the current phase is visible (codex has no status UI). After `D` closes, the resting
+  state shown is `IDLE`.
+- The invocation source is the discriminator (codexclaw has no boss token): chat =
+  human free-pass, CLI/tool = agent-gated.

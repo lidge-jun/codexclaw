@@ -10,9 +10,9 @@ never disabled). Load an on-demand skill explicitly by `$name` or SKILL.md path.
 | dev | `skills/dev/SKILL.md` | discipline | every coding task (always on) | true | none |
 | pabcd | `skills/pabcd/SKILL.md` | workflow | non-trivial multi-step build needing plan/audit/verify | false | none |
 | interview | `skills/interview/SKILL.md` | workflow | persistent I-phase clarification, contradiction scan, Q/A evidence | false | runtime ledger + PostToolUse capture planned |
-| orchestrate | `skills/orchestrate/SKILL.md` | workflow | explicit IPABCD phase control, status, reset, D close semantics | false | terminal `cxc orchestrate` planned |
-| loop | `skills/loop/SKILL.md` | workflow | HOTL repeated work-phase continuation and Stop guard policy | false | loop engine planned |
-| goalplan | `skills/goalplan/SKILL.md` | workflow | durable goals, criteria, checkpoints, steering, quality gates | false | goalplan runtime planned |
+| orchestrate | `skills/orchestrate/SKILL.md` | workflow | explicit IPABCD phase control, status, reset, D close semantics | false | none (chat free-pass + `cxc orchestrate` CLI live, L3/L4) |
+| loop | `skills/loop/SKILL.md` | workflow | HOTL repeated work-phase continuation and Stop guard policy | false | none (Stop-continuation loop + stagnation guard live, L6) |
+| goalplan | `skills/goalplan/SKILL.md` | workflow | durable goals, criteria, checkpoints, steering, quality gates | false | reuses host `goals_1.sqlite` (read-only) to arm the loop; no codexclaw-owned goal store |
 | dev-architecture | `skills/dev-architecture/SKILL.md` | surface | module boundaries, circular deps, coupling, barrels | false | none |
 | dev-debugging | `skills/dev-debugging/SKILL.md` | surface | runtime bugs, crashes, flaky tests, root-cause analysis | false | none |
 | dev-backend | `skills/dev-backend/SKILL.md` | surface | API/server/database/queue/observability work | false | none |

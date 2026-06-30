@@ -21,7 +21,18 @@ work-phases.
 - Stop guards should prevent premature termination only when concrete pending
   work remains.
 
-## Runtime Status
+## Stop-continuation (shipped, L6)
 
-L12 provides this discoverable skill surface. Durable loop runtime, Stop
-continuation, and checkpoint enforcement are tracked in later mvp_hard loops.
+The continuation is enforced by the active Stop hook (`handleStop`), not just this
+discipline doc. It returns `{"decision":"block","reason":...}` to keep the agent
+advancing while a PABCD cycle is in flight under an ACTIVE goal. Termination is total
+via:
+
+- **Guard 1** — `stop_hook_active`: codex is already in a continuation → release.
+- **Guard 2** — phase is `IDLE` / orchestration inactive / no active goal → release
+  (a plain interactive session never enters the loop; it pauses for the human at P/A/B).
+- **Context-pressure bail** — don't pile on during compaction recovery.
+- **Stagnation cap** — a bounded `stopBlockCount` per phase; after `MAX_STOP_BLOCKS`
+  consecutive blocks at the same phase with no transition, the loop releases so it can
+  never trap a session. A real transition (chat or CLI) resets the counter, so each
+  phase of a healthy P→A→B→C→D gets a fresh budget.
