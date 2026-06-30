@@ -80,28 +80,33 @@ Status: PLANNED (decision input; no code this pass) · evidence: 001-008
 
 Three buckets, grounded in what each command needs to run:
 
-### A. Portable (no-server) — split by what is ACTUALLY built vs only portable
+### A. Either SHIPPED as `cxc`, or HOST-NATIVE (Codex already provides it)
 
 `cxc` today has exactly these subcommands (`bin/codexclaw.mjs:113-160`): `enable`,
 `uninstall`/`disable`, `status`, `doctor`, `reset`, `orchestrate`, `freeze`, `gui`,
-`subagents`, `provider`. There is **no** `goal`/`project`/`skill`/`init`/`hooks`
-subcommand. So "portable" below means *fits the philosophy*, not *already shipped*.
+`subagents`, `provider`. The key reframe: cli-jaw needs `goal`/`project`/`skill`/`init`/
+`hooks` because cli-jaw **is its own orchestrator** that spawns agent CLIs. codexclaw runs
+**on top of the Codex runtime**, which already provides goal mode, cwd, skills, and hooks
+natively — so these are not gaps codexclaw must fill, they are responsibilities the host
+owns. The only `cxc` command codexclaw adds is for things Codex does NOT do (PABCD attest,
+config enable, freeze handoff).
 
-| cli-jaw command | what it does | current codexclaw state (verified) |
+| cli-jaw command | who owns it in codexclaw | verified basis |
 | --- | --- | --- |
-| `orchestrate [P/A/B/C/D/status/reset]` | PABCD phase transitions + attest | **SHIPPED** — `cxc orchestrate` + attest gate (parity DONE, see `011`) |
-| `doctor` | environment/health checks | **SHIPPED** — `cxc doctor` (`cxc-ops`) |
-| `reset` | clear local workflow state | **SHIPPED** — `cxc reset` (`cxc-ops`) |
-| `goal [set/plan/status/update/done]` | goal lifecycle | **NOT a `cxc` command (by design).** codexclaw never owns a goal DB; it only *reads* host Codex `thread_goals` read-only (`goal-active.ts`). lifecycle/plan/criteria is the unbuilt `001` goalplan, not shipped |
-| `skill` | list/inspect skills | **No `cxc skill` command.** Discovery exists only as the `skill-hub` skill + `references/catalog.md` (prose). CLI surface unbuilt |
-| `project [set/list]` | project-root registry | **Unbuilt.** No `resolveWorkspaceRoot`/project-root resolver in code (grep 0); only prose in `pabcd/SKILL.md`. This is exactly the `011` workspace-context gap |
-| `init` | scaffold local config | **No `cxc init`.** The scaffold role is absorbed into `cxc enable` (config-guard enable flow); no standalone command |
-| `hooks` | list/inspect hooks | **No `cxc hooks` command.** Hooks run via `plugin.json` registration, but there is no list/inspect CLI |
+| `orchestrate [P/A/B/C/D/status/reset]` | **`cxc` (SHIPPED)** — Codex has no PABCD, so codexclaw adds it | `cxc orchestrate` + attest gate (parity DONE, `011`) |
+| `doctor` | **`cxc` (SHIPPED)** | `cxc doctor` (`cxc-ops`) |
+| `reset` | **`cxc` (SHIPPED)** | `cxc reset` (`cxc-ops`) |
+| `goal [set/plan/status/update/done]` | **HOST-NATIVE.** Codex owns goal mode + the goal DB; codexclaw only *reads* `thread_goals` read-only and never writes it | `goal-active.ts` (reads `goals_1.sqlite`). A `cxc goal` command would duplicate the host and break the no-own-goal-DB rule |
+| `project [set/list]` | **HOST-NATIVE.** Codex runs on `cwd`, so project-root is given by the runtime; no registry needed | the only residual is the subagent-dispatch path-hint/symlink nuance in `011`, not a project-root registry |
+| `skill` | **HOST-NATIVE.** Codex discovers skills from `plugin.json` + the skills dir and renders them; codexclaw's skills are already Codex-native `$cxc-*` entries | no `cxc skill` needed; `skill-hub` is just a routing skill, not a CLI |
+| `init` | **Folded into `cxc enable`.** config-guard enable is the scaffold path | `config-guard/src/cli.ts:42` enable flow |
+| `hooks` | **HOST-NATIVE.** Codex loads/dispatches hooks from `plugin.json`; codexclaw doesn't manage a hook registry | hooks fire via `plugin.json` registration; no `cxc hooks` CLI needed |
 
-Honest summary of bucket A: only `orchestrate`/`doctor`/`reset` are actually ported.
-`goal`/`project` are deliberately *replaced* by other mechanisms (host goal-read /
-future workspace-context), and `skill`/`init`/`hooks` are either folded into `enable`
-or exist only as a skill/prose — none have a `cxc` subcommand today.
+Honest summary of bucket A: codexclaw adds a `cxc` command only where Codex has no
+equivalent (`orchestrate`/`doctor`/`reset`/`enable`/`freeze`). `goal`/`project`/`skill`/
+`hooks` are **host-native** — the Codex runtime already provides them, so there is nothing
+to port. `init` is covered by `enable`. The one genuine code item is the `011`
+workspace-context path-hint for *dispatch* (not a project registry).
 
 ### B. Partial / reshaped (capability fits, mechanism changes)
 
@@ -124,8 +129,10 @@ running server that spawns and supervises agent CLIs — exactly the boundary
 
 ### Takeaway
 
-The valuable, in-philosophy carry-overs are mostly **already done** (`orchestrate`/
-`doctor`/`reset`) or already planned under a different name (`goal`/`project`->goalplan +
-workspace-context in `001`/`011`, `browser`->agbrowse in `007`). The big remaining
-*command-shaped* item is the friction/dispatch discipline, which lands as hook logic
-(`011`), not a new `cxc` subcommand. Bucket C is not a backlog — it's the no-server line.
+Most of cli-jaw's command surface does not need porting at all: it exists because cli-jaw
+is its own orchestrator, whereas codexclaw inherits goal mode, cwd, skills, and hooks from
+the **Codex runtime** (bucket A host-native rows). codexclaw only adds a `cxc` command where
+Codex has no equivalent (`orchestrate`/`doctor`/`reset`/`enable`/`freeze`). The genuinely
+useful carry-overs are `browser`->agbrowse (`007`) and the orchestrator-internal discipline
+(friction ledger / workspace-context path-hints / seed) which lands as **hook logic**
+(`011`), not new `cxc` subcommands. Bucket C is not a backlog; it is the no-server line.

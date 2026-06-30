@@ -55,7 +55,7 @@ of that comparison are recorded in `011`/`012`.
 
 | Layer | cli-jaw has | codexclaw today | doc |
 | --- | --- | --- | --- |
-| Built-in tool surface | 37 `bin/commands/` | 10 `cxc` subcommands + hooks | `009` (port verdict) |
+| Built-in tool surface | 37 `bin/commands/` (cli-jaw is its own orchestrator) | `cxc` adds only what Codex lacks; goal/cwd/skills/hooks are host-native | `009` (port verdict) |
 | Friction ledger | sha256(tool:error) retry->escalate->stop + oscillation | none (PostToolUse hook unused for this) | `011` |
 | Seed ontology | structured entity/relationship/invariant + render | label-only string | `011` |
 | Workspace-context | project-root resolve + path-hint + symlink-escape block | prose only | `011` |
