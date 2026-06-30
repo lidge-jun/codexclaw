@@ -50,8 +50,8 @@ stamps a distinguishing marker the gate reads. Decide jointly before either loop
 | 020 | 020 | Skill-attached base-role dispatch (`items` + role×intent map + E3 hook) | `lazygap/008` + `010` | PreToolUse `^spawn_agent$` (v1) / E5 builder | E3+E5 | DONE |
 | 030 | 030 | Goalplan/cxc-loop substrate (`.codexclaw/goalplans/<slug>/` + `cxc goalplan` CLI + validate gate + reset scope) | `lazygap/001` | local artifact / CLI (E7+E8) | E2+E8 | DONE |
 | 040 | 040 | Work-aware Stop continuation (goalplan-enriched block reason + session-bound slug 030.3) | `lazygap/003` | Stop (E2) | E2 | DONE |
-| 040 | 040 | Work-aware Stop continuation (text-only enrichment of Stop reason after all guards; depends on 030.3 slug) | `lazygap/003` | Stop | E4 | PROPOSED |
-| 050 | 050 | PostCompact recovery (reset re-inject cursor; side-effect-only; does NOT bypass context-pressure guard) | `lazygap/006` | PostCompact | E6 | PROPOSED |
+| 050 | 050 | PostCompact recovery hook (9th hook; reset re-inject cursor after compaction) | `lazygap/006` | PostCompact (E4) | E4 | DONE |
+| 050 | 050 | PostCompact recovery (reset re-inject cursor; side-effect-only; does NOT bypass context-pressure guard) | `lazygap/006` | PostCompact | E6 | DONE |
 | 060 | 060 | Rule injector (SessionStart additionalContext) + comment-lint PreToolUse on `apply_patch` (fail-open) | `lazygap/004` | SessionStart / PreToolUse `^apply_patch$` | E2+E3 | PROPOSED |
 | 070 | 070 | agbrowse adapt (Tier-2 HTTP proof, `--browser never`) + ultraresearch explorer-attached protocol | `lazygap/007` | skill / bin shim | E8 | PROPOSED |
 | 080 | 080 | Friction ledger (heuristic capture + PreToolUse/Stop read gate) + workspace path-hint + seed ontology | `lazygap/001` | PreToolUse / Stop / spawn items | E1+E5 | PROPOSED |
