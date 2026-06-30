@@ -283,3 +283,52 @@ export function resolveSpawnPayloadWithSkills(input: {
   });
   return { ...base, items };
 }
+
+/**
+ * lazygap_impl 020 — role x intent dispatch map. Specialization travels as a skill
+ * attachment to one of the three base roles, never as a new role (the locked steering
+ * principle). An intent names WHAT the dispatch is for; the map picks the role.
+ */
+export type Intent =
+  | "red-team"
+  | "review"
+  | "implement"
+  | "debug"
+  | "investigate"
+  | "research";
+
+/** Map a dispatch intent to one of the three base roles. */
+export const INTENT_ROLE: Record<Intent, RoleName> = {
+  "red-team": "reviewer",
+  review: "reviewer",
+  implement: "executor",
+  debug: "executor",
+  investigate: "explorer",
+  research: "explorer",
+};
+
+/**
+ * PURE: turn a dispatch intent (+ optional surfaces / explicit skill folders) into the
+ * role and the `items` attachment for a v1 spawn. This is the one call a dispatcher makes:
+ *   routeDispatch({ intent: "red-team", surfaces: ["frontend"], task, skillsDir })
+ *   -> role "reviewer", items [cxc-dev, cxc-dev-code-reviewer, cxc-dev-frontend, TASK:...]
+ * An unknown intent is not representable (TS), but a defensive fallback maps to `explorer`
+ * (read-only) so a loosened caller can never escalate privilege via a bad intent string.
+ */
+export function routeDispatch(input: {
+  intent: Intent;
+  task: string;
+  skillsDir: string;
+  surfaces?: Surface[];
+  explicitSkillFolders?: string[];
+}): { role: RoleName; items: SpawnItem[] } {
+  const role = INTENT_ROLE[input.intent] ?? "explorer";
+  const items = buildSpawnItems({
+    role,
+    task: input.task,
+    skillsDir: input.skillsDir,
+    surfaces: input.surfaces,
+    explicitSkillFolders: input.explicitSkillFolders,
+  });
+  return { role, items };
+}

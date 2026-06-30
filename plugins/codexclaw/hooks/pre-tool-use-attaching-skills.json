@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js\" hook pre-tool-use",
+            "timeout": 10,
+            "statusMessage": "(codexclaw) Attaching skills to spawn"
+          }
+        ],
+        "matcher": "^spawn_agent$"
+      }
+    ]
+  }
+}

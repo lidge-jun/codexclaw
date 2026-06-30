@@ -208,3 +208,43 @@ test("L15: resolveSpawnPayloadWithSkills keeps role prompt in message + attaches
   // the task text rides in items too (as the trailing text item)
   assert.equal(payload.items.at(-1)?.type, "text");
 });
+
+test("020: INTENT_ROLE maps each intent to a base role (no new roles)", async () => {
+  const { INTENT_ROLE } = await import("../src/spawn-wrapper.ts");
+  assert.equal(INTENT_ROLE["red-team"], "reviewer");
+  assert.equal(INTENT_ROLE.review, "reviewer");
+  assert.equal(INTENT_ROLE.implement, "executor");
+  assert.equal(INTENT_ROLE.debug, "executor");
+  assert.equal(INTENT_ROLE.investigate, "explorer");
+  assert.equal(INTENT_ROLE.research, "explorer");
+});
+
+test("020: routeDispatch('red-team', frontend) -> reviewer + dev/code-reviewer/frontend skills", async () => {
+  const { routeDispatch } = await import("../src/spawn-wrapper.ts");
+  const { role, items } = routeDispatch({
+    intent: "red-team",
+    surfaces: ["frontend"],
+    task: "red-team this diff",
+    skillsDir: SKILLS_DIR,
+  });
+  assert.equal(role, "reviewer");
+  const names = items.filter((i) => i.type === "skill").map((i) => i.name);
+  assert.ok(names.includes("cxc-dev"));
+  assert.ok(names.includes("cxc-dev-code-reviewer"));
+  assert.ok(names.includes("cxc-dev-frontend"));
+  assert.equal(items.at(-1)?.type, "text");
+  assert.match(items.at(-1)?.text ?? "", /TASK: red-team this diff/);
+});
+
+test("020: routeDispatch('research') -> explorer + explicit skill honored", async () => {
+  const { routeDispatch } = await import("../src/spawn-wrapper.ts");
+  const { role, items } = routeDispatch({
+    intent: "research",
+    explicitSkillFolders: ["search"],
+    task: "investigate X",
+    skillsDir: SKILLS_DIR,
+  });
+  assert.equal(role, "explorer");
+  const names = items.filter((i) => i.type === "skill").map((i) => i.name);
+  assert.ok(names.includes("cxc-search"));
+});

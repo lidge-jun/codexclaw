@@ -96,7 +96,7 @@ function emptyCodexHome() {
 
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 7, "expected 7 declared hooks");
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 8, "expected 8 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
@@ -296,4 +296,35 @@ test("L010: subagent-stop hook e2e - worker w/o receipt blocks, valid receipt re
     assert.equal(ok.status, 0, ok.stderr);
     assert.equal(ok.stdout.trim(), "", "valid receipt must release");
   } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
+// lazygap_impl 020: the E3 spawn-attach hook. Fail-safe: no-op without the v1 opt-in;
+// with CODEXCLAW_SPAWN_ATTACH=v1 it rewrites a shared-shape v1 spawn to add `items`
+// (full replacement). Drives the real dist entrypoint via the manifest command.
+test("L020: pre-tool-use spawn-attach hook e2e - opt-in attaches items, no opt-in is no-op", () => {
+  const { event, hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-attaching-skills.json");
+  assert.equal(event, "PreToolUse");
+  const ep = snapshotEntrypoint(distAbs);
+  if (!ep) return;
+  const payload = {
+    hook_event_name: "PreToolUse", session_id: "s1", cwd: process.cwd(),
+    tool_name: "spawn_agent",
+    tool_input: { message: "review the frontend diff", agent_type: "explorer" },
+  };
+  // no opt-in -> allow untouched (empty stdout)
+  const noopt = runHook(ep, hookEvent, payload);
+  assert.equal(noopt.status, 0, noopt.stderr);
+  assert.equal(noopt.stdout.trim(), "", "no opt-in must be a no-op");
+
+  // opt-in -> full-replacement updatedInput with items
+  const attached = runHook(ep, hookEvent, payload, { CODEXCLAW_SPAWN_ATTACH: "v1" });
+  assert.equal(attached.status, 0, attached.stderr);
+  const out = JSON.parse(attached.stdout);
+  assert.equal(out.hookSpecificOutput.permissionDecision, "allow");
+  const ui = out.hookSpecificOutput.updatedInput;
+  assert.equal(ui.message, "review the frontend diff", "original input preserved (full replacement)");
+  assert.ok(Array.isArray(ui.items));
+  const names = ui.items.filter((i) => i.type === "skill").map((i) => i.name);
+  assert.ok(names.includes("cxc-dev"));
+  assert.ok(names.includes("cxc-dev-frontend"));
 });

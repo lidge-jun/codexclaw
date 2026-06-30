@@ -79,24 +79,39 @@ New manifest `plugins/codexclaw/hooks/pre-tool-use-attaching-skills.json`:
 }
 ```
 
-New module `subagent-config/src/spawn-attach-hook.ts`:
-1. Parse PreToolUse stdin (`tool_name`, `tool_input`, `cwd`).
-2. **v2 / strict-schema guard (FAIL-OPEN):** if `tool_input` already has no `items` field AND
-   we cannot prove the v1 surface, emit `{}` (allow untouched). NEVER deny — denying a v2 spawn
-   we cannot rewrite would break dispatch (`../lazygap/010` Q2 fail-open rule).
-3. If `tool_input` already carries `items` (caller used the E5 builder) -> allow untouched
-   (don't double-attach).
-4. Otherwise infer surfaces/intent from the spawn `message`/`agent_type` (best-effort, NARROW:
-   only attach the role baseline + any surface keyword unambiguously present), build `items`
-   via `buildSpawnItems`, and emit
+New module `subagent-config/src/spawn-attach-hook.ts`. A-gate (Curie) verified two hard
+constraints that reshape this hook:
+>   - The PreToolUse payload alone CANNOT prove v1 vs v2: both canonicalize to hook
+>     `tool_name:"spawn_agent"` (codex-rs `registry.rs:727`), and a shared-shape payload
+>     (`message`/`agent_type`/`model`...) is ambiguous. v1 accepts `items`; v2 is
+>     `deny_unknown_fields` and would REJECT an injected `items`, breaking the spawn.
+>   - `updatedInput` is a FULL REPLACEMENT of `tool_input` (codex-rs `registry.rs:122`,
+>     honored only on `permissionDecision:"allow"`, `output_parser.rs:162`), so the hook must
+>     echo back the ENTIRE original input plus `items`, never just `{items}`.
+>   - This build defaults to the **v1** surface (`MultiAgentV2=false`, `features/src/lib.rs:928`),
+>     but the hook must not bet the dispatch on that default.
+
+So the hook is FAIL-SAFE by construction — it only ever rewrites when v1 is PROVABLE, else no-op:
+1. Parse PreToolUse stdin (snake_case: `tool_name`, `tool_input`, `cwd`, `agent_type`).
+2. If `tool_input` is not an object, or already has `items` (E5 builder already attached),
+   or has a v2-only field (`task_name`, `fork_turns`) -> emit `{}` (allow untouched).
+3. **v1-proof gate:** attach ONLY when v1 is positively proven by one of:
+   (a) an explicit opt-in env `CODEXCLAW_SPAWN_ATTACH=v1` (operator asserts the v1 build), or
+   (b) a future v1-only positive signal in the payload if one appears.
+   Absent proof -> emit `{}` (allow untouched). NEVER deny — denying a spawn we cannot rewrite
+   would break dispatch.
+4. When attaching: infer surfaces NARROWLY (role baseline + only unambiguously-present surface
+   keywords), build `items` via `buildSpawnItems`, and emit the FULL replacement:
    `{ "hookSpecificOutput": { "hookEventName":"PreToolUse", "permissionDecision":"allow",
-   "updatedInput": { ...toolInput, items } } }`.
+   "updatedInput": { ...entire original tool_input..., items } } }`.
 5. Any error -> `{}` (allow untouched).
 
-> Determinism caveat (documented honestly): on v1, attachment is deterministic via updatedInput.
-> On v2 (`deny_unknown_fields`) it is structurally impossible, so the hook is a NO-OP there and
-> the E5 builder (`routeDispatch`/`resolveSpawnPayloadWithSkills`) remains the only attach path.
-> This is the precise version of the mvp_hard G4 finding, now actionable.
+> Honest determinism statement: deterministic attachment is only safe on a PROVEN v1 surface,
+> and payload-only proof is impossible, so production attachment is gated behind an explicit
+> opt-in (env). On v2 (`deny_unknown_fields`) injection is structurally impossible. Therefore
+> the E5 builder (`routeDispatch`/`resolveSpawnPayloadWithSkills`) remains the PRIMARY, always-safe
+> attach path; the E3 hook is an opt-in convenience for v1 operators, not the default mechanism.
+> This is the precise, de-risked version of the mvp_hard G4 finding.
 
 ### Invariants
 
@@ -113,9 +128,12 @@ New module `subagent-config/src/spawn-attach-hook.ts`:
 | Intent->role mapping | `routeDispatch({intent:"red-team"})` -> role `reviewer` |
 | Frontend red-team attaches the right skills | items contain `cxc-dev`, `cxc-dev-code-reviewer`, `cxc-dev-frontend`, then TASK |
 | Explicit skill honored | `explicitSkillFolders:["search"]` attaches `cxc-search` even with no surface |
-| E3 hook attaches on v1 | spawn_agent input w/o items -> updatedInput.items present, permissionDecision allow |
+| E3 hook attaches only when v1 proven | `CODEXCLAW_SPAWN_ATTACH=v1` + shared-shape input -> updatedInput is the FULL input + items, permissionDecision allow |
+| E3 hook no-ops without v1 proof | no opt-in env -> `{}` (allow untouched), even on a v1 build |
 | E3 hook no-ops when items present | input already has items -> `{}` (no double-attach) |
-| E3 hook fails open on doubt | v2-shaped / unknown / malformed input -> `{}` (allow untouched) |
+| E3 hook no-ops on v2-only fields | `task_name`/`fork_turns` present -> `{}` |
+| E3 hook fails open on doubt | unknown / malformed input / any error -> `{}` (allow untouched) |
+| updatedInput is full replacement | emitted updatedInput contains every original key plus items |
 | No-new-roles invariant | mapping only ever yields explorer/reviewer/executor |
 | Trust pairing (with 010) | a reviewer dispatch's TASK names the `EVIDENCE_RECORDED:` contract |
 

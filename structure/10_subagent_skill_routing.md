@@ -6,7 +6,7 @@ aliases: [L14 Design, subagent skill routing, cxc skill attachment]
 
 # L14 — Subagent Skill Routing + Loop/Goal Handoff (Design SOT)
 
-Status: DESIGN + SHIPPED (the E5 dispatch builder shipped in L15 — `SURFACE_SKILL`/`buildSpawnItems`/`SpawnPayload.items` in `subagent-config/src/spawn-wrapper.ts`; only the L15.2 E3 PreToolUse hook remains deferred) · 2026-06-30
+Status: DESIGN + SHIPPED (E5 dispatch builder shipped in L15 — `SURFACE_SKILL`/`buildSpawnItems`/`SpawnPayload.items`; lazygap_impl 020 added `INTENT_ROLE`/`routeDispatch` and the E3 `^spawn_agent$` PreToolUse attach hook as a FAIL-SAFE opt-in for the v1 spawn surface — `spawn-attach-hook.ts`, gated by `CODEXCLAW_SPAWN_ATTACH=v1`, no-op otherwise; v2 `deny_unknown_fields` makes injection impossible there, so E5 stays the primary path) · 2026-07-01
 
 > This is the design source of truth for the L14 hardening track. The defect
 > diagnosis with file:line evidence lives in
@@ -43,7 +43,10 @@ so the subagent actually loads the discipline instead of being told about it in 
 
 Net: routing is "split into skills" AND "attached at dispatch when routed through the E5
 builder." The remaining gap is a deterministic hook that attaches without the builder call
-(L15.2/E3); absent that, a spawn made outside the builder is still model-autonomous.
+(L15.2/E3). lazygap_impl 020 shipped that hook as a FAIL-SAFE opt-in (`spawn-attach-hook.ts`):
+with `CODEXCLAW_SPAWN_ATTACH=v1` set, a `^spawn_agent$` PreToolUse rewrite adds `items` to a
+v1 spawn; without the opt-in (or on a v2 `deny_unknown_fields` shape) it is a no-op, so a spawn
+made outside the builder without the opt-in is still model-autonomous by design.
 
 ---
 

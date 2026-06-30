@@ -44,8 +44,8 @@ stamps a distinguishing marker the gate reads. Decide jointly before either loop
 
 | Loop | decade | scope | lazygap src | surface | tier | impl-state |
 | --- | --- | --- | --- | --- | --- | --- |
-| 010 | 010 | SubagentStop evidence-receipt gate (7th hook) | `lazygap/002` + `010` | SubagentStop | E1 | PROPOSED |
-| 020 | 020 | Skill-attached base-role dispatch (`items` + role×intent map + E3 hook) | `lazygap/008` + `010` | PreToolUse `^spawn_agent$` (v1) / E5 builder | E3+E5 | PROPOSED |
+| 010 | 010 | SubagentStop evidence-receipt gate (7th hook) | `lazygap/002` + `010` | SubagentStop | E1 | DONE |
+| 020 | 020 | Skill-attached base-role dispatch (`items` + role×intent map + E3 hook) | `lazygap/008` + `010` | PreToolUse `^spawn_agent$` (v1) / E5 builder | E3+E5 | DONE |
 
 ## Runtime facts both loops rely on (from `../lazygap/010`, codex-rs verified)
 
