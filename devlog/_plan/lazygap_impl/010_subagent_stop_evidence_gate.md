@@ -1,6 +1,6 @@
 # 010 — SubagentStop Evidence-Receipt Gate (runtime impl scaffold)
 
-Status: PROPOSED (scaffold; no code yet) · 2026-07-01 · lazygap_impl loop 010 · class C3 (hook/runtime)
+Status: DONE (shipped + tested) · 2026-07-01 · lazygap_impl loop 010 · class C3 (hook/runtime)
 
 > Source gap: `../lazygap/002` (the single biggest harness hole). Runtime feasibility VERIFIED
 > in `../lazygap/010` Q1: `SubagentStop` is a real Codex hook event that fires on plugin

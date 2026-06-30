@@ -34,9 +34,13 @@ as pure functions + `.codexclaw/` files.
   (`post-tool-use-capturing-interview-answers.json:3`) and `handlePostToolUse` early-returns
   unless `tool_name==='request_user_input'` (`hook.ts`).
 - CONSEQUENCE: a clean "every tool failure → friction signature" capture is NOT shippable. 080's
-  friction capture is HEURISTIC: a broader PostToolUse matcher observes `exec_command`
-  `tool_response` text and pattern-matches failure markers (error/Traceback/non-zero hints) — it
-  cannot see apply_patch failures or true exit codes. This limit is stated, not hidden.
+  friction capture is HEURISTIC: a broader PostToolUse matcher observes shell `tool_response`
+  text and pattern-matches failure markers (error/Traceback/non-zero hints) — it cannot see
+  apply_patch failures or true exit codes. This limit is stated, not hidden.
+- MATCHER NAME: both `exec_command` and `shell_command` normalize to `tool_name:
+  HookToolName::bash()` ("Bash") in the PostToolUse payload (`unified_exec.rs:91`,
+  `shell_command.rs:251`). So the capture matcher MUST be `^Bash$`, NOT
+  `^(exec_command|shell_command)$` — the latter would match nothing.
 
 ### Friction read points (sound)
 
@@ -82,9 +86,10 @@ export function recordFriction(cwd: string, tool: string, errorText: string): Fr
 export function readFrictionVerdict(cwd: string, tool: string, errorText: string): FrictionVerdict | null; // read-only
 ```
 
-- CAPTURE (heuristic): a broader PostToolUse matcher (e.g. `^(exec_command|shell_command)$`) →
-  `handlePostToolUse` extension that scans `tool_response` text for failure markers and calls
-  `recordFriction`. Honest limit: misses apply_patch failures + true exit codes (stated above).
+- CAPTURE (heuristic): a broader PostToolUse matcher `^Bash$` (both exec_command and
+  shell_command normalize to `Bash`) → `handlePostToolUse` extension that scans `tool_response`
+  text for failure markers and calls `recordFriction`. Honest limit: misses apply_patch failures
+  + true exit codes (stated above).
 - READ (real gate): PreToolUse may DENY a tool call whose (tool,error) signature is at `stop`
   (E1); Stop may ESCALATE-block when friction is high — BUT only AFTER the goal-active arming
   guard (`hook.ts:470`), never before (would change arming).
@@ -141,7 +146,7 @@ export interface InterviewTracker { /* ...existing... */ ontologySchema?: Ontolo
 - `node --test .../test/friction.test.*` (verdict math + jsonl persist + fail-open)
 - `node --test .../test/spawn-wrapper.test.*` (path-hint item on v1, skipped on v2)
 - `node --test .../test/interview.test.*` (ontologySchema round-trip)
-- extend `hook-e2e.test.mjs`: PostToolUse exec_command failure → friction recorded; PreToolUse
+- extend `hook-e2e.test.mjs`: PostToolUse `Bash` failure → friction recorded; PreToolUse
   deny on a `stop` signature.
 - `npm run build` ; `npm test` ; `npm run gate` ; `git diff --check`.
 

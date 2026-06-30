@@ -10,7 +10,9 @@ Status: CANONICAL INDEX (scaffolding; no code shipped yet) · 2026-07-01 · foll
 >   - decade 010 = SubagentStop evidence-receipt gate (`../lazygap/002`) — SHIPPED
 >   - decade 020 = skill-attached base-role dispatch (`../lazygap/008`, the core ask) — SHIPPED
 >   - decade 030 = goalplan/cxc-loop substrate (`../lazygap/001`) — SHIPPED
-> Decades 040-080 (Stop-depth/compaction/rules/search/friction) are now SCAFFOLDED here as
+>   - decade 040 = work-aware Stop continuation (`../lazygap/003`) — SHIPPED
+>   - decade 050 = PostCompact recovery hook (`../lazygap/006`) — SHIPPED
+> Decades 060-080 (rules/lint, search adapt, friction/path-hint/seed) are now SCAFFOLDED here as
 > copy-paste-ready jawdev impl plans (impl-state PROPOSED, A-gate audited); each ships under its
 > own PABCD loop. 090 (code-intelligence) remains a confirmed NON-GOAL per `../lazygap/009`.
 

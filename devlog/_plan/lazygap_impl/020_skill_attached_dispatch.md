@@ -1,6 +1,6 @@
 # 020 — Skill-Attached Base-Role Dispatch (runtime impl scaffold)
 
-Status: PROPOSED (scaffold; no code yet) · 2026-07-01 · lazygap_impl loop 020 · class C3 (subagent routing)
+Status: DONE (shipped + tested) · 2026-07-01 · lazygap_impl loop 020 · class C3 (subagent routing)
 
 > Source gap: `../lazygap/008` (the user's CORE ask). Runtime feasibility VERIFIED in
 > `../lazygap/010` Q2. The E5 builder half ALREADY SHIPS (`spawn-wrapper.ts`); this loop adds

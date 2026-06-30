@@ -1,6 +1,6 @@
 # 030 — Goalplan / cxc-loop Substrate (runtime impl scaffold)
 
-Status: PROPOSED (scaffold; no code yet) · 2026-07-01 · lazygap_impl loop 030 · class C3 (state/runtime)
+Status: DONE (shipped + tested) · 2026-07-01 · lazygap_impl loop 030 · class C3 (state/runtime)
 
 > Source gap: `../lazygap/001` (durable loop/goalplan/quality-gate state) + its cxc-loop
 > integration section. A-gate (Boyle, gpt-5.4) verified the design against shipped code and

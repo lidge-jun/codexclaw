@@ -1,6 +1,6 @@
 # 050 — PostCompact Recovery Hook (runtime impl scaffold)
 
-Status: PROPOSED (scaffold; no code yet) · 2026-07-01 · lazygap_impl loop 050 · class C2 (hook/runtime)
+Status: DONE (shipped + tested) · 2026-07-01 · lazygap_impl loop 050 · class C2 (hook/runtime)
 
 > Source gap: `../lazygap/006` (compaction recovery). A-gate (Hegel, gpt-5.4) verified vs codex-rs
 > + shipped hook.ts and returned SAFE-TO-WRITE with one hard scope correction folded below:
@@ -21,7 +21,7 @@ NON-SUPPRESSED same-phase prompt after recovery gets the FULL directive instead 
 ## Ground Truth (read before edit — codex-rs + shipped baseline)
 
 - `PostCompact` is a real, registerable plugin hook event: `hook_config.rs:42,119`,
-  `protocol.rs:1355`. codexclaw registers 7 hooks today; this is the 8th.
+  `protocol.rs:1355`. codexclaw registered 8 hooks before this loop; this is the 9th.
 - `PostCompactCommandInput` stdin fields (codex-rs `schema.rs:362`, serialized `compact.rs:207`):
   `session_id, turn_id, agent_id?, agent_type?, transcript_path, cwd, hook_event_name, model,
   trigger`. Both `session_id` AND `cwd` are present (`schema.rs:363,371`) — so `readState`/
@@ -141,7 +141,7 @@ Register the manifest in `.codex-plugin/plugin.json` hooks array (now 8).
 | Re-inject upgrade | after reset, a non-suppressed same-phase UserPromptSubmit emits the FULL directive |
 | Pressure not bypassed | with a pressure-tail, the next prompt still suppresses (existing behavior) |
 | Fail-open | malformed stdin → `""`, no throw |
-| Manifest wired | plugin.json lists 8 hooks; e2e drives `cli.js hook post-compact` |
+| Manifest wired | plugin.json lists 9 hooks; e2e drives `cli.js hook post-compact` |
 
 ## Verification
 
@@ -149,6 +149,15 @@ Register the manifest in `.codex-plugin/plugin.json` hooks array (now 8).
 - extend `plugins/codexclaw/test/hook-e2e.test.mjs`: seed an active-cycle state, drive
   `cli.js hook post-compact`, assert `lastInjectedPhase` reset + idle no-op.
 - `npm run build` (idempotent) ; `npm test` (full suite green) ; `npm run gate` ; `git diff --check`.
+
+## Sub-passes
+
+- 050.1 — manifest + types/parser: register `post-compact-resetting-reinject-cursor.json` and
+  add `PostCompactPayload` + `parsePostCompact` (the 9th hook).
+- 050.2 — `handlePostCompact`: side-effect-only reset of `lastInjectedPhase` to null, no-op unless
+  an orchestrated cycle is in flight; never returns a directive (always `""`).
+- 050.3 — cli wiring (`hook post-compact` branch) + unit/e2e tests asserting the reset and the
+  idle no-op; confirm it does NOT bypass the context-pressure bail (which still runs first).
 
 ## PABCD plan (one full cycle)
 

@@ -1,6 +1,6 @@
 # 040 — Work-Aware Stop Continuation (runtime impl scaffold)
 
-Status: PROPOSED (scaffold; no code yet) · 2026-07-01 · lazygap_impl loop 040 · class C3 (hook/runtime)
+Status: DONE (shipped + tested) · 2026-07-01 · lazygap_impl loop 040 · class C3 (hook/runtime)
 
 > Source gap: `../lazygap/003` (Stop continuation depth). A-gate (Kuhn, gpt-5.4) verified vs
 > shipped `handleStop` and returned SAFE-TO-WRITE with 7 constraints, all folded below. Depends
@@ -155,6 +155,15 @@ key is the per-session `state.slug`. So 040 folds the minimal 030.3: `cxc goalpl
 - extend `plugins/codexclaw/test/hook-e2e.test.mjs` Stop case: with a seeded goalplan, the block
   reason names the next task; without one, the reason is unchanged.
 - `npm run build` (idempotent) ; `npm test` (full suite green) ; `npm run gate` ; `git diff --check`.
+
+## Sub-passes
+
+- 040.1 — `buildStopBlock(phase, work?)` optional enrichment arg; phase-only call stays
+  byte-identical to the shipped reason (enrichment lines appended, never replacing the command).
+- 040.2 — `readStopWorkContext(cwd, state)`: pure + fail-safe, keys strictly on session-bound
+  `state.slug` (030.3); missing/unreadable goalplan → null (today's behavior).
+- 040.3 — wire the resolver into `handleStop` AFTER all release guards; one-line `loop/SKILL.md`
+  note that Stop may NAME remaining work but still performs no transition.
 
 ## PABCD plan (one full cycle)
 
