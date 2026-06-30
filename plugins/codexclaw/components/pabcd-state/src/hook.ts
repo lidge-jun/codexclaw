@@ -20,6 +20,7 @@ import { hasStageMarkerForPhase, isContextPressureTail, readTranscriptTail } fro
 import { getGoalActiveStatus, suppressesInterview } from "./goal-active.ts";
 import { parseOrchestrateCommand } from "./orchestrate-grammar.ts";
 import { applyHumanTransition } from "./orchestrate-apply.ts";
+import { captureInterviewAnswers } from "./interview-ledger.ts";
 
 export interface UserPromptSubmitPayload {
   hook_event_name: "UserPromptSubmit";
@@ -40,6 +41,17 @@ export interface StopPayload {
   turn_id?: string;
   stop_hook_active?: boolean;
   last_assistant_message?: string | null;
+}
+
+export interface PostToolUsePayload {
+  hook_event_name: "PostToolUse";
+  session_id: string;
+  cwd: string;
+  tool_name: string;
+  tool_input: unknown;
+  tool_response: unknown;
+  tool_use_id?: string;
+  turn_id?: string;
 }
 
 const MAX_CTX = 32_000;
@@ -401,4 +413,28 @@ export function handleStop(payload: StopPayload): string {
   }
   writeState(payload.cwd, { ...state, stopBlockPhase: state.phase, stopBlockCount: nextCount });
   return buildStopBlock(state.phase);
+}
+
+/**
+ * PostToolUse handler (L12 WP4) — capture a `request_user_input` round into the
+ * durable interview ledger. PURE side-effect recorder: it never blocks or emits a
+ * decision (PostToolUse runs AFTER the tool already executed), so it always returns
+ * "". Only acts on the request_user_input tool; everything else is a no-op.
+ *
+ * Goal-mode note: the PreToolUse interview deny is a SEPARATE hook that fires before
+ * the tool runs, so when a goal is active the call is denied and never reaches here —
+ * no conflict. When goal mode is inactive (interactive interview), this records the
+ * question + answer for replay/evidence.
+ */
+export function handlePostToolUse(payload: PostToolUsePayload): string {
+  if (payload.hook_event_name !== "PostToolUse") return "";
+  if (payload.tool_name !== "request_user_input") return "";
+  captureInterviewAnswers({
+    cwd: payload.cwd,
+    sessionId: payload.session_id,
+    turnId: payload.turn_id ?? "",
+    toolInput: payload.tool_input,
+    toolResponse: payload.tool_response,
+  });
+  return "";
 }

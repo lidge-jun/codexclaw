@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js\" hook post-tool-use",
+            "timeout": 15,
+            "statusMessage": "(codexclaw) Capturing interview answer"
+          }
+        ],
+        "matcher": "^request_user_input$"
+      }
+    ]
+  }
+}

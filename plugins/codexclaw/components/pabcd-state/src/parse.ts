@@ -10,7 +10,7 @@
  *  - Stop:             codex-rs hooks/src/events/stop.rs:23-34
  *  - JS shape parity:  omo ulw-loop/comment-checker codex-hook.ts:3-13
  */
-import type { StopPayload, UserPromptSubmitPayload } from "./hook.ts";
+import type { PostToolUsePayload, StopPayload, UserPromptSubmitPayload } from "./hook.ts";
 
 function asObject(raw: string): Record<string, unknown> | null {
   const text = (raw ?? "").trim();
@@ -63,5 +63,25 @@ export function parseStop(raw: string): StopPayload | null {
     turn_id: str(obj.turn_id),
     stop_hook_active: typeof obj.stop_hook_active === "boolean" ? obj.stop_hook_active : undefined,
     last_assistant_message: str(obj.last_assistant_message) ?? null,
+  };
+}
+
+export function parsePostToolUse(raw: string): PostToolUsePayload | null {
+  const obj = asObject(raw);
+  if (!obj) return null;
+  if (obj.hook_event_name !== "PostToolUse") return null;
+  const sessionId = str(obj.session_id);
+  const cwd = str(obj.cwd);
+  const toolName = str(obj.tool_name);
+  if (sessionId === undefined || cwd === undefined || toolName === undefined) return null;
+  return {
+    hook_event_name: "PostToolUse",
+    session_id: sessionId,
+    cwd,
+    tool_name: toolName,
+    tool_input: obj.tool_input,
+    tool_response: obj.tool_response,
+    tool_use_id: str(obj.tool_use_id),
+    turn_id: str(obj.turn_id),
   };
 }

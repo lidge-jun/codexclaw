@@ -18,8 +18,8 @@
  * argv: [node, cli.ts, kind, event] e.g. ["...", "...", "hook", "user-prompt-submit"].
  */
 import { readFileSync } from "node:fs";
-import { handleStop, handleUserPromptSubmit } from "./hook.ts";
-import { parseStop, parseUserPromptSubmit } from "./parse.ts";
+import { handlePostToolUse, handleStop, handleUserPromptSubmit } from "./hook.ts";
+import { parsePostToolUse, parseStop, parseUserPromptSubmit } from "./parse.ts";
 import { handlePreToolUseFailClosed } from "./goal-gate.ts";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.ts";
 import { parseOrchestrateCliArgs, runOrchestrateCli } from "./orchestrate-cli.ts";
@@ -85,6 +85,9 @@ function main(): void {
     } else if (event === "stop") {
       const payload = parseStop(raw);
       if (payload) output = handleStop(payload);
+    } else if (event === "post-tool-use") {
+      const payload = parsePostToolUse(raw);
+      if (payload) output = handlePostToolUse(payload);
     }
   } catch {
     output = "";

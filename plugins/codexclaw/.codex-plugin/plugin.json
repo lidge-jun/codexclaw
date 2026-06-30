@@ -22,7 +22,8 @@
     "./hooks/user-prompt-submit-checking-pabcd-trigger.json",
     "./hooks/stop-checking-pabcd-continuation.json",
     "./hooks/pre-tool-use-guarding-goal-budget.json",
-    "./hooks/pre-tool-use-guarding-interview-in-goal.json"
+    "./hooks/pre-tool-use-guarding-interview-in-goal.json",
+    "./hooks/post-tool-use-capturing-interview-answers.json"
   ],
   "mcpServers": "./.mcp.json",
   "interface": {
