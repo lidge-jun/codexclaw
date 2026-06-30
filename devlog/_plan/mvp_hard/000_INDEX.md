@@ -50,6 +50,7 @@ the missing control surface using the codex-native `$ + hook` model.
 | L8 | 080 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | PROPOSED |
 | L9 | 090 | Subagent/model hardening: OMO role variants, spawn-wrapper config application, ocx catalog read-only integration | PROPOSED |
 | L10 | 100 | Memory/chat/project/worklog parity decision: codex-native scope vs explicit non-goals | PROPOSED |
+| L11 | 110 | Developer docs + public docs website: Starlight-style IA, jawdev-style reference docs, visual system, verification gates | PLANNED |
 
 ## Research result
 
@@ -60,6 +61,10 @@ the missing control surface using the codex-native `$ + hook` model.
   cli-jaw, jawcode, OMO/LazyCodex, opencodex, and codexclaw. Verdict: L2 core FSM/attest
   is no longer the principal gap; highest-leverage work is `$cxc-orchestrate`/`cxc orchestrate`
   state wiring, Stop continuation, then goalplan/loop and deployment/subagent parity.
+- `110_L11_developer_docs_website.md` — 10-agent read-only sweep for developer docs and
+  website design. Verdict: build an Astro/Starlight-style docs site with a codexclaw-specific
+  developer-control visual system, source-checked reference pages, explicit current/planned
+  badges, and docs/site verification gates.
 
 ## Interview decisions (2026-06-30, locked)
 
