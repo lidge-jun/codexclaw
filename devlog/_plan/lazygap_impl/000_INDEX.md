@@ -46,6 +46,7 @@ stamps a distinguishing marker the gate reads. Decide jointly before either loop
 | --- | --- | --- | --- | --- | --- | --- |
 | 010 | 010 | SubagentStop evidence-receipt gate (7th hook) | `lazygap/002` + `010` | SubagentStop | E1 | DONE |
 | 020 | 020 | Skill-attached base-role dispatch (`items` + role×intent map + E3 hook) | `lazygap/008` + `010` | PreToolUse `^spawn_agent$` (v1) / E5 builder | E3+E5 | DONE |
+| 030 | 030 | Goalplan/cxc-loop substrate (`.codexclaw/goalplans/<slug>/` + `cxc goalplan` CLI + validate gate + reset scope) | `lazygap/001` | local artifact / CLI (E7+E8) | E2+E8 | DONE |
 
 ## Runtime facts both loops rely on (from `../lazygap/010`, codex-rs verified)
 
