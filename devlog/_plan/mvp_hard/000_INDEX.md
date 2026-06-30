@@ -28,7 +28,9 @@ the missing control surface using the codex-native `$ + hook` model.
 ## Constraints (LOCKED)
 
 - No codex-rs fork. `/`-slash commands are a hardcoded `SlashCommand` enum and are OUT.
-- `$cxc-*` skill mentions are the discovery surface (already live, 16 skills namespaced).
+- `$cxc-*` is the project UX shorthand. In the current Codex plugin runtime, native plugin skill
+  mentions render as `$codexclaw:cxc-*`; raw `$cxc-*` must be treated as a hook-parsed shorthand
+  unless codex-rs gains a plugin alias/namespace feature.
 - State transitions are driven by the existing `UserPromptSubmit` hook parsing submitted prompt
   text, plus the `cxc` CLI (`bin/codexclaw.mjs`) for terminal-side control.
 - File-based state only (`.codexclaw/sessions/<id>.json` + `ledger.jsonl`).
@@ -45,12 +47,19 @@ the missing control surface using the codex-native `$ + hook` model.
 | L5 | 050 | `status` / `reset` / `D` chat affordances + phase footer directive + ledger-on-transition | PLANNED |
 | L6 | 060 | Stop-continuation loop with omo termination guards | PLANNED |
 | L7 | 070 | `$cxc-goalplan` + `$cxc-loop` (setGoal-equiv + continuation) + human/agent source split + pabcd skill-doc rewrite | PLANNED |
+| L8 | 080 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | PROPOSED |
+| L9 | 090 | Subagent/model hardening: OMO role variants, spawn-wrapper config application, ocx catalog read-only integration | PROPOSED |
+| L10 | 100 | Memory/chat/project/worklog parity decision: codex-native scope vs explicit non-goals | PROPOSED |
 
 ## Research result
 
 - `010_L1_parity_audit.md` — synthesized parity-gap findings. Verdict: L1-L28 MVP is shipped,
   but cli-jaw parity is not complete because chat/CLI phase-control is not wired to the FSM yet.
   L2-L7 are the follow-up hardening loops for that control-surface gap.
+- `021_L2.1_parallel_parity_sweep.md` — 20-agent read-only sweep across Codex runtime,
+  cli-jaw, jawcode, OMO/LazyCodex, opencodex, and codexclaw. Verdict: L2 core FSM/attest
+  is no longer the principal gap; highest-leverage work is `$cxc-orchestrate`/`cxc orchestrate`
+  state wiring, Stop continuation, then goalplan/loop and deployment/subagent parity.
 
 ## Interview decisions (2026-06-30, locked)
 
