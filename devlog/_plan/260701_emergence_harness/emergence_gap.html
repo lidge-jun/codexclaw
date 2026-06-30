@@ -236,6 +236,45 @@
     원격 점수 자동 검증은 불가능(훅이 못 봄) — 운영자 입력으로 정직하게 둔다.</p>
   </div>
 
+  <h2><span class="n">07</span> 제안 흐름 — IPABCD에 발산을 매핑 <span class="dim" style="font-size:12px">(알고리즘 태스크 한정, opt-in)</span></h2>
+  <div class="band fix">
+    <div class="pipe">
+      <div class="ph" style="border-top-color:var(--div)">
+        <div class="l" style="color:var(--div)">I · Diverge</div><div class="t">발산</div>
+        <div class="d">접근 아이디어 N개 생성</div>
+        <div class="trap" style="color:var(--good);border-color:var(--line)">N=2~3로 bound (autoresearch식)</div>
+      </div>
+      <div class="ph" style="border-top-color:var(--div)">
+        <div class="l" style="color:var(--div)">P · Commit</div><div class="t">계획 확정</div>
+        <div class="d">N개 구현 계획 확정</div>
+        <div class="trap" style="color:var(--good);border-color:var(--line)">알고리즘 태스크일 때만</div>
+      </div>
+      <div class="ph" style="border-top-color:var(--div)">
+        <div class="l" style="color:var(--div)">A+B · Build</div><div class="t">병렬 빌드</div>
+        <div class="d">워크트리에서 ≥2개 순차 빌드</div>
+        <div class="trap" style="color:var(--good);border-color:var(--line)">jawcode team 격리 패턴</div>
+      </div>
+      <div class="ph" style="border-top-color:var(--div)">
+        <div class="l" style="color:var(--div)">C · Compare</div><div class="t">비교</div>
+        <div class="d">같은 벤치·시드로 비교</div>
+        <div class="trap" style="color:var(--good);border-color:var(--line)">keep / discard (vibes 아님)</div>
+      </div>
+      <div class="ph" style="border-top-color:var(--div)">
+        <div class="l" style="color:var(--div)">D · Decide</div><div class="t">유저 게이트</div>
+        <div class="d">결과 기록 + 유저에 질문</div>
+        <div class="trap" style="color:var(--good);border-color:var(--line)">진행 / 재발산 / 더 탐색</div>
+      </div>
+    </div>
+    <div class="arrowrow">I → P → A+B → C → D <span style="color:var(--div)">(발산은 I·P, 수렴은 각 후보의 빌드 안에서)</span></div>
+    <p class="dim" style="margin-top:10px"><strong>N을 작게 잡는 게 핵심:</strong> 각 후보가 풀 빌드+검증이라
+    토큰 best-of-N보다 비용이 크다 → 기본 N=2~3, 정체가 증명될 때만 다양성을 키운다(Novelty Search).
+    비교는 best-of-N 재랭킹이 아니라 <code>autoresearch</code>의 고정-시드 keep/discard로 같은-시드 ablation을 강제.</p>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--div)"></span>발산 페이즈 (I·P)</span>
+      <span><span class="sw" style="background:var(--good)"></span>안전장치 / bound</span>
+    </div>
+  </div>
+
   <footer>
     근거: <code>structure/50_emergence_gap.md</code> (진단) ·
     <code>devlog/_plan/260701_emergence_harness/</code> (레퍼런스 트랙: AlphaEvolve arXiv:2506.13131,

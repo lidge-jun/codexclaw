@@ -42,6 +42,8 @@ cells) are stable and corroborated across all four sources.
 | `001_reference_landscape.md` | The 4 primary sources: AlphaEvolve, FunSearch, novelty search / MAP-Elites, Quality-Diversity. What each contributes to a divergence layer. |
 | `002_divergence_layer_design.md` | How the mechanisms map onto PABCD phases + codexclaw's hook-only / no-server constraints, with an honest E-tier split. |
 | `003_open_questions.md` | What must be resolved (in Interview) before any implementation; non-goals; falsifiability of "did the divergence layer help". |
+| `004_ipabcd_divergence_flow.md` | Operator-proposed IPABCD mapping (I=diverge N, P=N plans, A+B=worktree builds, C=keep/discard compare, D=human gate). N-sizing + compare mechanism backed by best-of-N / beam / population literature + jawcode autoresearch. |
+| `emergence_gap.html` | Single-page visual diagnosis of the convergence gap (open in browser). |
 
 ## Non-goals (restated from philosophy)
 
