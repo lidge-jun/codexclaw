@@ -1,0 +1,5 @@
+interface:
+  display_name: "cxc-interview"
+  short_description: "Persistent I-phase contradiction interview."
+policy:
+  allow_implicit_invocation: false

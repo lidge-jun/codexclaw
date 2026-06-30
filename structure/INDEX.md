@@ -105,6 +105,10 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 |--------------------|--------|------|
 | `cxc-dev` | `skills/dev/` | always-on development discipline: classifier, modularity, verification, safety |
 | `cxc-pabcd` | `skills/pabcd/` | Codex-native IPABCD workflow discipline |
+| `cxc-interview` | `skills/interview/` | explicit I-phase entry and continuous contradiction-interview contract |
+| `cxc-orchestrate` | `skills/orchestrate/` | explicit phase-control surface for chat and future CLI parity |
+| `cxc-loop` | `skills/loop/` | HOTL repeated work-phase continuation contract |
+| `cxc-goalplan` | `skills/goalplan/` | durable goalplan/checkpoint/quality-gate contract |
 | `cxc-dev-architecture` | `skills/dev-architecture/` | module boundaries, circular deps, coupling, validation placement |
 | `cxc-dev-backend` | `skills/dev-backend/` | API/server/database/backend operations guidance |
 | `cxc-dev-data` | `skills/dev-data/` | pipelines, ETL/ELT, SQL, schema/data quality |
@@ -120,7 +124,7 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-skill-hub` | `skills/skill-hub/` | on-demand skill catalog router |
 | `cxc-ast-grep` | `skills/ast-grep/` | AST-aware search/codemods using `sg` |
 
-The `dev` hub routes by change surface toward hidden `dev-*` skills. `skill-hub` documents the exposure model: `allow_implicit_invocation` controls auto-rendered skill visibility, while explicit `$skill` / path mention still works unless a skill is disabled.
+The `dev` hub routes by change surface toward hidden `dev-*` skills. `skill-hub` documents the exposure model: `allow_implicit_invocation` controls auto-rendered skill visibility, while explicit `$skill` / path mention still works unless a skill is disabled. The `interview`, `orchestrate`, `loop`, and `goalplan` skills are discoverable contracts for hardening surfaces; their deeper runtime work is tracked in `devlog/_plan/mvp_hard/`.
 
 ---
 

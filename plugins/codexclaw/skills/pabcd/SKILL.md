@@ -7,13 +7,17 @@ metadata:
 
 # PABCD Workflow
 
-A Codex-native reimplementation of the IPABCD development loop (Interview + Plan / Audit / Build / Check / Done). No orchestrator server and no external phase commands — state lives in `.codexclaw/state.json`, transitions are driven by the `pabcd-state` hook component, and this skill is the human-readable discipline the agent follows.
+A Codex-native reimplementation of the IPABCD development loop (Interview + Plan / Audit / Build / Check / Done). There is no external orchestrator server. State lives in `.codexclaw/sessions/<sessionId>.json` plus `.codexclaw/ledger.jsonl`; transitions are driven by the `pabcd-state` hook component, the chat-side `cxc-orchestrate` surface, and planned `cxc orchestrate` terminal parity.
 
 > **C0/C1 work (small in-place patches):** See `dev` §0.0 Work Classifier and §0.1 Patch Fast-Path first — full PABCD is mandatory for C4 and conditional for C3, never the baseline for every task.
 
 ## Interview Trigger
 
 When the user asks for an interview in any form — "인터뷰하자", "인터뷰 모드", "interview", "요구사항 정리", "스펙 정리해줘", "뭘 만들어야 하는지 정리", or any variation — enter Interview first. Cover the four dimensions (Goal, Constraint, Success criteria, Ontology), research the repo before asking, and confirm requirements before Plan.
+
+The discoverable `cxc-interview` skill is the explicit I-phase entry surface. In
+continuous Interview mode, the main session owns user questions and records; subagents
+only return contradiction or question candidates.
 
 Do NOT:
 - Ask scattered clarifying questions while pretending to already be planning.
@@ -76,8 +80,9 @@ See `dev` §0.0 for the full class definitions and tie-break rules.
 
 ## State
 
-- `.codexclaw/state.json` — current phase (I/P/A/B/C/D) + derived flags (incl. interview).
+- `.codexclaw/sessions/<sessionId>.json` — current phase (IDLE/I/P/A/B/C/D), derived flags, injection dedupe, and bounded interview tracker.
 - `.codexclaw/ledger.jsonl` — append-only audit trail of transitions.
+- `.codexclaw/interviews/<sessionId>.jsonl` — planned append-only Interview Q/A and contradiction ledger.
 
 ## Repository Root
 
@@ -86,5 +91,5 @@ Determine the actual working repository root before planning (resolve via `pwd -
 ## Notes
 
 - This skill is the human-readable guide; the `pabcd-state` hook handles trigger detection, directive injection, and continuation.
-- MVP: phase directives are text-only; forced gates (deny on premature transition) are layered in by the hook component as it hardens.
+- Chat-side `orchestrate <phase|status|reset>` control is the human path. The terminal `cxc orchestrate` path is planned as the attest-gated agent/CLI path.
 - Provenance: the L4 phase shipped the `dev`/`dev-*` and `pabcd` skill directories as activation shells only — frontmatter plus router stubs that proved the Codex loader shape. The real discipline content (this PABCD guide and the universal `dev` hub) was supplied later by the L12 real-content port; treat any remaining stub-era phrasing as superseded by the current body.

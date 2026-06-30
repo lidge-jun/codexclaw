@@ -13,6 +13,13 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   `dev-uiux-design`. Each ships `agents/openai.yaml` with `allow_implicit_invocation: false`.
 - `pabcd/` — Codex-native PABCD workflow (Interview/Plan/Audit/Build/Check/Done) with
   class-scaled depth. Folds in the structured-development discipline.
+- `interview/` — discoverable `cxc-interview` surface for persistent I-phase
+  contradiction discovery, question/answer recording, and readiness gating.
+- `orchestrate/` — discoverable `cxc-orchestrate` surface for explicit IPABCD
+  phase control from chat and future terminal parity.
+- `loop/` — discoverable `cxc-loop` surface for HOTL work-phase continuation.
+- `goalplan/` — discoverable `cxc-goalplan` surface for durable criteria,
+  checkpoints, steering, and quality gates.
 
 ## Conventions
 

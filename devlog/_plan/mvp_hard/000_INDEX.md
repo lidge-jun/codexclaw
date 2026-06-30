@@ -47,10 +47,12 @@ the missing control surface using the codex-native `$ + hook` model.
 | L5 | 050 | `status` / `reset` / `D` chat affordances + phase footer directive + ledger-on-transition | PLANNED |
 | L6 | 060 | Stop-continuation loop with omo termination guards | PLANNED |
 | L7 | 070 | `$cxc-goalplan` + `$cxc-loop` (setGoal-equiv + continuation) + human/agent source split + pabcd skill-doc rewrite | PLANNED |
-| L8 | 080 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | PROPOSED |
+| L8 | 080 | Reserved after L7: post-loop UX hardening slice TBD after goalplan/loop design | RESERVED |
 | L9 | 090 | Subagent/model hardening: OMO role variants, spawn-wrapper config application, ocx catalog read-only integration | PROPOSED |
 | L10 | 100 | Memory/chat/project/worklog parity decision: codex-native scope vs explicit non-goals | PROPOSED |
 | L11 | 110 | Developer docs + public docs website: Starlight-style IA, jawdev-style reference docs, visual system, verification gates | PLANNED |
+| L12 | 120 | Skill-internal hardening: cxc-interview/orchestrate/loop/goalplan skeletons + continuous Interview runtime plan | PLANNED |
+| L20 | 200 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | PROPOSED |
 
 ## Research result
 
@@ -65,6 +67,10 @@ the missing control surface using the codex-native `$ + hook` model.
   website design. Verdict: build an Astro/Starlight-style docs site with a codexclaw-specific
   developer-control visual system, source-checked reference pages, explicit current/planned
   badges, and docs/site verification gates.
+- `120_L12_skill_internal_hardening.md` — Interview-driven skill hardening plan and skeleton
+  record. Verdict: add discoverable `cxc-interview`, `cxc-orchestrate`, `cxc-loop`, and
+  `cxc-goalplan` surfaces now; implement `PostToolUse` answer capture, session-scoped
+  interview ledger, and narrow Stop guard in later runtime loops.
 
 ## Interview decisions (2026-06-30, locked)
 
@@ -81,3 +87,7 @@ the missing control surface using the codex-native `$ + hook` model.
   work-phase back to IDLE, so it is shown only on the closing turn, never as a resting badge.
 - **Architecture hub**: `structure/INDEX.md` documents the codex-runtime → plugin → skills/hooks/CLI
   → `.codexclaw/` state model (created this loop).
+- **Continuous Interview**: I phase is main-session-owned. Subagents find contradiction/question
+  candidates only; the main session asks via `request_user_input`, records answers, and reruns
+  contradiction scans. Runtime answer capture will use `PostToolUse` and a session-scoped
+  `.codexclaw/interviews/<sessionId>.jsonl` ledger; Stop guard blocks only pending/high I-phase work.

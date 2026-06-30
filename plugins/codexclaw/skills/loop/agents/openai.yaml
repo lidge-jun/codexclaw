@@ -1,0 +1,5 @@
+interface:
+  display_name: "cxc-loop"
+  short_description: "HOTL work-phase continuation."
+policy:
+  allow_implicit_invocation: false
