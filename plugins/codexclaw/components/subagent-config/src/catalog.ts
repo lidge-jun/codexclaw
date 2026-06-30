@@ -9,6 +9,12 @@
  * Native source: the Codex live catalog cache at CODEX_MODELS_CACHE_PATH, read
  * through an allowlist. When the cache is absent/unreadable, fall back to the
  * documented NATIVE_OPENAI_MODELS set (opencodex src/codex-catalog.ts:44).
+ *
+ * Slug parity (L9.2 / 092): the LIVE Codex catalog keys each entry by `slug`
+ * (bare like "gpt-5.5", or routed "provider/model"), not `id` (opencodex
+ * codex-catalog.ts:152,183). The cache reader therefore accepts BOTH `id` and
+ * `slug`, and dedup compares on the resolved key so a native slug and an ocx id
+ * for the same model collapse, native kept first.
  */
 import { existsSync, readFileSync } from "node:fs";
 
@@ -45,8 +51,21 @@ export interface CatalogDeps {
   providerStatus?: ProviderCatalogInput;
 }
 
+/** Resolve a raw catalog entry's stable key: a bare string, else its `id`, else
+ *  its `slug` (the live Codex catalog keys natives by slug, not id). */
+function entryKey(m: unknown): string | null {
+  if (typeof m === "string") return m;
+  if (m && typeof m === "object") {
+    const rec = m as { id?: unknown; slug?: unknown };
+    if (typeof rec.id === "string" && rec.id.length > 0) return rec.id;
+    if (typeof rec.slug === "string" && rec.slug.length > 0) return rec.slug;
+  }
+  return null;
+}
+
 /** Read the Codex live catalog cache (CODEX_MODELS_CACHE_PATH) through the
- *  allowlist. Returns ids or null when absent/unreadable. */
+ *  allowlist. Reads each entry by `id` OR `slug` (live catalog uses slug).
+ *  Returns ids or null when absent/unreadable. */
 export function readNativeCacheDefault(env: NodeJS.ProcessEnv = process.env): string[] | null {
   const path = env.CODEX_MODELS_CACHE_PATH;
   if (!path || !existsSync(path)) return null;
@@ -54,11 +73,13 @@ export function readNativeCacheDefault(env: NodeJS.ProcessEnv = process.env): st
     const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
     const list = Array.isArray(parsed) ? parsed : (parsed as { models?: unknown })?.models;
     if (!Array.isArray(list)) return null;
-    const ids = list
-      .map((m) => (typeof m === "string" ? m : typeof (m as { id?: unknown })?.id === "string" ? (m as { id: string }).id : null))
-      .filter((x): x is string => typeof x === "string");
-    // allowlist: only ship ids that are in the documented native set.
-    const allowed = ids.filter((id) => (NATIVE_OPENAI_MODELS as readonly string[]).includes(id));
+    const ids = list.map(entryKey).filter((x): x is string => typeof x === "string");
+    // allowlist: only ship ids that are in the documented native set. Dedup
+    // preserves first-seen order so a slug+id duplicate yields one entry.
+    const seen = new Set<string>();
+    const allowed = ids.filter(
+      (id) => (NATIVE_OPENAI_MODELS as readonly string[]).includes(id) && !seen.has(id) && (seen.add(id), true),
+    );
     return allowed.length ? allowed : null;
   } catch {
     return null;

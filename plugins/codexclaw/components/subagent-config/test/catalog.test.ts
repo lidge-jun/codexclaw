@@ -63,3 +63,43 @@ test("readNativeCacheDefault: allowlists cache ids, ignores unknowns; missing pa
   const ids = readNativeCacheDefault({ CODEX_MODELS_CACHE_PATH: p } as NodeJS.ProcessEnv);
   assert.deepEqual(ids, ["gpt-5.5", "gpt-5.4"]); // rogue-model filtered by allowlist
 });
+
+test("L9.2: readNativeCacheDefault reads entries keyed by `slug` (live Codex catalog shape)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cxc-cat-slug-"));
+  const p = join(dir, "models.json");
+  // Live Codex catalog keys natives by slug, not id (opencodex codex-catalog.ts:152,183).
+  writeFileSync(
+    p,
+    JSON.stringify({
+      models: [
+        { slug: "gpt-5.5", base_instructions: "x" },
+        { slug: "gpt-5.4-mini" },
+        { slug: "gpt-5.3-codex" }, // legacy/internal native -> filtered by allowlist
+        { slug: "openrouter/grok-4" }, // routed slug -> not a native, filtered here
+      ],
+    }),
+  );
+  const ids = readNativeCacheDefault({ CODEX_MODELS_CACHE_PATH: p } as NodeJS.ProcessEnv);
+  assert.deepEqual(ids, ["gpt-5.5", "gpt-5.4-mini"]);
+});
+
+test("L9.2: id and slug for the same model collapse to one allowlisted entry", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cxc-cat-dup-"));
+  const p = join(dir, "models.json");
+  // An entry with `id` and a separate entry with the same value as `slug`.
+  writeFileSync(p, JSON.stringify({ models: [{ id: "gpt-5.5" }, { slug: "gpt-5.5" }, { slug: "gpt-5.4" }] }));
+  const ids = readNativeCacheDefault({ CODEX_MODELS_CACHE_PATH: p } as NodeJS.ProcessEnv);
+  assert.deepEqual(ids, ["gpt-5.5", "gpt-5.4"]); // gpt-5.5 deduped
+});
+
+test("L9.2: routed provider/model ocx slugs are selectable + deduped, native first", () => {
+  const cat = buildCatalog({
+    readNativeCache: () => ["gpt-5.5"],
+    providerStatus: { mode: "provider", ocxModels: ["openrouter/grok-4", "anthropic/claude-opus", "gpt-5.5"] },
+  });
+  assert.equal(cat.state, "ocx-active");
+  // native first; routed slugs preserved as ocx; the gpt-5.5 dup against native is dropped.
+  assert.deepEqual(cat.entries.map((e) => e.id), ["gpt-5.5", "openrouter/grok-4", "anthropic/claude-opus"]);
+  assert.equal(cat.entries[0].source, "native");
+  assert.equal(cat.entries[1].source, "ocx");
+});
