@@ -7,10 +7,13 @@ import { join } from "node:path";
 import {
   buildStageHeader,
   handleUserPromptSubmit,
+  handleStop,
+  MAX_STOP_BLOCKS,
   phaseDirective,
   QUESTION_SHAPE_DIRECTIVE,
   withFooter,
   type UserPromptSubmitPayload,
+  type StopPayload,
 } from "../src/hook.ts";
 import { GOALS_DB_FILENAME } from "../src/goal-active.ts";
 import { defaultState, readState, writeState } from "../src/state.ts";
@@ -198,4 +201,101 @@ test("L10.1: question directive mandates background + recommendation-first optio
   assert.match(QUESTION_SHAPE_DIRECTIVE, /impact\/tradeoff/i);
   assert.match(QUESTION_SHAPE_DIRECTIVE, /2-3 concrete options/i);
   assert.match(QUESTION_SHAPE_DIRECTIVE, /subagents never generate/i);
+});
+
+// ── L6/060: active Stop-continuation loop with the stagnation guard ──
+
+function stop(cwd: string, sessionId: string, stopHookActive = false): StopPayload {
+  return {
+    hook_event_name: "Stop",
+    session_id: sessionId,
+    cwd,
+    transcript_path: null,
+    turn_id: "t1",
+    stop_hook_active: stopHookActive,
+    last_assistant_message: "done",
+  };
+}
+
+function midCycle(cwd: string, sessionId: string, phase: "P" | "A" | "B" | "C" | "D"): void {
+  writeState(cwd, { ...defaultState(sessionId), phase, orchestrationActive: true, lastInjectedPhase: phase });
+}
+
+test("L6: blocks mid-cycle under an active goal", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "b1", status: "active" }], () => {
+      midCycle(cwd, "b1", "B");
+      const out = handleStop(stop(cwd, "b1"));
+      const parsed = JSON.parse(out.trim());
+      assert.equal(parsed.decision, "block");
+      assert.match(parsed.reason, /B \(BUILD\)/);
+      assert.equal(readState(cwd, "b1").stopBlockCount, 1);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("L6: guard 1 — stop_hook_active releases immediately", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "b2", status: "active" }], () => {
+      midCycle(cwd, "b2", "B");
+      assert.equal(handleStop(stop(cwd, "b2", true)), "");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("L6: guard 2a — IDLE / inactive orchestration releases", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "b3", status: "active" }], () => {
+      writeState(cwd, { ...defaultState("b3"), phase: "IDLE", orchestrationActive: false });
+      assert.equal(handleStop(stop(cwd, "b3")), "");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("L6: guard 2b — no active goal releases even mid-cycle (interactive pause)", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "b4", status: "paused" }], () => {
+      midCycle(cwd, "b4", "B");
+      assert.equal(handleStop(stop(cwd, "b4")), "");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("L6: stagnation cap — releases after MAX_STOP_BLOCKS same-phase blocks", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "b5", status: "active" }], () => {
+      midCycle(cwd, "b5", "B");
+      // first MAX_STOP_BLOCKS calls block; the next releases.
+      for (let i = 0; i < MAX_STOP_BLOCKS; i++) {
+        assert.notEqual(handleStop(stop(cwd, "b5")), "", `block ${i + 1} should still block`);
+      }
+      assert.equal(readState(cwd, "b5").stopBlockCount, MAX_STOP_BLOCKS);
+      // the cap+1 call releases and resets the counter.
+      assert.equal(handleStop(stop(cwd, "b5")), "");
+      assert.equal(readState(cwd, "b5").stopBlockCount, 0);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("L6: progress resets the stagnation counter (phase change re-arms the budget)", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "b6", status: "active" }], () => {
+      midCycle(cwd, "b6", "B");
+      handleStop(stop(cwd, "b6")); // block at B, count=1
+      assert.equal(readState(cwd, "b6").stopBlockCount, 1);
+      // a real transition advances to C and resets the guard (simulated via chat wire).
+      handleUserPromptSubmit(ups("orchestrate c", cwd, "b6", "tt1"));
+      assert.equal(readState(cwd, "b6").stopBlockPhase, null);
+      assert.equal(readState(cwd, "b6").stopBlockCount, 0);
+      // now blocking at C starts a fresh count.
+      handleStop(stop(cwd, "b6"));
+      assert.equal(readState(cwd, "b6").stopBlockCount, 1);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

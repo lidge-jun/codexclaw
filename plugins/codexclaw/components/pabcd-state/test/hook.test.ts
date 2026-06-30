@@ -158,7 +158,7 @@ test("handleUserPromptSubmit: non-trigger -> '' and writes no state", () => {
   }
 });
 
-test("handleStop: always '' and creates NO ledger (passive Pass 2)", () => {
+test("handleStop: releases (no block) when there is no active cycle/goal", () => {
   const cwd = freshCwd();
   try {
     const payload: StopPayload = {
@@ -170,6 +170,7 @@ test("handleStop: always '' and creates NO ledger (passive Pass 2)", () => {
       stop_hook_active: false,
       last_assistant_message: "done",
     };
+    // fresh session: IDLE + orchestration inactive -> guard 2a releases.
     assert.equal(handleStop(payload), "");
     assert.equal(existsSync(join(cwd, STATE_DIR, LEDGER_FILE)), false);
   } finally {

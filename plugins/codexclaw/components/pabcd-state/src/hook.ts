@@ -322,6 +322,9 @@ function handleOrchestrateCommand(
       orchestrationActive: result.control === "reset" || result.control === "done" ? false : true,
       lastInjectedPhase: result.control === "reset" || result.control === "done" ? null : result.state.phase,
       injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
+      // L6: a real chat transition is progress -> reset the Stop stagnation guard.
+      stopBlockPhase: null,
+      stopBlockCount: 0,
     });
   }
   if (result.ledger) appendLedger(payload.cwd, result.ledger);
@@ -339,10 +342,53 @@ function handleOrchestrateCommand(
   return buildContextOutput("UserPromptSubmit", withFooter(directive, phase));
 }
 
+/** L6 — max consecutive Stop blocks at the SAME phase before the loop releases. */
+export const MAX_STOP_BLOCKS = 3;
+
 /**
- * Stop handler — PASSIVE in Pass 2. Intentionally a no-op: emits nothing and
- * writes no ledger/state. FSM auto-advance is deferred (see header + plan 018.2).
+ * L6 — build the Stop `{decision:"block",reason}` envelope (NOT the UserPromptSubmit
+ * additionalContext shape). The reason nudges the agent to advance the current phase.
  */
-export function handleStop(_payload: StopPayload): string {
-  return "";
+export function buildStopBlock(phase: Phase): string {
+  const label = STAGE_LABELS[phase] ?? phase;
+  const reason = [
+    `[codexclaw — continue PABCD] You are mid-cycle at ${phase} (${label}) with an active goal.`,
+    "Do the real work of this phase, then self-advance with an evidence attestation:",
+    "`cxc orchestrate <next> --attest '{\"from\":\"" + phase + "\",\"to\":\"<next>\",\"did\":\"...\"}'`",
+    "(C→D additionally needs checkOutput+exitCode). When the cycle is done, close to IDLE.",
+  ].join("\n");
+  return `${JSON.stringify({ decision: "block", reason })}\n`;
+}
+
+/**
+ * Stop handler — L6 active continuation with a bounded stagnation guard so the loop
+ * ALWAYS terminates. Blocks (keeps the agent going) only when a PABCD cycle is genuinely
+ * in flight under an active goal; releases via any of: stop_hook_active, IDLE/inactive
+ * orchestration, no active goal, context pressure, or the MAX_STOP_BLOCKS cap.
+ */
+export function handleStop(payload: StopPayload): string {
+  if (payload.hook_event_name !== "Stop") return "";
+  // guard 1: codex is already in a stop-hook-driven continuation -> release.
+  if (payload.stop_hook_active) return "";
+
+  const state = readState(payload.cwd, payload.session_id);
+  // guard 2a: no cycle in flight -> nothing to continue.
+  if (!state.orchestrationActive || state.phase === "IDLE") return "";
+  // guard 2b: only an ACTIVE goal arms the autonomous loop (interactive sessions pause).
+  if (getGoalActiveStatus(payload.session_id) !== "active") return "";
+  // bail: don't pile on during context-pressure/compaction recovery.
+  if (isContextPressureTail(readTranscriptTail(payload.transcript_path))) return "";
+
+  // stagnation guard: bound consecutive blocks at the SAME phase. A real transition
+  // resets the counter (done at the transition persist sites), so a healthy cycle gets
+  // a fresh budget per phase; a stuck agent releases after MAX_STOP_BLOCKS.
+  const samePhase = state.stopBlockPhase === state.phase;
+  const nextCount = samePhase ? state.stopBlockCount + 1 : 1;
+  if (nextCount > MAX_STOP_BLOCKS) {
+    // give up the loop: reset the counter and release so the turn can end.
+    writeState(payload.cwd, { ...state, stopBlockPhase: null, stopBlockCount: 0 });
+    return "";
+  }
+  writeState(payload.cwd, { ...state, stopBlockPhase: state.phase, stopBlockCount: nextCount });
+  return buildStopBlock(state.phase);
 }

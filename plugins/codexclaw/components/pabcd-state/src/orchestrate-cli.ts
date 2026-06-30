@@ -135,7 +135,7 @@ export function runOrchestrateCli(args: OrchestrateCliArgs): CliResult {
     const res = applyHumanTransition(state, "reset");
     if (res.noop) return { code: 0, output: `orchestrate reset: already IDLE (session ${sessionId})` };
     if (res.state) {
-      writeState(args.cwd, { ...res.state, orchestrationActive: false, lastInjectedPhase: null });
+      writeState(args.cwd, { ...res.state, orchestrationActive: false, lastInjectedPhase: null, stopBlockPhase: null, stopBlockCount: 0 });
       if (res.ledger) appendLedger(args.cwd, res.ledger);
     }
     return { code: 0, output: `orchestrate reset: → IDLE (session ${sessionId})` };
@@ -147,7 +147,8 @@ export function runOrchestrateCli(args: OrchestrateCliArgs): CliResult {
   if (!result.ok || !result.state) {
     return { code: 1, output: `orchestrate ${args.verb}: ${result.reason ?? "transition refused"}` };
   }
-  writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase });
+  // L6: a real CLI transition is progress -> reset the Stop stagnation guard.
+  writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0 });
   appendLedger(args.cwd, {
     ts: new Date().toISOString(),
     sessionId: state.sessionId,

@@ -26,6 +26,11 @@ export interface State {
   lastInjectedPhase: Phase | null;
   orchestrationActive: boolean;
   interview: InterviewTracker | null;
+  // L6 Stop-continuation stagnation guard: the phase the Stop hook last blocked on and
+  // how many consecutive blocks have happened there. A real transition resets these;
+  // the Stop loop releases once the count would exceed MAX_STOP_BLOCKS (no infinite loop).
+  stopBlockPhase: Phase | null;
+  stopBlockCount: number;
 }
 
 export interface LedgerEntry {
@@ -58,6 +63,8 @@ export function defaultState(sessionId: string, slug = ""): State {
     lastInjectedPhase: null,
     orchestrationActive: false,
     interview: null,
+    stopBlockPhase: null,
+    stopBlockCount: 0,
   };
 }
 
@@ -101,6 +108,16 @@ export function readState(cwd: string, sessionId: string): State {
           : null,
       orchestrationActive: parsed.orchestrationActive === true,
       interview: reconstructInterview(parsed.interview),
+      // L6: strict reconstruction of the stagnation-guard fields (default-safe so an
+      // old session file without them reads as a fresh counter).
+      stopBlockPhase:
+        typeof parsed.stopBlockPhase === "string" && ALL_PHASES.includes(parsed.stopBlockPhase as Phase)
+          ? (parsed.stopBlockPhase as Phase)
+          : null,
+      stopBlockCount:
+        typeof parsed.stopBlockCount === "number" && Number.isFinite(parsed.stopBlockCount) && parsed.stopBlockCount >= 0
+          ? Math.floor(parsed.stopBlockCount)
+          : 0,
     };
   } catch {
     return defaultState(sessionId);
