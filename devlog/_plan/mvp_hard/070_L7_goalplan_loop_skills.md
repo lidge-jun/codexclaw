@@ -1,6 +1,6 @@
 # L7 / 070 — `$cxc-goalplan` + `$cxc-loop` Skills + pabcd Skill-Doc Rewrite
 
-Status: P (plan) · 2026-06-30 · mvp_hard loop L7 (final) · class C3 (discoverable skills + doc truth)
+Status: DONE · 2026-06-30 · mvp_hard loop L7 · class C3 (discoverable skills + doc truth)
 
 > Final parity loop. Two new discoverable `$cxc-*` skills give the autonomous goal loop a
 > chat entry surface, and the pabcd skill doc is reconciled with the now-shipped L3/L4/L5/L6

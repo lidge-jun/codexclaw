@@ -8,11 +8,12 @@
  *
  *  - UserPromptSubmit: detect IPABCD/interview trigger → inject phase directive
  *    (idempotent per session+turn). See hook.ts/handleUserPromptSubmit.
- *  - Stop: PASSIVE in Pass 2 (no output, no ledger). See hook.ts/handleStop.
+ *  - Stop: active only under a native goal + in-flight cycle; bounded by
+ *    stop_hook_active / IDLE / no-goal / context-pressure / stagnation guards.
  *
  * State lives in files (no orchestrator server):
  *  - .codexclaw/sessions/<session>.json  (per-session phase + injectedTurns)
- *  - .codexclaw/ledger.jsonl             (audit trail; unused by passive Stop)
+ *  - .codexclaw/ledger.jsonl             (transition audit trail)
  *
  * argv: [node, cli.ts, kind, event] e.g. ["...", "...", "hook", "user-prompt-submit"].
  */

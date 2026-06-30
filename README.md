@@ -41,4 +41,8 @@ The codexclaw GUI handles subagent configuration (default model vs multi-model),
 
 ## Status
 
-MVP scaffold. See `devlog/_plan/` for the build plan.
+MVP core is implemented and the `mvp_hard` L2-L8 parity hardening track is active:
+`cxc orchestrate` is live, chat-side phase control writes the same `.codexclaw/` state,
+the IPABCD footer/status affordance is wired, and the Stop-continuation loop runs under
+an active Codex goal with a bounded stagnation guard. See `devlog/_plan/` for the shipped
+ledger and remaining hardening slices.

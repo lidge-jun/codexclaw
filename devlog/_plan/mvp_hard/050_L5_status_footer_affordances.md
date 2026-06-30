@@ -1,6 +1,6 @@
 # L5 / 050 — Phase Footer Directive + status/D Affordances + Ledger Audit
 
-Status: P (plan) · 2026-06-30 · mvp_hard loop L5 · class C3 (UX/contract, no new persistence)
+Status: DONE · 2026-06-30 · mvp_hard loop L5 · class C3 (UX/contract, no new persistence)
 
 > Much of L5's original gap list already landed in L3b/L4: `status`/`reset` chat +
 > CLI affordances exist, and ledger-on-transition fires on both paths. The remaining

@@ -83,7 +83,7 @@ Local operations that do not require a codexclaw server. `src/doctor.ts` checks 
 
 ### `components/pabcd-state`
 
-The IPABCD file-state engine and hook logic. `src/state.ts` owns `Phase = "IDLE" | "I" | "P" | "A" | "B" | "C" | "D"`, `.codexclaw/sessions/<sessionId>.json`, and `.codexclaw/ledger.jsonl`. `src/fsm.ts` defines `nextPhase()`, legal entry checks, attest-gated A->B and C->D flag flips, and D->IDLE cycle close. `src/hook.ts` detects explicit prompt triggers, injects phase directives or compact stage headers through `additionalContext`, and keeps Stop passive today. `src/goal-gate.ts` handles PreToolUse denials for budgeted `create_goal` calls and goal-mode `request_user_input`. `src/cli.ts` is the hook stdin/stdout process and `freeze` command entry.
+The IPABCD file-state engine and hook logic. `src/state.ts` owns `Phase = "IDLE" | "I" | "P" | "A" | "B" | "C" | "D"`, `.codexclaw/sessions/<sessionId>.json`, and `.codexclaw/ledger.jsonl`. `src/fsm.ts` defines `nextPhase()`, legal entry checks, attest-gated A->B and C->D flag flips, and D->IDLE cycle close. `src/hook.ts` detects explicit prompt triggers, injects phase directives or compact stage headers through `additionalContext`, and runs the bounded Stop-continuation block only for an active goal plus an in-flight cycle. `src/goal-gate.ts` handles PreToolUse denials for budgeted `create_goal` calls and goal-mode `request_user_input`. `src/cli.ts` is the hook stdin/stdout process and `freeze` / `orchestrate` command entry.
 
 Supporting files include `attest.ts` for evidence validation, `parse.ts` for hook payload parsing, `interview.ts` / `minds.ts` / `triage.ts` for interview readiness and contradiction support, `transcript.ts` for transcript-tail idempotency, and `freeze.ts` / `freeze-cli.ts` for freeze manifest handling.
 
@@ -106,7 +106,7 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-dev` | `skills/dev/` | always-on development discipline: classifier, modularity, verification, safety |
 | `cxc-pabcd` | `skills/pabcd/` | Codex-native IPABCD workflow discipline |
 | `cxc-interview` | `skills/interview/` | explicit I-phase entry and continuous contradiction-interview contract |
-| `cxc-orchestrate` | `skills/orchestrate/` | explicit phase-control surface for chat and future CLI parity |
+| `cxc-orchestrate` | `skills/orchestrate/` | explicit phase-control surface for chat and the live agent-gated `cxc orchestrate` CLI |
 | `cxc-loop` | `skills/loop/` | HOTL repeated work-phase continuation contract |
 | `cxc-goalplan` | `skills/goalplan/` | durable goalplan/checkpoint/quality-gate contract |
 | `cxc-dev-architecture` | `skills/dev-architecture/` | module boundaries, circular deps, coupling, validation placement |
@@ -136,7 +136,7 @@ The manifest wires five hook JSON files:
 |------------|-----------|---------|---------------|
 | `SessionStart` | `hooks/session-start-ensuring-provider-bridge.json` | `node "${PLUGIN_ROOT}/components/provider-bridge/dist/cli.js" hook session-start` | emits one ocx status JSON line; detect-only |
 | `UserPromptSubmit` | `hooks/user-prompt-submit-checking-pabcd-trigger.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook user-prompt-submit` | detects explicit IPABCD triggers and injects phase context |
-| `Stop` | `hooks/stop-checking-pabcd-continuation.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook stop` | currently passive no-op; continuation loop is hardening-track work |
+| `Stop` | `hooks/stop-checking-pabcd-continuation.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook stop` | active only under a native goal + in-flight PABCD cycle; bounded by re-entry, IDLE/no-goal, context-pressure, and stagnation guards |
 | `PreToolUse` `^create_goal$` | `hooks/pre-tool-use-guarding-goal-budget.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use` | denies `create_goal` inputs with keys other than `objective` |
 | `PreToolUse` `^request_user_input$` | `hooks/pre-tool-use-guarding-interview-in-goal.json` | same pabcd-state CLI | denies user-input/interview tool use while native goal mode is active or unreadable |
 
@@ -157,10 +157,12 @@ Hook processes are intentionally short: read stdin JSON, reconstruct state, opti
 | `cxc reset` | `components/cxc-ops/dist/cli.js reset` | scoped `.codexclaw/` cleanup |
 | `cxc chat-search` | `components/cxc-ops/dist/cli.js chat-search` | Codex app-server thread search wrapper |
 | `cxc gui` | `plugins/codexclaw/gui` via `npm run dev` | starts the Vite dashboard when deps exist |
+| `cxc orchestrate` | `components/pabcd-state/dist/cli.js orchestrate` | agent-gated terminal phase control over the same `.codexclaw/` session files |
 | `cxc subagents` | current CLI stub | Phase 2 surface placeholder in the root delegator |
 | `cxc provider` | current CLI stub | Phase 2 provider bridge placeholder in the root delegator |
 
-There is no `cxc orchestrate` in the current root CLI; `mvp_hard/` tracks the future parity-hardening work for chat/CLI phase control.
+`cxc reset` is an ops cleanup command for `.codexclaw/` state/generated files. `cxc orchestrate reset`
+is the PABCD phase reset command; keep the two meanings distinct when writing docs or tests.
 
 ---
 
@@ -180,7 +182,9 @@ Runtime project state is file-based and rooted at the working directory:
 
 The phase enum is `IDLE/I/P/A/B/C/D`. `IDLE` is the closed/rest state. `I` through `D` are work phases. `D` is a transition phase that closes the current work-phase back to `IDLE`; it is not the resting state. In `fsm.ts`, `nextPhase(D)` returns `IDLE`, while `nextPhase(IDLE)` returns `null` because callers choose the next entry explicitly.
 
-`ledger.jsonl` is the append-only audit-trail target exposed by `appendLedger()`. The current Stop hook does not auto-advance or spam the ledger; transition-ledger wiring is tracked in `mvp_hard/`.
+`ledger.jsonl` is the append-only audit-trail target exposed by `appendLedger()`. Chat and CLI
+phase transitions append transition entries; the Stop hook itself only blocks/releases for
+continuation and does not append ledger spam on every Stop event.
 
 `subagents.json` is owned separately by `components/subagent-config/src/store.ts` and stores role-level model/prompt selection. It is not part of the PABCD phase session JSON.
 

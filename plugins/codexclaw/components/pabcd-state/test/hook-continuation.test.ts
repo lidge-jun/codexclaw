@@ -235,6 +235,35 @@ test("L6: blocks mid-cycle under an active goal", () => {
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
+test("L8: Stop continuation prints concrete next commands, never <next>", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([
+      { thread_id: "l8-b", status: "active" },
+      { thread_id: "l8-c", status: "active" },
+      { thread_id: "l8-d", status: "active" },
+    ], () => {
+      midCycle(cwd, "l8-b", "B");
+      const bReason = JSON.parse(handleStop(stop(cwd, "l8-b")).trim()).reason;
+      assert.doesNotMatch(bReason, /<next>/);
+      assert.match(bReason, /cxc orchestrate C --attest/);
+
+      midCycle(cwd, "l8-c", "C");
+      const cReason = JSON.parse(handleStop(stop(cwd, "l8-c")).trim()).reason;
+      assert.doesNotMatch(cReason, /<next>/);
+      assert.match(cReason, /cxc orchestrate D --attest/);
+      assert.match(cReason, /checkOutput/);
+      assert.match(cReason, /exitCode/);
+
+      midCycle(cwd, "l8-d", "D");
+      const dReason = JSON.parse(handleStop(stop(cwd, "l8-d")).trim()).reason;
+      assert.doesNotMatch(dReason, /<next>/);
+      assert.match(dReason, /cxc orchestrate reset/);
+      assert.doesNotMatch(dReason, /orchestrate IDLE/);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
 test("L6: guard 1 — stop_hook_active releases immediately", () => {
   const cwd = freshCwd();
   try {

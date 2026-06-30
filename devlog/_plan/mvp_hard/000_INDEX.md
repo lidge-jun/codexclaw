@@ -20,10 +20,9 @@ Status: CANONICAL INDEX · 2026-06-30 · parity-hardening track that follows `..
 ## Why this track exists (one-liner)
 
 cli-jaw exposes an explicit, user-drivable PABCD state machine via `cli-jaw orchestrate <phase>`
-(a server CLI). codexclaw has the FSM logic (`pabcd-state` component: `transition()`, attest
-gates) but **no user-facing way to drive it from the chat composer** — the UserPromptSubmit hook
-only injects directives on loose text triggers and never writes `state.phase`. This track ports
-the missing control surface using the codex-native `$ + hook` model.
+(a server CLI). This track ports that control surface using the codex-native `$ + hook` model:
+chat-side `$cxc-orchestrate` / `orchestrate <phase>` writes the same `.codexclaw/` FSM state,
+and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 
 ## Constraints (LOCKED)
 
@@ -47,6 +46,12 @@ the missing control surface using the codex-native `$ + hook` model.
 | L5 | 050 | `status` / `reset` / `D` chat affordances + phase footer directive + ledger-on-transition | DONE |
 | L6 | 060 | Stop-continuation loop with omo termination guards + bounded stagnation guard | DONE |
 | L7 | 070 | `$cxc-goalplan` + `$cxc-loop` + orchestrate skill-doc reconciliation with shipped L3-L6 reality | DONE |
+| L8 | 080 | Post-loop UX hardening + truth sweep: stale docs, status ledger rows, Stop next-command wording | DONE |
+| L9 | 090 | Subagent/model hardening: OMO role variants, spawn-wrapper config application, ocx catalog read-only integration | PROPOSED |
+| L10 | 100 | Memory/chat/project/worklog parity decision: codex-native scope vs explicit non-goals | PROPOSED |
+| L11 | 110 | Developer docs + public docs website: Starlight-style IA, jawdev-style reference docs, visual system, verification gates | PLANNED |
+| L12 | 120 | Skill-internal hardening: cxc-interview/orchestrate/loop/goalplan skeletons + continuous Interview runtime plan | PLANNED |
+| L20 | 200 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | PROPOSED |
 
 ## Track status
 
@@ -55,18 +60,16 @@ control-surface gap from the L1 audit is closed: FSM adjacency + 4-edge attest g
 chat `$cxc-orchestrate` wire (L3), agent-gated `cxc orchestrate` CLI (L4), phase footer +
 chat D-close (L5), bounded Stop-continuation loop (L6), and skill-doc reconciliation (L7).
 Tests grew 223 → 281, all green; `cxc doctor` PASS.
-| L8 | 080 | Reserved after L7: post-loop UX hardening slice TBD after goalplan/loop design | RESERVED |
-| L9 | 090 | Subagent/model hardening: OMO role variants, spawn-wrapper config application, ocx catalog read-only integration | PROPOSED |
-| L10 | 100 | Memory/chat/project/worklog parity decision: codex-native scope vs explicit non-goals | PROPOSED |
-| L11 | 110 | Developer docs + public docs website: Starlight-style IA, jawdev-style reference docs, visual system, verification gates | PLANNED |
-| L12 | 120 | Skill-internal hardening: cxc-interview/orchestrate/loop/goalplan skeletons + continuous Interview runtime plan | PLANNED |
-| L20 | 200 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | PROPOSED |
+
+**L8 COMPLETE** (2026-06-30). Post-loop UX hardening removed stale shipped-state claims
+from README/structure/L5-L7 docs and replaced the Stop-continuation `<next>` placeholder
+with concrete phase-specific commands, including `cxc orchestrate reset` for D-close.
 
 ## Research result
 
-- `010_L1_parity_audit.md` — synthesized parity-gap findings. Verdict: L1-L28 MVP is shipped,
-  but cli-jaw parity is not complete because chat/CLI phase-control is not wired to the FSM yet.
-  L2-L7 are the follow-up hardening loops for that control-surface gap.
+- `010_L1_parity_audit.md` — synthesized parity-gap findings. Original verdict: L1-L28 MVP
+  was shipped, but cli-jaw parity was incomplete because chat/CLI phase-control was not wired
+  to the FSM. L2-L7 closed that control-surface gap; L8 reconciled the docs and Stop UX.
 - `021_L2.1_parallel_parity_sweep.md` — 20-agent read-only sweep across Codex runtime,
   cli-jaw, jawcode, OMO/LazyCodex, opencodex, and codexclaw. Verdict: L2 core FSM/attest
   is no longer the principal gap; highest-leverage work is `$cxc-orchestrate`/`cxc orchestrate`

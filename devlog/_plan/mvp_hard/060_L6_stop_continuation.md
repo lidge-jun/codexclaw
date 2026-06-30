@@ -1,9 +1,9 @@
 # L6 / 060 — Stop-Continuation Loop (omo two-guard pattern)
 
-Status: P (plan) · 2026-06-30 · mvp_hard loop L6 · class C3 (turn-control behavior, cross-session)
+Status: DONE · 2026-06-30 · mvp_hard loop L6 · class C3 (turn-control behavior, cross-session)
 
-> The Stop hook is registered and wired (`stop-checking-pabcd-continuation.json` →
-> `cli.js hook stop`) but `handleStop` is a no-op (passive Pass 2). L6 makes it active:
+> Original gap: the Stop hook was registered and wired (`stop-checking-pabcd-continuation.json` →
+> `cli.js hook stop`) while `handleStop` still released immediately. L6 made it active:
 > when a PABCD cycle is genuinely in flight, Stop returns `{"decision":"block","reason":
 > <directive>}` to keep the agent going, with omo's TWO termination guards so the loop
 > both starts and ends correctly.
@@ -36,7 +36,8 @@ termination guard fires.
 
 - omo runStopHook: guard `stop_hook_active`, context-pressure bail, state===null release,
   else `{decision:"block",reason}` ([codex-hook.ts](/Users/jun/Developer/new/700_projects/codexclaw/devlog/.lazycodex/plugins/omo/components/start-work-continuation/src/codex-hook.ts:6)).
-- codexclaw passive handleStop ([hook.ts](/Users/jun/Developer/new/700_projects/codexclaw/plugins/codexclaw/components/pabcd-state/src/hook.ts) handleStop).
+- codexclaw current `handleStop` with active-goal gating + bounded stagnation guard
+  ([hook.ts](/Users/jun/Developer/new/700_projects/codexclaw/plugins/codexclaw/components/pabcd-state/src/hook.ts) handleStop).
 - StopPayload already carries `stop_hook_active`, `transcript_path`, `session_id`, `cwd`.
 - goal-active status reader ([goal-active.ts](/Users/jun/Developer/new/700_projects/codexclaw/plugins/codexclaw/components/pabcd-state/src/goal-active.ts:62)).
 - context-pressure tail detector ([transcript.ts](/Users/jun/Developer/new/700_projects/codexclaw/plugins/codexclaw/components/pabcd-state/src/transcript.ts)).
@@ -52,9 +53,10 @@ termination guard fires.
      - context-pressure bail: `if (isContextPressureTail(readTranscriptTail(transcript_path))) return "";`
      - else return `buildStopBlock(state.phase)` =
        `JSON.stringify({decision:"block", reason:<continuation directive for state.phase>})`.
-   - NEW `export function buildStopBlock(phase): string` — the `{decision:"block",reason}`
-     envelope; reason = a short "continue the cycle: you are in <phase>, self-advance with
-     orchestrate <next> --attest …" directive (reuses phaseDirective + the footer rule).
+  - NEW `export function buildStopBlock(phase): string` — the `{decision:"block",reason}`
+    envelope; L8 hardened the reason text so it prints a phase-specific concrete command
+    such as `cxc orchestrate C --attest ...` for B, `cxc orchestrate D --attest ...` for C,
+    and `cxc orchestrate reset` for D-close.
 2. MODIFY tests `test/hook-continuation.test.ts` (the right home):
    - stop_hook_active=true → "" (guard 1).
    - IDLE / orchestration inactive → "" (guard 2a).

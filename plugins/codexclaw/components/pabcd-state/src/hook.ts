@@ -6,10 +6,10 @@
  * (session, turn): a turn_id is recorded in state.injectedTurns so a re-fired
  * hook in the same turn does not double-inject.
  *
- * Stop: PASSIVE in Pass 2 — returns "" and writes nothing. Auto-advance / ledger
- * is deferred to a later pass (L6 Stop-continuation) to avoid per-turn ledger spam.
- * (As of L2, canEnter enforces the VALID_TRANSITIONS adjacency table, so the FSM no
- * longer permits out-of-sequence jumps; the Stop wire itself is still future work.)
+ * Stop: active under a native goal only. It returns a bounded
+ * `{decision:"block",reason}` continuation envelope while a PABCD cycle is in flight,
+ * then releases on re-entry, IDLE/inactive state, no active goal, context pressure, or
+ * the same-phase stagnation cap.
  *
  * Ground truth:
  *  - payload field names: codex-rs hooks/src/events/{user_prompt_submit,stop}.rs (snake_case)
@@ -345,17 +345,27 @@ function handleOrchestrateCommand(
 /** L6 — max consecutive Stop blocks at the SAME phase before the loop releases. */
 export const MAX_STOP_BLOCKS = 3;
 
+const STOP_NEXT_COMMAND: Partial<Record<Phase, string>> = {
+  I: '`cxc orchestrate P --attest \'{"from":"I","to":"P","did":"interview complete with recorded requirements"}\'`',
+  P: '`cxc orchestrate A --attest \'{"from":"P","to":"A","did":"diff-level plan written with files and acceptance criteria"}\'`',
+  A: '`cxc orchestrate B --attest \'{"from":"A","to":"B","did":"independent audit PASS; blockers folded into plan"}\'`',
+  B: '`cxc orchestrate C --attest \'{"from":"B","to":"C","did":"implementation completed and verifier reviewed it"}\'`',
+  C: '`cxc orchestrate D --attest \'{"from":"C","to":"D","did":"checks passed","checkOutput":"<test tail>","exitCode":0}\'`',
+  D: '`cxc orchestrate reset` after the DONE summary is recorded',
+};
+
 /**
  * L6 — build the Stop `{decision:"block",reason}` envelope (NOT the UserPromptSubmit
  * additionalContext shape). The reason nudges the agent to advance the current phase.
  */
 export function buildStopBlock(phase: Phase): string {
   const label = STAGE_LABELS[phase] ?? phase;
+  const nextCommand = STOP_NEXT_COMMAND[phase] ?? "`cxc orchestrate status`";
   const reason = [
     `[codexclaw — continue PABCD] You are mid-cycle at ${phase} (${label}) with an active goal.`,
-    "Do the real work of this phase, then self-advance with an evidence attestation:",
-    "`cxc orchestrate <next> --attest '{\"from\":\"" + phase + "\",\"to\":\"<next>\",\"did\":\"...\"}'`",
-    "(C→D additionally needs checkOutput+exitCode). When the cycle is done, close to IDLE.",
+    "Do the real work of this phase, then self-advance with the concrete next command:",
+    nextCommand,
+    "C→D requires checkOutput+exitCode. D is not a resting state; close the cycle back to IDLE.",
   ].join("\n");
   return `${JSON.stringify({ decision: "block", reason })}\n`;
 }
