@@ -13,23 +13,23 @@
  * and the listen port (the 10100 link-bar surface L27/L28 need). The models
  * catalog itself is synced into codex config separately (L25 reads that).
  */
-                            
-                   
-                                 
-                      
- 
 
-                            
-                                                            
-                                      
-                                                       
 
-                             
-                                                            
-                                         
-                                                                                   
-                                                                             
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /** Parse `ocx status --json` output into the fields the bridge surfaces.
  *  Returns null when the payload is missing/unparseable. */

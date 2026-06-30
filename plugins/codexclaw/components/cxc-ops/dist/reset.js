@@ -12,19 +12,19 @@
 import { existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-                                                       
+
 
 const STATE_DIR = ".codexclaw";
 const SESSIONS_SUBDIR = "sessions";
 const LEDGER_FILE = "ledger.jsonl";
 const INTERVIEW_SUBDIR = "interview";
 
-                              
-                    
-                    
-                                                     
-                   
- 
+
+
+
+
+
+
 
 function rmIfExists(path        , removed          , absent          )       {
   if (existsSync(path)) {

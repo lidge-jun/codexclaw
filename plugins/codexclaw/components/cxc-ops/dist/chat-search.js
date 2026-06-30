@@ -6,25 +6,25 @@
  * When no app-server is reachable, it degrades to a clear "unavailable" message
  * instead of hanging or throwing — codexclaw has no server of its own to assume.
  */
-                                    
-                                                                              
-                   
-                 
-                                                              
-                           
-                                            
-                     
- 
 
-                                
-                   
-                  
- 
 
-                               
-                                           
-                            
-                                              
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 function resolveBaseUrl(opts                   )         {
   return (

@@ -16,20 +16,20 @@
  *  - an auto-resolved contradiction moves contradictions[] -> assumptions[]
  *    (recorded:true) only AFTER it is written into `## OPEN ASSUMPTIONS`.
  */
-                                                                                       
 
-                                                    
-                                                            
+
+
+
 
 /** Consecutive auto-resolves allowed before forcing a user escalation (102). */
 export const AUTO_RESOLVE_RHYTHM_LIMIT = 3;
 
-                                 
-                       
-                                                                     
-                                             
-                 
- 
+
+
+
+
+
+
 
 /**
  * Decide how a single contradiction exits, given the interview mode and how many
@@ -66,23 +66,23 @@ export function triageContradiction(
   };
 }
 
-                                    
-                                  
-                            
-                                  
- 
 
-                                   
-                                  
-                            
-                        
-                         
-                                  
-                                                                               
-                                    
-                                                                                            
-                               
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**
  * Move one contradiction out of contradictions[] and into assumptions[]. The

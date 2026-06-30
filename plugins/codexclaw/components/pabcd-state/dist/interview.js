@@ -18,13 +18,13 @@
  */
 
 export const DIMENSIONS = ["goal", "constraint", "success", "ontology"]         ;
-                                                    
+
 
 export const DIMENSION_LEVELS = ["low", "mid", "high", "max"]         ;
-                                                               
+
 
 export const CONTRADICTION_SEVERITIES = ["low", "medium", "high"]         ;
-                                                                              
+
 
 /** Cap for every tracker array (drop-oldest) to bound session JSON growth (T2). */
 export const MAX_TRACKER_ARRAY = 50;
@@ -32,40 +32,40 @@ export const MAX_TRACKER_ARRAY = 50;
 /** 102: max auto-resolve rounds per interview before forcing closure/escalation. */
 export const MAX_AUTO_ROUNDS = 5;
 
-                                 
-                        
-                  
-                    
-                             
- 
 
-                                
-                                                                            
-                                  
-                  
- 
 
-                             
-             
-               
-                                                                                    
-                    
-                                                                                      
-                                   
-                                                                                              
-                               
- 
 
-                                   
-                                                                                                  
-                                                
-                                  
-                            
-                                                                                                            
-                           
-                                                                                                      
-                                  
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 function isRecord(v         )                               {
   return typeof v === "object" && v !== null && !Array.isArray(v);

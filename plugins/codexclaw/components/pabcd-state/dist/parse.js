@@ -10,7 +10,7 @@
  *  - Stop:             codex-rs hooks/src/events/stop.rs:23-34
  *  - JS shape parity:  omo ulw-loop/comment-checker codex-hook.ts:3-13
  */
-                                                                      
+
 
 function asObject(raw        )                                 {
   const text = (raw ?? "").trim();

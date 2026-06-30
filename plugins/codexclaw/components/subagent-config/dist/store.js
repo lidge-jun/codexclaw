@@ -13,22 +13,22 @@ import { join } from "node:path";
 export const STATE_DIR = ".codexclaw";
 export const STORE_FILE = "subagents.json";
 export const ROLES = ["explorer", "reviewer", "executor"]         ;
-                                              
 
-                                           
 
-                             
-                                                                         
-                 
-                                                                                
-                       
-                                                                                   
-                                
- 
 
-                                  
-                                      
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export function defaultRole()             {
   return { mode: "default", model: null, promptOverride: null };
@@ -68,9 +68,9 @@ export function readConfig(cwd        )                  {
   } catch {
     return defaultConfig();
   }
-  const roles = (parsed && typeof parsed === "object" ? (parsed                       ).roles : null)   
-                             
-          
+  const roles = (parsed && typeof parsed === "object" ? (parsed                       ).roles : null)
+
+
                ;
   const out = defaultConfig();
   if (roles && typeof roles === "object") {
@@ -129,14 +129,14 @@ export function setRole(cwd        , role          , patch                     )
   return config;
 }
 
-                                  
-                 
-                                                                         
-                       
-                                                                    
-                         
-                                
- 
+
+
+
+
+
+
+
+
 
 /** Resolve how a role should be spawned given the current config. */
 export function resolveSpawnConfig(cwd        , role          )                  {

@@ -11,18 +11,18 @@
  * resulting flags via state.writeState. This is the runtime enforcement that 007 R-2
  * demands — the evidence gate must be structural, not prompt prose.
  */
-                                        
 
-                              
-              
-            
-                                                                                      
-              
-                                                                      
-                       
-                                                                       
-                    
- 
+
+
+
+
+
+
+
+
+
+
+
 
 /**
  * Forward dev transitions that require a valid attestation to advance (L2/020).
@@ -35,10 +35,10 @@ export const GATED_TRANSITIONS                      = new Set(["P>A", "A>B", "B>
 /** Obvious placeholders that do not count as a real narrative. */
 const PLACEHOLDER_DID = /^(tbd|todo|n\/?a|none|done|ok|\.+|-+)$/i;
 
-                               
-              
-                  
- 
+
+
+
+
 
 /**
  * Coerce an arbitrary parsed object (e.g. from --attest JSON) into an Attestation,

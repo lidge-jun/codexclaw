@@ -10,20 +10,20 @@ export const DECLARED_FEATURES = [
   "default_mode_request_user_input",
 ]         ;
 
-                                                                 
+
 
 // Flags that are OFF by default in codex and that codexclaw must turn on. Soft flags may
 // fail to enable (e.g. under-development / unavailable in this build) without failing activation.
 export const SOFT_FEATURES                      = new Set(["default_mode_request_user_input"]);
 
-                                 
-                 
-                 
-                   
- 
+
+
+
+
+
 
 // Injected runner: invokes the real `codex` binary in production, a fake in tests.
-                                                                      
+
 
 // Parse `codex features list` output into a name -> enabled map. The official CLI prints one
 // feature per line as three whitespace-padded columns — `{name}  {stage}  {true|false}` — sorted

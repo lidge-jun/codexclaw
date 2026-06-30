@@ -9,37 +9,37 @@ import {
   SOFT_FEATURES,
   featuresToEnable,
   readDeclaredState,
-                   
-                       
+
+
 } from "./features.js";
 
 export const INSTALL_MANIFEST = ".codexclaw-install.json";
 
-                             
-                        
-                                                                                     
-                              
-                                                                                
-                        
- 
 
-                                  
-             
-                      
-                     
-                            
-                                  
-                                    
- 
 
-                               
-                   
-                    
-                                                               
-                      
-                                                                  
-                     
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 function hashOrNull(path        )                {
   if (!existsSync(path)) return null;
@@ -103,4 +103,4 @@ export function activate(deps              )                  {
   return manifest;
 }
 
-                                
+

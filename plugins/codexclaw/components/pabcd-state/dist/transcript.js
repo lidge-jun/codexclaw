@@ -12,7 +12,7 @@
  * cli.ts fail-safe contract; an unreadable transcript must not block codex.
  */
 import { readFileSync } from "node:fs";
-                                        
+
 
 const TRANSCRIPT_SEARCH_BYTES = 65_536;
 

@@ -16,7 +16,7 @@
 import { DIMENSIONS,                                                                   } from "./interview.js";
 
 export const MINDS = ["contrarian", "socratic", "ontologist", "evaluator", "simplifier"]         ;
-                                          
+
 
 /** Recommended concurrent dispatch cap (no 9-way fan-out; 093/090). */
 export const MIND_CONCURRENCY_CAP = 3;
@@ -70,14 +70,14 @@ export const MIND_DISPATCH_DIRECTIVE = [
   "State + plan artifacts live under .codexclaw/ (session tracker + .codexclaw/plan/).",
 ].join("\n");
 
-                                    
-                                       
-                                                                                  
-                       
-                        
-                                  
-                   
- 
+
+
+
+
+
+
+
+
 
 function isRecord(v         )                               {
   return typeof v === "object" && v !== null && !Array.isArray(v);

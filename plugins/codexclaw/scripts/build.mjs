@@ -52,6 +52,13 @@ function rewriteSpecifiers(js) {
     .join("\n");
 }
 
+function normalizeGeneratedJs(js) {
+  return rewriteSpecifiers(js)
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n");
+}
+
 function compileComponent(name) {
   const srcDir = join(componentsRoot, name, "src");
   const distDir = join(componentsRoot, name, "dist");
@@ -63,7 +70,7 @@ function compileComponent(name) {
   for (const file of files) {
     const src = readFileSync(file, "utf8");
     let js = stripTypeScriptTypes(src, { mode: "strip" });
-    js = rewriteSpecifiers(js);
+    js = normalizeGeneratedJs(js);
     const rel = relative(srcDir, file).replace(/\.ts$/, ".js");
     const outPath = join(distDir, rel);
     mkdirSync(dirname(outPath), { recursive: true });

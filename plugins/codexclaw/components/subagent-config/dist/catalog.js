@@ -14,36 +14,36 @@ import { existsSync, readFileSync } from "node:fs";
 
 export const NATIVE_OPENAI_MODELS = ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex-spark"]         ;
 
-                                           
 
-                               
-             
-                      
-                
- 
 
-                                                                                       
 
-                          
-                      
-                          
- 
+
+
+
+
+
+
+
+
+
+
+
 
 /** Provider status as exposed by the L23 bridge (subset this loop needs). */
-                                       
-                                                                        
-                                        
-                                                                               
-                                                                                
-                       
- 
 
-                              
-                                                                            
-                                          
-                                               
-                                        
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /** Read the Codex live catalog cache (CODEX_MODELS_CACHE_PATH) through the
  *  allowlist. Returns ids or null when absent/unreadable. */

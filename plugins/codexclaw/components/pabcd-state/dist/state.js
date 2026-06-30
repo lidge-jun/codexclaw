@@ -2,40 +2,45 @@ import { mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync, rmS
 import { join } from "node:path";
 import {                        reconstructInterview, normalizeInterview, isInterviewReady } from "./interview.js";
 
-                                                               
+
 // Work phases run the IPABCD cycle; IDLE is the closed/rest state a cycle returns to.
 export const WORK_PHASES                   = ["I", "P", "A", "B", "C", "D"];
 export const ALL_PHASES                   = ["IDLE", ...WORK_PHASES];
 // PHASES kept as the work-phase list for back-compat (hook directive lookups iterate I..D).
 export const PHASES                   = WORK_PHASES;
 
-                        
-                     
-                       
-                       
- 
 
-                        
-               
-                    
-               
-                    
-               
-                              
-                          
-                                  
-                               
-                                     
- 
 
-                              
-             
-                    
-                     
-            
-                 
-                    
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export const STATE_DIR = ".codexclaw";
 export const SESSIONS_SUBDIR = "sessions";
@@ -58,6 +63,8 @@ export function defaultState(sessionId        , slug = "")        {
     lastInjectedPhase: null,
     orchestrationActive: false,
     interview: null,
+    stopBlockPhase: null,
+    stopBlockCount: 0,
   };
 }
 
@@ -101,6 +108,16 @@ export function readState(cwd        , sessionId        )        {
           : null,
       orchestrationActive: parsed.orchestrationActive === true,
       interview: reconstructInterview(parsed.interview),
+      // L6: strict reconstruction of the stagnation-guard fields (default-safe so an
+      // old session file without them reads as a fresh counter).
+      stopBlockPhase:
+        typeof parsed.stopBlockPhase === "string" && ALL_PHASES.includes(parsed.stopBlockPhase         )
+          ? (parsed.stopBlockPhase         )
+          : null,
+      stopBlockCount:
+        typeof parsed.stopBlockCount === "number" && Number.isFinite(parsed.stopBlockCount) && parsed.stopBlockCount >= 0
+          ? Math.floor(parsed.stopBlockCount)
+          : 0,
     };
   } catch {
     return defaultState(sessionId);

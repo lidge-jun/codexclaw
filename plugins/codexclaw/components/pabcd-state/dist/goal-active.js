@@ -26,7 +26,7 @@ import { createRequire } from "node:module";
 
 const nodeRequire = createRequire(import.meta.url);
 
-                                                                    
+
 
 export const GOALS_DB_FILENAME = "goals_1.sqlite";
 
@@ -36,21 +36,21 @@ export function resolveGoalsDbPath(env                    = process.env)        
   return join(home, GOALS_DB_FILENAME);
 }
 
-                                 
-                          
-                                                                       
-                  
-                                                                                  
-                                                                                                                         
- 
+
+
+
+
+
+
+
 
 function defaultOpenDb(path        )                                                                                         {
   // node:sqlite is experimental but available in Node 22+/24. Use createRequire
   // so this resolves under ESM; environments without it fall back to "unreadable".
   const { DatabaseSync } = nodeRequire("node:sqlite")                                ;
-  return new DatabaseSync(path, { readOnly: true })                
-                                                                    
-                      
+  return new DatabaseSync(path, { readOnly: true })
+
+
    ;
 }
 

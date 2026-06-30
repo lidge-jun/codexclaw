@@ -14,34 +14,34 @@
  * stays testable without touching the real .codexclaw/.
  */
 import { createHash } from "node:crypto";
-                                                       
+
 
 export const PLAN_SUBDIR = "plan";
 export const FREEZE_MANIFEST_DIR = "interview";
 export const FREEZE_MANIFEST_FILE = "freeze.json";
 
-                               
-                                                
-                 
- 
+
+
+
+
 
 /** R-5 structured evidence bundle carried into goal handoff (not objective+hash only). */
-                                 
-                                                    
-                                                                                                     
-                                                     
-                               
-                                   
- 
 
-                                 
-                              
-                            
-                                                                      
-                    
-               
-                                 
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export function sha256(content        )         {
   return createHash("sha256").update(content, "utf8").digest("hex");
@@ -67,12 +67,12 @@ export function deriveSlug(objective        )         {
   return s.length > 0 ? s : "interview";
 }
 
-                                     
-                    
-                            
-                                 
-                     
- 
+
+
+
+
+
+
 
 export function buildFreezeManifest(input                    )                 {
   const now = input.now ?? (() => new Date().toISOString());
@@ -87,11 +87,11 @@ export function buildFreezeManifest(input                    )                 {
   };
 }
 
-                                   
-                 
-                         
-                 
- 
+
+
+
+
+
 
 /**
  * Goal-start integration: recompute the current planHash and compare it to the

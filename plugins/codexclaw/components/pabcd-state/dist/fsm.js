@@ -91,11 +91,11 @@ export function deriveInterviewFlag(state       )        {
   return { ...state, flags: { ...state.flags, interview: isInterviewReady(state.interview) } };
 }
 
-                                   
-              
-                
-                  
- 
+
+
+
+
+
 
 /**
  * Structural transition with attest enforcement (007 R-2). This is the single

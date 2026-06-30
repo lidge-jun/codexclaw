@@ -21,26 +21,26 @@ import { getGoalActiveStatus, suppressesInterview } from "./goal-active.js";
 import { parseOrchestrateCommand } from "./orchestrate-grammar.js";
 import { applyHumanTransition } from "./orchestrate-apply.js";
 
-                                          
-                                      
-                     
-              
-                 
-                                  
-                   
-                 
-                           
- 
 
-                              
-                          
-                     
-              
-                                  
-                   
-                             
-                                         
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const MAX_CTX = 32_000;
 
@@ -139,6 +139,23 @@ export function buildStageHeader(phase       )         {
   return `[codexclaw — ${phase}: ${STAGE_LABELS[phase] ?? phase}]`;
 }
 
+/**
+ * L5 — phase footer directive. codex has no status UI, so the model surfaces its own
+ * PABCD state by printing one line at the end of each reply. Resting states are IDLE
+ * and the work phases I/P/A/B/C; D is the closing transition (after it, the resting
+ * state is IDLE), so a chat D-close shows IDLE.
+ */
+export function phaseFooter(phase       )         {
+  const label = STAGE_LABELS[phase] ?? phase;
+  return `At the end of your reply, print exactly one status line: \`IPABCD: ${phase} (${label})\`. D is a closing transition — once a cycle closes, the resting state is IDLE.`;
+}
+
+/** Append the phase footer to a directive/header (one blank line between). */
+export function withFooter(directive        , phase       )         {
+  if (!directive) return directive;
+  return `${directive}\n\n${phaseFooter(phase)}`;
+}
+
 /** Cap injectedTurns to the most recent N to bound state-file growth (audit blocker #2). */
 const MAX_INJECTED_TURNS = 50;
 function appendTurn(turns          , turn        )           {
@@ -211,7 +228,7 @@ export function handleUserPromptSubmit(payload                         )        
         injectedTurns: appendTurn(state.injectedTurns, turn),
       });
     }
-    return buildContextOutput("UserPromptSubmit", directive);
+    return buildContextOutput("UserPromptSubmit", withFooter(directive, trigger));
   }
 
   // fail-closed: no trigger and orchestration never activated -> stay silent.
@@ -245,7 +262,7 @@ export function handleUserPromptSubmit(payload                         )        
         injectedTurns: appendTurn(state.injectedTurns, turn),
       });
     }
-    return buildContextOutput("UserPromptSubmit", directive);
+    return buildContextOutput("UserPromptSubmit", withFooter(directive, state.phase));
   }
 
   // mode 3: same phase -> short compaction-immune stage header every turn.
@@ -255,7 +272,13 @@ export function handleUserPromptSubmit(payload                         )        
       injectedTurns: appendTurn(state.injectedTurns, turn),
     });
   }
-  return buildContextOutput("UserPromptSubmit", buildStageHeader(state.phase));
+  return buildContextOutput("UserPromptSubmit", withFooter(buildStageHeader(state.phase), state.phase));
+}
+
+/** L5 — one-line human status for the chat `orchestrate status` affordance. */
+export function renderStatusLine(phase       , flags                                                                    )         {
+  const label = STAGE_LABELS[phase] ?? phase;
+  return `[codexclaw status] IPABCD: ${phase} (${label}) · interview=${flags.interview} auditPassed=${flags.auditPassed} checkPassed=${flags.checkPassed}`;
 }
 
 /**
@@ -283,7 +306,7 @@ function handleOrchestrateCommand(
 
   // status: read-only, no state change, no ledger.
   if (result.control === "status") {
-    return buildContextOutput("UserPromptSubmit", buildStageHeader(state.phase));
+    return buildContextOutput("UserPromptSubmit", renderStatusLine(state.phase, state.flags));
   }
 
   // reset-from-IDLE no-op: recognized but nothing to write.
@@ -296,9 +319,12 @@ function handleOrchestrateCommand(
   if (result.state) {
     writeState(payload.cwd, {
       ...result.state,
-      orchestrationActive: result.control === "reset" ? false : true,
-      lastInjectedPhase: result.control === "reset" ? null : result.state.phase,
+      orchestrationActive: result.control === "reset" || result.control === "done" ? false : true,
+      lastInjectedPhase: result.control === "reset" || result.control === "done" ? null : result.state.phase,
       injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
+      // L6: a real chat transition is progress -> reset the Stop stagnation guard.
+      stopBlockPhase: null,
+      stopBlockCount: 0,
     });
   }
   if (result.ledger) appendLedger(payload.cwd, result.ledger);
@@ -306,15 +332,63 @@ function handleOrchestrateCommand(
   if (result.control === "reset") {
     return buildContextOutput("UserPromptSubmit", "[codexclaw — reset → IDLE]");
   }
+  // done: chat D-close. Inject the DONE summary directive this turn; the resting
+  // state is already IDLE, so the footer surfaces IDLE.
+  if (result.control === "done") {
+    return buildContextOutput("UserPromptSubmit", withFooter(phaseDirective("D"), "IDLE"));
+  }
   const phase = result.state?.phase ?? state.phase;
   const directive = phase === "I" ? interviewDirective() : phaseDirective(phase);
-  return buildContextOutput("UserPromptSubmit", directive);
+  return buildContextOutput("UserPromptSubmit", withFooter(directive, phase));
+}
+
+/** L6 — max consecutive Stop blocks at the SAME phase before the loop releases. */
+export const MAX_STOP_BLOCKS = 3;
+
+/**
+ * L6 — build the Stop `{decision:"block",reason}` envelope (NOT the UserPromptSubmit
+ * additionalContext shape). The reason nudges the agent to advance the current phase.
+ */
+export function buildStopBlock(phase       )         {
+  const label = STAGE_LABELS[phase] ?? phase;
+  const reason = [
+    `[codexclaw — continue PABCD] You are mid-cycle at ${phase} (${label}) with an active goal.`,
+    "Do the real work of this phase, then self-advance with an evidence attestation:",
+    "`cxc orchestrate <next> --attest '{\"from\":\"" + phase + "\",\"to\":\"<next>\",\"did\":\"...\"}'`",
+    "(C→D additionally needs checkOutput+exitCode). When the cycle is done, close to IDLE.",
+  ].join("\n");
+  return `${JSON.stringify({ decision: "block", reason })}\n`;
 }
 
 /**
- * Stop handler — PASSIVE in Pass 2. Intentionally a no-op: emits nothing and
- * writes no ledger/state. FSM auto-advance is deferred (see header + plan 018.2).
+ * Stop handler — L6 active continuation with a bounded stagnation guard so the loop
+ * ALWAYS terminates. Blocks (keeps the agent going) only when a PABCD cycle is genuinely
+ * in flight under an active goal; releases via any of: stop_hook_active, IDLE/inactive
+ * orchestration, no active goal, context pressure, or the MAX_STOP_BLOCKS cap.
  */
-export function handleStop(_payload             )         {
-  return "";
+export function handleStop(payload             )         {
+  if (payload.hook_event_name !== "Stop") return "";
+  // guard 1: codex is already in a stop-hook-driven continuation -> release.
+  if (payload.stop_hook_active) return "";
+
+  const state = readState(payload.cwd, payload.session_id);
+  // guard 2a: no cycle in flight -> nothing to continue.
+  if (!state.orchestrationActive || state.phase === "IDLE") return "";
+  // guard 2b: only an ACTIVE goal arms the autonomous loop (interactive sessions pause).
+  if (getGoalActiveStatus(payload.session_id) !== "active") return "";
+  // bail: don't pile on during context-pressure/compaction recovery.
+  if (isContextPressureTail(readTranscriptTail(payload.transcript_path))) return "";
+
+  // stagnation guard: bound consecutive blocks at the SAME phase. A real transition
+  // resets the counter (done at the transition persist sites), so a healthy cycle gets
+  // a fresh budget per phase; a stuck agent releases after MAX_STOP_BLOCKS.
+  const samePhase = state.stopBlockPhase === state.phase;
+  const nextCount = samePhase ? state.stopBlockCount + 1 : 1;
+  if (nextCount > MAX_STOP_BLOCKS) {
+    // give up the loop: reset the counter and release so the turn can end.
+    writeState(payload.cwd, { ...state, stopBlockPhase: null, stopBlockCount: 0 });
+    return "";
+  }
+  writeState(payload.cwd, { ...state, stopBlockPhase: state.phase, stopBlockCount: nextCount });
+  return buildStopBlock(state.phase);
 }
