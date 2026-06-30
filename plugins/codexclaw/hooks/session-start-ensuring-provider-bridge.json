@@ -7,7 +7,7 @@
             "type": "command",
             "command": "node \"${PLUGIN_ROOT}/components/provider-bridge/dist/cli.js\" hook session-start",
             "timeout": 20,
-            "statusMessage": "(codexclaw) Ensuring provider bridge"
+            "statusMessage": "(codexclaw) Detecting provider bridge"
           }
         ]
       }

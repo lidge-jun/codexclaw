@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 /**
- * codexclaw CLI entry (MVP stub).
+ * codexclaw CLI entry.
  *
  * Commands:
  *   codexclaw enable              activate declared codex feature flags (config-guard)
  *   codexclaw uninstall|disable   revert flags codexclaw enabled (config-guard)
  *   codexclaw status              show declared feature-flag state (config-guard)
- *   codexclaw subagents [...]     view/edit subagent model & prompt config (Phase 2)
- *   codexclaw provider <on|off>   toggle the opencodex provider bridge (Phase 2)
- *   codexclaw gui                 launch the codexclaw web dashboard (Phase 2)
+ *   codexclaw doctor              run plugin health checks (cxc-ops)
+ *   codexclaw reset               remove scoped .codexclaw state/generated files (cxc-ops)
+ *   codexclaw chat-search         call Codex app-server thread/search when available (cxc-ops)
+ *   codexclaw orchestrate         drive IPABCD state with agent-gated attest evidence
+ *   codexclaw gui                 launch the codexclaw web dashboard
+ *   codexclaw subagents|provider  currently placeholder root commands
  *
- * enable/disable/status delegate to the compiled config-guard CLI so install-time
- * activation is a real end-to-end path, not a stub.
+ * This file is a thin delegator over compiled component CLIs; provider detection is
+ * read-only and does not toggle or ensure opencodex.
  */
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";

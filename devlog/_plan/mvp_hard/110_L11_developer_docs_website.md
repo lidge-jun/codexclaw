@@ -1,10 +1,11 @@
 # L11 / 110 - Developer Docs + Website Design Plan
 
-Status: DONE (research/design record only) - 2026-06-30 - 10-agent sweep requested by user
+Status: DONE (research/design + source-of-truth reconciliation) - 2026-06-30 - 10-agent sweep requested by user
 
 > Scope: decide whether codexclaw can ship developer documentation plus a public docs
 > website, using sibling references `../cli-jaw`, `../opencodex`, the current
-> codexclaw repo, and the `cxc-dev-*` skills. No implementation in this pass.
+> codexclaw repo, and the `cxc-dev-*` skills; then reconcile stale source-of-truth
+> wording discovered before website implementation. No docs-site scaffold is shipped in this pass.
 
 ## Verdict
 
@@ -17,7 +18,8 @@ Recommended shape:
 - Position codexclaw as a **Codex plugin layer**, not a jawcode/cli-jaw harness and not
   an opencodex provider proxy.
 - Publish docs with explicit `current`, `planned`, and `deferred` badges so the site does
-  not overclaim L4-L10 hardening work.
+  not overclaim L9, L12+, L20, or future hardening work. L4-L8 and L10 are current
+  source-of-truth records, not future promises.
 
 ## Dispatch Summary
 
@@ -86,15 +88,22 @@ Live root commands:
 - `chat-search`
 - `gui`
 
+Live control surfaces:
+- `cxc orchestrate` terminal control
+- chat `orchestrate status`, `orchestrate reset`, and `orchestrate D`
+- IPABCD footer/status affordance
+- Stop continuation under an active native goal plus an in-flight PABCD cycle
+- `$cxc-goalplan` / `$cxc-loop` skill contracts
+
 Placeholder or planned areas:
 - `subagents` CLI
 - `provider` CLI
-- `cxc orchestrate` terminal control
-- richer PABCD `status` / `reset` UX
-- Stop continuation
-- `$cxc-goalplan` / `$cxc-loop`
+- deeper L9 spawn-wrapper/operator surface work
+- L12+ Interview runtime ledger/capture/guard work
+- L20 install/deploy/npx packaging work
 
-Docs must not imply these are shipped until their loop docs and tests are complete.
+Docs must distinguish shipped control surfaces from remaining placeholder/runtime-deferred
+areas.
 
 ### Current skill reality
 
@@ -177,8 +186,8 @@ First viewport:
 Must split three tracks:
 - Marketplace/personal plugin install.
 - Local dogfood with `scripts/dev-symlink.sh`.
-- Activation with `node bin/codexclaw.mjs enable` today, and future `cxc enable` once
-  npm/npx packaging is real.
+- Activation with `node bin/codexclaw.mjs enable` from a source checkout, or `cxc enable`
+  when installed/symlinked locally. npm/npx distribution remains future.
 
 Must include hook-trust caveats:
 - first start after install/upgrade requires Codex hook review;
@@ -208,12 +217,13 @@ flowchart LR
 Must separate:
 - natural-language trigger;
 - strict `$cxc-orchestrate` / `orchestrate <phase>` chat command;
-- future `cxc orchestrate` CLI;
-- human chat free-pass vs future agent/CLI attest-gated path;
+- live agent-gated `cxc orchestrate` CLI;
+- human chat free-pass vs agent/CLI attest-gated path;
 - `D` as a closing action, not a resting badge.
 
-Must state that Stop continuation is currently planned, not shipped, unless L6 has
-landed when the docs are implemented.
+Must state that Stop continuation is shipped under an active native goal plus an
+in-flight PABCD cycle, bounded by re-entry, IDLE/no-goal, context-pressure, and
+stagnation guards.
 
 ### Skills
 
@@ -234,7 +244,7 @@ Say:
 - native model fallback remains valid;
 - provider setup, auth, account pools, sidecars, and `/v1/responses` proxy behavior
   belong to opencodex docs;
-- codexclaw never runs `ocx ensure` as a hidden mutation.
+- codexclaw never runs `ocx ensure` as an unannounced mutation.
 
 ### Developer Reference
 
@@ -293,7 +303,7 @@ Required before public launch:
 - architecture diagram: Codex runtime -> plugin -> skills/hooks/MCP/CLI -> `.codexclaw`;
 - GUI screenshots: Subagents, Prompts, and provider link bar states;
 - terminal transcript screenshots or rendered blocks for `cxc doctor`, `cxc status`,
-  `cxc gui`, and future `cxc orchestrate`;
+  `cxc gui`, and live `cxc orchestrate`;
 - PABCD phase diagram with current/planned command surfaces;
 - skills catalog table generated from source metadata or checked by test.
 
@@ -331,28 +341,32 @@ Suggested stale-doc tests:
 - parse plugin manifest hook paths and compare to `reference/hooks.md`;
 - parse `skills/*/agents/openai.yaml` implicit flags and compare to `guides/skills.md`;
 - assert public docs never mention `.codexclaw/state.json`;
-- assert provider bridge docs do not claim hidden `ocx ensure`.
+- assert provider bridge docs do not claim unannounced `ocx ensure`.
 
 ## Stale Docs Queue
 
-Fix before or during L11.2:
-- `README.md` still describes provider bridge as `ocx ensure / graceful skip`; source
-  is detect-only.
-- `plugins/codexclaw/skills/pabcd/SKILL.md` still says "no external phase commands"
-  and `.codexclaw/state.json`; source has explicit orchestrate parser/apply files and
-  session-scoped state.
-- `plugins/codexclaw/components/subagent-config/src/mcp.ts` header says zero tools,
-  but the server advertises three tools.
-- README and skills README understate non-dev skills such as `search`, `ast-grep`,
-  and `skill-hub`.
+Resolved in this L11 reconciliation pass:
+- `README.md` provider bridge wording now says detect-only / graceful native path.
+- `bin/codexclaw.mjs` header now lists live `doctor`, `reset`, `chat-search`, and
+  `orchestrate` delegations and keeps `subagents` / `provider` as placeholders.
+- `plugins/codexclaw/hooks/session-start-ensuring-provider-bridge.json` status text now
+  says detecting, not ensuring.
+- `plugins/codexclaw/components/subagent-config/src/mcp.ts` header now matches the
+  advertised `subagents_get`, `subagents_set`, and `catalog_list` tools.
+- `plugins/codexclaw/components/provider-bridge/package.json` now describes detect-only
+  status probing.
+- `structure/INDEX.md`, `plugins/codexclaw/skills/README.md`, and skill-hub metadata now
+  describe on-demand skills without calling them hidden.
+
+Still valid for future docs implementation:
 - `cxc status` / `cxc reset` docs need namespacing: current commands are config/ops,
-  not PABCD phase status/reset.
+  while `cxc orchestrate status/reset` are PABCD phase-control commands.
 
 ## Non-Goals
 
 - No codex-rs slash-command fork.
 - No jaw server, employee/boss model, or jawcode harness clone.
-- No hidden opencodex provider setup or `ocx ensure`.
+- No unannounced opencodex provider setup or `ocx ensure`.
 - No public docs that claim planned features are shipped.
 - No marketing-only site without working developer references.
 

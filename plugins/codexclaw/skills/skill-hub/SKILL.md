@@ -2,7 +2,7 @@
 name: cxc-skill-hub
 description: "Read when a task needs a capability beyond the always-on dev discipline — architecture, debugging, backend, data, frontend, UI/UX, testing, code review, security, devops, scaffolding, PABCD planning, or web search. Open references/catalog.md, find the on-demand skill by load_when, then explicitly load it. Triggers: which skill, what skills exist, capability beyond dev, skill catalog, load a skill."
 metadata:
-  short-description: "On-demand catalog router: maps a need to the right hidden skill, then tells you to load it explicitly."
+  short-description: "On-demand catalog router: maps a need to the right explicit skill, then tells you to load it."
 ---
 
 # skill-hub — Capability Catalog Router
@@ -19,8 +19,8 @@ Two independent switches decide whether a skill is reachable:
 - `allow_implicit_invocation` (in `agents/openai.yaml`) controls **automatic
   visibility**. `true` lists the skill in the auto-rendered
   `<skills_instructions>` block; `false` removes it from that list but keeps
-  explicit `$skill` / SKILL.md-path mention working. Call this "grep-only
-  discovery": hidden from the default list, still loadable on purpose.
+  explicit `$skill` / SKILL.md-path mention working. Call this "explicit
+  discovery": not auto-listed by default, still loadable on purpose.
 - `enabled` (config `[[skills.config]]`) is the hard switch. `enabled=false`
   blocks **both** the implicit and the explicit path.
 
@@ -40,7 +40,7 @@ host-provided by Codex (not a codexclaw skill) and is not in the implicit set.
    debugging, a workflow like PABCD, or web search).
 2. Open `references/catalog.md` and find the row whose `load_when` matches.
 3. Explicitly load that skill (by `$name` or its SKILL.md path). Do not expect it
-   to appear automatically — on-demand skills are hidden by design.
+   to appear automatically — on-demand skills are implicit-off by design.
 4. For renderer/diagram needs, read `references/renderers.md` first: some cli-jaw
    renderers have no codex-native equivalent.
 

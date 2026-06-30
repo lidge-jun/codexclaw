@@ -49,7 +49,7 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 | L8 | 080 | Post-loop UX hardening + truth sweep: stale docs, status ledger rows, Stop next-command wording | DONE |
 | L9 | 090 | Subagent/model hardening parity plan: live spawn-wrapper gap, slug catalog parity, operator surface policy | PLANNED |
 | L10 | 100 | Memory/chat/project/task/worklog parity decision: codex-native scope vs explicit non-goals | DONE |
-| L11 | 110 | Developer docs + public docs website: Starlight-style IA, jawdev-style reference docs, visual system, verification gates | PLANNED |
+| L11 | 110 | Developer docs source-of-truth reconciliation + public docs website design record; website implementation remains deferred | DONE |
 | L12 | 120 | Skill-internal hardening: cxc-interview/orchestrate/loop/goalplan skeletons + continuous Interview runtime plan | PLANNED |
 | L20 | 200 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | PROPOSED |
 
@@ -70,6 +70,11 @@ surface-by-surface: `cxc-search` is public/current lookup, `cxc chat-search` is 
 Codex app-server `thread/search` wrapper, tasks map to native `update_plan`, project state
 is repo-local `.codexclaw/`, and work evidence remains devlog plus PABCD ledger.
 
+**L11 COMPLETE** (2026-06-30). The developer-docs website artifact remains a research/design
+record, not a shipped docs-site. Source-of-truth wording was reconciled with the current
+runtime: live `cxc orchestrate`, Stop continuation, on-demand `cxc-*` skills, detect-only
+provider bridge, and real subagent MCP tools.
+
 ## Research result
 
 - `010_L1_parity_audit.md` — synthesized parity-gap findings. Original verdict: L1-L28 MVP
@@ -83,10 +88,10 @@ is repo-local `.codexclaw/`, and work evidence remains devlog plus PABCD ledger.
   memory/chat/project/task/worklog parity. Verdict: no aggregate parity claim; each surface is
   delegated to native Codex, a thin Codex runtime wrapper, project-local state, or an explicit
   non-goal.
-- `110_L11_developer_docs_website.md` — 10-agent read-only sweep for developer docs and
-  website design. Verdict: build an Astro/Starlight-style docs site with a codexclaw-specific
-  developer-control visual system, source-checked reference pages, explicit current/planned
-  badges, and docs/site verification gates.
+- `110_L11_developer_docs_website.md` — 10-agent read-only sweep plus source-of-truth
+  reconciliation for developer docs and website design. Verdict: keep the docs-site as a
+  deferred Astro/Starlight-style implementation while current docs accurately distinguish
+  shipped control surfaces from planned/deferred surfaces.
 - `120_L12_skill_internal_hardening.md` — Interview-driven skill hardening plan and skeleton
   record. Verdict: add discoverable `cxc-interview`, `cxc-orchestrate`, `cxc-loop`, and
   `cxc-goalplan` surfaces now; implement `PostToolUse` answer capture, session-scoped

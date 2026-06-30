@@ -36,7 +36,7 @@ graph LR
 
 codexclaw is a **single Codex plugin**, not a server. It reuses the OpenAI `codex` runtime and layers cli-jaw-style development discipline onto Codex through skill mentions, hooks, file state, subagent prompts, and the `cxc` CLI. There are no jaw employees, no boss token, no external orchestrator server, and no plugin-defined `/` slash commands; `/` commands live in the Codex runtime, while codexclaw's discovery surface is `$cxc-*` skills plus hook-triggered context injection.
 
-opencodex (`ocx`) is adjacent but optional. opencodex is a local provider proxy that can inject `model_provider = "opencodex"` into Codex config and serve `/v1/responses`; codexclaw only detects `ocx` status through `provider-bridge` and never vendors or auto-ensures opencodex.
+opencodex (`ocx`) is adjacent but optional. opencodex is a local provider proxy that can inject `model_provider = "opencodex"` into Codex config and serve `/v1/responses`; codexclaw only detects `ocx` status through `provider-bridge` and never vendors or auto-configures opencodex.
 
 ---
 
@@ -124,7 +124,7 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-skill-hub` | `skills/skill-hub/` | on-demand skill catalog router |
 | `cxc-ast-grep` | `skills/ast-grep/` | AST-aware search/codemods using `sg` |
 
-The `dev` hub routes by change surface toward hidden `dev-*` skills. `skill-hub` documents the exposure model: `allow_implicit_invocation` controls auto-rendered skill visibility, while explicit `$skill` / path mention still works unless a skill is disabled. The `interview`, `orchestrate`, `loop`, and `goalplan` skills are discoverable contracts for hardening surfaces; their deeper runtime work is tracked in `devlog/_plan/mvp_hard/`.
+The `dev` hub routes by change surface toward on-demand `dev-*` skills. `skill-hub` documents the exposure model: `allow_implicit_invocation` controls auto-rendered skill visibility, while explicit `$skill` / path mention still works unless a skill is disabled. The `interview`, `orchestrate`, `loop`, and `goalplan` skills are discoverable contracts for hardening surfaces; their deeper runtime work is tracked in `devlog/_plan/mvp_hard/`.
 
 ---
 

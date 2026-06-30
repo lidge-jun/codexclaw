@@ -3,6 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Detects and ensures opencodex (ocx) at session start; graceful skip when absent.",
+  "description": "Detect-only opencodex (ocx) status probe at session start; graceful native path when absent.",
   "main": "dist/cli.js"
 }

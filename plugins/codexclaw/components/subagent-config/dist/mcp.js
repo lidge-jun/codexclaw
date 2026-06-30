@@ -8,10 +8,8 @@
  *  - Expose the config to the codexclaw GUI and as MCP tools.
  *  - When ocx is present, source the available model catalog from it.
  *
- * Phase 1 scope: a MINIMAL but spec-compliant stdio MCP server that completes
- * the JSON-RPC `initialize` handshake and advertises ZERO tools. This keeps the
- * `.mcp.json` reference honest — the process actually handshakes instead of
- * exiting immediately — while the real config store + tools land in Phase 2.
+ * Current scope: a spec-compliant stdio MCP server that completes the JSON-RPC
+ * `initialize` handshake and advertises the subagent config/catalog tools below.
  * Zero third-party deps: newline-delimited JSON-RPC over stdin/stdout (node:* only).
  */
 import { createInterface } from "node:readline";
