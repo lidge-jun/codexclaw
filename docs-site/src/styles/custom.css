@@ -1,0 +1,71 @@
+/* codexclaw docs — developer-control visual language.
+ * Neutral dark/light tokens, one blue primary accent, one green success accent.
+ * Patterned after the L11/110 design record: precise, table/diagram heavy, no spectacle. */
+
+:root {
+  /* Blue primary accent ramp (Starlight expects --sl-color-accent-*). */
+  --sl-color-accent-low: #1e293b;
+  --sl-color-accent: #2563eb;
+  --sl-color-accent-high: #bfdbfe;
+
+  /* Tighten radii — 6-8px, not pill-heavy. */
+  --cxc-radius: 6px;
+  --cxc-green: #22c55e;
+}
+
+/* Light theme accent ramp. */
+:root[data-theme="light"] {
+  --sl-color-accent-low: #dbeafe;
+  --sl-color-accent: #2563eb;
+  --sl-color-accent-high: #1e3a8a;
+}
+
+/* Monospace for inline code/paths/state IDs. */
+.sl-markdown-content code:not(pre code) {
+  border-radius: var(--cxc-radius);
+  font-size: 0.875em;
+}
+
+/* Tables over card grids — give them room and clear separators. */
+.sl-markdown-content table {
+  display: table;
+  width: 100%;
+}
+
+.sl-markdown-content th {
+  background: var(--sl-color-gray-6);
+}
+
+/* Status badges used inline in docs: current / planned / deferred. */
+.cxc-badge {
+  display: inline-block;
+  padding: 0.1em 0.55em;
+  border-radius: var(--cxc-radius);
+  font-size: 0.75em;
+  font-weight: 600;
+  letter-spacing: 0;
+  vertical-align: middle;
+}
+
+.cxc-badge--current {
+  background: color-mix(in srgb, var(--cxc-green) 18%, transparent);
+  color: var(--cxc-green);
+  border: 1px solid color-mix(in srgb, var(--cxc-green) 40%, transparent);
+}
+
+.cxc-badge--planned {
+  background: color-mix(in srgb, var(--sl-color-accent) 16%, transparent);
+  color: var(--sl-color-accent-high);
+  border: 1px solid color-mix(in srgb, var(--sl-color-accent) 38%, transparent);
+}
+
+.cxc-badge--deferred {
+  background: var(--sl-color-gray-6);
+  color: var(--sl-color-gray-2);
+  border: 1px solid var(--sl-color-gray-5);
+}
+
+/* Rounded radii for cards/asides to match the 6-8px rule. */
+.sl-markdown-content .starlight-aside {
+  border-radius: var(--cxc-radius);
+}

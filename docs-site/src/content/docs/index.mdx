@@ -1,0 +1,86 @@
+---
+title: codexclaw
+description: "Codex-native development discipline: PABCD workflow, dev skills, subagent config, and an optional opencodex bridge — shipped as one Codex plugin."
+template: splash
+hero:
+  tagline: One Codex plugin that layers cli-jaw-style development discipline, a PABCD work loop, multi-model subagent config, and an optional opencodex bridge — no codex-rs fork, no separate server.
+  actions:
+    - text: Get Started
+      link: /codexclaw/getting-started/installation/
+      icon: right-arrow
+      variant: primary
+    - text: How It Works
+      link: /codexclaw/concepts/how-it-works/
+      icon: open-book
+    - text: GitHub
+      link: https://github.com/lidge-jun/codexclaw
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+**codexclaw** (`cxc`) is a single [OpenAI Codex](https://openai.com/codex) plugin. It reuses the
+Codex runtime and adds development discipline on top: a `cxc-dev` work classifier, a PABCD
+work loop driven by hooks and file state, multi-model subagent configuration over MCP, and an
+optional detect-only [opencodex](https://github.com/lidge-jun/opencodex) provider bridge.
+
+It is not a server, not a harness, and not a provider proxy. Everything ships through the
+standard Codex plugin surfaces — skills, hooks, an MCP server, and a small `cxc` CLI.
+
+```
+Codex runtime
+  └─ codexclaw plugin
+       ├─ skills   →  cxc-dev discipline + dev-* routers + PABCD/loop/interview
+       ├─ hooks    →  PABCD state, goal guards, provider detection
+       ├─ MCP      →  subagent model/prompt config
+       └─ cxc CLI  →  enable · status · doctor · orchestrate · gui
+```
+
+<CardGrid stagger>
+  <Card title="Dev discipline" icon="approve-check">
+    `cxc-dev` is always-on. It classifies each task C0-C5, enforces pre-write search and
+    verification-before-completion, and routes to surface-specific `dev-*` skills.
+  </Card>
+  <Card title="PABCD work loop" icon="seti:todo">
+    A Plan → Audit → Build → Check → Done cycle backed by a legal-transition FSM, attestation
+    gate, and a durable file ledger. Chat and `cxc orchestrate` drive the same state.
+  </Card>
+  <Card title="Multi-model subagents" icon="puzzle">
+    Configure explorer / reviewer / executor roles with their own model and prompt overrides via
+    the `subagents_get` / `subagents_set` / `catalog_list` MCP tools.
+  </Card>
+  <Card title="Optional opencodex bridge" icon="random">
+    When `ocx` is present, codexclaw detects provider status only. Native model fallback always
+    stays valid; codexclaw never runs `ocx ensure` as an unannounced mutation.
+  </Card>
+</CardGrid>
+
+## Quick start
+
+```bash
+# From a source checkout
+node bin/codexclaw.mjs enable
+
+# Verify the install
+cxc doctor
+
+# Start a PABCD work-phase from the terminal
+cxc orchestrate P --attest '{"from":"IDLE","to":"P","did":"plan the change"}'
+```
+
+:::note[Status honesty]
+These docs mark features `current`, `planned`, or `deferred`. A `planned` feature has a decided
+design but no shipped runtime yet. The docs never describe a planned feature as if it shipped.
+:::
+
+## Where to next
+
+<CardGrid>
+  <LinkCard title="Installation" href="/codexclaw/getting-started/installation/" description="Marketplace install, local dogfood symlink, activation, and hook trust." />
+  <LinkCard title="How It Works" href="/codexclaw/concepts/how-it-works/" description="Plugin manifest → skills, hooks, MCP, and CLI → the .codexclaw file state." />
+  <LinkCard title="PABCD Workflow" href="/codexclaw/guides/pabcd/" description="Triggers, the orchestrate grammar, the attest gate, and the D-close rule." />
+  <LinkCard title="Skills" href="/codexclaw/guides/skills/" description="Implicit vs on-demand loading, the C0-C5 classifier, and the dev-* routing table." />
+  <LinkCard title="Commands" href="/codexclaw/reference/commands/" description="Every live cxc command, plus placeholder and planned surfaces." />
+  <LinkCard title="Parity Roadmap" href="/codexclaw/development/parity-roadmap/" description="What is shipped, planned, and deferred against cli-jaw / opencodex parity." />
+</CardGrid>
