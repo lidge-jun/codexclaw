@@ -7,6 +7,18 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { parseOrchestrateCliArgs, runOrchestrateCli, resolveSession } from "../src/orchestrate-cli.ts";
 import { writeState, readState, defaultState, STATE_DIR, SESSIONS_SUBDIR, LEDGER_FILE } from "../src/state.ts";
+import { defaultInterview, DIMENSIONS } from "../src/interview.ts";
+
+// Build an interview-ready tracker (maxed dims, empty contradictions, a scan recorded)
+// so readState() derives flags.interview=true (it ignores a persisted flag — the tracker
+// is the single source of truth).
+function readyInterview() {
+  const t = defaultInterview("r1");
+  for (const d of DIMENSIONS) t.dimensions[d] = { level: "max", known: ["x"], unknown: [], confidence: 1 };
+  t.scanRounds = 1;
+  t.lastScanRoundId = 1;
+  return t;
+}
 
 function freshCwd(): string {
   return mkdtempSync(join(tmpdir(), "codexclaw-cli-"));
@@ -210,5 +222,62 @@ test("dist cli: `cli.js orchestrate status` runs end-to-end", () => {
     const res = runDistStatus(cwd);
     assert.equal(res.status, 0);
     assert.match(res.stdout, /phase=P/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// --- G20 (L20-WP8): ungated-edge CLI coverage. The four forward edges P>A/A>B/B>C/C>D
+// are attest-gated (covered above); the entry + abort edges are NOT gated and were
+// previously untested through runOrchestrateCli. These prove they advance WITHOUT an
+// --attest and that an illegal edge is still refused.
+test("G20: IDLE->I interview entry advances with no --attest (ungated edge)", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "s1", "IDLE");
+    const r = runOrchestrateCli({ verb: "I", attest: null, session: "s1", cwd, json: false });
+    assert.equal(r.code, 0, r.output);
+    assert.equal(readState(cwd, "s1").phase, "I");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("G20: I->P needs the interview flag — refused without it, advances with it (no --attest)", () => {
+  // I->P is ungated by attest, but the FSM requires interview completion (flags.interview)
+  // so the plan can't start before the interview ran. Prove BOTH halves of that contract.
+  const denied = freshCwd();
+  try {
+    seedSession(denied, "s1", "I"); // interview flag not set
+    const r = runOrchestrateCli({ verb: "P", attest: null, session: "s1", cwd: denied, json: false });
+    assert.equal(r.code, 1, "I->P without the interview flag must be refused");
+    assert.match(r.output, /interview/i);
+    assert.equal(readState(denied, "s1").phase, "I"); // unchanged
+  } finally { rmSync(denied, { recursive: true, force: true }); }
+
+  const allowed = freshCwd();
+  try {
+    writeState(allowed, { ...defaultState("s1"), phase: "I", interview: readyInterview() });
+    const r = runOrchestrateCli({ verb: "P", attest: null, session: "s1", cwd: allowed, json: false });
+    assert.equal(r.code, 0, `I->P with the interview flag should advance: ${r.output}`);
+    assert.equal(readState(allowed, "s1").phase, "P");
+  } finally { rmSync(allowed, { recursive: true, force: true }); }
+});
+
+test("G20: abort-to-I edges P->I, A->I, B->I are ungated (no --attest)", () => {
+  for (const from of ["P", "A", "B"] as const) {
+    const cwd = freshCwd();
+    try {
+      seedSession(cwd, "s1", from);
+      const r = runOrchestrateCli({ verb: "I", attest: null, session: "s1", cwd, json: false });
+      assert.equal(r.code, 0, `${from}->I should be free: ${r.output}`);
+      assert.equal(readState(cwd, "s1").phase, "I");
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  }
+});
+
+test("G20: illegal edge I->B is refused (no attest can force a non-adjacency)", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "s1", "I");
+    const r = runOrchestrateCli({ verb: "B", attest: null, session: "s1", cwd, json: false });
+    assert.equal(r.code, 1);
+    assert.equal(readState(cwd, "s1").phase, "I"); // unchanged
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
