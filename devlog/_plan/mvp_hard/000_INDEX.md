@@ -45,7 +45,7 @@ the missing control surface using the codex-native `$ + hook` model.
 | L3 | 030 | `$cxc-orchestrate` grammar (030/L3a) + hook wiring to `transition()` — the missing wire (031/L3b) | DONE |
 | L4 | 040 | `cxc orchestrate` CLI over the same file state (agent-gated path) | DONE |
 | L5 | 050 | `status` / `reset` / `D` chat affordances + phase footer directive + ledger-on-transition | DONE |
-| L6 | 060 | Stop-continuation loop with omo termination guards | PLANNED |
+| L6 | 060 | Stop-continuation loop with omo termination guards + bounded stagnation guard | DONE |
 | L7 | 070 | `$cxc-goalplan` + `$cxc-loop` (setGoal-equiv + continuation) + human/agent source split + pabcd skill-doc rewrite | PLANNED |
 | L8 | 080 | Reserved after L7: post-loop UX hardening slice TBD after goalplan/loop design | RESERVED |
 | L9 | 090 | Subagent/model hardening: OMO role variants, spawn-wrapper config application, ocx catalog read-only integration | PROPOSED |
