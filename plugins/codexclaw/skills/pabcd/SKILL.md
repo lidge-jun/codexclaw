@@ -95,6 +95,17 @@ See `dev` §0.0 for the full class definitions and tie-break rules.
 - Never let a subagent reconstruct the plan from a short task description — pass the concrete plan and scope explicitly.
 - For long-running external verification (CI, deploy, remote build), spawn a background subagent and poll with short `wait_agent` cycles. Local builds/tests that finish in minutes stay blocking.
 
+**Subagent TASK packet (DISPATCH-TASK-01).** Every dispatch carries a structured task, not a
+one-liner: `TASK` (the concrete outcome), `SCOPE` (the disjoint write set / read bounds),
+`MUST DO`, `MUST NOT` (e.g. do not revert peers, do not widen scope), `PROOF` (the evidence to
+return — `path:line` + command output), and `RETURN FORMAT`. Put the packet in the spawn
+message always; structured skill attachment (a `cxc-*` ref in the spawn `items`) binds only on
+the v1 spawn surface, whose args include an explicit `items` field, and only when the dispatch
+routes through the spawn-wrapper builder (`resolveSpawnPayloadWithSkills`, L15) — the default
+v2 spawn sets `deny_unknown_fields` with no `items`, so there the packet stays in message text
+(`structure/10_subagent_skill_routing.md:91`). Do not delegate host-goal changes to subagents;
+the main session owns `create_goal`/`update_goal`.
+
 ## State
 
 - `.codexclaw/sessions/<sessionId>.json` — current phase (IDLE/I/P/A/B/C/D), derived flags, injection dedupe, and bounded interview tracker.

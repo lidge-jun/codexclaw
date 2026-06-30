@@ -187,10 +187,33 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Design intent discovery | `dev-uiux-design` | `dev-frontend` |
 | Project scaffolding / docs | `dev-scaffolding` | `pabcd` |
 | PABCD workflow | `pabcd` | — |
+| Anti-slop output | `dev` §Family Invariants | all `dev-*` |
+| file:line evidence | `dev` §Family Invariants | all `dev-*` |
+| Completion proof | `dev` §Family Invariants | `pabcd`, all `dev-*` |
 
 When updating a rule, update the canonical owner first, then verify stubs still point correctly.
 
 **When your task spans multiple domains** (for example, building an API endpoint that returns analyzed data), read each relevant skill file before starting.
+
+---
+
+## Family Invariants (apply to every `cxc-*` skill)
+
+These hold for every dev-family skill and every response they govern. `dev` is the canonical
+owner; other routers reference this section rather than restating it. They are agent-followed
+wording (no Codex hook enforces skill text — `structure/00_philosophy.md` §1), not runtime gates.
+
+- **Anti-slop output (FAMILY-SLOP-01).** No filler, no performative narration, no decorative
+  rationale. Ship no placeholders, TODO-only deliverables, fake fallbacks, speculative wrapper
+  layers, or broad defensive clutter without a named boundary reason. Code-smell catalog lives
+  in §6 + `dev-code-reviewer` §3; this rule is about not emitting slop in the first place.
+- **file:line evidence (FAMILY-CITE-01).** When reporting code findings, plans, reviews, or
+  contradictions, cite `path:line`. Plans list exact paths + the verification command; review
+  and audit findings carry `path:line`; verification claims carry the command + its output or
+  artifact path. This mirrors the structure doctrine (`structure/00_philosophy.md:135-141`).
+- **Completion proof (FAMILY-PROOF-01).** No completion claim without fresh proof — see the
+  §3 verification gate for the long form. Every other router inherits that gate; it is not
+  re-stated per skill.
 
 ---
 
