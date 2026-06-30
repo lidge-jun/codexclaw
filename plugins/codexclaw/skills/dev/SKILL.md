@@ -331,6 +331,11 @@ Each PR/changeset MUST be scoped to one logical change. Opportunistic rewrites, 
 
 **Rule:** Before creating a new function, helper, type, component, constant, route, fixture, or module, search the codebase for an existing owner or equivalent implementation. No new abstraction may be introduced without search evidence. This section does not apply on the §0.1 fast path (C0/C1 — no new abstractions are being created).
 
+**Read before editing (DEV-READ-FIRST-01).** Beyond new-abstraction creation, any C2+ edit to
+existing code reads the target file (and its direct caller/consumer when the change crosses a
+boundary) before writing. Do not propose or apply a change to code you have not read. The §0.1
+fast path still applies to C0/C1.
+
 | Artifact being created | Required searches | Preferred outcome |
 |---|---|---|
 | Function/helper | Exact name, verb phrase, domain noun | Extend existing helper or add next to owner |
@@ -394,6 +399,16 @@ Verify every completion claim with evidence. Run the relevant command fresh, rea
 | "Subagent completed" | VCS diff shows actual changes | Subagent report says "success" |
 | "Regression test works" | Red-green cycle verified | Test passes once |
 
+**Per-class verification floor (DEV-VERIFY-FLOOR-01).** The gate above is universal; the
+minimum *scope* scales with the work class (§0.0). This is the floor, not a cap:
+
+| Class | Minimum verification |
+| ----- | -------------------- |
+| C0/C1 | Smallest proof for the change (build/type-check or the one relevant test) |
+| C2 | Focused integration/contract test for the touched slice + targeted build/typecheck + UI smoke if UI changed (CRUD per-operation negatives: see `dev-testing` references/core/crud-test-matrix.md) |
+| C3 | Affected suites + docs/contract consistency when a public contract changed |
+| C4 | Full relevant gates + negative cases + durable evidence record |
+
 **Subagent delegation:** When subagents report success, verify independently: check VCS diff → verify changes exist → confirm behavior.
 
 **Long external verification:** when a verification gate depends on a
@@ -438,7 +453,7 @@ Keep entries factual and concise. One entry per file changed.
 
 ## 6. Code Quality Signals
 
-Watch for these anti-patterns and fix immediately. For the full detection catalog and review-specific guidance, see `dev-code-reviewer/SKILL.md` §3.
+Watch for these anti-patterns and fix immediately. For the full detection catalog and review-specific guidance, see `dev-code-reviewer/SKILL.md` §3. These are *code* smells; the *output* anti-slop rule (no placeholders, TODO-only delivery, speculative wrappers, defensive clutter) is FAMILY-SLOP-01 in §Family Invariants.
 
 | Anti-Pattern | Symptom | Fix |
 | ------------ | ------- | --- |
