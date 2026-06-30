@@ -58,6 +58,22 @@ export interface PostToolUsePayload {
 }
 
 /**
+ * PostCompact payload (lazygap_impl 050). Fires after a context compaction. Wire shape
+ * verified against codex-rs `schema.rs:362` (`PostCompactCommandInput`, snake_case) +
+ * `compact.rs:207` (`hook_event_name: "PostCompact"`). Both `session_id` and `cwd` are
+ * present, so state path resolution works. Output is side-effect-only (the runtime honors
+ * only universal fields), so the handler always returns "".
+ */
+export interface PostCompactPayload {
+  hook_event_name: "PostCompact";
+  session_id: string;
+  cwd: string;
+  turn_id?: string;
+  transcript_path?: string | null;
+  trigger?: string;
+}
+
+/**
  * SubagentStop payload (lazygap_impl 010). Fires when a plugin thread-spawned child
  * ends its turn. Wire shape verified against codex-rs `schema.rs:576`
  * (`SubagentStopCommandInput`, snake_case). NOTE: `transcript_path` is the PARENT
@@ -552,5 +568,29 @@ export function handlePostToolUse(payload: PostToolUsePayload): string {
     toolInput: payload.tool_input,
     toolResponse: payload.tool_response,
   });
+  return "";
+}
+
+/**
+ * PostCompact handler (lazygap_impl 050) — side-effect-only compaction recovery.
+ *
+ * After a context compaction, codexclaw would otherwise re-surface only the SHORT stage
+ * header on the next same-phase prompt (mode-3), because `lastInjectedPhase` still equals
+ * the current phase. This resets ONLY that cursor so the first NON-SUPPRESSED same-phase
+ * prompt upgrades to the FULL phase directive (mode-2: `phase !== lastInjectedPhase`).
+ *
+ * It does NOT touch phase, flags, the stagnation counter, the goalplan, or the goal DB, and
+ * it does NOT bypass the context-pressure suppression (which correctly runs first) — so it
+ * does not guarantee re-inject on the immediately next prompt, only that the first eligible
+ * one is the full directive. Returns "" always: PostCompact output cannot inject context
+ * (codex-rs honors only universal fields), so this is a pure local-state side effect.
+ */
+export function handlePostCompact(payload: PostCompactPayload): string {
+  if (payload.hook_event_name !== "PostCompact") return "";
+  const state = readState(payload.cwd, payload.session_id);
+  // No-op unless an orchestrated cycle is in flight; nothing to recover otherwise.
+  if (!state.orchestrationActive || state.phase === "IDLE") return "";
+  if (state.lastInjectedPhase === null) return ""; // already reset; avoid a redundant write
+  writeState(payload.cwd, { ...state, lastInjectedPhase: null });
   return "";
 }

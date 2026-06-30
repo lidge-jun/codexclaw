@@ -17,6 +17,7 @@
 
 
 
+
 function asObject(raw        )                                 {
   const text = (raw ?? "").trim();
   if (!text) return null;
@@ -68,6 +69,23 @@ export function parseStop(raw        )                     {
     turn_id: str(obj.turn_id),
     stop_hook_active: typeof obj.stop_hook_active === "boolean" ? obj.stop_hook_active : undefined,
     last_assistant_message: str(obj.last_assistant_message) ?? null,
+  };
+}
+
+export function parsePostCompact(raw        )                            {
+  const obj = asObject(raw);
+  if (!obj) return null;
+  if (obj.hook_event_name !== "PostCompact") return null;
+  const sessionId = str(obj.session_id);
+  const cwd = str(obj.cwd);
+  if (sessionId === undefined || cwd === undefined) return null;
+  return {
+    hook_event_name: "PostCompact",
+    session_id: sessionId,
+    cwd,
+    turn_id: str(obj.turn_id),
+    transcript_path: str(obj.transcript_path) ?? null,
+    trigger: str(obj.trigger),
   };
 }
 

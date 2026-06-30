@@ -15,6 +15,7 @@ import {
   withFooter,
   buildStopBlock,
   readStopWorkContext,
+  handlePostCompact,
   type UserPromptSubmitPayload,
   type StopPayload,
 } from "../src/hook.ts";
@@ -464,6 +465,46 @@ test("040: no goalplan for the bound slug => byte-identical shipped reason", () 
       const reason = JSON.parse(handleStop(stop(cwd, "wp2")).trim()).reason;
       assert.equal(reason, JSON.parse(buildStopBlock("B").trim()).reason);
     });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// ── 050: PostCompact recovery (side-effect-only cursor reset) ──
+
+function postCompact(cwd: string, sessionId: string) {
+  return { hook_event_name: "PostCompact" as const, session_id: sessionId, cwd, trigger: "auto" };
+}
+
+test("050: resets lastInjectedPhase to null on an active cycle (phase/flags/counter untouched)", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("pc1"), phase: "B", orchestrationActive: true, lastInjectedPhase: "B", stopBlockPhase: "B", stopBlockCount: 2 });
+    assert.equal(handlePostCompact(postCompact(cwd, "pc1")), "");
+    const s = readState(cwd, "pc1");
+    assert.equal(s.lastInjectedPhase, null, "cursor reset");
+    assert.equal(s.phase, "B", "phase untouched");
+    assert.equal(s.orchestrationActive, true);
+    assert.equal(s.stopBlockPhase, "B", "stagnation phase untouched");
+    assert.equal(s.stopBlockCount, 2, "stagnation counter untouched");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050: no-op when idle or no in-flight cycle", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("pc2"), phase: "IDLE", orchestrationActive: false, lastInjectedPhase: null });
+    const before = readState(cwd, "pc2").updatedAt;
+    assert.equal(handlePostCompact(postCompact(cwd, "pc2")), "");
+    assert.equal(readState(cwd, "pc2").updatedAt, before, "idle state must be untouched (no write)");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050: wrong event name is a no-op", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("pc3"), phase: "B", orchestrationActive: true, lastInjectedPhase: "B" });
+    const bogus = { ...postCompact(cwd, "pc3"), hook_event_name: "Stop" as unknown as "PostCompact" };
+    assert.equal(handlePostCompact(bogus), "");
+    assert.equal(readState(cwd, "pc3").lastInjectedPhase, "B", "unrecognized event must not mutate state");
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 

@@ -18,8 +18,8 @@
  * argv: [node, cli.ts, kind, event] e.g. ["...", "...", "hook", "user-prompt-submit"].
  */
 import { readFileSync } from "node:fs";
-import { handlePostToolUse, handleStop, handleUserPromptSubmit } from "./hook.ts";
-import { parsePostToolUse, parseStop, parseSubagentStop, parseUserPromptSubmit } from "./parse.ts";
+import { handlePostToolUse, handlePostCompact, handleStop, handleUserPromptSubmit } from "./hook.ts";
+import { parsePostCompact, parsePostToolUse, parseStop, parseSubagentStop, parseUserPromptSubmit } from "./parse.ts";
 import { handlePreToolUseFailClosed } from "./goal-gate.ts";
 import { runSubagentStopGate } from "./subagent-evidence.ts";
 import { runDivergenceCli } from "./divergence-cli.ts";
@@ -122,6 +122,9 @@ function main(): void {
     } else if (event === "subagent-stop") {
       const payload = parseSubagentStop(raw);
       if (payload) output = runSubagentStopGate(payload);
+    } else if (event === "post-compact") {
+      const payload = parsePostCompact(raw);
+      if (payload) output = handlePostCompact(payload); // side-effect only; always ""
     }
   } catch {
     output = "";

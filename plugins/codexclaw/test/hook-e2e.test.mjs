@@ -96,7 +96,7 @@ function emptyCodexHome() {
 
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 8, "expected 8 declared hooks");
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 9, "expected 9 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
@@ -327,4 +327,48 @@ test("L020: pre-tool-use spawn-attach hook e2e - opt-in attaches items, no opt-i
   const names = ui.items.filter((i) => i.type === "skill").map((i) => i.name);
   assert.ok(names.includes("cxc-dev"));
   assert.ok(names.includes("cxc-dev-frontend"));
+});
+
+// lazygap_impl 050: PostCompact recovery hook. Side-effect-only — resets the re-inject
+// cursor (lastInjectedPhase=null) on an active cycle so the next non-suppressed same-phase
+// prompt gets the FULL directive; no-op when idle. Output is always empty (PostCompact
+// cannot inject context). Drives the real dist entrypoint via the manifest command.
+test("L050: post-compact hook e2e - active cycle resets cursor, idle is a no-op", () => {
+  const { event, hookEvent, distAbs } = readHookCommand("./hooks/post-compact-resetting-reinject-cursor.json");
+  assert.equal(event, "PostCompact");
+  const ep = snapshotEntrypoint(distAbs);
+  if (!ep) return;
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-postcompact-"));
+  try {
+    const sessionsDir = join(tmp, ".codexclaw", "sessions");
+    mkdirSync(sessionsDir, { recursive: true });
+    const statePath = join(sessionsDir, "s1.json");
+    // active cycle at B with the cursor pinned to B (mode-3 short-header condition)
+    writeFileSync(statePath, JSON.stringify({
+      phase: "B", sessionId: "s1", slug: "", updatedAt: "2026-07-01T00:00:00Z",
+      flags: { interview: false, auditPassed: false, checkPassed: false },
+      supersededBy: null, injectedTurns: [], lastInjectedPhase: "B",
+      orchestrationActive: true, interview: null, stopBlockPhase: null, stopBlockCount: 0,
+    }));
+    const res = runHook(ep, hookEvent, { hook_event_name: "PostCompact", session_id: "s1", cwd: tmp, trigger: "auto" });
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(res.stdout.trim(), "", "PostCompact output is side-effect only (empty stdout)");
+    const after = JSON.parse(readFileSync(statePath, "utf8"));
+    assert.equal(after.lastInjectedPhase, null, "cursor must be reset to null on an active cycle");
+    assert.equal(after.phase, "B", "phase untouched");
+    assert.equal(after.orchestrationActive, true, "orchestrationActive untouched");
+
+    // idle session => no-op (no state file written / unchanged)
+    const idlePath = join(sessionsDir, "idle.json");
+    writeFileSync(idlePath, JSON.stringify({
+      phase: "IDLE", sessionId: "idle", slug: "", updatedAt: "2026-07-01T00:00:00Z",
+      flags: { interview: false, auditPassed: false, checkPassed: false },
+      supersededBy: null, injectedTurns: [], lastInjectedPhase: null,
+      orchestrationActive: false, interview: null, stopBlockPhase: null, stopBlockCount: 0,
+    }));
+    const idleRes = runHook(ep, hookEvent, { hook_event_name: "PostCompact", session_id: "idle", cwd: tmp, trigger: "auto" });
+    assert.equal(idleRes.status, 0, idleRes.stderr);
+    assert.equal(idleRes.stdout.trim(), "", "idle session => empty stdout");
+    assert.equal(JSON.parse(readFileSync(idlePath, "utf8")).updatedAt, "2026-07-01T00:00:00Z", "idle state must be untouched");
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
