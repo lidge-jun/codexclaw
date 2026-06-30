@@ -122,10 +122,10 @@ skill to the work, not by hoping the model loads it.**
 
 ### Honesty note (open defect)
 Today only `cxc-dev` is implicit-visible; all `dev-*` siblings are
-`allow_implicit_invocation: false`, and the spawn payload has no `items` channel. So
-routing for the implicit-visibility surface collapses to "dev only" unless the agent
-deliberately reads further. The spawn-time attachment mechanism itself, however, HAS
-shipped: L15's E5 dispatch builder (`buildSpawnItems`/`SpawnPayload.items`) attaches the
+`allow_implicit_invocation: false`. So routing for the implicit-visibility surface
+collapses to "dev only" unless the agent deliberately reads further. The spawn-time
+attachment mechanism itself HAS shipped: L15's E5 dispatch builder
+(`buildSpawnItems`/`SpawnPayload.items`) populates the payload's `items` channel with the
 surface skill when a dispatcher routes through it. The one unshipped piece is the L15.2
 E3 PreToolUse hook that would attach skills deterministically without an explicit builder call.
 

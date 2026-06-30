@@ -265,11 +265,14 @@ The subagent config component can later select per-role models; default mode inh
 
 `devlog/_plan/mvp_hard/` is the parity-hardening lane after the MVP. It documents the gap between codexclaw's current `$cxc-*` + hook UX and cli-jaw/jawcode-style explicit PABCD phase control. Its locked constraints are important: no codex-rs fork, no plugin slash commands, no external orchestrator, file-based state only.
 
-The L14 hardening design (subagent skill routing + loop/goal handoff) has shipped: its root-cause
-diagnosis lives in `devlog/_plan/mvp_hard/140_L14_loop_goal_routing_followup.md`, its fix shape is
-the design SOT at [`10_subagent_skill_routing.md`](10_subagent_skill_routing.md), and the work
-landed across L14-L19 (all `DONE | DONE`). The most recent lane is **L20**, the L1-L19 full-span
-gap-remediation loop (`devlog/_plan/mvp_hard/200_L20_gap_register.md`).
+The L14 hardening design (subagent skill routing + loop/goal handoff) has largely shipped: its
+root-cause diagnosis lives in `devlog/_plan/mvp_hard/140_L14_loop_goal_routing_followup.md`, its
+fix shape is the design SOT at [`10_subagent_skill_routing.md`](10_subagent_skill_routing.md), and
+the work landed across L14-L19 (all `DONE | DONE`) — including the E5 spawn-attachment builder (L15)
+and the forward `GOAL_ACTIVATION_DIRECTIVE` bridge (`cxc freeze`). Two pieces stay deferred by design:
+the L15.2 **E3** PreToolUse auto-attach hook, and the **reverse** goal-active auto-arm path
+("set a goal → loop runs" without a separate orchestrate trigger). The most recent lane is **L20**,
+the L1-L19 full-span gap-remediation loop (`devlog/_plan/mvp_hard/200_L20_gap_register.md`).
 
 ---
 

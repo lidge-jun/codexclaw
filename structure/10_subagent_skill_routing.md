@@ -31,17 +31,19 @@ so the subagent actually loads the discipline instead of being told about it in 
 
 - Surface skills are split out and on-demand: `cxc-search`, `cxc-dev-architecture`,
   `cxc-dev-backend`, etc. (`plugins/codexclaw/skills/*/`). Step 1 is done.
-- `spawn-wrapper.ts` builds a `SpawnPayload` of `{ agent_type, message, model? }`
-  only. Routing lives **inside `message`** as inline prose from the role TOML
-  (`agents/explorer.toml:15`, `executor.toml:14`): "consult the matching `dev-*`
-  skill." That is the weak/hope form.
-- The wrapper is a pure builder with **no production caller** — only its test imports
-  `resolveSpawnPayload`. The main agent's real `spawn_agent` calls bypass it.
-- There is no `items`/attachment channel in the payload, so no skill mention is ever
-  attached to a spawn.
+- `spawn-wrapper.ts` builds a `SpawnPayload` that now INCLUDES an `items` attachment
+  channel: `buildSpawnItems` + `SURFACE_SKILL` attach the matching surface skill as a
+  skill mention (shipped in L15). The role TOMLs still carry the inline "consult the
+  matching `dev-*` skill" prose as a secondary cue.
+- The builder (`resolveSpawnPayload`/`buildSpawnPayload`) is the E5 dispatch path: a
+  dispatcher that routes through it gets the surface skill attached deterministically.
+  What is NOT yet shipped is automatic production attachment without an explicit builder
+  call — that is the L15.2 **E3** PreToolUse hook (feasible on the v1 spawn surface only),
+  still deferred.
 
-Net: routing is "split into skills" but not "attached at dispatch." The subagent's
-decision to load `cxc-search` is fully model-autonomous.
+Net: routing is "split into skills" AND "attached at dispatch when routed through the E5
+builder." The remaining gap is a deterministic hook that attaches without the builder call
+(L15.2/E3); absent that, a spawn made outside the builder is still model-autonomous.
 
 ---
 
