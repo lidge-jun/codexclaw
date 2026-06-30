@@ -50,7 +50,7 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 | L9 | 090 | Subagent/model hardening parity plan: live spawn-wrapper gap, slug catalog parity, operator surface policy | PLANNED |
 | L10 | 100 | Memory/chat/project/task/worklog parity decision: codex-native scope vs explicit non-goals | DONE |
 | L11 | 110 | Developer docs source-of-truth reconciliation + public docs website design record; website implementation remains deferred | DONE |
-| L12 | 120 | Skill-internal hardening: cxc-interview/orchestrate/loop/goalplan skeletons + continuous Interview runtime plan | PLANNED |
+| L12 | 120 | Skill-internal hardening: cxc-interview/orchestrate/loop/goalplan surfaces validated; Interview runtime capture/guard deferred | DONE |
 | L20 | 200 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | PROPOSED |
 
 ## Track status
@@ -75,6 +75,12 @@ record, not a shipped docs-site. Source-of-truth wording was reconciled with the
 runtime: live `cxc orchestrate`, Stop continuation, on-demand `cxc-*` skills, detect-only
 provider bridge, and real subagent MCP tools.
 
+**L12 COMPLETE** (2026-06-30). The `cxc-interview`, `cxc-orchestrate`, `cxc-loop`, and
+`cxc-goalplan` skill surfaces are validated as existing Codex-native on-demand skills.
+Remaining continuous-Interview runtime work is explicitly deferred to L13+: PostToolUse
+answer capture, `.codexclaw/interviews/<sessionId>.jsonl`, narrow I-phase Stop guard,
+and contradiction-rescan coordination.
+
 ## Research result
 
 - `010_L1_parity_audit.md` — synthesized parity-gap findings. Original verdict: L1-L28 MVP
@@ -92,10 +98,10 @@ provider bridge, and real subagent MCP tools.
   reconciliation for developer docs and website design. Verdict: keep the docs-site as a
   deferred Astro/Starlight-style implementation while current docs accurately distinguish
   shipped control surfaces from planned/deferred surfaces.
-- `120_L12_skill_internal_hardening.md` — Interview-driven skill hardening plan and skeleton
-  record. Verdict: add discoverable `cxc-interview`, `cxc-orchestrate`, `cxc-loop`, and
-  `cxc-goalplan` surfaces now; implement `PostToolUse` answer capture, session-scoped
-  interview ledger, and narrow Stop guard in later runtime loops.
+- `120_L12_skill_internal_hardening.md` — Interview-driven skill hardening record.
+  Verdict: `cxc-interview`, `cxc-orchestrate`, `cxc-loop`, and `cxc-goalplan` already exist
+  as on-demand Codex skill surfaces; implement `PostToolUse` answer capture,
+  session-scoped interview ledger, and narrow I-phase Stop guard in later runtime loops.
 
 ## Interview decisions (2026-06-30, locked)
 
