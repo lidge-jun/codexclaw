@@ -48,10 +48,10 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 | L6 | 060 | Stop-continuation loop with omo termination guards + bounded stagnation guard | DONE | DONE |
 | L7 | 070 | `$cxc-goalplan` + `$cxc-loop` + orchestrate skill-doc reconciliation with shipped L3-L6 reality | DONE | DONE |
 | L8 | 080 | Post-loop UX hardening + truth sweep: stale docs, status ledger rows, Stop next-command wording | DONE | DONE |
-| L9 | 090 | Subagent/model hardening parity plan: live spawn-wrapper gap, slug catalog parity, operator surface policy | DONE | PLANNED |
+| L9 | 090 | Subagent/model hardening: spawn-wrapper (L9.1/091), catalog slug parity (L9.2/092), operator CLI (L9.3/093) all shipped+tested | DONE | DONE |
 | L10 | 100 | Memory/chat/project/task/worklog parity decision: codex-native scope vs explicit non-goals (chat-search retired L13/WP1) | DONE | DONE |
 | L11 | 110 | Developer docs source-of-truth reconciliation + public docs website design record | DONE | PLANNED |
-| L12 | 120 | Skill-internal hardening: cxc-* surfaces validated; continuous-Interview runtime (JSONL scan-evidence + I→P soft-gate shipped in L13/WP2; PostToolUse answer capture pending) | DONE | PLANNED |
+| L12 | 120 | Skill-internal hardening + interview runtime: PostToolUse answer capture (L12.1/121) + rescan-coordinator & goal=PABCD-only boundary (L12.2/122) shipped+tested; I-phase Stop guard dropped (no valid domain) | DONE | DONE |
 | L13 | 130 | Truthfulness + interview hardening: chat-search retire (WP1), scan-evidence + soft-gate (WP2), 2-axis status (WP3) | DONE | DONE |
 | L14 | 140 | Follow-up patch plan: loop⇄goal activation handoff + `cxc-loop` FSM wiring + dev-* routing enforcement (root-caused, fix deferred to a post-Interview loop) | PLANNED | PLANNED |
 | L20 | 200 | Install/deploy hardening: npx viability, plugin+CLI split, dev symlink, packaging tests | ANALYZED | PLANNED |
@@ -71,10 +71,12 @@ Tests grew 223 → 281, all green; `cxc doctor` PASS.
 from README/structure/L5-L7 docs and replaced the Stop-continuation `<next>` placeholder
 with concrete phase-specific commands, including `cxc orchestrate reset` for D-close.
 
-**L9 — decision DONE, impl PLANNED** (2026-06-30). The subagent/model hardening parity slice is
-closed as a plan-only record: it identifies the still-missing production spawn wrapper, catalog
-slug parity, and operator CLI/provider surfaces. Those runtime pieces are NOT shipped (no
-production wrapper consumes the role resolver at `spawn_agent` time), so impl-state is PLANNED.
+**L9 — DONE (impl shipped)** (2026-06-30). The subagent/model hardening runtime is shipped across
+three sub-loops: L9.1/091 production spawn-wrapper (`spawn-wrapper.ts` consumes
+`resolveSpawnConfig` to build the real `spawn_agent` payload; default mode omits `model`,
+override replaces the prompt), L9.2/092 catalog slug parity (`readNativeCacheDefault` reads
+`id`||`slug` with dedup; routed `provider/model` ocx slugs selectable), and L9.3/093 operator CLI
+(`cxc subagents` get/set over the store + `cxc provider` read-only status). All tested; impl DONE.
 
 **L10 — decision DONE** (2026-06-30). Memory/chat/project/task/worklog parity is now bounded
 surface-by-surface: `cxc-search` is public/current lookup, `cxc chat-search` was RETIRED
@@ -90,12 +92,13 @@ is PLANNED. Source-of-truth wording was reconciled with the current runtime: liv
 orchestrate`, Stop continuation, on-demand `cxc-*` skills, detect-only provider bridge, and real
 subagent MCP tools.
 
-**L12 — decision DONE, impl PLANNED (partially shipped via L13/WP2)** (2026-06-30). The
-`cxc-interview`, `cxc-orchestrate`, `cxc-loop`, and `cxc-goalplan` skill surfaces are validated as
-existing Codex-native on-demand skills. L13/WP2 SHIPPED part of the continuous-Interview runtime:
-`.codexclaw/interviews/<sessionId>.jsonl` scan-evidence ledger, `scanRounds` readiness gate, and
-the I→P soft-gate with override audit. Still PLANNED: `PostToolUse` answer capture (no PostToolUse
-hook exists yet) and a narrow I-phase Stop guard — so impl-state stays PLANNED until those land.
+**L12 — DONE (impl shipped)** (2026-06-30). Skill surfaces validated (L12 base) and the interview
+runtime shipped: L13/WP2 added the `.codexclaw/interviews/<sessionId>.jsonl` scan-evidence ledger,
+`scanRounds` readiness gate, and the I→P soft-gate; L12.1/121 added `PostToolUse` answer capture
+(question_asked/answer_recorded, idempotent by `(turnId,questionId,kind)`); L12.2/122 added the
+`rescan-coordinator` signal helper and an explicit goal=PABCD-only interview boundary (regression
+guarded). The originally-planned narrow I-phase Stop guard was DROPPED — it had no valid domain
+(goal active suppresses the interview; goal inactive must pause for the human per L6). impl DONE.
 
 ## Research result
 
