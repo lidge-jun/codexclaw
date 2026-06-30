@@ -40,6 +40,7 @@ and the terminal `cxc orchestrate` path is agent-gated by attest evidence.
 | Ln | decade | scope | decision-state | impl-state |
 |----|--------|-------|----------------|-----------|
 | L1 | 010 | Parity audit: cli-jaw/jawcode/omo vs codexclaw, `$`+hook UX gap map | DONE | DONE |
+| L1.1 | 011 | cli-jaw 10-surface parity matrix (engine PARITY/stricter; server surfaces intentional non-goals; loop⇄goal defect -> L14) | DONE | DONE |
 | L2 | 020 | FSM legal-transition table + four-transition attest gate | DONE | DONE |
 | L3 | 030 | `$cxc-orchestrate` grammar (030/L3a) + hook wiring to `transition()` — the missing wire (031/L3b) | DONE | DONE |
 | L4 | 040 | `cxc orchestrate` CLI over the same file state (agent-gated path) | DONE | DONE |
