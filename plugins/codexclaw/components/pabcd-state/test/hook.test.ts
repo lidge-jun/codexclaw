@@ -9,6 +9,7 @@ import {
   handleUserPromptSubmit,
   handleStop,
   phaseDirective,
+  withFooter,
   type UserPromptSubmitPayload,
   type StopPayload,
 } from "../src/hook.ts";
@@ -103,7 +104,7 @@ test("handleUserPromptSubmit: trigger emits directive envelope once", () => {
     assert.notEqual(out, "");
     const parsed = JSON.parse(out.trimEnd());
     assert.equal(parsed.hookSpecificOutput.hookEventName, "UserPromptSubmit");
-    assert.equal(parsed.hookSpecificOutput.additionalContext, phaseDirective("P"));
+    assert.equal(parsed.hookSpecificOutput.additionalContext, withFooter(phaseDirective("P"), "P"));
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
@@ -193,7 +194,7 @@ test("hybrid mode 1: explicit trigger activates orchestration + injects directiv
   try {
     const out = handleUserPromptSubmit(ups("orchestrate P", cwd, "s1", "t1"));
     const parsed = JSON.parse(out.trimEnd());
-    assert.equal(parsed.hookSpecificOutput.additionalContext, phaseDirective("P"));
+    assert.equal(parsed.hookSpecificOutput.additionalContext, withFooter(phaseDirective("P"), "P"));
     const st = readState(cwd, "s1");
     assert.equal(st.orchestrationActive, true);
     assert.equal(st.lastInjectedPhase, "P");
@@ -214,7 +215,7 @@ test("L3b: chat 'orchestrate p' actually moves phase to P + appends one ledger e
   const cwd = freshCwd();
   try {
     const out = handleUserPromptSubmit(ups("orchestrate p", cwd, "s1", "t1"));
-    assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, phaseDirective("P"));
+    assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, withFooter(phaseDirective("P"), "P"));
     const st = readState(cwd, "s1");
     assert.equal(st.phase, "P"); // the missing wire: phase actually changed
     const led = ledgerLines(cwd);
@@ -232,7 +233,7 @@ test("L3b: human free-pass advances A->B with no --attest", () => {
     handleUserPromptSubmit(ups("orchestrate p", cwd, "s2", "t1"));
     handleUserPromptSubmit(ups("orchestrate a", cwd, "s2", "t2"));
     const out = handleUserPromptSubmit(ups("orchestrate b", cwd, "s2", "t3"));
-    assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, phaseDirective("B"));
+    assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, withFooter(phaseDirective("B"), "B"));
     assert.equal(readState(cwd, "s2").phase, "B");
   } finally {
     rmSync(cwd, { recursive: true, force: true });
@@ -297,10 +298,69 @@ test("L3b: a prompt with no command still falls through to the loose detectTrigg
   try {
     const out = handleUserPromptSubmit(ups("plan this feature", cwd, "s7", "t1"));
     // loose path injects the P directive but does NOT move phase via the wire.
-    assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, phaseDirective("P"));
+    assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, withFooter(phaseDirective("P"), "P"));
     assert.equal(readState(cwd, "s7").phase, "IDLE"); // loose path leaves phase alone
     assert.equal(ledgerLines(cwd).length, 0);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
+});
+
+// ── L5/050: phase footer + status polish + D-close ──
+
+test("L5: injected directive carries the IPABCD footer naming the phase", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("orchestrate p", cwd, "f1", "t1"));
+    const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
+    assert.match(ctx, /\[codexclaw: PLAN\]/); // directive body present
+    assert.match(ctx, /IPABCD: P \(PLAN\)/);   // footer present, names P
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("L5: chat 'orchestrate status' returns the one-line status with flags", () => {
+  const cwd = freshCwd();
+  try {
+    handleUserPromptSubmit(ups("orchestrate p", cwd, "f2", "t1"));
+    const out = handleUserPromptSubmit(ups("orchestrate status", cwd, "f2", "t2"));
+    const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
+    assert.match(ctx, /\[codexclaw status\] IPABCD: P \(PLAN\)/);
+    assert.match(ctx, /auditPassed=false/);
+    assert.equal(readState(cwd, "f2").phase, "P"); // status does not move phase
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("L5: chat 'orchestrate d' closes the cycle to IDLE (D is not a resting state)", () => {
+  const cwd = freshCwd();
+  try {
+    handleUserPromptSubmit(ups("orchestrate p", cwd, "f3", "t1"));
+    handleUserPromptSubmit(ups("orchestrate a", cwd, "f3", "t2"));
+    handleUserPromptSubmit(ups("orchestrate b", cwd, "f3", "t3"));
+    handleUserPromptSubmit(ups("orchestrate c", cwd, "f3", "t4"));
+    const out = handleUserPromptSubmit(ups("orchestrate d", cwd, "f3", "t5"));
+    const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
+    assert.match(ctx, /\[codexclaw: DONE\]/);      // DONE directive shown this turn
+    assert.match(ctx, /IPABCD: IDLE/);             // resting state is IDLE, not D
+    const st = readState(cwd, "f3");
+    assert.equal(st.phase, "IDLE");                // cycle closed
+    assert.equal(st.flags.auditPassed, false);
+    assert.equal(st.flags.checkPassed, false);
+    assert.equal(st.orchestrationActive, false);
+    const led = ledgerLines(cwd);
+    assert.equal(led.at(-1)?.to, "IDLE");
+    assert.equal(led.at(-1)?.reason, "done");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("L5: ledger entries carry ts/from/to/reason on chat + reset paths", () => {
+  const cwd = freshCwd();
+  try {
+    handleUserPromptSubmit(ups("orchestrate p", cwd, "f4", "t1")); // chat
+    handleUserPromptSubmit(ups("orchestrate reset", cwd, "f4", "t2")); // reset
+    for (const e of ledgerLines(cwd)) {
+      assert.ok(typeof e.ts === "string" && e.ts.length > 0);
+      assert.ok("from" in e && "to" in e);
+      assert.ok(e.reason === "chat" || e.reason === "reset");
+    }
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

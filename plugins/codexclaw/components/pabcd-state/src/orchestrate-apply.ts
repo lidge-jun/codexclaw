@@ -23,8 +23,8 @@ export interface ApplyResult {
   reason?: string;
   /** Ledger entry to append on a successful, state-changing transition. */
   ledger?: LedgerEntry;
-  /** Control verbs that do not move phase. */
-  control?: "status" | "reset";
+  /** Control outcomes that are not a plain forward move. */
+  control?: "status" | "reset" | "done";
   /** True when the command was a recognized no-op (e.g. reset from IDLE). */
   noop?: boolean;
 }
@@ -77,6 +77,28 @@ export function applyHumanTransition(
 
   const to = verb as Phase;
   const from = state.phase;
+
+  // HUMAN D-close (L5): chat "orchestrate d" means "I'm done — close the cycle".
+  // It advances C->D AND closes D->IDLE atomically, so the resting state is IDLE and
+  // D is never a persistent badge. (The agent CLI path keeps the gated C->D advance.)
+  if (to === "D") {
+    if (from !== "C") {
+      return { ok: false, reason: `illegal transition ${from}->D` };
+    }
+    return {
+      ok: true,
+      control: "done",
+      state: clearedIdle(state),
+      ledger: {
+        ts: new Date().toISOString(),
+        sessionId: state.sessionId,
+        from: "C",
+        to: "IDLE",
+        reason: "done",
+        ...(attest?.did ? { evidence: attest.did } : {}),
+      },
+    };
+  }
 
   // HUMAN free-pass: pre-flip the gate flag this forward edge unlocks so the
   // flag-based gate in canEnter opens without an attestation. Adjacency is still

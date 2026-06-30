@@ -139,6 +139,23 @@ export function buildStageHeader(phase: Phase): string {
   return `[codexclaw — ${phase}: ${STAGE_LABELS[phase] ?? phase}]`;
 }
 
+/**
+ * L5 — phase footer directive. codex has no status UI, so the model surfaces its own
+ * PABCD state by printing one line at the end of each reply. Resting states are IDLE
+ * and the work phases I/P/A/B/C; D is the closing transition (after it, the resting
+ * state is IDLE), so a chat D-close shows IDLE.
+ */
+export function phaseFooter(phase: Phase): string {
+  const label = STAGE_LABELS[phase] ?? phase;
+  return `At the end of your reply, print exactly one status line: \`IPABCD: ${phase} (${label})\`. D is a closing transition — once a cycle closes, the resting state is IDLE.`;
+}
+
+/** Append the phase footer to a directive/header (one blank line between). */
+export function withFooter(directive: string, phase: Phase): string {
+  if (!directive) return directive;
+  return `${directive}\n\n${phaseFooter(phase)}`;
+}
+
 /** Cap injectedTurns to the most recent N to bound state-file growth (audit blocker #2). */
 const MAX_INJECTED_TURNS = 50;
 function appendTurn(turns: string[], turn: string): string[] {
@@ -211,7 +228,7 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
         injectedTurns: appendTurn(state.injectedTurns, turn),
       });
     }
-    return buildContextOutput("UserPromptSubmit", directive);
+    return buildContextOutput("UserPromptSubmit", withFooter(directive, trigger));
   }
 
   // fail-closed: no trigger and orchestration never activated -> stay silent.
@@ -245,7 +262,7 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
         injectedTurns: appendTurn(state.injectedTurns, turn),
       });
     }
-    return buildContextOutput("UserPromptSubmit", directive);
+    return buildContextOutput("UserPromptSubmit", withFooter(directive, state.phase));
   }
 
   // mode 3: same phase -> short compaction-immune stage header every turn.
@@ -255,7 +272,13 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
       injectedTurns: appendTurn(state.injectedTurns, turn),
     });
   }
-  return buildContextOutput("UserPromptSubmit", buildStageHeader(state.phase));
+  return buildContextOutput("UserPromptSubmit", withFooter(buildStageHeader(state.phase), state.phase));
+}
+
+/** L5 — one-line human status for the chat `orchestrate status` affordance. */
+export function renderStatusLine(phase: Phase, flags: { interview: boolean; auditPassed: boolean; checkPassed: boolean }): string {
+  const label = STAGE_LABELS[phase] ?? phase;
+  return `[codexclaw status] IPABCD: ${phase} (${label}) · interview=${flags.interview} auditPassed=${flags.auditPassed} checkPassed=${flags.checkPassed}`;
 }
 
 /**
@@ -283,7 +306,7 @@ function handleOrchestrateCommand(
 
   // status: read-only, no state change, no ledger.
   if (result.control === "status") {
-    return buildContextOutput("UserPromptSubmit", buildStageHeader(state.phase));
+    return buildContextOutput("UserPromptSubmit", renderStatusLine(state.phase, state.flags));
   }
 
   // reset-from-IDLE no-op: recognized but nothing to write.
@@ -296,8 +319,8 @@ function handleOrchestrateCommand(
   if (result.state) {
     writeState(payload.cwd, {
       ...result.state,
-      orchestrationActive: result.control === "reset" ? false : true,
-      lastInjectedPhase: result.control === "reset" ? null : result.state.phase,
+      orchestrationActive: result.control === "reset" || result.control === "done" ? false : true,
+      lastInjectedPhase: result.control === "reset" || result.control === "done" ? null : result.state.phase,
       injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
     });
   }
@@ -306,9 +329,14 @@ function handleOrchestrateCommand(
   if (result.control === "reset") {
     return buildContextOutput("UserPromptSubmit", "[codexclaw — reset → IDLE]");
   }
+  // done: chat D-close. Inject the DONE summary directive this turn; the resting
+  // state is already IDLE, so the footer surfaces IDLE.
+  if (result.control === "done") {
+    return buildContextOutput("UserPromptSubmit", withFooter(phaseDirective("D"), "IDLE"));
+  }
   const phase = result.state?.phase ?? state.phase;
   const directive = phase === "I" ? interviewDirective() : phaseDirective(phase);
-  return buildContextOutput("UserPromptSubmit", directive);
+  return buildContextOutput("UserPromptSubmit", withFooter(directive, phase));
 }
 
 /**

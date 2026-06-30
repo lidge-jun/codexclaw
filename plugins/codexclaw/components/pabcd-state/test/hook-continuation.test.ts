@@ -9,6 +9,7 @@ import {
   handleUserPromptSubmit,
   phaseDirective,
   QUESTION_SHAPE_DIRECTIVE,
+  withFooter,
   type UserPromptSubmitPayload,
 } from "../src/hook.ts";
 import { GOALS_DB_FILENAME } from "../src/goal-active.ts";
@@ -85,7 +86,7 @@ test("hybrid mode 2: active + phase changed -> full directive for new phase", ()
     writeState(cwd, { ...defaultState("s1"), phase: "A", orchestrationActive: true, lastInjectedPhase: "P" });
     const out = handleUserPromptSubmit(ups("here is my work", cwd, "s1", "t2"));
     const parsed = JSON.parse(out.trimEnd());
-    assert.equal(parsed.hookSpecificOutput.additionalContext, phaseDirective("A"));
+    assert.equal(parsed.hookSpecificOutput.additionalContext, withFooter(phaseDirective("A"), "A"));
     assert.equal(readState(cwd, "s1").lastInjectedPhase, "A");
   } finally {
     rmSync(cwd, { recursive: true, force: true });
@@ -98,7 +99,7 @@ test("hybrid mode 3: active + same phase -> short stage header every new turn", 
     writeState(cwd, { ...defaultState("s1"), phase: "A", orchestrationActive: true, lastInjectedPhase: "A" });
     const out = handleUserPromptSubmit(ups("more work", cwd, "s1", "t3"));
     const parsed = JSON.parse(out.trimEnd());
-    assert.equal(parsed.hookSpecificOutput.additionalContext, buildStageHeader("A"));
+    assert.equal(parsed.hookSpecificOutput.additionalContext, withFooter(buildStageHeader("A"), "A"));
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

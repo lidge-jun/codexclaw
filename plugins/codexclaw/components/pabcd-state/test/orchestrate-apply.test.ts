@@ -12,9 +12,17 @@ test("human free-pass advances forward edges WITHOUT attest", () => {
   assert.equal(applyHumanTransition(at("P"), "A").state?.phase, "A");
   assert.equal(applyHumanTransition(at("A"), "B").state?.phase, "B");
   assert.equal(applyHumanTransition(at("B"), "C").state?.phase, "C");
+  // L5: human D closes the cycle (C->D->IDLE atomically); D is not a resting state.
   const cd = applyHumanTransition(at("C"), "D");
-  assert.equal(cd.state?.phase, "D");
-  assert.equal(cd.state?.flags.checkPassed, true);
+  assert.equal(cd.control, "done");
+  assert.equal(cd.state?.phase, "IDLE");
+  assert.equal(cd.state?.flags.checkPassed, false); // cleared on close
+  assert.equal(cd.ledger?.to, "IDLE");
+  assert.equal(cd.ledger?.reason, "done");
+});
+
+test("human D from a non-C phase is refused (only C->D closes)", () => {
+  assert.equal(applyHumanTransition(at("B"), "D").ok, false);
 });
 
 test("illegal adjacency is refused (state unchanged, no ledger)", () => {
