@@ -50,11 +50,11 @@ decade before its prereqs land.
 | 010 | 010 | objective-metric state substrate (`metrics.jsonl` + `cxc metric` + tests) | `001`,`005` L2 | E2-ready substrate + E8 | — | DONE |
 | 015 | 015 | objective-kind signal (explicit tag or session-scoped metrics -> maximize) | `006` | E7 (read by E2 in 020) | — | DONE |
 | 020 | 020 | plateau->diverge Stop lever | `005` L3,`006` | **E2 (the key lever)** | 010, 015 | DONE |
-| 030 | 030 | divergence-mode + collapse-point doctrine | `004`,`006`,`007` | E7 + persisted state | 010,015,020 | PLANNED |
-| 040 | 040 | N>=2 grounded generation via cxc-search | `007` | E7 | 030 | PLANNED |
-| 045 | 045 | harness-first (`evaluate.sh`) before any candidate | `004` | E7 doctrine + E2 feed | 010,015 | PLANNED |
-| 050 | 050 | candidate build fan-out (worktrees) + D race | `004`,`007` | E7 + E2 ledger | 030,045 | PLANNED |
-| 060 | 060 | overfitting guard + intent-question gating | `006`,`007` | E7 | 015,030 | PLANNED |
+| 030 | 030 | divergence-mode + collapse-point doctrine (`cxc divergence mode`) | `004`,`006`,`007` | E7 + persisted state | 010,015,020 | DONE |
+| 040 | 040 | N>=2 grounded generation via cxc-search (`candidate add --source`) | `007` | E7 | 030 | DONE |
+| 045 | 045 | harness-first (`evaluate.sh`) before any candidate | `004` | E7 doctrine + E2 feed | 010,015 | DONE |
+| 050 | 050 | candidate build fan-out (worktrees) + D race doctrine | `004`,`007` | E7 + E2 ledger | 030,045 | DONE |
+| 060 | 060 | overfitting guard + intent-question gating | `006`,`007` | E7 | 015,030 | DONE |
 | 070 | 070 | docs/visual sync + falsifiability | all,`003` | E8 (drift gate) | all | PLANNED |
 
 Final order: 010 -> 015 -> 020 -> 030 -> 040 -> 045 -> 050 -> 060 -> 070.

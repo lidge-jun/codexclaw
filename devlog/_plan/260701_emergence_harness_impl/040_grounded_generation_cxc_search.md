@@ -1,6 +1,6 @@
 # 040 — N>=2 Grounded Generation via cxc-search
 
-Status: PLANNED (no code yet) · 2026-07-01 · emergence_harness_impl WP 040 · class C2 (skill doctrine) · E7
+Status: DONE (shipped + tested) · 2026-07-01 · emergence_harness_impl WP 040 · class C2 (skill doctrine) · E7
 
 > Design source: `../260701_emergence_harness/007` (cxc-search grounding rule). Skill reference:
 > `plugins/codexclaw/skills/search/SKILL.md` (Tier 1 discover, Tier 2 prove ladder).
@@ -28,6 +28,8 @@ half-remembered idea. This makes the N>=2 in decade 030 real diversity instead o
    Tier 1) and converge silently. No candidate may be invented from memory.
 2. 040.2 — record the grounding source URLs alongside each recorded candidate in the archive
    (provenance, not memory). Tier 1 result = candidate URL; cite concrete numbers only after Tier 2.
+   Shipped archive enforces non-empty source URLs; Tier 1/2 proof remains E7 doctrine and phase
+   evidence, not machine-certified by the archive.
 
 ## Invariants
 
@@ -58,9 +60,10 @@ half-remembered idea. This makes the N>=2 in decade 030 real diversity instead o
 - C: build + doc-sync + gate.
 - D: close, commit `feat(emergence-040): cxc-search-grounded N>=2 generation`, `goal update`.
 
-## Open Q
+## Closed decision
 
-Is Tier 3 ultraresearch the DEFAULT for late-collapse candidates, or opt-in per the search ladder?
+Tier 3 ultraresearch is opt-in, matching the search skill ladder. The archive enforces source URLs
+only; it does not certify search tier.
 
 ## Depends on / feeds
 

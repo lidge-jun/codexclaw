@@ -15,6 +15,8 @@ The `cxc` and `codexclaw` binaries are the same thin delegator over the compiled
 | `cxc doctor` | cxc-ops | Component health plus `ocx` detection status. |
 | `cxc reset` | cxc-ops | Clean up codexclaw operational state. |
 | `cxc orchestrate <verb>` | pabcd-state | Drive PABCD phase state (see below). |
+| `cxc metric <verb>` | pabcd-state | Record/show true-objective metrics for emergence-harness loops. |
+| `cxc divergence <verb>` | pabcd-state | Record divergence mode and grounded candidate archive entries. |
 | `cxc gui` | gui | Start the local dashboard (Vite). |
 
 ## Placeholder commands
@@ -53,3 +55,26 @@ cxc orchestrate <I|P|A|B|C|D|status|reset> [--attest '<json>']
 // C -> D additionally requires:
 { "from": "C", "to": "D", "did": "...", "checkOutput": "<test/build tail>", "exitCode": 0 }
 ```
+
+## metric sub-grammar
+
+```
+cxc metric record --session <id> --name <metric> --value <number> [--source operator-entered|evaluate.sh]
+cxc metric ingest --session <id> < output.txt
+cxc metric show --session <id>
+cxc metric kind --session <id> [satisfy|maximize]
+```
+
+`metric ingest` reads `METRIC name=value` lines from stdin. Remote judge scores are
+operator-entered; local harness output should use `source=evaluate.sh`.
+
+## divergence sub-grammar
+
+```
+cxc divergence mode --session <id> on|off [--cwd <owner-root>] [--collapse P|D] [--reason <text>]
+cxc divergence candidate add --session <id> [--cwd <owner-root>] --kind strong-1|add-1|alternative --title <text> --rationale <text> --source <url>
+cxc divergence candidate list --session <id> [--cwd <owner-root>]
+```
+
+Use `--cwd <owner-root>` when recording from a child worktree so the owner worktree
+keeps the single candidate archive.

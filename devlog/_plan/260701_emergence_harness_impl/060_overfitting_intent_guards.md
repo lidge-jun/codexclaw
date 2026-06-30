@@ -1,6 +1,6 @@
 # 060 — Overfitting Guard + Intent-Question Gating
 
-Status: PLANNED (no code yet) · 2026-07-01 · emergence_harness_impl WP 060 · class C2 (skill doctrine) · E7
+Status: DONE (shipped + tested) · 2026-07-01 · emergence_harness_impl WP 060 · class C2 (skill doctrine) · E7
 
 > Design source: `../260701_emergence_harness/006` (layered selection), `007` (user-question
 > gating), `50_emergence_gap.md` (the 96%-local / 3.5-official gap). Objective-kind moved to 015,
@@ -58,10 +58,10 @@ intent was already clear. Both need explicit doctrine triggers, not vibes.
 - C: build + doc-sync + gate.
 - D: close, commit `feat(emergence-060): overfitting guard + intent-question gating`, `goal update`.
 
-## Open Q
+## Closed decision
 
-What concrete signal flips "converge silently" -> "ask the user"? (e.g. ambiguity score,
-missing success criterion, conflicting constraints.)
+Ask only when intent is open, success criteria conflict, or C/D evidence cannot separate
+candidates. With clear implementation intent, record `strong-1` + `add-1` and converge silently.
 
 ## Depends on / feeds
 

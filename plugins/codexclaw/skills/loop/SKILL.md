@@ -36,6 +36,44 @@ work-phases.
   suppressed and `request_user_input` is hard-denied). The Interview is HITL-only and
   runs only with no active goal; the Stop hook never drives the Interview.
 
+## Emergence / Divergence Layer
+
+PABCD is convergence-first by default. For ordinary build or bug-fix goals, keep one
+strategy and execute it. Divergence is a **plateau-triggered mode**, not a standing
+habit: it turns on only when a maximize objective has recorded non-improving metrics
+(`cxc metric`) and the Stop hook emits the objective-plateau directive.
+
+When divergence is ON:
+
+- Record mode explicitly: `cxc divergence mode --session <id> on --collapse P|D --reason <why>`.
+- I/P records at least two candidates in the archive. If the user intent is clear, do
+  not ask a fake menu question; record `strong-1` plus `add-1` silently. If intent is
+  genuinely open, ask the user to choose or constrain the candidates.
+- Every candidate must carry `cxc-search` provenance: `strong-1` should be Tier 2
+  proven; `add-1` must be at least Tier 1 discovered. Record it with
+  `cxc divergence candidate add ... --source <url>`.
+- When candidate work happens in a git worktree, record archive entries into the owner
+  worktree, not the child. Run `cxc divergence ... --cwd <owner-repo-root>` from child
+  worktrees so the collapse owner sees every candidate.
+- Collapse early at P for satisfy-spec work (pass/fail, locally checkable). Collapse
+  late at D for maximize-metric work where the local metric can deceive: build
+  candidates in isolated worktrees, run the same `evaluate.sh`, then keep/discard by
+  the recorded metric.
+- For maximize goals, build or validate `evaluate.sh` before any candidate build. It
+  must be deterministic, use fixed seeds/folds, and emit `METRIC name=value`; ingest
+  with `cxc metric ingest --session <id>`.
+- If local metrics improve while holdout/true metrics stall or fall, treat it as an
+  overfitting stop signal. Do not celebrate or keep the candidate without a re-plan.
+- After the plateau is broken or a candidate is kept/discarded, turn divergence off:
+  `cxc divergence mode --session <id> off --reason resolved`, then return to the
+  normal N=1 loop.
+
+This section is E7 doctrine plus project-local evidence files. The only shipped E2
+lever is the Stop hook's plateau block; worktree creation, harness execution, and
+candidate races are still agent-executed work, not background automation. The
+`.codexclaw/divergence/` files are durable evidence, not an automatic control source;
+forgotten active mode cannot move phases or build candidates by itself.
+
 ## Stop-continuation (shipped, L6)
 
 The continuation is enforced by the active Stop hook (`handleStop`), not just this
@@ -51,3 +89,7 @@ via:
   consecutive blocks at the same phase with no transition, the loop releases so it can
   never trap a session. A real transition (chat or CLI) resets the counter, so each
   phase of a healthy P→A→B→C→D gets a fresh budget.
+- **Objective plateau block** — for active maximize goals with session-scoped metrics,
+  two non-improving same-metric rows switch the block reason from plain continuation
+  to "step back and re-plan with divergence." This still uses the same bounded
+  `MAX_STOP_BLOCKS` release path and never asks the user inside goal mode.

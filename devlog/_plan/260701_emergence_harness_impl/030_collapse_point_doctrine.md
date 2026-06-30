@@ -1,6 +1,6 @@
 # 030 — Divergence-Mode + Collapse-Point Doctrine
 
-Status: PLANNED (no code yet) · 2026-07-01 · emergence_harness_impl WP 030 · class C2 (skill doctrine + state) · E7 + persisted state
+Status: DONE (shipped + tested) · 2026-07-01 · emergence_harness_impl WP 030 · class C2 (skill doctrine + state) · E7 + persisted state
 
 > Design source: `../260701_emergence_harness/004`, `006`, `007` (collapse-point model). This
 > decade encodes the runtime-facing rule the agent follows; it CONSUMES decade-020's E2 signal
@@ -31,8 +31,9 @@ from 020 has nothing telling it what to do when it fires.
    - divergence is a PLATEAU-TRIGGERED mode, not preemptive: default N=1; arm only when 020 fires;
      return to N=1 after the plateau breaks. Keep N small (2-3) — each candidate is a full build.
    - label honestly: E7 doctrine + the E2 lever lives in 020, not here.
-2. 030.2 — a `.codexclaw/` divergence-mode flag + candidate-archive shape so a fresh pass knows it
-   is mid-divergence and which candidates exist (survives compaction).
+2. 030.2 — a `.codexclaw/divergence/` divergence-mode flag + candidate-archive shape so a fresh
+   pass knows it is mid-divergence and which candidates exist (survives compaction). Shipped as
+   `cxc divergence mode ...` and `cxc divergence candidate ...`.
 3. 030.3 — drift check: skill text matches shipped Stop behavior (the `50_emergence_gap.md` rule).
 
 ## Invariants
@@ -40,6 +41,8 @@ from 020 has nothing telling it what to do when it fires.
 - No over-claim: the skill states E2 lives in 020; this decade is doctrine + persisted state.
 - divergence is OFF by default (N=1); it is a stagnation response, not a standing posture.
 - Project-local mode flag under `.codexclaw/`; no goal-DB write.
+- Mode/archive files are durable evidence, not an automatic control source; stale mode cannot
+  move phases, spawn worktrees, or build candidates by itself.
 
 ## Acceptance
 
@@ -64,9 +67,10 @@ from 020 has nothing telling it what to do when it fires.
 - C: build + drift/unit + gate.
 - D: close, commit `feat(emergence-030): collapse-point doctrine + divergence-mode flag`, `goal update`.
 
-## Open Q
+## Closed decision
 
-divergence-mode archive shared with decade 050's candidate archive, or separate?
+Use one shared `.codexclaw/divergence/` archive for mode + candidates. It is the common evidence
+surface for 030, 040, and 050; no separate fan-out archive.
 
 ## Depends on / feeds
 

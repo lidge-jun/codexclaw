@@ -1,6 +1,6 @@
 # 045 — Harness-First (`evaluate.sh`) Before Any Candidate
 
-Status: PLANNED (no code yet) · 2026-07-01 · emergence_harness_impl WP 045 · class C2 (skill doctrine + metric feed) · E7 + E2 feed
+Status: DONE (shipped + tested) · 2026-07-01 · emergence_harness_impl WP 045 · class C2 (skill doctrine + metric feed) · E7 + E2 feed
 
 > Design source: `../260701_emergence_harness/004` ("Before any candidate"). A-phase audit finding
 > #2: harness-first MUST precede the decade-050 fan-out — building candidates before a faithful

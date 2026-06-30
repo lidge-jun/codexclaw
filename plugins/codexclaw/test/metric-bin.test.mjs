@@ -38,3 +38,43 @@ test("root cxc metric delegates to pabcd-state dist and records metrics", () => 
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test("root cxc divergence delegates to pabcd-state dist and records candidate provenance", () => {
+  if (!existsSync(pabcdCliDist)) return;
+  const cwd = mkdtempSync(join(tmpdir(), "codexclaw-divergence-bin-"));
+  try {
+    const mode = spawnSync(
+      process.execPath,
+      [bin, "divergence", "mode", "on", "--session", "cli", "--collapse", "D", "--reason", "plateau", "--json"],
+      { cwd, encoding: "utf8" },
+    );
+    assert.equal(mode.status, 0, mode.stderr || mode.stdout);
+    assert.equal(JSON.parse(mode.stdout).active, true);
+
+    const add = spawnSync(
+      process.execPath,
+      [
+        bin,
+        "divergence",
+        "candidate",
+        "add",
+        "--session",
+        "cli",
+        "--kind",
+        "add-1",
+        "--title",
+        "Alternative",
+        "--rationale",
+        "grounded contrast",
+        "--source",
+        "https://example.com/alt",
+        "--json",
+      ],
+      { cwd, encoding: "utf8" },
+    );
+    assert.equal(add.status, 0, add.stderr || add.stdout);
+    assert.deepEqual(JSON.parse(add.stdout).sourceUrls, ["https://example.com/alt"]);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

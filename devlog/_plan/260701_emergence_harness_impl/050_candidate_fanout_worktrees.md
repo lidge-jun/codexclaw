@@ -1,6 +1,6 @@
 # 050 — Candidate Build Fan-Out (Worktrees) + D Race
 
-Status: PLANNED (no code yet) · 2026-07-01 · emergence_harness_impl WP 050 · class C2 (skill doctrine + ledger) · E7 + E2 ledger
+Status: DONE (shipped + tested) · 2026-07-01 · emergence_harness_impl WP 050 · class C2 (skill doctrine + ledger) · E7 + E2 ledger
 
 > Design source: `../260701_emergence_harness/004` (A+B parallel), `007` (late collapse). The
 > worktree isolation pattern already exists in jawcode `team`; this decade is its codexclaw,
@@ -33,6 +33,8 @@ metric does (or does not) separate them.
    must NOT claim an in-goal `request_user_input`.
 3. 050.3 — worktree budget rule: max concurrent / sequential candidates per work-phase (each
    candidate is a full build; keep N small, 2-3, per the 030 doctrine).
+4. 050.4 — when commands run from child worktrees, pass `--cwd <owner-root>` to `cxc divergence`
+   so all candidates land in the owner archive.
 
 ## Invariants
 
@@ -40,6 +42,7 @@ metric does (or does not) separate them.
 - Same judge for all candidates (045's `evaluate.sh`) — comparable metrics only.
 - No in-goal `request_user_input`; ties recorded autonomously or gated after goal pause.
 - No-server: worktrees + ledger, no background manager. Discarded candidates reverted.
+- Owner archive: child worktrees record with `--cwd <owner-root>` so D sees every candidate.
 
 ## Acceptance
 
@@ -65,9 +68,11 @@ metric does (or does not) separate them.
 - C: build + doc-sync + gate.
 - D: close, commit `feat(emergence-050): worktree candidate fan-out + D race`, `goal update`.
 
-## Open Q
+## Closed decision
 
-cheap-screen (a stub `evaluate.sh`) before the full build — required always, or only when N>2?
+No automatic cheap-screen requirement in the harness. If N>2 or builds are expensive, use a stub
+screen as phase evidence before full `evaluate.sh`, but the shipped codexclaw layer only requires
+same-judge evaluation before D.
 
 ## Depends on / feeds
 
