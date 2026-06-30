@@ -144,6 +144,20 @@ spawns base explorers.
 - 070.1 — agbrowse lazy resolver + the Tier-2 `search/SKILL.md` rewrite + Notes correction.
 - 070.2 — `ultraresearch` skill (EXPAND/wave/journal/claim-ledger) + 020 role×intent attachment.
 
+## A-gate findings folded (Locke, gpt-5.5)
+
+- ultraresearch skill packaging (B2): a new skill dir needs BOTH `SKILL.md` AND
+  `agents/openai.yaml` (doctor `doctor.ts:82-100`; `manifest-policy.test.mjs:47-59`), and it
+  MUST be added to `skill-hub/references/catalog.md` or the L19 catalog-coverage test fails
+  (`manifest-policy.test.mjs:137-151`). Ship all three.
+- research-intent attachment (B3 + note 4): do NOT extend `ROLE_BASE_SKILLS.explorer` (that
+  would hit every explorer). Add an internal `INTENT_EXTRA_SKILL_FOLDERS` map and append it
+  inside `routeDispatch` — no public signature change, existing 020 callers/tests unaffected.
+- agbrowse resolver order (note 8): override → PATH → adjacent checkout → install hint. NO
+  runtime/cache/Homebrew steps (agbrowse has none); do not copy ast-grep's full order.
+- gate prose (note 6): both `search/SKILL.md` and the new `ultraresearch/SKILL.md` are scanned
+  for false-enforcement claims; phrase the swarm/attachment as agent-driven, not hook-enforced.
+
 ## PABCD plan (one full cycle)
 
 - P: this diff-level design; confirm HTTP-first proof + opt-in/lazy + no-discovery-misuse.

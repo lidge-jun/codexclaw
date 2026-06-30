@@ -25,6 +25,7 @@ never disabled). Load an on-demand skill explicitly by `$name` or SKILL.md path.
 | dev-devops | `skills/dev-devops/SKILL.md` | surface | containers, deploy pipelines, k8s, IaC, SRE | false | none |
 | dev-scaffolding | `skills/dev-scaffolding/SKILL.md` | surface | new project/module scaffold, structure audits | false | none |
 | search | `skills/search/SKILL.md` | capability | external/current/web lookups, deep research | false | none |
+| ultraresearch | `skills/ultraresearch/SKILL.md` | capability | deep multi-source research (EXPAND/wave/journal/claim-ledger), Tier-3 explorer swarm | false | none (protocol rides base explorer; agbrowse HTTP proof is opt-in) |
 | ast-grep | `skills/ast-grep/SKILL.md` | capability | AST-shape search / deterministic codemods (rg-first for byte search) | false | needs `sg` binary (lazy-provisioned) |
 | skill-hub | `skills/skill-hub/SKILL.md` | router | "which skill?", capability beyond dev | false | none |
 

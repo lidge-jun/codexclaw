@@ -308,6 +308,18 @@ export const INTENT_ROLE                           = {
 };
 
 /**
+ * lazygap_impl 070 — per-intent EXTRA skill folders appended on top of the role base.
+ * This is how a `research` dispatch rides the deep-research protocol WITHOUT a new role:
+ * the base `explorer` also gets `cxc-search` + `cxc-ultraresearch`. Other intents add
+ * nothing here (their specialization comes from role base + surfaces). Folders are only
+ * attached if they exist on disk (buildSpawnItems filters via existsSync), so a missing
+ * skill silently degrades rather than producing a dangling path.
+ */
+export const INTENT_EXTRA_SKILL_FOLDERS                                    = {
+  research: ["search", "ultraresearch"],
+};
+
+/**
  * PURE: turn a dispatch intent (+ optional surfaces / explicit skill folders) into the
  * role and the `items` attachment for a v1 spawn. This is the one call a dispatcher makes:
  *   routeDispatch({ intent: "red-team", surfaces: ["frontend"], task, skillsDir })
@@ -323,12 +335,16 @@ export function routeDispatch(input
 
  )                                         {
   const role = INTENT_ROLE[input.intent] ?? "explorer";
+  // 070: fold in any per-intent extra skill folders (e.g. research -> search + ultraresearch)
+  // ahead of caller-supplied explicit folders; resolveAttachedSkillFolders dedups + orders.
+  const intentExtras = INTENT_EXTRA_SKILL_FOLDERS[input.intent] ?? [];
+  const explicitSkillFolders = [...intentExtras, ...(input.explicitSkillFolders ?? [])];
   const items = buildSpawnItems({
     role,
     task: input.task,
     skillsDir: input.skillsDir,
     surfaces: input.surfaces,
-    explicitSkillFolders: input.explicitSkillFolders,
+    explicitSkillFolders,
   });
   return { role, items };
 }

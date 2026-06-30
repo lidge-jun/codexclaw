@@ -248,3 +248,25 @@ test("020: routeDispatch('research') -> explorer + explicit skill honored", asyn
   const names = items.filter((i) => i.type === "skill").map((i) => i.name);
   assert.ok(names.includes("cxc-search"));
 });
+
+test("070: routeDispatch('research') auto-attaches cxc-search + cxc-ultraresearch (no explicit needed)", async () => {
+  const { routeDispatch, INTENT_EXTRA_SKILL_FOLDERS } = await import("../src/spawn-wrapper.ts");
+  assert.deepEqual(INTENT_EXTRA_SKILL_FOLDERS.research, ["search", "ultraresearch"]);
+  const { role, items } = routeDispatch({
+    intent: "research",
+    task: "survey the landscape",
+    skillsDir: SKILLS_DIR,
+  });
+  assert.equal(role, "explorer");
+  const names = items.filter((i) => i.type === "skill").map((i) => i.name);
+  assert.ok(names.includes("cxc-search"), "research auto-attaches cxc-search");
+  assert.ok(names.includes("cxc-ultraresearch"), "research auto-attaches cxc-ultraresearch");
+  assert.ok(names.includes("cxc-dev"), "explorer base dev skill still present");
+});
+
+test("070: non-research intents do NOT auto-attach ultraresearch", async () => {
+  const { routeDispatch } = await import("../src/spawn-wrapper.ts");
+  const { items } = routeDispatch({ intent: "review", task: "review the diff", skillsDir: SKILLS_DIR });
+  const names = items.filter((i) => i.type === "skill").map((i) => i.name);
+  assert.ok(!names.includes("cxc-ultraresearch"), "review must not attach ultraresearch");
+});

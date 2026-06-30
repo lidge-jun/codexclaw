@@ -46,13 +46,23 @@ focused, rewritten queries. It returns candidate URLs plus source metadata
 sufficient from Tier 1 output alone.
 
 ### Tier 2 — Browser Use / Computer Use (proof, default)
-Open candidate URLs and read the real source. Browser Use reads DOM, PDFs,
-rendered pages, and screenshots; Computer Use is reserved for browser chrome or
-OS UI the in-app browser cannot reach. This is the default proof tier: confirm
-date, author/source identity, the exact claim, and whether the page is primary
-evidence. When a source is blocked, JS-rendered, PDF-only, or table-only, apply
-the tactics in `references/blocked-url-reader.md` — that helper is Tier 2
-guidance, **not** a fourth tier.
+Open candidate URLs and read the real source. Prefer an HTTP-first proof when
+`agbrowse` is available: `agbrowse fetch "<url>" --json --browser never` returns an
+ok/verdict/source/finalUrl/content/evidence envelope, and `agbrowse search --verify
+"<url>" --json --browser never` gives a compact verdict on a KNOWN url. If HTTP proof is
+blocked or JS-only and a local Chrome is running, escalate with `agbrowse fetch "<url>"
+--json --browser auto` (local CDP only; remote/hosted CDP is out). `agbrowse` is OPT-IN and
+lazily resolved (`scripts/agbrowse_helper.py doctor`); if it is not resolvable, fall back to
+Browser Use / Computer Use exactly as before. Browser Use reads DOM, PDFs, rendered pages,
+and screenshots; Computer Use is reserved for browser chrome or OS UI the in-app browser
+cannot reach. Either way confirm date, author/source identity, the exact claim, and whether
+the page is primary evidence. When a source is blocked, JS-rendered, PDF-only, or table-only,
+apply the tactics in `references/blocked-url-reader.md` — that helper is Tier 2 guidance,
+**not** a fourth tier.
+
+Do **not** use plain `agbrowse search "<query>"` as discovery: without `--stdin-results` it
+fabricates candidate URLs. Discovery stays Tier 1 (hosted `web_search`); `agbrowse` is a
+proof-of-a-known-url helper only.
 
 ### Tier 3 — Subagent swarm (deep research, opt-in)
 For broad, costly, or multi-source research, the main agent may explicitly spawn
@@ -60,6 +70,9 @@ a subagent swarm in ultraresearch mode: one query family or source class per
 agent, source URLs returned, no edits, no hidden providers. Tier 3 is opt-in and
 must be requested deliberately — it never auto-fires for ordinary latest/current
 lookups. It is not a durable/background facility; durability is Phase 3 work.
+The deep-research method (EXPAND query families, research waves, journal +
+claim-ledger, converge on verified claims) lives in the on-demand `$cxc-ultraresearch`
+skill, attached to the base `explorer` subagents the main agent spawns — not a new role.
 
 ### Removed cli-jaw tiers (non-goals — do not re-add)
 codexclaw has no server runtime, so the cli-jaw 4-tier ladder does not carry over.
@@ -101,6 +114,8 @@ spend Tier 3 subagents on a question Tier 1+2 already settled.
 
 - This skill is on-demand (`allow_implicit_invocation: false`); only `dev` is
   implicit. It is reached by trigger words or by `dev`-hub routing.
-- Query rewrite runs prompt-side; there is no `agbrowse` binary dependency.
+- Query rewrite runs prompt-side. `agbrowse` is an OPT-IN, lazily-resolved Tier-2 proof
+  helper (HTTP-first; local-CDP escalation only); it is not bundled and not required —
+  without it, Tier 2 is the Browser Use / Computer Use path.
 - The blocked-URL reader and ultraresearch decomposition are absorbed as Tier 2
   helper tactics and Tier 3 method, not as new tiers or vendored browsers.
