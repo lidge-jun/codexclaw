@@ -85,7 +85,7 @@ Live root commands:
 - `status`
 - `doctor`
 - `reset`
-- `chat-search`
+- ~~`chat-search`~~ (RETIRED L13/WP1 — use the `cxc-search` skill; kept here struck-through for history)
 - `gui`
 
 Live control surfaces:

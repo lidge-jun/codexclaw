@@ -42,13 +42,13 @@ hooks do not implement. This is the central L14 honesty gap (`20_pabcd_dispatch_
 
 | # | Severity | Surface A | Surface B |
 | --- | --- | --- | --- |
-| B1 | HIGH | `mvp_hard/000_INDEX.md:53`: L11 decision DONE / impl PLANNED | `110_L11_developer_docs_website.md:3`: Status DONE (while `:8` says "no docs-site scaffold shipped") |
-| B2 | HIGH | `mvp_hard/000_INDEX.md:54`: L12 impl DONE | same INDEX `:63` and `README.md:49` and `roadmap.html:232`: L12 impl PLANNED |
-| B3 | HIGH | `mvp_hard/000_INDEX.md:51`: L9 impl DONE | `090_L9...md:3` "parity plan only; runtime deferred" + `:58` "no runtime spawn wrapper implemented"; `README.md:49` L9 impl PLANNED |
-| B4 | MED | `README.md:13`: production wrapper planned (L9 impl PLANNED) | `091_L9.1_spawn_wrapper.md:3`: Status DONE (shipped+tested) |
-| B5 | MED | `structure/INDEX.md:180-181` (pre-fix): `cxc subagents`/`cxc provider` are stubs | `093_L9.3_operator_surface.md:3`: Status DONE (shipped+tested) — fixed in INDEX 2026-06-30; row kept for trace |
-| B6 | MED | `100_L10...md:3`: Status DONE | same doc `:6` "docs-only decision pass"; `:19` lists `cxc chat-search` in-scope while `INDEX.md:82` says RETIRED |
-| B7 | LOW | `110_L11...md:88`: live root commands include `chat-search` | `structure/INDEX.md`: `cxc chat-search` RETIRED |
+| B1 | RESOLVED (L13+L18) | ~~L11 INDEX impl-DONE vs 110 doc "no docs-site scaffold"~~ | Two-axis columns make it honest: INDEX L11 = `DONE / PLANNED` (decision closed, docs-site impl genuinely pending — the user builds the site separately). 110 doc leading token `DONE` == INDEX decision-state; gate `checkStatusSync` passes. No split-brain. |
+| B2 | RESOLVED (L13+L18) | ~~L12 impl DONE vs PLANNED across INDEX/README/roadmap~~ | INDEX L12 = `DONE / DONE`; runtime shipped via 121/122 (interview capture + rescan). 120 doc leading token `DONE` == decision-state; gate-guarded. |
+| B3 | RESOLVED (L13+L18) | ~~L9 impl DONE vs "runtime deferred"~~ | INDEX L9 = `DONE / DONE`; runtime shipped via 091/092/093 (spawn-wrapper/catalog/operator CLI). 090 doc leading token `DONE` == decision-state; impl truth carried by sub-loop docs; gate-guarded. |
+| B4 | RESOLVED (L9.1) | ~~README L9 wrapper "planned" vs 091 DONE~~ | 091 spawn-wrapper shipped+tested; README is user-owned and tracks the two-axis split. Sub-loop doc is authoritative. |
+| B5 | RESOLVED (INDEX fix) | ~~structure/INDEX pre-fix called subagents/provider stubs~~ | INDEX CLI Surface now lists `cxc subagents`/`cxc provider` as live (093 shipped); fixed 2026-06-30. |
+| B6 | RESOLVED (L19 follow-up) | ~~100_L10 doc lists `cxc chat-search` in-scope vs RETIRED~~ | 2026-06-30: added a dated SUPERSEDED-IN-PART banner to 100_L10 pointing at the L13/WP1 retirement; original decision text kept for history; live surface is `structure/INDEX.md`. |
+| B7 | RESOLVED (L19 follow-up) | ~~110_L11 live-command list includes `chat-search`~~ | 2026-06-30: struck through `chat-search` in the 110 command list with a RETIRED (L13/WP1) note. |
 
 Cluster verdict: L9/L11/L12 are the recurring false-DONE trio. The fix is the two-axis
 status rule (`00_philosophy.md` §3): keep decision and impl on separate columns and never

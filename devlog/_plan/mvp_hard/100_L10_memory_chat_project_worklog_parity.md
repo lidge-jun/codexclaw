@@ -2,6 +2,12 @@
 
 Status: DONE (decision boundary) - 2026-06-30 - mvp_hard loop L10
 
+> SUPERSEDED-IN-PART (L13/WP1, 2026-06-30): the `cxc chat-search` wrapper described below
+> was later RETIRED (D1'). Codex app-server `thread/search` has no native CLI/agent surface,
+> so wrapping it made codexclaw a self-implemented search surface. Chat lookups now route
+> through the `cxc-search` skill. The text below is the original L10 decision record and is
+> kept for history; for the live command surface see `structure/INDEX.md` (CLI Surface).
+
 > Scope: record the codex-native boundary for cli-jaw memory/chat/project/task/worklog
 > parity. This is a docs-only decision pass. It does not add runtime commands, stores,
 > dashboard integrations, or fallback services.
