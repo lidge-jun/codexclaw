@@ -41,9 +41,6 @@ Only `role` is required. `mode: "default"` uses the main model; `mode: "model"` 
 The [GUI dashboard](/codexclaw/guides/gui/) wraps these tools with model pickers and prompt
 editors so you can set roles without hand-editing JSON.
 
-:::note[Live spawn-wrapper is planned]
-codexclaw persists role config and exposes a resolver today. Wiring that resolver into live
-`spawn_agent` calls — so the configured model is actually used at spawn time — is planned
-(L9 on the [parity roadmap](/codexclaw/development/parity-roadmap/)). Until then, treat the
-config as the source of truth that a future spawn-wrapper will consume.
-:::
+The `pre-tool-use-attaching-skills` hook wires into live `spawn_agent` calls, applying the
+configured model and skills at spawn time. Role config, resolver, and spawn-wrapper are all
+shipped (L9).

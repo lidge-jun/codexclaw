@@ -10,7 +10,7 @@ codexclaw does **not** ship its own agent harness. It reuses the `codex` runtime
 
 - **dev skills**: the cli-jaw `dev-*` family normalized to Codex `SKILL.md` convention (project-agnostic discipline: architecture, debugging, testing, review, security, ...).
 - **PABCD workflow**: Plan / Audit / Build / Check / Done, reimplemented as Codex-native skills + hooks + file state (no external orchestrator server).
-- **multi-model subagents**: role-based subagents (explorer / reviewer / executor). Per-role model/prompt config is persisted and resolvable today; the production wrapper that applies it to live `spawn_agent` calls is planned (L9 impl PLANNED).
+- **multi-model subagents**: role-based subagents (explorer / reviewer / executor). Per-role model/prompt config is persisted, resolved, and applied to live `spawn_agent` calls through the spawn-wrapper hook (shipped L9).
 - **optional opencodex (ocx) provider bridge**: when `ocx` is installed, codexclaw detects its read-only status for catalog/link-bar context. It never runs `ocx ensure`/`sync` or mutates Codex provider config; when `ocx` is absent, codexclaw stays on the native Codex path.
 
 ## Layout
@@ -24,8 +24,10 @@ codexclaw/
 │   ├── hooks/                            # session-start / prompt / stop hooks
 │   ├── agents/                           # subagent role .toml definitions
 │   ├── components/                       # isolated feature sources (src + dist)
+│   │   ├── config-guard/                 # plugin enable/disable/status
+│   │   ├── cxc-ops/                      # doctor + reset
 │   │   ├── provider-bridge/              # ocx detect-only / graceful native path
-│   │   ├── pabcd-state/                  # PABCD FSM + state file
+│   │   ├── pabcd-state/                  # PABCD FSM + state file + orchestrate CLI
 │   │   └── subagent-config/              # subagent model/prompt config store + MCP
 │   └── gui/                              # local web dashboard (Vite + React)
 ├── cli/                                  # codexclaw CLI commands
@@ -45,9 +47,11 @@ The codexclaw GUI handles subagent configuration (default model vs multi-model),
 
 ## Status
 
-MVP core is implemented and the `mvp_hard` parity hardening track is two-axis (decision vs
-impl): L2-L8 are shipped+tested; L9/L11/L12 are decision-closed with implementation PLANNED;
-L10 is a decision loop. `cxc orchestrate` is live, chat-side phase control writes the same `.codexclaw/` state,
-the IPABCD footer/status affordance is wired, and the Stop-continuation loop runs under
-an active Codex goal with a bounded stagnation guard. See `devlog/_plan/` for the shipped
-ledger and remaining hardening slices.
+MVP core is implemented and the `mvp_hard` parity hardening track is complete through L20:
+L2-L9 and L12-L20 are shipped+tested; L10 is decision-closed (most is host-native); L11
+(developer docs SoT reconciliation) is the remaining implementation item. `cxc orchestrate`
+is live, chat-side phase control writes the same `.codexclaw/` state, the IPABCD
+footer/status affordance is wired, and the Stop-continuation loop runs under an active Codex
+goal with a bounded stagnation guard. Thirteen hooks cover session lifecycle, orchestration,
+pre/post-tool guards, subagent evidence, and compaction recovery. See `devlog/_plan/` for
+the shipped ledger and remaining hardening slices.

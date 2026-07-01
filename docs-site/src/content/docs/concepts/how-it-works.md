@@ -29,17 +29,20 @@ demand. The skill hub is a catalog, not a runtime loader. See the
 
 ## Hooks
 
-Five hooks connect Codex lifecycle events to codexclaw state:
+Thirteen hooks connect Codex lifecycle events to codexclaw state, covering session start,
+orchestration, pre/post-tool guards, subagent evidence, and compaction recovery:
 
-| Event | Hook | Role |
+| Event | Hooks | Role |
 |---|---|---|
-| `SessionStart` | provider-bridge | Detect `ocx` status (detect-only). |
+| `SessionStart` (×2) | provider-bridge, project-rules | Detect `ocx` status; surface project rules. |
 | `UserPromptSubmit` | pabcd-trigger | Parse orchestrate grammar and inject phase directives. |
 | `Stop` | pabcd-continuation | Keep an in-flight cycle advancing under an active goal. |
-| `PreToolUse` (`create_goal`) | goal-budget | Guard goal creation. |
-| `PreToolUse` (`request_user_input`) | interview-in-goal | Deny interview prompts in goal mode. |
+| `PreToolUse` (×5) | goal-budget, interview-in-goal, skill-attach, friction-advise, edit-lint | Guard goals, deny interview in goal mode, attach skills to spawns, check friction, lint edits. |
+| `PostToolUse` (×2) | interview-capture, friction-record | Capture interview answers; record shell friction. |
+| `SubagentStop` | evidence-verify | Verify subagent evidence bundles. |
+| `PostCompact` | reinject-cursor | Recover PABCD state after context compaction. |
 
-Full matchers and commands are in the [Hooks reference](/codexclaw/reference/hooks/).
+Full matchers and timeouts are in the [Hooks reference](/codexclaw/reference/hooks/).
 
 ## MCP server
 
@@ -50,8 +53,10 @@ reads and writes role → model/prompt config in `.codexclaw/subagents.json`. Se
 ## CLI
 
 The `cxc` / `codexclaw` binary is a thin delegator over the compiled component CLIs:
-`enable` / `disable` route to config-guard, `doctor` / `reset` to cxc-ops, and `orchestrate` to
-pabcd-state. See the [Commands reference](/codexclaw/reference/commands/).
+`enable` / `disable` / `status` route to config-guard, `doctor` / `reset` to cxc-ops,
+`orchestrate` / `freeze` / `metric` / `divergence` / `goalplan` to pabcd-state, `subagents`
+to subagent-config, `provider` to provider-bridge, and `gui` to the Vite dashboard. See
+the [Commands reference](/codexclaw/reference/commands/).
 
 ## File state
 

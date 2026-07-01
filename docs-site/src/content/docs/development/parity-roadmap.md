@@ -21,15 +21,20 @@ means intentionally postponed. The docs never describe a planned feature as if i
 | Interview scan-evidence ledger + `I → P` soft-gate | <span class="cxc-badge cxc-badge--current">current</span> |
 | Subagent role config + MCP tools | <span class="cxc-badge cxc-badge--current">current</span> |
 | opencodex detect-only bridge | <span class="cxc-badge cxc-badge--current">current</span> |
+| Live spawn-wrapper consuming the role resolver | <span class="cxc-badge cxc-badge--current">current</span> |
+| Interview PostToolUse answer capture + scan-evidence ledger | <span class="cxc-badge cxc-badge--current">current</span> |
+| `cxc subagents` / `cxc provider` CLI | <span class="cxc-badge cxc-badge--current">current</span> |
+| Shell friction capture + advisory hooks | <span class="cxc-badge cxc-badge--current">current</span> |
+| Skill-attach spawn hook + edit-lint hook | <span class="cxc-badge cxc-badge--current">current</span> |
+| PostCompact state recovery hook | <span class="cxc-badge cxc-badge--current">current</span> |
+| Project-rules session-start hook | <span class="cxc-badge cxc-badge--current">current</span> |
+| SubagentStop evidence-verify hook | <span class="cxc-badge cxc-badge--current">current</span> |
 
 ## Planned
 
 | Area | Status | Notes |
 |---|---|---|
-| Live spawn-wrapper consuming the role resolver | <span class="cxc-badge cxc-badge--planned">planned</span> | Config + resolver exist; no live `spawn_agent` caller yet (L9). |
-| Developer docs site build/publish | <span class="cxc-badge cxc-badge--planned">planned</span> | This site is the first scaffold pass (L11). |
-| Interview PostToolUse answer capture + narrow Stop guard | <span class="cxc-badge cxc-badge--planned">planned</span> | No PostToolUse hook yet (L12). |
-| `cxc subagents` / `cxc provider` CLI | <span class="cxc-badge cxc-badge--planned">planned</span> | Placeholder commands today. |
+| Developer docs SoT reconciliation | <span class="cxc-badge cxc-badge--planned">planned</span> | Docs scaffold exists; content reconciliation in progress (L11). |
 | npm / npx packaging | <span class="cxc-badge cxc-badge--planned">planned</span> | Package is private; `dist/` unpublished (L20). |
 
 ## Deferred / non-goals

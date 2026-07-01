@@ -23,7 +23,8 @@ type Phase = "IDLE" | "I" | "P" | "A" | "B" | "C" | "D";
 |---|---|
 | `.codexclaw/sessions/<sessionId>.json` | The session `State` object. |
 | `.codexclaw/ledger.jsonl` | Append-only `LedgerEntry` rows, one per transition. |
-| `.codexclaw/interviews/<id>.jsonl` | Interview scan-evidence events. |
+| `.codexclaw/interview/freeze.json` | Interview-plan freeze manifest. |
+| `.codexclaw/interviews/<id>.jsonl` | Interview Q/A capture + scan-evidence events. |
 | `.codexclaw/subagents.json` | Subagent role → model/prompt config. |
 
 :::note

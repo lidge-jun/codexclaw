@@ -57,7 +57,7 @@ a supported install path. Use a source checkout or the dev symlink until packagi
 
 ## Hook trust
 
-codexclaw ships five hooks. Codex requires you to review and trust hooks before they run:
+codexclaw ships thirteen hooks. Codex requires you to review and trust hooks before they run:
 
 - The first start after install or upgrade prompts a Codex hook review.
 - Under the symlink dogfood track, approved hooks execute mutable local checkout files, so review

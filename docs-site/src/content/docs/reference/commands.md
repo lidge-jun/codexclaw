@@ -1,6 +1,6 @@
 ---
 title: Commands
-description: Every cxc / codexclaw command — live, placeholder, and the orchestrate sub-grammar.
+description: Every cxc / codexclaw command — live commands and the orchestrate sub-grammar.
 ---
 
 The `cxc` and `codexclaw` binaries are the same thin delegator over the compiled component CLIs.
@@ -17,16 +17,11 @@ The `cxc` and `codexclaw` binaries are the same thin delegator over the compiled
 | `cxc orchestrate <verb>` | pabcd-state | Drive PABCD phase state (see below). |
 | `cxc metric <verb>` | pabcd-state | Record/show true-objective metrics for emergence-harness loops. |
 | `cxc divergence <verb>` | pabcd-state | Record divergence mode and grounded candidate archive entries. |
+| `cxc freeze` | pabcd-state | Freeze the interview plan and surface the goal-activation handoff. |
+| `cxc goalplan` | pabcd-state | Init, show, or validate the project-local goalplan substrate. |
 | `cxc gui` | gui | Start the local dashboard (Vite). |
-
-## Placeholder commands
-
-These parse but are not implemented yet (they print a Phase 2 notice):
-
-| Command | Planned purpose |
-|---|---|
-| `cxc subagents` | Subagent model config from the terminal. |
-| `cxc provider` | opencodex bridge controls from the terminal. |
+| `cxc subagents` | subagent-config | Read/write per-role subagent model and prompt config. |
+| `cxc provider` | provider-bridge | Show read-only opencodex (`ocx`) provider status (detect mode). |
 
 :::note
 `chat-search` was a former command. It was retired in L13; it is not a live `cxc` command.
