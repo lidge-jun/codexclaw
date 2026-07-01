@@ -117,6 +117,20 @@ export function detectTrigger(prompt: string): Phase | null {
   return null;
 }
 
+/**
+ * Detect a user asking to route a question/research task through agbrowse.
+ * This is intentionally narrower than "mentions agbrowse": implementation work
+ * about the hook or package should not be mistaken for a search request.
+ */
+export function detectAgbrowseSearchRequest(prompt: string): boolean {
+  const p = (prompt ?? "").toLowerCase();
+  if (!/\bagbrows?e\b/.test(p)) return false;
+  return (
+    /\b(?:through|via|using|use|with|ask|question|research|search|browse|look\s*up|find|fetch|verify)\b/.test(p) ||
+    /(?:통해|통해서|사용|써서|가지고|질문|물어|조사|검색|리서치|알아봐|찾아|확인|검증|브라우즈)/.test(p)
+  );
+}
+
 const PHASE_DIRECTIVES: Partial<Record<Phase, string>> = {
   I: [
     "[codexclaw: INTERVIEW]",
@@ -183,6 +197,21 @@ export const QUESTION_SHAPE_DIRECTIVE = [
   "- one impact/tradeoff sentence per option.",
   "Only the main session asks; subagents never generate or deliver questions.",
   "While a question is pending, refuse or restate unrelated free-form answers.",
+].join("\n");
+
+export const AGBROWSE_SEARCH_DIRECTIVE = [
+  "[codexclaw: SEARCH — agbrowse requested]",
+  "The user explicitly asked to route this question/research task through agbrowse.",
+  "Load and obey cxc-search before answering when available.",
+  "Use agbrowse only as a known-URL proof helper: first resolve it with the cxc-search helper",
+  "(`scripts/agbrowse_helper.py doctor` from the search skill), then prefer",
+  "`agbrowse fetch \"<url>\" --json --browser never` or",
+  "`agbrowse search --verify \"<url>\" --json --browser never` for candidate URLs.",
+  "If no candidate URL is already known, use hosted web_search to discover URLs first",
+  "or state that discovery is unavailable. Never use plain `agbrowse search \"<query>\"`",
+  "as discovery.",
+  "Escalate to `agbrowse fetch \"<url>\" --json --browser auto` only for a known",
+  "blocked/JS-only URL with local Chrome available; otherwise fall back to Browser Use / Computer Use.",
 ].join("\n");
 
 const STAGE_LABELS: Partial<Record<Phase, string>> = {
@@ -291,8 +320,21 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
     return buildContextOutput("UserPromptSubmit", withFooter(directive, trigger));
   }
 
+  const agbrowseRequested = detectAgbrowseSearchRequest(payload.prompt);
+
   // fail-closed: no trigger and orchestration never activated -> stay silent.
-  if (!state.orchestrationActive) return "";
+  if (!state.orchestrationActive) {
+    if (agbrowseRequested) {
+      if (turn) {
+        writeState(payload.cwd, {
+          ...state,
+          injectedTurns: appendTurn(state.injectedTurns, turn),
+        });
+      }
+      return buildContextOutput("UserPromptSubmit", AGBROWSE_SEARCH_DIRECTIVE);
+    }
+    return "";
+  }
 
   // L17 firewall: the goal-active interview suppression must also cover the PASSIVE
   // re-injection paths (modes 2/3), not just the explicit `trigger === "I"` path above.
@@ -309,7 +351,7 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
   //  - suppress under context-pressure/compaction recovery (don't pile on), and
   //  - skip when the current phase's stage marker is already present in the tail.
   const tail = readTranscriptTail(payload.transcript_path);
-  if (isContextPressureTail(tail)) return "";
+  if (isContextPressureTail(tail) && !agbrowseRequested) return "";
   if (hasStageMarkerForPhase(tail, state.phase)) {
     if (turn) {
       writeState(payload.cwd, {
@@ -318,12 +360,16 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
         injectedTurns: appendTurn(state.injectedTurns, turn),
       });
     }
+    if (agbrowseRequested) {
+      return buildContextOutput("UserPromptSubmit", AGBROWSE_SEARCH_DIRECTIVE);
+    }
     return "";
   }
 
   // mode 2: phase changed since the last injected phase -> full directive.
   if (state.phase !== state.lastInjectedPhase) {
     const directive = state.phase === "I" ? interviewDirective() : phaseDirective(state.phase);
+    const context = agbrowseRequested ? `${directive}\n\n${AGBROWSE_SEARCH_DIRECTIVE}` : directive;
     if (turn) {
       writeState(payload.cwd, {
         ...state,
@@ -331,7 +377,7 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
         injectedTurns: appendTurn(state.injectedTurns, turn),
       });
     }
-    return buildContextOutput("UserPromptSubmit", withFooter(directive, state.phase));
+    return buildContextOutput("UserPromptSubmit", withFooter(context, state.phase));
   }
 
   // mode 3: same phase -> short compaction-immune stage header every turn.
@@ -341,7 +387,9 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
       injectedTurns: appendTurn(state.injectedTurns, turn),
     });
   }
-  return buildContextOutput("UserPromptSubmit", withFooter(buildStageHeader(state.phase), state.phase));
+  const header = buildStageHeader(state.phase);
+  const context = agbrowseRequested ? `${header}\n\n${AGBROWSE_SEARCH_DIRECTIVE}` : header;
+  return buildContextOutput("UserPromptSubmit", withFooter(context, state.phase));
 }
 
 /** L5 — one-line human status for the chat `orchestrate status` affordance. */

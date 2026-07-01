@@ -310,6 +310,31 @@ test("WP22/G19: user-prompt-submit hook e2e - no trigger + un-orchestrated stays
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
+test("agbrowse: user-prompt-submit hook e2e - natural language agbrowse request injects cxc-search guidance", () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
+  const ep = snapshotEntrypoint(distAbs);
+  if (!ep) return;
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-agbrowse-"));
+  try {
+    const res = runHook(ep, hookEvent, {
+      hook_event_name: "UserPromptSubmit", session_id: "s-ag", cwd: tmp, turn_id: "t1",
+      prompt: "agbrowe를 통해서 질문해줘",
+    });
+    assert.equal(res.status, 0, res.stderr);
+    const out = JSON.parse(res.stdout);
+    const ctx = out.hookSpecificOutput.additionalContext;
+    assert.match(ctx, /\[codexclaw: SEARCH/);
+    assert.match(ctx, /cxc-search/);
+    assert.match(ctx, /agbrowse fetch/);
+    assert.match(ctx, /Never use plain `agbrowse search/);
+    const stateFile = join(tmp, ".codexclaw", "sessions", "s-ag.json");
+    assert.ok(existsSync(stateFile), "turn dedup state should be persisted");
+    const persisted = JSON.parse(readFileSync(stateFile, "utf8"));
+    assert.equal(persisted.orchestrationActive, false, "search injection must not activate PABCD");
+    assert.equal(persisted.lastInjectedPhase, null, "search injection must not pretend to be a PABCD phase");
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
 // lazygap_impl 010: SubagentStop evidence-receipt gate. A gated worker child with no
 // receipt must be blocked (decision:block); a valid receipt under .codexclaw/evidence/
 // releases. Drives the real dist entrypoint via the manifest command.

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   detectTrigger,
+  detectAgbrowseSearchRequest,
   buildContextOutput,
   handleUserPromptSubmit,
   handleStop,
@@ -68,6 +69,14 @@ test("detectTrigger: natural Korean with particles/suffixes still matches", () =
   assert.equal(detectTrigger("이거 감사해줘"), "A");
   assert.equal(detectTrigger("기능 구현해줘"), "B");
   assert.equal(detectTrigger("검증 좀 해줘"), "C");
+});
+
+test("detectAgbrowseSearchRequest: Korean/English search requests, including typo, are detected", () => {
+  assert.equal(detectAgbrowseSearchRequest("agbrowse를 통해서 질문해줘"), true);
+  assert.equal(detectAgbrowseSearchRequest("agbrowe를 통해서 질문해줘"), true);
+  assert.equal(detectAgbrowseSearchRequest("use agbrowse to verify this URL"), true);
+  assert.equal(detectAgbrowseSearchRequest("agbrowse hook도 넣어야될듯"), false);
+  assert.equal(detectAgbrowseSearchRequest("그냥 agbrowse 참조"), false);
 });
 
 test("buildContextOutput: wraps in omo envelope with trailing newline", () => {
@@ -153,6 +162,50 @@ test("handleUserPromptSubmit: non-trigger -> '' and writes no state", () => {
     const out = handleUserPromptSubmit(ups("hello there", cwd, "s1", "t1"));
     assert.equal(out, "");
     assert.equal(existsSync(join(cwd, STATE_DIR)), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("handleUserPromptSubmit: agbrowse request injects search directive without activating PABCD", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("agbrowse를 통해서 질문해줘", cwd, "s1", "t1"));
+    assert.notEqual(out, "");
+    const parsed = JSON.parse(out.trimEnd());
+    const ctx = parsed.hookSpecificOutput.additionalContext as string;
+    assert.equal(parsed.hookSpecificOutput.hookEventName, "UserPromptSubmit");
+    assert.match(ctx, /\[codexclaw: SEARCH/);
+    assert.match(ctx, /cxc-search/);
+    assert.match(ctx, /agbrowse fetch/);
+    assert.match(ctx, /Never use plain `agbrowse search/);
+    const st = readState(cwd, "s1");
+    assert.equal(st.orchestrationActive, false);
+    assert.equal(st.lastInjectedPhase, null);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("handleUserPromptSubmit: agbrowse request is idempotent within same turn", () => {
+  const cwd = freshCwd();
+  try {
+    const first = handleUserPromptSubmit(ups("agbrowe를 통해서 질문해줘", cwd, "s1", "t1"));
+    const second = handleUserPromptSubmit(ups("agbrowe를 통해서 질문해줘", cwd, "s1", "t1"));
+    assert.notEqual(first, "");
+    assert.equal(second, "");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("handleUserPromptSubmit: PABCD trigger wins over agbrowse search directive", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("plan this with agbrowse", cwd, "s1", "t1"));
+    const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
+    assert.equal(ctx, withFooter(phaseDirective("P"), "P"));
+    assert.doesNotMatch(ctx, /agbrowse fetch/);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
