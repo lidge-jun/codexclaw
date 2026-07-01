@@ -160,6 +160,14 @@ values and palettes are STYLE_SAMPLE (§1.5); the emoji-as-UI-icon ban is the on
 
 Read `references/core/anti-slop.md` for full rules. Key standards:
 
+### Hero discipline (FE-HERO-01)
+
+- First viewport must fit: hero content leaves a hint of the next section on mobile and desktop.
+- Keep hero copy to ~4 text elements max: headline, subhead, primary CTA, one proof/context line.
+- Do not put trust strips, pricing teasers, feature bullets, or mini dashboards inside the hero.
+- Logo walls belong below the hero, not as hero filler.
+- Plan font scale with image/product scale so neither crushes the other.
+
 - Treat unexamined default typography as a slop signal. Choose a domain-appropriate stack; Korean-first UI should use CJK-safe fonts and system fallbacks deliberately.
 - Use neutral or intentional color palettes — purple gradients on white are a slop signal
 - Use asymmetric or purposeful layouts — centered-everything reads as template
@@ -181,6 +189,10 @@ Read `references/core/anti-slop.md` for full rules. Key standards:
 - Treat short descriptors (hero subtitle, card description, caption) using `text-wrap: pretty` instead of `balance` as a slop signal — `pretty` does nothing on 1-3 line text, especially Korean
 - Treat Korean orphan fragments ("합니다.", "화.", "입니다." alone on a line) as a slop signal — always verify Korean text breaks at target viewports
 - Treat generic stroke icons as brand logo substitutes as a slop signal — use actual brand SVGs from Simple Icons, SVGL, or press kits. See `brand-asset-sourcing.md`
+
+### Do not ship these tells (FE-AI-TELL-01)
+
+Version labels in heroes, numbered eyebrows, middle-dot overuse, fake social-proof headers, decorative scroll cues, weather/status strips with no product purpose, photo-credit captions in UI chrome, and generic "trusted by teams worldwide" claims are AI-default tells. Full catalog: `references/core/anti-slop.md` + `references/core/layout-discipline.md`.
 
 ---
 
@@ -228,6 +240,13 @@ Banned:
 - Modals, menus, comboboxes, bottom sheets, and command palettes must have a complete keyboard path
 - Stress-test Korean long labels and screen-reader names; clipped Hangul is a failure
 - Pointer targets follow WCAG 2.2 AA target-size rules; 44×44px is a conservative product baseline, not the only legal minimum
+
+### A11y polish (FE-A11Y-POLISH-01)
+
+- CTA text fits on one line at target breakpoints; if it wraps, shorten the label or change the layout.
+- Inputs need visible boundaries against their background in default, focus, error, and disabled states.
+- Duplicate CTA intent on the same screen should merge or clearly differ by outcome.
+- Button contrast is checked during visual review, not left to palette intent.
 
 ---
 
@@ -391,7 +410,7 @@ Before delivering:
 - [ ] Domain-correct direction chosen and committed
 - [ ] Product surface, locale, density, asset need, soft 3D gate, and motion intensity classified
 - [ ] Anti-slop patterns enforced (§5)
-- [ ] Oversized hero text avoided unless this is a true hero surface
+- [ ] Hero discipline enforced: viewport fit, copy count, no in-hero trust/pricing/feature clutter (§5)
 - [ ] Required assets are real, semantic, rendered, and not generic decoration
 - [ ] Korean-first UI follows CJK typography and Korean UX writing rules
 - [ ] Soft 3D/miniature/character assets pass domain and semantic gates
@@ -410,6 +429,7 @@ Before delivering:
 - [ ] shadcn components follow local registry and token conventions
 - [ ] AI UI states are honest: no fake streaming, citations, or tool calls
 - [ ] Forms validate with schema and show field-level errors (§10)
+- [ ] A11y polish checked: one-line CTAs, visible input borders, no duplicate CTA intent (§7)
 - [ ] Focus management on modals and popovers (§11)
 - [ ] Desktop/mobile/narrow screenshots checked for overlap, clipping, and asset rendering
 - [ ] Interactive components isolated as Client Components (if RSC)

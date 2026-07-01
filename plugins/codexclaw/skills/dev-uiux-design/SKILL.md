@@ -58,14 +58,37 @@ fetch/open/text/get-dom/snapshot only after candidate URLs exist.
 
 ---
 
+## UX State Contract (UX-STATE-01)
+
+For onboarding, empty, loading, error, or progressive-disclosure work, the body must answer the state meaning before styling. Deep patterns live in `references/ux-states.md`.
+
+- Onboarding teaches the first meaningful action, not the whole product.
+- Empty explains why the state exists and names the next action.
+- Loading chooses skeleton for known structure, spinner/progress for short unknown waits, and avoids fake completion.
+- Error exposes retry, recovery, or escalation; never dead-end the user.
+- Progressive disclosure names what stays hidden, why it stays hidden, and where it becomes available.
+
+## IA Chooser (UX-IA-01)
+
+Default navigation architecture by work shape; read `references/responsive-nav.md` for responsive details.
+
+| Work shape | Default IA |
+|------------|------------|
+| Dense desktop repeated work | Sidebar + command palette |
+| Medium sectioned work | Tabs or segmented navigation |
+| Mobile-primary consumer flow | Bottom nav, sheet, or thumb-zone actions |
+| Wizard/auth/setup | Stepper or stacked linear flow |
+
 ## 1. User Intent Discovery Protocol
 
-When the user's design request is vague ("깔끔하게 해줘", "모던하게", "just make it look good"), run this 6-step Socratic Scaffolding flow before generating any UI. Never produce generic output from vague input.
+When the user's design request is vague ("깔끔하게 해줘", "모던하게", "just make it look good"), do not produce generic output. Run the compact ambiguity flow (UX-INTENT-01):
+1. Produce the Design Read from §2 using available signals.
+2. If one decision still blocks the direction, ask ONE best clarifying fork with binary/ternary choices.
+3. Proceed from the answer; if the user does not answer and the task can continue, choose the most domain-correct default and state the assumption.
 
 > Skip this section if the user provided explicit design specs or this is a ≤5-line patch.
 
-**Rules:**
-- Ask a maximum of 6 questions before proposing a concrete direction.
+**Optional deepening:** use the ladder below only when the first fork fails or the user explicitly wants guided exploration.
 - Use binary/ternary choices, not open-ended questions.
 - Reference known products — users recognize what they want faster than they articulate it.
 - If the diagram skill is available, offer: "참고로 스타일 비교를 다이어그램으로 보여드릴 수도 있어요."
@@ -203,7 +226,7 @@ Inference rules:
 ### Anti-Default Discipline
 Do not default to: warm beige backgrounds, centered hero, three equal feature cards, generic glassmorphism, Inter + slate-900, card-based everything. These are LLM defaults. Reach past them BASED ON the design read.
 
-If the brief is ambiguous, ask ONE clarifying question. Not a multi-question dump.
+If the brief is ambiguous, follow UX-INTENT-01: Design Read → ONE clarifying fork → proceed.
 
 ### DESIGN.md persistence
 If the project needs persistent design tokens across sessions, save the Design Read as a full `DESIGN.md` in the project root. Format spec: `references/design-system-bootstrap.md § DESIGN.md Format`.
@@ -218,10 +241,10 @@ Map common Korean design descriptors to concrete tokens. When the user uses thes
 |--------|---------|----------------------|
 | 깔끔하게 | cleanly | Generous whitespace (24-48px gaps), strict grid, max 2-3 colors, saturation < 60%, 1px borders or none, 4-8px radius, single font, no/subtle shadows |
 | 모던하게 | modern | Geometric sans-serif (Geist/Outfit), negative letter-spacing on headings, dark mode or high-contrast light, 8-16px radius, spring micro-interactions |
-| 고급스럽게 | luxurious | Very generous whitespace (48-96px padding), thin weights (300-400), serif for headings, low-saturation palette, slow animations (800ms+), 0-4px radius |
+| 고급스럽게 | luxurious | Very generous whitespace (48-96px padding), thin weights (300-400), refined sans by default, serif only with editorial/luxury rationale, low-saturation palette, slow animations (800ms+), 0-4px radius |
 | 심플하게 | simply | Max 3-4 element types per screen, 1-2 colors, single font, 2-3 size steps, hidden/minimal navigation, zero decoration |
 | 트렌디하게 | trendy | Glassmorphism, bento grid, gradient mesh, variable fonts — ask for a reference site |
-| 따뜻하게 | warmly | Warm hue range (stone/amber/orange), 12-20px radius, warm-tinted shadows rgba(180,140,100,0.1), serif or rounded sans |
+| 따뜻하게 | warmly | Warm hue range (stone/amber/orange), 12-20px radius, warm-tinted shadows rgba(180,140,100,0.1), rounded or humanist sans |
 | 차가운 | cold/cool | Cool grays (slate/zinc), blue-tinted whites, geometric sans, thin weights, 0-8px radius |
 | 감성적으로 | emotionally | Editorial/lifestyle, serif display + sans body, muted/pastel colors, generous line-height, photography-heavy |
 
@@ -252,6 +275,7 @@ Rapid lookup: user word → concrete starting point.
 
 ### Font Selection Guidelines
 
+- **Typography stance (UX-TYPE-01)**: sans by default. Use serif only when the brief, brand system, or stated editorial/premium rationale supports it; do not inject one serif word into an otherwise sans headline for spice.
 - **Primary default**: Geist (modern SaaS, Vercel ecosystem)
 - **Korean-first**: Pretendard (한글 최적화, Toss/당근 등 국내 서비스 표준)
 - **Warm/editorial**: Outfit or Cabinet Grotesk

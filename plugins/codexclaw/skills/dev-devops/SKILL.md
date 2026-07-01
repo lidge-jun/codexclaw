@@ -145,6 +145,8 @@ jobs:
 
 ### §2.5 Secret Management (STRICT)
 
+**Rule (DEVOPS-AUTH-01):** Prefer OIDC, workload identity federation, trusted publishing, or other short-lived credential flows before static long-lived tokens. When static tokens are unavoidable, scope narrowly, store in the managed secret system, and rotate on schedule or incident.
+
 | Source | Usage |
 |--------|-------|
 | GHA Secrets / Vault / AWS SM | CI pipeline secrets |
@@ -158,6 +160,10 @@ jobs:
 - Actions updates deploy repo (image digest PR/commit) → ArgoCD reconciles
 - Self-heal: ArgoCD auto-reverts drift
 - Environment protection: GitHub Environments for prod approval gate
+
+### §2.7 Release Proof Contract (STRICT)
+
+**Rule (DEVOPS-RELEASE-PROOF-01):** A release claim must name the artifact digest, workflow/builder identity, deploy target/environment, smoke-test evidence, and rollback evidence. Keep the proof at router level; detailed package, platform, and SLSA mechanics live in `package-release.md`, `cross-platform-release.md`, and `platform-engineering.md`.
 
 ---
 

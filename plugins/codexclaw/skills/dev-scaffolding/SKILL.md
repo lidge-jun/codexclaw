@@ -42,12 +42,22 @@ defer to an existing mature convention when one is present (§2). Three pillars:
 Before scaffolding inside an existing repo:
 1. Resolve the repo root from `pwd` / project context / applicable `AGENTS.md`.
 2. Detect existing architecture, docs, plans, changelog, ADR, agent-context, and source-of-truth conventions.
-3. Read existing `README.md`, `AGENTS.md`, `CLAUDE.md`, `docs/`, `plans/`, `adr/`, `architecture/`, or equivalent source-of-truth docs before proposing new structure.
+3. Read existing `README.md`, `AGENTS.md`, `CLAUDE.md`, `devlog/`, `docs/`, `plans/`, `adr/`, `architecture/`, or equivalent source-of-truth docs before proposing new structure.
 4. Reuse clear conventions instead of imposing the default pattern.
 5. Show a compact tree before broad additions.
 6. Do not create new project-level docs folders, planning folders, `AGENTS.md`, or extra tooling without approval.
 
 MUST preserve mature repo conventions over the default scaffold pattern.
+
+### Codexclaw-First Durable Docs
+
+**Rule (SCAF-SOT-01):** In codexclaw or any repo that already uses durable devlog/source-of-truth conventions, prefer the existing `devlog/` placement, local numbering scheme, and source-of-truth paths before proposing generic `docs/` + `plans/`.
+
+Keep it light:
+- Cross-link scaffold docs to evidence paths (`path:line`, plan file, ADR, current-architecture note) so future workers can audit why files exist.
+- Follow existing phase/decade numbering when present; do not flatten or renumber local history.
+- Treat source-of-truth placement as part of scaffolding completion: the final audit must say which durable convention was reused or that none existed.
+- Boundary/public-export decisions still route to `dev-architecture` §1 (`ARCH-DECISION-01`, `ARCH-MAP-01`); scaffolding owns file placement and skeleton consistency.
 
 ## 2.1 Lightweight Source of Truth
 
@@ -67,7 +77,7 @@ plans/
   done/                  # completed work summaries
 ```
 
-Folder names are advisory. If the repo already has `docs/`, `adr/`, `plans/`,
+Folder names are advisory. If the repo already has `devlog/`, `docs/`, `adr/`, `plans/`,
 `changelog/`, `architecture/`, or another convention, propose using those instead.
 Also detect optional lightweight source-of-truth files such as `CONTEXT.md`,
 `CONTEXT-MAP.md`, and `docs/adr/`. Reuse them when present. Do not create them unless

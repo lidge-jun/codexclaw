@@ -166,6 +166,10 @@ A data contract must include:
 
 Changes to a contracted schema require **versioning and consumer notification**.
 
+### Migration & Backfill Sequencing
+
+**Rule (DATA-MIGRATION-01):** Treat schema changes and data backfills as separate steps. Production evolution uses expand → backfill → dual read/write when needed → contract; require a dry run, idempotency proof, and reconciliation counts before declaring the migration complete.
+
 ---
 
 ## 5. Analysis & Reporting
@@ -252,13 +256,13 @@ See `references/streaming.md` for Kafka configuration, CDC patterns, and windowi
 | **Streaming** | Kafka, Kinesis, Pub/Sub |
 | **Quality** | Great Expectations, dbt tests, Soda, custom validators |
 | **Monitoring** | Prometheus, Grafana, Datadog, Monte Carlo |
-| **Local analysis** | DuckDB (in-process SQL), Polars (fast DataFrame), pandas (exploration/ML) |
+| **Local analysis** | DuckDB (in-process SQL), Polars (fast DataFrame), pandas only for explicit compatibility exceptions |
 
 ### Tool Decision Matrix
 
 | Factor | pandas | Polars | DuckDB |
 |--------|--------|--------|--------|
-| **Best for** | <100MB, exploration, ML prep | >100MB, batch ETL, performance | SQL analytics, ad-hoc queries |
+| **Best for** | Required pandas-only downstream compatibility | Batch ETL, performance, DataFrame workflows | SQL analytics, ad-hoc queries, small exploration |
 | **Execution** | Single-threaded, eager | Multi-threaded Rust, lazy eval | Vectorized, auto disk spill |
 | **Speed (groupby/join)** | Baseline | 5-10x faster | Matches Polars on SQL-native |
 | **Memory** | Full load into RAM | Streaming, lazy chains | Spill-to-disk for out-of-core |
@@ -270,10 +274,11 @@ See `references/streaming.md` for Kafka configuration, CDC patterns, and windowi
 
 | Data size / workflow | Recommended tool |
 |----------------------|------------------|
-| Small (<100MB), interactive exploration | pandas |
+| Small (<100MB), interactive exploration | DuckDB for SQL-first, Polars for DataFrame-first |
 | Medium (100MB-10GB), batch transforms | Polars |
 | SQL-first analytics, any size | DuckDB |
 | Blended workflow | Polars transforms, DuckDB aggregations (zero-copy via Arrow) |
+| pandas-only library boundary | pandas, with the compatibility exception stated |
 
 See `references/tools.md` for full patterns and code examples.
 See `references/ml-pipeline.md` for ML training pipelines, experiment tracking (MLflow 3.x), feature stores (Feast), and data versioning (DVC/Delta Lake).

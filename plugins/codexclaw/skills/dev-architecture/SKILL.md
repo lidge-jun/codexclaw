@@ -34,6 +34,33 @@ evidence-status rules. Use browser verification only after candidate URLs exist.
 
 ## 1. Module Boundaries
 
+### Structural Decision Gate
+
+**Severity: HIGH**
+**Rule (ARCH-DECISION-01):** When changing module boundaries, seams, layering, shared packages, or public exports above C0/C1 local-patch scope, name the structural decision before editing.
+
+Required decision record, inline in the plan or in the repo's ADR/source-of-truth file:
+- Context: what pressure forced the boundary change.
+- Rejected alternative: at least one plausible option not chosen, with why.
+- Chosen move: split, extract, merge, invert dependency, introduce adapter, or change public export.
+- Consequences: new dependency direction, public contract impact, migration cost, and follow-up verification.
+
+Route durable, surprising, hard-to-reverse, or cross-team choices to the repo's ADR/current-architecture source of truth instead of leaving them only in chat. `dev-scaffolding` owns where those durable docs live; this skill owns the boundary decision content.
+
+### Pre-Change Structural Map
+
+**Severity: HIGH**
+**Rule (ARCH-MAP-01):** Before recommending or applying a split/extract/merge for boundary work above C0/C1, produce a compact structural map from code evidence.
+
+Map fields:
+- Core modules involved.
+- Direct dependents and dependencies.
+- Current and intended dependency direction.
+- Public boundaries touched (`index.*`, package exports, route/API contracts, CLI entry points).
+- Blast-radius class (local module, feature, package, app, cross-app/monorepo).
+
+Do not choose the fix first and backfill the map. The map is the evidence that tells whether the right move is colocation, extraction, dependency inversion, adapter introduction, or no structural change.
+
 ### Layered Architecture Boundaries
 
 | Layer | May Import | MUST NOT Import | Example |

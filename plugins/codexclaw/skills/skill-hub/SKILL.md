@@ -44,6 +44,19 @@ host-provided by Codex (not a codexclaw skill) and is not in the implicit set.
 4. For renderer/diagram needs, read `references/renderers.md` first: some cli-jaw
    renderers have no codex-native equivalent.
 
+## Routing rubric (which skill now)
+
+Quick forks for the common ambiguous cases (the catalog says what exists; this says which to pick):
+
+- Repo fact-finding -> stay in `dev` + repo tools (`rg`, code search); load `search` only when the
+  answer depends on current/external/public/release/provider facts.
+- Code-shape / structural query or codemod -> `ast-grep`; byte/text search -> `rg`.
+- Multi-step plan, gated execution, interview-first discovery -> `pabcd`; repeated work-phases -> `loop`.
+- Review / audit -> `dev-code-reviewer`; runtime failure / RCA -> `dev-debugging`; module boundaries -> `dev-architecture`.
+- Search ownership: `search` owns current/external/public evidence policy. Other skills POINT to
+  `search` for that path; they must not restate the tier ladder. If material facts may have
+  changed, load `search` before answering from memory.
+
 ## Notes
 
 - No runtime hub engine or dynamic loader lives here; this is documentation.

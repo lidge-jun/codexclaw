@@ -153,6 +153,10 @@ Use SSE/WebSocket only for push notifications about job status — not for the o
 | Holding connection open for >5s synchronous work | Return 202 + job ID; notify via push when done |
 | No reconnection logic on client side | Implement exponential backoff with jitter |
 
+### Server Runtime Safety (DEFAULT)
+
+**Rule (BACKEND-RUNTIME-01):** Production server runtimes set explicit read, write, request/idle, and graceful-shutdown timeouts; drain on SIGTERM/deploy by stopping new accepts, letting in-flight work finish within the shutdown budget, then closing; and propagate the request ID from ingress into structured logs, traces, queued work, and outbound calls where the stack supports it.
+
 ---
 
 ## 2. Layered Architecture (Default; Allow Serverless Handlers, Vertical Slices, and Small Scripts When Appropriate)
@@ -171,6 +175,10 @@ Routes → Controllers → Services → Repositories → Database
 - Controllers: parse input, call services, format output. No business rules.
 - Services: receive/return plain data (not `req`/`res`). All logic here.
 - Repositories: abstract DB access. Services access data through repositories only.
+
+### Boundary Parsing Contract (DEFAULT)
+
+**Rule (BACKEND-BOUNDARY-01):** Parse once at ingress/trust boundaries; inside that boundary, typed values are proof. Do not duplicate schema validation, null defense, or defensive parsing in services unless data crosses a new trust boundary. Canonical boundary-defense ownership stays in `dev-architecture` §4; this is the backend stub.
 
 ### Repository Pattern (Interface Abstraction)
 

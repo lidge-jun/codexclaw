@@ -66,6 +66,8 @@ source-fetch and evidence-status rules.
 - Use factories / builders for setup; avoid repeated inline blobs.
 - A fast real dependency beats a mock. A mock beats an untested branch.
 - If the failure is mysterious, **delegate methodology to `dev-debugging`**, then return here for the regression harness.
+- **STRICT (TEST-ANTI-FLAKE-01):** A time-based flake is a bug. Do not use sleep-based synchronization, retry-as-fix, or green-on-retry acceptance without a deterministic cause and harness correction.
+- Verification depth follows `dev` §3 `DEV-VERIFY-FLOOR-01`; CRUD per-operation negative coverage is owned by `references/core/crud-test-matrix.md`.
 ---
 ## 2. Backend & API Testing
 > Deep reference: `references/backend-testing.md`
@@ -207,7 +209,13 @@ pytest -n auto --dist=loadgroup
 | green on retry only | remove wall-clock / random assumptions |
 | screenshot noise | stable CI image, mask dynamic regions |
 Protocol: detect → quarantine if blocking → assign owner → reinstate after repeated green runs.
-### 5.5 Rules
+### 5.5 CI-Green Loop
+**STRICT (TEST-CI-GREEN-01):** Latest HEAD is the source of truth. Inspect the
+failing job and artifacts before editing, make the minimal correct fix, run local
+verification when it reduces next-fail risk, then re-watch the latest HEAD.
+Repeat until green; never blind-retry a failed job or push another change without
+new failure evidence.
+### 5.6 Rules
 - Do not let Playwright be the **only** blocking job.
 - Contract tests should run **before** browser tests.
 - Upload artifacts for failures: coverage, junit, traces, screenshots.

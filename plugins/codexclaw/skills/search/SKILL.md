@@ -40,10 +40,24 @@ candidate.
 
 ## The Ladder (exactly three codex-native tiers)
 
+### Research-depth classifier (SEARCH-DEPTH-01)
+
+Before climbing the ladder, name the depth — it is distinct from the target classifier in the
+Korean Intent Guard (which picks web vs docs vs repo):
+
+- **latest/current fact** — one entity, a version/date/price/status. Tier 1 discover + Tier 2
+  open one primary source. Capture the exact date.
+- **official-doc fact** — API/library behavior. Prefer official docs first, then open for proof.
+- **implementation/source fact** — how something is built. Open the source/repo, not a summary.
+- **comprehensive research** — multi-source/contested. This is the only depth that justifies
+  Tier 3; ordinary latest/current lookups never auto-escalate to a subagent swarm.
+
 ### Tier 1 — Hosted web search (discovery)
-Use the built-in `web_search` / current hosted web-search tool to run 1-3
-focused, rewritten queries. It returns candidate URLs plus source metadata
-(title, date, host). Tier 1 discovers; it does not prove. Never mark an answer
+Use the built-in hosted web-search tool (the model-facing `web_search`) to run 1-3 focused,
+rewritten queries. It returns candidate URLs plus source metadata (title, date, host). This
+hosted tool is feature-gated, not guaranteed present (a provider may lack the capability, config
+may disable it, and reviews disable it); when it is unavailable, go straight to Tier 2 on a known
+URL or state that discovery is blocked. Tier 1 discovers; it does not prove. Never mark an answer
 sufficient from Tier 1 output alone.
 
 ### Tier 2 — Browser Use / Computer Use (proof, default)
@@ -64,6 +78,11 @@ apply the tactics in `references/blocked-url-reader.md` — that helper is Tier 
 Do **not** use plain `agbrowse search "<query>"` as discovery: without `--stdin-results` it
 fabricates candidate URLs. Discovery stays Tier 1 (hosted `web_search`); `agbrowse` is a
 proof-of-a-known-url helper only.
+
+**Tier 2 proof rules (SEARCH-PROOF-01):** for time-sensitive or public claims, record the exact
+date and source type, and whether the claim is corroborated by a second independent source.
+Prefer official docs / announcements / specs before reporting a settled answer. When sources
+conflict, state which source wins and why rather than averaging them.
 
 ### Tier 3 — Subagent swarm (deep research, opt-in)
 For broad, costly, or multi-source research, the main agent may explicitly spawn

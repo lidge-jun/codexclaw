@@ -139,6 +139,11 @@ before treating external material as proof.
 
 ### Phase 3: Hypothesis and Testing
 
+**STRICT (DEBUG-RCA-EVIDENCE-01):** Before any root-cause claim, write at least
+three orthogonal hypotheses (`H1/H2/H3`) and one falsifier for each. Collapse
+duplicates, test against disconfirming evidence, and do not claim root cause
+until competing hypotheses have been ruled out by evidence.
+
 1. **State hypothesis explicitly** — "X is the root cause because evidence Y
    shows Z." Write it down. If you can't articulate it clearly, you don't
    understand it yet.
@@ -156,6 +161,11 @@ before treating external material as proof.
    further rather than guessing. Record the open question explicitly.
 
 ### Phase 4: Implementation
+
+**STRICT (DEBUG-TOGGLE-PROOF-01):** Enter implementation only after the captured
+value matches the hypothesis prediction, the repro repeats, and toggling the
+suspected cause off/on removes then restores the bug. Write one paragraph
+explaining the causal mechanism before patching.
 
 1. **Write a failing test first** — the test reproduces the bug. It should fail
    before the fix. Use `dev-testing` for TDD patterns and test harness setup.
