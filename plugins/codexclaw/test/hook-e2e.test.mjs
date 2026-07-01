@@ -242,7 +242,7 @@ test("WP7/G19: post-tool-use hook e2e - captures a request_user_input round into
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
-test("WP7/G19: session-start provider hook e2e - exit 0 + parseable provider status line", () => {
+test("WP7/G19: session-start provider hook e2e - exit 0 + parseable SessionStart envelope", () => {
   const { event, hookEvent, distAbs } = readHookCommand("./hooks/session-start-ensuring-provider-bridge.json");
   assert.equal(event, "SessionStart");
   const ep = snapshotEntrypoint(distAbs);
@@ -251,8 +251,9 @@ test("WP7/G19: session-start provider hook e2e - exit 0 + parseable provider sta
   try {
     const res = runHook(ep, hookEvent, null, { PATH: emptyPath });
     assert.equal(res.status, 0, res.stderr);
-    const line = res.stdout.trim().split("\n").pop();
-    const status = JSON.parse(line);
+    const out = JSON.parse(res.stdout.trim());
+    assert.equal(out.hookSpecificOutput.hookEventName, "SessionStart");
+    const status = JSON.parse(out.hookSpecificOutput.additionalContext);
     assert.equal(status.provider, "ocx");
     assert.ok(["native", "provider", "error"].includes(status.mode), `unexpected mode: ${status.mode}`);
   } finally { rmSync(emptyPath, { recursive: true, force: true }); }
