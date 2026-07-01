@@ -111,12 +111,13 @@ blocks premature termination so you do this). Classify EACH work-phase independe
 C0-C1 fast-path applies to that work-phase's class, not the whole goal. Do each PABCD
 phase's real work; never rubber-stamp a phase to advance.
 
-For maximize-metric work that enters divergence mode (see `cxc-loop`), keep the user
-question honest. The archive may require N>=2 candidates, but the user-facing question
-does not. If the user already gave a clear implementation intent, record `strong-1`
-plus `add-1` with evidence and converge silently. Ask the user to choose among N
-candidates only when intent is genuinely open, success criteria conflict, or the metric
-cannot separate candidates after C/D evidence.
+When any PABCD workflow enters divergence mode (HITL or goal mode; see `cxc-loop`),
+keep the user question honest. The archive may require N>=2 candidates, but the
+user-facing question does not. If the user already gave a clear implementation intent,
+record `strong-1` plus `add-1` with evidence and converge silently. Ask the user to
+choose among N candidates only when intent is genuinely open, success criteria conflict,
+or the metric cannot separate candidates after C/D evidence. Goal mode adds only the
+Stop-hook continuation/plateau prompt; divergence itself is a PABCD-layer doctrine.
 
 **Production surface (shared definition):** a surface is production when it is deployed
 for real users beyond the author; prototypes, spikes, and internal demos are not. Skills

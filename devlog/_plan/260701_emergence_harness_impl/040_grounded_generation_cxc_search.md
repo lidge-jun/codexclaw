@@ -22,10 +22,11 @@ half-remembered idea. This makes the N>=2 in decade 030 real diversity instead o
 
 ## Design (diff-level)
 
-1. 040.1 — doctrine in `cxc-loop` (+ `dev` §0 cross-ref): when diverging, ground EACH candidate via
-   `cxc-search` — Tier 1 discover, Tier 2 prove. The user-facing N>=2 question is conditional on
-   OPEN intent; with clear intent, record strong-1 (grounded deep, Tier 2+) + add-1 (at least
-   Tier 1) and converge silently. No candidate may be invented from memory.
+1. 040.1 — doctrine in `cxc-loop` (+ `dev` §0 cross-ref): when any PABCD workflow diverges
+   (HITL manual entry or goal-mode plateau prompt), ground EACH candidate via `cxc-search` —
+   Tier 1 discover, Tier 2 prove. The user-facing N>=2 question is conditional on OPEN intent;
+   with clear intent, record strong-1 (grounded deep, Tier 2+) + add-1 (at least Tier 1) and
+   converge silently. No candidate may be invented from memory.
 2. 040.2 — record the grounding source URLs alongside each recorded candidate in the archive
    (provenance, not memory). Tier 1 result = candidate URL; cite concrete numbers only after Tier 2.
    Shipped archive enforces non-empty source URLs; Tier 1/2 proof remains E7 doctrine and phase
@@ -35,7 +36,8 @@ half-remembered idea. This makes the N>=2 in decade 030 real diversity instead o
 
 - No memory-invented candidates: every candidate carries a grounding source.
 - strong-1 proven to Tier 2+; add-1 grounded to at least Tier 1.
-- The user question fires only on open intent (silent converge when intent is clear).
+- The user question fires only on open intent (silent converge when intent is clear); HITL
+  divergence still does not force a fake menu question.
 
 ## Acceptance
 

@@ -22,8 +22,9 @@ declare an answer final on snippet text alone.
 
 ## Divergence Candidate Grounding
 
-When `cxc-loop` enters divergence mode, every N>=2 candidate must carry search
-provenance in the divergence archive:
+When any PABCD workflow enters divergence mode (HITL manual entry or goal-mode
+plateau prompt), every N>=2 candidate must carry search provenance in the divergence
+archive:
 
 - `strong-1`: Tier 2 proven by opening the original source. Concrete numbers or
   claims may be cited only after this proof step.

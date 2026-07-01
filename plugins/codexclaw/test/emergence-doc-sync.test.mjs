@@ -28,17 +28,23 @@ test("emergence 070: docs, HTML, and skills preserve the collapse-point doctrine
   assert.match(plan070, /NOT automatically a user question/);
   assert.match(plan070, /satisfy-spec\/build work records N>=2 cheaply and collapses at P/);
   assert.match(plan070, /maximize-metric\/unclear work keeps N plans through A\/B\/C/);
-  assert.match(plan070, /only the plateau Stop block is the shipped E2 lever/);
+  assert.match(plan070, /HITL PABCD may enter it deliberately during I\/P/);
+  assert.match(plan070, /only the goal-mode plateau Stop block is the shipped E2 lever/);
 
-  assert.match(loopSkill, /plateau-triggered mode/);
+  assert.match(loopSkill, /HITL PABCD/);
+  assert.match(loopSkill, /plateau-triggered mode[\s\S]+automatic entry/);
   assert.match(loopSkill, /strong-1[\s\S]+add-1/);
   assert.match(loopSkill, /Collapse\s+early at P[\s\S]+Collapse\s+late at D/);
+  assert.match(loopSkill, /HITL divergence entry is valid/);
   assert.match(devSkill, /user-facing question\s+does not/);
 
   assert.match(searchSkill, /Divergence Candidate Grounding/);
+  assert.match(searchSkill, /HITL manual entry or goal-mode/);
   assert.match(searchSkill, /strong-1[\s\S]+Tier 2/);
   assert.match(searchSkill, /add-1[\s\S]+Tier 1/);
 
+  assert.match(html, /HITL I\/P의 수동 선택/);
+  assert.match(html, /goal-mode의 plateau 자동 경보/);
   assert.match(html, /기록 N≥2, 실행 N=1/);
   assert.match(html, /N≥2 기록 후 P에서 1개 선택/);
   assert.match(html, /OLD-vs-NEW/);

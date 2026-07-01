@@ -1,14 +1,15 @@
 ---
 name: cxc-loop
-description: "Use for Codexclaw autonomous work-loop planning: HOTL goal continuation, repeated PABCD work-phases, Stop-continuation policy, and evidence checkpoints. Triggers: cxc-loop, loop, autonomous continuation, continue until done, HOTL, repeated PABCD, work-phase loop."
+description: "Use for Codexclaw PABCD work-loop planning: HITL phase discipline, HOTL goal continuation, repeated work-phases, divergence/collapse policy, Stop-continuation policy, and evidence checkpoints. Triggers: cxc-loop, loop, autonomous continuation, continue until done, HOTL, HITL PABCD, repeated PABCD, work-phase loop."
 metadata:
-  short-description: "HOTL PABCD continuation loop contract."
+  short-description: "PABCD continuation + divergence/collapse loop contract."
 ---
 
 # cxc-loop
 
-Use this skill for autonomous Codexclaw work loops that span multiple PABCD
-work-phases.
+Use this skill for Codexclaw work loops that span one or more PABCD work-phases.
+It covers both HITL PABCD (manual/user-confirmed phase movement) and HOTL goal
+loops (Stop-hook continuation after D/IDLE).
 
 ## Contract
 
@@ -55,9 +56,18 @@ re-entering a loop or after a `D` close:
 ## Emergence / Divergence Layer
 
 PABCD is convergence-first by default. For ordinary build or bug-fix goals, keep one
-strategy and execute it. Divergence is a **plateau-triggered mode**, not a standing
-habit: it turns on only when a maximize objective has recorded non-improving metrics
-(`cxc metric`) and the Stop hook emits the objective-plateau directive.
+strategy and execute it. Divergence is a **PABCD-layer mode**, not a standing habit:
+it can be selected deliberately in HITL PABCD during I/P, or automatically prompted
+in goal mode when a maximize objective records non-improving metrics (`cxc metric`)
+and the Stop hook emits the objective-plateau directive. The plateau-triggered mode
+is the shipped automatic entry, not the only valid entry.
+
+In HITL PABCD, use deliberate I/P divergence when the user's intent is open, the
+algorithmic approach is genuinely uncertain, the objective is maximize/deceptive, or
+the user explicitly asks to compare alternatives. The P/A/B pause semantics remain:
+no hook builds candidates, races worktrees, or bypasses confirmation. In goal mode,
+the Stop hook can only keep the turn alive and tell the agent to re-plan; it still
+does not ask the user or move phases by itself.
 
 When divergence is ON:
 
@@ -85,7 +95,8 @@ When divergence is ON:
   normal N=1 loop.
 
 This section is E7 doctrine plus project-local evidence files. The only shipped E2
-lever is the Stop hook's plateau block; worktree creation, harness execution, and
+lever is the goal-mode Stop hook's plateau block; HITL divergence entry is valid but
+human/agent selected, not hook-enforced. Worktree creation, harness execution, and
 candidate races are still agent-executed work, not background automation. The
 `.codexclaw/divergence/` files are durable evidence, not an automatic control source;
 forgotten active mode cannot move phases or build candidates by itself.

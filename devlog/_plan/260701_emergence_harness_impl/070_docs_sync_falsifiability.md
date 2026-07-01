@@ -24,10 +24,12 @@ track exists to fix. This decade reconciles the SOT and fixes how the layer is v
 
 `006` and `007` are not rival doctrines. They are two axes:
 
-1. **Mode axis (006):** normal execution is single-strategy convergence; expensive divergence is
-   usually plateau-triggered by true-objective metrics. Up-front late divergence is the narrow
-   exception: maximize-metric objective, local proxy is not the true objective, and no clear
-   architecture winner exists.
+1. **Mode axis (006):** normal execution is single-strategy convergence; divergence is a
+   PABCD-layer mode. HITL PABCD may enter it deliberately during I/P when intent is open,
+   algorithmic direction is uncertain, the objective is maximize/deceptive, or the user asks for
+   comparison. Goal mode adds the automatic plateau Stop prompt when true-objective metrics stall.
+   Up-front late divergence is the narrow exception: maximize-metric objective, local proxy is not
+   the true objective, and no clear architecture winner exists.
 2. **Collapse-point axis (007):** I records N>=2 approaches as anti-anchoring evidence, but that is
    NOT automatically a user question and NOT automatically N worktrees. With clear user intent, the
    agent records `strong-1 + add-1` and converges silently. With open intent, conflicting success
@@ -39,8 +41,9 @@ track exists to fix. This decade reconciles the SOT and fixes how the layer is v
    isolated worktrees, runs the same harness, and races at D by fixed-seed true metric.
 5. **Grounding:** candidates are not memory guesses. `strong-1` should be Tier 2 proven via
    `cxc-search`; `add-1` is at least Tier 1 discovered and must be promoted before concrete claims.
-6. **Honesty:** only the plateau Stop block is the shipped E2 lever. Archives, cxc-search grounding,
-   worktree fan-out, collapse-point choice, and human selection are agent-executed doctrine/evidence.
+6. **Honesty:** only the goal-mode plateau Stop block is the shipped E2 lever. HITL divergence
+   entry is valid but manual/agent-selected. Archives, cxc-search grounding, worktree fan-out,
+   collapse-point choice, and human selection are agent-executed doctrine/evidence.
 
 ## Falsifiability Rule
 
@@ -65,7 +68,8 @@ contract and cannot become a second deceptive proxy.
 - Holdout fold untouched during tuning (else the fixture becomes the overfit target).
 - median + worst-10% + variance, not mean (mean hides the deceptive-proxy tail).
 - Remote NYPC score = external smoke, never causal proof of the layer.
-- E2/E7 honesty: only the plateau Stop branch is the shipped runtime lever.
+- E2/E7 honesty: only the goal-mode plateau Stop branch is the shipped runtime lever; HITL
+  divergence entry is doctrine + evidence, not a hidden hook.
 
 ## Acceptance
 

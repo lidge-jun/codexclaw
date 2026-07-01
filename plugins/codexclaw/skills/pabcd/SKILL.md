@@ -67,11 +67,15 @@ These align with the directives the `pabcd-state` hook injects per phase:
 
 **Loop / multi-pass tasks**: a "loop"/"루프" request (or work too large for one cycle) runs as multiple PABCD passes — one per work-phase. Pre-plan the full slice map and scaffold per-phase decade docs (10_phase1, 20_phase2, ...) up front. The first pass MAY be a design-only PABCD pass (Phase 0): a code-free whole-system design/documentation cycle before the first implementation work-phase.
 
-For maximize-metric work, `cxc-loop` may enter divergence mode after a plateau: record
-N>=2 grounded candidates, choose early collapse at P for satisfy-spec work or late
-collapse at D for deceptive metrics, and keep all candidate provenance in
-`.codexclaw/divergence/`. The agent still owns every phase transition; no hook builds
-or races candidates automatically.
+HITL and goal PABCD may both use `cxc-loop` divergence/collapse. In HITL, the agent
+may choose divergence deliberately during I/P when intent is open, algorithmic direction
+is uncertain, the objective is maximize/deceptive, or the user asks for alternatives.
+In goal mode, the shipped automatic entry is the plateau Stop directive after recorded
+non-improving metrics. Either way, record N>=2 grounded candidates, choose early
+collapse at P for satisfy-spec work or late collapse at D for deceptive metrics, and
+keep all candidate provenance in `.codexclaw/divergence/`. The agent still owns every
+phase transition; no hook builds or races candidates automatically, and HITL P/A/B
+pauses remain real confirmation points.
 
 **Faithful execution (anti-skip)**: do the real work of each PABCD-phase — P writes the real diff-level plan, A really dispatches the audit, B really implements AND verifies, C really runs tsc/tests/scrutiny, D really summarizes with evidence. Advancing the state is NOT the same as doing the phase; never rubber-stamp a phase to move on.
 

@@ -89,8 +89,8 @@
     <div class="sub">왜 같은 루프가 빌드/버그엔 강하고 알고리즘 같은 창발 태스크엔 약한가 — NYPC 봇 3.5/8 정체의 구조적 원인</div>
   </header>
 
-  <p>핵심 한 줄: <strong>PABCD는 수렴(exploitation) 기계지, 발산(divergence) 기계가 아니다.</strong>
-  모든 페이즈가 이미 정해진 한 타겟으로 좁혀 들어간다. 타겟이 주어진 빌드/버그엔 그게 곧 정답이지만,
+  <p>핵심 한 줄: <strong>PABCD는 기본적으로 수렴(exploitation) 기계이고, 발산(divergence)은 별도 레이어로 켜야 한다.</strong>
+  goal-mode가 아니어도 HITL PABCD의 I/P에서 의도적으로 켤 수 있다. 타겟이 주어진 빌드/버그엔 수렴이 곧 정답이지만,
   타겟을 찾아야 하는 알고리즘 태스크엔 첫 접근법에 갇혀 증상만 패치하게 된다.</p>
 
   <h2><span class="n">01</span> 수렴 vs 발산 — 빠진 축</h2>
@@ -321,15 +321,17 @@
         </ul>
       </div>
     </div>
-    <p style="margin-top:14px"><strong>핵심: 발산은 보통 선제가 아니라 정체-트리거다.</strong>
-    실행은 싸게 시작하고, 진짜 메트릭이 정체했을 때만 late fan-out 발산 모드로 들어갔다 빠져나온다:</p>
+    <p style="margin-top:14px"><strong>핵심: 발산 진입로는 둘이다 — HITL I/P의 수동 선택, goal-mode의 plateau 자동 경보.</strong>
+    실행은 싸게 시작하되, 유저 요구가 탐색형이거나 알고리즘 우열이 불명확하면 HITL에서도 I/P에서 켠다. goal-mode는
+    진짜 메트릭이 정체했을 때 Stop 훅이 late fan-out 재계획을 알린다:</p>
     <div class="pipe">
       <div class="ph"><div class="l">DEFAULT</div><div class="t">조기 collapse</div><div class="d">N≥2 기록 후 P에서 1개 선택</div></div>
-      <div class="ph" style="border-top-color:var(--warn)"><div class="l" style="color:var(--warn)">plateau?</div><div class="t">정체 감지</div><div class="d">L3 메트릭-델타 (턴 수 아님)</div></div>
+      <div class="ph" style="border-top-color:var(--warn)"><div class="l" style="color:var(--warn)">HITL I/P?</div><div class="t">수동 발산 선택</div><div class="d">열린 의도 · 알고리즘 불명확 · 유저 비교 요청</div></div>
+      <div class="ph" style="border-top-color:var(--warn)"><div class="l" style="color:var(--warn)">goal plateau?</div><div class="t">자동 경보</div><div class="d">L3 메트릭-델타 (턴 수 아님)</div></div>
       <div class="ph" style="border-top-color:var(--div)"><div class="l" style="color:var(--div)">DIVERGE</div><div class="t">발산 모드</div><div class="d">다음 work-phase만 N=2~3</div></div>
       <div class="ph" style="border-top-color:var(--good)"><div class="l" style="color:var(--good)">resolved</div><div class="t">복귀</div><div class="d">승자에 수렴, N=1로 복귀</div></div>
     </div>
-    <p class="dim" style="margin-top:6px">선제 late fan-out은 오직 (최대화형 AND 로컬≠진짜목표 AND 아키텍처 우열 불명)이 다 켜질 때만 — NYPC가 그 예외. CRUD는 I 기록만 남기고 P에서 접는다.</p>
+    <p class="dim" style="margin-top:6px">선제 late fan-out은 오직 (최대화형 AND 로컬≠진짜목표 AND 아키텍처 우열 불명)이 다 켜질 때만 — NYPC가 그 예외. CRUD는 I 기록만 남기고 P에서 접는다. HITL에서는 P/A/B 확인이 그대로 남고, goal-mode에서만 Stop 훅이 자동으로 계속 붙잡는다.</p>
     <p style="margin-top:14px"><strong>선택: 가장 싼 심판부터, 인간은 맨 마지막.</strong></p>
     <div class="pipe">
       <div class="ph"><div class="l">1</div><div class="t">optional cheap-screen</div><div class="d">N>2/고비용일 때만 faithful evaluate.sh로 가지치기</div></div>
@@ -383,8 +385,8 @@
       </div>
     </div>
     <p class="dim" style="margin-top:10px">변수는 <strong>collapse 지점</strong>이다 — 충족형은 P에서 일찍, algo는 C 뒤로 늦게.
-    최대화형 goal이 정체하면(섹션 09 plateau) 다음 work-phase에서 늦은 collapse를 다시 켤 수 있다.
-    훅/CLI가 강제하는 건 plateau 체크(E2)뿐이고, D의 메트릭 레이스는 CLI/evidence-backed 실행이다. collapse 지점 판단과 종이 선택은 에이전트 doctrine(E7).</p>
+    HITL에서는 I/P에서 일부러 켤 수 있고, 최대화형 goal이 정체하면(섹션 09 plateau) 다음 work-phase에서 늦은 collapse를 다시 켤 수 있다.
+    훅/CLI가 강제하는 건 goal-mode plateau 체크(E2)뿐이고, D의 메트릭 레이스는 CLI/evidence-backed 실행이다. collapse 지점 판단과 종이 선택은 에이전트 doctrine(E7).</p>
     <p class="dim" style="margin-top:10px"><strong>검증은 성공담이 아니라 falsifiability:</strong>
     OLD-vs-NEW를 미리 정한 동일 seed/fold에서 ablation하고, train/validation/holdout 중 holdout은 튜닝 중 건드리지 않는다.
     판단은 mean이 아니라 median + worst-10% + variance. 공식 재제출은 smoke이지 causal proof가 아니다.</p>

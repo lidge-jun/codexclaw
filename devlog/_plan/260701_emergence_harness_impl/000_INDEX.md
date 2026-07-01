@@ -62,12 +62,14 @@ Final order: 010 -> 015 -> 020 -> 030 -> 040 -> 045 -> 050 -> 060 -> 070.
 
 ## The one honest runtime lever
 
-Only decade 020 (the plateau Stop branch) is a true **E2** lever — a Stop block the runtime can
-force. Decade 010 is the **E2-ready substrate** (persisted state is not itself a Stop). Decade 030
-**consumes** 020's E2 signal but adds no lever of its own. Everything 030-070 except 020 is **E7
-doctrine** (agent-followed skill text) or **E8** drift/test gates. The remote judge score stays
-operator-entered — no hook can read it. This honesty split is the A-phase-audit (Faraday) verdict
-carried over from `../260701_emergence_harness/100_patch_plan.md`.
+Only decade 020 (the goal-mode plateau Stop branch) is a true **E2** lever — a Stop block the
+runtime can force. Decade 010 is the **E2-ready substrate** (persisted state is not itself a Stop).
+Decade 030 works as a PABCD-layer doctrine in both HITL and goal loops: HITL can enter divergence
+manually from I/P, while goal mode can consume 020's E2 signal. 030 adds no automatic lever of its
+own. Everything 030-070 except 020 is **E7 doctrine** (agent-followed skill text) or **E8**
+drift/test gates. The remote judge score stays operator-entered — no hook can read it. This honesty
+split is the A-phase-audit (Faraday) verdict carried over from
+`../260701_emergence_harness/100_patch_plan.md`.
 
 ## A-phase audit carried over (Faraday, 2026-07-01)
 
@@ -82,7 +84,8 @@ collision is handled in 020/050 (no interview/no `request_user_input` under an a
 The 070 closeout reconciles the apparent 006/007 conflict by making **collapse point** the SOT:
 I records N>=2 approaches as anti-anchoring evidence, but ordinary satisfy-spec/build work collapses
 early at P and still executes one strategy. Late collapse (N worktrees/race at D) is reserved for
-maximize-metric work with an unclear winner, usually after the shipped plateau Stop lever fires.
+maximize-metric work with an unclear winner, either selected deliberately in HITL I/P or prompted
+after the shipped goal-mode plateau Stop lever fires.
 Candidate ideas stay grounded by `cxc-search`; harness-first `evaluate.sh` stays before candidate
 build; and falsifiability is old-vs-new seed/fold ablation, not a success story from one official
 resubmission.
