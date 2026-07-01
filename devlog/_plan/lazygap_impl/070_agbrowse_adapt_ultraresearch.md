@@ -1,6 +1,6 @@
 # 070 — agbrowse Adapt + ultraresearch Protocol (impl scaffold)
 
-Status: PROPOSED (scaffold; no code yet) · 2026-07-01 · lazygap_impl loop 070 · class C3 (skill/runtime)
+Status: DONE (shipped + tested) · 2026-07-01 · lazygap_impl loop 070 · class C3 (skill/runtime)
 
 > Source gap: `../lazygap/007` (search engine + deep research) incl. its DECISION UPDATE
 > (do NOT port omo's insane-search engine; adapt agbrowse instead). A-gate (Harvey, gpt-5.4) ran

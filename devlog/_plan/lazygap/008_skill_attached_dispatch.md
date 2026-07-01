@@ -28,8 +28,13 @@ Gap class: HARNESS (routing) · evidence: explorer Plato + user steering
 2. A role+intent -> skill map: e.g. "red-team a frontend change" -> `reviewer` +
    [`cxc-dev`, `cxc-dev-frontend`, `cxc-dev-code-reviewer`]; "research X" -> `explorer` +
    [`cxc-search`] (+ ultraresearch protocol from `007`).
-3. Deterministic attach via `^spawn_agent$` PreToolUse input-rewrite (E3) IF the runtime
-   exposes that matcher; else the main agent routes through the builder by doctrine (E5).
+3. Deterministic attach via `^spawn_agent$` PreToolUse input-rewrite (E3) — RUNTIME-VERIFIED
+   (`010` Q2): the matcher fires for `multi_agent_v1__spawn_agent` and default v2, and an
+   `allow` + `updatedInput` may add the `items` field. v1 args are not `deny_unknown_fields`
+   so the injected `items` is accepted; **v2 is `deny_unknown_fields` and omits `items`, so
+   injection fails parse**. Therefore: E3 on the v1 surface, E5 builder doctrine on v2 /
+   custom-namespaced spawn, and the hook **fails open** (allow untouched when it can't prove a
+   v1 surface — never deny, or it would break a spawn it cannot rewrite).
 4. Pair with `002`: a skill-attached reviewer must return an evidence receipt, so the
    red-team verdict is trustworthy, not just prose.
 
@@ -50,5 +55,8 @@ spawn_agent({
 
 ## Enforcement tier
 
-E3 (spawn input-rewrite) if the matcher exists, else E5 (builder doctrine) + E1 receipt
-gate from `002`. This is the L15 routing spine, now with the explicit no-new-roles rule.
+E3 (spawn input-rewrite) on the v1 surface — verified live, not conditional (`010` Q2) —
+with E5 (builder doctrine) as the v2/custom-namespace fallback, plus the E1 receipt gate from
+`002`. This is the L15 routing spine, now with the explicit no-new-roles rule. The mvp_hard
+G4 finding ("E3 deferred, not durable across v1/v2") is now precise: it is durable on v1 and
+impossible on v2, so ship E3-for-v1 + E5-fallback rather than deferring E3 wholesale.

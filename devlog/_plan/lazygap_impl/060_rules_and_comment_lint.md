@@ -1,6 +1,6 @@
 # 060 — Rule Injector + Comment-Lint (runtime impl scaffold)
 
-Status: PROPOSED (scaffold; no code yet) · 2026-07-01 · lazygap_impl loop 060 · class C3 (hook/runtime)
+Status: DONE (shipped + tested) · 2026-07-01 · lazygap_impl loop 060 · class C3 (hook/runtime)
 
 > Source gap: `../lazygap/004` (project rules + edit-time checks). A-gate (Banach, gpt-5.4)
 > verified vs codex-rs + shipped code and returned SAFE-TO-WRITE with a key surface correction

@@ -5,6 +5,12 @@ Gap class: HARNESS (missing hook surface) · evidence: explorer Darwin
 > This is the single biggest harness hole. omo registers a `SubagentStop` hook that
 > refuses to let a subagent "finish" without an evidence receipt. codexclaw has **zero**
 > `SubagentStop` hooks — a dispatched subagent's "done" claim is never verified at runtime.
+>
+> RUNTIME-VERIFIED (2026-07-01, see `010`): `SubagentStop` is a real Codex hook event, it
+> FIRES on plugin thread-spawned children, its stdin carries the child's `last_assistant_message`
+> + `agent_type` + `agent_id` + `transcript_path`, and `decision:"block"` + `reason` forces the
+> child to continue. So this gate is genuine **E1**, not doctrine. codex-rs: `protocol.rs:1355`,
+> `schema.rs:578-595`, `hook_runtime.rs:294-355`, `stop.rs:263-274`, `turn.rs:330-340`.
 
 ## Parity table
 
@@ -20,11 +26,19 @@ Gap class: HARNESS (missing hook surface) · evidence: explorer Darwin
 New hook `hooks/subagent-stop-verifying-evidence.json` -> pabcd-state CLI
 `hook subagent-stop`:
 
-1. Read the child's final assistant text from stdin.
+0. Hook JSON keys the matcher on `agent_type` (omo: `"matcher": "^lazycodex-executor$"`),
+   so it only fires for write/verify dispatches, not every child. The runtime matches the
+   `agent_type` value the parent passed to `spawn_agent` (verified `010` Q1).
+1. Read the child's final assistant text from stdin — field is `last_assistant_message`
+   (verified present on `SubagentStopCommandInput`, `schema.rs:578-595`); `transcript_path`
+   is also available for a context-pressure bail (omo `CONTEXT_PRESSURE_MARKERS`).
 2. Look for `EVIDENCE_RECORDED: <relpath>` (or codexclaw's `--evidence` convention).
-3. Validate the path is inside `.codexclaw/evidence/`, real (no symlink), non-empty.
-4. Missing/invalid + under attempt cap -> `decision:"block"` with a verifier directive.
-5. Over the cap or valid -> release (fail-open so it can never trap a session).
+3. Validate the path is inside `.codexclaw/evidence/`, real (no symlink), non-empty
+   (port omo's `isNonEmptyFileInsideEvidenceRoot` realpath/symlink guard).
+4. Missing/invalid + under attempt cap -> `decision:"block"` with a verifier directive
+   (runtime turns the `reason` into a continuation prompt, `stop.rs:263-274`).
+5. Over the cap or valid -> release (fail-open so it can never trap a session); also bail
+   if the transcript shows a context-pressure marker.
 
 This is E1-strength (it can actually refuse the stop), but on the SubagentStop surface
 rather than PreToolUse. It is the cleanest single addition that closes the largest gap.
@@ -38,7 +52,9 @@ skill-attached red-team dispatch (`008`) trustworthy: a `reviewer` told to "red-
 
 ## Enforcement tier
 
-NEW surface: SubagentStop block (E1-class). No prose equivalent exists today.
+NEW surface: SubagentStop block — confirmed **E1** (runtime-verified `010` Q1, not "E1-class
+if it works"). The hook can refuse the child's stop and force continuation. No prose
+equivalent exists today. This is the single highest-value add in the lazygap track.
 
 ## Depends on / feeds
 

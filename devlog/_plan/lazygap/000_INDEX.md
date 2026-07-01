@@ -1,6 +1,7 @@
 # lazygap — lazycodex(omo) Parity & jaw-Harness Reinforcement
 
-Status: RESEARCH (000-009 parity record) · 2026-06-30 · evidence: 3 parallel explorers (Darwin/Beauvoir/Plato)
+Status: RESEARCH (000-010 parity record; 010 runtime-VERIFIED) · 2026-07-01 · evidence: 3
+parity explorers (Darwin/Beauvoir/Plato) + 2 codex-rs verification explorers (Euclid/Descartes)
 
 > This track answers one question: **where does codexclaw's jaw-style harness fall
 > short of lazycodex/omo, and how do we reinforce it within the no-server philosophy?**
@@ -96,6 +97,7 @@ and memory parity that fell out of that comparison are folded into `001` (addend
 | `007_search_and_research.md` | insane-search engine port + ultraresearch depth |
 | `008_skill_attached_dispatch.md` | skill-attached base-role dispatch (the user's core ask) |
 | `009_reinforcement_roadmap.md` | synthesis: gap -> E-tier -> proposed loop, with non-goals |
+| `010_runtime_capability_verification.md` | codex-rs source-of-truth: SubagentStop (E1) + `^spawn_agent$` (E3 v1 / E5 v2) verified — closes 009's two open questions |
 
 ---
 
@@ -103,9 +105,12 @@ and memory parity that fell out of that comparison are folded into `001` (addend
 
 - E1 PreToolUse deny — already used (goal budget, interview-in-goal).
 - E2 Stop block — loop continuation spine (003), needs goalplan state (001).
-- E3 PreToolUse input rewrite — the untapped lever: `^spawn_agent$` to attach skills (008).
-- **NEW surface — SubagentStop** — codexclaw has zero; this is the single highest-value
-  add (002), and it is the omo `lazycodex-executor-verify` pattern translated.
+- E3 PreToolUse input rewrite — VERIFIED lever (`010`): `^spawn_agent$` fires + `updatedInput`
+  can add `items` on the v1 spawn surface; v2 rejects it (`deny_unknown_fields`), so E5 fallback.
+- **NEW surface — SubagentStop** — codexclaw has zero; RUNTIME-VERIFIED real (`010`) and the
+  single highest-value add (002), the omo `lazycodex-executor-verify` pattern translated.
+- **NEW surface — SubagentStart** — also confirmed to exist (`010`); unscheduled future entry
+  point to inject the attached-skill TASK contract at child-spawn time.
 - E8 out-of-band gate — search bias_check, status-sync, count gates (007, and `structure/40`).
 
 ## Non-goals reaffirmed (no-server philosophy, `structure/00_philosophy.md` §2)
@@ -113,4 +118,11 @@ and memory parity that fell out of that comparison are folded into `001` (addend
 - No LSP daemon, no codegraph MCP, no search server — ast-grep one-shot stays the answer (005).
 - No auto-update / telemetry / provisioning at SessionStart — provider bridge stays detect-only (006).
 - No new subagent roles — skill attachment instead (008).
-- codexclaw never writes the goal DB — goalplan state lives in `.codexclaw/`, not `thread_goals` (001).
+- Goal-DB writes are gated, not banned (REVISED 2026-07-01). The earlier "codexclaw never writes
+  the goal DB" was imprecise: the runtime DOES expose `thread/goal/set` (app-server JSON-RPC,
+  same channel chat-search used for `thread/search`) — `Session::set_thread_goal` create+update,
+  needs `Feature::Goals` on, bound to the current `conversation_id`. So the rule is now: codexclaw
+  writes the host goal ONLY at the interview freeze approval boundary (the existing HITL gate),
+  NEVER self-arms a goal mid-loop. The decomposed work-item state (workPhases/tasks/criteria/
+  evidence) still lives in project-local `.codexclaw/goalplan.json` — the host record only carries
+  `{objective, status, token_budget}`, so goalplan stays the local backbone regardless (001).

@@ -11,8 +11,8 @@ Status: PLANNED (decision input; no code this pass) · evidence: 001-008
 
 | Rank | Gap (doc) | Tier | New surface? | Why this rank |
 | --- | --- | --- | --- | --- |
-| 1 | Subagent evidence gate (`002`) | E1 (SubagentStop block) | YES — SubagentStop | biggest hole; makes every dispatch trustworthy; unblocks `008` |
-| 2 | Skill-attached dispatch (`008`) | E3/E5 | maybe (`^spawn_agent$`) | the user's core ask; turns the rich `$cxc-*` family into real routing |
+| 1 | Subagent evidence gate (`002`) | E1 (SubagentStop block, VERIFIED `010`) | YES — SubagentStop (real) | biggest hole; makes every dispatch trustworthy; unblocks `008` |
+| 2 | Skill-attached dispatch (`008`) | E3 on v1 + E5 on v2 (VERIFIED `010`) | YES — `^spawn_agent$` fires on v1 | the user's core ask; turns the rich `$cxc-*` family into real routing |
 | 3 | Loop/goalplan state (`001`) | E2 + E8 | no (file) | substrate for work-aware Stop + quality gate |
 | 4 | Stop continuation depth (`003`) | E2 | no | makes the loop actually know what's left; needs `001` |
 | 5 | Compaction recovery (`006`) | E4 | YES — PostCompact | cheap, high-value resilience |
@@ -48,7 +48,8 @@ Status: PLANNED (decision input; no code this pass) · evidence: 001-008
 - New SubagentStop hook -> E1 receipt block (`002`).
 - New PostCompact hook -> E4 recovery directive (`006`).
 - New edit PostToolUse -> E1 comment-lint block (`004`).
-- `^spawn_agent$` input-rewrite -> E3 skill attach (`008`) IF the matcher exists; verify first.
+- `^spawn_agent$` input-rewrite -> E3 skill attach (`008`) on v1 (VERIFIED `010`); E5 builder
+  fallback on v2 (`deny_unknown_fields` rejects `items`); hook fails open.
 - goalplan validate + search bias gate -> E8 (`001`, `007`).
 - Everything still prose-only today is E7 and must stop being called "enforced".
 
@@ -59,14 +60,20 @@ Status: PLANNED (decision input; no code this pass) · evidence: 001-008
 - No new subagent roles — skill attachment instead (`008`).
 - No goal-DB writes — goalplan state is project-local `.codexclaw/` (`001`).
 
-## Open questions for the L14 Interview (carried forward)
+## Open questions — RESOLVED (codex-rs verified 2026-07-01, see `010`)
 
-1. Does the Codex runtime expose a `^spawn_agent$` (or `multi_agent_v1__spawn_agent`)
-   PreToolUse matcher? Decides E3 vs E5 for `008`.
-2. Does `SubagentStop` fire for plugin-spawned subagents in this Codex build, with the
-   child's final text available? Decides whether `002` is E1 or only doctrine.
-3. Evidence-receipt convention: reuse omo's `EVIDENCE_RECORDED: <path>`, or codexclaw's
-   existing `--evidence` ledger convention?
+1. `^spawn_agent$` PreToolUse matcher? **YES on v1** (`multi_agent_v1__spawn_agent` + default
+   v2 canonicalize to `spawn_agent`); `updatedInput` may add `items`. **v2 is `deny_unknown_fields`
+   and rejects `items`.** So `008` is E3 on v1 + E5 fallback on v2, hook fails open. Not "E3 vs
+   E5" — both, by surface. (`010` Q2.)
+2. `SubagentStop` fires for plugin-spawned children? **YES** — real event, fires on the child
+   turn, stdin carries `last_assistant_message` + `agent_type`, `block`+`reason` forces
+   continuation. `002` is confirmed **E1**, not doctrine. (`010` Q1.)
+3. Evidence-receipt convention: **codexclaw's `--evidence`/`.codexclaw/evidence/`**, using omo's
+   last-line `EVIDENCE_RECORDED: <path>` marker contract + realpath/symlink/non-empty guard.
+
+> Bonus surface found: `SubagentStart` also exists (`010`), a future entry point to inject the
+> attached-skill TASK contract at child-spawn time. Not scheduled.
 
 ---
 
