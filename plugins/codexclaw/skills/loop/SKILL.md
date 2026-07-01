@@ -1,6 +1,6 @@
 ---
 name: cxc-loop
-description: "Use for Codexclaw PABCD work-loop planning: HITL phase discipline, HOTL goal continuation, repeated work-phases, divergence/collapse policy, Stop-continuation policy, and evidence checkpoints. Triggers: cxc-loop, loop, autonomous continuation, continue until done, HOTL, HITL PABCD, repeated PABCD, work-phase loop."
+description: "Use for Codexclaw PABCD work-loop planning: HITL phase discipline, HOTL goal activation, cxc-pabcd activation, repeated work-phases, divergence/collapse policy, Stop-continuation policy, and evidence checkpoints. Triggers: cxc-loop, loop, autonomous continuation, continue until done, HOTL, HITL PABCD, repeated PABCD, work-phase loop."
 metadata:
   short-description: "PABCD continuation + divergence/collapse loop contract."
 ---
@@ -13,6 +13,20 @@ loops (Stop-hook continuation after D/IDLE).
 
 ## Contract
 
+- `cxc-loop` is an overlay on `cxc-pabcd`, not a replacement. Before claiming a
+  loop is active, follow `cxc-pabcd` phase semantics and enter a real PABCD state
+  with `cxc orchestrate I|P` (or the human free-pass chat surface).
+- Choose the execution mode before the first work-phase:
+  - **HITL loop:** PABCD is active, no ACTIVE host goal is required, and P/A/B
+    remain human-confirmed pause points. The Stop-continuation hook will not arm.
+  - **HOTL goal loop:** an ACTIVE host goal must exist AND a PABCD cycle must be
+    in flight. The main session owns `create_goal`/`update_goal`; subagents never
+    create or update host goals. If the user did not explicitly ask for
+    autonomous / continue-until-done execution, stay HITL rather than silently
+    creating a goal.
+- Goal active without PABCD active is not a work loop; PABCD active without a
+  goal is HITL, not HOTL. If either half is missing, activate the missing half or
+  state the preflight failure instead of pretending Stop-continuation is armed.
 - One work-phase maps to one full PABCD cycle.
 - D closes the current work-phase and returns the phase to `IDLE`.
 - If work remains and a goal is active, **the agent** starts the next work-phase by

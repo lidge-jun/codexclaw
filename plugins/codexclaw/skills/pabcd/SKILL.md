@@ -48,6 +48,20 @@ IDLE ──→ P ──→ A ──→ B ──→ C ──→ D ──→ IDLE
 
 You can return to Interview (I) from any phase to clarify requirements; the plan and audit context are preserved. Phases P, A, B pause for confirmation in interactive use; C and D proceed once their work is genuinely done. In goal mode the loop self-advances (see `goal`/`create_goal`), but the P→D sequence is never skipped. Goal mode is PABCD-only: while a goal is active the Interview NEVER fires — entry is suppressed and `request_user_input` is hard-denied, so the Interview is HITL-only and runs only with no active goal.
 
+### Loop / goal activation handoff
+
+`cxc-loop` depends on this skill; it does not replace it. A loop request first activates
+PABCD, then chooses HITL or HOTL:
+
+- **HITL PABCD:** enter I or P explicitly (`cxc orchestrate I|P` or the chat
+  free-pass surface). No active goal is required, and P/A/B pause for the human.
+- **HOTL goal PABCD:** the main session must create or reuse an ACTIVE host goal
+  (`create_goal` / `get_goal`) and start a PABCD cycle (`cxc orchestrate P`). The
+  Stop-continuation hook arms only when both are true: active host goal AND
+  non-IDLE PABCD cycle. Do not call this mode active if one half is missing.
+- Subagents may inspect or verify the plan, but the main session owns host-goal
+  lifecycle (`create_goal`/`update_goal`) and PABCD transitions.
+
 ## Phases
 
 These align with the directives the `pabcd-state` hook injects per phase:
