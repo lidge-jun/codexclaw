@@ -1,0 +1,28 @@
+{
+  "name": "codexclaw",
+  "short_name": "codexclaw",
+  "description": "Codex-native development discipline for OpenAI Codex.",
+  "start_url": "/codexclaw/",
+  "scope": "/codexclaw/",
+  "display": "standalone",
+  "theme_color": "#05090d",
+  "background_color": "#05090d",
+  "icons": [
+    {
+      "src": "/codexclaw/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/codexclaw/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/codexclaw/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

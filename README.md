@@ -1,13 +1,17 @@
 # codexclaw
 
+<p align="center">
+  <img src="docs-site/public/logo.png" alt="codexclaw split Codex blossom and OpenClaw claw logo" width="180" />
+</p>
+
 cli-jaw-style development discipline and multi-model subagents for the **OpenAI Codex runtime**, packaged as a single Codex plugin.
 
 codexclaw does **not** ship its own agent harness. It reuses the `codex` runtime and layers on top:
 
-- **dev skills** — the cli-jaw `dev-*` family normalized to Codex `SKILL.md` convention (project-agnostic discipline: architecture, debugging, testing, review, security, ...).
-- **PABCD workflow** — Plan / Audit / Build / Check / Done, reimplemented as Codex-native skills + hooks + file state (no external orchestrator server).
-- **multi-model subagents** — role-based subagents (explorer / reviewer / executor). Per-role model/prompt config is persisted and resolvable today; the production wrapper that applies it to live `spawn_agent` calls is planned (L9 impl PLANNED).
-- **optional opencodex (ocx) provider bridge** — when `ocx` is installed, codexclaw detects its read-only status for catalog/link-bar context. It never runs `ocx ensure`/`sync` or mutates Codex provider config; when `ocx` is absent, codexclaw stays on the native Codex path.
+- **dev skills**: the cli-jaw `dev-*` family normalized to Codex `SKILL.md` convention (project-agnostic discipline: architecture, debugging, testing, review, security, ...).
+- **PABCD workflow**: Plan / Audit / Build / Check / Done, reimplemented as Codex-native skills + hooks + file state (no external orchestrator server).
+- **multi-model subagents**: role-based subagents (explorer / reviewer / executor). Per-role model/prompt config is persisted and resolvable today; the production wrapper that applies it to live `spawn_agent` calls is planned (L9 impl PLANNED).
+- **optional opencodex (ocx) provider bridge**: when `ocx` is installed, codexclaw detects its read-only status for catalog/link-bar context. It never runs `ocx ensure`/`sync` or mutates Codex provider config; when `ocx` is absent, codexclaw stays on the native Codex path.
 
 ## Layout
 
@@ -37,7 +41,7 @@ codex plugin add codexclaw@personal
 
 ## GUI
 
-The codexclaw GUI handles subagent configuration (default model vs multi-model), prompt tuning, and — when `ocx` is detected — a link bar to the opencodex dashboard at `localhost:10100`.
+The codexclaw GUI handles subagent configuration (default model vs multi-model), prompt tuning, and, when `ocx` is detected, a link bar to the opencodex dashboard at `localhost:10100`.
 
 ## Status
 

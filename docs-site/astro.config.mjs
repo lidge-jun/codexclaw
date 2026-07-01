@@ -17,13 +17,23 @@ export default defineConfig({
     starlight({
       title: "codexclaw",
       description:
-        "Codex-native development discipline: PABCD workflow, dev skills, subagent config, and an optional opencodex bridge — shipped as one Codex plugin.",
+        "Codex-native development discipline: PABCD workflow, dev skills, subagent config, and an optional opencodex bridge, shipped as one Codex plugin.",
       tagline: "Development discipline for OpenAI Codex.",
-      favicon: "/favicon.svg",
+      logo: {
+        src: "./src/assets/codexclaw-nav.png",
+        alt: "codexclaw",
+      },
+      favicon: "/favicon.ico",
       head: [
+        { tag: "link", attrs: { rel: "icon", href: "/codexclaw/favicon.ico", sizes: "32x32" } },
+        { tag: "link", attrs: { rel: "icon", href: "/codexclaw/icon.svg", type: "image/svg+xml" } },
+        { tag: "link", attrs: { rel: "apple-touch-icon", href: "/codexclaw/apple-touch-icon.png" } },
+        { tag: "link", attrs: { rel: "manifest", href: "/codexclaw/site.webmanifest" } },
+        { tag: "meta", attrs: { name: "theme-color", content: "#05090d" } },
         { tag: "meta", attrs: { property: "og:image", content: "https://lidge-jun.github.io/codexclaw/og.png" } },
         { tag: "meta", attrs: { property: "og:image:width", content: "1200" } },
         { tag: "meta", attrs: { property: "og:image:height", content: "630" } },
+        { tag: "meta", attrs: { property: "og:image:alt", content: "codexclaw logo and product card" } },
         { tag: "meta", attrs: { name: "twitter:card", content: "summary_large_image" } },
         { tag: "meta", attrs: { name: "twitter:image", content: "https://lidge-jun.github.io/codexclaw/og.png" } },
       ],
