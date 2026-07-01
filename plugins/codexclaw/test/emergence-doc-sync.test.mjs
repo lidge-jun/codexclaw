@@ -21,7 +21,7 @@ test("emergence 070: docs, HTML, and skills preserve the collapse-point doctrine
   const loopSkill = read("plugins/codexclaw/skills/loop/SKILL.md");
   const devSkill = read("plugins/codexclaw/skills/dev/SKILL.md");
   const searchSkill = read("plugins/codexclaw/skills/search/SKILL.md");
-  const plan070 = read("devlog/_plan/260701_emergence_harness_impl/070_docs_sync_falsifiability.md");
+  const plan070 = read("devlog/_fin/260701_emergence_harness_impl/070_docs_sync_falsifiability.md");
   const html = read("devlog/_plan/260701_emergence_harness/emergence_gap.html");
 
   assert.match(plan070, /I records N>=2 approaches/);

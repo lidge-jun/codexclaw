@@ -58,7 +58,25 @@ stamps a distinguishing marker the gate reads. Decide jointly before either loop
 | 060 | 060 | Rule injector (SessionStart) + apply_patch comment-lint (PreToolUse, fail-open) | `lazygap/004` | SessionStart + PreToolUse | E4+E1 | DONE |
 | 070 | 070 | agbrowse Tier-2 proof helper + ultraresearch protocol skill (research-intent attach) | `lazygap/007` | skill/CLI (E5/E7) | E1/E8+E5 | DONE |
 | 080 | 080 | Friction ledger (capture+gate) + workspace path-hint + seed ontology | `lazygap/001` | PostToolUse/PreToolUse/Stop + spawn + interview | E1/E2/E4 | DONE |
-| 080 | 080 | Friction ledger (heuristic capture + PreToolUse/Stop read gate) + workspace path-hint + seed ontology | `lazygap/001` | PreToolUse / Stop / spawn items | E1+E5 | PROPOSED |
+
+## Completion gate (folder move)
+
+This folder is complete and may move from `_plan` to `_fin` only when these gates hold:
+
+- Code evidence exists for every loop 010-080:
+  - `8a5f8a1` — SubagentStop evidence-receipt gate.
+  - `451340b` — skill-attached dispatch and fail-safe E3 hook.
+  - `1f7c15a` — goalplan/cxc-loop substrate.
+  - `0874e6d` — work-aware Stop continuation.
+  - `fcfac3f` — PostCompact recovery hook.
+  - `db6df57` — rule injector and apply_patch comment-lint.
+  - `2236323` — agbrowse Tier-2 proof helper and ultraresearch skill.
+  - `a279cd4` — friction ledger, path-hint, and seed ontology.
+- Doc closeout evidence exists: `4117b13` marks 010-080 shipped and `07fed4d` reconciles the active roadmap.
+- Runtime files are present under `plugins/codexclaw/hooks/`, `plugins/codexclaw/components/*/src/`,
+  and `plugins/codexclaw/skills/`; source/dist/test coverage was included in the feature commits.
+- The active worktree was clean before this archival pass, and this folder has no remaining
+  PROPOSED-only implementation row.
 
 ## Runtime facts both loops rely on (from `../lazygap/010`, codex-rs verified)
 

@@ -1,6 +1,6 @@
 # 080 — Friction Ledger + Workspace Path-Hint + Seed Ontology (impl scaffold)
 
-Status: PROPOSED (scaffold; no code yet) · 2026-07-01 · lazygap_impl loop 080 · class C3 (runtime/state)
+Status: DONE (shipped + tested) · 2026-07-01 · lazygap_impl loop 080 · class C3 (runtime/state)
 
 > Source gap: `../lazygap/001` cli-jaw orchestrator-internals addendum ("the three cleanest
 > imports"). A-gate (Curie, gpt-5.4) verified vs cli-jaw + codex-rs + shipped code and returned
@@ -13,6 +13,21 @@ cli-jaw carries orchestrator context codexclaw lacks: a friction ledger (repeate
 escalate→stop), workspace path-hints on dispatch, and a structured seed ontology. The host-native
 boundary says these live as project-local files + hook logic, never a server. 080 ports the three
 as pure functions + `.codexclaw/` files.
+
+## Completion gate
+
+- Code commit: `a279cd4` (`feat(lazygap-080): friction ledger + path-hint + seed ontology`).
+- Runtime surfaces shipped:
+  - `plugins/codexclaw/components/pabcd-state/src/friction.ts`
+  - `plugins/codexclaw/components/pabcd-state/src/friction-gate.ts`
+  - `plugins/codexclaw/components/pabcd-state/src/hook.ts`
+  - `plugins/codexclaw/components/pabcd-state/src/interview.ts`
+  - `plugins/codexclaw/components/subagent-config/src/spawn-wrapper.ts`
+  - `plugins/codexclaw/hooks/post-tool-use-capturing-shell-friction.json`
+  - `plugins/codexclaw/hooks/pre-tool-use-advising-on-friction.json`
+- Test evidence landed with the same commit: `friction.test.ts`, `interview.test.ts`,
+  `spawn-wrapper.test.ts`, and `hook-e2e.test.mjs`.
+- Verification recorded in commit body: suite `461/461` green, gate OK, doctor PASS, build idempotent.
 
 ## Ground Truth (read before edit — cli-jaw + codex-rs + shipped)
 

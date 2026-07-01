@@ -60,6 +60,22 @@ decade before its prereqs land.
 
 Final order: 010 -> 015 -> 020 -> 030 -> 040 -> 045 -> 050 -> 060 -> 070.
 
+## Completion gate (folder move)
+
+This folder is complete and may move from `_plan` to `_fin` only when these gates hold:
+
+- Code/doc evidence exists for every WP 010-070:
+  - `3322348` — objective metrics and plateau Stop lever.
+  - `573d7c3` — divergence archive and loop doctrine.
+  - `98c47c2` — divergence doctrine applied to HITL PABCD.
+  - `b811423` — collapse-point/falsifiability docs reconciliation.
+- Runtime files are present under `plugins/codexclaw/components/pabcd-state/src/metrics.ts`,
+  `plugins/codexclaw/components/pabcd-state/src/divergence.ts`,
+  `plugins/codexclaw/components/pabcd-state/src/hook.ts`, `bin/codexclaw.mjs`, and the loop/PABCD/search skills.
+- The implemented behavior is reflected in `structure/50_emergence_gap.md`, `plugins/codexclaw/skills/loop/SKILL.md`,
+  and `plugins/codexclaw/skills/pabcd/SKILL.md`.
+- The active worktree was clean before this archival pass, and all rows in this folder are DONE.
+
 ## The one honest runtime lever
 
 Only decade 020 (the goal-mode plateau Stop branch) is a true **E2** lever — a Stop block the
