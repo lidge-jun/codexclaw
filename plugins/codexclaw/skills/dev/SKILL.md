@@ -2,7 +2,9 @@
 name: cxc-dev
 description: "MUST USE for every coding task — classifies work depth (C0-C5), defines modular limits, pre-write search, verification-before-completion, and safety rules. Always-on discipline (agent-followed, not hook-enforced) that routes to surface-specific dev-* routers by change surface. Triggers: any code change, refactor, bug fix, feature, test, review, scaffolding."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Universal dev discipline: work classifier, modular limits, verification gate, safety rules."
+  keywords: ["develop", "implement", "refactor", "feature", "code quality", "verification"]
 ---
 
 # Dev — Common Development Guidelines
@@ -90,11 +92,8 @@ proof that validates the claim, with the reduced scope stated).
 | `frontend_ui` | `dev-frontend` + `dev-uiux-design` | UI/design intent or runnable prototype variant work |
 | `crud_fullstack` | `dev-backend`, `dev-frontend`, `dev-testing` | Full-stack slice with coupled UI + API verification |
 
-### Ordinary product reference (on-demand)
-
-For C2 ordinary product slices, the recipe lives in
-`references/product/crud-product-development.md` — read it when building a conventional
-feature slice, not for every task.
+For C2 ordinary product slices, read `references/product/crud-product-development.md`
+only when building a conventional feature slice.
 
 ## §0.4 Workflow Modes
 
@@ -136,12 +135,24 @@ matching router first.
 
 Why this is wording, not a runtime gate: no Codex hook fires on skill load (see
 `structure/00_philosophy.md` §1), so the main agent self-enforces this STRICT rule. For
-SUBAGENT dispatches codexclaw provides a spawn-wrapper builder (L15) that CAN attach the
-matching `cxc-*` skill to the spawn `items` — but only WHEN the dispatcher routes through
-`resolveSpawnPayloadWithSkills`. There is no production hook auto-applying it yet (a
-`^spawn_agent$` PreToolUse rewrite is feasible only on the v1 spawn surface; v2 rejects
-extra `items`), so today attachment depends on the agent following the dispatch doctrine
-(E5), not on an automatic gate (`structure/10`).
+SUBAGENT dispatches the discipline DOES attach deterministically: the always-on
+`^spawn_agent$` PreToolUse hook rewrites the spawn `message` to prepend link-form
+`$cxc-*` mentions (role baseline + inferred surfaces), which the child's first turn
+parses into full SKILL.md injections — schema-safe on both the v1 and v2 spawn surfaces
+because `message` is a shared field. The v1-only `items` channel via
+`resolveSpawnPayloadWithSkills` (L15) remains the strongest explicit form; the hook
+no-ops when `items` is already present (`structure/10`).
+
+### Subagent Skill Injection (DEV-SKILL-INJECT-01)
+
+When spawning a subagent for any codexclaw-governed task, attach `cxc-dev` and
+the relevant surface `cxc-*` skills by putting **$cxc mentions in the spawn
+message** — plain `$cxc-<skill>` or link-form `[$cxc-<skill>](skill://<abs
+SKILL.md path>)` — or through the v1 `items` mechanism when routing through the
+builder. Name the surface skills explicitly rather than relying on the hook's
+keyword inference. Keep the skill body as the single source of truth. For
+search tasks, attach `cxc-search`, and ensure subagents/delegated agents are
+bound by the same search-skill policy as the main agent.
 
 | Skill File | Routes When (surface) | Covers |
 | ---------- | --------------------- | ------ |
@@ -154,7 +165,7 @@ extra `items`), so today attachment depends on the agent following the dispatch 
 | `dev-code-reviewer/SKILL.md` | Code review and quality audit | Review process, quality thresholds, antipattern detection, giving/receiving feedback |
 | `dev-architecture/SKILL.md` | Module boundaries, dependency direction, layer work | Circular deps, module boundaries, coupling taxonomy, barrel/re-export discipline |
 | `dev-uiux-design/SKILL.md` | Vague design direction, onboarding/empty/error UX | Intent discovery, design vocabulary, product personalities, typography, layout patterns |
-| `dev-scaffolding/SKILL.md` | New project/feature setup, structural audit, docs generation | Scaffolding, colocation, barrel export, documentation generation |
+| `dev-scaffolding/SKILL.md` | New project/feature setup, structural audit, docs generation | Scaffolding, colocation, public boundary export, documentation generation |
 | `pabcd/SKILL.md` | Multi-phase planning, interview-first discovery, gated execution | PABCD workflow, phase gates, interview flow |
 
 **Visibility decision (E6, L16):** only `cxc-dev` is implicit-visible
@@ -178,7 +189,7 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Barrel / re-export | `dev-architecture` | `dev-scaffolding` |
 | Pre-write search | `dev` §1.5 | `dev-code-reviewer` |
 | Edge-first testing | `dev-testing` §6 | — |
-| Test-induced defense | `dev-testing` §6.6 | `dev-code-reviewer` |
+| Test-induced defense | `dev-testing` §6.7 | `dev-code-reviewer` |
 | Boundary-only defense | `dev-architecture` §4 | `dev-backend`, `dev-security` |
 | Process isolation | `dev-backend` references/ | `dev-code-reviewer` |
 | Long-lived connections | `dev-backend` §1 | `dev-frontend` |
@@ -234,8 +245,9 @@ If Context7 MCP is available, verify external library syntax before using it:
 ### External/current evidence
 
 For current versions, release notes, CVEs, package/source checks, provider
-behavior, or browser-verifiable public evidence, use current-source retrieval
-and primary-source verification rather than memory alone.
+behavior, or browser-verifiable public evidence, read the active `search` skill
+and follow its source-fetch/evidence-status rules rather than relying on memory
+alone. Subagents/delegated agents are bound by the same search-skill policy.
 
 ---
 
@@ -244,17 +256,11 @@ and primary-source verification rather than memory alone.
 When a request has **ambiguous scope or unspecified technology**, clarify before coding.
 If the user already specifies clear tech and scope (for example, "Build a React drawer component"), skip this step entirely.
 
-### How
-1. **Adapt depth to the question**: vague/abstract → explain each option in detail. If the user already knows the terms, give a brief trade-off comparison only.
-2. **Present options as `<TechName> — <plain explanation>`**: include pros/cons relevant to THIS project. Flag options that are complex, expensive, or carry risk (for example memory leaks or operational overhead).
-3. **Recommend one with reasoning**: explain why it fits this project's context.
-4. **Let the user decide**: confirm once, then move on. If the user picks a risky option, warn once, then respect the choice.
-
-### Over-engineering guard
-Consider whether simpler alternatives exist before suggesting heavy frameworks. A 3-page portfolio probably doesn't need Next.js — but if the user has deployment, SEO, or CMS plans, it might. Use judgment, not absolute rules.
-
-### Limit
-One confirmation round: 2-3 options → 1 recommendation → confirm → move on. Don't turn clarification into an interview unless the task is truly C5.
+Clarification shape: present 2-3 `<TechName> — <plain explanation>` options with
+project-specific pros/cons, flag complex or risky options, recommend one with
+reasoning, confirm once, then move on. Consider simpler alternatives before
+heavy frameworks; do not turn clarification into an interview unless the task is
+truly C5.
 
 ---
 
@@ -301,7 +307,7 @@ Give every file, function, and class a single, clear responsibility.
 
 | Metric | Threshold | Action |
 | ------ | --------- | ------ |
-| File length | >400 lines | Split into focused modules (per `dev-architecture`) |
+| File length | >400 lines | Split into focused modules (canonical owner: `dev-architecture` §1) |
 | Function length | >50 lines | Extract helper functions |
 | Class methods | >20 methods | Split by responsibility |
 | Nesting depth | >4 levels | Flatten with early returns or extraction |
@@ -471,91 +477,21 @@ Watch for these anti-patterns and fix immediately. For the full detection catalo
 
 ## 7. Type Safety & Static Analysis
 
-### 7.0 JS/TS Source File Default
+Default to strict, explicit types in new code, use TypeScript for new JS/TS
+source when the repo supports it, and run the project's configured static
+analysis as part of §3 verification. Do not introduce new type/lint tooling or
+convert a JS repo to TS without user approval.
 
-For new JavaScript/TypeScript source files, prefer TypeScript:
-- Use `.ts` for logic and `.tsx` for typed UI components when the project already supports TypeScript or is greenfield JS/TS.
-- Use `.js`/`.jsx` only when the repo is clearly JS-only, build/runtime constraints require JS, or the user asks for JS.
-- Do not introduce TypeScript tooling, convert existing JS, or change `tsconfig` without user approval.
-
-New TypeScript MUST be strict-compatible from the first patch:
-- No implicit `any`.
-- Explicit `any` requires a nearby justification comment.
-- Prefer `unknown` plus narrowing over `any`.
-- Type exported function parameters and return values.
-- Handle null/undefined deliberately.
-- Avoid code that only passes because `strict` is disabled.
-
-Verification:
-- Run the project's configured typecheck when available.
-- If TypeScript is present but no typecheck script exists, use the closest safe command such as `tsc --noEmit`.
-- If strict compatibility cannot be verified, state that explicitly.
-
-### 7.1 Type Annotations
-
-Add explicit type annotations to all function signatures, return types, and non-trivial variables.
-
-| Language | Rule |
-| -------- | ---- |
-| TypeScript | `strict: true` in `tsconfig`. Avoid implicit `any`; explicit `any` requires a line comment with justification. |
-| Python | Type hints on all function params and returns (`def fetch(url: str) -> Response:`). |
-| Go | Already enforced by compiler — ensure exported types have doc comments. |
-| C# / Java | Use nullability annotations (`?`, `@Nullable`). Avoid raw `Object` or `dynamic`. |
-| General | If the language supports a strict/pedantic mode, enable it. |
-
-### 7.2 Static Analysis Gate
-
-After every code change, run the project's static analysis toolchain as part of the verification gate (Section 3).
-
-| Toolchain | Command | Must Pass |
-| --------- | ------- | --------- |
-| TypeScript | `tsc --noEmit` | Zero errors |
-| Python (typed) | `mypy .` or `pyright` | Zero errors on changed files |
-| ESLint / Biome | `npx eslint .` or `npx biome check .` | Zero errors |
-| Go | `go vet ./...` | Zero issues |
-| Rust | `cargo clippy -- -D warnings` | Zero warnings |
-| C# | `dotnet build /warnaserror` | Zero warnings |
-
-#### Common Rule ↔ Prose Mapping
-
-| Anti-Pattern (prose) | ESLint / Biome Rule |
-|---|---|
-| Unused variable/import | `no-unused-vars`, `@typescript-eslint/no-unused-vars` |
-| Unsafe `any` type | `@typescript-eslint/no-explicit-any` |
-| Loose equality (`==`) | `eqeqeq` |
-| Circular import | `import/no-cycle` |
-| Unhandled async | `@typescript-eslint/no-floating-promises` |
-| `var` usage | `no-var`, `prefer-const` |
-| Complex function | `complexity`, `max-depth`, `max-lines-per-function` |
-
-This table is not exhaustive — check project config for the canonical set.
-
-If no static analysis tool is configured in the project, recommend one to the
-user — but do not add tooling without approval.
-
-### 7.3 Escape Hatches
-
-When bypassing the type system is unavoidable:
-
-- **Add a comment** explaining why the escape is needed.
-- **Scope it minimally** — cast at the narrowest point, not the broadest.
-- **Prefer assertion functions** over raw casts (`assertIsString(x)` > `x as string`).
-- TypeScript: `as unknown as T` double-cast requires a linked issue or TODO.
-- Python: `# type: ignore[code]` must specify the exact mypy error code.
+Escape hatches (`any`, casts, `type: ignore`) must be narrow, explained near the
+code, and verified by the strongest local checker available. Detailed language
+rules, command examples, and rule mappings live in
+`references/static-analysis.md`.
 
 ---
 
 ## 8. Token Budget Awareness
 
-When multiple skills are active simultaneously (for example `dev` + `dev-backend` + `dev-security`), token consumption grows quickly. Follow these rules to stay efficient:
-
-**Tiered reference loading:**
-1. **Always read**: `SKILL.md` files for active skills (these are the orchestrators)
-2. **Read on demand**: reference files (`references/`) — only load when the task touches that specific topic
-3. **Do not preload all references** (HEURISTIC) — a backend task about caching doesn't need unrelated architecture or observability references
-
-**Example:** For "Add Redis caching to user endpoint":
-- Read: `dev/SKILL.md` + `dev-backend/SKILL.md` + `dev-backend/references/core/caching.md`
-- Skip: unrelated references unless the task touches them
-
-**Cost awareness for subagents:** Each subagent receives its own copy of active skills. Minimize skills loaded per subagent — give only what's needed for that specific sub-task.
+When multiple skills are active, token consumption grows quickly. Always read
+active `SKILL.md` files, read `references/` only when the task touches that
+topic, and do not preload unrelated references (HEURISTIC). Each subagent gets
+its own active-skill context, so load only what the sub-task needs.

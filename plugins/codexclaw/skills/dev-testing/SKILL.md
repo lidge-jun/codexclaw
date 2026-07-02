@@ -2,7 +2,9 @@
 name: cxc-dev-testing
 description: "MUST USE for testing, QA, regression protection, and release verification — unit, integration, API, contract, Playwright E2E, CI, security-scan, coverage, and TDD strategy. Activates by change-surface when work adds features, fixes bugs, changes APIs, refactors behavior, or prepares a release. Triggers: 'write tests', 'regression test', 'Playwright', 'E2E', 'contract test', 'coverage', 'CI flake', 'TDD', '테스트', '회귀 테스트', '품질 게이트'."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Testing and QA router: strategy, harness choice, CI gates, TDD, and coverage."
+  keywords: [test, testing, TDD, coverage, regression, e2e, playwright, contract test, CI]
 ---
 # Testing & QA
 Balance: ~40% Backend/API, ~40% Frontend/E2E (Playwright), ~20% Cross-cutting (CI, Security, TDD, Coverage) -- directional guidance, not a hard ratio.
@@ -69,6 +71,39 @@ source-fetch and evidence-status rules.
 - **STRICT (TEST-ANTI-FLAKE-01):** A time-based flake is a bug. Do not use sleep-based synchronization, retry-as-fix, or green-on-retry acceptance without a deterministic cause and harness correction.
 - Verification depth follows `dev` §3 `DEV-VERIFY-FLOOR-01`; CRUD per-operation negative coverage is owned by `references/core/crud-test-matrix.md`.
 ---
+## Limited-Oracle / Score-Objective Evaluation
+
+Use this section when the real evaluator is scarce, paid, rate-limited, or opaque, and
+local tests are proxy metrics for a score/objective. These rules are paired with
+`cxc-pabcd` §Optimization-Loop Meta-Rules (plateau discipline). They were observed in a
+14-discard optimization plateau where a prefix-only replay gate and hard
+draw-protection invariant locked a 3.5/8 score.
+
+- **GATE-ORACLE-VALIDITY-01 (STRICT):** When the true evaluator/oracle is
+  rate-limited and local metrics are proxies, evaluator validity is a PREREQUISITE
+  gate. Before trusting the proxy for accept/reject, quantify historical divergence:
+  cases where the proxy said better/equal but the oracle said worse. A proxy with known
+  optimistic bias must not be the sole acceptance evidence.
+- **GATE-PREFIX-HORIZON-01 (DEFAULT):** Replay-based evidence, such as recorded logs or
+  scripted opponents, is prefix-valid only. It stops being valid as soon as the
+  candidate diverges from the recorded trajectory. Candidates that diverge early need
+  live adversarial evaluation with a modeled opponent/environment, not replay-only
+  acceptance. State the divergence turn/point whenever citing replay evidence.
+- **GATE-INVARIANT-EV-01 (DEFAULT):** Every hard invariant in an acceptance gate, meaning
+  a metric that must not regress, needs an expected-value justification: the value it
+  protects versus the candidate-space it vetoes. If a hard invariant vetoes three or
+  more consecutive candidates that target strictly larger gains, downgrade it to a
+  soft cost and re-justify or remove it.
+
+### 1.6 Property-Based & Mutation Testing (verified 2026-07-02)
+
+| Technique | Use for | Default tools | When |
+|-----------|---------|---------------|------|
+| Property-based | Pure logic, parsers, serializers, state machines, API invariants | fast-check (TS), Hypothesis (Python) | DEFAULT for invariant-heavy code |
+| Mutation | Judging test-suite strength on critical logic/validators/security branches | Stryker (JS/TS), mutmut (Python) | Selective, after stable unit/property tests |
+
+- Vitest 4 is the current runner baseline: Browser Mode is stable (visual regression `toMatchScreenshot`, Playwright trace generation, `expect.schemaMatching`).
+
 ## 2. Backend & API Testing
 > Deep reference: `references/backend-testing.md`
 ### 2.1 Coverage Map
@@ -112,16 +147,16 @@ Contract tests protect the **frontend↔backend boundary**. They sit between API
 | schema-first contract | OpenAPI-led backends | OpenAPI validators, Schemathesis |
 | type-level contract | TS monorepos | shared types / codegen |
 | full-stack smoke | final user confidence | Playwright |
-### 3.3 Consumer Contract — TypeScript (PactV3)
-PactV3 workflow:
+### 3.3 Consumer Contract — TypeScript (Pact / PactV4)
+`PactV4` (aliased `Pact`) is the current interface (Pact Specification v4); treat `PactV3` as the legacy spec-v3 API. Workflow:
 1. Define interaction: provider state + request + expected response (use `MatchersV3` for flexible matching)
 2. Execute test against Pact mock server
 3. Assert consumer expectations
 4. Pact file auto-writes to `pacts/` → publish to broker → provider verifies
 
-See `references/backend-testing.md` for full PactV3 example.
+See `references/backend-testing.md` for a full example.
 ### 3.4 Schema Verification
-Use schema-based API testing (Schemathesis, Dredd) to verify OpenAPI contract compliance.
+Use schema-based API testing (Schemathesis) to verify OpenAPI/GraphQL contract compliance. (Dredd is legacy/inactive — do not adopt for new projects.)
 ### 3.5 Rules
 - Contract tests are **strongly recommended** for parallel FE/BE, public APIs, and cross-team contracts.
 - E2E success does **not** replace provider verification.
@@ -133,13 +168,13 @@ Use Playwright after API and contract tests are already trustworthy. Browser tes
 **Helper Scripts Available**:
 - `scripts/with_server.py` - Manages server lifecycle (supports multiple servers)
 Run scripts with `--help` first — treat as black boxes to avoid context window pollution.
-## Decision Tree: Choosing Your Approach
+### 4.1 Decision Tree: Choosing Your Approach
 ```
 User task → Static HTML? → Read file → find selectors → write Playwright script
          → Dynamic app? → Server running? → No: `python scripts/with_server.py --help`
                                            → Yes: Recon-then-action (navigate → screenshot → selectors → act)
 ```
-## Example: Using with_server.py
+### 4.2 Example: Using with_server.py
 ```bash
 # Single server:
 python scripts/with_server.py --server "npm run dev" --port 5173 -- python your_automation.py
@@ -150,20 +185,22 @@ python scripts/with_server.py \
   --server "cd frontend && npm run dev" --port 5173 \
   -- python your_automation.py
 ```
-## Reconnaissance-Then-Action Pattern
-1. Wait for app-ready signal (prefer explicit app-ready signals over networkidle) → 2. Screenshot/inspect DOM → 3. Identify selectors → 4. Execute actions
+### 4.3 Reconnaissance-Then-Action Pattern
+1. Wait for an explicit app-ready signal or locator assertion → 2. Screenshot/inspect DOM → 3. Identify selectors → 4. Execute actions
 
-## Best Practices
+### 4.4 Best Practices
 - **Use bundled scripts as black boxes** — run `--help` first, invoke directly.
 - Use `sync_playwright()` for synchronous scripts; always close the browser.
-- Use descriptive selectors: `text=`, `role=`, CSS, or IDs.
-- Add waits: `page.wait_for_selector()` or `page.wait_for_timeout()`.
-## Reference Files
+- Prefer locator-based interactions and web-first assertions: `expect(page.get_by_role("button", name="Save")).to_be_visible()`, then `click()` on that locator.
+- Prefer user-facing locators, especially `get_by_role()` with an accessible name. Use `get_by_label()`, `get_by_placeholder()`, or `get_by_test_id()` when role/name cannot express the target.
+- Avoid `networkidle`, hard sleeps, and `wait_for_timeout()` in tests. Wait on observable app-ready signals, locator actions, or `expect()` assertions.
+- **AI-authored tests (DEFAULT):** Playwright MCP / Test Agents are generation-and-repair aids only — final acceptance still requires deterministic locators, web-first assertions, traces, and a human-readable failure artifact.
+### 4.5 Reference Files
 - **examples/** - Examples showing common patterns:
   - `element_discovery.py` - Discovering buttons, links, and inputs on a page
   - `static_html_automation.py` - Using file:// URLs for local HTML
   - `console_logging.py` - Capturing console logs during automation
-### Browser Testing Rules
+### 4.6 Browser Testing Rules
 - Run **contract tests and API tests first** for broken-data bugs.
 - Use Playwright for **rendered truth**, not as a replacement for service tests.
 - Prefer one smoke flow per critical path over many brittle micro-flows.
@@ -277,7 +314,7 @@ When the project supports a sandbox/mock mode, use it for fast DB-free regressio
 - In sandbox/spike mode, write tests for bugs found — coverage grows organically. For production refactors, see §1.5 (tests required for behavior changes).
 
 ---
-## 6.6 Test-Induced Production Defense Detection
+## 6.7 Test-Induced Production Defense Detection
 
 **Rule:** Do not add production defensive code solely to satisfy unrealistic tests. A production guard is allowed only when the invalid state can occur at a real boundary or represents an explicit domain rule.
 
@@ -321,7 +358,7 @@ When the project supports a sandbox/mock mode, use it for fast DB-free regressio
   ```
 
 ### CI Pipeline
-- Lighthouse a11y audit: score ≥ 90
+- Gate order (verified 2026-07-02): component axe → page axe (@axe-core/playwright) → keyboard/focus/manual checks. Blocking gate = zero serious/critical axe violations + manual checks; Lighthouse a11y score (≥90) is advisory smoke only
 - Pa11y: page-level scanning for WCAG AA violations
 - Run a11y tests on EVERY page route, not just the homepage
 
@@ -348,13 +385,13 @@ pip-audit --strict --desc
 ```
 ### 8.3 Semgrep Gate
 ```yaml
-- uses: returntocorp/semgrep-action@v1
-  with:
-    config: >-
-      p/default
-      p/javascript
-      p/typescript
-      p/python
+semgrep:
+  runs-on: ubuntu-latest
+  container: semgrep/semgrep
+  steps:
+    - uses: actions/checkout@v4
+    - run: semgrep ci --config p/default --config p/javascript --config p/typescript --config p/python
+# (returntocorp/semgrep-action is deprecated per its own repo; Opengrep is the active LGPL fork alternative)
 ```
 ### 8.4 Security Regressions
 Test missing auth (expect 401) and verify error.code matches contract for every auth-protected endpoint.

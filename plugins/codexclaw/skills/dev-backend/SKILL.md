@@ -2,7 +2,9 @@
 name: cxc-dev-backend
 description: "MUST USE for backend, API, server, or database work — API design, architecture, database optimization, security hardening, error handling, middleware, observability, queues, and long-lived connections. Triggers: 'backend', 'API', 'REST', 'GraphQL', 'schema', 'migration', 'query optimization', 'middleware', 'OTel', 'caching', 'Result pattern', 'server', '백엔드', 'API 작업', '마이그레이션', '쿼리 최적화'."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Framework-agnostic backend guidance for APIs, architecture, data access, and operations."
+  keywords: ["API", "REST", "endpoint", "middleware", "database", "ORM", "cache", "queue", "error handling"]
 ---
 
 # Dev-Backend — Production-Grade Backend Engineering
@@ -75,6 +77,8 @@ When the request has **unspecified technology or unclear scope**, clarify before
 
 If the user already specifies clear tech (e.g. "FastAPI로 REST API 만들어줘"), **skip this entirely**.
 
+**Node/framework defaults (verified 2026-07-02):** production uses Active/Maintenance LTS — Node 24 (Active) for new services. Framework: Fastify for greenfield Node APIs; Express 5 for legacy/ecosystem compatibility; Hono for edge/serverless/multi-runtime Web-Standards APIs. New TS validation baseline: Zod v4 (read the migration guide before upgrading v3 projects).
+
 For new Node backend source files, prefer `.ts` when the repo supports TypeScript or is greenfield. Inherit `dev` TypeScript strict-compatibility rules.
 If backend boundaries are unclear, read existing source-of-truth docs/logs first, then document routes, services, repositories, data stores, and runtime commands in the repo's existing SOT before broad implementation.
 
@@ -103,7 +107,7 @@ See `references/core/architecture.md` for full decision matrices.
 | **gRPC** | Internal microservices, high-perf binary, bidirectional streaming | Browser clients (without gRPC-Web), public APIs |
 | **tRPC** | TypeScript monorepo, internal tools, rapid prototyping | Polyglot environments, public APIs |
 
-**Hybrid pattern (industry consensus):**
+**Hybrid pattern (verified 2026-07-02 — OpenAPI 3.1+, prefer 3.2 where tooling supports; tRPC v11; Apollo Federation ONLY for multi-subgraph supergraphs):**
 ```
 Public/Partner → REST (OpenAPI 3.1)
 Mobile/Web BFF → GraphQL (Apollo Federation)
@@ -217,6 +221,7 @@ When work exceeds what an HTTP response cycle should hold open, use a queue.
 | **pg-boss** (PostgreSQL) | Node.js, already have Postgres, moderate scale | No extra infra; SKIP_LOCKED-based |
 | **Simple DB queue** (polling) | Small scale (<100 jobs/min), any language | `status` column + `SELECT FOR UPDATE SKIP LOCKED` |
 | **SQS / Cloud Tasks** | Serverless, managed, very high scale | No infra to manage; at-least-once delivery |
+| **Temporal** | Durable multi-step workflows: sagas, human-in-loop, long-running AI/business processes | Workflow engine, NOT a default queue replacement |
 
 **Required Safeguards:**
 
@@ -266,8 +271,8 @@ Consider the Result/Either pattern (e.g. neverthrow) for recoverable domain erro
 
 | Library | When to Use |
 |---------|-------------|
-| **neverthrow** | Default choice — simple Rust-like `Result<T, E>` |
-| **Effect** | Complex domains needing full effect system |
+| **neverthrow** | Default choice — small explicit `Result<T, E>` for recoverable domain errors |
+| **Effect** | Only when the app benefits from a full effect runtime: typed errors, retries, resources, concurrency, tracing |
 
 **Rule:** Use `Result` where recoverable/domain errors are first-class. Reserve `try/catch` for error boundaries (middleware, top-level handlers) only.
 
@@ -310,77 +315,28 @@ See `references/core/api-design.md` for protocol-specific patterns (REST, GraphQ
 
 ## 6. Caching Strategy
 
-**The cardinal rule:** cache only after correctness is proven. Never cache before you have tested the uncached path.
+**Decision rules:**
+- Say **Redis-compatible**, not Redis-only (verified 2026-07-02): prefer **Valkey** (Linux Foundation, BSD) for permissive OSS/self-hosted defaults; choose Redis when managed-service, module, or license posture justifies it.
+- Cache only after correctness is proven on the uncached path.
+- Prefer cache-aside by default; use write-through only when strong consistency matters.
+- Every key has a namespace, version, stable identifier, TTL, and invalidation trigger.
+- Never cache error responses or personalized CDN responses; protect cached PII with encryption and access controls.
+- Add stampede protection for hot keys and monitor hit rate, pool exhaustion, and stale-read incidents.
 
-### Cache Key Design
-
-```
-{service}:{resource}:{identifier}:{version}
-user-service:profile:u_12345:v2
-```
-
-- Include version in keys to avoid stale data after schema changes
-- Use consistent hashing for cache keys — no random components
-- Namespace by service to prevent key collisions in shared Redis
-
-### TTL Selection (Starting Guidance, Tune Based on Workload)
-
-| Data Type | TTL | Rationale |
-|-----------|-----|-----------|
-| User session | 15-60 min | Security boundary |
-| User profile | 5-15 min | Balance freshness vs load |
-| Public config/feature flags | 1-5 min | Low write frequency |
-| Computed aggregations | 10-60 min | Expensive to recompute |
-| Static assets (CDN) | 1 year + cache-busting hash | Immutable content |
-
-### Invalidation Triggers
-
-| Event | Action |
-|-------|--------|
-| Data mutation (write/update/delete) | Invalidate related cache keys immediately |
-| Schema/version change | Bump version in cache key prefix |
-| Deployment | Warm critical caches during rollout |
-| User logout/password change | Purge all session and profile caches for that user |
-
-### Patterns
-
-| Pattern | When |
-|---------|------|
-| **Cache-aside** (default) | App reads cache → miss → read DB → write cache |
-| **Write-through** | App writes DB + cache atomically — strong consistency |
-| **Write-behind** | App writes cache → async DB write — high throughput, risk of loss |
-| **Read-through** | Cache library handles DB fetch on miss — simpler app code |
-
-**Cache safety rules:**
-- Set a TTL on every cache entry — prevents stale data
-- Add jitter or locking on expiry — prevents cache stampede
-- Encrypt cached PII with access controls
-- Exclude error responses from cache — prevents failure propagation
-
-See `references/core/caching.md` for Redis patterns, CDN configuration, and connection pooling.
+See `references/core/caching.md` for TTL guidance, Redis patterns, CDN rules, invalidation triggers, connection pooling, and code examples.
 
 ---
 
 ## 7. Observability (OpenTelemetry)
 
-Use OpenTelemetry for the three pillars of observability:
+**Decision rules:**
+- **OTel maturity (verified 2026-07-02):** traces/metrics are Stable in JS/Python; **logs are still Development** — baseline is trace/span-correlated structured logs + OTel traces/metrics.
+- Production services emit traces, metrics, and structured JSON logs with `requestId`, `traceId`, and `spanId`.
+- Start with OTel auto-instrumentation, then add custom spans only for business-critical or non-instrumented work.
+- Never log PII, secrets, full request/response bodies, or noisy stack traces outside error boundaries.
+- Page only on customer-impacting signals tied to SLOs; use warning alerts for capacity trends.
 
-| Signal | Purpose | Backends |
-|--------|---------|----------|
-| **Traces** | Request flow across services | Jaeger, Tempo, Zipkin |
-| **Metrics** | Quantitative measurements | Prometheus, Grafana |
-| **Logs** | Event records with context | Loki, ELK, Uptrace |
-
-**Structured Logging Rules:**
-1. JSON format only in production — never free-text
-2. Every log includes `traceId`, `spanId`, `requestId`
-3. Log levels: `error` (needs action) · `warn` (degraded) · `info` (business events) · `debug` (dev only)
-4. **Never log PII, secrets, or full request bodies**
-5. Use OTel semantic conventions for field names
-
-Include traceId and spanId from OTel context in every structured log entry. Follow OTel semantic conventions for field names.
-
-See `references/core/observability.md` for auto-instrumentation setup, custom spans, and alerting.
+See `references/core/observability.md` for OTel setup, structured logging conventions, trace propagation, dashboards, RUM correlation, and alerting guidance.
 
 ---
 
@@ -401,7 +357,7 @@ Treat templates as starting points, not gospel. Strip to essentials, then add wh
 
 ---
 
-## 9. API Performance Targets
+## 9. API Performance Targets (HEURISTIC defaults — define product SLOs from user journeys and alert on error-budget burn, not raw percentiles alone)
 
 | Metric | Target | Escalation |
 |--------|--------|-----------|

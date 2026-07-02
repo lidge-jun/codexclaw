@@ -2,6 +2,7 @@
 name: cxc-pabcd
 description: "MUST USE for any non-trivial multi-step development task that benefits from disciplined planning before execution — features, refactors, cross-module changes, or anything large enough to need explore-first planning, an audit gate, staged build, and verification before done. Scales depth by work class (C0-C5). Triggers: 'plan this', 'let's build X properly', 'interview me', 'be thorough', 'do it right', '제대로 만들자', '기획부터', '인터뷰하자', '요구사항 정리'."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Codex-native PABCD loop (Interview/Plan/Audit/Build/Check/Done) with class-scaled depth."
 ---
 
@@ -68,7 +69,7 @@ These align with the directives the `pabcd-state` hook injects per phase:
 
 0. **I — Interview**: Clarify requirements before planning across the four dimensions. Research the repo first, then ask focused questions. No implementation yet.
 1. **P — Plan**: Explore first (read real code, configs, docs). Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable accept criteria. Ground every decision in code you have read. No implementation yet. For broad or unfamiliar repos, include a compact tree, detected conventions, and which existing logs/docs you will reuse.
-2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent reviewer (`spawn_agent`) to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. Fold fixes back into the plan and record the verdict. No code changes.
+2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent reviewer (`spawn_agent`) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. Fold fixes back into the plan and record the verdict. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict), so skipping the dispatch cannot pass the gate.
 3. **B — Build**: Implement the audited plan in small atomic commits. Verify as you go. Stay inside the plan's scope boundary; surface deviations instead of silently expanding scope.
 4. **C — Check**: Run the real verification — build, typecheck, and targeted tests, plus adversarial review. Capture fresh command output as evidence. Do not claim pass without artifact-level proof.
 5. **D — Done**: Summarize what was checked with evidence, update STATUS/devlog, commit, and confirm no pending work remains for this work-phase before returning to idle.
@@ -92,6 +93,37 @@ phase transition; no hook builds or races candidates automatically, and HITL P/A
 pauses remain real confirmation points.
 
 **Faithful execution (anti-skip)**: do the real work of each PABCD-phase — P writes the real diff-level plan, A really dispatches the audit, B really implements AND verifies, C really runs tsc/tests/scrutiny, D really summarizes with evidence. Advancing the state is NOT the same as doing the phase; never rubber-stamp a phase to move on.
+
+### Optimization-Loop Meta-Rules (plateau discipline)
+
+These rules apply when PABCD is used for score/objective-maximization, repeated
+candidate search, or any loop where D discards variants based on evidence. They are
+grounded in a real 14-discard plateau where a prefix-only replay gate and hard
+draw-protection invariant locked a 3.5/8 score. Single-incident induction — treat the
+constants as starting values and revise when a second domain's evidence contradicts them.
+
+- **LOOP-PHASE-DEATH-01 (DEFAULT):** Track each discarded candidate by the P/A/B/C/D
+  phase that killed it and by change class: `parameter-tweak`, `branch-toggle`,
+  `state-space redesign`, or `evaluator change`. After three consecutive deaths with
+  the same killing phase and same class (starting value N=3 — HEURISTIC, tune per domain), the next work-phase targets the killing
+  mechanism itself, usually the evaluation gate, instead of another candidate in that
+  class. Consecutive D-evidence collapses mean the gate may be the bottleneck.
+- **LOOP-CONTINUITY-01 (STRICT):** P begins by quoting the previous cycle's D
+  conclusions and next-direction. A new candidate that contradicts that recorded
+  direction needs an explicit reason, so the loop does not re-run rejected candidate
+  classes from amnesia.
+- **LOOP-CANDIDATE-ANCHOR-01 (DEFAULT):** For score/objective-maximization work,
+  source divergence candidates from domain-state evidence: logs, trajectories,
+  opponent/instance analysis, and failure states. If every candidate is a threshold,
+  guard, or suppression tweak on existing code levers, that is parameter-space
+  anchoring; regenerate candidates from the state space.
+- **LOOP-INSTANCE-CHECK-01 (HEURISTIC):** Check whether evaluation instances are fixed
+  and enumerable: fixed opponents, fixed test maps, fixed graders. If yes,
+  per-instance specialization, such as fingerprint plus playbook, is a legitimate
+  evaluable widening move and should be considered before generic-strategy tweaks.
+
+Evaluation gates for these loops are owned by `cxc-dev-testing` §Limited-Oracle /
+Score-Objective Evaluation; apply both sections together.
 
 ## PABCD Depth by Work Class
 
@@ -117,12 +149,15 @@ See `dev` §0.0 for the full class definitions and tie-break rules.
 one-liner: `TASK` (the concrete outcome), `SCOPE` (the disjoint write set / read bounds),
 `MUST DO`, `MUST NOT` (e.g. do not revert peers, do not widen scope), `PROOF` (the evidence to
 return — `path:line` + command output), and `RETURN FORMAT`. Put the packet in the spawn
-message always; structured skill attachment (a `cxc-*` ref in the spawn `items`) binds only on
-the v1 spawn surface, whose args include an explicit `items` field, and only when the dispatch
-routes through the spawn-wrapper builder (`resolveSpawnPayloadWithSkills`, L15) — the default
-v2 spawn sets `deny_unknown_fields` with no `items`, so there the packet stays in message text
-(`structure/10_subagent_skill_routing.md:91`). Do not delegate host-goal changes to subagents;
-the main session owns `create_goal`/`update_goal`.
+message always. Skill attachment travels as **$cxc mentions in the message** — plain
+`$cxc-<skill>` or link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)` — which the child's
+first turn parses and injects as full SKILL.md bodies. This works on BOTH spawn surfaces
+(`message` is a shared field; v2's `deny_unknown_fields` only blocks the extra `items` key),
+and the always-on `^spawn_agent$` PreToolUse hook prepends link-form mentions for the role
+baseline + inferred surfaces when the message lacks them. Structured v1 `items` (via
+`resolveSpawnPayloadWithSkills`, L15) remains the strongest form where available; the hook
+no-ops when `items` is present (`structure/10_subagent_skill_routing.md`). Do not delegate
+host-goal changes to subagents; the main session owns `create_goal`/`update_goal`.
 
 ## State
 

@@ -1,15 +1,17 @@
 ---
 name: cxc-dev-debugging
-description: "MUST USE for any real runtime debugging in any language — crashes, silent failures, wrong output, build/test failures, flaky tests, performance regressions, integration bugs. A 5-phase root-cause method: architecture check → investigate → analyze → hypothesize → implement. Triggers: 'debug this', 'why is X failing', 'this test is flaky', 'fix the crash', 'root cause', '왜 안 돼', '디버깅', '원인 분석'."
+description: "MUST USE for any real runtime debugging in any language — crashes, silent failures, wrong output, build/test failures, flaky tests, performance regressions, integration bugs. A phases 0-4 root-cause method: architecture check → investigate → analyze → hypothesize → implement. Triggers: 'debug this', 'why is X failing', 'this test is flaky', 'fix the crash', 'root cause', '왜 안 돼', '디버깅', '원인 분석'."
 metadata:
-  short-description: "5-phase systematic root-cause debugging method (any language)."
+  last-verified: "2026-07-02"
+  short-description: "Phases 0-4 systematic root-cause debugging method (any language)."
+  keywords: [debug, error, stack trace, root cause, flaky, regression, crash, bisect]
 ---
 
 # dev-debugging — Systematic Root Cause Analysis
 
 This skill is the **thinking process** for fixing bugs. As a routing role it activates
 by change-surface (an error/bug to diagnose), not by any external dispatcher. It enforces a structured
-5-phase methodology for every technical issue — test failures, runtime errors,
+phases 0-4 methodology for every technical issue — test failures, runtime errors,
 build failures, performance regressions, integration bugs.
 
 **Boundary**: This skill covers how to reason about bugs. For test harness,
@@ -100,12 +102,19 @@ probe can be built in reasonable time.
    recent changes most of the time.
 
 4. **Trace data flow** — where does the bad value originate? Trace backward from
-   the failure point through the call stack until you find the source. Fix at the
-   source, not the symptom.
+   the failure point through the call stack until you find the source. Follow the
+   full causal chain from trigger → boundary → bad state → failure. Removing the
+   visible symptom is not a fix unless the defect that creates the bad state is gone.
 
 5. **Instrument component boundaries** — for multi-layer systems (API → service →
    database, CI → build → deploy), log input/output at each boundary BEFORE
    proposing fixes.
+
+6. **Trace-first for distributed/async/agent failures (DEFAULT)** — capture the
+   evidence trail before hypothesizing: request IDs, OpenTelemetry spans/logs,
+   Playwright traces/videos, exact agent tool transcripts. For order-dependent or
+   intermittent failures logs cannot explain, use time-travel/replay debugging
+   (Microsoft TTD on Windows, rr on Linux).
 
 ```
 For EACH component boundary:
@@ -139,14 +148,16 @@ before treating external material as proof.
 
 ### Phase 3: Hypothesis and Testing
 
-**STRICT (DEBUG-RCA-EVIDENCE-01):** Before any root-cause claim, write at least
-three orthogonal hypotheses (`H1/H2/H3`) and one falsifier for each. Collapse
-duplicates, test against disconfirming evidence, and do not claim root cause
-until competing hypotheses have been ruled out by evidence.
+**STRICT (DEBUG-RCA-EVIDENCE-01):** Before investigating any single root-cause
+hypothesis or making a root-cause claim, write at least three orthogonal
+hypotheses (`H1/H2/H3`) and one falsifier for each. Collapse duplicates, test
+against disconfirming evidence, and do not claim root cause until competing
+hypotheses have been ruled out by evidence. If fewer than three are plausible,
+state why.
 
-1. **State hypothesis explicitly** — "X is the root cause because evidence Y
-   shows Z." Write it down. If you can't articulate it clearly, you don't
-   understand it yet.
+1. **State the leading hypothesis explicitly** — "X is the root cause because
+   evidence Y shows Z." If you can't articulate it clearly, you don't understand
+   it yet.
 
 2. **Design a test to disprove** — falsification is stronger than confirmation.
    What would you expect to see if your hypothesis is wrong?
@@ -154,10 +165,13 @@ until competing hypotheses have been ruled out by evidence.
 3. **Test one variable** — smallest possible change, one variable at a time.
    Never fix multiple things at once.
 
-4. **If it fails** → form a new hypothesis. Revert the failed change and
+4. **If it fails** → move to another listed hypothesis. Revert the failed change and
    start from clean state. Stacking fixes obscures the root cause.
 
-5. **Admit ignorance** — "I don't understand X" is a valid finding. Research
+5. **Keep the rejection record** — preserve rejected hypotheses and the evidence
+   that rejected them. The final report must include them, not just the winning cause.
+
+6. **Admit ignorance** — "I don't understand X" is a valid finding. Research
    further rather than guessing. Record the open question explicitly.
 
 ### Phase 4: Implementation
@@ -179,7 +193,8 @@ explaining the causal mechanism before patching.
 4. **Check for similar patterns** — does the same bug class exist elsewhere in
    the codebase? Search for it. Fix all instances, not just the one you found.
 
-5. **Document** — commit message explains root cause AND fix. Not "fixed bug"
+5. **Document** — final report and commit message explain root cause AND fix,
+   including rejected hypotheses and rejection evidence. Not "fixed bug"
    but "fix: race condition in session middleware caused by missing await on
    Redis write."
 
@@ -234,6 +249,53 @@ Slop debugging is spray-and-pray: guess, patch, pray, repeat.
 
 Root cause pattern: Missing input validation lets undefined values propagate into business logic. Instrument controller/service/repository boundaries to find where the bad value enters. Compare with a working endpoint that validates input with a schema. Fix: add schema validation at the entry point, write a test that sends invalid input and expects 400.
 
+Worked example:
+
+```bash
+curl -i -X POST http://localhost:3000/api/orders \
+  -H 'content-type: application/json' \
+  -d '{"sku":"book-1"}'
+```
+
+Observed failure:
+
+```text
+HTTP/1.1 500 Internal Server Error
+TypeError: Cannot read properties of undefined (reading 'toFixed')
+    at calculateTotal (src/orders/service.ts:42:21)
+    at createOrder (src/orders/controller.ts:27:18)
+```
+
+Competing hypotheses before narrowing:
+
+1. Request validation allows missing `quantity`.
+2. Controller mapping drops `quantity` before service call.
+3. Repository returns an order row with `quantity = null`.
+
+Boundary instrumentation:
+
+```bash
+DEBUG=orders:* npm run dev
+curl -s -X POST http://localhost:3000/api/orders \
+  -H 'content-type: application/json' \
+  -d '{"sku":"book-1"}' | jq .
+```
+
+Sample log output:
+
+```text
+orders:controller input {"sku":"book-1"}
+orders:controller mapped {"sku":"book-1"}
+orders:service input {"sku":"book-1"}
+orders:repository skipped insert due service error
+```
+
+Rejections: repository-null is rejected because the repository is never reached.
+Controller-drop is rejected because controller input already lacks `quantity`.
+Root cause: entry validation accepts a payload missing a required domain field.
+Fix at the entry boundary: schema rejects missing `quantity`; regression test posts
+the same payload and expects HTTP 400 with a stable `error.code`.
+
 ### Scenario B: React Hydration Mismatch
 
 Root cause pattern: Server renders a value (e.g., date, locale string) that differs from client-side rendering due to environment differences (UTC vs. local timezone). Compare with components that defer environment-dependent rendering to useEffect. Fix: move environment-dependent formatting into a client component.
@@ -272,7 +334,7 @@ Root cause pattern: Test passes in isolation but fails in suite due to shared mu
 
 Don't just say "I'm stuck." Provide: **symptom** (exact error), **reproduction
 steps**, **evidence gathered** (logs, traces, bisect results), **hypotheses
-tested** (what you tried, why it failed), **remaining hypotheses** (untested),
+tested** (including rejected hypotheses and rejection evidence), **remaining hypotheses** (untested),
 and a **recommendation** for next steps.
 
 ---
@@ -324,6 +386,6 @@ For security-sensitive bugs (auth bypass, data leak, injection), follow the inci
 
 When context is limited, preserve: (1) Phase 0 — is it a bug or a design problem?,
 (2) Core principle — no fixes without root cause,
-(3) 5 Phases — architecture check → investigate → analyze → hypothesize → implement,
+(3) phases 0-4 — architecture check → investigate → analyze → hypothesize → implement,
 (4) Repeated Failure Rule — after repeated failures, reassess, (5) one variable at a time,
 (6) evidence over intuition, (7) failing test first.

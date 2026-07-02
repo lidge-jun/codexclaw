@@ -2,6 +2,7 @@
 name: cxc-dev-uiux-design
 description: "MUST USE for UI/UX direction and design judgment — vague visual briefs, onboarding, empty/error/loading states, layout vocabulary, typography breaks, favicons, logos, and brand identity choices. Triggers: make it look good, modern, clean, aesthetic, onboarding, empty state, error state, favicon, logo, design system, 깔끔하게, 모던하게, 감성적으로."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Design judgment for vague briefs, UX states, typography, layout patterns, logos, and brand vocabulary."
 ---
 
@@ -42,6 +43,7 @@ fetch/open/text/get-dom/snapshot only after candidate URLs exist.
 | File | When to Read | What It Covers |
 |------|-------------|----------------|
 | `references/design-isms.md` | User names a style/movement | 11 design movements with CSS signatures |
+| `references/design-read-example.md` | Learning or reviewing Design Read format | Filled-in Design Read + dial setting example |
 | `references/product-personalities.md` | User references a product | 8 product DNA profiles with exact tokens |
 | `references/layout-macrostructures.md` | Choosing page/component layout | Component layouts + page-level compositions |
 | `references/ux-states.md` | Building any stateful UI | Onboarding, empty, error, loading, progressive disclosure |
@@ -174,6 +176,8 @@ When the user gives feedback without specifics, translate:
 Before generating ANY frontend code, produce a Design Read. If the project has a `DESIGN.md` file, read it first — its tokens and prose override everything below.
 
 ### Output format (mini DESIGN.md)
+
+Filled-in example: `references/design-read-example.md`.
 
 ```yaml
 ---

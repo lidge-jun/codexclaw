@@ -2,7 +2,9 @@
 name: cxc-dev-code-reviewer
 description: "MUST USE for code review and review-readiness — review process, quality thresholds, antipattern detection, review verdicts, and giving/receiving feedback. Activates by change-surface for PR review, diff review, pre-merge checks, refactor audits, and high-risk changes. Triggers: 'review this', 'code review', 'PR review', 'check my diff', 'before merge', 'antipattern', '리뷰', '코드 리뷰', '머지 전에 확인'."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Code review router: findings, severity, verdicts, and review workflow."
+  keywords: ["review", "PR", "pull request", "diff", "merge", "feedback", "approve", "code quality"]
 ---
 
 # Dev-Code-Reviewer — Code Review Guide
@@ -87,6 +89,9 @@ Run project-native linters, type checker, and tests before reviewing.
 5. **Maintainability** — Naming, structure, complexity, test coverage, documentation
 6. **Style** — Last priority. Don't bikeshed formatting when there are real issues.
 
+Delegation: coupling classification belongs to `dev-architecture` §3; boundary and
+validation-location findings belong to `dev-architecture` §4.
+
 ### Review Mindset
 
 - **Be specific.** "This could fail" → "This throws if `user` is null on line 42"
@@ -118,7 +123,7 @@ Flag these during review:
 | Issue | Threshold | Severity |
 |-------|-----------|----------|
 | Long function | >50 lines | Medium |
-| Large file | >400 lines | Medium |
+| Large file | >400 lines | Medium; apply `dev-architecture` §1 canonical split rule |
 | God class | >20 methods | High |
 | Too many parameters | >5 | Medium |
 | Deep nesting | >4 levels | Medium |
@@ -132,12 +137,13 @@ Flag these during review:
 
 ### File Size Guidance
 
+Canonical rule imported from `dev-architecture` §1: **>400 LOC -> split (DEFAULT)**.
+
 | Range | Interpretation |
 |-------|---------------|
 | 200-400 lines | Healthy — easy to navigate and review |
-| 400-500 lines | Acceptable — consider splitting if complexity is high |
-| 500-800 lines | Review trigger — actively plan extraction |
-| >800 lines | Split required — too large for effective review or AI context |
+| 400-500 lines | Should split unless the author states a concrete reason |
+| >500 lines | Blocking review finding unless already being split in this diff |
 
 ### Review Verdict
 
@@ -186,16 +192,12 @@ Dead code is a maintenance tax — remove rather than comment out.
 | Magic numbers | `if (retries > 3)` | Named constant: `MAX_RETRIES = 3` |
 | Primitive obsession | Passing 5 related strings around | Create a data object/type |
 | Direct mutation | `user.name = 'x'`, `arr.push(y)` | Immutable: `{...obj, name: 'x'}`, `[...arr, y]` |
-| Missing boundary validation | Business logic handles raw user input | Schema validation (Zod, Pydantic) at API entry point |
+| Missing boundary validation | Business logic handles raw user input | Delegate placement to `dev-architecture` §4; schema/content depth to `dev-security` |
 
 ### Security
 
-| Pattern | Symptom | Fix |
-|---------|---------|-----|
-| SQL injection | String concatenation in queries | Parameterized queries / prepared statements |
-| Hardcoded secrets | `apiKey = "sk-..."` in source | Environment variables or secret manager |
-| Missing validation | Raw user input passed to logic | Schema validation at API boundary |
-| Overpermission | Broad access when narrow suffices | Principle of least privilege |
+Security review items are canonical in §3.5. Use that checklist for hardcoded
+secrets, injection, validation, auth, authorization, and logging findings.
 
 ### Performance
 
@@ -367,9 +369,27 @@ When external AI review tools are available, coordinate — don't duplicate:
 |------|-----------|----------|----------------------|
 | **GitHub Copilot Code Review** | Full repo context, multi-model, auto-fix PRs | PR review on GitHub | Architecture, business logic, domain correctness |
 | **CodeRabbit** | 40+ linters, learnable preferences, low false-positive | Team with `.coderabbit.yml` configured | Cross-service impact, subtle logic errors |
+| **Cursor Bugbot** | Diff-focused bug hunting in Cursor PR flow | Cursor-based teams | Intent, architecture, exploitability |
+| **Graphite AI Reviews (Diamond)** | Stacked-PR-aware AI review | Graphite stacked workflow | Cross-stack consistency |
 | **SonarQube** | Enterprise SAST, tech debt tracking, security depth | Regulated environments, existing setup | Review findings, add context tools miss |
 | **Manual agent review** | Full codebase understanding, intent verification | No external tools, offline, sensitive code | Everything — full §1-5 process |
 
-**Coordination rule:** If an external AI tool already reviewed the PR, **read its findings first**, then focus manual review on what the tool explicitly cannot do: architectural fit, business intent alignment, and cross-system impact.
+**Coordination rules:**
+- If an external AI tool already reviewed the PR, **read its findings first**, then focus manual review on what tools cannot do: architectural fit, business intent, cross-system impact.
+- **STRICT (REVIEW-AI-EVIDENCE-01):** AI review findings are evidence to inspect, not authority — de-duplicate, reproduce, and severity-normalize before inclusion. Published evaluation shows AI reviewers frequently miss critical vulnerabilities (SQLi/XSS/deserialization) with low-severity skew (arXiv:2509.13650, checked 2026-07-02).
+
+### Reviewing AI-Generated Code
+
+Run IN ADDITION to the normal process when the diff is substantially AI-generated:
+
+| Check | AI failure mode | Action |
+|-------|-----------------|--------|
+| Invented APIs | Plausible-but-nonexistent methods/options | Verify unfamiliar APIs against installed-version docs |
+| Hallucinated dependencies | Nonexistent package names (slopsquatting) | Verify existence/maintainer/provenance before install — gate owned by `dev-security` |
+| Missing authz edges | Happy-path handlers without ownership checks | Trace new endpoints against the BOLA check |
+| Shallow/mirroring tests | Tests restating the implementation | Require behavior-level assertions |
+| Scope drift | Abstractions/refactors beyond the request | Flag; one logical change per PR |
+
+**Agentic/security trigger (DEFAULT):** PRs adding MCP servers, tools, agents, RAG, persistent memory, or delegated credentials invoke `dev-security` and map risks to OWASP LLM Top 10 (2025) + Top 10 for Agentic Applications 2026.
 
 ---

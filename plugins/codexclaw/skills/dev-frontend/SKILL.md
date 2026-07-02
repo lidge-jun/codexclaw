@@ -2,7 +2,9 @@
 name: cxc-dev-frontend
 description: "MUST USE for any frontend, web UI, or visual implementation work — building, styling, or redesigning pages/components, responsive layouts, motion, component architecture, and production-surface polish. Triggers: 'frontend', 'UI', 'component', 'CSS', 'responsive', 'animation', 'React', 'Vue', 'Svelte', 'Tailwind', 'layout', 'styling', 'redesign', 'mockup', 'anti-slop', '프론트엔드', 'UI 작업', '반응형', '디자인 수정'."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Production-grade frontend implementation with responsive, accessible, anti-slop UI guidance."
+  keywords: [frontend, UI, component, CSS, responsive, layout, animation, design implementation]
 ---
 
 # Dev-Frontend — Domain-Correct Frontend Engineering
@@ -45,7 +47,7 @@ This skill is a routing role that activates by **change-surface**: whenever the 
 | `references/stacks/nextjs.md`             | Next.js projects                     | App Router, RSC, image optimization, data fetching, middleware                     |
 | `references/stacks/vanilla.md`            | HTML+CSS+JS (no framework)           | Zero-dependency, viewport fitting, responsive CSS, progressive enhancement         |
 | `references/stacks/svelte.md`             | Svelte/SvelteKit projects            | Svelte 5 Runes, SvelteKit 2 routing/actions, snippets, migration from Svelte 4     |
-| `references/stacks/mobile-native.md`      | Native mobile app development        | RN 0.84+/Expo SDK 53, Flutter 3.44, KMP, Swift 6, framework selection              |
+| `references/stacks/mobile-native.md`      | Native mobile app development        | RN/Expo current pairing, Flutter 3.44, KMP, Swift 6, framework selection           |
 | `references/stacks/astro.md`              | Astro projects                       | Islands architecture, multi-framework shell, content collections, SSG/SSR/hybrid   |
 
 Start with `anti-slop.md`, `aesthetics.md`, `responsive-viewport.md`, and `visual-verification.md`. Add domain/locale/stack references only when relevant.
@@ -55,6 +57,15 @@ When frontend choices depend on current framework, design-system, browser API,
 library behavior, browser-rendered source evidence, or package/source freshness,
 read the active `search` skill and follow its source-fetch and evidence-status
 rules before treating external material as proof.
+
+### Verification grounding
+
+**STRICT:** For render/executable artifacts (HTML, SVG, games, UI, charts),
+run the real renderer: headless browser, screenshot, canvas check, or equivalent.
+Observe the actual output yourself, fix what observation reveals, then re-run.
+Static parsing confirms well-formed files; it does not prove the artifact is
+visually or interactively correct. One clean observation is enough for unchanged
+state; do not re-render unchanged output just to repeat evidence.
 
 ---
 
@@ -333,8 +344,8 @@ Prefer native CSS before JS layout observers or animation libraries:
 
 ### Build Tools
 
-- **Vite 7**: ESM-only, Node 20.19+/22.12+, baseline-widely-available target
-- **Rolldown**: experimental drop-in for Vite; pin versions, compare output before production
+- **Vite 8** (verified 2026-07-02): Rolldown/Oxc is the integrated default bundler (`rolldown-vite` is only a Vite 7 migration bridge). Node 20.19+/22.12+; Baseline target Chrome/Edge 111, Firefox 114, Safari 16.4. Detect Vite 7 vs 8 before editing config.
+- **Agent-visible runtime diagnostics (DEFAULT)**: prefer dev servers that surface browser/runtime errors to the CLI/agent — Vite 8 forwards browser console to the dev server (auto-activates for coding agents); Next 16 ships DevTools MCP. Wire these before debugging rendered behavior.
 - Do not introduce Webpack-era config unless the existing app is already Webpack-bound
 
 ### State Classification
@@ -440,7 +451,7 @@ Before delivering:
 - [ ] SEO meta tags present for public pages (`<title>`, `<meta description>`, canonical, OG) — see `seo-baseline.md`
 - [ ] JSON-LD structured data matches page type
 - [ ] Accessibility: modals trap focus, live regions for dynamic content — see `a11y-patterns.md`
-- [ ] Lighthouse Performance ≥ 90, no JS bundle > 150KB compressed — see `performance-budget.md`
+- [ ] Core Web Vitals field metrics are the perf gate (INP ≤200ms); Lighthouse Performance score is advisory smoke only; no JS bundle > 150KB compressed — see `performance-budget.md`
 - [ ] Hero image preloaded, below-fold images lazy-loaded
 - [ ] Theme toggle works: light/dark/system, no FOWT — see `theme-switching.md`
 - [ ] All colors use CSS custom properties (theme-ready)

@@ -2,6 +2,7 @@
 name: cxc-dev-architecture
 description: "MUST USE for module boundary work, circular dependency detection, coupling review, barrel or re-export changes, and validation placement decisions. Triggers: circular import, module split, layer violation, dependency direction, utils growth, barrel file, re-export, boundary review, architecture refactor, 모듈 경계, 순환 참조."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Module boundaries, circular deps, coupling taxonomy, and boundary-only defensive programming."
 ---
 
@@ -72,9 +73,11 @@ Do not choose the fix first and backfill the map. The map is the evidence that t
 
 ### When to Split a Module
 
+Canonical file-size rule: **>400 LOC -> split (DEFAULT)**. Deviations require a stated reason.
+
 | Signal | Action |
 |--------|--------|
-| File exceeds 400 LOC | Split by responsibility |
+| File exceeds 400 LOC | Split by responsibility (DEFAULT) |
 | Module has 6+ direct dependents | Extract shared interface |
 | Two unrelated features share a file | Separate into own modules |
 | Circular import detected | Extract shared types/interfaces to a third module |
@@ -145,16 +148,8 @@ boundary-owned diagnostic hook with production value.
 | 4. Fix | Apply appropriate fix strategy (see references/) | Detection command passes |
 | 5. Verify | Re-run detection + confirm no regressions | Zero cycles in report |
 
-### Detection Commands (Quick Reference)
-
-| Ecosystem | Command | Flags |
-|-----------|---------|-------|
-| Node/TypeScript | `npx madge --circular --extensions ts,tsx src/` | Add `--warning` for near-cycles |
-| Node/TypeScript (alt) | `npx dpdm --circular src/index.ts` | Faster for single entry |
-| Python | `pydeps --no-output --show-cycles src/` | Use `--cluster` for package-level |
-| Go | `go vet ./...` (import cycle = compile error) | Always caught at build |
-| ESLint | `eslint-plugin-import` rule `import/no-cycle` | Set `maxDepth: 3` |
-| Rust | Compiler enforces — no runtime cycles possible | N/A |
+Detection commands are ecosystem-specific. See `references/circular-dependencies.md`
+for command templates, examples, and verification details.
 
 ### Banned Patterns
 
@@ -207,15 +202,8 @@ boundary-owned diagnostic hook with production value.
 | MEDIUM (Temporal) | Allowed with documentation | Add ordering comments or state assertions |
 | LOW (Sequential, Functional) | ALLOWED | No action needed |
 
-### Banned Review Responses
-
-| Banned Response | Why Banned | Required Instead |
-|-----------------|-----------|------------------|
-| "It works so it's fine" | Working code can still be unmaintainable | Classify the coupling type and severity |
-| "We'll fix it later" (no ticket) | "Later" never comes | Create a concrete ticket with deadline |
-| "It's just one place" | One becomes ten | Fix now while it's one place |
-| "The tests pass" | Tests don't catch architectural decay | Static analysis + architectural review |
-| "It's internal, nobody else uses it" | Internal coupling compounds fastest | Apply same standards as public API |
+See `references/coupling-taxonomy.md` for examples, detection signals,
+refactoring patterns, and banned review responses.
 
 ---
 
@@ -291,26 +279,8 @@ by this section; **what the validation schema enforces** (content/policy) is own
 | Component folder re-exporting siblings | NO | Direct imports are clearer |
 | Monorepo package boundary (`@org/shared/index.ts`) | YES | Cross-package contract |
 
-### Import Rules
-
-| Rule | Example (Good) | Example (Bad) |
-|------|---------------|---------------|
-| Import from source, not barrel (internal) | `import { Button } from './Button'` | `import { Button } from '.'` |
-| Import from barrel (cross-package) | `import { Button } from '@ui/components'` | `import { Button } from '@ui/components/Button/Button'` |
-| Never re-export then modify | Barrel re-exports as-is | `export { Button as Btn } from './Button'` (renaming in barrel) |
-| No wildcard re-exports | `export { A, B } from './module'` | `export * from './module'` |
-| No circular barrel | Barrel has no non-re-export logic | Barrel imports from files that import from barrel |
-
-### Tree-Shaking Impact
-
-| Pattern | Tree-Shakeable? | Bundle Impact |
-|---------|----------------|---------------|
-| `export * from './heavy-module'` | NO (most bundlers) | Entire module included |
-| Named re-exports only | YES | Only used exports included |
-| Barrel with side effects | NO | Always included |
-| Direct import (no barrel) | YES | Optimal |
-
-See `references/barrel-discipline.md` for the safe barrel template and detailed guidance.
+See `references/barrel-discipline.md` for import examples, tree-shaking
+details, ESLint enforcement, and the safe barrel template.
 
 ---
 
@@ -328,14 +298,17 @@ When reviewing any PR that adds/modifies module structure, verify:
 - [ ] **Validation placement** — new validation is at system boundary, not internal functions
 - [ ] **Module size** — new/modified modules under 400 LOC
 - [ ] **No "utils" growth** — shared code placed in domain-specific module, not catch-all utils
-- [ ] **Dependency direction** — dependency graph flows inward (infrastructure -> application -> domain)
+- [ ] **Dependency direction** — dependencies point inward toward Domain: outer layers depend on inner layers (Presentation/Application/Infrastructure -> Domain), and inner layers never import outward
 - [ ] **No lazy-import hacks** — no `require()` inside function body to hide circular deps
 
 ### Automated Enforcement (CI Recommendations)
 
 | Check | Tool | CI Command |
 |-------|------|------------|
-| Circular deps | madge | `npx madge --circular --extensions ts,tsx src/ && echo "OK"` |
+| Layer/dependency rules (preferred CI gate) | dependency-cruiser | `npx depcruise --validate .dependency-cruiser.cjs src/` |
+| Circular deps (quick visualization) | madge | `npx madge --circular --extensions ts,tsx src/ && echo "OK"` |
+| Dead files/exports/deps | knip | `npx knip` |
+| Monorepo package consistency | sherif | `npx sherif` |
 | Import boundaries | eslint-plugin-boundaries | ESLint with boundaries config |
 | Layer violations | dependency-cruiser | `npx depcruise --validate .dependency-cruiser.cjs src/` |
 | Barrel abuse | custom ESLint rule | `no-restricted-imports` pattern for internal index files |

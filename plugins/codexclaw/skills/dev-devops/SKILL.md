@@ -2,6 +2,7 @@
 name: cxc-dev-devops
 description: "MUST USE for DevOps, infrastructure, or delivery work — container builds, deploy pipelines, Kubernetes, Infrastructure as Code, SRE foundations, edge/serverless, and ML infrastructure. Triggers: 'Dockerfile', 'container build', 'deploy', 'CI/CD', 'Kubernetes', 'K8s', 'Terraform', 'Pulumi', 'Helm', 'SRE', 'SLI', 'SLO', 'error budget', 'serverless', 'edge', '배포', '인프라', '쿠버네티스'."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Container, deploy, Kubernetes, IaC, and SRE guidance for production delivery."
 ---
 
@@ -23,7 +24,7 @@ Severity mapping: `CRITICAL`/`HIGH` ⇒ STRICT; `MEDIUM` ⇒ DEFAULT (aligned wi
 | `references/cross-platform-release.md` | Cross-platform release proof | CI matrix vs local OS proof, Windows App/RDP prompts, desktop verification boundaries |
 | `references/homebrew.md` | Homebrew distribution | Formula vs Cask, audit/test, livecheck, artifact trust, install/uninstall proof |
 | `references/platform-engineering.md` | Platform / DORA / provider routing | DORA capabilities, platform guardrails, provider table rows, SLSA handoff |
-| `references/kubernetes.md` | K8s deployment | Gateway API v1.5, Kustomize overlays, HPA/VPA, Helm, ArgoCD GitOps |
+| `references/kubernetes.md` | K8s deployment | Gateway API (v1.6+), Kustomize overlays, HPA/VPA, Helm, ArgoCD GitOps |
 | `references/ci-cd-deploy.md` | Deploy pipeline | GHA reusable workflows, deploy strategies, rollback, GitOps, progressive delivery |
 | `references/iac.md` | Infrastructure code | OpenTofu/Terraform modules, Pulumi, state encryption, blast radius isolation |
 | `references/sre-foundations.md` | Operations/incidents | SLO/SLI/error budget, burn-rate alerting, incident response, blameless postmortem |
@@ -58,32 +59,14 @@ instead of relying on stale memory or copied snippets.
 | BuildKit secrets | `RUN --mount=type=secret,id=token ...` — never use `ARG` for secrets |
 | `.dockerignore` | `.git`, `node_modules`, `.env*`, `*.log`, `dist/`, `coverage/`, `__pycache__/` |
 
-```dockerfile
-# syntax=docker/dockerfile:1
-FROM oven/bun:1.2 AS build
-WORKDIR /app
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
-COPY . .
-RUN bun run build
-
-FROM gcr.io/distroless/nodejs22-debian12
-COPY --from=build /app/dist /app
-USER nonroot:nonroot
-CMD ["app/server.js"]
-```
+For canonical Dockerfile templates, read `references/docker.md` §1.
 
 ### §1.2 Image Security (STRICT)
 
-| Step | Tool | Command |
-|------|------|---------|
-| Scan | Trivy or Docker Scout | `trivy image --severity CRITICAL,HIGH --exit-code 1 img:tag` |
-| SBOM | Syft | `syft img:tag -o spdx-json > sbom.spdx.json` |
-| Sign | Cosign/Sigstore | `cosign sign --key cosign.key img@sha256:...` |
-| Attest | Cosign | `cosign attest --predicate sbom.spdx.json --type spdxjson img@sha256:...` |
-| Filter FP | VEX | `trivy image --vex policy.vex.json img:tag` |
-
-CRITICAL/HIGH findings → block push. No exceptions.
+CRITICAL/HIGH findings → block push. No exceptions. Read
+`references/docker.md` §4 for scan/SBOM/sign command examples, and
+`../dev-security/references/supply-chain-sbom.md` for deeper SBOM/signing
+policy.
 
 ### §1.3 Anti-Patterns
 
@@ -180,9 +163,9 @@ jobs:
 | Probes | Liveness + readiness + startup |
 | Namespace | Environment isolation (dev/staging/prod) |
 
-### §3.2 Gateway API v1.5 (2026 Standard)
+### §3.2 Gateway API (v1.6+, verified 2026-07-02 — TCPRoute/UDPRoute GA in v1.6)
 
-Gateway API replaces Ingress. Role separation: platform team owns `GatewayClass` + `Gateway`, app team owns `HTTPRoute`.
+Gateway API is the successor for new routing while Ingress remains GA but feature-frozen. Role separation: platform team owns `GatewayClass` + `Gateway`, app team owns `HTTPRoute`.
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1
@@ -239,10 +222,11 @@ spec:
 
 | Tool | Best For | 2026 Status |
 |------|----------|-------------|
-| OpenTofu (HCL) | Multi-cloud IaC, Terraform successor | ✅ Recommended |
+| OpenTofu (HCL) | Open-source/licensing-neutral IaC default (MPL-2.0, Linux Foundation) | ✅ Recommended for OSS neutrality |
+| Terraform / HCP Terraform (BSL) | Vendor support or HashiCorp platform integration | ✅ Active (check BSL competitive-use terms) |
 | Pulumi (TS/Python) | Teams preferring programming languages | ✅ Active |
 | AWS CDK | AWS-only infrastructure | ✅ Active (AWS only) |
-| **CDKTF** | — | ❌ **Deprecated** (2025-12) |
+| **CDKTF** | — | ❌ Deprecated 2025-12-10; repo archived/read-only, no further fixes |
 
 ### §4.3 Anti-Patterns
 
@@ -271,6 +255,8 @@ spec:
 SLIs measure **user experience**, not infrastructure metrics. "CPU is fine ≠ users are fine."
 
 Error budget = 1 − SLO (99.9% → 0.1% budget).
+
+**DORA 2025 (verified 2026-07-02):** AI acts as an *amplifier* — returns depend on the underlying sociotechnical system. For AI-agent-heavy delivery invest in golden paths, guardrails, observability, provenance, and review gates.
 
 ### §5.2 Error Budget Policy (DEFAULT)
 
@@ -329,6 +315,7 @@ Two consecutive window misses → architecture review.
 | Test strategy & CI test stages | `dev-testing` §5 | Test pyramid, coverage gates |
 | Backend observability code patterns | `dev-backend` `observability.md` | OTel SDK setup, structured logging |
 | Security hardening (app-layer) | `dev-security` | OWASP, auth, input validation |
+| SBOM/signing depth | `dev-security` `references/supply-chain-sbom.md` | Supply-chain evidence policy beyond image scan gates |
 | Architecture module boundaries | `dev-architecture` | Coupling taxonomy, barrel discipline |
 | Scaffolding conventions | `dev-scaffolding` | File naming, project structure |
 | Frontend build/bundle | `dev-frontend` | Vite/webpack config, SSR |

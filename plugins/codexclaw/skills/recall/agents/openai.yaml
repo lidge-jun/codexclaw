@@ -1,0 +1,6 @@
+interface:
+  display_name: "cxc-recall"
+  short_description: "Past-session recall: search prior Codex chats + memory store."
+  default_prompt: "Use $cxc-recall to search past sessions for this before asking me."
+policy:
+  allow_implicit_invocation: false

@@ -2,6 +2,7 @@
 name: cxc-dev-scaffolding
 description: "MUST USE for project setup, feature scaffolding, structural audits, or documentation scaffolding — applies feature-based layout, colocation, public boundary exports, repo-first convention reuse, and source-of-truth doc planning. Triggers: scaffold, scaffolding, new project, init project, new feature, add module, project setup, structure audit, architecture docs, source-of-truth docs, monorepo setup, API docs, 스캐폴딩, 새 프로젝트, 새 기능, 구조 점검, 모듈 추가."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Project and module scaffolding with repo-first convention reuse and structural audits."
 ---
 
@@ -10,6 +11,7 @@ metadata:
 > **C0/C1 work (small local patches):** See `dev` §0.0 Work Classifier + §0.1 Patch Fast-Path before reading references.
 
 Rules for generating and auditing project structures. Create files directly following these rules.
+Use the audit script (§12) for verification when it applies.
 This skill activates by **change-surface**: new project setup, feature/module scaffolding,
 structural audits, or documentation scaffolding.
 
@@ -92,6 +94,8 @@ Source-of-truth method:
 
 When a repo already numbers planning documents by phase/decade, follow that local convention.
 When no such convention exists, treat numbering as optional — never invent a heavy numbering system silently.
+For codexclaw repos with decade numbering, point readers to the local `pabcd/SKILL.md`
+Jawdev Document Numbering section.
 
 Before creating any new source-of-truth folders, ask concisely: state that no durable docs were found,
 show the proposed tree, give a specific recommendation, and confirm you will not create them without approval.
@@ -160,7 +164,7 @@ When adding a new feature, create a folder under `src/` with these files:
 | TypeScript | `kebab-case/` | `name.tool.ts` | `name.test.ts` | `index.ts`             |
 | Python     | `kebab-case/` | `name_tool.py` | `test_name.py` | `__init__.py`          |
 | Go         | `kebab-case/` | `name.go`      | `name_test.go` | *(package = boundary)* |
-| Rust       | `kebab-case/` | `mod.rs`       | `name_test.rs` | `mod.rs`               |
+| Rust       | `kebab-case/` | `name.rs`      | inline `#[cfg(test)]` or `tests/` | `lib.rs`/parent `mod name;` |
 
 The `index.*` file is the feature's **public boundary export**. Barrel discipline is owned
 by `dev-architecture` §5: external consumers import this boundary, internal code imports

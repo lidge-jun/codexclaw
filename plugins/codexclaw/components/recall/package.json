@@ -1,0 +1,11 @@
+{
+  "name": "@codexclaw/recall",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only chat/memory recall search over the Codex session root (~/.codex): date-pruned rollout scan + thread/memory sqlite enrichment.",
+  "main": "dist/cli.js",
+  "scripts": {
+    "test": "node --test"
+  }
+}

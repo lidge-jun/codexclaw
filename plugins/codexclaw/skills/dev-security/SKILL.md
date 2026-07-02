@@ -1,8 +1,21 @@
 ---
 name: cxc-dev-security
-description: "MUST USE for security-sensitive coding and review — auth, authorization, validation, secrets, headers, rate limiting, dependency trust, agentic AI safety, and pre-deploy hardening. Activates by change-surface when work touches trust boundaries, PII, uploads, payments, CI integrity, or tool-using agents. Triggers: 'security review', 'auth', 'OAuth', 'token', 'input validation', 'secrets', 'CSP', 'CORS', 'dependency audit', '보안', '인증', '권한', '비밀키'."
+description: "MUST USE for security guidance covering XSS, CSRF, SQL injection, JWT, OAuth, secrets, OWASP, auth hardening, supply chain, and threat model work. Activates for security-sensitive code, trust boundaries, PII, uploads, payments, CI integrity, tool-using agents, or security/threat_model task tags."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Security router for auth, validation, secrets, supply chain, and hardening."
+  keywords:
+    - xss
+    - csrf
+    - sql injection
+    - jwt
+    - oauth
+    - secrets
+    - owasp
+    - auth hardening
+    - supply chain
+    - threat model
+  injection_condition: "security-sensitive code, trust boundary changes, PII/payment/upload/CI integrity changes, tool-using agents, or security/threat_model task_tags"
 ---
 
 # Dev-Security — Production Security Hardening
@@ -57,10 +70,10 @@ Domain skills own architecture and implementation details.
 | `references/owasp-top10.md` | Any security-sensitive code | OWASP Top 10:2025 with unsafe/safe code pairs and checklists |
 | `references/language-quirks.md` | When coding in JS/TS, Python, SQL, or Go | Per-language pitfalls that scanners and reviewers commonly miss |
 | `references/static-analysis.md` | Before claiming code is secure | Semgrep, CodeQL, ESLint security, npm audit, pip-audit, Bandit, gitleaks, CI, pre-commit |
-| `references/asvs-checklist.md` | Before deploy or release | ASVS 5.0 Level 1 and Level 2 pre-deploy checklist for V1-V9 |
+| `references/asvs-checklist.md` | Before deploy or release | ASVS 5.0.0 pre-deploy checklist by chapter (V-shortcodes) and requirement level L1/L2 |
 | `references/agentic-ai-security.md` | When building tool-using agents or prompt-driven flows | OWASP ASI01-ASI10 mapped to agent rules and safe operating patterns |
 | `references/llm-supply-chain.md` | When integrating LLMs, RAG pipelines, or consuming tool/agent output | Indirect prompt injection defense, RAG poisoning controls, tool output trust, CI adversarial tests |
-| `references/mcp-supply-chain.md` | Adding MCP servers or vetting agent tools | OWASP MCP Top 10, server vetting checklist, allowlist/pinning, sandbox, audit logging |
+| `references/mcp-supply-chain.md` | Adding MCP servers or vetting agent tools | OWASP MCP secure-development + third-party vetting guides (no official "MCP Top 10" exists — map MCP risks to LLM01/03/06 + Agentic Top 10 ASI02/04/05), server vetting checklist, allowlist/pinning, sandbox, audit logging |
 | `references/supply-chain-sbom.md` | Dependency auditing or release integrity | SBOM generation (Syft/Trivy), artifact signing (Cosign/Sigstore), dependency pin & audit CI |
 
 For current CVEs, advisories, package maintainer/source checks, release
@@ -90,8 +103,8 @@ Validate all input at trust boundaries with schema validation (Zod strict, Pydan
 ## 2. Authentication Checklist
 
 Use this checklist for login, session, token, password reset, magic link, OAuth, and admin access:
-- [ ] Passwords hashed with `argon2id` or `bcrypt`; use MD5, SHA1, or raw SHA256 only for non-security hashing.
-- [ ] Access tokens are short-lived (15 minutes recommended; up to 60 minutes acceptable per org policy).
+- [ ] Passwords hashed with `argon2id` (preferred); `scrypt` next if unavailable; `bcrypt` mainly for legacy; PBKDF2 only for FIPS-140 contexts. MD5/SHA1/raw SHA256 never for passwords. (OWASP ordering, checked 2026-07-02.)
+- [ ] Access tokens are short-lived with reduced scope (RFC 9700). Exact TTLs are risk-based org policy — 15-60 minutes is a common starting range, not a standard-mandated number.
 - [ ] Refresh tokens rotate on use and support family invalidation after reuse detection.
 - [ ] Browser tokens live in `httpOnly`, `secure`, `sameSite` cookies; keep session tokens out of `localStorage`.
 - [ ] OAuth uses Authorization Code + PKCE; avoid implicit flow (deprecated, token-in-URL exposure).
@@ -185,6 +198,16 @@ Treat the limits below as risk-based starting defaults, not fixed gates — tune
 
 Rate limiting is not only for brute force.
 Use it for enumeration, abuse, accidental loops, webhook replay storms, and AI-triggered runaway automation.
+
+## 6.5 Slopsquatting Gate — AI-Suggested Dependencies (STRICT)
+
+AI-recommended package names are a supply-chain attack surface: 2025 research found
+~20% of LLM-recommended packages in study settings did not exist, and hallucinated
+names recur — attackers register them (slopsquatting). Before adding ANY dependency
+suggested by an AI: (1) package exists on the official registry with real release
+history (not days old); (2) maintainer/org and linked source repo are plausible;
+(3) no surprising install scripts; lockfile diff reviewed; (4) provenance/trusted
+publishing attestation when the registry supports it (npm/PyPI).
 
 ## 7. Static Analysis Integration
 

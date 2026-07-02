@@ -2,6 +2,7 @@
 name: cxc-dev-data
 description: "MUST USE for data engineering and analysis work — pipelines, ETL/ELT, data quality, SQL optimization, schema evolution, backfills, and reporting. Triggers: ETL, ELT, pipeline, data quality, SQL optimization, backfill, migration, schema drift, validation, batch vs streaming, 데이터 파이프라인, 데이터 품질, 백필."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Data pipelines, ETL/ELT design, data quality validation, SQL optimization, and analysis patterns."
 ---
 
@@ -17,10 +18,12 @@ Production-grade data engineering patterns for building reliable data systems.
 
 - Building data pipelines or ETL/ELT processes
 - Processing CSV, JSON, Parquet, or Excel files
-- Writing SQL queries or designing database schemas
+- Writing analytical SQL, warehouse/lakehouse queries, or transformation models
 - Setting up data quality checks or validation
 - Performing data analysis, aggregation, or reporting
 - Choosing between batch and streaming architectures
+
+**Do not activate for plain app CRUD SQL, OLTP query tuning, or transactional schema design.** Route those to `dev-backend/references/stacks/database.md`. This skill owns analytics, ETL/ELT, pipelines, data quality, and reporting.
 
 ## External/current data evidence
 
@@ -29,6 +32,19 @@ behavior, provider data API changes, or public benchmark/source claims, read the
 active `search` skill and follow its query-rewrite, source-fetch, and
 evidence-status rules. Use browser fetch/open/text/get-dom/snapshot only after
 candidate URLs exist and the claim needs browser-verifiable source evidence.
+
+---
+
+## Pre-Flight Checklist
+
+Before delivering:
+- [ ] Input contract defined: source, schema, expected columns/types, and owner
+- [ ] Pipeline is idempotent and restartable from the last successful checkpoint
+- [ ] Data-quality checks cover nulls, uniqueness, ranges, freshness, and row counts
+- [ ] Volume and latency justify the chosen engine: pandas, Polars, DuckDB, SQL warehouse, Spark/Flink
+- [ ] Invalid records have a dead-letter/quarantine path with enough context to debug
+- [ ] PII/governance classification is complete or delegated to `dev-security`/§7
+- [ ] Output format and downstream contract are explicit
 
 ---
 
@@ -92,6 +108,8 @@ Before any transformation, validate incoming data:
 - **Incremental processing.** Process only new/changed records when possible. Full reloads only when schema changes.
 
 ### dbt Integration Patterns
+
+Engine landscape (verified 2026-07-02): dbt Core remains the default; dbt Fusion is the separately-documented/licensed current engine (check feature matrix + license before adopting); SQLMesh is a credible active alternative. Lakehouse format: choose Delta vs Iceberg by ecosystem — both active; never claim a "winner".
 
 When using dbt for transformations, follow the **staging → intermediate → mart** layer architecture:
 
@@ -228,7 +246,7 @@ When analysis involves statistics:
 | Sub-second, Kafka-centric | Kafka Streams (embedded library) | Low-Medium |
 | Minutes acceptable | Batch with frequent scheduling | Low |
 
-**Kafka essentials for data engineers:**
+**Kafka essentials for data engineers (Kafka 4.x / KRaft era — no ZooKeeper):**
 - Partition by expected throughput — avoid excessive partitions
 - Use Schema Registry for backwards-compatible evolution
 - Default to at-least-once delivery + idempotent consumers
@@ -251,10 +269,10 @@ See `references/streaming.md` for Kafka configuration, CDC patterns, and windowi
 
 | Category | Options |
 |----------|---------|
-| **Orchestration** | Airflow, Prefect, Dagster |
+| **Orchestration** | Airflow 3.x (standalone DAG processor; `SequentialExecutor` removed), Prefect 3, Dagster |
 | **Transformation** | dbt, Spark, plain SQL |
 | **Streaming** | Kafka, Kinesis, Pub/Sub |
-| **Quality** | Great Expectations, dbt tests, Soda, custom validators |
+| **Quality** | GX Core (Great Expectations' OSS library), dbt tests, Soda Core (data contracts), custom validators |
 | **Monitoring** | Prometheus, Grafana, Datadog, Monte Carlo |
 | **Local analysis** | DuckDB (in-process SQL), Polars (fast DataFrame), pandas only for explicit compatibility exceptions |
 
@@ -321,6 +339,8 @@ See `references/governance.md` for detailed implementation patterns, row-level s
 ---
 
 ## 8. Query Performance Guidelines
+
+Ownership note: this section covers analytical SQL, warehouse/lakehouse queries, and pipeline transforms. Plain app CRUD SQL, OLTP schema design, and transactional query tuning belong to `dev-backend/references/stacks/database.md`.
 
 - Every query that runs in production: EXPLAIN ANALYZE before deploy
 - Slow query threshold: > 100ms for OLTP, > 5s for OLAP/analytics
