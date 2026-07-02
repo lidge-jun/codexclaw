@@ -116,12 +116,27 @@ Classify the work-phase before choosing the loop shape:
 - **Open-ended optimization explore-and-select** — the verifier defines better, not
   done (scores, win rates, adversarial evaluators). Generate diverse candidates from
   domain-state evidence, evaluate them on the same instances, keep best-so-far, and
-  regenerate from the winner. Stop on plateau or resource budget; the terminal outcome
-  is `BUDGET_EXHAUSTED` with best-so-far evidence, not `DONE`, unless the plan named a
-  fixed pass threshold up front.
+  regenerate from the winner. If the verifier only reports scalar outcome, add telemetry
+  before candidate work. Stop on plateau or resource budget; the terminal outcome is
+  `BUDGET_EXHAUSTED` with best-so-far evidence, not `DONE`, unless the plan named a fixed
+  pass threshold up front.
 
 A repair loop applied to an optimization problem is a category error; change the loop
 shape instead of adding more cycles.
+
+## Analysis before regeneration (LOOP-REANALYZE-01)
+
+In explore-and-select loops, each generation starts with an analysis deliverable before
+new patches or candidates:
+
+- **Updated problem/opponent model** from telemetry, replays, failure deltas, or other
+  evidence: what actually happened, and what does it imply?
+- **Capability-gap hypotheses** naming what the artifact cannot yet sense or do. A gap
+  may expand the allowed patch surface, but only through a P-phase amendment.
+
+Source the next candidates from those hypotheses and quote them in the next P via
+`cxc-pabcd` LOOP-CONTINUITY-01. A generation that regenerates straight from scores is a
+repair loop wearing an explore costume.
 
 ## Emergence / Divergence Layer
 

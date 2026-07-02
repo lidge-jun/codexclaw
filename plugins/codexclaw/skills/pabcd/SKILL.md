@@ -25,7 +25,11 @@ Two distinct things, do not conflate them:
   (or running `cxc orchestrate I`). The breadth lives in agent judgment, not in a regex.
 
 Either way, once in Interview cover the four dimensions (Goal, Constraint, Success
-criteria, Ontology), research the repo before asking, and confirm requirements before Plan.
+criteria, Ontology), research the repo before asking, and confirm requirements before
+Plan. **INTERVIEW-CLASSIFY-01 (DEFAULT):** before P, settle both the work class
+(`dev` §0.0) and the loop archetype (`cxc-loop` LOOP-ARCHETYPE-01) by asking whether
+the verifier defines done or only better; discovering the archetype mid-loop is an
+Interview miss, not a Build problem.
 
 The discoverable `cxc-interview` skill is the explicit I-phase entry surface. In
 continuous Interview mode, the main session owns user questions and records; subagents
@@ -68,11 +72,11 @@ PABCD, then chooses HITL or HOTL:
 These align with the directives the `pabcd-state` hook injects per phase:
 
 0. **I — Interview**: Clarify requirements before planning across the four dimensions. Research the repo first, then ask focused questions. No implementation yet.
-1. **P — Plan**: Explore first (read real code, configs, docs). Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable accept criteria. For C2+ plans, begin with a loop-spec header: Trigger; Goal (user-visible outcome); Non-goals; Verifier; Stop condition; Memory artifact; Expected terminal outcomes; Escalation condition. HOTL goal plans also state the `cxc-loop` HOTL resource bounds. Ground every decision in code you have read. No implementation yet. For broad or unfamiliar repos, include a compact tree, detected conventions, and which existing logs/docs you will reuse.
+1. **P — Plan**: Explore first (read real code, configs, docs). Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable accept criteria. For C2+ plans, begin with a loop-spec header: Loop archetype; Trigger; Goal (user-visible outcome); Non-goals; Verifier (command/gate and what it measures); Stop condition; Memory artifact; Expected terminal outcomes; Escalation condition. HOTL goal plans also state the `cxc-loop` HOTL resource bounds. For open-ended optimization, include the divergence plan, deterministic selection rule, and telemetry schema; if the verifier only reports scalar outcome, instrumentation is B's first work item before candidates. Ground every decision in code you have read. No implementation yet. For broad or unfamiliar repos, include a compact tree, detected conventions, and which existing logs/docs you will reuse.
 2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent reviewer (`spawn_agent`) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. Fold fixes back into the plan and record the verdict. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict) — a form-only bar: silently skipping the paste fails the gate, but the gate cannot verify the paste's provenance, so faithful execution (really dispatching the reviewer) remains the agent's obligation.
 3. **B — Build**: Implement the audited plan in small atomic commits. Verify as you go. Stay inside the plan's scope boundary; surface deviations instead of silently expanding scope.
 4. **C — Check**: Run the real verification — build, typecheck, and targeted tests, plus adversarial review. Capture fresh command output as evidence. Do not claim pass without artifact-level proof.
-5. **D — Done**: Summarize what was checked with evidence, update STATUS/devlog, commit, and confirm no pending work remains for this work-phase before returning to idle.
+5. **D — Done**: Summarize what was checked with evidence, update STATUS/devlog, commit, and confirm no pending work remains for this work-phase before returning to idle. For loop/multi-pass work, **LOOP-PESSIMIST-01 (DEFAULT)** also records what did not improve, which hypothesis died, and what evidence would show the current direction is wrong; D -> IDLE -> P is a context/bias-flush boundary, so the next cycle resumes from disk artifacts rather than transcript momentum.
 
 ## Work-Phase Loop (multi-pass tasks)
 
