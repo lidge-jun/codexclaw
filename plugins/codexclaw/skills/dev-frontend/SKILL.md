@@ -182,9 +182,13 @@ Read `references/core/anti-slop.md` for full rules. Key standards:
 - Plan font scale with image/product scale so neither crushes the other.
 
 - Treat unexamined default typography as a slop signal. Choose a domain-appropriate stack; Korean-first UI should use CJK-safe fonts and system fallbacks deliberately.
-- Use neutral or intentional color palettes — purple gradients on white are a slop signal
+- **Gradient budget (FE-GRADIENT-01)**: gradient soup is the 2026 #1 anti-slop signal; max 1 ambient gradient per viewport and no gradients on 3+ sibling cards — see `anti-slop.md § Gradient Budget`
+- **One-note theme ban (FE-ONENOTE-01)**: full-page single-hue dark washes (terminal green, cyber cyan, CRT amber) are the current dark-mode tell — see `anti-slop.md § One-Note Theme Ban`
+- **No self-describing meta copy (FE-METACOPY-01)**: UI text must explain the product/user job, never narrate the mockup, layout, responsive behavior, or agent process — see `anti-slop.md § Self-Describing Meta Copy`
+- Use neutral or intentional color palettes — purple gradients on white are now the old tell; gradient overuse and one-note single-hue themes are the current tell
 - Use asymmetric or purposeful layouts — centered-everything reads as template
 - Vary card sizes, spans, and groupings — equal 3-card grids read as generic
+- **Bento composition (FE-BENTO-01)**: bento grids must read as one interlocking slab with aligned row edges, a dominant cell, content-weighted spans, and no orphan tail — see `layout-discipline.md § Bento Composition`
 - Avoid oversized bold hero text inside tools, dashboards, admin, finance flows, and public services
 - Avoid asset-free UI: abstract blobs/gradients do not replace real visual evidence
 - Avoid generic soft 3D icon packs; soft 3D must be semantic, brand-consistent, and restrained
@@ -205,7 +209,7 @@ Read `references/core/anti-slop.md` for full rules. Key standards:
 
 ### Do not ship these tells (FE-AI-TELL-01)
 
-Version labels in heroes, numbered eyebrows, middle-dot overuse, fake social-proof headers, decorative scroll cues, weather/status strips with no product purpose, photo-credit captions in UI chrome, and generic "trusted by teams worldwide" claims are AI-default tells. Full catalog: `references/core/anti-slop.md` + `references/core/layout-discipline.md`.
+Version labels in heroes, numbered eyebrows, middle-dot overuse, duplicate image reuse, monospace uppercase card labels, fake social-proof headers, decorative scroll cues, weather/status strips with no product purpose, photo-credit captions in UI chrome, and generic "trusted by teams worldwide" claims are AI-default tells. Full catalog: `references/core/anti-slop.md` + `references/core/layout-discipline.md`.
 
 ---
 

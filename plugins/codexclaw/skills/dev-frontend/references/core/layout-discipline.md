@@ -32,6 +32,20 @@
 - Background diversity: ≥2-3 cells need real visual variation (image, gradient, pattern)
 - Rhythm: no one-sided repetition (6 left-image/right-text rows)
 
+### Bento Composition (FE-BENTO-01, DEFAULT)
+
+A bento is one composed object, not a pile of cards. Catch these failures before styling:
+
+- **Ragged rows**: cells in the same visual row ending at different heights with dead air below the short ones. Compose on an explicit grid (`grid-template-rows` / `grid-row: span n`) so every row edge lands on a shared line. If a cell can't fill its slot, its span is wrong or its content is thin.
+- **Uniform-span monotony**: 6+ cells all 1x1 is a card grid wearing a bento costume. A real bento has 1 dominant cell (2x2 or 2x1) and clear size hierarchy: big = most important, not "whatever fit".
+- **Span-content mismatch**: cell size must track content weight. A 2x2 cell holding one metric, or a 1x1 cell with a cramped 4-row table, both fail. Resize the cell or recut the content.
+- **Orphan tail row**: last row with 1 cell + void. Re-span the tail cell to full width or merge its content upward.
+- **Sealed-box syndrome**: every cell = same radius + same border + same padding + same background. Vary surface treatment: let 1-2 cells go borderless, let an image bleed to cell edges, let one cell be a flat stat with no chrome.
+- **Density whiplash**: one cell packed with a data table next to a cell holding 3 words. Balance per-cell content weight before styling.
+- **Gap drift**: one `gap` value for the whole bento, followed by random local margins, breaks the object illusion.
+
+**Pre-ship check**: screenshot the bento, squint. If it reads as one interlocking slab, pass. If it reads as boxes floating near each other, recompose spans before touching colors.
+
 ## Section Content Limits
 - Default per section: short headline (≤8 words) + sub-paragraph (≤25 words) + one visual/CTA
 - Long lists (>5 items): use cards/tabs/accordion/scroll-snap/carousel, not default <ul>

@@ -18,7 +18,7 @@ Activates by change surface when:
 - Handling logo dark mode variants, OG images, or social sharing meta
 
 Read this before style-specific references when the user cannot articulate a clear design direction.
-For anti-slop detection and banned patterns, defer to `dev-frontend/references/core/anti-slop.md`.
+For anti-slop detection and banned patterns, defer to `dev-frontend/references/core/anti-slop.md`, especially the 2026 gradient budget and one-note theme bans.
 
 **Emoji ban (stub):** no emoji as UI visual elements (STRICT). Canonical rule, scope, and exemptions: `dev-frontend` §5 / `dev-frontend/references/core/anti-slop.md § Emoji Slop`.
 

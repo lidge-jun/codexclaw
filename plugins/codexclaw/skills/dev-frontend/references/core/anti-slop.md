@@ -36,7 +36,8 @@ Synthesized from taste-skill, redesign-skill, Anthropic frontend-design, and Koo
 ---
 
 ## Banned Color Patterns
-- Purple gradient on white background (the #1 AI tell)
+- Gradient soup: the 2026 #1 AI tell. Purple-on-white was the old obvious tell; layered gradient washes, gradient cards, gradient borders, and glow soup are the current-generation failure.
+- Purple gradient on white background (legacy AI tell)
 - Blue-to-indigo gradient buttons
 - Oversaturated neon accents (keep saturation < 80%)
 - Equally distributed pastel rainbows
@@ -45,6 +46,27 @@ Synthesized from taste-skill, redesign-skill, Anthropic frontend-design, and Koo
 - Generic `box-shadow` → tint shadows to background hue
 
 **Do instead**: Zinc/Slate neutral base + ONE high-contrast accent. Tint shadows to background hue.
+
+## Gradient Budget (FE-GRADIENT-01, DEFAULT)
+
+Gradient overuse is the top 2026 anti-slop signal. Treat every gradient as a scarce semantic device, not as default texture.
+
+- Max 1 ambient/background gradient wash per viewport
+- Gradients on 3+ sibling cards in one section → flatten to solid surfaces with border/elevation hierarchy
+- Background wash + card gradients + gradient borders + glow shadows stacked on one page = gradient soup, regardless of hue
+- Radial glow washes behind dark heroes are decorative filler unless they model a real light source
+- Every gradient must encode something: depth, light, state, or one brand moment. "Empty area needed texture" is not a reason.
+
+## One-Note Theme Ban (FE-ONENOTE-01, DEFAULT)
+
+Full-page single-hue theming where background, borders, text accents, badges, glows, and imagery all resolve to one hue family. This is the 2026 dark-mode equivalent of purple-on-white.
+
+- Dark terminal green / Matrix hacker themes for AI and devtool products are the #1 dark-mode tell
+- Cyber cyan, retro CRT amber, and synthwave magenta full-page washes fail the same way
+- Symptom check: sample 5 random UI elements (border, badge, accent text, glow, image tint); if 4+ share one hue ±30°, the page is one-note
+- Generated imagery color-matched to the theme hue compounds the problem — the image must carry its own palette or add contrast, not echo the wash
+
+**Do instead**: neutral dark base (Zinc-950/`#0a0a0a`) + ONE accent applied to <10% of surface area (primary CTA, active states, key data). Imagery and charts supply the remaining color variation.
 
 ## Premium-Consumer Palette Ban (MANDATORY)
 
@@ -107,6 +129,19 @@ For alternative palettes, see `aesthetics.md § Color & Theme`.
 - "Stage 1 / Phase 01"-style generic step labels
 - Pills/labels overlaid on images
 - Scoring/progress bars as comparison visuals on landing pages
+- Same generated/stock image used twice on one page (hero + detail crop / zoomed tile) → each image slot earns distinct content or gets cut
+- Monospace uppercase Latin micro-labels stamped on every card of a Korean-first page (COMMAND TRACE, LIVE VISUAL) → card-level labels count toward the eyebrow budget (see `layout-discipline.md`)
+
+### Self-Describing Meta Copy (FE-METACOPY-01, DEFAULT)
+
+UI copy must describe the product value, user job, data, or state. It must not describe the mockup, layout, responsive behavior, or design system.
+
+- Copy narrating its own layout: "벤토 보드에 겹쳐 보여주는 목업입니다", "이미지 타일을 다른 배율로 재사용", "cards connect like circuits"
+- Copy narrating responsive behavior: "작은 화면에서는 단일 열로 접힙니다", viewport-size pill rows (390 / 768 / 1440) as content
+- Cards named after design artifacts instead of user jobs: VIEWPORT MATRIX, DETAIL CROP, BENTO ROOM
+- Copy describing the agent/process that built the page rather than what the user gets
+
+**Test**: could a real user say what job this element does for them? If the copy only makes sense to the designer or prompt author, it is meta copy. Design rationale belongs in DESIGN.md, never in the UI.
 
 ### Copy Self-Audit (MANDATORY — pre-delivery)
 
