@@ -3,6 +3,7 @@ name: cxc-goalplan
 description: "Use for Codexclaw durable goalplan design: goals, work phases, success criteria, checkpoints, steering decisions, quality gates, evidence bundles, and OPEN ASSUMPTIONS handoff from Interview. Triggers: cxc-goalplan, goalplan, goal plan, success criteria, checkpoint, steering, quality gate, evidence ledger."
 metadata:
   short-description: "Durable goalplan and checkpoint contract."
+  last-verified: "2026-07-02"
 ---
 
 # cxc-goalplan
@@ -39,6 +40,16 @@ CLI surface: `cxc goalplan init --objective "<text>" [--session <id>]` writes th
 quality gate (FAIL unless the plan is complete AND every `met` criterion carries
 `capturedEvidence`). Ledger events: `created`, `workphase_started`, `workphase_done`,
 `task_done`, `criterion_met`, `host_armed`.
+
+## Optimization-loop discipline (score/objective goalplans)
+
+When the objective maximizes a score/metric against an evaluator, apply the plateau
+discipline owned by `cxc-pabcd` (LOOP-PHASE-DEATH / LOOP-CONTINUITY / CANDIDATE-ANCHOR /
+GATE-ORACLE-VALIDITY): track discarded candidates by killing phase + change class and
+after N consecutive same-class deaths (start N=3, tune per domain) target the evaluation
+gate itself; each new work phase quotes the previous conclusion from the ledger; source
+candidates from domain-state evidence, not only existing parameters; an optimistic local
+proxy is never sole acceptance evidence.
 
 ## Goal state (how it arms the loop)
 

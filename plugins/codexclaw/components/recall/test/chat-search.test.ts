@@ -23,9 +23,18 @@ test.after(() => {
   rmSync(home, { recursive: true, force: true });
 });
 
-test("listRolloutFiles: days pruning drops stale directories, 0 keeps all", () => {
+test("listRolloutFiles: days pruning drops stale directories, 0 keeps all (incl. archive)", () => {
   assert.equal(listRolloutFiles(home, 7).length, 2);
-  assert.equal(listRolloutFiles(home, 0).length, 3);
+  assert.equal(listRolloutFiles(home, 14).length, 3, "10-day-old archived rollout inside window");
+  assert.equal(listRolloutFiles(home, 0).length, 4);
+});
+
+test("archived_sessions rollouts are searchable with filename-derived dates", () => {
+  const hit = scanChat("aardwolf", { home, days: 0 });
+  assert.equal(hit.hits.length, 2);
+  assert.ok(hit.hits.every((h) => h.file.includes("archived_sessions")));
+  const pruned = scanChat("aardwolf", { home, days: 7 });
+  assert.equal(pruned.hits.length, 0, "archive respects --days pruning");
 });
 
 test("readRolloutMeta: survives 40KB first lines and classifies subagents", () => {

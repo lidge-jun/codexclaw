@@ -3,6 +3,7 @@ name: cxc-ultraresearch
 description: "Deep multi-source research protocol for Tier-3 swarm dispatches: EXPAND query families, run research waves, keep a journal + claim-ledger, and converge with verified claims. Use when a single lookup is not enough and the main agent deliberately spawns an explorer swarm. Triggers: deep research, ultraresearch, multi-source, survey, literature, broad investigation, 심층 조사, 리서치."
 metadata:
   short-description: "EXPAND/wave/journal/claim-ledger deep-research protocol ridden by base explorer subagents."
+  last-verified: "2026-07-02"
 ---
 
 # ultraresearch — Deep Research Protocol
@@ -46,7 +47,7 @@ duplicate. Record the expanded set so a reader can see the search space you chos
 
 ## Grounding (no invention)
 
-Every candidate and claim must come from a real search result, not memory. Discovery stays
+Snippet consensus is not verification: agreement among any number of search snippets never substitutes for opening the source — a claim reaches verified only via Tier-2 proof. Every candidate and claim must come from a real search result, not memory. Discovery stays
 Tier 1 (hosted `web_search`); proof opens the source (`cxc-search` Tier 2, optionally the
 `agbrowse` HTTP-first proof helper). Do not fabricate URLs; do not cite a number before the
 source is opened.

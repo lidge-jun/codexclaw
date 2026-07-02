@@ -11,8 +11,8 @@
  * Parsing is the hot path over a multi-GB corpus, so callers are expected to run the
  * cheap file-level prefilter (see matchesFilePrefilter) before parseRollout.
  */
-import { readdirSync, readFileSync, existsSync, openSync, readSync, closeSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, existsSync, openSync, readSync, closeSync } from "node:fs";
+import { join, basename } from "node:path";
 
 export type RolloutSource = "main" | "subagent";
 
@@ -59,26 +59,57 @@ export function isSyntheticUserText(text: string): boolean {
   return SYNTHETIC_PREFIXES.some((p) => head.startsWith(p));
 }
 
-/** All rollout files under sessions/, newest directory-date first, pruned to `days` (0 = all). */
+/** rollout-YYYY-MM-DDTHH-MM-SS-<uuid>.jsonl → YYYY-MM-DD (null when unparseable). */
+export function dateFromRolloutName(name: string): string | null {
+  const m = /^rollout-(\d{4})-(\d{2})-(\d{2})T/.exec(name);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
+
+/**
+ * All rollout files, newest first, pruned to `days` (0 = all). Covers both the
+ * live tree (sessions/YYYY/MM/DD/) and the flat archive (archived_sessions/),
+ * whose files carry their date in the filename instead of the directory.
+ */
 export function listRolloutFiles(home: string, days: number): RolloutFile[] {
-  const root = join(home, "sessions");
-  if (!existsSync(root)) return [];
   const cutoff = days > 0 ? new Date(Date.now() - days * 86_400_000) : null;
   const out: RolloutFile[] = [];
-  for (const year of safeDirs(root)) {
-    for (const month of safeDirs(join(root, year))) {
-      for (const day of safeDirs(join(root, year, month))) {
-        const date = `${year}-${month}-${day}`;
-        if (cutoff && new Date(`${date}T23:59:59Z`) < cutoff) continue;
-        const dir = join(root, year, month, day);
-        for (const name of readdirSync(dir)) {
-          if (name.endsWith(".jsonl")) out.push({ path: join(dir, name), date });
+
+  const root = join(home, "sessions");
+  if (existsSync(root)) {
+    for (const year of safeDirs(root)) {
+      for (const month of safeDirs(join(root, year))) {
+        for (const day of safeDirs(join(root, year, month))) {
+          const date = `${year}-${month}-${day}`;
+          if (cutoff && new Date(`${date}T23:59:59Z`) < cutoff) continue;
+          const dir = join(root, year, month, day);
+          for (const name of readdirSync(dir)) {
+            if (name.endsWith(".jsonl")) out.push({ path: join(dir, name), date });
+          }
         }
       }
     }
   }
-  // Newest first: directory date, then the timestamped filename, both sort lexically.
-  out.sort((a, b) => (a.path < b.path ? 1 : a.path > b.path ? -1 : 0));
+
+  const archive = join(home, "archived_sessions");
+  if (existsSync(archive)) {
+    for (const name of readdirSync(archive)) {
+      if (!name.endsWith(".jsonl")) continue;
+      const date = dateFromRolloutName(name);
+      if (date === null) continue;
+      if (cutoff && new Date(`${date}T23:59:59Z`) < cutoff) continue;
+      out.push({ path: join(archive, name), date });
+    }
+  }
+
+  // Newest first by date, then by the timestamped filename (both sort lexically);
+  // compare on (date, basename) so live-tree and archive interleave correctly on
+  // every platform regardless of path separator.
+  out.sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+    const an = basename(a.path);
+    const bn = basename(b.path);
+    return an < bn ? 1 : an > bn ? -1 : 0;
+  });
   return out;
 }
 

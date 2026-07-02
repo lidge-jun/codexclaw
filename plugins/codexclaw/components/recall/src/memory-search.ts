@@ -62,7 +62,8 @@ function frontmatterThreadId(content: string): string | null {
 /** Paragraph chunks with their 1-based start line, for jump-to-source output. */
 export function paragraphChunks(content: string): Array<{ text: string; startLine: number }> {
   const chunks: Array<{ text: string; startLine: number }> = [];
-  const lines = content.split("\n");
+  // CRLF-safe: strip the trailing \r so Windows-authored markdown chunks cleanly.
+  const lines = content.split("\n").map((l) => (l.endsWith("\r") ? l.slice(0, -1) : l));
   let buf: string[] = [];
   let start = 1;
   for (let i = 0; i <= lines.length; i++) {

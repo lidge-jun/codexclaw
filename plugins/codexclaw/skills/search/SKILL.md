@@ -2,6 +2,7 @@
 name: cxc-search
 description: "MUST USE for external, current, real-time, or public-web lookups — latest releases/versions, news, prices, docs, status, X/Twitter, and deep research. Routes Korean and English lookup verbs to a codex-native search ladder, never an accidental repository grep. Triggers: search, look up, latest, current, news, real-time, X, Twitter, deep research, 검색, 검색해, 찾아봐, 찾아줘, 알아봐, 웹검색."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Codex-native unified search: 3-tier discover->prove->deep-research ladder + Korean intent guard."
 ---
 
@@ -94,6 +95,53 @@ The deep-research method (EXPAND query families, research waves, journal +
 claim-ledger, converge on verified claims) lives in the on-demand `$cxc-ultraresearch`
 skill, attached to the base `explorer` subagents the main agent spawns — not a new role.
 
+### Subagent Skill Attachment (SEARCH-ATTACH-01)
+Any search subagent — Tier 3 ultraresearch explorers, `$cxc-sparksearch` lanes,
+or ad-hoc research spawns — should receive THIS skill as a real skill
+attachment, not a hand-written tool directive in the message. The subagent
+auto-loads the skill at launch and follows its Tier 1/2 tool guidance
+(`web_search` for discovery, then open the source for proof). The skill body is
+the single source of truth for the tool list; do not duplicate it as prose in
+the spawn message.
+
+The portable default is a **$cxc mention in the spawn message** — the child's
+first turn parses it and injects the full SKILL.md body, on BOTH the v1 and v2
+spawn surfaces:
+
+```text
+message: "[$cxc-search](skill://<this skill's SKILL.md absolute path>)
+TASK: <lane / query family>"
+```
+
+On the v1 surface the structured `items` channel is equivalent and slightly
+stronger (exact selection, no parse step) — use it when routing through the
+spawn-wrapper builder:
+
+```text
+items: [
+  { type: "skill", name: "cxc-search", path: "<this skill's SKILL.md absolute path>" },
+  { type: "text",  text: "TASK: <lane / query family>" }
+]
+```
+
+(v2 `deny_unknown_fields` rejects `items` — there the mention line above IS the
+attachment, not a degraded fallback. The always-on spawn-attach hook also
+prepends `$cxc-search` for dispatches whose message names the search surface.)
+
+Do not write a long inline TOOLS block in either path — the skill already says
+"web_search for discovery, then open the source; snippets lie; the page is the
+evidence." A subagent that cannot open pages must flag every finding as
+`candidate — unverified snippet` in its return.
+
+### sparksearch (dependent tool)
+`$cxc-sparksearch` is a dependent discovery lane that rides on this skill's proof
+ladder. It fans out cheap `gpt-5.3-codex-spark` subagents for wide discovery,
+then hands every candidate back here for Tier 2 source-proof. sparksearch
+discovers; cxc-search proves. sparksearch attaches THIS skill (`cxc-search`) to
+its swarm subagents via `items`, so each Spark lane auto-loads the proof ladder
+at launch. See the `$cxc-sparksearch` skill for its hardcoded spawn path and
+swarm shape.
+
 ### Removed cli-jaw tiers (non-goals — do not re-add)
 codexclaw has no server runtime, so the cli-jaw 4-tier ladder does not carry over.
 Do **not** reintroduce any of these removed backends as available: a progrok tier, a hosted web-AI wait (Grok Expert / GPT Pro), or an Exa / Tavily / Perplexity / Brave provider promise.
@@ -139,3 +187,6 @@ spend Tier 3 subagents on a question Tier 1+2 already settled.
   without it, Tier 2 is the Browser Use / Computer Use path.
 - The blocked-URL reader and ultraresearch decomposition are absorbed as Tier 2
   helper tactics and Tier 3 method, not as new tiers or vendored browsers.
+- `$cxc-sparksearch` is a dependent tool, not a tier. It hardcodes the Spark
+  model and skips catalog probing; its error fallback is serial dispatch
+  (re-spawn without the model field), not a probe round-trip.

@@ -2,6 +2,7 @@
 name: cxc-orchestrate
 description: "Use for explicit Codexclaw IPABCD phase control from chat: cxc-orchestrate, $cxc-orchestrate, $codexclaw:cxc-orchestrate, orchestrate I/P/A/B/C/D/status/reset, phase status, reset, and human-vs-agent transition semantics. Triggers: orchestrate, phase control, PABCD state, cxc orchestrate, reset phase, status phase."
 metadata:
+  last-verified: "2026-07-02"
   short-description: "Explicit IPABCD phase-control surface."
 ---
 
@@ -34,10 +35,12 @@ Accepted prefixes include `$codexclaw:cxc-orchestrate`, `$cxc-orchestrate`,
 
 Advancing a phase is not the same as doing it (see `pabcd` faithful-execution). Each forward
 edge must carry its real artifact, not just an `--attest` string: P = the actual diff-level plan;
-A = an audit/review verdict that names blockers; B = the implementation delta; C = fresh
-`tsc`/test/gate output (`C>D` attest requires a non-empty `checkOutput`; `exitCode` is optional
-but, if supplied, must be `0`); D = a cycle summary with evidence and the next-phase decision.
-A phase whose artifact is absent is not done, regardless of adjacency.
+A = an audit/review verdict that names blockers (`A>B` attest requires a non-empty
+`auditOutput` — the pasted tail of the dispatched reviewer subagent's verdict); B = the
+implementation delta; C = fresh `tsc`/test/gate output (`C>D` attest requires a non-empty
+`checkOutput`; `exitCode` is optional but, if supplied, must be `0`); D = a cycle summary with
+evidence and the next-phase decision. A phase whose artifact is absent is not done, regardless
+of adjacency.
 
 ## Control surfaces (shipped)
 
@@ -47,7 +50,8 @@ A phase whose artifact is absent is not done, regardless of adjacency.
 - **Terminal (agent-gated)** — `cxc orchestrate <verb> [--attest <json>] [--session <id>]
   [--cwd <path>] [--json]` drives the SAME `.codexclaw/sessions/<id>.json` state through
   the un-weakened gated `transition()`. An agent MUST supply real `--attest` evidence to
-  advance; `C>D` additionally needs `checkOutput` + a passing `exitCode`.
+  advance; `A>B` additionally needs `auditOutput` (reviewer verdict tail) and `C>D`
+  additionally needs `checkOutput` + a passing `exitCode`.
 - **Phase footer** — every injected directive ends with `IPABCD: <phase> (<LABEL>)` so
   the current phase is visible (codex has no status UI). After `D` closes, the resting
   state shown is `IDLE`.

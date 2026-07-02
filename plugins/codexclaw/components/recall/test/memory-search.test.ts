@@ -49,6 +49,13 @@ test("memory search reaches stage1_outputs and dedupes md-covered threads", () =
   assert.ok(dbOnly.hits.every((h) => h.origin === "stage1" && h.threadId === THREAD_SUB));
 });
 
+test("CRLF-authored memory files chunk and match cleanly", () => {
+  const r = searchMemory("wombat migration", { home });
+  assert.equal(r.hits.length, 1);
+  assert.equal(r.hits[0].relpath, "windows-notes.md");
+  assert.ok(!r.hits[0].excerpt.includes("\r"), "excerpt must not carry CR");
+});
+
 test("memory search supports korean and AND semantics", () => {
   const r = searchMemory("한글 검색", { home });
   assert.ok(r.hits.length >= 1);

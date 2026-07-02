@@ -30,13 +30,13 @@ test("ingest: builds, is incremental, and prunes deleted files", () => {
   const db = openIndex(idx);
   try {
     const first = ingest(home, db, 0);
-    assert.equal(first.ingested, 3, "all fixture rollouts ingested");
+    assert.equal(first.ingested, 4, "all fixture rollouts ingested (incl. archived)");
     assert.ok(first.msgs > 0);
     const second = ingest(home, db, 0);
     assert.equal(second.ingested, 0, "unchanged files skipped");
     assert.equal(second.pruned, 0);
     const status = indexStatus(db, idx);
-    assert.equal(status.files, 3);
+    assert.equal(status.files, 4);
     assert.ok(status.lastIngestAt !== null);
   } finally {
     db.close();

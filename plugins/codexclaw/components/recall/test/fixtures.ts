@@ -11,6 +11,7 @@ import { DatabaseSync } from "node:sqlite";
 export const THREAD_MAIN = "019f0000-0000-7000-8000-00000000aaaa";
 export const THREAD_SUB = "019f0000-0000-7000-8000-00000000bbbb";
 export const THREAD_OLD = "019f0000-0000-7000-8000-00000000cccc";
+export const THREAD_ARCHIVED = "019f0000-0000-7000-8000-00000000eeee";
 
 export function dateParts(daysAgo: number): { y: string; m: string; d: string; iso: string } {
   const t = new Date(Date.now() - daysAgo * 86_400_000);
@@ -103,6 +104,17 @@ export function buildCodexHome(root: string): void {
       message("assistant", "ancient answer", old.iso),
   );
 
+  // --- archived rollout (10 days ago; flat dir, date lives in the filename) ---
+  const arch = dateParts(10);
+  const archDir = join(root, "archived_sessions");
+  mkdirSync(archDir, { recursive: true });
+  writeFileSync(
+    join(archDir, `rollout-${arch.y}-${arch.m}-${arch.d}T05-00-00-${THREAD_ARCHIVED}.jsonl`),
+    sessionMeta(THREAD_ARCHIVED, "/proj/alpha", false, arch.iso) +
+      message("user", "archived aardwolf question about the trigram index", arch.iso) +
+      message("assistant", "archived aardwolf answer", arch.iso),
+  );
+
   // --- threads state db (versioned name; resolver must pick the highest N) ---
   const stateDb = new DatabaseSync(join(root, "state_2.sqlite"));
   stateDb.exec(
@@ -124,6 +136,11 @@ export function buildCodexHome(root: string): void {
   writeFileSync(
     join(root, "memories", "MEMORY.md"),
     "# Task Group: search infrastructure\n\n## Task 1: ship the trigram sidecar index, success\n\nkeywords: trigram, sidecar, 한글 검색\n",
+  );
+  // CRLF-authored memory file (Windows parity).
+  writeFileSync(
+    join(root, "memories", "windows-notes.md"),
+    "# CRLF notes\r\n\r\nthe wombat migration finished on windows\r\n",
   );
   writeFileSync(
     join(memDir, "summary-aaa.md"),
