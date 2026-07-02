@@ -137,13 +137,24 @@ const PHASE_DIRECTIVES                                 = {
     "[codexclaw: INTERVIEW]",
     "Clarify requirements before planning. Cover four dimensions — Goal, Constraint,",
     "Success criteria, Ontology. Research the repo first, then ask focused questions.",
+    "Settle the loop archetype before P (INTERVIEW-CLASSIFY-01): does a verifier define",
+    "*done* (spec work), or only *better* (open-ended optimization)? Teach the decision",
+    "space, don't only narrow it (INTERVIEW-TEACH-01): options with per-option trade-offs",
+    "at every load-bearing altitude (stack/architecture/algorithm/evaluation), including",
+    "one atypical option; offer BOTH (parallel spike, select by evidence) when a",
+    "load-bearing choice is uncertain and a spike is cheap (INTERVIEW-DIVERGE-01).",
     "When you ask, use request_user_input with background + 2-3 concrete options",
     "(recommendation FIRST) + one impact/tradeoff sentence per option. Do NOT start implementing yet.",
   ].join("\n"),
   P: [
     "[codexclaw: PLAN]",
     "Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable",
-    "accept criteria. Ground decisions in real code you have read. No implementation yet.",
+    "accept criteria. Open C2+ plans with a loop-spec header: loop archetype (from",
+    "Interview) · verifier (and what it measures) · stop condition · expected terminal",
+    "outcomes · escalation. For open-ended optimization add the divergence plan",
+    "(descriptor axes, candidate assignments, deterministic selection rule, telemetry",
+    "schema); a win/lose-only verifier means instrumentation is B's first work item.",
+    "Ground decisions in real code you have read. No implementation yet.",
   ].join("\n"),
   A: [
     "[codexclaw: AUDIT]",
@@ -174,7 +185,11 @@ const PHASE_DIRECTIVES                                 = {
   D: [
     "[codexclaw: DONE]",
     "Summarize what was checked with evidence, update STATUS/devlog, and commit. Confirm",
-    "no pending work remains for this work-phase before closing.",
+    "no pending work remains for this work-phase before closing. For loop/multi-pass",
+    "work add the pessimistic close-out (LOOP-PESSIMIST-01): what did NOT improve, which",
+    "hypothesis died, what evidence would falsify the direction — the next P quotes it.",
+    "D -> IDLE -> P is a context/bias flush: resume from disk artifacts, not transcript",
+    "momentum. A budget/time stop is BUDGET_EXHAUSTED with best-so-far, never done.",
   ].join("\n"),
 };
 
