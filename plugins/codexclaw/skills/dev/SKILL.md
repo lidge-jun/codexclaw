@@ -231,16 +231,11 @@ wording (no Codex hook enforces skill text — `structure/00_philosophy.md` §1)
 
 ## Documentation Verification (Context7)
 
-If Context7 MCP is available, verify external library syntax before using it:
-
-1. `resolve-library-id` — get the library ID (for example, `/vercel/next.js`)
-2. `query-docs` — fetch current docs for the specific API/feature
-
-**When to verify:** using any API you haven't verified in this session, library version is pinned in `package.json`/`requirements.txt`, syntax or behavior seems uncertain, or the library had a major release in the past 6 months.
-
-**When to skip:** language built-ins (`Array.map`, `str.split`), standard library (`fs`, `os`, `path`, `http`), syntax you just verified this session.
-
-**If Context7 MCP is unavailable:** fall back to official docs lookup. Never rely on training data alone for library-specific API calls.
+If Context7 MCP is available, verify external library syntax before using it
+(`resolve-library-id` → `query-docs`). **Verify when:** API not verified this session,
+pinned version, uncertain behavior, or a major release in the past 6 months.
+**Skip for:** language built-ins, standard library, syntax verified this session.
+If unavailable, fall back to official docs lookup — never training data alone.
 
 ### External/current evidence
 
@@ -254,17 +249,13 @@ alone. Subagents/delegated agents are bound by the same search-skill policy.
 Past work context lives in the Codex session root and is searchable in
 milliseconds. Before asking the user about PRIOR work, search it yourself:
 
-- **When**: a term, file, decision, or codename from earlier work is unfamiliar;
-  context feels lost after a compact/restart/handoff; the user references past
-  work ("그때 그거", "지난번에", "저번 세션", "last time", "as discussed"); or you
-  are about to write "I don't have context about X".
-- **How** (read-only; never modifies anything):
-  - `cxc chat search "<distinctive terms>" --days 0` — full-history FTS over past
-    conversations; `--context 2` reads around a hit, `--cwd <repo>` scopes it.
-  - `cxc memory search "<topic>"` — durable per-thread summaries and memories.
+- **When**: an earlier-work term/file/decision is unfamiliar; context lost after a
+  compact/restart; the user references past work; or you are about to write "I don't
+  have context about X".
+- **How** (read-only): `cxc chat search "<terms>" --days 0` (full-history FTS;
+  `--context 2`, `--cwd <repo>`) and `cxc memory search "<topic>"`.
 - Only after both miss may you ask the user — and say what you searched.
-- Details and the full flag set: `$cxc-recall`. Subagents/delegated agents are
-  bound by this rule too.
+  Full flag set: `$cxc-recall`. Subagents are bound by this rule too.
 
 ---
 
@@ -351,7 +342,13 @@ Each PR/changeset MUST be scoped to one logical change. Opportunistic rewrites, 
 
 ---
 
-## 1.5 Pre-Write Codebase Search Obligation
+## 1.5 Necessity Gate & Pre-Write Search Obligation
+
+**DEV-NECESSITY-01 (DEFAULT — ponytail discipline, verified 2026-07-02):** before writing
+ANY code, check the no-code options in order — do nothing / delete / configure / reuse —
+and state which you rejected and why. Frame tasks exclusions-first (what NOT to add)
+before the goal. Never lazy about STRICT domains: trust boundaries, data loss, security,
+accessibility.
 
 **Rule:** Before creating a new function, helper, type, component, constant, route, fixture, or module, search the codebase for an existing owner or equivalent implementation. No new abstraction may be introduced without search evidence. This section does not apply on the §0.1 fast path (C0/C1 — no new abstractions are being created).
 
@@ -441,12 +438,7 @@ background subagent and poll with short wait cycles. Local commands (tests,
 `tsc`, builds that finish in minutes) stay blocking — backgrounding is for
 genuinely long external work.
 
-**Red flags — unverified claims creeping in:**
-- Using words like "should", "probably", "seems to"
-- Expressing satisfaction before verification ("Great!", "Done!")
-- Relying on partial verification or a previous run
-- Trusting subagent success reports without independent verification
-- Thinking "just this once"
+**Red flags — unverified claims creeping in:** "should"/"probably"/"seems to" · satisfaction before verification · partial/previous-run evidence · trusting agent success reports · "just this once".
 
 ---
 
@@ -475,20 +467,12 @@ Keep entries factual and concise. One entry per file changed.
 
 ---
 
-## 6. Code Quality Signals
+## 6. Code Quality Signals (stub)
 
-Watch for these anti-patterns and fix immediately. For the full detection catalog and review-specific guidance, see `dev-code-reviewer/SKILL.md` §3. These are *code* smells; the *output* anti-slop rule (no placeholders, TODO-only delivery, speculative wrappers, defensive clutter) is FAMILY-SLOP-01 in §Family Invariants.
-
-| Anti-Pattern | Symptom | Fix |
-| ------------ | ------- | --- |
-| **God class** | >20 methods, mixed responsibilities | Split by domain into focused classes |
-| **Long method** | >50 lines, does multiple things | Extract into named helper functions |
-| **Deep nesting** | >4 levels of if/for/try | Early returns, guard clauses, extract |
-| **Magic numbers** | Hardcoded `86400`, `1024`, `3` | Named constants with clear intent |
-| **Stringly typed** | Strings where enums/types belong | Define explicit types or enums |
-| **Missing error handling** | No catch at trust boundaries | Add `try/catch` at boundaries (controller, API edge, event handler). Internal code propagates errors — see `dev-architecture` §4. |
-| **Floating promises** | Async call without `await` | Always `await` or handle rejection |
-| **Copy-paste code** | Same logic in 2+ places | Extract shared function, import it |
+Anti-pattern detection (god class, long method, deep nesting, magic numbers, stringly
+typed, missing boundary error handling, floating promises, copy-paste) is canonically
+owned by `cxc-dev-code-reviewer` §3 — read it when writing or reviewing code.
+Thresholds mirror §1 hard limits; boundary-error placement follows `cxc-dev-architecture` §4.
 
 ---
 
