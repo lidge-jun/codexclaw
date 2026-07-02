@@ -113,4 +113,4 @@ When modifying this module, also update:
 
 ---
 
-*Target length: scale with the feature. Keep it focused and maintainable.*
+*Keep this document concise, bounded, and task-oriented. Expand only when the feature's real surface area requires it.*

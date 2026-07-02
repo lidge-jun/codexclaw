@@ -1,0 +1,986 @@
+---
+const base = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const quickstartHref = `${base}getting-started/quickstart/`;
+const docsHref = `${base}`;
+---
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>CodexClaw Neon Ops Console</title>
+    <meta
+      name="description"
+      content="CodexClaw를 사이버펑크 운영 콘솔처럼 재해석한 웹사이트 목업입니다."
+    />
+    <meta property="og:title" content="CodexClaw Neon Ops Console" />
+    <meta
+      property="og:description"
+      content="PABCD, dev skills, subagent routing을 한 화면에서 조율하는 사이버펑크 스타일 목업."
+    />
+    <meta property="og:image" content="https://lidge-jun.github.io/codexclaw/og.png" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href={`${base}favicon.ico`} sizes="32x32" />
+    <style>
+      :root {
+        --color-bg: #05070b;
+        --color-bg-soft: #081019;
+        --color-panel: rgba(7, 16, 27, 0.82);
+        --color-panel-strong: rgba(12, 24, 38, 0.94);
+        --color-line: rgba(107, 255, 246, 0.2);
+        --color-line-strong: rgba(107, 255, 246, 0.52);
+        --color-text: #e9fbff;
+        --color-muted: #8baab4;
+        --color-dim: #5c7781;
+        --color-accent: #5ff7ed;
+        --color-alert: #ff4fb7;
+        --color-warning: #ffd166;
+        --shadow-cyan: 0 0 40px rgba(95, 247, 237, 0.18);
+        --shadow-panel: 0 24px 80px rgba(0, 0, 0, 0.38);
+        --radius-tight: 6px;
+        --radius-panel: 8px;
+        color-scheme: dark;
+        font-family:
+          Pretendard, SUIT, "Noto Sans KR", "Apple SD Gothic Neo", system-ui,
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--color-bg);
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        background:
+          radial-gradient(circle at 78% 8%, rgba(255, 79, 183, 0.16), transparent 31rem),
+          radial-gradient(circle at 22% 18%, rgba(95, 247, 237, 0.18), transparent 26rem),
+          linear-gradient(180deg, #05070b 0%, #07111d 54%, #04060a 100%);
+        color: var(--color-text);
+        overflow-x: hidden;
+      }
+
+      body::before {
+        position: fixed;
+        inset: 0;
+        z-index: -2;
+        pointer-events: none;
+        content: "";
+        background:
+          linear-gradient(rgba(95, 247, 237, 0.045) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(95, 247, 237, 0.035) 1px, transparent 1px);
+        background-size: 42px 42px;
+        mask-image: linear-gradient(to bottom, black 0%, black 64%, transparent 100%);
+      }
+
+      body::after {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        content: "";
+        background: repeating-linear-gradient(
+          to bottom,
+          rgba(255, 255, 255, 0.032) 0,
+          rgba(255, 255, 255, 0.032) 1px,
+          transparent 1px,
+          transparent 7px
+        );
+        mix-blend-mode: screen;
+        opacity: 0.24;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      a:focus-visible,
+      button:focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: 4px;
+      }
+
+      .skip-link {
+        position: fixed;
+        inset-block-start: 0.75rem;
+        inset-inline-start: 0.75rem;
+        z-index: 20;
+        transform: translateY(-160%);
+        border: 1px solid var(--color-line-strong);
+        border-radius: var(--radius-tight);
+        background: var(--color-bg);
+        padding: 0.7rem 0.9rem;
+      }
+
+      .skip-link:focus {
+        transform: translateY(0);
+      }
+
+      .site-shell {
+        width: min(100%, 1400px);
+        margin: 0 auto;
+        padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 0
+          max(1rem, env(safe-area-inset-left));
+      }
+
+      .nav {
+        position: sticky;
+        inset-block-start: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        min-height: 64px;
+        border-bottom: 1px solid var(--color-line);
+        background: color-mix(in srgb, var(--color-bg) 82%, transparent);
+        backdrop-filter: blur(18px);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.72rem;
+        min-height: 44px;
+        font-weight: 760;
+      }
+
+      .brand img {
+        width: 34px;
+        height: 34px;
+        border-radius: var(--radius-tight);
+        object-fit: cover;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+      }
+
+      .nav-links a,
+      .command-link {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        border: 1px solid transparent;
+        border-radius: var(--radius-tight);
+        padding: 0 0.82rem;
+        color: var(--color-muted);
+        font-size: 0.92rem;
+      }
+
+      .nav-links a:hover,
+      .command-link:hover {
+        border-color: var(--color-line);
+        color: var(--color-text);
+        background: rgba(95, 247, 237, 0.06);
+      }
+
+      .command-link {
+        border-color: var(--color-line-strong);
+        color: var(--color-accent);
+      }
+
+      main {
+        display: grid;
+        gap: clamp(3.5rem, 8vw, 7.5rem);
+        padding-block-end: 4rem;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 0.82fr) minmax(22rem, 1fr);
+        gap: clamp(1.5rem, 3.5vw, 3rem);
+        align-items: center;
+        min-height: calc(100dvh - 64px);
+        padding-block: clamp(2.75rem, 7vw, 5.5rem);
+      }
+
+      .hero-copy {
+        max-width: 46ch;
+      }
+
+      .kicker {
+        display: inline-grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.65rem;
+        align-items: center;
+        margin: 0 0 1.35rem;
+        color: var(--color-accent);
+        font-family: "SFMono-Regular", "JetBrains Mono", ui-monospace, monospace;
+        font-size: 0.78rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .kicker::before {
+        width: 2.8rem;
+        height: 1px;
+        background: var(--color-accent);
+        content: "";
+        box-shadow: 0 0 18px var(--color-accent);
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        max-width: 10ch;
+        font-size: clamp(3rem, 6.4vw, 6.35rem);
+        font-weight: 900;
+        line-height: 0.88;
+        letter-spacing: 0;
+        text-wrap: balance;
+      }
+
+      h1 span {
+        display: block;
+        color: var(--color-accent);
+        text-shadow: 0 0 24px rgba(95, 247, 237, 0.42);
+      }
+
+      .hero-copy > p {
+        max-width: 62ch;
+        margin-block-start: 1.35rem;
+        color: var(--color-muted);
+        font-size: clamp(1rem, 0.96rem + 0.3vw, 1.16rem);
+        line-height: 1.78;
+        text-wrap: balance;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-block-start: 2rem;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 46px;
+        border: 1px solid var(--color-line-strong);
+        border-radius: var(--radius-tight);
+        padding: 0 1.05rem;
+        font-weight: 760;
+        transition:
+          transform 180ms ease,
+          border-color 180ms ease,
+          background 180ms ease,
+          color 180ms ease;
+      }
+
+      .button:active {
+        transform: translateY(1px) scale(0.99);
+      }
+
+      .button-primary {
+        background: var(--color-accent);
+        color: #031011;
+        box-shadow: var(--shadow-cyan);
+      }
+
+      .button-primary:hover {
+        background: #92fff7;
+      }
+
+      .button-secondary {
+        background: rgba(95, 247, 237, 0.07);
+        color: var(--color-text);
+      }
+
+      .button-secondary:hover {
+        border-color: var(--color-accent);
+      }
+
+      .hero-proof {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.8rem 1.2rem;
+        margin-block-start: 1.45rem;
+        color: var(--color-dim);
+        font-family: "SFMono-Regular", "JetBrains Mono", ui-monospace, monospace;
+        font-size: 0.78rem;
+      }
+
+      .console {
+        position: relative;
+        display: grid;
+        gap: 0.9rem;
+        inline-size: min(100%, 640px);
+        justify-self: end;
+        border: 1px solid var(--color-line-strong);
+        border-radius: var(--radius-panel);
+        background:
+          linear-gradient(135deg, rgba(95, 247, 237, 0.12), transparent 36%),
+          linear-gradient(180deg, var(--color-panel-strong), var(--color-panel));
+        padding: clamp(0.85rem, 2vw, 1.25rem);
+        box-shadow: var(--shadow-panel), var(--shadow-cyan);
+        overflow: hidden;
+      }
+
+      .console::before {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        content: "";
+        background: linear-gradient(110deg, transparent 0 38%, rgba(255, 255, 255, 0.08) 44%, transparent 52%);
+        animation: scan-sheen 6s ease-in-out infinite;
+      }
+
+      .console-header,
+      .panel-title,
+      .status-line,
+      .metric-label {
+        font-family: "SFMono-Regular", "JetBrains Mono", ui-monospace, monospace;
+      }
+
+      .console-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        border-bottom: 1px solid var(--color-line);
+        padding-block-end: 0.8rem;
+        color: var(--color-muted);
+        font-size: 0.78rem;
+      }
+
+      .status-light {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        color: var(--color-accent);
+      }
+
+      .status-light::before {
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 50%;
+        background: var(--color-accent);
+        content: "";
+        box-shadow: 0 0 16px var(--color-accent);
+      }
+
+      .console-grid {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 0.9rem;
+      }
+
+      .map-panel,
+      .ops-panel,
+      .timeline-panel {
+        border: 1px solid var(--color-line);
+        border-radius: var(--radius-tight);
+        background: rgba(2, 8, 14, 0.56);
+      }
+
+      .map-panel {
+        position: relative;
+        min-height: 292px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 52% 44%, rgba(95, 247, 237, 0.18), transparent 8rem),
+          linear-gradient(rgba(95, 247, 237, 0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(95, 247, 237, 0.08) 1px, transparent 1px),
+          rgba(1, 7, 12, 0.74);
+        background-size: auto, 28px 28px, 28px 28px, auto;
+      }
+
+      .map-node {
+        position: absolute;
+        display: grid;
+        place-items: center;
+        width: clamp(4.4rem, 8vw, 6.7rem);
+        height: clamp(4.4rem, 8vw, 6.7rem);
+        border: 1px solid var(--color-line-strong);
+        background: rgba(5, 16, 24, 0.9);
+        color: var(--color-text);
+        font-size: 0.72rem;
+        font-weight: 760;
+        text-align: center;
+        box-shadow: 0 0 24px rgba(95, 247, 237, 0.14);
+        clip-path: polygon(12% 0, 100% 0, 100% 76%, 86% 100%, 0 100%, 0 18%);
+      }
+
+      .map-node:nth-child(1) {
+        inset-block-start: 16%;
+        inset-inline-start: 10%;
+      }
+
+      .map-node:nth-child(2) {
+        inset-block-start: 38%;
+        inset-inline-start: 42%;
+        color: var(--color-accent);
+      }
+
+      .map-node:nth-child(3) {
+        inset-block-start: 12%;
+        inset-inline-end: 9%;
+      }
+
+      .map-node:nth-child(4) {
+        inset-block-end: 12%;
+        inset-inline-end: 18%;
+        border-color: rgba(255, 79, 183, 0.5);
+      }
+
+      .map-line {
+        position: absolute;
+        height: 1px;
+        transform-origin: left;
+        background: linear-gradient(90deg, transparent, var(--color-accent), transparent);
+        opacity: 0.68;
+      }
+
+      .line-a {
+        inset-block-start: 42%;
+        inset-inline-start: 24%;
+        width: 34%;
+        transform: rotate(18deg);
+      }
+
+      .line-b {
+        inset-block-start: 34%;
+        inset-inline-start: 56%;
+        width: 28%;
+        transform: rotate(-23deg);
+      }
+
+      .line-c {
+        inset-block-start: 63%;
+        inset-inline-start: 54%;
+        width: 31%;
+        transform: rotate(28deg);
+      }
+
+      .ops-panel {
+        display: grid;
+        align-content: start;
+        gap: 0.9rem;
+        padding: 1rem;
+      }
+
+      .panel-title {
+        color: var(--color-accent);
+        font-size: 0.78rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      .metric {
+        display: grid;
+        gap: 0.42rem;
+      }
+
+      .metric-label {
+        color: var(--color-dim);
+        font-size: 0.72rem;
+      }
+
+      .metric-value {
+        color: var(--color-text);
+        font-size: clamp(1.55rem, 2.6vw, 2.35rem);
+        font-weight: 860;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .meter {
+        height: 0.48rem;
+        border: 1px solid var(--color-line);
+        background: rgba(95, 247, 237, 0.06);
+      }
+
+      .meter > span {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, var(--color-accent), rgba(255, 79, 183, 0.68));
+      }
+
+      .timeline-panel {
+        display: grid;
+        gap: 0.65rem;
+        padding: 0.9rem 1rem;
+      }
+
+      .status-line {
+        display: grid;
+        grid-template-columns: 5rem 1fr auto;
+        gap: 0.65rem;
+        align-items: center;
+        color: var(--color-muted);
+        font-size: 0.74rem;
+      }
+
+      .status-line strong {
+        color: var(--color-text);
+      }
+
+      .tag {
+        border: 1px solid rgba(255, 209, 102, 0.38);
+        border-radius: var(--radius-tight);
+        padding: 0.18rem 0.42rem;
+        color: var(--color-warning);
+      }
+
+      .section {
+        display: grid;
+        gap: 1.45rem;
+      }
+
+      .section-heading {
+        display: grid;
+        grid-template-columns: minmax(0, 0.78fr) minmax(16rem, 0.52fr);
+        gap: clamp(1.2rem, 4vw, 3.5rem);
+        align-items: end;
+      }
+
+      h2 {
+        max-width: 17ch;
+        font-size: clamp(2rem, 4vw, 4.4rem);
+        line-height: 0.96;
+        font-weight: 890;
+        letter-spacing: 0;
+        text-wrap: balance;
+      }
+
+      .section-heading p {
+        color: var(--color-muted);
+        line-height: 1.7;
+        text-wrap: balance;
+      }
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr 1fr;
+        gap: 1rem;
+      }
+
+      .feature-card {
+        min-height: 13rem;
+        border: 1px solid var(--color-line);
+        border-radius: var(--radius-panel);
+        background: linear-gradient(180deg, rgba(12, 24, 38, 0.82), rgba(5, 13, 22, 0.78));
+        padding: clamp(1rem, 2.2vw, 1.35rem);
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.2);
+      }
+
+      .feature-card:nth-child(1) {
+        grid-row: span 2;
+        min-height: 25rem;
+      }
+
+      .feature-card:nth-child(4) {
+        grid-column: span 2;
+      }
+
+      .feature-card h3 {
+        max-width: 18ch;
+        font-size: clamp(1.2rem, 1.8vw, 1.7rem);
+        line-height: 1.08;
+        text-wrap: balance;
+      }
+
+      .feature-card p {
+        margin-block-start: 0.8rem;
+        color: var(--color-muted);
+        line-height: 1.65;
+        text-wrap: pretty;
+      }
+
+      .feature-index {
+        display: inline-block;
+        margin-block-end: 1.1rem;
+        color: var(--color-accent);
+        font-family: "SFMono-Regular", "JetBrains Mono", ui-monospace, monospace;
+        font-size: 0.78rem;
+      }
+
+      .wide-strip {
+        display: grid;
+        grid-template-columns: 0.8fr 1.2fr;
+        gap: 1rem;
+        align-items: stretch;
+        border: 1px solid var(--color-line-strong);
+        border-radius: var(--radius-panel);
+        background:
+          linear-gradient(105deg, rgba(255, 79, 183, 0.14), transparent 34%),
+          rgba(4, 11, 18, 0.86);
+        padding: clamp(1rem, 2.5vw, 1.6rem);
+      }
+
+      .strip-copy {
+        display: grid;
+        align-content: center;
+        gap: 0.9rem;
+      }
+
+      .strip-copy h2 {
+        max-width: 14ch;
+      }
+
+      .strip-copy p {
+        color: var(--color-muted);
+        line-height: 1.68;
+      }
+
+      .signal-list {
+        display: grid;
+        gap: 0.65rem;
+      }
+
+      .signal-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 0.8rem;
+        align-items: center;
+        min-height: 56px;
+        border: 1px solid var(--color-line);
+        border-radius: var(--radius-tight);
+        padding: 0.75rem;
+        background: rgba(2, 8, 14, 0.62);
+      }
+
+      .signal-row span:first-child {
+        color: var(--color-accent);
+        font-family: "SFMono-Regular", "JetBrains Mono", ui-monospace, monospace;
+      }
+
+      .signal-row strong {
+        font-size: 0.96rem;
+      }
+
+      .signal-row small {
+        color: var(--color-dim);
+        font-family: "SFMono-Regular", "JetBrains Mono", ui-monospace, monospace;
+      }
+
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        border-top: 1px solid var(--color-line);
+        padding-block: 1.5rem calc(1.5rem + env(safe-area-inset-bottom));
+        color: var(--color-dim);
+        font-size: 0.86rem;
+      }
+
+      @keyframes scan-sheen {
+        0%,
+        48% {
+          transform: translateX(-120%);
+          opacity: 0;
+        }
+        58% {
+          opacity: 1;
+        }
+        100% {
+          transform: translateX(120%);
+          opacity: 0;
+        }
+      }
+
+      @media (max-width: 1023px) {
+        .hero {
+          grid-template-columns: 1fr;
+          min-height: auto;
+        }
+
+        .console-grid,
+        .section-heading,
+        .wide-strip {
+          grid-template-columns: 1fr;
+        }
+
+        .console {
+          justify-self: stretch;
+          inline-size: 100%;
+        }
+
+        .feature-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .feature-card:nth-child(1),
+        .feature-card:nth-child(4) {
+          grid-column: auto;
+          grid-row: auto;
+          min-height: 13rem;
+        }
+      }
+
+      @media (max-width: 767px) {
+        .site-shell {
+          padding-inline: max(0.95rem, env(safe-area-inset-left)) max(0.95rem, env(safe-area-inset-right));
+        }
+
+        .nav {
+          min-height: 58px;
+        }
+
+        .nav-links a:not(.command-link) {
+          display: none;
+        }
+
+        .brand span {
+          max-width: 9.8rem;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .hero {
+          padding-block-start: 2rem;
+        }
+
+        h1 {
+          max-width: 9ch;
+          font-size: clamp(3.45rem, 16vw, 5.4rem);
+        }
+
+        .hero-actions {
+          flex-direction: column;
+        }
+
+        .button {
+          width: 100%;
+        }
+
+        .console {
+          margin-inline: -0.25rem;
+        }
+
+        .map-panel {
+          min-height: 260px;
+        }
+
+        .status-line {
+          grid-template-columns: 1fr;
+          gap: 0.28rem;
+        }
+
+        .feature-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .signal-row {
+          grid-template-columns: 1fr;
+          align-items: start;
+        }
+
+        .footer {
+          flex-direction: column;
+        }
+      }
+
+      @media (max-width: 360px) {
+        .brand span {
+          max-width: 7.6rem;
+        }
+
+        .command-link {
+          padding-inline: 0.62rem;
+          font-size: 0.82rem;
+        }
+
+        h1 {
+          font-size: clamp(3.05rem, 15vw, 4.6rem);
+        }
+
+        .console-header {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">본문으로 이동</a>
+    <div class="site-shell">
+      <nav class="nav" aria-label="주요 탐색">
+        <a class="brand" href={docsHref} aria-label="CodexClaw 문서 홈">
+          <img src={`${base}logo.png`} alt="" width="34" height="34" decoding="async" />
+          <span>codexclaw</span>
+        </a>
+        <div class="nav-links">
+          <a href={docsHref}>Docs</a>
+          <a href={`${base}guides/pabcd/`}>PABCD</a>
+          <a class="command-link" href={quickstartHref}>Quickstart</a>
+        </div>
+      </nav>
+
+      <main id="main">
+        <section class="hero" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <p class="kicker">Neon ops console</p>
+            <h1 id="hero-title">Codex가 <span>흐름을 잡는 밤</span></h1>
+            <p>
+              PABCD 루프, dev skill 라우팅, subagent evidence를 하나의 관제 화면처럼 정렬한
+              CodexClaw 사이버펑크 웹사이트 목업입니다.
+            </p>
+            <div class="hero-actions" aria-label="주요 작업">
+              <a class="button button-primary" href={quickstartHref}>콘솔 열기</a>
+              <a class="button button-secondary" href={`${base}concepts/how-it-works/`}>동작 방식 보기</a>
+            </div>
+            <div class="hero-proof" aria-label="목업 신호">
+              <span>PABCD loop armed</span>
+              <span>skills routed</span>
+              <span>evidence locked</span>
+            </div>
+          </div>
+
+          <div class="console" aria-label="CodexClaw 운영 콘솔 목업">
+            <div class="console-header">
+              <span>cxc://ops-grid/seoul-night</span>
+              <span class="status-light">live discipline</span>
+            </div>
+            <div class="console-grid">
+              <div class="map-panel" aria-label="작업 흐름 노드">
+                <div class="map-line line-a"></div>
+                <div class="map-line line-b"></div>
+                <div class="map-line line-c"></div>
+                <div class="map-node">Prompt Intake</div>
+                <div class="map-node">PABCD Core</div>
+                <div class="map-node">Skill Router</div>
+                <div class="map-node">Proof Gate</div>
+              </div>
+              <div class="ops-panel">
+                <span class="panel-title">runway metrics</span>
+                <div class="metric">
+                  <span class="metric-label">routing confidence</span>
+                  <strong class="metric-value">87.4%</strong>
+                  <span class="meter" aria-hidden="true"><span style="width: 87%"></span></span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">verification depth</span>
+                  <strong class="metric-value">C3</strong>
+                  <span class="meter" aria-hidden="true"><span style="width: 64%"></span></span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">context drift</span>
+                  <strong class="metric-value">low</strong>
+                  <span class="meter" aria-hidden="true"><span style="width: 22%"></span></span>
+                </div>
+              </div>
+            </div>
+            <div class="timeline-panel" aria-label="최근 이벤트">
+              <div class="status-line">
+                <span>23:08:14</span>
+                <strong>dev-frontend skill attached</strong>
+                <span class="tag">ready</span>
+              </div>
+              <div class="status-line">
+                <span>23:08:31</span>
+                <strong>visual proof queue primed</strong>
+                <span class="tag">watch</span>
+              </div>
+              <div class="status-line">
+                <span>23:09:02</span>
+                <strong>subagent lane isolated</strong>
+                <span class="tag">clean</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section" aria-labelledby="features-title">
+          <div class="section-heading">
+            <h2 id="features-title">야간 작업실에 맞춘 개발 리듬</h2>
+            <p>
+              목업의 핵심은 장식이 아니라 작업 감각입니다. 각 패널은 CodexClaw가 실제로
+              다루는 분류, 라우팅, 검증 단계를 시각적으로 보여줍니다.
+            </p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <span class="feature-index">route/01</span>
+              <h3>요청이 들어오면 표면부터 분류합니다</h3>
+              <p>
+                프론트엔드, 백엔드, 보안, 테스트 같은 작업 표면을 먼저 잡아 불필요한
+                절차를 줄이고 필요한 검증은 놓치지 않습니다.
+              </p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-index">loop/02</span>
+              <h3>PABCD 루프를 시각 신호로 고정</h3>
+              <p>계획, 실행, 검증이 현재 어느 지점에 있는지 콘솔 밀도로 보여줍니다.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-index">proof/03</span>
+              <h3>완료 선언 전에 증거를 남깁니다</h3>
+              <p>빌드, 테스트, 스크린샷 같은 실제 확인 결과가 최종 답변의 기반이 됩니다.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-index">focus/04</span>
+              <h3>화려하지만 읽을 수 있는 사이버펑크</h3>
+              <p>
+                시안 액센트 하나를 중심으로 색을 잠그고, 마젠타는 경보와 광원 역할에만
+                제한했습니다.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="wide-strip" aria-labelledby="systems-title">
+          <div class="strip-copy">
+            <h2 id="systems-title">작업 신호가 새지 않는 화면</h2>
+            <p>
+              작은 화면에서는 단일 컬럼 콘솔로 바뀌고, 태블릿과 분할 화면에서는 패널이
+              두 열로 재배치됩니다. 네온보다 중요한 건 잘림 없는 정보 구조입니다.
+            </p>
+          </div>
+          <div class="signal-list" aria-label="시스템 신호 목록">
+            <div class="signal-row">
+              <span>01</span>
+              <strong>mobile safe area respected</strong>
+              <small>390px checked</small>
+            </div>
+            <div class="signal-row">
+              <span>02</span>
+              <strong>focus-visible routes exposed</strong>
+              <small>keyboard ready</small>
+            </div>
+            <div class="signal-row">
+              <span>03</span>
+              <strong>reduced motion fallback armed</strong>
+              <small>motion safe</small>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>CodexClaw cyberpunk mockup</span>
+        <a href={docsHref}>문서 사이트로 돌아가기</a>
+      </footer>
+    </div>
+  </body>
+</html>

@@ -45,6 +45,17 @@ import { sanitizeKey, STATE_DIR } from "./state.js";
 
 
 
+
+
+
+
+
+
+
+
+
+
+
 const DIVERGENCE_DIR = "divergence";
 const CANDIDATES_FILE = "candidates.jsonl";
 
@@ -70,6 +81,14 @@ function isCandidateKind(value         )                         {
 
 function isCandidateStatus(value         )                           {
   return value === "proposed" || value === "built" || value === "checked" || value === "kept" || value === "discarded";
+}
+
+function isCandidateChangeClass(value         )                                {
+  return value === "parameter-tweak" || value === "branch-toggle" || value === "state-space-redesign" || value === "evaluator-change";
+}
+
+function isCandidateKilledAtPhase(value         )                                  {
+  return value === "P" || value === "A" || value === "B" || value === "C" || value === "D";
 }
 
 function slug(value        )         {
@@ -148,6 +167,12 @@ export function recordDivergenceCandidate(cwd        , input                    
   if (sourceUrls.length === 0) {
     throw new Error("divergence candidate requires at least one grounding source URL");
   }
+  if (input.changeClass !== undefined && !isCandidateChangeClass(input.changeClass)) {
+    throw new Error("divergence candidate changeClass must be parameter-tweak, branch-toggle, state-space-redesign, or evaluator-change");
+  }
+  if (input.killedAtPhase !== undefined && !isCandidateKilledAtPhase(input.killedAtPhase)) {
+    throw new Error("divergence candidate killedAtPhase must be P, A, B, C, or D");
+  }
   const candidate                      = {
     ts: input.now?.() ?? new Date().toISOString(),
     sessionId: input.sessionId,
@@ -161,6 +186,8 @@ export function recordDivergenceCandidate(cwd        , input                    
     ...(input.metricName ? { metricName: input.metricName } : {}),
     ...(typeof input.metricValue === "number" && Number.isFinite(input.metricValue) ? { metricValue: input.metricValue } : {}),
     ...(input.note ? { note: input.note } : {}),
+    ...(input.changeClass ? { changeClass: input.changeClass } : {}),
+    ...(input.killedAtPhase ? { killedAtPhase: input.killedAtPhase } : {}),
   };
   mkdirSync(divergenceDir(cwd), { recursive: true });
   appendFileSync(candidatesPath(cwd), `${JSON.stringify(candidate)}\n`);
@@ -205,6 +232,8 @@ export function readDivergenceCandidates(cwd        , sessionId         )       
           ...(typeof parsed.metricName === "string" ? { metricName: parsed.metricName } : {}),
           ...(typeof parsed.metricValue === "number" && Number.isFinite(parsed.metricValue) ? { metricValue: parsed.metricValue } : {}),
           ...(typeof parsed.note === "string" ? { note: parsed.note } : {}),
+          ...(isCandidateChangeClass(parsed.changeClass) ? { changeClass: parsed.changeClass } : {}),
+          ...(isCandidateKilledAtPhase(parsed.killedAtPhase) ? { killedAtPhase: parsed.killedAtPhase } : {}),
         });
       }
     } catch {
@@ -212,4 +241,17 @@ export function readDivergenceCandidates(cwd        , sessionId         )       
     }
   }
   return out;
+}
+
+export function discardStreak(candidates                       )                {
+  const sorted = [...candidates].sort((a, b) => a.ts.localeCompare(b.ts));
+  const latest = sorted[sorted.length - 1];
+  if (!latest || latest.status !== "discarded" || !latest.changeClass) return { changeClass: null, length: 0 };
+  let length = 0;
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const candidate = sorted[i];
+    if (candidate.status !== "discarded" || candidate.changeClass !== latest.changeClass) break;
+    length++;
+  }
+  return { changeClass: latest.changeClass, length };
 }

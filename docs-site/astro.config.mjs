@@ -69,6 +69,7 @@ export default defineConfig({
             { label: "Skills", slug: "guides/skills" },
             { label: "PABCD Workflow", slug: "guides/pabcd" },
             { label: "Subagents", slug: "guides/subagents" },
+            { label: "Native Tools", slug: "guides/native-tools" },
             { label: "OpenCodex Bridge", slug: "guides/opencodex-bridge" },
             { label: "GUI Dashboard", slug: "guides/gui" },
           ],

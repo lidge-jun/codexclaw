@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/recall/dist/cli.js\" hook post-compact",
+            "timeout": 10,
+            "statusMessage": "(codexclaw) Suggesting recall after compaction"
+          }
+        ]
+      }
+    ]
+  }
+}

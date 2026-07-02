@@ -175,6 +175,12 @@ When the user gives feedback without specifics, translate:
 
 Before generating ANY frontend code, produce a Design Read. If the project has a `DESIGN.md` file, read it first — its tokens and prose override everything below.
 
+Native tool support (structure/60): read visual references — existing screens, competitor
+captures, design exports — into context with `view_image` before writing the Design Read;
+produce needed bitmap assets (icons, illustrations, mock imagery) with the native
+`imagegen` tool (`$imagegen`) rather than leaving placeholder boxes; and verify the built
+result visually per `cxc-dev-testing` §4.6 (browser screenshot -> `view_image`).
+
 ### Output format (mini DESIGN.md)
 
 Filled-in example: `references/design-read-example.md`.

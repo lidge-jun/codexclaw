@@ -26,6 +26,22 @@ Codex exposes the same skill under several forms. Docs and prompts may use any o
 | Plugin-native mention | `$codexclaw:cxc-dev-testing` |
 | Source-path fallback | `plugins/codexclaw/skills/dev-testing/SKILL.md` |
 
+## Subagent attachment ($cxc mentions in the spawn message)
+
+Skills attach to subagents through the spawn **message**: a plain `$cxc-<skill>` or
+link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)` mention in the message is parsed
+by the child's first turn and injected as the full SKILL.md body. This works on both
+spawn surfaces — `message` is a shared field, unlike the v1-only `items` channel.
+
+Two layers keep this deterministic:
+
+- **Name skills explicitly** when dispatching: put the matching `$cxc-dev-*` (and
+  `$cxc-search` for research lanes) mentions in the spawn message yourself.
+- **The spawn-attach hook backstops you.** An always-on `^spawn_agent$` PreToolUse hook
+  prepends link-form mentions for the role baseline (`cxc-dev`, plus `cxc-dev-code-reviewer`
+  for reviewers) and any surfaces it can infer from the message. It never double-attaches:
+  it no-ops when structured `items` are present or the skills are already mentioned.
+
 ## dev-* routing
 
 After classifying a task, `cxc-dev` routes to surface-specific skills. A sample of the routing

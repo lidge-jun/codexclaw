@@ -30,7 +30,10 @@
     "./hooks/session-start-injecting-project-rules.json",
     "./hooks/pre-tool-use-linting-apply-patch.json",
     "./hooks/post-tool-use-capturing-shell-friction.json",
-    "./hooks/pre-tool-use-advising-on-friction.json"
+    "./hooks/pre-tool-use-advising-on-friction.json",
+    "./hooks/user-prompt-submit-suggesting-recall.json",
+    "./hooks/session-start-advertising-recall.json",
+    "./hooks/post-compact-suggesting-recall.json"
   ],
   "mcpServers": "./.mcp.json",
   "interface": {

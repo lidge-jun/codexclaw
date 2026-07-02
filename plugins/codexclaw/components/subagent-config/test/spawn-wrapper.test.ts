@@ -209,6 +209,54 @@ test("L15: resolveSpawnPayloadWithSkills keeps role prompt in message + attaches
   assert.equal(payload.items.at(-1)?.type, "text");
 });
 
+// ---- WP1: mention channel (message-borne skill attachment, v1+v2 portable) ----
+
+test("WP1: skillMention renders link form for a link-safe path", async () => {
+  const { skillMention } = await import("../src/spawn-wrapper.ts");
+  const m = skillMention(SKILLS_DIR, "dev");
+  assert.equal(m, `[$cxc-dev](skill://${join(SKILLS_DIR, "dev", "SKILL.md")})`);
+});
+
+test("WP1: skillMention degrades to plain $name when the path is not link-safe", async () => {
+  const { skillMention } = await import("../src/spawn-wrapper.ts");
+  assert.equal(skillMention("/tmp/with space", "dev"), "$cxc-dev");
+  assert.equal(skillMention("/tmp/with(paren)", "dev"), "$cxc-dev");
+});
+
+test("WP1: buildSkillMentionBlock renders role base + surfaces, existing-only", async () => {
+  const { buildSkillMentionBlock } = await import("../src/spawn-wrapper.ts");
+  const block = buildSkillMentionBlock({
+    role: "reviewer",
+    skillsDir: SKILLS_DIR,
+    surfaces: ["security"],
+    explicitSkillFolders: ["this-skill-does-not-exist"],
+  });
+  assert.match(block, /^Load and follow these codexclaw skills before working:/);
+  assert.match(block, /\[\$cxc-dev\]\(skill:\/\//);
+  assert.match(block, /\[\$cxc-dev-code-reviewer\]\(skill:\/\//);
+  assert.match(block, /\[\$cxc-dev-security\]\(skill:\/\//);
+  assert.doesNotMatch(block, /this-skill-does-not-exist/, "dangling folder dropped");
+});
+
+test("WP1: buildSkillMentionBlock dedupes excluded folders and empties out", async () => {
+  const { buildSkillMentionBlock } = await import("../src/spawn-wrapper.ts");
+  const partial = buildSkillMentionBlock({
+    role: "explorer",
+    skillsDir: SKILLS_DIR,
+    surfaces: ["frontend"],
+    excludeFolders: ["dev"],
+  });
+  assert.doesNotMatch(partial, /\[\$cxc-dev\]\(/);
+  assert.match(partial, /\[\$cxc-dev-frontend\]\(/);
+
+  const empty = buildSkillMentionBlock({
+    role: "explorer",
+    skillsDir: SKILLS_DIR,
+    excludeFolders: ["dev"],
+  });
+  assert.equal(empty, "");
+});
+
 test("020: INTENT_ROLE maps each intent to a base role (no new roles)", async () => {
   const { INTENT_ROLE } = await import("../src/spawn-wrapper.ts");
   assert.equal(INTENT_ROLE["red-team"], "reviewer");

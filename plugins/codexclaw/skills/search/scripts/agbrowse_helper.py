@@ -84,7 +84,8 @@ def install_hint() -> None:
     err("  export CODEXCLAW_AGBROWSE_PATH=/abs/agbrowse/bin/agbrowse.mjs")
     err("  (or clone agbrowse next to your projects; this helper finds ../agbrowse/bin/agbrowse.mjs)")
     err("")
-    err("agbrowse is OPTIONAL: without it, cxc-search Tier 2 falls back to Browser Use / Computer Use.")
+    err("agbrowse is OPTIONAL: without it, cxc-search Tier 2 starts at the native browser tools")
+    err("(browser:control-in-app-browser -> chrome:control-chrome -> computer-use:computer-use, SEARCH-BROWSE-01).")
 
 
 def main(argv: List[str]) -> int:

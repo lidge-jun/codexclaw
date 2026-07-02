@@ -1,5 +1,7 @@
 # Static Analysis and Security Tooling
 
+Last reviewed: 2026-07-02
+
 Security tooling belongs inside the development loop: write code, scan locally, fix findings, scan again, then let CI enforce the same baseline.
 
 ## Tool Matrix
@@ -53,12 +55,12 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: github/codeql-action/init@6bb031f19398d5e737441fa72f52dc95012a9e8a
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 (unverified)
+      - uses: github/codeql-action/init@6bb031f19398d5e737441fa72f52dc95012a9e8a # v3.28.16 (unverified)
         with:
           languages: javascript-typescript, python, go
-      - uses: github/codeql-action/autobuild@6bb031f19398d5e737441fa72f52dc95012a9e8a
-      - uses: github/codeql-action/analyze@6bb031f19398d5e737441fa72f52dc95012a9e8a
+      - uses: github/codeql-action/autobuild@6bb031f19398d5e737441fa72f52dc95012a9e8a # v3.28.16 (unverified)
+      - uses: github/codeql-action/analyze@6bb031f19398d5e737441fa72f52dc95012a9e8a # v3.28.16 (unverified)
 ```
 
 ## ESLint Security Plugin
@@ -141,12 +143,12 @@ jobs:
   sast:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 (unverified)
+      - uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2 (unverified)
         if: hashFiles('package-lock.json') != ''
         with:
           node-version: '22'
-      - uses: actions/setup-python@42375524ce98b5c2f38de1235a9ff8635e4d5d80
+      - uses: actions/setup-python@42375524ce98b5c2f38de1235a9ff8635e4d5d80 # v5.1.0 (unverified)
         if: hashFiles('requirements.txt', 'pyproject.toml') != ''
         with:
           python-version: '3.12'

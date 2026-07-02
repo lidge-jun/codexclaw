@@ -25,7 +25,7 @@ Dispatch an adversarial review of the plan, then record the verdict.
 ## 3. Build (B)
 
 ```bash
-cxc orchestrate B --attest '{"from":"A","to":"B","did":"who audited + verdict"}'
+cxc orchestrate B --attest '{"from":"A","to":"B","did":"who audited + verdict","auditOutput":"<reviewer verdict tail>"}'
 ```
 
 Implement in small commits and verify as you go.

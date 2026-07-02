@@ -1,5 +1,7 @@
 # Data Governance — PII, Masking, Compliance
 
+**Last reviewed**: 2026-07-02
+
 Security and privacy patterns for production data pipelines.
 
 ---

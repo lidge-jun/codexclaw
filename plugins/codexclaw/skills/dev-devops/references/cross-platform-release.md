@@ -48,8 +48,9 @@ Examples:
 - Linux/CI-only runtime, macOS TCC/keychain/app bundle behavior matters:
   ask for a macOS target environment.
 - Browser profile or desktop app behavior matters:
-  ask for a visible target app/session and use Browser or Computer Use as
-  appropriate.
+  ask for a visible target app/session and use the native tools as appropriate —
+  `browser:control-in-app-browser` / `chrome:control-chrome` for browser flows,
+  `computer-use:computer-use` for desktop apps (see `cxc-dev-testing` §4.6).
 
 ## §4 Platform Matrix Scope
 
@@ -65,5 +66,6 @@ Matrix only platforms the project declares or the release claims to support.
 ## §5 Verification Handoff
 
 Use `dev-testing/references/ci-pipeline.md` for runner matrix mechanics.
-Use `desktop-control` or `computer-use` only when direct visible app/OS proof is
-needed. Do not duplicate desktop tool instructions in this reference.
+Use `computer-use:computer-use` only when direct visible app/OS proof is
+needed (protocol: `cxc-dev-testing` §4.6). Do not duplicate desktop tool
+instructions in this reference.

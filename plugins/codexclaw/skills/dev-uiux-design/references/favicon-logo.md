@@ -7,7 +7,7 @@ Read `logo-trust-sections.md` for partner/client logo bars (separate concern).
 
 ---
 
-## Favicon: The Modern Minimum Set
+## 1. Favicon: The Modern Minimum Set
 
 You need **5 image files + 1 manifest**. Everything else is legacy bloat.
 

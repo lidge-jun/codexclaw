@@ -21,6 +21,6 @@
   "scripts": {
     "build": "node plugins/codexclaw/scripts/build.mjs",
     "gate": "node plugins/codexclaw/scripts/gate.mjs",
-    "test": "node --test --test-concurrency=1 \"plugins/codexclaw/components/pabcd-state/test/*.test.ts\" \"plugins/codexclaw/components/config-guard/test/*.test.ts\" \"plugins/codexclaw/components/cxc-ops/test/*.test.ts\" \"plugins/codexclaw/components/provider-bridge/test/*.test.ts\" \"plugins/codexclaw/components/subagent-config/test/*.test.ts\" \"plugins/codexclaw/gui/test/*.test.ts\" \"plugins/codexclaw/test/*.test.mjs\""
+    "test": "node --test --test-concurrency=1 \"plugins/codexclaw/components/pabcd-state/test/*.test.ts\" \"plugins/codexclaw/components/config-guard/test/*.test.ts\" \"plugins/codexclaw/components/cxc-ops/test/*.test.ts\" \"plugins/codexclaw/components/recall/test/*.test.ts\" \"plugins/codexclaw/components/provider-bridge/test/*.test.ts\" \"plugins/codexclaw/components/subagent-config/test/*.test.ts\" \"plugins/codexclaw/gui/test/*.test.ts\" \"plugins/codexclaw/test/*.test.mjs\""
   }
 }

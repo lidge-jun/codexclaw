@@ -1,5 +1,7 @@
 # Circular Dependency Detection & Resolution
 
+Last reviewed: 2026-07-02
+
 Deep reference for detecting, classifying, and resolving circular dependencies across ecosystems.
 
 ---
@@ -134,4 +136,4 @@ After resolving a cycle, always:
 1. Re-run detection command — must report zero cycles
 2. Run full test suite — ensure no behavioral regression
 3. Check bundle size — extraction should not increase bundle
-4. Review the dependency graph direction — should flow inward (infra -> app -> domain)
+4. Review the dependency direction — dependencies point inward toward Domain; outer layers depend on inner layers, never the reverse

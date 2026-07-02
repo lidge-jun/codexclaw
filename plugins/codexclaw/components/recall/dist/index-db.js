@@ -12,8 +12,8 @@
  */
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
-import { mkdirSync } from "node:fs";
-import { openDbReadWrite,           } from "./sqlite.js";
+import { mkdirSync, existsSync } from "node:fs";
+import { openDbReadOnly, openDbReadWrite,           } from "./sqlite.js";
 
 export const INDEX_SCHEMA_VERSION = "2";
 
@@ -88,6 +88,16 @@ export function openIndex(path        )       {
     db.prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?)").run(INDEX_SCHEMA_VERSION);
   }
   return db;
+}
+
+/**
+ * Open an EXISTING index strictly read-only — no mkdir, no schema writes, no
+ * WAL pragma. This is the path for `--no-refresh` queries, `--status`, and
+ * read-only filesystems (sandboxes): a queryable stale index beats a raw scan.
+ */
+export function openIndexReadOnly(path        )       {
+  if (!existsSync(path)) throw new Error(`no index at ${path}`);
+  return openDbReadOnly(path);
 }
 
 

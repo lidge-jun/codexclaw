@@ -10,11 +10,16 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { searchChat, DEFAULT_DAYS, DEFAULT_LIMIT,                        } from "./chat-search.js";
 import { searchMemory, DEFAULT_MEMORY_LIMIT,                          } from "./memory-search.js";
-import { formatChatResult, formatMemoryResult } from "./format.js";
-import { openIndex, indexPath, indexStatus } from "./index-db.js";
+import { formatChatResult, formatMemoryResult, clipChatResultForJson } from "./format.js";
+import { openIndex, openIndexReadOnly, indexPath, indexStatus } from "./index-db.js";
 import { ingest } from "./ingest.js";
 import { codexHome } from "./paths.js";
-import { handleUserPromptSubmit,                              } from "./hook.js";
+import {
+  handleUserPromptSubmit,
+  handleSessionStart,
+  handlePostCompact,
+
+} from "./hook.js";
 
 const USAGE = [
   "cxc chat search \"<query>\" [--days N] [--cwd PATH] [--role r] [--source main|subagent|all]",
@@ -34,7 +39,9 @@ const USAGE = [
   "  --no-tools   skip tool call/output (tool_log) matching",
   "  --scan       force the raw JSONL scan path (skip the sidecar index)",
   "  --no-refresh skip refresh-on-query ingest (fastest, index may be stale)",
-  "  --json       machine-readable output",
+  "  --json       machine-readable output (text fields clipped at 500 chars)",
+  "  --full       with --json: emit unclipped text fields",
+  "  --home PATH  search an alternate Codex home (default $CODEX_HOME ?? ~/.codex)",
 ].join("\n");
 
 
@@ -57,6 +64,7 @@ function parseFlags(args          )              {
       "no-tools": { type: "boolean", default: false },
       scan: { type: "boolean", default: false },
       "no-refresh": { type: "boolean", default: false },
+      full: { type: "boolean", default: false },
       rebuild: { type: "boolean", default: false },
       status: { type: "boolean", default: false },
       json: { type: "boolean", default: false },
@@ -104,8 +112,9 @@ function runChatSearch(args          )         {
     indexPath: typeof values["index-path"] === "string" ? values["index-path"] : undefined,
   };
   const result = searchChat(query, opts);
+  const jsonBody = values.full === true ? result : clipChatResultForJson(result);
   process.stdout.write(
-    values.json === true ? `${JSON.stringify(result, null, 2)}\n` : `${formatChatResult(result)}\n`,
+    values.json === true ? `${JSON.stringify(jsonBody, null, 2)}\n` : `${formatChatResult(result)}\n`,
   );
   return 0;
 }
@@ -135,12 +144,15 @@ function runChatIndex(args          )         {
   const home = typeof values.home === "string" ? values.home : codexHome();
   const path = typeof values["index-path"] === "string" ? values["index-path"] : indexPath();
   try {
-    const db = openIndex(path);
+    // --status alone is a pure read: open read-only so it works on read-only
+    // filesystems and never touches WAL/schema (evaluator round-1 gap #1).
+    const statusOnly = values.status === true && values.rebuild !== true;
+    const db = statusOnly ? openIndexReadOnly(path) : openIndex(path);
     try {
       if (values.rebuild === true) {
         db.exec("DELETE FROM msgs; DELETE FROM files;");
       }
-      if (values.status !== true || values.rebuild === true) {
+      if (!statusOnly) {
         const r = ingest(home, db, 0);
         if (values.json !== true) {
           process.stdout.write(
@@ -164,18 +176,39 @@ function runChatIndex(args          )         {
   }
 }
 
+/** Read-only one-line index status for hook injection ("" when unavailable). */
+function indexStatusLine()         {
+  try {
+    const path = indexPath();
+    const db = openIndexReadOnly(path);
+    try {
+      const s = indexStatus(db, path);
+      return `${s.files} files / ${s.msgs} messages, last ingest ${s.lastIngestAt ?? "never"}`;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return "";
+  }
+}
+
 /** Hook entry: read the Codex hook JSON payload from stdin, print the injection line. */
 async function runHook(event        )                  {
-  if (event !== "user-prompt-submit") return 0;
-  let raw = "";
   try {
-    for await (const chunk of process.stdin) raw += chunk;
-    const payload = JSON.parse(raw)                           ;
-    const out = handleUserPromptSubmit(payload);
+    let out = "";
+    if (event === "user-prompt-submit") {
+      let raw = "";
+      for await (const chunk of process.stdin) raw += chunk;
+      out = handleUserPromptSubmit(JSON.parse(raw)                           );
+    } else if (event === "session-start") {
+      out = handleSessionStart(indexStatusLine());
+    } else if (event === "post-compact") {
+      out = handlePostCompact();
+    }
     if (out !== "") process.stdout.write(out);
     return 0;
   } catch {
-    return 0; // FAIL-OPEN: a broken payload must never block the prompt.
+    return 0; // FAIL-OPEN: a broken payload must never block the session.
   }
 }
 

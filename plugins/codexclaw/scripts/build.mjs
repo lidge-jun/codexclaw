@@ -24,7 +24,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = resolve(here, "..");
 export const componentsRoot = join(pluginRoot, "components");
 
-export const COMPONENTS = ["pabcd-state", "config-guard", "provider-bridge", "subagent-config", "cxc-ops"];
+export const COMPONENTS = ["pabcd-state", "config-guard", "provider-bridge", "subagent-config", "cxc-ops", "recall"];
 
 // Markers that must NOT appear in shipped runtime sources or compiled output or the manifest.
 const PLACEHOLDER_RE = /\[TODO\]|TODO\(|FIXME|\bTBD\b/;

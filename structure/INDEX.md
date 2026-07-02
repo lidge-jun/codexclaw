@@ -27,6 +27,7 @@ where" hub; the numbered files carry the durable reasoning.
 | [`30_contradiction_register.md`](30_contradiction_register.md) | Truth table of doc↔code contradictions (claim vs reality, file:line), the input to L14 + any status-sync gate. |
 | [`40_enforcement_methods.md`](40_enforcement_methods.md) | Enforcement ladder E1-E8: how strongly each intent can be enforced given the four Codex hook surfaces, and which tier to pick per contradiction. |
 | [`50_emergence_gap.md`](50_emergence_gap.md) | Why PABCD is a convergence (exploitation) machine with no divergence/plateau surface — the structural weakness on emergent/algorithmic tasks (NYPC 3.5/8 diagnosis), with an honest E-tier fix taxonomy. |
+| [`60_native_capabilities.md`](60_native_capabilities.md) | Live-verified Codex native capability matrix (browser/computer use, deferred `multi_agent_v1.*` collab tools behind `tool_search`, `update_plan`, `view_image`, `imagegen`, flag-gated CSV fan-out) and the per-skill gap map the WP-N track patches. |
 
 Writing rule: keep this directory flat. Add or extend lexicographically ordered
 `NN_topic.md` files (`00-09` philosophy/foundations, `10-19` subagent/routing, and so
@@ -87,6 +88,7 @@ opencodex (`ocx`) is adjacent but optional. opencodex is a local provider proxy 
 | PABCD state | `plugins/codexclaw/components/pabcd-state/src/` | IPABCD FSM, state files, directives, goal gates |
 | Feature activation | `plugins/codexclaw/components/config-guard/src/` | Codex feature flags, backup, revert manifest |
 | Ops helpers | `plugins/codexclaw/components/cxc-ops/src/` | doctor, reset |
+| Recall search | `plugins/codexclaw/components/recall/src/` | read-only chat/memory search over `~/.codex` |
 | Provider bridge | `plugins/codexclaw/components/provider-bridge/src/` | ocx detect-only bridge |
 | Subagent config | `plugins/codexclaw/components/subagent-config/src/` | role model/prompt config, MCP tools, catalog |
 | Skills | `plugins/codexclaw/skills/` | `$cxc-*`, display_name autocomplete, dev routers |
@@ -102,7 +104,13 @@ Controlled activation for the Codex features codexclaw needs. `src/features.ts` 
 
 ### `components/cxc-ops`
 
-Local operations that do not require a codexclaw server. `src/doctor.ts` checks manifest parseability, hook file presence, skill metadata, agent TOMLs, MCP config drift, and optional ast-grep availability. `src/reset.ts` removes only scoped `.codexclaw/` working state: `--state`, `--generated`, or `--all`. `src/cli.ts` dispatches `doctor` and `reset` (unknown subcommands print usage and exit 0). The former `chat-search` wrapper was retired (D1', mvp_hard L13/WP1): Codex app-server `thread/search` has no native CLI/agent surface, so wrapping it made codexclaw a self-implemented search surface; lookups now route through the `cxc-search` skill.
+Local operations that do not require a codexclaw server. `src/doctor.ts` checks manifest parseability, hook file presence, skill metadata, agent TOMLs, MCP config drift, and optional ast-grep availability. `src/reset.ts` removes only scoped `.codexclaw/` working state: `--state`, `--generated`, or `--all`. `src/cli.ts` dispatches `doctor` and `reset` (unknown subcommands print usage and exit 0). The former `chat-search` wrapper was retired (D1', mvp_hard L13/WP1): Codex app-server `thread/search` has no native CLI/agent surface, so wrapping it made codexclaw a self-implemented search surface; public-web lookups route through the `cxc-search` skill. Past-session recall was later re-scoped by owner directive (2026-07-02, `devlog/_plan/260702_codex_recall/`): the `recall` component reads Codex-native disk artifacts directly — a different mechanism than the retired app-server wrapper, which stays a non-goal.
+
+### `components/recall`
+
+Read-only recall search over the Codex session root (`CODEX_HOME`, default `~/.codex`); never writes. `src/rollout.ts` walks `sessions/YYYY/MM/DD/rollout-*.jsonl` with directory-date pruning, classifies main vs subagent rollouts from the `session_meta` first line (grow-until-newline head reads survive 40KB meta lines), filters harness-injected synthetic user messages, and extracts message + tool-log entries. `src/chat-search.ts` runs AND-default (OR with `--any`) case-insensitive word matching with file-level prefilter, exact per-message `--days` cutoff, cwd/role/source filters, context windows, and a truncation warning at the 200-cap limit. `src/threads-db.ts` enriches hits from the `threads` table (title, git branch) via a lazily-required read-only `node:sqlite` handle, degrading to a warning when unavailable. `src/memory-search.ts` paragraph-scans `memories/**/*.md` plus `stage1_outputs` in `memories_<N>.sqlite` with md/db thread dedupe. `src/cli.ts` dispatches `[chat|memory, "search"|"index", ...]` (jaw-style text or `--json`).
+
+WP2 sidecar index: chat search is served by default from a rebuildable derived cache at `$CODEXCLAW_HOME ?? ~/.codexclaw` + `/recall/index.sqlite` — the one codexclaw surface that is user-level rather than project-local `.codexclaw/`, because sessions span all projects (`devlog/_plan/260702_codex_recall/20_wp2_index.md`). `src/index-db.ts` owns the schema (msgs content table + trigger-synced `msgs_fts` unicode61 and `msgs_tri` trigram external-content FTS5 tables; version drift drops and rebuilds). `src/ingest.ts` re-ingests only files whose (mtime,size) changed, prunes vanished files, and caps tool outputs at 8KB. `src/index-search.ts` compiles the WP1 filter set to SQL — trigram MATCH for >=3-char words (substring semantics, CJK-capable), LIKE fallback below — with refresh-on-query keeping results live (measured: full build 1,533 files/326k msgs in ~161s once; queries ~20-40ms full-history vs 2-16s scans; ~2.1GB disk). `--scan` forces the JSONL path; index failure degrades to scan with a warning; `~/.codex` stays read-only either way.
 
 ### `components/pabcd-state`
 
@@ -153,7 +161,7 @@ The `dev` hub routes by change surface toward on-demand `dev-*` skills. `skill-h
 
 ## Hooks
 
-The manifest wires six hook JSON files:
+The manifest wires the hook JSON files (representative rows below; `plugin.json` `hooks` is the authoritative full list):
 
 | Hook event | Hook file | Command | Live behavior |
 |------------|-----------|---------|---------------|
@@ -163,6 +171,9 @@ The manifest wires six hook JSON files:
 | `PreToolUse` `^create_goal$` | `hooks/pre-tool-use-guarding-goal-budget.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use` | denies `create_goal` inputs with keys other than `objective` |
 | `PreToolUse` `^request_user_input$` | `hooks/pre-tool-use-guarding-interview-in-goal.json` | same pabcd-state CLI | denies user-input/interview tool use while native goal mode is active or unreadable |
 | `PostToolUse` `^request_user_input$` | `hooks/post-tool-use-capturing-interview-answers.json` | same pabcd-state CLI | captures interview question/answer events to the ledger; never blocks (returns empty) |
+| `UserPromptSubmit` | `hooks/user-prompt-submit-suggesting-recall.json` | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook user-prompt-submit` | detects past-work recall idioms (KO/EN) and injects a `cxc chat/memory search` nudge; stateless, fail-open |
+| `SessionStart` | `hooks/session-start-advertising-recall.json` | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook session-start` | advertises recall availability + live read-only index status at session start; fail-open |
+| `PostCompact` | `hooks/post-compact-suggesting-recall.json` | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook post-compact` | after compaction (the context-loss moment) steers recovery through recall search; fail-open |
 
 Hook processes are intentionally short: read stdin JSON, reconstruct state, optionally write `.codexclaw/`, then print either nothing or one JSON hook envelope. `UserPromptSubmit` outputs `hookSpecificOutput.additionalContext`; `PreToolUse` can output `permissionDecision: "deny"` with a reason. Non-PreToolUse errors fail open to avoid blocking Codex; the goal-mode `request_user_input` guard is fail-closed.
 
@@ -204,6 +215,8 @@ though they have no package-local `test` script. This asymmetry is intentional, 
 | `cxc doctor` | `components/cxc-ops/dist/cli.js doctor` | plugin health report |
 | `cxc reset` | `components/cxc-ops/dist/cli.js reset` | scoped `.codexclaw/` cleanup |
 | `cxc chat-search` | RETIRED (D1', L13/WP1) | removed; native `thread/search` has no CLI/agent surface = non-goal; use `cxc-search` |
+| `cxc chat search` | `components/recall/dist/cli.js chat search` | read-only recall over `~/.codex` rollout JSONL (owner re-scope 2026-07-02; not the retired app-server wrapper) |
+| `cxc memory search` | `components/recall/dist/cli.js memory search` | read-only search over `~/.codex/memories` + `stage1_outputs` |
 | `cxc gui` | `plugins/codexclaw/gui` via `npm run dev` | starts the Vite dashboard when deps exist |
 | `cxc orchestrate` | `components/pabcd-state/dist/cli.js orchestrate` | agent-gated terminal phase control over the same `.codexclaw/` session files |
 | `cxc freeze` | `components/pabcd-state/dist/cli.js freeze` | freezes the interview plan + writes the goal-activation handoff manifest at `.codexclaw/interview/freeze.json` |
@@ -280,7 +293,8 @@ the L1-L19 full-span gap-remediation loop (`devlog/_plan/mvp_hard/200_L20_gap_re
 
 - codexclaw is loaded by Codex; it does not replace Codex.
 - codexclaw hooks append context or deny tool calls; they do not swallow/replace user prompts.
-- codexclaw state is project-local `.codexclaw/`, not a jaw server database.
+- codexclaw state is project-local `.codexclaw/`, not a jaw server database; user-level
+  `~/.codexclaw` may hold rebuildable derived caches only (recall FTS index, ast-grep runtime).
 - `ocx` is optional provider infrastructure; codexclaw's provider bridge is detect-only.
 - `$cxc-*` names are skill mentions/autocomplete; they are not slash commands.
 - `cxc` is a local CLI alias for plugin ops, not a server API.

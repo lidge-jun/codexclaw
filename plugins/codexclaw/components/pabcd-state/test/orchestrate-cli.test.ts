@@ -76,6 +76,24 @@ test("AGENT-GATED: P->A WITH valid --attest advances + ledger reason 'cli'", () 
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
+test("WP3: A->B without auditOutput is rejected; with it, advances", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "s2b", "A");
+    const bare = runOrchestrateCli({ verb: "B", attest: { from: "A", to: "B", did: "audited it myself" }, session: "s2b", cwd, json: false });
+    assert.equal(bare.code, 1);
+    assert.match(bare.output, /auditOutput/);
+    assert.equal(readState(cwd, "s2b").phase, "A"); // unchanged
+    const withAudit = runOrchestrateCli({
+      verb: "B",
+      attest: { from: "A", to: "B", did: "audit folded back", auditOutput: "reviewer: GO; refs verified" },
+      session: "s2b", cwd, json: false,
+    });
+    assert.equal(withAudit.code, 0);
+    assert.equal(readState(cwd, "s2b").phase, "B");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
 test("C->D with failing exitCode is rejected (gated check)", () => {
   const cwd = freshCwd();
   try {

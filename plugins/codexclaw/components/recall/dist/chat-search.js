@@ -16,11 +16,12 @@ import {
   readRolloutMeta,
   parseRollout,
   matchesFilePrefilter,
+  cwdMatches,
 
 
 } from "./rollout.js";
 import { loadThreadMeta } from "./threads-db.js";
-import { openIndex, indexPath } from "./index-db.js";
+import { openIndex, openIndexReadOnly, indexPath, indexStatus } from "./index-db.js";
 import { ingest } from "./ingest.js";
 import { queryIndex } from "./index-search.js";
 
@@ -28,6 +29,14 @@ export const DEFAULT_DAYS = 7;
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 200;
 export const MAX_WORDS = 8;
+
+
+
+
+
+
+
+
 
 
 
@@ -132,10 +141,30 @@ function searchViaIndex(
 )                   {
   const started = Date.now();
   const path = opts.indexPath ?? indexPath();
-  const db = openIndex(path);
+
+  // Open strategy (evaluator round-1 gap #1): --no-refresh never needs writes, so it
+  // opens read-only; the refresh path tries read-write, then degrades to a read-only
+  // stale-index query (still far better than a raw scan) before the caller's scan
+  // fallback. Read-only sandboxes get index speed either way.
+  let db                              ;
+  let readOnly = false;
+  let roWarning                = null;
+  if (opts.noRefresh) {
+    db = openIndexReadOnly(path);
+    readOnly = true;
+  } else {
+    try {
+      db = openIndex(path);
+    } catch (err) {
+      db = openIndexReadOnly(path);
+      readOnly = true;
+      roWarning = `index opened read-only (${err instanceof Error ? err.message : String(err)}) — refresh skipped`;
+    }
+  }
+
   try {
     let refreshed = 0;
-    if (!opts.noRefresh) {
+    if (!opts.noRefresh && !readOnly) {
       const empty =
         (db.prepare("SELECT COUNT(*) AS n FROM files").get()                 ).n === 0;
       if (empty) {
@@ -159,6 +188,17 @@ function searchViaIndex(
       includeTools: opts.includeTools ?? true,
       home: shared.home,
     });
+    if (roWarning) result.warnings.push(roWarning);
+    // Freshness metadata (evaluator round-1 gap #7): how stale is what you just read?
+    const status = indexStatus(db, path);
+    const sourceFiles = listRolloutFiles(shared.home, 0).length;
+    result.index = {
+      lastIngestAt: status.lastIngestAt,
+      files: status.files,
+      sourceFiles,
+      staleFiles: Math.max(0, sourceFiles - status.files),
+      readOnly,
+    };
     result.scannedFiles = refreshed;
     result.elapsedMs = Date.now() - started;
     return result;
@@ -218,7 +258,7 @@ function searchViaScan(
     // Cheap classification first: the head-only meta read costs one small read.
     const meta = readRolloutMeta(file.path);
     if (source !== "all" && meta.source !== source) continue;
-    if (opts.cwd && !(meta.cwd ?? "").startsWith(opts.cwd)) continue;
+    if (opts.cwd && !cwdMatches(meta.cwd ?? "", opts.cwd)) continue;
 
     result.scannedFiles += 1;
     let content        ;

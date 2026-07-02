@@ -37,9 +37,11 @@ export const ROLE_AGENT_TYPE                                          = {
  *
  * Keys are coarse change-surfaces the dispatcher names; values are skill FOLDER names
  * under plugins/codexclaw/skills/. Only v1 spawn carries `items` (codex-rs
- * multi_agents_spec: v1 has items, v2 deny_unknown_fields has none), so attachment is a
- * v1-only capability — see structure/10 for the E3 follow-up.
+ * multi_agents_spec: v1 has items, v2 deny_unknown_fields has none); the portable
+ * v1+v2 channel is the message-borne mention block (buildSkillMentionBlock), which the
+ * always-on spawn-attach hook applies — see structure/10.
  */
+
 
 
 
@@ -67,6 +69,7 @@ export const SURFACE_SKILL                          = {
   scaffolding: "dev-scaffolding",
   devops: "dev-devops",
   search: "search",
+  recall: "recall",
 };
 
 /**
@@ -171,6 +174,52 @@ export function resolveAttachedSkillFolders(
   for (const s of surfaces) push(SURFACE_SKILL[s]);
   for (const f of explicitFolders) push(f);
   return out;
+}
+
+/**
+ * WP1 (mention channel) — true when an absolute SKILL.md path can sit inside a
+ * markdown link target without breaking the runtime mention parser (no whitespace
+ * or parens). Paths that fail this fall back to the plain `$name` mention form.
+ */
+function linkSafePath(p        )          {
+  return !/[\s()]/.test(p);
+}
+
+/**
+ * WP1 — render one skill mention for a spawn MESSAGE. Link form
+ * `[$cxc-<folder>](skill://<abs SKILL.md path>)` is preferred: the runtime resolves it
+ * by exact path, immune to duplicate-name ambiguity. When the path is not link-safe,
+ * degrade to the plain `$cxc-<folder>` name mention (unique-name match).
+ */
+export function skillMention(skillsDir        , folder        )         {
+  const item = skillItem(skillsDir, folder);
+  return linkSafePath(item.path) ? `[$${item.name}](skill://${item.path})` : `$${item.name}`;
+}
+
+/**
+ * WP1 — PURE: render the skill-mention block to prepend to a spawn `message`. This is
+ * the surface-agnostic attachment channel: `message` exists on BOTH the v1 and v2
+ * spawn schemas, and the child's first turn parses `$name` / `[$name](skill://path)`
+ * mentions out of its UserInput text, injecting each SKILL.md body. Folders that do
+ * not exist on disk are dropped; `excludeFolders` dedupes against mentions already
+ * present in the outgoing message. Returns "" when nothing is left to attach.
+ */
+export function buildSkillMentionBlock(input
+
+
+
+
+
+ )         {
+  const exclude = new Set(input.excludeFolders ?? []);
+  const folders = resolveAttachedSkillFolders(
+    input.role,
+    input.surfaces ?? [],
+    input.explicitSkillFolders ?? [],
+  ).filter((f) => !exclude.has(f) && existsSync(join(input.skillsDir, f, "SKILL.md")));
+  if (folders.length === 0) return "";
+  const lines = folders.map((f) => `- ${skillMention(input.skillsDir, f)}`);
+  return `Load and follow these codexclaw skills before working:\n${lines.join("\n")}`;
 }
 
 /**
@@ -284,6 +333,7 @@ export function readRoleToml(agentsDir        , role          )                 
 
 
 
+
 /**
  * PURE builder: compose the spawn_agent payload. The effective role prompt is the
  * promptOverride when set, else the TOML developer_instructions. The model key is
@@ -319,9 +369,9 @@ export function resolveSpawnPayload(cwd        , role          , task        , a
  * attachments + the task text, so the two channels never duplicate the prompt.
  *
  * NOTE: this is a builder the MAIN AGENT calls when it dispatches a v1 spawn — it is NOT
- * auto-invoked by a hook. A `^spawn_agent$` PreToolUse hook that calls this for the agent
- * (E3) is the L15.2 follow-up (structure/10); until then attachment depends on the agent
- * routing through this builder (E5 doctrine).
+ * auto-invoked by a hook. The shipped `^spawn_agent$` PreToolUse hook (spawn-attach-hook)
+ * covers dispatches that skip this builder by prepending $cxc mentions to the message
+ * (and no-ops when this builder's `items` are present), so the two channels never stack.
  */
 export function resolveSpawnPayloadWithSkills(input
 

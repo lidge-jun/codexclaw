@@ -25,6 +25,7 @@ import { MIND_DISPATCH_DIRECTIVE } from "./minds.js";
 import { checkObjectivePlateau, readObjectiveKind,                   } from "./metrics.js";
 import { readGoalplan, nextOpenTask, unmetCriteria } from "./goalplan.js";
 import { peakFrictionVerdict, looksLikeFailure, recordFriction } from "./friction.js";
+import { discardStreak, readDivergenceCandidates } from "./divergence.js";
 
 
 
@@ -147,17 +148,27 @@ const PHASE_DIRECTIVES                                 = {
   A: [
     "[codexclaw: AUDIT]",
     "Audit the plan adversarially before building. Dispatch an independent reviewer",
-    "(sub-agent) to challenge assumptions, find blockers, and verify references. Fold",
-    "fixes back into the plan and record the verdict.",
+    "(sub-agent) to challenge assumptions, find blockers, and verify references. If",
+    "spawn_agent is not in your visible tools, tool_search for it first (the",
+    "multi_agent_v1.* collab tools are deferred). Attach the discipline as $cxc mentions",
+    "in the spawn message (e.g. $cxc-dev-code-reviewer plus the matching $cxc-dev-*",
+    "surface skill); the spawn-attach hook fills in missing baselines. Fold fixes back",
+    "into the plan and record the verdict.",
   ].join("\n"),
   B: [
     "[codexclaw: BUILD]",
     "Implement the audited plan in small atomic commits. Verify as you go (run tests).",
-    "Stay inside the plan's scope boundary; surface deviations instead of silently expanding.",
+    "When delegating a build slice, put the surface's $cxc-dev-* mention in the spawn",
+    "message so the subagent loads the discipline. Stay inside the plan's scope boundary;",
+    "surface deviations instead of silently expanding.",
   ].join("\n"),
   C: [
     "[codexclaw: CHECK]",
-    "Run the real verification: tests, type checks, and adversarial review. Capture fresh",
+    "Run the real verification: tests, type checks, and adversarial review. For the review",
+    "pass, dispatch with $cxc-dev-code-reviewer mentioned in the spawn message (tool_search",
+    "for spawn_agent first if it is not visible). For UI-facing changes, also exercise the",
+    "real flow (browser:control-in-app-browser / computer-use:computer-use) and capture",
+    "screenshot evidence per cxc-dev-testing TEST-CU-QA-01. Capture fresh",
     "command output as evidence. Do not claim pass without artifact-level proof.",
   ].join("\n"),
   D: [
@@ -210,8 +221,15 @@ export const AGBROWSE_SEARCH_DIRECTIVE = [
   "If no candidate URL is already known, use hosted web_search to discover URLs first",
   "or state that discovery is unavailable. Never use plain `agbrowse search \"<query>\"`",
   "as discovery.",
-  "Escalate to `agbrowse fetch \"<url>\" --json --browser auto` only for a known",
-  "blocked/JS-only URL with local Chrome available; otherwise fall back to Browser Use / Computer Use.",
+  "Escalation ladder (SEARCH-BROWSE-01) — agbrowse FIRST while it resolves: for a known",
+  "blocked/JS-only URL use one-shot `agbrowse fetch \"<url>\" --json --browser auto`, or an",
+  "interactive CDP session (`agbrowse start --headed` -> `navigate` -> `snapshot --interactive`",
+  "-> `click eN` -> `stop`); `agbrowse doctor` diagnoses CDP failures. Only when agbrowse is",
+  "unresolvable or cannot complete the flow, fall back to the native tier:",
+  "`browser:control-in-app-browser` (JS/PDF/visual), `chrome:control-chrome` (real-profile CDP,",
+  "conversational), `computer-use:computer-use` (GUI-only last resort) — and state why agbrowse",
+  "was insufficient. Verify inspect -> act -> re-inspect; screenshot + view_image when DOM",
+  "inspection fails.",
 ].join("\n");
 
 const STAGE_LABELS                                 = {
@@ -467,7 +485,7 @@ export const PLATEAU_NOISE_FLOOR = 0;
 const STOP_NEXT_COMMAND                                 = {
   I: '`cxc orchestrate P --attest \'{"from":"I","to":"P","did":"interview complete with recorded requirements"}\'`',
   P: '`cxc orchestrate A --attest \'{"from":"P","to":"A","did":"diff-level plan written with files and acceptance criteria"}\'`',
-  A: '`cxc orchestrate B --attest \'{"from":"A","to":"B","did":"independent audit PASS; blockers folded into plan"}\'`',
+  A: '`cxc orchestrate B --attest \'{"from":"A","to":"B","did":"independent audit PASS; blockers folded into plan","auditOutput":"<reviewer verdict tail>"}\'`',
   B: '`cxc orchestrate C --attest \'{"from":"B","to":"C","did":"implementation completed and verifier reviewed it"}\'`',
   C: '`cxc orchestrate D --attest \'{"from":"C","to":"D","did":"checks passed","checkOutput":"<test tail>","exitCode":0}\'`',
   D: '`cxc orchestrate reset` after the DONE summary is recorded',
@@ -541,15 +559,36 @@ export function readStopWorkContext(cwd        , state       )                  
   };
 }
 
-export function buildPlateauDivergeBlock(phase       , plateau              )         {
+export function buildPlateauDivergeBlock(phase       , plateau              , cwd         , sessionId         )         {
   const label = STAGE_LABELS[phase] ?? phase;
   const values = plateau.values.length > 0 ? plateau.values.join(" -> ") : "n/a";
-  const reason = [
+  const candidates = cwd && sessionId ? readDivergenceCandidates(cwd, sessionId) : [];
+  const streak = discardStreak(candidates);
+  const discarded = candidates
+    .filter((candidate) => candidate.status === "discarded")
+    .sort((a, b) => a.ts.localeCompare(b.ts))
+    .slice(-5);
+  const lines = [
     `[codexclaw — objective plateau] You are mid-cycle at ${phase} (${label}) with an active maximize goal.`,
     `The latest ${PLATEAU_METRIC_RECORDS} ${plateau.metricName ?? "objective"} metric value(s) are non-improving: ${values}.`,
     "Step back and re-plan with divergence: record at least two grounded candidate approaches, choose the collapse point, then continue PABCD.",
     "Do not ask the user while the goal is active; record assumptions or an unresolved-tie note for later review.",
-  ].join("\n");
+  ];
+  if (streak.changeClass && streak.length >= 3) {
+    lines.unshift(
+      `FORBIDDEN: another ${streak.changeClass} candidate — ${streak.length} consecutive ${streak.changeClass} candidates were discarded. Your next candidates MUST be state-space-redesign or evaluator-change, or the next work-phase MUST target the evaluation gate itself (LOOP-PHASE-DEATH-01 / GATE-ORACLE-VALIDITY-01).`,
+    );
+  }
+  if (discarded.length > 0) {
+    lines.push(
+      "Recent discarded candidates:",
+      ...discarded.map((candidate) => `${candidate.title} [${candidate.changeClass ?? "unclassified"}]`),
+    );
+  }
+  lines.push(
+    "Anchor rule (LOOP-CANDIDATE-ANCHOR-01): source candidates from domain-state evidence (logs, trajectories, instance analysis) — a candidate list of threshold/guard tweaks on existing levers is parameter-space anchoring; regenerate. Quote the previous cycle's D conclusion before proposing (LOOP-CONTINUITY-01). Record each candidate WITH its changeClass. Check whether evaluation instances are fixed/enumerable (LOOP-INSTANCE-CHECK-01).",
+  );
+  const reason = lines.join("\n");
   return `${JSON.stringify({ decision: "block", reason })}\n`;
 }
 
@@ -601,7 +640,7 @@ export function handleStop(payload             )         {
   }
   writeState(payload.cwd, { ...state, stopBlockPhase: state.phase, stopBlockCount: nextCount });
   const plateau = objectivePlateau(payload.cwd, payload.session_id);
-  if (plateau.flat) return buildPlateauDivergeBlock(state.phase, plateau);
+  if (plateau.flat) return buildPlateauDivergeBlock(state.phase, plateau, payload.cwd, payload.session_id);
   // 040: enrich the block reason with goalplan-derived remaining work (text-only, after
   // every release guard + the cap). null context => byte-identical shipped reason.
   // 080: a HIGH friction signal adds an advisory escalate line to the SAME block — it is

@@ -7,7 +7,7 @@ Read `dev-frontend/references/core/brand-asset-sourcing.md` for SVG sourcing.
 
 ---
 
-## Purpose
+## 1. Purpose
 
 Logo sections serve ONE job: **social proof**. They answer: "Who else uses this?"
 

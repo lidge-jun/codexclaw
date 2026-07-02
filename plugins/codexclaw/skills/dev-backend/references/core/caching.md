@@ -1,6 +1,43 @@
 # Caching — Redis Patterns, CDN, Connection Pooling
 
+**Last reviewed**: 2026-07-02
+
 Performance optimization through strategic caching at every layer.
+
+---
+
+## Decision Rules
+
+**The cardinal rule:** cache only after correctness is proven. Never cache before you have tested the uncached path.
+
+- Namespace keys by service to prevent collisions in shared Redis.
+- Include a version segment when schema, serialization, or permission shape can change.
+- Use stable identifiers and consistent hashing only; never include random components in cache keys.
+- Set a TTL on every cache entry so stale data cannot live forever.
+- Add jitter, locking, or early refresh for hot keys to prevent cache stampedes.
+- Encrypt cached PII and restrict access to the cache backend.
+- Exclude error responses from cache to avoid propagating transient failures.
+
+## TTL Selection
+
+Starting points only; tune from workload, freshness needs, and incident evidence.
+
+| Data Type | TTL | Rationale |
+|-----------|-----|-----------|
+| User session | 15-60 min | Security boundary |
+| User profile | 5-15 min | Balance freshness vs load |
+| Public config/feature flags | 1-5 min | Low write frequency |
+| Computed aggregations | 10-60 min | Expensive to recompute |
+| Static assets (CDN) | 1 year + cache-busting hash | Immutable content |
+
+## Invalidation Triggers
+
+| Event | Action |
+|-------|--------|
+| Data mutation (write/update/delete) | Invalidate related cache keys immediately |
+| Schema/version change | Bump version in cache key prefix |
+| Deployment | Warm critical caches during rollout |
+| User logout/password change | Purge all session and profile caches for that user |
 
 ---
 
@@ -58,17 +95,19 @@ if (ttl < THRESHOLD && Math.random() < RECOMPUTE_PROBABILITY) {
 
 ### Cache Key Design
 ```
-Pattern: {entity}:{id}:{optional_variant}
+Pattern: {service}:{entity}:{id}:{version}:{optional_variant}
 Examples:
-  user:123              → full user object
-  user:123:profile      → profile subset
-  users:list:page:1     → paginated list
-  config:feature-flags  → application config
+  user-service:user:123:v2              → full user object
+  user-service:user:123:v2:profile      → profile subset
+  user-service:users:list:v1:page:1     → paginated list
+  config-service:feature-flags:global:v1 → application config
 ```
 
 **Rules:**
 - Use colon `:` as separator (Redis convention)
 - Include version in key when serialization format changes
+- Keep service namespace first when Redis is shared
+- Use deterministic components only — no random key parts
 - Set TTL on every key — no immortal cache entries
 
 ---

@@ -6,12 +6,14 @@
  * highest-numbered file instead of hardcoding today's suffix.
  */
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { existsSync, readdirSync } from "node:fs";
 
 export function codexHome(env                                     = process.env)         {
   const fromEnv = env["CODEX_HOME"];
-  return fromEnv && fromEnv.trim() !== "" ? fromEnv : join(homedir(), ".codex");
+  // Codex canonicalizes an explicit CODEX_HOME (home-dir/lib.rs); resolving to an
+  // absolute path keeps relative/`.`-style values pointing at the same root.
+  return fromEnv && fromEnv.trim() !== "" ? resolve(fromEnv) : join(homedir(), ".codex");
 }
 
 export function sessionsDir(home        )         {

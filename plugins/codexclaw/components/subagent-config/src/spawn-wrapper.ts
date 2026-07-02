@@ -37,8 +37,9 @@ export const ROLE_AGENT_TYPE: Record<RoleName, "explorer" | "worker"> = {
  *
  * Keys are coarse change-surfaces the dispatcher names; values are skill FOLDER names
  * under plugins/codexclaw/skills/. Only v1 spawn carries `items` (codex-rs
- * multi_agents_spec: v1 has items, v2 deny_unknown_fields has none), so attachment is a
- * v1-only capability — see structure/10 for the E3 follow-up.
+ * multi_agents_spec: v1 has items, v2 deny_unknown_fields has none); the portable
+ * v1+v2 channel is the message-borne mention block (buildSkillMentionBlock), which the
+ * always-on spawn-attach hook applies — see structure/10.
  */
 export type Surface =
   | "architecture"
@@ -52,7 +53,8 @@ export type Surface =
   | "uiux"
   | "scaffolding"
   | "devops"
-  | "search";
+  | "search"
+  | "recall";
 
 export const SURFACE_SKILL: Record<Surface, string> = {
   architecture: "dev-architecture",
@@ -67,6 +69,7 @@ export const SURFACE_SKILL: Record<Surface, string> = {
   scaffolding: "dev-scaffolding",
   devops: "dev-devops",
   search: "search",
+  recall: "recall",
 };
 
 /**
@@ -174,6 +177,52 @@ export function resolveAttachedSkillFolders(
 }
 
 /**
+ * WP1 (mention channel) — true when an absolute SKILL.md path can sit inside a
+ * markdown link target without breaking the runtime mention parser (no whitespace
+ * or parens). Paths that fail this fall back to the plain `$name` mention form.
+ */
+function linkSafePath(p: string): boolean {
+  return !/[\s()]/.test(p);
+}
+
+/**
+ * WP1 — render one skill mention for a spawn MESSAGE. Link form
+ * `[$cxc-<folder>](skill://<abs SKILL.md path>)` is preferred: the runtime resolves it
+ * by exact path, immune to duplicate-name ambiguity. When the path is not link-safe,
+ * degrade to the plain `$cxc-<folder>` name mention (unique-name match).
+ */
+export function skillMention(skillsDir: string, folder: string): string {
+  const item = skillItem(skillsDir, folder);
+  return linkSafePath(item.path) ? `[$${item.name}](skill://${item.path})` : `$${item.name}`;
+}
+
+/**
+ * WP1 — PURE: render the skill-mention block to prepend to a spawn `message`. This is
+ * the surface-agnostic attachment channel: `message` exists on BOTH the v1 and v2
+ * spawn schemas, and the child's first turn parses `$name` / `[$name](skill://path)`
+ * mentions out of its UserInput text, injecting each SKILL.md body. Folders that do
+ * not exist on disk are dropped; `excludeFolders` dedupes against mentions already
+ * present in the outgoing message. Returns "" when nothing is left to attach.
+ */
+export function buildSkillMentionBlock(input: {
+  role: RoleName;
+  skillsDir: string;
+  surfaces?: Surface[];
+  explicitSkillFolders?: string[];
+  excludeFolders?: string[];
+}): string {
+  const exclude = new Set(input.excludeFolders ?? []);
+  const folders = resolveAttachedSkillFolders(
+    input.role,
+    input.surfaces ?? [],
+    input.explicitSkillFolders ?? [],
+  ).filter((f) => !exclude.has(f) && existsSync(join(input.skillsDir, f, "SKILL.md")));
+  if (folders.length === 0) return "";
+  const lines = folders.map((f) => `- ${skillMention(input.skillsDir, f)}`);
+  return `Load and follow these codexclaw skills before working:\n${lines.join("\n")}`;
+}
+
+/**
  * PURE: build the `items` array for a v1 spawn — one `skill` item per resolved skill
  * folder (filtered to those that exist on disk), then a trailing `text` item with the
  * task. Returns the items; the caller passes them as `spawn_agent({ items })`.
@@ -269,7 +318,8 @@ export interface SpawnPayload {
    * L15 — present ONLY for skill-routed spawns: the v1 `items` array carrying the
    * attached `cxc-*` skills + the task text. When set, the caller should pass `items`
    * to `spawn_agent` and the role prompt still travels in `message`. v1 spawn only
-   * (v2 has no `items` field); see structure/10 for the E3 hook follow-up.
+   * (v2 has no `items` field); on v2 the mention block in `message` is the channel
+   * (buildSkillMentionBlock / the always-on spawn-attach hook — structure/10).
    */
   items?: SpawnItem[];
 }
@@ -319,9 +369,9 @@ export function resolveSpawnPayload(cwd: string, role: RoleName, task: string, a
  * attachments + the task text, so the two channels never duplicate the prompt.
  *
  * NOTE: this is a builder the MAIN AGENT calls when it dispatches a v1 spawn — it is NOT
- * auto-invoked by a hook. A `^spawn_agent$` PreToolUse hook that calls this for the agent
- * (E3) is the L15.2 follow-up (structure/10); until then attachment depends on the agent
- * routing through this builder (E5 doctrine).
+ * auto-invoked by a hook. The shipped `^spawn_agent$` PreToolUse hook (spawn-attach-hook)
+ * covers dispatches that skip this builder by prepending $cxc mentions to the message
+ * (and no-ops when this builder's `items` are present), so the two channels never stack.
  */
 export function resolveSpawnPayloadWithSkills(input: {
   cwd: string;

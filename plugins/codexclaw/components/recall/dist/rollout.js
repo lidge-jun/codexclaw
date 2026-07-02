@@ -59,6 +59,18 @@ export function isSyntheticUserText(text        )          {
   return SYNTHETIC_PREFIXES.some((p) => head.startsWith(p));
 }
 
+/** YYYY-MM-DD in LOCAL time (matches Codex's local-time session directories). */
+export function localDateString(d      )         {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Separator-aware cwd prefix test: /repo matches /repo and /repo/x, never /repo2. */
+export function cwdMatches(sessionCwd        , prefix        )          {
+  return (
+    sessionCwd === prefix || sessionCwd.startsWith(`${prefix}/`) || sessionCwd.startsWith(`${prefix}\\`)
+  );
+}
+
 /** rollout-YYYY-MM-DDTHH-MM-SS-<uuid>.jsonl → YYYY-MM-DD (null when unparseable). */
 export function dateFromRolloutName(name        )                {
   const m = /^rollout-(\d{4})-(\d{2})-(\d{2})T/.exec(name);
@@ -71,7 +83,9 @@ export function dateFromRolloutName(name        )                {
  * whose files carry their date in the filename instead of the directory.
  */
 export function listRolloutFiles(home        , days        )                {
-  const cutoff = days > 0 ? new Date(Date.now() - days * 86_400_000) : null;
+  // Codex creates date directories from LOCAL time (recorder.rs now_local), so the
+  // pruning cutoff is a LOCAL-time date string compared lexically — no UTC skew.
+  const cutoffDate = days > 0 ? localDateString(new Date(Date.now() - days * 86_400_000)) : null;
   const out                = [];
 
   const root = join(home, "sessions");
@@ -80,7 +94,7 @@ export function listRolloutFiles(home        , days        )                {
       for (const month of safeDirs(join(root, year))) {
         for (const day of safeDirs(join(root, year, month))) {
           const date = `${year}-${month}-${day}`;
-          if (cutoff && new Date(`${date}T23:59:59Z`) < cutoff) continue;
+          if (cutoffDate && date < cutoffDate) continue;
           const dir = join(root, year, month, day);
           for (const name of readdirSync(dir)) {
             if (name.endsWith(".jsonl")) out.push({ path: join(dir, name), date });
@@ -96,7 +110,7 @@ export function listRolloutFiles(home        , days        )                {
       if (!name.endsWith(".jsonl")) continue;
       const date = dateFromRolloutName(name);
       if (date === null) continue;
-      if (cutoff && new Date(`${date}T23:59:59Z`) < cutoff) continue;
+      if (cutoffDate && date < cutoffDate) continue;
       out.push({ path: join(archive, name), date });
     }
   }
@@ -178,6 +192,23 @@ export function matchesFilePrefilter(lowerContent        , words          , anyM
     : words.every((w) => lowerContent.includes(w));
 }
 
+/** function_call_output.output: string, {content|text} object, or content array. */
+function toolOutputText(output         )         {
+  if (typeof output === "string") return output;
+  if (Array.isArray(output)) {
+    return output
+      .map((c     ) => (typeof c === "string" ? c : String(c?.text ?? ""))) // eslint-disable-line -- heterogeneous upstream payload
+      .join("\n");
+  }
+  if (output && typeof output === "object") {
+    const o = output                           ;
+    if (typeof o.content === "string") return o.content;
+    if (Array.isArray(o.content)) return toolOutputText(o.content);
+    if (typeof o.text === "string") return o.text;
+  }
+  return "";
+}
+
 /** Extract the full ordered chat/tool entry list from a rollout file's content. */
 export function parseRollout(content        , includeTools         )              {
   const entries              = [];
@@ -213,7 +244,9 @@ export function parseRollout(content        , includeTools         )            
       const text = `${String(p.name ?? "tool")} ${String(p.arguments ?? "")}`.trim();
       entries.push({ ts, role: "tool", text, matchField: "tool_log", synthetic: false });
     } else if (includeTools && p.type === "function_call_output") {
-      const text = String(p.output ?? "").trim();
+      // Upstream serializes output as a plain string OR a structured content
+      // array (protocol models.rs FunctionCallOutputPayload) — handle both.
+      const text = toolOutputText(p.output).trim();
       if (text === "") continue;
       entries.push({ ts, role: "tool", text, matchField: "tool_log", synthetic: false });
     }

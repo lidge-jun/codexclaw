@@ -32,6 +32,7 @@ const ENTRYPOINTS = [
   "components/cxc-ops/dist/cli.js",
   "components/pabcd-state/dist/cli.js",
   "components/provider-bridge/dist/cli.js",
+  "components/recall/dist/cli.js",
   "components/subagent-config/dist/cli.js",
   "components/subagent-config/dist/mcp.js",
 ].map((p) => join(pluginRoot, p));

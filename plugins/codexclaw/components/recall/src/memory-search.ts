@@ -9,7 +9,7 @@
  * source_updated_at).
  */
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { codexHome, memoriesDir, memoriesDbPath } from "./paths.ts";
 import { openReadOnlyDb } from "./threads-db.ts";
 import { splitQueryWords } from "./chat-search.ts";
@@ -30,7 +30,52 @@ export type MemoryHit = {
   updatedAt: string | null;
   excerpt: string;
   startLine: number | null;
+  /** relevance score (word coverage + occurrences + phrase/heading boosts). */
+  score: number;
 };
+
+/** Hits from the same file beyond this cap are dropped so one fat file (MEMORY.md) cannot consume every slot. */
+const PER_FILE_CAP = 2;
+
+/**
+ * Relevance score for a matched chunk (evaluator round-1 gap #2): word coverage
+ * dominates, occurrence density and exact-phrase/heading boosts break ties.
+ */
+export function scoreChunk(lowerText: string, words: string[], lowerPhrase: string): number {
+  let score = 0;
+  for (const w of words) {
+    let at = lowerText.indexOf(w);
+    if (at === -1) continue;
+    score += 2; // coverage
+    let occ = 0;
+    while (at !== -1 && occ < 5) {
+      occ += 1;
+      at = lowerText.indexOf(w, at + w.length);
+    }
+    score += occ - 1; // density, capped
+  }
+  if (words.length > 1 && lowerPhrase !== "" && lowerText.includes(lowerPhrase)) score += 5;
+  if (lowerText.startsWith("#")) score += 1;
+  return score;
+}
+
+/** Rank candidates: score desc, then recency desc; cap per-file, then limit. */
+function rankAndTrim(candidates: MemoryHit[], limit: number): MemoryHit[] {
+  candidates.sort((a, b) => {
+    if (a.score !== b.score) return b.score - a.score;
+    return (a.updatedAt ?? "") < (b.updatedAt ?? "") ? 1 : -1;
+  });
+  const perFile = new Map<string, number>();
+  const out: MemoryHit[] = [];
+  for (const hit of candidates) {
+    const n = perFile.get(hit.relpath) ?? 0;
+    if (n >= PER_FILE_CAP) continue;
+    perFile.set(hit.relpath, n + 1);
+    out.push(hit);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
 
 export type MemorySearchResult = {
   hits: MemoryHit[];
@@ -102,14 +147,15 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
   const days = opts.days ?? 0;
   const cutoffMs = days > 0 ? Date.now() - days * 86_400_000 : null;
   const words = splitQueryWords(query);
+  const lowerPhrase = query.toLowerCase().replace(/\s+/g, " ").trim();
   const warnings: string[] = [];
-  const hits: MemoryHit[] = [];
+  const candidates: MemoryHit[] = [];
   const matchedThreadIds = new Set<string>();
   let scannedFiles = 0;
 
   if (words.length === 0) {
     warnings.push("empty query");
-    return { hits, warnings, scannedFiles, elapsedMs: Date.now() - started };
+    return { hits: [], warnings, scannedFiles, elapsedMs: Date.now() - started };
   }
 
   const root = memoriesDir(home);
@@ -129,26 +175,24 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
     const threadId = frontmatterThreadId(content);
     if (threadId) matchedThreadIds.add(threadId);
     for (const chunk of paragraphChunks(content)) {
-      if (hits.length >= limit) break;
-      if (!matches(chunk.text.toLowerCase(), words, anyMode)) continue;
-      hits.push({
+      const lower = chunk.text.toLowerCase();
+      if (!matches(lower, words, anyMode)) continue;
+      candidates.push({
         origin: "file",
-        relpath: relative(root, file),
+        // Forward-slash relpaths on every platform (Codex memory backend parity).
+        relpath: relative(root, file).split(sep).join("/"),
         threadId,
         updatedAt: new Date(mtimeMs).toISOString(),
         excerpt: excerptAround(chunk.text, words[0], 400),
         startLine: chunk.startLine,
+        score: scoreChunk(lower, words, lowerPhrase),
       });
     }
-    if (hits.length >= limit) break;
   }
 
-  if (hits.length < limit) {
-    searchStage1(home, words, anyMode, cutoffMs, limit, hits, matchedThreadIds, warnings);
-  }
+  searchStage1(home, words, anyMode, cutoffMs, lowerPhrase, candidates, matchedThreadIds, warnings);
 
-  // Recency-first across both origins (file mtime / stage1 source_updated_at).
-  hits.sort((a, b) => ((a.updatedAt ?? "") < (b.updatedAt ?? "") ? 1 : -1));
+  const hits = rankAndTrim(candidates, limit);
   return { hits, warnings, scannedFiles, elapsedMs: Date.now() - started };
 }
 
@@ -158,8 +202,8 @@ function searchStage1(
   words: string[],
   anyMode: boolean,
   cutoffMs: number | null,
-  limit: number,
-  hits: MemoryHit[],
+  lowerPhrase: string,
+  candidates: MemoryHit[],
   matchedThreadIds: Set<string>,
   warnings: string[],
 ): void {
@@ -174,22 +218,22 @@ function searchStage1(
     const conds = words.map((_, i) => `(lower(raw_memory) LIKE ?${i + 1} OR lower(rollout_summary) LIKE ?${i + 1})`);
     const where = conds.join(anyMode ? " OR " : " AND ");
     const sql = `SELECT thread_id, raw_memory, rollout_summary, source_updated_at FROM stage1_outputs
-      WHERE ${where} ORDER BY source_updated_at DESC LIMIT ${limit}`;
+      WHERE ${where} ORDER BY source_updated_at DESC`;
     const rows = db.prepare(sql).all(...words.map((w) => `%${w}%`)) as Array<Record<string, unknown>>;
     for (const r of rows) {
-      if (hits.length >= limit) break;
       const threadId = typeof r.thread_id === "string" ? r.thread_id : null;
       if (threadId && matchedThreadIds.has(threadId)) continue; // already hit via its md file
       const updatedSec = typeof r.source_updated_at === "number" ? r.source_updated_at : null;
       if (cutoffMs && updatedSec !== null && updatedSec * 1000 < cutoffMs) continue;
       const body = `${String(r.raw_memory ?? "")}\n${String(r.rollout_summary ?? "")}`;
-      hits.push({
+      candidates.push({
         origin: "stage1",
         relpath: `stage1_outputs/${threadId ?? "unknown"}`,
         threadId,
         updatedAt: updatedSec !== null ? new Date(updatedSec * 1000).toISOString() : null,
         excerpt: excerptAround(body, words[0], 400),
         startLine: null,
+        score: scoreChunk(body.toLowerCase(), words, lowerPhrase),
       });
     }
   } catch (err) {

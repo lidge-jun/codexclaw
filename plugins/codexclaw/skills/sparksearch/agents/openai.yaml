@@ -1,0 +1,6 @@
+interface:
+  display_name: "cxc-sparksearch"
+  short_description: "Spark parallel search for cheap discovery."
+  default_prompt: "Use $cxc-sparksearch to run a cheap parallel Spark search swarm on this topic."
+policy:
+  allow_implicit_invocation: false

@@ -71,3 +71,32 @@ function appendWarnings(lines: string[], warnings: string[]): void {
   lines.push("--- warnings ---");
   for (const w of warnings) lines.push(w);
 }
+
+const JSON_TEXT_CAP = 500;
+
+function clipField(s: string): { text: string; truncated: boolean } {
+  return s.length <= JSON_TEXT_CAP
+    ? { text: s, truncated: false }
+    : { text: `${s.slice(0, JSON_TEXT_CAP)}…`, truncated: true };
+}
+
+/**
+ * Bound JSON payloads (tool outputs and thread titles can be huge): clip every
+ * hit text/title/context text to 500 chars and mark clipped hits. `--full`
+ * skips this entirely.
+ */
+export function clipChatResultForJson(result: ChatSearchResult): ChatSearchResult & { clipped: boolean } {
+  let clipped = false;
+  const hits = result.hits.map((h) => {
+    const text = clipField(h.text);
+    const title = h.title !== null ? clipField(h.title) : null;
+    const context = h.context.map((c) => {
+      const t = clipField(c.text);
+      clipped = clipped || t.truncated;
+      return { ...c, text: t.text };
+    });
+    clipped = clipped || text.truncated || (title?.truncated ?? false);
+    return { ...h, text: text.text, title: title ? title.text : null, context };
+  });
+  return { ...result, hits, clipped };
+}

@@ -1,15 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  discardStreak,
   readDivergenceCandidates,
   readDivergenceMode,
   recordDivergenceCandidate,
   writeDivergenceMode,
 } from "../src/divergence.ts";
 import { runDivergenceCli } from "../src/divergence-cli.ts";
+import { STATE_DIR } from "../src/state.ts";
 
 function freshCwd(): string {
   return mkdtempSync(join(tmpdir(), "codexclaw-divergence-"));
@@ -71,6 +73,83 @@ test("candidate archive: requires source provenance and filters by session", () 
   }
 });
 
+test("candidate archive: roundtrips loop metadata and tolerates legacy rows", () => {
+  const cwd = freshCwd();
+  try {
+    recordDivergenceCandidate(cwd, {
+      sessionId: "s1",
+      kind: "strong-1",
+      title: "State redesign",
+      rationale: "widen state representation",
+      sourceUrls: ["https://example.com/state"],
+      status: "discarded",
+      changeClass: "state-space-redesign",
+      killedAtPhase: "D",
+      now: () => "2026-07-01T00:01:00.000Z",
+    });
+    const dir = join(cwd, STATE_DIR, "divergence");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "candidates.jsonl"),
+      `${JSON.stringify({
+        ts: "2026-07-01T00:00:00.000Z",
+        sessionId: "s1",
+        id: "legacy",
+        kind: "add-1",
+        title: "Legacy",
+        rationale: "old row",
+        sourceUrls: ["https://example.com/legacy"],
+        status: "discarded",
+      })}\n`,
+      { flag: "a" },
+    );
+
+    const candidates = readDivergenceCandidates(cwd, "s1");
+    assert.equal(candidates.length, 2);
+    assert.equal(candidates[0].changeClass, "state-space-redesign");
+    assert.equal(candidates[0].killedAtPhase, "D");
+    assert.equal(candidates[1].title, "Legacy");
+    assert.equal(candidates[1].changeClass, undefined);
+    assert.equal(candidates[1].killedAtPhase, undefined);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("discardStreak: reports trailing discarded same-class run", () => {
+  const base = {
+    sessionId: "s1",
+    kind: "strong-1" as const,
+    rationale: "r",
+    sourceUrls: ["https://example.com"],
+  };
+  assert.deepEqual(discardStreak([]), { changeClass: null, length: 0 });
+  assert.deepEqual(
+    discardStreak([
+      { ...base, ts: "2026-07-01T00:00:00.000Z", id: "a", title: "A", status: "discarded", changeClass: "parameter-tweak" },
+      { ...base, ts: "2026-07-01T00:01:00.000Z", id: "b", title: "B", status: "kept", changeClass: "parameter-tweak" },
+    ]),
+    { changeClass: null, length: 0 },
+  );
+  assert.deepEqual(
+    discardStreak([
+      { ...base, ts: "2026-07-01T00:03:00.000Z", id: "d", title: "D", status: "discarded", changeClass: "parameter-tweak" },
+      { ...base, ts: "2026-07-01T00:01:00.000Z", id: "b", title: "B", status: "discarded", changeClass: "branch-toggle" },
+      { ...base, ts: "2026-07-01T00:02:00.000Z", id: "c", title: "C", status: "discarded", changeClass: "parameter-tweak" },
+      { ...base, ts: "2026-07-01T00:00:00.000Z", id: "a", title: "A", status: "discarded", changeClass: "branch-toggle" },
+    ]),
+    { changeClass: "parameter-tweak", length: 2 },
+  );
+  assert.deepEqual(
+    discardStreak([
+      { ...base, ts: "2026-07-01T00:00:00.000Z", id: "a", title: "A", status: "discarded", changeClass: "parameter-tweak" },
+      { ...base, ts: "2026-07-01T00:01:00.000Z", id: "b", title: "B", status: "discarded", changeClass: "parameter-tweak" },
+      { ...base, ts: "2026-07-01T00:02:00.000Z", id: "c", title: "C", status: "discarded", changeClass: "parameter-tweak" },
+    ]),
+    { changeClass: "parameter-tweak", length: 3 },
+  );
+});
+
 test("runDivergenceCli: mode and candidate add/list", () => {
   const cwd = freshCwd();
   try {
@@ -92,12 +171,18 @@ test("runDivergenceCli: mode and candidate add/list", () => {
         "best grounded option",
         "--source",
         "https://example.com/source",
+        "--change-class",
+        "parameter-tweak",
+        "--killed-at-phase",
+        "D",
         "--json",
       ],
       cwd,
     );
     assert.equal(add.code, 0, add.output);
     assert.equal(JSON.parse(add.output).kind, "strong-1");
+    assert.equal(JSON.parse(add.output).changeClass, "parameter-tweak");
+    assert.equal(JSON.parse(add.output).killedAtPhase, "D");
 
     const list = runDivergenceCli(["candidate", "list", "--session", "cli", "--json"], cwd);
     assert.equal(list.code, 0);

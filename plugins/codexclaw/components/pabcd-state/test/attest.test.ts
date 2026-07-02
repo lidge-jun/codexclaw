@@ -23,7 +23,22 @@ test("A->B requires a non-empty, non-placeholder did", () => {
   assert.equal(validateAttest("A", "B", null).ok, false);
   assert.equal(validateAttest("A", "B", { from: "A", to: "B", did: "" }).ok, false);
   assert.equal(validateAttest("A", "B", { from: "A", to: "B", did: "done" }).ok, false); // placeholder
-  assert.equal(validateAttest("A", "B", { from: "A", to: "B", did: "audited the plan" }).ok, true);
+});
+
+test("WP3: A->B additionally requires auditOutput (reviewer verdict paste)", () => {
+  // did alone no longer passes — the audit gate needs the reviewer verdict tail
+  const noAudit = validateAttest("A", "B", { from: "A", to: "B", did: "audited the plan" });
+  assert.equal(noAudit.ok, false);
+  assert.match(noAudit.reason ?? "", /auditOutput/);
+  assert.equal(
+    validateAttest("A", "B", {
+      from: "A",
+      to: "B",
+      did: "audited the plan",
+      auditOutput: "reviewer: GO-WITH-FIXES; 2 blockers folded back",
+    }).ok,
+    true,
+  );
 });
 
 test("A->B rejects mismatched from/to", () => {
@@ -44,6 +59,13 @@ test("coerceAttest validates shape", () => {
   const a = coerceAttest({ from: "A", to: "B", did: "  trimmed  ", exitCode: 0 });
   assert.equal(a?.did, "trimmed");
   assert.equal(a?.exitCode, 0);
+});
+
+test("WP3: coerceAttest carries a trimmed auditOutput (drops non-string)", () => {
+  const a = coerceAttest({ from: "A", to: "B", did: "x", auditOutput: "  verdict tail  " });
+  assert.equal(a?.auditOutput, "verdict tail");
+  const b = coerceAttest({ from: "A", to: "B", did: "x", auditOutput: 42 });
+  assert.equal(b?.auditOutput, undefined);
 });
 
 test("131: coerceAttest carries a typed override boolean (ignores non-boolean)", () => {

@@ -90,7 +90,7 @@ Tight (label-to-input, icon-to-text):   0.25rem - 0.5rem
 - Never stack two dense sections without a sparse break
 - Sparse section immediately after hero creates "breathing room"
 
-## Pre-commit Checklist
+## 7. Pre-commit Checklist
 
 - [ ] Exactly 1 element per viewport is the obvious focal point
 - [ ] Size ratio between heading levels ≥ 1.25x
@@ -103,7 +103,7 @@ Tight (label-to-input, icon-to-text):   0.25rem - 0.5rem
 - [ ] F or Z reading pattern identifiable by squinting
 - [ ] Color hierarchy has ≥ 3 distinct levels
 
-## Cross-references
+## 8. Cross-references
 
 - Size scale clamp values: `dev-frontend/references/core/aesthetics.md` §Typography
 - Section composition order: `layout-macrostructures.md`

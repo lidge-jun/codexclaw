@@ -8,7 +8,7 @@
 
 ---
 
-## §1 Platform UX Conventions
+## 1. Platform UX Conventions
 
 | Convention | iOS (HIG) | Android (Material 3) | Cross-Platform Guidance |
 |-----------|----------|---------------------|------------------------|
@@ -30,7 +30,7 @@
 
 ---
 
-## §2 Native Gestures
+## 2. Native Gestures
 
 | Gesture | iOS | Android | Usage |
 |---------|-----|---------|-------|
@@ -50,7 +50,7 @@
 
 ---
 
-## §3 Deep Linking
+## 3. Deep Linking
 
 ### Universal Links (iOS) + App Links (Android)
 
@@ -119,7 +119,7 @@ function openAppOrStore(appUrl, iosStore, androidStore) {
 
 ---
 
-## §4 Onboarding & Permissions
+## 4. Onboarding & Permissions
 
 ### Permission request timing
 
@@ -157,7 +157,7 @@ function openAppOrStore(appUrl, iosStore, androidStore) {
 
 ---
 
-## §5 App Store UX
+## 5. App Store UX
 
 ### Screenshot specifications
 
@@ -183,7 +183,7 @@ function openAppOrStore(appUrl, iosStore, androidStore) {
 
 ---
 
-## §6 Anti-Patterns & Pre-flight
+## 6. Anti-Patterns & Pre-flight
 
 ### Anti-patterns
 

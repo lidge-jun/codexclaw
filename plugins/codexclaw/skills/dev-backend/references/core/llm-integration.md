@@ -1,7 +1,7 @@
 # LLM Integration Patterns
 
-**Last reviewed**: 2026-06-16
-**Applies to**: Python (LangChain 0.3+, LlamaIndex 0.12+), TypeScript (Vercel AI SDK 4.x), any LLM provider
+**Last reviewed**: 2026-07-02
+**Applies to**: Python (LangChain 1.x, LlamaIndex 0.12+), TypeScript (Vercel AI SDK 4.x+), any LLM provider
 **When to read**: RAG implementation, LLM API integration, structured output, prompt engineering, change-surface: ML or LLM integration
 **Canonical owner**: `dev-backend` — integration patterns, API layer, provider abstraction
 **Non-goals**: Model serving infrastructure (→ `ml-serving.md`), ML training (→ `dev-data/references/ml-pipeline.md`), security (→ `dev-security/references/llm-supply-chain.md`)
@@ -93,15 +93,15 @@ IF   multi-modal (text + images)             → Weaviate
 
 ## §3 Framework Selection 2026
 
-### LangChain v0.3
+### LangChain 1.x
 
 ```python
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 
-# v0.3: ProviderStrategy pattern — swap providers without code changes
-llm = ChatOpenAI(model="gpt-4o", temperature=0)
+# 2026 default: current stable OpenAI flagship model for higher-capability extraction
+llm = ChatOpenAI(model="gpt-5.5", temperature=0)
 
 prompt = ChatPromptTemplate.from_messages([
     ("system", "Extract structured data from the user's message."),
@@ -133,12 +133,16 @@ response = await agent.run(user_msg="Find info about X")
 
 ### Framework Decision
 
-| Factor | LangChain 0.3 | LlamaIndex 0.12 | Vercel AI SDK 4.x |
+| Factor | LangChain 1.x | LlamaIndex 0.12+ | Vercel AI SDK 4.x+ |
 |--------|---------------|------------------|---------------------|
 | **Best for** | Complex chains, multi-step agents | RAG-first, document Q&A | TypeScript/Next.js, streaming UI |
 | **Learning curve** | Medium | Low-Medium | Low |
 | **Streaming** | LCEL native | AgentWorkflow events | Built-in RSC streaming |
 | **Structured output** | PydanticOutputParser | Structured LLM | `generateObject()` |
+
+### Provider Model IDs
+
+Use current provider docs before hard-pinning examples. As of this review, examples should prefer OpenAI `gpt-5.5` for high-capability extraction and Anthropic `claude-sonnet-5` for balanced Claude workloads; reserve higher-cost Claude IDs such as `claude-opus-4-8` for tasks that justify the latency/cost.
 
 ---
 
@@ -165,7 +169,7 @@ class ExtractedEntity(BaseModel):
 
 client = instructor.from_openai(OpenAI())
 entities = client.chat.completions.create(
-    model="gpt-4o",
+    model="gpt-5.5",
     response_model=list[ExtractedEntity],
     messages=[{"role": "user", "content": text}],
 )

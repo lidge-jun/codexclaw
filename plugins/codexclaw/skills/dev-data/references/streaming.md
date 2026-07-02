@@ -1,5 +1,7 @@
 # Streaming & Event-Driven Data Patterns
 
+**Last reviewed**: 2026-07-02
+
 Kafka patterns, stream processing selection, and CDC integration.
 
 ---

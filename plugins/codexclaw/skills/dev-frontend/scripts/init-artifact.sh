@@ -1,264 +1,51 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Exit on error
-set -e
+set -euo pipefail
 
-# Detect Node version
-NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
+usage() {
+  echo "Usage: bash scripts/init-artifact.sh <project-name>"
+}
 
-echo "🔍 Detected Node.js version: $NODE_VERSION"
-
-if [ "$NODE_VERSION" -lt 18 ]; then
-  echo "❌ Error: Node.js 18 or higher is required"
-  echo "   Current version: $(node -v)"
-  exit 1
-fi
-
-# Set Vite version based on Node version
-if [ "$NODE_VERSION" -ge 20 ]; then
-  VITE_VERSION="latest"
-  echo "✅ Using Vite latest (Node 20+)"
-else
-  VITE_VERSION="5.4.11"
-  echo "✅ Using Vite $VITE_VERSION (Node 18 compatible)"
-fi
-
-# Detect OS and set sed syntax
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  SED_INPLACE="sed -i ''"
-else
-  SED_INPLACE="sed -i"
-fi
-
-# Check if pnpm is installed
-if ! command -v pnpm &> /dev/null; then
-  echo "📦 pnpm not found. Installing pnpm..."
-  npm install -g pnpm
-fi
-
-# Check if project name is provided
-if [ -z "$1" ]; then
-  echo "❌ Usage: ./create-react-shadcn-complete.sh <project-name>"
+if [ "${1:-}" = "" ]; then
+  usage
   exit 1
 fi
 
 PROJECT_NAME="$1"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPONENTS_TARBALL="$SCRIPT_DIR/shadcn-components.tar.gz"
 
-# Check if components tarball exists
-if [ ! -f "$COMPONENTS_TARBALL" ]; then
-  echo "❌ Error: shadcn-components.tar.gz not found in script directory"
-  echo "   Expected location: $COMPONENTS_TARBALL"
+node - <<'NODE'
+const [major, minor] = process.versions.node.split(".").map(Number);
+const ok = major > 22 || (major === 22 && minor >= 12) || (major === 20 && minor >= 19);
+if (!ok) {
+  console.error(`Node.js ${process.versions.node} detected. Vite 7 requires Node.js 20.19+ or 22.12+.`);
+  process.exit(1);
+}
+NODE
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pnpm not found. Install pnpm first: corepack enable && corepack prepare pnpm@latest --activate"
   exit 1
 fi
 
-echo "🚀 Creating new React + Vite project: $PROJECT_NAME"
+echo "Creating React 19 + Vite 7 artifact: $PROJECT_NAME"
+pnpm create vite@7 "$PROJECT_NAME" --template react-ts
 
-# Create new Vite project (always use latest create-vite, pin vite version later)
-pnpm create vite "$PROJECT_NAME" --template react-ts
-
-# Navigate into project directory
 cd "$PROJECT_NAME"
 
-echo "🧹 Cleaning up Vite template..."
-$SED_INPLACE '/<link rel="icon".*vite\.svg/d' index.html
-$SED_INPLACE 's/<title>.*<\/title>/<title>'"$PROJECT_NAME"'<\/title>/' index.html
-
-echo "📦 Installing base dependencies..."
+echo "Installing React 19, Vite 7, Tailwind CSS v4, and UI utilities..."
 pnpm install
+pnpm add react@^19 react-dom@^19 class-variance-authority clsx tailwind-merge lucide-react
+pnpm add -D vite@^7 @vitejs/plugin-react @tailwindcss/vite tailwindcss @types/node
 
-# Pin Vite version for Node 18
-if [ "$NODE_VERSION" -lt 20 ]; then
-  echo "📌 Pinning Vite to $VITE_VERSION for Node 18 compatibility..."
-  pnpm add -D vite@$VITE_VERSION
-fi
-
-echo "📦 Installing Tailwind CSS and dependencies..."
-pnpm install -D tailwindcss@3.4.1 postcss autoprefixer @types/node tailwindcss-animate
-pnpm install class-variance-authority clsx tailwind-merge lucide-react next-themes
-
-echo "⚙️  Creating Tailwind and PostCSS configuration..."
-cat > postcss.config.js << 'EOF'
-export default {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
-}
-EOF
-
-echo "📝 Configuring Tailwind with shadcn theme..."
-cat > tailwind.config.js << 'EOF'
-/** @type {import('tailwindcss').Config} */
-module.exports = {
-  darkMode: ["class"],
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
-  theme: {
-    extend: {
-      colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
-        },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
-        },
-      },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-      },
-      keyframes: {
-        "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
-        },
-        "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
-        },
-      },
-      animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-      },
-    },
-  },
-  plugins: [require("tailwindcss-animate")],
-}
-EOF
-
-# Add Tailwind directives and CSS variables to index.css
-echo "🎨 Adding Tailwind directives and CSS variables..."
-cat > src/index.css << 'EOF'
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-  }
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
-EOF
-
-# Add path aliases to tsconfig.json
-echo "🔧 Adding path aliases to tsconfig.json..."
-node -e "
-const fs = require('fs');
-const config = JSON.parse(fs.readFileSync('tsconfig.json', 'utf8'));
-config.compilerOptions = config.compilerOptions || {};
-config.compilerOptions.baseUrl = '.';
-config.compilerOptions.paths = { '@/*': ['./src/*'] };
-fs.writeFileSync('tsconfig.json', JSON.stringify(config, null, 2));
-"
-
-# Add path aliases to tsconfig.app.json
-echo "🔧 Adding path aliases to tsconfig.app.json..."
-node -e "
-const fs = require('fs');
-const path = 'tsconfig.app.json';
-const content = fs.readFileSync(path, 'utf8');
-// Remove comments manually
-const lines = content.split('\n').filter(line => !line.trim().startsWith('//'));
-const jsonContent = lines.join('\n');
-const config = JSON.parse(jsonContent.replace(/\/\*[\s\S]*?\*\//g, '').replace(/,(\s*[}\]])/g, '\$1'));
-config.compilerOptions = config.compilerOptions || {};
-config.compilerOptions.baseUrl = '.';
-config.compilerOptions.paths = { '@/*': ['./src/*'] };
-fs.writeFileSync(path, JSON.stringify(config, null, 2));
-"
-
-# Update vite.config.ts
-echo "⚙️  Updating Vite configuration..."
-cat > vite.config.ts << 'EOF'
-import path from "path";
+echo "Configuring Vite with @tailwindcss/vite..."
+cat > vite.config.ts <<'EOF'
+import path from "node:path";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -267,29 +54,171 @@ export default defineConfig({
 });
 EOF
 
-# Install all shadcn/ui dependencies
-echo "📦 Installing shadcn/ui dependencies..."
-pnpm install @radix-ui/react-accordion @radix-ui/react-aspect-ratio @radix-ui/react-avatar @radix-ui/react-checkbox @radix-ui/react-collapsible @radix-ui/react-context-menu @radix-ui/react-dialog @radix-ui/react-dropdown-menu @radix-ui/react-hover-card @radix-ui/react-label @radix-ui/react-menubar @radix-ui/react-navigation-menu @radix-ui/react-popover @radix-ui/react-progress @radix-ui/react-radio-group @radix-ui/react-scroll-area @radix-ui/react-select @radix-ui/react-separator @radix-ui/react-slider @radix-ui/react-slot @radix-ui/react-switch @radix-ui/react-tabs @radix-ui/react-toast @radix-ui/react-toggle @radix-ui/react-toggle-group @radix-ui/react-tooltip
-pnpm install sonner cmdk vaul embla-carousel-react react-day-picker react-resizable-panels date-fns react-hook-form @hookform/resolvers zod
+echo "Adding TypeScript path aliases..."
+node - <<'NODE'
+const fs = require("node:fs");
 
-# Extract shadcn components from tarball
-echo "📦 Extracting shadcn/ui components..."
-tar -xzf "$COMPONENTS_TARBALL" -C src/
+for (const file of ["tsconfig.json", "tsconfig.app.json"]) {
+  if (!fs.existsSync(file)) continue;
+  const raw = fs.readFileSync(file, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("//"))
+    .join("\n")
+    .replace(/,(\s*[}\]])/g, "$1");
+  const config = JSON.parse(raw);
+  config.compilerOptions = config.compilerOptions || {};
+  config.compilerOptions.baseUrl = ".";
+  config.compilerOptions.paths = { "@/*": ["./src/*"] };
+  fs.writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`);
+}
+NODE
 
-# Create components.json for reference
-echo "📝 Creating components.json config..."
-cat > components.json << 'EOF'
+mkdir -p src/lib
+cat > src/lib/utils.ts <<'EOF'
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+EOF
+
+echo "Writing Tailwind v4 CSS-first theme..."
+cat > src/index.css <<'EOF'
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --radius-card: var(--radius-card);
+}
+
+:root {
+  color-scheme: light;
+  --background: oklch(0.985 0.006 230);
+  --foreground: oklch(0.18 0.025 245);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.955 0.012 230);
+  --border: oklch(0.86 0.018 230);
+  --muted: oklch(0.48 0.025 245);
+  --accent: oklch(0.58 0.18 250);
+  --accent-foreground: oklch(0.99 0.003 250);
+  --radius-card: 8px;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.16 0.025 245);
+  --foreground: oklch(0.95 0.006 245);
+  --surface: oklch(0.21 0.025 245);
+  --surface-2: oklch(0.27 0.025 245);
+  --border: oklch(0.34 0.025 245);
+  --muted: oklch(0.73 0.015 245);
+  --accent: oklch(0.7 0.16 250);
+  --accent-foreground: oklch(0.15 0.025 245);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100dvh;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+EOF
+
+cat > src/App.tsx <<'EOF'
+import { ArrowRight, CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
+
+const states = [
+  { label: "Loading", detail: "Skeleton and progress states are planned before data arrives.", icon: Loader2 },
+  { label: "Empty", detail: "First-use copy gives one clear action instead of a blank panel.", icon: CircleAlert },
+  { label: "Success", detail: "Completed work has visible confirmation and a reversible next step.", icon: CheckCircle2 },
+];
+
+export default function App() {
+  return (
+    <main className="min-h-dvh px-5 py-6 sm:px-8">
+      <section className="mx-auto grid max-w-[1180px] gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="flex min-h-[520px] flex-col justify-between rounded-card border border-border bg-surface p-6 shadow-sm sm:p-8">
+          <div>
+            <p className="mb-4 text-sm font-medium text-accent">Operational UI scaffold</p>
+            <h1 className="max-w-[14ch] text-balance text-4xl font-semibold tracking-normal sm:text-6xl">
+              React 19 surface with real states.
+            </h1>
+            <p className="mt-5 max-w-[58ch] text-balance text-base leading-7 text-muted">
+              This starter favors dense working screens, accessible controls, responsive containment, and Tailwind v4 CSS-first theme tokens.
+            </p>
+          </div>
+
+          <div className="mt-10 flex flex-wrap gap-3">
+            <button className="inline-flex min-h-11 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-accent-foreground">
+              Start review <ArrowRight aria-hidden="true" size={16} />
+            </button>
+            <button className="inline-flex min-h-11 items-center rounded-md border border-border px-4 text-sm font-semibold">
+              View states
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          {states.map((state) => {
+            const Icon = state.icon;
+            return (
+              <article key={state.label} className="rounded-card border border-border bg-surface p-5">
+                <div className="mb-4 flex size-10 items-center justify-center rounded-md bg-surface-2 text-accent">
+                  <Icon aria-hidden="true" size={20} />
+                </div>
+                <h2 className="text-lg font-semibold">{state.label}</h2>
+                <p className="mt-2 text-sm leading-6 text-muted">{state.detail}</p>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </main>
+  );
+}
+EOF
+
+cat > components.json <<'EOF'
 {
   "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "default",
+  "style": "new-york",
   "rsc": false,
   "tsx": true,
   "tailwind": {
-    "config": "tailwind.config.js",
     "css": "src/index.css",
-    "baseColor": "slate",
-    "cssVariables": true,
-    "prefix": ""
+    "baseColor": "neutral",
+    "cssVariables": true
   },
   "aliases": {
     "components": "@/components",
@@ -297,26 +226,12 @@ cat > components.json << 'EOF'
     "ui": "@/components/ui",
     "lib": "@/lib",
     "hooks": "@/hooks"
-  }
+  },
+  "iconLibrary": "lucide"
 }
 EOF
 
-echo "✅ Setup complete! You can now use Tailwind CSS and shadcn/ui in your project."
-echo ""
-echo "📦 Included components (40+ total):"
-echo "  - accordion, alert, aspect-ratio, avatar, badge, breadcrumb"
-echo "  - button, calendar, card, carousel, checkbox, collapsible"
-echo "  - command, context-menu, dialog, drawer, dropdown-menu"
-echo "  - form, hover-card, input, label, menubar, navigation-menu"
-echo "  - popover, progress, radio-group, resizable, scroll-area"
-echo "  - select, separator, sheet, skeleton, slider, sonner"
-echo "  - switch, table, tabs, textarea, toast, toggle, toggle-group, tooltip"
-echo ""
-echo "To start developing:"
+echo "Setup complete."
+echo "Next:"
 echo "  cd $PROJECT_NAME"
 echo "  pnpm dev"
-echo ""
-echo "📚 Import components like:"
-echo "  import { Button } from '@/components/ui/button'"
-echo "  import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'"
-echo "  import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog'"

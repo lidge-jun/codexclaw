@@ -23,6 +23,7 @@ import { GOALS_DB_FILENAME } from "../src/goal-active.ts";
 import { defaultState, readState, writeState } from "../src/state.ts";
 import { recordObjectiveMetric, writeObjectiveKind } from "../src/metrics.ts";
 import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
+import { recordDivergenceCandidate } from "../src/divergence.ts";
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -280,10 +281,17 @@ test("L8: Stop continuation prints concrete next commands, never <next>", () => 
   const cwd = freshCwd();
   try {
     withGoalsDb([
+      { thread_id: "l8-a", status: "active" },
       { thread_id: "l8-b", status: "active" },
       { thread_id: "l8-c", status: "active" },
       { thread_id: "l8-d", status: "active" },
     ], () => {
+      midCycle(cwd, "l8-a", "A");
+      const aReason = JSON.parse(handleStop(stop(cwd, "l8-a")).trim()).reason;
+      assert.doesNotMatch(aReason, /<next>/);
+      assert.match(aReason, /cxc orchestrate B --attest/);
+      assert.match(aReason, /auditOutput/, "WP3: A next-command must carry the reviewer verdict field");
+
       midCycle(cwd, "l8-b", "B");
       const bReason = JSON.parse(handleStop(stop(cwd, "l8-b")).trim()).reason;
       assert.doesNotMatch(bReason, /<next>/);
@@ -395,8 +403,43 @@ test("emergence 020: flat maximize metric arms a diverge re-plan Stop block", ()
       assert.equal(parsed.decision, "block");
       assert.match(parsed.reason, /objective plateau/);
       assert.match(parsed.reason, /divergence/);
+      assert.match(parsed.reason, /LOOP-CANDIDATE-ANCHOR-01/);
+      assert.doesNotMatch(parsed.reason, /FORBIDDEN: another/);
       assert.doesNotMatch(parsed.reason, /request_user_input/);
       assert.equal(readState(cwd, "flat1").stopBlockCount, 1);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("emergence 020: flat maximize plateau forbids another same-class candidate after discard streak", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "flat-streak", status: "active" }], () => {
+      midCycle(cwd, "flat-streak", "B");
+      for (let i = 0; i < 3; i++) {
+        recordDivergenceCandidate(cwd, {
+          sessionId: "flat-streak",
+          kind: "add-1",
+          title: `Threshold tweak ${i + 1}`,
+          rationale: "same parameter-space lever",
+          sourceUrls: [`https://example.com/tweak-${i + 1}`],
+          status: "discarded",
+          changeClass: "parameter-tweak",
+          killedAtPhase: "D",
+          now: () => `2026-07-01T00:0${i}:00.000Z`,
+        });
+      }
+      recordObjectiveMetric(cwd, { sessionId: "flat-streak", metricName: "score", value: 10, source: "operator-entered" });
+      recordObjectiveMetric(cwd, { sessionId: "flat-streak", metricName: "score", value: 10, source: "operator-entered" });
+      const parsed = JSON.parse(handleStop(stop(cwd, "flat-streak")).trim());
+      assert.equal(parsed.decision, "block");
+      assert.match(
+        parsed.reason,
+        /FORBIDDEN: another parameter-tweak candidate — 3 consecutive parameter-tweak candidates were discarded/,
+      );
+      assert.match(parsed.reason, /Threshold tweak 1 \[parameter-tweak\]/);
+      assert.match(parsed.reason, /Threshold tweak 3 \[parameter-tweak\]/);
+      assert.match(parsed.reason, /Record each candidate WITH its changeClass/);
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

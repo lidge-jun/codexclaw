@@ -1,5 +1,7 @@
 # OWASP Top 10:2025 — Unsafe and Safe Patterns
 
+Last reviewed: 2026-07-02
+
 Use this reference when a change touches auth, data access, secrets, templates, dependencies, CI, or production configuration.
 Each section gives a problem statement, one unsafe pattern, one safe pattern, and a concrete checklist.
 JavaScript and TypeScript are primary examples.
@@ -82,12 +84,23 @@ This includes poisoned transitive packages, mutable CI actions, unsigned artifac
 
 ### Safe Pattern
 ```yaml
-- uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-- run: npm ci
-- run: npm audit --audit-level=high
-- run: npx license-checker --production
-- run: npm test
+permissions:
+  contents: read
+  id-token: write
+steps:
+  - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+  - uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8
+    with:
+      node-version: '22'
+      registry-url: https://registry.npmjs.org
+  - run: npm ci
+  - run: npm audit --audit-level=high
+  - run: npx license-checker --production
+  - run: npm test
+  - run: npm publish --provenance
 ```
+
+For full npm trusted-publishing workflow shape, read `../../dev-devops/references/package-release.md`.
 
 ### Checklist
 - [ ] Commit and honor the lockfile with `npm ci`, `pip-compile`, `poetry lock`, or equivalent.

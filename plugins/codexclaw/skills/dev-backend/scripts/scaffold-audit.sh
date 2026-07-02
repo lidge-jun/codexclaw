@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Usage: scaffold-audit.sh [project-path]
-# Checks if a project follows the Lidge Standard.
+# Checks backend/scaffolding conventions owned by dev-scaffolding.
 
 DIR="${1:-.}"
 PASS=0
@@ -23,7 +23,7 @@ check() {
   fi
 }
 
-echo "🔍 Auditing '$DIR' against Lidge Standard"
+echo "🔍 Auditing '$DIR' against backend/scaffolding conventions (see dev-scaffolding)"
 echo ""
 
 # 1. Feature-based structure (no controllers/ models/ services/ at src root)
@@ -113,13 +113,20 @@ else
   check "devlog structure (missing _plan/ or _fin/)" "fail"
 fi
 
-# 5. No .env committed
+# 5. .env safety
+ENV_IGNORED=false
+if [ -f "$DIR/.gitignore" ] && grep -Eq '(^|/)\.env($|[[:space:]]|#)' "$DIR/.gitignore"; then
+  ENV_IGNORED=true
+fi
+
 if [ -f "$DIR/.env" ]; then
-  check "No .env committed (.env file found!)" "fail"
+  check ".env safety (.env file found!)" "fail"
+elif ! $ENV_IGNORED; then
+  check ".env safety (.env missing from .gitignore)" "fail"
 elif [ -f "$DIR/.env.example" ]; then
-  check ".env.example exists (no .env)" "pass"
+  check ".env safety (.gitignore + .env.example)" "pass"
 else
-  check ".env.example missing" "warn"
+  check ".env safety (.env.example missing)" "warn"
 fi
 
 # 6. File length (<500 lines)

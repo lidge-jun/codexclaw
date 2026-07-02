@@ -249,6 +249,23 @@ behavior, or browser-verifiable public evidence, read the active `search` skill
 and follow its source-fetch/evidence-status rules rather than relying on memory
 alone. Subagents/delegated agents are bound by the same search-skill policy.
 
+### Recall Lookup Scope (DEV-RECALL-01, MUST)
+
+Past work context lives in the Codex session root and is searchable in
+milliseconds. Before asking the user about PRIOR work, search it yourself:
+
+- **When**: a term, file, decision, or codename from earlier work is unfamiliar;
+  context feels lost after a compact/restart/handoff; the user references past
+  work ("그때 그거", "지난번에", "저번 세션", "last time", "as discussed"); or you
+  are about to write "I don't have context about X".
+- **How** (read-only; never modifies anything):
+  - `cxc chat search "<distinctive terms>" --days 0` — full-history FTS over past
+    conversations; `--context 2` reads around a hit, `--cwd <repo>` scopes it.
+  - `cxc memory search "<topic>"` — durable per-thread summaries and memories.
+- Only after both miss may you ask the user — and say what you searched.
+- Details and the full flag set: `$cxc-recall`. Subagents/delegated agents are
+  bound by this rule too.
+
 ---
 
 ## 0. Intent Clarification

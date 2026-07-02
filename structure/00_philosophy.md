@@ -64,7 +64,11 @@ This is the single most common source of "false DONE" in this repo. Treat any
 - Hooks **append context or deny tool calls**; they never swallow or rewrite the
   user's prompt.
 - State is **project-local `.codexclaw/`** files only — no jaw-style server, no shared
-  database, no network service.
+  database, no network service. One scoped exception (owner directive 2026-07-02,
+  `devlog/_plan/260702_codex_recall/`): user-level **rebuildable derived caches** under
+  `~/.codexclaw` (recall's FTS index; ast-grep runtime precedent). A cache is never a
+  source of truth — deleting it only costs a rebuild — and durable state stays
+  project-local.
 - The native goal DB is **read-only** to codexclaw. Only the main session calls
   `create_goal`; codexclaw reads `thread_goals` to gate behavior, never writes it.
 - The provider bridge is **detect-only**. codexclaw observes whether `ocx` is present;

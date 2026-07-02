@@ -1,12 +1,13 @@
 # Docker — Container Build & Security Patterns
 
-Last reviewed: 2026-06-16
+Last reviewed: 2026-07-02
 Applies to: Docker 27+, BuildKit, OCI images
 When to read: Container build/deploy tasks
 Canonical owner: dev-devops §1
 
 Cross-ref: read `platform-engineering.md` for provider routing and release
-capability framing; read `package-release.md` for package-registry auth.
+capability framing; read `package-release.md` for package-registry auth; read
+`../../dev-security/references/supply-chain-sbom.md` for SBOM/signing depth.
 
 ---
 
@@ -55,7 +56,10 @@ RUN pip install uv && uv sync --frozen
 COPY . .
 
 FROM python:3.13-slim
+WORKDIR /app
+COPY --from=build /app/.venv /app/.venv
 COPY --from=build /app /app
+ENV PATH="/app/.venv/bin:$PATH"
 RUN adduser --system --no-create-home app
 USER app
 CMD ["python", "-m", "app"]

@@ -1,4 +1,4 @@
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 import os
 
 # Example: Automating interaction with static HTML files using file:// URLs
@@ -12,18 +12,20 @@ with sync_playwright() as p:
 
     # Navigate to local HTML file
     page.goto(file_url)
+    form = page.get_by_role("form", name="Contact")
+    expect(form).to_be_visible()
 
     # Take screenshot
     page.screenshot(path='/mnt/user-data/outputs/static_page.png', full_page=True)
 
     # Interact with elements
-    page.click('text=Click Me')
-    page.fill('#name', 'John Doe')
-    page.fill('#email', 'john@example.com')
+    page.get_by_role("button", name="Click Me").click()
+    page.get_by_role("textbox", name="Name").fill('John Doe')
+    page.get_by_role("textbox", name="Email").fill('john@example.com')
 
     # Submit form
-    page.click('button[type="submit"]')
-    page.wait_for_timeout(500)
+    page.get_by_role("button", name="Submit").click()
+    expect(page.get_by_role("status")).to_contain_text("submitted")
 
     # Take final screenshot
     page.screenshot(path='/mnt/user-data/outputs/after_submit.png', full_page=True)

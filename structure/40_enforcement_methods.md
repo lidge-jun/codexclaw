@@ -49,12 +49,16 @@ here's the next command". Must carry the stagnation cap + context-pressure bail 
 can never trap a session. Arming is the hard part (see L14 loop⇄goal handoff).
 
 ### E3 — PreToolUse input rewrite (the routing lever)
-The untapped tier. `PreToolUse` can *modify* the tool input before it runs. For
-`spawn_agent`, this is the one place codexclaw could deterministically attach a `cxc-*`
-skill to a subagent dispatch instead of hoping the main agent does it. This converts
-skill routing from E5/E7 (hope) to a near-E1 strength on the spawn surface — if a
-`^spawn_agent$` matcher is wired. Today no such hook exists; this is the strongest
-available upgrade for the routing contradiction (A6).
+`PreToolUse` can *modify* the tool input before it runs. For `spawn_agent`, this is the
+one place codexclaw deterministically attaches `cxc-*` skills to a subagent dispatch
+instead of hoping the main agent does it — converting skill routing from E5/E7 (hope) to
+near-E1 strength on the spawn surface. SHIPPED (WP2): the `^spawn_agent$` hook
+(`spawn-attach-hook.ts`) rewrites the spawn `message` to prepend link-form
+`[$cxc-*](skill://…)` mentions, which the child's first turn parses into full SKILL.md
+injections. Message rewrite is schema-safe on BOTH v1 and v2 (unlike `items`, which v2's
+`deny_unknown_fields` rejects), so the hook is always-on; it no-ops on items-present /
+already-mentioned / missing-message payloads. This closes the A6 routing contradiction
+at the subagent boundary.
 
 ### E4 — UserPromptSubmit directive (the nudge)
 Used by the pabcd-trigger hook to inject the phase directive. Strong, visible, but
@@ -107,8 +111,10 @@ false-DONE cannot re-enter.
   impossible; the closest lever is E3/E5 pre-loading.
 - No hook can append a **visible assistant-output footer** — status footers are an E4
   model-instruction at best, or upstream Codex UI work.
-- No hook can intercept the **`multi_agent_v1__spawn_agent`** tool from outside the
-  agent's own call — E3 requires a `PreToolUse` matcher on the spawn tool name, which
-  must be verified to exist in the Codex runtime before it is claimed.
+- The spawn tool IS interceptable — VERIFIED: the runtime canonicalizes
+  `multi_agent_v1.spawn_agent` to tool_name `spawn_agent` (registry.rs:727), and the
+  shipped `^spawn_agent$` PreToolUse hook (spawn-attach) rewrites its input. The former
+  "cannot intercept" claim here was stale; what remains impossible is forcing a spawn
+  to HAPPEN (no hook can initiate a tool call).
 - codexclaw stays **read-only on the goal DB** — goal creation is always the main
   session's `create_goal`, never a codexclaw write (E1 can deny, never author).

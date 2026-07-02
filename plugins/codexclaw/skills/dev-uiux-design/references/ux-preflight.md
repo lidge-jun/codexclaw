@@ -4,7 +4,7 @@ Run this checklist **before delivery** of any UI feature. Each item is a binary 
 
 ---
 
-## State Coverage
+## 1. State Coverage
 
 | State | Check | Pass? |
 |-------|-------|-------|

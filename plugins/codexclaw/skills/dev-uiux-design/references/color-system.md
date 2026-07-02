@@ -1,4 +1,4 @@
-## 12. Color Palette Generation
+## 1. Color Palette Generation
 
 When the user provides a brand color (or you need to generate a palette from scratch), follow this method.
 
@@ -35,4 +35,3 @@ For every text-on-background combination, verify:
 - Normal text (< 24px): 4.5:1 contrast ratio minimum (WCAG AA).
 - Large text (≥ 24px or bold ≥ 18.5px): 3:1 minimum.
 - Interactive components: 3:1 against adjacent colors.
-

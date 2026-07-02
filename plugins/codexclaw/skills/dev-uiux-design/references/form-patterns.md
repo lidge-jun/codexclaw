@@ -2,7 +2,7 @@
 
 Validation timing, multi-step wizards, auth forms, file upload, and search/filter.
 
-## Validation Timing
+## 1. Validation Timing
 
 | Strategy | When | Use For |
 |----------|------|---------|

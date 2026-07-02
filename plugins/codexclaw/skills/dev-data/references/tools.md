@@ -1,19 +1,8 @@
 # Data Processing Tools — pandas vs Polars vs DuckDB
 
-Decision matrix and code patterns for the three core data processing engines.
+**Last reviewed**: 2026-07-02
 
----
-
-## When to Use What
-
-| Scenario | Recommended | Why |
-|----------|-------------|-----|
-| Quick CSV exploration, <100MB | pandas | Widest ecosystem, interactive-friendly |
-| Batch ETL pipeline, >100MB | Polars | Multi-threaded, lazy evaluation, memory efficient |
-| SQL analytics on local files | DuckDB | Vectorized SQL engine, queries Parquet/CSV directly |
-| ML feature engineering | pandas (with Arrow interop) | scikit-learn, PyTorch, TensorFlow compatibility |
-| Ad-hoc data warehouse queries | DuckDB | SQL-first, spill-to-disk for large datasets |
-| High-performance joins/groupby | Polars or DuckDB | Both 5-10x faster than pandas |
+Code snippets and interop examples for the three core data processing engines. For the decision matrix and selection flow, use `dev-data/SKILL.md` §6.
 
 ---
 
@@ -39,14 +28,14 @@ result = (
 result = (
     pl.scan_parquet("huge_dataset/*.parquet")
     .filter(pl.col("amount") > 100)
-    .collect(streaming=True)
+    .collect(engine="streaming")
 )
 ```
 
 **Key rules:**
 - Prefer `scan_*` (lazy) over `read_*` (eager) for files >100MB
 - Use expressions (`pl.col()`) not Python lambdas — expressions parallelize, lambdas don't
-- `.collect(streaming=True)` for datasets approaching RAM limits
+- Use `.collect(engine="streaming")` for datasets approaching RAM limits
 
 ---
 
@@ -117,17 +106,4 @@ pandas_df = df.to_pandas()
 
 # pandas → Polars (for performance upgrade)
 polars_df = pl.from_pandas(pandas_df)
-```
-
----
-
-## Decision Flowchart
-
-```
-Data size?
-├── <100MB, interactive exploration → pandas
-├── >100MB, <10GB batch transforms → Polars
-├── SQL-first analytics, any size → DuckDB
-├── ML pipeline needing scikit-learn/PyTorch → pandas (convert from Polars at boundary)
-└── Blended workflow → Polars transforms → DuckDB aggregations
 ```

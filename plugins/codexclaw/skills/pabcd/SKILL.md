@@ -69,7 +69,7 @@ These align with the directives the `pabcd-state` hook injects per phase:
 
 0. **I — Interview**: Clarify requirements before planning across the four dimensions. Research the repo first, then ask focused questions. No implementation yet.
 1. **P — Plan**: Explore first (read real code, configs, docs). Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable accept criteria. Ground every decision in code you have read. No implementation yet. For broad or unfamiliar repos, include a compact tree, detected conventions, and which existing logs/docs you will reuse.
-2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent reviewer (`spawn_agent`) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. Fold fixes back into the plan and record the verdict. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict), so skipping the dispatch cannot pass the gate.
+2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent reviewer (`spawn_agent`) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. Fold fixes back into the plan and record the verdict. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict) — a form-only bar: silently skipping the paste fails the gate, but the gate cannot verify the paste's provenance, so faithful execution (really dispatching the reviewer) remains the agent's obligation.
 3. **B — Build**: Implement the audited plan in small atomic commits. Verify as you go. Stay inside the plan's scope boundary; surface deviations instead of silently expanding scope.
 4. **C — Check**: Run the real verification — build, typecheck, and targeted tests, plus adversarial review. Capture fresh command output as evidence. Do not claim pass without artifact-level proof.
 5. **D — Done**: Summarize what was checked with evidence, update STATUS/devlog, commit, and confirm no pending work remains for this work-phase before returning to idle.
@@ -93,6 +93,12 @@ phase transition; no hook builds or races candidates automatically, and HITL P/A
 pauses remain real confirmation points.
 
 **Faithful execution (anti-skip)**: do the real work of each PABCD-phase — P writes the real diff-level plan, A really dispatches the audit, B really implements AND verifies, C really runs tsc/tests/scrutiny, D really summarizes with evidence. Advancing the state is NOT the same as doing the phase; never rubber-stamp a phase to move on.
+
+**Native plan tracker (PLAN-TRACK-01)**: mirror the plan's work items into the native
+`update_plan` tool at P and keep statuses current through B — the harness renders it as
+live progress. `update_plan` is the visibility surface, not the plan itself; the
+diff-level plan document remains the SSOT, and updating the tracker never substitutes
+for a phase's real work.
 
 ### Optimization-Loop Meta-Rules (plateau discipline)
 
@@ -139,7 +145,10 @@ See `dev` §0.0 for the full class definitions and tie-break rules.
 
 ## Delegation Model (subagents)
 
+- **Deferred-tool trap (DISPATCH-DISCOVER-01):** the collab tools are `multi_agent_v1.spawn_agent` / `wait_agent` / `send_input` / `resume_agent` / `close_agent`, and on the live runtime they may NOT appear in your visible tool list — they are deferred behind `tool_search`. If `spawn_agent` is not visible, run `tool_search` for "spawn agent" FIRST; do not conclude dispatch is impossible (`structure/60_native_capabilities.md` §1).
 - The main agent owns the plan and the build by default. Subagents (`spawn_agent`) are scoped helpers.
+- **Lifecycle patterns:** fan out by spawning N agents then ONE `wait_agent` on all their ids (not N sequential waits); steer or interrupt a running agent with `send_input`; `resume_agent` reopens a closed agent with its context intact (cheaper than respawning for follow-ups); `close_agent` shuts down the agent AND its spawn subtree. Independent tool calls batch through `multi_tool_use.parallel`.
+- CSV batch fan-out (`spawn_agents_on_csv` + `report_agent_job_result`, one worker per row) exists in codex-rs but is flag-gated (`enable_fanout`, not live) — do NOT instruct it until the flag ships; check `structure/60_native_capabilities.md` §4.
 - Use a reviewer subagent at the A gate (and the C gate for C3/C4) to challenge the plan/implementation independently — receive the verdict, act on it, continue. Subagents are verifiers and scoped workers, not approval gates.
 - When delegating writes, give each subagent a disjoint write scope (own files/dirs) so parallel work never collides; tell it the other agents exist and not to revert their edits.
 - Never let a subagent reconstruct the plan from a short task description — pass the concrete plan and scope explicitly.

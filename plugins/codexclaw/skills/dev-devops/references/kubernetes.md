@@ -1,6 +1,6 @@
 # Kubernetes — Deployment & Orchestration Patterns
 
-Last reviewed: 2026-06-16
+Last reviewed: 2026-07-02
 Applies to: Kubernetes 1.32+, Gateway API v1.5
 When to read: K8s deployment tasks
 Canonical owner: dev-devops §3
@@ -9,7 +9,7 @@ Canonical owner: dev-devops §3
 
 ## §1 Gateway API v1.5 (2026 Standard)
 
-Gateway API replaces Ingress as the standard for traffic routing in Kubernetes.
+Gateway API is the successor for new Kubernetes traffic routing; Ingress remains GA but feature-frozen.
 
 ### Role Separation
 
@@ -137,8 +137,10 @@ resources:
   - deployment.yaml
   - service.yaml
   - httproute.yaml
-commonLabels:
-  app: payments
+labels:
+  - includeSelectors: true
+    pairs:
+      app: payments
 ```
 
 ### Overlay Example (prod)
@@ -327,7 +329,7 @@ spec:
 
 | Banned | Why | Fix |
 |--------|-----|-----|
-| `Ingress` (new projects) | Deprecated by Gateway API; annotation-based routing is fragile | `HTTPRoute` with structured fields |
+| `Ingress` (new projects) | Feature-frozen; Gateway API (`HTTPRoute`) is the successor — prefer it for new routing (DEFAULT) | `HTTPRoute` with structured fields |
 | No resource limits | Noisy neighbor; OOM kills random pods | Always set requests + limits |
 | `image: app:latest` | Irreproducible; ArgoCD can't detect changes | SHA digest or pinned SemVer |
 | Single replica (prod) | Zero availability during updates/failures | Minimum 2 replicas + PDB |

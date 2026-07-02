@@ -72,8 +72,11 @@ export function queryIndex(db      , opts                   )                   
     params.push(opts.source);
   }
   if (opts.cwd) {
-    conds.push("f.cwd LIKE ? ESCAPE '\\'");
-    params.push(`${escapeLike(opts.cwd)}%`);
+    // Separator-aware prefix: exact cwd, or a child path under it on either
+    // separator style — /repo must never match /repo2.
+    conds.push("(f.cwd = ? OR f.cwd LIKE ? ESCAPE '\\' OR f.cwd LIKE ? ESCAPE '\\')");
+    // Backslash separator must itself be escaped under ESCAPE '\': pattern "\\%".
+    params.push(opts.cwd, `${escapeLike(opts.cwd)}/%`, `${escapeLike(opts.cwd)}\\\\%`);
   }
 
   const sql = `SELECT m.id, m.path, m.ord, m.ts, m.role, m.match_field, m.text,

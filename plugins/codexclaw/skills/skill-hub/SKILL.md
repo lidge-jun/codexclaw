@@ -57,6 +57,13 @@ Quick forks for the common ambiguous cases (the catalog says what exists; this s
   `search` for that path; they must not restate the tier ladder. If material facts may have
   changed, load `search` before answering from memory.
 
+- Deferred/native surfaces: skills are not the only capability channel. Deferred tools
+  (e.g. the `multi_agent_v1.*` collab tools) are discovered with `tool_search`; installable
+  plugins/connectors are discovered with `list_available_plugins_to_install` and installed
+  with `request_plugin_install`. When a task needs a capability no skill covers, check
+  those two surfaces (and `structure/60_native_capabilities.md`) before concluding it
+  does not exist.
+
 ## Notes
 
 - No runtime hub engine or dynamic loader lives here; this is documentation.

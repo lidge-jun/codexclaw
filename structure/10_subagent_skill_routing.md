@@ -6,7 +6,7 @@ aliases: [L14 Design, subagent skill routing, cxc skill attachment]
 
 # L14 — Subagent Skill Routing + Loop/Goal Handoff (Design SOT)
 
-Status: DESIGN + SHIPPED (E5 dispatch builder shipped in L15 — `SURFACE_SKILL`/`buildSpawnItems`/`SpawnPayload.items`; lazygap_impl 020 added `INTENT_ROLE`/`routeDispatch` and the E3 `^spawn_agent$` PreToolUse attach hook as a FAIL-SAFE opt-in for the v1 spawn surface — `spawn-attach-hook.ts`, gated by `CODEXCLAW_SPAWN_ATTACH=v1`, no-op otherwise; v2 `deny_unknown_fields` makes injection impossible there, so E5 stays the primary path) · 2026-07-01
+Status: DESIGN + SHIPPED (E5 dispatch builder shipped in L15 — `SURFACE_SKILL`/`buildSpawnItems`/`SpawnPayload.items`; lazygap_impl 020 added `INTENT_ROLE`/`routeDispatch` and the E3 `^spawn_agent$` PreToolUse attach hook; **WP2 upgraded the E3 hook to the MENTION CHANNEL**: it now rewrites the spawn `message` to prepend link-form `[$cxc-*](skill://…)` mentions — schema-safe on BOTH v1 and v2 because `message` is a shared field — so it is ALWAYS-ON (the old `CODEXCLAW_SPAWN_ATTACH=v1` opt-in and `items` injection are gone). v2 `deny_unknown_fields` only blocks the structured `items` key, not message mentions) · 2026-07-02
 
 > This is the design source of truth for the L14 hardening track. The defect
 > diagnosis with file:line evidence lives in
@@ -41,12 +41,13 @@ so the subagent actually loads the discipline instead of being told about it in 
   call — that is the L15.2 **E3** PreToolUse hook (feasible on the v1 spawn surface only),
   still deferred.
 
-Net: routing is "split into skills" AND "attached at dispatch when routed through the E5
-builder." The remaining gap is a deterministic hook that attaches without the builder call
-(L15.2/E3). lazygap_impl 020 shipped that hook as a FAIL-SAFE opt-in (`spawn-attach-hook.ts`):
-with `CODEXCLAW_SPAWN_ATTACH=v1` set, a `^spawn_agent$` PreToolUse rewrite adds `items` to a
-v1 spawn; without the opt-in (or on a v2 `deny_unknown_fields` shape) it is a no-op, so a spawn
-made outside the builder without the opt-in is still model-autonomous by design.
+Net: routing is "split into skills" AND "attached at dispatch" — deterministically, on
+both spawn surfaces. WP2 upgraded the lazygap_impl 020 hook (`spawn-attach-hook.ts`) from
+a v1-only opt-in `items` injector to an ALWAYS-ON message rewriter: it prepends link-form
+`[$cxc-*](skill://…)` mentions (role baseline + inferred surfaces) to the spawn `message`,
+which the child's first turn parses into full SKILL.md injections. It no-ops when the
+caller already attached `items` (E5 builder path) or already mentioned the same skills,
+and never invents a message. The old `CODEXCLAW_SPAWN_ATTACH=v1` gate is removed.
 
 ---
 
@@ -88,19 +89,28 @@ takes effect WHEN the main agent routes a v1 spawn through this builder and pass
 dispatch doctrine, not on an automatic hook. The deterministic (hook-driven) version is
 the L15.2 follow-up below.
 
-### Hard runtime constraint (codex-rs verified)
+### Hard runtime constraint (codex-rs verified) — REVISED by WP2
 Only **v1** `spawn_agent` accepts `items` (`UserInput::Skill { name, path }`). The **v2**
-spawn handler uses `#[serde(deny_unknown_fields)]` with no `items` field, so skill
-attachment is impossible on v2 regardless of mechanism. PreToolUse CAN rewrite spawn input
-(`updatedInput` on a native tool, `permissionDecision:"allow"`), so an **E3** hook that
-deterministically attaches skills is feasible **for v1 only** — tracked as the L15.2
-follow-up below, not shipped.
+spawn handler uses `#[serde(deny_unknown_fields)]` with no `items` field, so STRUCTURED
+attachment is impossible on v2. But structured items are not the only injection trigger:
+the child's turn-input pipeline also parses **text mentions** out of `UserInput::Text` —
+plain `$skill-name` (unique-name match) and link-form `[$skill-name](skill://<abs path>)`
+(exact path match) — and injects each matched SKILL.md body (codex-rs injection.rs,
+`collect_explicit_skill_mentions` stage 2 / `extract_tool_mentions`). The spawn `message`
+becomes exactly such a text input in the child's first turn, and `message` exists on BOTH
+spawn schemas. So a PreToolUse rewrite of `message` is a deterministic, surface-agnostic
+E3 attachment channel. Residual risk: this rests on codex-rs source analysis of the
+mention parser; verify against a live child transcript when the runtime version changes.
 
-### L15.2 follow-up (PLANNED, E3)
-A `^spawn_agent$` PreToolUse hook that injects the resolved `items` via `updatedInput`,
-so attachment does not depend on the main agent remembering to route through the builder.
-Gated on: (a) detecting v1 vs v2 at the hook, (b) a no-op on v2, (c) not clobbering items
-the agent already set. Until it ships, attachment is the E5 builder contract above.
+### L15.2 follow-up (SHIPPED as WP2, E3 — mention channel)
+The `^spawn_agent$` PreToolUse hook now prepends the resolved link-form mentions to
+`message` via `updatedInput` (full replacement, only `message` changed), so attachment
+does not depend on the main agent remembering to route through the builder. It (a) works
+identically on v1 and v2 (no surface detection needed), (b) no-ops when `items` is
+present (never double-attaches on the builder path), (c) dedupes against `$cxc-*` /
+`$codexclaw:cxc-*` / `skill://` mentions already in the message, and (d) never invents a
+missing message. Paths that are not link-safe (whitespace/parens) degrade to the plain
+`$cxc-<name>` mention form.
 
 ---
 
@@ -163,9 +173,13 @@ Illustrative default map (STYLE_SAMPLE, not locked):
 
 ## Design 14.C — Route real dispatches through the wrapper
 
-The wrapper only matters if the main agent actually calls it. The honest constraint:
-codexclaw cannot intercept the `multi_agent_v1__spawn_agent` tool call from a hook. So
-"route through the wrapper" is a **discipline contract**, not a runtime interception:
+The wrapper only matters if the main agent actually calls it. (Historical note: this
+section originally claimed a hook cannot intercept the spawn tool call. That was
+superseded — the runtime canonicalizes the collab tool `multi_agent_v1.spawn_agent` to
+tool_name `spawn_agent` (registry.rs:727), so the shipped `^spawn_agent$` PreToolUse
+hook DOES intercept it and rewrites `message`. The wrapper contract below remains the
+richer explicit path — model resolution and structured `items` — that no generic hook
+can infer:)
 
 - The `cxc-dev` / subagent doctrine instructs the main agent to build dispatch payloads
   via the wrapper and pass the resulting `items` into `spawn_agent`.

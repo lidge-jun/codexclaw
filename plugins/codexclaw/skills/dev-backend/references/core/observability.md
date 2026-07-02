@@ -1,5 +1,7 @@
 # Observability — OpenTelemetry, Logging, Tracing
 
+**Last reviewed**: 2026-07-02
+
 Production-grade observability patterns using the OpenTelemetry standard.
 
 ---

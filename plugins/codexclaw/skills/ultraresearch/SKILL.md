@@ -34,6 +34,11 @@ duplicate. Record the expanded set so a reader can see the search space you chos
   and chases the strongest leads from wave 1.
 - Stop rule: stop after three consecutive no-new-lead results, or at five waves, whichever
   comes first. State which stop fired.
+- Dispatch mechanics: the collab tools are `multi_agent_v1.*` and may need a `tool_search`
+  to become visible. Spawn the whole wave, then ONE `wait_agent` on all wave ids;
+  `send_input` chases a strong lead on a live explorer instead of respawning;
+  `resume_agent` reopens a closed wave-1 explorer for wave-2 follow-ups with its context
+  intact; `close_agent` cleans up a finished wave (it closes the agent's subtree too).
 
 ## Journal + claim-ledger
 

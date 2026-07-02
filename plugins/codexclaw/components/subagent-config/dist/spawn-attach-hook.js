@@ -1,40 +1,49 @@
 #!/usr/bin/env node
 /**
- * spawn-attach-hook.ts — lazygap_impl 020 Part B: the E3 PreToolUse `^spawn_agent$`
- * skill-attachment hook (FAIL-SAFE, opt-in).
+ * spawn-attach-hook.ts — the E3 PreToolUse `^spawn_agent$` skill-attachment hook
+ * (WP1 mention-channel upgrade; originally lazygap_impl 020 Part B).
  *
- * On a PROVEN v1 spawn surface, this rewrites the spawn's `tool_input` to add an `items`
- * array carrying the inferred `cxc-*` skills, so a dispatched subagent loads the discipline
- * deterministically without the main agent calling the E5 builder by hand.
+ * Rewrites the spawn's `message` to PREPEND link-form skill mentions
+ * (`[$cxc-<folder>](skill://<abs SKILL.md path>)`), so a dispatched subagent loads the
+ * matching `cxc-*` discipline deterministically without the main agent calling the E5
+ * builder by hand. The child's first turn parses mentions out of its UserInput text and
+ * injects each SKILL.md body (codex-rs injection.rs, extract_tool_mentions).
  *
- * SAFETY (A-gate Curie, codex-rs verified):
- *  - The PreToolUse payload CANNOT prove v1 vs v2: both canonicalize to tool_name
- *    "spawn_agent" (registry.rs:727). v2 is `deny_unknown_fields` (multi_agents_v2/spawn.rs:242)
- *    and would REJECT an injected `items`, breaking the spawn. So we attach ONLY when v1 is
- *    positively proven via an explicit operator opt-in (env CODEXCLAW_SPAWN_ATTACH=v1).
- *  - `updatedInput` is a FULL REPLACEMENT of tool_input (registry.rs:122), honored only on
- *    permissionDecision "allow" (output_parser.rs:162). We echo the ENTIRE original input + items.
+ * WHY message rewrite (not `items`): only the v1 spawn schema accepts `items`
+ * (UserInput::Skill); v2 is `deny_unknown_fields` and rejects it. `message` is a shared
+ * field on BOTH surfaces, so rewriting it is schema-safe everywhere — no v1-proof opt-in
+ * (the old CODEXCLAW_SPAWN_ATTACH=v1 gate) and no V2_ONLY_FIELDS sniffing are needed.
+ * This hook is therefore ALWAYS-ON.
+ *
+ * SAFETY:
+ *  - `updatedInput` is a FULL REPLACEMENT of tool_input (registry.rs:122), honored only
+ *    on permissionDecision "allow" (output_parser.rs:162). We echo the ENTIRE original
+ *    input and change ONLY `message`.
+ *  - `items` already present -> no-op. The caller chose the structured v1 channel (E5
+ *    builder); adding mentions on top would double-inject the same skills. We do NOT
+ *    salvage a v2-shaped payload that carries stale `items` — that spawn is already
+ *    invalid on v2 with or without us, and guessing the surface risks breaking v1.
+ *  - Mentions already present in the message dedupe per-folder; nothing left -> no-op.
  *  - The hook NEVER denies and NEVER throws: any doubt/error -> emit "" (allow untouched).
- *
- * This is an opt-in convenience for v1 operators. The always-safe primary attach path is the
- * E5 builder (`routeDispatch`/`resolveSpawnPayloadWithSkills`), which the main agent calls.
  */
-import { readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { readFileSync, realpathSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  buildSpawnItems,
+  buildSkillMentionBlock,
   SURFACE_SKILL,
-
 
 
 } from "./spawn-wrapper.js";
 
-/** v2-only fields: if present, this is a v2 spawn — never inject. */
-const V2_ONLY_FIELDS = ["task_name", "fork_turns"]         ;
-
-/** The plugin skills dir, relative to this module's dist location. */
+/**
+ * The plugin skills dir. CODEXCLAW_SKILLS_DIR overrides for installs (and tests)
+ * where the dist entrypoint does not sit at its canonical in-plugin location;
+ * otherwise resolve relative to this module's dist location.
+ */
 function skillsDir()         {
+  const env = process.env.CODEXCLAW_SKILLS_DIR;
+  if (typeof env === "string" && env.length > 0) return env;
   // dist/spawn-attach-hook.js -> components/subagent-config/dist -> plugin root is ../../..
   const here = dirname(fileURLToPath(import.meta.url));
   return resolve(here, "..", "..", "..", "skills");
@@ -63,14 +72,26 @@ function inferSurfaces(message        )            {
   return out;
 }
 
-/** True only when the operator has positively asserted the v1 spawn surface. */
-function v1SurfaceProven()          {
-  return process.env.CODEXCLAW_SPAWN_ATTACH === "v1";
+/**
+ * Skill FOLDERS already mentioned in the outgoing message, in any of the three
+ * recognized shapes: plain `$cxc-<folder>`, plugin-native `$codexclaw:cxc-<folder>`,
+ * or a link-form `skill://.../<folder>/SKILL.md` target path.
+ */
+export function mentionedFolders(message        )              {
+  const out = new Set        ();
+  for (const m of message.matchAll(/\$(?:codexclaw:)?cxc-([a-z0-9-]+)/gi)) {
+    out.add(m[1].toLowerCase());
+  }
+  for (const m of message.matchAll(/skill:\/\/\S*?\/([^/\s)]+)\/SKILL\.md/gi)) {
+    out.add(m[1].toLowerCase());
+  }
+  return out;
 }
 
 /**
  * Decide the hook output for a PreToolUse spawn payload. Returns "" (allow untouched) or
- * the full-replacement updatedInput envelope. Total: never throws.
+ * the full-replacement updatedInput envelope with the mention block prepended to
+ * `message`. Total: never throws.
  */
 export function runSpawnAttachHook(raw        )         {
   try {
@@ -82,27 +103,25 @@ export function runSpawnAttachHook(raw        )         {
     const toolInput = obj.tool_input;
     if (!isRecord(toolInput)) return "";
 
-    // No-op guards: already attached, or a v2-only shape.
+    // Structured channel already chosen (E5 builder v1 payload) -> never double-attach.
     if ("items" in toolInput) return "";
-    for (const f of V2_ONLY_FIELDS) {
-      if (f in toolInput) return "";
-    }
 
-    // v1 must be PROVEN; absent proof, allow untouched (never risk a v2 break).
-    if (!v1SurfaceProven()) return "";
+    // Only rewrite a real message; never invent one (schema shape stays untouched).
+    const message = toolInput.message;
+    if (typeof message !== "string" || message.trim().length === 0) return "";
 
-    const message = typeof toolInput.message === "string" ? toolInput.message : "";
     const role = roleFromAgentType(toolInput.agent_type);
     const surfaces = inferSurfaces(message);
-    const items              = buildSpawnItems({
+    const block = buildSkillMentionBlock({
       role,
-      task: message,
       skillsDir: skillsDir(),
       surfaces,
+      excludeFolders: [...mentionedFolders(message)],
     });
+    if (block.length === 0) return "";
 
-    // Full replacement: echo every original key, then add items.
-    const updatedInput = { ...toolInput, items };
+    // Full replacement: echo every original key, change only message.
+    const updatedInput = { ...toolInput, message: `${block}\n\n${message}` };
     return `${JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
@@ -134,7 +153,17 @@ function main()       {
   process.exit(0);
 }
 
-// Only run as a CLI entrypoint, not when imported by tests.
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+// Only run as a CLI entrypoint, not when imported by tests. Compare via realpath:
+// the ESM loader resolves the main module through symlinks (e.g. macOS /var/folders
+// -> /private/var/folders), so a plain resolve() comparison can miss a real CLI run.
+const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
+let invokedReal = invokedPath;
+try {
+  invokedReal = realpathSync(invokedPath);
+} catch {
+  /* keep the unresolved path */
+}
+const selfPath = fileURLToPath(import.meta.url);
+if (invokedPath && (selfPath === invokedPath || selfPath === invokedReal)) {
   main();
 }

@@ -61,17 +61,44 @@ may disable it, and reviews disable it); when it is unavailable, go straight to 
 URL or state that discovery is blocked. Tier 1 discovers; it does not prove. Never mark an answer
 sufficient from Tier 1 output alone.
 
-### Tier 2 — Browser Use / Computer Use (proof, default)
-Open candidate URLs and read the real source. Prefer an HTTP-first proof when
-`agbrowse` is available: `agbrowse fetch "<url>" --json --browser never` returns an
-ok/verdict/source/finalUrl/content/evidence envelope, and `agbrowse search --verify
-"<url>" --json --browser never` gives a compact verdict on a KNOWN url. If HTTP proof is
-blocked or JS-only and a local Chrome is running, escalate with `agbrowse fetch "<url>"
---json --browser auto` (local CDP only; remote/hosted CDP is out). `agbrowse` is OPT-IN and
-lazily resolved (`scripts/agbrowse_helper.py doctor`); if it is not resolvable, fall back to
-Browser Use / Computer Use exactly as before. Browser Use reads DOM, PDFs, rendered pages,
-and screenshots; Computer Use is reserved for browser chrome or OS UI the in-app browser
-cannot reach. Either way confirm date, author/source identity, the exact claim, and whether
+### Tier 2 — Browse-Use Ladder (proof, default) (SEARCH-BROWSE-01)
+Open candidate URLs and read the real source, escalating through the ladder below —
+each rung is a NAMED live tool (`structure/60_native_capabilities.md`), not a vague
+"browser use" phrase. Stop at the first rung that yields primary evidence.
+
+**agbrowse is the PRIMARY Tier-2 surface.** Resolve it ONCE per session with
+`scripts/agbrowse_helper.py doctor`; while it resolves, rungs 1-2 own proof and the
+native tools are the FALLBACK tier (rung 3) — do not reach for a native browser tool
+when a resolvable agbrowse rung can do the job.
+
+1. Scripted HTTP proof — `agbrowse fetch "<url>" --json --browser never` returns an
+   ok/verdict/source/finalUrl/content/evidence envelope; `agbrowse search --verify
+   "<url>" --json --browser never` gives a compact verdict on a KNOWN url. The JSON
+   envelope IS the evidence artifact. Mandatory first attempt when agbrowse resolves.
+2. agbrowse CDP (render / interact, still primary): one-shot render-read
+   `agbrowse fetch "<url>" --json --browser auto` for JS-rendered/blocked pages; a full
+   interactive session when steps must act on the page — `agbrowse start --headed` ->
+   `agbrowse navigate "<url>"` -> `agbrowse snapshot --interactive` (element refs
+   e1, e2, ...) -> `agbrowse click e1` / act -> re-snapshot -> `agbrowse stop`.
+   `agbrowse doctor` diagnoses CDP/start/profile failures. Local Chrome CDP only;
+   remote/hosted CDP is out.
+3. Native fallback tier — use ONLY when agbrowse is unresolvable, its CDP session
+   cannot complete the flow, or conversational control genuinely fits better:
+   `browser:control-in-app-browser` (Codex-owned browser: JS/PDF/visual checks, local
+   dev servers) and `chrome:control-chrome` (conversational real-profile CDP via
+   `browser_use_full_cdp_access` for logged-in/WAF/DevTools-grade needs). State WHY
+   agbrowse was insufficient when you drop to this rung.
+4. GUI last resort — `computer-use:computer-use`: only for browser chrome or OS UI
+   no browser tool can reach (per-app approval applies; never drive terminals).
+
+**Verification loop (SEARCH-BROWSE-VERIFY-01, cli-jaw CDP doctrine ported):** for any
+interactive rung, verify state before and after acting — inspect -> act -> re-inspect
+(in agbrowse terms: `snapshot --interactive` -> `click eN` -> re-snapshot). When DOM
+inspection fails or the target is canvas/WebGL/shadow-DOM, fall back to screenshot +
+`view_image`, then pointer-level interaction via `computer-use:computer-use`. Never
+chain blind actions; never use `curl`/`wget` hand-rolling when a ladder rung applies.
+
+Either way confirm date, author/source identity, the exact claim, and whether
 the page is primary evidence. When a source is blocked, JS-rendered, PDF-only, or table-only,
 apply the tactics in `references/blocked-url-reader.md` — that helper is Tier 2 guidance,
 **not** a fourth tier.
@@ -184,7 +211,8 @@ spend Tier 3 subagents on a question Tier 1+2 already settled.
   implicit. It is reached by trigger words or by `dev`-hub routing.
 - Query rewrite runs prompt-side. `agbrowse` is an OPT-IN, lazily-resolved Tier-2 proof
   helper (HTTP-first; local-CDP escalation only); it is not bundled and not required —
-  without it, Tier 2 is the Browser Use / Computer Use path.
+  without it, Tier 2 starts at rung 2 (`browser:control-in-app-browser`) and escalates
+  to `chrome:control-chrome` / `computer-use:computer-use` per SEARCH-BROWSE-01.
 - The blocked-URL reader and ultraresearch decomposition are absorbed as Tier 2
   helper tactics and Tier 3 method, not as new tiers or vendored browsers.
 - `$cxc-sparksearch` is a dependent tool, not a tier. It hardcodes the Spark

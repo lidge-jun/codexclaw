@@ -1,5 +1,7 @@
 # Barrel/Re-export Discipline
 
+Last reviewed: 2026-07-02
+
 When barrel files help vs. when they create hidden coupling and break tree-shaking.
 
 ---

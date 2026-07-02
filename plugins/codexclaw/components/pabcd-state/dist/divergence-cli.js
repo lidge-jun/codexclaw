@@ -6,6 +6,8 @@ import {
 
 
 
+
+
 } from "./divergence.js";
 
 
@@ -19,7 +21,7 @@ function usage()                      {
     output: [
       "divergence: expected one of:",
       "  divergence mode --session <id> on|off [--cwd <owner-root>] [--collapse P|D] [--reason <text>] [--json]",
-      "  divergence candidate add --session <id> [--cwd <owner-root>] --kind strong-1|add-1|alternative --title <text> --rationale <text> --source <url> [--source <url>...] [--status proposed|built|checked|kept|discarded] [--worktree <path>] [--json]",
+      "  divergence candidate add --session <id> [--cwd <owner-root>] --kind strong-1|add-1|alternative --title <text> --rationale <text> --source <url> [--source <url>...] [--status proposed|built|checked|kept|discarded] [--change-class parameter-tweak|branch-toggle|state-space-redesign|evaluator-change] [--killed-at-phase P|A|B|C|D] [--worktree <path>] [--json]",
       "  divergence candidate list --session <id> [--cwd <owner-root>] [--json]",
     ].join("\n"),
   };
@@ -55,6 +57,14 @@ function parseStatus(raw               )                         {
   return raw === "proposed" || raw === "built" || raw === "checked" || raw === "kept" || raw === "discarded" ? raw : null;
 }
 
+function parseChangeClass(raw               )                              {
+  return raw === "parameter-tweak" || raw === "branch-toggle" || raw === "state-space-redesign" || raw === "evaluator-change" ? raw : null;
+}
+
+function parseKilledAtPhase(raw               )                                {
+  return raw === "P" || raw === "A" || raw === "B" || raw === "C" || raw === "D" ? raw : null;
+}
+
 function readSession(argv          )                {
   return readFlag(argv, "--session") ?? readFlag(argv, "-s");
 }
@@ -84,10 +94,18 @@ export function runDivergenceCli(argv          , cwd        )                   
   if (topic === "candidate" && verb === "add") {
     const kind = parseKind(readFlag(argv, "--kind"));
     const status = parseStatus(readFlag(argv, "--status")) ?? "proposed";
+    const changeClassRaw = readFlag(argv, "--change-class");
+    const killedAtPhaseRaw = readFlag(argv, "--killed-at-phase");
+    const changeClass = parseChangeClass(changeClassRaw);
+    const killedAtPhase = parseKilledAtPhase(killedAtPhaseRaw);
     const title = readFlag(argv, "--title");
     const rationale = readFlag(argv, "--rationale");
     const sourceUrls = readAllFlags(argv, "--source");
     if (!kind) return { code: 1, output: "divergence candidate add: --kind strong-1|add-1|alternative is required" };
+    if (changeClassRaw && !changeClass) {
+      return { code: 1, output: "divergence candidate add: --change-class parameter-tweak|branch-toggle|state-space-redesign|evaluator-change is required" };
+    }
+    if (killedAtPhaseRaw && !killedAtPhase) return { code: 1, output: "divergence candidate add: --killed-at-phase P|A|B|C|D is required" };
     if (!title) return { code: 1, output: "divergence candidate add: --title <text> is required" };
     if (!rationale) return { code: 1, output: "divergence candidate add: --rationale <text> is required" };
     if (sourceUrls.length === 0) return { code: 1, output: "divergence candidate add: at least one --source <url> is required" };
@@ -99,6 +117,8 @@ export function runDivergenceCli(argv          , cwd        )                   
         rationale,
         sourceUrls,
         status,
+        changeClass: changeClass ?? undefined,
+        killedAtPhase: killedAtPhase ?? undefined,
         worktree: readFlag(argv, "--worktree") ?? undefined,
       });
       if (json) return { code: 0, output: JSON.stringify(candidate) };

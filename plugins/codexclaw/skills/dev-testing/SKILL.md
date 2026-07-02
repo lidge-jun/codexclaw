@@ -206,6 +206,33 @@ python scripts/with_server.py \
 - Prefer one smoke flow per critical path over many brittle micro-flows.
 - If a failure looks like data-shape drift, go back to **§2 Backend & API Testing** or **§3 Contract Testing**.
 ---
+### 4.6 Native Computer-Use / Browse-Use QA (exploratory tier) (TEST-CU-QA-01)
+
+Playwright owns DETERMINISTIC, repeatable suites. The native tools
+(`structure/60_native_capabilities.md`) own the EXPLORATORY tier — use them when the
+question is "does this change actually work in the real UI right now", not "guard this
+flow forever":
+
+- **`browser:control-in-app-browser`** — drive a local dev server / file-backed page:
+  navigate, click, type, screenshot. Default for web-UI spot checks after a change.
+- **`chrome:control-chrome`** — the same flow in the user's REAL Chrome (CDP): use when
+  the check needs a logged-in session, an extension, or profile state.
+- **`computer-use:computer-use`** — desktop apps, iOS-simulator flows, GUI-only bug
+  repro, settings that exist only behind app UI. Per-app approval applies; NEVER drive
+  terminals or Codex itself; keep credential flows human-supervised.
+
+**Protocol (imported CDP doctrine):** inspect -> act -> re-inspect. Verify state before
+and after every action; when DOM inspection fails (canvas/WebGL/shadow-DOM), take a
+screenshot, read it back with `view_image`, and use pointer-level interaction. Never
+chain blind actions.
+
+**Evidence (binds to PABCD C):** an exploratory QA pass counts as C-phase evidence only
+with artifacts — the screenshot(s) read via `view_image`, the exact flow driven, and the
+observed result stated. `chronicle` (screen-history snapshots) can recover "what did the
+screen show" after the fact. A green exploratory pass does NOT replace the deterministic
+suite for regression-worthy flows — promote the flow to Playwright when it must stay
+guarded (§4.1).
+
 ## 5. CI Pipeline Integration
 > Full workflow templates: `references/ci-pipeline.md`
 ### 5.1 Pipeline Order

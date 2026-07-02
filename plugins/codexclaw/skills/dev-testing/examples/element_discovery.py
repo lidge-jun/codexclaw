@@ -1,4 +1,4 @@
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 # Example: Discovering buttons and other elements on a page
 
@@ -6,19 +6,19 @@ with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     page = browser.new_page()
 
-    # Navigate to page and wait for it to fully load
+    # Navigate to page and wait on an observable app-ready element
     page.goto('http://localhost:5173')
-    page.wait_for_load_state('networkidle')
+    expect(page.get_by_role("main")).to_be_visible()
 
     # Discover all buttons on the page
-    buttons = page.locator('button').all()
+    buttons = page.get_by_role('button').all()
     print(f"Found {len(buttons)} buttons:")
     for i, button in enumerate(buttons):
         text = button.inner_text() if button.is_visible() else "[hidden]"
         print(f"  [{i}] {text}")
 
     # Discover links
-    links = page.locator('a[href]').all()
+    links = page.get_by_role('link').all()
     print(f"\nFound {len(links)} links:")
     for link in links[:5]:  # Show first 5
         text = link.inner_text().strip()
@@ -26,7 +26,9 @@ with sync_playwright() as p:
         print(f"  - {text} -> {href}")
 
     # Discover input fields
-    inputs = page.locator('input, textarea, select').all()
+    textboxes = page.get_by_role('textbox').all()
+    comboboxes = page.get_by_role('combobox').all()
+    inputs = textboxes + comboboxes
     print(f"\nFound {len(inputs)} input fields:")
     for input_elem in inputs:
         name = input_elem.get_attribute('name') or input_elem.get_attribute('id') or "[unnamed]"

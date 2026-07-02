@@ -1,4 +1,4 @@
-## 13. Design System Bootstrap
+## 1. Design System Bootstrap
 
 When starting a new project or establishing a design system, use this token architecture template.
 

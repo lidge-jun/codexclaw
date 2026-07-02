@@ -1,6 +1,6 @@
 # API Lifecycle Management
 
-**Last reviewed**: 2026-06-16
+**Last reviewed**: 2026-07-02
 **Applies to**: REST APIs (Express 5.x / Fastify 5.x / any HTTP framework), OpenAPI 3.1+
 **When to read**: API versioning, deprecation planning, breaking change detection, change-surface: API lifecycle
 **Canonical owner**: `dev-backend` — versioning strategy and deprecation mechanics
@@ -144,7 +144,7 @@ Include: versioning scheme, minimum notice periods, sunset process, support cont
 ### Breaking change detection with oasdiff
 
 ```bash
-# Install: go install github.com/tufin/oasdiff@v1.10
+# Install: go install github.com/oasdiff/oasdiff@latest
 # Detect breaking changes between two OpenAPI specs
 oasdiff breaking openapi/v1.yaml openapi/v2.yaml --format json
 

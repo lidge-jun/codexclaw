@@ -16,6 +16,8 @@
  *   codexclaw gui                 launch the codexclaw web dashboard
  *   codexclaw subagents           read/write per-role subagent model+prompt config
  *   codexclaw provider            show read-only opencodex (ocx) provider status
+ *   codexclaw chat search         read-only recall search over ~/.codex rollouts (recall)
+ *   codexclaw memory search       read-only search over ~/.codex memories (recall)
  *
  * This file is a thin delegator over compiled component CLIs; provider detection is
  * read-only and does not toggle or ensure opencodex.
@@ -70,6 +72,17 @@ const subagentConfigCli = join(
   "cli.js",
 );
 
+const recallCli = join(
+  here,
+  "..",
+  "plugins",
+  "codexclaw",
+  "components",
+  "recall",
+  "dist",
+  "cli.js",
+);
+
 const providerBridgeCli = join(
   here,
   "..",
@@ -102,6 +115,12 @@ function runPabcdState(args) {
 /** Delegate to the compiled subagent-config CLI. argv: ["subagents", ...rest]. */
 function runSubagents(args) {
   const res = spawnSync(process.execPath, [subagentConfigCli, ...args], { stdio: "inherit" });
+  return typeof res.status === "number" ? res.status : 1;
+}
+
+/** Delegate to the compiled recall CLI. argv: [kind, "search", ...rest], kind ∈ chat|memory. */
+function runRecall(args) {
+  const res = spawnSync(process.execPath, [recallCli, ...args], { stdio: "inherit" });
   return typeof res.status === "number" ? res.status : 1;
 }
 
@@ -165,6 +184,11 @@ switch (cmd) {
     process.exit(typeof res.status === "number" ? res.status : 0);
     break;
   }
+  case "chat":
+  case "memory":
+    // recall CLI expects argv as [kind, "search", ...rest]; read-only over ~/.codex.
+    process.exit(runRecall(process.argv.slice(2)));
+    break;
   case "subagents":
     process.exit(runSubagents(process.argv.slice(2)));
     break;
@@ -172,5 +196,5 @@ switch (cmd) {
     process.exit(runProvider());
     break;
   default:
-    console.log("codexclaw <enable|uninstall|status|orchestrate|freeze|metric|divergence|goalplan|doctor|reset|subagents|provider|gui>");
+    console.log("codexclaw <enable|disable|uninstall|status|orchestrate|freeze|metric|divergence|goalplan|doctor|reset|subagents|provider|chat|memory|gui>");
 }

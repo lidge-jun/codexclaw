@@ -1,4 +1,4 @@
-## 6. Layout Composition Patterns
+## 1. Layout Composition Patterns
 
 Select the layout that matches the product surface. Provide the CSS grid template.
 

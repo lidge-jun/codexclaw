@@ -1,7 +1,7 @@
 # Mobile Native Development
 
-**Last reviewed**: 2026-06-16
-**Applies to**: React Native 0.84+/Expo SDK 53, Flutter 3.44+, Kotlin Multiplatform 2.2+, Swift 6, Jetpack Compose M3 1.4+
+**Last reviewed**: 2026-07-02
+**Applies to**: Expo SDK 57 / React Native 0.86 / React 19.2.3, Flutter 3.44+, Kotlin Multiplatform 2.2+, Swift 6, Jetpack Compose M3 1.4+
 **When to read**: Native mobile app development, cross-platform framework selection, change-surface: native mobile
 **Canonical owner**: `dev-frontend` — framework selection and component patterns
 **Non-goals**: Mobile web responsive (→ `responsive-viewport.md`, `mobile-ux.md`), push/offline/auth API (→ `dev-backend/references/core/mobile-api.md`), native UX conventions (→ `dev-uiux-design/references/mobile-native-ux.md`)
@@ -30,7 +30,7 @@
 | **Code sharing** | ~90% (JS logic + RN components) | ~95% (single widget tree) | ~70% (logic only, UI per platform) | 0% (per platform) |
 | **AI agent friendliness** | High — TS ecosystem, npm, large training corpus | Medium — Dart has smaller corpus, widget DSL learning curve | Medium — Kotlin corpus good, KMP-specific patterns sparse | Medium — per-platform, no sharing |
 | **Hot reload** | Yes (Metro + Hermes) | Yes (Dart VM) | Partial (compose preview) | Xcode previews (limited) |
-| **2026 state** | New Architecture default, Hermes V1, Expo SDK 53 | 3.44 SPM default, Impeller stable | KotlinConf'26 restructure, Compose Multiplatform 1.8 | Swift 6 strict concurrency, SwiftUI 6 |
+| **2026 state** | New Architecture default, Hermes, Expo SDK 57 / RN 0.86 | 3.44 SPM default, Impeller stable | KotlinConf'26 restructure, Compose Multiplatform 1.8 | Swift 6 strict concurrency, SwiftUI 6 |
 | **Best for** | JS/TS teams, rapid iteration, Expo managed workflow | Pixel-perfect custom UI, animation-heavy apps | Existing Kotlin backend teams sharing logic | Single-platform apps needing full native API access |
 
 **Default recommendation**: React Native + Expo for most cross-platform projects. Switch to Flutter for heavy custom UI/animation, KMP for Kotlin-first backend teams sharing domain logic, native-only when platform API depth demands it.
@@ -39,17 +39,21 @@
 
 ## §3 React Native + Expo (Default Path)
 
-### Expo SDK 53 baseline (2026-06)
+### Expo SDK 57 baseline (2026-07)
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | New Architecture | Default on | Fabric renderer + TurboModules; opt-out deprecated |
-| Hermes V1 | Default engine | Static Hermes compilation, ~30% faster cold start vs V0 |
+| Hermes | Default engine | Use Expo defaults unless a native constraint proves otherwise |
 | `expo/fetch` | Stable | WinterCG-compatible fetch, replaces `whatwg-fetch` polyfill |
-| Expo Router v4 | Stable | File-based routing, typed routes, API routes |
+| Expo Router | Stable | File-based routing, typed routes, API routes |
 | EAS Build | Production | Cloud builds for iOS/Android, no local Xcode/Gradle needed |
 | EAS Submit | Production | Automated App Store Connect + Google Play upload |
 | Expo Modules API | Stable | Swift/Kotlin native module authoring without ejecting |
+
+Version grounding: Expo's SDK 57 release notes list React Native 0.86 and React
+19.2.3 as the default pair. Verify live Expo docs before shipping a new mobile
+baseline because Expo/RN pairings move together.
 
 ### TurboModule spec pattern
 
@@ -257,7 +261,7 @@ struct UserView: View {
 | Banned | Symptom | Fix |
 |--------|---------|-----|
 | `react-native link` in Expo managed | Build fails, native deps break | Use Expo Modules API or config plugins |
-| JSC engine in production (RN 0.84+) | 2x slower cold start, no Intl support | Hermes V1 is default; never opt out |
+| JSC engine in production (RN 0.86+) | Slower cold start, no Intl support | Hermes is default; never opt out |
 | New Architecture opt-out (`newArchEnabled: false`) | Missing Fabric perf, TurboModule access blocked | Remove opt-out; New Arch is default since 0.76 |
 | CocoaPods in Flutter 3.44+ | Dep resolution conflicts with SPM | Migrate to SPM (`flutter pub deps --style=spm`) |
 | `setState` everywhere in Flutter | Widget rebuilds cascade, jank on complex screens | Riverpod or `ValueNotifier` for state outside widgets |
@@ -268,7 +272,7 @@ struct UserView: View {
 
 - [ ] Framework selected using §2 decision table with documented rationale
 - [ ] RN: Hermes V1 enabled, New Architecture active (`newArchEnabled` absent or `true`)
-- [ ] RN: Expo SDK 53+ with `expo/fetch`, no `whatwg-fetch` polyfill
+- [ ] RN: Expo SDK 57 / React Native 0.86 / React 19.2.3 with `expo/fetch`, no `whatwg-fetch` polyfill
 - [ ] Flutter: Impeller enabled (default), SPM for iOS deps (no CocoaPods)
 - [ ] KMP: Shared module compiles for all target platforms (`./gradlew :shared:allTests`)
 - [ ] Native: Swift 6 strict concurrency mode enabled; Compose compiler 2.1+

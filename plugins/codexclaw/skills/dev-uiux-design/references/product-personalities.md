@@ -1,4 +1,6 @@
-## 3. Product Personality Database
+## 1. Product Personality Database
+
+Last reviewed: 2026-07-02 — brand tokens are snapshots; verify against the live product (per search skill) before shipping.
 
 When the user references a product ("Notion 느낌", "Linear처럼"), map to these exact design parameters.
 
@@ -74,4 +76,3 @@ spacing: "40px+ padding on glass, very generous sections"
 radius: "12-20px"
 signature: "system font, Liquid Glass adapts contextually, specular highlights on motion, generous spacing = luxury"
 ```
-

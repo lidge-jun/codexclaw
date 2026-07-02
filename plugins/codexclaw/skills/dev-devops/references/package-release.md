@@ -1,9 +1,11 @@
 # Package Release — Trusted Publishing & Registry Auth
 
-Last reviewed: 2026-06-21
+Last reviewed: 2026-07-02
 Applies to: npm, PyPI, Bun-to-npm, Homebrew, crates.io, RubyGems, Go modules, GHCR, Docker Hub
 When to read: Package publishing, release auth, downstream distribution, CLI package release
 Canonical owner: dev-devops package-release guidance
+
+Cross-ref: read `../../dev-security/references/supply-chain-sbom.md` for SBOM/signing depth.
 
 ---
 

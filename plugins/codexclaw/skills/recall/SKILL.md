@@ -61,6 +61,13 @@ Text mode prints `[timestamp] (role) «thread title» {cwd}` + excerpt per hit;
 `mode` is `index` (sidecar FTS) or `scan` (raw JSONL fallback). Warnings are
 non-fatal degradations (missing state db, truncation at --limit) — read them.
 
+## Scope: single Codex home (deliberate non-goal)
+
+Recall searches ONE Codex home per invocation — `$CODEX_HOME ?? ~/.codex`, overridable
+per query with `--home <path>`. Cross-home federation (cli-jaw's multi-instance model)
+is an explicit non-goal: Codex is a single-home runtime, and pointing `--home` at an
+alternate root covers the rare multi-root case without a registry or rerank layer.
+
 ## Maintenance
 
 The sidecar index self-refreshes on every query (changed files only). `cxc chat index

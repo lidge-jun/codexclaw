@@ -57,8 +57,9 @@ function snapshotEntrypoint(distAbs) {
       cpSync(srcDir, snapDir, { recursive: true });
       const ep = join(snapDir, basename(distAbs));
       const body = readFileSync(ep, "utf8");
-      // smoke-check: a fully-written cli.js ends with the main() invocation, not mid-write.
-      if (body.length > 0 && /main\(\);?\s*$/.test(body.trimEnd())) {
+      // smoke-check: a fully-written entrypoint ends with the main() invocation — either
+      // bare (`main();`) or wrapped in an import-guard block (`main();\n}`), not mid-write.
+      if (body.length > 0 && /main\(\);?\s*\}?\s*$/.test(body.trimEnd())) {
         snapshots.set(srcDir, snapDir);
         return ep;
       }
@@ -96,7 +97,7 @@ function emptyCodexHome() {
 
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 13, "expected 13 declared hooks");
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 16, "expected 16 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
@@ -376,35 +377,42 @@ test("L010: subagent-stop hook e2e - worker w/o receipt blocks, valid receipt re
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
-// lazygap_impl 020: the E3 spawn-attach hook. Fail-safe: no-op without the v1 opt-in;
-// with CODEXCLAW_SPAWN_ATTACH=v1 it rewrites a shared-shape v1 spawn to add `items`
-// (full replacement). Drives the real dist entrypoint via the manifest command.
-test("L020: pre-tool-use spawn-attach hook e2e - opt-in attaches items, no opt-in is no-op", () => {
+// WP1 (was lazygap_impl 020): the E3 spawn-attach hook, mention-channel upgrade.
+// ALWAYS-ON (no env opt-in): rewrites the spawn `message` to prepend link-form
+// `[$cxc-*](skill://...)` mentions (full-replacement updatedInput, no `items` added),
+// and no-ops when the structured `items` channel is already present. The snapshot
+// entrypoint runs outside the plugin tree, so CODEXCLAW_SKILLS_DIR pins the real
+// skills dir. Drives the real dist entrypoint via the manifest command.
+test("WP1: pre-tool-use spawn-attach hook e2e - always-on mention rewrite; items-present no-op", () => {
   const { event, hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-attaching-skills.json");
   assert.equal(event, "PreToolUse");
   const ep = snapshotEntrypoint(distAbs);
-  if (!ep) return;
+  assert.ok(ep, "subagent-config dist entrypoint must settle (vacuous skip is a test bug)");
+  const skillsEnv = { CODEXCLAW_SKILLS_DIR: join(pluginRoot, "skills") };
   const payload = {
     hook_event_name: "PreToolUse", session_id: "s1", cwd: process.cwd(),
     tool_name: "spawn_agent",
     tool_input: { message: "review the frontend diff", agent_type: "explorer" },
   };
-  // no opt-in -> allow untouched (empty stdout)
-  const noopt = runHook(ep, hookEvent, payload);
-  assert.equal(noopt.status, 0, noopt.stderr);
-  assert.equal(noopt.stdout.trim(), "", "no opt-in must be a no-op");
-
-  // opt-in -> full-replacement updatedInput with items
-  const attached = runHook(ep, hookEvent, payload, { CODEXCLAW_SPAWN_ATTACH: "v1" });
+  // no env opt-in needed -> full-replacement updatedInput with a mention block
+  const attached = runHook(ep, hookEvent, payload, skillsEnv);
   assert.equal(attached.status, 0, attached.stderr);
   const out = JSON.parse(attached.stdout);
   assert.equal(out.hookSpecificOutput.permissionDecision, "allow");
   const ui = out.hookSpecificOutput.updatedInput;
-  assert.equal(ui.message, "review the frontend diff", "original input preserved (full replacement)");
-  assert.ok(Array.isArray(ui.items));
-  const names = ui.items.filter((i) => i.type === "skill").map((i) => i.name);
-  assert.ok(names.includes("cxc-dev"));
-  assert.ok(names.includes("cxc-dev-frontend"));
+  assert.equal(ui.agent_type, "explorer", "original input preserved (full replacement)");
+  assert.ok(!("items" in ui), "mention channel must not add items");
+  assert.match(ui.message, /\[\$cxc-dev\]\(skill:\/\/.*\/dev\/SKILL\.md\)/);
+  assert.match(ui.message, /\[\$cxc-dev-frontend\]\(skill:\/\/.*\/dev-frontend\/SKILL\.md\)/);
+  assert.ok(ui.message.endsWith("review the frontend diff"), "original message preserved at the end");
+
+  // structured items already present -> no-op (never double-attach)
+  const noop = runHook(ep, hookEvent, {
+    ...payload,
+    tool_input: { ...payload.tool_input, items: [{ type: "text", text: "TASK: x" }] },
+  }, skillsEnv);
+  assert.equal(noop.status, 0, noop.stderr);
+  assert.equal(noop.stdout.trim(), "", "items-present must be a no-op");
 });
 
 // lazygap_impl 050: PostCompact recovery hook. Side-effect-only — resets the re-inject

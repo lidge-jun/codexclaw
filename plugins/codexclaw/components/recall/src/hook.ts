@@ -31,12 +31,18 @@ const RECALL_PATTERNS: readonly RegExp[] = [
   /\bprevious(ly)?\s+(session|work|discussed|conversation)?\b/i,
   /\bwhat\s+did\s+(we|i|you)\s+(do|discuss|decide|build)\b/i,
   /\bremember\s+(when|what|the|that|how)\b/i,
-  /\b(as|we)\s+discussed\s+(earlier|before)\b/i,
+  /\b(as|we)\s+discussed\s+(earlier|before|previously|last\s+time)\b/i,
+  /\bdiscussed\s+previously\b/i,
   /\bearlier\s+(session|conversation|work)\b/i,
 ];
 
-/** Suppress the nudge when the prompt already drives recall itself. */
-const ALREADY_RECALLING = /\bcxc\s+(chat|memory)\s+(search|index)\b|\$cxc-recall\b/;
+/**
+ * Suppress the nudge when the prompt already drives recall itself — the `cxc`
+ * form, the raw `codexclaw.mjs` form, a generic `chat/memory search` invocation,
+ * or an explicit skill mention.
+ */
+const ALREADY_RECALLING =
+  /\bcxc\s+(chat|memory)\s+(search|index)\b|\bcodexclaw(\.mjs)?\s+(chat|memory)\s+(search|index)\b|\b(chat|memory)\s+search\s+["']|\$cxc-recall\b/;
 
 export function detectRecallIntent(prompt: string): boolean {
   if (prompt.trim() === "") return false;
@@ -76,4 +82,38 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
   } catch {
     return "";
   }
+}
+
+/**
+ * SessionStart: advertise recall so every agent session starts knowing past-work
+ * search exists (cli-jaw AGENTS.md § Memory Lookup Scope parity). `status` is the
+ * pre-fetched read-only index status line ("" when unavailable); the caller owns
+ * the sqlite read so this stays pure and testable.
+ */
+export function handleSessionStart(status: string): string {
+  const lines = [
+    "[cxc-recall] Past-session recall is available (read-only). Before asking the user",
+    "about prior work — unfamiliar terms, lost context, \"그때/지난번/last time\" — run:",
+    '  cxc chat search "<terms>" --days 0   |   cxc memory search "<topic>"',
+  ];
+  if (status !== "") lines.push(`Index: ${status}. Details: $cxc-recall.`);
+  else lines.push("Details: $cxc-recall.");
+  return buildContextOutput("SessionStart", lines.join("\n"));
+}
+
+/**
+ * PostCompact: compaction IS the context-loss moment — steer the agent to recover
+ * specifics from past sessions instead of asking the user to re-explain.
+ */
+export function handlePostCompact(): string {
+  return buildContextOutput(
+    "PostCompact",
+    [
+      "[cxc-recall] Context was just compacted. If any earlier detail is now missing,",
+      "recover it from past sessions before asking the user to repeat themselves:",
+      '  cxc chat search "<distinctive terms>" --days 0 --context 2',
+      '  cxc memory search "<topic>"',
+      "Details: $cxc-recall.",
+    ].join("\n"),
+  );
 }

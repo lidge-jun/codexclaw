@@ -3,7 +3,9 @@
  *
  * Ported from cli-jaw orchestrator/attestation.ts (form-only gate): the adversary is
  * the agent's own laziness/hallucination, not a malicious human. The gate forces the
- * agent to commit to a specific `did` narrative, and for C->D to paste real command
+ * agent to commit to a specific `did` narrative; for A->B to paste the independent
+ * reviewer's verdict (`auditOutput` — WP3, so the Audit gate structurally requires a
+ * dispatched reviewer, not a self-written sentence); and for C->D to paste real command
  * output with a passing exit code. A boolean is NOT accepted as evidence (cheaper to
  * hallucinate than prose), so the audit/check flags can only flip true through here.
  *
@@ -11,6 +13,9 @@
  * resulting flags via state.writeState. This is the runtime enforcement that 007 R-2
  * demands — the evidence gate must be structural, not prompt prose.
  */
+
+
+
 
 
 
@@ -58,6 +63,7 @@ export function coerceAttest(obj         )                     {
     to: to         ,
     did: typeof rec.did === "string" ? rec.did.trim() : "",
   };
+  if (typeof rec.auditOutput === "string") att.auditOutput = rec.auditOutput.trim();
   if (typeof rec.checkOutput === "string") att.checkOutput = rec.checkOutput.trim();
   if (typeof rec.exitCode === "number" && Number.isFinite(rec.exitCode)) {
     att.exitCode = rec.exitCode;
@@ -94,6 +100,14 @@ export function validateAttest(from       , to       , att                    ) 
       ok: false,
       reason: `${from} -> ${to} needs a specific "did" narrative (not empty or a placeholder).`,
     };
+  }
+  if (key === "A>B") {
+    if (!att.auditOutput) {
+      return {
+        ok: false,
+        reason: `A -> B additionally requires "auditOutput": paste the tail of the independent reviewer verdict you actually received. Dispatch a reviewer subagent (even a small/mini-model one) at the A gate; a self-written sentence is not an audit.`,
+      };
+    }
   }
   if (key === "C>D") {
     if (!att.checkOutput) {

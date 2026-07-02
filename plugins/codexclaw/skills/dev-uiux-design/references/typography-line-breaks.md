@@ -6,7 +6,7 @@ Read `dev-frontend/references/core/typography-wrapping.md` for the CSS implement
 
 ---
 
-## The Problem
+## 1. The Problem
 
 AI-generated and unreviewed web pages share a common tell: **uncontrolled text wrapping**. Headings break at arbitrary points, creating orphaned words, lopsided rags, and awkward visual rhythm.
 

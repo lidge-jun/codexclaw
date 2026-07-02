@@ -1,4 +1,4 @@
-## 14. Responsive Strategy
+## 1. Responsive Strategy
 
 ### Canonical Breakpoint Tiers
 
@@ -28,7 +28,7 @@ For navigation components, prefer `@container` so the same nav adapts in a sideb
 
 ---
 
-## 15. Navigation & Information Architecture
+## 2. Navigation & Information Architecture
 
 ### Sidebar
 - Expanded: 256px fixed width. Collapsed: 64px (icons only).

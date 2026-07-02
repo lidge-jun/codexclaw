@@ -7,6 +7,14 @@ Status: DONE (decision boundary) - 2026-06-30 - mvp_hard loop L10
 > so wrapping it made codexclaw a self-implemented search surface. Chat lookups now route
 > through the `cxc-search` skill. The text below is the original L10 decision record and is
 > kept for history; for the live command surface see `structure/INDEX.md` (CLI Surface).
+>
+> SUPERSEDED-IN-PART (owner directive, 2026-07-02, `devlog/_plan/260702_codex_recall/`):
+> the "no `cxc memory`/no chat search" boundary below is re-scoped via L10's own escape
+> hatch ("unless a later loop explicitly designs a Codex-native replacement"). The
+> `recall` component ships `cxc chat search` / `cxc memory search` as read-only readers
+> of Codex-native disk artifacts (`sessions/*.jsonl`, `state_<N>.sqlite`, `memories/`).
+> The app-server `thread/search` wrapper remains a non-goal, and codexclaw still owns no
+> memory/chat store of its own.
 
 > Scope: record the codex-native boundary for cli-jaw memory/chat/project/task/worklog
 > parity. This is a docs-only decision pass. It does not add runtime commands, stores,

@@ -1,5 +1,7 @@
 # Implicit Coupling Taxonomy
 
+Last reviewed: 2026-07-02
+
 Deep reference for classifying, detecting, and resolving coupling in code reviews.
 
 ---

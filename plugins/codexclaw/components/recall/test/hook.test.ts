@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { detectRecallIntent, handleUserPromptSubmit } from "../src/hook.ts";
+import {
+  detectRecallIntent,
+  handleUserPromptSubmit,
+  handleSessionStart,
+  handlePostCompact,
+} from "../src/hook.ts";
 
 test("recall intent: korean idioms trigger", () => {
   for (const p of [
@@ -53,4 +58,22 @@ test("handler emits the pabcd-parity envelope only for recall intents", () => {
   assert.equal(handleUserPromptSubmit({ hook_event_name: "UserPromptSubmit", prompt: "hi" }), "");
   assert.equal(handleUserPromptSubmit({ hook_event_name: "Stop", prompt: "지난번" }), "");
   assert.equal(handleUserPromptSubmit({} as never), "", "fail-open on malformed payloads");
+});
+
+test("session-start advertises recall with and without index status", () => {
+  const withStatus = JSON.parse(handleSessionStart("1769 files / 354798 messages, last ingest X"));
+  assert.equal(withStatus.hookSpecificOutput.hookEventName, "SessionStart");
+  assert.match(withStatus.hookSpecificOutput.additionalContext, /cxc chat search/);
+  assert.match(withStatus.hookSpecificOutput.additionalContext, /Index: 1769 files/);
+  const bare = JSON.parse(handleSessionStart(""));
+  assert.match(bare.hookSpecificOutput.additionalContext, /\$cxc-recall/);
+  assert.ok(!bare.hookSpecificOutput.additionalContext.includes("Index:"));
+});
+
+test("post-compact steers recovery through recall search", () => {
+  const out = JSON.parse(handlePostCompact());
+  assert.equal(out.hookSpecificOutput.hookEventName, "PostCompact");
+  assert.match(out.hookSpecificOutput.additionalContext, /compacted/);
+  assert.match(out.hookSpecificOutput.additionalContext, /cxc chat search/);
+  assert.match(out.hookSpecificOutput.additionalContext, /cxc memory search/);
 });

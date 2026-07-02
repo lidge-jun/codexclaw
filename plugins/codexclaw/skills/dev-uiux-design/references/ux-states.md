@@ -1,4 +1,4 @@
-## 7. Onboarding & First-Run Patterns
+## 1. Onboarding & First-Run Patterns
 
 Design first-run experiences that deliver value immediately.
 
@@ -37,7 +37,7 @@ Ask for permissions at the moment of need, not during onboarding. Explain why be
 
 ---
 
-## 8. Empty State Design
+## 2. Empty State Design
 
 Every major view MUST have a designed empty state. Never leave a screen blank or show a generic "No data" message.
 
@@ -74,7 +74,7 @@ Every major view MUST have a designed empty state. Never leave a screen blank or
 
 ---
 
-## 9. Error State Taxonomy
+## 3. Error State Taxonomy
 
 Every error message follows: (1) what happened, (2) why, (3) what to do next.
 
@@ -102,7 +102,7 @@ Every error message follows: (1) what happened, (2) why, (3) what to do next.
 
 ---
 
-## 10. Loading State Patterns
+## 4. Loading State Patterns
 
 ### Skeleton Loaders
 - Match the skeleton to the real layout (same heights, widths, spacing).
@@ -126,7 +126,7 @@ Fade skeleton out, fade content in. Duration: 200ms. Never pop — the transitio
 
 ---
 
-## 11. Progressive Disclosure
+## 5. Progressive Disclosure
 
 Show ONLY essential information first. Defer advanced/optional content behind explicit user action.
 
@@ -161,7 +161,7 @@ Show ONLY essential information first. Defer advanced/optional content behind ex
 
 ---
 
-## 12. Error Page Taxonomy
+## 6. Error Page Taxonomy
 
 | Page | Content | Tone |
 |------|---------|------|
@@ -195,4 +195,3 @@ self.addEventListener('fetch', (event) => {
   }
 });
 ```
-

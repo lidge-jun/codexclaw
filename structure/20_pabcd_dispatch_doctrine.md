@@ -70,6 +70,8 @@ cli-jaw's `attestation.ts` requires forward transitions to carry evidence; narra
 rejected. codexclaw mirrors this as the one place the agent path is genuinely gated:
 
 - Forward transitions (P->A->B->C->D) require `--attest '{"from","to","did"}'`.
+- A->B additionally requires a pasted `auditOutput` (the dispatched reviewer subagent's
+  verdict tail — WP3), so the Audit gate structurally needs a real reviewer dispatch.
 - C->D additionally requires a pasted `checkOutput` (tsc/test tail) and `exitCode: 0`.
 - A bare agent `cxc orchestrate <phase>` without attest is rejected (409-style).
 - Human/chat-submitted commands are a free-pass source; the agent/CLI path is gated.
@@ -120,14 +122,17 @@ skill to the work, not by hoping the model loads it.**
   discipline at launch. "Investigate per `cxc-search`" becomes a real skill attachment,
   not a sentence in the task text.
 
-### Honesty note (open defect)
+### Honesty note (updated by WP2)
 Today only `cxc-dev` is implicit-visible; all `dev-*` siblings are
 `allow_implicit_invocation: false`. So routing for the implicit-visibility surface
 collapses to "dev only" unless the agent deliberately reads further. The spawn-time
-attachment mechanism itself HAS shipped: L15's E5 dispatch builder
-(`buildSpawnItems`/`SpawnPayload.items`) populates the payload's `items` channel with the
-surface skill when a dispatcher routes through it. The one unshipped piece is the L15.2
-E3 PreToolUse hook that would attach skills deterministically without an explicit builder call.
+attachment mechanism HAS shipped twice over: L15's E5 dispatch builder
+(`buildSpawnItems`/`SpawnPayload.items`) populates the v1 `items` channel when a
+dispatcher routes through it, and the WP2 E3 `^spawn_agent$` PreToolUse hook attaches
+deterministically WITHOUT a builder call by prepending link-form `[$cxc-*](skill://…)`
+mentions to the spawn `message` (schema-safe on both v1 and v2; no-op when `items` is
+present or the skills are already mentioned). Dispatchers should still name the surface
+skills explicitly in the message — the hook's surface inference is keyword-narrow.
 
 ---
 
@@ -154,7 +159,9 @@ Per `00_philosophy.md` §2, these cli-jaw surfaces are non-goals — do not port
 - No goal *write* path: codexclaw reads the native goal DB; only the main session
   calls `create_goal`.
 - No `cli-jaw dispatch` HTTP path; subagents are Codex-native `spawn_agent` calls.
-- No memory/chat/project/worklog server stores; `.codexclaw/` files are the only state.
+- No memory/chat/project/worklog server stores; `.codexclaw/` files are the only durable
+  state (user-level `~/.codexclaw` holds rebuildable derived caches only — recall FTS
+  index, ast-grep runtime — per the 2026-07-02 owner re-scope).
 - No provider mutation; the provider bridge is detect-only.
 
 If a future change wants one of these, it is a product-boundary decision, not a routine
