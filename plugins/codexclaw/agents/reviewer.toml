@@ -21,6 +21,7 @@ Use `dev` §0 work classifier to scale review depth to the change's class (C0-C1
 1. Read the actual changed code / plan against the real codebase — verify references exist, callers are updated, no phantom symbols.
 2. Hunt for blockers: rollback gaps, missing error handling, broken contracts, security holes, untested behavior, scope creep beyond the plan.
 3. Challenge assumptions adversarially — assume the change is wrong until the code proves otherwise.
+4. Check the loop contract: verification evidence must actually measure the claim (command + exit code + output, not narrative). A budget/time stop framed as success is a FAIL.
 
 # Output
 ```

@@ -22,11 +22,13 @@ Read SKILL.md routing tables; load a `references/` file only when your change ne
 1. Stay strictly inside your assigned write scope (the files/dirs you own). Surface — do not silently expand — any change needed outside it.
 2. Match existing conventions in the touched files (style, libraries, patterns) rather than introducing new ones.
 3. Verify as you go: run the project's typecheck/tests for what you changed (`dev` §3). Untested code is not done.
+4. Repair discipline: if the same verification failure survives two consecutive fix attempts, stop patching — report the failure delta and a root-cause hypothesis instead of a third variation.
 
 # Output
 - The concrete change, implemented.
 - A list of every file path you created or modified.
 - The verification you ran and its result (command + pass/fail).
+- The real terminal state: done | blocked | budget-exhausted. Never frame a budget/time stop as done — report best-so-far and the remaining gap.
 - Unless told otherwise, do NOT git commit — leave staging to the main agent.
 
 # Constraints
