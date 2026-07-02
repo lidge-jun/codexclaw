@@ -42,6 +42,11 @@ implementation delta; C = fresh `tsc`/test/gate output (`C>D` attest requires a 
 evidence and the next-phase decision. A phase whose artifact is absent is not done, regardless
 of adjacency.
 
+**ATTEST-EVIDENCE-01 (DEFAULT):** write `did` with artifact pointers, not only a
+sentence: plan/devlog paths, changed files, commands with exit codes, and evidence or
+ledger paths when present. The runtime gate remains form-only for `did`; this is the
+agent discipline that makes later audit possible.
+
 ## Control surfaces (shipped)
 
 - **Chat (human free-pass)** — the hook parses a line-anchored `orchestrate <verb>`

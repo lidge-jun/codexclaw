@@ -51,6 +51,14 @@ loops (Stop-hook continuation after D/IDLE).
   suppressed and `request_user_input` is hard-denied). The Interview is HITL-only and
   runs only with no active goal; the Stop hook never drives the Interview.
 
+## HOTL resource bounds
+
+Goal-mode loops are unattended. The P-phase loop-spec for each HOTL work-phase must
+state the tool/credential scope, write scope, token/cost budget, and wall-clock bound.
+For C4 surfaces, an unstated unattended scope is an ESCALATE-class omission: stop and
+ask before starting or continuing the loop. Hitting a resource bound is
+`BUDGET_EXHAUSTED`, not `DONE`.
+
 ## Continuation doctrine (LOOP-CONTINUE-01)
 
 The Stop hook keeps the turn alive, but the agent decides what "remaining work" means. When
@@ -67,14 +75,63 @@ re-entering a loop or after a `D` close:
 - **IDLE is not the end while work remains.** After `D` closes to IDLE, if any work-phase or
   unmet criterion remains under an active goal, start the next work-phase at `P`.
 
+## Terminal outcomes
+
+D is the success close-out only when the verifier proves the recorded criteria. Every
+loop report must name the actual terminal outcome:
+
+- `DONE` — verified success.
+- `NOOP` — no change was needed.
+- `BLOCKED` — an external dependency prevents progress.
+- `UNSAFE` — proceeding needs a human risk decision.
+- `NEEDS_HUMAN` — judgment or missing intent only the user can supply.
+- `BUDGET_EXHAUSTED` — resources ran out; adopt best-so-far only with evidence and
+  label it as such.
+
+These are report outcomes, not extra FSM phases: the shipped state still closes through
+`D` or `reset`, and the D summary states the real outcome.
+
+## Repair-loop discipline (LOOP-REPAIR-01 / LOOP-DOOM-01)
+
+The B/C inner loop is: implement -> run verifier -> read the failure delta -> repair
+only that failing delta -> re-verify. Feedback that does not change the next action is
+a retry, not a loop.
+
+- **LOOP-REPAIR-01 (DEFAULT):** 2 consecutive failed repairs of the same failure stop
+  patching and enter root-cause mode (`cxc-dev-debugging`). 3 failed repairs escalate:
+  return to P with a changed plan, or return to Interview when HITL clarification is
+  required.
+- **LOOP-DOOM-01 (HEURISTIC):** 3 attestation failures in the same PABCD-phase within
+  one work-phase means no-progress. In HITL, return to Interview. In HOTL, do not
+  fake Interview while a goal is active; either replan at P from the evidence already
+  available, or close the work-phase as `NEEDS_HUMAN`, `BLOCKED`, or `UNSAFE`.
+
+## Loop archetype by problem type (LOOP-ARCHETYPE-01)
+
+Classify the work-phase before choosing the loop shape:
+
+- **Spec-satisfaction repair** — the verifier defines done (tests, typecheck,
+  contracts, acceptance criteria). Keep one strategy, run the repair loop above, and
+  collapse at P once the plan is checkable.
+- **Open-ended optimization explore-and-select** — the verifier defines better, not
+  done (scores, win rates, adversarial evaluators). Generate diverse candidates from
+  domain-state evidence, evaluate them on the same instances, keep best-so-far, and
+  regenerate from the winner. Stop on plateau or resource budget; the terminal outcome
+  is `BUDGET_EXHAUSTED` with best-so-far evidence, not `DONE`, unless the plan named a
+  fixed pass threshold up front.
+
+A repair loop applied to an optimization problem is a category error; change the loop
+shape instead of adding more cycles.
+
 ## Emergence / Divergence Layer
 
 PABCD is convergence-first by default. For ordinary build or bug-fix goals, keep one
-strategy and execute it. Divergence is a **PABCD-layer mode**, not a standing habit:
-it can be selected deliberately in HITL PABCD during I/P, or automatically prompted
-in goal mode when a maximize objective records non-improving metrics (`cxc metric`)
-and the Stop hook emits the objective-plateau directive. The plateau-triggered mode
-is the shipped automatic entry, not the only valid entry.
+strategy and execute it. Divergence is a **PABCD-layer mode** and the Codexclaw
+machinery for the open-ended-optimization archetype above, not a standing habit: it can
+be selected deliberately in HITL PABCD during I/P, or automatically prompted in goal
+mode when a maximize objective records non-improving metrics (`cxc metric`) and the
+Stop hook emits the objective-plateau directive. The plateau-triggered mode is the
+shipped automatic entry, not the only valid entry.
 
 In HITL PABCD, use deliberate I/P divergence when the user's intent is open, the
 algorithmic approach is genuinely uncertain, the objective is maximize/deceptive, or
@@ -129,7 +186,9 @@ via:
 - **Stagnation cap** — a bounded `stopBlockCount` per phase; after `MAX_STOP_BLOCKS`
   consecutive blocks at the same phase with no transition, the loop releases so it can
   never trap a session. A real transition (chat or CLI) resets the counter, so each
-  phase of a healthy P→A→B→C→D gets a fresh budget.
+  phase of a healthy P→A→B→C→D gets a fresh budget. This is the runtime companion to
+  LOOP-DOOM-01, not a success signal; after release, apply the no-progress discipline
+  before retrying the same phase.
 - **Objective plateau block** — for active maximize goals with session-scoped metrics,
   two non-improving same-metric rows switch the block reason from plain continuation
   to "step back and re-plan with divergence." This still uses the same bounded
