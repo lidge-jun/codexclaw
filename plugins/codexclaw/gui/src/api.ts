@@ -124,6 +124,37 @@ export interface HandshakeStatus {
   pairedChatId: string | null;
 }
 
+/* ---- named agents (v4) ---- */
+export const AGENT_EFFORTS = ["default", "minimal", "low", "medium", "high", "xhigh"] as const;
+export type AgentEffort = (typeof AGENT_EFFORTS)[number];
+
+export interface AgentInfo {
+  id: number;
+  name: string;
+  kind: ChannelKind;
+  hasToken: boolean;
+  enabled: boolean;
+  model: string;
+  effort: string;
+  autoSend: boolean;
+  mentionOnly: boolean;
+  heartbeatMinutes: number;
+  heartbeatPrompt: string;
+  allowlistCount: number;
+  updatedAt: string;
+}
+
+export interface AgentPatchBody {
+  name?: string;
+  token?: string;
+  model?: string;
+  effort?: AgentEffort;
+  autoSend?: boolean;
+  mentionOnly?: boolean;
+  heartbeatMinutes?: number;
+  heartbeatPrompt?: string;
+}
+
 async function postJson<T>(path: string, body: unknown): Promise<{ ok: boolean; status: number; data: T | null }> {
   try {
     const res = await fetch(`${API_BASE}${path}`, {
@@ -162,4 +193,21 @@ export const api = {
     postJson<{ ok: boolean }>("/api/connect/handshake/open", { kind, seconds }),
   handshakeStatus: (kind: ChannelKind) =>
     getJson<HandshakeStatus>(`/api/connect/handshake/status?kind=${kind}`, { open: false, pairedChatId: null }),
+
+  // named agents (v4)
+  getAgents: () => getJson<{ agents: AgentInfo[] }>("/api/agents", { agents: [] }),
+  createAgent: (name: string, kind: ChannelKind, token: string) =>
+    postJson<{ ok: boolean; agent?: AgentInfo; error?: string }>("/api/agents", { name, kind, token }),
+  updateAgent: (id: number, patch: AgentPatchBody) =>
+    postJson<{ ok: boolean; agent?: AgentInfo; error?: string }>("/api/agents/update", { id, ...patch }),
+  enableAgent: (id: number, enabled: boolean) =>
+    postJson<{ ok: boolean; error?: string }>("/api/agents/enable", { id, enabled }),
+  deleteAgent: (id: number) => postJson<{ ok: boolean; error?: string }>("/api/agents/delete", { id }),
+  openAgentHandshake: (id: number, seconds = 180) =>
+    postJson<{ ok: boolean }>("/api/agents/handshake/open", { id, seconds }),
+  agentHandshakeStatus: (id: number) =>
+    getJson<{ open: boolean; allowlistCount: number }>(`/api/agents/handshake/status?id=${id}`, {
+      open: false,
+      allowlistCount: 0,
+    }),
 };
