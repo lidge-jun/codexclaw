@@ -54,8 +54,9 @@ test("native cache absent -> documented fallback set", () => {
 });
 
 test("readNativeCacheDefault: allowlists cache ids, ignores unknowns; missing path -> null", () => {
-  // missing path
-  assert.equal(readNativeCacheDefault({}), null);
+  // missing cache: point CODEX_HOME at an empty dir (a bare {} env now resolves
+  // to the real ~/.codex/models_cache.json by design — never touch it in tests)
+  assert.equal(readNativeCacheDefault({ CODEX_HOME: mkdtempSync(join(tmpdir(), "cxc-nohome-")) } as NodeJS.ProcessEnv), null);
   // cache file with a mix of allowed + unknown ids
   const dir = mkdtempSync(join(tmpdir(), "cxc-cat-"));
   const p = join(dir, "models.json");
@@ -122,4 +123,33 @@ test("L9.2: routed provider/model ocx slugs are selectable + deduped, native fir
   assert.deepEqual(cat.entries.map((e) => e.id), ["gpt-5.5", "openrouter/grok-4", "anthropic/claude-opus"]);
   assert.equal(cat.entries[0].source, "native");
   assert.equal(cat.entries[1].source, "ocx");
+});
+
+test("WP30: CODEX_HOME resolution — cache at $CODEX_HOME/models_cache.json loads without CODEX_MODELS_CACHE_PATH", () => {
+  const home = mkdtempSync(join(tmpdir(), "cxc-home-"));
+  writeFileSync(
+    join(home, "models_cache.json"),
+    JSON.stringify({ models: [{ slug: "gpt-5.5" }, { slug: "anthropic/claude-sonnet-5" }, { slug: "rogue" }] }),
+  );
+  const ids = readNativeCacheDefault({ CODEX_HOME: home } as NodeJS.ProcessEnv);
+  assert.deepEqual(ids, ["gpt-5.5", "anthropic/claude-sonnet-5"]); // rogue filtered, routed slug admitted
+});
+
+test("WP30: explicit CODEX_MODELS_CACHE_PATH still wins over CODEX_HOME", () => {
+  const home = mkdtempSync(join(tmpdir(), "cxc-home2-"));
+  writeFileSync(join(home, "models_cache.json"), JSON.stringify({ models: [{ slug: "gpt-5.4" }] }));
+  const dir = mkdtempSync(join(tmpdir(), "cxc-explicit-"));
+  const p = join(dir, "explicit.json");
+  writeFileSync(p, JSON.stringify({ models: [{ slug: "gpt-5.5" }] }));
+  const ids = readNativeCacheDefault({ CODEX_HOME: home, CODEX_MODELS_CACHE_PATH: p } as NodeJS.ProcessEnv);
+  assert.deepEqual(ids, ["gpt-5.5"]);
+});
+
+test("WP30: provider mode + cache-borne routed slugs (ocxModels undefined) -> ocx-active, not unsupported", () => {
+  const cat = buildCatalog({
+    readNativeCache: () => ["gpt-5.5", "anthropic/claude-sonnet-5"],
+    providerStatus: { mode: "provider" }, // no catalog interface — but ocx entries arrived via cache sync
+  });
+  assert.equal(cat.state, "ocx-active");
+  assert.equal(cat.entries.find((e) => e.id === "anthropic/claude-sonnet-5")?.source, "ocx");
 });

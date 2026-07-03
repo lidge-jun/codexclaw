@@ -17,6 +17,8 @@
  * for the same model collapse, native kept first.
  */
 import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 export const NATIVE_OPENAI_MODELS = ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex-spark"]         ;
 
@@ -79,8 +81,14 @@ function isRoutedSlug(key        )          {
  *  AND any routed slug (contains "/") — dropping routed slugs would hide exactly
  *  the ocx-synced models the subagent config is meant to select. */
 export function readNativeCacheDefault(env                    = process.env)                  {
-  const path = env.CODEX_MODELS_CACHE_PATH;
-  if (!path || !existsSync(path)) return null;
+  // Resolve like opencodex (codex-paths.ts:30): explicit override, else
+  // $CODEX_HOME/models_cache.json, else ~/.codex/models_cache.json. Nothing in
+  // `cxc serve` sets CODEX_MODELS_CACHE_PATH, so the homedir default is what
+  // makes the ocx-synced routed slugs actually load in practice.
+  const path =
+    env.CODEX_MODELS_CACHE_PATH ??
+    join(env.CODEX_HOME ?? join(homedir(), ".codex"), "models_cache.json");
+  if (!existsSync(path)) return null;
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8"))           ;
     const list = Array.isArray(parsed) ? parsed : (parsed                        )?.models;
@@ -126,9 +134,12 @@ export function buildCatalog(deps              = {})          {
     return { state: "native-catalog", entries: native };
   }
 
-  // ocx is active. If it exposes no catalog interface, report unsupported.
+  // ocx is active. If it exposes no catalog interface, the cache-sync channel may
+  // still have delivered routed slugs (opencodex syncs them into the codex models
+  // cache) — reporting "unsupported" would be a lie when ocx entries are present.
   if (status.ocxModels === undefined) {
-    return { state: "unsupported-ocx-catalog", entries: native };
+    const hasOcxEntries = native.some((e) => e.source === "ocx");
+    return { state: hasOcxEntries ? "ocx-active" : "unsupported-ocx-catalog", entries: native };
   }
 
   const seen = new Set(native.map((e) => e.id));
