@@ -159,7 +159,9 @@ test("channels + bindings read models", async () => {
   const h = await start();
   try {
     h.db.setChannelToken("telegram", "t");
-    h.db.setActiveChannel("telegram");
+    // Activate via the ROUTE: slice-50 semantics derive "active" from enabled
+    // agents, and the activate shim is what creates+enables the kind's agent.
+    await post(h.base, "/api/connect/activate", { kind: "telegram" });
     h.db.getOrCreateBinding("telegram", "77", h.cwd);
 
     const channels = (await (await fetch(`${h.base}/api/channels`)).json()) as {

@@ -240,3 +240,80 @@ test("409 conflict stops the adapter after max retries", async () => {
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+/* ── v4 agent-scoped cases (slice 50) ──────────────────────────────────── */
+
+test("agent scope: /start pairs into agent_allowlist and closes the agent window", async () => {
+  const { db } = tempDb();
+  const agent = db.createAgent("telegram-1", "telegram", "tok");
+  db.openAgentHandshake(agent.id, 60);
+  const { fetchImpl } = makeFetch([[textUpdate(1, 900, "/start")]]);
+  const adapter = createTelegramAdapter({
+    db,
+    token: "tok",
+    workdir: "/tmp/w",
+    agent: { id: agent.id },
+    agentService: stubAgentService(async () => ({ ok: true, text: "unused" })),
+    fetchImpl: fetchImpl as never,
+  });
+  await adapter.start();
+  await settle();
+  adapter.stop();
+  assert.equal(db.isAgentAllowed(agent.id, "900"), true);
+  assert.equal(db.isAgentHandshakeOpen(agent.id), false); // atomic one-shot close
+  assert.equal(db.isAllowed("telegram", "900"), false); // legacy allowlist untouched
+  db.close();
+});
+
+test("agent scope: mention_only=0 responds in groups without a mention; binding carries agent_id", async () => {
+  const { db } = tempDb();
+  const agent = db.createAgent("telegram-1", "telegram", "tok");
+  db.updateAgent(agent.id, { mention_only: 0 });
+  db.addAgentAllowlist(agent.id, "600");
+  const requests: IncomingRequest[] = [];
+  const { fetchImpl } = makeFetch([[textUpdate(1, 600, "no mention here", "group")]]);
+  const adapter = createTelegramAdapter({
+    db,
+    token: "tok",
+    workdir: "/tmp/w",
+    agent: { id: agent.id },
+    agentService: stubAgentService(async (req) => {
+      requests.push(req);
+      // Resolve the binding the way AgentService would, to assert agent scoping.
+      const binding = db.getOrCreateAgentBinding(req.agentId!, req.kind, req.chatId, req.workdir);
+      assert.equal(binding.agent_id, agent.id);
+      return { ok: true, text: "replied" };
+    }),
+    fetchImpl: fetchImpl as never,
+  });
+  await adapter.start();
+  await settle();
+  adapter.stop();
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].agentId, agent.id);
+  db.close();
+});
+
+test("agent scope: mention_only=1 gates un-mentioned group messages (default)", async () => {
+  const { db } = tempDb();
+  const agent = db.createAgent("telegram-1", "telegram", "tok");
+  db.addAgentAllowlist(agent.id, "601");
+  let called = 0;
+  const { fetchImpl } = makeFetch([[textUpdate(1, 601, "hello without mention", "group")]]);
+  const adapter = createTelegramAdapter({
+    db,
+    token: "tok",
+    workdir: "/tmp/w",
+    agent: { id: agent.id },
+    agentService: stubAgentService(async () => {
+      called += 1;
+      return { ok: true, text: "x" };
+    }),
+    fetchImpl: fetchImpl as never,
+  });
+  await adapter.start();
+  await settle();
+  adapter.stop();
+  assert.equal(called, 0);
+  db.close();
+});
