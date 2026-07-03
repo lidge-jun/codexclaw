@@ -125,6 +125,9 @@ export function agentRoutes(deps: AgentRoutesDeps = {}): ApiRoute[] {
         }
 
         const updated = ctx.db.updateAgent(id, patch);
+        // A token change on a RUNNING agent must restart its adapter; the
+        // diff-based reload touches only that adapter.
+        if (patch.token !== undefined && agent.enabled === 1) await ctx.controller?.reload();
         return { status: 200, body: { ok: true, agent: updated ? publicAgent(ctx, updated) : null } };
       },
     },
@@ -155,9 +158,10 @@ export function agentRoutes(deps: AgentRoutesDeps = {}): ApiRoute[] {
         if (!agent) return bad(`no agent ${id}`);
         if (enabled && agent.token.length === 0) return bad("agent has no token — set one first");
         ctx.db.setAgentEnabled(id, enabled);
-        // Flag-only in slice 40. Do NOT controller.reload() here: today's reload
-        // bounces the LIVE legacy adapter (stop() SIGTERMs in-flight codex turns)
-        // — per-agent runtime reload is slice 50's multi-adapter contract.
+        // Slice 50: reload is diff-based — it starts/stops ONLY this agent's
+        // adapter, so live reload is safe now (the slice-40 objection was the
+        // legacy whole-bounce, which no longer exists).
+        await ctx.controller?.reload();
         return { status: 200, body: { ok: true, enabled } };
       },
     },

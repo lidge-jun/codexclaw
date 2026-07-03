@@ -23,6 +23,34 @@ function bad(message        )              {
   return { status: 400, body: { error: message } };
 }
 
+/* ── legacy-API-over-agents shims (slice 50) ─────────────────────────────────
+ * Agents are the runtime source of truth; these keep the pre-agent GUI alive:
+ * the per-kind flow maps onto the FIRST agent of that kind ("<kind>-1"). */
+
+function agentsOfKind(ctx        , kind             )             {
+  return ctx.db.listAgents().filter((a) => a.kind === kind);
+}
+
+/** First free "<kind>-N" name (a user may have taken "<kind>-1" for another kind). */
+function freeAgentName(ctx        , kind             )         {
+  for (let n = 1; ; n += 1) {
+    const name = `${kind}-${n}`;
+    if (!ctx.db.getAgentByName(name)) return name;
+  }
+}
+
+/** Ensure a shim agent exists for the kind, carrying the given token. */
+function ensureKindAgent(ctx        , kind             , token        )           {
+  const existing = agentsOfKind(ctx, kind)[0];
+  if (existing) {
+    if (existing.token !== token) {
+      return ctx.db.updateAgent(existing.id, { token }) ?? existing;
+    }
+    return existing;
+  }
+  return ctx.db.createAgent(freeAgentName(ctx, kind), kind, token);
+}
+
 export function connectRoutes()             {
   return [
     {
@@ -37,6 +65,9 @@ export function connectRoutes()             {
         const result = await validateToken(kind, token);
         if (!result.ok) return { status: 400, body: { ok: false, error: result.error } };
         ctx.db.setChannelToken(kind, token);
+        // Shim: keep the kind's first agent carrying the same token so the
+        // agent-based runtime picks it up on activate.
+        ensureKindAgent(ctx, kind, token);
         return { status: 200, body: { ok: true, username: result.username ?? null } };
       },
     },
@@ -48,7 +79,12 @@ export function connectRoutes()             {
         if (!kind) return bad("kind must be telegram or discord");
         const channel = ctx.db.getChannel(kind);
         if (!channel?.token) return bad(`no token saved for ${kind}`);
-        ctx.db.setActiveChannel(kind);
+        ctx.db.setActiveChannel(kind); // legacy table stays coherent
+        // Shim: the runtime runs on agents — enable the kind's first agent,
+        // creating it from the channel token when missing (covers direct
+        // setChannelToken paths that never hit /validate).
+        const agent = ensureKindAgent(ctx, kind, channel.token);
+        ctx.db.setAgentEnabled(agent.id, true);
         await ctx.controller?.reload();
         return { status: 200, body: { ok: true, active: kind, status: ctx.controller?.adapterStatus() ?? "n/a" } };
       },
@@ -58,6 +94,10 @@ export function connectRoutes()             {
       path: "/api/connect/deactivate",
       handler: async (ctx) => {
         ctx.db.setActiveChannel(null);
+        // Legacy semantic: "turn the messenger off" — disable every agent.
+        for (const agent of ctx.db.listAgents()) {
+          if (agent.enabled === 1) ctx.db.setAgentEnabled(agent.id, false);
+        }
         await ctx.controller?.reload();
         return { status: 200, body: { ok: true, active: null } };
       },
@@ -93,11 +133,20 @@ export function connectRoutes()             {
       handler: (ctx) => {
         const channels = KINDS.map((kind) => {
           const ch = ctx.db.getChannel(kind);
+          const agents = agentsOfKind(ctx, kind);
+          // Agents are the runtime source: a kind is "active" when any of its
+          // agents is enabled; counts come from agent allowlists (falling back
+          // to the legacy table when the kind has no agents yet).
+          const active = agents.some((a) => a.enabled === 1);
+          const allowlistCount =
+            agents.length > 0
+              ? agents.reduce((sum, a) => sum + ctx.db.listAgentAllowlist(a.id).length, 0)
+              : ctx.db.listAllowlist(kind).length;
           return {
             kind,
-            hasToken: Boolean(ch?.token),
-            active: ch?.active === 1,
-            allowlistCount: ctx.db.listAllowlist(kind).length,
+            hasToken: agents.some((a) => a.token.length > 0) || Boolean(ch?.token),
+            active,
+            allowlistCount,
           };
         });
         return {
