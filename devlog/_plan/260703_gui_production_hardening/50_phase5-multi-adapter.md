@@ -96,3 +96,20 @@ shim over agent "<kind>-1", so the current GUI stays functional until slice 60.
   an already-running same-kind adapter's token.
 - Shared AgentService child-process registry now spans agents — shutdown() kills
   everything (intended for serve shutdown).
+
+## REV 2 — audit findings applied (Backend employee, FAIL/7 → fixes)
+
+1. Adapter `stop()` must NOT call `agentService.shutdown()` (kills ALL agents'
+   children) — ownership moves to `BridgeController.stop()`; adapters only stop
+   their own poll/gateway loop.
+2. `DiscordGateway` READY handler parses `d.user.id` → exposed as `botUserId()`;
+   message events keep raw content.
+3. Mention detection uses `<@!?botId>` (nickname mentions are `<@!id>`) — regex
+   `new RegExp("<@!?" + botId + ">")`; same regex strips the mention from the prompt.
+4. Activate shim creates `"<kind>-1"` ON DEMAND from the channels token when the
+   kind has a token but no agent (covers direct setChannelToken paths/tests).
+5. Telegram: strip `@botusername` from group text even when `mention_only=0`.
+6. Accepted as-is (matches existing per-message sync `isAllowed` pattern): one
+   extra single-row sync read per message is sub-ms on this SQLite scale.
+7. `deleteWebhook(dropPending)` is per-token; the same-token duplicate guard
+   already prevents cross-agent interference.
