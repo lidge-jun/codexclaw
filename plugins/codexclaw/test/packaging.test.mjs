@@ -30,6 +30,7 @@ const repoRoot = resolve(pluginRoot, "..", "..");
 const ENTRYPOINTS = [
   "components/config-guard/dist/cli.js",
   "components/cxc-ops/dist/cli.js",
+  "components/messenger-bridge/dist/cli.js",
   "components/pabcd-state/dist/cli.js",
   "components/provider-bridge/dist/cli.js",
   "components/recall/dist/cli.js",
