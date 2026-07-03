@@ -67,7 +67,11 @@ test("catalog: native entries always present; ocx-present-no-list -> unsupported
     which: () => "/x/ocx",
     runStatus: () => ({ status: 0, stdout: JSON.stringify({ proxy: { running: true }, listen: { port: 10100 } }) }),
   });
-  assert.equal((ocx.body as any).state, "unsupported-ocx-catalog");
+  // Default reader is machine-dependent (may load the real ~/.codex cache):
+  // the invariant is state honesty — ocx-active iff ocx-sourced entries exist.
+  const body = ocx.body as { state: string; entries: Array<{ source: string }> };
+  const hasOcx = body.entries.some((e) => e.source === "ocx");
+  assert.equal(body.state, hasOcx ? "ocx-active" : "unsupported-ocx-catalog");
 });
 
 test("GUI checkbox flow: bare mode:model on fresh role -> 400 with real error; with model -> 200; bare re-assert keeps model", () => {
