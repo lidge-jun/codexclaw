@@ -12,7 +12,8 @@ interface Props {
 export function ModelSelect({ value, disabled, entries, onChange }: Props) {
   return (
     <select
-      className="model-select"
+      className="select"
+      style={{ maxWidth: "220px" }}
       disabled={disabled}
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}

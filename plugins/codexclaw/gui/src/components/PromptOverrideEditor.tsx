@@ -8,7 +8,7 @@ interface Props {
 export function PromptOverrideEditor({ value, onChange }: Props) {
   return (
     <textarea
-      className="prompt-editor"
+      className="textarea"
       placeholder="Role prompt override (blank = inherit role skill prompt)"
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value.trim() === "" ? null : e.target.value)}

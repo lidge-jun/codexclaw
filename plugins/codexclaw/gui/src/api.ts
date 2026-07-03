@@ -43,9 +43,16 @@ export const defaultConfig = (): SubagentsConfig => ({
  */
 const API_BASE: string = (import.meta.env?.VITE_CXC_API as string | undefined) ?? "";
 
+// Custom header that marks a request as same-origin GUI traffic. The bridge
+// server's local guard requires it on mutating routes; a cross-origin page
+// cannot set it without a CORS preflight the server never answers.
+const LOCAL_HEADER = { "x-codexclaw-local": "1" };
+
 async function getJson<T>(path: string, fallback: T): Promise<T> {
   try {
-    const res = await fetch(`${API_BASE}${path}`, { headers: { accept: "application/json" } });
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: { accept: "application/json", ...LOCAL_HEADER },
+    });
     if (!res.ok) return fallback;
     return (await res.json()) as T;
   } catch {
@@ -54,22 +61,80 @@ async function getJson<T>(path: string, fallback: T): Promise<T> {
   }
 }
 
-/** POST a role patch; returns the updated config or the current fallback. */
+export interface SetRoleResult {
+  ok: boolean;
+  /** updated config on success; the caller-provided fallback on failure. */
+  config: SubagentsConfig;
+  error?: string;
+}
+
+/** POST a role patch. Failures are surfaced (never silently swallowed) so the
+ *  UI can show the real error instead of a false success. */
 export async function setSubagentRole(
   role: "explorer" | "reviewer" | "executor",
   patch: Partial<RoleConfig> & { role?: never },
   fallback: SubagentsConfig,
-): Promise<SubagentsConfig> {
+): Promise<SetRoleResult> {
   try {
     const res = await fetch(`${API_BASE}/api/subagents`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-codexclaw-local": "1" },
       body: JSON.stringify({ role, ...patch }),
     });
-    if (!res.ok) return fallback;
-    return (await res.json()) as SubagentsConfig;
+    const body = (await res.json().catch(() => null)) as
+      | (SubagentsConfig & { error?: string })
+      | { error?: string }
+      | null;
+    if (!res.ok || !body || !("roles" in body)) {
+      return { ok: false, config: fallback, error: body?.error ?? `save failed (${res.status})` };
+    }
+    return { ok: true, config: body as SubagentsConfig };
   } catch {
-    return fallback;
+    return { ok: false, config: fallback, error: "backend unreachable" };
+  }
+}
+
+/* ---- bridge (messenger) types ---- */
+export type ChannelKind = "telegram" | "discord";
+
+export interface ChannelInfo {
+  kind: ChannelKind;
+  hasToken: boolean;
+  active: boolean;
+  allowlistCount: number;
+}
+
+export interface ChannelsState {
+  channels: ChannelInfo[];
+  activeKind: ChannelKind | null;
+  adapterStatus: string;
+}
+
+export interface BindingRow {
+  id: number;
+  channel_kind: ChannelKind;
+  chat_id: string;
+  thread_id: string | null;
+  status: string;
+  updated_at: string;
+}
+
+export interface HandshakeStatus {
+  open: boolean;
+  pairedChatId: string | null;
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<{ ok: boolean; status: number; data: T | null }> {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...LOCAL_HEADER },
+      body: JSON.stringify(body),
+    });
+    const data = (await res.json().catch(() => null)) as T | null;
+    return { ok: res.ok, status: res.status, data };
+  } catch {
+    return { ok: false, status: 0, data: null };
   }
 }
 
@@ -84,4 +149,17 @@ export const api = {
       ],
     }),
   getProvider: () => getJson<ProviderState>("/api/provider", { mode: "native", port: null }),
+
+  // bridge
+  getChannels: () =>
+    getJson<ChannelsState>("/api/channels", { channels: [], activeKind: null, adapterStatus: "n/a" }),
+  getBindings: () => getJson<{ bindings: BindingRow[] }>("/api/bindings", { bindings: [] }),
+  validateToken: (kind: ChannelKind, token: string) =>
+    postJson<{ ok: boolean; username: string | null; error?: string }>("/api/connect/validate", { kind, token }),
+  activateChannel: (kind: ChannelKind) => postJson<{ ok: boolean }>("/api/connect/activate", { kind }),
+  deactivateChannel: () => postJson<{ ok: boolean }>("/api/connect/deactivate", {}),
+  openHandshake: (kind: ChannelKind, seconds = 120) =>
+    postJson<{ ok: boolean }>("/api/connect/handshake/open", { kind, seconds }),
+  handshakeStatus: (kind: ChannelKind) =>
+    getJson<HandshakeStatus>(`/api/connect/handshake/status?kind=${kind}`, { open: false, pairedChatId: null }),
 };
