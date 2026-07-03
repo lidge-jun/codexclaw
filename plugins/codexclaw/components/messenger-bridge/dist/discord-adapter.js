@@ -12,53 +12,53 @@
  * that agent, and guild messages honor the agent's mention_only toggle (mention
  * = `<@botId>` or nickname form `<@!botId>`, from the gateway READY user id).
  */
-import type { BridgeDb } from "./db.ts";
-import type { AgentService } from "./agent-service.ts";
-import { DiscordApi, chunkDiscordMessage, type FetchImpl } from "./discord-api.ts";
+
+
+import { DiscordApi, chunkDiscordMessage,                } from "./discord-api.js";
 import {
   DiscordGateway,
-  type DiscordMessageEvent,
-  type WsFactory,
-} from "./discord-gateway.ts";
 
-export interface DiscordAdapterOptions {
-  db: BridgeDb;
-  token: string;
-  workdir: string;
-  agentService: AgentService;
-  /** When set, the adapter is scoped to this named agent (v4): per-agent
-   *  handshake, allowlist, mention gate, and bindings. Absent = legacy. */
-  agent?: { id: number };
-  fetchImpl?: FetchImpl;
-  wsFactory?: WsFactory;
-  log?: (line: string) => void;
-}
 
-export interface DiscordAdapter {
-  start: () => Promise<void>;
-  stop: () => void;
-  status: () => string;
-}
+} from "./discord-gateway.js";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const START_TRIGGER = "!cxc start";
 
-export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapter {
+export function createDiscordAdapter(opts                       )                 {
   const api = new DiscordApi(opts.token, opts.fetchImpl);
   const log = opts.log ?? (() => {});
   const agentId = opts.agent?.id ?? null;
-  let gateway: DiscordGateway | null = null;
+  let gateway                        = null;
   let warnedNoBotId = false;
   // Bounded dedupe of recently-seen message ids — the gateway can redeliver a
   // MESSAGE_CREATE on RESUME, and a full-permission exec must not run twice
   // (security review finding 4).
-  const seenIds = new Set<string>();
-  const seenOrder: string[] = [];
+  const seenIds = new Set        ();
+  const seenOrder           = [];
 
-  const isAllowedChat = (channelId: string) =>
+  const isAllowedChat = (channelId        ) =>
     agentId === null ? opts.db.isAllowed("discord", channelId) : opts.db.isAgentAllowed(agentId, channelId);
   const isHandshakeOpen = () =>
     agentId === null ? opts.db.isHandshakeOpen("discord") : opts.db.isAgentHandshakeOpen(agentId);
-  const admitChannel = (channelId: string) => {
+  const admitChannel = (channelId        ) => {
     if (agentId === null) {
       opts.db.addAllowlist("discord", channelId, "");
       opts.db.closeHandshake("discord");
@@ -71,7 +71,7 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
   const mentionRequired = () =>
     agentId === null ? false : (opts.db.getAgent(agentId)?.mention_only ?? 1) === 1;
 
-  function alreadySeen(id: string): boolean {
+  function alreadySeen(id        )          {
     if (!id) return false;
     if (seenIds.has(id)) return true;
     seenIds.add(id);
@@ -84,7 +84,7 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
   }
 
   /** Guild-channel mention gate + strip. Returns null when gated out. */
-  function gateAndStripMention(msg: DiscordMessageEvent, text: string): string | null {
+  function gateAndStripMention(msg                     , text        )                {
     if (!msg.guildId) return text; // DMs always respond
     const botId = gateway?.botUserId() ?? null;
     if (!botId) {
@@ -102,7 +102,7 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
     return text.replace(new RegExp(`<@!?${botId}>`, "g"), "").trim();
   }
 
-  async function handleMessage(msg: DiscordMessageEvent): Promise<void> {
+  async function handleMessage(msg                     )                {
     if (msg.isBot) return; // never react to bots (incl. our own echoes)
     if (alreadySeen(msg.id)) return; // duplicate gateway delivery
     const channelId = msg.channelId;
@@ -135,7 +135,7 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
     }
   }
 
-  async function handleStart(channelId: string): Promise<void> {
+  async function handleStart(channelId        )                {
     if (isAllowedChat(channelId)) {
       await api.sendMessage(channelId, "codexclaw: already connected ✅");
       return;
@@ -157,7 +157,7 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
         log,
         onMessage: (msg) =>
           void handleMessage(msg).catch((err) =>
-            log(`[discord] handle error: ${(err as Error).message}`),
+            log(`[discord] handle error: ${(err         ).message}`),
           ),
       });
       gateway.connect();

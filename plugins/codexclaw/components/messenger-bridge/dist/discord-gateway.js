@@ -20,76 +20,76 @@ export const OP = {
   INVALID_SESSION: 9,
   HELLO: 10,
   HEARTBEAT_ACK: 11,
-} as const;
+}         ;
 
 // Intents: GUILD_MESSAGES (1<<9) | DIRECT_MESSAGES (1<<12) | MESSAGE_CONTENT (1<<15).
 // MESSAGE_CONTENT is privileged — must be enabled in the bot's dev-portal settings.
 export const INTENTS = (1 << 9) | (1 << 12) | (1 << 15);
 
-export interface DiscordMessageEvent {
-  id: string;
-  content: string;
-  channelId: string;
-  authorId: string;
-  isBot: boolean;
-  guildId: string | null;
-}
 
-export interface WsLike {
-  send(data: string): void;
-  close(code?: number): void;
-  addEventListener(type: "open" | "message" | "close" | "error", listener: (ev: unknown) => void): void;
-}
 
-export type WsFactory = (url: string) => WsLike;
 
-export interface DiscordGatewayOptions {
-  token: string;
-  onMessage: (msg: DiscordMessageEvent) => void;
-  wsFactory?: WsFactory;
-  log?: (line: string) => void;
-  now?: () => number;
-  jitter?: () => number;
-}
 
-type GatewayState = "idle" | "connecting" | "ready" | "resuming" | "stopped";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export class DiscordGateway {
-  private token: string;
-  private onMessage: (msg: DiscordMessageEvent) => void;
-  private makeWs: WsFactory;
-  private log: (line: string) => void;
-  private jitter: () => number;
+          token        ;
+          onMessage                                    ;
+          makeWs           ;
+          log                        ;
+          jitter              ;
 
-  private ws: WsLike | null = null;
-  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private seq: number | null = null;
-  private sessionId: string | null = null;
-  private resumeUrl: string | null = null;
-  private state: GatewayState = "idle";
-  private acked = true;
-  private stopped = false;
-  private reconnecting = false;
-  private botId: string | null = null;
+          ws                = null;
+          heartbeatTimer                                        = null;
+          seq                = null;
+          sessionId                = null;
+          resumeUrl                = null;
+          state               = "idle";
+          acked = true;
+          stopped = false;
+          reconnecting = false;
+          botId                = null;
 
-  constructor(opts: DiscordGatewayOptions) {
+  constructor(opts                       ) {
     this.token = opts.token;
     this.onMessage = opts.onMessage;
-    this.makeWs = opts.wsFactory ?? ((url: string) => new WebSocket(url) as unknown as WsLike);
+    this.makeWs = opts.wsFactory ?? ((url        ) => new WebSocket(url)                     );
     this.log = opts.log ?? (() => {});
     this.jitter = opts.jitter ?? Math.random;
   }
 
-  status(): GatewayState {
+  status()               {
     return this.state;
   }
 
   /** Bot user id from READY, or null before the first READY. */
-  botUserId(): string | null {
+  botUserId()                {
     return this.botId;
   }
 
-  connect(url = GATEWAY_URL): void {
+  connect(url = GATEWAY_URL)       {
     if (this.stopped) return;
     this.state = this.sessionId ? "resuming" : "connecting";
     const ws = this.makeWs(url);
@@ -101,7 +101,7 @@ export class DiscordGateway {
     this.reconnecting = false;
   }
 
-  stop(): void {
+  stop()       {
     this.stopped = true;
     this.state = "stopped";
     this.clearHeartbeat();
@@ -109,18 +109,18 @@ export class DiscordGateway {
     this.ws = null;
   }
 
-  private clearHeartbeat(): void {
+          clearHeartbeat()       {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
     }
   }
 
-  private sendOp(op: number, d: unknown): void {
+          sendOp(op        , d         )       {
     this.ws?.send(JSON.stringify({ op, d }));
   }
 
-  private startHeartbeat(intervalMs: number): void {
+          startHeartbeat(intervalMs        )       {
     this.clearHeartbeat();
     this.acked = true;
     // First beat after a jittered fraction of the interval (per docs).
@@ -143,7 +143,7 @@ export class DiscordGateway {
     first.unref?.();
   }
 
-  private identify(): void {
+          identify()       {
     this.sendOp(OP.IDENTIFY, {
       token: this.token,
       intents: INTENTS,
@@ -151,7 +151,7 @@ export class DiscordGateway {
     });
   }
 
-  private resume(): void {
+          resume()       {
     this.sendOp(OP.RESUME, {
       token: this.token,
       session_id: this.sessionId,
@@ -159,7 +159,7 @@ export class DiscordGateway {
     });
   }
 
-  private reconnect(): void {
+          reconnect()       {
     if (this.stopped || this.reconnecting) return;
     this.reconnecting = true;
     this.clearHeartbeat();
@@ -177,16 +177,16 @@ export class DiscordGateway {
     this.connect(this.resumeUrl ?? GATEWAY_URL);
   }
 
-  private onWsClose(): void {
+          onWsClose()       {
     this.clearHeartbeat();
     if (this.stopped || this.reconnecting) return;
     this.log("[discord] ws closed — reconnecting");
     this.reconnect();
   }
 
-  private onWsMessage(ev: unknown): void {
-    const raw = (ev as { data?: unknown }).data ?? ev;
-    let payload: { op: number; d?: unknown; s?: number | null; t?: string | null };
+          onWsMessage(ev         )       {
+    const raw = (ev                      ).data ?? ev;
+    let payload                                                                   ;
     try {
       payload = JSON.parse(typeof raw === "string" ? raw : String(raw));
     } catch {
@@ -196,7 +196,7 @@ export class DiscordGateway {
 
     switch (payload.op) {
       case OP.HELLO: {
-        const interval = (payload.d as { heartbeat_interval: number }).heartbeat_interval;
+        const interval = (payload.d                                  ).heartbeat_interval;
         this.startHeartbeat(interval);
         if (this.sessionId) this.resume();
         else this.identify();
@@ -226,9 +226,9 @@ export class DiscordGateway {
     }
   }
 
-  private onDispatch(type: string, d: unknown): void {
+          onDispatch(type        , d         )       {
     if (type === "READY") {
-      const data = d as { session_id: string; resume_gateway_url?: string; user?: { id?: string } };
+      const data = d                                                                               ;
       this.sessionId = data.session_id;
       this.resumeUrl = data.resume_gateway_url
         ? `${data.resume_gateway_url}/?v=10&encoding=json`
@@ -243,13 +243,13 @@ export class DiscordGateway {
       return;
     }
     if (type === "MESSAGE_CREATE") {
-      const m = d as {
-        id?: string;
-        content?: string;
-        channel_id?: string;
-        guild_id?: string;
-        author?: { id?: string; bot?: boolean };
-      };
+      const m = d
+
+
+
+
+
+       ;
       this.onMessage({
         id: m.id ?? "",
         content: m.content ?? "",

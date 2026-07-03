@@ -7,41 +7,41 @@
  * records the outcome. Active children are tracked so a serve shutdown can
  * terminate them (A-audit Phase 2 finding 5).
  */
-import type { ChildProcess } from "node:child_process";
-import type { BridgeDb, ChannelKind, JobRow } from "./db.ts";
-import { SerialQueues, QueueFullError } from "./queue.ts";
-import { runTurn, type RunnerEvent, type TurnResult } from "./runner.ts";
 
-export interface AgentServiceOptions {
-  db: BridgeDb;
-  codexBin?: string;
-  model?: string;
-  timeoutMs?: number;
-  queueCap?: number;
-  reseedJobCount?: number;
-}
 
-export interface IncomingRequest {
-  kind: ChannelKind;
-  chatId: string;
-  text: string;
-  workdir: string;
-  /** Named-agent scope (v4): binds per (agent, chat) instead of (kind, chat). */
-  agentId?: number;
-  model?: string | null;
-  onEvent?: (event: RunnerEvent) => void;
-}
+import { SerialQueues, QueueFullError } from "./queue.js";
+import { runTurn,                                   } from "./runner.js";
 
-export interface IncomingResult {
-  ok: boolean;
-  text?: string;
-  error?: string;
-  queued?: number;
-  threadId?: string | null;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /** Build a summarized history block from recent jobs for the resume re-seed. */
-export function buildReseedBlock(jobs: JobRow[]): string {
+export function buildReseedBlock(jobs          )         {
   if (jobs.length === 0) return "";
   const lines = jobs
     .slice()
@@ -56,29 +56,29 @@ export function buildReseedBlock(jobs: JobRow[]): string {
 }
 
 export class AgentService {
-  private queues: SerialQueues;
-  private children = new Set<ChildProcess>();
-  private opts: AgentServiceOptions;
+          queues              ;
+          children = new Set              ();
+          opts                     ;
 
-  constructor(opts: AgentServiceOptions) {
+  constructor(opts                     ) {
     this.opts = opts;
     this.queues = new SerialQueues(opts.queueCap ?? 20);
   }
 
-  private register = (child: ChildProcess): (() => void) => {
+          register = (child              )               => {
     this.children.add(child);
     return () => this.children.delete(child);
   };
 
   /** Terminate every in-flight Codex child (called on serve shutdown). */
-  shutdown(): void {
+  shutdown()       {
     for (const child of this.children) {
       if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
     }
     this.children.clear();
   }
 
-  async handleIncoming(req: IncomingRequest): Promise<IncomingResult> {
+  async handleIncoming(req                 )                          {
     const { db } = this.opts;
     const binding =
       req.agentId !== undefined
@@ -102,7 +102,7 @@ export class AgentService {
     return { ...result, queued: queuedAhead > 0 ? queuedAhead : undefined };
   }
 
-  private async runOne(bindingId: number, jobId: number, req: IncomingRequest): Promise<IncomingResult> {
+          async runOne(bindingId        , jobId        , req                 )                          {
     const { db } = this.opts;
     const binding = db.getBinding(bindingId);
     if (!binding) return { ok: false, error: "binding vanished" };
@@ -113,7 +113,7 @@ export class AgentService {
     const reseedJobs = db.listJobs(bindingId, this.opts.reseedJobCount ?? 10);
     const reseedBlock = buildReseedBlock(reseedJobs.filter((j) => j.id !== jobId));
 
-    let result: TurnResult;
+    let result            ;
     try {
       result = await runTurn({
         workdir: req.workdir,

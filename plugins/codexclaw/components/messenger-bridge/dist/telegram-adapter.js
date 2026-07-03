@@ -8,63 +8,63 @@
  * acknowledged BEFORE dispatch (at-most-once) so a crashed full-permission turn
  * is never replayed. 409 (another poller) backs off and eventually stops.
  */
-import type { BridgeDb } from "./db.ts";
-import type { AgentService } from "./agent-service.ts";
-import type { RunnerEvent } from "./runner.ts";
-import { TelegramApi, type FetchImpl, type TgMessage, type TgUpdate } from "./telegram-api.ts";
-import { markdownToTelegramHtml, chunkTelegramMessage, stripTelegramHtml } from "./telegram-format.ts";
 
-export interface TelegramAdapterOptions {
-  db: BridgeDb;
-  token: string;
-  workdir: string;
-  agentService: AgentService;
-  /** When set, the adapter is scoped to this named agent (v4): per-agent poll
-   *  offset, handshake, allowlist, mention gate, and bindings. Absent = legacy
-   *  single-channel behavior, byte-identical to Phase 3. */
-  agent?: { id: number };
-  fetchImpl?: FetchImpl;
-  log?: (line: string) => void;
-  pollTimeoutSec?: number;
-  handshakeSeconds?: number;
-}
 
-type AdapterStatus = "idle" | "running" | "conflict" | "stopped";
+
+import { TelegramApi,                                               } from "./telegram-api.js";
+import { markdownToTelegramHtml, chunkTelegramMessage, stripTelegramHtml } from "./telegram-format.js";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const POLL_TIMEOUT_SEC = 50;
 const MAX_409_RETRIES = 3;
 const TYPING_REFRESH_MS = 4_000;
 const STATUS_COALESCE_MS = 1_500;
 
-export interface TelegramAdapter {
-  start: () => Promise<void>;
-  stop: () => void;
-  status: () => AdapterStatus;
-  botUsername: () => string | null;
-}
 
-export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAdapter {
+
+
+
+
+
+
+export function createTelegramAdapter(opts                        )                  {
   const api = new TelegramApi(opts.token, opts.fetchImpl);
   const log = opts.log ?? (() => {});
   const pollTimeout = opts.pollTimeoutSec ?? POLL_TIMEOUT_SEC;
   const agentId = opts.agent?.id ?? null;
   let offset = 0;
   let running = false;
-  let state: AdapterStatus = "idle";
-  let username: string | null = null;
+  let state                = "idle";
+  let username                = null;
   let conflictCount = 0;
-  let abort: AbortController | null = null;
+  let abort                         = null;
 
   // Agent-scoped vs legacy channel-scoped persistence/gating.
   const savedOffset = () =>
     agentId === null ? opts.db.getPollOffset("telegram") : (opts.db.getAgent(agentId)?.poll_offset ?? 0);
-  const persistOffset = (o: number) =>
+  const persistOffset = (o        ) =>
     agentId === null ? opts.db.setPollOffset("telegram", o) : opts.db.setAgentPollOffset(agentId, o);
-  const isAllowedChat = (chatId: string) =>
+  const isAllowedChat = (chatId        ) =>
     agentId === null ? opts.db.isAllowed("telegram", chatId) : opts.db.isAgentAllowed(agentId, chatId);
   const isHandshakeOpen = () =>
     agentId === null ? opts.db.isHandshakeOpen("telegram") : opts.db.isAgentHandshakeOpen(agentId);
-  const admitChat = (chatId: string) => {
+  const admitChat = (chatId        ) => {
     if (agentId === null) {
       opts.db.addAllowlist("telegram", chatId, "");
       opts.db.closeHandshake("telegram");
@@ -77,7 +77,7 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
   const mentionRequired = () =>
     agentId === null ? true : (opts.db.getAgent(agentId)?.mention_only ?? 1) === 1;
 
-  async function loop(): Promise<void> {
+  async function loop()                {
     while (running) {
       abort = new AbortController();
       const res = await api.getUpdates(offset, pollTimeout, abort.signal);
@@ -112,13 +112,13 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
         // mid-turn never redelivers an already-started full-permission exec.
         offset = update.update_id + 1;
         persistOffset(offset);
-        void dispatch(update).catch((err) => log(`[tg] dispatch error: ${(err as Error).message}`));
+        void dispatch(update).catch((err) => log(`[tg] dispatch error: ${(err         ).message}`));
       }
     }
     state = state === "conflict" ? "conflict" : "stopped";
   }
 
-  async function dispatch(update: TgUpdate): Promise<void> {
+  async function dispatch(update          )                {
     const msg = update.message;
     if (!msg?.chat) return;
     const chatId = String(msg.chat.id);
@@ -138,7 +138,7 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
     await runTurn(msg, chatId, text);
   }
 
-  async function handleStart(chatId: string): Promise<void> {
+  async function handleStart(chatId        )                {
     if (isAllowedChat(chatId)) {
       await api.sendMessage({ chatId, text: "codexclaw: already connected ✅" });
       return;
@@ -154,7 +154,7 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
     // No open window → silent (no "not allowed" oracle).
   }
 
-  function gateAndStripMention(msg: TgMessage, rawText: string): string | null {
+  function gateAndStripMention(msg           , rawText        )                {
     const chatType = msg.chat.type;
     if (chatType === "group" || chatType === "supergroup") {
       const hasMention = username ? rawText.includes(`@${username}`) : false;
@@ -165,14 +165,14 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
     return rawText;
   }
 
-  async function runTurn(msg: TgMessage, chatId: string, text: string): Promise<void> {
+  async function runTurn(msg           , chatId        , text        )                {
     const threadId = msg.message_thread_id;
-    let typingTimer: ReturnType<typeof setInterval> | null = null;
-    let statusMsgId: number | null = null;
-    let statusCreating: Promise<void> | null = null;
+    let typingTimer                                        = null;
+    let statusMsgId                = null;
+    let statusCreating                       = null;
     let lastStatusAt = 0;
     let pendingStatus = "";
-    const toolLines: string[] = [];
+    const toolLines           = [];
 
     const fireTyping = () => void api.sendChatAction(chatId, threadId);
     fireTyping();
@@ -201,7 +201,7 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
       }
     };
 
-    const onEvent = (event: RunnerEvent) => {
+    const onEvent = (event             ) => {
       if (event.kind === "status") {
         if (toolLines[toolLines.length - 1] !== event.label) toolLines.push(event.label);
         pendingStatus = toolLines.slice(-5).join("\n");
@@ -245,7 +245,7 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
     }
   }
 
-  function sleep(ms: number): Promise<void> {
+  function sleep(ms        )                {
     return new Promise((resolve) => {
       const t = setTimeout(resolve, ms);
       t.unref?.();
