@@ -11,73 +11,73 @@
  * Legacy compat: the BridgeControllerLike per-kind handshake surface routes to
  * the first enabled agent of that kind, so the pre-agent GUI keeps working.
  */
-import type { AgentRow, BridgeDb, ChannelKind } from "./db.ts";
-import { AgentService } from "./agent-service.ts";
-import { createTelegramAdapter } from "./telegram-adapter.ts";
-import { createDiscordAdapter } from "./discord-adapter.ts";
-import type { FetchImpl as TgFetch } from "./telegram-api.ts";
-import type { FetchImpl as DcFetch } from "./discord-api.ts";
-import type { WsFactory } from "./discord-gateway.ts";
 
-interface ChannelAdapter {
-  start: () => Promise<void>;
-  stop: () => void;
-  status: () => string;
-}
+import { AgentService } from "./agent-service.js";
+import { createTelegramAdapter } from "./telegram-adapter.js";
+import { createDiscordAdapter } from "./discord-adapter.js";
 
-interface RunningAdapter {
-  adapter: ChannelAdapter;
-  kind: ChannelKind;
-  token: string;
-  name: string;
-}
 
-export interface BridgeControllerOptions {
-  db: BridgeDb;
-  workdir: string;
-  log?: (line: string) => void;
-  codexBin?: string;
-  // Injectable transports for tests (default to real fetch/WebSocket).
-  telegramFetch?: TgFetch;
-  discordFetch?: DcFetch;
-  discordWsFactory?: WsFactory;
-}
 
-export interface HandshakeState {
-  open: boolean;
-  pairedChatId: string | null;
-}
 
-export interface AgentStatus {
-  agentId: number;
-  name: string;
-  kind: ChannelKind;
-  status: string;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 export class BridgeController {
-  private opts: BridgeControllerOptions;
-  private db: BridgeDb;
-  private log: (line: string) => void;
-  private adapters = new Map<number, RunningAdapter>();
-  private agentService: AgentService | null = null;
+          opts                         ;
+          db          ;
+          log                        ;
+          adapters = new Map                        ();
+          agentService                      = null;
   // Per-agent pairing baselines for the legacy polling wizard.
-  private allowlistBaseline = new Map<number, number>();
+          allowlistBaseline = new Map                ();
 
-  constructor(opts: BridgeControllerOptions) {
+  constructor(opts                         ) {
     this.opts = opts;
     this.db = opts.db;
     this.log = opts.log ?? (() => {});
   }
 
   /** Legacy shim: kind of the first running adapter (insertion order), or null. */
-  activeKind(): ChannelKind | null {
+  activeKind()                     {
     for (const entry of this.adapters.values()) return entry.kind;
     return null;
   }
 
   /** Legacy shim: single adapter → its own status; several → a count summary. */
-  adapterStatus(): string {
+  adapterStatus()         {
     const entries = [...this.adapters.values()];
     if (entries.length === 0) return "stopped";
     if (entries.length === 1) return entries[0].adapter.status();
@@ -85,7 +85,7 @@ export class BridgeController {
   }
 
   /** Per-agent status list (slice-60 GUI surface). */
-  agentStatuses(): AgentStatus[] {
+  agentStatuses()                {
     return [...this.adapters.entries()].map(([agentId, entry]) => ({
       agentId,
       name: entry.name,
@@ -96,12 +96,12 @@ export class BridgeController {
 
   /** Diff-based reload: desired = enabled agents with tokens (unique token per
    *  kind — a duplicate would 409-fight its twin on the same bot). */
-  async reload(): Promise<void> {
+  async reload()                {
     if (!this.agentService) {
       this.agentService = new AgentService({ db: this.db, codexBin: this.opts.codexBin });
     }
-    const desired = new Map<number, AgentRow>();
-    const seenTokens = new Set<string>();
+    const desired = new Map                  ();
+    const seenTokens = new Set        ();
     for (const agent of this.db.listAgents()) {
       if (agent.enabled !== 1 || agent.token.length === 0) continue;
       const tokenKey = `${agent.kind}:${agent.token}`;
@@ -126,7 +126,7 @@ export class BridgeController {
     // Start missing adapters (sequential — deterministic logs).
     for (const [id, agent] of desired) {
       if (this.adapters.has(id)) continue;
-      const adapter: ChannelAdapter =
+      const adapter                 =
         agent.kind === "telegram"
           ? createTelegramAdapter({
               db: this.db,
@@ -157,7 +157,7 @@ export class BridgeController {
     }
   }
 
-  stop(): void {
+  stop()       {
     for (const entry of this.adapters.values()) entry.adapter.stop();
     this.adapters.clear();
     // Shared-service shutdown lives here, not in any adapter (rev-2 fix #1).
@@ -166,13 +166,13 @@ export class BridgeController {
   }
 
   /** First enabled agent of a kind — target of the legacy per-kind shims. */
-  private firstAgentOfKind(kind: ChannelKind): AgentRow | null {
+          firstAgentOfKind(kind             )                  {
     const agents = this.db.listAgents().filter((a) => a.kind === kind);
     return agents.find((a) => a.enabled === 1) ?? agents[0] ?? null;
   }
 
   /** Legacy shim: open a pairing window on the kind's first agent. */
-  openHandshake(kind: ChannelKind, seconds: number): void {
+  openHandshake(kind             , seconds        )       {
     const agent = this.firstAgentOfKind(kind);
     if (agent) {
       this.allowlistBaseline.set(agent.id, this.db.listAgentAllowlist(agent.id).length);
@@ -184,7 +184,7 @@ export class BridgeController {
   }
 
   /** Legacy shim: poll pairing state of the kind's first agent. */
-  handshakeState(kind: ChannelKind): HandshakeState {
+  handshakeState(kind             )                 {
     const agent = this.firstAgentOfKind(kind);
     if (!agent) {
       return { open: this.db.isHandshakeOpen(kind), pairedChatId: null };
