@@ -9,61 +9,61 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
-import { openBridgeDb } from "./db.ts";
-import { createBridgeServer } from "./server.ts";
-import { BridgeController } from "./bridge-controller.ts";
-import { HeartbeatScheduler } from "./heartbeat.ts";
-import { installService, uninstallService, serviceStatus } from "./service.ts";
+import { openBridgeDb } from "./db.js";
+import { createBridgeServer } from "./server.js";
+import { BridgeController } from "./bridge-controller.js";
+import { HeartbeatScheduler } from "./heartbeat.js";
+import { installService, uninstallService, serviceStatus } from "./service.js";
 
 const DEFAULT_PORT = 7717;
 
-function pluginRootFrom(metaUrl: string): string {
+function pluginRootFrom(metaUrl        )         {
   // dist/cli.js -> components/messenger-bridge/dist -> component -> components -> <pluginRoot>
   const here = dirname(fileURLToPath(metaUrl));
   return resolve(here, "..", "..", "..");
 }
 
-function componentVersion(metaUrl: string): string {
+function componentVersion(metaUrl        )         {
   try {
     const here = dirname(fileURLToPath(metaUrl));
-    const pkg = JSON.parse(readFileSync(resolve(here, "..", "package.json"), "utf8")) as {
-      version?: string;
-    };
+    const pkg = JSON.parse(readFileSync(resolve(here, "..", "package.json"), "utf8"))
+
+     ;
     return pkg.version ?? "0.0.0";
   } catch {
     return "0.0.0";
   }
 }
 
-export interface ServeArgs {
-  port: number;
-  cwd: string;
-}
 
-export function parseServeArgs(argv: string[], processCwd: string): ServeArgs {
+
+
+
+
+export function parseServeArgs(argv          , processCwd        )            {
   let port = DEFAULT_PORT;
   let cwd = processCwd;
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === "--port" && argv[i + 1] !== undefined) {
-      const parsed = Number.parseInt(argv[i + 1] as string, 10);
+      const parsed = Number.parseInt(argv[i + 1]          , 10);
       if (Number.isNaN(parsed) || parsed < 0 || parsed > 65535) {
         throw new Error(`invalid --port value: ${argv[i + 1]}`);
       }
       port = parsed;
       i += 1;
     } else if (argv[i] === "--cwd" && argv[i + 1] !== undefined) {
-      cwd = resolve(processCwd, argv[i + 1] as string);
+      cwd = resolve(processCwd, argv[i + 1]          );
       i += 1;
     }
   }
   return { port, cwd };
 }
 
-async function runServe(argv: string[], metaUrl: string): Promise<number> {
+async function runServe(argv          , metaUrl        )                  {
   const args = parseServeArgs(argv, process.cwd());
   const guiDir = resolve(pluginRootFrom(metaUrl), "gui", "dist");
   const db = openBridgeDb(args.cwd);
-  const log = (line: string) => process.stdout.write(`${line}\n`);
+  const log = (line        ) => process.stdout.write(`${line}\n`);
   const controller = new BridgeController({ db, workdir: args.cwd, log });
   const scheduler = new HeartbeatScheduler({
     db,
@@ -83,11 +83,11 @@ async function runServe(argv: string[], metaUrl: string): Promise<number> {
   void controller
     .reload()
     .then(() => scheduler.start())
-    .catch((err: unknown) => {
-      process.stderr.write(`cxc serve: adapter start failed: ${(err as Error).message}\n`);
+    .catch((err         ) => {
+      process.stderr.write(`cxc serve: adapter start failed: ${(err         ).message}\n`);
     });
 
-  return new Promise<number>((resolvePromise) => {
+  return new Promise        ((resolvePromise) => {
     const shutdown = () => {
       // Ordering matters: stop the scheduler BEFORE the controller nulls the
       // shared AgentService, and both before the server/db close (plan rev-2 #3).
@@ -117,13 +117,13 @@ async function runServe(argv: string[], metaUrl: string): Promise<number> {
   });
 }
 
-function runService(argv: string[], metaUrl: string): number {
+function runService(argv          , metaUrl        )         {
   const sub = argv[0] ?? "status";
   if (sub === "install") {
     // Resolve the codexclaw CLI entry (bin/codexclaw.mjs) from the plugin root.
     const cliPath = resolve(pluginRootFrom(metaUrl), "..", "..", "bin", "codexclaw.mjs");
     const portArg = argv.indexOf("--port");
-    const port = portArg >= 0 && argv[portArg + 1] ? Number.parseInt(argv[portArg + 1] as string, 10) : 7717;
+    const port = portArg >= 0 && argv[portArg + 1] ? Number.parseInt(argv[portArg + 1]          , 10) : 7717;
     const result = installService({ nodePath: process.execPath, cliPath, workdir: process.cwd(), port });
     process.stdout.write(`${result.message}\n`);
     return result.ok ? 0 : 1;
@@ -138,7 +138,7 @@ function runService(argv: string[], metaUrl: string): number {
   return 0;
 }
 
-export async function main(argv: string[], metaUrl: string): Promise<number> {
+export async function main(argv          , metaUrl        )                  {
   const cmd = argv[0] ?? "help";
   switch (cmd) {
     case "serve":

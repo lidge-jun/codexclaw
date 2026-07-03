@@ -73,6 +73,15 @@ export class BridgeController {
     this.log = opts.log ?? (() => {});
   }
 
+  /** Shared AgentService accessor (heartbeat scheduler rides the same queues
+   *  and child registry). Created lazily, same instance reload() uses. */
+  service()               {
+    if (!this.agentService) {
+      this.agentService = new AgentService({ db: this.db, codexBin: this.opts.codexBin });
+    }
+    return this.agentService;
+  }
+
   /** Legacy shim: kind of the first running adapter (insertion order), or null. */
   activeKind()                     {
     for (const entry of this.adapters.values()) return entry.kind;
