@@ -114,3 +114,60 @@ test("buildReseedBlock: summarizes recent jobs oldest-first with header", () => 
   assert.ok(block.indexOf("q1") < block.indexOf("q2"));
   assert.equal(buildReseedBlock([]), "");
 });
+
+test("agent-bound run applies the agent card's model + effort on the next turn", async () => {
+  const cwd = tempCwd();
+  const prevEcho = process.env.FAKE_CODEX_ECHO_ARGS;
+  process.env.FAKE_CODEX_ECHO_ARGS = "1";
+  try {
+    await withMode("ok", async () => {
+      const db = openBridgeDb(cwd);
+      const agent = db.createAgent("telegram-1", "telegram", "tok");
+      db.updateAgent(agent.id, { model: "gpt-9-test", effort: "xhigh" });
+      const svc = new AgentService({ db, codexBin: FAKE });
+      const res = await svc.handleIncoming({
+        kind: "telegram",
+        chatId: "42",
+        text: "ping",
+        workdir: cwd,
+        agentId: agent.id,
+      });
+      assert.equal(res.ok, true);
+      assert.match(String(res.text), /-m gpt-9-test/);
+      assert.match(String(res.text), /-c model_reasoning_effort=xhigh/);
+      // and the binding is agent-scoped
+      const binding = db.getOrCreateAgentBinding(agent.id, "telegram", "42", cwd);
+      assert.equal(binding.agent_id, agent.id);
+      assert.equal(binding.thread_id, "thread-fresh-1");
+      db.close();
+    });
+  } finally {
+    if (prevEcho === undefined) delete process.env.FAKE_CODEX_ECHO_ARGS;
+    else process.env.FAKE_CODEX_ECHO_ARGS = prevEcho;
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("agent with default model+effort adds no -m/-c flags", async () => {
+  const cwd = tempCwd();
+  const prevEcho = process.env.FAKE_CODEX_ECHO_ARGS;
+  process.env.FAKE_CODEX_ECHO_ARGS = "1";
+  try {
+    await withMode("ok", async () => {
+      const db = openBridgeDb(cwd);
+      const agent = db.createAgent("telegram-1", "telegram", "tok");
+      const svc = new AgentService({ db, codexBin: FAKE });
+      const res = await svc.handleIncoming({
+        kind: "telegram", chatId: "43", text: "ping", workdir: cwd, agentId: agent.id,
+      });
+      assert.equal(res.ok, true);
+      assert.ok(!/-m /.test(String(res.text)));
+      assert.ok(!/model_reasoning_effort/.test(String(res.text)));
+      db.close();
+    });
+  } finally {
+    if (prevEcho === undefined) delete process.env.FAKE_CODEX_ECHO_ARGS;
+    else process.env.FAKE_CODEX_ECHO_ARGS = prevEcho;
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

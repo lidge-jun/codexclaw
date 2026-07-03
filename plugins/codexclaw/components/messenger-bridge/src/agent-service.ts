@@ -113,13 +113,20 @@ export class AgentService {
     const reseedJobs = db.listJobs(bindingId, this.opts.reseedJobCount ?? 10);
     const reseedBlock = buildReseedBlock(reseedJobs.filter((j) => j.id !== jobId));
 
+    // Card settings are read FRESH per turn (never cached at adapter start), so
+    // a model/effort change on the agent card applies to the very next turn.
+    const agent = binding.agent_id !== null ? db.getAgent(binding.agent_id) : null;
+    const agentModel = agent && agent.model !== "default" ? agent.model : null;
+    const agentEffort = agent && agent.effort !== "default" ? agent.effort : null;
+
     let result: TurnResult;
     try {
       result = await runTurn({
         workdir: req.workdir,
         prompt: req.text,
         threadId: binding.thread_id,
-        model: req.model ?? this.opts.model ?? null,
+        model: req.model ?? agentModel ?? this.opts.model ?? null,
+        effort: agentEffort,
         codexBin: this.opts.codexBin,
         fullAccess: true,
         timeoutMs: this.opts.timeoutMs,

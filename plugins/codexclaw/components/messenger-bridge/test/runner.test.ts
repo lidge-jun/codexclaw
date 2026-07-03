@@ -144,3 +144,21 @@ test("runTurn: timeout terminates the child and reports timeout", async () => {
     assert.match(String(result.error), /timed out/);
   });
 });
+
+test("buildExecArgs: effort appends -c model_reasoning_effort in both branches; default omitted", () => {
+  const fresh = buildExecArgs({ prompt: "p", effort: "high" });
+  const ci = fresh.indexOf("-c");
+  assert.ok(ci > -1);
+  assert.equal(fresh[ci + 1], "model_reasoning_effort=high");
+
+  const none = buildExecArgs({ prompt: "p", effort: "default" });
+  assert.equal(none.includes("-c"), false);
+  const absent = buildExecArgs({ prompt: "p" });
+  assert.equal(absent.includes("-c"), false);
+
+  const resume = buildExecArgs({ prompt: "p", threadId: "t-1", effort: "minimal", model: "m1" });
+  const sep = resume.indexOf("--");
+  const cIdx = resume.indexOf("-c");
+  assert.ok(cIdx > -1 && cIdx < sep, "effort flag must precede -- in resume argv");
+  assert.equal(resume[cIdx + 1], "model_reasoning_effort=minimal");
+});

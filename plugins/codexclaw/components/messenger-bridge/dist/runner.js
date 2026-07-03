@@ -13,54 +13,54 @@
  * --dangerously-bypass-approvals-and-sandbox, --skip-git-repo-check. Missing
  * rollout emits: "thread/resume failed: no rollout found for thread id <id>".
  */
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn,                   } from "node:child_process";
 import { createInterface } from "node:readline";
 
-export type RunnerEvent =
-  | { kind: "thread"; threadId: string }
-  | { kind: "status"; label: string }
-  | { kind: "message"; text: string }
-  | { kind: "done"; usage: Record<string, number> | null }
-  | { kind: "fail"; message: string };
 
-export interface RunTurnOptions {
-  workdir: string;
-  prompt: string;
-  threadId?: string | null;
-  model?: string | null;
-  /** Reasoning effort ('minimal'..'xhigh'); null/'default' = codex default. */
-  effort?: string | null;
-  codexBin?: string;
-  fullAccess?: boolean;
-  timeoutMs?: number;
-  onEvent?: (event: RunnerEvent) => void;
-  /** Registry hook so a serve shutdown can terminate in-flight children. */
-  register?: (child: ChildProcess) => () => void;
-}
 
-export interface TurnResult {
-  ok: boolean;
-  threadId: string | null;
-  text: string;
-  usage: Record<string, number> | null;
-  error: string | null;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 const DEFAULT_TIMEOUT_MS = 600_000;
 const SIGKILL_GRACE_MS = 3_000;
 // Missing-rollout / bad-session-id signatures for the resume re-seed fallback.
 const RESUME_LOST_RE = /no rollout found|thread\/resume failed|no such (thread|session)|not found/i;
 
-export interface BuildArgsInput {
-  threadId?: string | null;
-  model?: string | null;
-  effort?: string | null;
-  prompt: string;
-  fullAccess?: boolean;
-}
+
+
+
+
+
+
+
 
 /** Pure: build codex exec argv. New run reads prompt from stdin; resume passes it positionally. */
-export function buildExecArgs(input: BuildArgsInput): string[] {
+export function buildExecArgs(input                )           {
   const { threadId, model, effort, prompt, fullAccess = true } = input;
   const perm = fullAccess ? ["--dangerously-bypass-approvals-and-sandbox"] : [];
   const modelArgs = model && model !== "default" ? ["-m", model] : [];
@@ -90,22 +90,22 @@ export function buildExecArgs(input: BuildArgsInput): string[] {
 }
 
 /** Pure: parse one JSONL line into a RunnerEvent, or null for lines we ignore. */
-export function parseExecEvent(line: string): RunnerEvent | null {
+export function parseExecEvent(line        )                     {
   const trimmed = line.trim();
   if (!trimmed) return null;
-  let evt: Record<string, unknown>;
+  let evt                         ;
   try {
-    evt = JSON.parse(trimmed) as Record<string, unknown>;
+    evt = JSON.parse(trimmed)                           ;
   } catch {
     return null;
   }
-  const type = evt.type as string | undefined;
+  const type = evt.type                      ;
   if (type === "thread.started" && typeof evt.thread_id === "string") {
     return { kind: "thread", threadId: evt.thread_id };
   }
   if (type === "item.completed" || type === "item.started") {
-    const item = evt.item as Record<string, unknown> | undefined;
-    const itemType = item?.type as string | undefined;
+    const item = evt.item                                       ;
+    const itemType = item?.type                      ;
     if (itemType === "agent_message" && type === "item.completed") {
       const text = String(item?.text ?? "");
       if (text.trim()) return { kind: "message", text };
@@ -118,15 +118,15 @@ export function parseExecEvent(line: string): RunnerEvent | null {
     return null;
   }
   if (type === "turn.completed") {
-    const usage = (evt.usage as Record<string, number> | undefined) ?? null;
+    const usage = (evt.usage                                      ) ?? null;
     return { kind: "done", usage };
   }
   if (type === "turn.failed" || type === "error") {
-    const errObj = evt.error as Record<string, unknown> | undefined;
+    const errObj = evt.error                                       ;
     let msg = String(errObj?.message ?? evt.message ?? "codex error");
     try {
-      const parsed = JSON.parse(msg) as Record<string, unknown>;
-      const nested = (parsed.error as Record<string, unknown> | undefined)?.message;
+      const parsed = JSON.parse(msg)                           ;
+      const nested = (parsed.error                                       )?.message;
       msg = String(nested ?? parsed.message ?? msg);
     } catch {
       /* raw string is fine */
@@ -136,7 +136,7 @@ export function parseExecEvent(line: string): RunnerEvent | null {
   return null;
 }
 
-function terminateChild(child: ChildProcess): void {
+function terminateChild(child              )       {
   if (child.exitCode !== null || child.signalCode !== null) return;
   child.kill("SIGTERM");
   const timer = setTimeout(() => {
@@ -145,29 +145,29 @@ function terminateChild(child: ChildProcess): void {
   timer.unref?.();
 }
 
-interface SpawnOnceResult {
-  ok: boolean;
-  threadId: string | null;
-  text: string;
-  usage: Record<string, number> | null;
-  error: string | null;
-}
 
-function spawnOnce(argv: string[], opts: RunTurnOptions, stdinPrompt: string | null): Promise<SpawnOnceResult> {
+
+
+
+
+
+
+
+function spawnOnce(argv          , opts                , stdinPrompt               )                           {
   const bin = opts.codexBin ?? "codex";
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  return new Promise<SpawnOnceResult>((resolvePromise) => {
+  return new Promise                 ((resolvePromise) => {
     const child = spawn(bin, argv, {
       cwd: opts.workdir,
       stdio: ["pipe", "pipe", "pipe"],
     });
     const unregister = opts.register?.(child);
 
-    let threadId: string | null = null;
+    let threadId                = null;
     let text = "";
-    let usage: Record<string, number> | null = null;
-    let failMsg: string | null = null;
+    let usage                                = null;
+    let failMsg                = null;
     let sawDone = false;
     let stderr = "";
     let timedOut = false;
@@ -190,7 +190,7 @@ function spawnOnce(argv: string[], opts: RunTurnOptions, stdinPrompt: string | n
       child.once("spawn", () => child.stdin?.end());
     }
 
-    const rl = createInterface({ input: child.stdout! });
+    const rl = createInterface({ input: child.stdout  });
     rl.on("line", (line) => {
       const event = parseExecEvent(line);
       if (!event) return;
@@ -213,12 +213,12 @@ function spawnOnce(argv: string[], opts: RunTurnOptions, stdinPrompt: string | n
     });
     rl.on("error", () => {});
 
-    child.stderr?.on("data", (chunk: Buffer) => {
+    child.stderr?.on("data", (chunk        ) => {
       stderr += chunk.toString();
       if (stderr.length > 8_000) stderr = stderr.slice(-8_000);
     });
 
-    const finish = (result: SpawnOnceResult) => {
+    const finish = (result                 ) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -236,7 +236,7 @@ function spawnOnce(argv: string[], opts: RunTurnOptions, stdinPrompt: string | n
       }
       // codex prints resume failures (missing rollout) to stderr and still
       // exits 0, so exit-0-without-a-completed-turn is a failure too.
-      let error: string | null;
+      let error               ;
       if (failMsg) {
         error = failMsg;
       } else if (code !== 0) {
@@ -255,7 +255,7 @@ function spawnOnce(argv: string[], opts: RunTurnOptions, stdinPrompt: string | n
  * Run one Codex turn. On a resume whose rollout is gone, retries once as a new
  * thread whose prompt is prefixed by the caller-provided re-seed block.
  */
-export async function runTurn(opts: RunTurnOptions & { reseedBlock?: string }): Promise<TurnResult> {
+export async function runTurn(opts                                           )                      {
   const resuming = Boolean(opts.threadId);
   const argv = buildExecArgs({
     threadId: opts.threadId,

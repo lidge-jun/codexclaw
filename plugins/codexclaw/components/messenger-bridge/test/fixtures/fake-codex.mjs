@@ -62,9 +62,14 @@ async function main() {
   }
 
   const promptSeen = isResume ? (args[sepIdx + 2] ?? "") : stdinPrompt;
+  // Optional argv echo so tests can assert model/effort flags reached the child.
+  const reply =
+    process.env.FAKE_CODEX_ECHO_ARGS === "1"
+      ? `args: ${args.join(" ")}`
+      : `reply to: ${promptSeen}`;
   emit({
     type: "item.completed",
-    item: { type: "agent_message", text: `reply to: ${promptSeen}` },
+    item: { type: "agent_message", text: reply },
   });
   emit({ type: "turn.completed", usage: { input_tokens: 10, output_tokens: 5 } });
   process.exit(0);
