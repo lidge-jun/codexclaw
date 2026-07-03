@@ -1,0 +1,93 @@
+/**
+ * telegram-format.ts — markdown→Telegram-HTML + safe chunking (Phase 3).
+ *
+ * Ported from cli-jaw src/telegram/forwarder.ts (the pure functions only): the
+ * Telegram HTML parse_mode supports a small tag subset, so we escape first then
+ * re-introduce <pre>/<code>/<b>/<i>/<s>, and split long messages under the
+ * 4096-char limit without cutting inside a tag or leaving a tag unbalanced.
+ */
+const TELEGRAM_SUPPORTED_TAGS = new Set(["pre", "code", "b", "i", "s"]);
+export const TELEGRAM_MAX_MESSAGE = 4096;
+
+export function escapeHtmlTg(text: string): string {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+export function markdownToTelegramHtml(md: string): string {
+  if (!md) return "";
+  let html = escapeHtmlTg(md);
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, "<pre><code>$2</code></pre>");
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  html = html.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+  html = html.replace(/(?<![*])\*(?![*])(.+?)(?<![*])\*(?![*])/g, "<i>$1</i>");
+  html = html.replace(/~~(.+?)~~/g, "<s>$1</s>");
+  return html;
+}
+
+function tagBalanceDelta(chunk: string): number {
+  let balance = 0;
+  const tagRe = /<\/?([a-z]+)>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = tagRe.exec(chunk)) !== null) {
+    const full = match[0];
+    const tag = String(match[1] || "").toLowerCase();
+    if (!TELEGRAM_SUPPORTED_TAGS.has(tag)) continue;
+    balance += full.startsWith("</") ? -1 : 1;
+  }
+  return balance;
+}
+
+function isBalancedTelegramHtml(chunk: string): boolean {
+  return tagBalanceDelta(chunk) === 0;
+}
+
+function isInsideTagToken(text: string, index: number): boolean {
+  const lastLt = text.lastIndexOf("<", index - 1);
+  const lastGt = text.lastIndexOf(">", index - 1);
+  return lastLt > lastGt;
+}
+
+function findHtmlSafeSplit(raw: string, limit: number): number {
+  if (isInsideTagToken(raw, limit)) {
+    const close = raw.indexOf(">", limit);
+    if (close >= 0) return close + 1;
+  }
+  const candidates: number[] = [];
+  for (let i = Math.min(limit, raw.length); i > 0; i -= 1) {
+    const ch = raw[i - 1];
+    if (ch !== "\n" && ch !== " " && ch !== ">") continue;
+    if (isInsideTagToken(raw, i)) continue;
+    candidates.push(i);
+  }
+  candidates.push(limit);
+  for (const candidate of candidates) {
+    if (candidate < limit * 0.3 && candidate !== limit) continue;
+    if (isBalancedTelegramHtml(raw.slice(0, candidate))) return candidate;
+  }
+  return limit;
+}
+
+export function chunkTelegramMessage(html: string, limit = TELEGRAM_MAX_MESSAGE): string[] {
+  const raw = String(html || "");
+  if (raw.length <= limit) return [raw];
+  const chunks: string[] = [];
+  let remaining = raw;
+  while (remaining.length > 0) {
+    if (remaining.length <= limit) {
+      chunks.push(remaining);
+      break;
+    }
+    const splitAt = findHtmlSafeSplit(remaining, limit);
+    chunks.push(remaining.slice(0, splitAt));
+    remaining = remaining.slice(splitAt);
+  }
+  return chunks;
+}
+
+/** Strip Telegram HTML tags → plain text fallback when parse_mode send fails. */
+export function stripTelegramHtml(html: string): string {
+  return String(html || "").replace(/<[^>]+>/g, "");
+}

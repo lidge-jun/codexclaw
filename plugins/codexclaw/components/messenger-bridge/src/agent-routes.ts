@@ -155,8 +155,9 @@ export function agentRoutes(deps: AgentRoutesDeps = {}): ApiRoute[] {
         if (!agent) return bad(`no agent ${id}`);
         if (enabled && agent.token.length === 0) return bad("agent has no token — set one first");
         ctx.db.setAgentEnabled(id, enabled);
-        // Slice 50 reloads live adapters here; until then the flag is state-only.
-        await ctx.controller?.reload();
+        // Flag-only in slice 40. Do NOT controller.reload() here: today's reload
+        // bounces the LIVE legacy adapter (stop() SIGTERMs in-flight codex turns)
+        // — per-agent runtime reload is slice 50's multi-adapter contract.
         return { status: 200, body: { ok: true, enabled } };
       },
     },
