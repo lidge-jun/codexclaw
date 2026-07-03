@@ -63,6 +63,9 @@ export class BridgeController {
           agentService                      = null;
   // Per-agent pairing baselines for the legacy polling wizard.
           allowlistBaseline = new Map                ();
+  // Serializes reload(): two concurrent API calls must not interleave the
+  // stop/start diff (Map corruption, double-started pollers).
+          reloadChain                = Promise.resolve();
 
   constructor(opts                         ) {
     this.opts = opts;
@@ -94,9 +97,16 @@ export class BridgeController {
     }));
   }
 
-  /** Diff-based reload: desired = enabled agents with tokens (unique token per
-   *  kind — a duplicate would 409-fight its twin on the same bot). */
-  async reload()                {
+  /** Diff-based reload, serialized: concurrent calls queue behind each other. */
+  reload()                {
+    const run = this.reloadChain.then(() => this.doReload());
+    this.reloadChain = run.catch(() => {}); // keep the chain alive on failure
+    return run;
+  }
+
+  /** Desired = enabled agents with tokens (unique token per kind — a duplicate
+   *  would 409-fight its twin on the same bot). */
+          async doReload()                {
     if (!this.agentService) {
       this.agentService = new AgentService({ db: this.db, codexBin: this.opts.codexBin });
     }
