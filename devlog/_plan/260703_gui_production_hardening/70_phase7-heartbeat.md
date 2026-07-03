@@ -52,3 +52,16 @@ busy, unpaired, disabled, or has auto-send off.
   sqlite reads only when idle.
 - lastRun in memory: a crash-looping serve could run heartbeats more often than
   N minutes — bounded by one run per process boot; acceptable v1 (documented).
+
+## REV 2 — audit fixes (Backend, FAIL/5)
+
+1. Paths are component-relative: everything under
+   `plugins/codexclaw/components/messenger-bridge/`.
+2. handleIncoming gets the FULL IncomingRequest: `{kind: agent.kind, chatId,
+   text: prompt, workdir, agentId}`.
+3. Shutdown ordering in cli.ts is explicit: `scheduler.stop()` BEFORE
+   `controller.stop()` (which nulls the shared service) BEFORE server/db close.
+4. Busy-check uses `getOrCreateAgentBinding` (no read-only getter exists);
+   a missing row is created idle — tolerated by design.
+5. Every tick body is wrapped in try/catch: a tick racing db.close() logs and
+   drops instead of crashing the process.
