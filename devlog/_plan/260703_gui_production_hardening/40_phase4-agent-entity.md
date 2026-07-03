@@ -1,7 +1,11 @@
-# 40 — Phase 4: named-agent entity + schema migration (DOD 3 prereq) — REV 2
+# 40 — Phase 4: named-agent entity + schema migration (DOD 3 prereq) — REV 3
 
 - Class: C3 (schema migration + new public API surface; persistence risk) ·
-  A: independent audit REQUIRED (rev 1 audit: FAIL, 7 findings — all applied below).
+  A: independent audit REQUIRED (rev 1: FAIL/7 via Codex; rev 2: FAIL/4 via Backend
+  employee — all applied below; allowlist finding resolved with a separate table
+  instead of the suggested partial-index rebuild, because v3 `addAllowlist` uses
+  `ON CONFLICT(channel_kind, chat_id)` which does NOT match a partial unique index —
+  the rebuild would break pairing in the downgrade window).
 - Interview decisions binding this design (01_interview_findings.md):
   agent = {name, dedicated bot token, channel kind, model, effort, auto-send,
   mention-only, heartbeat} · NO per-agent workdir (shared serve cwd) · bot token
@@ -41,8 +45,18 @@ BEGIN/COMMIT/ROLLBACK + `PRAGMA user_version = 4` inside the tx):
      updated_at TEXT NOT NULL
    );
    ```
-2. `ALTER TABLE allowlist ADD COLUMN agent_id INTEGER;` (nullable; legacy rows keep
-   channel_kind semantics).
+2. NEW TABLE `agent_allowlist` — legacy `allowlist` is left 100% UNTOUCHED (rev-3 fix:
+   its `PRIMARY KEY (channel_kind, chat_id)` would reject the same chat on two
+   same-kind agents, and any rebuild breaks v3's `ON CONFLICT` upsert on downgrade):
+   ```sql
+   CREATE TABLE agent_allowlist (
+     agent_id INTEGER NOT NULL,
+     chat_id TEXT NOT NULL,
+     label TEXT NOT NULL DEFAULT '',
+     added_at TEXT NOT NULL,
+     PRIMARY KEY (agent_id, chat_id)
+   );
+   ```
 3. **REBUILD `bindings`** (audit fix #1 — SQLite can't drop the legacy
    `UNIQUE(channel_kind, chat_id)`, which would reject a second same-kind agent
    binding the same chat):
@@ -63,8 +77,14 @@ BEGIN/COMMIT/ROLLBACK + `PRAGMA user_version = 4` inside the tx):
      SELECT id, channel_kind, chat_id, NULL, thread_id, workdir, model, status, updated_at FROM bindings;
    DROP TABLE bindings;
    ALTER TABLE bindings_v4 RENAME TO bindings;
-   CREATE INDEX idx_bindings_kind_chat ON bindings (channel_kind, chat_id);
+   -- rev-3 fix (audit #4): preserve LEGACY uniqueness so the downgrade-window v3
+   -- code never sees two NULL-agent rows for one chat. Partial index is safe here:
+   -- v3 getOrCreateBinding is lookup-first + plain INSERT (no ON CONFLICT target).
+   CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id) WHERE agent_id IS NULL;
    ```
+   - Documented residual: a v3 dist reading a v4 file where AGENT rows exist for the
+     same (kind, chat) may pick an agent row's thread (SELECT is unordered). Accepted
+     degradation for the downgrade window only; legacy-only rows stay unique.
    - `jobs.binding_id` keeps pointing at the SAME id space (ids copied verbatim) —
      one bindings+jobs pipeline for legacy and agent flows alike; no agent_jobs fork.
    - Old v3 dist on a v4 file (downgrade window): `getOrCreateBinding` is
@@ -72,14 +92,21 @@ BEGIN/COMMIT/ROLLBACK + `PRAGMA user_version = 4` inside the tx):
      redundant unique safety net (audit finding #2 confirmed old reads/writes survive).
 4. Seed: for each channels row with a non-empty token → insert agent `"<kind>-1"`
    (token, enabled = channels.active, poll_offset = channels.poll_offset,
-   handshake NULL, timestamps now); backfill `allowlist.agent_id` and
+   handshake NULL, timestamps now); COPY legacy `allowlist` rows of that kind into
+   `agent_allowlist` for the seeded agent (legacy rows remain in place); backfill
    `bindings.agent_id` for rows of that kind to the seeded agent's id.
 5. New `AgentRow` interface + CRUD (validated column allowlist for updates, same
    pattern as `updateJob`): `createAgent`, `getAgent`, `getAgentByName`, `listAgents`,
-   `updateAgent`, `deleteAgent` (refuses while enabled), `setAgentEnabled`,
-   per-agent allowlist (`addAgentAllowlist`/`isAgentAllowed`/`listAgentAllowlist`),
-   `getOrCreateAgentBinding(agentId, kind, chatId, workdir)` (writes channel_kind AND
-   agent_id), per-agent handshake open/is-open/close, `setAgentPollOffset`.
+   `updateAgent`, `deleteAgent`, `setAgentEnabled`, per-agent allowlist on
+   `agent_allowlist` (`addAgentAllowlist`/`isAgentAllowed`/`listAgentAllowlist`),
+   `getOrCreateAgentBinding(agentId, kind, chatId, workdir)` (lookup-first by
+   (agent_id, chat_id), writes channel_kind AND agent_id), per-agent handshake
+   open/is-open/close, `setAgentPollOffset`.
+   - `deleteAgent(id)` (rev-3 fix, audit #2): refuses while enabled; otherwise ONE
+     transaction deletes the agent's `agent_allowlist` rows, its `bindings` rows,
+     and those bindings' `jobs` rows (an agent's sessions die with it — never
+     re-parent to legacy by nulling agent_id, which would pollute legacy lookup),
+     then the agent row.
 
 ### NEW `plugins/codexclaw/components/messenger-bridge/src/token-validate.ts`
 (audit fix #4 — `validateToken` is currently module-local in connect-routes.ts:27-36)
@@ -100,20 +127,23 @@ BEGIN/COMMIT/ROLLBACK + `PRAGMA user_version = 4` inside the tx):
 ### MODIFY `plugins/codexclaw/components/messenger-bridge/src/server.ts`
 - `baseRoutes()` appends `agentRoutes()`.
 
-### Effort column consumer contract (audit fix #6 — concrete, wired in slice 60)
-- `RunTurnOptions.effort?: string \| null` → `buildExecArgs` appends
+### Effort column consumer contract (audit fix #6 + rev-3 #3 — exact signatures, wired in slice 60)
+- `RunTurnOptions` gains `effort?: string | null`; `BuildArgsInput` gains
+  `effort?: string | null`; `runTurn` forwards `opts.effort` into BOTH
+  `buildExecArgs` calls (initial + re-seed); `buildExecArgs` appends
   `["-c", "model_reasoning_effort=<effort>"]` when effort && effort !== 'default'.
 - Flow: agents.effort → (50) adapter passes agent → AgentService `runOne` passes
-  binding's agent effort → runner. API layer enforces the enum (DDL CHECK is the
-  backstop). Slice 60 doc stub records this contract; the column is not dead schema —
-  its consumer is specified and scheduled.
+  the agent's effort → runner. API layer enforces the enum (DDL CHECK is the
+  backstop). Slice 60 implements; this contract makes the column non-dead schema.
 
 ### Tests
 - NEW `test/agent-store.test.ts`: fresh-db v4 migration; v3→v4 seed (drive a real
   BridgeDb at v3 by re-creating the ladder state via a fixture db built with the
   CURRENT code path? no — build a v3 file by executing the v1-v3 SQL directly +
   `PRAGMA user_version = 3`, then open with BridgeDb to trigger only v4); CRUD;
-  enabled-delete refusal; allowlist/binding backfill; per-agent handshake;
+  enabled-delete refusal; delete cascade (agent_allowlist + bindings + jobs gone,
+  legacy rows untouched); agent_allowlist copy + bindings.agent_id backfill on seed;
+  per-agent handshake;
   **negative test (audit fix #7): two same-kind agents bind the SAME chat_id —
   both bindings coexist (no UNIQUE collision), while the same agent re-binding the
   same chat stays idempotent.**
