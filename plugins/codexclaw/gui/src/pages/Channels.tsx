@@ -115,13 +115,16 @@ function ChannelCard({
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       const s = await api.handshakeStatus(kind);
+      if (pollRef.current === null) return; // cancelled while the request was in flight
       if (s.pairedChatId) {
-        if (pollRef.current) clearInterval(pollRef.current);
+        clearInterval(pollRef.current);
+        pollRef.current = null;
         setStep("paired");
         toast(`${meta.name} paired with chat ${s.pairedChatId}`, "ok");
         await onChanged();
       } else if (!s.open) {
-        if (pollRef.current) clearInterval(pollRef.current);
+        clearInterval(pollRef.current);
+        pollRef.current = null;
         setStep("error");
         setError("handshake window expired — try again");
       }
@@ -151,24 +154,63 @@ function ChannelCard({
         </div>
       </div>
 
-      {active ? (
-        <div className="row" style={{ justifyContent: "space-between" }}>
-          <span className="hint">This channel is live. Messages route to codex.</span>
-          <Button variant="danger" onClick={disconnect}>Disconnect</Button>
-        </div>
-      ) : step === "awaiting-start" ? (
+      {step === "awaiting-start" ? (
+        // Wizard states must win over `active`: connect() activates the channel
+        // BEFORE pairing, so putting `active` first made this view unreachable
+        // and the card claimed "live" with zero paired chats (devlog 260703 §2).
         <div className="state" style={{ padding: "var(--s-5)" }}>
           <div className="spinner" />
           <div className="title">Waiting for the handshake…</div>
           <div className="hint">{meta.startHint}</div>
-          <Button onClick={() => { setStep("idle"); if (pollRef.current) clearInterval(pollRef.current); }}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setStep("idle");
+              if (pollRef.current) clearInterval(pollRef.current);
+              pollRef.current = null;
+            }}
+          >
+            Cancel
+          </Button>
         </div>
       ) : step === "paired" ? (
         <div className="state" style={{ padding: "var(--s-5)" }}>
           <div className="glyph" style={{ color: "var(--ok)" }}><Icon name="check-circle" size={30} /></div>
           <div className="title">Connected</div>
           <div className="hint">{meta.name} is live — send it a message.</div>
+          <Button onClick={() => setStep("idle")}>Done</Button>
         </div>
+      ) : active ? (
+        <>
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <span className="hint">
+              {allowlistCount > 0
+                ? "This channel is live. Messages route to codex."
+                : "Active, but no chat is paired yet — messages are ignored until one pairs."}
+            </span>
+            <Button variant="danger" onClick={disconnect}>Disconnect</Button>
+          </div>
+          {step === "error" && error ? (
+            // Expiry lands here while the channel is active — the token-form error
+            // paragraph is unreachable then, so surface it in this branch too.
+            <p className="hint row" style={{ color: "var(--danger)", gap: "var(--s-2)" }}>
+              <Icon name="alert" size={14} /> {error}
+            </p>
+          ) : null}
+          {allowlistCount === 0 ? (
+            <div className="row" style={{ marginTop: "var(--s-3)" }}>
+              <Button
+                variant="primary"
+                onClick={async () => {
+                  await api.openHandshake(kind, 180);
+                  setStep("awaiting-start");
+                  startPolling();
+                }}
+              >
+                Open pairing window
+              </Button>
+            </div>
+          ) : null}
+        </>
       ) : (
         <>
           <Field label={`${meta.name} bot token`}>
