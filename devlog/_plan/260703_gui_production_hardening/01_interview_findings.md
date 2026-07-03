@@ -38,9 +38,40 @@ Fix directions (for P): (a) checkbox-on should send `mode:"model"` + a default m
 existing model retained; plus (c) GUI must surface API errors instead of the
 unconditional success toast.
 
-## Remaining unknowns (round 2 targets)
+## User decisions (round 2) — interview CLOSED
 
-- Agent↔bot mapping: dedicated bot token per agent vs shared bot per messenger with
-  chat→agent routing (drives adapter architecture: N pollers vs 1 poller + router).
-- "Auto-send on/off" semantics (unanswered in round 1).
-- Testable success criteria / priority ordering of work-phases.
+1. **Agent↔bot mapping: dedicated bot token per agent** (BotFather bot per agent;
+   N independent pollers; no routing table). Isolation over token convenience.
+2. **Auto-send semantics: cli-jaw parity — two toggles per agent.**
+   - `auto-send`: forward heartbeat/async results to the paired chat.
+   - `mention-only`: response gate (group @mention requirement), independent toggle.
+3. **DOD confirmed as proposed (5 items)** + user asked feasibility of per-agent
+   heartbeat tasks → assessed FEASIBLE (M): turn path (`AgentService.handleIncoming`)
+   is caller-agnostic, per-binding serial queue prevents overlap, adapters already
+   send proactively, `cxc service` daemon exists. Needs: per-agent schedule store
+   (interval + prompt), a timer scheduler in serve, a silence convention
+   (HEARTBEAT_OK-style suppression), card UI field. Included as work-phase ⑥.
+
+## Final DOD (testable)
+
+1. Subagents page: checkbox+dropdown work; API errors surfaced (no lying toast);
+   selection persists and reaches the actual spawn payload.
+2. Connect wizard: "waiting for /start" state actually renders; pairing detected →
+   paired state shown; "live" claimed only when adapter running.
+3. ≥2 named agents on different messengers active simultaneously, routing
+   independently (dedicated bot token each).
+4. Per-agent card: model / reasoning effort / auto-send / mention-only changes
+   apply on the next turn.
+5. ocx detected → ocx-routed models appear in the model catalog.
+6. Per-agent heartbeat: interval + prompt configurable on the card; silent when
+   nothing to report; result forwarded only when auto-send is on.
+
+## Slice map (multi-pass PABCD, decade numbering — to concretize in P)
+
+- 10 — Subagents dropdown fix + error surfacing (S) — DOD 1
+- 20 — Connect wizard state machine + pairing UX (S/M) — DOD 2
+- 30 — Catalog: ocx model surfacing (cache path resolution) (M) — DOD 5
+- 40 — Named-agent entity + schema migration (bindings→agents, per-agent token) (L) — DOD 3 prereq
+- 50 — Multi-adapter controller (N concurrent pollers) (L) — DOD 3
+- 60 — Per-agent card: model/effort/options wiring into runner (M) — DOD 4
+- 70 — Per-agent heartbeat scheduler (M) — DOD 6
