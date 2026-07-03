@@ -23,6 +23,7 @@ import { parsePostCompact, parsePostToolUse, parseStop, parseSubagentStop, parse
 import { handlePreToolUseFailClosed } from "./goal-gate.ts";
 import { handleApplyPatchLint } from "./comment-lint.ts";
 import { handleFrictionPreToolUse } from "./friction-gate.ts";
+import { handleEditShapeCapture } from "./edit-shape.ts";
 import { buildRulesContextFromRaw } from "./rules.ts";
 import { runSubagentStopGate } from "./subagent-evidence.ts";
 import { runDivergenceCli } from "./divergence-cli.ts";
@@ -140,6 +141,11 @@ function main(): void {
       // 080.1: heuristic shell-failure friction capture (matcher ^Bash$); side-effect only.
       const payload = parsePostToolUse(raw);
       if (payload) output = handleBashFrictionCapture(payload);
+    } else if (event === "post-tool-use-edit-shape") {
+      // astgrep_active 00: repeated same-shaped edit advisory (matcher ^apply_patch$).
+      // FAIL-OPEN capture + one-time additionalContext nudge toward $cxc-ast-grep.
+      const payload = parsePostToolUse(raw);
+      if (payload) output = handleEditShapeCapture(payload);
     } else if (event === "session-start-rules") {
       // 060.1: surface project rules as SessionStart additionalContext ("" when none).
       output = buildRulesContextFromRaw(raw, process.cwd());

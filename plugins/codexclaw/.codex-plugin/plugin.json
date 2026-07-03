@@ -33,7 +33,8 @@
     "./hooks/pre-tool-use-advising-on-friction.json",
     "./hooks/user-prompt-submit-suggesting-recall.json",
     "./hooks/session-start-advertising-recall.json",
-    "./hooks/post-compact-suggesting-recall.json"
+    "./hooks/post-compact-suggesting-recall.json",
+    "./hooks/post-tool-use-detecting-edit-shapes.json"
   ],
   "mcpServers": "./.mcp.json",
   "interface": {

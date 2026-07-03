@@ -13,6 +13,8 @@
  *   codexclaw metric              record/show objective metrics for emergence-harness loops
  *   codexclaw divergence          record divergence mode + candidate archive state
  *   codexclaw goalplan            init/show/validate the project-local goalplan substrate
+ *   codexclaw serve               run the bridge server (GUI static + API + messenger bots)
+ *   codexclaw service             install/uninstall/status the serve daemon (launchd)
  *   codexclaw gui                 launch the codexclaw web dashboard
  *   codexclaw subagents           read/write per-role subagent model+prompt config
  *   codexclaw provider            show read-only opencodex (ocx) provider status
@@ -94,6 +96,17 @@ const providerBridgeCli = join(
   "cli.js",
 );
 
+const messengerBridgeCli = join(
+  here,
+  "..",
+  "plugins",
+  "codexclaw",
+  "components",
+  "messenger-bridge",
+  "dist",
+  "cli.js",
+);
+
 /** Delegate a subcommand to the compiled config-guard CLI; returns its exit code. */
 function runConfigGuard(subcommand) {
   const res = spawnSync(process.execPath, [configGuardCli, subcommand], { stdio: "inherit" });
@@ -121,6 +134,12 @@ function runSubagents(args) {
 /** Delegate to the compiled recall CLI. argv: [kind, "search", ...rest], kind ∈ chat|memory. */
 function runRecall(args) {
   const res = spawnSync(process.execPath, [recallCli, ...args], { stdio: "inherit" });
+  return typeof res.status === "number" ? res.status : 1;
+}
+
+/** Delegate to the compiled messenger-bridge CLI. argv: ["serve", ...rest]. */
+function runMessengerBridge(args) {
+  const res = spawnSync(process.execPath, [messengerBridgeCli, ...args], { stdio: "inherit" });
   return typeof res.status === "number" ? res.status : 1;
 }
 
@@ -170,6 +189,11 @@ switch (cmd) {
     // Project-local goalplan substrate (init/show/validate); never writes the host goal DB.
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
+  case "serve":
+  case "service":
+    // messenger-bridge CLI expects argv as ["serve"|"service", ...rest].
+    process.exit(runMessengerBridge(process.argv.slice(2)));
+    break;
   case "gui": {
     const guiDir = join(here, "..", "plugins", "codexclaw", "gui");
     // npm workspaces hoist deps to the repo root, so check either location.
@@ -196,5 +220,5 @@ switch (cmd) {
     process.exit(runProvider());
     break;
   default:
-    console.log("codexclaw <enable|disable|uninstall|status|orchestrate|freeze|metric|divergence|goalplan|doctor|reset|subagents|provider|chat|memory|gui>");
+    console.log("codexclaw <enable|disable|uninstall|status|orchestrate|freeze|metric|divergence|goalplan|doctor|reset|subagents|provider|chat|memory|gui|serve|service>");
 }
