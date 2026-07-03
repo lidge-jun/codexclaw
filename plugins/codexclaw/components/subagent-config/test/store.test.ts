@@ -100,3 +100,24 @@ test("atomic write leaves no orphan .tmp", () => {
   assert.ok(!files.some((f) => f.endsWith(".tmp")), `orphan tmp left: ${files.join(",")}`);
   assert.ok(existsSync(join(cwd, ".codexclaw", "subagents.json")));
 });
+
+test("merged validation: {mode:'model'} alone passes when the role already has a model", () => {
+  const cwd = tmp();
+  setRole(cwd, "reviewer", { mode: "model", model: "gpt-5.4" });
+  const cfg = setRole(cwd, "reviewer", { mode: "model" }); // bare re-assert: must not throw
+  assert.equal(cfg.roles.reviewer.mode, "model");
+  assert.equal(cfg.roles.reviewer.model, "gpt-5.4");
+});
+
+test("merged validation: fresh default role still rejects bare {mode:'model'}", () => {
+  assert.throws(() => setRole(tmp(), "explorer", { mode: "model" }), /requires a non-empty model/);
+});
+
+test("merged validation: default->model round-trip needs an explicit model again (default cleared it)", () => {
+  const cwd = tmp();
+  setRole(cwd, "reviewer", { mode: "model", model: "m1" });
+  setRole(cwd, "reviewer", { mode: "default" }); // invariant nulls model
+  assert.throws(() => setRole(cwd, "reviewer", { mode: "model" }), /requires a non-empty model/);
+  const cfg = setRole(cwd, "reviewer", { mode: "model", model: "m2" });
+  assert.equal(cfg.roles.reviewer.model, "m2");
+});

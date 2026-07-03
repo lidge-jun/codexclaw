@@ -113,15 +113,17 @@ export function writeConfig(cwd: string, config: SubagentsConfig): void {
 }
 
 /**
- * Apply a validated patch to one role and persist. Returns the updated config.
- * Throws on an invalid patch (caller surfaces the message).
+ * Apply a patch to one role and persist. Returns the updated config.
+ * Validates the MERGED role (not the bare patch), so `{mode:"model"}` alone is
+ * valid when the role already has a saved model — the GUI checkbox depends on
+ * this. Throws on an invalid merged state (caller surfaces the message).
  */
 export function setRole(cwd: string, role: RoleName, patch: Partial<RoleConfig>): SubagentsConfig {
   if (!ROLES.includes(role)) throw new Error(`unknown role "${role}"`);
-  const err = validateRolePatch(patch);
-  if (err) throw new Error(err);
   const config = readConfig(cwd);
   const next: RoleConfig = { ...config.roles[role], ...patch };
+  const err = validateRolePatch(next);
+  if (err) throw new Error(err);
   // enforce the default-mode invariant: default mode ignores model.
   if (next.mode === "default") next.model = null;
   config.roles[role] = next;

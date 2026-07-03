@@ -69,3 +69,15 @@ test("catalog: native entries always present; ocx-present-no-list -> unsupported
   });
   assert.equal((ocx.body as any).state, "unsupported-ocx-catalog");
 });
+
+test("GUI checkbox flow: bare mode:model on fresh role -> 400 with real error; with model -> 200; bare re-assert keeps model", () => {
+  const cwd = tmp();
+  const bad = postSubagents(cwd, { role: "explorer", mode: "model" });
+  assert.equal(bad.status, 400);
+  assert.match(String((bad.body as { error?: string }).error), /requires a non-empty model/);
+  const good = postSubagents(cwd, { role: "explorer", mode: "model", model: "gpt-5.3-codex-spark" });
+  assert.equal(good.status, 200);
+  const again = postSubagents(cwd, { role: "explorer", mode: "model" });
+  assert.equal(again.status, 200);
+  assert.equal((again.body as any).roles.explorer.model, "gpt-5.3-codex-spark");
+});
