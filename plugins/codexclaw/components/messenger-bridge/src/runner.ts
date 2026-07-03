@@ -10,8 +10,10 @@
  * Arg shapes + event names verified against codex-cli 0.142.5 (A-audit Phase 2,
  * 2026-07-03): `codex exec [OPTIONS] [PROMPT]` (prompt via stdin for new runs),
  * `codex exec resume [OPTIONS] [SESSION_ID] [PROMPT]`; flags -m/--model, --json,
- * --dangerously-bypass-approvals-and-sandbox, --skip-git-repo-check. Missing
- * rollout emits: "thread/resume failed: no rollout found for thread id <id>".
+ * -c/--config KEY=VALUE (used for model_reasoning_effort; accepted by both exec
+ * and exec resume — re-verified 2026-07-03), --dangerously-bypass-approvals-and-
+ * sandbox, --skip-git-repo-check. Missing rollout emits: "thread/resume failed:
+ * no rollout found for thread id <id>".
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
