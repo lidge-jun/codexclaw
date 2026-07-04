@@ -1,48 +1,292 @@
-/* codexclaw docs — developer-control visual language.
- * Neutral dark/light tokens, one blue primary accent, one green success accent.
- * Patterned after the L11/110 design record: precise, table/diagram heavy, no spectacle. */
+/* codexclaw docs — ink & claw identity. */
 
 :root {
-  /* Blue primary accent ramp (Starlight expects --sl-color-accent-*). */
-  --sl-color-accent-low: #1e293b;
-  --sl-color-accent: #2563eb;
-  --sl-color-accent-high: #bfdbfe;
-
-  /* Tighten radii — 6-8px, not pill-heavy. */
+  --cxc-font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
   --cxc-radius: 6px;
+  --cxc-ink: #0b0b0e;
+  --cxc-surface: #131318;
+  --cxc-crimson-low: #3a1113;
+  --cxc-crimson: #e5484d;
+  --cxc-crimson-high: #ffc9cb;
   --cxc-green: #22c55e;
+
+  --sl-color-white: #f7f7f5;
+  --sl-color-gray-1: #ededeb;
+  --sl-color-gray-2: #c9c9c4;
+  --sl-color-gray-3: #9a9a94;
+  --sl-color-gray-4: #6d6d68;
+  --sl-color-gray-5: #2a2a30;
+  --sl-color-gray-6: #18181d;
+  --sl-color-gray-7: #131318;
+  --sl-color-black: var(--cxc-ink);
+
+  --sl-color-accent-low: var(--cxc-crimson-low);
+  --sl-color-accent: var(--cxc-crimson);
+  --sl-color-accent-high: var(--cxc-crimson-high);
+
+  --sl-color-blue-low: var(--cxc-crimson-low);
+  --sl-color-blue: var(--cxc-crimson);
+  --sl-color-blue-high: var(--cxc-crimson-high);
+  --sl-color-purple-low: #251417;
+  --sl-color-purple: var(--cxc-crimson);
+  --sl-color-purple-high: var(--cxc-crimson-high);
+  --sl-color-red-low: var(--cxc-crimson-low);
+  --sl-color-red: var(--cxc-crimson);
+  --sl-color-red-high: var(--cxc-crimson-high);
+  --sl-color-orange-low: #2c2116;
+  --sl-color-orange: #d99a3d;
+  --sl-color-orange-high: #ffe0ad;
+  --sl-color-green-low: #0f2a1a;
+  --sl-color-green: var(--cxc-green);
+  --sl-color-green-high: #bbf7d0;
+
+  --sl-color-text: var(--sl-color-gray-2);
+  --sl-color-text-accent: var(--sl-color-accent-high);
+  --sl-color-text-invert: var(--cxc-ink);
+  --sl-color-bg: var(--cxc-ink);
+  --sl-color-bg-nav: var(--cxc-surface);
+  --sl-color-bg-sidebar: var(--cxc-surface);
+  --sl-color-bg-inline-code: #1d1d23;
+  --sl-color-bg-accent: var(--sl-color-accent-high);
+  --sl-color-hairline-light: #303036;
+  --sl-color-hairline: #24242a;
+  --sl-color-hairline-shade: #050506;
+  --sl-color-backdrop-overlay: rgb(11 11 14 / 72%);
 }
 
-/* Light theme accent ramp. */
 :root[data-theme="light"] {
-  --sl-color-accent-low: #dbeafe;
-  --sl-color-accent: #2563eb;
-  --sl-color-accent-high: #1e3a8a;
+  --cxc-ink: #181818;
+  --cxc-surface: #f4f4f2;
+  --cxc-crimson-low: #ffe5e6;
+  --cxc-crimson: #d93036;
+  --cxc-crimson-high: #7f1d1d;
+
+  --sl-color-white: #181818;
+  --sl-color-gray-1: #242424;
+  --sl-color-gray-2: #3e3e3a;
+  --sl-color-gray-3: #686861;
+  --sl-color-gray-4: #97978f;
+  --sl-color-gray-5: #cfcfc8;
+  --sl-color-gray-6: #ecece8;
+  --sl-color-gray-7: #fdfdfc;
+  --sl-color-black: #fdfdfc;
+
+  --sl-color-accent-low: var(--cxc-crimson-low);
+  --sl-color-accent: var(--cxc-crimson);
+  --sl-color-accent-high: var(--cxc-crimson-high);
+
+  --sl-color-blue-low: var(--cxc-crimson-low);
+  --sl-color-blue: var(--cxc-crimson);
+  --sl-color-blue-high: var(--cxc-crimson-high);
+  --sl-color-purple-low: #f8dddd;
+  --sl-color-purple: var(--cxc-crimson);
+  --sl-color-purple-high: var(--cxc-crimson-high);
+  --sl-color-red-low: var(--cxc-crimson-low);
+  --sl-color-red: var(--cxc-crimson);
+  --sl-color-red-high: var(--cxc-crimson-high);
+  --sl-color-orange-low: #fff0d6;
+  --sl-color-orange: #b46816;
+  --sl-color-orange-high: #6f3f0c;
+  --sl-color-green-low: #dcfce7;
+  --sl-color-green: var(--cxc-green);
+  --sl-color-green-high: #166534;
+
+  --sl-color-text: var(--sl-color-gray-2);
+  --sl-color-text-accent: var(--sl-color-accent);
+  --sl-color-text-invert: var(--sl-color-black);
+  --sl-color-bg: #fdfdfc;
+  --sl-color-bg-nav: #fdfdfc;
+  --sl-color-bg-sidebar: #f4f4f2;
+  --sl-color-bg-inline-code: #efefec;
+  --sl-color-bg-accent: var(--sl-color-accent);
+  --sl-color-hairline-light: #e3e3df;
+  --sl-color-hairline: #d8d8d2;
+  --sl-color-hairline-shade: #c7c7c0;
+  --sl-color-backdrop-overlay: rgb(24 24 24 / 58%);
 }
 
-/* Monospace for inline code/paths/state IDs. */
+body {
+  letter-spacing: 0;
+}
+
+:where(h1, h2, h3),
+.site-title,
+.sidebar-content .group-label {
+  font-family: var(--cxc-font-mono);
+  letter-spacing: 0;
+}
+
+:where(h1, h2, h3) {
+  color: var(--sl-color-white);
+  text-wrap: balance;
+}
+
+.site-title {
+  font-weight: 750;
+}
+
+.site-title img {
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--sl-color-accent) 26%, transparent));
+}
+
+.sidebar-content .group-label {
+  color: var(--sl-color-gray-2);
+  font-size: 0.78rem;
+}
+
+.sidebar-content a[aria-current="page"] {
+  color: var(--sl-color-white);
+}
+
+.sl-markdown-content a {
+  text-decoration-color: color-mix(in srgb, var(--sl-color-accent) 42%, transparent);
+  text-underline-offset: 0.18em;
+}
+
 .sl-markdown-content code:not(pre code) {
+  border: 1px solid var(--sl-color-hairline);
   border-radius: var(--cxc-radius);
   font-size: 0.875em;
 }
 
-/* Tables over card grids — give them room and clear separators. */
+.sl-markdown-content .expressive-code .frame,
+.sl-markdown-content pre {
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: var(--cxc-radius);
+}
+
+.sl-markdown-content .expressive-code .frame {
+  overflow: hidden;
+}
+
+.hero > img,
+.hero > .hero-html img {
+  filter: drop-shadow(0 14px 28px color-mix(in srgb, var(--sl-color-accent) 18%, transparent));
+}
+
 .sl-markdown-content table {
   display: table;
   width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--sl-color-hairline);
+  border-radius: var(--cxc-radius);
+  overflow: hidden;
+}
+
+.sl-markdown-content :where(th, td) {
+  border-color: var(--sl-color-hairline);
 }
 
 .sl-markdown-content th {
   background: var(--sl-color-gray-6);
+  color: var(--sl-color-white);
+  font-family: var(--cxc-font-mono);
+  letter-spacing: 0;
 }
 
-/* Status badges used inline in docs: current / planned / deferred. */
+.sl-markdown-content tbody tr {
+  transition: background-color 120ms ease;
+}
+
+.sl-markdown-content tbody tr:hover {
+  background: color-mix(in srgb, var(--sl-color-accent) 7%, transparent);
+}
+
+.sl-markdown-content .starlight-aside {
+  border-inline-start: 2px solid var(--sl-color-accent);
+  border-radius: var(--cxc-radius);
+  background: color-mix(in srgb, var(--sl-color-accent-low) 42%, var(--sl-color-bg));
+  color: var(--sl-color-text);
+}
+
+.sl-markdown-content .starlight-aside__title {
+  color: var(--sl-color-accent-high);
+  font-family: var(--cxc-font-mono);
+  letter-spacing: 0;
+}
+
+:root[data-theme="light"] .sl-markdown-content .starlight-aside__title {
+  color: var(--sl-color-accent-high);
+}
+
+.cxc-phase-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-block: 1rem;
+}
+
+.cxc-phase-strip > *,
+.cxc-phase-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.8rem;
+  padding: 0.18rem 0.55rem;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: var(--cxc-radius);
+  color: var(--sl-color-gray-2);
+  background: color-mix(in srgb, var(--sl-color-bg) 78%, var(--sl-color-gray-6));
+  font-family: var(--cxc-font-mono);
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.cxc-phase-strip > * + *,
+.cxc-phase-chip + .cxc-phase-chip {
+  margin-inline-start: 1.05rem;
+}
+
+.cxc-phase-strip > * + *::before,
+.cxc-phase-chip + .cxc-phase-chip::before {
+  content: "->";
+  position: absolute;
+  inset-inline-start: -1.08rem;
+  color: var(--sl-color-gray-4);
+  font-weight: 500;
+}
+
+/* Phase letter: crimson, separated from the phase description. */
+.cxc-phase-strip strong,
+.cxc-phase-chip strong {
+  color: var(--sl-color-accent);
+  margin-inline-end: 0.4em;
+}
+
+.cxc-phase-strip > :is(.is-active, .active, [aria-current="step"], [data-state="active"]),
+.cxc-phase-chip:is(.is-active, .active, [aria-current="step"], [data-state="active"]) {
+  border-color: var(--sl-color-accent);
+  color: var(--sl-color-accent-high);
+  background: color-mix(in srgb, var(--sl-color-accent-low) 55%, transparent);
+}
+
+.cxc-band {
+  margin-block: 2rem;
+  margin-inline: calc(var(--sl-content-pad-x) * -1);
+  padding: 1.25rem var(--sl-content-pad-x);
+  border-block: 1px solid var(--sl-color-hairline);
+  background: color-mix(in srgb, var(--sl-color-bg) 82%, var(--sl-color-gray-6));
+}
+
+.cxc-band > :first-child {
+  margin-top: 0;
+}
+
+.cxc-band > :last-child {
+  margin-bottom: 0;
+}
+
 .cxc-badge {
   display: inline-block;
   padding: 0.1em 0.55em;
+  border: 1px solid var(--sl-color-hairline);
   border-radius: var(--cxc-radius);
   font-size: 0.75em;
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: 0;
   vertical-align: middle;
 }
@@ -50,22 +294,33 @@
 .cxc-badge--current {
   background: color-mix(in srgb, var(--cxc-green) 18%, transparent);
   color: var(--cxc-green);
-  border: 1px solid color-mix(in srgb, var(--cxc-green) 40%, transparent);
+  border-color: color-mix(in srgb, var(--cxc-green) 42%, transparent);
 }
 
 .cxc-badge--planned {
-  background: color-mix(in srgb, var(--sl-color-accent) 16%, transparent);
+  background: color-mix(in srgb, var(--sl-color-accent) 15%, transparent);
   color: var(--sl-color-accent-high);
-  border: 1px solid color-mix(in srgb, var(--sl-color-accent) 38%, transparent);
+  border-color: color-mix(in srgb, var(--sl-color-accent) 42%, transparent);
+}
+
+:root[data-theme="light"] .cxc-badge--planned {
+  color: var(--sl-color-accent-high);
 }
 
 .cxc-badge--deferred {
-  background: var(--sl-color-gray-6);
-  color: var(--sl-color-gray-2);
-  border: 1px solid var(--sl-color-gray-5);
+  background: color-mix(in srgb, var(--sl-color-gray-6) 82%, transparent);
+  color: var(--sl-color-gray-3);
+  border-color: var(--sl-color-hairline-light);
 }
 
-/* Rounded radii for cards/asides to match the 6-8px rule. */
-.sl-markdown-content .starlight-aside {
-  border-radius: var(--cxc-radius);
+@media (max-width: 40rem) {
+  .cxc-phase-strip {
+    gap: 0.35rem;
+  }
+
+  .cxc-phase-strip > *,
+  .cxc-phase-chip {
+    min-height: 1.65rem;
+    font-size: 0.78rem;
+  }
 }
