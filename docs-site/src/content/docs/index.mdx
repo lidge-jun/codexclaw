@@ -6,7 +6,7 @@ hero:
   image:
     file: ../../assets/codexclaw-hero.png
     alt: codexclaw split Codex blossom and OpenClaw claw logo
-  tagline: One Codex plugin that layers cli-jaw-style development discipline, a PABCD work loop, multi-model subagent config, and an optional opencodex bridge, with no codex-rs fork and no separate server.
+  tagline: "Development discipline for OpenAI Codex: one plugin, no fork, no harness."
   actions:
     - text: Get Started
       link: /codexclaw/getting-started/installation/
@@ -21,15 +21,29 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
-
 **codexclaw** (`cxc`) is a single [OpenAI Codex](https://openai.com/codex) plugin. It reuses the
-Codex runtime and adds development discipline on top: a `cxc-dev` work classifier, a PABCD
-work loop driven by hooks and file state, multi-model subagent configuration over MCP, and an
-optional detect-only [opencodex](https://github.com/lidge-jun/opencodex) provider bridge.
+Codex runtime and adds development discipline on top: a `cxc-dev` work classifier, an IPABCD
+work loop driven by hooks and file state, multi-model subagent configuration over MCP, a shipped
+GUI dashboard, and an optional detect-only [opencodex](https://github.com/lidge-jun/opencodex)
+provider bridge.
 
-It is not a server, not a harness, and not a provider proxy. Everything ships through the
-standard Codex plugin surfaces: skills, hooks, an MCP server, and a small `cxc` CLI.
+It is not a Codex fork, not a harness, and not a provider proxy. Everything ships through the
+standard Codex plugin surfaces: skills, hooks, an MCP server, local components, and a small `cxc`
+CLI. The only scoped server exception is the opt-in loopback messenger bridge, which relays to
+stock `codex exec` and does not orchestrate subagents.
+
+<section class="cxc-band">
+
+## PABCD pipeline
+
+<div class="cxc-phase-strip" aria-label="codexclaw IPABCD pipeline">
+  <span><strong>I</strong> Interview: settle ambiguity before a work loop starts.</span>
+  <span><strong>P</strong> Plan: write the concrete change plan and evidence target.</span>
+  <span><strong>A</strong> Audit: check risk, contradictions, and missing proof.</span>
+  <span><strong>B</strong> Build: make the scoped change and verify as you go.</span>
+  <span><strong>C</strong> Check: run the real build, tests, and review gate.</span>
+  <span><strong>D</strong> Done: summarize evidence, close the phase, return to idle.</span>
+</div>
 
 ```
 Codex runtime
@@ -37,27 +51,28 @@ Codex runtime
        ├─ skills   →  cxc-dev discipline + dev-* routers + PABCD/loop/interview
        ├─ hooks    →  PABCD state, goal guards, provider detection
        ├─ MCP      →  subagent model/prompt config
+       ├─ GUI      →  dashboard + opt-in messenger bridge
        └─ cxc CLI  →  enable · status · doctor · orchestrate · gui
 ```
 
-<CardGrid stagger>
-  <Card title="Dev discipline" icon="approve-check">
-    `cxc-dev` is always-on. It classifies each task C0-C5, enforces pre-write search and
-    verification-before-completion, and routes to surface-specific `dev-*` skills.
-  </Card>
-  <Card title="PABCD work loop" icon="seti:todo">
-    A Plan → Audit → Build → Check → Done cycle backed by a legal-transition FSM, attestation
-    gate, and a durable file ledger. Chat and `cxc orchestrate` drive the same state.
-  </Card>
-  <Card title="Multi-model subagents" icon="puzzle">
-    Configure explorer / reviewer / executor roles with their own model and prompt overrides via
-    the `subagents_get` / `subagents_set` / `catalog_list` MCP tools.
-  </Card>
-  <Card title="Optional opencodex bridge" icon="random">
-    When `ocx` is present, codexclaw detects provider status only. Native model fallback always
-    stays valid; codexclaw never runs `ocx ensure` as an unannounced mutation.
-  </Card>
-</CardGrid>
+</section>
+
+<section class="cxc-band">
+
+## Surface map
+
+| Surface | Status | Count / scope | Primary docs |
+|---------|--------|---------------|--------------|
+| Skills | <span class="cxc-badge cxc-badge--current">current</span> | 23 skills: `cxc-dev`, dev routers, `pabcd`, `loop`, `search`, `recall`, and research/search helpers. | [Skills](/codexclaw/guides/skills/) |
+| Hooks | <span class="cxc-badge cxc-badge--current">current</span> | 17 hook JSON files across `SessionStart`, `UserPromptSubmit`, `Stop`, `PreToolUse`, `PostToolUse`, `SubagentStop`, and `PostCompact`. | [Hooks](/codexclaw/reference/hooks/) |
+| MCP | <span class="cxc-badge cxc-badge--current">current</span> | Subagent model and prompt config: `subagents_get`, `subagents_set`, `catalog_list`. | [MCP Tools](/codexclaw/reference/api-mcp/) · [Subagents](/codexclaw/guides/subagents/) |
+| Components | <span class="cxc-badge cxc-badge--current">current</span> | 7 local components: config guard, ops, recall, PABCD state, provider bridge, subagent config, messenger bridge. | [How It Works](/codexclaw/concepts/how-it-works/) |
+| `cxc` CLI | <span class="cxc-badge cxc-badge--current">current</span> | `enable`, `status`, `doctor`, `reset`, `orchestrate`, `freeze`, `metric`, `divergence`, `goalplan`, `subagents`, `provider`, `gui`, `serve`, `service`. | [Commands](/codexclaw/reference/commands/) |
+| GUI | <span class="cxc-badge cxc-badge--current">current</span> | Dashboard plus shipped opt-in loopback messenger bridge through `cxc serve`; not a jaw-style orchestrator. | [GUI Dashboard](/codexclaw/guides/gui/) |
+
+</section>
+
+<section class="cxc-band">
 
 ## Quick start
 
@@ -72,18 +87,27 @@ cxc doctor
 cxc orchestrate P --attest '{"from":"IDLE","to":"P","did":"plan the change"}'
 ```
 
+The project gate is green at 644 tests. Build and test commands are documented separately so the
+landing page stays a control surface, not a release note.
+
 :::note[Status honesty]
 These docs mark features `current`, `planned`, or `deferred`. A `planned` feature has a decided
 design but no shipped runtime yet. The docs never describe a planned feature as if it shipped.
 :::
 
+</section>
+
+<section class="cxc-band">
+
 ## Where to next
 
-<CardGrid>
-  <LinkCard title="Installation" href="/codexclaw/getting-started/installation/" description="Marketplace install, local dogfood symlink, activation, and hook trust." />
-  <LinkCard title="How It Works" href="/codexclaw/concepts/how-it-works/" description="Plugin manifest → skills, hooks, MCP, and CLI → the .codexclaw file state." />
-  <LinkCard title="PABCD Workflow" href="/codexclaw/guides/pabcd/" description="Triggers, the orchestrate grammar, the attest gate, and the D-close rule." />
-  <LinkCard title="Skills" href="/codexclaw/guides/skills/" description="Implicit vs on-demand loading, the C0-C5 classifier, and the dev-* routing table." />
-  <LinkCard title="Commands" href="/codexclaw/reference/commands/" description="Every live cxc command and the orchestrate sub-grammar." />
-  <LinkCard title="Parity Roadmap" href="/codexclaw/development/parity-roadmap/" description="What is shipped, planned, and deferred against cli-jaw / opencodex parity." />
-</CardGrid>
+| Need | Go to |
+|------|-------|
+| Install or dogfood locally | [Installation](/codexclaw/getting-started/installation/) |
+| Understand the plugin boundary | [How It Works](/codexclaw/concepts/how-it-works/) · [Plugin Boundary](/codexclaw/concepts/plugin-boundary/) |
+| Run the IPABCD loop | [PABCD Workflow](/codexclaw/guides/pabcd/) |
+| Inspect the skill model | [Skills](/codexclaw/guides/skills/) · [Work Classes](/codexclaw/concepts/work-classes/) |
+| Configure subagents | [Subagents](/codexclaw/guides/subagents/) · [MCP Tools](/codexclaw/reference/api-mcp/) |
+| Check shipped, planned, and deferred scope | [Parity Roadmap](/codexclaw/development/parity-roadmap/) |
+
+</section>
