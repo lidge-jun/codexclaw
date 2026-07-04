@@ -62,8 +62,43 @@ overlays:
 
 - **`cxc-search`** is for external / current / public web information. Use it when the answer
   would change with recent events, versions, or prices.
+- **`cxc-recall`** is for past-session context. Use it before asking the user to repeat earlier
+  work.
+- **`cxc-sparksearch`** is a cheap parallel discovery lane that hands candidates back to
+  `cxc-search` for proof.
+- **`cxc-ultraresearch`** is the deeper multi-wave research protocol for broad investigations.
 - **`cxc-ast-grep`** is a structural code-search helper. Reach for plain `rg` first for ordinary
   text search, and `ast-grep` when you need syntax-aware matching or rewrites.
+
+## Shipped skill inventory
+
+codexclaw currently ships 23 skill directories:
+
+| Skill | Folder | Role |
+|---|---|---|
+| `cxc-dev` | `dev` | Always-on development classifier, modularity, verification, and safety. |
+| `cxc-pabcd` | `pabcd` | IPABCD / PABCD workflow discipline. |
+| `cxc-interview` | `interview` | Persistent I-phase requirements discovery and contradiction tracking. |
+| `cxc-orchestrate` | `orchestrate` | Explicit phase-control surface for chat and CLI. |
+| `cxc-loop` | `loop` | Repeated PABCD work-phase continuation policy. |
+| `cxc-goalplan` | `goalplan` | Durable goalplan, checkpoints, and quality gates. |
+| `cxc-dev-architecture` | `dev-architecture` | Module boundaries, circular deps, coupling, validation placement. |
+| `cxc-dev-backend` | `dev-backend` | API, server, database, queues, and backend operations. |
+| `cxc-dev-data` | `dev-data` | Pipelines, ETL/ELT, SQL, schema, backfills, and reports. |
+| `cxc-dev-debugging` | `dev-debugging` | Runtime root-cause debugging method. |
+| `cxc-dev-frontend` | `dev-frontend` | Frontend/UI implementation and responsive layout. |
+| `cxc-dev-uiux-design` | `dev-uiux-design` | UX direction, states, visual judgment, logos, and typography. |
+| `cxc-dev-testing` | `dev-testing` | Test strategy, QA, Playwright, contracts, CI, and coverage. |
+| `cxc-dev-code-reviewer` | `dev-code-reviewer` | Review verdicts, findings, and risk assessment. |
+| `cxc-dev-security` | `dev-security` | Auth, secrets, validation, supply chain, and threat-model work. |
+| `cxc-dev-devops` | `dev-devops` | Containers, deploy pipelines, IaC, SRE, and release surfaces. |
+| `cxc-dev-scaffolding` | `dev-scaffolding` | Project/module scaffolding and source-of-truth docs. |
+| `cxc-search` | `search` | Current/public lookup ladder and source-proof discipline. |
+| `cxc-recall` | `recall` | Read-only past chat and memory recall before asking the user. |
+| `cxc-skill-hub` | `skill-hub` | On-demand catalog router for non-implicit capabilities. |
+| `cxc-ast-grep` | `ast-grep` | AST-aware structural search and deterministic codemods. |
+| `cxc-sparksearch` | `sparksearch` | Parallel public-web discovery lane that depends on `cxc-search`. |
+| `cxc-ultraresearch` | `ultraresearch` | Deep multi-source research protocol with journal and claim ledger. |
 
 :::note[chat-search retired]
 An earlier `chat-search` CLI wrapper was retired (L13). Codex thread search is a native runtime

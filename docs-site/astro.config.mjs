@@ -72,6 +72,7 @@ export default defineConfig({
             { label: "Native Tools", slug: "guides/native-tools" },
             { label: "OpenCodex Bridge", slug: "guides/opencodex-bridge" },
             { label: "GUI Dashboard", slug: "guides/gui" },
+            { label: "Messenger Bridge", slug: "guides/messenger-bridge" },
           ],
         },
         {

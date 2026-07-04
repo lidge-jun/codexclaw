@@ -4,7 +4,9 @@ description: The .codexclaw file state — phases, the session schema, the trans
 ---
 
 codexclaw keeps all durable state in plain files under the project's `.codexclaw/` directory.
-There is no server and no database.
+The core PABCD/subagent surfaces use files only. The optional messenger bridge is the scoped
+exception: `cxc serve` opens `.codexclaw/bridge.db` for channel, allowlist, binding, job, and agent
+state. Recall also uses a rebuildable user-level cache under `~/.codexclaw`.
 
 ## Phases
 
@@ -26,6 +28,7 @@ type Phase = "IDLE" | "I" | "P" | "A" | "B" | "C" | "D";
 | `.codexclaw/interview/freeze.json` | Interview-plan freeze manifest. |
 | `.codexclaw/interviews/<id>.jsonl` | Interview Q/A capture + scan-evidence events. |
 | `.codexclaw/subagents.json` | Subagent role → model/prompt config. |
+| `.codexclaw/bridge.db` | Optional messenger bridge SQLite DB for channels, allowlists, bindings, jobs, and named agents. |
 
 :::note
 Older drafts referenced a single `.codexclaw/state.json`. The shipped layout is session-scoped
