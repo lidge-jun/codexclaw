@@ -28,6 +28,8 @@ codexclaw/
 │   │   ├── cxc-ops/                      # doctor + reset
 │   │   ├── provider-bridge/              # ocx detect-only / graceful native path
 │   │   ├── pabcd-state/                  # PABCD FSM + state file + orchestrate CLI
+│   │   ├── recall/                       # Codex-native session/memory disk-artifact recall
+│   │   ├── messenger-bridge/             # messenger integration bridge (cxc serve + adapters)
 │   │   └── subagent-config/              # subagent model/prompt config store + MCP
 │   └── gui/                              # local web dashboard (Vite + React)
 ├── cli/                                  # codexclaw CLI commands
@@ -52,6 +54,6 @@ L2-L9 and L12-L20 are shipped+tested; L10 is decision-closed (most is host-nativ
 (developer docs SoT reconciliation) is the remaining implementation item. `cxc orchestrate`
 is live, chat-side phase control writes the same `.codexclaw/` state, the IPABCD
 footer/status affordance is wired, and the Stop-continuation loop runs under an active Codex
-goal with a bounded stagnation guard. Thirteen hooks cover session lifecycle, orchestration,
+goal with a bounded stagnation guard. Seventeen hooks cover session lifecycle, orchestration,
 pre/post-tool guards, subagent evidence, and compaction recovery. See `devlog/_plan/` for
 the shipped ledger and remaining hardening slices.

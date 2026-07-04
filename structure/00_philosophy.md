@@ -18,7 +18,8 @@ aliases: [Codexclaw Implementation Philosophy, codexclaw 구현 철학, philosop
 
 codexclaw is a **single Codex plugin** that adds PABCD/IPABCD discipline, dev-skill
 routing, and configurable multi-model subagents **on top of** the Codex runtime — it
-never forks Codex, never runs a server, and never replaces the user's prompt.
+never forks Codex, never replaces the user's prompt, and runs no server — except the
+opt-in loopback messenger bridge (`cxc serve`, §2 scoped exception, 2026-07-03).
 
 ---
 
@@ -69,6 +70,13 @@ This is the single most common source of "false DONE" in this repo. Treat any
   `~/.codexclaw` (recall's FTS index; ast-grep runtime precedent). A cache is never a
   source of truth — deleting it only costs a rebuild — and durable state stays
   project-local.
+- The messenger bridge is a **second scoped exception** (owner-approved plan,
+  2026-07-03, `devlog/_plan/260703_messenger_bridge_active/`): `cxc serve` runs an
+  opt-in, loopback-only (`127.0.0.1`) bridge process with a project-local
+  `.codexclaw/bridge.db` (`node:sqlite`) for channel/binding/job state. It is not a
+  jaw-style orchestrator: it never dispatches subagents, never writes the goal DB,
+  and nothing else in codexclaw depends on it running. The no-server invariant
+  still bans *required*, *non-loopback*, or *orchestration* servers.
 - The native goal DB is **read-only** to codexclaw. Only the main session calls
   `create_goal`; codexclaw reads `thread_goals` to gate behavior, never writes it.
 - The provider bridge is **detect-only**. codexclaw observes whether `ocx` is present;

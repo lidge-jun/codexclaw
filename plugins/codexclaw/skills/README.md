@@ -22,10 +22,16 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   checkpoints, steering, and quality gates.
 - `search/` — discoverable `cxc-search` surface for external/current/public lookup
   discipline; not memory or chat search.
+- `recall/` — discoverable `cxc-recall` surface for read-only past-session chat and
+  memory search over `~/.codex` before asking the user to repeat context.
 - `ast-grep/` — discoverable `cxc-ast-grep` surface for optional AST-aware structural
   search/codemods, with `rg` first for ordinary text search.
 - `skill-hub/` — discoverable `cxc-skill-hub` catalog for choosing the right
   on-demand skill.
+- `sparksearch/` — discoverable `cxc-sparksearch` lane for cheap parallel public-web
+  discovery that hands proof back to `cxc-search`.
+- `ultraresearch/` — discoverable `cxc-ultraresearch` protocol for multi-wave
+  research with journal and claim-ledger proof discipline.
 
 ## Conventions
 

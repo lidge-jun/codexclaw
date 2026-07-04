@@ -58,7 +58,7 @@ graph LR
     PROVIDER --> COMPONENTS
 ```
 
-codexclaw is a **single Codex plugin**, not a server. It reuses the OpenAI `codex` runtime and layers cli-jaw-style development discipline onto Codex through skill mentions, hooks, file state, subagent prompts, and the `cxc` CLI. There are no jaw employees, no boss token, no external orchestrator server, and no plugin-defined `/` slash commands; `/` commands live in the Codex runtime, while codexclaw's discovery surface is `$cxc-*` skills plus hook-triggered context injection.
+codexclaw is a **single Codex plugin**, not a server. It reuses the OpenAI `codex` runtime and layers cli-jaw-style development discipline onto Codex through skill mentions, hooks, file state, subagent prompts, and the `cxc` CLI. There are no jaw employees, no boss token, no external orchestrator server, and no plugin-defined `/` slash commands; `/` commands live in the Codex runtime, while codexclaw's discovery surface is `$cxc-*` skills plus hook-triggered context injection. The one scoped exception is the opt-in loopback messenger bridge (`cxc serve`, `00_philosophy.md` §2): a relay to stock `codex exec`, not an orchestrator.
 
 opencodex (`ocx`) is adjacent but optional. opencodex is a local provider proxy that can inject `model_provider = "opencodex"` into Codex config and serve `/v1/responses`; codexclaw only detects `ocx` status through `provider-bridge` and never vendors or auto-configures opencodex.
 
@@ -91,6 +91,7 @@ opencodex (`ocx`) is adjacent but optional. opencodex is a local provider proxy 
 | Recall search | `plugins/codexclaw/components/recall/src/` | read-only chat/memory search over `~/.codex` |
 | Provider bridge | `plugins/codexclaw/components/provider-bridge/src/` | ocx detect-only bridge |
 | Subagent config | `plugins/codexclaw/components/subagent-config/src/` | role model/prompt config, MCP tools, catalog |
+| Messenger bridge | `plugins/codexclaw/components/messenger-bridge/src/` | loopback GUI/API server, messenger agents, project bridge DB |
 | Skills | `plugins/codexclaw/skills/` | `$cxc-*`, display_name autocomplete, dev routers |
 | Subagent roles | `plugins/codexclaw/agents/` | explorer, reviewer, executor inline prompts |
 
@@ -105,6 +106,10 @@ Controlled activation for the Codex features codexclaw needs. `src/features.ts` 
 ### `components/cxc-ops`
 
 Local operations that do not require a codexclaw server. `src/doctor.ts` checks manifest parseability, hook file presence, skill metadata, agent TOMLs, MCP config drift, and optional ast-grep availability. `src/reset.ts` removes only scoped `.codexclaw/` working state: `--state`, `--generated`, or `--all`. `src/cli.ts` dispatches `doctor` and `reset` (unknown subcommands print usage and exit 0). The former `chat-search` wrapper was retired (D1', mvp_hard L13/WP1): Codex app-server `thread/search` has no native CLI/agent surface, so wrapping it made codexclaw a self-implemented search surface; public-web lookups route through the `cxc-search` skill. Past-session recall was later re-scoped by owner directive (2026-07-02, `devlog/_plan/260702_codex_recall/`): the `recall` component reads Codex-native disk artifacts directly — a different mechanism than the retired app-server wrapper, which stays a non-goal.
+
+### `components/messenger-bridge`
+
+Loopback bridge for the dashboard and messenger agents. `src/cli.ts` dispatches `serve` and `service`: `serve` opens the project-scoped bridge DB, creates the HTTP server on `127.0.0.1`, starts enabled adapters through `BridgeController`, and shuts down the scheduler/controller/server/DB in order; `service` installs, uninstalls, or reports a macOS launchd daemon for `cxc serve`. `src/server.ts` serves the built GUI plus JSON API routes (`health`, compatibility, connect/manage, agents), with local Host and mutating-request guards. `src/db.ts` owns `.codexclaw/bridge.db` via `node:sqlite`, including channels, allowlists, bindings, jobs, named agents, and migrations. `src/agent-service.ts` serializes per-binding Codex turns, records jobs, persists thread ids, and terminates active child processes on shutdown.
 
 ### `components/recall`
 
@@ -152,8 +157,11 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-dev-devops` | `skills/dev-devops/` | containers, deploy, IaC, SRE/release surfaces |
 | `cxc-dev-scaffolding` | `skills/dev-scaffolding/` | project/module scaffolding and structure audits |
 | `cxc-search` | `skills/search/` | current/public lookup ladder and Korean search intent guard |
+| `cxc-recall` | `skills/recall/` | past-session chat/memory recall before asking the user to repeat context |
 | `cxc-skill-hub` | `skills/skill-hub/` | on-demand skill catalog router |
 | `cxc-ast-grep` | `skills/ast-grep/` | AST-aware search/codemods using `sg` |
+| `cxc-sparksearch` | `skills/sparksearch/` | cheap parallel public-web discovery lane that hands proof back to `cxc-search` |
+| `cxc-ultraresearch` | `skills/ultraresearch/` | multi-wave research protocol with journal and claim-ledger proof discipline |
 
 The `dev` hub routes by change surface toward on-demand `dev-*` skills. `skill-hub` documents the exposure model: `allow_implicit_invocation` controls auto-rendered skill visibility, while explicit `$skill` / path mention still works unless a skill is disabled. The `interview`, `orchestrate`, `loop`, and `goalplan` skills are discoverable contracts for hardening surfaces; their deeper runtime work is tracked in `devlog/_plan/mvp_hard/`.
 
@@ -161,7 +169,7 @@ The `dev` hub routes by change surface toward on-demand `dev-*` skills. `skill-h
 
 ## Hooks
 
-The manifest wires the hook JSON files (representative rows below; `plugin.json` `hooks` is the authoritative full list):
+The manifest wires 17 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` are both authoritative and locked by `checkCounts`.
 
 | Hook event | Hook file | Command | Live behavior |
 |------------|-----------|---------|---------------|
@@ -171,9 +179,17 @@ The manifest wires the hook JSON files (representative rows below; `plugin.json`
 | `PreToolUse` `^create_goal$` | `hooks/pre-tool-use-guarding-goal-budget.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use` | denies `create_goal` inputs with keys other than `objective` |
 | `PreToolUse` `^request_user_input$` | `hooks/pre-tool-use-guarding-interview-in-goal.json` | same pabcd-state CLI | denies user-input/interview tool use while native goal mode is active or unreadable |
 | `PostToolUse` `^request_user_input$` | `hooks/post-tool-use-capturing-interview-answers.json` | same pabcd-state CLI | captures interview question/answer events to the ledger; never blocks (returns empty) |
+| `SubagentStop` `^worker$` | `hooks/subagent-stop-verifying-evidence.json` | same pabcd-state CLI | verifies worker evidence expectations on subagent stop |
+| `PreToolUse` `^spawn_agent$` | `hooks/pre-tool-use-attaching-skills.json` | `node "${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js" hook pre-tool-use` | prepends link-form `$cxc-*` skill mentions to spawn messages when inferred or role-required |
+| `PostCompact` | `hooks/post-compact-resetting-reinject-cursor.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-compact` | resets reinjection cursor/stage context after compaction |
+| `SessionStart` | `hooks/session-start-injecting-project-rules.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook session-start-rules` | surfaces project-local rules at session start |
+| `PreToolUse` `^(apply_patch|Write|Edit)$` | `hooks/pre-tool-use-linting-apply-patch.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-lint` | lints structured edits before write/edit tool use |
+| `PostToolUse` `^Bash$` | `hooks/post-tool-use-capturing-shell-friction.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-friction` | records shell friction signals |
+| `PreToolUse` `^Bash$` | `hooks/pre-tool-use-advising-on-friction.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-friction` | advises when repeated shell friction suggests a process change |
 | `UserPromptSubmit` | `hooks/user-prompt-submit-suggesting-recall.json` | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook user-prompt-submit` | detects past-work recall idioms (KO/EN) and injects a `cxc chat/memory search` nudge; stateless, fail-open |
 | `SessionStart` | `hooks/session-start-advertising-recall.json` | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook session-start` | advertises recall availability + live read-only index status at session start; fail-open |
 | `PostCompact` | `hooks/post-compact-suggesting-recall.json` | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook post-compact` | after compaction (the context-loss moment) steers recovery through recall search; fail-open |
+| `PostToolUse` `^apply_patch$` | `hooks/post-tool-use-detecting-edit-shapes.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-edit-shape` | watches repeated edit shapes for process feedback |
 
 Hook processes are intentionally short: read stdin JSON, reconstruct state, optionally write `.codexclaw/`, then print either nothing or one JSON hook envelope. `UserPromptSubmit` outputs `hookSpecificOutput.additionalContext`; `PreToolUse` can output `permissionDecision: "deny"` with a reason. Non-PreToolUse errors fail open to avoid blocking Codex; the goal-mode `request_user_input` guard is fail-closed.
 
@@ -220,8 +236,13 @@ though they have no package-local `test` script. This asymmetry is intentional, 
 | `cxc gui` | `plugins/codexclaw/gui` via `npm run dev` | starts the Vite dashboard when deps exist |
 | `cxc orchestrate` | `components/pabcd-state/dist/cli.js orchestrate` | agent-gated terminal phase control over the same `.codexclaw/` session files |
 | `cxc freeze` | `components/pabcd-state/dist/cli.js freeze` | freezes the interview plan + writes the goal-activation handoff manifest at `.codexclaw/interview/freeze.json` |
+| `cxc metric` | `components/pabcd-state/dist/cli.js metric` | records/shows objective metrics for emergence-harness loops |
+| `cxc divergence` | `components/pabcd-state/dist/cli.js divergence` | records divergence mode and candidate archive state |
+| `cxc goalplan` | `components/pabcd-state/dist/cli.js goalplan` | initializes, shows, or validates the project-local goalplan substrate |
 | `cxc subagents` | `components/subagent-config/dist/cli.js` (list/get/set) | reads/writes the per-role `.codexclaw/subagents.json` model+prompt config |
 | `cxc provider` | `components/provider-bridge/dist/cli.js` (detect) | read-only ocx provider detect/status; never mutates provider state |
+| `cxc serve` | `components/messenger-bridge/dist/cli.js serve` | runs the loopback bridge server for the GUI, JSON API, and messenger adapters |
+| `cxc service` | `components/messenger-bridge/dist/cli.js service` | installs, uninstalls, or reports the macOS launchd daemon for `cxc serve` |
 
 `cxc reset` is an ops cleanup command for `.codexclaw/` state/generated files. `cxc orchestrate reset`
 is the PABCD phase reset command; keep the two meanings distinct when writing docs or tests.
@@ -301,4 +322,4 @@ the L1-L19 full-span gap-remediation loop (`devlog/_plan/mvp_hard/200_L20_gap_re
 
 ---
 
-*Last updated: 2026-06-30. Grounded in `README.md`, `plugins/codexclaw/.codex-plugin/plugin.json`, `plugins/codexclaw/hooks/*.json`, component `src/` files, skill metadata, subagent TOMLs, `devlog/_plan/mvp_res/000_INDEX.md`, `devlog/_plan/mvp_hard/000_INDEX.md`, `devlog/_plan/mvp_hard/141_L14_L19_contradiction_patch_plan.md`, `structure/00_philosophy.md`, `structure/10_subagent_skill_routing.md`, `structure/20_pabcd_dispatch_doctrine.md`, `structure/30_contradiction_register.md`, `structure/40_enforcement_methods.md`, and opencodex + cli-jaw `structure/` files.*
+*Last updated: 2026-07-05. Grounded in `README.md`, `plugins/codexclaw/.codex-plugin/plugin.json`, `plugins/codexclaw/hooks/*.json`, component `src/` files, skill metadata, subagent TOMLs, `devlog/_plan/mvp_res/000_INDEX.md`, `devlog/_plan/mvp_hard/000_INDEX.md`, `devlog/_plan/mvp_hard/141_L14_L19_contradiction_patch_plan.md`, `structure/00_philosophy.md`, `structure/10_subagent_skill_routing.md`, `structure/20_pabcd_dispatch_doctrine.md`, `structure/30_contradiction_register.md`, `structure/40_enforcement_methods.md`, and opencodex + cli-jaw `structure/` files.*

@@ -155,13 +155,17 @@ keeps them strictly separated (`00_philosophy.md` §4):
 
 Per `00_philosophy.md` §2, these cli-jaw surfaces are non-goals — do not port them:
 
-- No server, no employees-as-processes, no dashboard DB, no multi-runtime registry.
+- No *orchestration* server, no employees-as-processes, no multi-runtime registry.
+  (The opt-in loopback messenger bridge — `cxc serve` + `.codexclaw/bridge.db`,
+  2026-07-03 — is a scoped exception recorded in `00_philosophy.md` §2; it relays
+  chat messages to stock `codex exec` and never dispatches subagents.)
 - No goal *write* path: codexclaw reads the native goal DB; only the main session
   calls `create_goal`.
 - No `cli-jaw dispatch` HTTP path; subagents are Codex-native `spawn_agent` calls.
-- No memory/chat/project/worklog server stores; `.codexclaw/` files are the only durable
-  state (user-level `~/.codexclaw` holds rebuildable derived caches only — recall FTS
-  index, ast-grep runtime — per the 2026-07-02 owner re-scope).
+- No memory/chat/project/worklog server stores; `.codexclaw/` files (including the
+  bridge's project-local `bridge.db`) are the only durable state (user-level
+  `~/.codexclaw` holds rebuildable derived caches only — recall FTS index, ast-grep
+  runtime — per the 2026-07-02 owner re-scope).
 - No provider mutation; the provider bridge is detect-only.
 
 If a future change wants one of these, it is a product-boundary decision, not a routine
