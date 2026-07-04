@@ -14,7 +14,7 @@ tells Codex which skills, hooks, and MCP servers to load.
 | `version` | `0.1.0` |
 | `license` | `MIT` |
 | `skills` | `./skills/` — the skill directory root. |
-| `hooks` | Five hook JSON files (see [Hooks](/codexclaw/reference/hooks/)). |
+| `hooks` | Seventeen hook JSON files (see [Hooks](/codexclaw/reference/hooks/)). |
 | `mcpServers` | `./.mcp.json` — the subagent-config MCP server. |
 
 ## Registered hooks
@@ -25,9 +25,24 @@ tells Codex which skills, hooks, and MCP servers to load.
   "./hooks/user-prompt-submit-checking-pabcd-trigger.json",
   "./hooks/stop-checking-pabcd-continuation.json",
   "./hooks/pre-tool-use-guarding-goal-budget.json",
-  "./hooks/pre-tool-use-guarding-interview-in-goal.json"
+  "./hooks/pre-tool-use-guarding-interview-in-goal.json",
+  "./hooks/post-tool-use-capturing-interview-answers.json",
+  "./hooks/subagent-stop-verifying-evidence.json",
+  "./hooks/pre-tool-use-attaching-skills.json",
+  "./hooks/post-compact-resetting-reinject-cursor.json",
+  "./hooks/session-start-injecting-project-rules.json",
+  "./hooks/pre-tool-use-linting-apply-patch.json",
+  "./hooks/post-tool-use-capturing-shell-friction.json",
+  "./hooks/pre-tool-use-advising-on-friction.json",
+  "./hooks/user-prompt-submit-suggesting-recall.json",
+  "./hooks/session-start-advertising-recall.json",
+  "./hooks/post-compact-suggesting-recall.json",
+  "./hooks/post-tool-use-detecting-edit-shapes.json"
 ]
 ```
+
+The plugin currently contains seven component packages under `components/` and 23 skill
+directories under `skills/`.
 
 ## Interface metadata
 
