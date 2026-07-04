@@ -50,8 +50,8 @@ The codexclaw GUI handles subagent configuration (default model vs multi-model),
 ## Status
 
 MVP core is implemented and the `mvp_hard` parity hardening track is complete through L20:
-L2-L9 and L12-L20 are shipped+tested; L10 is decision-closed (most is host-native); L11
-(developer docs SoT reconciliation) is the remaining implementation item. `cxc orchestrate`
+L2-L9 and L11-L20 are shipped+tested (L11 docs-site shipped 2026-07-05); L10 is
+decision-closed (most is host-native). `cxc orchestrate`
 is live, chat-side phase control writes the same `.codexclaw/` state, the IPABCD
 footer/status affordance is wired, and the Stop-continuation loop runs under an active Codex
 goal with a bounded stagnation guard. Seventeen hooks cover session lifecycle, orchestration,
