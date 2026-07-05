@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js\" hook post-tool-use-render-observation",
+            "timeout": 10,
+            "statusMessage": "(codexclaw) Tracking render observation"
+          }
+        ],
+        "matcher": "^(view_image|browser:control-in-app-browser|chrome:control-chrome|computer-use:computer-use)$"
+      }
+    ]
+  }
+}

@@ -9,8 +9,8 @@
  * Ground truth:
  *  - PreToolUse input:  codex-rs hooks/src/schema.rs:273 (snake_case, deny_unknown_fields)
  *  - PreToolUse output: codex-rs hooks/src/schema.rs:239 PreToolUseHookSpecificOutputWire
- *    (camelCase: hookEventName / permissionDecision:"deny" / permissionDecisionReason /
- *     additionalContext), permissionDecision enum allow|deny|ask (schema.rs:254).
+ *    (camelCase: hookEventName / permissionDecision:"allow"|"deny" /
+ *     permissionDecisionReason / additionalContext).
  *  - omo guard parity:  ulw-loop/src/codex-hook.ts:86-99 + hasInvalidCreateGoalInput:155.
  */
 

@@ -244,6 +244,10 @@ behavior, or browser-verifiable public evidence, read the active `search` skill
 and follow its source-fetch/evidence-status rules rather than relying on memory
 alone. Subagents/delegated agents are bound by the same search-skill policy.
 
+`agbrowse` is on PATH for HTTP-first URL verification. For any URL proof, prefer
+`agbrowse fetch <url> --json` before reaching for browser tools; the full tier
+ladder lives in `$cxc-search` (Tier 2).
+
 ### Recall Lookup Scope (DEV-RECALL-01, MUST)
 
 Past work context lives in the Codex session root and is searchable in
@@ -396,6 +400,16 @@ This section covers the **emergency stop triggers** every coding agent should re
 | "One more fix attempt" (after 2+ failures) | 3+ failures = architectural problem. |
 
 **If 3+ fix attempts fail:** pause and reassess. Each fix revealing a new problem elsewhere signals an **architectural issue**, not a simple bug. Question fundamentals: Is this pattern sound? Are we sticking with it through inertia? Discuss with the user before attempting more fixes.
+
+**Repeated-friction rule (DEV-FRICTION-01, DEFAULT).** When the same shell command
+class fails twice with the same normalized error, do not retry a third time
+unchanged: switch approach (different tool, different flags, or root-cause the
+environment). Repeated identical failures are friction evidence, not bad luck.
+
+**Repeated-edit-shape rule (DEV-EDIT-SHAPE-01, DEFAULT).** Three same-shaped edits
+in a row (same structural transform on different sites) mean you are hand-running
+a codemod: stop and switch to `$cxc-ast-grep` (or a scripted rewrite) so the
+remaining sites are transformed deterministically.
 
 ---
 

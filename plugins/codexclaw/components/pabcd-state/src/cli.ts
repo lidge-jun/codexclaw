@@ -25,6 +25,7 @@ import { handleApplyPatchLint } from "./comment-lint.ts";
 import { handleFrictionPreToolUse } from "./friction-gate.ts";
 import { handleEditShapeCapture } from "./edit-shape.ts";
 import { buildRulesContextFromRaw } from "./rules.ts";
+import { handleRenderObservationCapture, handleRenderArtifactCapture } from "./render-observations.ts";
 import { runSubagentStopGate } from "./subagent-evidence.ts";
 import { runDivergenceCli } from "./divergence-cli.ts";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.ts";
@@ -134,7 +135,7 @@ function main(): void {
       // `pre-tool-use` branch above — a lint crash must ALLOW the edit, never deny.
       output = handleApplyPatchLint(raw);
     } else if (event === "pre-tool-use-friction") {
-      // 080.1: FAIL-OPEN friction advisory ("ask") for a stop-level shell signature.
+      // 080.1: FAIL-OPEN friction advisory ("allow" + reason) for a stop-level shell signature.
       // Distinct from the R-9 fail-closed branch; a crash here must never deny a tool.
       output = handleFrictionPreToolUse(raw);
     } else if (event === "post-tool-use-friction") {
@@ -144,8 +145,17 @@ function main(): void {
     } else if (event === "post-tool-use-edit-shape") {
       // astgrep_active 00: repeated same-shaped edit advisory (matcher ^apply_patch$).
       // FAIL-OPEN capture + one-time additionalContext nudge toward $cxc-ast-grep.
+      // Also records render-artifact file modifications for C-RENDER-GROUNDING-01.
       const payload = parsePostToolUse(raw);
-      if (payload) output = handleEditShapeCapture(payload);
+      if (payload) {
+        output = handleEditShapeCapture(payload);
+        handleRenderArtifactCapture(payload); // side-effect only; no output
+      }
+    } else if (event === "post-tool-use-render-observation") {
+      // C-RENDER-GROUNDING-01: record render-observation tool calls.
+      // Side-effect only (returns ""); FAIL-OPEN.
+      const payload = parsePostToolUse(raw);
+      if (payload) output = handleRenderObservationCapture(payload);
     } else if (event === "session-start-rules") {
       // 060.1: surface project rules as SessionStart additionalContext ("" when none).
       output = buildRulesContextFromRaw(raw, process.cwd());

@@ -26,6 +26,7 @@ import { checkObjectivePlateau, readObjectiveKind, type PlateauCheck } from "./m
 import { readGoalplan, nextOpenTask, unmetCriteria } from "./goalplan.ts";
 import { peakFrictionVerdict, looksLikeFailure, recordFriction } from "./friction.ts";
 import { discardStreak, readDivergenceCandidates } from "./divergence.ts";
+import { hasRenderArtifactModified, hasRenderObservation, renderGroundingAdvisory } from "./render-observations.ts";
 
 export interface UserPromptSubmitPayload {
   hook_event_name: "UserPromptSubmit";
@@ -181,6 +182,13 @@ const PHASE_DIRECTIVES: Partial<Record<Phase, string>> = {
     "real flow (browser:control-in-app-browser / computer-use:computer-use) and capture",
     "screenshot evidence per cxc-dev-testing TEST-CU-QA-01. Capture fresh",
     "command output as evidence. Do not claim pass without artifact-level proof.",
+    "C-RENDER-GROUNDING-01: when this work-phase modified a render artifact (HTML, SVG,",
+    "layout CSS, canvas/animation/chart JS, JSX/TSX layout components), RUN it in its",
+    "execution environment, OBSERVE the output (read the screenshot back -- produced but",
+    "unread is not observation), and FIX what the observation reveals before C->D.",
+    "Defaults: 1280x720 viewport; drive stateful artifacts until the first interactive",
+    "state change. One clean observation suffices; re-render only after a change.",
+    "Well-formed (tsc/lint) is not correct -- static gates do not satisfy this rule.",
   ].join("\n"),
   D: [
     "[codexclaw: DONE]",
@@ -638,8 +646,19 @@ export function handleStop(payload: StopPayload): string {
   // (or becomes) active, the loop does not continue the interview. This matches the
   // goal firewall (Interview never fires under a goal) on the Stop surface too.
   if (state.phase === "I") return "";
+
+  // C-RENDER-GROUNDING-01 advisory: when phase === C and render-artifact files were
+  // modified this cycle but no render-observation tool was recorded, emit a SOFT WARNING.
+  // This fires for BOTH interactive and goal sessions — it is an advisory, NOT a block.
+  // FAIL-OPEN: any read error in the render ledger yields false (no advisory, never blocks).
+  const renderAdvisory = renderGroundingAdvisoryForStop(payload.cwd, state.phase);
+
   // guard 2b: only an ACTIVE goal arms the autonomous loop (interactive sessions pause).
-  if (getGoalActiveStatus(payload.session_id) !== "active") return "";
+  if (getGoalActiveStatus(payload.session_id) !== "active") {
+    // Interactive session: no block. Emit the render advisory as additionalContext if applicable.
+    if (renderAdvisory) return buildContextOutput("Stop", renderAdvisory);
+    return "";
+  }
   // bail: don't pile on during context-pressure/compaction recovery.
   if (isContextPressureTail(readTranscriptTail(payload.transcript_path))) return "";
 
@@ -661,7 +680,34 @@ export function handleStop(payload: StopPayload): string {
   // 080: a HIGH friction signal adds an advisory escalate line to the SAME block — it is
   // read ONLY here, after the goal-active arming guard + the cap, so it never changes when
   // Stop blocks vs releases (arming is unchanged). FAIL-OPEN: null verdict => no line.
-  return buildStopBlock(state.phase, readStopWorkContext(payload.cwd, state), peakFrictionVerdict(payload.cwd));
+  const block = buildStopBlock(state.phase, readStopWorkContext(payload.cwd, state), peakFrictionVerdict(payload.cwd));
+  // Goal-mode block: if the render advisory applies, append it to the block reason.
+  if (renderAdvisory) {
+    try {
+      const parsed = JSON.parse(block.trimEnd()) as { decision: string; reason: string };
+      parsed.reason = `${parsed.reason}\n\n${renderAdvisory}`;
+      return `${JSON.stringify(parsed)}\n`;
+    } catch {
+      // FAIL-OPEN: return the original block if parse fails
+    }
+  }
+  return block;
+}
+
+/**
+ * C-RENDER-GROUNDING-01 advisory check for Stop handler. Returns the advisory text
+ * when ALL conditions hold: (1) phase === C, (2) render-artifact files modified,
+ * (3) no render-observation recorded. Returns null otherwise. FAIL-OPEN.
+ */
+export function renderGroundingAdvisoryForStop(cwd: string, phase: Phase): string | null {
+  try {
+    if (phase !== "C") return null;
+    if (!hasRenderArtifactModified(cwd)) return null;
+    if (hasRenderObservation(cwd)) return null;
+    return renderGroundingAdvisory();
+  } catch {
+    return null; // FAIL-OPEN
+  }
 }
 
 /**

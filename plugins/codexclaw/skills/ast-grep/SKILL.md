@@ -51,17 +51,37 @@ match pass, then a separate `--update-all` pass) because ast-grep ignores
 Pass `--lang` so the correct parser is used; the same pattern parses differently
 across languages. `langs` lists the 25 supported languages with extensions.
 
+## Verification loop (MUST)
+
+Never trust a pattern you have not seen match. The loop:
+
+1. `validate PATTERN --lang LANG` — offline sanity check (catches regex syntax and
+   other common misuses; it can NOT catch every silent miss — see step 3).
+2. `search PATTERN --lang LANG` — read the match list: is the COUNT plausible, and do
+   2-3 spot-checked sites look right?
+3. **0 matches where you expected some = pattern bug first**, not "no occurrences".
+   The two reproduced causes: a glued metavariable (`use$HOOK(...)` — a metavar must
+   be a whole token) and a pattern that does not parse as ONE node (`catch ($E) {}`).
+   Consult `references/patterns.md` (verified examples + pitfalls) and refine.
+4. `replace PATTERN REWRITE` — inspect the dry-run diff for every file, or at minimum
+   every distinct shape in it.
+5. Only then `--apply`. Never `--apply` a pattern whose match list you have not read.
+
 ## Helper usage
 
 ```
 ast_grep_helper.py search PATTERN [PATH...] [--lang LANG] [--globs GLOB ...] [-C N]
 ast_grep_helper.py replace PATTERN REWRITE [PATH...] [--lang LANG] [--apply]
-ast_grep_helper.py scan RULE_FILE [PATH...] [--apply]
+ast_grep_helper.py scan [PATH...] --rule RULE_FILE [--apply]   # rule file via --rule, NOT positional
 ast_grep_helper.py validate PATTERN [--lang LANG]   # offline pattern check
 ast_grep_helper.py langs                            # list languages
 ast_grep_helper.py doctor                           # binary availability + version
 ast_grep_helper.py install                          # lazy-provision sg
 ```
+
+Verified per-language pattern examples (call rewrite, cast strip, CJS→ESM, empty
+catch, bare except, relational YAML rules) and the reproduced pitfall table live in
+`references/patterns.md` — read it before writing a non-trivial pattern.
 
 ## Binary resolution + lazy provisioning
 

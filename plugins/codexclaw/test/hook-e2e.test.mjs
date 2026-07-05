@@ -97,7 +97,7 @@ function emptyCodexHome() {
 
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 17, "expected 17 declared hooks");
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 11, "expected 11 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
@@ -125,13 +125,13 @@ test("WP7/G19: stop hook e2e - no in-flight cycle releases (exit 0, empty stdout
 
 // lazygap_impl 080.1: shell friction capture (PostToolUse ^Bash$) + advisory gate
 // (PreToolUse ^Bash$). Capture records a signature on a failure-looking tool_response;
-// the gate asks to change approach once a stop-level signature exists. Both fail-open.
+// the gate advises to change approach once a stop-level signature exists. Both fail-open.
 test("L080: post-tool-use-friction records on a failing Bash response; pre gate advises at stop", () => {
-  const cap = readHookCommand("./hooks/post-tool-use-capturing-shell-friction.json");
+  const cap = readHookCommand("./hooks/_deprecated/post-tool-use-capturing-shell-friction.json");
   assert.equal(cap.event, "PostToolUse");
   const capEp = snapshotEntrypoint(cap.distAbs);
   if (!capEp) return;
-  const gate = readHookCommand("./hooks/pre-tool-use-advising-on-friction.json");
+  const gate = readHookCommand("./hooks/_deprecated/pre-tool-use-advising-on-friction.json");
   assert.equal(gate.event, "PreToolUse");
   const gateEp = snapshotEntrypoint(gate.distAbs);
   if (!gateEp) return;
@@ -150,13 +150,13 @@ test("L080: post-tool-use-friction records on a failing Bash response; pre gate 
     }
     assert.ok(existsSync(join(tmp, ".codexclaw", "friction.jsonl")), "friction ledger written");
 
-    // the PreToolUse gate now advises (ask) on a Bash call
+    // the PreToolUse gate now advises without blocking on a Bash call
     const adv = runHook(gateEp, gate.hookEvent, {
       hook_event_name: "PreToolUse", session_id: "s1", cwd: tmp, tool_name: "Bash", tool_input: { command: "rerun" },
     });
     assert.equal(adv.status, 0, adv.stderr);
     const out = JSON.parse(adv.stdout);
-    assert.equal(out.hookSpecificOutput.permissionDecision, "ask");
+    assert.equal(out.hookSpecificOutput.permissionDecision, "allow");
     assert.match(out.hookSpecificOutput.permissionDecisionReason, /friction/i);
 
     // a clean response does NOT record; fresh cwd gate stays silent (fail-open allow)
@@ -493,7 +493,7 @@ test("L060: pre-tool-use-lint hook e2e - forbidden pattern denies, clean patch a
 // envelope when rules exist, "" when none. Drives the real dist entrypoint (event arg
 // session-start-rules).
 test("L060: session-start-rules hook e2e - seeded rules inject, empty dir is silent", () => {
-  const { event, hookEvent, distAbs } = readHookCommand("./hooks/session-start-injecting-project-rules.json");
+  const { event, hookEvent, distAbs } = readHookCommand("./hooks/_deprecated/session-start-injecting-project-rules.json");
   assert.equal(event, "SessionStart");
   const ep = snapshotEntrypoint(distAbs);
   if (!ep) return;

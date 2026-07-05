@@ -76,6 +76,26 @@ These align with the directives the `pabcd-state` hook injects per phase:
 2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent reviewer (`spawn_agent`) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. Fold fixes back into the plan and record the verdict. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict) — a form-only bar: silently skipping the paste fails the gate, but the gate cannot verify the paste's provenance, so faithful execution (really dispatching the reviewer) remains the agent's obligation.
 3. **B — Build**: Implement the audited plan in small atomic commits. Verify as you go. Stay inside the plan's scope boundary; surface deviations instead of silently expanding scope.
 4. **C — Check**: Run the real verification — build, typecheck, and targeted tests, plus adversarial review. Capture fresh command output as evidence. Do not claim pass without artifact-level proof.
+
+   **DEFAULT (C-RENDER-GROUNDING-01):** When the work-phase produces a render artifact
+   (HTML, SVG, layout-defining CSS, canvas/animation/chart JS, .jsx/.tsx layout
+   components) whose correctness only shows when run or rendered, C MUST include a
+   render-grounding loop before C->D: (1) **RUN** it in its natural execution
+   environment -- headless-browser screenshot for web, SVG->PNG render, execute scripts,
+   drive stateful artifacts until the first interactive state change; (2) **OBSERVE** the
+   output -- actually read the screenshot/console back; a produced-but-unread screenshot
+   is not observation; (3) **FIX** what the observation reveals, then re-run and
+   re-observe. Trigger on artifact type + change ("could this look or behave wrong in a
+   way that only shows when it runs?"), never on task depth alone. Stop after ONE clean
+   observation; re-render only after a change. Well-formed (tsc/lint/parse passing) is
+   not correct -- static gates do not satisfy this rule. Defaults (HEURISTIC -- deviate
+   with a stated reason): 1280x720 viewport; stateful artifacts driven until the first
+   interactive state change. Evidence scales with class: C2-C3 record the observation in
+   the attestation narrative; C4 (STRICT) additionally persists the screenshot to the
+   devlog. The render observation is valid `checkOutput` evidence for C->D and the `did`
+   must reference it. Excluded: pure logic/config/prose covered by its own test suite.
+   (Adopted 2026-07-05 from fablize verification-grounding; devlog
+   `260705_pabcd_render_grounding`.)
 5. **D — Done**: Summarize what was checked with evidence, update STATUS/devlog, commit, and confirm no pending work remains for this work-phase before returning to idle. For loop/multi-pass work, **LOOP-PESSIMIST-01 (DEFAULT)** also records what did not improve, which hypothesis died, and what evidence would show the current direction is wrong; D -> IDLE -> P is a context/bias-flush boundary, so the next cycle resumes from disk artifacts rather than transcript momentum.
 
 ## Work-Phase Loop (multi-pass tasks)

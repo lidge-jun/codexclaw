@@ -27,12 +27,15 @@ Two independent switches decide whether a skill is reachable:
 On-demand skills must be **implicit-off, never disabled** — disabling them
 would break grep discovery and make them unreachable.
 
-## The default implicit set is exactly `{dev}`
+## The default implicit set
 
-Only `dev` is implicit-visible; it carries always-on development discipline and
-routes toward the right role-specific skill. Everything else is on-demand:
-reached by an explicit trigger word or by `dev`-hub routing. `pdf` is
-host-provided by Codex (not a codexclaw skill) and is not in the implicit set.
+The implicit set is `{dev, search, interview, pabcd, recall, skill-hub, loop}`.
+`dev` carries the always-on development discipline; the other six are
+lightweight metadata rows so the agent knows they exist and loads them on
+intent (search facts, I-phase, PABCD planning, past-session recall, capability
+discovery, loop continuation). Everything else stays on-demand: reached by an
+explicit trigger word or by `dev`-hub routing. `pdf` is host-provided by Codex
+(not a codexclaw skill) and is not in the implicit set.
 
 ## How to use the catalog
 
