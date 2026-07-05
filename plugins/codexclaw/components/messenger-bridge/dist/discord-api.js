@@ -10,6 +10,21 @@
 
 export const DISCORD_API = "https://discord.com/api/v10";
 export const DISCORD_MAX_MESSAGE = 2000;
+export const DISCORD_EMBED_DESC_MAX = 4096;
+export const DISCORD_EMBED_TOTAL_MAX = 6000;
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -53,6 +68,10 @@ export class DiscordApi {
     return this.call("POST", `/channels/${channelId}/messages`, { content });
   }
 
+  sendEmbed(channelId        , content        , embeds                )                                            {
+    return this.call("POST", `/channels/${channelId}/messages`, { content, embeds });
+  }
+
   triggerTyping(channelId        )                                     {
     return this.call("POST", `/channels/${channelId}/typing`);
   }
@@ -71,6 +90,23 @@ export class DiscordApi {
 export function chunkDiscordMessage(text        , limit = DISCORD_MAX_MESSAGE)           {
   const raw = String(text || "");
   if (raw.length <= limit) return [raw];
+  const chunks           = [];
+  let remaining = raw;
+  while (remaining.length > limit) {
+    let cut = remaining.lastIndexOf("\n", limit);
+    if (cut < limit * 0.5) cut = remaining.lastIndexOf(" ", limit);
+    if (cut < limit * 0.5) cut = limit;
+    chunks.push(remaining.slice(0, cut));
+    remaining = remaining.slice(cut).replace(/^\s/, "");
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks;
+}
+
+/** Split text into Discord embed-description chunks on line/space boundaries. */
+export function chunkEmbedDescription(text        , limit = DISCORD_EMBED_DESC_MAX)           {
+  const raw = String(text || "");
+  if (raw.length <= limit) return raw ? [raw] : [];
   const chunks           = [];
   let remaining = raw;
   while (remaining.length > limit) {

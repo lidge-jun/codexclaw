@@ -210,6 +210,39 @@ export class TelegramApi {
     return this.call         ("answerCallbackQuery", payload);
   }
 
+  // ── Bot API 10.1 Rich Message methods (Phase E1) ──────────────────────
+
+  /** Send a rich message (Bot API 10.1+). Requires exactly one of html/markdown. */
+  sendRichMessage(params
+
+
+
+   )                                 {
+    const payload                          = {
+      chat_id: params.chatId,
+      rich_message: params.richMessage,
+    };
+    if (params.messageThreadId !== undefined) payload.message_thread_id = params.messageThreadId;
+    return this.call           ("sendRichMessage", payload);
+  }
+
+  /**
+   * Send a rich message draft for streaming preview (Bot API 10.1+).
+   * PRIVATE CHATS ONLY — chatId must be a numeric user id (Integer).
+   * The draft is ephemeral (30s), must be finalized with sendRichMessage.
+   */
+  sendRichMessageDraft(params
+
+
+
+   )                               {
+    return this.call         ("sendRichMessageDraft", {
+      chat_id: params.chatId,
+      draft_id: params.draftId,
+      rich_message: params.richMessage,
+    });
+  }
+
   /** Send a message with an inline keyboard. */
   sendMessageWithKeyboard(params
 
@@ -235,4 +268,9 @@ export class TelegramApi {
 
 
 
+
+
+// ── Bot API 10.1 Rich Message types ─────────────────────────────────────
+
+/** Exactly one of html or markdown (discriminated union). */
 

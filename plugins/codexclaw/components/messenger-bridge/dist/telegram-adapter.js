@@ -13,6 +13,7 @@
 
 import { TelegramApi,                                               } from "./telegram-api.js";
 import { markdownToTelegramHtml, chunkTelegramMessage, stripTelegramHtml } from "./telegram-format.js";
+import { probeRichSupport, sendRichOrFallback } from "./telegram-rich-send.js";
 
 
 
@@ -52,6 +53,8 @@ export function createTelegramAdapter(opts                        )             
   let running = false;
   let state                = "idle";
   let username                = null;
+  let botUserId                = null;
+  let richSupported = false;
   let conflictCount = 0;
   let abort                         = null;
 
@@ -223,18 +226,16 @@ export function createTelegramAdapter(opts                        )             
     if (statusMsgId !== null) void api.deleteMessage(chatId, statusMsgId);
 
     if (result.ok && result.text) {
-      const html = markdownToTelegramHtml(result.text);
-      for (const chunk of chunkTelegramMessage(html)) {
-        const sent = await api.sendMessage({
+      await sendRichOrFallback(
+        {
+          api,
           chatId,
-          text: chunk,
-          parseMode: "HTML",
+          richSupported,
+          chatType: msg.chat.type,
           messageThreadId: threadId,
-        });
-        if (!sent.ok) {
-          await api.sendMessage({ chatId, text: stripTelegramHtml(chunk), messageThreadId: threadId });
-        }
-      }
+        },
+        result.text,
+      );
       log(`[tg] out ${chatId}: ${result.text.slice(0, 60)}`);
     } else {
       await api.sendMessage({
@@ -260,6 +261,12 @@ export function createTelegramAdapter(opts                        )             
       conflictCount = 0;
       const me = await api.getMe();
       username = me.ok ? (me.result?.username ?? null) : null;
+      botUserId = me.ok ? (me.result?.id ?? null) : null;
+      // Probe Bot API 10.1 rich message support (fail closed → legacy HTML).
+      if (botUserId !== null) {
+        richSupported = await probeRichSupport(api, botUserId);
+        log(`[tg] rich message support: ${richSupported ? "yes" : "no (legacy HTML)"}`);
+      }
       // Resume from the persisted offset. Cold start (offset 0) drops any
       // pending backlog so we never replay a pile of full-permission execs.
       const saved = savedOffset();

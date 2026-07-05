@@ -43,6 +43,10 @@ function makeFetch(updateBatches: TgUpdate[][]) {
     if (method === "sendMessage") {
       return reply({ ok: true, result: { message_id: calls.length, chat: { id: 0, type: "private" } } });
     }
+    // sendRichMessage probe: return 400 (method exists) so richSupported = true.
+    if (method === "sendRichMessage") {
+      return reply({ ok: true, result: { message_id: calls.length, chat: { id: 0, type: "private" } } });
+    }
     return reply({ ok: true, result: true });
   };
   return { fetchImpl, calls };
@@ -86,8 +90,18 @@ test("allowlisted message drives the agent and sends a reply", async () => {
     adapter.stop();
 
     assert.deepEqual(seen, ["hi there"]);
-    const sent = calls.filter((c) => c.method === "sendMessage");
-    assert.ok(sent.some((c) => String(c.payload.text).includes("hello back")));
+    // Phase E1: reply goes via sendRichMessage (when probe succeeds) or sendMessage.
+    const sent = calls.filter((c) => c.method === "sendRichMessage" || c.method === "sendMessage");
+    assert.ok(
+      sent.some((c) => {
+        // sendRichMessage puts the html in richMessage.html via rich_message payload
+        const payload = c.payload;
+        const rich = payload.rich_message as Record<string, unknown> | undefined;
+        const text = rich?.html ?? payload.text;
+        return String(text ?? "").includes("hello back");
+      }),
+      "reply should contain 'hello back' via sendRichMessage or sendMessage",
+    );
     assert.ok(calls.some((c) => c.method === "sendChatAction"));
   } finally {
     rmSync(cwd, { recursive: true, force: true });

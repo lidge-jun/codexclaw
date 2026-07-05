@@ -10,12 +10,27 @@ export type FetchImpl = (url: string, init?: RequestInit) => Promise<Response>;
 
 export const DISCORD_API = "https://discord.com/api/v10";
 export const DISCORD_MAX_MESSAGE = 2000;
+export const DISCORD_EMBED_DESC_MAX = 4096;
+export const DISCORD_EMBED_TOTAL_MAX = 6000;
 
 export interface DiscordApiResult<T = unknown> {
   ok: boolean;
   status: number;
   data?: T;
   error?: string;
+}
+
+export interface DiscordEmbed {
+  title?: string;
+  /** Discord caps embed descriptions at 4096 characters. */
+  description?: string;
+  color?: number;
+  fields?: Array<{
+    name: string;
+    /** Discord caps embed field values at 1024 characters. */
+    value: string;
+    inline?: boolean;
+  }>;
 }
 
 export class DiscordApi {
@@ -53,6 +68,10 @@ export class DiscordApi {
     return this.call("POST", `/channels/${channelId}/messages`, { content });
   }
 
+  sendEmbed(channelId: string, content: string, embeds: DiscordEmbed[]): Promise<DiscordApiResult<{ id: string }>> {
+    return this.call("POST", `/channels/${channelId}/messages`, { content, embeds });
+  }
+
   triggerTyping(channelId: string): Promise<DiscordApiResult<unknown>> {
     return this.call("POST", `/channels/${channelId}/typing`);
   }
@@ -71,6 +90,23 @@ export class DiscordApi {
 export function chunkDiscordMessage(text: string, limit = DISCORD_MAX_MESSAGE): string[] {
   const raw = String(text || "");
   if (raw.length <= limit) return [raw];
+  const chunks: string[] = [];
+  let remaining = raw;
+  while (remaining.length > limit) {
+    let cut = remaining.lastIndexOf("\n", limit);
+    if (cut < limit * 0.5) cut = remaining.lastIndexOf(" ", limit);
+    if (cut < limit * 0.5) cut = limit;
+    chunks.push(remaining.slice(0, cut));
+    remaining = remaining.slice(cut).replace(/^\s/, "");
+  }
+  if (remaining) chunks.push(remaining);
+  return chunks;
+}
+
+/** Split text into Discord embed-description chunks on line/space boundaries. */
+export function chunkEmbedDescription(text: string, limit = DISCORD_EMBED_DESC_MAX): string[] {
+  const raw = String(text || "");
+  if (raw.length <= limit) return raw ? [raw] : [];
   const chunks: string[] = [];
   let remaining = raw;
   while (remaining.length > limit) {

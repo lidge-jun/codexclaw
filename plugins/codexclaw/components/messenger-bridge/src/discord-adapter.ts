@@ -14,7 +14,15 @@
  */
 import type { BridgeDb } from "./db.ts";
 import type { AgentService } from "./agent-service.ts";
-import { DiscordApi, chunkDiscordMessage, type FetchImpl } from "./discord-api.ts";
+import {
+  DISCORD_EMBED_TOTAL_MAX,
+  DISCORD_MAX_MESSAGE,
+  DiscordApi,
+  chunkDiscordMessage,
+  chunkEmbedDescription,
+  type DiscordEmbed,
+  type FetchImpl,
+} from "./discord-api.ts";
 import {
   DiscordGateway,
   type DiscordMessageEvent,
@@ -41,6 +49,7 @@ export interface DiscordAdapter {
 }
 
 const START_TRIGGER = "!cxc start";
+const CODE_FENCE_RE = /```/;
 
 export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapter {
   const api = new DiscordApi(opts.token, opts.fetchImpl);
@@ -102,6 +111,49 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
     return text.replace(new RegExp(`<@!?${botId}>`, "g"), "").trim();
   }
 
+  function splitEmbedReply(text: string): { summary: string; body: string } {
+    const firstFence = text.indexOf("```");
+    const beforeFence = text.slice(0, firstFence).trim();
+    const firstParagraph = beforeFence.split(/\n\s*\n/, 1)[0]?.trim() ?? "";
+    const summarySource =
+      firstParagraph.length <= DISCORD_MAX_MESSAGE ? firstParagraph : beforeFence.slice(0, 200).trim();
+    const summary = (summarySource || "codexclaw output").slice(0, DISCORD_MAX_MESSAGE);
+    const bodyStart = text.startsWith(summary) ? summary.length : firstFence;
+    const body = text.slice(bodyStart).trim();
+    return { summary, body };
+  }
+
+  function embedBatches(descriptions: string[]): DiscordEmbed[][] {
+    const batches: DiscordEmbed[][] = [];
+    let batch: DiscordEmbed[] = [];
+    let total = 0;
+    for (const description of descriptions) {
+      if (batch.length > 0 && (batch.length >= 10 || total + description.length > DISCORD_EMBED_TOTAL_MAX)) {
+        batches.push(batch);
+        batch = [];
+        total = 0;
+      }
+      batch.push({ description });
+      total += description.length;
+    }
+    if (batch.length > 0) batches.push(batch);
+    return batches;
+  }
+
+  async function sendCodeFenceEmbedReply(channelId: string, text: string): Promise<boolean> {
+    const { summary, body } = splitEmbedReply(text);
+    const descriptions = chunkEmbedDescription(body);
+    if (descriptions.length === 0) return false;
+    for (const [index, embeds] of embedBatches(descriptions).entries()) {
+      const sent = await api.sendEmbed(channelId, index === 0 ? summary : "", embeds);
+      if (!sent.ok) {
+        log(`[discord] embed send failed ${channelId}: ${sent.error ?? sent.status}`);
+        return false;
+      }
+    }
+    return true;
+  }
+
   async function handleMessage(msg: DiscordMessageEvent): Promise<void> {
     if (msg.isBot) return; // never react to bots (incl. our own echoes)
     if (alreadySeen(msg.id)) return; // duplicate gateway delivery
@@ -126,7 +178,11 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
     });
 
     if (result.ok && result.text) {
-      for (const chunk of chunkDiscordMessage(result.text)) {
+      const sentAsEmbed =
+        result.text.length > DISCORD_MAX_MESSAGE && CODE_FENCE_RE.test(result.text)
+          ? await sendCodeFenceEmbedReply(channelId, result.text)
+          : false;
+      for (const chunk of sentAsEmbed ? [] : chunkDiscordMessage(result.text)) {
         await api.sendMessage(channelId, chunk);
       }
       log(`[discord] out ${channelId}: ${result.text.slice(0, 60)}`);

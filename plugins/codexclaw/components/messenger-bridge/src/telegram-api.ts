@@ -210,6 +210,39 @@ export class TelegramApi {
     return this.call<boolean>("answerCallbackQuery", payload);
   }
 
+  // ── Bot API 10.1 Rich Message methods (Phase E1) ──────────────────────
+
+  /** Send a rich message (Bot API 10.1+). Requires exactly one of html/markdown. */
+  sendRichMessage(params: {
+    chatId: string | number;
+    richMessage: InputRichMessage;
+    messageThreadId?: number;
+  }): Promise<TgResponse<TgMessage>> {
+    const payload: Record<string, unknown> = {
+      chat_id: params.chatId,
+      rich_message: params.richMessage,
+    };
+    if (params.messageThreadId !== undefined) payload.message_thread_id = params.messageThreadId;
+    return this.call<TgMessage>("sendRichMessage", payload);
+  }
+
+  /**
+   * Send a rich message draft for streaming preview (Bot API 10.1+).
+   * PRIVATE CHATS ONLY — chatId must be a numeric user id (Integer).
+   * The draft is ephemeral (30s), must be finalized with sendRichMessage.
+   */
+  sendRichMessageDraft(params: {
+    chatId: number;
+    draftId: number;
+    richMessage: InputRichMessage;
+  }): Promise<TgResponse<boolean>> {
+    return this.call<boolean>("sendRichMessageDraft", {
+      chat_id: params.chatId,
+      draft_id: params.draftId,
+      rich_message: params.richMessage,
+    });
+  }
+
   /** Send a message with an inline keyboard. */
   sendMessageWithKeyboard(params: {
     chatId: string | number;
@@ -236,3 +269,8 @@ export interface TgFile {
   file_size?: number;
   file_path?: string;
 }
+
+// ── Bot API 10.1 Rich Message types ─────────────────────────────────────
+
+/** Exactly one of html or markdown (discriminated union). */
+export type InputRichMessage = { html: string } | { markdown: string };
