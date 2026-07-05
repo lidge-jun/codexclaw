@@ -1,7 +1,7 @@
 /** telegram-adapter.test.ts — poll loop, gating, handshake, turn UX (offline scripted fetch). */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openBridgeDb, type BridgeDb } from "../src/db.ts";
@@ -330,4 +330,117 @@ test("agent scope: mention_only=1 gates un-mentioned group messages (default)", 
   adapter.stop();
   assert.equal(called, 0);
   db.close();
+});
+
+// ── /cwd command (telegram_cwd_sessions phase 2) ─────────────────────────
+
+function sentTexts(calls: Call[]): string[] {
+  return calls.filter((c) => c.method === "sendMessage").map((c) => String(c.payload.text ?? ""));
+}
+
+async function runCwdScenario(text: string): Promise<{ db: BridgeDb; cwd: string; calls: Call[] }> {
+  const { db, cwd } = tempDb();
+  db.addAllowlist("telegram", "700", "jun");
+  const { fetchImpl, calls } = makeFetch([[textUpdate(1, 700, text)]]);
+  const adapter = createTelegramAdapter({
+    db,
+    token: "T",
+    workdir: cwd,
+    fetchImpl,
+    agentService: stubAgentService(async () => ({ ok: true, text: "unused" })),
+  });
+  await adapter.start();
+  await settle();
+  adapter.stop();
+  return { db, cwd, calls };
+}
+
+test("/cwd with no arg reports the current workdir", async () => {
+  const { db, cwd, calls } = await runCwdScenario("/cwd");
+  try {
+    const texts = sentTexts(calls);
+    assert.ok(texts.some((t) => t === `Current workdir: ${cwd}`), `got: ${texts.join(" | ")}`);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("/cwd <existing dir> repoints the binding and resets the session", async () => {
+  const target = mkdtempSync(join(tmpdir(), "cwd-target-"));
+  const { db, cwd, calls } = await runCwdScenario(`/cwd ${target}`);
+  try {
+    const real = realpathSync(target);
+    const binding = db.getOrCreateBinding("telegram", "700", cwd);
+    assert.equal(binding.workdir, real);
+    assert.equal(binding.thread_id, null);
+    assert.ok(sentTexts(calls).some((t) => t === `Workdir set: ${real} (session reset)`));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(target, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("/cwd <missing path> rejects and never creates the directory", async () => {
+  const missing = join(tmpdir(), `nope-${Date.now()}`);
+  const { db, cwd, calls } = await runCwdScenario(`/cwd ${missing}`);
+  try {
+    const binding = db.getOrCreateBinding("telegram", "700", cwd);
+    assert.equal(binding.workdir, cwd); // unchanged
+    assert.ok(sentTexts(calls).some((t) => t === `Not a directory: ${missing}`));
+    assert.throws(() => realpathSync(missing)); // still absent — nothing was created
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("/cwd <file path> is rejected (not a directory)", async () => {
+  const target = mkdtempSync(join(tmpdir(), "cwd-file-"));
+  const filePath = join(target, "f.txt");
+  writeFileSync(filePath, "x");
+  const { db, cwd, calls } = await runCwdScenario(`/cwd ${filePath}`);
+  try {
+    const binding = db.getOrCreateBinding("telegram", "700", cwd);
+    assert.equal(binding.workdir, cwd);
+    assert.ok(sentTexts(calls).some((t) => t === `Not a directory: ${filePath}`));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(target, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("/cwd ~ expands to the home directory", async () => {
+  const { db, cwd, calls } = await runCwdScenario("/cwd ~");
+  try {
+    const binding = db.getOrCreateBinding("telegram", "700", cwd);
+    assert.ok(!binding.workdir.includes("~"), "tilde must be expanded");
+    assert.ok(sentTexts(calls).some((t) => t.startsWith("Workdir set: /")));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("/cwd from a non-allowlisted chat is silently ignored", async () => {
+  const { db, cwd } = tempDb();
+  const { fetchImpl, calls } = makeFetch([[textUpdate(1, 701, "/cwd /tmp")]]);
+  const adapter = createTelegramAdapter({
+    db,
+    token: "T",
+    workdir: cwd,
+    fetchImpl,
+    agentService: stubAgentService(async () => ({ ok: true, text: "unused" })),
+  });
+  await adapter.start();
+  await settle();
+  adapter.stop();
+  try {
+    assert.equal(sentTexts(calls).length, 0);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
 });
