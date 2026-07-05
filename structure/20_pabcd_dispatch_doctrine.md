@@ -123,9 +123,12 @@ skill to the work, not by hoping the model loads it.**
   not a sentence in the task text.
 
 ### Honesty note (updated by WP2)
-Today only `cxc-dev` is implicit-visible; all `dev-*` siblings are
+`cxc-dev` is the only skill with an always-on implicit BODY; all `dev-*` siblings are
 `allow_implicit_invocation: false`. So routing for the implicit-visibility surface
-collapses to "dev only" unless the agent deliberately reads further. The spawn-time
+collapses to "dev only" unless the agent deliberately reads further. (The 2026-07-05
+implicit expansion added six non-dev metadata rows — search/interview/pabcd/recall/
+skill-hub/loop — which improves discovery but does not change this dev-* routing
+collapse.) The spawn-time
 attachment mechanism HAS shipped twice over: L15's E5 dispatch builder
 (`buildSpawnItems`/`SpawnPayload.items`) populates the v1 `items` channel when a
 dispatcher routes through it, and the WP2 E3 `^spawn_agent$` PreToolUse hook attaches

@@ -54,6 +54,10 @@ L2-L9 and L11-L20 are shipped+tested (L11 docs-site shipped 2026-07-05); L10 is
 decision-closed (most is host-native). `cxc orchestrate`
 is live, chat-side phase control writes the same `.codexclaw/` state, the IPABCD
 footer/status affordance is wired, and the Stop-continuation loop runs under an active Codex
-goal with a bounded stagnation guard. Seventeen hooks cover session lifecycle, orchestration,
-pre/post-tool guards, subagent evidence, and compaction recovery. See `devlog/_plan/` for
-the shipped ledger and remaining hardening slices.
+goal with a bounded stagnation guard. Eleven hooks cover session lifecycle, orchestration,
+pre/post-tool guards, subagent evidence, and compaction recovery (the 2026-07-05 hook diet
+moved seven advisory hooks to `hooks/_deprecated/`, absorbing their rules into the `dev`
+skill; the implicit skill set is now `{dev, search, interview, pabcd, recall, skill-hub,
+loop}`). Remote dormant-skill search ships as `cxc skill search/show` over cli-jaw-skills,
+Hermes, ClawHub, and gh code search. See `devlog/_plan/` for the shipped ledger and
+remaining hardening slices.

@@ -213,7 +213,9 @@ the **reverse** path — a goal-active branch that auto-arms `orchestrationActiv
 model remains the target: **loop sets a goal; a set goal drives the loop.**
 
 ### 14.3 — `dev` routing collapses to `dev` alone
-Routing table wording is weak prose and only `cxc-dev` is implicit-visible. Intent:
+Routing table wording is weak prose and (until the 2026-07-05 implicit expansion —
+which added six metadata rows, not router bodies) only `cxc-dev` was implicit-visible;
+`dev-*` routers remain implicit-off today. Intent:
 strengthen the routing table to STRICT ("MUST read the matching `dev-*` SKILL.md before
 writing in that surface"), and let the `$cxc-dev` directive enumerate the exact surface
 skills to attach. Design 14.A/14.B make this concrete for the **subagent** path; the

@@ -8,9 +8,10 @@ metadata:
 
 # search — Unified Search Hub
 
-On-demand search discipline for any lookup that leaves the repository. This skill
-activates by explicit trigger (or `dev`-hub routing), not by any external
-dispatcher, and never fires implicitly.
+Search discipline for any lookup that leaves the repository. Since the 2026-07-05
+implicit expansion this skill is implicit-visible (metadata row every turn) so the
+agent knows it exists; the BODY still loads only on explicit trigger or `dev`-hub
+routing, never by an external dispatcher.
 
 ## Source-Proof Invariant (read first)
 

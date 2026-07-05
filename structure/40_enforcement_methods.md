@@ -74,8 +74,12 @@ deterministic.
 
 ### E6 — Implicit visibility (always-on skills)
 Flipping a skill to `allow_implicit_invocation:true` auto-renders it into every turn's
-context. Strong for the one or two highest-traffic skills (`cxc-dev` is the only one
-today), but each costs context budget, so it is a deliberate trade, not a default.
+context. Strong for the highest-traffic skills, but each costs context budget, so it is
+a deliberate trade, not a default. Since 2026-07-05 the implicit set is
+`{dev, search, interview, pabcd, recall, skill-hub, loop}` (~30 tokens of metadata per
+skill); `dev` remains the only skill whose BODY carries always-on discipline — the other
+six are metadata rows that make on-demand loading discoverable. All `dev-*` routers stay
+implicit-off.
 
 ### E7 — Prose (guidance only)
 SKILL.md and SOT text. Necessary for nuance, useless as enforcement. Every "MUST" in
