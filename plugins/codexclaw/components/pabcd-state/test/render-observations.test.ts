@@ -8,6 +8,7 @@ import {
   handleRenderObservationCapture,
   handleRenderArtifactCapture,
   readRenderObsRows,
+  resetRenderLedger,
   hasRenderObservation,
   hasRenderArtifactModified,
   isRenderArtifact,
@@ -358,4 +359,32 @@ test("renderGroundingAdvisory includes key information", () => {
   assert.ok(text.includes("view_image"));
   assert.ok(text.includes("1280x720"));
   assert.ok(text.includes("not correct"));
+});
+
+// --- resetRenderLedger (cycle scoping) -------------------------------------------
+
+test("resetRenderLedger empties the ledger so past-cycle rows neither suppress nor trigger", () => {
+  const cwd = tmp();
+  try {
+    handleRenderObservationCapture(obsPayload(cwd, "view_image"));
+    handleRenderArtifactCapture(patchPayload(cwd, "index.html"));
+    assert.equal(hasRenderObservation(cwd), true);
+    assert.equal(hasRenderArtifactModified(cwd), true);
+    resetRenderLedger(cwd);
+    assert.equal(readRenderObsRows(cwd).length, 0);
+    assert.equal(hasRenderObservation(cwd), false);
+    assert.equal(hasRenderArtifactModified(cwd), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("resetRenderLedger on a missing ledger is a no-op (FAIL-OPEN)", () => {
+  const cwd = tmp();
+  try {
+    resetRenderLedger(cwd);
+    assert.equal(readRenderObsRows(cwd).length, 0);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });

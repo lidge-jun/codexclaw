@@ -16,6 +16,7 @@ import { join } from "node:path";
 import { coerceAttest, type Attestation } from "./attest.ts";
 import { transition } from "./fsm.ts";
 import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.ts";
+import { resetRenderLedger } from "./render-observations.ts";
 import type { OrchestrateVerb } from "./orchestrate-grammar.ts";
 import {
   appendLedger,
@@ -194,6 +195,9 @@ export function runOrchestrateCli(args: OrchestrateCliArgs): CliResult {
 
   // L6: a real CLI transition is progress -> reset the Stop stagnation guard.
   writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0 });
+  // C-RENDER-GROUNDING-01: a new cycle starts at P — clear the render ledger so the
+  // Stop advisory judges THIS cycle's rows only (stale rows both suppress and misfire).
+  if (result.state.phase === "P") resetRenderLedger(args.cwd);
   appendLedger(args.cwd, {
     ts: new Date().toISOString(),
     sessionId: state.sessionId,

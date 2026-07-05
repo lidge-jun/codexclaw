@@ -44,7 +44,11 @@ test("skill SKILL.md frontmatter carries no forbidden fields (license/keywords)"
   assert.deepEqual(offenders, [], `forbidden frontmatter fields found:\n${offenders.join("\n")}`);
 });
 
-test("S3: only `dev` skill is implicit; all routers + pabcd are on-demand", () => {
+// Implicit set expanded 2026-07-05 (hook-diet/implicit initiative): dev + 6
+// lightweight workflow/capability skills; all dev-* routers stay on-demand.
+const IMPLICIT_SET = ["dev", "interview", "loop", "pabcd", "recall", "search", "skill-hub"];
+
+test("S3: implicit set is exactly {dev,+6}; all dev-* routers are on-demand", () => {
   const skillsDir = join(pluginRoot, "skills");
   const implicit = [];
   for (const name of readdirSync(skillsDir)) {
@@ -56,7 +60,10 @@ test("S3: only `dev` skill is implicit; all routers + pabcd are on-demand", () =
     assert.notEqual(val, null, `skill ${name} openai.yaml has no allow_implicit_invocation`);
     if (val) implicit.push(name);
   }
-  assert.deepEqual(implicit, ["dev"], `exactly one implicit skill (dev) expected, got: ${implicit.join(",")}`);
+  assert.deepEqual(implicit.sort(), IMPLICIT_SET, `implicit set mismatch, got: ${implicit.join(",")}`);
+  for (const name of implicit) {
+    assert.ok(!name.startsWith("dev-"), `dev-* router ${name} must stay on-demand`);
+  }
 });
 
 test("L3: PreToolUse goal-budget hook is registered in the plugin manifest", () => {
@@ -90,9 +97,9 @@ test("L18: search skill is a codex-native 3-tier on-demand hub with Korean guard
   assert.ok(existsSync(skillMd), "search/SKILL.md missing");
   assert.ok(existsSync(yaml), "search/agents/openai.yaml missing");
 
-  // on-demand only (the S3 test already pins exactly [dev] implicit; this is the
+  // implicit since the 2026-07-05 expansion (S3 pins the full set; this is the
   // direct assertion for the search skill).
-  assert.equal(readImplicit(yaml), false, "search skill must be allow_implicit_invocation:false");
+  assert.equal(readImplicit(yaml), true, "search skill must be allow_implicit_invocation:true");
 
   const body = readFileSync(skillMd, "utf8");
 
@@ -151,11 +158,11 @@ test("L19: skill-hub catalog enumerates every codexclaw skill (filesystem-derive
     );
   }
 
-  // skill-hub is on-demand (implicit-off), not disabled.
+  // skill-hub is implicit since the 2026-07-05 expansion (capability discovery row).
   assert.equal(
     readImplicit(join(skillsDir, "skill-hub", "agents", "openai.yaml")),
-    false,
-    "skill-hub must be allow_implicit_invocation:false (on-demand)",
+    true,
+    "skill-hub must be allow_implicit_invocation:true (implicit set member)",
   );
 
   // renderers native-gap note exists and names the missing renderers.

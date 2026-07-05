@@ -20,6 +20,7 @@
  *   codexclaw provider            show read-only opencodex (ocx) provider status
  *   codexclaw chat search         read-only recall search over ~/.codex rollouts (recall)
  *   codexclaw memory search       read-only search over ~/.codex memories (recall)
+ *   codexclaw skill search|show   remote dormant-skill search over cli-jaw-skills/hermes/clawhub/gh (skill-search)
  *
  * This file is a thin delegator over compiled component CLIs; provider detection is
  * read-only and does not toggle or ensure opencodex.
@@ -107,6 +108,17 @@ const messengerBridgeCli = join(
   "cli.js",
 );
 
+const skillSearchCli = join(
+  here,
+  "..",
+  "plugins",
+  "codexclaw",
+  "components",
+  "skill-search",
+  "dist",
+  "cli.js",
+);
+
 /** Delegate a subcommand to the compiled config-guard CLI; returns its exit code. */
 function runConfigGuard(subcommand) {
   const res = spawnSync(process.execPath, [configGuardCli, subcommand], { stdio: "inherit" });
@@ -134,6 +146,12 @@ function runSubagents(args) {
 /** Delegate to the compiled recall CLI. argv: [kind, "search", ...rest], kind ∈ chat|memory. */
 function runRecall(args) {
   const res = spawnSync(process.execPath, [recallCli, ...args], { stdio: "inherit" });
+  return typeof res.status === "number" ? res.status : 1;
+}
+
+/** Delegate to the compiled skill-search CLI. argv: ["search"|"show", ...rest]. */
+function runSkillSearch(args) {
+  const res = spawnSync(process.execPath, [skillSearchCli, ...args], { stdio: "inherit" });
   return typeof res.status === "number" ? res.status : 1;
 }
 
@@ -213,6 +231,10 @@ switch (cmd) {
     // recall CLI expects argv as [kind, "search", ...rest]; read-only over ~/.codex.
     process.exit(runRecall(process.argv.slice(2)));
     break;
+  case "skill":
+    // skill-search CLI: remote dormant-skill search/show (jaw/hermes/clawhub/gh).
+    process.exit(runSkillSearch(process.argv.slice(3)));
+    break;
   case "subagents":
     process.exit(runSubagents(process.argv.slice(2)));
     break;
@@ -220,5 +242,5 @@ switch (cmd) {
     process.exit(runProvider());
     break;
   default:
-    console.log("codexclaw <enable|disable|uninstall|status|orchestrate|freeze|metric|divergence|goalplan|doctor|reset|subagents|provider|chat|memory|gui|serve|service>");
+    console.log("codexclaw <enable|disable|uninstall|status|orchestrate|freeze|metric|divergence|goalplan|doctor|reset|subagents|provider|chat|memory|skill|gui|serve|service>");
 }

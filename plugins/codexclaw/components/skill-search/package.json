@@ -1,0 +1,11 @@
+{
+  "name": "@codexclaw/skill-search",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Remote dormant-skill search over cli-jaw-skills / Hermes / ClawHub / gh code search. Zero-dep, TTL-cached, adapter-preamble output. No local vendoring.",
+  "main": "dist/cli.js",
+  "scripts": {
+    "test": "node --test"
+  }
+}

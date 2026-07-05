@@ -66,6 +66,11 @@ Quick forks for the common ambiguous cases (the catalog says what exists; this s
   with `request_plugin_install`. When a task needs a capability no skill covers, check
   those two surfaces (and `structure/60_native_capabilities.md`) before concluding it
   does not exist.
+- Dormant/external skills: beyond this catalog, a remote pool (cli-jaw-skills 231,
+  Hermes ~175, ClawHub, GitHub-wide) is searchable with `cxc skill search <query>`
+  and loadable with `cxc skill show <id>` (adapter preamble applied; `cxc-dev`
+  discipline wins on conflict). The runner is a CLI, not a hub engine — this
+  skill remains documentation-only.
 
 ## Notes
 

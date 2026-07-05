@@ -152,10 +152,15 @@ function main()       {
         handleRenderArtifactCapture(payload); // side-effect only; no output
       }
     } else if (event === "post-tool-use-render-observation") {
-      // C-RENDER-GROUNDING-01: record render-observation tool calls.
-      // Side-effect only (returns ""); FAIL-OPEN.
+      // C-RENDER-GROUNDING-01: record render-observation tool calls AND
+      // render-artifact modifications (apply_patch rides this hook's matcher since
+      // the edit-shapes hook moved to _deprecated in the L12 hook diet; both
+      // handlers self-filter by tool_name). Side-effect only; FAIL-OPEN.
       const payload = parsePostToolUse(raw);
-      if (payload) output = handleRenderObservationCapture(payload);
+      if (payload) {
+        output = handleRenderObservationCapture(payload);
+        handleRenderArtifactCapture(payload);
+      }
     } else if (event === "session-start-rules") {
       // 060.1: surface project rules as SessionStart additionalContext ("" when none).
       output = buildRulesContextFromRaw(raw, process.cwd());

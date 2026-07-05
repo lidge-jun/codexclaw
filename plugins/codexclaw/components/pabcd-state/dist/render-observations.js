@@ -20,8 +20,8 @@
  */
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { extname, join } from "node:path";
-import type { PostToolUsePayload } from "./hook.ts";
-import { fileEditShapes } from "./edit-shape.ts";
+
+import { fileEditShapes } from "./edit-shape.js";
 
 export const STATE_DIR = ".codexclaw";
 export const RENDER_OBS_FILE = "render-observations.jsonl";
@@ -30,7 +30,7 @@ export const RENDER_OBS_FILE = "render-observations.jsonl";
  * Starting render-artifact extension set (per-project configurable where a
  * config surface exists). Matches the sibling doc section 6 Q3 decision.
  */
-export const RENDER_ARTIFACT_EXTENSIONS: ReadonlySet<string> = new Set([
+export const RENDER_ARTIFACT_EXTENSIONS                      = new Set([
   ".html",
   ".svg",
   ".css",
@@ -42,28 +42,28 @@ export const RENDER_ARTIFACT_EXTENSIONS: ReadonlySet<string> = new Set([
  * Render-observation tool name set. These are the Codex-native tool names that
  * indicate the agent rendered and observed an artifact.
  */
-export const RENDER_OBSERVATION_TOOLS: ReadonlySet<string> = new Set([
+export const RENDER_OBSERVATION_TOOLS                      = new Set([
   "view_image",
   "browser:control-in-app-browser",
   "chrome:control-chrome",
   "computer-use:computer-use",
 ]);
 
-export type RenderObsKind = "observation" | "artifact-modified";
 
-export interface RenderObsRow {
-  ts: string;
-  kind: RenderObsKind;
-  /** Tool name for observation rows; file path for artifact-modified rows. */
-  detail: string;
-  sessionId: string;
-}
 
-function ledgerPath(cwd: string): string {
+
+
+
+
+
+
+
+
+function ledgerPath(cwd        )         {
   return join(cwd, STATE_DIR, RENDER_OBS_FILE);
 }
 
-function appendRow(cwd: string, row: RenderObsRow): void {
+function appendRow(cwd        , row              )       {
   try {
     mkdirSync(join(cwd, STATE_DIR), { recursive: true });
     appendFileSync(ledgerPath(cwd), `${JSON.stringify(row)}\n`);
@@ -73,19 +73,19 @@ function appendRow(cwd: string, row: RenderObsRow): void {
 }
 
 /** Read all well-formed ledger rows (missing file / parse error -> []). FAIL-OPEN. */
-export function readRenderObsRows(cwd: string): RenderObsRow[] {
-  let raw: string;
+export function readRenderObsRows(cwd        )                 {
+  let raw        ;
   try {
     raw = readFileSync(ledgerPath(cwd), "utf8");
   } catch {
     return [];
   }
-  const out: RenderObsRow[] = [];
+  const out                 = [];
   for (const line of raw.split("\n")) {
     const t = line.trim();
     if (t.length === 0) continue;
     try {
-      const o = JSON.parse(t) as Partial<RenderObsRow>;
+      const o = JSON.parse(t)                         ;
       if (
         o &&
         typeof o.kind === "string" &&
@@ -112,7 +112,7 @@ export function readRenderObsRows(cwd: string): RenderObsRow[] {
  * for the rest of the project's life, and stale artifact-modified rows from past
  * cycles keep triggering it. The advisory window is one PABCD cycle. FAIL-OPEN.
  */
-export function resetRenderLedger(cwd: string): void {
+export function resetRenderLedger(cwd        )       {
   try {
     mkdirSync(join(cwd, STATE_DIR), { recursive: true });
     writeFileSync(ledgerPath(cwd), "");
@@ -122,19 +122,19 @@ export function resetRenderLedger(cwd: string): void {
 }
 
 /** Check whether any observation rows exist in the ledger. */
-export function hasRenderObservation(cwd: string): boolean {
+export function hasRenderObservation(cwd        )          {
   return readRenderObsRows(cwd).some((r) => r.kind === "observation");
 }
 
 /** Check whether any artifact-modified rows exist in the ledger. */
-export function hasRenderArtifactModified(cwd: string): boolean {
+export function hasRenderArtifactModified(cwd        )          {
   return readRenderObsRows(cwd).some((r) => r.kind === "artifact-modified");
 }
 
 /**
  * Check whether a file path has a render-artifact extension.
  */
-export function isRenderArtifact(filePath: string): boolean {
+export function isRenderArtifact(filePath        )          {
   const ext = extname(filePath).toLowerCase();
   return RENDER_ARTIFACT_EXTENSIONS.has(ext);
 }
@@ -146,7 +146,7 @@ export function isRenderArtifact(filePath: string): boolean {
  * Records that the observation tool was called. Side-effect only; always returns "".
  * FAIL-OPEN: any error returns "".
  */
-export function handleRenderObservationCapture(payload: PostToolUsePayload): string {
+export function handleRenderObservationCapture(payload                    )         {
   try {
     if (payload.hook_event_name !== "PostToolUse") return "";
     if (!RENDER_OBSERVATION_TOOLS.has(payload.tool_name)) return "";
@@ -169,13 +169,13 @@ export function handleRenderObservationCapture(payload: PostToolUsePayload): str
  * This is called from the SAME apply_patch PostToolUse path as edit-shape capture.
  * It only records; no advisory output. Returns "". FAIL-OPEN.
  */
-export function handleRenderArtifactCapture(payload: PostToolUsePayload): string {
+export function handleRenderArtifactCapture(payload                    )         {
   try {
     if (payload.hook_event_name !== "PostToolUse") return "";
     if (payload.tool_name !== "apply_patch") return "";
     const input = payload.tool_input;
     const command =
-      input && typeof input === "object" ? (input as Record<string, unknown>).command : undefined;
+      input && typeof input === "object" ? (input                           ).command : undefined;
     if (typeof command !== "string" || command.length === 0) return "";
 
     const shapes = fileEditShapes(command);
@@ -199,7 +199,7 @@ export function handleRenderArtifactCapture(payload: PostToolUsePayload): string
  * Build the render-grounding advisory text for the Stop handler. This is appended
  * to the stop output as additionalContext (NOT a decision:"block").
  */
-export function renderGroundingAdvisory(): string {
+export function renderGroundingAdvisory()         {
   return [
     "[codexclaw advisory — C-RENDER-GROUNDING-01] Render-artifact files were modified",
     "during this cycle, but no render-observation tool call (view_image,",

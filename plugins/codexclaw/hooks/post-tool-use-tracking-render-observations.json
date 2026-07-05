@@ -10,7 +10,7 @@
             "statusMessage": "(codexclaw) Tracking render observation"
           }
         ],
-        "matcher": "^(view_image|browser:control-in-app-browser|chrome:control-chrome|computer-use:computer-use)$"
+        "matcher": "^(view_image|browser:control-in-app-browser|chrome:control-chrome|computer-use:computer-use|apply_patch)$"
       }
     ]
   }
