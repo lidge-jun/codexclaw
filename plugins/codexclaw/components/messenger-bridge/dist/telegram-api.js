@@ -36,6 +36,18 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 const API_BASE = "https://api.telegram.org";
 
 export class TelegramApi {
@@ -119,4 +131,108 @@ export class TelegramApi {
   deleteWebhook(dropPending = false)                               {
     return this.call         ("deleteWebhook", { drop_pending_updates: dropPending });
   }
+
+  // ── Rich media methods (Phase E1) ──────────────────────────────────────
+
+  /** Send a photo by file_id, URL, or multipart upload. */
+  sendPhoto(params
+
+
+
+
+
+
+   )                                 {
+    const payload                          = { chat_id: params.chatId, photo: params.photo };
+    if (params.caption) payload.caption = params.caption;
+    if (params.parseMode) payload.parse_mode = params.parseMode;
+    if (params.messageThreadId !== undefined) payload.message_thread_id = params.messageThreadId;
+    if (params.replyMarkup) payload.reply_markup = params.replyMarkup;
+    return this.call           ("sendPhoto", payload);
+  }
+
+  /** Send a document by file_id, URL, or multipart upload path. */
+  sendDocument(params
+
+
+
+
+
+   )                                 {
+    const payload                          = { chat_id: params.chatId, document: params.document };
+    if (params.caption) payload.caption = params.caption;
+    if (params.parseMode) payload.parse_mode = params.parseMode;
+    if (params.messageThreadId !== undefined) payload.message_thread_id = params.messageThreadId;
+    return this.call           ("sendDocument", payload);
+  }
+
+  /** Send a voice message by file_id or URL. */
+  sendVoice(params
+
+
+
+
+   )                                 {
+    const payload                          = { chat_id: params.chatId, voice: params.voice };
+    if (params.caption) payload.caption = params.caption;
+    if (params.messageThreadId !== undefined) payload.message_thread_id = params.messageThreadId;
+    return this.call           ("sendVoice", payload);
+  }
+
+  /** Get file path for downloading via https://api.telegram.org/file/bot<token>/<path>. */
+  getFile(fileId        )                              {
+    return this.call        ("getFile", { file_id: fileId });
+  }
+
+  /** Download a file given its file_path from getFile. Returns the raw bytes. */
+  async downloadFile(filePath        )                                                               {
+    const url = `${API_BASE}/file/bot${this.token}/${filePath}`;
+    try {
+      const res = await this.fetchImpl(url, {});
+      if (!res.ok) return { ok: false, error: `download failed: ${res.status}` };
+      const data = await res.arrayBuffer();
+      return { ok: true, data };
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: `download failed: ${reason}` };
+    }
+  }
+
+  /** Register bot commands for the command menu. */
+  setMyCommands(commands                                                 )                               {
+    return this.call         ("setMyCommands", { commands });
+  }
+
+  /** Answer a callback query (inline keyboard button press). */
+  answerCallbackQuery(callbackQueryId        , text         )                               {
+    const payload                          = { callback_query_id: callbackQueryId };
+    if (text) payload.text = text;
+    return this.call         ("answerCallbackQuery", payload);
+  }
+
+  /** Send a message with an inline keyboard. */
+  sendMessageWithKeyboard(params
+
+
+
+
+
+   )                                 {
+    const payload                          = {
+      chat_id: params.chatId,
+      text: params.text,
+      reply_markup: { inline_keyboard: params.inlineKeyboard },
+    };
+    if (params.parseMode) payload.parse_mode = params.parseMode;
+    if (params.messageThreadId !== undefined) payload.message_thread_id = params.messageThreadId;
+    return this.call           ("sendMessage", payload);
+  }
 }
+
+/** Telegram file object from getFile. */
+
+
+
+
+
+

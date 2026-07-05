@@ -13,9 +13,7 @@ export const JAW_RAW_BASE = "https://raw.githubusercontent.com/lidge-jun/cli-jaw
 export const HERMES_CATALOG_URL =
   "https://raw.githubusercontent.com/NousResearch/hermes-agent/main/website/docs/reference/skills-catalog.md";
 export const HERMES_RAW_BASE = "https://raw.githubusercontent.com/NousResearch/hermes-agent/main/skills";
-export const CLAWHUB_TREE_URL =
-  "https://api.github.com/repos/openclaw/clawhub/git/trees/main?recursive=1";
-export const CLAWHUB_RAW_BASE = "https://raw.githubusercontent.com/openclaw/clawhub/main";
+export const CLAWHUB_API_BASE = "https://clawhub.ai/api/v1";
 
 /** cli-jaw-skills registry.json -> rows. Ground truth cleaned in WP2. */
 export async function fetchJawRows(fetchText           )                      {
@@ -79,23 +77,32 @@ export async function fetchHermesRows(fetchText           )                     
   return rows;
 }
 
-/** ClawHub repo tree -> rows (13 skills under .agents/skills/). One API call. */
-export async function fetchClawhubRows(fetchText           )                      {
-  const parsed = JSON.parse(await fetchText(CLAWHUB_TREE_URL))
+/**
+ * ClawHub marketplace search -> rows. clawhub.ai exposes an unauthenticated
+ * registry API (/api/v1/search: slug/displayName/summary; verified live
+ * 2026-07-05); a skill body is served by /api/v1/packages/<slug>/file?path=SKILL.md.
+ * Query-time search, so this adapter takes the user query instead of a catalog
+ * (results are NOT cached: they are per-query and the API is not rate-limited
+ * like api.github.com).
+ */
+export async function searchClawhubRows(fetchText           , query        )                      {
+  const url = `${CLAWHUB_API_BASE}/search?q=${encodeURIComponent(query)}&limit=20`;
+  const parsed = JSON.parse(await fetchText(url))
 
    ;
   const rows             = [];
-  for (const node of parsed.tree ?? []) {
-    const path = node.path ?? "";
-    if (!path.endsWith("/SKILL.md")) continue;
-    const dir = path.slice(0, -"/SKILL.md".length);
-    const id = dir.split("/").pop() ?? dir;
+  const seen = new Set        ();
+  for (const r of parsed.results ?? []) {
+    // The marketplace can return the same slug from multiple owners; keep the
+    // first (highest-ranked) since the file endpoint resolves by bare slug.
+    if (typeof r.slug !== "string" || r.slug.length === 0 || seen.has(r.slug)) continue;
+    seen.add(r.slug);
     rows.push({
-      id,
+      id: r.slug,
       source: "clawhub",
-      name: id,
-      description: dir, // tree API gives no description; path is the searchable text
-      rawUrl: `${CLAWHUB_RAW_BASE}/${path}`,
+      name: r.displayName ?? r.slug,
+      description: r.summary ?? "",
+      rawUrl: `${CLAWHUB_API_BASE}/packages/${encodeURIComponent(r.slug)}/file?path=SKILL.md`,
     });
   }
   return rows;

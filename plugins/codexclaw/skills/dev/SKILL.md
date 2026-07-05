@@ -41,7 +41,9 @@ classed **ESCALATE** (§0.2).
 For **C0/C1 work** (bounded by "one file, no new abstractions, local behavior" — a ≤5-line
 in-place edit is an example, not a limit):
 - Skip: §0.5 convention discovery, §1.5 pre-write search, reference file reading
-- Keep: §3 verification gate, §4 change documentation when a worklog/changelog file is provided, §5 safety rules (imports/exports), §7.2 static analysis
+- Keep: §3 verification gate, §4 change documentation — including the numbered
+  record doc in the owning implementation unit, mandatory for ALL work
+  (UNIT-RESIDENCE-01, `pabcd` Implementation-Unit Documents), §5 safety rules (imports/exports), §7.2 static analysis
 - Role skills: read only the `SKILL.md` routing table — skip references unless the table explicitly routes to one
 
 This is scope guidance, not an exemption. Conventions visible in the touched file still
@@ -284,7 +286,7 @@ Before broad changes, inspect existing project conventions:
 - Agent context: `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, tool-specific instruction files
 - JS/TS setup: `package.json`, `tsconfig*`, ESLint/Biome config, sibling file extensions
 - Existing naming, test, module, and phase-document patterns
-- If the repo already uses numbered phase documents, preserve that numbering scheme; decade-range numbering is an optional convention, not a universal rule
+- Devlog phase documents use decade-range numbering (000-009 research, 010-019 phase 1, ...); never bare `PLAN.md`/`PHASES.md`/`RCA.md` (LEXICO-SPLIT-01). Full convention: `pabcd`.
 
 MUST follow existing conventions when they are clear.
 MUST read existing source-of-truth docs before broad implementation.
@@ -342,7 +344,7 @@ Each PR/changeset MUST be scoped to one logical change. Opportunistic rewrites, 
 - One default export per file when the file has a primary purpose (JS/TS convention; other languages follow their idioms).
 - Follow existing naming conventions in the project. Check sibling files before creating new ones.
 - New files must match the directory structure and naming patterns already in use.
-- If the repo already uses numbered phase or planning documents, preserve the existing numbering/naming convention. Do not invent generic filenames like `PLAN.md`, `PHASES.md`, or `RCA.md` when the repo already has a clear pattern.
+- Devlog phase documents use decade-range numbering (LEXICO-SPLIT-01, `pabcd` Implementation-Unit Documents). Never use bare filenames like `PLAN.md`, `PHASES.md`, or `RCA.md`.
 
 ---
 

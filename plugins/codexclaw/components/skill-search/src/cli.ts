@@ -14,7 +14,7 @@ import { spawnSync } from "node:child_process";
 import { cachedFetchText } from "./cache.ts";
 import { ADAPTER_PREAMBLE, SEARCH_FOOTER } from "./preamble.ts";
 import { rank } from "./scoring.ts";
-import { fetchClawhubRows, fetchHermesRows, fetchJawRows } from "./sources.ts";
+import { fetchHermesRows, fetchJawRows, searchClawhubRows } from "./sources.ts";
 import type { FetchText, ScoredRow, SkillRow } from "./types.ts";
 
 const USAGE =
@@ -48,7 +48,7 @@ const realFetch: FetchText = async (url) => {
 };
 
 async function loadSource(
-  source: "jaw" | "hermes" | "clawhub",
+  source: "jaw" | "hermes",
   refresh: boolean,
   fetchText: FetchText,
 ): Promise<SkillRow[]> {
@@ -57,7 +57,6 @@ async function loadSource(
   const loaders: Record<string, (f: FetchText) => Promise<SkillRow[]>> = {
     jaw: fetchJawRows,
     hermes: fetchHermesRows,
-    clawhub: fetchClawhubRows,
   };
   const loader = loaders[source];
   const cachingFetch: FetchText = async (url) => {
@@ -66,6 +65,12 @@ async function loadSource(
     return text;
   };
   return loader(cachingFetch);
+}
+
+/** ClawHub is query-time marketplace search: no catalog cache, server ranks. */
+async function searchClawhub(query: string, limit: number, fetchText: FetchText): Promise<ScoredRow[]> {
+  const rows = await searchClawhubRows(fetchText, query);
+  return rows.slice(0, limit).map((row, i) => ({ ...row, score: rows.length - i }));
 }
 
 function ghSearch(query: string, limit: number): ScoredRow[] {
@@ -134,7 +139,15 @@ export async function main(argv: string[], fetchText: FetchText = realFetch): Pr
     for (const s of wanted) {
       if (s === "gh") {
         rows = rows.concat(ghSearch(query, flags.limit));
-      } else if (s === "jaw" || s === "hermes" || s === "clawhub") {
+      } else if (s === "clawhub") {
+        try {
+          rows = rows.concat(await searchClawhub(query, flags.limit, fetchText));
+        } catch (err) {
+          process.stderr.write(
+            `skill-search: source clawhub failed (${err instanceof Error ? err.message : String(err)})\n`,
+          );
+        }
+      } else if (s === "jaw" || s === "hermes") {
         try {
           const sourceRows = await loadSource(s, flags.refresh, fetchText);
           rows = rows.concat(rank(sourceRows, query, flags.limit));
@@ -167,7 +180,10 @@ export async function main(argv: string[], fetchText: FetchText = realFetch): Pr
       if (s !== "jaw" && s !== "hermes" && s !== "clawhub") continue;
       let row: SkillRow | undefined;
       try {
-        row = (await loadSource(s, flags.refresh, fetchText)).find((r) => r.id === id);
+        row =
+          s === "clawhub"
+            ? (await searchClawhubRows(fetchText, id)).find((r) => r.id === id)
+            : (await loadSource(s, flags.refresh, fetchText)).find((r) => r.id === id);
       } catch {
         continue;
       }

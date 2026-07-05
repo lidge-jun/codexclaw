@@ -19,6 +19,7 @@ structural audits, or documentation scaffolding.
 
 | File | When to Read | What It Covers |
 |------|-------------|----------------|
+| `references/implementation-log.md` | C2+/multi-phase/cross-session work units | Full devlog routine: decade-numbered plan folders, P-concretize → A-audit → D-archive loop, mainstream design-doc/RFC mapping |
 | `references/api-docs.md` | API documentation generation | OpenAPI 3.1, developer portal, CI doc drift, SDK generation |
 | `references/monorepo-tooling.md` | Setting up or optimizing monorepo builds | Turborepo vs Nx 2026 decision table, task graph for AI agents, CI optimization |
 
@@ -61,11 +62,14 @@ Keep it light:
 - Treat source-of-truth placement as part of scaffolding completion: the final audit must say which durable convention was reused or that none existed.
 - Boundary/public-export decisions still route to `dev-architecture` §1 (`ARCH-DECISION-01`, `ARCH-MAP-01`); scaffolding owns file placement and skeleton consistency.
 
-## 2.1 Lightweight Source of Truth
+## 2.1 Lightweight Source of Truth (implementation-unit devlog)
 
-Use this only when:
+The implementation-unit devlog routine (`devlog/_plan/` units — `pabcd` §Work-Phase
+Loop, UNIT-RESIDENCE-01) is the DEFAULT for any repo you do development work in — a
+process rule, not a named style to be requested. Propose the `docs/`/`plans/`
+architecture docs when:
 - The repo is immature, undocumented, or inconsistent; or
-- The user explicitly asks for a project source-of-truth layout; or
+- The user asks for a durable source-of-truth structure; or
 - A broad change needs a durable plan/current-architecture record.
 
 Default proposal:
@@ -86,19 +90,31 @@ Also detect optional lightweight source-of-truth files such as `CONTEXT.md`,
 the repo already uses that convention or the user approves. Create an ADR only for a
 decision that is hard to reverse, surprising without context, or has a real tradeoff.
 
-Source-of-truth method:
-- Split large work into phase-level documents instead of one huge plan when the repo already uses plan files.
+**SoT sync (DEFAULT, SOT-SYNC-01):** before patching a repo, FIND its general
+source-of-truth docs first (architecture/INDEX docs, or equivalent)
+and read them; any unit that changes architecture, contracts, or structure patches
+the SoT doc in the SAME unit (C gate, `pabcd` C phase). If the repo has no SoT doc,
+recommend creating one — once, via the proposal flow above — rather than silently
+working without a source of truth.
+
+Implementation-unit devlog method:
+- Split large work into phase-level documents instead of one huge plan —
+  dependency-ordered (PHASE-SPLIT-01), ALL written to diff-level up front
+  (DIFFLEVEL-ROADMAP-01; both defined in `pabcd`).
 - Keep diff-level plans in files, not chat: exact paths, NEW/MODIFY/DELETE, before/after diffs for MODIFY, complete content for NEW.
 - Keep chat summaries short: explain the phase, show a compact tree/change map, then link the plan file.
 - Move completed plan folders to an archive/done area if the repo already uses that convention.
 
-When a repo already numbers planning documents by phase/decade, follow that local convention.
-When no such convention exists, treat numbering as optional — never invent a heavy numbering system silently.
-For codexclaw repos with decade numbering, point readers to the local `pabcd/SKILL.md`
-Jawdev Document Numbering section.
+Phase document naming uses decade-range prefixes (LEXICO-SPLIT-01). For the canonical
+table (000-009 research, 010-019 Phase 1, etc.), see `pabcd/SKILL.md`
+Implementation-Unit Documents — that is the single source of truth. This repo uses
+3-digit prefixes; do not mix with 2-digit.
 
 Before creating any new source-of-truth folders, ask concisely: state that no durable docs were found,
 show the proposed tree, give a specific recommendation, and confirm you will not create them without approval.
+This gate governs INTRODUCING the convention to a repo (the first `devlog/` or source-of-truth structure);
+once `devlog/_plan/` exists, creating unit subfolders — including the minimal record unit mandated by
+UNIT-RESIDENCE-01 — is routine and needs no approval dialogue.
 
 ## 2.2 Project Skeleton
 
@@ -182,7 +198,7 @@ Principle: “flat until you can't” — start flat, add a sub-folder only when
 | Go files            | snake_case            | `stock_price.go`             |
 | Rust files          | snake_case            | `stock_price.rs`             |
 | Plan folders        | `YYMMDD_slug/`        | `260510_feature_bootstrap/`  |
-| Phase docs          | optional numbered docs when the repo already uses them | `00_plan.md`, `10_phase1_build.md` |
+| Phase docs          | decade-prefixed `NNN_slug.md`, `000_*` is the index (LEXICO-SPLIT-01) | `000_plan.md`, `010_phase1_build.md` |
 | Functions (JS/TS)   | camelCase             | `getStockPrice()`            |
 | Functions (Python)  | snake_case            | `get_stock_price()`          |
 | Functions (Go)      | PascalCase (exported) | `GetStockPrice()`            |
@@ -273,7 +289,7 @@ When generating project documentation or scaffolding docs:
 3. Follow the repo's existing source-of-truth convention when one exists
 
 ### Planning Documentation
-1. Reuse the repo's existing planning/doc archive pattern when one exists
+1. Follow decade numbering (`pabcd/SKILL.md` Implementation-Unit Documents, LEXICO-SPLIT-01): 000-009 research, 010-019 phase 1, etc.
 2. Each plan entry should capture: title, date, what changed, why, evidence paths
 3. Cross-reference related plan entries within the same work folder when helpful
 

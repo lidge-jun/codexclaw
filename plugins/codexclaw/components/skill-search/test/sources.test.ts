@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  CLAWHUB_TREE_URL,
+  CLAWHUB_API_BASE,
   HERMES_CATALOG_URL,
   JAW_REGISTRY_URL,
-  fetchClawhubRows,
   fetchHermesRows,
   fetchJawRows,
+  searchClawhubRows,
 } from "../src/sources.ts";
 import type { FetchText } from "../src/types.ts";
 
@@ -65,16 +65,22 @@ test("hermes adapter parses catalog table rows into raw SKILL.md urls", async ()
   );
 });
 
-test("clawhub adapter maps tree SKILL.md paths to raw urls", async () => {
-  const tree = {
-    tree: [
-      { path: ".agents/skills/convex/SKILL.md" },
-      { path: "README.md" },
-      { path: ".agents/skills/autoreview/SKILL.md" },
+test("clawhub adapter maps marketplace search results to package file urls, deduped by slug", async () => {
+  const payload = {
+    results: [
+      { slug: "browser-automation-cdp", displayName: "Browser Automation (CDP)", summary: "CDP automation" },
+      { slug: "", displayName: "bad row" },
+      { slug: "browser-automation-cdp", displayName: "dup from other owner", summary: "dup" },
+      { slug: "bsession", displayName: "browser", summary: "Browser automation" },
     ],
   };
-  const rows = await fetchClawhubRows(fixtureFetch({ [CLAWHUB_TREE_URL]: JSON.stringify(tree) }));
+  const url = `${CLAWHUB_API_BASE}/search?q=${encodeURIComponent("browser cdp")}&limit=20`;
+  const rows = await searchClawhubRows(fixtureFetch({ [url]: JSON.stringify(payload) }), "browser cdp");
   assert.equal(rows.length, 2);
-  assert.deepEqual(rows.map((r) => r.id).sort(), ["autoreview", "convex"]);
-  assert.ok(rows[0].rawUrl.startsWith("https://raw.githubusercontent.com/openclaw/clawhub/main/"));
+  assert.equal(rows[0].id, "browser-automation-cdp");
+  assert.equal(
+    rows[0].rawUrl,
+    `${CLAWHUB_API_BASE}/packages/browser-automation-cdp/file?path=SKILL.md`,
+  );
+  assert.equal(rows[1].description, "Browser automation");
 });

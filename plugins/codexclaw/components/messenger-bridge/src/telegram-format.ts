@@ -6,7 +6,7 @@
  * re-introduce <pre>/<code>/<b>/<i>/<s>, and split long messages under the
  * 4096-char limit without cutting inside a tag or leaving a tag unbalanced.
  */
-const TELEGRAM_SUPPORTED_TAGS = new Set(["pre", "code", "b", "i", "s"]);
+const TELEGRAM_SUPPORTED_TAGS = new Set(["pre", "code", "b", "i", "s", "a"]);
 export const TELEGRAM_MAX_MESSAGE = 4096;
 
 export function escapeHtmlTg(text: string): string {
@@ -24,6 +24,13 @@ export function markdownToTelegramHtml(md: string): string {
   html = html.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
   html = html.replace(/(?<![*])\*(?![*])(.+?)(?<![*])\*(?![*])/g, "<i>$1</i>");
   html = html.replace(/~~(.+?)~~/g, "<s>$1</s>");
+  // Markdown links: [text](url) → <a href="url">text</a>
+  // Runs after escaping; un-escape the href so the URL is valid.
+  html = html.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    (_m: string, text: string, href: string) =>
+      `<a href="${href.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")}">${text}</a>`,
+  );
   return html;
 }
 

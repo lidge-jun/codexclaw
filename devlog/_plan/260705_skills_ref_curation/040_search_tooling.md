@@ -40,7 +40,7 @@ cxc skill show <id> [--source jaw|clawhub|hermes]   # raw SKILL.md 본문 출력
 |--------|-------|-----------|
 | jaw | `raw.githubusercontent.com/lidge-jun/cli-jaw-skills/main/registry.json` | name/desc/desc_ko/category/keywords |
 | hermes | raw `NousResearch/hermes-agent/main/website/docs/reference/skills-catalog.md` (이름/설명/경로 카탈로그, rate-limit 없음) → show 시 raw SKILL.md URL 구성. tree API는 fallback | 카탈로그 이름/설명 |
-| clawhub | `api.github.com/repos/openclaw/clawhub/git/trees/main?recursive=1` | 경로 + (가능하면) skills 매니페스트 |
+| clawhub | (WP4 개정) `clawhub.ai/api/v1/search?q=` 마켓플레이스 API (무인증, slug/displayName/summary), body는 `/api/v1/packages/<slug>/file?path=SKILL.md`. 쿼리-시점 검색이라 캐시 없음, 서버 랭킹 신뢰, slug dedupe | 마켓플레이스 전체 (repo 13개 아닌 수천 스킬) |
 | gh | `gh search code "filename:SKILL.md <query>"` (gh CLI 있을 때만) | GitHub 전역 |
 
 정규화 결과 행: `{id, source, description, rawUrl, superseded_by?, status?, requires?}`

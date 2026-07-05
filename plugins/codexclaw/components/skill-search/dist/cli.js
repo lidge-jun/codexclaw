@@ -14,7 +14,7 @@ import { spawnSync } from "node:child_process";
 import { cachedFetchText } from "./cache.js";
 import { ADAPTER_PREAMBLE, SEARCH_FOOTER } from "./preamble.js";
 import { rank } from "./scoring.js";
-import { fetchClawhubRows, fetchHermesRows, fetchJawRows } from "./sources.js";
+import { fetchHermesRows, fetchJawRows, searchClawhubRows } from "./sources.js";
 
 
 const USAGE =
@@ -48,7 +48,7 @@ const realFetch            = async (url) => {
 };
 
 async function loadSource(
-  source                              ,
+  source                  ,
   refresh         ,
   fetchText           ,
 )                      {
@@ -57,7 +57,6 @@ async function loadSource(
   const loaders                                                        = {
     jaw: fetchJawRows,
     hermes: fetchHermesRows,
-    clawhub: fetchClawhubRows,
   };
   const loader = loaders[source];
   const cachingFetch            = async (url) => {
@@ -66,6 +65,12 @@ async function loadSource(
     return text;
   };
   return loader(cachingFetch);
+}
+
+/** ClawHub is query-time marketplace search: no catalog cache, server ranks. */
+async function searchClawhub(query        , limit        , fetchText           )                       {
+  const rows = await searchClawhubRows(fetchText, query);
+  return rows.slice(0, limit).map((row, i) => ({ ...row, score: rows.length - i }));
 }
 
 function ghSearch(query        , limit        )              {
@@ -134,7 +139,15 @@ export async function main(argv          , fetchText            = realFetch)    
     for (const s of wanted) {
       if (s === "gh") {
         rows = rows.concat(ghSearch(query, flags.limit));
-      } else if (s === "jaw" || s === "hermes" || s === "clawhub") {
+      } else if (s === "clawhub") {
+        try {
+          rows = rows.concat(await searchClawhub(query, flags.limit, fetchText));
+        } catch (err) {
+          process.stderr.write(
+            `skill-search: source clawhub failed (${err instanceof Error ? err.message : String(err)})\n`,
+          );
+        }
+      } else if (s === "jaw" || s === "hermes") {
         try {
           const sourceRows = await loadSource(s, flags.refresh, fetchText);
           rows = rows.concat(rank(sourceRows, query, flags.limit));
@@ -167,7 +180,10 @@ export async function main(argv          , fetchText            = realFetch)    
       if (s !== "jaw" && s !== "hermes" && s !== "clawhub") continue;
       let row                      ;
       try {
-        row = (await loadSource(s, flags.refresh, fetchText)).find((r) => r.id === id);
+        row =
+          s === "clawhub"
+            ? (await searchClawhubRows(fetchText, id)).find((r) => r.id === id)
+            : (await loadSource(s, flags.refresh, fetchText)).find((r) => r.id === id);
       } catch {
         continue;
       }

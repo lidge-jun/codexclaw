@@ -18,6 +18,7 @@ export interface TgResponse<T = unknown> {
 export interface TgUpdate {
   update_id: number;
   message?: TgMessage;
+  callback_query?: TgCallbackQuery;
 }
 
 export interface TgMessage {
@@ -27,6 +28,17 @@ export interface TgMessage {
   chat: { id: number; type: string };
   from?: { id: number; username?: string };
   message_thread_id?: number;
+  photo?: Array<{ file_id: string; file_unique_id: string; width: number; height: number; file_size?: number }>;
+  document?: { file_id: string; file_unique_id: string; file_name?: string; mime_type?: string; file_size?: number };
+  voice?: { file_id: string; file_unique_id: string; duration: number; file_size?: number };
+  reply_to_message?: TgMessage;
+}
+
+export interface TgCallbackQuery {
+  id: string;
+  from: { id: number; username?: string };
+  message?: TgMessage;
+  data?: string;
 }
 
 export interface SendMessageParams {
@@ -119,4 +131,108 @@ export class TelegramApi {
   deleteWebhook(dropPending = false): Promise<TgResponse<boolean>> {
     return this.call<boolean>("deleteWebhook", { drop_pending_updates: dropPending });
   }
+
+  // ── Rich media methods (Phase E1) ──────────────────────────────────────
+
+  /** Send a photo by file_id, URL, or multipart upload. */
+  sendPhoto(params: {
+    chatId: string | number;
+    photo: string;
+    caption?: string;
+    parseMode?: "HTML" | "MarkdownV2";
+    messageThreadId?: number;
+    replyMarkup?: unknown;
+  }): Promise<TgResponse<TgMessage>> {
+    const payload: Record<string, unknown> = { chat_id: params.chatId, photo: params.photo };
+    if (params.caption) payload.caption = params.caption;
+    if (params.parseMode) payload.parse_mode = params.parseMode;
+    if (params.messageThreadId !== undefined) payload.message_thread_id = params.messageThreadId;
+    if (params.replyMarkup) payload.reply_markup = params.replyMarkup;
+    return this.call<TgMessage>("sendPhoto", payload);
+  }
+
+  /** Send a document by file_id, URL, or multipart upload path. */
+  sendDocument(params: {
+    chatId: string | number;
+    document: string;
+    caption?: string;
+    parseMode?: "HTML" | "MarkdownV2";
+    messageThreadId?: number;
+  }): Promise<TgResponse<TgMessage>> {
+    const payload: Record<string, unknown> = { chat_id: params.chatId, document: params.document };
+    if (params.caption) payload.caption = params.caption;
+    if (params.parseMode) payload.parse_mode = params.parseMode;
+    if (params.messageThreadId !== undefined) payload.message_thread_id = params.messageThreadId;
+    return this.call<TgMessage>("sendDocument", payload);
+  }
+
+  /** Send a voice message by file_id or URL. */
+  sendVoice(params: {
+    chatId: string | number;
+    voice: string;
+    caption?: string;
+    messageThreadId?: number;
+  }): Promise<TgResponse<TgMessage>> {
+    const payload: Record<string, unknown> = { chat_id: params.chatId, voice: params.voice };
+    if (params.caption) payload.caption = params.caption;
+    if (params.messageThreadId !== undefined) payload.message_thread_id = params.messageThreadId;
+    return this.call<TgMessage>("sendVoice", payload);
+  }
+
+  /** Get file path for downloading via https://api.telegram.org/file/bot<token>/<path>. */
+  getFile(fileId: string): Promise<TgResponse<TgFile>> {
+    return this.call<TgFile>("getFile", { file_id: fileId });
+  }
+
+  /** Download a file given its file_path from getFile. Returns the raw bytes. */
+  async downloadFile(filePath: string): Promise<{ ok: boolean; data?: ArrayBuffer; error?: string }> {
+    const url = `${API_BASE}/file/bot${this.token}/${filePath}`;
+    try {
+      const res = await this.fetchImpl(url, {});
+      if (!res.ok) return { ok: false, error: `download failed: ${res.status}` };
+      const data = await res.arrayBuffer();
+      return { ok: true, data };
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: `download failed: ${reason}` };
+    }
+  }
+
+  /** Register bot commands for the command menu. */
+  setMyCommands(commands: Array<{ command: string; description: string }>): Promise<TgResponse<boolean>> {
+    return this.call<boolean>("setMyCommands", { commands });
+  }
+
+  /** Answer a callback query (inline keyboard button press). */
+  answerCallbackQuery(callbackQueryId: string, text?: string): Promise<TgResponse<boolean>> {
+    const payload: Record<string, unknown> = { callback_query_id: callbackQueryId };
+    if (text) payload.text = text;
+    return this.call<boolean>("answerCallbackQuery", payload);
+  }
+
+  /** Send a message with an inline keyboard. */
+  sendMessageWithKeyboard(params: {
+    chatId: string | number;
+    text: string;
+    parseMode?: "HTML" | "MarkdownV2";
+    messageThreadId?: number;
+    inlineKeyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>>;
+  }): Promise<TgResponse<TgMessage>> {
+    const payload: Record<string, unknown> = {
+      chat_id: params.chatId,
+      text: params.text,
+      reply_markup: { inline_keyboard: params.inlineKeyboard },
+    };
+    if (params.parseMode) payload.parse_mode = params.parseMode;
+    if (params.messageThreadId !== undefined) payload.message_thread_id = params.messageThreadId;
+    return this.call<TgMessage>("sendMessage", payload);
+  }
+}
+
+/** Telegram file object from getFile. */
+export interface TgFile {
+  file_id: string;
+  file_unique_id: string;
+  file_size?: number;
+  file_path?: string;
 }

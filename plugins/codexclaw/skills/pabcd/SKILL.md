@@ -26,10 +26,12 @@ Two distinct things, do not conflate them:
 
 Either way, once in Interview cover the four dimensions (Goal, Constraint, Success
 criteria, Ontology), research the repo before asking, and confirm requirements before
-Plan. **INTERVIEW-CLASSIFY-01 (DEFAULT):** before P, settle both the work class
-(`dev` §0.0) and the loop archetype (`cxc-loop` LOOP-ARCHETYPE-01) by asking whether
-the verifier defines done or only better; discovering the archetype mid-loop is an
-Interview miss, not a Build problem.
+Plan. **INTERVIEW-CLASSIFY-01 (DEFAULT):** before P, settle three things: the work
+class (`dev` §0.0), the loop archetype (`cxc-loop` LOOP-ARCHETYPE-01) by asking
+whether the verifier defines done or only better, and the **unit residence**
+(UNIT-RESIDENCE-01, Work-Phase Loop below): which implementation unit
+(`devlog/_plan/YYMMDD_slug/`) this work belongs to, an existing unit or a new one.
+Discovering the archetype mid-loop is an Interview miss, not a Build problem.
 
 The discoverable `cxc-interview` skill is the explicit I-phase entry surface. In
 continuous Interview mode, the main session owns user questions and records; subagents
@@ -72,10 +74,15 @@ PABCD, then chooses HITL or HOTL:
 These align with the directives the `pabcd-state` hook injects per phase:
 
 0. **I — Interview**: Clarify requirements before planning across the four dimensions. Research the repo first, then ask focused questions. No implementation yet.
-1. **P — Plan**: Explore first (read real code, configs, docs). Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable accept criteria. For C2+ plans, begin with a loop-spec header: Loop archetype; Trigger; Goal (user-visible outcome); Non-goals; Verifier (command/gate and what it measures); Stop condition; Memory artifact; Expected terminal outcomes; Escalation condition. HOTL goal plans also state the `cxc-loop` HOTL resource bounds. For open-ended optimization, include the divergence plan, deterministic selection rule, and telemetry schema; if the verifier only reports scalar outcome, instrumentation is B's first work item before candidates. Ground every decision in code you have read. No implementation yet. For broad or unfamiliar repos, include a compact tree, detected conventions, and which existing logs/docs you will reuse.
-2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent reviewer (`spawn_agent`) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. Fold fixes back into the plan and record the verdict. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict) — a form-only bar: silently skipping the paste fails the gate, but the gate cannot verify the paste's provenance, so faithful execution (really dispatching the reviewer) remains the agent's obligation.
+1. **P — Plan**: Explore first (read real code, configs, docs). **Slice and order phases by dependency/architecture structure (STRICT, PHASE-SPLIT-01)** — the orthodox unlimited-time build order: foundations (schema, contracts, core data flow) → core capabilities → integration → hardening/polish — so each phase consumes the verified output of the previous one. Effort-based bucketing is FORBIDDEN: never split or order phases by estimated effort or payoff speed — no "quick win vs heavy" buckets, no impact/effort matrices, no time-boxed slices. Phase boundaries encode the system's build order, not the schedule. DB/API/UI/test work inside a phase are subtasks, not top-level phases by default, and every phase must still close with something independently verifiable (build, tests, or a demonstrable surface). Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable accept criteria. For C2+ plans, begin with a loop-spec header: Loop archetype; Trigger; Goal (user-visible outcome); Non-goals; Verifier (command/gate and what it measures); Stop condition; Memory artifact; Expected terminal outcomes; Escalation condition. HOTL goal plans also state the `cxc-loop` HOTL resource bounds. For open-ended optimization, include the divergence plan, deterministic selection rule, and telemetry schema; if the verifier only reports scalar outcome, instrumentation is B's first work item before candidates. Ground every decision in code you have read. No implementation yet. For broad or unfamiliar repos, include a compact tree, detected conventions, which existing logs/docs you will reuse, and the SoT sync target (SOT-SYNC-01): which general source-of-truth doc (architecture/INDEX docs, or equivalent) this unit will patch in C — or, if the repo has none, the plan recommends creating one (dev-scaffolding §2.1).
+2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent reviewer (`spawn_agent`) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. The reviewer also checks: new devlog phase documents use the numbered lexicographic filename convention; bare-named or research/implementation-mixed docs are a FAIL (LEXICO-SPLIT-01). Multi-phase units satisfy DIFFLEVEL-ROADMAP-01: every roadmap phase has a diff-level decade doc (no outline-only or missing phases), and the phase map is dependency-ordered, not effort-bucketed (PHASE-SPLIT-01). Fold fixes back into the plan and record the verdict. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict) — a form-only bar: silently skipping the paste fails the gate, but the gate cannot verify the paste's provenance, so faithful execution (really dispatching the reviewer) remains the agent's obligation.
 3. **B — Build**: Implement the audited plan in small atomic commits. Verify as you go. Stay inside the plan's scope boundary; surface deviations instead of silently expanding scope.
 4. **C — Check**: Run the real verification — build, typecheck, and targeted tests, plus adversarial review. Capture fresh command output as evidence. Do not claim pass without artifact-level proof.
+
+   **SoT sync (DEFAULT, SOT-SYNC-01):** locate the repo's general source-of-truth
+   docs (architecture/INDEX docs, or equivalent) — found in P, patched HERE so SoT
+   and code never diverge silently; if the repo has none, recommend creating one
+   (dev-scaffolding §2.1) in the D summary.
 
    **DEFAULT (C-RENDER-GROUNDING-01):** When the work-phase produces a render artifact
    (HTML, SVG, layout-defining CSS, canvas/animation/chart JS, .jsx/.tsx layout
@@ -104,7 +111,68 @@ These align with the directives the `pabcd-state` hook injects per phase:
 
 **Invariant — one work-phase = one full PABCD cycle.** Run P→A→B→C→D for a work-phase, close D (state → IDLE), then start the next work-phase at P. Do NOT run B for several work-phases back-to-back, and do NOT commit a work-phase straight out of B without passing C and D.
 
-**Loop / multi-pass tasks**: a "loop"/"루프" request (or work too large for one cycle) runs as multiple PABCD passes — one per work-phase. Pre-plan the full slice map and scaffold per-phase decade docs (10_phase1, 20_phase2, ...) up front. The first pass MAY be a design-only PABCD pass (Phase 0): a code-free whole-system design/documentation cycle before the first implementation work-phase.
+### Implementation-Unit Documents
+
+Full documentation routine (P concretizes the docs, A audits them as a hard gate, D
+archives to `_fin/`, plus the mainstream design-doc/RFC translation table):
+`dev-scaffolding/references/implementation-log.md`.
+
+**Difflevel roadmap plan (STRICT, DIFFLEVEL-ROADMAP-01):** for any multi-phase unit
+(2+ work-phases), the FIRST P — or the dedicated design-only Phase-0 pass — must
+deliver the entire roadmap concretized: `000_plan.md` (objective, constraints,
+dependency-ordered work-phase map) PLUS every phase's decade doc written to full
+diff-level precision (exact paths, NEW/MODIFY/DELETE, before/after diffs) — each one
+a copy-paste-executable PRD, not an outline. Scaffolding empty decade files to "fill
+per cycle" does NOT satisfy this rule. Each later cycle's P starts from its
+pre-written doc: re-verify it against the current codebase (stale check — earlier
+phases may have moved lines, signatures, or files), amend the doc, then execute.
+LOOP-CONTINUITY-01 applies on top.
+
+**Lexicographic separation (STRICT, LEXICO-SPLIT-01):** every document in a unit
+carries a numeric lexicographic prefix — bare semantic filenames (`PLAN.md`,
+`DIFF_PLAN.md`, `PHASES.md`, `RCA.md`, an unnumbered `mvpplan/`-style folder) are an
+A-phase FAIL, not a style nit. Research/spec material (000-range) and implementation
+phase designs (decade ranges) are SEPARATE documents: no diffs inside a research
+doc, no survey prose padding a phase doc — a document that mixes both fails the
+audit.
+
+**Unit residence (STRICT, UNIT-RESIDENCE-01):** every piece of development work
+belongs to an implementation unit (`devlog/_plan/YYMMDD_slug/`). Ceremony scales
+with class (PABCD Depth by Work Class below); residence does not. C0-C1 fast-path
+work skips the PABCD ceremony but MUST leave a numbered record doc in its owning
+unit — next free index in the matching decade, e.g. `040_hotfix_dropdown_crash.md`
+— stating what changed, why the fast path applied (class call), and the
+verification evidence. No owning unit → create a minimal unit folder holding only
+that record. Interview settles residence before P (Interview Trigger above).
+
+Devlog plan artifacts use decade-range numbering to separate concerns:
+
+| Range | Purpose | Examples |
+|-------|---------|----------|
+| 000-009 | Research, specs, MOC | `000_plan.md`, `001_api_survey.md`, `002_competitor_analysis.md` |
+| 010-019 | Phase 1 | `010_phase1_auth_module.md`, `011_phase1_db_schema.md` |
+| 020-029 | Phase 2 | `020_phase2_frontend.md` |
+| 030-039 | Phase 3 | ... |
+
+Rules:
+- 000-range durable research is **mandatory for C4**, and for C3 only when state must persist
+  across turns/agents, public contract or architecture decisions need durable audit, or the
+  repo already uses devlog planning for that task; optional for C0-C2 and
+  low-persistence C3 (a response-level plan is enough — but the work still leaves its
+  numbered record in a unit, UNIT-RESIDENCE-01).
+- Default: sequential within decade (`000`, `001`, `002`...).
+- Overflow (>10 docs in a range): use sub-index (`000_0_name.md`, `000_1_name.md`).
+- NEVER use bare filenames like `PLAN.md`, `DIFF_PLAN.md`, `PHASES.md`, `RCA.md`.
+- This repo uses 3-digit prefixes (`000_`, `010_`, `020_`). Do not mix with 2-digit.
+
+**Loop / multi-pass tasks**: a "loop"/"루프" request (or work too large for one cycle) runs
+as MULTIPLE PABCD passes — one per work-phase. Pre-plan the full slice map and WRITE
+all per-phase decade docs (010_phase1, 020_phase2, ...) to diff-level up front
+(DIFFLEVEL-ROADMAP-01) — scaffolding empty files is not pre-planning. Each
+later cycle's P re-verifies its pre-written doc against the current codebase and
+amends it before building. The first pass MAY be a design-only PABCD pass (Phase 0):
+a code-free whole-system design/documentation cycle that produces exactly this
+difflevel roadmap before the first implementation work-phase.
 
 HITL and goal PABCD may both use `cxc-loop` divergence/collapse. In HITL, the agent
 may choose divergence deliberately during I/P when intent is open, algorithmic direction
@@ -159,7 +227,7 @@ Score-Objective Evaluation; apply both sections together.
 
 | Class | Plan (P) | Audit (A) | Build (B) | Check (C) | Record (D) |
 |-------|----------|-----------|-----------|-----------|------------|
-| C0-C1 | None/inline | Optional | Direct fix | Smallest proof | One-line summary |
+| C0-C1 | None/inline | Optional | Direct fix | Smallest proof | One-line summary as a numbered record doc in the owning unit (UNIT-RESIDENCE-01) |
 | C2 | Compact plan | Micro-audit | Implement + focused tests | Targeted gate | Summary |
 | C3 | Compact or full plan depending on persistence/risk | Required when public contract, architecture, persistence, or cross-session risk exists; otherwise focused audit | Implement; use a reviewer subagent when useful | Affected suite + docs consistency when contracts changed | Summary + evidence; durable record only when state must persist |
 | C4 | Full PABCD plan (mandatory) | Required, independent reviewer | Implement; independent verification | Full relevant gates | Durable risk/approval/evidence record |
