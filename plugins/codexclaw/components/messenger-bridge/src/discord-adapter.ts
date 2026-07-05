@@ -57,6 +57,7 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
   const agentId = opts.agent?.id ?? null;
   let gateway: DiscordGateway | null = null;
   let warnedNoBotId = false;
+  let paused = false;
   // Bounded dedupe of recently-seen message ids — the gateway can redeliver a
   // MESSAGE_CREATE on RESUME, and a full-permission exec must not run twice
   // (security review finding 4).
@@ -94,6 +95,12 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
 
   /** Guild-channel mention gate + strip. Returns null when gated out. */
   function gateAndStripMention(msg: DiscordMessageEvent, text: string): string | null {
+    const agent = agentId !== null ? opts.db.getAgent(agentId) : null;
+    const prefix = agent?.trigger_prefix;
+    if (prefix && text.startsWith(prefix)) {
+      return text.slice(prefix.length).trim();
+    }
+
     if (!msg.guildId) return text; // DMs always respond
     const botId = gateway?.botUserId() ?? null;
     if (!botId) {
@@ -109,6 +116,117 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
     const hasMention = new RegExp(`<@!?${botId}>`).test(text);
     if (mentionRequired() && !hasMention) return null;
     return text.replace(new RegExp(`<@!?${botId}>`, "g"), "").trim();
+  }
+
+  function parseDiscordCommand(text: string): { command: string; args: string } | null {
+    const match = /^!cxc\s+(\S+)(?:\s+([\s\S]*))?$/.exec(text);
+    if (!match) return null;
+    const command = match[1].toLowerCase();
+    if (command === "start") return null;
+    return { command, args: (match[2] ?? "").trim() };
+  }
+
+  function getBinding(channelId: string) {
+    return agentId !== null
+      ? opts.db.getOrCreateAgentBinding(agentId, "discord", channelId, opts.workdir)
+      : opts.db.getOrCreateBinding("discord", channelId, opts.workdir);
+  }
+
+  function formatJobContext(bindingId: number): string {
+    const lines = opts.db
+      .listJobs(bindingId, 5)
+      .slice()
+      .reverse()
+      .filter((job) => job.prompt_preview || job.result_preview)
+      .map((job) => {
+        const user = job.prompt_preview ? `User: ${job.prompt_preview}` : "";
+        const assistant = job.result_preview ? `Assistant: ${job.result_preview}` : "";
+        return [user, assistant].filter(Boolean).join("\n");
+      });
+    return lines.length > 0 ? lines.join("\n\n") : "No recent context.";
+  }
+
+  async function handleCommand(channelId: string, command: string, args: string): Promise<void> {
+    if (command === "status") {
+      const binding = getBinding(channelId);
+      const agent = agentId !== null ? opts.db.getAgent(agentId) : null;
+      const model = agent?.model ?? binding.model;
+      await api.sendMessage(
+        channelId,
+        [
+          `thread_id: ${binding.thread_id ?? "none"}`,
+          `model: ${model}`,
+          `status: ${binding.status}`,
+          `agent: ${agent?.name ?? "none"}`,
+        ].join("\n"),
+      );
+      return;
+    }
+
+    if (command === "context") {
+      const binding = getBinding(channelId);
+      await api.sendMessage(channelId, formatJobContext(binding.id));
+      return;
+    }
+
+    if (command === "reset") {
+      const binding = getBinding(channelId);
+      opts.db.clearBindingThread(binding.id);
+      await api.sendMessage(channelId, "Session reset — next message starts a fresh conversation.");
+      return;
+    }
+
+    if (command === "model") {
+      if (!args) {
+        const binding = getBinding(channelId);
+        const agent = agentId !== null ? opts.db.getAgent(agentId) : null;
+        await api.sendMessage(channelId, `model: ${agent?.model ?? binding.model}`);
+        return;
+      }
+      if (agentId === null) {
+        await api.sendMessage(channelId, "model command is only available in agent mode");
+        return;
+      }
+      const agent = opts.db.updateAgent(agentId, { model: args });
+      await api.sendMessage(channelId, `model updated: ${agent?.model ?? args}`);
+      return;
+    }
+
+    if (command === "kick") {
+      if (agentId !== null) opts.db.removeAgentAllowlist(agentId, channelId);
+      else opts.db.removeAllowlist("discord", channelId);
+      await api.sendMessage(channelId, "Chat removed from allowlist.");
+      return;
+    }
+
+    if (command === "pause") {
+      paused = true;
+      await api.sendMessage(channelId, "Paused — messages will be ignored until !cxc resume.");
+      return;
+    }
+
+    if (command === "resume") {
+      paused = false;
+      await api.sendMessage(channelId, "Resumed — messages will be processed.");
+      return;
+    }
+
+    if (command === "help") {
+      await api.sendMessage(
+        channelId,
+        [
+          "!cxc start",
+          "!cxc status",
+          "!cxc context",
+          "!cxc reset",
+          "!cxc model",
+          "!cxc pause",
+          "!cxc resume",
+          "!cxc kick",
+          "!cxc help",
+        ].join("\n"),
+      );
+    }
   }
 
   function splitEmbedReply(text: string): { summary: string; body: string } {
@@ -165,8 +283,27 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
       return;
     }
     if (!isAllowedChat(channelId)) return; // silent ignore
-    const text = gateAndStripMention(msg, rawText);
+
+    const rawCmd = parseDiscordCommand(rawText);
+    if (rawCmd) {
+      await handleCommand(channelId, rawCmd.command, rawCmd.args);
+      return;
+    }
+    if (paused) return;
+
+    let text = gateAndStripMention(msg, rawText);
     if (text === null || !text) return;
+
+    const cmd = parseDiscordCommand(text);
+    if (cmd) {
+      await handleCommand(channelId, cmd.command, cmd.args);
+      return;
+    }
+    if (paused) return;
+
+    if (msg.messageReference) {
+      text = `[replying to a previous message] ${text}`;
+    }
 
     void api.triggerTyping(channelId);
     const result = await opts.agentService.handleIncoming({

@@ -48,6 +48,7 @@
 
 
 
+
 const API_BASE = "https://api.telegram.org";
 
 export class TelegramApi {
@@ -76,6 +77,18 @@ export class TelegramApi {
         signal: signal ?? controller?.signal,
       });
       const body = (await res.json().catch(() => ({})))                 ;
+      // 429 rate limit: wait retry_after seconds, then retry once.
+      if (body.error_code === 429 && body.parameters?.retry_after) {
+        const waitMs = body.parameters.retry_after * 1000;
+        await new Promise      ((r) => { const t = setTimeout(r, waitMs); (t                          ).unref?.(); });
+        const retryRes = await this.fetchImpl(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: signal ?? controller?.signal,
+        });
+        return (await retryRes.json().catch(() => ({})))                 ;
+      }
       return body;
     } catch (err) {
       // Redact the URL (contains the token) — surface method + reason only.
@@ -93,7 +106,7 @@ export class TelegramApi {
   getUpdates(offset        , timeoutSec        , signal              )                                  {
     return this.call            (
       "getUpdates",
-      { offset, timeout: timeoutSec, allowed_updates: ["message"] },
+      { offset, timeout: timeoutSec, allowed_updates: ["message", "callback_query"] },
       (timeoutSec + 10) * 1000,
       signal,
     );
@@ -120,6 +133,14 @@ export class TelegramApi {
 
   deleteMessage(chatId                 , messageId        )                               {
     return this.call         ("deleteMessage", { chat_id: chatId, message_id: messageId });
+  }
+
+  /** Delete a whole forum topic (supergroup: needs admin + can_delete_messages). */
+  deleteForumTopic(chatId                 , messageThreadId        )                               {
+    return this.call         ("deleteForumTopic", {
+      chat_id: chatId,
+      message_thread_id: messageThreadId,
+    });
   }
 
   sendChatAction(chatId                 , messageThreadId         )                               {

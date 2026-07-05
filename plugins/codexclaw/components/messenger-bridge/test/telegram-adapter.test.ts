@@ -15,7 +15,7 @@ interface Call {
 }
 
 /** Build a scripted fetch: getUpdates drains a queue then long-polls until aborted. */
-function makeFetch(updateBatches: TgUpdate[][]) {
+function makeFetch(updateBatches: TgUpdate[][], overrides?: Record<string, unknown>) {
   const calls: Call[] = [];
   let batchIdx = 0;
   const fetchImpl = (url: string, init?: RequestInit): Promise<Response> => {
@@ -26,6 +26,7 @@ function makeFetch(updateBatches: TgUpdate[][]) {
     const reply = (body: unknown): Promise<Response> =>
       Promise.resolve({ json: () => Promise.resolve(body) } as Response);
 
+    if (overrides && method in overrides) return reply(overrides[method]);
     if (method === "getMe") return reply({ ok: true, result: { id: 1, username: "cxcbot" } });
     if (method === "deleteWebhook") return reply({ ok: true, result: true });
     if (method === "getUpdates") {
@@ -439,6 +440,115 @@ test("/cwd from a non-allowlisted chat is silently ignored", async () => {
   adapter.stop();
   try {
     assert.equal(sentTexts(calls).length, 0);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+// ── /delete command (telegram_cwd_sessions phase 3) ──────────────────────
+
+function topicUpdate(id: number, chatId: number, text: string, threadId: number): TgUpdate {
+  return {
+    update_id: id,
+    message: {
+      message_id: id,
+      text,
+      chat: { id: chatId, type: "supergroup" },
+      message_thread_id: threadId,
+    } as TgUpdate["message"],
+  };
+}
+
+async function runDeleteScenario(
+  updates: TgUpdate[][],
+  opts?: { ttlMs?: number; overrides?: Record<string, unknown> },
+): Promise<{ db: BridgeDb; cwd: string; calls: Call[] }> {
+  const { db, cwd } = tempDb();
+  db.addAllowlist("telegram", "800", "jun");
+  const { fetchImpl, calls } = makeFetch(updates, opts?.overrides);
+  const adapter = createTelegramAdapter({
+    db,
+    token: "T",
+    workdir: cwd,
+    fetchImpl,
+    deleteConfirmTtlMs: opts?.ttlMs,
+    agentService: stubAgentService(async () => ({ ok: true, text: "unused" })),
+  });
+  await adapter.start();
+  await settle();
+  adapter.stop();
+  return { db, cwd, calls };
+}
+
+test("/delete then /delete confirm wipes binding, jobs, and pairing", async () => {
+  const { db, cwd, calls } = await runDeleteScenario([
+    [textUpdate(1, 800, "/delete")],
+    [textUpdate(2, 800, "/delete confirm")],
+  ]);
+  try {
+    // seed check: prompt was sent
+    assert.ok(sentTexts(calls).some((t) => t.includes("Send /delete confirm")));
+    assert.ok(sentTexts(calls).some((t) => t.startsWith("Chat deleted")));
+    assert.equal(db.listBindings().length, 0);
+    assert.equal(db.isAllowed("telegram", "800"), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("/delete confirm without a pending prompt only re-prompts", async () => {
+  const { db, cwd, calls } = await runDeleteScenario([[textUpdate(1, 800, "/delete confirm")]]);
+  try {
+    assert.ok(sentTexts(calls).some((t) => t.includes("Send /delete confirm")));
+    assert.equal(db.isAllowed("telegram", "800"), true); // nothing deleted
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("/delete confirm after TTL expiry re-prompts instead of deleting", async () => {
+  const { db, cwd, calls } = await runDeleteScenario(
+    [[textUpdate(1, 800, "/delete")], [textUpdate(2, 800, "/delete confirm")]],
+    { ttlMs: -1 }, // pending expires immediately
+  );
+  try {
+    const prompts = sentTexts(calls).filter((t) => t.includes("Send /delete confirm"));
+    assert.equal(prompts.length, 2);
+    assert.equal(db.isAllowed("telegram", "800"), true);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("/delete from a forum topic calls deleteForumTopic with the thread id", async () => {
+  const { db, cwd, calls } = await runDeleteScenario([
+    [topicUpdate(1, 800, "/delete", 42)],
+    [topicUpdate(2, 800, "/delete confirm", 42)],
+  ]);
+  try {
+    const del = calls.find((c) => c.method === "deleteForumTopic");
+    assert.ok(del, "deleteForumTopic should be called");
+    assert.equal(del?.payload.message_thread_id, 42);
+    assert.equal(db.listBindings().length, 0);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("deleteForumTopic failure still wipes local state and warns", async () => {
+  const { db, cwd, calls } = await runDeleteScenario(
+    [[topicUpdate(1, 800, "/delete", 7)], [topicUpdate(2, 800, "/delete confirm", 7)]],
+    { overrides: { deleteForumTopic: { ok: false, description: "not enough rights" } } },
+  );
+  try {
+    assert.equal(db.listBindings().length, 0); // local state gone regardless
+    assert.equal(db.isAllowed("telegram", "800"), false);
+    assert.ok(sentTexts(calls).some((t) => t.includes("remove it manually")));
   } finally {
     rmSync(cwd, { recursive: true, force: true });
     db.close();

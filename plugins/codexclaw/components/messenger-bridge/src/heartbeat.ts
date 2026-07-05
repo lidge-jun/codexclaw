@@ -139,8 +139,10 @@ export class HeartbeatScheduler {
         this.log(`[heartbeat] ${agent.name}: silent`);
         return; // recorded in jobs, never forwarded
       }
-      await this.send(agent, chatId, text);
-      this.log(`[heartbeat] ${agent.name}: forwarded ${text.slice(0, 60)}`);
+      for (const entry of paired) {
+        await this.send(agent, entry.chat_id, text);
+      }
+      this.log(`[heartbeat] ${agent.name}: forwarded to ${paired.length} chat(s) ${text.slice(0, 60)}`);
     } finally {
       this.inFlight.delete(agent.id);
     }

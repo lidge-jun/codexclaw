@@ -119,9 +119,11 @@ test("HEARTBEAT_OK reply is recorded but never forwarded", async () => {
 
 test("busy binding skips the tick without consuming the schedule slot", async () => {
   const nowRef = { t: 10 * 60_000 };
-  const { db, scheduler, sent } = setup(nowRef);
+  const { db, scheduler, sent, cwd } = setup(nowRef);
   const agent = makeHbAgent(db, "hb-busy");
-  const binding = db.getOrCreateAgentBinding(agent.id, "telegram", "chat-hb-busy", "/x");
+  // binding.workdir now drives the exec cwd (telegram_cwd_sessions phase 1),
+  // so the fixture must point at a real directory.
+  const binding = db.getOrCreateAgentBinding(agent.id, "telegram", "chat-hb-busy", cwd);
   db.setBindingStatus(binding.id, "running");
   process.env.FAKE_CODEX_MODE = "ok";
   await scheduler.tick();

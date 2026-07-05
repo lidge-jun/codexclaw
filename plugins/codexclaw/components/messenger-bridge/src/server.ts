@@ -13,6 +13,8 @@ import type { BridgeDb } from "./db.ts";
 import { apiCompatRoutes } from "./api-compat.ts";
 import { connectRoutes } from "./connect-routes.ts";
 import { agentRoutes } from "./agent-routes.ts";
+import type { MetricsSnapshot } from "./metrics.ts";
+import type { BridgeEvent } from "./event-log.ts";
 
 export interface ApiCtx {
   db: BridgeDb;
@@ -30,6 +32,8 @@ export interface BridgeControllerLike {
   adapterStatus: () => string;
   openHandshake: (kind: "telegram" | "discord", seconds: number) => void;
   handshakeState: (kind: "telegram" | "discord") => { open: boolean; pairedChatId: string | null };
+  metricsSnapshot?: () => MetricsSnapshot;
+  recentEvents?: (n: number) => BridgeEvent[];
 }
 
 export interface ApiResponse {
@@ -84,7 +88,29 @@ function healthRoute(): ApiRoute {
 
 /** Base route set: health + GUI API parity + channel connect/manage + agents. */
 export function baseRoutes(): ApiRoute[] {
-  return [healthRoute(), ...apiCompatRoutes(), ...connectRoutes(), ...agentRoutes()];
+  return [healthRoute(), ...apiCompatRoutes(), ...connectRoutes(), ...agentRoutes(), ...observabilityRoutes()];
+}
+
+function observabilityRoutes(): ApiRoute[] {
+  return [
+    {
+      method: "GET",
+      path: "/api/metrics",
+      handler: (ctx) => {
+        const snap = ctx.controller?.metricsSnapshot?.();
+        return { status: 200, body: snap ?? { error: "metrics not available" } };
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/events",
+      handler: (ctx, _body, url) => {
+        const n = Number.parseInt(url.searchParams.get("n") ?? "50", 10);
+        const events = ctx.controller?.recentEvents?.(Number.isFinite(n) ? n : 50) ?? [];
+        return { status: 200, body: { events } };
+      },
+    },
+  ];
 }
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);

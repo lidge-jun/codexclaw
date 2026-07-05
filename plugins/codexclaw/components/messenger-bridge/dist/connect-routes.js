@@ -68,7 +68,7 @@ export function connectRoutes()             {
         // Shim: keep the kind's first agent carrying the same token so the
         // agent-based runtime picks it up on activate.
         ensureKindAgent(ctx, kind, token);
-        return { status: 200, body: { ok: true, username: result.username ?? null } };
+        return { status: 200, body: { ok: true, username: result.username ?? null, botId: result.botId ?? null } };
       },
     },
     {

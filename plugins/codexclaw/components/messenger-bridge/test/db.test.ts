@@ -147,3 +147,39 @@ test("job lifecycle: create, patch, list ordering + preview caps", () => {
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test("setBindingWorkdir repoints the exec cwd for one binding only", () => {
+  const cwd = tempCwd();
+  try {
+    const db = openBridgeDb(cwd);
+    const a = db.getOrCreateBinding("telegram", "1", "/tmp/a");
+    const b = db.getOrCreateBinding("telegram", "2", "/tmp/b");
+    db.setBindingWorkdir(a.id, "/tmp/elsewhere");
+    assert.equal(db.getBinding(a.id)?.workdir, "/tmp/elsewhere");
+    assert.equal(db.getBinding(b.id)?.workdir, "/tmp/b");
+    db.close();
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("deleteBindingCascade removes jobs + binding, leaves others intact", () => {
+  const cwd = tempCwd();
+  try {
+    const db = openBridgeDb(cwd);
+    const doomed = db.getOrCreateBinding("telegram", "10", "/tmp/w");
+    const kept = db.getOrCreateBinding("telegram", "11", "/tmp/w");
+    db.createJob(doomed.id, "bye");
+    const keptJob = db.createJob(kept.id, "stay");
+
+    db.deleteBindingCascade(doomed.id);
+
+    assert.equal(db.getBinding(doomed.id), null);
+    assert.equal(db.listJobs(doomed.id, 10).length, 0);
+    assert.equal(db.getBinding(kept.id)?.id, kept.id);
+    assert.equal(db.listJobs(kept.id, 10)[0]?.id, keptJob);
+    db.close();
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

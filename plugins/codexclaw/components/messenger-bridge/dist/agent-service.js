@@ -122,7 +122,9 @@ export class AgentService {
     let result            ;
     try {
       result = await runTurn({
-        workdir: req.workdir,
+        // Binding row wins: /cwd steers exec per chat. req.workdir is defense
+        // only — workdir is NOT NULL and no writer produces an empty string.
+        workdir: binding.workdir || req.workdir,
         prompt: req.text,
         threadId: binding.thread_id,
         model: req.model ?? agentModel ?? this.opts.model ?? null,
@@ -141,7 +143,13 @@ export class AgentService {
       return { ok: false, error: message };
     }
 
-    if (result.threadId) db.setBindingThread(bindingId, result.threadId);
+    // Skip the thread persist when the binding's workdir changed mid-turn
+    // (/cwd during a running turn clears the thread; re-persisting the old
+    // thread would resume an old-cwd conversation inside the new cwd).
+    const fresh = db.getBinding(bindingId);
+    if (result.threadId && fresh && fresh.workdir === binding.workdir) {
+      db.setBindingThread(bindingId, result.threadId);
+    }
     db.setBindingStatus(bindingId, "idle");
 
     if (result.ok) {

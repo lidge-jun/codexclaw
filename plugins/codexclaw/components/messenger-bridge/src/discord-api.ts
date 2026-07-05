@@ -44,14 +44,27 @@ export class DiscordApi {
 
   private async call<T>(method: string, path: string, body?: unknown): Promise<DiscordApiResult<T>> {
     try {
-      const res = await this.fetchImpl(`${DISCORD_API}${path}`, {
+      const url = `${DISCORD_API}${path}`;
+      const init = {
         method,
         headers: {
           authorization: `Bot ${this.token}`,
           "content-type": "application/json",
         },
         body: body === undefined ? undefined : JSON.stringify(body),
-      });
+      };
+      let res = await this.fetchImpl(url, init);
+      if (res.status === 429) {
+        const retryAfterSeconds = Number(res.headers.get("Retry-After") ?? "0");
+        if (retryAfterSeconds > 0) {
+          await new Promise((resolve) => setTimeout(resolve, retryAfterSeconds * 1000));
+        }
+        res = await this.fetchImpl(url, init);
+      }
+      if (res.headers.get("X-RateLimit-Remaining") === "0") {
+        const resetAfter = res.headers.get("X-RateLimit-Reset-After") ?? "unknown";
+        console.warn(`[discord] rate limit bucket exhausted; reset after ${resetAfter}s`);
+      }
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         return { ok: false, status: res.status, error: `${method} ${path} → ${res.status} ${text.slice(0, 200)}` };

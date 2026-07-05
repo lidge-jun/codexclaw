@@ -71,7 +71,12 @@ export function agentRoutes(deps                  = {})             {
         const agent = ctx.db.createAgent(name, kind, token);
         return {
           status: 200,
-          body: { ok: true, agent: publicAgent(ctx, agent), username: result.username ?? null },
+          body: {
+            ok: true,
+            agent: publicAgent(ctx, agent),
+            username: result.username ?? null,
+            botId: result.botId ?? null,
+          },
         };
       },
     },

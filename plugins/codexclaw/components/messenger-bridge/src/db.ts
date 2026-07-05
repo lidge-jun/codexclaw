@@ -457,6 +457,19 @@ CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id)
       .run(workdir, nowIso(), id);
   }
 
+  /** /delete teardown: jobs + binding in one transaction (deleteAgent precedent). */
+  deleteBindingCascade(id: number): void {
+    this.db.exec("BEGIN");
+    try {
+      this.db.prepare("DELETE FROM jobs WHERE binding_id = ?").run(id);
+      this.db.prepare("DELETE FROM bindings WHERE id = ?").run(id);
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
   setBindingStatus(id: number, status: string): void {
     this.db
       .prepare("UPDATE bindings SET status = ?, updated_at = ? WHERE id = ?")

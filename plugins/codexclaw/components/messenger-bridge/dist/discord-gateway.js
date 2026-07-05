@@ -54,6 +54,7 @@ export const INTENTS = (1 << 9) | (1 << 12) | (1 << 15);
 
 
 
+
 export class DiscordGateway {
           token        ;
           onMessage                                    ;
@@ -70,6 +71,7 @@ export class DiscordGateway {
           acked = true;
           stopped = false;
           reconnecting = false;
+          reconnectAttempts = 0;
           botId                = null;
 
   constructor(opts                       ) {
@@ -159,7 +161,7 @@ export class DiscordGateway {
     });
   }
 
-          reconnect()       {
+          async reconnect()                {
     if (this.stopped || this.reconnecting) return;
     this.reconnecting = true;
     this.clearHeartbeat();
@@ -171,6 +173,17 @@ export class DiscordGateway {
       old?.close(4000);
     } catch {
       /* already closed */
+    }
+    if (this.stopped) return;
+    const baseDelayMs = 1000;
+    const maxDelayMs = 30000;
+    const delayMs = Math.min(baseDelayMs * 2 ** this.reconnectAttempts * this.jitter(), maxDelayMs);
+    this.reconnectAttempts += 1;
+    if (delayMs > 0) {
+      await new Promise((resolve) => {
+        const timer = setTimeout(resolve, delayMs);
+        timer.unref?.();
+      });
     }
     if (this.stopped) return;
     // Prefer resume if we have a session; connect() picks the state.
@@ -235,6 +248,7 @@ export class DiscordGateway {
         : null;
       this.botId = typeof data.user?.id === "string" ? data.user.id : null;
       this.state = "ready";
+      this.reconnectAttempts = 0;
       this.log("[discord] ready");
       return;
     }
@@ -249,6 +263,7 @@ export class DiscordGateway {
 
 
 
+
        ;
       this.onMessage({
         id: m.id ?? "",
@@ -257,6 +272,10 @@ export class DiscordGateway {
         authorId: m.author?.id ?? "",
         isBot: Boolean(m.author?.bot),
         guildId: m.guild_id ?? null,
+        messageReference: m.message_reference ? {
+          messageId: m.message_reference.message_id ?? null,
+          channelId: m.message_reference.channel_id ?? null,
+        } : null,
       });
     }
   }

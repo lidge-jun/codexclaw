@@ -95,6 +95,7 @@ test("MESSAGE_CREATE dispatch surfaces a normalized event", () => {
     authorId: "u1",
     isBot: false,
     guildId: "g1",
+    messageReference: null,
   });
   gw.stop();
 });

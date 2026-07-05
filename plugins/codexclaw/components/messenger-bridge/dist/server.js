@@ -22,7 +22,11 @@ import { agentRoutes } from "./agent-routes.js";
 
 
 
+
+
 /** The subset of BridgeController the API routes use (kept structural to avoid a cycle). */
+
+
 
 
 
@@ -84,7 +88,29 @@ function healthRoute()           {
 
 /** Base route set: health + GUI API parity + channel connect/manage + agents. */
 export function baseRoutes()             {
-  return [healthRoute(), ...apiCompatRoutes(), ...connectRoutes(), ...agentRoutes()];
+  return [healthRoute(), ...apiCompatRoutes(), ...connectRoutes(), ...agentRoutes(), ...observabilityRoutes()];
+}
+
+function observabilityRoutes()             {
+  return [
+    {
+      method: "GET",
+      path: "/api/metrics",
+      handler: (ctx) => {
+        const snap = ctx.controller?.metricsSnapshot?.();
+        return { status: 200, body: snap ?? { error: "metrics not available" } };
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/events",
+      handler: (ctx, _body, url) => {
+        const n = Number.parseInt(url.searchParams.get("n") ?? "50", 10);
+        const events = ctx.controller?.recentEvents?.(Number.isFinite(n) ? n : 50) ?? [];
+        return { status: 200, body: { events } };
+      },
+    },
+  ];
 }
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);

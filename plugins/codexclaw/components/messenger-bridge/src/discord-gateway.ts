@@ -33,6 +33,7 @@ export interface DiscordMessageEvent {
   authorId: string;
   isBot: boolean;
   guildId: string | null;
+  messageReference: { messageId: string | null; channelId: string | null } | null;
 }
 
 export interface WsLike {
@@ -70,6 +71,7 @@ export class DiscordGateway {
   private acked = true;
   private stopped = false;
   private reconnecting = false;
+  private reconnectAttempts = 0;
   private botId: string | null = null;
 
   constructor(opts: DiscordGatewayOptions) {
@@ -159,7 +161,7 @@ export class DiscordGateway {
     });
   }
 
-  private reconnect(): void {
+  private async reconnect(): Promise<void> {
     if (this.stopped || this.reconnecting) return;
     this.reconnecting = true;
     this.clearHeartbeat();
@@ -171,6 +173,17 @@ export class DiscordGateway {
       old?.close(4000);
     } catch {
       /* already closed */
+    }
+    if (this.stopped) return;
+    const baseDelayMs = 1000;
+    const maxDelayMs = 30000;
+    const delayMs = Math.min(baseDelayMs * 2 ** this.reconnectAttempts * this.jitter(), maxDelayMs);
+    this.reconnectAttempts += 1;
+    if (delayMs > 0) {
+      await new Promise((resolve) => {
+        const timer = setTimeout(resolve, delayMs);
+        timer.unref?.();
+      });
     }
     if (this.stopped) return;
     // Prefer resume if we have a session; connect() picks the state.
@@ -235,6 +248,7 @@ export class DiscordGateway {
         : null;
       this.botId = typeof data.user?.id === "string" ? data.user.id : null;
       this.state = "ready";
+      this.reconnectAttempts = 0;
       this.log("[discord] ready");
       return;
     }
@@ -248,6 +262,7 @@ export class DiscordGateway {
         content?: string;
         channel_id?: string;
         guild_id?: string;
+        message_reference?: { message_id?: string; channel_id?: string };
         author?: { id?: string; bot?: boolean };
       };
       this.onMessage({
@@ -257,6 +272,10 @@ export class DiscordGateway {
         authorId: m.author?.id ?? "",
         isBot: Boolean(m.author?.bot),
         guildId: m.guild_id ?? null,
+        messageReference: m.message_reference ? {
+          messageId: m.message_reference.message_id ?? null,
+          channelId: m.message_reference.channel_id ?? null,
+        } : null,
       });
     }
   }

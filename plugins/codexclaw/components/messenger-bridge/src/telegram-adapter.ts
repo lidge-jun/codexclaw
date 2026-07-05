@@ -31,6 +31,8 @@ export interface TelegramAdapterOptions {
   log?: (line: string) => void;
   pollTimeoutSec?: number;
   handshakeSeconds?: number;
+  /** /delete confirm window (ms). Test seam; defaults to 60s. */
+  deleteConfirmTtlMs?: number;
 }
 
 type AdapterStatus = "idle" | "running" | "conflict" | "stopped";
@@ -39,6 +41,7 @@ const POLL_TIMEOUT_SEC = 50;
 const MAX_409_RETRIES = 3;
 const TYPING_REFRESH_MS = 4_000;
 const STATUS_COALESCE_MS = 1_500;
+const DELETE_CONFIRM_TTL_MS = 60_000;
 
 export interface TelegramAdapter {
   start: () => Promise<void>;
@@ -61,6 +64,9 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
   let conflictCount = 0;
   let abort: AbortController | null = null;
   let paused = false;
+  // /delete two-step confirmation: chatId -> pending expiry (epoch ms).
+  const pendingDeletes = new Map<string, number>();
+  const deleteTtl = opts.deleteConfirmTtlMs ?? DELETE_CONFIRM_TTL_MS;
 
   // Agent-scoped vs legacy channel-scoped persistence/gating.
   const savedOffset = () =>
@@ -152,6 +158,7 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
       await api.sendMessage({ chatId, text: "Chat removed from allowlist." });
       return;
     }
+    if (rawText.startsWith("/delete")) return handleDelete(chatId, msg, rawText);
     if (rawText.startsWith("/pause")) {
       paused = true;
       await api.sendMessage({ chatId, text: "Paused — messages will be ignored until /resume." });
@@ -271,6 +278,54 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
     await api.sendMessage({ chatId, text: `Workdir set: ${real} (session reset)` });
   }
 
+  /** /delete — two-step chat teardown: binding + jobs + pairing, and the forum
+   *  topic itself when invoked from one (best effort). */
+  async function handleDelete(chatId: string, msg: TgMessage, rawText: string): Promise<void> {
+    const confirmed = rawText.trim().split(/\s+/)[1] === "confirm";
+    const pendingUntil = pendingDeletes.get(chatId) ?? 0;
+
+    if (!confirmed || pendingUntil < Date.now()) {
+      pendingDeletes.set(chatId, Date.now() + deleteTtl);
+      await api.sendMessage({
+        chatId,
+        text: "This will remove this chat's session, history, and pairing. Send /delete confirm within 60s to proceed.",
+        messageThreadId: msg.message_thread_id,
+      });
+      return;
+    }
+
+    pendingDeletes.delete(chatId);
+    const binding =
+      agentId !== null
+        ? opts.db.getOrCreateAgentBinding(agentId, "telegram", chatId, opts.workdir)
+        : opts.db.getOrCreateBinding("telegram", chatId, opts.workdir);
+    opts.db.deleteBindingCascade(binding.id);
+    if (agentId !== null) opts.db.removeAgentAllowlist(agentId, chatId);
+    else opts.db.removeAllowlist("telegram", chatId);
+
+    const topicId = msg.message_thread_id;
+    const isTopic =
+      topicId !== undefined && (msg.chat.type === "supergroup" || msg.chat.type === "group");
+    if (isTopic) {
+      const res = await api.deleteForumTopic(chatId, topicId);
+      if (!res.ok) {
+        await api.sendMessage({
+          chatId,
+          text: "State wiped, but I couldn't delete this topic (missing can_delete_messages) — remove it manually.",
+          messageThreadId: topicId,
+        });
+      }
+      log(`[tg] /delete wiped chat ${chatId} (topic ${topicId}, api ok=${res.ok})`);
+      return;
+    }
+
+    await api.sendMessage({
+      chatId,
+      text: "Chat deleted — pairing and history removed on the bot side. Reconnecting requires a new pairing window from the desktop.",
+    });
+    log(`[tg] /delete wiped chat ${chatId}`);
+  }
+
   async function handleHelp(chatId: string, msg: TgMessage): Promise<void> {
     void msg;
     const helpText = [
@@ -281,6 +336,7 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
       "/reset — Reset conversation session",
       "/cwd — Show or set working directory",
       "/model — Show or change AI model",
+      "/delete — Remove this chat's session and pairing",
       "/help — List available commands",
     ].join("\n");
     await api.sendMessage({ chatId, text: helpText });
@@ -438,6 +494,7 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
         { command: "pause", description: "Pause message processing" },
         { command: "resume", description: "Resume message processing" },
         { command: "kick", description: "Remove this chat from allowlist" },
+        { command: "delete", description: "Remove this chat's session and pairing" },
         { command: "model", description: "Show or change AI model" },
         { command: "help", description: "List available commands" },
       ]);
