@@ -1,7 +1,7 @@
 /** agent-service.test.ts — db+queue+runner glue via the fake codex bin. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -113,6 +113,61 @@ test("buildReseedBlock: summarizes recent jobs oldest-first with header", () => 
   // jobs come newest-first; block reverses to oldest-first
   assert.ok(block.indexOf("q1") < block.indexOf("q2"));
   assert.equal(buildReseedBlock([]), "");
+});
+
+test("binding workdir wins over the adapter workdir on the next turn", async () => {
+  const cwd = tempCwd();
+  const otherDir = tempCwd();
+  const prevEcho = process.env.FAKE_CODEX_ECHO_CWD;
+  process.env.FAKE_CODEX_ECHO_CWD = "1";
+  try {
+    await withMode("ok", async () => {
+      const db = openBridgeDb(cwd);
+      const svc = new AgentService({ db, codexBin: FAKE });
+      const binding = db.getOrCreateBinding("telegram", "77", cwd);
+      db.setBindingWorkdir(binding.id, otherDir);
+      const res = await svc.handleIncoming({
+        kind: "telegram",
+        chatId: "77",
+        text: "where am I?",
+        workdir: cwd,
+      });
+      assert.equal(res.ok, true);
+      // macOS tmpdir is a symlink (/var -> /private/var); compare realpaths.
+      assert.equal(String(res.text), `cwd: ${realpathSync(otherDir)}`);
+      db.close();
+    });
+  } finally {
+    if (prevEcho === undefined) delete process.env.FAKE_CODEX_ECHO_CWD;
+    else process.env.FAKE_CODEX_ECHO_CWD = prevEcho;
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(otherDir, { recursive: true, force: true });
+  }
+});
+
+test("untouched binding still execs in the adapter workdir (regression)", async () => {
+  const cwd = tempCwd();
+  const prevEcho = process.env.FAKE_CODEX_ECHO_CWD;
+  process.env.FAKE_CODEX_ECHO_CWD = "1";
+  try {
+    await withMode("ok", async () => {
+      const db = openBridgeDb(cwd);
+      const svc = new AgentService({ db, codexBin: FAKE });
+      const res = await svc.handleIncoming({
+        kind: "telegram",
+        chatId: "78",
+        text: "home base",
+        workdir: cwd,
+      });
+      assert.equal(res.ok, true);
+      assert.equal(String(res.text), `cwd: ${realpathSync(cwd)}`);
+      db.close();
+    });
+  } finally {
+    if (prevEcho === undefined) delete process.env.FAKE_CODEX_ECHO_CWD;
+    else process.env.FAKE_CODEX_ECHO_CWD = prevEcho;
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 test("agent-bound run applies the agent card's model + effort on the next turn", async () => {

@@ -62,6 +62,7 @@ export interface AgentRow {
   heartbeat_minutes: number;
   heartbeat_prompt: string;
   poll_offset: number;
+  trigger_prefix: string;
   handshake_open_until: string | null;
   created_at: string;
   updated_at: string;
@@ -76,6 +77,7 @@ export interface AgentPatch {
   mention_only?: number;
   heartbeat_minutes?: number;
   heartbeat_prompt?: string;
+  trigger_prefix?: string;
 }
 
 export const AGENT_EFFORTS = ["default", "minimal", "low", "medium", "high", "xhigh"] as const;
@@ -297,6 +299,13 @@ CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id)
       }
       version = 4;
     }
+
+    // ── v5: agents.trigger_prefix (Phase E6) ──
+    if (version < 5) {
+      this.db.exec("ALTER TABLE agents ADD COLUMN trigger_prefix TEXT NOT NULL DEFAULT ''");
+      this.db.exec("PRAGMA user_version = 5");
+      version = 5;
+    }
   }
 
   // ── channels ──────────────────────────────────────────
@@ -441,6 +450,13 @@ CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id)
       .run(nowIso(), id);
   }
 
+  /** Point a chat's exec cwd at a new directory (validated by the caller). */
+  setBindingWorkdir(id: number, workdir: string): void {
+    this.db
+      .prepare("UPDATE bindings SET workdir = ?, updated_at = ? WHERE id = ?")
+      .run(workdir, nowIso(), id);
+  }
+
   setBindingStatus(id: number, status: string): void {
     this.db
       .prepare("UPDATE bindings SET status = ?, updated_at = ? WHERE id = ?")
@@ -499,6 +515,7 @@ CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id)
       "mention_only",
       "heartbeat_minutes",
       "heartbeat_prompt",
+      "trigger_prefix",
     ] as const;
     const sets: string[] = [];
     const values: Array<string | number> = [];
@@ -571,6 +588,12 @@ CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id)
         "SELECT ? AS agent_id, chat_id, label, added_at FROM agent_allowlist WHERE agent_id = ? ORDER BY added_at",
       )
       .all(agentId, agentId) as unknown as AllowRow[];
+  }
+
+  removeAgentAllowlist(agentId: number, chatId: string): void {
+    this.db
+      .prepare("DELETE FROM agent_allowlist WHERE agent_id = ? AND chat_id = ?")
+      .run(agentId, chatId);
   }
 
   /** Lookup-first by (agent_id, chat_id); the UNIQUE key is the race backstop. */
