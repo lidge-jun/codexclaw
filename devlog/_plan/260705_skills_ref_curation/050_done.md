@@ -39,14 +39,29 @@
   (claude→codex exec 치환, cxc-dev 우선)
 - 라이브 스모크: telegram/tdd/hermes notes 검색, show 프리앰블 부착 확인
 
-## 잔여/후속 (로드맵)
+## 잔여/후속 (로드맵) — WP4 갱신 (2026-07-05)
 
-- clawhub.ai 레지스트리 API 연동 (tree API 대체) — clawhub 스킬이 13개라 급하지 않음
-- cli-jaw 랭킹 코드의 superseded_by 소비 (cli-jaw 쪽 작업; codexclaw 검색기는 이미 소비)
-- friction.jsonl 파이프라인 복원 여부 — 2주 관찰 후 판단 (Stop hook escalate 조언은
-  현재 무해하게 무음)
-- 021 외부 import 후보 18종 — 검색으로 로드는 이미 가능; 상시 노출이 필요해지면
-  그때 개별 판단
+- [x] clawhub.ai 레지스트리 API 연동 — WP4에서 완료. tree API 폐기,
+  `/api/v1/search` 마켓플레이스 검색 (무인증, 서버 랭킹) + packages file 엔드포인트로
+  body 로드. repo 13개 대신 마켓플레이스 전체가 검색 대상.
+- [x] cli-jaw superseded_by 소비 — WP4에서 완료 (gpt-5.5 worker, cli-jaw
+  e86b1091). 프롬프트는 lookup-only 가드 유지(설계 의도 존중), 대신
+  `skill list --inactive`가 `→ superseded by <target>` / `[claude-specific]`
+  주석 + 후순위 정렬, `skill info`가 두 필드 표시. push 완료.
+- [ ] friction.jsonl 파이프라인 복원 여부 — 2주 관찰 후 판단 (Stop hook escalate
+  조언은 현재 무해하게 무음)
+- [ ] 021 외부 import 후보 18종 — 검색으로 로드는 이미 가능; 상시 노출이
+  필요해지면 그때 개별 판단
+
+### WP4 기록
+
+P: clawhub API + cli-jaw 소비 조사 (gpt-5.5 researcher — clawhub.ai openapi 발견,
+   cli-jaw 가드 테스트가 프롬프트 주입을 의도적으로 금지함을 확인 → CLI 주석으로 전환)
+A: 리서치 검증 (curl 라이브 확인 포함)
+B: codexclaw clawhub 어댑터 교체 + cli-jaw skill.ts 주석 (worker 병렬)
+C: skill-search 18 테스트 green, 전체 687 green, 라이브 스모크 2건, cli-jaw
+   worker evidence receipt (subagent-stop hook 검증 통과)
+D: 커밋 2건 (codexclaw + cli-jaw e86b1091) / cli-jaw push 완료
 
 ## 성공 기준 대조 (010)
 
