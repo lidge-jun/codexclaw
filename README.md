@@ -49,7 +49,7 @@ codexclaw/
 
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
-codex plugin add codexclaw@personal
+codex plugin add codexclaw@codexclaw
 ```
 
 ## GUI

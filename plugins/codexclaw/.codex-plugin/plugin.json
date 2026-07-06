@@ -6,6 +6,8 @@
     "name": "lidge-jun",
     "url": "https://github.com/lidge-jun"
   },
+  "repository": "https://github.com/lidge-jun/codexclaw",
+  "homepage": "https://lidge-jun.github.io/codexclaw/",
   "license": "MIT",
   "keywords": [
     "codex",
@@ -37,6 +39,7 @@
     "shortDescription": "cli-jaw dev discipline + multi-model subagents for Codex.",
     "longDescription": "Codexclaw reuses the OpenAI Codex runtime and layers cli-jaw-style development discipline (dev-* skills, PABCD workflow), multi-model subagent routing, and an optional opencodex (ocx) provider bridge. Includes a local GUI for subagent model selection and prompt tuning.",
     "developerName": "lidge-jun",
+    "websiteURL": "https://lidge-jun.github.io/codexclaw/",
     "category": "Developer Tools",
     "capabilities": [
       "Skills",
@@ -45,6 +48,10 @@
       "Subagents",
       "Context Injection"
     ],
-    "defaultPrompt": "Plan this with codexclaw PABCD and use multi-model subagents."
+    "defaultPrompt": [
+      "Plan this with codexclaw PABCD and use multi-model subagents.",
+      "Run cxc map to get the shape of this repo before we dive in.",
+      "Interview me first, then draft a diff-level plan."
+    ]
   }
 }

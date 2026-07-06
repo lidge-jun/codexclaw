@@ -14,7 +14,7 @@
 # Usage: scripts/dev-symlink.sh [--status]
 set -euo pipefail
 
-MARKETPLACE="personal"
+MARKETPLACE="codexclaw"
 PLUGIN="codexclaw"
 VERSION="0.1.0"
 
