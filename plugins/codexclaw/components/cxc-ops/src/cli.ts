@@ -1,5 +1,5 @@
 /**
- * cli.ts — `cxc-ops` entry point (L20). Subcommands: doctor | reset.
+ * cli.ts — `cxc-ops` entry point (L20). Subcommands: doctor | reset | hook.
  *
  * Resolves the plugin root relative to this compiled file (dist/ -> component ->
  * components -> plugin root). doctor/reset are synchronous. Exit codes: doctor
@@ -8,8 +8,19 @@
  */
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import { runDoctor, renderDoctor } from "./doctor.ts";
 import { parseResetScope, runReset, renderReset } from "./reset.ts";
+import { runMapAffordanceSessionStart } from "./map-affordance.ts";
+
+/** Read all of stdin synchronously (hook payload); "" if none/unavailable. */
+function readStdinSync(): string {
+  try {
+    return readFileSync(0, "utf8");
+  } catch {
+    return "";
+  }
+}
 
 function pluginRootFrom(metaUrl: string): string {
   // dist/cli.js -> components/cxc-ops/dist -> components/cxc-ops -> components -> <pluginRoot>
@@ -33,8 +44,18 @@ export async function main(argv: string[], metaUrl: string): Promise<number> {
       process.stdout.write(`${renderReset(result)}\n`);
       return 0;
     }
+    case "hook": {
+      // Only the map-affordance SessionStart hook lives here today.
+      if (rest[0] === "session-start") {
+        const out = runMapAffordanceSessionStart(readStdinSync(), process.cwd());
+        if (out) process.stdout.write(out);
+        return 0; // read-only affordance never fails the session
+      }
+      process.stdout.write("cxc-ops hook <session-start>\n");
+      return 0;
+    }
     default:
-      process.stdout.write("cxc-ops <doctor|reset [--state|--generated|--goalplans|--all]>\n");
+      process.stdout.write("cxc-ops <doctor|reset [--state|--generated|--goalplans|--all]|hook session-start>\n");
       return 0;
   }
 }

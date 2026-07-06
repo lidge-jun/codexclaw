@@ -175,6 +175,7 @@ The manifest wires 17 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` 
 | Hook event | Hook file | Command | Live behavior |
 |------------|-----------|---------|---------------|
 | `SessionStart` | `hooks/session-start-ensuring-provider-bridge.json` | `node "${PLUGIN_ROOT}/components/provider-bridge/dist/cli.js" hook session-start` | emits one ocx status JSON line; detect-only |
+| `SessionStart` | `hooks/session-start-announcing-map-affordance.json` | `node "${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js" hook session-start` | announces `cxc map` availability (a POINTER, not the map body) when the repo clears a source-file size gate; read-only, fail-silent |
 | `UserPromptSubmit` | `hooks/user-prompt-submit-checking-pabcd-trigger.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook user-prompt-submit` | detects explicit IPABCD triggers and injects phase context |
 | `Stop` | `hooks/stop-checking-pabcd-continuation.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook stop` | active only under a native goal + in-flight PABCD cycle; bounded by re-entry, IDLE/no-goal, context-pressure, and stagnation guards |
 | `PreToolUse` `^create_goal$` | `hooks/pre-tool-use-guarding-goal-budget.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use` | denies `create_goal` inputs with keys other than `objective` |

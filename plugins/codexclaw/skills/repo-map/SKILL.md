@@ -104,6 +104,12 @@ surface.
 
 - On-demand skill (`allow_implicit_invocation: false`); reached by trigger or
   explicit use.
+- Discoverability: a SessionStart hook
+  (`hooks/session-start-announcing-map-affordance.json`, cxc-ops) announces this
+  tool's existence once per session when the repo clears a source-file size gate.
+  That is a POINTER only — the map body is never session-injected (on-demand stays
+  the rule). This is the runtime companion to the `dev` §1.5 DEV-MAP-FIRST-01
+  routing, which is model-autonomous.
 - Stateless one-shot CLI: no daemon, server, MCP process, background indexer, or
   workspace watcher.
 - Lazygap 005 compliant: no dependency import or runtime setup is required for
