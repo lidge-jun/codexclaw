@@ -153,8 +153,8 @@ Never treat Spark snippets or subagent summaries as final proof.
 
 This skill is intentionally lighter than lazycodex `ultraresearch`. It does not
 run the EXPAND convergence loop, keep a session journal, verify by executing
-code, or generate reports — those belong to `cxc-ultraresearch`. sparksearch is
+code, or generate reports — those belong to `cxc-search` Tier 3. sparksearch is
 the cheap one-shot discovery fan-out; ultraresearch is the deep multi-wave
 research protocol. Use sparksearch when breadth-for-cost is the goal; escalate
-to `cxc-ultraresearch` when the question needs iterative expansion and
+to `cxc-search` Tier 3 when the question needs iterative expansion and
 contested-claim verification.

@@ -23,7 +23,7 @@ import { applyHumanTransition } from "./orchestrate-apply.js";
 import { captureInterviewAnswers } from "./interview-ledger.js";
 import { MIND_DISPATCH_DIRECTIVE } from "./minds.js";
 import { checkObjectivePlateau, readObjectiveKind,                   } from "./metrics.js";
-import { readGoalplan, nextOpenTask, unmetCriteria } from "./goalplan.js";
+import { advanceWorkPhase, appendGoalplanLedger, readGoalplan, writeGoalplan, nextOpenTask, unmetCriteria } from "./goalplan.js";
 import { peakFrictionVerdict, looksLikeFailure, recordFriction } from "./friction.js";
 import { discardStreak, readDivergenceCandidates } from "./divergence.js";
 import { hasRenderArtifactModified, hasRenderObservation, renderGroundingAdvisory } from "./render-observations.js";
@@ -493,6 +493,33 @@ function handleOrchestrateCommand(
   // done: chat D-close. Inject the DONE summary directive this turn; the resting
   // state is already IDLE, so the footer surfaces IDLE.
   if (result.control === "done") {
+    if (state.slug) {
+      try {
+        const plan = readGoalplan(payload.cwd, state.slug);
+        if (plan) {
+          const advanced = advanceWorkPhase(plan);
+          if (advanced) {
+            writeGoalplan(payload.cwd, advanced);
+            appendGoalplanLedger(payload.cwd, state.slug, {
+              ts: new Date().toISOString(),
+              slug: state.slug,
+              event: "workphase_done",
+              detail: `closed ${plan.activeWorkPhaseId ?? "none"}`,
+            });
+            if (advanced.activeWorkPhaseId) {
+              appendGoalplanLedger(payload.cwd, state.slug, {
+                ts: new Date().toISOString(),
+                slug: state.slug,
+                event: "workphase_started",
+                detail: `started ${advanced.activeWorkPhaseId}`,
+              });
+            }
+          }
+        }
+      } catch {
+        // FAIL-OPEN: goalplan advance failure must not block the D-close.
+      }
+    }
     return buildContextOutput("UserPromptSubmit", withFooter(phaseDirective("D"), "IDLE"));
   }
   const phase = result.state?.phase ?? state.phase;

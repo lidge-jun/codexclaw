@@ -1,11 +1,11 @@
 ---
 name: cxc-loop
-description: "Use for Codexclaw PABCD work-loop planning: HITL phase discipline, HOTL goal activation, cxc-pabcd activation, repeated work-phases, divergence/collapse policy, Stop-continuation policy, and evidence checkpoints. Triggers: cxc-loop, loop, autonomous continuation, continue until done, HOTL, HITL PABCD, repeated PABCD, work-phase loop."
+description: "Use for Codexclaw PABCD work-loop planning and durable goalplans: HITL phase discipline, HOTL goal activation, work-phases, criteria, checkpoints, evidence ledgers, cxc-pabcd activation, repeated work-phases, divergence/collapse policy, Stop-continuation policy, and quality gates. Triggers: cxc-loop, loop, autonomous continuation, continue until done, HOTL, HITL PABCD, repeated PABCD, work-phase loop, goalplan, goal plan, success criteria, checkpoint, steering, quality gate, evidence ledger."
 metadata:
-  short-description: "PABCD continuation + divergence/collapse loop contract."
+  short-description: "PABCD continuation + durable goalplan + divergence/collapse loop contract."
 ---
 
-# cxc-loop
+# cxc-loop — Work-Phase Loop + Durable Goalplan
 
 Use this skill for Codexclaw work loops that span one or more PABCD work-phases.
 It covers both HITL PABCD (manual/user-confirmed phase movement) and HOTL goal
@@ -42,7 +42,7 @@ loops (Stop-hook continuation after D/IDLE).
   in-flight cycle + stagnation budget), not a content check for "pending work." It
   keeps the turn alive so the agent can self-advance; the agent decides whether real
   work remains.
-- When a goalplan is bound to the session (`cxc goalplan init --session`), the block
+- When a goalplan is bound to the session (`cxc loop init --session`), the block
   reason MAY also name the next concrete task + the evidence it should produce + the
   goalplan ledger path. This is text enrichment only: it does not gate on that content,
   does not change when the hook blocks vs releases, and never transitions a phase. With
@@ -50,6 +50,97 @@ loops (Stop-hook continuation after D/IDLE).
 - Goal mode is PABCD-only: while a goal is active the Interview NEVER fires (entry is
   suppressed and `request_user_input` is hard-denied). The Interview is HITL-only and
   runs only with no active goal; the Stop hook never drives the Interview.
+
+## HOTL Goal-Setting Rule
+
+When entering HOTL mode, the main agent MUST create a host goal with
+`create_goal` before relying on Stop-continuation. The objective should be
+detailed, concrete, and approach the host limit of 5000 characters.
+
+The objective must include:
+
+- The concrete outcome to achieve.
+- The file change scope and explicit out-of-scope boundaries.
+- Acceptance criteria, including what counts as `DONE`, `NOOP`, `BLOCKED`,
+  `UNSAFE`, `NEEDS_HUMAN`, or `BUDGET_EXHAUSTED`.
+- Verification commands or evidence artifacts expected before each completion claim.
+- The expected terminal outcome and the first work-phase to run.
+
+A vague or short objective under 500 characters is a discipline violation for
+HOTL mode. After `create_goal`, run `cxc loop init --objective "<same text>"
+--session <id>` to create the durable local plan bound to the session.
+
+## Durable Goalplan
+
+Use a durable goalplan when a Codexclaw loop needs more than a chat-local
+checklist: goals, work phases, success criteria, checkpoints, evidence,
+Interview OPEN ASSUMPTIONS, steering decisions, and quality gates.
+
+### Contract
+
+- Represent goals, work phases, success criteria, checkpoints, and evidence.
+- Carry Interview OPEN ASSUMPTIONS into Plan/Audit instead of dropping them.
+- Record steering decisions with rationale and evidence.
+- Reject steering that weakens completion criteria or verification.
+- Require a quality gate before final completion.
+
+### Shipped schema
+
+This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
+(+ `ledger.jsonl`). Fill these fields; do not invent parallel ones:
+
+- `objective`, `slug`, `createdAt`, `updatedAt`.
+- `workPhases[]` — each `{ id, title, status: pending|in_progress|done, tasks[], criteriaIds[] }`;
+  `tasks[]` are `{ id, title, status: pending|done }`; `activeWorkPhaseId` marks the current one.
+- `criteria[]` — each `{ id, scenario, expectedEvidence, capturedEvidence, status: open|met }`.
+  A criterion only reaches `met` when `capturedEvidence` is non-empty (fresh proof, not memory).
+- `host` — `GoalplanHostLink { armed, armedAt, source: freeze|none }`. `armed` is provenance,
+  intended to read true only after a freeze-boundary arm (the MAIN session created a host goal).
+  No shipped CLI flips it automatically and codexclaw never writes the goal DB itself; treat it
+  as the slot that records that boundary, not an auto-managed flag.
+
+### CLI surface
+
+- `cxc loop init --objective "<text>" [--session <id>]` — creates the local
+  artifact and binds it to the session when a session id is supplied; it never
+  writes the host goal DB.
+- `cxc loop show --slug "<text>"` — renders the current plan summary.
+- `cxc loop validate --slug "<text>"` — runs the E8 quality gate; it FAILS
+  unless the plan is complete and every `met` criterion carries `capturedEvidence`.
+- `cxc goalplan *` — deprecated alias for the same behavior during migration.
+
+Ledger events are `created`, `workphase_started`, `workphase_done`,
+`task_done`, `criterion_met`, and `host_armed`.
+
+### Optimization-loop discipline
+
+When the objective maximizes a score/metric against an evaluator, apply the
+plateau discipline owned by `cxc-pabcd` (LOOP-PHASE-DEATH / LOOP-CONTINUITY /
+CANDIDATE-ANCHOR / GATE-ORACLE-VALIDITY): track discarded candidates by
+killing phase + change class and after N consecutive same-class deaths (start
+N=3, tune per domain) target the evaluation gate itself; each new work phase
+quotes the previous conclusion from the ledger; source candidates from
+domain-state evidence, not only existing parameters; an optimistic local proxy
+is never sole acceptance evidence.
+
+### Goal state
+
+codexclaw does NOT own a goal store. Goal state lives in the host Codex
+`goals_1.sqlite`; the `pabcd-state` goal-active gate reads it read-only to
+decide HITL vs HOTL. An ACTIVE goal is what ARMS the L6 Stop-continuation loop:
+while a goal is active and a PABCD cycle is in flight, the Stop hook BLOCKS
+premature termination (it returns `{decision:"block"}`) so the agent keeps
+self-advancing with explicit `cxc orchestrate <phase> --attest ...` commands
+(agent-gated). The hook does NOT transition phases AUTONOMOUSLY and does NOT
+re-enter `P` itself — it only persists a transition in response to an explicit
+chat `orchestrate <verb>` command (the agent acting). After the agent closes a
+cycle to IDLE, the AGENT runs `cxc orchestrate P` to start the next work-phase.
+Without an active goal, the loop never arms and PABCD pauses for the human
+(HITL).
+
+This is goalplan discipline: represent goals, work phases, success criteria,
+checkpoints, evidence, and OPEN ASSUMPTIONS. It does not create a new goal
+database.
 
 ## HOTL resource bounds
 
@@ -69,7 +160,7 @@ re-entering a loop or after a `D` close:
 - **Audit completion against current repo state, not memory.** Before any `D`/completion claim,
   inspect the actual tree/build/tests — a remembered "it passed" is not evidence (see `dev`
   FAMILY-PROOF-01).
-- **Read durable state first.** When a goalplan is bound, use `cxc goalplan show` for the summary
+- **Read durable state first.** When a goalplan is bound, use `cxc loop show` for the summary
   and inspect `.codexclaw/goalplans/<slug>/goalplan.json` + `ledger.jsonl` directly for full state,
   to recover which work-phases/criteria remain before planning the next pass.
 - **IDLE is not the end while work remains.** After `D` closes to IDLE, if any work-phase or

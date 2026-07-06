@@ -8,6 +8,14 @@ metadata:
 
 # Dev-DevOps — Production Infrastructure & Delivery
 
+> **Backend handoff rule:** When a deploy/SRE gate needs app behavior, `dev-backend` implements
+> the hook (health handler, readiness dependency check, trace/span/log fields, migration
+> compatibility, shutdown hook). `dev-devops` defines the operational gate, rollout/rollback
+> behavior, alert policy, and release proof. This skill owns deployment strategy, rollback
+> proof, observability operations, health/readiness operational gates, SLOs, incident response,
+> and infrastructure/runtime delivery.
+
+
 Build reliable, secure, and automated infrastructure and delivery pipelines.
 This skill is a routing role that activates by **change-surface**: whenever the work primarily touches containers, CI/CD, deployment, cloud/runtime infrastructure, Kubernetes, IaC, release engineering, or SRE operations, use this skill and then load the relevant references.
 

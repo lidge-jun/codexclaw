@@ -8,10 +8,9 @@ metadata:
 
 # search — Unified Search Hub
 
-Search discipline for any lookup that leaves the repository. Since the 2026-07-05
-implicit expansion this skill is implicit-visible (metadata row every turn) so the
-agent knows it exists; the BODY still loads only on explicit trigger or `dev`-hub
-routing, never by an external dispatcher.
+Search discipline for any lookup that leaves the repository. This skill is
+on-demand; only `cxc-dev` is implicit-visible. Load this body on explicit
+trigger or `dev`-hub routing, never by an external dispatcher.
 
 ## Source-Proof Invariant (read first)
 
@@ -113,18 +112,68 @@ date and source type, and whether the claim is corroborated by a second independ
 Prefer official docs / announcements / specs before reporting a settled answer. When sources
 conflict, state which source wins and why rather than averaging them.
 
-### Tier 3 — Subagent swarm (deep research, opt-in)
-For broad, costly, or multi-source research, the main agent may explicitly spawn
-a subagent swarm in ultraresearch mode: one query family or source class per
-agent, source URLs returned, no edits, no hidden providers. Tier 3 is opt-in and
-must be requested deliberately — it never auto-fires for ordinary latest/current
-lookups. It is not a durable/background facility; durability is Phase 3 work.
-The deep-research method (EXPAND query families, research waves, journal +
-claim-ledger, converge on verified claims) lives in the on-demand `$cxc-ultraresearch`
-skill, attached to the base `explorer` subagents the main agent spawns — not a new role.
+### Tier 3 — Deep Research Protocol (opt-in, formerly cxc-ultraresearch)
+
+For broad, costly, or multi-source research, the main agent deliberately spawns
+an explorer swarm: one query family or source class per explorer, source URLs
+returned, no edits, no hidden providers. Tier 3 is opt-in and must be requested
+deliberately — it never auto-fires for ordinary latest/current lookups. It is
+not a durable/background facility; durability is Phase 3 work.
+
+#### EXPAND — query families first
+
+Before fetching, expand the question into distinct query families (entities,
+time windows, source classes, rival hypotheses). Each family is a separate line
+of proof, not a reworded duplicate. Record the expanded set so a reader can see
+the search space you chose.
+
+#### Waves
+
+- First wave: assign one query family or source class per explorer. Spawn a real
+  floor of at least two explorers when the question is genuinely multi-source; a
+  single agent is not a "swarm."
+- Run at least two expansion waves before converging: wave 1 discovers, wave 2
+  fills the gaps and chases the strongest leads from wave 1.
+- Stop rule: stop after three consecutive no-new-lead results, or at five waves,
+  whichever comes first. State which stop fired.
+- Dispatch mechanics: the collab tools are `multi_agent_v1.*` and may need a
+  `tool_search` to become visible. Spawn the whole wave, then ONE `wait_agent`
+  on all wave ids; `send_input` chases a strong lead on a live explorer instead
+  of respawning; `resume_agent` reopens a closed wave-1 explorer for wave-2
+  follow-ups with its context intact; `close_agent` cleans up a finished wave
+  (it closes the agent's subtree too).
+
+#### Journal + claim-ledger
+
+- Journal: each wave appends what was searched, what was found, and what remains
+  open. The journal is the audit trail of the research, not a summary written at
+  the end.
+- Claim-ledger: every factual claim is recorded with its proving source URL and
+  the tier it reached (Tier 1 discovered vs Tier 2 proven). A claim with no
+  Tier-2 proof is marked unverified, never promoted silently.
+- Verified-claims: the converged answer cites only claims that reached Tier-2
+  proof; unverified leads are listed separately as open questions.
+
+#### Grounding (no invention)
+
+Snippet consensus is not verification: agreement among any number of search
+snippets never substitutes for opening the source — a claim reaches verified
+only via Tier-2 proof. Every candidate and claim must come from a real search
+result, not memory. Discovery stays Tier 1 (hosted `web_search`); proof opens
+the source (`cxc-search` Tier 2, optionally the `agbrowse` HTTP-first proof
+helper). Do not fabricate URLs; do not cite a number before the source is
+opened.
+
+#### Boundaries
+
+- No new subagent role: this protocol rides base `explorer` subagents.
+- No server/daemon and no hidden providers; the swarm is one-shot agent work the
+  main agent requested.
+- This protocol is on-demand Tier 3 work; it is selected deliberately and
+  nothing auto-loads or auto-runs it.
 
 ### Subagent Skill Attachment (SEARCH-ATTACH-01)
-Any search subagent — Tier 3 ultraresearch explorers, `$cxc-sparksearch` lanes,
+Any search subagent — Tier 3 deep-research explorers, `$cxc-sparksearch` lanes,
 or ad-hoc research spawns — should receive THIS skill as a real skill
 attachment, not a hand-written tool directive in the message. The subagent
 auto-loads the skill at launch and follows its Tier 1/2 tool guidance
@@ -208,8 +257,8 @@ spend Tier 3 subagents on a question Tier 1+2 already settled.
 
 ## Notes
 
-- This skill is on-demand (`allow_implicit_invocation: false`); only `dev` is
-  implicit. It is reached by trigger words or by `dev`-hub routing.
+- This skill is on-demand (`allow_implicit_invocation: false`); only `cxc-dev`
+  is implicit-visible. It is reached by trigger words or by `dev`-hub routing.
 - Query rewrite runs prompt-side. `agbrowse` is an OPT-IN, lazily-resolved Tier-2 proof
   helper (HTTP-first; local-CDP escalation only); it is not bundled and not required —
   without it, Tier 2 starts at rung 2 (`browser:control-in-app-browser`) and escalates

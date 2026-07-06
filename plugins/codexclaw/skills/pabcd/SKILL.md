@@ -24,23 +24,7 @@ Two distinct things, do not conflate them:
   hook does NOT auto-fire; YOU decide to enter Interview by invoking `cxc-interview`
   (or running `cxc orchestrate I`). The breadth lives in agent judgment, not in a regex.
 
-Either way, once in Interview cover the four dimensions (Goal, Constraint, Success
-criteria, Ontology), research the repo before asking, and confirm requirements before
-Plan. **INTERVIEW-CLASSIFY-01 (DEFAULT):** before P, settle three things: the work
-class (`dev` §0.0), the loop archetype (`cxc-loop` LOOP-ARCHETYPE-01) by asking
-whether the verifier defines done or only better, and the **unit residence**
-(UNIT-RESIDENCE-01, Work-Phase Loop below): which implementation unit
-(`devlog/_plan/YYMMDD_slug/`) this work belongs to, an existing unit or a new one.
-Discovering the archetype mid-loop is an Interview miss, not a Build problem.
-
-The discoverable `cxc-interview` skill is the explicit I-phase entry surface. In
-continuous Interview mode, the main session owns user questions and records; subagents
-only return contradiction or question candidates.
-
-Do NOT:
-- Ask scattered clarifying questions while pretending to already be planning.
-- Skip Interview and jump to Plan for genuinely unclear requests.
-- Start implementing during Interview.
+**I — Interview**: HITL-only requirements discovery. Canonical rules (four dimensions, contradiction scanning, readiness gating, Q/A capture) live in `cxc-interview`; PABCD owns the phase edge I->P and the return-to-Interview affordance from any phase.
 
 ## How It Works
 
@@ -53,7 +37,62 @@ IDLE ──→ P ──→ A ──→ B ──→ C ──→ D ──→ IDLE
          └──────┴──────┴────→ I (Interview, context preserved)
 ```
 
-You can return to Interview (I) from any phase to clarify requirements; the plan and audit context are preserved. Phases P, A, B pause for confirmation in interactive use; C and D proceed once their work is genuinely done. In goal mode the loop self-advances (see `goal`/`create_goal`), but the P→D sequence is never skipped. Goal mode is PABCD-only: while a goal is active the Interview NEVER fires — entry is suppressed and `request_user_input` is hard-denied, so the Interview is HITL-only and runs only with no active goal.
+You can return to Interview (I) from any phase to clarify requirements; the plan and audit context are preserved. Phases P, A, B pause for confirmation in interactive use; C and D proceed once their work is genuinely done. In goal mode the agent must explicitly run `cxc orchestrate P` to start each PABCD cycle; nothing self-advances into P automatically, but the P->D sequence is never skipped. Goal mode is PABCD-only: while a goal is active the Interview NEVER fires — entry is suppressed and `request_user_input` is hard-denied, so the Interview is HITL-only and runs only with no active goal.
+
+## Phase Control / Orchestrate
+
+### Chat Surface
+
+The chat command grammar is:
+
+```text
+orchestrate <I|P|A|B|C|D|status|reset> [--attest <json>]
+```
+
+Accepted prefixes include `$codexclaw:cxc-orchestrate`, `$cxc-pabcd`,
+`cxc orchestrate`, `/orchestrate`, and bare `orchestrate`.
+
+### Semantics
+
+- Chat-submitted commands are the human path.
+- Human path can advance legal adjacent phases without attestation.
+- Agent/terminal path is the live `cxc orchestrate` CLI and is attest-gated:
+  forward edges (P>A, A>B, B>C, C>D) require `--attest` evidence.
+- `D` is a closing action that returns to `IDLE`; it is not a resting badge.
+- `status` is read-only.
+- `reset` is an explicit control action, not a normal phase edge.
+
+### Per-phase artifact obligation (ORCH-ARTIFACT-01)
+
+Advancing a phase is not the same as doing it (see `pabcd` faithful-execution). Each forward
+edge must carry its real artifact, not just an `--attest` string: P = the actual diff-level plan;
+A = an audit/review verdict that names blockers (`A>B` attest requires a non-empty
+`auditOutput` — the pasted tail of the dispatched reviewer subagent's verdict); B = the
+implementation delta; C = fresh `tsc`/test/gate output (`C>D` attest requires a non-empty
+`checkOutput`; `exitCode` is optional but, if supplied, must be `0`); D = a cycle summary with
+evidence and the next-phase decision. A phase whose artifact is absent is not done, regardless
+of adjacency.
+
+**ATTEST-EVIDENCE-01 (DEFAULT):** write `did` with artifact pointers, not only a
+sentence: plan/devlog paths, changed files, commands with exit codes, and evidence or
+ledger paths when present. The runtime gate remains form-only for `did`; this is the
+agent discipline that makes later audit possible.
+
+### Control surfaces (shipped)
+
+- **Chat (human free-pass)** — the hook parses a line-anchored `orchestrate <verb>`
+  and drives the FSM (`transition` + ledger). Forward edges advance without `--attest`
+  because the human asserts the phase is done; illegal adjacency is still refused.
+- **Terminal (agent-gated)** — `cxc orchestrate <verb> [--attest <json>] [--session <id>]
+  [--cwd <path>] [--json]` drives the SAME `.codexclaw/sessions/<id>.json` state through
+  the un-weakened gated `transition()`. An agent MUST supply real `--attest` evidence to
+  advance; `A>B` additionally needs `auditOutput` (reviewer verdict tail) and `C>D`
+  additionally needs `checkOutput` + a passing `exitCode`.
+- **Phase footer** — every injected directive ends with `IPABCD: <phase> (<LABEL>)` so
+  the current phase is visible (codex has no status UI). After `D` closes, the resting
+  state shown is `IDLE`.
+- The invocation source is the discriminator (codexclaw has no boss token): chat =
+  human free-pass, CLI/tool = agent-gated.
 
 ### Loop / goal activation handoff
 
@@ -73,7 +112,7 @@ PABCD, then chooses HITL or HOTL:
 
 These align with the directives the `pabcd-state` hook injects per phase:
 
-0. **I — Interview**: Clarify requirements before planning across the four dimensions. Research the repo first, then ask focused questions. No implementation yet.
+0. **I — Interview**: HITL-only requirements discovery; canonical rules live in `cxc-interview`. PABCD owns I->P and return-to-Interview phase edges.
 1. **P — Plan**: Explore first (read real code, configs, docs). **Slice and order phases by dependency/architecture structure (STRICT, PHASE-SPLIT-01)** — the orthodox unlimited-time build order: foundations (schema, contracts, core data flow) → core capabilities → integration → hardening/polish — so each phase consumes the verified output of the previous one. Effort-based bucketing is FORBIDDEN: never split or order phases by estimated effort or payoff speed — no "quick win vs heavy" buckets, no impact/effort matrices, no time-boxed slices. Phase boundaries encode the system's build order, not the schedule. DB/API/UI/test work inside a phase are subtasks, not top-level phases by default, and every phase must still close with something independently verifiable (build, tests, or a demonstrable surface). Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable accept criteria. For C2+ plans, begin with a loop-spec header: Loop archetype; Trigger; Goal (user-visible outcome); Non-goals; Verifier (command/gate and what it measures); Stop condition; Memory artifact; Expected terminal outcomes; Escalation condition. HOTL goal plans also state the `cxc-loop` HOTL resource bounds. For open-ended optimization, include the divergence plan, deterministic selection rule, and telemetry schema; if the verifier only reports scalar outcome, instrumentation is B's first work item before candidates. Ground every decision in code you have read. No implementation yet. For broad or unfamiliar repos, include a compact tree, detected conventions, which existing logs/docs you will reuse, and the SoT sync target (SOT-SYNC-01): which general source-of-truth doc (architecture/INDEX docs, or equivalent) this unit will patch in C — or, if the repo has none, the plan recommends creating one (dev-scaffolding §2.1).
 2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent reviewer (`spawn_agent`) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. The reviewer also checks: new devlog phase documents use the numbered lexicographic filename convention; bare-named or research/implementation-mixed docs are a FAIL (LEXICO-SPLIT-01). Multi-phase units satisfy DIFFLEVEL-ROADMAP-01: every roadmap phase has a diff-level decade doc (no outline-only or missing phases), and the phase map is dependency-ordered, not effort-bucketed (PHASE-SPLIT-01). Fold fixes back into the plan and record the verdict. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict) — a form-only bar: silently skipping the paste fails the gate, but the gate cannot verify the paste's provenance, so faithful execution (really dispatching the reviewer) remains the agent's obligation.
 3. **B — Build**: Implement the audited plan in small atomic commits. Verify as you go. Stay inside the plan's scope boundary; surface deviations instead of silently expanding scope.
@@ -273,5 +312,5 @@ Determine the actual working repository root before planning (resolve via `pwd -
 ## Notes
 
 - This skill is the human-readable guide; the `pabcd-state` hook handles trigger detection, directive injection, and continuation.
-- Control surfaces (all shipped): chat `orchestrate <phase|status|reset>` is the human free-pass path; the terminal `cxc orchestrate <phase> [--attest <json>]` CLI is the attest-gated agent path; every injected directive carries an `IPABCD: <phase>` footer; and the Stop hook runs the bounded continuation loop under an active goal (see `cxc-loop`/`cxc-goalplan`).
+- Control surfaces are merged above in "Phase Control / Orchestrate"; the Stop hook runs the bounded continuation loop under an active goal (see `cxc-loop`).
 - Provenance: the L4 phase shipped the `dev`/`dev-*` and `pabcd` skill directories as activation shells only — frontmatter plus router stubs that proved the Codex loader shape. The real discipline content (this PABCD guide and the universal `dev` hub) was supplied later by the L12 real-content port; treat any remaining stub-era phrasing as superseded by the current body.

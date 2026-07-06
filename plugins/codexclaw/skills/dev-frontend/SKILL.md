@@ -9,8 +9,14 @@ metadata:
 
 # Dev-Frontend — Domain-Correct Frontend Engineering
 
-Build distinctive, production-grade interfaces that fit the product domain, locale, interaction model, and real visual evidence.
-This skill is a routing role that activates by **change-surface**: whenever the work is primarily frontend, UI, styling, responsive layout, or animation, use this skill and then read only the relevant references.
+Build production-grade frontend implementations from an established product/design direction.
+This skill owns HTML/CSS/component/runtime implementation, responsive behavior, accessibility
+wiring, visual verification, and frontend platform rules.
+
+> **Role separation:** For design judgment — typography/color/layout direction, UX decision
+> gates, product personalities, or vague visual briefs — load `dev-uiux-design` first. This
+> skill implements the chosen direction; `dev-uiux-design` makes the design decisions.
+> Implementation anti-slop enforcement stays here; design taste/pattern judgment lives there.
 
 > **C0/C1 work (small local patches):** See `dev` §0.0 Work Classifier + §0.1 Patch Fast-Path before reading references.
 
@@ -119,6 +125,9 @@ Two different kinds of rules live in this skill (see `dev` §0.2):
   requirements, must not override an existing design system (Design System Detection stays
   MANDATORY), and must never be enforced as universal taste (UX-STYLE-01).
 ## 2. Design Thinking
+
+> When the user cannot articulate a clear design direction, load `dev-uiux-design` to
+> discover intent and choose a direction before implementing here.
 
 Before coding, commit to a domain-correct direction:
 - **Purpose**: What problem does this interface solve? Who uses it?

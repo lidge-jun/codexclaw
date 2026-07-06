@@ -15,6 +15,7 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { coerceAttest,                  } from "./attest.js";
 import { transition } from "./fsm.js";
+import { advanceWorkPhase, appendGoalplanLedger, readGoalplan, writeGoalplan } from "./goalplan.js";
 import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.js";
 import { resetRenderLedger } from "./render-observations.js";
 
@@ -190,6 +191,33 @@ export function runOrchestrateCli(args                    )            {
       reason: "done",
       ...(args.attest?.did ? { evidence: args.attest.did } : {}),
     });
+    if (state.slug) {
+      try {
+        const plan = readGoalplan(args.cwd, state.slug);
+        if (plan) {
+          const advanced = advanceWorkPhase(plan);
+          if (advanced) {
+            writeGoalplan(args.cwd, advanced);
+            appendGoalplanLedger(args.cwd, state.slug, {
+              ts: new Date().toISOString(),
+              slug: state.slug,
+              event: "workphase_done",
+              detail: `closed ${plan.activeWorkPhaseId ?? "none"}`,
+            });
+            if (advanced.activeWorkPhaseId) {
+              appendGoalplanLedger(args.cwd, state.slug, {
+                ts: new Date().toISOString(),
+                slug: state.slug,
+                event: "workphase_started",
+                detail: `started ${advanced.activeWorkPhaseId}`,
+              });
+            }
+          }
+        }
+      } catch {
+        // FAIL-OPEN: goalplan advance failure must not block the D-close.
+      }
+    }
     return { code: 0, output: `orchestrate D: ${state.phase} → IDLE (cycle closed, session ${sessionId})` };
   }
 

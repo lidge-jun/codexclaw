@@ -15,10 +15,10 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   class-scaled depth. Folds in the structured-development discipline.
 - `interview/` — discoverable `cxc-interview` surface for persistent I-phase
   contradiction discovery, question/answer recording, and readiness gating.
-- `orchestrate/` — discoverable `cxc-orchestrate` surface for explicit IPABCD
+- `orchestrate/` — discoverable `cxc-orchestrate (DEPRECATED -> cxc-pabcd)` surface for explicit IPABCD
   phase control from chat plus the live agent-gated `cxc orchestrate` terminal path.
 - `loop/` — discoverable `cxc-loop` surface for HOTL work-phase continuation.
-- `goalplan/` — discoverable `cxc-goalplan` surface for durable criteria,
+- `goalplan/` — discoverable `cxc-goalplan (DEPRECATED -> cxc-loop)` surface for durable criteria,
   checkpoints, steering, and quality gates.
 - `search/` — discoverable `cxc-search` surface for external/current/public lookup
   discipline; not memory or chat search.
@@ -26,11 +26,11 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   memory search over `~/.codex` before asking the user to repeat context.
 - `ast-grep/` — discoverable `cxc-ast-grep` surface for optional AST-aware structural
   search/codemods, with `rg` first for ordinary text search.
-- `skill-hub/` — discoverable `cxc-skill-hub` catalog for choosing the right
+- `skill-hub/` — discoverable `cxc-skill-hub (DEPRECATED -> cxc-dev)` catalog for choosing the right
   on-demand skill.
 - `sparksearch/` — discoverable `cxc-sparksearch` lane for cheap parallel public-web
   discovery that hands proof back to `cxc-search`.
-- `ultraresearch/` — discoverable `cxc-ultraresearch` protocol for multi-wave
+- `ultraresearch/` — discoverable `cxc-ultraresearch (DEPRECATED -> cxc-search)` protocol for multi-wave
   research with journal and claim-ledger proof discipline.
 
 ## Conventions

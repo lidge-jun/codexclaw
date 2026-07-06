@@ -14,6 +14,7 @@ import {
   unmetCriteria,
   isGoalplanComplete,
   validateGoalplan,
+  advanceWorkPhase,
   type Goalplan,
 } from "../src/goalplan.ts";
 import { deriveSlug } from "../src/freeze.ts";
@@ -168,4 +169,73 @@ test("030.3: init WITHOUT --session leaves session state untouched (slug stays e
   assert.equal(runGoalplanCli(parseGoalplanCliArgs(["init", "--objective", "Unbound"], cwd) as any).code, 0);
   // a fresh read of an unknown session is the default (empty slug)
   assert.equal(readState(cwd, "never-bound").slug, "");
+});
+
+
+// ---- advanceWorkPhase (Phase 3: D-close auto-advance) ----------------------
+
+test("advanceWorkPhase: marks current done, activates next in declared order", () => {
+  const plan = buildGoalplan({ objective: "multi-phase" });
+  plan.workPhases = [
+    { id: "wp-1", title: "first", status: "in_progress", tasks: [{ id: "t-1", title: "a", status: "pending" }], criteriaIds: [] },
+    { id: "wp-2", title: "second", status: "pending", tasks: [{ id: "t-2", title: "b", status: "pending" }], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-1";
+  const advanced = advanceWorkPhase(plan);
+  assert.ok(advanced);
+  assert.equal(advanced!.workPhases[0].status, "done");
+  assert.equal(advanced!.workPhases[0].tasks[0].status, "done");
+  assert.equal(advanced!.workPhases[1].status, "in_progress");
+  assert.equal(advanced!.activeWorkPhaseId, "wp-2");
+});
+
+test("advanceWorkPhase: returns null when no activeWorkPhaseId", () => {
+  const plan = buildGoalplan({ objective: "no-active" });
+  plan.activeWorkPhaseId = null;
+  assert.equal(advanceWorkPhase(plan), null);
+});
+
+test("advanceWorkPhase: returns null when activeWorkPhaseId is stale (not found)", () => {
+  const plan = buildGoalplan({ objective: "stale-cursor" });
+  plan.workPhases = [{ id: "wp-1", title: "one", status: "pending", tasks: [], criteriaIds: [] }];
+  plan.activeWorkPhaseId = "ghost";
+  assert.equal(advanceWorkPhase(plan), null);
+});
+
+test("advanceWorkPhase: sets null activeWorkPhaseId when last phase", () => {
+  const plan = buildGoalplan({ objective: "last-phase" });
+  plan.workPhases = [
+    { id: "wp-1", title: "only", status: "in_progress", tasks: [{ id: "t-1", title: "a", status: "pending" }], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-1";
+  const advanced = advanceWorkPhase(plan);
+  assert.ok(advanced);
+  assert.equal(advanced!.activeWorkPhaseId, null);
+  assert.equal(advanced!.workPhases[0].status, "done");
+});
+
+test("advanceWorkPhase: picks next pending AFTER current, not before", () => {
+  const plan = buildGoalplan({ objective: "order-test" });
+  plan.workPhases = [
+    { id: "wp-1", title: "first", status: "pending", tasks: [], criteriaIds: [] },
+    { id: "wp-2", title: "second", status: "in_progress", tasks: [], criteriaIds: [] },
+    { id: "wp-3", title: "third", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-2";
+  const advanced = advanceWorkPhase(plan);
+  assert.ok(advanced);
+  // Should pick wp-3 (after wp-2), not wp-1 (before wp-2)
+  assert.equal(advanced!.activeWorkPhaseId, "wp-3");
+});
+
+// ---- CLI output label (Phase 2: cxc loop) ----------------------------------
+
+test("CLI output uses loop label, not goalplan", () => {
+  const cwd = tmp();
+  const args = parseGoalplanCliArgs(["init", "--objective", "Label test"], cwd);
+  assert.ok(!("error" in args));
+  const result = runGoalplanCli(args as any);
+  assert.equal(result.code, 0);
+  assert.match(result.output, /\[codexclaw loop:/);
+  assert.ok(!result.output.includes("[codexclaw goalplan:"));
 });

@@ -77,11 +77,13 @@ function main()       {
     process.exit(result.code);
   }
 
-  // `goalplan` command path (030.2): project-local goalplan init/show/validate.
-  if (kind === "goalplan") {
+  // `loop` command path: project-local loop/goalplan init/show/validate.
+  // `goalplan` is a deprecated alias for `loop`.
+  if (kind === "loop" || kind === "goalplan") {
+    const label = kind === "goalplan" ? "goalplan (deprecated, use 'loop')" : "loop";
     const parsed = parseGoalplanCliArgs(process.argv.slice(3), process.cwd());
     if ("error" in parsed) {
-      process.stderr.write(`goalplan: ${parsed.error}\n`);
+      process.stderr.write(`${label}: ${parsed.error}\n`);
       process.exit(1);
     }
     const result = runGoalplanCli(parsed);

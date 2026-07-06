@@ -284,3 +284,34 @@ export function validateGoalplan(plan: Goalplan): GoalplanValidation {
   }
   return { ok: reasons.length === 0, reasons };
 }
+
+/**
+ * Advance the goalplan's work-phase cursor: mark the current activeWorkPhaseId
+ * as `done` with all tasks done, then set the next pending work-phase active.
+ * Returns null only when there is no active phase to close.
+ */
+export function advanceWorkPhase(plan: Goalplan): Goalplan | null {
+  if (!plan.activeWorkPhaseId) return null;
+  const currentIdx = plan.workPhases.findIndex((wp) => wp.id === plan.activeWorkPhaseId);
+  if (currentIdx < 0) return null;
+  const current = plan.workPhases[currentIdx];
+
+  // Search after current index first (declared order), then wrap.
+  const after = plan.workPhases.slice(currentIdx + 1).find((wp) => wp.status === "pending");
+  const next = after ?? plan.workPhases.slice(0, currentIdx).find((wp) => wp.status === "pending");
+  return {
+    ...plan,
+    activeWorkPhaseId: next?.id ?? null,
+    workPhases: plan.workPhases.map((wp) => {
+      if (wp.id === current.id) {
+        return {
+          ...wp,
+          status: "done" as const,
+          tasks: wp.tasks.map((task) => ({ ...task, status: "done" as const })),
+        };
+      }
+      if (next && wp.id === next.id) return { ...wp, status: "in_progress" as const };
+      return wp;
+    }),
+  };
+}

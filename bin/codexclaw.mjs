@@ -12,7 +12,8 @@
  *   codexclaw freeze              freeze the interview plan + surface the goal-activation handoff
  *   codexclaw metric              record/show objective metrics for emergence-harness loops
  *   codexclaw divergence          record divergence mode + candidate archive state
- *   codexclaw goalplan            init/show/validate the project-local goalplan substrate
+ *   codexclaw loop                init/show/validate the project-local loop/goalplan substrate
+ *   codexclaw goalplan            (deprecated alias for loop)
  *   codexclaw serve               run the bridge server (GUI static + API + messenger bots)
  *   codexclaw service             install/uninstall/status the serve daemon (launchd)
  *   codexclaw gui                 launch the codexclaw web dashboard
@@ -202,9 +203,10 @@ switch (cmd) {
     // pabcd-state CLI expects argv as [kind, ...rest]; kind === "divergence".
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
+  case "loop":
   case "goalplan":
-    // pabcd-state CLI expects argv as [kind, ...rest]; kind === "goalplan".
-    // Project-local goalplan substrate (init/show/validate); never writes the host goal DB.
+    // pabcd-state CLI expects argv as [kind, ...rest]; kind === "loop" or "goalplan".
+    // Project-local loop/goalplan substrate (init/show/validate); never writes the host goal DB.
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
   case "serve":
@@ -242,5 +244,5 @@ switch (cmd) {
     process.exit(runProvider());
     break;
   default:
-    console.log("codexclaw <enable|disable|uninstall|status|orchestrate|freeze|metric|divergence|goalplan|doctor|reset|subagents|provider|chat|memory|skill|gui|serve|service>");
+    console.log("codexclaw <enable|disable|uninstall|status|orchestrate|freeze|metric|divergence|loop|goalplan|doctor|reset|subagents|provider|chat|memory|skill|gui|serve|service>");
 }

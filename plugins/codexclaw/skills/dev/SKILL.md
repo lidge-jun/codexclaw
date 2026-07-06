@@ -83,11 +83,11 @@ proof that validates the claim, with the reduced scope stated).
 | `adr_rfc` | `dev-architecture`, `dev-scaffolding` | Significant decision, domain vocabulary, or ADR source-of-truth work |
 | `review` / `code_review` | `dev-code-reviewer` | Review requested or C3/C4 |
 | `threat_model` / `security` | `dev-security` | C4 security/data/tooling risk |
-| `observability` / `observability_pipeline` | `dev-backend` (+`dev-data`) | Production, incident, release, long-lived runtime |
+| `observability` / `observability_pipeline` | `dev-backend` (+`dev-data`, `dev-devops` for operational gates) | App instrumentation, production/runtime hooks, incident/release gates |
 | `debugging` / `debugging_rca` | `dev-debugging` | Repeated failure needs root cause |
 | `migration_backfill` | `dev-data`, `dev-backend`, `dev-testing` | Production or non-trivial data |
 | `product_discovery` (+`_ui`) | `dev` (+`dev-uiux-design`) | Ambiguous behavior/user value/metric/prototype intent |
-| `release_cd` | `dev-testing`, `dev-backend`, `dev-scaffolding`, `dev-devops` | Release/CI/CD surface |
+| `release_cd` | `dev-testing`, `dev-scaffolding`, `dev-devops` (+`dev-backend` for app hooks) | Release/CI/CD surface, rollback/smoke gates, app readiness hooks |
 | `devops` / `infra` / `deploy` | `dev-devops` | Container/K8s/IaC/deploy pipeline/SRE |
 | `mobile_native` | `dev-frontend` + `dev-uiux-design` + `dev-backend` (refs) | RN/Flutter/Swift/Kotlin native app |
 | `ml` / `ai` / `llm` / `rag` | `dev-backend` + `dev-data` + `dev-testing` (+`dev-devops`) | ML serving, RAG, pipeline, evaluation |
@@ -158,26 +158,23 @@ bound by the same search-skill policy as the main agent.
 
 | Skill File | Routes When (surface) | Covers |
 | ---------- | --------------------- | ------ |
-| `dev-frontend/SKILL.md` | UI/frontend work | UI/UX implementation, design aesthetics, component architecture, responsive layouts, animation |
-| `dev-backend/SKILL.md` | API/server/database work | API design, architecture patterns, database optimization, error handling, middleware |
+| `dev-frontend/SKILL.md` | UI/frontend work | Frontend implementation, component architecture, responsive layouts, animation, design-system application |
+| `dev-backend/SKILL.md` | API/server/database work | API design, app architecture patterns, database optimization, error handling, middleware, app-level operational hooks |
 | `dev-data/SKILL.md` | Data pipelines, SQL, analysis, ETL/ELT | Data pipelines, ETL/ELT, data quality validation, SQL optimization, analysis and reporting |
 | `dev-security/SKILL.md` | Security-sensitive code, auth, secrets, threat modeling | OWASP Top 10, auth hardening, input validation, secrets management, supply chain security |
 | `dev-testing/SKILL.md` | Test strategy, regression protection, acceptance checks | Test strategy, browser testing, coverage analysis, contract testing |
 | `dev-debugging/SKILL.md` | Runtime debugging, repeated failures, RCA | Root cause analysis, boundary instrumentation, hypothesis testing, postmortem |
 | `dev-code-reviewer/SKILL.md` | Code review and quality audit | Review process, quality thresholds, antipattern detection, giving/receiving feedback |
 | `dev-architecture/SKILL.md` | Module boundaries, dependency direction, layer work | Circular deps, module boundaries, coupling taxonomy, barrel/re-export discipline |
-| `dev-uiux-design/SKILL.md` | Vague design direction, onboarding/empty/error UX | Intent discovery, design vocabulary, product personalities, typography, layout patterns |
+| `dev-uiux-design/SKILL.md` | Vague design direction, onboarding/empty/error UX | Design judgment, intent discovery, design vocabulary, product personalities, typography/layout decisions |
 | `dev-scaffolding/SKILL.md` | New project/feature setup, structural audit, docs generation | Scaffolding, colocation, public boundary export, documentation generation |
 | `pabcd/SKILL.md` | Multi-phase planning, interview-first discovery, gated execution | PABCD workflow, phase gates, interview flow |
 
-**Visibility decision (E6, L16):** only `cxc-dev` is implicit-visible
-(`allow_implicit_invocation: true`); every `dev-*` router stays on-demand. This is a
-deliberate context-budget trade — auto-rendering all 13 routers into every turn would
-crowd the window — so the STRICT routing rule above (read the router before writing) is
-how the right surface skill gets loaded, not always-on visibility. Each `dev-*` router
-still carries a strong `MUST USE for <surface>` frontmatter trigger, so it loads on
-explicit mention or trigger match. Re-evaluate promotion only if a single surface proves
-high-traffic enough to justify its always-on cost.
+**Visibility decision (canonical):** only `cxc-dev` is implicit-visible (`allow_implicit_invocation: true`). All other `cxc-*` skills — including `search`, `recall`, `interview`, `pabcd`, `loop`, `skill-hub`, and every `dev-*` router — are on-demand (`allow_implicit_invocation: false`) and load by explicit mention, trigger match, or `dev` routing. This is the correct set; any older claim that multiple skills are implicit is stale.
+
+### Capability Routing Hub
+
+Use this hub instead of `skill-hub`: repo fact-finding stays in `dev` plus repo tools; current/external/public facts load `search`; multi-step planning loads `pabcd`; repeated work phases load `loop`; past-session context loads `recall`; review loads `dev-code-reviewer`; runtime failure loads `dev-debugging`; module boundaries load `dev-architecture`; backend/frontend/data/security/devops/scaffolding load their matching routers. `skill-hub` is deprecated.
 
 ### Skill Ownership Map
 
@@ -193,12 +190,15 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Edge-first testing | `dev-testing` §6 | — |
 | Test-induced defense | `dev-testing` §6.7 | `dev-code-reviewer` |
 | Boundary-only defense | `dev-architecture` §4 | `dev-backend`, `dev-security` |
-| Process isolation | `dev-backend` references/ | `dev-code-reviewer` |
-| Long-lived connections | `dev-backend` §1 | `dev-frontend` |
-| Async task queue | `dev-backend` §2 | — |
+| Process isolation | `dev-backend` references/ | `dev-code-reviewer`, `dev-devops` |
+| Long-lived connections | `dev-backend` §1 app hooks | `dev-frontend`, `dev-devops` operational gates |
+| Async task queue | `dev-backend` §2 app hooks | `dev-devops` operational gates |
 | Debugging methodology | `dev-debugging` | `dev-code-reviewer` |
 | Data pipeline patterns | `dev-data` | `dev-backend` |
+| Frontend implementation | `dev-frontend` | `dev-uiux-design` |
 | Design intent discovery | `dev-uiux-design` | `dev-frontend` |
+| Design judgment | `dev-uiux-design` | `dev-frontend` |
+| Operational gates | `dev-devops` | `dev-backend`, `dev-scaffolding` |
 | Project scaffolding / docs | `dev-scaffolding` | `pabcd` |
 | PABCD workflow | `pabcd` | — |
 | Anti-slop output | `dev` §Family Invariants | all `dev-*` |

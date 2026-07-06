@@ -44,9 +44,9 @@ test("skill SKILL.md frontmatter carries no forbidden fields (license/keywords)"
   assert.deepEqual(offenders, [], `forbidden frontmatter fields found:\n${offenders.join("\n")}`);
 });
 
-// Implicit set expanded 2026-07-05 (hook-diet/implicit initiative): dev + 6
-// lightweight workflow/capability skills; all dev-* routers stay on-demand.
-const IMPLICIT_SET = ["dev", "interview", "loop", "pabcd", "recall", "search", "skill-hub"];
+// Implicit set after 2026-07-05 consolidation: dev + 5 lightweight workflow skills.
+// skill-hub merged into dev; all dev-* routers stay on-demand.
+const IMPLICIT_SET = ["dev", "interview", "loop", "pabcd", "recall", "search"];
 
 test("S3: implicit set is exactly {dev,+6}; all dev-* routers are on-demand", () => {
   const skillsDir = join(pluginRoot, "skills");
@@ -158,11 +158,11 @@ test("L19: skill-hub catalog enumerates every codexclaw skill (filesystem-derive
     );
   }
 
-  // skill-hub is implicit since the 2026-07-05 expansion (capability discovery row).
+  // After the 2026-07-05 consolidation, only cxc-dev is implicit; skill-hub is deprecated.
   assert.equal(
     readImplicit(join(skillsDir, "skill-hub", "agents", "openai.yaml")),
-    true,
-    "skill-hub must be allow_implicit_invocation:true (implicit set member)",
+    false,
+    "skill-hub must be allow_implicit_invocation:false (deprecated, routing merged into dev)",
   );
 
   // renderers native-gap note exists and names the missing renderers.

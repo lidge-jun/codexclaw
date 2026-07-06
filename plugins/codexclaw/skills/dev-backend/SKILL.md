@@ -9,6 +9,13 @@ metadata:
 
 # Dev-Backend — Production-Grade Backend Engineering
 
+> **Ownership boundary:** This skill owns API design, app architecture, database optimization,
+> error handling, middleware, queues, long-lived connections, and app-level observability/health
+> hooks. Deployment strategy, rollback proof, rollout shape, SLOs, alert routing, incident
+> response, and operational readiness gates are owned by `dev-devops`. Backend exposes the
+> app-level hooks that DevOps operational gates consume.
+
+
 Build reliable, secure, and maintainable server-side applications.
 This skill is a routing role that activates by **change-surface**: whenever the work primarily touches APIs, servers, services, jobs, data access, schemas, migrations, or operational backend behavior, use this skill and then read the relevant references.
 
@@ -382,13 +389,16 @@ When the app serves web pages (SSR/SSG):
 - Structured data: provide JSON-LD data in API responses when frontend needs it
 - Redirect chains: max 1 hop (301 for permanent, 308 for POST-preserving)
 
-## 11. Deployment Patterns
+## 11. Deployment Handoff
 
-- Blue-green: deploy to inactive environment, verify health + smoke tests, swap traffic
-- Canary: route 5% → 25% → 100% with automated rollback on error rate spike
-- Rollback: always keep previous version deployed and ready to swap back
-- Database migrations: separate from code deploy, backward-compatible (expand-then-contract)
-- Feature flags: use for gradual rollout of risky changes
+Deployment strategy, rollout shape, rollback proof, and feature-flag rollout policy are
+owned by `dev-devops`. Backend owns the app compatibility hooks that make safe deployment
+possible:
+
+- Database migrations: backward-compatible (expand-then-contract), separated from code deploy
+- Feature-flag checks in application code (rollout policy lives in `dev-devops`)
+- Health/readiness endpoint behavior when requested by the deployment surface
+- Graceful-shutdown hooks for drain sequencing
 
 ---
 
@@ -403,9 +413,9 @@ Before delivering:
 - [ ] Error handler returns proper HTTP codes via `AppError` hierarchy
 - [ ] No raw SQL in service layer
 - [ ] No hardcoded secrets
-- [ ] Migrations have rollback
+- [ ] Migration code is backward-compatible when release sequencing requires it
 - [ ] Observability: traces and structured logs wired (see `references/core/observability.md`)
-- [ ] Health endpoints: `/health` (liveness) and `/ready` (readiness) — see `references/core/health-checks.md`
+- [ ] Health/readiness handlers exist when the runtime/deploy surface requires them; operational gates live in `dev-devops`
 - [ ] API performance: p95 reads ≤ 200ms, slow queries logged with EXPLAIN (§9)
 - [ ] SEO endpoints: sitemap.xml + robots.txt if serving web pages (§10)
 - [ ] Security review: delegate to `dev-security/SKILL.md` for production readiness

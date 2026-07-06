@@ -51,7 +51,7 @@ const VERBS: ReadonlySet<string> = new Set<GoalplanVerb>(["init", "show", "valid
 export function parseGoalplanCliArgs(argv: string[], cwd: string): GoalplanCliArgs | GoalplanCliParseError {
   const verb = (argv[0] ?? "").toLowerCase();
   if (!VERBS.has(verb)) {
-    return { error: `unknown goalplan verb '${argv[0] ?? ""}' (expected init|show|validate)` };
+    return { error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate)` };
   }
   const out: GoalplanCliArgs = { verb: verb as GoalplanVerb, cwd, criteria: [] };
   for (let i = 1; i < argv.length; i++) {
@@ -80,7 +80,7 @@ function resolveSlug(args: GoalplanCliArgs): string | null {
 
 function renderPlan(plan: Goalplan): string {
   const lines = [
-    `[codexclaw goalplan: ${plan.slug}]`,
+    `[codexclaw loop: ${plan.slug}]`,
     `objective: ${plan.objective}`,
     `host: armed=${plan.host.armed} source=${plan.host.source}`,
     `workPhases: ${plan.workPhases.length} (remaining ${remainingWorkPhases(plan).length})`,
@@ -97,12 +97,12 @@ export function runGoalplanCli(args: GoalplanCliArgs): GoalplanCliResult {
   if (args.verb === "init") {
     const objective = (args.objective ?? "").trim();
     if (objective.length === 0) {
-      return { output: "goalplan init: --objective \"<text>\" is required", code: 1 };
+      return { output: "loop init: --objective \"<text>\" is required", code: 1 };
     }
     const slug = deriveSlug(objective);
     const existing = readGoalplan(args.cwd, slug);
     if (existing) {
-      return { output: `goalplan init: a plan already exists at slug '${slug}' (use show/validate)`, code: 1 };
+      return { output: `loop init: a plan already exists at slug '${slug}' (use show/validate)`, code: 1 };
     }
     const plan = buildGoalplan({
       objective,
@@ -126,11 +126,11 @@ export function runGoalplanCli(args: GoalplanCliArgs): GoalplanCliResult {
 
   const slug = resolveSlug(args);
   if (!slug) {
-    return { output: `goalplan ${args.verb}: --slug "<text>" or --objective "<text>" is required`, code: 1 };
+    return { output: `loop ${args.verb}: --slug "<text>" or --objective "<text>" is required`, code: 1 };
   }
   const plan = readGoalplan(args.cwd, slug);
   if (!plan) {
-    return { output: `goalplan ${args.verb}: no plan found at slug '${slug}'`, code: 1 };
+    return { output: `loop ${args.verb}: no plan found at slug '${slug}'`, code: 1 };
   }
 
   if (args.verb === "show") {
@@ -140,10 +140,10 @@ export function runGoalplanCli(args: GoalplanCliArgs): GoalplanCliResult {
   // validate (E8 quality gate)
   const v = validateGoalplan(plan);
   if (v.ok) {
-    return { output: `[codexclaw goalplan validate: ${slug}] OK — complete + all met criteria carry evidence`, code: 0 };
+    return { output: `[codexclaw loop validate: ${slug}] OK — complete + all met criteria carry evidence`, code: 0 };
   }
   return {
-    output: [`[codexclaw goalplan validate: ${slug}] FAIL`, ...v.reasons.map((r) => `  - ${r}`)].join("\n"),
+    output: [`[codexclaw loop validate: ${slug}] FAIL`, ...v.reasons.map((r) => `  - ${r}`)].join("\n"),
     code: 1,
   };
 }
