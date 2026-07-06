@@ -123,6 +123,19 @@ quotes the previous conclusion from the ledger; source candidates from
 domain-state evidence, not only existing parameters; an optimistic local proxy
 is never sole acceptance evidence.
 
+Mechanism-level additions (owned by `cxc-pabcd` §Optimization-Loop Meta-Rules):
+
+- **LOOP-MECHANISM-PROOF-01** — a new-branch candidate needs activation evidence
+  (the branch demonstrably fired on its target instances), not just aggregate
+  score movement; a zero-delta solo ablation means "presume dead, instrument
+  first", not "weak feature".
+- **LOOP-RESIDUAL-TRACE-01** — residual failures carried through D get a
+  mechanism-level trace or the label `unexplained`; a plausible opponent story
+  is not evidence that our own branch armed.
+- **LOOP-PEER-CONTRAST-01** — when a peer/reference artifact beats an instance
+  we fail, the next generation starts with a behavioral diff of the two traces
+  before any new candidate.
+
 ### Goal state
 
 codexclaw does NOT own a goal store. Goal state lives in the host Codex

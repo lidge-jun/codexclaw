@@ -258,6 +258,29 @@ constants as starting values and revise when a second domain's evidence contradi
   and enumerable: fixed opponents, fixed test maps, fixed graders. If yes,
   per-instance specialization, such as fingerprint plus playbook, is a legitimate
   evaluable widening move and should be considered before generic-strategy tweaks.
+- **LOOP-MECHANISM-PROOF-01 (DEFAULT):** A candidate whose value is a new
+  branch/mechanism must carry activation evidence from the instances it targets — a
+  counter, debug line, or trace showing the branch actually FIRED — before adoption.
+  Aggregate score movement is not activation proof: in a multi-feature combo, a dead
+  mechanism hides behind the other features' gains. The loud special case is a
+  zero-delta ablation: if the single-feature candidate scores exactly baseline on the
+  instances it was built to flip, presume the mechanism never ran and instrument
+  before combining or discarding. (Grounded: an endgame HP-race branch shipped inside
+  a 7.5-scoring combo while its bank leaked to 0 every turn; the solo ablation had
+  shown baseline-exact 1.5 and was not investigated until an external bot won the
+  same battle by hand.)
+- **LOOP-RESIDUAL-TRACE-01 (DEFAULT):** A residual failure carried through D needs a
+  mechanism-level explanation (which branches fired, which did not, and why the
+  outcome followed) or the explicit label `unexplained`. A plausible story about the
+  opponent/environment ("the enemy also stalls, so it stays a draw") is not an
+  explanation unless the trace confirms our own relevant mechanism armed and acted.
+  LOOP-PESSIMIST-01's D record quotes this trace, not the story.
+- **LOOP-PEER-CONTRAST-01 (HEURISTIC):** When an external artifact — a peer's bot, a
+  reference solution, a competitor run — achieves the objective on the same fixed
+  instance we fail, the next generation's first analysis deliverable is a behavioral
+  diff of the two traces (what they did that we did not), before any new candidate.
+  This is the cheapest capability-gap detector available and outranks another round
+  of parameter candidates (LOOP-CANDIDATE-ANCHOR-01).
 
 Evaluation gates for these loops are owned by `cxc-dev-testing` §Limited-Oracle /
 Score-Objective Evaluation; apply both sections together.
@@ -275,6 +298,38 @@ Score-Objective Evaluation; apply both sections together.
 See `dev` §0.0 for the full class definitions and tie-break rules.
 
 ## Delegation Model (subagents)
+
+## Loop Engineering (§11)
+
+Full rules live in `references/loop-engineering.md`. Key rules:
+
+- **§11.1 Loop values:** feedback must change the next action (otherwise it is a retry);
+  the verifier outranks the prompt; memory lives on disk; budget exhaustion != done.
+- **§11.2 Terminal-state vocabulary:** D reports one of DONE / NOOP / BLOCKED / UNSAFE /
+  NEEDS_HUMAN / BUDGET_EXHAUSTED. These are report states, not FSM states.
+- **§11.3 Repair-loop discipline (LOOP-REPAIR-01):** 2 consecutive same-failure repairs ->
+  root-cause mode; 3 -> replan or Interview return. (LOOP-DOOM-01: 3 attestation failures
+  in the same phase -> force Interview return.)
+- **§11.4 Loop archetype (LOOP-ARCHETYPE-01):** classify as spec-satisfaction (repair loop
+  converges) vs open-ended optimization (explore-and-select loop — repair loops plateau).
+  A repair loop on an optimization problem is a category error.
+- **§11.4a Analysis-before-regeneration (LOOP-REANALYZE-01):** every generation in an
+  explore-and-select loop MUST begin with an analysis deliverable, not a patch.
+- **§11.5 Unattended-loop resource policy:** goal-mode loops must state tool/credential
+  scope, token/cost budget, and wall-clock bound. C4 + unstated scope = ESCALATE.
+- **§11.6 Continuation doctrine (LOOP-CONTINUE-01):** do not redefine the objective
+  downward; audit completion against repo state, not memory; read durable state first;
+  IDLE is not the end while work remains — start the next work-phase at P.
+- **§11.7 Divergence/collapse:** convergence-first default. Mode for optimization
+  archetype only. Enter deliberately (HITL I/P) or on plateau (HOTL). Collapse early
+  for spec work, late for metric work. Turn off after resolution. Full rules in
+  `cxc-loop` skill.
+
+## Catalog Discovery routing
+
+Interview sub-modes and Catalog Discovery rules live in `$cxc-interview`
+(INTERVIEW-CATALOG-01, CATALOG-DESIGN-FIRST-01). The option ontology YAML lives at
+`references/catalog-discovery.yaml` in this skill directory.
 
 - **Deferred-tool trap (DISPATCH-DISCOVER-01):** the collab tools are `multi_agent_v1.spawn_agent` / `wait_agent` / `send_input` / `resume_agent` / `close_agent`, and on the live runtime they may NOT appear in your visible tool list — they are deferred behind `tool_search`. If `spawn_agent` is not visible, run `tool_search` for "spawn agent" FIRST; do not conclude dispatch is impossible (`structure/60_native_capabilities.md` §1).
 - The main agent owns the plan and the build by default. Subagents (`spawn_agent`) are scoped helpers.
