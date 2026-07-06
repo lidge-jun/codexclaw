@@ -28,6 +28,10 @@ function depsAvailable() {
 }
 
 test("cxc map surfaces fixture symbols across TS/Python/Rust", (t) => {
+  if (process.env.CODEXCLAW_SKIP_REPOMAP_SMOKE === "1") {
+    t.skip("CODEXCLAW_SKIP_REPOMAP_SMOKE=1 (CI runners preinstall uv; avoid live dependency resolve)");
+    return;
+  }
   if (!depsAvailable()) {
     t.skip("python deps not installed; cxc map degrades to install hint");
     return;

@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      # GitHub runners preinstall uv, which would flip the repo-map smoke test
+      # from skip to a live network dependency resolve. Keep CI deterministic.
+      CODEXCLAW_SKIP_REPOMAP_SMOKE: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: node plugins/codexclaw/scripts/gate.mjs
