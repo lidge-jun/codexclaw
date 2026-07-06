@@ -19,7 +19,9 @@ codexclaw's no-server, Codex-native-tool model.
 
 | File | When to Read | What It Covers |
 | --- | --- | --- |
-| `references/visual-qa.md` | ANY visual surface verdict (web UI, TUI) | Companion-skill grounding (QA-VISUAL-COMPANION-01), objective-metrics-first rule (QA-VISUAL-METRIC-01), oracle judge limits + rubric, extended adversarial classes (reflow/zoom/dark/reduced-motion/CJK), TUI harness addendum, source URLs |
+| `references/visual-qa.md` | ANY visual surface verdict (web UI, TUI) | Visual artifact rubric: companion-skill grounding (QA-VISUAL-COMPANION-01), objective-metrics-first (QA-VISUAL-METRIC-01), oracle judge limits, extended adversarial classes, TUI harness options |
+| `references/http-api-qa.md` | HTTP API surface scenarios | Wire-driving procedure (QA-HTTP-01): curl capture discipline, auth-state/contract/idempotency/boundary/content-negotiation/CORS axes, status-code truth table |
+| `references/cli-tui-qa.md` | CLI or TUI surface scenarios | Session mechanics (QA-CLI-01): stdout/stderr separation, TTY-vs-pipe, env/config precedence, signal cleanup, tmux lifecycle + wait-for-marker driving |
 
 The QA tool ladder (QA-TOOL-LADDER-01 — in-app browser > chrome > computer-use,
 agbrowse for public-URL shape checks only) is canonically owned by
@@ -53,10 +55,10 @@ not evidence of the layer you changed:
 
 | Surface | Faithful channel | Artifact |
 | --- | --- | --- |
-| HTTP API | `curl -i` (headers + body) | response capture |
-| CLI | real invocation, stdout/stderr + exit code captured | terminal capture |
-| TUI | `tmux capture-pane -p` (+ `-e` ANSI copy), REAL terminal width stated — see `references/visual-qa.md` §TUI | plain + ANSI captures |
-| Web UI | browser skill / Playwright screenshot at a STATED viewport, inspected via `view_image` — full workflow in `references/visual-qa.md` | screenshot(s) |
+| HTTP API | `curl -i` (headers + body) — scenarios in `references/http-api-qa.md` | response capture |
+| CLI | real invocation, stdout/stderr split + exit code — discipline in `references/cli-tui-qa.md` | terminal capture |
+| TUI | tmux session at FIXED dims — mechanics in `references/cli-tui-qa.md`, visual rubric in `references/visual-qa.md` | plain + ANSI captures |
+| Web UI | browser screenshot at a STATED viewport, read via `view_image` — workflow in `references/visual-qa.md` | screenshot(s) |
 | Desktop GUI | computer-use + screenshots (per-app approval; never drive terminals/Codex itself) | screenshots + action log |
 
 Tool choice for the browser/CU rows follows QA-TOOL-LADDER-01 (`dev-testing`
@@ -100,6 +102,8 @@ result per class (own row in the matrix):
    (clipping, baseline drop, wide-char column drift, border misalignment).
 
 Class 5 findings feed the visual pass in §5. N/A classes follow the §3 rule.
+Surface-specialized class details: `http-api-qa.md` (wire), `cli-tui-qa.md`
+(terminal), `visual-qa.md` (extended visual classes).
 
 ## 5. Oracle passes (depth scales by work class)
 

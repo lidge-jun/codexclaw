@@ -72,7 +72,9 @@ reason.
 
 ## TUI addendum
 
-`tmux capture-pane -p` (+ `-e`) with a stated real width stays the default.
+Session driving and capture MECHANICS (tmux lifecycle, wait-for-marker,
+stdout/stderr discipline) live in `references/cli-tui-qa.md`; this section
+owns the VISUAL rubric and harness options for terminal artifacts.
 When the repo already uses them, prefer their harnesses: VHS (scripted
 terminal renders with fixed dimensions/theme -> PNG/GIF artifacts) or
 Bubble Tea `teatest` golden files. Do not introduce either for a one-shot QA
