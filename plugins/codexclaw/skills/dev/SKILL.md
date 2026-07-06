@@ -106,7 +106,7 @@ goal mode (`create_goal`, evidence-backed checkpoints) · subagent
 findings only) · docs-only work (no code gates, docs consistency checks instead).
 
 In goal mode, multi-phase / loop work runs one FULL PABCD cycle per work-phase
-(depth scaled by §0.0 class); after D closes a cycle to IDLE, YOU run `cxc orchestrate P`
+(depth scaled by §0.0 class); after D closes a cycle to IDLE, YOU run `cxc orchestrate P --session <id>`
 to start the next work-phase — nothing re-enters `P` automatically (the Stop hook only
 blocks premature termination so you do this). Classify EACH work-phase independently —
 C0-C1 fast-path applies to that work-phase's class, not the whole goal. Do each PABCD

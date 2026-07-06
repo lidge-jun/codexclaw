@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import {
   countSourceFiles,
   renderMapAffordance,
+  renderSessionBinding,
   renderSkillSearchAffordance,
   runMapAffordanceSessionStart,
   MAP_AFFORDANCE_MIN_FILES,
@@ -81,6 +82,22 @@ test("skill-search affordance is a POINTER: names both commands, stays short", (
   assert.match(text, /cxc skill show/);
   assert.match(text, /cxc-dev/, "must state that built-in discipline wins on conflict");
   assert.ok(text.length < 600, "affordance must stay a one-liner-ish pointer");
+});
+
+test("G3: session-id binding line rides the SessionStart envelope", () => {
+  const small = tmp();
+  const out = runMapAffordanceSessionStart(
+    JSON.stringify({ hook_event_name: "SessionStart", cwd: small, session_id: "abc-123" }),
+    small,
+  );
+  const ctx = JSON.parse(out).hookSpecificOutput.additionalContext;
+  assert.match(ctx, /session's id is `abc-123`/);
+  assert.match(ctx, /--session abc-123/);
+  // no session_id on stdin -> no binding line, envelope still valid
+  const noId = runMapAffordanceSessionStart(JSON.stringify({ cwd: small }), small);
+  assert.doesNotMatch(JSON.parse(noId).hookSpecificOutput.additionalContext, /session's id/);
+  // direct render stays bounded
+  assert.ok(renderSessionBinding("x".repeat(40)).length < 500);
 });
 
 test("cwd is read from the stdin payload; malformed stdin falls back safely", () => {

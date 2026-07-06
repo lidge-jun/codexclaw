@@ -15,7 +15,7 @@ loops (Stop-hook continuation after D/IDLE).
 
 - `cxc-loop` is an overlay on `cxc-pabcd`, not a replacement. Before claiming a
   loop is active, follow `cxc-pabcd` phase semantics and enter a real PABCD state
-  with `cxc orchestrate I|P` (or the human free-pass chat surface).
+  with `cxc orchestrate I|P --session <id>` (or the human free-pass chat surface).
 - Choose the execution mode before the first work-phase:
   - **HITL loop:** PABCD is active, no ACTIVE host goal is required, and P/A/B
     remain human-confirmed pause points. The Stop-continuation hook will not arm.
@@ -30,7 +30,7 @@ loops (Stop-hook continuation after D/IDLE).
 - One work-phase maps to one full PABCD cycle.
 - D closes the current work-phase and returns the phase to `IDLE`.
 - If work remains and a goal is active, **the agent** starts the next work-phase by
-  running `cxc orchestrate P` after recording evidence. Nothing transitions the phase
+  running `cxc orchestrate P --session <id>` after recording evidence. Nothing transitions the phase
   automatically — the Stop hook only blocks premature termination so the agent does
   this; it never re-enters `P` for you (see Stop-continuation below).
 - There is no I -> P auto-advance. The agent advances every phase, including I -> P,
@@ -147,7 +147,7 @@ self-advancing with explicit `cxc orchestrate <phase> --attest ...` commands
 (agent-gated). The hook does NOT transition phases AUTONOMOUSLY and does NOT
 re-enter `P` itself — it only persists a transition in response to an explicit
 chat `orchestrate <verb>` command (the agent acting). After the agent closes a
-cycle to IDLE, the AGENT runs `cxc orchestrate P` to start the next work-phase.
+cycle to IDLE, the AGENT runs `cxc orchestrate P --session <id>` to start the next work-phase.
 Without an active goal, the loop never arms and PABCD pauses for the human
 (HITL).
 

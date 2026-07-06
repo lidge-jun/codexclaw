@@ -560,9 +560,19 @@ export function buildStopBlock(
   phase: Phase,
   work?: StopWorkContext | null,
   friction?: "retry" | "escalate" | "stop" | null,
+  sessionId?: string | null,
 ): string {
   const label = STAGE_LABELS[phase] ?? phase;
-  const nextCommand = STOP_NEXT_COMMAND[phase] ?? "`cxc orchestrate status`";
+  // G3 (260707 fork-FSM fix): mutating verbs now REQUIRE --session, so the
+  // continuation command must carry the session id or it would instruct a
+  // failing command. Insert it right after the verb (before ` --attest`/end).
+  let nextCommand = STOP_NEXT_COMMAND[phase] ?? "`cxc orchestrate status`";
+  if (sessionId) {
+    nextCommand = nextCommand.replace(
+      /cxc orchestrate (\w+)/,
+      `cxc orchestrate $1 --session ${sessionId}`,
+    );
+  }
   const lines = [
     `[codexclaw — continue PABCD] You are mid-cycle at ${phase} (${label}) with an active goal.`,
     "Do the real work of this phase, then self-advance with the concrete next command:",
@@ -707,7 +717,7 @@ export function handleStop(payload: StopPayload): string {
   // 080: a HIGH friction signal adds an advisory escalate line to the SAME block — it is
   // read ONLY here, after the goal-active arming guard + the cap, so it never changes when
   // Stop blocks vs releases (arming is unchanged). FAIL-OPEN: null verdict => no line.
-  const block = buildStopBlock(state.phase, readStopWorkContext(payload.cwd, state), peakFrictionVerdict(payload.cwd));
+  const block = buildStopBlock(state.phase, readStopWorkContext(payload.cwd, state), peakFrictionVerdict(payload.cwd), payload.session_id);
   // Goal-mode block: if the render advisory applies, append it to the block reason.
   if (renderAdvisory) {
     try {

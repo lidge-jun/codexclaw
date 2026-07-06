@@ -22,7 +22,7 @@ Two distinct things, do not conflate them:
 - **Agent judgment (broad):** for other phrasings — "요구사항 정리", "스펙 정리해줘",
   "뭘 만들어야 하는지 정리", or any variation that signals unclear requirements — the
   hook does NOT auto-fire; YOU decide to enter Interview by invoking `cxc-interview`
-  (or running `cxc orchestrate I`). The breadth lives in agent judgment, not in a regex.
+  (or running `cxc orchestrate I --session <id>`). The breadth lives in agent judgment, not in a regex.
 
 **I — Interview**: HITL-only requirements discovery. Canonical rules (four dimensions, contradiction scanning, readiness gating, Q/A capture) live in `cxc-interview`; PABCD owns the phase edge I->P and the return-to-Interview affordance from any phase.
 
@@ -37,7 +37,7 @@ IDLE ──→ P ──→ A ──→ B ──→ C ──→ D ──→ IDLE
          └──────┴──────┴────→ I (Interview, context preserved)
 ```
 
-You can return to Interview (I) from any phase to clarify requirements; the plan and audit context are preserved. Phases P, A, B pause for confirmation in interactive use; C and D proceed once their work is genuinely done. In goal mode the agent must explicitly run `cxc orchestrate P` to start each PABCD cycle; nothing self-advances into P automatically, but the P->D sequence is never skipped. Goal mode is PABCD-only: while a goal is active the Interview NEVER fires — entry is suppressed and `request_user_input` is hard-denied, so the Interview is HITL-only and runs only with no active goal.
+You can return to Interview (I) from any phase to clarify requirements; the plan and audit context are preserved. Phases P, A, B pause for confirmation in interactive use; C and D proceed once their work is genuinely done. In goal mode the agent must explicitly run `cxc orchestrate P --session <id>` to start each PABCD cycle; nothing self-advances into P automatically, but the P->D sequence is never skipped. Goal mode is PABCD-only: while a goal is active the Interview NEVER fires — entry is suppressed and `request_user_input` is hard-denied, so the Interview is HITL-only and runs only with no active goal.
 
 ## Phase Control / Orchestrate
 
@@ -87,7 +87,12 @@ agent discipline that makes later audit possible.
   [--cwd <path>] [--json]` drives the SAME `.codexclaw/sessions/<id>.json` state through
   the un-weakened gated `transition()`. An agent MUST supply real `--attest` evidence to
   advance; `A>B` additionally needs `auditOutput` (reviewer verdict tail) and `C>D`
-  additionally needs `checkOutput` + a passing `exitCode`.
+  additionally needs `checkOutput` + a passing `exitCode`. Mutating verbs
+  (I/P/A/B/C/D/reset) REQUIRE the explicit `--session <id>` (your own session id from
+  the SessionStart context line, or the terminal key `cli`) — the implicit
+  latest-session fallback is write-disabled so a concurrent or /fork-ed session never
+  mutates another session's FSM (G3, `devlog/_plan/260707_fork_fsm_bug/`). `status`
+  keeps the fallback.
 - **Phase footer** — every injected directive ends with `IPABCD: <phase> (<LABEL>)` so
   the current phase is visible (codex has no status UI). After `D` closes, the resting
   state shown is `IDLE`.
@@ -99,10 +104,10 @@ agent discipline that makes later audit possible.
 `cxc-loop` depends on this skill; it does not replace it. A loop request first activates
 PABCD, then chooses HITL or HOTL:
 
-- **HITL PABCD:** enter I or P explicitly (`cxc orchestrate I|P` or the chat
+- **HITL PABCD:** enter I or P explicitly (`cxc orchestrate I|P --session <id>` or the chat
   free-pass surface). No active goal is required, and P/A/B pause for the human.
 - **HOTL goal PABCD:** the main session must create or reuse an ACTIVE host goal
-  (`create_goal` / `get_goal`) and start a PABCD cycle (`cxc orchestrate P`). The
+  (`create_goal` / `get_goal`) and start a PABCD cycle (`cxc orchestrate P --session <id>`). The
   Stop-continuation hook arms only when both are true: active host goal AND
   non-IDLE PABCD cycle. Do not call this mode active if one half is missing.
 - Subagents may inspect or verify the plan, but the main session owns host-goal

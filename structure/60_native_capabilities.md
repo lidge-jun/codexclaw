@@ -99,6 +99,7 @@ Flag states below come from the same 2026-07-02 `codex features list` run (codex
 | Surface | Evidence | Status |
 |---|---|---|
 | `spawn_agents_on_csv` + `report_agent_job_result` (CSV batch fan-out, ≤64 workers) | codex-rs snapshot `tools/handlers/agent_jobs.rs`; absent from live tool_search | gated behind `enable_fanout` (under development, false). Mention as future only. |
+| Fork provenance in SessionStart | codex-rs `core/src/session/session.rs:1221-1226` maps `InitialHistory::Forked(_)` -> `SessionStartSource::Startup`; hook `source` enum is `startup\|resume\|clear\|compact` only (`hooks/src/schema.rs:786-788`); `forked_from_thread_id` stays internal (`thread_manager.rs:590`) | NATIVE GAP: a plugin hook cannot distinguish /fork from fresh startup. Mitigation shipped as G3 (SessionStart session-id binding + explicit `--session` on mutating orchestrate verbs). Upstream ask: add `"fork"` source or `forked_from` field. |
 | `multi_agent_v2` | `[features.multi_agent_v2] enabled = false` (HTTP 400 upstream, openai/codex#26753) | keep v1 assumptions |
 | `memories` | experimental, false | off |
 | `standalone_web_search` | under development, false | hosted `web_search` is the live path |

@@ -140,6 +140,20 @@ export function runOrchestrateCli(args                    )            {
     return { code: 0, output: renderStatus(readState(args.cwd, sessionId), args.json) };
   }
 
+  // G3 (fork-FSM collision, 260707): mutating verbs REQUIRE an explicit --session.
+  // The implicit most-recent-mtime fallback let any concurrent session (a /fork sees
+  // the parent's orchestrate context and naturally replays commands) mutate whichever
+  // session file was newest — live forensics in devlog/_plan/260707_fork_fsm_bug/.
+  // Fork provenance is invisible to hooks (codex-rs session.rs:1221-1226 maps
+  // Forked -> Startup), so the CLI boundary is where the accidental path closes.
+  // Read-only status above keeps the fallback.
+  if (!args.session) {
+    return {
+      code: 1,
+      output: `orchestrate ${args.verb}: mutating verbs require an explicit --session <id> (your codex session id from the SessionStart context line, or the terminal key 'cli'). The implicit most-recent-session fallback is disabled for writes: a concurrent or forked session must never mutate another session's FSM.`,
+    };
+  }
+
   // mutating verbs need a concrete session: never silently invent a divergent one.
   if (!sessionId) {
     return { code: 1, output: `orchestrate ${args.verb}: no active session — pass --session <id> (the codex session id, or an explicit terminal session like 'cli')` };

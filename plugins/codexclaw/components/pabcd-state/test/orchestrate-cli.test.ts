@@ -184,7 +184,29 @@ test("mutating verb with no session and empty dir -> error (no silent divergence
   try {
     const r = runOrchestrateCli({ verb: "P", attest: null, cwd, json: false });
     assert.equal(r.code, 1);
-    assert.match(r.output, /no active session/);
+    assert.match(r.output, /require an explicit --session/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("G3: mutating verb WITHOUT --session refuses even when sessions exist (fork-FSM fix)", () => {
+  const cwd = freshCwd();
+  try {
+    // Seed an existing session that the old implicit fallback would have picked.
+    seedSession(cwd, "victim", "P");
+    // No --session: must refuse, must NOT touch the victim session.
+    const r = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "foreign audit" }, cwd, json: false });
+    assert.equal(r.code, 1);
+    assert.match(r.output, /require an explicit --session/);
+    assert.equal(readState(cwd, "victim").phase, "P");
+    // reset without --session is also refused (this is the exact foreign-reset shape).
+    const rr = runOrchestrateCli({ verb: "reset", attest: null, cwd, json: false });
+    assert.equal(rr.code, 1);
+    assert.match(rr.output, /require an explicit --session/);
+    assert.equal(readState(cwd, "victim").phase, "P");
+    // Explicit --session still works.
+    const ok = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "owner audit" }, cwd, json: false, session: "victim" });
+    assert.equal(ok.code, 0);
+    assert.equal(readState(cwd, "victim").phase, "A");
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 

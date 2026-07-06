@@ -289,18 +289,18 @@ test("L8: Stop continuation prints concrete next commands, never <next>", () => 
       midCycle(cwd, "l8-a", "A");
       const aReason = JSON.parse(handleStop(stop(cwd, "l8-a")).trim()).reason;
       assert.doesNotMatch(aReason, /<next>/);
-      assert.match(aReason, /cxc orchestrate B --attest/);
+      assert.match(aReason, /cxc orchestrate B --session l8-a --attest/, "G3: continuation must carry --session");
       assert.match(aReason, /auditOutput/, "WP3: A next-command must carry the reviewer verdict field");
 
       midCycle(cwd, "l8-b", "B");
       const bReason = JSON.parse(handleStop(stop(cwd, "l8-b")).trim()).reason;
       assert.doesNotMatch(bReason, /<next>/);
-      assert.match(bReason, /cxc orchestrate C --attest/);
+      assert.match(bReason, /cxc orchestrate C --session l8-b --attest/);
 
       midCycle(cwd, "l8-c", "C");
       const cReason = JSON.parse(handleStop(stop(cwd, "l8-c")).trim()).reason;
       assert.doesNotMatch(cReason, /<next>/);
-      assert.match(cReason, /cxc orchestrate D --attest/);
+      assert.match(cReason, /cxc orchestrate D --session l8-c --attest/);
       assert.match(cReason, /checkOutput/);
       assert.match(cReason, /exitCode/);
 
@@ -466,6 +466,16 @@ test("040: buildStopBlock(phase) is byte-identical to buildStopBlock(phase, null
   }
 });
 
+test("G3: buildStopBlock with sessionId injects --session into the next command", () => {
+  for (const p of ["P", "A", "B", "C"] as const) {
+    const reason = (JSON.parse(buildStopBlock(p, null, null, "sess-9").trim()) as { reason: string }).reason;
+    assert.match(reason, /cxc orchestrate \w+ --session sess-9/, `phase ${p} must carry --session`);
+  }
+  // without sessionId the command stays bare (byte-compat with shipped reason)
+  const bare = (JSON.parse(buildStopBlock("P").trim()) as { reason: string }).reason;
+  assert.doesNotMatch(bare, /--session/);
+});
+
 test("040: readStopWorkContext returns null without a session-bound slug (no dir scan)", () => {
   const cwd = freshCwd();
   try {
@@ -494,7 +504,7 @@ test("040: with a session-bound slug + goalplan, the block reason names remainin
       assert.match(reason, /Required evidence: npm test green/);
       assert.match(reason, new RegExp(`Record progress in: \\.codexclaw/goalplans/${plan.slug}/ledger\\.jsonl`));
       // enrichment never replaces the phase command or the closing note
-      assert.match(reason, /cxc orchestrate C --attest/);
+      assert.match(reason, /cxc orchestrate C --session [-\w]+ --attest/);
       assert.match(reason, /D is not a resting state/);
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
@@ -506,7 +516,7 @@ test("040: no goalplan for the bound slug => byte-identical shipped reason", () 
     withGoalsDb([{ thread_id: "wp2", status: "active" }], () => {
       writeState(cwd, { ...defaultState("wp2"), phase: "B", orchestrationActive: true, lastInjectedPhase: "B", slug: "ghost-slug" });
       const reason = JSON.parse(handleStop(stop(cwd, "wp2")).trim()).reason;
-      assert.equal(reason, JSON.parse(buildStopBlock("B").trim()).reason);
+      assert.equal(reason, JSON.parse(buildStopBlock("B", null, null, "wp2").trim()).reason);
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

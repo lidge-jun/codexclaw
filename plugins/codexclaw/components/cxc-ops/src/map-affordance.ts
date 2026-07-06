@@ -106,6 +106,22 @@ export function renderSkillSearchAffordance(): string {
 }
 
 /**
+ * Session-id binding line (G3, 260707 fork-FSM fix). Mutating `cxc orchestrate`
+ * verbs require an explicit --session; this line tells the agent ITS OWN id at
+ * SessionStart, so a /fork-ed session (which replays the parent's orchestrate
+ * context but receives a NEW id here) targets its own FSM instead of the
+ * most-recently-touched session file.
+ */
+export function renderSessionBinding(sessionId: string): string {
+  return [
+    `[codexclaw] This session's id is \`${sessionId}\`. Every mutating`,
+    "`cxc orchestrate` command (I/P/A/B/C/D/reset) MUST pass",
+    `\`--session ${sessionId}\` — the implicit latest-session fallback is`,
+    "disabled for writes so concurrent/forked sessions never collide.",
+  ].join(" ");
+}
+
+/**
  * SessionStart handler. Reads the hook JSON payload from stdin (for `cwd`), counts
  * source files, and returns ONE SessionStart envelope combining the affordance
  * lines: the map pointer (size-gated) plus the skill-search pointer (always on).
@@ -113,11 +129,15 @@ export function renderSkillSearchAffordance(): string {
  */
 export function runMapAffordanceSessionStart(stdin: string, fallbackCwd: string): string {
   let cwd = fallbackCwd;
+  let sessionId = "";
   try {
     const trimmed = stdin.trim();
     if (trimmed.length > 0) {
-      const payload = JSON.parse(trimmed) as { cwd?: unknown };
+      const payload = JSON.parse(trimmed) as { cwd?: unknown; session_id?: unknown };
       if (typeof payload.cwd === "string" && payload.cwd.length > 0) cwd = payload.cwd;
+      if (typeof payload.session_id === "string" && payload.session_id.length > 0) {
+        sessionId = payload.session_id;
+      }
     }
   } catch {
     // malformed stdin -> fall back to fallbackCwd; still safe.
@@ -129,6 +149,7 @@ export function runMapAffordanceSessionStart(stdin: string, fallbackCwd: string)
     count = 0; // walk blew up somehow -> skip the map line, keep the skill line
   }
   const lines: string[] = [];
+  if (sessionId) lines.push(renderSessionBinding(sessionId));
   if (count >= MAP_AFFORDANCE_MIN_FILES) lines.push(renderMapAffordance(count));
   lines.push(renderSkillSearchAffordance());
   const envelope = {
