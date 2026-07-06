@@ -40,6 +40,9 @@
     "longDescription": "Codexclaw reuses the OpenAI Codex runtime and layers cli-jaw-style development discipline (dev-* skills, PABCD workflow), multi-model subagent routing, and an optional opencodex (ocx) provider bridge. Includes a local GUI for subagent model selection and prompt tuning.",
     "developerName": "lidge-jun",
     "websiteURL": "https://lidge-jun.github.io/codexclaw/",
+    "composerIcon": "./assets/composer-icon.png",
+    "logo": "./assets/logo.png",
+    "brandColor": "#D7010F",
     "category": "Developer Tools",
     "capabilities": [
       "Skills",
@@ -52,6 +55,10 @@
       "Plan this with codexclaw PABCD and use multi-model subagents.",
       "Run cxc map to get the shape of this repo before we dive in.",
       "Interview me first, then draft a diff-level plan."
+    ],
+    "screenshots": [
+      "./assets/screenshot-docs-home.png",
+      "./assets/screenshot-docs-pabcd.png"
     ]
   }
 }
