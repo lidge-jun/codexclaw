@@ -4,7 +4,15 @@
   <img src="docs-site/public/logo.png" alt="codexclaw split Codex blossom and OpenClaw claw logo" width="180" />
 </p>
 
+<p align="center">
+  <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-lidge--jun.github.io%2Fcodexclaw-blue" alt="Docs" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" /></a>
+</p>
+
 cli-jaw-style development discipline and multi-model subagents for the **OpenAI Codex runtime**, packaged as a single Codex plugin.
+
+Full documentation: **https://lidge-jun.github.io/codexclaw/**
 
 codexclaw does **not** ship its own agent harness. It reuses the `codex` runtime and layers on top:
 
@@ -30,10 +38,11 @@ codexclaw/
 │   │   ├── pabcd-state/                  # PABCD FSM + state file + orchestrate CLI
 │   │   ├── recall/                       # Codex-native session/memory disk-artifact recall
 │   │   ├── messenger-bridge/             # messenger integration bridge (cxc serve + adapters)
+│   │   ├── skill-search/                 # remote dormant-skill search (cxc skill search/show)
 │   │   └── subagent-config/              # subagent model/prompt config store + MCP
 │   └── gui/                              # local web dashboard (Vite + React)
 ├── cli/                                  # codexclaw CLI commands
-└── devlog/                               # _plan (MVP plans) + _fin (done) + .lazycodex (reference)
+└── devlog/                               # _plan (active plans) + _fin (done)
 ```
 
 ## Install (target flow)
@@ -54,10 +63,16 @@ L2-L9 and L11-L20 are shipped+tested (L11 docs-site shipped 2026-07-05); L10 is
 decision-closed (most is host-native). `cxc orchestrate`
 is live, chat-side phase control writes the same `.codexclaw/` state, the IPABCD
 footer/status affordance is wired, and the Stop-continuation loop runs under an active Codex
-goal with a bounded stagnation guard. Eleven hooks cover session lifecycle, orchestration,
+goal with a bounded stagnation guard. Twelve hooks cover session lifecycle, orchestration,
 pre/post-tool guards, subagent evidence, and compaction recovery (the 2026-07-05 hook diet
 moved seven advisory hooks to `hooks/_deprecated/`, absorbing their rules into the `dev`
-skill; the implicit skill set is now `{dev, search, interview, pabcd, recall, skill-hub,
+skill; the implicit skill set is now `{dev, search, interview, pabcd, recall,
 loop}`). Remote dormant-skill search ships as `cxc skill search/show` over cli-jaw-skills,
 Hermes, ClawHub, and gh code search. See `devlog/_plan/` for the shipped ledger and
 remaining hardening slices.
+
+## License
+
+MIT — see [LICENSE](LICENSE). The repo-map skill vendors RepoMapper (MIT,
+(c) 2025 Pete Davis) and Aider-derived tree-sitter queries (Apache-2.0); see
+`plugins/codexclaw/skills/repo-map/scripts/NOTICE.md` for third-party notices.
