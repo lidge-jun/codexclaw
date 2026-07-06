@@ -80,12 +80,16 @@ it is a full scripted local-Chrome CDP surface (`start --headed` / `navigate` /
 `snapshot --interactive` with element refs / `click eN` / `tabs` / `doctor` / `stop`,
 plus one-shot `fetch --json --browser never|auto`). Verified resolvable on this machine
 (`~/.local/bin/agbrowse`, helper doctor 2026-07-02). **Priority: agbrowse is the
-PRIMARY browse surface while it resolves** (user decision, 2026-07-02) — the native
+PRIMARY browse surface for PUBLIC-WEB proof while it resolves** (user decision,
+2026-07-02) — there the native
 browser tools are its FALLBACK tier (unresolvable helper, flows its CDP session cannot
 complete, or genuinely conversational control), and dropping to them should state why.
-The escalation routing is OWNED by `cxc-search` (SEARCH-BROWSE-01) — this file
-inventories the rungs; it deliberately does not restate the ladder (skill-hub
-ownership rule).
+Escalation routing is owned by SCOPE (2026-07-07 split): public-web proof by
+`cxc-search` (SEARCH-BROWSE-01, agbrowse-first); QA of surfaces the agent
+built/serves by `cxc-dev-testing` §4.6 (QA-TOOL-LADDER-01, in-app-browser-first;
+agbrowse QA-legal only for public-URL response-shape checks). This file
+inventories the rungs; it deliberately does not restate either ladder
+(skill-hub ownership rule).
 
 ## 4. Flag-gated / NOT live (do not instruct usage)
 

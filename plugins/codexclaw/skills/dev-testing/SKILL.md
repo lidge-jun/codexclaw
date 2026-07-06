@@ -227,13 +227,29 @@ Playwright owns DETERMINISTIC, repeatable suites. The native tools
 question is "does this change actually work in the real UI right now", not "guard this
 flow forever":
 
-- **`browser:control-in-app-browser`** — drive a local dev server / file-backed page:
-  navigate, click, type, screenshot. Default for web-UI spot checks after a change.
-- **`chrome:control-chrome`** — the same flow in the user's REAL Chrome (CDP): use when
-  the check needs a logged-in session, an extension, or profile state.
-- **`computer-use:computer-use`** — desktop apps, iOS-simulator flows, GUI-only bug
-  repro, settings that exist only behind app UI. Per-app approval applies; NEVER drive
-  terminals or Codex itself; keep credential flows human-supervised.
+**QA tool ladder (QA-TOOL-LADDER-01, canonical).** Ordered hierarchy for QA of
+surfaces the agent built/serves. Rungs 1-3 are all CUA-class control (see, act,
+screenshot); rung 4 is the one non-CUA scripted rung. Start at rung 1; state why
+when you skip down:
+
+1. **`browser:control-in-app-browser`** — DEFAULT. Drive a local dev server /
+   file-backed page: navigate, click, type, screenshot. Owns web-UI spot checks
+   after a change.
+2. **`chrome:control-chrome`** — the same flow in the user's REAL Chrome (CDP):
+   escalate only when the check needs a logged-in session, an extension,
+   profile state, or a WAF'd page the in-app browser cannot pass.
+3. **`computer-use:computer-use`** — GUI last resort: desktop apps,
+   iOS-simulator flows, GUI-only bug repro, browser chrome itself. Per-app
+   approval applies; NEVER drive terminals or Codex itself; keep credential
+   flows human-supervised.
+4. **`agbrowse`** (cxc-search's proof helper) — non-CUA scripted HTTP/CDP
+   evidence envelopes. QA-legal ONLY for public-URL response-shape checks
+   (e.g. a deployed endpoint's headers/body); never for driving built UI.
+
+**Inversion note vs `cxc-search` SEARCH-BROWSE-01:** the search ladder is
+agbrowse-FIRST because it proves PUBLIC-web claims with scripted evidence. This
+QA ladder is in-app-browser-first because it drives surfaces the agent itself
+serves — the two orderings are scoped, not contradictory.
 
 **Protocol (imported CDP doctrine):** inspect -> act -> re-inspect. Verify state before
 and after every action; when DOM inspection fails (canvas/WebGL/shadow-DOM), take a

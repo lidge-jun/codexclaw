@@ -15,6 +15,16 @@ touchpoint is noted in §7. Lineage: lazycodex `visual-qa` / `review-work` /
 `lazycodex-qa-executor` (vendored at `devlog/.lazycodex/`), translated to
 codexclaw's no-server, Codex-native-tool model.
 
+## Modular References
+
+| File | When to Read | What It Covers |
+| --- | --- | --- |
+| `references/visual-qa.md` | ANY visual surface verdict (web UI, TUI) | Companion-skill grounding (QA-VISUAL-COMPANION-01), objective-metrics-first rule (QA-VISUAL-METRIC-01), oracle judge limits + rubric, extended adversarial classes (reflow/zoom/dark/reduced-motion/CJK), TUI harness addendum, source URLs |
+
+The QA tool ladder (QA-TOOL-LADDER-01 — in-app browser > chrome > computer-use,
+agbrowse for public-URL shape checks only) is canonically owned by
+`dev-testing` §4.6.
+
 ## 0. Scope split (single ownership)
 
 - `cxc-dev-testing` owns AUTOMATED verification: unit, contract, E2E,
@@ -45,13 +55,13 @@ not evidence of the layer you changed:
 | --- | --- | --- |
 | HTTP API | `curl -i` (headers + body) | response capture |
 | CLI | real invocation, stdout/stderr + exit code captured | terminal capture |
-| TUI | `tmux capture-pane -p` (+ `-e` ANSI copy), REAL terminal width stated | plain + ANSI captures |
-| Web UI | browser skill / Playwright screenshot at a STATED viewport, inspected via `view_image` | screenshot(s) |
+| TUI | `tmux capture-pane -p` (+ `-e` ANSI copy), REAL terminal width stated — see `references/visual-qa.md` §TUI | plain + ANSI captures |
+| Web UI | browser skill / Playwright screenshot at a STATED viewport, inspected via `view_image` — full workflow in `references/visual-qa.md` | screenshot(s) |
 | Desktop GUI | computer-use + screenshots (per-app approval; never drive terminals/Codex itself) | screenshots + action log |
 
-Tool choice details for the browser/CU rows live in `dev-testing` §4.6; the
-inspect -> act -> re-inspect protocol applies. Data-shaped behavior may use
-parsed CLI/data output as its channel.
+Tool choice for the browser/CU rows follows QA-TOOL-LADDER-01 (`dev-testing`
+§4.6); the inspect -> act -> re-inspect protocol applies. Data-shaped behavior
+may use parsed CLI/data output as its channel.
 
 ## 3. Evidence contract
 
@@ -99,6 +109,12 @@ Class 5 findings feed the visual pass in §5. N/A classes follow the §3 rule.
   passes (`spawn_agent`, explorer role, DISPATCH-TASK-01 packet; paste the
   captures/screenshot paths + script/tool observations into each prompt —
   do not make the oracle re-derive context):
+  Both passes are rubric-bound: attach `cxc-dev-frontend` (anti-slop +
+  visual-verification checklist ARE the rubric) and, for design-direction
+  judgments only, `cxc-dev-uiux-design`; every PASS cites the rule ids it
+  checked (QA-VISUAL-COMPANION-01, `references/visual-qa.md`). Capture the
+  objective evidence layer FIRST (viewport matrix, DOM text extraction for
+  text/CJK claims, console errors — QA-VISUAL-METRIC-01).
   - Pass A — design-system + functional integrity: is this a real, coherent
     implementation driven by reused primitives (not a mock-only screen or a
     pasted raster), and do the intended features actually work?
