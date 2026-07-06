@@ -85,7 +85,8 @@ export function renderMapAffordance(fileCount        )         {
     "available on demand: run `cxc map <dir>` (tree-sitter symbols + PageRank) to see",
     "which files own which symbols BEFORE deep rg dives into unfamiliar territory.",
     "It is a stateless one-shot tool — use it when you need the shape of code you do",
-    "not yet know; keep using rg/ast-grep for byte and syntax-shape search.",
+    "not yet know. Keep rg for byte/text search, and use ast-grep (skill:",
+    "$cxc-ast-grep) for syntax-shape search and deterministic codemods.",
   ].join(" ");
 }
 

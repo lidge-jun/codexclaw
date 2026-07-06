@@ -30,7 +30,7 @@
 import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -239,7 +239,19 @@ function runRepoMap(args) {
 }
 
 // Only dispatch when executed directly; the ladder helpers are importable for tests.
-const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+// Compare via realpath: npm global installs and the plugin cache reach this file
+// through symlinks, so a plain resolve() comparison misses real CLI runs.
+function realOrSelf(p) {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+}
+const isMain = Boolean(
+  process.argv[1] &&
+    realOrSelf(fileURLToPath(import.meta.url)) === realOrSelf(resolve(process.argv[1])),
+);
 const cmd = process.argv[2] ?? "help";
 if (isMain) switch (cmd) {
   case "enable":

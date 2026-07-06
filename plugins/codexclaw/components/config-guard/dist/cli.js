@@ -5,6 +5,8 @@
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { readDeclaredState,                  } from "./features.js";
 import { activate } from "./activate.js";
 import { deactivate } from "./deactivate.js";
@@ -73,9 +75,18 @@ function main(argv                   )         {
   }
 }
 
+// Realpath both sides: symlinked installs (plugin cache, npm global) otherwise miss.
 const isDirect = (() => {
   try {
-    return process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
+    if (process.argv[1] === undefined) return false;
+    const self = realpathSync(fileURLToPath(import.meta.url));
+    let invoked = process.argv[1];
+    try {
+      invoked = realpathSync(invoked);
+    } catch {
+      /* keep unresolved */
+    }
+    return self === invoked;
   } catch {
     return false;
   }

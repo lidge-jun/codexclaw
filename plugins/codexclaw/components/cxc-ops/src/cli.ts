@@ -8,7 +8,7 @@
  */
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { runDoctor, renderDoctor } from "./doctor.ts";
 import { parseResetScope, runReset, renderReset } from "./reset.ts";
 import { runMapAffordanceSessionStart } from "./map-affordance.ts";
@@ -61,8 +61,17 @@ export async function main(argv: string[], metaUrl: string): Promise<number> {
 }
 
 // Direct-exec guard: run only when invoked as a script, not when imported by tests.
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
-const selfPath = fileURLToPath(import.meta.url);
+// Compare via realpath — the plugin cache reaches this file through a symlinked
+// components/ dir, so a plain resolve() comparison misses real hook invocations.
+function realOrSelf(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+}
+const invokedPath = process.argv[1] ? realOrSelf(resolve(process.argv[1])) : "";
+const selfPath = realOrSelf(fileURLToPath(import.meta.url));
 if (invokedPath === selfPath) {
   main(process.argv.slice(2), import.meta.url).then(
     (code) => process.exit(code),

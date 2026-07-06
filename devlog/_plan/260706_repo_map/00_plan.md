@@ -97,3 +97,30 @@ contract (`pabcd_initiative/skills/dev-pabcd/references/repo-map-capability.md`)
 the ladder is recorded there as a contract-compatible packaging note. Subtree
 scoping (`cxc map <subdir>` ranks within the subtree only) is part of the
 contract and useful for large feature-partitioned monorepos.
+
+## Addendum 2026-07-07b — symlink-broken direct-exec guards (affordance silently dead)
+
+User report: new sessions stopped receiving the `cxc map` SessionStart affordance.
+Diagnosis: `~/.codex/plugins/cache/personal/codexclaw/0.1.0/components` is a SYMLINK
+to this repo's `plugins/codexclaw/components`. The direct-exec guards compared
+`resolve(process.argv[1])` (symlink path kept) against `fileURLToPath(import.meta.url)`
+(realpath), so `main()` never ran via the cache path — hook exit 0, zero output.
+Evidence: same md5 cli.js emitted the 465-byte envelope via the real path and 0 bytes
+via the cache path; `node -e` comparison showed argv-resolve keeping the symlink while
+realpath resolves to the repo. The same bug had ALSO silently broken the global `cxc`
+command via the npm-global symlink after the 07-07a `isMain` guard landed.
+
+Fix (audited, PASS-WITH-NOTES; scope extended by the audit): realpath-normalize BOTH
+sides with try/catch fallback in six component CLIs — cxc-ops, recall, skill-search,
+messenger-bridge (`invokedPath` pattern), config-guard, subagent-config (stricter
+`file://` string pattern, same bug) — plus `bin/codexclaw.mjs` `isMain`. The
+`spawn-attach-hook.ts` realpath guard was the in-repo precedent. provider-bridge and
+pabcd-state have no guard (always dispatch) and were unaffected. Affordance wording
+now names `$cxc-ast-grep` explicitly for syntax-shape search (pointer-only doctrine
+kept). Regression test: `map-affordance.test.ts` symlinks the compiled dist cli.js
+into a temp dir and asserts the envelope is emitted through the symlink.
+
+Verified: e2e via the actual plugin cache path from /tmp emits the 530-byte envelope;
+global `cxc status` works again; full `npm test` 797 pass (one stale
+`skills/repo-map/scripts/__pycache__` from an earlier non -B python run removed —
+the -B guard test caught it, which is that test doing its job).

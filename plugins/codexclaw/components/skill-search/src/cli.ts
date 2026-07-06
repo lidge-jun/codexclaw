@@ -207,10 +207,19 @@ export async function main(argv: string[], fetchText: FetchText = realFetch): Pr
 }
 
 // Direct-exec guard (cxc-ops pattern): run only as a script, not on import.
+// Realpath both sides so symlinked installs (plugin cache, npm global) still match.
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url)) {
+import { realpathSync } from "node:fs";
+function realOrSelf(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+}
+const invokedPath = process.argv[1] ? realOrSelf(resolve(process.argv[1])) : "";
+if (invokedPath === realOrSelf(fileURLToPath(import.meta.url))) {
   main(process.argv.slice(2)).then(
     (code) => process.exit(code),
     (err) => {

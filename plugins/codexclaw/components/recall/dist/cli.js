@@ -8,6 +8,7 @@
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { realpathSync } from "node:fs";
 import { searchChat, DEFAULT_DAYS, DEFAULT_LIMIT,                        } from "./chat-search.js";
 import { searchMemory, DEFAULT_MEMORY_LIMIT,                          } from "./memory-search.js";
 import { formatChatResult, formatMemoryResult, clipChatResultForJson } from "./format.js";
@@ -229,8 +230,16 @@ export function main(argv          )                           {
 }
 
 // Direct-exec guard: run only when invoked as a script, not when imported by tests.
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : "";
-const selfPath = fileURLToPath(import.meta.url);
+// Realpath both sides: symlinked installs (plugin cache, npm global) otherwise miss.
+function realOrSelf(p        )         {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+}
+const invokedPath = process.argv[1] ? realOrSelf(resolve(process.argv[1])) : "";
+const selfPath = realOrSelf(fileURLToPath(import.meta.url));
 if (invokedPath === selfPath) {
   Promise.resolve(main(process.argv.slice(2))).then(
     (code) => process.exit(code),

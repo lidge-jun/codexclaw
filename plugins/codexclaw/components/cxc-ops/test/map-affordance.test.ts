@@ -9,7 +9,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, symlinkSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -92,4 +93,24 @@ test("hook JSON wires SessionStart to the cxc-ops dist entry", () => {
   const hook = JSON.parse(readFileSync(hookPath, "utf8"));
   const cmd = hook.hooks.SessionStart[0].hooks[0].command;
   assert.match(cmd, /components\/cxc-ops\/dist\/cli\.js" hook session-start/);
+});
+
+test("direct-exec guard fires through a symlinked install path (plugin-cache regression)", () => {
+  // The real plugin cache reaches dist/cli.js through a symlinked components/ dir.
+  // A resolve()-only guard compares the symlink path against import.meta.url's real
+  // path and silently never runs main(). Prove the shipped dist works via a symlink.
+  const distCli = join(pluginRoot, "components", "cxc-ops", "dist", "cli.js");
+  assert.ok(existsSync(distCli), "dist/cli.js must exist (run the build first)");
+  const linkDir = tmp();
+  const link = join(linkDir, "cli-symlink.js");
+  symlinkSync(distCli, link);
+  const big = tmp();
+  seedSources(big, MAP_AFFORDANCE_MIN_FILES + 2);
+  const res = spawnSync(process.execPath, [link, "hook", "session-start"], {
+    input: JSON.stringify({ hook_event_name: "SessionStart", cwd: big }),
+    encoding: "utf8",
+  });
+  assert.equal(res.status, 0, `stderr: ${res.stderr}`);
+  assert.match(res.stdout, /additionalContext/, "symlink invocation must emit the envelope");
+  assert.match(res.stdout, /cxc map/, "envelope must carry the map pointer");
 });

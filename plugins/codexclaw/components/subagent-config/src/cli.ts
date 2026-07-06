@@ -14,6 +14,8 @@
  *                        [--prompt <text>|--clear-prompt]
  */
 import { readConfig, setRole, ROLES, EFFORTS, type RoleName, type RoleConfig, type EffortName } from "./store.ts";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 export interface ParsedSubagentsArgs {
   action: "list" | "get" | "set" | "help";
@@ -114,7 +116,22 @@ export function runSubagents(parsed: ParsedSubagentsArgs, cwd: string): Subagent
 }
 
 // CLI entry: argv = [node, cli.js, "subagents", ...rest].
-const isDirect = process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
+// Realpath both sides: symlinked installs (plugin cache, npm global) otherwise miss.
+const isDirect = (() => {
+  try {
+    if (process.argv[1] === undefined) return false;
+    const self = realpathSync(fileURLToPath(import.meta.url));
+    let invoked = process.argv[1];
+    try {
+      invoked = realpathSync(invoked);
+    } catch {
+      /* keep unresolved */
+    }
+    return self === invoked;
+  } catch {
+    return false;
+  }
+})();
 if (isDirect) {
   const [, , verb, ...rest] = process.argv;
   if (verb !== "subagents") {
