@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import {
   countSourceFiles,
   renderMapAffordance,
+  renderSkillSearchAffordance,
   runMapAffordanceSessionStart,
   MAP_AFFORDANCE_MIN_FILES,
 } from "../src/map-affordance.ts";
@@ -46,10 +47,14 @@ test("count skips vendored/build dirs and hidden dirs", () => {
   assert.equal(countSourceFiles(root), 5);
 });
 
-test("size gate: below threshold -> silent, at threshold -> affordance", () => {
+test("size gate: below threshold -> no map line (skill line only), at threshold -> map line", () => {
   const small = tmp();
   seedSources(small, MAP_AFFORDANCE_MIN_FILES - 1);
-  assert.equal(runMapAffordanceSessionStart("", small), "");
+  const smallOut = runMapAffordanceSessionStart("", small);
+  assert.notEqual(smallOut, "", "skill-search affordance is always on");
+  const smallEnv = JSON.parse(smallOut);
+  assert.doesNotMatch(smallEnv.hookSpecificOutput.additionalContext, /cxc map/);
+  assert.match(smallEnv.hookSpecificOutput.additionalContext, /cxc skill search/);
 
   const big = tmp();
   seedSources(big, MAP_AFFORDANCE_MIN_FILES);
@@ -58,6 +63,7 @@ test("size gate: below threshold -> silent, at threshold -> affordance", () => {
   const env = JSON.parse(out);
   assert.equal(env.hookSpecificOutput.hookEventName, "SessionStart");
   assert.match(env.hookSpecificOutput.additionalContext, /cxc map/);
+  assert.match(env.hookSpecificOutput.additionalContext, /cxc skill search/);
 });
 
 test("affordance is a POINTER, not the map body (no preload)", () => {
@@ -66,6 +72,14 @@ test("affordance is a POINTER, not the map body (no preload)", () => {
   assert.match(text, /stateless one-shot/);
   // must not embed a map / rank listing — a pointer stays short and generic.
   assert.doesNotMatch(text, /Rank value|:\d+:/);
+  assert.ok(text.length < 600, "affordance must stay a one-liner-ish pointer");
+});
+
+test("skill-search affordance is a POINTER: names both commands, stays short", () => {
+  const text = renderSkillSearchAffordance();
+  assert.match(text, /cxc skill search/);
+  assert.match(text, /cxc skill show/);
+  assert.match(text, /cxc-dev/, "must state that built-in discipline wins on conflict");
   assert.ok(text.length < 600, "affordance must stay a one-liner-ish pointer");
 });
 
@@ -78,13 +92,18 @@ test("cwd is read from the stdin payload; malformed stdin falls back safely", ()
     JSON.stringify({ hook_event_name: "SessionStart", cwd: big }),
     empty,
   );
-  assert.notEqual(viaStdin, "", "cwd from stdin should clear the gate");
+  assert.match(
+    JSON.parse(viaStdin).hookSpecificOutput.additionalContext,
+    /cxc map/,
+    "cwd from stdin should clear the map gate",
+  );
 
   // malformed stdin -> uses fallback cwd (the big repo) -> still fires, no throw
   const viaFallback = runMapAffordanceSessionStart("{not json", big);
-  assert.notEqual(viaFallback, "");
-  // empty stdin + small fallback -> silent, no throw
-  assert.equal(runMapAffordanceSessionStart("", empty), "");
+  assert.match(JSON.parse(viaFallback).hookSpecificOutput.additionalContext, /cxc map/);
+  // empty stdin + small fallback -> no map line, skill line still present, no throw
+  const smallOut = runMapAffordanceSessionStart("", empty);
+  assert.doesNotMatch(JSON.parse(smallOut).hookSpecificOutput.additionalContext, /cxc map/);
 });
 
 test("hook JSON wires SessionStart to the cxc-ops dist entry", () => {

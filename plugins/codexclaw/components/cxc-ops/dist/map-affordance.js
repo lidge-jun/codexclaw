@@ -91,9 +91,25 @@ export function renderMapAffordance(fileCount        )         {
 }
 
 /**
+ * One-line skill-search affordance (same pointer-not-payload policy as the map
+ * affordance): external skill catalogs exist and are searchable on demand. Always
+ * on — unlike the map, its usefulness does not depend on repo size, and the cost
+ * is one sentence per session.
+ */
+export function renderSkillSearchAffordance()         {
+  return [
+    "[codexclaw] External skill catalogs (cli-jaw registry, hermes, clawhub) are",
+    "searchable on demand: when a task needs a capability or domain workflow you do",
+    "not have loaded, run `cxc skill search <query>` first, then `cxc skill show <id>`",
+    "to load it (adapter preamble applies; cxc-dev discipline wins on conflict).",
+  ].join(" ");
+}
+
+/**
  * SessionStart handler. Reads the hook JSON payload from stdin (for `cwd`), counts
- * source files, and returns the SessionStart envelope string (with a trailing
- * newline) when the repo clears the size gate, else "" (silent). Never throws.
+ * source files, and returns ONE SessionStart envelope combining the affordance
+ * lines: the map pointer (size-gated) plus the skill-search pointer (always on).
+ * Never throws.
  */
 export function runMapAffordanceSessionStart(stdin        , fallbackCwd        )         {
   let cwd = fallbackCwd;
@@ -110,13 +126,15 @@ export function runMapAffordanceSessionStart(stdin        , fallbackCwd        )
   try {
     count = countSourceFiles(cwd);
   } catch {
-    return ""; // walk blew up somehow -> stay silent
+    count = 0; // walk blew up somehow -> skip the map line, keep the skill line
   }
-  if (count < MAP_AFFORDANCE_MIN_FILES) return ""; // small repo -> no affordance
+  const lines           = [];
+  if (count >= MAP_AFFORDANCE_MIN_FILES) lines.push(renderMapAffordance(count));
+  lines.push(renderSkillSearchAffordance());
   const envelope = {
     hookSpecificOutput: {
       hookEventName: "SessionStart",
-      additionalContext: renderMapAffordance(count),
+      additionalContext: lines.join("\n\n"),
     },
   };
   return `${JSON.stringify(envelope)}\n`;
