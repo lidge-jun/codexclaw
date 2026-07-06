@@ -44,6 +44,16 @@ the failing delta → re-verify.
 - **HEURISTIC (LOOP-DOOM-01):** 3 attestation failures in the same phase within one
   work-phase → treat as no-progress and force an Interview return. Self-applied for now;
   server-side enforcement is recorded as backlog.
+- **DEFAULT (REVIEW-SYNTHESIS-01):** after a reviewer/verifier FAIL verdict, the main
+  session records a synthesis BEFORE re-patching or re-dispatching: per-blocker root
+  cause, conflicts between blockers (and against the standing plan), and an explicit
+  accept/rebut decision per point. Mechanically patching each reviewer comment and
+  throwing it back ("patch-to-reviewer") is a retry, not a loop — a re-dispatch without
+  synthesis counts as a failed repair under LOOP-REPAIR-01. E7 guidance (agent-followed,
+  not hook-enforced). Lineage: jawcode devlog `260615_pabcd_synthesis_review_loops`
+  (design-note lineage, not production-validated). Reviewer lifecycle across rounds is
+  owned by `structure/20_pabcd_dispatch_doctrine.md` §3 (DISPATCH-ACTOR-01 /
+  DISPATCH-RETIRE-01).
 
 ### §11.4 Loop archetype by problem type (DEFAULT, LOOP-ARCHETYPE-01)
 

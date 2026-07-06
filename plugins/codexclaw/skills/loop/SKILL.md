@@ -209,6 +209,16 @@ a retry, not a loop.
   one work-phase means no-progress. In HITL, return to Interview. In HOTL, do not
   fake Interview while a goal is active; either replan at P from the evidence already
   available, or close the work-phase as `NEEDS_HUMAN`, `BLOCKED`, or `UNSAFE`.
+- **REVIEW-SYNTHESIS-01 (pointer):** after a reviewer/verifier FAIL, record the
+  synthesis (per-blocker RCA, cross-blocker conflicts, accept/rebut decisions) before
+  re-patching or re-dispatching; a synthesis-free re-dispatch counts as a failed repair
+  under LOOP-REPAIR-01. Canonical wording: `cxc-pabcd` §11.3.
+- **Reviewer reuse across repair rounds (pointer):** blocker-closure re-verification
+  rounds reuse the SAME reviewer — `send_input` if alive, `resume_agent` if closed —
+  passing the synthesis plus a change-diff summary so the reviewer keeps its context.
+  The final C adversarial gate (or any contaminated reviewer) gets a fresh reviewer or
+  a direct independent audit instead. Normative lifecycle rules: DISPATCH-ACTOR-01 /
+  DISPATCH-RETIRE-01 in `structure/20_pabcd_dispatch_doctrine.md` §3.
 
 ## Loop archetype by problem type (LOOP-ARCHETYPE-01)
 

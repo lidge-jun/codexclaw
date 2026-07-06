@@ -104,6 +104,24 @@ codexclaw translation:
   plan into every worker task. codexclaw has no server, so the main agent must inline
   the relevant plan/context into the spawn message — a subagent must never reconstruct
   the plan from a thin task description.
+- **DISPATCH-ACTOR-01 (reuse).** Follow-up rounds in the same role and work context
+  reuse the existing agent instead of spawning fresh: `send_input` while it is alive,
+  `resume_agent` after it closed. The point is context preservation — the reviewer or
+  worker keeps what it already read. Do NOT justify reuse with "same provider = prompt
+  cache reuse"; that assumption was tested and rejected in the jawcode lineage
+  (`../jawcode/devlog/_fin/260614_subagent_cache_actor_lifecycle/95_d_cycle2_done_summary.md`,
+  implementation-verified). Carve-out: the final C adversarial gate — and any reviewer
+  that has already shaped the fix through synthesis rounds — gets a FRESH reviewer or a
+  direct independent file:line audit, so anchoring never grades its own influence.
+- **DISPATCH-RETIRE-01 (fresh-spawn fallback).** This is the exception to the reuse
+  default above: an agent id that failed (error, timeout, unresponsive, nonsense
+  output) is retired, not nursed. At most ONE retry against the same id; then
+  `close_agent` and fresh-spawn with the failure summary folded into the new TASK
+  packet. Repeated `send_input`/`resume_agent` against a broken id is a broken-resume
+  loop — the dispatch analogue of LOOP-REPAIR-01's doom loop. Lineage:
+  `../jawcode/devlog/_plan/260616_actor_fresh_fallback/_fin/00_moc.md`
+  (implementation-verified). Both rules are E7 doctrine (agent-followed); no hook
+  observes agent lifecycles.
 
 ---
 
