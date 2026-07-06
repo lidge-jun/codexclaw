@@ -357,10 +357,15 @@ action item that prevents the same class of bug from recurring.
 
 | File | When to Read | What It Covers |
 |------|-------------|----------------|
-| `references/methodologies.md` | When choosing a debugging approach | Five Whys, bisection, differential diagnosis, subtraction, rubber duck, systematic logging |
-| `references/async-debugging.md` | When debugging concurrency issues | Race conditions, deadlocks, event loop blocking, promise/callback issues |
-| `references/tool-guides.md` | When you need stack-specific debugger commands | Node.js inspector, Python pdb/debugpy, Chrome DevTools, git bisect, database EXPLAIN |
-| `references/postmortem-template.md` | After resolving a significant incident | Blameless postmortem template with filled example |
+| `references/methodologies.md` | Choosing a debug approach | Five Whys, bisection, differential diagnosis, subtraction, systematic logging |
+| `references/async-debugging.md` | Concurrency issues | Race conditions, deadlocks, event loop blocking, promise/callback |
+| `references/tool-guides.md` | Quick cheatsheet | Node inspector basics, pdb basics, Chrome DevTools, git bisect, DB EXPLAIN |
+| `references/postmortem-template.md` | After resolving a significant incident | Blameless postmortem template |
+| `references/runtimes/node.md` | Node.js / tsx / Bun / Deno | Phase 0 detection, tsx source-map trap, launch recipes, `exec()` patterns, silent-failure table, cleanup |
+| `references/runtimes/python.md` | Python (CPython 3.9+) | Attach methods, pdb/ipdb/pudb, pytest, asyncio gotchas, PEP 768 safe attach, py-spy/memray, silent-failures |
+| `references/runtimes/rust.md` | Rust | Hierarchy (dbg! -> RUST_LOG -> backtrace -> gdb/lldb -> tokio-console -> cargo-expand), Miri UB, silent-failures |
+| `references/runtimes/go.md` | Go | Delve launch/attach, goroutine patterns, race detector, pprof, GODEBUG, silent-failures |
+| `references/tools/playwright.md` | Browser/web-surface bugs | codegen repro, PWDEBUG, trace viewer, console/network listeners, viewport gotchas |
 
 ---
 

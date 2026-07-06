@@ -392,4 +392,48 @@ Run IN ADDITION to the normal process when the diff is substantially AI-generate
 
 **Agentic/security trigger (DEFAULT):** PRs adding MCP servers, tools, agents, RAG, persistent memory, or delegated credentials invoke `dev-security` and map risks to OWASP LLM Top 10 (2025) + Top 10 for Agentic Applications 2026.
 
+### AI Slop Cleanup Checklist (REVIEW-SLOP-01)
+
+When the review targets a post-implementation cleanup pass (user asks to "remove
+slop", "clean AI code", "deslop"), or the reviewer catches >=3 slop items during
+normal review, apply the full checklist below. Safety invariant: **lock behavior
+with green tests BEFORE removing any code.** Lineage: lazycodex
+`remove-ai-slops` 9-category taxonomy, adapted for single-reviewer review (no
+parallel agent swarm needed). E7 discipline.
+
+**Stylistic**
+1. Obvious comments — restating code, trivial docstrings, section dividers,
+   commented-out code, vague TODOs. KEEP: why-comments (business logic, edge
+   cases, workarounds), ticket links, regex/algorithm explanations.
+2. Over-defensive code — null checks for guaranteed values, try/except around
+   non-raising code, isinstance checks for statically typed params, broad
+   `except Exception`/empty `catch {}`. KEEP: validation at system boundaries,
+   I/O error handling, nullable DB fields. Refactor: narrow the catch to the
+   expected exception.
+3. Excessive complexity — deep nesting (>3), nested ternaries, >5 params
+   without struct, god functions (>50L doing many things), if/elif chains for
+   type/enum discrimination (use `match/case` + exhaustive check), `object` as
+   type annotation (use `Protocol`/`TypeVar`/union).
+
+**Structural**
+4. Needless abstraction — pass-through wrappers, single-use helpers, speculative
+   indirection, interfaces with one implementer and no testability win.
+5. Boundary violations — wrong-layer imports (UI importing DB driver), handler
+   doing business logic, hidden coupling, side effects in pure-named functions.
+   Delegate placement to `dev-architecture` §4.
+6. Oversized modules — >250 pure LOC (excluding tests, types, imports) is a
+   slop-cleanup review smell, not a split mandate; `dev-architecture` §4 owns
+   the canonical >400 LOC split threshold. Flag for review; do not just rename.
+
+**Hidden cost**
+7. Performance equivalences — O(n^2) loops where O(n) exists, repeated
+   computation easily cached, unbounded allocations in hot paths. Profile first
+   for cold paths.
+8. Scope leaks — mutable global state, singletons disguised as modules, env
+   reads scattered (centralize to config boundary).
+
+**Coverage**
+9. Missing behavior tests — changed paths with no test coverage. A checklist
+   alone is not safety; a passing regression test is.
+
 ---
