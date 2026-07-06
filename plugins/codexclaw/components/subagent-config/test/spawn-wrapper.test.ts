@@ -73,7 +73,7 @@ test("buildSpawnPayload: model override is applied for a model-mode resolution",
   const payload = buildSpawnPayload({
     role: "reviewer",
     task: "review the diff",
-    resolution: { role: "reviewer", model: "grok-4", usesMainModel: false, promptOverride: null },
+    resolution: { role: "reviewer", model: "grok-4", usesMainModel: false, effort: null, promptOverride: null },
     developerInstructions: "Role: reviewer.",
   });
   assert.equal(payload.agent_type, "explorer");
@@ -86,18 +86,38 @@ test("buildSpawnPayload: default mode OMITS the model key (inherit main model)",
   const payload = buildSpawnPayload({
     role: "explorer",
     task: "find X",
-    resolution: { role: "explorer", model: null, usesMainModel: true, promptOverride: null },
+    resolution: { role: "explorer", model: null, usesMainModel: true, effort: null, promptOverride: null },
     developerInstructions: "Role: explorer.",
   });
   assert.equal(payload.agent_type, "explorer");
   assert.ok(!("model" in payload), "default mode must not set a model key");
 });
 
+test("buildSpawnPayload: effort override rides any mode; null effort omits the key", () => {
+  const withEffort = buildSpawnPayload({
+    role: "explorer",
+    task: "find X",
+    resolution: { role: "explorer", model: null, usesMainModel: true, effort: "high", promptOverride: null },
+    developerInstructions: "Role: explorer.",
+  });
+  assert.equal(withEffort.reasoning_effort, "high");
+  assert.ok(!("model" in withEffort), "effort is independent of the model key");
+
+  const withBoth = buildSpawnPayload({
+    role: "executor",
+    task: "build X",
+    resolution: { role: "executor", model: "gpt-5.4-mini", usesMainModel: false, effort: "xhigh", promptOverride: null },
+    developerInstructions: "Role: executor.",
+  });
+  assert.equal(withBoth.model, "gpt-5.4-mini");
+  assert.equal(withBoth.reasoning_effort, "xhigh");
+});
+
 test("buildSpawnPayload: promptOverride REPLACES the TOML developer_instructions", () => {
   const payload = buildSpawnPayload({
     role: "executor",
     task: "apply patch",
-    resolution: { role: "executor", model: null, usesMainModel: true, promptOverride: "CUSTOM PROMPT" },
+    resolution: { role: "executor", model: null, usesMainModel: true, effort: null, promptOverride: "CUSTOM PROMPT" },
     developerInstructions: "Role: executor (TOML body).",
   });
   assert.equal(payload.agent_type, "worker");
@@ -109,7 +129,7 @@ test("buildSpawnPayload: empty prompt + empty task still yields a TASK: message"
   const payload = buildSpawnPayload({
     role: "explorer",
     task: "",
-    resolution: { role: "explorer", model: null, usesMainModel: true, promptOverride: null },
+    resolution: { role: "explorer", model: null, usesMainModel: true, effort: null, promptOverride: null },
     developerInstructions: "",
   });
   assert.equal(payload.message, "TASK: ");

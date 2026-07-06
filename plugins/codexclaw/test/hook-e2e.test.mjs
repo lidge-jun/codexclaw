@@ -389,8 +389,12 @@ test("WP1: pre-tool-use spawn-attach hook e2e - always-on mention rewrite; items
   const ep = snapshotEntrypoint(distAbs);
   assert.ok(ep, "subagent-config dist entrypoint must settle (vacuous skip is a test bug)");
   const skillsEnv = { CODEXCLAW_SKILLS_DIR: join(pluginRoot, "skills") };
+  // Isolated cwd: the repo root carries a real .codexclaw/subagents.json (model mode),
+  // and the hook intentionally injects `model` even when items are present. This test
+  // covers the MENTION channel only, so run it from a config-free tmp dir.
+  const isolatedCwd = mkdtempSync(join(tmpdir(), "ccx-spawn-e2e-"));
   const payload = {
-    hook_event_name: "PreToolUse", session_id: "s1", cwd: process.cwd(),
+    hook_event_name: "PreToolUse", session_id: "s1", cwd: isolatedCwd,
     tool_name: "spawn_agent",
     tool_input: { message: "review the frontend diff", agent_type: "explorer" },
   };

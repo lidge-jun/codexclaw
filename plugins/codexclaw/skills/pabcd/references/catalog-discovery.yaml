@@ -1,0 +1,288 @@
+# Catalog Discovery — option ontology for the PABCD Interview (design/UX-first).
+#
+# WHAT THIS IS: a versioned menu of app-building choices that the `catalog_discovery`
+# interview sub-mode presents to a novice who does not yet know the option space.
+#
+# LOAD-BEARING INVARIANT: design/UX LEADS. `axis_order` is ascending by stage;
+# Stage 1 (design) is asked FIRST, Stage 2 (domain) second, and Stage 3 (feature/
+# data/security/ops/cost) entries DERIVE from the Stage 1+2 answers (`derived_from`).
+#
+# SCOPE NOTE (audit fix #2): this YAML encodes derivation INPUTS + dependency metadata.
+# It does NOT execute derivation. The agent procedure (which questions to ask, in what
+# order, how to resolve `implies`/`derived_from`) lives in dev-pabcd SKILL.md prose.
+# Automated runtime filtering is out of scope and would escalate to code.
+version: 1
+last-verified: 2026-07-04
+
+# Ascending stage order. A conforming consumer MUST iterate this ascending and MUST NOT
+# present a stage until all earlier stages are answered (enforced by SKILL.md prose).
+axis_order:
+  - {stage: 1, axis: design,   label_ko: "디자인/UX",    note: "asked FIRST — most important"}
+  - {stage: 2, axis: domain,   label_ko: "앱 유형",       note: "what kind of app"}
+  - {stage: 3, axis: feature,  label_ko: "기능",          derived: true}
+  - {stage: 3, axis: data,     label_ko: "데이터",        derived: true}
+  - {stage: 3, axis: security, label_ko: "보안/개인정보",  derived: true}
+  - {stage: 3, axis: ops,      label_ko: "운영/자동화",    derived: true}
+  - {stage: 3, axis: cost,     label_ko: "비용/복잡도",    derived: true}
+
+# Design methodology wiring (from dev-uiux-design). Step 1 = Product-Personality Selection.
+design_methodology:
+  primary: product_personality_selection
+  ref: "skills/dev-uiux-design/SKILL.md"
+  followups:
+    - step: korean_request_translation  # dev-uiux-design §3 — map Korean adjectives to design tokens
+    - step: reference_discovery         # dev-uiux-design §1 Step 6 — anchor with existing product visuals
+    - step: design_read                 # dev-uiux-design §2 — full Design Read for production-ready dials
+
+# ============================================================================
+# STAGE 1 — DESIGN (6 dials, leading). Each is `required` and carries structured
+# `question_options` so the interview never improvises design questions (audit fix #4).
+# ============================================================================
+entries:
+  - id: design.mood
+    axis: design
+    stage: 1
+    required: true
+    label: {ko: "분위기", en: "Mood"}
+    teach_text:
+      ko: "앱을 열었을 때의 첫인상과 감성적 온도. 아늑한 카페 vs 유리 사무실 vs 럭셔리 쇼룸처럼 색과 서체가 경험을 예고합니다."
+      en: "The first impression and emotional temperature when the app opens — like a cozy cafe vs a glass office vs a luxury showroom."
+    examples: {ko: "Toss(친근), Stripe(세련)", en: "Toss (friendly), Stripe (refined)"}
+    question_options:
+      - {value: friendly,  label_ko: "친근하고 따뜻한",  tradeoff_ko: "접근성↑ 신뢰감은 별도 장치 필요", implies_token: "warm palette / rounded"}
+      - {value: refined,   label_ko: "세련되고 프리미엄", tradeoff_ko: "고급감↑ 캐주얼한 친밀감은↓",      implies_token: "muted palette / sharp"}
+      - {value: mystical,  label_ko: "신비롭고 몰입적",  tradeoff_ko: "테마 몰입↑ 정보 명료성 주의",     implies_token: "dark cosmic palette"}
+    token_hint: "personality/palette branch"
+
+  - id: design.lightness
+    axis: design
+    stage: 1
+    required: true
+    label: {ko: "밝기", en: "Lightness"}
+    teach_text:
+      ko: "화면의 기본 톤. 밝은 모드는 대낮의 종이책처럼 명료하고, 어두운 모드는 밤의 네온사인처럼 몰입적·집중적입니다."
+      en: "The base tone — light is a paper book in daylight; dark is a neon sign at night, immersive and focused."
+    examples: {ko: "Notion(라이트), Linear(다크)", en: "Notion (light), Linear (dark)"}
+    question_options:
+      - {value: light, label_ko: "밝은 모드", tradeoff_ko: "가독성·정돈감↑", implies_token: "bg-white / text-gray-900"}
+      - {value: dark,  label_ko: "어두운 모드", tradeoff_ko: "몰입·피로도↓, 대비 설계 필요", implies_token: "bg-gray-950 / text-gray-100"}
+    token_hint: "theme lightness"
+
+  - id: design.density
+    axis: design
+    stage: 1
+    required: true
+    label: {ko: "정보 밀도", en: "Density"}
+    teach_text:
+      ko: "한 화면에 담는 정보량과 여백. 여유로운 밀도는 미술관처럼 한 콘텐츠에 집중시키고, 높은 밀도는 조종석처럼 많은 정보를 한눈에 비교하게 합니다."
+      en: "How much fits on one screen — spacious like a museum vs dense like a cockpit."
+    examples: {ko: "Apple(여유), GitHub(빽빽)", en: "Apple (spacious), GitHub (dense)"}
+    question_options:
+      - {value: spacious, label_ko: "여유롭게",  tradeoff_ko: "초보 친화↑ 스크롤↑", implies_token: "py-8 / gap-8 (D1-D3)"}
+      - {value: dense,    label_ko: "정보 밀집", tradeoff_ko: "숙련자 효율↑ 첫인상 복잡", implies_token: "py-1 / gap-1 (D4-D8)"}
+    token_hint: "visual density scale"
+
+  - id: design.shape
+    axis: design
+    stage: 1
+    required: true
+    label: {ko: "모서리 곡률", en: "Shape"}
+    teach_text:
+      ko: "버튼·카드의 둥글기. 각진 형태는 설계도처럼 정밀·구조적이고, 둥근 형태는 젤리처럼 친근·캐주얼합니다."
+      en: "Corner roundness — sharp reads structural/precise, soft reads friendly/casual."
+    examples: {ko: "Toss(둥긂), Vercel(각짐)", en: "Toss (rounded), Vercel (sharp)"}
+    question_options:
+      - {value: rounded, label_ko: "둥근 형태", tradeoff_ko: "친근함↑", implies_token: "rounded-2xl (16px+)"}
+      - {value: sharp,   label_ko: "각진 형태", tradeoff_ko: "정밀·기술감↑", implies_token: "rounded-none/md (0-6px)"}
+    token_hint: "border radius"
+
+  - id: design.typography
+    axis: design
+    stage: 1
+    required: true
+    label: {ko: "글꼴 스타일", en: "Typography"}
+    teach_text:
+      ko: "서체 종류와 대비. 명조/서예체는 역사·문학적 깊이를 주지만 모바일 가독성 주의가 필요하고, 고딕체는 가독성이 안정적입니다."
+      en: "Typeface character — serif adds literary depth (watch mobile legibility); sans is reliably legible."
+    examples: {ko: "Stripe(우아), Notion(가독)", en: "Stripe (elegant), Notion (legible)"}
+    question_options:
+      - {value: serif, label_ko: "명조/서예체", tradeoff_ko: "감성·깊이↑ 좁은 화면 가독성 주의", implies_token: "Serif display"}
+      - {value: sans,  label_ko: "고딕체",      tradeoff_ko: "가독성 안정↑ 전통미↓",           implies_token: "Pretendard/sans"}
+    token_hint: "font family"
+
+  - id: design.motion
+    axis: design
+    stage: 1
+    required: true
+    label: {ko: "인터랙션 감도", en: "Motion"}
+    teach_text:
+      ko: "호버·전환 시 움직임의 반응. 부드러운 스프링은 감성·고급감을 주고, 즉시 반응은 빠르고 명료한 조작감을 줍니다."
+      en: "Motion feel — soft spring reads premium; instant reads fast and clear."
+    examples: {ko: "Apple(스프링), Linear(즉시)", en: "Apple (spring), Linear (instant)"}
+    question_options:
+      - {value: spring,  label_ko: "부드러운 스프링", tradeoff_ko: "고급감↑ 체감 속도↓", implies_token: "spring easing"}
+      - {value: instant, label_ko: "즉각 반응",       tradeoff_ko: "속도·명료성↑ 감성↓", implies_token: "instant/linear"}
+    token_hint: "motion tempo"
+
+  # ==========================================================================
+  # STAGE 2 — DOMAIN (app-type ontology). Chosen after design; seeds derived defaults.
+  # ==========================================================================
+  - id: domain.content_service
+    axis: domain
+    stage: 2
+    label: {ko: "콘텐츠 서비스", en: "Content service"}
+    teach_text:
+      ko: "사용자에게 해석·콘텐츠·결과를 제공하는 앱 (예: 사주·운세, 블로그, 미디어)."
+      en: "Serves interpretations/content/results (e.g. saju/fortune, blog, media)."
+    examples: {ko: "사주 앱, 운세, 뉴스", en: "Saju app, horoscope, news"}
+    implies: []
+  - id: domain.marketplace
+    axis: domain
+    stage: 2
+    label: {ko: "마켓플레이스", en: "Marketplace"}
+    teach_text: {ko: "판매자와 구매자를 연결하는 거래 앱.", en: "Connects sellers and buyers."}
+    examples: {ko: "당근, 쿠팡", en: "Danggeun, Coupang"}
+    implies: [feature.payments]
+  - id: domain.dashboard
+    axis: domain
+    stage: 2
+    label: {ko: "대시보드", en: "Dashboard"}
+    teach_text: {ko: "데이터를 모아 지표로 보여주는 관리·분석 앱.", en: "Aggregates data into metrics."}
+    examples: {ko: "Datadog, Stripe Dashboard", en: "Datadog, Stripe"}
+    implies: [security.auth]
+  - id: domain.booking
+    axis: domain
+    stage: 2
+    label: {ko: "예약", en: "Booking"}
+    teach_text: {ko: "시간·자원 예약을 관리하는 앱.", en: "Manages time/resource reservations."}
+    examples: {ko: "네이버 예약, Calendly", en: "Naver Booking, Calendly"}
+    implies: [ops.scheduled_jobs]
+  - id: domain.community
+    axis: domain
+    stage: 2
+    label: {ko: "커뮤니티", en: "Community"}
+    teach_text: {ko: "사용자 게시물·상호작용 중심 앱.", en: "User posts and interaction."}
+    examples: {ko: "Reddit, 디시", en: "Reddit, DCinside"}
+    implies: [data.user_generated, ops.admin_review]
+  - id: domain.ai_agent
+    axis: domain
+    stage: 2
+    label: {ko: "AI 에이전트", en: "AI agent"}
+    teach_text: {ko: "AI가 핵심 가치를 만드는 앱.", en: "AI is the core value."}
+    examples: {ko: "ChatGPT, Perplexity", en: "ChatGPT, Perplexity"}
+    implies: [cost.infra_complexity]
+  - id: domain.internal_tool
+    axis: domain
+    stage: 2
+    label: {ko: "내부 도구", en: "Internal tool"}
+    teach_text: {ko: "팀 내부 업무를 처리하는 도구.", en: "Handles internal team workflows."}
+    examples: {ko: "Retool, Notion", en: "Retool, Notion"}
+    implies: [security.auth]
+
+  # ==========================================================================
+  # STAGE 3 — DERIVED. Each carries `derived_from` (Stage 1/2 ids) so the interview
+  # surfaces it FROM earlier answers rather than as a flat list.
+  # ==========================================================================
+  - id: security.pii_protection
+    axis: security
+    stage: 3
+    derived_from: [domain.content_service, domain.community]
+    label: {ko: "개인정보 보호", en: "Personal data protection"}
+    teach_text:
+      ko: "생년월일·위치 등 민감정보를 수집하면 암호화·접근통제·보존정책이 필요합니다. 사주 앱의 생시(生時)가 대표적입니다."
+      en: "Collecting birthdays/locations requires encryption, access control, retention policy."
+    examples: {ko: "건강 앱, 사주 앱", en: "Health apps, fortune apps"}
+    implies: [data.retention_policy, ops.scheduled_jobs]
+    risk_class: high
+    cost_class: 2
+    auto_activate_rules: ["생년월일", "생시", "birth", "사주", "personal", "위치"]
+  - id: security.auth
+    axis: security
+    stage: 3
+    derived_from: [domain.dashboard, domain.internal_tool, feature.payments]
+    label: {ko: "인증/로그인", en: "Authentication"}
+    teach_text: {ko: "사용자를 식별하고 세션을 안전하게 유지합니다.", en: "Identify users and keep sessions safe."}
+    examples: {ko: "OAuth, 이메일 로그인", en: "OAuth, email login"}
+    risk_class: high
+    cost_class: 2
+  - id: data.retention_policy
+    axis: data
+    stage: 3
+    derived_from: [security.pii_protection]
+    label: {ko: "보존/파기 정책", en: "Retention policy"}
+    teach_text: {ko: "회원 탈퇴·미접속 시 개인정보를 언제 파기할지 정합니다.", en: "When to delete personal data on churn/inactivity."}
+    examples: {ko: "탈퇴 즉시 파기, 1년 미접속 파기", en: "Delete on churn, 1yr-inactive purge"}
+    implies: [ops.scheduled_jobs]
+    risk_class: high
+    cost_class: 1
+    auto_activate_rules: ["파기", "탈퇴", "retention", "보존"]
+  - id: data.user_generated
+    axis: data
+    stage: 3
+    derived_from: [domain.community, domain.marketplace]
+    label: {ko: "사용자 생성 콘텐츠", en: "User-generated content"}
+    teach_text: {ko: "사용자가 올리는 글·이미지의 저장·검증·신고 처리가 필요합니다.", en: "Store/validate/moderate user uploads."}
+    examples: {ko: "게시판, 리뷰", en: "Boards, reviews"}
+    implies: [ops.admin_review]
+    risk_class: medium
+    cost_class: 2
+  - id: feature.payments
+    axis: feature
+    stage: 3
+    derived_from: [domain.marketplace, domain.content_service]
+    label: {ko: "결제", en: "Payments"}
+    teach_text: {ko: "유료 기능·구독을 받으면 PCI·환불·정산 흐름이 필요합니다.", en: "Charging requires PCI/refund/settlement flows."}
+    examples: {ko: "구독, 인앱결제", en: "Subscription, IAP"}
+    implies: [security.auth]
+    risk_class: high
+    cost_class: 3
+    auto_activate_rules: ["결제", "구독", "payment", "유료"]
+  - id: feature.notifications
+    axis: feature
+    stage: 3
+    derived_from: [domain.content_service, domain.booking]
+    label: {ko: "알림", en: "Notifications"}
+    teach_text: {ko: "푸시·이메일 알림은 발송 스케줄과 대기열이 필요합니다 (예: 매일 '오늘의 사주').", en: "Push/email needs scheduling + queues."}
+    examples: {ko: "오늘의 운세 푸시", en: "Daily fortune push"}
+    implies: [ops.scheduled_jobs]
+    risk_class: low
+    cost_class: 2
+    auto_activate_rules: ["알림", "푸시", "notification", "매일"]
+  - id: ops.scheduled_jobs
+    axis: ops
+    stage: 3
+    derived_from: [feature.notifications, data.retention_policy, security.pii_protection, domain.booking]
+    label: {ko: "예약 작업", en: "Scheduled jobs"}
+    teach_text: {ko: "지정 시간에 자동 실행되는 백그라운드 작업 (예: 매일 오전 8시 알림, 자정 데이터 정리).", en: "Time-triggered background routines."}
+    examples: {ko: "cron, 스케줄러", en: "cron, scheduler"}
+    implies: [ops.task_queues]
+    risk_class: low
+    cost_class: 2
+    auto_activate_rules: ["cron", "schedule", "매일", "정기"]
+  - id: ops.task_queues
+    axis: ops
+    stage: 3
+    derived_from: [ops.scheduled_jobs]
+    label: {ko: "작업 큐", en: "Task queues"}
+    teach_text: {ko: "무거운 작업을 비동기로 처리하는 대기열.", en: "Async queue for heavy work."}
+    examples: {ko: "BullMQ, SQS", en: "BullMQ, SQS"}
+    risk_class: low
+    cost_class: 2
+  - id: ops.admin_review
+    axis: ops
+    stage: 3
+    derived_from: [data.user_generated, domain.community]
+    label: {ko: "관리자 검수", en: "Admin review"}
+    teach_text: {ko: "게시물 승인·신고 처리를 위한 관리자 화면과 흐름.", en: "Admin surface for approval/moderation."}
+    examples: {ko: "신고 처리, 승인 대기", en: "Report handling, approval queue"}
+    risk_class: medium
+    cost_class: 2
+  - id: cost.infra_complexity
+    axis: cost
+    stage: 3
+    derived_from: [domain.ai_agent, feature.payments, ops.scheduled_jobs]
+    label: {ko: "인프라 복잡도", en: "Infra complexity"}
+    teach_text: {ko: "선택한 기능들이 만드는 운영·비용 부담의 총합 지표.", en: "Roll-up of ops/cost burden from chosen features."}
+    examples: {ko: "GPU 비용, 다중 서비스", en: "GPU cost, multi-service"}
+    risk_class: medium
+    cost_class: 3

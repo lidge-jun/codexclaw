@@ -14,6 +14,32 @@ import {
 } from "./handlers.ts";
 import { detectOcx } from "../../../components/provider-bridge/src/detect.ts";
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+
+/**
+ * Resolve the PROJECT root whose `.codexclaw/` this dashboard manages. The vite dev
+ * server runs from `plugins/codexclaw/gui/`, so bare `process.cwd()` would silently
+ * read/write `gui/.codexclaw/` — a store no spawn-time hook ever looks at (the hook
+ * resolves against the codex session cwd). Resolution order: CODEXCLAW_ROOT override,
+ * else the nearest ancestor with `.git/` (the real project boundary — hook-state
+ * `.codexclaw/` dirs can appear at incidental depths, e.g. plugins/codexclaw/, and
+ * must not capture the walk), else the nearest ancestor with `.codexclaw/`, else the
+ * start dir.
+ */
+export function resolveProjectRoot(start: string = process.cwd(), env: NodeJS.ProcessEnv = process.env): string {
+  const override = typeof env.CODEXCLAW_ROOT === "string" ? env.CODEXCLAW_ROOT.trim() : "";
+  if (override.length > 0) return override;
+  let firstCodexclaw: string | null = null;
+  let dir = start;
+  for (;;) {
+    if (existsSync(join(dir, ".git"))) return dir;
+    if (firstCodexclaw === null && existsSync(join(dir, ".codexclaw"))) firstCodexclaw = dir;
+    const parent = dirname(dir);
+    if (parent === dir) return firstCodexclaw ?? start; // filesystem root reached
+    dir = parent;
+  }
+}
 
 // Real ocx detection deps for the dev server (detect-only).
 function detectDeps() {
@@ -42,7 +68,7 @@ function send(res: import("node:http").ServerResponse, status: number, body: unk
 export function codexclawApiMiddleware(): Connect.NextHandleFunction {
   return (req, res, next) => {
     const url = req.url ?? "";
-    const cwd = process.cwd();
+    const cwd = resolveProjectRoot();
     if (!url.startsWith("/api/")) return next();
 
     if (url === "/api/subagents" && req.method === "GET") {

@@ -17,7 +17,8 @@ import {
   parseQuestions,
   parseAnswers,
 } from "../src/interview-ledger.ts";
-import { handlePostToolUse, type PostToolUsePayload } from "../src/hook.ts";
+import { handlePostToolUse, RESCAN_REINJECT_DIRECTIVE, type PostToolUsePayload } from "../src/hook.ts";
+import { defaultState, writeState } from "../src/state.ts";
 
 function tmp() {
   return mkdtempSync(join(tmpdir(), "cxc-iledger-"));
@@ -102,7 +103,7 @@ test("malformed payloads fail safe: no events, no throw", () => {
   assert.equal(res.written.length, 0);
 });
 
-test("handlePostToolUse captures only request_user_input, returns empty (never blocks)", () => {
+test("handlePostToolUse captures only request_user_input; non-I phase returns empty", () => {
   const cwd = tmp();
   const base: PostToolUsePayload = {
     hook_event_name: "PostToolUse",
@@ -113,11 +114,51 @@ test("handlePostToolUse captures only request_user_input, returns empty (never b
     tool_response: TOOL_RESPONSE,
     turn_id: "t1",
   };
-  assert.equal(handlePostToolUse(base), "");
+  // no session state -> phase IDLE -> capture only, no reinjection
+  assert.equal(handlePostToolUse(base, { goalStatus: () => "inactive" }), "");
   assert.equal(readQaEvents(cwd, "s").length, 4);
 
   // a different tool is a no-op
   const other = { ...base, tool_name: "shell", session_id: "s2" };
-  assert.equal(handlePostToolUse(other), "");
+  assert.equal(handlePostToolUse(other, { goalStatus: () => "inactive" }), "");
   assert.equal(readQaEvents(cwd, "s2").length, 0);
+});
+
+test("handlePostToolUse L18: I-phase + no goal => rescan directive reinjected as additionalContext", () => {
+  const cwd = tmp();
+  writeState(cwd, { ...defaultState("s"), phase: "I", orchestrationActive: true });
+  const base: PostToolUsePayload = {
+    hook_event_name: "PostToolUse",
+    session_id: "s",
+    cwd,
+    tool_name: "request_user_input",
+    tool_input: TOOL_INPUT,
+    tool_response: TOOL_RESPONSE,
+    turn_id: "t1",
+  };
+  const out = handlePostToolUse(base, { goalStatus: () => "inactive" });
+  assert.notEqual(out, "");
+  const parsed = JSON.parse(out);
+  assert.equal(parsed.hookSpecificOutput.hookEventName, "PostToolUse");
+  assert.equal(parsed.hookSpecificOutput.additionalContext, RESCAN_REINJECT_DIRECTIVE);
+  // capture still happened alongside the reinjection
+  assert.equal(readQaEvents(cwd, "s").length, 4);
+});
+
+test("handlePostToolUse L18: goal active or unreadable => capture only, no reinjection (firewall)", () => {
+  for (const status of ["active", "unreadable"] as const) {
+    const cwd = tmp();
+    writeState(cwd, { ...defaultState("s"), phase: "I", orchestrationActive: true });
+    const base: PostToolUsePayload = {
+      hook_event_name: "PostToolUse",
+      session_id: "s",
+      cwd,
+      tool_name: "request_user_input",
+      tool_input: TOOL_INPUT,
+      tool_response: TOOL_RESPONSE,
+      turn_id: "t1",
+    };
+    assert.equal(handlePostToolUse(base, { goalStatus: () => status }), "");
+    assert.equal(readQaEvents(cwd, "s").length, 4, `capture must still run when goal is ${status}`);
+  }
 });

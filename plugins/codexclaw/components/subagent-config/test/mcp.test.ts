@@ -90,3 +90,23 @@ test("MCP: subagents_set with invalid mode returns an isError result, no crash",
   if (replies.length === 0) return;
   assert.equal(replies[0].result.isError, true);
 });
+
+test("MCP: subagents_set effort roundtrips; invalid effort is isError", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-mcp-"));
+  const ok = await collect(
+    cwd,
+    [{ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "subagents_set", arguments: { role: "executor", effort: "xhigh" } } }],
+    1,
+  );
+  if (ok.length > 0) {
+    const payload = JSON.parse(ok[0].result.content[0].text);
+    assert.equal(payload.roles.executor.effort, "xhigh");
+  }
+  const bad = await collect(
+    cwd,
+    [{ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "subagents_set", arguments: { role: "executor", effort: "turbo" } } }],
+    1,
+  );
+  if (bad.length === 0) return;
+  assert.equal(bad[0].result.isError, true);
+});

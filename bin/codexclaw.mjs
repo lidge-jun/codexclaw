@@ -17,7 +17,8 @@
  *   codexclaw serve               run the bridge server (GUI static + API + messenger bots)
  *   codexclaw service             install/uninstall/status the serve daemon (launchd)
  *   codexclaw gui                 launch the codexclaw web dashboard
- *   codexclaw subagents           read/write per-role subagent model+prompt config
+*   codexclaw subagents           read/write per-role subagent model+prompt config
+ *   codexclaw map                 generate a ranked repo map (repo-map skill, python3)
  *   codexclaw provider            show read-only opencodex (ocx) provider status
  *   codexclaw chat search         read-only recall search over ~/.codex rollouts (recall)
  *   codexclaw memory search       read-only search over ~/.codex memories (recall)
@@ -168,6 +169,28 @@ function runProvider() {
   return typeof res.status === "number" ? res.status : 1;
 }
 
+/** Run the vendored repo-map Python script (skill-owned, no dist build). argv: [...rest]. */
+function runRepoMap(args) {
+  const repoMapScript = join(
+    here,
+    "..",
+    "plugins",
+    "codexclaw",
+    "skills",
+    "repo-map",
+    "scripts",
+    "repomap.py",
+  );
+  const python = process.env.CODEXCLAW_PYTHON || "python3";
+  // -B: never write __pycache__ into the vendored skill directory.
+  const res = spawnSync(python, ["-B", repoMapScript, ...args], { stdio: "inherit" });
+  if (res.error && res.error.code === "ENOENT") {
+    console.error("codexclaw map: python3 not found; install Python 3.9+ or set CODEXCLAW_PYTHON");
+    return 1;
+  }
+  return typeof res.status === "number" ? res.status : 1;
+}
+
 const cmd = process.argv[2] ?? "help";
 switch (cmd) {
   case "enable":
@@ -240,9 +263,14 @@ switch (cmd) {
   case "subagents":
     process.exit(runSubagents(process.argv.slice(2)));
     break;
+  case "map":
+    // repo-map skill script (vendored RepoMapper); stateless one-shot, degrades to
+    // an install hint when Python deps are missing.
+    process.exit(runRepoMap(process.argv.slice(3)));
+    break;
   case "provider":
     process.exit(runProvider());
     break;
   default:
-    console.log("codexclaw <enable|disable|uninstall|status|orchestrate|freeze|metric|divergence|loop|goalplan|doctor|reset|subagents|provider|chat|memory|skill|gui|serve|service>");
+    console.log("codexclaw <enable|disable|uninstall|status|orchestrate|freeze|metric|divergence|loop|goalplan|doctor|reset|subagents|map|provider|chat|memory|skill|gui|serve|service>");
 }

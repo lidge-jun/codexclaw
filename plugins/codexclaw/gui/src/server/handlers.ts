@@ -39,6 +39,7 @@ export function postSubagents(cwd: string, body: unknown): ApiResult {
   const patch: Record<string, unknown> = {};
   if (b.mode !== undefined) patch.mode = b.mode;
   if (b.model !== undefined) patch.model = b.model;
+  if (b.effort !== undefined) patch.effort = b.effort;
   if (b.promptOverride !== undefined) patch.promptOverride = b.promptOverride;
   try {
     const updated: SubagentsConfig = setRole(cwd, role, patch);

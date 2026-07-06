@@ -358,6 +358,10 @@ accessibility.
 
 **Rule:** Before creating a new function, helper, type, component, constant, route, fixture, or module, search the codebase for an existing owner or equivalent implementation. No new abstraction may be introduced without search evidence. This section does not apply on the §0.1 fast path (C0/C1 — no new abstractions are being created).
 
+**Structure map first (DEFAULT — DEV-MAP-FIRST-01):** for C2+ work in unfamiliar territory,
+run `cxc map <dir>` (repo-map skill, tree-sitter + PageRank overview) before deep `rg`
+dives; then use `rg`/ast-grep to confirm the narrowed targets. Guidance, not hook-enforced.
+
 **Read before editing (DEV-READ-FIRST-01).** Beyond new-abstraction creation, any C2+ edit to
 existing code reads the target file (and its direct caller/consumer when the change crosses a
 boundary) before writing. Do not propose or apply a change to code you have not read. The §0.1
@@ -502,7 +506,8 @@ convert a JS repo to TS without user approval.
 Escape hatches (`any`, casts, `type: ignore`) must be narrow, explained near the
 code, and verified by the strongest local checker available. Detailed language
 rules, command examples, and rule mappings live in
-`references/static-analysis.md`.
+`references/static-analysis.md`. Per-toolchain gate commands and type-annotation
+rules live in `references/static-analysis-gate.md`.
 
 ---
 

@@ -738,17 +738,41 @@ export function renderGroundingAdvisoryForStop(cwd: string, phase: Phase): strin
 }
 
 /**
+ * L18 — post-answer rescan reinjection (INTERVIEW-SCAN-01 enforcement). Injected as
+ * PostToolUse additionalContext right after a `request_user_input` answer is captured,
+ * so the main session actually runs the contradiction-rescan round instead of letting
+ * the I-directive fade with transcript distance. Only fires in an interactive I-phase
+ * (never under an active/unreadable goal — the Interview goal firewall).
+ */
+export const RESCAN_REINJECT_DIRECTIVE = [
+  "[codexclaw: INTERVIEW — post-answer rescan]",
+  "An interview answer was just recorded. Per INTERVIEW-SCAN-01, run the contradiction",
+  "rescan NOW before asking anything else or advancing:",
+  "- state the CURRENT plan/tracker position explicitly in each Mind's task message,",
+  "- dispatch read-only Mind contradiction workers (cap 3, lowest-scoring dimensions",
+  "  first; if spawn_agent is not visible, tool_search for it first),",
+  "- triage returns: high -> ask the user; low/medium -> record as OPEN ASSUMPTION,",
+  "- then record the scan round (cxc scan evidence) so readiness can count it.",
+  "Minds return contradictions ONLY — they never ask, edit, or write state.",
+].join("\n");
+
+/**
  * PostToolUse handler (L12 WP4) — capture a `request_user_input` round into the
  * durable interview ledger. PURE side-effect recorder: it never blocks or emits a
- * decision (PostToolUse runs AFTER the tool already executed), so it always returns
- * "". Only acts on the request_user_input tool; everything else is a no-op.
+ * decision (PostToolUse runs AFTER the tool already executed). After capturing, when
+ * the session is in an interactive I-phase (no active goal), it reinjects the rescan
+ * directive as additionalContext so the Mind loop actually runs after every answer
+ * (L18). Only acts on the request_user_input tool; everything else is a no-op.
  *
  * Goal-mode note: the PreToolUse interview deny is a SEPARATE hook that fires before
  * the tool runs, so when a goal is active the call is denied and never reaches here —
  * no conflict. When goal mode is inactive (interactive interview), this records the
  * question + answer for replay/evidence.
  */
-export function handlePostToolUse(payload: PostToolUsePayload): string {
+export function handlePostToolUse(
+  payload: PostToolUsePayload,
+  deps: { goalStatus?: () => "active" | "inactive" | "unreadable" } = {},
+): string {
   if (payload.hook_event_name !== "PostToolUse") return "";
   if (payload.tool_name !== "request_user_input") return "";
   captureInterviewAnswers({
@@ -758,7 +782,22 @@ export function handlePostToolUse(payload: PostToolUsePayload): string {
     toolInput: payload.tool_input,
     toolResponse: payload.tool_response,
   });
-  return "";
+  // L18: reinject the rescan directive only for an interactive interview. Goal
+  // active/unreadable suppresses the whole Interview (firewall) -> stay silent.
+  try {
+    const status = deps.goalStatus ? deps.goalStatus() : getGoalActiveStatus(payload.session_id);
+    if (suppressesInterview(status)) return "";
+    const state = readState(payload.cwd, payload.session_id);
+    if (state.phase !== "I") return "";
+    return `${JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "PostToolUse",
+        additionalContext: RESCAN_REINJECT_DIRECTIVE,
+      },
+    })}\n`;
+  } catch {
+    return ""; // FAIL-OPEN: capture succeeded; reinjection is best-effort
+  }
 }
 
 /**

@@ -63,6 +63,17 @@ test("run: --prompt sets and --clear-prompt clears the override", () => {
   assert.equal(readConfig(cwd).roles.executor.promptOverride, null);
 });
 
+test("run: --effort sets, --clear-effort clears, invalid effort rejected at parse", () => {
+  const cwd = tmp();
+  runSubagents(parseSubagentsArgs(["set", "explorer", "--effort", "high"]), cwd);
+  assert.equal(readConfig(cwd).roles.explorer.effort, "high");
+  runSubagents(parseSubagentsArgs(["set", "explorer", "--clear-effort"]), cwd);
+  assert.equal(readConfig(cwd).roles.explorer.effort, null);
+
+  const bad = parseSubagentsArgs(["set", "explorer", "--effort", "turbo"]);
+  assert.match(bad.error ?? "", /--effort must be/);
+});
+
 test("run: store validation error surfaces as a non-zero exit", () => {
   const cwd = tmp();
   // mode model with no model id is rejected by the store validator.

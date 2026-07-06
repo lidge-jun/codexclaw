@@ -30,6 +30,7 @@ Load an on-demand skill explicitly by `$name` or SKILL.md path.
 | sparksearch | `skills/sparksearch/SKILL.md` | capability | cheap parallel public-web discovery via Spark explorer subagents; depends on cxc-search for proof | false | none |
 | recall | `skills/recall/SKILL.md` | capability | past-session recall: search prior Codex chats (`cxc chat search`) + memory store (`cxc memory search`) before asking the user | true | none (reads Codex-native `~/.codex` artifacts read-only) |
 | ast-grep | `skills/ast-grep/SKILL.md` | capability | AST-shape search / deterministic codemods (rg-first for byte search) | false | needs `sg` binary (lazy-provisioned) |
+| repo-map | `skills/repo-map/SKILL.md` | capability | ranked whole-repo structure map (tree-sitter tags + PageRank) for C2+ exploration bootstrap | false | needs Python deps (one-time pip install; degrades to install hint) |
 | skill-hub | `skills/skill-hub/SKILL.md` | router | "which skill?", capability beyond dev | true | none |
 
 ## Loading rule

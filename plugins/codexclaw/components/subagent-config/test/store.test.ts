@@ -11,6 +11,7 @@ import {
   resolveSpawnConfig,
   validateRolePatch,
   ROLES,
+  EFFORTS,
 } from "../src/store.ts";
 
 function tmp(): string {
@@ -91,6 +92,44 @@ test("promptOverride accepts null and never fabricates text", () => {
   const cwd = tmp();
   setRole(cwd, "explorer", { promptOverride: null });
   assert.equal(readConfig(cwd).roles.explorer.promptOverride, null);
+});
+
+test("effort: valid wire values persist; null inherits; invalid rejected on write", () => {
+  const cwd = tmp();
+  setRole(cwd, "explorer", { effort: "high" });
+  assert.equal(readConfig(cwd).roles.explorer.effort, "high");
+  setRole(cwd, "explorer", { effort: null });
+  assert.equal(readConfig(cwd).roles.explorer.effort, null);
+  assert.throws(() => setRole(cwd, "explorer", { effort: "x-high" as never }), /invalid effort/);
+  assert.throws(() => setRole(cwd, "explorer", { effort: "max" as never }), /invalid effort/);
+});
+
+test("effort: offered set is exactly the catalog-supported wire values (no none/minimal trap)", () => {
+  // codex-rs validate_spawn_agent_reasoning_effort hard-rejects an effort the resolved
+  // model does not support; every selectable model supports exactly these four, so the
+  // store must not offer none/minimal (which would brick every spawn once persisted).
+  assert.deepEqual([...EFFORTS], ["low", "medium", "high", "xhigh"]);
+  const cwd = tmp();
+  assert.throws(() => setRole(cwd, "explorer", { effort: "none" as never }), /invalid effort/);
+  assert.throws(() => setRole(cwd, "explorer", { effort: "minimal" as never }), /invalid effort/);
+});
+
+test("effort: unknown persisted value normalizes to null (inherit), read never throws", () => {
+  const cwd = tmp();
+  mkdirSync(join(cwd, ".codexclaw"), { recursive: true });
+  writeFileSync(
+    join(cwd, ".codexclaw", "subagents.json"),
+    JSON.stringify({ roles: { executor: { mode: "default", model: null, effort: "ultra", promptOverride: null } } }),
+  );
+  assert.equal(readConfig(cwd).roles.executor.effort, null);
+});
+
+test("effort: independent of mode — survives a default-mode role and resolves in spawn config", () => {
+  const cwd = tmp();
+  setRole(cwd, "reviewer", { effort: "low" });
+  const res = resolveSpawnConfig(cwd, "reviewer");
+  assert.equal(res.usesMainModel, true);
+  assert.equal(res.effort, "low");
 });
 
 test("atomic write leaves no orphan .tmp", () => {

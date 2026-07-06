@@ -334,6 +334,8 @@ export function readRoleToml(agentsDir        , role          )                 
 
 
 
+
+
 /**
  * PURE builder: compose the spawn_agent payload. The effective role prompt is the
  * promptOverride when set, else the TOML developer_instructions. The model key is
@@ -348,6 +350,11 @@ export function buildSpawnPayload(input                        )               {
   const payload               = { agent_type, message };
   if (!resolution.usesMainModel && typeof resolution.model === "string" && resolution.model.length > 0) {
     payload.model = resolution.model;
+  }
+  // Effort is mode-independent: it can override on a main-model spawn too. The store
+  // validated it against the codex wire enum (an invalid effort hard-fails the spawn).
+  if (typeof resolution.effort === "string" && resolution.effort.length > 0) {
+    payload.reasoning_effort = resolution.effort;
   }
   return payload;
 }

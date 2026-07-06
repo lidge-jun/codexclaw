@@ -509,3 +509,10 @@ Frontend does not operate in isolation. When consuming backend APIs or implement
 - Playwright smoke tests validate rendered flows AFTER backend API + contract tests pass
 - Frontend unit tests mock API responses using the **same envelope shape** defined in `dev-backend` §5
 - When backend error codes change, frontend error-mapping tests must be updated
+
+## §16 Pre-Flight Checklist
+
+Before shipping a production frontend surface, run through the full pre-flight checklist
+at `references/core/preflight-full.md`. It covers design/composition, responsive/mobile,
+states/behavior, Korean-first rules, SEO/theme/i18n, and performance/verification gates.
+Use it as the C-phase audit companion for frontend work at C2+.

@@ -16,7 +16,7 @@
  * Zero third-party deps: newline-delimited JSON-RPC over stdin/stdout (node:* only).
  */
 import { createInterface } from "node:readline";
-import { readConfig, setRole, ROLES,               } from "./store.js";
+import { readConfig, setRole, ROLES, EFFORTS,               } from "./store.js";
 import { buildCatalog } from "./catalog.js";
 
 const PROTOCOL_VERSION = "2024-11-05";
@@ -38,13 +38,15 @@ const TOOLS = [
   },
   {
     name: "subagents_set",
-    description: "Update one role's subagent config. mode is 'default' (main model) or 'model' (requires a model id).",
+    description:
+      "Update one role's subagent config. mode is 'default' (main model) or 'model' (requires a model id); effort is a reasoning-effort override (null inherits the parent session's effort).",
     inputSchema: {
       type: "object",
       properties: {
         role: { type: "string", enum: [...ROLES] },
         mode: { type: "string", enum: ["default", "model"] },
         model: { type: ["string", "null"] },
+        effort: { type: ["string", "null"], enum: [...EFFORTS, null] },
         promptOverride: { type: ["string", "null"] },
       },
       required: ["role"],
@@ -82,6 +84,7 @@ function callTool(id         , params                                           
     const patch                          = {};
     if (args.mode !== undefined) patch.mode = args.mode;
     if (args.model !== undefined) patch.model = args.model;
+    if (args.effort !== undefined) patch.effort = args.effort;
     if (args.promptOverride !== undefined) patch.promptOverride = args.promptOverride;
     try {
       toolResult(id, setRole(cwd, role, patch));

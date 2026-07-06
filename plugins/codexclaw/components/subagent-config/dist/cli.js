@@ -10,9 +10,10 @@
  * Usage:
  *   subagents               list all role configs (JSON)
  *   subagents get <role>    show one role config (JSON)
- *   subagents set <role> --mode default|model [--model <id>] [--prompt <text>|--clear-prompt]
+ *   subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort]
+ *                        [--prompt <text>|--clear-prompt]
  */
-import { readConfig, setRole, ROLES,                                } from "./store.js";
+import { readConfig, setRole, ROLES, EFFORTS,                                                 } from "./store.js";
 
 
 
@@ -48,6 +49,14 @@ export function parseSubagentsArgs(argv          )                      {
         patch.mode = v;
       } else if (a === "--model") {
         patch.model = argv[++i] ?? "";
+      } else if (a === "--effort") {
+        const v = argv[++i];
+        if (!(EFFORTS                     ).includes(v ?? "")) {
+          return { action: "set", role, error: `--effort must be ${EFFORTS.join("|")} (got '${v ?? ""}')` };
+        }
+        patch.effort = v              ;
+      } else if (a === "--clear-effort") {
+        patch.effort = null;
       } else if (a === "--prompt") {
         patch.promptOverride = argv[++i] ?? "";
       } else if (a === "--clear-prompt") {
@@ -56,7 +65,9 @@ export function parseSubagentsArgs(argv          )                      {
         return { action: "set", role, error: `unknown flag '${a}'` };
       }
     }
-    if (Object.keys(patch).length === 0) return { action: "set", role, error: "set requires at least one of --mode/--model/--prompt/--clear-prompt" };
+    if (Object.keys(patch).length === 0) {
+      return { action: "set", role, error: "set requires at least one of --mode/--model/--effort/--clear-effort/--prompt/--clear-prompt" };
+    }
     return { action: "set", role, patch };
   }
 
@@ -68,9 +79,10 @@ const HELP = [
   "",
   "  subagents               list all role configs",
   "  subagents get <role>    show one role config",
-  "  subagents set <role> --mode default|model [--model <id>] [--prompt <text>|--clear-prompt]",
+  "  subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort] [--prompt <text>|--clear-prompt]",
   "",
   `  roles: ${ROLES.join(", ")}`,
+  `  efforts: ${EFFORTS.join(", ")} (unset = inherit the parent session's effort)`,
 ].join("\n");
 
 

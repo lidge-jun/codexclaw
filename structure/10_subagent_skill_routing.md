@@ -48,6 +48,16 @@ a v1-only opt-in `items` injector to an ALWAYS-ON message rewriter: it prepends 
 which the child's first turn parses into full SKILL.md injections. It no-ops when the
 caller already attached `items` (E5 builder path) or already mentioned the same skills,
 and never invents a message. The old `CODEXCLAW_SPAWN_ATTACH=v1` gate is removed.
+The hook is also the MODEL/EFFORT-ENFORCEMENT point: it infers the role (`worker` -> executor;
+review/audit/검증-keyword explorer spawns -> reviewer; else explorer), reads
+`.codexclaw/subagents.json` via `resolveSpawnConfig`, and injects the configured model
+id into `updatedInput.model` when the role is model-mode AND the caller did not pick a
+model — a caller's explicit model is never overridden. A configured reasoning effort is
+likewise injected into `updatedInput.reasoning_effort` (a real spawn schema field on
+both v1 and v2; invalid values hard-fail the spawn, so the store validates against the
+codex catalog-supported set low/medium/high/xhigh). Effort is mode-independent: it can
+override on a main-model spawn. This closes the gap where the GUI-saved per-role config
+was only honored on the explicit E5 builder path.
 
 ---
 

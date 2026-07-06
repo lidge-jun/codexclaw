@@ -8,6 +8,7 @@ import {
   type ProviderState,
 } from "../api.ts";
 import { ModelSelect } from "../components/ModelSelect.tsx";
+import { EffortSelect } from "../components/EffortSelect.tsx";
 import { PromptOverrideEditor } from "../components/PromptOverrideEditor.tsx";
 import { Loading } from "../ui/kit.tsx";
 import { toast } from "../ui/toast.tsx";
@@ -69,12 +70,19 @@ export function SubagentsPage({ provider }: { provider: ProviderState }) {
                     <span className="row-sub">{ROLE_DESC[role]}</span>
                   </div>
                   <div className="role-controls">
-                    <ModelSelect
-                      value={effectiveModel}
-                      disabled={false}
-                      entries={catalog}
-                      onChange={(model) => save(role, { mode: model ? "model" : "default", model })}
-                    />
+                    <div className="role-selects">
+                      <ModelSelect
+                        value={effectiveModel}
+                        disabled={false}
+                        entries={catalog}
+                        onChange={(model) => save(role, { mode: model ? "model" : "default", model })}
+                      />
+                      <EffortSelect
+                        value={r.effort}
+                        disabled={false}
+                        onChange={(effort) => save(role, { effort })}
+                      />
+                    </div>
                     <PromptOverrideEditor
                       value={r.promptOverride}
                       onChange={(v) => save(role, { promptOverride: v })}

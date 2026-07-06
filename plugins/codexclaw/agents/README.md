@@ -43,6 +43,10 @@ field (`ConfigToml` uses `deny_unknown_fields`). Read-only intent is encoded in 
 `model = "default"` means inherit the parent model. The `.codexclaw/subagents.json`
 store, MCP/GUI roundtrip, and `resolveSpawnConfig(cwd, role)` resolver are shipped; S8/S10
 tests prove persistence and resolver behavior.
+The store also carries a per-role `effort` override (codex wire values
+low/medium/high/xhigh; null = inherit the parent session's effort). It is
+mode-independent and flows into `reasoning_effort` on both the wrapper payload and the
+spawn-attach hook's `updatedInput`.
 
 Production wrapper (L9.1, shipped): `components/subagent-config/src/spawn-wrapper.ts` consumes
 `resolveSpawnConfig()` at spawn time. `resolveSpawnPayload(cwd, role, task, agentsDir)` reads the

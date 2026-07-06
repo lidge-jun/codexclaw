@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>죽은 기능 사건 보고서 — 왜 봇의 저금통은 채워지지 않았나</title>
+<style>
+  :root {
+    --ink: #1c1e21;
+    --sub: #55595f;
+    --line: #e3e5e8;
+    --bad: #c0392b;
+    --bad-bg: #fdf0ee;
+    --good: #1e7e4f;
+    --good-bg: #edf7f1;
+    --warn: #9a6700;
+    --warn-bg: #fff8e6;
+    --code-bg: #f4f5f7;
+    --accent: #0b6bcb;
+    --accent-bg: #eef5fd;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; letter-spacing: 0; }
+  html { font-size: 16px; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
+      "Noto Sans KR", "Segoe UI", sans-serif;
+    color: var(--ink);
+    line-height: 1.75;
+    background: #ffffff;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 0 24px 96px; }
+  header.hero {
+    border-bottom: 1px solid var(--line);
+    padding: 56px 24px 40px;
+  }
+  .hero-inner { max-width: 860px; margin: 0 auto; }
+  .hero .kicker {
+    font-size: 0.85rem; font-weight: 700; color: var(--bad);
+    text-transform: uppercase; margin-bottom: 12px;
+  }
+  .hero h1 { font-size: 2rem; line-height: 1.35; font-weight: 800; }
+  .hero p.sub { margin-top: 14px; color: var(--sub); font-size: 1.05rem; max-width: 640px; }
+  .hero .meta { margin-top: 20px; font-size: 0.85rem; color: var(--sub); }
+  .hero .meta span { margin-right: 18px; }
+
+  h2 {
+    font-size: 1.45rem; font-weight: 800; margin: 64px 0 8px;
+    padding-top: 24px; border-top: 1px solid var(--line);
+  }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h3 { font-size: 1.08rem; font-weight: 700; margin: 32px 0 8px; }
+  p { margin: 12px 0; }
+  p.lead { font-size: 1.08rem; }
+  .easy {
+    background: var(--accent-bg); border-left: 4px solid var(--accent);
+    padding: 14px 18px; margin: 20px 0; border-radius: 0 6px 6px 0;
+  }
+  .easy .tag { font-weight: 800; color: var(--accent); font-size: 0.85rem; display: block; margin-bottom: 4px; }
+  ul, ol { margin: 12px 0 12px 24px; }
+  li { margin: 6px 0; }
+  code {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 0.86em;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 20px 0; font-size: 0.93rem; }
+  th { text-align: left; border-bottom: 2px solid var(--ink); padding: 8px 10px; font-weight: 700; }
+  td { border-bottom: 1px solid var(--line); padding: 8px 10px; vertical-align: top; }
+  .score-bad { color: var(--bad); font-weight: 700; }
+  .score-good { color: var(--good); font-weight: 700; }
+
+  .verdict { display: inline-block; font-size: 0.78rem; font-weight: 800; padding: 2px 10px; border-radius: 999px; }
+  .verdict.bad { color: var(--bad); background: var(--bad-bg); }
+  .verdict.good { color: var(--good); background: var(--good-bg); }
+  .verdict.warn { color: var(--warn); background: var(--warn-bg); }
+
+  /* money flow diagram */
+  .flow { margin: 28px 0; }
+  .flow-row { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }
+  .flow-box {
+    flex: 1 1 150px; border: 1.5px solid var(--line); border-radius: 8px;
+    padding: 12px 14px; text-align: center; font-size: 0.9rem; background: #fff;
+  }
+  .flow-box b { display: block; font-size: 0.95rem; margin-bottom: 2px; }
+  .flow-box.leak { border-color: var(--bad); background: var(--bad-bg); }
+  .flow-box.dead { border-color: var(--warn); background: var(--warn-bg); }
+  .flow-arrow { align-self: center; color: var(--sub); font-weight: 700; }
+  .flow-caption { font-size: 0.85rem; color: var(--sub); margin-top: 10px; text-align: center; }
+
+  /* timeline */
+  .timeline { border-left: 3px solid var(--line); margin: 24px 0 24px 8px; padding-left: 24px; }
+  .tl-item { position: relative; margin-bottom: 22px; }
+  .tl-item::before {
+    content: ""; position: absolute; left: -31px; top: 7px;
+    width: 11px; height: 11px; border-radius: 50%; background: var(--sub);
+  }
+  .tl-item.bad::before { background: var(--bad); }
+  .tl-item.good::before { background: var(--good); }
+  .tl-item .when { font-size: 0.8rem; font-weight: 700; color: var(--sub); }
+  .tl-item .what { margin-top: 2px; }
+
+  .rule {
+    border: 1.5px solid var(--line); border-radius: 8px; padding: 16px 20px; margin: 16px 0;
+  }
+  .rule .rid { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 0.82rem; font-weight: 700; color: var(--accent); }
+  .rule h4 { font-size: 1rem; font-weight: 700; margin: 4px 0 6px; }
+  .rule p { margin: 6px 0; font-size: 0.95rem; }
+  .rule .kid { color: var(--sub); font-size: 0.9rem; }
+
+  .lane { margin: 24px 0; padding-bottom: 4px; }
+  .lane h4 { font-size: 1rem; font-weight: 700; }
+  .lane .src { font-size: 0.84rem; color: var(--sub); }
+  .lane a { color: var(--accent); text-decoration: none; }
+  .lane a:hover { text-decoration: underline; }
+
+  footer { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 0.84rem; color: var(--sub); }
+  @media (max-width: 640px) {
+    .hero h1 { font-size: 1.5rem; }
+    .flow-row { flex-direction: column; }
+    .flow-arrow { transform: rotate(90deg); align-self: center; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="kicker">사건 분석 보고서</div>
+    <h1>봇 안에 넣은 기능이 사실은 한 번도 안 돌았다<br>— 죽은 기능 사건과 우리가 배운 것</h1>
+    <p class="sub">게임 봇 대회에서 우리 AI 루프가 놓친 버그를, 손으로 코딩한 친구가 먼저 찾아냈습니다.
+    왜 그랬는지 분석하고, 전 세계 자료를 조사해서, 다시는 안 놓치도록 규칙을 고친 기록입니다.</p>
+    <div class="meta">
+      <span>2026-07-06</span>
+      <span>NEXT NATION (NYPC 예선)</span>
+      <span>codexclaw PABCD 루프 개선</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<h2><span class="num">1.</span>무슨 일이 있었나 (3분 요약)</h2>
+
+<p class="lead">우리는 턴제 전략 게임 봇을 만들고 있습니다. 규칙은 간단합니다:
+200일 안에 상대 본부를 부수면 이기고, 못 부수면 <b>본부 체력이 더 높은 쪽이 이깁니다.</b></p>
+
+<p>그래서 우리는 봇에 이런 기능을 넣었습니다: <b>"150일부터는 돈을 저금해서,
+본부를 업그레이드하자"</b> (업그레이드하면 체력이 확 오릅니다). 이름은 <i>HP 레이스</i>.</p>
+
+<div class="easy">
+  <span class="tag">쉽게 말하면</span>
+  시험 끝나기 10분 전부터는 새 문제 풀지 말고 답안지 정리를 하자는 작전이에요.
+  마지막 점수는 "본부 체력"으로 매겨지니까요.
+</div>
+
+<p>그런데 대회 결과가 이상했습니다. 우리 봇은 5번 경기에서 <b>비겼습니다</b> (체력 20 대 20).
+같은 경기에서 친구의 봇은 <b>이겼습니다</b> (체력 30 대 25). 친구 봇은 후반에 본부 업그레이드를
+꼬박꼬박 했는데, 우리 봇은... <b>한 번도 안 했습니다.</b></p>
+
+<p>이상하죠? 우리 봇에도 분명히 그 기능이 있는데요. 조사해보니 충격적인 사실이 나왔습니다:</p>
+
+<p style="font-size:1.15rem; font-weight:700; margin:20px 0;">
+HP 레이스 기능은 봇 안에 들어있었지만, <span class="score-bad">단 한 번도 실행되지 않았습니다.</span></p>
+
+<h2><span class="num">2.</span>왜 안 돌았나 — 새는 저금통</h2>
+
+<p>HP 레이스는 이렇게 동작해야 했습니다: 150일부터 매일 돈을 아껴서(리저브),
+2400골드가 모이면 본부를 업그레이드한다. 그런데 실제로 돈을 추적해보니:</p>
+
+<div class="flow">
+  <div class="flow-row">
+    <div class="flow-box"><b>매일 들어오는 돈</b>수입 약 200~300골드</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box leak"><b>구멍 1: 병력 균형 훈련</b>"상대보다 병사가 적네? 훈련!"<br>(저금 규칙을 안 지킴)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box leak"><b>구멍 2: 공격조 재건</b>"공격조 10명 채워야지? 훈련!"<br>(저금 규칙을 안 지킴)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box dead"><b>저금통 (HP 레이스)</b>잔고: 늘 400~1,700골드<br>목표 2,400골드에 <b>영원히 미달</b></div>
+  </div>
+  <div class="flow-caption">디버그 추적 결과: 150~200일 내내 저금통이 목표에 도달하지 못했다.
+  돈이 저금통에 닿기 전에 두 구멍으로 다 새어나갔기 때문.</div>
+</div>
+
+<p>게다가 두 번째 문제도 있었습니다. 업그레이드 명령은 <b>본부에 병사가 서 있어야</b> 내릴 수 있는데,
+후반에는 병사들이 죄다 전선으로 나가 있어서, 그 조건이 안 맞으면 기능이 저금 자체를 <b>취소</b>해버렸습니다.
+저금통이 무장과 해제를 반복한 거죠.</p>
+
+<div class="easy">
+  <span class="tag">쉽게 말하면</span>
+  용돈을 모아서 자전거를 사기로 했는데, 동생 둘이 매일 저금통에서 과자값을 먼저 꺼내가고,
+  게다가 "자전거 가게에 같이 갈 형이 집에 없으면" 그날 저금을 아예 포기하는 규칙까지 있었던 거예요.
+  자전거는 영원히 못 삽니다.
+</div>
+
+<h2><span class="num">3.</span>진짜 질문: 왜 우리는 몰랐나</h2>
+
+<p class="lead">버그 자체보다 중요한 질문은 이겁니다.
+<b>우리의 개발 루프는 왜 이걸 못 잡았고, 친구는 어떻게 잡았을까?</b></p>
+
+<p>범인은 우리가 기능을 채택할 때 봤던 <b>성적표</b>입니다. 당시 기록을 보면:</p>
+
+<table>
+  <thead><tr><th>후보</th><th>구성</th><th>테스트 점수 (10점 만점)</th><th>당시 우리의 해석</th></tr></thead>
+  <tbody>
+    <tr><td>기준선</td><td>기존 챔피언 봇</td><td>1.5</td><td>—</td></tr>
+    <tr><td>방어 모드만</td><td>+방어</td><td class="score-good">6.5</td><td>"방어가 효자네!"</td></tr>
+    <tr><td><b>HP 레이스만</b></td><td>+HP 레이스</td><td class="score-bad">1.5 (기준선과 정확히 동일)</td><td class="score-bad">"단독으론 약하네" ← 오판!</td></tr>
+    <tr><td>합본</td><td>방어+HP레이스+경제</td><td class="score-good">7.5</td><td>"좋아, 채택!"</td></tr>
+  </tbody>
+</table>
+
+<p>핵심 신호는 표 안에 이미 있었습니다. HP 레이스 단독 점수가 기준선과 <b>정확히</b> 같은 1.5였다는 것.</p>
+
+<div class="easy">
+  <span class="tag">쉽게 말하면</span>
+  새 축구화를 신고 뛰었는데 기록이 0.01초도 안 변했다면, 두 가지 중 하나예요.
+  ① 축구화가 별로다 ② <b>사실 신발장에 두고 맨발로 뛰었다.</b><br>
+  기록이 "조금이라도" 변했다면 ①이지만, <b>완전히 똑같다면 ②를 의심해야 합니다.</b>
+  실행된 기능은 좋든 나쁘든 뭔가를 바꾸니까요. 우리는 ①이라고 넘겨짚었습니다.
+</div>
+
+<p>그리고 합본 점수 7.5가 문제를 감췄습니다. 그 7.5는 사실상 <b>방어 모드 혼자 낸 점수</b>였는데,
+총점이 올랐으니 "다 잘 되고 있다"고 믿은 거죠. 죽은 기능이 남의 성적에 묻어간 겁니다.
+마지막으로, 남은 무승부들에 대해 우리는 "상대도 후반에 멈추니까 비기는 거야"라는
+<b>그럴듯한 이야기</b>를 만들어 스스로를 납득시켰습니다. 증거 없이요.</p>
+
+<h3>친구는 무엇이 달랐나</h3>
+<p>친구는 점수판을 보지 않았습니다. <b>봇의 행동</b>을 봤습니다.
+"후반에 업그레이드 명령이 실제로 나가는가?"를 확인하며 만들었고, 그래서 이겼습니다.
+우리도 결국 stderr 디버그 <b>한 줄</b>(매 턴의 돈/저금액/본부 병사 수 출력)을 붙이자마자
+몇 분 만에 원인을 찾았습니다. 그 한 줄을 채택 시점에 붙였다면 한 사이클 먼저 잡았을 겁니다.</p>
+
+<div class="timeline">
+  <div class="tl-item bad"><div class="when">채택 당시</div>
+    <div class="what">HP 레이스 단독 점수 1.5 = 기준선. "약하네" 하고 통과 → <b>죽은 기능 탑재</b></div></div>
+  <div class="tl-item bad"><div class="when">공식 결과</div>
+    <div class="what">5번 경기 무승부 (체력 20:20). 총점 7.5로 "잘 하고 있다"고 믿음</div></div>
+  <div class="tl-item"><div class="when">전환점</div>
+    <div class="what">친구 봇이 같은 경기를 승리 (30:25). "상대 탓" 이야기가 반례로 깨짐</div></div>
+  <div class="tl-item good"><div class="when">디버그</div>
+    <div class="what">추적 한 줄 추가 → 저금통 누수 2곳 + 조건 취소 버그 즉시 발견</div></div>
+  <div class="tl-item good"><div class="when">수정 후</div>
+    <div class="what">같은 5번 경기 리플레이: 무승부 → <b>승리 (체력 30:20)</b>. 174일 L4, 194일 L5 업그레이드 확인</div></div>
+</div>
+
+<h2><span class="num">4.</span>전 세계는 이 문제를 어떻게 다루나 — 4갈래 조사</h2>
+
+<p>같은 실수를 반복하지 않으려고, AI 조사원 4팀을 병렬로 보내
+논문과 업계 자료 40여 건을 원문까지 열어 확인했습니다. 결론: <b>이건 유명한 문제였습니다.</b></p>
+
+<div class="lane">
+  <h4>① AI 연구 — "점수만 보면 다른 실패가 똑같아 보인다"</h4>
+  <p>NVIDIA의 Eureka는 보상을 부품별로 쪼개 추적하고, 후속 연구(RDA)는 "집계 숫자만 보면
+  서로 다른 행동 실패가 구별이 안 되니 궤적(트레이스) 수준 진단이 필요하다"고 못 박습니다.
+  우리 사건과 정확히 같은 교훈. DeepMind FunSearch/AlphaEvolve는 정체(plateau)가 오면
+  다양한 후보 계통을 유지하고 약한 쪽을 갈아엎는 규칙을 씁니다.</p>
+  <p class="src">출처: <a href="https://arxiv.org/html/2606.01672v1">RDA (arXiv)</a> ·
+  <a href="https://www.nature.com/articles/s41586-023-06924-6">FunSearch (Nature)</a> ·
+  <a href="https://www.primeintellect.ai/blog/reward-hacking">보상 해킹: 총점은 오르는데 행동은 나빠지는 사례</a></p>
+</div>
+
+<div class="lane">
+  <h4>② 소프트웨어 업계 — "기능이 켜졌는지 세는 카운터"는 이미 표준</h4>
+  <p>OpenTelemetry에는 기능 플래그가 평가될 때마다 이벤트를 남기는 표준이 있고,
+  Honeycomb은 "만들기 전에 '작동을 어떻게 알아볼 건데?'부터 정하라"고 가르칩니다(관측 주도 개발).
+  Meta는 "정적 분석 말고 <b>런타임 로그</b>로 죽은 코드를 찾는" SCARF를 운영합니다.
+  결정타: 어느 프로덕션 사례 연구에서 기능 2개가 <b>카운터 0인 채로 출하</b>된 게 발견됐는데
+  ("기록은 쌓이는데 아무도 안 읽음"), 저자들이 "카운터 기반 게이트가 있었으면 잡았다"고 씁니다.
+  우리 사건의 판박이입니다.</p>
+  <p class="src">출처: <a href="https://opentelemetry.io/docs/specs/semconv/feature-flags/feature-flags-events/">OpenTelemetry</a> ·
+  <a href="https://www.honeycomb.io/blog/observability-driven-development">Honeycomb ODD</a> ·
+  <a href="https://engineering.fb.com/2023/10/24/data-infrastructure/automating-dead-code-cleanup/">Meta SCARF</a> ·
+  <a href="https://arxiv.org/html/2604.20938v1">Harbor 사례 연구</a> ·
+  <a href="https://www.sec.gov/files/litigation/admin/2013/34-70694.pdf">Knight Capital (역방향 사고: 죽은 줄 알았던 코드가 실행돼 5억 달러 손실)</a></p>
+</div>
+
+<div class="lane">
+  <h4>③ 통계와 평가 — "모의고사 점수는 진짜 시험이 아니다"</h4>
+  <p>대리 지표(우리의 리플레이 점수)가 진짜 목표(공식 대회 점수)와 어긋나는 현상은
+  Goodhart의 법칙으로 분류까지 돼 있습니다. 리플레이 평가는 "기록된 범위 안에서만" 유효하고,
+  같은 시험지로 반복 튜닝하면 시험지 자체에 과적합됩니다(Blum &amp; Hardt의 Ladder).
+  또 프록시 검증은 "상관관계"가 아니라 <b>"일치도"</b>(프록시가 맞다고 했는데 오라클이 틀리다고
+  한 빈도)로 해야 한다는 게 의학 통계(Bland-Altman)의 오랜 교훈입니다.</p>
+  <p class="src">출처: <a href="https://arxiv.org/pdf/1803.04585">Goodhart 분류 (Manheim &amp; Garrabrant)</a> ·
+  <a href="https://arxiv.org/abs/1502.04585">Ladder (Blum &amp; Hardt)</a> ·
+  <a href="https://arxiv.org/abs/2212.06355">오프라인 정책 평가의 유효 조건</a></p>
+</div>
+
+<div class="lane">
+  <h4>④ 게임 대회 고수들 — 이 버그엔 이미 별명이 있다</h4>
+  <p>Battlecode 대회 포스트모템에는 "우리 Elixir 봇은 아이러니하게도 elixir를 안 썼다"라는
+  <b>이름 붙은 사례</b>가 나옵니다. 고수들의 표준 워크플로우는 "강한 봇의 리플레이를 먼저 베끼고
+  나서 개선"이며, 체스 엔진 커뮤니티(Stockfish fishtest)는 모든 변경을 통계 검정(SPRT)으로만
+  수락합니다. 포커 봇 Libratus는 상대가 찌른 구멍을 밤새 분석해 트리를 패치하되,
+  특정 상대 맞춤이 아니라 <b>보편적으로</b> 고쳤습니다.</p>
+  <p class="src">출처: <a href="https://battlecode.org/assets/files/postmortem-2023-dont-at-me.pdf">Battlecode 2023 포스트모템</a> ·
+  <a href="https://official-stockfish.github.io/docs/fishtest-wiki/Fishtest-Mathematics.html">Stockfish fishtest</a> ·
+  <a href="https://par.nsf.gov/servlets/purl/10077416">Libratus (Science)</a></p>
+</div>
+
+<div class="easy">
+  <span class="tag">4갈래가 한목소리로</span>
+  "<b>점수는 후보를 고르는 데 쓰고, 기능이 진짜 돌았는지는 반드시 행동 기록으로 확인해라.</b>
+  점수가 그대로면 기능이 죽은 것부터 의심해라. 남이 이긴 판은 행동을 비교해라."
+</div>
+
+<h2><span class="num">5.</span>패치 방향 — 루프에 새로 박은 규칙들</h2>
+
+<p>이 사건에서 곧바로 3개 규칙을 만들어 PABCD 루프에 넣었고(반영 완료),
+조사 결과를 바탕으로 3개를 더 준비 중입니다(반영 예정).</p>
+
+<h3>반영 완료 <span class="verdict good">커밋 d3c4c9c</span></h3>
+
+<div class="rule">
+  <div class="rid">LOOP-MECHANISM-PROOF-01</div>
+  <h4>새 기능은 "작동 증거"를 내야 채택된다</h4>
+  <p>새 분기/메커니즘 후보는 대상 판에서 실제로 발화했다는 증거(카운터, 디버그 라인, 트레이스)가
+  있어야 채택. 총점 상승은 증거가 아니다. 단독 테스트 점수가 기준선과 <b>정확히 같으면</b>
+  "약함"이 아니라 "죽음"으로 추정하고 계측부터 한다.</p>
+  <p class="kid">쉽게: 새 신발 신고 기록이 똑같으면, 신발장에 두고 뛴 건 아닌지부터 확인.</p>
+</div>
+
+<div class="rule">
+  <div class="rid">LOOP-RESIDUAL-TRACE-01</div>
+  <h4>남은 패배엔 "기계 수준 설명" 아니면 "모름" 딱지</h4>
+  <p>다음 단계로 넘길 잔존 실패는 트레이스로 설명하거나("기능 X가 150턴에 켜져서 2400을 모았고...")
+  명시적으로 <code>unexplained</code> 라벨을 붙인다. "상대도 멈추니까 비기는 거야" 같은
+  그럴듯한 이야기는 증거가 아니다.</p>
+  <p class="kid">쉽게: "아마 그럴 거야"는 답안지에 못 쓴다. 확인했거나, "모름"이라고 쓰거나.</p>
+</div>
+
+<div class="rule">
+  <div class="rid">LOOP-PEER-CONTRAST-01</div>
+  <h4>남이 이긴 판은 행동 비교부터</h4>
+  <p>동료 봇/레퍼런스가 우리가 지는 판을 이기면, 새 후보를 만들기 전에 두 기록의
+  <b>행동 차이</b>(그들은 했는데 우리는 안 한 것)부터 분석한다. 남의 승리 기록은
+  우리 핑계에 대한 공짜 반례다.</p>
+  <p class="kid">쉽게: 친구가 같은 문제를 맞혔으면, 새 문제집 사기 전에 친구 풀이부터 본다.</p>
+</div>
+
+<h3>반영 예정 <span class="verdict warn">조사 기반 후속 패치</span></h3>
+
+<div class="rule">
+  <div class="rid">(초안) 기회/발화/효과 3중 카운터</div>
+  <h4>모든 새 기능에 카운터 3개를 단다</h4>
+  <p>기회(쓸 상황이 몇 번 왔나) / 발화(실제로 몇 번 켜졌나) / 효과(켜져서 뭐가 변했나).
+  기회&gt;0인데 발화=0이면 자동 탈락. 업계 표준(OpenTelemetry 플래그 이벤트, 카나리 판정) 차용.</p>
+</div>
+
+<div class="rule">
+  <div class="rid">(초안) GATE-HOLDOUT-LEAKAGE-01</div>
+  <h4>같은 시험지로 계속 튜닝하지 않는다</h4>
+  <p>고정 로그/맵/스파링 봇에 반복 튜닝하면 시험지 자체가 훈련 데이터가 된다.
+  홀드아웃을 회전시키고, 튜닝에 안 쓴 블라인드 세트를 최종 관문으로 예약한다.</p>
+</div>
+
+<div class="rule">
+  <div class="rid">(초안) 콤보 점수 거부권</div>
+  <h4>총점이 올라도 필수 행동이 빠졌으면 의심 판정</h4>
+  <p>합본 총점이 올라도, 개별 기능의 의도된 행동이 확인 안 되면 "의심" 상태로 두고
+  트레이스 증거가 나올 때까지 채택을 보류한다(보상 해킹 문헌 차용).</p>
+</div>
+
+<h2><span class="num">6.</span>결과와 현재 상태</h2>
+
+<table>
+  <thead><tr><th>항목</th><th>수정 전</th><th>수정 후</th></tr></thead>
+  <tbody>
+    <tr><td>공식 5번 경기 (리플레이 검증)</td>
+      <td class="score-bad">무승부 (체력 20:20)</td>
+      <td class="score-good">승리 (체력 30:20) — 174일 L4, 194일 L5 업그레이드 확인</td></tr>
+    <tr><td>신규 패배 10판 게이트</td><td>7.5 / 10</td><td>7.5 / 10 (유지)</td></tr>
+    <tr><td>기존 승리 8판 게이트</td><td>8.0 / 8</td><td>8.0 / 8 (무회귀)</td></tr>
+    <tr><td>반칙/시간초과</td><td>0</td><td>0</td></tr>
+    <tr><td>HP 레이스 발화 증거</td><td class="score-bad">없음 (그래서 사건이 남)</td>
+      <td class="score-good">디버그 트레이스로 저금→업그레이드 전 과정 확인</td></tr>
+  </tbody>
+</table>
+
+<p>봇 수정본은 <code>submission/main.cpp</code>에 반영되어 재제출 준비가 끝났고,
+루프 규칙 3종은 codexclaw 스킬(pabcd/loop)에 커밋되어 다음 세션부터 적용됩니다.
+조사에서 나온 후속 규칙 3종은 다음 패치로 반영 예정입니다.</p>
+
+<div class="easy">
+  <span class="tag">한 줄 결론</span>
+  점수판은 "누가 잘했나"를 알려주지만, "내 기능이 진짜 일했나"는 알려주지 않는다.
+  그건 행동 기록만이 알려준다. 이제 우리 루프는 둘 다 본다.
+</div>
+
+<footer>
+  근거 문서: results/wp54, wp55 (900-nypc-mushroom) · devlog/_plan/260706_loop_mechanism_research (codexclaw) ·
+  스킬 커밋 d3c4c9c · 조사 출처 전체 목록은 000_plan.md 저널 참조
+</footer>
+
+</main>
+</body>
+</html>

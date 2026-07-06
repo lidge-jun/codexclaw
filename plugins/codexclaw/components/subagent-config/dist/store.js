@@ -17,6 +17,23 @@ export const ROLES = ["explorer", "reviewer", "executor"]         ;
 
 
 
+/**
+ * Valid spawn reasoning-effort wire values (codex-rs ReasoningEffort, lowercase
+ * serde: protocol/src/openai_models.rs — "xhigh", not "x-high"). null = inherit
+ * the parent session's effort (the jawcode/cli-jaw policy default). An invalid
+ * effort HARD-FAILS the spawn on the codex side, so the store validates on write.
+ */
+// SCOPED to the universally-supported set: codex-rs validates the requested effort
+// against the resolved model's supported_reasoning_levels and HARD-FAILS the spawn on
+// a miss (multi_agents_common.rs validate_spawn_agent_reasoning_effort). Every model in
+// the live catalog supports exactly {low,medium,high,xhigh}; the ReasoningEffort enum
+// also defines none/minimal/max/ultra, but no selectable model advertises them, so
+// offering them would let a saved config brick every later spawn.
+export const EFFORTS = ["low", "medium", "high", "xhigh"]         ;
+
+
+
+
 
 
 
@@ -31,7 +48,7 @@ export const ROLES = ["explorer", "reviewer", "executor"]         ;
 
 
 export function defaultRole()             {
-  return { mode: "default", model: null, promptOverride: null };
+  return { mode: "default", model: null, effort: null, promptOverride: null };
 }
 
 export function defaultConfig()                  {
@@ -49,10 +66,12 @@ function reconstructRole(raw         )             {
   const mode           = r.mode === "model" ? "model" : "default";
   // model only meaningful in "model" mode; coerce anything non-string to null.
   const model = mode === "model" && typeof r.model === "string" && r.model.length > 0 ? r.model : null;
+  // effort: only a known wire value survives; anything else -> null (inherit).
+  const effort = (EFFORTS                     ).includes(r.effort          ) ? (r.effort              ) : null;
   const promptOverride = typeof r.promptOverride === "string" ? r.promptOverride : null;
   // A "model" mode with no valid model is invalid -> fall back to default (fail safe).
-  if (mode === "model" && model === null) return { mode: "default", model: null, promptOverride };
-  return { mode, model, promptOverride };
+  if (mode === "model" && model === null) return { mode: "default", model: null, effort, promptOverride };
+  return { mode, model, effort, promptOverride };
 }
 
 /**
@@ -86,6 +105,13 @@ export function validateRolePatch(patch                     )                {
   }
   if (patch.mode === "model" && !(typeof patch.model === "string" && patch.model.length > 0)) {
     return 'mode "model" requires a non-empty model id';
+  }
+  if (
+    patch.effort !== undefined &&
+    patch.effort !== null &&
+    !(EFFORTS                     ).includes(patch.effort          )
+  ) {
+    return `invalid effort "${String(patch.effort)}" (must be one of ${EFFORTS.join("/")} or null)`;
   }
   if (patch.promptOverride !== undefined && patch.promptOverride !== null && typeof patch.promptOverride !== "string") {
     return "promptOverride must be a string or null";
@@ -140,6 +166,8 @@ export function setRole(cwd        , role          , patch                     )
 
 
 
+
+
 /** Resolve how a role should be spawned given the current config. */
 export function resolveSpawnConfig(cwd        , role          )                  {
   const cfg = readConfig(cwd).roles[role];
@@ -148,6 +176,7 @@ export function resolveSpawnConfig(cwd        , role          )                 
     role,
     model: usesMainModel ? null : cfg.model,
     usesMainModel,
+    effort: cfg.effort,
     promptOverride: cfg.promptOverride,
   };
 }

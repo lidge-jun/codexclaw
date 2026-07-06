@@ -129,7 +129,7 @@ opencodex detection, not opencodex management. `src/detect.ts` resolves whether 
 
 ### `components/subagent-config`
 
-Per-role subagent model and prompt configuration. `src/store.ts` reads/writes `.codexclaw/subagents.json` atomically for `explorer`, `reviewer`, and `executor`, defaulting each role to the main Codex model. `src/catalog.ts` builds a selectable model catalog from the native Codex cache allowlist plus optional ocx-backed model ids, with native models first. `src/mcp.ts` serves a stdio MCP server with `subagents_get`, `subagents_set`, and `catalog_list` tools.
+Per-role subagent model, reasoning-effort, and prompt configuration. `src/store.ts` reads/writes `.codexclaw/subagents.json` atomically for `explorer`, `reviewer`, and `executor`, defaulting each role to the main Codex model with inherited effort (`effort: null`; valid overrides are the catalog-supported values low/medium/high/xhigh). `src/catalog.ts` builds a selectable model catalog from the native Codex cache allowlist plus optional ocx-backed model ids, with native models first. `src/mcp.ts` serves a stdio MCP server with `subagents_get`, `subagents_set`, and `catalog_list` tools.
 
 ---
 
@@ -160,6 +160,7 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-recall` | `skills/recall/` | past-session chat/memory recall before asking the user to repeat context |
 | `cxc-skill-hub` | `skills/skill-hub/` | on-demand skill catalog router |
 | `cxc-ast-grep` | `skills/ast-grep/` | AST-aware search/codemods using `sg` |
+| `cxc-repo-map` | `skills/repo-map/` | ranked repo structure map (vendored RepoMapper: tree-sitter tags + PageRank) |
 | `cxc-sparksearch` | `skills/sparksearch/` | cheap parallel public-web discovery lane that hands proof back to `cxc-search` |
 | `cxc-ultraresearch` | `skills/ultraresearch/` | multi-wave research protocol with journal and claim-ledger proof discipline |
 
@@ -178,9 +179,9 @@ The manifest wires 17 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` 
 | `Stop` | `hooks/stop-checking-pabcd-continuation.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook stop` | active only under a native goal + in-flight PABCD cycle; bounded by re-entry, IDLE/no-goal, context-pressure, and stagnation guards |
 | `PreToolUse` `^create_goal$` | `hooks/pre-tool-use-guarding-goal-budget.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use` | denies `create_goal` inputs with keys other than `objective` |
 | `PreToolUse` `^request_user_input$` | `hooks/pre-tool-use-guarding-interview-in-goal.json` | same pabcd-state CLI | denies user-input/interview tool use while native goal mode is active or unreadable |
-| `PostToolUse` `^request_user_input$` | `hooks/post-tool-use-capturing-interview-answers.json` | same pabcd-state CLI | captures interview question/answer events to the ledger; never blocks (returns empty) |
+| `PostToolUse` `^request_user_input$` | `hooks/post-tool-use-capturing-interview-answers.json` | same pabcd-state CLI | captures interview question/answer events to the ledger; in an interactive I-phase also reinjects the Mind-rescan directive as `additionalContext` (L18); never blocks |
 | `SubagentStop` `^worker$` | `hooks/subagent-stop-verifying-evidence.json` | same pabcd-state CLI | verifies worker evidence expectations on subagent stop |
-| `PreToolUse` `^spawn_agent$` | `hooks/pre-tool-use-attaching-skills.json` | `node "${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js" hook pre-tool-use` | prepends link-form `$cxc-*` skill mentions to spawn messages when inferred or role-required |
+| `PreToolUse` `^spawn_agent$` | `hooks/pre-tool-use-attaching-skills.json` | `node "${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js" hook pre-tool-use` | prepends link-form `$cxc-*` skill mentions to spawn messages; also injects the `.codexclaw/subagents.json` per-role model/`reasoning_effort` into `updatedInput` when the caller picked none |
 | `PostCompact` | `hooks/post-compact-resetting-reinject-cursor.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-compact` | resets reinjection cursor/stage context after compaction |
 | `SessionStart` | `hooks/session-start-injecting-project-rules.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook session-start-rules` | surfaces project-local rules at session start |
 | `PreToolUse` `^(apply_patch|Write|Edit)$` | `hooks/pre-tool-use-linting-apply-patch.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-lint` | lints structured edits before write/edit tool use |
@@ -239,10 +240,11 @@ though they have no package-local `test` script. This asymmetry is intentional, 
 | `cxc metric` | `components/pabcd-state/dist/cli.js metric` | records/shows objective metrics for emergence-harness loops |
 | `cxc divergence` | `components/pabcd-state/dist/cli.js divergence` | records divergence mode and candidate archive state |
 | `cxc goalplan` | `components/pabcd-state/dist/cli.js goalplan` | initializes, shows, or validates the project-local goalplan substrate |
-| `cxc subagents` | `components/subagent-config/dist/cli.js` (list/get/set) | reads/writes the per-role `.codexclaw/subagents.json` model+prompt config |
+| `cxc subagents` | `components/subagent-config/dist/cli.js` (list/get/set) | reads/writes the per-role `.codexclaw/subagents.json` model+effort+prompt config |
 | `cxc provider` | `components/provider-bridge/dist/cli.js` (detect) | read-only ocx provider detect/status; never mutates provider state |
 | `cxc serve` | `components/messenger-bridge/dist/cli.js serve` | runs the loopback bridge server for the GUI, JSON API, and messenger adapters |
 | `cxc service` | `components/messenger-bridge/dist/cli.js service` | installs, uninstalls, or reports the macOS launchd daemon for `cxc serve` |
+| `cxc map` | `skills/repo-map/scripts/repomap.py` via `python3` | ranked repo structure map; first skill-owned Python subcommand — vendored upstream script, so no TS component/dist build; degrades to an install hint without Python deps |
 
 `cxc reset` is an ops cleanup command for `.codexclaw/` state/generated files. `cxc orchestrate reset`
 is the PABCD phase reset command; keep the two meanings distinct when writing docs or tests.
@@ -273,7 +275,7 @@ The phase enum is `IDLE/I/P/A/B/C/D`. `IDLE` is the closed/rest state. `I` throu
 phase transitions append transition entries; the Stop hook itself only blocks/releases for
 continuation and does not append ledger spam on every Stop event.
 
-`subagents.json` is owned separately by `components/subagent-config/src/store.ts` and stores role-level model/prompt selection. It is not part of the PABCD phase session JSON.
+`subagents.json` is owned separately by `components/subagent-config/src/store.ts` and stores role-level model/effort/prompt selection. It is not part of the PABCD phase session JSON.
 
 `interview/freeze.json` is the per-session interview-plan freeze manifest written by `cxc freeze` (`components/pabcd-state/src/freeze.ts`); on a plan-hash mismatch the plan must be re-frozen before proceeding. `interviews/<sessionId>.jsonl` is the append-only Interview ledger shared by the `PostToolUse` Q/A capture hook and the contradiction-scan evidence rows (`components/pabcd-state/src/interview-ledger.ts`, `state.ts`).
 

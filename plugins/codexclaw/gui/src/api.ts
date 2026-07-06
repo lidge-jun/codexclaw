@@ -9,9 +9,17 @@
  */
 export type RoleMode = "default" | "model";
 
+// Mirror of store.ts EFFORTS (separate GUI bundle). Scoped to the universally-supported
+// set: codex-rs hard-fails a spawn whose effort is not in the resolved model's
+// supported_reasoning_levels, and every selectable model supports exactly these four.
+export const EFFORTS = ["low", "medium", "high", "xhigh"] as const;
+export type EffortName = (typeof EFFORTS)[number];
+
 export interface RoleConfig {
   mode: RoleMode;
   model: string | null;
+  /** reasoning-effort override; null = inherit the parent session's effort. */
+  effort: EffortName | null;
   promptOverride: string | null;
 }
 
@@ -30,7 +38,7 @@ export interface ProviderState {
   port: number | null;
 }
 
-const defaultRole = (): RoleConfig => ({ mode: "default", model: null, promptOverride: null });
+const defaultRole = (): RoleConfig => ({ mode: "default", model: null, effort: null, promptOverride: null });
 
 export const defaultConfig = (): SubagentsConfig => ({
   roles: { explorer: defaultRole(), reviewer: defaultRole(), executor: defaultRole() },

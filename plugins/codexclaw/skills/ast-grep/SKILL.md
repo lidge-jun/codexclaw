@@ -24,6 +24,9 @@ Plain filename, literal text, regex, comment, and simple callsite searches use
 "does the answer depend on the language's syntax tree, or just on the file's
 bytes?" Tree → ast-grep. Bytes → `rg`.
 
+For a whole-repo structure OVERVIEW (which files own which symbols, ranked), use
+`cxc map` (repo-map skill) instead; ast-grep is for shape SEARCH within known scope.
+
 ## When to use this skill
 
 - "Find every function that takes a `Request` parameter."

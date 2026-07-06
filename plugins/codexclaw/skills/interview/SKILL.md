@@ -29,6 +29,52 @@ Use this skill to enter or continue Codexclaw's IPABCD Interview phase.
 - Treat every answer as a claim to pressure-test: vague or hedged answers do not raise a
   dimension's readiness; they keep or deepen the gap.
 
+## Sub-modes (INTERVIEW-CATALOG-01)
+
+Pick by the user's knowledge level:
+
+- **Clarification** (default) — the user already knows roughly what they want; questions
+  structure goals, constraints, success criteria.
+- **Catalog Discovery** — the user names a vague domain but no features ("사주 앱 만들고
+  싶어", "뭘 만들지 모르겠어"); present the option ontology from
+  `$cxc-pabcd` `references/catalog-discovery.yaml`. See below.
+- **Configurator** — compile the selections into a spec (PRD sections, MVP cut, risk
+  register, PABCD plan seed).
+
+Heuristic: concrete feature/goal -> Clarification; vague domain, no tech specifics ->
+Catalog Discovery; explicit user request -> honor it.
+
+## Catalog Discovery — design/UX LEADS (CATALOG-DESIGN-FIRST-01)
+
+The user cannot choose from options they have never seen (strong form of INTERVIEW-TEACH-01).
+Present the option ontology in `references/catalog-discovery.yaml` (under `$cxc-pabcd`).
+
+**Hard barrier:** iterate `axis_order` by ascending `stage`; do NOT present a stage until
+every `required` entry of all earlier stages is answered. Stage 1 is design (6 dials: mood,
+lightness, density, shape, typography, motion), all `required: true` — MUST be answered
+before any Stage 2 (domain) or Stage 3 (feature/data/security/ops/cost) question appears.
+
+- *Design methodology* — Product-Personality Selection first (from dev-uiux-design §1): for
+  each design dial show `question_options` (labels + trade-offs) anchored on familiar
+  products, then ask. Refine via Korean Request Translation, Reference Discovery, Design Read.
+- *Deriving backend questions* — two paths populate Stage 3: **structural** (chosen Stage-2
+  domain `implies[]` + Stage-3 `derived_from`, resolved transitively) and **keyword** (scan
+  user's initial free-text against Stage-3 `auto_activate_rules`). Confirm high-impact
+  activations.
+- The catalog is a DATA STRUCTURE — do not invent entries not in it.
+
+**Configurator**: once selections are complete, compile them (with resolved `implies[]`
+chains) into: PRD sections, an MVP cut ordered by `cost_class`, a risk register of every
+`risk_class: high` entry, and a PABCD plan seed carrying the work class + loop archetype.
+
+## Option-set quality (INTERVIEW-OPTION-01)
+
+When presenting options during Interview, generate against typicality bias: the 2-3 options
+a model volunteers are usually one attractor family. Deliberately include at least one
+atypical (low-probability) approach. Offer `A · B · BOTH (parallel spike, select by
+evidence)` instead of forcing one pick. A `BOTH` answer becomes an explore-and-select
+work-phase (loop-engineering §11.4).
+
 ## Rescan + readiness (INTERVIEW-SCAN-01)
 
 - Run a contradiction rescan after every answer, AND one final rescan before any proceed/close
@@ -58,6 +104,11 @@ The interview runtime is shipped, not planned:
 - `PostToolUse` auto-capture for `request_user_input` records each question/answer
   round to `.codexclaw/interviews/<sessionId>.jsonl` (`handlePostToolUse`,
   `captureInterviewAnswers`).
+- L18: after each captured answer, the same PostToolUse hook REINJECTS the rescan
+  directive as `additionalContext` (`RESCAN_REINJECT_DIRECTIVE`) when the session is
+  in an interactive I-phase — so the Mind contradiction rescan fires after every
+  answer instead of fading with transcript distance. Under an active/unreadable goal
+  it stays silent (capture only, firewall intact).
 - The I-phase directive carries the Mind-dispatch contract (`MIND_DISPATCH_DIRECTIVE`),
   so the main session runs the contradiction-rescan loop: select Minds, dispatch
   read-only contradiction lenses, triage (high -> ask the user; low/medium -> recorded

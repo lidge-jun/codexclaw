@@ -45,6 +45,21 @@ test("POST unknown role -> 400", () => {
   assert.equal(postSubagents(tmp(), { role: "wizard" }).status, 400);
 });
 
+test("postSubagents: effort round-trips and invalid effort is rejected", () => {
+  const cwd = tmp();
+  const ok = postSubagents(cwd, { role: "explorer", effort: "high" });
+  assert.equal(ok.status, 200);
+  const cfg = getSubagents(cwd).body as { roles: { explorer: { effort: string | null } } };
+  assert.equal(cfg.roles.explorer.effort, "high");
+
+  const cleared = postSubagents(cwd, { role: "explorer", effort: null });
+  assert.equal(cleared.status, 200);
+  assert.equal((getSubagents(cwd).body as { roles: { explorer: { effort: string | null } } }).roles.explorer.effort, null);
+
+  const bad = postSubagents(cwd, { role: "explorer", effort: "turbo" });
+  assert.equal(bad.status, 400);
+});
+
 test("AC3: provider gating — ocx detected -> provider mode + port; absent -> native", () => {
   const present = getProvider({
     which: () => "/usr/local/bin/ocx",

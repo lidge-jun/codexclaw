@@ -314,6 +314,8 @@ export interface SpawnPayload {
   message: string;
   /** Present ONLY when a non-default model was configured; absent = inherit main model. */
   model?: string;
+  /** Present ONLY when an effort override was configured; absent = inherit parent effort. */
+  reasoning_effort?: string;
   /**
    * L15 — present ONLY for skill-routed spawns: the v1 `items` array carrying the
    * attached `cxc-*` skills + the task text. When set, the caller should pass `items`
@@ -348,6 +350,11 @@ export function buildSpawnPayload(input: BuildSpawnPayloadInput): SpawnPayload {
   const payload: SpawnPayload = { agent_type, message };
   if (!resolution.usesMainModel && typeof resolution.model === "string" && resolution.model.length > 0) {
     payload.model = resolution.model;
+  }
+  // Effort is mode-independent: it can override on a main-model spawn too. The store
+  // validated it against the codex wire enum (an invalid effort hard-fails the spawn).
+  if (typeof resolution.effort === "string" && resolution.effort.length > 0) {
+    payload.reasoning_effort = resolution.effort;
   }
   return payload;
 }

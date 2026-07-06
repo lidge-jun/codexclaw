@@ -26,3 +26,13 @@ code-intel server", not "zero MCP". Keep that distinction precise in docs.
 ## Enforcement tier
 
 N/A — non-goal. Optional E4/E7 discoverability nudge for ast-grep only.
+
+## Amendment (2026-07-06): `cxc map` — in-philosophy one-shot addition
+
+`260706_repo_map` ships `cxc map`, a stateless on-demand repo structure map
+(vendored RepoMapper: Aider tree-sitter tags + PageRank). This does NOT reopen
+the LOCKED non-goal: no daemon, no MCP server, no maintained code graph — it is
+a one-shot CLI in the same class as the ast-grep helper, with a rebuildable
+diskcache under `.codexclaw/cache/repomap/` (allowed by philosophy §2). The
+"jaw식 보강 (제한적)" column above effectively gained one more in-philosophy
+row: exploration-time structure overview, agent-invoked, never resident.

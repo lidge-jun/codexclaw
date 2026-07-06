@@ -15,15 +15,28 @@
  * (the old CODEXCLAW_SPAWN_ATTACH=v1 gate) and no V2_ONLY_FIELDS sniffing are needed.
  * This hook is therefore ALWAYS-ON.
  *
+ * Besides mention attachment, this hook is also the MODEL/EFFORT-ENFORCEMENT point:
+ * when the role's `.codexclaw/subagents.json` config is model-mode and the caller did
+ * not set a model on the spawn, the configured model id is injected into
+ * `updatedInput.model`; likewise a configured reasoning effort is injected into
+ * `updatedInput.reasoning_effort` when the caller did not pick one (effort is
+ * mode-independent — it can ride a main-model spawn). Caller-picked values always
+ * win (never overridden). reasoning_effort is a real spawn schema field on both v1
+ * and v2 (multi_agents_spec.rs:571,610) and an invalid value HARD-FAILS the spawn,
+ * so only store-validated efforts are ever injected.
+ *
  * SAFETY:
  *  - `updatedInput` is a FULL REPLACEMENT of tool_input (registry.rs:122), honored only
  *    on permissionDecision "allow" (output_parser.rs:162). We echo the ENTIRE original
- *    input and change ONLY `message`.
- *  - `items` already present -> no-op. The caller chose the structured v1 channel (E5
- *    builder); adding mentions on top would double-inject the same skills. We do NOT
- *    salvage a v2-shaped payload that carries stale `items` — that spawn is already
- *    invalid on v2 with or without us, and guessing the surface risks breaking v1.
+ *    input and change ONLY `message` and/or `model`.
+ *  - `items` already present -> mention attachment is skipped (the caller chose the
+ *    structured v1 channel; adding mentions on top would double-inject the same
+ *    skills), but model enforcement still applies. We do NOT salvage a v2-shaped
+ *    payload that carries stale `items` — that spawn is already invalid on v2 with or
+ *    without us, and guessing the surface risks breaking v1.
  *  - Mentions already present in the message dedupe per-folder; nothing left -> no-op.
+ *    Model injection is independent: an empty mention block can still yield a
+ *    model-only updatedInput.
  *  - The hook NEVER denies and NEVER throws: any doubt/error -> emit "" (allow untouched).
  */
 import { readFileSync, realpathSync } from "node:fs";
@@ -35,6 +48,7 @@ import {
 
 
 } from "./spawn-wrapper.js";
+import { resolveSpawnConfig } from "./store.js";
 
 /**
  * The plugin skills dir. CODEXCLAW_SKILLS_DIR overrides for installs (and tests)
@@ -53,12 +67,63 @@ function isRecord(v         )                               {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-/** Map the spawn's agent_type back to a base RoleName for skill baselines. */
-function roleFromAgentType(agentType         )           {
-  // explorer/reviewer both spawn as agent_type "explorer"; executor as "worker".
-  // We cannot tell reviewer from explorer here, so default the explorer surface to
-  // "explorer" (read-only baseline). worker -> executor.
-  return agentType === "worker" ? "executor" : "explorer";
+/**
+ * Review-intent keywords (EN + KO) that mark an explorer-typed spawn as a reviewer
+ * dispatch. Lowercase substring matching, same style as inferSurfaces. A false
+ * positive only changes which configured model/skill baseline applies (low risk).
+ */
+const REVIEW_KEYWORDS = [
+  "review",
+  "audit",
+  "verify",
+  "verification",
+  "red-team",
+  "red team",
+  "리뷰",
+  "검증",
+  "감사",
+  "검토",
+];
+
+/**
+ * Map the spawn's agent_type (+ message intent) back to a base RoleName.
+ * explorer/reviewer both spawn as agent_type "explorer"; executor as "worker".
+ * The agent_type alone cannot tell reviewer from explorer, so review-intent
+ * keywords in the message upgrade the explorer surface to "reviewer" — this is
+ * what lets a reviewer-specific model in .codexclaw/subagents.json take effect
+ * on hook-path dispatches.
+ */
+export function inferRole(agentType         , message        )           {
+  if (agentType === "worker") return "executor";
+  const m = (message ?? "").toLowerCase();
+  return REVIEW_KEYWORDS.some((k) => m.includes(k)) ? "reviewer" : "explorer";
+}
+
+/**
+ * TRUE when this spawn is (or defaults to) a full-history fork, where codex-rs
+ * REJECTS agent_type/model/reasoning_effort overrides outright
+ * (reject_full_fork_spawn_overrides, multi_agents_common.rs:241):
+ *  - v1: `fork_context: true` (missing/false -> fresh spawn, overrides fine);
+ *  - v2: `fork_turns` is `Option<String>` — missing/empty/"all" -> FullHistory. Only
+ *    "none" or a positive-integer STRING avoids the full fork (multi_agents_v2/spawn.rs
+ *    fork_mode()). A JSON numeric `fork_turns` is already invalid upstream (wrong type),
+ *    so we treat it as non-full-fork defensively — injecting into an already-rejected
+ *    payload cannot make it worse, and we never turn a VALID fork into a rejected one.
+ * v2 payloads are recognized by their v2-only markers (task_name / fork_turns);
+ * a bare v1 payload without fork_context stays injectable.
+ */
+export function isFullHistoryFork(toolInput                         )          {
+  if (toolInput.fork_context === true) return true;
+  const isV2Shaped = "task_name" in toolInput || "fork_turns" in toolInput;
+  if (!isV2Shaped) return false;
+  const raw = toolInput.fork_turns;
+  // Numeric is off-schema (codex expects a string); already invalid upstream -> defensive
+  // non-full-fork. Only a string is a real fork_turns value.
+  if (typeof raw === "number") return false;
+  const v = typeof raw === "string" ? raw.trim() : "";
+  if (v.length === 0) return true; // v2 default is "all" (full history)
+  if (v.toLowerCase() === "all") return true;
+  return false; // "none" or an integer string -> not a full-history fork
 }
 
 /** Narrow surface inference: only unambiguous surface keywords present in the message. */
@@ -103,25 +168,58 @@ export function runSpawnAttachHook(raw        )         {
     const toolInput = obj.tool_input;
     if (!isRecord(toolInput)) return "";
 
-    // Structured channel already chosen (E5 builder v1 payload) -> never double-attach.
-    if ("items" in toolInput) return "";
-
     // Only rewrite a real message; never invent one (schema shape stays untouched).
     const message = toolInput.message;
     if (typeof message !== "string" || message.trim().length === 0) return "";
 
-    const role = roleFromAgentType(toolInput.agent_type);
-    const surfaces = inferSurfaces(message);
-    const block = buildSkillMentionBlock({
-      role,
-      skillsDir: skillsDir(),
-      surfaces,
-      excludeFolders: [...mentionedFolders(message)],
-    });
-    if (block.length === 0) return "";
+    const role = inferRole(toolInput.agent_type, message);
 
-    // Full replacement: echo every original key, change only message.
-    const updatedInput = { ...toolInput, message: `${block}\n\n${message}` };
+    // Skill-mention channel: skipped when the structured v1 `items` channel is already
+    // chosen (E5 builder payload) — adding mentions would double-inject the same skills.
+    let block = "";
+    if (!("items" in toolInput)) {
+      block = buildSkillMentionBlock({
+        role,
+        skillsDir: skillsDir(),
+        surfaces: inferSurfaces(message),
+        excludeFolders: [...mentionedFolders(message)],
+      });
+    }
+
+    // Model/effort-enforcement channel (independent of mentions): when the role's
+    // store config carries a model (model mode) or an effort override AND the caller
+    // did not pick one, inject the configured value so .codexclaw/subagents.json is
+    // actually honored at spawn time. Caller-picked values are NEVER overridden.
+    // FULL-HISTORY FORK GUARD: codex-rs hard-rejects model/reasoning_effort overrides
+    // on full-history forks (v1 fork_context:true; v2 fork_turns omitted/"all"), so
+    // injection is skipped entirely there — a configured role model must never turn a
+    // valid fork spawn into a rejected one.
+    const cwd = typeof obj.cwd === "string" && obj.cwd.length > 0 ? obj.cwd : process.cwd();
+    let injectedModel                = null;
+    let injectedEffort                = null;
+    if (!isFullHistoryFork(toolInput)) {
+      const callerModel = toolInput.model;
+      const callerPickedModel = typeof callerModel === "string" && callerModel.trim().length > 0;
+      const callerEffort = toolInput.reasoning_effort;
+      const callerPickedEffort = typeof callerEffort === "string" && callerEffort.trim().length > 0;
+      if (!callerPickedModel || !callerPickedEffort) {
+        const resolution = resolveSpawnConfig(cwd, role);
+        if (!callerPickedModel && !resolution.usesMainModel && typeof resolution.model === "string" && resolution.model.length > 0) {
+          injectedModel = resolution.model;
+        }
+        if (!callerPickedEffort && typeof resolution.effort === "string" && resolution.effort.length > 0) {
+          injectedEffort = resolution.effort;
+        }
+      }
+    }
+
+    if (block.length === 0 && injectedModel === null && injectedEffort === null) return "";
+
+    // Full replacement: echo every original key, change only message/model/effort.
+    const updatedInput                          = { ...toolInput };
+    if (block.length > 0) updatedInput.message = `${block}\n\n${message}`;
+    if (injectedModel !== null) updatedInput.model = injectedModel;
+    if (injectedEffort !== null) updatedInput.reasoning_effort = injectedEffort;
     return `${JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
