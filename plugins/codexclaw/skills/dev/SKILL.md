@@ -174,7 +174,7 @@ bound by the same search-skill policy as the main agent.
 
 ### Capability Routing Hub
 
-Use this hub instead of `skill-hub`: repo fact-finding stays in `dev` plus repo tools; current/external/public facts load `search`; multi-step planning loads `pabcd`; repeated work phases load `loop`; past-session context loads `recall`; review loads `dev-code-reviewer`; runtime failure loads `dev-debugging`; module boundaries load `dev-architecture`; backend/frontend/data/security/devops/scaffolding load their matching routers. `skill-hub` is deprecated.
+Use this hub instead of `skill-hub`: repo fact-finding stays in `dev` plus repo tools; current/external/public facts load `search`; multi-step planning loads `pabcd`; repeated work phases load `loop`; past-session context loads `recall`; review loads `dev-code-reviewer`; runtime failure loads `dev-debugging`; module boundaries load `dev-architecture`; backend/frontend/data/security/devops/scaffolding load their matching routers; manual surface-driving QA (prove a built web/TUI/CLI/API surface actually works before done) loads `cxc-qa`. `skill-hub` is deprecated.
 
 ### Skill Ownership Map
 
@@ -188,6 +188,7 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Barrel / re-export | `dev-architecture` | `dev-scaffolding` |
 | Pre-write search | `dev` §1.5 | `dev-code-reviewer` |
 | Edge-first testing | `dev-testing` §6 | — |
+| Manual surface QA / evidence matrix | `cxc-qa` | `dev-testing` §4.6 (tool routing stays there) |
 | Test-induced defense | `dev-testing` §6.7 | `dev-code-reviewer` |
 | Boundary-only defense | `dev-architecture` §4 | `dev-backend`, `dev-security` |
 | Process isolation | `dev-backend` references/ | `dev-code-reviewer`, `dev-devops` |

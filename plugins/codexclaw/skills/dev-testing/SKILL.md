@@ -247,6 +247,12 @@ screen show" after the fact. A green exploratory pass does NOT replace the deter
 suite for regression-worthy flows — promote the flow to Playwright when it must stay
 guarded (§4.1).
 
+**Canonical owner note:** this section owns the TOOL ROUTING (which native tool drives
+which surface). The manual QA PROCEDURE — scenario matrix, evidence contract under
+`.codexclaw/evidence/<session>/qa/`, adversarial classes, oracle passes, teardown
+receipts — is canonically owned by `cxc-qa` (`skills/qa/SKILL.md`); load it for any
+surface-proof pass.
+
 ## 5. CI Pipeline Integration
 > Full workflow templates: `references/ci-pipeline.md`
 ### 5.1 Pipeline Order

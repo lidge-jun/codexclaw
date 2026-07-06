@@ -21,6 +21,7 @@ Load an on-demand skill explicitly by `$name` or SKILL.md path.
 | dev-frontend | `skills/dev-frontend/SKILL.md` | surface | UI components, CSS, client frameworks, viewport/a11y | false | none |
 | dev-uiux-design | `skills/dev-uiux-design/SKILL.md` | surface | design judgment, UX states, layout/typography/logos | false | none |
 | dev-testing | `skills/dev-testing/SKILL.md` | surface | test strategy, coverage, E2E, CI, TDD | false | none |
+| qa | `skills/qa/SKILL.md` | capability | manual surface-driving QA after building/changing a user-facing surface (web/TUI/CLI/API): evidence matrix, adversarial classes, teardown receipts | false | none (rides native browser/CU tools + `.codexclaw/evidence/`) |
 | dev-code-reviewer | `skills/dev-code-reviewer/SKILL.md` | surface | code review, antipatterns, pre-merge verdicts | false | none |
 | dev-security | `skills/dev-security/SKILL.md` | surface | auth, secrets, validation, OWASP, supply chain | false | none |
 | dev-devops | `skills/dev-devops/SKILL.md` | surface | containers, deploy pipelines, k8s, IaC, SRE | false | none |

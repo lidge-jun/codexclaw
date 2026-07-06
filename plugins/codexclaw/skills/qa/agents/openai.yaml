@@ -1,0 +1,5 @@
+interface:
+  display_name: "cxc-qa"
+  short_description: "Manual surface-driving QA gate: faithful channels, evidence matrix, adversarial classes, teardown receipts."
+policy:
+  allow_implicit_invocation: false

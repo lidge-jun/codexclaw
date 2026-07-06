@@ -179,6 +179,11 @@ Illustrative default map (STYLE_SAMPLE, not locked):
 | executor | `cxc-dev` + surface router (`cxc-dev-frontend` / `cxc-dev-backend` / `cxc-dev-testing`) |
 | any (explicit) | the user-named skill, e.g. `cxc-search`, attached verbatim |
 
+QA dispatch note: `cxc-qa` oracle passes (dual visual/functional review, C3+) are
+explorer-role read-only dispatches carrying the captures/artifacts in the prompt;
+DISPATCH-ACTOR-01/RETIRE-01 govern reuse across revision rounds, and QA delegated to a
+`worker` rides the SubagentStop evidence-receipt gate like any other worker.
+
 ---
 
 ## Design 14.C — Route real dispatches through the wrapper
