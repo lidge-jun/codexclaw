@@ -2,11 +2,36 @@
 title: codexclaw
 description: "Codex-native development discipline: PABCD workflow, dev skills, subagent config, and an optional opencodex bridge, shipped as one Codex plugin."
 template: splash
+head:
+  - tag: script
+    attrs:
+      type: application/ld+json
+    content: |
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "name": "codexclaw",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "macOS, Linux",
+            "description": "Codex-native development discipline: PABCD workflow, dev skills, multi-model subagent config, and an optional opencodex bridge, shipped as one OpenAI Codex plugin.",
+            "url": "https://lidge-jun.github.io/codexclaw/",
+            "image": "https://lidge-jun.github.io/codexclaw/og.png",
+            "license": "https://github.com/lidge-jun/codexclaw/blob/main/LICENSE",
+            "softwareVersion": "0.1.0",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "author": { "@type": "Person", "name": "lidge-jun", "url": "https://github.com/lidge-jun" }
+          },
+          {
+            "@type": "WebSite",
+            "name": "codexclaw",
+            "url": "https://lidge-jun.github.io/codexclaw/"
+          }
+        ]
+      }
 hero:
-  image:
-    file: ../../assets/codexclaw-hero.png
-    alt: codexclaw split Codex blossom and OpenClaw claw logo
-  tagline: "Development discipline for OpenAI Codex: one plugin, no fork, no harness."
+  tagline: "Development discipline for OpenAI&nbsp;Codex: one plugin, no fork, no harness."
   actions:
     - text: Get Started
       link: /codexclaw/getting-started/installation/
@@ -15,11 +40,35 @@ hero:
     - text: How It Works
       link: /codexclaw/concepts/how-it-works/
       icon: open-book
+      variant: secondary
     - text: GitHub
       link: https://github.com/lidge-jun/codexclaw
       icon: external
       variant: minimal
 ---
+
+<div class="cxc-term" role="img" aria-label="Terminal session showing a codexclaw PABCD work loop">
+  <div class="cxc-term__bar" aria-hidden="true">
+    <span class="cxc-term__dot"></span><span class="cxc-term__dot"></span><span class="cxc-term__dot"></span>
+    <span class="cxc-term__title">cxc — PABCD loop</span>
+  </div>
+  <div class="cxc-term__body" aria-hidden="true">
+    <span class="cxc-term__line"><span class="cxc-t-dim">$</span> codex plugin add codexclaw@codexclaw</span>
+    <span class="cxc-term__line"><span class="cxc-t-ok">Added</span> plugin codexclaw</span>
+    <span class="cxc-term__line cxc-term__gap"></span>
+    <span class="cxc-term__line"><span class="cxc-t-dim">$</span> cxc orchestrate P --attest <span class="cxc-t-str">'&#123;"from":"IDLE","to":"P",…&#125;'</span></span>
+    <span class="cxc-term__line">orchestrate P: IDLE <span class="cxc-t-red">-&gt;</span> P</span>
+    <span class="cxc-term__line cxc-term__gap"></span>
+    <span class="cxc-term__line"><span class="cxc-t-dim">$</span> cxc orchestrate status</span>
+    <span class="cxc-term__line"><span class="cxc-t-red">IPABCD:</span> P <span class="cxc-t-dim">(PLAN)</span> · interview:false audit:false check:false</span>
+    <span class="cxc-term__line cxc-term__gap"></span>
+    <span class="cxc-term__line"><span class="cxc-t-dim">$</span> cxc map src/</span>
+    <span class="cxc-term__line"><span class="cxc-t-ok">ranked</span> 42 files · tree-sitter + PageRank</span>
+    <span class="cxc-term__line cxc-term__gap"></span>
+    <span class="cxc-term__line"><span class="cxc-t-dim">$</span> cxc loop validate --slug release</span>
+    <span class="cxc-term__line"><span class="cxc-t-ok">OK</span> — complete + all met criteria carry evidence</span>
+  </div>
+</div>
 
 **codexclaw** (`cxc`) is a single [OpenAI Codex](https://openai.com/codex) plugin. It reuses the
 Codex runtime and adds development discipline on top: a `cxc-dev` work classifier, an IPABCD
@@ -32,17 +81,17 @@ standard Codex plugin surfaces: skills, hooks, an MCP server, local components, 
 CLI. The only scoped server exception is the opt-in loopback messenger bridge, which relays to
 stock `codex exec` and does not orchestrate subagents.
 
-<section class="cxc-band">
+<section class="cxc-sec">
 
 ## PABCD pipeline
 
-<div class="cxc-phase-strip" aria-label="codexclaw IPABCD pipeline">
-  <span><strong>I</strong> Interview: settle ambiguity before a work loop starts.</span>
-  <span><strong>P</strong> Plan: write the concrete change plan and evidence target.</span>
-  <span><strong>A</strong> Audit: check risk, contradictions, and missing proof.</span>
-  <span><strong>B</strong> Build: make the scoped change and verify as you go.</span>
-  <span><strong>C</strong> Check: run the real build, tests, and review gate.</span>
-  <span><strong>D</strong> Done: summarize evidence, close the phase, return to idle.</span>
+<div class="cxc-rail" aria-label="codexclaw IPABCD pipeline">
+  <div class="cxc-rail__step"><span class="cxc-rail__key">I</span><span class="cxc-rail__name">Interview</span><span class="cxc-rail__desc">settle ambiguity before a work loop starts</span></div>
+  <div class="cxc-rail__step"><span class="cxc-rail__key">P</span><span class="cxc-rail__name">Plan</span><span class="cxc-rail__desc">write the concrete change plan and evidence target</span></div>
+  <div class="cxc-rail__step"><span class="cxc-rail__key">A</span><span class="cxc-rail__name">Audit</span><span class="cxc-rail__desc">adversarial review against the real codebase</span></div>
+  <div class="cxc-rail__step"><span class="cxc-rail__key">B</span><span class="cxc-rail__name">Build</span><span class="cxc-rail__desc">scoped atomic changes, verified as you go</span></div>
+  <div class="cxc-rail__step"><span class="cxc-rail__key">C</span><span class="cxc-rail__name">Check</span><span class="cxc-rail__desc">real build, tests, and review gate</span></div>
+  <div class="cxc-rail__step"><span class="cxc-rail__key">D</span><span class="cxc-rail__name">Done</span><span class="cxc-rail__desc">evidence summary, close to idle</span></div>
 </div>
 
 ```
@@ -57,7 +106,7 @@ Codex runtime
 
 </section>
 
-<section class="cxc-band">
+<section class="cxc-sec">
 
 ## Surface map
 
@@ -72,13 +121,14 @@ Codex runtime
 
 </section>
 
-<section class="cxc-band">
+<section class="cxc-sec">
 
 ## Quick start
 
 ```bash
-# From a source checkout
-node bin/codexclaw.mjs enable
+# Install from the public marketplace
+codex plugin marketplace add lidge-jun/codexclaw
+codex plugin add codexclaw@codexclaw
 
 # Verify the install
 cxc doctor
@@ -87,7 +137,7 @@ cxc doctor
 cxc orchestrate P --attest '{"from":"IDLE","to":"P","did":"plan the change"}'
 ```
 
-The project gate is green at 644 tests. Build and test commands are documented separately so the
+The project gate is green at 801 tests. Build and test commands are documented separately so the
 landing page stays a control surface, not a release note.
 
 :::note[Status honesty]
@@ -97,17 +147,41 @@ design but no shipped runtime yet. The docs never describe a planned feature as 
 
 </section>
 
-<section class="cxc-band">
+<section class="cxc-sec">
 
 ## Where to next
 
-| Need | Go to |
-|------|-------|
-| Install or dogfood locally | [Installation](/codexclaw/getting-started/installation/) |
-| Understand the plugin boundary | [How It Works](/codexclaw/concepts/how-it-works/) · [Plugin Boundary](/codexclaw/concepts/plugin-boundary/) |
-| Run the IPABCD loop | [PABCD Workflow](/codexclaw/guides/pabcd/) |
-| Inspect the skill model | [Skills](/codexclaw/guides/skills/) · [Work Classes](/codexclaw/concepts/work-classes/) |
-| Configure subagents | [Subagents](/codexclaw/guides/subagents/) · [MCP Tools](/codexclaw/reference/api-mcp/) |
-| Check shipped, planned, and deferred scope | [Parity Roadmap](/codexclaw/development/parity-roadmap/) |
+<div class="cxc-index">
+  <a class="cxc-index__row" href="/codexclaw/getting-started/installation/">
+    <span class="cxc-index__title">Installation</span>
+    <span class="cxc-index__desc">Install from the public marketplace or dogfood a source checkout.</span>
+    <span class="cxc-index__arrow" aria-hidden="true">-&gt;</span>
+  </a>
+  <a class="cxc-index__row" href="/codexclaw/concepts/how-it-works/">
+    <span class="cxc-index__title">How It Works</span>
+    <span class="cxc-index__desc">The plugin boundary: skills, hooks, MCP, file state — no fork, no harness.</span>
+    <span class="cxc-index__arrow" aria-hidden="true">-&gt;</span>
+  </a>
+  <a class="cxc-index__row" href="/codexclaw/guides/pabcd/">
+    <span class="cxc-index__title">PABCD Workflow</span>
+    <span class="cxc-index__desc">Run the IPABCD loop with attested phase gates and evidence ledgers.</span>
+    <span class="cxc-index__arrow" aria-hidden="true">-&gt;</span>
+  </a>
+  <a class="cxc-index__row" href="/codexclaw/guides/skills/">
+    <span class="cxc-index__title">Skills</span>
+    <span class="cxc-index__desc">25 skills: the cxc-dev classifier, surface routers, search, recall, QA.</span>
+    <span class="cxc-index__arrow" aria-hidden="true">-&gt;</span>
+  </a>
+  <a class="cxc-index__row" href="/codexclaw/guides/subagents/">
+    <span class="cxc-index__title">Subagents</span>
+    <span class="cxc-index__desc">Per-role model and prompt config applied to live spawn_agent calls.</span>
+    <span class="cxc-index__arrow" aria-hidden="true">-&gt;</span>
+  </a>
+  <a class="cxc-index__row" href="/codexclaw/development/parity-roadmap/">
+    <span class="cxc-index__title">Parity Roadmap</span>
+    <span class="cxc-index__desc">What is current, planned, and deferred — status-honest scope.</span>
+    <span class="cxc-index__arrow" aria-hidden="true">-&gt;</span>
+  </a>
+</div>
 
 </section>

@@ -30,6 +30,8 @@ export default defineConfig({
         { tag: "link", attrs: { rel: "apple-touch-icon", href: "/codexclaw/apple-touch-icon.png" } },
         { tag: "link", attrs: { rel: "manifest", href: "/codexclaw/site.webmanifest" } },
         { tag: "meta", attrs: { name: "theme-color", content: "#0b0b0e" } },
+        { tag: "meta", attrs: { property: "og:type", content: "website" } },
+        { tag: "meta", attrs: { property: "og:site_name", content: "codexclaw" } },
         { tag: "meta", attrs: { property: "og:image", content: "https://lidge-jun.github.io/codexclaw/og.png" } },
         { tag: "meta", attrs: { property: "og:image:width", content: "1200" } },
         { tag: "meta", attrs: { property: "og:image:height", content: "630" } },
