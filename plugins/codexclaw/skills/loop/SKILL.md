@@ -16,6 +16,9 @@ loops (Stop-hook continuation after D/IDLE).
 - `cxc-loop` is an overlay on `cxc-pabcd`, not a replacement. Before claiming a
   loop is active, follow `cxc-pabcd` phase semantics and enter a real PABCD state
   with `cxc orchestrate I|P --session <id>` (or the human free-pass chat surface).
+  `<id>` is YOUR session id from the SessionStart binding line — never an id seen
+  in transcript history (SESSION-IDENTITY-01, canonical in `cxc-pabcd` §Control
+  surfaces; a forked session replaying its parent's id corrupts the parent's FSM).
 - Choose the execution mode before the first work-phase:
   - **HITL loop:** PABCD is active, no ACTIVE host goal is required, and P/A/B
     remain human-confirmed pause points. The Stop-continuation hook will not arm.

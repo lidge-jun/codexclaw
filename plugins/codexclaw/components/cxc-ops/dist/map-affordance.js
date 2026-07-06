@@ -117,7 +117,12 @@ export function renderSessionBinding(sessionId        )         {
     `[codexclaw] This session's id is \`${sessionId}\`. Every mutating`,
     "`cxc orchestrate` command (I/P/A/B/C/D/reset) MUST pass",
     `\`--session ${sessionId}\` — the implicit latest-session fallback is`,
-    "disabled for writes so concurrent/forked sessions never collide.",
+    "disabled for writes, which prevents ACCIDENTAL implicit-fallback",
+    "collisions between concurrent/forked sessions.",
+    "IDENTITY RULE: use the MOST RECENT SessionStart binding line in your",
+    "current context as the only source of your session id — older binding",
+    "lines or other ids in transcript/history belong to prior/parent sessions;",
+    "never pass those to a mutating command.",
   ].join(" ");
 }
 

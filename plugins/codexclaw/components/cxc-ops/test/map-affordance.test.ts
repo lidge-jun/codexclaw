@@ -96,8 +96,12 @@ test("G3: session-id binding line rides the SessionStart envelope", () => {
   // no session_id on stdin -> no binding line, envelope still valid
   const noId = runMapAffordanceSessionStart(JSON.stringify({ cwd: small }), small);
   assert.doesNotMatch(JSON.parse(noId).hookSpecificOutput.additionalContext, /session's id/);
-  // direct render stays bounded
-  assert.ok(renderSessionBinding("x".repeat(40)).length < 500);
+  // direct render stays bounded and carries the fork identity rule
+  const binding = renderSessionBinding("x".repeat(40));
+  assert.ok(binding.length < 800);
+  assert.match(binding, /IDENTITY RULE/);
+  assert.match(binding, /MOST RECENT SessionStart binding line/);
+  assert.match(binding, /prevents ACCIDENTAL implicit-fallback/, "must not overclaim (explicit replay remains)");
 });
 
 test("cwd is read from the stdin payload; malformed stdin falls back safely", () => {

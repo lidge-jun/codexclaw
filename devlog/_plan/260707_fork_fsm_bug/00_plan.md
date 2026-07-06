@@ -87,6 +87,32 @@ separate design (fork provenance is invisible to hooks — the native gap).
 The fix removes the ACCIDENTAL collision path; deliberate cross-session
 targeting remains possible and visible in the ledger (`reason:"cli"` rows).
 
+### Hardening round (2026-07-06 20:17 forensics)
+
+The limitation went live within minutes: a 5th foreign mutation arrived at
+20:17:09 (P entry, "JS/TS ecosystem debugging refs") carrying OUR session id
+through the post-G3 dist — the forked session replayed `--session <parent-id>`
+from its transcript, exactly the predicted shape. E2 cannot close this without
+owner provenance (separate design); shipped E7+context hardening instead:
+
+- SessionStart binding line now carries the IDENTITY RULE: "this line is the
+  ONLY source of your session id; a different id in your transcript belongs to
+  ANOTHER session."
+- `cxc-pabcd` Control surfaces gains SESSION-IDENTITY-01 (STRICT): only the id
+  from your own SessionStart line may be passed to mutating verbs; loop SKILL
+  points to it.
+- Sibling-CLI sweep (corrected by audit round 2): divergence/metric CLIs
+  hard-require `--session` — no implicit-fallback hole. BUT two explicit-id
+  write surfaces share the residual risk: `goalplan init --session <id>`
+  writes `state.slug` into ANY passed id (goalplan-cli.ts:120-123), and the
+  Stop hook keys enrichment + D-close goalplan advance on that slug
+  (hook.ts:607-620, 496-520) — a fork replaying the parent's id can corrupt
+  the parent's goalplan binding. `freeze` (non-dry-run) writes a
+  project-global `.codexclaw/interview/freeze.json` manifest under a
+  `default` session key (freeze-cli.ts:54-57, 93-95). Both are covered by
+  SESSION-IDENTITY-01 (E7) rather than an E2 gate; E2 closure for all of
+  these needs owner provenance in state files (same separate design).
+
 ## Audit synthesis (REVIEW-SYNTHESIS-01)
 
 Reviewer FAIL, 2 blockers, both ACCEPTED: (1) skill docs teach bare mutating

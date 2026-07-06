@@ -90,9 +90,18 @@ agent discipline that makes later audit possible.
   additionally needs `checkOutput` + a passing `exitCode`. Mutating verbs
   (I/P/A/B/C/D/reset) REQUIRE the explicit `--session <id>` (your own session id from
   the SessionStart context line, or the terminal key `cli`) — the implicit
-  latest-session fallback is write-disabled so a concurrent or /fork-ed session never
-  mutates another session's FSM (G3, `devlog/_plan/260707_fork_fsm_bug/`). `status`
-  keeps the fallback.
+  latest-session fallback is write-disabled, closing the ACCIDENTAL cross-session
+  collision path (G3, `devlog/_plan/260707_fork_fsm_bug/`; explicit replay of a
+  foreign id remains possible and is governed by the rule below). `status`
+  keeps the fallback. **SESSION-IDENTITY-01 (STRICT):** the id from YOUR OWN
+  SessionStart binding line — the MOST RECENT binding line in your current context —
+  is the only id you may pass to a mutating verb. A forked
+  session's transcript contains the PARENT's id and orchestrate commands — replaying
+  that id mutates the parent's FSM. If the id you are about to pass came from
+  transcript history rather than your most recent SessionStart line, stop and use
+  your own. This also covers `cxc loop init --session` and `cxc goalplan` — binding a
+  goalplan slug into a foreign session corrupts that session's Stop enrichment and
+  D-close goalplan cursor.
 - **Phase footer** — every injected directive ends with `IPABCD: <phase> (<LABEL>)` so
   the current phase is visible (codex has no status UI). After `D` closes, the resting
   state shown is `IDLE`.
