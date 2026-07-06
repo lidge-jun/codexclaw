@@ -24,10 +24,10 @@ means intentionally postponed. The docs never describe a planned feature as if i
 | Live spawn-wrapper consuming the role resolver | <span class="cxc-badge cxc-badge--current">current</span> |
 | Interview PostToolUse answer capture + scan-evidence ledger | <span class="cxc-badge cxc-badge--current">current</span> |
 | `cxc subagents` / `cxc provider` CLI | <span class="cxc-badge cxc-badge--current">current</span> |
-| Shell friction capture + advisory hooks | <span class="cxc-badge cxc-badge--current">current</span> |
+| Render observation tracking hook | <span class="cxc-badge cxc-badge--current">current</span> |
 | Skill-attach spawn hook + edit-lint hook | <span class="cxc-badge cxc-badge--current">current</span> |
 | PostCompact state recovery hook | <span class="cxc-badge cxc-badge--current">current</span> |
-| Project-rules session-start hook | <span class="cxc-badge cxc-badge--current">current</span> |
+| `cxc map` session-start affordance hook | <span class="cxc-badge cxc-badge--current">current</span> |
 | SubagentStop evidence-verify hook | <span class="cxc-badge cxc-badge--current">current</span> |
 
 ## Planned

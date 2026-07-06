@@ -1,16 +1,18 @@
 ---
 title: Skills
-description: How codexclaw skills load — implicit vs on-demand, the four naming forms, and the dev-* routing table.
+description: How codexclaw skills load — the implicit set, on-demand skills, the four naming forms, and the dev-* routing table.
 ---
 
-codexclaw ships its discipline as skills. One is always on; the rest load on demand.
+codexclaw ships its discipline as skills. Six are implicit-visible; the rest load on demand.
 
 ## Implicit vs on-demand
 
-- **`cxc-dev` is implicit.** It engages on every coding task and classifies the work
-  ([C0-C5](/codexclaw/concepts/work-classes/)).
-- **Everything else is on-demand.** `dev-frontend`, `dev-backend`, `dev-testing`, `pabcd`,
-  `loop`, `interview`, `search`, `ast-grep`, and the rest load when the task or you call them.
+- **Six skills are implicit.** The shipped implicit set is `dev`, `search`, `interview`,
+  `pabcd`, `recall`, and `loop`. `cxc-dev` remains the coding work classifier
+  ([C0-C5](/codexclaw/concepts/work-classes/)); the others expose current lookup,
+  interview, workflow, recall, and work-loop affordances when their triggers match.
+- **Everything else is on-demand.** `dev-frontend`, `dev-backend`, `dev-testing`, `qa`,
+  `repo-map`, `ast-grep`, and the rest load when the task or you call them.
 
 The skill hub is a **catalog**, not a runtime loader. It lists what exists; it does not
 auto-load skills behind your back.
@@ -72,7 +74,7 @@ overlays:
 
 ## Shipped skill inventory
 
-codexclaw currently ships 23 skill directories:
+codexclaw currently ships 25 skill directories:
 
 | Skill | Folder | Role |
 |---|---|---|
@@ -89,6 +91,7 @@ codexclaw currently ships 23 skill directories:
 | `cxc-dev-frontend` | `dev-frontend` | Frontend/UI implementation and responsive layout. |
 | `cxc-dev-uiux-design` | `dev-uiux-design` | UX direction, states, visual judgment, logos, and typography. |
 | `cxc-dev-testing` | `dev-testing` | Test strategy, QA, Playwright, contracts, CI, and coverage. |
+| `cxc-qa` | `qa` | Manual surface-driving QA evidence for web, TUI, CLI, and API surfaces. |
 | `cxc-dev-code-reviewer` | `dev-code-reviewer` | Review verdicts, findings, and risk assessment. |
 | `cxc-dev-security` | `dev-security` | Auth, secrets, validation, supply chain, and threat-model work. |
 | `cxc-dev-devops` | `dev-devops` | Containers, deploy pipelines, IaC, SRE, and release surfaces. |
@@ -96,6 +99,7 @@ codexclaw currently ships 23 skill directories:
 | `cxc-search` | `search` | Current/public lookup ladder and source-proof discipline. |
 | `cxc-recall` | `recall` | Read-only past chat and memory recall before asking the user. |
 | `cxc-skill-hub` | `skill-hub` | On-demand catalog router for non-implicit capabilities. |
+| `cxc-repo-map` | `repo-map` | Tree-sitter/PageRank repository overview for unfamiliar codebase exploration. |
 | `cxc-ast-grep` | `ast-grep` | AST-aware structural search and deterministic codemods. |
 | `cxc-sparksearch` | `sparksearch` | Parallel public-web discovery lane that depends on `cxc-search`. |
 | `cxc-ultraresearch` | `ultraresearch` | Deep multi-source research protocol with journal and claim ledger. |

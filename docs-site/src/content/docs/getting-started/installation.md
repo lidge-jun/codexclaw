@@ -13,17 +13,17 @@ the one that matches how you obtained the plugin.
 - Optional: [opencodex](https://github.com/lidge-jun/opencodex) (`ocx`) if you want the
   provider bridge to detect routed models.
 
-## Track 1 — Marketplace / personal plugin install
+## Track 1 — Marketplace / codexclaw plugin install
 
-Install codexclaw as a personal Codex plugin through your plugin marketplace entry, then enable
-it from a source checkout or symlinked cache:
+Add the codexclaw marketplace, then install the plugin from that marketplace:
 
 ```bash
-cxc enable
+codex plugin marketplace add https://github.com/lidge-jun/codexclaw
+codex plugin add codexclaw@codexclaw
 ```
 
-`enable` delegates to the config-guard component, which registers the plugin's skills, hooks, and
-MCP server with Codex.
+The marketplace install registers the plugin manifest with Codex, including its skills, hooks,
+and MCP server.
 
 ## Track 2 — Local dogfood with a dev symlink
 
@@ -46,7 +46,7 @@ entry point:
 node bin/codexclaw.mjs enable
 ```
 
-Once a global `cxc` / `codexclaw` bin is on your `PATH` (npm link or marketplace install), use
+Once a global `cxc` / `codexclaw` bin is on your `PATH` (npm link or codexclaw marketplace install), use
 `cxc enable` instead.
 
 :::caution[npm / npx distribution is planned, not shipped]
@@ -57,7 +57,7 @@ a supported install path. Use a source checkout or the dev symlink until packagi
 
 ## Hook trust
 
-codexclaw ships seventeen hooks. Codex requires you to review and trust hooks before they run:
+codexclaw ships twelve hooks. Codex requires you to review and trust hooks before they run:
 
 - The first start after install or upgrade prompts a Codex hook review.
 - Under the symlink dogfood track, approved hooks execute mutable local checkout files, so review

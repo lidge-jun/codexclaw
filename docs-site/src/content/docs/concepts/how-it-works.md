@@ -24,25 +24,26 @@ flowchart LR
 
 ## Skills
 
-Skills carry the development discipline. `cxc-dev` is the implicit, always-on classifier; the
-rest (`dev-frontend`, `dev-testing`, `pabcd`, `loop`, `interview`, `ast-grep`, ...) load on
-demand. The skill hub is a catalog, not a runtime loader. See the
-[Skills guide](/codexclaw/guides/skills/).
+Skills carry the development discipline. Six skills are implicit-visible in the shipped
+`agents/openai.yaml` files: `dev`, `search`, `interview`, `pabcd`, `recall`, and `loop`.
+Everything else (`dev-frontend`, `dev-testing`, `qa`, `repo-map`, `ast-grep`, ...) loads on
+demand by explicit mention, trigger match, or `cxc-dev` routing. The skill hub is a catalog, not
+a runtime loader. See the [Skills guide](/codexclaw/guides/skills/).
 
 ## Hooks
 
-Seventeen hooks connect Codex lifecycle events to codexclaw state, covering session start,
+Twelve hooks connect Codex lifecycle events to codexclaw state, covering session start,
 orchestration, pre/post-tool guards, subagent evidence, and compaction recovery:
 
 | Event | Hooks | Role |
 |---|---|---|
-| `SessionStart` (×3) | provider-bridge, project-rules, recall-advertise | Detect `ocx` status; surface project rules; advertise recall. |
-| `UserPromptSubmit` (×2) | pabcd-trigger, recall-suggest | Parse orchestrate grammar and inject phase directives; suggest recall on past-work prompts. |
+| `SessionStart` (x2) | provider-bridge, map-affordance | Detect `ocx` status; announce `cxc map` availability. |
+| `UserPromptSubmit` (x1) | pabcd-trigger | Parse orchestrate grammar and inject phase directives. |
 | `Stop` | pabcd-continuation | Keep an in-flight cycle advancing under an active goal. |
-| `PreToolUse` (×5) | goal-budget, interview-in-goal, skill-attach, friction-advise, edit-lint | Guard goals, deny interview in goal mode, attach skills to spawns, check friction, lint edits. |
-| `PostToolUse` (×3) | interview-capture, friction-record, edit-shape | Capture interview answers; record shell friction; watch repeated edit shapes. |
+| `PreToolUse` (x4) | goal-budget, interview-in-goal, skill-attach, edit-lint | Guard goals, deny interview in goal mode, attach skills to spawns, lint edits. |
+| `PostToolUse` (x2) | interview-capture, render-observations | Capture interview answers; track render observations. |
 | `SubagentStop` | evidence-verify | Verify subagent evidence bundles. |
-| `PostCompact` (×2) | reinject-cursor, recall-suggest | Recover PABCD state after context compaction; suggest recall after context loss. |
+| `PostCompact` (x1) | reinject-cursor | Recover PABCD state after context compaction. |
 
 Full matchers and timeouts are in the [Hooks reference](/codexclaw/reference/hooks/).
 
@@ -55,15 +56,17 @@ reads and writes role → model/prompt config in `.codexclaw/subagents.json`. Se
 ## CLI
 
 The `cxc` / `codexclaw` binary is a thin delegator over the compiled component CLIs:
-`enable` / `disable` / `status` route to config-guard, `doctor` / `reset` to cxc-ops,
-`orchestrate` / `freeze` / `metric` / `divergence` / `goalplan` to pabcd-state,
-`chat search` / `memory search` to recall, `subagents` to subagent-config, `provider` to
-provider-bridge, `serve` / `service` to messenger-bridge, and `gui` to the Vite dashboard. See
-the [Commands reference](/codexclaw/reference/commands/).
+`enable` / `disable` / `uninstall` / `status` route to config-guard, `doctor` / `reset` to
+cxc-ops, `orchestrate` / `freeze` / `metric` / `divergence` / `loop` / `goalplan` to
+pabcd-state, `chat` / `memory` to recall, `skill search` / `skill show` to skill-search, `map`
+to the repo-map skill, `subagents` to subagent-config, `provider` to provider-bridge,
+`serve` / `service` to messenger-bridge, and `gui` to the Vite dashboard. See the
+[Commands reference](/codexclaw/reference/commands/).
 
 ## Components
 
-Seven component areas provide the CLI, hook, MCP, GUI, and bridge implementations:
+Eight component packages provide the CLI, hook, MCP, search, and bridge implementations. The
+dashboard GUI is a separate workspace package.
 
 | Component | Role |
 |---|---|
@@ -74,6 +77,7 @@ Seven component areas provide the CLI, hook, MCP, GUI, and bridge implementation
 | `subagent-config` | MCP tools and per-role model/prompt store. |
 | `recall` | Read-only past chat/memory search over Codex-owned artifacts. |
 | `messenger-bridge` | Optional loopback GUI/API relay from Telegram/Discord to stock `codex exec`. |
+| `skill-search` | Remote dormant-skill search/show over jaw, hermes, clawhub, and GitHub sources. |
 
 ## File state
 

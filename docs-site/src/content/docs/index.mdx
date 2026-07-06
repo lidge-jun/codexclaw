@@ -63,11 +63,11 @@ Codex runtime
 
 | Surface | Status | Count / scope | Primary docs |
 |---------|--------|---------------|--------------|
-| Skills | <span class="cxc-badge cxc-badge--current">current</span> | 23 skills: `cxc-dev`, dev routers, `pabcd`, `loop`, `search`, `recall`, and research/search helpers. | [Skills](/codexclaw/guides/skills/) |
-| Hooks | <span class="cxc-badge cxc-badge--current">current</span> | 17 hook JSON files across `SessionStart`, `UserPromptSubmit`, `Stop`, `PreToolUse`, `PostToolUse`, `SubagentStop`, and `PostCompact`. | [Hooks](/codexclaw/reference/hooks/) |
+| Skills | <span class="cxc-badge cxc-badge--current">current</span> | 25 skills: six implicit skills (`dev`, `search`, `interview`, `pabcd`, `recall`, `loop`), dev routers, `qa`, `repo-map`, and research/search helpers. | [Skills](/codexclaw/guides/skills/) |
+| Hooks | <span class="cxc-badge cxc-badge--current">current</span> | 12 hook JSON files: `SessionStart` x2, `UserPromptSubmit` x1, `Stop` x1, `PreToolUse` x4, `PostToolUse` x2, `SubagentStop` x1, `PostCompact` x1. | [Hooks](/codexclaw/reference/hooks/) |
 | MCP | <span class="cxc-badge cxc-badge--current">current</span> | Subagent model and prompt config: `subagents_get`, `subagents_set`, `catalog_list`. | [MCP Tools](/codexclaw/reference/api-mcp/) · [Subagents](/codexclaw/guides/subagents/) |
-| Components | <span class="cxc-badge cxc-badge--current">current</span> | 7 local components: config guard, ops, recall, PABCD state, provider bridge, subagent config, messenger bridge. | [How It Works](/codexclaw/concepts/how-it-works/) |
-| `cxc` CLI | <span class="cxc-badge cxc-badge--current">current</span> | `enable`, `status`, `doctor`, `reset`, `orchestrate`, `freeze`, `metric`, `divergence`, `goalplan`, `subagents`, `provider`, `gui`, `serve`, `service`. | [Commands](/codexclaw/reference/commands/) |
+| Components | <span class="cxc-badge cxc-badge--current">current</span> | 8 component packages: config guard, ops, recall, PABCD state, provider bridge, subagent config, messenger bridge, skill search. GUI is separate. | [How It Works](/codexclaw/concepts/how-it-works/) |
+| `cxc` CLI | <span class="cxc-badge cxc-badge--current">current</span> | `enable`, `disable`, `uninstall`, `status`, `orchestrate`, `freeze`, `metric`, `divergence`, `loop`, `goalplan`, `doctor`, `reset`, `subagents`, `map`, `provider`, `chat`, `memory`, `skill`, `gui`, `serve`, `service`. | [Commands](/codexclaw/reference/commands/) |
 | GUI | <span class="cxc-badge cxc-badge--current">current</span> | Dashboard plus shipped opt-in loopback messenger bridge through `cxc serve`; not a jaw-style orchestrator. | [GUI Dashboard](/codexclaw/guides/gui/) |
 
 </section>

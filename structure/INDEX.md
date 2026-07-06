@@ -171,7 +171,7 @@ The `dev` hub routes by change surface toward on-demand `dev-*` skills. `skill-h
 
 ## Hooks
 
-The manifest wires 17 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` are both authoritative and locked by `checkCounts`.
+The manifest wires 12 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` are both authoritative and locked by `checkCounts`. Seven earlier advisory hooks were retired to `hooks/_deprecated/` in the 2026-07-05 hook diet (their rules were absorbed into the `dev` skill family).
 
 | Hook event | Hook file | Command | Live behavior |
 |------------|-----------|---------|---------------|
@@ -185,14 +185,8 @@ The manifest wires 17 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` 
 | `SubagentStop` `^worker$` | `hooks/subagent-stop-verifying-evidence.json` | same pabcd-state CLI | verifies worker evidence expectations on subagent stop |
 | `PreToolUse` `^spawn_agent$` | `hooks/pre-tool-use-attaching-skills.json` | `node "${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js" hook pre-tool-use` | prepends link-form `$cxc-*` skill mentions to spawn messages; also injects the `.codexclaw/subagents.json` per-role model/`reasoning_effort` into `updatedInput` when the caller picked none |
 | `PostCompact` | `hooks/post-compact-resetting-reinject-cursor.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-compact` | resets reinjection cursor/stage context after compaction |
-| `SessionStart` | `hooks/session-start-injecting-project-rules.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook session-start-rules` | surfaces project-local rules at session start |
 | `PreToolUse` `^(apply_patch|Write|Edit)$` | `hooks/pre-tool-use-linting-apply-patch.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-lint` | lints structured edits before write/edit tool use |
-| `PostToolUse` `^Bash$` | `hooks/post-tool-use-capturing-shell-friction.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-friction` | records shell friction signals |
-| `PreToolUse` `^Bash$` | `hooks/pre-tool-use-advising-on-friction.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-friction` | advises when repeated shell friction suggests a process change |
-| `UserPromptSubmit` | `hooks/user-prompt-submit-suggesting-recall.json` | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook user-prompt-submit` | detects past-work recall idioms (KO/EN) and injects a `cxc chat/memory search` nudge; stateless, fail-open |
-| `SessionStart` | `hooks/session-start-advertising-recall.json` | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook session-start` | advertises recall availability + live read-only index status at session start; fail-open |
-| `PostCompact` | `hooks/post-compact-suggesting-recall.json` | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook post-compact` | after compaction (the context-loss moment) steers recovery through recall search; fail-open |
-| `PostToolUse` `^apply_patch$` | `hooks/post-tool-use-detecting-edit-shapes.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-edit-shape` | watches repeated edit shapes for process feedback |
+| `PostToolUse` `^(view_image|browser:control-in-app-browser|chrome:control-chrome|computer-use:computer-use|apply_patch)$` | `hooks/post-tool-use-tracking-render-observations.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-render-observation` | tracks render/visual observation events for QA evidence |
 
 Hook processes are intentionally short: read stdin JSON, reconstruct state, optionally write `.codexclaw/`, then print either nothing or one JSON hook envelope. `UserPromptSubmit` outputs `hookSpecificOutput.additionalContext`; `PreToolUse` can output `permissionDecision: "deny"` with a reason. Non-PreToolUse errors fail open to avoid blocking Codex; the goal-mode `request_user_input` guard is fail-closed.
 

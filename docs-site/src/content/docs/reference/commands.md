@@ -4,6 +4,9 @@ description: Every cxc / codexclaw command — live commands and the orchestrate
 ---
 
 The `cxc` and `codexclaw` binaries are the same thin delegator over the compiled component CLIs.
+The live dispatch set is `enable`, `disable`, `uninstall`, `status`, `orchestrate`, `freeze`,
+`metric`, `divergence`, `loop`, `goalplan`, `doctor`, `reset`, `subagents`, `map`, `provider`,
+`chat`, `memory`, `skill`, `gui`, `serve`, and `service`.
 
 ## Live commands
 
@@ -12,18 +15,21 @@ The `cxc` and `codexclaw` binaries are the same thin delegator over the compiled
 | `cxc enable` | config-guard | Register skills, hooks, and MCP with Codex. |
 | `cxc disable` / `cxc uninstall` | config-guard | Unregister the plugin. |
 | `cxc status` | config-guard | Report config-guard registration status. |
-| `cxc doctor` | cxc-ops | Component health plus `ocx` detection status. |
-| `cxc reset` | cxc-ops | Clean up codexclaw operational state. |
 | `cxc orchestrate <verb>` | pabcd-state | Drive PABCD phase state (see below). |
+| `cxc freeze` | pabcd-state | Freeze the interview plan and surface the goal-activation handoff. |
 | `cxc metric <verb>` | pabcd-state | Record/show true-objective metrics for emergence-harness loops. |
 | `cxc divergence <verb>` | pabcd-state | Record divergence mode and grounded candidate archive entries. |
-| `cxc freeze` | pabcd-state | Freeze the interview plan and surface the goal-activation handoff. |
-| `cxc goalplan <verb>` | pabcd-state | Init, show, or validate the project-local goalplan substrate. |
+| `cxc loop <verb>` | pabcd-state | Init, show, or validate the project-local loop/goalplan substrate. |
+| `cxc goalplan <verb>` | pabcd-state | Deprecated alias for `cxc loop <verb>`. |
+| `cxc doctor` | cxc-ops | Component health plus `ocx` detection status. |
+| `cxc reset` | cxc-ops | Clean up codexclaw operational state. |
 | `cxc gui` | gui | Start the local dashboard (Vite). |
 | `cxc subagents` | subagent-config | Read/write per-role subagent model and prompt config. |
+| `cxc map` | repo-map | Generate a ranked repository map from the `repo-map` skill. |
 | `cxc provider` | provider-bridge | Show read-only opencodex (`ocx`) provider status (detect mode). |
 | `cxc chat search` / `cxc chat index` | recall | Search or index read-only Codex rollout history under `CODEX_HOME` / `~/.codex`. |
 | `cxc memory search` | recall | Search read-only Codex memory artifacts under `CODEX_HOME` / `~/.codex`. |
+| `cxc skill search` / `cxc skill show` | skill-search | Search or show remote dormant skills from jaw, hermes, clawhub, or GitHub sources. |
 | `cxc serve` | messenger-bridge | Start the opt-in loopback dashboard/API/messenger bridge on `127.0.0.1`. |
 | `cxc service` | messenger-bridge | Install, uninstall, or inspect the macOS launchd service for `cxc serve`. |
 
@@ -95,15 +101,37 @@ keeps the single candidate archive.
 cxc freeze [--dry-run] [--cwd <path>] [--session <id>]
 ```
 
-## goalplan sub-grammar
+## loop / goalplan sub-grammar
 
 ```
-cxc goalplan init --objective "<text>" [--criterion "<text>"...] [--session <id>] [--cwd <path>]
-cxc goalplan show --slug "<text>" [--cwd <path>]
-cxc goalplan validate --slug "<text>" [--cwd <path>]
+cxc loop init --objective "<text>" [--criterion "<text>"...] [--session <id>] [--cwd <path>]
+cxc loop show --slug "<text>" [--cwd <path>]
+cxc loop validate --slug "<text>" [--cwd <path>]
 ```
 
 `show` and `validate` also accept `--objective "<text>"` instead of `--slug`.
+`cxc goalplan ...` is a deprecated alias for the same sub-grammar.
+
+## map sub-grammar
+
+```
+cxc map [path] [--map-tokens N|--budget N] [--chat-files <path>...] [--mentioned-idents <name>...] [--verbose]
+```
+
+`map` runs the `repo-map` skill's vendored tree-sitter/PageRank mapper. It is a stateless
+overview command for unfamiliar repositories and degrades to an install hint when Python
+dependencies are missing.
+
+## skill sub-grammar
+
+```
+cxc skill search "<query>" [--source jaw|hermes|clawhub|gh|all] [--limit N] [--json] [--refresh]
+cxc skill show <id> [--source jaw|hermes|clawhub] [--json] [--refresh]
+```
+
+`skill` delegates to the `skill-search` component for remote dormant-skill search/show. It caches
+catalog fetches under the user-level codexclaw cache and can serve stale cache entries if a remote
+source is unavailable.
 
 ## recall sub-grammar
 

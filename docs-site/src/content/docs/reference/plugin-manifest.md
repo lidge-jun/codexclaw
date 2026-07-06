@@ -12,9 +12,11 @@ tells Codex which skills, hooks, and MCP servers to load.
 |---|---|
 | `name` | `codexclaw` |
 | `version` | `0.1.0` |
+| `repository` | `https://github.com/lidge-jun/codexclaw` |
+| `homepage` | `https://lidge-jun.github.io/codexclaw/` |
 | `license` | `MIT` |
 | `skills` | `./skills/` — the skill directory root. |
-| `hooks` | Seventeen hook JSON files (see [Hooks](/codexclaw/reference/hooks/)). |
+| `hooks` | Twelve hook JSON files (see [Hooks](/codexclaw/reference/hooks/)). |
 | `mcpServers` | `./.mcp.json` — the subagent-config MCP server. |
 
 ## Registered hooks
@@ -22,6 +24,7 @@ tells Codex which skills, hooks, and MCP servers to load.
 ```json
 "hooks": [
   "./hooks/session-start-ensuring-provider-bridge.json",
+  "./hooks/session-start-announcing-map-affordance.json",
   "./hooks/user-prompt-submit-checking-pabcd-trigger.json",
   "./hooks/stop-checking-pabcd-continuation.json",
   "./hooks/pre-tool-use-guarding-goal-budget.json",
@@ -30,19 +33,14 @@ tells Codex which skills, hooks, and MCP servers to load.
   "./hooks/subagent-stop-verifying-evidence.json",
   "./hooks/pre-tool-use-attaching-skills.json",
   "./hooks/post-compact-resetting-reinject-cursor.json",
-  "./hooks/session-start-injecting-project-rules.json",
   "./hooks/pre-tool-use-linting-apply-patch.json",
-  "./hooks/post-tool-use-capturing-shell-friction.json",
-  "./hooks/pre-tool-use-advising-on-friction.json",
-  "./hooks/user-prompt-submit-suggesting-recall.json",
-  "./hooks/session-start-advertising-recall.json",
-  "./hooks/post-compact-suggesting-recall.json",
-  "./hooks/post-tool-use-detecting-edit-shapes.json"
+  "./hooks/post-tool-use-tracking-render-observations.json"
 ]
 ```
 
-The plugin currently contains seven component packages under `components/` and 23 skill
-directories under `skills/`.
+The plugin currently contains eight component packages under `components/` (including
+`skill-search`) and 25 skill directories under `skills/`. The GUI is a separate workspace
+package under `plugins/codexclaw/gui/`.
 
 ## Interface metadata
 
@@ -52,8 +50,9 @@ The manifest's `interface` block drives how codexclaw appears in Codex:
 |---|---|
 | `displayName` | Codexclaw |
 | `category` | Developer Tools |
+| `websiteURL` | `https://lidge-jun.github.io/codexclaw/` |
 | `capabilities` | Skills, Hooks, Workflow, Subagents, Context Injection |
-| `defaultPrompt` | "Plan this with codexclaw PABCD and use multi-model subagents." |
+| `defaultPrompt` | Three prompts: "Plan this with codexclaw PABCD and use multi-model subagents."; "Run cxc map to get the shape of this repo before we dive in."; "Interview me first, then draft a diff-level plan." |
 
 ## Namespacing
 
