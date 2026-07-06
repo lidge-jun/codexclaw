@@ -48,8 +48,14 @@ test("uninstall/status are safe no-ops when not installed", () => {
   // Use an empty temp home so no real plist exists.
   const fakeHome = "/tmp/cxc-service-none-" + process.pid;
   const un = uninstallService(fakeHome);
-  assert.equal(un.ok, true);
-  assert.match(un.message, /not installed|nothing to remove/);
+  if (process.platform === "darwin") {
+    assert.equal(un.ok, true);
+    assert.match(un.message, /not installed|nothing to remove/);
+  } else {
+    // Non-darwin reports unsupported rather than pretending (service.ts:120-123).
+    assert.equal(un.ok, false);
+    assert.match(un.message, /only supported on macOS/);
+  }
   const st = serviceStatus(fakeHome);
   assert.equal(st.ok, true);
   assert.match(st.message, /not installed/);
