@@ -362,6 +362,9 @@ action item that prevents the same class of bug from recurring.
 | `references/tool-guides.md` | Quick cheatsheet | Node inspector basics, pdb basics, Chrome DevTools, git bisect, DB EXPLAIN |
 | `references/postmortem-template.md` | After resolving a significant incident | Blameless postmortem template |
 | `references/runtimes/node.md` | Node.js / tsx / Bun / Deno | Phase 0 detection, tsx source-map trap, launch recipes, `exec()` patterns, silent-failure table, cleanup |
+| `references/runtimes/js/nextjs-react.md` | Next.js 16 / React 19 | Server-vs-client attach split, DevTools MCP, hydration mismatch workflow, React Compiler debug, RSC silent-failures |
+| `references/runtimes/js/vite-vitest.md` | Vite 8 / Vitest 4 | forwardConsole agent forwarding, plugin-transform debug, visual regression, HMR + build-time silent-failures |
+| `references/runtimes/js/node-backend.md` | Express 5 / Fastify 5 / NestJS 11 | Router debug namespaces, lifecycle hooks, schema serialization drops, DI errors, AsyncLocalStorage loss |
 | `references/runtimes/python.md` | Python (CPython 3.9+) | Attach methods, pdb/ipdb/pudb, pytest, asyncio gotchas, PEP 768 safe attach, py-spy/memray, silent-failures |
 | `references/runtimes/rust.md` | Rust | Hierarchy (dbg! -> RUST_LOG -> backtrace -> gdb/lldb -> tokio-console -> cargo-expand), Miri UB, silent-failures |
 | `references/runtimes/go.md` | Go | Delve launch/attach, goroutine patterns, race detector, pprof, GODEBUG, silent-failures |

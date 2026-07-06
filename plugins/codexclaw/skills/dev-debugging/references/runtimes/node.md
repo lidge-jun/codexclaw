@@ -4,6 +4,17 @@ Covers Node 18+, tsx, ts-node, Bun, Deno. Phase 0 detection, launch recipes,
 inspector protocol, the tsx source-map silent-failure, and cleanup.
 Lineage: lazycodex `runtimes/node.md`, adapted for codexclaw.
 
+## Framework-Level References (js/)
+
+This file owns RUNTIME-level debugging (inspector, launch, source maps).
+Framework-specific depth lives in `js/`:
+
+| File | When |
+| --- | --- |
+| `js/nextjs-react.md` | Next.js 16 / React 19: server-vs-client attach split, DevTools MCP, hydration workflow, RSC silent failures |
+| `js/vite-vitest.md` | Vite 8 / Vitest 4: forwardConsole, plugin/transform debug, HMR failures, build-time silent failures |
+| `js/node-backend.md` | Express 5 / Fastify 5 / NestJS 11: router debug namespaces, lifecycle hooks, DI errors, AsyncLocalStorage loss |
+
 ## Phase 0 — Environment Detection
 
 Run before attaching anything:
