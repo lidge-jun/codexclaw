@@ -94,6 +94,20 @@ draw-protection invariant locked a 3.5/8 score.
   protects versus the candidate-space it vetoes. If a hard invariant vetoes three or
   more consecutive candidates that target strictly larger gains, downgrade it to a
   soft cost and re-justify or remove it.
+- **GATE-HOLDOUT-LEAKAGE-01 (DEFAULT):** Fixed evaluation assets - recorded logs, test
+  maps, sparring bots, graders, and even public oracle outcomes - become training data
+  once candidates are repeatedly tuned against them (adaptive reuse overfits the
+  holdout itself; Blum & Hardt's Ladder, arXiv:1502.04585, and the reusable-holdout
+  line, arXiv:1506.02629). Rotate or expand the gate's instance set as tuning
+  accumulates, and reserve a blind slice (instances never used for candidate
+  selection) as the final acceptance check. A candidate that wins only on the tuned
+  set and not on the blind slice is gate-overfit, not improved.
+- **GATE-AGREEMENT-STATS-01 (HEURISTIC):** Calibrate a proxy against the scarce oracle
+  with agreement statistics, not correlation alone: sign-discordance rate (proxy said
+  better/equal, oracle said worse), mean and worst-case proxy-minus-oracle error, and
+  rank agreement on paired decisions (Bland-Altman method-comparison doctrine). Track
+  these per scenario family - a proxy can be trustworthy on one instance class and
+  optimistic on another - and re-derive them whenever the oracle returns new results.
 
 ### 1.6 Property-Based & Mutation Testing (verified 2026-07-02)
 
