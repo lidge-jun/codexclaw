@@ -158,7 +158,7 @@ test("L19: skill-hub catalog enumerates every codexclaw skill (filesystem-derive
     );
   }
 
-  // After the 2026-07-05 consolidation, only cxc-dev is implicit; skill-hub is deprecated.
+  // Implicit set is {dev, search, interview, pabcd, recall, loop}; skill-hub is deprecated.
   assert.equal(
     readImplicit(join(skillsDir, "skill-hub", "agents", "openai.yaml")),
     false,

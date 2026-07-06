@@ -9,8 +9,9 @@ metadata:
 # search — Unified Search Hub
 
 Search discipline for any lookup that leaves the repository. This skill is
-on-demand; only `cxc-dev` is implicit-visible. Load this body on explicit
-trigger or `dev`-hub routing, never by an external dispatcher.
+implicit-visible as metadata (`allow_implicit_invocation: true`); load the
+full body on explicit trigger or `dev`-hub routing, never by an external
+dispatcher.
 
 ## Source-Proof Invariant (read first)
 
@@ -257,8 +258,9 @@ spend Tier 3 subagents on a question Tier 1+2 already settled.
 
 ## Notes
 
-- This skill is on-demand (`allow_implicit_invocation: false`); only `cxc-dev`
-  is implicit-visible. It is reached by trigger words or by `dev`-hub routing.
+- This skill is implicit-visible as metadata (`allow_implicit_invocation:
+  true`, part of the six-skill implicit set with `dev`); the body is reached
+  by trigger words or by `dev`-hub routing.
 - Query rewrite runs prompt-side. `agbrowse` is an OPT-IN, lazily-resolved Tier-2 proof
   helper (HTTP-first; local-CDP escalation only); it is not bundled and not required —
   without it, Tier 2 starts at rung 2 (`browser:control-in-app-browser`) and escalates

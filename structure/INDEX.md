@@ -135,7 +135,7 @@ Per-role subagent model, reasoning-effort, and prompt configuration. `src/store.
 
 ## Skills Map
 
-codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.yaml` `interface.display_name` values are the user-facing `$` autocomplete names; folder names are implementation paths. The implicit-visible set is `{dev, search, interview, pabcd, recall, skill-hub, loop}` (2026-07-05 expansion; metadata rows only — `dev` alone carries always-on body discipline). All `dev-*` routers and the remaining skills are on-demand and explicitly invokable.
+codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.yaml` `interface.display_name` values are the user-facing `$` autocomplete names; folder names are implementation paths. The implicit-visible set is `{dev, search, interview, pabcd, recall, loop}` (2026-07-05 expansion; metadata rows only — `dev` alone carries always-on body discipline). All `dev-*` routers and the remaining skills are on-demand and explicitly invokable.
 
 | Skill display name | Folder | Role |
 |--------------------|--------|------|

@@ -170,7 +170,7 @@ bound by the same search-skill policy as the main agent.
 | `dev-scaffolding/SKILL.md` | New project/feature setup, structural audit, docs generation | Scaffolding, colocation, public boundary export, documentation generation |
 | `pabcd/SKILL.md` | Multi-phase planning, interview-first discovery, gated execution | PABCD workflow, phase gates, interview flow |
 
-**Visibility decision (canonical):** only `cxc-dev` is implicit-visible (`allow_implicit_invocation: true`). All other `cxc-*` skills — including `search`, `recall`, `interview`, `pabcd`, `loop`, `skill-hub`, and every `dev-*` router — are on-demand (`allow_implicit_invocation: false`) and load by explicit mention, trigger match, or `dev` routing. This is the correct set; any older claim that multiple skills are implicit is stale.
+**Visibility decision (canonical):** the implicit-visible set is `{dev, search, interview, pabcd, recall, loop}` (`allow_implicit_invocation: true` in each skill's `agents/openai.yaml`; the 2026-07-05 expansion added metadata rows only — `dev` alone carries the always-on body discipline). Everything else — `skill-hub` (deprecated), `qa`, `repo-map`, and every `dev-*` router — is on-demand (`allow_implicit_invocation: false`) and loads by explicit mention, trigger match, or `dev` routing. This is the correct set; any claim that only `cxc-dev` is implicit is stale.
 
 ### Capability Routing Hub
 
