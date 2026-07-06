@@ -28,9 +28,10 @@
  * read-only and does not toggle or ensure opencodex.
  */
 import { spawnSync } from "node:child_process";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const configGuardCli = join(
@@ -169,21 +170,67 @@ function runProvider() {
   return typeof res.status === "number" ? res.status : 1;
 }
 
+/**
+ * Pick the interpreter command for the vendored repo-map script (bootstrap ladder).
+ *
+ * Rungs, highest priority first (SOT: pabcd repo-map-capability.md packaging note):
+ *   0. `--help`/`-h` anywhere in args -> bare python3 (dep-free help contract).
+ *   1. CODEXCLAW_PYTHON env override -> that interpreter, verbatim.
+ *   2. `uv` on PATH -> `uv run --with-requirements <reqs> python -B script ...`
+ *      (deps resolve into uv's own rebuildable cache; no venv to manage).
+ *   3. existing venv at $CODEXCLAW_HOME|~/.codexclaw/venvs/repomap -> its python.
+ *      The venv is only auto-created when CODEXCLAW_MAP_BOOTSTRAP=1 (opt-in network).
+ *   4. bare python3 -> repomap.py itself degrades to an exit-3 install hint.
+ *
+ * Pure helper (no spawning) so packaging tests can assert the ladder offline.
+ */
+export function selectRepoMapCommand(args, env, deps) {
+  const { scriptPath, reqsPath, venvPython, hasUv, hasVenv } = deps;
+  const wantsHelp = args.some((a) => a === "--help" || a === "-h");
+  if (!wantsHelp && env.CODEXCLAW_PYTHON) {
+    return { cmd: env.CODEXCLAW_PYTHON, args: ["-B", scriptPath, ...args] };
+  }
+  if (!wantsHelp && hasUv) {
+    return {
+      cmd: "uv",
+      args: ["run", "--quiet", "--with-requirements", reqsPath, "python", "-B", scriptPath, ...args],
+    };
+  }
+  if (!wantsHelp && hasVenv) {
+    return { cmd: venvPython, args: ["-B", scriptPath, ...args] };
+  }
+  return { cmd: env.CODEXCLAW_PYTHON || "python3", args: ["-B", scriptPath, ...args] };
+}
+
+/** Locate the user-level rebuildable repomap venv (philosophy §2 derived-cache rule). */
+export function repoMapVenvPython(env, home) {
+  const base = env.CODEXCLAW_HOME && env.CODEXCLAW_HOME.trim() !== "" ? env.CODEXCLAW_HOME : join(home, ".codexclaw");
+  return join(base, "venvs", "repomap", "bin", "python3");
+}
+
 /** Run the vendored repo-map Python script (skill-owned, no dist build). argv: [...rest]. */
 function runRepoMap(args) {
-  const repoMapScript = join(
-    here,
-    "..",
-    "plugins",
-    "codexclaw",
-    "skills",
-    "repo-map",
-    "scripts",
-    "repomap.py",
-  );
-  const python = process.env.CODEXCLAW_PYTHON || "python3";
-  // -B: never write __pycache__ into the vendored skill directory.
-  const res = spawnSync(python, ["-B", repoMapScript, ...args], { stdio: "inherit" });
+  const scriptsDir = join(here, "..", "plugins", "codexclaw", "skills", "repo-map", "scripts");
+  const scriptPath = join(scriptsDir, "repomap.py");
+  const reqsPath = join(scriptsDir, "requirements.txt");
+  const venvPython = repoMapVenvPython(process.env, homedir());
+  let hasVenv = existsSync(venvPython);
+
+  // Opt-in one-time venv bootstrap (network): CODEXCLAW_MAP_BOOTSTRAP=1.
+  if (!hasVenv && process.env.CODEXCLAW_MAP_BOOTSTRAP === "1" && !process.env.CODEXCLAW_PYTHON) {
+    const venvDir = dirname(dirname(venvPython));
+    console.error(`codexclaw map: bootstrapping venv at ${venvDir} (one-time)...`);
+    const mk = spawnSync("python3", ["-m", "venv", venvDir], { stdio: "inherit" });
+    if (mk.status === 0) {
+      const pip = spawnSync(venvPython, ["-m", "pip", "install", "-q", "-r", reqsPath], { stdio: "inherit" });
+      hasVenv = pip.status === 0;
+      if (!hasVenv) console.error("codexclaw map: venv bootstrap failed; falling back.");
+    }
+  }
+
+  const hasUv = !spawnSync("uv", ["--version"], { stdio: "ignore" }).error;
+  const sel = selectRepoMapCommand(args, process.env, { scriptPath, reqsPath, venvPython, hasUv, hasVenv });
+  const res = spawnSync(sel.cmd, sel.args, { stdio: "inherit" });
   if (res.error && res.error.code === "ENOENT") {
     console.error("codexclaw map: python3 not found; install Python 3.9+ or set CODEXCLAW_PYTHON");
     return 1;
@@ -191,8 +238,10 @@ function runRepoMap(args) {
   return typeof res.status === "number" ? res.status : 1;
 }
 
+// Only dispatch when executed directly; the ladder helpers are importable for tests.
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 const cmd = process.argv[2] ?? "help";
-switch (cmd) {
+if (isMain) switch (cmd) {
   case "enable":
     process.exit(runConfigGuard("enable"));
     break;

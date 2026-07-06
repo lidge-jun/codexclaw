@@ -77,9 +77,44 @@ test("cxc map --help exits 0 without python deps", () => {
   );
 });
 
-test("dispatcher spawns python with -B (no bytecode in vendored dir)", () => {
-  const dispatcher = readFileSync(join(repoRoot, "bin", "codexclaw.mjs"), "utf8");
-  assert.match(dispatcher, /spawnSync\(python, \["-B", repoMapScript/, "runRepoMap must pass -B");
+test("dispatcher bootstrap ladder: help bypass, env override, uv rung, venv rung, -B everywhere", async () => {
+  const mod = await import(join(repoRoot, "bin", "codexclaw.mjs") + "?ladder");
+  const { selectRepoMapCommand, repoMapVenvPython } = mod;
+  const deps = {
+    scriptPath: "/s/repomap.py",
+    reqsPath: "/s/requirements.txt",
+    venvPython: "/h/.codexclaw/venvs/repomap/bin/python3",
+    hasUv: true,
+    hasVenv: true,
+  };
+  // Rung 0: --help stays dep-free bare python even with uv+venv available.
+  const help = selectRepoMapCommand(["--help"], {}, deps);
+  assert.equal(help.cmd, "python3");
+  assert.ok(help.args.includes("-B"));
+  // Rung 1: env override beats uv and venv.
+  const envSel = selectRepoMapCommand(["."], { CODEXCLAW_PYTHON: "/opt/py" }, deps);
+  assert.equal(envSel.cmd, "/opt/py");
+  assert.ok(envSel.args.includes("-B"));
+  // Rung 2: uv run with pinned requirements.
+  const uvSel = selectRepoMapCommand(["."], {}, deps);
+  assert.equal(uvSel.cmd, "uv");
+  assert.ok(uvSel.args.includes("--with-requirements"));
+  assert.ok(uvSel.args.includes("/s/requirements.txt"));
+  assert.ok(uvSel.args.includes("-B"));
+  // Rung 3: venv python when uv absent.
+  const venvSel = selectRepoMapCommand(["."], {}, { ...deps, hasUv: false });
+  assert.equal(venvSel.cmd, deps.venvPython);
+  assert.ok(venvSel.args.includes("-B"));
+  // Rung 4: bare python3 fallback (repomap.py degrades to exit-3 hint).
+  const bare = selectRepoMapCommand(["."], {}, { ...deps, hasUv: false, hasVenv: false });
+  assert.equal(bare.cmd, "python3");
+  assert.ok(bare.args.includes("-B"));
+  // Venv location honors CODEXCLAW_HOME and defaults under ~/.codexclaw.
+  assert.equal(repoMapVenvPython({}, "/h"), "/h/.codexclaw/venvs/repomap/bin/python3");
+  assert.equal(
+    repoMapVenvPython({ CODEXCLAW_HOME: "/custom" }, "/h"),
+    "/custom/venvs/repomap/bin/python3",
+  );
 });
 
 test("find_src_files skips compiled-output dirs", () => {

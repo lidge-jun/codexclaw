@@ -68,15 +68,28 @@ the path explicitly (e.g. `cxc map dist/`) to map it anyway.
 
 ## Dependencies
 
-Install once when the Python dependencies are not already present:
+`cxc map` resolves its Python dependencies through a bootstrap ladder, so in most
+environments no manual install is needed:
+
+1. `CODEXCLAW_PYTHON` env override — that interpreter is used verbatim.
+2. `uv` on PATH — the script runs via `uv run --with-requirements`, and deps
+   resolve into uv's own rebuildable cache automatically (first run pays a short
+   resolve; later runs are warm).
+3. An existing venv at `$CODEXCLAW_HOME|~/.codexclaw/venvs/repomap` — a user-level
+   rebuildable derived cache (philosophy §2). Auto-created only when
+   `CODEXCLAW_MAP_BOOTSTRAP=1` is set (opt-in network install).
+4. Bare `python3` — works when deps are already installed; otherwise degrades to
+   the install hint below.
+
+Manual install (rung 4 environments):
 
 ```bash
 python3 -m pip install -r plugins/codexclaw/skills/repo-map/scripts/requirements.txt
 ```
 
 The CLI degrades cleanly when dependencies are missing. `--help` works with only
-system Python. A real map run without parser dependencies prints a single install
-hint and exits with code 3.
+system Python and always bypasses the ladder (dep-free help contract). A real map
+run without parser dependencies prints a single install hint and exits with code 3.
 
 The pinned parser stack matters: `tree-sitter-language-pack==0.9.0` and
 `tree-sitter==0.25.1` are the verified working pair for this vendored parser API.

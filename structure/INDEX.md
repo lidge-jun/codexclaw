@@ -245,7 +245,7 @@ though they have no package-local `test` script. This asymmetry is intentional, 
 | `cxc provider` | `components/provider-bridge/dist/cli.js` (detect) | read-only ocx provider detect/status; never mutates provider state |
 | `cxc serve` | `components/messenger-bridge/dist/cli.js serve` | runs the loopback bridge server for the GUI, JSON API, and messenger adapters |
 | `cxc service` | `components/messenger-bridge/dist/cli.js service` | installs, uninstalls, or reports the macOS launchd daemon for `cxc serve` |
-| `cxc map` | `skills/repo-map/scripts/repomap.py` via `python3` | ranked repo structure map; first skill-owned Python subcommand — vendored upstream script, so no TS component/dist build; degrades to an install hint without Python deps |
+| `cxc map` | `skills/repo-map/scripts/repomap.py` via bootstrap ladder (env override > `uv run` > `~/.codexclaw/venvs/repomap` > bare `python3`) | ranked repo structure map; first skill-owned Python subcommand — vendored upstream script, so no TS component/dist build; `--help` bypasses the ladder (dep-free); degrades to an install hint without Python deps |
 
 `cxc reset` is an ops cleanup command for `.codexclaw/` state/generated files. `cxc orchestrate reset`
 is the PABCD phase reset command; keep the two meanings distinct when writing docs or tests.

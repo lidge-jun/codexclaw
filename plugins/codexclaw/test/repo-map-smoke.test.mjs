@@ -20,6 +20,9 @@ const fixturesDir = join(here, "fixtures", "repo-map");
 const python = process.env.CODEXCLAW_PYTHON || "python3";
 
 function depsAvailable() {
+  // Mirror the dispatcher bootstrap ladder: uv makes deps resolvable on demand,
+  // otherwise the interpreter itself must already have the imports.
+  if (!spawnSync("uv", ["--version"], { stdio: "ignore" }).error) return true;
   const res = spawnSync(python, ["-c", "import grep_ast, networkx, diskcache"], { encoding: "utf8" });
   return res.status === 0;
 }
