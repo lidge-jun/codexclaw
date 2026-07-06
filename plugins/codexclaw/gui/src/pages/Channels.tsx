@@ -1,33 +1,57 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, type ChannelKind, type ChannelsState } from "../api.ts";
-import { Card, Button, Field, StatusDot, Badge, Loading } from "../ui/kit.tsx";
+import { Button, Field, StatusDot, Badge, Loading, Modal } from "../ui/kit.tsx";
 import { Icon, type IconName } from "../ui/icons.tsx";
 import { toast } from "../ui/toast.tsx";
+import { PairingPane, HANDSHAKE_SECONDS, type BotIdentity } from "../components/pairing.tsx";
 
-type WizardStep = "idle" | "validating" | "awaiting-start" | "paired" | "error";
+interface ChannelMeta {
+  name: string;
+  icon: IconName;
+  tokenLabel: string;
+  tokenHint: string;
+  tokenHelpUrl: string;
+  tokenHelpLabel: string;
+}
 
-const CHANNEL_META: Record<ChannelKind, { name: string; icon: IconName; startHint: string; tokenHint: string }> = {
+const CHANNEL_META: Record<ChannelKind, ChannelMeta> = {
   telegram: {
     name: "Telegram",
     icon: "telegram",
-    startHint: "Open your bot's chat and press /start.",
-    tokenHint: "Bot token from @BotFather (e.g. 123456:ABC-DEF…).",
+    tokenLabel: "Bot token",
+    tokenHint: "123456:ABC-DEF…",
+    tokenHelpUrl: "https://t.me/BotFather",
+    tokenHelpLabel: "Get one from @BotFather",
   },
   discord: {
     name: "Discord",
     icon: "discord",
-    startHint: "In a server channel the bot can see, send: !cxc start  (enable the MESSAGE CONTENT intent in the Developer Portal first).",
-    tokenHint: "Bot token from the Discord Developer Portal → Bot.",
+    tokenLabel: "Bot token",
+    tokenHint: "Paste your bot token",
+    tokenHelpUrl: "https://discord.com/developers/applications",
+    tokenHelpLabel: "Developer Portal → Bot → Token",
   },
 };
 
 export function ChannelsPage() {
   const [state, setState] = useState<ChannelsState | null>(null);
+  const [wizardKind, setWizardKind] = useState<ChannelKind | null>(null);
+  // "pair" skips the token step (channel already active, just re-open the window)
+  const [wizardMode, setWizardMode] = useState<"connect" | "pair">("connect");
 
   const refresh = async () => setState(await api.getChannels());
   useEffect(() => {
     void refresh();
   }, []);
+
+  const openWizard = (kind: ChannelKind, mode: "connect" | "pair") => {
+    setWizardMode(mode);
+    setWizardKind(kind);
+  };
+
+  // "another channel is running" comes from the live per-channel flags, not the
+  // legacy activeKind pointer (which lingers after everything is disabled).
+  const runningKind = state?.channels.find((c) => c.active)?.kind ?? null;
 
   return (
     <>
@@ -38,8 +62,8 @@ export function ChannelsPage() {
         </div>
         {state ? (
           <span className="badge">
-            <StatusDot status={state.activeKind ? "ok" : "off"} />
-            {state.activeKind ? `${state.activeKind} · ${state.adapterStatus}` : "none active"}
+            <StatusDot status={runningKind ? "ok" : "off"} />
+            {runningKind ? `${runningKind} · ${state.adapterStatus}` : "none active"}
           </span>
         ) : null}
       </div>
@@ -47,32 +71,46 @@ export function ChannelsPage() {
         {!state ? (
           <Loading label="Loading channels…" />
         ) : (
-          (["telegram", "discord"] as ChannelKind[]).map((kind) => {
-            const info = state.channels.find((c) => c.kind === kind);
-            return (
-              <ChannelCard
-                key={kind}
-                kind={kind}
-                active={info?.active ?? false}
-                hasToken={info?.hasToken ?? false}
-                allowlistCount={info?.allowlistCount ?? 0}
-                otherActive={state.activeKind !== null && state.activeKind !== kind}
-                onChanged={refresh}
-              />
-            );
-          })
+          <div className="row-list">
+            {(["telegram", "discord"] as ChannelKind[]).map((kind) => {
+              const info = state.channels.find((c) => c.kind === kind);
+              return (
+                <ChannelRow
+                  key={kind}
+                  kind={kind}
+                  active={info?.active ?? false}
+                  hasToken={info?.hasToken ?? false}
+                  allowlistCount={info?.allowlistCount ?? 0}
+                  otherActive={runningKind !== null && runningKind !== kind}
+                  onConnect={() => openWizard(kind, "connect")}
+                  onPair={() => openWizard(kind, "pair")}
+                  onChanged={refresh}
+                />
+              );
+            })}
+          </div>
         )}
       </div>
+      {wizardKind ? (
+        <ConnectWizard
+          kind={wizardKind}
+          mode={wizardMode}
+          onClose={() => setWizardKind(null)}
+          onChanged={refresh}
+        />
+      ) : null}
     </>
   );
 }
 
-function ChannelCard({
+function ChannelRow({
   kind,
   active,
   hasToken,
   allowlistCount,
   otherActive,
+  onConnect,
+  onPair,
   onChanged,
 }: {
   kind: ChannelKind;
@@ -80,164 +118,175 @@ function ChannelCard({
   hasToken: boolean;
   allowlistCount: number;
   otherActive: boolean;
+  onConnect: () => void;
+  onPair: () => void;
   onChanged: () => Promise<void>;
 }) {
   const meta = CHANNEL_META[kind];
-  const [token, setToken] = useState("");
-  const [step, setStep] = useState<WizardStep>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
+  async function disconnect() {
+    await api.deactivateChannel();
+    await onChanged();
+    toast(`${meta.name} deactivated`);
+  }
+
+  const status = active
+    ? allowlistCount > 0
+      ? "live"
+      : "unpaired"
+    : hasToken
+      ? "configured"
+      : "not-connected";
+
+  return (
+    <div className="list-row">
+      <span className="channel-mark" data-kind={kind}><Icon name={meta.icon} size={16} /></span>
+      <div className="row-id">
+        <span className="row-name">{meta.name}</span>
+        <span className="row-sub">
+          {status === "live"
+            ? `${allowlistCount} paired chat${allowlistCount === 1 ? "" : "s"} · routing to codex`
+            : status === "unpaired"
+              ? "Active, no chat paired — messages are ignored"
+              : status === "configured"
+                ? "Token saved, not running"
+                : otherActive
+                  ? "Disconnect the active channel first"
+                  : "Not connected"}
+        </span>
+      </div>
+      <div className="row-actions">
+        {status === "live" ? <Badge tone="ok"><StatusDot status="ok" /> live</Badge> : null}
+        {status === "unpaired" ? <Badge><StatusDot status="warn" /> unpaired</Badge> : null}
+        {active ? (
+          <>
+            {allowlistCount === 0 ? (
+              <Button variant="primary" onClick={onPair}>Pair a chat</Button>
+            ) : null}
+            <Button variant="danger" onClick={disconnect}>Disconnect</Button>
+          </>
+        ) : (
+          <Button variant="primary" onClick={onConnect} disabled={otherActive}>Connect</Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── connect wizard (modal) ─────────────────────────────────────────────────
+ * token → validate/activate/open handshake → waiting (deep link + countdown)
+ * → paired. `pair` mode starts at the waiting step for an already-active
+ * channel (bot identity unknown then — generic instructions). */
+
+type WizardStep = "token" | "validating" | "waiting" | "paired";
+
+function ConnectWizard({
+  kind,
+  mode,
+  onClose,
+  onChanged,
+}: {
+  kind: ChannelKind;
+  mode: "connect" | "pair";
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+}) {
+  const meta = CHANNEL_META[kind];
+  const [step, setStep] = useState<WizardStep>(mode === "pair" ? "waiting" : "token");
+  const [token, setToken] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [bot, setBot] = useState<BotIdentity>({ username: null, botId: null });
+  const [pairedChat, setPairedChat] = useState<string | null>(null);
+  // Channel handshake adapter: paired == pairedChatId present.
+  const adapter = {
+    open: (seconds: number) => api.openHandshake(kind, seconds),
+    poll: async () => {
+      const s = await api.handshakeStatus(kind);
+      return { paired: s.pairedChatId !== null, open: s.open, detail: s.pairedChatId ?? undefined };
+    },
+  };
 
   async function connect() {
     setError(null);
     setStep("validating");
     const res = await api.validateToken(kind, token.trim());
     if (!res.ok || !res.data?.ok) {
-      setStep("error");
-      setError(res.data?.error ?? "token rejected");
+      setStep("token");
+      setError(res.data?.error ?? "Token rejected — check it and try again.");
       return;
     }
-    toast(`${meta.name} token valid${res.data.username ? ` (@${res.data.username})` : ""}`, "ok");
+    setBot({ username: res.data.username ?? null, botId: res.data.botId ?? null });
     await api.activateChannel(kind);
-    await api.openHandshake(kind, 180);
+    await api.openHandshake(kind, HANDSHAKE_SECONDS);
     await onChanged();
-    setStep("awaiting-start");
-    startPolling();
-  }
-
-  function startPolling() {
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(async () => {
-      const s = await api.handshakeStatus(kind);
-      if (pollRef.current === null) return; // cancelled while the request was in flight
-      if (s.pairedChatId) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-        setStep("paired");
-        toast(`${meta.name} paired with chat ${s.pairedChatId}`, "ok");
-        await onChanged();
-      } else if (!s.open) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-        setStep("error");
-        setError("handshake window expired — try again");
-      }
-    }, 1500);
-  }
-
-  async function disconnect() {
-    await api.deactivateChannel();
-    setStep("idle");
-    setToken("");
-    await onChanged();
-    toast(`${meta.name} deactivated`);
+    setStep("waiting");
   }
 
   return (
-    <Card>
-      <div className="row" style={{ justifyContent: "space-between", marginBottom: "var(--s-3)" }}>
-        <div className="row" style={{ gap: "var(--s-3)" }}>
-          <span className="channel-mark" data-kind={kind}><Icon name={meta.icon} size={18} /></span>
-          <div>
-            <div className="card-title" style={{ margin: 0 }}>{meta.name}</div>
-            <div className="hint">{allowlistCount} paired chat{allowlistCount === 1 ? "" : "s"}</div>
-          </div>
-        </div>
-        <div className="row">
-          {active ? <Badge tone="ok"><StatusDot status="ok" /> active</Badge> : hasToken ? <Badge>configured</Badge> : null}
-        </div>
-      </div>
-
-      {step === "awaiting-start" ? (
-        // Wizard states must win over `active`: connect() activates the channel
-        // BEFORE pairing, so putting `active` first made this view unreachable
-        // and the card claimed "live" with zero paired chats (devlog 260703 §2).
-        <div className="state" style={{ padding: "var(--s-5)" }}>
-          <div className="spinner" />
-          <div className="title">Waiting for the handshake…</div>
-          <div className="hint">{meta.startHint}</div>
-          <Button
-            onClick={() => {
-              setStep("idle");
-              if (pollRef.current) clearInterval(pollRef.current);
-              pollRef.current = null;
-            }}
-          >
-            Cancel
-          </Button>
-        </div>
-      ) : step === "paired" ? (
-        <div className="state" style={{ padding: "var(--s-5)" }}>
-          <div className="glyph" style={{ color: "var(--ok)" }}><Icon name="check-circle" size={30} /></div>
-          <div className="title">Connected</div>
-          <div className="hint">{meta.name} is live — send it a message.</div>
-          <Button onClick={() => setStep("idle")}>Done</Button>
-        </div>
-      ) : active ? (
-        <>
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <span className="hint">
-              {allowlistCount > 0
-                ? "This channel is live. Messages route to codex."
-                : "Active, but no chat is paired yet — messages are ignored until one pairs."}
-            </span>
-            <Button variant="danger" onClick={disconnect}>Disconnect</Button>
-          </div>
-          {step === "error" && error ? (
-            // Expiry lands here while the channel is active — the token-form error
-            // paragraph is unreachable then, so surface it in this branch too.
-            <p className="hint row" style={{ color: "var(--danger)", gap: "var(--s-2)" }}>
-              <Icon name="alert" size={14} /> {error}
-            </p>
-          ) : null}
-          {allowlistCount === 0 ? (
-            <div className="row" style={{ marginTop: "var(--s-3)" }}>
-              <Button
-                variant="primary"
-                onClick={async () => {
-                  await api.openHandshake(kind, 180);
-                  setStep("awaiting-start");
-                  startPolling();
-                }}
-              >
-                Open pairing window
-              </Button>
-            </div>
-          ) : null}
-        </>
-      ) : (
-        <>
-          <Field label={`${meta.name} bot token`}>
+    <Modal title={mode === "pair" ? `Pair a ${meta.name} chat` : `Connect ${meta.name}`} onClose={onClose}>
+      {step === "token" || step === "validating" ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (token.trim() && step !== "validating") void connect();
+          }}
+        >
+          <Field label={meta.tokenLabel}>
             <input
               className="input"
               type="password"
               placeholder={meta.tokenHint}
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              disabled={step === "validating" || otherActive}
+              disabled={step === "validating"}
+              autoComplete="off"
             />
           </Field>
-          {otherActive ? (
-            <p className="hint">Another channel is active. Disconnect it first — only one channel runs at a time.</p>
+          <a className="help-link" href={meta.tokenHelpUrl} target="_blank" rel="noreferrer">
+            <Icon name="external" size={13} /> {meta.tokenHelpLabel}
+          </a>
+          {kind === "discord" ? (
+            <p className="hint" style={{ marginTop: "var(--s-2)" }}>
+              Enable the <strong>Message Content</strong> intent under Bot → Privileged Gateway Intents.
+            </p>
           ) : null}
-          {step === "error" && error ? (
-            <p className="hint row" style={{ color: "var(--danger)", gap: "var(--s-2)" }}>
+          {error ? (
+            <p className="hint row" role="alert" style={{ color: "var(--danger)", gap: "var(--s-2)", marginTop: "var(--s-3)" }}>
               <Icon name="alert" size={14} /> {error}
             </p>
           ) : null}
-          <div className="row">
-            <Button variant="primary" onClick={connect} disabled={!token.trim() || step === "validating" || otherActive}>
-              {step === "validating" ? <><span className="spinner" /> Connecting…</> : "Connect"}
+          <div className="modal-foot">
+            <Button type="button" onClick={onClose}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={!token.trim() || step === "validating"}>
+              {step === "validating" ? <><span className="spinner" /> Validating…</> : "Connect"}
             </Button>
           </div>
-        </>
-      )}
-    </Card>
+        </form>
+      ) : step === "waiting" ? (
+        <PairingPane
+          kind={kind}
+          bot={bot}
+          adapter={adapter}
+          alreadyOpen={mode === "connect"}
+          onPaired={async (detail) => {
+            setPairedChat(detail ?? null);
+            setStep("paired");
+            await onChanged();
+          }}
+          onCancel={onClose}
+        />
+      ) : step === "paired" ? (
+        <div className="wizard-state">
+          <span className="wizard-glyph ok"><Icon name="check-circle" size={28} /></span>
+          <div className="title">Connected</div>
+          <p className="hint">
+            {meta.name} is live{pairedChat ? ` — paired with chat ${pairedChat}` : ""}. Send the bot a message to talk to codex.
+          </p>
+          <div className="modal-foot">
+            <Button variant="primary" onClick={onClose}>Done</Button>
+          </div>
+        </div>
+      ) : null}
+    </Modal>
   );
 }

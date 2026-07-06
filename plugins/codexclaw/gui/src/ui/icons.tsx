@@ -18,6 +18,8 @@ export type IconName =
   | "check-circle"
   | "x"
   | "arrow-right"
+  | "copy"
+  | "external"
   | "shield"
   | "telegram"
   | "discord";
@@ -51,6 +53,11 @@ const STROKE: Partial<Record<IconName, string[]>> = {
   "check-circle": ["M21.801 10A10 10 0 1 1 17 3.335", "m9 11 3 3L22 4"],
   x: ["M18 6 6 18", "M6 6l12 12"],
   "arrow-right": ["M5 12h14", "m12 5 7 7-7 7"],
+  copy: [
+    "M8 10a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2z",
+    "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
+  ],
+  external: ["M15 3h6v6", "M10 14 21 3", "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"],
   shield: ["M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"],
 };
 

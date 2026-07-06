@@ -186,7 +186,10 @@ export const api = {
     getJson<ChannelsState>("/api/channels", { channels: [], activeKind: null, adapterStatus: "n/a" }),
   getBindings: () => getJson<{ bindings: BindingRow[] }>("/api/bindings", { bindings: [] }),
   validateToken: (kind: ChannelKind, token: string) =>
-    postJson<{ ok: boolean; username: string | null; error?: string }>("/api/connect/validate", { kind, token }),
+    postJson<{ ok: boolean; username: string | null; botId: string | null; error?: string }>(
+      "/api/connect/validate",
+      { kind, token },
+    ),
   activateChannel: (kind: ChannelKind) => postJson<{ ok: boolean }>("/api/connect/activate", { kind }),
   deactivateChannel: () => postJson<{ ok: boolean }>("/api/connect/deactivate", {}),
   openHandshake: (kind: ChannelKind, seconds = 120) =>
@@ -197,7 +200,10 @@ export const api = {
   // named agents (v4)
   getAgents: () => getJson<{ agents: AgentInfo[] }>("/api/agents", { agents: [] }),
   createAgent: (name: string, kind: ChannelKind, token: string) =>
-    postJson<{ ok: boolean; agent?: AgentInfo; error?: string }>("/api/agents", { name, kind, token }),
+    postJson<{ ok: boolean; agent?: AgentInfo; username?: string | null; botId?: string | null; error?: string }>(
+      "/api/agents",
+      { name, kind, token },
+    ),
   updateAgent: (id: number, patch: AgentPatchBody) =>
     postJson<{ ok: boolean; agent?: AgentInfo; error?: string }>("/api/agents/update", { id, ...patch }),
   enableAgent: (id: number, enabled: boolean) =>

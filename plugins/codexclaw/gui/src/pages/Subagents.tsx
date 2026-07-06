@@ -9,7 +9,7 @@ import {
 } from "../api.ts";
 import { ModelSelect } from "../components/ModelSelect.tsx";
 import { PromptOverrideEditor } from "../components/PromptOverrideEditor.tsx";
-import { Card, Loading } from "../ui/kit.tsx";
+import { Loading } from "../ui/kit.tsx";
 import { toast } from "../ui/toast.tsx";
 
 const ROLES = ["explorer", "reviewer", "executor"] as const;
@@ -56,49 +56,35 @@ export function SubagentsPage({ provider }: { provider: ProviderState }) {
         {!config ? (
           <Loading label="Loading subagent config…" />
         ) : (
-          ROLES.map((role) => {
-            const r = config.roles[role];
-            const isModelMode = r.mode === "model";
-            return (
-              <Card key={role} title={role.charAt(0).toUpperCase() + role.slice(1)} desc={ROLE_DESC[role]}>
-                <div className="row" style={{ marginBottom: "var(--s-4)" }}>
-                  <label className="row" style={{ gap: "var(--s-2)", fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
-                    <input
-                      type="checkbox"
-                      checked={isModelMode}
-                      onChange={(e) => {
-                        if (!e.target.checked) {
-                          void save(role, { mode: "default" });
-                          return;
-                        }
-                        // "model" mode needs a concrete model id: keep the saved one,
-                        // else default to the first catalog entry.
-                        const model = r.model ?? catalog[0]?.id ?? null;
-                        if (!model) {
-                          toast("no models available to select", "err");
-                          return;
-                        }
-                        void save(role, { mode: "model", model });
-                      }}
+          <div className="row-list">
+            {ROLES.map((role) => {
+              const r = config.roles[role];
+              // One fork only: "main model (default)" == default mode; a concrete
+              // model == model mode. No separate enable-checkbox.
+              const effectiveModel = r.mode === "model" ? r.model : null;
+              return (
+                <div key={role} className="list-row role-row">
+                  <div className="row-id">
+                    <span className="row-name">{role.charAt(0).toUpperCase() + role.slice(1)}</span>
+                    <span className="row-sub">{ROLE_DESC[role]}</span>
+                  </div>
+                  <div className="role-controls">
+                    <ModelSelect
+                      value={effectiveModel}
+                      disabled={false}
+                      entries={catalog}
+                      onChange={(model) => save(role, { mode: model ? "model" : "default", model })}
                     />
-                    use a specific model
-                  </label>
+                    <PromptOverrideEditor
+                      value={r.promptOverride}
+                      onChange={(v) => save(role, { promptOverride: v })}
+                    />
+                  </div>
                   {savingRole === role ? <span className="badge">saving…</span> : null}
                 </div>
-                <div className="row wrap" style={{ alignItems: "stretch" }}>
-                  <ModelSelect
-                    value={r.model}
-                    disabled={!isModelMode}
-                    entries={catalog}
-                    onChange={(model) => save(role, { mode: model ? "model" : "default", model })}
-                  />
-                  <div className="grow">
-                    <PromptOverrideEditor value={r.promptOverride} onChange={(v) => save(role, { promptOverride: v })} />
-                  </div>
-                </div>
-              </Card>
-            );
-          })
+              );
+            })}
+          </div>
         )}
       </div>
     </>
