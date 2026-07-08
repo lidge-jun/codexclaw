@@ -12,7 +12,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { openBridgeDb } from "./db.js";
 import { createBridgeServer } from "./server.js";
 import { BridgeController } from "./bridge-controller.js";
-import { HeartbeatScheduler } from "./heartbeat.js";
+import { DiscordThreadSweepScheduler, HeartbeatScheduler } from "./heartbeat.js";
 import { installService, uninstallService, serviceStatus } from "./service.js";
 
 const DEFAULT_PORT = 7717;
@@ -71,6 +71,7 @@ async function runServe(argv          , metaUrl        )                  {
     workdir: args.cwd,
     log,
   });
+  const discordSweep = new DiscordThreadSweepScheduler({ db, log });
   const server = createBridgeServer({
     db,
     cwd: args.cwd,
@@ -82,7 +83,10 @@ async function runServe(argv          , metaUrl        )                  {
   // Start every enabled agent's adapter via the controller, then heartbeats.
   void controller
     .reload()
-    .then(() => scheduler.start())
+    .then(() => {
+      scheduler.start();
+      discordSweep.start();
+    })
     .catch((err         ) => {
       process.stderr.write(`cxc serve: adapter start failed: ${(err         ).message}\n`);
     });
@@ -92,6 +96,7 @@ async function runServe(argv          , metaUrl        )                  {
       // Ordering matters: stop the scheduler BEFORE the controller nulls the
       // shared AgentService, and both before the server/db close (plan rev-2 #3).
       scheduler.stop();
+      discordSweep.stop();
       controller.stop();
       server.close(() => {
         db.close();

@@ -13,6 +13,7 @@ import { join, relative, sep } from "node:path";
 import { codexHome, memoriesDir, memoriesDbPath } from "./paths.ts";
 import { openReadOnlyDb } from "./threads-db.ts";
 import { splitQueryWords } from "./chat-search.ts";
+import { expandQueryWords } from "./synonyms.ts";
 
 export const DEFAULT_MEMORY_LIMIT = 20;
 
@@ -21,40 +22,130 @@ export type MemorySearchOptions = {
   days?: number;
   any?: boolean;
   home?: string;
+  /** curated ko/en synonym expansion (default true); false = raw words only. */
+  synonyms?: boolean;
+  /** clock override for deterministic recency ranking in tests. */
+  nowMs?: number;
 };
+
+/**
+ * Memory artifact kind, derived from the Codex memories layout. Mirrors the
+ * cli-jaw kind-priority model (profile/shared/procedure/semantic/episode)
+ * mapped onto Codex-native artifacts.
+ */
+export type MemoryKind =
+  | "summary" // memory_summary.md — always-injected routing summary
+  | "handbook" // MEMORY.md — curated grep-friendly handbook
+  | "skill" // skills/** — reusable procedures
+  | "extension" // extensions/** — extension resources
+  | "raw" // raw_memories.md — merged phase-1 raw input
+  | "rollout" // rollout_summaries/** — per-thread episodic summaries
+  | "stage1" // stage1_outputs rows — episodic, pre-consolidation
+  | "other";
 
 export type MemoryHit = {
   origin: "file" | "stage1";
+  kind: MemoryKind;
   relpath: string;
   threadId: string | null;
   updatedAt: string | null;
   excerpt: string;
   startLine: number | null;
-  /** relevance score (word coverage + occurrences + phrase/heading boosts). */
+  /** final relevance score (text score + kind priority + recency boost). */
   score: number;
 };
 
 /** Hits from the same file beyond this cap are dropped so one fat file (MEMORY.md) cannot consume every slot. */
 const PER_FILE_CAP = 2;
 
+/** Classify a memories-root relpath into its artifact kind. */
+export function kindOfRelpath(relpath: string, origin: "file" | "stage1" = "file"): MemoryKind {
+  if (origin === "stage1") return "stage1";
+  if (relpath === "memory_summary.md") return "summary";
+  if (relpath === "MEMORY.md") return "handbook";
+  if (relpath === "raw_memories.md") return "raw";
+  if (relpath.startsWith("skills/")) return "skill";
+  if (relpath.startsWith("extensions/")) return "extension";
+  if (relpath.startsWith("rollout_summaries/")) return "rollout";
+  return "other";
+}
+
 /**
- * Relevance score for a matched chunk (evaluator round-1 gap #2): word coverage
- * dominates, occurrence density and exact-phrase/heading boosts break ties.
+ * Kind priority (cli-jaw indexing.ts kindPriority, sign-inverted: codexclaw
+ * sorts higher-is-better while cli-jaw ranks bm25 lower-is-better).
+ * summary/handbook are the curated stores; rollout/stage1 are episodic.
  */
-export function scoreChunk(lowerText: string, words: string[], lowerPhrase: string): number {
-  let score = 0;
-  for (const w of words) {
-    let at = lowerText.indexOf(w);
-    if (at === -1) continue;
-    score += 2; // coverage
-    let occ = 0;
-    while (at !== -1 && occ < 5) {
-      occ += 1;
-      at = lowerText.indexOf(w, at + w.length);
-    }
-    score += occ - 1; // density, capped
+export const KIND_PRIORITY: Record<MemoryKind, number> = {
+  summary: 4,
+  handbook: 3,
+  skill: 2.5,
+  extension: 2,
+  raw: 0.5,
+  rollout: 0,
+  stage1: 0,
+  other: 0,
+};
+
+/** Per-kind recency half-life (cli-jaw HALF_LIFE_HOURS shape): episodic kinds decay, curated kinds never do. */
+export const HALF_LIFE_HOURS: Record<MemoryKind, number> = {
+  rollout: 24 * 7,
+  stage1: 24 * 7,
+  other: 24 * 7,
+  raw: 24 * 30,
+  extension: 24 * 90,
+  summary: Infinity,
+  handbook: Infinity,
+  skill: Infinity,
+};
+
+/**
+ * Recency boost in [-2.0, +1.5]: fresh episodic hits gain up to +1.5 with
+ * exponential half-life decay; rollout/stage1 older than 2x half-life take a
+ * growing staleness penalty (cli-jaw stale-episode rule, sign-inverted).
+ * Future/invalid timestamps clamp to age 0; unknown timestamps get no boost.
+ */
+export function recencyBoost(kind: MemoryKind, updatedAtMs: number | null, nowMs: number): number {
+  const halfLife = HALF_LIFE_HOURS[kind];
+  if (halfLife === Infinity || updatedAtMs === null || !Number.isFinite(updatedAtMs)) return 0;
+  const ageHours = Math.max(0, (nowMs - updatedAtMs) / 3_600_000);
+  const boost = 1.5 * Math.exp((-Math.LN2 * ageHours) / halfLife);
+  if ((kind === "rollout" || kind === "stage1") && ageHours > halfLife * 2) {
+    return boost - Math.min(2.0, (ageHours - halfLife * 2) / (halfLife * 2));
   }
-  if (words.length > 1 && lowerPhrase !== "" && lowerText.includes(lowerPhrase)) score += 5;
+  return boost;
+}
+
+/** Final ranking score: text relevance + kind priority + recency. */
+export function finalScore(textScore: number, kind: MemoryKind, updatedAtMs: number | null, nowMs: number): number {
+  return textScore + KIND_PRIORITY[kind] + recencyBoost(kind, updatedAtMs, nowMs);
+}
+
+/**
+ * Relevance score for a matched chunk (evaluator round-1 gap #2): group coverage
+ * dominates, occurrence density (on the best-present member of each OR-group)
+ * and exact-phrase/heading boosts break ties.
+ */
+export function scoreChunk(lowerText: string, groups: string[][], lowerPhrase: string): number {
+  let score = 0;
+  for (const group of groups) {
+    // Density rides on the best-present member (C-gate blocker #1: a synonym
+    // hit must not score below the same text queried by its literal word).
+    let bestOcc = 0;
+    for (const member of group) {
+      let at = lowerText.indexOf(member);
+      if (at === -1) continue;
+      let occ = 0;
+      while (at !== -1 && occ < 5) {
+        occ += 1;
+        at = lowerText.indexOf(member, at + member.length);
+      }
+      if (occ > bestOcc) bestOcc = occ;
+    }
+    if (bestOcc === 0) continue;
+    score += 2; // coverage
+    score += bestOcc - 1; // density, capped
+  }
+  if (groups.length > 1 && lowerPhrase !== "" && lowerText.includes(lowerPhrase)) score += 5;
   if (lowerText.startsWith("#")) score += 1;
   return score;
 }
@@ -127,8 +218,19 @@ export function paragraphChunks(content: string): Array<{ text: string; startLin
   return chunks;
 }
 
-function matches(lowerText: string, words: string[], anyMode: boolean): boolean {
-  return anyMode ? words.some((w) => lowerText.includes(w)) : words.every((w) => lowerText.includes(w));
+/** AND across groups, OR within a group; anyMode = any member of any group. */
+function matches(lowerText: string, groups: string[][], anyMode: boolean): boolean {
+  const groupHit = (group: string[]) => group.some((w) => lowerText.includes(w));
+  return anyMode ? groups.some(groupHit) : groups.every(groupHit);
+}
+
+/** First group member actually present in the text (excerpt anchor), else the lead word. */
+function firstPresentMember(lowerText: string, groups: string[][]): string {
+  for (const group of groups) {
+    const w = group.find((member) => lowerText.includes(member));
+    if (w !== undefined) return w;
+  }
+  return groups[0][0];
 }
 
 function excerptAround(text: string, word: string, span: number): string {
@@ -145,8 +247,11 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
   const limit = Math.max(opts.limit ?? DEFAULT_MEMORY_LIMIT, 1);
   const anyMode = opts.any ?? false;
   const days = opts.days ?? 0;
-  const cutoffMs = days > 0 ? Date.now() - days * 86_400_000 : null;
+  // One clock capture per search: recency boosts must not drift mid-ranking.
+  const nowMs = opts.nowMs ?? Date.now();
+  const cutoffMs = days > 0 ? nowMs - days * 86_400_000 : null;
   const words = splitQueryWords(query);
+  const groups = (opts.synonyms ?? true) ? expandQueryWords(words) : words.map((w) => [w]);
   const lowerPhrase = query.toLowerCase().replace(/\s+/g, " ").trim();
   const warnings: string[] = [];
   const candidates: MemoryHit[] = [];
@@ -171,26 +276,29 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
     }
     if (cutoffMs && mtimeMs < cutoffMs) continue;
     scannedFiles += 1;
-    if (!matches(content.toLowerCase(), words, anyMode)) continue;
+    if (!matches(content.toLowerCase(), groups, anyMode)) continue;
     const threadId = frontmatterThreadId(content);
     if (threadId) matchedThreadIds.add(threadId);
+    const relpath = relative(root, file).split(sep).join("/");
+    const kind = kindOfRelpath(relpath, "file");
     for (const chunk of paragraphChunks(content)) {
       const lower = chunk.text.toLowerCase();
-      if (!matches(lower, words, anyMode)) continue;
+      if (!matches(lower, groups, anyMode)) continue;
       candidates.push({
         origin: "file",
+        kind,
         // Forward-slash relpaths on every platform (Codex memory backend parity).
-        relpath: relative(root, file).split(sep).join("/"),
+        relpath,
         threadId,
         updatedAt: new Date(mtimeMs).toISOString(),
-        excerpt: excerptAround(chunk.text, words[0], 400),
+        excerpt: excerptAround(chunk.text, firstPresentMember(lower, groups), 400),
         startLine: chunk.startLine,
-        score: scoreChunk(lower, words, lowerPhrase),
+        score: finalScore(scoreChunk(lower, groups, lowerPhrase), kind, mtimeMs, nowMs),
       });
     }
   }
 
-  searchStage1(home, words, anyMode, cutoffMs, lowerPhrase, candidates, matchedThreadIds, warnings);
+  searchStage1(home, groups, anyMode, cutoffMs, lowerPhrase, nowMs, candidates, matchedThreadIds, warnings);
 
   const hits = rankAndTrim(candidates, limit);
   return { hits, warnings, scannedFiles, elapsedMs: Date.now() - started };
@@ -199,10 +307,11 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
 /** stage1_outputs holds per-thread raw_memory + rollout_summary; read-only, fail-soft. */
 function searchStage1(
   home: string,
-  words: string[],
+  groups: string[][],
   anyMode: boolean,
   cutoffMs: number | null,
   lowerPhrase: string,
+  nowMs: number,
   candidates: MemoryHit[],
   matchedThreadIds: Set<string>,
   warnings: string[],
@@ -215,25 +324,37 @@ function searchStage1(
   let db: ReturnType<typeof openReadOnlyDb> | null = null;
   try {
     db = openReadOnlyDb(dbPath);
-    const conds = words.map((_, i) => `(lower(raw_memory) LIKE ?${i + 1} OR lower(rollout_summary) LIKE ?${i + 1})`);
+    // One bound LIKE parameter per group member (injection-safe: terms never
+    // enter SQL text); OR within a group, AND/OR across groups per anyMode.
+    const params: string[] = [];
+    const conds = groups.map((group) => {
+      const members = group.map((w) => {
+        params.push(`%${w}%`);
+        const n = params.length;
+        return `(lower(raw_memory) LIKE ?${n} OR lower(rollout_summary) LIKE ?${n})`;
+      });
+      return `(${members.join(" OR ")})`;
+    });
     const where = conds.join(anyMode ? " OR " : " AND ");
     const sql = `SELECT thread_id, raw_memory, rollout_summary, source_updated_at FROM stage1_outputs
       WHERE ${where} ORDER BY source_updated_at DESC`;
-    const rows = db.prepare(sql).all(...words.map((w) => `%${w}%`)) as Array<Record<string, unknown>>;
+    const rows = db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
     for (const r of rows) {
       const threadId = typeof r.thread_id === "string" ? r.thread_id : null;
       if (threadId && matchedThreadIds.has(threadId)) continue; // already hit via its md file
       const updatedSec = typeof r.source_updated_at === "number" ? r.source_updated_at : null;
       if (cutoffMs && updatedSec !== null && updatedSec * 1000 < cutoffMs) continue;
       const body = `${String(r.raw_memory ?? "")}\n${String(r.rollout_summary ?? "")}`;
+      const updatedMs = updatedSec !== null ? updatedSec * 1000 : null;
       candidates.push({
         origin: "stage1",
+        kind: "stage1",
         relpath: `stage1_outputs/${threadId ?? "unknown"}`,
         threadId,
-        updatedAt: updatedSec !== null ? new Date(updatedSec * 1000).toISOString() : null,
-        excerpt: excerptAround(body, words[0], 400),
+        updatedAt: updatedMs !== null ? new Date(updatedMs).toISOString() : null,
+        excerpt: excerptAround(body, firstPresentMember(body.toLowerCase(), groups), 400),
         startLine: null,
-        score: scoreChunk(body.toLowerCase(), words, lowerPhrase),
+        score: finalScore(scoreChunk(body.toLowerCase(), groups, lowerPhrase), "stage1", updatedMs, nowMs),
       });
     }
   } catch (err) {

@@ -24,6 +24,15 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   discipline; not memory or chat search.
 - `recall/` — discoverable `cxc-recall` surface for read-only past-session chat and
   memory search over `~/.codex` before asking the user to repeat context.
+- `kwrite/` — discoverable `cxc-kwrite` surface for Korean prose polishing (윤문):
+  AI-tell removal, register consistency, rhythm, meaning-exact revision of existing
+  Korean text. On-demand: `agents/openai.yaml` sets `allow_implicit_invocation: false`;
+  it activates by description match or explicit `$cxc-kwrite`.
+- `remote/` — discoverable `cxc-remote` surface for messenger-bridge onboarding:
+  agent-run Telegram/Discord connection ladder (serve -> token -> agent -> pair ->
+  smoke) plus setup troubleshooting. On-demand like the `dev-*` routers:
+  `agents/openai.yaml` sets `allow_implicit_invocation: false`; it activates by
+  description match or explicit `$cxc-remote`.
 - `ast-grep/` — discoverable `cxc-ast-grep` surface for optional AST-aware structural
   search/codemods, with `rg` first for ordinary text search.
 - `skill-hub/` — discoverable `cxc-skill-hub (DEPRECATED -> cxc-dev)` catalog for choosing the right

@@ -76,7 +76,7 @@ When reviewing a heading visually, check:
 1. **No orphaned single word** — The last line should have at least 2 words (or ~33% of the longest line's length)
 2. **Balanced distribution** — Line lengths should be roughly equal, not one long line + one short stub
 3. **Semantic grouping** — Breaks should happen between thought units, not in the middle of a phrase
-4. **Viewport resilience** — The heading should look good at 390px, 768px, 1024px, AND 1440px
+4. **Viewport resilience** — The heading should look good at 390px, 768px, 1024px, AND 1440px, and at ARBITRARY widths between them (drag-resize / split-screen check — see the dynamic rewrap layer below)
 5. **Language-aware** — Korean (한글) headings with `word-break: keep-all` to prevent mid-word breaks
 
 **Bad breaks (cut mid-phrase):**
@@ -92,6 +92,28 @@ without leaving vim                               ← balanced, semantic
 ```
 
 ---
+
+## Dynamic Rewrap Judgment (verified 2026-07-07)
+
+Text must break at natural phrase boundaries at ANY width, not just canonical
+breakpoints — containers resize continuously (drag-resizable panels,
+split-screen halves, foldables, mobile URL-bar dvh changes, container-query
+crossings). Judgment layer on top of the criteria above:
+
+- Breaks are chosen by the browser at render width; a heading that breaks
+  semantically at 390/768/1024/1440 can still orphan at 700px. Judge text in
+  CONTAINERS (sidebar, modal, half-window), not only device presets.
+- Prefer break-opportunity control (`keep-all`, `balance`, `max-width` in
+  `ch`) over width-specific hacks (`<br>`, manual media-query text swaps) —
+  hacks guarantee bad breaks at in-between widths.
+- Korean note: `text-wrap` only chooses among EXISTING break opportunities;
+  with `keep-all`, opportunities are 어절 boundaries — verify long 어절 and
+  mixed ko/Latin strings don't overflow narrow chips/buttons.
+- Mechanics + verification checklist (container-width sweep, dvh/zoom,
+  overflow asserts): `dev-frontend/references/core/typography-wrapping.md`
+  § Dynamic-Viewport Verification and
+  `dev-frontend/references/core/responsive-viewport.md` (container queries,
+  split-screen band).
 
 ## Visual Verification Additions
 

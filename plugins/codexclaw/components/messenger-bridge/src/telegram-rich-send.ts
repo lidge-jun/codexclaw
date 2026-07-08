@@ -8,6 +8,7 @@
   * sendRichMessageDraft streaming is only attempted for private chats (Bot API
   * 10.1 restriction: chat_id must be a numeric user id Integer).
   */
+ import { performance } from "node:perf_hooks";
  import type { TelegramApi, InputRichMessage } from "./telegram-api.ts";
  import { markdownToTelegramHtml, markdownToRichHtml, chunkTelegramMessage, stripTelegramHtml } from "./telegram-format.ts";
  
@@ -17,6 +18,26 @@
    richSupported: boolean;
    chatType: string; // "private" | "group" | "supergroup" | "channel"
    messageThreadId?: number;
+ }
+
+ export interface DraftProgressState {
+   lastEditAt: number;
+   suspendedUntil: number;
+   consecutiveFailures: number;
+   disabled: boolean;
+ }
+
+ export interface DraftProgressOptions {
+   state?: DraftProgressState;
+   now?: () => number;
+ }
+
+ export const DRAFT_PROGRESS_THROTTLE_MS = 1_000;
+ const DRAFT_PROGRESS_MAX_SUSPEND_MS = 60_000;
+ const DRAFT_PROGRESS_MAX_FAILURES = 3;
+
+ export function createDraftProgressState(): DraftProgressState {
+   return { lastEditAt: 0, suspendedUntil: 0, consecutiveFailures: 0, disabled: false };
  }
  
  /**
@@ -107,17 +128,46 @@
    ctx: RichSendContext,
    draftId: number,
    partialMarkdown: string,
+   options: DraftProgressOptions = {},
  ): Promise<void> {
    if (!ctx.richSupported) return;
    if (ctx.chatType !== "private") return;
  
    const chatIdNum = Number(ctx.chatId);
    if (!Number.isFinite(chatIdNum)) return;
+   const state = options.state ?? createDraftProgressState();
+   if (state.disabled) return;
+   const now = options.now?.() ?? performance.now();
+   if (now < state.suspendedUntil) return;
+   if (state.lastEditAt > 0 && now - state.lastEditAt < DRAFT_PROGRESS_THROTTLE_MS) return;
+   state.lastEditAt = now;
  
    const html = markdownToRichHtml(partialMarkdown);
-   await ctx.api.sendRichMessageDraft({
-     chatId: chatIdNum,
-     draftId,
-     richMessage: { html } as InputRichMessage,
-   });
+   try {
+     const res = await ctx.api.sendRichMessageDraft({
+       chatId: chatIdNum,
+       draftId,
+       richMessage: { html } as InputRichMessage,
+     });
+     if (res.ok || isNotModified(res.description)) {
+       state.consecutiveFailures = 0;
+       return;
+     }
+     const retryAfterMs = Number(res.parameters?.retry_after ?? 0) * 1000;
+     if (res.error_code === 429 && retryAfterMs > 0) {
+       state.suspendedUntil = now + Math.min(retryAfterMs, DRAFT_PROGRESS_MAX_SUSPEND_MS);
+     }
+     recordDraftFailure(state);
+   } catch {
+     recordDraftFailure(state);
+   }
+ }
+
+ function recordDraftFailure(state: DraftProgressState): void {
+   state.consecutiveFailures += 1;
+   if (state.consecutiveFailures >= DRAFT_PROGRESS_MAX_FAILURES) state.disabled = true;
+ }
+
+ function isNotModified(description: string | undefined): boolean {
+   return /message is not modified|not modified/i.test(description ?? "");
  }

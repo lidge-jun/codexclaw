@@ -11,13 +11,24 @@
  * Legacy compat: the BridgeControllerLike per-kind handshake surface routes to
  * the first enabled agent of that kind, so the pre-agent GUI keeps working.
  */
+import { join } from "node:path";
 import type { AgentRow, BridgeDb, ChannelKind } from "./db.ts";
 import { AgentService } from "./agent-service.ts";
 import { createTelegramAdapter } from "./telegram-adapter.ts";
 import { createDiscordAdapter } from "./discord-adapter.ts";
-import type { FetchImpl as TgFetch } from "./telegram-api.ts";
+import { TelegramApi, type FetchImpl as TgFetch } from "./telegram-api.ts";
 import type { FetchImpl as DcFetch } from "./discord-api.ts";
 import type { WsFactory } from "./discord-gateway.ts";
+import { EventLog, type BridgeEvent } from "./event-log.ts";
+import { BridgeMetrics, type MetricsSnapshot } from "./metrics.ts";
+import {
+  createWebhookHandler,
+  registerWebhook,
+  safeEqual,
+  telegramWebhookSecretFromUrl,
+  type TelegramWebhookHandler,
+} from "./telegram-webhook.ts";
+import type { IncomingMessage, ServerResponse } from "node:http";
 
 interface ChannelAdapter {
   start: () => Promise<void>;
@@ -30,6 +41,10 @@ interface RunningAdapter {
   kind: ChannelKind;
   token: string;
   name: string;
+  mode: "poll" | "webhook";
+  webhookUrl: string;
+  webhookSecret?: string;
+  webhookHandler?: TelegramWebhookHandler;
 }
 
 export interface BridgeControllerOptions {
@@ -59,6 +74,8 @@ export class BridgeController {
   private opts: BridgeControllerOptions;
   private db: BridgeDb;
   private log: (line: string) => void;
+  private metrics = new BridgeMetrics();
+  private events: EventLog;
   private adapters = new Map<number, RunningAdapter>();
   private agentService: AgentService | null = null;
   // Per-agent pairing baselines for the legacy polling wizard.
@@ -71,15 +88,29 @@ export class BridgeController {
     this.opts = opts;
     this.db = opts.db;
     this.log = opts.log ?? (() => {});
+    this.events = new EventLog({ path: join(opts.workdir, ".codexclaw", "bridge-events.jsonl") });
   }
 
   /** Shared AgentService accessor (heartbeat scheduler rides the same queues
    *  and child registry). Created lazily, same instance reload() uses. */
   service(): AgentService {
     if (!this.agentService) {
-      this.agentService = new AgentService({ db: this.db, codexBin: this.opts.codexBin });
+      this.agentService = new AgentService({
+        db: this.db,
+        codexBin: this.opts.codexBin,
+        metrics: this.metrics,
+        events: this.events,
+      });
     }
     return this.agentService;
+  }
+
+  metricsSnapshot(): MetricsSnapshot {
+    return this.metrics.snapshot();
+  }
+
+  recentEvents(n: number): BridgeEvent[] {
+    return this.events.recent(Math.max(0, Math.min(n, 200)));
   }
 
   /** Legacy shim: kind of the first running adapter (insertion order), or null. */
@@ -116,8 +147,14 @@ export class BridgeController {
   /** Desired = enabled agents with tokens (unique token per kind — a duplicate
    *  would 409-fight its twin on the same bot). */
   private async doReload(): Promise<void> {
+    this.recordLifecycle("reload");
     if (!this.agentService) {
-      this.agentService = new AgentService({ db: this.db, codexBin: this.opts.codexBin });
+      this.agentService = new AgentService({
+        db: this.db,
+        codexBin: this.opts.codexBin,
+        metrics: this.metrics,
+        events: this.events,
+      });
     }
     const desired = new Map<number, AgentRow>();
     const seenTokens = new Set<string>();
@@ -135,9 +172,11 @@ export class BridgeController {
     // Stop stale adapters (gone / disabled / token or kind changed).
     for (const [id, entry] of this.adapters) {
       const want = desired.get(id);
-      if (!want || want.kind !== entry.kind || want.token !== entry.token) {
+      const wantWebhookUrl = want?.kind === "telegram" ? want.webhook_url : "";
+      if (!want || want.kind !== entry.kind || want.token !== entry.token || wantWebhookUrl !== entry.webhookUrl) {
         entry.adapter.stop();
         this.adapters.delete(id);
+        this.recordLifecycle("stop", `${entry.kind}:${entry.name}`);
         this.log(`[bridge] stopped adapter for agent ${entry.name}`);
       }
     }
@@ -145,29 +184,16 @@ export class BridgeController {
     // Start missing adapters (sequential — deterministic logs).
     for (const [id, agent] of desired) {
       if (this.adapters.has(id)) continue;
-      const adapter: ChannelAdapter =
-        agent.kind === "telegram"
-          ? createTelegramAdapter({
-              db: this.db,
-              token: agent.token,
-              workdir: this.opts.workdir,
-              agentService: this.agentService,
-              agent: { id },
-              fetchImpl: this.opts.telegramFetch,
-              log: this.log,
-            })
-          : createDiscordAdapter({
-              db: this.db,
-              token: agent.token,
-              workdir: this.opts.workdir,
-              agentService: this.agentService,
-              agent: { id },
-              fetchImpl: this.opts.discordFetch,
-              wsFactory: this.opts.discordWsFactory,
-              log: this.log,
-            });
-      this.adapters.set(id, { adapter, kind: agent.kind, token: agent.token, name: agent.name });
-      await adapter.start();
+      const entry = await this.buildAdapterEntry(agent);
+      this.adapters.set(id, entry);
+      try {
+        await entry.adapter.start();
+      } catch (err) {
+        this.adapters.delete(id);
+        this.recordError(id, err instanceof Error ? err.message : String(err));
+        throw err;
+      }
+      this.recordLifecycle("start", `${agent.kind}:${agent.name}`);
       this.log(`[bridge] ${agent.kind} adapter started for agent ${agent.name}`);
     }
 
@@ -176,12 +202,118 @@ export class BridgeController {
     }
   }
 
+  private async buildAdapterEntry(agent: AgentRow): Promise<RunningAdapter> {
+    if (agent.kind === "telegram") {
+      const webhookUrl = agent.webhook_url.trim();
+      if (webhookUrl) {
+        const api = new TelegramApi(agent.token, this.opts.telegramFetch);
+        const secret = telegramWebhookSecretFromUrl(webhookUrl);
+        if (secret) {
+          try {
+            await registerWebhook(api, webhookUrl, secret);
+            const botUsername = await fetchTelegramBotUsername(api, agent.name, this.log);
+            return {
+              adapter: createWebhookAdapter(),
+              kind: agent.kind,
+              token: agent.token,
+              name: agent.name,
+              mode: "webhook",
+              webhookUrl,
+              webhookSecret: secret,
+              webhookHandler: createWebhookHandler({
+                api,
+                db: this.db,
+                agentService: this.agentService as AgentService,
+                secretToken: secret,
+                agentId: agent.id,
+                workdir: this.opts.workdir,
+                botUsername,
+                log: this.log,
+              }),
+            };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            await api.deleteWebhook(false);
+            this.recordLifecycle("reload", `webhook registration failed for ${agent.name}; falling back to long-poll`);
+            this.recordError(agent.id, message);
+            this.log(`[bridge] telegram webhook registration failed for ${agent.name}: ${message}; falling back to long-poll`);
+          }
+        } else {
+          const message = `invalid telegram webhook URL for ${agent.name}`;
+          this.recordLifecycle("reload", `${message}; falling back to long-poll`);
+          this.recordError(agent.id, message);
+          this.log(`[bridge] ${message}; falling back to long-poll`);
+        }
+      }
+      return {
+        adapter: createTelegramAdapter({
+          db: this.db,
+          token: agent.token,
+          workdir: this.opts.workdir,
+          agentService: this.agentService as AgentService,
+          agent: { id: agent.id },
+          fetchImpl: this.opts.telegramFetch,
+          log: this.log,
+          deleteWebhookDropPending: webhookUrl ? false : undefined,
+        }),
+        kind: agent.kind,
+        token: agent.token,
+        name: agent.name,
+        mode: "poll",
+        webhookUrl,
+      };
+    }
+
+    return {
+      adapter: createDiscordAdapter({
+        db: this.db,
+        token: agent.token,
+        workdir: this.opts.workdir,
+        agentService: this.agentService as AgentService,
+        agent: { id: agent.id },
+        fetchImpl: this.opts.discordFetch,
+        wsFactory: this.opts.discordWsFactory,
+        log: this.log,
+      }),
+      kind: agent.kind,
+      token: agent.token,
+      name: agent.name,
+      mode: "poll",
+      webhookUrl: "",
+    };
+  }
+
+  async handleTelegramWebhook(secret: string, req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+    for (const entry of this.adapters.values()) {
+      // Constant-time path-secret gate: a naive !== here would be a timing
+      // oracle in front of the handler's own timingSafeEqual checks.
+      if (entry.kind !== "telegram" || entry.mode !== "webhook") continue;
+      if (!safeEqual(secret, entry.webhookSecret ?? "")) continue;
+      await entry.webhookHandler?.(req, res);
+      return true;
+    }
+    return false;
+  }
+
   stop(): void {
-    for (const entry of this.adapters.values()) entry.adapter.stop();
+    for (const entry of this.adapters.values()) {
+      entry.adapter.stop();
+      this.recordLifecycle("stop", `${entry.kind}:${entry.name}`);
+    }
     this.adapters.clear();
     // Shared-service shutdown lives here, not in any adapter (rev-2 fix #1).
     this.agentService?.shutdown();
     this.agentService = null;
+  }
+
+  private recordLifecycle(action: "start" | "stop" | "reload", detail?: string): void {
+    const payload = detail === undefined ? { action } : { action, detail };
+    this.events.log({ type: "lifecycle", payload, ts: new Date().toISOString() });
+  }
+
+  private recordError(agentId: number | null, message: string): void {
+    this.metrics.recordError(agentId);
+    this.events.log({ type: "error", agentId, message, ts: new Date().toISOString() });
   }
 
   /** First enabled agent of a kind — target of the legacy per-kind shims. */
@@ -218,5 +350,34 @@ export class BridgeController {
       this.allowlistBaseline.set(agent.id, current.length);
     }
     return { open: open && !paired, pairedChatId: paired };
+  }
+}
+
+function createWebhookAdapter(): ChannelAdapter {
+  let running = false;
+  return {
+    async start() {
+      running = true;
+    },
+    stop() {
+      running = false;
+    },
+    status: () => (running ? "webhook" : "stopped"),
+  };
+}
+
+async function fetchTelegramBotUsername(
+  api: TelegramApi,
+  agentName: string,
+  log: (line: string) => void,
+): Promise<string | null> {
+  try {
+    const me = await api.getMe();
+    if (me.ok) return me.result?.username ?? null;
+    log(`[bridge] telegram webhook getMe failed for ${agentName}: ${me.description ?? me.error_code ?? "unknown"}`);
+    return null;
+  } catch (err) {
+    log(`[bridge] telegram webhook getMe failed for ${agentName}: ${(err as Error).message}`);
+    return null;
   }
 }

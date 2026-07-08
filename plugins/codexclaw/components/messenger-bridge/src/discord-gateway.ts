@@ -9,6 +9,8 @@
  * Opcodes + intents pinned to Discord API v10 (verified against
  * discord.com/developers/docs, 2026-07-03).
  */
+import type { Interaction } from "./discord-interactions.ts";
+
 export const GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
 
 export const OP = {
@@ -34,6 +36,13 @@ export interface DiscordMessageEvent {
   isBot: boolean;
   guildId: string | null;
   messageReference: { messageId: string | null; channelId: string | null } | null;
+  attachments: Array<{
+    id: string;
+    filename: string;
+    url: string;
+    content_type?: string;
+    size?: number;
+  }>;
 }
 
 export interface WsLike {
@@ -47,6 +56,8 @@ export type WsFactory = (url: string) => WsLike;
 export interface DiscordGatewayOptions {
   token: string;
   onMessage: (msg: DiscordMessageEvent) => void;
+  onInteraction?: (interaction: Interaction) => void;
+  onReady?: (ready: { botUserId: string | null; applicationId: string | null }) => void;
   wsFactory?: WsFactory;
   log?: (line: string) => void;
   now?: () => number;
@@ -58,6 +69,8 @@ type GatewayState = "idle" | "connecting" | "ready" | "resuming" | "stopped";
 export class DiscordGateway {
   private token: string;
   private onMessage: (msg: DiscordMessageEvent) => void;
+  private onInteraction: ((interaction: Interaction) => void) | null;
+  private onReady: ((ready: { botUserId: string | null; applicationId: string | null }) => void) | null;
   private makeWs: WsFactory;
   private log: (line: string) => void;
   private jitter: () => number;
@@ -73,10 +86,13 @@ export class DiscordGateway {
   private reconnecting = false;
   private reconnectAttempts = 0;
   private botId: string | null = null;
+  private appId: string | null = null;
 
   constructor(opts: DiscordGatewayOptions) {
     this.token = opts.token;
     this.onMessage = opts.onMessage;
+    this.onInteraction = opts.onInteraction ?? null;
+    this.onReady = opts.onReady ?? null;
     this.makeWs = opts.wsFactory ?? ((url: string) => new WebSocket(url) as unknown as WsLike);
     this.log = opts.log ?? (() => {});
     this.jitter = opts.jitter ?? Math.random;
@@ -89,6 +105,11 @@ export class DiscordGateway {
   /** Bot user id from READY, or null before the first READY. */
   botUserId(): string | null {
     return this.botId;
+  }
+
+  /** Discord application id from READY application.id, or null before READY. */
+  applicationId(): string | null {
+    return this.appId;
   }
 
   connect(url = GATEWAY_URL): void {
@@ -241,19 +262,31 @@ export class DiscordGateway {
 
   private onDispatch(type: string, d: unknown): void {
     if (type === "READY") {
-      const data = d as { session_id: string; resume_gateway_url?: string; user?: { id?: string } };
+      const data = d as {
+        session_id: string;
+        resume_gateway_url?: string;
+        user?: { id?: string };
+        application?: { id?: string };
+      };
       this.sessionId = data.session_id;
       this.resumeUrl = data.resume_gateway_url
         ? `${data.resume_gateway_url}/?v=10&encoding=json`
         : null;
       this.botId = typeof data.user?.id === "string" ? data.user.id : null;
+      // READY application.id is the authoritative application id for slash-command registration.
+      this.appId = typeof data.application?.id === "string" ? data.application.id : null;
       this.state = "ready";
       this.reconnectAttempts = 0;
+      this.onReady?.({ botUserId: this.botId, applicationId: this.appId });
       this.log("[discord] ready");
       return;
     }
     if (type === "RESUMED") {
       this.state = "ready";
+      return;
+    }
+    if (type === "INTERACTION_CREATE") {
+      this.onInteraction?.(d as Interaction);
       return;
     }
     if (type === "MESSAGE_CREATE") {
@@ -263,6 +296,13 @@ export class DiscordGateway {
         channel_id?: string;
         guild_id?: string;
         message_reference?: { message_id?: string; channel_id?: string };
+        attachments?: Array<{
+          id?: string;
+          filename?: string;
+          url?: string;
+          content_type?: string;
+          size?: number;
+        }>;
         author?: { id?: string; bot?: boolean };
       };
       this.onMessage({
@@ -276,6 +316,15 @@ export class DiscordGateway {
           messageId: m.message_reference.message_id ?? null,
           channelId: m.message_reference.channel_id ?? null,
         } : null,
+        attachments: (m.attachments ?? [])
+          .filter((attachment) => attachment.url && attachment.filename)
+          .map((attachment) => ({
+            id: attachment.id ?? "",
+            filename: attachment.filename ?? "attachment.bin",
+            url: attachment.url ?? "",
+            content_type: attachment.content_type,
+            size: attachment.size,
+          })),
       });
     }
   }

@@ -7,8 +7,10 @@
  * guard). No third-party deps: node:http only.
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { extname, join, normalize, resolve, sep } from "node:path";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, extname, join, normalize, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { BridgeDb } from "./db.ts";
 import { apiCompatRoutes } from "./api-compat.ts";
 import { connectRoutes } from "./connect-routes.ts";
@@ -32,8 +34,10 @@ export interface BridgeControllerLike {
   adapterStatus: () => string;
   openHandshake: (kind: "telegram" | "discord", seconds: number) => void;
   handshakeState: (kind: "telegram" | "discord") => { open: boolean; pairedChatId: string | null };
+  agentStatuses?: () => Array<{ agentId: number; name: string; kind: "telegram" | "discord"; status: string }>;
   metricsSnapshot?: () => MetricsSnapshot;
   recentEvents?: (n: number) => BridgeEvent[];
+  handleTelegramWebhook?: (secret: string, req: IncomingMessage, res: ServerResponse) => Promise<boolean>;
 }
 
 export interface ApiResponse {
@@ -54,6 +58,13 @@ export interface BridgeServerOptions {
   version: string;
   controller?: BridgeControllerLike;
   extraRoutes?: ApiRoute[];
+  /** Override for tests; defaults to the component-root README.md. */
+  readmePath?: string;
+}
+
+/** Component-root README.md, valid from both src/ and compiled dist/. */
+export function defaultReadmePath(): string {
+  return resolve(dirname(fileURLToPath(import.meta.url)), "..", "README.md");
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -88,7 +99,14 @@ function healthRoute(): ApiRoute {
 
 /** Base route set: health + GUI API parity + channel connect/manage + agents. */
 export function baseRoutes(): ApiRoute[] {
-  return [healthRoute(), ...apiCompatRoutes(), ...connectRoutes(), ...agentRoutes(), ...observabilityRoutes()];
+  return [
+    healthRoute(),
+    ...apiCompatRoutes(),
+    ...connectRoutes(),
+    ...agentRoutes(),
+    ...observabilityRoutes(),
+    ...bindingManagementRoutes(),
+  ];
 }
 
 function observabilityRoutes(): ApiRoute[] {
@@ -110,7 +128,71 @@ function observabilityRoutes(): ApiRoute[] {
         return { status: 200, body: { events } };
       },
     },
+    {
+      method: "GET",
+      path: "/api/agents/statuses",
+      handler: (ctx) => {
+        const statuses = ctx.controller?.agentStatuses?.();
+        if (!statuses) return { status: 501, body: { error: "agent statuses not available" } };
+        return { status: 200, body: { statuses } };
+      },
+    },
   ];
+}
+
+function bindingManagementRoutes(): ApiRoute[] {
+  return [
+    {
+      method: "POST",
+      path: "/api/bindings/reset",
+      handler: (ctx, body) => {
+        const id = parseBindingId(body);
+        if (id === null) return { status: 400, body: { error: "id must be a number" } };
+        if (!ctx.db.getBinding(id)) return { status: 404, body: { error: "binding not found" } };
+        ctx.db.resetBindingSession(id);
+        return { status: 200, body: { ok: true, binding: ctx.db.getBinding(id) } };
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/bindings/cwd",
+      handler: (ctx, body) => {
+        const id = parseBindingId(body);
+        if (id === null) return { status: 400, body: { error: "id must be a number" } };
+        if (!ctx.db.getBinding(id)) return { status: 404, body: { error: "binding not found" } };
+        const raw = parseCwd(body);
+        if (raw === null) return { status: 400, body: { error: "cwd must be a non-empty string" } };
+        const real = resolveDirectory(raw);
+        if (!real) return { status: 400, body: { error: `not a directory: ${raw}` } };
+        ctx.db.setBindingWorkdir(id, real);
+        ctx.db.resetBindingSession(id);
+        return { status: 200, body: { ok: true, binding: ctx.db.getBinding(id) } };
+      },
+    },
+  ];
+}
+
+function parseBindingId(body: unknown): number | null {
+  const value = (body as Record<string, unknown> | null)?.id;
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) return null;
+  return value;
+}
+
+function parseCwd(body: unknown): string | null {
+  const value = (body as Record<string, unknown> | null)?.cwd;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function resolveDirectory(input: string): string | null {
+  const expanded = input === "~" ? homedir() : input.startsWith("~/") ? join(homedir(), input.slice(2)) : input;
+  try {
+    const real = realpathSync(resolve(expanded));
+    return statSync(real).isDirectory() ? real : null;
+  } catch {
+    return null;
+  }
 }
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -215,6 +297,17 @@ export function createBridgeServer(opts: BridgeServerOptions): Server {
     const url = new URL(req.url ?? "/", "http://localhost");
     const pathname = url.pathname;
 
+    if (pathname.startsWith("/webhook/telegram/")) {
+      if (req.method !== "POST") {
+        sendJson(res, 405, { error: "method not allowed" });
+        return;
+      }
+      const secret = webhookSecret(pathname);
+      const handled = await ctx.controller?.handleTelegramWebhook?.(secret, req, res);
+      if (!handled && !res.writableEnded) sendJson(res, 404, { error: "telegram webhook not found" });
+      return;
+    }
+
     if (pathname.startsWith("/api/")) {
       const rejection = localGuard(req);
       if (rejection) {
@@ -244,6 +337,28 @@ export function createBridgeServer(opts: BridgeServerOptions): Server {
       sendJson(res, 405, { error: "method not allowed" });
       return;
     }
+    // Docs route: exact match, fixed file, ahead of the SPA fallback which
+    // would otherwise swallow it with index.html.
+    if (pathname === "/readme") {
+      const readmeFile = opts.readmePath ?? defaultReadmePath();
+      if (existsSync(readmeFile) && statSync(readmeFile).isFile()) {
+        const data = readFileSync(readmeFile);
+        res.writeHead(200, { "content-type": "text/markdown; charset=utf-8", "content-length": data.length });
+        res.end(req.method === "HEAD" ? undefined : data);
+      } else {
+        sendJson(res, 404, { error: "readme not found" });
+      }
+      return;
+    }
     serveStatic(res, opts.guiDir, pathname);
+  }
+}
+
+function webhookSecret(pathname: string): string {
+  const raw = pathname.slice("/webhook/telegram/".length).split("/", 1)[0] ?? "";
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
   }
 }

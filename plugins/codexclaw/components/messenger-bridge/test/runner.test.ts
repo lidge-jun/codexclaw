@@ -68,6 +68,18 @@ test("parseExecEvent: recognizes each event kind, ignores noise", () => {
     parseExecEvent('{"type":"item.started","item":{"type":"command_execution","command":"ls -la"}}'),
     { kind: "status", label: "$ ls -la" },
   );
+  assert.deepEqual(
+    parseExecEvent('{"type":"item.completed","item":{"type":"reasoning","text":"checking options"}}'),
+    { kind: "thinking", text: "checking options" },
+  );
+  assert.deepEqual(
+    parseExecEvent('{"type":"item.started","item":{"type":"mcp_tool_call","tool_name":"read","arguments":{"path":"a.ts"}}}'),
+    { kind: "tool_call", name: "read", input: '{"path":"a.ts"}' },
+  );
+  assert.deepEqual(
+    parseExecEvent('{"type":"item.completed","item":{"type":"patch","changes":[{"file":"a.ts","operation":"delete"}]}}'),
+    { kind: "file_change", path: "a.ts", action: "delete" },
+  );
   assert.deepEqual(parseExecEvent('{"type":"turn.completed","usage":{"input_tokens":3}}'), {
     kind: "done",
     usage: { input_tokens: 3 },
@@ -98,6 +110,9 @@ test("runTurn: new run captures thread id, streams events, returns text", async 
     assert.match(result.text, /reply to: 1\+1\?/);
     assert.deepEqual(result.usage, { input_tokens: 10, output_tokens: 5 });
     assert.ok(events.includes("thread"));
+    assert.ok(events.includes("thinking"));
+    assert.ok(events.includes("tool_call"));
+    assert.ok(events.includes("file_change"));
     assert.ok(events.includes("message"));
     assert.ok(events.includes("done"));
   });

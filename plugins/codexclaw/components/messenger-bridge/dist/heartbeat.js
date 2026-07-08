@@ -33,6 +33,7 @@ import { DiscordApi, chunkDiscordMessage } from "./discord-api.js";
 
 const DEFAULT_TICK_MS = 60_000;
 const SILENT_RE = /HEARTBEAT_OK/;
+const DISCORD_THREAD_IDLE_MS = 24 * 60 * 60 * 1000;
 
 /** Default forwarder: same rendering the adapters use. */
 async function defaultSend(agent          , chatId        , text        )                {
@@ -104,6 +105,12 @@ export class HeartbeatScheduler {
     if (agent.heartbeat_prompt.trim().length === 0) return;
     if (agent.auto_send !== 1) return; // result would go nowhere — skip the spend
     if (this.inFlight.has(agent.id)) return;
+    if (agent.full_access !== 1) {
+      // Heartbeats are autonomous; without full access there is no live user turn
+      // to approve, so skip instead of creating an invisible pending approval.
+      this.log(`[heartbeat] ${agent.name}: approval required — skipped`);
+      return;
+    }
 
     const paired = db.listAgentAllowlist(agent.id);
     if (paired.length === 0) return;
@@ -146,5 +153,86 @@ export class HeartbeatScheduler {
     } finally {
       this.inFlight.delete(agent.id);
     }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+export class DiscordThreadSweepScheduler {
+          opts                           ;
+          log                        ;
+          now              ;
+          timer                                        = null;
+          inFlight = false;
+
+  constructor(opts                           ) {
+    this.opts = opts;
+    this.log = opts.log ?? (() => {});
+    this.now = opts.now ?? Date.now;
+  }
+
+  start()       {
+    if (this.timer) return;
+    this.timer = setInterval(() => void this.tick(), this.opts.tickMs ?? DEFAULT_TICK_MS);
+    this.timer.unref?.();
+  }
+
+  stop()       {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+
+  async tick()                {
+    if (this.inFlight) return;
+    this.inFlight = true;
+    try {
+      const cutoff = new Date(this.now() - (this.opts.idleMs ?? DISCORD_THREAD_IDLE_MS)).toISOString();
+      const rows = this.opts.db.listIdleDiscordTaskThreadBindings(cutoff);
+      for (const binding of rows) {
+        await this.sweepBinding(binding.id);
+      }
+    } catch (err) {
+      this.log(`[discord-sweep] tick skipped: ${(err         ).message}`);
+    } finally {
+      this.inFlight = false;
+    }
+  }
+
+          async sweepBinding(bindingId        )                {
+    const binding = this.opts.db.getBinding(bindingId);
+    if (!binding) return;
+    if (binding.status === "running") return;
+    // CAS reservation: a turn starting between the idle listing and the archive
+    // REST call must win. 'sweeping' rows are re-listed next tick if we abort.
+    if (!this.opts.db.reserveBindingForSweep(binding.id)) return;
+    const token = binding.agent_id === null
+      ? (this.opts.db.getChannel("discord")?.token ?? "")
+      : (this.opts.db.getAgent(binding.agent_id)?.token ?? "");
+    if (token) {
+      const api = this.opts.apiFactory ? this.opts.apiFactory(token) : new DiscordApi(token);
+      const archived = await api.archiveThread(binding.chat_id);
+      if (!archived.ok) this.log(`[discord-sweep] archive failed ${binding.chat_id}: ${archived.error ?? archived.status}`);
+      // A turn may have grabbed the binding while the REST call was in flight:
+      // compensate by unarchiving so the running turn can keep replying.
+      const during = this.opts.db.getBinding(binding.id);
+      if (during && during.status === "running") {
+        const restored = await api.archiveThread(binding.chat_id, false);
+        if (!restored.ok) this.log(`[discord-sweep] unarchive compensation failed ${binding.chat_id}: ${restored.error ?? restored.status}`);
+        return;
+      }
+    }
+    const fresh = this.opts.db.getBinding(binding.id);
+    if (!fresh || fresh.status === "running") return;
+    this.opts.db.deleteBindingCascade(fresh.id);
+    if (fresh.agent_id === null) this.opts.db.removeAllowlist("discord", fresh.chat_id);
+    else this.opts.db.removeAgentAllowlist(fresh.agent_id, fresh.chat_id);
+    this.log(`[discord-sweep] cleaned idle task thread ${fresh.chat_id}`);
   }
 }

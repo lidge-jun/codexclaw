@@ -1,5 +1,0 @@
-interface:
-  display_name: "cxc-goalplan"
-  short_description: "Durable goalplan checkpoints."
-policy:
-  allow_implicit_invocation: false

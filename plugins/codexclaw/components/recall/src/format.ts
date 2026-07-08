@@ -57,7 +57,7 @@ export function formatMemoryResult(result: MemorySearchResult): string {
     lines.push("");
     const loc = hit.startLine !== null ? `${hit.relpath}:${hit.startLine}` : hit.relpath;
     const when = hit.updatedAt ? ` [${hit.updatedAt}]` : "";
-    lines.push(`(${hit.origin}) ${loc}${when}`);
+    lines.push(`(${hit.origin}/${hit.kind}) ${loc}${when}`);
     lines.push(clip(hit.excerpt, EXCERPT));
     lines.push("---");
   }

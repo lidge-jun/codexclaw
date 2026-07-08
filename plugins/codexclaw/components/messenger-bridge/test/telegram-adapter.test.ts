@@ -1,11 +1,13 @@
 /** telegram-adapter.test.ts — poll loop, gating, handshake, turn UX (offline scripted fetch). */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdtempSync, realpathSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { openBridgeDb, type BridgeDb } from "../src/db.ts";
 import { createTelegramAdapter } from "../src/telegram-adapter.ts";
+import { encodeCallback } from "../src/telegram-interactive.ts";
 import type { AgentService, IncomingRequest, IncomingResult } from "../src/agent-service.ts";
 import type { TgUpdate } from "../src/telegram-api.ts";
 
@@ -19,6 +21,15 @@ function makeFetch(updateBatches: TgUpdate[][], overrides?: Record<string, unkno
   const calls: Call[] = [];
   let batchIdx = 0;
   const fetchImpl = (url: string, init?: RequestInit): Promise<Response> => {
+    if (url.includes("/file/bot")) {
+      calls.push({ method: "downloadFile", payload: { url } });
+      const data = new Uint8Array([1, 2, 3]).buffer;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        arrayBuffer: () => Promise.resolve(data),
+      } as Response);
+    }
     const method = url.split("/").pop() as string;
     const payload = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
     calls.push({ method, payload });
@@ -64,6 +75,10 @@ function tempDb(): { db: BridgeDb; cwd: string } {
 
 function textUpdate(id: number, chatId: number, text: string, type = "private"): TgUpdate {
   return { update_id: id, message: { message_id: id, text, chat: { id: chatId, type } } };
+}
+
+function sha256Hex(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 async function settle(): Promise<void> {
@@ -194,6 +209,32 @@ test("/start pairs a chat only when a handshake window is open", async () => {
   }
 });
 
+test("named-agent /start deep-link pairs through long-poll without an open window", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    const agent = db.createAgent("telegram-1", "telegram", "tok");
+    db.createAgentPairingCode(agent.id, sha256Hex("pair-code"), 60);
+    const { fetchImpl } = makeFetch([[textUpdate(1, 42, "/start pair-code")]]);
+    const adapter = createTelegramAdapter({
+      db,
+      token: "tok",
+      workdir: cwd,
+      agent: { id: agent.id },
+      fetchImpl,
+      agentService: stubAgentService(async () => ({ ok: true, text: "" })),
+    });
+
+    await adapter.start();
+    await settle();
+    adapter.stop();
+
+    assert.equal(db.isAgentAllowed(agent.id, "42"), true);
+    assert.equal(db.isAgentHandshakeOpen(agent.id), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test("group message without @mention is ignored, with mention is stripped", async () => {
   const { db, cwd } = tempDb();
   try {
@@ -221,6 +262,238 @@ test("group message without @mention is ignored, with mention is stripped", asyn
     assert.deepEqual(seen, ["do the thing"]);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("callback_query from an unpaired chat is acknowledged and denied", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    const agent = db.createAgent("telegram-1", "telegram", "tok");
+    const data = encodeCallback({ type: "effort_select", payload: `${agent.id}:high` });
+    const { fetchImpl, calls } = makeFetch([
+      [
+        {
+          update_id: 1,
+          callback_query: {
+            id: "cb-1",
+            from: { id: 9 },
+            data,
+            message: { message_id: 10, chat: { id: 500, type: "private" } },
+          },
+        },
+      ],
+    ]);
+    const adapter = createTelegramAdapter({
+      db,
+      token: "tok",
+      workdir: cwd,
+      fetchImpl,
+      agentService: stubAgentService(async () => ({ ok: true, text: "unused" })),
+    });
+    await adapter.start();
+    await settle();
+    adapter.stop();
+
+    assert.equal(db.getAgent(agent.id)?.effort, "default");
+    const answer = calls.find((c) => c.method === "answerCallbackQuery");
+    assert.equal(answer?.payload.text, "This chat is not paired");
+    assert.ok(!sentTexts(calls).some((text) => text === "Effort set to high"));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("callback_query from an allowlisted agent chat can update effort", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    const agent = db.createAgent("telegram-1", "telegram", "tok");
+    db.addAgentAllowlist(agent.id, "500");
+    const binding = db.getOrCreateAgentBinding(agent.id, "telegram", "500", cwd);
+    const data = encodeCallback({ type: "effort_select", payload: `${binding.id}:high` });
+    const { fetchImpl, calls } = makeFetch([
+      [
+        {
+          update_id: 1,
+          callback_query: {
+            id: "cb-1",
+            from: { id: 9 },
+            data,
+            message: { message_id: 10, chat: { id: 500, type: "private" } },
+          },
+        },
+      ],
+    ]);
+    const adapter = createTelegramAdapter({
+      db,
+      token: "tok",
+      workdir: cwd,
+      agent: { id: agent.id },
+      fetchImpl,
+      agentService: stubAgentService(async () => ({ ok: true, text: "unused" })),
+    });
+    await adapter.start();
+    await settle();
+    adapter.stop();
+
+    assert.equal(db.getAgent(agent.id)?.effort, "default");
+    assert.equal(db.getBinding(binding.id)?.effort, "high");
+    const answer = calls.find((c) => c.method === "answerCallbackQuery");
+    assert.equal(answer?.payload.text, "Effort set");
+    assert.ok(sentTexts(calls).some((text) => text === "Effort set to high"));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("photo-only private message is downloaded and prefixed into the prompt", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("telegram", "501", "jun");
+    const seen: string[] = [];
+    let downloadedPath = "";
+    const { fetchImpl } = makeFetch(
+      [
+        [
+          {
+            update_id: 1,
+            message: {
+              message_id: 1,
+              chat: { id: 501, type: "private" },
+              photo: [
+                { file_id: "p-small", file_unique_id: "small", width: 10, height: 10 },
+                { file_id: "p-large", file_unique_id: "large", width: 100, height: 100 },
+              ],
+            },
+          },
+        ],
+      ],
+      {
+        getFile: {
+          ok: true,
+          result: { file_id: "p-large", file_unique_id: "large", file_path: "photos/pic.jpg" },
+        },
+      },
+    );
+    const adapter = createTelegramAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      agentService: stubAgentService(async (req) => {
+        seen.push(req.text);
+        const match = /^\[Image: (.+\.jpg)\]$/.exec(req.text);
+        assert.ok(match, `prompt should contain image path, got: ${req.text}`);
+        downloadedPath = match[1];
+        assert.equal(readFileSync(downloadedPath).length, 3);
+        return { ok: true, text: "done" };
+      }),
+    });
+    await adapter.start();
+    await settle();
+    adapter.stop();
+
+    assert.equal(seen.length, 1);
+    assert.ok(downloadedPath);
+    assert.equal(existsSync(downloadedPath), false);
+    assert.equal(existsSync(dirname(downloadedPath)), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("draft streaming uses sendRichMessageDraft only for private rich-supported turns", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("telegram", "502", "jun");
+    db.addAllowlist("telegram", "-502", "grp");
+    const { fetchImpl, calls } = makeFetch([
+      [
+        textUpdate(1, 502, "private update"),
+        { update_id: 2, message: { message_id: 2, text: "@cxcbot group update", chat: { id: -502, type: "group" } } },
+      ],
+    ]);
+    const adapter = createTelegramAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      agentService: stubAgentService(async (req) => {
+        req.onEvent?.({ kind: "message", text: `partial ${req.chatId}` });
+        return { ok: true, text: "done" };
+      }),
+    });
+    await adapter.start();
+    await settle();
+    adapter.stop();
+
+    const drafts = calls.filter((c) => c.method === "sendRichMessageDraft");
+    assert.equal(drafts.length, 1);
+    assert.equal(drafts[0].payload.chat_id, 502);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("private draft progress uses drafts for file changes and never legacy status messages", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("telegram", "503", "jun");
+    const { fetchImpl, calls } = makeFetch([[textUpdate(1, 503, "private update")]]);
+    const adapter = createTelegramAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      agentService: stubAgentService(async (req) => {
+        req.onEvent?.({ kind: "file_change", path: "src/app.ts", action: "modify" });
+        return { ok: true, text: "done" };
+      }),
+    });
+    await adapter.start();
+    await settle();
+    adapter.stop();
+
+    const drafts = calls.filter((c) => c.method === "sendRichMessageDraft");
+    assert.equal(drafts.length, 1);
+    assert.match(JSON.stringify(drafts[0].payload), /src\/app\.ts/);
+    assert.equal(calls.some((c) => c.method === "sendMessage" && String(c.payload.text ?? "").startsWith("🔄")), false);
+    assert.equal(calls.some((c) => c.method === "editMessageText"), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
+});
+
+test("non-draft group progress keeps the legacy status message path", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("telegram", "-504", "grp");
+    const { fetchImpl, calls } = makeFetch([
+      [{ update_id: 1, message: { message_id: 1, text: "@cxcbot group update", chat: { id: -504, type: "group" } } }],
+    ]);
+    const adapter = createTelegramAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      agentService: stubAgentService(async (req) => {
+        req.onEvent?.({ kind: "tool_call", name: "shell", input: "npm test" });
+        return { ok: true, text: "done" };
+      }),
+    });
+    await adapter.start();
+    await settle();
+    adapter.stop();
+
+    assert.equal(calls.some((c) => c.method === "sendRichMessageDraft"), false);
+    assert.ok(calls.some((c) => c.method === "sendMessage" && String(c.payload.text ?? "").startsWith("🔄 shell npm test")));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
   }
 });
 
@@ -331,6 +604,44 @@ test("agent scope: mention_only=1 gates un-mentioned group messages (default)", 
   adapter.stop();
   assert.equal(called, 0);
   db.close();
+});
+
+test("forum topic messages pass topicId and propagate General topic thread id", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("telegram", "-900", "forum");
+    const requests: IncomingRequest[] = [];
+    const update: TgUpdate = {
+      update_id: 1,
+      message: {
+        message_id: 1,
+        text: "@cxcbot topic work",
+        chat: { id: -900, type: "supergroup", is_forum: true },
+        is_topic_message: true,
+      },
+    };
+    const { fetchImpl, calls } = makeFetch([[update]]);
+    const adapter = createTelegramAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      agentService: stubAgentService(async (req) => {
+        requests.push(req);
+        return { ok: true, text: "done" };
+      }),
+    });
+    await adapter.start();
+    await settle();
+    adapter.stop();
+
+    assert.equal(requests[0]?.topicId, "1");
+    assert.equal(db.getOrCreateBinding("telegram", "-900", cwd, "1").topic_id, "1");
+    assert.ok(calls.some((call) => call.method === "sendChatAction" && call.payload.message_thread_id === 1));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+  }
 });
 
 // ── /cwd command (telegram_cwd_sessions phase 2) ─────────────────────────
@@ -454,7 +765,8 @@ function topicUpdate(id: number, chatId: number, text: string, threadId: number)
     message: {
       message_id: id,
       text,
-      chat: { id: chatId, type: "supergroup" },
+      chat: { id: chatId, type: "supergroup", is_forum: true },
+      is_topic_message: true,
       message_thread_id: threadId,
     } as TgUpdate["message"],
   };
@@ -524,31 +836,30 @@ test("/delete confirm after TTL expiry re-prompts instead of deleting", async ()
   }
 });
 
-test("/delete from a forum topic calls deleteForumTopic with the thread id", async () => {
+test("/delete from a forum topic deletes only that topic binding and keeps the chat paired", async () => {
   const { db, cwd, calls } = await runDeleteScenario([
     [topicUpdate(1, 800, "/delete", 42)],
     [topicUpdate(2, 800, "/delete confirm", 42)],
   ]);
   try {
-    const del = calls.find((c) => c.method === "deleteForumTopic");
-    assert.ok(del, "deleteForumTopic should be called");
-    assert.equal(del?.payload.message_thread_id, 42);
+    assert.equal(calls.some((c) => c.method === "deleteForumTopic"), false);
     assert.equal(db.listBindings().length, 0);
+    assert.equal(db.isAllowed("telegram", "800"), true);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
     db.close();
   }
 });
 
-test("deleteForumTopic failure still wipes local state and warns", async () => {
-  const { db, cwd, calls } = await runDeleteScenario(
-    [[topicUpdate(1, 800, "/delete", 7)], [topicUpdate(2, 800, "/delete confirm", 7)]],
-    { overrides: { deleteForumTopic: { ok: false, description: "not enough rights" } } },
-  );
+test("/delete confirmations are keyed by chat and topic", async () => {
+  const { db, cwd, calls } = await runDeleteScenario([
+    [topicUpdate(1, 800, "/delete", 7)],
+    [topicUpdate(2, 800, "/delete confirm", 8)],
+  ]);
   try {
-    assert.equal(db.listBindings().length, 0); // local state gone regardless
-    assert.equal(db.isAllowed("telegram", "800"), false);
-    assert.ok(sentTexts(calls).some((t) => t.includes("remove it manually")));
+    const prompts = sentTexts(calls).filter((t) => t.includes("Send /delete confirm"));
+    assert.equal(prompts.length, 2);
+    assert.equal(db.isAllowed("telegram", "800"), true);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
     db.close();

@@ -275,6 +275,32 @@ does not ask the user or move phases by itself.
 When divergence is ON:
 
 - Record mode explicitly: `cxc divergence mode --session <id> on --collapse P|D --reason <why>`.
+- **Cost tiers (DEFAULT, DIVERGE-TIER-01):** divergence defaults to CONCEPTUAL
+  candidates. Tier 0 — inline brainstorm in the plan, no dispatch. Tier 1 (the
+  divergence default) — 2-3 parallel candidate lanes, each yielding ONE one-page
+  candidate direction doc (no code, no worktrees) with mandatory front-matter:
+  `assumptions`, `risks`, `kill-criteria`, `evidence-needed`. Lane research is done
+  by read-only EXPLORER subagents that return findings/evidence only; the candidate
+  DOC itself is written by the MAIN session from those findings, or by a scoped
+  WORKER whose write scope is the devlog unit / `.codexclaw/divergence/` (explorers
+  never write files — dispatch doctrine). The front-matter lives in the candidate
+  DOC file, while `cxc divergence candidate add` records the archive row
+  (kind/title/rationale/`--source`) alongside it. The MAIN session (collapse owner)
+  critiques/triages directly — a separate cross-critique round is waste and is NOT
+  a gate condition. Collapse gate: N candidate docs with filled front-matter AND
+  per-candidate provenance (the existing `cxc-search` provenance rule below — Tier
+  1 tightens it, never relaxes it). Tier 2 (rare escalation) — the
+  worktree/`evaluate.sh` candidate-race lane below, ONLY when the choice is
+  load-bearing AND Tier-1 candidates genuinely conflict AND judgment needs running
+  code; expected 0-1 per unit, entry recorded as a P-level decision. Tier inflation
+  (defaulting to Tier 2 because subagents are cheap) and tier deflation (collapsing
+  a load-bearing conflict from paper alone) are both violations: the scarce budget
+  is wall-clock and collapse-owner triage attention, not tokens. Minds are NOT
+  Tier-1 candidate authors — they remain interview-time contradiction lenses. The
+  first Tier-1 dispatch of a research-heavy unit SHOULD be a blindspot/unknowns
+  pass so candidates are sourced from evidence, not parameter tweaks. Topology is
+  star, not mesh: subagents neither message each other nor spawn workers; exchange
+  is file-mediated through `.codexclaw/divergence/` and the devlog unit.
 - I/P records at least two candidates in the archive. If the user intent is clear, do
   not ask a fake menu question; record `strong-1` plus `add-1` silently. If intent is
   genuinely open, ask the user to choose or constrain the candidates.

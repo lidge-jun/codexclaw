@@ -26,6 +26,7 @@ Use `data-theme` attribute on `<html>`, not class-based toggle.
 - `data-theme` takes precedence over media query
 - System preference is the fallback when no explicit choice
 - All colors MUST use CSS custom properties
+  (token layering + `oklch()`/`light-dark()` mechanics: `color-system.md`)
 
 ## Flash of Wrong Theme (FOWT) Prevention
 

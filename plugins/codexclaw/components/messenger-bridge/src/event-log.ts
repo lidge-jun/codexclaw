@@ -9,11 +9,13 @@
  
  export type BridgeEvent =
    | { type: "message_received"; agentId: number | null; chatId: string; platform: string; ts: string }
+   | { type: "turn_started"; agentId: number | null; chatId: string; platform: string; ts: string }
    | { type: "turn_complete"; agentId: number | null; durationMs: number; ts: string }
    | { type: "error"; agentId: number | null; message: string; ts: string }
    | { type: "rate_limit"; platform: string; retryAfterMs: number; ts: string }
    | { type: "reconnect"; platform: string; ts: string }
-   | { type: "circuit_breaker"; platform: string; state: string; ts: string };
+   | { type: "circuit_breaker"; platform: string; state: string; ts: string }
+   | { type: "lifecycle"; payload: { action: "start" | "stop" | "reload"; detail?: string }; ts: string };
  
  export interface EventLogOptions {
    path: string;

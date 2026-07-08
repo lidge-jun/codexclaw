@@ -8,9 +8,10 @@ import { chmodSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { openBridgeDb, type AgentRow, type BridgeDb } from "../src/db.ts";
 import { AgentService } from "../src/agent-service.ts";
-import { HeartbeatScheduler } from "../src/heartbeat.ts";
+import { DiscordThreadSweepScheduler, HeartbeatScheduler } from "../src/heartbeat.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const FAKE = join(here, "fixtures", "fake-codex.mjs");
@@ -27,16 +28,18 @@ function setup(nowRef: { t: number }) {
   const db = openBridgeDb(cwd);
   const service = new AgentService({ db, codexBin: FAKE });
   const sent: Sent[] = [];
+  const logs: string[] = [];
   const scheduler = new HeartbeatScheduler({
     db,
     service: () => service,
     workdir: cwd,
     now: () => nowRef.t,
+    log: (line) => logs.push(line),
     send: async (agent: AgentRow, chatId: string, text: string) => {
       sent.push({ agent: agent.name, chatId, text });
     },
   });
-  return { db, scheduler, sent, cwd };
+  return { db, scheduler, sent, cwd, logs };
 }
 
 function makeHbAgent(db: BridgeDb, name: string, opts?: { autoSend?: number; minutes?: number; paired?: boolean }) {
@@ -132,5 +135,129 @@ test("busy binding skips the tick without consuming the schedule slot", async ()
   db.setBindingStatus(binding.id, "idle");
   await scheduler.tick();
   assert.equal(sent.length, 1);
+  db.close();
+});
+
+test("heartbeat skips full_access=0 agents instead of creating hidden approvals", async () => {
+  const nowRef = { t: 10 * 60_000 };
+  const { db, scheduler, sent, logs } = setup(nowRef);
+  const agent = makeHbAgent(db, "hb-needs-approval");
+  db.updateAgent(agent.id, { full_access: 0 });
+  process.env.FAKE_CODEX_MODE = "ok";
+  await scheduler.tick();
+  assert.equal(sent.length, 0);
+  assert.equal(db.listBindings().length, 0);
+  assert.ok(logs.some((line) => line.includes("approval required")));
+  db.close();
+});
+
+test("DiscordThreadSweepScheduler archives and removes idle task-thread bindings", async () => {
+  const nowRef = { t: Date.parse("2026-07-07T12:00:00Z") };
+  const { db, cwd } = setup(nowRef);
+  const agent = db.createAgent("dc-1", "discord", "tok-dc");
+  db.addAgentAllowlist(agent.id, "thread-old", "task-thread");
+  db.addAgentAllowlist(agent.id, "thread-fresh", "task-thread");
+  const oldBinding = db.getOrCreateAgentBinding(agent.id, "discord", "thread-old", cwd);
+  const freshBinding = db.getOrCreateAgentBinding(agent.id, "discord", "thread-fresh", cwd);
+  const raw = new DatabaseSync(join(cwd, ".codexclaw", "bridge.db"));
+  raw.prepare("UPDATE bindings SET updated_at = ? WHERE id = ?").run("2026-07-06T10:59:59.000Z", oldBinding.id);
+  raw.prepare("UPDATE bindings SET updated_at = ? WHERE id = ?").run("2026-07-06T12:30:00.000Z", freshBinding.id);
+  raw.close();
+
+  const archived: string[] = [];
+  const sweep = new DiscordThreadSweepScheduler({
+    db,
+    now: () => nowRef.t,
+    apiFactory: () => ({
+      archiveThread: async (channelId: string) => {
+        archived.push(channelId);
+        return { ok: true, status: 200, data: { id: channelId, archived: true } };
+      },
+    }),
+  });
+  await sweep.tick();
+
+  assert.deepEqual(archived, ["thread-old"]);
+  assert.equal(db.getBinding(oldBinding.id), null);
+  assert.equal(db.getBinding(freshBinding.id)?.id, freshBinding.id);
+  assert.equal(db.isAgentAllowed(agent.id, "thread-old"), false);
+  assert.equal(db.isAgentAllowed(agent.id, "thread-fresh"), true);
+  db.close();
+});
+
+test("DiscordThreadSweepScheduler preserves backdated running task threads until idle", async () => {
+  const nowRef = { t: Date.parse("2026-07-07T12:00:00Z") };
+  const { db, cwd } = setup(nowRef);
+  const agent = db.createAgent("dc-running", "discord", "tok-dc");
+  db.addAgentAllowlist(agent.id, "thread-running", "task-thread");
+  const binding = db.getOrCreateAgentBinding(agent.id, "discord", "thread-running", cwd);
+  const raw = new DatabaseSync(join(cwd, ".codexclaw", "bridge.db"));
+  raw.prepare("UPDATE bindings SET status = 'running', updated_at = ? WHERE id = ?")
+    .run("2026-07-06T10:59:59.000Z", binding.id);
+  raw.close();
+
+  const archived: string[] = [];
+  const sweep = new DiscordThreadSweepScheduler({
+    db,
+    now: () => nowRef.t,
+    apiFactory: () => ({
+      archiveThread: async (channelId: string) => {
+        archived.push(channelId);
+        return { ok: true, status: 200, data: { id: channelId, archived: true } };
+      },
+    }),
+  });
+  await sweep.tick();
+
+  assert.deepEqual(archived, []);
+  assert.equal(db.getBinding(binding.id)?.status, "running");
+  assert.equal(db.isAgentAllowed(agent.id, "thread-running"), true);
+
+  const rawIdle = new DatabaseSync(join(cwd, ".codexclaw", "bridge.db"));
+  rawIdle.prepare("UPDATE bindings SET status = 'idle', updated_at = ? WHERE id = ?")
+    .run("2026-07-06T10:59:59.000Z", binding.id);
+  rawIdle.close();
+  await sweep.tick();
+
+  assert.deepEqual(archived, ["thread-running"]);
+  assert.equal(db.getBinding(binding.id), null);
+  assert.equal(db.isAgentAllowed(agent.id, "thread-running"), false);
+  db.close();
+});
+
+test("DiscordThreadSweepScheduler compensates when a turn starts mid-archive (unarchive, no delete)", async () => {
+  const nowRef = { t: Date.parse("2026-07-07T12:00:00Z") };
+  const { db, cwd } = setup(nowRef);
+  const agent = db.createAgent("dc-race", "discord", "tok-dc");
+  db.addAgentAllowlist(agent.id, "thread-race", "task-thread");
+  const binding = db.getOrCreateAgentBinding(agent.id, "discord", "thread-race", cwd);
+  const raw = new DatabaseSync(join(cwd, ".codexclaw", "bridge.db"));
+  raw.prepare("UPDATE bindings SET updated_at = ? WHERE id = ?").run("2026-07-06T10:59:59.000Z", binding.id);
+  raw.close();
+
+  const calls: Array<{ channelId: string; archived: boolean }> = [];
+  const sweep = new DiscordThreadSweepScheduler({
+    db,
+    now: () => nowRef.t,
+    apiFactory: () => ({
+      archiveThread: async (channelId: string, archivedFlag = true) => {
+        calls.push({ channelId, archived: archivedFlag });
+        if (archivedFlag) {
+          // A turn grabs the binding while the archive REST call is in flight.
+          db.setBindingStatus(binding.id, "running");
+        }
+        return { ok: true, status: 200, data: { id: channelId, archived: archivedFlag } };
+      },
+    }),
+  });
+  await sweep.tick();
+
+  // Compensating unarchive fired, binding survived with its running turn.
+  assert.deepEqual(calls, [
+    { channelId: "thread-race", archived: true },
+    { channelId: "thread-race", archived: false },
+  ]);
+  assert.equal(db.getBinding(binding.id)?.status, "running");
+  assert.equal(db.isAgentAllowed(agent.id, "thread-race"), true);
   db.close();
 });

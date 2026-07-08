@@ -1,0 +1,574 @@
+ <!DOCTYPE html>
+ <html lang="ko">
+ <head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Scroll-Driven Frame Sequence</title>
+ <style>
+   :root {
+     --bg: #0a0a0a;
+     --fg: #e8e8e8;
+     --muted: #666;
+     --accent: #3b82f6;
+     --surface: #141414;
+     --border: #222;
+   }
+ 
+   @media (prefers-reduced-motion: reduce) {
+     *, *::before, *::after {
+       animation-duration: 0.01ms !important;
+       animation-iteration-count: 1 !important;
+       transition-duration: 0.01ms !important;
+     }
+   }
+ 
+   * { margin: 0; padding: 0; box-sizing: border-box; }
+ 
+   html {
+     scroll-behavior: smooth;
+     scrollbar-width: thin;
+     scrollbar-color: var(--border) var(--bg);
+   }
+ 
+   body {
+     font-family: -apple-system, BlinkMacSystemFont, 'Pretendard Variable',
+                  Pretendard, system-ui, sans-serif;
+     background: var(--bg);
+     color: var(--fg);
+     line-height: 1.6;
+     -webkit-font-smoothing: antialiased;
+   }
+ 
+   .hero {
+     min-height: 100dvh;
+     display: flex;
+     flex-direction: column;
+     justify-content: center;
+     align-items: center;
+     text-align: center;
+     padding: 2rem;
+     position: relative;
+     overflow: hidden;
+   }
+ 
+   .hero::before {
+     content: '';
+     position: absolute;
+     inset: 0;
+     background: radial-gradient(ellipse at 50% 80%, rgba(59,130,246,0.08) 0%, transparent 60%);
+     pointer-events: none;
+   }
+ 
+   .hero h1 {
+     font-size: clamp(2.4rem, 5vw, 4.2rem);
+     font-weight: 700;
+     letter-spacing: 0;
+     text-wrap: balance;
+     max-width: 16ch;
+     margin-bottom: 1rem;
+   }
+ 
+   .hero p {
+     font-size: clamp(1rem, 1.8vw, 1.25rem);
+     color: var(--muted);
+     max-width: 42ch;
+     text-wrap: balance;
+   }
+ 
+   .scroll-hint {
+     position: absolute;
+     bottom: 2rem;
+     display: flex;
+     flex-direction: column;
+     align-items: center;
+     gap: 0.5rem;
+     color: var(--muted);
+     font-size: 0.8rem;
+   }
+ 
+   .scroll-hint .arrow {
+     width: 20px;
+     height: 20px;
+     border-right: 1.5px solid var(--muted);
+     border-bottom: 1.5px solid var(--muted);
+     transform: rotate(45deg);
+     animation: bounce 2s infinite;
+   }
+ 
+   @keyframes bounce {
+     0%, 100% { transform: rotate(45deg) translateY(0); }
+     50% { transform: rotate(45deg) translateY(6px); }
+   }
+ 
+   .frame-section {
+     position: relative;
+     height: 400vh;
+   }
+ 
+   .frame-sticky {
+     position: sticky;
+     top: 0;
+     height: 100dvh;
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     overflow: hidden;
+   }
+ 
+   .frame-canvas {
+     width: min(90vw, 960px);
+     aspect-ratio: 16/9;
+     border-radius: 12px;
+     background: var(--surface);
+   }
+ 
+   .frame-captions {
+     position: absolute;
+     inset: 0;
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     pointer-events: none;
+   }
+ 
+   .caption {
+     position: absolute;
+     padding: 0.6rem 1.2rem;
+     background: rgba(10,10,10,0.7);
+     backdrop-filter: blur(12px);
+     -webkit-backdrop-filter: blur(12px);
+     border: 1px solid rgba(255,255,255,0.08);
+     border-radius: 8px;
+     font-size: clamp(0.85rem, 1.4vw, 1rem);
+     color: var(--fg);
+     opacity: 0;
+     transform: translateY(12px);
+     transition: opacity 0.4s ease, transform 0.4s ease;
+     max-width: 32ch;
+     text-wrap: balance;
+   }
+ 
+   .caption.visible {
+     opacity: 1;
+     transform: translateY(0);
+   }
+ 
+   .caption:nth-child(1) { bottom: 12%; left: 8%; }
+   .caption:nth-child(2) { top: 12%; right: 8%; }
+   .caption:nth-child(3) { bottom: 16%; right: 10%; }
+ 
+   .progress-bar {
+     position: fixed;
+     top: 0;
+     left: 0;
+     width: 100%;
+     height: 2px;
+     background: var(--accent);
+     z-index: 100;
+     transform-origin: left;
+     transform: scaleX(0);
+   }
+ 
+   .frame-counter {
+     position: absolute;
+     top: 1.5rem;
+     right: 1.5rem;
+     font-family: 'SF Mono', ui-monospace, monospace;
+     font-size: 0.75rem;
+     color: var(--muted);
+     background: rgba(10,10,10,0.6);
+     padding: 0.3rem 0.6rem;
+     border-radius: 4px;
+     border: 1px solid var(--border);
+   }
+ 
+   .workflow-section {
+     max-width: 720px;
+     margin: 0 auto;
+     padding: 8rem 2rem;
+   }
+ 
+   .workflow-section h2 {
+     font-size: clamp(1.6rem, 3vw, 2.2rem);
+     font-weight: 600;
+     margin-bottom: 3rem;
+     text-wrap: balance;
+   }
+ 
+   .pipeline {
+     display: flex;
+     flex-direction: column;
+     gap: 0;
+   }
+ 
+   .pipe-step {
+     display: grid;
+     grid-template-columns: 48px 1fr;
+     gap: 1rem;
+     position: relative;
+   }
+ 
+   .pipe-number {
+     width: 36px;
+     height: 36px;
+     border-radius: 50%;
+     border: 1.5px solid var(--border);
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     font-size: 0.8rem;
+     font-weight: 600;
+     color: var(--muted);
+     background: var(--surface);
+     position: relative;
+     z-index: 1;
+   }
+ 
+   .pipe-step:not(:last-child) .pipe-number::after {
+     content: '';
+     position: absolute;
+     top: 100%;
+     left: 50%;
+     width: 1px;
+     height: calc(100% + 2rem);
+     background: var(--border);
+     transform: translateX(-50%);
+   }
+ 
+   .pipe-content {
+     padding-bottom: 2.5rem;
+   }
+ 
+   .pipe-content h3 {
+     font-size: 1.05rem;
+     font-weight: 600;
+     margin-bottom: 0.5rem;
+   }
+ 
+   .pipe-content p {
+     font-size: 0.9rem;
+     color: var(--muted);
+     line-height: 1.7;
+   }
+ 
+   .pipe-content code {
+     display: block;
+     margin-top: 0.75rem;
+     padding: 0.75rem 1rem;
+     background: var(--surface);
+     border: 1px solid var(--border);
+     border-radius: 6px;
+     font-family: 'SF Mono', ui-monospace, monospace;
+     font-size: 0.78rem;
+     color: #a0a0a0;
+     white-space: pre;
+     overflow-x: auto;
+   }
+ 
+   .tag {
+     display: inline-block;
+     font-size: 0.7rem;
+     padding: 0.15rem 0.5rem;
+     border-radius: 3px;
+     background: rgba(59,130,246,0.12);
+     color: var(--accent);
+     font-weight: 500;
+     margin-bottom: 0.4rem;
+   }
+ 
+   .tag.alt {
+     background: rgba(168,85,247,0.12);
+     color: #a855f7;
+   }
+ 
+   .specs {
+     display: grid;
+     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+     gap: 1px;
+     background: var(--border);
+     border: 1px solid var(--border);
+     border-radius: 8px;
+     overflow: hidden;
+     margin-top: 3rem;
+   }
+ 
+   .spec-cell {
+     background: var(--surface);
+     padding: 1.2rem 1rem;
+   }
+ 
+   .spec-cell .label {
+     font-size: 0.7rem;
+     text-transform: uppercase;
+     letter-spacing: 0;
+     color: var(--muted);
+     margin-bottom: 0.3rem;
+   }
+ 
+   .spec-cell .value {
+     font-size: 1.1rem;
+     font-weight: 600;
+   }
+ 
+   footer {
+     text-align: center;
+     padding: 4rem 2rem;
+     color: var(--muted);
+     font-size: 0.8rem;
+     border-top: 1px solid var(--border);
+   }
+ 
+   @media (max-width: 640px) {
+     .frame-canvas { width: 96vw; border-radius: 0; }
+     .caption { font-size: 0.78rem; max-width: 26ch; }
+     .caption:nth-child(1) { bottom: 8%; left: 4%; }
+     .caption:nth-child(2) { top: 8%; right: 4%; }
+     .caption:nth-child(3) { bottom: 10%; right: 4%; }
+     .workflow-section { padding: 5rem 1.2rem; }
+   }
+ </style>
+ </head>
+ <body>
+ 
+ <div class="progress-bar" id="progressBar"></div>
+ 
+ <section class="hero">
+   <h1>Scroll-Driven Frame Sequence</h1>
+   <p>AI 생성 이미지를 비디오로 모션화하고, 프레임 시퀀스로 분할해 스크롤에 연동하는 프로토타입</p>
+   <div class="scroll-hint">
+     <span>스크롤해서 재생</span>
+     <div class="arrow"></div>
+   </div>
+ </section>
+ 
+ <section class="frame-section" id="frameSection">
+   <div class="frame-sticky">
+     <canvas class="frame-canvas" id="frameCanvas" width="960" height="540"></canvas>
+     <div class="frame-counter" id="frameCounter">001 / 120</div>
+     <div class="frame-captions">
+       <div class="caption" id="cap1">GPT Image로 생성한 키프레임에서 시작</div>
+       <div class="caption" id="cap2">Grok Video 1.5로 모션화된 중간 프레임</div>
+       <div class="caption" id="cap3">스크롤 위치에 프레임이 1:1 매핑</div>
+     </div>
+   </div>
+ </section>
+ 
+ <section class="workflow-section">
+   <h2>파이프라인 워크플로우</h2>
+ 
+   <div class="pipeline">
+     <div class="pipe-step">
+       <div class="pipe-number">1</div>
+       <div class="pipe-content">
+         <span class="tag">이미지 생성</span>
+         <h3>키프레임 이미지 생성</h3>
+         <p>GPT Image, Grok Aurora, Midjourney 등으로 시작 프레임을 생성하거나, 직접 제작한 이미지를 사용합니다.</p>
+         <code>ima2 gen "floating product on dark gradient" --quality high</code>
+       </div>
+     </div>
+ 
+     <div class="pipe-step">
+       <div class="pipe-number">2</div>
+       <div class="pipe-content">
+         <span class="tag">모션화</span>
+         <h3>이미지 → 비디오 변환</h3>
+         <p>생성된 이미지를 Grok Video 1.5, Runway, Kling 등으로 모션화합니다. 직접 촬영하거나 편집한 비디오도 사용 가능합니다.</p>
+         <code>ima2 video "slow orbit with light shift" \
+   --ref keyframe.png --duration 10 \
+   --resolution 1080p --aspect-ratio 16:9</code>
+       </div>
+     </div>
+ 
+     <div class="pipe-step">
+       <div class="pipe-number">3</div>
+       <div class="pipe-content">
+         <span class="tag alt">프레임 분할</span>
+         <h3>비디오 → 프레임 시퀀스 추출</h3>
+         <p>ffmpeg로 비디오를 개별 프레임으로 분할합니다. 프레임 수와 포맷은 용도에 맞게 조절합니다.</p>
+         <code>ffmpeg -i motion.mp4 -vf "fps=24" frames/%04d.webp</code>
+       </div>
+     </div>
+ 
+     <div class="pipe-step">
+       <div class="pipe-number">4</div>
+       <div class="pipe-content">
+         <span class="tag alt">웹 구현</span>
+         <h3>CSS Scroll-Driven 또는 Canvas 시퀀스</h3>
+         <p>CSS animation-timeline: scroll()로 스프라이트 시트를 스크롤에 연동하거나, Canvas API로 프레임 시퀀스를 직접 그립니다.</p>
+       </div>
+     </div>
+   </div>
+ 
+   <div class="specs">
+     <div class="spec-cell">
+       <div class="label">Grok Video 1.5 최대 해상도</div>
+       <div class="value">1080p</div>
+     </div>
+     <div class="spec-cell">
+       <div class="label">최대 길이</div>
+       <div class="value">15초</div>
+     </div>
+     <div class="spec-cell">
+       <div class="label">Ref 이미지</div>
+       <div class="value">최대 7장</div>
+     </div>
+     <div class="spec-cell">
+       <div class="label">지원 비율</div>
+       <div class="value">7종</div>
+     </div>
+   </div>
+ </section>
+ 
+ <footer>
+   Scroll-Driven Frame Sequence Mockup
+ </footer>
+ 
+ <script>
+ (() => {
+   'use strict';
+ 
+   const TOTAL_FRAMES = 120;
+   const CANVAS_W = 960;
+   const CANVAS_H = 540;
+ 
+   const canvas = document.getElementById('frameCanvas');
+   const ctx = canvas.getContext('2d');
+   const section = document.getElementById('frameSection');
+   const counter = document.getElementById('frameCounter');
+   const progressBar = document.getElementById('progressBar');
+   const cap1 = document.getElementById('cap1');
+   const cap2 = document.getElementById('cap2');
+   const cap3 = document.getElementById('cap3');
+ 
+   const frames = [];
+ 
+   function generateFrames() {
+     for (let i = 0; i < TOTAL_FRAMES; i++) {
+       const t = i / (TOTAL_FRAMES - 1);
+       const off = new OffscreenCanvas(CANVAS_W, CANVAS_H);
+       const c = off.getContext('2d');
+       drawFrame(c, t, i);
+       frames.push(off);
+     }
+   }
+ 
+   function drawFrame(c, t, idx) {
+     /* Background */
+     const hue1 = 220 + t * 40;
+     const hue2 = 240 + t * 60;
+     const grad = c.createLinearGradient(0, 0, CANVAS_W, CANVAS_H);
+     grad.addColorStop(0, 'hsl(' + hue1 + ', 20%, 8%)');
+     grad.addColorStop(1, 'hsl(' + hue2 + ', 25%, 5%)');
+     c.fillStyle = grad;
+     c.fillRect(0, 0, CANVAS_W, CANVAS_H);
+ 
+     var cx = CANVAS_W / 2;
+     var cy = CANVAS_H / 2;
+     var angle = t * Math.PI * 2;
+ 
+     c.save();
+     c.translate(cx, cy);
+     c.rotate(angle * 0.3);
+ 
+     /* Glow */
+     var glowGrad = c.createRadialGradient(0, 0, 40, 0, 0, 200);
+     glowGrad.addColorStop(0, 'rgba(59, 130, 246, ' + (0.15 + t * 0.1) + ')');
+     glowGrad.addColorStop(1, 'transparent');
+     c.fillStyle = glowGrad;
+     c.fillRect(-200, -200, 400, 400);
+ 
+     /* Main block */
+     var scale = 0.8 + Math.sin(t * Math.PI) * 0.2;
+     var w = 180 * scale;
+     var h = 120 * scale;
+     c.beginPath();
+     c.roundRect(-w/2, -h/2, w, h, 16);
+     var bHue = 220 + t * 80;
+     var blockGrad = c.createLinearGradient(-w/2, -h/2, w/2, h/2);
+     blockGrad.addColorStop(0, 'hsl(' + bHue + ', 60%, 45%)');
+     blockGrad.addColorStop(1, 'hsl(' + (bHue + 40) + ', 50%, 35%)');
+     c.fillStyle = blockGrad;
+     c.fill();
+ 
+     /* Inner detail */
+     c.strokeStyle = 'rgba(255,255,255,' + (0.15 + Math.sin(t * Math.PI * 3) * 0.1) + ')';
+     c.lineWidth = 1;
+     c.beginPath();
+     c.roundRect(-w/2 + 12, -h/2 + 12, w - 24, h - 24, 8);
+     c.stroke();
+     c.restore();
+ 
+     /* Orbiting dots */
+     for (var k = 0; k < 3; k++) {
+       var a = angle + (k * Math.PI * 2 / 3);
+       var r = 140 + Math.sin(t * Math.PI * 2 + k) * 20;
+       var sx = cx + Math.cos(a) * r;
+       var sy = cy + Math.sin(a) * r * 0.5;
+       var dotSize = 4 + Math.sin(t * Math.PI * 4 + k * 2) * 2;
+       c.beginPath();
+       c.arc(sx, sy, dotSize, 0, Math.PI * 2);
+       var dHue = 200 + k * 40 + t * 60;
+       c.fillStyle = 'hsla(' + dHue + ', 50%, 60%, ' + (0.6 + k * 0.15) + ')';
+       c.fill();
+     }
+ 
+     /* Grid */
+     c.strokeStyle = 'rgba(255,255,255,0.03)';
+     c.lineWidth = 0.5;
+     var gridSpacing = 60;
+     var gridOffset = (t * gridSpacing * 2) % gridSpacing;
+     for (var x = gridOffset; x < CANVAS_W; x += gridSpacing) {
+       c.beginPath(); c.moveTo(x, 0); c.lineTo(x, CANVAS_H); c.stroke();
+     }
+     for (var y = gridOffset; y < CANVAS_H; y += gridSpacing) {
+       c.beginPath(); c.moveTo(0, y); c.lineTo(CANVAS_W, y); c.stroke();
+     }
+ 
+     /* Frame watermark */
+     c.fillStyle = 'rgba(255,255,255,0.06)';
+     c.font = '600 11px ui-monospace, monospace';
+     c.textAlign = 'left';
+     c.fillText('F' + String(idx + 1).padStart(3, '0'), 16, CANVAS_H - 16);
+   }
+ 
+   var currentFrame = -1;
+   var ticking = false;
+ 
+   function onScroll() {
+     if (ticking) return;
+     ticking = true;
+     requestAnimationFrame(update);
+   }
+ 
+   function update() {
+     ticking = false;
+ 
+     var rect = section.getBoundingClientRect();
+     var sectionTop = -rect.top;
+     var sectionHeight = rect.height - window.innerHeight;
+     var progress = Math.max(0, Math.min(1, sectionTop / sectionHeight));
+ 
+     var pageProgress = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight);
+     progressBar.style.transform = 'scaleX(' + pageProgress + ')';
+ 
+     var frameIdx = Math.min(TOTAL_FRAMES - 1, Math.floor(progress * TOTAL_FRAMES));
+ 
+     if (frameIdx !== currentFrame && frameIdx >= 0 && frameIdx < TOTAL_FRAMES) {
+       currentFrame = frameIdx;
+       ctx.drawImage(frames[frameIdx], 0, 0);
+       counter.textContent = String(frameIdx + 1).padStart(3, '0') + ' / ' + TOTAL_FRAMES;
+     }
+ 
+     cap1.classList.toggle('visible', progress > 0.02 && progress < 0.35);
+     cap2.classList.toggle('visible', progress > 0.35 && progress < 0.7);
+     cap3.classList.toggle('visible', progress > 0.7);
+   }
+ 
+   generateFrames();
+   ctx.drawImage(frames[0], 0, 0);
+   window.addEventListener('scroll', onScroll, { passive: true });
+   update();
+ })();
+ </script>
+ </body>
+ </html>

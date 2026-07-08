@@ -8,6 +8,7 @@
   * sendRichMessageDraft streaming is only attempted for private chats (Bot API
   * 10.1 restriction: chat_id must be a numeric user id Integer).
   */
+ import { performance } from "node:perf_hooks";
 
  import { markdownToTelegramHtml, markdownToRichHtml, chunkTelegramMessage, stripTelegramHtml } from "./telegram-format.js";
 
@@ -18,6 +19,26 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+ export const DRAFT_PROGRESS_THROTTLE_MS = 1_000;
+ const DRAFT_PROGRESS_MAX_SUSPEND_MS = 60_000;
+ const DRAFT_PROGRESS_MAX_FAILURES = 3;
+
+ export function createDraftProgressState()                     {
+   return { lastEditAt: 0, suspendedUntil: 0, consecutiveFailures: 0, disabled: false };
+ }
 
  /**
   * Probe whether the bot's API version supports sendRichMessage.
@@ -107,17 +128,46 @@
    ctx                 ,
    draftId        ,
    partialMarkdown        ,
+   options                       = {},
  )                {
    if (!ctx.richSupported) return;
    if (ctx.chatType !== "private") return;
 
    const chatIdNum = Number(ctx.chatId);
    if (!Number.isFinite(chatIdNum)) return;
+   const state = options.state ?? createDraftProgressState();
+   if (state.disabled) return;
+   const now = options.now?.() ?? performance.now();
+   if (now < state.suspendedUntil) return;
+   if (state.lastEditAt > 0 && now - state.lastEditAt < DRAFT_PROGRESS_THROTTLE_MS) return;
+   state.lastEditAt = now;
 
    const html = markdownToRichHtml(partialMarkdown);
-   await ctx.api.sendRichMessageDraft({
-     chatId: chatIdNum,
-     draftId,
-     richMessage: { html }                    ,
-   });
+   try {
+     const res = await ctx.api.sendRichMessageDraft({
+       chatId: chatIdNum,
+       draftId,
+       richMessage: { html }                    ,
+     });
+     if (res.ok || isNotModified(res.description)) {
+       state.consecutiveFailures = 0;
+       return;
+     }
+     const retryAfterMs = Number(res.parameters?.retry_after ?? 0) * 1000;
+     if (res.error_code === 429 && retryAfterMs > 0) {
+       state.suspendedUntil = now + Math.min(retryAfterMs, DRAFT_PROGRESS_MAX_SUSPEND_MS);
+     }
+     recordDraftFailure(state);
+   } catch {
+     recordDraftFailure(state);
+   }
+ }
+
+ function recordDraftFailure(state                    )       {
+   state.consecutiveFailures += 1;
+   if (state.consecutiveFailures >= DRAFT_PROGRESS_MAX_FAILURES) state.disabled = true;
+ }
+
+ function isNotModified(description                    )          {
+   return /message is not modified|not modified/i.test(description ?? "");
  }

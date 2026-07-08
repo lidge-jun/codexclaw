@@ -45,6 +45,52 @@ For government, public-service, finance, healthcare, education administration, o
 - Large Korean headings need optical restraint; avoid hero-scale type inside tools.
 - Test labels with long Hangul strings before delivery.
 
+### Korean Hero / Large Display Type (verified 2026-07-08)
+
+Big bold Hangul is NOT the same as big bold Latin. Each Korean syllable is a
+dense, near-square block with little ascender/descender rhythm, so at the same
+px and weight it reads as a heavier graphic mass (Typotheque CJK typesetting;
+Morisawa Hangeul guide). Scaling Hangul to Latin-poster size and weight is a
+slop signal on landing/campaign surfaces too, not only inside tools — a
+`clamp(..., 10rem)` / `line-height: 0.9` / weight `800-900` Korean hero is the
+tell.
+
+Measured on live premium Korean services (2026-07-08, Playwright computed style):
+
+| Service | Korean hero (desktop) | Note |
+| --- | --- | --- |
+| Toss home | 66px / 700 / lh 1.4 | keep-all, letter-spacing normal |
+| Toss team | 72px / 700 / lh 1.3 | keep-all |
+| Daangn about | 64px / 700 / lh 1.31 | keep-all |
+| Kakao corp | 70px / 700 / lh 1.27 | letter-spacing -3px |
+| Woowa | Korean 40px / 700 | its 900 is on ENGLISH display only |
+| Naver / Musinsa | 32px/600, 20px/600 | content- and image-led |
+
+Rules (DEFAULT):
+- **Weight**: `700` is the premium ceiling for long Korean hero copy; `600` for a
+  quieter tone. Reserve `800/900` for SHORT brand phrases (e.g. "토스페이스"),
+  English display, or deliberate poster impact — `900` on long Hangul reads blunt
+  before it reads refined.
+- **Size**: keep desktop Korean heroes ~`56-72px`; avoid 100px+ walls of Hangul.
+  Mobile ~`26-40px`. Do not let a `vw`-relative clamp push Hangul past this.
+- **Line-height**: `1.25-1.4` for multi-line Hangul. Do not copy Latin display
+  `line-height: 0.9-1.0`; dense Hangul needs air between lines.
+- **Breaks**: `word-break: keep-all` + manual `<br>` at 어절/meaning boundaries;
+  never split inside a word.
+- **Tracking**: default `normal` (0). Mild negative (`-0.01` to `-0.02em`) on
+  large display is an observed premium practice but optional and QA-gated; keep
+  body Korean at normal.
+- **Structure over scale**: short Korean headline + supporting copy + whitespace +
+  imagery, or an English display accent, beats a giant Hangul wall. This is how
+  Toss/Woowa/Naver read premium.
+- **Fonts**: Pretendard (safe premium default), Wanted Sans (brand-forward),
+  Spoqa Han Sans Neo (practical); reserve custom faces (Toss Product Sans style)
+  for brand budgets.
+
+Sources: live pages toss.im, about.daangn.com, kakaocorp.com, woowahan.com,
+navercorp.com, musinsa.com; Typotheque CJK typesetting; Morisawa Hangeul guide;
+W3C Korean Layout Requirements (KLREQ); Pretendard / Wanted Sans / Spoqa docs.
+
 ## Korean Formats
 
 - Dates: `2026년 5월 10일`, `5월 10일`, `오후 9:41`.

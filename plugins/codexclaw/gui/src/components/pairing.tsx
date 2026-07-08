@@ -7,16 +7,21 @@
  * identical, so it lives here and the caller injects a HandshakeAdapter.
  */
 import { useEffect, useRef, useState } from "react";
-import type { ChannelKind } from "../api.ts";
+import { api, type ChannelKind } from "../api.ts";
 import { Button } from "../ui/kit.tsx";
 import { Icon } from "../ui/icons.tsx";
 import { toast } from "../ui/toast.tsx";
 
 export const HANDSHAKE_SECONDS = 180;
 
+interface HandshakeOpenResult {
+  deepLinkUrl?: string;
+  expiresAt?: number;
+}
+
 export interface HandshakeAdapter {
   /** (Re)open the pairing window on the backend. */
-  open: (seconds: number) => Promise<unknown>;
+  open: (seconds: number) => Promise<HandshakeOpenResult | unknown>;
   /** Poll once: `paired` ends the wizard with success; `open:false` expires it. */
   poll: () => Promise<{ paired: boolean; open: boolean; detail?: string }>;
 }
@@ -46,6 +51,7 @@ export function PairingPane({
   bot,
   adapter,
   alreadyOpen = false,
+  deepLinkMode = false,
   onPaired,
   onCancel,
 }: {
@@ -54,11 +60,15 @@ export function PairingPane({
   adapter: HandshakeAdapter;
   /** true when the caller already opened the window (skip the initial open). */
   alreadyOpen?: boolean;
+  /** true when the adapter mints an authorization deep link instead of opening a legacy window. */
+  deepLinkMode?: boolean;
   onPaired: (detail?: string) => void;
   onCancel: () => void;
 }) {
   const [phase, setPhase] = useState<"waiting" | "expired">("waiting");
   const [windowStart, setWindowStart] = useState(() => Date.now());
+  const [deepLinkUrl, setDeepLinkUrl] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Latest callback without re-arming the poll loop.
   const onPairedRef = useRef(onPaired);
@@ -84,12 +94,30 @@ export function PairingPane({
     }, 1500);
   }
 
+  async function openPairing() {
+    const result = await adapter.open(HANDSHAKE_SECONDS);
+    if (isHandshakeOpenResult(result)) {
+      setDeepLinkUrl(result.deepLinkUrl ?? null);
+      setExpiresAt(result.expiresAt ?? null);
+    } else {
+      setDeepLinkUrl(null);
+      setExpiresAt(null);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
-    const boot = alreadyOpen ? Promise.resolve() : adapter.open(HANDSHAKE_SECONDS).then(() => undefined);
-    void boot.then(() => {
-      if (!cancelled) startPolling();
-    });
+    const boot = alreadyOpen ? Promise.resolve() : openPairing();
+    void boot
+      .then(() => {
+        if (!cancelled) startPolling();
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast("Pairing setup failed", "err");
+          setPhase("expired");
+        }
+      });
     return () => {
       cancelled = true;
       stopPolling();
@@ -98,10 +126,14 @@ export function PairingPane({
   }, []);
 
   async function retry() {
-    await adapter.open(HANDSHAKE_SECONDS);
-    setWindowStart(Date.now());
-    setPhase("waiting");
-    startPolling();
+    try {
+      await openPairing();
+      setWindowStart(Date.now());
+      setPhase("waiting");
+      startPolling();
+    } catch {
+      toast("Pairing setup failed", "err");
+    }
   }
 
   if (phase === "expired") {
@@ -109,7 +141,7 @@ export function PairingPane({
       <div className="wizard-state">
         <span className="wizard-glyph warn"><Icon name="alert" size={28} /></span>
         <div className="title">Pairing window expired</div>
-        <p className="hint">No chat paired within {Math.round(HANDSHAKE_SECONDS / 60)} minutes.</p>
+        <p className="hint">No chat paired before the link or window expired.</p>
         <div className="modal-foot">
           <Button onClick={onCancel}>Close</Button>
           <Button variant="primary" onClick={() => void retry()}>Try again</Button>
@@ -118,17 +150,34 @@ export function PairingPane({
     );
   }
 
-  const link = botDeepLink(kind, bot);
+  const link = deepLinkUrl ?? botDeepLink(kind, bot);
   const cmd = startCommand(kind);
+  const isTelegramDeepLink = kind === "telegram" && (deepLinkMode || Boolean(deepLinkUrl));
   return (
     <div>
       <div className="row" style={{ gap: "var(--s-2)", marginBottom: "var(--s-4)" }}>
         <span className="spinner" />
         <span style={{ fontWeight: 600 }}>Waiting for pairing…</span>
-        <Countdown startedAt={windowStart} />
+        <Countdown startedAt={windowStart} expiresAt={expiresAt} />
       </div>
       <ol className="wizard-steps">
-        {kind === "telegram" ? (
+        {isTelegramDeepLink ? (
+          <>
+            <li>
+              Open the one-tap bot link
+              <span className="pairing-link-slot">
+                {link ? (
+                  <a className="help-link" href={link} target="_blank" rel="noreferrer">
+                    <Icon name="external" size={13} /> Telegram link
+                  </a>
+                ) : null}
+                {link ? <CopyChip text={link} /> : null}
+              </span>
+            </li>
+            <li>Tap Start in Telegram; the pairing code is already filled in.</li>
+            <li>Plain <CopyChip text={cmd} /> only works during a legacy pairing window.</li>
+          </>
+        ) : kind === "telegram" ? (
           <>
             <li>
               Open your bot's chat
@@ -162,15 +211,26 @@ export function PairingPane({
   );
 }
 
-function Countdown({ startedAt }: { startedAt: number }) {
-  const [remaining, setRemaining] = useState(HANDSHAKE_SECONDS);
+function isHandshakeOpenResult(value: unknown): value is HandshakeOpenResult {
+  if (!value || typeof value !== "object") return false;
+  return "deepLinkUrl" in value || "expiresAt" in value;
+}
+
+function Countdown({ startedAt, expiresAt }: { startedAt: number; expiresAt: number | null }) {
+  const initial = () =>
+    expiresAt ? Math.max(0, Math.round((expiresAt - Date.now()) / 1000)) : HANDSHAKE_SECONDS;
+  const [remaining, setRemaining] = useState(initial);
   useEffect(() => {
     const tick = () =>
-      setRemaining(Math.max(0, HANDSHAKE_SECONDS - Math.round((Date.now() - startedAt) / 1000)));
+      setRemaining(
+        expiresAt
+          ? Math.max(0, Math.round((expiresAt - Date.now()) / 1000))
+          : Math.max(0, HANDSHAKE_SECONDS - Math.round((Date.now() - startedAt) / 1000)),
+      );
     tick();
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [startedAt]);
+  }, [startedAt, expiresAt]);
   return (
     <span className="countdown mono" aria-label="time remaining">
       {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
@@ -198,5 +258,27 @@ export function CopyChip({ text }: { text: string }) {
       <span className="mono">{text}</span>
       <Icon name={copied ? "check" : "copy"} size={13} />
     </button>
+  );
+}
+
+export function TestSendAction({ agentId }: { agentId: number }) {
+  const [sending, setSending] = useState(false);
+
+  async function send() {
+    setSending(true);
+    const res = await api.testSend(agentId);
+    setSending(false);
+    if (!res.ok || !res.data?.ok) {
+      toast(res.data?.error ?? "Test message failed", "err");
+      return;
+    }
+    toast(`Test message sent to ${res.data.chatId}`, "ok");
+  }
+
+  return (
+    <Button onClick={() => void send()} disabled={sending}>
+      {sending ? <span className="spinner" /> : <Icon name="arrow-right" size={14} />}
+      Send test message
+    </Button>
   );
 }

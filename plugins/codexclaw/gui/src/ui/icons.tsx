@@ -9,6 +9,8 @@
 import type { CSSProperties } from "react";
 
 export type IconName =
+  | "activity"
+  | "database"
   | "link"
   | "cpu"
   | "sliders"
@@ -22,7 +24,10 @@ export type IconName =
   | "external"
   | "shield"
   | "telegram"
-  | "discord";
+  | "discord"
+  | "chevron-left"
+  | "chevron-right"
+  | "settings";
 
 interface IconProps {
   name: IconName;
@@ -33,6 +38,12 @@ interface IconProps {
 }
 
 const STROKE: Partial<Record<IconName, string[]>> = {
+  activity: ["M22 12h-4l-3 9L9 3l-3 9H2"],
+  database: [
+    "M12 3c4.97 0 9 1.34 9 3s-4.03 3-9 3-9-1.34-9-3 4.03-3 9-3z",
+    "M3 6v6c0 1.66 4.03 3 9 3s9-1.34 9-3V6",
+    "M3 12v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6",
+  ],
   link: ["M9 17H7A5 5 0 0 1 7 7h2", "M15 7h2a5 5 0 1 1 0 10h-2", "M8 12h8"],
   cpu: [
     "M6 6h12v12H6z",
@@ -59,6 +70,12 @@ const STROKE: Partial<Record<IconName, string[]>> = {
   ],
   external: ["M15 3h6v6", "M10 14 21 3", "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"],
   shield: ["M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"],
+  "chevron-left": ["m15 18-6-6 6-6"],
+  "chevron-right": ["m9 18 6-6-6-6"],
+  settings: [
+    "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z",
+    "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+  ],
 };
 
 // Simplified filled brand marks (single path, 24 viewBox).

@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import {
   countSourceFiles,
   renderMapAffordance,
+  renderKwriteAffordance,
   renderSessionBinding,
   renderSkillSearchAffordance,
   runMapAffordanceSessionStart,
@@ -82,6 +83,19 @@ test("skill-search affordance is a POINTER: names both commands, stays short", (
   assert.match(text, /cxc skill show/);
   assert.match(text, /cxc-dev/, "must state that built-in discipline wins on conflict");
   assert.ok(text.length < 600, "affordance must stay a one-liner-ish pointer");
+});
+
+test("kwrite affordance: always on, genre-free pointer to $cxc-kwrite", () => {
+  const text = renderKwriteAffordance();
+  assert.match(text, /cxc-kwrite/);
+  assert.match(text, /윤문/);
+  // universal guidance only — no platform/genre routing in the hook line
+  assert.doesNotMatch(text, /thread|쓰레드|SNS|블로그|DC/i);
+  assert.ok(text.length < 600, "affordance must stay a one-liner-ish pointer");
+  // rides every SessionStart envelope regardless of repo size
+  const small = tmp();
+  const out = runMapAffordanceSessionStart("", small);
+  assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /cxc-kwrite/);
 });
 
 test("G3: session-id binding line rides the SessionStart envelope", () => {

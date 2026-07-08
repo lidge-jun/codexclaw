@@ -36,9 +36,12 @@ h2 { max-width: 55ch; }
 h3 { max-width: 60ch; }
 p, li, article, .prose { max-width: 65ch; }
 
-/* CJK text handling */
-[lang|="zh"], [lang|="ja"], [lang|="ko"] {
+/* Korean: wrap by 어절 (word), never mid-word. Scope to ko ONLY —
+   global keep-all degrades Chinese/Japanese wrapping (verified 2026-07-07,
+   MDN + Naver SmartStudio). */
+[lang|="ko"] {
   word-break: keep-all;
+  overflow-wrap: break-word; /* escape hatch for long 어절 in narrow boxes */
 }
 
 /* URLs and unbreakable strings */
@@ -176,7 +179,7 @@ This is the single most common Korean typography failure in AI-generated pages.
 | Long URLs in narrow containers | `overflow-wrap: break-word` |
 | Maximum flexibility with accurate sizing | `overflow-wrap: anywhere` |
 | Aggressive character-level breaking | `word-break: break-all` |
-| Preserve CJK word integrity | `word-break: keep-all` |
+| Korean 어절 (word) wrapping — `:lang(ko)` scope ONLY, degrades zh/ja globally | `word-break: keep-all` |
 | User-generated content | `overflow-wrap: anywhere` |
 
 **`word-break: break-word` is DEPRECATED** — use `overflow-wrap: break-word` instead.
@@ -212,6 +215,54 @@ Common across Vercel, Linear, Stripe: `text-wrap: balance` on headings, `text-wr
 For Korean-specific typography considerations, see also `korea-2026.md`.
 
 ---
+
+## Natural Phrase Breaks at Any Width (FE-WRAP-NATURAL-01, DEFAULT)
+
+Text MUST break at natural phrase boundaries — between thought units, never
+mid-word/mid-phrase — and it must hold at ANY container width, not only
+canonical breakpoints. Containers resize continuously (drag-resize,
+split-screen, foldables, mobile URL-bar dvh changes, container-query
+crossings); a heading that breaks well at 390/768/1024/1440 can still orphan
+at 700px. Control break OPPORTUNITIES (`keep-all`, `max-width` in `ch`,
+`text-wrap: balance`) instead of width-specific hacks (`<br>`, media-query
+text swaps).
+
+Korean facts (verified 2026-07-07, Tier-2: MDN, CSSWG Text 4, KLREQ, Chrome
+DevRel, Naver SmartStudio):
+
+- With `keep-all`, break opportunities are 어절 (space) boundaries;
+  `text-wrap` only CHOOSES among existing opportunities — it cannot create
+  Korean phrase boundaries.
+- `word-break: auto-phrase` ships for JAPANESE only (Chrome 119+); do NOT
+  rely on it for Korean. Treat it as ja-scoped progressive enhancement.
+- KLREQ line rules are real for Korean (not just Japanese kinsoku): closing
+  punctuation must not start a line; opening brackets must not end one;
+  number/symbol runs should not split.
+- Advanced editorial tactic: `Intl.Segmenter("ko", {granularity: "word"})`
+  (Baseline 2024) + render-time `<wbr>` insertion at approved phrase
+  boundaries under `keep-all`. Insert at RENDER time only — ZWSP/joiners
+  stored in canonical content break search/copy/diff.
+- Overflow risk: `keep-all` + long 어절 + narrow chips/buttons/table cells =
+  clipping; always pair with `overflow-wrap: break-word` (or `anywhere` for
+  user-generated/URL content — note it also shrinks min-content size).
+
+### Dynamic-Viewport Verification (checklist)
+
+- Sweep CONTAINER widths, not device presets: 160-900px in 8-16px steps for
+  headings, cards, buttons, chips, sidebars, resizable panes, table cells.
+- Test dvh/svh URL-bar changes, split-screen halves (640-1024px band, see
+  `responsive-viewport.md`), foldable-narrow panes, container-query
+  crossings, and 200% zoom / OS text scaling separately.
+- Assert no overflow: `scrollWidth <= clientWidth` on text containers, plus
+  screenshots for clipping/overlap at 2-3 arbitrary mid-widths.
+- Korean fixtures: long single 어절, no-space strings, mixed
+  Korean/Latin/number copy, URLs, punctuation-heavy lines; flag any
+  mid-syllable split where `keep-all` is expected.
+- Fluid type uses `clamp()` with rem/em bounds — never bare `vw`/`cqi` font
+  sizes (zoom/user-font-size must keep working).
+
+Judgment layer (when a break is "natural", review criteria):
+`dev-uiux-design/references/typography-line-breaks.md § Dynamic Rewrap Judgment`.
 
 ## Sources
 

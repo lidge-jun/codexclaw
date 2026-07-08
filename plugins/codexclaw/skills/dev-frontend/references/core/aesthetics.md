@@ -145,11 +145,11 @@ Atmospheric techniques are secondary:
 - **Layered transparencies**: Frosted glass with inner refraction borders
 - **Dramatic shadows**: Tinted to background hue, not generic black
 
-### Glassmorphism (when used)
-Go beyond `backdrop-blur`:
-- 1px inner border: `border-white/10`
-- Inner shadow: `shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]`
-- Simulates physical edge refraction
+### Glassmorphism / Liquid Glass (when used)
+Glass recipes, layer discipline, perf and a11y gates are owned by
+`liquid-glass.md` — read it before shipping any translucent material.
+Short version: functional layer only, 1px inner border + inner shadow for
+edge refraction, and consider the blur-free pill-over-imagery alternative.
 
 ---
 

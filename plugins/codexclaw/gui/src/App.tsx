@@ -6,6 +6,8 @@ import { Icon, type IconName } from "./ui/icons.tsx";
 import { SubagentsPage } from "./pages/Subagents.tsx";
 import { ChannelsPage } from "./pages/Channels.tsx";
 import { AgentsPage } from "./pages/Agents.tsx";
+import { DashboardPage } from "./pages/Dashboard.tsx";
+import { SessionsPage } from "./pages/Sessions.tsx";
 
 interface NavItem {
   route: string;
@@ -14,8 +16,10 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
+  { route: "/dashboard", label: "Dashboard", icon: "activity" },
   { route: "/channels", label: "Channels", icon: "link" },
   { route: "/agents", label: "Agents", icon: "cpu" },
+  { route: "/sessions", label: "Sessions", icon: "database" },
   { route: "/subagents", label: "Subagents", icon: "sliders" },
 ];
 
@@ -33,9 +37,13 @@ export function App() {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="logo" aria-hidden>
-            <Icon name="shield" size={13} />
-          </span>
+          <img
+            src="/logo-64.png"
+            alt="codexclaw"
+            width={22}
+            height={22}
+            style={{ borderRadius: "var(--r-sm)", imageRendering: "auto" }}
+          />
           codexclaw
         </div>
         <nav aria-label="Primary">
@@ -59,10 +67,14 @@ export function App() {
       </aside>
 
       <main className="main">
-        {active.route === "/channels" ? (
+        {active.route === "/dashboard" ? (
+          <DashboardPage />
+        ) : active.route === "/channels" ? (
           <ChannelsPage />
         ) : active.route === "/agents" ? (
           <AgentsPage />
+        ) : active.route === "/sessions" ? (
+          <SessionsPage />
         ) : (
           <SubagentsPage provider={provider} />
         )}

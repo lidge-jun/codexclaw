@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>GYEOL - 모션 &amp; 인터랙션 스튜디오</title>
+<meta name="description" content="GYEOL(결)은 스크롤과 시간을 다루는 서울의 모션 인터랙션 스튜디오입니다. 브랜드 웹, 프로덕트 런칭, 시네마틱 스크롤 경험을 설계합니다.">
+<link rel="canonical" href="https://gyeol.studio/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="GYEOL - 모션 &amp; 인터랙션 스튜디오">
+<meta property="og:description" content="스크롤과 시간을 다루는 서울의 모션 인터랙션 스튜디오.">
+<meta property="og:image" content="https://gyeol.studio/assets/hero.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preload" as="image" href="assets/hero.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "GYEOL",
+  "alternateName": "결",
+  "description": "스크롤과 시간을 다루는 서울의 모션 인터랙션 스튜디오",
+  "url": "https://gyeol.studio/",
+  "address": { "@type": "PostalAddress", "addressLocality": "Seoul", "addressCountry": "KR" }
+}
+</script>
+<style>
+:root {
+  --bg: #0b0b0b; --bg-2: #121110; --surface: #171614; --line: #242120;
+  --fg: #ededea; --muted: #8a857e; --muted-2: #5c5852;
+  --accent: #ff4438; --accent-dim: #c9352b;
+  --maxw: 1400px; --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  * , *::before, *::after {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+  }
+  .reveal-word { opacity: 1 !important; }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  background: var(--bg); color: var(--fg); line-height: 1.62; letter-spacing: 0;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; overflow-x: hidden;
+}
+h1, h2, h3 { font-weight: 700; line-height: 1.08; text-wrap: balance; word-break: keep-all; }
+p { text-wrap: pretty; word-break: keep-all; }
+a { color: inherit; text-decoration: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+.wrap { max-width: var(--maxw); margin-inline: auto; padding-inline: clamp(1.25rem, 4vw, 3rem); }
+.eyebrow { display: inline-flex; align-items: center; gap: 0.55rem; font-size: 0.76rem; color: var(--muted); font-weight: 500; }
+.eyebrow .bar { width: 26px; height: 1px; background: var(--accent); }
+
+.skip-link { position: fixed; top: -100px; left: 1rem; z-index: 300; background: var(--accent); color: #fff; padding: 0.6rem 1rem; border-radius: 6px; font-size: 0.85rem; font-weight: 600; transition: top 0.2s ease; }
+.skip-link:focus { top: 1rem; }
+
+.progress { position: fixed; top: 0; left: 0; width: 100%; height: 2px; z-index: 200; transform-origin: left; transform: scaleX(0); background: var(--accent); }
+
+.nav { position: fixed; top: 0; left: 0; right: 0; z-index: 150; transition: background 0.4s var(--ease), border-color 0.4s ease; border-bottom: 1px solid transparent; }
+.nav.scrolled { background: rgba(11,11,11,0.72); backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2); border-bottom-color: var(--line); }
+.nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.brand { display: flex; align-items: baseline; gap: 0.45rem; font-weight: 700; font-size: 1.05rem; }
+.brand .ko { color: var(--muted); font-size: 0.82rem; font-weight: 500; }
+.brand .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; }
+.nav-links { display: flex; gap: 1.75rem; align-items: center; }
+.nav-links a { font-size: 0.85rem; color: var(--muted); transition: color 0.2s; }
+.nav-links a:hover { color: var(--fg); }
+.nav-cta { font-size: 0.82rem; color: var(--fg); border: 1px solid var(--line); padding: 0.55rem 1.1rem; border-radius: 100px; transition: border-color 0.2s, background 0.2s; }
+.nav-cta:hover { border-color: var(--accent); background: rgba(255,68,56,0.08); }
+/*==CSS2==*/
+/*==CSS2==*/
+/* Hero */
+.hero { position: relative; min-height: 100dvh; display: flex; align-items: flex-end; overflow: hidden; }
+.hero-media { position: absolute; inset: 0; z-index: 0; background: #0e0d0c; }
+.hero-media img { width: 100%; height: 100%; object-fit: cover; opacity: 0.92; }
+.hero-scrim { position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(11,11,11,0.96) 3%, rgba(11,11,11,0.30) 46%, rgba(11,11,11,0.5) 100%); }
+.hero-content { position: relative; z-index: 2; width: 100%; padding-bottom: clamp(3.5rem, 11vh, 8rem); padding-top: 6rem; }
+.hero .eyebrow { margin-bottom: 1.25rem; }
+/* Korean hero: restrained per premium-KR practice (700 weight, ~56-76px, lh ~1.15),
+   not Latin-poster scaling. See dev-frontend korea-2026.md Korean Hero rules. */
+.hero h1 { font-size: clamp(2.5rem, 5.2vw, 4.75rem); line-height: 1.16; letter-spacing: -0.01em; margin-bottom: 1.5rem; max-width: 20ch; }
+.hero h1 .accent { color: var(--accent); }
+.hero-sub { font-size: clamp(1.05rem, 1.7vw, 1.4rem); color: var(--fg); max-width: 30ch; text-wrap: balance; font-weight: 500; }
+.hero-meta { display: flex; gap: 2.25rem; margin-top: 2rem; flex-wrap: wrap; }
+.hero-meta span { font-size: 0.82rem; color: var(--muted); }
+.hero-meta span b { color: var(--fg); font-weight: 600; }
+.hero-cue { position: absolute; z-index: 2; bottom: 2rem; right: clamp(1.25rem, 4vw, 3rem); display: flex; flex-direction: column; align-items: center; gap: 0.7rem; font-size: 0.68rem; color: var(--muted); }
+.hero-cue .txt { writing-mode: vertical-rl; }
+.hero-cue .line { width: 1px; height: 44px; background: linear-gradient(to bottom, var(--accent), transparent); animation: cuePulse 2.4s var(--ease) infinite; }
+@keyframes cuePulse { 0%,100% { transform: scaleY(0.6); opacity: 0.5; } 50% { transform: scaleY(1); opacity: 1; } }
+
+/* Section shell */
+.section { position: relative; }
+.section-head { max-width: 60ch; }
+.section-head h2 { font-size: clamp(1.9rem, 4vw, 3.1rem); margin: 0.9rem 0 0; }
+.section-head p { color: var(--muted); font-size: clamp(0.98rem, 1.4vw, 1.12rem); margin-top: 1rem; max-width: 46ch; }
+
+/* Manifesto (text reveal) */
+.manifesto { min-height: 210vh; position: relative; }
+.manifesto-sticky { position: sticky; top: 0; min-height: 100dvh; display: flex; align-items: center; }
+.manifesto-inner { max-width: min(680px, 92%); }
+.manifesto .eyebrow { margin-bottom: 2rem; }
+.reveal-line { font-size: clamp(1.6rem, 4vw, 3.1rem); font-weight: 700; line-height: 1.28; letter-spacing: 0; word-break: keep-all; max-width: 18ch; }
+.reveal-word { display: inline-block; opacity: 0.12; transition: opacity 0.2s var(--ease); margin-right: 0.06em; }
+.reveal-word.lit { opacity: 1; }
+.reveal-word.accent.lit { color: var(--accent); }
+
+/* Showreel (frame sequence) */
+.showreel { position: relative; height: 480vh; }
+.showreel-sticky { position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; }
+.showreel-canvas { width: min(92vw, 1180px); aspect-ratio: 16 / 9; background: #0e0d0c; border-radius: 14px; display: block; box-shadow: 0 40px 120px -40px rgba(0,0,0,0.8); }
+.showreel-hud { position: absolute; top: clamp(4.5rem, 12vh, 7rem); left: 50%; transform: translateX(-50%); width: min(92vw, 1180px); display: flex; justify-content: space-between; align-items: center; pointer-events: none; }
+.showreel-hud .tag { font-size: 0.72rem; color: var(--muted); font-family: ui-monospace, 'SF Mono', monospace; }
+.showreel-hud .tag b { color: var(--accent); font-weight: 600; }
+.showreel-cap { position: absolute; bottom: clamp(4rem, 11vh, 7rem); left: 50%; transform: translate(-50%, 14px); text-align: center; opacity: 0; transition: opacity 0.4s var(--ease), transform 0.4s var(--ease); max-width: 30ch; padding-inline: 1.5rem; }
+.showreel-cap.visible { opacity: 1; transform: translate(-50%, 0); }
+.showreel-cap h3 { font-size: clamp(1.3rem, 3vw, 2.1rem); color: #fff; }
+.showreel-cap p { color: var(--muted); font-size: 0.92rem; margin-top: 0.5rem; }
+/*==CSS3==*/
+/*==CSS3==*/
+/* Selected Work (horizontal scroll) */
+.work { position: relative; height: 360vh; }
+.work-sticky { position: sticky; top: 0; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
+.work-head { padding-top: 5rem; margin-bottom: 2rem; }
+.work-track { display: flex; gap: clamp(1rem, 2vw, 1.75rem); padding-inline: clamp(1.25rem, 4vw, 3rem); align-items: stretch; will-change: transform; }
+.work-card { position: relative; flex: 0 0 auto; border-radius: 12px; overflow: hidden; background: var(--surface); border: 1px solid var(--line); }
+.work-card .thumb { position: absolute; inset: 0; z-index: 0; background: #100f0e center/cover no-repeat; }
+.work-card .thumb img { width: 100%; height: 100%; object-fit: cover; opacity: 0.82; transition: opacity 0.4s ease, transform 0.6s var(--ease); }
+.work-card::after { content: ''; position: absolute; inset: 0; z-index: 1; background: linear-gradient(to top, rgba(11,11,11,0.9) 0%, rgba(11,11,11,0.1) 55%); }
+.work-card .body { position: relative; z-index: 2; margin-top: auto; padding: 1.5rem; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+.work-card .meta { font-size: 0.72rem; color: var(--muted); margin-bottom: 0.5rem; display: flex; gap: 0.6rem; align-items: center; }
+.work-card .meta .yr { color: var(--accent); font-weight: 600; }
+.work-card h3 { font-size: clamp(1.15rem, 1.8vw, 1.5rem); color: #fff; }
+.work-card .client { font-size: 0.85rem; color: var(--muted); margin-top: 0.3rem; }
+.work-card.size-l { flex-basis: min(78vw, 560px); height: min(66vh, 560px); }
+.work-card.size-m { flex-basis: min(70vw, 420px); height: min(54vh, 460px); align-self: flex-end; }
+.work-card.size-s { flex-basis: min(64vw, 340px); height: min(46vh, 380px); align-self: center; }
+.work-end { flex: 0 0 min(60vw, 300px); display: flex; flex-direction: column; justify-content: center; padding-inline: 1rem; }
+.work-end p { color: var(--muted); font-size: 0.95rem; margin-bottom: 1rem; }
+.work-end .link { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--fg); font-weight: 600; font-size: 0.95rem; }
+.work-end .link svg { color: var(--accent); }
+
+/* Capabilities (sticky stacking) */
+.caps { background: var(--bg-2); border-top: 1px solid var(--line); }
+.caps-head { padding: clamp(5rem, 12vh, 8rem) 0 2.5rem; }
+.caps-stack { position: relative; padding-bottom: 24vh; }
+.cap-card { position: sticky; top: 16vh; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: clamp(1.75rem, 3vw, 2.75rem); margin-bottom: 2rem; display: grid; grid-template-columns: auto 1fr auto; gap: clamp(1rem, 3vw, 2.5rem); align-items: center; min-height: 210px; }
+.cap-card .idx { font-size: 0.78rem; color: var(--muted); font-family: ui-monospace, monospace; }
+.cap-card .ic { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 10px; color: var(--accent); }
+.cap-card .ic svg { width: 22px; height: 22px; }
+.cap-card h3 { font-size: clamp(1.25rem, 2vw, 1.7rem); }
+.cap-card p { color: var(--muted); font-size: 0.95rem; margin-top: 0.6rem; max-width: 52ch; }
+.cap-card .tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.9rem; }
+.cap-card .tags span { font-size: 0.72rem; color: var(--muted); border: 1px solid var(--line); border-radius: 100px; padding: 0.2rem 0.65rem; }
+.cap-card .left { display: flex; align-items: center; gap: 1.25rem; }
+.cap-card:nth-child(2) { top: 18vh; }
+.cap-card:nth-child(3) { top: 20vh; }
+.cap-card:nth-child(4) { top: 22vh; }
+
+/* Cinematic scale-depth moment */
+.cinema { position: relative; height: 320vh; background: var(--bg); }
+.cinema-sticky { position: sticky; top: 0; height: 100dvh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.cinema-ambient { position: absolute; inset: 0; z-index: 0; background: radial-gradient(circle at 50% 55%, rgba(255,68,56,0.14) 0%, transparent 55%); }
+.cinema-stage { position: relative; z-index: 1; text-align: center; padding-inline: 1.5rem; will-change: transform, opacity; }
+.cinema-stage .mark { font-size: clamp(4rem, 16vw, 13rem); font-weight: 700; line-height: 0.9; color: var(--fg); }
+.cinema-stage .mark .accent { color: var(--accent); }
+.cinema-stage p { color: var(--muted); font-size: clamp(1rem, 1.6vw, 1.25rem); max-width: 34ch; margin: 1.5rem auto 0; text-wrap: balance; }
+
+/* Contact / footer */
+.contact { border-top: 1px solid var(--line); padding: clamp(5rem, 14vh, 9rem) 0 3rem; }
+.contact-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: clamp(2rem, 6vw, 5rem); align-items: start; }
+.contact h2 { font-size: clamp(2.2rem, 6vw, 4.5rem); line-height: 0.98; }
+.contact h2 .accent { color: var(--accent); }
+.contact .lead { color: var(--muted); margin-top: 1.5rem; max-width: 38ch; }
+.contact-actions { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.85rem 1.5rem; border-radius: 100px; font-weight: 600; font-size: 0.95rem; min-height: 44px; transition: transform 0.2s var(--ease), background 0.2s, border-color 0.2s; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-dim); }
+.btn-ghost { border: 1px solid var(--line); color: var(--fg); }
+.btn-ghost:hover { border-color: var(--accent); }
+.contact-info { display: flex; flex-direction: column; gap: 1.5rem; }
+.info-block .label { font-size: 0.72rem; color: var(--muted-2); text-transform: uppercase; letter-spacing: 0; margin-bottom: 0.35rem; }
+.info-block .val { font-size: 0.98rem; color: var(--fg); }
+.footer-base { margin-top: clamp(4rem, 10vh, 7rem); padding-top: 2rem; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+.footer-base span { font-size: 0.78rem; color: var(--muted-2); }
+/*==CSS4==*/
+/*==CSS4==*/
+/* Tablet */
+@media (max-width: 1024px) {
+  .cap-card { grid-template-columns: auto 1fr; }
+  .cap-card .tags { grid-column: 1 / -1; }
+  .contact-grid { grid-template-columns: 1fr; }
+}
+/* Small tablet / large phone */
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .hero h1 { font-size: clamp(2.1rem, 7vw, 3.1rem); }
+  .cap-card { grid-template-columns: 1fr; text-align: left; min-height: 0; }
+  .cap-card .left { gap: 1rem; }
+  .cap-card:nth-child(n) { top: 12vh; }
+}
+/* Phone */
+@media (max-width: 480px) {
+  .hero-content { padding-bottom: 3rem; }
+  .hero-sub { font-size: 1.02rem; }
+  .hero-meta { gap: 1.25rem; }
+  .hero-cue { display: none; }
+  .reveal-line { font-size: clamp(1.5rem, 7vw, 2.2rem); }
+  .showreel-canvas { width: 94vw; border-radius: 8px; }
+  .showreel-hud { width: 94vw; }
+  .showreel-cap h3 { font-size: 1.2rem; }
+  .work-card.size-l { flex-basis: 84vw; height: 60vh; }
+  .work-card.size-m { flex-basis: 78vw; height: 52vh; }
+  .work-card.size-s { flex-basis: 72vw; height: 46vh; }
+  .cinema-stage .mark { font-size: clamp(3rem, 20vw, 6rem); }
+  .contact h2 { font-size: clamp(1.9rem, 9vw, 3rem); }
+  .footer-base { flex-direction: column; align-items: flex-start; }
+}
+@supports (padding: env(safe-area-inset-bottom)) {
+  .nav-inner { padding-top: env(safe-area-inset-top); }
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">본문으로 건너뛰기</a>
+<div class="progress" id="progress" role="progressbar" aria-label="페이지 스크롤 진행률"></div>
+
+<nav class="nav" id="nav" aria-label="주 메뉴">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top" aria-label="GYEOL 홈">
+      GYEOL<span class="dot" aria-hidden="true"></span><span class="ko">결</span>
+    </a>
+    <div class="nav-links">
+      <a href="#showreel">쇼릴</a>
+      <a href="#work">작업</a>
+      <a href="#caps">역량</a>
+      <a class="nav-cta" href="#contact">프로젝트 문의</a>
+    </div>
+  </div>
+</nav>
+
+<main id="main">
+<span id="top"></span>
+
+<!-- Hero -->
+<header class="hero" aria-label="소개">
+  <div class="hero-media" aria-hidden="true">
+    <img src="assets/hero.png" alt="" fetchpriority="high" decoding="async">
+  </div>
+  <div class="hero-scrim" aria-hidden="true"></div>
+  <div class="hero-content">
+    <div class="wrap">
+      <span class="eyebrow"><span class="bar" aria-hidden="true"></span>Motion &amp; Interaction Studio · Seoul</span>
+      <h1><span class="accent">결</span>을 따라<br>움직임을 설계합니다</h1>
+      <p class="hero-sub">스크롤과 시간을 다뤄 브랜드가 기억되는 순간을 만드는 서울의 인터랙션 스튜디오, GYEOL.</p>
+      <div class="hero-meta">
+        <span><b>2019</b>년부터</span>
+        <span><b>60</b>여 개 프로젝트</span>
+        <span><b>브랜드 웹 · 프로덕트 · 필름</b></span>
+      </div>
+    </div>
+  </div>
+  <div class="hero-cue" aria-hidden="true"><span class="txt">SCROLL</span><span class="line"></span></div>
+</header>
+
+<!-- Manifesto: text reveal -->
+<section class="manifesto section" id="manifesto" aria-label="스튜디오 관점">
+  <div class="manifesto-sticky">
+    <div class="wrap">
+      <div class="manifesto-inner">
+        <span class="eyebrow"><span class="bar" aria-hidden="true"></span>Approach</span>
+        <p class="reveal-line" id="revealLine"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Showreel: frame sequence scrub -->
+<section class="showreel section" id="showreel" aria-label="쇼릴">
+  <div class="showreel-sticky">
+    <div class="showreel-hud" aria-hidden="true">
+      <span class="tag">SHOWREEL — <b>2026</b></span>
+      <span class="tag" id="reelFrame">FRAME 001 / 160</span>
+    </div>
+    <canvas class="showreel-canvas" id="reelCanvas" width="1180" height="664" role="img" aria-label="GYEOL 쇼릴 — 스크롤에 따라 재생되는 모션 시퀀스">
+      GYEOL 스튜디오 쇼릴 영상
+    </canvas>
+    <div class="showreel-cap" id="reelCap1" aria-live="polite">
+      <h3>빛의 결을 따라</h3>
+      <p>브랜드의 성격을 움직임의 리듬으로 번역합니다</p>
+    </div>
+    <div class="showreel-cap" id="reelCap2">
+      <h3>시간을 편집하다</h3>
+      <p>스크롤 한 번으로 하나의 장면이 완성됩니다</p>
+    </div>
+    <div class="showreel-cap" id="reelCap3">
+      <h3>기억되는 순간</h3>
+      <p>정교한 프레임 설계로 잔상을 남깁니다</p>
+    </div>
+  </div>
+</section>
+<!-- Selected Work: horizontal scroll -->
+<section class="work section" id="work" aria-label="선정 작업">
+  <div class="work-sticky">
+    <div class="wrap work-head section-head">
+      <span class="eyebrow"><span class="bar" aria-hidden="true"></span>Selected Work</span>
+      <h2>스크롤이 이야기가 되는 순간들</h2>
+    </div>
+    <div class="work-track" id="workTrack">
+      <article class="work-card size-l">
+        <div class="thumb"><img src="assets/work1.png" alt="SORAK 리조트 브랜드 사이트 작업 스틸" loading="lazy" decoding="async"></div>
+        <div class="body">
+          <div class="meta"><span class="yr">2026</span><span>브랜드 웹</span></div>
+          <h3>빛으로 짓는 리조트</h3>
+          <p class="client">SORAK — 설악 리조트 리브랜딩</p>
+        </div>
+      </article>
+      <article class="work-card size-m">
+        <div class="thumb"><img src="assets/work2.png" alt="한강 러너스 데이터 캠페인 작업 스틸" loading="lazy" decoding="async"></div>
+        <div class="body">
+          <div class="meta"><span class="yr">2025</span><span>데이터 필름</span></div>
+          <h3>흐름을 읽다</h3>
+          <p class="client">한강 러너스 — 연간 리포트 캠페인</p>
+        </div>
+      </article>
+      <article class="work-card size-s">
+        <div class="thumb"><img src="assets/work3.png" alt="MUTE 오디오 제품 런칭 작업 스틸" loading="lazy" decoding="async"></div>
+        <div class="body">
+          <div class="meta"><span class="yr">2025</span><span>프로덕트</span></div>
+          <h3>어둠 속의 정밀함</h3>
+          <p class="client">MUTE — 무선 오디오 런칭</p>
+        </div>
+      </article>
+      <article class="work-card size-m">
+        <div class="thumb"><img src="assets/work1.png" alt="여름 페스티벌 인터랙티브 사이트 작업 스틸" loading="lazy" decoding="async"></div>
+        <div class="body">
+          <div class="meta"><span class="yr">2024</span><span>인터랙티브</span></div>
+          <h3>손끝에서 열리는 무대</h3>
+          <p class="client">노원 뮤직 페스티벌</p>
+        </div>
+      </article>
+      <div class="work-end">
+        <p>2019년부터 60여 개의 브랜드와 프로덕트를 함께 움직였습니다.</p>
+        <a class="link" href="#contact">전체 아카이브 요청
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Capabilities: sticky card stacking -->
+<section class="caps section" id="caps" aria-label="역량">
+  <div class="wrap">
+    <div class="caps-head section-head">
+      <span class="eyebrow"><span class="bar" aria-hidden="true"></span>Capabilities</span>
+      <h2>기획부터 마지막 프레임까지</h2>
+      <p>전략, 아트 디렉션, 엔지니어링을 한 팀에서 이어 붙여 스크롤 경험의 밀도를 지킵니다.</p>
+    </div>
+    <div class="caps-stack">
+      <article class="cap-card">
+        <div class="left">
+          <span class="idx">01</span>
+          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 4.5-9 4.5-9-4.5L12 3z"/><path d="M3 12l9 4.5 9-4.5"/><path d="M3 16.5L12 21l9-4.5"/></svg></span>
+          <div><h3>모션 스트래티지</h3></div>
+        </div>
+        <p>브랜드의 성격을 움직임의 언어로 정의합니다. 리듬, 속도, 전환의 규칙을 문서화해 팀 전체가 같은 결로 만들게 합니다.</p>
+        <div class="tags"><span>모션 시스템</span><span>가이드라인</span><span>프로토타입</span></div>
+      </article>
+      <article class="cap-card">
+        <div class="left">
+          <span class="idx">02</span>
+          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg></span>
+          <div><h3>아트 디렉션 &amp; 필름</h3></div>
+        </div>
+        <p>이미지 생성과 실사 촬영을 엮어 프레임 시퀀스를 설계합니다. 조명 하나, 잔상 하나까지 브랜드에 맞춰 조율합니다.</p>
+        <div class="tags"><span>비주얼 디자인</span><span>프레임 시퀀스</span><span>컬러</span></div>
+      </article>
+      <article class="cap-card">
+        <div class="left">
+          <span class="idx">03</span>
+          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
+          <div><h3>프론트엔드 엔지니어링</h3></div>
+        </div>
+        <p>스크롤 타임라인, 캔버스 시퀀스, 시네마틱 전환을 60fps로 구현합니다. 접근성과 저사양 기기 대응을 기본값으로 둡니다.</p>
+        <div class="tags"><span>Scroll-driven CSS</span><span>Canvas</span><span>WebGL</span></div>
+      </article>
+      <article class="cap-card">
+        <div class="left">
+          <span class="idx">04</span>
+          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+          <div><h3>퍼포먼스 &amp; 런칭</h3></div>
+        </div>
+        <p>Core Web Vitals를 지표로 잡고 이미지, 폰트, 애니메이션 예산을 관리합니다. 런칭 이후의 계측까지 함께 봅니다.</p>
+        <div class="tags"><span>CWV</span><span>이미지 최적화</span><span>계측</span></div>
+      </article>
+    </div>
+  </div>
+</section>
+<!-- Cinematic scale-depth moment -->
+<section class="cinema section" id="cinema" aria-label="스튜디오 선언">
+  <div class="cinema-sticky">
+    <div class="cinema-ambient" aria-hidden="true"></div>
+    <div class="cinema-stage" id="cinemaStage">
+      <p class="mark"><span>움직임은</span> <span class="accent">결</span><span>이다</span></p>
+      <p>좋은 인터랙션은 요란하지 않습니다. 스크롤의 리듬을 따라 자연스럽게 이어질 뿐입니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Contact -->
+<section class="contact section" id="contact" aria-label="문의">
+  <div class="wrap">
+    <div class="contact-grid">
+      <div>
+        <span class="eyebrow"><span class="bar" aria-hidden="true"></span>Contact</span>
+        <h2 style="margin-top:1rem">함께 움직일<br><span class="accent">이야기가</span> 있나요?</h2>
+        <p class="lead">브랜드 웹, 프로덕트 런칭, 필름까지. 프로젝트의 결을 함께 잡아 드립니다.</p>
+        <div class="contact-actions">
+          <a class="btn btn-primary" href="mailto:hello@gyeol.studio">
+            프로젝트 문의
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+          <a class="btn btn-ghost" href="#showreel">쇼릴 다시 보기</a>
+        </div>
+      </div>
+      <div class="contact-info">
+        <div class="info-block">
+          <div class="label">Email</div>
+          <div class="val">hello@gyeol.studio</div>
+        </div>
+        <div class="info-block">
+          <div class="label">Studio</div>
+          <div class="val">서울 성동구 연무장길 45, 3F</div>
+        </div>
+        <div class="info-block">
+          <div class="label">Social</div>
+          <div class="val">Instagram · Behance · Vimeo</div>
+        </div>
+      </div>
+    </div>
+    <div class="footer-base">
+      <span>© 2026 GYEOL Studio. 결 스튜디오.</span>
+      <span>Seoul · Made for scroll</span>
+    </div>
+  </div>
+</section>
+</main>
+<script>
+(() => {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const progress = $('#progress');
+  const nav = $('#nav');
+
+  /* Text reveal */
+  const revealLine = $('#revealLine');
+  const revealText = '우리는 장식이 아니라 리듬을 만듭니다. 스크롤이 흐르는 동안 브랜드의 결이 드러나도록.';
+  const accentWords = new Set(['리듬을', '결이']);
+  revealText.split(/\s+/).forEach((w) => {
+    const s = document.createElement('span');
+    s.className = 'reveal-word' + (accentWords.has(w) ? ' accent' : '');
+    s.textContent = w;
+    revealLine.appendChild(s);
+    revealLine.appendChild(document.createTextNode(' '));
+  });
+  const revealWords = revealLine.querySelectorAll('.reveal-word');
+  const manifesto = $('#manifesto');
+
+  /* Showreel frame sequence (procedural, pre-rendered offscreen) */
+  const TOTAL = 160, CW = 1180, CH = 664;
+  const canvas = $('#reelCanvas');
+  const ctx = canvas.getContext('2d');
+  const showreel = $('#showreel');
+  const reelFrame = $('#reelFrame');
+  const cap1 = $('#reelCap1'), cap2 = $('#reelCap2'), cap3 = $('#reelCap3');
+  const frames = [];
+
+  function drawFrame(c, t, idx) {
+    const g = c.createLinearGradient(0, 0, CW, CH);
+    g.addColorStop(0, 'hsl(28,12%,6%)');
+    g.addColorStop(1, 'hsl(20,14%,4%)');
+    c.fillStyle = g; c.fillRect(0, 0, CW, CH);
+    const cx = CW / 2, cy = CH / 2, ang = t * Math.PI * 2.2;
+    // flowing light ribbons
+    for (let k = 0; k < 5; k++) {
+      c.beginPath();
+      const phase = k * 0.7 + t * Math.PI * 2;
+      for (let x = 0; x <= CW; x += 16) {
+        const nx = x / CW;
+        const y = cy + Math.sin(nx * 6 + phase) * (60 + k * 26) * Math.sin(t * Math.PI)
+                     + Math.sin(nx * 2 + phase * 0.5) * 40;
+        if (x === 0) c.moveTo(x, y); else c.lineTo(x, y);
+      }
+      const alpha = 0.05 + k * 0.02;
+      c.strokeStyle = k === 2
+        ? 'rgba(255,68,56,' + (0.16 + Math.sin(t * Math.PI) * 0.12) + ')'
+        : 'rgba(237,237,234,' + alpha + ')';
+      c.lineWidth = k === 2 ? 2 : 1;
+      c.stroke();
+    }
+    // rotating core
+    c.save();
+    c.translate(cx, cy); c.rotate(ang * 0.15);
+    const rad = 70 + Math.sin(t * Math.PI) * 46;
+    const rg = c.createRadialGradient(0, 0, 4, 0, 0, rad);
+    rg.addColorStop(0, 'rgba(255,68,56,' + (0.5 + Math.sin(t * Math.PI) * 0.3) + ')');
+    rg.addColorStop(0.5, 'rgba(255,68,56,0.10)');
+    rg.addColorStop(1, 'transparent');
+    c.fillStyle = rg; c.beginPath(); c.arc(0, 0, rad, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = 'rgba(237,237,234,0.28)'; c.lineWidth = 1;
+    c.beginPath(); c.arc(0, 0, rad * 0.62, 0, Math.PI * 2); c.stroke();
+    c.restore();
+    // orbiting particles
+    for (let p = 0; p < 6; p++) {
+      const a = ang + p * Math.PI / 3;
+      const r = 150 + Math.sin(t * Math.PI * 2 + p) * 40;
+      const px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r * 0.42;
+      c.beginPath(); c.arc(px, py, 2.5 + Math.sin(t * Math.PI * 4 + p) * 1.5, 0, Math.PI * 2);
+      c.fillStyle = p % 3 === 0 ? 'rgba(255,68,56,0.7)' : 'rgba(237,237,234,0.5)';
+      c.fill();
+    }
+    c.fillStyle = 'rgba(237,237,234,0.05)';
+    c.font = '500 11px ui-monospace, monospace';
+    c.fillText('GYEOL / F' + String(idx + 1).padStart(3, '0'), 24, CH - 22);
+  }
+  function genFrames() {
+    for (let i = 0; i < TOTAL; i++) {
+      const t = i / (TOTAL - 1);
+      const off = ('OffscreenCanvas' in window) ? new OffscreenCanvas(CW, CH) : Object.assign(document.createElement('canvas'), { width: CW, height: CH });
+      drawFrame(off.getContext('2d'), t, i);
+      frames.push(off);
+    }
+  }
+
+  const workSection = $('#work');
+  const workTrack = $('#workTrack');
+  const cinema = $('#cinema');
+  const cinemaStage = $('#cinemaStage');
+
+  let curFrame = -1, ticking = false;
+  function onScroll() { if (!ticking) { ticking = true; requestAnimationFrame(update); } }
+  function secProgress(el) {
+    const r = el.getBoundingClientRect();
+    return clamp(-r.top / (r.height - window.innerHeight), 0, 1);
+  }
+  function update() {
+    ticking = false;
+    const docH = document.documentElement.scrollHeight - window.innerHeight;
+    progress.style.transform = 'scaleX(' + (window.scrollY / docH) + ')';
+    nav.classList.toggle('scrolled', window.scrollY > 40);
+
+    // text reveal
+    const tp = secProgress(manifesto);
+    const lit = Math.floor(tp * revealWords.length * 1.25);
+    revealWords.forEach((w, i) => w.classList.toggle('lit', i < lit));
+
+    // showreel frames
+    const fp = secProgress(showreel);
+    const fi = Math.min(TOTAL - 1, Math.floor(fp * TOTAL));
+    if (fi !== curFrame) {
+      curFrame = fi;
+      ctx.drawImage(frames[fi], 0, 0);
+      reelFrame.textContent = 'FRAME ' + String(fi + 1).padStart(3, '0') + ' / ' + TOTAL;
+    }
+    cap1.classList.toggle('visible', fp > 0.04 && fp < 0.30);
+    cap2.classList.toggle('visible', fp > 0.36 && fp < 0.62);
+    cap3.classList.toggle('visible', fp > 0.68 && fp < 0.94);
+
+    // horizontal work scroll
+    const wp = secProgress(workSection);
+    const maxX = workTrack.scrollWidth - window.innerWidth;
+    workTrack.style.transform = 'translateX(' + (-maxX * wp) + 'px)';
+
+    // cinematic scale-depth
+    const cp = secProgress(cinema);
+    const scale = 0.85 + cp * 0.5;
+    const fade = cp < 0.8 ? 1 : clamp(1 - (cp - 0.8) / 0.2, 0, 1);
+    cinemaStage.style.transform = 'scale(' + scale + ')';
+    cinemaStage.style.opacity = String(fade);
+  }
+
+  // Init
+  if (reduce) {
+    // Reduced motion: no scroll-driven work at all. Draw one representative
+    // frame, reveal all copy, show the first caption, and bind no listeners.
+    drawFrame(ctx, 0.5, 80);
+    revealWords.forEach((w) => w.classList.add('lit'));
+    cap1.classList.add('visible');
+    return;
+  }
+  genFrames();
+  ctx.drawImage(frames[0], 0, 0);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll, { passive: true });
+  update();
+})();
+</script>
+</body>
+</html>

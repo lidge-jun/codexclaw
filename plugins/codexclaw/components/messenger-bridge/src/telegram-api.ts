@@ -26,8 +26,9 @@ export interface TgMessage {
   message_id: number;
   text?: string;
   caption?: string;
-  chat: { id: number; type: string };
+  chat: { id: number; type: string; is_forum?: boolean };
   from?: { id: number; username?: string };
+  is_topic_message?: boolean;
   message_thread_id?: number;
   photo?: Array<{ file_id: string; file_unique_id: string; width: number; height: number; file_size?: number }>;
   document?: { file_id: string; file_unique_id: string; file_name?: string; mime_type?: string; file_size?: number };
@@ -50,6 +51,12 @@ export interface SendMessageParams {
 }
 
 const API_BASE = "https://api.telegram.org";
+
+export interface TelegramMemoryFile {
+  name: string;
+  content: string | Uint8Array | ArrayBuffer;
+  contentType?: string;
+}
 
 export class TelegramApi {
   private token: string;
@@ -99,6 +106,41 @@ export class TelegramApi {
     }
   }
 
+  private async callMultipart<T = unknown>(
+    method: string,
+    fields: Record<string, string | number | boolean | undefined>,
+    file: { field: string; value: TelegramMemoryFile },
+    timeoutMs = 15_000,
+    signal?: AbortSignal,
+  ): Promise<TgResponse<T>> {
+    const url = `${API_BASE}/bot${this.token}/${method}`;
+    const boundary = `codexclaw-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const body = buildMultipartBody(boundary, fields, file);
+    const controller = signal ? undefined : new AbortController();
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    const init = {
+      method: "POST",
+      headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+      body: body as unknown as BodyInit,
+      signal: signal ?? controller?.signal,
+    };
+    try {
+      const res = await this.fetchImpl(url, init);
+      const parsed = (await res.json().catch(() => ({}))) as TgResponse<T>;
+      if (parsed.error_code === 429 && parsed.parameters?.retry_after) {
+        await sleepMs(parsed.parameters.retry_after * 1000);
+        const retryRes = await this.fetchImpl(url, init);
+        return (await retryRes.json().catch(() => ({}))) as TgResponse<T>;
+      }
+      return parsed;
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      return { ok: false, description: `${method} request failed: ${reason}` };
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   getMe(): Promise<TgResponse<{ id: number; username?: string }>> {
     return this.call("getMe");
   }
@@ -135,6 +177,18 @@ export class TelegramApi {
     return this.call<boolean>("deleteMessage", { chat_id: chatId, message_id: messageId });
   }
 
+  editMessageReplyMarkup(
+    chatId: string | number,
+    messageId: number,
+    inlineKeyboard: Array<Array<{ text: string; callback_data?: string; url?: string }>> = [],
+  ): Promise<TgResponse<TgMessage>> {
+    return this.call<TgMessage>("editMessageReplyMarkup", {
+      chat_id: chatId,
+      message_id: messageId,
+      reply_markup: { inline_keyboard: inlineKeyboard },
+    });
+  }
+
   /** Delete a whole forum topic (supergroup: needs admin + can_delete_messages). */
   deleteForumTopic(chatId: string | number, messageThreadId: number): Promise<TgResponse<boolean>> {
     return this.call<boolean>("deleteForumTopic", {
@@ -151,6 +205,14 @@ export class TelegramApi {
 
   deleteWebhook(dropPending = false): Promise<TgResponse<boolean>> {
     return this.call<boolean>("deleteWebhook", { drop_pending_updates: dropPending });
+  }
+
+  setWebhook(url: string, secretToken: string): Promise<TgResponse<boolean>> {
+    return this.call<boolean>("setWebhook", {
+      url,
+      secret_token: secretToken,
+      allowed_updates: ["message", "callback_query"],
+    });
   }
 
   // ── Rich media methods (Phase E1) ──────────────────────────────────────
@@ -175,11 +237,23 @@ export class TelegramApi {
   /** Send a document by file_id, URL, or multipart upload path. */
   sendDocument(params: {
     chatId: string | number;
-    document: string;
+    document: string | TelegramMemoryFile;
     caption?: string;
     parseMode?: "HTML" | "MarkdownV2";
     messageThreadId?: number;
   }): Promise<TgResponse<TgMessage>> {
+    if (typeof params.document !== "string") {
+      return this.callMultipart<TgMessage>(
+        "sendDocument",
+        {
+          chat_id: params.chatId,
+          caption: params.caption,
+          parse_mode: params.parseMode,
+          message_thread_id: params.messageThreadId,
+        },
+        { field: "document", value: params.document },
+      );
+    }
     const payload: Record<string, unknown> = { chat_id: params.chatId, document: params.document };
     if (params.caption) payload.caption = params.caption;
     if (params.parseMode) payload.parse_mode = params.parseMode;
@@ -283,6 +357,17 @@ export class TelegramApi {
   }
 }
 
+export function telegramTopicId(msg: Pick<TgMessage, "chat" | "is_topic_message" | "message_thread_id">): string | null {
+  if (msg.chat.type !== "supergroup") return null;
+  if (msg.is_topic_message !== true && msg.chat.is_forum !== true) return null;
+  return String(msg.message_thread_id ?? 1);
+}
+
+export function telegramReplyThreadId(msg: Pick<TgMessage, "chat" | "is_topic_message" | "message_thread_id">): number | undefined {
+  const topicId = telegramTopicId(msg);
+  return topicId === null ? msg.message_thread_id : Number(topicId);
+}
+
 /** Telegram file object from getFile. */
 export interface TgFile {
   file_id: string;
@@ -295,3 +380,54 @@ export interface TgFile {
 
 /** Exactly one of html or markdown (discriminated union). */
 export type InputRichMessage = { html: string } | { markdown: string };
+
+function buildMultipartBody(
+  boundary: string,
+  fields: Record<string, string | number | boolean | undefined>,
+  file: { field: string; value: TelegramMemoryFile },
+): Uint8Array {
+  const enc = new TextEncoder();
+  const chunks: Uint8Array[] = [];
+  const pushText = (part: string) => chunks.push(enc.encode(part));
+  const pushData = (data: TelegramMemoryFile["content"]) => {
+    if (typeof data === "string") chunks.push(enc.encode(data));
+    else if (data instanceof ArrayBuffer) chunks.push(new Uint8Array(data));
+    else chunks.push(data);
+  };
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined) continue;
+    pushText(`--${boundary}\r\n`);
+    pushText(`Content-Disposition: form-data; name="${escapeMultipartName(key)}"\r\n\r\n`);
+    pushText(String(value));
+    pushText("\r\n");
+  }
+  pushText(`--${boundary}\r\n`);
+  pushText(
+    `Content-Disposition: form-data; name="${escapeMultipartName(file.field)}"; filename="${escapeMultipartName(file.value.name)}"\r\n`,
+  );
+  pushText(`Content-Type: ${file.value.contentType ?? "text/plain; charset=utf-8"}\r\n\r\n`);
+  pushData(file.value.content);
+  pushText("\r\n");
+  pushText(`--${boundary}--\r\n`);
+
+  const length = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+  const body = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}
+
+function escapeMultipartName(name: string): string {
+  return name.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r|\n/g, "_");
+}
+
+function sleepMs(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const t = setTimeout(resolve, ms);
+    t.unref?.();
+  });
+}

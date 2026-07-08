@@ -40,6 +40,7 @@ const USAGE = [
   "  --no-tools   skip tool call/output (tool_log) matching",
   "  --scan       force the raw JSONL scan path (skip the sidecar index)",
   "  --no-refresh skip refresh-on-query ingest (fastest, index may be stale)",
+  "  --no-synonyms disable curated ko/en synonym expansion (memory search)",
   "  --json       machine-readable output (text fields clipped at 500 chars)",
   "  --full       with --json: emit unclipped text fields",
   "  --home PATH  search an alternate Codex home (default $CODEX_HOME ?? ~/.codex)",
@@ -65,6 +66,7 @@ function parseFlags(args: string[]): ParsedFlags {
       "no-tools": { type: "boolean", default: false },
       scan: { type: "boolean", default: false },
       "no-refresh": { type: "boolean", default: false },
+      "no-synonyms": { type: "boolean", default: false },
       full: { type: "boolean", default: false },
       rebuild: { type: "boolean", default: false },
       status: { type: "boolean", default: false },
@@ -131,6 +133,7 @@ function runMemorySearch(args: string[]): number {
     days: numFlag(values, "days"),
     limit: numFlag(values, "limit"),
     any: values.any === true,
+    synonyms: values["no-synonyms"] !== true,
     home: typeof values.home === "string" ? values.home : undefined,
   };
   const result = searchMemory(query, opts);

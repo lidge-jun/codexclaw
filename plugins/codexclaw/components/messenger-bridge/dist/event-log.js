@@ -21,6 +21,8 @@
 
 
 
+
+
  const DEFAULT_MAX_SIZE = 50 * 1024 * 1024;
  const DEFAULT_MAX_FILES = 3;
  const RING_SIZE = 200;

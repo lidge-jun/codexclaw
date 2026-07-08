@@ -11,6 +11,7 @@
  *   resume-ok — same but echoes the resumed SESSION_ID as thread id
  *   lost      — print the real missing-rollout error and exit 0 (codex's actual behavior)
  *   hang      — never exit (drives the timeout path); ignores signals? no, default term
+ *   slow      — emit thread/status then hang until killed (drives cancellation)
  *   fail      — emit turn.failed
  */
 import { createInterface } from "node:readline";
@@ -54,7 +55,15 @@ async function main() {
   const sepIdx = args.indexOf("--");
   const threadId = isResume ? (args[sepIdx + 1] ?? "resumed-thread") : "thread-fresh-1";
   emit({ type: "thread.started", thread_id: threadId });
+  emit({ type: "item.completed", item: { type: "reasoning", text: "thinking about the request" } });
+  emit({ type: "item.started", item: { type: "tool_call", name: "shell", input: { cmd: "echo hello" } } });
+  emit({ type: "item.completed", item: { type: "file_change", path: "notes.txt", action: "modify" } });
   emit({ type: "item.started", item: { type: "command_execution", command: "echo hello" } });
+
+  if (mode === "slow") {
+    setInterval(() => {}, 1000);
+    return;
+  }
 
   if (mode === "fail") {
     emit({ type: "turn.failed", error: { message: "model refused" } });

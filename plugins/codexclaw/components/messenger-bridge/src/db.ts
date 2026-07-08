@@ -12,7 +12,7 @@
  *   channels  — one row per messenger kind; single-active invariant enforced
  *               by setActiveChannel's transaction.
  *   allowlist — chat ids admitted via the /start (or Discord) handshake.
- *   bindings  — chat ↔ codex thread 1:1 (UNIQUE channel_kind+chat_id).
+ *   bindings  — chat/topic ↔ codex thread 1:1.
  *   jobs      — per-turn run log; result_preview feeds the Phase 2 re-seed.
  */
 import { DatabaseSync } from "node:sqlite";
@@ -29,6 +29,7 @@ export interface ChannelRow {
 }
 
 export interface AllowRow {
+  agent_id?: number;
   channel_kind: ChannelKind;
   chat_id: string;
   label: string;
@@ -44,6 +45,10 @@ export interface BindingRow {
   thread_id: string | null;
   workdir: string;
   model: string;
+  /** per-binding effort override; 'default' defers to the agent card (v6). */
+  effort: string;
+  /** forum topic / thread discriminator, or null for the plain chat (v6). */
+  topic_id: string | null;
   status: string;
   updated_at: string;
 }
@@ -63,9 +68,15 @@ export interface AgentRow {
   heartbeat_prompt: string;
   poll_offset: number;
   trigger_prefix: string;
+  /** 1 = codex runs with --dangerously-bypass-approvals-and-sandbox (v6). */
+  full_access: number;
+  /** Telegram webhook URL; '' = long-poll mode (v6). */
+  webhook_url: string;
   handshake_open_until: string | null;
   created_at: string;
   updated_at: string;
+  /** 'thread' (default) or 'plain' — controls whether the adapter creates threads/topics (v8). */
+  thread_mode: string;
 }
 
 export interface AgentPatch {
@@ -78,9 +89,13 @@ export interface AgentPatch {
   heartbeat_minutes?: number;
   heartbeat_prompt?: string;
   trigger_prefix?: string;
+  full_access?: number;
+  webhook_url?: string;
+  thread_mode?: string;
 }
 
 export const AGENT_EFFORTS = ["default", "minimal", "low", "medium", "high", "xhigh"] as const;
+export const AGENT_THREAD_MODES = ["thread", "plain"] as const;
 
 export interface JobRow {
   id: number;
@@ -306,6 +321,111 @@ CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id)
       this.db.exec("PRAGMA user_version = 5");
       version = 5;
     }
+
+    // ── v6: messenger-native command surfaces (goalplan wp3/wp4/wp6/wp9) ──
+    //  - bindings.effort: per-binding effort override for /effort.
+    //  - bindings.topic_id + index: forum-topic / thread session routing.
+    //  - agents.full_access: approval-relay gate (0 = relay approvals to chat).
+    //  - agents.webhook_url: Telegram webhook mode ('' = long-poll).
+    if (version < 6) {
+      this.db.exec("BEGIN");
+      try {
+        this.db.exec(`
+ALTER TABLE bindings ADD COLUMN effort TEXT NOT NULL DEFAULT 'default';
+ALTER TABLE bindings ADD COLUMN topic_id TEXT;
+CREATE INDEX idx_bindings_topic ON bindings (channel_kind, chat_id, topic_id);
+ALTER TABLE agents ADD COLUMN full_access INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE agents ADD COLUMN webhook_url TEXT NOT NULL DEFAULT '';
+`);
+        this.db.exec("PRAGMA user_version = 6");
+        this.db.exec("COMMIT");
+      } catch (err) {
+        this.db.exec("ROLLBACK");
+        throw err;
+      }
+      version = 6;
+    }
+    // ── v7: topic-aware binding uniqueness ──
+    // v6 added bindings.topic_id but the v4 table-level UNIQUE(agent_id, chat_id)
+    // still collapsed every topic in one chat. Rebuild once and replace it with
+    // partial unique indexes: NULL topic_id means the plain chat; non-NULL topic
+    // rows are isolated per forum/thread topic.
+    if (version < 7) {
+      this.db.exec("BEGIN");
+      try {
+        this.db.exec(`
+CREATE TABLE bindings_v7 (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel_kind TEXT NOT NULL,
+  chat_id TEXT NOT NULL,
+  agent_id INTEGER,
+  thread_id TEXT,
+  workdir TEXT NOT NULL,
+  model TEXT NOT NULL DEFAULT 'default',
+  effort TEXT NOT NULL DEFAULT 'default',
+  topic_id TEXT,
+  status TEXT NOT NULL DEFAULT 'idle',
+  updated_at TEXT NOT NULL
+);
+INSERT INTO bindings_v7 (id, channel_kind, chat_id, agent_id, thread_id, workdir, model, effort, topic_id, status, updated_at)
+  SELECT id, channel_kind, chat_id, agent_id, thread_id, workdir, model, effort, topic_id, status, updated_at FROM bindings;
+DROP TABLE bindings;
+ALTER TABLE bindings_v7 RENAME TO bindings;
+CREATE UNIQUE INDEX idx_bindings_agent_plain_uniq ON bindings (agent_id, chat_id) WHERE agent_id IS NOT NULL AND topic_id IS NULL;
+CREATE UNIQUE INDEX idx_bindings_agent_topic_uniq ON bindings (agent_id, chat_id, topic_id) WHERE agent_id IS NOT NULL AND topic_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id) WHERE agent_id IS NULL AND topic_id IS NULL;
+CREATE UNIQUE INDEX idx_bindings_legacy_topic_uniq ON bindings (channel_kind, chat_id, topic_id) WHERE agent_id IS NULL AND topic_id IS NOT NULL;
+CREATE INDEX idx_bindings_topic ON bindings (channel_kind, chat_id, topic_id);
+`);
+        this.db.exec("PRAGMA user_version = 7");
+        this.db.exec("COMMIT");
+      } catch (err) {
+        this.db.exec("ROLLBACK");
+        throw err;
+      }
+      version = 7;
+    }
+
+    // ── v8: agents.thread_mode ('thread'|'plain', default 'thread') ──
+    if (version < 8) {
+      this.db.exec("BEGIN");
+      try {
+        this.db.exec(`
+ALTER TABLE agents ADD COLUMN thread_mode TEXT NOT NULL DEFAULT 'thread'
+  CHECK (thread_mode IN ('thread','plain'));
+`);
+        this.db.exec("PRAGMA user_version = 8");
+        this.db.exec("COMMIT");
+      } catch (err) {
+        this.db.exec("ROLLBACK");
+        throw err;
+      }
+      version = 8;
+    }
+
+    // ── v9: one-time Telegram deep-link pairing codes ──
+    if (version < 9) {
+      this.db.exec("BEGIN");
+      try {
+        this.db.exec(`
+CREATE TABLE agent_pairing_codes (
+  id INTEGER PRIMARY KEY,
+  agent_id INTEGER NOT NULL,
+  code_hash TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  consumed_at INTEGER
+);
+CREATE INDEX idx_agent_pairing_codes_lookup ON agent_pairing_codes (agent_id, code_hash);
+`);
+        this.db.exec("PRAGMA user_version = 9");
+        this.db.exec("COMMIT");
+      } catch (err) {
+        this.db.exec("ROLLBACK");
+        throw err;
+      }
+      version = 9;
+    }
   }
 
   // ── channels ──────────────────────────────────────────
@@ -423,19 +543,28 @@ CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id)
   }
 
   // ── bindings ──────────────────────────────────────────
-  getOrCreateBinding(kind: ChannelKind, chatId: string, workdir: string): BindingRow {
-    const existing = this.db
-      .prepare("SELECT * FROM bindings WHERE channel_kind = ? AND chat_id = ?")
-      .get(kind, chatId) as BindingRow | undefined;
+  getOrCreateBinding(kind: ChannelKind, chatId: string, workdir: string, topicId: string | null = null): BindingRow {
+    const topic = topicId ?? null;
+    const existing = topic === null
+      ? this.db
+        .prepare("SELECT * FROM bindings WHERE channel_kind = ? AND chat_id = ? AND agent_id IS NULL AND topic_id IS NULL")
+        .get(kind, chatId) as BindingRow | undefined
+      : this.db
+        .prepare("SELECT * FROM bindings WHERE channel_kind = ? AND chat_id = ? AND agent_id IS NULL AND topic_id = ?")
+        .get(kind, chatId, topic) as BindingRow | undefined;
     if (existing) return existing;
     this.db
       .prepare(
-        "INSERT INTO bindings (channel_kind, chat_id, workdir, updated_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO bindings (channel_kind, chat_id, workdir, topic_id, updated_at) VALUES (?, ?, ?, ?, ?)",
       )
-      .run(kind, chatId, workdir, nowIso());
-    return this.db
-      .prepare("SELECT * FROM bindings WHERE channel_kind = ? AND chat_id = ?")
-      .get(kind, chatId) as unknown as BindingRow;
+      .run(kind, chatId, workdir, topic, nowIso());
+    return (topic === null
+      ? this.db
+        .prepare("SELECT * FROM bindings WHERE channel_kind = ? AND chat_id = ? AND agent_id IS NULL AND topic_id IS NULL")
+        .get(kind, chatId)
+      : this.db
+        .prepare("SELECT * FROM bindings WHERE channel_kind = ? AND chat_id = ? AND agent_id IS NULL AND topic_id = ?")
+        .get(kind, chatId, topic)) as unknown as BindingRow;
   }
 
   setBindingThread(id: number, threadId: string): void {
@@ -450,11 +579,40 @@ CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id)
       .run(nowIso(), id);
   }
 
+  /** Clear the remembered Codex session so the next message starts fresh. */
+  resetBindingSession(id: number): void {
+    this.db
+      .prepare("UPDATE bindings SET thread_id = NULL, updated_at = ? WHERE id = ?")
+      .run(nowIso(), id);
+  }
+
   /** Point a chat's exec cwd at a new directory (validated by the caller). */
   setBindingWorkdir(id: number, workdir: string): void {
     this.db
       .prepare("UPDATE bindings SET workdir = ?, updated_at = ? WHERE id = ?")
       .run(workdir, nowIso(), id);
+  }
+
+  /** /model override for one chat binding; 'default' defers to the agent card. */
+  setBindingModel(id: number, model: string): void {
+    this.db
+      .prepare("UPDATE bindings SET model = ?, updated_at = ? WHERE id = ?")
+      .run(model, nowIso(), id);
+  }
+
+  /** /effort override for one chat binding; validated by the caller against AGENT_EFFORTS. */
+  setBindingEffort(id: number, effort: string): void {
+    this.db
+      .prepare("UPDATE bindings SET effort = ?, updated_at = ? WHERE id = ?")
+      .run(effort, nowIso(), id);
+  }
+
+  /** CAS-reserve an idle binding for the thread sweep; false if a turn grabbed it. */
+  reserveBindingForSweep(id: number): boolean {
+    const res = this.db
+      .prepare("UPDATE bindings SET status = 'sweeping', updated_at = ? WHERE id = ? AND status != 'running'")
+      .run(nowIso(), id);
+    return Number(res.changes) > 0;
   }
 
   /** /delete teardown: jobs + binding in one transaction (deleteAgent precedent). */
@@ -487,6 +645,51 @@ CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id)
     return this.db
       .prepare("SELECT * FROM bindings ORDER BY updated_at DESC")
       .all() as unknown as BindingRow[];
+  }
+
+  listBindingsForChat(kind: ChannelKind, chatId: string, agentId: number | null): BindingRow[] {
+    if (agentId === null) {
+      return this.db
+        .prepare(
+          `SELECT * FROM bindings
+           WHERE channel_kind = ? AND chat_id = ? AND agent_id IS NULL
+           ORDER BY updated_at DESC`,
+        )
+        .all(kind, chatId) as unknown as BindingRow[];
+    }
+    return this.db
+      .prepare(
+        `SELECT * FROM bindings
+         WHERE channel_kind = ? AND chat_id = ? AND agent_id = ?
+         ORDER BY updated_at DESC`,
+      )
+      .all(kind, chatId, agentId) as unknown as BindingRow[];
+  }
+
+  /** Sweep naturally skips plain-mode agents: admitThreadChannel (which sets
+   *  label='task-thread') is only called in thread mode, so plain-mode
+   *  bindings never have a matching allowlist row with that label. */
+  listIdleDiscordTaskThreadBindings(cutoffIso: string): BindingRow[] {
+    return this.db
+      .prepare(
+        `SELECT b.* FROM bindings b
+         WHERE b.channel_kind = 'discord'
+           AND b.updated_at < ?
+           AND b.status != 'running'
+           AND (
+             (b.agent_id IS NULL AND EXISTS (
+               SELECT 1 FROM allowlist a
+               WHERE a.channel_kind = 'discord' AND a.chat_id = b.chat_id AND a.label = 'task-thread'
+             ))
+             OR
+             (b.agent_id IS NOT NULL AND EXISTS (
+               SELECT 1 FROM agent_allowlist aa
+               WHERE aa.agent_id = b.agent_id AND aa.chat_id = b.chat_id AND aa.label = 'task-thread'
+             ))
+           )
+         ORDER BY b.updated_at ASC`,
+      )
+      .all(cutoffIso) as unknown as BindingRow[];
   }
 
   // ── agents (v4) ───────────────────────────────────────
@@ -529,6 +732,9 @@ CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id)
       "heartbeat_minutes",
       "heartbeat_prompt",
       "trigger_prefix",
+      "full_access",
+      "webhook_url",
+      "thread_mode",
     ] as const;
     const sets: string[] = [];
     const values: Array<string | number> = [];
@@ -571,6 +777,7 @@ CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id)
         .run(id);
       this.db.prepare("DELETE FROM bindings WHERE agent_id = ?").run(id);
       this.db.prepare("DELETE FROM agent_allowlist WHERE agent_id = ?").run(id);
+      this.db.prepare("DELETE FROM agent_pairing_codes WHERE agent_id = ?").run(id);
       this.db.prepare("DELETE FROM agents WHERE id = ?").run(id);
       this.db.exec("COMMIT");
     } catch (err) {
@@ -603,26 +810,80 @@ CREATE UNIQUE INDEX idx_bindings_legacy_uniq ON bindings (channel_kind, chat_id)
       .all(agentId, agentId) as unknown as AllowRow[];
   }
 
+  countAgentAllowlist(agentId: number): number {
+    const row = this.db
+      .prepare("SELECT COUNT(*) AS count FROM agent_allowlist WHERE agent_id = ?")
+      .get(agentId) as { count: number } | undefined;
+    return row?.count ?? 0;
+  }
+
   removeAgentAllowlist(agentId: number, chatId: string): void {
     this.db
       .prepare("DELETE FROM agent_allowlist WHERE agent_id = ? AND chat_id = ?")
       .run(agentId, chatId);
   }
 
+  createAgentPairingCode(agentId: number, codeHash: string, ttlSeconds: number): number {
+    const createdAt = Date.now();
+    const expiresAt = createdAt + ttlSeconds * 1000;
+    this.db
+      .prepare("INSERT INTO agent_pairing_codes (agent_id, code_hash, created_at, expires_at) VALUES (?, ?, ?, ?)")
+      .run(agentId, codeHash, createdAt, expiresAt);
+    return expiresAt;
+  }
+
+  consumeAgentPairingCode(agentId: number, codeHash: string): boolean {
+    const now = Date.now();
+    const res = this.db
+      .prepare(
+        `UPDATE agent_pairing_codes
+         SET consumed_at = ?
+         WHERE agent_id = ?
+           AND code_hash = ?
+           AND consumed_at IS NULL
+           AND expires_at > ?`,
+      )
+      .run(now, agentId, codeHash, now);
+    return Number(res.changes) > 0;
+  }
+
+  /** Housekeeping: drop pairing codes that can never be consumed again. */
+  sweepExpiredPairingCodes(): number {
+    const res = this.db
+      .prepare("DELETE FROM agent_pairing_codes WHERE consumed_at IS NOT NULL OR expires_at <= ?")
+      .run(Date.now());
+    return Number(res.changes);
+  }
+
   /** Lookup-first by (agent_id, chat_id); the UNIQUE key is the race backstop. */
-  getOrCreateAgentBinding(agentId: number, kind: ChannelKind, chatId: string, workdir: string): BindingRow {
-    const existing = this.db
-      .prepare("SELECT * FROM bindings WHERE agent_id = ? AND chat_id = ?")
-      .get(agentId, chatId) as BindingRow | undefined;
+  getOrCreateAgentBinding(
+    agentId: number,
+    kind: ChannelKind,
+    chatId: string,
+    workdir: string,
+    topicId: string | null = null,
+  ): BindingRow {
+    const topic = topicId ?? null;
+    const existing = topic === null
+      ? this.db
+        .prepare("SELECT * FROM bindings WHERE agent_id = ? AND chat_id = ? AND topic_id IS NULL")
+        .get(agentId, chatId) as BindingRow | undefined
+      : this.db
+        .prepare("SELECT * FROM bindings WHERE agent_id = ? AND chat_id = ? AND topic_id = ?")
+        .get(agentId, chatId, topic) as BindingRow | undefined;
     if (existing) return existing;
     this.db
       .prepare(
-        "INSERT INTO bindings (channel_kind, chat_id, agent_id, workdir, updated_at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO bindings (channel_kind, chat_id, agent_id, workdir, topic_id, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
       )
-      .run(kind, chatId, agentId, workdir, nowIso());
-    return this.db
-      .prepare("SELECT * FROM bindings WHERE agent_id = ? AND chat_id = ?")
-      .get(agentId, chatId) as unknown as BindingRow;
+      .run(kind, chatId, agentId, workdir, topic, nowIso());
+    return (topic === null
+      ? this.db
+        .prepare("SELECT * FROM bindings WHERE agent_id = ? AND chat_id = ? AND topic_id IS NULL")
+        .get(agentId, chatId)
+      : this.db
+        .prepare("SELECT * FROM bindings WHERE agent_id = ? AND chat_id = ? AND topic_id = ?")
+        .get(agentId, chatId, topic)) as unknown as BindingRow;
   }
 
   openAgentHandshake(id: number, seconds: number): void {

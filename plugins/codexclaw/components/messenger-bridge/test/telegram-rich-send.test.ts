@@ -1,7 +1,7 @@
  /** telegram-rich-send.test.ts — capability-gated rich message dispatch (Phase E1). */
  import { test } from "node:test";
  import assert from "node:assert/strict";
- import { probeRichSupport, sendRichOrFallback, sendDraftProgress } from "../src/telegram-rich-send.ts";
+ import { createDraftProgressState, probeRichSupport, sendRichOrFallback, sendDraftProgress } from "../src/telegram-rich-send.ts";
  import type { TelegramApi, TgResponse, TgMessage, InputRichMessage } from "../src/telegram-api.ts";
  
  // ── Helpers ──────────────────────────────────────────────────────────────
@@ -12,7 +12,7 @@
  }
  
  /** Build a mock TelegramApi that records calls and returns configurable responses. */
- function mockApi(responses: Record<string, TgResponse>): TelegramApi & { calls: CallRecord[] } {
+ function mockApi(responses: Record<string, TgResponse | TgResponse[]>): TelegramApi & { calls: CallRecord[] } {
    const calls: CallRecord[] = [];
    const handler = {
      get(_target: unknown, prop: string) {
@@ -21,7 +21,10 @@
        return (params: Record<string, unknown>) => {
          calls.push({ method: prop, payload: params ?? {} });
          const key = prop;
-         const res = responses[key] ?? { ok: true };
+         const configured = responses[key] ?? { ok: true };
+         const res = Array.isArray(configured)
+           ? (configured.shift() ?? { ok: true })
+           : configured;
          return Promise.resolve(res);
        };
      },
@@ -133,6 +136,24 @@
    assert.equal(draftCalls.length, 1);
    assert.equal(draftCalls[0].payload.chatId ?? draftCalls[0].payload.chat_id, 12345);
  });
+
+ test("sendDraftProgress: default clock does not call Date.now", async () => {
+   const api = mockApi({ sendRichMessageDraft: { ok: true } });
+   const original = Date.now;
+   Date.now = () => {
+     throw new Error("wall clock used");
+   };
+   try {
+     await sendDraftProgress(
+       { api, chatId: "12345", richSupported: true, chatType: "private" },
+       1,
+       "partial progress",
+     );
+   } finally {
+     Date.now = original;
+   }
+   assert.equal(api.calls.filter((c) => c.method === "sendRichMessageDraft").length, 1);
+ });
  
  test("sendDraftProgress: group chat is no-op", async () => {
    const api = mockApi({});
@@ -152,4 +173,61 @@
      "partial progress",
    );
    assert.equal(api.calls.length, 0, "should not call any API method when rich is unsupported");
+ });
+
+ test("sendDraftProgress: throttles draft edits at 1000ms with injectable clock", async () => {
+   const api = mockApi({ sendRichMessageDraft: { ok: true } });
+   const state = createDraftProgressState();
+   let now = 1000;
+   await sendDraftProgress({ api, chatId: "12345", richSupported: true, chatType: "private" }, 1, "one", { state, now: () => now });
+   now = 1500;
+   await sendDraftProgress({ api, chatId: "12345", richSupported: true, chatType: "private" }, 1, "two", { state, now: () => now });
+   now = 2100;
+   await sendDraftProgress({ api, chatId: "12345", richSupported: true, chatType: "private" }, 1, "three", { state, now: () => now });
+   assert.equal(api.calls.filter((c) => c.method === "sendRichMessageDraft").length, 2);
+ });
+
+ test("sendDraftProgress: 429 retry_after suspends edits without sleeping", async () => {
+   const api = mockApi({
+     sendRichMessageDraft: [
+       { ok: false, error_code: 429, description: "Too Many Requests", parameters: { retry_after: 2 } },
+       { ok: true },
+     ],
+   });
+   const state = createDraftProgressState();
+   let now = 1000;
+   await sendDraftProgress({ api, chatId: "12345", richSupported: true, chatType: "private" }, 1, "one", { state, now: () => now });
+   now = 2500;
+   await sendDraftProgress({ api, chatId: "12345", richSupported: true, chatType: "private" }, 1, "two", { state, now: () => now });
+   now = 3100;
+   await sendDraftProgress({ api, chatId: "12345", richSupported: true, chatType: "private" }, 1, "three", { state, now: () => now });
+   assert.equal(api.calls.filter((c) => c.method === "sendRichMessageDraft").length, 2);
+ });
+
+ test("sendDraftProgress: message-is-not-modified counts as success", async () => {
+   const api = mockApi({
+     sendRichMessageDraft: [
+       { ok: false, error_code: 400, description: "Bad Request: message is not modified" },
+       { ok: true },
+     ],
+   });
+   const state = createDraftProgressState();
+   state.consecutiveFailures = 2;
+   let now = 1000;
+   await sendDraftProgress({ api, chatId: "12345", richSupported: true, chatType: "private" }, 1, "same", { state, now: () => now });
+   assert.equal(state.consecutiveFailures, 0);
+   assert.equal(state.disabled, false);
+   now = 2100;
+   await sendDraftProgress({ api, chatId: "12345", richSupported: true, chatType: "private" }, 1, "next", { state, now: () => now });
+   assert.equal(api.calls.filter((c) => c.method === "sendRichMessageDraft").length, 2);
+ });
+
+ test("sendDraftProgress: stops previews after three consecutive failures", async () => {
+   const api = mockApi({ sendRichMessageDraft: { ok: false, error_code: 500, description: "server error" } });
+   const state = createDraftProgressState();
+   for (const now of [1000, 2100, 3200, 4300]) {
+     await sendDraftProgress({ api, chatId: "12345", richSupported: true, chatType: "private" }, 1, "x", { state, now: () => now });
+   }
+   assert.equal(state.disabled, true);
+   assert.equal(api.calls.filter((c) => c.method === "sendRichMessageDraft").length, 3);
  });

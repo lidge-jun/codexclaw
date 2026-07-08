@@ -1,8 +1,9 @@
 /** discord-gateway.test.ts — opcode lifecycle driven by a fake WebSocket. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DiscordGateway, OP, INTENTS, type WsLike } from "../src/discord-gateway.ts";
+import { DiscordGateway, OP, INTENTS, type DiscordGatewayOptions, type WsLike } from "../src/discord-gateway.ts";
 import type { DiscordMessageEvent } from "../src/discord-gateway.ts";
+import type { Interaction } from "../src/discord-interactions.ts";
 
 interface Sent {
   op: number;
@@ -30,11 +31,15 @@ class FakeWs implements WsLike {
   }
 }
 
-function makeGateway(onMessage: (m: DiscordMessageEvent) => void = () => {}) {
+function makeGateway(
+  onMessage: (m: DiscordMessageEvent) => void = () => {},
+  opts: Partial<Pick<DiscordGatewayOptions, "onInteraction" | "onReady">> = {},
+) {
   let ws: FakeWs | null = null;
   const gw = new DiscordGateway({
     token: "tok",
     onMessage,
+    ...opts,
     jitter: () => 0, // fire the first heartbeat immediately
     wsFactory: () => {
       ws = new FakeWs();
@@ -59,6 +64,24 @@ test("Hello → identify with the right intents, then READY", () => {
 
   ws.emit({ op: OP.DISPATCH, t: "READY", s: 1, d: { session_id: "sess-1" } });
   assert.equal(gw.status(), "ready");
+  gw.stop();
+});
+
+test("READY captures application.id and exposes it through onReady + getter", () => {
+  const ready: Array<{ botUserId: string | null; applicationId: string | null }> = [];
+  const { gw, getWs } = makeGateway(() => {}, { onReady: (data) => ready.push(data) });
+  gw.connect();
+  const ws = getWs();
+  ws.emit({ op: OP.HELLO, d: { heartbeat_interval: 30 } });
+  ws.emit({
+    op: OP.DISPATCH,
+    t: "READY",
+    s: 1,
+    d: { session_id: "sess-1", user: { id: "bot-1" }, application: { id: "app-1" } },
+  });
+  assert.equal(gw.botUserId(), "bot-1");
+  assert.equal(gw.applicationId(), "app-1");
+  assert.deepEqual(ready, [{ botUserId: "bot-1", applicationId: "app-1" }]);
   gw.stop();
 });
 
@@ -96,7 +119,48 @@ test("MESSAGE_CREATE dispatch surfaces a normalized event", () => {
     isBot: false,
     guildId: "g1",
     messageReference: null,
+    attachments: [],
   });
+  gw.stop();
+});
+
+test("MESSAGE_CREATE dispatch includes normalized attachments", () => {
+  const seen: DiscordMessageEvent[] = [];
+  const { gw, getWs } = makeGateway((m) => seen.push(m));
+  gw.connect();
+  const ws = getWs();
+  ws.emit({ op: OP.HELLO, d: { heartbeat_interval: 30 } });
+  ws.emit({
+    op: OP.DISPATCH,
+    t: "MESSAGE_CREATE",
+    s: 2,
+    d: {
+      id: "m1",
+      content: "see file",
+      channel_id: "c1",
+      author: { id: "u1", bot: false },
+      attachments: [{ id: "a1", filename: "note.txt", url: "https://cdn.example/note.txt", content_type: "text/plain", size: 5 }],
+    },
+  });
+  assert.deepEqual(seen[0].attachments, [
+    { id: "a1", filename: "note.txt", url: "https://cdn.example/note.txt", content_type: "text/plain", size: 5 },
+  ]);
+  gw.stop();
+});
+
+test("INTERACTION_CREATE dispatch surfaces the raw interaction", () => {
+  const seen: Interaction[] = [];
+  const { gw, getWs } = makeGateway(() => {}, { onInteraction: (interaction) => seen.push(interaction) });
+  gw.connect();
+  const ws = getWs();
+  ws.emit({ op: OP.HELLO, d: { heartbeat_interval: 30 } });
+  ws.emit({
+    op: OP.DISPATCH,
+    t: "INTERACTION_CREATE",
+    s: 2,
+    d: { id: "i1", type: 2, token: "tok", channel_id: "c1", data: { name: "ask" } },
+  });
+  assert.deepEqual(seen, [{ id: "i1", type: 2, token: "tok", channel_id: "c1", data: { name: "ask" } }]);
   gw.stop();
 });
 

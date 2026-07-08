@@ -1,0 +1,485 @@
+ <!DOCTYPE html>
+ <html lang="ko">
+ <head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Scroll-driven motion effects showcase">
+ <title>Scroll-Driven Showcase</title>
+ <style>
+ :root {
+   --bg: #080808;
+   --fg: #ebebeb;
+   --muted: #555;
+   --accent: #4f8cff;
+   --accent2: #a855f7;
+   --surface: #111;
+   --border: #1a1a1a;
+ }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .reveal-word { opacity: 1 !important; }
+}
+ * { margin: 0; padding: 0; box-sizing: border-box; }
+ html { scroll-behavior: smooth; }
+ body {
+   font-family: -apple-system, BlinkMacSystemFont, 'Pretendard Variable', system-ui, sans-serif;
+   background: var(--bg); color: var(--fg);
+   line-height: 1.6; -webkit-font-smoothing: antialiased;
+ }
+ 
+ /* ── Progress ── */
+ .progress { position: fixed; top: 0; left: 0; width: 100%; height: 2px; z-index: 200; transform-origin: left; transform: scaleX(0); background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+ 
+ /* ── Nav ── */
+ .nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 1.2rem 2rem; display: flex; justify-content: space-between; align-items: center; transition: background 0.3s ease; }
+ .nav.scrolled { background: rgba(8,8,8,0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: 0 1px 0 rgba(255,255,255,0.04); }
+ .nav-brand { font-size: 0.85rem; font-weight: 600; letter-spacing: 0; }
+ .nav-links { display: flex; gap: 2rem; font-size: 0.78rem; color: var(--muted); }
+ .nav-links span { cursor: pointer; transition: color 0.2s; }
+ .nav-links span:hover { color: var(--fg); }
+ 
+ /* ── Hero ── */
+ .hero { min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 2rem; padding-top: 5rem; position: relative; overflow: hidden; }
+ .hero-bg { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 60%, rgba(79,140,255,0.06) 0%, transparent 55%); pointer-events: none; }
+ .hero h1 { font-size: clamp(3rem, 7vw, 6rem); font-weight: 700; letter-spacing: 0; line-height: 1.05; text-wrap: balance; max-width: 14ch; }
+ .hero h1 .accent { background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+ .hero-sub { margin-top: 1.5rem; font-size: clamp(1rem, 1.8vw, 1.2rem); color: var(--muted); max-width: 36ch; text-wrap: balance; }
+ .hero-scroll { position: absolute; bottom: 2.5rem; width: 24px; height: 40px; border: 1.5px solid var(--muted); border-radius: 12px; display: flex; justify-content: center; }
+ .hero-scroll::after { content: ''; width: 3px; height: 8px; background: var(--muted); border-radius: 2px; margin-top: 6px; animation: scrollDot 2s infinite; }
+ @keyframes scrollDot { 0%,100% { opacity: 1; transform: translateY(0); } 50% { opacity: 0.3; transform: translateY(12px); } }
+ 
+ /* ── Section Label ── */
+ .section-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0; color: var(--accent); font-weight: 600; margin-bottom: 1rem; }
+ 
+ /* ── Text Reveal ── */
+ .text-reveal-section { min-height: 200vh; position: relative; }
+ .text-reveal-sticky { position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 2rem; }
+ .reveal-word { display: inline-block; opacity: 0.08; transition: opacity 0.15s ease; font-size: clamp(1.2rem, 3vw, 2.8rem); font-weight: 600; line-height: 1.5; margin: 0 0.15em; }
+ .reveal-word.lit { opacity: 1; }
+ .reveal-container { max-width: 720px; text-align: center; text-wrap: balance; }
+ 
+ /* ── Frame Sequence ── */
+ .frame-section { position: relative; height: 500vh; }
+ .frame-sticky { position: sticky; top: 0; height: 100dvh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+ .frame-canvas { width: min(92vw, 1100px); aspect-ratio: 16/9; border-radius: 16px; background: var(--surface); }
+ .frame-info { position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%); display: flex; gap: 1.5rem; align-items: center; }
+ .frame-badge { font-family: ui-monospace, monospace; font-size: 0.7rem; color: var(--muted); background: rgba(8,8,8,0.7); backdrop-filter: blur(8px); padding: 0.3rem 0.7rem; border-radius: 4px; border: 1px solid var(--border); }
+ .frame-caption { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: clamp(1.4rem, 3vw, 2.4rem); font-weight: 700; color: white; text-align: center; text-wrap: balance; opacity: 0; transition: opacity 0.5s ease; pointer-events: none; text-shadow: 0 2px 20px rgba(0,0,0,0.5); }
+ .frame-caption.visible { opacity: 1; }
+ 
+ /* ── Horizontal Scroll ── */
+ .hscroll-section { position: relative; height: 400vh; }
+ .hscroll-sticky { position: sticky; top: 0; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; justify-content: center; padding-top: 5rem; }
+ .hscroll-header { text-align: center; margin-bottom: 2.5rem; padding: 0 2rem; }
+ .hscroll-header h2 { font-size: clamp(1.8rem, 3.5vw, 2.6rem); font-weight: 700; margin-bottom: 0.5rem; }
+ .hscroll-header p { color: var(--muted); font-size: 0.95rem; }
+ .hscroll-track { display: flex; gap: 24px; padding: 0 max(2rem, calc((100vw - 1200px)/2)); will-change: transform; }
+ .hscroll-card { flex: 0 0 min(80vw, 420px); height: min(55vh, 480px); border-radius: 16px; padding: 2rem; display: flex; flex-direction: column; justify-content: flex-end; position: relative; overflow: hidden; }
+ .hscroll-card::before { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%); z-index: 1; }
+ .hscroll-card > * { position: relative; z-index: 2; }
+ .hscroll-card h3 { font-size: 1.3rem; font-weight: 600; margin-bottom: 0.4rem; }
+ .hscroll-card p { font-size: 0.85rem; color: rgba(255,255,255,0.7); line-height: 1.5; }
+ .hscroll-card .tag { font-size: 0.65rem; padding: 0.2rem 0.5rem; border-radius: 3px; background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.8); margin-bottom: 0.8rem; display: inline-block; }
+ .card-c1 { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
+ .card-c2 { background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 50%, #4a1d8e 100%); }
+ .card-c3 { background: linear-gradient(135deg, #0a2e1a 0%, #1b4e2d 50%, #1d8e4a 100%); }
+ .card-c4 { background: linear-gradient(135deg, #2e1a0a 0%, #4e2d1b 50%, #8e4a1d 100%); }
+ .card-c5 { background: linear-gradient(135deg, #2e0a1a 0%, #4e1b2d 50%, #8e1d4a 100%); }
+ .card-c6 { background: linear-gradient(135deg, #0a1a2e 0%, #1b3d4e 50%, #1d6e8e 100%); }
+ 
+ /* ── Stacking Cards ── */
+ .stack-section { padding: 0 2rem; max-width: 800px; margin: 0 auto; }
+ .stack-header { text-align: center; padding: 6rem 0 3rem; }
+ .stack-header h2 { font-size: clamp(1.8rem, 3.5vw, 2.6rem); font-weight: 700; margin-bottom: 0.5rem; }
+ .stack-header p { color: var(--muted); font-size: 0.95rem; }
+ .stack-container { position: relative; padding-bottom: 40vh; }
+ .stack-card { position: sticky; top: 15vh; border-radius: 16px; padding: 2.5rem; min-height: 320px; display: flex; flex-direction: column; justify-content: center; margin-bottom: 3rem; border: 1px solid var(--border); }
+ .stack-card h3 { font-size: 1.3rem; font-weight: 600; margin-bottom: 0.75rem; }
+ .stack-card p { font-size: 0.9rem; color: var(--muted); line-height: 1.7; max-width: 52ch; }
+ .stack-card .num { font-size: 4rem; font-weight: 700; opacity: 0.06; position: absolute; top: 1.5rem; right: 2rem; }
+ .sc1 { background: linear-gradient(135deg, #0d1117, #161b22); z-index: 1; }
+ .sc2 { background: linear-gradient(135deg, #0d1117, #1a1625); z-index: 2; top: 18vh; }
+ .sc3 { background: linear-gradient(135deg, #0d1117, #15201a); z-index: 3; top: 21vh; }
+ .sc4 { background: linear-gradient(135deg, #0d1117, #201a15); z-index: 4; top: 24vh; }
+ 
+ /* ── Parallax Band ── */
+ .parallax-band { position: relative; height: 60vh; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+ .parallax-bg { position: absolute; inset: -20% 0; background: linear-gradient(160deg, #0a0a1a 0%, #1a0a2a 40%, #0a1a2a 100%); will-change: transform; }
+ .parallax-content { position: relative; z-index: 1; text-align: center; padding: 2rem; }
+ .parallax-content h2 { font-size: clamp(2rem, 4vw, 3.2rem); font-weight: 700; margin-bottom: 1rem; }
+ .parallax-content p { font-size: 1rem; color: var(--muted); max-width: 42ch; margin: 0 auto; text-wrap: balance; }
+ .parallax-dots { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+ .pdot { position: absolute; border-radius: 50%; background: rgba(79,140,255,0.08); }
+ 
+ /* ── Footer ── */
+ footer { text-align: center; padding: 6rem 2rem; border-top: 1px solid var(--border); }
+ footer p { color: var(--muted); font-size: 0.8rem; }
+ footer .footer-tag { font-size: 0.65rem; margin-top: 0.5rem; color: #333; }
+ 
+ /* ── Responsive ── */
+ @media (max-width: 640px) {
+   .nav-links { display: none; }
+   .hscroll-card { flex: 0 0 85vw; height: 380px; }
+   .stack-card { min-height: 260px; padding: 1.8rem; }
+   .frame-canvas { border-radius: 0; width: 100vw; }
+ }
+ </style>
+ </head>
+ <body>
+ 
+ <div class="progress" id="progress" role="progressbar" aria-label="Page scroll progress"></div>
+ 
+ <nav class="nav" id="nav" aria-label="Main navigation">
+   <div class="nav-brand">Scroll Showcase</div>
+   <div class="nav-links">
+     <span tabindex="0" onclick="document.getElementById('frameSection').scrollIntoView({behavior:'smooth'})">Sequence</span>
+     <span tabindex="0" onclick="document.getElementById('hscrollSection').scrollIntoView({behavior:'smooth'})">Effects</span>
+     <span tabindex="0" onclick="document.querySelector('.stack-section').scrollIntoView({behavior:'smooth'})">Pipeline</span>
+   </div>
+ </nav>
+ 
+ <main>
+<!-- ═══ Hero ═══ -->
+ <section class="hero">
+   <div class="hero-bg"></div>
+   <h1>Scroll-Driven <span class="accent">Motion</span></h1>
+   <p class="hero-sub">AI 이미지 생성부터 프레임 시퀀스, 수평 스크롤, 스태킹 카드까지</p>
+   <div class="hero-scroll" aria-hidden="true"></div>
+ </section>
+ 
+ <!-- ═══ Text Reveal ═══ -->
+ <section class="text-reveal-section" id="textReveal">
+   <div class="text-reveal-sticky">
+     <div class="section-label">Text Reveal on Scroll</div>
+     <div class="reveal-container" id="revealContainer"></div>
+   </div>
+ </section>
+ 
+ <!-- ═══ Frame Sequence ═══ -->
+ <section class="frame-section" id="frameSection">
+   <div class="frame-sticky">
+     <canvas class="frame-canvas" id="frameCanvas" width="1100" height="619" role="img" aria-label="Scroll-driven frame sequence animation"></canvas>
+     <div class="frame-caption" id="frameCap1">GPT Image로 키프레임 생성</div>
+     <div class="frame-caption" id="frameCap2">Grok Video 1.5로 모션화</div>
+     <div class="frame-caption" id="frameCap3">프레임 시퀀스로 분할</div>
+     <div class="frame-info">
+       <div class="frame-badge" id="frameCounter">001 / 180</div>
+       <div class="frame-badge" id="frameLabel">Canvas Scrub</div>
+     </div>
+   </div>
+ </section>
+ 
+ <!-- ═══ Horizontal Scroll ═══ -->
+ <section class="hscroll-section" id="hscrollSection">
+   <div class="hscroll-sticky">
+     <div class="hscroll-header">
+       <div class="section-label">Horizontal Scroll-in-Vertical</div>
+       <h2>스크롤 드리븐 효과 카탈로그</h2>
+       <p>수직 스크롤이 수평 이동으로 변환됩니다</p>
+     </div>
+     <div class="hscroll-track" id="hscrollTrack">
+       <div class="hscroll-card card-c1">
+         <span class="tag">Level 8+</span>
+         <h3>Frame Sequence</h3>
+         <p>Canvas에 이미지 시퀀스를 그려 스크롤 위치에 1:1 매핑. Apple 제품 페이지의 정석 패턴.</p>
+       </div>
+       <div class="hscroll-card card-c2">
+         <span class="tag">Level 8+</span>
+         <h3>Horizontal Scroll</h3>
+         <p>sticky + translateX로 수직 스크롤을 수평 이동으로 변환. 스토리텔링에 적합.</p>
+       </div>
+       <div class="hscroll-card card-c3">
+         <span class="tag">Level 7+</span>
+         <h3>Sticky Stacking</h3>
+         <p>position: sticky로 카드가 순차적으로 쌓이는 효과. 네이티브 CSS만으로 구현 가능.</p>
+       </div>
+       <div class="hscroll-card card-c4">
+         <span class="tag">Level 8+</span>
+         <h3>Text Mask Reveal</h3>
+         <p>텍스트가 스크롤에 따라 순차적으로 밝아지며 드러나는 에디토리얼 효과.</p>
+       </div>
+       <div class="hscroll-card card-c5">
+         <span class="tag">Level 7+</span>
+         <h3>SVG Path Drawing</h3>
+         <p>stroke-dashoffset을 스크롤에 연동해 SVG 패스가 그려지는 효과.</p>
+       </div>
+       <div class="hscroll-card card-c6">
+         <span class="tag">CSS Native</span>
+         <h3>Scroll-Driven CSS</h3>
+         <p>animation-timeline: scroll()로 JS 없이 스크롤 연동 애니메이션. 83% 브라우저 지원.</p>
+       </div>
+     </div>
+   </div>
+ </section>
+ 
+ <!-- ═══ Stacking Cards ═══ -->
+ <section class="stack-section">
+   <div class="stack-header">
+     <div class="section-label">Sticky Card Stacking</div>
+     <h2>AI 모션 그래픽 파이프라인</h2>
+     <p>이미지 생성에서 웹 스크롤 액션까지 4단계</p>
+   </div>
+   <div class="stack-container">
+     <div class="stack-card sc1">
+       <div class="num">01</div>
+       <h3>키프레임 이미지 생성</h3>
+       <p>GPT Image, Grok Aurora, Midjourney 등으로 시작 프레임을 생성합니다. 직접 촬영하거나 제작한 이미지도 사용 가능합니다. ima2 gen 명령어로 CLI에서 바로 생성할 수 있습니다.</p>
+     </div>
+     <div class="stack-card sc2">
+       <div class="num">02</div>
+       <h3>비디오 모션화</h3>
+       <p>Grok Video 1.5로 이미지를 모션화합니다. 최대 1080p, 15초, ref 이미지 7장까지 지원. ima2 video 명령어로 image-to-video 변환이 가능합니다.</p>
+     </div>
+     <div class="stack-card sc3">
+       <div class="num">03</div>
+       <h3>프레임 시퀀스 추출</h3>
+       <p>ffmpeg로 비디오를 개별 WebP 프레임으로 분할합니다. 프레임 수, 해상도, 포맷을 용도에 맞게 조절합니다. Apple 방식의 체크포인트 로딩으로 최적화합니다.</p>
+     </div>
+     <div class="stack-card sc4">
+       <div class="num">04</div>
+       <h3>웹 스크롤 액션 구현</h3>
+       <p>Canvas API로 프레임 시퀀스를 스크롤 진행률에 매핑하거나, CSS scroll-driven animation으로 sprite sheet를 연동합니다. sticky 컨테이너 안에서 재생됩니다.</p>
+     </div>
+   </div>
+ </section>
+ 
+ <!-- ═══ Parallax Band ═══ -->
+ <section class="parallax-band" id="parallaxBand">
+   <div class="parallax-bg" id="parallaxBg"></div>
+   <div class="parallax-dots" id="parallaxDots"></div>
+   <div class="parallax-content">
+     <h2>네이티브 CSS 시대</h2>
+     <p>animation-timeline: scroll()로 JS 스크롤 리스너 없이 컴포지터 스레드에서 실행. Tokopedia 사례: CPU 50% -> 2%.</p>
+   </div>
+ </section>
+ 
+ </main>
+<footer>
+   <p>Scroll-Driven Motion Showcase</p>
+   <p class="footer-tag">Built with vanilla HTML/CSS/JS</p>
+ </footer>
+ 
+ <script>
+ (() => {
+   'use strict';
+ 
+   /* ── Utilities ── */
+   const $ = s => document.querySelector(s);
+   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+   const progress = $('#progress');
+   const nav = $('#nav');
+ 
+   /* ── Text Reveal ── */
+   const revealText = '스크롤 위치에 따라 텍스트가 순차적으로 드러나는 효과입니다. 각 단어의 투명도가 스크롤 진행률에 매핑되어 자연스러운 리딩 경험을 만듭니다. CSS animation-timeline: view()로도 구현할 수 있지만, 단어 단위 세밀한 제어에는 JavaScript가 유리합니다.';
+   const revealContainer = $('#revealContainer');
+   const words = revealText.split(/\s+/);
+   words.forEach(w => {
+     const span = document.createElement('span');
+     span.className = 'reveal-word';
+     span.textContent = w;
+     revealContainer.appendChild(span);
+     revealContainer.appendChild(document.createTextNode(' '));
+   });
+   const wordEls = revealContainer.querySelectorAll('.reveal-word');
+   const textSection = $('#textReveal');
+ 
+   /* ── Frame Sequence ── */
+   const TOTAL = 180;
+   const CW = 1100, CH = 619;
+   const canvas = $('#frameCanvas');
+   const ctx = canvas.getContext('2d');
+   const frameSection = $('#frameSection');
+   const frameCounter = $('#frameCounter');
+   const frameCap1 = $('#frameCap1');
+   const frameCap2 = $('#frameCap2');
+   const frameCap3 = $('#frameCap3');
+   const frames = [];
+ 
+   function genFrames() {
+     for (var i = 0; i < TOTAL; i++) {
+       var t = i / (TOTAL - 1);
+       var off = new OffscreenCanvas(CW, CH);
+       var c = off.getContext('2d');
+       drawFrame(c, t, i);
+       frames.push(off);
+     }
+   }
+ 
+   function drawFrame(c, t, idx) {
+     var h1 = 210 + t * 60, h2 = 230 + t * 80;
+     var g = c.createLinearGradient(0, 0, CW, CH);
+     g.addColorStop(0, 'hsl(' + h1 + ',18%,7%)');
+     g.addColorStop(1, 'hsl(' + h2 + ',22%,4%)');
+     c.fillStyle = g;
+     c.fillRect(0, 0, CW, CH);
+ 
+     /* Grid */
+     c.strokeStyle = 'rgba(255,255,255,0.02)';
+     c.lineWidth = 0.5;
+     var sp = 50, off = (t * sp * 3) % sp;
+     for (var x = off; x < CW; x += sp) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, CH); c.stroke(); }
+     for (var y = off; y < CH; y += sp) { c.beginPath(); c.moveTo(0, y); c.lineTo(CW, y); c.stroke(); }
+ 
+     var cx = CW / 2, cy = CH / 2, angle = t * Math.PI * 2.5;
+ 
+     /* Glow rings */
+     for (var r = 0; r < 3; r++) {
+       var radius = 100 + r * 60 + Math.sin(t * Math.PI * 2 + r) * 20;
+       c.beginPath();
+       c.arc(cx, cy, radius, 0, Math.PI * 2);
+       c.strokeStyle = 'rgba(79,140,255,' + (0.04 + r * 0.02) + ')';
+       c.lineWidth = 1;
+       c.stroke();
+     }
+ 
+     /* Central shape */
+     c.save();
+     c.translate(cx, cy);
+     c.rotate(angle * 0.2);
+     var sc = 0.7 + Math.sin(t * Math.PI) * 0.3;
+     var w = 200 * sc, h = 140 * sc;
+ 
+     /* Shadow */
+     var sg = c.createRadialGradient(0, 30, 10, 0, 30, w);
+     sg.addColorStop(0, 'rgba(0,0,0,0.3)');
+     sg.addColorStop(1, 'transparent');
+     c.fillStyle = sg;
+     c.fillRect(-w, 0, w * 2, w);
+ 
+     /* Main block */
+     c.beginPath();
+     c.roundRect(-w/2, -h/2, w, h, 20);
+     var bg = c.createLinearGradient(-w/2, -h/2, w/2, h/2);
+     var bh = 220 + t * 100;
+     bg.addColorStop(0, 'hsl(' + bh + ',55%,48%)');
+     bg.addColorStop(1, 'hsl(' + (bh + 50) + ',45%,38%)');
+     c.fillStyle = bg;
+     c.fill();
+ 
+     /* Shine */
+     c.beginPath();
+     c.roundRect(-w/2 + 3, -h/2 + 3, w - 6, h/2 - 6, [16,16,8,8]);
+     c.fillStyle = 'rgba(255,255,255,0.06)';
+     c.fill();
+ 
+     /* Inner detail */
+     c.strokeStyle = 'rgba(255,255,255,' + (0.1 + Math.sin(t * Math.PI * 4) * 0.08) + ')';
+     c.lineWidth = 0.8;
+     c.beginPath();
+     c.roundRect(-w/2 + 14, -h/2 + 14, w - 28, h - 28, 10);
+     c.stroke();
+     c.restore();
+ 
+     /* Orbiting particles */
+     for (var k = 0; k < 5; k++) {
+       var a = angle + k * Math.PI * 2 / 5;
+       var pr = 160 + Math.sin(t * Math.PI * 3 + k * 1.5) * 30;
+       var px = cx + Math.cos(a) * pr;
+       var py = cy + Math.sin(a) * pr * 0.45;
+       var ds = 3 + Math.sin(t * Math.PI * 5 + k * 2) * 2;
+       c.beginPath();
+       c.arc(px, py, ds, 0, Math.PI * 2);
+       var dh = 200 + k * 30 + t * 80;
+       c.fillStyle = 'hsla(' + dh + ',50%,60%,' + (0.5 + k * 0.1) + ')';
+       c.fill();
+       /* Trail */
+       c.beginPath();
+       c.moveTo(px, py);
+       var tx = cx + Math.cos(a - 0.3) * (pr - 10);
+       var ty = cy + Math.sin(a - 0.3) * (pr - 10) * 0.45;
+       c.lineTo(tx, ty);
+       c.strokeStyle = 'rgba(79,140,255,0.06)';
+       c.lineWidth = 1;
+       c.stroke();
+     }
+ 
+     /* Frame watermark */
+     c.fillStyle = 'rgba(255,255,255,0.04)';
+     c.font = '500 10px ui-monospace, monospace';
+     c.textAlign = 'left';
+     c.fillText('F' + String(idx + 1).padStart(3, '0'), 20, CH - 20);
+   }
+ 
+   /* ── Horizontal Scroll ── */
+   var hscrollSection = $('#hscrollSection');
+   var hscrollTrack = $('#hscrollTrack');
+ 
+   /* ── Parallax Dots ── */
+   var dotsContainer = $('#parallaxDots');
+   for (var d = 0; d < 12; d++) {
+     var dot = document.createElement('div');
+     dot.className = 'pdot';
+     var size = 40 + Math.random() * 120;
+     dot.style.cssText = 'width:' + size + 'px;height:' + size + 'px;left:' + (Math.random() * 100) + '%;top:' + (Math.random() * 100) + '%;opacity:' + (0.3 + Math.random() * 0.4);
+     dotsContainer.appendChild(dot);
+   }
+   var parallaxBg = $('#parallaxBg');
+ 
+   /* ── Main scroll handler ── */
+   var curFrame = -1;
+   var ticking = false;
+ 
+   function onScroll() {
+     if (ticking) return;
+     ticking = true;
+     requestAnimationFrame(update);
+   }
+ 
+   function update() {
+     ticking = false;
+     var scrollY = window.scrollY;
+     var docH = document.documentElement.scrollHeight - window.innerHeight;
+     var pageP = scrollY / docH;
+     progress.style.transform = 'scaleX(' + pageP + ')';
+ 
+     /* Nav background */
+     nav.classList.toggle('scrolled', scrollY > 60);
+ 
+     /* Text reveal */
+     var tr = textSection.getBoundingClientRect();
+     var tp = clamp(-tr.top / (tr.height - window.innerHeight), 0, 1);
+     var totalWords = wordEls.length;
+     var litCount = Math.floor(tp * totalWords * 1.2);
+     for (var i = 0; i < totalWords; i++) {
+       wordEls[i].classList.toggle('lit', i < litCount);
+     }
+ 
+     /* Frame sequence */
+     var fr = frameSection.getBoundingClientRect();
+     var fp = clamp(-fr.top / (fr.height - window.innerHeight), 0, 1);
+     var fi = Math.min(TOTAL - 1, Math.floor(fp * TOTAL));
+     if (fi !== curFrame && fi >= 0 && fi < TOTAL) {
+       curFrame = fi;
+       ctx.drawImage(frames[fi], 0, 0);
+       frameCounter.textContent = String(fi + 1).padStart(3, '0') + ' / ' + TOTAL;
+     }
+     frameCap1.classList.toggle('visible', fp > 0.02 && fp < 0.25);
+     frameCap2.classList.toggle('visible', fp > 0.3 && fp < 0.55);
+     frameCap3.classList.toggle('visible', fp > 0.6 && fp < 0.85);
+ 
+     /* Horizontal scroll */
+     var hr = hscrollSection.getBoundingClientRect();
+     var hp = clamp(-hr.top / (hr.height - window.innerHeight), 0, 1);
+     var maxTravel = hscrollTrack.scrollWidth - window.innerWidth;
+     hscrollTrack.style.transform = 'translateX(' + (-maxTravel * hp) + 'px)';
+ 
+     /* Parallax */
+     var pr = document.getElementById('parallaxBand').getBoundingClientRect();
+     var pp = (pr.top / window.innerHeight);
+     parallaxBg.style.transform = 'translateY(' + (pp * 40) + 'px)';
+   }
+ 
+   /* ── Init ── */
+   genFrames();
+   ctx.drawImage(frames[0], 0, 0);
+   window.addEventListener('scroll', onScroll, { passive: true });
+   update();
+ })();
+ </script>
+ </body>
+ </html>

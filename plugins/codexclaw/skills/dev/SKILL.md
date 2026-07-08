@@ -518,3 +518,40 @@ When multiple skills are active, token consumption grows quickly. Always read
 active `SKILL.md` files, read `references/` only when the task touches that
 topic, and do not preload unrelated references (HEURISTIC). Each subagent gets
 its own active-skill context, so load only what the sub-task needs.
+
+---
+
+## 9. Skill Discovery (DEV-SKILL-DISCOVERY-01, DEFAULT)
+
+When a task needs a capability or domain workflow not covered by the loaded
+codexclaw skills, search external skill catalogs before hand-rolling logic.
+
+**Catalog priority:**
+
+| Priority | Source | CLI flag | Notes |
+|----------|--------|----------|-------|
+| 1st | **jaw** (cli-jaw-skills) | `--source jaw` (default) | Curated, tested, adapter-compatible |
+| 2nd | **clawhub** | `--source clawhub` | Community catalog, larger but unvetted |
+| 3rd | **hermes** | `--source hermes` | Experimental, sparse |
+
+**Quick path (no search needed):** browse `references/skill-catalog.md` for
+the full cli-jaw skill list, organized by domain with active/reference status.
+If the skill you need is listed there, load it directly.
+
+**Search path:**
+
+```bash
+cxc skill search <query>                # searches jaw (default, 1st-class)
+cxc skill search <query> --source all   # jaw + clawhub + hermes
+cxc skill show <id>                     # loads the skill with adapter preamble
+```
+
+**Rules:**
+- Try jaw first. Fall back to clawhub only when jaw has no match.
+- External skills get the adapter preamble automatically (`cxc skill show`
+  prepends it). cxc-dev discipline always wins on conflict.
+- Do not preload external skills speculatively. Load one when the task clearly
+  needs it, then follow its SKILL.md instructions.
+- If the skill name collides with a codexclaw built-in (dev-*, search, recall,
+  pabcd, loop), the built-in is authoritative; use the external as supplementary
+  reference only.

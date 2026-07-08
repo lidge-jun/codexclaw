@@ -94,4 +94,44 @@ border: 1px solid #999; border-radius: 8px;
 ```
 **Use:** Onboarding for non-technical users, music/audio apps, nostalgic products. **Avoid:** Developer tools, dashboards, SaaS, responsive layouts.
 
+### 1.12 Liquid Glass (Apple, 2025-2026)
+Glassmorphism's successor as a SYSTEM material, not a card style (Apple HIG
+Materials, verified 2026-07-07). Dynamic translucent layer reserved for
+floating controls/navigation; content scrolls beneath and peeks through.
+Adapts to context and user settings (reduced transparency, increased
+contrast). Two variants: `regular` (blur + luminosity backing; text-safe)
+and `clear` (no blur; only over rich media).
+```css
+background: color-mix(in oklab, canvas 55%, transparent);
+backdrop-filter: blur(16px) saturate(1.4);
+border: 1px solid rgba(255,255,255,0.18); border-radius: 16px;
+box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+```
+**Judgment gate vs 1.3 Glassmorphism:** 1.3 styles individual cards over
+colorful backgrounds; Liquid Glass is a two-layer hierarchy decision —
+functional chrome floats as glass, content NEVER does. If someone asks for
+"glass cards" in the content layer, that is 1.3 (and usually slop); reserve
+Liquid Glass for sticky headers, tab bars, sidebars, floating toolbars,
+players. A blur-free variant (near-opaque pills over photographic/pastel
+washes) delivers the same 2026 language at lower cost.
+**Use:** macOS/iOS-aligned products, media-rich consumer apps, floating chrome over scrollable content. **Avoid:** content-layer cards, text-heavy reading surfaces, data-dense dashboards, low-powered targets.
+Implementation recipes, perf budget, and a11y gates: `dev-frontend/references/core/liquid-glass.md`.
+
+### 1.13 Liquid Editorial (2026 no-brief default kit)
+The composite kit behind SKILL.md §1 UX-DEFAULT-ISM-01 (decided 2026-07-07
+from Tier-2 trend research: Apple Liquid Glass 2025-06-09 announcement + HIG
+restraint guidance; Figma/Creative Bloq/Fireart 2026 forecasts naming
+expressive typography, tactile anti-AI texture, and authored color as the
+premium direction). Editorial type-led structure carrying a Liquid Glass
+accent layer — the "fancy" lives in the chrome, the authorship in the type.
+```css
+/* signature: oversized authored headline + tactile wash + pill chrome */
+h1 { font-size: clamp(2.5rem, 8vw, 6rem); letter-spacing: 0; text-wrap: balance; }
+.wash { background: url(texture-or-photo) / oklch-tinted pastel; }
+.chrome { border-radius: 9999px; background: rgb(255 255 255 / .92); } /* or glass-regular on nav */
+:root { --accent: oklch(0.6 0.2 <one hue>); }
+```
+**Use:** no-brief expressive surfaces (landing, consumer, creative, AI-product) as a stated assumption. **Avoid:** any quiet/repeated-work domain; briefs that name another direction; reusing it so uniformly that it becomes the new generic default — vary texture, hue, and the single signature motion per project.
+Related: 1.12 (material rules), `product-personalities.md` Aside profile (chip vocabulary), `dev-frontend` `liquid-glass.md` + `motion.md` (implementation).
+
 ---

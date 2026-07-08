@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   api,
   AGENT_EFFORTS,
@@ -12,7 +12,10 @@ import { ModelSelect } from "../components/ModelSelect.tsx";
 import { Badge, Button, EmptyState, Field, Loading, Modal, StatusDot, Switch } from "../ui/kit.tsx";
 import { Icon } from "../ui/icons.tsx";
 import { toast } from "../ui/toast.tsx";
-import { PairingPane, type BotIdentity, type HandshakeAdapter } from "../components/pairing.tsx";
+import { PairingPane, TestSendAction, type BotIdentity, type HandshakeAdapter } from "../components/pairing.tsx";
+import { HelpDrawer, HelpTopicButton, useHelp } from "../ui/help.tsx";
+
+const AGENT_PAIRING_LINK_SECONDS = 600;
 
 function statusDot(status: string): "ok" | "warn" | "off" {
   if (status === "running") return "warn";
@@ -42,6 +45,8 @@ export function AgentsPage() {
   const [creating, setCreating] = useState(false);
   const [settingsFor, setSettingsFor] = useState<AgentInfo | null>(null);
   const [pairingFor, setPairingFor] = useState<AgentInfo | null>(null);
+  const [modeFor, setModeFor] = useState<AgentInfo | null>(null);
+  const { helpOpen, helpTopic, openHelp, closeHelp } = useHelp("agents");
 
   const refresh = async () => {
     const [a, b] = await Promise.all([api.getAgents(), api.getBindings()]);
@@ -58,6 +63,10 @@ export function AgentsPage() {
 
   return (
     <>
+      <div className="page-header">
+        <span className="page-header-title">Agents</span>
+        <HelpTopicButton topic="agents" onOpen={openHelp} />
+      </div>
       <div className="page-head">
         <div>
           <h1>Agents</h1>
@@ -90,6 +99,7 @@ export function AgentsPage() {
                 onChanged={refresh}
                 onSettings={() => setSettingsFor(a)}
                 onPair={() => setPairingFor(a)}
+                onMode={() => setModeFor(a)}
               />
             ))}
           </div>
@@ -117,6 +127,14 @@ export function AgentsPage() {
           onChanged={refresh}
         />
       ) : null}
+      {modeFor ? (
+        <AgentModeModal
+          agent={modeFor}
+          onClose={() => setModeFor(null)}
+          onChanged={refresh}
+        />
+      ) : null}
+      <HelpDrawer open={helpOpen} topic={helpTopic} onClose={closeHelp} />
     </>
   );
 }
@@ -126,11 +144,13 @@ function AgentRow({
   onChanged,
   onSettings,
   onPair,
+  onMode,
 }: {
   agent: AgentInfo;
   onChanged: () => Promise<void>;
   onSettings: () => void;
   onPair: () => void;
+  onMode: () => void;
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -187,6 +207,15 @@ function AgentRow({
               <Badge><StatusDot status="warn" /> unpaired</Badge>
             ) : null}
             <Button onClick={onPair}>Pair chat</Button>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label={`Mode for ${agent.name}`}
+              title="Thread mode"
+              onClick={onMode}
+            >
+              <Icon name="settings" size={14} />
+            </button>
             <Button onClick={onSettings} aria-label={`Settings for ${agent.name}`}>
               <Icon name="sliders" size={14} /> Settings
             </Button>
@@ -222,6 +251,7 @@ function CreateAgentWizard({ onClose, onChanged }: { onClose: () => void; onChan
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<AgentInfo | null>(null);
   const [bot, setBot] = useState<BotIdentity>({ username: null, botId: null });
+  const pairingExpiresAtRef = useRef<number | null>(null);
 
   async function create() {
     setError(null);
@@ -240,10 +270,20 @@ function CreateAgentWizard({ onClose, onChanged }: { onClose: () => void; onChan
 
   const adapter: HandshakeAdapter | null = created
     ? {
-        open: (seconds) => api.openAgentHandshake(created.id, seconds),
+        open: async (seconds) => {
+          if (created.kind !== "telegram") return api.openAgentHandshake(created.id, seconds);
+          const res = await api.mintPairingLink(created.id, AGENT_PAIRING_LINK_SECONDS);
+          if (!res.ok || !res.data?.ok) throw new Error(res.data?.error ?? "pairing link failed");
+          pairingExpiresAtRef.current = res.data.expiresAt;
+          return { deepLinkUrl: res.data.url, expiresAt: res.data.expiresAt };
+        },
         poll: async () => {
           const s = await api.agentHandshakeStatus(created.id);
-          return { paired: s.allowlistCount > (created.allowlistCount ?? 0), open: s.open };
+          const open =
+            created.kind === "telegram"
+              ? pairingExpiresAtRef.current !== null && Date.now() < pairingExpiresAtRef.current
+              : s.open;
+          return { paired: s.allowlistCount > (created.allowlistCount ?? 0), open };
         },
       }
     : null;
@@ -303,6 +343,7 @@ function CreateAgentWizard({ onClose, onChanged }: { onClose: () => void; onChan
           kind={created.kind}
           bot={bot}
           adapter={adapter}
+          deepLinkMode={created.kind === "telegram"}
           onPaired={async () => {
             setStep("done");
             await onChanged();
@@ -317,6 +358,7 @@ function CreateAgentWizard({ onClose, onChanged }: { onClose: () => void; onChan
             {created?.name} paired a chat. Enable it from the list to start routing messages.
           </p>
           <div className="modal-foot">
+            {created ? <TestSendAction agentId={created.id} /> : null}
             <Button variant="primary" onClick={onClose}>Done</Button>
           </div>
         </div>
@@ -330,11 +372,22 @@ function CreateAgentWizard({ onClose, onChanged }: { onClose: () => void; onChan
 function AgentPairingModal({ agent, onClose, onChanged }: { agent: AgentInfo; onClose: () => void; onChanged: () => Promise<void> }) {
   // Baseline snapshotted at open: pairing success == allowlist grew past it.
   const [baseline] = useState(agent.allowlistCount);
+  const pairingExpiresAtRef = useRef<number | null>(null);
   const adapter: HandshakeAdapter = {
-    open: (seconds) => api.openAgentHandshake(agent.id, seconds),
+    open: async (seconds) => {
+      if (agent.kind !== "telegram") return api.openAgentHandshake(agent.id, seconds);
+      const res = await api.mintPairingLink(agent.id, AGENT_PAIRING_LINK_SECONDS);
+      if (!res.ok || !res.data?.ok) throw new Error(res.data?.error ?? "pairing link failed");
+      pairingExpiresAtRef.current = res.data.expiresAt;
+      return { deepLinkUrl: res.data.url, expiresAt: res.data.expiresAt };
+    },
     poll: async () => {
       const s = await api.agentHandshakeStatus(agent.id);
-      return { paired: s.allowlistCount > baseline, open: s.open };
+      const open =
+        agent.kind === "telegram"
+          ? pairingExpiresAtRef.current !== null && Date.now() < pairingExpiresAtRef.current
+          : s.open;
+      return { paired: s.allowlistCount > baseline, open };
     },
   };
   const [done, setDone] = useState(false);
@@ -347,6 +400,7 @@ function AgentPairingModal({ agent, onClose, onChanged }: { agent: AgentInfo; on
           <div className="title">Chat paired</div>
           <p className="hint">{agent.name} can now talk to the new chat.</p>
           <div className="modal-foot">
+            <TestSendAction agentId={agent.id} />
             <Button variant="primary" onClick={onClose}>Done</Button>
           </div>
         </div>
@@ -356,6 +410,7 @@ function AgentPairingModal({ agent, onClose, onChanged }: { agent: AgentInfo; on
           // Bot identity is not stored for existing agents — generic instructions.
           bot={{ username: null, botId: null }}
           adapter={adapter}
+          deepLinkMode={agent.kind === "telegram"}
           onPaired={async () => {
             setDone(true);
             await onChanged();
@@ -469,6 +524,101 @@ function AgentSettingsModal({
         <Button variant="primary" onClick={() => void save()} disabled={saving}>
           {saving ? <><span className="spinner" /> Saving…</> : "Save"}
         </Button>
+      </div>
+    </Modal>
+  );
+}
+
+function AgentModeModal({
+  agent,
+  onClose,
+  onChanged,
+}: {
+  agent: AgentInfo;
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+}) {
+  const modes = ["thread", "plain"] as const;
+  type ThreadMode = (typeof modes)[number];
+  const [mode, setMode] = useState<ThreadMode>(agent.threadMode ?? "thread");
+  const [saving, setSaving] = useState(false);
+
+  const modeIndex = modes.indexOf(mode);
+
+  function cycle(dir: -1 | 1) {
+    const next = modes[(modeIndex + dir + modes.length) % modes.length];
+    setMode(next);
+    void applyMode(next);
+  }
+
+  async function applyMode(next: ThreadMode) {
+    setSaving(true);
+    const res = await api.updateAgent(agent.id, { threadMode: next });
+    setSaving(false);
+    if (!res.ok || !res.data?.ok) {
+      // revert optimistic
+      setMode(agent.threadMode ?? "thread");
+      toast(res.data?.error ?? "모드 변경 실패", "err");
+      return;
+    }
+    toast(`${agent.name} 모드 변경: ${next}`, "ok");
+    await onChanged();
+  }
+
+  const desc: Record<ThreadMode, string> = {
+    thread: "토픽/스레드마다 독립 세션으로 동작",
+    plain: "채팅당 하나의 세션으로 동작",
+  };
+
+  const platformHint = agent.kind === "telegram"
+    ? "Telegram: 포럼 토픽 기준"
+    : "Discord: 작업별 자동 스레드";
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "ArrowLeft") { e.preventDefault(); cycle(-1); }
+    if (e.key === "ArrowRight") { e.preventDefault(); cycle(1); }
+  }
+
+  return (
+    <Modal title={agent.name} onClose={onClose}>
+      <div
+        className="mode-switcher"
+        tabIndex={0}
+        role="group"
+        aria-label="Thread mode switcher"
+        onKeyDown={handleKeyDown}
+      >
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="이전 모드"
+          onClick={() => cycle(-1)}
+          disabled={saving}
+        >
+          <Icon name="chevron-left" size={18} />
+        </button>
+        <div className="mode-switcher-label">
+          <span className="mode-switcher-name">{mode === "thread" ? "Thread" : "Plain"}</span>
+          <span className="mode-switcher-desc">{desc[mode]}</span>
+        </div>
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="다음 모드"
+          onClick={() => cycle(1)}
+          disabled={saving}
+        >
+          <Icon name="chevron-right" size={18} />
+        </button>
+      </div>
+      <p className="mode-switcher-hint">{platformHint}</p>
+      {saving ? (
+        <div className="row" style={{ justifyContent: "center", padding: "var(--s-2) 0" }}>
+          <span className="spinner" />
+        </div>
+      ) : null}
+      <div className="modal-foot">
+        <Button onClick={onClose}>닫기</Button>
       </div>
     </Modal>
   );

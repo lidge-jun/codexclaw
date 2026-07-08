@@ -33,6 +33,12 @@ export const DISCORD_EMBED_TOTAL_MAX = 6000;
 
 
 
+
+
+
+
+
+
 export class DiscordApi {
           token        ;
           fetchImpl           ;
@@ -43,6 +49,7 @@ export class DiscordApi {
   }
 
           async call   (method        , path        , body          )                               {
+    const safePath = redactDiscordPath(path);
     try {
       const url = `${DISCORD_API}${path}`;
       const init = {
@@ -54,26 +61,64 @@ export class DiscordApi {
         body: body === undefined ? undefined : JSON.stringify(body),
       };
       let res = await this.fetchImpl(url, init);
+      const header = (name        ) => res.headers?.get?.(name) ?? null;
       if (res.status === 429) {
-        const retryAfterSeconds = Number(res.headers.get("Retry-After") ?? "0");
+        const retryAfterSeconds = Number(header("Retry-After") ?? "0");
         if (retryAfterSeconds > 0) {
           await new Promise((resolve) => setTimeout(resolve, retryAfterSeconds * 1000));
         }
         res = await this.fetchImpl(url, init);
       }
-      if (res.headers.get("X-RateLimit-Remaining") === "0") {
-        const resetAfter = res.headers.get("X-RateLimit-Reset-After") ?? "unknown";
+      const postRetryHeader = (name        ) => res.headers?.get?.(name) ?? null;
+      if (postRetryHeader("X-RateLimit-Remaining") === "0") {
+        const resetAfter = postRetryHeader("X-RateLimit-Reset-After") ?? "unknown";
         console.warn(`[discord] rate limit bucket exhausted; reset after ${resetAfter}s`);
       }
       if (!res.ok) {
         const text = await res.text().catch(() => "");
-        return { ok: false, status: res.status, error: `${method} ${path} → ${res.status} ${text.slice(0, 200)}` };
+        return { ok: false, status: res.status, error: `${method} ${safePath} → ${res.status} ${text.slice(0, 200)}` };
       }
       const data = (await res.json().catch(() => undefined))                 ;
       return { ok: true, status: res.status, data };
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
-      return { ok: false, status: 0, error: `${method} ${path} request failed: ${reason}` };
+      return { ok: false, status: 0, error: `${method} ${safePath} request failed: ${reason}` };
+    }
+  }
+
+          async callMultipart   (
+    method        ,
+    path        ,
+    body            ,
+    boundary        ,
+  )                               {
+    const safePath = redactDiscordPath(path);
+    const init = {
+      method,
+      headers: {
+        authorization: `Bot ${this.token}`,
+        "content-type": `multipart/form-data; boundary=${boundary}`,
+      },
+      body: body                       ,
+    };
+    try {
+      let res = await this.fetchImpl(`${DISCORD_API}${path}`, init);
+      if (res.status === 429) {
+        const retryAfterSeconds = await discordRetryAfterSeconds(res);
+        if (retryAfterSeconds > 0) {
+          await new Promise((resolve) => setTimeout(resolve, retryAfterSeconds * 1000));
+        }
+        res = await this.fetchImpl(`${DISCORD_API}${path}`, init);
+      }
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        return { ok: false, status: res.status, error: `${method} ${safePath} → ${res.status} ${text.slice(0, 200)}` };
+      }
+      const data = (await res.json().catch(() => undefined))                 ;
+      return { ok: true, status: res.status, data };
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      return { ok: false, status: 0, error: `${method} ${safePath} request failed: ${reason}` };
     }
   }
 
@@ -81,8 +126,13 @@ export class DiscordApi {
     return this.call("POST", `/channels/${channelId}/messages`, { content });
   }
 
-  sendEmbed(channelId        , content        , embeds                )                                            {
-    return this.call("POST", `/channels/${channelId}/messages`, { content, embeds });
+  sendEmbed(
+    channelId        ,
+    content        ,
+    embeds                ,
+    components            ,
+  )                                            {
+    return this.call("POST", `/channels/${channelId}/messages`, { content, embeds, components });
   }
 
   triggerTyping(channelId        )                                     {
@@ -97,6 +147,111 @@ export class DiscordApi {
   getMe()                                                              {
     return this.call("GET", "/users/@me");
   }
+
+  createInteractionResponse(id        , token        , response         )                                     {
+    return this.call("POST", `/interactions/${id}/${token}/callback`, response);
+  }
+
+  editOriginalInteractionResponse(
+    appId        ,
+    token        ,
+    data         ,
+  )                                            {
+    return this.call("PATCH", `/webhooks/${appId}/${token}/messages/@original`, data);
+  }
+
+  registerGlobalCommands(appId        , commands           )                                       {
+    return this.call("PUT", `/applications/${appId}/commands`, commands);
+  }
+
+  startThread(
+    channelId        ,
+    name        ,
+    messageId         ,
+  )                                                          {
+    const path = messageId
+      ? `/channels/${channelId}/messages/${messageId}/threads`
+      : `/channels/${channelId}/threads`;
+    return this.call("POST", path, { name, auto_archive_duration: 60 });
+  }
+
+  startForumThread(
+    channelId        ,
+    name        ,
+    message                                              ,
+    tags           = [],
+  )                                                          {
+    const body                          = { name, auto_archive_duration: 60, message };
+    if (tags.length > 0) body.applied_tags = tags;
+    return this.call("POST", `/channels/${channelId}/threads`, body);
+  }
+
+  archiveThread(channelId        , archived = true)                                                               {
+    return this.call("PATCH", `/channels/${channelId}`, { archived });
+  }
+
+  sendFile(channelId        , content        , files               )                                            {
+    const boundary = `codexclaw-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const enc = new TextEncoder();
+    const chunks               = [];
+    const pushText = (part        ) => chunks.push(enc.encode(part));
+    const pushData = (data                     ) => {
+      if (typeof data === "string") chunks.push(enc.encode(data));
+      else if (data instanceof ArrayBuffer) chunks.push(new Uint8Array(data));
+      else chunks.push(data);
+    };
+
+    pushText(`--${boundary}\r\n`);
+    pushText(`Content-Disposition: form-data; name="payload_json"\r\n`);
+    pushText("Content-Type: application/json\r\n\r\n");
+    pushText(JSON.stringify({ content, attachments: files.map((file, id) => ({ id, filename: file.name })) }));
+    pushText("\r\n");
+
+    for (const [id, file] of files.entries()) {
+      pushText(`--${boundary}\r\n`);
+      pushText(`Content-Disposition: form-data; name="files[${id}]"; filename="${escapeMultipartName(file.name)}"\r\n`);
+      pushText(`Content-Type: ${file.contentType ?? "application/octet-stream"}\r\n\r\n`);
+      pushData(file.data);
+      pushText("\r\n");
+    }
+    pushText(`--${boundary}--\r\n`);
+
+    const length = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+    const body = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
+      body.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return this.callMultipart("POST", `/channels/${channelId}/messages`, body, boundary);
+  }
+
+  editMessage(
+    channelId        ,
+    messageId        ,
+    content        ,
+    embeds                 ,
+    components            ,
+  )                                            {
+    return this.call("PATCH", `/channels/${channelId}/messages/${messageId}`, { content, embeds, components });
+  }
+}
+
+function escapeMultipartName(name        )         {
+  return name.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r|\n/g, "_");
+}
+
+async function discordRetryAfterSeconds(res          )                  {
+  const header = Number(res.headers?.get?.("Retry-After") ?? "0");
+  if (header > 0) return header;
+  const body = await res.json().catch(() => null)                                   ;
+  return Number(body?.retry_after ?? 0);
+}
+
+export function redactDiscordPath(path        )         {
+  return path
+    .replace(/(\/interactions\/[^/]+\/)[^/]+(\/callback)/g, "$1***$2")
+    .replace(/(\/webhooks\/[^/]+\/)[^/]+(?=\/)/g, "$1***");
 }
 
 /** Split a reply into Discord's 2000-char messages on line/space boundaries. */

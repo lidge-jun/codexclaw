@@ -1,14 +1,15 @@
 /** discord-adapter.test.ts — REST chunking + adapter gating over injected fetch/ws. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { chunkDiscordMessage } from "../src/discord-api.ts";
+import { dirname, join } from "node:path";
+import { DiscordApi, chunkDiscordMessage } from "../src/discord-api.ts";
 import { createDiscordAdapter } from "../src/discord-adapter.ts";
 import { OP, type WsLike } from "../src/discord-gateway.ts";
 import { openBridgeDb, type BridgeDb } from "../src/db.ts";
 import type { AgentService, IncomingRequest, IncomingResult } from "../src/agent-service.ts";
+import type { ApprovalRequest } from "../src/approval-relay.ts";
 
 test("chunkDiscordMessage splits at 2000 and preserves content", () => {
   assert.deepEqual(chunkDiscordMessage("short"), ["short"]);
@@ -18,6 +19,103 @@ test("chunkDiscordMessage splits at 2000 and preserves content", () => {
   for (const c of chunks) assert.ok(c.length <= 2000);
   assert.equal(chunks.join("\n").replace(/\n+/g, "\n"), long.replace(/\n+/g, "\n"));
 });
+
+test("DiscordApi new REST helpers use expected paths and multipart body", async () => {
+  const calls: Array<{ path: string; method: string; headers: Record<string, string>; body: unknown }> = [];
+  const api = new DiscordApi("T", async (url, init) => {
+    calls.push({
+      path: url.replace(/^https:\/\/discord\.com\/api\/v10/, ""),
+      method: init?.method ?? "GET",
+      headers: init?.headers as Record<string, string>,
+      body: init?.body,
+    });
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: () => Promise.resolve({ id: "ok", name: "thread" }),
+      text: () => Promise.resolve(""),
+    } as unknown as Response;
+  });
+
+  await api.createInteractionResponse("i1", "tok", { type: 1 });
+  await api.editOriginalInteractionResponse("app", "tok", { content: "done" });
+  await api.registerGlobalCommands("app", [{ name: "ask" }]);
+  await api.startThread("chan", "Thread", "msg");
+  await api.startForumThread("forum", "Forum Thread", { content: "seed" }, ["tag-1"]);
+  await api.archiveThread("thread-ok");
+  await api.editMessage("chan", "msg", "edited", [{ description: "embed" }]);
+  await api.sendFile("chan", "file attached", [{ name: "note.txt", data: "hello", contentType: "text/plain" }]);
+
+  assert.deepEqual(calls.map((call) => `${call.method} ${call.path}`), [
+    "POST /interactions/i1/tok/callback",
+    "PATCH /webhooks/app/tok/messages/@original",
+    "PUT /applications/app/commands",
+    "POST /channels/chan/messages/msg/threads",
+    "POST /channels/forum/threads",
+    "PATCH /channels/thread-ok",
+    "PATCH /channels/chan/messages/msg",
+    "POST /channels/chan/messages",
+  ]);
+  assert.deepEqual(JSON.parse(String(calls[4].body)), {
+    name: "Forum Thread",
+    auto_archive_duration: 60,
+    message: { content: "seed" },
+    applied_tags: ["tag-1"],
+  });
+  assert.deepEqual(JSON.parse(String(calls[5].body)), { archived: true });
+  assert.match(calls[7].headers["content-type"], /^multipart\/form-data; boundary=codexclaw-/);
+  assert.match(new TextDecoder().decode(calls[7].body as Uint8Array), /payload_json/);
+  assert.match(new TextDecoder().decode(calls[7].body as Uint8Array), /note\.txt/);
+});
+
+test("DiscordApi redacts interaction and webhook tokens from error strings", async () => {
+  const api = new DiscordApi("T", async () => ({
+    ok: false,
+    status: 401,
+    headers: { get: () => null },
+    json: () => Promise.resolve({}),
+    text: () => Promise.resolve("unauthorized"),
+  }) as unknown as Response);
+
+  const interaction = await api.createInteractionResponse("i1", "interaction-secret", { type: 1 });
+  assert.equal(interaction.ok, false);
+  assert.match(interaction.error ?? "", /\/interactions\/i1\/\*\*\*\/callback/);
+  assert.doesNotMatch(interaction.error ?? "", /interaction-secret/);
+
+  const webhook = await api.editOriginalInteractionResponse("app-1", "webhook-secret", { content: "x" });
+  assert.equal(webhook.ok, false);
+  assert.match(webhook.error ?? "", /\/webhooks\/app-1\/\*\*\*\/messages\/@original/);
+  assert.doesNotMatch(webhook.error ?? "", /webhook-secret/);
+});
+
+test("DiscordApi sendFile retries multipart 429 retry_after once", async () => {
+  let calls = 0;
+  const api = new DiscordApi("T", async () => {
+    calls += 1;
+    if (calls === 1) {
+      return {
+        ok: false,
+        status: 429,
+        headers: { get: () => null },
+        json: () => Promise.resolve({ retry_after: 0 }),
+        text: () => Promise.resolve("rate limited"),
+      } as unknown as Response;
+    }
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: () => Promise.resolve({ id: "ok" }),
+      text: () => Promise.resolve(""),
+    } as unknown as Response;
+  });
+
+  const res = await api.sendFile("chan", "attached", [{ name: "note.txt", data: "hello" }]);
+  assert.equal(res.ok, true);
+  assert.equal(calls, 2);
+});
+
 
 class FakeWs implements WsLike {
   private listeners = new Map<string, (ev: unknown) => void>();
@@ -34,15 +132,38 @@ class FakeWs implements WsLike {
 }
 
 function stubAgent(impl: (req: IncomingRequest) => Promise<IncomingResult>): AgentService {
-  return { handleIncoming: impl, shutdown() {} } as unknown as AgentService;
+  return { handleIncoming: impl, registerApprovalCleanup: () => true, shutdown() {} } as unknown as AgentService;
 }
 
 function makeRestFetch() {
-  const posts: Array<{ path: string; body: Record<string, unknown> }> = [];
+  const posts: Array<{ path: string; method: string; body: unknown }> = [];
   const fetchImpl = (url: string, init?: RequestInit): Promise<Response> => {
+    if (url.startsWith("https://cdn.example/")) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        arrayBuffer: () => Promise.resolve(new TextEncoder().encode("hello").buffer),
+      } as Response);
+    }
     const path = url.replace(/^https:\/\/discord\.com\/api\/v10/, "");
-    posts.push({ path, body: init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {} });
-    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: "1" }), text: () => Promise.resolve("") } as Response);
+    const body = init?.body instanceof Uint8Array
+      ? init.body
+      : init?.body
+        ? JSON.parse(String(init.body))
+        : {};
+    posts.push({ path, method: init?.method ?? "GET", body });
+    const data = path.includes("/threads")
+      ? { id: "thread-1", name: "thread" }
+      : path === "/users/@me"
+        ? { id: "app-fallback", username: "bot" }
+        : { id: "1" };
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: () => Promise.resolve(data),
+      text: () => Promise.resolve(""),
+    } as unknown as Response);
   };
   return { fetchImpl, posts };
 }
@@ -54,6 +175,15 @@ function tempDb(): { db: BridgeDb; cwd: string } {
 
 async function settle() {
   await new Promise((r) => setTimeout(r, 20));
+}
+
+async function waitFor(predicate: () => boolean, label: string): Promise<void> {
+  const deadline = Date.now() + 1000;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await settle();
+  }
+  assert.fail(`timed out waiting for ${label}`);
 }
 
 let msgSeq = 1;
@@ -87,7 +217,11 @@ test("allowlisted channel message drives the agent and replies", async () => {
     adapter.stop();
 
     assert.deepEqual(seen, ["hey bot"]);
-    assert.ok(posts.some((p) => p.path.includes("/messages") && p.body.content === "discord reply"));
+    const progress = posts.find((p) => p.path === "/channels/chan-1/messages" && Array.isArray((p.body as { embeds?: unknown[] }).embeds));
+    assert.ok(progress, "turn should create a progress embed message");
+    assert.ok(posts.some((p) => p.path === "/channels/chan-1/messages/1" && p.method === "PATCH"), "progress embed should be edited");
+    const reply = posts.find((p) => p.path === "/channels/chan-1/messages" && (p.body as { content?: string }).content === "discord reply");
+    assert.ok(reply, "final reply should be a fresh Discord message");
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
@@ -149,6 +283,319 @@ test("duplicate MESSAGE_CREATE (same id) runs the agent only once", async () => 
     await settle();
     adapter.stop();
     assert.equal(calls, 1);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("message attachments are downloaded, prefixed into prompt, and cleaned up", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("discord", "chan-1", "");
+    const { fetchImpl } = makeRestFetch();
+    let ws!: FakeWs;
+    let downloadedPath = "";
+    const adapter = createDiscordAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      wsFactory: () => (ws = new FakeWs()),
+      agentService: stubAgent(async (req) => {
+        const match = /^\[File: (.+note\.txt)\]\nplease inspect$/.exec(req.text);
+        assert.ok(match, `prompt should include attachment prefix, got: ${req.text}`);
+        downloadedPath = match[1];
+        assert.equal(readFileSync(downloadedPath, "utf8"), "hello");
+        return { ok: true, text: "done" };
+      }),
+    });
+    await adapter.start();
+    drive(ws, {
+      id: "with-attachment",
+      content: "please inspect",
+      channel_id: "chan-1",
+      author: { id: "u", bot: false },
+      attachments: [{ id: "a1", filename: "note.txt", url: "https://cdn.example/note.txt", content_type: "text/plain", size: 5 }],
+    });
+    await settle();
+    await waitFor(() => Boolean(downloadedPath) && !existsSync(downloadedPath), "attachment temp file cleanup");
+    adapter.stop();
+
+    assert.ok(downloadedPath);
+    assert.equal(existsSync(downloadedPath), false);
+    assert.equal(existsSync(dirname(downloadedPath)), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("gateway progress edits one status embed and sanitizes mentions", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("discord", "chan-1", "");
+    const { fetchImpl, posts } = makeRestFetch();
+    let ws!: FakeWs;
+    const adapter = createDiscordAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      wsFactory: () => (ws = new FakeWs()),
+      agentService: stubAgent(async (req) => {
+        req.onEvent?.({ kind: "thinking", text: "checking @everyone <@123>" });
+        return { ok: true, text: "done" };
+      }),
+    });
+    await adapter.start();
+    drive(ws, { content: "work", channel_id: "chan-1", author: { id: "u", bot: false } });
+    await settle();
+    adapter.stop();
+
+    const edits = posts.filter((p) => p.path === "/channels/chan-1/messages/1" && p.method === "PATCH");
+    assert.ok(edits.length >= 1);
+    const body = JSON.stringify(edits.map((edit) => edit.body));
+    assert.match(body, /\[everyone\]/);
+    assert.doesNotMatch(body, /@everyone|<@123>/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("gateway progress edit throttle honors the 1200ms boundary with injected clock", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("discord", "chan-1", "");
+    const { fetchImpl, posts } = makeRestFetch();
+    let ws!: FakeWs;
+    let now = 1000;
+    const adapter = createDiscordAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      now: () => now,
+      wsFactory: () => (ws = new FakeWs()),
+      agentService: stubAgent(async (req) => {
+        req.onEvent?.({ kind: "status", label: "first" });
+        await new Promise((resolve) => setImmediate(resolve));
+        now = 2199;
+        req.onEvent?.({ kind: "status", label: "too-soon" });
+        await new Promise((resolve) => setImmediate(resolve));
+        now = 2200;
+        req.onEvent?.({ kind: "status", label: "boundary" });
+        await new Promise((resolve) => setImmediate(resolve));
+        return { ok: true, text: "done" };
+      }),
+    });
+    await adapter.start();
+    drive(ws, { content: "work", channel_id: "chan-1", author: { id: "u", bot: false } });
+    await settle();
+    adapter.stop();
+
+    const edits = posts.filter((p) => p.path === "/channels/chan-1/messages/1" && p.method === "PATCH");
+    const body = JSON.stringify(edits.map((edit) => edit.body));
+    assert.match(body, /first/);
+    assert.match(body, /boundary/);
+    assert.doesNotMatch(body, /too-soon/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("long gateway final output is sent as a Discord file attachment", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("discord", "chan-1", "");
+    const { fetchImpl, posts } = makeRestFetch();
+    let ws!: FakeWs;
+    const adapter = createDiscordAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      wsFactory: () => (ws = new FakeWs()),
+      agentService: stubAgent(async () => ({ ok: true, text: "line\n".repeat(101) })),
+    });
+    await adapter.start();
+    drive(ws, { content: "long output please", channel_id: "chan-1", author: { id: "u", bot: false } });
+    await settle();
+    adapter.stop();
+
+    const multipart = posts.find((p) => p.path === "/channels/chan-1/messages" && p.body instanceof Uint8Array);
+    assert.ok(multipart, "long final output should use multipart sendFile");
+    assert.match(new TextDecoder().decode(multipart?.body as Uint8Array), /codex-output-1\.txt/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("!cxc retry sends Discord approval cards through the text command path", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("discord", "chan-1", "");
+    const binding = db.getOrCreateBinding("discord", "chan-1", cwd);
+    db.createJob(binding.id, "last prompt");
+    const approval: ApprovalRequest = {
+      id: "ap_dc_retry",
+      bindingId: binding.id,
+      promptHash: "hash-dc",
+      workdir: cwd,
+      expiresAt: 123,
+    };
+    const { fetchImpl, posts } = makeRestFetch();
+    let ws!: FakeWs;
+    const adapter = createDiscordAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      wsFactory: () => (ws = new FakeWs()),
+      agentService: stubAgent(async (req) => {
+        assert.equal(req.text, "last prompt");
+        await req.onApprovalRequest?.(approval);
+        return { ok: false, error: "approval required" };
+      }),
+    });
+    await adapter.start();
+    drive(ws, { content: "!cxc retry", channel_id: "chan-1", author: { id: "u", bot: false } });
+    await settle();
+    adapter.stop();
+
+    const approvalPost = posts.find((p) =>
+      p.path === "/channels/chan-1/messages" &&
+      JSON.stringify(p.body).includes("approval:ap_dc_retry:allow-once")
+    );
+    assert.ok(approvalPost, "text retry should send an actionable approval card");
+    assert.match(JSON.stringify(approvalPost?.body), /Approval required before Codex can run/);
+    const denial = posts.find((p) =>
+      p.path === "/channels/chan-1/messages" && (p.body as { content?: string }).content === "❌ approval required"
+    );
+    assert.ok(denial, "retry command should still report the gated turn result");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+
+test("READY application id registers global slash commands", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    const { fetchImpl, posts } = makeRestFetch();
+    let ws!: FakeWs;
+    const adapter = createDiscordAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      wsFactory: () => (ws = new FakeWs()),
+      agentService: stubAgent(async () => ({ ok: true, text: "unused" })),
+    });
+    await adapter.start();
+    ws.emit({ op: OP.HELLO, d: { heartbeat_interval: 999999 } });
+    ws.emit({
+      op: OP.DISPATCH,
+      t: "READY",
+      s: 1,
+      d: { session_id: "s", user: { id: "bot-1" }, application: { id: "app-ready" } },
+    });
+    await settle();
+    adapter.stop();
+
+    const readyRegistration = posts.find((p) => p.path === "/applications/app-ready/commands");
+    assert.ok(readyRegistration, "READY application.id should drive command registration");
+    assert.ok(JSON.stringify(readyRegistration?.body).includes('"ask"'));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("allowed slash interactions defer before getMe fallback", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("discord", "chan-1", "");
+    const calls: Array<{ path: string; body: unknown }> = [];
+    const fetchImpl = (url: string, init?: RequestInit): Promise<Response> => {
+      const path = url.replace(/^https:\/\/discord\.com\/api\/v10/, "");
+      calls.push({ path, body: init?.body ? JSON.parse(String(init.body)) : {} });
+      const data = path === "/users/@me" ? { id: "app-fallback", username: "bot" } : { id: "m" };
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: () => Promise.resolve(data),
+        text: () => Promise.resolve(""),
+      } as unknown as Response);
+    };
+    let ws!: FakeWs;
+    const adapter = createDiscordAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      wsFactory: () => (ws = new FakeWs()),
+      agentService: stubAgent(async () => ({ ok: true, text: "ack-safe" })),
+    });
+    await adapter.start();
+    ws.emit({
+      op: OP.DISPATCH,
+      t: "INTERACTION_CREATE",
+      s: 1,
+      d: {
+        id: "i-ack",
+        type: 2,
+        token: "interaction-token",
+        channel_id: "chan-1",
+        data: { name: "ask", options: [{ name: "prompt", type: 3, value: "hello" }] },
+      },
+    });
+    await settle();
+    adapter.stop();
+
+    assert.equal(calls[0]?.path, "/interactions/i-ack/interaction-token/callback");
+    assert.deepEqual(calls[0]?.body, { type: 5 });
+    assert.equal(calls[1]?.path, "/users/@me");
+    assert.ok(calls.some((call) => call.path === "/webhooks/app-fallback/interaction-token/messages/@original"));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("guild messages start a reply thread and send the final embed there", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("discord", "parent-chan", "");
+    const { fetchImpl, posts } = makeRestFetch();
+    let ws!: FakeWs;
+    const requests: IncomingRequest[] = [];
+    const adapter = createDiscordAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      wsFactory: () => (ws = new FakeWs()),
+      agentService: stubAgent(async (req) => {
+        requests.push(req);
+        return { ok: true, text: "thread reply" };
+      }),
+    });
+    await adapter.start();
+    drive(ws, {
+      id: "msg-thread",
+      content: "please work in a thread",
+      channel_id: "parent-chan",
+      guild_id: "guild-1",
+      author: { id: "u", bot: false },
+    });
+    await settle();
+    adapter.stop();
+
+    assert.ok(posts.some((p) => p.path === "/channels/parent-chan/messages/msg-thread/threads"));
+    assert.equal(requests[0].chatId, "thread-1");
+    assert.equal(db.isAllowed("discord", "thread-1"), true);
+    assert.ok(posts.some((p) => p.path === "/channels/thread-1/messages" && Array.isArray((p.body as { embeds?: unknown[] }).embeds)), "thread should receive progress embed");
+    const threadReply = posts.find((p) => p.path === "/channels/thread-1/messages" && (p.body as { content?: string }).content === "thread reply");
+    assert.ok(threadReply, "fresh reply should be sent to the created thread");
+    assert.ok(posts.some((p) => p.path === "/channels/thread-1" && p.method === "PATCH" && (p.body as { archived?: boolean }).archived === true));
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

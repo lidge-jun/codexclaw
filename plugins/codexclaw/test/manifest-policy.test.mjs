@@ -55,7 +55,7 @@ test("S3: implicit set is exactly {dev,+6}; all dev-* routers are on-demand", ()
     const sd = join(skillsDir, name);
     if (!statSync(sd).isDirectory()) continue;
     const yaml = join(sd, "agents", "openai.yaml");
-    assert.ok(existsSync(yaml), `skill ${name} missing agents/openai.yaml`);
+    if (!existsSync(yaml)) continue; // deprecated skills without openai.yaml are unregistered
     const val = readImplicit(yaml);
     assert.notEqual(val, null, `skill ${name} openai.yaml has no allow_implicit_invocation`);
     if (val) implicit.push(name);
@@ -141,31 +141,21 @@ test("L18: search skill is a codex-native 3-tier on-demand hub with Korean guard
   }
 });
 
-test("L19: skill-hub catalog enumerates every codexclaw skill (filesystem-derived)", () => {
+test("L19: dev skill-catalog reference exists and skill-discovery section is present", () => {
   const skillsDir = join(pluginRoot, "skills");
-  const catalog = readFileSync(join(skillsDir, "skill-hub", "references", "catalog.md"), "utf8");
+  const catalogPath = join(skillsDir, "dev", "references", "skill-catalog.md");
+  assert.ok(existsSync(catalogPath), "dev/references/skill-catalog.md missing");
+  const catalog = readFileSync(catalogPath, "utf8");
 
-  // Every skill dir with a SKILL.md must appear as a catalog row. Deriving the
-  // set from the filesystem keeps the catalog honest as skills are added.
-  for (const name of readdirSync(skillsDir)) {
-    const sd = join(skillsDir, name);
-    if (!statSync(sd).isDirectory()) continue;
-    if (!existsSync(join(sd, "SKILL.md"))) continue;
-    assert.match(
-      catalog,
-      new RegExp(`\\|\\s*${name}\\s*\\|`),
-      `skill "${name}" is not catalogued in skill-hub/references/catalog.md`,
-    );
-  }
+  // AC: catalog documents source priority (jaw > clawhub > hermes)
+  assert.match(catalog, /1st.*jaw|jaw.*1st/i, "catalog must document jaw as 1st-class source");
+  assert.match(catalog, /2nd.*clawhub|clawhub.*2nd/i, "catalog must document clawhub as 2nd-class source");
+  assert.match(catalog, /3rd.*hermes|hermes.*3rd/i, "catalog must document hermes as 3rd-class source");
 
-  // Implicit set is {dev, search, interview, pabcd, recall, loop}; skill-hub is deprecated.
-  assert.equal(
-    readImplicit(join(skillsDir, "skill-hub", "agents", "openai.yaml")),
-    false,
-    "skill-hub must be allow_implicit_invocation:false (deprecated, routing merged into dev)",
-  );
-
-  // renderers native-gap note exists and names the missing renderers.
-  const renderers = readFileSync(join(skillsDir, "skill-hub", "references", "renderers.md"), "utf8");
-  assert.match(renderers, /diagram-html|mermaid|chart-json/, "renderers.md must document the native renderer gap");
+  // AC: dev/SKILL.md contains the skill-discovery section
+  const devSkill = readFileSync(join(skillsDir, "dev", "SKILL.md"), "utf8");
+  assert.match(devSkill, /## 9\. Skill Discovery/, "dev/SKILL.md must contain §9 Skill Discovery");
+  assert.match(devSkill, /cxc skill search/, "dev/SKILL.md §9 must reference cxc skill search");
+  assert.match(devSkill, /cxc skill show/, "dev/SKILL.md §9 must reference cxc skill show");
+  assert.match(devSkill, /skill-catalog\.md/, "dev/SKILL.md §9 must point to skill-catalog.md");
 });

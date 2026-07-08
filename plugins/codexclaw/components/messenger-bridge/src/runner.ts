@@ -21,6 +21,9 @@ import { createInterface } from "node:readline";
 export type RunnerEvent =
   | { kind: "thread"; threadId: string }
   | { kind: "status"; label: string }
+  | { kind: "thinking"; text: string }
+  | { kind: "tool_call"; name: string; input: string }
+  | { kind: "file_change"; path: string; action: "create" | "modify" | "delete" }
   | { kind: "message"; text: string }
   | { kind: "done"; usage: Record<string, number> | null }
   | { kind: "fail"; message: string };
@@ -108,6 +111,36 @@ export function parseExecEvent(line: string): RunnerEvent | null {
   if (type === "item.completed" || type === "item.started") {
     const item = evt.item as Record<string, unknown> | undefined;
     const itemType = item?.type as string | undefined;
+    if (itemType === "reasoning" || itemType === "reasoning_summary" || itemType === "thinking") {
+      const text = firstString(item, ["text", "summary", "content", "reasoning"]);
+      if (text?.trim()) return { kind: "thinking", text };
+      return null;
+    }
+    if (itemType === "tool_call" || itemType === "mcp_tool_call") {
+      const name = firstString(item, ["name", "tool_name", "server_tool_name", "command"]) ?? itemType;
+      const input = stringifyCompact(item.input ?? item.arguments ?? item.args ?? item.params ?? "");
+      return { kind: "tool_call", name, input };
+    }
+    if (itemType === "file_change" || itemType === "patch" || itemType === "apply_patch") {
+      const path = firstString(item, ["path", "file", "file_path", "target"]);
+      const action = fileChangeAction(firstString(item, ["action", "operation", "kind"]) ?? itemType);
+      if (path) return { kind: "file_change", path, action };
+      const changes = item.changes;
+      if (Array.isArray(changes)) {
+        const first = changes.find((change): change is Record<string, unknown> =>
+          Boolean(change && typeof change === "object"),
+        );
+        const changePath = firstString(first, ["path", "file", "file_path", "target"]);
+        if (changePath) {
+          return {
+            kind: "file_change",
+            path: changePath,
+            action: fileChangeAction(firstString(first, ["action", "operation", "kind"]) ?? itemType),
+          };
+        }
+      }
+      return null;
+    }
     if (itemType === "agent_message" && type === "item.completed") {
       const text = String(item?.text ?? "");
       if (text.trim()) return { kind: "message", text };
@@ -138,7 +171,40 @@ export function parseExecEvent(line: string): RunnerEvent | null {
   return null;
 }
 
-function terminateChild(child: ChildProcess): void {
+function firstString(obj: Record<string, unknown> | undefined, keys: string[]): string | null {
+  if (!obj) return null;
+  for (const key of keys) {
+    const value = obj[key];
+    if (typeof value === "string" && value.trim()) return value;
+    if (Array.isArray(value)) {
+      const joined = value
+        .map((item) => typeof item === "string" ? item : "")
+        .filter(Boolean)
+        .join("\n");
+      if (joined.trim()) return joined;
+    }
+  }
+  return null;
+}
+
+function stringifyCompact(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return "";
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function fileChangeAction(raw: string): "create" | "modify" | "delete" {
+  const normalized = raw.toLowerCase();
+  if (normalized.includes("delete") || normalized.includes("remove")) return "delete";
+  if (normalized.includes("create") || normalized.includes("add")) return "create";
+  return "modify";
+}
+
+export function terminateChild(child: ChildProcess): void {
   if (child.exitCode !== null || child.signalCode !== null) return;
   child.kill("SIGTERM");
   const timer = setTimeout(() => {
@@ -160,7 +226,11 @@ function spawnOnce(argv: string[], opts: RunTurnOptions, stdinPrompt: string | n
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   return new Promise<SpawnOnceResult>((resolvePromise) => {
-    const child = spawn(bin, argv, {
+    // Script bins (test fixtures) run through the node executable instead of a
+    // shebang exec: macOS syspolicyd can SIGKILL unsigned script exec under
+    // Gatekeeper assessment pressure, which made spawn-based tests flake.
+    const isScript = /\.(mjs|cjs|js)$/.test(bin);
+    const child = spawn(isScript ? process.execPath : bin, isScript ? [bin, ...argv] : argv, {
       cwd: opts.workdir,
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -209,6 +279,11 @@ function spawnOnce(argv: string[], opts: RunTurnOptions, stdinPrompt: string | n
           break;
         case "fail":
           failMsg = event.message;
+          break;
+        case "status":
+        case "thinking":
+        case "tool_call":
+        case "file_change":
           break;
       }
       opts.onEvent?.(event);

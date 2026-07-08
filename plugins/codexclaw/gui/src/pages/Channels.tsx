@@ -4,6 +4,7 @@ import { Button, Field, StatusDot, Badge, Loading, Modal } from "../ui/kit.tsx";
 import { Icon, type IconName } from "../ui/icons.tsx";
 import { toast } from "../ui/toast.tsx";
 import { PairingPane, HANDSHAKE_SECONDS, type BotIdentity } from "../components/pairing.tsx";
+import { HelpDrawer, HelpTopicButton, useHelp } from "../ui/help.tsx";
 
 interface ChannelMeta {
   name: string;
@@ -38,6 +39,7 @@ export function ChannelsPage() {
   const [wizardKind, setWizardKind] = useState<ChannelKind | null>(null);
   // "pair" skips the token step (channel already active, just re-open the window)
   const [wizardMode, setWizardMode] = useState<"connect" | "pair">("connect");
+  const { helpOpen, helpTopic, openHelp, closeHelp } = useHelp("channels");
 
   const refresh = async () => setState(await api.getChannels());
   useEffect(() => {
@@ -55,6 +57,10 @@ export function ChannelsPage() {
 
   return (
     <>
+      <div className="page-header">
+        <span className="page-header-title">Channels</span>
+        <HelpTopicButton topic="channels" onOpen={openHelp} />
+      </div>
       <div className="page-head">
         <div>
           <h1>Channels</h1>
@@ -99,6 +105,7 @@ export function ChannelsPage() {
           onChanged={refresh}
         />
       ) : null}
+      <HelpDrawer open={helpOpen} topic={helpTopic} onClose={closeHelp} />
     </>
   );
 }

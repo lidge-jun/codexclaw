@@ -7,9 +7,16 @@
  * /api/channels. Runtime adapter reload for enabled agents lands in slice 50;
  * until then `enable` only flips the flag.
  */
+import { createHash, randomBytes } from "node:crypto";
 
-import { AGENT_EFFORTS,                                                  } from "./db.js";
+import { AGENT_EFFORTS, AGENT_THREAD_MODES,                                                  } from "./db.js";
 import { validateToken,                      } from "./token-validate.js";
+import { TelegramApi } from "./telegram-api.js";
+import { DiscordApi } from "./discord-api.js";
+
+const PAIRING_LINK_DEFAULT_SECONDS = 600;
+const PAIRING_LINK_MAX_SECONDS = 3600;
+const TEST_SEND_MESSAGE = "codexclaw bridge connected — this chat is ready.";
 
 function bad(message        )              {
   return { status: 400, body: { error: message } };
@@ -31,6 +38,9 @@ export function publicAgent(ctx        , a          )                          {
     effort: a.effort,
     autoSend: a.auto_send === 1,
     mentionOnly: a.mention_only === 1,
+    fullAccess: a.full_access === 1,
+    webhookUrl: a.webhook_url,
+    threadMode: a.thread_mode,
     heartbeatMinutes: a.heartbeat_minutes,
     heartbeatPrompt: a.heartbeat_prompt,
     allowlistCount: ctx.db.listAgentAllowlist(a.id).length,
@@ -42,8 +52,12 @@ export function publicAgent(ctx        , a          )                          {
 
 
 
+
+
 export function agentRoutes(deps                  = {})             {
   const validate = deps.validate ?? validateToken;
+  const telegramApiFactory = deps.telegramApiFactory ?? ((token        ) => new TelegramApi(token));
+  const discordApiFactory = deps.discordApiFactory ?? ((token        ) => new DiscordApi(token));
 
   return [
     {
@@ -110,6 +124,19 @@ export function agentRoutes(deps                  = {})             {
         }
         if (b.autoSend !== undefined) patch.auto_send = b.autoSend ? 1 : 0;
         if (b.mentionOnly !== undefined) patch.mention_only = b.mentionOnly ? 1 : 0;
+        if (b.fullAccess !== undefined) patch.full_access = b.fullAccess ? 1 : 0;
+        if (b.webhookUrl !== undefined) {
+          const webhookUrl = typeof b.webhookUrl === "string" ? b.webhookUrl.trim() : "";
+          if (webhookUrl) {
+            try {
+              const parsed = new URL(webhookUrl);
+              if (parsed.protocol !== "https:") return bad("webhookUrl must be https:// or empty");
+            } catch {
+              return bad("webhookUrl must be https:// or empty");
+            }
+          }
+          patch.webhook_url = webhookUrl;
+        }
         if (b.heartbeatMinutes !== undefined) {
           const minutes = typeof b.heartbeatMinutes === "number" ? b.heartbeatMinutes : Number.NaN;
           if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440) {
@@ -128,11 +155,19 @@ export function agentRoutes(deps                  = {})             {
           if (!result.ok) return { status: 400, body: { ok: false, error: result.error } };
           patch.token = token;
         }
+        if (b.threadMode !== undefined) {
+          if (typeof b.threadMode !== "string" || !(AGENT_THREAD_MODES                     ).includes(b.threadMode)) {
+            return bad(`threadMode must be one of ${AGENT_THREAD_MODES.join(", ")}`);
+          }
+          patch.thread_mode = b.threadMode;
+        }
 
         const updated = ctx.db.updateAgent(id, patch);
         // A token change on a RUNNING agent must restart its adapter; the
         // diff-based reload touches only that adapter.
-        if (patch.token !== undefined && agent.enabled === 1) await ctx.controller?.reload();
+        if ((patch.token !== undefined || patch.webhook_url !== undefined) && agent.enabled === 1) {
+          await ctx.controller?.reload();
+        }
         return { status: 200, body: { ok: true, agent: updated ? publicAgent(ctx, updated) : null } };
       },
     },
@@ -201,5 +236,73 @@ export function agentRoutes(deps                  = {})             {
         };
       },
     },
+    {
+      method: "POST",
+      path: "/api/agents/pairing-link",
+      handler: async (ctx, body) => {
+        const b = (body ?? {})                           ;
+        const id = typeof b.id === "number" ? b.id : Number.NaN;
+        if (Number.isNaN(id)) return bad("id required");
+        const agent = ctx.db.getAgent(id);
+        if (!agent) return bad(`no agent ${id}`);
+        if (agent.kind !== "telegram") return bad("pairing-link is only supported for telegram agents");
+        if (!agent.token) return bad("agent has no token — set one first");
+        const seconds = typeof b.seconds === "number" && b.seconds > 0
+          ? Math.min(Math.floor(b.seconds), PAIRING_LINK_MAX_SECONDS)
+          : PAIRING_LINK_DEFAULT_SECONDS;
+        const result = await validate(agent.kind, agent.token);
+        if (!result.ok || !result.username) {
+          return bad(result.ok ? "telegram getMe did not return a username" : result.error);
+        }
+
+        const code = randomBytes(16).toString("base64url");
+        const hash = sha256Hex(code);
+        const expiresAt = ctx.db.createAgentPairingCode(agent.id, hash, seconds);
+        return {
+          status: 200,
+          body: {
+            ok: true,
+            url: `https://t.me/${result.username}?start=${code}`,
+            code,
+            expiresAt,
+          },
+        };
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/agents/test-send",
+      handler: async (ctx, body) => {
+        const b = (body ?? {})                           ;
+        const id = typeof b.id === "number" ? b.id : Number.NaN;
+        if (Number.isNaN(id)) return bad("id required");
+        const agent = ctx.db.getAgent(id);
+        if (!agent) return bad(`no agent ${id}`);
+        const explicit = typeof b.chatId === "string" && b.chatId.trim() ? b.chatId.trim() : null;
+        // An explicit chatId must already be paired: without this check the
+        // local API could push messages into arbitrary chats/channels.
+        if (explicit && !ctx.db.isAgentAllowed(agent.id, explicit)) {
+          return bad(`chat ${explicit} is not paired with agent ${agent.id}`);
+        }
+        const target = explicit ?? ctx.db.listAgentAllowlist(agent.id).at(-1)?.chat_id;
+        if (!target) return bad("chatId required when the agent has no paired chats");
+        try {
+          if (agent.kind === "telegram") {
+            const sent = await telegramApiFactory(agent.token).sendMessage({ chatId: target, text: TEST_SEND_MESSAGE });
+            if (!sent.ok) return bad(sent.description ?? "telegram send failed");
+          } else {
+            const sent = await discordApiFactory(agent.token).sendMessage(target, TEST_SEND_MESSAGE);
+            if (!sent.ok) return bad(sent.error ?? "discord send failed");
+          }
+        } catch (err) {
+          return bad(err instanceof Error ? err.message : String(err));
+        }
+        return { status: 200, body: { ok: true, chatId: target } };
+      },
+    },
   ];
+}
+
+function sha256Hex(value        )         {
+  return createHash("sha256").update(value).digest("hex");
 }

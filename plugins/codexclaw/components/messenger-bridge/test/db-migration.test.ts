@@ -97,3 +97,51 @@ test("handshake window expires by wall clock", () => {
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test("v6: binding effort/topic_id + agent full_access/webhook_url defaults and setters", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "bridge-v6-test-"));
+  try {
+    const db = openBridgeDb(cwd);
+    const binding = db.getOrCreateBinding("telegram", "42", cwd);
+    assert.equal(binding.effort, "default");
+    assert.equal(binding.topic_id, null);
+    db.setBindingModel(binding.id, "gpt-5.5");
+    db.setBindingEffort(binding.id, "xhigh");
+    const after = db.getOrCreateBinding("telegram", "42", cwd);
+    assert.equal(after.model, "gpt-5.5");
+    assert.equal(after.effort, "xhigh");
+
+    const agent = db.createAgent("tg-x", "telegram", "tok");
+    assert.equal(agent.full_access, 1);
+    assert.equal(agent.webhook_url, "");
+    const patched = db.updateAgent(agent.id, { full_access: 0, webhook_url: "https://x.example/hook" });
+    assert.equal(patched?.full_access, 0);
+    assert.equal(patched?.webhook_url, "https://x.example/hook");
+    db.close();
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("v8: agents.thread_mode defaults to 'thread' and accepts 'plain'", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "bridge-v8-test-"));
+  try {
+    const db = openBridgeDb(cwd);
+    const agent = db.createAgent("tg-mode", "telegram", "tok");
+    assert.equal(agent.thread_mode, "thread", "default thread_mode should be 'thread'");
+
+    const patched = db.updateAgent(agent.id, { thread_mode: "plain" });
+    assert.equal(patched?.thread_mode, "plain");
+
+    const reverted = db.updateAgent(agent.id, { thread_mode: "thread" });
+    assert.equal(reverted?.thread_mode, "thread");
+
+    // CHECK constraint rejects invalid values
+    assert.throws(() => {
+      db.updateAgent(agent.id, { thread_mode: "bogus" as any });
+    }, /CHECK/i);
+    db.close();
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

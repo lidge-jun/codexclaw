@@ -80,7 +80,7 @@ High-impact techniques for replacing generic patterns:
 - **Split-screen scroll** — Two halves sliding in opposite directions
 
 ### Surfaces
-- **True glassmorphism** — Beyond `backdrop-blur`: 1px inner border + inner shadow = edge refraction
+- **True glassmorphism** — see `liquid-glass.md` (recipes + gates); the tell of fake glass is `backdrop-blur` with no edge refraction
 - **Spotlight borders** — Card borders illuminating dynamically under cursor
 - **Grain/noise overlays** — Fixed `pointer-events-none` overlay breaking digital flatness
 - **Colored tinted shadows** — Shadows carrying background hue, not generic black

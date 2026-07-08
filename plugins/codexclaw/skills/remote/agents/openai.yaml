@@ -1,0 +1,6 @@
+interface:
+  display_name: "cxc-remote"
+  short_description: "Messenger-bridge onboarding: connect Telegram/Discord, pair chats, troubleshoot."
+  default_prompt: "Use $cxc-remote to set up the messenger bridge for me end-to-end."
+policy:
+  allow_implicit_invocation: false

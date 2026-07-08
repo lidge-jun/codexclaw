@@ -321,6 +321,23 @@ constants as starting values and revise when a second domain's evidence contradi
   diff of the two traces (what they did that we did not), before any new candidate.
   This is the cheapest capability-gap detector available and outranks another round
   of parameter candidates (LOOP-CANDIDATE-ANCHOR-01).
+- **LOOP-FANOUT-TIMING-01 (HEURISTIC):** Spend parallel fan-out late, not early.
+  While coarse levers still move the metric, stay single-track (N=1); once coarse
+  levers stabilize or plateau and the search shifts to fine-grained candidates,
+  parallel candidate lanes and specialist re-derivation start paying for their
+  cost. Fan-out also buys outcome consistency (cross-run variance reduction), not
+  only peak score. (Adopted 2026-07-07 from Sakana Fugu, arXiv:2606.21228:
+  orchestration gains on a 123-experiment autonomous training loop concentrated
+  after mid-run, once coarse configuration search gave way to fine
+  optimizer/schedule tuning.)
+- **COLLAPSE-AGGREGATOR-01 (DEFAULT):** collapse and synthesis ownership follows
+  the disputed crux. When parallel candidates disagree, the synthesis verdict comes
+  from whoever is strongest on the domain of the disagreement — dispatch a
+  crux-matched aggregator when the collapse owner is not (the aggregator returns a
+  verdict; the main session still owns the collapse decision). A fixed aggregator
+  caps the exercise at that aggregator's own ceiling for the domain. The collapse
+  record names each candidate's partial correctness, each candidate's failure
+  mode, and why the winner's evidence resolves the crux.
 
 Evaluation gates for these loops are owned by `cxc-dev-testing` §Limited-Oracle /
 Score-Objective Evaluation; apply both sections together.
@@ -380,6 +397,29 @@ Interview sub-modes and Catalog Discovery rules live in `$cxc-interview`
 - CSV batch fan-out (`spawn_agents_on_csv` + `report_agent_job_result`, one worker per row) exists in codex-rs but is flag-gated (`enable_fanout`, not live) — do NOT instruct it until the flag ships; check `structure/60_native_capabilities.md` §4.
 - Use a reviewer subagent at the A gate (and the C gate for C3/C4) to challenge the plan/implementation independently — receive the verdict, act on it, continue. Subagents are verifiers and scoped workers, not approval gates.
 - When delegating writes, give each subagent a disjoint write scope (own files/dirs) so parallel work never collides; tell it the other agents exist and not to revert their edits.
+- **DISPATCH-ISOLATION-01 (DEFAULT):** parallel subagents in the same work-phase are
+  context-isolated on the read side too: the TASK packet's `SCOPE` names an explicit
+  access list — which prior outputs (paths or pasted excerpts) this agent may read —
+  and nothing else from peer lanes is shared. Never paste one lane's in-progress
+  output into another outside the access list; the first finished trajectory
+  otherwise steers later lanes into redundant agreement (orchestration collapse) and
+  the parallelism buys nothing. Durable cross-cycle artifacts (devlog, D summaries,
+  `.codexclaw/divergence/`) stay shared; widening an access list is a stated
+  decision in the packet. (Adopted 2026-07-07 from the Sakana Fugu
+  learned-orchestrator report, arXiv:2606.21228, together with SPECIALIST-CRUX-01,
+  REVIEW-DECORRELATE-01, COLLAPSE-AGGREGATOR-01, and LOOP-FANOUT-TIMING-01; devlog
+  `260707_fugu_orchestration_adoption`.)
+- **SPECIALIST-CRUX-01 (HEURISTIC):** when P or A identifies a narrow crux outside
+  the builder's domain — a derivation, a protocol subtlety, a domain constant, a
+  security property — dispatch a specialist to re-derive that crux from first
+  principles before merging the work that depends on it. The specialist's return
+  names its assumptions, the derivation or trace, and the exact decision its
+  verdict changes.
+- **REVIEW-DECORRELATE-01 (HEURISTIC):** `spawn_agent` accepts a model override —
+  run the A-gate reviewer (and any §11.3 clean-slate re-examination after repeated
+  failed repairs) on a different model family than the one that produced the plan
+  or build. Same-family reviewers share blind spots; decorrelating the reviewer is
+  the cheapest independence upgrade available.
 - Never let a subagent reconstruct the plan from a short task description — pass the concrete plan and scope explicitly.
 - For long-running external verification (CI, deploy, remote build), spawn a background subagent and poll with short `wait_agent` cycles. Local builds/tests that finish in minutes stay blocking.
 

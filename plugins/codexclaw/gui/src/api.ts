@@ -56,6 +56,15 @@ const API_BASE: string = (import.meta.env?.VITE_CXC_API as string | undefined) ?
 // cannot set it without a CORS preflight the server never answers.
 const LOCAL_HEADER = { "x-codexclaw-local": "1" };
 
+const defaultMetrics = (): MetricsSnapshot => ({
+  messagesReceived: 0,
+  turnsCompleted: 0,
+  errors: 0,
+  rateLimits: { telegram: 0, discord: 0 },
+  avgResponseTimeMs: null,
+  perAgent: {},
+});
+
 async function getJson<T>(path: string, fallback: T): Promise<T> {
   try {
     const res = await fetch(`${API_BASE}${path}`, {
@@ -122,14 +131,44 @@ export interface BindingRow {
   id: number;
   channel_kind: ChannelKind;
   chat_id: string;
+  agent_id: number | null;
   thread_id: string | null;
+  workdir: string;
+  model: string;
   status: string;
   updated_at: string;
+}
+
+export interface JobRow {
+  id: number;
+  binding_id: number;
+  prompt_preview: string;
+  result_preview: string | null;
+  state: string;
+  thread_id: string | null;
+  error: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
 }
 
 export interface HandshakeStatus {
   open: boolean;
   pairedChatId: string | null;
+}
+
+export interface AgentPairingLink {
+  ok: boolean;
+  url: string;
+  code: string;
+  expiresAt: number;
+  error?: string;
+}
+
+export interface AgentTestSendResult {
+  ok: boolean;
+  chatId: string;
+  error?: string;
 }
 
 /* ---- named agents (v4) ---- */
@@ -150,7 +189,36 @@ export interface AgentInfo {
   heartbeatPrompt: string;
   allowlistCount: number;
   updatedAt: string;
+  threadMode: "thread" | "plain";
+  fullAccess: boolean;
+  webhookUrl: string;
 }
+
+export interface AgentStatus {
+  agentId: number;
+  name: string;
+  kind: ChannelKind;
+  status: string;
+}
+
+export interface MetricsSnapshot {
+  messagesReceived: number;
+  turnsCompleted: number;
+  errors: number;
+  rateLimits: { telegram: number; discord: number };
+  avgResponseTimeMs: number | null;
+  perAgent: Record<string, { messages: number; turns: number; errors: number }>;
+}
+
+export type BridgeEvent =
+  | { type: "message_received"; agentId: number | null; chatId: string; platform: string; ts: string }
+  | { type: "turn_started"; agentId: number | null; chatId: string; platform: string; ts: string }
+  | { type: "turn_complete"; agentId: number | null; durationMs: number; ts: string }
+  | { type: "error"; agentId: number | null; message: string; ts: string }
+  | { type: "rate_limit"; platform: string; retryAfterMs: number; ts: string }
+  | { type: "reconnect"; platform: string; ts: string }
+  | { type: "circuit_breaker"; platform: string; state: string; ts: string }
+  | { type: "lifecycle"; payload: { action: "start" | "stop" | "reload"; detail?: string }; ts: string };
 
 export interface AgentPatchBody {
   name?: string;
@@ -161,6 +229,9 @@ export interface AgentPatchBody {
   mentionOnly?: boolean;
   heartbeatMinutes?: number;
   heartbeatPrompt?: string;
+  threadMode?: "thread" | "plain";
+  fullAccess?: boolean;
+  webhookUrl?: string;
 }
 
 async function postJson<T>(path: string, body: unknown): Promise<{ ok: boolean; status: number; data: T | null }> {
@@ -193,6 +264,16 @@ export const api = {
   getChannels: () =>
     getJson<ChannelsState>("/api/channels", { channels: [], activeKind: null, adapterStatus: "n/a" }),
   getBindings: () => getJson<{ bindings: BindingRow[] }>("/api/bindings", { bindings: [] }),
+  getMetrics: () => getJson<MetricsSnapshot>("/api/metrics", defaultMetrics()),
+  getEvents: (n = 50) =>
+    getJson<{ events: BridgeEvent[] }>(`/api/events?n=${encodeURIComponent(String(n))}`, { events: [] }),
+  getAgentStatuses: () => getJson<{ statuses: AgentStatus[] }>("/api/agents/statuses", { statuses: [] }),
+  resetBinding: (id: number) =>
+    postJson<{ ok: boolean; binding?: BindingRow; error?: string }>("/api/bindings/reset", { id }),
+  setBindingCwd: (id: number, cwd: string) =>
+    postJson<{ ok: boolean; binding?: BindingRow; error?: string }>("/api/bindings/cwd", { id, cwd }),
+  getBindingJobs: (id: number) =>
+    getJson<{ jobs: JobRow[] }>(`/api/bindings/jobs?id=${encodeURIComponent(String(id))}`, { jobs: [] }),
   validateToken: (kind: ChannelKind, token: string) =>
     postJson<{ ok: boolean; username: string | null; botId: string | null; error?: string }>(
       "/api/connect/validate",
@@ -219,6 +300,10 @@ export const api = {
   deleteAgent: (id: number) => postJson<{ ok: boolean; error?: string }>("/api/agents/delete", { id }),
   openAgentHandshake: (id: number, seconds = 180) =>
     postJson<{ ok: boolean }>("/api/agents/handshake/open", { id, seconds }),
+  mintPairingLink: (id: number, seconds?: number) =>
+    postJson<AgentPairingLink>("/api/agents/pairing-link", seconds === undefined ? { id } : { id, seconds }),
+  testSend: (id: number, chatId?: string) =>
+    postJson<AgentTestSendResult>("/api/agents/test-send", chatId === undefined ? { id } : { id, chatId }),
   agentHandshakeStatus: (id: number) =>
     getJson<{ open: boolean; allowlistCount: number }>(`/api/agents/handshake/status?id=${id}`, {
       open: false,

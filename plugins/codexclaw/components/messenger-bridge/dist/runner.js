@@ -48,6 +48,9 @@ import { createInterface } from "node:readline";
 
 
 
+
+
+
 const DEFAULT_TIMEOUT_MS = 600_000;
 const SIGKILL_GRACE_MS = 3_000;
 // Missing-rollout / bad-session-id signatures for the resume re-seed fallback.
@@ -108,6 +111,36 @@ export function parseExecEvent(line        )                     {
   if (type === "item.completed" || type === "item.started") {
     const item = evt.item                                       ;
     const itemType = item?.type                      ;
+    if (itemType === "reasoning" || itemType === "reasoning_summary" || itemType === "thinking") {
+      const text = firstString(item, ["text", "summary", "content", "reasoning"]);
+      if (text?.trim()) return { kind: "thinking", text };
+      return null;
+    }
+    if (itemType === "tool_call" || itemType === "mcp_tool_call") {
+      const name = firstString(item, ["name", "tool_name", "server_tool_name", "command"]) ?? itemType;
+      const input = stringifyCompact(item.input ?? item.arguments ?? item.args ?? item.params ?? "");
+      return { kind: "tool_call", name, input };
+    }
+    if (itemType === "file_change" || itemType === "patch" || itemType === "apply_patch") {
+      const path = firstString(item, ["path", "file", "file_path", "target"]);
+      const action = fileChangeAction(firstString(item, ["action", "operation", "kind"]) ?? itemType);
+      if (path) return { kind: "file_change", path, action };
+      const changes = item.changes;
+      if (Array.isArray(changes)) {
+        const first = changes.find((change)                                    =>
+          Boolean(change && typeof change === "object"),
+        );
+        const changePath = firstString(first, ["path", "file", "file_path", "target"]);
+        if (changePath) {
+          return {
+            kind: "file_change",
+            path: changePath,
+            action: fileChangeAction(firstString(first, ["action", "operation", "kind"]) ?? itemType),
+          };
+        }
+      }
+      return null;
+    }
     if (itemType === "agent_message" && type === "item.completed") {
       const text = String(item?.text ?? "");
       if (text.trim()) return { kind: "message", text };
@@ -138,7 +171,40 @@ export function parseExecEvent(line        )                     {
   return null;
 }
 
-function terminateChild(child              )       {
+function firstString(obj                                     , keys          )                {
+  if (!obj) return null;
+  for (const key of keys) {
+    const value = obj[key];
+    if (typeof value === "string" && value.trim()) return value;
+    if (Array.isArray(value)) {
+      const joined = value
+        .map((item) => typeof item === "string" ? item : "")
+        .filter(Boolean)
+        .join("\n");
+      if (joined.trim()) return joined;
+    }
+  }
+  return null;
+}
+
+function stringifyCompact(value         )         {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return "";
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function fileChangeAction(raw        )                                 {
+  const normalized = raw.toLowerCase();
+  if (normalized.includes("delete") || normalized.includes("remove")) return "delete";
+  if (normalized.includes("create") || normalized.includes("add")) return "create";
+  return "modify";
+}
+
+export function terminateChild(child              )       {
   if (child.exitCode !== null || child.signalCode !== null) return;
   child.kill("SIGTERM");
   const timer = setTimeout(() => {
@@ -160,7 +226,11 @@ function spawnOnce(argv          , opts                , stdinPrompt            
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   return new Promise                 ((resolvePromise) => {
-    const child = spawn(bin, argv, {
+    // Script bins (test fixtures) run through the node executable instead of a
+    // shebang exec: macOS syspolicyd can SIGKILL unsigned script exec under
+    // Gatekeeper assessment pressure, which made spawn-based tests flake.
+    const isScript = /\.(mjs|cjs|js)$/.test(bin);
+    const child = spawn(isScript ? process.execPath : bin, isScript ? [bin, ...argv] : argv, {
       cwd: opts.workdir,
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -209,6 +279,11 @@ function spawnOnce(argv          , opts                , stdinPrompt            
           break;
         case "fail":
           failMsg = event.message;
+          break;
+        case "status":
+        case "thinking":
+        case "tool_call":
+        case "file_change":
           break;
       }
       opts.onEvent?.(event);

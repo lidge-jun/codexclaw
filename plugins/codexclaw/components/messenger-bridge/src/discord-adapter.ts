@@ -13,13 +13,12 @@
  * = `<@botId>` or nickname form `<@!botId>`, from the gateway READY user id).
  */
 import type { BridgeDb } from "./db.ts";
+import { formatApprovalForDiscord, type ApprovalRequest } from "./approval-relay.ts";
 import type { AgentService } from "./agent-service.ts";
+import type { RunnerEvent } from "./runner.ts";
+import { performance } from "node:perf_hooks";
 import {
-  DISCORD_EMBED_TOTAL_MAX,
-  DISCORD_MAX_MESSAGE,
   DiscordApi,
-  chunkDiscordMessage,
-  chunkEmbedDescription,
   type DiscordEmbed,
   type FetchImpl,
 } from "./discord-api.ts";
@@ -28,6 +27,12 @@ import {
   type DiscordMessageEvent,
   type WsFactory,
 } from "./discord-gateway.ts";
+import { registerGlobalCommands as registerDiscordCommands } from "./discord-commands.ts";
+import { buildStatusEmbed } from "./discord-components.ts";
+import { handleInteraction, type Interaction } from "./discord-interactions.ts";
+import { buildHelpEntries, dispatchGatewayCommand } from "./gateway-commands.ts";
+import { cleanupTmpMedia, downloadDiscordAttachment } from "./media-handler.ts";
+import { sendFormattedDiscordOutput } from "./output-formatter.ts";
 
 export interface DiscordAdapterOptions {
   db: BridgeDb;
@@ -39,6 +44,7 @@ export interface DiscordAdapterOptions {
   agent?: { id: number };
   fetchImpl?: FetchImpl;
   wsFactory?: WsFactory;
+  now?: () => number;
   log?: (line: string) => void;
 }
 
@@ -49,13 +55,21 @@ export interface DiscordAdapter {
 }
 
 const START_TRIGGER = "!cxc start";
-const CODE_FENCE_RE = /```/;
+const GATEWAY_TEXT_COMMANDS = new Set([
+  "status", "context", "new", "reset", "cwd", "model", "effort", "mode",
+  "stop", "retry", "approve", "sessions", "jobs", "agent",
+]);
+const DISCORD_PROGRESS_EDIT_MS = 1_200;
 
 export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapter {
   const api = new DiscordApi(opts.token, opts.fetchImpl);
   const log = opts.log ?? (() => {});
+  const nowMs = opts.now ?? (() => performance.now());
   const agentId = opts.agent?.id ?? null;
   let gateway: DiscordGateway | null = null;
+  let applicationId: string | null = null;
+  let registeredApplicationId: string | null = null;
+  let registrationPromise: Promise<void> | null = null;
   let warnedNoBotId = false;
   let paused = false;
   // Bounded dedupe of recently-seen message ids — the gateway can redeliver a
@@ -77,9 +91,105 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
       opts.db.closeAgentHandshake(agentId);
     }
   };
+  const admitThreadChannel = (channelId: string) => {
+    if (agentId === null) opts.db.addAllowlist("discord", channelId, "task-thread");
+    else opts.db.addAgentAllowlist(agentId, channelId, "task-thread");
+  };
   /** Legacy has no mention gate on Discord; agents follow the live card toggle. */
   const mentionRequired = () =>
     agentId === null ? false : (opts.db.getAgent(agentId)?.mention_only ?? 1) === 1;
+
+  /** Thread mode: legacy always uses threads; agents follow the live card toggle. */
+  const isThreadMode = () =>
+    agentId === null ? true : (opts.db.getAgent(agentId)?.thread_mode ?? "thread") === "thread";
+  async function resolveApplicationId(): Promise<string | null> {
+    const readyAppId = gateway?.applicationId() ?? null;
+    if (readyAppId) {
+      applicationId = readyAppId;
+      return readyAppId;
+    }
+    if (applicationId) return applicationId;
+    const me = await api.getMe();
+    if (me.ok && me.data?.id) {
+      // Fallback only: READY application.id wins as soon as the gateway provides it.
+      applicationId = me.data.id;
+      return applicationId;
+    }
+    log(`[discord] application id unavailable: ${me.error ?? me.status}`);
+    return null;
+  }
+
+  function ensureCommandsRegistered(source: "READY" | "getMe fallback"): void {
+    if (registrationPromise) return;
+    registrationPromise = (async () => {
+      const appId = await resolveApplicationId();
+      if (!appId || registeredApplicationId === appId) return;
+      await registerDiscordCommands(api, appId);
+      registeredApplicationId = appId;
+      log(`[discord] global commands registered via ${source}`);
+    })().catch((err) => {
+      log(`[discord] command registration failed: ${(err as Error).message}`);
+    }).finally(() => {
+      registrationPromise = null;
+      const readyAppId = gateway?.applicationId() ?? null;
+      if (readyAppId && readyAppId !== registeredApplicationId) {
+        applicationId = readyAppId;
+        ensureCommandsRegistered("READY");
+      }
+    });
+  }
+
+  async function rejectInteraction(interaction: Interaction, content: string): Promise<void> {
+    await api.createInteractionResponse(interaction.id, interaction.token, {
+      type: 4,
+      data: { content, flags: 64 },
+    });
+  }
+
+  async function deferNativeInteraction(interaction: Interaction): Promise<boolean> {
+    if (interaction.type !== 2 && interaction.type !== 3) return false;
+    await api.createInteractionResponse(interaction.id, interaction.token, { type: 5 });
+    return true;
+  }
+
+  async function handleNativeInteraction(interaction: Interaction): Promise<void> {
+    if (interaction.type === 1) {
+      await handleInteraction(interaction, {
+        db: opts.db,
+        agentService: opts.agentService,
+        api,
+        applicationId: applicationId ?? "0",
+        workdir: opts.workdir,
+        agentId,
+        log,
+      });
+      return;
+    }
+    if (!interaction.channel_id || !isAllowedChat(interaction.channel_id)) {
+      await rejectInteraction(interaction, "codexclaw: connect this channel first with !cxc start.");
+      return;
+    }
+    const deferred = await deferNativeInteraction(interaction);
+    const appId = await resolveApplicationId();
+    if (!appId) {
+      if (!deferred) {
+        await rejectInteraction(interaction, "codexclaw: Discord application id is not available yet.");
+      } else {
+        log("[discord] deferred interaction but Discord application id is unavailable");
+      }
+      return;
+    }
+    await handleInteraction(interaction, {
+      db: opts.db,
+      agentService: opts.agentService,
+      api,
+      applicationId: appId,
+      workdir: opts.workdir,
+      agentId,
+      deferred,
+      log,
+    });
+  }
 
   function alreadySeen(id: string): boolean {
     if (!id) return false;
@@ -132,63 +242,9 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
       : opts.db.getOrCreateBinding("discord", channelId, opts.workdir);
   }
 
-  function formatJobContext(bindingId: number): string {
-    const lines = opts.db
-      .listJobs(bindingId, 5)
-      .slice()
-      .reverse()
-      .filter((job) => job.prompt_preview || job.result_preview)
-      .map((job) => {
-        const user = job.prompt_preview ? `User: ${job.prompt_preview}` : "";
-        const assistant = job.result_preview ? `Assistant: ${job.result_preview}` : "";
-        return [user, assistant].filter(Boolean).join("\n");
-      });
-    return lines.length > 0 ? lines.join("\n\n") : "No recent context.";
-  }
-
   async function handleCommand(channelId: string, command: string, args: string): Promise<void> {
-    if (command === "status") {
-      const binding = getBinding(channelId);
-      const agent = agentId !== null ? opts.db.getAgent(agentId) : null;
-      const model = agent?.model ?? binding.model;
-      await api.sendMessage(
-        channelId,
-        [
-          `thread_id: ${binding.thread_id ?? "none"}`,
-          `model: ${model}`,
-          `status: ${binding.status}`,
-          `agent: ${agent?.name ?? "none"}`,
-        ].join("\n"),
-      );
-      return;
-    }
-
-    if (command === "context") {
-      const binding = getBinding(channelId);
-      await api.sendMessage(channelId, formatJobContext(binding.id));
-      return;
-    }
-
-    if (command === "reset") {
-      const binding = getBinding(channelId);
-      opts.db.clearBindingThread(binding.id);
-      await api.sendMessage(channelId, "Session reset — next message starts a fresh conversation.");
-      return;
-    }
-
-    if (command === "model") {
-      if (!args) {
-        const binding = getBinding(channelId);
-        const agent = agentId !== null ? opts.db.getAgent(agentId) : null;
-        await api.sendMessage(channelId, `model: ${agent?.model ?? binding.model}`);
-        return;
-      }
-      if (agentId === null) {
-        await api.sendMessage(channelId, "model command is only available in agent mode");
-        return;
-      }
-      const agent = opts.db.updateAgent(agentId, { model: args });
-      await api.sendMessage(channelId, `model updated: ${agent?.model ?? args}`);
+    if (GATEWAY_TEXT_COMMANDS.has(command)) {
+      await handleGatewayTextCommand(channelId, command, args);
       return;
     }
 
@@ -212,64 +268,113 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
     }
 
     if (command === "help") {
-      await api.sendMessage(
-        channelId,
-        [
-          "!cxc start",
-          "!cxc status",
-          "!cxc context",
-          "!cxc reset",
-          "!cxc model",
-          "!cxc pause",
-          "!cxc resume",
-          "!cxc kick",
-          "!cxc help",
-        ].join("\n"),
-      );
+      // Unified help: Discord text (!cxc) commands merged from gateway + DC-only
+      const dcTextOnly = [
+        { name: "start", description: "Connect this channel" },
+        { name: "pause", description: "Pause message processing" },
+        { name: "resume", description: "Resume message processing" },
+        { name: "kick", description: "Remove this channel from allowlist" },
+      ];
+      const entries = buildHelpEntries("discord", dcTextOnly);
+      const lines = entries.map((e) => `!cxc ${e.name}${e.args ? " " + e.args : ""} — ${e.description}`);
+      await api.sendMessage(channelId, lines.join("\n"));
     }
   }
 
-  function splitEmbedReply(text: string): { summary: string; body: string } {
-    const firstFence = text.indexOf("```");
-    const beforeFence = text.slice(0, firstFence).trim();
-    const firstParagraph = beforeFence.split(/\n\s*\n/, 1)[0]?.trim() ?? "";
-    const summarySource =
-      firstParagraph.length <= DISCORD_MAX_MESSAGE ? firstParagraph : beforeFence.slice(0, 200).trim();
-    const summary = (summarySource || "codexclaw output").slice(0, DISCORD_MAX_MESSAGE);
-    const bodyStart = text.startsWith(summary) ? summary.length : firstFence;
-    const body = text.slice(bodyStart).trim();
-    return { summary, body };
+  async function handleGatewayTextCommand(channelId: string, command: string, args: string): Promise<void> {
+    const binding = getBinding(channelId);
+    const result = await dispatchGatewayCommand(command, {
+      bindingId: binding.id,
+      db: opts.db,
+      agentService: opts.agentService,
+      agentId,
+      args,
+      defaultWorkdir: opts.workdir,
+      onApprovalRequest: (request) => sendApprovalRequest(channelId, request),
+    });
+    await api.sendMessage(channelId, result?.text ?? "Unknown bridge command.");
   }
 
-  function embedBatches(descriptions: string[]): DiscordEmbed[][] {
-    const batches: DiscordEmbed[][] = [];
-    let batch: DiscordEmbed[] = [];
-    let total = 0;
-    for (const description of descriptions) {
-      if (batch.length > 0 && (batch.length >= 10 || total + description.length > DISCORD_EMBED_TOTAL_MAX)) {
-        batches.push(batch);
-        batch = [];
-        total = 0;
+  async function replyChannelForMessage(msg: DiscordMessageEvent, text: string): Promise<{ channelId: string; autoCreated: boolean }> {
+    if (!msg.guildId) return { channelId: msg.channelId, autoCreated: false };
+    // plain mode: reply in the origin channel, skip thread creation + admitThreadChannel.
+    if (!isThreadMode()) return { channelId: msg.channelId, autoCreated: false };
+    const thread = await api.startThread(msg.channelId, threadName(text), msg.id);
+    if (thread.ok && thread.data?.id) {
+      admitThreadChannel(thread.data.id);
+      return { channelId: thread.data.id, autoCreated: true };
+    }
+    log(`[discord] thread start failed ${msg.channelId}: ${thread.error ?? thread.status}`);
+    return { channelId: msg.channelId, autoCreated: false };
+  }
+
+  async function sendTurnResult(channelId: string, result: { ok: boolean; text?: string; error?: string }): Promise<void> {
+    if (result.ok && result.text) {
+      await sendFormattedDiscordOutput(api, channelId, result.text, log);
+      return;
+    }
+    await api.sendMessage(channelId, `Error: ${result.error ?? "no response"}`);
+  }
+
+  async function downloadAttachmentPrefixes(msg: DiscordMessageEvent): Promise<{ prefixes: string[]; tempDirs: string[] }> {
+    const prefixes: string[] = [];
+    const tempDirs: string[] = [];
+    for (const attachment of msg.attachments) {
+      try {
+        const downloaded = await downloadDiscordAttachment(attachment, { fetchImpl: opts.fetchImpl });
+        tempDirs.push(downloaded.tempDir);
+        prefixes.push(`[File: ${downloaded.path}]`);
+      } catch (err) {
+        log(`[discord] attachment download failed ${attachment.id || attachment.filename}: ${(err as Error).message}`);
       }
-      batch.push({ description });
-      total += description.length;
     }
-    if (batch.length > 0) batches.push(batch);
-    return batches;
+    return { prefixes, tempDirs };
   }
 
-  async function sendCodeFenceEmbedReply(channelId: string, text: string): Promise<boolean> {
-    const { summary, body } = splitEmbedReply(text);
-    const descriptions = chunkEmbedDescription(body);
-    if (descriptions.length === 0) return false;
-    for (const [index, embeds] of embedBatches(descriptions).entries()) {
-      const sent = await api.sendEmbed(channelId, index === 0 ? summary : "", embeds);
-      if (!sent.ok) {
-        log(`[discord] embed send failed ${channelId}: ${sent.error ?? sent.status}`);
-        return false;
+  function createProgressWindow(channelId: string) {
+    let messageId: string | null = null;
+    let lastEditAt = 0;
+    let creating: Promise<void> | null = null;
+
+    const start = async () => {
+      if (!creating) {
+        creating = api
+          .sendEmbed(channelId, "", [progressEmbed("Working", "Starting turn.")])
+          .then((res) => {
+            if (res.ok && res.data?.id) messageId = res.data.id;
+          })
+          .finally(() => {
+            creating = null;
+          });
       }
-    }
-    return true;
+      await creating;
+    };
+
+    const edit = async (stage: string, detail: string, force = false, state: "running" | "success" | "error" = "running") => {
+      await start();
+      if (!messageId) return;
+      const now = nowMs();
+      if (!force && lastEditAt > 0 && now - lastEditAt < DISCORD_PROGRESS_EDIT_MS) return;
+      lastEditAt = now;
+      const res = await api.editMessage(channelId, messageId, "", [progressEmbed(stage, detail, state)]);
+      if (!res.ok) log(`[discord] progress edit failed ${channelId}: ${res.error ?? res.status}`);
+    };
+
+    return {
+      start,
+      onEvent(event: RunnerEvent) {
+        const progress = progressFromEvent(event);
+        if (progress) void edit(progress.stage, progress.detail);
+      },
+      finish(result: { ok: boolean; error?: string }) {
+        return edit(
+          result.ok ? "Done" : "Error",
+          result.ok ? "Final answer sent as a fresh message." : result.error ?? "No response.",
+          true,
+          result.ok ? "success" : "error",
+        );
+      },
+    };
   }
 
   async function handleMessage(msg: DiscordMessageEvent): Promise<void> {
@@ -292,9 +397,9 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
     if (paused) return;
 
     let text = gateAndStripMention(msg, rawText);
-    if (text === null || !text) return;
+    if (text === null) return;
 
-    const cmd = parseDiscordCommand(text);
+    const cmd = text ? parseDiscordCommand(text) : null;
     if (cmd) {
       await handleCommand(channelId, cmd.command, cmd.args);
       return;
@@ -305,26 +410,53 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
       text = `[replying to a previous message] ${text}`;
     }
 
-    void api.triggerTyping(channelId);
-    const result = await opts.agentService.handleIncoming({
-      kind: "discord",
-      chatId: channelId,
-      text,
-      workdir: opts.workdir,
-      agentId: agentId ?? undefined,
-    });
+    let mediaTempDirs: string[] = [];
+    try {
+      const media = await downloadAttachmentPrefixes(msg);
+      mediaTempDirs = media.tempDirs;
+      text = [media.prefixes.join("\n"), text.trim()].filter(Boolean).join("\n");
+      if (!text.trim()) return;
 
-    if (result.ok && result.text) {
-      const sentAsEmbed =
-        result.text.length > DISCORD_MAX_MESSAGE && CODE_FENCE_RE.test(result.text)
-          ? await sendCodeFenceEmbedReply(channelId, result.text)
-          : false;
-      for (const chunk of sentAsEmbed ? [] : chunkDiscordMessage(result.text)) {
-        await api.sendMessage(channelId, chunk);
+      const reply = await replyChannelForMessage(msg, rawText || "attachment");
+      const replyChannelId = reply.channelId;
+      void api.triggerTyping(replyChannelId);
+      const progress = createProgressWindow(replyChannelId);
+      await progress.start();
+      const result = await opts.agentService.handleIncoming({
+        kind: "discord",
+        chatId: replyChannelId,
+        text,
+        workdir: opts.workdir,
+        agentId: agentId ?? undefined,
+        onApprovalRequest: (request) => sendApprovalRequest(replyChannelId, request),
+        onEvent: (event) => progress.onEvent(event),
+      });
+
+      await progress.finish(result);
+      await sendTurnResult(replyChannelId, result);
+      if (reply.autoCreated && isThreadMode()) {
+        const archived = await api.archiveThread(replyChannelId);
+        if (!archived.ok) log(`[discord] archive thread failed ${replyChannelId}: ${archived.error ?? archived.status}`);
       }
-      log(`[discord] out ${channelId}: ${result.text.slice(0, 60)}`);
-    } else {
-      await api.sendMessage(channelId, `❌ ${result.error ?? "no response"}`);
+      if (result.ok && result.text) log(`[discord] out ${channelId}: ${result.text.slice(0, 60)}`);
+    } finally {
+      try {
+        await cleanupTmpMedia(mediaTempDirs);
+      } catch (err) {
+        log(`[discord] media cleanup failed: ${(err as Error).message}`);
+      }
+    }
+  }
+
+  async function sendApprovalRequest(channelId: string, request: ApprovalRequest): Promise<void> {
+    const formatted = formatApprovalForDiscord(request);
+    const sent = await api.sendEmbed(channelId, "", formatted.embeds, formatted.components);
+    if (sent.ok && sent.data?.id) {
+      const messageId = sent.data.id;
+      opts.agentService.registerApprovalCleanup(request.id, async () => {
+        const disabled = formatApprovalForDiscord(request, true);
+        await api.editMessage(channelId, messageId, "", disabled.embeds, disabled.components);
+      });
     }
   }
 
@@ -348,6 +480,15 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
         token: opts.token,
         wsFactory: opts.wsFactory,
         log,
+        onReady: (ready) => {
+          // READY application.id is primary; getMe() only seeds a fallback before READY.
+          if (ready.applicationId) applicationId = ready.applicationId;
+          ensureCommandsRegistered("READY");
+        },
+        onInteraction: (interaction) =>
+          void handleNativeInteraction(interaction).catch((err) =>
+            log(`[discord] interaction error: ${(err as Error).message}`),
+          ),
         onMessage: (msg) =>
           void handleMessage(msg).catch((err) =>
             log(`[discord] handle error: ${(err as Error).message}`),
@@ -363,4 +504,40 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
     },
     status: () => gateway?.status() ?? "idle",
   };
+}
+
+function threadName(text: string): string {
+  const compact = text.replace(/\s+/g, " ").trim();
+  return (compact ? `cxc: ${compact}` : "cxc turn").slice(0, 100);
+}
+
+function progressEmbed(stage: string, detail: string, state: "running" | "success" | "error" = "running"): DiscordEmbed {
+  return buildStatusEmbed(state, `${stage}: ${sanitizeProgressDetail(detail)}`);
+}
+
+function progressFromEvent(event: RunnerEvent): { stage: string; detail: string } | null {
+  switch (event.kind) {
+    case "thinking":
+      return { stage: "Thinking", detail: event.text };
+    case "tool_call":
+      return { stage: "Coding", detail: [event.name, event.input].filter(Boolean).join(" ") };
+    case "file_change":
+      return { stage: "Coding", detail: `${event.action} ${event.path}` };
+    case "status":
+      return { stage: "Coding", detail: event.label };
+    case "message":
+      return { stage: "Writing", detail: event.text.slice(0, 500) };
+    case "thread":
+    case "done":
+    case "fail":
+      return null;
+  }
+}
+
+function sanitizeProgressDetail(value: string): string {
+  return String(value || "-")
+    .replace(/<@!?\d+>/g, "@user")
+    .replace(/@everyone/g, "[everyone]")
+    .replace(/@here/g, "[here]")
+    .slice(0, 1000);
 }

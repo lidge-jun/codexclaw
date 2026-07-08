@@ -1,5 +1,0 @@
-interface:
-  display_name: "cxc-ultraresearch"
-  short_description: "Deep multi-source research protocol (EXPAND/wave/journal/claim-ledger) for Tier-3 explorer swarms."
-policy:
-  allow_implicit_invocation: false

@@ -76,3 +76,20 @@ spacing: "40px+ padding on glass, very generous sections"
 radius: "12-20px"
 signature: "system font, Liquid Glass adapts contextually, specular highlights on motion, generous spacing = luxury"
 ```
+Liquid Glass judgment (HIG, verified 2026-07-07): glass is a functional-layer
+material for floating controls/navigation only — never content-layer cards;
+`regular` variant for text-bearing chrome, `clear` only over rich media; the
+system adapts it to reduced-transparency/contrast settings. Vocabulary:
+`design-isms.md` §1.12; implementation: `dev-frontend/references/core/liquid-glass.md`.
+
+### Aside (2026 AI-product pastel)
+**Essence:** Apple-circular warmth for AI products — pill chips as content, pastel photography washes, glass feel without blur. (Tokens measured from the live site 2026-07-07; STYLE_SAMPLE.)
+```yaml
+colors: { hero: "sky-photo / soft pastel washes (pink/teal/green/blue) per card", surface: "near-opaque white rgba(255,255,255,0.92)", cta: "black pill, white text" }
+typography: { font: "Geist", headlines: "large sentence-case declaratives ending with a period ('...but it's a browser.')" }
+radius: { tiers: "8.4px / 11.2px / 16.8px + 9999px pill class", page: "22-34px rounded macOS-window container" }
+effects: { glass: "NONE — 0 backdrop-filter site-wide; translucent white pills over rich backgrounds carry the material feel" }
+chips: "prompt strings, scheduling options, bookmarks = pill chips WITH real brand icons; the chip is the primary content unit"
+composition: "full-bleed photo hero + centered copy + one pill CTA + one bordered pill eyebrow; 3-card pastel feature rows with real product screenshots + floating prompt pills"
+signature: "macOS-window page metaphor, chips-as-content, Apple-newsroom copy cadence, warmth without gradients-on-cards"
+```

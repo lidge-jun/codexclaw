@@ -9,14 +9,29 @@
  * is never replayed. 409 (another poller) backs off and eventually stops.
  */
 
+import { formatApprovalForTelegram,                      } from "./approval-relay.js";
 
 
-import { realpathSync, statSync } from "node:fs";
-import { homedir } from "node:os";
-import { resolve } from "node:path";
-import { TelegramApi,                                               } from "./telegram-api.js";
-import { markdownToTelegramHtml, chunkTelegramMessage, stripTelegramHtml } from "./telegram-format.js";
-import { probeRichSupport, sendRichOrFallback } from "./telegram-rich-send.js";
+import {
+  TelegramApi,
+  telegramReplyThreadId,
+  telegramTopicId,
+
+
+
+} from "./telegram-api.js";
+import {
+  findCommandDef,
+  parseCommand,
+  registerTelegramCommands,
+
+} from "./telegram-commands.js";
+import { handleCallback } from "./telegram-interactive.js";
+import { cleanupTmpMedia, downloadTelegramMessageMedia } from "./media-handler.js";
+import { sendFormattedTelegramOutput } from "./output-formatter.js";
+import { createDraftProgressState, probeRichSupport, sendDraftProgress } from "./telegram-rich-send.js";
+
+
 
 
 
@@ -135,228 +150,113 @@ export function createTelegramAdapter(opts                        )             
     const msg = update.message;
     const cbq = update.callback_query;
     if (cbq) {
-      await api.answerCallbackQuery(cbq.id);
+      await handleCallback(api, cbq, opts.db, {
+        agentId,
+        isAllowedChat,
+        resolveApproval: (id, decision, chatId) =>
+          opts.agentService.resolveApproval({ id, decision, chatId, agentId }),
+      });
       log(`[tg] callback_query from ${cbq.from?.id}: ${cbq.data ?? ""}`);
       return;
     }
     if (!msg?.chat) return;
     const chatId = String(msg.chat.id);
     const rawText = msg.text ?? msg.caption ?? "";
+    const parsed = parseCommand(rawText);
 
-    if (rawText.startsWith("/start")) return handleStart(chatId);
-    if (rawText.startsWith("/id")) {
-      await api.sendMessage({ chatId, text: `Chat ID: ${chatId}` });
-      return;
+    if (parsed) {
+      const def = findCommandDef(parsed.command);
+      if (def) {
+        if (!def.allowUnpaired && !isAllowedChat(chatId)) return;
+        const result = await def.handler({
+          chatId,
+          args: parsed.args,
+          db: opts.db,
+          agentService: opts.agentService,
+          binding: null,
+          agentId,
+          workdir: opts.workdir,
+          api,
+          msg,
+          pendingDeletes,
+          deleteTtlMs: deleteTtl,
+          isAllowedChat,
+          isHandshakeOpen,
+          admitChat,
+          removeChat,
+          setPaused: (next) => {
+            paused = next;
+          },
+          log,
+        });
+        await sendCommandResult(chatId, msg, result);
+        return;
+      }
     }
 
     if (!isAllowedChat(chatId)) return; // silent ignore
     if (paused && !rawText.startsWith("/")) return;
 
-    if (rawText.startsWith("/kick")) {
-      if (agentId !== null) opts.db.removeAgentAllowlist(agentId, chatId);
-      else opts.db.removeAllowlist("telegram", chatId);
-      await api.sendMessage({ chatId, text: "Chat removed from allowlist." });
-      return;
-    }
-    if (rawText.startsWith("/delete")) return handleDelete(chatId, msg, rawText);
-    if (rawText.startsWith("/pause")) {
-      paused = true;
-      await api.sendMessage({ chatId, text: "Paused — messages will be ignored until /resume." });
-      return;
-    }
-    if (rawText.startsWith("/resume")) {
-      paused = false;
-      await api.sendMessage({ chatId, text: "Resumed — messages will be processed." });
-      return;
-    }
-    if (rawText.startsWith("/status")) return handleStatus(chatId, msg);
-    if (rawText.startsWith("/reset")) return handleReset(chatId, msg);
-    if (rawText.startsWith("/cwd")) return handleCwd(chatId, msg, rawText);
-    if (rawText.startsWith("/model")) return handleModel(chatId, msg, rawText);
-    if (rawText.startsWith("/help")) return handleHelp(chatId, msg);
-    if (rawText.startsWith("/context")) {
-      await handleContext(chatId, msg);
-      return;
-    }
-
-    let text = gateAndStripMention(msg, rawText);
-    if (text === null || !text.trim()) return;
-    if (msg.reply_to_message?.text) {
-      text = `[replying to: "${msg.reply_to_message.text.slice(0, 200)}"] ${text}`;
-    }
-
-    await runTurn(msg, chatId, text);
-  }
-
-  async function handleStart(chatId        )                {
-    if (isAllowedChat(chatId)) {
-      await api.sendMessage({ chatId, text: "codexclaw: already connected ✅" });
-      return;
-    }
-    if (isHandshakeOpen()) {
-      // Close the window atomically on the first pair so a single open window
-      // can't admit multiple chats (security review finding 2).
-      admitChat(chatId);
-      await api.sendMessage({ chatId, text: "codexclaw: connected ✅ send me a message." });
-      log(`[tg] handshake paired chat ${chatId}`);
-      return;
-    }
-    // No open window → silent (no "not allowed" oracle).
-  }
-
-  async function handleStatus(chatId        , msg           )                {
-    void msg;
-    const binding =
-      agentId !== null
-        ? opts.db.getOrCreateAgentBinding(agentId, "telegram", chatId, opts.workdir)
-        : opts.db.getOrCreateBinding("telegram", chatId, opts.workdir);
-    const agent = agentId !== null ? opts.db.getAgent(agentId) : null;
-    const statusText = [
-      `thread_id: ${binding.thread_id ?? "none"}`,
-      `model: ${agent?.model ?? binding.model}`,
-      `status: ${binding.status}`,
-      `agent: ${agent?.name ?? "none"}`,
-    ].join("\n");
-    await api.sendMessage({ chatId, text: statusText });
-  }
-
-  async function handleReset(chatId        , msg           )                {
-    void msg;
-    const binding =
-      agentId !== null
-        ? opts.db.getOrCreateAgentBinding(agentId, "telegram", chatId, opts.workdir)
-        : opts.db.getOrCreateBinding("telegram", chatId, opts.workdir);
-    opts.db.clearBindingThread(binding.id);
-    await api.sendMessage({ chatId, text: "Session reset — next message starts a fresh conversation." });
-  }
-
-  async function handleModel(chatId        , msg           , rawText        )                {
-    void msg;
-    if (agentId === null) {
-      await api.sendMessage({ chatId, text: "/model is only available in agent mode" });
-      return;
-    }
-
-    const modelName = rawText.trim().split(/\s+/).slice(1).join(" ").trim();
-    if (!modelName) {
-      const agent = opts.db.getAgent(agentId);
-      await api.sendMessage({ chatId, text: `Current model: ${agent?.model ?? "default"}` });
-      return;
-    }
-
-    opts.db.updateAgent(agentId, { model: modelName });
-    await api.sendMessage({ chatId, text: `Model set to ${modelName}` });
-  }
-
-  /** /cwd — show or repoint this chat's exec working directory. Existing
-   *  directories only (realpath-validated); never creates anything. */
-  async function handleCwd(chatId        , msg           , rawText        )                {
-    void msg;
-    const binding =
-      agentId !== null
-        ? opts.db.getOrCreateAgentBinding(agentId, "telegram", chatId, opts.workdir)
-        : opts.db.getOrCreateBinding("telegram", chatId, opts.workdir);
-
-    const arg = rawText.trim().split(/\s+/).slice(1).join(" ").trim();
-    if (!arg) {
-      await api.sendMessage({ chatId, text: `Current workdir: ${binding.workdir || opts.workdir}` });
-      return;
-    }
-
-    const expanded = arg === "~" ? homedir() : arg.startsWith("~/") ? homedir() + arg.slice(1) : arg;
-    let real        ;
+    let mediaTempDirs           = [];
     try {
-      real = realpathSync(resolve(expanded));
-      if (!statSync(real).isDirectory()) throw new Error("not a directory");
-    } catch {
-      await api.sendMessage({ chatId, text: `Not a directory: ${arg}` });
-      return;
-    }
+      let text = gateAndStripMention(msg, rawText);
+      if (text === null) return;
 
-    opts.db.setBindingWorkdir(binding.id, real);
-    opts.db.clearBindingThread(binding.id);
-    await api.sendMessage({ chatId, text: `Workdir set: ${real} (session reset)` });
+      const media = await downloadMediaPrefixes(msg);
+      mediaTempDirs = media.tempDirs;
+      if (media.prefixes.length > 0) {
+        text = [media.prefixes.join("\n"), text.trim()].filter(Boolean).join("\n");
+      }
+      if (!text.trim()) return;
+      if (msg.reply_to_message?.text) {
+        text = `[replying to: "${msg.reply_to_message.text.slice(0, 200)}"] ${text}`;
+      }
+
+      await runTurn(msg, chatId, text);
+    } finally {
+      await cleanupMediaTempDirs(mediaTempDirs);
+    }
   }
 
-  /** /delete — two-step chat teardown: binding + jobs + pairing, and the forum
-   *  topic itself when invoked from one (best effort). */
-  async function handleDelete(chatId        , msg           , rawText        )                {
-    const confirmed = rawText.trim().split(/\s+/)[1] === "confirm";
-    const pendingUntil = pendingDeletes.get(chatId) ?? 0;
+  function removeChat(chatId        )       {
+    if (agentId !== null) opts.db.removeAgentAllowlist(agentId, chatId);
+    else opts.db.removeAllowlist("telegram", chatId);
+  }
 
-    if (!confirmed || pendingUntil < Date.now()) {
-      pendingDeletes.set(chatId, Date.now() + deleteTtl);
-      await api.sendMessage({
+  async function sendCommandResult(
+    chatId        ,
+    msg           ,
+    result                      ,
+  )                {
+    if (!result) return;
+    const messageThreadId = telegramReplyThreadId(msg);
+    if (result.keyboard) {
+      await api.sendMessageWithKeyboard({
         chatId,
-        text: "This will remove this chat's session, history, and pairing. Send /delete confirm within 60s to proceed.",
-        messageThreadId: msg.message_thread_id,
+        text: result.text,
+        parseMode: result.parseMode,
+        messageThreadId,
+        inlineKeyboard: result.keyboard,
       });
       return;
     }
-
-    pendingDeletes.delete(chatId);
-    const binding =
-      agentId !== null
-        ? opts.db.getOrCreateAgentBinding(agentId, "telegram", chatId, opts.workdir)
-        : opts.db.getOrCreateBinding("telegram", chatId, opts.workdir);
-    opts.db.deleteBindingCascade(binding.id);
-    if (agentId !== null) opts.db.removeAgentAllowlist(agentId, chatId);
-    else opts.db.removeAllowlist("telegram", chatId);
-
-    const topicId = msg.message_thread_id;
-    const isTopic =
-      topicId !== undefined && (msg.chat.type === "supergroup" || msg.chat.type === "group");
-    if (isTopic) {
-      const res = await api.deleteForumTopic(chatId, topicId);
-      if (!res.ok) {
+    if (result.chunks && result.chunks.length > 0) {
+      for (const chunk of result.chunks) {
         await api.sendMessage({
           chatId,
-          text: "State wiped, but I couldn't delete this topic (missing can_delete_messages) — remove it manually.",
-          messageThreadId: topicId,
+          text: chunk,
+          parseMode: result.parseMode,
+          messageThreadId,
         });
       }
-      log(`[tg] /delete wiped chat ${chatId} (topic ${topicId}, api ok=${res.ok})`);
       return;
     }
-
     await api.sendMessage({
       chatId,
-      text: "Chat deleted — pairing and history removed on the bot side. Reconnecting requires a new pairing window from the desktop.",
+      text: result.text,
+      parseMode: result.parseMode,
+      messageThreadId,
     });
-    log(`[tg] /delete wiped chat ${chatId}`);
-  }
-
-  async function handleHelp(chatId        , msg           )                {
-    void msg;
-    const helpText = [
-      "Available commands:",
-      "/start — Connect this chat",
-      "/id — Show chat ID",
-      "/status — Show session status",
-      "/reset — Reset conversation session",
-      "/cwd — Show or set working directory",
-      "/model — Show or change AI model",
-      "/delete — Remove this chat's session and pairing",
-      "/help — List available commands",
-    ].join("\n");
-    await api.sendMessage({ chatId, text: helpText });
-  }
-
-  async function handleContext(chatId        , msg           )                {
-    void msg;
-    const binding =
-      agentId !== null
-        ? opts.db.getOrCreateAgentBinding(agentId, "telegram", chatId, opts.workdir)
-        : opts.db.getOrCreateBinding("telegram", chatId, opts.workdir);
-    const jobs = opts.db.listJobs(binding.id, 5);
-    if (jobs.length === 0) {
-      await api.sendMessage({ chatId, text: "No conversation history yet." });
-      return;
-    }
-    const summary = jobs
-      .map((job) => `User: ${job.prompt_preview}\nAssistant: ${job.result_preview ?? ""}`)
-      .join("\n\n");
-    await api.sendMessage({ chatId, text: summary });
   }
 
   function gateAndStripMention(msg           , rawText        )                {
@@ -376,8 +276,26 @@ export function createTelegramAdapter(opts                        )             
     return rawText;
   }
 
+  async function downloadMediaPrefixes(msg           )                                                      {
+    return downloadTelegramMessageMedia(api, msg, log);
+  }
+
+  async function cleanupMediaTempDirs(dirs          )                {
+    try {
+      await cleanupTmpMedia(dirs);
+    } catch (err) {
+      log(`[tg] media cleanup failed: ${(err         ).message}`);
+    }
+  }
+
   async function runTurn(msg           , chatId        , text        )                {
-    const threadId = msg.message_thread_id;
+    const threadId = telegramReplyThreadId(msg);
+    // plain mode: flatten all topics into a single per-chat binding (topicId=null).
+    const rawTopicId = telegramTopicId(msg);
+    const threadMode = agentId !== null ? (opts.db.getAgent(agentId)?.thread_mode ?? "thread") : "thread";
+    const topicId = threadMode === "plain" ? null : rawTopicId;
+    const draftStreaming = richSupported && msg.chat.type === "private";
+    const draftId = msg.message_id;
     let typingTimer                                        = null;
     let statusMsgId                = null;
     let statusCreating                       = null;
@@ -385,6 +303,7 @@ export function createTelegramAdapter(opts                        )             
     let lastTextEditAt = 0;
     let pendingStatus = "";
     const toolLines           = [];
+    const draftState = createDraftProgressState();
 
     const fireTyping = () => void api.sendChatAction(chatId, threadId);
     fireTyping();
@@ -417,16 +336,48 @@ export function createTelegramAdapter(opts                        )             
 
     const onEvent = (event             ) => {
       if (event.kind === "status") {
-        if (toolLines[toolLines.length - 1] !== event.label) toolLines.push(event.label);
-        pendingStatus = toolLines.slice(-5).join("\n");
-        void flushStatus();
+        routeProgress(event.label);
+      }
+      if (event.kind === "thinking") {
+        routeProgress(`Thinking: ${event.text.slice(0, 300)}`);
+      }
+      if (event.kind === "tool_call") {
+        routeProgress([event.name, event.input].filter(Boolean).join(" "));
+      }
+      if (event.kind === "file_change") {
+        routeProgress(`${event.action} ${event.path}`);
       }
       if (event.kind === "message") {
         const now = Date.now();
         if (now - lastTextEditAt < 2_000) return;
         lastTextEditAt = now;
+        if (draftStreaming) {
+          void sendDraftProgress(
+            { api, chatId, richSupported, chatType: msg.chat.type, messageThreadId: threadId },
+            draftId,
+            event.text,
+            { state: draftState },
+          );
+          return;
+        }
         void flushStatus(event.text.slice(0, 4000));
       }
+    };
+
+    const routeProgress = (detail        ) => {
+      if (!detail) return;
+      if (draftStreaming) {
+        void sendDraftProgress(
+          { api, chatId, richSupported, chatType: msg.chat.type, messageThreadId: threadId },
+          draftId,
+          detail,
+          { state: draftState },
+        );
+        return;
+      }
+      if (toolLines[toolLines.length - 1] !== detail) toolLines.push(detail);
+      pendingStatus = toolLines.slice(-5).join("\n");
+      void flushStatus();
     };
 
     const result = await opts.agentService.handleIncoming({
@@ -434,7 +385,9 @@ export function createTelegramAdapter(opts                        )             
       chatId,
       text,
       workdir: opts.workdir,
+      topicId,
       agentId: agentId ?? undefined,
+      onApprovalRequest: (request) => sendApprovalRequest(chatId, threadId, request),
       onEvent,
     });
 
@@ -443,22 +396,40 @@ export function createTelegramAdapter(opts                        )             
     if (statusMsgId !== null) void api.deleteMessage(chatId, statusMsgId);
 
     if (result.ok && result.text) {
-      await sendRichOrFallback(
-        {
-          api,
-          chatId,
-          richSupported,
-          chatType: msg.chat.type,
-          messageThreadId: threadId,
-        },
-        result.text,
-      );
+      await sendFormattedTelegramOutput({
+        api,
+        chatId,
+        richSupported,
+        chatType: msg.chat.type,
+        messageThreadId: threadId,
+        text: result.text,
+      });
       log(`[tg] out ${chatId}: ${result.text.slice(0, 60)}`);
     } else {
       await api.sendMessage({
         chatId,
         text: `❌ ${result.error ?? "no response"}`,
         messageThreadId: threadId,
+      });
+    }
+  }
+
+  async function sendApprovalRequest(
+    chatId        ,
+    messageThreadId                    ,
+    request                 ,
+  )                {
+    const formatted = formatApprovalForTelegram(request);
+    const sent = await api.sendMessageWithKeyboard({
+      chatId,
+      text: formatted.text,
+      messageThreadId,
+      inlineKeyboard: formatted.keyboard,
+    });
+    if (sent.ok && sent.result?.message_id) {
+      const messageId = sent.result.message_id;
+      opts.agentService.registerApprovalCleanup(request.id, async () => {
+        await api.editMessageReplyMarkup(chatId, messageId);
       });
     }
   }
@@ -484,25 +455,12 @@ export function createTelegramAdapter(opts                        )             
         richSupported = await probeRichSupport(api, botUserId);
         log(`[tg] rich message support: ${richSupported ? "yes" : "no (legacy HTML)"}`);
       }
-      await api.setMyCommands([
-        { command: "start", description: "Connect this chat" },
-        { command: "id", description: "Show chat ID" },
-        { command: "status", description: "Show session status" },
-        { command: "context", description: "Show recent conversation history" },
-        { command: "reset", description: "Reset conversation session" },
-        { command: "cwd", description: "Show or set working directory" },
-        { command: "pause", description: "Pause message processing" },
-        { command: "resume", description: "Resume message processing" },
-        { command: "kick", description: "Remove this chat from allowlist" },
-        { command: "delete", description: "Remove this chat's session and pairing" },
-        { command: "model", description: "Show or change AI model" },
-        { command: "help", description: "List available commands" },
-      ]);
+      await registerTelegramCommands(api);
       // Resume from the persisted offset. Cold start (offset 0) drops any
       // pending backlog so we never replay a pile of full-permission execs.
       const saved = savedOffset();
       offset = saved;
-      await api.deleteWebhook(saved === 0);
+      await api.deleteWebhook(opts.deleteWebhookDropPending ?? saved === 0);
       log(`[tg] polling as @${username ?? "unknown"} (offset ${offset})`);
       void loop();
     },

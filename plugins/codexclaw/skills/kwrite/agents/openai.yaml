@@ -1,0 +1,6 @@
+interface:
+  display_name: "cxc-kwrite"
+  short_description: "Korean prose polishing: AI-tell removal + register consistency, meaning-exact."
+  default_prompt: "Use $cxc-kwrite to polish this Korean text without changing what it says."
+policy:
+  allow_implicit_invocation: false

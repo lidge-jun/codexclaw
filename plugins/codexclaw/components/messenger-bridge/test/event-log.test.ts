@@ -50,7 +50,25 @@
      rmSync(dir, { recursive: true, force: true });
    }
  });
- 
+
+ test("EventLog: accepts turn_started and lifecycle events", () => {
+   const dir = tempDir();
+   try {
+     const path = join(dir, "events.jsonl");
+     const log = new EventLog({ path });
+     log.log({ type: "turn_started", agentId: 7, chatId: "c1", platform: "telegram", ts: "t1" });
+     log.log({ type: "lifecycle", payload: { action: "reload", detail: "manual" }, ts: "t2" });
+
+     const recent = log.recent(2);
+     assert.equal(recent[0]?.type, "turn_started");
+     assert.equal(recent[1]?.type, "lifecycle");
+     assert.deepEqual(recent[1], { type: "lifecycle", payload: { action: "reload", detail: "manual" }, ts: "t2" });
+     log.close();
+   } finally {
+     rmSync(dir, { recursive: true, force: true });
+   }
+ });
+
  test("EventLog: rotation on size limit", () => {
    const dir = tempDir();
    try {

@@ -12,6 +12,7 @@ import { EffortSelect } from "../components/EffortSelect.tsx";
 import { PromptOverrideEditor } from "../components/PromptOverrideEditor.tsx";
 import { Loading } from "../ui/kit.tsx";
 import { toast } from "../ui/toast.tsx";
+import { HelpDrawer, HelpTopicButton, useHelp } from "../ui/help.tsx";
 
 const ROLES = ["explorer", "reviewer", "executor"] as const;
 
@@ -25,6 +26,7 @@ export function SubagentsPage({ provider }: { provider: ProviderState }) {
   const [config, setConfig] = useState<SubagentsConfig | null>(null);
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
   const [savingRole, setSavingRole] = useState<string | null>(null);
+  const { helpOpen, helpTopic, openHelp, closeHelp } = useHelp("subagents");
 
   useEffect(() => {
     void api.getSubagents().then(setConfig);
@@ -46,6 +48,10 @@ export function SubagentsPage({ provider }: { provider: ProviderState }) {
 
   return (
     <>
+      <div className="page-header">
+        <span className="page-header-title">Subagents</span>
+        <HelpTopicButton topic="subagents" onOpen={openHelp} />
+      </div>
       <div className="page-head">
         <div>
           <h1>Subagents</h1>
@@ -95,6 +101,7 @@ export function SubagentsPage({ provider }: { provider: ProviderState }) {
           </div>
         )}
       </div>
+      <HelpDrawer open={helpOpen} topic={helpTopic} onClose={closeHelp} />
     </>
   );
 }

@@ -1,13 +1,19 @@
 /** db.test.ts — bridge state substrate: schema, invariants, persistence. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { openBridgeDb } from "../src/db.ts";
 
 function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "bridge-db-test-"));
+}
+
+function sha256Hex(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 test("schema v1 creates and reopen persists state", () => {
@@ -121,6 +127,73 @@ test("binding get-or-create is idempotent per (kind, chatId)", () => {
   }
 });
 
+test("binding get-or-create isolates plain chat and forum topics", () => {
+  const cwd = tempCwd();
+  try {
+    const db = openBridgeDb(cwd);
+    const plain = db.getOrCreateBinding("telegram", "42", "/tmp/plain");
+    const topic1 = db.getOrCreateBinding("telegram", "42", "/tmp/topic1", "1");
+    const topic2 = db.getOrCreateBinding("telegram", "42", "/tmp/topic2", "2");
+
+    assert.notEqual(plain.id, topic1.id);
+    assert.notEqual(topic1.id, topic2.id);
+    assert.equal(db.getOrCreateBinding("telegram", "42", "/tmp/other").id, plain.id);
+    assert.equal(db.getOrCreateBinding("telegram", "42", "/tmp/other", "1").id, topic1.id);
+    assert.equal(plain.topic_id, null);
+    assert.equal(topic1.topic_id, "1");
+    assert.equal(topic2.topic_id, "2");
+    db.close();
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("agent bindings isolate topics for the same agent and chat", () => {
+  const cwd = tempCwd();
+  try {
+    const db = openBridgeDb(cwd);
+    const agent = db.createAgent("telegram-1", "telegram", "tok");
+    const plain = db.getOrCreateAgentBinding(agent.id, "telegram", "42", "/tmp/plain");
+    const topic = db.getOrCreateAgentBinding(agent.id, "telegram", "42", "/tmp/topic", "9");
+
+    assert.notEqual(plain.id, topic.id);
+    assert.equal(db.getOrCreateAgentBinding(agent.id, "telegram", "42", "/tmp/other").id, plain.id);
+    assert.equal(db.getOrCreateAgentBinding(agent.id, "telegram", "42", "/tmp/other", "9").id, topic.id);
+    db.close();
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("listBindingsForChat returns all topic rows for the current chat and agent newest first", () => {
+  const cwd = tempCwd();
+  try {
+    const db = openBridgeDb(cwd);
+    const agent = db.createAgent("telegram-1", "telegram", "tok");
+    const plain = db.getOrCreateAgentBinding(agent.id, "telegram", "42", "/tmp/plain");
+    const topic1 = db.getOrCreateAgentBinding(agent.id, "telegram", "42", "/tmp/topic1", "1");
+    const topic2 = db.getOrCreateAgentBinding(agent.id, "telegram", "42", "/tmp/topic2", "2");
+    db.getOrCreateAgentBinding(agent.id, "telegram", "43", "/tmp/other", "1");
+    db.getOrCreateBinding("telegram", "42", "/tmp/legacy", "1");
+
+    const raw = new DatabaseSync(join(cwd, ".codexclaw", "bridge.db"));
+    raw.prepare("UPDATE bindings SET updated_at = ? WHERE id = ?").run("2026-07-07T00:00:00.000Z", plain.id);
+    raw.prepare("UPDATE bindings SET updated_at = ? WHERE id = ?").run("2026-07-07T00:02:00.000Z", topic1.id);
+    raw.prepare("UPDATE bindings SET updated_at = ? WHERE id = ?").run("2026-07-07T00:01:00.000Z", topic2.id);
+    raw.close();
+
+    assert.deepEqual(db.listBindingsForChat("telegram", "42", agent.id).map((row) => row.id), [
+      topic1.id,
+      topic2.id,
+      plain.id,
+    ]);
+    assert.deepEqual(db.listBindingsForChat("telegram", "42", null).map((row) => row.agent_id), [null]);
+    db.close();
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test("job lifecycle: create, patch, list ordering + preview caps", () => {
   const cwd = tempCwd();
   try {
@@ -163,6 +236,26 @@ test("setBindingWorkdir repoints the exec cwd for one binding only", () => {
   }
 });
 
+test("resetBindingSession clears only the remembered Codex thread", () => {
+  const cwd = tempCwd();
+  try {
+    const db = openBridgeDb(cwd);
+    const binding = db.getOrCreateBinding("telegram", "1", "/tmp/a");
+    db.setBindingThread(binding.id, "thread-abc");
+    db.setBindingStatus(binding.id, "running");
+
+    db.resetBindingSession(binding.id);
+
+    const reset = db.getBinding(binding.id);
+    assert.equal(reset?.thread_id, null);
+    assert.equal(reset?.workdir, "/tmp/a");
+    assert.equal(reset?.status, "running");
+    db.close();
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test("deleteBindingCascade removes jobs + binding, leaves others intact", () => {
   const cwd = tempCwd();
   try {
@@ -178,6 +271,94 @@ test("deleteBindingCascade removes jobs + binding, leaves others intact", () => 
     assert.equal(db.listJobs(doomed.id, 10).length, 0);
     assert.equal(db.getBinding(kept.id)?.id, kept.id);
     assert.equal(db.listJobs(kept.id, 10)[0]?.id, keptJob);
+    db.close();
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("agent pairing codes store only hashes and consume once before expiry", () => {
+  const cwd = tempCwd();
+  try {
+    const db = openBridgeDb(cwd);
+    const agent = db.createAgent("telegram-1", "telegram", "tok");
+    const other = db.createAgent("telegram-2", "telegram", "tok2");
+    const code = "raw-code-secret";
+    const hash = sha256Hex(code);
+    const expiresAt = db.createAgentPairingCode(agent.id, hash, 60);
+    assert.ok(expiresAt > Date.now());
+
+    const raw = new DatabaseSync(join(cwd, ".codexclaw", "bridge.db"));
+    const stored = raw.prepare("SELECT code_hash, expires_at, consumed_at FROM agent_pairing_codes").get() as {
+      code_hash: string;
+      expires_at: number;
+      consumed_at: number | null;
+    };
+    raw.close();
+    assert.equal(stored.code_hash, hash);
+    assert.notEqual(stored.code_hash, code);
+    assert.equal(stored.consumed_at, null);
+
+    assert.equal(db.consumeAgentPairingCode(other.id, hash), false);
+    assert.equal(db.consumeAgentPairingCode(agent.id, hash), true);
+    assert.equal(db.consumeAgentPairingCode(agent.id, hash), false);
+    db.close();
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("expired pairing codes are rejected naturally by the consume CAS", () => {
+  const cwd = tempCwd();
+  try {
+    const db = openBridgeDb(cwd);
+    const agent = db.createAgent("telegram-1", "telegram", "tok");
+    const hash = sha256Hex("expired-code");
+    db.createAgentPairingCode(agent.id, hash, -1);
+    assert.equal(db.consumeAgentPairingCode(agent.id, hash), false);
+    db.close();
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("sweepExpiredPairingCodes drops consumed and expired rows, keeps live ones", () => {
+  const cwd = tempCwd();
+  try {
+    const db = openBridgeDb(cwd);
+    const agent = db.createAgent("telegram-1", "telegram", "tok");
+    db.createAgentPairingCode(agent.id, sha256Hex("expired"), -1);
+    db.createAgentPairingCode(agent.id, sha256Hex("consumed"), 60);
+    db.createAgentPairingCode(agent.id, sha256Hex("live"), 60);
+    assert.equal(db.consumeAgentPairingCode(agent.id, sha256Hex("consumed")), true);
+
+    assert.equal(db.sweepExpiredPairingCodes(), 2);
+
+    const raw = new DatabaseSync(join(cwd, ".codexclaw", "bridge.db"));
+    const rows = raw.prepare("SELECT code_hash FROM agent_pairing_codes").all() as Array<{ code_hash: string }>;
+    raw.close();
+    assert.deepEqual(rows.map((row) => row.code_hash), [sha256Hex("live")]);
+    db.close();
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("deleteAgent removes owned pairing codes", () => {
+  const cwd = tempCwd();
+  try {
+    const db = openBridgeDb(cwd);
+    const doomed = db.createAgent("telegram-1", "telegram", "tok");
+    const kept = db.createAgent("telegram-2", "telegram", "tok2");
+    db.createAgentPairingCode(doomed.id, sha256Hex("doomed"), 60);
+    db.createAgentPairingCode(kept.id, sha256Hex("kept"), 60);
+
+    db.deleteAgent(doomed.id);
+
+    const raw = new DatabaseSync(join(cwd, ".codexclaw", "bridge.db"));
+    const rows = raw.prepare("SELECT agent_id FROM agent_pairing_codes ORDER BY agent_id").all() as Array<{ agent_id: number }>;
+    raw.close();
+    assert.deepEqual(rows.map((row) => row.agent_id), [kept.id]);
     db.close();
   } finally {
     rmSync(cwd, { recursive: true, force: true });

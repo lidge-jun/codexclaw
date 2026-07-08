@@ -98,10 +98,30 @@ export function renderMapAffordance(fileCount: number): string {
  */
 export function renderSkillSearchAffordance(): string {
   return [
-    "[codexclaw] External skill catalogs (cli-jaw registry, hermes, clawhub) are",
-    "searchable on demand: when a task needs a capability or domain workflow you do",
-    "not have loaded, run `cxc skill search <query>` first, then `cxc skill show <id>`",
-    "to load it (adapter preamble applies; cxc-dev discipline wins on conflict).",
+    "[codexclaw] External skill catalogs are searchable on demand.",
+    "Priority: jaw (cli-jaw-skills, 1st-class, default) > clawhub (2nd) > hermes (3rd, sparse).",
+    "When a task needs a capability you do not have loaded,",
+    "browse `dev/references/skill-catalog.md` for the full jaw catalog first,",
+    "or run `cxc skill search <query>` then `cxc skill show <id>` to load it",
+    "(adapter preamble applies; cxc-dev discipline wins on conflict).",
+  ].join(" ");
+}
+
+/**
+ * Universal Korean-prose polishing affordance (pointer-not-payload, always on
+ * like the skill-search line): when the session writes Korean prose, the
+ * baseline discipline is stated in one sentence and the full protocol lives in
+ * the $cxc-kwrite skill. Deliberately genre-free — platform-specific writing
+ * is out of scope here.
+ */
+export function renderKwriteAffordance(): string {
+  return [
+    "[codexclaw] When writing Korean prose for the user (docs, answers,",
+    "announcements), keep it human: no translationese (~에 대해/~를 통해/~함으로써),",
+    "no AI idioms (시사하는 바가 크다/결론적으로/기대된다 endings), no 첫째/둘째",
+    "enumeration, one consistent register throughout. For explicit 윤문/polish",
+    "requests or long-form Korean output, load the $cxc-kwrite skill for the",
+    "full revision protocol.",
   ].join(" ");
 }
 
@@ -157,6 +177,7 @@ export function runMapAffordanceSessionStart(stdin: string, fallbackCwd: string)
   if (sessionId) lines.push(renderSessionBinding(sessionId));
   if (count >= MAP_AFFORDANCE_MIN_FILES) lines.push(renderMapAffordance(count));
   lines.push(renderSkillSearchAffordance());
+  lines.push(renderKwriteAffordance());
   const envelope = {
     hookSpecificOutput: {
       hookEventName: "SessionStart",
