@@ -71,6 +71,14 @@ test("detectTrigger: natural Korean with particles/suffixes still matches", () =
   assert.equal(detectTrigger("검증 좀 해줘"), "C");
 });
 
+test("phase directives use resolvable skill mentions for spawn messages", () => {
+  const unresolvedBareMention = /\$cxc-[a-z0-9-]+(?![A-Za-z0-9_:-])(?!\]\(skill:\/\/[^)\n]+\))/;
+
+  for (const phase of ["A", "B", "C"] as const) {
+    assert.doesNotMatch(phaseDirective(phase), unresolvedBareMention, `${phase} directive`);
+  }
+});
+
 test("detectAgbrowseSearchRequest: Korean/English search requests, including typo, are detected", () => {
   assert.equal(detectAgbrowseSearchRequest("agbrowse를 통해서 질문해줘"), true);
   assert.equal(detectAgbrowseSearchRequest("agbrowe를 통해서 질문해줘"), true);

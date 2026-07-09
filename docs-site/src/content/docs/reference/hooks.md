@@ -7,6 +7,14 @@ codexclaw registers twelve hooks in its plugin manifest. Each runs a compiled co
 under `node`. All commands resolve `${PLUGIN_ROOT}` to the installed plugin directory.
 The removed hook JSON files live under `hooks/_deprecated/` from the 2026-07-05 hook diet.
 
+**Subagent turn guard (2026-07-09):** every `pabcd-state` turn-level hook no-ops when the
+stdin payload carries `agent_id`/`agent_type` — codex-rs stamps these into hook inputs for
+thread-spawned subagent turns and reuses the parent session id, so without the guard a child
+turn would read/write the parent's PABCD state and receive root-only directives
+(`request_user_input` is root-thread-only in codex-rs). `SubagentStop` is the intentional
+child-scoped surface and stays exempt; the spawn-attach hook only enriches spawn messages
+and is also unaffected.
+
 ## Hook table
 
 | Hook file | Event | Matcher | Command | statusMessage | Timeout |
@@ -44,7 +52,8 @@ The removed hook JSON files live under `hooks/_deprecated/` from the 2026-07-05 
 - **goal-budget / pre-tool-use (`create_goal`)** — guards goal creation against the goal budget.
 - **interview-in-goal / pre-tool-use (`request_user_input`)** — denies interactive interview
   prompts while a goal is active, so an autonomous goal does not stall on a question.
-- **skill-attach / pre-tool-use (`spawn_agent`)** — attaches relevant skills to subagent spawns.
+- **skill-attach / pre-tool-use (`spawn_agent`)** — normalizes known broken/bare cxc
+  mentions already present in spawn messages; it never adds omitted role or surface skills.
 - **edit-lint / pre-tool-use (`apply_patch|Write|Edit`)** — lints structured edits before they
   apply.
 

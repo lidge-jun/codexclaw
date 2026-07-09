@@ -1,9 +1,9 @@
 /**
  * spawn-wrapper.test.ts — L9.1 production spawn payload builder.
  *
- * Proves the wrapper consumes resolveSpawnConfig at spawn time: model override
- * applied, default inherits (no model key), promptOverride replaces TOML body,
- * agent_type mapping, real TOML parse, and total/fail-safe behavior.
+ * Proves the wrapper builds v2-compatible spawn payloads, prepends explicit skill
+ * mention blocks, and leaves model routing to the v1 hook path. It also covers role
+ * prompts, agent_type mapping, real TOML parsing, and pure routing helpers.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -69,7 +69,7 @@ test("readRoleToml on a missing file returns safe defaults (never throws)", () =
   assert.equal(f.developerInstructions, "");
 });
 
-test("buildSpawnPayload: model override is applied for a model-mode resolution", () => {
+test("buildSpawnPayload: model-mode resolution does not emit a v2 model override", () => {
   const payload = buildSpawnPayload({
     role: "reviewer",
     task: "review the diff",
@@ -77,7 +77,7 @@ test("buildSpawnPayload: model override is applied for a model-mode resolution",
     developerInstructions: "Role: reviewer.",
   });
   assert.equal(payload.agent_type, "explorer");
-  assert.equal(payload.model, "grok-4");
+  assert.ok(!("model" in payload), "v2 builder leaves model routing to the v1 hook path");
   assert.match(payload.message, /Role: reviewer\./);
   assert.match(payload.message, /TASK: review the diff/);
 });
@@ -93,15 +93,15 @@ test("buildSpawnPayload: default mode OMITS the model key (inherit main model)",
   assert.ok(!("model" in payload), "default mode must not set a model key");
 });
 
-test("buildSpawnPayload: effort override rides any mode; null effort omits the key", () => {
+test("buildSpawnPayload: effort override is not emitted by the v2 builder", () => {
   const withEffort = buildSpawnPayload({
     role: "explorer",
     task: "find X",
     resolution: { role: "explorer", model: null, usesMainModel: true, effort: "high", promptOverride: null },
     developerInstructions: "Role: explorer.",
   });
-  assert.equal(withEffort.reasoning_effort, "high");
-  assert.ok(!("model" in withEffort), "effort is independent of the model key");
+  assert.ok(!("reasoning_effort" in withEffort));
+  assert.ok(!("model" in withEffort));
 
   const withBoth = buildSpawnPayload({
     role: "executor",
@@ -109,8 +109,8 @@ test("buildSpawnPayload: effort override rides any mode; null effort omits the k
     resolution: { role: "executor", model: "gpt-5.4-mini", usesMainModel: false, effort: "xhigh", promptOverride: null },
     developerInstructions: "Role: executor.",
   });
-  assert.equal(withBoth.model, "gpt-5.4-mini");
-  assert.equal(withBoth.reasoning_effort, "xhigh");
+  assert.ok(!("model" in withBoth));
+  assert.ok(!("reasoning_effort" in withBoth));
 });
 
 test("buildSpawnPayload: promptOverride REPLACES the TOML developer_instructions", () => {
@@ -137,11 +137,11 @@ test("buildSpawnPayload: empty prompt + empty task still yields a TASK: message"
 
 test("resolveSpawnPayload: end-to-end uses persisted store config + real TOML", () => {
   const cwd = tmp();
-  // configure a model for reviewer in the store
+  // configure a model for reviewer in the store; v2 payloads still omit it.
   setRole(cwd, "reviewer", { mode: "model", model: "model-reviewer" });
   const payload = resolveSpawnPayload(cwd, "reviewer", "audit this", AGENTS_DIR);
   assert.equal(payload.agent_type, "explorer");
-  assert.equal(payload.model, "model-reviewer");
+  assert.ok(!("model" in payload));
   assert.match(payload.message, /adversarial reviewer/i); // from the real reviewer.toml
   assert.match(payload.message, /TASK: audit this/);
 
@@ -211,7 +211,7 @@ test("L15: buildSpawnItems drops a dangling explicit folder that has no SKILL.md
   assert.equal(items.at(-1)?.type, "text");
 });
 
-test("L15/dev2: resolveSpawnPayloadWithSkills keeps role prompt + attaches skills as message mentions (no items)", () => {
+test("L15/dev2: resolveSpawnPayloadWithSkills prepends role and surface skill mentions", () => {
   const cwd = tmp();
   const payload = resolveSpawnPayloadWithSkills({
     cwd,
@@ -223,10 +223,10 @@ test("L15/dev2: resolveSpawnPayloadWithSkills keeps role prompt + attaches skill
   });
   // role prompt still in message (single source, not duplicated into items)
   assert.match(payload.message, /TASK: find the goal gate/);
-  // 260709 dev2 switch: v2 spawn schema rejects `items` — skills ride as mentions.
   assert.ok(!("items" in payload), "v2-legal payload must not carry items");
-  assert.match(payload.message, /\[\$cxc-dev-debugging\]\(skill:\/\//);
+  assert.match(payload.message, /^Load and follow/);
   assert.match(payload.message, /\[\$cxc-dev\]\(skill:\/\//);
+  assert.match(payload.message, /\[\$cxc-dev-debugging\]\(skill:\/\//);
   // v2 required fields
   assert.equal(payload.fork_turns, "none");
   assert.match(payload.task_name, /^explorer_[a-z0-9_]+$/);
@@ -240,10 +240,10 @@ test("WP1: skillMention renders link form for a link-safe path", async () => {
   assert.equal(m, `[$cxc-dev](skill://${join(SKILLS_DIR, "dev", "SKILL.md")})`);
 });
 
-test("WP1: skillMention degrades to plain $name when the path is not link-safe", async () => {
+test("WP1: skillMention uses the plugin-prefixed name when the path is not link-safe", async () => {
   const { skillMention } = await import("../src/spawn-wrapper.ts");
-  assert.equal(skillMention("/tmp/with space", "dev"), "$cxc-dev");
-  assert.equal(skillMention("/tmp/with(paren)", "dev"), "$cxc-dev");
+  assert.equal(skillMention("/tmp/with space", "dev"), "$codexclaw:cxc-dev");
+  assert.equal(skillMention("/tmp/with(paren)", "dev"), "$codexclaw:cxc-dev");
 });
 
 test("WP1: buildSkillMentionBlock renders role base + surfaces, existing-only", async () => {
@@ -291,7 +291,7 @@ test("020: INTENT_ROLE maps each intent to a base role (no new roles)", async ()
   assert.equal(INTENT_ROLE.research, "explorer");
 });
 
-test("020/dev2: routeDispatch('red-team', frontend) -> reviewer + skills as mentions in message", async () => {
+test("020/dev2: routeDispatch('red-team', frontend) prepends role and surface mentions", async () => {
   const { routeDispatch } = await import("../src/spawn-wrapper.ts");
   const out = routeDispatch({
     intent: "red-team",
@@ -309,7 +309,7 @@ test("020/dev2: routeDispatch('red-team', frontend) -> reviewer + skills as ment
   assert.match(out.message, /TASK: red-team this diff$/);
 });
 
-test("020/dev2: routeDispatch('research') -> explorer + explicit skill honored", async () => {
+test("020/dev2: routeDispatch('research') honors an explicit skill", async () => {
   const { routeDispatch } = await import("../src/spawn-wrapper.ts");
   const out = routeDispatch({
     intent: "research",
@@ -318,21 +318,24 @@ test("020/dev2: routeDispatch('research') -> explorer + explicit skill honored",
     skillsDir: SKILLS_DIR,
   });
   assert.equal(out.role, "explorer");
+  assert.ok(out.message.includes("$cxc-dev"));
   assert.ok(out.message.includes("$cxc-search"));
+  assert.match(out.message, /TASK: investigate X$/);
 });
 
-test("070: routeDispatch('research') auto-attaches cxc-search + cxc-ultraresearch (no explicit needed)", async () => {
+test("070: routeDispatch('research') auto-attaches cxc-search only", async () => {
   const { routeDispatch, INTENT_EXTRA_SKILL_FOLDERS } = await import("../src/spawn-wrapper.ts");
-  assert.deepEqual(INTENT_EXTRA_SKILL_FOLDERS.research, ["search", "ultraresearch"]);
+  assert.deepEqual(INTENT_EXTRA_SKILL_FOLDERS.research, ["search"]);
   const out = routeDispatch({
     intent: "research",
     task: "survey the landscape",
     skillsDir: SKILLS_DIR,
   });
   assert.equal(out.role, "explorer");
-  assert.ok(out.message.includes("$cxc-search"), "research auto-attaches cxc-search");
-  assert.ok(out.message.includes("$cxc-ultraresearch"), "research auto-attaches cxc-ultraresearch");
-  assert.ok(out.message.includes("$cxc-dev"), "explorer base dev skill still present");
+  assert.ok(out.message.includes("$cxc-dev"));
+  assert.ok(out.message.includes("$cxc-search"));
+  assert.ok(!out.message.includes("$cxc-ultraresearch"));
+  assert.match(out.message, /TASK: survey the landscape$/);
 });
 
 test("070: non-research intents do NOT auto-attach ultraresearch", async () => {
@@ -392,8 +395,7 @@ test("dev2: buildSpawnPayload emits task_name + fork_turns none (fresh spawn kee
   });
   assert.equal(payload.fork_turns, "none");
   assert.equal(payload.task_name, "reviewer_audit_the_plan");
-  // model/effort overrides remain present — legal only because fork_turns is "none"
-  assert.equal(payload.model, "gpt-5.5");
-  assert.equal(payload.reasoning_effort, "high");
+  assert.ok(!("model" in payload));
+  assert.ok(!("reasoning_effort" in payload));
   assert.ok(!("items" in payload));
 });

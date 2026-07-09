@@ -50,15 +50,14 @@ can never trap a session. Arming is the hard part (see L14 loop⇄goal handoff).
 
 ### E3 — PreToolUse input rewrite (the routing lever)
 `PreToolUse` can *modify* the tool input before it runs. For `spawn_agent`, this is the
-one place codexclaw deterministically attaches `cxc-*` skills to a subagent dispatch
-instead of hoping the main agent does it — converting skill routing from E5/E7 (hope) to
-near-E1 strength on the spawn surface. SHIPPED (WP2): the `^spawn_agent$` hook
-(`spawn-attach-hook.ts`) rewrites the spawn `message` to prepend link-form
-`[$cxc-*](skill://…)` mentions, which the child's first turn parses into full SKILL.md
-injections. Message rewrite is schema-safe on BOTH v1 and v2 (unlike `items`, which v2's
-`deny_unknown_fields` rejects), so the hook is always-on; it no-ops on items-present /
-already-mentioned / missing-message payloads. This closes the A6 routing contradiction
-at the subagent boundary.
+place codexclaw can repair an already-authored skill mention before dispatch. SHIPPED
+(WP2): the `^spawn_agent$` hook (`spawn-attach-hook.ts`) normalizes known broken/bare
+cxc mentions in the spawn `message` to link-form `[$cxc-*](skill://…)`, or to the
+plugin-native `$codexclaw:cxc-*` fallback when the path is not link-safe. Message rewrite
+is schema-safe on BOTH v1 and v2 (unlike `items`, which v2's `deny_unknown_fields`
+rejects), but it never invents role baselines or inferred surface skills. Dispatchers
+still name every required skill; the hook additionally applies v1 model routing and the
+v2 leaf guard.
 
 ### E4 — UserPromptSubmit directive (the nudge)
 Used by the pabcd-trigger hook to inject the phase directive. Strong, visible, but

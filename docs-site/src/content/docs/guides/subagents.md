@@ -41,8 +41,9 @@ Only `role` is required. `mode: "default"` uses the main model; `mode: "model"` 
 The [GUI dashboard](/codexclaw/guides/gui/) wraps these tools with model pickers and prompt
 editors so you can set roles without hand-editing JSON.
 
-The `pre-tool-use-attaching-skills` hook wires into live `spawn_agent` calls: it prepends
-link-form `$cxc-*` skill mentions to the spawn message (role baseline + inferred surfaces),
-which the child's first turn parses into full skill injections — schema-safe on both the v1
-and v2 spawn surfaces. Role config, resolver, and spawn-wrapper are all shipped (L9); model
-selection stays with the caller/store, not the hook.
+The `pre-tool-use-attaching-skills` hook wires into live `spawn_agent` calls, but it does
+not choose skills. Dispatchers explicitly attach each required skill with preferred
+`[$cxc-<name>](skill://<abs SKILL.md>)` links or the plugin-native
+`$codexclaw:cxc-<name>` fallback. The hook normalizes known broken/bare mentions, applies
+v1 model routing, and adds the v2 leaf guard; it never invents role baselines or inferred
+surface skills. Role config, resolver, and spawn-wrapper are all shipped (L9).

@@ -44,13 +44,15 @@ speed. Keep final judgment in the main session regardless.
 
 ## Subagent Skill Attachment (attach cxc-search, not prose)
 
-Do not hand-write a tool directive in the spawn message. Attach the `$cxc-search`
-skill to each Spark subagent so it auto-loads the proof ladder (Tier 1
+Do not hand-write a tool directive in the spawn message. Attach `cxc-search`
+through the preferred `[$cxc-search](skill://<abs SKILL.md path>)` form, or the
+plugin-native `$codexclaw:cxc-search` fallback when the path is not link-safe,
+so each Spark subagent auto-loads the proof ladder (Tier 1
 `web_search` + Tier 2 open-the-source) at launch. The skill body is the single
 source of truth for the tool list; this skill only adds the lane assignment and
 the Spark model.
 
-The portable default is a **$cxc mention in the spawn message** — parsed by the
+The portable default is a **link-form mention in the spawn message** — parsed by the
 child's first turn into a full SKILL.md injection on BOTH spawn surfaces:
 
 ```text

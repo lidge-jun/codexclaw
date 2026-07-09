@@ -1,10 +1,10 @@
 ---
 name: cxc-dev
-description: "MUST USE for every coding task — classifies work depth (C0-C5), defines modular limits, pre-write search, verification-before-completion, and safety rules. Always-on discipline (agent-followed, not hook-enforced) that routes to surface-specific dev-* routers by change surface. Triggers: any code change, refactor, bug fix, feature, test, review, scaffolding."
+description: "MUST USE for every coding task — classifies work depth (C0-C5), defines modular limits, pre-write search, verification-before-completion, and safety rules. Always-on discipline (agent-followed, not hook-enforced) that routes to surface-specific dev-* routers by change surface. Also surfaces browse/QA native tool routing so the model uses agbrowse and Codex browser plugins instead of installing Playwright directly. Triggers: any code change, refactor, bug fix, feature, test, review, scaffolding, browse, browser, QA, 브라우저, 브라우즈, 페이지 열어, URL 확인, 화면 확인, 스크린샷, QA 확인, 플레이라이트."
 metadata:
   last-verified: "2026-07-02"
   short-description: "Universal dev discipline: work classifier, modular limits, verification gate, safety rules."
-  keywords: ["develop", "implement", "refactor", "feature", "code quality", "verification"]
+  keywords: ["develop", "implement", "refactor", "feature", "code quality", "verification", "browse", "browser", "QA", "agbrowse", "브라우저", "페이지 확인", "화면 QA", "플레이라이트"]
 ---
 
 # Dev — Common Development Guidelines
@@ -140,24 +140,25 @@ matching router first.
 
 Why this is wording, not a runtime gate: no Codex hook fires on skill load (see
 `structure/00_philosophy.md` §1), so the main agent self-enforces this STRICT rule. For
-SUBAGENT dispatches the discipline DOES attach deterministically: the always-on
-`^spawn_agent$` PreToolUse hook rewrites the spawn `message` to prepend link-form
-`$cxc-*` mentions (role baseline + inferred surfaces), which the child's first turn
-parses into full SKILL.md injections — schema-safe on both the v1 and v2 spawn surfaces
-because `message` is a shared field. The v1-only `items` channel via
-`resolveSpawnPayloadWithSkills` (L15) remains the strongest explicit form; the hook
-no-ops when `items` is already present (`structure/10`).
+SUBAGENT dispatches, the dispatcher names every required skill explicitly. Prefer
+link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)` mentions in the spawn `message`;
+when the path is not link-safe, use the plugin-native `$codexclaw:cxc-<skill>` fallback.
+The always-on `^spawn_agent$` PreToolUse hook normalizes known broken/bare cxc mentions
+to a resolvable form, but it does not add role baselines or infer missing surface skills.
+The v1-only `items` channel via `resolveSpawnPayloadWithSkills` (L15) remains the
+strongest explicit form (`structure/10`).
 
 ### Subagent Skill Injection (DEV-SKILL-INJECT-01)
 
 When spawning a subagent for any codexclaw-governed task, attach `cxc-dev` and
-the relevant surface `cxc-*` skills by putting **$cxc mentions in the spawn
-message** — plain `$cxc-<skill>` or link-form `[$cxc-<skill>](skill://<abs
-SKILL.md path>)` — or through the v1 `items` mechanism when routing through the
-builder. Name the surface skills explicitly rather than relying on the hook's
-keyword inference. Keep the skill body as the single source of truth. For
-search tasks, attach `cxc-search`, and ensure subagents/delegated agents are
-bound by the same search-skill policy as the main agent.
+the relevant surface `cxc-*` skills with resolvable spawn-message mentions:
+preferred link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)`, or plugin-native
+`$codexclaw:cxc-<skill>` when a link is unsafe. The v1 `items` mechanism is also
+valid when routing through the builder. Name the surface skills explicitly; the
+hook repairs known broken/bare mentions but never supplies an omitted skill.
+Keep the skill body as the single source of truth. For search tasks, attach
+`cxc-search`, and ensure subagents/delegated agents are bound by the same
+search-skill policy as the main agent.
 
 | Skill File | Routes When (surface) | Covers |
 | ---------- | --------------------- | ------ |
@@ -179,6 +180,27 @@ bound by the same search-skill policy as the main agent.
 
 Use this hub instead of `skill-hub`: repo fact-finding stays in `dev` plus repo tools; current/external/public facts load `search`; multi-step planning loads `pabcd`; repeated work phases load `loop`; past-session context loads `recall`; review loads `dev-code-reviewer`; runtime failure loads `dev-debugging`; module boundaries load `dev-architecture`; backend/frontend/data/security/devops/scaffolding load their matching routers; manual surface-driving QA (prove a built web/TUI/CLI/API surface actually works before done) loads `cxc-qa`. `skill-hub` is deprecated.
 
+### Browse / QA Tool Routing
+
+**STRICT (DEV-BROWSE-NATIVE-01): for ad-hoc browse and exploratory QA tasks (브라우저
+열기, 페이지 확인, URL 검증, 화면 QA, 스크린샷), do NOT install Playwright, puppeteer,
+or browser drivers.** Use `tool_search` for the native browser tools first — they are
+stable and enabled by default (`structure/60_native_capabilities.md` §3). Intentional
+Playwright E2E test suites (플레이라이트 E2E 테스트 스위트) are `dev-testing` §4's
+domain and not covered by this rule.
+
+Two scoped ladders exist — the ordering is intentional, not contradictory:
+
+| Context | Ladder | Order (start at 1; state why when skipping) | Owner |
+|---------|--------|----------------------------------------------|-------|
+| Public-web proof (search, research, URL verification) | SEARCH-BROWSE-01 | 1. `agbrowse` (scripted HTTP/CDP) → 2. `browser:control-in-app-browser` → 3. `chrome:control-chrome` → 4. `computer-use:computer-use` | `cxc-search` Tier 2 |
+| QA of agent-built/served surfaces | QA-TOOL-LADDER-01 | 1. `browser:control-in-app-browser` → 2. `chrome:control-chrome` → 3. `computer-use:computer-use` → 4. `agbrowse` (public-URL shape checks only) | `dev-testing` §4.6 |
+
+The search ladder is agbrowse-first because it proves public-web claims with scripted
+evidence envelopes. The QA ladder is in-app-browser-first because it drives surfaces
+the agent itself serves. Full protocols live in the owners above; this section is the
+routing summary so every session sees the tool names without loading those skills.
+
 ### Skill Ownership Map
 
 Each rule area has exactly one canonical owner. Other skills may contain stubs but MUST NOT duplicate canonical content.
@@ -198,6 +220,7 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Long-lived connections | `dev-backend` §1 app hooks | `dev-frontend`, `dev-devops` operational gates |
 | Async task queue | `dev-backend` §2 app hooks | `dev-devops` operational gates |
 | Debugging methodology | `dev-debugging` | `dev-code-reviewer` |
+| Browse / QA tool routing | `dev-testing` §4.6 (QA ladder), `cxc-search` (search ladder) | `dev` (routing summary) |
 | Data pipeline patterns | `dev-data` | `dev-backend` |
 | Frontend implementation | `dev-frontend` | `dev-uiux-design` |
 | Design intent discovery | `dev-uiux-design` | `dev-frontend` |

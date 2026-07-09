@@ -183,7 +183,7 @@ The manifest wires 12 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` 
 | `PreToolUse` `^request_user_input$` | `hooks/pre-tool-use-guarding-interview-in-goal.json` | same pabcd-state CLI | denies user-input/interview tool use while native goal mode is active or unreadable |
 | `PostToolUse` `^request_user_input$` | `hooks/post-tool-use-capturing-interview-answers.json` | same pabcd-state CLI | captures interview question/answer events to the ledger; in an interactive I-phase also reinjects the Mind-rescan directive as `additionalContext` (L18); never blocks |
 | `SubagentStop` `^worker$` | `hooks/subagent-stop-verifying-evidence.json` | same pabcd-state CLI | verifies worker evidence expectations on subagent stop |
-| `PreToolUse` `^spawn_agent$` | `hooks/pre-tool-use-attaching-skills.json` | `node "${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js" hook pre-tool-use` | prepends link-form `$cxc-*` skill mentions to spawn messages; also injects the `.codexclaw/subagents.json` per-role model/`reasoning_effort` into `updatedInput` when the caller picked none |
+| `PreToolUse` `^spawn_agent$` | `hooks/pre-tool-use-attaching-skills.json` | `node "${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js" hook pre-tool-use` | normalizes known broken/bare cxc mentions already present in spawn messages (never adds missing skills); also applies v1 model routing and the v2 leaf guard |
 | `PostCompact` | `hooks/post-compact-resetting-reinject-cursor.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-compact` | resets reinjection cursor/stage context after compaction |
 | `PreToolUse` `^(apply_patch|Write|Edit)$` | `hooks/pre-tool-use-linting-apply-patch.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-lint` | lints structured edits before write/edit tool use |
 | `PostToolUse` `^(view_image|browser:control-in-app-browser|chrome:control-chrome|computer-use:computer-use|apply_patch)$` | `hooks/post-tool-use-tracking-render-observations.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-render-observation` | tracks render/visual observation events for QA evidence |
@@ -218,7 +218,7 @@ though they have no package-local `test` script. This asymmetry is intentional, 
 
 ## CLI Surface
 
-`package.json` exposes both `codexclaw` and `cxc`, with `cxc` as the preferred short alias. `bin/codexclaw.mjs` is a small delegator:
+`package.json` exposes both `codexclaw` and `cxc`, with `cxc` as the preferred short alias. `bin/codexclaw.mjs` is a small delegator. It owns the top-level agent-oriented help contract: `cxc help`, `cxc --help`, and `cxc -h` print grouped usage and recovery notes, while unknown top-level commands exit non-zero with a `cxc --help` hint.
 
 | Command | Delegates to | Notes |
 |---------|--------------|-------|
@@ -231,11 +231,12 @@ though they have no package-local `test` script. This asymmetry is intentional, 
 | `cxc chat search` | `components/recall/dist/cli.js chat search` | read-only recall over `~/.codex` rollout JSONL (owner re-scope 2026-07-02; not the retired app-server wrapper) |
 | `cxc memory search` | `components/recall/dist/cli.js memory search` | read-only search over `~/.codex/memories` + `stage1_outputs` |
 | `cxc gui` | `plugins/codexclaw/gui` via `npm run dev` | starts the Vite dashboard when deps exist |
-| `cxc orchestrate` | `components/pabcd-state/dist/cli.js orchestrate` | agent-gated terminal phase control over the same `.codexclaw/` session files |
+| `cxc orchestrate` | `components/pabcd-state/dist/cli.js orchestrate` | agent-gated terminal phase control over the same `.codexclaw/` session files; supports `help`/`--help`/`-h`; explicit-session text output includes current phase context |
 | `cxc freeze` | `components/pabcd-state/dist/cli.js freeze` | freezes the interview plan + writes the goal-activation handoff manifest at `.codexclaw/interview/freeze.json` |
 | `cxc metric` | `components/pabcd-state/dist/cli.js metric` | records/shows objective metrics for emergence-harness loops |
 | `cxc divergence` | `components/pabcd-state/dist/cli.js divergence` | records divergence mode and candidate archive state |
-| `cxc goalplan` | `components/pabcd-state/dist/cli.js goalplan` | initializes, shows, or validates the project-local goalplan substrate |
+| `cxc loop` | `components/pabcd-state/dist/cli.js loop` | initializes, shows, or validates the project-local goalplan substrate |
+| `cxc goalplan` | `components/pabcd-state/dist/cli.js goalplan` | deprecated alias for `cxc loop` |
 | `cxc subagents` | `components/subagent-config/dist/cli.js` (list/get/set) | reads/writes the per-role `.codexclaw/subagents.json` model+effort+prompt config |
 | `cxc provider` | `components/provider-bridge/dist/cli.js` (detect) | read-only ocx provider detect/status; never mutates provider state |
 | `cxc serve` | `components/messenger-bridge/dist/cli.js serve` | runs the loopback bridge server for the GUI, JSON API, and messenger adapters |
@@ -300,9 +301,9 @@ The subagent config component can later select per-role models; default mode inh
 The L14 hardening design (subagent skill routing + loop/goal handoff) has largely shipped: its
 root-cause diagnosis lives in `devlog/_plan/mvp_hard/140_L14_loop_goal_routing_followup.md`, its
 fix shape is the design SOT at [`10_subagent_skill_routing.md`](10_subagent_skill_routing.md), and
-the work landed across L14-L19 (all `DONE | DONE`) — including the E5 spawn-attachment builder (L15)
-and the forward `GOAL_ACTIVATION_DIRECTIVE` bridge (`cxc freeze`). Two pieces stay deferred by design:
-the L15.2 **E3** PreToolUse auto-attach hook, and the **reverse** goal-active auto-arm path
+the work landed across L14-L19 (all `DONE | DONE`) — including the E5 spawn-attachment builder (L15),
+the E3 PreToolUse mention normalizer (L15.2), and the forward `GOAL_ACTIVATION_DIRECTIVE`
+bridge (`cxc freeze`). One piece stays deferred by design: the **reverse** goal-active auto-arm path
 ("set a goal → loop runs" without a separate orchestrate trigger). The most recent lane is **L20**,
 the L1-L19 full-span gap-remediation loop (`devlog/_plan/mvp_hard/200_L20_gap_register.md`).
 

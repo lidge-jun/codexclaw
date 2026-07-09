@@ -10,12 +10,9 @@
  *    the wrapper NEVER invents a role name (codex plugins can't register roles).
  *  - the role prompt is injected INLINE in the message ("TASK: ..."), since plugin
  *    install dirs are not a config layer.
- *  - model selection comes from the STORE resolver, not the TOML: `model = "default"`
- *    in the TOML is a Phase-1 inherit sentinel; the durable per-role model lives in
- *    `.codexclaw/subagents.json`. So this module reads ONLY developer_instructions from
- *    the TOML and takes the effective model from `resolveSpawnConfig`.
- *  - default mode (usesMainModel) OMITS the `model` key so the subagent inherits the
- *    main Codex model; an explicit `promptOverride` REPLACES the TOML instructions.
+ *  - model selection is not emitted by the v2 builder. The durable per-role model in
+ *    `.codexclaw/subagents.json` is honored only by the v1 PreToolUse hook path.
+ *  - an explicit `promptOverride` REPLACES the TOML instructions.
  *
  * Zero third-party deps (node:* only) so the build's type-strip stays sound.
  */
@@ -38,8 +35,8 @@ export const ROLE_AGENT_TYPE: Record<RoleName, "explorer" | "worker"> = {
  * Keys are coarse change-surfaces the dispatcher names; values are skill FOLDER names
  * under plugins/codexclaw/skills/. Only v1 spawn carries `items` (codex-rs
  * multi_agents_spec: v1 has items, v2 deny_unknown_fields has none); the portable
- * v1+v2 channel is the message-borne mention block (buildSkillMentionBlock), which the
- * always-on spawn-attach hook applies — see structure/10.
+ * v1+v2 channel is the message-borne mention block (buildSkillMentionBlock). The
+ * spawn hook repairs existing cxc mentions when needed, but never invents baselines.
  */
 export type Surface =
   | "architecture"
@@ -181,7 +178,7 @@ export function resolveAttachedSkillFolders(
 /**
  * WP1 (mention channel) — true when an absolute SKILL.md path can sit inside a
  * markdown link target without breaking the runtime mention parser (no whitespace
- * or parens). Paths that fail this fall back to the plain `$name` mention form.
+ * or parens). Paths that fail this fall back to the plugin-prefixed name form.
  */
 function linkSafePath(p: string): boolean {
   return !/[\s()]/.test(p);
@@ -191,11 +188,11 @@ function linkSafePath(p: string): boolean {
  * WP1 — render one skill mention for a spawn MESSAGE. Link form
  * `[$cxc-<folder>](skill://<abs SKILL.md path>)` is preferred: the runtime resolves it
  * by exact path, immune to duplicate-name ambiguity. When the path is not link-safe,
- * degrade to the plain `$cxc-<folder>` name mention (unique-name match).
+ * degrade to `$codexclaw:cxc-<folder>`, which matches the plugin-registered name.
  */
 export function skillMention(skillsDir: string, folder: string): string {
   const item = skillItem(skillsDir, folder);
-  return linkSafePath(item.path) ? `[$${item.name}](skill://${item.path})` : `$${item.name}`;
+  return linkSafePath(item.path) ? `[$${item.name}](skill://${item.path})` : `$codexclaw:${item.name}`;
 }
 
 /**
@@ -331,28 +328,26 @@ export function taskNameForRole(role: RoleName, task: string): string {
 
 /**
  * Concrete Codex `spawn_agent` payload (the subset codexclaw controls).
- * V1 is the default surface; when V2 is enabled manually, the builder also emits
- * `task_name` and `fork_turns` for V2 compatibility. `fork_turns` is pinned to
- * "none" because the V2 default ("all", full-history fork) REJECTS
- * agent_type/model/reasoning_effort overrides. codexclaw role dispatches are
- * fresh-context spawns: the role prompt + task travel in `message`.
+ * This builder emits a v2-compatible fresh-context shape (`task_name` + `fork_turns`).
+ * Model routing is intentionally not included here: v1-shaped dispatches are routed
+ * by the PreToolUse hook, while v2 keeps only the leaf guard.
  */
 export interface SpawnPayload {
   agent_type: "explorer" | "worker";
   message: string;
   /** v2 spawn schema: required task name, `[a-z0-9_]+`. Present when V2 is active. */
   task_name?: string;
-  /** Pinned to "none" on V2: keeps agent_type/model/effort overrides legal (see above). */
+  /** Pinned to "none" on V2 so role dispatches stay fresh-context. */
   fork_turns?: "none";
-  /** Present ONLY when a non-default model was configured; absent = inherit main model. */
+  /** Legacy v1 callers only; the v2 builder never sets this. */
   model?: string;
-  /** Present ONLY when an effort override was configured; absent = inherit parent effort. */
+  /** Legacy v1 callers only; the v2 builder never sets this. */
   reasoning_effort?: string;
   /**
    * DEPRECATED (260709 dev2 switch): v1-only channel — the v2 spawn schema is
    * `deny_unknown_fields` and REJECTS `items`. No codexclaw builder sets this
-   * anymore; the skill channel is the message-borne mention block
-   * (buildSkillMentionBlock / the always-on spawn-attach hook — structure/10).
+   * anymore; the skill channel is the message-borne mention block built by the
+   * dispatcher. The spawn hook repairs existing mentions but never supplies baselines.
    * Kept typed only so a legacy v1 caller remains representable.
    */
   items?: SpawnItem[];
@@ -370,8 +365,8 @@ export interface BuildSpawnPayloadInput {
 
 /**
  * PURE builder: compose the spawn_agent payload. The effective role prompt is the
- * promptOverride when set, else the TOML developer_instructions. The model key is
- * included only for a non-default (model-mode) resolution with a real id.
+ * promptOverride when set, else the TOML developer_instructions. Model routing is
+ * handled only by the v1 hook path.
  */
 export function buildSpawnPayload(input: BuildSpawnPayloadInput): SpawnPayload {
   const { role, task, resolution, developerInstructions } = input;
@@ -385,14 +380,6 @@ export function buildSpawnPayload(input: BuildSpawnPayloadInput): SpawnPayload {
     task_name: taskNameForRole(role, taskText),
     fork_turns: "none",
   };
-  if (!resolution.usesMainModel && typeof resolution.model === "string" && resolution.model.length > 0) {
-    payload.model = resolution.model;
-  }
-  // Effort is mode-independent: it can override on a main-model spawn too. The store
-  // validated it against the codex wire enum (an invalid effort hard-fails the spawn).
-  if (typeof resolution.effort === "string" && resolution.effort.length > 0) {
-    payload.reasoning_effort = resolution.effort;
-  }
   return payload;
 }
 
@@ -407,17 +394,9 @@ export function resolveSpawnPayload(cwd: string, role: RoleName, task: string, a
 }
 
 /**
- * L15 skill-routing builder entry (260709 dev2 switch: v2-legal). Build the base
- * payload (role prompt in `message`, model from the store) and attach the resolved
- * `cxc-*` skills as a MENTION BLOCK prepended to `message` — the v2 spawn schema
- * rejects `items` (`deny_unknown_fields`), and the child's first turn parses
- * `[$name](skill://path)` mentions out of its UserInput text. Optional path hints
- * (080.2) ride the same message.
- *
- * NOTE: this is a builder the MAIN AGENT calls when it dispatches a spawn — it is NOT
- * auto-invoked by a hook. The shipped `^spawn_agent$` PreToolUse hook (spawn-attach-hook)
- * covers dispatches that skip this builder by prepending $cxc mentions to the message
- * (deduping against mentions already present), so the two channels never stack.
+ * L15 compatibility entry. Skill mentions are prepended by the builder because the
+ * spawn hook only repairs mentions already present. Optional path hints (080.2) follow
+ * the skill block as task context.
  */
 export function resolveSpawnPayloadWithSkills(input: {
   cwd: string;
@@ -429,14 +408,14 @@ export function resolveSpawnPayloadWithSkills(input: {
   explicitSkillFolders?: string[];
 }): SpawnPayload {
   const base = resolveSpawnPayload(input.cwd, input.role, input.task, input.agentsDir);
-  const mentionBlock = buildSkillMentionBlock({
+  const skills = buildSkillMentionBlock({
     role: input.role,
     skillsDir: input.skillsDir,
     surfaces: input.surfaces,
     explicitSkillFolders: input.explicitSkillFolders,
   });
   const hint = pathHintItem(buildPathHints(input.cwd, input.task ?? ""));
-  const prefix = [mentionBlock, hint?.text].filter((s): s is string => !!s && s.length > 0);
+  const prefix = [skills, hint?.text].filter((s): s is string => !!s && s.length > 0);
   if (prefix.length === 0) return base;
   return { ...base, message: `${prefix.join("\n\n")}\n\n${base.message}` };
 }
@@ -466,23 +445,22 @@ export const INTENT_ROLE: Record<Intent, RoleName> = {
 
 /**
  * lazygap_impl 070 — per-intent EXTRA skill folders appended on top of the role base.
- * This is how a `research` dispatch rides the deep-research protocol WITHOUT a new role:
- * the base `explorer` also gets `cxc-search` + `cxc-ultraresearch`. Other intents add
+ * This is how a `research` dispatch rides the search protocol WITHOUT a new role:
+ * the base `explorer` also gets `cxc-search`. Other intents add
  * nothing here (their specialization comes from role base + surfaces). Folders are only
  * attached if they exist on disk (buildSpawnItems filters via existsSync), so a missing
  * skill silently degrades rather than producing a dangling path.
  */
 export const INTENT_EXTRA_SKILL_FOLDERS: Partial<Record<Intent, string[]>> = {
-  research: ["search", "ultraresearch"],
+  research: ["search"],
 };
 
 /**
- * PURE (260709 dev2 switch: v2-legal): turn a dispatch intent (+ optional surfaces /
- * explicit skill folders) into the role and a v2-shaped spawn fragment. This is the
- * one call a dispatcher makes:
+ * PURE (260709 dev2 switch: v2-legal): turn a dispatch intent into the role and a
+ * v2-shaped spawn fragment. This is the one call a dispatcher makes:
  *   routeDispatch({ intent: "red-team", surfaces: ["frontend"], task, skillsDir })
  *   -> role "reviewer", task_name "reviewer_...", fork_turns "none",
- *      message "<skill mention block>\n\n<path hints>\n\nTASK: ..."
+ *      message "<skill mentions>\n\n<path hints>\n\nTASK: ..."
  * An unknown intent is not representable (TS), but a defensive fallback maps to `explorer`
  * (read-only) so a loosened caller can never escalate privilege via a bad intent string.
  */
@@ -496,19 +474,15 @@ export function routeDispatch(input: {
   cwd?: string;
 }): { role: RoleName; task_name?: string; fork_turns?: "none"; message: string } {
   const role = INTENT_ROLE[input.intent] ?? "explorer";
-  // 070: fold in any per-intent extra skill folders (e.g. research -> search + ultraresearch)
-  // ahead of caller-supplied explicit folders; resolveAttachedSkillFolders dedups + orders.
-  const intentExtras = INTENT_EXTRA_SKILL_FOLDERS[input.intent] ?? [];
-  const explicitSkillFolders = [...intentExtras, ...(input.explicitSkillFolders ?? [])];
-  const mentionBlock = buildSkillMentionBlock({
+  const taskText = (input.task ?? "").trim();
+  const extras = INTENT_EXTRA_SKILL_FOLDERS[input.intent] ?? [];
+  const skills = buildSkillMentionBlock({
     role,
     skillsDir: input.skillsDir,
     surfaces: input.surfaces,
-    explicitSkillFolders,
+    explicitSkillFolders: [...(input.explicitSkillFolders ?? []), ...extras],
   });
-  const taskText = (input.task ?? "").trim();
-  const parts: string[] = [];
-  if (mentionBlock.length > 0) parts.push(mentionBlock);
+  const parts: string[] = skills ? [skills] : [];
   if (typeof input.cwd === "string" && input.cwd.length > 0) {
     const hint = pathHintItem(buildPathHints(input.cwd, taskText));
     if (hint) parts.push(hint.text);

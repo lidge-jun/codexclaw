@@ -14,9 +14,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync, existsSync, rmSync, mkdtempSync, cpSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync, existsSync, rmSync, mkdtempSync, cpSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -83,10 +84,14 @@ function readHookCommand(hookFileRel) {
 }
 
 function runHook(distAbs, hookEvent, payload, extraEnv = {}) {
+  const env = { ...process.env, ...extraEnv };
+  for (const [key, value] of Object.entries(extraEnv)) {
+    if (value === undefined) delete env[key];
+  }
   return spawnSync(process.execPath, [distAbs, "hook", hookEvent], {
     input: payload === null ? "" : JSON.stringify(payload),
     encoding: "utf8",
-    env: { ...process.env, ...extraEnv },
+    env,
   });
 }
 
@@ -97,7 +102,7 @@ function emptyCodexHome() {
 
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 12, "expected 12 declared hooks");
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 13, "expected 13 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
@@ -197,6 +202,41 @@ test("WP7/G19: pre-tool-use goal-budget hook e2e - bare create_goal allows, toke
     const out = JSON.parse(deny.stdout);
     assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
     assert.match(out.hookSpecificOutput.permissionDecisionReason, /token_budget/i);
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test("260709: pre-tool-use goal-complete hook e2e - mid-cycle complete denies, blocked allows", () => {
+  const { event, hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-guarding-goal-complete.json");
+  assert.equal(event, "PreToolUse");
+  const ep = snapshotEntrypoint(distAbs);
+  if (!ep) return;
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-complete-"));
+  try {
+    // seed a mid-cycle session state (phase B, orchestration active)
+    const sessionsDir = join(tmp, ".codexclaw", "sessions");
+    mkdirSync(sessionsDir, { recursive: true });
+    writeFileSync(join(sessionsDir, "gc-e2e.json"), JSON.stringify({
+      phase: "B", sessionId: "gc-e2e", slug: "", updatedAt: new Date().toISOString(),
+      flags: { interview: false, auditPassed: false, checkPassed: false },
+      supersededBy: null, injectedTurns: [], lastInjectedPhase: "B",
+      orchestrationActive: true, interview: null, stopBlockPhase: null, stopBlockCount: 0,
+    }));
+
+    const deny = runHook(ep, hookEvent, {
+      hook_event_name: "PreToolUse", session_id: "gc-e2e", cwd: tmp,
+      tool_name: "update_goal", tool_input: { status: "complete" },
+    });
+    assert.equal(deny.status, 0, deny.stderr);
+    const out = JSON.parse(deny.stdout);
+    assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
+    assert.match(out.hookSpecificOutput.permissionDecisionReason, /GOAL-COMPLETE-GATE-01/);
+
+    const allow = runHook(ep, hookEvent, {
+      hook_event_name: "PreToolUse", session_id: "gc-e2e", cwd: tmp,
+      tool_name: "update_goal", tool_input: { status: "blocked" },
+    });
+    assert.equal(allow.status, 0, allow.stderr);
+    assert.equal(allow.stdout.trim(), "", "blocked must pass through (honest escape hatch)");
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
@@ -377,46 +417,108 @@ test("L010: subagent-stop hook e2e - worker w/o receipt blocks, valid receipt re
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
-// WP1 (was lazygap_impl 020): the E3 spawn-attach hook, mention-channel upgrade.
-// ALWAYS-ON (no env opt-in): rewrites the spawn `message` to prepend link-form
-// `[$cxc-*](skill://...)` mentions (full-replacement updatedInput, no `items` added),
-// and no-ops when the structured `items` channel is already present. The snapshot
-// entrypoint runs outside the plugin tree, so CODEXCLAW_SKILLS_DIR pins the real
-// skills dir. Drives the real dist entrypoint via the manifest command.
-test("WP1: pre-tool-use spawn-attach hook e2e - always-on mention rewrite; items-present no-op", () => {
+// 260710: the spawn hook repairs provided cxc mentions on both schemas without
+// inventing baselines. V1 also gets configured model routing; V2 also gets D1/D2.
+// This snapshot-shaped case exercises the explicit CXC_SKILLS_DIR resolution branch.
+test("260710: spawn hook e2e - snapshot override composes mention repair with v1/v2 policy", () => {
   const { event, hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-attaching-skills.json");
   assert.equal(event, "PreToolUse");
   const ep = snapshotEntrypoint(distAbs);
   assert.ok(ep, "subagent-config dist entrypoint must settle (vacuous skip is a test bug)");
-  const skillsEnv = { CODEXCLAW_SKILLS_DIR: join(pluginRoot, "skills") };
-  // Isolated cwd: the repo root carries a real .codexclaw/subagents.json (model mode),
-  // and the hook intentionally injects `model` even when items are present. This test
-  // covers the MENTION channel only, so run it from a config-free tmp dir.
   const isolatedCwd = mkdtempSync(join(tmpdir(), "ccx-spawn-e2e-"));
-  const payload = {
-    hook_event_name: "PreToolUse", session_id: "s1", cwd: isolatedCwd,
-    tool_name: "spawn_agent",
-    tool_input: { message: "review the frontend diff", agent_type: "explorer" },
-  };
-  // no env opt-in needed -> full-replacement updatedInput with a mention block
-  const attached = runHook(ep, hookEvent, payload, skillsEnv);
-  assert.equal(attached.status, 0, attached.stderr);
-  const out = JSON.parse(attached.stdout);
-  assert.equal(out.hookSpecificOutput.permissionDecision, "allow");
-  const ui = out.hookSpecificOutput.updatedInput;
-  assert.equal(ui.agent_type, "explorer", "original input preserved (full replacement)");
-  assert.ok(!("items" in ui), "mention channel must not add items");
-  assert.match(ui.message, /\[\$cxc-dev\]\(skill:\/\/.*\/dev\/SKILL\.md\)/);
-  assert.match(ui.message, /\[\$cxc-dev-frontend\]\(skill:\/\/.*\/dev-frontend\/SKILL\.md\)/);
-  assert.ok(ui.message.endsWith("review the frontend diff"), "original message preserved at the end");
+  const configuredCwd = mkdtempSync(join(tmpdir(), "ccx-spawn-e2e-model-"));
+  const skillsEnv = { CXC_SKILLS_DIR: join(pluginRoot, "skills") };
+  try {
+    const v1Normalized = runHook(ep, hookEvent, {
+      hook_event_name: "PreToolUse", session_id: "s1", cwd: isolatedCwd,
+      tool_name: "spawn_agent",
+      tool_input: { message: "$cxc-dev review the frontend diff", agent_type: "explorer", trace_id: "v1" },
+    }, skillsEnv);
+    assert.equal(v1Normalized.status, 0, v1Normalized.stderr);
+    const v1NormalizedUi = JSON.parse(v1Normalized.stdout).hookSpecificOutput.updatedInput;
+    assert.equal(v1NormalizedUi.trace_id, "v1");
+    assert.match(v1NormalizedUi.message, /\[\$cxc-dev\]\(skill:\/\/.*\/skills\/dev\/SKILL\.md\)/);
 
-  // structured items already present -> no-op (never double-attach)
-  const noop = runHook(ep, hookEvent, {
-    ...payload,
-    tool_input: { ...payload.tool_input, items: [{ type: "text", text: "TASK: x" }] },
-  }, skillsEnv);
-  assert.equal(noop.status, 0, noop.stderr);
-  assert.equal(noop.stdout.trim(), "", "items-present must be a no-op");
+    mkdirSync(join(configuredCwd, ".codexclaw"), { recursive: true });
+    writeFileSync(
+      join(configuredCwd, ".codexclaw", "subagents.json"),
+      JSON.stringify({ roles: { explorer: { mode: "model", model: "model-explorer", promptOverride: null } } }),
+    );
+    const v1Model = runHook(ep, hookEvent, {
+      hook_event_name: "PreToolUse", session_id: "s1", cwd: configuredCwd,
+      tool_name: "spawn_agent",
+      tool_input: { message: "$cxc-dev map the codebase", agent_type: "explorer" },
+    }, skillsEnv);
+    assert.equal(v1Model.status, 0, v1Model.stderr);
+    const v1Ui = JSON.parse(v1Model.stdout).hookSpecificOutput.updatedInput;
+    assert.equal(v1Ui.model, "model-explorer");
+    assert.match(v1Ui.message, /^\[\$cxc-dev\]\(skill:\/\//);
+    assert.ok(!("reasoning_effort" in v1Ui));
+
+    const v2Normalized = runHook(ep, hookEvent, {
+      hook_event_name: "PreToolUse", session_id: "s1", cwd: isolatedCwd,
+      tool_name: "spawn_agent",
+      // 090 line-based contract: the bracketed marker line is protected, so the
+      // repairable mention sits on its own line.
+      tool_input: { task_name: "normalized", fork_turns: "none", message: "[CXC-LEAF-GUARD] guarded\n$cxc-dev" },
+    }, skillsEnv);
+    assert.equal(v2Normalized.status, 0, v2Normalized.stderr);
+    const v2NormalizedUi = JSON.parse(v2Normalized.stdout).hookSpecificOutput.updatedInput;
+    assert.equal((v2NormalizedUi.message.match(/\[CXC-LEAF-GUARD\]/g) ?? []).length, 1);
+    assert.match(v2NormalizedUi.message, /\[\$cxc-dev\]\(skill:\/\//);
+
+    const v2Guard = runHook(ep, hookEvent, {
+      hook_event_name: "PreToolUse", session_id: "s1", cwd: configuredCwd,
+      tool_name: "spawn_agent",
+      tool_input: { task_name: "child_task", fork_turns: "none", message: "$cxc-dev map the codebase" },
+    }, skillsEnv);
+    assert.equal(v2Guard.status, 0, v2Guard.stderr);
+    const v2Ui = JSON.parse(v2Guard.stdout).hookSpecificOutput.updatedInput;
+    assert.ok(v2Ui.message.startsWith("[CXC-LEAF-GUARD]"));
+    assert.match(v2Ui.message, /\[\$cxc-dev\]\(skill:\/\//);
+    assert.ok(!("model" in v2Ui));
+
+    const denied = runHook(ep, hookEvent, {
+      hook_event_name: "PreToolUse", session_id: "s1", cwd: isolatedCwd,
+      tool_name: "spawn_agent", agent_id: "child-1", agent_type: "explorer",
+      tool_input: { task_name: "recursive", fork_turns: "none", message: "$cxc-dev spawn a helper" },
+    }, skillsEnv);
+    assert.equal(denied.status, 0, denied.stderr);
+    const deniedOut = JSON.parse(denied.stdout).hookSpecificOutput;
+    assert.equal(deniedOut.permissionDecision, "deny");
+    assert.ok(!("updatedInput" in deniedOut), "D1 denial precedes mention normalization");
+  } finally {
+    rmSync(isolatedCwd, { recursive: true, force: true });
+    rmSync(configuredCwd, { recursive: true, force: true });
+  }
+});
+
+// The production cache layout resolves skills relative to dist/../../../skills when
+// CXC_SKILLS_DIR is absent. Build a complete miniature plugin tree to exercise it.
+test("260710: spawn hook e2e - cache-shaped fixture uses script-relative skills", () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-attaching-skills.json");
+  const fixture = mkdtempSync(join(tmpdir(), "ccx-spawn-cache-"));
+  const cwd = mkdtempSync(join(tmpdir(), "ccx-spawn-cache-cwd-"));
+  try {
+    const cacheDist = join(fixture, "plugin", "components", "subagent-config", "dist");
+    mkdirSync(dirname(cacheDist), { recursive: true });
+    cpSync(dirname(distAbs), cacheDist, { recursive: true });
+    const cacheSkill = join(fixture, "plugin", "skills", "dev", "SKILL.md");
+    mkdirSync(dirname(cacheSkill), { recursive: true });
+    writeFileSync(cacheSkill, "# dev fixture\n");
+
+    const res = runHook(join(cacheDist, basename(distAbs)), hookEvent, {
+      hook_event_name: "PreToolUse", session_id: "s1", cwd,
+      tool_name: "spawn_agent",
+      tool_input: { message: "$cxc-dev inspect the cache", agent_type: "explorer" },
+    }, { CXC_SKILLS_DIR: undefined });
+    assert.equal(res.status, 0, res.stderr);
+    const ui = JSON.parse(res.stdout).hookSpecificOutput.updatedInput;
+    assert.equal(ui.message, `[$cxc-dev](skill://${realpathSync(cacheSkill)}) inspect the cache`);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 // lazygap_impl 050: PostCompact recovery hook. Side-effect-only — resets the re-inject
@@ -518,4 +620,64 @@ test("L060: session-start-rules hook e2e - seeded rules inject, empty dir is sil
     assert.equal(out.hookSpecificOutput.hookEventName, "SessionStart");
     assert.match(out.hookSpecificOutput.additionalContext, /always run the gate/);
   } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
+// 260709 subagent hook guard: turn-level hooks must no-op for thread-spawned
+// subagent turns. codex-rs stamps agent_id/agent_type into child hook stdin
+// (hooks/src/schema.rs:270,537) and reuses the PARENT session id (fbfbfe5fc),
+// so an unguarded child turn would read/write the parent's PABCD state and
+// receive root-only directives (request_user_input is root-thread-only).
+test("subagent-guard: user-prompt-submit with agent fields is silent and writes no state", () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
+  const ep = snapshotEntrypoint(distAbs);
+  if (!ep) return;
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-subups-"));
+  try {
+    const res = runHook(ep, hookEvent, {
+      hook_event_name: "UserPromptSubmit", session_id: "s-parent", cwd: tmp, turn_id: "t1",
+      prompt: "interview me, then plan this", // would trigger + write state for a root turn
+      agent_id: "agent-1", agent_type: "worker",
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(res.stdout.trim(), "", "subagent turn must not receive phase directives");
+    assert.ok(!existsSync(join(tmp, ".codexclaw", "sessions")), "subagent turn must not write session state");
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
+// Discriminating fail-closed pair (audit P1/P2): with an ACTIVE goal for the
+// session, the R-9 interview-in-goal gate must still DENY a root
+// request_user_input call, while the SAME payload carrying agent fields must
+// skip the gate entirely (empty stdout) — proving the guard sits BEFORE
+// handlePreToolUseFailClosed without weakening root fail-closed semantics.
+test("subagent-guard: pre-tool-use interview gate denies root, skips subagent payload", () => {
+  const { event, hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-guarding-interview-in-goal.json");
+  assert.equal(event, "PreToolUse");
+  const ep = snapshotEntrypoint(distAbs);
+  if (!ep) return;
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-subgoal-"));
+  const home = mkdtempSync(join(tmpdir(), "ccx-subhome-"));
+  try {
+    // Seed a real goals_1.sqlite with an active goal for session s1 (mirrors
+    // the thread_goals fixture in pabcd-state/test/goal-active.test.ts).
+    const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite");
+    const db = new DatabaseSync(join(home, "goals_1.sqlite"));
+    db.exec("CREATE TABLE thread_goals (thread_id TEXT PRIMARY KEY NOT NULL, goal_id TEXT NOT NULL, objective TEXT NOT NULL, status TEXT NOT NULL);");
+    db.prepare("INSERT INTO thread_goals (thread_id, goal_id, objective, status) VALUES (?,?,?,?)").run("s1", "g1", "obj", "active");
+    db.close();
+    const env = { CODEX_HOME: home, CODEX_SQLITE_HOME: home };
+    const payload = {
+      hook_event_name: "PreToolUse", session_id: "s1", cwd: tmp,
+      tool_name: "request_user_input", tool_input: { questions: [] },
+    };
+    const root = runHook(ep, hookEvent, payload, env);
+    assert.equal(root.status, 0, root.stderr);
+    const rootOut = JSON.parse(root.stdout.trim());
+    assert.equal(rootOut.hookSpecificOutput.permissionDecision, "deny", "root fail-closed DENY regression");
+    const child = runHook(ep, hookEvent, { ...payload, agent_id: "agent-1", agent_type: "worker" }, env);
+    assert.equal(child.status, 0, child.stderr);
+    assert.equal(child.stdout.trim(), "", "subagent payload must skip the fail-closed gate");
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+  }
 });

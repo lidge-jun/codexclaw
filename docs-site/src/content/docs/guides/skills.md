@@ -3,15 +3,15 @@ title: Skills
 description: How codexclaw skills load — the implicit set, on-demand skills, the four naming forms, and the dev-* routing table.
 ---
 
-codexclaw ships its discipline as skills. Six are implicit-visible; the rest load on demand.
+codexclaw ships its discipline as skills. Eight are implicit-visible; the rest load on demand.
 
 ## Implicit vs on-demand
 
-- **Six skills are implicit.** The shipped implicit set is `dev`, `search`, `interview`,
-  `pabcd`, `recall`, and `loop`. `cxc-dev` remains the coding work classifier
+- **Eight skills are implicit.** The shipped implicit set is `dev`, `search`, `interview`,
+  `pabcd`, `recall`, `loop`, `dev-frontend`, and `dev-uiux-design`. `cxc-dev` remains the coding work classifier
   ([C0-C5](/codexclaw/concepts/work-classes/)); the others expose current lookup,
-  interview, workflow, recall, and work-loop affordances when their triggers match.
-- **Everything else is on-demand.** `dev-frontend`, `dev-backend`, `dev-testing`, `qa`,
+  interview, workflow, recall, work-loop, and design/anti-slop affordances when their triggers match.
+- **Everything else is on-demand.** `dev-backend`, `dev-testing`, `qa`,
   `repo-map`, `ast-grep`, and the rest load when the task or you call them.
 
 The skill hub is a **catalog**, not a runtime loader. It lists what exists; it does not
@@ -28,21 +28,22 @@ Codex exposes the same skill under several forms. Docs and prompts may use any o
 | Plugin-native mention | `$codexclaw:cxc-dev-testing` |
 | Source-path fallback | `plugins/codexclaw/skills/dev-testing/SKILL.md` |
 
-## Subagent attachment ($cxc mentions in the spawn message)
+## Subagent attachment (resolvable mentions in the spawn message)
 
-Skills attach to subagents through the spawn **message**: a plain `$cxc-<skill>` or
-link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)` mention in the message is parsed
-by the child's first turn and injected as the full SKILL.md body. This works on both
-spawn surfaces — `message` is a shared field, unlike the v1-only `items` channel.
+Skills attach to subagents through the spawn **message**. Prefer link-form
+`[$cxc-<skill>](skill://<abs SKILL.md path>)`; when the path is not link-safe, use the
+plugin-native `$codexclaw:cxc-<skill>` fallback. The child's first turn parses either
+form and injects the full SKILL.md body. This works on both spawn surfaces — `message`
+is a shared field, unlike the v1-only `items` channel.
 
 Two layers keep this deterministic:
 
-- **Name skills explicitly** when dispatching: put the matching `$cxc-dev-*` (and
-  `$cxc-search` for research lanes) mentions in the spawn message yourself.
-- **The spawn-attach hook backstops you.** An always-on `^spawn_agent$` PreToolUse hook
-  prepends link-form mentions for the role baseline (`cxc-dev`, plus `cxc-dev-code-reviewer`
-  for reviewers) and any surfaces it can infer from the message. It never double-attaches:
-  it no-ops when structured `items` are present or the skills are already mentioned.
+- **Name skills explicitly** when dispatching: put the matching
+  `$codexclaw:cxc-dev-*` (and `$codexclaw:cxc-search` for research lanes) in the spawn
+  message yourself, or use their preferred link forms.
+- **The spawn-attach hook repairs mentions.** The always-on `^spawn_agent$` PreToolUse
+  hook normalizes known broken/bare cxc mentions to a resolvable form. It does not add
+  role baselines or infer missing surface skills; the dispatcher still names those.
 
 ## dev-* routing
 

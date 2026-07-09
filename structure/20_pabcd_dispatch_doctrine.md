@@ -166,13 +166,13 @@ collapses to "dev only" unless the agent deliberately reads further. (The 2026-0
 implicit expansion added six non-dev metadata rows — search/interview/pabcd/recall/
 skill-hub/loop — which improves discovery but does not change this dev-* routing
 collapse.) The spawn-time
-attachment mechanism HAS shipped twice over: L15's E5 dispatch builder
-(`buildSpawnItems`/`SpawnPayload.items`) populates the v1 `items` channel when a
-dispatcher routes through it, and the WP2 E3 `^spawn_agent$` PreToolUse hook attaches
-deterministically WITHOUT a builder call by prepending link-form `[$cxc-*](skill://…)`
-mentions to the spawn `message` (schema-safe on both v1 and v2; no-op when `items` is
-present or the skills are already mentioned). Dispatchers should still name the surface
-skills explicitly in the message — the hook's surface inference is keyword-narrow.
+attachment mechanism is explicit on both surfaces: L15's E5 dispatch builder populates
+the v1 `items` channel (`buildSpawnItems`/`SpawnPayload.items`) and emits resolvable
+message mentions for v2. Prefer `[$cxc-<name>](skill://<abs SKILL.md>)`; use
+plugin-native `$codexclaw:cxc-<name>` when a link is unsafe. The WP2 E3
+`^spawn_agent$` PreToolUse hook only normalizes known broken/bare cxc mentions already
+present in the spawn `message`; it does not add role baselines or infer surface skills.
+Dispatchers remain responsible for naming every required skill (DISPATCH-TASK-01).
 
 ---
 

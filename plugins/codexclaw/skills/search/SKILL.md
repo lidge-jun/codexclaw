@@ -188,13 +188,14 @@ the spawn message.
 
 PABCD A-gate audit/reviewer dispatches are in scope too: a plan auditor must
 verify references and external/current claims, so the audit dispatch packet
-attaches `$cxc-search` alongside `$cxc-dev-code-reviewer` (AUDIT-LOOP-01), and
-the reviewer role baseline carries it by default (spawn-wrapper
-`ROLE_BASE_SKILLS.reviewer`).
+explicitly names `$codexclaw:cxc-search` alongside
+`$codexclaw:cxc-dev-code-reviewer` (AUDIT-LOOP-01). The spawn wrapper's
+`ROLE_BASE_SKILLS.reviewer` resolves the same pair when that builder is used.
 
-The portable default is a **$cxc mention in the spawn message** — the child's
-first turn parses it and injects the full SKILL.md body, on BOTH the v1 and v2
-spawn surfaces:
+The portable default is a **link-form mention in the spawn message** — the
+child's first turn parses it and injects the full SKILL.md body on BOTH the v1
+and v2 spawn surfaces. If the path is not link-safe, use the plugin-native
+`$codexclaw:cxc-search` fallback instead:
 
 ```text
 message: "[$cxc-search](skill://<this skill's SKILL.md absolute path>)
@@ -213,8 +214,9 @@ items: [
 ```
 
 (v2 `deny_unknown_fields` rejects `items` — there the mention line above IS the
-attachment, not a degraded fallback. The always-on spawn-attach hook also
-prepends `$cxc-search` for dispatches whose message names the search surface.)
+attachment, not a degraded fallback. The always-on spawn-attach hook normalizes
+known broken/bare cxc mentions, but it does not add `cxc-search` when the
+dispatcher omits it.)
 
 Do not write a long inline TOOLS block in either path — the skill already says
 "web_search for discovery, then open the source; snippets lie; the page is the
