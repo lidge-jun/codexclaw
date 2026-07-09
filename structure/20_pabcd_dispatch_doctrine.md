@@ -108,6 +108,17 @@ codexclaw translation:
   plan into every worker task. codexclaw has no server, so the main agent must inline
   the relevant plan/context into the spawn message — a subagent must never reconstruct
   the plan from a thin task description.
+- **LEAF-TOPOLOGY-01 (hook-enforced, 260709).** Subagents are star-topology leaves:
+  they never spawn their own subagents. multi_agent_v2 removed the upstream depth
+  brake (collab_tools_enabled is unconditionally true on V2; agent_max_depth is
+  ignored) and an Ultra parent would propagate Proactive delegation into children,
+  so codexclaw enforces the leaf rule deterministically in the `^spawn_agent$`
+  PreToolUse hook: (1) a spawn issued BY a subagent (stdin `agent_id` present) is
+  DENIED unless the message carries `CXC-SUBSPAWN-ALLOWED`; (2) every spawn message
+  gets the `[CXC-LEAF-GUARD]` block; (3) effort-silent spawns get
+  `reasoning_effort: high` injected (ultra-inherit break). Recursion is a
+  deliberate per-dispatch grant, never a default. Evidence + design:
+  `devlog/_plan/260709_multi_agent_v2_switch/060_leaf_agent_hardening.md`.
 - **DISPATCH-ACTOR-01 (reuse).** Follow-up rounds in the same role and work context
   reuse the existing agent instead of spawning fresh: v2 (dev2 switch 260709) —
   `followup_task` to its task_name (triggers a turn when idle; the agent keeps its

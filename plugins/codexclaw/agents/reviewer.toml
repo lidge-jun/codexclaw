@@ -10,6 +10,9 @@ model = "default"   # Phase 1: inherit. Phase 2: per-role override.
 developer_instructions = """
 Role: adversarial reviewer. You review a diff, plan, or implementation and report whether it is sound. You NEVER modify files or commit — your output is a verdict, not a fix.
 
+# Leaf constraint (LEAF-TOPOLOGY-01, 260709)
+You are a LEAF agent: do NOT spawn sub-agents (no spawn_agent calls, no delegation chains) — the spawn-attach hook DENIES recursive spawns unless your dispatcher's task message contains CXC-SUBSPAWN-ALLOWED. If decomposition seems necessary, finish your own scope and REPORT the need in your final answer. Never run cxc orchestrate / cxc loop / goal commands: the parent session owns all FSM and goal state.
+
 # Discipline
 Anchor on the review discipline in `dev-code-reviewer` (review process, quality thresholds, antipattern detection). For risk-bearing surfaces also consult:
 - auth / secrets / input validation / data exposure → `dev-security`

@@ -14,7 +14,16 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { inferRole, isFullHistoryFork, mentionedFolders, runSpawnAttachHook } from "../src/spawn-attach-hook.ts";
+import {
+  DEFAULT_SUBAGENT_EFFORT,
+  LEAF_GUARD_BLOCK,
+  LEAF_GUARD_MARKER,
+  SUBSPAWN_TOKEN,
+  inferRole,
+  isFullHistoryFork,
+  mentionedFolders,
+  runSpawnAttachHook,
+} from "../src/spawn-attach-hook.ts";
 
 function spawnPayload(toolInput: Record<string, unknown>): string {
   // Isolated cwd: the repo root's own .codexclaw/subagents.json must not leak
@@ -23,6 +32,18 @@ function spawnPayload(toolInput: Record<string, unknown>): string {
     hook_event_name: "PreToolUse",
     tool_name: "spawn_agent",
     cwd: mkdtempSync(join(tmpdir(), "cxc-spawn-noconfig-")),
+    tool_input: toolInput,
+  });
+}
+
+/** Payload as issued FROM a thread-spawn subagent session (agent_id stamped). */
+function subagentSpawnPayload(toolInput: Record<string, unknown>): string {
+  return JSON.stringify({
+    hook_event_name: "PreToolUse",
+    tool_name: "spawn_agent",
+    agent_id: "0199-child-thread",
+    agent_type: "explorer",
+    cwd: mkdtempSync(join(tmpdir(), "cxc-spawn-subagent-")),
     tool_input: toolInput,
   });
 }
@@ -50,6 +71,76 @@ function updatedInputOf(out: string): Record<string, unknown> {
   assert.equal(parsed.hookSpecificOutput.permissionDecision, "allow");
   return parsed.hookSpecificOutput.updatedInput;
 }
+
+// ── 060 leaf-agent hardening: D1 recurse-deny / D2 leaf guard / D3 effort default ──
+
+test("060 D1: spawn issued BY a subagent (agent_id stamped) is DENIED without the token", () => {
+  const out = runSpawnAttachHook(subagentSpawnPayload({ message: "spawn a helper", agent_type: "explorer" }));
+  const parsed = JSON.parse(out);
+  assert.equal(parsed.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(parsed.hookSpecificOutput.permissionDecisionReason, /LEAF-TOPOLOGY-01/);
+  assert.match(parsed.hookSpecificOutput.permissionDecisionReason, new RegExp(SUBSPAWN_TOKEN));
+});
+
+test("060 D1: subagent spawn is denied even when the message is missing/empty", () => {
+  for (const toolInput of [{ agent_type: "explorer" }, { message: "", agent_type: "explorer" }]) {
+    const parsed = JSON.parse(runSpawnAttachHook(subagentSpawnPayload(toolInput)));
+    assert.equal(parsed.hookSpecificOutput.permissionDecision, "deny");
+  }
+});
+
+test("060 D1: token in the outgoing message authorizes the recursive spawn (allow path resumes)", () => {
+  const out = runSpawnAttachHook(
+    subagentSpawnPayload({ message: `${SUBSPAWN_TOKEN} spawn one summarizer for shard 3`, agent_type: "explorer" }),
+  );
+  assert.notEqual(out, "");
+  const parsed = JSON.parse(out);
+  assert.equal(parsed.hookSpecificOutput.permissionDecision, "allow");
+  // token also lifts the guard: the authorized child is a coordinator by design
+  assert.ok(!(parsed.hookSpecificOutput.updatedInput.message as string).includes(LEAF_GUARD_MARKER));
+});
+
+test("060 D2: root spawn gets the leaf guard prepended BEFORE the mention block", () => {
+  const out = runSpawnAttachHook(spawnPayload({ message: "review the frontend diff", agent_type: "explorer" }));
+  const ui = updatedInputOf(out);
+  const msg = ui.message as string;
+  assert.ok(msg.startsWith(LEAF_GUARD_MARKER), "guard first");
+  assert.ok(msg.indexOf(LEAF_GUARD_MARKER) < msg.indexOf("Load and follow"), "guard precedes mentions");
+  assert.match(msg, /review the frontend diff$/);
+});
+
+test("060 D2: guard dedupes on marker; token skips guard on a root spawn", () => {
+  const marked = runSpawnAttachHook(
+    spawnPayload({ message: `${LEAF_GUARD_MARKER} already guarded task`, agent_type: "explorer" }),
+  );
+  if (marked !== "") {
+    const msg = updatedInputOf(marked).message as string;
+    assert.equal((msg.match(/\[CXC-LEAF-GUARD\]/g) ?? []).length, 1, "no double guard");
+  }
+  const tokened = runSpawnAttachHook(
+    spawnPayload({ message: `${SUBSPAWN_TOKEN} coordinator task`, agent_type: "explorer" }),
+  );
+  if (tokened !== "") {
+    assert.ok(!(updatedInputOf(tokened).message as string).includes(LEAF_GUARD_MARKER));
+  }
+});
+
+test("060 D3: caller-picked effort still wins over the default", () => {
+  const out = runSpawnAttachHook(
+    spawnPayload({ message: "map the auth module", agent_type: "explorer", reasoning_effort: "low" }),
+  );
+  assert.equal(updatedInputOf(out).reasoning_effort, "low");
+});
+
+test("060 D3: full-history fork => guard text still applies but NO effort/model injection", () => {
+  const out = runSpawnAttachHook(
+    spawnPayload({ message: "summarize this thread", task_name: "child_sum" }), // v2 default fork_turns=all
+  );
+  const ui = updatedInputOf(out);
+  assert.ok((ui.message as string).startsWith(LEAF_GUARD_MARKER));
+  assert.ok(!("reasoning_effort" in ui), "fork guard keeps effort uninjected");
+  assert.ok(!("model" in ui));
+});
 
 test("WP1 hook: v1-shape spawn => message rewrite with link-form mentions, no env needed", () => {
   const out = runSpawnAttachHook(
@@ -83,9 +174,16 @@ test("WP1 hook: v2-shape spawn (fork_turns) => also rewritten", () => {
   assert.match(ui.message as string, /\[\$cxc-dev-security\]\(skill:\/\//);
 });
 
-test("WP1 hook: items already present + no model config => no-op (never double-attach)", () => {
+test("WP1/060 hook: items present => mentions skipped but LEAF GUARD (+default effort) still applies", () => {
   const out = runSpawnAttachHook(spawnPayload({ message: "x", items: [{ type: "text", text: "TASK: x" }] }));
-  assert.equal(out, "");
+  assert.notEqual(out, "");
+  const ui = updatedInputOf(out);
+  // 060 D2: the guard is a constraint, not a skill attachment — it rides the items channel too.
+  assert.equal(ui.message, `${LEAF_GUARD_BLOCK}\n\nx`);
+  assert.ok(!(ui.message as string).includes("Load and follow"), "mention block still skipped on items");
+  assert.ok(Array.isArray(ui.items), "items preserved verbatim");
+  // 060 D3: caller + store silent -> safe default effort breaks Ultra inheritance.
+  assert.equal(ui.reasoning_effort, DEFAULT_SUBAGENT_EFFORT);
 });
 
 test("WP1 hook: plain $cxc mention already in message => that folder deduped", () => {
@@ -122,11 +220,14 @@ test("WP1 hook: link-form skill:// mention also dedupes", () => {
   assert.match(message, /\[\$cxc-dev-frontend\]\(/);
 });
 
-test("WP1 hook: all resolved skills already mentioned => no-op", () => {
+test("WP1/060 hook: all resolved skills already mentioned => guard + default effort still injected", () => {
   const out = runSpawnAttachHook(
     spawnPayload({ message: "$cxc-dev only, no surface keywords here", agent_type: "explorer" }),
   );
-  assert.equal(out, "");
+  assert.notEqual(out, "");
+  const ui = updatedInputOf(out);
+  assert.equal(ui.message, `${LEAF_GUARD_BLOCK}\n\n$cxc-dev only, no surface keywords here`);
+  assert.equal(ui.reasoning_effort, DEFAULT_SUBAGENT_EFFORT);
 });
 
 test("WP1 hook: missing or non-string or empty message => no-op (never invent a message)", () => {
@@ -234,7 +335,7 @@ test("model injection: reviewer keyword routes to the reviewer role config", () 
   assert.equal(updatedInputOf(out).model, "gpt-5.4-mini");
 });
 
-test("model injection: empty mention block still yields a model-only updatedInput", () => {
+test("model injection: empty mention block still injects model (guard now rides along, 060)", () => {
   const cwd = workspaceWithConfig({
     explorer: { mode: "model", model: "gpt-5.3-codex-spark", promptOverride: null },
   });
@@ -245,7 +346,7 @@ test("model injection: empty mention block still yields a model-only updatedInpu
   assert.notEqual(out, "");
   const ui = updatedInputOf(out);
   assert.equal(ui.model, "gpt-5.3-codex-spark");
-  assert.equal(ui.message, "$cxc-dev only, no surface keywords here", "message untouched when block is empty");
+  assert.equal(ui.message, `${LEAF_GUARD_BLOCK}\n\n$cxc-dev only, no surface keywords here`);
 });
 
 test("model injection: items present => mentions skipped but model still injected", () => {
@@ -262,7 +363,7 @@ test("model injection: items present => mentions skipped but model still injecte
   assert.notEqual(out, "");
   const ui = updatedInputOf(out);
   assert.equal(ui.model, "deepseek/deepseek-v4");
-  assert.equal(ui.message, "implement it", "no mention block on the items channel");
+  assert.equal(ui.message, `${LEAF_GUARD_BLOCK}\n\nimplement it`, "guard rides items; no mention block");
   assert.ok(Array.isArray(ui.items), "items preserved verbatim");
 });
 
@@ -301,13 +402,15 @@ test("effort injection: model + effort configured => both injected together", ()
   assert.equal(ui.reasoning_effort, "xhigh");
 });
 
-test("effort injection: no effort configured => reasoning_effort key absent (inherit)", () => {
+test("effort injection (060 D3): no effort configured => DEFAULT effort injected (ultra-inherit break)", () => {
   const cwd = workspaceWithConfig({
     explorer: { mode: "model", model: "gpt-5.5", effort: null, promptOverride: null },
   });
   const out = runSpawnAttachHook(spawnPayloadAt(cwd, { message: "map the auth module", agent_type: "explorer" }));
   const ui = updatedInputOf(out);
-  assert.ok(!("reasoning_effort" in ui), "null effort must inherit the parent effort");
+  // Inheriting the parent effort would re-arm Proactive delegation under an Ultra
+  // parent (codex-rs session/multi_agents.rs:52) — the hook now breaks the chain.
+  assert.equal(ui.reasoning_effort, DEFAULT_SUBAGENT_EFFORT);
 });
 
 // ── Full-history fork guard (codex-rs rejects model/effort overrides on full forks) ──

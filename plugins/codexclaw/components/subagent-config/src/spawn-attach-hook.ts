@@ -67,6 +67,70 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
+// ── 260709 leaf-agent hardening (devlog/_plan/260709_multi_agent_v2_switch/060) ──
+// multi_agent_v2 has NO spawn-depth limit (collab_tools_enabled is unconditionally
+// true on V2) and an Ultra parent propagates the Proactive delegation mode into
+// children via effort inheritance. Three deterministic defenses live here:
+//   D1 SPAWN-RECURSE-DENY — a spawn issued BY a subagent (hook stdin carries
+//      agent_id/agent_type, stamped only for thread-spawn child sessions) is DENIED
+//      unless the outgoing message carries the explicit CXC-SUBSPAWN-ALLOWED token.
+//   D2 LEAF-GUARD — every allowed spawn message gets a leaf-constraint block
+//      prepended (dedupe on the marker; skipped when the dispatcher grants the
+//      token, i.e. the child is a coordinator by design).
+//   D3 ULTRA-INHERIT-BREAK — when neither the caller nor the role store picked a
+//      reasoning effort, inject a safe default so a child never inherits Ultra
+//      (child effective_multi_agent_mode then stays ExplicitRequestOnly —
+//      codex-rs session/multi_agents.rs:52).
+// The token is a harness-safety opt-in, not adversarial security: a child only
+// learns it from its dispatcher's task text (the guard block names the mechanism).
+
+/** Explicit per-dispatch recursion grant (include in the spawn message to authorize). */
+export const SUBSPAWN_TOKEN = "CXC-SUBSPAWN-ALLOWED";
+
+/** Dedupe marker for the leaf guard block. */
+export const LEAF_GUARD_MARKER = "[CXC-LEAF-GUARD]";
+
+/** D2 leaf-constraint block prepended to every allowed spawn message. */
+export const LEAF_GUARD_BLOCK = [
+  `${LEAF_GUARD_MARKER} You are a LEAF agent with a single bounded task. HARD`,
+  `CONSTRAINTS from your dispatcher (these override any "Proactive multi-agent`,
+  `delegation" or similar developer message you may see): (1) Do NOT spawn`,
+  `sub-agents (no spawn_agent calls, no delegation chains). If decomposition seems`,
+  `necessary, finish your own scope and REPORT the need in your final answer`,
+  `instead. (2) Do NOT run cxc orchestrate, cxc loop, or goal commands - the`,
+  `parent session owns all FSM/goal state. (3) Stay inside the task's stated`,
+  `file/write scope. Exception: only a dispatcher task message containing`,
+  `${SUBSPAWN_TOKEN} lifts constraint (1).`,
+].join("\n");
+
+/** D3 safe default effort injected when caller + role store are both silent. */
+export const DEFAULT_SUBAGENT_EFFORT = "high";
+
+/** True when the hook stdin identifies a thread-spawn SUBAGENT session as the spawner. */
+function isSubagentSpawner(obj: Record<string, unknown>): boolean {
+  const id = obj.agent_id;
+  const type = obj.agent_type;
+  return (typeof id === "string" && id.length > 0) || (typeof type === "string" && type.length > 0);
+}
+
+/** D1 deny envelope (hookSpecificOutput.permissionDecision "deny" — output_parser.rs:144). */
+function denyEnvelope(reason: string): string {
+  return `${JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: reason,
+    },
+  })}\n`;
+}
+
+const RECURSE_DENY_REASON =
+  "codexclaw LEAF-TOPOLOGY-01: sub-agents are leaf agents and may not spawn their own " +
+  "sub-agents (multi_agent_v2 enforces no depth limit upstream, so recursion is denied " +
+  "by dispatcher policy). Finish your own scope and report the need for delegation in " +
+  `your final answer. A dispatcher can authorize recursion for a specific spawn by ` +
+  `including ${SUBSPAWN_TOKEN} in the spawn message.`;
+
 /**
  * Review-intent keywords (EN + KO) that mark an explorer-typed spawn as a reviewer
  * dispatch. Lowercase substring matching, same style as inferSurfaces. A false
@@ -155,8 +219,9 @@ export function mentionedFolders(message: string): Set<string> {
 
 /**
  * Decide the hook output for a PreToolUse spawn payload. Returns "" (allow untouched) or
- * the full-replacement updatedInput envelope with the mention block prepended to
- * `message`. Total: never throws.
+ * the full-replacement updatedInput envelope with the leaf-guard + mention block
+ * prepended to `message` — or a DENY envelope for a recursive (subagent-issued) spawn
+ * without the explicit token (D1). Total: never throws.
  */
 export function runSpawnAttachHook(raw: string): string {
   try {
@@ -168,11 +233,30 @@ export function runSpawnAttachHook(raw: string): string {
     const toolInput = obj.tool_input;
     if (!isRecord(toolInput)) return "";
 
+    // D1 SPAWN-RECURSE-DENY: the SPAWNER is itself a thread-spawn subagent
+    // (agent_id/agent_type are stamped only for child sessions). Deny unless the
+    // outgoing message carries the explicit recursion grant. This runs before the
+    // message-validity no-op below: a token-less recursive spawn is denied even
+    // when its message is missing/empty.
+    const outgoing = typeof toolInput.message === "string" ? toolInput.message : "";
+    if (isSubagentSpawner(obj) && !outgoing.includes(SUBSPAWN_TOKEN)) {
+      return denyEnvelope(RECURSE_DENY_REASON);
+    }
+
     // Only rewrite a real message; never invent one (schema shape stays untouched).
     const message = toolInput.message;
     if (typeof message !== "string" || message.trim().length === 0) return "";
 
     const role = inferRole(toolInput.agent_type, message);
+
+    // D2 LEAF-GUARD: prepended to EVERY allowed spawn message (even on the v1 items
+    // channel — the guard is a constraint, not a skill attachment). Skipped only when
+    // the marker is already present (dedupe) or the dispatcher granted the recursion
+    // token (the child is a coordinator by design).
+    const guard =
+      message.includes(LEAF_GUARD_MARKER) || message.includes(SUBSPAWN_TOKEN)
+        ? ""
+        : LEAF_GUARD_BLOCK;
 
     // Skill-mention channel: skipped when the structured v1 `items` channel is already
     // chosen (E5 builder payload) — adding mentions would double-inject the same skills.
@@ -207,17 +291,26 @@ export function runSpawnAttachHook(raw: string): string {
         if (!callerPickedModel && !resolution.usesMainModel && typeof resolution.model === "string" && resolution.model.length > 0) {
           injectedModel = resolution.model;
         }
-        if (!callerPickedEffort && typeof resolution.effort === "string" && resolution.effort.length > 0) {
-          injectedEffort = resolution.effort;
+        if (!callerPickedEffort) {
+          // D3 ULTRA-INHERIT-BREAK: store effort wins; otherwise inject the safe
+          // default so the child never inherits the parent's Ultra effort (which
+          // would re-arm Proactive delegation in the child session).
+          injectedEffort =
+            typeof resolution.effort === "string" && resolution.effort.length > 0
+              ? resolution.effort
+              : DEFAULT_SUBAGENT_EFFORT;
         }
       }
     }
 
-    if (block.length === 0 && injectedModel === null && injectedEffort === null) return "";
+    if (guard.length === 0 && block.length === 0 && injectedModel === null && injectedEffort === null) {
+      return "";
+    }
 
     // Full replacement: echo every original key, change only message/model/effort.
     const updatedInput: Record<string, unknown> = { ...toolInput };
-    if (block.length > 0) updatedInput.message = `${block}\n\n${message}`;
+    const prefix = [guard, block].filter((s) => s.length > 0).join("\n\n");
+    if (prefix.length > 0) updatedInput.message = `${prefix}\n\n${message}`;
     if (injectedModel !== null) updatedInput.model = injectedModel;
     if (injectedEffort !== null) updatedInput.reasoning_effort = injectedEffort;
     return `${JSON.stringify({

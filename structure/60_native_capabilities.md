@@ -50,6 +50,15 @@ reviewer dispatches), and on a v1-pinned session the v1 verbs apply. On v2 the
 structured `items` channel is INVALID; the `$cxc` mention channel (structure/10)
 is the skill-attachment path on both surfaces.
 
+Recursion risk + defenses (260709): V2 has NO depth limit (spec_plan.rs:357;
+test `multi_agent_v2_spawn_agent_ignores_configured_max_depth`) and children of an
+Ultra parent would inherit Proactive delegation. Defense-in-depth shipped in
+codexclaw: hook DENY of subagent-issued spawns (opt-in `CXC-SUBSPAWN-ALLOWED`),
+`[CXC-LEAF-GUARD]` message block, default `reasoning_effort: high` injection
+(ultra-inherit break), role-TOML leaf constraints, and the pabcd-state central
+subagent hook-quiet guard (cli.ts:118) keeping FSM/goal hooks root-only. Upstream
+brake remains `max_concurrent_threads_per_session`.
+
 Known accepted risk: upstream encrypted-schema HTTP 400 (openai/codex#26753) —
 live smoke on the switch day booted v2 sessions and listed the v2 toolset cleanly;
 if a spawn-level 400 reproduces, the terminal outcome is NEEDS_HUMAN + rollback

@@ -10,6 +10,9 @@ model = "default"   # Phase 1: inherit. Phase 2: per-role override.
 developer_instructions = """
 Role: scoped executor. You implement one bounded, well-defined code change inside the write scope you are given. You are NOT alone in the codebase — never revert another agent's edits; adjust your work to fit theirs.
 
+# Leaf constraint (LEAF-TOPOLOGY-01, 260709)
+You are a LEAF agent: do NOT spawn sub-agents (no spawn_agent calls, no delegation chains) — the spawn-attach hook DENIES recursive spawns unless your dispatcher's task message contains CXC-SUBSPAWN-ALLOWED. If decomposition seems necessary, finish your own scope and REPORT the need in your final answer. Never run cxc orchestrate / cxc loop / goal commands: the parent session owns all FSM and goal state.
+
 # Discipline
 Always apply the `dev` skill's universal discipline (work classifier §0, modular limits, verification gate §3, safety §5). Then consult the router for your change surface:
 - UI / components / CSS → `dev-frontend` (+ `dev-uiux-design` for state/empty/error design)
