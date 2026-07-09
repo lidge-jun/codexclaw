@@ -310,7 +310,37 @@ export function readRoleToml(agentsDir        , role          )                 
   }
 }
 
-/** Concrete Codex `spawn_agent` payload (the subset codexclaw controls). */
+/**
+ * 260709 dev2 switch — derive a v2-legal `task_name` (`[a-z0-9_]+`, required by the
+ * v2 spawn schema) from the role + leading task words. PURE + deterministic:
+ * sanitize to lowercase `[a-z0-9_]`, collapse repeats, trim, cap length; non-ASCII
+ * tasks degrade to the `${role}_task` fallback.
+ */
+export function taskNameForRole(role          , task        )         {
+  const words = (task ?? "")
+    .toLowerCase()
+    .split(/\s+/)
+    .slice(0, 3)
+    .join("_")
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
+  const base = words.length > 0 ? `${role}_${words}` : `${role}_task`;
+  return base.slice(0, 40).replace(/_$/, "");
+}
+
+/**
+ * Concrete Codex `spawn_agent` payload (the subset codexclaw controls).
+ * 260709 dev2 switch: the builder targets the multi_agent_v2 spawn schema —
+ * `task_name` is required, and `fork_turns` is pinned to "none" because the v2
+ * default ("all", full-history fork) REJECTS agent_type/model/reasoning_effort
+ * overrides (codex-rs reject_full_fork_spawn_overrides). codexclaw role dispatches
+ * are fresh-context spawns: the role prompt + task travel in `message`.
+ */
+
+
+
+
 
 
 
@@ -349,7 +379,12 @@ export function buildSpawnPayload(input                        )               {
   const rolePrompt = (resolution.promptOverride ?? developerInstructions ?? "").trim();
   const taskText = (task ?? "").trim();
   const message = rolePrompt.length > 0 ? `${rolePrompt}\n\nTASK: ${taskText}` : `TASK: ${taskText}`;
-  const payload               = { agent_type, message };
+  const payload               = {
+    agent_type,
+    message,
+    task_name: taskNameForRole(role, taskText),
+    fork_turns: "none",
+  };
   if (!resolution.usesMainModel && typeof resolution.model === "string" && resolution.model.length > 0) {
     payload.model = resolution.model;
   }
@@ -372,15 +407,17 @@ export function resolveSpawnPayload(cwd        , role          , task        , a
 }
 
 /**
- * L15 skill-routing builder entry: build the base payload (role prompt in `message`,
- * model from the store) and attach the resolved `cxc-*` skills + task as the v1 `items`
- * array. The role prompt stays in `message` (single source); `items` only carries skill
- * attachments + the task text, so the two channels never duplicate the prompt.
+ * L15 skill-routing builder entry (260709 dev2 switch: v2-legal). Build the base
+ * payload (role prompt in `message`, model from the store) and attach the resolved
+ * `cxc-*` skills as a MENTION BLOCK prepended to `message` — the v2 spawn schema
+ * rejects `items` (`deny_unknown_fields`), and the child's first turn parses
+ * `[$name](skill://path)` mentions out of its UserInput text. Optional path hints
+ * (080.2) ride the same message.
  *
- * NOTE: this is a builder the MAIN AGENT calls when it dispatches a v1 spawn — it is NOT
+ * NOTE: this is a builder the MAIN AGENT calls when it dispatches a spawn — it is NOT
  * auto-invoked by a hook. The shipped `^spawn_agent$` PreToolUse hook (spawn-attach-hook)
  * covers dispatches that skip this builder by prepending $cxc mentions to the message
- * (and no-ops when this builder's `items` are present), so the two channels never stack.
+ * (deduping against mentions already present), so the two channels never stack.
  */
 export function resolveSpawnPayloadWithSkills(input
 
@@ -392,14 +429,16 @@ export function resolveSpawnPayloadWithSkills(input
 
  )               {
   const base = resolveSpawnPayload(input.cwd, input.role, input.task, input.agentsDir);
-  const items = buildSpawnItems({
+  const mentionBlock = buildSkillMentionBlock({
     role: input.role,
-    task: input.task,
     skillsDir: input.skillsDir,
     surfaces: input.surfaces,
     explicitSkillFolders: input.explicitSkillFolders,
   });
-  return { ...base, items };
+  const hint = pathHintItem(buildPathHints(input.cwd, input.task ?? ""));
+  const prefix = [mentionBlock, hint?.text].filter((s)              => !!s && s.length > 0);
+  if (prefix.length === 0) return base;
+  return { ...base, message: `${prefix.join("\n\n")}\n\n${base.message}` };
 }
 
 /**
@@ -438,10 +477,12 @@ export const INTENT_EXTRA_SKILL_FOLDERS                                    = {
 };
 
 /**
- * PURE: turn a dispatch intent (+ optional surfaces / explicit skill folders) into the
- * role and the `items` attachment for a v1 spawn. This is the one call a dispatcher makes:
+ * PURE (260709 dev2 switch: v2-legal): turn a dispatch intent (+ optional surfaces /
+ * explicit skill folders) into the role and a v2-shaped spawn fragment. This is the
+ * one call a dispatcher makes:
  *   routeDispatch({ intent: "red-team", surfaces: ["frontend"], task, skillsDir })
- *   -> role "reviewer", items [cxc-dev, cxc-dev-code-reviewer, cxc-dev-frontend, TASK:...]
+ *   -> role "reviewer", task_name "reviewer_...", fork_turns "none",
+ *      message "<skill mention block>\n\n<path hints>\n\nTASK: ..."
  * An unknown intent is not representable (TS), but a defensive fallback maps to `explorer`
  * (read-only) so a loosened caller can never escalate privilege via a bad intent string.
  */
@@ -453,19 +494,30 @@ export function routeDispatch(input
 
 
 
- )                                         {
+ )                                                                             {
   const role = INTENT_ROLE[input.intent] ?? "explorer";
   // 070: fold in any per-intent extra skill folders (e.g. research -> search + ultraresearch)
   // ahead of caller-supplied explicit folders; resolveAttachedSkillFolders dedups + orders.
   const intentExtras = INTENT_EXTRA_SKILL_FOLDERS[input.intent] ?? [];
   const explicitSkillFolders = [...intentExtras, ...(input.explicitSkillFolders ?? [])];
-  const items = buildSpawnItems({
+  const mentionBlock = buildSkillMentionBlock({
     role,
-    task: input.task,
     skillsDir: input.skillsDir,
     surfaces: input.surfaces,
     explicitSkillFolders,
-    cwd: input.cwd,
   });
-  return { role, items };
+  const taskText = (input.task ?? "").trim();
+  const parts           = [];
+  if (mentionBlock.length > 0) parts.push(mentionBlock);
+  if (typeof input.cwd === "string" && input.cwd.length > 0) {
+    const hint = pathHintItem(buildPathHints(input.cwd, taskText));
+    if (hint) parts.push(hint.text);
+  }
+  parts.push(`TASK: ${taskText}`);
+  return {
+    role,
+    task_name: taskNameForRole(role, taskText),
+    fork_turns: "none",
+    message: parts.join("\n\n"),
+  };
 }
