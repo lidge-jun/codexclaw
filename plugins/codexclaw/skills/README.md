@@ -7,10 +7,13 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
 - `dev/` — always-on universal dev discipline (work classifier C0-C5, modular limits,
   pre-write search, verification gate, safety rules). The hub that routes to the
   surface-specific routers below. `agents/openai.yaml` sets `allow_implicit_invocation: true`.
-- `dev-*` — on-demand routers, each activated by its description matching the change surface:
+- `dev-*` — surface routers, each activated by its description matching the change surface:
   `dev-architecture`, `dev-backend`, `dev-code-reviewer`, `dev-data`, `dev-debugging`,
   `dev-devops`, `dev-frontend`, `dev-scaffolding`, `dev-security`, `dev-testing`,
-  `dev-uiux-design`. Each ships `agents/openai.yaml` with `allow_implicit_invocation: false`.
+  `dev-uiux-design`. `dev-frontend` and `dev-uiux-design` ship
+  `allow_implicit_invocation: true` (implicit-visible, mutually cross-referenced, so
+  anti-slop design grammar reaches every UI-generating session); the rest ship
+  `agents/openai.yaml` with `allow_implicit_invocation: false`.
 - `pabcd/` — Codex-native PABCD workflow (Interview/Plan/Audit/Build/Check/Done) with
   class-scaled depth. Folds in the structured-development discipline.
 - `interview/` — discoverable `cxc-interview` surface for persistent I-phase

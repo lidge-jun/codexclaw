@@ -34,6 +34,22 @@ function str(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/**
+ * isSubagentHookPayload — true when the hook stdin payload identifies a
+ * thread-spawned subagent turn. codex-rs stamps optional `agent_id`/`agent_type`
+ * into turn-level hook inputs for child sessions (hooks/src/schema.rs:270,537,
+ * commit 16d85e270) and reuses the PARENT session id for child hooks (commit
+ * fbfbfe5fc), so `session_id` alone cannot discriminate root from child.
+ * Fail-open: empty/unparseable stdin returns false (root behavior preserved).
+ */
+export function isSubagentHookPayload(raw: string): boolean {
+  const obj = asObject(raw);
+  if (!obj) return false;
+  const agentId = str(obj.agent_id);
+  const agentType = str(obj.agent_type);
+  return (agentId !== undefined && agentId !== "") || (agentType !== undefined && agentType !== "");
+}
+
 export function parseUserPromptSubmit(raw: string): UserPromptSubmitPayload | null {
   const obj = asObject(raw);
   if (!obj) return null;

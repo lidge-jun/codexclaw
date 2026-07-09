@@ -313,22 +313,100 @@ test("L8: Stop continuation prints concrete next commands, never <next>", () => 
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
-test("L6: guard 1 — stop_hook_active releases immediately", () => {
+test("260709: guard-1 removed — a stop_hook_active continuation still blocks (bounded by the cap)", () => {
   const cwd = freshCwd();
   try {
     withGoalsDb([{ thread_id: "b2", status: "active" }], () => {
       midCycle(cwd, "b2", "B");
+      // old behavior: one continuation per turn (second Stop released on the flag).
+      // new behavior: the chain keeps blocking until progress stops for MAX_STOP_BLOCKS.
+      for (let i = 0; i < MAX_STOP_BLOCKS; i++) {
+        const out = handleStop(stop(cwd, "b2", true));
+        assert.notEqual(out, "", `stop_hook_active block ${i + 1} must still block`);
+        assert.match(JSON.parse(out.trim()).reason, /continue PABCD/);
+      }
+      // total termination stays guaranteed by the stagnation cap.
       assert.equal(handleStop(stop(cwd, "b2", true)), "");
+      assert.equal(readState(cwd, "b2").stopBlockCount, 0);
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
-test("L6: guard 2a — IDLE / inactive orchestration releases", () => {
+test("L6: guard 2a — IDLE / inactive orchestration releases for a plain session (no goal)", () => {
   const cwd = freshCwd();
   try {
-    withGoalsDb([{ thread_id: "b3", status: "active" }], () => {
+    withGoalsDb([{ thread_id: "b3", status: "paused" }], () => {
       writeState(cwd, { ...defaultState("b3"), phase: "IDLE", orchestrationActive: false });
       assert.equal(handleStop(stop(cwd, "b3")), "");
+      assert.equal(readState(cwd, "b3").stopBlockCount, 0);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// ── 260709 GOAL-IDLE-CONTINUE-01: active goal + no in-flight cycle = bounded arming block ──
+
+test("GOAL-IDLE-CONTINUE-01: active goal at IDLE blocks with the arming command", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "gi1", status: "active" }], () => {
+      // no state file at all (019f4407 shape: goal created, FSM never entered)
+      const out = handleStop(stop(cwd, "gi1"));
+      const parsed = JSON.parse(out.trim());
+      assert.equal(parsed.decision, "block");
+      assert.match(parsed.reason, /goal continuation/);
+      assert.match(parsed.reason, /GOAL-IDLE-CONTINUE-01/);
+      assert.match(parsed.reason, /cxc orchestrate P --session gi1 --attest/);
+      assert.match(parsed.reason, /update_goal/);
+      assert.match(parsed.reason, /LOOP-UNIT-CHAIN-01/, "IDLE block must teach heterogeneous work-phase chaining");
+      assert.match(parsed.reason, /cxc loop init/, "unbound session must be pointed at loop init");
+      // the counter write bootstraps the session file, keyed at IDLE
+      const st = readState(cwd, "gi1");
+      assert.equal(st.stopBlockPhase, "IDLE");
+      assert.equal(st.stopBlockCount, 1);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-IDLE-CONTINUE-01: bounded — releases after MAX_STOP_BLOCKS blocks at IDLE", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "gi2", status: "active" }], () => {
+      for (let i = 0; i < MAX_STOP_BLOCKS; i++) {
+        assert.notEqual(handleStop(stop(cwd, "gi2")), "", `IDLE block ${i + 1} should block`);
+      }
+      assert.equal(handleStop(stop(cwd, "gi2")), "");
+      assert.equal(readState(cwd, "gi2").stopBlockCount, 0);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-IDLE-CONTINUE-01: bound goalplan names remaining work in the IDLE block", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "gi3", status: "active" }], () => {
+      const plan = buildGoalplan({ objective: "Ship the loop patch", criteria: [{ scenario: "tests", expectedEvidence: "node --test green" }] });
+      plan.workPhases = [
+        { id: "wp-1", title: "Stop hook", status: "pending", tasks: [{ id: "t-1", title: "goal-idle block", status: "pending" }], criteriaIds: ["c-1"] },
+      ];
+      writeGoalplan(cwd, plan);
+      writeState(cwd, { ...defaultState("gi3"), phase: "IDLE", orchestrationActive: false, slug: plan.slug });
+      const reason = JSON.parse(handleStop(stop(cwd, "gi3")).trim()).reason;
+      assert.match(reason, /Remaining work: Stop hook → goal-idle block/);
+      assert.match(reason, /Required evidence: node --test green/);
+      assert.doesNotMatch(reason, /cxc loop init/, "bound session must not be told to re-init");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-IDLE-CONTINUE-01: bound but EMPTY goalplan is told to register the plan", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "gi4", status: "active" }], () => {
+      const plan = buildGoalplan({ objective: "Empty shell plan" });
+      writeGoalplan(cwd, plan);
+      writeState(cwd, { ...defaultState("gi4"), phase: "IDLE", orchestrationActive: false, slug: plan.slug });
+      const reason = JSON.parse(handleStop(stop(cwd, "gi4")).trim()).reason;
+      assert.match(reason, /EMPTY: register workPhases/);
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

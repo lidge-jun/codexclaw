@@ -14,8 +14,10 @@ sparksearch without this handoff — Spark snippets are leads, not evidence.
 
 ## Hardcoded Spawn Path (no catalog probe)
 
-The collab tools are `multi_agent_v1.*` and may be deferred behind `tool_search` on the
-live runtime — if `spawn_agent` is not visible, `tool_search` for it first
+The collab tools are the flat multi_agent_v2 set (`spawn_agent` task_name+message,
+`send_message`/`followup_task`/`wait_agent`/`interrupt_agent`/`list_agents`), exposed
+DIRECT since the dev2 switch (260709) — if `spawn_agent` is still not visible
+(v1-pinned session), `tool_search` for it first
 (`structure/60_native_capabilities.md` §1). Fan the lanes out as N spawns followed by
 ONE `wait_agent` on all lane ids (never N sequential waits); batch independent tool
 calls through `multi_tool_use.parallel`.

@@ -5,15 +5,20 @@
  * the agent's own laziness/hallucination, not a malicious human. The gate forces the
  * agent to commit to a specific `did` narrative; for A->B to paste the independent
  * reviewer's verdict (`auditOutput` — WP3, so the Audit gate structurally requires a
- * dispatched reviewer, not a self-written sentence); and for C->D to paste real command
- * output with a passing exit code. A boolean is NOT accepted as evidence (cheaper to
- * hallucinate than prose), so the audit/check flags can only flip true through here.
+ * dispatched reviewer, not a self-written sentence) plus the main agent's structured
+ * judgment fields; and for C->D to paste real command output with a passing exit code.
+ * A boolean is NOT accepted as evidence (cheaper to hallucinate than prose), so the
+ * audit/check flags can only flip true through here.
  *
  * No server, no IO: pure validation. Callers (cli.ts / orchestrate) persist the
  * resulting flags via state.writeState. This is the runtime enforcement that 007 R-2
  * demands — the evidence gate must be structural, not prompt prose.
  */
 import type { Phase } from "./state.ts";
+
+/** A->B: the MAIN agent's structured judgment of the audit round (AUDIT-LOOP-01). */
+export type AuditVerdict = "pass" | "near-pass" | "fail";
+export const AUDIT_VERDICTS: ReadonlySet<string> = new Set(["pass", "near-pass", "fail"]);
 
 export interface Attestation {
   from: Phase;
@@ -23,6 +28,14 @@ export interface Attestation {
   /** A->B only: pasted tail of the independent reviewer's verdict (the dispatched
    *  audit subagent's returned findings). */
   auditOutput?: string;
+  /** A->B only (REQUIRED): the main agent's own judgment of this audit round —
+   *  NOT a parse of reviewer prose. "fail" never advances (AUDIT-LOOP-01). */
+  auditVerdict?: string;
+  /** A->B only (REQUIRED when auditVerdict === "near-pass"): each residual
+   *  blocker + its disposition (folded into plan / rebutted with rationale). */
+  auditResidual?: string;
+  /** A->B optional: audit rounds run this phase; ledger trail only, never gates. */
+  auditRounds?: number;
   /** C->D only: pasted tail of the actual tsc/test command output. */
   checkOutput?: string;
   /** Optional exit code; if present and non-zero, C->D is rejected. */
@@ -64,6 +77,11 @@ export function coerceAttest(obj: unknown): Attestation | null {
     did: typeof rec.did === "string" ? rec.did.trim() : "",
   };
   if (typeof rec.auditOutput === "string") att.auditOutput = rec.auditOutput.trim();
+  if (typeof rec.auditVerdict === "string") att.auditVerdict = rec.auditVerdict.trim().toLowerCase();
+  if (typeof rec.auditResidual === "string") att.auditResidual = rec.auditResidual.trim();
+  if (typeof rec.auditRounds === "number" && Number.isFinite(rec.auditRounds)) {
+    att.auditRounds = rec.auditRounds;
+  }
   if (typeof rec.checkOutput === "string") att.checkOutput = rec.checkOutput.trim();
   if (typeof rec.exitCode === "number" && Number.isFinite(rec.exitCode)) {
     att.exitCode = rec.exitCode;
@@ -72,6 +90,16 @@ export function coerceAttest(obj: unknown): Attestation | null {
     att.override = rec.override;
   }
   return att;
+}
+
+/** True when the LAST verdict-shaped line among the final 5 non-empty lines is
+ *  FAIL. An earlier `VERDICT: FAIL` corrected by a later final `VERDICT: PASS`
+ *  does not trip (audit round 1 M1); free-text FAIL mentions never trip. */
+export function hasFailVerdictTail(auditOutput: string): boolean {
+  const lines = auditOutput.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+  const verdictLines = lines.slice(-5).filter((l) => /^verdict\s*[:=]/i.test(l));
+  if (verdictLines.length === 0) return false;
+  return /^verdict\s*[:=]\s*fail\b/i.test(verdictLines[verdictLines.length - 1]);
 }
 
 /**
@@ -107,6 +135,18 @@ export function validateAttest(from: Phase, to: Phase, att: Attestation | null):
         ok: false,
         reason: `A -> B additionally requires "auditOutput": paste the tail of the independent reviewer verdict you actually received. Dispatch a reviewer subagent (even a small/mini-model one) at the A gate; a self-written sentence is not an audit.`,
       };
+    }
+    if (!att.auditVerdict || !AUDIT_VERDICTS.has(att.auditVerdict)) {
+      return { ok: false, reason: `A -> B additionally requires "auditVerdict": "pass" | "near-pass" | "fail" — YOUR OWN judgment of this audit round (AUDIT-LOOP-01). "fail" never advances; "near-pass" means every blocking finding was folded into the plan or explicitly rebutted (also supply "auditResidual").` };
+    }
+    if (att.auditVerdict === "fail") {
+      return { ok: false, reason: `A -> B is blocked: you judged this audit round "fail". Synthesize the blockers (REVIEW-SYNTHESIS-01), amend the plan, and re-audit with the SAME reviewer (v2: followup_task to its task_name; send_message for context-only). Re-attest with "pass" or "near-pass" once only folded/rebutted residuals remain; after 3 failed rounds return to P with a changed plan (LOOP-REPAIR-01).` };
+    }
+    if (att.auditVerdict === "near-pass" && !att.auditResidual) {
+      return { ok: false, reason: `A -> B with "near-pass" additionally requires "auditResidual": name each residual blocker and its disposition (folded into plan / rebutted with rationale), e.g. "GO-WITH-FIXES; 2 blockers folded back: (1) ..., (2) ...".` };
+    }
+    if (hasFailVerdictTail(att.auditOutput)) {
+      return { ok: false, reason: `The pasted auditOutput tail ends with a FAIL verdict line, contradicting auditVerdict="${att.auditVerdict}". Run another audit round (same reviewer) and paste the round that actually reached PASS / GO-WITH-FIXES — or attest "fail" and keep looping (AUDIT-LOOP-01).` };
     }
   }
   if (key === "C>D") {

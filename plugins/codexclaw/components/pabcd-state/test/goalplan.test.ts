@@ -100,6 +100,18 @@ test("030: validateGoalplan rejects met-without-evidence and incomplete plans", 
   assert.equal(validateGoalplan(plan).ok, true);
 });
 
+test("260709: validateGoalplan FAILS an EMPTY plan (no workPhases, no criteria)", () => {
+  // 019f4456 regression: a `loop init`-only artifact passed the E8 gate vacuously.
+  const plan = buildGoalplan({ objective: "shell only" });
+  const verdict = validateGoalplan(plan);
+  assert.equal(verdict.ok, false);
+  assert.ok(verdict.reasons.some((x) => /plan is empty/.test(x)));
+  // registering EITHER a criterion or a work phase lifts the empty-plan failure.
+  const withCriterion = buildGoalplan({ objective: "with criterion", criteria: [{ scenario: "c", expectedEvidence: "e" }] });
+  withCriterion.criteria[0] = { ...withCriterion.criteria[0], status: "met", capturedEvidence: "proof" };
+  assert.equal(validateGoalplan(withCriterion).ok, true);
+});
+
 test("030: appendGoalplanLedger is append-only JSONL", () => {
   const cwd = tmp();
   const slug = deriveSlug("led");

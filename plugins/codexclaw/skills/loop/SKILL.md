@@ -30,7 +30,14 @@ loops (Stop-hook continuation after D/IDLE).
 - Goal active without PABCD active is not a work loop; PABCD active without a
   goal is HITL, not HOTL. If either half is missing, activate the missing half or
   state the preflight failure instead of pretending Stop-continuation is armed.
-- One work-phase maps to one full PABCD cycle.
+  The Stop hook now enforces the arming half deterministically
+  (GOAL-IDLE-CONTINUE-01): an ACTIVE goal with no in-flight cycle gets a bounded
+  Stop block naming the arming command instead of a silent release, so "goal
+  created but PABCD never entered" can no longer end a turn quietly.
+- One work-phase maps to one full PABCD cycle. Successive work-phases in the SAME
+  session may target completely different features, plans, or units
+  (LOOP-UNIT-CHAIN-01 below) — the loop is a chain of cycles, not one feature's
+  sub-steps.
 - D closes the current work-phase and returns the phase to `IDLE`.
 - If work remains and a goal is active, **the agent** starts the next work-phase by
   running `cxc orchestrate P --session <id>` after recording evidence. Nothing transitions the phase
@@ -73,6 +80,44 @@ A vague or short objective under 500 characters is a discipline violation for
 HOTL mode. After `create_goal`, run `cxc loop init --objective "<same text>"
 --session <id>` to create the durable local plan bound to the session.
 
+After `loop init`, REGISTER the plan: fill `workPhases[]` (with tasks) and
+`criteria[]` in the goalplan file before the first work-phase. An init-only
+empty plan now FAILS `cxc loop validate` (E8), and `update_goal
+{status:"complete"}` is hook-denied while the bound goalplan fails that gate
+(GOAL-COMPLETE-GATE-01) — an unregistered plan cannot certify completion.
+
+## Completion gate (GOAL-COMPLETE-GATE-01, shipped)
+
+`update_goal {status:"complete"}` is gated by a deterministic PreToolUse hook,
+not just discipline text. The hook DENIES the call when:
+
+- a PABCD cycle is in flight (`orchestrationActive`, phase not IDLE/I) — close
+  the cycle through D (or `cxc orchestrate reset`) first; or
+- the session-bound goalplan fails the E8 gate (`cxc loop validate`): undone
+  work phases, unmet criteria, `met` marks without `capturedEvidence`, or an
+  empty unregistered plan.
+
+`update_goal {status:"blocked"}` always passes — that is the honest escape
+hatch for external blockers. The gate is fail-open on IO errors and never
+fires for sessions without PABCD state or a bound goalplan. Do not shrink the
+goalplan to slip past the gate; that is a LOOP-CONTINUE-01 violation and the
+edit is visible in the ledger.
+
+## Wait visibility (LOOP-WAIT-VISIBILITY-01, DEFAULT)
+
+Long silent waits read as a dead loop to the user and invite interrupts that
+kill the work-phase (019f4456: a 6-minute silent `wait_agent` stretch looked
+like "stopped after one work-phase"). While waiting on subagents or long
+external processes inside a loop:
+
+- Prefer bounded waits (`wait_agent` with `timeout_ms` <= 120000) over one
+  long blocking wait; between waits, emit a one-line progress update naming
+  what is being waited on and the elapsed time.
+- Never end the turn just because a wait timed out — re-wait or poll, and keep
+  the user informed each cycle.
+- If a reviewer/worker has produced nothing after ~3 wait cycles, treat it as
+  a failed dispatch (DISPATCH-RETIRE-01) rather than waiting silently forever.
+
 ## Durable Goalplan
 
 Use a durable goalplan when a Codexclaw loop needs more than a chat-local
@@ -95,6 +140,9 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
 - `objective`, `slug`, `createdAt`, `updatedAt`.
 - `workPhases[]` — each `{ id, title, status: pending|in_progress|done, tasks[], criteriaIds[] }`;
   `tasks[]` are `{ id, title, status: pending|done }`; `activeWorkPhaseId` marks the current one.
+  `workPhases[]` is APPEND-friendly mid-loop: when a new independent unit is discovered
+  (LOOP-UNIT-CHAIN-01), add its work-phase (+ criteria) as a P-phase amendment instead of
+  treating the plan as frozen at init or ending the goal.
 - `criteria[]` — each `{ id, scenario, expectedEvidence, capturedEvidence, status: open|met }`.
   A criterion only reaches `met` when `capturedEvidence` is non-empty (fresh proof, not memory).
 - `host` — `GoalplanHostLink { armed, armedAt, source: freeze|none }`. `armed` is provenance,
@@ -173,6 +221,16 @@ re-entering a loop or after a `D` close:
 
 - **Do not redefine the objective downward.** The success criteria recorded at P (or in the
   bound goalplan `criteria[]`) are the bar; shrinking scope to escape the loop is not allowed.
+- **"Needs its own PABCD" is not a session boundary (LOOP-UNIT-CHAIN-01).** An
+  independent feature, an unrelated follow-up, or "the next plan" discovered mid-loop
+  is just the NEXT work-phase of THIS session: append a `workPhases[]` entry (+ its
+  criteria) to the bound goalplan — a P-phase amendment, visible in the ledger — and
+  start it with `cxc orchestrate P --session <id>`. One session can chain arbitrarily
+  many heterogeneous PABCD cycles under one goal. Closing the goal while listing
+  remaining features that fit the objective ("each needs a separate PABCD") is the
+  lazy-completion pattern GOAL-COMPLETE-GATE-01 exists to stop; the only honest
+  reasons to end the loop instead of chaining are the Terminal outcomes below
+  (BLOCKED / UNSAFE / NEEDS_HUMAN / BUDGET_EXHAUSTED) with evidence.
 - **Audit completion against current repo state, not memory.** Before any `D`/completion claim,
   inspect the actual tree/build/tests — a remembered "it passed" is not evidence (see `dev`
   FAMILY-PROOF-01).
@@ -195,6 +253,12 @@ loop report must name the actual terminal outcome:
 - `BUDGET_EXHAUSTED` — resources ran out; adopt best-so-far only with evidence and
   label it as such.
 
+`BUDGET_EXHAUSTED` requires a bound the plan actually stated (tokens, cost,
+wall-clock). Context pressure or an approaching compaction is NOT budget
+exhaustion: memory lives on disk, so checkpoint the goalplan/ledger and continue
+after the flush. Likewise a list of remaining independent features is NOT
+`BLOCKED`/`NEEDS_HUMAN` — those are the next work-phases (LOOP-UNIT-CHAIN-01).
+
 These are report outcomes, not extra FSM phases: the shipped state still closes through
 `D` or `reset`, and the D summary states the real outcome.
 
@@ -215,10 +279,14 @@ a retry, not a loop.
 - **REVIEW-SYNTHESIS-01 (pointer):** after a reviewer/verifier FAIL, record the
   synthesis (per-blocker RCA, cross-blocker conflicts, accept/rebut decisions) before
   re-patching or re-dispatching; a synthesis-free re-dispatch counts as a failed repair
-  under LOOP-REPAIR-01. Canonical wording: `cxc-pabcd` §11.3.
+  under LOOP-REPAIR-01. Canonical wording: `cxc-pabcd` §11.3. A-gate exit follows
+  AUDIT-LOOP-01 (`cxc-pabcd` §A): only pass or main-judged near-pass exits A>B;
+  FAIL re-enters the audit loop with the same reviewer.
 - **Reviewer reuse across repair rounds (pointer):** blocker-closure re-verification
-  rounds reuse the SAME reviewer — `send_input` if alive, `resume_agent` if closed —
-  passing the synthesis plus a change-diff summary so the reviewer keeps its context.
+  rounds reuse the SAME reviewer — `followup_task` to its task_name (v2: triggers a
+  turn when idle; the agent keeps its context, no resume needed; `send_message` for
+  context-only delivery) — passing the synthesis plus a change-diff summary so the
+  reviewer keeps its context.
   The final C adversarial gate (or any contaminated reviewer) gets a fresh reviewer or
   a direct independent audit instead. Normative lifecycle rules: DISPATCH-ACTOR-01 /
   DISPATCH-RETIRE-01 in `structure/20_pabcd_dispatch_doctrine.md` §3.
@@ -334,19 +402,25 @@ forgotten active mode cannot move phases or build candidates by itself.
 
 The continuation is enforced by the active Stop hook (`handleStop`), not just this
 discipline doc. It returns `{"decision":"block","reason":...}` to keep the agent
-advancing while a PABCD cycle is in flight under an ACTIVE goal. Termination is total
-via:
+advancing under an ACTIVE goal — mid-cycle (continue the phase) and, since 260709,
+at IDLE with no in-flight cycle (GOAL-IDLE-CONTINUE-01: the block names the
+`cxc orchestrate P --session <id>` arming command, the bound goalplan's remaining
+work, and the honest close-out via `update_goal` complete/blocked; its counter
+write also bootstraps the session state file so the suggested command passes the
+unknown-session guard). Termination is total via:
 
-- **Guard 1** — `stop_hook_active`: codex is already in a continuation → release.
-- **Guard 2** — phase is `IDLE` / orchestration inactive / no active goal → release
-  (a plain interactive session never enters the loop; it pauses for the human at P/A/B).
+- **Guard 2** — no active goal → release (a plain interactive session never enters
+  the loop; it pauses for the human at P/A/B, and IDLE without a goal stays silent).
+  Phase `I` always releases (the Interview is HITL-only).
 - **Context-pressure bail** — don't pile on during compaction recovery.
 - **Stagnation cap** — a bounded `stopBlockCount` per phase; after `MAX_STOP_BLOCKS`
   consecutive blocks at the same phase with no transition, the loop releases so it can
   never trap a session. A real transition (chat or CLI) resets the counter, so each
   phase of a healthy P→A→B→C→D gets a fresh budget. This is the runtime companion to
   LOOP-DOOM-01, not a success signal; after release, apply the no-progress discipline
-  before retrying the same phase.
+  before retrying the same phase. With the old unconditional `stop_hook_active`
+  release removed (260709 — it capped an armed loop at ONE continuation per turn,
+  producing the step-by-step cut), this cap is the single total-termination bound.
 - **Objective plateau block** — for active maximize goals with session-scoped metrics,
   two non-improving same-metric rows switch the block reason from plain continuation
   to "step back and re-plan with divergence." This still uses the same bounded

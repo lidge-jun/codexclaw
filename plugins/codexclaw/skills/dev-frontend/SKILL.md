@@ -1,6 +1,6 @@
 ---
 name: cxc-dev-frontend
-description: "MUST USE for any frontend, web UI, or visual implementation work — building, styling, or redesigning pages/components, responsive layouts, motion, component architecture, and production-surface polish. Triggers: 'frontend', 'UI', 'component', 'CSS', 'responsive', 'animation', 'React', 'Vue', 'Svelte', 'Tailwind', 'layout', 'styling', 'redesign', 'mockup', 'anti-slop', '프론트엔드', 'UI 작업', '반응형', '디자인 수정'."
+description: "MUST USE for any frontend, web UI, or visual implementation work — building, styling, or redesigning pages/components, responsive layouts, motion, component architecture, and production-surface polish. Pairs with cxc-dev-uiux-design: load it first when design direction is vague; this skill implements the chosen direction. Triggers: 'frontend', 'UI', 'component', 'CSS', 'responsive', 'animation', 'React', 'Vue', 'Svelte', 'Tailwind', 'layout', 'styling', 'redesign', 'mockup', 'anti-slop', '프론트엔드', 'UI 작업', '반응형', '디자인 수정'."
 metadata:
   last-verified: "2026-07-02"
   short-description: "Production-grade frontend implementation with responsive, accessible, anti-slop UI guidance."
@@ -26,21 +26,21 @@ wiring, visual verification, and frontend platform rules.
 | ----------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------- |
 | `references/core/crud-ui.md`              | C2 list/detail/form product screens  | State coverage (loading/empty/error/permission), forms, objective UX gates         |
 | `references/core/anti-slop.md`            | New components or UI redesign        | 2026 AI slop patterns, Korean slop, oversized text, fake assets, default UI smells |
-| `references/core/aesthetics.md`           | Visual design decisions              | Domain-correct visual direction, typography, color, composition                    |
+| `references/core/aesthetics.md`           | Visual design decisions              | Domain-correct visual direction, typography, color, composition, serif three-role system, expressive/functional layers, AI-brand grammar                    |
 | `references/core/product-density.md`      | Apps, tools, dashboards              | Density profiles for landing, consumer app, SaaS, ops, finance, devtools          |
-| `references/core/asset-requirements.md`   | Any public/product/visual surface    | Required screenshots, images, diagrams, charts, generated bitmaps, or 3D assets   |
+| `references/core/asset-requirements.md`   | Any public/product/visual surface    | Required screenshots, images, diagrams, charts, generated bitmaps, or 3D assets, mockup production pipeline   |
 | `references/core/visual-verification.md`  | Changes affecting rendered layout    | Screenshot, viewport, text fit, state, asset, and motion verification              |
-| `references/core/korea-2026.md`           | Korean-first or Korea-facing UI      | Korean service patterns, CJK typography, formats, mobile flows                     |
+| `references/core/korea-2026.md`           | Korean-first or Korea-facing UI      | Korean service patterns, CJK typography, formats, mobile flows, Korean serif/myeongjo display                     |
 | `references/core/ux-writing-ko.md`        | Korean UI copy                       | Natural Korean labels, error messages, tone, spacing, punctuation                  |
 | `references/core/soft-3d-asset-gates.md`  | 3D/miniature/character-like visuals  | Toss-style soft 3D vs generic cute asset slop, domain gates                        |
-| `references/core/motion.md`               | Motion/animation needed              | CSS animations, Framer Motion, CSS scroll-driven timelines, pointer-proximity chip motion (magnetic/dock), View Transitions, domain gates |
+| `references/core/motion.md`               | Motion/animation needed              | CSS animations, Framer Motion, CSS scroll-driven timelines, pointer-proximity chip motion (magnetic/dock), View Transitions, domain gates, organic bg + capsule label, product-led hero motion |
 | `references/core/liquid-glass.md`         | Translucent materials, glass chrome, pill-chip surfaces | Liquid Glass layer discipline, regular/clear recipes, blur-free pill alternative, perf + a11y gates (verified 2026-07-07) |
 | `references/core/iterative-design.md`     | Multi-round design                   | LLM convergence problem, Diverge→Kill→Mutate process, upgrade techniques           |
 | `references/core/prototype-variants.md`   | Runnable design variants             | `?variant=` switchers, structurally distinct options, cleanup after winner selection |
 | `references/core/typography-wrapping.md`  | Heading/descriptor text changes      | `text-wrap: balance/pretty`, natural phrase breaks at any width, dynamic-viewport verification, `ch` units, Korean keep-all/orphan rules (verified 2026-07-07) |
 | `references/core/logo-sections.md`        | Integration/partner logo display     | Marquee CSS, static grid, orphan cell fix, grayscale treatment, no individual hover |
 | `references/core/brand-asset-sourcing.md` | Brand logos in UI                    | Simple Icons/SVGL sourcing, AI agent strategy, placeholder hierarchy, legal guide  |
-| `references/core/layout-discipline.md`    | Landing/marketing pages              | Hero, eyebrow, section repetition, bento, zigzag, per-section responsive transforms |
+| `references/core/layout-discipline.md`    | Landing/marketing pages              | Hero, eyebrow, section repetition, bento, zigzag, per-section responsive transforms, hero composition grammar (2026) |
 | `references/core/consistency-locks.md`    | Any multi-section page               | Color, shape, theme consistency per page                                           |
 | `references/core/responsive-viewport.md`  | Layout or breakpoint changes         | Canonical breakpoints, page containment, container queries, responsive images, safe area, split-screen |
 | `references/core/mobile-ux.md`            | Consumer/landing pages with mobile traffic | Thumb zone, touch targets, sticky CTA, mobile section composition, bottom sheet, portrait media |
@@ -141,6 +141,12 @@ Before coding, commit to a domain-correct direction:
 When user intent is vague ("깔끔하게", "모던하게", "just make it look good"), read the `dev-uiux-design` skill and run the User Intent Discovery Protocol before making routing decisions.
 If the user cannot answer these questions, use the `dev-uiux-design` skill's structured preference elicitation flow. Offer product references ("Notion 느낌? Linear 느낌?") and visual comparisons.
 
+**Concept pass before code (stub — canonical: `dev-uiux-design` §2.5 UX-CONCEPT-GEN-01):**
+for a new page/site/major redesign with open design direction, when `ima2` is available,
+generate 5 highly specific candidate mockups of ONE locked concept, then SYNTHESIZE the
+best elements across all 5 (NOT pick a single winner) into DESIGN.md and implement from
+that synthesis — do not start coding the layout blind.
+
 Intentionality over intensity. Bold maximalism, refined minimalism, dense utility, and friendly consumer UI can all work when they match the domain.
 
 ---
@@ -201,6 +207,7 @@ Read `references/core/anti-slop.md` for full rules. Key standards:
 - Vary card sizes, spans, and groupings — equal 3-card grids read as generic
 - **Bento composition (FE-BENTO-01)**: bento grids must read as one interlocking slab with aligned row edges, a dominant cell, content-weighted spans, and no orphan tail — see `layout-discipline.md § Bento Composition`
 - Avoid oversized bold hero text inside tools, dashboards, admin, finance flows, and public services
+- **Hero composition (FE-HERO-SPLIT-01)**: never build a split hero (left bold headline + right boxed screenshot/mockup card) unless the user explicitly requests one — the product visual is the stage (full-width, background, or interactive demo), never a right-column card; paid-conversion LPs are the one context to propose it — see `layout-discipline.md § Hero Composition Grammar`
 - Avoid asset-free UI: abstract blobs/gradients do not replace real visual evidence
 - Avoid generic soft 3D icon packs; soft 3D must be semantic, brand-consistent, and restrained
 - **NEVER use emoji as UI visual elements** (feature icons, card icons, section markers, buttons) — emoji in production UI is the #1 AI slop signal. Use SVG icons (Lucide/Phosphor/Heroicons). See `anti-slop.md § Emoji Slop`

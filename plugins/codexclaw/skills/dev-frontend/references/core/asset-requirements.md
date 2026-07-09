@@ -51,6 +51,23 @@ Korean product pages almost always use concrete visual evidence in the first vie
 
 Never ship a Korean-facing product page with only SVG icons and text. If no image source is available, state the gap explicitly rather than filling with gradients or decorative shapes.
 
+## Mockup Production Pipeline (verified 2026-07-09)
+
+When a product/device mockup asset is required (product-led heroes, app
+screenshots in scenes):
+
+- **Device-mockup tools** (Rotato, MockRocket, Shots, Smartmockups, Figma
+  mockup plugins): map a real screenshot onto a 3D device render; stills and
+  short movies, no 3D skills needed.
+- **AI scene + real screenshot compositing**: generate the environment/scene
+  image, then composite the actual product UI screenshot into or above it;
+  never AI-generate the product UI itself — the interface pixels must be real.
+- **Frame extraction**: for scroll-driven playback, render the mockup motion
+  to video and extract frames (see motion.md § Frame Sequence Format Guide).
+
+The screenshot inside any mockup must be a real, current capture of the
+product; a fabricated UI in a real frame is still a fake asset.
+
 ## Rules
 
 - Use the repo's existing asset system first.

@@ -6,7 +6,7 @@ aliases: [L14 Design, subagent skill routing, cxc skill attachment]
 
 # L14 — Subagent Skill Routing + Loop/Goal Handoff (Design SOT)
 
-Status: DESIGN + SHIPPED (E5 dispatch builder shipped in L15 — `SURFACE_SKILL`/`buildSpawnItems`/`SpawnPayload.items`; lazygap_impl 020 added `INTENT_ROLE`/`routeDispatch` and the E3 `^spawn_agent$` PreToolUse attach hook; **WP2 upgraded the E3 hook to the MENTION CHANNEL**: it now rewrites the spawn `message` to prepend link-form `[$cxc-*](skill://…)` mentions — schema-safe on BOTH v1 and v2 because `message` is a shared field — so it is ALWAYS-ON (the old `CODEXCLAW_SPAWN_ATTACH=v1` opt-in and `items` injection are gone). v2 `deny_unknown_fields` only blocks the structured `items` key, not message mentions) · 2026-07-02
+Status: DESIGN + SHIPPED — **dev2 switch 260709: the live spawn surface is multi_agent_v2** (task_name+message required, `items` rejected; the builders emit v2 payloads with `fork_turns:"none"` and skills ride the message mention block — see the update at `devlog/_plan/260709_multi_agent_v2_switch/`). Historical shape below documents the v1-era evolution. (E5 dispatch builder shipped in L15 — `SURFACE_SKILL`/`buildSpawnItems`/`SpawnPayload.items`; lazygap_impl 020 added `INTENT_ROLE`/`routeDispatch` and the E3 `^spawn_agent$` PreToolUse attach hook; **WP2 upgraded the E3 hook to the MENTION CHANNEL**: it now rewrites the spawn `message` to prepend link-form `[$cxc-*](skill://…)` mentions — schema-safe on BOTH v1 and v2 because `message` is a shared field — so it is ALWAYS-ON (the old `CODEXCLAW_SPAWN_ATTACH=v1` opt-in and `items` injection are gone). v2 `deny_unknown_fields` only blocks the structured `items` key, not message mentions) · 2026-07-02
 
 > This is the design source of truth for the L14 hardening track. The defect
 > diagnosis with file:line evidence lives in
@@ -197,7 +197,9 @@ richer explicit path — model resolution and structured `items` — that no gen
 can infer:)
 
 - The `cxc-dev` / subagent doctrine instructs the main agent to build dispatch payloads
-  via the wrapper and pass the resulting `items` into `spawn_agent`.
+  via the wrapper and pass the resulting v2 payload (task_name, fork_turns:"none",
+  mention-block message) into `spawn_agent` (dev2 switch 260709; the old `items`
+  channel is v1-only and rejected on v2).
 - The wrapper becomes the single place that knows the skill paths, the role-to-skill
   map, and the model resolution — so following the contract is easier than hand-rolling
   a spawn.

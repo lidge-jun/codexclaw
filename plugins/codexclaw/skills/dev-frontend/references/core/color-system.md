@@ -45,6 +45,42 @@ never primitives; hardcoded colors in component CSS are a review finding
 }
 ```
 
+## Accent Surface Emphasis (FE-COLOR-ACCENT-SURFACE-01, DEFAULT, verified 2026-07-09)
+
+Emphasized/highlighted panels on opaque functional UI use a FLAT emphasis
+channel, never a gradient fill (see `anti-slop.md` FE-GRADIENT-02). Pick exactly
+one channel per surface:
+
+1. **Flat alpha/step tint** — accent at ~4-8% over the surface, or a dedicated
+   low-step token. Radix uses accent steps 3-5 for component backgrounds and
+   6-8 for borders; Primer ships `--bgColor-accent-muted: #ddf4ff` with
+   `--borderColor-accent-muted: #54aeff66`; shadcn defines flat
+   `--accent: oklch(0.97 0 0)` (dark `oklch(0.269 0 0)`) surfaces.
+2. **Border/ring emphasis** — neutral surface, accent moves to the edge:
+   selected -> `border-color: var(--accent-border)` (Geist pattern), or
+   Tailwind-style `ring-2` + shadow for an emphasized tier.
+3. **Left/top accent bar** — neutral panel body, brand color confined to a
+   small stable indicator (`border-left: 3px solid var(--brand)`; Stripe Apps
+   pattern).
+4. **Elevation** — shadow tokens (`--shadow-resting-*` / `--shadow-floating-*`,
+   Primer pattern) instead of decorative fills.
+5. **Semantic status token** — `background/border/text` role triplets per
+   status (information/success/warning/danger; Atlassian pattern) when the
+   emphasis carries meaning.
+
+```css
+/* flat tint + border, derived from semantic tokens — no wash */
+.panel-emphasis {
+  background: color-mix(in oklch, var(--primary) 6%, var(--background));
+  border: 1px solid color-mix(in oklch, var(--primary) 30%, var(--border));
+}
+```
+
+Field note (live-measured 2026-07-09): Toss/Kakao/Naver/Channel Talk/Daangn all
+style functional highlighted cards as flat solid/pastel tints with border 0-1px
+and little or no shadow; gradients appear only in hero backgrounds and
+illustration mockups.
+
 ## Modern Color Functions (baseline status 2026-07-07)
 
 - `oklch()` — Baseline 2023. Default authoring space for new palettes:

@@ -93,3 +93,26 @@ chips: "prompt strings, scheduling options, bookmarks = pill chips WITH real bra
 composition: "full-bleed photo hero + centered copy + one pill CTA + one bordered pill eyebrow; 3-card pastel feature rows with real product screenshots + floating prompt pills"
 signature: "macOS-window page metaphor, chips-as-content, Apple-newsroom copy cadence, warmth without gradients-on-cards"
 ```
+
+### OpenAI (2026 warm-sans organic)
+**Essence:** Precise but humane platform — warm geometric sans, huge whitespace, soft natural imagery, opaque capsule labels. (In-house Feb-2025 rebrand + ABC Dinamo type + Studio Dumbar motion; verified 2026-07-09; STYLE_SAMPLE.)
+```yaml
+colors: { base: "off-white / near-black, palette inspired by natural environments", imagery: "soft-focus landscape/still-life photography + film grain, some AI-generated texture", accent: "imagery carries color; UI stays neutral" }
+typography: { font: "OpenAI Sans (warm geometric, rounded-approachable) — Geist as open stand-in", headlines: "large but restrained, generous whitespace over scale" }
+radius: { capsule: "9999px opaque white pills for labels/CTAs", cards: "20-28px" }
+effects: { glass: "none — opaque capsules over expressive imagery; grain/texture on the background layer only" }
+composition: "centered stacked hero over full-width media; announcement card = organic photographic field + white capsule with model name"
+signature: "blossom mark, expressive/functional layer split, humanized-AI warmth without losing platform precision"
+```
+
+### Anthropic / Claude (serif bookish)
+**Essence:** Research institute as a thoughtful book — serif display at light weights on warm paper tones. (Identity by Geist: Styrene + Tiempos lineage, now custom Anthropic Serif/Sans/Mono; measured live 2026-07-09; STYLE_SAMPLE.)
+```yaml
+colors: { base: "warm off-white/cream page metaphor (#faf9f5-class) + near-black ink", accent: "muted terracotta/clay used sparingly" }
+typography: { display: "Anthropic Serif 56px/weight 330 (claude.ai), editorial H2 ~68px/400", ui: "Anthropic Sans 15-16px/500-550", accent: "Anthropic Mono for technical" }
+radius: { general: "8-12px, quiet" }
+effects: { none: "no glass, no gradients — paper flatness with generous margins" }
+composition: "editorial/institutional opener (text-led mission headline, no hero screenshot); long-form reading surfaces"
+signature: "bookish serif-led trust, three-role type system (serif display + sans UI + mono accent), safety-culture calm"
+```
+

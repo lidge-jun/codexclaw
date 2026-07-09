@@ -110,7 +110,10 @@ In goal mode, multi-phase / loop work runs one FULL PABCD cycle per work-phase
 to start the next work-phase — nothing re-enters `P` automatically (the Stop hook only
 blocks premature termination so you do this). Classify EACH work-phase independently —
 C0-C1 fast-path applies to that work-phase's class, not the whole goal. Do each PABCD
-phase's real work; never rubber-stamp a phase to advance.
+phase's real work; never rubber-stamp a phase to advance. Work-phases chain
+HETEROGENEOUS units: a completely different feature or "the next plan" is simply the
+next cycle at P in the SAME session (`cxc-loop` LOOP-UNIT-CHAIN-01) — "needs its own
+PABCD" never means ending the goal or waiting for a new session.
 
 When any PABCD workflow enters divergence mode (HITL or goal mode; see `cxc-loop`),
 keep the user question honest. The archive may require N>=2 candidates, but the
@@ -170,7 +173,7 @@ bound by the same search-skill policy as the main agent.
 | `dev-scaffolding/SKILL.md` | New project/feature setup, structural audit, docs generation | Scaffolding, colocation, public boundary export, documentation generation |
 | `pabcd/SKILL.md` | Multi-phase planning, interview-first discovery, gated execution | PABCD workflow, phase gates, interview flow |
 
-**Visibility decision (canonical):** the implicit-visible set is `{dev, search, interview, pabcd, recall, loop}` (`allow_implicit_invocation: true` in each skill's `agents/openai.yaml`; the 2026-07-05 expansion added metadata rows only — `dev` alone carries the always-on body discipline). Everything else — `skill-hub` (deprecated), `qa`, `repo-map`, and every `dev-*` router — is on-demand (`allow_implicit_invocation: false`) and loads by explicit mention, trigger match, or `dev` routing. This is the correct set; any claim that only `cxc-dev` is implicit is stale.
+**Visibility decision (canonical):** the implicit-visible set is `{dev, search, interview, pabcd, recall, loop, dev-frontend, dev-uiux-design}` (`allow_implicit_invocation: true` in each skill's `agents/openai.yaml`; the 2026-07-05 expansion added metadata rows only — `dev` alone carries the always-on body discipline; the 2026-07-09 expansion added `dev-frontend` + `dev-uiux-design` so anti-slop design grammar reaches every UI-generating session without routing). Everything else — `skill-hub` (deprecated), `qa`, `repo-map`, and every other `dev-*` router — is on-demand (`allow_implicit_invocation: false`) and loads by explicit mention, trigger match, or `dev` routing. This is the correct set; any claim that only `cxc-dev` is implicit is stale.
 
 ### Capability Routing Hub
 

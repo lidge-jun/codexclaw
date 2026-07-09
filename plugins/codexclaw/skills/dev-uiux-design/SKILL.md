@@ -1,6 +1,6 @@
 ---
 name: cxc-dev-uiux-design
-description: "MUST USE for UI/UX direction and design judgment — vague visual briefs, onboarding, empty/error/loading states, layout vocabulary, typography breaks, favicons, logos, and brand identity choices. Triggers: make it look good, modern, clean, aesthetic, onboarding, empty state, error state, favicon, logo, design system, 깔끔하게, 모던하게, 감성적으로."
+description: "MUST USE for UI/UX direction and design judgment — vague visual briefs, onboarding, empty/error/loading states, layout vocabulary, typography breaks, favicons, logos, and brand identity choices. Pairs with cxc-dev-frontend: this skill decides the design direction, then load cxc-dev-frontend to implement it. Triggers: make it look good, modern, clean, aesthetic, onboarding, empty state, error state, favicon, logo, design system, 깔끔하게, 모던하게, 감성적으로."
 metadata:
   last-verified: "2026-07-02"
   short-description: "Design judgment for vague briefs, UX states, typography, layout patterns, logos, and brand vocabulary."
@@ -42,9 +42,9 @@ fetch/open/text/get-dom/snapshot only after candidate URLs exist.
 
 | File | When to Read | What It Covers |
 |------|-------------|----------------|
-| `references/design-isms.md` | User names a style/movement | 13 design movements with CSS signatures, incl. Liquid Glass + Liquid Editorial default kit (2025-2026) |
+| `references/design-isms.md` | User names a style/movement | 15 design movements with CSS signatures, incl. Liquid Glass + Liquid Editorial default kit (2025-2026) + AI Serif Editorial + Organic Capsule (verified 2026-07-09) |
 | `references/design-read-example.md` | Learning or reviewing Design Read format | Filled-in Design Read + dial setting example |
-| `references/product-personalities.md` | User references a product | 9 product DNA profiles with exact tokens, incl. 2026 AI-product pastel |
+| `references/product-personalities.md` | User references a product | 10 product DNA profiles with exact tokens, incl. 2026 AI-product pastel + OpenAI warm-sans organic + Anthropic serif bookish |
 | `references/layout-macrostructures.md` | Choosing page/component layout | Component layouts + page-level compositions |
 | `references/ux-states.md` | Building any stateful UI | Onboarding, empty, error, loading, progressive disclosure |
 | `references/color-system.md` | Generating colors/palette | OKLCH-based palette generation, hue budget, tinted neutrals, dark mode, accessibility |
@@ -293,6 +293,47 @@ If the project needs persistent design tokens across sessions, save the Design R
 
 ---
 
+## 2.5 Visual Concept Exploration (UX-CONCEPT-GEN-01, DEFAULT)
+
+Before implementing a NEW page, site, or major redesign (C2+ UI surface with open
+design direction), when `ima2` is available (`ima2 status` confirms a running
+server), generate design candidates BEFORE any frontend code:
+
+1. **Lock ONE concept, write 5 maximally specific prompts for it.** Decide the
+   single design concept first (domain, audience, palette family, hero grammar,
+   density, signature visual). Then write 5 prompts that all express that SAME
+   concept but vary the execution: emphasis points, fine layout choices, accent
+   treatment, type nuance, secondary-section hints. Distinct directions were the
+   old UX-VARIANT-OLD spec; identical-concept varianting is the point — you are
+   sourcing the best EXECUTION of one shared idea, not choosing among 5 unrelated
+   designs. Each prompt still pins: domain + audience, layout family and hero
+   grammar (FE-HERO-SPLIT-01 applies — no split hero unless the user asked),
+   palette with concrete hues (color-system bans apply), typography direction,
+   and density. Vague prompts ("modern clean landing page") are banned: a reader
+   must be able to reconstruct the layout from the prompt alone.
+2. **Generate as a batch.** Run `ima2 gen <prompt> -n 1 -o <path>` five times
+   concurrently (or `ima2 gen <prompt> -n 5 -d <dir>` for a single request);
+   monitor with `ima2 ps --json`.
+3. **Read all 5 side by side and SYNTHESIZE — do not pick a single winner.**
+   Each render usually nails some elements and fumbles others. The output is
+   not "which variant is best"; it is "which elements are best across all of
+   them." Build an element ledger: for palette, hero composition, type
+   treatment, signature visual, stat row, bottom-section hint, and every other
+   design token, note WHICH variant did it best and WHY. Show the user all 5
+   images (markdown image tags with absolute paths) with the synthesis ledger
+   and let them confirm/adjust the per-element picks; in autonomous/goal mode
+   make the picks with stated reasoning and record it.
+4. **The SYNTHESIZED DESIGN.md becomes the Design Read basis.** Extract palette,
+   layout family, type direction, and every other token from the element ledger
+   (each token citing its source variant) into DESIGN.md and implement from that.
+   Never pixel-copy any single render (generated text/logos are unreliable) — the
+   synthesis is a direction lock assembled from the best of five, not one asset.
+
+Skip (state the skip): user already supplied a concrete design/reference/mockup,
+an existing design system governs the surface, C0/C1 patches, or `ima2` is
+unavailable — then fall back to the text-only Design Read.
+---
+
 ## 3. Korean Request Translation
 
 Map common Korean design descriptors to concrete tokens. When the user uses these words, translate before implementing.
@@ -335,9 +376,10 @@ Rapid lookup: user word → concrete starting point.
 
 ### Font Selection Guidelines
 
-- **Typography stance (UX-TYPE-01)**: sans by default. Use serif only when the brief, brand system, or stated editorial/premium rationale supports it; do not inject one serif word into an otherwise sans headline for spice.
+- **Typography stance (UX-TYPE-01)**: sans by default. Use serif only when the brief, brand system, or stated editorial/premium rationale supports it; do not inject one serif word into an otherwise sans headline for spice. When serif is justified (AI-product/editorial/research/trust surfaces), use the three-role system — display serif at light weights 330-400 + sans UI + mono accent — never as a bare AI-premium shortcut ("tasteslop"); gates in `dev-frontend` `aesthetics.md § Serif Discipline`.
 - **Primary default**: Geist (modern SaaS, Vercel ecosystem)
 - **Korean-first**: Pretendard (한글 최적화, Toss/당근 등 국내 서비스 표준)
 - **Warm/editorial**: Outfit or Cabinet Grotesk
 - **Premium/luxury**: Satoshi or system thin weights
+- **Korean serif display**: MaruBuri (Naver 명조/부리) 400-600 for editorial Hangul headlines, paired with Pretendard UI — see `dev-frontend` `korea-2026.md § Korean Serif / Myeongjo Display`
 - **Avoid defaulting to Inter** (DEFAULT) — it is the #1 AI-generated UI tell. Use it when the user explicitly requests it or the project already uses it.

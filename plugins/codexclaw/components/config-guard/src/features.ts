@@ -5,6 +5,7 @@
 
 export const DECLARED_FEATURES = [
   "multi_agent",
+  "multi_agent_v2",
   "goals",
   "hooks",
   "default_mode_request_user_input",
@@ -14,7 +15,13 @@ export type DeclaredFeature = (typeof DECLARED_FEATURES)[number];
 
 // Flags that are OFF by default in codex and that codexclaw must turn on. Soft flags may
 // fail to enable (e.g. under-development / unavailable in this build) without failing activation.
-export const SOFT_FEATURES: ReadonlySet<string> = new Set(["default_mode_request_user_input"]);
+// multi_agent_v2 is SOFT: it is stage under-development, so a future codex build may refuse
+// or remove it; when the enable fails, the version-resolution ladder falls back to stable
+// multi_agent (V1) automatically (260709 dev2 switch).
+export const SOFT_FEATURES: ReadonlySet<string> = new Set([
+  "default_mode_request_user_input",
+  "multi_agent_v2",
+]);
 
 export interface CodexRunResult {
   stdout: string;
@@ -28,7 +35,7 @@ export type CodexRunner = (args: readonly string[]) => CodexRunResult;
 // Parse `codex features list` output into a name -> enabled map. The official CLI prints one
 // feature per line as three whitespace-padded columns — `{name}  {stage}  {true|false}` — sorted
 // by name (codex-rs cli/src/main.rs:1427-1429). We match the FIRST field exactly (not a substring)
-// so sibling keys like `multi_agent_v2`/`plugin_hooks` never clobber `multi_agent`/`hooks`, and read
+// so sibling keys like `plugin_hooks` (or `multi_agent_mode`) never clobber `hooks`/`multi_agent`, and read
 // the boolean from the LAST field.
 export function parseFeaturesList(stdout: string): Map<string, boolean> {
   const declared = new Set<string>(DECLARED_FEATURES);

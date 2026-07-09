@@ -8,8 +8,9 @@
  *
  *  - UserPromptSubmit: detect IPABCD/interview trigger → inject phase directive
  *    (idempotent per session+turn). See hook.ts/handleUserPromptSubmit.
- *  - Stop: active only under a native goal + in-flight cycle; bounded by
- *    stop_hook_active / IDLE / no-goal / context-pressure / stagnation guards.
+ *  - Stop: active only under a native goal (mid-cycle continuation, or the
+ *    GOAL-IDLE-CONTINUE-01 arming nudge at IDLE); bounded by the no-goal /
+ *    phase-I / context-pressure / stagnation guards.
  *
  * State lives in files (no orchestrator server):
  *  - .codexclaw/sessions/<session>.json  (per-session phase + injectedTurns)
@@ -19,7 +20,7 @@
  */
 import { readFileSync } from "node:fs";
 import { handlePostToolUse, handleBashFrictionCapture, handlePostCompact, handleStop, handleUserPromptSubmit } from "./hook.js";
-import { parsePostCompact, parsePostToolUse, parseStop, parseSubagentStop, parseUserPromptSubmit } from "./parse.js";
+import { isSubagentHookPayload, parsePostCompact, parsePostToolUse, parseStop, parseSubagentStop, parseUserPromptSubmit } from "./parse.js";
 import { handlePreToolUseFailClosed } from "./goal-gate.js";
 import { handleApplyPatchLint } from "./comment-lint.js";
 import { handleFrictionPreToolUse } from "./friction-gate.js";
@@ -104,6 +105,19 @@ function main()       {
 
   const raw = readStdin();
   let output = "";
+
+  // Subagent turn guard (260709): codexclaw governs the ROOT session only.
+  // codex-rs stamps agent_id/agent_type into turn-level hook stdin for
+  // thread-spawned subagents and reuses the parent session id for child hooks,
+  // so without this early exit a child turn reads/writes the PARENT's PABCD
+  // state and can receive root-only directives (request_user_input is
+  // root-thread-only in codex-rs). `subagent-stop` stays exempt — it is the
+  // intentional child-scoped surface. Skipping the fail-closed pre-tool-use
+  // gate for children is safe: codex-rs itself denies non-root
+  // request_user_input (core/src/tools/handlers/request_user_input.rs:59).
+  if (event !== "subagent-stop" && isSubagentHookPayload(raw)) {
+    process.exit(0);
+  }
 
   // pre-tool-use is handled by a dedicated FAIL-CLOSED dispatcher: a thrown
   // error on a request_user_input call must DENY (R-9), never fail open. It is

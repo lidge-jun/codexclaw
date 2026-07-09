@@ -67,16 +67,25 @@ test("transition A->B is rejected without a valid attestation (R-2)", () => {
   assert.match(r.reason ?? "", /attestation|did/i);
 });
 
-test("transition A->B flips auditPassed only with did + auditOutput (WP3)", () => {
+test("transition A->B flips auditPassed only with did + auditOutput + auditVerdict (WP3)", () => {
   // did alone is rejected — the audit gate needs the reviewer verdict paste
   const noAudit = transition(withFlags({}, "A"), "B", { from: "A", to: "B", did: "challenged the plan" });
   assert.equal(noAudit.ok, false);
   assert.match(noAudit.reason ?? "", /auditOutput/);
+  const noVerdict = transition(withFlags({}, "A"), "B", {
+    from: "A",
+    to: "B",
+    did: "challenged the plan",
+    auditOutput: "reviewer verdict: GO; no blockers",
+  });
+  assert.equal(noVerdict.ok, false);
+  assert.match(noVerdict.reason ?? "", /auditVerdict/);
   const r = transition(withFlags({}, "A"), "B", {
     from: "A",
     to: "B",
     did: "challenged the plan",
     auditOutput: "reviewer verdict: GO; no blockers",
+    auditVerdict: "pass",
   });
   assert.equal(r.ok, true);
   assert.equal(r.state?.phase, "B");

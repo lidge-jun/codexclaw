@@ -1,17 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   parsePreToolUse,
   applyGoalBudgetGuard,
   applyGoalModeInterviewGuard,
+  applyGoalCompleteGuard,
   handlePreToolUseFailClosed,
   rawLooksLikeRequestUserInput,
   type PreToolUsePayload,
 } from "../src/goal-gate.ts";
 import type { GoalActiveDeps } from "../src/goal-active.ts";
+import { defaultState, writeState } from "../src/state.ts";
+import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
 
 function ptu(toolName: string, toolInput: unknown): PreToolUsePayload {
   return {
@@ -23,6 +26,10 @@ function ptu(toolName: string, toolInput: unknown): PreToolUsePayload {
     turn_id: "t1",
     transcript_path: null,
   };
+}
+
+function ptuAt(cwd: string, sessionId: string, toolName: string, toolInput: unknown): PreToolUsePayload {
+  return { ...ptu(toolName, toolInput), cwd, session_id: sessionId };
 }
 
 test("applyGoalBudgetGuard: create_goal with objective only -> passthrough ''", () => {
@@ -254,4 +261,93 @@ test("L12.2 boundary: goal active DENIES request_user_input; inactive ALLOWS it"
   // inactive goal -> interview is allowed (HITL interactive interview).
   const allowed = handlePreToolUseFailClosed(rawPtu("request_user_input"), depsWithStatus("complete"));
   assert.equal(allowed, "", "inactive goal must allow request_user_input (interactive interview)");
+});
+
+// --- GOAL-COMPLETE-GATE-01 (260709): deterministic anti-lazy-completion --------
+
+function freshGateCwd(): string {
+  return mkdtempSync(join(tmpdir(), "cxc-goal-complete-"));
+}
+
+test("GOAL-COMPLETE-GATE-01: non-update_goal and non-complete updates pass through", () => {
+  assert.equal(applyGoalCompleteGuard(ptu("create_goal", { objective: "x" })), "");
+  assert.equal(applyGoalCompleteGuard(ptu("update_goal", { status: "blocked" })), "");
+  assert.equal(applyGoalCompleteGuard(ptu("update_goal", "complete")), "");
+});
+
+test("GOAL-COMPLETE-GATE-01: complete with no session state passes through (nothing to judge)", () => {
+  const cwd = freshGateCwd();
+  try {
+    assert.equal(applyGoalCompleteGuard(ptuAt(cwd, "gc0", "update_goal", { status: "complete" })), "");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-COMPLETE-GATE-01: complete mid-cycle -> deny (close through D first)", () => {
+  const cwd = freshGateCwd();
+  try {
+    writeState(cwd, { ...defaultState("gc1"), phase: "B", orchestrationActive: true, lastInjectedPhase: "B" });
+    const out = applyGoalCompleteGuard(ptuAt(cwd, "gc1", "update_goal", { status: "complete" }));
+    assert.notEqual(out, "");
+    const parsed = JSON.parse(out.trimEnd()).hookSpecificOutput;
+    assert.equal(parsed.permissionDecision, "deny");
+    assert.match(parsed.permissionDecisionReason, /GOAL-COMPLETE-GATE-01/);
+    assert.match(parsed.permissionDecisionReason, /phase B/);
+    assert.match(parsed.permissionDecisionReason, /--session gc1/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-COMPLETE-GATE-01: bound goalplan failing E8 -> deny with the validate reasons", () => {
+  const cwd = freshGateCwd();
+  try {
+    const plan = buildGoalplan({ objective: "Ship it", criteria: [{ scenario: "tests", expectedEvidence: "green" }] });
+    writeGoalplan(cwd, plan); // one open criterion -> validate fails
+    writeState(cwd, { ...defaultState("gc2"), phase: "IDLE", orchestrationActive: false, slug: plan.slug });
+    const out = applyGoalCompleteGuard(ptuAt(cwd, "gc2", "update_goal", { status: "complete" }));
+    assert.notEqual(out, "");
+    const reason = JSON.parse(out.trimEnd()).hookSpecificOutput.permissionDecisionReason as string;
+    assert.match(reason, /fails the E8 quality gate/);
+    assert.match(reason, /unmet criterion/);
+    assert.match(reason, /cxc loop validate/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-COMPLETE-GATE-01: EMPTY bound goalplan -> deny (register the plan first)", () => {
+  const cwd = freshGateCwd();
+  try {
+    const plan = buildGoalplan({ objective: "Shell only" });
+    writeGoalplan(cwd, plan);
+    writeState(cwd, { ...defaultState("gc3"), phase: "IDLE", orchestrationActive: false, slug: plan.slug });
+    const out = applyGoalCompleteGuard(ptuAt(cwd, "gc3", "update_goal", { status: "complete" }));
+    assert.notEqual(out, "");
+    assert.match(JSON.parse(out.trimEnd()).hookSpecificOutput.permissionDecisionReason, /plan is empty/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-COMPLETE-GATE-01: valid goalplan at IDLE -> complete passes", () => {
+  const cwd = freshGateCwd();
+  try {
+    const plan = buildGoalplan({ objective: "Done for real", criteria: [{ scenario: "tests", expectedEvidence: "green" }] });
+    plan.criteria[0] = { ...plan.criteria[0], status: "met", capturedEvidence: "node --test: 0 fail" };
+    plan.workPhases = [{ id: "wp-1", title: "All", status: "done", tasks: [{ id: "t-1", title: "x", status: "done" }], criteriaIds: ["c-1"] }];
+    writeGoalplan(cwd, plan);
+    writeState(cwd, { ...defaultState("gc4"), phase: "IDLE", orchestrationActive: false, slug: plan.slug });
+    assert.equal(applyGoalCompleteGuard(ptuAt(cwd, "gc4", "update_goal", { status: "complete" })), "");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-COMPLETE-GATE-01: fires through the fail-closed dispatcher", () => {
+  const cwd = freshGateCwd();
+  try {
+    writeState(cwd, { ...defaultState("gc5"), phase: "C", orchestrationActive: true, lastInjectedPhase: "C" });
+    const raw = JSON.stringify({
+      hook_event_name: "PreToolUse",
+      session_id: "gc5",
+      cwd,
+      tool_name: "update_goal",
+      tool_input: { status: "complete" },
+    });
+    const out = handlePreToolUseFailClosed(raw);
+    assert.notEqual(out, "");
+    assert.match(JSON.parse(out.trimEnd()).hookSpecificOutput.permissionDecisionReason, /GOAL-COMPLETE-GATE-01/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

@@ -26,8 +26,12 @@ auto-registered** as live roles.
 Instead, the main agent injects each role's `developer_instructions` **inline** when spawning:
 
 ```
-spawn_agent({ agent_type: "explorer", message: "TASK: <role instructions + the concrete task>" })
-spawn_agent({ agent_type: "worker",   message: "TASK: <executor instructions + scoped task>" })
+spawn_agent({ agent_type: "explorer", task_name: "explorer_<slug>", fork_turns: "none",
+              message: "TASK: <role instructions + the concrete task>" })
+spawn_agent({ agent_type: "worker",   task_name: "executor_<slug>", fork_turns: "none",
+              message: "TASK: <executor instructions + scoped task>" })
+// dev2 switch 260709: multi_agent_v2 spawn — task_name required ([a-z0-9_]+),
+// fork_turns "none" keeps agent_type/model/effort overrides legal (full fork rejects them).
 ```
 
 This is omo's proven pattern. The `.toml` files are the canonical SOURCE of those prompts and
@@ -51,7 +55,7 @@ spawn-attach hook's `updatedInput`.
 Production wrapper (L9.1, shipped): `components/subagent-config/src/spawn-wrapper.ts` consumes
 `resolveSpawnConfig()` at spawn time. `resolveSpawnPayload(cwd, role, task, agentsDir)` reads the
 per-role store config plus this file's `developer_instructions`, then builds the concrete
-`spawn_agent` payload: `agent_type` from `ROLE_AGENT_TYPE`, the role prompt injected inline in
+`spawn_agent` payload (v2): `agent_type` from `ROLE_AGENT_TYPE`, `task_name` from `taskNameForRole`, `fork_turns:"none"`, the role prompt injected inline in
 `message` (a `promptOverride` replaces this TOML body), and a `model` key included ONLY for a
 non-default (model-mode) role — default mode omits it so the subagent inherits the main model.
 Model selection is owned by the store resolver, not the TOML `model` sentinel.

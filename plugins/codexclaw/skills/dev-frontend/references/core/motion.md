@@ -110,7 +110,7 @@ const y = useMotionValue(0);
 magnetic pull, dock-style magnification, proximity glow. Chip-as-content
 composition is Tier-2 observed (aside.com, 2026-07-07); the motion patterns
 below are Tier-1 pattern-survey synthesis — see
-`devlog/_plan/260707_liquid_glass_motion_trends/000_research.md` §5. Use for
+`devlog/_fin/260707_liquid_glass_motion_trends/000_research.md` §5. Use for
 landing/expressive surfaces only (Domain Gates above); never inside
 repeated-work tools.
 
@@ -565,7 +565,7 @@ Use Framer for UI. Use GSAP/Three.js ONLY for isolated full-page scrolltelling o
 
 Full-screen "flying" transitions where one section transforms into the next:
 zoom-through, fly-through, morph, wipe, portal. Research:
-`devlog/_plan/260708_scroll_driven_effects/001_cinematic_transitions.md`.
+`devlog/_fin/260708_scroll_driven_effects/001_cinematic_transitions.md`.
 
 Domain gate: landing, campaign, editorial, and product-story surfaces only.
 Never apply cinematic section transitions to tools, dashboards, admin, auth,
@@ -712,6 +712,50 @@ properties are hard to keep smooth under a pinned, scrubbed timeline.
 
 ---
 
+## Soft-Focus Organic Background + Capsule Label (Level 5+)
+
+The OpenAI-announcement-card grammar: an expressive soft-focus organic field
+with an opaque capsule label floating above (see aesthetics.md § Expressive vs
+Functional Layers). Prefer a REAL soft-focus photographic or generated image
+for the background; the pure-CSS fallback:
+
+```css
+.card {
+  position: relative; overflow: hidden; border-radius: 28px;
+  background:
+    radial-gradient(circle at 25% 20%, #d8efd5 0, transparent 34%),
+    radial-gradient(circle at 75% 35%, #c8dfd8 0, transparent 38%),
+    radial-gradient(circle at 45% 80%, #f2d9c8 0, transparent 42%);
+}
+.card::before { content:""; position:absolute; inset:-40px; background:inherit;
+  filter: blur(32px) saturate(1.05); transform: scale(1.08); }
+.card::after  { content:""; position:absolute; inset:0; pointer-events:none;
+  opacity:.18; mix-blend-mode:multiply;
+  /* grain: noise image or SVG feTurbulence filter */ }
+.pill { display:inline-flex; align-items:center; border-radius:999px;
+  background:#fff; color:#000; padding:.35em .85em; font-weight:800; }
+```
+
+Rules: the capsule is opaque (not glass); one organic field per viewport
+(gradient budget applies); grain at low opacity (.1-.2); animate only
+transform/opacity on the field (slow drift), never the blur radius.
+Counts toward the ambient-gradient budget — a real image is exempt.
+
+## Product-Led Hero Motion (Level 6+)
+
+Motion combos for product-as-stage heroes (see layout-discipline.md § Hero
+Composition Grammar):
+
+- **Parallax layered product scene**: product/device foreground moves slower
+  or opposite to the background field; 2-3 layers max, transform-only.
+- **Scroll-driven product rotation**: 3D or frame-sequence rotation of the
+  product mapped to scroll progress (see Frame Sequence Scrolltelling above);
+  keep the interactive scene full-bleed, not boxed in a card.
+- **Video-in-mockup**: an autoplaying muted product-UI loop inside a device
+  frame; lazy-load, `playsinline muted loop`, poster fallback, pause offscreen
+  via IntersectionObserver.
+- All three: static first-frame fallback under `prefers-reduced-motion`.
+
 ## Scroll Pattern Decision Tree
 
 ```text
@@ -844,5 +888,5 @@ buildFrames();
 addEventListener('scroll', onScroll, { passive: true });
 ```
 
-Research: `devlog/_plan/260708_scroll_driven_effects/000_research.md`,
-`devlog/_plan/260708_scroll_driven_effects/001_cinematic_transitions.md`
+Research: `devlog/_fin/260708_scroll_driven_effects/000_research.md`,
+`devlog/_fin/260708_scroll_driven_effects/001_cinematic_transitions.md`

@@ -66,12 +66,12 @@ This is the single most common source of "false DONE" in this repo. Treat any
   user's prompt.
 - State is **project-local `.codexclaw/`** files only — no jaw-style server, no shared
   database, no network service. One scoped exception (owner directive 2026-07-02,
-  `devlog/_plan/260702_codex_recall/`): user-level **rebuildable derived caches** under
+  `devlog/_fin/260702_codex_recall/`): user-level **rebuildable derived caches** under
   `~/.codexclaw` (recall's FTS index; ast-grep runtime precedent). A cache is never a
   source of truth — deleting it only costs a rebuild — and durable state stays
   project-local.
 - The messenger bridge is a **second scoped exception** (owner-approved plan,
-  2026-07-03, `devlog/_plan/260703_messenger_bridge_active/`): `cxc serve` runs an
+  2026-07-03, `devlog/_fin/260703_messenger_bridge_active/`): `cxc serve` runs an
   opt-in, loopback-only (`127.0.0.1`) bridge process with a project-local
   `.codexclaw/bridge.db` (`node:sqlite`) for channel/binding/job state. It is not a
   jaw-style orchestrator: it never dispatches subagents, never writes the goal DB,

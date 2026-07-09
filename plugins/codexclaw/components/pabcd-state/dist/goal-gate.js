@@ -32,10 +32,14 @@ const CREATE_GOAL_WARNING =
   "Use create_goal with objective only. Omit token_budget so the goal stays unlimited, and put lifecycle status changes on update_goal.";
 
 import { getGoalActiveStatus, suppressesInterview,                                            } from "./goal-active.js";
+import { readState } from "./state.js";
+import { readGoalplan, validateGoalplan } from "./goalplan.js";
 
 const REQUEST_USER_INPUT_TOOL = "request_user_input";
 const GOAL_MODE_DENY_REASON =
   "Goal mode is active: interview / request_user_input is denied. Autonomous execution must not block on the user. Use autonomous backfill (verified fact, contradiction, or high-severity assumption requiring later review) instead.";
+
+const UPDATE_GOAL_TOOL_NAME = "update_goal";
 
 function isRecord(value         )                                   {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -142,6 +146,65 @@ export function rawLooksLikeRequestUserInput(raw        )          {
   }
 }
 
+/** Shared PreToolUse deny envelope for the goal-complete gate (trailing newline). */
+function goalCompleteDenyEnvelope(reason        )         {
+  return `${JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: reason,
+      additionalContext: reason,
+    },
+  })}\n`;
+}
+
+/**
+ * GOAL-COMPLETE-GATE-01 (260709, lazygap lineage) — deterministic anti-lazy-completion.
+ *
+ * Denies `update_goal {status:"complete"}` when the session's own durable state says
+ * the work is provably not closed:
+ *  1. a PABCD cycle is in flight (`orchestrationActive` && phase not IDLE/I) — close
+ *     the cycle through D (or reset) before certifying the goal;
+ *  2. a session-bound goalplan (`state.slug`) fails the E8 gate (`validateGoalplan`)
+ *     — unmet criteria / undone work phases / evidence-free `met` marks / an empty
+ *     unregistered plan cannot certify completion.
+ *
+ * `status:"blocked"` (and every non-complete update) always passes: that is the honest
+ * escape hatch for external blockers. FAIL-OPEN: any read/parse error returns "" — this
+ * is an anti-laziness gate, not a security boundary, and must never trap a session.
+ * Forensics: sessions 019f4407 (goal completed with a self-listed REMAINING queue) and
+ * 019f4456 (empty goalplan would have rubber-stamped validate).
+ */
+export function applyGoalCompleteGuard(payload                   )         {
+  try {
+    if (payload.hook_event_name !== "PreToolUse") return "";
+    if (payload.tool_name !== UPDATE_GOAL_TOOL_NAME) return "";
+    if (!isRecord(payload.tool_input) || payload.tool_input.status !== "complete") return "";
+
+    const state = readState(payload.cwd, payload.session_id);
+    if (state.orchestrationActive && state.phase !== "IDLE" && state.phase !== "I") {
+      return goalCompleteDenyEnvelope(
+        `GOAL-COMPLETE-GATE-01: a PABCD cycle is in flight at phase ${state.phase}. Close the cycle first (advance to D via \`cxc orchestrate ... --session ${payload.session_id}\`, or \`cxc orchestrate reset --session ${payload.session_id}\`), then mark the goal complete. If an external blocker prevents closing, use update_goal status "blocked" instead.`,
+      );
+    }
+    if (state.slug) {
+      const plan = readGoalplan(payload.cwd, state.slug);
+      if (plan) {
+        const verdict = validateGoalplan(plan);
+        if (!verdict.ok) {
+          const reasons = verdict.reasons.slice(0, 4).join("; ");
+          return goalCompleteDenyEnvelope(
+            `GOAL-COMPLETE-GATE-01: the session-bound goalplan '${state.slug}' fails the E8 quality gate: ${reasons}. Finish the remaining work and record fresh capturedEvidence in .codexclaw/goalplans/${state.slug}/goalplan.json (check with \`cxc loop validate --slug "${state.slug}"\`), or use update_goal status "blocked" if an external blocker prevents completion. Do not shrink the objective to escape the gate (LOOP-CONTINUE-01).`,
+          );
+        }
+      }
+    }
+    return "";
+  } catch {
+    return ""; // fail-open: never trap update_goal on gate IO errors
+  }
+}
+
 /**
  * Fail-CLOSED PreToolUse dispatch (R-9). Runs the budget guard then the
  * interview deny. If ANYTHING throws while the payload looks like a
@@ -156,7 +219,7 @@ export function handlePreToolUseFailClosed(raw        , deps                 = {
     const payload = parsePreToolUse(raw);
     if (!payload) return "";
     // Each guard is tool-name-scoped, so at most one fires.
-    return applyGoalBudgetGuard(payload) || applyGoalModeInterviewGuard(payload, deps);
+    return applyGoalBudgetGuard(payload) || applyGoalModeInterviewGuard(payload, deps) || applyGoalCompleteGuard(payload);
   } catch {
     return rawLooksLikeRequestUserInput(raw) ? goalModeInterviewDenyEnvelope("unreadable") : "";
   }

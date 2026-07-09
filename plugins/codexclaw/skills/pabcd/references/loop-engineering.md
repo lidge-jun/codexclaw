@@ -20,6 +20,11 @@ micro-loop rules inside each phase. This file holds the adopted subset in full.
 - **Memory lives on disk**, not in the transcript: worklog, devlog, attestations. The
   next iteration must be able to resume from artifacts alone.
 - **Budget exhaustion ≠ done.** Never report a budget stop as success.
+- **Context pressure ≠ budget exhaustion.** Compaction is survivable BY DESIGN because
+  memory lives on disk: an approaching context limit means checkpoint durable state
+  (goalplan, ledger, devlog) and continue after the flush — it is never grounds to close
+  the goal, shrink the plan, or report `DONE`/`BUDGET_EXHAUSTED`. `BUDGET_EXHAUSTED`
+  requires a bound the plan actually stated (tokens, cost, wall-clock).
 - **Interview does not "solve" intent transfer** — it produces a testable initial
   loop-spec. Later evidence may force an Interview return; that return path existing is
   the design's own admission that intent is refined cyclically, not settled up front.

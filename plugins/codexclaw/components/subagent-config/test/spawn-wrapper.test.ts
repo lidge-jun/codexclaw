@@ -158,10 +158,10 @@ test("L15: resolveAttachedSkillFolders prepends role base, adds surfaces, dedups
   const a = resolveAttachedSkillFolders("explorer", ["architecture"]);
   assert.deepEqual(a, ["dev", "dev-architecture"]);
 
-  // reviewer base = [dev, dev-code-reviewer]; security surface adds dev-security;
+  // reviewer base = [dev, dev-code-reviewer, search]; security surface adds dev-security;
   // code-review surface maps to dev-code-reviewer which is already present -> dedup
   const r = resolveAttachedSkillFolders("reviewer", ["security", "code-review"]);
-  assert.deepEqual(r, ["dev", "dev-code-reviewer", "dev-security"]);
+  assert.deepEqual(r, ["dev", "dev-code-reviewer", "search", "dev-security"]);
 });
 
 test("L15: explicit skill folder wins even with no matching surface (e.g. search)", () => {
@@ -211,7 +211,7 @@ test("L15: buildSpawnItems drops a dangling explicit folder that has no SKILL.md
   assert.equal(items.at(-1)?.type, "text");
 });
 
-test("L15: resolveSpawnPayloadWithSkills keeps role prompt in message + attaches items", () => {
+test("L15/dev2: resolveSpawnPayloadWithSkills keeps role prompt + attaches skills as message mentions (no items)", () => {
   const cwd = tmp();
   const payload = resolveSpawnPayloadWithSkills({
     cwd,
@@ -223,10 +223,13 @@ test("L15: resolveSpawnPayloadWithSkills keeps role prompt in message + attaches
   });
   // role prompt still in message (single source, not duplicated into items)
   assert.match(payload.message, /TASK: find the goal gate/);
-  assert.ok(Array.isArray(payload.items));
-  assert.ok(payload.items.some((i) => i.type === "skill" && i.name === "cxc-dev-debugging"));
-  // the task text rides in items too (as the trailing text item)
-  assert.equal(payload.items.at(-1)?.type, "text");
+  // 260709 dev2 switch: v2 spawn schema rejects `items` — skills ride as mentions.
+  assert.ok(!("items" in payload), "v2-legal payload must not carry items");
+  assert.match(payload.message, /\[\$cxc-dev-debugging\]\(skill:\/\//);
+  assert.match(payload.message, /\[\$cxc-dev\]\(skill:\/\//);
+  // v2 required fields
+  assert.equal(payload.fork_turns, "none");
+  assert.match(payload.task_name, /^explorer_[a-z0-9_]+$/);
 });
 
 // ---- WP1: mention channel (message-borne skill attachment, v1+v2 portable) ----
@@ -254,6 +257,7 @@ test("WP1: buildSkillMentionBlock renders role base + surfaces, existing-only", 
   assert.match(block, /^Load and follow these codexclaw skills before working:/);
   assert.match(block, /\[\$cxc-dev\]\(skill:\/\//);
   assert.match(block, /\[\$cxc-dev-code-reviewer\]\(skill:\/\//);
+  assert.match(block, /\[\$cxc-search\]\(skill:\/\//);
   assert.match(block, /\[\$cxc-dev-security\]\(skill:\/\//);
   assert.doesNotMatch(block, /this-skill-does-not-exist/, "dangling folder dropped");
 });
@@ -287,56 +291,54 @@ test("020: INTENT_ROLE maps each intent to a base role (no new roles)", async ()
   assert.equal(INTENT_ROLE.research, "explorer");
 });
 
-test("020: routeDispatch('red-team', frontend) -> reviewer + dev/code-reviewer/frontend skills", async () => {
+test("020/dev2: routeDispatch('red-team', frontend) -> reviewer + skills as mentions in message", async () => {
   const { routeDispatch } = await import("../src/spawn-wrapper.ts");
-  const { role, items } = routeDispatch({
+  const out = routeDispatch({
     intent: "red-team",
     surfaces: ["frontend"],
     task: "red-team this diff",
     skillsDir: SKILLS_DIR,
   });
-  assert.equal(role, "reviewer");
-  const names = items.filter((i) => i.type === "skill").map((i) => i.name);
-  assert.ok(names.includes("cxc-dev"));
-  assert.ok(names.includes("cxc-dev-code-reviewer"));
-  assert.ok(names.includes("cxc-dev-frontend"));
-  assert.equal(items.at(-1)?.type, "text");
-  assert.match(items.at(-1)?.text ?? "", /TASK: red-team this diff/);
+  assert.equal(out.role, "reviewer");
+  assert.ok(!("items" in out), "dev2: dispatcher output is v2-shaped (no items)");
+  assert.equal(out.fork_turns, "none");
+  assert.match(out.task_name, /^reviewer_[a-z0-9_]+$/);
+  for (const name of ["cxc-dev", "cxc-dev-code-reviewer", "cxc-search", "cxc-dev-frontend"]) {
+    assert.ok(out.message.includes(`$${name}`), `${name} mention present`);
+  }
+  assert.match(out.message, /TASK: red-team this diff$/);
 });
 
-test("020: routeDispatch('research') -> explorer + explicit skill honored", async () => {
+test("020/dev2: routeDispatch('research') -> explorer + explicit skill honored", async () => {
   const { routeDispatch } = await import("../src/spawn-wrapper.ts");
-  const { role, items } = routeDispatch({
+  const out = routeDispatch({
     intent: "research",
     explicitSkillFolders: ["search"],
     task: "investigate X",
     skillsDir: SKILLS_DIR,
   });
-  assert.equal(role, "explorer");
-  const names = items.filter((i) => i.type === "skill").map((i) => i.name);
-  assert.ok(names.includes("cxc-search"));
+  assert.equal(out.role, "explorer");
+  assert.ok(out.message.includes("$cxc-search"));
 });
 
 test("070: routeDispatch('research') auto-attaches cxc-search + cxc-ultraresearch (no explicit needed)", async () => {
   const { routeDispatch, INTENT_EXTRA_SKILL_FOLDERS } = await import("../src/spawn-wrapper.ts");
   assert.deepEqual(INTENT_EXTRA_SKILL_FOLDERS.research, ["search", "ultraresearch"]);
-  const { role, items } = routeDispatch({
+  const out = routeDispatch({
     intent: "research",
     task: "survey the landscape",
     skillsDir: SKILLS_DIR,
   });
-  assert.equal(role, "explorer");
-  const names = items.filter((i) => i.type === "skill").map((i) => i.name);
-  assert.ok(names.includes("cxc-search"), "research auto-attaches cxc-search");
-  assert.ok(names.includes("cxc-ultraresearch"), "research auto-attaches cxc-ultraresearch");
-  assert.ok(names.includes("cxc-dev"), "explorer base dev skill still present");
+  assert.equal(out.role, "explorer");
+  assert.ok(out.message.includes("$cxc-search"), "research auto-attaches cxc-search");
+  assert.ok(out.message.includes("$cxc-ultraresearch"), "research auto-attaches cxc-ultraresearch");
+  assert.ok(out.message.includes("$cxc-dev"), "explorer base dev skill still present");
 });
 
 test("070: non-research intents do NOT auto-attach ultraresearch", async () => {
   const { routeDispatch } = await import("../src/spawn-wrapper.ts");
-  const { items } = routeDispatch({ intent: "review", task: "review the diff", skillsDir: SKILLS_DIR });
-  const names = items.filter((i) => i.type === "skill").map((i) => i.name);
-  assert.ok(!names.includes("cxc-ultraresearch"), "review must not attach ultraresearch");
+  const out = routeDispatch({ intent: "review", task: "review the diff", skillsDir: SKILLS_DIR });
+  assert.ok(!out.message.includes("$cxc-ultraresearch"), "review must not attach ultraresearch");
 });
 
 test("080.2: buildPathHints resolves existing repo tokens + flags none-existent", async () => {
@@ -362,4 +364,36 @@ test("080.2: path-hint item is opt-in (cwd) and placed before the trailing TASK"
   assert.equal(texts.length, 2, "path-hint + task");
   assert.match(texts[0].text, /Resolved paths:/);
   assert.match(texts.at(-1).text, /^TASK:/);
+});
+
+// ---- dev2 (260709): v2 spawn schema — task_name required, fork_turns pinned, no items ----
+
+test("dev2: taskNameForRole derives a v2-legal [a-z0-9_]+ name with fallback + cap", async () => {
+  const { taskNameForRole } = await import("../src/spawn-wrapper.ts");
+  assert.equal(taskNameForRole("explorer", "Find the Goal Gate"), "explorer_find_the_goal");
+  assert.match(taskNameForRole("reviewer", "red-team this diff!"), /^reviewer_[a-z0-9_]+$/);
+  // non-ASCII-only task degrades to the role fallback
+  assert.equal(taskNameForRole("executor", "한글만 있는 작업"), "executor_task");
+  // cap at 40 chars, no trailing underscore
+  const long = taskNameForRole("executor", "aaaaaaaaaa bbbbbbbbbb cccccccccc dddddddddd");
+  assert.ok(long.length <= 40);
+  assert.ok(!long.endsWith("_"));
+  for (const n of [taskNameForRole("explorer", "x"), long]) {
+    assert.match(n, /^[a-z0-9_]+$/, "v2 task_name charset");
+  }
+});
+
+test("dev2: buildSpawnPayload emits task_name + fork_turns none (fresh spawn keeps overrides legal)", () => {
+  const payload = buildSpawnPayload({
+    role: "reviewer",
+    task: "audit the plan docs",
+    resolution: { role: "reviewer", model: "gpt-5.5", usesMainModel: false, effort: "high", promptOverride: null },
+    developerInstructions: "Role: reviewer.",
+  });
+  assert.equal(payload.fork_turns, "none");
+  assert.equal(payload.task_name, "reviewer_audit_the_plan");
+  // model/effort overrides remain present — legal only because fork_turns is "none"
+  assert.equal(payload.model, "gpt-5.5");
+  assert.equal(payload.reasoning_effort, "high");
+  assert.ok(!("items" in payload));
 });

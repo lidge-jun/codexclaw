@@ -75,12 +75,14 @@ export const SURFACE_SKILL                          = {
 /**
  * Per-role baseline skills always attached, independent of surface. The universal
  * `dev` discipline anchors every coding role; the reviewer additionally anchors on the
- * `dev-code-reviewer` review skill (it is read-only adversarial review). Risk surfaces
- * such as `dev-security` are attached per-surface via SURFACE_SKILL, not as a baseline.
+ * `dev-code-reviewer` review skill (read-only adversarial review) and `search`
+ * (A-gate reviewers must verify references/versions/external claims through the
+ * search ladder — SEARCH-ATTACH-01). Risk surfaces such as `dev-security` are
+ * attached per-surface via SURFACE_SKILL, not as a baseline.
  */
 export const ROLE_BASE_SKILLS                             = {
   explorer: ["dev"],
-  reviewer: ["dev", "dev-code-reviewer"],
+  reviewer: ["dev", "dev-code-reviewer", "search"],
   executor: ["dev"],
 };
 

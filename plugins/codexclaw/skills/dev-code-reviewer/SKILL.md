@@ -103,6 +103,12 @@ validation-location findings belong to `dev-architecture` §4.
 
 Tool findings go first (Pre-Scan Rule 3); then manual findings sorted
 `Critical > High > Medium > Low > Style`; then a dedicated `blocking_issues` block; verdict last.
+For dispatched plan-audit (PABCD A-gate) reviews the verdict is additionally
+machine-scannable: end the reply with a final line `VERDICT: PASS`,
+`VERDICT: GO-WITH-FIXES (blockers=N)`, or `VERDICT: FAIL` (mapping:
+Approve -> PASS; Approve-with-suggestions -> GO-WITH-FIXES; Request-changes /
+Block -> FAIL). The dispatching agent's exit rule is AUDIT-LOOP-01
+(`cxc-pabcd` §A): FAIL always triggers another round.
 Every finding carries a concrete `trigger`, `impact`, and `path:line` (FAMILY-CITE-01) — no
 finding on a hunch. Do not file pre-existing debt unless the patch worsened it. When a change
 introduces a value/type/message crossing a module boundary, trace the consumer side before

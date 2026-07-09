@@ -266,9 +266,19 @@ export function isGoalplanComplete(plan          )          {
 /**
  * Quality gate (E8): a goalplan is valid for a final D-close only when it is complete
  * AND every criterion marked `met` carries non-empty captured evidence (no rubber-stamp).
+ *
+ * GOAL-COMPLETE-GATE-01 (260709): an EMPTY plan (no work phases AND no criteria) FAILS.
+ * `isGoalplanComplete` is vacuously true for `loop init`-only artifacts, which let the
+ * 019f4456 session's unregistered plan pass the gate. A plan that never recorded what
+ * "done" means cannot certify completion — register workPhases[]/criteria[] first.
  */
 export function validateGoalplan(plan          )                     {
   const reasons           = [];
+  if (plan.workPhases.length === 0 && plan.criteria.length === 0) {
+    reasons.push(
+      "plan is empty: no workPhases[] and no criteria[] registered — fill the goalplan (schema in $cxc-loop) before the E8 gate can certify completion",
+    );
+  }
   for (const c of plan.criteria) {
     if (c.status === "met" && (c.capturedEvidence ?? "").trim().length === 0) {
       reasons.push(`criterion ${c.id} marked met but has no captured evidence`);

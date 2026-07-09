@@ -143,7 +143,7 @@ export function runOrchestrateCli(args                    )            {
   // G3 (fork-FSM collision, 260707): mutating verbs REQUIRE an explicit --session.
   // The implicit most-recent-mtime fallback let any concurrent session (a /fork sees
   // the parent's orchestrate context and naturally replays commands) mutate whichever
-  // session file was newest — live forensics in devlog/_plan/260707_fork_fsm_bug/.
+  // session file was newest — live forensics in devlog/_fin/260707_fork_fsm_bug/.
   // Fork provenance is invisible to hooks (codex-rs session.rs:1221-1226 maps
   // Forked -> Startup), so the CLI boundary is where the accidental path closes.
   // Read-only status above keeps the fallback.

@@ -75,11 +75,12 @@ deterministic.
 ### E6 — Implicit visibility (always-on skills)
 Flipping a skill to `allow_implicit_invocation:true` auto-renders it into every turn's
 context. Strong for the highest-traffic skills, but each costs context budget, so it is
-a deliberate trade, not a default. Since 2026-07-05 the implicit set is
-`{dev, search, interview, pabcd, recall, skill-hub, loop}` (~30 tokens of metadata per
-skill); `dev` remains the only skill whose BODY carries always-on discipline — the other
-six are metadata rows that make on-demand loading discoverable. All `dev-*` routers stay
-implicit-off.
+a deliberate trade, not a default. Since 2026-07-09 the implicit set is
+`{dev, search, interview, pabcd, recall, loop, dev-frontend, dev-uiux-design}` (~30
+tokens of metadata per skill); `dev` remains the only skill whose BODY carries always-on
+discipline — the others are metadata rows that make on-demand loading discoverable.
+`dev-frontend` and `dev-uiux-design` are the design-surface exception (anti-slop grammar
+must reach every UI-generating session); every other `dev-*` router stays implicit-off.
 
 ### E7 — Prose (guidance only)
 SKILL.md and SOT text. Necessary for nuance, useless as enforcement. Every "MUST" in
@@ -116,7 +117,8 @@ false-DONE cannot re-enter.
 - No hook can append a **visible assistant-output footer** — status footers are an E4
   model-instruction at best, or upstream Codex UI work.
 - The spawn tool IS interceptable — VERIFIED: the runtime canonicalizes
-  `multi_agent_v1.spawn_agent` to tool_name `spawn_agent` (registry.rs:727), and the
+  the collab spawn tool to tool_name `spawn_agent` on BOTH surfaces (v1 namespaced,
+  v2 flat — registry.rs:727), and the
   shipped `^spawn_agent$` PreToolUse hook (spawn-attach) rewrites its input. The former
   "cannot intercept" claim here was stale; what remains impossible is forcing a spawn
   to HAPPEN (no hook can initiate a tool call).

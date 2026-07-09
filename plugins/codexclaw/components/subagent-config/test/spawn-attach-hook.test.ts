@@ -162,6 +162,28 @@ test("WP1 mentionedFolders: recognizes all three mention shapes", () => {
   assert.deepEqual([...found].sort(), ["dev", "dev-testing", "search"]);
 });
 
+test("c4: audit-worded explorer spawn upgrades to reviewer and attaches reviewer + search skills", () => {
+  const auditMessage =
+    "Audit the plan at devlog/_plan/x/000_plan.md adversarially; challenge assumptions and verify references.";
+  const out = runSpawnAttachHook(spawnPayload({ message: auditMessage, agent_type: "explorer" }));
+  assert.notEqual(out, "");
+  const message = updatedInputOf(out).message as string;
+  assert.match(message, /\[\$cxc-dev-code-reviewer\]\(skill:\/\/.*\/dev-code-reviewer\/SKILL\.md\)/);
+  assert.match(message, /\[\$cxc-search\]\(skill:\/\/.*\/search\/SKILL\.md\)/);
+  assert.ok(message.endsWith(auditMessage), "original audit message preserved at the end");
+});
+
+test("c4: audit-worded reviewer spawn dedupes pre-mentioned search skill", () => {
+  const auditMessage =
+    "$cxc-search Audit the plan at devlog/_plan/x/000_plan.md adversarially; challenge assumptions and verify references.";
+  const out = runSpawnAttachHook(spawnPayload({ message: auditMessage, agent_type: "explorer" }));
+  assert.notEqual(out, "");
+  const message = updatedInputOf(out).message as string;
+  assert.match(message, /\[\$cxc-dev-code-reviewer\]\(skill:\/\/.*\/dev-code-reviewer\/SKILL\.md\)/);
+  assert.equal((message.match(/\[\$cxc-search\]\(/g) ?? []).length, 0, "search link must not be duplicated");
+  assert.equal((message.match(/\$cxc-search/g) ?? []).length, 1, "pre-existing search mention preserved once");
+});
+
 // ── Model enforcement (subagents.json -> spawn model injection) ──
 
 test("inferRole: worker -> executor; review keywords -> reviewer; default explorer", () => {

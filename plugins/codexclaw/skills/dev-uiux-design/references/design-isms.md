@@ -135,3 +135,51 @@ h1 { font-size: clamp(2.5rem, 8vw, 6rem); letter-spacing: 0; text-wrap: balance;
 Related: 1.12 (material rules), `product-personalities.md` Aside profile (chip vocabulary), `dev-frontend` `liquid-glass.md` + `motion.md` (implementation).
 
 ---
+### 1.14 AI Serif Editorial (2024-2026 serif renaissance)
+The AI-brand serif turn (verified 2026-07-09): display serif at LIGHT weights +
+sans UI + mono technical accent — never "make everything serif". Measured:
+claude.ai `Anthropic Serif` 56px/weight 330 (identity by Geist: Styrene +
+Tiempos); Perplexity's Comet leads with Editorial New (Studio Freight);
+manus.im Libre Baskerville 36px/400; precedent medium.com GT Super 120px/400 +
+Sohne UI. Semiotics: books/scholarship/human-hand trust against AI coldness,
+often with a warm off-white page metaphor.
+```css
+h1, .display { font-family: "Tiempos Headline", "Editorial New", "GT Super", serif;
+  font-weight: 350; font-size: clamp(2.5rem, 5vw, 4.5rem); line-height: 1.15; }
+body, button, input { font-family: var(--sans); }  /* UI stays sans */
+code, .meta { font-family: var(--mono); }          /* technical accent */
+:root { --page: #faf9f5; }                          /* warm off-white page */
+```
+**Use:** AI-product, research, editorial, publication, trust/human-warmth
+brands WITH real editorial structure (long-form typography, page-like
+surfaces, restrained palette). **Avoid:** dashboards, dense tools, SaaS
+layouts wearing a serif as premium shorthand — that is "tasteslop" (WIRED
+2026-06-05); heavy bold display serif (the pattern is 330-400).
+Related: `dev-frontend` `aesthetics.md § Serif Discipline`,
+`korea-2026.md § Korean Serif / Myeongjo Display` (MaruBuri pairing).
+
+---
+
+### 1.15 Organic Capsule (OpenAI announcement grammar)
+The OpenAI model-card/hero grammar (in-house Feb-2025 rebrand led by Veit
+Moeller/Shannon Jager; OpenAI Sans by ABC Dinamo; motion/sound by Studio
+Dumbar/DEPT): a soft-focus organic photographic field (natural palettes,
+film grain, some Sora-generated texture) carrying an OPAQUE white capsule
+label with bold warm-sans text. Two strict layers: expressive background
+(no functional text) vs functional capsule/copy (no decoration). Kin to
+Apple's WWDC25 capsule system but opaque, not glass.
+```css
+.field { background: url(soft-focus-organic.jpg) center/cover; }
+.field::after { content:""; position:absolute; inset:0; opacity:.15;
+  /* grain: noise image or feTurbulence */ mix-blend-mode: multiply; }
+.capsule { border-radius: 9999px; background: #fff; color: #111;
+  padding: .4em 1em; font-weight: 700; }
+```
+**Use:** announcement cards, model/product reveals, campaign heroes for
+warm-tech brands; pairs with restrained type-led pages. **Avoid:** mixing the
+layers (text on raw busy background, texture on the capsule), more than one
+organic field per viewport (gradient/texture budget), tools/dashboards.
+Related: `dev-frontend` `motion.md § Soft-Focus Organic Background + Capsule
+Label`, `aesthetics.md § Expressive vs Functional Layers`.
+
+---

@@ -91,6 +91,32 @@ Sources: live pages toss.im, about.daangn.com, kakaocorp.com, woowahan.com,
 navercorp.com, musinsa.com; Typotheque CJK typesetting; Morisawa Hangeul guide;
 W3C Korean Layout Requirements (KLREQ); Pretendard / Wanted Sans / Spoqa docs.
 
+### Korean Serif / Myeongjo Display (verified 2026-07-09)
+
+The Latin serif renaissance has a Korean lane, but it is **editorial myeongjo
+display**, not a verified KR-AI-brand wave — do not claim Korean AI services
+moved to myeongjo the way Anthropic moved to serif. Use myeongjo as a
+domain-gated display direction for editorial, literary, cultural, publication,
+and trust/heritage surfaces.
+
+Webfont ranking (DEFAULT):
+- **MaruBuri** (Naver, 명조/부리, ExtraLight-Bold): the best warm Korean
+  display serif for screens; use 400-600 for headlines, never for tiny UI text.
+- **Noto Serif KR**: widest coverage and weight range, but heavy CJK payload —
+  subset aggressively or use the variable build.
+- **Nanum Myeongjo**: familiar and literary, but reads dated for premium tech.
+- **Chosun Myeongjo family**: strong newspaper-authority signal; choose it for
+  press/heritage tone, not soft AI warmth.
+
+Pairing grammar mirrors the Latin three-role system: **myeongjo display +
+Pretendard/SUIT/system sans UI** (+ mono accent for technical surfaces).
+Keep myeongjo out of dashboards, dense tools, and body-size UI text; Hangul
+serif strokes degrade at small sizes on low-DPI screens.
+
+Sources: hangeul.naver.com MaruBuri (명조/부리 category, 5 weights);
+notofonts/noto-cjk Serif KR; live checks 2026-07-09 found no myeongjo-led
+Korean AI product home (Brunch-class editorial products observed on sans).
+
 ## Korean Formats
 
 - Dates: `2026년 5월 10일`, `5월 10일`, `오후 9:41`.
@@ -123,3 +149,20 @@ For Korean copy, read `ux-writing-ko.md`. The short version:
 - minimal honorifics
 - no translationese
 - no childish friendliness in high-trust flows
+
+## Verified 2026 Additions (2026-07-02)
+
+- **Pretendard** remains a strong Korean-first default; current release line includes
+  `Pretendard Variable` 1.3.9. Do not claim it as "the standard of Toss/당근" without a
+  product-specific source — verify brand font rules per product.
+- **W3C KLREQ** (Korean Layout Requirements) has a 2026-03-21 note version — the
+  authoritative reference for Korean line-breaking and orphan rules.
+- **Rendered screenshot gate**: after responsive changes, verify `word-break: keep-all`,
+  `text-wrap: balance` on short descriptors, and no lone particles/endings ("합니다.",
+  "화.") at target viewports. No browser API detects Korean orphans — screenshots are the gate.
+
+| Claim | Source | Checked |
+|---|---|---|
+| Pretendard Variable 1.3.9 | https://github.com/orioncactus/pretendard | 2026-07-02 |
+| KLREQ note 2026-03-21 | https://www.w3.org/TR/klreq/ | 2026-07-02 |
+| keep-all CJK behavior | https://developer.mozilla.org/en-US/docs/Web/CSS/word-break | 2026-07-02 |

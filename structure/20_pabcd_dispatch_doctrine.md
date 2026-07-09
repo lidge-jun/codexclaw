@@ -71,7 +71,11 @@ rejected. codexclaw mirrors this as the one place the agent path is genuinely ga
 
 - Forward transitions (P->A->B->C->D) require `--attest '{"from","to","did"}'`.
 - A->B additionally requires a pasted `auditOutput` (the dispatched reviewer subagent's
-  verdict tail — WP3), so the Audit gate structurally needs a real reviewer dispatch.
+  verdict tail — WP3) plus `auditVerdict` (`pass|near-pass|fail`, the MAIN agent's own
+  judgment; `near-pass` also needs `auditResidual` naming each residual blocker's
+  disposition). A declared `fail` never advances, and a tail whose final verdict line
+  says FAIL is rejected (AUDIT-LOOP-01) — the Audit gate structurally needs a real
+  reviewer dispatch AND a judged loop exit.
 - C->D additionally requires a pasted `checkOutput` (tsc/test tail) and `exitCode: 0`.
 - A bare agent `cxc orchestrate <phase>` without attest is rejected (409-style).
 - Human/chat-submitted commands are a free-pass source; the agent/CLI path is gated.
@@ -105,8 +109,11 @@ codexclaw translation:
   the relevant plan/context into the spawn message — a subagent must never reconstruct
   the plan from a thin task description.
 - **DISPATCH-ACTOR-01 (reuse).** Follow-up rounds in the same role and work context
-  reuse the existing agent instead of spawning fresh: `send_input` while it is alive,
-  `resume_agent` after it closed. The point is context preservation — the reviewer or
+  reuse the existing agent instead of spawning fresh: v2 (dev2 switch 260709) —
+  `followup_task` to its task_name (triggers a turn when idle; the agent keeps its
+  context, no resume exists or is needed), `send_message` for context-only delivery.
+  Legacy v1-pinned sessions: `send_input` while alive, `resume_agent` after close.
+  The point is context preservation — the reviewer or
   worker keeps what it already read. Do NOT justify reuse with "same provider = prompt
   cache reuse"; that assumption was tested and rejected in the jawcode lineage
   (`../jawcode/devlog/_fin/260614_subagent_cache_actor_lifecycle/95_d_cycle2_done_summary.md`,
@@ -115,10 +122,11 @@ codexclaw translation:
   direct independent file:line audit, so anchoring never grades its own influence.
 - **DISPATCH-RETIRE-01 (fresh-spawn fallback).** This is the exception to the reuse
   default above: an agent id that failed (error, timeout, unresponsive, nonsense
-  output) is retired, not nursed. At most ONE retry against the same id; then
-  `close_agent` and fresh-spawn with the failure summary folded into the new TASK
-  packet. Repeated `send_input`/`resume_agent` against a broken id is a broken-resume
-  loop — the dispatch analogue of LOOP-REPAIR-01's doom loop. Lineage:
+  output) is retired, not nursed. At most ONE retry against the same task_name; then
+  abandon it (v2 has no close verb — `interrupt_agent` if it is burning a turn, then
+  stop addressing it) and fresh-spawn with the failure summary folded into the new
+  TASK packet. Repeated `followup_task`/`send_message` against a broken agent is a
+  broken-resume loop — the dispatch analogue of LOOP-REPAIR-01's doom loop. Lineage:
   `../jawcode/devlog/_plan/260616_actor_fresh_fallback/_fin/00_moc.md`
   (implementation-verified). Both rules are E7 doctrine (agent-followed); no hook
   observes agent lifecycles.

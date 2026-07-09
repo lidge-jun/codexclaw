@@ -8,6 +8,48 @@
 5. Banned inside hero: tagline below CTAs, trust strip, pricing teaser, feature bullets
 6. "Used by" logo wall → separate section directly below hero
 
+## Hero Composition Grammar (verified 2026-07-09)
+
+The classic SaaS split hero — left bold headline + subcopy + CTA, right boxed
+product screenshot/mockup card — is the exhausted Stripe(2020)->Linear(2023)
+template lineage; "Linear Design" is now a reproducible kit/template category
+(LogRocket 2026-02-03). Treat it as a slop signal on brand/product homepages.
+**FE-HERO-SPLIT-01: never choose a split hero unprompted — build one ONLY when
+the user explicitly requests a split/2-column hero.** The one context where it
+is worth *proposing* is a conversion-focused paid-acquisition landing page
+where 5-second clarity beats brand memorability (Unbounce anatomy) — but even
+there, suggest it and let the user decide; no universal A/B evidence favors
+either shape (VWO). "This looks like a landing page" is NOT an exception.
+
+Core inversion (DEFAULT): **the product visual is the STAGE, not a polite
+right-column card.** Choose from the verified replacement menu (heroes
+live-checked 2026-07-09):
+
+| Composition | Shape | Verified users |
+| --- | --- | --- |
+| Centered stacked over media | centered headline + CTA over full-width media/video/canvas | OpenAI, Dia, Framer, Raycast |
+| Product-as-stage | headline spans the width; huge product UI rises full-width BELOW, not beside | Linear, Cursor |
+| Editorial opener | large text-led mission headline, no screenshot; editorial modules follow | Anthropic |
+| Evolved split | copy left + giant animated canvas/visual behind/right — never a boxed screenshot card | Stripe, Vercel |
+| Full-bleed consumer hero | centered copy over full-bleed photography/brand imagery | Toss |
+
+Rules (DEFAULT):
+- Without an explicit user request for a split hero (FE-HERO-SPLIT-01), do not
+  place a boxed screenshot, media, or device-mockup card in a right column of
+  the hero. If the product must appear in the first viewport, make it
+  full-width, background, environment, or an interactive demo surface.
+- Korean note: "left bold Pretendard headline + right mockup" is the same dead
+  template in Korean surfaces; Toss itself uses centered copy over full-bleed
+  imagery, not a split.
+- Replacement trend labels: story-driven heroes, scrollytelling, immersive 3D,
+  dimensionality/layers (SaaSFrame / Figma / Digidop / Contra, 2025-2026).
+
+Sources: LogRocket "Linear Design" (2026-02-03); Nordcraft "why do all websites
+look the same" (2024-09-03); Rectangle "The Linear effect" (2023-01-10); live
+hero inspections of openai.com, linear.app, cursor.com, anthropic.com,
+stripe.com, vercel.com, raycast.com, diabrowser.com, framer.com, toss.im
+(2026-07-09); Unbounce landing-page anatomy; VWO A/B testing guide.
+
 ## Eyebrow Restraint (MANDATORY)
 - Maximum 1 eyebrow per 3 sections (hero counts as 1)
 - Pre-flight mechanical check: count uppercase+tracking instances ≤ ceil(sectionCount / 3)

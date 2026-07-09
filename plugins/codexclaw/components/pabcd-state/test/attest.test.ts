@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validateAttest, coerceAttest, GATED_TRANSITIONS } from "../src/attest.ts";
+import { validateAttest, coerceAttest, GATED_TRANSITIONS, hasFailVerdictTail } from "../src/attest.ts";
 
 test("all four forward edges are gated (L2 parity)", () => {
   assert.deepEqual([...GATED_TRANSITIONS].sort(), ["A>B", "B>C", "C>D", "P>A"]);
@@ -30,15 +30,103 @@ test("WP3: A->B additionally requires auditOutput (reviewer verdict paste)", () 
   const noAudit = validateAttest("A", "B", { from: "A", to: "B", did: "audited the plan" });
   assert.equal(noAudit.ok, false);
   assert.match(noAudit.reason ?? "", /auditOutput/);
+  const noVerdict = validateAttest("A", "B", {
+    from: "A",
+    to: "B",
+    did: "audited the plan",
+    auditOutput: "reviewer: GO-WITH-FIXES; 2 blockers folded back",
+  });
+  assert.equal(noVerdict.ok, false);
+  assert.match(noVerdict.reason ?? "", /auditVerdict/);
   assert.equal(
     validateAttest("A", "B", {
       from: "A",
       to: "B",
       did: "audited the plan",
       auditOutput: "reviewer: GO-WITH-FIXES; 2 blockers folded back",
+      auditVerdict: "near-pass",
+      auditResidual: "2 blockers folded back: (1) rollback gap -> plan amended, (2) phantom constant -> rebutted",
     }).ok,
     true,
   );
+});
+
+test("A->B auditVerdict=fail is rejected with re-audit guidance", () => {
+  const r = validateAttest("A", "B", {
+    from: "A",
+    to: "B",
+    did: "audited the plan",
+    auditOutput: "VERDICT: FAIL",
+    auditVerdict: "fail",
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.reason ?? "", /SAME reviewer/);
+  assert.match(r.reason ?? "", /LOOP-REPAIR-01/);
+});
+
+test("A->B near-pass without auditResidual is rejected", () => {
+  const r = validateAttest("A", "B", {
+    from: "A",
+    to: "B",
+    did: "audited the plan",
+    auditOutput: "VERDICT: GO-WITH-FIXES (blockers=1)",
+    auditVerdict: "near-pass",
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.reason ?? "", /auditResidual/);
+});
+
+test("A->B pass with clean output advances", () => {
+  const r = validateAttest("A", "B", {
+    from: "A",
+    to: "B",
+    did: "audited the plan",
+    auditOutput: "review complete\nVERDICT: PASS",
+    auditVerdict: "pass",
+  });
+  assert.equal(r.ok, true);
+});
+
+test("A->B FAIL-tail contradiction is rejected", () => {
+  const r = validateAttest("A", "B", {
+    from: "A",
+    to: "B",
+    did: "audited the plan",
+    auditOutput: "findings fixed\nVERDICT: FAIL",
+    auditVerdict: "pass",
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.reason ?? "", /contradict/i);
+});
+
+test("A->B mid-text FAIL mention does not trip the tail", () => {
+  const r = validateAttest("A", "B", {
+    from: "A",
+    to: "B",
+    did: "audited the plan",
+    auditOutput: "scanned for FAIL markers; none apply\nVERDICT: PASS",
+    auditVerdict: "pass",
+  });
+  assert.equal(r.ok, true);
+});
+
+test("A->B earlier FAIL corrected by final PASS does not trip", () => {
+  const r = validateAttest("A", "B", {
+    from: "A",
+    to: "B",
+    did: "audited the plan",
+    auditOutput: "VERDICT: FAIL\nround 2 after fixes:\nVERDICT: PASS",
+    auditVerdict: "pass",
+  });
+  assert.equal(r.ok, true);
+});
+
+test("hasFailVerdictTail detects only the last verdict-shaped line in the final five lines", () => {
+  assert.equal(hasFailVerdictTail("notes\nVERDICT: FAIL"), true);
+  assert.equal(hasFailVerdictTail("scanned for FAIL markers; none apply\nVERDICT: PASS"), false);
+  assert.equal(hasFailVerdictTail("notes\nverdict = fail"), true);
+  assert.equal(hasFailVerdictTail("VERDICT: FAIL\n1\n2\n3\n4\n5"), false);
+  assert.equal(hasFailVerdictTail("VERDICT: FAIL\nround 2 after fixes:\nVERDICT: PASS"), false);
 });
 
 test("A->B rejects mismatched from/to", () => {
@@ -61,11 +149,23 @@ test("coerceAttest validates shape", () => {
   assert.equal(a?.exitCode, 0);
 });
 
-test("WP3: coerceAttest carries a trimmed auditOutput (drops non-string)", () => {
-  const a = coerceAttest({ from: "A", to: "B", did: "x", auditOutput: "  verdict tail  " });
+test("WP3: coerceAttest carries trimmed audit fields (drops wrong types)", () => {
+  const a = coerceAttest({
+    from: "A",
+    to: "B",
+    did: "x",
+    auditOutput: "  verdict tail  ",
+    auditVerdict: " NEAR-PASS ",
+    auditResidual: "  residuals folded  ",
+    auditRounds: 2,
+  });
   assert.equal(a?.auditOutput, "verdict tail");
-  const b = coerceAttest({ from: "A", to: "B", did: "x", auditOutput: 42 });
+  assert.equal(a?.auditVerdict, "near-pass");
+  assert.equal(a?.auditResidual, "residuals folded");
+  assert.equal(a?.auditRounds, 2);
+  const b = coerceAttest({ from: "A", to: "B", did: "x", auditOutput: 42, auditRounds: "2" });
   assert.equal(b?.auditOutput, undefined);
+  assert.equal(b?.auditRounds, undefined);
 });
 
 test("131: coerceAttest carries a typed override boolean (ignores non-boolean)", () => {

@@ -26,7 +26,7 @@ When the user provides a brand color (or you need to generate a palette from scr
 ### Practitioner Notes — Hue Budget & Tinted Neutrals (verified 2026-07-07)
 
 Field-tested extensions to the method above (Korean designer community;
-evidence: repo `devlog/_plan/260707_liquid_glass_motion_trends/000_research.md` §2):
+evidence: repo `devlog/_fin/260707_liquid_glass_motion_trends/000_research.md` §2):
 
 - **Hue budget:** most "AI-generated frontend looks off" complaints trace to
   too many meaning-carrying hues (Von Restorff effect: emphasize everything,

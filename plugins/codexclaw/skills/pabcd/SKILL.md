@@ -67,7 +67,8 @@ Accepted prefixes include `$codexclaw:cxc-orchestrate`, `$cxc-pabcd`,
 Advancing a phase is not the same as doing it (see `pabcd` faithful-execution). Each forward
 edge must carry its real artifact, not just an `--attest` string: P = the actual diff-level plan;
 A = an audit/review verdict that names blockers (`A>B` attest requires a non-empty
-`auditOutput` — the pasted tail of the dispatched reviewer subagent's verdict); B = the
+`auditOutput` — the pasted tail of the dispatched reviewer subagent's verdict — plus
+the main agent's `auditVerdict` judgment, AUDIT-LOOP-01); B = the
 implementation delta; C = fresh `tsc`/test/gate output (`C>D` attest requires a non-empty
 `checkOutput`; `exitCode` is optional but, if supplied, must be `0`); D = a cycle summary with
 evidence and the next-phase decision. A phase whose artifact is absent is not done, regardless
@@ -86,12 +87,13 @@ agent discipline that makes later audit possible.
 - **Terminal (agent-gated)** — `cxc orchestrate <verb> [--attest <json>] [--session <id>]
   [--cwd <path>] [--json]` drives the SAME `.codexclaw/sessions/<id>.json` state through
   the un-weakened gated `transition()`. An agent MUST supply real `--attest` evidence to
-  advance; `A>B` additionally needs `auditOutput` (reviewer verdict tail) and `C>D`
+  advance; `A>B` additionally needs `auditOutput` (reviewer verdict tail) + `auditVerdict`
+  (`pass|near-pass|fail`; `near-pass` also needs `auditResidual`) and `C>D`
   additionally needs `checkOutput` + a passing `exitCode`. Mutating verbs
   (I/P/A/B/C/D/reset) REQUIRE the explicit `--session <id>` (your own session id from
   the SessionStart context line, or the terminal key `cli`) — the implicit
   latest-session fallback is write-disabled, closing the ACCIDENTAL cross-session
-  collision path (G3, `devlog/_plan/260707_fork_fsm_bug/`; explicit replay of a
+  collision path (G3, `devlog/_fin/260707_fork_fsm_bug/`; explicit replay of a
   foreign id remains possible and is governed by the rule below). `status`
   keeps the fallback. **SESSION-IDENTITY-01 (STRICT):** the id from YOUR OWN
   SessionStart binding line — the MOST RECENT binding line in your current context —
@@ -128,7 +130,7 @@ These align with the directives the `pabcd-state` hook injects per phase:
 
 0. **I — Interview**: HITL-only requirements discovery; canonical rules live in `cxc-interview`. PABCD owns I->P and return-to-Interview phase edges.
 1. **P — Plan**: Explore first (read real code, configs, docs). **Slice and order phases by dependency/architecture structure (STRICT, PHASE-SPLIT-01)** — the orthodox unlimited-time build order: foundations (schema, contracts, core data flow) → core capabilities → integration → hardening/polish — so each phase consumes the verified output of the previous one. Effort-based bucketing is FORBIDDEN: never split or order phases by estimated effort or payoff speed — no "quick win vs heavy" buckets, no impact/effort matrices, no time-boxed slices. Phase boundaries encode the system's build order, not the schedule. DB/API/UI/test work inside a phase are subtasks, not top-level phases by default, and every phase must still close with something independently verifiable (build, tests, or a demonstrable surface). Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable accept criteria. For every planned conditional path (error handler, fallback, guard, gated branch, threshold behavior), the accept criteria name its **activation scenario** — how C will trigger it and what observable effect proves it ran (C-ACTIVATION-GROUNDING-01). For C2+ plans, begin with a loop-spec header: Loop archetype; Trigger; Goal (user-visible outcome); Non-goals; Verifier (command/gate and what it measures); Stop condition; Memory artifact; Expected terminal outcomes; Escalation condition. HOTL goal plans also state the `cxc-loop` HOTL resource bounds. For open-ended optimization, include the divergence plan, deterministic selection rule, and telemetry schema; if the verifier only reports scalar outcome, instrumentation is B's first work item before candidates. Ground every decision in code you have read. No implementation yet. For broad or unfamiliar repos, include a compact tree, detected conventions, which existing logs/docs you will reuse, and the SoT sync target (SOT-SYNC-01): which general source-of-truth doc (architecture/INDEX docs, or equivalent) this unit will patch in C — or, if the repo has none, the plan recommends creating one (dev-scaffolding §2.1).
-2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent reviewer (`spawn_agent`) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. For each conditional path the plan adds, the reviewer also asks: is the trigger reachable at all from states the system actually visits (callers exist, preconditions can co-occur, upstream code does not consume the trigger first), and does the plan name its activation scenario (C-ACTIVATION-GROUNDING-01)? An unreachable-by-construction branch is a plan blocker, not a C-phase discovery. The reviewer also checks: new devlog phase documents use the numbered lexicographic filename convention; bare-named or research/implementation-mixed docs are a FAIL (LEXICO-SPLIT-01). Multi-phase units satisfy DIFFLEVEL-ROADMAP-01: every roadmap phase has a diff-level decade doc (no outline-only or missing phases), and the phase map is dependency-ordered, not effort-bucketed (PHASE-SPLIT-01). Fold fixes back into the plan and record the verdict. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict) — a form-only bar: silently skipping the paste fails the gate, but the gate cannot verify the paste's provenance, so faithful execution (really dispatching the reviewer) remains the agent's obligation.
+2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent reviewer (`spawn_agent`) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. For each conditional path the plan adds, the reviewer also asks: is the trigger reachable at all from states the system actually visits (callers exist, preconditions can co-occur, upstream code does not consume the trigger first), and does the plan name its activation scenario (C-ACTIVATION-GROUNDING-01)? An unreachable-by-construction branch is a plan blocker, not a C-phase discovery. The reviewer also checks: new devlog phase documents use the numbered lexicographic filename convention; bare-named or research/implementation-mixed docs are a FAIL (LEXICO-SPLIT-01). Multi-phase units satisfy DIFFLEVEL-ROADMAP-01: every roadmap phase has a diff-level decade doc (no outline-only or missing phases), and the phase map is dependency-ordered, not effort-bucketed (PHASE-SPLIT-01). **Audit loop (STRICT, AUDIT-LOOP-01):** A is a loop — audit -> synthesize -> amend plan -> re-audit — not a single round. Exit A>B only when the MAIN agent judges the round **pass** (reviewer approved) or **near-pass**: every High/Critical blocker was folded into the plan as a concrete amendment or explicitly rebutted with recorded rationale, and only non-blocking residuals remain (`GO-WITH-FIXES; 2 blockers folded back` qualifies — the main agent is the judge, not a string parser). A FAIL round never exits: apply REVIEW-SYNTHESIS-01 (§11.3), amend the plan, and re-audit with the SAME reviewer (`followup_task` to its task_name — v2 lifecycle, DISPATCH-ACTOR-01); LOOP-REPAIR-01 bounds the loop — after 3 failed rounds return to P with a changed plan (HITL may return to Interview). The dispatch packet attaches `$cxc-dev-code-reviewer` AND `$cxc-search` (reference/version/external-claim verification rides the search ladder) and instructs the reviewer to end with a normalized final line `VERDICT: PASS | GO-WITH-FIXES (blockers=N) | FAIL` plus numbered blockers. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict) plus `auditVerdict` (`pass|near-pass|fail` — the MAIN agent's own judgment of the round); `near-pass` additionally requires `auditResidual` naming each residual blocker and its disposition (folded/rebutted). A declared `fail` never advances, and a pasted tail whose final verdict line says FAIL is rejected regardless of the claimed judgment. Still a form-only bar: the gate cannot verify the paste's provenance, so faithful execution (really dispatching the reviewer, really looping) remains the agent's obligation.
    When the verdict is FAIL, fold-back follows REVIEW-SYNTHESIS-01 (§11.3): synthesize root causes and accept/rebut decisions before re-planning or re-dispatching the reviewer.
 3. **B — Build**: Implement the audited plan in small atomic commits. Verify as you go. Stay inside the plan's scope boundary; surface deviations instead of silently expanding scope.
 4. **C — Check**: Run the real verification — build, typecheck, and targeted tests, plus adversarial review. Capture fresh command output as evidence. Do not claim pass without artifact-level proof. When the unit changed a user-facing surface (web/TUI/CLI/API), C also closes with a `cxc-qa` evidence matrix — real invocations, adversarial classes, teardown receipts (E7 discipline; see `skills/qa/SKILL.md`).
@@ -186,7 +188,7 @@ These align with the directives the `pabcd-state` hook injects per phase:
 
 ## Work-Phase Loop (multi-pass tasks)
 
-**Terminology**: a *work-phase* is one outcome slice of the goal (e.g. "Phase 3: Management API"); a *PABCD-phase* is one letter P/A/B/C/D of a single cycle. They are not the same.
+**Terminology**: a *work-phase* is one outcome slice of the goal (e.g. "Phase 3: Management API"); a *PABCD-phase* is one letter P/A/B/C/D of a single cycle. They are not the same. Work-phases need not be slices of one feature: successive cycles in the SAME session may target completely different features or plans under the same goal (LOOP-UNIT-CHAIN-01, `cxc-loop`).
 
 **Invariant — one work-phase = one full PABCD cycle.** Run P→A→B→C→D for a work-phase, close D (state → IDLE), then start the next work-phase at P. Do NOT run B for several work-phases back-to-back, and do NOT commit a work-phase straight out of B without passing C and D.
 
@@ -252,6 +254,11 @@ later cycle's P re-verifies its pre-written doc against the current codebase and
 amends it before building. The first pass MAY be a design-only PABCD pass (Phase 0):
 a code-free whole-system design/documentation cycle that produces exactly this
 difflevel roadmap before the first implementation work-phase.
+The slice map is APPEND-friendly (LOOP-UNIT-CHAIN-01): an independent unit discovered
+mid-loop — including a feature unrelated to the current slice — becomes a NEW
+work-phase appended to the map/goalplan via a P-phase amendment, then runs as the next
+cycle in the same session. "This needs its own PABCD" is a plan statement, never a
+reason to close the goal or wait for a new session.
 
 HITL and goal PABCD may both use `cxc-loop` divergence/collapse. In HITL, the agent
 may choose divergence deliberately during I/P when intent is open, algorithmic direction
@@ -361,7 +368,9 @@ See `dev` §0.0 for the full class definitions and tie-break rules.
 Full rules live in `references/loop-engineering.md`. Key rules:
 
 - **§11.1 Loop values:** feedback must change the next action (otherwise it is a retry);
-  the verifier outranks the prompt; memory lives on disk; budget exhaustion != done.
+  the verifier outranks the prompt; memory lives on disk; budget exhaustion != done;
+  context pressure != budget exhaustion (compaction is survivable by design — checkpoint
+  durable state and continue; "context is getting large" never justifies closing a goal).
 - **§11.2 Terminal-state vocabulary:** D reports one of DONE / NOOP / BLOCKED / UNSAFE /
   NEEDS_HUMAN / BUDGET_EXHAUSTED. These are report states, not FSM states.
 - **§11.3 Repair-loop discipline (LOOP-REPAIR-01):** 2 consecutive same-failure repairs ->
@@ -379,7 +388,10 @@ Full rules live in `references/loop-engineering.md`. Key rules:
   scope, token/cost budget, and wall-clock bound. C4 + unstated scope = ESCALATE.
 - **§11.6 Continuation doctrine (LOOP-CONTINUE-01):** do not redefine the objective
   downward; audit completion against repo state, not memory; read durable state first;
-  IDLE is not the end while work remains — start the next work-phase at P.
+  IDLE is not the end while work remains — start the next work-phase at P. Work-phases
+  chain HETEROGENEOUS units in one session (LOOP-UNIT-CHAIN-01): an independent feature
+  discovered mid-loop is appended to the plan and started at P, not deferred to a new
+  session or used to justify closing the goal.
 - **§11.7 Divergence/collapse:** convergence-first default. Mode for optimization
   archetype only. Enter deliberately (HITL I/P) or on plateau (HOTL). Collapse early
   for spec work, late for metric work. Turn off after resolution. Full rules in
@@ -391,9 +403,9 @@ Interview sub-modes and Catalog Discovery rules live in `$cxc-interview`
 (INTERVIEW-CATALOG-01, CATALOG-DESIGN-FIRST-01). The option ontology YAML lives at
 `references/catalog-discovery.yaml` in this skill directory.
 
-- **Deferred-tool trap (DISPATCH-DISCOVER-01):** the collab tools are `multi_agent_v1.spawn_agent` / `wait_agent` / `send_input` / `resume_agent` / `close_agent`, and on the live runtime they may NOT appear in your visible tool list — they are deferred behind `tool_search`. If `spawn_agent` is not visible, run `tool_search` for "spawn agent" FIRST; do not conclude dispatch is impossible (`structure/60_native_capabilities.md` §1).
+- **Tool-surface discovery (DISPATCH-DISCOVER-01):** since the dev2 switch (260709) the collab tools are the flat multi_agent_v2 set — `spawn_agent` (task_name + message required, `fork_turns:"none"` for role dispatches) / `send_message` / `followup_task` / `wait_agent` / `interrupt_agent` / `list_agents` — exposed as DIRECT tools, not deferred. Defensive fallback: if `spawn_agent` is still not visible (older session pinned to v1), run `tool_search` for "spawn agent" FIRST; a v1-pinned session shows the legacy `multi_agent_v1.*` namespace (`send_input`/`resume_agent`/`close_agent`) — use those verbs there; do not conclude dispatch is impossible (`structure/60_native_capabilities.md` §1).
 - The main agent owns the plan and the build by default. Subagents (`spawn_agent`) are scoped helpers.
-- **Lifecycle patterns:** fan out by spawning N agents then ONE `wait_agent` on all their ids (not N sequential waits); steer or interrupt a running agent with `send_input`; `resume_agent` reopens a closed agent with its context intact (cheaper than respawning for follow-ups); `close_agent` shuts down the agent AND its spawn subtree. Independent tool calls batch through `multi_tool_use.parallel`.
+- **Lifecycle patterns (v2):** fan out by spawning N agents (each with a distinct `task_name`) then `wait_agent` for mailbox updates (bounded `timeout_ms`, re-wait as needed — wait returns update SUMMARIES, not content); send a follow-up task to an existing agent with `followup_task` (triggers a turn when idle — this replaces v1 respawn/`resume_agent`, the agent keeps its context); deliver context without triggering a turn with `send_message`; stop a runaway turn with `interrupt_agent` (the agent stays addressable); check liveness with `list_agents`. There is no `close_agent` — retiring an agent means you stop addressing it; the concurrency budget is `features.multi_agent_v2.max_concurrent_threads_per_session`. Independent tool calls batch through `multi_tool_use.parallel`.
 - CSV batch fan-out (`spawn_agents_on_csv` + `report_agent_job_result`, one worker per row) exists in codex-rs but is flag-gated (`enable_fanout`, not live) — do NOT instruct it until the flag ships; check `structure/60_native_capabilities.md` §4.
 - Use a reviewer subagent at the A gate (and the C gate for C3/C4) to challenge the plan/implementation independently — receive the verdict, act on it, continue. Subagents are verifiers and scoped workers, not approval gates.
 - When delegating writes, give each subagent a disjoint write scope (own files/dirs) so parallel work never collides; tell it the other agents exist and not to revert their edits.

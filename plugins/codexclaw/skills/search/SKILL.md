@@ -137,12 +137,16 @@ the search space you chose.
   fills the gaps and chases the strongest leads from wave 1.
 - Stop rule: stop after three consecutive no-new-lead results, or at five waves,
   whichever comes first. State which stop fired.
-- Dispatch mechanics: the collab tools are `multi_agent_v1.*` and may need a
-  `tool_search` to become visible. Spawn the whole wave, then ONE `wait_agent`
-  on all wave ids; `send_input` chases a strong lead on a live explorer instead
-  of respawning; `resume_agent` reopens a closed wave-1 explorer for wave-2
-  follow-ups with its context intact; `close_agent` cleans up a finished wave
-  (it closes the agent's subtree too).
+- Dispatch mechanics (v2, dev2 switch 260709): the collab tools are the flat
+  multi_agent_v2 set (`spawn_agent` with a distinct `task_name` per explorer,
+  `send_message`, `followup_task`, `wait_agent`, `interrupt_agent`,
+  `list_agents`), exposed DIRECT. Spawn the whole wave, then `wait_agent` for
+  mailbox updates across the wave (bounded timeouts, re-wait between updates);
+  `followup_task` chases a strong lead on an existing explorer instead of
+  respawning — a wave-1 explorer keeps its context for wave-2 follow-ups (no
+  resume needed); `interrupt_agent` stops a runaway explorer; there is no
+  close verb — a finished wave is simply no longer addressed (`list_agents`
+  shows what is still live).
 
 #### Journal + claim-ledger
 
@@ -181,6 +185,12 @@ auto-loads the skill at launch and follows its Tier 1/2 tool guidance
 (`web_search` for discovery, then open the source for proof). The skill body is
 the single source of truth for the tool list; do not duplicate it as prose in
 the spawn message.
+
+PABCD A-gate audit/reviewer dispatches are in scope too: a plan auditor must
+verify references and external/current claims, so the audit dispatch packet
+attaches `$cxc-search` alongside `$cxc-dev-code-reviewer` (AUDIT-LOOP-01), and
+the reviewer role baseline carries it by default (spawn-wrapper
+`ROLE_BASE_SKILLS.reviewer`).
 
 The portable default is a **$cxc mention in the spawn message** — the child's
 first turn parses it and injects the full SKILL.md body, on BOTH the v1 and v2
@@ -259,7 +269,8 @@ spend Tier 3 subagents on a question Tier 1+2 already settled.
 ## Notes
 
 - This skill is implicit-visible as metadata (`allow_implicit_invocation:
-  true`, part of the six-skill implicit set with `dev`); the body is reached
+  true`, part of the implicit set with `dev` — canonical list: `dev` SKILL.md
+  Visibility decision); the body is reached
   by trigger words or by `dev`-hub routing.
 - Query rewrite runs prompt-side. `agbrowse` is an OPT-IN, lazily-resolved Tier-2 proof
   helper (HTTP-first; local-CDP escalation only); it is not bundled and not required —

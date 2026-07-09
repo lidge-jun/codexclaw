@@ -57,6 +57,36 @@ Gradient overuse is the top 2026 anti-slop signal. Treat every gradient as a sca
 - Radial glow washes behind dark heroes are decorative filler unless they model a real light source
 - Every gradient must encode something: depth, light, state, or one brand moment. "Empty area needed texture" is not a reason.
 
+### Opaque Functional Surfaces (FE-GRADIENT-02, DEFAULT, verified 2026-07-09)
+
+A tinted gradient wash on an OPAQUE functional panel — `background:
+linear-gradient(accent-tint, transparent), surface` on cards, panels, sidebars,
+callouts, badges, or buttons inside tools/dashboards — is the product-UI
+equivalent of gradient soup, regardless of hue. It reads as dated marketing
+chrome: color as decoration instead of state, and contrast that varies
+top-to-bottom so text/borders/nested controls fight a changing background.
+
+Decision rule (surface role x opacity):
+
+```text
+Ambient / expressive / translucent / media-like surface
+  -> gradient allowed if it encodes brand mood, light, depth, or material.
+Opaque + functional (repeated cards, panels, sidebars, badges, task UI)
+  -> NO gradient fill. Emphasize with exactly ONE channel:
+     flat alpha/step tint | 1px accent border or ring | left/top accent bar |
+     elevation shadow | semantic status token.
+```
+
+What premium systems do instead (measured 2026-07-09): Primer
+`--bgColor-accent-muted` flat fill + `--borderColor-accent-muted`; Radix accent
+steps 3-5 for component backgrounds, 6-8 for borders; shadcn flat `--accent`
+surface tokens; Geist neutral surface + accent border on selected; Stripe Apps
+neutral panel body + small accent bar. Korean premium services (Toss, Kakao,
+Naver, Channel Talk, Daangn — live-measured) all use flat tint/border on
+functional panels; their gradients live only in hero backgrounds and
+illustrations. See `color-system.md` § Accent Surface Emphasis for token
+recipes.
+
 ## One-Note Theme Ban (FE-ONENOTE-01, DEFAULT)
 
 Full-page single-hue theming where background, borders, text accents, badges, glows, and imagery all resolve to one hue family. This is the 2026 dark-mode equivalent of purple-on-white.
@@ -170,6 +200,8 @@ Before delivering any page, read all visible text aloud (mentally). Check:
 - Cute visual assets treated as a Korean default rather than a domain decision
 - Childish copy in finance, public service, auth, payment, security, B2B, admin, or developer tools
 - Oversized ultra-bold Hangul hero: Latin-poster sizing/weight on long Korean copy (100px+ / weight 800-900 / line-height ~0.9) reads as a heavy graphic mass even on landing/campaign surfaces — Korean premium services size heroes ~56-72px / weight 700 / line-height 1.25-1.4 (see `korea-2026.md` § Korean Hero / Large Display Type)
+- Split-hero template (FE-HERO-SPLIT-01): left bold headline + right boxed screenshot/device-mockup card is the exhausted Stripe->Linear template lineage ("Linear Design" is a reproducible kit category, 2026) — never choose it unprompted; build it only on explicit user request (paid-conversion LPs are the one context to *propose* it). Default: make the product visual the stage (full-width, background, environment, or interactive demo), never a right-column card (see `layout-discipline.md` § Hero Composition Grammar)
+- "tasteslop" serif shortcut: adopting a display serif purely as an AI-premium signal, without editorial structure (long-form typography, page-like surfaces, restrained palette), is the named 2026 backlash tell — serif direction is domain-gated and must be earned, at light display weights 330-400, never pasted onto a SaaS layout (see `aesthetics.md` § Serif Discipline)
 
 ---
 
@@ -279,7 +311,7 @@ Slop signals:
 - No "skip to content" link (a11y)
 - No cookie consent (if jurisdiction requires)
 - Random dark sections in a light page → commit to one theme or use subtle shade shifts
-- Empty flat sections with no depth → add background imagery, patterns, or gradients
+- Empty flat sections with no depth → add background imagery, patterns, or an ambient gradient (marketing/ambient surfaces only — never gradient fills on opaque functional panels; see FE-GRADIENT-02)
 
 ---
 

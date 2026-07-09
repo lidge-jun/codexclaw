@@ -76,7 +76,7 @@ test("AGENT-GATED: P->A WITH valid --attest advances + ledger reason 'cli'", () 
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
-test("WP3: A->B without auditOutput is rejected; with it, advances", () => {
+test("WP3: A->B without auditOutput is rejected; with verdict, advances", () => {
   const cwd = freshCwd();
   try {
     seedSession(cwd, "s2b", "A");
@@ -86,11 +86,27 @@ test("WP3: A->B without auditOutput is rejected; with it, advances", () => {
     assert.equal(readState(cwd, "s2b").phase, "A"); // unchanged
     const withAudit = runOrchestrateCli({
       verb: "B",
-      attest: { from: "A", to: "B", did: "audit folded back", auditOutput: "reviewer: GO; refs verified" },
+      attest: { from: "A", to: "B", did: "audit folded back", auditOutput: "reviewer: GO; refs verified", auditVerdict: "pass" },
       session: "s2b", cwd, json: false,
     });
     assert.equal(withAudit.code, 0);
     assert.equal(readState(cwd, "s2b").phase, "B");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("A->B CLI rejects auditVerdict=fail with blocked reason", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "s2c", "A");
+    const r = runOrchestrateCli({
+      verb: "B",
+      attest: { from: "A", to: "B", did: "audit found blockers", auditOutput: "VERDICT: FAIL", auditVerdict: "fail" },
+      session: "s2c", cwd, json: false,
+    });
+    assert.equal(r.code, 1);
+    assert.match(r.output, /blocked/);
+    assert.match(r.output, /SAME reviewer/);
+    assert.equal(readState(cwd, "s2c").phase, "A");
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 

@@ -7,9 +7,11 @@
  * hook in the same turn does not double-inject.
  *
  * Stop: active under a native goal only. It returns a bounded
- * `{decision:"block",reason}` continuation envelope while a PABCD cycle is in flight,
- * then releases on re-entry, IDLE/inactive state, no active goal, context pressure, or
- * the same-phase stagnation cap.
+ * `{decision:"block",reason}` continuation envelope while a PABCD cycle is in flight —
+ * or, since 260709 (GOAL-IDLE-CONTINUE-01), while an ACTIVE goal is parked with no
+ * in-flight cycle (arming nudge). It releases on: no active goal, phase I, context
+ * pressure, or the same-phase stagnation cap (the single total-termination bound now
+ * that the old unconditional `stop_hook_active` release is gone).
  *
  * Ground truth:
  *  - payload field names: codex-rs hooks/src/events/{user_prompt_submit,stop}.rs (snake_case)
@@ -161,11 +163,17 @@ const PHASE_DIRECTIVES: Partial<Record<Phase, string>> = {
     "[codexclaw: AUDIT]",
     "Audit the plan adversarially before building. Dispatch an independent reviewer",
     "(sub-agent) to challenge assumptions, find blockers, and verify references. If",
-    "spawn_agent is not in your visible tools, tool_search for it first (the",
-    "multi_agent_v1.* collab tools are deferred). Attach the discipline as $cxc mentions",
-    "in the spawn message (e.g. $cxc-dev-code-reviewer plus the matching $cxc-dev-*",
-    "surface skill); the spawn-attach hook fills in missing baselines. Fold fixes back",
-    "into the plan and record the verdict.",
+    "spawn_agent is not in your visible tools, tool_search for it first (v2 collab",
+    "tools — spawn_agent/send_message/followup_task/wait_agent/interrupt_agent/",
+    "list_agents — are DIRECT since the dev2 switch; only v1-pinned sessions defer",
+    "them). Reuse the SAME reviewer across audit rounds via followup_task to its",
+    "task_name. Attach the discipline as $cxc mentions",
+    "in the spawn message ($cxc-dev-code-reviewer AND $cxc-search plus the matching",
+    "$cxc-dev-* surface skill); the spawn-attach hook fills in missing baselines. Ask",
+    "the reviewer to end with a final line: VERDICT: PASS | GO-WITH-FIXES (blockers=N)",
+    "| FAIL. A is a loop (AUDIT-LOOP-01): on FAIL, synthesize (REVIEW-SYNTHESIS-01),",
+    "amend the plan, re-audit with the SAME reviewer; advance only when YOU judge the",
+    "round pass or near-pass (all blocking findings folded into the plan or rebutted).",
   ].join("\n"),
   B: [
     "[codexclaw: BUILD]",
@@ -532,10 +540,31 @@ export const MAX_STOP_BLOCKS = 3;
 export const PLATEAU_METRIC_RECORDS = 2;
 export const PLATEAU_NOISE_FLOOR = 0;
 
+/**
+ * L6 — shared stagnation guard: bound consecutive Stop blocks at the SAME phase. A real
+ * transition resets the counter (done at the transition persist sites), so a healthy
+ * cycle gets a fresh budget per phase; a stuck agent releases after MAX_STOP_BLOCKS.
+ * Returns "release" when the cap is exceeded (counter reset + release), else the
+ * persisted consecutive-block count. With guard 1 removed (260709) this cap is the
+ * single total-termination bound for every Stop block path, including GOAL-IDLE
+ * blocks (which key the counter at phase "IDLE").
+ */
+function bumpStopCounter(cwd: string, state: State): number | "release" {
+  const samePhase = state.stopBlockPhase === state.phase;
+  const nextCount = samePhase ? state.stopBlockCount + 1 : 1;
+  if (nextCount > MAX_STOP_BLOCKS) {
+    // give up the loop: reset the counter and release so the turn can end.
+    writeState(cwd, { ...state, stopBlockPhase: null, stopBlockCount: 0 });
+    return "release";
+  }
+  writeState(cwd, { ...state, stopBlockPhase: state.phase, stopBlockCount: nextCount });
+  return nextCount;
+}
+
 const STOP_NEXT_COMMAND: Partial<Record<Phase, string>> = {
   I: '`cxc orchestrate P --attest \'{"from":"I","to":"P","did":"interview complete with recorded requirements"}\'`',
   P: '`cxc orchestrate A --attest \'{"from":"P","to":"A","did":"diff-level plan written with files and acceptance criteria"}\'`',
-  A: '`cxc orchestrate B --attest \'{"from":"A","to":"B","did":"independent audit PASS; blockers folded into plan","auditOutput":"<reviewer verdict tail>"}\'`',
+  A: '`cxc orchestrate B --attest \'{"from":"A","to":"B","did":"audit loop closed: blockers folded into plan","auditOutput":"<reviewer verdict tail>","auditVerdict":"pass|near-pass","auditResidual":"<near-pass only: residual blockers + disposition>"}\'`',
   B: '`cxc orchestrate C --attest \'{"from":"B","to":"C","did":"implementation completed and verifier reviewed it"}\'`',
   C: '`cxc orchestrate D --attest \'{"from":"C","to":"D","did":"checks passed","checkOutput":"<test tail>","exitCode":0}\'`',
   D: '`cxc orchestrate reset` after the DONE summary is recorded',
@@ -619,6 +648,42 @@ export function readStopWorkContext(cwd: string, state: State): StopWorkContext 
   };
 }
 
+/**
+ * GOAL-IDLE-CONTINUE-01 (260709) — the Stop block for "goal ACTIVE but no PABCD cycle
+ * in flight". The old guard 2a released this state silently, so a session could park an
+ * active goal at IDLE forever (019f4407: goal created, FSM never entered, turn ended).
+ * The reason names the two honest exits: arm the next work-phase (`orchestrate P`), or
+ * close the goal for real (`update_goal complete` — gated by GOAL-COMPLETE-GATE-01 when
+ * a goalplan is bound — or `blocked` for external blockers). When a goalplan is bound,
+ * the remaining work is named; when it is bound but unregistered (empty), the block says
+ * to fill it; when none is bound, it points at `cxc loop init`.
+ */
+export function buildGoalIdleBlock(cwd: string, state: State, sessionId: string): string {
+  const lines = [
+    "[codexclaw — goal continuation] A host goal is ACTIVE but no PABCD cycle is in flight.",
+    "GOAL-IDLE-CONTINUE-01: IDLE is not the end while the goal is active (LOOP-CONTINUE-01). Do not end the turn here.",
+    `Either start the next work-phase now: \`cxc orchestrate P --session ${sessionId} --attest '{"from":"IDLE","to":"P","evidence":"<diff-level plan for the next work-phase>"}'\``,
+    'or close the goal honestly: `update_goal` status "complete" (only when the recorded criteria are proven — the E8 gate checks a bound goalplan) or status "blocked" for an external blocker.',
+    "LOOP-UNIT-CHAIN-01: work-phases chain HETEROGENEOUS units in one session — an independent feature/plan discovered mid-loop is simply the NEXT work-phase (append it to the goalplan, then orchestrate P). \"Needs its own PABCD\" is a plan statement, not a session boundary; do not close the goal while naming remaining features that fit the objective.",
+  ];
+  const plan = state.slug ? readGoalplan(cwd, state.slug) : null;
+  const work = readStopWorkContext(cwd, state);
+  if (work) {
+    if (work.nextTaskTitle) lines.push(`Remaining work: ${work.nextTaskTitle}`);
+    if (work.expectedEvidence) lines.push(`Required evidence: ${work.expectedEvidence}`);
+    if (work.ledgerPath) lines.push(`Record progress in: ${work.ledgerPath}`);
+  } else if (plan && plan.workPhases.length === 0 && plan.criteria.length === 0) {
+    lines.push(
+      `The bound goalplan '${state.slug}' is EMPTY: register workPhases[]/criteria[] in .codexclaw/goalplans/${state.slug}/goalplan.json (schema in $cxc-loop) so remaining work is durable and the E8 gate can pass.`,
+    );
+  } else if (!state.slug) {
+    lines.push(
+      `No goalplan is bound to this session: run \`cxc loop init --objective "<the goal objective>" --session ${sessionId}\` and register workPhases[]/criteria[] before the next work-phase.`,
+    );
+  }
+  return `${JSON.stringify({ decision: "block", reason: lines.join("\n") })}\n`;
+}
+
 export function buildPlateauDivergeBlock(phase: Phase, plateau: PlateauCheck, cwd?: string, sessionId?: string): string {
   const label = STAGE_LABELS[phase] ?? phase;
   const values = plateau.values.length > 0 ? plateau.values.join(" -> ") : "n/a";
@@ -667,22 +732,48 @@ function objectivePlateau(cwd: string, sessionId: string): PlateauCheck {
 /**
  * Stop handler — L6 active continuation with a bounded stagnation guard so the loop
  * ALWAYS terminates. Blocks (keeps the agent going) only when a PABCD cycle is genuinely
- * in flight under an active goal; releases via any of: stop_hook_active, IDLE/inactive
- * orchestration, no active goal, context pressure, or the MAX_STOP_BLOCKS cap.
+ * in flight under an active goal, OR when an ACTIVE goal is parked with no in-flight
+ * cycle (GOAL-IDLE-CONTINUE-01: arming nudge). Releases via any of: no active goal,
+ * phase I (interview firewall), context pressure, or the MAX_STOP_BLOCKS cap.
+ *
+ * 260709 (lazygap loop-enforcement patch):
+ *  - guard 1 (`stop_hook_active` → unconditional release) is REMOVED. Under the old
+ *    guard an armed HOTL loop got exactly ONE forced continuation per turn — the
+ *    second Stop of the chain carried stop_hook_active and released even after real
+ *    phase progress, which is the "step-by-step cut" the loop doctrine forbids.
+ *    Termination stays total: the per-phase MAX_STOP_BLOCKS stagnation cap (reset on
+ *    every real transition) bounds every continuation chain that stops progressing.
+ *  - GOAL-IDLE-CONTINUE-01: an ACTIVE goal with no in-flight cycle used to release
+ *    silently (guard 2a), so "goal armed but PABCD never entered" (019f4407) ended
+ *    turns freely. It now gets the same bounded block, naming the arming command
+ *    (`cxc orchestrate P --session <id>`), the goalplan's remaining work when one is
+ *    bound, and the honest close-out path (update_goal complete gated by E8 / blocked).
+ *    Side effect by design: the counter write creates the session state file, so the
+ *    suggested orchestrate command passes the G2 unknown-session guard afterwards.
  */
 export function handleStop(payload: StopPayload): string {
   if (payload.hook_event_name !== "Stop") return "";
-  // guard 1: codex is already in a stop-hook-driven continuation -> release.
-  if (payload.stop_hook_active) return "";
 
   const state = readState(payload.cwd, payload.session_id);
-  // guard 2a: no cycle in flight -> nothing to continue.
-  if (!state.orchestrationActive || state.phase === "IDLE") return "";
   // guard 2a': the autonomous Stop loop is PABCD-only. The Interview is HITL-only and
   // is NEVER driven by Stop — even if a session is sitting at phase=I when a goal is
   // (or becomes) active, the loop does not continue the interview. This matches the
   // goal firewall (Interview never fires under a goal) on the Stop surface too.
   if (state.phase === "I") return "";
+
+  const goalActive = getGoalActiveStatus(payload.session_id) === "active";
+  const inFlight = state.orchestrationActive && state.phase !== "IDLE";
+
+  // guard 2a (amended by GOAL-IDLE-CONTINUE-01): with no cycle in flight a plain
+  // interactive session releases exactly as before; an ACTIVE goal instead gets a
+  // bounded arming block — "IDLE is not the end while work remains" (LOOP-CONTINUE-01).
+  if (!inFlight) {
+    if (!goalActive) return "";
+    // bail: don't pile on during context-pressure/compaction recovery.
+    if (isContextPressureTail(readTranscriptTail(payload.transcript_path))) return "";
+    if (bumpStopCounter(payload.cwd, state) === "release") return "";
+    return buildGoalIdleBlock(payload.cwd, state, payload.session_id);
+  }
 
   // C-RENDER-GROUNDING-01 advisory: when phase === C and render-artifact files were
   // modified this cycle but no render-observation tool was recorded, emit a SOFT WARNING.
@@ -691,7 +782,7 @@ export function handleStop(payload: StopPayload): string {
   const renderAdvisory = renderGroundingAdvisoryForStop(payload.cwd, state.phase);
 
   // guard 2b: only an ACTIVE goal arms the autonomous loop (interactive sessions pause).
-  if (getGoalActiveStatus(payload.session_id) !== "active") {
+  if (!goalActive) {
     // Interactive session: no block. Emit the render advisory as additionalContext if applicable.
     if (renderAdvisory) return buildContextOutput("Stop", renderAdvisory);
     return "";
@@ -699,17 +790,7 @@ export function handleStop(payload: StopPayload): string {
   // bail: don't pile on during context-pressure/compaction recovery.
   if (isContextPressureTail(readTranscriptTail(payload.transcript_path))) return "";
 
-  // stagnation guard: bound consecutive blocks at the SAME phase. A real transition
-  // resets the counter (done at the transition persist sites), so a healthy cycle gets
-  // a fresh budget per phase; a stuck agent releases after MAX_STOP_BLOCKS.
-  const samePhase = state.stopBlockPhase === state.phase;
-  const nextCount = samePhase ? state.stopBlockCount + 1 : 1;
-  if (nextCount > MAX_STOP_BLOCKS) {
-    // give up the loop: reset the counter and release so the turn can end.
-    writeState(payload.cwd, { ...state, stopBlockPhase: null, stopBlockCount: 0 });
-    return "";
-  }
-  writeState(payload.cwd, { ...state, stopBlockPhase: state.phase, stopBlockCount: nextCount });
+  if (bumpStopCounter(payload.cwd, state) === "release") return "";
   const plateau = objectivePlateau(payload.cwd, payload.session_id);
   if (plateau.flat) return buildPlateauDivergeBlock(state.phase, plateau, payload.cwd, payload.session_id);
   // 040: enrich the block reason with goalplan-derived remaining work (text-only, after
