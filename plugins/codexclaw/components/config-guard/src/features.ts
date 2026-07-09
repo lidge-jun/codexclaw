@@ -5,7 +5,6 @@
 
 export const DECLARED_FEATURES = [
   "multi_agent",
-  "multi_agent_v2",
   "goals",
   "hooks",
   "default_mode_request_user_input",
@@ -15,13 +14,10 @@ export type DeclaredFeature = (typeof DECLARED_FEATURES)[number];
 
 // Flags that are OFF by default in codex and that codexclaw must turn on. Soft flags may
 // fail to enable (e.g. under-development / unavailable in this build) without failing activation.
-// multi_agent_v2 is SOFT: it is stage under-development, so a future codex build may refuse
-// or remove it; when the enable fails, the version-resolution ladder falls back to stable
-// multi_agent (V1) automatically (260709 dev2 switch).
-export const SOFT_FEATURES: ReadonlySet<string> = new Set([
-  "default_mode_request_user_input",
-  "multi_agent_v2",
-]);
+// multi_agent_v2 is NOT declared: codexclaw does not force-enable or manage it.
+// Users who want V2 enable it manually in config.toml; the version-resolution
+// ladder falls back to stable multi_agent (V1) automatically.
+export const SOFT_FEATURES: ReadonlySet<string> = new Set(["default_mode_request_user_input"]);
 
 export interface CodexRunResult {
   stdout: string;

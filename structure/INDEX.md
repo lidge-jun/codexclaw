@@ -27,7 +27,7 @@ where" hub; the numbered files carry the durable reasoning.
 | [`30_contradiction_register.md`](30_contradiction_register.md) | Truth table of doc↔code contradictions (claim vs reality, file:line), the input to L14 + any status-sync gate. |
 | [`40_enforcement_methods.md`](40_enforcement_methods.md) | Enforcement ladder E1-E8: how strongly each intent can be enforced given the four Codex hook surfaces, and which tier to pick per contradiction. |
 | [`50_emergence_gap.md`](50_emergence_gap.md) | Why PABCD is a convergence (exploitation) machine with no divergence/plateau surface — the structural weakness on emergent/algorithmic tasks (NYPC 3.5/8 diagnosis), with an honest E-tier fix taxonomy. |
-| [`60_native_capabilities.md`](60_native_capabilities.md) | Live-verified Codex native capability matrix (browser/computer use, DIRECT `multi_agent_v2` collab toolset (dev2 switch 260709; v1 deferral note kept as legacy fallback), `update_plan`, `view_image`, `imagegen`, flag-gated CSV fan-out) and the per-skill gap map the WP-N track patches. |
+| [`60_native_capabilities.md`](60_native_capabilities.md) | Live-verified Codex native capability matrix (browser/computer use, deferred `multi_agent_v1.*` collab tools behind `tool_search` (V1 default; V2 opt-in), `update_plan`, `view_image`, `imagegen`, flag-gated CSV fan-out) and the per-skill gap map the WP-N track patches. |
 
 Writing rule: keep this directory flat. Add or extend lexicographically ordered
 `NN_topic.md` files (`00-09` philosophy/foundations, `10-19` subagent/routing, and so

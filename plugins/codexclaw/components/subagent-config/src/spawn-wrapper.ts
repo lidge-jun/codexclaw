@@ -331,19 +331,19 @@ export function taskNameForRole(role: RoleName, task: string): string {
 
 /**
  * Concrete Codex `spawn_agent` payload (the subset codexclaw controls).
- * 260709 dev2 switch: the builder targets the multi_agent_v2 spawn schema —
- * `task_name` is required, and `fork_turns` is pinned to "none" because the v2
- * default ("all", full-history fork) REJECTS agent_type/model/reasoning_effort
- * overrides (codex-rs reject_full_fork_spawn_overrides). codexclaw role dispatches
- * are fresh-context spawns: the role prompt + task travel in `message`.
+ * V1 is the default surface; when V2 is enabled manually, the builder also emits
+ * `task_name` and `fork_turns` for V2 compatibility. `fork_turns` is pinned to
+ * "none" because the V2 default ("all", full-history fork) REJECTS
+ * agent_type/model/reasoning_effort overrides. codexclaw role dispatches are
+ * fresh-context spawns: the role prompt + task travel in `message`.
  */
 export interface SpawnPayload {
   agent_type: "explorer" | "worker";
   message: string;
-  /** v2 spawn schema: required task name, `[a-z0-9_]+`. */
-  task_name: string;
-  /** Pinned to "none": keeps agent_type/model/effort overrides legal on v2 (see above). */
-  fork_turns: "none";
+  /** v2 spawn schema: required task name, `[a-z0-9_]+`. Present when V2 is active. */
+  task_name?: string;
+  /** Pinned to "none" on V2: keeps agent_type/model/effort overrides legal (see above). */
+  fork_turns?: "none";
   /** Present ONLY when a non-default model was configured; absent = inherit main model. */
   model?: string;
   /** Present ONLY when an effort override was configured; absent = inherit parent effort. */
@@ -494,7 +494,7 @@ export function routeDispatch(input: {
   explicitSkillFolders?: string[];
   /** 080.2: opt-in workspace path-hint resolution root. */
   cwd?: string;
-}): { role: RoleName; task_name: string; fork_turns: "none"; message: string } {
+}): { role: RoleName; task_name?: string; fork_turns?: "none"; message: string } {
   const role = INTENT_ROLE[input.intent] ?? "explorer";
   // 070: fold in any per-intent extra skill folders (e.g. research -> search + ultraresearch)
   // ahead of caller-supplied explicit folders; resolveAttachedSkillFolders dedups + orders.

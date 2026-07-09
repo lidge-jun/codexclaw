@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { activate, manifestPath, preserveMultiAgentV2Table, type InstallManifest } from "../src/activate.ts";
+import { activate, manifestPath, type InstallManifest } from "../src/activate.ts";
 import { deactivate } from "../src/deactivate.ts";
 import { type CodexRunner } from "../src/features.ts";
 import { homedir } from "node:os";
@@ -33,13 +33,13 @@ function makeFakeCodex(configPath: string, initial: Record<string, boolean>) {
     calls.push([...args]);
     if (args[0] === "features" && args[1] === "list") {
       // Emit the REAL `codex features list` format: `{name} {stage} {true|false}`, and include
-      // sibling keys that contain a declared key as a substring (multi_agent_mode, plugin_hooks) so
+      // sibling keys that contain a declared key as a substring (multi_agent_v2, plugin_hooks) so
       // the integration path also proves exact-first-field parsing (no clobber).
       const rows: Array<[string, string, boolean]> = [
         ...Object.entries(state).map(
           ([k, v]) => [k, "stable", v] as [string, string, boolean],
         ),
-        ["multi_agent_mode", "removed", false],
+        ["multi_agent_v2", "under-development", false],
         ["plugin_hooks", "removed", false],
       ];
       rows.sort((a, b) => a[0].localeCompare(b[0]));
@@ -71,7 +71,6 @@ test("activate enables only not-already-true declared flags + writes manifest + 
   const { home, configPath } = setup();
   const fake = makeFakeCodex(configPath, {
     multi_agent: true,
-    multi_agent_v2: true,
     goals: true,
     hooks: false,
     default_mode_request_user_input: false,
@@ -95,7 +94,6 @@ test("enable then disable restores prior state; pre-existing-true left untouched
   const { home, configPath } = setup();
   const fake = makeFakeCodex(configPath, {
     multi_agent: true,
-    multi_agent_v2: true,
     goals: false,
     hooks: false,
     default_mode_request_user_input: false,
@@ -107,8 +105,8 @@ test("enable then disable restores prior state; pre-existing-true left untouched
   assert.equal(r.skippedDrift, false);
   // goals/hooks/default... were turned on by codexclaw -> disabled again
   assert.deepEqual(r.disabled.sort(), ["default_mode_request_user_input", "goals", "hooks"]);
-  // multi_agent + multi_agent_v2 were pre-existing true -> kept
-  assert.deepEqual(r.skippedPreExisting.sort(), ["multi_agent", "multi_agent_v2"]);
+  // multi_agent was pre-existing true -> kept
+  assert.deepEqual(r.skippedPreExisting, ["multi_agent"]);
   assert.equal(fake.state.multi_agent, true);
   assert.equal(fake.state.goals, false);
   assert.equal(fake.state.hooks, false);
@@ -118,7 +116,6 @@ test("idempotent re-enable: second activate issues no enable calls", () => {
   const { home, configPath } = setup();
   const fake = makeFakeCodex(configPath, {
     multi_agent: true,
-    multi_agent_v2: true,
     goals: true,
     hooks: true,
     default_mode_request_user_input: true,
@@ -168,81 +165,4 @@ test("soft flag enable failure does not abort activation", () => {
   assert.equal(m.flags.default_mode_request_user_input.enableFailed, true);
   assert.equal(m.flags.default_mode_request_user_input.enabledByCodexclaw, false);
   assert.equal(m.flags.hooks.enabledByCodexclaw, true);
-});
-
-test("soft multi_agent_v2 enable failure does not abort activation (V1 fallback path)", () => {
-  const { home, configPath } = setup();
-  const base = makeFakeCodex(configPath, { multi_agent: true, goals: true, hooks: true, default_mode_request_user_input: true });
-  const run: CodexRunner = (args) => {
-    if (args[1] === "enable" && args[2] === "multi_agent_v2") {
-      return { stdout: "", stderr: "under development", exitCode: 1 };
-    }
-    return base.run(args);
-  };
-  const m: InstallManifest = activate({ run, codexHome: home, configPath, now: () => "2026-06-30T00:00:00.000Z" });
-  assert.equal(m.flags.multi_agent_v2.enableFailed, true);
-  assert.equal(m.flags.multi_agent_v2.enabledByCodexclaw, false);
-});
-
-// 260709 dev2 switch, audit blocker 3: `codex features enable multi_agent_v2` rewrites the
-// table form as a scalar, dropping tuning keys (codex-rs config/edit.rs). The activation
-// repair must restore the table with the preserved keys.
-test("activate repairs a features-enable scalar clobber of the multi_agent_v2 table", () => {
-  const { home, configPath } = setup();
-  const preConfig = [
-    "[features]",
-    "multi_agent = true",
-    "goals = true",
-    "hooks = true",
-    "default_mode_request_user_input = true",
-    "",
-    "[features.multi_agent_v2]",
-    "enabled = false",
-    "max_concurrent_threads_per_session = 1000",
-    "",
-  ].join("\n");
-  writeFileSync(configPath, preConfig, "utf8");
-  const calls: string[][] = [];
-  const run: CodexRunner = (args) => {
-    calls.push([...args]);
-    if (args[0] === "features" && args[1] === "list") {
-      const out = [
-        "default_mode_request_user_input  under-development  true",
-        "goals                            stable             true",
-        "hooks                            stable             true",
-        "multi_agent                      stable             true",
-        "multi_agent_v2                   under-development  false",
-      ].join("\n");
-      return { stdout: out, stderr: "", exitCode: 0 };
-    }
-    if (args[0] === "features" && args[1] === "enable" && args[2] === "multi_agent_v2") {
-      // Emulate the codex-rs edit.rs clobber: table replaced by a scalar under [features].
-      const clobbered = [
-        "[features]",
-        "multi_agent = true",
-        "goals = true",
-        "hooks = true",
-        "default_mode_request_user_input = true",
-        "multi_agent_v2 = true",
-        "",
-      ].join("\n");
-      writeFileSync(configPath, clobbered, "utf8");
-      return { stdout: "", stderr: "", exitCode: 0 };
-    }
-    return { stdout: "", stderr: "unknown", exitCode: 1 };
-  };
-  activate({ run, codexHome: home, configPath, now: () => "2026-06-30T00:00:00.000Z" });
-  const repaired = readFileSync(configPath, "utf8");
-  assert.match(repaired, /\[features\.multi_agent_v2\]/);
-  assert.match(repaired, /enabled = true/);
-  assert.match(repaired, /max_concurrent_threads_per_session = 1000/);
-  assert.ok(!/^multi_agent_v2 = true$/m.test(repaired), "clobbered scalar must be removed");
-});
-
-test("preserveMultiAgentV2Table returns null when post keeps the table or pre had no extras", () => {
-  const table = "[features.multi_agent_v2]\nenabled = false\nmax_concurrent_threads_per_session = 4\n";
-  assert.equal(preserveMultiAgentV2Table(table, table), null);
-  assert.equal(preserveMultiAgentV2Table("[features]\nmulti_agent = true\n", "[features]\nmulti_agent_v2 = true\n"), null);
-  const bareTable = "[features.multi_agent_v2]\nenabled = false\n";
-  assert.equal(preserveMultiAgentV2Table(bareTable, "[features]\nmulti_agent_v2 = true\n"), null);
 });

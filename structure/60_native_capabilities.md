@@ -21,34 +21,25 @@ Re-verify on Codex upgrades — deferred-tool routing and plugin sets drift per 
 
 ---
 
-## 1. The collab tool surface (load-bearing) — v2 since 260709
+## 1. The collab tool surface (load-bearing) — v1 default, v2 opt-in
 
-**dev2 switch (260709):** `features.multi_agent_v2` is ENABLED. New sessions expose
-the flat V2 collab set as DIRECT tools (spec_plan.rs `add_collaboration_tools`,
-ToolExposure::Direct — NOT deferred behind `tool_search`):
+**Default surface: V1 (stable).** `features.multi_agent_v2` is OFF by default.
+Sessions use the deferred `multi_agent_v1.*` namespace (`spawn_agent` /
+`send_input` / `wait_agent` / `resume_agent` / `close_agent`) behind
+`tool_search`. codexclaw does not force-enable V2; users who want it enable
+it manually in `config.toml`.
 
-- `spawn_agent` — spawn a sub-agent; REQUIRED `task_name` (`[a-z0-9_]+`) + `message`
-  (encrypted schema); `fork_turns` "none"|"all"|"N" (default "all" = full-history
-  fork, which REJECTS agent_type/model/reasoning_effort overrides — codexclaw role
-  dispatches pin `fork_turns:"none"`); `items` is REJECTED (`deny_unknown_fields`)
-- `send_message` — queue a message on an agent (no turn triggered)
-- `followup_task` — send a follow-up task; triggers a turn when idle (THE reuse verb)
-- `wait_agent` — wait for MAILBOX updates (summaries, not content; bounded timeouts)
-- `interrupt_agent` — interrupt the current turn; agent stays addressable
-- `list_agents` — list live agents in the root thread tree
+**When V2 is manually enabled**, sessions expose the flat V2 collab set as DIRECT
+tools: `spawn_agent` (task_name + message required, `fork_turns`, `items` rejected),
+`send_message`, `followup_task`, `wait_agent` (mailbox), `interrupt_agent`,
+`list_agents`. No `resume_agent`/`close_agent` on V2.
 
-There is NO `resume_agent` / `close_agent` on v2: an agent keeps its context and
-stays addressable (reuse via `followup_task`); retiring = stop addressing it.
-Concurrency budget: `features.multi_agent_v2.max_concurrent_threads_per_session`.
+**Doctrine consequence:** skills say "if `spawn_agent` is not visible,
+`tool_search` for it first" — this covers V1 deferral. On a V2 session the tools
+are direct and the v2 lifecycle verbs apply (`followup_task` for reuse, no
+`resume`/`close`). The `$cxc` mention channel (structure/10) is the
+skill-attachment path on both surfaces; V2 rejects `items`.
 
-**Doctrine consequence (kept, now defensive):** a session created before the switch
-— or a model whose catalog pins `multi_agent_version = v1` — still runs the legacy
-deferred `multi_agent_v1.*` namespace (`send_input`/`resume_agent`/`close_agent`).
-So skills keep the line "if `spawn_agent` is not visible, `tool_search` for it
-first" (that silent no-op was a real, observed root cause of skipped A-gate
-reviewer dispatches), and on a v1-pinned session the v1 verbs apply. On v2 the
-structured `items` channel is INVALID; the `$cxc` mention channel (structure/10)
-is the skill-attachment path on both surfaces.
 
 Recursion risk + defenses (260709): V2 has NO depth limit (spec_plan.rs:357;
 test `multi_agent_v2_spawn_agent_ignores_configured_max_depth`) and children of an
@@ -123,7 +114,7 @@ Flag states below come from the same 2026-07-02 `codex features list` run (codex
 |---|---|---|
 | `spawn_agents_on_csv` + `report_agent_job_result` (CSV batch fan-out, ≤64 workers) | codex-rs snapshot `tools/handlers/agent_jobs.rs`; absent from live tool_search | gated behind `enable_fanout` (under development, false). Mention as future only. |
 | Fork provenance in SessionStart | codex-rs `core/src/session/session.rs:1221-1226` maps `InitialHistory::Forked(_)` -> `SessionStartSource::Startup`; hook `source` enum is `startup\|resume\|clear\|compact` only (`hooks/src/schema.rs:786-788`); `forked_from_thread_id` stays internal (`thread_manager.rs:590`) | NATIVE GAP: a plugin hook cannot distinguish /fork from fresh startup. Mitigation shipped as G3 (SessionStart session-id binding + explicit `--session` on mutating orchestrate verbs). Upstream ask: add `"fork"` source or `forked_from` field. |
-| `multi_agent_v2` | `[features.multi_agent_v2] enabled = true` (dev2 switch 260709; 400 risk accepted, openai/codex#26753) | v2 toolset is the doctrine baseline; v1 wording is legacy-session fallback only |
+| `multi_agent_v2` | `[features.multi_agent_v2] enabled = false` (V1 default; V2 manual opt-in, openai/codex#26753 risk) | V1 is the doctrine baseline; V2 opt-in when user enables |
 | `memories` | experimental, false | off |
 | `standalone_web_search` | under development, false | hosted `web_search` is the live path |
 
@@ -134,7 +125,7 @@ Flag states below come from the same 2026-07-02 `codex features list` run (codex
 | `cxc-search` | routes ALL browsing through agbrowse CLI; native browser/CDP tools never named | Browse-Use Ladder with the 5-tier routing above (WP-N2) |
 | `pabcd-state` AGBROWSE directive | "Browser Use / Computer Use" named as vague fallbacks | name the exact plugin tools + ladder (WP-N2) |
 | `cxc-dev-testing` | no UI/E2E QA protocol; C-phase evidence is command-output-only | computer-use QA protocol + screenshot/view_image evidence (WP-N3) |
-| `cxc-pabcd` / `cxc-dev` | "dispatch spawn_agent" assumes tool visibility | tool_search discovery step + v2 lifecycle (wait mailbox / followup_task / interrupt / list_agents) — dev2 switch 260709 |
+| `cxc-pabcd` / `cxc-dev` | "dispatch spawn_agent" assumes tool visibility | tool_search discovery step + V1 lifecycle (send_input/resume/close) or V2 when enabled (followup_task/interrupt/list_agents) |
 | `cxc-sparksearch` / `cxc-ultraresearch` | serial-ish lane guidance | `multi_tool_use.parallel` + wait_agent multi-target patterns (WP-N4) |
 | `cxc-dev-uiux-design` / `cxc-dev-frontend` | no imagegen / view_image usage | asset-gen + screenshot-read guidance (WP-N5) |
 | `cxc-skill-hub` | catalog only | plugin discovery/install surfaces (WP-N5) |

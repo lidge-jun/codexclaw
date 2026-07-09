@@ -331,11 +331,11 @@ export function taskNameForRole(role          , task        )         {
 
 /**
  * Concrete Codex `spawn_agent` payload (the subset codexclaw controls).
- * 260709 dev2 switch: the builder targets the multi_agent_v2 spawn schema —
- * `task_name` is required, and `fork_turns` is pinned to "none" because the v2
- * default ("all", full-history fork) REJECTS agent_type/model/reasoning_effort
- * overrides (codex-rs reject_full_fork_spawn_overrides). codexclaw role dispatches
- * are fresh-context spawns: the role prompt + task travel in `message`.
+ * V1 is the default surface; when V2 is enabled manually, the builder also emits
+ * `task_name` and `fork_turns` for V2 compatibility. `fork_turns` is pinned to
+ * "none" because the V2 default ("all", full-history fork) REJECTS
+ * agent_type/model/reasoning_effort overrides. codexclaw role dispatches are
+ * fresh-context spawns: the role prompt + task travel in `message`.
  */
 
 
@@ -494,7 +494,7 @@ export function routeDispatch(input
 
 
 
- )                                                                             {
+ )                                                                               {
   const role = INTENT_ROLE[input.intent] ?? "explorer";
   // 070: fold in any per-intent extra skill folders (e.g. research -> search + ultraresearch)
   // ahead of caller-supplied explicit folders; resolveAttachedSkillFolders dedups + orders.
