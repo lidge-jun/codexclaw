@@ -450,9 +450,11 @@ link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)`, or use plugin-native
 `$codexclaw:cxc-<skill>` when a link is unsafe. V1 parses either form on the child's first
 turn. On plaintext V2 provider/proxy paths, the spawn hook normalizes mentions and
 inlines recognized cxc skill bodies. Native ChatGPT-backend V2 gives the hook ciphertext,
-so both operations are no-ops there; skill delivery must rely on fork inheritance. Child
-sessions are proven to fire SessionStart hooks, but using them for delivery is future
-work. The reliable hook-borne native V2 channels remain the leaf guard and configured
+so both operations are no-ops there; when no body can be inlined, the hook appends a
+plaintext `[CXC-SKILL-AFFORDANCE]` block telling the child to self-load any
+`$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention from
+`<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel. The
+reliable hook-borne native V2 channels also include the leaf guard and configured
 model/effort injection. The hook does not add role baselines or infer missing surfaces.
 Manually supplied structured V1 `items` remain the strongest form where available;
 `resolveSpawnPayloadWithSkills` emits message mentions, not `items`. Do not delegate

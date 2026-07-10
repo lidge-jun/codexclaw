@@ -47,8 +47,10 @@ skill with preferred `[$cxc-<name>](skill://<abs SKILL.md>)` links or the plugin
 `$codexclaw:cxc-<name>` fallback. When the spawn message is plaintext, the hook normalizes
 known broken/bare mentions and inlines recognized SKILL.md bodies on V2-shaped spawns.
 Native ChatGPT-backend V2 gives the hook ciphertext, so both operations are no-ops there;
-skill delivery relies on fork inheritance. Child sessions are proven to fire SessionStart
-hooks, but using them for delivery is future work. Its reliable native V2 channels are
-the leaf guard and omitted configured `model`/`reasoning_effort` injection for
-non-full-history spawns. It never invents role baselines or inferred surface skills. Role
-config, resolver, and spawn-wrapper are all shipped (L9).
+when no body can be inlined, it appends a plaintext `[CXC-SKILL-AFFORDANCE]` block telling
+the child to self-load any `$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention from
+`<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel. Its other
+reliable native V2 channels are the leaf guard and omitted configured
+`model`/`reasoning_effort` injection for non-full-history spawns. It never invents role
+baselines or inferred surface skills. Role config, resolver, and spawn-wrapper are all
+shipped (L9).

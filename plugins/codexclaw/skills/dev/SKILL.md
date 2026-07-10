@@ -145,11 +145,12 @@ link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)` mentions in the spawn `m
 when the path is not link-safe, use the plugin-native `$codexclaw:cxc-<skill>` fallback.
 When the spawn message reaches it as plaintext, the always-on spawn PreToolUse hook
 normalizes known broken/bare cxc mentions and, on V2-shaped spawns, inlines recognized
-skill bodies. Native ChatGPT-backend V2 gives the hook ciphertext, so both operations
-are no-ops there; skill delivery must rely on fork inheritance. Child sessions are proven
-to fire SessionStart hooks, but using them for delivery is future work. The hook never
-adds role baselines or infers missing surface skills. The manually supplied, v1-only
-`items` channel remains the strongest explicit form (`structure/10`).
+skill bodies. Native ChatGPT-backend V2 gives the hook ciphertext, so when no body can be
+inlined the hook appends a plaintext `[CXC-SKILL-AFFORDANCE]` block that tells the child
+to self-load any `$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention by reading
+`<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel. The hook
+never adds role baselines or infers missing surface skills. The manually supplied,
+v1-only `items` channel remains the strongest explicit form (`structure/10`).
 
 ### Subagent Skill Injection (DEV-SKILL-INJECT-01)
 

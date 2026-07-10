@@ -6,7 +6,7 @@ aliases: [L14 Design, subagent skill routing, cxc skill attachment]
 
 # L14 — Subagent Skill Routing + Loop/Goal Handoff (Design SOT)
 
-Status: DESIGN + SHIPPED — **spawn surface status 260710: V1 is codexclaw's default; the model catalog pins sol/terra to V2 and luna to V1, while `features.multi_agent_v2` selects V2 only for fallback models. The surface pins on the first turn.** V2 requires task_name+message and rejects `items`; production builders emit `fork_turns:"none"` plus resolvable message mentions. Historical shape below documents the v1-era evolution. (E5 dispatch builder shipped in L15; lazygap_impl 020 added `INTENT_ROLE`/`routeDispatch` and the E3 spawn PreToolUse hook. When the spawn message is plaintext, the hook normalizes recognized mentions and inlines full SKILL.md bodies on V2-shaped spawns. Native ChatGPT-backend V2 presents ciphertext, making both operations no-ops; its reliable hook-borne channels are the leaf guard and model+effort injection. It never invents role baselines or missing surfaces. The old `CODEXCLAW_SPAWN_ATTACH=v1` opt-in is gone; V1 `items` remains a manual, strongest channel.) · 2026-07-10
+Status: DESIGN + SHIPPED — **spawn surface status 260710: V1 is codexclaw's default; the model catalog pins sol/terra to V2 and luna to V1, while `features.multi_agent_v2` selects V2 only for fallback models. The surface pins on the first turn.** V2 requires task_name+message and rejects `items`; production builders emit `fork_turns:"none"` plus resolvable message mentions. Historical shape below documents the v1-era evolution. (E5 dispatch builder shipped in L15; lazygap_impl 020 added `INTENT_ROLE`/`routeDispatch` and the E3 spawn PreToolUse hook. When the spawn message is plaintext, the hook normalizes recognized mentions and inlines full SKILL.md bodies on V2-shaped spawns. Native ChatGPT-backend V2 presents ciphertext, so the hook appends a plaintext `[CXC-SKILL-AFFORDANCE]` self-load instruction when it cannot inline a body; the leaf guard and model+effort injection remain reliable. It never invents role baselines or missing surfaces. The old `CODEXCLAW_SPAWN_ATTACH=v1` opt-in is gone; V1 `items` remains a manual, strongest channel.) · 2026-07-10
 
 > This is the design source of truth for the L14 hardening track. The defect
 > diagnosis with file:line evidence lives in
@@ -98,10 +98,11 @@ spawn message into `UserInput::Text` and parses link/plugin mentions natively; V
 `InterAgentCommunication`, which upstream excludes from skill collection. The codexclaw
 spawn hook compensates only when the V2 message reaches it as plaintext by inlining full
 SKILL.md bodies for recognized cxc mentions. Native ChatGPT-backend V2 presents encrypted
-ciphertext, so normalization and inlining are safe no-ops there; skill delivery relies on
-fork inheritance. Child sessions are proven to fire SessionStart hooks, but using them
-for delivery is future work. The native V2 hook still reliably prepends the leaf guard
-and injects configured model/effort fields.
+ciphertext, so normalization and inlining are safe no-ops there. When no body can be
+inlined, the hook appends a plaintext `[CXC-SKILL-AFFORDANCE]` block telling the child to
+self-load any `$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention by reading
+`<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel. The native
+V2 hook also reliably prepends the leaf guard and injects configured model/effort fields.
 
 ### L15.2 follow-up (SHIPPED as WP2, E3 — mention normalization)
 When `message` is plaintext, the spawn PreToolUse hook scans it for known cxc mentions,

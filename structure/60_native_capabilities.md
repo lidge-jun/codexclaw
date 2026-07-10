@@ -45,10 +45,21 @@ returns final status plus content. V1 has `close_agent` + `resume_agent`; V2 has
 stronger manual `items` channel. On plaintext V2 provider/proxy paths, the codexclaw
 spawn hook normalizes mentions and inlines recognized SKILL.md bodies. Native
 ChatGPT-backend V2 gives the hook encrypted `message` ciphertext, so both operations are
-no-ops there; skill delivery relies on fork inheritance. Child sessions are proven to
-fire SessionStart hooks, but using them for delivery is future work. The hook still
-reliably applies D1/D2 leaf guards and injects configured role model/effort on native V2
-when the spawn is not a full-history fork.
+no-ops there. When no body can be inlined, the hook appends a plaintext
+`[CXC-SKILL-AFFORDANCE]` block telling the child to self-load any `$cxc-<folder>` /
+`$codexclaw:cxc-<folder>` mention from `<skillsDir>/<folder>/SKILL.md`; fork inheritance
+remains a secondary channel. The hook also reliably applies D1/D2 leaf guards and injects
+configured role model/effort on native V2 when the spawn is not a full-history fork.
+
+### Hook trust
+
+Codex pins each hook identity hash as `hooks.state.<key>.trusted_hash` in
+`~/.codex/config.toml` and silently skips a hook whose current hash differs. Any edit,
+commit, or merge that changes a hook identity therefore disables that hook for all new
+sessions until retrusted. Contributors must run `cxc doctor` after every change touching
+`plugins/codexclaw/hooks/*.json`; when it reports a drifted or untrusted hook, run
+`cxc hooks retrust` to create a timestamped config backup and atomically record recomputed
+hashes under the algorithm safety-pin, then rerun `cxc doctor`.
 
 **Forbidden configuration:** do not set `hide_spawn_agent_metadata=false`. Modifying
 the reserved `collaboration.spawn_agent` schema by declaring modified tools can make

@@ -35,9 +35,10 @@ Skill attachment intent travels through the spawn **message**. Prefer link-form
 plugin-native `$codexclaw:cxc-<skill>` fallback. V1 parses either form on the child's
 first turn and injects the full SKILL.md body. On plaintext V2 provider/proxy paths, the
 codexclaw spawn hook normalizes mentions and inlines recognized skill bodies. Native
-ChatGPT-backend V2 gives the hook ciphertext, so both operations are no-ops there; skill
-delivery relies on fork inheritance. Child sessions are proven to fire SessionStart
-hooks, but using them for delivery is future work.
+ChatGPT-backend V2 gives the hook ciphertext, so both operations are no-ops there. When
+no body can be inlined, the hook appends a plaintext `[CXC-SKILL-AFFORDANCE]` block telling
+the child to self-load any `$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention from
+`<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel.
 Manual V1 callers may use the stronger structured `items` channel.
 
 Two layers keep this deterministic:

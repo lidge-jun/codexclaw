@@ -48,13 +48,15 @@ test("rollup: FAIL > WARN > PASS", () => {
 
 test("doctor: healthy plugin root -> PASS with evidence on every check", () => {
   const root = makePluginRoot();
+  const codexHome = mkdtempSync(join(tmpdir(), "cxc-doctor-home-"));
+  writeFileSync(join(codexHome, "config.toml"), '[plugins."test@fixture"]\nenabled = true\n');
   // stub the ast-grep runner so the L22 check resolves PASS without a real sg.
   const agRunner = (() => ({
     status: 0,
     stdout: "ast-grep binary: /stub/sg\n  version: ast-grep 0.44.0\n",
     stderr: "",
   })) as unknown as typeof import("node:child_process").spawnSync;
-  const report = runDoctor(root, agRunner);
+  const report = runDoctor(root, agRunner, { codexHome, pluginKey: "test@fixture" });
   assert.equal(report.overall, "PASS");
   for (const c of report.checks) assert.ok(c.evidence.length > 0, `check ${c.name} has no evidence`);
   assert.match(renderDoctor(report), /overall: PASS/);

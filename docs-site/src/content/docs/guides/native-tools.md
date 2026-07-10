@@ -18,11 +18,20 @@ surface pins on the session's first turn. V1 collab tools
 
 V1 parses skill mentions natively. On plaintext V2 provider/proxy paths, the spawn hook
 normalizes mentions and inlines recognized SKILL.md bodies. Native ChatGPT-backend V2
-gives the hook encrypted message ciphertext, so both operations are no-ops there and
-skill delivery relies on fork inheritance. Child sessions are proven to fire SessionStart
-hooks, but using them for delivery is future work.
-The reliable native V2 hook channels are the leaf guard and omitted configured
-model/effort injection on non-full-history spawns.
+gives the hook encrypted message ciphertext, so both operations are no-ops there. When no
+body can be inlined, the hook appends a plaintext `[CXC-SKILL-AFFORDANCE]` block telling
+the child to self-load any `$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention from
+`<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel. The other
+reliable native V2 hook channels are the leaf guard and omitted configured model/effort
+injection on non-full-history spawns.
+
+## Hook trust
+
+Codex pins each hook identity as `hooks.state.<key>.trusted_hash` in
+`~/.codex/config.toml` and silently skips a hook whose current hash drifts. After any edit,
+commit, or merge touching `plugins/codexclaw/hooks/*.json`, run `cxc doctor`. If it reports
+a drifted or untrusted hook, run `cxc hooks retrust` to back up the config and atomically
+record safely recomputed hashes, then rerun `cxc doctor`.
 
 ## Browse-use ladder (owned by `cxc-search`)
 

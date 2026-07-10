@@ -26,6 +26,7 @@ import {
   LEAF_GUARD_BLOCK,
   LEAF_GUARD_BLOCK_COORDINATOR,
   LEAF_GUARD_MARKER,
+  SKILL_AFFORDANCE_MARKER,
   SUBSPAWN_TOKEN,
   inferRole,
   inlineSkillBodies,
@@ -36,6 +37,7 @@ import {
   mentionedFolders,
   normalizeSkillMentions,
   runSpawnAttachHook,
+  skillAffordanceBlock,
 } from "../src/spawn-attach-hook.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -398,7 +400,11 @@ test("v2 root spawn: guard + configured model/effort injected on a non-full fork
   const ui = updatedInputOf(out);
   assert.equal(ui.task_name, "explorer_task");
   assert.equal(ui.fork_turns, "none");
-  assert.equal(ui.message, `${LEAF_GUARD_BLOCK}\n\nreview the frontend diff`);
+  // WP2 cr3: a mention-less V2 message now carries the self-load affordance too.
+  assert.equal(
+    ui.message,
+    `${LEAF_GUARD_BLOCK}\n\nreview the frontend diff\n\n${skillAffordanceBlock(SKILLS_DIR)}`,
+  );
   // 260710 parity: v2 spawns now honor .codexclaw/subagents.json like v1 (the
   // "review" keyword routes this explorer spawn to the reviewer role, which has
   // no config here, so the explorer config does NOT apply — assert via a
@@ -466,14 +472,23 @@ test("default-mode role with configured effort injects effort only", () => {
 });
 
 test("v2 leaf guard: marker dedupes guard on root spawn", () => {
+  // WP2 cr3: the guard dedupes, but the mention-less V2 message still gains the
+  // affordance block — so the hook emits an envelope (guard NOT duplicated).
   const marked = runSpawnAttachHook(spawnPayload({ task_name: "t", message: `${LEAF_GUARD_MARKER} already guarded` }));
-  assert.equal(marked, "");
+  const ui = updatedInputOf(marked);
+  assert.equal((ui.message as string).match(/\[CXC-LEAF-GUARD\]/g)?.length, 1, "guard deduped");
+  assert.ok((ui.message as string).includes(SKILL_AFFORDANCE_MARKER));
+  // Both markers present -> a second pass is a full no-op.
+  assert.equal(runSpawnAttachHook(spawnPayload({ task_name: "t", message: ui.message as string })), "");
 });
 
 test("recursion grant token keeps non-recursion leaf constraints", () => {
   const message = `${SUBSPAWN_TOKEN} coordinator task`;
   const ui = updatedInputOf(runSpawnAttachHook(spawnPayload({ task_name: "t", message })));
-  assert.equal(ui.message, `${LEAF_GUARD_BLOCK_COORDINATOR}\n\n${message}`);
+  assert.equal(
+    ui.message,
+    `${LEAF_GUARD_BLOCK_COORDINATOR}\n\n${message}\n\n${skillAffordanceBlock(SKILLS_DIR)}`,
+  );
   assert.match(ui.message as string, /Do NOT run cxc orchestrate, cxc loop, or goal commands/);
   assert.match(ui.message as string, /Stay inside the task's stated\nfile\/write scope/);
   assert.doesNotMatch(ui.message as string, /Do NOT spawn/);
@@ -772,4 +787,50 @@ test("same-intent v1/v2 spawns produce equivalent effective payloads (cr3 parity
   // additionally inlines the body (upstream never parses v2 spawn messages).
   assert.match(v1.message as string, /\[\$cxc-dev\]\(skill:\/\//);
   assert.ok((v2.message as string).includes(`${INLINE_SKILL_OPEN}dev">`));
+});
+
+test("v2 affordance: appended only when inlining attached nothing", () => {
+  // Doctrine bodies QUOTE the bare marker, so absence must be asserted on the
+  // block's opening line, not the marker alone.
+  const affordanceOpening = skillAffordanceBlock(SKILLS_DIR).split("\n")[0];
+  // Mentions inlined -> no affordance.
+  const inlined = updatedInputOf(
+    runSpawnAttachHook(spawnPayload({ task_name: "t", fork_turns: "none", message: "use $cxc-dev" })),
+  );
+  assert.ok((inlined.message as string).includes(`${INLINE_SKILL_OPEN}dev">`));
+  assert.ok(!(inlined.message as string).includes(affordanceOpening));
+  // No mentions (ciphertext-like opaque text) -> affordance appended after the task text.
+  const opaque = updatedInputOf(
+    runSpawnAttachHook(spawnPayload({ task_name: "t", fork_turns: "none", message: "gAAAAABopaquetoken" })),
+  );
+  assert.ok((opaque.message as string).includes(SKILL_AFFORDANCE_MARKER));
+  assert.ok((opaque.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`), "guard stays first");
+  assert.ok(
+    (opaque.message as string).indexOf("gAAAAABopaquetoken") <
+      (opaque.message as string).indexOf(SKILL_AFFORDANCE_MARKER),
+    "affordance rides after the task text",
+  );
+});
+
+test("v1 spawns never get the affordance (upstream parses mentions there)", () => {
+  const ui = updatedInputOf(runSpawnAttachHook(spawnPayload({ message: "no mentions here", agent_type: "explorer" })));
+  assert.ok(!(ui.message as string).includes(SKILL_AFFORDANCE_MARKER));
+});
+
+test("v2 affordance: oversized message skips the affordance (size guard)", () => {
+  const nearCap = "x".repeat(256 * 1024 - 100);
+  const out = runSpawnAttachHook(spawnPayload({ task_name: "t", message: nearCap }));
+  // Guard prepend may still fire via updatedInput; the affordance must not
+  // push past the cap — assert the marker is absent.
+  if (out !== "") {
+    const ui = updatedInputOf(out);
+    assert.ok(!(ui.message as string).includes(SKILL_AFFORDANCE_MARKER));
+  }
+});
+
+test("skillAffordanceBlock names the skills dir and the mention forms", () => {
+  const block = skillAffordanceBlock(SKILLS_DIR);
+  assert.ok(block.startsWith(SKILL_AFFORDANCE_MARKER));
+  assert.ok(block.includes(`${SKILLS_DIR}/<name>/SKILL.md`));
+  assert.ok(block.includes("$codexclaw:cxc-<name>"));
 });

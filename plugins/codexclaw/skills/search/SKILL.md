@@ -194,9 +194,11 @@ child's first turn parses the mention and injects the full SKILL.md body. When a
 V2-shaped spawn message reaches the codexclaw hook as plaintext (non-encrypted
 provider/proxy paths), the hook recognizes the same mention and inlines the full body.
 Native ChatGPT-backend V2 sends the hook ciphertext, so mention normalization and body
-inlining are no-ops there; skill delivery must rely on fork inheritance. Child sessions
-are proven to fire SessionStart hooks, but using them for delivery is future work. If the
-path is not link-safe, use the plugin-native `$codexclaw:cxc-search` fallback instead:
+inlining are no-ops there; when no body can be inlined, a plaintext
+`[CXC-SKILL-AFFORDANCE]` block tells the child to self-load any `$cxc-<folder>` /
+`$codexclaw:cxc-<folder>` mention from `<skillsDir>/<folder>/SKILL.md`; fork inheritance
+remains a secondary channel. If the path is not link-safe, use the plugin-native
+`$codexclaw:cxc-search` fallback instead:
 
 ```text
 message: "[$cxc-search](skill://<this skill's SKILL.md absolute path>)

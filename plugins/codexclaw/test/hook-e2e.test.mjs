@@ -13,8 +13,8 @@
 // stable contract (exit 0 + a parseable provider status line), not a specific mode.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { readFileSync, realpathSync, existsSync, rmSync, mkdtempSync, cpSync, mkdirSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { readFileSync, realpathSync, existsSync, rmSync, mkdtempSync, cpSync, mkdirSync, writeFileSync, readdirSync } from "node:fs";
 import { join, dirname, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -95,6 +95,25 @@ function runHook(distAbs, hookEvent, payload, extraEnv = {}) {
   });
 }
 
+function runHookAsync(distAbs, hookEvent, payload, extraEnv = {}) {
+  const env = { ...process.env, ...extraEnv };
+  for (const [key, value] of Object.entries(extraEnv)) {
+    if (value === undefined) delete env[key];
+  }
+  return new Promise((resolveRun, rejectRun) => {
+    const child = spawn(process.execPath, [distAbs, "hook", hookEvent], { env });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.on("error", rejectRun);
+    child.on("close", (status) => resolveRun({ status, stdout, stderr }));
+    child.stdin.end(payload === null ? "" : JSON.stringify(payload));
+  });
+}
+
 function emptyCodexHome() {
   const dir = mkdtempSync(join(tmpdir(), "ccx-home-"));
   return { dir, env: { CODEX_HOME: dir, CODEX_SQLITE_HOME: dir } };
@@ -102,7 +121,7 @@ function emptyCodexHome() {
 
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 13, "expected 13 declared hooks");
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 14, "expected 14 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
@@ -112,6 +131,195 @@ test("WP7/G19: every manifest hook command resolves to an existing dist entrypoi
       sleepSync(50);
     }
     assert.ok(present, `manifest hook dist entrypoint missing: ${distAbs}`);
+  }
+});
+
+test("SessionStart state bootstrap: fresh compiled hook creates exact IDLE state and immediate orchestrate P succeeds", () => {
+  const { event, hookEvent, distAbs } = readHookCommand("./hooks/session-start-bootstrapping-pabcd-state.json");
+  assert.equal(event, "SessionStart");
+  assert.equal(hookEvent, "session-start");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep, "pabcd-state dist entrypoint must settle");
+  const cwd = mkdtempSync(join(tmpdir(), "ccx-session-bootstrap-"));
+  const sessionId = "019f4a8a-b1a1-7113-b72a-460a39a8f096";
+  try {
+    const started = runHook(ep, hookEvent, { hook_event_name: "SessionStart", session_id: sessionId, cwd });
+    assert.equal(started.status, 0, started.stderr);
+    assert.equal(started.stdout, "", "bootstrap is side-effect-only");
+
+    const statePath = join(cwd, ".codexclaw", "sessions", `${sessionId}.json`);
+    const initial = JSON.parse(readFileSync(statePath, "utf8"));
+    assert.deepEqual(initial, {
+      phase: "IDLE",
+      sessionId,
+      slug: "",
+      updatedAt: initial.updatedAt,
+      flags: { interview: false, auditPassed: false, checkPassed: false },
+      supersededBy: null,
+      injectedTurns: [],
+      lastInjectedPhase: null,
+      orchestrationActive: false,
+      interview: null,
+      stopBlockPhase: null,
+      stopBlockCount: 0,
+    });
+
+    const attest = JSON.stringify({ from: "IDLE", to: "P", did: "SessionStart bound the session" });
+    const planned = spawnSync(
+      process.execPath,
+      [ep, "orchestrate", "P", "--session", sessionId, "--cwd", cwd, "--attest", attest],
+      { encoding: "utf8" },
+    );
+    assert.equal(planned.status, 0, planned.stderr);
+    assert.match(planned.stdout, /IDLE -> P/);
+    const after = JSON.parse(readFileSync(statePath, "utf8"));
+    assert.equal(after.phase, "P");
+    assert.equal(after.sessionId, sessionId);
+    assert.equal(after.orchestrationActive, true);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("SessionStart state bootstrap: valid and corrupt resumed state remain byte-for-byte unchanged", () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/session-start-bootstrapping-pabcd-state.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep, "pabcd-state dist entrypoint must settle");
+  for (const fixture of [
+    {
+      sessionId: "session-start-valid-resume",
+      bytes: Buffer.from(JSON.stringify({
+        phase: "B",
+        sessionId: "session-start-valid-resume",
+        slug: "resume",
+        updatedAt: "2026-07-10T00:00:00.000Z",
+        flags: { interview: false, auditPassed: true, checkPassed: false },
+        supersededBy: null,
+        injectedTurns: ["turn-1"],
+        lastInjectedPhase: "B",
+        orchestrationActive: true,
+        interview: null,
+        stopBlockPhase: "B",
+        stopBlockCount: 2,
+      }, null, 2) + "\n"),
+    },
+    { sessionId: "session-start-corrupt-resume", bytes: Buffer.from("{ corrupt \u0000 bytes") },
+  ]) {
+    const cwd = mkdtempSync(join(tmpdir(), "ccx-session-resume-"));
+    try {
+      const sessionsDir = join(cwd, ".codexclaw", "sessions");
+      mkdirSync(sessionsDir, { recursive: true });
+      const statePath = join(sessionsDir, `${fixture.sessionId}.json`);
+      writeFileSync(statePath, fixture.bytes);
+      const resumed = runHook(ep, hookEvent, {
+        hook_event_name: "SessionStart",
+        session_id: fixture.sessionId,
+        cwd,
+      });
+      assert.equal(resumed.status, 0, resumed.stderr);
+      assert.equal(resumed.stdout, "");
+      assert.deepEqual(readFileSync(statePath), fixture.bytes);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
+test("SessionStart state bootstrap: concurrent compiled hooks publish one complete state file without temp leaks", async () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/session-start-bootstrapping-pabcd-state.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep, "pabcd-state dist entrypoint must settle");
+  const cwd = mkdtempSync(join(tmpdir(), "ccx-session-race-"));
+  const sessionId = "session-start-race";
+  const payload = { hook_event_name: "SessionStart", session_id: sessionId, cwd };
+  try {
+    const results = await Promise.all([
+      runHookAsync(ep, hookEvent, payload),
+      runHookAsync(ep, hookEvent, payload),
+    ]);
+    for (const result of results) {
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout, "");
+    }
+    const sessionsDir = join(cwd, ".codexclaw", "sessions");
+    assert.deepEqual(readdirSync(sessionsDir), [`${sessionId}.json`]);
+    const state = JSON.parse(readFileSync(join(sessionsDir, `${sessionId}.json`), "utf8"));
+    assert.equal(state.phase, "IDLE");
+    assert.equal(state.sessionId, sessionId);
+    assert.equal(state.orchestrationActive, false);
+    assert.deepEqual(readdirSync(sessionsDir).filter((name) => name.endsWith(".tmp")), []);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("SessionStart state bootstrap: ENOTDIR fails open with empty stdout and no state", () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/session-start-bootstrapping-pabcd-state.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep, "pabcd-state dist entrypoint must settle");
+  const cwd = mkdtempSync(join(tmpdir(), "ccx-session-enotdir-"));
+  try {
+    writeFileSync(join(cwd, ".codexclaw"), "not a directory");
+    const result = runHook(ep, hookEvent, {
+      hook_event_name: "SessionStart",
+      session_id: "session-start-enotdir",
+      cwd,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "");
+    assert.equal(existsSync(join(cwd, ".codexclaw", "sessions", "session-start-enotdir.json")), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("SessionStart state bootstrap: noncanonical identity and synthetic agent fields write no state", () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/session-start-bootstrapping-pabcd-state.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep, "pabcd-state dist entrypoint must settle");
+  const cwd = mkdtempSync(join(tmpdir(), "ccx-session-invalid-"));
+  try {
+    for (const sessionId of [" \t\n", "  session-start-padded  ", "../session-start-path", "세션-start"]) {
+      const rejectedSession = runHook(ep, hookEvent, {
+        hook_event_name: "SessionStart",
+        session_id: sessionId,
+        cwd,
+      });
+      assert.equal(rejectedSession.status, 0, rejectedSession.stderr);
+      assert.equal(rejectedSession.stdout, "");
+    }
+
+    const whitespaceCwdSandbox = mkdtempSync(join(cwd, "whitespace-cwd-"));
+    const whitespaceCwd = spawnSync(process.execPath, [ep, "hook", hookEvent], {
+      cwd: whitespaceCwdSandbox,
+      input: JSON.stringify({ hook_event_name: "SessionStart", session_id: "session-start-whitespace-cwd", cwd: " \t\n" }),
+      encoding: "utf8",
+    });
+    assert.equal(whitespaceCwd.status, 0, whitespaceCwd.stderr);
+    assert.equal(whitespaceCwd.stdout, "");
+    assert.deepEqual(readdirSync(whitespaceCwdSandbox), []);
+
+    const syntheticChild = runHook(ep, hookEvent, {
+      hook_event_name: "SessionStart",
+      session_id: "session-start-child",
+      cwd,
+      agent_id: "agent-1",
+      agent_type: "worker",
+    });
+    assert.equal(syntheticChild.status, 0, syntheticChild.stderr);
+    assert.equal(syntheticChild.stdout, "");
+    assert.equal(existsSync(join(cwd, ".codexclaw", "sessions")), false);
+
+    const attest = JSON.stringify({ from: "IDLE", to: "P", did: "noncanonical identity must remain unknown" });
+    const planned = spawnSync(
+      process.execPath,
+      [ep, "orchestrate", "P", "--session", "  session-start-padded  ", "--cwd", cwd, "--attest", attest],
+      { encoding: "utf8" },
+    );
+    assert.notEqual(planned.status, 0);
+    assert.match(`${planned.stdout}${planned.stderr}`, /unknown session/i);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
   }
 });
 
@@ -455,6 +663,30 @@ test("260710: spawn hook e2e - native collaboration name drives the V2 path", ()
     const ui = JSON.parse(res.stdout).hookSpecificOutput.updatedInput;
     assert.ok(ui.message.startsWith("[CXC-LEAF-GUARD]"), "collab name classifies as V2 -> guard");
     assert.match(ui.message, /<skill name="cxc-dev">/, "collab name classifies as V2 -> inline");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+// WP2 cr3: an opaque (ciphertext-like) V2 message that inlines nothing gains the
+// plaintext self-load affordance block, after the task text, under the guard.
+test("260710 WP2: spawn hook e2e - opaque V2 message gains the skill affordance", () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-attaching-skills.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep, "subagent-config dist entrypoint must settle");
+  const cwd = mkdtempSync(join(tmpdir(), "ccx-affordance-"));
+  try {
+    const res = runHook(ep, hookEvent, {
+      hook_event_name: "PreToolUse", session_id: "s1", cwd,
+      tool_name: "collaborationspawn_agent",
+      tool_input: { task_name: "t", fork_turns: "none", message: "gAAAAABopaque-payload" },
+    }, { CXC_SKILLS_DIR: join(pluginRoot, "skills") });
+    assert.equal(res.status, 0, res.stderr);
+    const ui = JSON.parse(res.stdout).hookSpecificOutput.updatedInput;
+    assert.ok(ui.message.startsWith("[CXC-LEAF-GUARD]"));
+    assert.match(ui.message, /\[CXC-SKILL-AFFORDANCE\]/);
+    assert.ok(ui.message.indexOf("gAAAAABopaque-payload") < ui.message.indexOf("[CXC-SKILL-AFFORDANCE]"));
+    assert.match(ui.message, /skills\/<name>\/SKILL\.md/);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

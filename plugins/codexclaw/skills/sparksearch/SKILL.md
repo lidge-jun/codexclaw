@@ -57,9 +57,10 @@ the Spark model.
 The shared payload form is a **link-form mention in the spawn message**. V1 parses it on
 the child's first turn. On plaintext V2 provider/proxy paths, the codexclaw spawn hook
 inlines the recognized skill's full SKILL.md body; native ChatGPT-backend V2 gives the
-hook ciphertext, so normalization and inlining are no-ops there and skill delivery
-must rely on fork inheritance. Child sessions are proven to fire SessionStart hooks,
-but using them for delivery is future work:
+hook ciphertext, so normalization and inlining are no-ops there. When no body can be
+inlined, the hook instead appends a plaintext `[CXC-SKILL-AFFORDANCE]` block telling the
+child to self-load any `$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention from
+`<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel:
 
 ```text
 message: "[$cxc-search](skill://<cxc-search SKILL.md absolute path>)

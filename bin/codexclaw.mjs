@@ -30,7 +30,7 @@
 import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, realpathSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -128,7 +128,7 @@ function runConfigGuard(subcommand) {
   return typeof res.status === "number" ? res.status : 1;
 }
 
-/** Delegate to the compiled cxc-ops CLI (doctor/reset); returns its exit code. */
+/** Delegate to the compiled cxc-ops CLI (doctor/reset/hooks); returns its exit code. */
 function runCxcOps(args) {
   const res = spawnSync(process.execPath, [cxcOpsCli, ...args], { stdio: "inherit" });
   return typeof res.status === "number" ? res.status : 1;
@@ -170,6 +170,56 @@ function runProvider() {
   return typeof res.status === "number" ? res.status : 1;
 }
 
+const TOP_LEVEL_HELP = [
+  "cxc — codexclaw operator CLI",
+  "",
+  "Usage:",
+  "  cxc <command> [args]",
+  "  cxc --help",
+  "",
+  "Core:",
+  "  enable                         activate declared Codex feature flags",
+  "  disable | uninstall            revert flags codexclaw enabled when safe",
+  "  status                         show declared feature-flag state",
+  "  doctor                         run plugin health checks",
+  "  reset                          remove scoped .codexclaw state/generated files",
+  "  hooks retrust                  re-trust plugin hook hashes after editing hook JSONs",
+  "",
+  "PABCD / loop:",
+  "  orchestrate <verb>             drive IPABCD state (try: cxc orchestrate --help)",
+  "  freeze                         freeze the interview plan and show goal handoff",
+  "  loop init|show|validate         manage the project-local goalplan substrate",
+  "  goalplan init|show|validate     deprecated alias for loop",
+  "  metric                         record/show objective metrics",
+  "  divergence                     record divergence mode and candidate archive state",
+  "",
+  "Workspace intelligence:",
+  "  map [dir]                      generate a ranked repo structure map",
+  "  chat search \"query\"             search Codex chat history",
+  "  memory search \"query\"           search Codex memories",
+  "  skill search|show              search and display dormant skills",
+  "",
+  "Operations:",
+  "  subagents                      read/write per-role subagent model+prompt config",
+  "  provider                       show read-only opencodex provider status",
+  "  serve                          run the bridge server",
+  "  service                        install/uninstall/status the serve daemon",
+  "  gui                            launch the web dashboard",
+  "",
+  "Agent notes:",
+  "  Mutating PABCD commands require the current session id: cxc orchestrate P --session <id>",
+  "  Use --json only on subcommands that document it, such as orchestrate status --json.",
+  "  For command-specific help, start with: cxc orchestrate --help or cxc map --help.",
+].join("\n");
+
+function renderTopLevelHelp() {
+  return TOP_LEVEL_HELP;
+}
+
+function renderUnknownTopLevelCommand(cmd) {
+  return `codexclaw: unknown command '${cmd}'\nRun \`cxc --help\` for usage.`;
+}
+
 /**
  * Pick the interpreter command for the vendored repo-map script (bootstrap ladder).
  *
@@ -187,7 +237,7 @@ function runProvider() {
 export function selectRepoMapCommand(args, env, deps) {
   const { scriptPath, reqsPath, venvPython, hasUv, hasVenv } = deps;
   const wantsHelp = args.some((a) => a === "--help" || a === "-h");
-  if (!wantsHelp && env.CODEXCLAW_PYTHON) {
+  if (!wantsHelp && env.CODEXCLAW_PYTHON && env.CODEXCLAW_PYTHON.trim()) {
     return { cmd: env.CODEXCLAW_PYTHON, args: ["-B", scriptPath, ...args] };
   }
   if (!wantsHelp && hasUv) {
@@ -224,15 +274,19 @@ function runRepoMap(args) {
     if (mk.status === 0) {
       const pip = spawnSync(venvPython, ["-m", "pip", "install", "-q", "-r", reqsPath], { stdio: "inherit" });
       hasVenv = pip.status === 0;
-      if (!hasVenv) console.error("codexclaw map: venv bootstrap failed; falling back.");
+      if (!hasVenv) {
+        console.error("codexclaw map: venv bootstrap failed; falling back.");
+        rmSync(venvDir, { recursive: true, force: true });
+      }
     }
   }
 
-  const hasUv = !spawnSync("uv", ["--version"], { stdio: "ignore" }).error;
+  const uvRes = spawnSync("uv", ["--version"], { stdio: "ignore" });
+  const hasUv = !uvRes.error && uvRes.status === 0;
   const sel = selectRepoMapCommand(args, process.env, { scriptPath, reqsPath, venvPython, hasUv, hasVenv });
   const res = spawnSync(sel.cmd, sel.args, { stdio: "inherit" });
   if (res.error && res.error.code === "ENOENT") {
-    console.error("codexclaw map: python3 not found; install Python 3.9+ or set CODEXCLAW_PYTHON");
+    console.error(`codexclaw map: ${sel.cmd} not found; install Python 3.9+ or set CODEXCLAW_PYTHON`);
     return 1;
   }
   return typeof res.status === "number" ? res.status : 1;
@@ -254,6 +308,12 @@ const isMain = Boolean(
 );
 const cmd = process.argv[2] ?? "help";
 if (isMain) switch (cmd) {
+  case "help":
+  case "--help":
+  case "-h":
+    console.log(renderTopLevelHelp());
+    process.exit(0);
+    break;
   case "enable":
     process.exit(runConfigGuard("enable"));
     break;
@@ -266,6 +326,7 @@ if (isMain) switch (cmd) {
     break;
   case "doctor":
   case "reset":
+  case "hooks":
     process.exit(runCxcOps(process.argv.slice(2)));
     break;
   case "orchestrate":
@@ -309,7 +370,7 @@ if (isMain) switch (cmd) {
     }
     console.log("codexclaw gui: starting the dashboard (Vite will print the local URL)...");
     const res = spawnSync("npm", ["run", "dev"], { cwd: guiDir, stdio: "inherit" });
-    process.exit(typeof res.status === "number" ? res.status : 0);
+    process.exit(typeof res.status === "number" ? res.status : 1);
     break;
   }
   case "chat":
@@ -333,5 +394,6 @@ if (isMain) switch (cmd) {
     process.exit(runProvider());
     break;
   default:
-    console.log("codexclaw <enable|disable|uninstall|status|orchestrate|freeze|metric|divergence|loop|goalplan|doctor|reset|subagents|map|provider|chat|memory|skill|gui|serve|service>");
+    console.error(renderUnknownTopLevelCommand(cmd));
+    process.exit(1);
 }

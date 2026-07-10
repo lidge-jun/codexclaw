@@ -412,6 +412,27 @@ export const INLINE_SKILL_OPEN = '<skill name="cxc-';
 
 const INLINE_SKILL_CLOSE = "</skill>";
 
+/** Dedupe marker for the V2 skill self-load affordance block. */
+export const SKILL_AFFORDANCE_MARKER = "[CXC-SKILL-AFFORDANCE]";
+
+/**
+ * WP2 (090_plan cr3) — plaintext self-load instruction appended to V2-shaped
+ * spawn messages when inlining attached nothing. Native ChatGPT-backend V2
+ * delivers the message to this hook as ciphertext, so mentions cannot be read
+ * or inlined here; this block rides as a plaintext prefix-survivor (proven
+ * 260710, devlog 080) and teaches the CHILD to resolve $cxc mentions itself.
+ */
+export function skillAffordanceBlock(skillsDir: string): string {
+  return [
+    `${SKILL_AFFORDANCE_MARKER} Skill mentions in this task (tokens like`,
+    `$cxc-<name> or $codexclaw:cxc-<name>, or [$cxc-<name>](skill://...) links)`,
+    `are NOT auto-loaded on this surface. Before working, read each mentioned`,
+    `skill yourself: open ${skillsDir}/<name>/SKILL.md with your file tools and`,
+    `follow it. If a mentioned skill file does not exist there, note that in`,
+    `your answer and continue.`,
+  ].join("\n");
+}
+
 /**
  * LINEAR single-pass scanner for validated CLOSED inline-skill blocks.
  * Returns the folders of closed blocks (dedupe authority) and a scan source with
@@ -609,17 +630,39 @@ export function runSpawnAttachHook(raw: string): string {
       ? inlineSkillBodies(normalizedMessage, skillsDir)
       : normalizedMessage;
 
+    // Marker checks must ignore text inside CLOSED inlined skill bodies: doctrine
+    // files quote the literal markers (e.g. pabcd/dev SKILL.md), so an inlined
+    // body must not fake "guard already present" or "affordance already present"
+    // (WP2 live bug: doc-quoted markers poisoned raw includes()).
+    const markerScanSource = scanInlineSkillBlocks(inlinedMessage).scanSource;
+
+    // WP2 cr3 — V2 affordance: when inlining attached nothing (encrypted native
+    // path, or no plaintext mentions), append the plaintext self-load instruction
+    // so the child can resolve mentions itself. Marker-deduped; size-guarded;
+    // never on v1 (upstream parses mentions there). Zero-mention plaintext V2
+    // also gets it — deliberate small overhead (090_plan).
+    let affordanceMessage = inlinedMessage;
+    if (
+      v2Spawn &&
+      skillsDir &&
+      inlinedMessage === normalizedMessage &&
+      !markerScanSource.includes(SKILL_AFFORDANCE_MARKER)
+    ) {
+      const candidate = `${inlinedMessage}\n\n${skillAffordanceBlock(skillsDir)}`;
+      if (candidate.length <= MAX_NORMALIZE_LENGTH) affordanceMessage = candidate;
+    }
+
     // D2 LEAF-GUARD (both surfaces): dedupe an existing guard. A recursion grant
     // selects the coordinator variant but does not remove FSM/goal or write-scope
     // constraints.
-    const hasExistingGuard = inlinedMessage.includes(LEAF_GUARD_MARKER);
-    const hasRecursionGrant = inlinedMessage.includes(SUBSPAWN_TOKEN);
+    const hasExistingGuard = markerScanSource.includes(LEAF_GUARD_MARKER);
+    const hasRecursionGrant = markerScanSource.includes(SUBSPAWN_TOKEN);
     const guard = hasExistingGuard
       ? ""
       : hasRecursionGrant
         ? LEAF_GUARD_BLOCK_COORDINATOR
         : LEAF_GUARD_BLOCK;
-    const updatedMessage = guard.length > 0 ? `${guard}\n\n${inlinedMessage}` : inlinedMessage;
+    const updatedMessage = guard.length > 0 ? `${guard}\n\n${affordanceMessage}` : affordanceMessage;
     const messageChanged = updatedMessage !== message;
 
     // Model/effort routing (both surfaces): when the role's store config carries a

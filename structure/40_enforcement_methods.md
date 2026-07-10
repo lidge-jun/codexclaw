@@ -31,6 +31,14 @@ aliases: [Enforcement Methods Catalog, codexclaw enforcement ladder, how to enfo
 Rule of thumb: **claim "enforced" only for E1, E2, and E8.** E3-E7 are "encouraged",
 "pre-loaded", or "documented" — never "enforced". E8 enforces the repo, not the turn.
 
+Hook-backed enforcement is conditional on Codex trust. Codex pins each hook identity as
+`hooks.state.<key>.trusted_hash` in `~/.codex/config.toml` and silently skips a hook when
+its current identity hash drifts. A hook JSON identity change therefore disables that
+enforcement for new sessions until retrusted. After any edit, commit, or merge touching
+`plugins/codexclaw/hooks/*.json`, run `cxc doctor`; if it reports drift or an untrusted
+hook, recover with `cxc hooks retrust` (timestamped config backup, atomic write, and
+identity-hash algorithm safety-pin) and rerun `cxc doctor`.
+
 ---
 
 ## What each tier is good for
@@ -57,11 +65,13 @@ in the spawn `message` to link-form `[$cxc-*](skill://…)`, or to the plugin-na
 schema-safe when the hook receives plaintext (unlike `items`, which V2 rejects), and on
 plaintext V2 provider/proxy paths it also inlines recognized SKILL.md bodies. Native
 ChatGPT-backend V2 delivers encrypted `message` ciphertext to the hook, so normalization
-and inlining are safe no-ops there; skill delivery relies on fork inheritance. Child
-sessions are proven to fire SessionStart hooks, but using them for delivery remains
-future work. It never invents role baselines or inferred surface skills; dispatchers
-still name every required skill. Configured model+effort
-injection and the D1/D2 leaf guard remain reliable on native V2.
+and inlining are safe no-ops there. When no body can be inlined, the hook appends a
+plaintext `[CXC-SKILL-AFFORDANCE]` block telling the child to self-load any
+`$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention from
+`<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel. It never
+invents role baselines or inferred surface skills; dispatchers still name every required
+skill. Configured model+effort injection and the D1/D2 leaf guard remain reliable on
+native V2.
 
 ### E4 — UserPromptSubmit directive (the nudge)
 Used by the pabcd-trigger hook to inject the phase directive. Strong, visible, but

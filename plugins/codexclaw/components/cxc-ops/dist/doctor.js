@@ -8,6 +8,13 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { homedir } from "node:os";
+import { diagnoseHookTrust, readInstalledPluginKeys } from "./hook-trust.js";
+
+
+
+
+
 
 
 
@@ -42,7 +49,11 @@ export function rollup(checks               )           {
  * Run the codexclaw plugin health checks against a plugin root. Returns a
  * structured report; the caller renders it. Every check carries evidence.
  */
-export function runDoctor(pluginRoot        , agRunner                   = spawnSync)               {
+export function runDoctor(
+  pluginRoot        ,
+  agRunner                   = spawnSync,
+  options                = {},
+)               {
   const checks                = [];
 
   // 1. plugin manifest parses and references hooks.
@@ -117,10 +128,46 @@ export function runDoctor(pluginRoot        , agRunner                   = spawn
   // 5. source-drift + known-issue section (L21.3).
   checks.push(...runDriftCheck(pluginRoot));
 
-  // 6. ast-grep runtime status (L22).
+  // 6. installed hook trust state.
+  checks.push(runHookTrustCheck(pluginRoot, options));
+
+  // 7. ast-grep runtime status (L22).
   checks.push(runAstGrepCheck(pluginRoot, agRunner));
 
   return { overall: rollup(checks), checks };
+}
+
+export function runHookTrustCheck(pluginRoot        , options                = {})              {
+  const codexHome = options.codexHome ?? process.env.CODEX_HOME ?? join(homedir(), ".codex");
+  try {
+    const manifest = JSON.parse(readFileSync(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"))                      ;
+    if (typeof manifest.name !== "string" || !manifest.name) {
+      return { name: "hook-trust", severity: "WARN", evidence: "manifest has no plugin name; cannot resolve install key" };
+    }
+    const candidates = readInstalledPluginKeys(codexHome, manifest.name);
+    const pluginKey = options.pluginKey ?? (candidates.length === 1 ? candidates[0] : null);
+    if (!pluginKey) {
+      return {
+        name: "hook-trust",
+        severity: "WARN",
+        evidence: `enabled install key is ambiguous (${candidates.length}): ${candidates.length ? candidates.join(", ") : "(none)"}`,
+      };
+    }
+    const results = diagnoseHookTrust(codexHome, pluginRoot, pluginKey);
+    const failed = results.filter((result) => result.status !== "trusted");
+    return {
+      name: "hook-trust",
+      severity: failed.length === 0 ? "PASS" : "FAIL",
+      evidence:
+        failed.length === 0
+          ? `${results.length} hook hash(es) trusted for ${pluginKey}`
+          : failed
+              .map((result) => `${result.status} ${result.key} expected=${result.hash} actual=${result.actual ?? "(none)"}`)
+              .join("; "),
+    };
+  } catch (error) {
+    return { name: "hook-trust", severity: "FAIL", evidence: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 /**
