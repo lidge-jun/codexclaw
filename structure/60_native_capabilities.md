@@ -41,12 +41,14 @@ returns final status plus content. V1 has `close_agent` + `resume_agent`; V2 has
 `interrupt_agent`. Concurrency is V1 `agents.max_threads` (default 6) versus V2
 `max_concurrent_threads_per_session` (default 4, including the root).
 
-**Skill and routing parity:** V1 parses message mentions natively and also accepts the
-stronger manual `items` channel. Upstream V2 does not parse skill mentions from
-inter-agent messages, so the codexclaw spawn hook inlines recognized SKILL.md bodies.
-On both surfaces the hook normalizes mentions, applies D1/D2 leaf guards, and
-independently injects configured role model/effort when the caller omits each field and
-the spawn is not a full-history fork.
+**Skill and routing channels:** V1 parses message mentions natively and also accepts the
+stronger manual `items` channel. On plaintext V2 provider/proxy paths, the codexclaw
+spawn hook normalizes mentions and inlines recognized SKILL.md bodies. Native
+ChatGPT-backend V2 gives the hook encrypted `message` ciphertext, so both operations are
+no-ops there; skill delivery relies on fork inheritance. Child sessions are proven to
+fire SessionStart hooks, but using them for delivery is future work. The hook still
+reliably applies D1/D2 leaf guards and injects configured role model/effort on native V2
+when the spawn is not a full-history fork.
 
 **Forbidden configuration:** do not set `hide_spawn_agent_metadata=false`. Modifying
 the reserved `collaboration.spawn_agent` schema by declaring modified tools can make

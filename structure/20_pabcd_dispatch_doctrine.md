@@ -169,12 +169,17 @@ collapses to "dev only" unless the agent deliberately reads further. (The 2026-0
 implicit expansion added six non-dev metadata rows — search/interview/pabcd/recall/
 skill-hub/loop — which improves discovery but does not change this dev-* routing
 collapse.) The spawn-time
-attachment mechanism is explicit on both surfaces: L15's production builder emits
+attachment intent is explicit in both payload shapes: L15's production builder emits
 resolvable message mentions, while manual V1 callers may use the stronger `items`
 channel (`buildSpawnItems`/`SpawnPayload.items`). Prefer `[$cxc-<name>](skill://<abs SKILL.md>)`; use
 plugin-native `$codexclaw:cxc-<name>` when a link is unsafe. The WP2 E3
-spawn PreToolUse hook normalizes known broken/bare cxc mentions on both surfaces and
-inlines recognized skill bodies on V2-shaped spawns; it does not add role baselines or infer surface skills.
+spawn PreToolUse hook normalizes known broken/bare cxc mentions and inlines recognized
+skill bodies on V2-shaped spawns only when `message` reaches it as plaintext. Native
+ChatGPT-backend V2 presents ciphertext, so both operations are no-ops there; skill delivery
+relies on fork inheritance. Child sessions are proven to fire SessionStart hooks, but
+using them for delivery is future work. The native V2 hook still reliably carries the
+leaf guard and configured model/effort injection; it does not add role baselines or infer
+surface skills.
 Dispatchers remain responsible for naming every required skill (DISPATCH-TASK-01).
 
 ---

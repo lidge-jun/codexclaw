@@ -54,11 +54,14 @@ place codexclaw can repair an already-authored skill mention before dispatch. SH
 (WP2): the spawn hook (`spawn-attach-hook.ts`) normalizes known broken/bare cxc mentions
 in the spawn `message` to link-form `[$cxc-*](skill://…)`, or to the plugin-native
 `$codexclaw:cxc-*` fallback when the path is not link-safe. Message rewrite is
-schema-safe on both V1 and V2 (unlike `items`, which V2 rejects). Because upstream V2
-does not collect skills from inter-agent messages, the hook also inlines recognized
-SKILL.md bodies on V2-shaped spawns. It never invents role baselines or inferred surface
-skills; dispatchers still name every required skill. Configured model+effort injection
-and the D1/D2 leaf guard apply on both surfaces.
+schema-safe when the hook receives plaintext (unlike `items`, which V2 rejects), and on
+plaintext V2 provider/proxy paths it also inlines recognized SKILL.md bodies. Native
+ChatGPT-backend V2 delivers encrypted `message` ciphertext to the hook, so normalization
+and inlining are safe no-ops there; skill delivery relies on fork inheritance. Child
+sessions are proven to fire SessionStart hooks, but using them for delivery remains
+future work. It never invents role baselines or inferred surface skills; dispatchers
+still name every required skill. Configured model+effort
+injection and the D1/D2 leaf guard remain reliable on native V2.
 
 ### E4 — UserPromptSubmit directive (the nudge)
 Used by the pabcd-trigger hook to inject the phase directive. Strong, visible, but

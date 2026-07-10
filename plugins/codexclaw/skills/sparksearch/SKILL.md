@@ -49,14 +49,17 @@ speed. Keep final judgment in the main session regardless.
 Do not hand-write a tool directive in the spawn message. Attach `cxc-search`
 through the preferred `[$cxc-search](skill://<abs SKILL.md path>)` form, or the
 plugin-native `$codexclaw:cxc-search` fallback when the path is not link-safe,
-so each Spark subagent auto-loads the proof ladder (Tier 1
+so each Spark subagent can load the proof ladder where the surface delivers the skill (Tier 1
 `web_search` + Tier 2 open-the-source) at launch. The skill body is the single
 source of truth for the tool list; this skill only adds the lane assignment and
 the Spark model.
 
-The portable default is a **link-form mention in the spawn message**. V1 parses it on
-the child's first turn; upstream V2 does not, so the codexclaw spawn hook inlines the
-recognized skill's full SKILL.md body into the V2 message:
+The shared payload form is a **link-form mention in the spawn message**. V1 parses it on
+the child's first turn. On plaintext V2 provider/proxy paths, the codexclaw spawn hook
+inlines the recognized skill's full SKILL.md body; native ChatGPT-backend V2 gives the
+hook ciphertext, so normalization and inlining are no-ops there and skill delivery
+must rely on fork inheritance. Child sessions are proven to fire SessionStart hooks,
+but using them for delivery is future work:
 
 ```text
 message: "[$cxc-search](skill://<cxc-search SKILL.md absolute path>)
@@ -73,8 +76,8 @@ items: [
 ]
 ```
 
-(v2 `deny_unknown_fields` rejects `items` — there the recognized mention plus the
-hook-inlined body is the attachment.)
+(v2 `deny_unknown_fields` rejects `items`; the hook-inlined attachment applies only
+on plaintext V2 paths.)
 
 Do not duplicate the Tier 1/2 tool list as inline prose — the attached skill
 already carries it. A subagent that cannot open pages must flag every finding as

@@ -104,6 +104,11 @@ agent discipline that makes later audit possible.
   your own. This also covers `cxc loop init --session` and `cxc goalplan` — binding a
   goalplan slug into a foreign session corrupts that session's Stop enrichment and
   D-close goalplan cursor.
+- **SessionStart bootstrap** — the registered root SessionStart hook eagerly creates
+  the exact bound id's default IDLE state before the first turn, so that id is immediately
+  valid for agent-gated `cxc orchestrate` calls. Publication is no-clobber and resume-safe:
+  a repeated SessionStart never resets or normalizes an existing FSM. The reserved `cli`
+  key remains terminal-only and is never a fallback for a Codex session.
 - **Phase footer** — every injected directive ends with `IPABCD: <phase> (<LABEL>)` so
   the current phase is visible (codex has no status UI). After `D` closes, the resting
   state shown is `IDLE`.
@@ -443,11 +448,14 @@ return — `path:line` + command output), and `RETURN FORMAT`. Put the packet in
 message always. Skill attachment travels as resolvable mentions in the message: prefer
 link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)`, or use plugin-native
 `$codexclaw:cxc-<skill>` when a link is unsafe. V1 parses either form on the child's first
-turn. Upstream V2 does not parse inter-agent skill mentions, so the spawn hook inlines
-the full bodies for recognized cxc mentions on V2-shaped spawns. The hook also normalizes
-known broken/bare mentions on both surfaces, but does not add role baselines or infer
-missing surfaces. Manually supplied structured V1 `items` remain the strongest form where
-available; `resolveSpawnPayloadWithSkills` emits message mentions, not `items`. Do not delegate
+turn. On plaintext V2 provider/proxy paths, the spawn hook normalizes mentions and
+inlines recognized cxc skill bodies. Native ChatGPT-backend V2 gives the hook ciphertext,
+so both operations are no-ops there; skill delivery must rely on fork inheritance. Child
+sessions are proven to fire SessionStart hooks, but using them for delivery is future
+work. The reliable hook-borne native V2 channels remain the leaf guard and configured
+model/effort injection. The hook does not add role baselines or infer missing surfaces.
+Manually supplied structured V1 `items` remain the strongest form where available;
+`resolveSpawnPayloadWithSkills` emits message mentions, not `items`. Do not delegate
 host-goal changes to subagents; the main session owns `create_goal`/`update_goal`.
 
 ## State

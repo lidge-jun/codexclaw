@@ -16,10 +16,13 @@ surface pins on the session's first turn. V1 collab tools
 `close_agent`) are deferred behind `tool_search`; V2 tools are direct. If
 `spawn_agent` is not visible, run `tool_search` for it first.
 
-The spawn hook provides parity on both surfaces: it normalizes skill mentions, fills
-omitted configured model/effort fields on non-full-history spawns, and applies the leaf
-guard. V1 parses skill mentions natively; because upstream V2 does not, the hook inlines
-recognized SKILL.md bodies into V2 spawn messages.
+V1 parses skill mentions natively. On plaintext V2 provider/proxy paths, the spawn hook
+normalizes mentions and inlines recognized SKILL.md bodies. Native ChatGPT-backend V2
+gives the hook encrypted message ciphertext, so both operations are no-ops there and
+skill delivery relies on fork inheritance. Child sessions are proven to fire SessionStart
+hooks, but using them for delivery is future work.
+The reliable native V2 hook channels are the leaf guard and omitted configured
+model/effort injection on non-full-history spawns.
 
 ## Browse-use ladder (owned by `cxc-search`)
 

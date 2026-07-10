@@ -143,11 +143,13 @@ Why this is wording, not a runtime gate: no Codex hook fires on skill load (see
 SUBAGENT dispatches, the dispatcher names every required skill explicitly. Prefer
 link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)` mentions in the spawn `message`;
 when the path is not link-safe, use the plugin-native `$codexclaw:cxc-<skill>` fallback.
-The always-on spawn PreToolUse hook normalizes known broken/bare cxc mentions on both
-surfaces, but it does not add role baselines or infer missing surface skills. On
-V2-shaped spawns it also inlines the full bodies of recognized skills because upstream
-does not collect skill mentions from inter-agent messages. The manually supplied,
-v1-only `items` channel remains the strongest explicit form (`structure/10`).
+When the spawn message reaches it as plaintext, the always-on spawn PreToolUse hook
+normalizes known broken/bare cxc mentions and, on V2-shaped spawns, inlines recognized
+skill bodies. Native ChatGPT-backend V2 gives the hook ciphertext, so both operations
+are no-ops there; skill delivery must rely on fork inheritance. Child sessions are proven
+to fire SessionStart hooks, but using them for delivery is future work. The hook never
+adds role baselines or infers missing surface skills. The manually supplied, v1-only
+`items` channel remains the strongest explicit form (`structure/10`).
 
 ### Subagent Skill Injection (DEV-SKILL-INJECT-01)
 
@@ -155,9 +157,9 @@ When spawning a subagent for any codexclaw-governed task, attach `cxc-dev` and
 the relevant surface `cxc-*` skills with resolvable spawn-message mentions:
 preferred link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)`, or plugin-native
 `$codexclaw:cxc-<skill>` when a link is unsafe. The manual v1 `items` mechanism is also
-valid. Name the surface skills explicitly; the hook repairs known broken/bare mentions
-on both surfaces and inlines recognized skill bodies on V2, but never supplies an
-omitted skill.
+valid. Name the surface skills explicitly; on plaintext spawn paths the hook repairs
+known broken/bare mentions and inlines recognized skill bodies on V2-shaped spawns, but
+it never supplies an omitted skill.
 Keep the skill body as the single source of truth. For search tasks, attach
 `cxc-search`, and ensure subagents/delegated agents are bound by the same
 search-skill policy as the main agent.

@@ -17,7 +17,7 @@
  *  - payload field names: codex-rs hooks/src/events/{user_prompt_submit,stop}.rs (snake_case)
  *  - output shape:        omo rules/src/hook-output.ts:10-16 (camelCase hookSpecificOutput)
  */
-import { appendLedger, readState, writeState, type Phase, type State } from "./state.ts";
+import { appendLedger, ensureState, readState, writeState, type Phase, type State } from "./state.ts";
 import { hasStageMarkerForPhase, isContextPressureTail, readTranscriptTail } from "./transcript.ts";
 import { getGoalActiveStatus, suppressesInterview } from "./goal-active.ts";
 import { parseOrchestrateCommand } from "./orchestrate-grammar.ts";
@@ -39,6 +39,12 @@ export interface UserPromptSubmitPayload {
   turn_id?: string;
   model?: string;
   permission_mode?: string;
+}
+
+export interface SessionStartPayload {
+  hook_event_name: "SessionStart";
+  session_id: string;
+  cwd: string;
 }
 
 export interface StopPayload {
@@ -169,9 +175,10 @@ const PHASE_DIRECTIVES: Partial<Record<Phase, string>> = {
     "with plugin-native",
     "$codexclaw:cxc-* mentions ($codexclaw:cxc-dev-code-reviewer AND",
     "$codexclaw:cxc-search plus the matching $codexclaw:cxc-dev-* surface skill). The",
-    "spawn-attach hook normalizes mentions, inlines V2 SKILL.md bodies, injects configured",
-    "model/effort, and applies the leaf guard, but NEVER invents skills the dispatcher did",
-    "not name; the dispatcher still names every required skill. Ask",
+    "spawn-attach hook normalizes mentions and inlines SKILL.md bodies when the spawn",
+    "message reaches it as plaintext (native ChatGPT-backend V2 encrypts it — there only",
+    "the leaf guard and configured model/effort injection apply), and NEVER invents",
+    "skills the dispatcher did not name; the dispatcher still names every required skill. Ask",
     "the reviewer to end with a final line: VERDICT: PASS | GO-WITH-FIXES (blockers=N)",
     "| FAIL. A is a loop (AUDIT-LOOP-01): on FAIL, synthesize (REVIEW-SYNTHESIS-01),",
     "amend the plan, re-audit with the SAME reviewer; advance only when YOU judge the",
@@ -316,6 +323,17 @@ export function buildContextOutput(eventName: string, ctx: string): string {
   return `${JSON.stringify({
     hookSpecificOutput: { hookEventName: eventName, additionalContext: capped },
   })}\n`;
+}
+
+/**
+ * Bootstrap the exact SessionStart-bound FSM before an agent can invoke the
+ * explicit-session CLI. Context output remains owned by the existing provider and
+ * cxc-ops SessionStart hooks, so this side-effect-only handler is always silent.
+ */
+export function handleSessionStart(payload: SessionStartPayload): string {
+  if (payload.hook_event_name !== "SessionStart") return "";
+  ensureState(payload.cwd, payload.session_id);
+  return "";
 }
 
 /**

@@ -23,6 +23,12 @@
  *    recognized cxc mention's SKILL.md body to the message. Atomic overflow rule:
  *    if the normalized message plus ALL candidate bodies would exceed
  *    MAX_NORMALIZE_LENGTH, no bodies are appended (never truncated/partial).
+ *    ENCRYPTION LIMIT (live-proven 260710, devlog 260710_v1_v2_parity/080): on
+ *    native ChatGPT-backend V2 sessions the hook receives `message` as backend
+ *    ciphertext, so normalization/inlining are silent no-ops there — the
+ *    hook-borne channels that survive encryption are the plaintext-prepended
+ *    leaf guard and the plaintext model/reasoning_effort fields. Inlining works
+ *    on plaintext surfaces (v1, non-encrypted provider/proxy paths).
  *
  * SAFETY: `updatedInput` is a FULL REPLACEMENT of tool_input (registry.rs:122),
  * honored only on permissionDecision "allow" (output_parser.rs:162). We echo the

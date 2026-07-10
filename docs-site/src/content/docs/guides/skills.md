@@ -30,11 +30,14 @@ Codex exposes the same skill under several forms. Docs and prompts may use any o
 
 ## Subagent attachment (resolvable mentions in the spawn message)
 
-Skills attach to subagents through the spawn **message**. Prefer link-form
+Skill attachment intent travels through the spawn **message**. Prefer link-form
 `[$cxc-<skill>](skill://<abs SKILL.md path>)`; when the path is not link-safe, use the
 plugin-native `$codexclaw:cxc-<skill>` fallback. V1 parses either form on the child's
-first turn and injects the full SKILL.md body. Upstream V2 does not parse skill mentions
-from inter-agent messages, so the codexclaw spawn hook inlines the recognized skill body.
+first turn and injects the full SKILL.md body. On plaintext V2 provider/proxy paths, the
+codexclaw spawn hook normalizes mentions and inlines recognized skill bodies. Native
+ChatGPT-backend V2 gives the hook ciphertext, so both operations are no-ops there; skill
+delivery relies on fork inheritance. Child sessions are proven to fire SessionStart
+hooks, but using them for delivery is future work.
 Manual V1 callers may use the stronger structured `items` channel.
 
 Two layers keep this deterministic:
@@ -42,10 +45,10 @@ Two layers keep this deterministic:
 - **Name skills explicitly** when dispatching: put the matching
   `$codexclaw:cxc-dev-*` (and `$codexclaw:cxc-search` for research lanes) in the spawn
   message yourself, or use their preferred link forms.
-- **The spawn-attach hook repairs mentions.** The always-on spawn PreToolUse hook
-  normalizes known broken/bare cxc mentions to a resolvable form on both surfaces and
-  performs V2 body inlining. It does not add role baselines or infer missing surface
-  skills; the dispatcher still names those.
+- **The spawn-attach hook repairs plaintext mentions.** The always-on spawn PreToolUse
+  hook normalizes known broken/bare cxc mentions and performs V2 body inlining only when
+  the message reaches it as plaintext. It does not add role baselines or infer missing
+  surface skills; the dispatcher still names those.
 
 ## dev-* routing
 

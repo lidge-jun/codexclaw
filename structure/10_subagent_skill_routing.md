@@ -6,7 +6,7 @@ aliases: [L14 Design, subagent skill routing, cxc skill attachment]
 
 # L14 — Subagent Skill Routing + Loop/Goal Handoff (Design SOT)
 
-Status: DESIGN + SHIPPED — **spawn surface status 260710: V1 is codexclaw's default; the model catalog pins sol/terra to V2 and luna to V1, while `features.multi_agent_v2` selects V2 only for fallback models. The surface pins on the first turn.** V2 requires task_name+message and rejects `items`; production builders emit `fork_turns:"none"` plus resolvable message mentions. Historical shape below documents the v1-era evolution. (E5 dispatch builder shipped in L15; lazygap_impl 020 added `INTENT_ROLE`/`routeDispatch` and the E3 spawn PreToolUse hook. The hook normalizes recognized mentions on both surfaces and, on V2-shaped spawns, inlines their full SKILL.md bodies because upstream excludes inter-agent messages from skill collection. It never invents role baselines or missing surfaces. The same hook applies model+effort injection and leaf guards on both surfaces. The old `CODEXCLAW_SPAWN_ATTACH=v1` opt-in is gone; V1 `items` remains a manual, strongest channel.) · 2026-07-10
+Status: DESIGN + SHIPPED — **spawn surface status 260710: V1 is codexclaw's default; the model catalog pins sol/terra to V2 and luna to V1, while `features.multi_agent_v2` selects V2 only for fallback models. The surface pins on the first turn.** V2 requires task_name+message and rejects `items`; production builders emit `fork_turns:"none"` plus resolvable message mentions. Historical shape below documents the v1-era evolution. (E5 dispatch builder shipped in L15; lazygap_impl 020 added `INTENT_ROLE`/`routeDispatch` and the E3 spawn PreToolUse hook. When the spawn message is plaintext, the hook normalizes recognized mentions and inlines full SKILL.md bodies on V2-shaped spawns. Native ChatGPT-backend V2 presents ciphertext, making both operations no-ops; its reliable hook-borne channels are the leaf guard and model+effort injection. It never invents role baselines or missing surfaces. The old `CODEXCLAW_SPAWN_ATTACH=v1` opt-in is gone; V1 `items` remains a manual, strongest channel.) · 2026-07-10
 
 > This is the design source of truth for the L14 hardening track. The defect
 > diagnosis with file:line evidence lives in
@@ -37,13 +37,13 @@ so the subagent actually loads the discipline instead of being told about it in 
   folders the dispatcher requested.
 - The builder (`resolveSpawnPayloadWithSkills`/`routeDispatch`) is the E5 dispatch path:
   a dispatcher that routes through it names the role and surface skills deterministically.
-- The E3 spawn PreToolUse hook is a repair boundary, not a routing oracle. It normalizes
-  known broken/bare cxc mentions already in `message` on both surfaces and inlines the
-  recognized skill bodies on V2; it does not supply an omitted role baseline or infer a
-  surface skill.
+- The E3 spawn PreToolUse hook is a repair boundary, not a routing oracle. On plaintext
+  spawn paths it normalizes known broken/bare cxc mentions already in `message` and
+  inlines recognized skill bodies on V2-shaped spawns; it does not supply an omitted
+  role baseline or infer a surface skill.
 
-Net: routing is "split into skills" AND "attached at dispatch" only when the dispatcher
-explicitly names the resolved role/surface set. Prefer
+Net: routing is "split into skills" and its attachment intent is encoded at dispatch only
+when the dispatcher explicitly names the resolved role/surface set. Prefer
 `[$cxc-<name>](skill://<abs SKILL.md>)`; use plugin-native
 `$codexclaw:cxc-<name>` when a path is not link-safe. The hook recognizes bare
 `$cxc-<name>` only as legacy normalization/dedupe input and rewrites it to a resolvable
@@ -96,13 +96,17 @@ spawn handler uses `#[serde(deny_unknown_fields)]` with no `items` field. Messag
 are therefore the production shared channel, but their delivery differs: V1 turns the
 spawn message into `UserInput::Text` and parses link/plugin mentions natively; V2 sends
 `InterAgentCommunication`, which upstream excludes from skill collection. The codexclaw
-spawn hook compensates on V2 by inlining full SKILL.md bodies for recognized cxc mentions.
-It normalizes those mentions on both surfaces and never invents an omitted skill.
+spawn hook compensates only when the V2 message reaches it as plaintext by inlining full
+SKILL.md bodies for recognized cxc mentions. Native ChatGPT-backend V2 presents encrypted
+ciphertext, so normalization and inlining are safe no-ops there; skill delivery relies on
+fork inheritance. Child sessions are proven to fire SessionStart hooks, but using them
+for delivery is future work. The native V2 hook still reliably prepends the leaf guard
+and injects configured model/effort fields.
 
 ### L15.2 follow-up (SHIPPED as WP2, E3 — mention normalization)
-The spawn PreToolUse hook scans `message` for known cxc mentions and repairs broken links
-or bare names via `updatedInput` on both surfaces. For V2-shaped spawns it also appends the
-recognized skills' full bodies. It never invents a missing message or a missing skill. The preferred output is
+When `message` is plaintext, the spawn PreToolUse hook scans it for known cxc mentions,
+repairs broken links or bare names via `updatedInput`, and appends recognized skill bodies
+on V2-shaped spawns. It never invents a missing message or a missing skill. The preferred output is
 `[$cxc-<name>](skill://<abs SKILL.md>)`; when the path is not link-safe, the output is the
 plugin-native `$codexclaw:cxc-<name>` fallback. Bare `$cxc-<name>` recognition remains
 only as legacy detection/dedupe input, never as an emitted or taught attachment form.
@@ -132,7 +136,8 @@ export interface SpawnPayload {
 `buildSpawnItems` composes the strongest manual V1 form: one `skill` item per attached
 `cxc-*` skill, then a trailing `text` item carrying the concrete task. The production
 `resolveSpawnPayloadWithSkills`/`routeDispatch` path instead emits resolvable mentions and
-the task in `message`, which is valid on both surfaces and enables V2 hook inlining.
+the task in `message`, which is valid on both surfaces and enables hook inlining on
+plaintext V2 provider/proxy paths.
 
 Resolved: the production role prompt, skill mentions, and task stay in `message` as one
 source. Manual V1 `items` remains a separate helper for callers that deliberately choose

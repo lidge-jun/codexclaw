@@ -189,10 +189,13 @@ explicitly names `$codexclaw:cxc-search` alongside
 `$codexclaw:cxc-dev-code-reviewer` (AUDIT-LOOP-01). The spawn wrapper's
 `ROLE_BASE_SKILLS.reviewer` resolves the same pair when that builder is used.
 
-The portable default is a **link-form mention in the spawn message**. On V1 the
-child's first turn parses the mention and injects the full SKILL.md body. Upstream V2
-does not parse skill mentions in inter-agent messages, so the codexclaw spawn hook
-recognizes the same mention and inlines the full body into the outgoing message. If the
+The shared payload form is a **link-form mention in the spawn message**. On V1 the
+child's first turn parses the mention and injects the full SKILL.md body. When a
+V2-shaped spawn message reaches the codexclaw hook as plaintext (non-encrypted
+provider/proxy paths), the hook recognizes the same mention and inlines the full body.
+Native ChatGPT-backend V2 sends the hook ciphertext, so mention normalization and body
+inlining are no-ops there; skill delivery must rely on fork inheritance. Child sessions
+are proven to fire SessionStart hooks, but using them for delivery is future work. If the
 path is not link-safe, use the plugin-native `$codexclaw:cxc-search` fallback instead:
 
 ```text
@@ -211,10 +214,9 @@ items: [
 ]
 ```
 
-(v2 `deny_unknown_fields` rejects `items` — there the recognized mention plus the
-hook-inlined body is the attachment. The always-on spawn-attach hook normalizes
-known broken/bare cxc mentions on both surfaces and performs V2 inlining, but it does
-not add `cxc-search` when the dispatcher omits it.)
+(v2 `deny_unknown_fields` rejects `items`; plaintext V2 paths use the recognized
+mention plus the hook-inlined body. The always-on spawn-attach hook never adds
+`cxc-search` when the dispatcher omits it.)
 
 Do not write a long inline TOOLS block in either path — the skill already says
 "web_search for discovery, then open the source; snippets lie; the page is the
@@ -226,8 +228,8 @@ evidence." A subagent that cannot open pages must flag every finding as
 ladder. It fans out cheap `gpt-5.3-codex-spark` subagents for wide discovery,
 then hands every candidate back here for Tier 2 source-proof. sparksearch
 discovers; cxc-search proves. sparksearch names THIS skill (`cxc-search`) in each
-spawn message; V1 parses the mention and the V2 hook inlines its body. Manual V1
-callers may instead use `items`. See the `$cxc-sparksearch` skill for its hardcoded
+spawn message; V1 parses the mention, while plaintext V2 paths use hook inlining as
+qualified above. Manual V1 callers may instead use `items`. See the `$cxc-sparksearch` skill for its hardcoded
 spawn path and swarm shape.
 
 ### Removed cli-jaw tiers (non-goals — do not re-add)

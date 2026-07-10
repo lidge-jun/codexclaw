@@ -17,7 +17,7 @@
  *  - payload field names: codex-rs hooks/src/events/{user_prompt_submit,stop}.rs (snake_case)
  *  - output shape:        omo rules/src/hook-output.ts:10-16 (camelCase hookSpecificOutput)
  */
-import { appendLedger, readState, writeState,                        } from "./state.js";
+import { appendLedger, ensureState, readState, writeState,                        } from "./state.js";
 import { hasStageMarkerForPhase, isContextPressureTail, readTranscriptTail } from "./transcript.js";
 import { getGoalActiveStatus, suppressesInterview } from "./goal-active.js";
 import { parseOrchestrateCommand } from "./orchestrate-grammar.js";
@@ -29,6 +29,12 @@ import { advanceWorkPhase, appendGoalplanLedger, readGoalplan, writeGoalplan, ne
 import { peakFrictionVerdict, looksLikeFailure, recordFriction } from "./friction.js";
 import { discardStreak, readDivergenceCandidates } from "./divergence.js";
 import { hasRenderArtifactModified, hasRenderObservation, renderGroundingAdvisory } from "./render-observations.js";
+
+
+
+
+
+
 
 
 
@@ -169,9 +175,10 @@ const PHASE_DIRECTIVES                                 = {
     "with plugin-native",
     "$codexclaw:cxc-* mentions ($codexclaw:cxc-dev-code-reviewer AND",
     "$codexclaw:cxc-search plus the matching $codexclaw:cxc-dev-* surface skill). The",
-    "spawn-attach hook normalizes mentions, inlines V2 SKILL.md bodies, injects configured",
-    "model/effort, and applies the leaf guard, but NEVER invents skills the dispatcher did",
-    "not name; the dispatcher still names every required skill. Ask",
+    "spawn-attach hook normalizes mentions and inlines SKILL.md bodies when the spawn",
+    "message reaches it as plaintext (native ChatGPT-backend V2 encrypts it — there only",
+    "the leaf guard and configured model/effort injection apply), and NEVER invents",
+    "skills the dispatcher did not name; the dispatcher still names every required skill. Ask",
     "the reviewer to end with a final line: VERDICT: PASS | GO-WITH-FIXES (blockers=N)",
     "| FAIL. A is a loop (AUDIT-LOOP-01): on FAIL, synthesize (REVIEW-SYNTHESIS-01),",
     "amend the plan, re-audit with the SAME reviewer; advance only when YOU judge the",
@@ -316,6 +323,17 @@ export function buildContextOutput(eventName        , ctx        )         {
   return `${JSON.stringify({
     hookSpecificOutput: { hookEventName: eventName, additionalContext: capped },
   })}\n`;
+}
+
+/**
+ * Bootstrap the exact SessionStart-bound FSM before an agent can invoke the
+ * explicit-session CLI. Context output remains owned by the existing provider and
+ * cxc-ops SessionStart hooks, so this side-effect-only handler is always silent.
+ */
+export function handleSessionStart(payload                     )         {
+  if (payload.hook_event_name !== "SessionStart") return "";
+  ensureState(payload.cwd, payload.session_id);
+  return "";
 }
 
 /**
