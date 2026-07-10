@@ -32,22 +32,42 @@ head:
           }
         ]
       }
-hero:
-  tagline: "Development discipline for OpenAI&nbsp;Codex: one plugin, no fork, no harness."
-  actions:
-    - text: Get Started
-      link: /codexclaw/getting-started/installation/
-      icon: right-arrow
-      variant: primary
-    - text: How It Works
-      link: /codexclaw/concepts/how-it-works/
-      icon: open-book
-      variant: secondary
-    - text: GitHub
-      link: https://github.com/lidge-jun/codexclaw
-      icon: external
-      variant: minimal
 ---
+
+<section class="cxcp-poster" aria-labelledby="cxcp-title">
+  <div class="cxcp-hero">
+    <div class="cxcp-wedge" aria-hidden="true"></div>
+    <div class="cxcp-construct" aria-hidden="true">
+      <span class="cxcp-sphere"></span>
+      <span class="cxcp-bar cxcp-bar--tall"></span>
+      <span class="cxcp-bar cxcp-bar--wide"></span>
+      <span class="cxcp-bar cxcp-bar--short"></span>
+      <span class="cxcp-baseline"></span>
+    </div>
+    <div class="cxcp-message">
+      <h1 id="cxcp-title">codexclaw</h1>
+      <p class="cxcp-ribbon">Development discipline for OpenAI Codex</p>
+    </div>
+    <div class="cxcp-actions">
+      <a class="cxcp-start" href="/codexclaw/getting-started/installation/">Get Started</a>
+      <a class="cxcp-secondary" href="/codexclaw/concepts/how-it-works/">How It Works</a>
+    </div>
+  </div>
+
+  <nav class="cxcp-panels" aria-label="Featured guides">
+    <a class="cxcp-panel cxcp-panel--pabcd" href="/codexclaw/guides/pabcd/">
+      <span class="cxcp-panel__label">PABCD</span>
+    </a>
+    <a class="cxcp-panel cxcp-panel--skills" href="/codexclaw/guides/skills/">
+      <span class="cxcp-panel__label">Skills</span>
+    </a>
+    <a class="cxcp-panel cxcp-panel--subagents" href="/codexclaw/guides/subagents/">
+      <span class="cxcp-panel__label">Subagents</span>
+    </a>
+  </nav>
+
+  <div class="cxcp-footer-rule" aria-hidden="true"></div>
+</section>
 
 <div class="cxc-term" role="img" aria-label="Terminal session showing a codexclaw PABCD work loop">
   <div class="cxc-term__bar" aria-hidden="true">
@@ -114,7 +134,7 @@ Codex runtime
 
 | Surface | Status | Count / scope | Primary docs |
 |---------|--------|---------------|--------------|
-| Skills | <span class="cxc-badge cxc-badge--current">current</span> | 25 skills: six implicit skills (`dev`, `search`, `interview`, `pabcd`, `recall`, `loop`), dev routers, `qa`, `repo-map`, and research/search helpers. | [Skills](/codexclaw/guides/skills/) |
+| Skills | <span class="cxc-badge cxc-badge--current">current</span> | 25 skills: eight implicit skills (`dev`, `search`, `interview`, `pabcd`, `recall`, `loop`, `dev-frontend`, `dev-uiux-design`), dev routers, `qa`, `repo-map`, and research/search helpers. | [Skills](/codexclaw/guides/skills/) |
 | Hooks | <span class="cxc-badge cxc-badge--current">current</span> | 12 hook JSON files: `SessionStart` x2, `UserPromptSubmit` x1, `Stop` x1, `PreToolUse` x4, `PostToolUse` x2, `SubagentStop` x1, `PostCompact` x1. | [Hooks](/codexclaw/reference/hooks/) |
 | MCP | <span class="cxc-badge cxc-badge--current">current</span> | Subagent model and prompt config: `subagents_get`, `subagents_set`, `catalog_list`. | [MCP Tools](/codexclaw/reference/api-mcp/) · [Subagents](/codexclaw/guides/subagents/) |
 | Components | <span class="cxc-badge cxc-badge--current">current</span> | 8 component packages: config guard, ops, recall, PABCD state, provider bridge, subagent config, messenger bridge, skill search. GUI is separate. | [How It Works](/codexclaw/concepts/how-it-works/) |

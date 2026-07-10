@@ -25,6 +25,9 @@ export default defineConfig({
       },
       favicon: "/favicon.ico",
       head: [
+        { tag: "link", attrs: { rel: "preconnect", href: "https://fonts.googleapis.com" } },
+        { tag: "link", attrs: { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "anonymous" } },
+        { tag: "link", attrs: { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Anton&display=swap" } },
         { tag: "link", attrs: { rel: "icon", href: "/codexclaw/favicon.ico", sizes: "32x32" } },
         { tag: "link", attrs: { rel: "icon", href: "/codexclaw/icon.svg", type: "image/svg+xml" } },
         { tag: "link", attrs: { rel: "apple-touch-icon", href: "/codexclaw/apple-touch-icon.png" } },

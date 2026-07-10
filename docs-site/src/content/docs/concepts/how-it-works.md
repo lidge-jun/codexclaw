@@ -24,9 +24,10 @@ flowchart LR
 
 ## Skills
 
-Skills carry the development discipline. Six skills are implicit-visible in the shipped
-`agents/openai.yaml` files: `dev`, `search`, `interview`, `pabcd`, `recall`, and `loop`.
-Everything else (`dev-frontend`, `dev-testing`, `qa`, `repo-map`, `ast-grep`, ...) loads on
+Skills carry the development discipline. Eight skills are implicit-visible in the shipped
+`agents/openai.yaml` files: `dev`, `search`, `interview`, `pabcd`, `recall`, `loop`,
+`dev-frontend`, and `dev-uiux-design`.
+Everything else (`dev-backend`, `dev-testing`, `qa`, `repo-map`, `ast-grep`, ...) loads on
 demand by explicit mention, trigger match, or `cxc-dev` routing. The skill hub is a catalog, not
 a runtime loader. See the [Skills guide](/codexclaw/guides/skills/).
 

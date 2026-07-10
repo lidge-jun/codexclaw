@@ -61,12 +61,22 @@ cxc orchestrate reset
 
 ## Stop continuation
 
-Under an **active native goal** plus an in-flight PABCD cycle, the `Stop` hook returns
-`{"decision":"block","reason":...}` to keep the agent advancing. Termination stays total via
-four guards:
+Under an **active native goal**, the `Stop` hook returns
+`{"decision":"block","reason":...}` to keep the agent advancing — both mid-cycle
+(continue the current phase) and at IDLE with no in-flight cycle
+(GOAL-IDLE-CONTINUE-01: arm the next work-phase with `cxc orchestrate P` or close the
+goal honestly). Termination stays total via three guards:
 
-- **`stop_hook_active`** — already in a continuation → release.
-- **IDLE / no active goal** — a plain interactive session never enters the loop.
+- **No active goal** — a plain interactive session never enters the loop (IDLE or
+  mid-cycle without a goal pauses for the human).
 - **Context-pressure bail** — do not pile on during compaction recovery.
 - **Stagnation cap** — after a bounded number of consecutive blocks at the same phase with no
-  transition, the loop releases. A real transition resets the counter.
+  transition, the loop releases. A real transition resets the counter. This cap is the
+  single total-termination bound: the old unconditional `stop_hook_active` release was
+  removed (it capped an armed loop at one continuation per turn).
+
+`update_goal {status:"complete"}` is gated deterministically (GOAL-COMPLETE-GATE-01):
+a PreToolUse hook denies it while a PABCD cycle is in flight, or while a session-bound
+goalplan fails the E8 `cxc loop validate` gate (unmet criteria, undone work phases,
+evidence-free `met` marks, or an empty unregistered plan). `status:"blocked"` always
+passes as the honest escape hatch.
