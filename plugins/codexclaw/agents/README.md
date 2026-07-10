@@ -30,8 +30,8 @@ spawn_agent({ agent_type: "explorer", task_name: "explorer_<slug>", fork_turns: 
               message: "TASK: <role instructions + the concrete task>" })
 spawn_agent({ agent_type: "worker",   task_name: "executor_<slug>", fork_turns: "none",
               message: "TASK: <executor instructions + scoped task>" })
-// dev2 switch 260709: multi_agent_v2 spawn — task_name required ([a-z0-9_]+),
-// fork_turns "none" keeps agent_type/model/effort overrides legal (full fork rejects them).
+// V2 shape: task_name is required ([a-z0-9_]+); fork_turns "none" keeps
+// agent_type/model/effort overrides legal (a full-history fork rejects them).
 ```
 
 This is omo's proven pattern. The `.toml` files are the canonical SOURCE of those prompts and
@@ -46,16 +46,18 @@ field (`ConfigToml` uses `deny_unknown_fields`). Read-only intent is encoded in 
 
 `model = "default"` means inherit the parent model. The `.codexclaw/subagents.json`
 store, MCP/GUI roundtrip, and `resolveSpawnConfig(cwd, role)` resolver are shipped; S8/S10
-tests prove persistence and resolver behavior.
-The store also carries a per-role `effort` override (codex wire values
-low/medium/high/xhigh; null = inherit the parent session's effort). It is
-mode-independent and flows into `reasoning_effort` on both the wrapper payload and the
-spawn-attach hook's `updatedInput`.
+tests prove persistence and resolver behavior. The store also carries a per-role `effort`
+override (codex wire values low/medium/high/xhigh; null = inherit).
+
+On both V1 and V2, the spawn hook independently injects configured role `model` and
+`reasoning_effort` values when the caller omits them and the spawn is not a full-history
+fork. Otherwise each omitted field inherits from the parent. Full-history means V1
+`fork_context:true` or V2 `fork_turns` omitted/`"all"`.
 
 Production wrapper (L9.1, shipped): `components/subagent-config/src/spawn-wrapper.ts` consumes
 `resolveSpawnConfig()` at spawn time. `resolveSpawnPayload(cwd, role, task, agentsDir)` reads the
 per-role store config plus this file's `developer_instructions`, then builds the concrete
 `spawn_agent` payload (v2): `agent_type` from `ROLE_AGENT_TYPE`, `task_name` from `taskNameForRole`, `fork_turns:"none"`, the role prompt injected inline in
-`message` (a `promptOverride` replaces this TOML body), and a `model` key included ONLY for a
-non-default (model-mode) role — default mode omits it so the subagent inherits the main model.
-Model selection is owned by the store resolver, not the TOML `model` sentinel.
+`message` (a `promptOverride` replaces this TOML body). The hook adds omitted configured
+model/effort fields under the non-full-fork rule above. Model selection is owned by the
+store resolver, not the TOML `model` sentinel.

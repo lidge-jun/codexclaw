@@ -6,7 +6,7 @@ aliases: [L14 Design, subagent skill routing, cxc skill attachment]
 
 # L14 — Subagent Skill Routing + Loop/Goal Handoff (Design SOT)
 
-Status: DESIGN + SHIPPED — **dev2 switch 260709: the live spawn surface is multi_agent_v2** (task_name+message required, `items` rejected; the builders emit v2 payloads with `fork_turns:"none"` and skills ride the explicit message mention block — see the update at `devlog/_plan/260709_multi_agent_v2_switch/`). Historical shape below documents the v1-era evolution. (E5 dispatch builder shipped in L15 — `SURFACE_SKILL`/`buildSpawnItems`/`SpawnPayload.items`; lazygap_impl 020 added `INTENT_ROLE`/`routeDispatch` and the E3 `^spawn_agent$` PreToolUse hook; **WP2 uses the E3 hook as a MENTION NORMALIZER**: it repairs known broken/bare cxc mentions already present in the spawn `message`, but never invents role baselines or missing surfaces. Normalization is schema-safe on BOTH v1 and v2 because `message` is shared; v1 also receives model routing and v2 receives the leaf guard. The old `CODEXCLAW_SPAWN_ATTACH=v1` opt-in is gone, while v2 `deny_unknown_fields` still blocks the structured `items` key.) · 2026-07-10
+Status: DESIGN + SHIPPED — **spawn surface status 260710: V1 is codexclaw's default; the model catalog pins sol/terra to V2 and luna to V1, while `features.multi_agent_v2` selects V2 only for fallback models. The surface pins on the first turn.** V2 requires task_name+message and rejects `items`; production builders emit `fork_turns:"none"` plus resolvable message mentions. Historical shape below documents the v1-era evolution. (E5 dispatch builder shipped in L15; lazygap_impl 020 added `INTENT_ROLE`/`routeDispatch` and the E3 spawn PreToolUse hook. The hook normalizes recognized mentions on both surfaces and, on V2-shaped spawns, inlines their full SKILL.md bodies because upstream excludes inter-agent messages from skill collection. It never invents role baselines or missing surfaces. The same hook applies model+effort injection and leaf guards on both surfaces. The old `CODEXCLAW_SPAWN_ATTACH=v1` opt-in is gone; V1 `items` remains a manual, strongest channel.) · 2026-07-10
 
 > This is the design source of truth for the L14 hardening track. The defect
 > diagnosis with file:line evidence lives in
@@ -31,15 +31,16 @@ so the subagent actually loads the discipline instead of being told about it in 
 
 - Surface skills are split out and on-demand: `cxc-search`, `cxc-dev-architecture`,
   `cxc-dev-backend`, etc. (`plugins/codexclaw/skills/*/`). Step 1 is done.
-- `spawn-wrapper.ts` builds explicit attachments for both surfaces: v1 can use
-  `buildSpawnItems`/`SpawnPayload.items`, while v2 carries the builder's resolvable
-  mention block in `message`. `SURFACE_SKILL` and `ROLE_BASE_SKILLS` resolve the exact
+- `spawn-wrapper.ts` builds resolvable message mentions for the production path on both
+  surfaces. V1 callers may manually use `buildSpawnItems`/`SpawnPayload.items` as the
+  strongest v1-only channel. `SURFACE_SKILL` and `ROLE_BASE_SKILLS` resolve the exact
   folders the dispatcher requested.
 - The builder (`resolveSpawnPayloadWithSkills`/`routeDispatch`) is the E5 dispatch path:
   a dispatcher that routes through it names the role and surface skills deterministically.
-- The E3 `^spawn_agent$` PreToolUse hook is a repair boundary, not a routing oracle. It
-  normalizes known broken/bare cxc mentions already in `message`; it does not supply an
-  omitted role baseline or infer a surface skill.
+- The E3 spawn PreToolUse hook is a repair boundary, not a routing oracle. It normalizes
+  known broken/bare cxc mentions already in `message` on both surfaces and inlines the
+  recognized skill bodies on V2; it does not supply an omitted role baseline or infer a
+  surface skill.
 
 Net: routing is "split into skills" AND "attached at dispatch" only when the dispatcher
 explicitly names the resolved role/surface set. Prefer
@@ -47,8 +48,8 @@ explicitly names the resolved role/surface set. Prefer
 `$codexclaw:cxc-<name>` when a path is not link-safe. The hook recognizes bare
 `$cxc-<name>` only as legacy normalization/dedupe input and rewrites it to a resolvable
 form when the folder is known. It never emits a bare form and never adds a missing skill.
-The same hook applies configured model routing on v1 and the leaf-topology guard on v2;
-those responsibilities do not change the dispatcher's skill list.
+The same hook applies configured model+effort routing and the leaf-topology guard on both
+surfaces; those responsibilities do not change the dispatcher's skill list.
 
 ---
 
@@ -80,32 +81,28 @@ The skill-attachment builder is implemented in
   deduped folder set; an explicit folder the caller names (e.g. `search`) wins.
 - `buildSpawnItems(...)` emits one `{type:"skill",name:"cxc-<folder>",path}` per folder
   that exists on disk, then `{type:"text",text:"TASK: ..."}`. Dangling folders are dropped.
-- `resolveSpawnPayloadWithSkills(...)` is the production entry: role prompt stays in
-  `message` (single source), skills + task ride in `items`.
+- `resolveSpawnPayloadWithSkills(...)` is the production entry: role prompt, resolvable
+  skill mentions, and task all ride in `message`; it does not emit `items`.
 
 So the builder can turn "dispatch per `cxc-search`" into a real skill attachment, verified
 by tests (`test/spawn-wrapper.test.ts`, the `L15:` cases). This is **E5** strength and only
-takes effect when the dispatcher routes through the builder: v1 uses `items`; v2 uses the
-explicit message mention block. The hook can repair an emitted mention but cannot replace
-this routing decision.
+takes effect when the dispatcher routes through the builder: production V1 and V2 payloads
+use the explicit message mention block; a manual V1 caller may choose `items`. The hook can
+repair an emitted mention but cannot replace this routing decision.
 
 ### Hard runtime constraint (codex-rs verified) — REVISED by WP2
 Only **v1** `spawn_agent` accepts `items` (`UserInput::Skill { name, path }`). The **v2**
-spawn handler uses `#[serde(deny_unknown_fields)]` with no `items` field, so STRUCTURED
-attachment is impossible on v2. But structured items are not the only injection trigger:
-the child's turn-input pipeline also parses **text mentions** out of `UserInput::Text`.
-The reliable forms are plugin-native `$codexclaw:cxc-<name>` (registered-name match) and
-link-form `[$cxc-<name>](skill://<abs path>)` (exact path match); bare `$cxc-<name>` does
-not match plugin-registered skills. The spawn `message` becomes such a text input in the
-child's first turn, and `message` exists on BOTH spawn schemas. A PreToolUse rewrite can
-therefore normalize a known broken/bare mention in either schema. Residual risk: this
-rests on codex-rs source analysis of the mention parser; verify against a live child
-transcript when the runtime version changes.
+spawn handler uses `#[serde(deny_unknown_fields)]` with no `items` field. Message mentions
+are therefore the production shared channel, but their delivery differs: V1 turns the
+spawn message into `UserInput::Text` and parses link/plugin mentions natively; V2 sends
+`InterAgentCommunication`, which upstream excludes from skill collection. The codexclaw
+spawn hook compensates on V2 by inlining full SKILL.md bodies for recognized cxc mentions.
+It normalizes those mentions on both surfaces and never invents an omitted skill.
 
 ### L15.2 follow-up (SHIPPED as WP2, E3 — mention normalization)
-The `^spawn_agent$` PreToolUse hook scans `message` for known cxc mentions and repairs
-broken links or bare names via `updatedInput`. It works on v1 and v2 because `message` is
-shared, and it never invents a missing message or a missing skill. The preferred output is
+The spawn PreToolUse hook scans `message` for known cxc mentions and repairs broken links
+or bare names via `updatedInput` on both surfaces. For V2-shaped spawns it also appends the
+recognized skills' full bodies. It never invents a missing message or a missing skill. The preferred output is
 `[$cxc-<name>](skill://<abs SKILL.md>)`; when the path is not link-safe, the output is the
 plugin-native `$codexclaw:cxc-<name>` fallback. Bare `$cxc-<name>` recognition remains
 only as legacy detection/dedupe input, never as an emitted or taught attachment form.
@@ -114,9 +111,9 @@ only as legacy detection/dedupe input, never as an emitted or taught attachment 
 
 ## Design 14.A — Skill attachment in the spawn payload
 
-Extend `SpawnPayload` with an `items` channel mirroring the `spawn_agent` tool's
-structured input (`type: "skill"` with `name` + `path`, `type: "mention"`, or
-`type: "text"`).
+The shipped `SpawnPayload` retains an optional manual V1 `items` channel mirroring the
+V1 `spawn_agent` structured input (`type: "skill"` with `name` + `path`,
+`type: "mention"`, or `type: "text"`).
 
 ```ts
 export interface SpawnSkillRef {
@@ -132,13 +129,14 @@ export interface SpawnPayload {
 }
 ```
 
-The builder composes `items` as: one `skill` item per attached `cxc-*` skill, then a
-trailing `text` item carrying the concrete task. The legacy `message` form stays valid
-for callers that do not attach skills, so this is additive, not breaking.
+`buildSpawnItems` composes the strongest manual V1 form: one `skill` item per attached
+`cxc-*` skill, then a trailing `text` item carrying the concrete task. The production
+`resolveSpawnPayloadWithSkills`/`routeDispatch` path instead emits resolvable mentions and
+the task in `message`, which is valid on both surfaces and enables V2 hook inlining.
 
-Open design question (resolve in P): whether the role prompt stays in `message` or
-moves into a leading `text` item when `items` is used. Recommendation: keep the role
-prompt in `message` (one source) and use `items` only for skill attachments + task.
+Resolved: the production role prompt, skill mentions, and task stay in `message` as one
+source. Manual V1 `items` remains a separate helper for callers that deliberately choose
+the structured channel.
 
 ---
 
@@ -169,7 +167,7 @@ Illustrative default map (STYLE_SAMPLE, not locked):
 
 QA dispatch note: `cxc-qa` oracle passes (dual visual/functional review, C3+) are
 explorer-role read-only dispatches carrying the captures/artifacts in the prompt;
-DISPATCH-ACTOR-01/RETIRE-01 govern reuse across revision rounds, and QA delegated to a
+DISPATCH-ACTOR-01/DISPATCH-RETIRE-01 govern reuse across revision rounds, and QA delegated to a
 `worker` rides the SubagentStop evidence-receipt gate like any other worker.
 
 ---
@@ -178,19 +176,17 @@ DISPATCH-ACTOR-01/RETIRE-01 govern reuse across revision rounds, and QA delegate
 
 The wrapper only matters if the main agent actually calls it. (Historical note: this
 section originally claimed a hook cannot intercept the spawn tool call. That was
-superseded — the runtime canonicalizes the collab tool `multi_agent_v1.spawn_agent` to
-tool_name `spawn_agent` (registry.rs:727), so the shipped `^spawn_agent$` PreToolUse
-hook DOES intercept it and rewrites `message`. The wrapper contract below remains the
-richer explicit path — model resolution and structured `items` — that no generic hook
-can infer:)
+superseded — V1 canonicalizes to hook name `spawn_agent`, while namespaced V2 may arrive
+as `collaborationspawn_agent`; the shipped matcher covers both plus collaboration
+variants. The wrapper contract below remains the richer explicit path — role/surface
+resolution and message mentions — that the hook cannot infer when omitted:)
 
 - The `cxc-dev` / subagent doctrine instructs the main agent to build dispatch payloads
-  via the wrapper and pass the resulting v2 payload (task_name, fork_turns:"none",
-  mention-block message) into `spawn_agent` (dev2 switch 260709; the old `items`
-  channel is v1-only and rejected on v2).
-- The wrapper becomes the single place that knows the skill paths, the role-to-skill
-  map, and the model resolution — so following the contract is easier than hand-rolling
-  a spawn.
+  via the wrapper and pass its fresh-context payload (task_name, fork_turns:"none",
+  mention-block message) into `spawn_agent`; manual `items` is v1-only and rejected on V2.
+- The wrapper knows the skill paths and role-to-skill map; the hook independently reads
+  configured model/effort values. Following this contract is easier than hand-rolling a
+  spawn.
 
 This is named as guidance (section 1), not a hook-enforced guarantee. We do not write
 "the hook attaches the skill"; we write "the dispatch helper attaches the skill, and
@@ -232,7 +228,7 @@ main-agent path is the same routing map surfaced as a directive.
 
 | WP | Slice | DONE means |
 |----|-------|------------|
-| L14.A | `SpawnPayload.items` + skill-attachment builder + tests | wrapper emits skill `items` for a named skill; tests prove attachment shape |
+| L14.A | message mention builder + manual V1 `SpawnPayload.items` helper + tests | production wrapper emits resolvable mentions; manual V1 helper proves `items` shape |
 | L14.B | Declarative role-to-skill routing map + resolver + tests | `dispatch(role, surface)` returns deterministic skill set; explicit request overrides |
 | L14.C | Dispatch-through-wrapper doctrine in `cxc-dev`/subagent docs | doctrine + README updated; no false "hook enforces" wording |
 | L14.1 | `detectTrigger` loop token / loop ladder emission | invoking loop arms a real PABCD cycle; tests green |

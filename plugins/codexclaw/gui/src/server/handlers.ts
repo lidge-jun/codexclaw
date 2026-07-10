@@ -18,6 +18,12 @@ import {
 } from "../../../components/subagent-config/src/store.ts";
 import { buildCatalog, type Catalog, type ProviderCatalogInput } from "../../../components/subagent-config/src/catalog.ts";
 import { detectOcx, type DetectDeps, type ProviderStatus } from "../../../components/provider-bridge/src/detect.ts";
+import {
+  MULTI_AGENT_V2_STATUS_CONTEXT,
+  readMultiAgentV2State,
+  setMultiAgentV2State,
+  type MultiAgentV2Deps,
+} from "../../../components/config-guard/src/multi-agent-v2.ts";
 
 export interface ApiResult {
   status: number;
@@ -75,4 +81,30 @@ export function getProvider(detectDeps?: DetectDeps): ApiResult {
   const s = status as ProviderStatus;
   const port = s.mode === "provider" ? s.status.port : null;
   return { status: 200, body: { mode: s.mode, port } };
+}
+
+/** GET /api/multi-agent -> current v1/v2 surface. */
+export function getMultiAgentSurface(deps?: MultiAgentV2Deps): ApiResult {
+  if (!deps) {
+    return {
+      status: 200,
+      body: { version: "v1", v2Enabled: false, ...MULTI_AGENT_V2_STATUS_CONTEXT },
+    };
+  }
+  return { status: 200, body: readMultiAgentV2State(deps) };
+}
+
+/** POST /api/multi-agent -> set v1/v2 surface through `codex features`. */
+export function postMultiAgentSurface(deps: MultiAgentV2Deps | undefined, body: unknown): ApiResult {
+  if (!deps) return { status: 503, body: { error: "codex feature runner unavailable" } };
+  if (!body || typeof body !== "object") return { status: 400, body: { error: "missing body" } };
+  const version = (body as Record<string, unknown>).version;
+  if (version !== "v1" && version !== "v2") {
+    return { status: 400, body: { error: 'version must be "v1" or "v2"' } };
+  }
+  try {
+    return { status: 200, body: { ok: true, ...setMultiAgentV2State(deps, version) } };
+  } catch (err) {
+    return { status: 502, body: { error: err instanceof Error ? err.message : String(err) } };
+  }
 }

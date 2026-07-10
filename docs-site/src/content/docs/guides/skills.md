@@ -32,18 +32,20 @@ Codex exposes the same skill under several forms. Docs and prompts may use any o
 
 Skills attach to subagents through the spawn **message**. Prefer link-form
 `[$cxc-<skill>](skill://<abs SKILL.md path>)`; when the path is not link-safe, use the
-plugin-native `$codexclaw:cxc-<skill>` fallback. The child's first turn parses either
-form and injects the full SKILL.md body. This works on both spawn surfaces — `message`
-is a shared field, unlike the v1-only `items` channel.
+plugin-native `$codexclaw:cxc-<skill>` fallback. V1 parses either form on the child's
+first turn and injects the full SKILL.md body. Upstream V2 does not parse skill mentions
+from inter-agent messages, so the codexclaw spawn hook inlines the recognized skill body.
+Manual V1 callers may use the stronger structured `items` channel.
 
 Two layers keep this deterministic:
 
 - **Name skills explicitly** when dispatching: put the matching
   `$codexclaw:cxc-dev-*` (and `$codexclaw:cxc-search` for research lanes) in the spawn
   message yourself, or use their preferred link forms.
-- **The spawn-attach hook repairs mentions.** The always-on `^spawn_agent$` PreToolUse
-  hook normalizes known broken/bare cxc mentions to a resolvable form. It does not add
-  role baselines or infer missing surface skills; the dispatcher still names those.
+- **The spawn-attach hook repairs mentions.** The always-on spawn PreToolUse hook
+  normalizes known broken/bare cxc mentions to a resolvable form on both surfaces and
+  performs V2 body inlining. It does not add role baselines or infer missing surface
+  skills; the dispatcher still names those.
 
 ## dev-* routing
 

@@ -14,13 +14,15 @@ sparksearch without this handoff — Spark snippets are leads, not evidence.
 
 ## Hardcoded Spawn Path (no catalog probe)
 
-The collab tools are the flat multi_agent_v2 set (`spawn_agent` task_name+message,
-`send_message`/`followup_task`/`wait_agent`/`interrupt_agent`/`list_agents`), exposed
-DIRECT since the dev2 switch (260709) — if `spawn_agent` is still not visible
-(v1-pinned session), `tool_search` for it first
-(`structure/60_native_capabilities.md` §1). Fan the lanes out as N spawns followed by
-ONE `wait_agent` on all lane ids (never N sequential waits); batch independent tool
-calls through `multi_tool_use.parallel`.
+The session surface is pinned on its first turn. V1 is the default unless the model
+catalog selects V2 (sol/terra; luna stays V1) or `features.multi_agent_v2` selects it
+for a fallback model. If `spawn_agent` is not visible on V1, `tool_search` for it first
+(`structure/60_native_capabilities.md` §1). Fan the lanes out as N spawns before
+waiting; V1 `wait_agent` returns final status plus content, while V2 `wait_agent` is a
+no-content mailbox. Reuse a lane with V1 `send_input(agent_id)` or V2
+`followup_task(task_name)`. V1 also has `close_agent`/`resume_agent`; V2 has only
+`interrupt_agent`. The concurrency limits are V1 `agents.max_threads` (default 6) and
+V2 `max_concurrent_threads_per_session` (default 4, root included).
 
 The user of this skill is already running on Spark, so do **not** call
 `catalog_list` or any model-picker probe before spawning. Hardcode the model
@@ -52,8 +54,9 @@ so each Spark subagent auto-loads the proof ladder (Tier 1
 source of truth for the tool list; this skill only adds the lane assignment and
 the Spark model.
 
-The portable default is a **link-form mention in the spawn message** — parsed by the
-child's first turn into a full SKILL.md injection on BOTH spawn surfaces:
+The portable default is a **link-form mention in the spawn message**. V1 parses it on
+the child's first turn; upstream V2 does not, so the codexclaw spawn hook inlines the
+recognized skill's full SKILL.md body into the V2 message:
 
 ```text
 message: "[$cxc-search](skill://<cxc-search SKILL.md absolute path>)
@@ -70,8 +73,8 @@ items: [
 ]
 ```
 
-(v2 `deny_unknown_fields` rejects `items` — there the mention line IS the
-attachment, not a degraded fallback.)
+(v2 `deny_unknown_fields` rejects `items` — there the recognized mention plus the
+hook-inlined body is the attachment.)
 
 Do not duplicate the Tier 1/2 tool list as inline prose — the attached skill
 already carries it. A subagent that cannot open pages must flag every finding as
@@ -114,11 +117,11 @@ for sources in a specific language.
 
 ## Spawn Contract
 
-Each Spark subagent gets: (1) the `cxc-search` skill attached via `items`, and
-(2) a short `text` item naming its lane (see the attachment section above). The
-skill carries the tool list and proof rules; the text item carries only the
-lane assignment and the return shape. No five-part hand-written message — the
-attached skill is the tooling contract.
+Each Spark subagent gets: (1) the `cxc-search` mention in its message and (2) a short
+task naming its lane (see the attachment section above). V1 may use structured `items`
+when the caller supplies that channel manually. The skill carries the tool list and
+proof rules; the task carries only the lane assignment and return shape. No five-part
+hand-written message — the attached skill is the tooling contract.
 
 Spawn all lanes in one turn — parallel, not sequential. Report the spawned
 agent ids/nicknames to the user. The runtime may choose nicknames; do not claim

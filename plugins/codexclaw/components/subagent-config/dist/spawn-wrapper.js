@@ -329,9 +329,13 @@ export function taskNameForRole(role          , task        )         {
 /**
  * Concrete Codex `spawn_agent` payload (the subset codexclaw controls).
  * This builder emits a v2-compatible fresh-context shape (`task_name` + `fork_turns`).
- * Model routing is intentionally not included here: v1-shaped dispatches are routed
- * by the PreToolUse hook, while v2 keeps only the leaf guard.
+ * Model/effort routing is intentionally not included here: the PreToolUse spawn hook
+ * injects the configured `.codexclaw/subagents.json` model AND reasoning_effort on
+ * BOTH surfaces (260710 parity) when the caller omitted them and the spawn is not a
+ * full-history fork. `fork_turns: "none"` here keeps that injection legal on V2.
  */
+
+
 
 
 
@@ -365,8 +369,8 @@ export function taskNameForRole(role          , task        )         {
 
 /**
  * PURE builder: compose the spawn_agent payload. The effective role prompt is the
- * promptOverride when set, else the TOML developer_instructions. Model routing is
- * handled only by the v1 hook path.
+ * promptOverride when set, else the TOML developer_instructions. Model/effort routing
+ * is handled by the spawn hook on both surfaces (260710 parity).
  */
 export function buildSpawnPayload(input                        )               {
   const { role, task, resolution, developerInstructions } = input;

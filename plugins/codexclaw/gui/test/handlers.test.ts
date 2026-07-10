@@ -5,11 +5,19 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getSubagents, postSubagents, getCatalog, getProvider } from "../src/server/handlers.ts";
+import {
+  getSubagents,
+  postSubagents,
+  getCatalog,
+  getProvider,
+  getMultiAgentSurface,
+  postMultiAgentSurface,
+} from "../src/server/handlers.ts";
 import { resolveSpawnConfig } from "../../components/subagent-config/src/store.ts";
+import type { CodexRunner } from "../../components/config-guard/src/features.ts";
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), "cxc-gui-"));
@@ -99,4 +107,60 @@ test("GUI checkbox flow: bare mode:model on fresh role -> 400 with real error; w
   const again = postSubagents(cwd, { role: "explorer", mode: "model" });
   assert.equal(again.status, 200);
   assert.equal((again.body as any).roles.explorer.model, "gpt-5.3-codex-spark");
+});
+
+test("multi-agent surface handlers read and toggle v1/v2 through codex feature runner", () => {
+  const codexHome = tmp();
+  const configPath = join(codexHome, "config.toml");
+  writeFileSync(configPath, "[features.multi_agent_v2]\nenabled = false\nmax_concurrent_threads_per_session = 5\n", "utf8");
+  const calls: string[][] = [];
+  const run: CodexRunner = (args) => {
+    calls.push([...args]);
+    if (args[0] === "features" && args[1] === "enable" && args[2] === "multi_agent_v2") {
+      writeFileSync(configPath, "[features]\nmulti_agent_v2 = true\n", "utf8");
+      return { stdout: "", stderr: "", exitCode: 0 };
+    }
+    if (args[0] === "features" && args[1] === "disable" && args[2] === "multi_agent_v2") {
+      writeFileSync(configPath, "[features]\nmulti_agent_v2 = false\n", "utf8");
+      return { stdout: "", stderr: "", exitCode: 0 };
+    }
+    return { stdout: "", stderr: "bad command", exitCode: 1 };
+  };
+  const deps = { run, codexHome, configPath };
+
+  assert.deepEqual(getMultiAgentSurface(deps).body, {
+    version: "v1",
+    v2Enabled: false,
+    appliesTo: "flag-fallback models only",
+    catalogPinned: {
+      v2: ["gpt-5.6-sol", "gpt-5.6-terra"],
+      v1: ["gpt-5.6-luna"],
+    },
+    effectiveFrom: "new sessions",
+  });
+  const on = postMultiAgentSurface(deps, { version: "v2" });
+  assert.equal(on.status, 200);
+  assert.equal((on.body as { version: string }).version, "v2");
+  assert.equal((on.body as { appliesTo: string }).appliesTo, "flag-fallback models only");
+  assert.equal((on.body as { effectiveFrom: string }).effectiveFrom, "new sessions");
+  assert.deepEqual(calls[0], ["features", "enable", "multi_agent_v2"]);
+  assert.match(readFileSync(configPath, "utf8"), /max_concurrent_threads_per_session = 5/);
+
+  const off = postMultiAgentSurface(deps, { version: "v1" });
+  assert.equal(off.status, 200);
+  assert.equal((off.body as { version: string }).version, "v1");
+  assert.deepEqual(calls[1], ["features", "disable", "multi_agent_v2"]);
+  assert.match(readFileSync(configPath, "utf8"), /enabled = false/);
+});
+
+test("multi-agent surface handler rejects invalid versions and reports runner failure", () => {
+  const codexHome = tmp();
+  const configPath = join(codexHome, "config.toml");
+  writeFileSync(configPath, "[features]\nmulti_agent_v2 = false\n", "utf8");
+  const run: CodexRunner = () => ({ stdout: "", stderr: "nope", exitCode: 42 });
+
+  assert.equal(postMultiAgentSurface({ run, codexHome, configPath }, { version: "turbo" }).status, 400);
+  const fail = postMultiAgentSurface({ run, codexHome, configPath }, { version: "v2" });
+  assert.equal(fail.status, 502);
+  assert.match(String((fail.body as { error?: string }).error), /failed \(exit 42\)/);
 });

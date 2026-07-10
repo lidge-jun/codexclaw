@@ -74,8 +74,10 @@ rejected. codexclaw mirrors this as the one place the agent path is genuinely ga
   verdict tail — WP3) plus `auditVerdict` (`pass|near-pass|fail`, the MAIN agent's own
   judgment; `near-pass` also needs `auditResidual` naming each residual blocker's
   disposition). A declared `fail` never advances, and a tail whose final verdict line
-  says FAIL is rejected (AUDIT-LOOP-01) — the Audit gate structurally needs a real
-  reviewer dispatch AND a judged loop exit.
+  says FAIL is rejected (AUDIT-LOOP-01). This is a form-only gate: it checks that
+  `auditOutput` and `auditVerdict` are present and valid, but cannot verify the paste's
+  provenance. The discipline requires a real reviewer dispatch and judged loop exit;
+  the runtime gate cannot enforce that dispatch.
 - C->D additionally requires a pasted `checkOutput` (tsc/test tail) and `exitCode: 0`.
 - A bare agent `cxc orchestrate <phase>` without attest is rejected (409-style).
 - Human/chat-submitted commands are a free-pass source; the agent/CLI path is gated.
@@ -98,9 +100,9 @@ codexclaw translation:
 - Role -> built-in agent type: `explorer`/`reviewer` -> `explorer` (read-only),
   `executor` -> `worker` (scoped write). codexclaw cannot register custom roles, so the
   role prompt is injected inline (the B-opt2 pattern).
-- **Audit (A) is never skipped.** Before B, an adversarial review pass runs (a reviewer
-  subagent or a direct file:line audit). Untested code is not "done"; C must run real
-  tsc/tests.
+- **Audit (A) is never skipped.** Before B, the main session must dispatch an independent
+  reviewer subagent via `spawn_agent` for an adversarial review pass. Untested code is
+  not "done"; C must run real tsc/tests.
 - **Write scope is opt-in and bounded.** A read-only investigation spawns an `explorer`;
   only a deliberate implementation slice spawns a `worker`, with an explicit write scope
   in its task. Do not hand a broad write mandate to a subagent by default.
@@ -109,21 +111,18 @@ codexclaw translation:
   the relevant plan/context into the spawn message — a subagent must never reconstruct
   the plan from a thin task description.
 - **LEAF-TOPOLOGY-01 (hook-enforced, 260709).** Subagents are star-topology leaves:
-  they never spawn their own subagents. multi_agent_v2 removed the upstream depth
-  brake (collab_tools_enabled is unconditionally true on V2; agent_max_depth is
-  ignored) and an Ultra parent would propagate Proactive delegation into children,
-  so codexclaw enforces the leaf rule deterministically in the `^spawn_agent$`
-  PreToolUse hook: (1) a spawn issued BY a subagent (stdin `agent_id` present) is
-  DENIED unless the message carries `CXC-SUBSPAWN-ALLOWED`; (2) every spawn message
-  gets the `[CXC-LEAF-GUARD]` block; (3) effort-silent spawns get
-  `reasoning_effort: high` injected (ultra-inherit break). Recursion is a
+  they never spawn their own subagents. The spawn PreToolUse hook applies on both
+  surfaces: (1) a spawn issued BY a subagent (stdin `agent_id` present) is DENIED
+  unless the message carries `CXC-SUBSPAWN-ALLOWED`; (2) every spawn message gets the
+  `[CXC-LEAF-GUARD]` block. For a non-full-history fork, configured role `model` and
+  `reasoning_effort` from `.codexclaw/subagents.json` are independently injected when
+  the caller omits them; otherwise each omitted field inherits. Recursion is a
   deliberate per-dispatch grant, never a default. Evidence + design:
   `devlog/_plan/260709_multi_agent_v2_switch/060_leaf_agent_hardening.md`.
 - **DISPATCH-ACTOR-01 (reuse).** Follow-up rounds in the same role and work context
-  reuse the existing agent instead of spawning fresh: v2 (dev2 switch 260709) —
-  `followup_task` to its task_name (triggers a turn when idle; the agent keeps its
-  context, no resume exists or is needed), `send_message` for context-only delivery.
-  Legacy v1-pinned sessions: `send_input` while alive, `resume_agent` after close.
+  reuse the existing agent instead of spawning fresh: V2 `followup_task` to its
+  task_name (triggers a turn when idle; `send_message` is context-only delivery), or
+  V1 `send_input` to its agent_id. V1 alone supports `resume_agent` after close.
   The point is context preservation — the reviewer or
   worker keeps what it already read. Do NOT justify reuse with "same provider = prompt
   cache reuse"; that assumption was tested and rejected in the jawcode lineage
@@ -131,11 +130,15 @@ codexclaw translation:
   implementation-verified). Carve-out: the final C adversarial gate — and any reviewer
   that has already shaped the fix through synthesis rounds — gets a FRESH reviewer or a
   direct independent file:line audit, so anchoring never grades its own influence.
+- **Lifecycle wait + concurrency.** V1 `wait_agent` returns final status plus content;
+  V2 `wait_agent` is a no-content mailbox. The concurrency controls are V1
+  `agents.max_threads` (default 6) and V2 `max_concurrent_threads_per_session`
+  (default 4, including the root).
 - **DISPATCH-RETIRE-01 (fresh-spawn fallback).** This is the exception to the reuse
   default above: an agent id that failed (error, timeout, unresponsive, nonsense
   output) is retired, not nursed. At most ONE retry against the same task_name; then
-  abandon it (v2 has no close verb — `interrupt_agent` if it is burning a turn, then
-  stop addressing it) and fresh-spawn with the failure summary folded into the new
+  abandon it (V2 has only `interrupt_agent`; V1 has `close_agent` and `resume_agent`)
+  and fresh-spawn with the failure summary folded into the new
   TASK packet. Repeated `followup_task`/`send_message` against a broken agent is a
   broken-resume loop — the dispatch analogue of LOOP-REPAIR-01's doom loop. Lineage:
   `../jawcode/devlog/_plan/260616_actor_fresh_fallback/_fin/00_moc.md`
@@ -155,7 +158,7 @@ skill to the work, not by hoping the model loads it.**
   writing in that surface. This is guidance (no hook enforces skill loading), so the
   routing table must be strong and unambiguous.
 - For a subagent: the matching `cxc-*` skill should be attached to the spawn payload
-  (the L14 `items` design in `10_subagent_skill_routing.md`) so the subagent loads the
+  (the L14 message/items channels in `10_subagent_skill_routing.md`) so the subagent loads the
   discipline at launch. "Investigate per `cxc-search`" becomes a real skill attachment,
   not a sentence in the task text.
 
@@ -166,12 +169,12 @@ collapses to "dev only" unless the agent deliberately reads further. (The 2026-0
 implicit expansion added six non-dev metadata rows — search/interview/pabcd/recall/
 skill-hub/loop — which improves discovery but does not change this dev-* routing
 collapse.) The spawn-time
-attachment mechanism is explicit on both surfaces: L15's E5 dispatch builder populates
-the v1 `items` channel (`buildSpawnItems`/`SpawnPayload.items`) and emits resolvable
-message mentions for v2. Prefer `[$cxc-<name>](skill://<abs SKILL.md>)`; use
+attachment mechanism is explicit on both surfaces: L15's production builder emits
+resolvable message mentions, while manual V1 callers may use the stronger `items`
+channel (`buildSpawnItems`/`SpawnPayload.items`). Prefer `[$cxc-<name>](skill://<abs SKILL.md>)`; use
 plugin-native `$codexclaw:cxc-<name>` when a link is unsafe. The WP2 E3
-`^spawn_agent$` PreToolUse hook only normalizes known broken/bare cxc mentions already
-present in the spawn `message`; it does not add role baselines or infer surface skills.
+spawn PreToolUse hook normalizes known broken/bare cxc mentions on both surfaces and
+inlines recognized skill bodies on V2-shaped spawns; it does not add role baselines or infer surface skills.
 Dispatchers remain responsible for naming every required skill (DISPATCH-TASK-01).
 
 ---

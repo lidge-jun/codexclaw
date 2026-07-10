@@ -6,10 +6,9 @@ aliases: [Native Capability Matrix, codex native tools, browse use, computer use
 
 # 60 — Codex Native Capability Matrix (SOT)
 
-Status: VERIFIED against live codex-cli 0.142.5 (2026-07-02) via direct tool-surface
-probes (`codex exec` enumeration + `tool_search` probe), `codex features list`, the
-codex-rs snapshot (`~/developer/codex/121_openai-codex/codex-rs/`), and official docs.
-Re-verify on Codex upgrades — deferred-tool routing and plugin sets drift per release.
+Status: VERIFIED against live probes plus the codex-rs snapshot on 2026-07-10, including
+V1/V2 schema, lifecycle, catalog-selection, and hook-name paths. Re-verify on Codex
+upgrades — deferred-tool routing and plugin sets drift per release.
 
 > Purpose: codexclaw's skills historically leaned on shell + external CLIs and
 > under-used what the Codex runtime already ships. This file is the single inventory
@@ -21,34 +20,46 @@ Re-verify on Codex upgrades — deferred-tool routing and plugin sets drift per 
 
 ---
 
-## 1. The collab tool surface (load-bearing) — v1 default, v2 opt-in
+## 1. The collab tool surface (load-bearing) — V1 default, catalog/flag-selected V2
 
-**Default surface: V1 (stable).** `features.multi_agent_v2` is OFF by default.
-Sessions use the deferred `multi_agent_v1.*` namespace (`spawn_agent` /
-`send_input` / `wait_agent` / `resume_agent` / `close_agent`) behind
-`tool_search`. codexclaw does not force-enable V2; users who want it enable
-it manually in `config.toml`.
+**Surface selection pins on the session's first turn.** V1 is codexclaw's default.
+The model catalog overrides the feature flag for cataloged models: sol/terra select
+V2 and luna selects V1. For models without a catalog value,
+`features.multi_agent_v2` is the fallback selector.
 
-**When V2 is manually enabled**, sessions expose the flat V2 collab set as DIRECT
-tools: `spawn_agent` (task_name + message required, `fork_turns`, `items` rejected),
-`send_message`, `followup_task`, `wait_agent` (mailbox), `interrupt_agent`,
-`list_agents`. No `resume_agent`/`close_agent` on V2.
+V1 uses the deferred `multi_agent_v1.*` namespace (`spawn_agent` / `send_input` /
+`wait_agent` / `resume_agent` / `close_agent`) behind `tool_search`. V2 exposes the
+flat collab set directly: `spawn_agent` (task_name + message required, `fork_turns`,
+`items` rejected), `send_message`, `followup_task`, `wait_agent`, `interrupt_agent`,
+`list_agents`. Native V2 may reach hooks as `collaborationspawn_agent` (the
+`collaboration` namespace concatenated without punctuation); the spawn-hook matcher
+covers that name plus `spawn_agent` and collaboration variants.
 
-**Doctrine consequence:** skills say "if `spawn_agent` is not visible,
-`tool_search` for it first" — this covers V1 deferral. On a V2 session the tools
-are direct and the v2 lifecycle verbs apply (`followup_task` for reuse, no
-`resume`/`close`). The `$cxc` mention channel (structure/10) is the
-skill-attachment path on both surfaces; V2 rejects `items`.
+**Lifecycle equivalents:** reuse a reviewer with V2 `followup_task(task_name)` or V1
+`send_input(agent_id)`. V2 `wait_agent` is a no-content mailbox; V1 `wait_agent`
+returns final status plus content. V1 has `close_agent` + `resume_agent`; V2 has only
+`interrupt_agent`. Concurrency is V1 `agents.max_threads` (default 6) versus V2
+`max_concurrent_threads_per_session` (default 4, including the root).
 
+**Skill and routing parity:** V1 parses message mentions natively and also accepts the
+stronger manual `items` channel. Upstream V2 does not parse skill mentions from
+inter-agent messages, so the codexclaw spawn hook inlines recognized SKILL.md bodies.
+On both surfaces the hook normalizes mentions, applies D1/D2 leaf guards, and
+independently injects configured role model/effort when the caller omits each field and
+the spawn is not a full-history fork.
 
-Recursion risk + defenses (260709): V2 has NO depth limit (spec_plan.rs:357;
-test `multi_agent_v2_spawn_agent_ignores_configured_max_depth`) and children of an
-Ultra parent would inherit Proactive delegation. Defense-in-depth shipped in
-codexclaw: hook DENY of subagent-issued spawns (opt-in `CXC-SUBSPAWN-ALLOWED`),
-`[CXC-LEAF-GUARD]` message block, default `reasoning_effort: high` injection
-(ultra-inherit break), role-TOML leaf constraints, and the pabcd-state central
-subagent hook-quiet guard (cli.ts:118) keeping FSM/goal hooks root-only. Upstream
-brake remains `max_concurrent_threads_per_session`.
+**Forbidden configuration:** do not set `hide_spawn_agent_metadata=false`. Modifying
+the reserved `collaboration.spawn_agent` schema by declaring modified tools can make
+the ChatGPT backend reject `tools` with `Invalid Value: 'tools' ... reserved`. The V2
+argument parser accepts `model` and `reasoning_effort` even when the schema hides them,
+so the correct pattern is prompt-side: include those arguments anyway. Use `fork_turns`
+`"none"` or an integer string for overrides to apply; omitted/`"all"` is a full-history
+fork and rejects overrides.
+
+Recursion risk + defenses (260709): V2 has no upstream depth limit, so codexclaw's
+spawn hook enforces D1 denial and the `[CXC-LEAF-GUARD]` block on both surfaces (opt-in
+`CXC-SUBSPAWN-ALLOWED`). Role-TOML leaf constraints and the pabcd-state central
+subagent hook-quiet guard keep FSM/goal hooks root-only.
 
 Known accepted risk: upstream encrypted-schema HTTP 400 (openai/codex#26753) —
 live smoke on the switch day booted v2 sessions and listed the v2 toolset cleanly;
@@ -64,11 +75,11 @@ if a spawn-level 400 reproduces, the terminal outcome is NEEDS_HUMAN + rollback
 | `update_plan` | native plan/milestone tracker the harness renders | `cxc-pabcd` (P/B phases) |
 | `view_image` | read a local image into context | `cxc-dev-testing` QA evidence, `cxc-dev-uiux-design` |
 | `request_user_input` | HITL question surface | `cxc-interview` (already used) |
-| `create_goal` / `get_goal` / `update_goal` | host goal lifecycle | `cxc-goalplan` (already used) |
+| `create_goal` / `get_goal` / `update_goal` | host goal lifecycle | `cxc-loop` (already used) |
 | `tool_search` | discover deferred tools (collab, connectors) | ALL dispatching skills |
-| `multi_tool_use.parallel` | run several tool calls concurrently | `cxc-sparksearch`, `cxc-ultraresearch` |
+| `multi_tool_use.parallel` | run several tool calls concurrently | `cxc-sparksearch`, `cxc-search` |
 | `list_mcp_resources` / `read_mcp_resource` | MCP resource surface | situational |
-| `list_available_plugins_to_install` / `request_plugin_install` | plugin discovery/install | `cxc-skill-hub` |
+| `list_available_plugins_to_install` / `request_plugin_install` | plugin discovery/install | `cxc-dev` |
 
 ## 3. Browser + computer use (the underused tier)
 
@@ -114,7 +125,7 @@ Flag states below come from the same 2026-07-02 `codex features list` run (codex
 |---|---|---|
 | `spawn_agents_on_csv` + `report_agent_job_result` (CSV batch fan-out, ≤64 workers) | codex-rs snapshot `tools/handlers/agent_jobs.rs`; absent from live tool_search | gated behind `enable_fanout` (under development, false). Mention as future only. |
 | Fork provenance in SessionStart | codex-rs `core/src/session/session.rs:1221-1226` maps `InitialHistory::Forked(_)` -> `SessionStartSource::Startup`; hook `source` enum is `startup\|resume\|clear\|compact` only (`hooks/src/schema.rs:786-788`); `forked_from_thread_id` stays internal (`thread_manager.rs:590`) | NATIVE GAP: a plugin hook cannot distinguish /fork from fresh startup. Mitigation shipped as G3 (SessionStart session-id binding + explicit `--session` on mutating orchestrate verbs). Upstream ask: add `"fork"` source or `forked_from` field. |
-| `multi_agent_v2` | `[features.multi_agent_v2] enabled = false` (V1 default; V2 manual opt-in, openai/codex#26753 risk) | V1 is the doctrine baseline; V2 opt-in when user enables |
+| `multi_agent_v2` | feature flag is the fallback selector; model catalog pins sol/terra=V2 and luna=V1 | V1 is codexclaw's default, but catalog-selected V2 is live; changes apply to new sessions because the surface pins on first turn |
 | `memories` | experimental, false | off |
 | `standalone_web_search` | under development, false | hosted `web_search` is the live path |
 
@@ -125,7 +136,7 @@ Flag states below come from the same 2026-07-02 `codex features list` run (codex
 | `cxc-search` | routes ALL browsing through agbrowse CLI; native browser/CDP tools never named | Browse-Use Ladder with the 5-tier routing above (WP-N2) |
 | `pabcd-state` AGBROWSE directive | "Browser Use / Computer Use" named as vague fallbacks | name the exact plugin tools + ladder (WP-N2) |
 | `cxc-dev-testing` | no UI/E2E QA protocol; C-phase evidence is command-output-only | computer-use QA protocol + screenshot/view_image evidence (WP-N3) |
-| `cxc-pabcd` / `cxc-dev` | "dispatch spawn_agent" assumes tool visibility | tool_search discovery step + V1 lifecycle (send_input/resume/close) or V2 when enabled (followup_task/interrupt/list_agents) |
+| `cxc-pabcd` / `cxc-dev` | "dispatch spawn_agent" assumes tool visibility | tool_search discovery step + V1 lifecycle (send_input/resume/close) or catalog/flag-selected V2 lifecycle (followup_task/interrupt/list_agents) |
 | `cxc-sparksearch` / `cxc-ultraresearch` | serial-ish lane guidance | `multi_tool_use.parallel` + wait_agent multi-target patterns (WP-N4) |
 | `cxc-dev-uiux-design` / `cxc-dev-frontend` | no imagegen / view_image usage | asset-gen + screenshot-read guidance (WP-N5) |
 | `cxc-skill-hub` | catalog only | plugin discovery/install surfaces (WP-N5) |

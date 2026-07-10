@@ -329,8 +329,10 @@ export function taskNameForRole(role: RoleName, task: string): string {
 /**
  * Concrete Codex `spawn_agent` payload (the subset codexclaw controls).
  * This builder emits a v2-compatible fresh-context shape (`task_name` + `fork_turns`).
- * Model routing is intentionally not included here: v1-shaped dispatches are routed
- * by the PreToolUse hook, while v2 keeps only the leaf guard.
+ * Model/effort routing is intentionally not included here: the PreToolUse spawn hook
+ * injects the configured `.codexclaw/subagents.json` model AND reasoning_effort on
+ * BOTH surfaces (260710 parity) when the caller omitted them and the spawn is not a
+ * full-history fork. `fork_turns: "none"` here keeps that injection legal on V2.
  */
 export interface SpawnPayload {
   agent_type: "explorer" | "worker";
@@ -339,15 +341,17 @@ export interface SpawnPayload {
   task_name?: string;
   /** Pinned to "none" on V2 so role dispatches stay fresh-context. */
   fork_turns?: "none";
-  /** Legacy v1 callers only; the v2 builder never sets this. */
+  /** Caller override; when omitted the spawn hook may inject the configured value. */
   model?: string;
-  /** Legacy v1 callers only; the v2 builder never sets this. */
+  /** Caller override; when omitted the spawn hook may inject the configured value. */
   reasoning_effort?: string;
   /**
-   * DEPRECATED (260709 dev2 switch): v1-only channel — the v2 spawn schema is
+   * DORMANT v1-only channel — the v2 spawn schema is
    * `deny_unknown_fields` and REJECTS `items`. No codexclaw builder sets this
    * anymore; the skill channel is the message-borne mention block built by the
-   * dispatcher. The spawn hook repairs existing mentions but never supplies baselines.
+   * dispatcher (v1: upstream parses mentions; v2: the spawn hook inlines the
+   * SKILL.md bodies). The spawn hook repairs existing mentions but never supplies
+   * baselines. `buildSpawnItems` remains available for MANUAL v1 dispatches only.
    * Kept typed only so a legacy v1 caller remains representable.
    */
   items?: SpawnItem[];
@@ -365,8 +369,8 @@ export interface BuildSpawnPayloadInput {
 
 /**
  * PURE builder: compose the spawn_agent payload. The effective role prompt is the
- * promptOverride when set, else the TOML developer_instructions. Model routing is
- * handled only by the v1 hook path.
+ * promptOverride when set, else the TOML developer_instructions. Model/effort routing
+ * is handled by the spawn hook on both surfaces (260710 parity).
  */
 export function buildSpawnPayload(input: BuildSpawnPayloadInput): SpawnPayload {
   const { role, task, resolution, developerInstructions } = input;

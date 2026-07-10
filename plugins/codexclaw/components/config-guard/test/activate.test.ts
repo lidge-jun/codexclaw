@@ -124,6 +124,21 @@ test("idempotent re-enable: second activate issues no enable calls", () => {
   assert.equal(fake.calls.filter((c) => c[1] === "enable").length, 0);
 });
 
+test("activate never manages multi_agent_v2 outside the declared feature set", () => {
+  const { home, configPath } = setup();
+  const fake = makeFakeCodex(configPath, {
+    multi_agent: true,
+    goals: true,
+    hooks: true,
+    default_mode_request_user_input: true,
+  });
+
+  const manifest = activate({ run: fake.run, codexHome: home, configPath });
+
+  assert.equal(Object.hasOwn(manifest.flags, "multi_agent_v2"), false);
+  assert.equal(fake.calls.some((call) => call[1] === "enable" && call[2] === "multi_agent_v2"), false);
+});
+
 test("deactivate with no manifest is a safe no-op", () => {
   const { home, configPath } = setup();
   const fake = makeFakeCodex(configPath, { multi_agent: false, goals: false, hooks: false, default_mode_request_user_input: false });

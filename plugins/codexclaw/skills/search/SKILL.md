@@ -137,16 +137,13 @@ the search space you chose.
   fills the gaps and chases the strongest leads from wave 1.
 - Stop rule: stop after three consecutive no-new-lead results, or at five waves,
   whichever comes first. State which stop fired.
-- Dispatch mechanics (v2, dev2 switch 260709): the collab tools are the flat
-  multi_agent_v2 set (`spawn_agent` with a distinct `task_name` per explorer,
-  `send_message`, `followup_task`, `wait_agent`, `interrupt_agent`,
-  `list_agents`), exposed DIRECT. Spawn the whole wave, then `wait_agent` for
-  mailbox updates across the wave (bounded timeouts, re-wait between updates);
-  `followup_task` chases a strong lead on an existing explorer instead of
-  respawning — a wave-1 explorer keeps its context for wave-2 follow-ups (no
-  resume needed); `interrupt_agent` stops a runaway explorer; there is no
-  close verb — a finished wave is simply no longer addressed (`list_agents`
-  shows what is still live).
+- Dispatch mechanics depend on the session-pinned surface. On V2, spawn each explorer
+  with a distinct `task_name`, wait through the no-content mailbox, and chase a lead
+  with `followup_task(task_name)`; `interrupt_agent` stops a runaway turn. On V1,
+  `wait_agent` returns final status plus content, `send_input(agent_id)` reuses an
+  explorer, and `close_agent`/`resume_agent` retire or restore one. Spawn the whole
+  wave before waiting. Concurrency is V1 `agents.max_threads` (default 6) versus V2
+  `max_concurrent_threads_per_session` (default 4, root included).
 
 #### Journal + claim-ledger
 
@@ -192,10 +189,11 @@ explicitly names `$codexclaw:cxc-search` alongside
 `$codexclaw:cxc-dev-code-reviewer` (AUDIT-LOOP-01). The spawn wrapper's
 `ROLE_BASE_SKILLS.reviewer` resolves the same pair when that builder is used.
 
-The portable default is a **link-form mention in the spawn message** — the
-child's first turn parses it and injects the full SKILL.md body on BOTH the v1
-and v2 spawn surfaces. If the path is not link-safe, use the plugin-native
-`$codexclaw:cxc-search` fallback instead:
+The portable default is a **link-form mention in the spawn message**. On V1 the
+child's first turn parses the mention and injects the full SKILL.md body. Upstream V2
+does not parse skill mentions in inter-agent messages, so the codexclaw spawn hook
+recognizes the same mention and inlines the full body into the outgoing message. If the
+path is not link-safe, use the plugin-native `$codexclaw:cxc-search` fallback instead:
 
 ```text
 message: "[$cxc-search](skill://<this skill's SKILL.md absolute path>)
@@ -213,10 +211,10 @@ items: [
 ]
 ```
 
-(v2 `deny_unknown_fields` rejects `items` — there the mention line above IS the
-attachment, not a degraded fallback. The always-on spawn-attach hook normalizes
-known broken/bare cxc mentions, but it does not add `cxc-search` when the
-dispatcher omits it.)
+(v2 `deny_unknown_fields` rejects `items` — there the recognized mention plus the
+hook-inlined body is the attachment. The always-on spawn-attach hook normalizes
+known broken/bare cxc mentions on both surfaces and performs V2 inlining, but it does
+not add `cxc-search` when the dispatcher omits it.)
 
 Do not write a long inline TOOLS block in either path — the skill already says
 "web_search for discovery, then open the source; snippets lie; the page is the
@@ -227,10 +225,10 @@ evidence." A subagent that cannot open pages must flag every finding as
 `$cxc-sparksearch` is a dependent discovery lane that rides on this skill's proof
 ladder. It fans out cheap `gpt-5.3-codex-spark` subagents for wide discovery,
 then hands every candidate back here for Tier 2 source-proof. sparksearch
-discovers; cxc-search proves. sparksearch attaches THIS skill (`cxc-search`) to
-its swarm subagents via `items`, so each Spark lane auto-loads the proof ladder
-at launch. See the `$cxc-sparksearch` skill for its hardcoded spawn path and
-swarm shape.
+discovers; cxc-search proves. sparksearch names THIS skill (`cxc-search`) in each
+spawn message; V1 parses the mention and the V2 hook inlines its body. Manual V1
+callers may instead use `items`. See the `$cxc-sparksearch` skill for its hardcoded
+spawn path and swarm shape.
 
 ### Removed cli-jaw tiers (non-goals — do not re-add)
 codexclaw has no server runtime, so the cli-jaw 4-tier ladder does not carry over.

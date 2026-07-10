@@ -283,10 +283,9 @@ a retry, not a loop.
   AUDIT-LOOP-01 (`cxc-pabcd` §A): only pass or main-judged near-pass exits A>B;
   FAIL re-enters the audit loop with the same reviewer.
 - **Reviewer reuse across repair rounds (pointer):** blocker-closure re-verification
-  rounds reuse the SAME reviewer — `followup_task` to its task_name (v2: triggers a
-  turn when idle; the agent keeps its context, no resume needed; `send_message` for
-  context-only delivery) — passing the synthesis plus a change-diff summary so the
-  reviewer keeps its context.
+  rounds reuse the SAME reviewer — V2 `followup_task` to its task_name (triggers a
+  turn when idle; `send_message` is context-only) or V1 `send_input` to its agent_id —
+  passing the synthesis plus a change-diff summary so the reviewer keeps its context.
   The final C adversarial gate (or any contaminated reviewer) gets a fresh reviewer or
   a direct independent audit instead. Normative lifecycle rules: DISPATCH-ACTOR-01 /
   DISPATCH-RETIRE-01 in `structure/20_pabcd_dispatch_doctrine.md` §3.

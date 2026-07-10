@@ -418,8 +418,47 @@ test("L010: subagent-stop hook e2e - worker w/o receipt blocks, valid receipt re
 });
 
 // 260710: the spawn hook repairs provided cxc mentions on both schemas without
-// inventing baselines. V1 also gets configured model routing; V2 also gets D1/D2.
+// inventing baselines. 260710 parity: BOTH surfaces get D1/D2 leaf guarding and
+// configured model/effort routing; V2 additionally gets SKILL.md body inlining.
 // This snapshot-shaped case exercises the explicit CXC_SKILLS_DIR resolution branch.
+
+// cr1 (C-gate r1 F5): the MANIFEST matcher itself must select every hook-facing
+// spawn name — native V2 arrives as `collaborationspawn_agent` (flat_tool_name
+// concatenation), and a matcher regression would silently disable the whole hook
+// there even with a correct implementation. Parse the shipped regex and pin the
+// positive/negative name sets, then drive the real dist with the collaboration name.
+test("260710: spawn hook manifest matcher covers native V2 hook names", () => {
+  const manifest = JSON.parse(
+    readFileSync(join(pluginRoot, "hooks", "pre-tool-use-attaching-skills.json"), "utf8"),
+  );
+  const matcher = new RegExp(manifest.hooks.PreToolUse[0].matcher);
+  for (const name of ["spawn_agent", "collaborationspawn_agent", "collaboration.spawn_agent"]) {
+    assert.ok(matcher.test(name), `matcher must select ${name}`);
+  }
+  for (const name of ["shell", "multi_agent_v1.spawn_agent", "spawn_agent_extra", "xspawn_agent"]) {
+    assert.ok(!matcher.test(name), `matcher must NOT select ${name}`);
+  }
+});
+
+test("260710: spawn hook e2e - native collaboration name drives the V2 path", () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-attaching-skills.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep, "subagent-config dist entrypoint must settle");
+  const cwd = mkdtempSync(join(tmpdir(), "ccx-collab-name-"));
+  try {
+    const res = runHook(ep, hookEvent, {
+      hook_event_name: "PreToolUse", session_id: "s1", cwd,
+      tool_name: "collaborationspawn_agent",
+      tool_input: { task_name: "t", fork_turns: "none", message: "use $cxc-dev" },
+    }, { CXC_SKILLS_DIR: join(pluginRoot, "skills") });
+    assert.equal(res.status, 0, res.stderr);
+    const ui = JSON.parse(res.stdout).hookSpecificOutput.updatedInput;
+    assert.ok(ui.message.startsWith("[CXC-LEAF-GUARD]"), "collab name classifies as V2 -> guard");
+    assert.match(ui.message, /<skill name="cxc-dev">/, "collab name classifies as V2 -> inline");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
 test("260710: spawn hook e2e - snapshot override composes mention repair with v1/v2 policy", () => {
   const { event, hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-attaching-skills.json");
   assert.equal(event, "PreToolUse");
@@ -438,6 +477,7 @@ test("260710: spawn hook e2e - snapshot override composes mention repair with v1
     const v1NormalizedUi = JSON.parse(v1Normalized.stdout).hookSpecificOutput.updatedInput;
     assert.equal(v1NormalizedUi.trace_id, "v1");
     assert.match(v1NormalizedUi.message, /\[\$cxc-dev\]\(skill:\/\/.*\/skills\/dev\/SKILL\.md\)/);
+    assert.ok(v1NormalizedUi.message.startsWith("[CXC-LEAF-GUARD]"), "v1 now gets the leaf guard too");
 
     mkdirSync(join(configuredCwd, ".codexclaw"), { recursive: true });
     writeFileSync(
@@ -452,8 +492,9 @@ test("260710: spawn hook e2e - snapshot override composes mention repair with v1
     assert.equal(v1Model.status, 0, v1Model.stderr);
     const v1Ui = JSON.parse(v1Model.stdout).hookSpecificOutput.updatedInput;
     assert.equal(v1Ui.model, "model-explorer");
-    assert.match(v1Ui.message, /^\[\$cxc-dev\]\(skill:\/\//);
-    assert.ok(!("reasoning_effort" in v1Ui));
+    assert.match(v1Ui.message, /\[\$cxc-dev\]\(skill:\/\//);
+    assert.ok(v1Ui.message.startsWith("[CXC-LEAF-GUARD]"));
+    assert.ok(!("reasoning_effort" in v1Ui), "no configured effort -> none injected");
 
     const v2Normalized = runHook(ep, hookEvent, {
       hook_event_name: "PreToolUse", session_id: "s1", cwd: isolatedCwd,
@@ -466,6 +507,7 @@ test("260710: spawn hook e2e - snapshot override composes mention repair with v1
     const v2NormalizedUi = JSON.parse(v2Normalized.stdout).hookSpecificOutput.updatedInput;
     assert.equal((v2NormalizedUi.message.match(/\[CXC-LEAF-GUARD\]/g) ?? []).length, 1);
     assert.match(v2NormalizedUi.message, /\[\$cxc-dev\]\(skill:\/\//);
+    assert.match(v2NormalizedUi.message, /<skill name="cxc-dev">/, "v2 inlines the SKILL.md body");
 
     const v2Guard = runHook(ep, hookEvent, {
       hook_event_name: "PreToolUse", session_id: "s1", cwd: configuredCwd,
@@ -476,7 +518,8 @@ test("260710: spawn hook e2e - snapshot override composes mention repair with v1
     const v2Ui = JSON.parse(v2Guard.stdout).hookSpecificOutput.updatedInput;
     assert.ok(v2Ui.message.startsWith("[CXC-LEAF-GUARD]"));
     assert.match(v2Ui.message, /\[\$cxc-dev\]\(skill:\/\//);
-    assert.ok(!("model" in v2Ui));
+    assert.equal(v2Ui.model, "model-explorer", "260710 parity: v2 non-full fork gets configured model");
+    assert.match(v2Ui.message, /<skill name="cxc-dev">/);
 
     const denied = runHook(ep, hookEvent, {
       hook_event_name: "PreToolUse", session_id: "s1", cwd: isolatedCwd,
@@ -514,7 +557,11 @@ test("260710: spawn hook e2e - cache-shaped fixture uses script-relative skills"
     }, { CXC_SKILLS_DIR: undefined });
     assert.equal(res.status, 0, res.stderr);
     const ui = JSON.parse(res.stdout).hookSpecificOutput.updatedInput;
-    assert.equal(ui.message, `[$cxc-dev](skill://${realpathSync(cacheSkill)}) inspect the cache`);
+    assert.ok(ui.message.startsWith("[CXC-LEAF-GUARD]"), "v1 leaf guard applies (260710 parity)");
+    assert.ok(
+      ui.message.endsWith(`[$cxc-dev](skill://${realpathSync(cacheSkill)}) inspect the cache`),
+      "normalized mention link resolves against the script-relative skills dir",
+    );
   } finally {
     rmSync(fixture, { recursive: true, force: true });
     rmSync(cwd, { recursive: true, force: true });

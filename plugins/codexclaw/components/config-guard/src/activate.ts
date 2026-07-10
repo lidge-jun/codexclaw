@@ -52,10 +52,10 @@ function hashOrNull(path: string): string | null {
  * REPLACING an existing `[features.multi_agent_v2]` table and silently dropping
  * tuning keys such as `max_concurrent_threads_per_session` (codex-rs
  * config/edit.rs). Given the pre-enable and post-enable config contents, return the
- * repaired post content (scalar removed, table restored with `enabled = true` plus
- * the preserved non-`enabled` keys) — or null when no repair is needed.
+ * repaired post content (scalar removed, table restored with the requested `enabled`
+ * value plus preserved non-`enabled` keys) — or null when no repair is needed.
  */
-export function preserveMultiAgentV2Table(preConfig: string, postConfig: string): string | null {
+export function preserveMultiAgentV2Table(preConfig: string, postConfig: string, enabled = true): string | null {
   // Post still carries the table form -> nothing was clobbered.
   if (/^\[features\.multi_agent_v2\]\s*$/m.test(postConfig)) return null;
   // Pre had no table -> nothing to preserve.
@@ -66,11 +66,11 @@ export function preserveMultiAgentV2Table(preConfig: string, postConfig: string)
     .map((l) => l.trim())
     .filter((l) => l.length > 0 && !l.startsWith("#") && !/^enabled\s*=/.test(l));
   if (preservedLines.length === 0) return null;
-  // The clobbered scalar form: `multi_agent_v2 = true` (dotted or bare key line).
-  const scalarRe = /^(?:features\.)?multi_agent_v2\s*=\s*true\s*$/m;
+  // The clobbered scalar form: `multi_agent_v2 = true/false` (dotted or bare key line).
+  const scalarRe = new RegExp(`^(?:features\\.)?multi_agent_v2\\s*=\\s*${enabled ? "true" : "false"}\\s*$`, "m");
   if (!scalarRe.test(postConfig)) return null;
   const withoutScalar = postConfig.replace(scalarRe, "").replace(/\n{3,}/g, "\n\n");
-  const table = `\n[features.multi_agent_v2]\nenabled = true\n${preservedLines.join("\n")}\n`;
+  const table = `\n[features.multi_agent_v2]\nenabled = ${enabled ? "true" : "false"}\n${preservedLines.join("\n")}\n`;
   return `${withoutScalar.replace(/\n*$/, "\n")}${table}`;
 }
 
@@ -87,8 +87,6 @@ export function activate(deps: ActivateDeps): InstallManifest {
 
   const priorState = readDeclaredState(run);
   const pending = featuresToEnable(priorState);
-  // Snapshot for the multi_agent_v2 table-preservation repair (see helper above).
-  const preConfigContent = existsSync(configPath) ? readFileSync(configPath, "utf8") : "";
 
   // Back up config.toml before any change (timestamped; codexclaw's own safeguard).
   let backupPath: string | null = null;
@@ -110,11 +108,6 @@ export function activate(deps: ActivateDeps): InstallManifest {
     const res = run(["features", "enable", key]);
     if (res.exitCode === 0) {
       flags[key].enabledByCodexclaw = true;
-      if (key === "multi_agent_v2" && existsSync(configPath)) {
-        const post = readFileSync(configPath, "utf8");
-        const repaired = preserveMultiAgentV2Table(preConfigContent, post);
-        if (repaired !== null) writeFileSync(configPath, repaired, "utf8");
-      }
     } else {
       flags[key].enableFailed = true;
       if (!SOFT_FEATURES.has(key)) {

@@ -38,10 +38,34 @@ export interface ProviderState {
   port: number | null;
 }
 
+export type MultiAgentVersion = "v1" | "v2";
+
+export interface MultiAgentSurface {
+  version: MultiAgentVersion;
+  v2Enabled: boolean;
+  appliesTo: "flag-fallback models only";
+  catalogPinned: {
+    readonly v2: readonly string[];
+    readonly v1: readonly string[];
+  };
+  effectiveFrom: "new sessions";
+}
+
 const defaultRole = (): RoleConfig => ({ mode: "default", model: null, effort: null, promptOverride: null });
 
 export const defaultConfig = (): SubagentsConfig => ({
   roles: { explorer: defaultRole(), reviewer: defaultRole(), executor: defaultRole() },
+});
+
+export const defaultMultiAgentSurface = (): MultiAgentSurface => ({
+  version: "v1",
+  v2Enabled: false,
+  appliesTo: "flag-fallback models only",
+  catalogPinned: {
+    v2: ["gpt-5.6-sol", "gpt-5.6-terra"],
+    v1: ["gpt-5.6-luna"],
+  },
+  effectiveFrom: "new sessions",
 });
 
 /**
@@ -85,6 +109,13 @@ export interface SetRoleResult {
   error?: string;
 }
 
+export interface SetMultiAgentSurfaceResult {
+  ok: boolean;
+  /** updated surface on success; the caller-provided fallback on failure. */
+  surface: MultiAgentSurface;
+  error?: string;
+}
+
 /** POST a role patch. Failures are surfaced (never silently swallowed) so the
  *  UI can show the real error instead of a false success. */
 export async function setSubagentRole(
@@ -108,6 +139,38 @@ export async function setSubagentRole(
     return { ok: true, config: body as SubagentsConfig };
   } catch {
     return { ok: false, config: fallback, error: "backend unreachable" };
+  }
+}
+
+export async function setMultiAgentSurface(
+  version: MultiAgentVersion,
+  fallback: MultiAgentSurface,
+): Promise<SetMultiAgentSurfaceResult> {
+  try {
+    const res = await fetch(`${API_BASE}/api/multi-agent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...LOCAL_HEADER },
+      body: JSON.stringify({ version }),
+    });
+    const body = (await res.json().catch(() => null)) as
+      | (MultiAgentSurface & { ok?: boolean; error?: string })
+      | { error?: string }
+      | null;
+    if (!res.ok || !body || !("version" in body)) {
+      return { ok: false, surface: fallback, error: body?.error ?? `save failed (${res.status})` };
+    }
+    return {
+      ok: true,
+      surface: {
+        version: body.version,
+        v2Enabled: body.v2Enabled,
+        appliesTo: body.appliesTo,
+        catalogPinned: body.catalogPinned,
+        effectiveFrom: body.effectiveFrom,
+      },
+    };
+  } catch {
+    return { ok: false, surface: fallback, error: "backend unreachable" };
   }
 }
 
@@ -250,6 +313,7 @@ async function postJson<T>(path: string, body: unknown): Promise<{ ok: boolean; 
 
 export const api = {
   getSubagents: () => getJson<SubagentsConfig>("/api/subagents", defaultConfig()),
+  getMultiAgentSurface: () => getJson<MultiAgentSurface>("/api/multi-agent", defaultMultiAgentSurface()),
   getCatalog: () =>
     getJson<{ state: string; entries: CatalogEntry[] }>("/api/catalog", {
       state: "native-catalog",

@@ -1,5 +1,5 @@
 /**
- * spawn-attach-hook.test.ts — runtime policy for spawn_agent.
+ * spawn-attach-hook.test.ts — runtime policy for spawn tools (v1 + v2 parity).
  *
  * Contract:
  *  - known cxc mentions are repaired on both v1 and v2 without inventing baselines.
@@ -8,9 +8,11 @@
  *    brackets; links repair only as a standalone whole-line shape; every
  *    ambiguous/mixed line is protected verbatim — false negatives beat
  *    message corruption.
- *  - v2-shaped spawns (`task_name` or `fork_turns`) also get the leaf topology guard.
- *  - v1-shaped spawns also get model routing from `.codexclaw/subagents.json`.
- *  - no reasoning-effort inference happens here.
+ *  - the leaf topology guard (D1 deny + D2 block) applies to BOTH surfaces.
+ *  - model AND reasoning_effort routing from `.codexclaw/subagents.json` applies to
+ *    BOTH surfaces, decided independently per field, skipped on full-history forks.
+ *  - v2-shaped spawns additionally get SKILL.md body inlining (atomic overflow).
+ *  - native V2 hook names (collaborationspawn_agent) are accepted.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -20,11 +22,16 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
+  INLINE_SKILL_OPEN,
   LEAF_GUARD_BLOCK,
+  LEAF_GUARD_BLOCK_COORDINATOR,
   LEAF_GUARD_MARKER,
   SUBSPAWN_TOKEN,
   inferRole,
+  inlineSkillBodies,
+  isCollaborationToolName,
   isFullHistoryFork,
+  isSpawnToolName,
   isV2SpawnInput,
   mentionedFolders,
   normalizeSkillMentions,
@@ -347,13 +354,24 @@ test("mention normalization: plugin prefix is pinned to plugin.json name", () =>
   );
 });
 
+test("leaf guard text does not contain the literal recursion token name", () => {
+  assert.ok(!LEAF_GUARD_BLOCK.includes(SUBSPAWN_TOKEN));
+  assert.ok(!LEAF_GUARD_BLOCK_COORDINATOR.includes(SUBSPAWN_TOKEN));
+});
+
 test("v2 leaf guard: subagent-issued spawn is denied without the token", () => {
   const out = runSpawnAttachHook(subagentSpawnPayload({ task_name: "child", message: "spawn with $cxc-dev" }));
   const parsed = JSON.parse(out);
   assert.equal(parsed.hookSpecificOutput.permissionDecision, "deny");
   assert.match(parsed.hookSpecificOutput.permissionDecisionReason, /LEAF-TOPOLOGY-01/);
-  assert.match(parsed.hookSpecificOutput.permissionDecisionReason, new RegExp(SUBSPAWN_TOKEN));
+  assert.match(parsed.hookSpecificOutput.permissionDecisionReason, /recursion grant token/);
   assert.ok(!("updatedInput" in parsed.hookSpecificOutput), "D1 denial runs before normalization");
+});
+
+test("RECURSE_DENY_REASON does not contain the literal token name", () => {
+  const out = runSpawnAttachHook(subagentSpawnPayload({ task_name: "child", message: "spawn a helper" }));
+  const parsed = JSON.parse(out);
+  assert.ok(!parsed.hookSpecificOutput.permissionDecisionReason.includes(SUBSPAWN_TOKEN));
 });
 
 test("v2 leaf guard: subagent denial runs even when message is missing", () => {
@@ -361,14 +379,16 @@ test("v2 leaf guard: subagent denial runs even when message is missing", () => {
   assert.equal(parsed.hookSpecificOutput.permissionDecision, "deny");
 });
 
-test("v2 leaf guard: recursion token authorizes and skips rewrite", () => {
+test("recursion grant token allows spawn from a subagent context", () => {
   const out = runSpawnAttachHook(
     subagentSpawnPayload({ task_name: "child", message: `${SUBSPAWN_TOKEN} spawn one summarizer` }),
   );
-  assert.equal(out, "");
+  const ui = updatedInputOf(out);
+  assert.equal(ui.task_name, "child");
+  assert.match(ui.message as string, /Recursion is authorized for this task/);
 });
 
-test("v2 leaf guard: root spawn gets only the guard, never model/effort/skills", () => {
+test("v2 root spawn: guard + configured model/effort injected on a non-full fork", () => {
   const cwd = workspaceWithConfig({
     explorer: { mode: "model", model: "kiro/claude-opus-4.6", effort: "high", promptOverride: null },
   });
@@ -379,17 +399,84 @@ test("v2 leaf guard: root spawn gets only the guard, never model/effort/skills",
   assert.equal(ui.task_name, "explorer_task");
   assert.equal(ui.fork_turns, "none");
   assert.equal(ui.message, `${LEAF_GUARD_BLOCK}\n\nreview the frontend diff`);
-  assert.ok(!("model" in ui));
-  assert.ok(!("reasoning_effort" in ui));
+  // 260710 parity: v2 spawns now honor .codexclaw/subagents.json like v1 (the
+  // "review" keyword routes this explorer spawn to the reviewer role, which has
+  // no config here, so the explorer config does NOT apply — assert via a
+  // non-review message instead below; this payload keeps the explorer wording).
   assert.doesNotMatch(ui.message as string, /Load and follow/);
 });
 
-test("v2 leaf guard: marker dedupes and token skips guard on root spawn", () => {
+test("v2 model+effort routing: injected independently on fork_turns none/integer", () => {
+  const cwd = workspaceWithConfig({
+    explorer: { mode: "model", model: "kiro/claude-opus-4.6", effort: "high", promptOverride: null },
+  });
+  for (const fork of ["none", "3"]) {
+    const ui = updatedInputOf(
+      runSpawnAttachHook(spawnPayloadAt(cwd, { task_name: "t", fork_turns: fork, message: "map the frontend codebase" })),
+    );
+    assert.equal(ui.model, "kiro/claude-opus-4.6", `fork_turns=${fork}`);
+    assert.equal(ui.reasoning_effort, "high", `fork_turns=${fork}`);
+  }
+});
+
+test("v2 full-history fork (omitted or all) skips model/effort but still guards", () => {
+  const cwd = workspaceWithConfig({
+    explorer: { mode: "model", model: "kiro/claude-opus-4.6", effort: "high", promptOverride: null },
+  });
+  for (const toolInput of [
+    { task_name: "t", message: "map the frontend codebase" },
+    { task_name: "t", fork_turns: "all", message: "map the frontend codebase" },
+  ]) {
+    const ui = updatedInputOf(runSpawnAttachHook(spawnPayloadAt(cwd, toolInput)));
+    assert.ok((ui.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`));
+    assert.ok(!("model" in ui));
+    assert.ok(!("reasoning_effort" in ui));
+  }
+});
+
+test("independent field routing: caller model keeps configured effort injection and vice versa", () => {
+  const cwd = workspaceWithConfig({
+    explorer: { mode: "model", model: "kiro/claude-opus-4.6", effort: "high", promptOverride: null },
+  });
+  // caller picked model -> only effort injected
+  const a = updatedInputOf(
+    runSpawnAttachHook(spawnPayloadAt(cwd, { task_name: "t", fork_turns: "none", model: "gpt-5.5", message: "map it" })),
+  );
+  assert.equal(a.model, "gpt-5.5");
+  assert.equal(a.reasoning_effort, "high");
+  // caller picked effort -> only model injected
+  const b = updatedInputOf(
+    runSpawnAttachHook(
+      spawnPayloadAt(cwd, { task_name: "t", fork_turns: "none", reasoning_effort: "low", message: "map it" }),
+    ),
+  );
+  assert.equal(b.model, "kiro/claude-opus-4.6");
+  assert.equal(b.reasoning_effort, "low");
+});
+
+test("default-mode role with configured effort injects effort only", () => {
+  const cwd = workspaceWithConfig({
+    explorer: { mode: "default", model: null, effort: "high", promptOverride: null },
+  });
+  const ui = updatedInputOf(
+    runSpawnAttachHook(spawnPayloadAt(cwd, { task_name: "t", fork_turns: "none", message: "map it" })),
+  );
+  assert.ok(!("model" in ui));
+  assert.equal(ui.reasoning_effort, "high");
+});
+
+test("v2 leaf guard: marker dedupes guard on root spawn", () => {
   const marked = runSpawnAttachHook(spawnPayload({ task_name: "t", message: `${LEAF_GUARD_MARKER} already guarded` }));
   assert.equal(marked, "");
+});
 
-  const tokened = runSpawnAttachHook(spawnPayload({ task_name: "t", message: `${SUBSPAWN_TOKEN} coordinator task` }));
-  assert.equal(tokened, "");
+test("recursion grant token keeps non-recursion leaf constraints", () => {
+  const message = `${SUBSPAWN_TOKEN} coordinator task`;
+  const ui = updatedInputOf(runSpawnAttachHook(spawnPayload({ task_name: "t", message })));
+  assert.equal(ui.message, `${LEAF_GUARD_BLOCK_COORDINATOR}\n\n${message}`);
+  assert.match(ui.message as string, /Do NOT run cxc orchestrate, cxc loop, or goal commands/);
+  assert.match(ui.message as string, /Stay inside the task's stated\nfile\/write scope/);
+  assert.doesNotMatch(ui.message as string, /Do NOT spawn/);
 });
 
 test("v2 mention normalization emits an allow envelope even when the guard is already present", () => {
@@ -411,7 +498,7 @@ test("v2 mention normalization composes with a newly prepended leaf guard", () =
   assert.match(ui.message as string, /\[\$cxc-dev\]\(skill:\/\/.*\/dev\/SKILL\.md\)/);
 });
 
-test("v1 mention normalization composes with configured model routing", () => {
+test("v1 mention normalization composes with guard, model routing, and effort", () => {
   const cwd = workspaceWithConfig({
     explorer: { mode: "model", model: "kiro/claude-opus-4.6", effort: "high", promptOverride: null },
   });
@@ -420,10 +507,11 @@ test("v1 mention normalization composes with configured model routing", () => {
   );
   const ui = updatedInputOf(out);
   assert.equal(ui.model, "kiro/claude-opus-4.6");
-  assert.match(ui.message as string, /^\[\$cxc-dev\]\(skill:\/\//);
+  assert.ok((ui.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`), "260710 parity: v1 gets the leaf guard too");
+  assert.match(ui.message as string, /\[\$cxc-dev\]\(skill:\/\//);
   assert.ok((ui.message as string).endsWith(" map the frontend codebase"));
   assert.equal(ui.trace_id, "keep");
-  assert.ok(!("reasoning_effort" in ui));
+  assert.equal(ui.reasoning_effort, "high", "260710 parity: configured effort is injected");
 });
 
 test("v1 model routing: caller-picked model wins", () => {
@@ -433,15 +521,25 @@ test("v1 model routing: caller-picked model wins", () => {
   const out = runSpawnAttachHook(
     spawnPayloadAt(cwd, { message: "map the codebase", agent_type: "explorer", model: "gpt-5.5" }),
   );
-  assert.equal(out, "");
+  const ui = updatedInputOf(out);
+  assert.equal(ui.model, "gpt-5.5", "caller-picked model wins");
+  assert.ok(!("reasoning_effort" in ui), "no configured effort -> none injected");
+  assert.ok((ui.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`));
 });
 
-test("v1 model routing: default mode and missing config are no-ops", () => {
+test("v1 model routing: default mode injects no model; guard still applies", () => {
   const cwd = workspaceWithConfig({
     explorer: { mode: "default", model: null, effort: "high", promptOverride: null },
   });
-  assert.equal(runSpawnAttachHook(spawnPayloadAt(cwd, { message: "map the codebase", agent_type: "explorer" })), "");
-  assert.equal(runSpawnAttachHook(spawnPayload({ message: "map the codebase", agent_type: "explorer" })), "");
+  const ui = updatedInputOf(
+    runSpawnAttachHook(spawnPayloadAt(cwd, { message: "map the codebase", agent_type: "explorer" })),
+  );
+  assert.ok(!("model" in ui));
+  assert.equal(ui.reasoning_effort, "high");
+  const noConfig = updatedInputOf(runSpawnAttachHook(spawnPayload({ message: "map the codebase", agent_type: "explorer" })));
+  assert.ok(!("model" in noConfig));
+  assert.ok(!("reasoning_effort" in noConfig));
+  assert.ok((noConfig.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`));
 });
 
 test("v1 model routing: review keywords route explorer spawns to reviewer config", () => {
@@ -466,18 +564,28 @@ test("v1 model routing: items are preserved while model is injected", () => {
   );
   const ui = updatedInputOf(out);
   assert.equal(ui.model, "deepseek/deepseek-v4");
-  assert.equal(ui.message, "implement it");
+  assert.equal(ui.message, `${LEAF_GUARD_BLOCK}\n\nimplement it`);
   assert.ok(Array.isArray(ui.items));
 });
 
-test("v1 full-history fork skips model routing", () => {
+test("v1 full-history fork skips model/effort but still guards", () => {
   const cwd = workspaceWithConfig({
-    explorer: { mode: "model", model: "gpt-5.5", promptOverride: null },
+    explorer: { mode: "model", model: "gpt-5.5", effort: "high", promptOverride: null },
   });
   const out = runSpawnAttachHook(
     spawnPayloadAt(cwd, { message: "summarize this thread", agent_type: "explorer", fork_context: true }),
   );
-  assert.equal(out, "");
+  const ui = updatedInputOf(out);
+  assert.ok(!("model" in ui));
+  assert.ok(!("reasoning_effort" in ui));
+  assert.ok((ui.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`));
+});
+
+test("v1 subagent-issued spawn is denied without the token (D1 parity)", () => {
+  const out = runSpawnAttachHook(subagentSpawnPayload({ message: "spawn a helper" }));
+  const parsed = JSON.parse(out);
+  assert.equal(parsed.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(parsed.hookSpecificOutput.permissionDecisionReason, /LEAF-TOPOLOGY-01/);
 });
 
 test("malformed, non-spawn, and missing message inputs are fail-open no-ops", () => {
@@ -523,4 +631,145 @@ test("mentionedFolders recognizes all supported mention shapes", () => {
     "$cxc-dev and $codexclaw:cxc-dev-testing and [$cxc-search](skill:///x/skills/search/SKILL.md)",
   );
   assert.deepEqual([...found].sort(), ["dev", "dev-testing", "search"]);
+});
+
+test("isSpawnToolName / isCollaborationToolName accept native V2 hook names", () => {
+  assert.ok(isSpawnToolName("spawn_agent"));
+  assert.ok(isSpawnToolName("collaborationspawn_agent"));
+  assert.ok(isSpawnToolName("collaboration.spawn_agent"));
+  assert.ok(!isSpawnToolName("shell"));
+  assert.ok(!isSpawnToolName("multi_agent_v1.spawn_agent"));
+  assert.ok(!isCollaborationToolName("spawn_agent"));
+  assert.ok(isCollaborationToolName("collaborationspawn_agent"));
+});
+
+test("collaboration hook name is treated as V2: inline + guard on a marker-less payload", () => {
+  const out = runSpawnAttachHook(
+    JSON.stringify({
+      hook_event_name: "PreToolUse",
+      tool_name: "collaborationspawn_agent",
+      cwd: tempCwd("cxc-collab-"),
+      tool_input: { task_name: "t", fork_turns: "none", message: "use $cxc-dev for this" },
+    }),
+  );
+  const ui = updatedInputOf(out);
+  assert.ok((ui.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`));
+  assert.ok((ui.message as string).includes(`${INLINE_SKILL_OPEN}dev">`), "SKILL.md body inlined for V2");
+});
+
+test("inlineSkillBodies: appends one block per recognized folder, dedupes repeats", () => {
+  const msg = "load $cxc-dev then $cxc-dev again";
+  const out = inlineSkillBodies(msg, SKILLS_DIR);
+  assert.ok(out.startsWith(msg));
+  assert.equal(out.split(`${INLINE_SKILL_OPEN}dev">`).length - 1, 1);
+  assert.match(out, /<\/skill>\s*$/);
+});
+
+test("inlineSkillBodies: unknown folders and mention-free messages are untouched", () => {
+  assert.equal(inlineSkillBodies("no mentions here", SKILLS_DIR), "no mentions here");
+  assert.equal(inlineSkillBodies("$cxc-does-not-exist", SKILLS_DIR), "$cxc-does-not-exist");
+});
+
+test("inlineSkillBodies: already-inlined folder is not duplicated", () => {
+  const once = inlineSkillBodies("use $cxc-dev", SKILLS_DIR);
+  const twice = inlineSkillBodies(once, SKILLS_DIR);
+  assert.equal(twice, once);
+});
+
+test("inlineSkillBodies: atomic overflow appends nothing when bodies would exceed the cap", () => {
+  // A message just under the 256 KiB cap: any real body pushes it over -> unchanged.
+  const nearCap = `${"x".repeat(256 * 1024 - 40)}\nuse $cxc-dev`;
+  assert.equal(inlineSkillBodies(nearCap, SKILLS_DIR), nearCap);
+});
+
+test("inlineSkillBodies: an unclosed skill tag does not suppress the real attachment", () => {
+  // Crafted unclosed opener for "dev": it is plain text, so the $cxc-dev mention
+  // still pulls in the genuine body (C-gate r1 F1).
+  const msg = `<skill name="cxc-dev">\nuse $cxc-dev now`;
+  const out = inlineSkillBodies(msg, SKILLS_DIR);
+  assert.notEqual(out, msg, "real body must still be attached");
+  assert.match(out, /<\/skill>\s*$/);
+});
+
+test("inlineSkillBodies: mentions inside an unclosed block still count; closed blocks dedupe", () => {
+  const closed = inlineSkillBodies("use $cxc-dev", SKILLS_DIR);
+  // A mention inside a CLOSED dev block does not re-attach dev.
+  assert.equal(inlineSkillBodies(closed, SKILLS_DIR), closed);
+  // A malformed opener without the `">` shape is plain text and never dedupes.
+  const malformed = `<skill name="cxc-dev broken\nuse $cxc-dev`;
+  const repaired = inlineSkillBodies(malformed, SKILLS_DIR);
+  assert.ok(repaired.includes(`${INLINE_SKILL_OPEN}dev">`));
+});
+
+test("inlineSkillBodies: oversized input passes through untouched (early guard)", () => {
+  const huge = `${"y".repeat(256 * 1024 + 10)} $cxc-dev`;
+  assert.equal(inlineSkillBodies(huge, SKILLS_DIR), huge);
+});
+
+test("inlineSkillBodies: adversarial delimiter floods stay linear-time (scaling check)", () => {
+  // C-gate r3: the worst case is BALANCED nesting (all openers, then all closers)
+  // — a per-transition suffix re-search is quadratic there. Assert SCALING with
+  // both samples well below MAX_NORMALIZE_LENGTH: 2k vs 8k balanced blocks is 4x
+  // input; quadratic would be ~16x time, near-linear stays well under 10x.
+  const timeFor = (n) => {
+    const flood = `${`<skill name="cxc-dev">`.repeat(n)}${`</skill>`.repeat(n)} $cxc-search`;
+    assert.ok(flood.length < 256 * 1024, `sample n=${n} must stay under the cap`);
+    const started = process.hrtime.bigint();
+    const out = inlineSkillBodies(flood, SKILLS_DIR);
+    const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+    assert.ok(out.includes(`${INLINE_SKILL_OPEN}search">`), "search still attaches (outside the blocks)");
+    return elapsedMs;
+  };
+  timeFor(500); // warmup
+  const t2 = Math.max(timeFor(2000), 0.5);
+  const t8 = timeFor(8000);
+  assert.ok(t8 / t2 < 10, `4x balanced input must stay near-linear (got ${t2.toFixed(1)}ms -> ${t8.toFixed(1)}ms)`);
+
+  // Unclosed-opener flood keeps its own regression: linear via single-append.
+  const unclosed = `${`<skill name="cxc-dev">`.repeat(6000)} $cxc-search`;
+  assert.ok(unclosed.length < 256 * 1024);
+  const started = process.hrtime.bigint();
+  const out = inlineSkillBodies(unclosed, SKILLS_DIR);
+  const unclosedMs = Number(process.hrtime.bigint() - started) / 1e6;
+  assert.ok(unclosedMs < 500, `unclosed flood must stay fast (got ${unclosedMs.toFixed(1)}ms)`);
+  assert.ok(out.includes(`${INLINE_SKILL_OPEN}search">`), "search still attaches after unclosed flood");
+});
+
+test("inlineSkillBodies: nested closed blocks hide their whole interior from scanning", () => {
+  // A closed dev block CONTAINING a nested closed block whose interior mentions
+  // $cxc-loop: nothing inside the outer block may trigger an attachment.
+  const nested = [
+    `${INLINE_SKILL_OPEN}dev">`,
+    `outer body`,
+    `${INLINE_SKILL_OPEN}search">`,
+    `inner body mentioning $cxc-loop`,
+    `</skill>`,
+    `outer tail also mentioning $cxc-loop`,
+    `</skill>`,
+    `no outside mentions`,
+  ].join("\n");
+  assert.equal(inlineSkillBodies(nested, SKILLS_DIR), nested, "interior mentions must not attach");
+});
+
+test("same-intent v1/v2 spawns produce equivalent effective payloads (cr3 parity)", () => {
+  const cwd = workspaceWithConfig({
+    explorer: { mode: "model", model: "kiro/claude-opus-4.6", effort: "high", promptOverride: null },
+  });
+  const intent = "map the frontend codebase with $cxc-dev";
+  const v1 = updatedInputOf(
+    runSpawnAttachHook(spawnPayloadAt(cwd, { message: intent, agent_type: "explorer" })),
+  );
+  const v2 = updatedInputOf(
+    runSpawnAttachHook(spawnPayloadAt(cwd, { task_name: "map_fe", fork_turns: "none", message: intent })),
+  );
+  // Same model + effort routing on both surfaces.
+  assert.equal(v1.model, v2.model);
+  assert.equal(v1.reasoning_effort, v2.reasoning_effort);
+  // Both carry the leaf guard.
+  assert.ok((v1.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`));
+  assert.ok((v2.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`));
+  // Skill delivery: v1 keeps the parseable mention link (upstream injects); v2
+  // additionally inlines the body (upstream never parses v2 spawn messages).
+  assert.match(v1.message as string, /\[\$cxc-dev\]\(skill:\/\//);
+  assert.ok((v2.message as string).includes(`${INLINE_SKILL_OPEN}dev">`));
 });

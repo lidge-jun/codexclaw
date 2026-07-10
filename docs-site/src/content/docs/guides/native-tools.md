@@ -7,14 +7,19 @@ codexclaw's discipline is only half the story — the Codex runtime already ship
 native surfaces, and the skills now route to them by exact tool id. The verified
 inventory lives in `structure/60_native_capabilities.md` (re-verified per Codex release).
 
-## The deferred-tool trap
+## The two collab surfaces
 
-The visible tool list is not the full list. The collab tools
+V1 is codexclaw's default, but the model catalog selects V2 for sol/terra and V1 for
+luna; `features.multi_agent_v2` is the fallback selector for other models. The chosen
+surface pins on the session's first turn. V1 collab tools
 (`multi_agent_v1.spawn_agent` / `wait_agent` / `send_input` / `resume_agent` /
-`close_agent`) are deferred behind `tool_search` on the live runtime. Skills that
-dispatch subagents now say it explicitly: **if `spawn_agent` is not visible, run
-`tool_search` for it first** — otherwise a "dispatch a reviewer" instruction silently
-no-ops.
+`close_agent`) are deferred behind `tool_search`; V2 tools are direct. If
+`spawn_agent` is not visible, run `tool_search` for it first.
+
+The spawn hook provides parity on both surfaces: it normalizes skill mentions, fills
+omitted configured model/effort fields on non-full-history spawns, and applies the leaf
+guard. V1 parses skill mentions natively; because upstream V2 does not, the hook inlines
+recognized SKILL.md bodies into V2 spawn messages.
 
 ## Browse-use ladder (owned by `cxc-search`)
 
@@ -54,5 +59,6 @@ must stay guarded into Playwright.
 | `multi_tool_use.parallel` | `cxc-sparksearch` / `cxc-ultraresearch` parallel lanes |
 | `list_available_plugins_to_install` / `request_plugin_install` | `cxc-skill-hub` capability discovery |
 
-Flag-gated surfaces (CSV batch fan-out via `spawn_agents_on_csv`, `multi_agent_v2`,
-`memories`) are documented but deliberately not instructed until they ship.
+CSV batch fan-out via `spawn_agents_on_csv` and `memories` remain flag-gated and are
+documented as future surfaces. V2 is live through catalog selection or the fallback
+feature flag; it is not part of this "not shipped" set.

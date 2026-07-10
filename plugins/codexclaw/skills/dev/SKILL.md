@@ -143,19 +143,21 @@ Why this is wording, not a runtime gate: no Codex hook fires on skill load (see
 SUBAGENT dispatches, the dispatcher names every required skill explicitly. Prefer
 link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)` mentions in the spawn `message`;
 when the path is not link-safe, use the plugin-native `$codexclaw:cxc-<skill>` fallback.
-The always-on `^spawn_agent$` PreToolUse hook normalizes known broken/bare cxc mentions
-to a resolvable form, but it does not add role baselines or infer missing surface skills.
-The v1-only `items` channel via `resolveSpawnPayloadWithSkills` (L15) remains the
-strongest explicit form (`structure/10`).
+The always-on spawn PreToolUse hook normalizes known broken/bare cxc mentions on both
+surfaces, but it does not add role baselines or infer missing surface skills. On
+V2-shaped spawns it also inlines the full bodies of recognized skills because upstream
+does not collect skill mentions from inter-agent messages. The manually supplied,
+v1-only `items` channel remains the strongest explicit form (`structure/10`).
 
 ### Subagent Skill Injection (DEV-SKILL-INJECT-01)
 
 When spawning a subagent for any codexclaw-governed task, attach `cxc-dev` and
 the relevant surface `cxc-*` skills with resolvable spawn-message mentions:
 preferred link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)`, or plugin-native
-`$codexclaw:cxc-<skill>` when a link is unsafe. The v1 `items` mechanism is also
-valid when routing through the builder. Name the surface skills explicitly; the
-hook repairs known broken/bare mentions but never supplies an omitted skill.
+`$codexclaw:cxc-<skill>` when a link is unsafe. The manual v1 `items` mechanism is also
+valid. Name the surface skills explicitly; the hook repairs known broken/bare mentions
+on both surfaces and inlines recognized skill bodies on V2, but never supplies an
+omitted skill.
 Keep the skill body as the single source of truth. For search tasks, attach
 `cxc-search`, and ensure subagents/delegated agents are bound by the same
 search-skill policy as the main agent.

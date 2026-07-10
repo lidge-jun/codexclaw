@@ -27,7 +27,7 @@ where" hub; the numbered files carry the durable reasoning.
 | [`30_contradiction_register.md`](30_contradiction_register.md) | Truth table of doc↔code contradictions (claim vs reality, file:line), the input to L14 + any status-sync gate. |
 | [`40_enforcement_methods.md`](40_enforcement_methods.md) | Enforcement ladder E1-E8: how strongly each intent can be enforced given the four Codex hook surfaces, and which tier to pick per contradiction. |
 | [`50_emergence_gap.md`](50_emergence_gap.md) | Why PABCD is a convergence (exploitation) machine with no divergence/plateau surface — the structural weakness on emergent/algorithmic tasks (NYPC 3.5/8 diagnosis), with an honest E-tier fix taxonomy. |
-| [`60_native_capabilities.md`](60_native_capabilities.md) | Live-verified Codex native capability matrix (browser/computer use, deferred `multi_agent_v1.*` collab tools behind `tool_search` (V1 default; V2 opt-in), `update_plan`, `view_image`, `imagegen`, flag-gated CSV fan-out) and the per-skill gap map the WP-N track patches. |
+| [`60_native_capabilities.md`](60_native_capabilities.md) | Live-verified Codex native capability matrix (browser/computer use, deferred V1 collab tools, catalog/flag-selected V2, lifecycle equivalents, `update_plan`, `view_image`, `imagegen`, flag-gated CSV fan-out) and the per-skill gap map the WP-N track patches. |
 
 Writing rule: keep this directory flat. Add or extend lexicographically ordered
 `NN_topic.md` files (`00-09` philosophy/foundations, `10-19` subagent/routing, and so
@@ -135,7 +135,7 @@ Per-role subagent model, reasoning-effort, and prompt configuration. `src/store.
 
 ## Skills Map
 
-codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.yaml` `interface.display_name` values are the user-facing `$` autocomplete names; folder names are implementation paths. The implicit-visible set is `{dev, search, interview, pabcd, recall, loop}` (2026-07-05 expansion; metadata rows only — `dev` alone carries always-on body discipline). All `dev-*` routers and the remaining skills are on-demand and explicitly invokable.
+codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.yaml` `interface.display_name` values are the user-facing `$` autocomplete names; folder names are implementation paths. The implicit-visible set is `{dev, search, interview, pabcd, recall, loop, dev-frontend, dev-uiux-design}` (`dev` alone carries always-on body discipline). All other `dev-*` routers and the remaining skills are on-demand and explicitly invokable.
 
 | Skill display name | Folder | Role |
 |--------------------|--------|------|
@@ -144,7 +144,7 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-interview` | `skills/interview/` | explicit I-phase entry and continuous contradiction-interview contract |
 | `cxc-orchestrate` | `skills/orchestrate/` | explicit phase-control surface for chat and the live agent-gated `cxc orchestrate` CLI |
 | `cxc-loop` | `skills/loop/` | HOTL repeated work-phase continuation contract |
-| `cxc-goalplan` | `skills/goalplan/` | durable goalplan/checkpoint/quality-gate contract |
+| `cxc-goalplan` (deprecated, redirects to `cxc-loop`) | `skills/goalplan/` | durable goalplan/checkpoint/quality-gate contract |
 | `cxc-dev-architecture` | `skills/dev-architecture/` | module boundaries, circular deps, coupling, validation placement |
 | `cxc-dev-backend` | `skills/dev-backend/` | API/server/database/backend operations guidance |
 | `cxc-dev-data` | `skills/dev-data/` | pipelines, ETL/ELT, SQL, schema/data quality |
@@ -159,11 +159,11 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-dev-scaffolding` | `skills/dev-scaffolding/` | project/module scaffolding and structure audits |
 | `cxc-search` | `skills/search/` | current/public lookup ladder and Korean search intent guard |
 | `cxc-recall` | `skills/recall/` | past-session chat/memory recall before asking the user to repeat context |
-| `cxc-skill-hub` | `skills/skill-hub/` | on-demand skill catalog router |
+| `cxc-skill-hub` (deprecated, redirects to `cxc-dev`) | `skills/skill-hub/` | on-demand skill catalog router |
 | `cxc-ast-grep` | `skills/ast-grep/` | AST-aware search/codemods using `sg` |
 | `cxc-repo-map` | `skills/repo-map/` | ranked repo structure map (vendored RepoMapper: tree-sitter tags + PageRank) |
 | `cxc-sparksearch` | `skills/sparksearch/` | cheap parallel public-web discovery lane that hands proof back to `cxc-search` |
-| `cxc-ultraresearch` | `skills/ultraresearch/` | multi-wave research protocol with journal and claim-ledger proof discipline |
+| `cxc-ultraresearch` (deprecated, redirects to `cxc-search`) | `skills/ultraresearch/` | multi-wave research protocol with journal and claim-ledger proof discipline |
 
 The `dev` hub routes by change surface toward on-demand `dev-*` skills. `skill-hub` documents the exposure model: `allow_implicit_invocation` controls auto-rendered skill visibility, while explicit `$skill` / path mention still works unless a skill is disabled. The `interview`, `orchestrate`, `loop`, and `goalplan` skills are discoverable contracts for hardening surfaces; their deeper runtime work is tracked in `devlog/_plan/mvp_hard/`.
 
@@ -183,7 +183,7 @@ The manifest wires 12 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` 
 | `PreToolUse` `^request_user_input$` | `hooks/pre-tool-use-guarding-interview-in-goal.json` | same pabcd-state CLI | denies user-input/interview tool use while native goal mode is active or unreadable |
 | `PostToolUse` `^request_user_input$` | `hooks/post-tool-use-capturing-interview-answers.json` | same pabcd-state CLI | captures interview question/answer events to the ledger; in an interactive I-phase also reinjects the Mind-rescan directive as `additionalContext` (L18); never blocks |
 | `SubagentStop` `^worker$` | `hooks/subagent-stop-verifying-evidence.json` | same pabcd-state CLI | verifies worker evidence expectations on subagent stop |
-| `PreToolUse` `^spawn_agent$` | `hooks/pre-tool-use-attaching-skills.json` | `node "${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js" hook pre-tool-use` | normalizes known broken/bare cxc mentions already present in spawn messages (never adds missing skills); also applies v1 model routing and the v2 leaf guard |
+| `PreToolUse` spawn/collaboration variants | `hooks/pre-tool-use-attaching-skills.json` | `node "${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js" hook pre-tool-use` | normalizes cxc mentions on both surfaces, inlines recognized skill bodies on V2, and applies model+effort routing plus leaf guards on both surfaces; never adds missing skills |
 | `PostCompact` | `hooks/post-compact-resetting-reinject-cursor.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-compact` | resets reinjection cursor/stage context after compaction |
 | `PreToolUse` `^(apply_patch|Write|Edit)$` | `hooks/pre-tool-use-linting-apply-patch.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-lint` | lints structured edits before write/edit tool use |
 | `PostToolUse` `^(view_image|browser:control-in-app-browser|chrome:control-chrome|computer-use:computer-use|apply_patch)$` | `hooks/post-tool-use-tracking-render-observations.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-render-observation` | tracks render/visual observation events for QA evidence |

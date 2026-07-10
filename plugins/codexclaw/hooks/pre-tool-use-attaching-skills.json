@@ -10,7 +10,7 @@
             "statusMessage": "(codexclaw) Attaching skills to spawn"
           }
         ],
-        "matcher": "^spawn_agent$"
+        "matcher": "^(collaboration[._]?)?spawn_agent$"
       }
     ]
   }
