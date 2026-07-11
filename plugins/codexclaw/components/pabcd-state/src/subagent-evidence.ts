@@ -26,6 +26,9 @@ import {
   rmSync,
   statSync,
   writeFileSync,
+  openSync,
+  readSync,
+  closeSync,
 } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { STATE_DIR, sanitizeKey } from "./state.ts";
@@ -125,6 +128,40 @@ export function transcriptHasContextPressure(agentTranscriptPath: string | null 
   }
 }
 
+/**
+ * DISPATCH-AGENT-TYPE-01 defense-in-depth: detect read-only task markers in
+ * the child transcript. If the spawn message explicitly says the task is
+ * read-only / no-file-writes / chat-only, the evidence gate should not fire
+ * even if the agent was accidentally dispatched as worker. Markers are
+ * case-insensitive substrings of the first 4KB of the transcript (the spawn
+ * message lives there). FAIL-OPEN: any read error returns false.
+ */
+const READ_ONLY_MARKERS = [
+  "read-only",
+  "readonly",
+  "\u30d5\u30a1\u30a4\u30eb \u4f5c\u6210 \u7981\u6b62",
+  "\ud30c\uc77c \uc791\uc131 \uae08\uc9c0",
+  "chat-only deliverable",
+  "no file writes",
+  "do not write files",
+  "do not edit files",
+  "no evidence files",
+] as const;
+
+export function transcriptHasReadOnlyMarker(agentTranscriptPath: string | null | undefined): boolean {
+  if (typeof agentTranscriptPath !== "string" || agentTranscriptPath === "") return false;
+  try {
+    const fd = openSync(agentTranscriptPath, "r");
+    const buf = Buffer.alloc(4096);
+    const bytesRead = readSync(fd, buf, 0, 4096, 0);
+    closeSync(fd);
+    const head = buf.slice(0, bytesRead).toString("utf8").toLowerCase();
+    return READ_ONLY_MARKERS.some((marker) => head.includes(marker));
+  } catch {
+    return false;
+  }
+}
+
 export function readAttempts(cwd: string, sessionId: string, agentId: string): number {
   try {
     const p = attemptsPath(cwd, sessionId, agentId);
@@ -178,6 +215,14 @@ export function runSubagentStopGate(payload: SubagentStopPayload): string {
     if (!GATED_AGENT_TYPES.has(payload.agent_type)) return "";
     const agentId = payload.agent_id ?? "";
     const { cwd, session_id: sessionId } = payload;
+
+    // DISPATCH-AGENT-TYPE-01 defense-in-depth: if the spawn message (in the
+    // child transcript head) contains read-only markers, release without
+    // demanding evidence — the task was never meant to produce files.
+    if (transcriptHasReadOnlyMarker(payload.agent_transcript_path)) {
+      clearAttempts(cwd, sessionId, agentId);
+      return "";
+    }
 
     // Compaction recovery: never pile on (read the CHILD transcript).
     if (transcriptHasContextPressure(payload.agent_transcript_path)) {

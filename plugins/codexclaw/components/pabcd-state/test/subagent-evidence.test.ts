@@ -19,6 +19,7 @@ import {
   readAttempts,
   MAX_ATTEMPTS,
   GATED_AGENT_TYPES,
+  transcriptHasReadOnlyMarker,
 } from "../src/subagent-evidence.ts";
 import type { SubagentStopPayload } from "../src/hook.ts";
 
@@ -164,4 +165,42 @@ test("DISPATCH-AGENT-TYPE-01: default agent_type is not gated", () => {
   const cwd = tmp();
   const out = runSubagentStopGate(payload(cwd, { agent_type: "default" }));
   assert.equal(out, "");
+});
+
+test("DISPATCH-AGENT-TYPE-01: worker with read-only marker in transcript is released", () => {
+  const cwd = tmp();
+  // Write a fake child transcript with a read-only marker in the first 4KB.
+  const transcriptDir = join(cwd, ".codex", "sessions");
+  mkdirSync(transcriptDir, { recursive: true });
+  const transcriptPath = join(transcriptDir, "child.jsonl");
+  writeFileSync(transcriptPath, '[REVIEWER — read-only, 파일 작성 금지] review the plan\n');
+  const out = runSubagentStopGate(
+    payload(cwd, { agent_transcript_path: transcriptPath }),
+  );
+  assert.equal(out, "", "read-only marker should bypass evidence gate");
+});
+
+test("DISPATCH-AGENT-TYPE-01: worker with chat-only deliverable marker is released", () => {
+  const cwd = tmp();
+  const transcriptDir = join(cwd, ".codex", "sessions");
+  mkdirSync(transcriptDir, { recursive: true });
+  const transcriptPath = join(transcriptDir, "child.jsonl");
+  writeFileSync(transcriptPath, 'TASK: analyze alternatives. chat-only deliverable, no evidence files.\n');
+  const out = runSubagentStopGate(
+    payload(cwd, { agent_transcript_path: transcriptPath }),
+  );
+  assert.equal(out, "", "chat-only deliverable marker should bypass evidence gate");
+});
+
+test("DISPATCH-AGENT-TYPE-01: worker without read-only marker still blocks", () => {
+  const cwd = tmp();
+  const transcriptDir = join(cwd, ".codex", "sessions");
+  mkdirSync(transcriptDir, { recursive: true });
+  const transcriptPath = join(transcriptDir, "child.jsonl");
+  writeFileSync(transcriptPath, 'TASK: implement the fix and write tests.\n');
+  const out = runSubagentStopGate(
+    payload(cwd, { agent_transcript_path: transcriptPath }),
+  );
+  const parsed = JSON.parse(out);
+  assert.equal(parsed.decision, "block", "write task should still be gated");
 });

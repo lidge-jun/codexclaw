@@ -35,7 +35,7 @@
  * original input and change only `message`, `model`, and/or `reasoning_effort`.
  * The hook never throws: any doubt/error -> emit "" (allow untouched).
  */
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveSpawnConfig, type RoleName } from "./store.ts";
@@ -422,15 +422,69 @@ export const SKILL_AFFORDANCE_MARKER = "[CXC-SKILL-AFFORDANCE]";
  * or inlined here; this block rides as a plaintext prefix-survivor (proven
  * 260710, devlog 080) and teaches the CHILD to resolve $cxc mentions itself.
  */
+/**
+ * Skill folders excluded from the leaf-safe catalog. These are main-session-only
+ * skills whose activation in a subagent would be incorrect or cause FSM conflicts.
+ * DISPATCH-AGENT-TYPE-01 companion: subagents get the catalog of skills they CAN
+ * self-load, not the ones reserved for the orchestrator.
+ */
+export const MAIN_ONLY_SKILL_FOLDERS = new Set([
+  "loop",        // PABCD loop orchestration — main only
+  "interview",   // HITL interview — main only
+  "goalplan",    // deprecated, merged into loop
+  "recall",      // memory search — main context only
+  "pabcd",       // PABCD phase control — main only
+  "orchestrate", // orchestrate surface — main only
+  "skill-hub",   // deprecated
+  "ultraresearch", // deprecated, merged into search
+]);
+
+/**
+ * Scan the skills directory for leaf-safe skill metadata (name + description).
+ * Returns a compact catalog string. Reads only the YAML frontmatter of each
+ * SKILL.md — never the full body. FAIL-OPEN: any read error skips the skill.
+ */
+export function buildLeafSkillCatalog(skillsDir: string): string {
+  try {
+    const entries: string[] = [];
+    const folders = readdirSync(skillsDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && !MAIN_ONLY_SKILL_FOLDERS.has(d.name))
+      .map((d) => d.name)
+      .sort();
+    for (const folder of folders) {
+      try {
+        const skillPath = resolve(skillsDir, folder, "SKILL.md");
+        if (!existsSync(skillPath)) continue;
+        const head = readFileSync(skillPath, "utf8").slice(0, 1024);
+        const nameMatch = /^name:\s*(.+)$/m.exec(head);
+        const descMatch = /^description:\s*"?([^"\n]+)"?$/m.exec(head);
+        if (!nameMatch) continue;
+        const name = nameMatch[1].trim();
+        const desc = descMatch ? descMatch[1].trim().slice(0, 120) : "";
+        entries.push(`- ${name}: ${desc}`);
+      } catch {
+        continue;
+      }
+    }
+    if (entries.length === 0) return "";
+    return ["Available skills (self-load from " + skillsDir + "/<name>/SKILL.md):", ...entries].join("\n");
+  } catch {
+    return "";
+  }
+}
+
 export function skillAffordanceBlock(skillsDir: string): string {
-  return [
+  const catalog = buildLeafSkillCatalog(skillsDir);
+  const lines = [
     `${SKILL_AFFORDANCE_MARKER} Skill mentions in this task (tokens like`,
     `$cxc-<name> or $codexclaw:cxc-<name>, or [$cxc-<name>](skill://...) links)`,
     `are NOT auto-loaded on this surface. Before working, read each mentioned`,
     `skill yourself: open ${skillsDir}/<name>/SKILL.md with your file tools and`,
     `follow it. If a mentioned skill file does not exist there, note that in`,
     `your answer and continue.`,
-  ].join("\n");
+  ];
+  if (catalog) lines.push("", catalog);
+  return lines.join("\n");
 }
 
 /**
