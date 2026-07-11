@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stillwater — Calm tools for loud days</title>
+<style>
+  :root {
+    --ink: #111214;
+    --ink-soft: #3f4246;
+    --paper: #f7f6f2;
+    --accent: #0f6b52;
+    --bar-top-bg: rgb(255 255 255 / 0.76);   /* pill-at-top */
+    --bar-scrolled-bg: rgb(255 255 255 / 0.90); /* pill-scrolled */
+    --panel-bg: rgb(255 255 255 / 0.96);     /* spawned surface: near-opaque solid */
+    --radius-pill: 9999px;
+    --radius-panel: 18px;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: "Helvetica Neue", "Pretendard", -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink); background: var(--paper);
+    letter-spacing: 0;
+  }
+  .skip-link {
+    position: absolute; left: 16px; top: -48px; z-index: 100;
+    background: var(--ink); color: #fff; padding: 10px 18px;
+    border-radius: var(--radius-pill); text-decoration: none;
+    transition: top 150ms ease;
+  }
+  .skip-link:focus-visible { top: 16px; }
+
+  /* ---- Top bar: FE-TOPBAR-STATE-01 / FE-PILL-NEST-01 ---- */
+  .top-bar {
+    position: fixed; z-index: 40;
+    top: max(14px, env(safe-area-inset-top));
+    left: 50%; translate: -50% 0;
+    width: min(calc(100% - 32px), 980px);
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px 10px 20px;
+    border-radius: var(--radius-pill);
+    background: var(--bar-top-bg);           /* pill-at-top */
+    border: 1px solid rgb(255 255 255 / 0.35); /* container hairline: legal */
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2), 0 8px 28px rgb(0 0 0 / 0.10);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    transition: background-color 180ms ease; /* bg/opacity only, no size morph */
+  }
+  .top-bar.scrolled { background: var(--bar-scrolled-bg); } /* pill-scrolled */
+  @supports not (backdrop-filter: blur(1px)) {
+    .top-bar { background: rgb(255 255 255 / 0.97); }
+  }
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .top-bar, .top-bar.scrolled { background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  }
+  .logo { display: flex; align-items: center; gap: 8px; margin-right: auto; text-decoration: none; color: var(--ink); font-weight: 600; }
+  .logo svg { display: block; }
+  /* children: NO capsule borders/outlines at rest — fills/tints only */
+  .nav { display: flex; align-items: center; gap: 4px; }
+  .nav a, .nav button {
+    font: inherit; font-size: 14.5px; color: var(--ink-soft);
+    background: transparent; border: 0; text-decoration: none;
+    padding: 8px 14px; border-radius: var(--radius-pill); cursor: pointer;
+  }
+  .nav a:hover, .nav button:hover { background: rgb(17 18 20 / 0.06); } /* hover fill: legal */
+  .nav a[aria-current="page"] { background: rgb(17 18 20 / 0.08); color: var(--ink); } /* tint, not border */
+  .nav a:focus-visible, .nav button:focus-visible, .cta:focus-visible {
+    outline: 2px solid var(--ink); outline-offset: 2px;
+  }
+  .cta {
+    font: inherit; font-size: 14.5px; font-weight: 500;
+    background: var(--ink); color: #fff; border: 0;
+    padding: 10px 20px; border-radius: var(--radius-pill);
+    cursor: pointer; text-decoration: none;
+  } /* the ONE filled pill child */
+
+  /* ---- Spawned surface: FE-TOPBAR-HOVER-01 + dropdown-layer skin ---- */
+  .menu-wrap { position: relative; }
+  .panel {
+    position: absolute; top: calc(100% + 10px); left: 0;
+    min-width: 220px; padding: 8px;
+    background: var(--panel-bg);              /* near-opaque, blur-free SOLID */
+    border: 1px solid rgb(0 0 0 / 0.08);
+    border-radius: var(--radius-panel);
+    box-shadow: 0 18px 48px rgb(0 0 0 / 0.16);
+    display: none;
+  }
+  .menu-wrap.open .panel { display: block; }
+  .panel a {
+    display: block; padding: 10px 12px; font-size: 14.5px;
+    color: var(--ink); text-decoration: none;
+    border-radius: 10px; border: 0;           /* borderless rows */
+  }
+  .panel a:hover, .panel a:focus-visible { background: rgb(17 18 20 / 0.06); outline: none; }
+
+  /* ---- Hero: FE-HERO-LIGHT-CENTER-01 ---- */
+  .hero {
+    position: relative; min-height: 100dvh;
+    display: grid; place-items: center; text-align: center;
+    overflow: clip; padding: 96px 20px 72px;
+  }
+  .hero-media {
+    position: absolute; inset: 0; z-index: -1;
+    width: 100%; height: 100%; object-fit: cover;
+    transform-origin: center;
+  }
+  .hero h1 {
+    font-size: clamp(2.6rem, 7.5vw, 5.6rem);
+    font-weight: 300;                          /* light, not bold */
+    line-height: 1.06; letter-spacing: 0; text-wrap: balance;
+    color: var(--ink);
+  }
+  .hero p { margin-top: 20px; font-size: clamp(1rem, 1.6vw, 1.2rem); color: var(--ink-soft); text-wrap: balance; }
+  .hero .peek-cue { position: absolute; bottom: 18px; left: 50%; translate: -50% 0; font-size: 13px; color: var(--ink-soft); }
+
+  /* ---- Scroll motion 1 (signature): hero media scale/fade, CSS scroll-driven ---- */
+  @supports (animation-timeline: scroll()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .hero-media {
+        animation: hero-drift linear both;
+        animation-timeline: scroll(root block);
+        animation-range: 0 80vh;
+      }
+      @keyframes hero-drift {
+        from { transform: scale(1.08); opacity: 1; }
+        to   { transform: scale(1);    opacity: 0.55; }
+      }
+    }
+  }
+  /* ---- Scroll motion 2 (supporting): view() reveal on the band ---- */
+  .band .reveal { opacity: 1; transform: none; }
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .band .reveal {
+        animation: rise-in linear both;
+        animation-timeline: view();
+        animation-range: entry 0% entry 60%;
+      }
+      @keyframes rise-in {
+        from { opacity: 0; transform: translateY(28px); }
+        to   { opacity: 1; transform: none; }
+      }
+    }
+  }
+
+  /* ---- Content bands ---- */
+  section[id] { scroll-margin-top: 96px; }    /* focus never hidden under sticky chrome */
+  .band { background: var(--paper); padding: 96px 20px; }
+  .band-inner { max-width: 980px; margin-inline: auto; }
+  .band h2 { font-size: clamp(1.8rem, 3.6vw, 2.6rem); font-weight: 400; text-wrap: balance; }
+  .band p { margin-top: 14px; max-width: 58ch; color: var(--ink-soft); line-height: 1.6; text-wrap: pretty; }
+  .band-media { width: 100%; height: auto; border-radius: 12px; margin-top: 36px; display: block; }
+
+  /* ---- Skinned form select (dropdown-layer, same skin) ---- */
+  .field { margin-top: 36px; max-width: 380px; text-align: left; }
+  .field label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+  .select-trigger {
+    font: inherit; font-size: 15px; width: 100%; text-align: left;
+    padding: 12px 16px; cursor: pointer;
+    background: #fff; color: var(--ink);
+    border: 1px solid rgb(0 0 0 / 0.16);      /* input boundary (form control, not pill child) */
+    border-radius: 12px;
+  }
+  .select-wrap { position: relative; }
+  .listbox {
+    position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 50;
+    padding: 8px; display: none;
+    background: var(--panel-bg); border: 1px solid rgb(0 0 0 / 0.08);
+    border-radius: var(--radius-panel);
+    box-shadow: 0 18px 48px rgb(0 0 0 / 0.16);
+    list-style: none;
+  }
+  .select-wrap.open .listbox { display: block; }
+  .listbox [role="option"] {
+    padding: 10px 12px; border-radius: 10px; cursor: pointer; border: 0;
+  }
+  .listbox [role="option"]:hover,
+  .listbox [role="option"]:focus-visible { background: rgb(17 18 20 / 0.06); outline: none; }
+  .listbox [role="option"][aria-selected="true"] { background: rgb(15 107 82 / 0.10); }
+  @media (max-width: 640px) {                 /* same-skin bottom sheet */
+    .listbox {
+      position: fixed; top: auto; left: 0; right: 0; bottom: 0;
+      border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      max-height: 55dvh; overflow-y: auto; overscroll-behavior: contain;
+    }
+  }
+  footer { padding: 48px 20px 64px; text-align: center; color: var(--ink-soft); font-size: 14px; }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="top-bar" id="topBar">
+  <a class="logo" href="#" aria-label="Stillwater home">
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M2 11c3-6 6-6 9 0s6 6 9 0" fill="none" stroke="#111214" stroke-width="2.4" stroke-linecap="round"/><path d="M2 16c3-6 6-6 9 0s6 6 9 0" fill="none" stroke="#111214" stroke-width="2.4" stroke-linecap="round" opacity=".45"/></svg>
+    Stillwater
+  </a>
+  <nav class="nav" aria-label="Primary">
+    <div class="menu-wrap" id="menuWrap">
+      <button id="menuBtn" aria-expanded="false" aria-haspopup="true" aria-controls="productMenu">Product</button>
+      <div class="panel" id="productMenu" role="menu" aria-label="Product">
+        <a href="#craft" role="menuitem">Overview</a>
+        <a href="#craft" role="menuitem">Features</a>
+        <a href="#craft" role="menuitem">Changelog</a>
+      </div>
+    </div>
+    <a href="#craft" aria-current="page">Craft</a>
+    <a href="#craft">Journal</a>
+  </nav>
+  <a class="cta" href="#craft">Download</a>
+</header>
+
+<main id="main">
+  <section class="hero" aria-label="Intro">
+    <img class="hero-media" src="../assets/hero_sky.jpg" alt="" fetchpriority="high">
+    <div>
+      <h1>Calm tools<br>for loud days</h1>
+      <p>소음 속의 고요 — thoughtful software for focus, clarity, and balance.</p>
+    </div>
+    <span class="peek-cue" aria-hidden="true">Craft ↓</span>
+  </section>
+  <div id="scrollSentinel" aria-hidden="true"></div>
+
+  <section class="band" id="craft">
+    <div class="band-inner">
+      <div class="reveal">
+        <h2>Made slowly, on purpose</h2>
+        <p>Every surface in Stillwater is shaped by hand and measured twice.
+           The interface stays quiet so the work can speak. No decoration
+           without a job; no motion without a meaning.</p>
+      </div>
+      <img class="band-media reveal" src="../assets/band_clay.jpg" alt="Hands shaping wet clay on a pottery wheel" loading="lazy">
+      <form class="field" onsubmit="return false">
+        <label id="paceLabel" for="paceBtn">Working pace</label>
+        <div class="select-wrap" id="selectWrap">
+          <button class="select-trigger" id="paceBtn" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-labelledby="paceLabel paceBtn">Steady — 45 min focus</button>
+          <ul class="listbox" id="paceList" role="listbox" aria-labelledby="paceLabel" tabindex="-1">
+            <li role="option" tabindex="-1" aria-selected="true">Steady — 45 min focus</li>
+            <li role="option" tabindex="-1" aria-selected="false">Deep — 90 min focus</li>
+            <li role="option" tabindex="-1" aria-selected="false">Sprint — 25 min focus</li>
+            <li role="option" tabindex="-1" aria-selected="false">천천히 — 60분 몰입</li>
+          </ul>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <footer>Stillwater Craftworks — demo artifact for the codexclaw top-bar grammar. Not a shipped product.</footer>
+</main>
+
+<script>
+  // FE-TOPBAR-STATE-01: pill-at-top -> pill-scrolled once hero content passes
+  // beneath the bar. IntersectionObserver on an in-hero marker (no scroll listener).
+  const bar = document.getElementById('topBar');
+  const hero = document.querySelector('.hero');
+  const marker = document.createElement('div');
+  marker.style.cssText = 'position:absolute;top:120px;height:1px;width:1px;';
+  hero.appendChild(marker);
+  new IntersectionObserver(([e]) => {
+    bar.classList.toggle('scrolled', !e.isIntersecting);
+  }, { rootMargin: '-80px 0px 0px 0px' }).observe(marker);
+
+  // Dropdown (menu pattern, hover + click + keyboard)
+  const wrap = document.getElementById('menuWrap');
+  const btn = document.getElementById('menuBtn');
+  const menu = document.getElementById('productMenu');
+  const items = [...menu.querySelectorAll('[role="menuitem"]')];
+  const setOpen = (open) => { wrap.classList.toggle('open', open); btn.setAttribute('aria-expanded', String(open)); };
+  btn.addEventListener('click', () => setOpen(!wrap.classList.contains('open')));
+  wrap.addEventListener('mouseenter', () => setOpen(true));
+  wrap.addEventListener('mouseleave', () => setOpen(false));
+  wrap.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { setOpen(false); btn.focus(); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); const i = items.indexOf(document.activeElement); items[Math.min(i + 1, items.length - 1)].focus(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); const i = items.indexOf(document.activeElement); if (i <= 0) { btn.focus(); } else items[i - 1].focus(); }
+  });
+  items.forEach(a => a.setAttribute('tabindex', '0'));
+
+  // Skinned select (listbox pattern; bottom sheet <= 640px via CSS)
+  const sWrap = document.getElementById('selectWrap');
+  const sBtn = document.getElementById('paceBtn');
+  const sList = document.getElementById('paceList');
+  const opts = [...sList.querySelectorAll('[role="option"]')];
+  const sSet = (open) => { sWrap.classList.toggle('open', open); sBtn.setAttribute('aria-expanded', String(open)); if (open) (opts.find(o => o.getAttribute('aria-selected') === 'true') || opts[0]).focus(); };
+  sBtn.addEventListener('click', () => sSet(!sWrap.classList.contains('open')));
+  sList.addEventListener('keydown', (e) => {
+    const i = opts.indexOf(document.activeElement);
+    if (e.key === 'ArrowDown') { e.preventDefault(); opts[Math.min(i + 1, opts.length - 1)].focus(); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); opts[Math.max(i - 1, 0)].focus(); }
+    if (e.key === 'Escape') { sSet(false); sBtn.focus(); }
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(document.activeElement); }
+  });
+  const pick = (opt) => { opts.forEach(o => o.setAttribute('aria-selected', String(o === opt))); sBtn.textContent = opt.textContent; sSet(false); sBtn.focus(); };
+  opts.forEach(o => o.addEventListener('click', () => pick(o)));
+  document.addEventListener('click', (e) => { if (!sWrap.contains(e.target)) sSet(false); if (!wrap.contains(e.target)) setOpen(false); }, true);
+</script>
+</body>
+</html>

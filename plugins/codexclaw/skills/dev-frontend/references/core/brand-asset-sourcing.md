@@ -108,3 +108,15 @@ Integration logo walls use brand assets, not icon rows. See also `asset-requirem
 ```
 
 For multi-variant support, prefer SVGL or theSVG which ship separate light/dark SVGs.
+
+---
+
+## Captured Reference Material vs Shippable Assets
+
+Assets harvested from other sites (HTML, CSS, imagery, fonts) via
+`reference-capture.md` are ANALYSIS-ONLY: they ground structure analysis and
+ima2 mockup references, and they never ship. Webfont binaries are never copied
+(license-restricted by default). Shippable brand assets come only from the
+channels in this file (press kits, Simple Icons/SVGL, licensed libraries), and
+nominative fair use covers shipped integration logos only. Every capture needs
+the provenance manifest defined in `reference-capture.md`.

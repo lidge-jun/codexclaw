@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -14,7 +14,7 @@ import {
 } from "../src/goal-gate.ts";
 import type { GoalActiveDeps } from "../src/goal-active.ts";
 import { defaultState, writeState } from "../src/state.ts";
-import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
+import { buildGoalplan, GOALPLAN_FILE, goalplanDir, writeGoalplan } from "../src/goalplan.ts";
 
 function ptu(toolName: string, toolInput: unknown): PreToolUsePayload {
   return {
@@ -320,6 +320,33 @@ test("GOAL-COMPLETE-GATE-01: EMPTY bound goalplan -> deny (register the plan fir
     const out = applyGoalCompleteGuard(ptuAt(cwd, "gc3", "update_goal", { status: "complete" }));
     assert.notEqual(out, "");
     assert.match(JSON.parse(out.trimEnd()).hookSpecificOutput.permissionDecisionReason, /plan is empty/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-COMPLETE-GATE-01: slug bound but goalplan file missing -> deny", () => {
+  const cwd = freshGateCwd();
+  try {
+    const slug = "missing-goalplan";
+    writeState(cwd, { ...defaultState("gc-missing"), slug });
+    const out = applyGoalCompleteGuard(ptuAt(cwd, "gc-missing", "update_goal", { status: "complete" }));
+    const parsed = JSON.parse(out.trimEnd()).hookSpecificOutput;
+    assert.equal(parsed.permissionDecision, "deny");
+    assert.match(parsed.permissionDecisionReason, /could not be read/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-COMPLETE-GATE-01: slug bound but goalplan file is malformed JSON -> deny", () => {
+  const cwd = freshGateCwd();
+  try {
+    const slug = "malformed-goalplan";
+    writeState(cwd, { ...defaultState("gc-malformed"), slug });
+    const dir = goalplanDir(cwd, slug);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, GOALPLAN_FILE), "{ not json");
+    const out = applyGoalCompleteGuard(ptuAt(cwd, "gc-malformed", "update_goal", { status: "complete" }));
+    const parsed = JSON.parse(out.trimEnd()).hookSpecificOutput;
+    assert.equal(parsed.permissionDecision, "deny");
+    assert.match(parsed.permissionDecisionReason, /could not be read/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 

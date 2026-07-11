@@ -67,6 +67,15 @@ export const MIND_DISPATCH_DIRECTIVE = [
   "dispatch is unavailable (no nested orchestration) — fall back to inline reasoning, do not nest.",
   "Each Mind is a read-only lens: it returns contradictions ONLY (never asks/edits/calls/writes).",
   `Choose Minds by lowest-scoring dimensions; concurrent cap ${MIND_CONCURRENCY_CAP}.`,
+  "Spawn shape (MIND-SPAWN-SHAPE-01 — required so model/effort routing applies): agent_type",
+  '"explorer", task_name mind_<mindname>, and a NON-full-history fork — V2 fork_turns:"none"',
+  "(V1: omit fork_context). A full-history fork rejects model/effort overrides upstream and",
+  "skips the .codexclaw/subagents.json role-config injection entirely.",
+  "Mind lenses ride the explorer role config: its configured model/reasoning_effort are injected",
+  "when you omit those fields. Lens work seldom needs parent-strength reasoning — pin it via",
+  "`cxc subagents set explorer --effort <low|medium|high|xhigh>` or pass reasoning_effort explicitly.",
+  "Minds are stateless: pack the lens prompt PLUS a compact interview snapshot (dimension scores,",
+  "knowns, open assumptions, draft plan path) into each task message.",
   "State + plan artifacts live under .codexclaw/ (session tracker + .codexclaw/plan/).",
 ].join("\n");
 

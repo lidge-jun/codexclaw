@@ -26,6 +26,19 @@ test("L9.3: dispatch directive states main owns loop + hook is injector-only + .
   assert.match(MIND_DISPATCH_DIRECTIVE, /if you are yourself a subagent/i); // T7
 });
 
+test("MIND-SPAWN-SHAPE-01: dispatch directive carries the spawn shape + effort routing contract", () => {
+  // Non-full-history fork is what keeps model/effort overrides + role-config injection legal.
+  assert.match(MIND_DISPATCH_DIRECTIVE, /fork_turns:"none"/);
+  assert.match(MIND_DISPATCH_DIRECTIVE, /agent_type/);
+  assert.match(MIND_DISPATCH_DIRECTIVE, /task_name mind_/);
+  assert.match(MIND_DISPATCH_DIRECTIVE, /full-history fork rejects model\/effort overrides/i);
+  // Effort routing rides the explorer role config; explicit pinning is the offered path.
+  assert.match(MIND_DISPATCH_DIRECTIVE, /explorer role config/i);
+  assert.match(MIND_DISPATCH_DIRECTIVE, /cxc subagents set explorer --effort/);
+  // Minds are stateless — the dispatcher packs the interview snapshot.
+  assert.match(MIND_DISPATCH_DIRECTIVE, /interview snapshot/i);
+});
+
 test("L9.2: normalizeMindOutput rejects missing dimension/invalid severity/missing evidence", () => {
   const raw = [
     { dimension: "goal", contradiction: "vague metric", severity: "high", evidence: "plan.md:12" }, // valid

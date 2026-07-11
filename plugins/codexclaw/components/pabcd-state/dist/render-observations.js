@@ -121,14 +121,18 @@ export function resetRenderLedger(cwd        )       {
   }
 }
 
-/** Check whether any observation rows exist in the ledger. */
-export function hasRenderObservation(cwd        )          {
-  return readRenderObsRows(cwd).some((r) => r.kind === "observation");
+/** Check whether any observation rows exist in the ledger, optionally for one session. */
+export function hasRenderObservation(cwd        , sessionId         )          {
+  return readRenderObsRows(cwd).some(
+    (r) => r.kind === "observation" && (sessionId === undefined || r.sessionId === sessionId),
+  );
 }
 
-/** Check whether any artifact-modified rows exist in the ledger. */
-export function hasRenderArtifactModified(cwd        )          {
-  return readRenderObsRows(cwd).some((r) => r.kind === "artifact-modified");
+/** Check whether any artifact-modified rows exist in the ledger, optionally for one session. */
+export function hasRenderArtifactModified(cwd        , sessionId         )          {
+  return readRenderObsRows(cwd).some(
+    (r) => r.kind === "artifact-modified" && (sessionId === undefined || r.sessionId === sessionId),
+  );
 }
 
 /**

@@ -86,6 +86,10 @@ Step Indicator (1/3, 2/3, 3/3)
 
 ## Search / Filter
 
+Filter dropdowns, sort menus, and search comboboxes use the project's unified
+dropdown design layer (`dev-frontend` `dropdown-layer.md`
+FE-DROPDOWN-LAYER-01): one skin, behavior-correct primitive per pattern.
+
 ```
 [Search input + icon]
 [Filter pills / dropdown] [Active filter count]

@@ -1,6 +1,6 @@
 /**
  * agent-store.test.ts — v4 named-agent schema: migration, seed, CRUD, cascade
- * (plan: devlog/_plan/260703_gui_production_hardening/40_phase4-agent-entity.md rev 3).
+ * (plan: devlog/_fin/260703_gui_production_hardening/40_phase4-agent-entity.md rev 3).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

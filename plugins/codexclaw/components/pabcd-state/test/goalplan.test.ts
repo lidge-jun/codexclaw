@@ -196,7 +196,7 @@ test("advanceWorkPhase: marks current done, activates next in declared order", (
   const advanced = advanceWorkPhase(plan);
   assert.ok(advanced);
   assert.equal(advanced!.workPhases[0].status, "done");
-  assert.equal(advanced!.workPhases[0].tasks[0].status, "done");
+  assert.equal(advanced!.workPhases[0].tasks[0].status, "pending");
   assert.equal(advanced!.workPhases[1].status, "in_progress");
   assert.equal(advanced!.activeWorkPhaseId, "wp-2");
 });
@@ -238,6 +238,34 @@ test("advanceWorkPhase: picks next pending AFTER current, not before", () => {
   assert.ok(advanced);
   // Should pick wp-3 (after wp-2), not wp-1 (before wp-2)
   assert.equal(advanced!.activeWorkPhaseId, "wp-3");
+});
+
+test("advanceWorkPhase: preserves individual task statuses (no auto-done)", () => {
+  const plan = buildGoalplan({ objective: "preserve-task-statuses" });
+  plan.workPhases = [
+    { id: "wp-1", title: "mixed", status: "in_progress", tasks: [
+      { id: "t-1", title: "pending task", status: "pending" },
+      { id: "t-2", title: "done task", status: "done" },
+    ], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-1";
+  const advanced = advanceWorkPhase(plan);
+  assert.ok(advanced);
+  assert.deepEqual(advanced!.workPhases[0].tasks.map((task) => task.status), ["pending", "done"]);
+});
+
+test("advanceWorkPhase: done tasks stay done after advance", () => {
+  const plan = buildGoalplan({ objective: "preserve-done-tasks" });
+  plan.workPhases = [
+    { id: "wp-1", title: "complete", status: "in_progress", tasks: [
+      { id: "t-1", title: "first done task", status: "done" },
+      { id: "t-2", title: "second done task", status: "done" },
+    ], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-1";
+  const advanced = advanceWorkPhase(plan);
+  assert.ok(advanced);
+  assert.deepEqual(advanced!.workPhases[0].tasks.map((task) => task.status), ["done", "done"]);
 });
 
 // ---- CLI output label (Phase 2: cxc loop) ----------------------------------

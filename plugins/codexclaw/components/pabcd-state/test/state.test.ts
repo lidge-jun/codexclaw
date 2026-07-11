@@ -15,12 +15,87 @@ import {
   INTERVIEWS_SUBDIR,
   appendInterviewEvent,
   readInterviewEvents,
+  ensureState,
+  isCanonicalSessionId,
   type State,
 } from "../src/state.ts";
 
 function freshCwd(): string {
   return mkdtempSync(join(tmpdir(), "codexclaw-state-"));
 }
+
+test("SessionStart ensureState: fresh session creates the exact default IDLE state without temp files", () => {
+  const cwd = freshCwd();
+  try {
+    assert.equal(ensureState(cwd, "session-start-fresh"), true);
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    const stateFile = join(dir, "session-start-fresh.json");
+    const persisted = JSON.parse(readFileSync(stateFile, "utf8"));
+    assert.deepEqual(persisted, {
+      phase: "IDLE",
+      sessionId: "session-start-fresh",
+      slug: "",
+      updatedAt: persisted.updatedAt,
+      flags: { interview: false, auditPassed: false, checkPassed: false },
+      supersededBy: null,
+      injectedTurns: [],
+      lastInjectedPhase: null,
+      orchestrationActive: false,
+      interview: null,
+      stopBlockPhase: null,
+      stopBlockCount: 0,
+    });
+    assert.equal(Number.isNaN(Date.parse(persisted.updatedAt)), false);
+    assert.deepEqual(readdirSync(dir).filter((name) => name.endsWith(".tmp")), []);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("SessionStart ensureState: existing valid state is resume-safe and byte-for-byte unchanged", () => {
+  const cwd = freshCwd();
+  try {
+    const existing = {
+      ...defaultState("session-start-valid"),
+      phase: "B" as const,
+      slug: "resume-me",
+      orchestrationActive: true,
+      stopBlockPhase: "B" as const,
+      stopBlockCount: 2,
+    };
+    writeState(cwd, existing);
+    const stateFile = join(cwd, STATE_DIR, SESSIONS_SUBDIR, "session-start-valid.json");
+    const before = readFileSync(stateFile);
+    assert.equal(ensureState(cwd, "session-start-valid"), false);
+    assert.deepEqual(readFileSync(stateFile), before);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("SessionStart ensureState: existing corrupt bytes are preserved and noncanonical IDs are rejected", () => {
+  const cwd = freshCwd();
+  try {
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    mkdirSync(dir, { recursive: true });
+    const corruptFile = join(dir, "session-start-corrupt.json");
+    const corrupt = Buffer.from("{ not valid json \u0000", "utf8");
+    writeFileSync(corruptFile, corrupt);
+    assert.equal(ensureState(cwd, "session-start-corrupt"), false);
+    assert.deepEqual(readFileSync(corruptFile), corrupt);
+
+    for (const noncanonicalId of ["  padded  ", "../unsafe/session", "세션"]) {
+      assert.throws(
+        () => ensureState(cwd, noncanonicalId),
+        { name: "TypeError", message: "sessionId must be a canonical state key" },
+      );
+      assert.equal(existsSync(join(dir, `${sanitizeKey(noncanonicalId)}.json`)), false);
+    }
+    assert.deepEqual(readdirSync(dir).filter((name) => name.endsWith(".tmp")), []);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
 
 test("readState: missing dir -> default (carries sessionId, phase IDLE)", () => {
   const cwd = freshCwd();
@@ -114,6 +189,14 @@ test("sanitizeKey: strips unsafe chars, falls back to 'missing'", () => {
   assert.equal(sanitizeKey("///"), "missing");
 });
 
+test("isCanonicalSessionId: accepts exact state keys and rejects rewritten identities", () => {
+  assert.equal(isCanonicalSessionId("019f4a8a-b1a1-7113-b72a-460a39a8f096"), true);
+  assert.equal(isCanonicalSessionId("session_1.example"), true);
+  for (const value of ["", "  session-1  ", "../session-1", "세션-1", "-session-1"]) {
+    assert.equal(isCanonicalSessionId(value), false, value);
+  }
+});
+
 test("readState: unknown persisted keys are dropped (strict reconstruction)", () => {
   const cwd = freshCwd();
   try {
@@ -191,7 +274,12 @@ test("lastInjectedPhase + orchestrationActive: defaults", () => {
 test("lastInjectedPhase + orchestrationActive: roundtrip", () => {
   const cwd = freshCwd();
   try {
-    writeState(cwd, { ...defaultState("li-2"), lastInjectedPhase: "B", orchestrationActive: true });
+    writeState(cwd, {
+      ...defaultState("li-2"),
+      phase: "B",
+      lastInjectedPhase: "B",
+      orchestrationActive: true,
+    });
     const s = readState(cwd, "li-2");
     assert.equal(s.lastInjectedPhase, "B");
     assert.equal(s.orchestrationActive, true);
@@ -210,6 +298,23 @@ test("lastInjectedPhase: invalid persisted value -> null; orchestrationActive no
       JSON.stringify({ phase: "P", sessionId: "li-3", lastInjectedPhase: "Z", orchestrationActive: "yes" }),
     );
     const s = readState(cwd, "li-3");
+    assert.equal(s.lastInjectedPhase, null);
+    assert.equal(s.orchestrationActive, false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("readState: IDLE phase forces orchestrationActive false", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, {
+      ...defaultState("li-idle"),
+      lastInjectedPhase: "IDLE",
+      orchestrationActive: true,
+    });
+    const s = readState(cwd, "li-idle");
+    assert.equal(s.phase, "IDLE");
     assert.equal(s.lastInjectedPhase, null);
     assert.equal(s.orchestrationActive, false);
   } finally {

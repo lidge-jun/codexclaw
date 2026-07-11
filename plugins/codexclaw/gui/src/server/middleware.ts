@@ -2,8 +2,8 @@
  * middleware.ts — Vite dev-server connect middleware exposing the codexclaw
  * dashboard API over the compiled handlers. Node-side only; the browser never
  * shells out to ocx. Routes:
- *   GET  /api/subagents   GET /api/catalog   GET /api/provider
- *   POST /api/subagents   (role patch)
+ *   GET  /api/subagents   GET /api/catalog   GET /api/provider   GET /api/multi-agent
+ *   POST /api/subagents   POST /api/multi-agent
  */
 import type { Connect } from "vite";
 import {
@@ -11,8 +11,12 @@ import {
   postSubagents,
   getCatalog,
   getProvider,
+  getMultiAgentSurface,
+  postMultiAgentSurface,
 } from "./handlers.ts";
 import { detectOcx } from "../../../components/provider-bridge/src/detect.ts";
+import { resolveCodexHome } from "../../../components/config-guard/src/cli.ts";
+import type { CodexRunner } from "../../../components/config-guard/src/features.ts";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -59,6 +63,19 @@ function detectDeps() {
   };
 }
 
+function codexFeatureDeps() {
+  const run: CodexRunner = (args) => {
+    const command = process.env.CODEX_CLI_PATH?.trim() || "codex";
+    const res = spawnSync(command, [...args], { encoding: "utf8", timeout: 15000 });
+    return {
+      stdout: res.stdout ?? "",
+      stderr: res.stderr ?? (res.error ? String(res.error.message) : ""),
+      exitCode: typeof res.status === "number" ? res.status : 1,
+    };
+  };
+  return { run, codexHome: resolveCodexHome(process.env) };
+}
+
 function send(res: import("node:http").ServerResponse, status: number, body: unknown): void {
   res.statusCode = status;
   res.setHeader("content-type", "application/json");
@@ -97,6 +114,25 @@ export function codexclawApiMiddleware(): Connect.NextHandleFunction {
     if (url === "/api/provider" && req.method === "GET") {
       const r = getProvider(detectDeps());
       return send(res, r.status, r.body);
+    }
+    if (url === "/api/multi-agent" && req.method === "GET") {
+      const r = getMultiAgentSurface(codexFeatureDeps());
+      return send(res, r.status, r.body);
+    }
+    if (url === "/api/multi-agent" && req.method === "POST") {
+      let raw = "";
+      req.on("data", (c) => (raw += c));
+      req.on("end", () => {
+        let body: unknown = null;
+        try {
+          body = raw ? JSON.parse(raw) : null;
+        } catch {
+          return send(res, 400, { error: "invalid JSON body" });
+        }
+        const r = postMultiAgentSurface(codexFeatureDeps(), body);
+        send(res, r.status, r.body);
+      });
+      return;
     }
     return next();
   };

@@ -141,6 +141,22 @@ export function detectAgbrowseSearchRequest(prompt: string): boolean {
   );
 }
 
+/**
+ * Detect an explicit loop/goalplan/continue-until-done request (ORCH-MANDATE-01).
+ * HEURISTIC and deliberately curated: bare "loop"/"루프" are excluded (a `for` loop
+ * bug report must not arm PABCD ceremony) — a loop word needs an action marker, and
+ * the strongest signals are the cxc-loop/HOTL/goalplan tokens themselves.
+ */
+export function detectLoopArmRequest(prompt: string): boolean {
+  const p = (prompt ?? "").toLowerCase();
+  if (/\bcxc-?loop\b|\bhotl\b|\bgoal\s*plan\b|\bgoalplan\b|골플랜|고울플랜/.test(p)) return true;
+  if (/\bcontinue\s+until\s+done\b|\bkeep\s+going\s+until\b|\buntil\s+(?:it'?s\s+)?done\b/.test(p)) return true;
+  if (/\bautonomous(?:ly)?\b.*\b(?:loop|continue|run|finish)\b|\bwork[- ]phase\s+loop\b/.test(p)) return true;
+  if (/루프\s*(?:를?\s*돌|시작|모드|가동|진행)/.test(p)) return true;
+  if (/끝까지\s*(?:해|진행|돌|완성|가|마무리)|멈추지\s*말|알아서\s*(?:끝까지|다\s*해)/.test(p)) return true;
+  return false;
+}
+
 const PHASE_DIRECTIVES: Partial<Record<Phase, string>> = {
   I: [
     "[codexclaw: INTERVIEW]",
@@ -272,6 +288,31 @@ export const AGBROWSE_SEARCH_DIRECTIVE = [
   "inspection fails.",
 ].join("\n");
 
+/**
+ * Arming mandate injected when a loop/goalplan request arrives against an
+ * UN-ARMED FSM (ORCH-MANDATE-01). This is the prompt-time companion to the
+ * Stop hook's GOAL-IDLE-CONTINUE-01: together they close the "loop narrated
+ * but never entered via cxc orchestrate" gap at both ends of the turn.
+ */
+export const LOOP_ARM_DIRECTIVE = [
+  "[codexclaw: LOOP — orchestrate arming mandate (ORCH-MANDATE-01)]",
+  "A loop/goalplan claim without persisted FSM evidence is INVALID, and the PABCD FSM is not",
+  "armed right now. Arm it with explicit commands before narrating any loop work:",
+  "1. Session id: take it ONLY from your most recent SessionStart binding line",
+  "   (SESSION-IDENTITY-01 — never an id seen in transcript history).",
+  "2. `cxc orchestrate status --session <id>` — read the real phase first.",
+  "3. HOTL (user asked for autonomous / continue-until-done): create_goal with a detailed",
+  '   objective -> `cxc loop init --objective "<same text>" --session <id>` -> register',
+  "   workPhases[] + criteria[] in the goalplan -> `cxc orchestrate P --session <id>`.",
+  "   HITL (no such ask): enter the cycle explicitly via `cxc orchestrate I|P --session <id>`.",
+  "4. Advance EVERY forward edge yourself with `cxc orchestrate <phase> --attest <json>` —",
+  "   a phase without its persisted transition + artifact did not happen (ORCH-ARTIFACT-01).",
+  "5. After D closes to IDLE with work remaining under an active goal, immediately re-enter",
+  "   with `cxc orchestrate P --session <id>` (LOOP-UNIT-CHAIN-01).",
+  "Load and obey cxc-loop + cxc-pabcd when available. Work done outside the FSM does not",
+  "count as loop progress — re-enter and attest it.",
+].join("\n");
+
 const STAGE_LABELS: Partial<Record<Phase, string>> = {
   I: "INTERVIEW",
   P: "PLAN",
@@ -390,17 +431,23 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
   }
 
   const agbrowseRequested = detectAgbrowseSearchRequest(payload.prompt);
+  const loopArmRequested = detectLoopArmRequest(payload.prompt);
 
   // fail-closed: no trigger and orchestration never activated -> stay silent.
+  // Exception (ORCH-MANDATE-01): an explicit loop/goalplan request against an un-armed
+  // FSM injects the arming mandate, so a loop can no longer start as pure narration.
   if (!state.orchestrationActive) {
-    if (agbrowseRequested) {
+    if (agbrowseRequested || loopArmRequested) {
       if (turn) {
         writeState(payload.cwd, {
           ...state,
           injectedTurns: appendTurn(state.injectedTurns, turn),
         });
       }
-      return buildContextOutput("UserPromptSubmit", AGBROWSE_SEARCH_DIRECTIVE);
+      const parts: string[] = [];
+      if (loopArmRequested) parts.push(LOOP_ARM_DIRECTIVE);
+      if (agbrowseRequested) parts.push(AGBROWSE_SEARCH_DIRECTIVE);
+      return buildContextOutput("UserPromptSubmit", parts.join("\n\n"));
     }
     return "";
   }

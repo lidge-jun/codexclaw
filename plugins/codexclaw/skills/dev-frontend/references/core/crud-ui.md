@@ -27,6 +27,11 @@ Missing states are review findings; pixel styling differences are not.
 
 ## Forms + mutations
 
+Form `<select>` and picker controls participate in the project dropdown design
+layer (`dropdown-layer.md` FE-DROPDOWN-LAYER-01): one unified skin over
+behavior-correct primitives, with labels, errors, autofill, and keyboard
+operability fully preserved.
+
 - Validation mirrors the API schema; client-side checks are UX sugar, the server stays the
   source of truth.
 - Submit: prevent double-fire, show pending, surface server errors back into the form.

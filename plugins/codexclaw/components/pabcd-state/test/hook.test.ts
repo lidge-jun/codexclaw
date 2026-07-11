@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   detectTrigger,
   detectAgbrowseSearchRequest,
+  detectLoopArmRequest,
   buildContextOutput,
   handleUserPromptSubmit,
   handleStop,
@@ -190,6 +191,72 @@ test("handleUserPromptSubmit: agbrowse request injects search directive without 
     const st = readState(cwd, "s1");
     assert.equal(st.orchestrationActive, false);
     assert.equal(st.lastInjectedPhase, null);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("ORCH-MANDATE-01: detectLoopArmRequest catches loop/goalplan/continue-until-done intent (EN+KO)", () => {
+  assert.equal(detectLoopArmRequest("cxc-loop로 진행하자"), true);
+  assert.equal(detectLoopArmRequest("HOTL 모드로 돌려줘"), true);
+  assert.equal(detectLoopArmRequest("goalplan 잡고 시작해"), true);
+  assert.equal(detectLoopArmRequest("골플랜부터 등록해"), true);
+  assert.equal(detectLoopArmRequest("continue until done, no pauses"), true);
+  assert.equal(detectLoopArmRequest("루프 돌려서 처리해"), true);
+  assert.equal(detectLoopArmRequest("알아서 끝까지 해줘"), true);
+  assert.equal(detectLoopArmRequest("멈추지 말고 진행해"), true);
+  // Negatives: code-talk about loops must NOT arm PABCD ceremony.
+  assert.equal(detectLoopArmRequest("fix the for loop in parser.ts"), false);
+  assert.equal(detectLoopArmRequest("이 loop 버그 좀 봐줘"), false);
+  assert.equal(detectLoopArmRequest("루프백 오디오 설정"), false);
+  assert.equal(detectLoopArmRequest("계속해"), false);
+});
+
+test("ORCH-MANDATE-01: loop request against un-armed FSM injects the arming mandate", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("이 유닛 cxc-loop로 알아서 끝까지 해줘", cwd, "s1", "t1"));
+    assert.notEqual(out, "");
+    const parsed = JSON.parse(out.trimEnd());
+    const ctx = parsed.hookSpecificOutput.additionalContext as string;
+    assert.match(ctx, /orchestrate arming mandate \(ORCH-MANDATE-01\)/);
+    assert.match(ctx, /cxc orchestrate status --session <id>/);
+    assert.match(ctx, /cxc orchestrate P --session <id>/);
+    assert.match(ctx, /--attest <json>/);
+    assert.match(ctx, /cxc loop init --objective/);
+    // The mandate never arms the FSM by itself — commands do.
+    const st = readState(cwd, "s1");
+    assert.equal(st.orchestrationActive, false);
+    assert.equal(st.lastInjectedPhase, null);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("ORCH-MANDATE-01: explicit PABCD trigger wins over the loop-arm directive (mode 1 precedence)", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("plan this and then loop until done", cwd, "s1", "t1"));
+    const parsed = JSON.parse(out.trimEnd());
+    const ctx = parsed.hookSpecificOutput.additionalContext as string;
+    assert.match(ctx, /\[codexclaw: PLAN\]/);
+    assert.doesNotMatch(ctx, /arming mandate/);
+    // Trigger precedence is about which directive is injected; the FSM phase itself
+    // still moves only via explicit orchestrate commands.
+    assert.equal(readState(cwd, "s1").lastInjectedPhase, "P");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("ORCH-MANDATE-01: loop-arm and agbrowse directives compose when both are requested", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("agbrowse로 검증하면서 cxc-loop 돌려줘", cwd, "s1", "t1"));
+    const parsed = JSON.parse(out.trimEnd());
+    const ctx = parsed.hookSpecificOutput.additionalContext as string;
+    assert.match(ctx, /arming mandate/);
+    assert.match(ctx, /\[codexclaw: SEARCH/);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

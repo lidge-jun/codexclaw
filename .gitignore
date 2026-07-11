@@ -9,3 +9,6 @@ devlog/.lazycodex/
 
 # ouroboros reference clone (Pass 8 interview research)
 devlog/_plan/260630_ouroboros_interview_research/.ouroboros/
+
+# embedded tool repo, not codexclaw source
+devlog/_fin/260630_ouroboros_interview_research/.ouroboros/

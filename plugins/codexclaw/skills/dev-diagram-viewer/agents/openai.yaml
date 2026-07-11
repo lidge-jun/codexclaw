@@ -1,0 +1,5 @@
+interface:
+  display_name: "cxc-dev-diagram-viewer"
+  short_description: "Environment-aware diagram rendering: native pass-through or browser-based display."
+policy:
+  allow_implicit_invocation: false

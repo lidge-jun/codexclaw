@@ -97,6 +97,34 @@ test("checkObjectivePlateau: flat/falling window arms; improving window does not
   }
 });
 
+test("checkObjectivePlateau: ignores metric records from earlier work phases", () => {
+  const cwd = freshCwd();
+  try {
+    recordObjectiveMetric(cwd, {
+      sessionId: "phased",
+      workPhaseId: "phase-1",
+      metricName: "score",
+      value: 10,
+      source: "operator-entered",
+    });
+    recordObjectiveMetric(cwd, {
+      sessionId: "phased",
+      workPhaseId: "phase-2",
+      metricName: "score",
+      value: 10,
+      source: "operator-entered",
+    });
+
+    assert.deepEqual(checkObjectivePlateau(cwd, "phased"), {
+      flat: false,
+      metricName: "score",
+      values: [10],
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test("runMetricCli: record/show/kind/ingest", () => {
   const cwd = freshCwd();
   try {

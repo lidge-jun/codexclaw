@@ -17,6 +17,11 @@ For substantial UI changes:
 - loading, empty, error, disabled, success, and permission-denied states where applicable
 - keyboard tab order and focus-visible states
 - reduced-motion behavior
+- scroll-motion count vs FE-MOTION-BUCKET-01: landing bucket shows >= 2 and
+  <= ~4 distinct scroll-driven moments; tool surfaces (dashboard/admin/finance/
+  gov) show ZERO scroll-driven motion
+- autoplay video: poster present, pauses offscreen (IO-gated), respects
+  `prefers-reduced-motion` and `prefers-reduced-data`
 - asset rendering and framing
 - text overlap and clipping
 - attach screenshot paths in the report, or state exactly what remained unverified
@@ -89,6 +94,8 @@ narrow (320px): checked / issue / screenshot path
 states: checked / issue
 assets: checked / issue
 motion: checked / issue
+scroll-motion count (bucket floor/ceiling): checked / issue
+autoplay mechanics (poster/pause/reduced): checked / issue / n-a
 keyboard/focus: checked / issue
 ```
 

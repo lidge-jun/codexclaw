@@ -22,7 +22,7 @@ test("emergence 070: docs, HTML, and skills preserve the collapse-point doctrine
   const devSkill = read("plugins/codexclaw/skills/dev/SKILL.md");
   const searchSkill = read("plugins/codexclaw/skills/search/SKILL.md");
   const plan070 = read("devlog/_fin/260701_emergence_harness_impl/070_docs_sync_falsifiability.md");
-  const html = read("devlog/_plan/260701_emergence_harness/emergence_gap.html");
+  const html = read("devlog/_fin/260701_emergence_harness/emergence_gap.html");
 
   assert.match(plan070, /I records N>=2 approaches/);
   assert.match(plan070, /NOT automatically a user question/);
@@ -53,7 +53,7 @@ test("emergence 070: docs, HTML, and skills preserve the collapse-point doctrine
 });
 
 test("emergence 070: HTML keeps the expected section and tag balance", () => {
-  const html = read("devlog/_plan/260701_emergence_harness/emergence_gap.html");
+  const html = read("devlog/_fin/260701_emergence_harness/emergence_gap.html");
   for (const section of ["07", "08", "09", "10"]) {
     assert.match(html, new RegExp(`<span class="n">${section}</span>`), `missing section ${section}`);
   }

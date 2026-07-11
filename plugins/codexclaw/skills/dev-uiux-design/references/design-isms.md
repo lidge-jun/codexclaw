@@ -99,10 +99,15 @@ Glassmorphism's successor as a SYSTEM material, not a card style (Apple HIG
 Materials, verified 2026-07-07). Dynamic translucent layer reserved for
 floating controls/navigation; content scrolls beneath and peeks through.
 Adapts to context and user settings (reduced transparency, increased
-contrast). Two variants: `regular` (blur + luminosity backing; text-safe)
-and `clear` (no blur; only over rich media).
+contrast). Named material states (canonical: `dev-frontend` `liquid-glass.md`):
+`pill-at-top` (~70-80% opacity, only over an authored calm bar zone),
+`pill-scrolled` (85-95% + blur, the default text-bearing chrome state),
+`media-overlay` (the older canvas-55% recipe, media/photo overlays only), and
+`clear` (no blur; sparse controls over rich media). Bar-spawned dropdowns and
+popovers are unconditionally near-opaque, blur-free solid.
 ```css
-background: color-mix(in oklab, canvas 55%, transparent);
+/* pill-scrolled state */
+background: color-mix(in oklab, canvas 90%, transparent);
 backdrop-filter: blur(16px) saturate(1.4);
 border: 1px solid rgba(255,255,255,0.18); border-radius: 16px;
 box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
@@ -122,13 +127,17 @@ The composite kit behind SKILL.md §1 UX-DEFAULT-ISM-01 (decided 2026-07-07
 from Tier-2 trend research: Apple Liquid Glass 2025-06-09 announcement + HIG
 restraint guidance; Figma/Creative Bloq/Fireart 2026 forecasts naming
 expressive typography, tactile anti-AI texture, and authored color as the
-premium direction). Editorial type-led structure carrying a Liquid Glass
-accent layer — the "fancy" lives in the chrome, the authorship in the type.
+premium direction). Structure: type-led asymmetric composition OR light
+centered display (FE-HERO-LIGHT-CENTER-01: centered, weight 300-400, over
+full-width real media backdrop; see `dev-frontend` `layout-discipline.md`).
+Both carry a Liquid Glass accent layer — the "fancy" lives in the chrome, the
+authorship in the type.
 ```css
 /* signature: oversized authored headline + tactile wash + pill chrome */
 h1 { font-size: clamp(2.5rem, 8vw, 6rem); letter-spacing: 0; text-wrap: balance; }
 .wash { background: url(texture-or-photo) / oklch-tinted pastel; }
-.chrome { border-radius: 9999px; background: rgb(255 255 255 / .92); } /* or glass-regular on nav */
+.chrome { border-radius: 9999px; background: rgb(255 255 255 / .92); } /* or pill-scrolled state on nav */
+/* children inside pill chrome: fills/tints only, no capsule borders at rest (FE-PILL-NEST-01) */
 :root { --accent: oklch(0.6 0.2 <one hue>); }
 ```
 **Use:** no-brief expressive surfaces (landing, consumer, creative, AI-product) as a stated assumption. **Avoid:** any quiet/repeated-work domain; briefs that name another direction; reusing it so uniformly that it becomes the new generic default — vary texture, hue, and the single signature motion per project.

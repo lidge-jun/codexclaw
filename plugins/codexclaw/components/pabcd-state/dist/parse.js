@@ -18,6 +18,8 @@
 
 
 
+import { isCanonicalSessionId } from "./state.js";
+
 function asObject(raw        )                                 {
   const text = (raw ?? "").trim();
   if (!text) return null;
@@ -48,6 +50,16 @@ export function isSubagentHookPayload(raw        )          {
   const agentId = str(obj.agent_id);
   const agentType = str(obj.agent_type);
   return (agentId !== undefined && agentId !== "") || (agentType !== undefined && agentType !== "");
+}
+
+export function parseSessionStart(raw        )                             {
+  const obj = asObject(raw);
+  if (!obj || obj.hook_event_name !== "SessionStart") return null;
+  const sessionId = str(obj.session_id);
+  const cwd = str(obj.cwd);
+  if (sessionId === undefined || cwd === undefined) return null;
+  if (!isCanonicalSessionId(sessionId) || cwd.trim().length === 0) return null;
+  return { hook_event_name: "SessionStart", session_id: sessionId, cwd };
 }
 
 export function parseUserPromptSubmit(raw        )                                 {

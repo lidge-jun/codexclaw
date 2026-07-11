@@ -113,6 +113,12 @@ Pretendard/SUIT/system sans UI** (+ mono accent for technical surfaces).
 Keep myeongjo out of dashboards, dense tools, and body-size UI text; Hangul
 serif strokes degrade at small sizes on low-DPI screens.
 
+Adjacent sans-display lane: light centered Hangul display heroes use
+Pretendard/SUIT/Wanted Sans at 300-400 **at display sizes only**
+(>= ~40px; FE-HERO-LIGHT-CENTER-01). Hairline Hangul below display scale is a
+legibility failure. This does not change the MaruBuri serif display band:
+MaruBuri keeps its own 400-600 range for editorial myeongjo headlines.
+
 Sources: hangeul.naver.com MaruBuri (명조/부리 category, 5 weights);
 notofonts/noto-cjk Serif KR; live checks 2026-07-09 found no myeongjo-led
 Korean AI product home (Brunch-class editorial products observed on sans).

@@ -38,6 +38,18 @@ Rules (DEFAULT):
   place a boxed screenshot, media, or device-mockup card in a right column of
   the hero. If the product must appear in the first viewport, make it
   full-width, background, environment, or an interactive demo surface.
+- **FE-HERO-LIGHT-CENTER-01 (DEFAULT): Light Centered Display Hero.** A centered
+  hero headline is allowed as an intentional named pattern when the headline is
+  LIGHT weight (300-400, explicitly not bold), set over a full-width real media
+  or motion backdrop (photography, generated texture, or video; never a
+  gradient wash), with generous whitespace and a minimal copy stack (FE-HERO-01
+  copy budget still applies). Evidence: OpenAI announcement grammar; aside.com
+  measured 2026-07-10 with a custom display variable font, weight 400, 36px,
+  centered, over soft sky photography. The generic centered BOLD hero plus
+  template composition remains banned. This exception exists ONLY when the
+  light-weight headline and authored-media backdrop conditions both hold.
+  Composition ownership lives here; type exemplar details live in
+  `aesthetics.md` / `design-isms.md`.
 - Korean note: "left bold Pretendard headline + right mockup" is the same dead
   template in Korean surfaces; Toss itself uses centered copy over full-bleed
   imagery, not a split.
@@ -58,7 +70,8 @@ stripe.com, vercel.com, raycast.com, diabrowser.com, framer.com, toss.im
 ## Section Layout Repetition Ban
 - Each layout family (3-col cards, split-text-image, full-width-quote, etc.) at most ONCE per page
 - 8-section page needs ≥4 different layout families
-- Cross-ref: aesthetics.md § Spatial Composition also bans 3-col cards and centered heroes
+- Cross-ref: aesthetics.md § Spatial Composition also bans 3-col cards and
+  centered heroes, except the named FE-HERO-LIGHT-CENTER-01 pattern above.
 
 ## Zigzag Alternation Cap
 - Max 2 consecutive left-image/right-text alternating sections

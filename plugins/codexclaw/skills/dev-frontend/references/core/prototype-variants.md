@@ -12,6 +12,10 @@ or when `iterative-design.md` calls for multiple variants.
 
 ## Required Shape
 
+Sequence: runnable structural variants come AFTER the pre-code concept lock
+(`dev-uiux-design` UX-CONCEPT-GEN-01 mockup synthesis) and only when structural
+uncertainty genuinely survives that lock.
+
 1. Build at least 3 structurally different variants. A color swap, copy tweak, icon
    swap, or same card grid with different spacing is not a variant.
 2. Prefer the existing target page/context so data, routing, constraints, and layout

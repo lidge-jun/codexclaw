@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js\" hook pre-tool-use",
+            "timeout": 15,
+            "statusMessage": "(codexclaw) Gating lazy goal completion (E8)"
+          }
+        ],
+        "matcher": "^update_goal$"
+      }
+    ]
+  }
+}

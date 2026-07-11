@@ -264,8 +264,8 @@ export function isGoalplanComplete(plan          )          {
 
 
 /**
- * Quality gate (E8): a goalplan is valid for a final D-close only when it is complete
- * AND every criterion marked `met` carries non-empty captured evidence (no rubber-stamp).
+ * Quality gate (E8): validates a goalplan for goal completion (called by
+ * GOAL-COMPLETE-GATE-01 in goal-gate.ts, NOT during D-close).
  *
  * GOAL-COMPLETE-GATE-01 (260709): an EMPTY plan (no work phases AND no criteria) FAILS.
  * `isGoalplanComplete` is vacuously true for `loop init`-only artifacts, which let the
@@ -297,7 +297,7 @@ export function validateGoalplan(plan          )                     {
 
 /**
  * Advance the goalplan's work-phase cursor: mark the current activeWorkPhaseId
- * as `done` with all tasks done, then set the next pending work-phase active.
+ * as `done`, then set the next pending work-phase active.
  * Returns null only when there is no active phase to close.
  */
 export function advanceWorkPhase(plan          )                  {
@@ -317,7 +317,7 @@ export function advanceWorkPhase(plan          )                  {
         return {
           ...wp,
           status: "done"         ,
-          tasks: wp.tasks.map((task) => ({ ...task, status: "done"          })),
+          tasks: wp.tasks,
         };
       }
       if (next && wp.id === next.id) return { ...wp, status: "in_progress"          };

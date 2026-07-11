@@ -32,10 +32,10 @@ function tmp(): string {
   return mkdtempSync(join(tmpdir(), "cxc-render-obs-"));
 }
 
-function obsPayload(cwd: string, toolName: string): PostToolUsePayload {
+function obsPayload(cwd: string, toolName: string, sessionId = "s1"): PostToolUsePayload {
   return {
     hook_event_name: "PostToolUse",
-    session_id: "s1",
+    session_id: sessionId,
     cwd,
     tool_name: toolName,
     tool_input: {},
@@ -45,7 +45,7 @@ function obsPayload(cwd: string, toolName: string): PostToolUsePayload {
   };
 }
 
-function patchPayload(cwd: string, file: string): PostToolUsePayload {
+function patchPayload(cwd: string, file: string, sessionId = "s1"): PostToolUsePayload {
   const command = [
     "*** Begin Patch",
     `*** Update File: ${file}`,
@@ -57,7 +57,7 @@ function patchPayload(cwd: string, file: string): PostToolUsePayload {
   ].join("\n");
   return {
     hook_event_name: "PostToolUse",
-    session_id: "s1",
+    session_id: sessionId,
     cwd,
     tool_name: "apply_patch",
     tool_input: { command },
@@ -185,6 +185,19 @@ test("hasRenderArtifactModified: true when artifact-modified rows exist", () => 
   assert.ok(!hasRenderArtifactModified(cwd));
   handleRenderArtifactCapture(patchPayload(cwd, "page.html"));
   assert.ok(hasRenderArtifactModified(cwd));
+});
+
+test("render ledger queries: filter by session when provided", () => {
+  const cwd = tmp();
+  handleRenderObservationCapture(obsPayload(cwd, "view_image", "other"));
+  handleRenderArtifactCapture(patchPayload(cwd, "page.html", "other"));
+
+  assert.equal(hasRenderObservation(cwd, "current"), false);
+  assert.equal(hasRenderArtifactModified(cwd, "current"), false);
+  assert.equal(hasRenderObservation(cwd, "other"), true);
+  assert.equal(hasRenderArtifactModified(cwd, "other"), true);
+  assert.equal(hasRenderObservation(cwd), true, "omitting sessionId preserves all-session matching");
+  assert.equal(hasRenderArtifactModified(cwd), true, "omitting sessionId preserves all-session matching");
 });
 
 test("readRenderObsRows: missing ledger returns []", () => {

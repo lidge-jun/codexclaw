@@ -102,6 +102,7 @@ typography: { font: "OpenAI Sans (warm geometric, rounded-approachable) — Geis
 radius: { capsule: "9999px opaque white pills for labels/CTAs", cards: "20-28px" }
 effects: { glass: "none — opaque capsules over expressive imagery; grain/texture on the background layer only" }
 composition: "centered stacked hero over full-width media; announcement card = organic photographic field + white capsule with model name"
+hero_grammar: "FE-HERO-LIGHT-CENTER-01 (light centered display over full-width media)"
 signature: "blossom mark, expressive/functional layer split, humanized-AI warmth without losing platform precision"
 ```
 
@@ -115,4 +116,3 @@ effects: { none: "no glass, no gradients — paper flatness with generous margin
 composition: "editorial/institutional opener (text-led mission headline, no hero screenshot); long-form reading surfaces"
 signature: "bookish serif-led trust, three-role type system (serif display + sans UI + mono accent), safety-culture calm"
 ```
-

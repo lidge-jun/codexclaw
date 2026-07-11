@@ -29,6 +29,10 @@ Level 6 (legal/fine print): 0.75rem
 
 - Primary vs body weight difference ≥ 200 (e.g., 700 vs 400)
 - Never use weight alone to create hierarchy — pair with size
+- Display-scale exception: at display sizes, size contrast may replace weight
+  contrast; a 300-400 light headline is legal when >= 3x body size
+  (FE-HERO-LIGHT-CENTER-01). The 700-800 primary-heading row applies to
+  in-content headings, not display heroes.
 - Monospace/code blocks: weight 400-500 max
 
 ## 3. Color Emphasis

@@ -97,6 +97,11 @@ If the desktop hero has a side-by-side layout, mobile MUST stack: image first (i
 
 ## Bottom Sheet Pattern
 
+Mobile form selects and pickers use the same dropdown design-layer skin
+(`dropdown-layer.md` FE-DROPDOWN-LAYER-01) rendered as a bottom sheet: no
+nested scrolling, preserved form semantics and keyboard/AT behavior, and a tap
+path for anything hover-spawned on desktop.
+
 For mobile actions that need more space than a button but less than a full page:
 
 ```

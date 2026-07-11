@@ -49,9 +49,10 @@ this file is the full launch/audit list. Production surfaces only (`dev` §0.4).
 - [ ] i18n: no hardcoded strings, CSS logical properties, Intl API — i18n-global.md
 
 ## Performance & verification
-- [ ] Core Web Vitals field gate: INP ≤200ms, LCP/CLS within thresholds — performance-budget.md
-- [ ] Lighthouse Performance score: advisory smoke signal (not the sole blocker); no JS bundle > 150KB compressed
-- [ ] Hero image preloaded, below-fold images lazy-loaded
+- [ ] Core Web Vitals field gate: LCP <= 2.5s, INP <= 200ms, CLS <= 0.1 - performance-budget.md
+- [ ] Lighthouse Performance score is advisory smoke only; CWV field metrics are the gate; no JS bundle > 150KB compressed
+- [ ] Hero image preloaded, below-fold images lazy-loaded; landing motion media exempt from byte caps only when FE-MEDIA-BUDGET-01 poster-first/loading mechanics hold
 - [ ] Desktop/mobile/narrow screenshots checked for overlap, clipping, asset rendering
+- [ ] No captured third-party asset (reference-capture.md) in the shipped build; capture manifest present for any reference captures
 - [ ] Accessibility deep pass: modals trap focus, live regions — a11y-patterns.md
 - [ ] Stack-specific rules followed (references/stacks/)

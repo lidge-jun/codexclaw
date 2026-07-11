@@ -5,8 +5,9 @@ import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { parseOrchestrateCliArgs, runOrchestrateCli, resolveSession } from "../src/orchestrate-cli.ts";
+import { parseOrchestrateCliArgs, renderOrchestrateParseError, runOrchestrateCli, resolveSession } from "../src/orchestrate-cli.ts";
 import { writeState, readState, defaultState, STATE_DIR, SESSIONS_SUBDIR, LEDGER_FILE } from "../src/state.ts";
+import { RENDER_OBS_FILE } from "../src/render-observations.ts";
 import { defaultInterview, DIMENSIONS } from "../src/interview.ts";
 
 // Build an interview-ready tracker (maxed dims, empty contradictions, a scan recorded)
@@ -45,11 +46,50 @@ test("parseOrchestrateCliArgs: unknown verb -> error", () => {
   assert.ok("error" in r);
 });
 
+test("parseOrchestrateCliArgs: help tokens return help result", () => {
+  for (const argv of [["--help"], ["-h"], ["help"], ["status", "--help"]]) {
+    const r = parseOrchestrateCliArgs(argv, "/tmp");
+    assert.ok("help" in r, `${argv.join(" ")} should parse as help`);
+  }
+});
+
 test("parseOrchestrateCliArgs: malformed --attest sets attestError, no throw", () => {
   const r = parseOrchestrateCliArgs(["a", "--attest", "{nope}"], "/tmp");
   assert.ok(!("error" in r));
   if ("error" in r) return;
   assert.ok(r.attestError);
+});
+
+test("orchestrate help exits 0 and does not mutate state, ledger, or render ledger", () => {
+  const empty = freshCwd();
+  try {
+    const parsed = parseOrchestrateCliArgs(["--help"], empty);
+    assert.ok("help" in parsed);
+    const r = runOrchestrateCli(parsed);
+    assert.equal(r.code, 0);
+    assert.match(r.output, /cxc orchestrate/);
+    assert.equal(existsSync(join(empty, STATE_DIR, SESSIONS_SUBDIR)), false);
+    assert.equal(existsSync(join(empty, STATE_DIR, LEDGER_FILE)), false);
+    assert.equal(existsSync(join(empty, STATE_DIR, RENDER_OBS_FILE)), false);
+  } finally { rmSync(empty, { recursive: true, force: true }); }
+
+  const existing = freshCwd();
+  try {
+    seedSession(existing, "s1", "P");
+    const statePath = join(existing, STATE_DIR, SESSIONS_SUBDIR, "s1.json");
+    const ledgerPath = join(existing, STATE_DIR, LEDGER_FILE);
+    const renderPath = join(existing, STATE_DIR, RENDER_OBS_FILE);
+    writeFileSync(ledgerPath, "{\"x\":1}\n");
+    writeFileSync(renderPath, "{\"kind\":\"artifact-modified\"}\n");
+    const beforeState = readFileSync(statePath, "utf8");
+    const beforeLedger = readFileSync(ledgerPath, "utf8");
+    const beforeRender = readFileSync(renderPath, "utf8");
+    const r = runOrchestrateCli({ help: true, cwd: existing });
+    assert.equal(r.code, 0);
+    assert.equal(readFileSync(statePath, "utf8"), beforeState);
+    assert.equal(readFileSync(ledgerPath, "utf8"), beforeLedger);
+    assert.equal(readFileSync(renderPath, "utf8"), beforeRender);
+  } finally { rmSync(existing, { recursive: true, force: true }); }
 });
 
 test("AGENT-GATED: P->A without --attest fails (unlike chat free-pass)", () => {
@@ -58,8 +98,22 @@ test("AGENT-GATED: P->A without --attest fails (unlike chat free-pass)", () => {
     seedSession(cwd, "s1", "P");
     const r = runOrchestrateCli({ verb: "A", attest: null, session: "s1", cwd, json: false });
     assert.equal(r.code, 1);
+    assert.match(r.output, /current=P/);
     assert.match(r.output, /attestation|did/i);
     assert.equal(readState(cwd, "s1").phase, "P"); // unchanged
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("malformed attest with explicit session reports current phase without mutating", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "s1", "P");
+    const r = runOrchestrateCli({ verb: "A", attest: null, attestError: "attest JSON is not valid JSON", session: "s1", cwd, json: false });
+    assert.equal(r.code, 1);
+    assert.match(r.output, /current=P/);
+    assert.match(r.output, /attest JSON is not valid JSON/);
+    assert.equal(readState(cwd, "s1").phase, "P");
+    assert.deepEqual(ledgerLines(cwd), []);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
@@ -188,10 +242,15 @@ test("status renders phase; reset clears to IDLE", () => {
   try {
     seedSession(cwd, "s5", "C");
     const st = runOrchestrateCli({ verb: "status", attest: null, session: "s5", cwd, json: false });
+    assert.match(st.output, /session=s5/);
     assert.match(st.output, /phase=C/);
     const rs = runOrchestrateCli({ verb: "reset", attest: null, session: "s5", cwd, json: false });
     assert.equal(rs.code, 0);
+    assert.match(rs.output, /current=C -> IDLE/);
     assert.equal(readState(cwd, "s5").phase, "IDLE");
+    const noop = runOrchestrateCli({ verb: "reset", attest: null, session: "s5", cwd, json: false });
+    assert.equal(noop.code, 0);
+    assert.match(noop.output, /current=IDLE/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
@@ -233,6 +292,21 @@ test("status with no session reports it without creating one", () => {
     assert.equal(r.code, 0);
     assert.match(r.output, /no active session/);
     assert.equal(existsSync(join(cwd, STATE_DIR, SESSIONS_SUBDIR)), false);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("parse error renderer includes phase for an explicit existing session", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "s1", "P");
+    const parsed = parseOrchestrateCliArgs(["wat", "--session", "s1", "--cwd", cwd], "/unused");
+    assert.ok("error" in parsed);
+    if (!("error" in parsed)) return;
+    const out = renderOrchestrateParseError(parsed);
+    assert.match(out, /current=P/);
+    assert.match(out, /run cxc orchestrate --help/);
+    assert.equal(readState(cwd, "s1").phase, "P");
+    assert.deepEqual(ledgerLines(cwd), []);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
@@ -278,6 +352,25 @@ test("dist cli: `cli.js orchestrate status` runs end-to-end", () => {
     const res = runDistStatus(cwd);
     assert.equal(res.status, 0);
     assert.match(res.stdout, /phase=P/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("dist cli: `cli.js orchestrate --help` exits 0", () => {
+  const res = spawnSync(process.execPath, [distCli(), "orchestrate", "--help"], { encoding: "utf8" });
+  assert.equal(res.status, 0);
+  assert.match(res.stdout, /cxc orchestrate/);
+});
+
+test("dist cli: unknown orchestrate verb reports current phase with explicit session", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "binsess", "P");
+    const res = spawnSync(process.execPath, [distCli(), "orchestrate", "wat", "--session", "binsess", "--cwd", cwd], { encoding: "utf8" });
+    assert.equal(res.status, 1);
+    assert.match(res.stderr, /current=P/);
+    assert.match(res.stderr, /cxc orchestrate --help/);
+    assert.equal(readState(cwd, "binsess").phase, "P");
+    assert.deepEqual(ledgerLines(cwd), []);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 

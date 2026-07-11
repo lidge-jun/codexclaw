@@ -4,6 +4,11 @@ Extends the baseline a11y rules in SKILL.md with ARIA authoring patterns, focus 
 
 ## ARIA Widget Patterns
 
+Note: a project may unify ALL dropdown-like surfaces under one visual skin
+(`dropdown-layer.md` FE-DROPDOWN-LAYER-01), but the ARIA pattern is still
+chosen per BEHAVIOR — menu vs listbox/select vs combobox vs dialog. One skin
+never means one blanket component.
+
 ### Dialog (Modal)
 
 ```html

@@ -21,11 +21,13 @@
   "skills": "./skills/",
   "hooks": [
     "./hooks/session-start-ensuring-provider-bridge.json",
+    "./hooks/session-start-bootstrapping-pabcd-state.json",
     "./hooks/session-start-announcing-map-affordance.json",
     "./hooks/user-prompt-submit-checking-pabcd-trigger.json",
     "./hooks/stop-checking-pabcd-continuation.json",
     "./hooks/pre-tool-use-guarding-goal-budget.json",
     "./hooks/pre-tool-use-guarding-interview-in-goal.json",
+    "./hooks/pre-tool-use-guarding-goal-complete.json",
     "./hooks/post-tool-use-capturing-interview-answers.json",
     "./hooks/subagent-stop-verifying-evidence.json",
     "./hooks/pre-tool-use-attaching-skills.json",

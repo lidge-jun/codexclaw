@@ -47,3 +47,11 @@ HTTP 400 risk (openai/codex#26753) and asked for a full conversion.
 4. **040 verification** — suites, residual scan, smoke.
 
 Each phase has its own decade doc in this unit at diff level.
+
+## Steering log
+
+- 260709 (user): wp5 (opencodex v2-gated ultra + ocx toggle) DESCOPED from this
+  unit — ocx is being patched on a separate track with its own goalplan
+  (`opencodex-v2-gated-ultra-...`, opencodex repo, design doc moved to
+  opencodex/devlog/260709_v2_gated_ultra/000_design.md). This unit stays
+  codexclaw-only: wp4 verification closes the goal.

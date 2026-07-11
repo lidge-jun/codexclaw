@@ -13,10 +13,12 @@
 import type {
   PostToolUsePayload,
   PostCompactPayload,
+  SessionStartPayload,
   StopPayload,
   SubagentStopPayload,
   UserPromptSubmitPayload,
 } from "./hook.ts";
+import { isCanonicalSessionId } from "./state.ts";
 
 function asObject(raw: string): Record<string, unknown> | null {
   const text = (raw ?? "").trim();
@@ -48,6 +50,16 @@ export function isSubagentHookPayload(raw: string): boolean {
   const agentId = str(obj.agent_id);
   const agentType = str(obj.agent_type);
   return (agentId !== undefined && agentId !== "") || (agentType !== undefined && agentType !== "");
+}
+
+export function parseSessionStart(raw: string): SessionStartPayload | null {
+  const obj = asObject(raw);
+  if (!obj || obj.hook_event_name !== "SessionStart") return null;
+  const sessionId = str(obj.session_id);
+  const cwd = str(obj.cwd);
+  if (sessionId === undefined || cwd === undefined) return null;
+  if (!isCanonicalSessionId(sessionId) || cwd.trim().length === 0) return null;
+  return { hook_event_name: "SessionStart", session_id: sessionId, cwd };
 }
 
 export function parseUserPromptSubmit(raw: string): UserPromptSubmitPayload | null {

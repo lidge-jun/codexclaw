@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V2 Multi-Agent: non-Ultra vs Ultra</title>
+<style>
+:root{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#c9d1d9;--text-muted:#8b949e;--accent-a:#388bfd;--accent-b:#f0883e;--diff-add:rgba(63,185,80,.15);--diff-add-border:#238636;--diff-del:rgba(248,81,73,.15);--diff-del-border:#da3633;--tag:#7ee787;--purple:#bc8cff;--mono:'SF Mono','Cascadia Code','Fira Code',Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);line-height:1.6;padding:32px 24px;max-width:1440px;margin:0 auto}
+h1{font-size:20px;font-weight:600;margin-bottom:4px}
+.subtitle{color:var(--text-muted);font-size:13px;margin-bottom:32px}
+.subtitle code{background:var(--surface);padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:12px}
+.section{margin-bottom:28px}
+.section-header{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.section-header h2{font-size:14px;font-weight:600}
+.badge{font-size:11px;font-weight:500;padding:1px 7px;border-radius:10px;text-transform:uppercase}
+.badge.changed{background:rgba(240,136,62,.2);color:var(--accent-b);border:1px solid rgba(240,136,62,.3)}
+.badge.same{background:rgba(139,148,158,.15);color:var(--text-muted);border:1px solid var(--border)}
+.badge.tui{background:rgba(188,140,255,.15);color:var(--purple);border:1px solid rgba(188,140,255,.3)}
+.source-ref{font-size:11px;color:var(--text-muted);font-family:var(--mono)}
+.split{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.split-label{padding:8px 14px;font-size:12px;font-weight:600;font-family:var(--mono)}
+.col-a .split-label{background:rgba(56,139,253,.1);color:var(--accent-a);border-bottom:1px solid var(--border)}
+.col-b .split-label{background:rgba(240,136,62,.1);color:var(--accent-b);border-bottom:1px solid var(--border);border-left:1px solid var(--border)}
+.col-a .split-body{background:var(--surface);padding:14px;min-height:60px}
+.col-b .split-body{background:var(--surface);padding:14px;min-height:60px;border-left:1px solid var(--border)}
+.split-body pre{font-family:var(--mono);font-size:12.5px;line-height:1.65;white-space:pre-wrap;word-break:break-word}
+.xml-tag{color:var(--tag)}
+.diff-line-add{background:var(--diff-add);display:block;margin:0 -14px;padding:0 14px;border-left:3px solid var(--diff-add-border)}
+.diff-line-del{background:var(--diff-del);display:block;margin:0 -14px;padding:0 14px;border-left:3px solid var(--diff-del-border)}
+.same-notice{padding:14px;font-size:12.5px;font-family:var(--mono);color:var(--text-muted);text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:6px}
+.note{margin-top:8px;font-size:12px;color:var(--text-muted);padding-left:2px}
+.note code{font-family:var(--mono);font-size:11.5px;background:var(--surface);padding:1px 4px;border-radius:3px}
+.divider{border:none;border-top:1px solid var(--border);margin:28px 0}
+.flow{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:24px;overflow-x:auto}
+.flow svg{display:block;margin:0 auto}
+table.summary{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+table.summary th{text-align:left;padding:8px 14px;background:var(--surface);font-weight:600;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border)}
+table.summary td{padding:7px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+table.summary tr:last-child td{border-bottom:none}
+table.summary td:first-child{font-family:var(--mono);font-size:12px;white-space:nowrap}
+.va{color:var(--accent-a)}.vb{color:var(--accent-b)}.vs{color:var(--text-muted)}
+</style>
+</head>
+<body>
+
+<h1>V2 Multi-Agent: non-Ultra vs Ultra</h1>
+<p class="subtitle">
+  <code>features.multi_agent_v2 = true</code> reasoning effort Ultra 분기에서 바뀌는 모든 표면.<br>
+  Source: <code>codex-rs dc23c7bcc</code> (2025-07-14 pull)
+</p>
+
+<!-- ====== FLOW DIAGRAM ====== -->
+<div class="section">
+  <div class="section-header">
+    <h2>Decision Flow</h2>
+    <span class="source-ref">session/multi_agents.rs + client.rs + tui/model_popups.rs</span>
+  </div>
+  <div class="flow">
+    <svg viewBox="0 0 920 670" width="920" height="670" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="#8b949e" stroke-width="1.2"/></marker>
+        <marker id="arr-b" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="#f0883e" stroke-width="1.2"/></marker>
+        <marker id="arr-a" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="#388bfd" stroke-width="1.2"/></marker>
+        <marker id="arr-p" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="none" stroke="#bc8cff" stroke-width="1.2"/></marker>
+      </defs>
+
+      <!-- 1: Config input -->
+      <rect x="300" y="10" width="320" height="36" rx="4" fill="#21262d" stroke="#30363d"/>
+      <text x="460" y="33" text-anchor="middle" fill="#c9d1d9" font-family="var(--mono)" font-size="11.5">config.model_reasoning_effort = Ultra</text>
+
+      <line x1="460" y1="46" x2="460" y2="74" stroke="#8b949e" marker-end="url(#arr)"/>
+
+      <!-- 2: V2? -->
+      <polygon points="460,74 565,108 460,142 355,108" fill="#21262d" stroke="#30363d"/>
+      <text x="460" y="112" text-anchor="middle" fill="#c9d1d9" font-family="var(--mono)" font-size="11">multi_agent_v2?</text>
+
+      <!-- V2=false -->
+      <line x1="355" y1="108" x2="180" y2="108" stroke="#8b949e" marker-end="url(#arr)"/>
+      <text x="268" y="100" text-anchor="middle" fill="#8b949e" font-family="var(--mono)" font-size="10">false</text>
+      <rect x="30" y="90" width="150" height="36" rx="4" fill="#21262d" stroke="#30363d"/>
+      <text x="105" y="107" text-anchor="middle" fill="#8b949e" font-family="var(--mono)" font-size="10.5">V1 collab tools</text>
+      <text x="105" y="120" text-anchor="middle" fill="#8b949e" font-family="var(--mono)" font-size="9.5">no mode injection</text>
+
+      <!-- V2=true -->
+      <line x1="460" y1="142" x2="460" y2="170" stroke="#8b949e" marker-end="url(#arr)"/>
+      <text x="472" y="160" fill="#8b949e" font-family="var(--mono)" font-size="10">true</text>
+
+      <!-- 3: hint_text? -->
+      <polygon points="460,170 590,204 460,238 330,204" fill="#21262d" stroke="#30363d"/>
+      <text x="460" y="208" text-anchor="middle" fill="#c9d1d9" font-family="var(--mono)" font-size="11">mode_hint_text?</text>
+
+      <!-- hint set -->
+      <line x1="330" y1="204" x2="180" y2="204" stroke="#bc8cff" marker-end="url(#arr-p)"/>
+      <text x="255" y="196" text-anchor="middle" fill="#8b949e" font-family="var(--mono)" font-size="10">Some(_)</text>
+      <rect x="30" y="186" width="150" height="36" rx="4" fill="rgba(188,140,255,.08)" stroke="rgba(188,140,255,.4)"/>
+      <text x="105" y="203" text-anchor="middle" fill="#bc8cff" font-family="var(--mono)" font-size="10.5">Custom(hint)</text>
+      <text x="105" y="216" text-anchor="middle" fill="#8b949e" font-family="var(--mono)" font-size="9.5">effort ignored</text>
+
+      <!-- hint None -->
+      <line x1="460" y1="238" x2="460" y2="266" stroke="#8b949e" marker-end="url(#arr)"/>
+      <text x="472" y="256" fill="#8b949e" font-family="var(--mono)" font-size="10">None</text>
+
+      <!-- 4: effort check -->
+      <polygon points="460,266 600,304 460,342 320,304" fill="#21262d" stroke="#30363d"/>
+      <text x="460" y="300" text-anchor="middle" fill="#c9d1d9" font-family="var(--mono)" font-size="11">effective_reasoning</text>
+      <text x="460" y="314" text-anchor="middle" fill="#c9d1d9" font-family="var(--mono)" font-size="11">_effort() == Ultra?</text>
+
+      <!-- A path -->
+      <line x1="320" y1="304" x2="180" y2="304" stroke="#388bfd" marker-end="url(#arr-a)"/>
+      <text x="250" y="296" text-anchor="middle" fill="#388bfd" font-family="var(--mono)" font-size="10">no</text>
+      <rect x="30" y="286" width="150" height="36" rx="4" fill="rgba(56,139,253,.08)" stroke="rgba(56,139,253,.4)"/>
+      <text x="105" y="303" text-anchor="middle" fill="#388bfd" font-family="var(--mono)" font-size="11" font-weight="600">ExplicitRequestOnly</text>
+      <text x="105" y="316" text-anchor="middle" fill="#8b949e" font-family="var(--mono)" font-size="9.5">A path</text>
+
+      <!-- B path -->
+      <line x1="600" y1="304" x2="740" y2="304" stroke="#f0883e" marker-end="url(#arr-b)"/>
+      <text x="670" y="296" text-anchor="middle" fill="#f0883e" font-family="var(--mono)" font-size="10">yes</text>
+      <rect x="740" y="286" width="150" height="36" rx="4" fill="rgba(240,136,62,.08)" stroke="rgba(240,136,62,.4)"/>
+      <text x="815" y="303" text-anchor="middle" fill="#f0883e" font-family="var(--mono)" font-size="11" font-weight="600">Proactive</text>
+      <text x="815" y="316" text-anchor="middle" fill="#8b949e" font-family="var(--mono)" font-size="9.5">B path</text>
+
+      <!-- Downstream -->
+      <text x="460" y="375" text-anchor="middle" fill="#c9d1d9" font-size="13" font-weight="600" font-family="var(--sans)">Downstream Effects</text>
+      <line x1="200" y1="385" x2="720" y2="385" stroke="#30363d"/>
+
+      <!-- E1: developer msg -->
+      <rect x="40" y="405" width="380" height="60" rx="4" fill="rgba(56,139,253,.05)" stroke="rgba(56,139,253,.25)"/>
+      <text x="50" y="423" fill="#388bfd" font-family="var(--mono)" font-size="11" font-weight="600">A: &lt;multi_agent_mode&gt;</text>
+      <text x="50" y="440" fill="#c9d1d9" font-family="var(--mono)" font-size="10">"Do not spawn sub-agents unless</text>
+      <text x="50" y="454" fill="#c9d1d9" font-family="var(--mono)" font-size="10">...explicitly ask for sub-agents"</text>
+
+      <rect x="500" y="405" width="390" height="60" rx="4" fill="rgba(240,136,62,.05)" stroke="rgba(240,136,62,.25)"/>
+      <text x="510" y="423" fill="#f0883e" font-family="var(--mono)" font-size="11" font-weight="600">B: &lt;multi_agent_mode&gt;</text>
+      <text x="510" y="440" fill="#c9d1d9" font-family="var(--mono)" font-size="10">"Proactive multi-agent delegation is active.</text>
+      <text x="510" y="454" fill="#c9d1d9" font-family="var(--mono)" font-size="10">...Use sub-agents when parallel work would..."</text>
+
+      <!-- E2: API effort -->
+      <rect x="40" y="480" width="380" height="42" rx="4" fill="rgba(56,139,253,.05)" stroke="rgba(56,139,253,.25)"/>
+      <text x="50" y="498" fill="#388bfd" font-family="var(--mono)" font-size="11" font-weight="600">A: reasoning.effort</text>
+      <text x="50" y="514" fill="#c9d1d9" font-family="var(--mono)" font-size="10">{ "effort": "high" }  // config as-is</text>
+
+      <rect x="500" y="480" width="390" height="42" rx="4" fill="rgba(240,136,62,.05)" stroke="rgba(240,136,62,.25)"/>
+      <text x="510" y="498" fill="#f0883e" font-family="var(--mono)" font-size="11" font-weight="600">B: reasoning.effort</text>
+      <text x="510" y="514" fill="#c9d1d9" font-family="var(--mono)" font-size="10">{ "effort": "max" }  // Ultra -&gt; Max remap</text>
+
+      <!-- E3: TUI -->
+      <rect x="40" y="537" width="380" height="42" rx="4" fill="rgba(56,139,253,.05)" stroke="rgba(56,139,253,.15)"/>
+      <text x="50" y="555" fill="#388bfd" font-family="var(--mono)" font-size="11" font-weight="600">A: TUI</text>
+      <text x="50" y="571" fill="#8b949e" font-family="var(--mono)" font-size="10">no warning</text>
+
+      <rect x="500" y="537" width="390" height="55" rx="4" fill="rgba(240,136,62,.05)" stroke="rgba(240,136,62,.25)"/>
+      <text x="510" y="555" fill="#f0883e" font-family="var(--mono)" font-size="11" font-weight="600">B: TUI concurrency warning</text>
+      <text x="510" y="571" fill="#c9d1d9" font-family="var(--mono)" font-size="10">"Ultra reasoning may proactively use multiple</text>
+      <text x="510" y="585" fill="#c9d1d9" font-family="var(--mono)" font-size="10">agents..." (if max_threads &gt;= 8)</text>
+
+      <!-- E4: resume rollback -->
+      <rect x="40" y="610" width="850" height="24" rx="4" fill="rgba(139,148,158,.06)" stroke="#30363d"/>
+      <text x="465" y="627" text-anchor="middle" fill="#8b949e" font-family="var(--mono)" font-size="10">resume/effort change: previous=Proactive &amp; next!=Ultra =&gt; ExplicitRequestOnly injected to override (updates.rs)</text>
+
+      <!-- no-change footer -->
+      <rect x="40" y="645" width="850" height="20" rx="4" fill="none" stroke="none"/>
+      <text x="465" y="660" text-anchor="middle" fill="#484f58" font-family="var(--mono)" font-size="10">base_instructions, spawn_agent desc, usage_hint, V2 tool specs: identical on both paths</text>
+    </svg>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ====== SURFACE 1 ====== -->
+<div class="section">
+  <div class="section-header">
+    <h2>1. &lt;multi_agent_mode&gt; developer message</h2>
+    <span class="badge changed">changed</span>
+    <span class="source-ref">multi_agent_mode_instructions.rs</span>
+  </div>
+  <div class="split">
+    <div class="col-a">
+      <div class="split-label">A -- non-Ultra (ExplicitRequestOnly)</div>
+      <div class="split-body"><pre><span class="xml-tag">&lt;multi_agent_mode&gt;</span>
+<span class="diff-line-del">Do not spawn sub-agents unless the user or
+applicable AGENTS.md/skill instructions
+explicitly ask for sub-agents, delegation,
+or parallel agent work.</span>
+<span class="xml-tag">&lt;/multi_agent_mode&gt;</span></pre></div>
+    </div>
+    <div class="col-b">
+      <div class="split-label">B -- Ultra (Proactive)</div>
+      <div class="split-body"><pre><span class="xml-tag">&lt;multi_agent_mode&gt;</span>
+<span class="diff-line-add">Proactive multi-agent delegation is active.
+Any earlier instruction requiring an explicit
+user request before spawning sub-agents no
+longer applies. Use sub-agents when parallel
+work would materially improve speed or
+quality. This mode remains active until a
+later multi-agent mode developer message
+changes it.</span>
+<span class="xml-tag">&lt;/multi_agent_mode&gt;</span></pre></div>
+    </div>
+  </div>
+  <p class="note">injection: session init <code>session/mod.rs:3473</code> + mid-session switch <code>context_manager/updates.rs:257</code></p>
+</div>
+
+<!-- ====== SURFACE 2 ====== -->
+<div class="section">
+  <div class="section-header">
+    <h2>2. reasoning.effort API parameter</h2>
+    <span class="badge changed">changed</span>
+    <span class="source-ref">client.rs:176</span>
+  </div>
+  <div class="split">
+    <div class="col-a">
+      <div class="split-label">A -- non-Ultra</div>
+      <div class="split-body"><pre>{
+  "reasoning": {
+    <span class="diff-line-del">"effort": "high"  // config value as-is</span>
+  }
+}</pre></div>
+    </div>
+    <div class="col-b">
+      <div class="split-label">B -- Ultra</div>
+      <div class="split-body"><pre>{
+  "reasoning": {
+    <span class="diff-line-add">"effort": "max"   // Ultra -> Max remap</span>
+  }
+}</pre></div>
+    </div>
+  </div>
+  <p class="note"><code>reasoning_effort_for_request(Ultra) => Max</code>. Ultra = UI concept, API gets "max".</p>
+</div>
+
+<!-- ====== SURFACE 3 ====== -->
+<div class="section">
+  <div class="section-header">
+    <h2>3. TUI concurrency warning</h2>
+    <span class="badge tui">tui only</span>
+    <span class="source-ref">tui/chatwidget/model_popups.rs:552</span>
+  </div>
+  <div class="split">
+    <div class="col-a">
+      <div class="split-label">A -- non-Ultra</div>
+      <div class="split-body"><pre><span style="color:var(--text-muted)">// no warning</span></pre></div>
+    </div>
+    <div class="col-b">
+      <div class="split-label">B -- Ultra (max_threads &gt;= 8)</div>
+      <div class="split-body"><pre><span class="diff-line-add">Ultra reasoning may proactively use
+multiple agents. This session is
+configured for {N} concurrent threads
+with up to {N-1} subagents which can
+increase usage quickly. Consider setting
+max_concurrent_threads_per_session
+below 8.</span></pre></div>
+    </div>
+  </div>
+  <p class="note">threshold: <code>ULTRA_REASONING_CONCURRENCY_WARNING_THRESHOLD = 8</code>. Below 8 = no warning even on Ultra.</p>
+</div>
+
+<hr class="divider">
+
+<!-- ====== UNCHANGED ====== -->
+<div class="section">
+  <div class="section-header">
+    <h2>4-7. Unchanged Surfaces</h2>
+    <span class="badge same">no change</span>
+  </div>
+  <div class="same-notice">
+    <code>spawn_agent</code> tool description (usage_hint) &middot;
+    <code>root/subagent_usage_hint_text</code> developer msg &middot;
+    <code>base_instructions</code> &middot;
+    V2 tool specs/schema -- all identical regardless of Ultra.
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ====== SUMMARY TABLE ====== -->
+<div class="section">
+  <div class="section-header"><h2>Summary</h2></div>
+  <table class="summary">
+    <thead><tr><th>Surface</th><th>non-Ultra (A)</th><th>Ultra (B)</th><th></th></tr></thead>
+    <tbody>
+      <tr><td>&lt;multi_agent_mode&gt;</td><td class="va">ExplicitRequestOnly</td><td class="vb">Proactive</td><td><span class="badge changed">changed</span></td></tr>
+      <tr><td>reasoning.effort</td><td class="va">config value</td><td class="vb">"max"</td><td><span class="badge changed">changed</span></td></tr>
+      <tr><td>TUI warning</td><td class="va">none</td><td class="vb">concurrency warning (&gt;=8)</td><td><span class="badge tui">tui</span></td></tr>
+      <tr><td>spawn_agent desc</td><td class="vs" colspan="2" style="text-align:center">identical</td><td><span class="badge same">same</span></td></tr>
+      <tr><td>usage_hint msg</td><td class="vs" colspan="2" style="text-align:center">identical (config-driven)</td><td><span class="badge same">same</span></td></tr>
+      <tr><td>base_instructions</td><td class="vs" colspan="2" style="text-align:center">identical</td><td><span class="badge same">same</span></td></tr>
+      <tr><td>V2 tool specs</td><td class="vs" colspan="2" style="text-align:center">identical</td><td><span class="badge same">same</span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<hr class="divider">
+
+<div class="section">
+  <div class="section-header"><h2>Override</h2></div>
+  <p class="note" style="padding-left:0">
+    <code>[features.multi_agent_v2] multi_agent_mode_hint_text = "..."</code>
+    -- Ultra/non-Ultra 분기 무시, <code>Custom(hint)</code>로 양쪽 동일 텍스트 주입.
+    빈 문자열도 유효: 빌트인 텍스트 없이 빈 <code>&lt;multi_agent_mode&gt;</code>만 남는다.
+  </p>
+</div>
+
+</body>
+</html>

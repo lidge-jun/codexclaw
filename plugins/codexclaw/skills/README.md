@@ -14,6 +14,13 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   `allow_implicit_invocation: true` (implicit-visible, mutually cross-referenced, so
   anti-slop design grammar reaches every UI-generating session); the rest ship
   `agents/openai.yaml` with `allow_implicit_invocation: false`.
+- `dev-diagram-viewer/` — on-demand environment-aware diagram rendering: detects the
+  runtime surface (Codex Desktop app vs CLI) and routes diagram output to native
+  inline rendering (mermaid) or browser-based display (SVG, Chart.js, ECharts, D3,
+  Leaflet, Three.js, interactive widgets). Ships `allow_implicit_invocation: false`;
+  activates by description match or explicit `$cxc-dev-diagram-viewer`.
+  Includes `scripts/diagram-to-html.sh` helper and `reference/html-templates.md`
+  with self-contained HTML wrapper templates for all diagram types.
 - `pabcd/` — Codex-native PABCD workflow (Interview/Plan/Audit/Build/Check/Done) with
   class-scaled depth. Folds in the structured-development discipline.
 - `interview/` — discoverable `cxc-interview` surface for persistent I-phase

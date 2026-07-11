@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 /**
- * pabcd-state — UserPromptSubmit + Stop hook entry.
+ * pabcd-state — SessionStart + UserPromptSubmit + Stop hook entry.
  *
  * Reads the codex hook JSON payload from stdin, dispatches by event kind, and
  * writes any additionalContext envelope to stdout. Fail-safe: unknown events,
  * empty stdin, or unparseable payloads exit 0 with no output (never block codex).
  *
+ *  - SessionStart: materialize the bound session's default IDLE state without
+ *    resetting resumed state; side-effect only, with no context output.
  *  - UserPromptSubmit: detect IPABCD/interview trigger → inject phase directive
  *    (idempotent per session+turn). See hook.ts/handleUserPromptSubmit.
  *  - Stop: active only under a native goal (mid-cycle continuation, or the
@@ -19,8 +21,23 @@
  * argv: [node, cli.ts, kind, event] e.g. ["...", "...", "hook", "user-prompt-submit"].
  */
 import { readFileSync } from "node:fs";
-import { handlePostToolUse, handleBashFrictionCapture, handlePostCompact, handleStop, handleUserPromptSubmit } from "./hook.js";
-import { isSubagentHookPayload, parsePostCompact, parsePostToolUse, parseStop, parseSubagentStop, parseUserPromptSubmit } from "./parse.js";
+import {
+  handlePostToolUse,
+  handleBashFrictionCapture,
+  handlePostCompact,
+  handleSessionStart,
+  handleStop,
+  handleUserPromptSubmit,
+} from "./hook.js";
+import {
+  isSubagentHookPayload,
+  parsePostCompact,
+  parsePostToolUse,
+  parseSessionStart,
+  parseStop,
+  parseSubagentStop,
+  parseUserPromptSubmit,
+} from "./parse.js";
 import { handlePreToolUseFailClosed } from "./goal-gate.js";
 import { handleApplyPatchLint } from "./comment-lint.js";
 import { handleFrictionPreToolUse } from "./friction-gate.js";
@@ -31,7 +48,7 @@ import { runSubagentStopGate } from "./subagent-evidence.js";
 import { runDivergenceCli } from "./divergence-cli.js";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.js";
 import { runMetricCli } from "./metric-cli.js";
-import { parseOrchestrateCliArgs, runOrchestrateCli } from "./orchestrate-cli.js";
+import { parseOrchestrateCliArgs, renderOrchestrateParseError, runOrchestrateCli } from "./orchestrate-cli.js";
 import { parseGoalplanCliArgs, runGoalplanCli } from "./goalplan-cli.js";
 
 function readStdin()         {
@@ -62,7 +79,7 @@ function main()       {
   if (kind === "orchestrate") {
     const parsed = parseOrchestrateCliArgs(process.argv.slice(3), process.cwd());
     if ("error" in parsed) {
-      process.stderr.write(`orchestrate: ${parsed.error}\n`);
+      process.stderr.write(`${renderOrchestrateParseError(parsed)}\n`);
       process.exit(1);
     }
     const result = runOrchestrateCli(parsed);
@@ -131,7 +148,10 @@ function main()       {
   // Fail-safe: any handler/state IO failure for the remaining events must not
   // block codex. Swallow the error, emit nothing, and exit 0.
   try {
-    if (event === "user-prompt-submit") {
+    if (event === "session-start") {
+      const payload = parseSessionStart(raw);
+      if (payload) output = handleSessionStart(payload); // side-effect only; always ""
+    } else if (event === "user-prompt-submit") {
       const payload = parseUserPromptSubmit(raw);
       if (payload) output = handleUserPromptSubmit(payload);
     } else if (event === "stop") {

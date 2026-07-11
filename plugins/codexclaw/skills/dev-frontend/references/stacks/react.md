@@ -19,6 +19,9 @@ Before choosing component libraries, read the core references that match the sur
 Prefer proven behavior primitives for complex interactive components:
 
 - Radix / Headless UI for dialog, popover, menu, tabs, combobox-like behavior
+- The project dropdown design layer (`references/core/dropdown-layer.md`
+  FE-DROPDOWN-LAYER-01) supplies the SKIN over these primitives; the skin never
+  replaces the primitive
 - shadcn/ui as source code scaffolding, not as a final visual design
 - Existing repo components before adding a new dependency
 

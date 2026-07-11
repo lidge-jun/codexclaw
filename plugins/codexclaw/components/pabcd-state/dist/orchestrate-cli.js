@@ -5,8 +5,8 @@
  * `--attest` evidence to advance a forward edge.
  *
  * Shares the SAME `.codexclaw/sessions/<id>.json` state as the hook — but only when
- * the same session id is used. A mutating call therefore requires `--session` (or an
- * existing session to target); it never silently invents a divergent session.
+ * the same session id is used. A mutating call therefore requires explicit
+ * `--session`; it never silently invents or selects a divergent session.
  *
  * Structural argv parsing (NOT the prompt grammar): verb is argv[0]; `--attest` takes
  * the NEXT single argv token as the exact JSON string (the shell already quoted it).
@@ -46,11 +46,66 @@ const VERBS                                            = {
 
 
 
+
+
+
+
+
+
+
+
+
+function isHelpToken(value                    )          {
+  return value === "help" || value === "--help" || value === "-h";
+}
+
+function readFlagValue(argv          , name        )                     {
+  const idx = argv.indexOf(name);
+  return idx >= 0 ? argv[idx + 1] : undefined;
+}
+
+export function renderOrchestrateHelp()         {
+  return [
+    "cxc orchestrate — agent-gated IPABCD phase control",
+    "",
+    "Usage:",
+    "  cxc orchestrate <I|P|A|B|C|D|status|reset> [--session <id>] [--attest <json>] [--cwd <path>] [--json]",
+    "  cxc orchestrate --help",
+    "",
+    "Phases:",
+    "  IDLE -> P -> A -> B -> C -> D -> IDLE",
+    "  I can be entered from IDLE/P/A/B/C/D to clarify requirements.",
+    "  D is a closing action; the resting state after D is IDLE.",
+    "",
+    "Agent safety:",
+    "  Mutating verbs (I/P/A/B/C/D/reset) require explicit --session <id>.",
+    "  Use your current SessionStart id, or the reserved terminal key 'cli'.",
+    "  status is read-only and may use the latest-session fallback when --session is omitted.",
+    "",
+    "Attestation examples:",
+    "  cxc orchestrate A --session <id> --attest '{\"from\":\"P\",\"to\":\"A\",\"did\":\"wrote and audited the plan\"}'",
+    "  cxc orchestrate B --session <id> --attest '{\"from\":\"A\",\"to\":\"B\",\"did\":\"audit passed\",\"auditOutput\":\"VERDICT: PASS\",\"auditVerdict\":\"pass\"}'",
+    "  cxc orchestrate D --session <id> --attest '{\"from\":\"C\",\"to\":\"D\",\"did\":\"verified\",\"checkOutput\":\"tests passed\",\"exitCode\":0}'",
+    "",
+    "Status:",
+    "  cxc orchestrate status --session <id>",
+    "  cxc orchestrate status --session <id> --json",
+  ].join("\n");
+}
+
 /** Structural argv parse. argv excludes the `orchestrate` kind token. */
-export function parseOrchestrateCliArgs(argv          , cwd        )                                     {
+export function parseOrchestrateCliArgs(argv          , cwd        )                       {
+  if (argv.length === 0 || argv.some(isHelpToken)) return { help: true, cwd };
+
   const verbTok = (argv[0] ?? "").toLowerCase();
   const verb = VERBS[verbTok];
-  if (!verb) return { error: `unknown orchestrate verb '${argv[0] ?? ""}' (expected I|P|A|B|C|D|status|reset)` };
+  if (!verb) {
+    return {
+      error: `unknown orchestrate verb '${argv[0] ?? ""}' (expected I|P|A|B|C|D|status|reset); run cxc orchestrate --help`,
+      session: readFlagValue(argv, "--session"),
+      cwd: readFlagValue(argv, "--cwd") ?? cwd,
+    };
+  }
 
   let attest                     = null;
   let attestError                    ;
@@ -118,18 +173,34 @@ function sessionFileExists(cwd        , sessionId        )          {
   return existsSync(join(cwd, STATE_DIR, SESSIONS_SUBDIR, `${sessionId}.json`));
 }
 
+function renderPhaseContext(state       , sessionId        )         {
+  return `current=${state.phase} session=${sessionId}`;
+}
+
 function renderStatus(state       , json         )         {
   if (json) return JSON.stringify({ phase: state.phase, flags: state.flags, sessionId: state.sessionId });
-  return `phase=${state.phase} interview=${state.flags.interview} auditPassed=${state.flags.auditPassed} checkPassed=${state.flags.checkPassed}`;
+  return `session=${state.sessionId} phase=${state.phase} interview=${state.flags.interview} auditPassed=${state.flags.auditPassed} checkPassed=${state.flags.checkPassed}`;
+}
+
+export function renderOrchestrateParseError(error               )         {
+  if (error.session && sessionFileExists(error.cwd, error.session)) {
+    const state = readState(error.cwd, error.session);
+    return `orchestrate: ${renderPhaseContext(state, error.session)}; ${error.error}`;
+  }
+  return `orchestrate: ${error.error}`;
 }
 
 
 
 /** Execute a parsed orchestrate CLI command. Does its own state IO. Never throws. */
-export function runOrchestrateCli(args                    )            {
+export function runOrchestrateCli(args                                             )            {
+  if ("help" in args) return { code: 0, output: renderOrchestrateHelp() };
+
   // malformed --attest is a hard error before any state mutation (except control verbs).
   if (args.attestError && args.verb !== "status" && args.verb !== "reset") {
-    return { code: 1, output: `orchestrate ${args.verb}: ${args.attestError}` };
+    const sessionIdForError = args.session && sessionFileExists(args.cwd, args.session) ? args.session : null;
+    const context = sessionIdForError ? `${renderPhaseContext(readState(args.cwd, sessionIdForError), sessionIdForError)}; ` : "";
+    return { code: 1, output: `orchestrate ${args.verb}: ${context}${args.attestError}` };
   }
 
   const sessionId = resolveSession(args.cwd, args.session);
@@ -175,19 +246,19 @@ export function runOrchestrateCli(args                    )            {
   // reset: control override (same cleared-IDLE write as the human path).
   if (args.verb === "reset") {
     const res = applyHumanTransition(state, "reset");
-    if (res.noop) return { code: 0, output: `orchestrate reset: already IDLE (session ${sessionId})` };
+    if (res.noop) return { code: 0, output: `orchestrate reset: ${renderPhaseContext(state, sessionId)}; already IDLE` };
     if (res.state) {
       writeState(args.cwd, { ...res.state, orchestrationActive: false, lastInjectedPhase: null, stopBlockPhase: null, stopBlockCount: 0 });
       if (res.ledger) appendLedger(args.cwd, res.ledger);
     }
-    return { code: 0, output: `orchestrate reset: → IDLE (session ${sessionId})` };
+    return { code: 0, output: `orchestrate reset: current=${state.phase} -> IDLE (session ${sessionId})` };
   }
 
   // phase verb: AGENT-GATED via the un-weakened transition().
   const to = args.verb         ;
   const result = transition(state, to, args.attest);
   if (!result.ok || !result.state) {
-    return { code: 1, output: `orchestrate ${args.verb}: ${result.reason ?? "transition refused"}` };
+    return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${result.reason ?? "transition refused"}` };
   }
 
   // G1 (L20): D is a CLOSING transition, not a resting badge. Once the C->D attest
@@ -232,7 +303,7 @@ export function runOrchestrateCli(args                    )            {
         // FAIL-OPEN: goalplan advance failure must not block the D-close.
       }
     }
-    return { code: 0, output: `orchestrate D: ${state.phase} → IDLE (cycle closed, session ${sessionId})` };
+    return { code: 0, output: `orchestrate D: current=${state.phase} -> IDLE (${state.phase} → IDLE, cycle closed, session ${sessionId})` };
   }
 
   // L6: a real CLI transition is progress -> reset the Stop stagnation guard.
@@ -248,5 +319,5 @@ export function runOrchestrateCli(args                    )            {
     reason: "cli",
     ...(args.attest?.did ? { evidence: args.attest.did } : {}),
   });
-  return { code: 0, output: `orchestrate ${args.verb}: ${state.phase} → ${result.state.phase} (session ${sessionId})` };
+  return { code: 0, output: `orchestrate ${args.verb}: current=${state.phase} -> ${result.state.phase} (${state.phase} → ${result.state.phase}, session ${sessionId})` };
 }

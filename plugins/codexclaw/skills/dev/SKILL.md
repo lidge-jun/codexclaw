@@ -114,6 +114,8 @@ phase's real work; never rubber-stamp a phase to advance. Work-phases chain
 HETEROGENEOUS units: a completely different feature or "the next plan" is simply the
 next cycle at P in the SAME session (`cxc-loop` LOOP-UNIT-CHAIN-01) — "needs its own
 PABCD" never means ending the goal or waiting for a new session.
+Every phase move is a real `cxc orchestrate <phase> --attest` transition — a narrated
+phase without its persisted edge did not happen (ORCH-MANDATE-01, canonical in `cxc-loop`).
 
 When any PABCD workflow enters divergence mode (HITL or goal mode; see `cxc-loop`),
 keep the user question honest. The archive may require N>=2 candidates, but the

@@ -1,5 +1,5 @@
 // codexclaw manifest + skill-policy + role-config coverage (node:test, .mjs).
-// Closes WP0 audit gaps: S3 implicit-invocation policy (only `dev` is implicit),
+// Closes WP0 audit gaps: S3 implicit-invocation policy (pinned implicit set),
 // S5 role TOML validity, and L3 PreToolUse goal-budget hook manifest registration.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -44,11 +44,18 @@ test("skill SKILL.md frontmatter carries no forbidden fields (license/keywords)"
   assert.deepEqual(offenders, [], `forbidden frontmatter fields found:\n${offenders.join("\n")}`);
 });
 
-// Implicit set after 2026-07-05 consolidation: dev + 5 lightweight workflow skills.
-// skill-hub merged into dev; all dev-* routers stay on-demand.
-const IMPLICIT_SET = ["dev", "interview", "loop", "pabcd", "recall", "search"];
+// Implicit set after 2026-07-05 consolidation (dev + 5 lightweight workflow skills;
+// skill-hub merged into dev) and the 2026-07-09 design expansion (dev-frontend +
+// dev-uiux-design go implicit so anti-slop design grammar reaches every
+// UI-generating session without relying on DEV-ROUTE-01 routing).
+const IMPLICIT_SET = [
+  "dev", "dev-frontend", "dev-uiux-design",
+  "interview", "loop", "pabcd", "recall", "search",
+];
+// dev-* routers allowed to be implicit (design-surface exception).
+const IMPLICIT_DEV_ROUTERS = new Set(["dev-frontend", "dev-uiux-design"]);
 
-test("S3: implicit set is exactly {dev,+6}; all dev-* routers are on-demand", () => {
+test("S3: implicit set is exactly {dev,+7}; other dev-* routers are on-demand", () => {
   const skillsDir = join(pluginRoot, "skills");
   const implicit = [];
   for (const name of readdirSync(skillsDir)) {
@@ -62,7 +69,9 @@ test("S3: implicit set is exactly {dev,+6}; all dev-* routers are on-demand", ()
   }
   assert.deepEqual(implicit.sort(), IMPLICIT_SET, `implicit set mismatch, got: ${implicit.join(",")}`);
   for (const name of implicit) {
-    assert.ok(!name.startsWith("dev-"), `dev-* router ${name} must stay on-demand`);
+    if (name.startsWith("dev-")) {
+      assert.ok(IMPLICIT_DEV_ROUTERS.has(name), `dev-* router ${name} must stay on-demand`);
+    }
   }
 });
 

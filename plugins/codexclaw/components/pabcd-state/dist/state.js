@@ -1,4 +1,5 @@
-import { mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync, linkSync, rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import {                        reconstructInterview, normalizeInterview, isInterviewReady } from "./interview.js";
 
@@ -59,6 +60,15 @@ export function sanitizeKey(value        )         {
   return sanitized.length > 0 ? sanitized : "missing";
 }
 
+/**
+ * SessionStart must bind the exact identity that later `orchestrate --session`
+ * looks up. Reject values that state-path sanitization would rewrite so the
+ * bootstrap cannot publish a state file under a different or colliding key.
+ */
+export function isCanonicalSessionId(value        )          {
+  return value.length > 0 && sanitizeKey(value) === value;
+}
+
 export function defaultState(sessionId        , slug = "")        {
   return {
     phase: "IDLE",
@@ -82,6 +92,39 @@ function sessionsDir(cwd        )         {
 
 function statePath(cwd        , sessionId        )         {
   return join(sessionsDir(cwd), `${sanitizeKey(sessionId)}.json`);
+}
+
+/**
+ * Materialize a fresh Codex session without resetting a resumed one.
+ *
+ * The complete default is written beside the final path before an exclusive hard
+ * link publishes it. `linkSync` is atomic at the destination: concurrent
+ * SessionStart hooks race safely, and an existing valid OR corrupt file is never
+ * normalized or overwritten here. Later FSM mutations continue to own recovery
+ * through readState/writeState.
+ */
+export function ensureState(cwd        , sessionId        )          {
+  if (!isCanonicalSessionId(sessionId)) {
+    throw new TypeError("sessionId must be a canonical state key");
+  }
+  const dir = sessionsDir(cwd);
+  mkdirSync(dir, { recursive: true });
+  const finalPath = statePath(cwd, sessionId);
+  const tmp = `${finalPath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(tmp, JSON.stringify(defaultState(sessionId), null, 2), { flag: "wx" });
+    try {
+      linkSync(tmp, finalPath);
+      return true;
+    } catch (err) {
+      if (err && typeof err === "object" && "code" in err && err.code === "EEXIST") {
+        return false;
+      }
+      throw err;
+    }
+  } finally {
+    rmSync(tmp, { force: true });
+  }
 }
 
 export function readState(cwd        , sessionId        )        {
@@ -114,7 +157,7 @@ export function readState(cwd        , sessionId        )        {
         typeof parsed.lastInjectedPhase === "string" && PHASES.includes(parsed.lastInjectedPhase         )
           ? (parsed.lastInjectedPhase         )
           : null,
-      orchestrationActive: parsed.orchestrationActive === true,
+      orchestrationActive: parsed.phase === "IDLE" ? false : parsed.orchestrationActive === true,
       interview: reconstructInterview(parsed.interview),
       // L6: strict reconstruction of the stagnation-guard fields (default-safe so an
       // old session file without them reads as a fresh counter).

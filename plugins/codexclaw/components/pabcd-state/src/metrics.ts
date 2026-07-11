@@ -205,7 +205,9 @@ export function checkObjectivePlateau(
   const records = readObjectiveMetrics(cwd, sessionId);
   const latest = records.at(-1);
   if (!latest) return { flat: false, metricName: null, values: [] };
-  const sameMetric = records.filter((r) => r.metricName === latest.metricName);
+  const sameMetric = records.filter(
+    (r) => r.metricName === latest.metricName && r.workPhaseId === latest.workPhaseId,
+  );
   const window = sameMetric.slice(-minRecords);
   const values = window.map((r) => r.value);
   if (window.length < minRecords) return { flat: false, metricName: latest.metricName, values };

@@ -96,6 +96,9 @@ There is no build/execute path out of Interview — the only forward move is Pla
 the readiness gate passes, unless the human explicitly overrides (override is recorded as an
 audit entry). `proceed` means "advance to Plan", not permission to implement; the evolving
 plan/devlog stay draft interview artifacts until then.
+A chosen `proceed` executes as a real transition — `cxc orchestrate P --session <id>` (or the
+chat free-pass `orchestrate p`) — never as narration alone: a "moving to Plan" sentence without
+the persisted I->P edge is not Plan entry (ORCH-MANDATE-01, canonical in `cxc-loop`).
 
 ## Runtime Status (shipped)
 
@@ -113,6 +116,17 @@ The interview runtime is shipped, not planned:
   so the main session runs the contradiction-rescan loop: select Minds, dispatch
   read-only contradiction lenses, triage (high -> ask the user; low/medium -> recorded
   assumption), then ask the user to proceed or keep interviewing.
+- Mind spawn shape (MIND-SPAWN-SHAPE-01): dispatch each Mind as `agent_type "explorer"`,
+  `task_name mind_<mindname>`, and a NON-full-history fork (V2 `fork_turns:"none"`; V1 omits
+  `fork_context`) — a full-history fork rejects model/effort overrides upstream AND skips the
+  `.codexclaw/subagents.json` role-config injection. Mind lenses ride the **explorer** role
+  config: pin lens strength with `cxc subagents set explorer --effort <low|medium|high|xhigh>`
+  (or pass `reasoning_effort` explicitly); omitted fields inherit the parent session. Known
+  caveat: role inference is keyword-based, so a packed snapshot containing review words
+  ("review"/"검증"/"검토") can route the reviewer role's config instead — harmless (it only
+  changes which configured model applies). Minds are stateless: pack the lens prompt plus a
+  compact interview snapshot (dimension scores, knowns, open assumptions, draft plan path)
+  into each task message.
 - Readiness gating requires recorded scan evidence (`scanRounds >= 1`) before I -> P.
 
 Goal firewall: the whole Interview is suppressed under an active goal — the explicit

@@ -170,8 +170,8 @@ function goalCompleteDenyEnvelope(reason: string): string {
  *     unregistered plan cannot certify completion.
  *
  * `status:"blocked"` (and every non-complete update) always passes: that is the honest
- * escape hatch for external blockers. FAIL-OPEN: any read/parse error returns "" — this
- * is an anti-laziness gate, not a security boundary, and must never trap a session.
+ * escape hatch for external blockers. A missing/malformed session-bound goalplan denies
+ * completion; unexpected errors still fail open so this gate never traps a session.
  * Forensics: sessions 019f4407 (goal completed with a self-listed REMAINING queue) and
  * 019f4456 (empty goalplan would have rubber-stamped validate).
  */
@@ -197,6 +197,10 @@ export function applyGoalCompleteGuard(payload: PreToolUsePayload): string {
             `GOAL-COMPLETE-GATE-01: the session-bound goalplan '${state.slug}' fails the E8 quality gate: ${reasons}. Finish the remaining work and record fresh capturedEvidence in .codexclaw/goalplans/${state.slug}/goalplan.json (check with \`cxc loop validate --slug "${state.slug}"\`), or use update_goal status "blocked" if an external blocker prevents completion. Do not shrink the objective to escape the gate (LOOP-CONTINUE-01).`,
           );
         }
+      } else {
+        return goalCompleteDenyEnvelope(
+          `GOAL-COMPLETE-GATE-01: session has a bound goalplan slug '${state.slug}' but the plan could not be read (missing or malformed). Restore the goalplan or use update_goal status "blocked".`,
+        );
       }
     }
     return "";
