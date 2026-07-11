@@ -89,7 +89,8 @@ agent discipline that makes later audit possible.
   the un-weakened gated `transition()`. An agent MUST supply real `--attest` evidence to
   advance; `A>B` additionally needs `auditOutput` (reviewer verdict tail) + `auditVerdict`
   (`pass|near-pass|fail`; `near-pass` also needs `auditResidual`) and `C>D`
-  additionally needs `checkOutput` + a passing `exitCode`. Mutating verbs
+  additionally needs a non-empty `checkOutput`; `exitCode` is optional but, when
+  supplied, must be `0`. Mutating verbs
   (I/P/A/B/C/D/reset) REQUIRE the explicit `--session <id>` (your own session id from
   the SessionStart context line, or the terminal key `cli`) — the implicit
   latest-session fallback is write-disabled, closing the ACCIDENTAL cross-session

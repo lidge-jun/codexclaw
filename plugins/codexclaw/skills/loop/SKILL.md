@@ -24,9 +24,12 @@ for EVERY loop entry or re-entry:
 3. Arm the mode: HOTL -> `create_goal` + `cxc loop init` + goalplan registration +
    `cxc orchestrate P --session <id>`; HITL -> `cxc orchestrate I|P --session <id>`
    (or the human chat free-pass).
-4. Advance every forward edge with `cxc orchestrate <phase> --attest <json>` carrying
-   the phase's real artifact (ORCH-ARTIFACT-01). A phase without its persisted
-   transition did not happen — the footer/ledger is the only proof of phase.
+4. Advance the four gated work edges (P>A, A>B, B>C, C>D) with
+   `cxc orchestrate <phase> --attest <json>` carrying the phase's real artifact
+   (ORCH-ARTIFACT-01). Entry edges (IDLE→P, I→P) are explicit commands without an
+   attest JSON — the shipped gate (`dist/attest.js` GATED_TRANSITIONS) gates exactly
+   those four. A phase without its persisted transition did not happen — the
+   footer/ledger is the only proof of phase.
 5. After a D close with work remaining under an active goal, immediately run
    `cxc orchestrate P --session <id>` for the next work-phase.
 
@@ -71,7 +74,8 @@ remain yours to run.
   automatically — the Stop hook only blocks premature termination so the agent does
   this; it never re-enters `P` for you (see Stop-continuation below).
 - There is no I -> P auto-advance. The agent advances every phase, including I -> P,
-  by running the explicit `cxc orchestrate <phase> --attest` command. The hook does
+  by running the explicit `cxc orchestrate <phase>` command — the four work edges
+  carry `--attest`; entry edges need no attest JSON. The hook does
   not move phases AUTONOMOUSLY. (It does persist a transition when the agent submits an
   explicit chat `orchestrate <verb>` command — that is the agent acting, not the hook
   advancing on its own. Nothing transitions without an explicit agent/CLI command.)
@@ -144,6 +148,9 @@ external processes inside a loop:
   the user informed each cycle.
 - If a reviewer/worker has produced nothing after ~3 wait cycles, treat it as
   a failed dispatch (DISPATCH-RETIRE-01) rather than waiting silently forever.
+  That retirement CONSUMES the DISPATCH-RETIRE-01 same-agent retry: go straight
+  to a fresh spawn with the failure folded into the new packet — the silent
+  agent does not get a second retry.
 
 ## Speculative dispatch (DISPATCH-SPECULATE-01, HEURISTIC)
 
