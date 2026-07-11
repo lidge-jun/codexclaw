@@ -354,3 +354,37 @@ Is the data source external (HTTP, file, queue, DB, user input)?
     YES -> Validate (defense in depth)
     NO  -> Trust the type system, no validation needed
 ```
+
+---
+
+## Structural Index Concept (ARCH-INDEX-01, DEFAULT)
+
+Source: sol research (wednesday-solutions/ai-agent-skills AST dependency graph).
+
+Instead of reconstructing a module map for every task, maintain a lightweight
+structural index that agents can query:
+
+- Use `cxc map <dir>` for on-demand symbol-level maps (already shipped).
+- For larger repos, consider a persistent dependency graph artifact (e.g.,
+  `dependency-cruiser` JSON, Nx project graph, or a custom SQLite index).
+- The index should track: module → exports, module → imports, symbol → callers.
+- Freshness: re-generate on significant structural changes (new modules, moved files).
+- Query before editing: "what depends on this module?" should be answerable from
+  the index without a full codebase scan.
+
+This is a guidance concept, not a shipped tool. The agent should check for existing
+index artifacts before running ad-hoc scans.
+
+## Architecture Conformance Tests (ARCH-CONFORMANCE-01, DEFAULT)
+
+Source: sol research (HoangNguyen0403/agent-skills-standard compliance auditing).
+
+Architecture rules that exist only as prose are invisible to CI. For C3+ work
+where boundary violations would cause real harm:
+
+- Generate tool-specific configs from architecture decisions (dependency-cruiser
+  rules, ESLint boundaries plugin, Nx enforce-module-boundaries, Go `depguard`).
+- Include at least one allowed-edge and one forbidden-edge test fixture.
+- The CI gate should FAIL on new violations while allowing a baselined set of
+  legacy violations (ratcheting: new cycles fail, old ones are migrated).
+- Return a machine-readable report (JSON or SARIF) that agents can consume.

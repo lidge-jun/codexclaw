@@ -331,3 +331,40 @@ Environment?
         |
         +-- No jaw? --> HTML file --> open command
 ```
+
+## Render Verification (DIAGRAM-RENDER-VERIFY-01, DEFAULT)
+
+Source: sol research (dev-skill reinforcement audit, Euler findings).
+
+Every diagram or visualization delivered to the user must be verified as
+non-blank and correctly rendered:
+
+1. After generating the HTML/SVG output, open it in a browser (in-app browser
+   or headless screenshot).
+2. Capture a screenshot and inspect it with `view_image`.
+3. Verify: the canvas/SVG is non-blank, text is readable, no rendering errors.
+4. For interactive visualizations (Three.js, p5.js, Chart.js): verify the
+   initial state renders correctly; interaction verification is optional.
+
+Do not claim a diagram is correct from source inspection alone. Static
+analysis confirms well-formed files; it does not prove visual correctness.
+
+## Syntax Validation (DIAGRAM-SYNTAX-01, DEFAULT)
+
+Before rendering, validate syntax where tooling exists:
+- Mermaid: `npx @mermaid-js/mermaid-cli parse` or equivalent
+- SVG: XML well-formedness check
+- HTML templates: `bash -n` for shell scripts, basic markup validation
+- Chart.js/ECharts: JSON schema validation of config objects
+
+Catch syntax errors before the user sees a blank page.
+
+## Accessibility Contract (DIAGRAM-A11Y-01, DEFAULT)
+
+Diagrams and visualizations must be accessible:
+- Every `<svg>` has a `<title>` and `<desc>` (or `aria-label`)
+- Charts have text alternatives (data table, `aria-label`, or caption)
+- Interactive elements are keyboard-navigable
+- Color is not the sole information channel (use patterns, labels, or shapes)
+- Respect `prefers-reduced-motion` for animated visualizations
+- Provide sufficient contrast for text and important visual elements

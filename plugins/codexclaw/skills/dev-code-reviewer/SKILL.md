@@ -443,3 +443,44 @@ parallel agent swarm needed). E7 discipline.
    alone is not safety; a passing regression test is.
 
 ---
+
+## Changed-File Coverage Ledger (REVIEW-COVERAGE-01, DEFAULT)
+
+Source: sol research (alibaba/open-code-review, Agent-Field/pr-af).
+
+Every review must account for ALL changed files. Before issuing a verdict:
+
+1. List every file in the diff.
+2. Mark each as: `reviewed`, `skipped (reason)`, or `out-of-scope (reason)`.
+3. A verdict with unaccounted files is incomplete.
+
+Skipping is allowed for: generated files, lock files, vendored dependencies,
+binary assets, and files outside the reviewer's domain expertise. State the skip
+reason; do not silently ignore files.
+
+## Finding Falsification (REVIEW-FALSIFY-01, DEFAULT)
+
+Source: sol research (Agent-Field/pr-af explicit falsification pass).
+
+Before reporting a finding, attempt to disprove it:
+
+1. State the finding as a testable claim.
+2. Search for evidence that contradicts the claim (existing tests, guard
+   conditions, caller context, documentation).
+3. If contradicting evidence exists, downgrade or retract the finding.
+4. If no contradicting evidence is found, the finding stands.
+
+Findings that survive falsification carry higher confidence. Findings reported
+without a falsification attempt should be marked `unverified`.
+
+## Interdiff Re-Review (REVIEW-INTERDIFF-01, DEFAULT)
+
+Source: sol research (coderabbitai/ai-pr-reviewer interdiff model).
+
+When re-reviewing after the author addressed feedback:
+
+1. Review ONLY the changes since the previous review (interdiff).
+2. Preserve unresolved findings from the previous round.
+3. Verify that each addressed finding is actually fixed (not just acknowledged).
+4. New findings in the interdiff follow the normal review process.
+5. Do not re-review unchanged code unless a cross-file dependency changed.

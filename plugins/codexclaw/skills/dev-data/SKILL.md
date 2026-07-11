@@ -374,3 +374,36 @@ Data engineering does not exist in isolation. Cross-reference these skills when 
 - Data contract changes (§4 Data Contracts) must notify downstream consumers including frontend teams
 
 ---
+
+## Data Change Review Checklist (DATA-REVIEW-01, DEFAULT)
+
+Source: sol research (dev-skill reinforcement audit, Euler findings).
+
+When reviewing or implementing changes that affect data pipelines, schemas,
+or data stores, check these domain-specific concerns:
+
+### Schema Changes
+- [ ] Is the change backward-compatible? (additive fields, optional columns)
+- [ ] Are existing consumers updated or tolerant of the new schema?
+- [ ] Is there a migration path for existing data?
+- [ ] Are destructive changes (DROP, RENAME, type narrowing) reversible?
+- [ ] Is the schema change tested with representative production-scale data?
+
+### Pipeline Changes
+- [ ] Are late/out-of-order events handled correctly?
+- [ ] Is the pipeline idempotent for replays?
+- [ ] Are timezone/DST transitions handled (especially for daily aggregations)?
+- [ ] Is numeric precision preserved across transforms (float → decimal)?
+- [ ] Are nondeterministic transforms (sampling, shuffling) reproducible with seeds?
+
+### Quality Gates
+- [ ] Is there a before/after reconciliation report (row counts, checksums)?
+- [ ] Are null/missing value rates within expected bounds?
+- [ ] Are downstream consumers notified of schema or semantic changes?
+- [ ] Is the blast radius documented (which dashboards, models, exports break)?
+
+### Backfill Safety
+- [ ] Is the backfill cost estimated (compute, I/O, lock duration)?
+- [ ] Is there a rollback plan for partial backfill failure?
+- [ ] Are concurrent writes handled during backfill?
+- [ ] Is the backfill window documented and approved?
