@@ -197,7 +197,8 @@ background" or "PNG with alpha" yields checkerboard artifacts or solid fills.
 **Every cutout asset** (icons, product shots, 3D objects, illustrations, stickers,
 UI elements that float over arbitrary backgrounds) MUST use the solid-background-
 then-remove pipeline. Full rules and recipes: `asset-requirements.md` § Asset
-Background Strategy.
+Background Strategy. If ima2 is installed, load the full asset reference with
+`ima2 skill front ref asset-requirements`.
 
 **Quick reference — generation template:**
 

@@ -440,7 +440,9 @@ or programmatic removal only (no Canvas Mode).
 the prompt. The model produces fake checkerboard burned into the image.
 
 Full pipeline reference: `dev-frontend/references/core/asset-requirements.md`
-§ Asset Background Strategy (FE-ASSET-BG-01).
+§ Asset Background Strategy (FE-ASSET-BG-01). If ima2 is installed, load
+the full asset reference via `ima2 skill front ref asset-requirements`
+or the design-ism reference via `ima2 skill uiux ref design-isms`.
 
 ## 3. Korean Design Vocabulary + Quick-Match + Font Selection
 
