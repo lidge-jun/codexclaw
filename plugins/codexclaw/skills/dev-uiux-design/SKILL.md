@@ -220,6 +220,40 @@ Inference rules:
 
 "복잡하다" = high DESIGN_VARIANCE is WRONG. Complexity means more features/data/flows, not more visual tricks (carousels, parallax, animations).
 
+### Dial Presets (FE-DIAL-PRESET-01, STYLE_SAMPLE)
+
+Source: taste-skill v2 (62k stars). Exact tuples for common use cases — use these
+as starting points, then adjust from the Design Read.
+
+| Use case | V | M | D | Notes |
+|----------|---|---|---|-------|
+| Landing (SaaS mainstream) | 7 | 6 | 4 | |
+| Landing (Agency/creative) | 9 | 8 | 3 | |
+| Landing (Premium consumer) | 7 | 6 | 3 | |
+| Portfolio (Designer/studio) | 8 | 7 | 3 | |
+| Portfolio (Developer) | 6 | 5 | 4 | |
+| Editorial / Blog | 6 | 4 | 3 | |
+| Public-sector service | 3 | 2 | 5 | |
+| Dashboard / SaaS admin | 3 | 2 | 6 | density D4-D5 |
+| Finance / ops | 2 | 1 | 7 | density D6-D7 |
+| Game | 8 | 7 | 4 | domain-specific |
+| Korean consumer app | 5 | 4 | 5 | CJK density |
+
+**Redesign arithmetic** (DEFAULT):
+- Preserve redesign: V = match existing, M = match + 1, D = match existing
+- Overhaul redesign: V = existing + 2, M = existing + 2, D = match existing
+- "Complex" in brief: increase density (D), NOT variance or motion
+
+**Audience-first ownership** (UX-AUDIENCE-01, DEFAULT):
+The audience picks the aesthetic, not the model's taste. When audience signal
+and model preference conflict, audience wins. The dial presets above encode
+audience expectations — a public-sector audience expects trust-first restraint;
+an agency audience expects high variance. Override with stated rationale only.
+
+**Motion honesty** (FE-MOTION-HONESTY-01, DEFAULT, pointer to motion.md):
+If MOTION_INTENSITY > 4, the shipped page must actually move. A declared dial
+without matching motion output is a lie. See dev-frontend/references/core/motion.md.
+
 ### Anti-Default Discipline
 Do not default to: warm beige backgrounds, centered hero, three equal feature cards, generic glassmorphism, Inter + slate-900, card-based everything. These are LLM defaults. Reach past them BASED ON the design read.
 When no brief exists at all, the sanctioned replacement for these generic

@@ -132,3 +132,23 @@ never means one blanket component.
 - [ ] Keyboard reaches every interactive element
 - [ ] VoiceOver heading navigation produces logical outline
 - [ ] Color is never the sole state indicator
+
+---
+
+## Heading Level Continuity (FE-HEADING-LEVELS-01, DEFAULT)
+
+Source: impeccable detector catalog (skipped heading levels rule).
+
+Do not skip heading levels: `h1` -> `h3` without an `h2` is a semantic error
+that breaks screen reader navigation and document outline.
+
+Rules:
+- Every page has exactly one `h1`.
+- Heading levels increase by one: `h1` -> `h2` -> `h3`. Never skip.
+- Heading levels may decrease by any amount (closing a subsection).
+- Visual size is independent of semantic level — use CSS, not heading tags, for size.
+- Components that render headings should accept a `level` prop or use `aria-level`
+  to maintain correct nesting in any context.
+
+Verification: run `document.querySelectorAll('h1,h2,h3,h4,h5,h6')` and check
+that levels increase by at most 1. Automated: axe-core `heading-order` rule.

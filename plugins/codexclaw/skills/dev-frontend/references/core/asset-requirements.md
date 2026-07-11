@@ -429,3 +429,78 @@ ima2 gen "Use case: stylized-concept. Asset type: hero background for device moc
 ima2 gen "Use case: stylized-concept. Asset type: user avatar. Friendly stylized portrait of a young professional, neutral expression, looking slightly left. Flat illustration style with subtle shadows. Solid #e5e7eb background. Circular crop safe. No text." \
   --quality medium --size 512x512 -o avatar.png
 ```
+
+---
+
+## Image-Set Continuity (FE-IMAGE-SET-CONTINUITY-01, DEFAULT)
+
+Source: taste-skill imagegen-frontend-web (62k stars), adapted for codexclaw ima2 workflow.
+
+Multi-image sets for landing/marketing pages must maintain visual-world continuity
+across all frames. A viewer flipping through every per-section frame must still
+recognize one brand — anything that breaks brand recall is over-variation.
+
+### Frame-count defaults
+
+| Request type | Sections | Frames |
+|-------------|----------|--------|
+| Hero only | 1 | 1 |
+| Landing page | 6 | 6 |
+| Full website | 8 | 8 |
+| Marketing site | 8 | 8 |
+| Product page | 6 | 6 |
+| Portfolio | 6 | 6 |
+
+Generate one separate horizontal image (16:9 or 21:9) per section. Each image
+is one section, generated as its own ima2 call. Use `--ref` to the first frame
+as style anchor for subsequent frames.
+
+### Continuity contract (enforce across all frames)
+
+- Same brand world, palette, and accent logic
+- Same type-scale logic and spacing discipline
+- Same CTA family (style variations fine, identity changes not)
+- Same icon/illustration mood and image treatment (grade, framing, material)
+- Same tonal language in copy
+- Same border-radius language
+
+### Allowed variation
+
+- Composition anchor (MUST vary — see FE-IMAGE-ANCHOR-ROTATION-01)
+- Background mode (solid, full-bleed photo, duotone, atmospheric)
+- Section size and density
+- Placement of the single second-read moment
+
+---
+
+## Image Anchor Rotation (FE-IMAGE-ANCHOR-ROTATION-01, DEFAULT)
+
+Source: taste-skill imagegen-frontend-web, adapted for codexclaw UX-CONCEPT-GEN-01.
+
+### Composition anchors (pick one per section)
+
+- Centered statement
+- Top-left lead, support bottom-right
+- Bottom-left text over background image
+- Bottom-right CTA cluster
+- Left-third caption + right-two-thirds visual
+- Right-third caption + left-two-thirds visual
+- Centered low
+- Off-grid editorial offset
+- Stacked center
+- Image-as-canvas with text overlaid in clean safe area
+
+### Rotation rules
+
+- At least 3 different anchors must appear across a multi-section set.
+- Same anchor cannot repeat more than 2 sections in a row.
+- Same background mode cannot repeat more than 3 sections in a row.
+- The classic left-third/right-two-thirds anchor: sparingly, never twice in a row.
+- Non-minimalist sites must include at least one full-bleed/duotone/atmospheric
+  background AND at least one mini-minimalist section.
+
+### Application to UX-CONCEPT-GEN-01
+
+In the 5-render concept pass, each render MUST vary the composition anchor.
+Repetitive same-layout renders are wasted candidates. The element ledger
+(step 3) must cite WHICH variant used which anchor and which was best.

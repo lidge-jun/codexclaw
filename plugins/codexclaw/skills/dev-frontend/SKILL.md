@@ -458,6 +458,18 @@ If YES to any: use the official package. Do not recreate CSS by hand.
 | Fluent | @fluentui/react | `import { Button } from '@fluentui/react-components'` |
 | GOV.UK | govuk-frontend | `import 'govuk-frontend/dist/govuk/all.scss'` |
 | USWDS | @uswds/uswds | `import '@uswds/uswds/css/uswds.css'` |
+| Polaris | @shopify/polaris | `import { Button } from '@shopify/polaris'` |
+| Atlaskit | @atlaskit/* | `import { Button } from '@atlaskit/button'` |
+| Primer | @primer/react | `import { Button } from '@primer/react'` |
+| Radix | @radix-ui/themes | `import { Button } from '@radix-ui/themes'` |
+| Bootstrap | bootstrap | `import 'bootstrap/dist/css/bootstrap.css'` |
+
+**Aesthetic honesty (FE-AESTHETIC-HONESTY-01, DEFAULT):** Glassmorphism, Bento,
+Brutalism, Editorial/magazine, Dark tech/hacker, Aurora/mesh gradients, Kinetic
+typography, and Apple Liquid Glass are aesthetic directions, NOT official design
+systems. Never present a CSS approximation of these aesthetics as if it were an
+official system with components and tokens. "One system per project" — do not
+import a system's tokens and override 90%% of them. Source: taste-skill v2.
 
 If NO: proceed with `dev-uiux-design/references/design-system-bootstrap.md`.
 

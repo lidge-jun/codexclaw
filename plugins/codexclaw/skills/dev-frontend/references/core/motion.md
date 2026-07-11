@@ -1070,3 +1070,26 @@ addEventListener('scroll', onScroll, { passive: true });
 
 Research: `devlog/_fin/260708_scroll_driven_effects/000_research.md`,
 `devlog/_fin/260708_scroll_driven_effects/001_cinematic_transitions.md`
+
+---
+
+## Motion Honesty (FE-MOTION-HONESTY-01, DEFAULT)
+
+Source: taste-skill v2 (62k stars), adapted for codexclaw.
+
+The declared MOTION_INTENSITY dial must match the shipped page's actual motion.
+A dial value above 4 that ships a static page is a lie — the motion was claimed
+but never delivered.
+
+| Dial | Required motion evidence |
+|------|------------------------|
+| 1-3 | Hover and active state transitions only. No scroll-driven motion required. |
+| 4-5 | At least one entrance animation or staggered load-in visible on first scroll. |
+| 6-7 | Scroll-driven reveals on multiple sections + at least one signature moment. |
+| 8-10 | Choreographed scroll timeline or parallax + signature moment + supporting reveals. |
+
+Verification: scroll the built page top-to-bottom and count distinct motion events.
+If the count does not match the dial band, either lower the dial or add the motion.
+
+Any MOTION_INTENSITY > 3 MUST honor `prefers-reduced-motion`: reduce to hover/active
+only. This is not optional at any dial level.

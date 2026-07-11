@@ -336,3 +336,121 @@ When fixing an existing project, apply in this order for max impact / min risk:
 5. **Replace generic components** — swap cliché patterns
 6. **Add loading/empty/error states** — makes it feel finished
 7. **Polish typography scale** — the premium final touch
+
+---
+
+## Second-Order Reflex Test (FE-REFLEX-TEST-01, DEFAULT)
+
+Source: impeccable (40k stars, 2026-07-12 research).
+
+Anti-slop detection operates at two levels:
+
+- **First-order reflex**: can the palette and theme be guessed from the product
+  category alone? (e.g. "fintech" → dark + cyan accent → AI default)
+- **Second-order reflex**: can the *alternative* aesthetic be guessed from the
+  category plus its obvious anti-reference? (e.g. "fintech that's NOT dark" →
+  warm cream + serif → the fashionable anti-template)
+
+Both are convergence signatures. A direction that passes the first-order test but
+fails the second is still a learned template — the model replaced one default with
+its current-fashion opposite. True domain-correct design emerges from the Design
+Read's specific audience/purpose/constraint signals, not from "what's the opposite
+of the obvious choice."
+
+---
+
+## Convergence Composition Tells (FE-CONVERGENCE-01, DEFAULT)
+
+Source: impeccable detector catalog (46 rules, 8 domains) + taste-skill v2 (62k stars).
+
+These are specific multi-element compositions that are statistically overproduced
+by AI agents. A single trait may be legitimate; the convergence signature is the
+indiscriminate combination.
+
+### Visual Detail Tells
+
+- **FE-BORDER-SHADOW-01**: Hairline border (1px) + diffuse box-shadow on the same
+  element. Edge defines boundary OR elevation creates depth — not both. This is the
+  #1 generated-UI composite tell. Fix: choose one; if elevation, remove the border;
+  if boundary, remove or tighten the shadow.
+
+- **FE-ICON-TILE-01**: Rounded-square icon container (40-64px, border-radius 12-16px,
+  tinted background) stacked directly above a feature-card heading. The composition
+  is the tell, not individual icons or cards. Fix: inline the icon beside the heading,
+  use it as a list marker, or omit it if the heading is self-explanatory.
+
+- **FE-ITALIC-SERIF-HERO-01**: Oversized italic serif headline in a hero section,
+  now a major AI-premium convergence shortcut. Not the same as a general serif ban —
+  the specific italic + oversized + startup/premium hero composition is the tell.
+  Fix: if serif is the deliberate typographic direction, use roman weight at a
+  considered scale; italic serif heroes need explicit design rationale.
+
+- **FE-HERO-METRIC-01**: Giant number + small label + supporting stats row + gradient
+  accent in a hero section. This exact scaffold is a dashboard-marketing convergence
+  pattern. Fix: metrics belong in a dedicated stats section, not as hero filler.
+
+### Typography Tells
+
+- **FE-TYPO-FLOOR-01**: Typography floors (STRICT thresholds):
+  - Body line-height: >= 1.3 (1.5 preferred for readability)
+  - Body font-size: >= 12px (never smaller for readable prose)
+  - Letter-spacing: never below -0.03em (destructive tracking floor)
+  - Wide positive tracking (> 0.05em) on body copy is also a tell
+  - Single font family with no role differentiation (heading/body/code/label all
+    the same family, weight, and scale) is a flat-hierarchy signal
+
+- **FE-SERIF-DEFAULT-01**: Fraunces and Instrument Serif as unexamined creative-font
+  defaults. Random serif words embedded inside sans-serif headlines (mixed emphasis)
+  without typographic rationale. Italic descenders clipping adjacent elements.
+  Fix: choose the typographic direction deliberately; if serif, commit to it across
+  the appropriate roles.
+
+### Copy Tells
+
+- **FE-APHORISM-01**: Aphoristic rebuttal cadence — manufactured short contrasts
+  used as section headings or hero copy: "Not a feature. A platform." / "Stop
+  managing. Start leading." / "Less noise. More signal." This pattern is generated-
+  copy cadence, not concise writing. Fix: write copy that names the specific user
+  benefit without the theatrical pivot.
+
+- **FE-CONTENT-REALISM-01**: Content-data realism bans:
+  - Generic startup names: "Acme", "Nexus", "SmartFlow", "TechVault"
+  - Round vanity metrics: "10,000+", "99.9%", "500+ companies"
+  - Generic testimonial avatars and names: "Jane D.", "Alex M."
+  - Locale-inappropriate names (Latin names in Korean-first UIs)
+  - Non-specific action verbs: "Elevate", "Transform", "Unleash", "Revolutionize"
+  Fix: use locale-appropriate specific names, organic non-round numbers, and
+  concrete verbs that describe the actual product action.
+
+### Interaction Tells
+
+- **FE-IMAGE-HOVER-01**: Generic hover zoom/rotation on every card image. Reflexive
+  `transform: scale(1.05)` or `rotate(2deg)` on imagery is a default tell; hover
+  transforms belong on interactive controls that change state, not on decorative
+  images. Fix: remove image hover transforms unless the image IS the interactive
+  target (gallery, lightbox).
+
+- **FE-MARQUEE-01**: One marquee/ticker per page maximum. Two or more scrolling
+  elements on one page is repetition slop. Fix: keep the strongest one; demote
+  others to static sections.
+
+- **FE-GRADIENT-TEXT-01**: Gradient text via `background-clip: text` + gradient
+  background is now an overused AI tell. Ban as default; allow only with explicit
+  design rationale and a fallback `color` for browsers that don't support it.
+
+### Layout Tells
+
+- **FE-CLIP-OVERFLOW-01**: Clipped popover/tooltip — an `overflow: hidden` or
+  `overflow: clip` ancestor trapping a positioned child (tooltip, dropdown, popover).
+  This is a common generated-UI layout bug, not an aesthetic choice. Fix: move the
+  positioned element to a portal, or use `overflow: visible` on the clipping ancestor.
+
+- **FE-PLACEHOLDER-IMG-01**: Broken or placeholder images in shipped UI. Empty `src`,
+  `data:` URIs, `placeholder.com`, `via.placeholder.com`, `picsum.photos`, or
+  `/api/placeholder/` URLs are shipping tells. Fix: use real assets (generated via
+  ima2 or sourced from brand kits); never ship placeholder URLs.
+
+- **FE-GRADIENT-STRIPE-01**: Decorative repeating-gradient stripes or grid overlays
+  as background texture. The gradient budget (FE-GRADIENT-01) catches broad overuse;
+  this catches the specific hairline repeating-gradient/grid-background provider
+  signature. Fix: use a real texture image or remove the pattern.
