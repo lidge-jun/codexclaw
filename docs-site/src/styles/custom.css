@@ -507,7 +507,7 @@ body:has(.cxcp-poster) main > .content-panel .sl-container > h1 {
 
 html:has(.cxcp-poster),
 body:has(.cxcp-poster) {
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 [data-template="splash"] .sl-container {
@@ -518,9 +518,8 @@ body:has(.cxcp-poster) {
   position: relative;
   isolation: isolate;
   width: 100vw;
-  max-width: 96rem;
-  margin-inline-start: calc((100% - 100vw) / 2);
-  margin-inline-end: 0;
+  max-width: none;
+  margin-inline: calc(50% - 50vw);
   color: var(--cxc-ink);
 }
 
@@ -699,7 +698,7 @@ body:has(.cxcp-poster) {
 
 .cxcp-panel__label::after { content: ""; display: block; width: 95%; height: 0.38rem; margin-top: 0.25rem; background: var(--cxc-red); }
 .cxcp-panel--skills { color: var(--cxc-paper) !important; }
-.cxcp-panel--subagents .cxcp-panel__label { margin-inline-start: 32%; }
+.cxcp-panel--subagents .cxcp-panel__label { margin-inline-start: 22%; }
 
 .cxcp-footer-rule {
   position: relative;
@@ -718,7 +717,6 @@ body:has(.cxcp-poster) {
 }
 
 @media (max-width: 48rem) {
-  .cxcp-poster { width: 100%; margin-inline: 0; }
   .cxcp-hero { height: clamp(20rem, 64vw, 29rem); }
   .cxcp-wedge { width: 92%; }
   .cxcp-message { inset: 18% 2% auto 18%; }
