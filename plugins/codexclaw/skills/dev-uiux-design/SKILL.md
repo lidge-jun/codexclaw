@@ -58,6 +58,7 @@ fetch/open/text/get-dom/snapshot only after candidate URLs exist.
 | `references/form-patterns.md` | Forms, wizards, auth, file upload | Validation timing, multi-step, password UX, file upload, search/filter |
 | `references/mobile-native-ux.md` | Native mobile app UX decisions | iOS HIG vs Material 3, gestures, deep linking, Korean privacy, app store UX |
 | `references/intent-discovery-ladder.md` | UX-INTENT-01 optional deepening (Steps 1-6) | Mood/lightness/density/shape/viewport/reference ladder, vague request disambiguation |
+| `references/anti-rationalization.md` | **Before C-phase verification** | Agent-shortcut excuse/rebuttal table (UX-ANTI-RATIONAL-01) |
 | `references/korean-design-vocabulary.md` | Korean design briefs or Korean-first UI | Korean descriptor → CSS token translation, quick-match table, font selection guidelines |
 
 ---
@@ -220,10 +221,12 @@ Inference rules:
 
 "복잡하다" = high DESIGN_VARIANCE is WRONG. Complexity means more features/data/flows, not more visual tricks (carousels, parallax, animations).
 
-### Dial Presets (FE-DIAL-PRESET-01, STYLE_SAMPLE)
+### Dial Presets (UX-DIAL-PRESET-01, STYLE_SAMPLE)
 
-Source: taste-skill v2 (62k stars). Exact tuples for common use cases — use these
-as starting points, then adjust from the Design Read.
+Source: taste-skill v2 (62k stars). Exact tuples for common use cases.
+Presets are authoritative specializations that may exceed the inference ranges
+above (e.g. Agency motion 8 exceeds the general landing 5-7 range). When a
+preset exists for the exact use case, use it directly; adjust from Design Read.
 
 | Use case | V | M | D | Notes |
 |----------|---|---|---|-------|
@@ -233,8 +236,8 @@ as starting points, then adjust from the Design Read.
 | Portfolio (Designer/studio) | 8 | 7 | 3 | |
 | Portfolio (Developer) | 6 | 5 | 4 | |
 | Editorial / Blog | 6 | 4 | 3 | |
-| Public-sector service | 3 | 2 | 5 | |
-| Dashboard / SaaS admin | 3 | 2 | 6 | density D4-D5 |
+| Public-sector service | 3 | 2 | 4 | |
+| Dashboard / SaaS admin | 3 | 2 | 5 | |
 | Finance / ops | 2 | 1 | 7 | density D6-D7 |
 | Game | 8 | 7 | 4 | domain-specific |
 | Korean consumer app | 5 | 4 | 5 | CJK density |
@@ -243,6 +246,7 @@ as starting points, then adjust from the Design Read.
 - Preserve redesign: V = match existing, M = match + 1, D = match existing
 - Overhaul redesign: V = existing + 2, M = existing + 2, D = match existing
 - "Complex" in brief: increase density (D), NOT variance or motion
+- "Simple" in brief: decrease variance and motion; density stays or increases
 
 **Audience-first ownership** (UX-AUDIENCE-01, DEFAULT):
 The audience picks the aesthetic, not the model's taste. When audience signal
