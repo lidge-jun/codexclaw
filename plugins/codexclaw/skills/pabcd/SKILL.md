@@ -128,13 +128,17 @@ PABCD, then chooses HITL or HOTL:
   non-IDLE PABCD cycle. Do not call this mode active if one half is missing.
 - Subagents may inspect or verify the plan, but the main session owns host-goal
   lifecycle (`create_goal`/`update_goal`) and PABCD transitions.
+- **ORCH-MANDATE-01 (STRICT, canonical in `cxc-loop`):** a loop claim without its
+  persisted `cxc orchestrate` transitions is invalid — narrated phases are not
+  phases. Arm first (status -> I|P entry), then advance every edge with
+  `--attest`; work done outside the FSM must be re-entered and attested.
 
 ## Phases
 
 These align with the directives the `pabcd-state` hook injects per phase:
 
 0. **I — Interview**: HITL-only requirements discovery; canonical rules live in `cxc-interview`. PABCD owns I->P and return-to-Interview phase edges.
-1. **P — Plan**: Explore first (read real code, configs, docs). **Slice and order phases by dependency/architecture structure (STRICT, PHASE-SPLIT-01)** — the orthodox unlimited-time build order: foundations (schema, contracts, core data flow) → core capabilities → integration → hardening/polish — so each phase consumes the verified output of the previous one. Effort-based bucketing is FORBIDDEN: never split or order phases by estimated effort or payoff speed — no "quick win vs heavy" buckets, no impact/effort matrices, no time-boxed slices. Phase boundaries encode the system's build order, not the schedule. DB/API/UI/test work inside a phase are subtasks, not top-level phases by default, and every phase must still close with something independently verifiable (build, tests, or a demonstrable surface). Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable accept criteria. For every planned conditional path (error handler, fallback, guard, gated branch, threshold behavior), the accept criteria name its **activation scenario** — how C will trigger it and what observable effect proves it ran (C-ACTIVATION-GROUNDING-01). For C2+ plans, begin with a loop-spec header: Loop archetype; Trigger; Goal (user-visible outcome); Non-goals; Verifier (command/gate and what it measures); Stop condition; Memory artifact; Expected terminal outcomes; Escalation condition. HOTL goal plans also state the `cxc-loop` HOTL resource bounds. For open-ended optimization, include the divergence plan, deterministic selection rule, and telemetry schema; if the verifier only reports scalar outcome, instrumentation is B's first work item before candidates. Ground every decision in code you have read. No implementation yet. For broad or unfamiliar repos, include a compact tree, detected conventions, which existing logs/docs you will reuse, and the SoT sync target (SOT-SYNC-01): which general source-of-truth doc (architecture/INDEX docs, or equivalent) this unit will patch in C — or, if the repo has none, the plan recommends creating one (dev-scaffolding §2.1).
+1. **P — Plan**: Explore first (read real code, configs, docs). **Slice and order phases by dependency/architecture structure (STRICT, PHASE-SPLIT-01)** — the orthodox unlimited-time build order: foundations (schema, contracts, core data flow) → core capabilities → integration → hardening/polish — so each phase consumes the verified output of the previous one. Effort-based bucketing is FORBIDDEN: never split or order phases by estimated effort or payoff speed — no "quick win vs heavy" buckets, no impact/effort matrices, no time-boxed slices. Phase boundaries encode the system's build order, not the schedule. DB/API/UI/test work inside a phase are subtasks, not top-level phases by default, and every phase must still close with something independently verifiable (build, tests, or a demonstrable surface). Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable accept criteria. For every planned conditional path (error handler, fallback, guard, gated branch, threshold behavior), the accept criteria name its **activation scenario** — how C will trigger it and what observable effect proves it ran (C-ACTIVATION-GROUNDING-01). For C2+ plans, begin with a loop-spec header: Loop archetype; Trigger; Goal (user-visible outcome); Non-goals; Verifier (command/gate and what it measures); Stop condition; Memory artifact; Expected terminal outcomes; Escalation condition — stated BIDIRECTIONALLY where delegation is planned: upward (main reclaims a slice after two distinct agents fail its packet, per DISPATCH-RETIRE-01 packet-failure reclaim) and downward (pushing a slice down to a worker is a P-phase amendment, never a mid-B improvisation). HOTL goal plans also state the `cxc-loop` HOTL resource bounds. For open-ended optimization, include the divergence plan, deterministic selection rule, and telemetry schema; if the verifier only reports scalar outcome, instrumentation is B's first work item before candidates. Ground every decision in code you have read. No implementation yet. For broad or unfamiliar repos, include a compact tree, detected conventions, which existing logs/docs you will reuse, and the SoT sync target (SOT-SYNC-01): which general source-of-truth doc (architecture/INDEX docs, or equivalent) this unit will patch in C — or, if the repo has none, the plan recommends creating one (dev-scaffolding §2.1).
 2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent reviewer (`spawn_agent`) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. For each conditional path the plan adds, the reviewer also asks: is the trigger reachable at all from states the system actually visits (callers exist, preconditions can co-occur, upstream code does not consume the trigger first), and does the plan name its activation scenario (C-ACTIVATION-GROUNDING-01)? An unreachable-by-construction branch is a plan blocker, not a C-phase discovery. The reviewer also checks: new devlog phase documents use the numbered lexicographic filename convention; bare-named or research/implementation-mixed docs are a FAIL (LEXICO-SPLIT-01). Multi-phase units satisfy DIFFLEVEL-ROADMAP-01: every roadmap phase has a diff-level decade doc (no outline-only or missing phases), and the phase map is dependency-ordered, not effort-bucketed (PHASE-SPLIT-01). **Audit loop (STRICT, AUDIT-LOOP-01):** A is a loop — audit -> synthesize -> amend plan -> re-audit — not a single round. Exit A>B only when the MAIN agent judges the round **pass** (reviewer approved) or **near-pass**: every High/Critical blocker was folded into the plan as a concrete amendment or explicitly rebutted with recorded rationale, and only non-blocking residuals remain (`GO-WITH-FIXES; 2 blockers folded back` qualifies — the main agent is the judge, not a string parser). A FAIL round never exits: apply REVIEW-SYNTHESIS-01 (§11.3), amend the plan, and re-audit with the SAME reviewer (V2 `followup_task` to its task_name or V1 `send_input` to its agent_id; DISPATCH-ACTOR-01); LOOP-REPAIR-01 bounds the loop — after 3 failed rounds return to P with a changed plan (HITL may return to Interview). The dispatch packet explicitly names `$codexclaw:cxc-dev-code-reviewer` AND `$codexclaw:cxc-search` (reference/version/external-claim verification rides the search ladder) and instructs the reviewer to end with a normalized final line `VERDICT: PASS | GO-WITH-FIXES (blockers=N) | FAIL` plus numbered blockers. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict) plus `auditVerdict` (`pass|near-pass|fail` — the MAIN agent's own judgment of the round); `near-pass` additionally requires `auditResidual` naming each residual blocker and its disposition (folded/rebutted). A declared `fail` never advances, and a pasted tail whose final verdict line says FAIL is rejected regardless of the claimed judgment. Still a form-only bar: the gate cannot verify the paste's provenance, so faithful execution (really dispatching the reviewer, really looping) remains the agent's obligation.
    When the verdict is FAIL, fold-back follows REVIEW-SYNTHESIS-01 (§11.3): synthesize root causes and accept/rebut decisions before re-planning or re-dispatching the reviewer.
 3. **B — Build**: Implement the audited plan in small atomic commits. Verify as you go. Stay inside the plan's scope boundary; surface deviations instead of silently expanding scope.
@@ -368,6 +372,68 @@ See `dev` §0.0 for the full class definitions and tie-break rules.
 
 ## Delegation Model (subagents)
 
+Delegability and triage economy: DISPATCH-ECONOMY-01 — normative wording lives in
+`structure/20_pabcd_dispatch_doctrine.md` §3; this section does not restate it.
+
+- **Tool-surface discovery (DISPATCH-DISCOVER-01):** V1 is codexclaw's default surface, but the model catalog pins sol/terra to V2 and luna to V1; `features.multi_agent_v2` selects V2 only for fallback models. The surface pins on the session's first turn. V1 uses the deferred `multi_agent_v1.*` namespace behind `tool_search`; V2 exposes `spawn_agent` (task_name + message required, `fork_turns:"none"` for role dispatches) / `send_message` / `followup_task` / `wait_agent` / `interrupt_agent` / `list_agents` directly. If `spawn_agent` is not visible, run `tool_search` for "spawn agent" FIRST; do not conclude dispatch is impossible (`structure/60_native_capabilities.md` §1).
+- The main agent owns the plan and the build by default. Subagents (`spawn_agent`) are scoped helpers.
+- **Lifecycle patterns (both surfaces):** fan out before waiting. V2 `wait_agent` is a no-content mailbox; reuse with `followup_task(task_name)`, deliver context-only with `send_message`, and stop a runaway turn with `interrupt_agent`. V1 `wait_agent` returns final status plus content; reuse with `send_input(agent_id)`, and use `close_agent`/`resume_agent` for retirement/restoration. Concurrency is V1 `agents.max_threads` (default 6) versus V2 `max_concurrent_threads_per_session` (default 4, root included). Independent tool calls batch through `multi_tool_use.parallel`.
+- **Leaf topology (LEAF-TOPOLOGY-01, 260709):** subagents are star-topology LEAVES. The spawn hook applies D1 denial and the `[CXC-LEAF-GUARD]` block on both surfaces; grant recursion ONLY deliberately, per dispatch, with `CXC-SUBSPAWN-ALLOWED`. When the caller omits model or `reasoning_effort` on a non-full-history fork, the hook independently injects the configured role values from `.codexclaw/subagents.json`; otherwise each omitted field inherits from the parent. Full-history forks are V1 `fork_context:true` and V2 omitted/`"all"` `fork_turns`.
+- CSV batch fan-out (`spawn_agents_on_csv` + `report_agent_job_result`, one worker per row) exists in codex-rs but is flag-gated (`enable_fanout`, not live) — do NOT instruct it until the flag ships; check `structure/60_native_capabilities.md` §4.
+- Use a reviewer subagent at the A gate (and the C gate for C3/C4) to challenge the plan/implementation independently — receive the verdict, act on it, continue. Subagents are verifiers and scoped workers, not approval gates.
+- When delegating writes, give each subagent a disjoint write scope (own files/dirs) so parallel work never collides; tell it the other agents exist and not to revert their edits.
+- **DISPATCH-ISOLATION-01 (DEFAULT):** parallel subagents in the same work-phase are
+  context-isolated on the read side too: the TASK packet's `SCOPE` names an explicit
+  access list — which prior outputs (paths or pasted excerpts) this agent may read —
+  and nothing else from peer lanes is shared. Never paste one lane's in-progress
+  output into another outside the access list; the first finished trajectory
+  otherwise steers later lanes into redundant agreement (orchestration collapse) and
+  the parallelism buys nothing. Durable cross-cycle artifacts (devlog, D summaries,
+  `.codexclaw/divergence/`) stay shared; widening an access list is a stated
+  decision in the packet. (Adopted 2026-07-07 from the Sakana Fugu
+  learned-orchestrator report, arXiv:2606.21228, together with SPECIALIST-CRUX-01,
+  REVIEW-DECORRELATE-01, COLLAPSE-AGGREGATOR-01, and LOOP-FANOUT-TIMING-01; devlog
+  `260707_fugu_orchestration_adoption`.)
+- **SPECIALIST-CRUX-01 (HEURISTIC):** when P or A identifies a narrow crux outside
+  the builder's domain — a derivation, a protocol subtlety, a domain constant, a
+  security property — dispatch a specialist to re-derive that crux from first
+  principles before merging the work that depends on it. The specialist's return
+  names its assumptions, the derivation or trace, and the exact decision its
+  verdict changes.
+- **REVIEW-DECORRELATE-01 (HEURISTIC):** `spawn_agent` accepts a model override —
+  run the A-gate reviewer (and any §11.3 clean-slate re-examination after repeated
+  failed repairs) on a different model family than the one that produced the plan
+  or build. Same-family reviewers share blind spots; decorrelating the reviewer is
+  the cheapest independence upgrade available.
+- Never let a subagent reconstruct the plan from a short task description — pass the concrete plan and scope explicitly.
+- For long-running external verification (CI, deploy, remote build), spawn a background subagent and poll with short `wait_agent` cycles. Local builds/tests that finish in minutes stay blocking.
+
+**Subagent TASK packet (DISPATCH-TASK-01).** Every dispatch carries a structured task, not a
+one-liner: `TASK` (the concrete outcome), `SCOPE` (the disjoint write set / read bounds),
+`MUST DO`, `MUST NOT` (e.g. do not revert peers, do not widen scope), `PROOF` (the evidence to
+return — `path:line` + command output), and `RETURN FORMAT`. The packet also states its
+DECISION BOUNDARY — which judgments the subagent may settle itself and which it must
+return unresolved; a packet whose decision boundary cannot be written fails the
+DISPATCH-ECONOMY-01 specifiability axis and that slice stays with the main session.
+`RETURN FORMAT` for summary-shaped returns requires VERBATIM ANCHORS: exact `path:line`
+quotes, exact figures, and source URLs, so the main session can spot-check without
+re-reading the source (summary-only returns are fundamentally lossy — Memex,
+arXiv 2603.04257; an anchor-free summary is a candidate, not evidence). Put the packet in the spawn
+message always. Skill attachment travels as resolvable mentions in the message: prefer
+link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)`, or use plugin-native
+`$codexclaw:cxc-<skill>` when a link is unsafe. V1 parses either form on the child's first
+turn. On plaintext V2 provider/proxy paths, the spawn hook normalizes mentions and
+inlines recognized cxc skill bodies. Native ChatGPT-backend V2 gives the hook ciphertext,
+so both operations are no-ops there; when no body can be inlined, the hook appends a
+plaintext `[CXC-SKILL-AFFORDANCE]` block telling the child to self-load any
+`$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention from
+`<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel. The
+reliable hook-borne native V2 channels also include the leaf guard and configured
+model/effort injection. The hook does not add role baselines or infer missing surfaces.
+Manually supplied structured V1 `items` remain the strongest form where available;
+`resolveSpawnPayloadWithSkills` emits message mentions, not `items`. Do not delegate
+host-goal changes to subagents; the main session owns `create_goal`/`update_goal`.
+
 ## Loop Engineering (§11)
 
 Full rules live in `references/loop-engineering.md`. Key rules:
@@ -407,58 +473,6 @@ Full rules live in `references/loop-engineering.md`. Key rules:
 Interview sub-modes and Catalog Discovery rules live in `$cxc-interview`
 (INTERVIEW-CATALOG-01, CATALOG-DESIGN-FIRST-01). The option ontology YAML lives at
 `references/catalog-discovery.yaml` in this skill directory.
-
-- **Tool-surface discovery (DISPATCH-DISCOVER-01):** V1 is codexclaw's default surface, but the model catalog pins sol/terra to V2 and luna to V1; `features.multi_agent_v2` selects V2 only for fallback models. The surface pins on the session's first turn. V1 uses the deferred `multi_agent_v1.*` namespace behind `tool_search`; V2 exposes `spawn_agent` (task_name + message required, `fork_turns:"none"` for role dispatches) / `send_message` / `followup_task` / `wait_agent` / `interrupt_agent` / `list_agents` directly. If `spawn_agent` is not visible, run `tool_search` for "spawn agent" FIRST; do not conclude dispatch is impossible (`structure/60_native_capabilities.md` §1).
-- The main agent owns the plan and the build by default. Subagents (`spawn_agent`) are scoped helpers.
-- **Lifecycle patterns (both surfaces):** fan out before waiting. V2 `wait_agent` is a no-content mailbox; reuse with `followup_task(task_name)`, deliver context-only with `send_message`, and stop a runaway turn with `interrupt_agent`. V1 `wait_agent` returns final status plus content; reuse with `send_input(agent_id)`, and use `close_agent`/`resume_agent` for retirement/restoration. Concurrency is V1 `agents.max_threads` (default 6) versus V2 `max_concurrent_threads_per_session` (default 4, root included). Independent tool calls batch through `multi_tool_use.parallel`.
-- **Leaf topology (LEAF-TOPOLOGY-01, 260709):** subagents are star-topology LEAVES. The spawn hook applies D1 denial and the `[CXC-LEAF-GUARD]` block on both surfaces; grant recursion ONLY deliberately, per dispatch, with `CXC-SUBSPAWN-ALLOWED`. When the caller omits model or `reasoning_effort` on a non-full-history fork, the hook independently injects the configured role values from `.codexclaw/subagents.json`; otherwise each omitted field inherits from the parent. Full-history forks are V1 `fork_context:true` and V2 omitted/`"all"` `fork_turns`.
-- CSV batch fan-out (`spawn_agents_on_csv` + `report_agent_job_result`, one worker per row) exists in codex-rs but is flag-gated (`enable_fanout`, not live) — do NOT instruct it until the flag ships; check `structure/60_native_capabilities.md` §4.
-- Use a reviewer subagent at the A gate (and the C gate for C3/C4) to challenge the plan/implementation independently — receive the verdict, act on it, continue. Subagents are verifiers and scoped workers, not approval gates.
-- When delegating writes, give each subagent a disjoint write scope (own files/dirs) so parallel work never collides; tell it the other agents exist and not to revert their edits.
-- **DISPATCH-ISOLATION-01 (DEFAULT):** parallel subagents in the same work-phase are
-  context-isolated on the read side too: the TASK packet's `SCOPE` names an explicit
-  access list — which prior outputs (paths or pasted excerpts) this agent may read —
-  and nothing else from peer lanes is shared. Never paste one lane's in-progress
-  output into another outside the access list; the first finished trajectory
-  otherwise steers later lanes into redundant agreement (orchestration collapse) and
-  the parallelism buys nothing. Durable cross-cycle artifacts (devlog, D summaries,
-  `.codexclaw/divergence/`) stay shared; widening an access list is a stated
-  decision in the packet. (Adopted 2026-07-07 from the Sakana Fugu
-  learned-orchestrator report, arXiv:2606.21228, together with SPECIALIST-CRUX-01,
-  REVIEW-DECORRELATE-01, COLLAPSE-AGGREGATOR-01, and LOOP-FANOUT-TIMING-01; devlog
-  `260707_fugu_orchestration_adoption`.)
-- **SPECIALIST-CRUX-01 (HEURISTIC):** when P or A identifies a narrow crux outside
-  the builder's domain — a derivation, a protocol subtlety, a domain constant, a
-  security property — dispatch a specialist to re-derive that crux from first
-  principles before merging the work that depends on it. The specialist's return
-  names its assumptions, the derivation or trace, and the exact decision its
-  verdict changes.
-- **REVIEW-DECORRELATE-01 (HEURISTIC):** `spawn_agent` accepts a model override —
-  run the A-gate reviewer (and any §11.3 clean-slate re-examination after repeated
-  failed repairs) on a different model family than the one that produced the plan
-  or build. Same-family reviewers share blind spots; decorrelating the reviewer is
-  the cheapest independence upgrade available.
-- Never let a subagent reconstruct the plan from a short task description — pass the concrete plan and scope explicitly.
-- For long-running external verification (CI, deploy, remote build), spawn a background subagent and poll with short `wait_agent` cycles. Local builds/tests that finish in minutes stay blocking.
-
-**Subagent TASK packet (DISPATCH-TASK-01).** Every dispatch carries a structured task, not a
-one-liner: `TASK` (the concrete outcome), `SCOPE` (the disjoint write set / read bounds),
-`MUST DO`, `MUST NOT` (e.g. do not revert peers, do not widen scope), `PROOF` (the evidence to
-return — `path:line` + command output), and `RETURN FORMAT`. Put the packet in the spawn
-message always. Skill attachment travels as resolvable mentions in the message: prefer
-link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)`, or use plugin-native
-`$codexclaw:cxc-<skill>` when a link is unsafe. V1 parses either form on the child's first
-turn. On plaintext V2 provider/proxy paths, the spawn hook normalizes mentions and
-inlines recognized cxc skill bodies. Native ChatGPT-backend V2 gives the hook ciphertext,
-so both operations are no-ops there; when no body can be inlined, the hook appends a
-plaintext `[CXC-SKILL-AFFORDANCE]` block telling the child to self-load any
-`$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention from
-`<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel. The
-reliable hook-borne native V2 channels also include the leaf guard and configured
-model/effort injection. The hook does not add role baselines or infer missing surfaces.
-Manually supplied structured V1 `items` remain the strongest form where available;
-`resolveSpawnPayloadWithSkills` emits message mentions, not `items`. Do not delegate
-host-goal changes to subagents; the main session owns `create_goal`/`update_goal`.
 
 ## State
 

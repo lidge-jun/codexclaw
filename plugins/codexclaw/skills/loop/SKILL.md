@@ -11,6 +11,33 @@ Use this skill for Codexclaw work loops that span one or more PABCD work-phases.
 It covers both HITL PABCD (manual/user-confirmed phase movement) and HOTL goal
 loops (Stop-hook continuation after D/IDLE).
 
+## Orchestrate mandate (ORCH-MANDATE-01, STRICT)
+
+A loop claim without persisted FSM evidence is INVALID. Narrating phases ("now I'm in
+B", "audit passed") without their `cxc orchestrate` transitions is the exact
+failure mode this rule exists to stop: the Stop hook never arms, the ledger stays
+empty, and the "loop" is one ordinary turn wearing a loop costume. Mandatory sequence
+for EVERY loop entry or re-entry:
+
+1. Session id from YOUR most recent SessionStart binding line only (SESSION-IDENTITY-01).
+2. `cxc orchestrate status --session <id>` — read the real phase before claiming any.
+3. Arm the mode: HOTL -> `create_goal` + `cxc loop init` + goalplan registration +
+   `cxc orchestrate P --session <id>`; HITL -> `cxc orchestrate I|P --session <id>`
+   (or the human chat free-pass).
+4. Advance every forward edge with `cxc orchestrate <phase> --attest <json>` carrying
+   the phase's real artifact (ORCH-ARTIFACT-01). A phase without its persisted
+   transition did not happen — the footer/ledger is the only proof of phase.
+5. After a D close with work remaining under an active goal, immediately run
+   `cxc orchestrate P --session <id>` for the next work-phase.
+
+Work performed outside the FSM does not count as loop progress: re-enter and attest
+it before building on it. Runtime companions (shipped): a loop/goalplan/
+continue-until-done request hitting an UN-ARMED FSM gets the arming mandate injected
+at prompt time (`LOOP_ARM_DIRECTIVE`, hook `UserPromptSubmit`), and an active goal
+with no in-flight cycle gets the Stop-time block naming the arming command
+(GOAL-IDLE-CONTINUE-01) — but neither companion moves a phase for you; the commands
+remain yours to run.
+
 ## Contract
 
 - `cxc-loop` is an overlay on `cxc-pabcd`, not a replacement. Before claiming a
@@ -117,6 +144,25 @@ external processes inside a loop:
   the user informed each cycle.
 - If a reviewer/worker has produced nothing after ~3 wait cycles, treat it as
   a failed dispatch (DISPATCH-RETIRE-01) rather than waiting silently forever.
+
+## Speculative dispatch (DISPATCH-SPECULATE-01, HEURISTIC)
+
+Dispatching phase-N+1 work while phase N is still building is default-OFF.
+DIFFLEVEL-ROADMAP-01 already front-loads every phase's research at the first P, and
+the next P's stale check needs the tree AFTER phase N lands — so the genuinely
+speculative window is far narrower than it looks, and an A-gate FAIL, a
+LOOP-UNIT-CHAIN-01 amendment, or a plateau divergence entry turns speculative output
+into sunk cost that anchors the next P with stale conclusions.
+
+The one allowed speculative lane: **phase-invariant EXTERNAL research** — arXiv
+analysis, library/API documentation, anything that reads no repo state — may overlap
+phase boundaries (it cannot be invalidated by plan changes). Its results are
+quarantined as `candidate — unverified` until the next P re-validates them, and are
+discarded by default when the phase map is amended. Grounding: speculative execution
+pays only under selective, cost-bounded branching (arXiv 2510.04371; 2606.07846 —
+single-author, synthetic validation, low evidence grade). E7 doctrine
+(agent-followed); the normative delegation-economy rule is DISPATCH-ECONOMY-01 in
+`structure/20_pabcd_dispatch_doctrine.md` §3.
 
 ## Durable Goalplan
 

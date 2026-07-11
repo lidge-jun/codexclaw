@@ -140,10 +140,54 @@ codexclaw translation:
   abandon it (V2 has only `interrupt_agent`; V1 has `close_agent` and `resume_agent`)
   and fresh-spawn with the failure summary folded into the new
   TASK packet. Repeated `followup_task`/`send_message` against a broken agent is a
-  broken-resume loop — the dispatch analogue of LOOP-REPAIR-01's doom loop. Lineage:
+  broken-resume loop — the dispatch analogue of LOOP-REPAIR-01's doom loop. When the
+  fresh spawn — a SECOND distinct agent — also fails the SAME task packet, stop
+  blaming agents: two independent failures on one packet are evidence the packet
+  itself failed the DISPATCH-ECONOMY-01 specifiability bar. The main session
+  reclaims that slice and does the work directly instead of dispatching a third
+  copy (packet-failure reclaim, 260711 fork-debate verdict #4). Lineage:
   `../jawcode/devlog/_plan/260616_actor_fresh_fallback/_fin/00_moc.md`
   (implementation-verified). Both rules are E7 doctrine (agent-followed); no hook
   observes agent lifecycles.
+- **DISPATCH-ECONOMY-01 (delegability + triage economy).** E7 doctrine
+  (agent-followed); no hook measures delegation quality. Adopted 260711 from the
+  fork-debate verdicts plus Tier-2 arXiv evidence (claim-ledger:
+  `devlog/_plan/260711_dispatch_economy_docs_site/005_research_claim_ledger.md`).
+  Four clauses:
+  - *Three-axis delegability test.* Decide what to delegate by
+    **specifiability** (the TASK packet can carry the full spec, including its
+    DECISION BOUNDARY — which judgments the subagent may settle vs must return
+    unresolved) x **verifiability** (a mechanical check — tests, gate, diff
+    inspection — can prove the return) x **judgment ownership** (load-bearing
+    decisions stay with the main session: collapse/crux verdicts, API contract
+    shape, plan amendments; re-DERIVING a crux may be dispatched per
+    SPECIALIST-CRUX-01, the verdict on it may not). Complexity is NOT an axis: a
+    complex-but-fully-specified algorithm with a test oracle is a valid worker
+    task, while an easy-but-ambiguous naming or boundary decision is not. A slice
+    whose packet cannot state its decision boundary fails specifiability and stays
+    with the main session.
+  - *Triage disposition obligation (output-side).* There is no self-reported
+    "how many agents I can honestly judge" cap — that is unauditable. Instead:
+    every returned lane gets a RECORDED disposition — accept / reject / merge plus
+    a one-line rationale — before the next wave spawns. Wave-granular judgment is
+    allowed (so `cxc-search` Tier-3 wave floors are never cut); spawning new lanes
+    while returns sit untriaged is a violation, auditable in the ledger/devlog.
+    Evidence basis: selector quality outweighs generator diversity
+    (arXiv 2603.20324, single-author — low evidence grade), logistic saturation of
+    agent scaling (MacNet, arXiv 2406.07155), verification failures as a first-class
+    MAS failure category (MAST, arXiv 2503.13657).
+  - *Model routing (a DEFAULT, not an override).* Standardized implementation
+    slices ride cheap/fast model families by default; crux re-derivation and
+    adversarial review default to a decorrelated family. This clause preserves
+    DIVERGE-TIER-01's tier selection untouched (conceptual-tier candidate work is
+    not force-promoted to strong models) and adds nothing to
+    REVIEW-DECORRELATE-01 beyond its existing invariant — family independence
+    from the producing model is the requirement; "strong" is a default choice,
+    not a mandate.
+  - *Batch-spawn preference.* Fan out a full wave, then synthesize once;
+    drip-feed spawning taxes the main session's context once per return and
+    fragments triage. This extends the "fan out before waiting" lifecycle rule
+    from mechanics to economy.
 
 ---
 
