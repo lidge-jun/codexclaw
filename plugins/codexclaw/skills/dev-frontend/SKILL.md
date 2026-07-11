@@ -190,6 +190,48 @@ Read `references/core/aesthetics.md` for full guidelines. Summary:
 - **Assets**: Use screenshots, product images, diagrams, charts, illustrations, generated bitmaps, or soft 3D only when they add product meaning. When a real bitmap is needed (icon, hero, illustration), generate it with `ima2` — probe `ima2 status`, attempt `ima2 serve` if down — falling back to the native `imagegen` tool only when ima2 is truly unavailable; never ship a placeholder. `ima2` is preferred because it supports reference images, multi-candidate generation (`-n N`, multimode, independent CLI parallel — see `asset-requirements.md` FE-ASSET-PARALLEL-01), prompt builder, session style sheets, provider routing (GPT/Grok/Gemini — see `asset-requirements.md` FE-ASSET-PROVIDER-01), variant selection with element-ledger synthesis (`asset-requirements.md` FE-ASSET-SELECT-01), cutout asset background strategy (`asset-requirements.md` FE-ASSET-BG-01), and video (`ima2 video` — see `motion.md` FE-MOTION-VIDEO-01) for motion assets. For parallel generation, monitor with `ima2 ps --json` and cancel unwanted jobs with `ima2 cancel <id>`. Write **very explicit long prompts** (subject, composition, palette, lighting, style, aspect) per `asset-requirements.md`; prefer real/generated image or video assets over CSS gradient washes. Read any design reference or captured screenshot back into context with `view_image` before matching it. Third-party captures follow `reference-capture.md` (analysis-only, provenance manifest).
 - **Visual verification**: after UI changes, exercise the flow per `cxc-dev-testing` §4.6 (TEST-CU-QA-01) — `browser:control-in-app-browser` on the dev server, screenshot, `view_image` — instead of claiming visual correctness from code alone.
 
+### Cutout Asset Generation (FE-ASSET-BG-01 surface — STRICT)
+
+GPT Image 2 cannot produce transparent backgrounds. Requesting "transparent
+background" or "PNG with alpha" yields checkerboard artifacts or solid fills.
+**Every cutout asset** (icons, product shots, 3D objects, illustrations, stickers,
+UI elements that float over arbitrary backgrounds) MUST use the solid-background-
+then-remove pipeline. Full rules and recipes: `asset-requirements.md` § Asset
+Background Strategy.
+
+**Quick reference — generation template:**
+
+```bash
+# Reflective/metallic/glass subjects → PURE BLACK bg
+ima2 gen "3D render of [subject], [material/style details], [composition]. \
+  Floating on a PURE SOLID BLACK background. The background must be 100% flat \
+  pure black hex #000000. No checkerboard, no transparency pattern, no gradient, \
+  no floor plane, no shadow, no vignette, no ambient glow on the background." \
+  --quality high --size 1024x1024 --mode direct -o asset.png
+
+# Dark/opaque subjects → PURE WHITE bg
+ima2 gen "[subject description], centered, floating. PURE SOLID WHITE background \
+  hex #ffffff. No shadow, no gradient, no surface, no reflection plane." \
+  --quality high --size 1024x1024 --mode direct -o asset.png
+
+# Known destination color → match it exactly
+ima2 gen "[subject description], centered. PURE SOLID background hex #[target]. \
+  No gradient, no texture, no shadow." \
+  --quality medium --size 512x512 --mode direct -o asset.png
+```
+
+**Quick reference — CSS removal (zero post-processing):**
+
+| Source bg | Target page | CSS rule |
+|-----------|-------------|----------|
+| Black | Light | `mix-blend-mode: screen` |
+| White | Dark | `mix-blend-mode: multiply` |
+| Any | Any | `isolation: isolate` on container to prevent bleed |
+
+For programmatic removal (build pipelines): `sharp`, ImageMagick, or `rembg`.
+For interactive cleanup: ima2 Canvas Mode. For targeted fix: `ima2 edit`.
+`$imagegen` fallback: same solid-bg prompting; CSS blend modes or programmatic removal only.
+
 ---
 
 ## 5. Anti-Slop Enforcement

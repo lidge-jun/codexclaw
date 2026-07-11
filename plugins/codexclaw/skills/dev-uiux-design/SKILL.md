@@ -398,6 +398,50 @@ unavailable or inappropriate. Captured/collected reference material to ground
 mockups is NOT a skip; it becomes generation input via `--ref`.
 ---
 
+## 2.6 Asset Generation Templates for Concept Passes (UX-ASSET-GEN-01, DEFAULT)
+
+When concept exploration (UX-CONCEPT-GEN-01) or image-first ism discovery
+(UX-IMAGE-FIRST-01) generates component/element mockups that need to float
+over arbitrary backgrounds — icons, 3D objects, product shots, stickers,
+UI chrome elements — use the cutout asset pipeline. GPT Image 2 cannot
+produce transparent backgrounds reliably; solid-bg-then-remove is mandatory.
+
+**Cutout asset prompt template (concept pass):**
+
+```bash
+# Reflective/metallic/glass → PURE BLACK bg
+ima2 gen "3D render of [subject], [material], [composition]. \
+  Floating on a PURE SOLID BLACK background hex #000000. \
+  No checkerboard, no transparency pattern, no gradient, \
+  no floor plane, no shadow, no vignette, no ambient glow." \
+  --quality high --size 1024x1024 --mode direct -o concept-asset.png
+
+# Dark/matte subjects → PURE WHITE bg
+ima2 gen "[subject], centered, floating. PURE SOLID WHITE background \
+  hex #ffffff. No shadow, no gradient, no surface." \
+  --quality high --size 1024x1024 --mode direct -o concept-asset.png
+
+# Known destination color → match it
+ima2 gen "[subject], centered. PURE SOLID background hex #[target]. \
+  No gradient, no texture, no shadow." \
+  --quality medium --size 512x512 --mode direct -o concept-asset.png
+```
+
+**CSS removal (zero post-processing):**
+- Black bg on light page: `mix-blend-mode: screen`
+- White bg on dark page: `mix-blend-mode: multiply`
+- Wrap in `isolation: isolate` container to prevent bleed
+- Programmatic: `sharp`, ImageMagick, `rembg`. Interactive: ima2 Canvas Mode.
+
+**`$imagegen` fallback:** same solid-bg prompting applies; CSS blend modes
+or programmatic removal only (no Canvas Mode).
+
+**Anti-pattern:** requesting "transparent background" or "PNG with alpha" in
+the prompt. The model produces fake checkerboard burned into the image.
+
+Full pipeline reference: `dev-frontend/references/core/asset-requirements.md`
+§ Asset Background Strategy (FE-ASSET-BG-01).
+
 ## 3. Korean Design Vocabulary + Quick-Match + Font Selection
 
 Korean descriptor → CSS token translation, quick-match table (user word → starting
