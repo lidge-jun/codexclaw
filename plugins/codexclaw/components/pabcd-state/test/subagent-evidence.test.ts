@@ -20,6 +20,7 @@ import {
   MAX_ATTEMPTS,
   GATED_AGENT_TYPES,
   transcriptHasReadOnlyMarker,
+  EVIDENCE_EXEMPT_TOKEN,
 } from "../src/subagent-evidence.ts";
 import type { SubagentStopPayload } from "../src/hook.ts";
 
@@ -167,32 +168,46 @@ test("DISPATCH-AGENT-TYPE-01: default agent_type is not gated", () => {
   assert.equal(out, "");
 });
 
-test("DISPATCH-AGENT-TYPE-01: worker with read-only marker in transcript is released", () => {
-  const cwd = tmp();
-  // Write a fake child transcript with a read-only marker in the first 4KB.
-  const transcriptDir = join(cwd, ".codex", "sessions");
-  mkdirSync(transcriptDir, { recursive: true });
-  const transcriptPath = join(transcriptDir, "child.jsonl");
-  writeFileSync(transcriptPath, '[REVIEWER — read-only, 파일 작성 금지] review the plan\n');
-  const out = runSubagentStopGate(
-    payload(cwd, { agent_transcript_path: transcriptPath }),
-  );
-  assert.equal(out, "", "read-only marker should bypass evidence gate");
-});
-
-test("DISPATCH-AGENT-TYPE-01: worker with chat-only deliverable marker is released", () => {
+test("DISPATCH-AGENT-TYPE-01: worker with evidence-exempt token is released", () => {
   const cwd = tmp();
   const transcriptDir = join(cwd, ".codex", "sessions");
   mkdirSync(transcriptDir, { recursive: true });
   const transcriptPath = join(transcriptDir, "child.jsonl");
-  writeFileSync(transcriptPath, 'TASK: analyze alternatives. chat-only deliverable, no evidence files.\n');
+  writeFileSync(transcriptPath, '[CXC-EVIDENCE-EXEMPT] [REVIEWER] review the plan\n');
   const out = runSubagentStopGate(
     payload(cwd, { agent_transcript_path: transcriptPath }),
   );
-  assert.equal(out, "", "chat-only deliverable marker should bypass evidence gate");
+  assert.equal(out, "", "evidence-exempt token should bypass evidence gate");
 });
 
-test("DISPATCH-AGENT-TYPE-01: worker without read-only marker still blocks", () => {
+test("DISPATCH-AGENT-TYPE-01: token deep in transcript still matches", () => {
+  const cwd = tmp();
+  const transcriptDir = join(cwd, ".codex", "sessions");
+  mkdirSync(transcriptDir, { recursive: true });
+  const transcriptPath = join(transcriptDir, "child.jsonl");
+  // Simulate token buried after 30KB of system prompt
+  const padding = "x".repeat(30000);
+  writeFileSync(transcriptPath, padding + '\n[CXC-EVIDENCE-EXEMPT] task\n');
+  const out = runSubagentStopGate(
+    payload(cwd, { agent_transcript_path: transcriptPath }),
+  );
+  assert.equal(out, "", "token should be found regardless of offset");
+});
+
+test("DISPATCH-AGENT-TYPE-01: generic read-only text without token still blocks", () => {
+  const cwd = tmp();
+  const transcriptDir = join(cwd, ".codex", "sessions");
+  mkdirSync(transcriptDir, { recursive: true });
+  const transcriptPath = join(transcriptDir, "child.jsonl");
+  writeFileSync(transcriptPath, '[REVIEWER read-only] review the plan\n');
+  const out = runSubagentStopGate(
+    payload(cwd, { agent_transcript_path: transcriptPath }),
+  );
+  const parsed = JSON.parse(out);
+  assert.equal(parsed.decision, "block", "generic read-only without token should still block");
+});
+
+test("DISPATCH-AGENT-TYPE-01: worker without token still blocks", () => {
   const cwd = tmp();
   const transcriptDir = join(cwd, ".codex", "sessions");
   mkdirSync(transcriptDir, { recursive: true });

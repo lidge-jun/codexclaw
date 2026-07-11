@@ -127,25 +127,29 @@ export function transcriptHasContextPressure(agentTranscriptPath: string | null 
 }
 
 /**
- * DISPATCH-AGENT-TYPE-01 defense-in-depth: detect read-only task markers in
- * the child transcript via grep. The spawn message may sit 20KB+ into the
- * JSONL (system prompt content precedes it), so a fixed-offset head read
- * misses it. grep -qi with a combined ERE pattern exits on first match
- * without loading the file into the JS heap. FAIL-OPEN: any error returns
- * false (grep exit 1 = no match, exit 2 = error — both release the gate).
+ * DISPATCH-AGENT-TYPE-01 defense-in-depth: detect the structured evidence-
+ * exemption token in the child transcript. Dispatchers include this token
+ * explicitly in the spawn message for read-only workers that should not be
+ * evidence-gated. The spawn hook also auto-injects it on plaintext surfaces
+ * when read-only intent is detected (convenience, not correctness path --
+ * V2 ciphertext surfaces cannot be read by the hook).
+ *
+ * Uses `grep -qF` (fixed-string, no regex, no locale issues). The token is
+ * ASCII-only high-entropy, so accidental matches in system prompt content
+ * are near-zero. FAIL-OPEN: any error returns false.
  */
-const READ_ONLY_GREP_PATTERN = "read-only|readonly|chat-only deliverable|no file writes|do not write files|do not edit files|no evidence files|\\ud30c\\uc77c \\uc791\\uc131 \\uae08\\uc9c0|\u30d5\u30a1\u30a4\u30eb \u4f5c\u6210 \u7981\u6b62|\ud30c\uc77c \uc791\uc131 \uae08\uc9c0";
+export const EVIDENCE_EXEMPT_TOKEN = "[CXC-EVIDENCE-EXEMPT]";
 
 export function transcriptHasReadOnlyMarker(agentTranscriptPath: string | null | undefined): boolean {
   if (typeof agentTranscriptPath !== "string" || agentTranscriptPath === "") return false;
   try {
-    execFileSync("grep", ["-qiE", READ_ONLY_GREP_PATTERN, agentTranscriptPath], {
+    execFileSync("grep", ["-qF", EVIDENCE_EXEMPT_TOKEN, agentTranscriptPath], {
       stdio: "ignore",
       timeout: 5000,
     });
-    return true; // exit 0 = match found
+    return true;
   } catch {
-    return false; // exit 1 (no match) or exit 2 (error) — fail-open
+    return false;
   }
 }
 
