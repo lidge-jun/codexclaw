@@ -100,6 +100,11 @@ codexclaw translation:
 - Role -> built-in agent type: `explorer`/`reviewer` -> `explorer` (read-only),
   `executor` -> `worker` (scoped write). codexclaw cannot register custom roles, so the
   role prompt is injected inline (the B-opt2 pattern).
+- **DISPATCH-AGENT-TYPE-01 (DEFAULT).** The role-to-agent-type mapping above is the
+  canonical dispatch classifier for the SubagentStop evidence gate: only
+  `agent_type:"worker"` triggers the evidence-receipt gate (hook matcher `^worker$` +
+  runtime `GATED_AGENT_TYPES`). Read-only audit, research, and review dispatches MUST
+  use `agent_type:"explorer"` to avoid conflicting evidence-persistence directives.
 - **Audit (A) is never skipped.** Before B, the main session must dispatch an independent
   reviewer subagent via `spawn_agent` for an adversarial review pass. Untested code is
   not "done"; C must run real tsc/tests.

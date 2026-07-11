@@ -18,6 +18,7 @@ import {
   transcriptHasContextPressure,
   readAttempts,
   MAX_ATTEMPTS,
+  GATED_AGENT_TYPES,
 } from "../src/subagent-evidence.ts";
 import type { SubagentStopPayload } from "../src/hook.ts";
 
@@ -131,4 +132,36 @@ test("010: transcriptHasContextPressure is false for missing/empty path", () => 
   assert.equal(transcriptHasContextPressure(undefined), false);
   assert.equal(transcriptHasContextPressure(""), false);
   assert.equal(transcriptHasContextPressure("/nonexistent/x.jsonl"), false);
+});
+
+// --- DISPATCH-AGENT-TYPE-01 invariant tests ---
+
+test("DISPATCH-AGENT-TYPE-01: hook manifest matcher gates only worker agents", async () => {
+  // The SubagentStop hook JSON must match only "worker" so explorer/default agents
+  // never even trigger the evidence-receipt gate command. This is the first line of
+  // defense; GATED_AGENT_TYPES in the runtime is the second.
+  const { readFileSync } = await import("node:fs");
+  const { resolve } = await import("node:path");
+  const hookPath = resolve(
+    import.meta.dirname,
+    "../../../hooks/subagent-stop-verifying-evidence.json",
+  );
+  const manifest = JSON.parse(readFileSync(hookPath, "utf8"));
+  const matchers = manifest.hooks.SubagentStop.map(
+    (entry: { matcher?: string }) => entry.matcher,
+  );
+  // Exactly one entry with the ^worker$ matcher.
+  assert.deepEqual(matchers, ["^worker$"]);
+});
+
+test("DISPATCH-AGENT-TYPE-01: GATED_AGENT_TYPES contains only worker", () => {
+  // Runtime defense-in-depth: even if the hook matcher is changed, only worker
+  // agents are evidence-gated. Adding a new gated type requires deliberate change.
+  assert.deepEqual([...GATED_AGENT_TYPES].sort(), ["worker"]);
+});
+
+test("DISPATCH-AGENT-TYPE-01: default agent_type is not gated", () => {
+  const cwd = tmp();
+  const out = runSubagentStopGate(payload(cwd, { agent_type: "default" }));
+  assert.equal(out, "");
 });

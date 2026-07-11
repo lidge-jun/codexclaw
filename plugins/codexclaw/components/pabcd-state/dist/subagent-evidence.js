@@ -31,7 +31,13 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { STATE_DIR, sanitizeKey } from "./state.js";
 
 
-/** agent_type values this gate refuses to release without a receipt. */
+/**
+ * agent_type values this gate refuses to release without a receipt.
+ * DISPATCH-AGENT-TYPE-01: only "worker" is gated. Read-only audit/research
+ * dispatches MUST use agent_type:"explorer" so they bypass both the hook
+ * manifest matcher (^worker$) and this runtime gate. See
+ * structure/20_pabcd_dispatch_doctrine.md §3.
+ */
 export const GATED_AGENT_TYPES = new Set        (["worker"]);
 
 /** Bounded block budget per (session, agent) so the gate can never trap a session. */
