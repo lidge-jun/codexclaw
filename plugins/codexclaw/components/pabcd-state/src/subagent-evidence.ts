@@ -29,6 +29,7 @@ import {
 } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { STATE_DIR, sanitizeKey } from "./state.ts";
+import { execFileSync } from "node:child_process";
 import type { SubagentStopPayload } from "./hook.ts";
 
 /**
@@ -127,31 +128,24 @@ export function transcriptHasContextPressure(agentTranscriptPath: string | null 
 
 /**
  * DISPATCH-AGENT-TYPE-01 defense-in-depth: detect read-only task markers in
- * the child transcript. If the spawn message explicitly says the task is
- * read-only / no-file-writes / chat-only, the evidence gate should not fire
- * even if the agent was accidentally dispatched as worker. Markers are
- * case-insensitive substrings of the full transcript (the spawn
- * * message may be preceded by system prompt content). FAIL-OPEN: any read error returns false.
+ * the child transcript via grep. The spawn message may sit 20KB+ into the
+ * JSONL (system prompt content precedes it), so a fixed-offset head read
+ * misses it. grep -qi with a combined ERE pattern exits on first match
+ * without loading the file into the JS heap. FAIL-OPEN: any error returns
+ * false (grep exit 1 = no match, exit 2 = error — both release the gate).
  */
-const READ_ONLY_MARKERS = [
-  "read-only",
-  "readonly",
-  "\u30d5\u30a1\u30a4\u30eb \u4f5c\u6210 \u7981\u6b62",
-  "\ud30c\uc77c \uc791\uc131 \uae08\uc9c0",
-  "chat-only deliverable",
-  "no file writes",
-  "do not write files",
-  "do not edit files",
-  "no evidence files",
-] as const;
+const READ_ONLY_GREP_PATTERN = "read-only|readonly|chat-only deliverable|no file writes|do not write files|do not edit files|no evidence files|\\ud30c\\uc77c \\uc791\\uc131 \\uae08\\uc9c0|\u30d5\u30a1\u30a4\u30eb \u4f5c\u6210 \u7981\u6b62|\ud30c\uc77c \uc791\uc131 \uae08\uc9c0";
 
 export function transcriptHasReadOnlyMarker(agentTranscriptPath: string | null | undefined): boolean {
   if (typeof agentTranscriptPath !== "string" || agentTranscriptPath === "") return false;
   try {
-    const text = readFileSync(agentTranscriptPath, "utf8").toLowerCase();
-    return READ_ONLY_MARKERS.some((marker) => text.includes(marker));
+    execFileSync("grep", ["-qiE", READ_ONLY_GREP_PATTERN, agentTranscriptPath], {
+      stdio: "ignore",
+      timeout: 5000,
+    });
+    return true; // exit 0 = match found
   } catch {
-    return false;
+    return false; // exit 1 (no match) or exit 2 (error) — fail-open
   }
 }
 
