@@ -1,6 +1,6 @@
 # Motion Choreography — Animation Engineering Guide
 
-Rules for meaningful, performant animation. One well-choreographed moment > 10 scattered effects.
+Rules for meaningful, performant animation. One signature moment + a small number of supporting reveals > 10 scattered effects.
 
 ---
 
@@ -10,11 +10,33 @@ Motion intensity must match the product surface:
 
 | Surface | Default |
 | --- | --- |
-| Finance, gov, B2B, auth, payment, security | 1-3: feedback-only, low anxiety |
-| Dashboards, admin, ops, developer tools | 1-4: state transition only |
-| Consumer apps, education, community | 3-6: guided feedback and progress |
-| Landing, campaign, editorial | 5-8: expressive but still performant |
+| Finance, gov, B2B, auth, payment, security | TOOL: scroll-driven = 0 (hard); feedback/state transitions 1-4 OK |
+| Dashboards, admin, ops, developer tools | TOOL: scroll-driven = 0 (hard); feedback/state transitions 1-4 OK |
+| Consumer apps, education, community | APP: feedback + state-transition motion only; no scroll-motion floor |
+| Landing, campaign, marketing, editorial, portfolio | LANDING: scroll-driven floor 2, ceiling ~4; expressive but still performant |
 | Games / interactive art | domain-specific |
+
+## FE-MOTION-BUCKET-01 - Motion Bucket Map (DEFAULT)
+
+Classify the surface before choosing scroll choreography. The bucket map is the
+primary gate; `MOTION_INTENSITY` is secondary.
+
+- **LANDING**: landing, marketing, editorial, portfolio, and
+  marketing-facing pages of any product, including AI tools, education, and
+  community products. Scroll-driven motion floor = 2, ceiling ~4. The floor is
+  **1 signature + >= 1 supporting reveal = floor 2**.
+- **APP**: logged-in or in-app consumer, education, and community screens.
+  Feedback + state-transition motion only; no scroll-motion floor.
+- **TOOL**: dashboards, admin, finance, gov, B2B repeated-work, developer
+  consoles, auth, and payment surfaces. Scroll-driven motion = 0 (hard);
+  feedback/state transitions at levels 1-4 are preserved.
+- **Games / interactive art**: domain-specific and exempt.
+
+A "scroll motion" is one distinct choreographed scroll-driven moment, either a
+signature moment or a supporting reveal. Identical per-section fade-up
+repetition counts as one supporting moment total, not N. The floor applies to
+the base experience only; `prefers-reduced-motion` and missing `@supports`
+legitimately deliver zero motion.
 
 Avoid cinematic page loads for repeated-work tools. Motion should clarify state, not slow the task.
 
@@ -158,7 +180,7 @@ cluster.addEventListener('pointerleave', () => {
 
 ---
 
-## Scroll-Driven (Level 8+)
+## Scroll-Driven (Level 8+, or Level 5+ when needed to satisfy the FE-MOTION-BUCKET-01 landing floor)
 
 ### Scroll Progress
 ```tsx
@@ -221,7 +243,7 @@ document.startViewTransition(() => {
 });
 ```
 
-### Horizontal Scroll-in-Vertical (Level 8+)
+### Horizontal Scroll-in-Vertical (Level 8+, or Level 5+ when needed to satisfy the FE-MOTION-BUCKET-01 landing floor)
 
 Domain gate: landing/campaign/editorial scrolltelling only. For tools,
 dashboards, admin, ops, and developer consoles, prefer a normal table/list or a
@@ -316,7 +338,7 @@ Reduced motion: keep the native rail scrollable, collapse fake-horizontal
 sections to a vertical stack, disable pin/scrub timelines, and make all panels
 reachable in document order.
 
-### Sticky Card Stacking (Level 7+)
+### Sticky Card Stacking (Level 7+, or Level 5+ when needed to satisfy the FE-MOTION-BUCKET-01 landing floor)
 
 Domain gate: landing, editorial, case studies, education, onboarding. In tools,
 use it only for non-blocking summaries; never stack forms, tables, or required
@@ -349,7 +371,7 @@ Reduced motion: keep sticky positioning if it only affects placement; remove
 scale/rotation/fade flourishes and ensure each card remains readable when
 stacked.
 
-### Frame Sequence Scrolltelling (Level 8+)
+### Frame Sequence Scrolltelling (Level 8+, or Level 5+ when needed to satisfy the FE-MOTION-BUCKET-01 landing floor)
 
 Domain gate: product launches, campaign pages, editorial explainers, and
 portfolio moments where photoreal inspection matters. Avoid in dashboards,
@@ -408,7 +430,7 @@ addEventListener('scroll', () => requestAnimationFrame(scrubSequence), { passive
 Reduced motion: show a poster image or a short non-scrubbed clip with controls;
 do not bind dozens or hundreds of frame changes to scroll.
 
-### Video currentTime Scrub (Level 7+)
+### Video currentTime Scrub (Level 7+, or Level 5+ when needed to satisfy the FE-MOTION-BUCKET-01 landing floor)
 
 Domain gate: lightweight landing/editorial effects where exact frame accuracy
 does not matter. Use Canvas frame sequences for Apple-style product precision.
@@ -462,7 +484,7 @@ should keep natural document flow instead of full-page snapping.
 Reduced motion: change `scroll-snap-type` to `y proximity` or remove snap, and
 disable View Transition animations.
 
-### Text Mask & Reveal (Level 8+)
+### Text Mask & Reveal (Level 8+, or Level 5+ when needed to satisfy the FE-MOTION-BUCKET-01 landing floor)
 
 Domain gate: editorial, campaign, portfolio, and hero storytelling. In product
 tools, use plain readable text and reserve reveal for small onboarding moments.
@@ -502,7 +524,7 @@ properties.
 Reduced motion: render final text immediately, keep video masks static or use a
 poster, and do not scramble/split characters over time.
 
-### SVG Path Drawing (Level 7+)
+### SVG Path Drawing (Level 7+, or Level 5+ when needed to satisfy the FE-MOTION-BUCKET-01 landing floor)
 
 Domain gate: routes, timelines, process maps, editorial diagrams, and playful
 landing moments. Avoid it for dense operational diagrams where the path itself
@@ -528,7 +550,7 @@ scroll frame.
 Reduced motion: show the completed path immediately and use labels or markers
 for meaning; never make comprehension depend on the drawing animation.
 
-### Lottie Scroll Scrub (Level 7+)
+### Lottie Scroll Scrub (Level 7+, or Level 5+ when needed to satisfy the FE-MOTION-BUCKET-01 landing floor)
 
 Domain gate: vector explainers, icons, onboarding, and editorial diagrams. Do
 not use Lottie for photoreal product scrolltelling; use frame sequences instead.
@@ -561,7 +583,7 @@ Use Framer for UI. Use GSAP/Three.js ONLY for isolated full-page scrolltelling o
 
 ---
 
-## Cinematic Section Transitions (Level 8+)
+## Cinematic Section Transitions (Level 8+, or Level 5+ when needed to satisfy the FE-MOTION-BUCKET-01 landing floor)
 
 Full-screen "flying" transitions where one section transforms into the next:
 zoom-through, fly-through, morph, wipe, portal. Research:
@@ -570,8 +592,9 @@ zoom-through, fly-through, morph, wipe, portal. Research:
 Domain gate: landing, campaign, editorial, and product-story surfaces only.
 Never apply cinematic section transitions to tools, dashboards, admin, auth,
 payment, or developer consoles — they hijack scroll, delay task work, and raise
-motion-sickness and accessibility risk. Motion intensity here is Level 8+; do
-not ship it on repeated-work surfaces.
+motion-sickness and accessibility risk. Motion intensity here is Level 8+, or
+Level 5+ when needed to satisfy the FE-MOTION-BUCKET-01 landing floor; do not
+ship it on repeated-work surfaces.
 
 All of these share one architecture: a **pinned full-viewport stage**, layered
 sections/images, and scroll progress mapped to a timeline. Choose the driver by
@@ -762,7 +785,7 @@ Composition Grammar):
 Need a scroll effect?
   |
   +-- Product tool, dashboard, admin, auth, payment?
-  |     -> Prefer static layout or feedback-only motion (Level 1-4).
+  |     -> scroll-driven = 0 (hard, FE-MOTION-BUCKET-01); feedback-only motion allowed.
   |
   +-- Cards/gallery need horizontal browsing?
   |     -> Native rail + CSS Scroll Snap.
@@ -826,6 +849,163 @@ Rules:
   preload gate and checkpoint-first loading.
 - Reduced motion: poster image beats loading an entire sequence the user will
   not see.
+
+---
+
+## ima2 Video Pipeline for Motion Assets (FE-MOTION-VIDEO-01, DEFAULT)
+
+When a motion surface needs real video or animated content, use ima2's video
+pipeline instead of simulating motion with CSS transitions alone. Domain gates
+from FE-MOTION-BUCKET-01 still apply — video assets serve the LANDING and APP
+buckets; TOOL bucket surfaces use static assets with feedback-only transitions.
+
+### Image-First Video (highest quality)
+
+The best video output comes from generating a high-quality still first, then
+animating it via image-to-video (i2v). The video model has a concrete visual
+anchor, producing better composition and character consistency than text-to-video.
+
+```bash
+# Step 1: Generate keyframe with GPT Image 2 (primary provider)
+# Match aspect ratio to target video: 1792x1024 for 16:9, 1024x1024 for 1:1
+ima2 gen "cinematic product shot of wireless earbuds on granite, three-point lighting, 16:9" \
+  --quality high --size 1792x1024 -o keyframe.png
+
+# Step 2: Animate the keyframe via i2v
+ima2 video "camera slowly orbits the product, soft ambient hum, no music, \
+  hold on a centered medium shot at the end" \
+  --ref keyframe.png --duration 10 --resolution 720p --aspect-ratio 16:9
+```
+
+**Keyframe provider rule:** GPT Image 2 (`--provider oauth`, `--quality high`)
+produces superior keyframes. Grok (`--provider grok`) is the fallback — only
+aspect ratio must match because i2v internally rescales.
+
+### Storyboard-to-Video Chain (multi-beat sequences)
+
+For sequences longer than 15 seconds or needing precise beat control, use the
+9-panel storyboard workflow:
+
+```bash
+# Step 1: Generate opening keyframe
+ima2 gen "cinematic wide shot, dramatic lighting" --quality high --size 1024x1024 -o keyframe.png
+
+# Step 2: Generate 9-panel storyboard grid from keyframe
+ima2 gen "Using this scene as reference, create a 3x3 storyboard grid (9 panels, \
+  thin black borders). Panel 1: solid black (lead-in). Panel 2-9: sequential action \
+  beats with timestamps. Maintain character design across panels." \
+  --ref keyframe.png --quality high --size 1024x1024 -o storyboard.png
+
+# Step 3: Animate storyboard
+ima2 video "This is a 9-panel storyboard. Animate left-to-right, top-to-bottom. \
+  Panel 1: black fade-in. Panel 2: ... Sound: taiko percussion builds. \
+  Camera: wide establishing then push to medium. End frame: stable close-up." \
+  --ref storyboard.png --duration 15 --resolution 720p --model grok-imagine-video-1.5
+
+# Step 4: Extract last frame and chain next storyboard
+ima2 video frame <generated-file>.mp4 --last -o lastframe.png
+ima2 gen "Using this last frame, create next 9-panel storyboard..." \
+  --ref lastframe.png --quality high --size 1024x1024
+```
+
+**9-panel rules:** Panel 1 must be solid black (auto-trimmed lead-in). Square
+format (1024x1024) works best. No timestamp labels in panels — they burn into
+the video. Character design must be identical across all panels.
+
+### Video Continue and Extend
+
+For multi-shot connected sequences:
+
+```bash
+# Extend from last frame (xAI native, combines original + extension)
+ima2 video extend "camera slowly pulls back revealing the full scene" \
+  --video <generated-file>.mp4 --duration 6
+
+# Continue with lineage (new clip, carries revisedPrompt history)
+ima2 video continue "she turns toward camera, rain grows louder, no music, \
+  says 'gidarryeo', end on still close-up" \
+  --video <generated-file>.mp4 --duration 10
+```
+
+`extend` returns original + extension as one file. `continue` creates a new
+clip from the last frame with branch-local prompt lineage (up to 4 entries).
+
+### Video Prompt Writing Rules
+
+Video prompts must be ACTIVE — describe motion, not a static description.
+Every video prompt should include:
+
+| Element | Required | Example |
+|---------|----------|---------|
+| Opening frame | Yes | "tight macro on the brushed aluminum edge" |
+| Camera intent | Yes | "lateral glide", "orbit", "rack focus" |
+| Subject motion | Yes | "earbuds slowly rotate, light catches the stem" |
+| Sound/music | Yes | "ambient hum, no music" or "lo-fi piano builds" |
+| Dialogue | If needed | "speaker says 'welcome', then silence" |
+| Ending frame | Yes | "settles into centered medium shot, holds steady" |
+| Duration pacing | Yes | 1-4s: one action. 5-7s: setup/turn/hold. 8-15s: multi-beat arc |
+
+**Anti-slop:** reject "cinematic", "stunning", "AAA trailer", generic "neon glow".
+Write what the camera actually sees and hears.
+
+### Model and Resolution by Motion Surface
+
+| Motion Surface | Model | Resolution | Duration |
+|---------------|-------|-----------|----------|
+| Product reveal | `grok-imagine-video-1.5` | 1080p | 5-10s |
+| Hero background loop | `grok-imagine-video` | 720p | 5-10s |
+| Scroll-driven frame sequence | Generate video, extract frames with ffmpeg | 720p+ | 5-15s |
+| Social/marketing clip | `grok-imagine-video-1.5` | 1080p | 5-15s |
+| Quick draft / iteration | `grok-imagine-video` | 480p | 3-5s |
+
+### Frame Extraction for Scroll Sequences
+
+To create scroll-driven frame sequences from ima2 video:
+
+```bash
+# Generate the motion asset
+ima2 video "product slowly rotates 360 degrees on clean backdrop" \
+  --ref product.png --duration 10 --resolution 1080p -o motion.mp4
+
+# Extract WebP frames for canvas scroll scrub
+ffmpeg -i motion.mp4 -vf "fps=24,scale=1440:-1" frames/%04d.webp
+
+# Or extract specific keyframes
+ima2 video frame motion.mp4 --last -o lastframe.png
+```
+
+Then use the Frame Sequence Scrolltelling pattern from this document with
+the extracted frames.
+
+### Parallel Video Generation
+
+Video generation is slow (30-120s per clip). For multi-shot sequences, launch
+clips in parallel when they do not depend on each other:
+
+```bash
+# Independent shots can run concurrently
+ima2 video "wide establishing shot" --ref scene.png --duration 5 &
+ima2 video "close-up detail shot" --ref detail.png --duration 5 &
+
+# Monitor progress
+ima2 ps --json
+
+# Sequential shots (each needs the previous last frame) must be serial
+```
+
+### `$imagegen` Fallback — Motion Without Video
+
+When ima2 is unavailable, `$imagegen` cannot generate video. Degrade to:
+
+1. **Static keyframe + CSS animation:** Generate a high-quality still with
+   `$imagegen`, then apply CSS transforms (parallax, scale, fade) for motion.
+2. **Multi-still frame sequence:** Generate 3-5 stills at different angles or
+   states with `$imagegen`, use CSS scroll-driven animations to crossfade.
+3. **CSS-only motion:** Use the CSS patterns in this document (scroll-driven
+   animations, sticky card stacking, text reveals) without bitmap frames.
+
+The quality gap is significant — video > multi-still > CSS-only. Document the
+gap in the deliverable when using fallback motion.
 
 ---
 

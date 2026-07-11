@@ -34,12 +34,15 @@ wiring, visual verification, and frontend platform rules.
 | `references/core/ux-writing-ko.md`        | Korean UI copy                       | Natural Korean labels, error messages, tone, spacing, punctuation                  |
 | `references/core/soft-3d-asset-gates.md`  | 3D/miniature/character-like visuals  | Toss-style soft 3D vs generic cute asset slop, domain gates                        |
 | `references/core/motion.md`               | Motion/animation needed              | CSS animations, Framer Motion, CSS scroll-driven timelines, pointer-proximity chip motion (magnetic/dock), View Transitions, domain gates, organic bg + capsule label, product-led hero motion |
-| `references/core/liquid-glass.md`         | Translucent materials, glass chrome, pill-chip surfaces | Liquid Glass layer discipline, regular/clear recipes, blur-free pill alternative, perf + a11y gates (verified 2026-07-07) |
+| `references/core/liquid-glass.md`         | Translucent materials, glass chrome, pill-chip surfaces | Liquid Glass layer discipline, named material states (pill-at-top/pill-scrolled/media-overlay/clear), FE-PILL-NEST-01, blur-free pill alternative, perf + a11y gates |
+| `references/core/top-bar.md`              | Top/nav bar composition, sticky chrome | Top-bar grammar: geometry, slots, scroll-state contract (FE-TOPBAR-STATE-01), hover-surface contract (FE-TOPBAR-HOVER-01), domain gate, mobile collapse |
 | `references/core/iterative-design.md`     | Multi-round design                   | LLM convergence problem, Diverge→Kill→Mutate process, upgrade techniques           |
 | `references/core/prototype-variants.md`   | Runnable design variants             | `?variant=` switchers, structurally distinct options, cleanup after winner selection |
 | `references/core/typography-wrapping.md`  | Heading/descriptor text changes      | `text-wrap: balance/pretty`, natural phrase breaks at any width, dynamic-viewport verification, `ch` units, Korean keep-all/orphan rules (verified 2026-07-07) |
 | `references/core/logo-sections.md`        | Integration/partner logo display     | Marquee CSS, static grid, orphan cell fix, grayscale treatment, no individual hover |
 | `references/core/brand-asset-sourcing.md` | Brand logos in UI                    | Simple Icons/SVGL sourcing, AI agent strategy, placeholder hierarchy, legal guide  |
+| `references/core/reference-capture.md`    | Cloning/analyzing other sites        | HTML+asset capture mechanics (pageAssets/curl), analysis-only legal line, provenance manifest, never-ship gate |
+| `references/core/dropdown-layer.md`       | Dropdowns, selects, menus, pickers   | Unified dropdown design layer (FE-DROPDOWN-LAYER-01): one skin over headless primitives, DS-detection precedence, scope table, mobile sheet |
 | `references/core/layout-discipline.md`    | Landing/marketing pages              | Hero, eyebrow, section repetition, bento, zigzag, per-section responsive transforms, hero composition grammar (2026) |
 | `references/core/consistency-locks.md`    | Any multi-section page               | Color, shape, theme consistency per page                                           |
 | `references/core/responsive-viewport.md`  | Layout or breakpoint changes         | Canonical breakpoints, page containment, container queries, responsive images, safe area, split-screen |
@@ -136,13 +139,17 @@ Before coding, commit to a domain-correct direction:
 - **Surface**: Is this a working tool, dashboard, public service, AI workflow, game, landing page, or editorial surface?
 - **Tone**: Pick a specific direction. For product tools this often means quiet, dense, trustworthy, and fast rather than loud.
 - **Constraints**: Framework, performance budget, accessibility requirements.
-- **Signature**: What ONE thing will make this unforgettable?
+- **Signature**: What ONE thing will make this unforgettable? (the signature
+  moment; supporting scroll reveals may exist alongside it per
+  `motion.md` FE-MOTION-BUCKET-01)
 
 When user intent is vague ("깔끔하게", "모던하게", "just make it look good"), read the `dev-uiux-design` skill and run the User Intent Discovery Protocol before making routing decisions.
 If the user cannot answer these questions, use the `dev-uiux-design` skill's structured preference elicitation flow. Offer product references ("Notion 느낌? Linear 느낌?") and visual comparisons.
 
 **Concept pass before code (stub — canonical: `dev-uiux-design` §2.5 UX-CONCEPT-GEN-01):**
-for a new page/site/major redesign with open design direction, when `ima2` is available,
+for a C2+ new/redesigned expressive or brand-visible surface (page, hero, key
+chrome like a top bar) with open design direction — probe `ima2 status`, attempt
+`ima2 serve` if down, `$imagegen` only as true fallback — then
 generate 5 highly specific candidate mockups of ONE locked concept, then SYNTHESIZE the
 best elements across all 5 (NOT pick a single winner) into DESIGN.md and implement from
 that synthesis — do not start coding the layout blind.
@@ -177,8 +184,10 @@ Read `references/core/aesthetics.md` for full guidelines. Summary:
 - **Typography**: Use domain-appropriate typography. For Korean-first UIs, prioritize CJK-safe stacks before Latin display fonts. Apply `text-wrap: balance` on all headings **AND short descriptors** (hero subtitle, card description, caption — anything 1-3 lines). Use `text-wrap: pretty` only on body paragraphs (4+ lines). `pretty` has no effect on short text and will leave Korean orphans like "합니다." or "화." on a line alone. See `typography-wrapping.md` for full rules.
 - **Color**: Max 1 accent. Use neutral bases (Zinc/Slate) with singular high-contrast accent — avoid purple-on-white.
 - **Layout**: Match the product surface. Avoid centered-card/hero patterns in repeated-use tools.
-- **Motion**: See `references/core/motion.md`. One well-choreographed page load > 10 scattered effects.
-- **Assets**: Use screenshots, product images, diagrams, charts, illustrations, generated bitmaps, or soft 3D only when they add product meaning. When a real bitmap is needed (icon, hero, illustration), generate it with the native `imagegen` tool (`$imagegen` mention) instead of shipping a placeholder; read any design reference or captured screenshot back into context with `view_image` before matching it.
+- **Motion**: See `references/core/motion.md`. One signature moment + a few
+  supporting reveals > 10 scattered effects; landing-bucket floor/ceiling per
+  FE-MOTION-BUCKET-01.
+- **Assets**: Use screenshots, product images, diagrams, charts, illustrations, generated bitmaps, or soft 3D only when they add product meaning. When a real bitmap is needed (icon, hero, illustration), generate it with `ima2` — probe `ima2 status`, attempt `ima2 serve` if down — falling back to the native `imagegen` tool only when ima2 is truly unavailable; never ship a placeholder. `ima2` is preferred because it supports reference images, multi-candidate generation (`-n N`, multimode, independent CLI parallel — see `asset-requirements.md` FE-ASSET-PARALLEL-01), prompt builder, session style sheets, provider routing (GPT/Grok/Gemini — see `asset-requirements.md` FE-ASSET-PROVIDER-01), variant selection with element-ledger synthesis (`asset-requirements.md` FE-ASSET-SELECT-01), and video (`ima2 video` — see `motion.md` FE-MOTION-VIDEO-01) for motion assets. For parallel generation, monitor with `ima2 ps --json` and cancel unwanted jobs with `ima2 cancel <id>`. Write **very explicit long prompts** (subject, composition, palette, lighting, style, aspect) per `asset-requirements.md`; prefer real/generated image or video assets over CSS gradient washes. Read any design reference or captured screenshot back into context with `view_image` before matching it. Third-party captures follow `reference-capture.md` (analysis-only, provenance manifest).
 - **Visual verification**: after UI changes, exercise the flow per `cxc-dev-testing` §4.6 (TEST-CU-QA-01) — `browser:control-in-app-browser` on the dev server, screenshot, `view_image` — instead of claiming visual correctness from code alone.
 
 ---

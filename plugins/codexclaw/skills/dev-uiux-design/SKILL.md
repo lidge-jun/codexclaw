@@ -57,6 +57,8 @@ fetch/open/text/get-dom/snapshot only after candidate URLs exist.
 | `references/visual-hierarchy.md` | Any layout / composition decision | 6 levers: size scale, weight contrast, color emphasis, spacing, position, density |
 | `references/form-patterns.md` | Forms, wizards, auth, file upload | Validation timing, multi-step, password UX, file upload, search/filter |
 | `references/mobile-native-ux.md` | Native mobile app UX decisions | iOS HIG vs Material 3, gestures, deep linking, Korean privacy, app store UX |
+| `references/intent-discovery-ladder.md` | UX-INTENT-01 optional deepening (Steps 1-6) | Mood/lightness/density/shape/viewport/reference ladder, vague request disambiguation |
+| `references/korean-design-vocabulary.md` | Korean design briefs or Korean-first UI | Korean descriptor → CSS token translation, quick-match table, font selection guidelines |
 
 ---
 
@@ -127,9 +129,14 @@ decided 2026-07-07 from Tier-2 trend research — see `references/design-isms.md
   asymmetric content-weighted layout.
 - Material accent: Liquid Glass or near-opaque pill chrome ONLY on floating
   functional layers (nav/toolbars/chip clusters); pill-chip content units;
-  content layer stays solid (`dev-frontend` FE-LIQUID-LAYER-01).
-- Motion: feedback baseline + exactly ONE signature moment
-  (pointer-proximity chips or scroll-driven reveal), per motion domain gates.
+  content layer stays solid (`dev-frontend` FE-LIQUID-LAYER-01). Children
+  inside pill chrome carry no capsule borders/outlines at rest — emphasis via
+  fills/tints only (`dev-frontend` FE-PILL-NEST-01); top-bar scroll states per
+  `dev-frontend` `top-bar.md` FE-TOPBAR-STATE-01.
+- Motion: feedback baseline + one signature moment (pointer-proximity chips or
+  scroll-driven reveal) + >= 1 supporting scroll reveal on landing-bucket
+  surfaces (floor 2, ceiling ~4 — `dev-frontend` `motion.md`
+  FE-MOTION-BUCKET-01); feedback-only elsewhere, per motion domain gates.
 - Color: OKLCH-derived single accent + tinted neutrals (hue budget,
   `references/color-system.md`).
 
@@ -143,78 +150,10 @@ correctness (§ IA Chooser + `dev-frontend` product-density profiles).
 - If the diagram skill is available, offer: "참고로 스타일 비교를 다이어그램으로 보여드릴 수도 있어요."
 - If the user names a specific product reference, skip remaining steps and map directly via `references/product-personalities.md`.
 
-### Step 1 — Mood
-
-Ask: "전체적인 분위기가 어떤 느낌이면 좋을까요?" / "What overall feeling should the product have?"
-
-| Option | Signals | Product References |
-|--------|---------|-------------------|
-| 전문적/신뢰감 (Professional) | swiss, flat, restrained | Linear, Vercel, GitHub |
-| 따뜻한/친근한 (Warm/Friendly) | rounded, warm-neutrals, illustrations | Notion, Airbnb, Toss |
-| 고급스러운/세련된 (Premium) | generous-whitespace, thin-type, restrained-color | Apple, Stripe, Aesop |
-| 재미있는/활기찬 (Fun/Energetic) | bright-colors, playful-shapes, bold-type | Figma, Discord |
-| 대담한/독특한 (Bold/Distinctive) | brutalism, asymmetry, experimental | Gumroad, Nothing |
-
-### Step 2 — Lightness
-
-Ask: "밝은 화면이 좋으신가요, 어두운 화면이 좋으신가요?" / "Light or dark background?"
-
-| Option | CSS |
-|--------|-----|
-| 밝은 배경 (Light) | `bg-white text-gray-900` |
-| 어두운 배경 (Dark) | `bg-gray-950 text-gray-100` |
-| 둘 다 (Both / auto) | `prefers-color-scheme` aware |
-
-### Step 3 — Density
-
-Ask: "화면에 정보가 많이 보이는 게 좋으신가요, 여유롭게 보이는 게 좋으신가요?" / "Dense or spacious?"
-
-| Option | VISUAL_DENSITY | Tokens |
-|--------|---------------|--------|
-| 빽빽하게 (Dense) | 8–10 | `text-sm py-1 px-2 gap-1` |
-| 보통 (Normal) | 4–7 | `text-base py-3 px-4 gap-4` |
-| 여유롭게 (Spacious) | 1–3 | `text-lg py-8 px-8 gap-8` |
-
-### Step 4 — Shape
-
-Ask: "모서리가 각진 느낌이 좋으신가요, 둥근 느낌이 좋으신가요?" / "Sharp or rounded?"
-
-| Option | CSS | Signals |
-|--------|-----|---------|
-| 각진 (Sharp) | `rounded-none` / 0–2px | Vercel, brutalism, swiss |
-| 살짝 둥근 (Slightly rounded) | `rounded-md` / 6–8px | Linear, Notion, material |
-| 많이 둥근 (Very rounded) | `rounded-2xl` / 16–24px | Figma, iOS, Toss |
-
-### Step 5 — Viewport Priority
-
-Ask: "주로 어떤 화면에서 볼 건가요?" / "What's the primary viewing device?"
-
-| Option | Responsive Strategy | Key Constraint |
-|--------|-------------------|----------------|
-| 데스크탑 위주 (Desktop-first) | Desktop layout → tablet → mobile collapse | Data density OK, hover interactions OK |
-| 모바일 위주 (Mobile-first) | Mobile layout → tablet → desktop expansion | Thumb zone, touch targets, minimal density |
-| 둘 다 중요 (Both equally) | Design mobile AND desktop as separate compositions, not one adapted from the other | Most work — section order/composition may differ |
-
-Cross-ref: `references/responsive-nav.md` for canonical breakpoints and container query patterns, `dev-frontend/references/core/mobile-ux.md` for mobile-specific composition rules.
-
-### Step 6 — Reference
-
-Ask: "혹시 '이런 느낌이면 좋겠다' 하는 사이트나 앱이 있으신가요?" / "Any website or app that feels like what you want?"
-
-This single question often resolves all ambiguity. If the user names a product, map it via `references/product-personalities.md`.
-
-### Vague Request Disambiguation
-
-When the user gives feedback without specifics, translate:
-
-| User says | Action |
-|-----------|--------|
-| "더 좋게" / "make it better" | Ask: "레이아웃? 색상? 타이포? 여백?" — identify the dimension |
-| "더 전문적으로" / "more professional" | Increase whitespace, reduce color count to 2–3, tighten grid alignment |
-| "더 모던하게" / "more modern" | Negative letter-spacing on headings, offer dark mode, reduce radius to 8px |
-| "더 재미있게" / "more exciting" | Add one bold accent color, increase type contrast, add micro-animation on hover |
-| "너무 심심해" / "too boring" | Add asymmetric layout, introduce one unexpected element, vary section rhythm |
-| "너무 복잡해" / "too busy" | Reduce element count, increase whitespace, limit to 2 colors |
+For the full 6-step guided ladder (Mood → Lightness → Density → Shape → Viewport →
+Reference) and vague-request disambiguation table, read
+`references/intent-discovery-ladder.md`. Load it only when the compact flow above
+needs deeper guided exploration.
 
 ---
 
@@ -224,8 +163,9 @@ Before generating ANY frontend code, produce a Design Read. If the project has a
 
 Native tool support (structure/60): read visual references — existing screens, competitor
 captures, design exports — into context with `view_image` before writing the Design Read;
-produce needed bitmap assets (icons, illustrations, mock imagery) with the native
-`imagegen` tool (`$imagegen`) rather than leaving placeholder boxes; and verify the built
+produce needed bitmap assets (icons, illustrations, mock imagery) with `ima2` (probe
+`ima2 status`, attempt `ima2 serve` if down; the native `imagegen` tool is the fallback
+only when ima2 is truly unavailable) rather than leaving placeholder boxes; and verify the built
 result visually per `cxc-dev-testing` §4.6 (browser screenshot -> `view_image`).
 
 ### Output format (mini DESIGN.md)
@@ -272,9 +212,9 @@ Reasoning: <one sentence explaining why these values match the brief>
 
 Inference rules:
 - Corporate/gov/utility → VARIANCE 2-4, MOTION 1-3, density D2-D3
-- Marketing/landing → VARIANCE 4-7, MOTION 3-5, density D2-D3
-- Creative/portfolio/editorial → VARIANCE 6-9, MOTION 4-7, density D1-D3
-- Dashboard/SaaS/admin → VARIANCE 2-4, MOTION 1-2, density D4-D5
+- Marketing/landing → VARIANCE 4-7, MOTION 5-7 (scroll-motion floor applies, FE-MOTION-BUCKET-01), density D2-D3
+- Creative/portfolio/editorial → VARIANCE 6-9, MOTION 5-7 (landing-bucket scroll floor applies, FE-MOTION-BUCKET-01), density D1-D3
+- Dashboard/SaaS/admin → VARIANCE 2-4, MOTION 1-2 (scroll-driven = 0), density D4-D5
 - "Complex" in brief → increase density profile (functional depth), NOT VARIANCE or MOTION
 - "Simple" in brief → decrease all three proportionally
 
@@ -295,91 +235,173 @@ If the project needs persistent design tokens across sessions, save the Design R
 
 ## 2.5 Visual Concept Exploration (UX-CONCEPT-GEN-01, DEFAULT)
 
-Before implementing a NEW page, site, or major redesign (C2+ UI surface with open
-design direction), when `ima2` is available (`ima2 status` confirms a running
-server), generate design candidates BEFORE any frontend code:
+Before implementing a C2+ NEW/redesigned expressive or brand-visible UI surface
+(landing page, hero, key chrome such as a top bar, or major visual redesign),
+generate visual concept candidates BEFORE frontend code. C0/C1 patches and
+utility CRUD/dashboard screens are exempt.
 
-1. **Lock ONE concept, write 5 maximally specific prompts for it.** Decide the
-   single design concept first (domain, audience, palette family, hero grammar,
-   density, signature visual). Then write 5 prompts that all express that SAME
-   concept but vary the execution: emphasis points, fine layout choices, accent
-   treatment, type nuance, secondary-section hints. Distinct directions were the
-   old UX-VARIANT-OLD spec; identical-concept varianting is the point — you are
-   sourcing the best EXECUTION of one shared idea, not choosing among 5 unrelated
-   designs. Each prompt still pins: domain + audience, layout family and hero
-   grammar (FE-HERO-SPLIT-01 applies — no split hero unless the user asked),
-   palette with concrete hues (color-system bans apply), typography direction,
-   and density. Vague prompts ("modern clean landing page") are banned: a reader
-   must be able to reconstruct the layout from the prompt alone.
-2. **Generate as a batch.** Run `ima2 gen <prompt> -n 1 -o <path>` five times
-   concurrently (or `ima2 gen <prompt> -n 5 -d <dir>` for a single request);
-   monitor with `ima2 ps --json`.
-3. **Read all 5 side by side and SYNTHESIZE — do not pick a single winner.**
-   Each render usually nails some elements and fumbles others. The output is
-   not "which variant is best"; it is "which elements are best across all of
-   them." Build an element ledger: for palette, hero composition, type
+0. **Probe, start, then choose the generator.** Run `ima2 status` first. If the
+   server is down, attempt `ima2 serve` in the background, then re-run
+   `ima2 status` before skipping or falling back. Use `$imagegen` only when
+   `ima2` is truly unavailable after that serve attempt. State the chosen
+   generator in the deliverable; if generation is skipped, state the exact skip
+   reason and persist it in the devlog.
+0.5. **If the ism/direction is unclear, go IMAGE-FIRST (UX-IMAGE-FIRST-01, DEFAULT).**
+   When the user's brief does not name a specific ism, product reference, or
+   design direction — "make me a website for X", "landing page for Y",
+   vague aesthetic words without concrete reference — do NOT guess a direction
+   from text alone. Instead, let generated images DISCOVER the direction:
+
+   **Round 1 — Ism exploration (5 images, broad).** Write 5 maximally detailed
+   prompts, each expressing a DIFFERENT plausible ism/direction for the brief.
+   Vary: layout family (editorial vs product-led vs bento vs asymmetric), palette
+   temperature (warm vs cool vs monochrome), typography stance (serif editorial vs
+   grotesk minimal vs geometric bold), material (glass vs matte vs textured), and
+   hero grammar (full-bleed photo vs device mockup vs type-only). Every prompt must
+   be detailed enough that a reader can reconstruct the layout — pin domain, audience,
+   specific hex palette, font direction, hero composition, section hint, and density.
+   Vague prompts ("modern clean landing page") are banned.
+
+   ```bash
+   # Launch 5 different ism directions in parallel
+   ima2 gen "Use case: landing page. Editorial serif direction. Full-bleed hero with \
+     oversized light-weight serif headline 'Artisan Coffee', warm stone palette \
+     #f5f0eb/#2c2420/#c4956a, asymmetric layout, editorial photography of pour-over \
+     coffee, generous whitespace, matte paper texture at 3% opacity. No icons, no \
+     cards. Dense footer with serif nav." --quality high --size 1536x1024 \
+     -o ./concepts/01_editorial_serif.png &
+   ima2 gen "Use case: landing page. Geometric grotesk direction. ..." \
+     -o ./concepts/02_geometric_grotesk.png &
+   ima2 gen "Use case: landing page. Product-led device mockup direction. ..." \
+     -o ./concepts/03_product_mockup.png &
+   ima2 gen "Use case: landing page. Dark premium minimal direction. ..." \
+     -o ./concepts/04_dark_premium.png &
+   ima2 gen "Use case: landing page. Warm organic capsule direction. ..." \
+     -o ./concepts/05_warm_capsule.png &
+   ima2 ps --json   # monitor all 5
+   wait
+   ```
+   ```bash
+   # Round 1: 5 ism directions in parallel (each prompt must be maximally detailed)
+   ima2 gen "Use case: landing page. Editorial serif direction. Full-bleed hero, \
+     oversized light-weight serif 'Artisan Coffee', warm stone #f5f0eb/#2c2420, \
+     asymmetric layout, editorial pour-over photo, matte paper 3%." \
+     --quality high --size 1536x1024 -o ./concepts/01_editorial.png &
+   ima2 gen "Use case: landing page. Geometric grotesk direction. ..." -o ./concepts/02_grotesk.png &
+   ima2 gen "Use case: landing page. Product-led mockup direction. ..." -o ./concepts/03_product.png &
+   # ... (2 more ism directions)
+   ima2 ps --json  # monitor
+   wait
+   ```
+   Inspect all 5 with `view_image`. Build a quick-scorecard (which ism has the
+   strongest: hero composition, palette coherence, typographic voice, density fit
+   for the domain). Pick the WINNING ISM — not the winning image.
+
+   **Round 2 — Ism refinement (3-4 images, focused).** Lock the chosen ism.
+   Write 3-4 new prompts that all express THIS ism but vary execution details:
+   accent color temperature, hero image subject, section layout hints, CTA
+   treatment, stat/proof-bar placement. Use `--ref` with the best Round 1 image
+   as a style anchor.
+
+   ```bash
+   # Round 2: 3-4 refinements of the winning ism, anchored to Round 1 best
+   ima2 gen "Same editorial direction. Vary: latte art hero, accent #b8860b gold, \
+     proof bar below fold." --ref ./concepts/01_editorial.png --quality high -o ./concepts/06_a.png &
+   ima2 gen "Same direction. Vary: weight 300 headline, ..." --ref ./concepts/01_editorial.png -o ./concepts/07_b.png &
+   # ... (1-2 more refinement variations)
+   wait
+   ```
+
+   Synthesize Round 2 into the element ledger (step 3 below). Lock DESIGN.md.
+
+   **`$imagegen` fallback:** generate 2-3 ism candidates sequentially (one per
+   call), inspect each with `view_image`, pick the ism, then generate 2 refinement
+   candidates sequentially. Slower but the same two-round logic applies.
+
+   **Auto loop (HOTL) behavior:** this entire 0.5 step runs autonomously when a
+   goal is active. The agent picks the ism from Round 1 with stated reasoning
+   (recorded in devlog), then proceeds to Round 2 and step 3 synthesis without
+   user confirmation. The ism choice rationale is persisted so the user can
+   review it post-hoc.
+
+   Skip step 0.5 when: the user named a specific ism ("Notion feel", "Linear style",
+   a product reference mapped via `references/product-personalities.md`), the user
+   provided a reference screenshot or design file, or UX-INTENT-01 already resolved
+   the direction to a concrete ism.
+
+1. **Lock ONE concept, write maximally specific prompts for it.** Decide the
+   single design concept first (domain, audience, palette family, hero/chrome
+   grammar, density, signature visual). Page-level surfaces get 5 prompts that
+   all express that SAME concept but vary the execution: emphasis points, fine
+   layout choices, accent treatment, type nuance, secondary-section hints.
+   Component-level surfaces get about 3 prompts that render the component INSIDE
+   its top-viewport context (for example top bar plus hero together), never as
+   an isolated component strip. Reference captures collected to ground mockups
+   are generation inputs (`--ref`), not skip reasons. Each prompt still pins:
+   domain + audience, layout family and hero/chrome grammar (FE-HERO-SPLIT-01
+   applies -- no split hero unless the user asked), palette with concrete hues
+   (color-system bans apply), typography direction, material, motion/asset
+   intent, and density. Vague prompts ("modern clean landing page") are banned:
+  a reader must be able to reconstruct the layout from the prompt alone.
+2. **Generate into the active devlog unit assets directory.** For page-level
+   surfaces, keep the 5-render process: run `ima2 gen <prompt> -n 1 -o <path>`
+   five times concurrently (or `ima2 gen <prompt> -n 5 -d <dir>` for a single
+   request) and monitor with `ima2 ps --json`. For component-level surfaces,
+   generate about 3 context-strip renders of the component within its top
+   viewport context. If the mockup needs motion material, use `ima2 video`.
+   Asset prompts inside mockups/builds should be VERY EXPLICIT LONG prompts;
+   prefer real/generated photographic, texture, illustration, or motion assets
+   over CSS gradient washes.
+   **Parallel strategy selection** (see `dev-frontend/references/core/asset-requirements.md`
+   FE-ASSET-PARALLEL-01): for the 5-render process, prefer `ima2 gen -n 5 -d <dir>`
+   (single-request batch) when all 5 share the same locked concept prompt. Use
+   `ima2 multimode "<prompt>" --max-images 5` when you want SSE streaming to inspect
+   candidates as they arrive and cancel early if a strong candidate lands. For
+   structurally different concept directions (e.g. 3 editorial + 2 product-led),
+   launch independent `ima2 gen` commands in parallel and monitor with `ima2 ps --json`.
+   Cancel unwanted jobs with `ima2 cancel <requestId>` once a strong direction emerges.
+   **`$imagegen` fallback**: generate candidates sequentially (one per call), inspect
+   each with `view_image` before the next. No multimode or parallel equivalent;
+   compensate with more targeted prompt refinement between rounds.
+3. **Read the renders side by side and SYNTHESIZE -- do not pick one winner.**
+   Each render usually nails some elements and fumbles others. The output is not
+   "which variant is best"; it is "which elements are best across all of them."
+   For pages, build an element ledger for palette, hero composition, type
    treatment, signature visual, stat row, bottom-section hint, and every other
-   design token, note WHICH variant did it best and WHY. Show the user all 5
-   images (markdown image tags with absolute paths) with the synthesis ledger
-   and let them confirm/adjust the per-element picks; in autonomous/goal mode
-   make the picks with stated reasoning and record it.
-4. **The SYNTHESIZED DESIGN.md becomes the Design Read basis.** Extract palette,
-   layout family, type direction, and every other token from the element ledger
-   (each token citing its source variant) into DESIGN.md and implement from that.
-   Never pixel-copy any single render (generated text/logos are unreliable) — the
-   synthesis is a direction lock assembled from the best of five, not one asset.
+   design token. For components, shrink the ledger to the component tokens:
+   material, radius, fills, type, icon/logo treatment, state treatment, and
+   immediate context fit. For every token, note WHICH variant did it best and
+   WHY. Show the user the images (markdown image tags with absolute paths) with
+   the synthesis ledger and let them confirm/adjust the per-token picks; in
+   autonomous/goal mode make the picks with stated reasoning and record it.
+   Use the selection scorecard from `asset-requirements.md` FE-ASSET-SELECT-01
+   (subject fidelity, composition, palette, text render, asset-type fit,
+   technical quality) as a structured rubric for per-token evaluation.
+4. **Make the SYNTHESIZED DESIGN.md the Design Read basis.** Extract palette,
+   layout family, type direction, material, asset/motion intent, and every other
+   token from the element ledger into DESIGN.md, with each token citing its
+   source variant. Never pixel-copy any single render (generated text/logos are
+   unreliable) -- the synthesis is a direction lock assembled from the best
+   parts, not one asset. A mockup is not render verification; visual verification
+   remains owned by `visual-verification.md`.
 
-Skip (state the skip): user already supplied a concrete design/reference/mockup,
-an existing design system governs the surface, C0/C1 patches, or `ima2` is
-unavailable — then fall back to the text-only Design Read.
+Precedence: UX-CONCEPT-GEN-01 governs the PRE-CODE concept stage. After code
+exists, `iterative-design.md` Alive/Dead governs POST-CODE iteration rounds.
+When structural variants are still needed, `prototype-variants.md` runs AFTER
+the concept lock.
+
+Skip (state the skip): user handed a FINISHED design to implement; an existing
+design system governs the surface; the work is a C0/C1 patch; the surface is a
+utility CRUD/dashboard screen; or `ima2` is truly unavailable after `ima2 status`,
+an attempted `ima2 serve`, and a failed re-check, with `$imagegen` also
+unavailable or inappropriate. Captured/collected reference material to ground
+mockups is NOT a skip; it becomes generation input via `--ref`.
 ---
 
-## 3. Korean Request Translation
+## 3. Korean Design Vocabulary + Quick-Match + Font Selection
 
-Map common Korean design descriptors to concrete tokens. When the user uses these words, translate before implementing.
-
-| Korean | Literal | CSS/Token Translation |
-|--------|---------|----------------------|
-| 깔끔하게 | cleanly | Generous whitespace (24-48px gaps), strict grid, max 2-3 colors, saturation < 60%, 1px borders or none, 4-8px radius, single font, no/subtle shadows |
-| 모던하게 | modern | Geometric sans-serif (Geist/Outfit), negative letter-spacing on headings, dark mode or high-contrast light, 8-16px radius, spring micro-interactions |
-| 고급스럽게 | luxurious | Very generous whitespace (48-96px padding), thin weights (300-400), refined sans by default, serif only with editorial/luxury rationale, low-saturation palette, slow animations (800ms+), 0-4px radius |
-| 심플하게 | simply | Max 3-4 element types per screen, 1-2 colors, single font, 2-3 size steps, hidden/minimal navigation, zero decoration |
-| 트렌디하게 | trendy | Glassmorphism, bento grid, gradient mesh, variable fonts — ask for a reference site |
-| 따뜻하게 | warmly | Warm hue range (stone/amber/orange), 12-20px radius, warm-tinted shadows rgba(180,140,100,0.1), rounded or humanist sans |
-| 차가운 | cold/cool | Cool grays (slate/zinc), blue-tinted whites, geometric sans, thin weights, 0-8px radius |
-| 감성적으로 | emotionally | Editorial/lifestyle, serif display + sans body, muted/pastel colors, generous line-height, photography-heavy |
-
-**Clarifying questions per term:**
-- 깔끔: "Notion처럼 따뜻한 깔끔함인지, Vercel처럼 차가운 깔끔함인지요?"
-- 모던: "다크 모드 + 날카로움(Linear)인지, 화이트 + 미니멀(Vercel)인지요?"
-- 고급: "브랜드 고급감(Apple/Stripe)인지, 패션 럭셔리(Art Deco)인지요?"
-- 심플: "기능이 적은 건지, 기능은 많지만 화면이 심플해 보이길 원하는 건지요?"
-
----
-
-## 4. Quick-Match Table
-
-Rapid lookup: user word → concrete starting point.
-
-| User (KO) | User (EN) | Start From | Dark? | Radius | Density | Font |
-|------------|-----------|------------|-------|--------|---------|------|
-| 깔끔하게 | Clean | Notion or Vercel | No | 8px | 4–7 | Geist / Pretendard |
-| 모던하게 | Modern | Linear or Vercel | Yes | 6px | 4–7 | Geist / Outfit |
-| 고급스럽게 | Premium | Apple or Stripe | Either | 0–4px | 1–3 | Satoshi / system thin-300 |
-| 심플하게 | Simple | Vercel | Either | 0px | 1–3 | Geist |
-| 따뜻하게 | Warm | Notion or Toss | No | 12px | 4–7 | Pretendard / Cabinet Grotesk |
-| 재미있게 | Fun | Figma | No | 16px+ | 4–7 | Custom grotesque |
-| 전문적으로 | Professional | Linear or GitHub | Either | 6px | 4–7 | Geist / Outfit |
-| 대담하게 | Bold | Neobrutalism | No | 0px | 4–7 | Black 900 |
-| 감성적으로 | Aesthetic | Editorial | No | 0–4px | 1–3 | Serif display |
-| 트렌디하게 | Trendy | Ask for reference | Either | 12px | 4–7 | Variable font |
-
-### Font Selection Guidelines
-
-- **Typography stance (UX-TYPE-01)**: sans by default. Use serif only when the brief, brand system, or stated editorial/premium rationale supports it; do not inject one serif word into an otherwise sans headline for spice. When serif is justified (AI-product/editorial/research/trust surfaces), use the three-role system — display serif at light weights 330-400 + sans UI + mono accent — never as a bare AI-premium shortcut ("tasteslop"); gates in `dev-frontend` `aesthetics.md § Serif Discipline`.
-- **Primary default**: Geist (modern SaaS, Vercel ecosystem)
-- **Korean-first**: Pretendard (한글 최적화, Toss/당근 등 국내 서비스 표준)
-- **Warm/editorial**: Outfit or Cabinet Grotesk
-- **Premium/luxury**: Satoshi or system thin weights
-- **Korean serif display**: MaruBuri (Naver 명조/부리) 400-600 for editorial Hangul headlines, paired with Pretendard UI — see `dev-frontend` `korea-2026.md § Korean Serif / Myeongjo Display`
-- **Avoid defaulting to Inter** (DEFAULT) — it is the #1 AI-generated UI tell. Use it when the user explicitly requests it or the project already uses it.
+Korean descriptor → CSS token translation, quick-match table (user word → starting
+point), clarifying questions per term, and font selection guidelines (UX-TYPE-01,
+Pretendard for Korean-first, Inter avoidance) are extracted to
+`references/korean-design-vocabulary.md`. Read it when the brief uses Korean
+aesthetic words or when choosing fonts for Korean-first UI.
