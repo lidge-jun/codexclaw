@@ -317,6 +317,84 @@ When generating images with Korean text:
 - For mixed Korean + English, specify which script appears where
 - Verify rendered text after generation — garbled Hangul is common and must be caught
 
+### Asset Background Strategy (FE-ASSET-BG-01, DEFAULT)
+
+GPT Image 2 does not reliably produce true transparent (alpha) backgrounds.
+Requesting "transparent background" or "PNG with alpha" yields unpredictable
+results — sometimes a faint checkerboard pattern, sometimes a solid color
+pretending to be transparent. Use the solid-background-then-remove strategy:
+
+**Generation: pure solid background.**
+
+For cutout assets (icons, product shots, 3D objects, illustrations, logos,
+stickers, UI elements that must float over arbitrary backgrounds):
+
+```bash
+# Pure black background — best for light/reflective subjects (chrome, glass, metal)
+ima2 gen "3D render of a liquid chrome splash blob, organic starburst shape, \
+  mirror-polished surface with iridescent cyan and gold reflections. \
+  Floating on a PURE SOLID BLACK background. The background must be 100% flat \
+  pure black hex #000000. No checkerboard, no transparency pattern, no gradient, \
+  no floor plane, no shadow, no vignette, no ambient glow on the background." \
+  --quality high --size 1024x1024 --mode direct -o chrome-splash.png
+
+# Pure white background — best for dark/opaque subjects (products, dark UI elements)
+ima2 gen "Clean product photo of a matte black wireless earbud, centered, \
+  floating at slight angle. PURE SOLID WHITE background hex #ffffff. \
+  No shadow, no gradient, no surface, no reflection plane." \
+  --quality high --size 1024x1024 --mode direct -o earbud-cutout.png
+
+# Solid brand color background — when the target surface color is known
+ima2 gen "Flat illustration of a coffee cup with steam, centered. \
+  PURE SOLID background hex #f5f0eb (exact match required). \
+  No gradient, no texture, no shadow." \
+  --quality medium --size 512x512 --mode direct -o coffee-icon.png
+```
+
+**Background prompt rules:**
+- State the exact hex code and repeat the constraint: "PURE SOLID [color] background hex #XXXXXX"
+- Explicitly ban common AI additions: "No checkerboard, no transparency pattern, no gradient, no floor plane, no shadow, no vignette, no ambient glow"
+- Use `--mode direct` to prevent server-side prompt rewriting that might soften the constraint
+- Black works best for reflective/metallic/glass subjects; white for dark/matte subjects
+- Match the target page background color when the destination is known
+
+**Post-processing: background removal.**
+
+| Method | When to Use | How |
+|--------|-------------|-----|
+| **CSS `mix-blend-mode`** | Black bg → light page | `mix-blend-mode: screen` makes black transparent, keeps light content |
+| **CSS `mix-blend-mode`** | White bg → dark page | `mix-blend-mode: multiply` makes white transparent, keeps dark content |
+| **ima2 Canvas Mode** | Interactive cleanup | Open in Canvas Mode → background cleanup → export with alpha or matte |
+| **Programmatic removal** | Build pipeline | `sharp` / ImageMagick / rembg for batch processing |
+| **ima2 edit** | Targeted fix | `ima2 edit asset.png --prompt "remove the background completely, keep only the [subject]"` |
+
+**CSS blend-mode recipe (zero post-processing):**
+
+```css
+/* Black background asset on a light page */
+.chrome-asset {
+  mix-blend-mode: screen;  /* black → transparent, light content preserved */
+}
+
+/* White background asset on a dark page */
+.product-asset {
+  mix-blend-mode: multiply;  /* white → transparent, dark content preserved */
+}
+
+/* For arbitrary backgrounds, layer with isolation */
+.asset-container {
+  isolation: isolate;  /* prevent blend from leaking to parent */
+}
+```
+
+**`$imagegen` fallback:** same solid-background prompting strategy applies.
+No Canvas Mode available; use CSS blend modes or programmatic removal only.
+
+**Anti-pattern:** requesting "transparent background" or "PNG with alpha channel"
+directly in the prompt. The model will often produce a fake checkerboard pattern
+burned into the image, or ignore the request entirely. Always use the
+solid-background strategy above.
+
 ### Prompt Iteration
 
 - Start with one high-detail prompt. Inspect the result with `view_image`.
