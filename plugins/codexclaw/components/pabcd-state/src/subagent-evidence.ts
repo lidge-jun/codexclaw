@@ -26,9 +26,6 @@ import {
   rmSync,
   statSync,
   writeFileSync,
-  openSync,
-  readSync,
-  closeSync,
 } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { STATE_DIR, sanitizeKey } from "./state.ts";
@@ -133,8 +130,8 @@ export function transcriptHasContextPressure(agentTranscriptPath: string | null 
  * the child transcript. If the spawn message explicitly says the task is
  * read-only / no-file-writes / chat-only, the evidence gate should not fire
  * even if the agent was accidentally dispatched as worker. Markers are
- * case-insensitive substrings of the first 4KB of the transcript (the spawn
- * message lives there). FAIL-OPEN: any read error returns false.
+ * case-insensitive substrings of the full transcript (the spawn
+ * * message may be preceded by system prompt content). FAIL-OPEN: any read error returns false.
  */
 const READ_ONLY_MARKERS = [
   "read-only",
@@ -151,12 +148,8 @@ const READ_ONLY_MARKERS = [
 export function transcriptHasReadOnlyMarker(agentTranscriptPath: string | null | undefined): boolean {
   if (typeof agentTranscriptPath !== "string" || agentTranscriptPath === "") return false;
   try {
-    const fd = openSync(agentTranscriptPath, "r");
-    const buf = Buffer.alloc(4096);
-    const bytesRead = readSync(fd, buf, 0, 4096, 0);
-    closeSync(fd);
-    const head = buf.slice(0, bytesRead).toString("utf8").toLowerCase();
-    return READ_ONLY_MARKERS.some((marker) => head.includes(marker));
+    const text = readFileSync(agentTranscriptPath, "utf8").toLowerCase();
+    return READ_ONLY_MARKERS.some((marker) => text.includes(marker));
   } catch {
     return false;
   }
