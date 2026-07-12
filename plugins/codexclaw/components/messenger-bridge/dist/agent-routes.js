@@ -17,6 +17,10 @@ import { DiscordApi } from "./discord-api.js";
 const PAIRING_LINK_DEFAULT_SECONDS = 600;
 const PAIRING_LINK_MAX_SECONDS = 3600;
 const TEST_SEND_MESSAGE = "codexclaw bridge connected — this chat is ready.";
+const MAX_AGENT_NAME_LENGTH = 128;
+const MAX_WEBHOOK_URL_LENGTH = 2048;
+const MAX_HEARTBEAT_PROMPT_LENGTH = 4096;
+const MAX_TOKEN_LENGTH = 512;
 
 function bad(message        )              {
   return { status: 400, body: { error: message } };
@@ -77,8 +81,10 @@ export function agentRoutes(deps                  = {})             {
         const kind = parseKind(b.kind);
         const token = typeof b.token === "string" ? b.token.trim() : "";
         if (!name) return bad("name required");
+        if (name.length > MAX_AGENT_NAME_LENGTH) return bad(`name must be at most ${MAX_AGENT_NAME_LENGTH} characters`);
         if (!kind) return bad("kind must be telegram or discord");
         if (!token) return bad("token required");
+        if (token.length > MAX_TOKEN_LENGTH) return bad(`token must be at most ${MAX_TOKEN_LENGTH} characters`);
         if (ctx.db.getAgentByName(name)) return bad(`agent "${name}" already exists`);
         const result = await validate(kind, token);
         if (!result.ok) return { status: 400, body: { ok: false, error: result.error } };
@@ -108,6 +114,7 @@ export function agentRoutes(deps                  = {})             {
         if (b.name !== undefined) {
           const name = typeof b.name === "string" ? b.name.trim() : "";
           if (!name) return bad("name must be a non-empty string");
+          if (name.length > MAX_AGENT_NAME_LENGTH) return bad(`name must be at most ${MAX_AGENT_NAME_LENGTH} characters`);
           const clash = ctx.db.getAgentByName(name);
           if (clash && clash.id !== id) return bad(`agent "${name}" already exists`);
           patch.name = name;
@@ -127,10 +134,16 @@ export function agentRoutes(deps                  = {})             {
         if (b.fullAccess !== undefined) patch.full_access = b.fullAccess ? 1 : 0;
         if (b.webhookUrl !== undefined) {
           const webhookUrl = typeof b.webhookUrl === "string" ? b.webhookUrl.trim() : "";
+          if (webhookUrl.length > MAX_WEBHOOK_URL_LENGTH) {
+            return bad(`webhookUrl must be at most ${MAX_WEBHOOK_URL_LENGTH} characters`);
+          }
           if (webhookUrl) {
             try {
               const parsed = new URL(webhookUrl);
               if (parsed.protocol !== "https:") return bad("webhookUrl must be https:// or empty");
+              if (parsed.username || parsed.password) {
+                return bad("webhook URL must not contain embedded credentials");
+              }
             } catch {
               return bad("webhookUrl must be https:// or empty");
             }
@@ -146,11 +159,15 @@ export function agentRoutes(deps                  = {})             {
         }
         if (b.heartbeatPrompt !== undefined) {
           if (typeof b.heartbeatPrompt !== "string") return bad("heartbeatPrompt must be a string");
+          if (b.heartbeatPrompt.length > MAX_HEARTBEAT_PROMPT_LENGTH) {
+            return bad(`heartbeatPrompt must be at most ${MAX_HEARTBEAT_PROMPT_LENGTH} characters`);
+          }
           patch.heartbeat_prompt = b.heartbeatPrompt;
         }
         if (b.token !== undefined) {
           const token = typeof b.token === "string" ? b.token.trim() : "";
           if (!token) return bad("token must be a non-empty string");
+          if (token.length > MAX_TOKEN_LENGTH) return bad(`token must be at most ${MAX_TOKEN_LENGTH} characters`);
           const result = await validate(agent.kind, token);
           if (!result.ok) return { status: 400, body: { ok: false, error: result.error } };
           patch.token = token;

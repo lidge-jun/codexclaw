@@ -99,16 +99,6 @@ export function buildModePicker(current: string, bindingId = 0): InlineKeyboard 
   ];
 }
 
-export function buildActionButtons(actions: Array<"approve" | "deny" | "retry" | "cancel">): InlineKeyboard {
-  return rows(
-    actions.map((action) => ({
-      text: action,
-      callback_data: encodeCallback({ type: action, payload: "" }),
-    })),
-    2,
-  );
-}
-
 export async function handleCallback(
   api: TelegramApi,
   query: TgCallbackQuery,

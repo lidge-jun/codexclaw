@@ -123,4 +123,3 @@ export function computeNextScanRound(tracker: InterviewTracker | null): number {
  *  5. rescan: re-run from step 1 until `hasPendingInterviewWork().pending` is false.
  * The hook never runs this loop; the main session does, and only with no active goal.
  */
-export const RESCAN_SEQUENCE_DOC = "select->dispatch->triage->record->rescan (main-session, no active goal)";

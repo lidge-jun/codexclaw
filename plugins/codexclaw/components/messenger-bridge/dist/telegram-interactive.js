@@ -99,16 +99,6 @@ export function buildModePicker(current        , bindingId = 0)                 
   ];
 }
 
-export function buildActionButtons(actions                                                )                 {
-  return rows(
-    actions.map((action) => ({
-      text: action,
-      callback_data: encodeCallback({ type: action, payload: "" }),
-    })),
-    2,
-  );
-}
-
 export async function handleCallback(
   api             ,
   query                 ,

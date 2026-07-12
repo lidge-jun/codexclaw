@@ -301,12 +301,6 @@ export function updateBindingModel(interaction: Interaction, ctx: InteractionCon
   return true;
 }
 
-export function updateBindingEffort(interaction: Interaction, ctx: InteractionContext, effort: string): boolean {
-  const binding = resolveInteractionBinding(interaction, ctx);
-  ctx.db.setBindingEffort(binding.id, effort);
-  return true;
-}
-
 export function updateAgentMode(interaction: Interaction, ctx: InteractionContext, mode: string): "updated" | "invalid" | "legacy" | "missing" {
   if (!(AGENT_THREAD_MODES as readonly string[]).includes(mode)) return "invalid";
   const binding = resolveInteractionBinding(interaction, ctx);

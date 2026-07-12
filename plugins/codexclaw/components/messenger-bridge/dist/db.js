@@ -176,6 +176,11 @@ export class BridgeDb {
 
   constructor(file        ) {
     this.db = new DatabaseSync(file);
+    try {
+      chmodSync(file, 0o600);
+    } catch {
+      // Fail open on platforms/filesystems that cannot apply POSIX modes.
+    }
     this.db.exec("PRAGMA journal_mode = WAL");
     this.migrate();
   }
@@ -956,7 +961,7 @@ CREATE INDEX idx_agent_pairing_codes_lookup ON agent_pairing_codes (agent_id, co
 /** Open (creating if needed) the project-scoped bridge DB with 600 perms. */
 export function openBridgeDb(cwd        )           {
   const dir = join(cwd, ".codexclaw");
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
   const file = join(dir, "bridge.db");
   const db = new BridgeDb(file);
   // Restrict the DB and its WAL/SHM sidecars — all can hold token-bearing pages
