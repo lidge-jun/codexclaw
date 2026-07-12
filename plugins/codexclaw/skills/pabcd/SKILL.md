@@ -81,58 +81,29 @@ agent discipline that makes later audit possible.
 
 ### Control surfaces (shipped)
 
-- **Chat (human free-pass)** — the hook parses a line-anchored `orchestrate <verb>`
-  and drives the FSM (`transition` + ledger). Forward edges advance without `--attest`
-  because the human asserts the phase is done; illegal adjacency is still refused.
-- **Terminal (agent-gated)** — `cxc orchestrate <verb> [--attest <json>] [--session <id>]
-  [--cwd <path>] [--json]` drives the SAME `.codexclaw/sessions/<id>.json` state through
-  the un-weakened gated `transition()`. An agent MUST supply real `--attest` evidence to
-  advance; `A>B` additionally needs `auditOutput` (reviewer verdict tail) + `auditVerdict`
-  (`pass|near-pass|fail`; `near-pass` also needs `auditResidual`) and `C>D`
-  additionally needs a non-empty `checkOutput`; `exitCode` is optional but, when
-  supplied, must be `0`. Mutating verbs
-  (I/P/A/B/C/D/reset) REQUIRE the explicit `--session <id>` (your own session id from
-  the SessionStart context line, or the terminal key `cli`) — the implicit
-  latest-session fallback is write-disabled, closing the ACCIDENTAL cross-session
-  collision path (G3, `devlog/_fin/260707_fork_fsm_bug/`; explicit replay of a
-  foreign id remains possible and is governed by the rule below). `status`
-  keeps the fallback. **SESSION-IDENTITY-01 (STRICT):** the id from YOUR OWN
-  SessionStart binding line — the MOST RECENT binding line in your current context —
-  is the only id you may pass to a mutating verb. A forked
-  session's transcript contains the PARENT's id and orchestrate commands — replaying
-  that id mutates the parent's FSM. If the id you are about to pass came from
-  transcript history rather than your most recent SessionStart line, stop and use
-  your own. This also covers `cxc loop init --session` and `cxc goalplan` — binding a
-  goalplan slug into a foreign session corrupts that session's Stop enrichment and
-  D-close goalplan cursor.
-- **SessionStart bootstrap** — the registered root SessionStart hook eagerly creates
-  the exact bound id's default IDLE state before the first turn, so that id is immediately
-  valid for agent-gated `cxc orchestrate` calls. Publication is no-clobber and resume-safe:
-  a repeated SessionStart never resets or normalizes an existing FSM. The reserved `cli`
-  key remains terminal-only and is never a fallback for a Codex session.
-- **Phase footer** — every injected directive ends with `IPABCD: <phase> (<LABEL>)` so
-  the current phase is visible (codex has no status UI). After `D` closes, the resting
-  state shown is `IDLE`.
-- The invocation source is the discriminator (codexclaw has no boss token): chat =
-  human free-pass, CLI/tool = agent-gated.
+Chat and CLI control the same persisted FSM and ledger; invocation source selects
+the gate. A line-anchored chat `orchestrate <verb>` is a human free-pass, while
+illegal edges remain refused. Agents use
+`cxc orchestrate <verb> --session <id> --attest <json>` and provide real evidence.
+`A>B` requires `auditOutput` plus `auditVerdict`; near-pass also requires
+`auditResidual`.
+`C>D` requires `checkOutput`; an optional `exitCode` must be `0`.
+Mutating verbs require an explicit session; only `status` may use latest-session fallback.
+**SESSION-IDENTITY-01 (STRICT):** use only the latest SessionStart binding in your
+own context, never a parent or transcript-history id; this also governs
+`cxc loop init` and `cxc goalplan`. SessionStart creates missing IDLE state without
+clobbering resumed state; `cli` is terminal-only. Injected directives end with
+`IPABCD: <phase> (<LABEL>)`; after D, the displayed state is IDLE.
 
 ### Loop / goal activation handoff
 
-`cxc-loop` depends on this skill; it does not replace it. A loop request first activates
-PABCD, then chooses HITL or HOTL:
-
-- **HITL PABCD:** enter I or P explicitly (`cxc orchestrate I|P --session <id>` or the chat
-  free-pass surface). No active goal is required, and P/A/B pause for the human.
-- **HOTL goal PABCD:** the main session must create or reuse an ACTIVE host goal
-  (`create_goal` / `get_goal`) and start a PABCD cycle (`cxc orchestrate P --session <id>`). The
-  Stop-continuation hook arms only when both are true: active host goal AND
-  non-IDLE PABCD cycle. Do not call this mode active if one half is missing.
-- Subagents may inspect or verify the plan, but the main session owns host-goal
-  lifecycle (`create_goal`/`update_goal`) and PABCD transitions.
-- **ORCH-MANDATE-01 (STRICT, canonical in `cxc-loop`):** a loop claim without its
-  persisted `cxc orchestrate` transitions is invalid — narrated phases are not
-  phases. Arm first (status -> I|P entry), then advance every edge with
-  `--attest`; work done outside the FSM must be re-entered and attested.
+`cxc-loop` depends on PABCD; it does not replace it.
+HITL enters I or P explicitly, needs no host goal, and pauses at P/A/B for the human.
+HOTL requires both an ACTIVE host goal and a non-IDLE PABCD cycle before Stop
+continuation arms. The main session alone owns host-goal lifecycle and PABCD
+transitions; subagents only assist. **ORCH-MANDATE-01 (STRICT):** narrated phases
+are invalid without persisted transitions. Arm at I or P, advance every edge with
+evidence-bearing `--attest`, and re-enter work done outside the FSM.
 
 ## Phases
 
@@ -290,74 +261,17 @@ for a phase's real work.
 
 ### Optimization-Loop Meta-Rules (plateau discipline)
 
-These rules apply when PABCD is used for score/objective-maximization, repeated
-candidate search, or any loop where D discards variants based on evidence. They are
-grounded in a real 14-discard plateau where a prefix-only replay gate and hard
-draw-protection invariant locked a 3.5/8 score. Single-incident induction — treat the
-constants as starting values and revise when a second domain's evidence contradicts them.
-
-- **LOOP-PHASE-DEATH-01 (DEFAULT):** Track each discarded candidate by the P/A/B/C/D
-  phase that killed it and by change class: `parameter-tweak`, `branch-toggle`,
-  `state-space redesign`, or `evaluator change`. After three consecutive deaths with
-  the same killing phase and same class (starting value N=3 — HEURISTIC, tune per domain), the next work-phase targets the killing
-  mechanism itself, usually the evaluation gate, instead of another candidate in that
-  class. Consecutive D-evidence collapses mean the gate may be the bottleneck.
-- **LOOP-CONTINUITY-01 (STRICT):** P begins by quoting the previous cycle's D
-  conclusions and next-direction. A new candidate that contradicts that recorded
-  direction needs an explicit reason, so the loop does not re-run rejected candidate
-  classes from amnesia.
-- **LOOP-CANDIDATE-ANCHOR-01 (DEFAULT):** For score/objective-maximization work,
-  source divergence candidates from domain-state evidence: logs, trajectories,
-  opponent/instance analysis, and failure states. If every candidate is a threshold,
-  guard, or suppression tweak on existing code levers, that is parameter-space
-  anchoring; regenerate candidates from the state space.
-- **LOOP-INSTANCE-CHECK-01 (HEURISTIC):** Check whether evaluation instances are fixed
-  and enumerable: fixed opponents, fixed test maps, fixed graders. If yes,
-  per-instance specialization, such as fingerprint plus playbook, is a legitimate
-  evaluable widening move and should be considered before generic-strategy tweaks.
-- **LOOP-MECHANISM-PROOF-01 (DEFAULT):** A candidate whose value is a new
-  branch/mechanism must carry activation evidence from the instances it targets — a
-  counter, debug line, or trace showing the branch actually FIRED — before adoption.
-  Aggregate score movement is not activation proof: in a multi-feature combo, a dead
-  mechanism hides behind the other features' gains. The loud special case is a
-  zero-delta ablation: if the single-feature candidate scores exactly baseline on the
-  instances it was built to flip, presume the mechanism never ran and instrument
-  before combining or discarding. (Grounded: an endgame HP-race branch shipped inside
-  a 7.5-scoring combo while its bank leaked to 0 every turn; the solo ablation had
-  shown baseline-exact 1.5 and was not investigated until an external bot won the
-  same battle by hand.)
-- **LOOP-RESIDUAL-TRACE-01 (DEFAULT):** A residual failure carried through D needs a
-  mechanism-level explanation (which branches fired, which did not, and why the
-  outcome followed) or the explicit label `unexplained`. A plausible story about the
-  opponent/environment ("the enemy also stalls, so it stays a draw") is not an
-  explanation unless the trace confirms our own relevant mechanism armed and acted.
-  LOOP-PESSIMIST-01's D record quotes this trace, not the story.
-- **LOOP-PEER-CONTRAST-01 (HEURISTIC):** When an external artifact — a peer's bot, a
-  reference solution, a competitor run — achieves the objective on the same fixed
-  instance we fail, the next generation's first analysis deliverable is a behavioral
-  diff of the two traces (what they did that we did not), before any new candidate.
-  This is the cheapest capability-gap detector available and outranks another round
-  of parameter candidates (LOOP-CANDIDATE-ANCHOR-01).
-- **LOOP-FANOUT-TIMING-01 (HEURISTIC):** Spend parallel fan-out late, not early.
-  While coarse levers still move the metric, stay single-track (N=1); once coarse
-  levers stabilize or plateau and the search shifts to fine-grained candidates,
-  parallel candidate lanes and specialist re-derivation start paying for their
-  cost. Fan-out also buys outcome consistency (cross-run variance reduction), not
-  only peak score. (Adopted 2026-07-07 from Sakana Fugu, arXiv:2606.21228:
-  orchestration gains on a 123-experiment autonomous training loop concentrated
-  after mid-run, once coarse configuration search gave way to fine
-  optimizer/schedule tuning.)
-- **COLLAPSE-AGGREGATOR-01 (DEFAULT):** collapse and synthesis ownership follows
-  the disputed crux. When parallel candidates disagree, the synthesis verdict comes
-  from whoever is strongest on the domain of the disagreement — dispatch a
-  crux-matched aggregator when the collapse owner is not (the aggregator returns a
-  verdict; the main session still owns the collapse decision). A fixed aggregator
-  caps the exercise at that aggregator's own ceiling for the domain. The collapse
-  record names each candidate's partial correctness, each candidate's failure
-  mode, and why the winner's evidence resolves the crux.
-
-Evaluation gates for these loops are owned by `cxc-dev-testing` §Limited-Oracle /
-Score-Objective Evaluation; apply both sections together.
+| Rule | Trigger | Required action |
+|------|---------|----------------|
+| LOOP-PHASE-DEATH-01 | Same class kills 3 candidates | Target the killing mechanism |
+| LOOP-CONTINUITY-01 | New cycle | Quote prior D direction |
+| LOOP-CANDIDATE-ANCHOR-01 | Only parameter tweaks | Regenerate from state evidence |
+| LOOP-INSTANCE-CHECK-01 | Fixed enumerable instances | Consider per-instance specialization |
+| LOOP-MECHANISM-PROOF-01 | New branch/mechanism | Prove activation before adoption |
+| LOOP-RESIDUAL-TRACE-01 | Residual failure | Record trace or `unexplained` |
+| LOOP-PEER-CONTRAST-01 | Peer succeeds on our failure | Diff behaviors before generating |
+| LOOP-FANOUT-TIMING-01 | Coarse search plateaus | Begin parallel fine-grained lanes |
+| COLLAPSE-AGGREGATOR-01 | Candidates disagree on crux | Use crux-matched synthesis |
 
 ## PABCD Depth by Work Class
 
@@ -373,101 +287,34 @@ See `dev` §0.0 for the full class definitions and tie-break rules.
 
 ## Delegation Model (subagents)
 
-Delegability and triage economy: DISPATCH-ECONOMY-01 — normative wording lives in
-`structure/20_pabcd_dispatch_doctrine.md` §3; this section does not restate it.
-
-- **Tool-surface discovery (DISPATCH-DISCOVER-01):** V1 is codexclaw's default surface, but the model catalog pins sol/terra to V2 and luna to V1; `features.multi_agent_v2` selects V2 only for fallback models. The surface pins on the session's first turn. V1 uses the deferred `multi_agent_v1.*` namespace behind `tool_search`; V2 exposes `spawn_agent` (task_name + message required, `fork_turns:"none"` for role dispatches) / `send_message` / `followup_task` / `wait_agent` / `interrupt_agent` / `list_agents` directly. If `spawn_agent` is not visible, run `tool_search` for "spawn agent" FIRST; do not conclude dispatch is impossible (`structure/60_native_capabilities.md` §1).
-- The main agent owns the plan and the build by default. Subagents (`spawn_agent`) are scoped helpers.
-- **Lifecycle patterns (both surfaces):** fan out before waiting. V2 `wait_agent` is a no-content mailbox; reuse with `followup_task(task_name)`, deliver context-only with `send_message`, and stop a runaway turn with `interrupt_agent`. V1 `wait_agent` returns final status plus content; reuse with `send_input(agent_id)`, and use `close_agent`/`resume_agent` for retirement/restoration. Concurrency is V1 `agents.max_threads` (default 6) versus V2 `max_concurrent_threads_per_session` (default 4, root included). Independent tool calls batch through `multi_tool_use.parallel`.
-- **Leaf topology (LEAF-TOPOLOGY-01, 260709):** subagents are star-topology LEAVES. The spawn hook applies D1 denial and the `[CXC-LEAF-GUARD]` block on both surfaces; grant recursion ONLY deliberately, per dispatch, with `CXC-SUBSPAWN-ALLOWED`. When the caller omits model or `reasoning_effort` on a non-full-history fork, the hook independently injects the configured role values from `.codexclaw/subagents.json`; otherwise each omitted field inherits from the parent. Full-history forks are V1 `fork_context:true` and V2 omitted/`"all"` `fork_turns`.
-- CSV batch fan-out (`spawn_agents_on_csv` + `report_agent_job_result`, one worker per row) exists in codex-rs but is flag-gated (`enable_fanout`, not live) — do NOT instruct it until the flag ships; check `structure/60_native_capabilities.md` §4.
-- Use a reviewer subagent at the A gate (and the C gate for C3/C4) to challenge the plan/implementation independently — receive the verdict, act on it, continue. Subagents are verifiers and scoped workers, not approval gates.
-- When delegating writes, give each subagent a disjoint write scope (own files/dirs) so parallel work never collides; tell it the other agents exist and not to revert their edits.
-- **DISPATCH-ISOLATION-01 (DEFAULT):** parallel subagents in the same work-phase are
-  context-isolated on the read side too: the TASK packet's `SCOPE` names an explicit
-  access list — which prior outputs (paths or pasted excerpts) this agent may read —
-  and nothing else from peer lanes is shared. Never paste one lane's in-progress
-  output into another outside the access list; the first finished trajectory
-  otherwise steers later lanes into redundant agreement (orchestration collapse) and
-  the parallelism buys nothing. Durable cross-cycle artifacts (devlog, D summaries,
-  `.codexclaw/divergence/`) stay shared; widening an access list is a stated
-  decision in the packet. (Adopted 2026-07-07 from the Sakana Fugu
-  learned-orchestrator report, arXiv:2606.21228, together with SPECIALIST-CRUX-01,
-  REVIEW-DECORRELATE-01, COLLAPSE-AGGREGATOR-01, and LOOP-FANOUT-TIMING-01; devlog
-  `260707_fugu_orchestration_adoption`.)
-- **SPECIALIST-CRUX-01 (HEURISTIC):** when P or A identifies a narrow crux outside
-  the builder's domain — a derivation, a protocol subtlety, a domain constant, a
-  security property — dispatch a specialist to re-derive that crux from first
-  principles before merging the work that depends on it. The specialist's return
-  names its assumptions, the derivation or trace, and the exact decision its
-  verdict changes.
-- **REVIEW-DECORRELATE-01 (HEURISTIC):** `spawn_agent` accepts a model override —
-  run the A-gate reviewer (and any §11.3 clean-slate re-examination after repeated
-  failed repairs) on a different model family than the one that produced the plan
-  or build. Same-family reviewers share blind spots; decorrelating the reviewer is
-  the cheapest independence upgrade available.
-- Never let a subagent reconstruct the plan from a short task description — pass the concrete plan and scope explicitly.
-- For long-running external verification (CI, deploy, remote build), spawn a background subagent and poll with short `wait_agent` cycles. Local builds/tests that finish in minutes stay blocking.
-
-**Subagent TASK packet (DISPATCH-TASK-01).** Every dispatch carries a structured task, not a
-one-liner: `TASK` (the concrete outcome), `SCOPE` (the disjoint write set / read bounds),
-`MUST DO`, `MUST NOT` (e.g. do not revert peers, do not widen scope), `PROOF` (the evidence to
-return — `path:line` + command output), and `RETURN FORMAT`. The packet also states its
-DECISION BOUNDARY — which judgments the subagent may settle itself and which it must
-return unresolved; a packet whose decision boundary cannot be written fails the
-DISPATCH-ECONOMY-01 specifiability axis and that slice stays with the main session.
-`RETURN FORMAT` for summary-shaped returns requires VERBATIM ANCHORS: exact `path:line`
-quotes, exact figures, and source URLs, so the main session can spot-check without
-re-reading the source (summary-only returns are fundamentally lossy — Memex,
-arXiv 2603.04257; an anchor-free summary is a candidate, not evidence). Put the packet in the spawn
-message always. Skill attachment travels as resolvable mentions in the message: prefer
-link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)`, or use plugin-native
-`$codexclaw:cxc-<skill>` when a link is unsafe. V1 parses either form on the child's first
-turn. On plaintext V2 provider/proxy paths, the spawn hook normalizes mentions and
-inlines recognized cxc skill bodies. Native ChatGPT-backend V2 gives the hook ciphertext,
-so both operations are no-ops there; when no body can be inlined, the hook appends a
-plaintext `[CXC-SKILL-AFFORDANCE]` block telling the child to self-load any
-`$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention from
-`<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel. The
-reliable hook-borne native V2 channels also include the leaf guard and configured
-model/effort injection. The hook does not add role baselines or infer missing surfaces.
-Manually supplied structured V1 `items` remain the strongest form where available;
-`resolveSpawnPayloadWithSkills` emits message mentions, not `items`. Do not delegate
-host-goal changes to subagents; the main session owns `create_goal`/`update_goal`.
+The main session owns the plan, host goal, and every PABCD transition.
+At A, dispatch an independent `explorer`; use a `worker` for bounded writes
+(DISPATCH-AGENT-TYPE-01).
+Subagents are leaves (LEAF-TOPOLOGY-01) unless recursion is explicitly granted.
+Every dispatch carries a structured TASK packet (DISPATCH-TASK-01):
+`TASK`, `SCOPE`, `MUST DO`, `MUST NOT`, `PROOF`, `RETURN FORMAT`, and decision boundary.
+Write scopes must be disjoint, with explicit read bounds and peer-edit protections.
+Pass the concrete plan and scope; never let a subagent reconstruct the plan.
+Subagents return evidence and unresolved judgments; the main session decides and
+integrates. Dispatch only specifiable work whose coordination cost is justified
+(DISPATCH-ECONOMY-01).
+Full lifecycle, economy, isolation, skill transport, and topology rules:
+`structure/20_pabcd_dispatch_doctrine.md` §3.
 
 ## Loop Engineering (§11)
 
 Full rules live in `references/loop-engineering.md`. Key rules:
 
-- **§11.1 Loop values:** feedback must change the next action (otherwise it is a retry);
-  the verifier outranks the prompt; memory lives on disk; budget exhaustion != done;
-  context pressure != budget exhaustion (compaction is survivable by design — checkpoint
-  durable state and continue; "context is getting large" never justifies closing a goal).
-- **§11.2 Terminal-state vocabulary:** D reports one of DONE / NOOP / BLOCKED / UNSAFE /
-  NEEDS_HUMAN / BUDGET_EXHAUSTED. These are report states, not FSM states.
-- **§11.3 Repair-loop discipline (LOOP-REPAIR-01):** 2 consecutive same-failure repairs ->
-  root-cause mode; 3 -> replan or Interview return. (LOOP-DOOM-01: 3 attestation failures
-  in the same phase -> force Interview return.)
-  (REVIEW-SYNTHESIS-01: after a reviewer FAIL, record a synthesis — per-blocker RCA,
-  cross-blocker conflicts, accept/rebut decisions — before re-patching or re-dispatching;
-  synthesis-free re-dispatch counts as a failed repair. E7 guidance.)
-- **§11.4 Loop archetype (LOOP-ARCHETYPE-01):** classify as spec-satisfaction (repair loop
-  converges) vs open-ended optimization (explore-and-select loop — repair loops plateau).
-  A repair loop on an optimization problem is a category error.
-- **§11.4a Analysis-before-regeneration (LOOP-REANALYZE-01):** every generation in an
-  explore-and-select loop MUST begin with an analysis deliverable, not a patch.
-- **§11.5 Unattended-loop resource policy:** goal-mode loops must state tool/credential
-  scope, token/cost budget, and wall-clock bound. C4 + unstated scope = ESCALATE.
-- **§11.6 Continuation doctrine (LOOP-CONTINUE-01):** do not redefine the objective
-  downward; audit completion against repo state, not memory; read durable state first;
-  IDLE is not the end while work remains — start the next work-phase at P. Work-phases
-  chain HETEROGENEOUS units in one session (LOOP-UNIT-CHAIN-01): an independent feature
-  discovered mid-loop is appended to the plan and started at P, not deferred to a new
-  session or used to justify closing the goal.
-- **§11.7 Divergence/collapse:** convergence-first default. Mode for optimization
-  archetype only. Enter deliberately (HITL I/P) or on plateau (HOTL). Collapse early
-  for spec work, late for metric work. Turn off after resolution. Full rules in
-  `cxc-loop` skill.
+| Area | Summary |
+|------|---------|
+| §11.1 Values | Feedback changes action; verifier wins; persist memory; pressure is not exhaustion |
+| §11.2 Terminal states | D reports DONE, NOOP, BLOCKED, UNSAFE, NEEDS_HUMAN, or BUDGET_EXHAUSTED |
+| §11.3 Repair | LOOP-REPAIR-01, LOOP-DOOM-01, and REVIEW-SYNTHESIS-01 bound repeated failures |
+| §11.4 Archetype | LOOP-ARCHETYPE-01 separates repair from explore-and-select |
+| §11.4a Regeneration | LOOP-REANALYZE-01 requires analysis before each new generation |
+| §11.5 Resources | State tool, credential, cost, token, and wall-clock bounds |
+| §11.6 Continuation | LOOP-CONTINUE-01 and LOOP-UNIT-CHAIN-01 continue from durable repo state |
+| §11.7 Divergence | Converge by default; diverge deliberately and collapse by archetype |
 
 ## Catalog Discovery routing
 
@@ -484,9 +331,3 @@ Interview sub-modes and Catalog Discovery rules live in `$cxc-interview`
 ## Repository Root
 
 Determine the actual working repository root before planning (resolve via `pwd -P` from the target repo, or the project root the harness injects). Resolve all relative paths (`src/...`, `tests/...`) against it. If the root is ambiguous, ask before proceeding.
-
-## Notes
-
-- This skill is the human-readable guide; the `pabcd-state` hook handles trigger detection, directive injection, and continuation.
-- Control surfaces are merged above in "Phase Control / Orchestrate"; the Stop hook runs the bounded continuation loop under an active goal (see `cxc-loop`).
-- Provenance: the L4 phase shipped the `dev`/`dev-*` and `pabcd` skill directories as activation shells only — frontmatter plus router stubs that proved the Codex loader shape. The real discipline content (this PABCD guide and the universal `dev` hub) was supplied later by the L12 real-content port; treat any remaining stub-era phrasing as superseded by the current body.

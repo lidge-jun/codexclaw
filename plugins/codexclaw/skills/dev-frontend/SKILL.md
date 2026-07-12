@@ -191,48 +191,7 @@ Read `references/core/aesthetics.md` for full guidelines. Summary:
 - **Visual verification**: after UI changes, exercise the flow per `cxc-dev-testing` §4.6 (TEST-CU-QA-01) — `browser:control-in-app-browser` on the dev server, screenshot, `view_image` — instead of claiming visual correctness from code alone.
 
 ### Cutout Asset Generation (FE-ASSET-BG-01 surface — STRICT)
-
-GPT Image 2 cannot produce transparent backgrounds. Requesting "transparent
-background" or "PNG with alpha" yields checkerboard artifacts or solid fills.
-**Every cutout asset** (icons, product shots, 3D objects, illustrations, stickers,
-UI elements that float over arbitrary backgrounds) MUST use the solid-background-
-then-remove pipeline. Full rules and recipes: `asset-requirements.md` § Asset
-Background Strategy. If ima2 is installed, load the full asset reference with
-`ima2 skill front ref asset-requirements`.
-
-**Quick reference — generation template:**
-
-```bash
-# Reflective/metallic/glass subjects → PURE BLACK bg
-ima2 gen "3D render of [subject], [material/style details], [composition]. \
-  Floating on a PURE SOLID BLACK background. The background must be 100% flat \
-  pure black hex #000000. No checkerboard, no transparency pattern, no gradient, \
-  no floor plane, no shadow, no vignette, no ambient glow on the background." \
-  --quality high --size 1024x1024 --mode direct -o asset.png
-
-# Dark/opaque subjects → PURE WHITE bg
-ima2 gen "[subject description], centered, floating. PURE SOLID WHITE background \
-  hex #ffffff. No shadow, no gradient, no surface, no reflection plane." \
-  --quality high --size 1024x1024 --mode direct -o asset.png
-
-# Known destination color → match it exactly
-ima2 gen "[subject description], centered. PURE SOLID background hex #[target]. \
-  No gradient, no texture, no shadow." \
-  --quality medium --size 512x512 --mode direct -o asset.png
-```
-
-**Quick reference — CSS removal (zero post-processing):**
-
-| Source bg | Target page | CSS rule |
-|-----------|-------------|----------|
-| Black | Light | `mix-blend-mode: screen` |
-| White | Dark | `mix-blend-mode: multiply` |
-| Any | Any | `isolation: isolate` on container to prevent bleed |
-
-For programmatic removal (build pipelines): `sharp`, ImageMagick, or `rembg`.
-For interactive cleanup: ima2 Canvas Mode. For targeted fix: `ima2 edit`.
-`$imagegen` fallback: same solid-bg prompting; CSS blend modes or programmatic removal only.
-
+Every cutout asset MUST follow `references/core/asset-requirements.md` § Asset Background Strategy; load it with `ima2 skill front ref asset-requirements` when ima2 is available.
 ---
 
 ## 5. Anti-Slop Enforcement
@@ -279,38 +238,14 @@ Read `references/core/anti-slop.md` for full rules. Key standards:
 - When NO design brief exists, do not invent a generic default: apply the domain-gated no-brief kit owned by `dev-uiux-design` §1 UX-DEFAULT-ISM-01 and state the assumption
 
 ### Do not ship these tells (FE-AI-TELL-01)
-
-Version labels in heroes, numbered eyebrows, middle-dot overuse, duplicate image reuse, monospace uppercase card labels, fake social-proof headers, decorative scroll cues, weather/status strips with no product purpose, photo-credit captions in UI chrome, and generic "trusted by teams worldwide" claims are AI-default tells. Full catalog: `references/core/anti-slop.md` + `references/core/layout-discipline.md`.
-
+Enforce the complete AI-default tell catalogs in `references/core/anti-slop.md` and `references/core/layout-discipline.md`.
 ---
 
 ## 6. Performance Guardrails
-
-- Animate `transform` and `opacity` only — layout properties (`top`, `left`, `width`, `height`) cause jank
-- Grain/noise filters → fixed pseudo-elements only, keep off scrolling containers
-- `will-change` sparingly — remove after animation completes
-- Z-index only for systemic layers (navbar, modal, overlay)
-- Memoize perpetual animations in isolated components
-
-### Browser Connection Limits
-
-| Protocol | Limit |
-|---|---|
-| HTTP/1.1 | 6 connections per domain (Chrome/Firefox) |
-| HTTP/2 | 1 TCP connection, 100 concurrent streams |
-| WebSocket | Shares the HTTP/1.1 connection pool |
-
-Rules:
-- Never open >2 SSE/WebSocket connections to the same origin from one page
-- Use connection multiplexing (single WebSocket with channel/topic routing) over multiple connections
-- If >6 parallel requests needed: use HTTP/2, batch API endpoints, or domain sharding (last resort)
-- Preflight OPTIONS requests count against the connection limit; consolidate CORS-heavy calls
-
-Banned:
-- Opening unbounded WebSocket connections per component instance
-- Polling from multiple components independently (centralize into one subscription, fan out via state)
-- Creating new SSE connections on every remount without cleanup
-
+Animate only `transform` and `opacity`; isolate perpetual animation, remove temporary `will-change`, reserve z-index for systemic layers.
+Keep grain/noise filters off scrolling containers. Centralize polling/subscriptions; clean up SSE/WebSocket on unmount.
+Never open unbounded per-component connections; prefer one multiplexed connection.
+For detailed budgets and browser connection limits, read `references/core/performance-budget.md`.
 ---
 
 ## 7. Accessibility Baseline
@@ -338,97 +273,24 @@ Banned:
 
 ---
 
-## 8. Custom Hooks
-
-Create a custom hook only when it owns reusable behavior, not just because code is a few lines long.
-
-Good hook candidates: subscription lifecycle, reusable async state machine, form-field behavior shared across components, media/query/observer integration, keyboard/focus behavior, external store wrapper.
-
-Avoid hooks that are merely thin aliases for `useState`, `useToggle`, `useDebounce`, or one-off component logic unless the repo already standardizes them.
-
-Hook rules:
-- The hook name describes behavior, not implementation
-- Inputs are explicit and stable; return shape is small
-- Side effects are justified by an external system; cleanup is correct
-- Dependencies are honest; use `useEffectEvent` for non-reactive callbacks inside Effects
-- Do not hide server state, router state, or form ownership inside a generic hook
-
+## 8. React, Forms, and Accessibility
+For React hooks, state ownership, performance, and Compiler, read `references/stacks/react.md`.
+Custom hooks: only for reusable behavior with explicit inputs, small outputs, honest dependencies, justified effects, correct cleanup. Do not hide server/router/form ownership inside generic hooks.
+For forms: follow repo stack and schema-validation conventions; expose field errors accessibly with `role="alert"`.
+For widget keyboard paths, focus trapping, ARIA state, and screen-reader testing, enforce `references/core/a11y-patterns.md`.
+The objective accessibility baseline in §7 remains mandatory.
 ---
 
-## 9. React Performance
-
-Default performance strategy: keep components pure, keep state local, classify state ownership correctly, use server rendering/caching boundaries, split expensive client islands, measure before memoizing.
-
-| Tool | Use when |
-|------|----------|
-| `memo` | child render is expensive and props are stable |
-| `useMemo` | calculation is expensive or identity is required |
-| `useCallback` | callback identity is required by memoized child or external API |
-| `useTransition` | interaction should stay responsive while non-urgent work completes |
-| `useOptimistic` | mutation UX benefits from reversible optimistic state |
-| `Activity` | hidden UI should preserve state without active Effects |
-| `Suspense` | dynamic/async boundary needs isolated loading behavior |
-
-If React Compiler is enabled, remove defensive memoization unless measurement or semantics justify it. Split at route boundaries and heavy components (charts, editors, 3D).
-
----
-
-## 10. Form Handling
-
-For simple forms, use controlled components with schema validation (Zod). For complex forms (multi-step, dynamic fields), use `react-hook-form` + Zod resolver. Always show field-level errors with `role="alert"`.
-
----
-
-## 11. Accessibility Quick-Wins
-
-Beyond the baseline (§7):
-- Focus management: trap focus in modals, restore on close, handle Escape
-- Arrow keys navigate lists and menus; Enter/Space activate buttons and links
-- Tab order follows visual flow
-- `aria-expanded`, `aria-haspopup`, `aria-activedescendant` on composite widgets
-- Test with screen reader and keyboard-only navigation
-
----
-
-## 12. 2026 Frontend Platform Rules
-
-Use this section when modernizing or creating React/Next/Vite frontends. Prefer project conventions first.
-
-### React 19.2+
-
-- **Activity**: Use `<Activity>` for state-preserving hidden UI (tabs, drawers, route shells). Do not use for security hiding or active subscriptions.
-- **useEffectEvent**: For non-reactive logic inside Effects that needs latest props/state without resubscribing. Never call during render or pass to children.
-- **Partial Pre-rendering**: Design pages as static shell + explicit dynamic holes + Suspense boundaries. No `Date.now()`, `Math.random()`, or request-specific data in the pre-rendered shell.
-- **React Compiler**: Do not cargo-cult `memo`/`useMemo`/`useCallback`. Measure first unless referential stability is semantically required.
-
-### Next.js 16
-
-- Turbopack is default. Do not add custom webpack config unless proven unsupported.
-- **Cache Components** (`cacheComponents: true`): dynamic rendering is default; cache only what you explicitly mark with `use cache` + `cacheLife` + `cacheTag`.
-- Never cache user/session-specific data without explicit user-scoped cache key.
-- Server Actions: validate input server-side, authorize against the resource, revalidate affected cache tags.
-
-### Modern CSS
-
-Prefer native CSS before JS layout observers or animation libraries:
-- **Container queries** for component-level responsive layout (not viewport)
-- **`:has()`** for parent/sibling state selection — keep selectors narrow
-- **CSS nesting** for modularity — keep shallow, avoid specificity tunnels
-- **Subgrid** when nested content must align to outer grid
-- **View Transitions** for meaningful state continuity — respect `prefers-reduced-motion`
-- **Modern units**: `dvh/svh/lvh` over `100vh`, logical properties over `left/right`
-- **Tailwind v4**: CSS-first configuration, use theme variables over hardcoded values
-
-### Build Tools
-
-- **Vite 8** (verified 2026-07-02): Rolldown/Oxc is the integrated default bundler (`rolldown-vite` is only a Vite 7 migration bridge). Node 20.19+/22.12+; Baseline target Chrome/Edge 111, Firefox 114, Safari 16.4. Detect Vite 7 vs 8 before editing config.
-- **Agent-visible runtime diagnostics (DEFAULT)**: prefer dev servers that surface browser/runtime errors to the CLI/agent — Vite 8 forwards browser console to the dev server (auto-activates for coding agents); Next 16 ships DevTools MCP. Wire these before debugging rendered behavior.
-- Do not introduce Webpack-era config unless the existing app is already Webpack-bound
-
+## 12. Frontend Platform Rules
+Prefer project conventions; detect installed framework/version before changing configuration.
+Read `references/stacks/react.md` for React 19.2+ features, Compiler, Suspense, Effects, state.
+Read `references/stacks/nextjs.md` for Next.js 16 App Router, caching, Server Actions, RSC.
+Prefer native CSS (container queries, `:has()`, nesting, subgrid, View Transitions, `dvh/svh/lvh`) before JS observers.
+Do not introduce Webpack-era config unless the existing app is Webpack-bound.
+Never cache user/session data without an explicit user-scoped key.
+Classify state before adding store/Effect/cache (see §12 State Classification table in the current version — PRESERVE that table if it exists after line 430).
 ### State Classification
-
 Before adding state, classify it:
-
 | State type | Owner | Default tool |
 |---|---|---|
 | render-local UI | nearest component | `useState` / `useReducer` |
@@ -442,46 +304,10 @@ Before adding state, classify it:
 
 Rules: Do not store derived state just to sync with Effect. Do not put server state in Zustand. Do not put URL-shareable state only in component state. Keep optimistic state reversible.
 
-### Design System Detection (MANDATORY — before creating tokens)
-
-Before inventing design tokens, check:
-1. Does the project have an installed design system? (`grep -r "material-ui\|@mui\|carbon-components\|@carbon\|@fluentui\|govuk-frontend\|uswds" package.json`)
-2. Does the project have existing tokens? (`find . -name "tokens.*" -o -name "theme.*" -o -name "design-system*"`)
-3. Does the brief name a specific design system?
-
-If YES to any: use the official package. Do not recreate CSS by hand.
-
-| System | Package | Import |
-|--------|---------|--------|
-| Material | @mui/material | `import { Button } from '@mui/material'` |
-| Carbon | @carbon/react | `import { Button } from '@carbon/react'` |
-| Fluent | @fluentui/react | `import { Button } from '@fluentui/react-components'` |
-| GOV.UK | govuk-frontend | `import 'govuk-frontend/dist/govuk/all.scss'` |
-| USWDS | @uswds/uswds | `import '@uswds/uswds/css/uswds.css'` |
-| Polaris | @shopify/polaris | `import { Button } from '@shopify/polaris'` |
-| Atlaskit | @atlaskit/* | `import { Button } from '@atlaskit/button'` |
-| Primer | @primer/react | `import { Button } from '@primer/react'` |
-| Radix | @radix-ui/themes | `import { Button } from '@radix-ui/themes'` |
-| Bootstrap | bootstrap | `import 'bootstrap/dist/css/bootstrap.css'` |
-
-**Aesthetic honesty (FE-AESTHETIC-HONESTY-01, DEFAULT):** Glassmorphism, Bento,
-Brutalism, Editorial/magazine, Dark tech/hacker, Aurora/mesh gradients, Kinetic
-typography, and Apple Liquid Glass are aesthetic directions, NOT official design
-systems. Never present a CSS approximation of these aesthetics as if it were an
-official system with components and tokens. "One system per project" — do not
-import a system's tokens and override 90%% of them. Source: taste-skill v2.
-
-If NO: proceed with `dev-uiux-design/references/design-system-bootstrap.md`.
-
-### shadcn/ui and AI-Assisted UI
-
-- Inspect existing installed components before adding new ones
-- Use project's `components.json`, aliases, tokens, and registry conventions
-- Do not hallucinate design-system components; verify against local source
-- Remove demo-only copy and unused variants
-
-For AI-native interfaces (chat, agent, copilot), design explicit states: empty → prompt ready → submitted → streaming → tool call → result → complete → feedback. Never fake streaming, citations, or tool calls.
-
+Before creating tokens, run Design System Detection (MANDATORY): check `package.json` for installed systems, existing tokens/themes, and the brief.
+**Aesthetic honesty (FE-AESTHETIC-HONESTY-01):** aesthetic directions are not official design systems.
+For shadcn/ui, inspect local components and follow `components.json`, aliases, tokens, and registry.
+AI-native interfaces must represent real states; never fake streaming, citations, or tool calls.
 ---
 
 ## 13. Error Boundaries
@@ -498,55 +324,6 @@ Error state hierarchy:
 3. Section-level: Error Boundary with retry
 4. Page-level: `error.tsx` / error page
 5. App-level: root Error Boundary → offline/crash page
-
----
-
-## 14. Pre-Flight Checklist
-
-Checklist items apply to production surfaces (`dev` §0.4 shared definition); prototypes,
-spikes, and internal demos are exempt unless the user asks for production polish.
-
-Before delivering:
-- [ ] Domain-correct direction chosen and committed
-- [ ] Product surface, locale, density, asset need, soft 3D gate, and motion intensity classified
-- [ ] Anti-slop patterns enforced (§5)
-- [ ] Hero discipline enforced: viewport fit, copy count, no in-hero trust/pricing/feature clutter (§5)
-- [ ] Required assets are real, semantic, rendered, and not generic decoration
-- [ ] Korean-first UI follows CJK typography and Korean UX writing rules
-- [ ] Soft 3D/miniature/character assets pass domain and semantic gates
-- [ ] Mobile layout collapse guaranteed with per-section-type rules (see layout-discipline.md § Responsive Transforms)
-- [ ] Full-height sections use `min-h-[100dvh]` not `h-screen`
-- [ ] Page containment: `max-w-[1400px] mx-auto` wrapper present (see responsive-viewport.md)
-- [ ] Tested at 768px (tablet) and 1024px (split-screen) in addition to mobile/desktop
-- [ ] Touch targets ≥ 44px on mobile; no hover-only interactions (see mobile-ux.md)
-- [ ] Responsive images use `srcset`/`sizes` or `<picture>` for art direction (see responsive-viewport.md)
-- [ ] Safe area padding for notched devices: `env(safe-area-inset-*)` on fixed elements
-- [ ] Loading, empty, and error states provided
-- [ ] State classified before adding store/Context/Effect/cache (§12)
-- [ ] Effects sync with external systems; derived state is not Effect-synced
-- [ ] Container queries considered before viewport-query or JS layout workarounds
-- [ ] View transitions respect reduced motion
-- [ ] shadcn components follow local registry and token conventions
-- [ ] AI UI states are honest: no fake streaming, citations, or tool calls
-- [ ] Forms validate with schema and show field-level errors (§10)
-- [ ] A11y polish checked: one-line CTAs, visible input borders, no duplicate CTA intent (§7)
-- [ ] Focus management on modals and popovers (§11)
-- [ ] Desktop/mobile/narrow screenshots checked for overlap, clipping, and asset rendering
-- [ ] Interactive components isolated as Client Components (if RSC)
-- [ ] Design Read declared before code generation (see dev-uiux-design §2)
-- [ ] Eyebrow count ≤ ceil(sectionCount / 3) (see layout-discipline.md)
-- [ ] Section layout diversity: ≥4 different families per 8 sections
-- [ ] Color/shape/theme locks consistent across all sections (see consistency-locks.md)
-- [ ] SEO meta tags present for public pages (`<title>`, `<meta description>`, canonical, OG) — see `seo-baseline.md`
-- [ ] JSON-LD structured data matches page type
-- [ ] Accessibility: modals trap focus, live regions for dynamic content — see `a11y-patterns.md`
-- [ ] Core Web Vitals field metrics are the perf gate (INP ≤200ms); Lighthouse Performance score is advisory smoke only; no JS bundle > 150KB compressed — see `performance-budget.md`
-- [ ] Hero image preloaded, below-fold images lazy-loaded
-- [ ] Theme toggle works: light/dark/system, no FOWT — see `theme-switching.md`
-- [ ] All colors use CSS custom properties (theme-ready)
-- [ ] i18n: no hardcoded strings, CSS logical properties, Intl API for dates/numbers — see `i18n-global.md`
-- [ ] Error Boundaries wrap major sections, not entire app (§13)
-- [ ] Stack-specific rules followed (see `references/stacks/`)
 
 ---
 

@@ -69,25 +69,15 @@ remain yours to run.
   (LOOP-UNIT-CHAIN-01 below) — the loop is a chain of cycles, not one feature's
   sub-steps.
 - D closes the current work-phase and returns the phase to `IDLE`.
-- If work remains and a goal is active, **the agent** starts the next work-phase by
-  running `cxc orchestrate P --session <id>` after recording evidence. Nothing transitions the phase
-  automatically — the Stop hook only blocks premature termination so the agent does
-  this; it never re-enters `P` for you (see Stop-continuation below).
-- There is no I -> P auto-advance. The agent advances every phase, including I -> P,
-  by running the explicit `cxc orchestrate <phase>` command — the four work edges
-  carry `--attest`; entry edges need no attest JSON. The hook does
-  not move phases AUTONOMOUSLY. (It does persist a transition when the agent submits an
-  explicit chat `orchestrate <verb>` command — that is the agent acting, not the hook
-  advancing on its own. Nothing transitions without an explicit agent/CLI command.)
+- Hooks may block or release termination and may enrich the block reason, but they
+  never choose or advance a phase. Every transition requires an explicit agent-issued
+  `cxc orchestrate` command; work edges carry `--attest`, while entry edges do not.
 - The Stop guard blocks termination based on coarse state signals (active goal +
   in-flight cycle + stagnation budget), not a content check for "pending work." It
   keeps the turn alive so the agent can self-advance; the agent decides whether real
   work remains.
-- When a goalplan is bound to the session (`cxc loop init --session`), the block
-  reason MAY also name the next concrete task + the evidence it should produce + the
-  goalplan ledger path. This is text enrichment only: it does not gate on that content,
-  does not change when the hook blocks vs releases, and never transitions a phase. With
-  no bound goalplan the reason is unchanged.
+- A bound goalplan may enrich the block reason with the next task, expected evidence,
+  and ledger path; this text does not affect blocking or transitions.
 - Goal mode is PABCD-only: while a goal is active the Interview NEVER fires (entry is
   suppressed and `request_user_input` is hard-denied). The Interview is HITL-only and
   runs only with no active goal; the Stop hook never drives the Interview.
@@ -154,21 +144,10 @@ external processes inside a loop:
 
 ## Speculative dispatch (DISPATCH-SPECULATE-01, HEURISTIC)
 
-Dispatching phase-N+1 work while phase N is still building is default-OFF.
-DIFFLEVEL-ROADMAP-01 already front-loads every phase's research at the first P, and
-the next P's stale check needs the tree AFTER phase N lands — so the genuinely
-speculative window is far narrower than it looks, and an A-gate FAIL, a
-LOOP-UNIT-CHAIN-01 amendment, or a plateau divergence entry turns speculative output
-into sunk cost that anchors the next P with stale conclusions.
-
-The one allowed speculative lane: **phase-invariant EXTERNAL research** — arXiv
-analysis, library/API documentation, anything that reads no repo state — may overlap
-phase boundaries (it cannot be invalidated by plan changes). Its results are
-quarantined as `candidate — unverified` until the next P re-validates them, and are
-discarded by default when the phase map is amended. Grounding: speculative execution
-pays only under selective, cost-bounded branching (arXiv 2510.04371; 2606.07846 —
-single-author, synthetic validation, low evidence grade). E7 doctrine
-(agent-followed); the normative delegation-economy rule is DISPATCH-ECONOMY-01 in
+Dispatching phase-N+1 work while phase N is building is default-OFF. Only
+phase-invariant external research that reads no repository state may overlap phases.
+Mark its results `candidate — unverified`, then revalidate them against the landed tree
+at the next P; discard them when the phase map changes. See DISPATCH-ECONOMY-01 in
 `structure/20_pabcd_dispatch_doctrine.md` §3.
 
 ## Durable Goalplan
@@ -218,46 +197,20 @@ Ledger events are `created`, `workphase_started`, `workphase_done`,
 
 ### Optimization-loop discipline
 
-When the objective maximizes a score/metric against an evaluator, apply the
-plateau discipline owned by `cxc-pabcd` (LOOP-PHASE-DEATH / LOOP-CONTINUITY /
-CANDIDATE-ANCHOR / GATE-ORACLE-VALIDITY): track discarded candidates by
-killing phase + change class and after N consecutive same-class deaths (start
-N=3, tune per domain) target the evaluation gate itself; each new work phase
-quotes the previous conclusion from the ledger; source candidates from
-domain-state evidence, not only existing parameters; an optimistic local proxy
-is never sole acceptance evidence.
+Full rules: `cxc-pabcd` §Optimization-Loop Meta-Rules, including LOOP-PHASE-DEATH and
+LOOP-CONTINUITY. Summary:
 
-Mechanism-level additions (owned by `cxc-pabcd` §Optimization-Loop Meta-Rules):
-
-- **LOOP-MECHANISM-PROOF-01** — a new-branch candidate needs activation evidence
-  (the branch demonstrably fired on its target instances), not just aggregate
-  score movement; a zero-delta solo ablation means "presume dead, instrument
-  first", not "weak feature".
-- **LOOP-RESIDUAL-TRACE-01** — residual failures carried through D get a
-  mechanism-level trace or the label `unexplained`; a plausible opponent story
-  is not evidence that our own branch armed.
-- **LOOP-PEER-CONTRAST-01** — when a peer/reference artifact beats an instance
-  we fail, the next generation starts with a behavioral diff of the two traces
-  before any new candidate.
+| Rule | Trigger | Action |
+|------|---------|--------|
+| LOOP-MECHANISM-PROOF-01 | New branch/mechanism | Prove activation before adoption |
+| LOOP-RESIDUAL-TRACE-01 | Residual failure | Record mechanism trace or `unexplained` |
+| LOOP-PEER-CONTRAST-01 | Peer succeeds on failed instance | Diff behaviors before generating |
 
 ### Goal state
 
-codexclaw does NOT own a goal store. Goal state lives in the host Codex
-`goals_1.sqlite`; the `pabcd-state` goal-active gate reads it read-only to
-decide HITL vs HOTL. An ACTIVE goal is what ARMS the L6 Stop-continuation loop:
-while a goal is active and a PABCD cycle is in flight, the Stop hook BLOCKS
-premature termination (it returns `{decision:"block"}`) so the agent keeps
-self-advancing with explicit `cxc orchestrate <phase> --attest ...` commands
-(agent-gated). The hook does NOT transition phases AUTONOMOUSLY and does NOT
-re-enter `P` itself — it only persists a transition in response to an explicit
-chat `orchestrate <verb>` command (the agent acting). After the agent closes a
-cycle to IDLE, the AGENT runs `cxc orchestrate P --session <id>` to start the next work-phase.
-Without an active goal, the loop never arms and PABCD pauses for the human
-(HITL).
-
-This is goalplan discipline: represent goals, work phases, success criteria,
-checkpoints, evidence, and OPEN ASSUMPTIONS. It does not create a new goal
-database.
+The host owns goal state in `goals_1.sqlite`; codexclaw reads it read-only to decide
+HITL vs HOTL. A goalplan records work phases, criteria, evidence, and assumptions; it
+is not another goal database.
 
 ## HOTL resource bounds
 
@@ -345,121 +298,49 @@ a retry, not a loop.
 
 ## Loop archetype by problem type (LOOP-ARCHETYPE-01)
 
-Classify the work-phase before choosing the loop shape:
-
-- **Spec-satisfaction repair** — the verifier defines done (tests, typecheck,
-  contracts, acceptance criteria). Keep one strategy, run the repair loop above, and
-  collapse at P once the plan is checkable.
-- **Open-ended optimization explore-and-select** — the verifier defines better, not
-  done (scores, win rates, adversarial evaluators). Generate diverse candidates from
-  domain-state evidence, evaluate them on the same instances, keep best-so-far, and
-  regenerate from the winner. If the verifier only reports scalar outcome, add telemetry
-  before candidate work. Stop on plateau or resource budget; the terminal outcome is
-  `BUDGET_EXHAUSTED` with best-so-far evidence, not `DONE`, unless the plan named a fixed
-  pass threshold up front.
-
-A repair loop applied to an optimization problem is a category error; change the loop
-shape instead of adding more cycles.
+Classify each work-phase before choosing its loop:
+- **Spec-satisfaction repair:** the verifier defines done; keep one strategy and collapse
+  at P once the plan is checkable.
+- **Open-ended optimization:** the verifier defines better; compare evidence-sourced
+  candidates on common instances, retain best-so-far, and stop at the stated threshold,
+  plateau, or resource bound.
+A repair loop applied to optimization is a category error; change the loop shape.
 
 ## Analysis before regeneration (LOOP-REANALYZE-01)
 
-In explore-and-select loops, each generation starts with an analysis deliverable before
-new patches or candidates:
-
-- **Updated problem/opponent model** from telemetry, replays, failure deltas, or other
-  evidence: what actually happened, and what does it imply?
-- **Capability-gap hypotheses** naming what the artifact cannot yet sense or do. A gap
-  may expand the allowed patch surface, but only through a P-phase amendment.
-
-Source the next candidates from those hypotheses and quote them in the next P via
-`cxc-pabcd` LOOP-CONTINUITY-01. A generation that regenerates straight from scores is a
-repair loop wearing an explore costume.
+Before regeneration, update the problem model from telemetry and name capability-gap
+hypotheses. Source candidates from those hypotheses and carry them into the next P via
+`cxc-pabcd` LOOP-CONTINUITY-01; raw scores alone are insufficient.
 
 ## Emergence / Divergence Layer
 
-PABCD is convergence-first by default. For ordinary build or bug-fix goals, keep one
-strategy and execute it. Divergence is a **PABCD-layer mode** and the Codexclaw
-machinery for the open-ended-optimization archetype above, not a standing habit: it can
-be selected deliberately in HITL PABCD during I/P, or automatically prompted in goal
-mode when a maximize objective records non-improving metrics (`cxc metric`) and the
-Stop hook emits the objective-plateau directive. The plateau-triggered mode is the
-shipped automatic entry, not the only valid entry.
-
-In HITL PABCD, use deliberate I/P divergence when the user's intent is open, the
-algorithmic approach is genuinely uncertain, the objective is maximize/deceptive, or
-the user explicitly asks to compare alternatives. The P/A/B pause semantics remain:
-no hook builds candidates, races worktrees, or bypasses confirmation. In goal mode,
-the Stop hook can only keep the turn alive and tell the agent to re-plan; it still
-does not ask the user or move phases by itself.
+PABCD is convergence-first. Activate divergence deliberately during HITL I/P when intent
+is open, the approach is uncertain, the objective is maximize/deceptive, or the user asks
+to compare alternatives. In goal mode, non-improving maximize metrics may prompt it via
+the Stop hook. Pause semantics remain: hooks neither build candidates nor move phases.
 
 When divergence is ON:
 
 - Record mode explicitly: `cxc divergence mode --session <id> on --collapse P|D --reason <why>`.
-- **Cost tiers (DEFAULT, DIVERGE-TIER-01):** divergence defaults to CONCEPTUAL
-  candidates. Tier 0 — inline brainstorm in the plan, no dispatch. Tier 1 (the
-  divergence default) — 2-3 parallel candidate lanes, each yielding ONE one-page
-  candidate direction doc (no code, no worktrees) with mandatory front-matter:
-  `assumptions`, `risks`, `kill-criteria`, `evidence-needed`. Lane research is done
-  by read-only EXPLORER subagents that return findings/evidence only; the candidate
-  DOC itself is written by the MAIN session from those findings, or by a scoped
-  WORKER whose write scope is the devlog unit / `.codexclaw/divergence/` (explorers
-  never write files — dispatch doctrine). The front-matter lives in the candidate
-  DOC file, while `cxc divergence candidate add` records the archive row
-  (kind/title/rationale/`--source`) alongside it. The MAIN session (collapse owner)
-  critiques/triages directly — a separate cross-critique round is waste and is NOT
-  a gate condition. Collapse gate: N candidate docs with filled front-matter AND
-  per-candidate provenance (the existing `cxc-search` provenance rule below — Tier
-  1 tightens it, never relaxes it). Tier 2 (rare escalation) — the
-  worktree/`evaluate.sh` candidate-race lane below, ONLY when the choice is
-  load-bearing AND Tier-1 candidates genuinely conflict AND judgment needs running
-  code; expected 0-1 per unit, entry recorded as a P-level decision. Tier inflation
-  (defaulting to Tier 2 because subagents are cheap) and tier deflation (collapsing
-  a load-bearing conflict from paper alone) are both violations: the scarce budget
-  is wall-clock and collapse-owner triage attention, not tokens. Minds are NOT
-  Tier-1 candidate authors — they remain interview-time contradiction lenses. The
-  first Tier-1 dispatch of a research-heavy unit SHOULD be a blindspot/unknowns
-  pass so candidates are sourced from evidence, not parameter tweaks. Topology is
-  star, not mesh: subagents neither message each other nor spawn workers; exchange
-  is file-mediated through `.codexclaw/divergence/` and the devlog unit.
-- I/P records at least two candidates in the archive. If the user intent is clear, do
-  not ask a fake menu question; record `strong-1` plus `add-1` silently. If intent is
-  genuinely open, ask the user to choose or constrain the candidates.
-- Every candidate must carry `cxc-search` provenance: `strong-1` should be Tier 2
-  proven; `add-1` must be at least Tier 1 discovered. Record it with
-  `cxc divergence candidate add ... --source <url>`.
-- When candidate work happens in a git worktree, record archive entries into the owner
-  worktree, not the child. Run `cxc divergence ... --cwd <owner-repo-root>` from child
-  worktrees so the collapse owner sees every candidate.
+- Select the cost tier under DIVERGE-TIER-01: Tier 0 inline concepts, Tier 1 conceptual
+  candidate docs (default), or Tier 2 isolated executable races only for load-bearing
+  conflicts that paper analysis cannot resolve.
 - Collapse early at P for satisfy-spec work (pass/fail, locally checkable). Collapse
   late at D for maximize-metric work where the local metric can deceive: build
   candidates in isolated worktrees, run the same `evaluate.sh`, then keep/discard by
   the recorded metric.
-- For maximize goals, build or validate `evaluate.sh` before any candidate build. It
-  must be deterministic, use fixed seeds/folds, and emit `METRIC name=value`; ingest
-  with `cxc metric ingest --session <id>`.
-- If local metrics improve while holdout/true metrics stall or fall, treat it as an
-  overfitting stop signal. Do not celebrate or keep the candidate without a re-plan.
 - After the plateau is broken or a candidate is kept/discarded, turn divergence off:
   `cxc divergence mode --session <id> off --reason resolved`, then return to the
   normal N=1 loop.
 
-This section is E7 doctrine plus project-local evidence files. The only shipped E2
-lever is the goal-mode Stop hook's plateau block; HITL divergence entry is valid but
-human/agent selected, not hook-enforced. Worktree creation, harness execution, and
-candidate races are still agent-executed work, not background automation. The
-`.codexclaw/divergence/` files are durable evidence, not an automatic control source;
-forgotten active mode cannot move phases or build candidates by itself.
+Full tier mechanics, provenance, topology, and operational rules:
+[`references/divergence-tiers.md`](references/divergence-tiers.md).
 
 ## Stop-continuation (shipped, L6)
 
-The continuation is enforced by the active Stop hook (`handleStop`), not just this
-discipline doc. It returns `{"decision":"block","reason":...}` to keep the agent
-advancing under an ACTIVE goal — mid-cycle (continue the phase) and, since 260709,
-at IDLE with no in-flight cycle (GOAL-IDLE-CONTINUE-01: the block names the
-`cxc orchestrate P --session <id>` arming command, the bound goalplan's remaining
-work, and the honest close-out via `update_goal` complete/blocked; its counter
-write also bootstraps the session state file so the suggested command passes the
-unknown-session guard). Termination is total via:
+The active Stop hook (`handleStop`) returns `{"decision":"block","reason":...}` under
+an ACTIVE goal, including at IDLE when GOAL-IDLE-CONTINUE-01 names the next arming
+command and remaining work. Termination remains bounded by:
 
 - **Guard 2** — no active goal → release (a plain interactive session never enters
   the loop; it pauses for the human at P/A/B, and IDLE without a goal stays silent).
@@ -470,9 +351,7 @@ unknown-session guard). Termination is total via:
   never trap a session. A real transition (chat or CLI) resets the counter, so each
   phase of a healthy P→A→B→C→D gets a fresh budget. This is the runtime companion to
   LOOP-DOOM-01, not a success signal; after release, apply the no-progress discipline
-  before retrying the same phase. With the old unconditional `stop_hook_active`
-  release removed (260709 — it capped an armed loop at ONE continuation per turn,
-  producing the step-by-step cut), this cap is the single total-termination bound.
+  before retrying the same phase.
 - **Objective plateau block** — for active maximize goals with session-scoped metrics,
   two non-improving same-metric rows switch the block reason from plain continuation
   to "step back and re-plan with divergence." This still uses the same bounded

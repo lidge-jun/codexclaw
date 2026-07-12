@@ -22,14 +22,6 @@ user-facing "done" prose are untrusted until you confirm them yourself — assum
 failed and look for the regression or false-confidence test that proves it. Inspect artifacts
 before believing them; a green run you did not read is not evidence.
 
-## When to Activate
-
-- Reviewing code changes (own or others')
-- Receiving code review feedback
-- Assessing code quality before merge
-- Evaluating pull requests or diffs
-- Pre-refactoring quality baseline check
-
 ---
 ## Modular References
 
@@ -50,35 +42,15 @@ verification after candidate URLs exist, not a raw-query search substitute.
 
 ## 1. Code Review Process
 
-### Pre-Review Checklist
+### Automated Pre-Scan
 
-Before reviewing any code, verify:
+Run repo-native lint, type checks, and tests first; report tool findings before
+manual review; unavailable tools are non-blocking.
 
-- [ ] Build passes (no compile/type errors)
-- [ ] Tests pass (all green)
-- [ ] PR/diff description explains **what** changed and **why**
-- [ ] Diff is reasonable size (<500 changed lines — split larger PRs)
-
-### Automated Pre-Scan (Run Before Manual Review)
-
-Before reading a single line of code, run automated tools on changed files:
-
-Run project-native linters, type checker, and tests before reviewing.
-
-**Pre-Scan Rules:**
-1. **Critical/error findings → block review.** Don't waste human review cycles on machine-detectable problems.
-2. **Warnings → note for review, don't block.** Mention in review but don't make them blocking.
-3. **Tool findings go first** in review output, before manual findings.
-4. **No tool available?** Skip gracefully — pre-scan is additive, not a gate.
-
-| Tool | Catches | Misses | Key Rules |
-|------|---------|--------|-----------|
-| ESLint/Ruff | Style, simple bugs, import issues | Architecture, business logic | `import/no-cycle`, `no-unused-vars`, `no-floating-promises`, `complexity` |
-| tsc/mypy | Type errors, null safety | Runtime behavior, performance | `strict`, `noImplicitAny`, `strictNullChecks` |
-| Semgrep | Injection, auth bypass, SSRF | Complex multi-step vulnerabilities | `javascript.lang.security.audit.sqli` |
-| npm audit/pip-audit | Known CVEs in deps | Zero-day, license issues | — |
-
-**Separation of concerns:** Tools catch patterns; humans catch intent. Focus manual review on architecture, correctness, and business logic that tools cannot evaluate.
+Routing: linters catch style, imports, and simple bugs; type checkers catch type
+and null-safety errors; SAST catches common injection/auth patterns; dependency
+audits catch known CVEs. Errors block, warnings inform. Manual review remains
+responsible for architecture, correctness, business intent, and cross-file impact.
 
 ### Review Order (by impact, not preference)
 
@@ -205,51 +177,13 @@ Dead code is a maintenance tax — remove rather than comment out.
 Security review items are canonical in §3.5. Use that checklist for hardcoded
 secrets, injection, validation, auth, authorization, and logging findings.
 
-### Performance
-
-| Pattern | Symptom | Fix |
-|---------|---------|-----|
-| N+1 queries | Loop → query per item | Batch fetch with `WHERE IN (...)` |
-| Unbounded collections | `.all()` without LIMIT | Always paginate or set max |
-| Missing index | Slow repeated lookups on same column | Add database index |
-| Premature optimization | Complex caching for 10 rows | Profile first, optimize second |
-
-### Async
-
-| Pattern | Symptom | Fix |
-|---------|---------|-----|
-| Floating promise | `doAsync()` without `await` | Always `await` or handle rejection |
-| Callback hell | 4+ nested callbacks | Refactor to async/await |
-| Missing timeout | External call can hang forever | Set timeout on all network calls |
-
 ---
 
 ## 3.5 Security Review Quick-Check
 
-For **every review**, scan for these OWASP-aligned red flags. Delegate to `dev-security/SKILL.md` for deep analysis.
-
-### Must-Check (Every PR)
-
-| Check | Red Flag | Severity |
-|-------|----------|----------|
-| Hardcoded secrets | `apiKey = "sk-..."`, DB URLs in source | **Critical** |
-| SQL/NoSQL injection | String concatenation in queries | **Critical** |
-| Missing input validation | User input passed to logic without schema check | **High** |
-| Missing auth check | Endpoint accessible without authentication | **High** |
-| BOLA (Broken Object Auth) | No ownership check on object access (`/users/:id` without verifying caller owns resource) | **High** |
-| Secrets in logs | `console.log(req.body)` leaking tokens/passwords | **High** |
-
-### Check When Relevant
-
-| Check | When | Red Flag |
-|-------|------|----------|
-| SSRF | External URL from user input | No URL allowlist, no domain validation |
-| Path traversal | File path from user input | No path sanitization, `../` not blocked |
-| Mass assignment | Object spread into DB model | `Object.assign(model, req.body)` without allowlist |
-| Dep vulnerabilities | New dependencies added | No `npm audit`/`pip-audit` run |
-| Lockfile changes | `package-lock.json` modified | Unexpected dependency resolution changes |
-
-> **Deep security analysis** → invoke `dev-security/SKILL.md`. This checklist catches surface-level issues during code review; `dev-security` provides OWASP Top 10 depth, ASVS checklists, and static analysis integration.
+For security review depth, route to `dev-security`.
+Reviewer-specific triggers: hardcoded secrets, injection patterns, missing
+auth/authz, and sensitive data in logs.
 
 ---
 
@@ -287,79 +221,33 @@ Scan every PR for these common performance pitfalls:
 
 ## 4. Receiving Code Review
 
-### The Response Pattern
+Read all feedback, restate the technical requirement, and verify it against the
+codebase before accepting it. Evaluate stack fit, existing architecture, tests,
+and actual usage rather than treating reviewer claims as authority.
 
-When receiving review feedback:
+Clarify ambiguous items first, then handle blockers, simple fixes, and complex
+changes in that order. Implement one item at a time and test each change.
 
-1. **READ** — Complete feedback without reacting immediately
-2. **UNDERSTAND** — Restate the technical requirement in your own words
-3. **VERIFY** — Check the suggestion against codebase reality (does it apply here?)
-4. **EVALUATE** — Is it technically sound for THIS codebase, not just in theory?
-5. **RESPOND** — Technical acknowledgment or reasoned pushback
-6. **IMPLEMENT** — One item at a time, test each change
-
-### When to Push Back
-
-Push back when:
-- Suggestion breaks existing functionality (test it)
-- Reviewer lacks full context of the current architecture
-- Violates YAGNI — feature is unused (grep the codebase to verify)
-- Technically incorrect for this technology stack
-- Conflicts with established architectural decisions
-
-**How:** Use technical reasoning. Reference working tests, existing code, or documented decisions. Never push back emotionally — always with evidence.
-
-### Implementation Order (multi-item feedback)
-
-1. **Clarify ALL unclear items FIRST** — don't implement based on partial understanding
-2. Blocking issues (security, data loss, broken functionality)
-3. Simple fixes (typos, missing imports, naming)
-4. Complex fixes (refactoring, logic changes)
-5. Test EACH fix individually. Verify no regressions after each.
-
-### Acknowledging Feedback
-
-```
-✅ "Fixed. Changed X to use parameterized query."
-✅ "Good catch — the null check was missing. Added guard on line 42."
-✅ Just fix it and show the result in code.
-
-❌ "You're absolutely right!"
-❌ "Great point! Thanks for catching that!"
-❌ Any performative agreement without verification
-```
+Push back with concrete tests, code, or documented decisions when advice breaks
+behavior, lacks context, violates YAGNI, is technically incorrect, or conflicts
+with established architecture. Respond with the verified result and avoid
+performative agreement.
 
 ---
 
 ## 5. Requesting Code Review
 
-### When to Request
+Request review before merging, after major features, and before large refactors;
+also request it for complex fixes or when the approach is uncertain. Small,
+non-impactful config/docs changes may skip review.
 
-| Situation | Priority |
-|-----------|----------|
-| Before merge to main | **Mandatory** |
-| After major feature completion | **Mandatory** |
-| Before large refactoring | **Mandatory** |
-| After complex bug fix | Recommended |
-| When stuck on approach | Recommended |
-| Small config/docs changes | Skip unless impactful |
+A review request must include passing build/tests, the base-to-head diff range,
+a concise change and behavior summary, and requested focus areas. Keep diffs
+under 500 changed lines or split them into reviewable units.
 
-### How to Request
-
-1. Ensure build passes and all tests are green
-2. Identify the diff range (base commit → head commit)
-3. Provide a summary: what was implemented, what it should do, areas to focus on
-4. Keep the diff <500 lines. Split larger changes into reviewable chunks.
-
-### Acting on Feedback
-
-| Severity | Action |
-|----------|--------|
-| Critical | Fix immediately, re-request review |
-| High | Fix before proceeding to next task |
-| Medium | Fix before merge, can continue other work |
-| Low | Note for later, apply if trivial |
-| Style | Apply if trivial, otherwise defer to team conventions |
+Fix Critical findings immediately and re-request review; fix High before other
+work and Medium before merge. Low and Style findings follow impact and team
+conventions.
 
 ---
 
@@ -369,118 +257,47 @@ Parallelize review only when domain breadth exceeds one reviewer's context (e.g.
 
 ### AI Tool Integration Awareness
 
-When external AI review tools are available, coordinate — don't duplicate:
-
-| Tool | Strengths | Use When | Agent Focus Shifts To |
-|------|-----------|----------|----------------------|
-| **GitHub Copilot Code Review** | Full repo context, multi-model, auto-fix PRs | PR review on GitHub | Architecture, business logic, domain correctness |
-| **CodeRabbit** | 40+ linters, learnable preferences, low false-positive | Team with `.coderabbit.yml` configured | Cross-service impact, subtle logic errors |
-| **Cursor Bugbot** | Diff-focused bug hunting in Cursor PR flow | Cursor-based teams | Intent, architecture, exploitability |
-| **Graphite AI Reviews (Diamond)** | Stacked-PR-aware AI review | Graphite stacked workflow | Cross-stack consistency |
-| **SonarQube** | Enterprise SAST, tech debt tracking, security depth | Regulated environments, existing setup | Review findings, add context tools miss |
-| **Manual agent review** | Full codebase understanding, intent verification | No external tools, offline, sensitive code | Everything — full §1-5 process |
-
-**Coordination rules:**
-- If an external AI tool already reviewed the PR, **read its findings first**, then focus manual review on what tools cannot do: architectural fit, business intent, cross-system impact.
-- **STRICT (REVIEW-AI-EVIDENCE-01):** AI review findings are evidence to inspect, not authority — de-duplicate, reproduce, and severity-normalize before inclusion. Published evaluation shows AI reviewers frequently miss critical vulnerabilities (SQLi/XSS/deserialization) with low-severity skew (arXiv:2509.13650, checked 2026-07-02).
-
-### Reviewing AI-Generated Code
-
-Run IN ADDITION to the normal process when the diff is substantially AI-generated:
-
-| Check | AI failure mode | Action |
-|-------|-----------------|--------|
-| Invented APIs | Plausible-but-nonexistent methods/options | Verify unfamiliar APIs against installed-version docs |
-| Hallucinated dependencies | Nonexistent package names (slopsquatting) | Verify existence/maintainer/provenance before install — gate owned by `dev-security` |
-| Missing authz edges | Happy-path handlers without ownership checks | Trace new endpoints against the BOLA check |
-| Shallow/mirroring tests | Tests restating the implementation | Require behavior-level assertions |
-| Scope drift | Abstractions/refactors beyond the request | Flag; one logical change per PR |
-
-**Agentic/security trigger (DEFAULT):** PRs adding MCP servers, tools, agents, RAG, persistent memory, or delegated credentials invoke `dev-security` and map risks to OWASP LLM Top 10 (2025) + Top 10 for Agentic Applications 2026.
+Read `references/ai-assisted-review.md` for tool coordination, AI-generated-code
+checks, re-review policy, and agentic security triggers. Focus manual review on
+architecture, intent, and cross-system impact. **STRICT
+(REVIEW-AI-EVIDENCE-01):** de-duplicate, reproduce, and severity-normalize AI
+findings; they are evidence to inspect, not authority.
 
 ### AI Slop Cleanup Checklist (REVIEW-SLOP-01)
 
-When the review targets a post-implementation cleanup pass (user asks to "remove
-slop", "clean AI code", "deslop"), or the reviewer catches >=3 slop items during
-normal review, apply the full checklist below. Safety invariant: **lock behavior
-with green tests BEFORE removing any code.** Lineage: lazycodex
-`remove-ai-slops` 9-category taxonomy, adapted for single-reviewer review (no
-parallel agent swarm needed). E7 discipline.
+Activate for explicit slop cleanup or >=3 slop findings. Lock behavior with green
+tests before deletion.
 
-**Stylistic**
-1. Obvious comments — restating code, trivial docstrings, section dividers,
-   commented-out code, vague TODOs. KEEP: why-comments (business logic, edge
-   cases, workarounds), ticket links, regex/algorithm explanations.
-2. Over-defensive code — null checks for guaranteed values, try/except around
-   non-raising code, isinstance checks for statically typed params, broad
-   `except Exception`/empty `catch {}`. KEEP: validation at system boundaries,
-   I/O error handling, nullable DB fields. Refactor: narrow the catch to the
-   expected exception.
-3. Excessive complexity — deep nesting (>3), nested ternaries, >5 params
-   without struct, god functions (>50L doing many things), if/elif chains for
-   type/enum discrimination (use `match/case` + exhaustive check), `object` as
-   type annotation (use `Protocol`/`TypeVar`/union).
-
-**Structural**
-4. Needless abstraction — pass-through wrappers, single-use helpers, speculative
-   indirection, interfaces with one implementer and no testability win.
-5. Boundary violations — wrong-layer imports (UI importing DB driver), handler
-   doing business logic, hidden coupling, side effects in pure-named functions.
-   Delegate placement to `dev-architecture` §4.
-6. Oversized modules — >250 pure LOC (excluding tests, types, imports) is a
-   slop-cleanup review smell, not a split mandate; `dev-architecture` §4 owns
-   the canonical >400 LOC split threshold. Flag for review; do not just rename.
-
-**Hidden cost**
-7. Performance equivalences — O(n^2) loops where O(n) exists, repeated
-   computation easily cached, unbounded allocations in hot paths. Profile first
-   for cold paths.
-8. Scope leaks — mutable global state, singletons disguised as modules, env
-   reads scattered (centralize to config boundary).
-
-**Coverage**
-9. Missing behavior tests — changed paths with no test coverage. A checklist
-   alone is not safety; a passing regression test is.
+| # | Category | Flag |
+|---|----------|------|
+| 1 | Obvious comments | Restatement, dead code, vague TODOs |
+| 2 | Over-defense | Impossible guards, broad/empty catches |
+| 3 | Excess complexity | Deep nesting, nested ternaries, god functions |
+| 4 | Needless abstraction | Pass-through or speculative indirection |
+| 5 | Boundary violations | Wrong-layer imports or misplaced logic |
+| 6 | Oversized modules | >250 pure LOC smell; >400 split rule is canonical |
+| 7 | Performance equivalents | Avoidable quadratic work or allocation |
+| 8 | Scope leaks | Mutable globals or scattered environment reads |
+| 9 | Missing behavior tests | Changed behavior without regression coverage |
 
 ---
 
 ## Changed-File Coverage Ledger (REVIEW-COVERAGE-01, DEFAULT)
 
-Source: sol research (alibaba/open-code-review, Agent-Field/pr-af).
-
-Every review must account for ALL changed files. Before issuing a verdict:
-
-1. List every file in the diff.
-2. Mark each as: `reviewed`, `skipped (reason)`, or `out-of-scope (reason)`.
-3. A verdict with unaccounted files is incomplete.
-
-Skipping is allowed for: generated files, lock files, vendored dependencies,
-binary assets, and files outside the reviewer's domain expertise. State the skip
-reason; do not silently ignore files.
+Account for every changed file as `reviewed`, `skipped (reason)`, or
+`out-of-scope (reason)` before verdict. Generated, lock, vendored, binary, and
+outside-domain files may be skipped only with an explicit reason. Any
+unaccounted file makes the verdict incomplete.
 
 ## Finding Falsification (REVIEW-FALSIFY-01, DEFAULT)
 
-Source: sol research (Agent-Field/pr-af explicit falsification pass).
-
-Before reporting a finding, attempt to disprove it:
-
-1. State the finding as a testable claim.
-2. Search for evidence that contradicts the claim (existing tests, guard
-   conditions, caller context, documentation).
-3. If contradicting evidence exists, downgrade or retract the finding.
-4. If no contradicting evidence is found, the finding stands.
-
-Findings that survive falsification carry higher confidence. Findings reported
-without a falsification attempt should be marked `unverified`.
+State each finding as a testable claim and search tests, guards, caller context,
+and docs for contradictory evidence. Downgrade or retract disproved claims;
+retain claims that survive. Mark findings reported without this attempt as
+`unverified`.
 
 ## Interdiff Re-Review (REVIEW-INTERDIFF-01, DEFAULT)
 
-Source: sol research (coderabbitai/ai-pr-reviewer interdiff model).
-
-When re-reviewing after the author addressed feedback:
-
-1. Review ONLY the changes since the previous review (interdiff).
-2. Preserve unresolved findings from the previous round.
-3. Verify that each addressed finding is actually fixed (not just acknowledged).
-4. New findings in the interdiff follow the normal review process.
-5. Do not re-review unchanged code unless a cross-file dependency changed.
+Re-review only changes since the previous review. Preserve unresolved findings,
+verify each claimed fix, and process new interdiff findings normally. Revisit
+unchanged code only when a cross-file dependency changed.

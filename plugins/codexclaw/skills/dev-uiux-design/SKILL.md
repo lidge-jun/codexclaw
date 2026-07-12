@@ -162,12 +162,9 @@ needs deeper guided exploration.
 
 Before generating ANY frontend code, produce a Design Read. If the project has a `DESIGN.md` file, read it first — its tokens and prose override everything below.
 
-Native tool support (structure/60): read visual references — existing screens, competitor
-captures, design exports — into context with `view_image` before writing the Design Read;
-produce needed bitmap assets (icons, illustrations, mock imagery) with `ima2` (probe
-`ima2 status`, attempt `ima2 serve` if down; the native `imagegen` tool is the fallback
-only when ima2 is truly unavailable) rather than leaving placeholder boxes; and verify the built
-result visually per `cxc-dev-testing` §4.6 (browser screenshot -> `view_image`).
+Inspect provided visual references with `view_image` before writing the Design
+Read. Asset production and rendered verification are owned by `dev-frontend`
+and `cxc-dev-testing` respectively.
 
 ### Output format (mini DESIGN.md)
 
@@ -273,214 +270,64 @@ If the project needs persistent design tokens across sessions, save the Design R
 
 ## 2.5 Visual Concept Exploration (UX-CONCEPT-GEN-01, DEFAULT)
 
-Before implementing a C2+ NEW/redesigned expressive or brand-visible UI surface
-(landing page, hero, key chrome such as a top bar, or major visual redesign),
-generate visual concept candidates BEFORE frontend code. C0/C1 patches and
-utility CRUD/dashboard screens are exempt.
+Before implementing a C2+ new/redesigned expressive or brand-visible UI
+surface, generate visual concept candidates BEFORE frontend code. C0/C1
+patches and utility CRUD/dashboard screens are exempt.
 
-0. **Probe, start, then choose the generator.** Run `ima2 status` first. If the
-   server is down, attempt `ima2 serve` in the background, then re-run
-   `ima2 status` before skipping or falling back. Use `$imagegen` only when
-   `ima2` is truly unavailable after that serve attempt. State the chosen
-   generator in the deliverable; if generation is skipped, state the exact skip
-   reason and persist it in the devlog.
-0.5. **If the ism/direction is unclear, go IMAGE-FIRST (UX-IMAGE-FIRST-01, DEFAULT).**
-   When the user's brief does not name a specific ism, product reference, or
-   design direction — "make me a website for X", "landing page for Y",
-   vague aesthetic words without concrete reference — do NOT guess a direction
-   from text alone. Instead, let generated images DISCOVER the direction:
+### Concept Decision Tree
 
-   **Round 1 — Ism exploration (5 images, broad).** Write 5 maximally detailed
-   prompts, each expressing a DIFFERENT plausible ism/direction for the brief.
-   Vary: layout family (editorial vs product-led vs bento vs asymmetric), palette
-   temperature (warm vs cool vs monochrome), typography stance (serif editorial vs
-   grotesk minimal vs geometric bold), material (glass vs matte vs textured), and
-   hero grammar (full-bleed photo vs device mockup vs type-only). Every prompt must
-   be detailed enough that a reader can reconstruct the layout — pin domain, audience,
-   specific hex palette, font direction, hero composition, section hint, and density.
-   Vague prompts ("modern clean landing page") are banned.
+1. Is the surface C2+ and expressive or brand-visible?
+   - No: skip concept generation and state why.
+   - Yes: continue.
 
-   ```bash
-   # Launch 5 different ism directions in parallel
-   ima2 gen "Use case: landing page. Editorial serif direction. Full-bleed hero with \
-     oversized light-weight serif headline 'Artisan Coffee', warm stone palette \
-     #f5f0eb/#2c2420/#c4956a, asymmetric layout, editorial photography of pour-over \
-     coffee, generous whitespace, matte paper texture at 3% opacity. No icons, no \
-     cards. Dense footer with serif nav." --quality high --size 1536x1024 \
-     -o ./concepts/01_editorial_serif.png &
-   ima2 gen "Use case: landing page. Geometric grotesk direction. ..." \
-     -o ./concepts/02_geometric_grotesk.png &
-   ima2 gen "Use case: landing page. Product-led device mockup direction. ..." \
-     -o ./concepts/03_product_mockup.png &
-   ima2 gen "Use case: landing page. Dark premium minimal direction. ..." \
-     -o ./concepts/04_dark_premium.png &
-   ima2 gen "Use case: landing page. Warm organic capsule direction. ..." \
-     -o ./concepts/05_warm_capsule.png &
-   ima2 ps --json   # monitor all 5
-   wait
-   ```
-   ```bash
-   # Round 1: 5 ism directions in parallel (each prompt must be maximally detailed)
-   ima2 gen "Use case: landing page. Editorial serif direction. Full-bleed hero, \
-     oversized light-weight serif 'Artisan Coffee', warm stone #f5f0eb/#2c2420, \
-     asymmetric layout, editorial pour-over photo, matte paper 3%." \
-     --quality high --size 1536x1024 -o ./concepts/01_editorial.png &
-   ima2 gen "Use case: landing page. Geometric grotesk direction. ..." -o ./concepts/02_grotesk.png &
-   ima2 gen "Use case: landing page. Product-led mockup direction. ..." -o ./concepts/03_product.png &
-   # ... (2 more ism directions)
-   ima2 ps --json  # monitor
-   wait
-   ```
-   Inspect all 5 with `view_image`. Build a quick-scorecard (which ism has the
-   strongest: hero composition, palette coherence, typographic voice, density fit
-   for the domain). Pick the WINNING ISM — not the winning image.
+2. Probe ima2 availability: `ima2 status`, attempt `ima2 serve` if
+   down, `$imagegen` only as true fallback. State the chosen
+   generator.
 
-   **Round 2 — Ism refinement (3-4 images, focused).** Lock the chosen ism.
-   Write 3-4 new prompts that all express THIS ism but vary execution details:
-   accent color temperature, hero image subject, section layout hints, CTA
-   treatment, stat/proof-bar placement. Use `--ref` with the best Round 1 image
-   as a style anchor.
+3. Is the direction already concrete (named ism, reference screenshot,
+   finished design, governing design system)?
+   - Yes: lock that direction → generate 3-5 contextual execution
+     variants.
+   - No: use UX-IMAGE-FIRST-01 → generate 3-5 distinct ism directions,
+     compare, lock one direction, then refine with 2-4 variants.
 
-   ```bash
-   # Round 2: 3-4 refinements of the winning ism, anchored to Round 1 best
-   ima2 gen "Same editorial direction. Vary: latte art hero, accent #b8860b gold, \
-     proof bar below fold." --ref ./concepts/01_editorial.png --quality high -o ./concepts/06_a.png &
-   ima2 gen "Same direction. Vary: weight 300 headline, ..." --ref ./concepts/01_editorial.png -o ./concepts/07_b.png &
-   # ... (1-2 more refinement variations)
-   wait
-   ```
+4. Evaluate candidates on: domain/audience fit, hero/composition,
+   palette coherence, typographic voice, density and context fit.
 
-   Synthesize Round 2 into the element ledger (step 3 below). Lock DESIGN.md.
+5. SYNTHESIZE — do not pick one winner. Build an element ledger: for
+   each token (palette, composition, type, material, signature visual),
+   note WHICH variant did it best and WHY. Use FE-ASSET-SELECT-01
+   scorecard as rubric.
 
-   **`$imagegen` fallback:** generate 2-3 ism candidates sequentially (one per
-   call), inspect each with `view_image`, pick the ism, then generate 2 refinement
-   candidates sequentially. Slower but the same two-round logic applies.
+6. Lock DESIGN.md from the synthesis. Each token cites its source
+   variant. Interactive mode: show candidates + synthesis for
+   confirmation. Autonomous mode: record selection rationale and
+   proceed.
 
-   **Auto loop (HOTL) behavior:** this entire 0.5 step runs autonomously when a
-   goal is active. The agent picks the ism from Round 1 with stated reasoning
-   (recorded in devlog), then proceeds to Round 2 and step 3 synthesis without
-   user confirmation. The ism choice rationale is persisted so the user can
-   review it post-hoc.
+Generation mechanics,
+batching (FE-ASSET-PARALLEL-01),
+cutout preparation,
+hero constraints (FE-HERO-SPLIT-01),
+and asset selection are owned by
+`dev-frontend/references/core/asset-requirements.md`.
 
-   Skip step 0.5 when: the user named a specific ism ("Notion feel", "Linear style",
-   a product reference mapped via `references/product-personalities.md`), the user
-   provided a reference screenshot or design file, or UX-INTENT-01 already resolved
-   the direction to a concrete ism.
+Precedence: UX-CONCEPT-GEN-01 governs PRE-CODE concept stage. After
+code exists, `iterative-design.md` governs POST-CODE rounds.
+`prototype-variants.md` runs AFTER the concept lock for structural
+variants.
 
-1. **Lock ONE concept, write maximally specific prompts for it.** Decide the
-   single design concept first (domain, audience, palette family, hero/chrome
-   grammar, density, signature visual). Page-level surfaces get 5 prompts that
-   all express that SAME concept but vary the execution: emphasis points, fine
-   layout choices, accent treatment, type nuance, secondary-section hints.
-   Component-level surfaces get about 3 prompts that render the component INSIDE
-   its top-viewport context (for example top bar plus hero together), never as
-   an isolated component strip. Reference captures collected to ground mockups
-   are generation inputs (`--ref`), not skip reasons. Each prompt still pins:
-   domain + audience, layout family and hero/chrome grammar (FE-HERO-SPLIT-01
-   applies -- no split hero unless the user asked), palette with concrete hues
-   (color-system bans apply), typography direction, material, motion/asset
-   intent, and density. Vague prompts ("modern clean landing page") are banned:
-  a reader must be able to reconstruct the layout from the prompt alone.
-2. **Generate into the active devlog unit assets directory.** For page-level
-   surfaces, keep the 5-render process: run `ima2 gen <prompt> -n 1 -o <path>`
-   five times concurrently (or `ima2 gen <prompt> -n 5 -d <dir>` for a single
-   request) and monitor with `ima2 ps --json`. For component-level surfaces,
-   generate about 3 context-strip renders of the component within its top
-   viewport context. If the mockup needs motion material, use `ima2 video`.
-   Asset prompts inside mockups/builds should be VERY EXPLICIT LONG prompts;
-   prefer real/generated photographic, texture, illustration, or motion assets
-   over CSS gradient washes.
-   **Parallel strategy selection** (see `dev-frontend/references/core/asset-requirements.md`
-   FE-ASSET-PARALLEL-01): for the 5-render process, prefer `ima2 gen -n 5 -d <dir>`
-   (single-request batch) when all 5 share the same locked concept prompt. Use
-   `ima2 multimode "<prompt>" --max-images 5` when you want SSE streaming to inspect
-   candidates as they arrive and cancel early if a strong candidate lands. For
-   structurally different concept directions (e.g. 3 editorial + 2 product-led),
-   launch independent `ima2 gen` commands in parallel and monitor with `ima2 ps --json`.
-   Cancel unwanted jobs with `ima2 cancel <requestId>` once a strong direction emerges.
-   **`$imagegen` fallback**: generate candidates sequentially (one per call), inspect
-   each with `view_image` before the next. No multimode or parallel equivalent;
-   compensate with more targeted prompt refinement between rounds.
-3. **Read the renders side by side and SYNTHESIZE -- do not pick one winner.**
-   Each render usually nails some elements and fumbles others. The output is not
-   "which variant is best"; it is "which elements are best across all of them."
-   For pages, build an element ledger for palette, hero composition, type
-   treatment, signature visual, stat row, bottom-section hint, and every other
-   design token. For components, shrink the ledger to the component tokens:
-   material, radius, fills, type, icon/logo treatment, state treatment, and
-   immediate context fit. For every token, note WHICH variant did it best and
-   WHY. Show the user the images (markdown image tags with absolute paths) with
-   the synthesis ledger and let them confirm/adjust the per-token picks; in
-   autonomous/goal mode make the picks with stated reasoning and record it.
-   Use the selection scorecard from `asset-requirements.md` FE-ASSET-SELECT-01
-   (subject fidelity, composition, palette, text render, asset-type fit,
-   technical quality) as a structured rubric for per-token evaluation.
-4. **Make the SYNTHESIZED DESIGN.md the Design Read basis.** Extract palette,
-   layout family, type direction, material, asset/motion intent, and every other
-   token from the element ledger into DESIGN.md, with each token citing its
-   source variant. Never pixel-copy any single render (generated text/logos are
-   unreliable) -- the synthesis is a direction lock assembled from the best
-   parts, not one asset. A mockup is not render verification; visual verification
-   remains owned by `visual-verification.md`.
-
-Precedence: UX-CONCEPT-GEN-01 governs the PRE-CODE concept stage. After code
-exists, `iterative-design.md` Alive/Dead governs POST-CODE iteration rounds.
-When structural variants are still needed, `prototype-variants.md` runs AFTER
-the concept lock.
-
-Skip (state the skip): user handed a FINISHED design to implement; an existing
-design system governs the surface; the work is a C0/C1 patch; the surface is a
-utility CRUD/dashboard screen; or `ima2` is truly unavailable after `ima2 status`,
-an attempted `ima2 serve`, and a failed re-check, with `$imagegen` also
-unavailable or inappropriate. Captured/collected reference material to ground
-mockups is NOT a skip; it becomes generation input via `--ref`.
+Skip (state the skip): user handed a finished design; existing design
+system governs the surface; C0/C1 patch; utility CRUD/dashboard; or
+ima2 + $imagegen both truly unavailable. Reference captures are
+generation INPUT (`--ref`), not a skip reason.
 ---
 
-## 2.6 Asset Generation Templates for Concept Passes (UX-ASSET-GEN-01, DEFAULT)
+## 2.6 Asset Production Handoff (UX-ASSET-GEN-01)
 
-When concept exploration (UX-CONCEPT-GEN-01) or image-first ism discovery
-(UX-IMAGE-FIRST-01) generates component/element mockups that need to float
-over arbitrary backgrounds — icons, 3D objects, product shots, stickers,
-UI chrome elements — use the cutout asset pipeline. GPT Image 2 cannot
-produce transparent backgrounds reliably; solid-bg-then-remove is mandatory.
-
-**Cutout asset prompt template (concept pass):**
-
-```bash
-# Reflective/metallic/glass → PURE BLACK bg
-ima2 gen "3D render of [subject], [material], [composition]. \
-  Floating on a PURE SOLID BLACK background hex #000000. \
-  No checkerboard, no transparency pattern, no gradient, \
-  no floor plane, no shadow, no vignette, no ambient glow." \
-  --quality high --size 1024x1024 --mode direct -o concept-asset.png
-
-# Dark/matte subjects → PURE WHITE bg
-ima2 gen "[subject], centered, floating. PURE SOLID WHITE background \
-  hex #ffffff. No shadow, no gradient, no surface." \
-  --quality high --size 1024x1024 --mode direct -o concept-asset.png
-
-# Known destination color → match it
-ima2 gen "[subject], centered. PURE SOLID background hex #[target]. \
-  No gradient, no texture, no shadow." \
-  --quality medium --size 512x512 --mode direct -o concept-asset.png
-```
-
-**CSS removal (zero post-processing):**
-- Black bg on light page: `mix-blend-mode: screen`
-- White bg on dark page: `mix-blend-mode: multiply`
-- Wrap in `isolation: isolate` container to prevent bleed
-- Programmatic: `sharp`, ImageMagick, `rembg`. Interactive: ima2 Canvas Mode.
-
-**`$imagegen` fallback:** same solid-bg prompting applies; CSS blend modes
-or programmatic removal only (no Canvas Mode).
-
-**Anti-pattern:** requesting "transparent background" or "PNG with alpha" in
-the prompt. The model produces fake checkerboard burned into the image.
-
-Full pipeline reference: `dev-frontend/references/core/asset-requirements.md`
-§ Asset Background Strategy (FE-ASSET-BG-01). If ima2 is installed, load
-the full asset reference via `ima2 skill front ref asset-requirements`
-or the design-ism reference via `ima2 skill uiux ref design-isms`.
+After concept direction is locked,
+follow `dev-frontend/references/core/asset-requirements.md` for asset
+generation, background removal (FE-ASSET-BG-01), batching, selection,
+and integration.
 
 ## 3. Korean Design Vocabulary + Quick-Match + Font Selection
 

@@ -105,25 +105,9 @@ goal mode (`create_goal`, evidence-backed checkpoints) · subagent
 (scoped writes when explicitly delegated) · read-only review (no mutation,
 findings only) · docs-only work (no code gates, docs consistency checks instead).
 
-In goal mode, multi-phase / loop work runs one FULL PABCD cycle per work-phase
-(depth scaled by §0.0 class); after D closes a cycle to IDLE, YOU run `cxc orchestrate P --session <id>`
-to start the next work-phase — nothing re-enters `P` automatically (the Stop hook only
-blocks premature termination so you do this). Classify EACH work-phase independently —
-C0-C1 fast-path applies to that work-phase's class, not the whole goal. Do each PABCD
-phase's real work; never rubber-stamp a phase to advance. Work-phases chain
-HETEROGENEOUS units: a completely different feature or "the next plan" is simply the
-next cycle at P in the SAME session (`cxc-loop` LOOP-UNIT-CHAIN-01) — "needs its own
-PABCD" never means ending the goal or waiting for a new session.
-Every phase move is a real `cxc orchestrate <phase> --attest` transition — a narrated
-phase without its persisted edge did not happen (ORCH-MANDATE-01, canonical in `cxc-loop`).
-
-When any PABCD workflow enters divergence mode (HITL or goal mode; see `cxc-loop`),
-keep the user question honest. The archive may require N>=2 candidates, but the
-user-facing question does not. If the user already gave a clear implementation intent,
-record `strong-1` plus `add-1` with evidence and converge silently. Ask the user to
-choose among N candidates only when intent is genuinely open, success criteria conflict,
-or the metric cannot separate candidates after C/D evidence. Goal mode adds only the
-Stop-hook continuation/plateau prompt; divergence itself is a PABCD-layer doctrine.
+PABCD, goal, divergence, and repeated work-phase mechanics are canonical in
+`pabcd` and `cxc-loop`. Load those skills when the selected process requires
+them; classify each work-phase independently.
 
 **Production surface (shared definition):** a surface is production when it is deployed
 for real users beyond the author; prototypes, spikes, and internal demos are not. Skills
@@ -140,52 +124,18 @@ precondition for writing code there. Skipping it is a STRICT violation (dev §0.
 same severity as a broken build. When a change spans multiple surfaces, read each
 matching router first.
 
-Why this is wording, not a runtime gate: no Codex hook fires on skill load (see
-`structure/00_philosophy.md` §1), so the main agent self-enforces this STRICT rule. For
-SUBAGENT dispatches, the dispatcher names every required skill explicitly. Prefer
-link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)` mentions in the spawn `message`;
-when the path is not link-safe, use the plugin-native `$codexclaw:cxc-<skill>` fallback.
-When the spawn message reaches it as plaintext, the always-on spawn PreToolUse hook
-normalizes known broken/bare cxc mentions and, on V2-shaped spawns, inlines recognized
-skill bodies. Native ChatGPT-backend V2 gives the hook ciphertext, so when no body can be
-inlined the hook appends a plaintext `[CXC-SKILL-AFFORDANCE]` block that tells the child
-to self-load any `$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention by reading
-`<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel. The hook
-never adds role baselines or infers missing surface skills. The manually supplied,
-v1-only `items` channel remains the strongest explicit form (`structure/10`).
-
 ### Subagent Skill Injection (DEV-SKILL-INJECT-01)
+Attach `cxc-dev` and every relevant surface skill explicitly to governed subagents.
+Prefer resolvable skill links; use plugin-native mentions or v1 `items` when needed.
+Hooks may normalize recognized plaintext mentions but never infer omitted skills.
+Attach `cxc-search` for search tasks; the same search policy binds delegated agents.
 
-When spawning a subagent for any codexclaw-governed task, attach `cxc-dev` and
-the relevant surface `cxc-*` skills with resolvable spawn-message mentions:
-preferred link-form `[$cxc-<skill>](skill://<abs SKILL.md path>)`, or plugin-native
-`$codexclaw:cxc-<skill>` when a link is unsafe. The manual v1 `items` mechanism is also
-valid. Name the surface skills explicitly; on plaintext spawn paths the hook repairs
-known broken/bare mentions and inlines recognized skill bodies on V2-shaped spawns, but
-it never supplies an omitted skill.
-Keep the skill body as the single source of truth. For search tasks, attach
-`cxc-search`, and ensure subagents/delegated agents are bound by the same
-search-skill policy as the main agent.
-
-| Skill File | Routes When (surface) | Covers |
-| ---------- | --------------------- | ------ |
-| `dev-frontend/SKILL.md` | UI/frontend work | Frontend implementation, component architecture, responsive layouts, animation, design-system application |
-| `dev-backend/SKILL.md` | API/server/database work | API design, app architecture patterns, database optimization, error handling, middleware, app-level operational hooks |
-| `dev-data/SKILL.md` | Data pipelines, SQL, analysis, ETL/ELT | Data pipelines, ETL/ELT, data quality validation, SQL optimization, analysis and reporting |
-| `dev-security/SKILL.md` | Security-sensitive code, auth, secrets, threat modeling | OWASP Top 10, auth hardening, input validation, secrets management, supply chain security |
-| `dev-testing/SKILL.md` | Test strategy, regression protection, acceptance checks | Test strategy, browser testing, coverage analysis, contract testing |
-| `dev-debugging/SKILL.md` | Runtime debugging, repeated failures, RCA | Root cause analysis, boundary instrumentation, hypothesis testing, postmortem |
-| `dev-code-reviewer/SKILL.md` | Code review and quality audit | Review process, quality thresholds, antipattern detection, giving/receiving feedback |
-| `dev-architecture/SKILL.md` | Module boundaries, dependency direction, layer work | Circular deps, module boundaries, coupling taxonomy, barrel/re-export discipline |
-| `dev-uiux-design/SKILL.md` | Vague design direction, onboarding/empty/error UX | Design judgment, intent discovery, design vocabulary, product personalities, typography/layout decisions |
-| `dev-scaffolding/SKILL.md` | New project/feature setup, structural audit, docs generation | Scaffolding, colocation, public boundary export, documentation generation |
-| `pabcd/SKILL.md` | Multi-phase planning, interview-first discovery, gated execution | PABCD workflow, phase gates, interview flow |
-
-**Visibility decision (canonical):** the implicit-visible set is `{dev, search, interview, pabcd, recall, loop, dev-frontend, dev-uiux-design}` (`allow_implicit_invocation: true` in each skill's `agents/openai.yaml`; the 2026-07-05 expansion added metadata rows only — `dev` alone carries the always-on body discipline; the 2026-07-09 expansion added `dev-frontend` + `dev-uiux-design` so anti-slop design grammar reaches every UI-generating session without routing). Everything else — `skill-hub` (deprecated), `qa`, `repo-map`, and every other `dev-*` router — is on-demand (`allow_implicit_invocation: false`) and loads by explicit mention, trigger match, or `dev` routing. This is the correct set; any claim that only `cxc-dev` is implicit is stale.
+Surface-to-owner mappings live in `references/skill-ownership.md`; router trigger
+metadata remains canonical in each skill's `agents/openai.yaml`.
 
 ### Capability Routing Hub
-
-Use this hub instead of `skill-hub`: repo fact-finding stays in `dev` plus repo tools; current/external/public facts load `search`; multi-step planning loads `pabcd`; repeated work phases load `loop`; past-session context loads `recall`; review loads `dev-code-reviewer`; runtime failure loads `dev-debugging`; module boundaries load `dev-architecture`; backend/frontend/data/security/devops/scaffolding load their matching routers; manual surface-driving QA (prove a built web/TUI/CLI/API surface actually works before done) loads `cxc-qa`. `skill-hub` is deprecated.
+Use `dev` plus repo tools for local facts; load `search`, `pabcd`, `loop`, `recall`,
+`cxc-qa`, or the matching `dev-*` owner for their named domains. `skill-hub` is deprecated.
 
 ### Browse / QA Tool Routing
 
@@ -203,45 +153,12 @@ Two scoped ladders exist — the ordering is intentional, not contradictory:
 | Public-web proof (search, research, URL verification) | SEARCH-BROWSE-01 | 1. `agbrowse` (scripted HTTP/CDP) → 2. `browser:control-in-app-browser` → 3. `chrome:control-chrome` → 4. `computer-use:computer-use` | `cxc-search` Tier 2 |
 | QA of agent-built/served surfaces | QA-TOOL-LADDER-01 | 1. `browser:control-in-app-browser` → 2. `chrome:control-chrome` → 3. `computer-use:computer-use` → 4. `agbrowse` (public-URL shape checks only) | `dev-testing` §4.6 |
 
-The search ladder is agbrowse-first because it proves public-web claims with scripted
-evidence envelopes. The QA ladder is in-app-browser-first because it drives surfaces
-the agent itself serves. Full protocols live in the owners above; this section is the
-routing summary so every session sees the tool names without loading those skills.
+Full ladder protocols and rationale live in their owners above.
 
 ### Skill Ownership Map
-
-Each rule area has exactly one canonical owner. Other skills may contain stubs but MUST NOT duplicate canonical content.
-
-| Rule Area | Canonical Owner | Stub Locations |
-|-----------|----------------|----------------|
-| Circular dependencies | `dev-architecture` | `dev`, `dev-code-reviewer` |
-| Module boundaries / layers | `dev-architecture` | `dev-backend`, `dev-frontend` |
-| Coupling taxonomy | `dev-architecture` | `dev-code-reviewer` |
-| Barrel / re-export | `dev-architecture` | `dev-scaffolding` |
-| Pre-write search | `dev` §1.5 | `dev-code-reviewer` |
-| Edge-first testing | `dev-testing` §6 | — |
-| Manual surface QA / evidence matrix | `cxc-qa` | `dev-testing` §4.6 (tool routing stays there) |
-| Test-induced defense | `dev-testing` §6.7 | `dev-code-reviewer` |
-| Boundary-only defense | `dev-architecture` §4 | `dev-backend`, `dev-security` |
-| Process isolation | `dev-backend` references/ | `dev-code-reviewer`, `dev-devops` |
-| Long-lived connections | `dev-backend` §1 app hooks | `dev-frontend`, `dev-devops` operational gates |
-| Async task queue | `dev-backend` §2 app hooks | `dev-devops` operational gates |
-| Debugging methodology | `dev-debugging` | `dev-code-reviewer` |
-| Browse / QA tool routing | `dev-testing` §4.6 (QA ladder), `cxc-search` (search ladder) | `dev` (routing summary) |
-| Data pipeline patterns | `dev-data` | `dev-backend` |
-| Frontend implementation | `dev-frontend` | `dev-uiux-design` |
-| Design intent discovery | `dev-uiux-design` | `dev-frontend` |
-| Design judgment | `dev-uiux-design` | `dev-frontend` |
-| Operational gates | `dev-devops` | `dev-backend`, `dev-scaffolding` |
-| Project scaffolding / docs | `dev-scaffolding` | `pabcd` |
-| PABCD workflow | `pabcd` | — |
-| Anti-slop output | `dev` §Family Invariants | all `dev-*` |
-| file:line evidence | `dev` §Family Invariants | all `dev-*` |
-| Completion proof | `dev` §Family Invariants | `pabcd`, all `dev-*` |
-
-When updating a rule, update the canonical owner first, then verify stubs still point correctly.
-
-**When your task spans multiple domains** (for example, building an API endpoint that returns analyzed data), read each relevant skill file before starting.
+Canonical rule ownership and stub locations live in `references/skill-ownership.md`.
+Update the canonical owner first and keep stubs as pointers; multi-domain tasks load
+every relevant owner skill before work begins.
 
 ---
 
@@ -265,62 +182,34 @@ wording (no Codex hook enforces skill text — `structure/00_philosophy.md` §1)
 
 ---
 
-## Documentation Verification (Context7)
+## External Evidence and Recall Routing
 
-If Context7 MCP is available, verify external library syntax before using it
-(`resolve-library-id` → `query-docs`). **Verify when:** API not verified this session,
-pinned version, uncertain behavior, or a major release in the past 6 months.
-**Skip for:** language built-ins, standard library, syntax verified this session.
-If unavailable, fall back to official docs lookup — never training data alone.
-
-### External/current evidence
-
-For current versions, release notes, CVEs, package/source checks, provider
-behavior, or browser-verifiable public evidence, read the active `search` skill
-and follow its source-fetch/evidence-status rules rather than relying on memory
-alone. Subagents/delegated agents are bound by the same search-skill policy.
-
-`agbrowse` is on PATH for HTTP-first URL verification. For any URL proof, prefer
-`agbrowse fetch <url> --json` before reaching for browser tools; the full tier
-ladder lives in `$cxc-search` (Tier 2).
+| Need | Route |
+|---|---|
+| External library syntax or pinned-version behavior | Context7 `resolve-library-id` → `query-docs`; otherwise official docs |
+| Current versions, releases, CVEs, providers, or public evidence | Load `cxc-search` and follow its evidence rules |
+| HTTP-first URL proof | `agbrowse fetch <url> --json`; full ladder: `cxc-search` Tier 2 |
 
 ### Recall Lookup Scope (DEV-RECALL-01, MUST)
-
-Past work context lives in the Codex session root and is searchable in
-milliseconds. Before asking the user about PRIOR work, search it yourself:
-
-- **When**: an earlier-work term/file/decision is unfamiliar; context lost after a
-  compact/restart; the user references past work; or you are about to write "I don't
-  have context about X".
-- **How** (read-only): `cxc chat search "<terms>" --days 0` (full-history FTS;
-  `--context 2`, `--cwd <repo>`) and `cxc memory search "<topic>"`.
-- Only after both miss may you ask the user — and say what you searched.
-  Full flag set: `$cxc-recall`. Subagents are bound by this rule too.
+| Trigger | Route |
+|---|---|
+| Prior term/file/decision is unfamiliar or context was lost | `cxc chat search "<terms>" --days 0` and `cxc memory search "<topic>"` |
+| Both searches miss | Ask the user and report what was searched; full flags: `cxc-recall` |
 
 ---
 
 ## 0. Intent Clarification
 
-When a request has **ambiguous scope or unspecified technology**, clarify before coding.
-If the user already specifies clear tech and scope (for example, "Build a React drawer component"), skip this step entirely.
-
-Clarification shape: present 2-3 `<TechName> — <plain explanation>` options with
-project-specific pros/cons, flag complex or risky options, recommend one with
-reasoning, confirm once, then move on. Consider simpler alternatives before
-heavy frameworks; do not turn clarification into an interview unless the task is
-truly C5.
+Clarify only ambiguous scope or technology. Present 2-3 project-specific options,
+flag risk, recommend one, and confirm once; skip clarification when intent is clear.
 
 ---
 
 ## 0.5 Repository Convention Discovery
 
-Before broad changes, inspect existing project conventions:
-- Source layout: `src/`, `app/`, `packages/`, `frontend/`, `backend/`
-- Source-of-truth docs/logs: `docs/`, `architecture/`, `adr/`, `plans/`, changelogs
-- Agent context: `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, tool-specific instruction files
-- JS/TS setup: `package.json`, `tsconfig*`, ESLint/Biome config, sibling file extensions
-- Existing naming, test, module, and phase-document patterns
-- Devlog phase documents use decade-range numbering (000-009 research, 010-019 phase 1, ...); never bare `PLAN.md`/`PHASES.md`/`RCA.md` (LEXICO-SPLIT-01). Full convention: `pabcd`.
+Before broad changes, inspect source layout, source-of-truth docs, agent instructions,
+toolchain config, and sibling naming/test/module patterns. Devlogs use decade-range
+numbering, never bare `PLAN.md`/`PHASES.md`/`RCA.md` (LEXICO-SPLIT-01; see `pabcd`).
 
 MUST follow existing conventions when they are clear.
 MUST read existing source-of-truth docs before broad implementation.
@@ -330,20 +219,9 @@ If the repo is immature, undocumented, or inconsistent, propose a lightweight so
 
 ### Broad Change Preview
 
-Before broad changes, show a compact tree and planned touch points.
-
-Broad change means any of:
-- Creates or reorganizes directories
-- Touches 5+ files
-- Spans frontend + backend or multiple top-level packages
-- Adds a new feature/module/service
-- Adds project documentation or source-of-truth structure
-
-Preview format:
-- Current signals: detected stack and docs/conventions found
-- Compact tree: max ~40 lines; omit generated/vendor folders and VCS internals
-- Planned edits: files/folders to create or modify
-- Convention decision: reuse existing structure, or ask before proposing new structure
+For directory changes, 5+ files, cross-surface work, new modules/services, or new
+project docs, preview current signals, a compact tree (max ~40 lines), planned
+touch points, and whether existing conventions are reused or need approval.
 
 ---
 
@@ -423,23 +301,9 @@ fast path still applies to C0/C1.
 
 ## 2. Systematic Debugging
 
-Investigate the root cause before applying any fix — guessing leads to compounding rework.
-
-For full debugging methodology — boundary instrumentation, pattern analysis, hypothesis testing, and postmortem — see `dev-debugging/SKILL.md`.
-
-This section covers the **emergency stop triggers** every coding agent should recognize:
-
-**Red flags — stop and return to root cause investigation:**
-
-| Rationalization | Reality |
-| --------------- | ------- |
-| "Quick fix for now, investigate later" | First fix sets the pattern. Do it right from the start. |
-| "Just try changing X and see" | Guessing guarantees rework. |
-| "I don't fully understand but this might work" | Seeing symptoms ≠ understanding root cause. |
-| "Proposing solutions before investigating" | You haven't done Phase 1. |
-| "One more fix attempt" (after 2+ failures) | 3+ failures = architectural problem. |
-
-**If 3+ fix attempts fail:** pause and reassess. Each fix revealing a new problem elsewhere signals an **architectural issue**, not a simple bug. Question fundamentals: Is this pattern sound? Are we sticking with it through inertia? Discuss with the user before attempting more fixes.
+Root-cause method, instrumentation, hypothesis testing, emergency stop triggers,
+and postmortems are canonical in `dev-debugging/SKILL.md`. Load it for runtime
+failures; after 3 failed fixes, pause and reassess the architecture with the user.
 
 **Repeated-friction rule (DEV-FRICTION-01, DEFAULT).** When the same shell command
 class fails twice with the same normalized error, do not retry a third time
@@ -486,28 +350,12 @@ minimum *scope* scales with the work class (§0.0). This is the floor, not a cap
 
 **Subagent delegation:** When subagents report success, verify independently: check VCS diff → verify changes exist → confirm behavior.
 
-**Long external verification:** when a verification gate depends on a
-long-running external process (CI run, deploy, remote build), spawn a
-background subagent and poll with short wait cycles. Local commands (tests,
-`tsc`, builds that finish in minutes) stay blocking — backgrounding is for
-genuinely long external work.
-
-**Red flags — unverified claims creeping in:** "should"/"probably"/"seems to" · satisfaction before verification · partial/previous-run evidence · trusting agent success reports · "just this once".
-
 ---
 
 ## 4. Change Documentation
-
-When a worklog or changelog file is provided, record every change in this format:
-
-```markdown
-### [filename] — [reason for change]
-- **Changes**: what was modified and why
-- **Impact**: modules that import or depend on this file
-- **Verification**: how the change was tested (command + result)
-```
-
-Keep entries factual and concise. One entry per file changed.
+When a worklog or changelog is provided, add one factual entry per changed file:
+`### [filename] — [reason]`, then `Changes`, `Impact`, and `Verification`
+(command + result). Keep entries concise.
 
 ---
 
@@ -556,35 +404,7 @@ its own active-skill context, so load only what the sub-task needs.
 
 ## 9. Skill Discovery (DEV-SKILL-DISCOVERY-01, DEFAULT)
 
-When a task needs a capability or domain workflow not covered by the loaded
-codexclaw skills, search external skill catalogs before hand-rolling logic.
-
-**Catalog priority:**
-
-| Priority | Source | CLI flag | Notes |
-|----------|--------|----------|-------|
-| 1st | **jaw** (cli-jaw-skills) | `--source jaw` (default) | Curated, tested, adapter-compatible |
-| 2nd | **clawhub** | `--source clawhub` | Community catalog, larger but unvetted |
-| 3rd | **hermes** | `--source hermes` | Experimental, sparse |
-
-**Quick path (no search needed):** browse `references/skill-catalog.md` for
-the full cli-jaw skill list, organized by domain with active/reference status.
-If the skill you need is listed there, load it directly.
-
-**Search path:**
-
-```bash
-cxc skill search <query>                # searches jaw (default, 1st-class)
-cxc skill search <query> --source all   # jaw + clawhub + hermes
-cxc skill show <id>                     # loads the skill with adapter preamble
-```
-
-**Rules:**
-- Try jaw first. Fall back to clawhub only when jaw has no match.
-- External skills get the adapter preamble automatically (`cxc skill show`
-  prepends it). cxc-dev discipline always wins on conflict.
-- Do not preload external skills speculatively. Load one when the task clearly
-  needs it, then follow its SKILL.md instructions.
-- If the skill name collides with a codexclaw built-in (dev-*, search, recall,
-  pabcd, loop), the built-in is authoritative; use the external as supplementary
-  reference only.
+For uncovered capabilities, check `references/skill-catalog.md`, then run
+`cxc skill search <query>` (jaw first; `--source all` adds clawhub and hermes).
+Load only the needed result with `cxc skill show <id>`; its adapter preserves
+`cxc-dev` authority, and built-in codexclaw skills win name conflicts.

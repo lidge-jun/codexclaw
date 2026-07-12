@@ -72,43 +72,8 @@ source-fetch and evidence-status rules.
 - Verification depth follows `dev` §3 `DEV-VERIFY-FLOOR-01`; CRUD per-operation negative coverage is owned by `references/core/crud-test-matrix.md`.
 ---
 ## Limited-Oracle / Score-Objective Evaluation
-
-Use this section when the real evaluator is scarce, paid, rate-limited, or opaque, and
-local tests are proxy metrics for a score/objective. These rules are paired with
-`cxc-pabcd` §Optimization-Loop Meta-Rules (plateau discipline). They were observed in a
-14-discard optimization plateau where a prefix-only replay gate and hard
-draw-protection invariant locked a 3.5/8 score.
-
-- **GATE-ORACLE-VALIDITY-01 (STRICT):** When the true evaluator/oracle is
-  rate-limited and local metrics are proxies, evaluator validity is a PREREQUISITE
-  gate. Before trusting the proxy for accept/reject, quantify historical divergence:
-  cases where the proxy said better/equal but the oracle said worse. A proxy with known
-  optimistic bias must not be the sole acceptance evidence.
-- **GATE-PREFIX-HORIZON-01 (DEFAULT):** Replay-based evidence, such as recorded logs or
-  scripted opponents, is prefix-valid only. It stops being valid as soon as the
-  candidate diverges from the recorded trajectory. Candidates that diverge early need
-  live adversarial evaluation with a modeled opponent/environment, not replay-only
-  acceptance. State the divergence turn/point whenever citing replay evidence.
-- **GATE-INVARIANT-EV-01 (DEFAULT):** Every hard invariant in an acceptance gate, meaning
-  a metric that must not regress, needs an expected-value justification: the value it
-  protects versus the candidate-space it vetoes. If a hard invariant vetoes three or
-  more consecutive candidates that target strictly larger gains, downgrade it to a
-  soft cost and re-justify or remove it.
-- **GATE-HOLDOUT-LEAKAGE-01 (DEFAULT):** Fixed evaluation assets - recorded logs, test
-  maps, sparring bots, graders, and even public oracle outcomes - become training data
-  once candidates are repeatedly tuned against them (adaptive reuse overfits the
-  holdout itself; Blum & Hardt's Ladder, arXiv:1502.04585, and the reusable-holdout
-  line, arXiv:1506.02629). Rotate or expand the gate's instance set as tuning
-  accumulates, and reserve a blind slice (instances never used for candidate
-  selection) as the final acceptance check. A candidate that wins only on the tuned
-  set and not on the blind slice is gate-overfit, not improved.
-- **GATE-AGREEMENT-STATS-01 (HEURISTIC):** Calibrate a proxy against the scarce oracle
-  with agreement statistics, not correlation alone: sign-discordance rate (proxy said
-  better/equal, oracle said worse), mean and worst-case proxy-minus-oracle error, and
-  rank agreement on paired decisions (Bland-Altman method-comparison doctrine). Track
-  these per scenario family - a proxy can be trustworthy on one instance class and
-  optimistic on another - and re-derive them whenever the oracle returns new results.
-
+For scarce, paid, rate-limited, or opaque evaluators, route to
+`references/limited-oracle-evaluation.md` for all proxy-score gates.
 ### 1.6 Property-Based & Mutation Testing (verified 2026-07-02)
 
 | Technique | Use for | Default tools | When |
@@ -219,88 +184,23 @@ python scripts/with_server.py \
 - Use Playwright for **rendered truth**, not as a replacement for service tests.
 - Prefer one smoke flow per critical path over many brittle micro-flows.
 - If a failure looks like data-shape drift, go back to **§2 Backend & API Testing** or **§3 Contract Testing**.
----
 ### 4.6 Native Computer-Use / Browse-Use QA (exploratory tier) (TEST-CU-QA-01)
-
-Playwright owns DETERMINISTIC, repeatable suites. The native tools
-(`structure/60_native_capabilities.md`) own the EXPLORATORY tier — use them when the
-question is "does this change actually work in the real UI right now", not "guard this
-flow forever":
-
-**QA tool ladder (QA-TOOL-LADDER-01, canonical).** Ordered hierarchy for QA of
-surfaces the agent built/serves. Rungs 1-3 are all CUA-class control (see, act,
-screenshot); rung 4 is the one non-CUA scripted rung. Start at rung 1; state why
-when you skip down:
-
-1. **`browser:control-in-app-browser`** — DEFAULT. Drive a local dev server /
-   file-backed page: navigate, click, type, screenshot. Owns web-UI spot checks
-   after a change.
-2. **`chrome:control-chrome`** — the same flow in the user's REAL Chrome (CDP):
-   escalate only when the check needs a logged-in session, an extension,
-   profile state, or a WAF'd page the in-app browser cannot pass.
-3. **`computer-use:computer-use`** — GUI last resort: desktop apps,
-   iOS-simulator flows, GUI-only bug repro, browser chrome itself. Per-app
-   approval applies; NEVER drive terminals or Codex itself; keep credential
-   flows human-supervised.
-4. **`agbrowse`** (cxc-search's proof helper) — non-CUA scripted HTTP/CDP
-   evidence envelopes. QA-legal ONLY for public-URL response-shape checks
-   (e.g. a deployed endpoint's headers/body); never for driving built UI.
-
-**Inversion note vs `cxc-search` SEARCH-BROWSE-01:** the search ladder is
-agbrowse-FIRST because it proves PUBLIC-web claims with scripted evidence. This
-QA ladder is in-app-browser-first because it drives surfaces the agent itself
-serves — the two orderings are scoped, not contradictory.
-
-**Protocol (imported CDP doctrine):** inspect -> act -> re-inspect. Verify state before
-and after every action; when DOM inspection fails (canvas/WebGL/shadow-DOM), take a
-screenshot, read it back with `view_image`, and use pointer-level interaction. Never
-chain blind actions.
-
-**Evidence (binds to PABCD C):** an exploratory QA pass counts as C-phase evidence only
-with artifacts — the screenshot(s) read via `view_image`, the exact flow driven, and the
-observed result stated. `chronicle` (screen-history snapshots) can recover "what did the
-screen show" after the fact. A green exploratory pass does NOT replace the deterministic
-suite for regression-worthy flows — promote the flow to Playwright when it must stay
-guarded (§4.1).
-
-**Canonical owner note:** this section owns the TOOL ROUTING (which native tool drives
-which surface). The manual QA PROCEDURE — scenario matrix, evidence contract under
-`.codexclaw/evidence/<session>/qa/`, adversarial classes, oracle passes, teardown
-receipts — is canonically owned by `cxc-qa` (`skills/qa/SKILL.md`); load it for any
-surface-proof pass.
-
+Playwright owns deterministic suites; native tools own immediate exploratory proof.
+**QA-TOOL-LADDER-01:** start at 1 and state why when skipping:
+1. `browser:control-in-app-browser` for built or locally served web UI.
+2. `chrome:control-chrome` for real profile, login, extension, or WAF state.
+3. `computer-use:computer-use` for desktop or GUI-only flows; keep credentials human-supervised.
+4. `agbrowse` only for public-URL response-shape proof, never built-UI driving.
+Use inspect -> act -> re-inspect; use screenshots plus `view_image` when DOM inspection fails.
+Evidence names the flow, states, result, and screenshots; promote durable flows to Playwright.
+Load `cxc-qa` for scenario matrices, adversarial/oracle passes, evidence layout, and teardown.
 ## 5. CI Pipeline Integration
 > Full workflow templates: `references/ci-pipeline.md`
 ### 5.1 Pipeline Order
-```text
-quality (lint / typecheck)
-→ unit + integration tests
-→ contract tests
-→ Playwright E2E
-→ security scan
-→ coverage aggregation + artifacts
-```
-### 5.2 Pipeline Template
-Structure CI jobs in dependency chain: `quality → backend-tests → contract-tests → e2e`
-
-Key configuration:
-- `concurrency.cancel-in-progress: true` — avoid wasted runs
-- `strategy.fail-fast: false` — for matrix builds
-- Shard large suites: `--shard=${{ matrix.shard }}/N`
-- Install Playwright deps: `npx playwright install --with-deps chromium`
-
-See `references/ci-pipeline.md` for full GitHub Actions and GitLab CI templates.
-### 5.3 Matrix & Parallelization
-| Dimension | When to Use |
-|-----------|-------------|
-| Node / Python version matrix | packages, SDKs, shared libraries |
-| OS matrix | native modules, CLI behavior |
-| shard matrix | large suites exceeding CI budget |
-```bash
-npx vitest run --shard=1/4
-npx playwright test --shard=1/4 --workers=4
-pytest -n auto --dist=loadgroup
-```
+`quality -> unit/integration -> contract -> Playwright E2E -> security -> coverage/artifacts`
+See `references/ci-pipeline.md` for job dependencies, concurrency, matrices, sharding,
+Playwright dependencies, and full GitHub Actions/GitLab CI templates.
+Matrix only across supported runtimes, required OS behavior, or suites exceeding CI budget.
 ### 5.4 Flaky Test Remediation
 | Symptom | First Fix |
 |---------|-----------|
@@ -403,28 +303,12 @@ When the project supports a sandbox/mock mode, use it for fast DB-free regressio
 
 ---
 ## 7. Accessibility Testing
-
-### Component Level
-- jest-axe / vitest-axe: run axe-core on rendered components
-  ```ts
-  import { axe, toHaveNoViolations } from 'jest-axe'
-  expect.extend(toHaveNoViolations)
-  expect(await axe(container)).toHaveNoViolations()
-  ```
-
-### Page Level
-- Playwright a11y assertions:
-  ```ts
-  import AxeBuilder from '@axe-core/playwright'
-  const results = await new AxeBuilder({ page }).analyze()
-  expect(results.violations).toEqual([])
-  ```
-
-### CI Pipeline
-- Gate order (verified 2026-07-02): component axe → page axe (@axe-core/playwright) → keyboard/focus/manual checks. Blocking gate = zero serious/critical axe violations + manual checks; Lighthouse a11y score (≥90) is advisory smoke only
-- Pa11y: page-level scanning for WCAG AA violations
-- Run a11y tests on EVERY page route, not just the homepage
-
+### Component, Page, and CI Gates
+- Run axe-core through jest-axe or vitest-axe on rendered components.
+- Run `@axe-core/playwright` across every changed or critical route.
+- Verify keyboard operation, visible focus, focus order, and focus restoration manually.
+- Gate order: component axe -> page axe -> keyboard/focus checks.
+- Block serious/critical axe violations; keep Lighthouse scores advisory.
 ### Observability Verification
 
 Verify trace propagation in integration tests. Assert that spans appear for critical paths. Check structured log format matches the schema in `dev-backend/references/core/observability.md`.
@@ -434,37 +318,13 @@ Verify trace propagation in integration tests. Assert that spans appear for crit
 ## 8. Security Testing
 **→ Delegated**: threat modeling and secure design policy belong to `dev-security`.
 This section covers the **automated test hooks and CI gates** that enforce those rules.
-### 8.1 Minimum Security Stack
-```text
-fast local checks
-→ Semgrep / CodeQL gate
-→ dependency audit
-→ auth / validation regression tests
-```
-### 8.2 Dependency Scanning Commands
-```bash
-npm audit --audit-level=high
-pip-audit --strict --desc
-```
-### 8.3 Semgrep Gate
-```yaml
-semgrep:
-  runs-on: ubuntu-latest
-  container: semgrep/semgrep
-  steps:
-    - uses: actions/checkout@v4
-    - run: semgrep ci --config p/default --config p/javascript --config p/typescript --config p/python
-# (returntocorp/semgrep-action is deprecated per its own repo; Opengrep is the active LGPL fork alternative)
-```
-### 8.4 Security Regressions
-Test missing auth (expect 401) and verify error.code matches contract for every auth-protected endpoint.
-### 8.5 Rules
-- dependency audit in CI
-- Semgrep or equivalent SAST
-- auth / permission regression tests
-- validation tests for malicious or malformed input
-- a blocking rule for high / critical dependency findings
----
+`fast checks -> SAST -> dependency audit -> auth/validation regressions`
+Use the repository's pinned audit and SAST products; detailed product setup belongs in
+the security-testing reference or CI owner, not this router.
+Test missing/insufficient auth and contract error codes on protected endpoints.
+- Run dependency audit and SAST in CI.
+- Add auth, permission, malicious-input, and malformed-input regressions.
+- Block policy-defined high/critical findings; exceptions require owner and expiry.
 ## 9. Coverage & Quality Gates
 ### 9.1 Suggested Thresholds
 These are project/risk-based, not universal minimums. Adjust for your context.
@@ -502,42 +362,18 @@ These are project/risk-based, not universal minimums. Adjust for your context.
 - [ ] CI artifacts uploaded for failure analysis
 ---
 ## 10. Pre-Flight Test Checklist
-### 10.1 Change-Type Routing
-- [ ] pure business logic change → add / update unit or service tests
-- [ ] API or middleware change → add / update API integration tests
-- [ ] shared frontend↔backend payload change → add / update contract tests
-- [ ] rendered user flow change → add / update Playwright smoke coverage
-- [ ] auth / upload / billing / external integration change → add security or edge-case regression coverage
-### 10.2 Harness Readiness
-- [ ] fixtures are deterministic and reusable
-- [ ] real dependencies are used where correctness matters
-- [ ] Testcontainers are used for DB truth, not mocked SQL
-- [ ] external APIs are mocked or recorded intentionally, not accidentally called live
-- [ ] `ENFORCE_TDD` requirements were followed if enabled
-### 10.3 Contract & Data Integrity
-- [ ] response envelope remains stable or contract was updated first
-- [ ] error codes are asserted, not only HTTP status
-- [ ] `requestId`, pagination, and nullability are verified where relevant
-- [ ] frontend fixtures do not drift from backend examples
-### 10.4 CI & Reporting
-- [ ] relevant CI jobs exist and are actually executed
-- [ ] sharding / matrix choices match project size
-- [ ] flaky failures were investigated instead of blindly retried
-- [ ] coverage / junit / trace artifacts are available on failure
-### 10.5 Final Rule (risk-tier)
-Verification intensity follows the work class (`dev` §0.0 / `references/core/crud-test-matrix.md`):
-for C2 UI work, one focused smoke (manual click-through or one Playwright run) plus targeted
-checks IS a complete story; for C3/C4 or release-sensitive work, a single smoke is not enough —
-run the affected suites and required negatives. Manual/Playwright smoke is a risk-tier rule,
-not a universal blocker.
-```text
-unit / service
-→ API integration
-→ contract verification
-→ Playwright smoke
-→ CI gate + coverage + security scan
-```
-
+Choose the smallest checklist that covers the work class and changed boundaries:
+- [ ] C0/C1: focused test or smallest proof; no unrelated broad suite.
+- [ ] C2: targeted unit/service plus affected API, contract, or rendered smoke.
+- [ ] C3: affected suites, boundary negatives, contracts, and integration evidence.
+- [ ] C4/release: full gates, security/data negatives, rollback or smoke proof.
+- [ ] Fixtures are deterministic; real dependencies cover correctness-sensitive paths.
+- [ ] External calls are intentionally mocked/recorded; no accidental live traffic.
+- [ ] Changed errors/data contracts are asserted; shared fixtures remain synchronized.
+- [ ] Flakes are diagnosed, not accepted through retry.
+- [ ] CI jobs actually run and failure artifacts are retained.
+- [ ] `ENFORCE_TDD` evidence exists when enabled.
+- [ ] Coverage and security thresholds match repository policy.
 ## Patch Integrity Gate (TEST-PATCH-INTEGRITY-01, DEFAULT)
 
 Source: sol research (SWE-bench containerized evaluation, addyosmani/agent-skills).
