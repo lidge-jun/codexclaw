@@ -13,6 +13,8 @@ This skill activates by change-surface when work needs verification depth, regre
 
 > **C0/C1 work (small local patches):** See `dev` §0.0 Work Classifier + §0.1 Patch Fast-Path before reading references.
 
+> **`dev` is canonical:** `dev` §0.2 Rule Classes, §3 Verification Gate, and §5 Safety Rules apply to all work governed by this skill.
+
 ## Modular References
 
 | File | When to Read | What It Covers |
@@ -184,7 +186,8 @@ python scripts/with_server.py \
 - Use Playwright for **rendered truth**, not as a replacement for service tests.
 - Prefer one smoke flow per critical path over many brittle micro-flows.
 - If a failure looks like data-shape drift, go back to **§2 Backend & API Testing** or **§3 Contract Testing**.
-### 4.6 Native Computer-Use / Browse-Use QA (exploratory tier) (TEST-CU-QA-01)
+### 4.7 Native Computer-Use / Browse-Use QA (exploratory tier) (TEST-CU-QA-01)
+Browser QA loads `dev-frontend` for rendered implementation context.
 Playwright owns deterministic suites; native tools own immediate exploratory proof.
 **QA-TOOL-LADDER-01:** start at 1 and state why when skipping:
 1. `browser:control-in-app-browser` for built or locally served web UI.

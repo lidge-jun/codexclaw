@@ -13,6 +13,10 @@ Route diagram, chart, and visualization output to the correct rendering surface
 based on the detected runtime environment. This skill is on-demand: it activates
 by description match or explicit `$cxc-dev-diagram-viewer` mention.
 
+> **C0/C1 work (small local patches):** See `dev` §0.0 Work Classifier + §0.1 Patch Fast-Path before reading references.
+
+> **`dev` is canonical:** `dev` §0.2 Rule Classes, §3 Verification Gate, and §5 Safety Rules apply to all work governed by this skill.
+
 ## Reference Files
 
 - `reference/environment-detection.md` — environment detection signals and decision tree
@@ -279,7 +283,7 @@ visible directly in the conversation.
 ## Interaction with Other Skills
 
 ### `cxc-dev` (parent router)
-This skill is a leaf under the `dev` family. It follows `dev` S0.0 work
+This skill is a leaf under the `dev` family. It follows `dev` §0.0 work
 classification. Mermaid native pass-through is C0 because it emits only a code
 fence with no executable content. Diagram rendering that produces executable
 HTML, including Chart.js, ECharts, and interactive widgets, is C1. Browser-rendered
@@ -299,9 +303,9 @@ already exists.
 
 ### `visualize` skill (Codex bundled)
 The bundled `visualize` skill creates interactive tools in conversation. When
-`visualize` is active and sufficient for the task, prefer it. Use this skill
-when the diagram type is not covered by `visualize` or when cli-jaw diagram
-compatibility is needed.
+it covers the diagram type, this router delegates delivery to it. Use this
+skill's native paths when the diagram type is not covered by `visualize` or when
+cli-jaw diagram compatibility is needed.
 
 ## When NOT to Use
 

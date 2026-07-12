@@ -10,6 +10,8 @@ metadata:
 
 > **C0/C1 work (small local patches):** See `dev` §0.0 Work Classifier + §0.1 Patch Fast-Path before reading references.
 
+> **`dev` is canonical:** `dev` §0.2 Rule Classes, §3 Verification Gate, and §5 Safety Rules apply to all work governed by this skill.
+
 Rules for generating and auditing project structures. Create files directly following these rules.
 Use the audit script (§12) for verification when it applies.
 This skill activates by **change-surface**: new project setup, feature/module scaffolding,
@@ -239,12 +241,14 @@ Split smells (heuristics, not hard gates):
 
 | Condition                       | Action                                        |
 | ------------------------------- | --------------------------------------------- |
-| File grows past ~500 lines      | Split into focused modules within same folder |
+| File grows past >400 lines      | Split into focused modules within same folder |
 | Folder becomes hard to scan     | Create sub-folders by responsibility          |
 | Different runtime needed        | Split into `frontend/` + `backend/`           |
 | 3+ apps share code              | Extract to `shared/` or monorepo `packages/`  |
 
 ## 10. Cross-Cutting Scaffolding
+
+This section owns scaffold file placement only. Behavior, policy, and verification come from the owning surface skill (`dev-backend`, `dev-frontend`, `dev-devops`, `dev-security`).
 
 ### Health Endpoints
 Backend scaffolds should propose health routes (skip if the mature repo already handles health checks per §2):

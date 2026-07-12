@@ -21,6 +21,8 @@ This skill is a routing role that activates by **change-surface**: whenever the 
 
 > **C0/C1 work (small local patches):** See `dev` §0.0 Work Classifier + §0.1 Patch Fast-Path before reading references.
 
+> **`dev` is canonical:** `dev` §0.2 Rule Classes, §3 Verification Gate, and §5 Safety Rules apply to all work governed by this skill.
+
 Severity mapping: `CRITICAL`/`HIGH` ⇒ STRICT; `MEDIUM` ⇒ DEFAULT (aligned with `dev` §0.2).
 
 ## Modular References
@@ -328,7 +330,7 @@ Two consecutive window misses → architecture review.
 | Scaffolding conventions | `dev-scaffolding` | File naming, project structure |
 | Frontend build/bundle | `dev-frontend` | Vite/webpack config, SSR |
 
-**dev-devops owns**: container builds, image security, deploy pipelines, K8s manifests, IaC modules, SRE/incident response, edge infra, ML infra.
+**dev-devops owns**: container builds, deploy pipelines, K8s manifests, IaC modules, SRE/incident response, edge infra, ML infra. DevOps owns operational scan execution and release gates; `dev-security` owns security policy, severity thresholds, and required evidence.
 **dev-backend owns**: application-layer observability code, API design, health check implementation.
 Overlap: observability alerting rules (dev-devops §5) ↔ observability code instrumentation (dev-backend `observability.md`). Cross-ref both.
 

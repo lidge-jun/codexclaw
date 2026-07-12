@@ -21,13 +21,15 @@ metadata:
 # Dev-Security — Production Security Hardening
 
 Treat security as a build constraint, not a cleanup step.
-This skill is the authoritative source for authentication, authorization, input validation, secrets, headers, rate limiting, supply-chain checks, PII handling, and agentic AI safety.
+This skill is the authoritative source for authentication, authorization, input validation, secrets, headers, rate limiting, supply-chain security policy and evidence requirements, PII handling, and agentic AI safety.
 Validation ownership split: this skill owns **what the validation schema enforces** (content/policy); **placement** (boundary-only validation) is owned by `dev-architecture` §4.
 `dev-backend` delegates here for policy and verification depth.
 `dev-frontend` remains responsible for UI implementation, but frontend security touchpoints such as CSP compliance, CORS behavior, XSS prevention, and dependency auditing are defined here.
 This skill activates by change-surface whenever code crosses a trust boundary or changes the blast radius of a failure.
 
 > **C0/C1 work (small local patches):** See `dev` §0.0 Work Classifier + §0.1 Patch Fast-Path before reading references.
+
+> **`dev` is canonical:** `dev` §0.2 Rule Classes, §3 Verification Gate, and §5 Safety Rules apply to all work governed by this skill.
 
 ## When to Activate
 
@@ -41,6 +43,7 @@ Activate this skill when you are:
 - Building AI agents, tool-using workflows, or prompt-processing systems.
 
 Use this skill together with the domain skill, not instead of it:
+- Credential delivery, CI secret injection, image scan gates, signing execution, and release proof: load `dev-devops`.
 - API architecture and middleware placement: See `dev-backend/SKILL.md` §4.
 - Frontend rendering patterns and anti-slop UI guardrails: See `dev-frontend/SKILL.md` §§4-5.
 - Test strategy and execution flow: See `dev-testing`.
@@ -305,6 +308,6 @@ This matrix clarifies who defines, implements, and verifies each security contro
 | PII/data classification | `dev-security` + `dev-data` §7 | `dev-data` pipeline + `dev-backend` API | `dev-testing` + audit logs |
 | Secrets management | `dev-security` §4 | All skills (runtime env) | gitleaks + `dev-code-reviewer` |
 | Dependency security | `dev-security` §7 | CI pipeline owner | `npm audit` / `pip-audit` in CI |
-| Agentic AI safety | `dev-security` refs/agentic-ai | Agent builder | Scenario testing (`dev-testing`) |
+| Agentic AI safety | `dev-security` `references/agentic-ai-security.md` | Agent builder | Scenario testing (`dev-testing`) |
 
 Reference this matrix from `dev-backend` and `dev-frontend` when ownership is unclear.

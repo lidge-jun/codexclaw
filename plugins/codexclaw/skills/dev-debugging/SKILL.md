@@ -21,6 +21,8 @@ consult `dev-backend` or `dev-frontend`.
 
 > **C0/C1 work (small local patches):** See `dev` §0.0 Work Classifier + §0.1 Patch Fast-Path before reading references.
 
+> **`dev` is canonical:** `dev` §0.2 Rule Classes, §3 Verification Gate, and §5 Safety Rules apply to all work governed by this skill.
+
 ```
 dev-debugging = root cause methodology (the thinking)
 dev-testing   = test harness for reproducing/verifying (the tooling)
