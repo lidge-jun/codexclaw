@@ -18,25 +18,36 @@ Activates by change surface when:
 - Handling logo dark mode variants, OG images, or social sharing meta
 
 Read this before style-specific references when the user cannot articulate a clear design direction.
-For anti-slop detection and banned patterns, defer to `dev-frontend/references/core/anti-slop.md`, especially the 2026 gradient budget and one-note theme bans.
+For rendered anti-slop tell detection and implementation-level banned patterns, defer to `dev-frontend/references/core/anti-slop.md`, especially the 2026 gradient budget and one-note theme bans. This skill owns concept/taste-level anti-slop judgment (is this direction generic or domain-wrong?).
 
 **Emoji ban (stub):** no emoji as UI visual elements (STRICT). Canonical rule, scope, and exemptions: `dev-frontend` §5 / `dev-frontend/references/core/anti-slop.md § Emoji Slop`.
 
-**Role separation:** This skill owns design judgment: intent discovery, information architecture, UX state meaning, typography/color/layout direction, product personality, brand vocabulary, anti-slop pattern judgment, and design-system decisions. `dev-frontend` owns implementation: HTML/CSS/components, responsive mechanics, accessibility wiring, runtime behavior, and rendered verification. After choosing the design direction here, load `dev-frontend` for concrete implementation.
+**Role separation:** This skill owns design judgment: intent discovery, information architecture, UX state meaning, typography/color/layout direction, product personality, brand vocabulary, anti-slop concept/taste judgment (is this direction generic, domain-wrong, or aesthetically derivative?), and design-system decisions. `dev-frontend` owns implementation: HTML/CSS/components, responsive mechanics, accessibility wiring, runtime behavior, rendered tell detection, and rendered verification. After choosing the design direction here, load `dev-frontend` for concrete implementation.
+
+> **Role boundary (canonical — identical in `dev` and `dev-frontend`):**
+> `dev` owns universal process, evidence, and safety rules. `dev-uiux-design` owns
+> design intent, direction, and concept judgment. `dev-frontend` owns concrete frontend
+> implementation and rendered tell enforcement. Anti-slop has three layers: `dev` =
+> output/process hygiene (FAMILY-SLOP-01), `dev-uiux-design` = concept/taste judgment
+> (is this direction generic or domain-wrong?), `dev-frontend` = rendered implementation
+> tell detection and removal (FE-AI-TELL-01).
 
 **External/current design evidence:** For live product-reference claims, current
-design-system docs, browser API behavior, accessibility guidance that may have
-changed, or browser-rendered source evidence, read the active `search` skill and
-follow its query-rewrite, source-fetch, and evidence-status rules. Use browser
-fetch/open/text/get-dom/snapshot only after candidate URLs exist.
+design-system docs, or browser-rendered source evidence, follow `dev` §External
+Evidence and Recall Routing and load the `search` skill for current/external lookups.
+Use browser fetch/open/text/get-dom/snapshot only after candidate URLs exist.
 
 > **C0/C1 work (small local patches):** See `dev` §0.0 Work Classifier + §0.1 Patch Fast-Path before reading references.
 
 > **Rule class note (UX-STYLE-01):** Everything in this skill that expresses taste —
 > product personalities, design-isms, preset tokens, aesthetic vocabulary — is
-> `STYLE_SAMPLE`: examples to draw from, never universal requirements. Objective UX
+> `STYLE_SAMPLE` (defined in `dev` §0.2): examples to draw from, never universal requirements. Objective UX
 > correctness (state coverage, accessibility, readability) is owned by `dev-frontend`
 > §1.5 and stays STRICT/DEFAULT.
+
+> **`dev` is always on:** `dev` §0.0 Work Classifier, §0.2 Rule Classes, §3 Verification
+> Gate, §5 Safety Rules, and Family Invariants (FAMILY-SLOP-01, FAMILY-CITE-01,
+> FAMILY-PROOF-01) apply to all work governed by this skill. They are not restated here.
 
 ## Modular References
 
@@ -163,8 +174,8 @@ needs deeper guided exploration.
 Before generating ANY frontend code, produce a Design Read. If the project has a `DESIGN.md` file, read it first — its tokens and prose override everything below.
 
 Inspect provided visual references with `view_image` before writing the Design
-Read. Asset production and rendered verification are owned by `dev-frontend`
-and `cxc-dev-testing` respectively.
+Read. Asset production and rendered-requirement definition are owned by `dev-frontend`;
+QA protocol and verification proof execution are owned by `cxc-dev-testing`.
 
 ### Output format (mini DESIGN.md)
 
@@ -305,7 +316,7 @@ Canonical command:
    finished design, governing design system)?
    - Yes: lock that direction → generate 3-5 contextual execution
      variants.
-   - No: use UX-IMAGE-FIRST-01 → generate 3-5 distinct ism directions,
+   - No: use UX-IMAGE-FIRST-01 → generate 5 distinct ism directions,
      compare, lock one direction, then refine with 2-4 variants.
 
 ### Image-First Direction Discovery (UX-IMAGE-FIRST-01, DEFAULT)

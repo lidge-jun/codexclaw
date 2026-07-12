@@ -131,7 +131,7 @@ matching router first.
 | Change surface | Primary router | Also load |
 |---------------|----------------|-----------|
 | Backend / API / server | `dev-backend` | `dev-security` for auth/input |
-| Frontend / UI / web | `dev-frontend` | `dev-uiux-design` for direction |
+| Frontend / UI / web | `dev-frontend` | `dev-uiux-design` for vague/open visual direction, UX-state meaning, IA, brand, concept gen |
 | Database / schema / data | `dev-data` | `dev-backend` for migrations |
 | Tests / QA | `dev-testing` | `dev-frontend` for browser QA |
 | Security / auth / secrets | `dev-security` | surface-specific router |
@@ -181,6 +181,14 @@ every relevant owner skill before work begins.
 ---
 
 ## Family Invariants (apply to every `cxc-*` skill)
+
+> **Role boundary (canonical — identical in `dev-frontend` and `dev-uiux-design`):**
+> `dev` owns universal process, evidence, and safety rules. `dev-uiux-design` owns
+> design intent, direction, and concept judgment. `dev-frontend` owns concrete frontend
+> implementation and rendered tell enforcement. Anti-slop has three layers: `dev` =
+> output/process hygiene (FAMILY-SLOP-01), `dev-uiux-design` = concept/taste judgment
+> (is this direction generic or domain-wrong?), `dev-frontend` = rendered implementation
+> tell detection and removal (FE-AI-TELL-01).
 
 These hold for every dev-family skill and every response they govern. `dev` is the canonical
 owner; other routers reference this section rather than restating it. They are agent-followed
