@@ -422,6 +422,7 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
     if (turn) {
       writeState(payload.cwd, {
         ...state,
+        phase: trigger,
         orchestrationActive: true,
         lastInjectedPhase: trigger,
         injectedTurns: appendTurn(state.injectedTurns, turn),

@@ -19,7 +19,7 @@ import { main } from "../src/cli.ts";
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const PLUGIN_KEY = "fixture@market";
 type HookTrustRunner = NonNullable<Parameters<typeof retrustHooks>[4]>;
-const FEATURES_OK: HookTrustRunner = () => ({ status: 0 });
+const FEATURES_OK: HookTrustRunner = () => ({ status: 0, stdout: "", stderr: "", error: null });
 
 function tempDir(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -278,7 +278,7 @@ test("retrustHooks replaces drift, appends missing sections, preserves unrelated
   ].join("\n");
   const home = makeCodexHome(before);
 
-  const result = retrustHooks(home, root, PLUGIN_KEY);
+  const result = retrustHooks(home, root, PLUGIN_KEY, false, FEATURES_OK);
   assert.deepEqual({ updated: result.updated, appended: result.appended }, { updated: 2, appended: 1 });
   assert.ok(existsSync(result.backupPath));
   assert.equal(readFileSync(result.backupPath, "utf8"), before);
@@ -327,7 +327,7 @@ test("retrustHooks requires bootstrapOk only when no entries exist for the plugi
   const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo bootstrap")] }] } });
   const home = makeCodexHome('[plugins."fixture@market"]\nenabled = true\n');
   assert.throws(() => retrustHooks(home, root, PLUGIN_KEY), /--bootstrap-ok/);
-  const result = retrustHooks(home, root, PLUGIN_KEY, true);
+  const result = retrustHooks(home, root, PLUGIN_KEY, true, FEATURES_OK);
   assert.equal(result.updated, 0);
   assert.equal(result.appended, 1);
   assert.deepEqual(diagnoseHookTrust(home, root, PLUGIN_KEY).map((item) => item.status), ["trusted"]);

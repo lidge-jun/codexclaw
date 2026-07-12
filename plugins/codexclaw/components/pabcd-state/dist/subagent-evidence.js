@@ -29,6 +29,7 @@ import {
 } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { STATE_DIR, sanitizeKey } from "./state.js";
+import { execFileSync } from "node:child_process";
 
 
 /**
@@ -125,6 +126,33 @@ export function transcriptHasContextPressure(agentTranscriptPath                
   }
 }
 
+/**
+ * DISPATCH-AGENT-TYPE-01 defense-in-depth: detect the structured evidence-
+ * exemption token in the child transcript. Dispatchers include this token
+ * explicitly in the spawn message for read-only workers that should not be
+ * evidence-gated. The spawn hook also auto-injects it on plaintext surfaces
+ * when read-only intent is detected (convenience, not correctness path --
+ * V2 ciphertext surfaces cannot be read by the hook).
+ *
+ * Uses `grep -qF` (fixed-string, no regex, no locale issues). The token is
+ * ASCII-only high-entropy, so accidental matches in system prompt content
+ * are near-zero. FAIL-OPEN: any error returns false.
+ */
+export const EVIDENCE_EXEMPT_TOKEN = "[CXC-EVIDENCE-EXEMPT]";
+
+export function transcriptHasReadOnlyMarker(agentTranscriptPath                           )          {
+  if (typeof agentTranscriptPath !== "string" || agentTranscriptPath === "") return false;
+  try {
+    execFileSync("grep", ["-qF", EVIDENCE_EXEMPT_TOKEN, agentTranscriptPath], {
+      stdio: "ignore",
+      timeout: 5000,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function readAttempts(cwd        , sessionId        , agentId        )         {
   try {
     const p = attemptsPath(cwd, sessionId, agentId);
@@ -178,6 +206,14 @@ export function runSubagentStopGate(payload                     )         {
     if (!GATED_AGENT_TYPES.has(payload.agent_type)) return "";
     const agentId = payload.agent_id ?? "";
     const { cwd, session_id: sessionId } = payload;
+
+    // DISPATCH-AGENT-TYPE-01 defense-in-depth: if the spawn message (in the
+    // child transcript head) contains read-only markers, release without
+    // demanding evidence — the task was never meant to produce files.
+    if (transcriptHasReadOnlyMarker(payload.agent_transcript_path)) {
+      clearAttempts(cwd, sessionId, agentId);
+      return "";
+    }
 
     // Compaction recovery: never pile on (read the CHILD transcript).
     if (transcriptHasContextPressure(payload.agent_transcript_path)) {
