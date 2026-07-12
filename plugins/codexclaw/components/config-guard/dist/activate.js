@@ -56,10 +56,11 @@ function hashOrNull(path        )                {
  * value plus preserved non-`enabled` keys) — or null when no repair is needed.
  */
 export function preserveMultiAgentV2Table(preConfig        , postConfig        , enabled = true)                {
+  const lineEnding = preConfig.includes("\r\n") ? "\r\n" : "\n";
   // Post still carries the table form -> nothing was clobbered.
   if (/^\[features\.multi_agent_v2\]\s*$/m.test(postConfig)) return null;
   // Pre had no table -> nothing to preserve.
-  const tableMatch = /^\[features\.multi_agent_v2\]\s*\n((?:(?!\s*\[).*\n?)*)/m.exec(preConfig);
+  const tableMatch = /^\[features\.multi_agent_v2\][^\S\r\n]*(?:\r?\n|$)((?:(?![^\S\r\n]*\[)[^\r\n]*(?:\r?\n|$))*)/m.exec(preConfig);
   if (!tableMatch) return null;
   const preservedLines = tableMatch[1]
     .split(/\r?\n/)
@@ -69,9 +70,11 @@ export function preserveMultiAgentV2Table(preConfig        , postConfig        ,
   // The clobbered scalar form: `multi_agent_v2 = true/false` (dotted or bare key line).
   const scalarRe = new RegExp(`^(?:features\\.)?multi_agent_v2\\s*=\\s*${enabled ? "true" : "false"}\\s*$`, "m");
   if (!scalarRe.test(postConfig)) return null;
-  const withoutScalar = postConfig.replace(scalarRe, "").replace(/\n{3,}/g, "\n\n");
-  const table = `\n[features.multi_agent_v2]\nenabled = ${enabled ? "true" : "false"}\n${preservedLines.join("\n")}\n`;
-  return `${withoutScalar.replace(/\n*$/, "\n")}${table}`;
+  const withoutScalar = postConfig
+    .replace(scalarRe, "")
+    .replace(/(?:\r?\n){3,}/g, lineEnding.repeat(2));
+  const table = `${lineEnding}[features.multi_agent_v2]${lineEnding}enabled = ${enabled ? "true" : "false"}${lineEnding}${preservedLines.join(lineEnding)}${lineEnding}`;
+  return `${withoutScalar.replace(/(?:\r?\n)*$/, lineEnding)}${table}`;
 }
 
 export function manifestPath(codexHome        )         {

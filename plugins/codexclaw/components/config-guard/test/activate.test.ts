@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { activate, manifestPath, type InstallManifest } from "../src/activate.ts";
+import { activate, manifestPath, preserveMultiAgentV2Table, type InstallManifest } from "../src/activate.ts";
 import { deactivate } from "../src/deactivate.ts";
 import { type CodexRunner } from "../src/features.ts";
 import { homedir } from "node:os";
@@ -180,4 +180,22 @@ test("soft flag enable failure does not abort activation", () => {
   assert.equal(m.flags.default_mode_request_user_input.enableFailed, true);
   assert.equal(m.flags.default_mode_request_user_input.enabledByCodexclaw, false);
   assert.equal(m.flags.hooks.enabledByCodexclaw, true);
+});
+
+test("preserveMultiAgentV2Table preserves CRLF line endings", () => {
+  const preConfig = [
+    "[features.multi_agent_v2]",
+    "enabled = false",
+    "max_concurrent_threads_per_session = 7",
+    "",
+  ].join("\r\n");
+  const postConfig = "[features]\r\nmulti_agent_v2 = true\r\n";
+
+  const repaired = preserveMultiAgentV2Table(preConfig, postConfig);
+
+  assert.equal(
+    repaired,
+    "[features]\r\n\r\n[features.multi_agent_v2]\r\nenabled = true\r\nmax_concurrent_threads_per_session = 7\r\n",
+  );
+  assert.equal(repaired?.replace(/\r\n/g, "").includes("\n"), false);
 });

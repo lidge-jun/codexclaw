@@ -11,7 +11,11 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
     env:
       # GitHub runners preinstall uv, which would flip the repo-map smoke test
       # from skip to a live network dependency resolve. Keep CI deterministic.
