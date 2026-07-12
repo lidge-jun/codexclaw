@@ -1,4 +1,4 @@
-**English** | [한국어](README.ko.md) | [中文](README.zh.md)
+[English](README.md) | **한국어** | [中文](README.zh.md)
 
 <p align="center">
   <img src="docs-site/public/logo.png" alt="codexclaw" width="140" />
@@ -7,8 +7,8 @@
 <h1 align="center">codexclaw</h1>
 
 <p align="center">
-  Development discipline and multi-model subagents for <strong>OpenAI Codex</strong>,<br>
-  packaged as a single plugin.
+  <strong>OpenAI Codex</strong>에 개발 원칙과 멀티 모델 서브에이전트를 더하는<br>
+  올인원 플러그인
 </p>
 
 <p align="center">
@@ -22,13 +22,13 @@
 
 ---
 
-codexclaw turns the Codex runtime into a disciplined development environment. It does not ship its own agent harness — it layers skills, hooks, and components directly on `codex`, adding structured workflows, coding discipline, and multi-model orchestration that the base runtime doesn't provide.
+codexclaw는 Codex 런타임을 체계적인 개발 환경으로 바꾼다. 별도의 에이전트 하네스를 제공하지 않고 스킬, 훅, 컴포넌트를 `codex`에 직접 얹는다. 기본 런타임에 없는 구조화된 워크플로, 코딩 원칙, 멀티 모델 오케스트레이션을 이 방식으로 추가한다.
 
-## Features
+## 주요 기능
 
-**Dev Skill Family** — 13 surface-specific routers (`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-diagram-viewer`, `dev-uiux-design`) governed by a canonical parent (`dev`). Every router inherits the parent's rule classes, verification gate, and safety rules. 146 unique rule IDs, 33 bidirectional cross-reference pairs, zero contradictions.
+**Dev Skill Family** — 표준 부모 스킬(`dev`)이 관리하는 13개 작업 영역별 라우터(`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-diagram-viewer`, `dev-uiux-design`)로 구성된다. 모든 라우터는 부모 스킬의 규칙 등급, 검증 게이트, 안전 규칙을 물려받는다. 고유 규칙 ID 146개, 양방향 상호 참조 쌍 33개, 규칙 충돌 0건이다.
 
-**PABCD Workflow** — Plan / Audit / Build / Check / Done, implemented as a file-backed FSM with attestation-gated transitions. Phases advance through `cxc orchestrate` commands; each transition carries structured evidence. A durable goalplan ledger tracks work phases, success criteria, and captured proof across multiple cycles.
+**PABCD Workflow** — Plan / Audit / Build / Check / Done을 증명 기반 전환 게이트가 있는 파일 기반 FSM으로 구현했다. `cxc orchestrate` 명령으로 단계를 진행하며, 각 전환에는 구조화된 근거가 붙는다. 영속적인 goalplan 원장이 여러 사이클에 걸쳐 작업 단계, 성공 기준, 수집한 증거를 추적한다.
 
 ```
 IDLE ── P ── A ── B ── C ── D ── IDLE
@@ -37,22 +37,22 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
        └────┴────┴──── I (Interview, context preserved)
 ```
 
-**Multi-Model Subagents** — role-based dispatch (explorer / reviewer / executor) with per-role model and prompt overrides. Configuration persists across sessions and applies automatically through the spawn-wrapper hook. A local GUI (Vite + React) provides visual config and, when opencodex is detected, a provider link bar.
+**Multi-Model Subagents** — 역할 기반 디스패치(explorer / reviewer / executor)를 제공하며 역할마다 모델과 프롬프트를 따로 지정할 수 있다. 설정은 세션이 끝나도 유지되며 spawn-wrapper 훅이 자동으로 적용한다. 로컬 GUI(Vite + React)에서 설정을 시각적으로 관리할 수 있고, opencodex를 감지하면 프로바이더 링크 바도 표시한다.
 
-**Recall** — searches past Codex conversations and the memory store from disk artifacts before asking the user, so context survives session boundaries and compaction.
+**Recall** — 사용자에게 다시 묻기 전에 디스크 아티팩트에서 과거 Codex 대화와 메모리 저장소를 검색한다. 세션이 바뀌거나 컨텍스트가 압축돼도 이전 맥락을 이어 간다.
 
-**Repo Map** — `cxc map <dir>` runs tree-sitter parsing + PageRank ranking to produce a structure overview of unfamiliar code, letting the agent orient before deep `rg` dives.
+**Repo Map** — `cxc map <dir>`는 tree-sitter 파싱과 PageRank 순위 계산으로 낯선 코드베이스의 구조 개요를 만든다. 에이전트가 `rg`로 깊이 파고들기 전에 전체 구조를 파악할 수 있다.
 
-**Skill Search** — `cxc skill search <query>` discovers dormant skills across cli-jaw-skills (primary), ClawHub, and Hermes catalogs. `cxc skill show <id>` loads them on demand.
+**Skill Search** — `cxc skill search <query>`는 cli-jaw-skills(기본), ClawHub, Hermes 카탈로그에서 비활성 스킬을 찾는다. `cxc skill show <id>`로 필요한 스킬을 불러온다.
 
-## Install
+## 설치
 
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-## Architecture
+## 아키텍처
 
 ```
 plugins/codexclaw/
@@ -92,7 +92,7 @@ plugins/codexclaw/
 
 ## Dev Skill Family
 
-Every coding task is classified (C0-C5) before process depth is chosen. The parent `dev` skill routes to surface-specific routers based on what's being changed:
+모든 코딩 작업은 작업 절차의 깊이를 정하기 전에 C0-C5 등급으로 분류한다. 부모 `dev` 스킬은 변경 영역에 맞는 라우터로 작업을 연결한다.
 
 | Surface | Router | Also loads |
 |---------|--------|------------|
@@ -108,7 +108,7 @@ Every coding task is classified (C0-C5) before process depth is chosen. The pare
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
 | Diagrams | `dev-diagram-viewer` | — |
 
-Each router carries its own modular references (loaded on demand, never preloaded) and inherits the parent's verification gate, rule classes, and safety rules.
+각 라우터는 필요할 때만 불러오는 자체 모듈형 참고 자료를 갖추고 있으며, 부모 스킬의 검증 게이트, 규칙 등급, 안전 규칙을 물려받는다.
 
 ## CLI
 
@@ -121,9 +121,9 @@ cxc skill show <id>                       # load a discovered skill
 cxc help                                  # command reference
 ```
 
-## Ecosystem
+## 생태계
 
-codexclaw is the reference implementation. The methodology and skills are ported (agent-neutral, no plugin dependency) to:
+codexclaw는 참조 구현이다. 방법론과 스킬은 에이전트에 종속되지 않고 플러그인 의존성도 없는 형태로 다음 프로젝트에 이식됐다.
 
 | Repo | Role |
 |------|------|
@@ -131,14 +131,14 @@ codexclaw is the reference implementation. The methodology and skills are ported
 | [cli-jaw](https://github.com/lidge-jun/cli-jaw) | Boss/employee agent harness with skills_ref submodule |
 | [ima2-gen](https://github.com/lidge-jun/ima2-gen) | Image generation tool with ima2-front/ima2-uiux skills |
 
-## Documentation
+## 문서
 
-Full methodology documentation with research provenance: **[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)**
+연구 출처를 함께 정리한 전체 방법론 문서: **[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)**
 
-Covers skill architecture, delegation economy, loop contracts, devlog records, and arXiv-backed claim ledger.
+스킬 아키텍처, 위임 비용, 루프 계약, devlog 기록, arXiv 근거가 있는 주장 원장을 다룬다.
 
-## License
+## 라이선스
 
 [MIT](LICENSE)
 
-Third-party: RepoMapper (MIT, Pete Davis) and Aider tree-sitter queries (Apache-2.0). See [`NOTICE.md`](plugins/codexclaw/skills/repo-map/scripts/NOTICE.md).
+서드파티: RepoMapper(MIT, Pete Davis), Aider tree-sitter 쿼리(Apache-2.0). 자세한 내용은 [`NOTICE.md`](plugins/codexclaw/skills/repo-map/scripts/NOTICE.md)를 참고한다.

@@ -1,4 +1,4 @@
-**English** | [한국어](README.ko.md) | [中文](README.zh.md)
+[English](README.md) | [한국어](README.ko.md) | **中文**
 
 <p align="center">
   <img src="docs-site/public/logo.png" alt="codexclaw" width="140" />
@@ -7,8 +7,8 @@
 <h1 align="center">codexclaw</h1>
 
 <p align="center">
-  Development discipline and multi-model subagents for <strong>OpenAI Codex</strong>,<br>
-  packaged as a single plugin.
+  面向 <strong>OpenAI Codex</strong> 的开发规范与多模型子代理，<br>
+  以单个插件的形式提供。
 </p>
 
 <p align="center">
@@ -22,13 +22,13 @@
 
 ---
 
-codexclaw turns the Codex runtime into a disciplined development environment. It does not ship its own agent harness — it layers skills, hooks, and components directly on `codex`, adding structured workflows, coding discipline, and multi-model orchestration that the base runtime doesn't provide.
+codexclaw 将 Codex 运行时转变为规范化的开发环境。它不提供独立的代理框架，而是直接在 `codex` 上叠加 skills、hooks 和 components，为基础运行时补充结构化工作流、编码规范和多模型编排能力。
 
-## Features
+## 功能
 
-**Dev Skill Family** — 13 surface-specific routers (`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-diagram-viewer`, `dev-uiux-design`) governed by a canonical parent (`dev`). Every router inherits the parent's rule classes, verification gate, and safety rules. 146 unique rule IDs, 33 bidirectional cross-reference pairs, zero contradictions.
+**Dev Skill Family** — 由规范父级 `dev` 统一管理的 13 个特定领域路由器（`dev-architecture`、`dev-backend`、`dev-frontend`、`dev-testing`、`dev-security`、`dev-debugging`、`dev-data`、`dev-devops`、`dev-code-reviewer`、`dev-scaffolding`、`dev-diagram-viewer`、`dev-uiux-design`）。所有路由器都继承父级的规则分类、验证门和安全规则。共包含 146 个唯一规则 ID、33 对双向交叉引用，且无规则冲突。
 
-**PABCD Workflow** — Plan / Audit / Build / Check / Done, implemented as a file-backed FSM with attestation-gated transitions. Phases advance through `cxc orchestrate` commands; each transition carries structured evidence. A durable goalplan ledger tracks work phases, success criteria, and captured proof across multiple cycles.
+**PABCD Workflow** — Plan / Audit / Build / Check / Done，基于文件驱动的 FSM 实现，并通过证明材料控制阶段转换。各阶段通过 `cxc orchestrate` 命令推进，每次转换都携带结构化证据。持久化 goalplan 账本可跨多个周期跟踪工作阶段、成功标准和已收集的证据。
 
 ```
 IDLE ── P ── A ── B ── C ── D ── IDLE
@@ -37,22 +37,22 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
        └────┴────┴──── I (Interview, context preserved)
 ```
 
-**Multi-Model Subagents** — role-based dispatch (explorer / reviewer / executor) with per-role model and prompt overrides. Configuration persists across sessions and applies automatically through the spawn-wrapper hook. A local GUI (Vite + React) provides visual config and, when opencodex is detected, a provider link bar.
+**Multi-Model Subagents** — 基于角色的调度机制（explorer / reviewer / executor），支持按角色覆盖模型和提示词。配置会跨会话持久保存，并通过 spawn-wrapper hook 自动应用。本地 GUI（Vite + React）提供可视化配置；检测到 opencodex 时，还会显示 provider 快捷链接栏。
 
-**Recall** — searches past Codex conversations and the memory store from disk artifacts before asking the user, so context survives session boundaries and compaction.
+**Recall** — 在向用户提问前，先从磁盘产物中搜索历史 Codex 对话和 memory store，使上下文在跨会话及压缩后仍可恢复。
 
-**Repo Map** — `cxc map <dir>` runs tree-sitter parsing + PageRank ranking to produce a structure overview of unfamiliar code, letting the agent orient before deep `rg` dives.
+**Repo Map** — `cxc map <dir>` 结合 tree-sitter 解析与 PageRank 排名，为陌生代码库生成结构概览，帮助代理在深入使用 `rg` 前快速建立整体认知。
 
-**Skill Search** — `cxc skill search <query>` discovers dormant skills across cli-jaw-skills (primary), ClawHub, and Hermes catalogs. `cxc skill show <id>` loads them on demand.
+**Skill Search** — `cxc skill search <query>` 可从 cli-jaw-skills（主要来源）、ClawHub 和 Hermes 目录中发现未加载的 skills。使用 `cxc skill show <id>` 可按需加载。
 
-## Install
+## 安装
 
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-## Architecture
+## 架构
 
 ```
 plugins/codexclaw/
@@ -92,7 +92,7 @@ plugins/codexclaw/
 
 ## Dev Skill Family
 
-Every coding task is classified (C0-C5) before process depth is chosen. The parent `dev` skill routes to surface-specific routers based on what's being changed:
+每个编码任务都会先划分为 C0-C5，再确定流程深度。父级 `dev` skill 会根据变更领域，将任务路由到对应的特定领域路由器：
 
 | Surface | Router | Also loads |
 |---------|--------|------------|
@@ -108,7 +108,7 @@ Every coding task is classified (C0-C5) before process depth is chosen. The pare
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
 | Diagrams | `dev-diagram-viewer` | — |
 
-Each router carries its own modular references (loaded on demand, never preloaded) and inherits the parent's verification gate, rule classes, and safety rules.
+每个路由器都有独立的模块化参考资料，仅在需要时加载，不会预加载；同时继承父级的验证门、规则分类和安全规则。
 
 ## CLI
 
@@ -121,9 +121,9 @@ cxc skill show <id>                       # load a discovered skill
 cxc help                                  # command reference
 ```
 
-## Ecosystem
+## 生态系统
 
-codexclaw is the reference implementation. The methodology and skills are ported (agent-neutral, no plugin dependency) to:
+codexclaw 是参考实现。其方法论和 skills 已移植到以下项目中；这些版本与代理无关，也不依赖插件：
 
 | Repo | Role |
 |------|------|
@@ -131,14 +131,14 @@ codexclaw is the reference implementation. The methodology and skills are ported
 | [cli-jaw](https://github.com/lidge-jun/cli-jaw) | Boss/employee agent harness with skills_ref submodule |
 | [ima2-gen](https://github.com/lidge-jun/ima2-gen) | Image generation tool with ima2-front/ima2-uiux skills |
 
-## Documentation
+## 文档
 
-Full methodology documentation with research provenance: **[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)**
+包含研究来源的完整方法论文档：**[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)**
 
-Covers skill architecture, delegation economy, loop contracts, devlog records, and arXiv-backed claim ledger.
+内容涵盖 skill 架构、委派经济性、循环契约、devlog 记录，以及由 arXiv 论文支持的主张账本。
 
-## License
+## 许可证
 
 [MIT](LICENSE)
 
-Third-party: RepoMapper (MIT, Pete Davis) and Aider tree-sitter queries (Apache-2.0). See [`NOTICE.md`](plugins/codexclaw/skills/repo-map/scripts/NOTICE.md).
+第三方组件：RepoMapper（MIT，Pete Davis）和 Aider tree-sitter queries（Apache-2.0）。详见 [`NOTICE.md`](plugins/codexclaw/skills/repo-map/scripts/NOTICE.md)。
