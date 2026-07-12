@@ -5,6 +5,10 @@ Role split: this file owns session/capture MECHANICS; the visual artifact
 rubric and harness options (VHS/teatest, width gates as visual findings) stay
 in `references/visual-qa.md`.
 
+> These examples use POSIX conventions. On Windows: use `NUL` instead of
+> `/dev/null`, `taskkill` instead of `kill`, and PowerShell equivalents for
+> `awk`/`tmux` workflows.
+
 ## CLI capture discipline
 
 - Capture stdout and stderr SEPARATELY when the claim distinguishes them

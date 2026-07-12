@@ -66,20 +66,23 @@ MUST include: authentication guide, error code table, rate limit documentation, 
 
 Spec and implementation MUST stay in sync. Detect drift in CI:
 
+The generated spec path below represents a temporary file (e.g.,
+`$TMPDIR/fresh-spec.yaml` or `%TEMP%\fresh-spec.yaml`).
+
 ```yaml
 # GitHub Actions example
 - name: Check OpenAPI spec drift
   run: |
     # Generate fresh spec from code
-    bun run generate:openapi -- --output /tmp/fresh-spec.yaml
+    bun run generate:openapi -- --output "$TMPDIR/fresh-spec.yaml"
 
     # Compare against committed spec
-    npx oasdiff diff docs/api/openapi.yaml /tmp/fresh-spec.yaml \
+    npx oasdiff diff docs/api/openapi.yaml "$TMPDIR/fresh-spec.yaml" \
       --fail-on ERR \
       --format text
 
     # Check for breaking changes
-    npx oasdiff breaking docs/api/openapi.yaml /tmp/fresh-spec.yaml \
+    npx oasdiff breaking docs/api/openapi.yaml "$TMPDIR/fresh-spec.yaml" \
       --fail-on ERR
 ```
 

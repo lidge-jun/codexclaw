@@ -95,7 +95,7 @@ After detecting the environment, route each diagram type:
 
 | Diagram Type | Delivery | Method |
 |---|---|---|
-| All types | **Browser render** | Wrap in HTML, open with `open` command (macOS) |
+| All types | **Browser render** | Wrap in HTML, open with `open` (macOS), `xdg-open` (Linux), or `start ""` (Windows) |
 
 > In CLI with jaw Web UI running, the native jaw renderer handles everything.
 > This skill activates in CLI only when jaw Web UI is not the active surface
@@ -111,14 +111,16 @@ directly and stop (native rendering handles it).
 
 ### Step 2: Wrap in HTML (when browser render is needed)
 
-Save a self-contained HTML file to the tmp directory:
+Save a self-contained HTML file to the system temp directory. Use the system
+temp directory (e.g., `os.tmpdir()` in Node, or `$TMPDIR`/`%TEMP%` in shell)
+instead of hardcoding `/tmp/`:
 
 ```bash
-# Preferred tmp path
-/tmp/codex-diagrams/<session-id>-<diagram-id>.html
+# Platform-neutral temp path
+<system-temp>/codex-diagrams/<session-id>-<diagram-id>.html
 
-# Create the directory if needed
-mkdir -p /tmp/codex-diagrams
+# Create the directory with the platform-appropriate command or API
+<create-directory> <system-temp>/codex-diagrams
 ```
 
 Use the templates in `reference/html-templates.md` to wrap the content.
@@ -136,13 +138,19 @@ Open the generated file in the system's default browser. This works from both
 Codex Desktop and CLI environments on macOS:
 
 ```bash
-open /tmp/codex-diagrams/<filename>.html
+open <system-temp>/codex-diagrams/<filename>.html
 ```
 
 On Linux, use the platform equivalent:
 
 ```bash
-xdg-open /tmp/codex-diagrams/<filename>.html
+xdg-open <system-temp>/codex-diagrams/<filename>.html
+```
+
+On Windows, use:
+
+```cmd
+start "" <system-temp>\codex-diagrams\<filename>.html
 ```
 
 #### Enhancement (Codex Desktop Only)
@@ -152,7 +160,7 @@ The in-app browser rejects `file://` URLs, so first serve the output directory
 over local HTTP:
 
 ```bash
-cd /tmp/codex-diagrams
+cd <system-temp>/codex-diagrams
 python3 -m http.server 8765
 ```
 
@@ -168,7 +176,7 @@ inline preview.
 After opening the diagram in the browser, inform the user:
 
 - Mention that the diagram is open in the browser
-- Provide the file path as a clickable link: `[diagram.html](/tmp/codex-diagrams/<filename>.html)`
+- Provide the absolute file path as a clickable link: `[diagram.html](<system-temp>/codex-diagrams/<filename>.html)`
 - If in Codex Desktop with in-app browser, mention it opened in the side panel
 
 ## Diagram Type Detection
@@ -260,7 +268,7 @@ Example flow:
 ```
 Agent response text explaining the architecture...
 
-[Architecture diagram](/tmp/codex-diagrams/arch-001.html) (opened in browser)
+[Architecture diagram](<system-temp>/codex-diagrams/arch-001.html) (opened in browser)
 ```
 
 Do NOT put SVG markup or HTML widget code directly in the Codex Desktop

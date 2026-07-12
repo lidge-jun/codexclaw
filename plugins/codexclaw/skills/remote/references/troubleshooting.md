@@ -46,6 +46,9 @@ curl -sS http://127.0.0.1:7717/api/agents/statuses
 Wait the indicated window, then smoke test `/status`.
 
 ## Webhook Not Receiving
+These examples use POSIX shell syntax. On Windows PowerShell, use `$env:VAR`
+instead of `$VAR`, `Get-Content -Tail` instead of `tail`, and double-quote JSON strings.
+
 Symptom: Telegram webhook mode receives nothing. Cause: `webhookUrl` must be
 HTTPS or empty, path must be `/webhook/telegram/<secret>`, and Telegram must
 send matching `x-telegram-bot-api-secret-token`. Groups are mention-gated when

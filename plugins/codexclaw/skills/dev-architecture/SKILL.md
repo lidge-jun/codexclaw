@@ -316,6 +316,9 @@ When reviewing any PR that adds/modifies module structure, verify:
 | Barrel abuse | custom ESLint rule | `no-restricted-imports` pattern for internal index files |
 | Module size | custom script | `find src -name '*.ts' -exec wc -l {} + | awk '$1 > 400'` |
 
+On Windows without Unix tools, use PowerShell equivalents: `Get-ChildItem -Recurse`,
+`Measure-Object`, `Select-String`.
+
 ---
 
 ## Cross-Skill References

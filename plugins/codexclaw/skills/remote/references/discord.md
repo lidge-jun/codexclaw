@@ -30,6 +30,10 @@ Service is launchd-only: plist
 `~/.codexclaw/serve.out.log` and `~/.codexclaw/serve.err.log`. There is no
 `cxc serve status`.
 
+**Linux:** create a `codexclaw-serve` systemd user unit, then run
+`systemctl --user enable --now codexclaw-serve` (or `enable` and `start` separately).
+**Windows:** configure Task Scheduler manually or create the task with `schtasks`.
+
 ## 2. Create Discord Bot
 Human step in Discord Developer Portal:
 1. Create/select an application.

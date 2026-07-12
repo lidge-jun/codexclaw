@@ -34,6 +34,10 @@ Service is launchd-only: plist
 `~/.codexclaw/serve.out.log` and `~/.codexclaw/serve.err.log`. There is no
 `cxc serve status`.
 
+**Linux:** create a `codexclaw-serve` systemd user unit, then run
+`systemctl --user enable --now codexclaw-serve` (or `enable` and `start` separately).
+**Windows:** configure Task Scheduler manually or create the task with `schtasks`.
+
 ## 2. Create Or Update Agent
 Human step in Telegram BotFather:
 ```text
@@ -139,6 +143,8 @@ HTTPS URL with path `/webhook/telegram/<secret>`. Empty string disables webhook;
 non-HTTPS returns 400. Token/webhook changes on a running agent trigger a
 diff-based adapter reload.
 Generate the secret; never paste it into chat or logs.
+PowerShell equivalent: `$env:WEBHOOK_SECRET = (openssl rand -hex 24)` and
+`$env:WEBHOOK_URL = "https://example.com/webhook/telegram/$env:WEBHOOK_SECRET"`.
 ```bash
 WEBHOOK_SECRET="$(openssl rand -hex 24)"
 WEBHOOK_URL="https://example.com/webhook/telegram/$WEBHOOK_SECRET"

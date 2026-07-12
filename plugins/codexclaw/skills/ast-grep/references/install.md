@@ -29,6 +29,9 @@ clear hint (network, permissions, or unsupported platform) instead of crashing.
 - Homebrew: `brew install ast-grep`
 - Cargo: `cargo install ast-grep`
 
+On Windows: download the binary from the ast-grep releases page or use
+`winget install ast-grep`.
+
 After installing, confirm with:
 
 ```

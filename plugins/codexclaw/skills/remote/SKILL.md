@@ -30,6 +30,8 @@ mutating request MUST send BOTH headers, or the server answers 403:
    working directory as `--cwd`), then `cxc service install --port 7717`.
    Check with `cxc service status`; logs at `~/.codexclaw/serve.{out,err}.log`.
    There is no `serve status` subcommand.
+   On Linux, use systemd user units. On Windows, use Task Scheduler. See
+   platform-specific sections in `references/telegram.md` and `references/discord.md`.
 2. **Token (human step).** Walk the user through bot creation — exact steps in
    [references/telegram.md](references/telegram.md) /
    [references/discord.md](references/discord.md). Never echo the token into
