@@ -162,12 +162,13 @@ Canonical rule imported from `dev-architecture` §1: **>400 LOC -> split (DEFAUL
 | Indicator | Verdict | Action |
 |-----------|---------|--------|
 | No high/critical issues | ✅ Approve | Merge |
-| Only Medium/Low/Style issues | 🔧 Approve with suggestions | Fix non-blocking items before/after merge |
+| Only Medium/Low/Style issues | 🔧 Approve with suggestions | Fix Medium before merge unless the author explicitly marks it non-blocking with a stated reason and tracked follow-up |
 | Any unresolved High issue | ⚠️ Request changes | Author must address before merge |
 | Any Critical issue | 🚫 Block | Cannot merge until resolved |
 
 Deterministic blocker semantics (REVIEW-BLOCK-01): any unresolved Critical or High blocks the
-merge. Medium may pass only when explicitly judged non-blocking; Style never affects the verdict.
+merge. Medium findings should be fixed before merge. When explicitly marked non-blocking by the
+author with a stated reason, Medium may pass with a tracked follow-up. Style never affects the verdict.
 
 ---
 

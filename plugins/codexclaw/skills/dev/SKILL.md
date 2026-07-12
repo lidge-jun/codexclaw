@@ -44,9 +44,10 @@ classed **ESCALATE** (§0.2).
 For **C0/C1 work** (bounded by "one file, no new abstractions, local behavior" — a ≤5-line
 in-place edit is an example, not a limit):
 - Skip: §0.5 convention discovery, §1.5 pre-write search, reference file reading
-- Keep: §3 verification gate, §4 change documentation — including the numbered
-  record doc in the owning implementation unit, mandatory for ALL work
-  (UNIT-RESIDENCE-01, `pabcd` Implementation-Unit Documents), §5 safety rules (imports/exports), §7.2 static analysis
+- Keep: §3 verification gate, §4 change documentation, §5 safety rules (imports/exports),
+  §7.2 static analysis. C0 patches (typo, config, one-line fix) are exempt from
+  numbered implementation-unit records. C1 patches record in the owning unit only
+  when a unit already exists (UNIT-RESIDENCE-01, `pabcd` Implementation-Unit Documents).
 - Role skills: read only the `SKILL.md` routing table — skip references unless the table explicitly routes to one
 
 This is scope guidance, not an exemption. Conventions visible in the touched file still

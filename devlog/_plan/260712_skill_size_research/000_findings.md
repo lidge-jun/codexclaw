@@ -64,3 +64,37 @@ Reasoning:
 3. Move domain-specific catalogs (antipattern tables, platform rules) to references
 4. Consider scripts/validators for mechanically checkable rules
 5. Empirically test compliance on representative tasks (Anthropic recommends 3+)
+
+## Constraint Count Analysis (Dalton)
+
+| Skill | Total | STRICT | DEFAULT | STYLE |
+|-------|-------|--------|---------|-------|
+| dev-frontend | 93 | 32 | 55 | 6 |
+| dev-testing | 78 | 27 | 46 | 5 |
+| dev-code-reviewer | 71 | 29 | 40 | 2 |
+| pabcd | 69 | 38 | 28 | 3 |
+| dev | 63 | 34 | 28 | 1 |
+| loop | 62 | 34 | 26 | 2 |
+| dev-uiux-design | 58 | 15 | 31 | 12 |
+| **Total** | **494** | **209** | **254** | **31** |
+
+All 7 exceed the RECAST 10-constraint threshold by 5-9x. These are operational
+contracts for a specific harness — the constraint count is inherent to the
+domain complexity, not padding.
+
+## Contradictions Found and Fixed
+
+- dev-frontend: "max 1 accent" + "avoid one-note" clarified
+- dev: C0 exempted from mandatory numbered records
+- dev-code-reviewer: Medium merge policy unified
+- dev-uiux-design: synthesis = direction lock clarified
+- loop: read state THEN re-enter P order clarified
+
+## Reference Routing (Hume): B grade
+
+72 reference files, 0 broken links, 0 unlinked. Best: dev-testing (A), loop (A).
+
+## Session Totals
+
+~50 sol agents dispatched. 25+ commits. -26% skill line count with all rule IDs
+preserved and critical content restored after readability audit.

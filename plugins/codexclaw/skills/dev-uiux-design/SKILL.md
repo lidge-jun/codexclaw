@@ -333,6 +333,8 @@ reasoning in the devlog.
 | Hero | #1 | strongest asymmetric composition | editorial offset |
 | Type | #2 | best grotesk weight contrast | heading: 300, body: 400 |
 
+Synthesis IS the direction lock: it assembles the best tokens from multiple candidates into one coherent DESIGN.md. The lock is the assembled token set, not any single render.
+
 6. Lock DESIGN.md from the synthesis. Each token cites its source
    variant. Interactive mode: show candidates + synthesis for
    confirmation. Autonomous mode: record selection rationale and

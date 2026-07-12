@@ -30,8 +30,9 @@ for EVERY loop entry or re-entry:
    attest JSON — the shipped gate (`dist/attest.js` GATED_TRANSITIONS) gates exactly
    those four. A phase without its persisted transition did not happen — the
    footer/ledger is the only proof of phase.
-5. After a D close with work remaining under an active goal, immediately run
-   `cxc orchestrate P --session <id>` for the next work-phase.
+5. After D closes to IDLE, read durable state (goalplan + ledger) to confirm remaining
+   work, then re-enter P for the next work-phase with
+   `cxc orchestrate P --session <id>`.
 
 Work performed outside the FSM does not count as loop progress: re-enter and attest
 it before building on it. Runtime companions (shipped): a loop/goalplan/
@@ -249,8 +250,9 @@ re-entering a loop or after a `D` close:
 - **Read durable state first.** When a goalplan is bound, use `cxc loop show` for the summary
   and inspect `.codexclaw/goalplans/<slug>/goalplan.json` + `ledger.jsonl` directly for full state,
   to recover which work-phases/criteria remain before planning the next pass.
-- **IDLE is not the end while work remains.** After `D` closes to IDLE, if any work-phase or
-  unmet criterion remains under an active goal, start the next work-phase at `P`.
+- **IDLE is not the end while work remains.** After `D` closes to IDLE, read durable state
+  (goalplan + ledger) to confirm remaining work. If any work-phase or unmet criterion remains
+  under an active goal, re-enter `P` for the next work-phase.
 
 ## Terminal outcomes
 

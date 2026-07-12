@@ -182,7 +182,7 @@ Korean app/tool surfaces usually need higher density and clearer hierarchy, not 
 Read `references/core/aesthetics.md` for full guidelines. Summary:
 
 - **Typography**: Use domain-appropriate typography. For Korean-first UIs, prioritize CJK-safe stacks before Latin display fonts. Apply `text-wrap: balance` on all headings **AND short descriptors** (hero subtitle, card description, caption — anything 1-3 lines). Use `text-wrap: pretty` only on body paragraphs (4+ lines). `pretty` has no effect on short text and will leave Korean orphans like "합니다." or "화." on a line alone. See `typography-wrapping.md` for full rules.
-- **Color**: Max 1 accent. Use neutral bases (Zinc/Slate) with singular high-contrast accent — avoid purple-on-white.
+- **Color**: Max 1 accent. Use neutral bases (Zinc/Slate) with singular high-contrast accent — avoid purple-on-white. One-note means the ENTIRE page is dominated by variations of a single hue family. One accent color with neutral bases is correct, not one-note.
 - **Layout**: Match the product surface. Avoid centered-card/hero patterns in repeated-use tools.
 - **Motion**: See `references/core/motion.md`. One signature moment + a few
   supporting reveals > 10 scattered effects; landing-bucket floor/ceiling per
@@ -247,7 +247,7 @@ Audit composite convergence tells under FE-CONVERGENCE-01 (`anti-slop.md`): hair
 - Layout monotony (same family repeated, 3+ zigzag sections, overused eyebrows) — see `references/core/layout-discipline.md`
 - Color, shape, and theme must be locked per-page and audited before shipping — see `references/core/consistency-locks.md`
 - Use off-black (`#0a0a0a`, `#111`) — pure `#000000` lacks depth
-- **Responsive enforcement**: every multi-column section must declare its mobile/tablet collapse behavior — "it'll work at mobile" is not a plan. See `responsive-viewport.md`
+- **Responsive enforcement (DEFAULT)**: every multi-column section must declare its mobile/tablet collapse behavior — "it'll work at mobile" is not a plan. See `responsive-viewport.md`
 - **Page containment required**: `max-w-[1400px] mx-auto` or equivalent wrapper. Content stretching to viewport edges on wide monitors is a layout bug
 - **Mobile is a different product**: section composition, CTA placement, and interaction model change on mobile — it is NOT just "desktop stacked vertically." See `mobile-ux.md`
 - Use realistic, specific names and brands in placeholder content
