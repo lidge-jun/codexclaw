@@ -44,8 +44,12 @@ verification after candidate URLs exist, not a raw-query search substitute.
 
 ### Automated Pre-Scan
 
-Run repo-native lint, type checks, and tests first; report tool findings before
-manual review; unavailable tools are non-blocking.
+Run repo-native lint, type checks, and tests first.
+
+1. Errors block review readiness.
+2. Warnings are non-blocking but must be reported.
+3. Tool findings appear before manual findings.
+4. Unavailable tools are skipped with the gap stated; absence is non-blocking.
 
 Routing: linters catch style, imports, and simple bugs; type checkers catch type
 and null-safety errors; SAST catches common injection/auth patterns; dependency
@@ -73,7 +77,7 @@ validation-location findings belong to `dev-architecture` §4.
 
 ### Output Contract (REVIEW-OUTPUT-01)
 
-Tool findings go first (Pre-Scan Rule 3); then manual findings sorted
+Tool findings go first (Automated Pre-Scan item 3); then manual findings sorted
 `Critical > High > Medium > Low > Style`; then a dedicated `blocking_issues` block; verdict last.
 For dispatched plan-audit (PABCD A-gate) reviews the verdict is additionally
 machine-scannable: end the reply with a final line `VERDICT: PASS`,
@@ -86,15 +90,45 @@ finding on a hunch. Do not file pre-existing debt unless the patch worsened it. 
 introduces a value/type/message crossing a module boundary, trace the consumer side before
 declaring it correct, rather than reviewing the emitting hunk alone.
 
+Compact finding example:
+
+```yaml
+severity: High
+title: Missing ownership check permits cross-account access
+location: src/routes/accounts.ts:42
+trigger: Authenticated caller supplies another account ID
+impact: Caller can read another user's account data
+evidence: Handler loads by ID without constraining owner_id
+remediation: Scope the query to the authenticated owner
+verification: verified
+```
+
 ### Regression & false-confidence tests (REVIEW-REGRESS-01)
 
 Run a dedicated pass: what previously-working behavior can now break, and do the tests cover that
 surface? Flag deletion-only "fixes", tautological tests, tests that merely mirror the
 implementation, and scope-drift abstractions added beyond the request.
 
+### Pre-Review Checklist
+
+- Build passes.
+- Tests pass.
+- The change explains what changed and why.
+- The diff is small and structured enough to review.
+
 ---
 
 ## 2. Quality Thresholds
+
+### Severity Definitions
+
+| Severity | Definition |
+|----------|------------|
+| Critical | Exploitable security flaw, data loss, or production outage |
+| High | Correctness or security defect affecting users |
+| Medium | Bounded defect or material maintainability risk |
+| Low | Minor risk with limited impact |
+| Style | Convention-only issue with no behavioral risk |
 
 Flag these during review:
 
@@ -181,9 +215,32 @@ secrets, injection, validation, auth, authorization, and logging findings.
 
 ## 3.5 Security Review Quick-Check
 
-For security review depth, route to `dev-security`.
-Reviewer-specific triggers: hardcoded secrets, injection patterns, missing
-auth/authz, and sensitive data in logs.
+For every review, scan these OWASP-aligned red flags.
+
+### Must-Check Every PR
+
+| Check | Red Flag | Severity |
+|-------|----------|----------|
+| Hardcoded secrets | API keys, passwords, tokens, or DB URLs in source | **Critical** |
+| Injection | User-controlled strings composed into SQL, NoSQL, shell, or templates | **Critical** |
+| Missing validation | Untrusted input reaches logic without schema/content checks | **High** |
+| Missing auth/authz | Endpoint lacks authentication or permission enforcement | **High** |
+| BOLA / ownership | Object access does not verify caller ownership | **High** |
+| Sensitive logging | Tokens, passwords, credentials, or private payloads enter logs | **High** |
+
+### Conditional Checks
+
+| Check | Trigger | Red Flag |
+|-------|---------|----------|
+| SSRF | User controls an outbound URL | No allowlist or host/protocol validation |
+| Path traversal | User controls a file path | No canonicalization or containment check |
+| Mass assignment | Request object populates a model | No explicit field allowlist |
+| Dependency audit | Dependencies are added or updated | No repo-native vulnerability audit |
+| Lockfile | Lockfile changes | Unexpected or unexplained resolution changes |
+
+Load `dev-security` for deep analysis. Security routing is required when the diff
+touches auth, credentials, untrusted input, sensitive data, dependencies, agent
+tools, or trust boundaries.
 
 ---
 
@@ -249,6 +306,18 @@ Fix Critical findings immediately and re-request review; fix High before other
 work and Medium before merge. Low and Style findings follow impact and team
 conventions.
 
+### Reviewing AI-Generated Code
+
+Run this in addition to the normal review when the diff is substantially AI-generated:
+
+| Check | Typical failure | Required action |
+|-------|-----------------|-----------------|
+| Invented APIs | Plausible but nonexistent methods/options | Verify against installed-version docs |
+| Hallucinated dependencies | Nonexistent or impersonated packages | Verify existence, maintainer, and provenance |
+| Missing authz edges | Happy path lacks ownership checks | Trace endpoints against the BOLA check |
+| Shallow tests | Tests mirror implementation | Require behavior-level assertions |
+| Scope drift | Unrequested abstractions/refactors | Flag and restore one logical change per PR |
+
 ---
 
 ## 6. Subagent Review Mode
@@ -291,13 +360,21 @@ unaccounted file makes the verdict incomplete.
 
 ## Finding Falsification (REVIEW-FALSIFY-01, DEFAULT)
 
-State each finding as a testable claim and search tests, guards, caller context,
-and docs for contradictory evidence. Downgrade or retract disproved claims;
-retain claims that survive. Mark findings reported without this attempt as
-`unverified`.
+Before reporting a finding:
+
+1. State it as a testable claim.
+2. Search tests, guards, caller context, and docs for contradictory evidence.
+3. Downgrade or retract the claim when contradictory evidence disproves it.
+4. Retain the claim when it survives the falsification attempt.
+
+Every finding includes `verification: verified|unverified`. Use `unverified`
+when the falsification attempt could not be completed or evidence is incomplete.
 
 ## Interdiff Re-Review (REVIEW-INTERDIFF-01, DEFAULT)
 
-Re-review only changes since the previous review. Preserve unresolved findings,
-verify each claimed fix, and process new interdiff findings normally. Revisit
-unchanged code only when a cross-file dependency changed.
+Anchor the re-review to both the previous reviewed commit/range and the new head;
+record those anchors in the review. Review only the interdiff, preserve unresolved
+findings, verify each claimed fix, and process new findings normally. Revisit
+unchanged code when a cross-file dependency changed. If either anchor is missing,
+history was rewritten ambiguously, or the interdiff cannot be trusted, fall back
+to a full review of the current base-to-head diff.

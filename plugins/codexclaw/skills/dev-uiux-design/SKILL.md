@@ -245,6 +245,9 @@ preset exists for the exact use case, use it directly; adjust from Design Read.
 - "Complex" in brief: increase density (D), NOT variance or motion
 - "Simple" in brief: decrease variance and motion; density stays or increases
 
+Score existing surface using preset rules. Clamp all arithmetic to 1-10 / D1-D8.
+Example: existing SaaS 7/6/4 preserve -> 7/7/4; overhaul -> 9/8/4.
+
 **Audience-first ownership** (UX-AUDIENCE-01, DEFAULT):
 The audience picks the aesthetic, not the model's taste. When audience signal
 and model preference conflict, audience wins. The dial presets above encode
@@ -284,12 +287,37 @@ patches and utility CRUD/dashboard screens are exempt.
    down, `$imagegen` only as true fallback. State the chosen
    generator.
 
+### Compact ima2 Recipe
+
+Canonical command:
+`ima2 gen "<detailed prompt>" --quality high --size 1536x1024 -o ./concepts/01.png`
+
+- Add a reference image with `--ref ./reference.png`.
+- Every prompt specifies surface, audience, composition, palette, typography,
+  material, and constraints.
+- Batch one prompt with `ima2 gen -n 5 -d ./concepts/`.
+- For distinct prompts, launch `ima2 gen ... &` in parallel and monitor with
+  `ima2 ps --json`.
+- Fall back to `$imagegen` only after `ima2 status`, `ima2 serve`, and the
+  subsequent status re-check all fail.
+
 3. Is the direction already concrete (named ism, reference screenshot,
    finished design, governing design system)?
    - Yes: lock that direction → generate 3-5 contextual execution
      variants.
    - No: use UX-IMAGE-FIRST-01 → generate 3-5 distinct ism directions,
      compare, lock one direction, then refine with 2-4 variants.
+
+### Image-First Direction Discovery (UX-IMAGE-FIRST-01, DEFAULT)
+
+Fires when the brief has no named ism, product reference, or concrete design
+direction. Generate 5 maximally different ism directions, varying layout
+family, palette, type stance, material, and hero grammar. Every prompt must be
+detailed enough to reconstruct the layout. Compare candidates on hero
+composition, palette coherence, typographic voice, and density fit. Pick the
+winning ISM, not the winning image, then refine it with 2-4 variants.
+Interactive mode: the user picks the ism. Autonomous mode: state the selection
+reasoning in the devlog.
 
 4. Evaluate candidates on: domain/audience fit, hero/composition,
    palette coherence, typographic voice, density and context fit.
@@ -298,6 +326,12 @@ patches and utility CRUD/dashboard screens are exempt.
    each token (palette, composition, type, material, signature visual),
    note WHICH variant did it best and WHY. Use FE-ASSET-SELECT-01
    scorecard as rubric.
+
+| Token | Best variant | Rationale | DESIGN.md value |
+|-------|-------------|-----------|-----------------|
+| Palette | #3 | warmest coherence | primary: #2c2420, accent: #c4956a |
+| Hero | #1 | strongest asymmetric composition | editorial offset |
+| Type | #2 | best grotesk weight contrast | heading: 300, body: 400 |
 
 6. Lock DESIGN.md from the synthesis. Each token cites its source
    variant. Interactive mode: show candidates + synthesis for
@@ -316,10 +350,12 @@ code exists, `iterative-design.md` governs POST-CODE rounds.
 `prototype-variants.md` runs AFTER the concept lock for structural
 variants.
 
-Skip (state the skip): user handed a finished design; existing design
-system governs the surface; C0/C1 patch; utility CRUD/dashboard; or
-ima2 + $imagegen both truly unavailable. Reference captures are
-generation INPUT (`--ref`), not a skip reason.
+Skip (state the skip): a finished implementation-ready design skips concept
+generation entirely. A reference screenshot or style direction requires
+contextual execution variants rather than a skip. A governing design system
+skips generation unless a new brand-visible composition remains unresolved.
+C0/C1 patches and utility CRUD/dashboard surfaces also skip. Generator
+unavailability is a skip only after the complete fallback sequence above.
 ---
 
 ## 2.6 Asset Production Handoff (UX-ASSET-GEN-01)
@@ -328,6 +364,12 @@ After concept direction is locked,
 follow `dev-frontend/references/core/asset-requirements.md` for asset
 generation, background removal (FE-ASSET-BG-01), batching, selection,
 and integration.
+
+Concept images are composition/style evidence,
+not shipped assets.
+Production assets are generated after concept lock
+and must pass integration requirements
+(`dev-frontend` `asset-requirements.md`).
 
 ## 3. Korean Design Vocabulary + Quick-Match + Font Selection
 

@@ -79,6 +79,18 @@ sentence: plan/devlog paths, changed files, commands with exit codes, and eviden
 ledger paths when present. The runtime gate remains form-only for `did`; this is the
 agent discipline that makes later audit possible.
 
+| Edge | Required attest keys | Notes |
+|------|---------------------|-------|
+| IDLE->P | none (entry command) | |
+| I->P | none (entry command) | |
+| P->A | `did` with plan pointer | |
+| A->B | `did`, `auditOutput`, `auditVerdict` (`pass`/`near-pass`/`fail`); near-pass adds `auditResidual` | FAIL never advances |
+| B->C | `did` with implementation delta | |
+| C->D | `did`, `checkOutput`, optional `exitCode` (must be 0 if supplied) | |
+
+These are edge contracts, not substitutes for phase work. Artifact pointers must name
+the evidence produced by the phase being advanced.
+
 ### Control surfaces (shipped)
 
 Chat and CLI control the same persisted FSM and ledger; invocation source selects
@@ -273,6 +285,26 @@ for a phase's real work.
 | LOOP-FANOUT-TIMING-01 | Coarse search plateaus | Begin parallel fine-grained lanes |
 | COLLAPSE-AGGREGATOR-01 | Candidates disagree on crux | Use crux-matched synthesis |
 
+- **LOOP-PHASE-DEATH-01:** "same class" means the same candidate class
+  (`parameter-tweak`, `branch-toggle`, `state-space redesign`, or `evaluator change`)
+  dies at the same phase three times; target that killing mechanism next.
+- **LOOP-CONTINUITY-01:** begin P by quoting the prior D conclusion and next direction;
+  contradicting it requires an explicit reason, preventing amnesiac retries.
+- **LOOP-CANDIDATE-ANCHOR-01:** thresholds and guards are parameter-space search;
+  regenerate from logs, trajectories, instances, and failure states in state-space.
+- **LOOP-INSTANCE-CHECK-01:** when instances are fixed and enumerable, evaluate
+  fingerprint-plus-playbook specialization before more generic tuning.
+- **LOOP-MECHANISM-PROOF-01:** require a firing counter or trace; a baseline-exact
+  single-feature ablation is evidence to instrument the mechanism before combining it.
+- **LOOP-RESIDUAL-TRACE-01:** explain which relevant branches fired and why, or label
+  the residual `unexplained`; a plausible environmental story is not a trace.
+- **LOOP-PEER-CONTRAST-01:** when a peer succeeds on the same failed instance, make a
+  behavioral trace diff the next analysis deliverable before generating candidates.
+- **LOOP-FANOUT-TIMING-01:** stay single-track while coarse levers move the metric;
+  fan out when the plateau shifts work to fine-grained candidates.
+- **COLLAPSE-AGGREGATOR-01:** "crux-matched" means the synthesizer is strongest in
+  the disputed domain; it returns the verdict while the main session owns collapse.
+
 ## PABCD Depth by Work Class
 
 | Class | Plan (P) | Audit (A) | Build (B) | Check (C) | Record (D) |
@@ -301,6 +333,25 @@ integrates. Dispatch only specifiable work whose coordination cost is justified
 Full lifecycle, economy, isolation, skill transport, and topology rules:
 `structure/20_pabcd_dispatch_doctrine.md` §3.
 
+**Lifecycle contract.** If `spawn_agent` is not visible, use `tool_search` for it before
+concluding delegation is unavailable. Fan out independent lanes before waiting, and
+reuse the same reviewer throughout the A loop.
+
+- **V1:** `wait_agent` returns final status plus content; `send_input` reuses an agent;
+  `close_agent` retires it and `resume_agent` restores it.
+- **V2:** `wait_agent` is a no-content mailbox; `followup_task` triggers more work;
+  `send_message` is context-only, and `interrupt_agent` stops a runaway turn.
+
+**Delegation safeguards:**
+
+- **DISPATCH-ISOLATION-01:** every lane gets explicit read and write access lists;
+  never share in-progress output across lanes.
+- **REVIEW-DECORRELATE-01:** use a different model family for the A-gate reviewer.
+- **SPECIALIST-CRUX-01:** when a narrow crux lies outside the builder's domain,
+  dispatch a specialist to re-derive it from first principles.
+- Returns preserve VERBATIM ANCHORS: exact `path:line` quotations, exact figures,
+  and source URLs, so the main session can spot-check the evidence.
+
 ## Loop Engineering (§11)
 
 Full rules live in `references/loop-engineering.md`. Key rules:
@@ -315,6 +366,12 @@ Full rules live in `references/loop-engineering.md`. Key rules:
 | §11.5 Resources | State tool, credential, cost, token, and wall-clock bounds |
 | §11.6 Continuation | LOOP-CONTINUE-01 and LOOP-UNIT-CHAIN-01 continue from durable repo state |
 | §11.7 Divergence | Converge by default; diverge deliberately and collapse by archetype |
+
+**Repair thresholds:** under **LOOP-REPAIR-01**, two consecutive repairs with the same
+failure enter root-cause mode; three require a replan (or Interview return in HITL).
+Under **LOOP-DOOM-01**, three attestation failures in one phase are no-progress and
+force the repair path. Under **REVIEW-SYNTHESIS-01**, reviewer FAIL requires blocker
+RCA, conflict analysis, and accept/rebut decisions before re-patching or re-dispatching.
 
 ## Catalog Discovery routing
 

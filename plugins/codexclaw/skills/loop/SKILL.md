@@ -200,11 +200,17 @@ Ledger events are `created`, `workphase_started`, `workphase_done`,
 Full rules: `cxc-pabcd` §Optimization-Loop Meta-Rules, including LOOP-PHASE-DEATH and
 LOOP-CONTINUITY. Summary:
 
-| Rule | Trigger | Action |
-|------|---------|--------|
-| LOOP-MECHANISM-PROOF-01 | New branch/mechanism | Prove activation before adoption |
-| LOOP-RESIDUAL-TRACE-01 | Residual failure | Record mechanism trace or `unexplained` |
-| LOOP-PEER-CONTRAST-01 | Peer succeeds on failed instance | Diff behaviors before generating |
+Use the clarification column as the minimum evidence interpretation for each rule;
+the action alone does not establish that an optimization mechanism is alive or that
+the next cycle preserves what the previous cycle learned.
+
+| Rule | Trigger | Action | Clarification |
+|------|---------|--------|---------------|
+| LOOP-MECHANISM-PROOF-01 | New branch/mechanism | Prove activation before adoption | Aggregate score movement alone is not activation proof. A zero-delta solo ablation means presume dead and instrument first. |
+| LOOP-RESIDUAL-TRACE-01 | Residual failure | Record mechanism trace or `unexplained` | A plausible opponent story is not evidence that our own mechanism armed. Record actual branch traces. |
+| LOOP-PEER-CONTRAST-01 | Peer succeeds on failed instance | Diff behaviors before generating | Compare the successful peer's activated branches and decisions against ours before proposing another mechanism. |
+| LOOP-PHASE-DEATH-01 | Phase-local mechanism has no measured effect | Diagnose activation and observability before tuning | Repeated parameter changes cannot revive a branch that never activates; prove phase-local effect before continuing optimization. |
+| LOOP-CONTINUITY-01 | Evidence changes the problem model | Carry hypotheses and traces into the next P | Each cycle must inherit the prior cycle's mechanism evidence, residuals, and rejected explanations instead of restarting from aggregate scores. |
 
 ### Goal state
 
@@ -322,6 +328,9 @@ the Stop hook. Pause semantics remain: hooks neither build candidates nor move p
 When divergence is ON:
 
 - Record mode explicitly: `cxc divergence mode --session <id> on --collapse P|D --reason <why>`.
+- Before executing Tier 1 or Tier 2 divergence, read
+  `references/divergence-tiers.md` for candidate-document format, topology rules,
+  and evaluator requirements.
 - Select the cost tier under DIVERGE-TIER-01: Tier 0 inline concepts, Tier 1 conceptual
   candidate docs (default), or Tier 2 isolated executable races only for load-bearing
   conflicts that paper analysis cannot resolve.
@@ -342,7 +351,7 @@ The active Stop hook (`handleStop`) returns `{"decision":"block","reason":...}` 
 an ACTIVE goal, including at IDLE when GOAL-IDLE-CONTINUE-01 names the next arming
 command and remaining work. Termination remains bounded by:
 
-- **Guard 2** — no active goal → release (a plain interactive session never enters
+- **Goal/phase guard** — no active goal → release (a plain interactive session never enters
   the loop; it pauses for the human at P/A/B, and IDLE without a goal stays silent).
   Phase `I` always releases (the Interview is HITL-only).
 - **Context-pressure bail** — don't pile on during compaction recovery.
@@ -356,3 +365,12 @@ command and remaining work. Termination remains bounded by:
   two non-improving same-metric rows switch the block reason from plain continuation
   to "step back and re-plan with divergence." This still uses the same bounded
   `MAX_STOP_BLOCKS` release path and never asks the user inside goal mode.
+
+### Stop decision matrix
+
+| Condition | Decision |
+|-----------|----------|
+| No active goal, or phase I | Release |
+| Active goal + in-flight cycle | Bounded block (continue phase) |
+| Active goal + IDLE with remaining work | Block with arming command |
+| Context pressure or stagnation cap exhausted | Release (not a success signal) |

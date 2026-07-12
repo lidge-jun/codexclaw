@@ -25,7 +25,7 @@ wiring, visual verification, and frontend platform rules.
 | File                                      | When to Read                         | What It Covers                                                                    |
 | ----------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------- |
 | `references/core/crud-ui.md`              | C2 list/detail/form product screens  | State coverage (loading/empty/error/permission), forms, objective UX gates         |
-| `references/core/anti-slop.md`            | New components or UI redesign        | 2026 AI slop patterns, Korean slop, oversized text, fake assets, default UI smells |
+| `references/core/anti-slop.md`            | New/redesigned visual surfaces, visual audits, and variant generation | 2026 AI slop patterns, Korean slop, oversized text, fake assets, default UI smells |
 | `references/core/aesthetics.md`           | Visual design decisions              | Domain-correct visual direction, typography, color, composition, serif three-role system, expressive/functional layers, AI-brand grammar                    |
 | `references/core/product-density.md`      | Apps, tools, dashboards              | Density profiles for landing, consumer app, SaaS, ops, finance, devtools          |
 | `references/core/asset-requirements.md`   | Any public/product/visual surface    | Required screenshots, images, diagrams, charts, generated bitmaps, or 3D assets, mockup production pipeline   |
@@ -187,7 +187,25 @@ Read `references/core/aesthetics.md` for full guidelines. Summary:
 - **Motion**: See `references/core/motion.md`. One signature moment + a few
   supporting reveals > 10 scattered effects; landing-bucket floor/ceiling per
   FE-MOTION-BUCKET-01.
-- **Assets**: Use screenshots, product images, diagrams, charts, illustrations, generated bitmaps, or soft 3D only when they add product meaning. When a real bitmap is needed (icon, hero, illustration), generate it with `ima2` — probe `ima2 status`, attempt `ima2 serve` if down — falling back to the native `imagegen` tool only when ima2 is truly unavailable; never ship a placeholder. `ima2` is preferred because it supports reference images, multi-candidate generation (`-n N`, multimode, independent CLI parallel — see `asset-requirements.md` FE-ASSET-PARALLEL-01), prompt builder, session style sheets, provider routing (GPT/Grok/Gemini — see `asset-requirements.md` FE-ASSET-PROVIDER-01), variant selection with element-ledger synthesis (`asset-requirements.md` FE-ASSET-SELECT-01), cutout asset background strategy (`asset-requirements.md` FE-ASSET-BG-01), and video (`ima2 video` — see `motion.md` FE-MOTION-VIDEO-01) for motion assets. For parallel generation, monitor with `ima2 ps --json` and cancel unwanted jobs with `ima2 cancel <id>`. Write **very explicit long prompts** (subject, composition, palette, lighting, style, aspect) per `asset-requirements.md`; prefer real/generated image or video assets over CSS gradient washes. Read any design reference or captured screenshot back into context with `view_image` before matching it. Third-party captures follow `reference-capture.md` (analysis-only, provenance manifest).
+- **Assets**: Use screenshots, product images, diagrams, charts, illustrations, generated bitmaps, or soft 3D only when they add product meaning. Never ship a placeholder. Prefer real/generated image or video assets over CSS gradient washes. Read any design reference or captured screenshot back into context with `view_image` before matching it. Third-party captures follow `reference-capture.md` (analysis-only, provenance manifest).
+
+  1. **Probe**: `ima2 status` → `ima2 serve` if down → recheck.
+  2. **Generate**: `ima2 gen` with explicit long prompts; `--ref` for style anchors.
+  3. **Inspect**: `view_image` every candidate.
+  4. **Synthesize**: element ledger per FE-ASSET-SELECT-01.
+  5. **Iterate**: `ima2 edit` for targeted fixes.
+  6. **Verify**: browser screenshot of rendered result.
+
+  Fallback: `$imagegen` only when ima2 is truly unavailable.
+
+  `ima2` supports multi-candidate generation (`-n N`, multimode, and independent CLI
+  parallel; FE-ASSET-PARALLEL-01), prompt builder, session style sheets, and provider
+  routing (GPT/Grok/Gemini; FE-ASSET-PROVIDER-01). Monitor parallel jobs with
+  `ima2 ps --json` and cancel unwanted jobs with `ima2 cancel <id>`. For motion assets,
+  use `ima2 video` under FE-MOTION-VIDEO-01. Prompts must specify subject, composition,
+  palette, lighting, style, and aspect per `asset-requirements.md`.
+
+  Concept mockups guide implementation and are not shipped; production assets require candidate inspection and selection; cutout assets additionally follow FE-ASSET-BG-01.
 - **Visual verification**: after UI changes, exercise the flow per `cxc-dev-testing` §4.6 (TEST-CU-QA-01) — `browser:control-in-app-browser` on the dev server, screenshot, `view_image` — instead of claiming visual correctness from code alone.
 
 ### Cutout Asset Generation (FE-ASSET-BG-01 surface — STRICT)
@@ -208,6 +226,9 @@ Read `references/core/anti-slop.md` for full rules. Key standards:
 - Do not put trust strips, pricing teasers, feature bullets, or mini dashboards inside the hero.
 - Logo walls belong below the hero, not as hero filler.
 - Plan font scale with image/product scale so neither crushes the other.
+
+Before delivery, run the second-order reflex test (FE-REFLEX-TEST-01, `anti-slop.md`) against both the obvious category default and its fashionable opposite.
+Audit composite convergence tells under FE-CONVERGENCE-01 (`anti-slop.md`): hairline border+shadow, icon-tile-above-heading, italic-serif-hero, hero-metric template, and other multi-element compositions.
 
 - Treat unexamined default typography as a slop signal. Choose a domain-appropriate stack; Korean-first UI should use CJK-safe fonts and system fallbacks deliberately.
 - **Gradient budget (FE-GRADIENT-01)**: gradient soup is the 2026 #1 anti-slop signal; max 1 ambient gradient per viewport and no gradients on 3+ sibling cards — see `anti-slop.md § Gradient Budget`
@@ -288,7 +309,7 @@ Read `references/stacks/nextjs.md` for Next.js 16 App Router, caching, Server Ac
 Prefer native CSS (container queries, `:has()`, nesting, subgrid, View Transitions, `dvh/svh/lvh`) before JS observers.
 Do not introduce Webpack-era config unless the existing app is Webpack-bound.
 Never cache user/session data without an explicit user-scoped key.
-Classify state before adding store/Effect/cache (see §12 State Classification table in the current version — PRESERVE that table if it exists after line 430).
+Classify state using the table below before adding a store, Effect, or cache.
 ### State Classification
 Before adding state, classify it:
 | State type | Owner | Default tool |

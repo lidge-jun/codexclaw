@@ -25,6 +25,9 @@ planning, reading, and verification the task deserves — never apply maximum pr
 | C4 | High-Risk | Auth, payments, data deletion, migration, release, permission model, security boundary | Full PABCD (mandatory) + full relevant gates + durable risk/evidence record |
 | C5 | Research/Ambiguous | Unclear requirements, ambiguous user value, unknown territory after one §0 clarification round | Interview-first via the `pabcd` skill, then reclassify |
 
+**C5 is temporary** — it cannot enter implementation until Interview resolves ambiguity
+and the task is reclassified C0-C4.
+
 **Tie-break (DEFAULT):** when signals match two classes, the higher class wins. A
 conventional route→service→storage slice still counts as C2 even though it spans files;
 C3's "multiple modules" means crossing a module/package boundary beyond that conventional slice.
@@ -124,6 +127,20 @@ precondition for writing code there. Skipping it is a STRICT violation (dev §0.
 same severity as a broken build. When a change spans multiple surfaces, read each
 matching router first.
 
+| Change surface | Primary router | Also load |
+|---------------|----------------|-----------|
+| Backend / API / server | `dev-backend` | `dev-security` for auth/input |
+| Frontend / UI / web | `dev-frontend` | `dev-uiux-design` for direction |
+| Database / schema / data | `dev-data` | `dev-backend` for migrations |
+| Tests / QA | `dev-testing` | `dev-frontend` for browser QA |
+| Security / auth / secrets | `dev-security` | surface-specific router |
+| Architecture / modules / deps | `dev-architecture` | `dev-scaffolding` for new structure |
+| Debugging / crashes / perf | `dev-debugging` | surface-specific router |
+| DevOps / deploy / infra | `dev-devops` | `dev-security` for credentials |
+| Scaffolding / docs / setup | `dev-scaffolding` | `dev-architecture` for boundaries |
+| Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
+| Diagrams / charts | `dev-diagram-viewer` | — |
+
 ### Subagent Skill Injection (DEV-SKILL-INJECT-01)
 Attach `cxc-dev` and every relevant surface skill explicitly to governed subagents.
 Prefer resolvable skill links; use plugin-native mentions or v1 `items` when needed.
@@ -210,6 +227,9 @@ flag risk, recommend one, and confirm once; skip clarification when intent is cl
 Before broad changes, inspect source layout, source-of-truth docs, agent instructions,
 toolchain config, and sibling naming/test/module patterns. Devlogs use decade-range
 numbering, never bare `PLAN.md`/`PHASES.md`/`RCA.md` (LEXICO-SPLIT-01; see `pabcd`).
+
+Discover conventions in order: repo instructions/SoT docs → toolchain/config → owning
+module → direct callers → 2-3 sibling examples.
 
 MUST follow existing conventions when they are clear.
 MUST read existing source-of-truth docs before broad implementation.
@@ -302,8 +322,9 @@ fast path still applies to C0/C1.
 ## 2. Systematic Debugging
 
 Root-cause method, instrumentation, hypothesis testing, emergency stop triggers,
-and postmortems are canonical in `dev-debugging/SKILL.md`. Load it for runtime
-failures; after 3 failed fixes, pause and reassess the architecture with the user.
+and postmortems are canonical in `dev-debugging/SKILL.md`. Reproduce and isolate
+before editing for any non-obvious defect. Load `dev-debugging` for runtime failures,
+unclear causality, or after 2 failed repair attempts.
 
 **Repeated-friction rule (DEV-FRICTION-01, DEFAULT).** When the same shell command
 class fails twice with the same normalized error, do not retry a third time

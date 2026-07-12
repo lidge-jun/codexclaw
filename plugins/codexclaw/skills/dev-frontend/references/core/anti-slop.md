@@ -323,6 +323,8 @@ Each generation MUST be visually distinct from the last:
 - Alternate light/dark themes
 - Vary layout patterns (split → asymmetric → editorial → etc.)
 
+This applies to separate design rounds or concept directions, not to candidate variations within the UX-CONCEPT-GEN-01 locked-concept synthesis workflow.
+
 ---
 
 ## Redesign Fix Priority Order
