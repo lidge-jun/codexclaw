@@ -207,10 +207,12 @@ function fileChangeAction(raw        )                                 {
 export function terminateChild(child              )       {
   if (child.exitCode !== null || child.signalCode !== null) return;
   child.kill("SIGTERM");
-  const timer = setTimeout(() => {
-    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
-  }, SIGKILL_GRACE_MS);
-  timer.unref?.();
+  if (process.platform !== "win32") {
+    const timer = setTimeout(() => {
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    }, SIGKILL_GRACE_MS);
+    timer.unref?.();
+  }
 }
 
 

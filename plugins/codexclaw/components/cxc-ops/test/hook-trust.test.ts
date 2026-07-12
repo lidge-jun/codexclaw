@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import path from "node:path";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -382,7 +383,7 @@ test("hooks retrust CLI reports each hook and backup path", async () => {
   const originalOut = process.stdout.write;
   const originalErr = process.stderr.write;
   const originalPath = process.env.PATH;
-  process.env.PATH = `${binDir}:${originalPath ?? ""}`;
+  process.env.PATH = `${binDir}${path.delimiter}${originalPath ?? ""}`;
   process.stdout.write = ((chunk: unknown) => {
     stdout.push(String(chunk));
     return true;

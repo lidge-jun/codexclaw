@@ -45,6 +45,7 @@ export function normalizeError(s        )         {
   out = out.replace(/0x[0-9a-f]+/g, "0xADDR"); // hex addresses
   out = out.replace(/:\d+:\d+/g, ":L:C"); // line:col
   out = out.replace(/:\d+\b/g, ":L"); // bare :line
+  out = out.replace(/[a-z]:\\[^\s:]+/g, "/PATH"); // windows paths
   out = out.replace(/(\/[^\s:]+)+/g, "/PATH"); // posix-ish paths
   out = out.replace(/\s+/g, " ").trim();
   return out.slice(0, 500);

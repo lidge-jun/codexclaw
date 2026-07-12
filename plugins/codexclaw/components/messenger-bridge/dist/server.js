@@ -186,7 +186,12 @@ function parseCwd(body         )                {
 }
 
 function resolveDirectory(input        )                {
-  const expanded = input === "~" ? homedir() : input.startsWith("~/") ? join(homedir(), input.slice(2)) : input;
+  const expanded =
+    input === "~"
+      ? homedir()
+      : input.startsWith("~/") || input.startsWith("~\\")
+        ? join(homedir(), input.slice(2))
+        : input;
   try {
     const real = realpathSync(resolve(expanded));
     return statSync(real).isDirectory() ? real : null;

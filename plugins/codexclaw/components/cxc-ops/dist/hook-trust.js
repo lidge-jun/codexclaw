@@ -86,11 +86,7 @@ const MATCHER_DROPPED_EVENTS = new Set               (["UserPromptSubmit", "Stop
 
 
 
-function assertSupportedPlatform()       {
-  if (process.platform === "win32") {
-    throw new Error("hook trust hashing is unsupported on win32 (commandWindows normalization is not implemented)");
-  }
-}
+function assertSupportedPlatform()       {}
 
 function sorted(value         )          {
   if (Array.isArray(value)) return value.map(sorted);

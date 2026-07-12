@@ -36,7 +36,7 @@
  * The hook never throws: any doubt/error -> emit "" (allow untouched).
  */
 import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveSpawnConfig,               } from "./store.js";
 
@@ -144,7 +144,7 @@ const STANDALONE_LINK_RE = /^\[\$(?:codexclaw:)?cxc-([a-z0-9-]+)\]\(([^\s()"'\\<
 function repairedStandaloneLink(body        , match                 , skillsDir        )         {
   const [, folder, target, trailing] = match;
   const targetPath = target.startsWith("skill://") ? target.slice("skill://".length) : target;
-  if (targetPath.endsWith("/SKILL.md") && existsSync(targetPath)) return body;
+  if (basename(targetPath) === "SKILL.md" && existsSync(targetPath)) return body;
   const canonicalPath = skillPath(skillsDir, folder);
   if (!canonicalPath) return body;
   return `${canonicalMention(skillsDir, folder, canonicalPath)}${trailing}`;

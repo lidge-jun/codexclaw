@@ -407,7 +407,11 @@ async function handleApprove(ctx                       )                        
 
 export function validateWorkdir(input        )                {
   const expanded =
-    input === "~" ? homedir() : input.startsWith("~/") ? homedir() + input.slice(1) : input;
+    input === "~"
+      ? homedir()
+      : input.startsWith("~/") || input.startsWith("~\\")
+        ? homedir() + input.slice(1)
+        : input;
   try {
     const real = realpathSync(resolve(expanded));
     if (!statSync(real).isDirectory()) throw new Error("not a directory");

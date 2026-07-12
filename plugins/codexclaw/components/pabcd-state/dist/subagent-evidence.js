@@ -29,7 +29,6 @@ import {
 } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { STATE_DIR, sanitizeKey } from "./state.js";
-import { execFileSync } from "node:child_process";
 
 
 /**
@@ -134,20 +133,17 @@ export function transcriptHasContextPressure(agentTranscriptPath                
  * when read-only intent is detected (convenience, not correctness path --
  * V2 ciphertext surfaces cannot be read by the hook).
  *
- * Uses `grep -qF` (fixed-string, no regex, no locale issues). The token is
- * ASCII-only high-entropy, so accidental matches in system prompt content
- * are near-zero. FAIL-OPEN: any error returns false.
+ * Uses a fixed-string check over the transcript. The token is ASCII-only
+ * high-entropy, so accidental matches in system prompt content are near-zero.
+ * FAIL-OPEN: any error returns false.
  */
 export const EVIDENCE_EXEMPT_TOKEN = "[CXC-EVIDENCE-EXEMPT]";
 
 export function transcriptHasReadOnlyMarker(agentTranscriptPath                           )          {
   if (typeof agentTranscriptPath !== "string" || agentTranscriptPath === "") return false;
   try {
-    execFileSync("grep", ["-qF", EVIDENCE_EXEMPT_TOKEN, agentTranscriptPath], {
-      stdio: "ignore",
-      timeout: 5000,
-    });
-    return true;
+    const content = readFileSync(agentTranscriptPath, "utf8");
+    return content.includes(EVIDENCE_EXEMPT_TOKEN);
   } catch {
     return false;
   }

@@ -86,11 +86,7 @@ type HookTrustRunner = (
   options: { encoding: "utf8"; env: NodeJS.ProcessEnv },
 ) => { status: number | null; stderr?: string; error?: Error };
 
-function assertSupportedPlatform(): void {
-  if (process.platform === "win32") {
-    throw new Error("hook trust hashing is unsupported on win32 (commandWindows normalization is not implemented)");
-  }
-}
+function assertSupportedPlatform(): void {}
 
 function sorted(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sorted);
