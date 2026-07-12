@@ -1,78 +1,51 @@
 # codexclaw
 
 <p align="center">
-  <img src="docs-site/public/logo.png" alt="codexclaw split Codex blossom and OpenClaw claw logo" width="180" />
+  <img src="docs-site/public/logo.png" alt="codexclaw" width="160" />
 </p>
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-lidge--jun.github.io%2Fcodexclaw-blue" alt="Docs" /></a>
+  <a href="https://lidge-jun.github.io/pabcd_initiative/"><img src="https://img.shields.io/badge/docs-pabcd.io-blue" alt="Docs" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" /></a>
 </p>
 
-cli-jaw-style development discipline and multi-model subagents for the **OpenAI Codex runtime**, packaged as a single Codex plugin.
+Development discipline and multi-model subagents for the **OpenAI Codex** runtime, packaged as a single Codex plugin. No external harness — codexclaw layers directly on the `codex` runtime.
 
-Full documentation: **https://lidge-jun.github.io/codexclaw/**
+## What it does
 
-codexclaw does **not** ship its own agent harness. It reuses the `codex` runtime and layers on top:
+- **13 dev skills** — project-agnostic coding discipline covering architecture, backend, frontend, testing, security, debugging, data, DevOps, code review, scaffolding, diagrams, and UI/UX design. Every skill inherits from a canonical `dev` parent and carries bidirectional cross-references to its siblings.
+- **PABCD workflow** — Plan / Audit / Build / Check / Done, implemented as Codex-native skills + hooks + file state. The FSM runs in `.codexclaw/sessions/`, with attestation-gated phase transitions and a durable goalplan ledger.
+- **Multi-model subagents** — role-based dispatch (explorer / reviewer / executor) with per-role model and prompt configuration, persisted and applied through the spawn-wrapper hook.
+- **Recall** — disk-artifact search across past Codex sessions and the memory store.
+- **Repo map** — tree-sitter + PageRank structure map (`cxc map`) for codebase orientation before deep dives.
+- **Skill search** — remote dormant-skill discovery over cli-jaw-skills, ClawHub, and Hermes catalogs.
+- **Optional ocx bridge** — read-only detection of opencodex for catalog and link-bar context; never mutates provider config.
 
-- **dev skills**: the cli-jaw `dev-*` family normalized to Codex `SKILL.md` convention (project-agnostic discipline: architecture, debugging, testing, review, security, ...).
-- **PABCD workflow**: Plan / Audit / Build / Check / Done, reimplemented as Codex-native skills + hooks + file state (no external orchestrator server).
-- **multi-model subagents**: role-based subagents (explorer / reviewer / executor). Per-role model/prompt config is persisted, resolved, and applied to live `spawn_agent` calls through the spawn-wrapper hook (shipped L9).
-- **optional opencodex (ocx) provider bridge**: when `ocx` is installed, codexclaw detects its read-only status for catalog/link-bar context. It never runs `ocx ensure`/`sync` or mutates Codex provider config; when `ocx` is absent, codexclaw stays on the native Codex path.
-
-## Layout
-
-```
-codexclaw/
-├── .agents/plugins/marketplace.json     # marketplace registration
-├── plugins/codexclaw/
-│   ├── .codex-plugin/plugin.json         # plugin manifest
-│   ├── skills/                           # dev-* + pabcd skills
-│   ├── hooks/                            # session-start / prompt / stop hooks
-│   ├── agents/                           # subagent role .toml definitions
-│   ├── components/                       # isolated feature sources (src + dist)
-│   │   ├── config-guard/                 # plugin enable/disable/status
-│   │   ├── cxc-ops/                      # doctor + reset
-│   │   ├── provider-bridge/              # ocx detect-only / graceful native path
-│   │   ├── pabcd-state/                  # PABCD FSM + state file + orchestrate CLI
-│   │   ├── recall/                       # Codex-native session/memory disk-artifact recall
-│   │   ├── messenger-bridge/             # messenger integration bridge (cxc serve + adapters)
-│   │   ├── skill-search/                 # remote dormant-skill search (cxc skill search/show)
-│   │   └── subagent-config/              # subagent model/prompt config store + MCP
-│   └── gui/                              # local web dashboard (Vite + React)
-├── cli/                                  # codexclaw CLI commands
-└── devlog/                               # _plan (active plans) + _fin (done)
-```
-
-## Install (target flow)
+## Install
 
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-## GUI
+## Layout
 
-The codexclaw GUI handles subagent configuration (default model vs multi-model), prompt tuning, and, when `ocx` is detected, a link bar to the opencodex dashboard at `localhost:10100`.
+```
+plugins/codexclaw/
+├── skills/          13 dev-* skills + pabcd + search + interview + recall + loop
+├── hooks/           12 hooks: session, prompt, stop, pre/post-tool, evidence, compaction
+├── components/      pabcd-state, recall, subagent-config, provider-bridge, messenger-bridge, ...
+├── gui/             local dashboard (Vite + React) for subagent config + ocx link bar
+└── cli/             cxc orchestrate, cxc map, cxc loop, cxc skill search/show
+```
 
 ## Status
 
-MVP core is implemented and the `mvp_hard` parity hardening track is complete through L20:
-L2-L9 and L11-L20 are shipped+tested (L11 docs-site shipped 2026-07-05); L10 is
-decision-closed (most is host-native). `cxc orchestrate`
-is live, chat-side phase control writes the same `.codexclaw/` state, the IPABCD
-footer/status affordance is wired, and the Stop-continuation loop runs under an active Codex
-goal with a bounded stagnation guard. Twelve hooks cover session lifecycle, orchestration,
-pre/post-tool guards, subagent evidence, and compaction recovery (the 2026-07-05 hook diet
-moved seven advisory hooks to `hooks/_deprecated/`, absorbing their rules into the `dev`
-skill; the implicit skill set is now `{dev, search, interview, pabcd, recall,
-loop}`). Remote dormant-skill search ships as `cxc skill search/show` over cli-jaw-skills,
-Hermes, ClawHub, and gh code search. See `devlog/_plan/` for the shipped ledger and
-remaining hardening slices.
+Production-ready. 1,110 tests, CI green across codexclaw and three downstream repos ([pabcd_initiative](https://github.com/lidge-jun/pabcd_initiative), [cli-jaw](https://github.com/lidge-jun/cli-jaw), [ima2-gen](https://github.com/lidge-jun/ima2-gen)). The dev skill family carries 146 unique rule IDs across 13 routers with zero contradictions, zero asymmetric cross-references, and full canonical inheritance from the parent `dev` skill.
+
+Documentation: **[pabcd_initiative docs-site](https://lidge-jun.github.io/pabcd_initiative/)**
 
 ## License
 
-MIT — see [LICENSE](LICENSE). The repo-map skill vendors RepoMapper (MIT,
-(c) 2025 Pete Davis) and Aider-derived tree-sitter queries (Apache-2.0); see
-`plugins/codexclaw/skills/repo-map/scripts/NOTICE.md` for third-party notices.
+MIT — see [LICENSE](LICENSE). Third-party notices: [`plugins/codexclaw/skills/repo-map/scripts/NOTICE.md`](plugins/codexclaw/skills/repo-map/scripts/NOTICE.md).
