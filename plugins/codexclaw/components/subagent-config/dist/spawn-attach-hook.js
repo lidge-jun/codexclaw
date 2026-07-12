@@ -35,7 +35,7 @@
  * original input and change only `message`, `model`, and/or `reasoning_effort`.
  * The hook never throws: any doubt/error -> emit "" (allow untouched).
  */
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveSpawnConfig,               } from "./store.js";
@@ -422,15 +422,109 @@ export const SKILL_AFFORDANCE_MARKER = "[CXC-SKILL-AFFORDANCE]";
  * or inlined here; this block rides as a plaintext prefix-survivor (proven
  * 260710, devlog 080) and teaches the CHILD to resolve $cxc mentions itself.
  */
+/**
+ * Leaf-safe skill folders explicitly reviewed for subagent use. WHITELIST
+ * (fail-closed): a new skill folder is invisible to subagents until added
+ * here. DISPATCH-AGENT-TYPE-01 companion. Explicit Set, not prefix-based
+ * (sol Descartes r2: dev- prefix auto-exposes future skills).
+ */
+export const LEAF_SAFE_SKILL_FOLDERS = new Set([
+  "ast-grep",
+  "dev",
+  "dev-architecture",
+  "dev-backend",
+  "dev-code-reviewer",
+  "dev-data",
+  "dev-debugging",
+  "dev-devops",
+  "dev-diagram-viewer",
+  "dev-frontend",
+  "dev-scaffolding",
+  "dev-security",
+  "dev-testing",
+  "dev-uiux-design",
+  "kwrite",
+  "qa",
+  "remote",
+  "repo-map",
+  "search",
+  "sparksearch",
+]);
+
+/**
+ * Evidence-exemption token. Dispatchers include this in worker spawn messages
+ * when the task is read-only and should not be evidence-gated. The spawn hook
+ * auto-injects it on plaintext surfaces when read-only intent is detected
+ * (convenience); V2 ciphertext surfaces require explicit dispatcher inclusion.
+ */
+export const EVIDENCE_EXEMPT_TOKEN = "[CXC-EVIDENCE-EXEMPT]";
+
+/** Read-only intent markers for auto-injection (plaintext convenience only). */
+const READ_ONLY_INTENT_MARKERS = [
+  "read-only",
+  "readonly",
+  "chat-only deliverable",
+  "no file writes",
+  "do not write files",
+  "do not edit files",
+  "no evidence files",
+];
+
+/**
+ * Check if a spawn message expresses read-only intent. Used by the spawn hook
+ * to auto-inject EVIDENCE_EXEMPT_TOKEN for plaintext worker messages.
+ */
+export function hasReadOnlyIntent(message        )          {
+  const lower = message.toLowerCase();
+  return READ_ONLY_INTENT_MARKERS.some((m) => lower.includes(m));
+}
+
+/**
+ * Scan the skills directory for leaf-safe skill metadata (name + description).
+ * Returns a compact catalog string. Reads only the YAML frontmatter of each
+ * SKILL.md — never the full body. FAIL-OPEN: any read error skips the skill.
+ */
+export function buildLeafSkillCatalog(skillsDir        )         {
+  try {
+    const entries           = [];
+    const folders = readdirSync(skillsDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && LEAF_SAFE_SKILL_FOLDERS.has(d.name))
+      .map((d) => d.name)
+      .sort();
+    for (const folder of folders) {
+      try {
+        const skillPath = resolve(skillsDir, folder, "SKILL.md");
+        if (!existsSync(skillPath)) continue;
+        const head = readFileSync(skillPath, "utf8").slice(0, 1024);
+        const nameMatch = /^name:\s*(.+)$/m.exec(head);
+        const descMatch = /^description:\s*"?([^"\n]+)"?$/m.exec(head);
+        if (!nameMatch) continue;
+        const name = nameMatch[1].trim();
+        const desc = descMatch ? descMatch[1].trim().slice(0, 120) : "";
+        entries.push(`- ${name}: ${desc}`);
+      } catch {
+        continue;
+      }
+    }
+    if (entries.length === 0) return "";
+    return ["Available skills (self-load from " + skillsDir + "/<name>/SKILL.md):", ...entries].join("\n");
+  } catch {
+    return "";
+  }
+}
+
 export function skillAffordanceBlock(skillsDir        )         {
-  return [
+  const catalog = buildLeafSkillCatalog(skillsDir);
+  const lines = [
     `${SKILL_AFFORDANCE_MARKER} Skill mentions in this task (tokens like`,
     `$cxc-<name> or $codexclaw:cxc-<name>, or [$cxc-<name>](skill://...) links)`,
     `are NOT auto-loaded on this surface. Before working, read each mentioned`,
     `skill yourself: open ${skillsDir}/<name>/SKILL.md with your file tools and`,
     `follow it. If a mentioned skill file does not exist there, note that in`,
     `your answer and continue.`,
-  ].join("\n");
+  ];
+  if (catalog) lines.push("", catalog);
+  return lines.join("\n");
 }
 
 /**
@@ -663,7 +757,21 @@ export function runSpawnAttachHook(raw        )         {
         ? LEAF_GUARD_BLOCK_COORDINATOR
         : LEAF_GUARD_BLOCK;
     const updatedMessage = guard.length > 0 ? `${guard}\n\n${affordanceMessage}` : affordanceMessage;
-    const messageChanged = updatedMessage !== message;
+
+    // DISPATCH-AGENT-TYPE-01 evidence-exempt auto-injection (plaintext convenience).
+    // When a worker message expresses read-only intent AND the token is not already
+    // present, inject it so SubagentStop releases without evidence. Skipped for
+    // ciphertext (message === normalizedMessage after failed inlining) — dispatchers
+    // must include the token explicitly on V2 ciphertext surfaces.
+    let evidenceExemptMessage = updatedMessage;
+    if (
+      role === "worker" &&
+      !updatedMessage.includes(EVIDENCE_EXEMPT_TOKEN) &&
+      hasReadOnlyIntent(updatedMessage)
+    ) {
+      evidenceExemptMessage = `${EVIDENCE_EXEMPT_TOKEN}\n${updatedMessage}`;
+    }
+    const messageChanged = evidenceExemptMessage !== message;
 
     // Model/effort routing (both surfaces): when the role's store config carries a
     // value and the caller omitted that field, inject it so .codexclaw/subagents.json
@@ -695,7 +803,7 @@ export function runSpawnAttachHook(raw        )         {
     if (!messageChanged && injectedModel === null && injectedEffort === null) return "";
 
     // Full replacement: echo every original key; change only message/model/effort.
-    const updatedInput                          = { ...toolInput, message: updatedMessage };
+    const updatedInput                          = { ...toolInput, message: evidenceExemptMessage };
     if (injectedModel !== null) updatedInput.model = injectedModel;
     if (injectedEffort !== null) updatedInput.reasoning_effort = injectedEffort;
     return `${JSON.stringify({

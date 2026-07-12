@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -371,12 +371,18 @@ test("retrustHooks rolls back the resolved config when codex verification fails"
 test("hooks retrust CLI reports each hook and backup path", async () => {
   const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo cli")] }] } });
   const home = makeCodexHome('[plugins."fixture@market"]\nenabled = true\n');
+  const binDir = tempDir("cxc-hook-bin-");
+  const codexPath = join(binDir, "codex");
+  writeFileSync(codexPath, "#!/bin/sh\nexit 0\n");
+  chmodSync(codexPath, 0o755);
   const fakeCliPath = join(root, "components", "cxc-ops", "src", "cli.ts");
   mkdirSync(dirname(fakeCliPath), { recursive: true });
   const stdout: string[] = [];
   const stderr: string[] = [];
   const originalOut = process.stdout.write;
   const originalErr = process.stderr.write;
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${binDir}:${originalPath ?? ""}`;
   process.stdout.write = ((chunk: unknown) => {
     stdout.push(String(chunk));
     return true;
@@ -394,6 +400,7 @@ test("hooks retrust CLI reports each hook and backup path", async () => {
   } finally {
     process.stdout.write = originalOut;
     process.stderr.write = originalErr;
+    process.env.PATH = originalPath;
   }
   assert.match(stdout.join(""), /\[trusted\] fixture@market:hooks\/sample\.json:stop:0:0/);
   assert.match(stdout.join(""), /backup: .*config\.toml\.bak-/);

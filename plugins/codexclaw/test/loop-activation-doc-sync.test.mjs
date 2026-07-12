@@ -29,8 +29,7 @@ test("cxc-loop activation contract stays tied to cxc-pabcd and host goal state",
   assert.match(loopSkill, /subagents never[\s\S]+create or update host goals/);
 
   assert.match(pabcdSkill, /Loop \/ goal activation handoff/);
-  assert.match(pabcdSkill, /`cxc-loop` depends on this skill; it does not replace it/);
-  assert.match(pabcdSkill, /Stop-continuation hook arms only when both are true/);
-  assert.match(pabcdSkill, /active host goal AND[\s\S]+non-IDLE PABCD cycle/);
-  assert.match(pabcdSkill, /main session owns host-goal[\s\S]+PABCD transitions/);
+  assert.match(pabcdSkill, /`cxc-loop` depends on PABCD; it does not replace it/);
+  assert.match(pabcdSkill, /HOTL requires both an ACTIVE host goal and a non-IDLE PABCD cycle before Stop[\s\S]+continuation arms/);
+  assert.match(pabcdSkill, /main session alone owns host-goal lifecycle and PABCD[\s\S]+transitions/);
 });

@@ -426,9 +426,9 @@ test("L3b: a prompt with no command still falls through to the loose detectTrigg
   const cwd = freshCwd();
   try {
     const out = handleUserPromptSubmit(ups("plan this feature", cwd, "s7", "t1"));
-    // loose path injects the P directive but does NOT move phase via the wire.
+    // Loose plan triggers inject P and persist that detected phase without a command ledger entry.
     assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, withFooter(phaseDirective("P"), "P"));
-    assert.equal(readState(cwd, "s7").phase, "IDLE"); // loose path leaves phase alone
+    assert.equal(readState(cwd, "s7").phase, "P");
     assert.equal(ledgerLines(cwd).length, 0);
   } finally {
     rmSync(cwd, { recursive: true, force: true });

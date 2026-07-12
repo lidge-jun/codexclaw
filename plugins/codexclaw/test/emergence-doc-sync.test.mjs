@@ -32,11 +32,11 @@ test("emergence 070: docs, HTML, and skills preserve the collapse-point doctrine
   assert.match(plan070, /only the goal-mode plateau Stop block is the shipped E2 lever/);
 
   assert.match(loopSkill, /HITL PABCD/);
-  assert.match(loopSkill, /plateau-triggered mode[\s\S]+automatic entry/);
-  assert.match(loopSkill, /strong-1[\s\S]+add-1/);
+  assert.match(loopSkill, /non-improving maximize metrics may prompt it via[\s\S]+Stop hook/);
+  assert.match(loopSkill, /Tier 0 inline concepts[\s\S]+Tier 1 conceptual[\s\S]+Tier 2 isolated executable races/);
   assert.match(loopSkill, /Collapse\s+early at P[\s\S]+Collapse\s+late at D/);
-  assert.match(loopSkill, /HITL divergence entry is valid/);
-  assert.match(devSkill, /user-facing question\s+does not/);
+  assert.match(loopSkill, /Activate divergence deliberately during HITL I\/P/);
+  assert.match(devSkill, /Promotion alone[\s\S]+does not force a user question/);
 
   assert.match(searchSkill, /Divergence Candidate Grounding/);
   assert.match(searchSkill, /HITL manual entry or goal-mode/);
