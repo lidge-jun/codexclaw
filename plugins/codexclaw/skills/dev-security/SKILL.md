@@ -48,6 +48,8 @@ Use this skill together with the domain skill, not instead of it:
 - Frontend rendering patterns and anti-slop UI guardrails: See `dev-frontend/SKILL.md` §§4-5.
 - Test strategy and execution flow: See `dev-testing`.
 - Review severity and review flow: See `dev-code-reviewer/SKILL.md` §§1-2.
+- Security-sensitive RCA and incident forensics: see `dev-debugging`.
+- Security middleware placement and initial security config: see `dev-scaffolding`.
 - Data pipeline design: See `dev-data/SKILL.md` §§2-4.
 
 ## Threat Model First

@@ -9,6 +9,10 @@ metadata:
 # Testing & QA
 Balance: ~40% Backend/API, ~40% Frontend/E2E (Playwright), ~20% Cross-cutting (CI, Security, TDD, Coverage) -- directional guidance, not a hard ratio.
 **Scope**: test harnesses, fixtures, mock policy, runners, Playwright, CI gates, coverage. Root-cause analysis and debugging playbooks → `dev-debugging`.
+- Review/test boundary and test adequacy findings: see `dev-code-reviewer`.
+- CI pipeline ownership and deployment verification: see `dev-devops`.
+- Data pipeline testing and ETL validation: see `dev-data`.
+- Design direction context for rendered verification: see `dev-uiux-design`.
 This skill activates by change-surface when work needs verification depth, regression coverage, or a reproducible test harness.
 
 > **C0/C1 work (small local patches):** See `dev` §0.0 Work Classifier + §0.1 Patch Fast-Path before reading references.

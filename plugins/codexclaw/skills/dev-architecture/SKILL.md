@@ -322,6 +322,9 @@ When reviewing any PR that adds/modifies module structure, verify:
 
 - **Observability**: Trace emission at module boundaries is a production/long-lived-runtime concern (DEFAULT there, not universal). See `dev-backend/references/core/observability.md` for the canonical OTel setup.
 - **Security**: Validate at every trust/process/external boundary (HTTP entry, IPC, file/CLI input, third-party responses). Intra-trust-domain module calls follow §4 boundary-only defense — do not re-validate already-trusted data. See `dev-security/SKILL.md` for input validation and auth patterns.
+- Coupling and boundary review: see `dev-code-reviewer`.
+- Debugging escalation for boundary or coupling issues: see `dev-debugging`.
+- Infrastructure architecture and deployment boundaries: see `dev-devops`.
 
 ---
 

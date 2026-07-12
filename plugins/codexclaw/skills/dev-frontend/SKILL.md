@@ -73,6 +73,11 @@ wiring, visual verification, and frontend platform rules.
 Start with `anti-slop.md`, `aesthetics.md`, `responsive-viewport.md`, and `visual-verification.md`. Add domain/locale/stack references only when relevant.
 For C2 ordinary app screens (form/table/list/detail), `crud-ui.md` alone suffices; add the style references above for marketing/visual surfaces or C3+ work.
 
+- UI/rendering bug RCA: load `dev-debugging`.
+- Build pipeline, bundle config, or deployment: load `dev-devops`.
+- Project setup or file placement conventions: load `dev-scaffolding`.
+- Data-driven dashboards, reporting views, or data format expectations: load `dev-data`.
+
 When frontend choices depend on current framework, design-system, browser API, library
 behavior, or package/source freshness, follow `dev` §External Evidence and Recall Routing
 and load the `search` skill for current/external lookups.
