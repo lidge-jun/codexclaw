@@ -1,26 +1,47 @@
-# codexclaw
+<p align="center">
+  <img src="docs-site/public/logo.png" alt="codexclaw" width="140" />
+</p>
+
+<h1 align="center">codexclaw</h1>
 
 <p align="center">
-  <img src="docs-site/public/logo.png" alt="codexclaw" width="160" />
+  Development discipline and multi-model subagents for <strong>OpenAI Codex</strong>,<br>
+  packaged as a single plugin.
 </p>
 
 <p align="center">
-  <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="https://lidge-jun.github.io/pabcd_initiative/"><img src="https://img.shields.io/badge/docs-pabcd.io-blue" alt="Docs" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" /></a>
+  <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/tests-1%2C110_passing-brightgreen" alt="1,110 tests passing">
+  <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
+  <img src="https://img.shields.io/badge/hooks-14-blue" alt="14 hooks">
+  <a href="https://lidge-jun.github.io/pabcd_initiative/"><img src="https://img.shields.io/badge/docs-pabcd_initiative-black" alt="Documentation"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
 
-Development discipline and multi-model subagents for the **OpenAI Codex** runtime, packaged as a single Codex plugin. No external harness — codexclaw layers directly on the `codex` runtime.
+---
 
-## What it does
+codexclaw turns the Codex runtime into a disciplined development environment. It does not ship its own agent harness — it layers skills, hooks, and components directly on `codex`, adding structured workflows, coding discipline, and multi-model orchestration that the base runtime doesn't provide.
 
-- **13 dev skills** — project-agnostic coding discipline covering architecture, backend, frontend, testing, security, debugging, data, DevOps, code review, scaffolding, diagrams, and UI/UX design. Every skill inherits from a canonical `dev` parent and carries bidirectional cross-references to its siblings.
-- **PABCD workflow** — Plan / Audit / Build / Check / Done, implemented as Codex-native skills + hooks + file state. The FSM runs in `.codexclaw/sessions/`, with attestation-gated phase transitions and a durable goalplan ledger.
-- **Multi-model subagents** — role-based dispatch (explorer / reviewer / executor) with per-role model and prompt configuration, persisted and applied through the spawn-wrapper hook.
-- **Recall** — disk-artifact search across past Codex sessions and the memory store.
-- **Repo map** — tree-sitter + PageRank structure map (`cxc map`) for codebase orientation before deep dives.
-- **Skill search** — remote dormant-skill discovery over cli-jaw-skills, ClawHub, and Hermes catalogs.
-- **Optional ocx bridge** — read-only detection of opencodex for catalog and link-bar context; never mutates provider config.
+## Features
+
+**Dev Skill Family** — 13 surface-specific routers (`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-diagram-viewer`, `dev-uiux-design`) governed by a canonical parent (`dev`). Every router inherits the parent's rule classes, verification gate, and safety rules. 146 unique rule IDs, 33 bidirectional cross-reference pairs, zero contradictions.
+
+**PABCD Workflow** — Plan / Audit / Build / Check / Done, implemented as a file-backed FSM with attestation-gated transitions. Phases advance through `cxc orchestrate` commands; each transition carries structured evidence. A durable goalplan ledger tracks work phases, success criteria, and captured proof across multiple cycles.
+
+```
+IDLE ── P ── A ── B ── C ── D ── IDLE
+       │    │    │
+      gate  gate gate
+       └────┴────┴──── I (Interview, context preserved)
+```
+
+**Multi-Model Subagents** — role-based dispatch (explorer / reviewer / executor) with per-role model and prompt overrides. Configuration persists across sessions and applies automatically through the spawn-wrapper hook. A local GUI (Vite + React) provides visual config and, when opencodex is detected, a provider link bar.
+
+**Recall** — searches past Codex conversations and the memory store from disk artifacts before asking the user, so context survives session boundaries and compaction.
+
+**Repo Map** — `cxc map <dir>` runs tree-sitter parsing + PageRank ranking to produce a structure overview of unfamiliar code, letting the agent orient before deep `rg` dives.
+
+**Skill Search** — `cxc skill search <query>` discovers dormant skills across cli-jaw-skills (primary), ClawHub, and Hermes catalogs. `cxc skill show <id>` loads them on demand.
 
 ## Install
 
@@ -29,23 +50,93 @@ codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-## Layout
+## Architecture
 
 ```
 plugins/codexclaw/
-├── skills/          13 dev-* skills + pabcd + search + interview + recall + loop
-├── hooks/           12 hooks: session, prompt, stop, pre/post-tool, evidence, compaction
-├── components/      pabcd-state, recall, subagent-config, provider-bridge, messenger-bridge, ...
-├── gui/             local dashboard (Vite + React) for subagent config + ocx link bar
-└── cli/             cxc orchestrate, cxc map, cxc loop, cxc skill search/show
+│
+├── skills/                      29 skills
+│   ├── dev/                     canonical parent — work classifier, routing, verification gate
+│   ├── dev-*/                   13 surface routers (architecture → uiux-design)
+│   ├── pabcd/                   PABCD workflow phases + attestation
+│   ├── loop/                    durable goalplan + Stop-continuation contract
+│   ├── interview/               IPABCD requirements discovery
+│   ├── search/                  web search + evidence routing ladder
+│   ├── recall/                  past-session + memory store search
+│   └── repo-map/                tree-sitter + PageRank structure map
+│
+├── hooks/                       14 hooks across the session lifecycle
+│   ├── session-start-*          provider bridge, PABCD bootstrap, map affordance
+│   ├── user-prompt-submit-*     PABCD trigger detection
+│   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
+│   ├── post-tool-use-*          interview capture, render observation
+│   ├── stop-*                   PABCD continuation under active goals
+│   ├── subagent-stop-*          evidence verification for worker dispatches
+│   └── post-compact-*           cursor reinject after context compaction
+│
+├── components/                  8 isolated feature modules (src + dist)
+│   ├── pabcd-state/             FSM engine, session files, orchestrate CLI, attest gates
+│   ├── subagent-config/         per-role model/prompt store + MCP surface
+│   ├── recall/                  disk-artifact search across sessions + memory
+│   ├── skill-search/            remote catalog query (jaw / clawhub / hermes)
+│   ├── provider-bridge/         read-only opencodex detection
+│   ├── messenger-bridge/        Telegram/Discord adapter (cxc serve)
+│   ├── config-guard/            plugin enable/disable/status
+│   └── cxc-ops/                 doctor + reset utilities
+│
+├── gui/                         local dashboard (Vite + React)
+└── cli/                         cxc orchestrate | map | loop | skill | ...
 ```
 
-## Status
+## Dev Skill Family
 
-Production-ready. 1,110 tests, CI green across codexclaw and three downstream repos ([pabcd_initiative](https://github.com/lidge-jun/pabcd_initiative), [cli-jaw](https://github.com/lidge-jun/cli-jaw), [ima2-gen](https://github.com/lidge-jun/ima2-gen)). The dev skill family carries 146 unique rule IDs across 13 routers with zero contradictions, zero asymmetric cross-references, and full canonical inheritance from the parent `dev` skill.
+Every coding task is classified (C0-C5) before process depth is chosen. The parent `dev` skill routes to surface-specific routers based on what's being changed:
 
-Documentation: **[pabcd_initiative docs-site](https://lidge-jun.github.io/pabcd_initiative/)**
+| Surface | Router | Also loads |
+|---------|--------|------------|
+| Backend / API | `dev-backend` | `dev-security` for auth |
+| Frontend / UI | `dev-frontend` | `dev-uiux-design` for direction |
+| Database / data | `dev-data` | `dev-backend` for migrations |
+| Tests / QA | `dev-testing` | `dev-frontend` for browser QA |
+| Security | `dev-security` | surface-specific router |
+| Architecture | `dev-architecture` | `dev-scaffolding` for structure |
+| Debugging | `dev-debugging` | surface-specific router |
+| DevOps / infra | `dev-devops` | `dev-security` for credentials |
+| Scaffolding | `dev-scaffolding` | `dev-architecture` for boundaries |
+| Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
+| Diagrams | `dev-diagram-viewer` | — |
+
+Each router carries its own modular references (loaded on demand, never preloaded) and inherits the parent's verification gate, rule classes, and safety rules.
+
+## CLI
+
+```bash
+cxc orchestrate P|A|B|C|D|status|reset   # PABCD phase control
+cxc loop init|show|validate               # durable goalplan management
+cxc map <dir>                             # tree-sitter structure map
+cxc skill search <query>                  # remote skill discovery
+cxc skill show <id>                       # load a discovered skill
+cxc help                                  # command reference
+```
+
+## Ecosystem
+
+codexclaw is the reference implementation. The methodology and skills are ported (agent-neutral, no plugin dependency) to:
+
+| Repo | Role |
+|------|------|
+| [pabcd_initiative](https://github.com/lidge-jun/pabcd_initiative) | Methodology spec + docs-site + agent-neutral skill set |
+| [cli-jaw](https://github.com/lidge-jun/cli-jaw) | Boss/employee agent harness with skills_ref submodule |
+| [ima2-gen](https://github.com/lidge-jun/ima2-gen) | Image generation tool with ima2-front/ima2-uiux skills |
+
+## Documentation
+
+Full methodology documentation with research provenance: **[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)**
+
+Covers skill architecture, delegation economy, loop contracts, devlog records, and arXiv-backed claim ledger.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Third-party notices: [`plugins/codexclaw/skills/repo-map/scripts/NOTICE.md`](plugins/codexclaw/skills/repo-map/scripts/NOTICE.md).
+[MIT](LICENSE)
+
+Third-party: RepoMapper (MIT, Pete Davis) and Aider tree-sitter queries (Apache-2.0). See [`NOTICE.md`](plugins/codexclaw/skills/repo-map/scripts/NOTICE.md).
