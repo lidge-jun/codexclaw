@@ -61,6 +61,9 @@ MUST preserve mature repo conventions over the default scaffold pattern.
 Keep it light:
 - Cross-link scaffold docs to evidence paths (`path:line`, plan file, ADR, current-architecture note) so future workers can audit why files exist.
 - Follow existing phase/decade numbering when present; do not flatten or renumber local history.
+- In multi-cycle loop units, the decade docs (010, 020, 030...) are authored during
+  the docs-only first work-phase (LOOP-DOCS-FIRST-01, `cxc-loop`), not scaffolded
+  empty.
 - Treat source-of-truth placement as part of scaffolding completion: the final audit must say which durable convention was reused or that none existed.
 - Boundary/public-export decisions still route to `dev-architecture` §1 (`ARCH-DECISION-01`, `ARCH-MAP-01`); scaffolding owns file placement and skeleton consistency.
 

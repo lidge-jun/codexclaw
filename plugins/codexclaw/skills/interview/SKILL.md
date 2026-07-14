@@ -19,6 +19,11 @@ Use this skill to enter or continue Codexclaw's IPABCD Interview phase.
 - Re-scan contradictions after every user answer.
 - Do not advance to Plan while a high contradiction or pending question remains.
 - Record medium/low unresolved items as OPEN ASSUMPTIONS before leaving Interview.
+- When Interview reveals work that will span 2+ PABCD cycles, flag the unit as
+  multi-cycle so that the first work-phase enters as a docs-only roadmap cycle
+  (LOOP-DOCS-FIRST-01, `cxc-loop`). Interview settles unit residence
+  (UNIT-RESIDENCE-01) but does not write decade docs — that is the roadmap
+  cycle's job.
 
 ## Question quality (INTERVIEW-Q-01)
 

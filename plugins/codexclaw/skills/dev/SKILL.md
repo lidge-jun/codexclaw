@@ -112,6 +112,9 @@ findings only) · docs-only work (no code gates, docs consistency checks instead
 PABCD, goal, divergence, and repeated work-phase mechanics are canonical in
 `pabcd` and `cxc-loop`. Load those skills when the selected process requires
 them; classify each work-phase independently.
+Multi-cycle loops (2+ work-phases) enter docs-first: the first work-phase is a
+docs-only PABCD that locks the diff-level roadmap before any implementation cycle
+(LOOP-DOCS-FIRST-01, `cxc-loop`).
 
 **Production surface (shared definition):** a surface is production when it is deployed
 for real users beyond the author; prototypes, spikes, and internal demos are not. Skills
@@ -170,6 +173,8 @@ Two scoped ladders exist — the ordering is intentional, not contradictory:
 |---------|--------|----------------------------------------------|-------|
 | Public-web proof (search, research, URL verification) | SEARCH-BROWSE-01 | 1. `agbrowse` (scripted HTTP/CDP) → 2. `browser:control-in-app-browser` → 3. `chrome:control-chrome` → 4. `computer-use:computer-use` | `cxc-search` Tier 2 |
 | QA of agent-built/served surfaces | QA-TOOL-LADDER-01 | 1. `browser:control-in-app-browser` → 2. `chrome:control-chrome` → 3. `computer-use:computer-use` → 4. `agbrowse` (public-URL shape checks only) | `dev-testing` §4.6 |
+
+> **agbrowse 실패 시:** agbrowse 명령이 실패하면(connection refused, no browser 등) `agbrowse start`부터 실행한 뒤 재시도할 것.
 
 Full ladder protocols and rationale live in their owners above.
 

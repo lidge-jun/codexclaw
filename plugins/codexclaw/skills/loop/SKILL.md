@@ -1,6 +1,6 @@
 ---
 name: cxc-loop
-description: "Use for Codexclaw PABCD work-loop planning and durable goalplans: HITL phase discipline, HOTL goal activation, work-phases, criteria, checkpoints, evidence ledgers, cxc-pabcd activation, repeated work-phases, divergence/collapse policy, Stop-continuation policy, and quality gates. Triggers: cxc-loop, loop, autonomous continuation, continue until done, HOTL, HITL PABCD, repeated PABCD, work-phase loop, goalplan, goal plan, success criteria, checkpoint, steering, quality gate, evidence ledger, PABCD 여러 번, 여러 번 돌려, 반복 실행, 루프 돌려, 끝까지 해줘."
+description: "Use for Codexclaw PABCD work-loop planning and durable goalplans: HITL phase discipline, HOTL goal activation, work-phases, criteria, checkpoints, evidence ledgers, cxc-pabcd activation, repeated work-phases, divergence/collapse policy, Stop-continuation policy, and quality gates. Triggers: cxc-loop, loop, autonomous continuation, continue until done, HOTL, HITL PABCD, repeated PABCD, work-phase loop, goalplan, goal plan, success criteria, checkpoint, steering, quality gate, evidence ledger, PABCD 여러 번, 여러 번 돌려, 반복 실행, 루프 돌려, 끝까지 해줘, docs-first, 문서화 먼저, 로드맵 사이클."
 metadata:
   short-description: "PABCD continuation + durable goalplan + divergence/collapse loop contract."
 ---
@@ -45,7 +45,8 @@ remain yours to run.
 ## Contract
 
 - `cxc-loop` is an overlay on `cxc-pabcd`, not a replacement. Before claiming a
-  loop is active, follow `cxc-pabcd` phase semantics and enter a real PABCD state
+  loop is active, follow `cxc-pabcd` phase semantics (multi-cycle loops: read the
+  rules named in LOOP-READS-PABCD-01 below first) and enter a real PABCD state
   with `cxc orchestrate I|P --session <id>` (or the human free-pass chat surface).
   `<id>` is YOUR session id from the SessionStart binding line — never an id seen
   in transcript history (SESSION-IDENTITY-01, canonical in `cxc-pabcd` §Control
@@ -82,6 +83,47 @@ remain yours to run.
 - Goal mode is PABCD-only: while a goal is active the Interview NEVER fires (entry is
   suppressed and `request_user_input` is hard-denied). The Interview is HITL-only and
   runs only with no active goal; the Stop hook never drives the Interview.
+
+## Docs-first multi-cycle entry (LOOP-DOCS-FIRST-01, DEFAULT — STRICT for HOTL)
+
+A loop is a chain of PABCD cycles, and a chain is only as disciplined as the
+documents each cycle re-reads at P. Memory lives on disk, not in the transcript —
+so a loop that will span 2+ work-phases buys its memory FIRST:
+
+1. **Register and document in the same motion.** Arm the goalplan
+   (`workPhases[]` + `criteria[]`, skeleton is fine) AND run the FIRST
+   work-phase as a **docs-only PABCD cycle** (the `cxc-pabcd` Phase-0 pass).
+   Its deliverable is the devlog unit: `000-009` research plus EVERY
+   implementation phase's decade doc (`010`, `020`, `030`, ... with sub-docs
+   like `021` where a phase needs finer grain) written to full diff-level
+   precision (DIFFLEVEL-ROADMAP-01).
+2. **The roadmap cycle's D is the roadmap lock.** Closing it finalizes the
+   goalplan: `workPhases[]` are refined to map 1:1 onto the decade docs.
+   The initial registration is a skeleton; the lock is the docs-only D, and
+   the map stays APPEND-friendly afterwards (LOOP-UNIT-CHAIN-01).
+3. **Implementation starts at the NEXT cycle.** Each later work-phase consumes
+   exactly one decade doc as one full PABCD cycle: its P re-verifies the
+   pre-written doc against the current tree (stale check), amends it, then
+   executes. Never implement two decade docs in one B.
+4. **Docs-only means docs-only.** Allowed in the first cycle: research notes,
+   inventories, DESIGN.md, repro/state snapshots, the decade docs themselves.
+   Not allowed: production code patches, deploy actions, or completion claims
+   for implementation criteria.
+
+**Mandatory read (LOOP-READS-PABCD-01, STRICT):** before claiming any
+multi-cycle loop, READ `cxc-pabcd` §Implementation-Unit Documents — specifically
+DIFFLEVEL-ROADMAP-01, PHASE-SPLIT-01 (dependency-ordered slicing, no effort
+buckets), LEXICO-SPLIT-01 (numbered docs, research/implementation separation),
+UNIT-RESIDENCE-01, and the one-work-phase-one-cycle invariant. Running a loop
+from this skill alone, without those rules loaded, is a contract violation:
+`cxc-loop` owns WHEN the loop enters docs-first; `cxc-pabcd` owns WHAT the
+documents must be. Do not restate its rules here; read them there.
+
+Exemptions: a loop that genuinely fits ONE work-phase skips the docs-only cycle
+(ordinary `cxc-pabcd` ceremony applies); C0/C1 fast-path work is untouched. If
+multi-cycle scope is DISCOVERED mid-loop, the docs-first debt comes due: the
+next P is the roadmap amendment that writes the missing decade docs before
+further implementation cycles.
 
 ## HOTL Goal-Setting Rule
 

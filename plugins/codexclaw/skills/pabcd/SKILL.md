@@ -246,7 +246,10 @@ all per-phase decade docs (010_phase1, 020_phase2, ...) to diff-level up front
 later cycle's P re-verifies its pre-written doc against the current codebase and
 amends it before building. The first pass MAY be a design-only PABCD pass (Phase 0):
 a code-free whole-system design/documentation cycle that produces exactly this
-difflevel roadmap before the first implementation work-phase.
+difflevel roadmap before the first implementation work-phase. Under a `cxc-loop`
+multi-cycle entry this Phase-0 docs-only pass is the DEFAULT first work-phase, and
+STRICT for HOTL goal loops (LOOP-DOCS-FIRST-01, `cxc-loop`) — there the roadmap
+cycle's D locks the goalplan work-phase map before any implementation cycle starts.
 The slice map is APPEND-friendly (LOOP-UNIT-CHAIN-01): an independent unit discovered
 mid-loop — including a feature unrelated to the current slice — becomes a NEW
 work-phase appended to the map/goalplan via a P-phase amendment, then runs as the next

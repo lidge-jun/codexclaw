@@ -165,6 +165,11 @@ contract). Recording that dropped idea here keeps a future maintainer from
   that validates the claim; shared-behavior or security changes need the full suite.
 - Commits are **small, atomic, conventional**, each independently reversible.
   `push` / `reset` / `force` require explicit human approval.
+- Multi-cycle loops buy their memory first: the first work-phase is a docs-only
+  PABCD that writes the diff-level roadmap (decade docs + research notes) before
+  any implementation cycle. Memory lives on disk, not in the transcript — a loop
+  that skips this step loses its steering between cycles
+  (LOOP-DOCS-FIRST-01, `cxc-loop`).
 
 ---
 
