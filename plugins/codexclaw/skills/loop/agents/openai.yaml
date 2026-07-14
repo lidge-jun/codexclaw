@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-loop"
-  short_description: "HOTL work-phase continuation."
+  short_description: "HOTL work-phase continuation - one PABCD cycle per work-phase, arm with cxc orchestrate (PABCD 여러 번/루프 돌려)."
 policy:
   allow_implicit_invocation: true

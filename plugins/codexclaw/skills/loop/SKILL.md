@@ -1,6 +1,6 @@
 ---
 name: cxc-loop
-description: "Use for Codexclaw PABCD work-loop planning and durable goalplans: HITL phase discipline, HOTL goal activation, work-phases, criteria, checkpoints, evidence ledgers, cxc-pabcd activation, repeated work-phases, divergence/collapse policy, Stop-continuation policy, and quality gates. Triggers: cxc-loop, loop, autonomous continuation, continue until done, HOTL, HITL PABCD, repeated PABCD, work-phase loop, goalplan, goal plan, success criteria, checkpoint, steering, quality gate, evidence ledger."
+description: "Use for Codexclaw PABCD work-loop planning and durable goalplans: HITL phase discipline, HOTL goal activation, work-phases, criteria, checkpoints, evidence ledgers, cxc-pabcd activation, repeated work-phases, divergence/collapse policy, Stop-continuation policy, and quality gates. Triggers: cxc-loop, loop, autonomous continuation, continue until done, HOTL, HITL PABCD, repeated PABCD, work-phase loop, goalplan, goal plan, success criteria, checkpoint, steering, quality gate, evidence ledger, PABCD 여러 번, 여러 번 돌려, 반복 실행, 루프 돌려, 끝까지 해줘."
 metadata:
   short-description: "PABCD continuation + durable goalplan + divergence/collapse loop contract."
 ---

@@ -19,6 +19,7 @@ import {
   countSourceFiles,
   renderMapAffordance,
   renderKwriteAffordance,
+  renderLoopAffordance,
   renderSessionBinding,
   renderSkillSearchAffordance,
   runMapAffordanceSessionStart,
@@ -96,6 +97,19 @@ test("kwrite affordance: always on, genre-free pointer to $cxc-kwrite", () => {
   const small = tmp();
   const out = runMapAffordanceSessionStart("", small);
   assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /cxc-kwrite/);
+});
+
+test("ORCH-ARM-VISIBILITY-01: loop-contract line rides every SessionStart envelope", () => {
+  const text = renderLoopAffordance();
+  assert.match(text, /Loop contract:/);
+  assert.match(text, /cxc orchestrate status/);
+  assert.match(text, /one full PABCD cycle/i);
+  assert.match(text, /cxc-loop/);
+  assert.ok(text.length < 600, "affordance must stay a one-liner-ish pointer");
+  // rides every SessionStart envelope regardless of repo size
+  const small = tmp();
+  const out = runMapAffordanceSessionStart("", small);
+  assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /Loop contract:/);
 });
 
 test("G3: session-id binding line rides the SessionStart envelope", () => {

@@ -273,7 +273,7 @@ export const SUBSPAWN_TOKEN = "CXC-SUBSPAWN-ALLOWED";
 /** Dedupe marker for the leaf guard block. */
 export const LEAF_GUARD_MARKER = "[CXC-LEAF-GUARD]";
 
-/** D2 leaf-constraint block prepended to every allowed spawn message. */
+/** D2 leaf-constraint block prepended to V2 spawn messages (v2 has no native depth limit). */
 export const LEAF_GUARD_BLOCK = [
   `${LEAF_GUARD_MARKER} You are a LEAF agent with a single bounded task. HARD`,
   `CONSTRAINTS from your dispatcher: (1) Do NOT spawn`,
@@ -288,13 +288,35 @@ export const LEAF_GUARD_BLOCK = [
   `including the recursion grant token in the spawn message.`,
 ].join("\n");
 
-/** D2 coordinator block used when recursion is explicitly authorized. */
+/** D2 coordinator block used when recursion is explicitly authorized (V2). */
 export const LEAF_GUARD_BLOCK_COORDINATOR = [
   `${LEAF_GUARD_MARKER} You are a COORDINATOR agent with a single bounded task. HARD`,
   `CONSTRAINTS from your dispatcher:`,
   `(1) Recursion is authorized for this task. (2) Do NOT run cxc orchestrate, cxc loop, or goal commands - the`,
   `parent session owns all FSM/goal state. (3) Stay inside the task's stated`,
   `file/write scope. All remaining constraints still apply.`,
+].join("\n");
+
+/** Dedupe marker for the v1 scope guard block. */
+export const SCOPE_GUARD_MARKER = "[CXC-SUBAGENT-SCOPE]";
+
+/**
+ * V1 scope-owner block: FSM ownership + write scope only. Spawn restriction is
+ * omitted because v1 subagents cannot recursively spawn — native agents.max_depth
+ * (default 1) rejects depth 2+, and the D1 hook deny blocks child spawn_agent calls.
+ */
+export const V1_SCOPE_BLOCK = [
+  `${SCOPE_GUARD_MARKER} This is one bounded delegated task. The parent`,
+  `owns cxc orchestration, loop, and goal state; do not invoke those`,
+  `commands. Stay within the stated file/write scope and report any`,
+  `required expansion.`,
+].join("\n");
+
+/** V1 coordinator scope block (recursion-granted, though v1 cannot actually recurse). */
+export const V1_SCOPE_BLOCK_COORDINATOR = [
+  `${SCOPE_GUARD_MARKER} This is one bounded delegated task with authorized`,
+  `recursion. The parent owns cxc orchestration, loop, and goal state;`,
+  `do not invoke those commands. Stay within the stated file/write scope.`,
 ].join("\n");
 
 /** True when the hook stdin identifies a thread-spawn SUBAGENT session as the spawner. */
@@ -746,16 +768,22 @@ export function runSpawnAttachHook(raw        )         {
       if (candidate.length <= MAX_NORMALIZE_LENGTH) affordanceMessage = candidate;
     }
 
-    // D2 LEAF-GUARD (both surfaces): dedupe an existing guard. A recursion grant
-    // selects the coordinator variant but does not remove FSM/goal or write-scope
-    // constraints.
-    const hasExistingGuard = markerScanSource.includes(LEAF_GUARD_MARKER);
+    // D2 GUARD (surface-split): v2 gets full LEAF_GUARD_BLOCK (no native depth
+    // limit); v1 gets compact V1_SCOPE_BLOCK (spawn is architecturally impossible
+    // on v1 — max_depth + D1 deny). Dedupe checks only the surface-appropriate
+    // marker to prevent cross-surface contamination (a foreign marker must not
+    // suppress the surface's own guard).
+    const surfaceMarker = v2Spawn ? LEAF_GUARD_MARKER : SCOPE_GUARD_MARKER;
+    const hasExistingGuard = markerScanSource.includes(surfaceMarker);
     const hasRecursionGrant = markerScanSource.includes(SUBSPAWN_TOKEN);
-    const guard = hasExistingGuard
-      ? ""
-      : hasRecursionGrant
-        ? LEAF_GUARD_BLOCK_COORDINATOR
-        : LEAF_GUARD_BLOCK;
+    let guard        ;
+    if (hasExistingGuard) {
+      guard = "";
+    } else if (v2Spawn) {
+      guard = hasRecursionGrant ? LEAF_GUARD_BLOCK_COORDINATOR : LEAF_GUARD_BLOCK;
+    } else {
+      guard = hasRecursionGrant ? V1_SCOPE_BLOCK_COORDINATOR : V1_SCOPE_BLOCK;
+    }
     const updatedMessage = guard.length > 0 ? `${guard}\n\n${affordanceMessage}` : affordanceMessage;
 
     // DISPATCH-AGENT-TYPE-01 evidence-exempt auto-injection (plaintext convenience).
@@ -771,34 +799,68 @@ export function runSpawnAttachHook(raw        )         {
     ) {
       evidenceExemptMessage = `${EVIDENCE_EXEMPT_TOKEN}\n${updatedMessage}`;
     }
-    const messageChanged = evidenceExemptMessage !== message;
 
-    // Model/effort routing (both surfaces): when the role's store config carries a
-    // value and the caller omitted that field, inject it so .codexclaw/subagents.json
-    // is honored at spawn time. Caller-picked values win. The two fields are decided
-    // INDEPENDENTLY (a caller model does not disable configured-effort injection).
-    // FULL-HISTORY FORK GUARD: codex-rs hard-rejects model/reasoning_effort overrides
-    // on full-history forks (v1 fork_context:true; v2 fork_turns omitted/"all"), so
-    // injection is skipped entirely there — a configured role model must never turn
-    // a valid fork spawn into a rejected one.
+    // Role config routing (both surfaces). resolveSpawnConfig is called once;
+    // promptOverride, model, and effort are decided independently.
+    //
+    // promptOverride modifies the MESSAGE text (like guards and affordances), so it
+    // is injected regardless of fork mode — codex-rs does not reject message changes
+    // on full-history forks, only model/reasoning_effort overrides.
+    //
+    // FULL-HISTORY FORK GUARD (model/effort only): codex-rs hard-rejects
+    // model/reasoning_effort overrides on full-history forks, so those two fields
+    // are skipped there. promptOverride is not subject to this guard.
     const cwd = typeof obj.cwd === "string" && obj.cwd.length > 0 ? obj.cwd : process.cwd();
+    const resolution = resolveSpawnConfig(cwd, role);
     let injectedModel                = null;
     let injectedEffort                = null;
+    // promptOverride: always resolved (not gated by full-history fork).
+    const injectedPrompt = typeof resolution.promptOverride === "string" && resolution.promptOverride.trim().length > 0
+      ? resolution.promptOverride.trim()
+      : null;
     if (!isFullHistoryFork(toolInput)) {
       const callerModel = toolInput.model;
       const callerPickedModel = typeof callerModel === "string" && callerModel.trim().length > 0;
       const callerEffort = toolInput.reasoning_effort;
       const callerPickedEffort = typeof callerEffort === "string" && callerEffort.trim().length > 0;
-      if (!callerPickedModel || !callerPickedEffort) {
-        const resolution = resolveSpawnConfig(cwd, role);
-        if (!callerPickedModel && !resolution.usesMainModel && typeof resolution.model === "string" && resolution.model.length > 0) {
-          injectedModel = resolution.model;
-        }
-        if (!callerPickedEffort && typeof resolution.effort === "string" && resolution.effort.length > 0) {
-          injectedEffort = resolution.effort;
+      if (!callerPickedModel && !resolution.usesMainModel && typeof resolution.model === "string" && resolution.model.length > 0) {
+        injectedModel = resolution.model;
+      }
+      if (!callerPickedEffort && typeof resolution.effort === "string" && resolution.effort.length > 0) {
+        injectedEffort = resolution.effort;
+      }
+    }
+
+    // Apply promptOverride to the message: insert after the guard block but before
+    // the original task content. This mirrors spawn-wrapper.ts behavior where
+    // promptOverride replaces/prepends role instructions.
+    if (injectedPrompt !== null) {
+      if (guard.length > 0) {
+        // Guard is at the start; insert promptOverride between guard and task content.
+        evidenceExemptMessage = evidenceExemptMessage.replace(
+          `${guard}\n\n`,
+          `${guard}\n\n${injectedPrompt}\n\n`,
+        );
+      } else {
+        // Guard was empty (existing guard already present in message, or no guard
+        // needed). Find the existing guard marker and insert after the guard block;
+        // if no marker is found, prepend to the whole message.
+        const markerIdx = evidenceExemptMessage.indexOf(surfaceMarker);
+        if (markerIdx !== -1) {
+          // Find the end of the existing guard block (first double newline after marker).
+          const blockEnd = evidenceExemptMessage.indexOf("\n\n", markerIdx);
+          if (blockEnd !== -1) {
+            evidenceExemptMessage = `${evidenceExemptMessage.slice(0, blockEnd)}\n\n${injectedPrompt}${evidenceExemptMessage.slice(blockEnd)}`;
+          } else {
+            evidenceExemptMessage = `${evidenceExemptMessage}\n\n${injectedPrompt}`;
+          }
+        } else {
+          evidenceExemptMessage = `${injectedPrompt}\n\n${evidenceExemptMessage}`;
         }
       }
     }
+    const promptChanged = injectedPrompt !== null;
+    const messageChanged = evidenceExemptMessage !== message || promptChanged;
 
     if (!messageChanged && injectedModel === null && injectedEffort === null) return "";
 

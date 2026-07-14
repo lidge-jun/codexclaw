@@ -147,6 +147,24 @@ export function renderSessionBinding(sessionId        )         {
 }
 
 /**
+ * Always-on loop-contract line (ORCH-ARM-VISIBILITY-01, 260714). The arming
+ * mandate used to live ONLY behind the UserPromptSubmit regex
+ * (detectLoopArmRequest) — one lexical miss ("PABCD 여러 번 돌려") delivered zero
+ * bytes and the agent patched without the FSM. This line puts the contract's
+ * existence in the always-visible SessionStart layer; the per-prompt directive
+ * remains the detailed surface.
+ */
+export function renderLoopAffordance()         {
+  return [
+    "[codexclaw] Loop contract: a multi-cycle/PABCD/루프 request is INVALID without",
+    "the persisted FSM — run `cxc orchestrate status --session <your id>` first,",
+    "then enter P and advance each edge with --attest. One work-phase = one full",
+    "PABCD cycle; never implement two plan pages in one B. Load",
+    "$codexclaw:cxc-loop + $codexclaw:cxc-pabcd for the full discipline.",
+  ].join(" ");
+}
+
+/**
  * SessionStart handler. Reads the hook JSON payload from stdin (for `cwd`), counts
  * source files, and returns ONE SessionStart envelope combining the affordance
  * lines: the map pointer (size-gated) plus the skill-search pointer (always on).
@@ -178,6 +196,7 @@ export function runMapAffordanceSessionStart(stdin        , fallbackCwd        )
   if (count >= MAP_AFFORDANCE_MIN_FILES) lines.push(renderMapAffordance(count));
   lines.push(renderSkillSearchAffordance());
   lines.push(renderKwriteAffordance());
+  lines.push(renderLoopAffordance());
   const envelope = {
     hookSpecificOutput: {
       hookEventName: "SessionStart",

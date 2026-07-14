@@ -150,6 +150,16 @@ export function detectAgbrowseSearchRequest(prompt: string): boolean {
 export function detectLoopArmRequest(prompt: string): boolean {
   const p = (prompt ?? "").toLowerCase();
   if (/\bcxc-?loop\b|\bhotl\b|\bgoal\s*plan\b|\bgoalplan\b|골플랜|고울플랜/.test(p)) return true;
+  // ORCH-ARM-PABCD-01: the harness's own protocol name is a first-class arming
+  // token when paired with a STRONG run/repeat marker ("pabcd 여러 번", "run
+  // pabcd", "pabcd 돌려", "pabcd repeatedly"). Bare "pabcd" alone stays excluded
+  // (a question ABOUT pabcd must not arm ceremony), and weak markers like
+  // 다시/계속/again/runs are deliberately NOT signals (260714 audit round 1).
+  if (/\bi?pabcd\b/.test(p) && /여러\s*번|반복|한\s*번\s*더|돌려|돌리|돌자|사이클|\b(?:run|loop|repeat|iterate|cycle)\b|\brepeatedly\b|\bmultiple\s+times\b/.test(p)) return true;
+  // Repeat-marker IMMEDIATELY followed by a solve/progress marker, without the
+  // literal 루프 word ("여러 번 돌려서 해결해"). Bare 실행/수행/진행 excluded:
+  // "테스트 여러 번 실행해봐" is a repeat-run ask, not a loop request.
+  if (/(?:여러\s*번|반복(?:해서|적으로)?)\s*(?:돌|해결|해라|하자)/.test(p)) return true;
   if (/\bcontinue\s+until\s+done\b|\bkeep\s+going\s+until\b|\buntil\s+(?:it'?s\s+)?done\b/.test(p)) return true;
   if (/\bautonomous(?:ly)?\b.*\b(?:loop|continue|run|finish)\b|\bwork[- ]phase\s+loop\b/.test(p)) return true;
   if (/루프\s*(?:를?\s*돌|시작|모드|가동|진행)/.test(p)) return true;

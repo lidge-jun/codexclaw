@@ -212,6 +212,26 @@ test("ORCH-MANDATE-01: detectLoopArmRequest catches loop/goalplan/continue-until
   assert.equal(detectLoopArmRequest("계속해"), false);
 });
 
+test("ORCH-ARM-PABCD-01: pabcd + strong run/repeat marker arms; questions/repeat-runs do not (260714)", () => {
+  // Positives — natural phrasings for "run PABCD repeatedly".
+  assert.equal(detectLoopArmRequest("pabcd 여러 번 돌려서 해결해"), true);
+  assert.equal(detectLoopArmRequest("PABCD를 여러 번 돌려서 이 문제 해결해라"), true);
+  assert.equal(detectLoopArmRequest("run pabcd repeatedly until this is fixed"), true);
+  assert.equal(detectLoopArmRequest("pabcd multiple times please"), true);
+  assert.equal(detectLoopArmRequest("ipabcd 사이클로 돌리자"), true);
+  assert.equal(detectLoopArmRequest("여러 번 반복해서 해결해"), true);
+  // Negatives — questions ABOUT pabcd and ordinary repeat-run asks must stay cold.
+  assert.equal(detectLoopArmRequest("what is pabcd?"), false);
+  assert.equal(detectLoopArmRequest("pabcd 문서 다시 보여줘"), false);
+  assert.equal(detectLoopArmRequest("explain how pabcd runs internally"), false);
+  assert.equal(detectLoopArmRequest("pabcd가 뭐야? 계속 헷갈리네"), false);
+  assert.equal(detectLoopArmRequest("이 함수 여러 번 호출되는 버그 고쳐"), false);
+  assert.equal(detectLoopArmRequest("이 테스트 여러 번 실행해봐"), false);
+  assert.equal(detectLoopArmRequest("앱 아이콘 여러 번 실행해도 안 열려"), false);
+  assert.equal(detectLoopArmRequest("빌드 반복 실행해서 flaky 잡아줘"), false);
+  assert.equal(detectLoopArmRequest("여러 번 진행된 마이그레이션 롤백해줘"), false);
+});
+
 test("ORCH-MANDATE-01: loop request against un-armed FSM injects the arming mandate", () => {
   const cwd = freshCwd();
   try {
