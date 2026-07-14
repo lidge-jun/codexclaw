@@ -5,9 +5,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js\" hook pre-tool-use-lint",
+            "command": "node \"${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js\" hook pre-tool-use-edit",
             "timeout": 10,
-            "statusMessage": "(codexclaw) Linting structured edit"
+            "statusMessage": "(codexclaw) Checking structured edit"
           }
         ],
         "matcher": "^(apply_patch|Write|Edit)$"

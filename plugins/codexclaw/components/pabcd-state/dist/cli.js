@@ -186,6 +186,12 @@ function main()       {
       // 060.2: FAIL-OPEN apply_patch comment-lint. Distinct from the R-9 fail-closed
       // `pre-tool-use` branch above — a lint crash must ALLOW the edit, never deny.
       output = handleApplyPatchLint(raw);
+    } else if (event === "pre-tool-use-edit") {
+      // 260714 050: combined edit-path event (one registration, one spawn per edit) —
+      // lint (deny-capable) first; a lint deny wins; otherwise the IDLE-edit advisory
+      // may inject context. Both legs FAIL-OPEN; a crash must never deny the edit.
+      output = handleApplyPatchLint(raw);
+      if (output === "") output = handleIdleEditAdvisory(raw);
     } else if (event === "pre-tool-use-idle-edit") {
       // 260714 wp3: FAIL-OPEN IDLE-edit advisory (IDLE-EDIT-ADVISORY-01). Allow +
       // additionalContext only; a crash here must never deny an edit.

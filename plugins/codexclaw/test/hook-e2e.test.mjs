@@ -121,7 +121,7 @@ function emptyCodexHome() {
 
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 15, "expected 15 declared hooks");
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 14, "expected 14 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
@@ -846,34 +846,43 @@ test("L050: post-compact hook e2e - active cycle resets cursor, idle is a no-op"
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
-// lazygap_impl 060.2: comment-lint PreToolUse on apply_patch. FAIL-OPEN: denies a
-// forbidden pattern on an added line; allows clean patches and any error. Drives the real
-// dist entrypoint via the manifest command (event arg pre-tool-use-lint).
-test("L060: pre-tool-use-lint hook e2e - forbidden pattern denies, clean patch allows", () => {
+// lazygap_impl 060.2 + 260714 050: combined edit-path PreToolUse (lint deny-capable
+// first, then IDLE-edit advisory). FAIL-OPEN: denies a forbidden pattern on an added
+// line; allows clean patches and any error. Drives the real dist entrypoint via the
+// manifest command (event arg pre-tool-use-edit after the 050 consolidation).
+// Hermeticity (050 audit Low #3): the advisory leg reads session state + goal DB, so
+// empty-stdout assertions pin an empty CODEX_HOME and a tmp cwd.
+test("L060: edit-path hook e2e - forbidden pattern denies, clean patch allows", () => {
   const { event, hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-linting-apply-patch.json");
   assert.equal(event, "PreToolUse");
+  // 050 registration truth: one edit-path registration drives the COMBINED event.
+  assert.equal(hookEvent, "pre-tool-use-edit");
   const ep = snapshotEntrypoint(distAbs);
   if (!ep) return;
-  const deny = runHook(ep, hookEvent, {
-    hook_event_name: "PreToolUse", session_id: "s1", cwd: process.cwd(),
-    tool_name: "apply_patch", tool_input: { command: "+++ b/x.ts\n+const v = foo as any;\n" },
-  });
-  assert.equal(deny.status, 0, deny.stderr);
-  const out = JSON.parse(deny.stdout);
-  assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
-  assert.match(out.hookSpecificOutput.permissionDecisionReason, /comment-lint/);
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-editpath-"));
+  try {
+    const { env } = emptyCodexHome();
+    const deny = runHook(ep, hookEvent, {
+      hook_event_name: "PreToolUse", session_id: "s1", cwd: tmp,
+      tool_name: "apply_patch", tool_input: { command: "+++ b/x.ts\n+const v = foo as any;\n" }, // justified: lint-deny fixture string, not shipped code
+    }, env);
+    assert.equal(deny.status, 0, deny.stderr);
+    const out = JSON.parse(deny.stdout);
+    assert.equal(out.hookSpecificOutput.permissionDecision, "deny");
+    assert.match(out.hookSpecificOutput.permissionDecisionReason, /comment-lint/);
 
-  const allow = runHook(ep, hookEvent, {
-    hook_event_name: "PreToolUse", session_id: "s1", cwd: process.cwd(),
-    tool_name: "apply_patch", tool_input: { command: "+++ b/x.ts\n+const v: Foo = foo;\n" },
-  });
-  assert.equal(allow.status, 0, allow.stderr);
-  assert.equal(allow.stdout.trim(), "", "clean patch must allow (empty stdout)");
+    const allow = runHook(ep, hookEvent, {
+      hook_event_name: "PreToolUse", session_id: "s1", cwd: tmp,
+      tool_name: "apply_patch", tool_input: { command: "+++ b/x.ts\n+const v: Foo = foo;\n" },
+    }, env);
+    assert.equal(allow.status, 0, allow.stderr);
+    assert.equal(allow.stdout.trim(), "", "clean patch must allow (empty stdout)");
 
-  // FAIL-OPEN: malformed payload => allow
-  const bad = runHook(ep, hookEvent, null);
-  assert.equal(bad.status, 0, bad.stderr);
-  assert.equal(bad.stdout.trim(), "", "malformed stdin must fail open (empty stdout)");
+    // FAIL-OPEN: malformed payload => allow
+    const bad = runHook(ep, hookEvent, null, env);
+    assert.equal(bad.status, 0, bad.stderr);
+    assert.equal(bad.stdout.trim(), "", "malformed stdin must fail open (empty stdout)");
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
 // lazygap_impl 060.1: SessionStart project-rule injector. Emits an additionalContext
