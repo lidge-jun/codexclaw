@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codex Runtime Architecture — Voice Flow Detail</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#0f172a; color:#e2e8f0;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  padding:28px 20px; min-height:100vh;
+}
+h1 { text-align:center; font-size:20px; font-weight:600; color:#f8fafc; margin-bottom:4px; }
+.subtitle { text-align:center; font-size:12px; color:#94a3b8; margin-bottom:24px; }
+
+.section-title {
+  font-size:13px; font-weight:700; color:#cbd5e1; text-transform:uppercase;
+  letter-spacing:1.5px; margin:28px 0 10px; padding-left:4px;
+  border-left:3px solid #8b5cf6; padding-left:10px;
+}
+.section-title.text-path { border-color:#0ea5e9; }
+.section-title.voice-path { border-color:#8b5cf6; }
+.section-title.agent-path { border-color:#10b981; }
+.section-title.conn-path { border-color:#f59e0b; }
+.section-title.core-section { border-color:#64748b; }
+
+.layer { display:flex; align-items:stretch; gap:10px; margin-bottom:12px; }
+.layer-content { flex:1; display:flex; gap:10px; flex-wrap:wrap; }
+
+.card {
+  border-radius:10px; padding:12px 14px;
+  flex:1; min-width:130px;
+  border:1px solid #1e293b;
+}
+.card h3 { font-size:12px; font-weight:700; margin-bottom:5px; display:flex; align-items:center; gap:5px; }
+.card p, .card ul { font-size:11px; color:#94a3b8; line-height:1.5; }
+.card ul { padding-left:13px; }
+.card li { margin-bottom:2px; }
+.tag {
+  display:inline-block; font-size:9px; font-weight:600;
+  padding:2px 6px; border-radius:4px; margin-top:4px; margin-right:3px;
+}
+
+.c-client  { background:#1e293b; border-color:#334155; }
+.c-router  { background:#172554; border-color:#1e3a8a; }
+.c-text    { background:#0c4a6e22; border-color:#0369a1; }
+.c-voice   { background:#4c1d9522; border-color:#7c3aed; }
+.c-voice-detail { background:#4c1d9515; border-color:#6d28d9; }
+.c-agent   { background:#16533522; border-color:#059669; }
+.c-conn    { background:#78350f22; border-color:#d97706; }
+.c-core    { background:#1e293b; border-color:#475569; }
+.c-api     { background:#83184388; border-color:#be185d; }
+.c-model   { background:#312e8122; border-color:#6366f1; }
+
+.tag-text  { background:#0ea5e9; color:#0c4a6e; }
+.tag-voice { background:#8b5cf6; color:#2e1065; }
+.tag-agent { background:#10b981; color:#064e3b; }
+.tag-conn  { background:#f59e0b; color:#78350f; }
+.tag-removed { background:#ef4444; color:#fff; }
+.tag-pr    { background:#334155; color:#94a3b8; font-size:9px; }
+.tag-new   { background:#22d3ee; color:#164e63; }
+
+.arrow-row {
+  display:flex; justify-content:center; margin:3px 0;
+  gap:60px;
+}
+.arrow {
+  display:flex; flex-direction:column; align-items:center;
+  color:#475569; font-size:10px;
+}
+.arrow svg { width:18px; height:18px; }
+.arrow-label { font-size:9px; color:#64748b; margin-top:1px; }
+
+.divider { border:none; border-top:1px dashed #1e293b; margin:10px 0; }
+
+/* Voice detail flow */
+.voice-flow {
+  display:flex; gap:8px; flex-wrap:wrap; margin:8px 0;
+}
+.flow-step {
+  background:#1e1b4b; border:1px solid #4c1d95; border-radius:8px;
+  padding:8px 10px; font-size:11px; min-width:120px; flex:1;
+  position:relative;
+}
+.flow-step h4 { font-size:11px; font-weight:700; color:#c4b5fd; margin-bottom:4px; }
+.flow-step p { font-size:10px; color:#a78bfa; line-height:1.45; }
+.flow-step .step-num {
+  position:absolute; top:-8px; left:8px;
+  background:#7c3aed; color:#fff; font-size:9px; font-weight:700;
+  width:16px; height:16px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+}
+
+.flow-arrow {
+  display:flex; align-items:center; color:#7c3aed; font-size:16px;
+  flex-shrink:0; margin:0 -4px;
+}
+
+/* Handoff detail */
+.handoff-box {
+  background:#1e1b4b; border:2px dashed #7c3aed; border-radius:10px;
+  padding:12px 14px; margin-top:8px;
+}
+.handoff-box h4 { font-size:12px; font-weight:700; color:#c4b5fd; margin-bottom:6px; }
+.handoff-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:8px;
+}
+.handoff-item {
+  background:#0f172a; border:1px solid #4c1d95; border-radius:6px;
+  padding:6px 8px; font-size:10px;
+}
+.handoff-item b { color:#e2e8f0; }
+.handoff-item span { color:#94a3b8; }
+
+.sub-boxes { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+.sub-box {
+  background:#1e293b; border:1px solid #334155;
+  border-radius:6px; padding:5px 8px; font-size:10px;
+}
+.sub-box b { color:#e2e8f0; }
+.sub-box span { color:#94a3b8; }
+
+.legend {
+  margin-top:20px; padding:12px 16px;
+  background:#1e293b; border-radius:10px;
+  display:flex; flex-wrap:wrap; gap:12px; align-items:center;
+}
+.legend-title { font-size:11px; font-weight:700; color:#94a3b8; margin-right:6px; }
+.legend-item { display:flex; align-items:center; gap:4px; font-size:10px; color:#cbd5e1; }
+.legend-dot { width:8px; height:8px; border-radius:3px; flex-shrink:0; }
+
+@media (max-width:700px) {
+  .layer-content { flex-direction:column; }
+  .card { min-width:100%; }
+  .handoff-grid { grid-template-columns:1fr; }
+  .voice-flow { flex-direction:column; }
+  .flow-arrow { transform:rotate(90deg); justify-content:center; }
+}
+</style>
+</head>
+<body>
+
+<h1>Codex Runtime Architecture</h1>
+<p class="subtitle">app-server 요청 라우팅 + 음성 입력 흐름 상세 — openai/codex PR 기반 · 2026-07-13</p>
+
+<!-- ═══ CLIENTS ═══ -->
+<div class="layer">
+  <div class="layer-content">
+    <div class="card c-client">
+      <h3>⌨️ codex-tui (CLI)</h3>
+      <p>텍스트 전용 — voice <b>제거됨</b></p>
+      <span class="tag tag-removed">voice removed</span>
+      <span class="tag tag-pr">#27801</span>
+    </div>
+    <div class="card c-client">
+      <h3>🖥️ Codex Desktop</h3>
+      <p>텍스트 + realtime voice</p>
+      <span class="tag tag-voice">WebRTC AVAS</span>
+    </div>
+    <div class="card c-client">
+      <h3>📱 ChatGPT Mobile</h3>
+      <p>원격 접근 + voice handoff</p>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-row">
+  <div class="arrow">
+    <svg viewBox="0 0 20 20"><path d="M10 2 L10 15 M5 11 L10 16 L15 11" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+    <span class="arrow-label">app-server protocol</span>
+  </div>
+</div>
+
+<!-- ═══ ROUTER ═══ -->
+<div class="layer">
+  <div class="layer-content">
+    <div class="card c-router" style="text-align:center;">
+      <h3 style="justify-content:center;">🔀 App-Server Request Router</h3>
+      <p>요청 타입에 따라 4개 런타임 경로로 분기</p>
+      <div style="display:flex; gap:6px; justify-content:center; margin-top:8px; flex-wrap:wrap;">
+        <span class="tag tag-text">① Text Turn</span>
+        <span class="tag tag-voice">② Realtime Voice</span>
+        <span class="tag tag-agent">③ Multi-Agent</span>
+        <span class="tag tag-conn">④ Connector/MCP</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-row">
+  <div class="arrow">
+    <svg viewBox="0 0 20 20"><path d="M10 2 L10 15 M5 11 L10 16 L15 11" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+  </div>
+</div>
+
+<!-- ═══ TEXT PATH ═══ -->
+<div class="section-title text-path">① Text Turn Path</div>
+<div class="layer">
+  <div class="layer-content">
+    <div class="card c-text">
+      <h3>💬 텍스트 입력</h3>
+      <ul>
+        <li><b>turn/start</b> — 새 턴 시작</li>
+        <li><b>turn/steer</b> — 진행 중 조향</li>
+        <li>Guardian 권한 심사 → allow/deny</li>
+        <li>allow → codex-core Session</li>
+      </ul>
+    </div>
+    <div class="card c-text">
+      <h3>🔊 Audio Input (MCP 경유)</h3>
+      <span class="tag tag-new">NEW</span>
+      <span class="tag tag-pr">#22679</span>
+      <ul style="margin-top:6px;">
+        <li><code>InputModality::Audio</code> 게이트</li>
+        <li>MCP 오디오 블록 → Responses API 변환</li>
+        <li>모델이 audio 미지원 시 명확한 에러</li>
+        <li>code-mode <code>audio(...)</code> 헬퍼</li>
+      </ul>
+      <p style="margin-top:6px; color:#67e8f9; font-size:10px;">※ 음성 '파일' 입력이지, 실시간 마이크가 아님</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VOICE PATH — FULL DETAIL ═══ -->
+<div class="section-title voice-path">② Realtime Voice Path — 상세 흐름</div>
+
+<!-- Step-by-step flow -->
+<div class="voice-flow">
+  <div class="flow-step">
+    <div class="step-num">1</div>
+    <h4>세션 시작</h4>
+    <p><b>thread/realtime/start</b><br>
+    클라이언트가 음성 세션 요청<br>
+    <span class="tag tag-pr">#27720</span></p>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="step-num">2</div>
+    <h4>트랜스포트 선택</h4>
+    <p><b>WebRTC</b> → AVAS v1 고정<br>
+    <b>WebSocket</b> → v2 지원<br>
+    <span class="tag tag-pr">#28856</span></p>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="step-num">3</div>
+    <h4>FEM 음성 처리</h4>
+    <p>Frontend Model이<br>
+    사용자 음성을 직접 수신<br>
+    음성 인식 + 대화 진행</p>
+  </div>
+  <div class="flow-arrow">→</div>
+  <div class="flow-step">
+    <div class="step-num">4</div>
+    <h4>분기 판단</h4>
+    <p>코딩 작업 필요?<br>
+    <b>Yes</b> → Handoff ↓<br>
+    <b>No</b> → FEM이 직접 응답</p>
+  </div>
+</div>
+
+<!-- Handoff detail box -->
+<div class="handoff-box">
+  <h4>🔄 Handoff Protocol — FEM ↔ Codex Orchestrator</h4>
+  <p style="font-size:10px; color:#a78bfa; margin-bottom:8px;">
+    음성 모델(FEM)과 코딩 에이전트(Codex)가 하나의 어시스턴트처럼 보이게 하는 핵심 메커니즘
+  </p>
+  <div class="handoff-grid">
+    <div class="handoff-item">
+      <b>① FEM → Codex 위임</b><br>
+      <span>conversation.handoff.append<br>
+      트랜스크립트 델타 포함 (#18597)<br>
+      코딩 작업을 codex-core에 위임</span>
+    </div>
+    <div class="handoff-item">
+      <b>② Codex 실행</b><br>
+      <span>codex-core Session 실행<br>
+      도구 호출, 코드 생성/수정<br>
+      일반 텍스트 턴과 동일 파이프라인</span>
+    </div>
+    <div class="handoff-item">
+      <b>③ 결과 → FEM 포워딩</b><br>
+      <span>voice-ready final response (#27114)<br>
+      어시스턴트 메시지 1회만 전달 (#27127)<br>
+      1,000 토큰 상한 truncation</span>
+    </div>
+    <div class="handoff-item">
+      <b>④ FEM 음성 출력</b><br>
+      <span>codex 결과를 자연스럽게 발화<br>
+      사용자에게는 하나의 어시스턴트</span>
+    </div>
+  </div>
+
+  <div style="margin-top:10px;">
+    <p style="font-size:11px; color:#c4b5fd; font-weight:700; margin-bottom:6px;">음성 출력 제어 API</p>
+    <div class="handoff-grid">
+      <div class="handoff-item">
+        <b>appendSpeech</b> <span class="tag tag-pr">#27917</span><br>
+        <span>클라이언트가 직접 speakable 텍스트 주입<br>
+        실험적 API</span>
+      </div>
+      <div class="handoff-item">
+        <b>appendText</b> <span class="tag tag-pr">#28836</span><br>
+        <span>assistant role 텍스트 아이템 주입<br>
+        세션 재개 시 오버랩 재생</span>
+      </div>
+      <div class="handoff-item">
+        <b>clientManagedHandoffs</b> <span class="tag tag-pr">#27986</span><br>
+        <span>true → 자동 핸드오프 억제<br>
+        앱이 직접 전달 시점 제어</span>
+      </div>
+      <div class="handoff-item">
+        <b>codexResponsesAsItems</b> <span class="tag tag-pr">#27917</span><br>
+        <span>Codex 응답을 speakable 대신<br>
+        item.create로 라우팅</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:10px;">
+    <p style="font-size:11px; color:#c4b5fd; font-weight:700; margin-bottom:6px;">듀러블 세션 & 안정성</p>
+    <div class="handoff-grid">
+      <div class="handoff-item">
+        <b>UUIDv7 턴 ID</b> <span class="tag tag-pr">#28826</span><br>
+        <span>재연결 시 중복 ID 방지<br>
+        durable orchestrator 지원</span>
+      </div>
+      <div class="handoff-item">
+        <b>preloaded_tools</b> <span class="tag tag-pr">#29554</span><br>
+        <span>voice 레이턴시 민감 MCP 도구<br>
+        discovery 라운드트립 생략</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ AGENT + CONNECTOR ═══ -->
+<div class="section-title agent-path">③ Multi-Agent Path</div>
+<div class="layer">
+  <div class="layer-content">
+    <div class="card c-agent">
+      <h3>🤖 Multi-Agent</h3>
+      <ul>
+        <li><b>spawn_agent</b> → 자식 스레드</li>
+        <li>v1: wait / send / close</li>
+        <li>v2: thread-spawn</li>
+        <li>model override 지원 <span class="tag tag-pr">#32749</span></li>
+        <li>각 자식 → 독립 codex-core Session</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section-title conn-path">④ Connector / MCP Path</div>
+<div class="layer">
+  <div class="layer-content">
+    <div class="card c-conn">
+      <h3>🔌 Connector / MCP</h3>
+      <ul>
+        <li><b>tool_search</b> → deferred 도구 발견</li>
+        <li>codex-connectors 스냅샷 <span class="tag tag-pr">#32698</span></li>
+        <li>원자적 캐시 퍼시스턴스</li>
+        <li>preloaded_tools → voice 레이턴시 최적화</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<div class="arrow-row">
+  <div class="arrow">
+    <svg viewBox="0 0 20 20"><path d="M10 2 L10 15 M5 11 L10 16 L15 11" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+    <span class="arrow-label">모든 경로 합류</span>
+  </div>
+</div>
+
+<!-- ═══ CORE ═══ -->
+<div class="section-title core-section">실행 엔진 & API</div>
+<div class="layer">
+  <div class="layer-content">
+    <div class="card c-core">
+      <h3>⚙️ codex-core</h3>
+      <p>어떤 경로에서 왔든 동일한 파이프라인</p>
+      <div class="sub-boxes">
+        <div class="sub-box"><b>Session</b><br><span>모델 컨텍스트</span></div>
+        <div class="sub-box"><b>Sandbox</b><br><span>Seatbelt/Landlock</span></div>
+        <div class="sub-box"><b>Tool Exec</b><br><span>exec/patch/MCP</span></div>
+        <div class="sub-box"><b>Auto-Compact</b><br><span>컨텍스트 압축</span></div>
+        <div class="sub-box"><b>Memory</b><br><span>consolidation</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="arrow-row">
+  <div class="arrow">
+    <svg viewBox="0 0 20 20"><path d="M10 2 L10 15 M5 11 L10 16 L15 11" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+  </div>
+</div>
+
+<div class="layer">
+  <div class="layer-content">
+    <div class="card c-api">
+      <h3>📡 codex-api</h3>
+      <ul>
+        <li>Responses API (HTTP streaming)</li>
+        <li>Realtime API (WebRTC SDP / WS)</li>
+        <li>Blob Upload</li>
+      </ul>
+    </div>
+    <div class="card c-model">
+      <h3>🧠 Model Layer</h3>
+      <ul>
+        <li><b>Text</b>: GPT-5.5 / 5.6 / Claude</li>
+        <li><b>Voice FEM</b>: GPT-Realtime-2</li>
+        <li>GPT-Live-1 → Codex 미지원</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+
+<hr class="divider">
+
+<!-- MODEL CALL FLOW -->
+<div class="section-title" style="border-color:#ef4444;">모델 호출 비교: 텍스트 vs 음성</div>
+
+<div class="layer">
+  <div class="layer-content">
+    <div class="card" style="background:#0c4a6e22; border-color:#0ea5e9;">
+      <h3>💬 텍스트 전용 — 모델 1회</h3>
+      <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:8px;">
+        <div style="background:#0f172a; border:1px solid #334155; border-radius:6px; padding:6px 8px; font-size:10px; text-align:center;"><b>유저</b><br><span style="color:#94a3b8;">타이핑</span></div>
+        <span style="color:#0ea5e9;">→</span>
+        <div style="background:#0c4a6e33; border:1px solid #0ea5e9; border-radius:6px; padding:6px 8px; font-size:10px; text-align:center;"><b>turn/start</b></div>
+        <span style="color:#0ea5e9;">→</span>
+        <div style="background:#0c4a6e33; border:2px solid #0ea5e9; border-radius:6px; padding:6px 8px; font-size:10px; text-align:center;"><b>Codex Orchestrator</b><br><span style="color:#94a3b8;">GPT-5.x · 1회 호출</span></div>
+        <span style="color:#0ea5e9;">→</span>
+        <div style="background:#0f172a; border:1px solid #334155; border-radius:6px; padding:6px 8px; font-size:10px; text-align:center;"><b>텍스트 응답</b></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="layer">
+  <div class="layer-content">
+    <div class="card" style="background:#4c1d9522; border-color:#7c3aed;">
+      <h3>🎙️ 음성 모드 — 모델 2회 (코딩 작업 시)</h3>
+      <div style="display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-top:8px;">
+        <div style="background:#0f172a; border:1px solid #334155; border-radius:6px; padding:6px 8px; font-size:10px; text-align:center;"><b>유저</b><br><span style="color:#94a3b8;">음성</span></div>
+        <span style="color:#8b5cf6;">→</span>
+        <div style="background:#1e1b4b; border:2px solid #8b5cf6; border-radius:6px; padding:6px 8px; font-size:10px; text-align:center;"><b>FEM</b><br><span style="color:#a78bfa;">1회: 듣기+판단</span></div>
+        <span style="color:#8b5cf6;">→</span>
+        <div style="background:#1e1b4b; border:1px dashed #8b5cf6; border-radius:6px; padding:6px 8px; font-size:10px; text-align:center;"><b>handoff</b><br><span style="color:#a78bfa;">delegation</span></div>
+        <span style="color:#0ea5e9;">→</span>
+        <div style="background:#0c4a6e33; border:2px solid #0ea5e9; border-radius:6px; padding:6px 8px; font-size:10px; text-align:center;"><b>Orchestrator</b><br><span style="color:#94a3b8;">2회: 실행</span></div>
+        <span style="color:#8b5cf6;">→</span>
+        <div style="background:#1e1b4b; border:1px solid #8b5cf6; border-radius:6px; padding:6px 8px; font-size:10px; text-align:center;"><b>FEM</b><br><span style="color:#a78bfa;">발화</span></div>
+      </div>
+      <p style="margin-top:8px; font-size:10px; color:#a78bfa;">※ 단순 질문은 FEM이 직접 응답 → 모델 1회. Orchestrator 호출 없음.</p>
+    </div>
+  </div>
+</div>
+
+<!-- FEM JUDGMENT -->
+<div class="section-title" style="border-color:#c4b5fd;">FEM의 Handoff 판단 구조</div>
+
+<div class="layer">
+  <div class="layer-content">
+    <div class="card" style="background:#1e1b4b; border-color:#7c3aed;">
+      <h3>🧠 FEM이 판단한다 <span class="tag tag-voice" style="font-size:9px;">핵심</span></h3>
+      <p style="margin-bottom:8px;">FEM은 시스템 프롬프트로 "코딩 작업은 위임하라"는 지시를 받음. 사용자 발화를 듣고 <b>FEM 스스로</b> handoff 여부를 결정.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <div style="background:#0f172a; border:1px solid #10b981; border-radius:6px; padding:8px 10px; flex:1; min-width:140px; font-size:10px;">
+          <b style="color:#10b981;">직접 응답 (No Handoff)</b><br>
+          <span style="color:#94a3b8;">"몇 시야?" / "리액트가 뭐야?"<br>일반 대화, 지식 질문<br>→ FEM 바로 음성 답변<br>→ Orchestrator 호출 없음</span>
+        </div>
+        <div style="background:#0f172a; border:1px solid #7c3aed; border-radius:6px; padding:8px 10px; flex:1; min-width:140px; font-size:10px;">
+          <b style="color:#8b5cf6;">Handoff (위임)</b><br>
+          <span style="color:#94a3b8;">"이 버그 고쳐줘" / "테스트 돌려봐"<br>코드 실행, 파일 수정 필요<br>→ handoff request 전송<br>→ Orchestrator 실행 후 결과 반환</span>
+        </div>
+      </div>
+      <div style="margin-top:10px; background:#0f172a; border:1px dashed #ef4444; border-radius:6px; padding:8px 10px; font-size:10px;">
+        <b style="color:#ef4444;">⚠️ 판단 오류 보완</b>
+        <span style="color:#94a3b8;"> — 모든 realtime 턴에 voice-ready final response 강제 (#27114)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DELEGATION ENVELOPE -->
+<div class="section-title" style="border-color:#f59e0b;">Handoff 시 전달되는 데이터</div>
+<div class="layer">
+  <div class="layer-content">
+    <div class="card" style="background:#78350f22; border-color:#d97706;">
+      <h3>📦 Delegation Envelope <span class="tag tag-pr">#18597</span></h3>
+      <p style="margin-bottom:6px;">전체 세션이 아니라, <b>구조화된 스냅샷</b>만 전달:</p>
+      <div style="background:#0f172a; border:1px solid #334155; border-radius:6px; padding:10px; font-family:monospace; font-size:11px; color:#fbbf24; line-height:1.6;">
+        &lt;realtime_delegation&gt;<br>
+        &nbsp;&nbsp;&lt;input&gt;이 함수 리팩터링 해줘&lt;/input&gt;<br>
+        &nbsp;&nbsp;&lt;transcript_delta&gt;최근 대화 스냅샷...&lt;/transcript_delta&gt;<br>
+        &lt;/realtime_delegation&gt;
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+        <div style="background:#0f172a; border:1px solid #334155; border-radius:6px; padding:6px 8px; font-size:10px; flex:1;">
+          <b style="color:#fbbf24;">input</b><br><span style="color:#94a3b8;">사용자의 실제 요청</span>
+        </div>
+        <div style="background:#0f172a; border:1px solid #334155; border-radius:6px; padding:6px 8px; font-size:10px; flex:1;">
+          <b style="color:#fbbf24;">transcript_delta</b><br><span style="color:#94a3b8;">최근 음성 대화 스냅샷 (전체 X)<br>유저 발화 + FEM 응답 포함</span>
+        </div>
+      </div>
+      <p style="margin-top:8px; font-size:10px; color:#94a3b8;">
+        결과 반환: Orchestrator → conversation.handoff.append → FEM (1,000토큰 상한 #27127)
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ LEGEND ═══ -->
+<div class="legend">
+  <span class="legend-title">범례</span>
+  <div class="legend-item"><div class="legend-dot" style="background:#0ea5e9"></div> Text</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div> Voice</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Agent</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> MCP</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Removed</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#22d3ee"></div> New</div>
+  <div class="legend-item" style="margin-left:auto; color:#64748b; font-size:9px;">
+    openai/codex PR #12700~#32749 · 2026-07-13
+  </div>
+</div>
+
+</body>
+</html>

@@ -59,6 +59,16 @@ Keep the bar sparse enough that the pill still reads as one piece of chrome:
 Mobile collapses to logo + menu trigger. The menu opens a sheet or drawer with
 a complete tap path; do not rely on hover behavior on touch devices.
 
+### Segmented Multi-Pill Navigation
+
+Within the expressive domains allowed by FE-TOPBAR-DOMAIN-01, segmented
+multi-pill navigation is allowed only when each segment encodes a real IA group,
+the aggregate choice count remains small, and mobile collapses the groups into
+one coherent control. Augen, Cantor8, Vero, and Footer Design Gallery are the
+evidence context. The result must still read as one piece of chrome: do not turn
+every link into a separate capsule, and keep the single outer-capsule geometry
+as the default outside this authored IA case.
+
 ## Scroll State (FE-TOPBAR-STATE-01, DEFAULT)
 
 Top bars may be scroll-adaptive:

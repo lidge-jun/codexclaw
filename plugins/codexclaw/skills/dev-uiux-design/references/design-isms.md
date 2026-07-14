@@ -1,6 +1,7 @@
 ## 1. Design Ism Vocabulary
 
-When the user references a design style or movement, or when selecting an aesthetic direction, use this vocabulary. Each ism includes a CSS signature for rapid implementation.
+When the user references a design style or movement, or when selecting an aesthetic direction, use this vocabulary. Implementation kits include a CSS signature for rapid implementation; parent directions (like 1.13 Editorial) define the family and route to their implementable subtypes instead.
+Related: `compositional-patterns.md` (structural patterns); `design-trends.md` (dated technique signals).
 
 ### 1.1 Flat Design
 Minimalist 2D. No shadows, gradients, or textures. Bold saturated solids, clean geometry, ample whitespace.
@@ -122,7 +123,15 @@ washes) delivers the same 2026 language at lower cost.
 **Use:** macOS/iOS-aligned products, media-rich consumer apps, floating chrome over scrollable content. **Avoid:** content-layer cards, text-heavy reading surfaces, data-dense dashboards, low-powered targets.
 Implementation recipes, perf budget, and a11y gates: `dev-frontend/references/core/liquid-glass.md`.
 
-### 1.13 Liquid Editorial (2026 no-brief default kit)
+### 1.13 Editorial
+Editorial is the parent direction that treats hierarchy, pacing, authored typography, image sequencing, and negative space as the interface's organizing logic. It is broader than **Liquid Editorial**, which is a specific 2026 composite kit pairing authored editorial composition with Liquid Glass chrome, and broader than **AI Serif Editorial**, which is a subtype defined by light display serif + neutral sans UI + mono technical accent. Editorial does not require glass, serif type, magazine mimicry, or a particular rendering technology.
+
+**Use:** Publications, portfolios, cultural work, reports, campaigns, and product stories where reading order, sequence, and typographic hierarchy carry the experience. **Avoid:** Applying “editorial” as a premium synonym to dense tools, dashboards, or repeated-work UI; substituting oversized type for information architecture; assuming all editorial work is serif, print-like, or Liquid Editorial.
+Related: `compositional-patterns.md` Poster Hero, Editorial Index / Roster, and Instrument-Panel Editorial.
+
+---
+
+### 1.14 Liquid Editorial (2026 no-brief default kit)
 The composite kit behind SKILL.md §1 UX-DEFAULT-ISM-01 (decided 2026-07-07
 from Tier-2 trend research: Apple Liquid Glass 2025-06-09 announcement + HIG
 restraint guidance; Figma/Creative Bloq/Fireart 2026 forecasts naming
@@ -144,7 +153,7 @@ h1 { font-size: clamp(2.5rem, 8vw, 6rem); letter-spacing: 0; text-wrap: balance;
 Related: 1.12 (material rules), `product-personalities.md` Aside profile (chip vocabulary), `dev-frontend` `liquid-glass.md` + `motion.md` (implementation).
 
 ---
-### 1.14 AI Serif Editorial (2024-2026 serif renaissance)
+### 1.15 AI Serif Editorial (2024-2026 serif renaissance)
 The AI-brand serif turn (verified 2026-07-09): display serif at LIGHT weights +
 sans UI + mono technical accent — never "make everything serif". Measured:
 claude.ai `Anthropic Serif` 56px/weight 330 (identity by Geist: Styrene +
@@ -169,7 +178,7 @@ Related: `dev-frontend` `aesthetics.md § Serif Discipline`,
 
 ---
 
-### 1.15 Organic Capsule (OpenAI announcement grammar)
+### 1.16 Organic Capsule (OpenAI announcement grammar)
 The OpenAI model-card/hero grammar (in-house Feb-2025 rebrand led by Veit
 Moeller/Shannon Jager; OpenAI Sans by ABC Dinamo; motion/sound by Studio
 Dumbar/DEPT): a soft-focus organic photographic field (natural palettes,
@@ -192,3 +201,23 @@ Related: `dev-frontend` `motion.md § Soft-Focus Organic Background + Capsule
 Label`, `aesthetics.md § Expressive vs Functional Layers`.
 
 ---
+
+## Treatment Traits — Not Isms
+
+Treatment traits describe the dominant medium or surface treatment. Combine them with an ism and compositional pattern; never promote them into standalone movements.
+
+- **photographic:** Real photography is the primary evidence or atmosphere. It does not imply Organic Capsule, Liquid Editorial, luxury, or a cinematic layout.
+- **illustrative:** Drawn, painted, collaged, or vector illustration carries the subject. It does not imply Memphis, Claymorphism, playfulness, or a children's domain.
+- **typographic:** Type itself carries the dominant visual treatment. It does not automatically imply Editorial, Swiss, Poster Hero, Specimen-as-Hero, or big-type; name the actual composition separately.
+- **patterned:** A repeated motif, textile, geometric repeat, or generated pattern forms a material layer. It does not imply Memphis or Art Deco and must not become ornamental noise.
+- **print-like:** Paper, ink, registration, halftone, column, or publication cues inform the treatment. It does not automatically imply Editorial, retro, serif type, or literal magazine imitation.
+
+## Tone Tags — Not Isms
+
+Tone tags express the intended social or emotional register. They narrow reference retrieval and judgment; they do not select a visual movement by themselves.
+
+- **luxury:** Signals rarity, craft, discretion, service, or material quality through domain evidence. It is not an alias for Art Deco, Liquid Editorial, Apple's product personality, serif type, black-and-gold palettes, or the Korean request `고급스럽게`; choose an ism and evidence-bearing materials separately.
+- **corporate:** Signals institutional clarity, governance, consistency, and stakeholder trust. It is not an alias for Swiss style, blue palettes, card grids, or generic enterprise restraint.
+- **retro (`retro:<period-or-movement>` required):** References a named period or movement, such as `retro:1970s editorial`, `retro:1980s Memphis`, or `retro:early-web`. Bare `retro` is insufficient for generation because Art Deco, Memphis, Skeuomorphism, and print nostalgia have incompatible formal rules.
+
+`Japanese` remains a source/gallery tag only until a respectful, specific formal vocabulary replaces the broad cultural label; do not generate a style from that tag alone.

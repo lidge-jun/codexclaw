@@ -26,8 +26,11 @@ import {
   LEAF_GUARD_BLOCK,
   LEAF_GUARD_BLOCK_COORDINATOR,
   LEAF_GUARD_MARKER,
+  SCOPE_GUARD_MARKER,
   SKILL_AFFORDANCE_MARKER,
   SUBSPAWN_TOKEN,
+  V1_SCOPE_BLOCK,
+  V1_SCOPE_BLOCK_COORDINATOR,
   inferRole,
   inlineSkillBodies,
   isCollaborationToolName,
@@ -522,7 +525,7 @@ test("v1 mention normalization composes with guard, model routing, and effort", 
   );
   const ui = updatedInputOf(out);
   assert.equal(ui.model, "kiro/claude-opus-4.6");
-  assert.ok((ui.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`), "260710 parity: v1 gets the leaf guard too");
+  assert.ok((ui.message as string).startsWith(`${V1_SCOPE_BLOCK}\n\n`));
   assert.match(ui.message as string, /\[\$cxc-dev\]\(skill:\/\//);
   assert.ok((ui.message as string).endsWith(" map the frontend codebase"));
   assert.equal(ui.trace_id, "keep");
@@ -539,7 +542,7 @@ test("v1 model routing: caller-picked model wins", () => {
   const ui = updatedInputOf(out);
   assert.equal(ui.model, "gpt-5.5", "caller-picked model wins");
   assert.ok(!("reasoning_effort" in ui), "no configured effort -> none injected");
-  assert.ok((ui.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`));
+  assert.ok((ui.message as string).startsWith(`${V1_SCOPE_BLOCK}\n\n`));
 });
 
 test("v1 model routing: default mode injects no model; guard still applies", () => {
@@ -554,7 +557,7 @@ test("v1 model routing: default mode injects no model; guard still applies", () 
   const noConfig = updatedInputOf(runSpawnAttachHook(spawnPayload({ message: "map the codebase", agent_type: "explorer" })));
   assert.ok(!("model" in noConfig));
   assert.ok(!("reasoning_effort" in noConfig));
-  assert.ok((noConfig.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`));
+  assert.ok((noConfig.message as string).startsWith(`${V1_SCOPE_BLOCK}\n\n`));
 });
 
 test("v1 model routing: review keywords route explorer spawns to reviewer config", () => {
@@ -579,7 +582,7 @@ test("v1 model routing: items are preserved while model is injected", () => {
   );
   const ui = updatedInputOf(out);
   assert.equal(ui.model, "deepseek/deepseek-v4");
-  assert.equal(ui.message, `${LEAF_GUARD_BLOCK}\n\nimplement it`);
+  assert.equal(ui.message, `${V1_SCOPE_BLOCK}\n\nimplement it`);
   assert.ok(Array.isArray(ui.items));
 });
 
@@ -593,7 +596,82 @@ test("v1 full-history fork skips model/effort but still guards", () => {
   const ui = updatedInputOf(out);
   assert.ok(!("model" in ui));
   assert.ok(!("reasoning_effort" in ui));
+  assert.ok((ui.message as string).startsWith(`${V1_SCOPE_BLOCK}\n\n`));
+});
+
+test("v1 spawns receive V1_SCOPE_BLOCK, not LEAF_GUARD_BLOCK", () => {
+  const ui = updatedInputOf(
+    runSpawnAttachHook(spawnPayload({ agent_type: "worker", message: "implement it" })),
+  );
+  assert.ok((ui.message as string).startsWith(`${V1_SCOPE_BLOCK}\n\n`));
+  assert.ok((ui.message as string).includes(SCOPE_GUARD_MARKER));
+  assert.ok(!(ui.message as string).includes(LEAF_GUARD_MARKER));
+});
+
+test("v2 spawns still receive LEAF_GUARD_BLOCK", () => {
+  const ui = updatedInputOf(
+    runSpawnAttachHook(spawnPayload({ task_name: "t", fork_turns: "none", message: "implement it" })),
+  );
   assert.ok((ui.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`));
+});
+
+test("v1 coordinator receives V1_SCOPE_BLOCK_COORDINATOR", () => {
+  const message = `${SUBSPAWN_TOKEN} coordinate this task`;
+  const ui = updatedInputOf(
+    runSpawnAttachHook(spawnPayload({ agent_type: "worker", message })),
+  );
+  assert.equal(ui.message, `${V1_SCOPE_BLOCK_COORDINATOR}\n\n${message}`);
+});
+
+test("promptOverride is injected between guard and task for configured role", () => {
+  const promptOverride = "Always use TypeScript strict mode.";
+  const cwd = workspaceWithConfig({
+    executor: { mode: "default", model: null, promptOverride },
+  });
+  const ui = updatedInputOf(
+    runSpawnAttachHook(spawnPayloadAt(cwd, { agent_type: "worker", message: "implement it" })),
+  );
+  assert.equal(ui.message, `${V1_SCOPE_BLOCK}\n\n${promptOverride}\n\nimplement it`);
+});
+
+test("promptOverride is NOT injected when null", () => {
+  const promptOverride = "Always use TypeScript strict mode.";
+  const cwd = workspaceWithConfig({
+    executor: { mode: "default", model: null, promptOverride: null },
+  });
+  const ui = updatedInputOf(
+    runSpawnAttachHook(spawnPayloadAt(cwd, { agent_type: "worker", message: "implement it" })),
+  );
+  assert.ok(!(ui.message as string).includes(promptOverride));
+});
+
+test("promptOverride IS injected on full-history forks (message text, not a rejected field)", () => {
+  const promptOverride = "Always use TypeScript strict mode.";
+  const cwd = workspaceWithConfig({
+    executor: { mode: "default", model: null, promptOverride },
+  });
+  const ui = updatedInputOf(
+    runSpawnAttachHook(
+      spawnPayloadAt(cwd, { agent_type: "worker", fork_context: true, message: "implement it" }),
+    ),
+  );
+  // promptOverride modifies message text (like guards/affordances), not a separate
+  // JSON field. codex-rs only rejects model/reasoning_effort on full-history forks,
+  // not message changes. So promptOverride must still be injected.
+  assert.ok((ui.message as string).includes(promptOverride));
+});
+
+test("promptOverride is injected on v2 spawns too", () => {
+  const promptOverride = "Always use TypeScript strict mode.";
+  const cwd = workspaceWithConfig({
+    explorer: { mode: "default", model: null, promptOverride },
+  });
+  const ui = updatedInputOf(
+    runSpawnAttachHook(
+      spawnPayloadAt(cwd, { task_name: "t", fork_turns: "none", message: "implement it" }),
+    ),
+  );
+  assert.ok((ui.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n${promptOverride}\n\nimplement it`));
 });
 
 test("v1 subagent-issued spawn is denied without the token (D1 parity)", () => {
@@ -766,7 +844,7 @@ test("inlineSkillBodies: nested closed blocks hide their whole interior from sca
   assert.equal(inlineSkillBodies(nested, SKILLS_DIR), nested, "interior mentions must not attach");
 });
 
-test("same-intent v1/v2 spawns produce equivalent effective payloads (cr3 parity)", () => {
+test("same-intent v1/v2 spawns produce surface-appropriate effective payloads", () => {
   const cwd = workspaceWithConfig({
     explorer: { mode: "model", model: "kiro/claude-opus-4.6", effort: "high", promptOverride: null },
   });
@@ -780,8 +858,8 @@ test("same-intent v1/v2 spawns produce equivalent effective payloads (cr3 parity
   // Same model + effort routing on both surfaces.
   assert.equal(v1.model, v2.model);
   assert.equal(v1.reasoning_effort, v2.reasoning_effort);
-  // Both carry the leaf guard.
-  assert.ok((v1.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`));
+  // Each surface carries its appropriate guard.
+  assert.ok((v1.message as string).startsWith(`${V1_SCOPE_BLOCK}\n\n`));
   assert.ok((v2.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`));
   // Skill delivery: v1 keeps the parseable mention link (upstream injects); v2
   // additionally inlines the body (upstream never parses v2 spawn messages).

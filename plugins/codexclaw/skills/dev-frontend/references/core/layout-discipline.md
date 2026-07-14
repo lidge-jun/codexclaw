@@ -21,6 +21,8 @@ where 5-second clarity beats brand memorability (Unbounce anatomy) — but even
 there, suggest it and let the user decide; no universal A/B evidence favors
 either shape (VWO). "This looks like a landing page" is NOT an exception.
 
+For this rule, an edge-to-edge, grid-crossing, interactive or media aperture that performs the product premise is not a "split hero."
+
 Core inversion (DEFAULT): **the product visual is the STAGE, not a polite
 right-column card.** Choose from the verified replacement menu (heroes
 live-checked 2026-07-09):
@@ -48,6 +50,15 @@ Rules (DEFAULT):
   centered, over soft sky photography. The generic centered BOLD hero plus
   template composition remains banned. This exception exists ONLY when the
   light-weight headline and authored-media backdrop conditions both hold.
+  A second sanctioned variant is the **Authored-Field Centered Statement**: centered
+  copy may sit over a background or proof object only when that authored field is
+  the primary content, the overlay contains no more than 3 semantic elements,
+  headline line breaks are deliberately authored, and the next section is not an
+  equal-card row. Evidence: Vectr's restrained statement over an isometric
+  landscape, Fin's serif statement over an authored canvas, and Michael Pumo's
+  statement within radical negative space. This variant does not legalize a
+  generic centered BOLD hero; without authored-field primacy and all four gates,
+  the generic composition remains banned.
   Composition ownership lives here; type exemplar details live in
   `aesthetics.md` / `design-isms.md`.
 - Korean note: "left bold Pretendard headline + right mockup" is the same dead

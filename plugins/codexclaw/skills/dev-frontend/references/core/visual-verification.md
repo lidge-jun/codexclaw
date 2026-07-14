@@ -20,6 +20,7 @@ For substantial UI changes:
 - scroll-motion count vs FE-MOTION-BUCKET-01: landing bucket shows >= 2 and
   <= ~4 distinct scroll-driven moments; tool surfaces (dashboard/admin/finance/
   gov) show ZERO scroll-driven motion
+- EXPERIENCE bucket: verify every scene advances narrative/state, the reduced-motion fallback is complete, and core information is reachable without precision scrolling; the LANDING ~4 ceiling does not apply
 - autoplay video: poster present, pauses offscreen (IO-gated), respects
   `prefers-reduced-motion` and `prefers-reduced-data`
 - asset rendering and framing

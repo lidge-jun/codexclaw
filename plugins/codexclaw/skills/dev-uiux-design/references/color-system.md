@@ -2,6 +2,16 @@
 
 When the user provides a brand color (or you need to generate a palette from scratch), follow this method.
 
+### Palette Modifier Vocabulary
+
+Palette modifiers describe color structure, not aesthetic movements. Apply one only after domain, contrast, semantic-color, and material requirements are known.
+
+- **black-and-white:** Only black, white, and their opacity mixtures; name this explicitly instead of using `monochrome` when hue is absent.
+- **greyscale:** A multi-step neutral ramp without chromatic hue as the principal palette; semantic status colors may remain where meaning requires them.
+- **monochrome:** One hue family varied through lightness, chroma, and alpha; black-and-white and greyscale are related aliases in gallery retrieval but remain distinct implementation values.
+- **colourful:** Multiple hue families carry intentional hierarchy. This is not an alias for Memphis or gradient-led styling and does not waive the hue budget.
+- **single-saturated-field:** One bounded hero or chapter uses a saturated semantic brand field. It is not a full-page one-note theme and must preserve contrast, structure, and later tonal/material variation.
+
 ### From Brand Color to Full Palette
 
 1. **Start with the brand hex.** Compute OKLCH values for precise perceptual steps.

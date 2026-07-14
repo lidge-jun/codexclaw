@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codex Session Model — FEM 활성화 구조</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#0f172a; color:#e2e8f0;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  padding:24px 20px; min-height:100vh;
+}
+h1 { text-align:center; font-size:20px; font-weight:600; color:#f8fafc; margin-bottom:4px; }
+.subtitle { text-align:center; font-size:12px; color:#94a3b8; margin-bottom:24px; }
+
+.section-title {
+  font-size:13px; font-weight:700; color:#cbd5e1; text-transform:uppercase;
+  letter-spacing:1.5px; margin:20px 0 10px;
+  padding-left:10px; border-left:3px solid #64748b;
+}
+.section-title.global { border-color:#f59e0b; }
+.section-title.appserver { border-color:#3b82f6; }
+.section-title.thread { border-color:#8b5cf6; }
+.section-title.lifecycle { border-color:#10b981; }
+
+.card {
+  border-radius:10px; padding:14px 16px;
+  border:1px solid #1e293b; margin-bottom:10px;
+}
+.card h3 { font-size:12px; font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:5px; }
+.card p, .card ul { font-size:11px; color:#94a3b8; line-height:1.5; }
+.card ul { padding-left:14px; }
+.card li { margin-bottom:2px; }
+
+.tag {
+  display:inline-block; font-size:9px; font-weight:600;
+  padding:2px 6px; border-radius:4px; margin-right:3px;
+}
+.tag-global { background:#f59e0b; color:#78350f; }
+.tag-per-thread { background:#8b5cf6; color:#2e1065; }
+.tag-per-session { background:#10b981; color:#064e3b; }
+.tag-pr { background:#334155; color:#94a3b8; }
+.tag-key { background:#ef4444; color:#fff; }
+
+.c-global { background:#78350f22; border-color:#d97706; }
+.c-appserver { background:#17255422; border-color:#3b82f6; }
+.c-thread { background:#4c1d9522; border-color:#7c3aed; }
+.c-active { background:#1e1b4b; border-color:#8b5cf6; border-width:2px; }
+.c-inactive { background:#1e293b; border-color:#334155; }
+.c-lifecycle { background:#16533522; border-color:#059669; }
+.c-compare { background:#1e293b; border-color:#475569; }
+
+.row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+.row > * { flex:1; min-width:200px; }
+
+.thread-pool {
+  display:grid; grid-template-columns:1fr 1fr; gap:10px;
+  margin-bottom:12px;
+}
+
+.arrow-row {
+  display:flex; justify-content:center; margin:4px 0; gap:60px;
+}
+.arrow {
+  display:flex; flex-direction:column; align-items:center;
+  color:#475569; font-size:10px;
+}
+.arrow svg { width:18px; height:18px; }
+.arrow-label { font-size:9px; color:#64748b; margin-top:1px; }
+
+.divider { border:none; border-top:1px dashed #1e293b; margin:12px 0; }
+
+/* Timeline */
+.timeline { display:flex; flex-direction:column; gap:0; margin:8px 0; }
+.tl-step {
+  display:flex; align-items:flex-start; gap:10px;
+  padding:8px 0;
+}
+.tl-dot-wrap {
+  display:flex; flex-direction:column; align-items:center;
+  flex-shrink:0; width:24px;
+}
+.tl-dot {
+  width:12px; height:12px; border-radius:50%;
+  border:2px solid #7c3aed; background:#0f172a;
+  flex-shrink:0;
+}
+.tl-dot.active { background:#8b5cf6; }
+.tl-dot.green { border-color:#10b981; }
+.tl-dot.green.active { background:#10b981; }
+.tl-dot.red { border-color:#ef4444; }
+.tl-dot.red.active { background:#ef4444; }
+.tl-line {
+  width:2px; flex:1; min-height:20px;
+  background:#334155;
+}
+.tl-content { flex:1; }
+.tl-content h4 { font-size:11px; font-weight:700; color:#e2e8f0; margin-bottom:2px; }
+.tl-content p { font-size:10px; color:#94a3b8; line-height:1.45; }
+.tl-content code { font-size:10px; color:#c4b5fd; background:#1e1b4b; padding:1px 4px; border-radius:3px; }
+
+/* Highlight box */
+.highlight {
+  background:#7c3aed15; border:1px solid #7c3aed;
+  border-radius:10px; padding:14px 16px; margin:12px 0;
+}
+.highlight h3 { font-size:13px; font-weight:700; color:#c4b5fd; margin-bottom:8px; }
+.highlight p { font-size:11px; color:#a78bfa; line-height:1.5; }
+
+.legend {
+  margin-top:20px; padding:12px 16px;
+  background:#1e293b; border-radius:10px;
+  display:flex; flex-wrap:wrap; gap:12px; align-items:center;
+}
+.legend-title { font-size:11px; font-weight:700; color:#94a3b8; margin-right:6px; }
+.legend-item { display:flex; align-items:center; gap:4px; font-size:10px; color:#cbd5e1; }
+.legend-dot { width:8px; height:8px; border-radius:3px; flex-shrink:0; }
+
+@media (max-width:600px) {
+  .thread-pool { grid-template-columns:1fr; }
+  .row { flex-direction:column; }
+}
+</style>
+</head>
+<body>
+
+<h1>Codex Session Model</h1>
+<p class="subtitle">FEM(음성 모델)은 전역이 아니라 per-thread로 활성화된다</p>
+
+<!-- ═══ KEY ANSWER ═══ -->
+<div class="highlight">
+  <h3>🔑 핵심 답변</h3>
+  <p>
+    FEM(Frontend Model)은 <b>전역 상주 모델이 아닙니다</b>.<br>
+    각 Thread가 <code>thread/realtime/start</code>를 호출할 때 해당 Thread에만 WebRTC 세션이 생성되고,
+    그 Thread 안에서만 FEM ↔ Orchestrator handoff가 작동합니다.<br>
+    다른 Thread는 여전히 텍스트 전용으로 동작합니다.
+  </p>
+</div>
+
+<!-- ═══ GLOBAL CONFIG ═══ -->
+<div class="section-title global">Global — config.toml [realtime]</div>
+<div class="card c-global">
+  <h3>⚙️ 전역 설정 (기본값 제공)</h3>
+  <span class="tag tag-global">Global</span>
+  <ul style="margin-top:6px;">
+    <li><code>[realtime]</code> 섹션 — 기본 아키텍처, 모델 등 설정</li>
+    <li>AVAS v1 고정 후 <code>architecture</code> 키 제거됨 <span class="tag tag-pr">#28856</span></li>
+    <li>이 설정은 "기본값"일 뿐, realtime 세션을 자동으로 켜지 않음</li>
+    <li><b>활성화는 반드시 per-thread 요청이 필요</b></li>
+  </ul>
+</div>
+
+<div class="arrow-row">
+  <div class="arrow">
+    <svg viewBox="0 0 20 20"><path d="M10 2 L10 15 M5 11 L10 16 L15 11" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+    <span class="arrow-label">기본값 상속</span>
+  </div>
+</div>
+
+<!-- ═══ APP-SERVER ═══ -->
+<div class="section-title appserver">App-Server — ThreadManager</div>
+<div class="card c-appserver">
+  <h3>🏗️ ThreadManager</h3>
+  <p>모든 Thread의 라이프사이클을 관리. 각 Thread에 독립된 codex-core Session을 할당.</p>
+  <p style="margin-top:4px;">Thread는 <code>thread/start</code>로 생성, <code>thread/realtime/start</code>는 <b>별도 요청</b>.</p>
+</div>
+
+<div class="arrow-row">
+  <div class="arrow">
+    <svg viewBox="0 0 20 20"><path d="M10 2 L10 15 M5 11 L10 16 L15 11" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+    <span class="arrow-label">Thread 생성</span>
+  </div>
+</div>
+
+<!-- ═══ THREAD POOL ═══ -->
+<div class="section-title thread">Thread Pool — per-thread 활성화</div>
+
+<div class="thread-pool">
+  <!-- Thread A: realtime active -->
+  <div class="card c-active">
+    <h3>🎙️ Thread A — Realtime Active</h3>
+    <span class="tag tag-per-thread">per-thread</span>
+    <span class="tag tag-per-session">realtime ON</span>
+    <div style="margin-top:8px; font-size:11px;">
+      <div style="background:#0f172a; border:1px solid #7c3aed; border-radius:6px; padding:8px; margin-bottom:6px;">
+        <b style="color:#c4b5fd;">WebRTC Session</b><br>
+        <span style="color:#94a3b8;">
+          AVAS v1 · SDP 교환 완료<br>
+          실시간 오디오 스트림 활성
+        </span>
+      </div>
+      <div style="background:#0f172a; border:1px solid #7c3aed; border-radius:6px; padding:8px; margin-bottom:6px;">
+        <b style="color:#c4b5fd;">FEM (Frontend Model)</b><br>
+        <span style="color:#94a3b8;">
+          이 Thread에만 바인딩<br>
+          사용자 음성 수신/발화<br>
+          handoff → Orchestrator
+        </span>
+      </div>
+      <div style="background:#0f172a; border:1px solid #7c3aed; border-radius:6px; padding:8px;">
+        <b style="color:#c4b5fd;">Codex Orchestrator</b><br>
+        <span style="color:#94a3b8;">
+          codex-core Session<br>
+          도구 실행, 코드 수정<br>
+          voice-ready 응답 반환
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thread B: text only -->
+  <div class="card c-inactive">
+    <h3>💬 Thread B — Text Only</h3>
+    <span class="tag tag-per-thread">per-thread</span>
+    <span style="font-size:9px; color:#64748b;">realtime OFF</span>
+    <div style="margin-top:8px; font-size:11px;">
+      <div style="background:#0f172a; border:1px solid #334155; border-radius:6px; padding:8px; margin-bottom:6px;">
+        <b>codex-core Session</b><br>
+        <span style="color:#64748b;">
+          텍스트 입출력만 처리<br>
+          turn/start · turn/steer<br>
+          Guardian 권한 심사
+        </span>
+      </div>
+      <div style="background:#0f172a; border:1px dashed #334155; border-radius:6px; padding:8px; color:#475569;">
+        <b>WebRTC / FEM</b><br>
+        ❌ 생성되지 않음<br>
+        realtime/start 호출 전까지 없음
+      </div>
+    </div>
+  </div>
+
+  <!-- Thread C: text only -->
+  <div class="card c-inactive">
+    <h3>💬 Thread C — Text Only</h3>
+    <span class="tag tag-per-thread">per-thread</span>
+    <span style="font-size:9px; color:#64748b;">realtime OFF</span>
+    <div style="margin-top:8px; font-size:11px;">
+      <div style="background:#0f172a; border:1px solid #334155; border-radius:6px; padding:8px;">
+        <b>codex-core Session</b><br>
+        <span style="color:#64748b;">
+          텍스트 전용<br>
+          Thread A의 realtime과 무관
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thread D: child agent -->
+  <div class="card c-inactive">
+    <h3>🤖 Thread D — Child Agent</h3>
+    <span class="tag tag-per-thread">per-thread</span>
+    <span style="font-size:9px; color:#64748b;">spawn_agent 자식</span>
+    <div style="margin-top:8px; font-size:11px;">
+      <div style="background:#0f172a; border:1px solid #334155; border-radius:6px; padding:8px;">
+        <b>독립 codex-core Session</b><br>
+        <span style="color:#64748b;">
+          부모 Thread에서 spawn<br>
+          realtime 불가 (direct input 차단 #27173)
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══ LIFECYCLE ═══ -->
+<div class="section-title lifecycle">Realtime Session Lifecycle — Thread A 기준</div>
+
+<div class="timeline">
+  <div class="tl-step">
+    <div class="tl-dot-wrap">
+      <div class="tl-dot active"></div>
+      <div class="tl-line"></div>
+    </div>
+    <div class="tl-content">
+      <h4>1. Thread 생성</h4>
+      <p><code>thread/start</code> — 일반 텍스트 Thread로 시작. realtime 없음.</p>
+    </div>
+  </div>
+
+  <div class="tl-step">
+    <div class="tl-dot-wrap">
+      <div class="tl-dot active" style="background:#8b5cf6;"></div>
+      <div class="tl-line" style="background:#7c3aed;"></div>
+    </div>
+    <div class="tl-content">
+      <h4>2. Realtime 활성화 <span class="tag tag-key">핵심</span></h4>
+      <p>클라이언트가 <code>thread/realtime/start</code> 호출<br>
+      → 이 Thread에만 WebRTC AVAS 세션 생성 <span class="tag tag-pr">#27720</span><br>
+      → SDP 교환 → FEM 모델 연결<br>
+      → <code>RealtimeConversationManager</code> 인스턴스 생성 <span class="tag tag-pr">#12268</span></p>
+    </div>
+  </div>
+
+  <div class="tl-step">
+    <div class="tl-dot-wrap">
+      <div class="tl-dot green active"></div>
+      <div class="tl-line" style="background:#059669;"></div>
+    </div>
+    <div class="tl-content">
+      <h4>3. 이중 모델 동작</h4>
+      <p>FEM: 음성 수신/발화 (이 Thread에만 바인딩)<br>
+      Orchestrator: 코딩 작업 실행 (기존 codex-core Session)<br>
+      둘 사이를 handoff protocol이 연결</p>
+    </div>
+  </div>
+
+  <div class="tl-step">
+    <div class="tl-dot-wrap">
+      <div class="tl-dot green active"></div>
+      <div class="tl-line" style="background:#059669;"></div>
+    </div>
+    <div class="tl-content">
+      <h4>4. 듀러블 재연결</h4>
+      <p>네트워크 끊김 → Thread의 realtime 오케스트레이터가 새 Session으로 재연결 가능 <span class="tag tag-pr">#28826</span><br>
+      UUIDv7 턴 ID로 중복 방지<br>
+      <code>appendText</code>로 이전 세션 오버랩 재생 <span class="tag tag-pr">#28836</span></p>
+    </div>
+  </div>
+
+  <div class="tl-step">
+    <div class="tl-dot-wrap">
+      <div class="tl-dot red active"></div>
+    </div>
+    <div class="tl-content">
+      <h4>5. 세션 종료</h4>
+      <p>WebRTC 연결 해제 → FEM 해제 → Thread는 텍스트 전용으로 복귀<br>
+      다른 Thread에는 아무 영향 없음</p>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══ COMPARISON ═══ -->
+<div class="section-title" style="border-color:#64748b;">비교: 기존 STT vs Realtime Voice 세션 모델</div>
+
+<div class="row">
+  <div class="card c-compare">
+    <h3>⌨️ 기존 STT 입력</h3>
+    <ul>
+      <li><b>세션 모델</b>: 없음 (stateless)</li>
+      <li>클라이언트 측 변환 후 텍스트로 전송</li>
+      <li>서버에 음성 관련 상태 없음</li>
+      <li>모든 Thread에서 사용 가능</li>
+      <li>별도 모델 인스턴스 없음</li>
+    </ul>
+  </div>
+  <div class="card c-compare" style="border-color:#7c3aed;">
+    <h3>🎙️ Realtime Voice</h3>
+    <ul>
+      <li><b>세션 모델</b>: per-thread (stateful)</li>
+      <li>서버에 WebRTC 세션 + FEM 바인딩</li>
+      <li>Thread별 독립 라이프사이클</li>
+      <li>명시적 start/stop 필요</li>
+      <li>FEM + Orchestrator 이중 모델 구동</li>
+      <li>듀러블 재연결 지원</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══ LEGEND ═══ -->
+<div class="legend">
+  <span class="legend-title">범례</span>
+  <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Global Config</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div> Realtime Active</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#475569"></div> Text Only</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Lifecycle</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Session End</div>
+  <div class="legend-item" style="margin-left:auto; color:#64748b; font-size:9px;">
+    openai/codex PR #12268~#28856 · 2026-07-13
+  </div>
+</div>
+
+</body>
+</html>

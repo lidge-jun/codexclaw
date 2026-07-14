@@ -87,7 +87,7 @@ remain yours to run.
 
 When entering HOTL mode, the main agent MUST create a host goal with
 `create_goal` before relying on Stop-continuation. The objective should be
-detailed, concrete, and approach the host limit of 5000 characters.
+detailed, concrete, and approach the host limit of 4000 characters.
 
 The objective must include:
 

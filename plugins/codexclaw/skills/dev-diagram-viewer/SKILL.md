@@ -21,6 +21,7 @@ by description match or explicit `$cxc-dev-diagram-viewer` mention.
 
 - `reference/environment-detection.md` — environment detection signals and decision tree
 - `reference/html-templates.md` — HTML wrapper templates for all diagram types
+- `reference/visualize-contract.md` — embedded Codex Desktop inline visualization contract
 
 ## Why This Skill Exists
 
@@ -28,13 +29,14 @@ Different Codex surfaces support different rendering capabilities:
 
 | Surface | Mermaid | Inline SVG | HTML Widgets | Chart.js/ECharts | Interactive |
 |---------|---------|------------|--------------|------------------|-------------|
-| Codex Desktop app | native | no | no | no | no |
+| Codex Desktop app | native | fragment only | inline-vis subset | inline-vis subset | inline-vis subset |
 | CLI (jaw Web UI) | native | native | native | native | native |
 | CLI (terminal) | ASCII fallback | no | no | no | no |
 
 When the agent produces a diagram type that the current surface cannot render
-natively, this skill wraps the content in a self-contained HTML file and opens
-it in a browser — making every diagram type work everywhere.
+natively or through Desktop inline-vis, this skill wraps the content in a
+self-contained HTML file and opens it in a browser — making every diagram type
+work everywhere.
 
 ## Environment Detection (read first)
 
@@ -84,12 +86,17 @@ After detecting the environment, route each diagram type:
 | Diagram Type | Delivery | Method |
 |---|---|---|
 | Mermaid (any type) | **Native pass-through** | Output ` ```mermaid ` code block directly in response |
-| Inline SVG | **Browser render** | Wrap in HTML, open in browser |
-| Chart.js / ECharts / D3 | **Browser render** | Wrap in HTML with CDN, open in browser |
+| Standard chart / comparison / interactive explainer / data-driven visual covered by the visualize contract | **Inline visualization** | Follow `reference/visualize-contract.md`, write an HTML fragment to `.codex/visualizations/YYYY/MM/DD/<thread-id>/`, and output `::codex-inline-vis{file="<title>.html"}` |
+| Inline SVG | **Browser render** | Wrap standalone structural SVG in HTML, open in browser |
+| Chart.js / ECharts / D3 (when full-page is needed) | **Browser render** | Wrap in HTML with CDN, open in browser |
 | Leaflet map | **Browser render** | Wrap in HTML with CDN, open in browser |
 | Three.js / p5.js / Matter.js | **Browser render** | Wrap in HTML with CDN, open in browser |
-| Interactive widget (sliders etc.) | **Browser render** | Wrap in HTML, open in browser |
+| Interactive widget (sliders etc.; full-page or contract-unsupported) | **Browser render** | Wrap in HTML, open in browser |
 | jaw `diagram-html` / `diagram-file` | **Browser render** | Extract HTML content, wrap, open in browser |
+
+Inline-vis is the primary Desktop path for standard charts, comparisons, and
+interactive explainers. Browser render remains the fallback for 3D, audio,
+physics, full-page, and other contract-unsupported needs.
 
 ### CLI Environment
 
@@ -107,7 +114,8 @@ After detecting the environment, route each diagram type:
 
 Produce the diagram source as you normally would — mermaid syntax, raw SVG
 markup, Chart.js JavaScript, etc. For Mermaid in Codex Desktop, output it
-directly and stop (native rendering handles it).
+directly and stop (native rendering handles it). For a Desktop visualization
+covered by the inline contract, follow the Inline Visualization section below.
 
 ### Step 2: Wrap in HTML (when browser render is needed)
 
@@ -187,13 +195,13 @@ When producing output, classify the diagram type to choose the correct route:
 |---|---|---|
 | ` ```mermaid ` fence | Mermaid | Native |
 | `<svg` tag or SVG markup | Inline SVG | Browser |
-| `new Chart(` or Chart.js patterns | Chart.js | Browser |
-| `echarts.init` or ECharts patterns | ECharts | Browser |
+| `new Chart(` or Chart.js patterns | Chart.js | Inline-vis |
+| `echarts.init` or ECharts patterns | ECharts | Inline-vis |
 | `L.map(` or Leaflet patterns | Leaflet map | Browser |
 | `new THREE.` or Three.js patterns | Three.js 3D | Browser |
 | `new p5(` or p5.js patterns | p5.js creative | Browser |
 | `Matter.Engine` or Matter.js patterns | Physics sim | Browser |
-| `d3.select` or D3 patterns | D3 visualization | Browser |
+| `d3.select` or D3 patterns | D3 visualization | Inline-vis when standard; Browser when full-page |
 | `Tone.` or Tone.js patterns | Audio viz | Browser |
 | ` ```diagram-html ` fence | jaw widget | Browser |
 | ` ```diagram-file ` fence | jaw file widget | Browser |
@@ -255,9 +263,42 @@ Do NOT use `C4Context`, `C4Container` etc. — dark mode text is unreadable
 (mermaid #4906). Substitute with `flowchart` + subgraphs or structural SVG
 via browser render.
 
+## Inline Visualization (Codex Desktop)
+
+When Codex Desktop is detected and the visualization is a standard chart,
+comparison, interactive explainer, or data-driven visual, use the inline-vis
+contract. See `reference/visualize-contract.md` for the complete fragment
+format, CSS variables, utility classes, and composition rules.
+
+Write an HTML fragment with no doctype to the thread-scoped visualization
+directory `.codex/visualizations/YYYY/MM/DD/<thread-id>/`, then emit
+`::codex-inline-vis{file="<title>.html"}`. This path follows the locally embedded
+contract directly and does not require loading the bundled `visualize` skill.
+Use browser render as before for 3D, audio, physics, full-page interactive, and
+other types the inline-vis contract does not cover.
+
+## Responsive Diagram Layout (DIAGRAM-LAYOUT-01, STRICT)
+
+- Use Mermaid for static structures that can be expressed as labeled nodes and
+  edges.
+- For custom HTML diagrams, place text-bearing nodes in normal document flow
+  using semantic HTML and CSS Grid or Flexbox. Use `gap`, wrapping, stacking,
+  intrinsic sizing, `min-width: 0`, and text wrapping.
+- Do not position text-bearing nodes with hand-calculated SVG `x`/`y`,
+  `transform`, absolute `top`/`left`, or fixed node widths/heights.
+- SVG or canvas may render chart marks or a connector overlay, but must not be
+  the layout authority for HTML nodes.
+- If connectors use SVG, derive their endpoints from rendered DOM bounds and
+  recompute them with `ResizeObserver` after layout, font, content, or viewport
+  changes.
+- Verify the longest-label state at approximately 736px and 320px. Fail
+  verification if nodes or labels intersect, content clips, or horizontal
+  overflow appears.
+
 ## Combined Output Pattern
 
-When a response includes both text explanation and a non-mermaid diagram:
+When a response includes both text explanation and a browser-rendered
+non-mermaid diagram:
 
 1. Write the text explanation in the response
 2. Generate and save the HTML file
@@ -272,7 +313,8 @@ Agent response text explaining the architecture...
 ```
 
 Do NOT put SVG markup or HTML widget code directly in the Codex Desktop
-response — it will not render. Always route through the browser path.
+response — it will not render. Route supported visualizations through inline-vis
+and unsupported or full-page output through the browser path.
 
 ## Screenshot Capture (optional enhancement)
 
@@ -310,10 +352,9 @@ documented tab-management patterns. Do not re-initialize if a browser binding
 already exists.
 
 ### `visualize` skill (Codex bundled)
-The bundled `visualize` skill creates interactive tools in conversation. When
-it covers the diagram type, this router delegates delivery to it. Use this
-skill's native paths when the diagram type is not covered by `visualize` or when
-cli-jaw diagram compatibility is needed.
+The visualize contract is embedded locally as `reference/visualize-contract.md`.
+This router follows that contract directly without invoking the bundled skill.
+Upstream drift is tracked with `upstream/sync-check.sh`.
 
 ## When NOT to Use
 
@@ -332,7 +373,12 @@ Environment?
   |     |
   |     +-- Mermaid? --> Output ```mermaid fence (native)
   |     |
-  |     +-- Anything else? --> HTML file --> Browser
+  |     +-- Standard chart/comparison/interactive? --> Inline-vis (reference/visualize-contract.md)
+  |     |     --> Write fragment to .codex/visualizations/... → ::codex-inline-vis
+  |     |
+  |     +-- 3D / audio / physics / full-page? --> HTML file --> Browser
+  |     |
+  |     +-- Anything else (SVG, Leaflet, other)? --> HTML file --> Browser
   |           |
   |           +-- Primary --> open command
   |           +-- Optional inline preview? --> Local HTTP + Browser plugin
@@ -343,6 +389,12 @@ Environment?
         |
         +-- No jaw? --> HTML file --> open command
 ```
+
+## Upstream Tracking
+
+The embedded contract tracks `visualize` v1.0.11. Run
+`upstream/sync-check.sh` to detect upstream drift, and see
+`upstream/visualize-upstream.md` for the synchronization history.
 
 ## Render Verification (DIAGRAM-RENDER-VERIFY-01, DEFAULT)
 
@@ -357,6 +409,9 @@ non-blank and correctly rendered:
 3. Verify: the canvas/SVG is non-blank, text is readable, no rendering errors.
 4. For interactive visualizations (Three.js, p5.js, Chart.js): verify the
    initial state renders correctly; interaction verification is optional.
+- Inspect at 736px and 320px, including the longest-label state.
+- Verify that node and label bounding boxes do not unintentionally intersect,
+  no content is clipped, and the document has no horizontal overflow.
 
 Do not claim a diagram is correct from source inspection alone. Static
 analysis confirms well-formed files; it does not prove visual correctness.

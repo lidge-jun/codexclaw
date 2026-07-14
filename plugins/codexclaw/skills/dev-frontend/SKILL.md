@@ -2,7 +2,7 @@
 name: cxc-dev-frontend
 description: "MUST USE for any frontend, web UI, or visual implementation work — building, styling, or redesigning pages/components, responsive layouts, motion, component architecture, and production-surface polish. Pairs with cxc-dev-uiux-design: load it first when design direction is vague; this skill implements the chosen direction. Triggers: 'frontend', 'UI', 'component', 'CSS', 'responsive', 'animation', 'React', 'Vue', 'Svelte', 'Tailwind', 'layout', 'styling', 'redesign', 'mockup', 'anti-slop', '프론트엔드', 'UI 작업', '반응형', '디자인 수정'."
 metadata:
-  last-verified: "2026-07-02"
+  last-verified: "2026-07-14"
   short-description: "Production-grade frontend implementation with responsive, accessible, anti-slop UI guidance."
   keywords: [frontend, UI, component, CSS, responsive, layout, animation, design implementation]
 ---
@@ -35,6 +35,8 @@ wiring, visual verification, and frontend platform rules.
 | ----------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------- |
 | `references/core/crud-ui.md`              | C2 list/detail/form product screens  | State coverage (loading/empty/error/permission), forms, objective UX gates         |
 | `references/core/anti-slop.md`            | New/redesigned visual surfaces, visual audits, and variant generation | 2026 AI slop patterns, Korean slop, oversized text, fake assets, default UI smells |
+| `../../../../.codexclaw/goalplans/design-award-research-skill-expansion-000-plan-010-crawl/devlog/090/090-synthesis.md` | Calibrating anti-slop rules against award evidence | Context-gated exemptions for centered/split heroes, one-hue fields, gradients, motion, oversized type, navigation, and media |
+| `../dev-uiux-design/references/design-trends.md` | Implementing a dated trend or checking whether a technique is stable | 2026-07-14 axis prevalence, technique maturity, signature status, risks, and re-crawl/promotion rules |
 | `references/core/aesthetics.md`           | Implementing an established visual direction | Domain-correct typography, color, composition constraints, serif three-role system, expressive/functional layers, AI-brand grammar |
 | `references/core/product-density.md`      | Apps, tools, dashboards              | Density profiles for landing, consumer app, SaaS, ops, finance, devtools          |
 | `references/core/asset-requirements.md`   | Any public/product/visual surface    | Required screenshots, images, diagrams, charts, generated bitmaps, or 3D assets, mockup production pipeline   |
@@ -53,6 +55,7 @@ wiring, visual verification, and frontend platform rules.
 | `references/core/reference-capture.md`    | Cloning/analyzing other sites        | HTML+asset capture mechanics (pageAssets/curl), analysis-only legal line, provenance manifest, never-ship gate |
 | `references/core/dropdown-layer.md`       | Dropdowns, selects, menus, pickers   | Unified dropdown design layer (FE-DROPDOWN-LAYER-01): one skin over headless primitives, DS-detection precedence, scope table, mobile sheet |
 | `references/core/layout-discipline.md`    | Landing/marketing pages              | Hero, eyebrow, section repetition, bento, zigzag, per-section responsive transforms, hero composition grammar (2026) |
+| `references/core/section-level-sourcing.md` | Section-level design work (hero, pricing, testimonials, etc.) | Per-section-type reference sources from Land-book, One Page Love, Lapa.ninja |
 | `references/core/consistency-locks.md`    | Any multi-section page               | Color, shape, theme consistency per page                                           |
 | `references/core/responsive-viewport.md`  | Layout or breakpoint changes         | Canonical breakpoints, page containment, container queries, responsive images, safe area, split-screen |
 | `references/core/mobile-ux.md`            | Consumer/landing pages with mobile traffic | Thumb zone, touch targets, sticky CTA, mobile section composition, bottom sheet, portrait media |
@@ -230,6 +233,8 @@ Rule classes (dev §0.2): items below are DEFAULT — deviate with a stated reas
 values and palettes are STYLE_SAMPLE (§1.5); the emoji-as-UI-icon ban is the only STRICT item.
 
 Read `references/core/anti-slop.md` for full rules. Key standards:
+
+Award evidence does not repeal these rules. Use the context-gated calibrations in the award-research synthesis §5: an exception is valid only when the device expresses specific product, artifact, or narrative content and the surface remains accessible without the effect.
 
 ### Hero discipline (FE-HERO-01)
 

@@ -118,3 +118,31 @@ for any reference captures.
 
 If a captured reference inspired the final design, document the shippable
 replacement source or confirm the final pixels were recreated from scratch.
+
+---
+
+## Pattern Distillation Carve-Out (FE-CAPTURE-08)
+
+The never-ship rule distinguishes **raw capture** from **curated pattern
+distillation**.
+
+- **Raw capture** is third-party HTML, CSS, media, logos, font files,
+  screenshots, DOM snapshots, copied text, or close asset reproductions. It is
+  restricted material, stays analysis-only, and must not be committed into a
+  shipped source or asset path.
+- **Curated pattern distillation** is original synthesis written after observing
+  multiple references: normalized vocabulary, structural comparisons, counts,
+  constraints, implementation guidance, and independently expressed design
+  principles. It does not contain copied third-party assets or substantial
+  source expression.
+
+For example, `design-isms.md` may describe the observed role and weight of
+Anthropic's serif typography without copying Anthropic's font files, CSS,
+screenshots, brand assets, or prose. That description is pattern distillation,
+not raw capture.
+
+The crawling pipeline exists to produce this original synthesis, not to package
+or redistribute third-party material. Raw captures and their manifests remain
+inside analysis/devlog capture storage. Distilled skill references are original
+synthesis and **MAY be committed**, provided they contain no embedded raw
+capture, copied asset, or disguised near-reproduction.

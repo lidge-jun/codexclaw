@@ -277,5 +277,5 @@ struct UserView: View {
 - [ ] KMP: Shared module compiles for all target platforms (`./gradlew :shared:allTests`)
 - [ ] Native: Swift 6 strict concurrency mode enabled; Compose compiler 2.1+
 - [ ] Deep linking configured (→ `mobile-native-ux.md` §3)
-- [ ] Push notification token management (→ `mobile-api.md` §2)
+- [ ] Push notification token management (→ `dev-backend/references/core/mobile-api.md` §2)
 - [ ] App store assets prepared (→ `mobile-native-ux.md` §5)

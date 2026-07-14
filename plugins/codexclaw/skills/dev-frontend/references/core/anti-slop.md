@@ -57,6 +57,15 @@ Gradient overuse is the top 2026 anti-slop signal. Treat every gradient as a sca
 - Radial glow washes behind dark heroes are decorative filler unless they model a real light source
 - Every gradient must encode something: depth, light, state, or one brand moment. "Empty area needed texture" is not a reason.
 
+### Material-Field Exemption
+
+A generated or filmed continuous-color field may exceed the ambient-wash
+default only when the changing field is the product, phenomenon, or primary
+media material rather than CSS decoration. RISK's fluid film, Sky Clock's sky,
+and Augen's soft-focus imagery are the evidence context. Keep one such field per
+viewport, keep unrelated sibling cards flat, and provide a static poster or
+reduced-motion state.
+
 ### Opaque Functional Surfaces (FE-GRADIENT-02, DEFAULT, verified 2026-07-09)
 
 A tinted gradient wash on an OPAQUE functional panel — `background:
@@ -76,6 +85,10 @@ Opaque + functional (repeated cards, panels, sidebars, badges, task UI)
      flat alpha/step tint | 1px accent border or ring | left/top accent bar |
      elevation shadow | semantic status token.
 ```
+
+The material-field exemption above applies only to ambient, expressive, or
+media-like fields such as the RISK, Sky Clock, and Augen evidence; an opaque
+functional panel is NEVER exempt from this rule.
 
 What premium systems do instead (measured 2026-07-09): Primer
 `--bgColor-accent-muted` flat fill + `--borderColor-accent-muted`; Radix accent
@@ -98,6 +111,16 @@ Full-page single-hue theming where background, borders, text accents, badges, gl
 
 **Do instead**: neutral dark base (Zinc-950/`#0a0a0a`) + ONE accent applied to <10% of surface area (primary CTA, active states, key data). Imagery and charts supply the remaining color variation.
 
+### Bounded Authored Field Exemption
+
+A single-hue field is allowed only for one bounded hero or chapter when the hue
+is brand-semantic, contrast passes, real typography/diagram/media supplies the
+structure, and later states introduce tonal or material variation. Cantor8,
+Foundation Labs, Benjamin Hoang, and 1inch demonstrate authored brand/domain
+fields rather than a default full-page theme. Generic cyber neon and a full-page
+single-hue wash remain banned; this exemption does not replace the neutral-base
+default above.
+
 ## Premium-Consumer Palette Ban (MANDATORY)
 
 For premium-consumer briefs (cookware, wellness, artisan, luxury, heritage, DTC home, travel):
@@ -119,6 +142,11 @@ For alternative palettes, see `aesthetics.md § Color & Theme`.
 ## Banned Layouts
 - Everything centered with uniform padding
 - Oversized bold hero text inside apps, tools, dashboards, admin, finance flows, or public services
+  Marketing, editorial, and portfolio first viewports are outside this bullet
+  only when type is the primary artifact, wrapping or cropping is deliberately
+  authored, and no task UI is displaced. Shopify Design, PP Neue Montreal,
+  Customer.io, and Foundation Labs are the evidence context. Apps, tools,
+  dashboards, admin, finance, and public-service surfaces remain banned.
 - 3 equal cards in a row (the "feature row" cliché)
 - Uniform rounded corners on every element (vary: tight on inner, soft on containers)
 - Centered hero with gradient background + Inter heading
@@ -201,6 +229,7 @@ Before delivering any page, read all visible text aloud (mentally). Check:
 - Childish copy in finance, public service, auth, payment, security, B2B, admin, or developer tools
 - Oversized ultra-bold Hangul hero: Latin-poster sizing/weight on long Korean copy (100px+ / weight 800-900 / line-height ~0.9) reads as a heavy graphic mass even on landing/campaign surfaces — Korean premium services size heroes ~56-72px / weight 700 / line-height 1.25-1.4 (see `korea-2026.md` § Korean Hero / Large Display Type)
 - Split-hero template (FE-HERO-SPLIT-01): left bold headline + right boxed screenshot/device-mockup card is the exhausted Stripe->Linear template lineage ("Linear Design" is a reproducible kit category, 2026) — never choose it unprompted; build it only on explicit user request (paid-conversion LPs are the one context to *propose* it). Default: make the product visual the stage (full-width, background, environment, or interactive demo), never a right-column card (see `layout-discipline.md` § Hero Composition Grammar)
+For this rule, an edge-to-edge, grid-crossing, interactive or media aperture that performs the product premise is not a "split hero."
 - "tasteslop" serif shortcut: adopting a display serif purely as an AI-premium signal, without editorial structure (long-form typography, page-like surfaces, restrained palette), is the named 2026 backlash tell — serif direction is domain-gated and must be earned, at light display weights 330-400, never pasted onto a SaaS layout (see `aesthetics.md` § Serif Discipline)
 
 ---

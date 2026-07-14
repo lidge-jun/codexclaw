@@ -13,7 +13,8 @@ Motion intensity must match the product surface:
 | Finance, gov, B2B, auth, payment, security | TOOL: scroll-driven = 0 (hard); feedback/state transitions 1-4 OK |
 | Dashboards, admin, ops, developer tools | TOOL: scroll-driven = 0 (hard); feedback/state transitions 1-4 OK |
 | Consumer apps, education, community | APP: feedback + state-transition motion only; no scroll-motion floor |
-| Landing, campaign, marketing, editorial, portfolio | LANDING: scroll-driven floor 2, ceiling ~4; expressive but still performant |
+| Landing, conversion campaign, marketing, editorial, portfolio | LANDING: scroll-driven floor 2, ceiling ~4; expressive but still performant |
+| Experiential microsite, award entry, interactive story | EXPERIENCE: continuous authored choreography only under the narrative, fallback, and reachability gates below |
 | Games / interactive art | domain-specific |
 
 ## FE-MOTION-BUCKET-01 - Motion Bucket Map (DEFAULT)
@@ -21,10 +22,17 @@ Motion intensity must match the product surface:
 Classify the surface before choosing scroll choreography. The bucket map is the
 primary gate; `MOTION_INTENSITY` is secondary.
 
-- **LANDING**: landing, marketing, editorial, portfolio, and
-  marketing-facing pages of any product, including AI tools, education, and
+- **LANDING**: landing, conversion campaign, marketing, editorial, portfolio,
+  and marketing-facing pages of any product, including AI tools, education, and
   community products. Scroll-driven motion floor = 2, ceiling ~4. The floor is
   **1 signature + >= 1 supporting reveal = floor 2**.
+- **EXPERIENCE**: experiential microsites, award entries, and interactive
+  stories are carved out of LANDING. Continuous authored choreography is
+  allowed only when every scene advances narrative or state, a reduced-motion
+  fallback exists, and core information is reachable without precision
+  scrolling. A conversion campaign remains LANDING. Evidence: continuous
+  Awwwards/CSSDA narratives and the ambient/state utility behavior of Sky Clock
+  and Nothing to Watch.
 - **APP**: logged-in or in-app consumer, education, and community screens.
   Feedback + state-transition motion only; no scroll-motion floor.
 - **TOOL**: dashboards, admin, finance, gov, B2B repeated-work, developer
@@ -1090,6 +1098,16 @@ but never delivered.
 
 Verification: scroll the built page top-to-bottom and count distinct motion events.
 If the count does not match the dial band, either lower the dial or add the motion.
+
+Honesty has a second dimension: motion must carry a semantic verb, not merely
+raise the event count. A repeated verb is communicative when the same action
+explains brand or product state across loader, navigation, and content—for
+example Cobloc assembling identity, SSTR translating telemetry into loader
+grammar, or Interfere demonstrating issue resolution. Generic decorative
+entrances remain disallowed as a governing system. This does not remove the
+level 4-5 requirement for at least one entrance animation or staggered load-in;
+that required entrance must be restrained, while the repeated system earns its
+place by communicating state.
 
 Any MOTION_INTENSITY > 3 MUST honor `prefers-reduced-motion`: reduce to hover/active
 only. This is not optional at any dial level.

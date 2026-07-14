@@ -147,6 +147,12 @@ Rotate: never the same palette twice in consecutive projects.
   the sanctioned named exception at any variance when its conditions hold:
   headline weight <= 400 plus a full-width authored real-media backdrop. Bold
   centered heroes remain banned above variance 4.
+  A second sanctioned variant also passes at any variance (canonical in
+  `layout-discipline.md` FE-HERO-LIGHT-CENTER-01, Authored-Field Centered
+  Statement): the background or proof object is the primary authored content,
+  the centered overlay carries <= 3 semantic elements, line breaks are
+  deliberate, and no equal-card row follows. Evidence: Vectr, Fin, Michael
+  Pumo (2026-07-14 award crawl).
 - **ANTI-HERO-IN-TOOLS**: Apps, dashboards, admin, finance flows, and developer tools should not start with landing-page hero composition.
 - Force: "Split Screen" (50/50), "Left-aligned content / Right asset", "Asymmetric white-space"
 - **Grid over Flex-Math**: NEVER `w-[calc(33%-1rem)]`. ALWAYS CSS Grid.

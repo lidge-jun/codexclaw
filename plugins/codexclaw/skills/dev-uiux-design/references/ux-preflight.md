@@ -4,6 +4,13 @@ Run this checklist **before delivery** of any UI feature. Each item is a binary 
 
 ---
 
+## Constraint / Property Requirements
+
+These labels are delivery requirements, never aesthetic directions.
+
+- **low-carbon:** Set and verify an explicit transfer, media, font, script, animation, and caching budget appropriate to the product. Do not use `low-carbon` as a synonym for Minimalism or as a visual claim without measured delivery evidence.
+- **responsive:** Require usable hierarchy, content, navigation, targets, and interaction across supported viewports and input modes. This is a product property, not a style. Verification remains owned by `## Responsive Verification` below; declaring the tag does not satisfy its 390px/768px/1440px, overflow, target-size, or navigation checks.
+
 ## 1. State Coverage
 
 | State | Check | Pass? |

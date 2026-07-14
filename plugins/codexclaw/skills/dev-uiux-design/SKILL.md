@@ -2,7 +2,7 @@
 name: cxc-dev-uiux-design
 description: "MUST USE for UI/UX direction and design judgment — vague visual briefs, onboarding, empty/error/loading states, layout vocabulary, typography breaks, favicons, logos, and brand identity choices. Pairs with cxc-dev-frontend: this skill decides the design direction, then load cxc-dev-frontend to implement it. Triggers: make it look good, modern, clean, aesthetic, onboarding, empty state, error state, favicon, logo, design system, 깔끔하게, 모던하게, 감성적으로."
 metadata:
-  last-verified: "2026-07-02"
+  last-verified: "2026-07-14"
   short-description: "Design judgment for vague briefs, UX states, typography, layout patterns, logos, and brand vocabulary."
 ---
 
@@ -53,10 +53,13 @@ Use browser fetch/open/text/get-dom/snapshot only after candidate URLs exist.
 
 | File | When to Read | What It Covers |
 |------|-------------|----------------|
-| `references/design-isms.md` | User names a style/movement | 15 design movements with CSS signatures, incl. Liquid Glass + Liquid Editorial default kit (2025-2026) + AI Serif Editorial + Organic Capsule (verified 2026-07-09) |
+| `references/design-isms.md` | User names a style/movement | 16 design movements with CSS signatures, incl. Liquid Glass + Liquid Editorial default kit (2025-2026) + AI Serif Editorial + Organic Capsule (verified 2026-07-09) |
 | `references/design-read-example.md` | Learning or reviewing Design Read format | Filled-in Design Read + dial setting example |
+| `references/design-award-sources.md` | Looking for real-world design references | Tiered sourcing guide: 8 award/gallery sites, what each is best for, how to search |
 | `references/product-personalities.md` | User references a product | 10 product DNA profiles with exact tokens, incl. 2026 AI-product pastel + OpenAI warm-sans organic + Anthropic serif bookish |
 | `references/layout-macrostructures.md` | Choosing page/component layout | Component layouts + page-level compositions |
+| `references/compositional-patterns.md` | Composing hero, navigation, motion, or content structure | 15 compositional patterns from award research: hero types, nav models, motion architectures, content structures |
+| `references/design-trends.md` | Checking dated prevalence, emerging techniques, or promotion status | 2026-07-14 axis-frequency snapshot, technique-level signals, signature ledger, promotion pipeline, and re-crawl protocol |
 | `references/ux-states.md` | Building any stateful UI | Onboarding, empty, error, loading, progressive disclosure |
 | `references/color-system.md` | Generating colors/palette | OKLCH-based palette generation, hue budget, tinted neutrals, dark mode, accessibility |
 | `references/design-system-bootstrap.md` | New project / design system | Token architecture, component hierarchy, **DESIGN.md format** (google-labs-code/design.md) |
@@ -71,6 +74,7 @@ Use browser fetch/open/text/get-dom/snapshot only after candidate URLs exist.
 | `references/intent-discovery-ladder.md` | UX-INTENT-01 optional deepening (Steps 1-6) | Mood/lightness/density/shape/viewport/reference ladder, vague request disambiguation |
 | `references/anti-rationalization.md` | **Before C-phase verification** | Agent-shortcut excuse/rebuttal table (UX-ANTI-RATIONAL-01) |
 | `references/korean-design-vocabulary.md` | Korean design briefs or Korean-first UI | Korean descriptor → CSS token translation, quick-match table, font selection guidelines |
+| `../../../../.codexclaw/goalplans/design-award-research-skill-expansion-000-plan-010-crawl/devlog/090/090-synthesis.md` | Calibrating anti-slop rules against award evidence | Context-gated exemptions for centered heroes, split media, one-hue fields, gradients, motion, oversized type, navigation, and media |
 
 ---
 
@@ -133,7 +137,7 @@ beige-default taste under a new label.
 
 Default kit for expressive surfaces: **Liquid Editorial** (2026 composite,
 decided 2026-07-07 from Tier-2 trend research — see `references/design-isms.md`
-§1.13 for the full signature):
+§1.14 for the full signature):
 
 - Structure: type-led editorial composition (oversized authored headline
   scale, grotesk default, serif display only with editorial rationale per
@@ -271,6 +275,7 @@ without matching motion output is a lie. See dev-frontend/references/core/motion
 
 ### Anti-Default Discipline
 Do not default to: warm beige backgrounds, centered hero, three equal feature cards, generic glassmorphism, Inter + slate-900, card-based everything. These are LLM defaults. Reach past them BASED ON the design read.
+Award evidence calibrates these defaults without reversing them: a normally generic device is defensible only when it is the minimum expression of a specific product, artifact, or narrative and remains accessible without the effect. Apply the context gates in the award-research synthesis §5 rather than treating any winner example as a blanket exemption.
 When no brief exists at all, the sanctioned replacement for these generic
 defaults is the named kit in §1 UX-DEFAULT-ISM-01 — deliberate, domain-gated,
 and stated as an assumption; it is not an exemption from this discipline.

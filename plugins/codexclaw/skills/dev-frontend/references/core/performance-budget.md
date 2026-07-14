@@ -17,11 +17,11 @@
 
 | Resource | Budget (compressed) |
 |----------|-------------------|
-| Total page weight | <= 500KB first load (landing motion media exempt - see FE-MEDIA-BUDGET-01) |
+| Total page weight | <= 500KB first load (LANDING/EXPERIENCE motion media exempt - see FE-MEDIA-BUDGET-01) |
 | JavaScript (per route) | ≤ 150KB |
 | CSS (total) | ≤ 50KB |
-| Hero image | <= 100KB (landing motion media exempt - see FE-MEDIA-BUDGET-01) |
-| Images (above fold) | <= 200KB (landing motion media exempt - see FE-MEDIA-BUDGET-01) |
+| Hero image | <= 100KB (LANDING/EXPERIENCE motion media exempt - see FE-MEDIA-BUDGET-01) |
+| Images (above fold) | <= 200KB (LANDING/EXPERIENCE motion media exempt - see FE-MEDIA-BUDGET-01) |
 | Web fonts | ≤ 100KB |
 
 - Measure compressed (gzip/brotli) sizes
@@ -31,7 +31,7 @@
 
 ## Motion Media Budget Exemption (FE-MEDIA-BUDGET-01) (DEFAULT)
 
-On LANDING-bucket surfaces (see `motion.md` FE-MOTION-BUCKET-01), motion media
+On LANDING/EXPERIENCE-bucket surfaces (see `motion.md` FE-MOTION-BUCKET-01), motion media
 is exempt from byte-cap rows with no byte ceiling: autoplay loop video,
 scroll-scrub video, frame sequences, and large hero imagery. Budget freedom is
 not correctness freedom: Core Web Vitals field gates remain supreme (LCP <= 2.5s,
@@ -42,6 +42,12 @@ This exemption applies only when the loading mechanics hold:
 - Lazy or Intersection Observer-gated loading outside first paint.
 - `prefers-reduced-motion` and `prefers-reduced-data` fallbacks to poster/still.
 - Stable layout; no CLS from media swap.
+- Poster-first loading; the still is useful before heavy media arrives.
+- Explicit skip or pause control for authored playback/choreography.
+- Adaptive quality selected from device, network, and reduced-data capability.
+- Primary copy and the primary CTA are never blocked on media readiness.
+- Measured LCP meets the field gate; do not infer it from asset size.
+- Measured interaction cost meets the INP field gate during choreography.
 
 Heavy media still needs a product reason plus the mechanics above. Do not ship
 large video, frame sequences, or heavy hero imagery just because the byte cap is
@@ -86,7 +92,7 @@ exempt.
 
 - Lighthouse Performance score is advisory smoke only; CWV field metrics are the gate
 - Bundle regression: fail if JS increases > 10KB
-- Image audit: flag > 200KB, excluding declared landing motion-media assets (frame sequences, posters of IO-gated video)
+- Image audit: flag > 200KB, excluding declared LANDING/EXPERIENCE motion-media assets (frame sequences, posters of IO-gated video)
 - Unused CSS: flag > 5KB dead CSS
 
 ## Runtime Rules
@@ -98,7 +104,7 @@ exempt.
 
 ## Pre-flight
 
-- [ ] Hero image <= 100KB, `fetchpriority="high"`, explicit dimensions; landing motion media exempt per FE-MEDIA-BUDGET-01 when poster-first/loading mechanics hold
+- [ ] Hero image <= 100KB, `fetchpriority="high"`, explicit dimensions; LANDING/EXPERIENCE motion media exempt per FE-MEDIA-BUDGET-01 when poster-first/loading mechanics hold
 - [ ] Below-fold images have `loading="lazy"`
 - [ ] No JS bundle > 150KB compressed
 - [ ] `font-display: swap` + `preload` on primary font

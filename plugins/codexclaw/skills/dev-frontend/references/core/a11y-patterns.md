@@ -92,6 +92,21 @@ never means one blanket component.
 | Carousel | Arrow L/R slides, Tab to controls | Must have pause |
 | Command palette | Type to filter, Arrow navigate, Enter select | Combobox variant |
 
+## Unusual Navigation (FE-A11Y-UNUSUAL-NAV-01, STRICT)
+
+There is no accessibility exemption for unusual navigation. Visual hiding,
+miniaturized edge controls, hover discovery, counters, and viewport-locked
+canvases are allowed only when the same route remains operable and orienting
+without the visual effect. SiteInspire unusual-layout winners are evidence for
+the visual system, not permission to remove the accessible path.
+
+- Expose semantic `nav`, `main`, and relevant region landmarks.
+- Provide a keyboard-visible alternative for every hidden or hover-revealed control.
+- Give pointer controls a 44×44px conservative target baseline.
+- Expose progress, current item, or route status as text to assistive technology.
+- Provide a reduced-motion route that does not depend on spatial animation.
+- Keep core content reachable through a non-canvas, non-precision-scroll path.
+
 ## Screen Reader Testing
 
 ### Quick Test (Every Component)
