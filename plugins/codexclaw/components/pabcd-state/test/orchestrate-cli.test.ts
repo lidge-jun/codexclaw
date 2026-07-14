@@ -24,6 +24,14 @@ function readyInterview() {
 function freshCwd(): string {
   return mkdtempSync(join(tmpdir(), "codexclaw-cli-"));
 }
+// 260714 wp2: the P>A edge now requires an on-disk plan unit (plan-gate.ts).
+// Seed a minimal valid unit and return the planUnit value for the attest.
+function seedPlanUnit(cwd: string): string {
+  const unit = join(cwd, "devlog", "_plan", "000000_test-unit");
+  mkdirSync(unit, { recursive: true });
+  writeFileSync(join(unit, "000_plan.md"), "# 000 — test plan\n", "utf8");
+  return "devlog/_plan/000000_test-unit";
+}
 function seedSession(cwd: string, id: string, phase: Parameters<typeof defaultState>[0] extends string ? string : never = "IDLE"): void {
   writeState(cwd, { ...defaultState(id), phase: phase as never });
 }
@@ -121,12 +129,34 @@ test("AGENT-GATED: P->A WITH valid --attest advances + ledger reason 'cli'", () 
   const cwd = freshCwd();
   try {
     seedSession(cwd, "s2", "P");
-    const r = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "audited" }, session: "s2", cwd, json: false });
+    const planUnit = seedPlanUnit(cwd);
+    const r = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "audited", planUnit }, session: "s2", cwd, json: false });
     assert.equal(r.code, 0);
     assert.equal(readState(cwd, "s2").phase, "A");
     const led = ledgerLines(cwd);
     assert.equal(led.at(-1)?.reason, "cli");
     assert.equal(led.at(-1)?.to, "A");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("PLAN-GATE: P->A without planUnit is refused; with a seeded unit it advances", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "sg", "P");
+    const bare = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "audited the plan" }, session: "sg", cwd, json: false });
+    assert.equal(bare.code, 1);
+    assert.match(bare.output, /planUnit/);
+    assert.match(bare.output, /cxc plan init/);
+    assert.equal(readState(cwd, "sg").phase, "P"); // unchanged
+    // nonexistent unit dir is also refused
+    const ghost = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "audited", planUnit: "devlog/_plan/000000_missing" }, session: "sg", cwd, json: false });
+    assert.equal(ghost.code, 1);
+    assert.match(ghost.output, /does not exist/);
+    // seeded unit passes
+    const planUnit = seedPlanUnit(cwd);
+    const ok = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "audited", planUnit }, session: "sg", cwd, json: false });
+    assert.equal(ok.code, 0, ok.output);
+    assert.equal(readState(cwd, "sg").phase, "A");
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
@@ -210,7 +240,8 @@ test("G2: explicit --session targeting an EXISTING file still works", () => {
   const cwd = freshCwd();
   try {
     seedSession(cwd, "real-sess", "P");
-    const r = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "audited" }, session: "real-sess", cwd, json: false });
+    const planUnit = seedPlanUnit(cwd);
+    const r = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "audited", planUnit }, session: "real-sess", cwd, json: false });
     assert.equal(r.code, 0);
     assert.equal(readState(cwd, "real-sess").phase, "A");
   } finally { rmSync(cwd, { recursive: true, force: true }); }
@@ -279,7 +310,8 @@ test("G3: mutating verb WITHOUT --session refuses even when sessions exist (fork
     assert.match(rr.output, /require an explicit --session/);
     assert.equal(readState(cwd, "victim").phase, "P");
     // Explicit --session still works.
-    const ok = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "owner audit" }, cwd, json: false, session: "victim" });
+    const planUnit = seedPlanUnit(cwd);
+    const ok = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "owner audit", planUnit }, cwd, json: false, session: "victim" });
     assert.equal(ok.code, 0);
     assert.equal(readState(cwd, "victim").phase, "A");
   } finally { rmSync(cwd, { recursive: true, force: true }); }

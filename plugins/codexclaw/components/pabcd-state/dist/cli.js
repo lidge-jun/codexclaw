@@ -47,6 +47,7 @@ import { handleRenderObservationCapture, handleRenderArtifactCapture } from "./r
 import { runSubagentStopGate } from "./subagent-evidence.js";
 import { runDivergenceCli } from "./divergence-cli.js";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.js";
+import { parsePlanCliArgs, runPlanCli } from "./plan-cli.js";
 import { runMetricCli } from "./metric-cli.js";
 import { parseOrchestrateCliArgs, renderOrchestrateParseError, runOrchestrateCli } from "./orchestrate-cli.js";
 import { parseGoalplanCliArgs, runGoalplanCli } from "./goalplan-cli.js";
@@ -112,6 +113,20 @@ function main()       {
   // `divergence` command path (emergence harness): project-local mode + candidate archive.
   if (kind === "divergence") {
     const result = runDivergenceCli(process.argv.slice(3), process.cwd());
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
+  // `plan` command path (260714 wp2): scaffold the devlog/_plan unit the P>A
+  // plan-gate verifies. Without this branch the bin's `case "plan"` would
+  // fall through to the silent `kind !== "hook"` exit-0 (audit round 2 High #1).
+  if (kind === "plan") {
+    const parsed = parsePlanCliArgs(process.argv.slice(3), process.cwd());
+    if ("error" in parsed) {
+      process.stderr.write(`plan: ${parsed.error}\n`);
+      process.exit(1);
+    }
+    const result = runPlanCli(parsed);
     process.stdout.write(`${result.output}\n`);
     process.exit(result.code);
   }

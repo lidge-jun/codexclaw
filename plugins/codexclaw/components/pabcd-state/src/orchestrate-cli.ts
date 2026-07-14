@@ -15,6 +15,7 @@ import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { coerceAttest, type Attestation } from "./attest.ts";
 import { transition } from "./fsm.ts";
+import { validatePlanArtifacts } from "./plan-gate.ts";
 import { advanceWorkPhase, appendGoalplanLedger, readGoalplan, writeGoalplan } from "./goalplan.ts";
 import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.ts";
 import { resetRenderLedger } from "./render-observations.ts";
@@ -83,7 +84,7 @@ export function renderOrchestrateHelp(): string {
     "  status is read-only and may use the latest-session fallback when --session is omitted.",
     "",
     "Attestation examples:",
-    "  cxc orchestrate A --session <id> --attest '{\"from\":\"P\",\"to\":\"A\",\"did\":\"wrote and audited the plan\"}'",
+    "  cxc orchestrate A --session <id> --attest '{\"from\":\"P\",\"to\":\"A\",\"did\":\"wrote and audited the plan\",\"planUnit\":\"devlog/_plan/260714_slug\"}'",
     "  cxc orchestrate B --session <id> --attest '{\"from\":\"A\",\"to\":\"B\",\"did\":\"audit passed\",\"auditOutput\":\"VERDICT: PASS\",\"auditVerdict\":\"pass\"}'",
     "  cxc orchestrate D --session <id> --attest '{\"from\":\"C\",\"to\":\"D\",\"did\":\"verified\",\"checkOutput\":\"tests passed\",\"exitCode\":0}'",
     "",
@@ -256,6 +257,15 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
 
   // phase verb: AGENT-GATED via the un-weakened transition().
   const to = args.verb as Phase;
+  // P>A plan-artifact gate (260714 wp2, DIFFLEVEL-ROADMAP-01): the plan must
+  // exist as numbered on-disk docs before Audit. Runs even when attest is null
+  // so the FIRST error names planUnit. Fail-closed on this edge only.
+  if (state.phase === "P" && to === "A") {
+    const planCheck = validatePlanArtifacts(args.attest, args.cwd);
+    if (!planCheck.ok) {
+      return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${planCheck.reason}` };
+    }
+  }
   const result = transition(state, to, args.attest);
   if (!result.ok || !result.state) {
     return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${result.reason ?? "transition refused"}` };

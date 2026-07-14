@@ -21,16 +21,20 @@ Add optional fields:
 
 Coerce both in `coerceAttest` (string / string[] of strings, trimmed).
 
-### 2. `validateAttest` P>A branch (~line 130, after the `did` check)
+### 2. On-disk check lives in NEW `src/plan-gate.ts` (wp2-cycle P amendment)
 
-`validateAttest` is pure today (no fs). Keep it pure: add a separate
-`validatePlanArtifacts(att, cwd)` exported from attest.ts that DOES touch fs, called
-from `orchestrate-cli.ts` right after `validateAttest` for `P>A` only:
+attest.ts's header contract is "No server, no IO: pure validation" — do not break it.
+`validatePlanArtifacts(att, cwd)` goes in a NEW file `src/plan-gate.ts` (fs allowed),
+called from `orchestrate-cli.ts` BEFORE the `transition()` call when
+`state.phase === "P" && verb === "A"`. The human chat surface (applyHumanTransition)
+stays a free-pass by design; the CLI path is the mandated agent path:
 
 ```ts
-export function validatePlanArtifacts(att: Attestation, cwd: string): AttestResult {
-  if (`${att.from}>${att.to}` !== "P>A") return { ok: true };
-  if (!att.planUnit) return { ok: false, reason:
+// Caller gates the edge (state.phase === "P" && verb === "A"); att may be null
+// (bare `cxc orchestrate A`) — the gate still fires so the FIRST error names
+// planUnit (round-3 residual fold).
+export function validatePlanArtifacts(att: Attestation | null, cwd: string): AttestResult {
+  if (!att?.planUnit) return { ok: false, reason:
     "P -> A requires planUnit: the devlog/_plan/YYMMDD_slug/ unit this plan lives in " +
     "(DIFFLEVEL-ROADMAP-01). Scaffold one with `cxc plan init <slug>` if missing." };
   const unit = resolve(cwd, att.planUnit);
@@ -58,30 +62,55 @@ job (a byte-count lint invites padding); the gate guarantees EXISTENCE + numberi
   `transition()` call (cwd from `--cwd`/process.cwd), rejecting with its reason on the
   same exit path as a transition rejection. Keep fsm.ts pure/fs-free.
 
-## ADD `plan` verb — routed in `bin/codexclaw.mjs`, NOT component cli.ts
+## ADD `plan` verb — bin case + component cli.ts kind dispatch (BOTH required)
 
-AUDIT ROUND 1 blocker #1 correction: the `cxc` bin dispatches subcommands via explicit
-`case` labels in `bin/codexclaw.mjs` (~lines 332-356) and the user-facing usage string
-lives there (~line 190). Required wiring:
+AUDIT ROUND 1 blocker #1 + ROUND 2 High #1: the `cxc` bin dispatches subcommands via
+explicit `case` labels in `bin/codexclaw.mjs` (~lines 343-356, usage ~188-194), which
+spawn `dist/cli.js` with the kind as argv[0]; component `cli.ts` main() then routes
+kinds via explicit if-blocks (freeze:67 / orchestrate:79 / metric:91 / loop:100 /
+divergence:113) and silently exit-0s unknown kinds. BOTH layers need wiring:
 
-- `bin/codexclaw.mjs`: new `case "plan":` delegating to the pabcd-state dist entry,
-  plus a usage-string line.
-- `test/cli-usage.test.mjs` (repo-level): update for the new verb.
+- `bin/codexclaw.mjs`: new `case "plan":` → `runPabcdState(process.argv.slice(2))`
+  (divergence/metric pattern) + usage-string line.
+- `cli.ts` main(): new `if (kind === "plan")` branch delegating to plan-cli.ts —
+  without it `cxc plan init` is a silent exit-0 no-op.
+- `plugins/codexclaw/test/cli-usage.test.mjs` (NOT repo-level test/): update for the
+  new verb.
 - New `plugins/codexclaw/components/pabcd-state/src/plan-cli.ts` implementing
   `plan init <slug> [--phases N] [--cwd <path>]` → `devlog/_plan/<YYMMDD>_<slug>/` with
   `000_plan.md` (Objective / Loop-spec / Work-phase map / Accept criteria headings) and
   `0N0_phaseN.md` stubs each carrying the DIFFLEVEL-ROADMAP-01 header ("write to
   diff-level BEFORE P>A; empty scaffolds do not satisfy the rule").
+  Conventions (round 2): mirror goalplan-cli.ts:51-68 arg parsing; normalize slug via
+  `deriveSlug` (freeze.ts:60); no YYMMDD helper exists — write a local one.
 - Scaffold template strings must NOT contain literal TODO/FIXME/TBD tokens —
   build.mjs PLACEHOLDER_RE rejects them (audit round 1 blocker #8). Use "fill-in"
   phrasing instead.
 
-## TESTS
+## Ship/track requirements (ROUND 2 High #2)
 
-`test/attest.test.ts`: P>A without planUnit → fail; with nonexistent dir → fail; with
-dir but no `\d{3}_*.md` → fail; with valid unit (tmpdir fixture) → ok; A>B/B>C/C>D
-unaffected without planUnit. `test/plan-cli.test.ts`: init creates folder + 000 + N
-stubs; refuses to overwrite an existing unit.
+`.gitignore` ignores `dist/` wholesale and dist-freshness skips UNTRACKED dist files
+("untracked = doesn't ship"). New compiled outputs MUST be force-added at D:
+`git add -f plugins/codexclaw/components/pabcd-state/dist/plan-gate.js
+plugins/codexclaw/components/pabcd-state/dist/plan-cli.js` — otherwise a fresh
+clone's orchestrate-cli.js import of `./plan-gate.js` throws ERR_MODULE_NOT_FOUND and
+breaks EVERY `cxc orchestrate` call. C phase asserts tracked status
+(`git ls-files --error-unmatch <both files>`).
+
+## UX fold (ROUND 2 Low #5, adopted)
+
+Run the plan-gate check on the P>A edge even when attest is null, so the FIRST error
+names planUnit alongside `did` instead of a two-round discovery.
+
+## TESTS (ROUND 2 Medium #3 correction)
+
+- NEW `test/plan-gate.test.ts` (fs fixtures live here, keeping attest.test.ts no-IO):
+  P>A without planUnit → fail; nonexistent dir → fail; dir without `\d{3}_*.md` →
+  fail; valid tmpdir unit → ok; non-P>A edges unaffected.
+- `test/attest.test.ts`: ONLY coerceAttest planUnit/planPaths coercion cases.
+- `test/orchestrate-cli.test.ts`: one runOrchestrateCli P>A rejection case reusing the
+  freshCwd/seedSession harness (lines 24-29).
+- NEW `test/plan-cli.test.ts`: init creates folder + 000 + N stubs; refuses overwrite.
 
 ## Verification (C)
 

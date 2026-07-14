@@ -149,6 +149,21 @@ test("coerceAttest validates shape", () => {
   assert.equal(a?.exitCode, 0);
 });
 
+test("260714 wp2: coerceAttest carries trimmed planUnit/planPaths (drops wrong types)", () => {
+  const a = coerceAttest({
+    from: "P",
+    to: "A",
+    did: "x",
+    planUnit: "  devlog/_plan/260714_slug  ",
+    planPaths: ["  devlog/_plan/260714_slug/010_x.md ", 42, ""],
+  });
+  assert.equal(a?.planUnit, "devlog/_plan/260714_slug");
+  assert.deepEqual(a?.planPaths, ["devlog/_plan/260714_slug/010_x.md"]);
+  const b = coerceAttest({ from: "P", to: "A", did: "x", planUnit: 7, planPaths: "not-an-array" });
+  assert.equal(b?.planUnit, undefined);
+  assert.equal(b?.planPaths, undefined);
+});
+
 test("WP3: coerceAttest carries trimmed audit fields (drops wrong types)", () => {
   const a = coerceAttest({
     from: "A",

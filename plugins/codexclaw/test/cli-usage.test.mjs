@@ -13,6 +13,8 @@ test("top-level CLI usage advertises disable", () => {
   assert.match(out, /disable \| uninstall/);
   assert.match(out, /PABCD \/ loop/);
   assert.match(out, /cxc orchestrate --help/);
+  // 260714 wp2: plan scaffold verb rides the PABCD/loop section.
+  assert.match(out, /plan init <slug> \[--phases N\]/);
 });
 
 test("top-level CLI help flags render multi-section help", () => {

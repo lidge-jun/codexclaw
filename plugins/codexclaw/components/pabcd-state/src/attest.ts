@@ -42,6 +42,10 @@ export interface Attestation {
   exitCode?: number;
   /** 131/D2': human I->P soft-gate override. True = "I accept the unready interview". */
   override?: boolean;
+  /** P>A (260714 wp2): devlog plan unit dir, e.g. "devlog/_plan/260714_slug". Verified on disk by plan-gate.ts. */
+  planUnit?: string;
+  /** P>A (260714 wp2): plan doc paths this loop's work-phases execute from. Verified on disk by plan-gate.ts. */
+  planPaths?: string[];
 }
 
 /**
@@ -88,6 +92,11 @@ export function coerceAttest(obj: unknown): Attestation | null {
   }
   if (typeof rec.override === "boolean") {
     att.override = rec.override;
+  }
+  if (typeof rec.planUnit === "string") att.planUnit = rec.planUnit.trim();
+  if (Array.isArray(rec.planPaths)) {
+    const paths = rec.planPaths.filter((p): p is string => typeof p === "string").map((p) => p.trim()).filter((p) => p.length > 0);
+    if (paths.length > 0) att.planPaths = paths;
   }
   return att;
 }

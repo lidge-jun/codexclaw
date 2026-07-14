@@ -190,6 +190,7 @@ const TOP_LEVEL_HELP = [
   "  freeze                         freeze the interview plan and show goal handoff",
   "  loop init|show|validate         manage the project-local goalplan substrate",
   "  goalplan init|show|validate     deprecated alias for loop",
+  "  plan init <slug> [--phases N]   scaffold the devlog/_plan unit the P>A gate verifies",
   "  metric                         record/show objective metrics",
   "  divergence                     record divergence mode and candidate archive state",
   "",
@@ -352,6 +353,11 @@ if (isMain) switch (cmd) {
   case "goalplan":
     // pabcd-state CLI expects argv as [kind, ...rest]; kind === "loop" or "goalplan".
     // Project-local loop/goalplan substrate (init/show/validate); never writes the host goal DB.
+    process.exit(runPabcdState(process.argv.slice(2)));
+    break;
+  case "plan":
+    // pabcd-state CLI expects argv as [kind, ...rest]; kind === "plan".
+    // Scaffolds devlog/_plan/YYMMDD_slug/ for the P>A plan-artifact gate (260714 wp2).
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
   case "serve":
