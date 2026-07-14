@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js\" hook pre-tool-use-idle-edit",
+            "timeout": 10,
+            "statusMessage": "(codexclaw) Checking FSM arming for edit"
+          }
+        ],
+        "matcher": "^(apply_patch|Write|Edit)$"
+      }
+    ]
+  }
+}

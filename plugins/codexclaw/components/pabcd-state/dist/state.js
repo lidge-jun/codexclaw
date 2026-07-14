@@ -49,6 +49,13 @@ export const PHASES                   = WORK_PHASES;
 
 
 
+
+
+
+
+
+
+
 export const STATE_DIR = ".codexclaw";
 export const SESSIONS_SUBDIR = "sessions";
 export const LEDGER_FILE = "ledger.jsonl";
@@ -83,6 +90,8 @@ export function defaultState(sessionId        , slug = "")        {
     interview: null,
     stopBlockPhase: null,
     stopBlockCount: 0,
+    loopArmSeen: false,
+    idleEditNudges: 0,
   };
 }
 
@@ -168,6 +177,12 @@ export function readState(cwd        , sessionId        )        {
       stopBlockCount:
         typeof parsed.stopBlockCount === "number" && Number.isFinite(parsed.stopBlockCount) && parsed.stopBlockCount >= 0
           ? Math.floor(parsed.stopBlockCount)
+          : 0,
+      // 260714 wp3: strict reconstruction (old files read false/0 — backward-compatible).
+      loopArmSeen: parsed.loopArmSeen === true,
+      idleEditNudges:
+        typeof parsed.idleEditNudges === "number" && Number.isFinite(parsed.idleEditNudges) && parsed.idleEditNudges >= 0
+          ? Math.floor(parsed.idleEditNudges)
           : 0,
     };
   } catch {

@@ -32,6 +32,13 @@ export interface State {
   // the Stop loop releases once the count would exceed MAX_STOP_BLOCKS (no infinite loop).
   stopBlockPhase: Phase | null;
   stopBlockCount: number;
+  // 260714 wp3 (IDLE-EDIT-ADVISORY-01): true once this session saw a loop-arm request
+  // (detectLoopArmRequest). Retained across D-close (multi-cycle re-arm nudge is the
+  // feature); cleared only by explicit reset (operator stand-down).
+  loopArmSeen: boolean;
+  // 260714 wp3: gated-edit counter for the IDLE-edit advisory frequency guard
+  // (inject on count % 5 === 0). Reset at every cycle close (clearedIdle).
+  idleEditNudges: number;
 }
 
 export interface LedgerEntry {
@@ -83,6 +90,8 @@ export function defaultState(sessionId: string, slug = ""): State {
     interview: null,
     stopBlockPhase: null,
     stopBlockCount: 0,
+    loopArmSeen: false,
+    idleEditNudges: 0,
   };
 }
 
@@ -168,6 +177,12 @@ export function readState(cwd: string, sessionId: string): State {
       stopBlockCount:
         typeof parsed.stopBlockCount === "number" && Number.isFinite(parsed.stopBlockCount) && parsed.stopBlockCount >= 0
           ? Math.floor(parsed.stopBlockCount)
+          : 0,
+      // 260714 wp3: strict reconstruction (old files read false/0 — backward-compatible).
+      loopArmSeen: parsed.loopArmSeen === true,
+      idleEditNudges:
+        typeof parsed.idleEditNudges === "number" && Number.isFinite(parsed.idleEditNudges) && parsed.idleEditNudges >= 0
+          ? Math.floor(parsed.idleEditNudges)
           : 0,
     };
   } catch {

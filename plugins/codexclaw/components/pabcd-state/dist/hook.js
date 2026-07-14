@@ -436,6 +436,9 @@ export function handleUserPromptSubmit(payload                         )        
         orchestrationActive: true,
         lastInjectedPhase: trigger,
         injectedTurns: appendTurn(state.injectedTurns, turn),
+        // 260714 wp3 (audit Med #2): a trigger+loop-phrase prompt ("plan this and
+        // loop until done") must not drop the loop-arm flag on the precedence path.
+        ...(detectLoopArmRequest(payload.prompt) ? { loopArmSeen: true } : {}),
       });
     }
     return buildContextOutput("UserPromptSubmit", withFooter(directive, trigger));
@@ -449,12 +452,13 @@ export function handleUserPromptSubmit(payload                         )        
   // FSM injects the arming mandate, so a loop can no longer start as pure narration.
   if (!state.orchestrationActive) {
     if (agbrowseRequested || loopArmRequested) {
-      if (turn) {
-        writeState(payload.cwd, {
-          ...state,
-          injectedTurns: appendTurn(state.injectedTurns, turn),
-        });
-      }
+      // 260714 wp3 (audit decision a): persist loopArmSeen OUTSIDE the turn guard —
+      // a turnless payload must not lose the flag; injectedTurns stays turn-guarded.
+      writeState(payload.cwd, {
+        ...state,
+        ...(loopArmRequested ? { loopArmSeen: true } : {}),
+        injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
+      });
       const parts           = [];
       if (loopArmRequested) parts.push(LOOP_ARM_DIRECTIVE);
       if (agbrowseRequested) parts.push(AGBROWSE_SEARCH_DIRECTIVE);

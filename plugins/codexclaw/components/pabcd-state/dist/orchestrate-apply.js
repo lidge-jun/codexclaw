@@ -45,6 +45,10 @@ export function clearedIdle(state       )        {
     flags: { interview: false, auditPassed: false, checkPassed: false },
     orchestrationActive: false,
     lastInjectedPhase: null,
+    // 260714 wp3 lifecycle: cycle close resets the advisory counter but RETAINS
+    // loopArmSeen (the multi-cycle re-arm nudge is the feature; only an explicit
+    // reset clears it — see the reset branch below).
+    idleEditNudges: 0,
   };
 }
 
@@ -71,7 +75,8 @@ export function applyHumanTransition(
     return {
       ok: true,
       control: "reset",
-      state: clearedIdle(state),
+      // 260714 wp3: reset is the operator stand-down — clear loopArmSeen too.
+      state: { ...clearedIdle(state), loopArmSeen: false },
       ledger: { ts: new Date().toISOString(), sessionId: state.sessionId, from: state.phase, to: "IDLE", reason: "reset" },
     };
   }

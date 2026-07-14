@@ -44,6 +44,8 @@ test("SessionStart ensureState: fresh session creates the exact default IDLE sta
       interview: null,
       stopBlockPhase: null,
       stopBlockCount: 0,
+      loopArmSeen: false,
+      idleEditNudges: 0,
     });
     assert.equal(Number.isNaN(Date.parse(persisted.updatedAt)), false);
     assert.deepEqual(readdirSync(dir).filter((name) => name.endsWith(".tmp")), []);
@@ -209,6 +211,31 @@ test("readState: unknown persisted keys are dropped (strict reconstruction)", ()
     assert.equal(Object.prototype.hasOwnProperty.call(s.flags, "bogus"), false);
     // flags.interview is derived from the tracker; no tracker here -> false.
     assert.equal(s.flags.interview, false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("260714 wp3: loopArmSeen/idleEditNudges strict reconstruction (old files read false/0)", () => {
+  const cwd = freshCwd();
+  try {
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    mkdirSync(dir, { recursive: true });
+    // old file without the fields -> defaults
+    writeFileSync(join(dir, "old.json"), JSON.stringify({ phase: "P", sessionId: "old" }));
+    const old = readState(cwd, "old");
+    assert.equal(old.loopArmSeen, false);
+    assert.equal(old.idleEditNudges, 0);
+    // valid values roundtrip
+    writeState(cwd, { ...defaultState("rt"), loopArmSeen: true, idleEditNudges: 7 });
+    const rt = readState(cwd, "rt");
+    assert.equal(rt.loopArmSeen, true);
+    assert.equal(rt.idleEditNudges, 7);
+    // invalid values coerce to defaults
+    writeFileSync(join(dir, "bad.json"), JSON.stringify({ phase: "P", sessionId: "bad", loopArmSeen: "yes", idleEditNudges: -3 }));
+    const bad = readState(cwd, "bad");
+    assert.equal(bad.loopArmSeen, false);
+    assert.equal(bad.idleEditNudges, 0);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

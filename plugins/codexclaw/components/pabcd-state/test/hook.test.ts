@@ -232,6 +232,29 @@ test("ORCH-ARM-PABCD-01: pabcd + strong run/repeat marker arms; questions/repeat
   assert.equal(detectLoopArmRequest("여러 번 진행된 마이그레이션 롤백해줘"), false);
 });
 
+test("260714 wp3: loop-arm prompt persists loopArmSeen on the un-armed branch (even turnless)", () => {
+  const cwd = freshCwd();
+  try {
+    // with turn
+    handleUserPromptSubmit(ups("pabcd 여러 번 돌려서 해결해", cwd, "la1", "t1"));
+    assert.equal(readState(cwd, "la1").loopArmSeen, true);
+    assert.equal(readState(cwd, "la1").orchestrationActive, false); // mandate never arms
+    // turnless payload still persists the flag (audit decision a)
+    handleUserPromptSubmit(ups("cxc-loop로 알아서 끝까지 해줘", cwd, "la2", ""));
+    assert.equal(readState(cwd, "la2").loopArmSeen, true);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("260714 wp3: mode-1 trigger + loop phrase sets loopArmSeen on the precedence path", () => {
+  const cwd = freshCwd();
+  try {
+    handleUserPromptSubmit(ups("plan this and then 루프 돌려서 끝까지 해줘", cwd, "la3", "t1"));
+    const st = readState(cwd, "la3");
+    assert.equal(st.phase, "P"); // trigger precedence still arms P
+    assert.equal(st.loopArmSeen, true); // and the flag survives (audit Med #2)
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
 test("ORCH-MANDATE-01: loop request against un-armed FSM injects the arming mandate", () => {
   const cwd = freshCwd();
   try {

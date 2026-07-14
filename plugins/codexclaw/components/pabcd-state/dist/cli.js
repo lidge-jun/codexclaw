@@ -48,6 +48,7 @@ import { runSubagentStopGate } from "./subagent-evidence.js";
 import { runDivergenceCli } from "./divergence-cli.js";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.js";
 import { parsePlanCliArgs, runPlanCli } from "./plan-cli.js";
+import { handleIdleEditAdvisory } from "./idle-edit.js";
 import { runMetricCli } from "./metric-cli.js";
 import { parseOrchestrateCliArgs, renderOrchestrateParseError, runOrchestrateCli } from "./orchestrate-cli.js";
 import { parseGoalplanCliArgs, runGoalplanCli } from "./goalplan-cli.js";
@@ -185,6 +186,10 @@ function main()       {
       // 060.2: FAIL-OPEN apply_patch comment-lint. Distinct from the R-9 fail-closed
       // `pre-tool-use` branch above — a lint crash must ALLOW the edit, never deny.
       output = handleApplyPatchLint(raw);
+    } else if (event === "pre-tool-use-idle-edit") {
+      // 260714 wp3: FAIL-OPEN IDLE-edit advisory (IDLE-EDIT-ADVISORY-01). Allow +
+      // additionalContext only; a crash here must never deny an edit.
+      output = handleIdleEditAdvisory(raw);
     } else if (event === "pre-tool-use-friction") {
       // 080.1: FAIL-OPEN friction advisory ("allow" + reason) for a stop-level shell signature.
       // Distinct from the R-9 fail-closed branch; a crash here must never deny a tool.
