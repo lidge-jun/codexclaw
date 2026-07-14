@@ -25,7 +25,7 @@ import { applyHumanTransition } from "./orchestrate-apply.ts";
 import { captureInterviewAnswers } from "./interview-ledger.ts";
 import { MIND_DISPATCH_DIRECTIVE } from "./minds.ts";
 import { checkObjectivePlateau, readObjectiveKind, type PlateauCheck } from "./metrics.ts";
-import { advanceWorkPhase, appendGoalplanLedger, readGoalplan, writeGoalplan, nextOpenTask, unmetCriteria } from "./goalplan.ts";
+import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan, nextOpenTask, unmetCriteria } from "./goalplan.ts";
 import { peakFrictionVerdict, looksLikeFailure, recordFriction } from "./friction.ts";
 import { discardStreak, readDivergenceCandidates } from "./divergence.ts";
 import { hasRenderArtifactModified, hasRenderObservation, renderGroundingAdvisory } from "./render-observations.ts";
@@ -244,8 +244,42 @@ const PHASE_DIRECTIVES: Partial<Record<Phase, string>> = {
   ].join("\n"),
 };
 
-export function phaseDirective(phase: Phase): string {
-  return PHASE_DIRECTIVES[phase] ?? "";
+/**
+ * Fail-open loader for the B-directive starvation opts: resolves the bound
+ * goalplan's effective active work-phase, or undefined when no goalplan resolves.
+ */
+export function activeWorkPhaseOpts(cwd: string, slug: string): { activeWorkPhase?: { id: string; title: string } } | undefined {
+  if (!slug) return undefined;
+  try {
+    const plan = readGoalplan(cwd, slug);
+    if (!plan) return undefined;
+    const id = effectiveActiveWorkPhaseId(plan);
+    if (!id) return undefined;
+    const wp = plan.workPhases.find((w) => w.id === id);
+    return wp ? { activeWorkPhase: { id: wp.id, title: wp.title } } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 260714 wp4 (context starvation): when a goalplan is bound, the B directive names
+ * (see also activeWorkPhaseOpts above, the fail-open loader used by call sites)
+ * ONLY the effective active work-phase — the model cannot batch slices it is told
+ * are out of scope. Other phases are unchanged; opts is optional so every existing
+ * caller stays source-compatible.
+ */
+export function phaseDirective(phase: Phase, opts?: { activeWorkPhase?: { id: string; title: string } }): string {
+  const base = PHASE_DIRECTIVES[phase] ?? "";
+  if (phase === "B" && opts?.activeWorkPhase && base) {
+    return [
+      base,
+      `ACTIVE WORK-PHASE: ${opts.activeWorkPhase.id} — ${opts.activeWorkPhase.title}. This cycle`,
+      "implements THIS slice only; other work-phases are OUT OF SCOPE until D closes",
+      "(LOOP-UNIT-CHAIN-01). Attest gated edges with this workPhaseId.",
+    ].join("\n");
+  }
+  return base;
 }
 
 export function interviewDirective(): string {
@@ -317,6 +351,8 @@ export const LOOP_ARM_DIRECTIVE = [
   "   HITL (no such ask): enter the cycle explicitly via `cxc orchestrate I|P --session <id>`.",
   "4. Advance EVERY forward edge yourself with `cxc orchestrate <phase> --attest <json>` —",
   "   a phase without its persisted transition + artifact did not happen (ORCH-ARTIFACT-01).",
+  "   When a goalplan is bound, include the active workPhaseId in every gated attest",
+  "   (one work-phase = one full PABCD cycle).",
   "5. After D closes to IDLE with work remaining under an active goal, immediately re-enter",
   "   with `cxc orchestrate P --session <id>` (LOOP-UNIT-CHAIN-01).",
   "Load and obey cxc-loop + cxc-pabcd when available. Work done outside the FSM does not",
@@ -428,7 +464,7 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
 
   // mode 1: explicit trigger activates orchestration and injects the full directive.
   if (trigger) {
-    const directive = trigger === "I" ? interviewDirective() : phaseDirective(trigger);
+    const directive = trigger === "I" ? interviewDirective() : phaseDirective(trigger, activeWorkPhaseOpts(payload.cwd, state.slug));
     if (turn) {
       writeState(payload.cwd, {
         ...state,
@@ -499,7 +535,7 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
 
   // mode 2: phase changed since the last injected phase -> full directive.
   if (state.phase !== state.lastInjectedPhase) {
-    const directive = state.phase === "I" ? interviewDirective() : phaseDirective(state.phase);
+    const directive = state.phase === "I" ? interviewDirective() : phaseDirective(state.phase, activeWorkPhaseOpts(payload.cwd, state.slug));
     const context = agbrowseRequested ? `${directive}\n\n${AGBROWSE_SEARCH_DIRECTIVE}` : directive;
     if (turn) {
       writeState(payload.cwd, {
@@ -587,6 +623,7 @@ function handleOrchestrateCommand(
       try {
         const plan = readGoalplan(payload.cwd, state.slug);
         if (plan) {
+          const closedId = effectiveActiveWorkPhaseId(plan);
           const advanced = advanceWorkPhase(plan);
           if (advanced) {
             writeGoalplan(payload.cwd, advanced);
@@ -594,7 +631,8 @@ function handleOrchestrateCommand(
               ts: new Date().toISOString(),
               slug: state.slug,
               event: "workphase_done",
-              detail: `closed ${plan.activeWorkPhaseId ?? "none"}`,
+              // 260714 wp4: effective closed id (implicit cursor — see orchestrate-cli).
+              detail: `closed ${closedId ?? "none"}`,
             });
             if (advanced.activeWorkPhaseId) {
               appendGoalplanLedger(payload.cwd, state.slug, {
@@ -613,7 +651,7 @@ function handleOrchestrateCommand(
     return buildContextOutput("UserPromptSubmit", withFooter(phaseDirective("D"), "IDLE"));
   }
   const phase = result.state?.phase ?? state.phase;
-  const directive = phase === "I" ? interviewDirective() : phaseDirective(phase);
+  const directive = phase === "I" ? interviewDirective() : phaseDirective(phase, activeWorkPhaseOpts(payload.cwd, state.slug));
   return buildContextOutput("UserPromptSubmit", withFooter(directive, phase));
 }
 

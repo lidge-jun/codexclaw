@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { validateAttest, coerceAttest, GATED_TRANSITIONS, hasFailVerdictTail } from "../src/attest.ts";
+import { validateWorkPhaseBinding } from "../src/attest.ts";
 
 test("all four forward edges are gated (L2 parity)", () => {
   assert.deepEqual([...GATED_TRANSITIONS].sort(), ["A>B", "B>C", "C>D", "P>A"]);
@@ -162,6 +163,26 @@ test("260714 wp2: coerceAttest carries trimmed planUnit/planPaths (drops wrong t
   const b = coerceAttest({ from: "P", to: "A", did: "x", planUnit: 7, planPaths: "not-an-array" });
   assert.equal(b?.planUnit, undefined);
   assert.equal(b?.planPaths, undefined);
+});
+
+test("260714 wp4: validateWorkPhaseBinding — null target ok; missing id fails; mismatch fails; match ok", () => {
+  // no goalplan bound (or empty plan) → HITL unchanged
+  assert.equal(validateWorkPhaseBinding(null, null).ok, true);
+  assert.equal(validateWorkPhaseBinding({ from: "P", to: "A", did: "x" }, null).ok, true);
+  // bound: bare attest / missing field names the requirement
+  const missing = validateWorkPhaseBinding(null, "wp2");
+  assert.equal(missing.ok, false);
+  assert.match(missing.reason ?? "", /workPhaseId/);
+  assert.match(missing.reason ?? "", /LOOP-UNIT-CHAIN-01/);
+  // mismatch names both ids
+  const mismatch = validateWorkPhaseBinding({ from: "B", to: "C", did: "x", workPhaseId: "wp9" }, "wp2");
+  assert.equal(mismatch.ok, false);
+  assert.match(mismatch.reason ?? "", /wp9/);
+  assert.match(mismatch.reason ?? "", /wp2/);
+  // match passes
+  assert.equal(validateWorkPhaseBinding({ from: "B", to: "C", did: "x", workPhaseId: "wp2" }, "wp2").ok, true);
+  // coercion carries the field
+  assert.equal(coerceAttest({ from: "B", to: "C", did: "x", workPhaseId: " wp2 " })?.workPhaseId, "wp2");
 });
 
 test("WP3: coerceAttest carries trimmed audit fields (drops wrong types)", () => {

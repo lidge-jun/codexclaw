@@ -13,10 +13,10 @@
  */
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { coerceAttest, type Attestation } from "./attest.ts";
+import { coerceAttest, validateWorkPhaseBinding, GATED_TRANSITIONS, type Attestation } from "./attest.ts";
 import { transition } from "./fsm.ts";
 import { validatePlanArtifacts } from "./plan-gate.ts";
-import { advanceWorkPhase, appendGoalplanLedger, readGoalplan, writeGoalplan } from "./goalplan.ts";
+import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan } from "./goalplan.ts";
 import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.ts";
 import { resetRenderLedger } from "./render-observations.ts";
 import type { OrchestrateVerb } from "./orchestrate-grammar.ts";
@@ -84,9 +84,10 @@ export function renderOrchestrateHelp(): string {
     "  status is read-only and may use the latest-session fallback when --session is omitted.",
     "",
     "Attestation examples:",
-    "  cxc orchestrate A --session <id> --attest '{\"from\":\"P\",\"to\":\"A\",\"did\":\"wrote and audited the plan\",\"planUnit\":\"devlog/_plan/260714_slug\"}'",
-    "  cxc orchestrate B --session <id> --attest '{\"from\":\"A\",\"to\":\"B\",\"did\":\"audit passed\",\"auditOutput\":\"VERDICT: PASS\",\"auditVerdict\":\"pass\"}'",
-    "  cxc orchestrate D --session <id> --attest '{\"from\":\"C\",\"to\":\"D\",\"did\":\"verified\",\"checkOutput\":\"tests passed\",\"exitCode\":0}'",
+    "  cxc orchestrate A --session <id> --attest '{\"from\":\"P\",\"to\":\"A\",\"did\":\"wrote and audited the plan\",\"planUnit\":\"devlog/_plan/260714_slug\",\"workPhaseId\":\"wp1\"}'",
+    "  cxc orchestrate B --session <id> --attest '{\"from\":\"A\",\"to\":\"B\",\"did\":\"audit passed\",\"auditOutput\":\"VERDICT: PASS\",\"auditVerdict\":\"pass\",\"workPhaseId\":\"wp1\"}'",
+    "  cxc orchestrate D --session <id> --attest '{\"from\":\"C\",\"to\":\"D\",\"did\":\"verified\",\"checkOutput\":\"tests passed\",\"exitCode\":0,\"workPhaseId\":\"wp1\"}'",
+    "  (workPhaseId is required on gated edges whenever a goalplan is bound to the session)",
     "",
     "Status:",
     "  cxc orchestrate status --session <id>",
@@ -266,6 +267,22 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
       return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${planCheck.reason}` };
     }
   }
+  // Work-phase binding gate (260714 wp4, LOOP-UNIT-CHAIN-01): on every gated edge
+  // of a goalplan-bound session, the attest must name the ONE effective active
+  // work-phase. Fail-open when no goalplan resolves (HITL unchanged).
+  if (GATED_TRANSITIONS.has(`${state.phase}>${to}`) && state.slug) {
+    let effective: string | null = null;
+    try {
+      const plan = readGoalplan(args.cwd, state.slug);
+      effective = plan ? effectiveActiveWorkPhaseId(plan) : null;
+    } catch {
+      effective = null; // FAIL-OPEN: unreadable goalplan never blocks HITL work
+    }
+    const bindCheck = validateWorkPhaseBinding(args.attest, effective);
+    if (!bindCheck.ok) {
+      return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${bindCheck.reason}` };
+    }
+  }
   const result = transition(state, to, args.attest);
   if (!result.ok || !result.state) {
     return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${result.reason ?? "transition refused"}` };
@@ -290,6 +307,7 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
       try {
         const plan = readGoalplan(args.cwd, state.slug);
         if (plan) {
+          const closedId = effectiveActiveWorkPhaseId(plan);
           const advanced = advanceWorkPhase(plan);
           if (advanced) {
             writeGoalplan(args.cwd, advanced);
@@ -297,7 +315,9 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
               ts: new Date().toISOString(),
               slug: state.slug,
               event: "workphase_done",
-              detail: `closed ${plan.activeWorkPhaseId ?? "none"}`,
+              // 260714 wp4: log the EFFECTIVE closed id (implicit cursor may have
+              // started from a null explicit cursor — "closed none" was a lie).
+              detail: `closed ${closedId ?? "none"}`,
             });
             if (advanced.activeWorkPhaseId) {
               appendGoalplanLedger(args.cwd, state.slug, {

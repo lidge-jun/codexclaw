@@ -15,6 +15,7 @@ import {
   isGoalplanComplete,
   validateGoalplan,
   advanceWorkPhase,
+  effectiveActiveWorkPhaseId,
   type Goalplan,
 } from "../src/goalplan.ts";
 import { deriveSlug } from "../src/freeze.ts";
@@ -201,17 +202,55 @@ test("advanceWorkPhase: marks current done, activates next in declared order", (
   assert.equal(advanced!.activeWorkPhaseId, "wp-2");
 });
 
-test("advanceWorkPhase: returns null when no activeWorkPhaseId", () => {
+test("advanceWorkPhase: returns null when plan has no work phases (empty plan)", () => {
   const plan = buildGoalplan({ objective: "no-active" });
   plan.activeWorkPhaseId = null;
   assert.equal(advanceWorkPhase(plan), null);
 });
 
-test("advanceWorkPhase: returns null when activeWorkPhaseId is stale (not found)", () => {
+test("260714 wp4: null cursor + pending phases -> implicit start closes first pending, persists explicit cursor", () => {
+  const plan = buildGoalplan({ objective: "implicit-start" });
+  plan.workPhases = [
+    { id: "wp-1", title: "one", status: "pending", tasks: [], criteriaIds: [] },
+    { id: "wp-2", title: "two", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = null; // standard `loop init` shape — must no longer no-op
+  const advanced = advanceWorkPhase(plan);
+  assert.ok(advanced);
+  assert.equal(advanced!.workPhases[0].status, "done");
+  assert.equal(advanced!.workPhases[1].status, "in_progress");
+  assert.equal(advanced!.activeWorkPhaseId, "wp-2");
+});
+
+test("260714 wp4: stale (ghost) cursor falls through to the effective open phase", () => {
   const plan = buildGoalplan({ objective: "stale-cursor" });
   plan.workPhases = [{ id: "wp-1", title: "one", status: "pending", tasks: [], criteriaIds: [] }];
   plan.activeWorkPhaseId = "ghost";
-  assert.equal(advanceWorkPhase(plan), null);
+  const advanced = advanceWorkPhase(plan);
+  assert.ok(advanced); // ghost cursor no longer freezes the plan
+  assert.equal(advanced!.workPhases[0].status, "done");
+  assert.equal(advanced!.activeWorkPhaseId, null); // no next pending
+});
+
+test("260714 wp4: effectiveActiveWorkPhaseId — explicit wins; done/ghost fall through; in_progress > pending; empty -> null", () => {
+  const plan = buildGoalplan({ objective: "effective" });
+  plan.workPhases = [
+    { id: "wp-1", title: "one", status: "done", tasks: [], criteriaIds: [] },
+    { id: "wp-2", title: "two", status: "pending", tasks: [], criteriaIds: [] },
+    { id: "wp-3", title: "three", status: "in_progress", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-2";
+  assert.equal(effectiveActiveWorkPhaseId(plan), "wp-2"); // explicit live cursor wins
+  plan.activeWorkPhaseId = "wp-1";
+  assert.equal(effectiveActiveWorkPhaseId(plan), "wp-3"); // done cursor falls through to in_progress
+  plan.activeWorkPhaseId = "ghost";
+  assert.equal(effectiveActiveWorkPhaseId(plan), "wp-3"); // ghost falls through too
+  plan.activeWorkPhaseId = null;
+  assert.equal(effectiveActiveWorkPhaseId(plan), "wp-3"); // in_progress preferred over pending
+  plan.workPhases = plan.workPhases.map((wp) => ({ ...wp, status: "done" as const }));
+  assert.equal(effectiveActiveWorkPhaseId(plan), null); // all done -> null
+  plan.workPhases = [];
+  assert.equal(effectiveActiveWorkPhaseId(plan), null); // empty -> null
 });
 
 test("advanceWorkPhase: sets null activeWorkPhaseId when last phase", () => {

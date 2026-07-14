@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { parseOrchestrateCliArgs, renderOrchestrateParseError, runOrchestrateCli, resolveSession } from "../src/orchestrate-cli.ts";
 import { writeState, readState, defaultState, STATE_DIR, SESSIONS_SUBDIR, LEDGER_FILE } from "../src/state.ts";
+import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
 import { RENDER_OBS_FILE } from "../src/render-observations.ts";
 import { defaultInterview, DIMENSIONS } from "../src/interview.ts";
 
@@ -157,6 +158,34 @@ test("PLAN-GATE: P->A without planUnit is refused; with a seeded unit it advance
     const ok = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "audited", planUnit }, session: "sg", cwd, json: false });
     assert.equal(ok.code, 0, ok.output);
     assert.equal(readState(cwd, "sg").phase, "A");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("260714 wp4: goalplan-bound gated edge requires matching workPhaseId", () => {
+  const cwd = freshCwd();
+  try {
+    // bind a goalplan (slug on state + plan on disk) with a registered work-phase map
+    writeState(cwd, { ...defaultState("wb", "unit-bind"), phase: "B" as never, slug: "unit-bind" });
+    const plan = buildGoalplan({ objective: "binding test" });
+    plan.slug = "unit-bind"; // buildGoalplan derives slug from objective; pin it to the state binding
+    plan.workPhases = [
+      { id: "wp1", title: "one", status: "in_progress", tasks: [], criteriaIds: [] },
+      { id: "wp2", title: "two", status: "pending", tasks: [], criteriaIds: [] },
+    ];
+    writeGoalplan(cwd, plan);
+    // missing workPhaseId -> refused, reason teaches the field
+    const missing = runOrchestrateCli({ verb: "C", attest: { from: "B", to: "C", did: "built it" }, session: "wb", cwd, json: false });
+    assert.equal(missing.code, 1);
+    assert.match(missing.output, /workPhaseId/);
+    assert.equal(readState(cwd, "wb").phase, "B");
+    // wrong id -> refused with LOOP-UNIT-CHAIN-01
+    const wrong = runOrchestrateCli({ verb: "C", attest: { from: "B", to: "C", did: "built it", workPhaseId: "wp2" }, session: "wb", cwd, json: false });
+    assert.equal(wrong.code, 1);
+    assert.match(wrong.output, /LOOP-UNIT-CHAIN-01/);
+    // matching effective id -> advances
+    const ok = runOrchestrateCli({ verb: "C", attest: { from: "B", to: "C", did: "built it", workPhaseId: "wp1" }, session: "wb", cwd, json: false });
+    assert.equal(ok.code, 0, ok.output);
+    assert.equal(readState(cwd, "wb").phase, "C");
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 

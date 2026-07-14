@@ -48,6 +48,9 @@ export const AUDIT_VERDICTS                      = new Set(["pass", "near-pass",
 
 
 
+
+
+
 /**
  * Forward dev transitions that require a valid attestation to advance (L2/020).
  * Ported to full cli-jaw parity: all four forward edges P>A, A>B, B>C, C>D are
@@ -98,6 +101,7 @@ export function coerceAttest(obj         )                     {
     const paths = rec.planPaths.filter((p)              => typeof p === "string").map((p) => p.trim()).filter((p) => p.length > 0);
     if (paths.length > 0) att.planPaths = paths;
   }
+  if (typeof rec.workPhaseId === "string") att.workPhaseId = rec.workPhaseId.trim();
   return att;
 }
 
@@ -109,6 +113,31 @@ export function hasFailVerdictTail(auditOutput        )          {
   const verdictLines = lines.slice(-5).filter((l) => /^verdict\s*[:=]/i.test(l));
   if (verdictLines.length === 0) return false;
   return /^verdict\s*[:=]\s*fail\b/i.test(verdictLines[verdictLines.length - 1]);
+}
+
+/**
+ * 260714 wp4 (LOOP-UNIT-CHAIN-01): pure work-phase binding check for gated edges.
+ * `activeWorkPhaseId` is the bound goalplan's EFFECTIVE active work-phase (computed
+ * by the caller via goalplan.effectiveActiveWorkPhaseId, fail-open null on IO/parse
+ * failure or when no goalplan is bound). Null → ok keeps HITL sessions unchanged;
+ * the delete/corrupt/unbound evasion class is accepted per this module's threat
+ * model (adversary is laziness, not malice).
+ */
+export function validateWorkPhaseBinding(att                    , activeWorkPhaseId               )               {
+  if (activeWorkPhaseId == null) return { ok: true };
+  if (!att?.workPhaseId) {
+    return {
+      ok: false,
+      reason: `A goalplan is bound (active work-phase ${activeWorkPhaseId}); pass "workPhaseId" in the attest. One work-phase = one full PABCD cycle (LOOP-UNIT-CHAIN-01).`,
+    };
+  }
+  if (att.workPhaseId !== activeWorkPhaseId) {
+    return {
+      ok: false,
+      reason: `attest.workPhaseId=${att.workPhaseId} but the active work-phase is ${activeWorkPhaseId}. Close this cycle through D before touching another unit (LOOP-UNIT-CHAIN-01).`,
+    };
+  }
+  return { ok: true };
 }
 
 /**

@@ -301,8 +301,12 @@ export function validateGoalplan(plan          )                     {
  * Returns null only when there is no active phase to close.
  */
 export function advanceWorkPhase(plan          )                  {
-  if (!plan.activeWorkPhaseId) return null;
-  const currentIdx = plan.workPhases.findIndex((wp) => wp.id === plan.activeWorkPhaseId);
+  // 260714 wp4 (implicit cursor): a null/stale cursor adopts the effective active
+  // work-phase instead of no-opping, so the standard `loop init` flow (cursor seeded
+  // null) still books work-phase closes.
+  const effectiveId = effectiveActiveWorkPhaseId(plan);
+  if (!effectiveId) return null;
+  const currentIdx = plan.workPhases.findIndex((wp) => wp.id === effectiveId);
   if (currentIdx < 0) return null;
   const current = plan.workPhases[currentIdx];
 
@@ -324,4 +328,23 @@ export function advanceWorkPhase(plan          )                  {
       return wp;
     }),
   };
+}
+
+/**
+ * 260714 wp4 (LOOP-UNIT-CHAIN-01 binding target): the work-phase this cycle is FOR.
+ * Explicit cursor wins ONLY when it names a live, non-done work-phase (a stale ghost
+ * or already-done cursor falls through); otherwise the first in_progress, then the
+ * first pending work-phase. Null only when no open work-phase exists — so a bound,
+ * registered goalplan always yields a binding target and "bound but cursorless"
+ * cannot dodge the workPhaseId gate.
+ */
+export function effectiveActiveWorkPhaseId(plan          )                {
+  if (plan.activeWorkPhaseId) {
+    const cur = plan.workPhases.find((wp) => wp.id === plan.activeWorkPhaseId);
+    if (cur && cur.status !== "done") return cur.id;
+  }
+  const inProgress = plan.workPhases.find((wp) => wp.status === "in_progress");
+  if (inProgress) return inProgress.id;
+  const pending = plan.workPhases.find((wp) => wp.status === "pending");
+  return pending?.id ?? null;
 }

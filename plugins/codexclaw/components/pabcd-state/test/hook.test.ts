@@ -255,6 +255,17 @@ test("260714 wp3: mode-1 trigger + loop phrase sets loopArmSeen on the precedenc
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
+test("260714 wp4: B directive starves context to the active work-phase iff bound", () => {
+  const bare = phaseDirective("B");
+  assert.doesNotMatch(bare, /ACTIVE WORK-PHASE/);
+  const bound = phaseDirective("B", { activeWorkPhase: { id: "wp2", title: "second slice" } });
+  assert.match(bound, /ACTIVE WORK-PHASE: wp2 — second slice/);
+  assert.match(bound, /OUT OF SCOPE until D closes/);
+  assert.match(bound, /LOOP-UNIT-CHAIN-01/);
+  // other phases ignore opts
+  assert.equal(phaseDirective("C", { activeWorkPhase: { id: "wp2", title: "x" } }), phaseDirective("C"));
+});
+
 test("ORCH-MANDATE-01: loop request against un-armed FSM injects the arming mandate", () => {
   const cwd = freshCwd();
   try {
