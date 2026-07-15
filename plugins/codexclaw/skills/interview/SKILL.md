@@ -99,7 +99,9 @@ silently. Present a numbered choice and let the user pick: `1. Proceed to Plan` 
 `2. Ask 1 more question` · `3. Ask 2-3 more questions` · `4. Record assumptions and pause`.
 There is no build/execute path out of Interview — the only forward move is Plan, normally after
 the readiness gate passes, unless the human explicitly overrides (override is recorded as an
-audit entry). `proceed` means "advance to Plan", not permission to implement; the evolving
+audit entry); the agent CLI path also supports override via
+`--attest '{"override":true}'` with equivalent ledger transparency.
+`proceed` means "advance to Plan", not permission to implement; the evolving
 plan/devlog stay draft interview artifacts until then.
 A chosen `proceed` executes as a real transition — `cxc orchestrate P --session <id>` (or the
 chat free-pass `orchestrate p`) — never as narration alone: a "moving to Plan" sentence without
@@ -133,6 +135,13 @@ The interview runtime is shipped, not planned:
   compact interview snapshot (dimension scores, knowns, open assumptions, draft plan path)
   into each task message.
 - Readiness gating requires recorded scan evidence (`scanRounds >= 1`) before I -> P.
+- Agent I→P override: when the agent CLI path (`cxc orchestrate P --session <id>
+  --attest '{"from":"I","to":"P","did":"<reason>","override":true}'`) encounters
+  an unready interview tracker, it bypasses the readiness gate — mirroring the
+  human chat override in `applyHumanTransition`. The tracker is NOT modified;
+  `flags.interview` is pre-flipped at the transition level. The ledger records
+  `actor:"agent"`, `override:true`, and a `scanEvidence` snapshot of the
+  pre-override gate state. The `did` narrative must be non-empty and non-placeholder.
 
 Goal firewall: the whole Interview is suppressed under an active goal — the explicit
 trigger path, the passive re-injection paths (`UserPromptSubmit` modes 2/3), AND the

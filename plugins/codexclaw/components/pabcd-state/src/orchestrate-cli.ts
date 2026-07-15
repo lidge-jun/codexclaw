@@ -1,8 +1,10 @@
 /**
- * orchestrate-cli.ts — `cxc orchestrate` terminal command (L4 / 040), the AGENT-gated
- * path. Unlike the chat hook (human free-pass, L3b), phase verbs here go through the
+* orchestrate-cli.ts — `cxc orchestrate` terminal command (L4 / 040), the AGENT-gated
+* path. Unlike the chat hook (human free-pass, L3b), phase verbs here go through the
  * un-weakened `transition()` + `validateAttest`, so an agent MUST supply real
- * `--attest` evidence to advance a forward edge.
+ * `--attest` evidence to advance a forward edge. Exception: I→P supports an
+ * explicit agent override (`override:true` in attest) that bypasses the interview
+ * readiness gate, mirroring the human override in `orchestrate-apply.ts`.
  *
  * Shares the SAME `.codexclaw/sessions/<id>.json` state as the hook — but only when
  * the same session id is used. A mutating call therefore requires explicit
@@ -14,9 +16,10 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { coerceAttest, validateWorkPhaseBinding, GATED_TRANSITIONS, type Attestation } from "./attest.ts";
-import { transition } from "./fsm.ts";
+import { canEnter, transition } from "./fsm.ts";
 import { validatePlanArtifacts } from "./plan-gate.ts";
 import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan } from "./goalplan.ts";
+import { evaluateInterviewGate } from "./interview.ts";
 import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.ts";
 import { resetRenderLedger } from "./render-observations.ts";
 import type { OrchestrateVerb } from "./orchestrate-grammar.ts";
@@ -281,6 +284,54 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
     const bindCheck = validateWorkPhaseBinding(args.attest, effective);
     if (!bindCheck.ok) {
       return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${bindCheck.reason}` };
+    }
+  }
+  // I→P agent override (mirrors applyHumanTransition's override path in
+  // orchestrate-apply.ts). The agent CLI path uses the un-weakened transition(),
+  // which has no override support. This adds equivalent logic for I→P only,
+  // recording actor:"agent" instead of actor:"human".
+  if (state.phase === "I" && to === "P") {
+    const gate = evaluateInterviewGate(state.interview ?? null);
+    if (gate.ready) {
+      // Interview is ready — let the normal transition() path handle it.
+      // (It will derive flags.interview=true from the tracker.)
+    } else if (args.attest?.override === true) {
+      // Agent override: pre-flip the interview flag and bypass the gate.
+      // Validate the override attestation: require non-empty/non-placeholder did
+      // and matching from/to (agent discipline, mirrors PLACEHOLDER_DID in attest.ts).
+      const OVERRIDE_PLACEHOLDER = /^(tbd|todo|n\/?a|none|done|ok|\.+|-+)$/i;
+      if (!args.attest.did || OVERRIDE_PLACEHOLDER.test(args.attest.did)) {
+        return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; I→P override requires a specific "did" narrative explaining why the interview is complete (not empty or placeholder).` };
+      }
+      if (args.attest.from !== "I" || args.attest.to !== "P") {
+        return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; I→P override attest from/to must be I/P, got ${args.attest.from}/${args.attest.to}.` };
+      }
+      const flags = { ...state.flags, interview: true };
+      const legal = canEnter(to, { ...state, flags });
+      if (!legal.ok) {
+        return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${legal.reason}` };
+      }
+      const next: State = { ...state, phase: to, flags, orchestrationActive: true, lastInjectedPhase: to, stopBlockPhase: null, stopBlockCount: 0 };
+      writeState(args.cwd, next);
+      resetRenderLedger(args.cwd);
+      appendLedger(args.cwd, {
+        ts: new Date().toISOString(),
+        sessionId: state.sessionId,
+        from: state.phase,
+        to,
+        reason: "cli",
+        actor: "agent",
+        override: true,
+        scanEvidence: { scanRounds: state.interview?.scanRounds ?? 0, highContradictionCount: gate.highContradictionCount },
+        ...(args.attest?.did ? { evidence: args.attest.did } : {}),
+      });
+      return { code: 0, output: `orchestrate P: I → P (agent override, session ${sessionId})` };
+    } else {
+      // Not ready and no override: advise-block with gate warnings.
+      return {
+        code: 1,
+        output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; interview soft-gate: ${gate.warnings.join("; ")}. Pass override:true in --attest to proceed.`,
+      };
     }
   }
   const result = transition(state, to, args.attest);

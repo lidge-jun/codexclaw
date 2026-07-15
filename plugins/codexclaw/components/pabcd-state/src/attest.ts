@@ -40,7 +40,7 @@ export interface Attestation {
   checkOutput?: string;
   /** Optional exit code; if present and non-zero, C->D is rejected. */
   exitCode?: number;
-  /** 131/D2': human I->P soft-gate override. True = "I accept the unready interview". */
+  /** 131/D2': I->P soft-gate override (human chat or agent CLI). True = "I accept the unready interview". */
   override?: boolean;
   /** P>A (260714 wp2): devlog plan unit dir, e.g. "devlog/_plan/260714_slug". Verified on disk by plan-gate.ts. */
   planUnit?: string;

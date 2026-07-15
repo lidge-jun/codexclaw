@@ -470,6 +470,142 @@ test("G20: I->P needs the interview flag — refused without it, advances with i
   } finally { rmSync(allowed, { recursive: true, force: true }); }
 });
 
+test("I->P agent override succeeds with an unready interview", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "s1", "I");
+    const r = runOrchestrateCli({
+      verb: "P",
+      attest: { from: "I", to: "P", did: "interview done", override: true },
+      session: "s1",
+      cwd,
+      json: false,
+    });
+    assert.equal(r.code, 0, r.output);
+    assert.match(r.output, /agent override/);
+    assert.equal(readState(cwd, "s1").phase, "P");
+    assert.equal(readState(cwd, "s1").interview, null);
+    const last = ledgerLines(cwd).at(-1);
+    assert.equal(last?.actor, "agent");
+    assert.equal(last?.override, true);
+    assert.deepEqual(last?.scanEvidence, { scanRounds: 0, highContradictionCount: 0 });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("I->P agent override without override flag is soft-gate blocked", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "s1", "I");
+    const r = runOrchestrateCli({
+      verb: "P",
+      attest: { from: "I", to: "P", did: "interview done" },
+      session: "s1",
+      cwd,
+      json: false,
+    });
+    assert.equal(r.code, 1);
+    assert.match(r.output, /soft-gate/);
+    assert.equal(readState(cwd, "s1").phase, "I");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("I->P with a ready interview uses the normal path without override", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("s1"), phase: "I", interview: readyInterview() });
+    const r = runOrchestrateCli({ verb: "P", attest: null, session: "s1", cwd, json: false });
+    assert.equal(r.code, 0, r.output);
+    assert.equal(readState(cwd, "s1").phase, "P");
+    assert.equal(ledgerLines(cwd).at(-1)?.override, undefined);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("I->P agent override ledger records zero-round scan evidence", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "s1", "I");
+    const r = runOrchestrateCli({
+      verb: "P",
+      attest: { from: "I", to: "P", did: "interview complete by agent judgment", override: true },
+      session: "s1",
+      cwd,
+      json: false,
+    });
+    assert.equal(r.code, 0, r.output);
+    const last = ledgerLines(cwd).at(-1);
+    assert.deepEqual(last?.scanEvidence, { scanRounds: 0, highContradictionCount: 0 });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("I->P agent override rejects empty did", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "s1", "I");
+    const r = runOrchestrateCli({
+      verb: "P",
+      attest: { from: "I", to: "P", did: "", override: true },
+      session: "s1", cwd, json: false,
+    });
+    assert.equal(r.code, 1);
+    assert.match(r.output, /placeholder/i);
+    assert.equal(readState(cwd, "s1").phase, "I");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("I->P agent override rejects placeholder did", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "s1", "I");
+    const r = runOrchestrateCli({
+      verb: "P",
+      attest: { from: "I", to: "P", did: "done", override: true },
+      session: "s1", cwd, json: false,
+    });
+    assert.equal(r.code, 1);
+    assert.match(r.output, /placeholder/i);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("I->P agent override rejects mismatched from/to", () => {
+  const cwd = freshCwd();
+  try {
+    seedSession(cwd, "s1", "I");
+    const r = runOrchestrateCli({
+      verb: "P",
+      attest: { from: "P", to: "A", did: "interview complete with evidence", override: true },
+      session: "s1", cwd, json: false,
+    });
+    assert.equal(r.code, 1);
+    assert.match(r.output, /from\/to must be I\/P/i);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("I->P agent override preserves existing partial tracker", () => {
+  const cwd = freshCwd();
+  try {
+    // Seed a partial tracker with some content
+    const partial = defaultInterview(3);
+    partial.dimensions.goal = { level: "max", known: ["real-goal"], unknown: [], confidence: 0.9 };
+    partial.contradictions = [{ contradictionId: "c1", severity: "medium", summary: "test contradiction" }];
+    partial.assumptions = [{ id: "a1", text: "test assumption", recorded: true }];
+    writeState(cwd, { ...defaultState("s1"), phase: "I", interview: partial });
+
+    const r = runOrchestrateCli({
+      verb: "P",
+      attest: { from: "I", to: "P", did: "interview complete despite partial tracker", override: true },
+      session: "s1", cwd, json: false,
+    });
+    assert.equal(r.code, 0, r.output);
+    // The tracker must be UNCHANGED after override
+    const after = readState(cwd, "s1");
+    assert.equal(after.phase, "P");
+    assert.equal(after.interview?.roundId, 3);
+    assert.equal(after.interview?.contradictions?.length, 1);
+    assert.equal(after.interview?.assumptions?.length, 1);
+    assert.equal(after.interview?.dimensions?.goal?.known?.[0], "real-goal");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
 test("G20: abort-to-I edges P->I, A->I, B->I are ungated (no --attest)", () => {
   for (const from of ["P", "A", "B"] as const) {
     const cwd = freshCwd();
