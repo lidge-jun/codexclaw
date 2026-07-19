@@ -22,6 +22,21 @@ function tempDb(): { db: BridgeDb; cwd: string } {
   return { db: openBridgeDb(cwd), cwd };
 }
 
+/** Windows CI: NTFS can briefly refuse recursive removal while SQLite
+ *  handles finish closing — retry with a short synchronous backoff. */
+function rmRfRetry(path: string): void {
+  const gate = new Int32Array(new SharedArrayBuffer(4));
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      Atomics.wait(gate, 0, 0, 100);
+    }
+  }
+}
+
 function stubAgentService(impl?: (req: IncomingRequest) => Promise<IncomingResult>): AgentService {
   return {
     handleIncoming: impl ?? (async () => ({ ok: true, text: "unused" })),
@@ -120,7 +135,7 @@ test("/start deep-link admits a chat without an open window", async () => {
     assert.deepEqual(logs, ["[tg] deep-link paired chat 100"]);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -149,7 +164,7 @@ test("bare /start still requires the existing pairing window", async () => {
     assert.equal(admitted, true);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -165,7 +180,7 @@ test("/new clears the binding thread without changing the workdir", async () => 
     assert.match(result?.text ?? "", /fresh conversation/);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -183,7 +198,7 @@ test("/effort validates the enum and updates the binding override", async () => 
     assert.equal(ok?.text, "Effort set to xhigh");
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -199,8 +214,8 @@ test("/cwd reset uses the command context workdir as the default", async () => {
     assert.equal(db.getBinding(binding.id)?.workdir, realpathSync(cwd));
   } finally {
     db.close();
-    rmSync(other, { recursive: true, force: true });
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(other);
+    rmRfRetry(cwd);
   }
 });
 
@@ -249,7 +264,7 @@ test("plain-mode forum commands operate on the chat-level binding while thread m
     assert.equal(db.getBinding(threadTopic.id)?.model, "default");
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -266,7 +281,7 @@ test("bare /mode shows a Telegram picker with the current mode marked", async ()
     assert.match(result?.keyboard?.[0]?.[1]?.callback_data ?? "", /^o:\d+:plain$/);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -277,7 +292,7 @@ test("/stop reports when there is no running turn", async () => {
     assert.equal(result?.text, "No running turn for this chat.");
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -300,7 +315,7 @@ test("/retry replays the last stored prompt through AgentService", async () => {
     assert.equal(result?.text, "retried answer");
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -379,6 +394,6 @@ test("/retry sends Telegram approval cards through the command context", async (
     assert.deepEqual(cleaned, [{ chatId: "100", messageId: 77 }]);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });

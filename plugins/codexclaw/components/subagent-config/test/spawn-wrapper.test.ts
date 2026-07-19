@@ -174,7 +174,7 @@ test("L15: SURFACE_SKILL maps every surface to an on-disk skill folder", () => {
     const it = skillItem(SKILLS_DIR, folder);
     assert.equal(it.type, "skill");
     assert.equal(it.name, `cxc-${folder}`);
-    assert.match(it.path, new RegExp(`/skills/${folder}/SKILL\\.md$`));
+    assert.match(it.path, new RegExp(`[\\\\/]skills[\\\\/]${folder}[\\\\/]SKILL\\.md$`));
   }
 });
 

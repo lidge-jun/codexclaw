@@ -19,7 +19,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
-import { dirname, join, resolve, relative } from "node:path";
+import { dirname, join, resolve, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -91,7 +91,7 @@ test("L19: every dist file reachable from a runtime entrypoint is git-tracked (s
 });
 
 test("L19: the runtime graph reaches the known transitive modules (walker sanity)", () => {
-  const graph = new Set([...resolveRuntimeGraph(ENTRYPOINTS)].map((f) => relative(pluginRoot, f)));
+  const graph = new Set([...resolveRuntimeGraph(ENTRYPOINTS)].map((f) => relative(pluginRoot, f).split(sep).join("/")));
   // hook.js is reached via pabcd-state/dist/cli.js; interview-ledger via hook.js.
   assert.ok(graph.has("components/pabcd-state/dist/hook.js"), "hook.js must be in the runtime graph");
   assert.ok(graph.has("components/pabcd-state/dist/interview-ledger.js"), "interview-ledger.js must be reached");

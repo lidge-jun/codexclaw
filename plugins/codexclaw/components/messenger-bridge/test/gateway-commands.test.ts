@@ -16,6 +16,21 @@ function tempDb(): { db: BridgeDb; cwd: string } {
   return { db: openBridgeDb(cwd), cwd };
 }
 
+/** Windows CI: NTFS can briefly refuse recursive removal while SQLite
+ *  handles finish closing — retry with a short synchronous backoff. */
+function rmRfRetry(path: string): void {
+  const gate = new Int32Array(new SharedArrayBuffer(4));
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      Atomics.wait(gate, 0, 0, 100);
+    }
+  }
+}
+
 function stubAgent(impl?: (req: IncomingRequest) => Promise<IncomingResult>, cancel = false): AgentService {
   return {
     handleIncoming: impl ?? (async () => ({ ok: true, text: "unused" })),
@@ -42,7 +57,7 @@ test("dispatchGatewayCommand updates model and effort on the binding", async () 
     assert.equal(db.getAgent(agent.id)?.effort, "default");
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -73,7 +88,7 @@ test("/model reserved subargs list/reset are handled before verbatim model stora
     if (previous === undefined) delete process.env.CODEX_MODELS_CACHE_PATH;
     else process.env.CODEX_MODELS_CACHE_PATH = previous;
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -107,7 +122,7 @@ test("/model list emits provider continuation fields before Discord cap overflow
     if (previous === undefined) delete process.env.CODEX_MODELS_CACHE_PATH;
     else process.env.CODEX_MODELS_CACHE_PATH = previous;
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -131,7 +146,7 @@ test("/effort reset stores default and reports the effective agent effort", asyn
     assert.equal(db.getBinding(binding.id)?.effort, "default");
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -167,8 +182,8 @@ test("/cwd reset validates and restores the bridge default workdir", async () =>
     assert.match(missing?.text ?? "", /Not a directory/);
   } finally {
     db.close();
-    rmSync(other, { recursive: true, force: true });
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(other);
+    rmRfRetry(cwd);
   }
 });
 
@@ -212,7 +227,7 @@ test("retry uses the binding channel, chat, workdir, and agent scope", async () 
     assert.equal(approvalForwarded?.id, "ap_retry");
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -248,7 +263,7 @@ test("/approve text fallback resolves only the current binding's pending approva
     assert.equal(store.pending.has("ap_text"), false);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -266,7 +281,7 @@ test("/approve text fallback validates usage and decision", async () => {
     assert.match(result?.text ?? "", /Usage/);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -299,7 +314,7 @@ test("/approve list shows id workdir prompt hash and expiry without prompt previ
     assert.doesNotMatch(result?.text ?? "", /preview|prompt:/i);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -331,7 +346,7 @@ test("/sessions renders chat bindings with Telegram HTML and Discord embed", asy
     assert.match(result?.discordEmbed?.fields?.[0]?.value ?? "", /thread-a/);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -369,7 +384,7 @@ test("/jobs validates limits and caps the list at 15", async () => {
     assert.match(capped?.telegramHtml ?? "", /<b>Recent jobs<\/b>/);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -407,7 +422,7 @@ test("/agent summarizes named agents and explains legacy bindings", async () => 
     assert.match(legacyResult?.text ?? "", /named agent/);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -429,7 +444,8 @@ test("/mode shows current thread mode with explanation", async () => {
     assert.ok(result.text.includes("thread"), "should show current mode");
     assert.equal(result.data?.mode, "thread");
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -459,7 +475,8 @@ test("/mode sets thread_mode to plain and back", async () => {
     assert.ok(revert);
     assert.equal(revert.data?.mode, "thread");
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -478,7 +495,8 @@ test("/mode rejects invalid values", async () => {
     assert.ok(result);
     assert.ok(result.text.includes("must be"), "should report valid values");
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -496,7 +514,8 @@ test("/mode requires a named agent", async () => {
     assert.ok(result);
     assert.ok(result.text.includes("named agent"), "should report agent requirement");
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 

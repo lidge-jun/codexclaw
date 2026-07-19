@@ -73,6 +73,26 @@ function tempDb(): { db: BridgeDb; cwd: string } {
   return { db: openBridgeDb(cwd), cwd };
 }
 
+/**
+ * rm -rf with NTFS grace: closing the SQLite handle first is the real fix, but
+ * Windows can lag handle release — retry with a synchronous backoff and rethrow
+ * only after the last failure.
+ */
+function rmRfRetry(path: string): void {
+  const signal = new Int32Array(new SharedArrayBuffer(4));
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < 5) Atomics.wait(signal, 0, 0, 100);
+    }
+  }
+  throw lastErr;
+}
+
 function textUpdate(id: number, chatId: number, text: string, type = "private"): TgUpdate {
   return { update_id: id, message: { message_id: id, text, chat: { id: chatId, type } } };
 }
@@ -120,7 +140,9 @@ test("allowlisted message drives the agent and sends a reply", async () => {
     );
     assert.ok(calls.some((c) => c.method === "sendChatAction"));
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -146,7 +168,9 @@ test("non-allowlisted message is silently ignored", async () => {
     assert.equal(called, false);
     assert.ok(!calls.some((c) => c.method === "sendMessage"));
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -205,7 +229,9 @@ test("/start pairs a chat only when a handshake window is open", async () => {
     // The window closed atomically on the first pair (finding 2).
     assert.equal(db.isHandshakeOpen("telegram"), false);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -231,7 +257,9 @@ test("named-agent /start deep-link pairs through long-poll without an open windo
     assert.equal(db.isAgentAllowed(agent.id, "42"), true);
     assert.equal(db.isAgentHandshakeOpen(agent.id), false);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -261,7 +289,9 @@ test("group message without @mention is ignored, with mention is stripped", asyn
     adapter.stop();
     assert.deepEqual(seen, ["do the thing"]);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -299,8 +329,9 @@ test("callback_query from an unpaired chat is acknowledged and denied", async ()
     assert.equal(answer?.payload.text, "This chat is not paired");
     assert.ok(!sentTexts(calls).some((text) => text === "Effort set to high"));
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -342,8 +373,9 @@ test("callback_query from an allowlisted agent chat can update effort", async ()
     assert.equal(answer?.payload.text, "Effort set");
     assert.ok(sentTexts(calls).some((text) => text === "Effort set to high"));
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -399,8 +431,9 @@ test("photo-only private message is downloaded and prefixed into the prompt", as
     assert.equal(existsSync(downloadedPath), false);
     assert.equal(existsSync(dirname(downloadedPath)), false);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -433,8 +466,9 @@ test("draft streaming uses sendRichMessageDraft only for private rich-supported 
     assert.equal(drafts.length, 1);
     assert.equal(drafts[0].payload.chat_id, 502);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -463,8 +497,9 @@ test("private draft progress uses drafts for file changes and never legacy statu
     assert.equal(calls.some((c) => c.method === "sendMessage" && String(c.payload.text ?? "").startsWith("🔄")), false);
     assert.equal(calls.some((c) => c.method === "editMessageText"), false);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -492,8 +527,9 @@ test("non-draft group progress keeps the legacy status message path", async () =
     assert.equal(calls.some((c) => c.method === "sendRichMessageDraft"), false);
     assert.ok(calls.some((c) => c.method === "sendMessage" && String(c.payload.text ?? "").startsWith("🔄 shell npm test")));
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -525,7 +561,9 @@ test("409 conflict stops the adapter after max retries", async () => {
     // After stop, status is stopped or conflict — never running.
     assert.notEqual(adapter.status(), "running");
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -639,8 +677,9 @@ test("forum topic messages pass topicId and propagate General topic thread id", 
     assert.equal(db.getOrCreateBinding("telegram", "-900", cwd, "1").topic_id, "1");
     assert.ok(calls.some((call) => call.method === "sendChatAction" && call.payload.message_thread_id === 1));
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -673,8 +712,9 @@ test("/cwd with no arg reports the current workdir", async () => {
     const texts = sentTexts(calls);
     assert.ok(texts.some((t) => t === `Current workdir: ${cwd}`), `got: ${texts.join(" | ")}`);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -688,9 +728,10 @@ test("/cwd <existing dir> repoints the binding and resets the session", async ()
     assert.equal(binding.thread_id, null);
     assert.ok(sentTexts(calls).some((t) => t === `Workdir set: ${real} (session reset)`));
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
-    rmSync(target, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
+    rmRfRetry(target);
   }
 });
 
@@ -703,8 +744,9 @@ test("/cwd <missing path> rejects and never creates the directory", async () => 
     assert.ok(sentTexts(calls).some((t) => t === `Not a directory: ${missing}`));
     assert.throws(() => realpathSync(missing)); // still absent — nothing was created
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -718,9 +760,10 @@ test("/cwd <file path> is rejected (not a directory)", async () => {
     assert.equal(binding.workdir, cwd);
     assert.ok(sentTexts(calls).some((t) => t === `Not a directory: ${filePath}`));
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
-    rmSync(target, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
+    rmRfRetry(target);
   }
 });
 
@@ -731,8 +774,9 @@ test("/cwd ~ expands to the home directory", async () => {
     assert.ok(!binding.workdir.includes("~"), "tilde must be expanded");
     assert.ok(sentTexts(calls).some((t) => t.startsWith("Workdir set: /")));
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -752,8 +796,9 @@ test("/cwd from a non-allowlisted chat is silently ignored", async () => {
   try {
     assert.equal(sentTexts(calls).length, 0);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -805,8 +850,9 @@ test("/delete then /delete confirm wipes binding, jobs, and pairing", async () =
     assert.equal(db.listBindings().length, 0);
     assert.equal(db.isAllowed("telegram", "800"), false);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -816,8 +862,9 @@ test("/delete confirm without a pending prompt only re-prompts", async () => {
     assert.ok(sentTexts(calls).some((t) => t.includes("Send /delete confirm")));
     assert.equal(db.isAllowed("telegram", "800"), true); // nothing deleted
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -831,8 +878,9 @@ test("/delete confirm after TTL expiry re-prompts instead of deleting", async ()
     assert.equal(prompts.length, 2);
     assert.equal(db.isAllowed("telegram", "800"), true);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -846,8 +894,9 @@ test("/delete from a forum topic deletes only that topic binding and keeps the c
     assert.equal(db.listBindings().length, 0);
     assert.equal(db.isAllowed("telegram", "800"), true);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -861,7 +910,8 @@ test("/delete confirmations are keyed by chat and topic", async () => {
     assert.equal(prompts.length, 2);
     assert.equal(db.isAllowed("telegram", "800"), true);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
     db.close();
+    rmRfRetry(cwd);
   }
 });

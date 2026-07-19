@@ -58,10 +58,25 @@ async function start(): Promise<H> {
   return { cwd, db, server, base: `http://127.0.0.1:${port}`, controller };
 }
 
+/** Windows CI: NTFS can briefly refuse recursive removal while SQLite
+ *  handles finish closing — retry with a short synchronous backoff. */
+function rmRfRetry(path: string): void {
+  const gate = new Int32Array(new SharedArrayBuffer(4));
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      Atomics.wait(gate, 0, 0, 100);
+    }
+  }
+}
+
 async function stop(h: H) {
   await new Promise<void>((r) => h.server.close(() => r()));
   h.db.close();
-  rmSync(h.cwd, { recursive: true, force: true });
+  rmRfRetry(h.cwd);
 }
 
 function post(base: string, path: string, body: unknown) {

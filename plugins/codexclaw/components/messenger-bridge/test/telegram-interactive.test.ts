@@ -13,6 +13,21 @@ import {
   handleCallback,
   loadModelCatalog,
 } from "../src/telegram-interactive.ts";
+
+/** Windows CI: NTFS can briefly refuse recursive removal while SQLite
+ *  handles finish closing — retry with a short synchronous backoff. */
+function rmRfRetry(path: string): void {
+  const gate = new Int32Array(new SharedArrayBuffer(4));
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      Atomics.wait(gate, 0, 0, 100);
+    }
+  }
+}
 import type { TelegramApi, TgCallbackQuery } from "../src/telegram-api.ts";
 
 interface Call {
@@ -89,7 +104,7 @@ test("handleCallback updates model and always answers the callback", async () =>
     assert.ok(api.calls.some((call) => call.method === "answerCallbackQuery"));
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -110,7 +125,7 @@ test("handleCallback updates effort and answers unknown callbacks", async () => 
     assert.equal(answers.length, 2);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -148,7 +163,7 @@ test("handleCallback routes approval buttons and leaves unpaired clicks unresolv
     assert.equal(deniedApi.calls.at(-1)?.payload[1], "This chat is not paired");
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -183,7 +198,7 @@ test("handleCallback gates mode_select by binding chat and agent", async () => {
     assert.equal(api.calls.at(-1)?.payload[1], "Mode set");
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -201,6 +216,6 @@ test("handleCallback answers malformed mode_select payloads without mutating", a
     assert.equal(api.calls.at(-1)?.payload[1], "Invalid mode selection");
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });

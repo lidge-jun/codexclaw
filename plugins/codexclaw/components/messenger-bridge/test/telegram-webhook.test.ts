@@ -22,6 +22,21 @@ function tempDb(): { db: BridgeDb; cwd: string } {
   return { db: openBridgeDb(cwd), cwd };
 }
 
+/** Windows CI: NTFS can briefly refuse recursive removal while SQLite
+ *  handles finish closing — retry with a short synchronous backoff. */
+function rmRfRetry(path: string): void {
+  const gate = new Int32Array(new SharedArrayBuffer(4));
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      Atomics.wait(gate, 0, 0, 100);
+    }
+  }
+}
+
 function fakeReq(path: string, body: unknown, headerSecret = "s3"): IncomingMessage {
   let sent = false;
   const req = new Readable({
@@ -138,7 +153,7 @@ test("webhook rejects when either path or header secret is wrong", async () => {
     assert.equal(db.getAgent(agent.id)?.poll_offset, 0);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -168,7 +183,7 @@ test("webhook dedups by agent poll_offset and does not enqueue duplicates", asyn
     assert.equal(db.getAgent(agent.id)?.poll_offset, 10);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -209,7 +224,7 @@ test("webhook responds 200 after enqueue without waiting for turn completion", a
     assert.match(JSON.stringify(api.sent[1].payload), /answer/);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -241,7 +256,7 @@ test("webhook dispatches /sessions through command definitions", async () => {
     assert.match(JSON.stringify(api.sent[0]?.payload), /HTML/);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -271,7 +286,7 @@ test("webhook /start deep-link admits a chat without an open window", async () =
     assert.match(JSON.stringify(api.sent), /connected/);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -315,7 +330,7 @@ test("webhook /start rejects expired and already-consumed deep-link codes", asyn
     assert.equal(db.isAgentAllowed(agent.id, "703"), false);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -343,7 +358,7 @@ test("webhook unpaired bare /start does not pre-create a binding", async () => {
     assert.deepEqual(db.listBindingsForChat("telegram", "704", agent.id), []);
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -383,7 +398,7 @@ test("webhook private turns use draft progress and formatted final output", asyn
     assert.equal(api.sent.at(-1)?.method, "sendRichMessage");
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -420,6 +435,6 @@ test("webhook forum topic messages pass topicId and message_thread_id", async ()
     assert.deepEqual(api.sent[0], { method: "sendChatAction", payload: { chatId: "-500", messageThreadId: 44 } });
   } finally {
     db.close();
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });

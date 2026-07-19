@@ -20,6 +20,21 @@ function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "bridge-agent-test-"));
 }
 
+/** Windows CI: NTFS can briefly refuse recursive removal while SQLite
+ *  handles finish closing — retry with a short synchronous backoff. */
+function rmRfRetry(path: string): void {
+  const gate = new Int32Array(new SharedArrayBuffer(4));
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      Atomics.wait(gate, 0, 0, 100);
+    }
+  }
+}
+
 function withMode(mode: string, fn: () => Promise<void>): Promise<void> {
   const prev = process.env.FAKE_CODEX_MODE;
   process.env.FAKE_CODEX_MODE = mode;
@@ -53,7 +68,7 @@ test("handleIncoming: success persists thread id + job transitions to done", asy
       db.close();
     });
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -86,7 +101,7 @@ test("handleIncoming: optional metrics and event log record the turn lifecycle",
       db.close();
     });
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -116,7 +131,7 @@ test("handleIncoming: failure records error state on the job", async () => {
       db.close();
     });
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -140,7 +155,7 @@ test("handleIncoming: second message resumes the same binding thread", async () 
       db.close();
     });
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -161,7 +176,7 @@ test("handleIncoming: topicId creates isolated bindings and job history", async 
       db.close();
     });
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -202,8 +217,8 @@ test("binding workdir wins over the adapter workdir on the next turn", async () 
   } finally {
     if (prevEcho === undefined) delete process.env.FAKE_CODEX_ECHO_CWD;
     else process.env.FAKE_CODEX_ECHO_CWD = prevEcho;
-    rmSync(cwd, { recursive: true, force: true });
-    rmSync(otherDir, { recursive: true, force: true });
+    rmRfRetry(cwd);
+    rmRfRetry(otherDir);
   }
 });
 
@@ -228,7 +243,7 @@ test("untouched binding still execs in the adapter workdir (regression)", async 
   } finally {
     if (prevEcho === undefined) delete process.env.FAKE_CODEX_ECHO_CWD;
     else process.env.FAKE_CODEX_ECHO_CWD = prevEcho;
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -261,7 +276,7 @@ test("agent-bound run applies the agent card's model + effort on the next turn",
   } finally {
     if (prevEcho === undefined) delete process.env.FAKE_CODEX_ECHO_ARGS;
     else process.env.FAKE_CODEX_ECHO_ARGS = prevEcho;
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -304,7 +319,7 @@ test("binding model+effort override agent card, which overrides service defaults
   } finally {
     if (prevEcho === undefined) delete process.env.FAKE_CODEX_ECHO_ARGS;
     else process.env.FAKE_CODEX_ECHO_ARGS = prevEcho;
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -340,7 +355,7 @@ test("cancelTurn terminates the active child for one binding", async () => {
       db.close();
     });
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -364,7 +379,7 @@ test("agent with default model+effort adds no -m/-c flags", async () => {
   } finally {
     if (prevEcho === undefined) delete process.env.FAKE_CODEX_ECHO_ARGS;
     else process.env.FAKE_CODEX_ECHO_ARGS = prevEcho;
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -397,7 +412,7 @@ test("full_access=0 gate allow-once runs one turn without flipping the agent", a
       db.close();
     });
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -430,7 +445,7 @@ test("full_access=0 gate allow-always flips the agent and records lifecycle", as
       db.close();
     });
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -488,7 +503,7 @@ test("full_access=0 gate deny and timeout fail closed without running", async ()
       db.close();
     });
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -510,7 +525,7 @@ test("resolveApproval rejects unauthorized binding attempts and leaves request p
     assert.equal(svc.resolveApproval({ id: "ap_auth", decision: "allow-once", bindingId: binding.id, agentId: agent.id }), "resolved");
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -541,7 +556,7 @@ test("listPendingApprovals filters by binding/agent and prunes expired requests"
     assert.equal(approvals.pending.size, 0);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 

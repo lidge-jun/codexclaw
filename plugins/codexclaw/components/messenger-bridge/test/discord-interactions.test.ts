@@ -14,6 +14,21 @@ function tempDb(): { db: BridgeDb; cwd: string } {
   return { db: openBridgeDb(cwd), cwd };
 }
 
+/** Windows CI: NTFS can briefly refuse recursive removal while SQLite
+ *  handles finish closing — retry with a short synchronous backoff. */
+function rmRfRetry(path: string): void {
+  const gate = new Int32Array(new SharedArrayBuffer(4));
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      Atomics.wait(gate, 0, 0, 100);
+    }
+  }
+}
+
 function stubAgent(impl: (req: IncomingRequest) => Promise<IncomingResult>): AgentService {
   return { handleIncoming: impl, cancelTurn: () => false, shutdown() {} } as unknown as AgentService;
 }
@@ -77,8 +92,8 @@ test("PING responds with pong type 1", async () => {
     assert.deepEqual(ctx.callbacks, [{ type: 1 }]);
     assert.deepEqual(ctx.edits, []);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -104,8 +119,8 @@ test("APPLICATION_COMMAND defers before running the matched command", async () =
     assert.deepEqual(ctx.sends, [{ content: "answer" }]);
     assert.match(JSON.stringify(ctx.edits[1]), /Answer sent below/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -128,8 +143,8 @@ test("MESSAGE_COMPONENT model_select updates a named agent after deferring", asy
     assert.equal(binding.model, "gpt-5.5");
     assert.match(JSON.stringify(ctx.edits[0]), /Model set to gpt-5.5/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -154,8 +169,8 @@ test("MESSAGE_COMPONENT retry replays the latest prompt preview", async () => {
     assert.deepEqual(ctx.sends, [{ content: "retry result" }]);
     assert.match(JSON.stringify(ctx.edits[1]), /Answer sent below/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -173,8 +188,8 @@ test("unknown APPLICATION_COMMAND edits the deferred reply with an error", async
     assert.deepEqual(ctx.callbacks, [{ type: 5 }]);
     assert.match(JSON.stringify(ctx.edits[0]), /Unknown bridge command/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -195,8 +210,8 @@ test("MESSAGE_COMPONENT approval buttons resolve through AgentService", async ()
     assert.deepEqual(seen, [{ id: "ap_1", decision: "allow-once", chatId: "chan-1", agentId: 12 }]);
     assert.match(JSON.stringify(ctx.edits[0]), /Approval allow-once/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -217,8 +232,8 @@ test("MESSAGE_COMPONENT mode_select updates the current agent thread mode", asyn
     assert.equal(db.getAgent(agent.id)?.thread_mode, "plain");
     assert.match(JSON.stringify(ctx.edits[0]), /Mode set to plain/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -237,7 +252,7 @@ test("MESSAGE_COMPONENT unauthorized approval returns an ack without resolving",
     assert.equal(seen.length, 1);
     assert.match(JSON.stringify(ctx.edits[0]), /another chat/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });

@@ -513,7 +513,7 @@ test("v2 mention normalization composes with a newly prepended leaf guard", () =
   const out = runSpawnAttachHook(spawnPayload({ task_name: "t", fork_turns: "none", message: "use $cxc-dev" }));
   const ui = updatedInputOf(out);
   assert.ok((ui.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`));
-  assert.match(ui.message as string, /\[\$cxc-dev\]\(skill:\/\/.*\/dev\/SKILL\.md\)/);
+  assert.match(ui.message as string, /\[\$cxc-dev\]\(skill:\/\/.*[\\/]dev[\\/]SKILL\.md\)/);
 });
 
 test("v1 mention normalization composes with guard, model routing, and effort", () => {

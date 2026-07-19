@@ -26,8 +26,8 @@ function makeGoalsDb(dir: string, rows: Array<{ thread_id: string; status: strin
 }
 
 test("L11.1: resolveGoalsDbPath honors CODEX_SQLITE_HOME > CODEX_HOME", () => {
-  assert.match(resolveGoalsDbPath({ CODEX_SQLITE_HOME: "/sq" } as NodeJS.ProcessEnv), /^\/sq\/goals_1\.sqlite$/);
-  assert.match(resolveGoalsDbPath({ CODEX_HOME: "/ch" } as NodeJS.ProcessEnv), /^\/ch\/goals_1\.sqlite$/);
+  assert.equal(resolveGoalsDbPath({ CODEX_SQLITE_HOME: "/sq" } as NodeJS.ProcessEnv), join("/sq", GOALS_DB_FILENAME));
+  assert.equal(resolveGoalsDbPath({ CODEX_HOME: "/ch" } as NodeJS.ProcessEnv), join("/ch", GOALS_DB_FILENAME));
 });
 
 test("L11.1: missing DB -> inactive (codex not using goals)", () => {

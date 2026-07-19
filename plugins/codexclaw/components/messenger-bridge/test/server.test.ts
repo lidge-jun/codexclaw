@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { Server } from "node:http";
 import { openBridgeDb, type BridgeDb } from "../src/db.ts";
 import { createBridgeServer, type BridgeControllerLike } from "../src/server.ts";
@@ -343,7 +343,7 @@ test("parseServeArgs: defaults, overrides, validation", () => {
   assert.deepEqual(parseServeArgs([], "/base"), { port: 7717, cwd: "/base" });
   assert.deepEqual(parseServeArgs(["--port", "8080", "--cwd", "sub"], "/base"), {
     port: 8080,
-    cwd: "/base/sub",
+    cwd: resolve("/base", "sub"),
   });
   assert.throws(() => parseServeArgs(["--port", "abc"], "/base"), /invalid --port/);
 });

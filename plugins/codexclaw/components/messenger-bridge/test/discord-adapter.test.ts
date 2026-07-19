@@ -173,6 +173,21 @@ function tempDb(): { db: BridgeDb; cwd: string } {
   return { db: openBridgeDb(cwd), cwd };
 }
 
+/** Windows CI: NTFS can briefly refuse recursive removal while SQLite
+ *  handles finish closing — retry with a short synchronous backoff. */
+function rmRfRetry(path: string): void {
+  const gate = new Int32Array(new SharedArrayBuffer(4));
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      Atomics.wait(gate, 0, 0, 100);
+    }
+  }
+}
+
 async function settle() {
   await new Promise((r) => setTimeout(r, 20));
 }
@@ -223,7 +238,9 @@ test("allowlisted channel message drives the agent and replies", async () => {
     const reply = posts.find((p) => p.path === "/channels/chan-1/messages" && (p.body as { content?: string }).content === "discord reply");
     assert.ok(reply, "final reply should be a fresh Discord message");
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -252,7 +269,9 @@ test("bot-authored and non-allowlisted messages are ignored", async () => {
     adapter.stop();
     assert.equal(called, false);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -284,7 +303,9 @@ test("duplicate MESSAGE_CREATE (same id) runs the agent only once", async () => 
     adapter.stop();
     assert.equal(calls, 1);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -325,7 +346,9 @@ test("message attachments are downloaded, prefixed into prompt, and cleaned up",
     assert.equal(existsSync(downloadedPath), false);
     assert.equal(existsSync(dirname(downloadedPath)), false);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -357,7 +380,9 @@ test("gateway progress edits one status embed and sanitizes mentions", async () 
     assert.match(body, /\[everyone\]/);
     assert.doesNotMatch(body, /@everyone|<@123>/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -398,7 +423,9 @@ test("gateway progress edit throttle honors the 1200ms boundary with injected cl
     assert.match(body, /boundary/);
     assert.doesNotMatch(body, /too-soon/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -425,7 +452,9 @@ test("long gateway final output is sent as a Discord file attachment", async () 
     assert.ok(multipart, "long final output should use multipart sendFile");
     assert.match(new TextDecoder().decode(multipart?.body as Uint8Array), /codex-output-1\.txt/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -472,7 +501,9 @@ test("!cxc retry sends Discord approval cards through the text command path", as
     );
     assert.ok(denial, "retry command should still report the gated turn result");
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -505,7 +536,9 @@ test("READY application id registers global slash commands", async () => {
     assert.ok(readyRegistration, "READY application.id should drive command registration");
     assert.ok(JSON.stringify(readyRegistration?.body).includes('"ask"'));
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -556,7 +589,9 @@ test("allowed slash interactions defer before getMe fallback", async () => {
     assert.equal(calls[1]?.path, "/users/@me");
     assert.ok(calls.some((call) => call.path === "/webhooks/app-fallback/interaction-token/messages/@original"));
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -597,7 +632,9 @@ test("guild messages start a reply thread and send the final embed there", async
     assert.ok(threadReply, "fresh reply should be sent to the created thread");
     assert.ok(posts.some((p) => p.path === "/channels/thread-1" && p.method === "PATCH" && (p.body as { archived?: boolean }).archived === true));
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -626,6 +663,8 @@ test("!cxc start pairs a channel when the handshake window is open", async () =>
     adapter.stop();
     assert.equal(db.isAllowed("discord", "chan-x"), true); // window open → paired
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
   }
 });

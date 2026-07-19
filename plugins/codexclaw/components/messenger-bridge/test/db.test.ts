@@ -12,6 +12,21 @@ function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "bridge-db-test-"));
 }
 
+/** Windows CI: NTFS can briefly refuse recursive removal while SQLite
+ *  handles finish closing — retry with a short synchronous backoff. */
+function rmRfRetry(path: string): void {
+  const gate = new Int32Array(new SharedArrayBuffer(4));
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      Atomics.wait(gate, 0, 0, 100);
+    }
+  }
+}
+
 function sha256Hex(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -27,7 +42,7 @@ test("schema v1 creates and reopen persists state", () => {
     assert.equal(reopened.getChannel("telegram")?.token, "tok-123");
     reopened.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -39,7 +54,7 @@ test("bridge.db file mode is 600", { skip: process.platform === "win32" }, () =>
     assert.equal(mode, 0o600);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -61,7 +76,7 @@ test("single-active channel invariant", () => {
     assert.equal(db.getActiveChannel(), null);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -76,7 +91,7 @@ test("activating a channel without a saved token throws and rolls back", () => {
     assert.equal(db.getActiveChannel()?.kind, "telegram");
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -97,7 +112,7 @@ test("allowlist add/check/list/remove", () => {
     assert.equal(db.isAllowed("telegram", "111"), false);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -123,7 +138,7 @@ test("binding get-or-create is idempotent per (kind, chatId)", () => {
     assert.equal(db.listBindings().length, 2);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -144,7 +159,7 @@ test("binding get-or-create isolates plain chat and forum topics", () => {
     assert.equal(topic2.topic_id, "2");
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -161,7 +176,7 @@ test("agent bindings isolate topics for the same agent and chat", () => {
     assert.equal(db.getOrCreateAgentBinding(agent.id, "telegram", "42", "/tmp/other", "9").id, topic.id);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -190,7 +205,7 @@ test("listBindingsForChat returns all topic rows for the current chat and agent 
     assert.deepEqual(db.listBindingsForChat("telegram", "42", null).map((row) => row.agent_id), [null]);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -217,7 +232,7 @@ test("job lifecycle: create, patch, list ordering + preview caps", () => {
     assert.equal(jobs[1]?.id, jobId);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -232,7 +247,7 @@ test("setBindingWorkdir repoints the exec cwd for one binding only", () => {
     assert.equal(db.getBinding(b.id)?.workdir, "/tmp/b");
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -252,7 +267,7 @@ test("resetBindingSession clears only the remembered Codex thread", () => {
     assert.equal(reset?.status, "running");
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -273,7 +288,7 @@ test("deleteBindingCascade removes jobs + binding, leaves others intact", () => 
     assert.equal(db.listJobs(kept.id, 10)[0]?.id, keptJob);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -304,7 +319,7 @@ test("agent pairing codes store only hashes and consume once before expiry", () 
     assert.equal(db.consumeAgentPairingCode(agent.id, hash), false);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -318,7 +333,7 @@ test("expired pairing codes are rejected naturally by the consume CAS", () => {
     assert.equal(db.consumeAgentPairingCode(agent.id, hash), false);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -340,7 +355,7 @@ test("sweepExpiredPairingCodes drops consumed and expired rows, keeps live ones"
     assert.deepEqual(rows.map((row) => row.code_hash), [sha256Hex("live")]);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -361,6 +376,6 @@ test("deleteAgent removes owned pairing codes", () => {
     assert.deepEqual(rows.map((row) => row.agent_id), [kept.id]);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });

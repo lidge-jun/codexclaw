@@ -35,6 +35,21 @@ function tempDb(): { db: BridgeDb; cwd: string } {
   return { db: openBridgeDb(cwd), cwd };
 }
 
+/** Windows CI: NTFS can briefly refuse recursive removal while SQLite
+ *  handles finish closing — retry with a short synchronous backoff. */
+function rmRfRetry(path: string): void {
+  const gate = new Int32Array(new SharedArrayBuffer(4));
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      Atomics.wait(gate, 0, 0, 100);
+    }
+  }
+}
+
 function interaction(name: string, options: Array<{ name: string; value: string }> = []): Interaction {
   return {
     id: `i-${name}`,
@@ -139,8 +154,8 @@ test("/ask runs AgentService.handleIncoming and edits the deferred reply", async
     assert.deepEqual(ctx.sends, [{ content: "answer text" }]);
     assert.match(JSON.stringify(ctx.edits[1]), /Answer sent below/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -157,9 +172,9 @@ test("/cwd updates an existing directory and clears the binding thread", async (
     assert.equal(updated.thread_id, null);
     assert.match(JSON.stringify(ctx.edits[0]), /Workdir set/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
-    rmSync(target, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
+    rmRfRetry(target);
   }
 });
 
@@ -175,8 +190,8 @@ test("/effort stores valid effort on the interaction binding", async () => {
     assert.equal(binding.effort, "xhigh");
     assert.match(JSON.stringify(ctx.edits[0]), /Effort set to xhigh/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -194,8 +209,8 @@ test("/effort reset routes through the gateway reserved subarg", async () => {
     assert.equal(db.getBinding(binding.id)?.effort, "default");
     assert.match(JSON.stringify(ctx.edits[0]), /Effort reset to high/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -209,8 +224,8 @@ test("/model list uses a capped Discord embed instead of the picker path", async
     assert.equal(edit.embeds?.[0]?.title, "Available Models");
     assert.ok((edit.embeds?.[0]?.fields?.length ?? 0) <= 25);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -225,8 +240,8 @@ test("bare /mode edits the reply with mode buttons", async () => {
     assert.match(JSON.stringify(ctx.edits[0]), /mode_select:plain/);
     assert.match(JSON.stringify(ctx.edits[0]), /\* Plain/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });
 
@@ -242,7 +257,7 @@ test("/sessions uses the gateway Discord embed path", async () => {
     assert.match(JSON.stringify(ctx.edits[0]), /Sessions/);
     assert.match(JSON.stringify(ctx.edits[0]), /thread-1/);
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
     db.close();
+    rmRfRetry(cwd);
   }
 });

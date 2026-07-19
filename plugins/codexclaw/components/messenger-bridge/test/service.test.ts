@@ -39,24 +39,48 @@ test("buildPlist XML-escapes paths with special chars", () => {
 
 test("servicePaths derive from a given home", () => {
   const p = servicePaths("/Users/jun");
-  assert.equal(p.plist, `/Users/jun/Library/LaunchAgents/${SERVICE_LABEL}.plist`);
-  assert.equal(p.outLog, "/Users/jun/.codexclaw/serve.out.log");
-  assert.equal(p.stateDir, "/Users/jun/.codexclaw");
+  if (process.platform === "darwin") {
+    assert.equal(p.plist, `/Users/jun/Library/LaunchAgents/${SERVICE_LABEL}.plist`);
+    assert.equal(p.outLog, "/Users/jun/.codexclaw/serve.out.log");
+    assert.equal(p.stateDir, "/Users/jun/.codexclaw");
+  } else {
+    // servicePaths joins with platform separators on every OS, so the literal
+    // POSIX shape above only holds on darwin; elsewhere assert structure.
+    assert.ok(p.plist.endsWith(`${SERVICE_LABEL}.plist`));
+    assert.ok(p.stateDir.includes(".codexclaw"));
+    assert.ok(p.outLog.includes(".codexclaw"));
+    assert.ok(p.errLog.includes(".codexclaw"));
+  }
 });
 
 test("uninstall/status are safe no-ops when not installed", () => {
-  // Use an empty temp home so no real plist exists.
+  // Use an empty temp home so no real service artifact exists.
   const fakeHome = "/tmp/cxc-service-none-" + process.pid;
   const un = uninstallService(fakeHome);
+  const st = serviceStatus(fakeHome);
   if (process.platform === "darwin") {
+    // launchd: missing plist -> polite no-op.
     assert.equal(un.ok, true);
     assert.match(un.message, /not installed|nothing to remove/);
+    assert.equal(st.ok, true);
+    assert.equal(st.message, "cxc service: not installed.");
+  } else if (process.platform === "linux") {
+    // systemd: missing unit -> polite no-op; status also tolerates no systemd.
+    assert.equal(un.ok, true);
+    assert.equal(un.message, "cxc service: not installed.");
+    assert.equal(st.ok, true);
+    assert.match(st.message, /not installed|systemd not available/);
+  } else if (process.platform === "win32") {
+    // Task Scheduler: query misses the task -> polite no-op.
+    assert.equal(un.ok, true);
+    assert.equal(un.message, "cxc service: not installed.");
+    assert.equal(st.ok, true);
+    assert.equal(st.message, "cxc service: not installed.");
   } else {
-    // Non-darwin reports unsupported rather than pretending (service.ts:120-123).
+    // Every other OS reports "unsupported" honestly rather than pretending.
     assert.equal(un.ok, false);
-    assert.match(un.message, /only supported on macOS/);
+    assert.match(un.message, /unsupported/);
+    assert.equal(st.ok, true);
+    assert.match(st.message, /unsupported/);
   }
-  const st = serviceStatus(fakeHome);
-  assert.equal(st.ok, true);
-  assert.match(st.message, /not installed/);
 });

@@ -693,7 +693,7 @@ test("260710 WP2: spawn hook e2e - opaque V2 message gains the skill affordance"
     rmSync(cwd, { recursive: true, force: true });
   }
 });
-test("260710: spawn hook e2e - snapshot override composes mention repair with v1/v2 policy", () => {
+test("260713: spawn hook e2e - snapshot override composes mention repair with the v1/v2 surface-split", () => {
   const { event, hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-attaching-skills.json");
   assert.equal(event, "PreToolUse");
   const ep = snapshotEntrypoint(distAbs);
@@ -710,8 +710,12 @@ test("260710: spawn hook e2e - snapshot override composes mention repair with v1
     assert.equal(v1Normalized.status, 0, v1Normalized.stderr);
     const v1NormalizedUi = JSON.parse(v1Normalized.stdout).hookSpecificOutput.updatedInput;
     assert.equal(v1NormalizedUi.trace_id, "v1");
-    assert.match(v1NormalizedUi.message, /\[\$cxc-dev\]\(skill:\/\/.*\/skills\/dev\/SKILL\.md\)/);
-    assert.ok(v1NormalizedUi.message.startsWith("[CXC-LEAF-GUARD]"), "v1 now gets the leaf guard too");
+    // Separator-tolerant: the runtime emits native path separators inside the
+    // link target (skill://D:\a\...\skills\dev\SKILL.md on Windows).
+    assert.match(v1NormalizedUi.message, /\[\$cxc-dev\]\(skill:\/\/.*[\\/]skills[\\/]dev[\\/]SKILL\.md\)/);
+    // 260713 WP2 surface-split: v1 payloads (no task_name) get the compact V1
+    // scope block; only v2 payloads receive the leaf guard.
+    assert.ok(v1NormalizedUi.message.startsWith("[CXC-SUBAGENT-SCOPE]"), "260713 surface-split: v1 spawn gets the scope block");
 
     mkdirSync(join(configuredCwd, ".codexclaw"), { recursive: true });
     writeFileSync(
@@ -727,7 +731,7 @@ test("260710: spawn hook e2e - snapshot override composes mention repair with v1
     const v1Ui = JSON.parse(v1Model.stdout).hookSpecificOutput.updatedInput;
     assert.equal(v1Ui.model, "model-explorer");
     assert.match(v1Ui.message, /\[\$cxc-dev\]\(skill:\/\//);
-    assert.ok(v1Ui.message.startsWith("[CXC-LEAF-GUARD]"));
+    assert.ok(v1Ui.message.startsWith("[CXC-SUBAGENT-SCOPE]"), "260713 surface-split: v1 spawn gets the scope block");
     assert.ok(!("reasoning_effort" in v1Ui), "no configured effort -> none injected");
 
     const v2Normalized = runHook(ep, hookEvent, {
@@ -752,7 +756,7 @@ test("260710: spawn hook e2e - snapshot override composes mention repair with v1
     const v2Ui = JSON.parse(v2Guard.stdout).hookSpecificOutput.updatedInput;
     assert.ok(v2Ui.message.startsWith("[CXC-LEAF-GUARD]"));
     assert.match(v2Ui.message, /\[\$cxc-dev\]\(skill:\/\//);
-    assert.equal(v2Ui.model, "model-explorer", "260710 parity: v2 non-full fork gets configured model");
+    assert.equal(v2Ui.model, "model-explorer", "260713 surface-split: v2 non-full fork gets configured model");
     assert.match(v2Ui.message, /<skill name="cxc-dev">/);
 
     const denied = runHook(ep, hookEvent, {
@@ -772,7 +776,7 @@ test("260710: spawn hook e2e - snapshot override composes mention repair with v1
 
 // The production cache layout resolves skills relative to dist/../../../skills when
 // CXC_SKILLS_DIR is absent. Build a complete miniature plugin tree to exercise it.
-test("260710: spawn hook e2e - cache-shaped fixture uses script-relative skills", () => {
+test("260713: spawn hook e2e - cache-shaped fixture uses script-relative skills", () => {
   const { hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-attaching-skills.json");
   const fixture = mkdtempSync(join(tmpdir(), "ccx-spawn-cache-"));
   const cwd = mkdtempSync(join(tmpdir(), "ccx-spawn-cache-cwd-"));
@@ -791,7 +795,13 @@ test("260710: spawn hook e2e - cache-shaped fixture uses script-relative skills"
     }, { CXC_SKILLS_DIR: undefined });
     assert.equal(res.status, 0, res.stderr);
     const ui = JSON.parse(res.stdout).hookSpecificOutput.updatedInput;
-    assert.ok(ui.message.startsWith("[CXC-LEAF-GUARD]"), "v1 leaf guard applies (260710 parity)");
+    // 260713 WP2 surface-split: this is a v1 payload (no task_name), so it gets
+    // the V1 scope block, not the leaf guard.
+    assert.ok(ui.message.startsWith("[CXC-SUBAGENT-SCOPE]"), "260713 surface-split: v1 spawn gets the scope block");
+    // The hook builds the link as skill:// + resolve(skillsDir, folder,
+    // "SKILL.md") (canonicalMention), i.e. native separators on every platform.
+    // Node realpaths the main module, so the script-relative skillsDir and this
+    // explicit realpathSync agree on both POSIX and Windows temp roots.
     assert.ok(
       ui.message.endsWith(`[$cxc-dev](skill://${realpathSync(cacheSkill)}) inspect the cache`),
       "normalized mention link resolves against the script-relative skills dir",

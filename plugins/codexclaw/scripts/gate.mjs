@@ -21,7 +21,7 @@
  *  - checkCounts reads the real manifest at `.codex-plugin/plugin.json`.
  */
 import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -169,7 +169,7 @@ export function checkForbiddenClaims(repoRoot = REPO_ROOT) {
     lines.forEach((line, i) => {
       if (isExemptClaimLine(line)) return;
       if (FORBIDDEN_PATTERNS.some((re) => re.test(line))) {
-        violations.push(`${f.replace(repoRoot + "/", "")}:${i + 1}: false-enforcement claim without gate-ok escape: "${line.trim().slice(0, 80)}"`);
+        violations.push(`${relative(repoRoot, f).split(sep).join("/")}:${i + 1}: false-enforcement claim without gate-ok escape: "${line.trim().slice(0, 80)}"`);
       }
     });
   }

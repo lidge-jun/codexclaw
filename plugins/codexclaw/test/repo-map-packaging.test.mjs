@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = resolve(here, "..");
@@ -78,7 +78,7 @@ test("cxc map --help exits 0 without python deps", () => {
 });
 
 test("dispatcher bootstrap ladder: help bypass, env override, uv rung, venv rung, -B everywhere", async () => {
-  const mod = await import(join(repoRoot, "bin", "codexclaw.mjs") + "?ladder");
+  const mod = await import(pathToFileURL(join(repoRoot, "bin", "codexclaw.mjs")).href + "?ladder");
   const { selectRepoMapCommand, repoMapVenvPython } = mod;
   const deps = {
     scriptPath: "/s/repomap.py",

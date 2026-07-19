@@ -7,6 +7,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openBridgeDb } from "../src/db.ts";
 
+/** Windows CI: NTFS can briefly refuse recursive removal while SQLite
+ *  handles finish closing — retry with a short synchronous backoff. */
+function rmRfRetry(path: string): void {
+  const gate = new Int32Array(new SharedArrayBuffer(4));
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (err) {
+      if (attempt >= 5) throw err;
+      Atomics.wait(gate, 0, 0, 100);
+    }
+  }
+}
+
 /** Hand-build a REAL v1 shape — a genuine v1 file always has all four
  *  SCHEMA_V1 tables (they are created in one exec), and v4 rebuilds bindings,
  *  so a channels-only fixture is not a valid v1 database. */
@@ -77,7 +92,7 @@ test("migrates a legacy v1 database to current without losing rows", () => {
     assert.equal(reopened.getPollOffset("telegram"), 4242);
     reopened.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -94,7 +109,7 @@ test("handshake window expires by wall clock", () => {
     assert.equal(db.isHandshakeOpen("telegram"), false);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -119,7 +134,7 @@ test("v6: binding effort/topic_id + agent full_access/webhook_url defaults and s
     assert.equal(patched?.webhook_url, "https://x.example/hook");
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });
 
@@ -142,6 +157,6 @@ test("v8: agents.thread_mode defaults to 'thread' and accepts 'plain'", () => {
     }, /CHECK/i);
     db.close();
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    rmRfRetry(cwd);
   }
 });

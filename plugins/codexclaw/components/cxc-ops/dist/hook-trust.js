@@ -419,7 +419,7 @@ export function retrustHooks(
   }
   next = insertMissingSections(next, missing);
 
-  const backupPath = `${targetPath}.bak-${new Date().toISOString()}`;
+  const backupPath = `${targetPath}.bak-${new Date().toISOString().replace(/:/g, "-")}`;
   copyFileSync(targetPath, backupPath, fsConstants.COPYFILE_EXCL);
   try {
     writeAtomic(targetPath, next);
