@@ -369,7 +369,14 @@ test("retrustHooks rolls back the resolved config when codex verification fails"
   assert.equal(diagnoseHookTrust(home, root, PLUGIN_KEY)[1].status, "untrusted");
 });
 
-test("hooks retrust CLI reports each hook and backup path", async () => {
+test(
+  "hooks retrust CLI reports each hook and backup path",
+  {
+    // Fake sh-script `codex` shim is not executable on NTFS (spawnSync ENOENT);
+    // retrust behavior is covered cross-platform by the direct retrustHooks tests.
+    skip: process.platform === "win32",
+  },
+  async () => {
   const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo cli")] }] } });
   const home = makeCodexHome('[plugins."fixture@market"]\nenabled = true\n');
   const binDir = tempDir("cxc-hook-bin-");
@@ -405,4 +412,5 @@ test("hooks retrust CLI reports each hook and backup path", async () => {
   }
   assert.match(stdout.join(""), /\[trusted\] fixture@market:hooks\/sample\.json:stop:0:0/);
   assert.match(stdout.join(""), /backup: .*config\.toml\.bak-/);
-});
+  },
+);

@@ -110,10 +110,15 @@ test("dispatcher bootstrap ladder: help bypass, env override, uv rung, venv rung
   assert.equal(bare.cmd, "python3");
   assert.ok(bare.args.includes("-B"));
   // Venv location honors CODEXCLAW_HOME and defaults under ~/.codexclaw.
-  assert.equal(repoMapVenvPython({}, "/h"), "/h/.codexclaw/venvs/repomap/bin/python3");
+  // Expected paths are built with join() to match the platform output of the
+  // production helper (win32 join() yields backslash separators).
+  assert.equal(
+    repoMapVenvPython({}, "/h"),
+    join("/h", ".codexclaw", "venvs", "repomap", "bin", "python3"),
+  );
   assert.equal(
     repoMapVenvPython({ CODEXCLAW_HOME: "/custom" }, "/h"),
-    "/custom/venvs/repomap/bin/python3",
+    join("/custom", "venvs", "repomap", "bin", "python3"),
   );
 });
 

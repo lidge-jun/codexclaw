@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, realpathSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { openBridgeDb, type BridgeDb } from "../src/db.ts";
 import { createTelegramAdapter } from "../src/telegram-adapter.ts";
@@ -772,7 +772,11 @@ test("/cwd ~ expands to the home directory", async () => {
   try {
     const binding = db.getOrCreateBinding("telegram", "700", cwd);
     assert.ok(!binding.workdir.includes("~"), "tilde must be expanded");
-    assert.ok(sentTexts(calls).some((t) => t.startsWith("Workdir set: /")));
+    // Adapter replies `Workdir set: ${realpathSync(homedir())} (session reset)`;
+    // on Windows the home dir is a drive-letter path, not "/…".
+    const homeReal = realpathSync(homedir());
+    assert.equal(binding.workdir, homeReal);
+    assert.ok(sentTexts(calls).some((t) => t === `Workdir set: ${homeReal} (session reset)`));
   } finally {
     await settle();
     db.close();
