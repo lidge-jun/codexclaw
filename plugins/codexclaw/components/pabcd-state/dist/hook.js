@@ -326,6 +326,8 @@ export const AGBROWSE_SEARCH_DIRECTIVE = [
   "interactive CDP session (`agbrowse start --headed` -> `navigate` -> `snapshot --interactive`",
   "-> `click eN` -> `stop`); `agbrowse doctor` diagnoses CDP failures. Only when agbrowse is",
   "unresolvable or cannot complete the flow, fall back to the native tier:",
+  "If an agbrowse command fails (connection refused, no browser, etc.), run",
+  "`agbrowse start` first to launch the local Chrome session, then retry.",
   "`browser:control-in-app-browser` (JS/PDF/visual), `chrome:control-chrome` (real-profile CDP,",
   "conversational), `computer-use:computer-use` (GUI-only last resort) — and state why agbrowse",
   "was insufficient. Verify inspect -> act -> re-inspect; screenshot + view_image when DOM",

@@ -1,16 +1,16 @@
 ---
-name: cxc-sparksearch
-description: "Codexclaw Spark search lane: cheap parallel public-web discovery via hardcoded gpt-5.3-codex-spark explorer subagents, then hand verified synthesis back to the main model and cxc-search proof discipline. Depends on cxc-search for proof. Use when the user explicitly asks for Spark search, cheap/broad web discovery, parallel research, many source sweeps, 스파크검색, 스파크 서치, 병렬 웹검색, or 싸게 많이 찾아봐."
+name: cxc-lunasearch
+description: "Codexclaw Luna search lane: cheap parallel public-web discovery via hardcoded gpt-5.6-luna explorer subagents, then hand verified synthesis back to the main model and cxc-search proof discipline. Depends on cxc-search for proof. Use when the user explicitly asks for Luna search, cheap/broad web discovery, parallel research, many source sweeps, 루나검색, 루나 서치, 병렬 웹검색, or 싸게 많이 찾아봐."
 ---
 
-# sparksearch — Cheap Parallel Discovery Lane (depends on cxc-search)
+# lunasearch — Cheap Parallel Discovery Lane (depends on cxc-search)
 
-`cxc-sparksearch` is a **dependent tool of `cxc-search`**, not a standalone
-search skill. It fans out cheap Spark-model subagents for wide discovery, then
+`cxc-lunasearch` is a **dependent tool of `cxc-search`**, not a standalone
+search skill. It fans out cheap Luna-model subagents for wide discovery, then
 hands every candidate back to the main agent, which runs the `cxc-search` proof
-ladder (Tier 1 discover, Tier 2 open-the-source) to settle claims. Spark
+ladder (Tier 1 discover, Tier 2 open-the-source) to settle claims. Luna
 discovers; `cxc-search` proves; the main model synthesizes. Never use
-sparksearch without this handoff — Spark snippets are leads, not evidence.
+lunasearch without this handoff — Luna snippets are leads, not evidence.
 
 ## Hardcoded Spawn Path (no catalog probe)
 
@@ -24,14 +24,14 @@ no-content mailbox. Reuse a lane with V1 `send_input(agent_id)` or V2
 `interrupt_agent`. The concurrency limits are V1 `agents.max_threads` (default 6) and
 V2 `max_concurrent_threads_per_session` (default 4, root included).
 
-The user of this skill is already running on Spark, so do **not** call
+The user of this skill is already running on Luna, so do **not** call
 `catalog_list` or any model-picker probe before spawning. Hardcode the model
 directly on every spawn call:
 
 ```text
 agent_type: "explorer"
-model: "gpt-5.3-codex-spark"
-reasoning_effort: "medium"
+model: "gpt-5.6-luna"
+reasoning_effort: "low"
 ```
 
 If the spawn call returns a model-not-found / invalid-model error, do not retry
@@ -41,18 +41,17 @@ State plainly which path each agent took. No silent fallback to 5.5 and no
 catalog round-trip — the error itself is the signal, and the serial retry is the
 recovery.
 
-Use `reasoning_effort: "low"` only when the user explicitly asks for maximum
-speed. Keep final judgment in the main session regardless.
+Default reasoning_effort is "low" — Luna lanes are cheap discovery, not deep reasoning. Keep final judgment in the main session regardless.
 
 ## Subagent Skill Attachment (attach cxc-search, not prose)
 
 Do not hand-write a tool directive in the spawn message. Attach `cxc-search`
 through the preferred `[$cxc-search](skill://<abs SKILL.md path>)` form, or the
 plugin-native `$codexclaw:cxc-search` fallback when the path is not link-safe,
-so each Spark subagent can load the proof ladder where the surface delivers the skill (Tier 1
+so each Luna subagent can load the proof ladder where the surface delivers the skill (Tier 1
 `web_search` + Tier 2 open-the-source) at launch. The skill body is the single
 source of truth for the tool list; this skill only adds the lane assignment and
-the Spark model.
+the Luna model.
 
 The shared payload form is a **link-form mention in the spawn message**. V1 parses it on
 the child's first turn. On plaintext V2 provider/proxy paths, the codexclaw spawn hook
@@ -64,7 +63,7 @@ child to self-load any `$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention from
 
 ```text
 message: "[$cxc-search](skill://<cxc-search SKILL.md absolute path>)
-TASK: one lane in a Spark search swarm. LANE: <source class / query family>. Run 5-10 distinct queries; open the source for every result that matters. Return 3-5 findings with URLs, dates, source type, primary-or-lead flag. No edits, no questions."
+TASK: one lane in a Luna search swarm. LANE: <source class / query family>. Run 5-10 distinct queries; open the source for every result that matters. Return 3-5 findings with URLs, dates, source type, primary-or-lead flag. No edits, no questions."
 ```
 
 On the v1 surface the structured `items` channel is equivalent (exact selection)
@@ -73,7 +72,7 @@ when routing through the spawn-wrapper builder:
 ```text
 items: [
   { type: "skill", name: "cxc-search", path: "<cxc-search SKILL.md absolute path>" },
-  { type: "text",  text: "TASK: one lane in a Spark search swarm. LANE: <source class / query family>. Run 5-10 distinct queries; open the source for every result that matters. Return 3-5 findings with URLs, dates, source type, primary-or-lead flag. No edits, no questions." }
+  { type: "text",  text: "TASK: one lane in a Luna search swarm. LANE: <source class / query family>. Run 5-10 distinct queries; open the source for every result that matters. Return 3-5 findings with URLs, dates, source type, primary-or-lead flag. No edits, no questions." }
 ]
 ```
 
@@ -86,15 +85,15 @@ already carries it. A subagent that cannot open pages must flag every finding as
 
 ## Use Case
 
-Use Spark search when breadth matters and each subtask can be narrow:
+Use Luna search when breadth matters and each subtask can be narrow:
 
 - release/news/changelog sweeps across many vendors
 - competitor or ecosystem scans
 - "find many sources first, judge later" research
-- Korean requests such as `스파크검색`, `spark로 5개 돌려봐`, `병렬 웹검색`,
+- Korean requests such as `루나검색`, `luna로 5개 돌려봐`, `병렬 웹검색`,
   `싸게 많이 찾아봐`
 - workflows where a 5.5 main session should conserve quota by delegating source
-  discovery to Spark
+  discovery to Luna
 
 Do not use it for local repository grep, one-source latest/current facts,
 implementation work, or high-stakes final advice without primary-source proof.
@@ -121,7 +120,7 @@ for sources in a specific language.
 
 ## Spawn Contract
 
-Each Spark subagent gets: (1) the `cxc-search` mention in its message and (2) a short
+Each Luna subagent gets: (1) the `cxc-search` mention in its message and (2) a short
 task naming its lane (see the attachment section above). V1 may use structured `items`
 when the caller supplies that channel manually. The skill carries the tool list and
 proof rules; the task carries only the lane assignment and return shape. No five-part
@@ -133,11 +132,11 @@ manual naming unless the spawn tool supports it.
 
 ## Proof Handoff (to cxc-search)
 
-Spark output is candidate evidence only. After the swarm returns, the main agent
+Luna output is candidate evidence only. After the swarm returns, the main agent
 runs the `cxc-search` proof ladder on the strongest candidates:
 
 1. Build a compact claim ledger:
-   - claim, source URL, date, source type, Spark lane, status
+   - claim, source URL, date, source type, Luna lane, status
    - status: `candidate`, `verified`, `contradicted`, or `unreachable`
 2. Open primary sources (cxc-search Tier 2) before final synthesis. Prefer
    official docs, release notes, source repositories, specs, and original
@@ -153,19 +152,19 @@ verified — the ultraresearch claim-ledger gate, applied lightly.
 
 Return compactly:
 
-1. Spawn path: hardcoded Spark used, or serial-fallback after error.
+1. Spawn path: hardcoded Luna used, or serial-fallback after error.
 2. Swarm: number of agents and lanes.
 3. Verified findings: source-opened claims only.
-4. Open leads: promising but unverified Spark results.
+4. Open leads: promising but unverified Luna results.
 
-Never treat Spark snippets or subagent summaries as final proof.
+Never treat Luna snippets or subagent summaries as final proof.
 
 ## Gap note (vs lazycodex ultraresearch)
 
 This skill is intentionally lighter than lazycodex `ultraresearch`. It does not
 run the EXPAND convergence loop, keep a session journal, verify by executing
-code, or generate reports — those belong to `cxc-search` Tier 3. sparksearch is
+code, or generate reports — those belong to `cxc-search` Tier 3. lunasearch is
 the cheap one-shot discovery fan-out; ultraresearch is the deep multi-wave
-research protocol. Use sparksearch when breadth-for-cost is the goal; escalate
+research protocol. Use lunasearch when breadth-for-cost is the goal; escalate
 to `cxc-search` Tier 3 when the question needs iterative expansion and
 contested-claim verification.

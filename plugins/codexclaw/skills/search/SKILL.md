@@ -83,6 +83,8 @@ when a resolvable agbrowse rung can do the job.
    e1, e2, ...) -> `agbrowse click e1` / act -> re-snapshot -> `agbrowse stop`.
    `agbrowse doctor` diagnoses CDP/start/profile failures. Local Chrome CDP only;
    remote/hosted CDP is out.
+   **If an agbrowse command fails (connection refused, no browser, etc.), run
+   `agbrowse start` first to launch the local Chrome session, then retry.**
 3. Native fallback tier — use ONLY when agbrowse is unresolvable, its CDP session
    cannot complete the flow, or conversational control genuinely fits better:
    `browser:control-in-app-browser` (Codex-owned browser: JS/PDF/visual checks, local
@@ -175,7 +177,7 @@ opened.
   nothing auto-loads or auto-runs it.
 
 ### Subagent Skill Attachment (SEARCH-ATTACH-01)
-Any search subagent — Tier 3 deep-research explorers, `$cxc-sparksearch` lanes,
+Any search subagent — Tier 3 deep-research explorers, `$cxc-lunasearch` lanes,
 or ad-hoc research spawns — should receive THIS skill as a real skill
 attachment, not a hand-written tool directive in the message. The subagent
 auto-loads the skill at launch and follows its Tier 1/2 tool guidance
@@ -225,13 +227,13 @@ Do not write a long inline TOOLS block in either path — the skill already says
 evidence." A subagent that cannot open pages must flag every finding as
 `candidate — unverified snippet` in its return.
 
-### sparksearch (dependent tool)
-`$cxc-sparksearch` is a dependent discovery lane that rides on this skill's proof
-ladder. It fans out cheap `gpt-5.3-codex-spark` subagents for wide discovery,
-then hands every candidate back here for Tier 2 source-proof. sparksearch
-discovers; cxc-search proves. sparksearch names THIS skill (`cxc-search`) in each
+### lunasearch (dependent tool)
+`$cxc-lunasearch` is a dependent discovery lane that rides on this skill's proof
+ladder. It fans out cheap `gpt-5.6-luna` subagents for wide discovery,
+then hands every candidate back here for Tier 2 source-proof. lunasearch
+discovers; cxc-search proves. lunasearch names THIS skill (`cxc-search`) in each
 spawn message; V1 parses the mention, while plaintext V2 paths use hook inlining as
-qualified above. Manual V1 callers may instead use `items`. See the `$cxc-sparksearch` skill for its hardcoded
+qualified above. Manual V1 callers may instead use `items`. See the `$cxc-lunasearch` skill for its hardcoded
 spawn path and swarm shape.
 
 ### Removed cli-jaw tiers (non-goals — do not re-add)
@@ -282,6 +284,6 @@ spend Tier 3 subagents on a question Tier 1+2 already settled.
   to `chrome:control-chrome` / `computer-use:computer-use` per SEARCH-BROWSE-01.
 - The blocked-URL reader and ultraresearch decomposition are absorbed as Tier 2
   helper tactics and Tier 3 method, not as new tiers or vendored browsers.
-- `$cxc-sparksearch` is a dependent tool, not a tier. It hardcodes the Spark
+- `$cxc-lunasearch` is a dependent tool, not a tier. It hardcodes the Luna
   model and skips catalog probing; its error fallback is serial dispatch
   (re-spawn without the model field), not a probe round-trip.

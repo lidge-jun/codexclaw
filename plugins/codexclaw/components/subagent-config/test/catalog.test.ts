@@ -1,9 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildCatalog, readNativeCacheDefault, NATIVE_OPENAI_MODELS } from "../src/catalog.ts";
+
+test("native catalog exposes the Luna spawn-contract model", () => {
+  const lunaSkill = readFileSync(new URL("../../../skills/lunasearch/SKILL.md", import.meta.url), "utf8");
+  assert.ok(NATIVE_OPENAI_MODELS.includes("gpt-5.6-luna"));
+  assert.ok(!(NATIVE_OPENAI_MODELS as readonly string[]).includes("gpt-5.3-codex-luna"));
+  assert.match(lunaSkill, /model: "gpt-5\.6-luna"/);
+  assert.doesNotMatch(lunaSkill, /gpt-5\.3-codex-luna/);
+});
 
 test("AC1: ocx absent -> native-catalog state, native entries only", () => {
   const cat = buildCatalog({ readNativeCache: () => [...NATIVE_OPENAI_MODELS] });

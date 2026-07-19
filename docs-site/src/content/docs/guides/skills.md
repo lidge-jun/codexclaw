@@ -73,7 +73,7 @@ overlays:
   would change with recent events, versions, or prices.
 - **`cxc-recall`** is for past-session context. Use it before asking the user to repeat earlier
   work.
-- **`cxc-sparksearch`** is a cheap parallel discovery lane that hands candidates back to
+- **`cxc-lunasearch`** is a cheap parallel discovery lane that hands candidates back to
   `cxc-search` for proof.
 - **`cxc-ultraresearch`** is the deeper multi-wave research protocol for broad investigations.
 - **`cxc-ast-grep`** is a structural code-search helper. Reach for plain `rg` first for ordinary
@@ -108,7 +108,7 @@ codexclaw currently ships 25 skill directories:
 | `cxc-skill-hub` | `skill-hub` | On-demand catalog router for non-implicit capabilities. |
 | `cxc-repo-map` | `repo-map` | Tree-sitter/PageRank repository overview for unfamiliar codebase exploration. |
 | `cxc-ast-grep` | `ast-grep` | AST-aware structural search and deterministic codemods. |
-| `cxc-sparksearch` | `sparksearch` | Parallel public-web discovery lane that depends on `cxc-search`. |
+| `cxc-lunasearch` | `lunasearch` | Parallel public-web discovery lane that depends on `cxc-search`. |
 | `cxc-ultraresearch` | `ultraresearch` | Deep multi-source research protocol with journal and claim ledger. |
 
 :::note[chat-search retired]

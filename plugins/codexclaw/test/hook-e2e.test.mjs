@@ -121,7 +121,7 @@ function emptyCodexHome() {
 
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 14, "expected 14 declared hooks");
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 18, "expected 18 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.

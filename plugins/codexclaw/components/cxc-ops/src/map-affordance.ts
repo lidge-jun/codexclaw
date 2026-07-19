@@ -165,6 +165,44 @@ export function renderLoopAffordance(): string {
 }
 
 /**
+ * Always-on background-terminal affordance (BG-TERMINAL-AFFORDANCE-01, 260715).
+ * Long-running or collision-risky commands (dev servers, builds, 5min+ probes)
+ * should use managed background execution instead of blocking the turn inline.
+ * Injected at SessionStart AND PostCompact so the agent never forgets this
+ * capability exists — even after context compaction wipes the conversation.
+ */
+export function renderBackgroundTerminalAffordance(): string {
+  return [
+    "[codexclaw] Long-running or collision-risky commands (dev servers, builds, test",
+    "suites, 5min+ probes) SHOULD use managed background execution: `exec_command`",
+    "with short `yield_time_ms` → get `session_id` → end turn or continue other work",
+    "→ poll later with `write_stdin` (empty chars = poll, no typing). Do NOT block the",
+    "turn inline for commands that might outlive compaction or conflict with parallel",
+    "work. CLI: `/ps` lists active background terminals; `/stop` terminates all in the",
+    "current session. A session_id is NOT an OS PID — it is a Codex-managed execution",
+    "handle.",
+  ].join(" ");
+}
+
+/**
+ * PostCompact handler — re-injects the subset of affordances that agents commonly
+ * lose after compaction. SessionStart-only lines (session binding, map) are not
+ * repeated here because they persist in the session metadata layer.
+ */
+export function runPostCompactAffordance(): string {
+  const lines: string[] = [];
+  lines.push(renderBackgroundTerminalAffordance());
+  lines.push(renderLoopAffordance());
+  const envelope = {
+    hookSpecificOutput: {
+      hookEventName: "PostCompact",
+      additionalContext: lines.join("\n\n"),
+    },
+  };
+  return `${JSON.stringify(envelope)}\n`;
+}
+
+/**
  * SessionStart handler. Reads the hook JSON payload from stdin (for `cwd`), counts
  * source files, and returns ONE SessionStart envelope combining the affordance
  * lines: the map pointer (size-gated) plus the skill-search pointer (always on).
@@ -197,6 +235,7 @@ export function runMapAffordanceSessionStart(stdin: string, fallbackCwd: string)
   lines.push(renderSkillSearchAffordance());
   lines.push(renderKwriteAffordance());
   lines.push(renderLoopAffordance());
+  lines.push(renderBackgroundTerminalAffordance());
   const envelope = {
     hookSpecificOutput: {
       hookEventName: "SessionStart",

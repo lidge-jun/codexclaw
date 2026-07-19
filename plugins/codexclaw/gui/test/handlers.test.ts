@@ -102,11 +102,11 @@ test("GUI checkbox flow: bare mode:model on fresh role -> 400 with real error; w
   const bad = postSubagents(cwd, { role: "explorer", mode: "model" });
   assert.equal(bad.status, 400);
   assert.match(String((bad.body as { error?: string }).error), /requires a non-empty model/);
-  const good = postSubagents(cwd, { role: "explorer", mode: "model", model: "gpt-5.3-codex-spark" });
+  const good = postSubagents(cwd, { role: "explorer", mode: "model", model: "gpt-5.6-luna" });
   assert.equal(good.status, 200);
   const again = postSubagents(cwd, { role: "explorer", mode: "model" });
   assert.equal(again.status, 200);
-  assert.equal((again.body as any).roles.explorer.model, "gpt-5.3-codex-spark");
+  assert.equal((again.body as { roles: { explorer: { model: string } } }).roles.explorer.model, "gpt-5.6-luna");
 });
 
 test("multi-agent surface handlers read and toggle v1/v2 through codex feature runner", () => {

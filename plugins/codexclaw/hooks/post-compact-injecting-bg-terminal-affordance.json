@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js\" hook post-compact",
+            "timeout": 10,
+            "statusMessage": "(codexclaw) Re-injecting background terminal + loop affordance after compaction"
+          }
+        ]
+      }
+    ]
+  }
+}

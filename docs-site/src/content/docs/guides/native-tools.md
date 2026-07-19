@@ -46,6 +46,8 @@ fallback tier:
 2. agbrowse CDP — one-shot `fetch --browser auto` for JS/blocked pages, or an
    interactive session (`start --headed` → `navigate` → `snapshot --interactive` →
    `click eN` → `stop`) when steps must act on the page
+   **If an agbrowse command fails (connection refused, no browser, etc.), run
+   `agbrowse start` first to launch the local Chrome session, then retry.**
 3. Native fallback — `browser:control-in-app-browser` (JS/PDF/visual) and
    `chrome:control-chrome` (conversational real-profile CDP), used when agbrowse is
    unresolvable or cannot complete the flow (state why)
@@ -68,7 +70,7 @@ must stay guarded into Playwright.
 | `update_plan` | `cxc-pabcd` PLAN-TRACK-01 — mirror plan items, keep statuses live through B |
 | `imagegen` | `cxc-dev-frontend` / `cxc-dev-uiux-design` — real bitmap assets instead of placeholders |
 | `view_image` | design reads, screenshot evidence, blocked-source captures |
-| `multi_tool_use.parallel` | `cxc-sparksearch` / `cxc-ultraresearch` parallel lanes |
+| `multi_tool_use.parallel` | `cxc-lunasearch` / `cxc-ultraresearch` parallel lanes |
 | `list_available_plugins_to_install` / `request_plugin_install` | `cxc-skill-hub` capability discovery |
 
 CSV batch fan-out via `spawn_agents_on_csv` and `memories` remain flag-gated and are

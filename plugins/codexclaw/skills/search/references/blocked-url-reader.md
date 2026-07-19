@@ -33,6 +33,8 @@ tools below are its fallback tier.
    CDP session (`agbrowse start --headed` -> `navigate` -> `snapshot --interactive` ->
    `click eN` -> `stop`; one-shot `agbrowse fetch --browser auto`). Conversational
    path: `chrome:control-chrome`.
+   **If any agbrowse command fails (connection refused, no browser, etc.), run
+   `agbrowse start` first to launch the local Chrome session, then retry.**
 6. **OS-UI reach (`computer-use:computer-use`)**: only when browser chrome or an
    OS dialog no browser tool can reach is genuinely required (per-app approval).
 

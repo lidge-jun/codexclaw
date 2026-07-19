@@ -33,7 +33,11 @@
     "./hooks/pre-tool-use-attaching-skills.json",
     "./hooks/post-compact-resetting-reinject-cursor.json",
     "./hooks/pre-tool-use-linting-apply-patch.json",
-    "./hooks/post-tool-use-tracking-render-observations.json"
+    "./hooks/post-tool-use-tracking-render-observations.json",
+    "./hooks/session-start-injecting-recall-context.json",
+    "./hooks/post-compact-injecting-recall-context.json",
+    "./hooks/post-compact-injecting-bg-terminal-affordance.json",
+    "./hooks/user-prompt-submit-detecting-recall-intent.json"
   ],
   "mcpServers": "./.mcp.json",
   "interface": {

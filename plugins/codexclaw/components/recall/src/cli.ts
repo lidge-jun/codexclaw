@@ -196,18 +196,21 @@ function indexStatusLine(): string {
   }
 }
 
+
 /** Hook entry: read the Codex hook JSON payload from stdin, print the injection line. */
 async function runHook(event: string): Promise<number> {
   try {
+    let raw = "";
+    for await (const chunk of process.stdin) raw += chunk;
     let out = "";
     if (event === "user-prompt-submit") {
-      let raw = "";
-      for await (const chunk of process.stdin) raw += chunk;
       out = handleUserPromptSubmit(JSON.parse(raw) as UserPromptSubmitPayload);
     } else if (event === "session-start") {
-      out = handleSessionStart(indexStatusLine());
+      const payload = raw.trim() ? JSON.parse(raw) as { cwd?: string } : {};
+      out = handleSessionStart(indexStatusLine(), payload.cwd ?? process.cwd());
     } else if (event === "post-compact") {
-      out = handlePostCompact();
+      const payload = raw.trim() ? JSON.parse(raw) as { cwd?: string } : {};
+      out = handlePostCompact(payload.cwd ?? process.cwd());
     }
     if (out !== "") process.stdout.write(out);
     return 0;
@@ -215,7 +218,6 @@ async function runHook(event: string): Promise<number> {
     return 0; // FAIL-OPEN: a broken payload must never block the session.
   }
 }
-
 export function main(argv: string[]): number | Promise<number> {
   const kind = argv[0] ?? "help";
   const sub = argv[1] ?? "";

@@ -47,7 +47,7 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   search/codemods, with `rg` first for ordinary text search.
 - `skill-hub/` — discoverable `cxc-skill-hub (DEPRECATED -> cxc-dev)` catalog for choosing the right
   on-demand skill.
-- `sparksearch/` — discoverable `cxc-sparksearch` lane for cheap parallel public-web
+- `lunasearch/` — discoverable `cxc-lunasearch` lane for cheap parallel public-web
   discovery that hands proof back to `cxc-search`.
 - `ultraresearch/` — discoverable `cxc-ultraresearch (DEPRECATED -> cxc-search)` protocol for multi-wave
   research with journal and claim-ledger proof discipline.

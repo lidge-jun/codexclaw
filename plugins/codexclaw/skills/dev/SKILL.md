@@ -401,6 +401,8 @@ When a worklog or changelog is provided, add one factual entry per changed file:
 - **Externalize configuration** — use config files or environment variables. Place magic strings and numbers in named constants.
 - **Handle all async errors explicitly** — surface failures at a clear boundary. In JS/TS backend code, the Result pattern (`neverthrow`) may replace per-call `try/catch` when failures are surfaced at a verified boundary (see `dev-backend/SKILL.md` §3). In other cases, use `try/catch` and log with context (`console.error('[module]', error.message)`).
 - **Confirm before destructive operations (ESCALATE)** — deleting files, dropping tables, resetting state, or clearing caches require explicit user approval.
+- **Commit incrementally (DEV-GIT-COMMIT-01, DEFAULT)** — commit working progress as you go during implementation. Each logically complete step (passing test, wired feature, fixed bug) gets its own commit so that progress is checkpointed on disk and recoverable after compaction or failure. Do not accumulate an entire feature as uncommitted changes.
+- **Push requires explicit user approval (DEV-GIT-PUSH-01, ESCALATE)** — never `git push` without the user's explicit approval in the current session. Committing locally is autonomous; pushing to a remote is an external state change that the user must authorize. If the user has not approved a push, do not push — even at D/completion. This applies equally to force-push, branch creation on remote, and tag push.
 
 ---
 

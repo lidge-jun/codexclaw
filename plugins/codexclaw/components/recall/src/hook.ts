@@ -1,13 +1,22 @@
 /**
- * hook.ts — UserPromptSubmit recall-intent nudge.
+ * hook.ts — Recall hooks: SessionStart/PostCompact context injection +
+ * UserPromptSubmit recall-intent nudge.
  *
- * When the user's prompt references past work (Korean or English recall idioms)
- * and no recall command is already present, inject a short additionalContext
- * directive pointing at `cxc chat search` / `cxc memory search`. Stateless and
+ * SessionStart & PostCompact: inject a CWD-scoped summary of recent work so the
+ * agent starts every session (and recovers after compaction) already knowing what
+ * happened in this project. Uses the sidecar FTS index for speed (< 200ms).
+ *
+ * UserPromptSubmit: when the user's prompt references past work (Korean or English
+ * recall idioms) and no recall command is already present, inject a short directive
+ * pointing at `cxc chat search` / `cxc memory search`.
+ *
  * FAIL-OPEN: any parse/shape problem yields empty output (no injection).
  * Envelope parity with pabcd-state buildContextOutput (CRLF normalize, trim,
  * 32k cap — this directive is far below the cap).
  */
+import { searchChat, type ChatHit } from "./chat-search.ts";
+import { searchMemory } from "./memory-search.ts";
+import { basename } from "node:path";
 
 export interface UserPromptSubmitPayload {
   hook_event_name?: string;
@@ -15,6 +24,12 @@ export interface UserPromptSubmitPayload {
   cwd?: string;
   session_id?: string;
   turn_id?: string;
+}
+
+export interface SessionStartPayload {
+  hook_event_name?: string;
+  cwd?: string;
+  session_id?: string;
 }
 
 /** Past-work recall idioms. Korean forms cover 그때/지난번/저번/예전에/기억/뭐였지. */
@@ -84,30 +99,150 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
   }
 }
 
+// ─── CWD Auto-Inject (L1 → L2 escalation) ───────────────────────────────────
+
+/** Budget for the auto-injected context (chars). Keeps the injection compact. */
+const AUTO_INJECT_BUDGET = 1400;
+/** L1 (CWD-scoped) must yield at least this many chat hits to skip L2. */
+const L1_MIN_HITS = 2;
+
 /**
- * SessionStart: advertise recall so every agent session starts knowing past-work
- * search exists (cli-jaw AGENTS.md § Memory Lookup Scope parity). `status` is the
- * pre-fetched read-only index status line ("" when unavailable); the caller owns
- * the sqlite read so this stays pure and testable.
+ * Build a compact summary of recent work using L1→L2 escalation:
+ *   L1: CWD-scoped search (this project only)
+ *   L2: global search (all sessions, no CWD filter) — only if L1 is empty/thin
+ *
+ * cli-jaw equivalent:
+ *   L1 = `cli-jaw chat search` (single instance, implicit working_dir)
+ *   L2 = `cli-jaw dashboard chat search` (cross-instance federation)
+ * In Codex (single-home), L2 = same index but without --cwd filter.
  */
-export function handleSessionStart(status: string): string {
-  const lines = [
-    "[cxc-recall] Past-session recall is available (read-only). Before asking the user",
-    "about prior work — unfamiliar terms, lost context, \"그때/지난번/last time\" — run:",
-    '  cxc chat search "<terms>" --days 0   |   cxc memory search "<topic>"',
-  ];
-  if (status !== "") lines.push(`Index: ${status}. Details: $cxc-recall.`);
-  else lines.push("Details: $cxc-recall.");
-  return buildContextOutput("SessionStart", lines.join("\n"));
+export function buildCwdContext(cwd: string): string {
+  if (!cwd) return "";
+  try {
+    const cwdName = basename(cwd);
+    const lines: string[] = [];
+
+    // ── L1: CWD-scoped ──
+    const l1Chat = searchChat(cwdName, {
+      cwd,
+      days: 7,
+      limit: 8,
+      noRefresh: true,
+      source: "main",
+      includeTools: false,
+    });
+    const l1Mem = searchMemory(cwdName, { limit: 3, days: 14 });
+
+    const l1HasContent = l1Chat.hits.length >= L1_MIN_HITS || l1Mem.hits.length > 0;
+
+    // ── L2: global (no CWD filter) — only when L1 is thin ──
+    let l2Chat: typeof l1Chat | null = null;
+    if (!l1HasContent) {
+      l2Chat = searchChat(cwdName, {
+        days: 14,
+        limit: 8,
+        noRefresh: true,
+        source: "main",
+        includeTools: false,
+      });
+    }
+
+    const chatHits = l1HasContent ? l1Chat.hits : (l2Chat?.hits ?? []);
+    const memHits = l1Mem.hits;
+    const layer = l1HasContent ? "L1" : "L2";
+
+    if (chatHits.length === 0 && memHits.length === 0) return "";
+
+    const scope = layer === "L1" ? `${cwdName} (this CWD)` : `${cwdName} (global)`;
+    lines.push(`[cxc-recall] Recent work — ${scope}:`);
+
+    // Deduplicate chat by thread, pick most recent per thread
+    const seenThreads = new Map<string, ChatHit>();
+    for (const hit of chatHits) {
+      const key = hit.threadId ?? hit.ts;
+      if (!seenThreads.has(key)) seenThreads.set(key, hit);
+    }
+    const chatSummaries: string[] = [];
+    for (const [, hit] of [...seenThreads.entries()].slice(0, 5)) {
+      const date = hit.ts.slice(0, 10);
+      const raw = (hit.title ?? hit.text).replace(/\n/g, " ").trim();
+      const title = raw.length > 60 ? raw.slice(0, 57) + "..." : raw;
+      const cwdTag = layer === "L2" && hit.cwd ? ` {${basename(hit.cwd)}}` : "";
+      chatSummaries.push(`  \u2022 [${date}] ${title}${cwdTag}`);
+    }
+    if (chatSummaries.length) {
+      lines.push("Sessions:");
+      lines.push(...chatSummaries);
+    }
+
+    // Memory hits
+    const memSummaries: string[] = [];
+    for (const hit of memHits.slice(0, 2)) {
+      const label = hit.relpath ?? hit.kind;
+      const excerpt = hit.excerpt.slice(0, 100).replace(/\n/g, " ");
+      memSummaries.push(`  \u2022 (${label}) ${excerpt}`);
+    }
+    if (memSummaries.length) {
+      lines.push("Memory:");
+      lines.push(...memSummaries);
+    }
+
+    if (layer === "L1") {
+      lines.push(`Scope: CWD-local. Use \`cxc chat search "<q>" --days 0\` for global.`);
+    } else {
+      lines.push(`Scope: global (no CWD-local hits). Use \`cxc chat search "<q>" --cwd ${cwd}\` to re-scope.`);
+    }
+
+    let result = lines.join("\n");
+    if (result.length > AUTO_INJECT_BUDGET) {
+      result = result.slice(0, AUTO_INJECT_BUDGET - 20) + "\n  ...(truncated)";
+    }
+    return result;
+  } catch {
+    return "";
+  }
 }
 
 /**
- * PostCompact: compaction IS the context-loss moment — steer the agent to recover
- * specifics from past sessions instead of asking the user to re-explain.
+ * SessionStart: inject CWD-scoped recent work context + recall availability notice.
+ * The `cwd` comes from the hook JSON payload; `status` is the index status line.
  */
-export function handlePostCompact(): string {
-  return buildContextOutput(
-    "PostCompact",
+export function handleSessionStart(status: string, cwd?: string): string {
+  const parts: string[] = [];
+
+  // Auto-inject CWD context (the actual memory recovery)
+  if (cwd) {
+    const cwdCtx = buildCwdContext(cwd);
+    if (cwdCtx) parts.push(cwdCtx);
+  }
+
+  // Recall availability notice (pointer)
+  const notice = [
+    "[cxc-recall] Past-session recall is available (read-only). Before asking the user",
+    "about prior work \u2014 unfamiliar terms, lost context, \"\uadf8\ub54c/\uc9c0\ub09c\ubc88/last time\" \u2014 run:",
+    '  cxc chat search "<terms>" --days 0   |   cxc memory search "<topic>"',
+  ];
+  if (status !== "") notice.push(`Index: ${status}. Details: $cxc-recall.`);
+  else notice.push("Details: $cxc-recall.");
+  parts.push(notice.join("\n"));
+
+  return buildContextOutput("SessionStart", parts.join("\n\n"));
+}
+
+/**
+ * PostCompact: compaction IS the context-loss moment. Re-inject CWD context so
+ * the agent doesn't lose project awareness, plus the recovery directive.
+ */
+export function handlePostCompact(cwd?: string): string {
+  const parts: string[] = [];
+
+  // Re-inject CWD context after compact
+  if (cwd) {
+    const cwdCtx = buildCwdContext(cwd);
+    if (cwdCtx) parts.push(cwdCtx);
+  }
+
+  parts.push(
     [
       "[cxc-recall] Context was just compacted. If any earlier detail is now missing,",
       "recover it from past sessions before asking the user to repeat themselves:",
@@ -116,4 +251,6 @@ export function handlePostCompact(): string {
       "Details: $cxc-recall.",
     ].join("\n"),
   );
+
+  return buildContextOutput("PostCompact", parts.join("\n\n"));
 }

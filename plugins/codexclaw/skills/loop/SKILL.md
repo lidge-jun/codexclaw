@@ -296,6 +296,28 @@ re-entering a loop or after a `D` close:
   (goalplan + ledger) to confirm remaining work. If any work-phase or unmet criterion remains
   under an active goal, re-enter `P` for the next work-phase.
 
+
+## Git discipline in loops (LOOP-GIT-01)
+
+Loops checkpoint progress on disk via commits; pushing is a separate decision
+that belongs to the user.
+
+- **Commit as you go (DEFAULT).** Each completed B-phase step — passing test,
+  wired feature, fixed defect — gets its own commit. Progress lives in git
+  history, not in the transcript. This is especially important in multi-cycle
+  loops where compaction can erase context: committed work survives; uncommitted
+  work does not. The D close-out commit is the last commit of the work-phase,
+  not the only one.
+- **Push requires explicit user approval (ESCALATE).** Never `git push` during
+  a loop without the user's explicit approval — not at D, not between
+  work-phases, not at goal completion. Committing locally is autonomous; pushing
+  to a remote is an external state change. This covers `git push`, force-push,
+  remote branch creation, and tag push. If the user pre-approves push at goal
+  start (e.g. "push when done"), that counts as approval for the scope they
+  named — do not extend it beyond that scope.
+
+Canonical rule ids: `DEV-GIT-COMMIT-01` and `DEV-GIT-PUSH-01` in `cxc-dev` §5.
+
 ## Terminal outcomes
 
 D is the success close-out only when the verifier proves the recorded criteria. Every

@@ -223,6 +223,23 @@ Read `references/core/aesthetics.md` for full guidelines. Summary:
   Concept mockups guide implementation and are not shipped; production assets require candidate inspection and selection; cutout assets additionally follow FE-ASSET-BG-01.
 - **Visual verification**: after UI changes, exercise the flow per `cxc-dev-testing` §4.6 (TEST-CU-QA-01) — `browser:control-in-app-browser` on the dev server, screenshot, `view_image` — instead of claiming visual correctness from code alone.
 
+### Icon Implementation (FE-ICON-01, DEFAULT)
+
+- **Library route:** install `@phosphor-icons/react` by default. Use
+  `iconoir-react`, `@untitledui/icons`, `@hugeicons/react`, or `lucide-react` only when
+  the Design Read selects Iconoir, Untitled UI, Hugeicons, or Lucide respectively;
+  confirm the exact package and license before installation.
+- **Custom route:** generate the approved icon artwork with `ima2 icon`, trace it with
+  `vtracer`, optimize the SVG with `svgo`, then convert it with `svgr` when a React
+  component is required. Preserve an editable source asset and inspect both the SVG
+  and rendered component before shipping.
+- **Layer consistency:** use one library per icon layer. Do not mix Phosphor navigation
+  with Lucide content icons; a separate custom/premium domain layer is allowed only
+  when it is deliberately art-directed as a layer.
+- **Weight semantics:** `regular` is the default state, `fill` indicates selected or
+  active state, and `duotone` is reserved for empty states or illustrative emphasis.
+  Keep size, optical weight, color behavior, and accessible labels consistent.
+
 ### Cutout Asset Generation (FE-ASSET-BG-01 surface — STRICT)
 Every cutout asset MUST follow `references/core/asset-requirements.md` § Asset Background Strategy; load it with `ima2 skill front ref asset-requirements` when ima2 is available.
 ---
@@ -259,7 +276,7 @@ Audit composite convergence tells under FE-CONVERGENCE-01 (`anti-slop.md`): hair
 - **Hero composition (FE-HERO-SPLIT-01)**: never build a split hero (left bold headline + right boxed screenshot/mockup card) unless the user explicitly requests one — the product visual is the stage (full-width, background, or interactive demo), never a right-column card; paid-conversion LPs are the one context to propose it — see `layout-discipline.md § Hero Composition Grammar`
 - Avoid asset-free UI: abstract blobs/gradients do not replace real visual evidence
 - Avoid generic soft 3D icon packs; soft 3D must be semantic, brand-consistent, and restrained
-- **NEVER use emoji as UI visual elements** (feature icons, card icons, section markers, buttons) — emoji in production UI is the #1 AI slop signal. Use SVG icons (Lucide/Phosphor/Heroicons). See `anti-slop.md § Emoji Slop`
+- **NEVER use emoji as UI visual elements** (feature icons, card icons, section markers, buttons) — emoji in production UI is the #1 AI slop signal. Use SVG icons (Lucide/Phosphor/Heroicons), but choose the set from the Design Read instead of treating that parenthetical as a default. Lucide-as-default is itself a 2025-2026 vibe-coded tell: detect icon-library monoculture when the project uses the same glyphs and weight as every shadcn starter. Prefer a domain-correct library and a deliberate domain/brand layer; do not swap libraries randomly for novelty. See `anti-slop.md § Emoji Slop`
 - Warm beige/cream backgrounds with brass/clay accents are banned as defaults for premium-consumer briefs — see `anti-slop.md § Premium-Consumer Palette Ban`
 - Layout monotony (same family repeated, 3+ zigzag sections, overused eyebrows) — see `references/core/layout-discipline.md`
 - Color, shape, and theme must be locked per-page and audited before shipping — see `references/core/consistency-locks.md`

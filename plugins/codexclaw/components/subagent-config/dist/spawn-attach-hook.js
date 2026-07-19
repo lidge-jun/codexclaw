@@ -470,7 +470,7 @@ export const LEAF_SAFE_SKILL_FOLDERS = new Set([
   "remote",
   "repo-map",
   "search",
-  "sparksearch",
+  "lunasearch",
 ]);
 
 /**

@@ -1,0 +1,6 @@
+interface:
+  display_name: "cxc-lunasearch"
+  short_description: "Luna parallel search for cheap discovery."
+  default_prompt: "Use $cxc-lunasearch to run a cheap parallel Luna search swarm on this topic."
+policy:
+  allow_implicit_invocation: false

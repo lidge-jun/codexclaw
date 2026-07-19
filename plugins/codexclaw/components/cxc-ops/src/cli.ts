@@ -12,7 +12,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { runDoctor, renderDoctor } from "./doctor.ts";
 import { parseResetScope, runReset, renderReset } from "./reset.ts";
-import { runMapAffordanceSessionStart } from "./map-affordance.ts";
+import { runMapAffordanceSessionStart, runPostCompactAffordance } from "./map-affordance.ts";
 import { diagnoseHookTrust, readInstalledPluginKeys, retrustHooks } from "./hook-trust.ts";
 
 /** Read all of stdin synchronously (hook payload); "" if none/unavailable. */
@@ -107,13 +107,18 @@ export async function main(argv: string[], metaUrl: string): Promise<number> {
       }
     }
     case "hook": {
-      // Only the map-affordance SessionStart hook lives here today.
+      // SessionStart and PostCompact affordance hooks.
       if (rest[0] === "session-start") {
         const out = runMapAffordanceSessionStart(readStdinSync(), process.cwd());
         if (out) process.stdout.write(out);
         return 0; // read-only affordance never fails the session
       }
-      process.stdout.write("cxc-ops hook <session-start>\n");
+      if (rest[0] === "post-compact") {
+        const out = runPostCompactAffordance();
+        if (out) process.stdout.write(out);
+        return 0;
+      }
+      process.stdout.write("cxc-ops hook <session-start|post-compact>\n");
       return 0;
     }
     default:
