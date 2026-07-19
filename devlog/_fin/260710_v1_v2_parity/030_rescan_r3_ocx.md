@@ -22,7 +22,7 @@
 - [HIGH][모순] D2 leaf guard 문구의 "developer message보다 우선" 주장은 성립 불가
   — ocx Proactive는 developer 채널, D2는 task message 채널이라 우선순위가 역전.
   실제 강제는 D1 훅 거부뿐. 문구 재작성 필요(과장 제거).
-- [LOW][확인] leaf guard V1 확장은 독트린 충돌 없음 — Tier 3 wave/spark lane/감사자는
+- [LOW][확인] leaf guard V1 확장은 독트린 충돌 없음 — Tier 3 wave/luna lane/감사자는
   전부 메인 세션 디스패치 지시이며, agent_id 스탬프는 표면 중립이라
   isSubagentSpawner가 V1에서도 정확 (060_leaf_agent_hardening.md:15).
 - [LOW][확인] A/B/C directive 문구를 고정하는 테스트 없음 — 표면 중립 재서술 안전.

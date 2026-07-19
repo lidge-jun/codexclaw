@@ -76,7 +76,7 @@ source-of-truth로 읽어 `spawn_agent({ message: "TASK: ... + role instructions
 
 | omo role | 관찰된 성격 | codexclaw inline role | 이식 방식 |
 |---|---|---|---|
-| `explorer` | 로컬 코드베이스 read-only search, absolute path 결과, 병렬 검색 규율 (`explorer.toml:8-75`) | `explorer` | 그대로 핵심 explorer template. 단 `omo sparkshell`, LSP tool명은 Codex-native 도구명으로 치환 |
+| `explorer` | 로컬 코드베이스 read-only search, absolute path 결과, 병렬 검색 규율 (`explorer.toml:8-75`) | `explorer` | 그대로 핵심 explorer template. 단 `omo lunashell`, LSP tool명은 Codex-native 도구명으로 치환 |
 | `librarian` | 외부 OSS/docs researcher, SHA-pinned GitHub permalink, read-only (`librarian.toml:8-76`) | `explorer` variant | `external_research=true` variant. 120 search 허브와 연결 |
 | `plan` | 구현 금지 planner, `.omo/plans/<slug>.md` 작성 (`plan.toml:7-38`) | 보류 / PABCD planner | Pass 5 subagent 기본 role에는 넣지 않음. PABCD Plan phase helper로 흡수 가능 |
 | `metis` | pre-planning gap/ambiguity/risk analyst, read-only (`metis.toml:7-64`) | `reviewer` variant | plan-audit reviewer로 흡수 |

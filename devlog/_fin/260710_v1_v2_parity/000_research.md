@@ -73,7 +73,7 @@ phase directive, doctrine 안내)가 같아야 한다.
     현재 선언 목록상 도달 불가(사문).
 12. **untracked `multi-agent-v2.ts` + GUI 토글이 별도로 v2 플래그 관리** —
     소유권 분산 (working tree에 미커밋 상태로 존재).
-13. **doctrine이 V2-first** — search/sparksearch/loop/pabcd SKILL.md,
+13. **doctrine이 V2-first** — search/lunasearch/loop/pabcd SKILL.md,
     structure/20이 task_name/followup_task/send_message/no-close를 규범으로
     서술, V1 등가 절차(send_input/resume/close, wave 재시도) 없음.
 14. **문서가 죽은 V1 items 경로를 계속 주장** — structure/10:69 등 6곳.

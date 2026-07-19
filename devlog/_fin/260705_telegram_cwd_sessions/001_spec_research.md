@@ -1,6 +1,6 @@
-# 001 — Spec research (sparksearch swarm, 2026-07-05)
+# 001 — Spec research (lunasearch swarm, 2026-07-05)
 
-Swarm: 5 Spark explorer lanes spawned (hardcoded gpt-5.3-codex-spark). 3 returned;
+Swarm: 5 Luna explorer lanes spawned (hardcoded gpt-5.3-codex-luna). 3 returned;
 2 died to context exhaustion (GitHub-ecosystem lane, security lane) — findings below
 marked accordingly. Verification: main-session claims cross-checked against the
 returned primary URLs (core.telegram.org) per cxc-search proof handoff.

@@ -10,10 +10,10 @@ connect wizard (token -> Connect -> press-/start spinner -> pass/fail retry/clos
 ## Carried-in requirement (from Phase 2 D)
 
 Add reasoning-effort handling to the runner's buildExecArgs when the per-agent
-model picker lands: gpt-5.3-codex-spark rejects runs with "Unsupported value:
+model picker lands: gpt-5.3-codex-luna rejects runs with "Unsupported value:
 'none'" unless effort config is set correctly (cli-jaw: omit reasoning args for
-spark + pin model_context_window=128000 / model_auto_compact_token_limit=110000;
-for non-spark pass `-c model_reasoning_effort="<effort>"`). Model+effort become
+luna + pin model_context_window=128000 / model_auto_compact_token_limit=110000;
+for non-luna pass `-c model_reasoning_effort="<effort>"`). Model+effort become
 per-binding columns editable in the Agents view.
 
 ## D record (2026-07-03) — SHIPPED
@@ -34,6 +34,6 @@ per-binding columns editable in the Agents view.
 - Verification: covered by the Phase 6 build+render checks (Channels/Agents are
   in the same bundle; vite 40-module transform + SSR render pass). Live API the
   pages consume verified in Phase 5 (channels/bindings/handshake curl).
-- CARRY-IN (from Phase 2): per-agent model/effort editing (spark effort fix) is
+- CARRY-IN (from Phase 2): per-agent model/effort editing (luna effort fix) is
   noted above; the Agents table is the surface for it — deferred as it needs
   per-binding model columns + a runner effort param (not in the first cut).

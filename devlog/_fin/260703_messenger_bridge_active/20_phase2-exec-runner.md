@@ -32,10 +32,10 @@ exec+resume continuity PROVEN with real codex) · class C3
 - Verification: 31/31 unit; `npm run build` OK (65 files). Live (default model,
   real codex): TURN1 "remember 42"→"OK", TURN2 "which number?"→"42", identical
   thread id `019f2386-e4eb-...` — memory carried across resume.
-- KNOWN LIMITATION → Phase 7: `gpt-5.3-codex-spark` rejects the run with
+- KNOWN LIMITATION → Phase 7: `gpt-5.3-codex-luna` rejects the run with
   "Unsupported value: 'none' is not supported" because the runner passes no
-  reasoning-effort config and codex defaults spark to effort=none. buildExecArgs
-  needs an `effort` param (cli-jaw: omit reasoning args for spark, pin
+  reasoning-effort config and codex defaults luna to effort=none. buildExecArgs
+  needs an `effort` param (cli-jaw: omit reasoning args for luna, pin
   context/compact) when the GUI model picker lands. Default model works today.
 
 ---
@@ -126,5 +126,5 @@ carries on — the binding survives.
 
 - Unit suite green (fake-bin runner tests are hermetic).
 - Live smoke (manual, quota-cheap): `node -e` invoking runTurn with real codex
-  `-m gpt-5.3-codex-spark` "say hi", then resume same thread "say hi again" —
+  `-m gpt-5.3-codex-luna` "say hi", then resume same thread "say hi again" —
   verify same thread_id continuity and rollout visible to `codexclaw chat search`.

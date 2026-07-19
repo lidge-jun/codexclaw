@@ -28,7 +28,7 @@ IN: plugins/codexclaw/components/subagent-config/{src,test,dist},
   plugins/codexclaw/gui/{src/api.ts,src/server,src/pages/Dashboard.tsx,test}
   (정직 필드 계약 + 토글 카피 + handler 테스트, A-r2),
   plugins/codexclaw/hooks/*.json (매처),
-  plugins/codexclaw/skills/{dev,pabcd,search,sparksearch,loop}/SKILL.md,
+  plugins/codexclaw/skills/{dev,pabcd,search,lunasearch,loop}/SKILL.md,
   plugins/codexclaw/agents/README.md, structure/{10,20,40,60,INDEX}.md,
   docs-site guides (native-tools, subagents, skills), 이 devlog 유닛.
 OUT: codex-rs, opencodex, ~/.codex/config.toml, goal-gate/goalplan 로직,
@@ -113,7 +113,7 @@ OUT: codex-rs, opencodex, ~/.codex/config.toml, goal-gate/goalplan 로직,
 
 ### S5 — doctrine/docs 스윕 [worker 4]
 
-- Volta #13-16 목록 전체: skills(dev/pabcd/search/sparksearch/loop) +
+- Volta #13-16 목록 전체: skills(dev/pabcd/search/lunasearch/loop) +
   structure/10·20·40·60 + docs-site(native-tools "not instructed until ships"
   삭제, subagents 현행화, skills 유지) + hide_spawn_agent_metadata 권고 금지 패턴
   교체("스키마 미노출이어도 인자는 수용됨" 안내로) + effort-주입 스테일 주장 수정

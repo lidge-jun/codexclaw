@@ -2,7 +2,7 @@
 
 ## Scope
 
-IN (current SoT docs only): `plugins/codexclaw/skills/{pabcd,dev,search,sparksearch,qa,loop}/SKILL.md`,
+IN (current SoT docs only): `plugins/codexclaw/skills/{pabcd,dev,search,lunasearch,qa,loop}/SKILL.md`,
 `plugins/codexclaw/components/pabcd-state/src/hook.ts` directive strings (+ its tests),
 `structure/10_subagent_skill_routing.md`, `structure/20_pabcd_dispatch_doctrine.md`,
 `structure/60_native_capabilities.md`, `plugins/codexclaw/agents/README.md`.

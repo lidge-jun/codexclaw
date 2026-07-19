@@ -40,13 +40,13 @@ Sources (checked 2026-07-02): https://docs.openclaw.ai · https://docs.openclaw.
   busy → queue with "queued" reply and requestId-scoped listener; HTML output
   chunking with plain-text fallback; 409-conflict retry with backoff.
 - `src/agent/args.ts:210-231` codex new turn: `exec -m <model> -c ... --json`
-  (+ spark context pinning); `args.ts:345-357` resume:
+  (+ luna context pinning); `args.ts:345-357` resume:
   `exec resume <sessionId> <prompt> --json`.
 - `src/agent/codex-app-client.ts` + `spawn.ts:1644`: cli-jaw ALSO has a
   `codex-app` mode (`codex app-server --listen stdio://`) — proof both paths
   work; codexclaw takes only the exec path.
 - Session bucketing per model family (`args.ts:125-135`) prevents cross-model
-  resume failures (spark ↔ gpt-5.x) — worth replicating if model switching
+  resume failures (luna ↔ gpt-5.x) — worth replicating if model switching
   is allowed per agent.
 - Weak point to avoid: cli-jaw's global "one main session + queue" model
   serializes unrelated chats; codexclaw should serialize per agent/thread only.

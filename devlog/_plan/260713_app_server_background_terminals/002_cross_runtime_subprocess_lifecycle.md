@@ -300,7 +300,7 @@ Codex app-server의 `list`·`terminate`·`clean`은 이 원칙을 구현하는 c
 
 ## 13. 방법론 메모
 
-이번 조사는 세션 `019f5b11-dc49-7bb2-b828-0ce9f41f0860`에서 `cxc-sparksearch` 5-lane swarm으로 시작했다.
+이번 조사는 세션 `019f5b11-dc49-7bb2-b828-0ce9f41f0860`에서 `cxc-lunasearch` 5-lane swarm으로 시작했다.
 
 | Lane | Researcher | 조사 대상 | 최종 실행 상태 |
 |---|---|---|---|
@@ -310,7 +310,7 @@ Codex app-server의 `list`·`terminate`·`clean`은 이 원칙을 구현하는 c
 | 4 | Godel | Gemini CLI, Aider, 기타 runtime | serial fallback 완료 |
 | 5 | Herschel | 일반 agent runtime 설계 패턴 | serial fallback 완료 |
 
-초기에는 `gpt-5.3-codex-spark` worker 5개를 병렬 실행했으나 모두 `reasoning.context=all_turns` 불일치로 실패했다. 모델을 지정하지 않은 serial fallback으로 각 lane을 다시 실행해 결과를 회수했다.
+초기에는 `gpt-5.3-codex-luna` worker 5개를 병렬 실행했으나 모두 `reasoning.context=all_turns` 불일치로 실패했다. 모델을 지정하지 않은 serial fallback으로 각 lane을 다시 실행해 결과를 회수했다.
 
 증거 해석 원칙은 다음과 같다.
 

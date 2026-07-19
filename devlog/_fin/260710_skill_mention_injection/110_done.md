@@ -17,7 +17,7 @@
    intent extras = ["search"].
 3. pabcd-state A/B/C directives teach prefixed/link forms; "hook fills in
    missing baselines" claim deleted; directive-form regression test added.
-4. Docs/doctrine re-taught across skills (dev/pabcd/search/sparksearch),
+4. Docs/doctrine re-taught across skills (dev/pabcd/search/lunasearch),
    structure (10/20/40/INDEX), docs-site (skills/subagents/hooks).
 
 ## Evidence chain

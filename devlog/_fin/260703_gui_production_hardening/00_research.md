@@ -11,7 +11,7 @@
 - `GET /api/health` → `{ok:true, version:"0.1.0", activeChannel:"telegram"}`
 - `GET /api/subagents` → 3 roles, all `mode:"default"`
 - `GET /api/catalog` → `state:"unsupported-ocx-catalog"`, 4 native entries only
-  (gpt-5.5 / gpt-5.4 / gpt-5.4-mini / gpt-5.3-codex-spark) — NO ocx-routed models
+  (gpt-5.5 / gpt-5.4 / gpt-5.4-mini / gpt-5.3-codex-luna) — NO ocx-routed models
 - `GET /api/provider` → `{mode:"provider", port:10100}` (ocx detected)
 - `GET /api/channels` → telegram active/running (1 allowlisted chat), discord no token
 - `GET /api/bindings` → 1 binding: telegram chat 8231528245 → codex thread,

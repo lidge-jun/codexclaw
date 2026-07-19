@@ -30,7 +30,7 @@ mentions; stale docs also claim the spawn hook auto-prepends role baselines
 Fold-back: fix A+B+C directive strings; doc file map now also includes
 pabcd/SKILL.md:447, structure/10_subagent_skill_routing.md:44,
 structure/INDEX.md:186, docs-site guides/subagents.md:44, guides/skills.md,
-search/SKILL.md:215-217 (stale hook claim), sparksearch:47. Add pabcd-state
+search/SKILL.md:215-217 (stale hook claim), lunasearch:47. Add pabcd-state
 test assertions that directives contain no spawn-bound bare form.
 
 ## B4 (High, ACCEPT) — verification does not exercise manifest-path resolution

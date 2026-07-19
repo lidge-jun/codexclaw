@@ -21,7 +21,7 @@
 4. `plugins/codexclaw/skills/pabcd/SKILL.md` L133 (AUDIT-LOOP-01 packet), L443-445 (DISPATCH-TASK-01).
 5. `plugins/codexclaw/skills/search/SKILL.md` L189-193 (SEARCH-ATTACH-01), L215-217
    (stale claim that the spawn-attach hook prepends $cxc-search — v2 path does no skill work).
-6. `plugins/codexclaw/skills/sparksearch/SKILL.md` L47 (L57 example already skill:// safe).
+6. `plugins/codexclaw/skills/lunasearch/SKILL.md` L47 (L57 example already skill:// safe).
 7. `structure/10_subagent_skill_routing.md` L106-108, L122-123 (plain-name fallback doctrine).
 8. `docs-site/src/content/docs/guides/skills.md` L33-35, L40-41.
 

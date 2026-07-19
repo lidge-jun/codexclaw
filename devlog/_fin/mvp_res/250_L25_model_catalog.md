@@ -72,7 +72,7 @@ Q3 resolved that multi-model works without ocx through Codex's native catalog,
 not a single fallback model. Ground truth: opencodex
 `src/codex-catalog.ts:43` documents the native fallback and
 `src/codex-catalog.ts:44` defines `NATIVE_OPENAI_MODELS =
-["gpt-5.5","gpt-5.4","gpt-5.4-mini","gpt-5.3-codex-spark"]`, read from the
+["gpt-5.5","gpt-5.4","gpt-5.4-mini","gpt-5.3-codex-luna"]`, read from the
 Codex live catalog cache (`CODEX_MODELS_CACHE_PATH`) through the allowlist.
 
 ## References (codex-rs paths, omo skills, ouroboros, source-of-record docs)

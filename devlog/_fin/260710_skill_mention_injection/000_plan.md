@@ -100,7 +100,7 @@ bare form:
 4. **Docs (audit B3 full map)** — teach only working forms and delete stale
    "hook auto-prepends skills" claims: skills/dev/SKILL.md:143-156,
    skills/pabcd/SKILL.md:133,443-447, skills/search/SKILL.md:189-217,
-   skills/sparksearch/SKILL.md:47, structure/10_subagent_skill_routing.md:44,102-123,
+   skills/lunasearch/SKILL.md:47, structure/10_subagent_skill_routing.md:44,102-123,
    structure/INDEX.md:186, structure/20_pabcd_dispatch_doctrine.md:169,
    structure/40_enforcement_methods.md:51, docs-site guides/skills.md:31-41,
    guides/subagents.md:44, reference/hooks.md:55 (audit r2 B2).

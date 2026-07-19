@@ -31,7 +31,7 @@ Three confirmed issues in the current codexclaw skill/runtime design:
 | Goal rule | Loop skill prose only | 5000-char detailed objective rule added to HOTL entry procedure; no hook enforcement |
 | CLI rename | `cxc loop init/show/validate` | `cxc goalplan *` becomes deprecated alias |
 | D auto-advance | Yes, in orchestrate-apply.ts | D transition auto-advances goalplan activeWorkPhaseId + marks previous work-phase done |
-| sparksearch | Keep separate | Has unique Spark-model hardcoding + parallel fan-out shape |
+| lunasearch | Keep separate | Has unique Luna-model hardcoding + parallel fan-out shape |
 | ultraresearch fate | Merge into search Tier 3 | Inline as Tier 3 Deep Research Protocol section |
 
 ## Dependency-Ordered Work Phases
@@ -148,7 +148,7 @@ Implicit visibility claim is consistent across dev, search, skill-hub.
 **OUT:**
 - Stop hook arming logic changes (already works correctly)
 - GoalplanHostLink.armed automation (stays provenance-only for now)
-- sparksearch changes
+- lunasearch changes
 - New hook enforcement for goal rule
 
 ## Success Criteria

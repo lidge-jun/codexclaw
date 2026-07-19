@@ -33,7 +33,7 @@ LEAF-TOPOLOGY 문구 대조에만 사용했다.
 | 23 | `repo-map/` | 활성 |
 | 24 | `search/` | 활성 |
 | 25 | `skill-hub/` | deprecated, `cxc-dev` redirect |
-| 26 | `sparksearch/` | 활성 |
+| 26 | `lunasearch/` | 활성 |
 | 27 | `ultraresearch/` | deprecated, `cxc-search` redirect |
 
 | # | structure 문서 |

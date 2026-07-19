@@ -90,7 +90,7 @@ are updated INTENTIONALLY to assert guard-only mutation.
 
 - agents/{explorer,reviewer,executor}.toml `developer_instructions`: add the leaf
   constraint paragraph (mirrors D2 text).
-- skills/pabcd + dev + loop + search + sparksearch dispatch sections and
+- skills/pabcd + dev + loop + search + lunasearch dispatch sections and
   structure/20 §3: "subagents are star-topology leaves (LEAF-TOPOLOGY-01);
   recursion requires CXC-SUBSPAWN-ALLOWED in the dispatch packet, and the
   spawn-attach hook denies grandchild spawns without it."

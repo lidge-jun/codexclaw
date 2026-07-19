@@ -90,7 +90,7 @@ if a spawn-level 400 reproduces, the terminal outcome is NEEDS_HUMAN + rollback
 | `request_user_input` | HITL question surface | `cxc-interview` (already used) |
 | `create_goal` / `get_goal` / `update_goal` | host goal lifecycle | `cxc-loop` (already used) |
 | `tool_search` | discover deferred tools (collab, connectors) | ALL dispatching skills |
-| `multi_tool_use.parallel` | run several tool calls concurrently | `cxc-sparksearch`, `cxc-search` |
+| `multi_tool_use.parallel` | run several tool calls concurrently | `cxc-lunasearch`, `cxc-search` |
 | `list_mcp_resources` / `read_mcp_resource` | MCP resource surface | situational |
 | `list_available_plugins_to_install` / `request_plugin_install` | plugin discovery/install | `cxc-dev` |
 
@@ -120,6 +120,8 @@ plus one-shot `fetch --json --browser never|auto`). Verified resolvable on this 
 (`~/.local/bin/agbrowse`, helper doctor 2026-07-02). **Priority: agbrowse is the
 PRIMARY browse surface for PUBLIC-WEB proof while it resolves** (user decision,
 2026-07-02) — there the native
+**If an agbrowse command fails (connection refused, no browser, etc.), run
+`agbrowse start` first to launch the local Chrome session, then retry.**
 browser tools are its FALLBACK tier (unresolvable helper, flows its CDP session cannot
 complete, or genuinely conversational control), and dropping to them should state why.
 Escalation routing is owned by SCOPE (2026-07-07 split): public-web proof by
@@ -150,7 +152,7 @@ Flag states below come from the same 2026-07-02 `codex features list` run (codex
 | `pabcd-state` AGBROWSE directive | "Browser Use / Computer Use" named as vague fallbacks | name the exact plugin tools + ladder (WP-N2) |
 | `cxc-dev-testing` | no UI/E2E QA protocol; C-phase evidence is command-output-only | computer-use QA protocol + screenshot/view_image evidence (WP-N3) |
 | `cxc-pabcd` / `cxc-dev` | "dispatch spawn_agent" assumes tool visibility | tool_search discovery step + V1 lifecycle (send_input/resume/close) or catalog/flag-selected V2 lifecycle (followup_task/interrupt/list_agents) |
-| `cxc-sparksearch` / `cxc-ultraresearch` | serial-ish lane guidance | `multi_tool_use.parallel` + wait_agent multi-target patterns (WP-N4) |
+| `cxc-lunasearch` / `cxc-ultraresearch` | serial-ish lane guidance | `multi_tool_use.parallel` + wait_agent multi-target patterns (WP-N4) |
 | `cxc-dev-uiux-design` / `cxc-dev-frontend` | no imagegen / view_image usage | asset-gen + screenshot-read guidance (WP-N5) |
 | `cxc-skill-hub` | catalog only | plugin discovery/install surfaces (WP-N5) |
 | `config-guard` | manages 4 flags, silent about browser/computer flags | DECIDED (WP-N5): no code change — `browser_use*`/`computer_use` are stable + default-enabled, so there is nothing to toggle and a doctor row would assert a default. Revisit only if a real regression (flag flipped off) is observed. |
