@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openBridgeDb } from "../src/db.ts";
+import { BridgeDb, openBridgeDb } from "../src/db.ts";
 
 /** Windows CI: NTFS can briefly refuse recursive removal while SQLite
  *  handles finish closing — retry with a short synchronous backoff. */
@@ -156,6 +156,59 @@ test("v8: agents.thread_mode defaults to 'thread' and accepts 'plain'", () => {
       db.updateAgent(agent.id, { thread_mode: "bogus" as any });
     }, /CHECK/i);
     db.close();
+  } finally {
+    rmRfRetry(cwd);
+  }
+});
+
+test("v10: upgrades a v9 agent once, preserves rows, and enforces the mode constraint", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "bridge-v10-test-"));
+  const file = join(cwd, "bridge.db");
+  try {
+    const raw = new DatabaseSync(file);
+    raw.exec(`
+      CREATE TABLE agents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        kind TEXT NOT NULL CHECK (kind IN ('telegram','discord')),
+        token TEXT NOT NULL DEFAULT '',
+        enabled INTEGER NOT NULL DEFAULT 0,
+        model TEXT NOT NULL DEFAULT 'default',
+        effort TEXT NOT NULL DEFAULT 'default',
+        auto_send INTEGER NOT NULL DEFAULT 1,
+        mention_only INTEGER NOT NULL DEFAULT 1,
+        heartbeat_minutes INTEGER NOT NULL DEFAULT 0,
+        heartbeat_prompt TEXT NOT NULL DEFAULT '',
+        poll_offset INTEGER NOT NULL DEFAULT 0,
+        trigger_prefix TEXT NOT NULL DEFAULT '',
+        full_access INTEGER NOT NULL DEFAULT 1,
+        webhook_url TEXT NOT NULL DEFAULT '',
+        handshake_open_until TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        thread_mode TEXT NOT NULL DEFAULT 'thread'
+      );
+      INSERT INTO agents (name, kind, token, created_at, updated_at)
+        VALUES ('existing', 'telegram', 'tok', 'old', 'old');
+      PRAGMA user_version = 9;
+    `);
+    raw.close();
+
+    const db = new BridgeDb(file);
+    assert.equal(db.getAgentByName("existing")?.tool_progress, "new");
+    db.close();
+
+    const check = new DatabaseSync(file);
+    assert.equal((check.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 10);
+    assert.throws(
+      () => check.prepare("UPDATE agents SET tool_progress = 'bogus' WHERE name = 'existing'").run(),
+      /CHECK/i,
+    );
+    check.close();
+
+    const reopened = new BridgeDb(file);
+    assert.equal(reopened.getAgentByName("existing")?.tool_progress, "new");
+    reopened.close();
   } finally {
     rmRfRetry(cwd);
   }

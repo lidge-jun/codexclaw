@@ -1,0 +1,5 @@
+{"type":"fixture.header","codex_cli":"0.144.5","capture":"command plus first enabled read-only/no-arg MCP tool","mcp_tool":"codexclaw.subagents_get","redacted":true,"findings":{"identity":"item.id","command_result":"item.aggregated_output","command_outcome":"item.exit_code and item.status","mcp_result":"item.result","mcp_outcome":"item.error and item.status"}}
+{"type":"item.started","item":{"id":"item_command","type":"command_execution","command":"/bin/zsh -lc 'echo cxc-fixture'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_command","type":"command_execution","command":"/bin/zsh -lc 'echo cxc-fixture'","aggregated_output":"cxc-fixture\n","exit_code":0,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_mcp","type":"mcp_tool_call","server":"codexclaw","tool":"subagents_get","arguments":{},"result":null,"error":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_mcp","type":"mcp_tool_call","server":"codexclaw","tool":"subagents_get","arguments":{},"result":{"content":[{"type":"text","text":"redacted fixture result"}]},"error":null,"status":"completed"}}

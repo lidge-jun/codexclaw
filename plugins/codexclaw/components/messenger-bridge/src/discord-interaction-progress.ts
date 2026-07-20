@@ -1,11 +1,12 @@
 import type { DiscordApi, DiscordApiResult, DiscordEmbed } from "./discord-api.ts";
 import { buildStatusEmbed } from "./discord-components.ts";
 import type { RunnerEvent } from "./runner.ts";
+import type { ToolProgressFilter, ToolProgressLine } from "./tool-progress.ts";
 
 export const DISCORD_INTERACTION_HANDOFF_MS = 14 * 60 * 1_000;
 export const DISCORD_INTERACTION_PROGRESS_EDIT_MS = 1_200;
 
-export type DiscordProgressFilterResult = "full" | "summary" | "drop";
+export type DiscordProgressFilterResult = "full" | "summary" | "drop" | ToolProgressLine | null;
 export type DiscordProgressFilter = (event: RunnerEvent) => DiscordProgressFilterResult;
 
 export interface DiscordInteractionProgressDeps {
@@ -119,7 +120,7 @@ export function createDiscordInteractionProgress(
     handoffTimer = undefined;
     if (closed || handoffPromise) return;
     handoffPromise = enqueue(async () => {
-      const created = await options.api.sendMessage(options.channelId, "Working…");
+      const created = await options.api.sendMessage(options.channelId, "Working…", { suppressNotifications: true });
       if (!created.ok || !created.data?.id) {
         report("handoff create", created.error ?? `Discord error ${created.status}`);
         return;
@@ -150,7 +151,17 @@ export function createDiscordInteractionProgress(
 
   function onEvent(event: RunnerEvent): void {
     if (closed) return;
-    const mode = event.kind === "message" ? "full" : options.progressFilter?.(event) ?? "full";
+    const toolFilter = typeof (options.progressFilter as ToolProgressFilter | undefined)?.reset === "function";
+    const filtered = toolFilter
+      ? options.progressFilter?.(event)
+      : event.kind === "message" ? "full" : options.progressFilter?.(event);
+    if (filtered === null || typeof filtered === "object") {
+      if (!filtered) return;
+      pendingEmbed = progressEmbed("Coding", filtered.text);
+      scheduleFlush();
+      return;
+    }
+    const mode = filtered ?? "full";
     if (mode === "drop") return;
     const progress = mode === "summary" ? summaryFromEvent(event) : progressFromEvent(event);
     if (!progress) return;
@@ -161,6 +172,7 @@ export function createDiscordInteractionProgress(
   async function finish(result: { ok: boolean; error?: string }): Promise<void> {
     if (closed) return;
     closed = true;
+    (options.progressFilter as ToolProgressFilter | undefined)?.reset?.();
     try {
       if (handoffTimer !== undefined) deps.clearTimeout(handoffTimer);
     } catch (error) {

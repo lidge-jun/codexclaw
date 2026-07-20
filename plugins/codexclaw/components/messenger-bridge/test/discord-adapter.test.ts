@@ -89,6 +89,25 @@ test("DiscordApi redacts interaction and webhook tokens from error strings", asy
   assert.doesNotMatch(webhook.error ?? "", /webhook-secret/);
 });
 
+test("DiscordApi suppresses notifications only when explicitly requested", async () => {
+  const bodies: unknown[] = [];
+  const api = new DiscordApi("T", async (_url, init) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    return {
+      ok: true, status: 200, headers: { get: () => null },
+      json: () => Promise.resolve({ id: "ok" }), text: () => Promise.resolve(""),
+    } as unknown as Response;
+  });
+  await api.sendMessage("chan", "progress", { suppressNotifications: true });
+  await api.sendEmbed("chan", "", [{ description: "progress" }], undefined, { suppressNotifications: true });
+  await api.sendMessage("chan", "final");
+  assert.deepEqual(bodies, [
+    { content: "progress", flags: 4096 },
+    { content: "", embeds: [{ description: "progress" }], flags: 4096 },
+    { content: "final" },
+  ]);
+});
+
 test("DiscordApi sendFile retries multipart 429 retry_after once", async () => {
   let calls = 0;
   const api = new DiscordApi("T", async () => {
@@ -368,7 +387,7 @@ test("gateway progress edits one status embed and sanitizes mentions", async () 
       fetchImpl,
       wsFactory: () => (ws = new FakeWs()),
       agentService: stubAgent(async (req) => {
-        req.onEvent?.({ kind: "thinking", text: "checking @everyone <@123>" });
+        req.onEvent?.({ kind: "tool_call", phase: "started", callId: "tool-1", name: "check", input: "@everyone <@123>" });
         return { ok: true, text: "done" };
       }),
     });
@@ -382,6 +401,10 @@ test("gateway progress edits one status embed and sanitizes mentions", async () 
     const body = JSON.stringify(edits.map((edit) => edit.body));
     assert.match(body, /\[everyone\]/);
     assert.doesNotMatch(body, /@everyone|<@123>/);
+    const progressSend = posts.find((p) => p.path === "/channels/chan-1/messages" && JSON.stringify(p.body).includes("Starting turn"));
+    assert.equal((progressSend?.body as { flags?: number } | undefined)?.flags, 4096);
+    const finalSend = posts.find((p) => p.path === "/channels/chan-1/messages" && (p.body as { content?: string }).content === "done");
+    assert.equal((finalSend?.body as { flags?: number } | undefined)?.flags, undefined);
   } finally {
     await settle();
     db.close();
@@ -404,13 +427,13 @@ test("gateway progress edit throttle honors the 1200ms boundary with injected cl
       now: () => now,
       wsFactory: () => (ws = new FakeWs()),
       agentService: stubAgent(async (req) => {
-        req.onEvent?.({ kind: "status", label: "first" });
+        req.onEvent?.({ kind: "tool_call", phase: "started", callId: "first", name: "first", input: "" });
         await new Promise((resolve) => setImmediate(resolve));
         now = 2199;
-        req.onEvent?.({ kind: "status", label: "too-soon" });
+        req.onEvent?.({ kind: "tool_call", phase: "started", callId: "too-soon", name: "too-soon", input: "" });
         await new Promise((resolve) => setImmediate(resolve));
         now = 2200;
-        req.onEvent?.({ kind: "status", label: "boundary" });
+        req.onEvent?.({ kind: "tool_call", phase: "started", callId: "boundary", name: "boundary", input: "" });
         await new Promise((resolve) => setImmediate(resolve));
         return { ok: true, text: "done" };
       }),
@@ -525,7 +548,7 @@ test("!cxc retry sends its result before finishing progress with the real outcom
       fetchImpl,
       wsFactory: () => (ws = new FakeWs()),
       agentService: stubAgent(async (req) => {
-        req.onEvent?.({ kind: "status", label: "retrying" });
+        req.onEvent?.({ kind: "tool_call", phase: "started", callId: "retrying", name: "retrying", input: "" });
         return { ok: true, text: "retried answer" };
       }),
     });

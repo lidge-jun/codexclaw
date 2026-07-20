@@ -7,9 +7,11 @@ import {
   DISCORD_INTERACTION_PROGRESS_EDIT_MS,
   type DiscordInteractionProgressDeps,
 } from "../src/discord-interaction-progress.ts";
+import { createToolProgressFilter, type ToolProgressMode } from "../src/tool-progress.ts";
 
 function harness(options: {
   filter?: Parameters<typeof createDiscordInteractionProgress>[0]["progressFilter"];
+  toolProgress?: ToolProgressMode;
   handoffSendOk?: boolean;
   pointerOk?: boolean;
   initialOk?: boolean;
@@ -19,6 +21,7 @@ function harness(options: {
   const timers = new Map<number, { at: number; callback: () => void }>();
   const original: unknown[] = [];
   const sends: string[] = [];
+  const sendOptions: unknown[] = [];
   const edits: unknown[] = [];
   const logs: string[] = [];
   const deps: DiscordInteractionProgressDeps = {
@@ -37,8 +40,9 @@ function harness(options: {
       if (original.length > 1 && options.pointerOk === false) return { ok: false, status: 401, error: "pointer failed" };
       return { ok: true, status: 200, data: { id: "original" } };
     },
-    sendMessage: async (_channel: string, content: string) => {
+    sendMessage: async (_channel: string, content: string, sendOpts?: unknown) => {
       sends.push(content);
+      sendOptions.push(sendOpts);
       if (options.handoffSendOk === false) return { ok: false, status: 500, error: "handoff failed" };
       return { ok: true, status: 200, data: { id: "handoff" } };
     },
@@ -53,7 +57,7 @@ function harness(options: {
     interactionToken: "token",
     channelId: "channel",
     guildId: "guild",
-    progressFilter: options.filter,
+    progressFilter: options.toolProgress ? createToolProgressFilter(options.toolProgress) : options.filter,
     deps,
     log: (line) => logs.push(line),
   });
@@ -66,19 +70,19 @@ function harness(options: {
     }
     for (let drain = 0; drain < 6; drain += 1) await Promise.resolve();
   };
-  return { progress, original, sends, edits, timers, logs, advance };
+  return { progress, original, sends, sendOptions, edits, timers, logs, advance };
 }
 
 test("progress modes render full, per-kind summary, drop, and message bypass", async () => {
   const full = harness();
   await full.progress.start();
-  full.progress.onEvent({ kind: "tool_call", name: "exec", input: "secret args" });
+  full.progress.onEvent({ kind: "tool_call", phase: "started", callId: "1", name: "exec", input: "secret args" });
   await full.advance(DISCORD_INTERACTION_PROGRESS_EDIT_MS);
   assert.match(JSON.stringify(full.original.at(-1)), /exec secret args/);
 
   const summary = harness({ filter: () => "summary" });
   await summary.progress.start();
-  summary.progress.onEvent({ kind: "tool_call", name: "exec", input: "hidden" });
+  summary.progress.onEvent({ kind: "tool_call", phase: "started", callId: "1", name: "exec", input: "hidden" });
   await summary.advance(DISCORD_INTERACTION_PROGRESS_EDIT_MS);
   assert.match(JSON.stringify(summary.original.at(-1)), /exec/);
   assert.doesNotMatch(JSON.stringify(summary.original.at(-1)), /hidden/);
@@ -103,6 +107,29 @@ test("progress modes render full, per-kind summary, drop, and message bypass", a
   drop.progress.onEvent({ kind: "message", text: "latest answer" });
   await drop.advance(DISCORD_INTERACTION_PROGRESS_EDIT_MS);
   assert.match(JSON.stringify(drop.original.at(-1)), /latest answer/);
+});
+
+test("tool progress modes preserve generic off state and gate lifecycle edits", async () => {
+  for (const mode of ["off", "new", "all", "verbose"] as const) {
+    const h = harness({ toolProgress: mode });
+    await h.progress.start();
+    h.progress.onEvent({ kind: "thinking", text: "ignored" });
+    h.progress.onEvent({ kind: "tool_call", phase: "started", callId: "1", name: "read", input: "a.ts" });
+    await h.advance(DISCORD_INTERACTION_PROGRESS_EDIT_MS);
+    h.progress.onEvent({
+      kind: "tool_call", phase: "completed", callId: "1", name: "read", input: "a.ts",
+      outcome: "success", resultSummary: "done",
+    });
+    await h.advance(DISCORD_INTERACTION_PROGRESS_EDIT_MS);
+    const rendered = JSON.stringify(h.original);
+    if (mode === "off") assert.equal(h.original.length, 1);
+    else assert.match(rendered, /▶ read a\.ts/);
+    if (mode === "all") assert.match(rendered, /✓ read/);
+    if (mode === "verbose") assert.match(rendered, /✓ read — done/);
+    if (mode === "new") assert.doesNotMatch(rendered, /✓ read/);
+    assert.doesNotMatch(rendered, /ignored/);
+    await h.progress.finish({ ok: true });
+  }
 });
 
 test("checked failures keep the reachable target and never reject finish", async () => {
@@ -179,6 +206,7 @@ test("handoff occurs at 14 minutes and all later edits use the channel message",
   await h.advance(1);
   await h.advance(0);
   assert.deepEqual(h.sends, ["Working…"]);
+  assert.deepEqual(h.sendOptions, [{ suppressNotifications: true }]);
   assert.match(JSON.stringify(h.original.at(-1)), /discord.com\/channels\/guild\/channel\/handoff/);
   h.progress.onEvent({ kind: "status", label: "after handoff" });
   await h.advance(DISCORD_INTERACTION_PROGRESS_EDIT_MS);

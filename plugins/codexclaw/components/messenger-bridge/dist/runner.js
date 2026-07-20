@@ -51,6 +51,14 @@ import { createInterface } from "node:readline";
 
 
 
+
+
+
+
+
+
+
+
 const DEFAULT_TIMEOUT_MS = 600_000;
 const SIGKILL_GRACE_MS = 3_000;
 // Missing-rollout / bad-session-id signatures for the resume re-seed fallback.
@@ -117,9 +125,15 @@ export function parseExecEvent(line        )                     {
       return null;
     }
     if (itemType === "tool_call" || itemType === "mcp_tool_call") {
-      const name = firstString(item, ["name", "tool_name", "server_tool_name", "command"]) ?? itemType;
+      const phase = type === "item.started" ? "started" : "completed";
+      const server = firstString(item, ["server"]);
+      const tool = firstString(item, ["name", "tool_name", "server_tool_name", "tool", "command"]);
+      const name = server && tool ? `${server}.${tool}` : (tool ?? itemType);
       const input = stringifyCompact(item.input ?? item.arguments ?? item.args ?? item.params ?? "");
-      return { kind: "tool_call", name, input };
+      const callId = firstString(item, ["id", "call_id", "callId"]);
+      if (!callId) return null;
+      const completion = phase === "completed" ? completionDetails(item) : {};
+      return { kind: "tool_call", phase, callId, name, input, ...completion };
     }
     if (itemType === "file_change" || itemType === "patch" || itemType === "apply_patch") {
       const path = firstString(item, ["path", "file", "file_path", "target"]);
@@ -147,8 +161,19 @@ export function parseExecEvent(line        )                     {
       return null;
     }
     if (itemType === "command_execution") {
-      const cmd = String(item?.command ?? "").slice(0, 80);
-      if (cmd) return { kind: "status", label: `$ ${cmd}` };
+      const command = firstString(item, ["command"]);
+      const callId = firstString(item, ["id", "call_id", "callId"]);
+      if (!command || !callId) return null;
+      const phase = type === "item.started" ? "started" : "completed";
+      const completion = phase === "completed" ? completionDetails(item) : {};
+      return {
+        kind: "tool_call",
+        phase,
+        callId,
+        name: `$ ${singleLine(command, 80)}`,
+        input: "",
+        ...completion,
+      };
     }
     return null;
   }
@@ -195,6 +220,35 @@ function stringifyCompact(value         )         {
   } catch {
     return String(value);
   }
+}
+
+function completionDetails(item                         )
+
+
+  {
+  let outcome                                 ;
+  if (typeof item.exit_code === "number") {
+    outcome = item.exit_code === 0 ? "success" : "error";
+  } else if (item.error !== null && item.error !== undefined && stringifyCompact(item.error).trim()) {
+    outcome = "error";
+  } else {
+    const status = firstString(item, ["status", "outcome"])?.toLowerCase();
+    if (status && ["completed", "success", "succeeded"].includes(status)) outcome = "success";
+    if (status && ["error", "failed", "failure"].includes(status)) outcome = "error";
+  }
+
+  const result = item.error ?? item.aggregated_output ?? item.result ?? item.output;
+  const summary = result === null || result === undefined ? "" : singleLine(stringifyCompact(result), 300);
+  return {
+    ...(outcome ? { outcome } : {}),
+    ...(summary ? { resultSummary: summary } : {}),
+  };
+}
+
+function singleLine(value        , maxLength        )         {
+  const sanitized = value.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
+  if (sanitized.length <= maxLength) return sanitized;
+  return `${sanitized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
 
 function fileChangeAction(raw        )                                 {

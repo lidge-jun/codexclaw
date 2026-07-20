@@ -31,7 +31,8 @@ import { handleInteraction,                  } from "./discord-interactions.js";
 import { buildHelpEntries, dispatchGatewayCommand } from "./gateway-commands.js";
 import { cleanupTmpMedia, downloadDiscordAttachment } from "./media-handler.js";
 import { sendFormattedDiscordOutput } from "./output-formatter.js";
-import { progressEmbed, progressFromEvent } from "./discord-interaction-progress.js";
+import { progressEmbed } from "./discord-interaction-progress.js";
+import { createToolProgressPolicy, DEFAULT_TOOL_PROGRESS,                       } from "./tool-progress.js";
 
 
 
@@ -55,7 +56,7 @@ import { progressEmbed, progressFromEvent } from "./discord-interaction-progress
 
 const START_TRIGGER = "!cxc start";
 const GATEWAY_TEXT_COMMANDS = new Set([
-  "status", "context", "new", "reset", "cwd", "model", "effort", "mode",
+  "status", "context", "new", "reset", "cwd", "model", "effort", "mode", "toolprogress",
   "stop", "retry", "approve", "sessions", "jobs", "agent",
 ]);
 const DISCORD_PROGRESS_EDIT_MS = 1_200;
@@ -101,6 +102,8 @@ export function createDiscordAdapter(opts                       )               
   /** Thread mode: legacy always uses threads; agents follow the live card toggle. */
   const isThreadMode = () =>
     agentId === null ? true : (opts.db.getAgent(agentId)?.thread_mode ?? "thread") === "thread";
+  const currentToolProgress = ()                   =>
+    agentId === null ? DEFAULT_TOOL_PROGRESS : (opts.db.getAgent(agentId)?.tool_progress ?? DEFAULT_TOOL_PROGRESS);
   async function resolveApplicationId()                         {
     const readyAppId = gateway?.applicationId() ?? null;
     if (readyAppId) {
@@ -298,7 +301,7 @@ export function createDiscordAdapter(opts                       )               
       return;
     }
 
-    const progress = createProgressWindow(channelId);
+    const progress = createProgressWindow(channelId, currentToolProgress());
     await progress.start();
     let outcome                                  = { ok: false, error: "Retry did not complete." };
     try {
@@ -362,15 +365,17 @@ export function createDiscordAdapter(opts                       )               
     return { prefixes, tempDirs };
   }
 
-  function createProgressWindow(channelId        ) {
+  function createProgressWindow(channelId        , mode                  ) {
+    const policy = createToolProgressPolicy(mode);
     let messageId                = null;
     let lastEditAt = 0;
     let creating                       = null;
 
     const start = async () => {
+      if (mode === "off") return;
       if (!creating) {
         creating = api
-          .sendEmbed(channelId, "", [progressEmbed("Working", "Starting turn.")])
+          .sendEmbed(channelId, "", [progressEmbed("Working", "Starting turn.")], undefined, { suppressNotifications: true })
           .then((res) => {
             if (res.ok && res.data?.id) messageId = res.data.id;
           })
@@ -394,10 +399,12 @@ export function createDiscordAdapter(opts                       )               
     return {
       start,
       onEvent(event             ) {
-        const progress = progressFromEvent(event);
-        if (progress) void edit(progress.stage, progress.detail);
+        const line = policy.render(event);
+        if (line) void edit("Coding", line.text);
       },
       finish(result                                 ) {
+        policy.reset();
+        if (mode === "off") return Promise.resolve();
         return edit(
           result.ok ? "Done" : "Error",
           result.ok ? "Final answer sent as a fresh message." : result.error ?? "No response.",
@@ -451,7 +458,7 @@ export function createDiscordAdapter(opts                       )               
       const reply = await replyChannelForMessage(msg, rawText || "attachment");
       const replyChannelId = reply.channelId;
       void api.triggerTyping(replyChannelId);
-      const progress = createProgressWindow(replyChannelId);
+      const progress = createProgressWindow(replyChannelId, currentToolProgress());
       await progress.start();
       const result = await opts.agentService.handleIncoming({
         kind: "discord",

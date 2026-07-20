@@ -3,6 +3,7 @@
 
 import { createDraftProgressState, sendDraftProgress } from "./telegram-rich-send.js";
 
+
 export const TELEGRAM_PROGRESS_EDIT_MS = 2_000;
 const TELEGRAM_TYPING_REFRESH_MS = 4_000;
 const TELEGRAM_PROGRESS_MAX_CHARS = 4_095;
@@ -108,6 +109,14 @@ export function createTelegramTurnProgress(options                             )
 
   function onEvent(event             )       {
     if (finished) return;
+    const filtered = options.progressFilter?.(event);
+    if (filtered === null || typeof filtered === "object") {
+      if (!filtered) return;
+      activity.push(filtered.text);
+      if (activity.length > TELEGRAM_ACTIVITY_LINES) activity.splice(0, activity.length - TELEGRAM_ACTIVITY_LINES);
+      queueRenderedProgress();
+      return;
+    }
     if (event.kind === "message") {
       latestAssistantText = event.text.trim();
       queueRenderedProgress();
@@ -115,7 +124,7 @@ export function createTelegramTurnProgress(options                             )
     }
     if (!isActivityEvent(event)) return;
 
-    const mode = options.progressFilter?.(event) ?? "full";
+    const mode = filtered ?? "full";
     if (mode === "drop") return;
     const line = activityLine(event, mode);
     if (!line) return;
@@ -194,6 +203,7 @@ export function createTelegramTurnProgress(options                             )
 
   async function finish()                {
     finished = true;
+    (options.progressFilter                                  )?.reset?.();
     pendingSnapshot = null;
 
     try {

@@ -9,7 +9,14 @@
  */
 import { createHash, randomBytes } from "node:crypto";
 
-import { AGENT_EFFORTS, AGENT_THREAD_MODES,                                                  } from "./db.js";
+import {
+  AGENT_EFFORTS,
+  AGENT_THREAD_MODES,
+  AGENT_TOOL_PROGRESS_MODES,
+
+
+
+} from "./db.js";
 import { validateToken,                      } from "./token-validate.js";
 import { TelegramApi } from "./telegram-api.js";
 import { DiscordApi } from "./discord-api.js";
@@ -45,6 +52,7 @@ export function publicAgent(ctx        , a          )                          {
     fullAccess: a.full_access === 1,
     webhookUrl: a.webhook_url,
     threadMode: a.thread_mode,
+    toolProgress: a.tool_progress,
     heartbeatMinutes: a.heartbeat_minutes,
     heartbeatPrompt: a.heartbeat_prompt,
     allowlistCount: ctx.db.listAgentAllowlist(a.id).length,
@@ -177,6 +185,15 @@ export function agentRoutes(deps                  = {})             {
             return bad(`threadMode must be one of ${AGENT_THREAD_MODES.join(", ")}`);
           }
           patch.thread_mode = b.threadMode;
+        }
+        if (b.toolProgress !== undefined) {
+          if (
+            typeof b.toolProgress !== "string"
+            || !(AGENT_TOOL_PROGRESS_MODES                     ).includes(b.toolProgress)
+          ) {
+            return bad(`toolProgress must be one of ${AGENT_TOOL_PROGRESS_MODES.join(", ")}`);
+          }
+          patch.tool_progress = b.toolProgress                               ;
         }
 
         const updated = ctx.db.updateAgent(id, patch);

@@ -18,6 +18,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { chmodSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { TOOL_PROGRESS_MODES, type ToolProgressMode } from "./tool-progress.ts";
 
 export type ChannelKind = "telegram" | "discord";
 
@@ -77,6 +78,8 @@ export interface AgentRow {
   updated_at: string;
   /** 'thread' (default) or 'plain' — controls whether the adapter creates threads/topics (v8). */
   thread_mode: string;
+  /** Attended runner-event rendering policy (v10). */
+  tool_progress: ToolProgressMode;
 }
 
 export interface AgentPatch {
@@ -92,10 +95,12 @@ export interface AgentPatch {
   full_access?: number;
   webhook_url?: string;
   thread_mode?: string;
+  tool_progress?: ToolProgressMode;
 }
 
 export const AGENT_EFFORTS = ["default", "minimal", "low", "medium", "high", "xhigh"] as const;
 export const AGENT_THREAD_MODES = ["thread", "plain"] as const;
+export const AGENT_TOOL_PROGRESS_MODES = TOOL_PROGRESS_MODES;
 
 export interface JobRow {
   id: number;
@@ -431,6 +436,23 @@ CREATE INDEX idx_agent_pairing_codes_lookup ON agent_pairing_codes (agent_id, co
       }
       version = 9;
     }
+
+    // ── v10: persisted attended tool-progress policy ──
+    if (version < 10) {
+      this.db.exec("BEGIN");
+      try {
+        this.db.exec(`
+ALTER TABLE agents ADD COLUMN tool_progress TEXT NOT NULL DEFAULT 'new'
+  CHECK (tool_progress IN ('off','new','all','verbose'));
+`);
+        this.db.exec("PRAGMA user_version = 10");
+        this.db.exec("COMMIT");
+      } catch (err) {
+        this.db.exec("ROLLBACK");
+        throw err;
+      }
+      version = 10;
+    }
   }
 
   // ── channels ──────────────────────────────────────────
@@ -740,6 +762,7 @@ CREATE INDEX idx_agent_pairing_codes_lookup ON agent_pairing_codes (agent_id, co
       "full_access",
       "webhook_url",
       "thread_mode",
+      "tool_progress",
     ] as const;
     const sets: string[] = [];
     const values: Array<string | number> = [];

@@ -2,6 +2,7 @@
 import type { RunnerEvent } from "./runner.ts";
 import type { TelegramApi } from "./telegram-api.ts";
 import { createDraftProgressState, sendDraftProgress } from "./telegram-rich-send.ts";
+import type { ToolProgressFilter, ToolProgressLine } from "./tool-progress.ts";
 
 export const TELEGRAM_PROGRESS_EDIT_MS = 2_000;
 const TELEGRAM_TYPING_REFRESH_MS = 4_000;
@@ -9,7 +10,7 @@ const TELEGRAM_PROGRESS_MAX_CHARS = 4_095;
 const TELEGRAM_ACTIVITY_LINES = 5;
 const TELEGRAM_THINKING_MAX_CHARS = 300;
 
-export type TelegramProgressFilterResult = "full" | "summary" | "drop";
+export type TelegramProgressFilterResult = "full" | "summary" | "drop" | ToolProgressLine | null;
 export type TelegramProgressFilter = (event: RunnerEvent) => TelegramProgressFilterResult;
 
 export interface TelegramProgressDeps {
@@ -108,6 +109,14 @@ export function createTelegramTurnProgress(options: TelegramTurnProgressOptions)
 
   function onEvent(event: RunnerEvent): void {
     if (finished) return;
+    const filtered = options.progressFilter?.(event);
+    if (filtered === null || typeof filtered === "object") {
+      if (!filtered) return;
+      activity.push(filtered.text);
+      if (activity.length > TELEGRAM_ACTIVITY_LINES) activity.splice(0, activity.length - TELEGRAM_ACTIVITY_LINES);
+      queueRenderedProgress();
+      return;
+    }
     if (event.kind === "message") {
       latestAssistantText = event.text.trim();
       queueRenderedProgress();
@@ -115,7 +124,7 @@ export function createTelegramTurnProgress(options: TelegramTurnProgressOptions)
     }
     if (!isActivityEvent(event)) return;
 
-    const mode = options.progressFilter?.(event) ?? "full";
+    const mode = filtered ?? "full";
     if (mode === "drop") return;
     const line = activityLine(event, mode);
     if (!line) return;
@@ -194,6 +203,7 @@ export function createTelegramTurnProgress(options: TelegramTurnProgressOptions)
 
   async function finish(): Promise<void> {
     finished = true;
+    (options.progressFilter as ToolProgressFilter | undefined)?.reset?.();
     pendingSnapshot = null;
 
     try {

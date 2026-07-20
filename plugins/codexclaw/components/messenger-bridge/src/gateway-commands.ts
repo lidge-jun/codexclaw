@@ -13,7 +13,8 @@ import type { AgentService, IncomingRequest, IncomingResult } from "./agent-serv
 import type { ApprovalDecision } from "./approval-relay.ts";
 import { chunkEmbedDescription, type DiscordEmbed } from "./discord-api.ts";
 import { capDiscordEmbed, type ActionRow } from "./discord-components.ts";
-import { AGENT_EFFORTS, AGENT_THREAD_MODES, type AgentRow, type BindingRow, type BridgeDb, type JobRow } from "./db.ts";
+import { AGENT_EFFORTS, AGENT_THREAD_MODES, AGENT_TOOL_PROGRESS_MODES, type AgentRow, type BindingRow, type BridgeDb, type JobRow } from "./db.ts";
+import { DEFAULT_TOOL_PROGRESS } from "./tool-progress.ts";
 import { chunkTelegramMessage } from "./telegram-format.ts";
 
 export type TelegramInlineKeyboard = Array<Array<{ text: string; callback_data?: string; url?: string }>>;
@@ -61,6 +62,7 @@ export const GATEWAY_COMMANDS: GatewayCommand[] = [
   { name: "retry", description: "Retry the last prompt", handler: handleRetry },
   { name: "approve", description: "List or resolve pending approvals (/approve [list|id choice])", handler: handleApprove },
   { name: "mode", description: "Show or set thread mode (thread|plain)", handler: handleMode },
+  { name: "toolprogress", description: "Show or set tool progress (off|new|all|verbose)", handler: handleToolProgress },
   { name: "help", description: "List available commands", handler: handleHelp },
 ];
 
@@ -106,6 +108,7 @@ async function handleStatus(ctx: GatewayCommandContext): Promise<GatewayCommandR
       `effort: ${effort}`,
       `status: ${binding.status}`,
       `thread_mode: ${agent?.thread_mode ?? "thread"}`,
+      `tool_progress: ${agent?.tool_progress ?? DEFAULT_TOOL_PROGRESS}`,
       `transport: ${transport}`,
       `agent: ${agent?.name ?? "none"}`,
       `cwd: ${binding.workdir}`,
@@ -205,6 +208,7 @@ async function handleAgent(ctx: GatewayCommandContext): Promise<GatewayCommandRe
     model: agent.model,
     effort: agent.effort,
     thread_mode: agent.thread_mode,
+    tool_progress: agent.tool_progress,
     full_access: agent.full_access === 1 ? "yes" : "no",
     transport: agentTransport(agent),
     heartbeat: agent.heartbeat_minutes === 0 ? "off" : `${agent.heartbeat_minutes} min`,
@@ -217,6 +221,7 @@ async function handleAgent(ctx: GatewayCommandContext): Promise<GatewayCommandRe
     `default_model: ${details.model}`,
     `default_effort: ${details.effort}`,
     `thread_mode: ${details.thread_mode}`,
+    `tool_progress: ${details.tool_progress}`,
     `full_access: ${details.full_access}`,
     `transport: ${details.transport}`,
     `heartbeat: ${details.heartbeat}`,
@@ -250,6 +255,7 @@ async function handleAgent(ctx: GatewayCommandContext): Promise<GatewayCommandRe
         model: agent.model,
         effort: agent.effort,
         threadMode: agent.thread_mode,
+        toolProgress: agent.tool_progress,
         fullAccess: agent.full_access === 1,
         transport: agent.webhook_url ? "webhook" : "poll",
         heartbeatMinutes: agent.heartbeat_minutes,
@@ -532,6 +538,26 @@ async function handleMode(ctx: GatewayCommandContext): Promise<GatewayCommandRes
   }
   ctx.db.updateAgent(agent.id, { thread_mode: target });
   return { text: `Mode set to ${target}`, data: { mode: target, agentId: agent.id } };
+}
+
+async function handleToolProgress(ctx: GatewayCommandContext): Promise<GatewayCommandResult> {
+  const { agent } = bindingAndAgent(ctx);
+  if (!agent) {
+    return {
+      text: `Tool progress requires a named agent. Legacy single-channel bindings always use ${DEFAULT_TOOL_PROGRESS}.`,
+      data: { toolProgress: DEFAULT_TOOL_PROGRESS, fixed: true },
+    };
+  }
+  const current = agent.tool_progress ?? DEFAULT_TOOL_PROGRESS;
+  if (!ctx.args) {
+    return { text: `Current tool progress: ${current}`, data: { toolProgress: current, agentId: agent.id } };
+  }
+  const target = ctx.args.trim().toLowerCase();
+  if (!(AGENT_TOOL_PROGRESS_MODES as readonly string[]).includes(target)) {
+    return { text: `toolprogress must be one of ${AGENT_TOOL_PROGRESS_MODES.join(", ")}` };
+  }
+  ctx.db.updateAgent(agent.id, { tool_progress: target as AgentRow["tool_progress"] });
+  return { text: `Tool progress set to ${target}`, data: { toolProgress: target, agentId: agent.id } };
 }
 
 async function handleHelp(): Promise<GatewayCommandResult> {

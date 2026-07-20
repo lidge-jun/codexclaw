@@ -141,6 +141,11 @@ export function buildEffortSelect(efforts                   , current        )  
   return buildSelectRow("effort_select", `Effort: ${current || "default"}`, normalizeCatalog(catalog, current));
 }
 
+export function buildToolProgressSelect(modes                   , current        )            {
+  const catalog = modes.map((mode) => ({ id: mode, label: mode }));
+  return buildSelectRow("tool_progress_select", `Tool progress: ${current}`, normalizeCatalog(catalog, current));
+}
+
 export function buildModeButtons(current        )            {
   return buildActionRow([
     { label: `${current === "thread" ? "* " : ""}Thread`, style: current === "thread" ? 1 : 2, customId: "mode_select:thread" },

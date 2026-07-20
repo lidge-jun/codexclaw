@@ -430,7 +430,7 @@ test("webhook private turns use draft progress and formatted final output", asyn
     }), res);
 
     assert.equal(res.status, 200);
-    svc.enqueued[0].onEvent?.({ kind: "thinking", text: "checking" });
+    svc.enqueued[0].onEvent?.({ kind: "tool_call", phase: "started", callId: "private-1", name: "check", input: "" });
     await new Promise((resolve) => setImmediate(resolve));
     assert.deepEqual(api.sent.map((entry) => entry.method), ["sendChatAction", "sendRichMessageDraft"]);
 
@@ -514,7 +514,7 @@ test("webhook /retry forwards events and uses the command message id for drafts"
     await settle();
 
     assert.equal(typeof svc.enqueued[0]?.onEvent, "function");
-    svc.enqueued[0].onEvent?.({ kind: "message", text: "retry draft" });
+    svc.enqueued[0].onEvent?.({ kind: "tool_call", phase: "started", callId: "retry-1", name: "retry", input: "draft" });
     await settle();
     const draft = api.sent.find((entry) => entry.method === "sendRichMessageDraft");
     assert.match(JSON.stringify(draft?.payload), /"draftId":81/);
@@ -573,11 +573,9 @@ test("webhook forum topic progress is silent, edited in-topic, deleted before th
       disableNotification: true,
     });
 
-    svc.enqueued[0].onEvent?.({ kind: "file_change", action: "modify", path: "src/topic.ts" });
-    svc.enqueued[0].onEvent?.({ kind: "message", text: "topic latest" });
+    svc.enqueued[0].onEvent?.({ kind: "tool_call", phase: "started", callId: "topic-1", name: "read", input: "src/topic.ts" });
     await clock.advance(2_000);
     const edit = api.sent.find((entry) => entry.method === "editMessageText");
-    assert.match(JSON.stringify(edit?.payload), /topic latest/);
     assert.match(JSON.stringify(edit?.payload), /src\/topic\.ts/);
 
     resolveTurn({ ok: true, text: "answer" });

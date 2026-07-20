@@ -122,8 +122,15 @@ export class DiscordApi {
     }
   }
 
-  sendMessage(channelId        , content        )                                            {
-    return this.call("POST", `/channels/${channelId}/messages`, { content });
+  sendMessage(
+    channelId        ,
+    content        ,
+    options                                      = {},
+  )                                            {
+    return this.call("POST", `/channels/${channelId}/messages`, {
+      content,
+      ...(options.suppressNotifications ? { flags: 4096 } : {}),
+    });
   }
 
   sendEmbed(
@@ -131,8 +138,14 @@ export class DiscordApi {
     content        ,
     embeds                ,
     components            ,
+    options                                      = {},
   )                                            {
-    return this.call("POST", `/channels/${channelId}/messages`, { content, embeds, components });
+    return this.call("POST", `/channels/${channelId}/messages`, {
+      content,
+      embeds,
+      components,
+      ...(options.suppressNotifications ? { flags: 4096 } : {}),
+    });
   }
 
   triggerTyping(channelId        )                                     {

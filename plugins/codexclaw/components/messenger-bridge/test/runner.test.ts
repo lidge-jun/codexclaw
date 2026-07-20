@@ -1,13 +1,14 @@
 /** runner.test.ts — buildExecArgs / parseExecEvent (pure) + runTurn against a fake codex bin. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync } from "node:fs";
+import { chmodSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { buildExecArgs, parseExecEvent, runTurn } from "../src/runner.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const FAKE = join(here, "fixtures", "fake-codex.mjs");
+const REAL_EVENTS = join(here, "fixtures", "codex-exec-tool-events.jsonl");
 chmodSync(FAKE, 0o755);
 
 function withMode(mode: string, fn: () => Promise<void>): Promise<void> {
@@ -65,16 +66,16 @@ test("parseExecEvent: recognizes each event kind, ignores noise", () => {
     { kind: "message", text: "hi" },
   );
   assert.deepEqual(
-    parseExecEvent('{"type":"item.started","item":{"type":"command_execution","command":"ls -la"}}'),
-    { kind: "status", label: "$ ls -la" },
+    parseExecEvent('{"type":"item.started","item":{"id":"cmd-1","type":"command_execution","command":"ls -la"}}'),
+    { kind: "tool_call", phase: "started", callId: "cmd-1", name: "$ ls -la", input: "" },
   );
   assert.deepEqual(
     parseExecEvent('{"type":"item.completed","item":{"type":"reasoning","text":"checking options"}}'),
     { kind: "thinking", text: "checking options" },
   );
   assert.deepEqual(
-    parseExecEvent('{"type":"item.started","item":{"type":"mcp_tool_call","tool_name":"read","arguments":{"path":"a.ts"}}}'),
-    { kind: "tool_call", name: "read", input: '{"path":"a.ts"}' },
+    parseExecEvent('{"type":"item.started","item":{"id":"call-1","type":"mcp_tool_call","tool_name":"read","arguments":{"path":"a.ts"}}}'),
+    { kind: "tool_call", phase: "started", callId: "call-1", name: "read", input: '{"path":"a.ts"}' },
   );
   assert.deepEqual(
     parseExecEvent('{"type":"item.completed","item":{"type":"patch","changes":[{"file":"a.ts","operation":"delete"}]}}'),
@@ -94,6 +95,41 @@ test("parseExecEvent: recognizes each event kind, ignores noise", () => {
     parseExecEvent('{"type":"item.completed","item":{"type":"agent_message","text":"  "}}'),
     null,
   );
+});
+
+test("parseExecEvent: real Codex command and MCP lifecycle fields remain correlated", () => {
+  const events = readFileSync(REAL_EVENTS, "utf8")
+    .trim()
+    .split("\n")
+    .map(parseExecEvent)
+    .filter((event) => event?.kind === "tool_call");
+  assert.deepEqual(events, [
+    { kind: "tool_call", phase: "started", callId: "item_command", name: "$ /bin/zsh -lc 'echo cxc-fixture'", input: "" },
+    { kind: "tool_call", phase: "completed", callId: "item_command", name: "$ /bin/zsh -lc 'echo cxc-fixture'", input: "", outcome: "success", resultSummary: "cxc-fixture" },
+    { kind: "tool_call", phase: "started", callId: "item_mcp", name: "codexclaw.subagents_get", input: "{}" },
+    { kind: "tool_call", phase: "completed", callId: "item_mcp", name: "codexclaw.subagents_get", input: "{}", outcome: "success", resultSummary: '{"content":[{"type":"text","text":"redacted fixture result"}]}' },
+  ]);
+});
+
+test("parseExecEvent: completion detail is bounded, neutral when unsupported, and ids distinguish repeated names", () => {
+  const long = "x".repeat(400);
+  const completed = parseExecEvent(JSON.stringify({
+    type: "item.completed",
+    item: { id: "a", type: "tool_call", name: "read", input: {}, output: `${long}\nsecret` },
+  }));
+  assert.equal(completed?.kind, "tool_call");
+  if (completed?.kind === "tool_call") {
+    assert.equal(completed.callId, "a");
+    assert.equal(completed.phase, "completed");
+    assert.equal(completed.outcome, undefined);
+    assert.equal(completed.resultSummary?.length, 300);
+    assert.equal(completed.resultSummary?.includes("\n"), false);
+  }
+  assert.deepEqual(
+    parseExecEvent('{"type":"item.started","item":{"id":"b","type":"tool_call","name":"read","input":{}}}'),
+    { kind: "tool_call", phase: "started", callId: "b", name: "read", input: "{}" },
+  );
+  assert.equal(parseExecEvent('{"type":"item.completed","item":{"type":"tool_call","name":"read"}}'), null);
 });
 
 test("runTurn: new run captures thread id, streams events, returns text", async () => {

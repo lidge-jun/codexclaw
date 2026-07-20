@@ -52,6 +52,7 @@ test("create -> list: agent appears with hasToken, token never serialized", asyn
   assert.equal(agents[0].enabled, false);
   assert.equal(agents[0].fullAccess, true);
   assert.equal(agents[0].webhookUrl, "");
+  assert.equal(agents[0].toolProgress, "new");
 });
 
 test("create: invalid token -> 400 with the validator error; duplicate name -> 400", async () => {
@@ -115,6 +116,18 @@ test("update: effort enum rejected, valid patch applied, autoSend/mentionOnly ma
   const okMode = await route(routes, "POST", "/api/agents/update").handler(ctx, { id, threadMode: "plain" }, URL0);
   assert.equal(okMode.status, 200);
   assert.equal((okMode.body as { agent: { threadMode: string } }).agent.threadMode, "plain");
+
+  for (const toolProgress of ["off", "new", "all", "verbose"] as const) {
+    const changed = await route(routes, "POST", "/api/agents/update").handler(ctx, { id, toolProgress }, URL0);
+    assert.equal(changed.status, 200);
+    assert.equal((changed.body as { agent: { toolProgress: string } }).agent.toolProgress, toolProgress);
+  }
+  const beforeInvalid = ctx.db.getAgent(id)?.tool_progress;
+  const invalidProgress = await route(routes, "POST", "/api/agents/update").handler(
+    ctx, { id, toolProgress: "sometimes" }, URL0,
+  );
+  assert.equal(invalidProgress.status, 400);
+  assert.equal(ctx.db.getAgent(id)?.tool_progress, beforeInvalid);
 });
 
 test("enable requires a token; delete refuses while enabled then succeeds", async () => {

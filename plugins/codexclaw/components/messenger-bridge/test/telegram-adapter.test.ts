@@ -484,7 +484,7 @@ test("draft streaming uses sendRichMessageDraft only for private rich-supported 
       workdir: cwd,
       fetchImpl,
       agentService: stubAgentService(async (req) => {
-        req.onEvent?.({ kind: "message", text: `partial ${req.chatId}` });
+        req.onEvent?.({ kind: "tool_call", phase: "started", callId: `tool-${req.chatId}`, name: "read", input: String(req.chatId) });
         return { ok: true, text: "done" };
       }),
     });
@@ -513,7 +513,7 @@ test("private draft progress uses drafts for file changes and never legacy statu
       workdir: cwd,
       fetchImpl,
       agentService: stubAgentService(async (req) => {
-        req.onEvent?.({ kind: "file_change", path: "src/app.ts", action: "modify" });
+        req.onEvent?.({ kind: "tool_call", phase: "started", callId: "tool-503", name: "read", input: "src/app.ts" });
         return { ok: true, text: "done" };
       }),
     });
@@ -546,7 +546,7 @@ test("long-poll /retry uses the command message id for private draft progress", 
       workdir: cwd,
       fetchImpl,
       agentService: stubAgentService(async (req) => {
-        req.onEvent?.({ kind: "message", text: "retry progress" });
+        req.onEvent?.({ kind: "tool_call", phase: "started", callId: "retry-1", name: "retry", input: "progress" });
         return { ok: true, text: "retried answer" };
       }),
     });
@@ -556,7 +556,7 @@ test("long-poll /retry uses the command message id for private draft progress", 
 
     const draft = calls.find((call) => call.method === "sendRichMessageDraft");
     assert.equal(draft?.payload.draft_id, 55);
-    assert.match(JSON.stringify(draft?.payload), /retry progress/);
+    assert.match(JSON.stringify(draft?.payload), /▶ retry progress/);
     assert.ok(calls.some((call) => call.method === "sendMessage" && call.payload.text === "retried answer"));
   } finally {
     await settle();
@@ -586,7 +586,7 @@ test("group topic progress sends one silent status, edits it, deletes it, then s
       fetchImpl,
       progressDeps: clock.deps,
       agentService: stubAgentService(async (req) => {
-        req.onEvent?.({ kind: "tool_call", name: "shell", input: "npm test" });
+        req.onEvent?.({ kind: "tool_call", phase: "started", callId: "shell-1", name: "shell", input: "npm test" });
         req.onEvent?.({ kind: "file_change", action: "modify", path: "src/app.ts" });
         req.onEvent?.({ kind: "message", text: "latest item" });
         await clock.advance(2_000);
@@ -607,8 +607,8 @@ test("group topic progress sends one silent status, edits it, deletes it, then s
       disable_notification: true,
     });
     const edit = calls.find((c) => c.method === "editMessageText");
-    assert.match(String(edit?.payload.text), /Latest\nlatest item/);
-    assert.match(String(edit?.payload.text), /Activity\nshell npm test\nmodify src\/app\.ts/);
+    assert.doesNotMatch(String(edit?.payload.text), /Latest|src\/app\.ts/);
+    assert.match(String(edit?.payload.text), /Activity\n▶ shell npm test/);
     const deletedAt = calls.findIndex((c) => c.method === "deleteMessage");
     const finalAt = calls.findIndex((c) => c.method === "sendRichMessage" && JSON.stringify(c.payload).includes("done"));
     assert.ok(deletedAt >= 0 && finalAt > deletedAt);

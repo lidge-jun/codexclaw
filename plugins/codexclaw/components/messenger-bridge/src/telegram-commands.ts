@@ -20,6 +20,7 @@ import {
   buildEffortPicker,
   buildModePicker,
   buildModelPicker,
+  buildToolProgressPicker,
   loadModelCatalog,
 } from "./telegram-interactive.ts";
 import { chunkTelegramMessage, escapeHtmlTg } from "./telegram-format.ts";
@@ -85,6 +86,7 @@ export function buildCommandDefs(): CommandDef[] {
     { name: "model", description: "Show, list, set, or reset AI model", handler: handleModel },
     { name: "effort", description: "Show, set, or reset reasoning effort", handler: handleEffort },
     { name: "mode", description: "Show or set thread mode (thread|plain)", handler: handleMode },
+    { name: "toolprogress", description: "Show or set tool progress", handler: handleToolProgress },
     { name: "stop", description: "Stop the current turn", handler: (ctx) => handleGateway(ctx, "stop") },
     { name: "retry", description: "Retry the last prompt", handler: (ctx) => handleGateway(ctx, "retry") },
     { name: "approve", description: "List or resolve pending approvals", handler: (ctx) => handleGateway(ctx, "approve") },
@@ -198,6 +200,24 @@ async function handleMode(ctx: CommandContext): Promise<CommandResult> {
   return {
     text: result?.text ?? `Current mode: ${current}`,
     keyboard: buildModePicker(current, binding.id),
+  };
+}
+
+async function handleToolProgress(ctx: CommandContext): Promise<CommandResult> {
+  const binding = getBinding(ctx);
+  const result = await dispatchGatewayCommand("toolprogress", {
+    bindingId: binding.id,
+    db: ctx.db,
+    agentService: ctx.agentService,
+    agentId: ctx.agentId,
+    args: ctx.args,
+    defaultWorkdir: ctx.workdir,
+  });
+  if (ctx.args || !result?.data?.agentId) return toTelegramCommandResult(result);
+  const current = String(result.data.toolProgress ?? "new");
+  return {
+    text: result.text,
+    keyboard: buildToolProgressPicker(current, binding.id),
   };
 }
 

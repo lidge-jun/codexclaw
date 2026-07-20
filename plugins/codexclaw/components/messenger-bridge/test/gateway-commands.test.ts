@@ -536,6 +536,36 @@ test("/mode requires a named agent", async () => {
   }
 });
 
+test("/toolprogress queries, persists all modes, rejects invalid input, and reports legacy new", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    const agent = db.createAgent("dc-progress", "discord", "tok");
+    const binding = db.getOrCreateAgentBinding(agent.id, "discord", "504", cwd);
+    const base = { bindingId: binding.id, db, agentService: stubAgent(), agentId: agent.id };
+    assert.equal((await dispatchGatewayCommand("toolprogress", { ...base, args: "" }))?.data?.toolProgress, "new");
+    for (const mode of ["off", "new", "all", "verbose"]) {
+      const result = await dispatchGatewayCommand("toolprogress", { ...base, args: mode });
+      assert.equal(result?.data?.toolProgress, mode);
+      assert.equal(db.getAgent(agent.id)?.tool_progress, mode);
+    }
+    const invalid = await dispatchGatewayCommand("toolprogress", { ...base, args: "sometimes" });
+    assert.match(invalid?.text ?? "", /must be one of/);
+    assert.equal(db.getAgent(agent.id)?.tool_progress, "verbose");
+    assert.match((await dispatchGatewayCommand("status", { ...base, args: "" }))?.text ?? "", /tool_progress: verbose/);
+    assert.match((await dispatchGatewayCommand("agent", { ...base, args: "" }))?.text ?? "", /tool_progress: verbose/);
+
+    const legacy = db.getOrCreateBinding("discord", "legacy-progress", cwd);
+    const legacyResult = await dispatchGatewayCommand("toolprogress", {
+      bindingId: legacy.id, db, agentService: stubAgent(), agentId: null, args: "off",
+    });
+    assert.match(legacyResult?.text ?? "", /always use new/);
+    assert.equal(legacyResult?.data?.toolProgress, "new");
+  } finally {
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
 // ── buildHelpEntries structure tests (A-5) ──────────────
 
 import { buildHelpEntries, GATEWAY_COMMANDS } from "../src/gateway-commands.ts";

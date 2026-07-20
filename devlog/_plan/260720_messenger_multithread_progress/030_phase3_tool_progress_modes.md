@@ -4,6 +4,29 @@ Status: P (design) · class C3 · implementation not started
 
 ## Loop-spec header
 
+- **WP3 D as-built (2026-07-20):** implemented as specced in mandatory order.
+  Real capture (codex-cli 0.144.5): commands AND MCP calls emit stable
+  `item.id` across started/completed — no FIFO/uncorrelated fallback needed;
+  command results carry `aggregated_output`/`exit_code`/`status`; MCP items
+  carry `server`/`tool`/`arguments`/`result`/`error`/`status`. Shipped:
+  runner lifecycle contract, `tool-progress.ts` policy, db v10 migration
+  (`tool_progress` DEFAULT 'new', CHECK enum), agent-routes/gateway/Telegram/
+  Discord surfaces (Telegram 4-button picker + Discord picker implemented —
+  existing patterns fit), renderer gating + notification suppression on every
+  attended renderer. Fresh gates: `npm test` 1192/1192, build exit 0.
+  `dist/tool-progress.js` force-tracked (L19).
+- **WP3 P stale check (2026-07-20, post-WP1/WP2 tree):** `runner.ts:21-29,111-123`
+  and `db.ts:411-432,728` anchors verified current. CORRECTED: the
+  named-agent setter pattern is `handleMode()` at `gateway-commands.ts:517`
+  (registry entry :63) — the doc's `:508-525` citation drifted after WP1.
+  WP1/WP2 landed both renderers with the exact `progressFilter` seam this doc
+  assumes (`telegram-progress.ts`, `discord-interaction-progress.ts`), so the
+  renderer-gating work below is WIRING (agent setting → filter at each call
+  site), not renderer changes. The runner work item 1 changes the
+  `tool_call` variant shape — both controllers consume `RunnerEvent` and must
+  be checked for exhaustive handling of the new fields (they read
+  `name`/`input`, which survive; `phase`/`callId`/`outcome`/`resultSummary`
+  are additive).
 - **Loop archetype:** spec-satisfaction
 - **Goal:** add Hermes-parity `tool_progress` modes (`off`, `new`, `all`,
   `verbose`) as a persisted named-agent setting, backed by lifecycle-aware
@@ -47,7 +70,7 @@ normal platform/user settings.
 |------|---------------------------|--------------------|---------------------------|-------------------------------|
 | `off` | none | Typing/draft acknowledgement may continue, but the editable progress bubble has no event lines; final is a separate notifying message. | Typing may continue; no event-driven progress embed is sent. Final answer is notifying. | Deferred acknowledgement/original remains a generic working state; no event edits. Pre-expiry handoff, if needed, carries only generic working state; final answer notifies. |
 | `new` | each distinct `tool_call` with `phase: "started"` once by `callId` | Append `▶ <tool> <input summary>` once to the rolling activity window. | Edit the one progress embed to show the newly started tool line. | Edit the original or handed-off channel progress message with the newly started tool line. |
-| `all` | `started` and `completed`, once per `(callId, phase)` | Append `▶ <tool> …` then `✓ <tool>` or `✗ <tool>` without result body. | Show start then completion state/detail in the same progress embed. | Same as gateway, against the current interaction progress target. |
+| `all` | `started` and `completed`, once per `(callId, phase)` | Append `▶ <tool> …` then `✓ <tool>` / `✗ <tool>` / `■ <tool>` (neutral marker when the payload carries no outcome — never guess success/failure) without result body. | Show start then completion state/detail in the same progress embed. | Same as gateway, against the current interaction progress target. |
 | `verbose` | same as `all` | Completion line includes a sanitized, single-line bounded result summary. | Completion embed detail includes the same bounded summary. | Same as gateway, before or after handoff. |
 
 Thinking, generic status, file-change, and partial/completed assistant-message
@@ -86,26 +109,68 @@ After:
 - Map `item.started` only to `phase: "started"` and `item.completed` only to
   `phase: "completed"`.
 - Extract a stable call id from the verified Codex item identity field, preserve
-  name/input on both phases, derive outcome only when supported by payload, and
-  summarize completion output/result/error to a sanitized single line capped
-  at 300 characters. Never place raw multi-kilobyte tool output in a
-  `RunnerEvent`.
+  name/input on both phases, derive outcome only when supported by payload
+  (`outcome` ABSENT = the neutral `■` completion marker; the policy never
+  infers success/failure), and summarize completion output/result/error to a
+  sanitized single line capped at 300 characters. Never place raw
+  multi-kilobyte tool output in a `RunnerEvent`.
+- `command_execution` items get the SAME lifecycle treatment through the SAME
+  enriched `tool_call` variant (NO sibling variant — one shape everywhere):
+  `name` is `"$ <command>"` (today's status label becomes the tool name),
+  `item.started` emits `phase: "started"` and `item.completed` emits
+  `phase: "completed"` (with outcome/resultSummary when the payload supports
+  it), replacing the current lossy `status` conversion
+  (`runner.ts:149-152`). Policy, deduplication, and tests treat shell
+  commands and tools uniformly.
 - Continue emitting file changes as `file_change`; they are not reclassified as
   tools.
 - Keep `spawnOnce()` forwarding events unchanged apart from accepting the richer
-  union.
+  union. NOTE (A-audit): the new `phase`/`callId` fields are REQUIRED, so the
+  contract is additive for CONSUMERS but breaking for event PRODUCERS — every
+  fixture producer migrates (see the fixture section below).
 
 **UNVERIFIED local payload shape:** repository fixtures prove event type and
 tool name/arguments, but do not prove the real `codex exec --json` fields for
 item id, completion result/output, or outcome
 (`plugins/codexclaw/components/messenger-bridge/test/runner.test.ts:58-82`).
-The first B step must capture a real harmless command and MCP call with
-`codex exec --json`, retain redacted started/completed JSONL as a test fixture,
-and record the exact identity/result fields. If current Codex emits no stable
-identity, B must introduce a stateful parser that assigns sequence ids and
-correlates completions by verified payload fields/FIFO; it must not fake a
-stable id inside the current pure parser. This is a build gate, not an optional
-follow-up.
+The first B step must capture real payloads (this host has codex-cli 0.144.5
+with MCP servers enabled — verified at WP3 A):
+
+```bash
+cd <scratch dir> && codex exec --json --skip-git-repo-check \
+  'Run the shell command: echo cxc-fixture — then stop.'
+```
+
+(single quotes — backticks inside double quotes would execute locally).
+For the MCP capture: run `codex mcp list`, pick the FIRST enabled server
+exposing a read-only/no-arg tool, and invoke it via
+`codex exec --json --skip-git-repo-check 'Call the <server>.<tool> tool once, then stop.'`,
+recording the exact server/tool chosen in the fixture header. If NO enabled
+server offers a read-only tool, record that fact in the fixture header and
+proceed with the command-only capture (MCP shape then reuses the same parser
+path as tools, covered by synthetic fixtures). Destination:
+`plugins/codexclaw/components/messenger-bridge/test/fixtures/codex-exec-tool-events.jsonl`.
+Redaction checklist before committing the fixture: no absolute home paths, no
+tokens/env values, no user prompts beyond the canned one, tool outputs
+truncated to the fields the parser reads. Record the exact identity/result
+fields found. If current Codex emits no stable identity, B introduces a
+stateful parser that assigns sequence ids; FIFO correlation is permitted ONLY
+when the captured stream proves starts/completions do not overlap (sequential
+execution). With overlap and no stable id, completions are emitted as
+UNCORRELATED completed events (fresh sequence id, no attempt to attach
+outcome/result to a start) — never guess. It must not fake a stable id inside
+the pure parser. This is a build gate, not an optional follow-up.
+
+### MODIFY `plugins/codexclaw/components/messenger-bridge/test/fixtures/fake-codex.mjs`
+
+Before: emits tool events without `phase`/`callId` (:59).
+
+After: emits paired started/completed tool and command events with stable
+ids, so downstream suites exercise the richer contract. ALL event-producer
+fixtures migrate with it: `test/telegram-progress.test.ts:214,241`,
+`test/telegram-adapter.test.ts:589`,
+`test/discord-interaction-progress.test.ts:75,81` (line numbers at WP3 A;
+re-locate by `tool_call` literal if they drift).
 
 ### MODIFY `plugins/codexclaw/components/messenger-bridge/test/runner.test.ts`
 
@@ -135,8 +200,11 @@ line format.
 ### NEW `plugins/codexclaw/components/messenger-bridge/test/tool-progress.test.ts`
 
 Table-test all four modes, duplicate suppression, repeated tool names with
-different ids, completion success/error, verbose truncation/sanitization, and
-non-tool event rejection.
+different ids, completion success/error, MISSING-outcome completion rendering
+the neutral `■` marker in `all` and `verbose` (no inferred success/failure),
+verbose truncation/sanitization, shell-command events flowing through the
+same `tool_call` variant (`"$ <command>"` name), and non-tool event
+rejection.
 
 ### Work item 2 — persistence and public API
 
@@ -203,7 +271,8 @@ Functions: `GATEWAY_COMMANDS`, `handleStatus()`, `handleAgent()`, and new
 `handleToolProgress()`.
 
 Before: registry/status have no tool-progress setting; `handleMode()` at
-`gateway-commands.ts:508-525` is the closest named-agent setter pattern.
+`gateway-commands.ts:517` (registry entry :63) is the closest named-agent
+setter pattern.
 
 After:
 
@@ -215,6 +284,15 @@ After:
   agent, show current/default when no arg, validate against the canonical enum,
   call `updateAgent(agent.id, { tool_progress: target })`, and return mode plus
   agent id. Legacy bindings report that the fixed effective mode is `new`.
+
+### MODIFY `plugins/codexclaw/components/messenger-bridge/src/discord-adapter.ts`
+
+Before: `GATEWAY_TEXT_COMMANDS` (:57-60) allowlists textual gateway commands
+and does not include `toolprogress` — the new setter would be unreachable
+from Discord text commands.
+
+After: add `toolprogress` to the allowlist; text-command tests cover
+query/set/invalid paths.
 
 ### MODIFY `plugins/codexclaw/components/messenger-bridge/test/gateway-commands.test.ts`
 

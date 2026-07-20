@@ -105,6 +105,7 @@ test("registerTelegramCommands is built from the command registry", async () => 
   assert.ok(commands.some((cmd) => cmd.command === "sessions"));
   assert.ok(commands.some((cmd) => cmd.command === "jobs"));
   assert.ok(commands.some((cmd) => cmd.command === "agent"));
+  assert.ok(commands.some((cmd) => cmd.command === "toolprogress"));
   assert.ok(commands.some((cmd) => cmd.command === "model" && /list/.test(cmd.description) && /reset/.test(cmd.description)));
   assert.ok(commands.some((cmd) => cmd.command === "cwd" && /reset/.test(cmd.description)));
 });
@@ -279,6 +280,28 @@ test("bare /mode shows a Telegram picker with the current mode marked", async ()
     assert.equal(result?.keyboard?.[0]?.length, 2);
     assert.match(result?.keyboard?.[0]?.[1]?.text ?? "", /^\* Plain/);
     assert.match(result?.keyboard?.[0]?.[1]?.callback_data ?? "", /^o:\d+:plain$/);
+  } finally {
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
+test("/toolprogress uses the named-agent picker and persists explicit values", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    const agent = db.createAgent("telegram-progress", "telegram", "tok");
+    db.getOrCreateAgentBinding(agent.id, "telegram", "100", cwd);
+    const query = await findCommandDef("toolprogress")!.handler(baseCtx(db, cwd, { agentId: agent.id }));
+    assert.match(query?.text ?? "", /Current tool progress: new/);
+    assert.equal(query?.keyboard?.flat().length, 4);
+    assert.match(query?.keyboard?.flat()[1]?.callback_data ?? "", /^p:\d+:new$/);
+    for (const mode of ["off", "new", "all", "verbose"]) {
+      const result = await findCommandDef("toolprogress")!.handler(baseCtx(db, cwd, { agentId: agent.id, args: mode }));
+      assert.equal(result?.text, `Tool progress set to ${mode}`);
+      assert.equal(db.getAgent(agent.id)?.tool_progress, mode);
+    }
+    const invalid = await findCommandDef("toolprogress")!.handler(baseCtx(db, cwd, { agentId: agent.id, args: "sometimes" }));
+    assert.match(invalid?.text ?? "", /must be one of/);
   } finally {
     db.close();
     rmRfRetry(cwd);

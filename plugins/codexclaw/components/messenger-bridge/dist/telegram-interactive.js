@@ -5,7 +5,7 @@
  * model selections use catalog indexes instead of full model ids.
  */
 import { buildCatalog } from "../../subagent-config/dist/catalog.js";
-import { AGENT_EFFORTS, AGENT_THREAD_MODES,               } from "./db.js";
+import { AGENT_EFFORTS, AGENT_THREAD_MODES, AGENT_TOOL_PROGRESS_MODES,               } from "./db.js";
 import { telegramReplyThreadId,                                        } from "./telegram-api.js";
 
 
@@ -33,6 +33,7 @@ const CALLBACK_TAGS = {
   model_select: "m",
   effort_select: "e",
   mode_select: "o",
+  tool_progress_select: "p",
   approve: "a",
   deny: "d",
   retry: "r",
@@ -99,6 +100,16 @@ export function buildModePicker(current        , bindingId = 0)                 
   ];
 }
 
+export function buildToolProgressPicker(current        , bindingId = 0)                 {
+  return rows(
+    AGENT_TOOL_PROGRESS_MODES.map((mode) => ({
+      text: `${mode === current ? "* " : ""}${mode}`,
+      callback_data: encodeCallback({ type: "tool_progress_select", payload: `${bindingId}:${mode}` }),
+    })),
+    2,
+  );
+}
+
 export async function handleCallback(
   api             ,
   query                 ,
@@ -128,6 +139,10 @@ export async function handleCallback(
     }
     if (action.type === "mode_select") {
       answer = await handleModeSelect(api, query, db, action.payload);
+      return;
+    }
+    if (action.type === "tool_progress_select") {
+      answer = await handleToolProgressSelect(api, query, db, action.payload);
       return;
     }
     if (action.type === "approve" || action.type === "deny") {
@@ -185,7 +200,12 @@ function authorizeCallback(
 }
 
 function callbackBindingId(action                )                {
-  if (action.type !== "model_select" && action.type !== "effort_select" && action.type !== "mode_select") return null;
+  if (
+    action.type !== "model_select"
+    && action.type !== "effort_select"
+    && action.type !== "mode_select"
+    && action.type !== "tool_progress_select"
+  ) return null;
   return parsePayload(action.payload)?.bindingId ?? null;
 }
 
@@ -246,6 +266,27 @@ async function handleModeSelect(
   db.updateAgent(agent.id, { thread_mode: mode });
   await editCallbackMessage(api, query, `Mode set to ${mode}`);
   return "Mode set";
+}
+
+async function handleToolProgressSelect(
+  api             ,
+  query                 ,
+  db          ,
+  payload        ,
+)                  {
+  const parsed = parsePayload(payload);
+  if (!parsed) return "Invalid tool progress selection";
+  const mode = parsed.value;
+  if (!(AGENT_TOOL_PROGRESS_MODES                     ).includes(mode)) return "Unknown tool progress";
+  const binding = db.getBinding(parsed.bindingId);
+  if (!binding) return "Binding not found";
+  if (binding.agent_id === null) return "Tool progress requires a named agent";
+  const agent = db.getAgent(binding.agent_id);
+  if (!agent) return "Agent not found";
+
+  db.updateAgent(agent.id, { tool_progress: mode                               });
+  await editCallbackMessage(api, query, `Tool progress set to ${mode}`);
+  return "Tool progress set";
 }
 
 function parsePayload(payload        )                                              {

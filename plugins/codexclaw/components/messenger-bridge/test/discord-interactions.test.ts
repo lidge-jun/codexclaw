@@ -299,6 +299,37 @@ test("MESSAGE_COMPONENT mode_select updates the current agent thread mode", asyn
   }
 });
 
+test("MESSAGE_COMPONENT tool_progress_select validates and updates the current named agent", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    const agent = db.createAgent("discord-progress", "discord", "T");
+    const ctx = makeCtx(db, cwd);
+    ctx.agentId = agent.id;
+    for (const mode of ["off", "new", "all", "verbose"]) {
+      await handleInteraction({
+        id: `i-progress-${mode}`,
+        token: "tok-progress",
+        type: 3,
+        channel_id: "chan-1",
+        data: { custom_id: "tool_progress_select", values: [mode] },
+      }, ctx);
+      assert.equal(db.getAgent(agent.id)?.tool_progress, mode);
+    }
+    await handleInteraction({
+      id: "i-progress-invalid",
+      token: "tok-progress",
+      type: 3,
+      channel_id: "chan-1",
+      data: { custom_id: "tool_progress_select", values: ["sometimes"] },
+    }, ctx);
+    assert.equal(db.getAgent(agent.id)?.tool_progress, "verbose");
+    assert.match(JSON.stringify(ctx.edits.at(-1)), /Unknown tool progress/);
+  } finally {
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
 test("MESSAGE_COMPONENT unauthorized approval returns an ack without resolving", async () => {
   const { db, cwd } = tempDb();
   try {

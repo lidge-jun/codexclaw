@@ -10,6 +10,7 @@ import {
   runTurnFromInteraction,
   setEffortFromInteraction,
   updateAgentMode,
+  updateAgentToolProgress,
   updateBindingModel,
 } from "./discord-commands.ts";
 
@@ -166,6 +167,18 @@ async function handleComponentInteraction(interaction: Interaction, ctx: Interac
     return;
   }
 
+  if (customId === "tool_progress_select") {
+    const mode = selectedValue(interaction) ?? "";
+    const status = updateAgentToolProgress(interaction, ctx, mode);
+    await editDeferredReply(ctx.api, ctx.applicationId, interaction.token, {
+      embeds: [buildStatusEmbed(
+        status === "updated" ? "success" : "needs_input",
+        toolProgressStatusText(status, mode),
+      )],
+    });
+    return;
+  }
+
   if (customId.startsWith("retry")) {
     const binding = resolveInteractionBinding(interaction, ctx);
     const last = ctx.db.listJobs(binding.id, 1)[0];
@@ -266,5 +279,14 @@ function modeStatusText(status: "updated" | "invalid" | "legacy" | "missing", mo
       return "Mode requires a named agent.";
     case "missing":
       return "Agent not found.";
+  }
+}
+
+function toolProgressStatusText(status: "updated" | "invalid" | "legacy" | "missing", mode: string): string {
+  switch (status) {
+    case "updated": return `Tool progress set to ${mode}.`;
+    case "invalid": return "Unknown tool progress.";
+    case "legacy": return "Tool progress requires a named agent.";
+    case "missing": return "Agent not found.";
   }
 }

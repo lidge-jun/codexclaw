@@ -30,6 +30,7 @@ import { cleanupTmpMedia, downloadTelegramMessageMedia } from "./media-handler.t
 import { sendFormattedTelegramOutput } from "./output-formatter.ts";
 import { createTelegramTurnProgress, type TelegramProgressDeps } from "./telegram-progress.ts";
 import { probeRichSupport } from "./telegram-rich-send.ts";
+import { createToolProgressFilter, DEFAULT_TOOL_PROGRESS } from "./tool-progress.ts";
 
 export interface TelegramAdapterOptions {
   db: BridgeDb;
@@ -340,6 +341,9 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
   }
 
   function turnProgress(msg: TgMessage, chatId: string) {
+    const toolProgress = agentId === null
+      ? DEFAULT_TOOL_PROGRESS
+      : (opts.db.getAgent(agentId)?.tool_progress ?? DEFAULT_TOOL_PROGRESS);
     return createTelegramTurnProgress({
       api,
       chatId,
@@ -347,6 +351,7 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
       richSupported,
       messageThreadId: telegramReplyThreadId(msg),
       draftId: msg.message_id,
+      progressFilter: createToolProgressFilter(toolProgress),
       deps: opts.progressDeps,
       log,
     });

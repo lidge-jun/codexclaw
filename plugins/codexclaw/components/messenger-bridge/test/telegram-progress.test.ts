@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { RunnerEvent } from "../src/runner.ts";
 import { createTelegramTurnProgress, type TelegramProgressDeps } from "../src/telegram-progress.ts";
+import { createToolProgressFilter } from "../src/tool-progress.ts";
 import type { TelegramApi, TgResponse } from "../src/telegram-api.ts";
 
 interface TimerEntry {
@@ -211,7 +212,7 @@ test("renderer keeps Latest independent and a deduplicated last-five Activity wi
   const events: RunnerEvent[] = [
     { kind: "status", label: "one" },
     { kind: "thinking", text: "two" },
-    { kind: "tool_call", name: "shell", input: "three" },
+    { kind: "tool_call", phase: "started", callId: "3", name: "shell", input: "three" },
     { kind: "file_change", action: "modify", path: "four.ts" },
     { kind: "status", label: "five" },
     { kind: "status", label: "five" },
@@ -238,7 +239,7 @@ test("progressFilter applies per-kind summary/drop semantics but message bypasse
   await progress.start();
   progress.onEvent({ kind: "status", label: "private label" });
   progress.onEvent({ kind: "thinking", text: "secret thought" });
-  progress.onEvent({ kind: "tool_call", name: "shell", input: "secret args" });
+  progress.onEvent({ kind: "tool_call", phase: "started", callId: "1", name: "shell", input: "secret args" });
   progress.onEvent({ kind: "file_change", action: "modify", path: "src/x.ts" });
   progress.onEvent({ kind: "message", text: "always latest" });
   await clock.advance(2_000);
@@ -285,4 +286,25 @@ test("rendered status remains below Telegram's 4096-character ceiling", async ()
   const body = String(calls.find((call) => call.method === "editMessageText")?.args[2]);
   assert.ok(body.length < 4_096);
   await progress.finish();
+});
+
+test("toolProgress enforces off/new/all/verbose and neutral completion markers", async () => {
+  for (const mode of ["off", "new", "all", "verbose"] as const) {
+    const clock = fakeClock();
+    const { api, calls } = fakeApi();
+    const progress = statusProgress(api, clock, { progressFilter: createToolProgressFilter(mode) });
+    await progress.start();
+    progress.onEvent({ kind: "thinking", text: "ignored" });
+    progress.onEvent({ kind: "tool_call", phase: "started", callId: "1", name: "read", input: "a.ts" });
+    progress.onEvent({ kind: "tool_call", phase: "completed", callId: "1", name: "read", input: "a.ts", resultSummary: "line one\nline two" });
+    await clock.advance(2_000);
+    const body = String(calls.find((call) => call.method === "editMessageText")?.args[2] ?? "");
+    if (mode === "off") assert.equal(body, "");
+    else assert.match(body, /▶ read a\.ts/);
+    if (mode === "all") assert.match(body, /■ read/);
+    if (mode === "verbose") assert.match(body, /■ read — line one line two/);
+    if (mode === "new") assert.doesNotMatch(body, /■ read/);
+    assert.doesNotMatch(body, /ignored/);
+    await progress.finish();
+  }
 });

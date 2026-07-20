@@ -30,6 +30,7 @@ import { cleanupTmpMedia, downloadTelegramMessageMedia } from "./media-handler.j
 import { sendFormattedTelegramOutput } from "./output-formatter.js";
 import { createTelegramTurnProgress,                           } from "./telegram-progress.js";
 import { probeRichSupport } from "./telegram-rich-send.js";
+import { createToolProgressFilter, DEFAULT_TOOL_PROGRESS } from "./tool-progress.js";
 
 
 
@@ -340,6 +341,9 @@ export function createTelegramAdapter(opts                        )             
   }
 
   function turnProgress(msg           , chatId        ) {
+    const toolProgress = agentId === null
+      ? DEFAULT_TOOL_PROGRESS
+      : (opts.db.getAgent(agentId)?.tool_progress ?? DEFAULT_TOOL_PROGRESS);
     return createTelegramTurnProgress({
       api,
       chatId,
@@ -347,6 +351,7 @@ export function createTelegramAdapter(opts                        )             
       richSupported,
       messageThreadId: telegramReplyThreadId(msg),
       draftId: msg.message_id,
+      progressFilter: createToolProgressFilter(toolProgress),
       deps: opts.progressDeps,
       log,
     });

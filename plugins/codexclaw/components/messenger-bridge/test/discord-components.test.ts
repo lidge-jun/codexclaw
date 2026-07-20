@@ -6,6 +6,7 @@ import {
   buildActionRow,
   buildApprovalCard,
   buildEffortSelect,
+  buildToolProgressSelect,
   buildModeButtons,
   buildModelSelect,
   buildStatusEmbed,
@@ -47,6 +48,17 @@ test("buildEffortSelect uses the effort custom id", () => {
   const select = row.components[0];
   assert.equal(select.custom_id, "effort_select");
   assert.ok(select.options.some((option) => option.value === "high" && option.default === true));
+});
+
+test("buildToolProgressSelect exposes four modes and marks the current one", () => {
+  const row = buildToolProgressSelect(["off", "new", "all", "verbose"], "all");
+  const select = row.components[0];
+  assert.equal(select.type, 3);
+  if (select.type === 3) {
+    assert.equal(select.custom_id, "tool_progress_select");
+    assert.equal(select.options.length, 4);
+    assert.equal(select.options.find((option) => option.value === "all")?.default, true);
+  }
 });
 
 test("select builders mark the current option with native default true", () => {

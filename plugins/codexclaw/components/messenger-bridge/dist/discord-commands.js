@@ -1,4 +1,4 @@
-import { AGENT_EFFORTS, AGENT_THREAD_MODES,                 } from "./db.js";
+import { AGENT_EFFORTS, AGENT_THREAD_MODES, AGENT_TOOL_PROGRESS_MODES,                 } from "./db.js";
 import { formatApprovalForDiscord,                      } from "./approval-relay.js";
 
 
@@ -8,12 +8,14 @@ import {
   buildModeButtons,
   buildModelSelect,
   buildStatusEmbed,
+  buildToolProgressSelect,
   capDiscordEmbed,
 
 
 } from "./discord-components.js";
 import { sendFormattedDiscordOutput } from "./output-formatter.js";
 import { createDiscordInteractionProgress } from "./discord-interaction-progress.js";
+import { createToolProgressFilter, DEFAULT_TOOL_PROGRESS } from "./tool-progress.js";
 
 
 
@@ -179,6 +181,31 @@ export const COMMANDS                    = [
     },
   },
   {
+    name: "toolprogress",
+    description: "Show or set tool progress",
+    options: [{
+      name: "value",
+      description: "Tool progress mode",
+      type: 3,
+      choices: AGENT_TOOL_PROGRESS_MODES.map((mode) => ({ name: mode, value: mode })),
+    }],
+    handler: async (interaction, ctx) => {
+      const value = stringOption(interaction, "value");
+      if (value) return editGatewayReply(interaction, ctx, "toolprogress", value);
+      const binding = resolveInteractionBinding(interaction, ctx);
+      const result = await dispatchGatewayCommand("toolprogress", gatewayCtx(interaction, ctx, binding, ""));
+      const current = typeof result?.data?.agentId === "number" ? String(result.data.toolProgress ?? "new") : "";
+      if (!current) {
+        await editGatewayReply(interaction, ctx, "toolprogress");
+        return;
+      }
+      await ctx.api.editOriginalInteractionResponse(ctx.applicationId, interaction.token, {
+        embeds: [buildStatusEmbed("needs_input", result?.text ?? `Current tool progress: ${current}`)],
+        components: [buildToolProgressSelect(AGENT_TOOL_PROGRESS_MODES, current)],
+      });
+    },
+  },
+  {
     name: "cwd",
     description: "Show, update, or reset this chat's Codex workdir",
     options: [{ name: "path", description: "/cwd [path|reset]", type: 3 }],
@@ -244,6 +271,9 @@ export async function runTurnFromInteraction(
   text        ,
 )                {
   const binding = resolveInteractionBinding(interaction, ctx);
+  const toolProgress = binding.agent_id === null
+    ? DEFAULT_TOOL_PROGRESS
+    : (ctx.db.getAgent(binding.agent_id)?.tool_progress ?? DEFAULT_TOOL_PROGRESS);
   const progress = (ctx.createInteractionProgress ?? createDiscordInteractionProgress)({
     api: ctx.api,
     applicationId: ctx.applicationId,
@@ -251,6 +281,7 @@ export async function runTurnFromInteraction(
     channelId: interaction.channel_id,
     guildId: interaction.guild_id,
     log: ctx.log,
+    progressFilter: createToolProgressFilter(toolProgress),
   });
   await progress.start();
   let outcome                                  = { ok: false, error: "Turn did not complete." };
@@ -323,6 +354,20 @@ export function updateAgentMode(interaction             , ctx                   
   return "updated";
 }
 
+export function updateAgentToolProgress(
+  interaction             ,
+  ctx                    ,
+  mode        ,
+)                                               {
+  if (!(AGENT_TOOL_PROGRESS_MODES                     ).includes(mode)) return "invalid";
+  const binding = resolveInteractionBinding(interaction, ctx);
+  if (binding.agent_id === null) return "legacy";
+  const agent = ctx.db.getAgent(binding.agent_id);
+  if (!agent) return "missing";
+  ctx.db.updateAgent(agent.id, { tool_progress: mode                               });
+  return "updated";
+}
+
 function stringOption(interaction             , name        )                {
   const option = interaction.data?.options?.find((entry) => entry.name === name);
   return typeof option?.value === "string" && option.value.trim() ? option.value.trim() : null;
@@ -380,6 +425,7 @@ function gatewayState(text        )              {
   if (
     text.startsWith("Not a directory") ||
     text.startsWith("effort must") ||
+    text.startsWith("toolprogress must") ||
     text.startsWith("No previous prompt") ||
     text.startsWith("No running turn") ||
     text.startsWith("❌")

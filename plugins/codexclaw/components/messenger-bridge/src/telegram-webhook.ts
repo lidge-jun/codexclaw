@@ -16,6 +16,7 @@ import { TelegramApi, telegramReplyThreadId, telegramTopicId, type TgMessage, ty
 import { cleanupTmpMedia, downloadTelegramMessageMedia } from "./media-handler.ts";
 import { sendFormattedTelegramOutput } from "./output-formatter.ts";
 import { createTelegramTurnProgress, type TelegramProgressDeps } from "./telegram-progress.ts";
+import { createToolProgressFilter, DEFAULT_TOOL_PROGRESS } from "./tool-progress.ts";
 
 export interface TelegramWebhookOptions {
   api: TelegramApi;
@@ -274,6 +275,7 @@ export function createWebhookHandler(opts: TelegramWebhookOptions): TelegramWebh
   }
 
   function turnProgress(msg: TgMessage, chatId: string) {
+    const toolProgress = opts.db.getAgent(opts.agentId)?.tool_progress ?? DEFAULT_TOOL_PROGRESS;
     return createTelegramTurnProgress({
       api: opts.api,
       chatId,
@@ -281,6 +283,7 @@ export function createWebhookHandler(opts: TelegramWebhookOptions): TelegramWebh
       richSupported: opts.richSupported ?? true,
       messageThreadId: telegramReplyThreadId(msg),
       draftId: msg.message_id,
+      progressFilter: createToolProgressFilter(toolProgress),
       deps: opts.progressDeps,
       log,
     });

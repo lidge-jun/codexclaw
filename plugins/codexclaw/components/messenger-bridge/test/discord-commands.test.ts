@@ -108,6 +108,7 @@ test("COMMANDS exposes the native Discord command surface", () => {
     "stop",
     "effort",
     "mode",
+    "toolprogress",
     "cwd",
     "help",
   ]);
@@ -137,6 +138,26 @@ test("registerGlobalCommands PUTs application command JSON", async () => {
   assert.ok(body.some((command) => command.name === "ask" && command.options?.[0]?.name === "prompt"));
   assert.ok(body.some((command) => command.name === "mode" && command.options?.[0]?.name === "value"));
   assert.ok(body.some((command) => command.name === "effort" && command.options?.[0]?.choices?.some((choice: { value: string }) => choice.value === "reset")));
+  const progress = body.find((command) => command.name === "toolprogress");
+  assert.deepEqual(progress?.options?.[0]?.choices?.map((choice) => choice.value), ["off", "new", "all", "verbose"]);
+});
+
+test("/toolprogress queries with a picker and explicitly persists every mode", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    const agent = db.createAgent("discord-progress", "discord", "T");
+    const ctx = makeCtx(db, cwd);
+    ctx.agentId = agent.id;
+    await matchCommand("toolprogress")!.handler(interaction("toolprogress"), ctx);
+    assert.match(JSON.stringify(ctx.edits.at(-1)), /tool_progress_select/);
+    for (const value of ["off", "new", "all", "verbose"]) {
+      await matchCommand("toolprogress")!.handler(interaction("toolprogress", [{ name: "value", value }]), ctx);
+      assert.equal(db.getAgent(agent.id)?.tool_progress, value);
+    }
+  } finally {
+    db.close();
+    rmRfRetry(cwd);
+  }
 });
 
 test("/ask runs AgentService.handleIncoming and edits the deferred reply", async () => {

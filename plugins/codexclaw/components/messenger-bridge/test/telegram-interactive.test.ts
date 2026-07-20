@@ -8,6 +8,7 @@ import { openBridgeDb } from "../src/db.ts";
 import {
   buildEffortPicker,
   buildModelPicker,
+  buildToolProgressPicker,
   decodeCallback,
   encodeCallback,
   handleCallback,
@@ -84,6 +85,32 @@ test("pickers emit compact callback_data", () => {
   assert.equal(modelKeyboard[0][0].text, "* gpt-5.5");
   assert.equal(effortKeyboard.flat().find((button) => button.text.includes("high"))?.text, "* high");
   assert.ok(allButtons.every((button) => !button.text.includes("✅")));
+});
+
+test("tool progress picker uses compact callbacks and updates all four modes", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "tg-interactive-progress-"));
+  const db = openBridgeDb(cwd);
+  try {
+    const agent = db.createAgent("telegram-progress", "telegram", "tok");
+    const binding = db.getOrCreateAgentBinding(agent.id, "telegram", "500", cwd);
+    const picker = buildToolProgressPicker("new", binding.id);
+    assert.equal(picker.flat().length, 4);
+    assert.ok(picker.flat().every((button) => Buffer.byteLength(button.callback_data ?? "", "utf8") <= 64));
+    for (const mode of ["off", "new", "all", "verbose"]) {
+      const api = mockApi();
+      await handleCallback(
+        api,
+        callback(encodeCallback({ type: "tool_progress_select", payload: `${binding.id}:${mode}` })),
+        db,
+        allowAgent(agent.id),
+      );
+      assert.equal(db.getAgent(agent.id)?.tool_progress, mode);
+      assert.ok(api.calls.some((call) => call.method === "editMessageText"));
+    }
+  } finally {
+    db.close();
+    rmRfRetry(cwd);
+  }
 });
 
 test("handleCallback updates model and always answers the callback", async () => {

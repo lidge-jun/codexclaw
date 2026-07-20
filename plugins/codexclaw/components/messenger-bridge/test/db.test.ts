@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { openBridgeDb } from "../src/db.ts";
+import { TOOL_PROGRESS_MODES } from "../src/tool-progress.ts";
 
 function tempCwd(): string {
   return mkdtempSync(join(tmpdir(), "bridge-db-test-"));
@@ -41,6 +42,23 @@ test("schema v1 creates and reopen persists state", () => {
     const reopened = openBridgeDb(cwd);
     assert.equal(reopened.getChannel("telegram")?.token, "tok-123");
     reopened.close();
+  } finally {
+    rmRfRetry(cwd);
+  }
+});
+
+test("agents default tool progress to new and round-trip every allowlisted mode", () => {
+  const cwd = tempCwd();
+  try {
+    const db = openBridgeDb(cwd);
+    const agent = db.createAgent("tool-progress", "telegram", "tok");
+    assert.equal(agent.tool_progress, "new");
+    for (const mode of TOOL_PROGRESS_MODES) {
+      const updated = db.updateAgent(agent.id, { tool_progress: mode });
+      assert.equal(updated?.tool_progress, mode);
+      assert.equal(db.getAgent(agent.id)?.tool_progress, mode);
+    }
+    db.close();
   } finally {
     rmRfRetry(cwd);
   }

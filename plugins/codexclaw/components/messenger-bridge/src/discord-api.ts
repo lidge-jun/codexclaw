@@ -122,8 +122,15 @@ export class DiscordApi {
     }
   }
 
-  sendMessage(channelId: string, content: string): Promise<DiscordApiResult<{ id: string }>> {
-    return this.call("POST", `/channels/${channelId}/messages`, { content });
+  sendMessage(
+    channelId: string,
+    content: string,
+    options: { suppressNotifications?: boolean } = {},
+  ): Promise<DiscordApiResult<{ id: string }>> {
+    return this.call("POST", `/channels/${channelId}/messages`, {
+      content,
+      ...(options.suppressNotifications ? { flags: 4096 } : {}),
+    });
   }
 
   sendEmbed(
@@ -131,8 +138,14 @@ export class DiscordApi {
     content: string,
     embeds: DiscordEmbed[],
     components?: unknown[],
+    options: { suppressNotifications?: boolean } = {},
   ): Promise<DiscordApiResult<{ id: string }>> {
-    return this.call("POST", `/channels/${channelId}/messages`, { content, embeds, components });
+    return this.call("POST", `/channels/${channelId}/messages`, {
+      content,
+      embeds,
+      components,
+      ...(options.suppressNotifications ? { flags: 4096 } : {}),
+    });
   }
 
   triggerTyping(channelId: string): Promise<DiscordApiResult<unknown>> {

@@ -56,9 +56,10 @@ async function main() {
   const threadId = isResume ? (args[sepIdx + 1] ?? "resumed-thread") : "thread-fresh-1";
   emit({ type: "thread.started", thread_id: threadId });
   emit({ type: "item.completed", item: { type: "reasoning", text: "thinking about the request" } });
-  emit({ type: "item.started", item: { type: "tool_call", name: "shell", input: { cmd: "echo hello" } } });
+  emit({ type: "item.started", item: { id: "tool-1", type: "tool_call", name: "shell", input: { cmd: "echo hello" } } });
+  emit({ type: "item.completed", item: { id: "tool-1", type: "tool_call", name: "shell", input: { cmd: "echo hello" }, result: "hello\n", status: "completed" } });
   emit({ type: "item.completed", item: { type: "file_change", path: "notes.txt", action: "modify" } });
-  emit({ type: "item.started", item: { type: "command_execution", command: "echo hello" } });
+  emit({ type: "item.started", item: { id: "command-1", type: "command_execution", command: "echo hello", status: "in_progress" } });
 
   if (mode === "slow") {
     setInterval(() => {}, 1000);
@@ -69,6 +70,8 @@ async function main() {
     emit({ type: "turn.failed", error: { message: "model refused" } });
     process.exit(0);
   }
+
+  emit({ type: "item.completed", item: { id: "command-1", type: "command_execution", command: "echo hello", aggregated_output: "hello\n", exit_code: 0, status: "completed" } });
 
   const promptSeen = isResume ? (args[sepIdx + 2] ?? "") : stdinPrompt;
   // Optional argv/cwd echo so tests can assert flags and spawn cwd reached the child.

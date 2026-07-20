@@ -18,6 +18,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { chmodSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { TOOL_PROGRESS_MODES,                       } from "./tool-progress.js";
 
 
 
@@ -94,8 +95,12 @@ import { join } from "node:path";
 
 
 
+
+
+
 export const AGENT_EFFORTS = ["default", "minimal", "low", "medium", "high", "xhigh"]         ;
 export const AGENT_THREAD_MODES = ["thread", "plain"]         ;
+export const AGENT_TOOL_PROGRESS_MODES = TOOL_PROGRESS_MODES;
 
 
 
@@ -431,6 +436,23 @@ CREATE INDEX idx_agent_pairing_codes_lookup ON agent_pairing_codes (agent_id, co
       }
       version = 9;
     }
+
+    // ── v10: persisted attended tool-progress policy ──
+    if (version < 10) {
+      this.db.exec("BEGIN");
+      try {
+        this.db.exec(`
+ALTER TABLE agents ADD COLUMN tool_progress TEXT NOT NULL DEFAULT 'new'
+  CHECK (tool_progress IN ('off','new','all','verbose'));
+`);
+        this.db.exec("PRAGMA user_version = 10");
+        this.db.exec("COMMIT");
+      } catch (err) {
+        this.db.exec("ROLLBACK");
+        throw err;
+      }
+      version = 10;
+    }
   }
 
   // ── channels ──────────────────────────────────────────
@@ -740,6 +762,7 @@ CREATE INDEX idx_agent_pairing_codes_lookup ON agent_pairing_codes (agent_id, co
       "full_access",
       "webhook_url",
       "thread_mode",
+      "tool_progress",
     ]         ;
     const sets           = [];
     const values                         = [];

@@ -9,7 +9,14 @@
  */
 import { createHash, randomBytes } from "node:crypto";
 import type { ApiCtx, ApiResponse, ApiRoute } from "./server.ts";
-import { AGENT_EFFORTS, AGENT_THREAD_MODES, type AgentPatch, type AgentRow, type ChannelKind } from "./db.ts";
+import {
+  AGENT_EFFORTS,
+  AGENT_THREAD_MODES,
+  AGENT_TOOL_PROGRESS_MODES,
+  type AgentPatch,
+  type AgentRow,
+  type ChannelKind,
+} from "./db.ts";
 import { validateToken, type ValidateTokenFn } from "./token-validate.ts";
 import { TelegramApi } from "./telegram-api.ts";
 import { DiscordApi } from "./discord-api.ts";
@@ -45,6 +52,7 @@ export function publicAgent(ctx: ApiCtx, a: AgentRow): Record<string, unknown> {
     fullAccess: a.full_access === 1,
     webhookUrl: a.webhook_url,
     threadMode: a.thread_mode,
+    toolProgress: a.tool_progress,
     heartbeatMinutes: a.heartbeat_minutes,
     heartbeatPrompt: a.heartbeat_prompt,
     allowlistCount: ctx.db.listAgentAllowlist(a.id).length,
@@ -177,6 +185,15 @@ export function agentRoutes(deps: AgentRoutesDeps = {}): ApiRoute[] {
             return bad(`threadMode must be one of ${AGENT_THREAD_MODES.join(", ")}`);
           }
           patch.thread_mode = b.threadMode;
+        }
+        if (b.toolProgress !== undefined) {
+          if (
+            typeof b.toolProgress !== "string"
+            || !(AGENT_TOOL_PROGRESS_MODES as readonly string[]).includes(b.toolProgress)
+          ) {
+            return bad(`toolProgress must be one of ${AGENT_TOOL_PROGRESS_MODES.join(", ")}`);
+          }
+          patch.tool_progress = b.toolProgress as AgentPatch["tool_progress"];
         }
 
         const updated = ctx.db.updateAgent(id, patch);
