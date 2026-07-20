@@ -3,6 +3,7 @@
 
 
 import { buildActionRow, buildStatusEmbed } from "./discord-components.js";
+
 import {
   matchCommand,
   resolveInteractionBinding,
@@ -50,9 +51,11 @@ import {
 
 
 
+
 export async function handleInteraction(interaction             , ctx                    )                {
   if (interaction.type === 1) {
-    await ctx.api.createInteractionResponse(interaction.id, interaction.token, { type: 1 });
+    const result = await ctx.api.createInteractionResponse(interaction.id, interaction.token, { type: 1 });
+    checkDiscordResult("PING response", result);
     return;
   }
 
@@ -68,9 +71,7 @@ export async function handleInteraction(interaction             , ctx           
     try {
       await command.handler(interaction, ctx);
     } catch (err) {
-      await editDeferredReply(ctx.api, ctx.applicationId, interaction.token, {
-        embeds: [buildStatusEmbed("error", err instanceof Error ? err.message : String(err))],
-      });
+      await reportInteractionFailure(interaction, ctx, err);
     }
     return;
   }
@@ -80,21 +81,21 @@ export async function handleInteraction(interaction             , ctx           
     try {
       await handleComponentInteraction(interaction, ctx);
     } catch (err) {
-      await editDeferredReply(ctx.api, ctx.applicationId, interaction.token, {
-        embeds: [buildStatusEmbed("error", err instanceof Error ? err.message : String(err))],
-      });
+      await reportInteractionFailure(interaction, ctx, err);
     }
     return;
   }
 
-  await ctx.api.createInteractionResponse(interaction.id, interaction.token, {
+  const result = await ctx.api.createInteractionResponse(interaction.id, interaction.token, {
     type: 4,
     data: { content: "Unsupported Discord interaction type.", flags: 64 },
   });
+  checkDiscordResult("unsupported interaction response", result);
 }
 
 export async function deferReply(api            , id        , token        )                {
-  await api.createInteractionResponse(id, token, { type: 5 });
+  const result = await api.createInteractionResponse(id, token, { type: 5 });
+  checkDiscordResult("interaction defer", result);
 }
 
 export async function editDeferredReply(
@@ -103,7 +104,28 @@ export async function editDeferredReply(
   token        ,
   data         ,
 )                {
-  await api.editOriginalInteractionResponse(appId, token, data);
+  const result = await api.editOriginalInteractionResponse(appId, token, data);
+  checkDiscordResult("deferred interaction edit", result);
+}
+
+function checkDiscordResult(action        , result                                                 )       {
+  if (!result.ok) throw new Error(result.error ?? `${action} failed (${result.status})`);
+}
+
+async function reportInteractionFailure(
+  interaction             ,
+  ctx                    ,
+  originalError         ,
+)                {
+  const message = originalError instanceof Error ? originalError.message : String(originalError);
+  try {
+    await editDeferredReply(ctx.api, ctx.applicationId, interaction.token, {
+      embeds: [buildStatusEmbed("error", message)],
+    });
+  } catch (editError) {
+    const editMessage = editError instanceof Error ? editError.message : String(editError);
+    ctx.log?.(`[discord] interaction failed: ${message}; error edit failed: ${editMessage}`);
+  }
 }
 
 async function handleComponentInteraction(interaction             , ctx                    )                {

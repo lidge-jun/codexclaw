@@ -66,6 +66,7 @@ function makeApi() {
       sends.push({ content, files });
       return { ok: true, status: 200, data: { id: "fresh-file" } };
     },
+    editMessage: async () => ({ ok: true, status: 200, data: { id: "progress" } }),
   } as unknown as DiscordApi;
   return { api, callbacks, edits, sends };
 }
@@ -97,6 +98,58 @@ test("PING responds with pong type 1", async () => {
   }
 });
 
+test("failed defer prevents command execution", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    let called = false;
+    const ctx = makeCtx(db, cwd, stubAgent(async () => {
+      called = true;
+      return { ok: true, text: "should not run" };
+    }));
+    ctx.api.createInteractionResponse = async () => ({ ok: false, status: 401, error: "defer rejected" });
+    await assert.rejects(
+      handleInteraction({
+        id: "defer-fail",
+        token: "token",
+        type: 2,
+        channel_id: "chan-1",
+        data: { name: "ask", options: [{ name: "prompt", type: 3, value: "hello" }] },
+      }, ctx),
+      /defer rejected/,
+    );
+    assert.equal(called, false);
+  } finally {
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
+test("component error edit failure is logged once without recursion", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    const logs: string[] = [];
+    const ctx = makeCtx(db, cwd);
+    let edits = 0;
+    ctx.log = (line) => logs.push(line);
+    ctx.api.editOriginalInteractionResponse = async () => {
+      edits += 1;
+      return { ok: false, status: 500, error: "edit rejected" };
+    };
+    await handleInteraction({
+      id: "component-edit-fail",
+      token: "token",
+      type: 3,
+      channel_id: "chan-1",
+      data: { custom_id: "unknown" },
+    }, ctx);
+    assert.equal(edits, 2);
+    assert.match(logs.join("\n"), /error edit failed: edit rejected/);
+  } finally {
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
 test("APPLICATION_COMMAND defers before running the matched command", async () => {
   const { db, cwd } = tempDb();
   try {
@@ -117,7 +170,7 @@ test("APPLICATION_COMMAND defers before running the matched command", async () =
     assert.equal(seen[0].text, "hello");
     assert.match(JSON.stringify(ctx.edits[0]), /Working/);
     assert.deepEqual(ctx.sends, [{ content: "answer" }]);
-    assert.match(JSON.stringify(ctx.edits[1]), /Answer sent below/);
+    assert.match(JSON.stringify(ctx.edits[1]), /Final answer sent as a fresh message/);
   } finally {
     db.close();
     rmRfRetry(cwd);
@@ -154,10 +207,18 @@ test("MESSAGE_COMPONENT retry replays the latest prompt preview", async () => {
     const binding = db.getOrCreateBinding("discord", "chan-1", cwd);
     db.createJob(binding.id, "last prompt");
     const seen: IncomingRequest[] = [];
+    const events: unknown[] = [];
+    const finishes: unknown[] = [];
     const ctx = makeCtx(db, cwd, stubAgent(async (req) => {
       seen.push(req);
+      req.onEvent?.({ kind: "status", label: "retrying" });
       return { ok: true, text: "retry result" };
     }));
+    ctx.createInteractionProgress = () => ({
+      start: async () => {},
+      onEvent: (event) => events.push(event),
+      finish: async (result) => { finishes.push(result); },
+    });
     await handleInteraction({
       id: "i3",
       token: "tok3",
@@ -166,8 +227,9 @@ test("MESSAGE_COMPONENT retry replays the latest prompt preview", async () => {
       data: { custom_id: "retry" },
     }, ctx);
     assert.equal(seen[0].text, "last prompt");
+    assert.deepEqual(events, [{ kind: "status", label: "retrying" }]);
+    assert.deepEqual(finishes, [{ ok: true, error: undefined }]);
     assert.deepEqual(ctx.sends, [{ content: "retry result" }]);
-    assert.match(JSON.stringify(ctx.edits[1]), /Answer sent below/);
   } finally {
     db.close();
     rmRfRetry(cwd);

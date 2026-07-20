@@ -19,7 +19,6 @@ import type { RunnerEvent } from "./runner.ts";
 import { performance } from "node:perf_hooks";
 import {
   DiscordApi,
-  type DiscordEmbed,
   type FetchImpl,
 } from "./discord-api.ts";
 import {
@@ -28,11 +27,11 @@ import {
   type WsFactory,
 } from "./discord-gateway.ts";
 import { registerGlobalCommands as registerDiscordCommands } from "./discord-commands.ts";
-import { buildStatusEmbed } from "./discord-components.ts";
 import { handleInteraction, type Interaction } from "./discord-interactions.ts";
 import { buildHelpEntries, dispatchGatewayCommand } from "./gateway-commands.ts";
 import { cleanupTmpMedia, downloadDiscordAttachment } from "./media-handler.ts";
 import { sendFormattedDiscordOutput } from "./output-formatter.ts";
+import { progressEmbed, progressFromEvent } from "./discord-interaction-progress.ts";
 
 export interface DiscordAdapterOptions {
   db: BridgeDb;
@@ -140,15 +139,17 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
   }
 
   async function rejectInteraction(interaction: Interaction, content: string): Promise<void> {
-    await api.createInteractionResponse(interaction.id, interaction.token, {
+    const result = await api.createInteractionResponse(interaction.id, interaction.token, {
       type: 4,
       data: { content, flags: 64 },
     });
+    if (!result.ok) throw new Error(result.error ?? `Discord interaction rejection failed (${result.status})`);
   }
 
   async function deferNativeInteraction(interaction: Interaction): Promise<boolean> {
     if (interaction.type !== 2 && interaction.type !== 3) return false;
-    await api.createInteractionResponse(interaction.id, interaction.token, { type: 5 });
+    const result = await api.createInteractionResponse(interaction.id, interaction.token, { type: 5 });
+    if (!result.ok) throw new Error(result.error ?? `Discord interaction defer failed (${result.status})`);
     return true;
   }
 
@@ -539,35 +540,4 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
 function threadName(text: string): string {
   const compact = text.replace(/\s+/g, " ").trim();
   return (compact ? `cxc: ${compact}` : "cxc turn").slice(0, 100);
-}
-
-function progressEmbed(stage: string, detail: string, state: "running" | "success" | "error" = "running"): DiscordEmbed {
-  return buildStatusEmbed(state, `${stage}: ${sanitizeProgressDetail(detail)}`);
-}
-
-function progressFromEvent(event: RunnerEvent): { stage: string; detail: string } | null {
-  switch (event.kind) {
-    case "thinking":
-      return { stage: "Thinking", detail: event.text };
-    case "tool_call":
-      return { stage: "Coding", detail: [event.name, event.input].filter(Boolean).join(" ") };
-    case "file_change":
-      return { stage: "Coding", detail: `${event.action} ${event.path}` };
-    case "status":
-      return { stage: "Coding", detail: event.label };
-    case "message":
-      return { stage: "Writing", detail: event.text.slice(0, 500) };
-    case "thread":
-    case "done":
-    case "fail":
-      return null;
-  }
-}
-
-function sanitizeProgressDetail(value: string): string {
-  return String(value || "-")
-    .replace(/<@!?\d+>/g, "@user")
-    .replace(/@everyone/g, "[everyone]")
-    .replace(/@here/g, "[here]")
-    .slice(0, 1000);
 }

@@ -4,9 +4,11 @@ import assert from "node:assert/strict";
 import {
   formatForDiscord,
   formatForTelegram,
+  sendFormattedDiscordOutput,
   segmentOutput,
   shouldSendAsFile,
 } from "../src/output-formatter.ts";
+import type { DiscordApi } from "../src/discord-api.ts";
 
 test("segmentOutput separates text and fenced code", () => {
   const segments = segmentOutput("hello\n\n```ts\nconst x = 1;\n```\nbye");
@@ -37,4 +39,28 @@ test("formatForDiscord prepares Buffer files for long output", () => {
   assert.equal(formatted.files[0].name, "codex-output-1.txt");
   assert.equal(Buffer.isBuffer(formatted.files[0].data), true);
   assert.match(formatted.content, /Attached codex-output-1\.txt/);
+});
+
+test("sendFormattedDiscordOutput returns a checked aggregate and continues after a failed chunk", async () => {
+  let calls = 0;
+  const api = {
+    sendMessage: async () => {
+      calls += 1;
+      return calls === 1
+        ? { ok: false, status: 500, error: "first failed" }
+        : { ok: true, status: 200, data: { id: String(calls) } };
+    },
+  } as unknown as DiscordApi;
+  const result = await sendFormattedDiscordOutput(api, "channel", `${"a".repeat(1990)}\n${"b".repeat(1990)}`);
+  assert.deepEqual(result, { ok: false, error: "first failed" });
+  assert.equal(calls, 2);
+
+  calls = 0;
+  const successApi = {
+    sendMessage: async () => {
+      calls += 1;
+      return { ok: true, status: 200, data: { id: String(calls) } };
+    },
+  } as unknown as DiscordApi;
+  assert.deepEqual(await sendFormattedDiscordOutput(successApi, "channel", "ok"), { ok: true });
 });

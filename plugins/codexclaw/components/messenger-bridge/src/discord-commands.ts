@@ -13,6 +13,7 @@ import {
   type StatusState,
 } from "./discord-components.ts";
 import { sendFormattedDiscordOutput } from "./output-formatter.ts";
+import { createDiscordInteractionProgress } from "./discord-interaction-progress.ts";
 
 export interface SlashOption {
   name: string;
@@ -243,25 +244,36 @@ export async function runTurnFromInteraction(
   text: string,
 ): Promise<void> {
   const binding = resolveInteractionBinding(interaction, ctx);
-  await ctx.api.editOriginalInteractionResponse(ctx.applicationId, interaction.token, {
-    embeds: [buildStatusEmbed("running", "Working. The full answer will be sent as a fresh message.")],
+  const progress = (ctx.createInteractionProgress ?? createDiscordInteractionProgress)({
+    api: ctx.api,
+    applicationId: ctx.applicationId,
+    interactionToken: interaction.token,
+    channelId: interaction.channel_id,
+    guildId: interaction.guild_id,
+    log: ctx.log,
   });
-  const result = await ctx.agentService.handleIncoming({
-    kind: "discord",
-    chatId: interaction.channel_id,
-    text,
-    workdir: binding.workdir || ctx.workdir,
-    agentId: ctx.agentId ?? undefined,
-    onApprovalRequest: (request) => sendApprovalRequest(interaction.channel_id, ctx, request),
-  });
-  if (result.ok && result.text) {
-    await sendFormattedDiscordOutput(ctx.api, interaction.channel_id, result.text, ctx.log);
+  await progress.start();
+  let outcome: { ok: boolean; error?: string } = { ok: false, error: "Turn did not complete." };
+  try {
+    const result = await ctx.agentService.handleIncoming({
+      kind: "discord",
+      chatId: interaction.channel_id,
+      text,
+      workdir: binding.workdir || ctx.workdir,
+      agentId: ctx.agentId ?? undefined,
+      onApprovalRequest: (request) => sendApprovalRequest(interaction.channel_id, ctx, request),
+      onEvent: progress.onEvent,
+    });
+    outcome = { ok: result.ok, error: result.error };
+    if (result.ok && result.text) {
+      const delivered = await sendFormattedDiscordOutput(ctx.api, interaction.channel_id, result.text, ctx.log);
+      if (!delivered.ok) outcome = { ok: false, error: delivered.error ?? "Failed to deliver final answer." };
+    }
+  } catch (err) {
+    outcome = { ok: false, error: err instanceof Error ? err.message : String(err) };
+  } finally {
+    await progress.finish(outcome);
   }
-  await ctx.api.editOriginalInteractionResponse(ctx.applicationId, interaction.token, {
-    embeds: [
-      buildStatusEmbed(result.ok ? "success" : "error", result.ok ? "Done. Answer sent below." : result.error ?? "No response."),
-    ],
-  });
 }
 
 async function sendApprovalRequest(

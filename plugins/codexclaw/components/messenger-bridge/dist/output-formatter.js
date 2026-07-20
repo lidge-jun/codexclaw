@@ -19,6 +19,11 @@ import { chunkTelegramMessage, escapeHtmlTg, stripTelegramHtml } from "./telegra
 
 
 
+
+
+
+
+
 const LONG_OUTPUT_LINES = 100;
 const FENCE_RE = /```([^\n`]*)\n([\s\S]*?)```/g;
 const DIFF_RE = /^(diff --git|--- |\+\+\+ |@@ |\+{3} |- {3})/m;
@@ -102,18 +107,38 @@ export async function sendFormattedDiscordOutput(
   channelId        ,
   text        ,
   log                         = () => {},
-)                {
+)                               {
   const formatted = formatForDiscord(segmentOutput(text));
   if (formatted.files.length > 0) {
-    const sent = await api.sendFile(channelId, formatted.content || "Attached output.", formatted.files                 );
-    if (!sent.ok) log(`[discord] file send failed ${channelId}: ${sent.error ?? sent.status}`);
-    return;
+    try {
+      const sent = await api.sendFile(channelId, formatted.content || "Attached output.", formatted.files                 );
+      if (sent.ok) return { ok: true };
+      const error = sent.error ?? `Discord error ${sent.status}`;
+      log(`[discord] file send failed ${channelId}: ${error}`);
+      return { ok: false, error };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      log(`[discord] file send failed ${channelId}: ${error}`);
+      return { ok: false, error };
+    }
   }
+  let firstError                    ;
   for (const chunk of chunkDiscordMessage(formatted.content || (formatted.files.length ? "" : "Done."))) {
     if (!chunk.trim()) continue;
-    const sent = await api.sendMessage(channelId, chunk);
-    if (!sent.ok) log(`[discord] message send failed ${channelId}: ${sent.error ?? sent.status}`);
+    try {
+      const sent = await api.sendMessage(channelId, chunk);
+      if (!sent.ok) {
+        const error = sent.error ?? `Discord error ${sent.status}`;
+        firstError ??= error;
+        log(`[discord] message send failed ${channelId}: ${error}`);
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      firstError ??= error;
+      log(`[discord] message send failed ${channelId}: ${error}`);
+    }
   }
+  return firstError ? { ok: false, error: firstError } : { ok: true };
 }
 
 export async function sendFormattedTelegramOutput(params

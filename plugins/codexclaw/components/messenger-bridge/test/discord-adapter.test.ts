@@ -712,6 +712,59 @@ test("allowed slash interactions defer before getMe fallback", async () => {
   }
 });
 
+test("failed native interaction defer prevents turn execution", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("discord", "chan-1", "");
+    const { fetchImpl, posts } = makeRestFetch((call) => {
+      if (call.path.includes("/interactions/i-defer-fail/") && call.path.endsWith("/callback")) {
+        return {
+          ok: false,
+          status: 401,
+          headers: { get: () => null },
+          json: () => Promise.resolve({}),
+          text: () => Promise.resolve("defer rejected"),
+        } as unknown as Response;
+      }
+      return undefined;
+    });
+    let ws!: FakeWs;
+    let called = false;
+    const adapter = createDiscordAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      wsFactory: () => (ws = new FakeWs()),
+      agentService: stubAgent(async () => {
+        called = true;
+        return { ok: true, text: "must not run" };
+      }),
+    });
+    await adapter.start();
+    ws.emit({
+      op: OP.DISPATCH,
+      t: "INTERACTION_CREATE",
+      s: 1,
+      d: {
+        id: "i-defer-fail",
+        type: 2,
+        token: "interaction-token",
+        channel_id: "chan-1",
+        data: { name: "ask", options: [{ name: "prompt", type: 3, value: "hello" }] },
+      },
+    });
+    await settle();
+    adapter.stop();
+    assert.equal(called, false);
+    assert.equal(posts.some((call) => call.path === "/users/@me"), false);
+  } finally {
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
 test("guild messages start a reply thread and send the final embed there", async () => {
   const { db, cwd } = tempDb();
   try {

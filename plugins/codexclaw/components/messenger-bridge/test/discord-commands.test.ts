@@ -86,6 +86,7 @@ function makeCtx(db: BridgeDb, cwd: string, agentService?: AgentService): Intera
         sends.push({ content, files });
         return { ok: true, status: 200, data: { id: "fresh-file" } };
       },
+      editMessage: async () => ({ ok: true, status: 200, data: { id: "progress" } }),
     } as unknown as DiscordApi,
     applicationId: "app-1",
     workdir: cwd,
@@ -152,7 +153,51 @@ test("/ask runs AgentService.handleIncoming and edits the deferred reply", async
     assert.equal(seen[0].chatId, "chan-1");
     assert.match(JSON.stringify(ctx.edits[0]), /Working/);
     assert.deepEqual(ctx.sends, [{ content: "answer text" }]);
-    assert.match(JSON.stringify(ctx.edits[1]), /Answer sent below/);
+    assert.match(JSON.stringify(ctx.edits[1]), /Final answer sent as a fresh message/);
+  } finally {
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
+test("/review wires runner events and failed durable delivery overrides the terminal outcome", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    let incoming: IncomingRequest | undefined;
+    const finished: Array<{ ok: boolean; error?: string }> = [];
+    const ctx = makeCtx(db, cwd, stubAgent(async (req) => {
+      incoming = req;
+      req.onEvent?.({ kind: "status", label: "reviewing" });
+      return { ok: true, text: "review result" };
+    }));
+    ctx.createInteractionProgress = () => ({
+      start: async () => {},
+      onEvent: () => {},
+      finish: async (result) => { finished.push(result); },
+    });
+    ctx.api.sendMessage = async () => ({ ok: false, status: 500, error: "delivery failed" });
+    await matchCommand("review")!.handler(interaction("review", [{ name: "target", value: "change" }]), ctx);
+    assert.match(incoming?.text ?? "", /Review this and report findings first/);
+    assert.equal(typeof incoming?.onEvent, "function");
+    assert.deepEqual(finished, [{ ok: false, error: "delivery failed" }]);
+  } finally {
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
+test("interaction turn finishes progress when the runner rejects", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    const finished: Array<{ ok: boolean; error?: string }> = [];
+    const ctx = makeCtx(db, cwd, stubAgent(async () => { throw new Error("runner exploded"); }));
+    ctx.createInteractionProgress = () => ({
+      start: async () => {},
+      onEvent: () => {},
+      finish: async (result) => { finished.push(result); },
+    });
+    await matchCommand("ask")!.handler(interaction("ask", [{ name: "prompt", value: "go" }]), ctx);
+    assert.deepEqual(finished, [{ ok: false, error: "runner exploded" }]);
   } finally {
     db.close();
     rmRfRetry(cwd);

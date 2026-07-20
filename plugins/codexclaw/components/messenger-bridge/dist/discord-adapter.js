@@ -20,7 +20,6 @@ import { performance } from "node:perf_hooks";
 import {
   DiscordApi,
 
-
 } from "./discord-api.js";
 import {
   DiscordGateway,
@@ -28,11 +27,11 @@ import {
 
 } from "./discord-gateway.js";
 import { registerGlobalCommands as registerDiscordCommands } from "./discord-commands.js";
-import { buildStatusEmbed } from "./discord-components.js";
 import { handleInteraction,                  } from "./discord-interactions.js";
 import { buildHelpEntries, dispatchGatewayCommand } from "./gateway-commands.js";
 import { cleanupTmpMedia, downloadDiscordAttachment } from "./media-handler.js";
 import { sendFormattedDiscordOutput } from "./output-formatter.js";
+import { progressEmbed, progressFromEvent } from "./discord-interaction-progress.js";
 
 
 
@@ -140,15 +139,17 @@ export function createDiscordAdapter(opts                       )               
   }
 
   async function rejectInteraction(interaction             , content        )                {
-    await api.createInteractionResponse(interaction.id, interaction.token, {
+    const result = await api.createInteractionResponse(interaction.id, interaction.token, {
       type: 4,
       data: { content, flags: 64 },
     });
+    if (!result.ok) throw new Error(result.error ?? `Discord interaction rejection failed (${result.status})`);
   }
 
   async function deferNativeInteraction(interaction             )                   {
     if (interaction.type !== 2 && interaction.type !== 3) return false;
-    await api.createInteractionResponse(interaction.id, interaction.token, { type: 5 });
+    const result = await api.createInteractionResponse(interaction.id, interaction.token, { type: 5 });
+    if (!result.ok) throw new Error(result.error ?? `Discord interaction defer failed (${result.status})`);
     return true;
   }
 
@@ -539,35 +540,4 @@ export function createDiscordAdapter(opts                       )               
 function threadName(text        )         {
   const compact = text.replace(/\s+/g, " ").trim();
   return (compact ? `cxc: ${compact}` : "cxc turn").slice(0, 100);
-}
-
-function progressEmbed(stage        , detail        , state                                  = "running")               {
-  return buildStatusEmbed(state, `${stage}: ${sanitizeProgressDetail(detail)}`);
-}
-
-function progressFromEvent(event             )                                           {
-  switch (event.kind) {
-    case "thinking":
-      return { stage: "Thinking", detail: event.text };
-    case "tool_call":
-      return { stage: "Coding", detail: [event.name, event.input].filter(Boolean).join(" ") };
-    case "file_change":
-      return { stage: "Coding", detail: `${event.action} ${event.path}` };
-    case "status":
-      return { stage: "Coding", detail: event.label };
-    case "message":
-      return { stage: "Writing", detail: event.text.slice(0, 500) };
-    case "thread":
-    case "done":
-    case "fail":
-      return null;
-  }
-}
-
-function sanitizeProgressDetail(value        )         {
-  return String(value || "-")
-    .replace(/<@!?\d+>/g, "@user")
-    .replace(/@everyone/g, "[everyone]")
-    .replace(/@here/g, "[here]")
-    .slice(0, 1000);
 }
