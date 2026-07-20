@@ -50,6 +50,7 @@
 
 
 
+
 const API_BASE = "https://api.telegram.org";
 
 
@@ -158,6 +159,7 @@ export class TelegramApi {
     const payload                          = { chat_id: params.chatId, text: params.text };
     if (params.parseMode) payload.parse_mode = params.parseMode;
     if (params.messageThreadId !== undefined) payload.message_thread_id = params.messageThreadId;
+    if (params.disableNotification !== undefined) payload.disable_notification = params.disableNotification;
     return this.call           ("sendMessage", payload);
   }
 

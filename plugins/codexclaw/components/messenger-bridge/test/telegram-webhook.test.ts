@@ -10,6 +10,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AgentService, IncomingRequest, IncomingResult } from "../src/agent-service.ts";
 import { openBridgeDb, type BridgeDb } from "../src/db.ts";
 import { TelegramApi } from "../src/telegram-api.ts";
+import type { TelegramProgressDeps } from "../src/telegram-progress.ts";
 import { createWebhookHandler, telegramWebhookSecretFromUrl } from "../src/telegram-webhook.ts";
 
 interface FakeRes extends ServerResponse {
@@ -85,6 +86,14 @@ function fakeApi(): TelegramApi & { sent: Array<{ method: string; payload: unkno
       sent.push({ method: "sendChatAction", payload: { chatId, messageThreadId } });
       return { ok: true, result: true };
     },
+    editMessageText: async (...payload: unknown[]) => {
+      sent.push({ method: "editMessageText", payload });
+      return { ok: true, result: { message_id: 1, chat: { id: 1, type: "private" } } };
+    },
+    deleteMessage: async (...payload: unknown[]) => {
+      sent.push({ method: "deleteMessage", payload });
+      return { ok: true, result: true };
+    },
     sendDocument: async (payload: unknown) => {
       sent.push({ method: "sendDocument", payload });
       return { ok: true, result: { message_id: 1, chat: { id: 1, type: "private" } } };
@@ -110,7 +119,10 @@ function stubAgent(result: Promise<IncomingResult>): AgentService & { enqueued: 
       enqueued.push(req);
       return { bindingId: 1, jobId: 1, result };
     },
-    handleIncoming: async () => result,
+    handleIncoming: async (req: IncomingRequest) => {
+      enqueued.push(req);
+      return result;
+    },
     cancelTurn: () => false,
     shutdown() {},
   } as unknown as AgentService & { enqueued: IncomingRequest[] };
@@ -122,6 +134,35 @@ function sha256Hex(value: string): string {
 
 async function settle(): Promise<void> {
   await new Promise((resolve) => setImmediate(resolve));
+}
+
+function manualProgressClock() {
+  let now = 10_000;
+  let nextId = 1;
+  const timers = new Map<number, { at: number; callback: () => void }>();
+  const deps: TelegramProgressDeps = {
+    now: () => now,
+    setTimeout(callback, ms) {
+      const id = nextId++;
+      timers.set(id, { at: now + ms, callback });
+      return id;
+    },
+    clearTimeout: (id) => { timers.delete(id as number); },
+    setInterval: () => nextId++,
+    clearInterval: () => {},
+  };
+  return {
+    deps,
+    async advance(ms: number) {
+      now += ms;
+      for (const [id, timer] of [...timers]) {
+        if (timer.at > now) continue;
+        timers.delete(id);
+        timer.callback();
+        await settle();
+      }
+    },
+  };
 }
 
 test("telegramWebhookSecretFromUrl extracts only Telegram webhook URLs", () => {
@@ -402,14 +443,102 @@ test("webhook private turns use draft progress and formatted final output", asyn
   }
 });
 
-test("webhook forum topic messages pass topicId and message_thread_id", async () => {
+test("webhook private fallback survives delete failure and still sends the final answer", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    const agent = db.createAgent("telegram-1", "telegram", "tok");
+    db.addAgentAllowlist(agent.id, "501");
+    let resolveTurn = (_result: IncomingResult) => {};
+    const turn = new Promise<IncomingResult>((resolve) => {
+      resolveTurn = resolve;
+    });
+    const svc = stubAgent(turn);
+    const api = fakeApi();
+    api.deleteMessage = async () => { throw new Error("delete failed"); };
+    const clock = manualProgressClock();
+
+    await createWebhookHandler({
+      api,
+      db,
+      agentService: svc,
+      secretToken: "s3",
+      agentId: agent.id,
+      workdir: cwd,
+      richSupported: false,
+      progressDeps: clock.deps,
+    })(fakeReq("/webhook/telegram/s3", {
+      update_id: 30,
+      message: { message_id: 30, text: "hello", chat: { id: 501, type: "private" } },
+    }), fakeRes());
+    await settle();
+
+    assert.ok(api.sent.some((entry) => entry.method === "sendMessage" && JSON.stringify(entry.payload).includes("disableNotification")));
+    svc.enqueued[0].onEvent?.({ kind: "status", label: "working" });
+    await clock.advance(2_000);
+    resolveTurn({ ok: true, text: "durable answer" });
+    await settle();
+    await settle();
+    assert.ok(api.sent.some((entry) => entry.method === "sendMessage" && JSON.stringify(entry.payload).includes("durable answer")));
+  } finally {
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
+test("webhook /retry forwards events and uses the command message id for drafts", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    const agent = db.createAgent("telegram-1", "telegram", "tok");
+    db.addAgentAllowlist(agent.id, "502");
+    const binding = db.getOrCreateAgentBinding(agent.id, "telegram", "502", cwd);
+    db.createJob(binding.id, "retry webhook");
+    let resolveTurn = (_result: IncomingResult) => {};
+    const turn = new Promise<IncomingResult>((resolve) => {
+      resolveTurn = resolve;
+    });
+    const svc = stubAgent(turn);
+    const api = fakeApi();
+
+    await createWebhookHandler({
+      api,
+      db,
+      agentService: svc,
+      secretToken: "s3",
+      agentId: agent.id,
+      workdir: cwd,
+      richSupported: true,
+    })(fakeReq("/webhook/telegram/s3", {
+      update_id: 31,
+      message: { message_id: 81, text: "/retry", chat: { id: 502, type: "private" } },
+    }), fakeRes());
+    await settle();
+
+    assert.equal(typeof svc.enqueued[0]?.onEvent, "function");
+    svc.enqueued[0].onEvent?.({ kind: "message", text: "retry draft" });
+    await settle();
+    const draft = api.sent.find((entry) => entry.method === "sendRichMessageDraft");
+    assert.match(JSON.stringify(draft?.payload), /"draftId":81/);
+    resolveTurn({ ok: true, text: "retried" });
+    await settle();
+  } finally {
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
+test("webhook forum topic progress is silent, edited in-topic, deleted before the separate final", async () => {
   const { db, cwd } = tempDb();
   try {
     const agent = db.createAgent("telegram-1", "telegram", "tok");
     db.addAgentAllowlist(agent.id, "-500");
-    const svc = stubAgent(Promise.resolve({ ok: true, text: "answer" }));
+    let resolveTurn = (_result: IncomingResult) => {};
+    const turn = new Promise<IncomingResult>((resolve) => {
+      resolveTurn = resolve;
+    });
+    const svc = stubAgent(turn);
     const api = fakeApi();
     const res = fakeRes();
+    const clock = manualProgressClock();
 
     await createWebhookHandler({
       api,
@@ -419,6 +548,7 @@ test("webhook forum topic messages pass topicId and message_thread_id", async ()
       agentId: agent.id,
       workdir: cwd,
       botUsername: "cxcbot",
+      progressDeps: clock.deps,
     })(fakeReq("/webhook/telegram/s3", {
       update_id: 13,
       message: {
@@ -432,7 +562,29 @@ test("webhook forum topic messages pass topicId and message_thread_id", async ()
 
     assert.equal(res.status, 200);
     assert.equal(svc.enqueued[0]?.topicId, "44");
+    assert.equal(typeof svc.enqueued[0]?.onEvent, "function");
     assert.deepEqual(api.sent[0], { method: "sendChatAction", payload: { chatId: "-500", messageThreadId: 44 } });
+    await settle();
+    const status = api.sent.find((entry) => entry.method === "sendMessage");
+    assert.deepEqual(status?.payload, {
+      chatId: "-500",
+      text: "🔄 Working…",
+      messageThreadId: 44,
+      disableNotification: true,
+    });
+
+    svc.enqueued[0].onEvent?.({ kind: "file_change", action: "modify", path: "src/topic.ts" });
+    svc.enqueued[0].onEvent?.({ kind: "message", text: "topic latest" });
+    await clock.advance(2_000);
+    const edit = api.sent.find((entry) => entry.method === "editMessageText");
+    assert.match(JSON.stringify(edit?.payload), /topic latest/);
+    assert.match(JSON.stringify(edit?.payload), /src\/topic\.ts/);
+
+    resolveTurn({ ok: true, text: "answer" });
+    await settle();
+    await settle();
+    const methods = api.sent.map((entry) => entry.method);
+    assert.ok(methods.indexOf("deleteMessage") < methods.lastIndexOf("sendRichMessage"));
   } finally {
     db.close();
     rmRfRetry(cwd);

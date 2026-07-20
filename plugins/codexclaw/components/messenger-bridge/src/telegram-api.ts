@@ -48,6 +48,7 @@ export interface SendMessageParams {
   text: string;
   parseMode?: "HTML" | "MarkdownV2";
   messageThreadId?: number;
+  disableNotification?: boolean;
 }
 
 const API_BASE = "https://api.telegram.org";
@@ -158,6 +159,7 @@ export class TelegramApi {
     const payload: Record<string, unknown> = { chat_id: params.chatId, text: params.text };
     if (params.parseMode) payload.parse_mode = params.parseMode;
     if (params.messageThreadId !== undefined) payload.message_thread_id = params.messageThreadId;
+    if (params.disableNotification !== undefined) payload.disable_notification = params.disableNotification;
     return this.call<TgMessage>("sendMessage", payload);
   }
 

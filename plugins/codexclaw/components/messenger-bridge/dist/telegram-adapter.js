@@ -11,7 +11,6 @@
 
 import { formatApprovalForTelegram,                      } from "./approval-relay.js";
 
-
 import {
   TelegramApi,
   telegramReplyThreadId,
@@ -29,7 +28,10 @@ import {
 import { handleCallback } from "./telegram-interactive.js";
 import { cleanupTmpMedia, downloadTelegramMessageMedia } from "./media-handler.js";
 import { sendFormattedTelegramOutput } from "./output-formatter.js";
-import { createDraftProgressState, probeRichSupport, sendDraftProgress } from "./telegram-rich-send.js";
+import { createTelegramTurnProgress,                           } from "./telegram-progress.js";
+import { probeRichSupport } from "./telegram-rich-send.js";
+
+
 
 
 
@@ -54,8 +56,6 @@ import { createDraftProgressState, probeRichSupport, sendDraftProgress } from ".
 
 const POLL_TIMEOUT_SEC = 50;
 const MAX_409_RETRIES = 3;
-const TYPING_REFRESH_MS = 4_000;
-const STATUS_COALESCE_MS = 1_500;
 const DELETE_CONFIRM_TTL_MS = 60_000;
 
 
@@ -168,27 +168,35 @@ export function createTelegramAdapter(opts                        )             
       const def = findCommandDef(parsed.command);
       if (def) {
         if (!def.allowUnpaired && !isAllowedChat(chatId)) return;
-        const result = await def.handler({
-          chatId,
-          args: parsed.args,
-          db: opts.db,
-          agentService: opts.agentService,
-          binding: null,
-          agentId,
-          workdir: opts.workdir,
-          api,
-          msg,
-          pendingDeletes,
-          deleteTtlMs: deleteTtl,
-          isAllowedChat,
-          isHandshakeOpen,
-          admitChat,
-          removeChat,
-          setPaused: (next) => {
-            paused = next;
-          },
-          log,
-        });
+        const progress = parsed.command === "retry" ? turnProgress(msg, chatId) : null;
+        await progress?.start();
+        let result                      ;
+        try {
+          result = await def.handler({
+            chatId,
+            args: parsed.args,
+            db: opts.db,
+            agentService: opts.agentService,
+            binding: null,
+            agentId,
+            workdir: opts.workdir,
+            api,
+            msg,
+            pendingDeletes,
+            deleteTtlMs: deleteTtl,
+            isAllowedChat,
+            isHandshakeOpen,
+            admitChat,
+            removeChat,
+            setPaused: (next) => {
+              paused = next;
+            },
+            onEvent: progress?.onEvent,
+            log,
+          });
+        } finally {
+          await progress?.finish();
+        }
         await sendCommandResult(chatId, msg, result);
         return;
       }
@@ -294,106 +302,23 @@ export function createTelegramAdapter(opts                        )             
     const rawTopicId = telegramTopicId(msg);
     const threadMode = agentId !== null ? (opts.db.getAgent(agentId)?.thread_mode ?? "thread") : "thread";
     const topicId = threadMode === "plain" ? null : rawTopicId;
-    const draftStreaming = richSupported && msg.chat.type === "private";
-    const draftId = msg.message_id;
-    let typingTimer                                        = null;
-    let statusMsgId                = null;
-    let statusCreating                       = null;
-    let lastStatusAt = 0;
-    let lastTextEditAt = 0;
-    let pendingStatus = "";
-    const toolLines           = [];
-    const draftState = createDraftProgressState();
-
-    const fireTyping = () => void api.sendChatAction(chatId, threadId);
-    fireTyping();
-    typingTimer = setInterval(fireTyping, TYPING_REFRESH_MS);
-
-    const flushStatus = async (textOverride         ) => {
-      const now = Date.now();
-      if (textOverride === undefined) {
-        if (now - lastStatusAt < STATUS_COALESCE_MS) return;
-        lastStatusAt = now;
-      }
-      const label = textOverride ?? pendingStatus;
-      if (!label) return;
-      if (statusMsgId === null) {
-        if (!statusCreating) {
-          statusCreating = api
-            .sendMessage({ chatId, text: `🔄 ${label}`, messageThreadId: threadId })
-            .then((r) => {
-              if (r.ok && r.result) statusMsgId = r.result.message_id;
-            })
-            .finally(() => {
-              statusCreating = null;
-            });
-        }
-        await statusCreating;
-      } else {
-        await api.editMessageText(chatId, statusMsgId, `🔄 ${label}`);
-      }
-    };
-
-    const onEvent = (event             ) => {
-      if (event.kind === "status") {
-        routeProgress(event.label);
-      }
-      if (event.kind === "thinking") {
-        routeProgress(`Thinking: ${event.text.slice(0, 300)}`);
-      }
-      if (event.kind === "tool_call") {
-        routeProgress([event.name, event.input].filter(Boolean).join(" "));
-      }
-      if (event.kind === "file_change") {
-        routeProgress(`${event.action} ${event.path}`);
-      }
-      if (event.kind === "message") {
-        const now = Date.now();
-        if (now - lastTextEditAt < 2_000) return;
-        lastTextEditAt = now;
-        if (draftStreaming) {
-          void sendDraftProgress(
-            { api, chatId, richSupported, chatType: msg.chat.type, messageThreadId: threadId },
-            draftId,
-            event.text,
-            { state: draftState },
-          );
-          return;
-        }
-        void flushStatus(event.text.slice(0, 4000));
-      }
-    };
-
-    const routeProgress = (detail        ) => {
-      if (!detail) return;
-      if (draftStreaming) {
-        void sendDraftProgress(
-          { api, chatId, richSupported, chatType: msg.chat.type, messageThreadId: threadId },
-          draftId,
-          detail,
-          { state: draftState },
-        );
-        return;
-      }
-      if (toolLines[toolLines.length - 1] !== detail) toolLines.push(detail);
-      pendingStatus = toolLines.slice(-5).join("\n");
-      void flushStatus();
-    };
-
-    const result = await opts.agentService.handleIncoming({
-      kind: "telegram",
-      chatId,
-      text,
-      workdir: opts.workdir,
-      topicId,
-      agentId: agentId ?? undefined,
-      onApprovalRequest: (request) => sendApprovalRequest(chatId, threadId, request),
-      onEvent,
-    });
-
-    if (typingTimer) clearInterval(typingTimer);
-    await statusCreating;
-    if (statusMsgId !== null) void api.deleteMessage(chatId, statusMsgId);
+    const progress = turnProgress(msg, chatId);
+    await progress.start();
+    let result;
+    try {
+      result = await opts.agentService.handleIncoming({
+        kind: "telegram",
+        chatId,
+        text,
+        workdir: opts.workdir,
+        topicId,
+        agentId: agentId ?? undefined,
+        onApprovalRequest: (request) => sendApprovalRequest(chatId, threadId, request),
+        onEvent: progress.onEvent,
+      });
+    } finally {
+      await progress.finish();
+    }
 
     if (result.ok && result.text) {
       await sendFormattedTelegramOutput({
@@ -412,6 +337,19 @@ export function createTelegramAdapter(opts                        )             
         messageThreadId: threadId,
       });
     }
+  }
+
+  function turnProgress(msg           , chatId        ) {
+    return createTelegramTurnProgress({
+      api,
+      chatId,
+      chatType: msg.chat.type,
+      richSupported,
+      messageThreadId: telegramReplyThreadId(msg),
+      draftId: msg.message_id,
+      deps: opts.progressDeps,
+      log,
+    });
   }
 
   async function sendApprovalRequest(

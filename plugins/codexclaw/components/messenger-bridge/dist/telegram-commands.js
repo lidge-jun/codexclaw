@@ -62,6 +62,7 @@ import { chunkTelegramMessage, escapeHtmlTg } from "./telegram-format.js";
 
 
 
+
 const GATEWAY_COMMANDS_SET = new Set(GATEWAY_COMMANDS.map((c) => c.name));
 export function parseCommand(text        )                                           {
   const match = /^\/([A-Za-z0-9_]+)(?:@\w+)?(?:\s+([\s\S]*))?$/.exec(text.trimStart());
@@ -140,6 +141,7 @@ async function handleGateway(ctx                , name        )                 
       args: ctx.args,
       defaultWorkdir: ctx.workdir,
       onApprovalRequest: (request) => sendApprovalRequest(ctx, request),
+      onEvent: ctx.onEvent,
     }),
   );
 }

@@ -10,6 +10,7 @@ import { createTelegramAdapter } from "../src/telegram-adapter.ts";
 import { encodeCallback } from "../src/telegram-interactive.ts";
 import type { AgentService, IncomingRequest, IncomingResult } from "../src/agent-service.ts";
 import type { TgUpdate } from "../src/telegram-api.ts";
+import type { TelegramProgressDeps } from "../src/telegram-progress.ts";
 
 interface Call {
   method: string;
@@ -103,6 +104,35 @@ function sha256Hex(value: string): string {
 
 async function settle(): Promise<void> {
   await new Promise((r) => setTimeout(r, 30));
+}
+
+function manualProgressClock() {
+  let now = 10_000;
+  let nextId = 1;
+  const timers = new Map<number, { at: number; callback: () => void }>();
+  const deps: TelegramProgressDeps = {
+    now: () => now,
+    setTimeout(callback, ms) {
+      const id = nextId++;
+      timers.set(id, { at: now + ms, callback });
+      return id;
+    },
+    clearTimeout: (id) => { timers.delete(id as number); },
+    setInterval: () => nextId++,
+    clearInterval: () => {},
+  };
+  return {
+    deps,
+    async advance(ms: number) {
+      now += ms;
+      for (const [id, timer] of [...timers]) {
+        if (timer.at > now) continue;
+        timers.delete(id);
+        timer.callback();
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+    },
+  };
 }
 
 test("allowlisted message drives the agent and sends a reply", async () => {
@@ -503,20 +533,63 @@ test("private draft progress uses drafts for file changes and never legacy statu
   }
 });
 
-test("non-draft group progress keeps the legacy status message path", async () => {
+test("long-poll /retry uses the command message id for private draft progress", async () => {
   const { db, cwd } = tempDb();
   try {
-    db.addAllowlist("telegram", "-504", "grp");
-    const { fetchImpl, calls } = makeFetch([
-      [{ update_id: 1, message: { message_id: 1, text: "@cxcbot group update", chat: { id: -504, type: "group" } } }],
-    ]);
+    db.addAllowlist("telegram", "505", "jun");
+    const binding = db.getOrCreateBinding("telegram", "505", cwd);
+    db.createJob(binding.id, "retry this");
+    const { fetchImpl, calls } = makeFetch([[textUpdate(55, 505, "/retry")]]);
     const adapter = createTelegramAdapter({
       db,
       token: "T",
       workdir: cwd,
       fetchImpl,
       agentService: stubAgentService(async (req) => {
+        req.onEvent?.({ kind: "message", text: "retry progress" });
+        return { ok: true, text: "retried answer" };
+      }),
+    });
+    await adapter.start();
+    await settle();
+    adapter.stop();
+
+    const draft = calls.find((call) => call.method === "sendRichMessageDraft");
+    assert.equal(draft?.payload.draft_id, 55);
+    assert.match(JSON.stringify(draft?.payload), /retry progress/);
+    assert.ok(calls.some((call) => call.method === "sendMessage" && call.payload.text === "retried answer"));
+  } finally {
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
+test("group topic progress sends one silent status, edits it, deletes it, then sends the final", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("telegram", "-504", "grp");
+    const clock = manualProgressClock();
+    const { fetchImpl, calls } = makeFetch([
+      [{ update_id: 1, message: {
+        message_id: 1,
+        text: "@cxcbot group update",
+        chat: { id: -504, type: "supergroup", is_forum: true },
+        is_topic_message: true,
+        message_thread_id: 44,
+      } }],
+    ]);
+    const adapter = createTelegramAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      progressDeps: clock.deps,
+      agentService: stubAgentService(async (req) => {
         req.onEvent?.({ kind: "tool_call", name: "shell", input: "npm test" });
+        req.onEvent?.({ kind: "file_change", action: "modify", path: "src/app.ts" });
+        req.onEvent?.({ kind: "message", text: "latest item" });
+        await clock.advance(2_000);
         return { ok: true, text: "done" };
       }),
     });
@@ -525,7 +598,20 @@ test("non-draft group progress keeps the legacy status message path", async () =
     adapter.stop();
 
     assert.equal(calls.some((c) => c.method === "sendRichMessageDraft"), false);
-    assert.ok(calls.some((c) => c.method === "sendMessage" && String(c.payload.text ?? "").startsWith("🔄 shell npm test")));
+    const statusSends = calls.filter((c) => c.method === "sendMessage" && String(c.payload.text ?? "").startsWith("🔄"));
+    assert.equal(statusSends.length, 1);
+    assert.deepEqual(statusSends[0].payload, {
+      chat_id: "-504",
+      text: "🔄 Working…",
+      message_thread_id: 44,
+      disable_notification: true,
+    });
+    const edit = calls.find((c) => c.method === "editMessageText");
+    assert.match(String(edit?.payload.text), /Latest\nlatest item/);
+    assert.match(String(edit?.payload.text), /Activity\nshell npm test\nmodify src\/app\.ts/);
+    const deletedAt = calls.findIndex((c) => c.method === "deleteMessage");
+    const finalAt = calls.findIndex((c) => c.method === "sendRichMessage" && JSON.stringify(c.payload).includes("done"));
+    assert.ok(deletedAt >= 0 && finalAt > deletedAt);
   } finally {
     await settle();
     db.close();

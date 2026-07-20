@@ -1,6 +1,17 @@
 # messenger-bridge — Phase 1 thread progress UX
 
-Status: P (design) · class C3 · implementation not started
+Status: D (built) · class C3 · WP1 cycle closed 2026-07-20
+
+## As-built note (WP1 D)
+
+Implemented as specced (incl. WP3 seam + 6 A-audit amendments): NEW
+`src/telegram-progress.ts` (+test), MODIFY `telegram-api.ts` /
+`telegram-adapter.ts` / `telegram-webhook.ts` / `telegram-commands.ts` /
+`gateway-commands.ts` / `discord-adapter.ts` (+5 test files). Fresh gates at
+D: `npm test` 1162/1162 pass, `npm run build` exit 0. One packaging delta
+beyond the doc: the repo's L19 gate requires generated dist files to be
+git-tracked, so `dist/telegram-progress.js` was force-added (repo convention:
+`dist/` is gitignored but tracked via `git add -f`).
 
 ## Loop-spec header
 
@@ -258,8 +269,19 @@ events. Do not add slash-interaction expectations in this phase.
 5. `plugins/codexclaw/components/messenger-bridge/test/discord-adapter.test.ts`:
    event-driven progress for textual retry and no
    regression in ordinary message progress.
-6. Run `npm test` and require zero failures.
-7. Run `npm run build` and require exit code 0.
+6. `plugins/codexclaw/components/messenger-bridge/test/telegram-api.test.ts`:
+   `sendMessage()` serializes `disable_notification: true` when set and omits
+   the field otherwise.
+7. Cleanup-failure resilience (amendment 1): with `deleteMessage` and a pending
+   edit rejecting, `finish()` resolves without throwing and the final answer
+   is still delivered — covered in `telegram-progress.test.ts` plus one
+   webhook integration case.
+8. Discord retry ordering (amendment 2): success → result message sent before
+   `finish({ok:true})`; failed turn → `finish({ok:false,error})`; thrown
+   dispatch → `finish` still called with failure; failed result send →
+   `finish({ok:false})` override. Covered in `discord-adapter.test.ts`.
+9. Run `npm test` and require zero failures.
+10. Run `npm run build` and require exit code 0.
 
 ### Manual Telegram forum-topic checklist
 
@@ -276,8 +298,10 @@ events. Do not add slash-interaction expectations in this phase.
 6. Confirm the status message is removed and the final answer remains as a
    separate durable message.
 7. Repeat with `/retry`; confirm the same progress behavior.
-8. Inject or observe a 429; confirm updates pause for `retry_after`, then resume
-   with the newest state and without duplicate bubbles.
+8. (Best-effort — amendment 6) Inject or observe a 429; confirm updates pause
+   for `retry_after`, then resume with the newest state and without duplicate
+   bubbles. The deterministic substitute gate is the fake-clock 429 unit test
+   in `telegram-progress.test.ts`; this manual step is confirmatory only.
 9. Repeat in a private chat with draft support enabled, then disabled; confirm
    draft and editable-message lanes activate respectively.
 
@@ -293,3 +317,68 @@ events. Do not add slash-interaction expectations in this phase.
 - Should Discord interaction turns receive the same event-driven parity as
   gateway messages, using edits to the deferred interaction response? That is
   the next known ingress gap after this Phase 1 scope.
+
+## WP3 extension seam (added at WP1 P, roadmap amendment 3)
+
+`createTelegramTurnProgress(options)` must accept an optional
+`progressFilter` hook: `(event: RunnerEvent) => "full" | "summary" | "drop"`.
+The controller applies it to every activity/thinking/tool/file event before
+rendering, with `summary` semantics defined per event kind in the filter
+table below (`drop` = exclude from the activity window). When the option is absent the
+controller behaves exactly as specified above — that is the declared default,
+equivalent to WP3's `all` mode. WP3 (030) wires `agents.tool_progress` into
+this hook without touching the controller's rendering, throttle, or 429
+logic, and the Discord progress window / 020 interaction progress declare
+the same seam shape.
+
+Per-kind filter table (WP1 A-audit amendment — the hook applies to the
+activity window ONLY, before window mutation; the Latest lane is exempt):
+
+| Event kind | `full` | `summary` | `drop` |
+|------------|--------|-----------|--------|
+| `status` | label text | `status` kind label only | excluded |
+| `thinking` | text (truncated) | `thinking` kind label only | excluded |
+| `tool_call` | name + input | name only | excluded |
+| `file_change` | action + path | path only | excluded |
+| `message` | — (bypasses the filter: always updates the Latest section) | — | — |
+
+## WP1 A-audit amendments (round 1, reviewer VERDICT: FAIL → all accepted)
+
+1. **`finish()` is best-effort and NEVER throws.** Every cleanup step
+   (pending-edit drain, status delete, typing-timer clear) is individually
+   try/caught and logged. Callers `await progress.finish()` in `finally`,
+   then ALWAYS proceed to final/error delivery — a cleanup failure can never
+   suppress the durable answer (webhook promise chain and adapter `finally`
+   both).
+2. **Discord `!cxc retry` outcome preservation + ordering.** The retry turn's
+   `IncomingResult` ok/error must survive to the progress window: extend the
+   gateway retry result's `data` (already carries `retriedJobId`,
+   `gateway-commands.ts:574-577`) with `{ ok, error? }` from the underlying
+   `IncomingResult`. Order in `discord-adapter.ts` text-retry path: create
+   window → dispatch (in try/finally) → send the command result message →
+   `finish({ ok, error })` with the REAL outcome — where a FAILED
+   result-message send (Discord API error on the final channel message)
+   OVERRIDES the progress outcome to `{ ok: false }`, so the window never
+   claims an undelivered answer was sent; on a thrown dispatch,
+   `finish({ ok: false, error })`. Never finish before the result message is
+   sent (a premature "Done" lies about delivery).
+3. **Controller options contract includes `draftId: number`.** Sourced from
+   the triggering `TgMessage.message_id` in the ordinary-message branch AND
+   the `/retry` command branch (the command message's id, not the retried
+   job's). The private lane passes it to `sendDraftProgress()` unchanged.
+4. **Filter table above** (per-kind `summary` semantics + Latest-lane
+   exemption) is part of the seam contract.
+5. **Test map additions.** NEW/MODIFY list extends to
+   `test/telegram-api.test.ts`: prove `sendMessage()` serializes
+   `disable_notification: true` when set and omits the field otherwise
+   (`sendMessageWithKeyboard` intentionally unchanged — approvals keep
+   notifying). Existing `test/telegram-adapter.test.ts:506-529` group-status
+   expectations are REWRITTEN for the silent initial send + edits flow.
+   The webhook test fake gains `editMessageText` and `deleteMessage`
+   (`test/telegram-webhook.test.ts:68-102`) with ordering assertions
+   adjusted. `telegram-rich-send.test.ts` must keep passing unchanged.
+6. **Deterministic timing seam in ingresses.** Both adapter and webhook
+   options types gain an optional `progressDeps` (clock/timer factory)
+   forwarded to internally created controllers, so integration tests never
+   wait real seconds. The manual forum checklist's 429 step is best-effort;
+   the fake-clock 429 unit test in `telegram-progress.test.ts` is the gate.

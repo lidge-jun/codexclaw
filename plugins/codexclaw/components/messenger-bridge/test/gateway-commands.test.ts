@@ -195,6 +195,7 @@ test("retry uses the binding channel, chat, workdir, and agent scope", async () 
     db.createJob(binding.id, "try again");
     const seen: IncomingRequest[] = [];
     let approvalForwarded: ApprovalRequest | null = null;
+    const onEvent: NonNullable<IncomingRequest["onEvent"]> = () => {};
     const result = await dispatchGatewayCommand("retry", {
       bindingId: binding.id,
       db,
@@ -203,6 +204,7 @@ test("retry uses the binding channel, chat, workdir, and agent scope", async () 
       onApprovalRequest: async (request) => {
         approvalForwarded = request;
       },
+      onEvent,
       agentService: stubAgent(async (req) => {
         seen.push(req);
         await req.onApprovalRequest?.({
@@ -224,7 +226,22 @@ test("retry uses the binding channel, chat, workdir, and agent scope", async () 
     assert.equal(seen[0].topicId, null);
     assert.equal(seen[0].agentId, agent.id);
     assert.equal(typeof seen[0].onApprovalRequest, "function");
+    assert.equal(seen[0].onEvent, onEvent);
     assert.equal(approvalForwarded?.id, "ap_retry");
+    assert.deepEqual(result?.data, { retriedJobId: 1, ok: true });
+
+    seen.length = 0;
+    await dispatchGatewayCommand("retry", {
+      bindingId: binding.id,
+      db,
+      agentId: agent.id,
+      args: "",
+      agentService: stubAgent(async (req) => {
+        seen.push(req);
+        return { ok: false, error: "failed" };
+      }),
+    });
+    assert.equal(seen[0].onEvent, undefined);
   } finally {
     db.close();
     rmRfRetry(cwd);

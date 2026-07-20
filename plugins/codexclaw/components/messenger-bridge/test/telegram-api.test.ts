@@ -3,6 +3,20 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { TelegramApi } from "../src/telegram-api.ts";
 
+test("sendMessage serializes disable_notification only when explicitly set", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const api = new TelegramApi("TOKEN", async (_url, init) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    return { json: async () => ({ ok: true, result: true }) } as Response;
+  });
+
+  await api.sendMessage({ chatId: 1, text: "silent", disableNotification: true });
+  await api.sendMessage({ chatId: 1, text: "normal" });
+
+  assert.equal(bodies[0].disable_notification, true);
+  assert.equal("disable_notification" in bodies[1], false);
+});
+
 test("setWebhook sends secret_token and allowed update types", async () => {
   const calls: Array<{ method: string; body: Record<string, unknown> }> = [];
   const api = new TelegramApi("TOKEN", async (url, init) => {

@@ -135,7 +135,7 @@ function stubAgent(impl: (req: IncomingRequest) => Promise<IncomingResult>): Age
   return { handleIncoming: impl, registerApprovalCleanup: () => true, shutdown() {} } as unknown as AgentService;
 }
 
-function makeRestFetch() {
+function makeRestFetch(responseFor?: (call: { path: string; method: string; body: unknown }) => Response | undefined) {
   const posts: Array<{ path: string; method: string; body: unknown }> = [];
   const fetchImpl = (url: string, init?: RequestInit): Promise<Response> => {
     if (url.startsWith("https://cdn.example/")) {
@@ -151,7 +151,10 @@ function makeRestFetch() {
       : init?.body
         ? JSON.parse(String(init.body))
         : {};
-    posts.push({ path, method: init?.method ?? "GET", body });
+    const call = { path, method: init?.method ?? "GET", body };
+    posts.push(call);
+    const custom = responseFor?.(call);
+    if (custom) return Promise.resolve(custom);
     const data = path.includes("/threads")
       ? { id: "thread-1", name: "thread" }
       : path === "/users/@me"
@@ -500,6 +503,120 @@ test("!cxc retry sends Discord approval cards through the text command path", as
       p.path === "/channels/chan-1/messages" && (p.body as { content?: string }).content === "❌ approval required"
     );
     assert.ok(denial, "retry command should still report the gated turn result");
+  } finally {
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
+test("!cxc retry sends its result before finishing progress with the real outcome", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("discord", "chan-1", "");
+    const binding = db.getOrCreateBinding("discord", "chan-1", cwd);
+    db.createJob(binding.id, "last prompt");
+    const { fetchImpl, posts } = makeRestFetch();
+    let ws!: FakeWs;
+    const adapter = createDiscordAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      wsFactory: () => (ws = new FakeWs()),
+      agentService: stubAgent(async (req) => {
+        req.onEvent?.({ kind: "status", label: "retrying" });
+        return { ok: true, text: "retried answer" };
+      }),
+    });
+    await adapter.start();
+    drive(ws, { content: "!cxc retry", channel_id: "chan-1", author: { id: "u", bot: false } });
+    await settle();
+    adapter.stop();
+
+    const resultAt = posts.findIndex((post) =>
+      post.path === "/channels/chan-1/messages" && (post.body as { content?: string }).content === "retried answer"
+    );
+    const doneAt = posts.findIndex((post) =>
+      post.method === "PATCH" && JSON.stringify(post.body).includes("Done: Final answer sent as a fresh message.")
+    );
+    assert.ok(posts.some((post) => post.method === "PATCH" && JSON.stringify(post.body).includes("retrying")));
+    assert.ok(resultAt >= 0 && doneAt > resultAt);
+  } finally {
+    await settle();
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
+test("!cxc retry finishes as error for failed turns and failed result delivery", async () => {
+  for (const scenario of ["turn", "send"] as const) {
+    const { db, cwd } = tempDb();
+    try {
+      db.addAllowlist("discord", "chan-1", "");
+      const binding = db.getOrCreateBinding("discord", "chan-1", cwd);
+      db.createJob(binding.id, "last prompt");
+      const { fetchImpl, posts } = makeRestFetch((call) => {
+        if (scenario !== "send" || (call.body as { content?: string }).content !== "retried answer") return undefined;
+        return {
+          ok: false,
+          status: 500,
+          headers: { get: () => null },
+          json: () => Promise.resolve({}),
+          text: () => Promise.resolve("send failed"),
+        } as unknown as Response;
+      });
+      let ws!: FakeWs;
+      const adapter = createDiscordAdapter({
+        db,
+        token: "T",
+        workdir: cwd,
+        fetchImpl,
+        wsFactory: () => (ws = new FakeWs()),
+        agentService: stubAgent(async () => scenario === "turn"
+          ? { ok: false, error: "turn failed" }
+          : { ok: true, text: "retried answer" }),
+      });
+      await adapter.start();
+      drive(ws, { content: "!cxc retry", channel_id: "chan-1", author: { id: "u", bot: false } });
+      await settle();
+      adapter.stop();
+
+      const finalEdit = posts.filter((post) => post.method === "PATCH").at(-1);
+      assert.match(JSON.stringify(finalEdit?.body), /Error:/, scenario);
+      assert.doesNotMatch(JSON.stringify(finalEdit?.body), /Done:/, scenario);
+    } finally {
+      await settle();
+      db.close();
+      rmRfRetry(cwd);
+    }
+  }
+});
+
+test("!cxc retry still finishes progress when dispatch throws", async () => {
+  const { db, cwd } = tempDb();
+  try {
+    db.addAllowlist("discord", "chan-1", "");
+    const binding = db.getOrCreateBinding("discord", "chan-1", cwd);
+    db.createJob(binding.id, "last prompt");
+    const { fetchImpl, posts } = makeRestFetch();
+    let ws!: FakeWs;
+    const adapter = createDiscordAdapter({
+      db,
+      token: "T",
+      workdir: cwd,
+      fetchImpl,
+      wsFactory: () => (ws = new FakeWs()),
+      agentService: stubAgent(async () => { throw new Error("dispatch exploded"); }),
+    });
+    await adapter.start();
+    drive(ws, { content: "!cxc retry", channel_id: "chan-1", author: { id: "u", bot: false } });
+    await settle();
+    adapter.stop();
+
+    const finalEdit = posts.filter((post) => post.method === "PATCH").at(-1);
+    assert.match(JSON.stringify(finalEdit?.body), /Error: dispatch exploded/);
+    assert.equal(posts.some((post) => (post.body as { content?: string }).content === "retried answer"), false);
   } finally {
     await settle();
     db.close();

@@ -283,16 +283,46 @@ export function createDiscordAdapter(opts                       )               
 
   async function handleGatewayTextCommand(channelId        , command        , args        )                {
     const binding = getBinding(channelId);
-    const result = await dispatchGatewayCommand(command, {
-      bindingId: binding.id,
-      db: opts.db,
-      agentService: opts.agentService,
-      agentId,
-      args,
-      defaultWorkdir: opts.workdir,
-      onApprovalRequest: (request) => sendApprovalRequest(channelId, request),
-    });
-    await api.sendMessage(channelId, result?.text ?? "Unknown bridge command.");
+    if (command !== "retry") {
+      const result = await dispatchGatewayCommand(command, {
+        bindingId: binding.id,
+        db: opts.db,
+        agentService: opts.agentService,
+        agentId,
+        args,
+        defaultWorkdir: opts.workdir,
+        onApprovalRequest: (request) => sendApprovalRequest(channelId, request),
+      });
+      await api.sendMessage(channelId, result?.text ?? "Unknown bridge command.");
+      return;
+    }
+
+    const progress = createProgressWindow(channelId);
+    await progress.start();
+    let outcome                                  = { ok: false, error: "Retry did not complete." };
+    try {
+      const result = await dispatchGatewayCommand(command, {
+        bindingId: binding.id,
+        db: opts.db,
+        agentService: opts.agentService,
+        agentId,
+        args,
+        defaultWorkdir: opts.workdir,
+        onApprovalRequest: (request) => sendApprovalRequest(channelId, request),
+        onEvent: progress.onEvent,
+      });
+      outcome = {
+        ok: result?.data?.ok === undefined ? true : result.data.ok === true,
+        error: typeof result?.data?.error === "string" ? result.data.error : undefined,
+      };
+      const sent = await api.sendMessage(channelId, result?.text ?? "Unknown bridge command.");
+      if (!sent.ok) outcome = { ok: false, error: sent.error ?? "Failed to send retry result." };
+    } catch (err) {
+      outcome = { ok: false, error: err instanceof Error ? err.message : String(err) };
+      throw err;
+    } finally {
+      await progress.finish(outcome);
+    }
   }
 
   async function replyChannelForMessage(msg                     , text        )                                                       {

@@ -6,7 +6,7 @@
  */
 import { createHash } from "node:crypto";
 import { formatApprovalForTelegram, type ApprovalRequest } from "./approval-relay.ts";
-import type { AgentService } from "./agent-service.ts";
+import type { AgentService, IncomingRequest } from "./agent-service.ts";
 import { type BindingRow, type BridgeDb } from "./db.ts";
 import {
   buildHelpEntries,
@@ -49,6 +49,7 @@ export interface CommandContext {
   admitChat: (chatId: string) => void;
   removeChat: (chatId: string) => void;
   setPaused: (paused: boolean) => void;
+  onEvent?: IncomingRequest["onEvent"];
   log: (line: string) => void;
 }
 
@@ -140,6 +141,7 @@ async function handleGateway(ctx: CommandContext, name: string): Promise<Command
       args: ctx.args,
       defaultWorkdir: ctx.workdir,
       onApprovalRequest: (request) => sendApprovalRequest(ctx, request),
+      onEvent: ctx.onEvent,
     }),
   );
 }

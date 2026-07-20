@@ -45,6 +45,7 @@ import { chunkTelegramMessage } from "./telegram-format.js";
 
 
 
+
 export const GATEWAY_COMMANDS                   = [
   { name: "status", description: "Show session status", handler: handleStatus },
   { name: "sessions", description: "List sessions for this chat", handler: handleSessions },
@@ -376,8 +377,16 @@ async function handleRetry(ctx                       )                          
     topicId: binding.topic_id,
     agentId: binding.agent_id ?? undefined,
     onApprovalRequest: ctx.onApprovalRequest,
+    onEvent: ctx.onEvent,
   });
-  return { text: formatIncomingResult(result), data: { retriedJobId: last.id } };
+  return {
+    text: formatIncomingResult(result),
+    data: {
+      retriedJobId: last.id,
+      ok: result.ok,
+      ...(result.error ? { error: result.error } : {}),
+    },
+  };
 }
 
 async function handleApprove(ctx                       )                                {

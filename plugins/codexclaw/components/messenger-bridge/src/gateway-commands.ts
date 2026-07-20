@@ -26,6 +26,7 @@ export interface GatewayCommandContext {
   args: string;
   defaultWorkdir?: string;
   onApprovalRequest?: IncomingRequest["onApprovalRequest"];
+  onEvent?: IncomingRequest["onEvent"];
   now?: () => Date;
 }
 
@@ -376,8 +377,16 @@ async function handleRetry(ctx: GatewayCommandContext): Promise<GatewayCommandRe
     topicId: binding.topic_id,
     agentId: binding.agent_id ?? undefined,
     onApprovalRequest: ctx.onApprovalRequest,
+    onEvent: ctx.onEvent,
   });
-  return { text: formatIncomingResult(result), data: { retriedJobId: last.id } };
+  return {
+    text: formatIncomingResult(result),
+    data: {
+      retriedJobId: last.id,
+      ok: result.ok,
+      ...(result.error ? { error: result.error } : {}),
+    },
+  };
 }
 
 async function handleApprove(ctx: GatewayCommandContext): Promise<GatewayCommandResult> {

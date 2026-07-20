@@ -10,13 +10,12 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { formatApprovalForTelegram, type ApprovalRequest } from "./approval-relay.ts";
 import type { AgentService, IncomingResult } from "./agent-service.ts";
 import type { BridgeDb } from "./db.ts";
-import type { RunnerEvent } from "./runner.ts";
 import { findCommandDef, parseCommand, type CommandResult } from "./telegram-commands.ts";
 import { handleCallback } from "./telegram-interactive.ts";
 import { TelegramApi, telegramReplyThreadId, telegramTopicId, type TgMessage, type TgUpdate } from "./telegram-api.ts";
 import { cleanupTmpMedia, downloadTelegramMessageMedia } from "./media-handler.ts";
 import { sendFormattedTelegramOutput } from "./output-formatter.ts";
-import { createDraftProgressState, sendDraftProgress } from "./telegram-rich-send.ts";
+import { createTelegramTurnProgress, type TelegramProgressDeps } from "./telegram-progress.ts";
 
 export interface TelegramWebhookOptions {
   api: TelegramApi;
@@ -29,6 +28,8 @@ export interface TelegramWebhookOptions {
   richSupported?: boolean;
   log?: (line: string) => void;
   deleteConfirmTtlMs?: number;
+  /** Deterministic clock/timer seam for attended-turn progress. */
+  progressDeps?: TelegramProgressDeps;
 }
 
 export type TelegramWebhookHandler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
@@ -107,30 +108,45 @@ export function createWebhookHandler(opts: TelegramWebhookOptions): TelegramWebh
       if (!def) return;
       const allowed = isAllowedChat(chatId);
       if (!def.allowUnpaired && !allowed) return;
-      void def
-        .handler({
-          chatId,
-          args: parsed.args,
-          db: opts.db,
-          agentService: opts.agentService,
-          binding: allowed ? opts.db.getOrCreateAgentBinding(opts.agentId, "telegram", chatId, defaultWorkdir, topicId) : null,
-          agentId: opts.agentId,
-          workdir: defaultWorkdir,
-          api: opts.api,
-          msg,
-          pendingDeletes,
-          deleteTtlMs: opts.deleteConfirmTtlMs ?? DELETE_CONFIRM_TTL_MS,
-          isAllowedChat,
-          isHandshakeOpen,
-          admitChat,
-          removeChat,
-          setPaused: (next) => {
-            paused = next;
-          },
-          log,
-        })
-        .then((result) => sendCommandResult(chatId, msg, result))
-        .catch((err) => log(`[tg-webhook] command error: ${(err as Error).message}`));
+      const progress = parsed.command === "retry" ? turnProgress(msg, chatId) : null;
+      const commandContext = {
+        chatId,
+        args: parsed.args,
+        db: opts.db,
+        agentService: opts.agentService,
+        binding: allowed ? opts.db.getOrCreateAgentBinding(opts.agentId, "telegram", chatId, defaultWorkdir, topicId) : null,
+        agentId: opts.agentId,
+        workdir: defaultWorkdir,
+        api: opts.api,
+        msg,
+        pendingDeletes,
+        deleteTtlMs: opts.deleteConfirmTtlMs ?? DELETE_CONFIRM_TTL_MS,
+        isAllowedChat,
+        isHandshakeOpen,
+        admitChat,
+        removeChat,
+        setPaused: (next: boolean) => {
+          paused = next;
+        },
+        onEvent: progress?.onEvent,
+        log,
+      };
+      if (!progress) {
+        void def.handler(commandContext)
+          .then((result) => sendCommandResult(chatId, msg, result))
+          .catch((err) => log(`[tg-webhook] command error: ${(err as Error).message}`));
+        return;
+      }
+      void (async () => {
+        await progress.start();
+        let result: CommandResult | null;
+        try {
+          result = await def.handler(commandContext);
+        } finally {
+          await progress.finish();
+        }
+        await sendCommandResult(chatId, msg, result);
+      })().catch((err) => log(`[tg-webhook] command error: ${(err as Error).message}`));
       return;
     }
 
@@ -145,8 +161,8 @@ export function createWebhookHandler(opts: TelegramWebhookOptions): TelegramWebh
       return;
     }
 
-    void opts.api.sendChatAction(chatId, messageThreadId);
-    const draftState = createDraftProgressState();
+    const progress = turnProgress(msg, chatId);
+    const progressStarted = progress.start();
     const enqueued = opts.agentService.enqueueIncoming({
       kind: "telegram",
       chatId,
@@ -155,13 +171,19 @@ export function createWebhookHandler(opts: TelegramWebhookOptions): TelegramWebh
       topicId,
       agentId: opts.agentId,
       onApprovalRequest: (request) => sendApprovalRequest(chatId, messageThreadId, request),
-      onEvent: msg.chat.type === "private"
-        ? (event) => sendWebhookDraftProgress(chatId, msg, event, draftState)
-        : undefined,
+      onEvent: progress.onEvent,
     });
     void enqueued.result
-      .then((result) => sendTurnResult(chatId, msg, result))
-      .catch((err) => log(`[tg-webhook] turn error: ${(err as Error).message}`))
+      .then(async (result) => {
+        await progressStarted;
+        await progress.finish();
+        await sendTurnResult(chatId, msg, result);
+      })
+      .catch(async (err) => {
+        await progressStarted;
+        await progress.finish();
+        log(`[tg-webhook] turn error: ${(err as Error).message}`);
+      })
       .finally(() => {
         void cleanupTmpMedia(media.tempDirs).catch((err) =>
           log(`[tg-webhook] media cleanup failed: ${(err as Error).message}`),
@@ -251,26 +273,17 @@ export function createWebhookHandler(opts: TelegramWebhookOptions): TelegramWebh
     await opts.api.sendMessage({ chatId, text: `❌ ${result.error ?? "no response"}`, messageThreadId: telegramReplyThreadId(msg) });
   }
 
-  function sendWebhookDraftProgress(
-    chatId: string,
-    msg: TgMessage,
-    event: RunnerEvent,
-    draftState: ReturnType<typeof createDraftProgressState>,
-  ): void {
-    const text = telegramProgressText(event);
-    if (!text) return;
-    void sendDraftProgress(
-      {
-        api: opts.api,
-        chatId,
-        richSupported: opts.richSupported ?? true,
-        chatType: msg.chat.type,
-        messageThreadId: telegramReplyThreadId(msg),
-      },
-      msg.message_id,
-      text,
-      { state: draftState },
-    );
+  function turnProgress(msg: TgMessage, chatId: string) {
+    return createTelegramTurnProgress({
+      api: opts.api,
+      chatId,
+      chatType: msg.chat.type,
+      richSupported: opts.richSupported ?? true,
+      messageThreadId: telegramReplyThreadId(msg),
+      draftId: msg.message_id,
+      deps: opts.progressDeps,
+      log,
+    });
   }
 
   async function sendApprovalRequest(
@@ -366,23 +379,4 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
     "content-length": Buffer.byteLength(payload),
   });
   res.end(payload);
-}
-
-function telegramProgressText(event: RunnerEvent): string | null {
-  switch (event.kind) {
-    case "thinking":
-      return `Thinking: ${event.text}`;
-    case "tool_call":
-      return [event.name, event.input].filter(Boolean).join(" ");
-    case "file_change":
-      return `${event.action} ${event.path}`;
-    case "status":
-      return event.label;
-    case "message":
-      return event.text;
-    case "thread":
-    case "done":
-    case "fail":
-      return null;
-  }
 }
