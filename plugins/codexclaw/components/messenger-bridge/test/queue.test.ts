@@ -1,7 +1,7 @@
 /** queue.test.ts — per-key serial FIFO, parallel across keys, cap, idle cleanup. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SerialQueues, QueueFullError } from "../src/queue.ts";
+import { QueueClosedError, SerialQueues, QueueFullError } from "../src/queue.ts";
 
 const tick = () => new Promise((r) => setTimeout(r, 5));
 
@@ -47,6 +47,22 @@ test("cap rejects overload synchronously with QueueFullError", () => {
   q.enqueue("k", () => new Promise(() => {})); // never resolves
   q.enqueue("k", () => new Promise(() => {}));
   assert.throws(() => q.enqueue("k", () => Promise.resolve()), QueueFullError);
+});
+
+test("close rejects pending and all later enqueue without starting them", async () => {
+  const q = new SerialQueues();
+  let release!: () => void;
+  const first = q.enqueue("k", () => new Promise<void>((resolve) => { release = resolve; }));
+  let pendingRan = false;
+  const pending = q.enqueue("k", async () => { pendingRan = true; });
+  q.close();
+  await assert.rejects(pending.result, QueueClosedError);
+  assert.throws(() => q.enqueue("other", async () => {}), QueueClosedError);
+  assert.equal(pendingRan, false);
+  release();
+  await first.result;
+  q.close();
+  assert.equal(q.activeKeys(), 0);
 });
 
 test("idle keys are deleted after their tail settles", async () => {

@@ -169,6 +169,15 @@ test("allowlisted message drives the agent and sends a reply", async () => {
       "reply should contain 'hello back' via sendRichMessage or sendMessage",
     );
     assert.ok(calls.some((c) => c.method === "sendChatAction"));
+    assert.deepEqual(calls.find((c) => c.method === "pinChatMessage")?.payload, {
+      chat_id: 500,
+      message_id: 1,
+      disable_notification: true,
+    });
+    assert.deepEqual(calls.find((c) => c.method === "unpinChatMessage")?.payload, {
+      chat_id: 500,
+      message_id: 1,
+    });
   } finally {
     await settle();
     db.close();

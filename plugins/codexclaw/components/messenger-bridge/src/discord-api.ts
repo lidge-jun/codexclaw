@@ -39,19 +39,31 @@ export interface DiscordFile {
   contentType?: string;
 }
 
+export interface DiscordApiOptions {
+  timeoutSignal?: (ms: number) => AbortSignal;
+  anySignal?: (signals: AbortSignal[]) => AbortSignal;
+  log?: (line: string) => void;
+}
+
 export class DiscordApi {
   private token: string;
   private fetchImpl: FetchImpl;
+  private options: DiscordApiOptions;
 
-  constructor(token: string, fetchImpl: FetchImpl = fetch) {
+  constructor(token: string, fetchImpl: FetchImpl = fetch, options: DiscordApiOptions = {}) {
     this.token = token;
     this.fetchImpl = fetchImpl;
+    this.options = options;
   }
 
-  private async call<T>(method: string, path: string, body?: unknown): Promise<DiscordApiResult<T>> {
+  private async call<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<DiscordApiResult<T>> {
     const safePath = redactDiscordPath(path);
     try {
       const url = `${DISCORD_API}${path}`;
+      const timeout = (this.options.timeoutSignal ?? AbortSignal.timeout)(5_000);
+      const boundedSignal = signal
+        ? (this.options.anySignal ?? AbortSignal.any)([signal, timeout])
+        : timeout;
       const init = {
         method,
         headers: {
@@ -59,6 +71,7 @@ export class DiscordApi {
           "content-type": "application/json",
         },
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal: boundedSignal,
       };
       let res = await this.fetchImpl(url, init);
       const header = (name: string) => res.headers?.get?.(name) ?? null;
@@ -247,6 +260,45 @@ export class DiscordApi {
     components?: unknown[],
   ): Promise<DiscordApiResult<{ id: string }>> {
     return this.call("PATCH", `/channels/${channelId}/messages/${messageId}`, { content, embeds, components });
+  }
+
+  createReaction(
+    channelId: string,
+    messageId: string,
+    emoji: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<DiscordApiResult<unknown>> {
+    return this.reactionCall("PUT", channelId, messageId, emoji, options);
+  }
+
+  deleteOwnReaction(
+    channelId: string,
+    messageId: string,
+    emoji: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<DiscordApiResult<unknown>> {
+    return this.reactionCall("DELETE", channelId, messageId, emoji, options);
+  }
+
+  private reactionCall(
+    method: "PUT" | "DELETE",
+    channelId: string,
+    messageId: string,
+    emoji: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<DiscordApiResult<unknown>> {
+    if (emoji.includes("%")) {
+      const error = `malformed raw emoji: ${emoji}`;
+      this.options.log?.(`[discord] reaction skipped: ${error}`);
+      return Promise.resolve({ ok: false, status: 0, error });
+    }
+    const encodedEmoji = encodeURIComponent(emoji);
+    return this.call(
+      method,
+      `/channels/${channelId}/messages/${messageId}/reactions/${encodedEmoji}/@me`,
+      undefined,
+      options?.signal,
+    );
   }
 }
 

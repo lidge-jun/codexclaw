@@ -22,11 +22,18 @@ export interface TgUpdate {
   callback_query?: TgCallbackQuery;
 }
 
+export interface TgChat {
+  id: number;
+  type: string;
+  is_forum?: boolean;
+  pinned_message?: TgMessage;
+}
+
 export interface TgMessage {
   message_id: number;
   text?: string;
   caption?: string;
-  chat: { id: number; type: string; is_forum?: boolean };
+  chat: TgChat;
   from?: { id: number; username?: string };
   is_topic_message?: boolean;
   message_thread_id?: number;
@@ -144,6 +151,29 @@ export class TelegramApi {
 
   getMe(): Promise<TgResponse<{ id: number; username?: string }>> {
     return this.call("getMe");
+  }
+
+  getChat(chatId: string | number): Promise<TgResponse<TgChat>> {
+    return this.call<TgChat>("getChat", { chat_id: chatId });
+  }
+
+  pinChatMessage(params: {
+    chatId: string | number;
+    messageId: number;
+    disableNotification?: boolean;
+  }): Promise<TgResponse<boolean>> {
+    const payload: Record<string, unknown> = {
+      chat_id: params.chatId,
+      message_id: params.messageId,
+    };
+    if (params.disableNotification !== undefined) {
+      payload.disable_notification = params.disableNotification;
+    }
+    return this.call<boolean>("pinChatMessage", payload);
+  }
+
+  unpinChatMessage(chatId: string | number, messageId: number): Promise<TgResponse<boolean>> {
+    return this.call<boolean>("unpinChatMessage", { chat_id: chatId, message_id: messageId });
   }
 
   getUpdates(offset: number, timeoutSec: number, signal?: AbortSignal): Promise<TgResponse<TgUpdate[]>> {

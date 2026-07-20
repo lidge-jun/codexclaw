@@ -107,8 +107,24 @@ function fakeApi(): TelegramApi & { sent: Array<{ method: string; payload: unkno
       return { ok: true, result: { message_id: 1, chat: { id: 1, type: "private" } } };
     },
     answerCallbackQuery: async () => ({ ok: true, result: true }),
+    getChat: async (chatId: string) => {
+      sent.push({ method: "getChat", payload: { chatId } });
+      return { ok: true, result: { id: Number(chatId), type: "private" } };
+    },
+    pinChatMessage: async (payload: unknown) => {
+      sent.push({ method: "pinChatMessage", payload });
+      return { ok: true, result: true };
+    },
+    unpinChatMessage: async (...payload: unknown[]) => {
+      sent.push({ method: "unpinChatMessage", payload });
+      return { ok: true, result: true };
+    },
     setWebhook: async () => ({ ok: true, result: true }),
   } as unknown as TelegramApi & { sent: Array<{ method: string; payload: unknown }> };
+}
+
+function deliveryCalls(api: ReturnType<typeof fakeApi>) {
+  return api.sent.filter((entry) => !["getChat", "pinChatMessage", "unpinChatMessage"].includes(entry.method));
 }
 
 function stubAgent(result: Promise<IncomingResult>): AgentService & { enqueued: IncomingRequest[] } {
@@ -257,12 +273,14 @@ test("webhook responds 200 after enqueue without waiting for turn completion", a
     assert.equal(db.getAgent(agent.id)?.poll_offset, 12);
     assert.equal(svc.enqueued.length, 1);
     assert.equal(svc.enqueued[0].text, "hello");
-    assert.deepEqual(api.sent, [{ method: "sendChatAction", payload: { chatId: "500", messageThreadId: undefined } }]);
+    assert.deepEqual(deliveryCalls(api), [{ method: "sendChatAction", payload: { chatId: "500", messageThreadId: undefined } }]);
 
     resolveTurn({ ok: true, text: "answer" });
     await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(api.sent[1].method, "sendRichMessage");
-    assert.match(JSON.stringify(api.sent[1].payload), /answer/);
+    const delivered = deliveryCalls(api);
+    assert.equal(delivered[1].method, "sendRichMessage");
+    assert.match(JSON.stringify(delivered[1].payload), /answer/);
+    assert.ok(api.sent.some((entry) => entry.method === "unpinChatMessage"));
   } finally {
     db.close();
     rmRfRetry(cwd);
@@ -432,11 +450,11 @@ test("webhook private turns use draft progress and formatted final output", asyn
     assert.equal(res.status, 200);
     svc.enqueued[0].onEvent?.({ kind: "tool_call", phase: "started", callId: "private-1", name: "check", input: "" });
     await new Promise((resolve) => setImmediate(resolve));
-    assert.deepEqual(api.sent.map((entry) => entry.method), ["sendChatAction", "sendRichMessageDraft"]);
+    assert.deepEqual(deliveryCalls(api).map((entry) => entry.method), ["sendChatAction", "sendRichMessageDraft"]);
 
     resolveTurn({ ok: true, text: "answer" });
     await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(api.sent.at(-1)?.method, "sendRichMessage");
+    assert.equal(deliveryCalls(api).at(-1)?.method, "sendRichMessage");
   } finally {
     db.close();
     rmRfRetry(cwd);
@@ -563,7 +581,7 @@ test("webhook forum topic progress is silent, edited in-topic, deleted before th
     assert.equal(res.status, 200);
     assert.equal(svc.enqueued[0]?.topicId, "44");
     assert.equal(typeof svc.enqueued[0]?.onEvent, "function");
-    assert.deepEqual(api.sent[0], { method: "sendChatAction", payload: { chatId: "-500", messageThreadId: 44 } });
+    assert.deepEqual(deliveryCalls(api)[0], { method: "sendChatAction", payload: { chatId: "-500", messageThreadId: 44 } });
     await settle();
     const status = api.sent.find((entry) => entry.method === "sendMessage");
     assert.deepEqual(status?.payload, {
@@ -581,7 +599,7 @@ test("webhook forum topic progress is silent, edited in-topic, deleted before th
     resolveTurn({ ok: true, text: "answer" });
     await settle();
     await settle();
-    const methods = api.sent.map((entry) => entry.method);
+    const methods = deliveryCalls(api).map((entry) => entry.method);
     assert.ok(methods.indexOf("deleteMessage") < methods.lastIndexOf("sendRichMessage"));
   } finally {
     db.close();

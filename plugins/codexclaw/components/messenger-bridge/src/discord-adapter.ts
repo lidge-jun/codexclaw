@@ -19,6 +19,7 @@ import type { RunnerEvent } from "./runner.ts";
 import { performance } from "node:perf_hooks";
 import {
   DiscordApi,
+  type DiscordApiResult,
   type FetchImpl,
 } from "./discord-api.ts";
 import {
@@ -30,7 +31,7 @@ import { registerGlobalCommands as registerDiscordCommands } from "./discord-com
 import { handleInteraction, type Interaction } from "./discord-interactions.ts";
 import { buildHelpEntries, dispatchGatewayCommand } from "./gateway-commands.ts";
 import { cleanupTmpMedia, downloadDiscordAttachment } from "./media-handler.ts";
-import { sendFormattedDiscordOutput } from "./output-formatter.ts";
+import { sendFormattedDiscordOutput, type DiscordOutputResult } from "./output-formatter.ts";
 import { progressEmbed } from "./discord-interaction-progress.ts";
 import { createToolProgressPolicy, DEFAULT_TOOL_PROGRESS, type ToolProgressMode } from "./tool-progress.ts";
 
@@ -46,11 +47,13 @@ export interface DiscordAdapterOptions {
   wsFactory?: WsFactory;
   now?: () => number;
   log?: (line: string) => void;
+  reactionAbortController?: () => AbortController;
 }
 
 export interface DiscordAdapter {
   start: () => Promise<void>;
   stop: () => void;
+  drain: (timeoutMs?: number) => Promise<void>;
   status: () => string;
 }
 
@@ -62,8 +65,8 @@ const GATEWAY_TEXT_COMMANDS = new Set([
 const DISCORD_PROGRESS_EDIT_MS = 1_200;
 
 export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapter {
-  const api = new DiscordApi(opts.token, opts.fetchImpl);
   const log = opts.log ?? (() => {});
+  const api = new DiscordApi(opts.token, opts.fetchImpl, { log });
   const nowMs = opts.now ?? (() => performance.now());
   const agentId = opts.agent?.id ?? null;
   let gateway: DiscordGateway | null = null;
@@ -72,11 +75,13 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
   let registrationPromise: Promise<void> | null = null;
   let warnedNoBotId = false;
   let paused = false;
+  let accepting = false;
   // Bounded dedupe of recently-seen message ids — the gateway can redeliver a
   // MESSAGE_CREATE on RESUME, and a full-permission exec must not run twice
   // (security review finding 4).
   const seenIds = new Set<string>();
   const seenOrder: string[] = [];
+  const inFlightTurns = new Set<Promise<void>>();
 
   const isAllowedChat = (channelId: string) =>
     agentId === null ? opts.db.isAllowed("discord", channelId) : opts.db.isAgentAllowed(agentId, channelId);
@@ -342,12 +347,46 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
     return { channelId: msg.channelId, autoCreated: false };
   }
 
-  async function sendTurnResult(channelId: string, result: { ok: boolean; text?: string; error?: string }): Promise<void> {
+  async function sendTurnResult(channelId: string, result: { ok: boolean; text?: string; error?: string }): Promise<DiscordOutputResult> {
     if (result.ok && result.text) {
-      await sendFormattedDiscordOutput(api, channelId, result.text, log);
-      return;
+      return sendFormattedDiscordOutput(api, channelId, result.text, log);
     }
-    await api.sendMessage(channelId, `Error: ${result.error ?? "no response"}`);
+    const sent = await api.sendMessage(channelId, `Error: ${result.error ?? "no response"}`);
+    return sent.ok ? { ok: true } : { ok: false, error: sent.error ?? `Discord error ${sent.status}` };
+  }
+
+  function createReactionLifecycle(originalChannelId: string, originalMessageId: string) {
+    const controller = (opts.reactionAbortController ?? (() => new AbortController()))();
+    let startPromise: Promise<DiscordApiResult<unknown>> | null = null;
+
+    const check = (step: string, result: DiscordApiResult<unknown>) => {
+      if (!result.ok) log(`[discord] reaction ${step} failed ${originalChannelId}/${originalMessageId}: ${result.error ?? result.status}`);
+    };
+    const invoke = async (step: string, call: () => Promise<DiscordApiResult<unknown>>) => {
+      try {
+        const result = await call();
+        check(step, result);
+        return result;
+      } catch (err) {
+        const result = { ok: false, status: 0, error: err instanceof Error ? err.message : String(err) };
+        check(step, result);
+        return result;
+      }
+    };
+
+    return {
+      start() {
+        startPromise ??= invoke("start", () =>
+          api.createReaction(originalChannelId, originalMessageId, "👀", { signal: controller.signal }));
+      },
+      async finish(success: boolean) {
+        controller.abort();
+        if (startPromise) await startPromise;
+        await invoke("remove", () => api.deleteOwnReaction(originalChannelId, originalMessageId, "👀"));
+        await invoke("terminal", () => api.createReaction(originalChannelId, originalMessageId, success ? "✅" : "❌"));
+        await invoke("compensate", () => api.deleteOwnReaction(originalChannelId, originalMessageId, "👀"));
+      },
+    };
   }
 
   async function downloadAttachmentPrefixes(msg: DiscordMessageEvent): Promise<{ prefixes: string[]; tempDirs: string[] }> {
@@ -449,11 +488,16 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
     }
 
     let mediaTempDirs: string[] = [];
+    let reactions: ReturnType<typeof createReactionLifecycle> | null = null;
+    let terminalSuccess = false;
     try {
       const media = await downloadAttachmentPrefixes(msg);
       mediaTempDirs = media.tempDirs;
       text = [media.prefixes.join("\n"), text.trim()].filter(Boolean).join("\n");
       if (!text.trim()) return;
+
+      reactions = createReactionLifecycle(msg.channelId, msg.id);
+      reactions.start();
 
       const reply = await replyChannelForMessage(msg, rawText || "attachment");
       const replyChannelId = reply.channelId;
@@ -471,7 +515,8 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
       });
 
       await progress.finish(result);
-      await sendTurnResult(replyChannelId, result);
+      const delivered = await sendTurnResult(replyChannelId, result);
+      terminalSuccess = result.ok && delivered.ok;
       if (reply.autoCreated && isThreadMode()) {
         const archived = await api.archiveThread(replyChannelId);
         if (!archived.ok) log(`[discord] archive thread failed ${replyChannelId}: ${archived.error ?? archived.status}`);
@@ -482,6 +527,8 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
         await cleanupTmpMedia(mediaTempDirs);
       } catch (err) {
         log(`[discord] media cleanup failed: ${(err as Error).message}`);
+      } finally {
+        await reactions?.finish(terminalSuccess);
       }
     }
   }
@@ -514,6 +561,7 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
 
   return {
     async start() {
+      accepting = true;
       gateway = new DiscordGateway({
         token: opts.token,
         wsFactory: opts.wsFactory,
@@ -523,22 +571,40 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
           if (ready.applicationId) applicationId = ready.applicationId;
           ensureCommandsRegistered("READY");
         },
-        onInteraction: (interaction) =>
+        onInteraction: (interaction) => {
+          if (!accepting) return;
           void handleNativeInteraction(interaction).catch((err) =>
-            log(`[discord] interaction error: ${(err as Error).message}`),
-          ),
-        onMessage: (msg) =>
-          void handleMessage(msg).catch((err) =>
-            log(`[discord] handle error: ${(err as Error).message}`),
-          ),
+            log(`[discord] interaction error: ${(err as Error).message}`));
+        },
+        onMessage: (msg) => {
+          if (!accepting) return;
+          const turn = handleMessage(msg).catch((err) =>
+            log(`[discord] handle error: ${(err as Error).message}`));
+          inFlightTurns.add(turn);
+          void turn.finally(() => inFlightTurns.delete(turn));
+        },
       });
       gateway.connect();
       log("[discord] gateway connecting");
     },
     stop() {
+      accepting = false;
       gateway?.stop();
       // Shared AgentService shutdown is owned by BridgeController.stop()
       // (audit rev-2 fix #1) — one agent stopping must not kill the others.
+    },
+    async drain(timeoutMs = 3_000) {
+      const settle = (async () => {
+        while (inFlightTurns.size > 0) await Promise.allSettled([...inFlightTurns]);
+      })();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        settle,
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, timeoutMs);
+        }),
+      ]);
+      if (timer) clearTimeout(timer);
     },
     status: () => gateway?.status() ?? "idle",
   };

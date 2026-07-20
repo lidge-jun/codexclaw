@@ -37,6 +37,22 @@ test("setWebhook sends secret_token and allowed update types", async () => {
   });
 });
 
+test("getChat, silent pin, and explicit-id unpin use exact request shapes", async () => {
+  const calls: Array<{ method: string; body: Record<string, unknown> }> = [];
+  const api = new TelegramApi("TOKEN", async (url, init) => {
+    calls.push({ method: url.split("/").pop() ?? "", body: JSON.parse(String(init?.body)) });
+    return { json: async () => ({ ok: true, result: true }) } as Response;
+  });
+  await api.getChat(5);
+  await api.pinChatMessage({ chatId: 5, messageId: 9, disableNotification: true });
+  await api.unpinChatMessage(5, 9);
+  assert.deepEqual(calls, [
+    { method: "getChat", body: { chat_id: 5 } },
+    { method: "pinChatMessage", body: { chat_id: 5, message_id: 9, disable_notification: true } },
+    { method: "unpinChatMessage", body: { chat_id: 5, message_id: 9 } },
+  ]);
+});
+
 test("sendDocument uploads in-memory files as multipart", async () => {
   const calls: Array<{ method: string; headers: Record<string, string>; body: string }> = [];
   const api = new TelegramApi("TOKEN", async (url, init) => {

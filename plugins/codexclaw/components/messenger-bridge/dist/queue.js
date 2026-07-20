@@ -13,6 +13,19 @@ export class QueueFullError extends Error {
   }
 }
 
+export class QueueClosedError extends Error {
+  constructor() {
+    super("queue is closed");
+    this.name = "QueueClosedError";
+  }
+}
+
+
+
+
+
+
+
 
 
 
@@ -27,6 +40,7 @@ export class QueueFullError extends Error {
 export class SerialQueues {
           keys = new Map                  ();
           cap        ;
+          closed = false;
 
   constructor(cap = 20) {
     this.cap = cap;
@@ -34,35 +48,55 @@ export class SerialQueues {
 
   /** Pending count for a key (includes the currently-running task). */
   pending(key        )         {
-    return this.keys.get(key)?.pending ?? 0;
+    const state = this.keys.get(key);
+    return state ? state.entries.length + (state.running ? 1 : 0) : 0;
   }
 
   enqueue   (key        , task                  )                   {
-    const state = this.keys.get(key) ?? { tail: Promise.resolve(), pending: 0 };
-    if (state.pending >= this.cap) {
+    if (this.closed) throw new QueueClosedError();
+    const state = this.keys.get(key) ?? { running: false, entries: [] };
+    const position = state.entries.length + (state.running ? 1 : 0);
+    if (position >= this.cap) {
       throw new QueueFullError(key, this.cap);
     }
-    const position = state.pending;
-    state.pending += 1;
+    let resolve                     ;
+    let reject                            ;
+    const result = new Promise   ((res, rej) => { resolve = res; reject = rej; });
+    state.entries.push({ task, resolve, reject }              );
     this.keys.set(key, state);
-
-    const result = state.tail.then(task, task);
-
-    // Advance the tail; when it settles, decrement and clean up idle keys.
-    state.tail = result.then(
-      () => this.settle(key),
-      () => this.settle(key),
-    );
+    this.runNext(key, state);
 
     return { position, result };
   }
 
-          settle(key        )       {
-    const state = this.keys.get(key);
-    if (!state) return;
-    state.pending -= 1;
-    if (state.pending <= 0) {
+          runNext(key        , state          )       {
+    if (state.running) return;
+    const entry = state.entries.shift();
+    if (!entry) {
       this.keys.delete(key);
+      return;
+    }
+    state.running = true;
+    void Promise.resolve()
+      .then(entry.task)
+      .then((value) => {
+        state.running = false;
+        this.runNext(key, state);
+        entry.resolve(value);
+      }, (err) => {
+        state.running = false;
+        this.runNext(key, state);
+        entry.reject(err);
+      });
+  }
+
+  close()       {
+    if (this.closed) return;
+    this.closed = true;
+    for (const [key, state] of this.keys) {
+      const pending = state.entries.splice(0);
+      for (const entry of pending) entry.reject(new QueueClosedError());
+      if (!state.running) this.keys.delete(key);
     }
   }
 

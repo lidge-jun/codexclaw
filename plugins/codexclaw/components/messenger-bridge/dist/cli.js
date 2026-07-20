@@ -92,12 +92,15 @@ async function runServe(argv          , metaUrl        )                  {
     });
 
   return new Promise        ((resolvePromise) => {
-    const shutdown = () => {
+    let stopping = false;
+    const shutdown = async () => {
+      if (stopping) return;
+      stopping = true;
       // Ordering matters: stop the scheduler BEFORE the controller nulls the
       // shared AgentService, and both before the server/db close (plan rev-2 #3).
       scheduler.stop();
       discordSweep.stop();
-      controller.stop();
+      await controller.stop();
       server.close(() => {
         db.close();
         resolvePromise(0);

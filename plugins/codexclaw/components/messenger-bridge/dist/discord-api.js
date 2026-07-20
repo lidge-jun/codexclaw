@@ -39,19 +39,31 @@ export const DISCORD_EMBED_TOTAL_MAX = 6000;
 
 
 
+
+
+
+
+
+
 export class DiscordApi {
           token        ;
           fetchImpl           ;
+          options                   ;
 
-  constructor(token        , fetchImpl            = fetch) {
+  constructor(token        , fetchImpl            = fetch, options                    = {}) {
     this.token = token;
     this.fetchImpl = fetchImpl;
+    this.options = options;
   }
 
-          async call   (method        , path        , body          )                               {
+          async call   (method        , path        , body          , signal              )                               {
     const safePath = redactDiscordPath(path);
     try {
       const url = `${DISCORD_API}${path}`;
+      const timeout = (this.options.timeoutSignal ?? AbortSignal.timeout)(5_000);
+      const boundedSignal = signal
+        ? (this.options.anySignal ?? AbortSignal.any)([signal, timeout])
+        : timeout;
       const init = {
         method,
         headers: {
@@ -59,6 +71,7 @@ export class DiscordApi {
           "content-type": "application/json",
         },
         body: body === undefined ? undefined : JSON.stringify(body),
+        signal: boundedSignal,
       };
       let res = await this.fetchImpl(url, init);
       const header = (name        ) => res.headers?.get?.(name) ?? null;
@@ -247,6 +260,45 @@ export class DiscordApi {
     components            ,
   )                                            {
     return this.call("PATCH", `/channels/${channelId}/messages/${messageId}`, { content, embeds, components });
+  }
+
+  createReaction(
+    channelId        ,
+    messageId        ,
+    emoji        ,
+    options                           ,
+  )                                     {
+    return this.reactionCall("PUT", channelId, messageId, emoji, options);
+  }
+
+  deleteOwnReaction(
+    channelId        ,
+    messageId        ,
+    emoji        ,
+    options                           ,
+  )                                     {
+    return this.reactionCall("DELETE", channelId, messageId, emoji, options);
+  }
+
+          reactionCall(
+    method                  ,
+    channelId        ,
+    messageId        ,
+    emoji        ,
+    options                           ,
+  )                                     {
+    if (emoji.includes("%")) {
+      const error = `malformed raw emoji: ${emoji}`;
+      this.options.log?.(`[discord] reaction skipped: ${error}`);
+      return Promise.resolve({ ok: false, status: 0, error });
+    }
+    const encodedEmoji = encodeURIComponent(emoji);
+    return this.call(
+      method,
+      `/channels/${channelId}/messages/${messageId}/reactions/${encodedEmoji}/@me`,
+      undefined,
+      options?.signal,
+    );
   }
 }
 

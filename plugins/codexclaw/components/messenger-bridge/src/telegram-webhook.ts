@@ -17,6 +17,7 @@ import { cleanupTmpMedia, downloadTelegramMessageMedia } from "./media-handler.t
 import { sendFormattedTelegramOutput } from "./output-formatter.ts";
 import { createTelegramTurnProgress, type TelegramProgressDeps } from "./telegram-progress.ts";
 import { createToolProgressFilter, DEFAULT_TOOL_PROGRESS } from "./tool-progress.ts";
+import { createTelegramTurnLifecycleManager } from "./telegram-turn-lifecycle.ts";
 
 export interface TelegramWebhookOptions {
   api: TelegramApi;
@@ -33,7 +34,9 @@ export interface TelegramWebhookOptions {
   progressDeps?: TelegramProgressDeps;
 }
 
-export type TelegramWebhookHandler = (req: IncomingMessage, res: ServerResponse) => Promise<void>;
+export type TelegramWebhookHandler = ((req: IncomingMessage, res: ServerResponse) => Promise<void>) & {
+  cleanup(): Promise<void>;
+};
 
 const WEBHOOK_PREFIX = "/webhook/telegram/";
 const MAX_BODY_BYTES = 1_000_000;
@@ -42,9 +45,23 @@ const DELETE_CONFIRM_TTL_MS = 60_000;
 export function createWebhookHandler(opts: TelegramWebhookOptions): TelegramWebhookHandler {
   const log = opts.log ?? (() => {});
   const pendingDeletes = new Map<string, number>();
+  const lifecycleManager = createTelegramTurnLifecycleManager({ api: opts.api, log });
+  const inFlightTurns = new Set<Promise<void>>();
   let paused = false;
+  let accepting = true;
+  let cleanupPromise: Promise<void> | null = null;
 
-  return async (req, res) => {
+  function launch(turn: Promise<void>, label: string): void {
+    const tracked = turn.catch((err) => log(`[tg-webhook] ${label} error: ${(err as Error).message}`));
+    inFlightTurns.add(tracked);
+    void tracked.finally(() => inFlightTurns.delete(tracked));
+  }
+
+  const handler = async (req: IncomingMessage, res: ServerResponse) => {
+    if (!accepting) {
+      sendJson(res, 503, { ok: false, error: "shutting down" });
+      return;
+    }
     const pathSecret = secretFromPath(new URL(req.url ?? "/", "http://localhost").pathname);
     const headerSecret = headerValue(req.headers["x-telegram-bot-api-secret-token"]);
     const validPath = safeEqual(pathSecret, opts.secretToken);
@@ -77,6 +94,15 @@ export function createWebhookHandler(opts: TelegramWebhookOptions): TelegramWebh
     await acceptUpdate(update);
     sendJson(res, 200, { ok: true });
   };
+  handler.cleanup = async () => {
+    accepting = false;
+    cleanupPromise ??= (async () => {
+      await lifecycleManager.cleanupAll();
+      while (inFlightTurns.size > 0) await Promise.allSettled([...inFlightTurns]);
+    })();
+    await cleanupPromise;
+  };
+  return handler;
 
   async function acceptUpdate(update: TgUpdate): Promise<void> {
     if (update.callback_query) {
@@ -109,7 +135,8 @@ export function createWebhookHandler(opts: TelegramWebhookOptions): TelegramWebh
       if (!def) return;
       const allowed = isAllowedChat(chatId);
       if (!def.allowUnpaired && !allowed) return;
-      const progress = parsed.command === "retry" ? turnProgress(msg, chatId) : null;
+      const attended = parsed.command === "retry" ? lifecycleManager.begin(msg) : null;
+      const progress = attended ? turnProgress(msg, chatId) : null;
       const commandContext = {
         chatId,
         args: parsed.args,
@@ -133,21 +160,25 @@ export function createWebhookHandler(opts: TelegramWebhookOptions): TelegramWebh
         log,
       };
       if (!progress) {
-        void def.handler(commandContext)
+        launch(def.handler(commandContext)
           .then((result) => sendCommandResult(chatId, msg, result))
-          .catch((err) => log(`[tg-webhook] command error: ${(err as Error).message}`));
+          , "command");
         return;
       }
-      void (async () => {
-        await progress.start();
-        let result: CommandResult | null;
+      launch((async () => {
         try {
-          result = await def.handler(commandContext);
+          await progress.start();
+          let result: CommandResult | null;
+          try {
+            result = await def.handler(commandContext);
+          } finally {
+            await progress.finish();
+          }
+          await sendCommandResult(chatId, msg, result);
         } finally {
-          await progress.finish();
+          await attended?.finish();
         }
-        await sendCommandResult(chatId, msg, result);
-      })().catch((err) => log(`[tg-webhook] command error: ${(err as Error).message}`));
+      })(), "command");
       return;
     }
 
@@ -163,6 +194,7 @@ export function createWebhookHandler(opts: TelegramWebhookOptions): TelegramWebh
     }
 
     const progress = turnProgress(msg, chatId);
+    const lifecycle = lifecycleManager.begin(msg);
     const progressStarted = progress.start();
     const enqueued = opts.agentService.enqueueIncoming({
       kind: "telegram",
@@ -174,7 +206,7 @@ export function createWebhookHandler(opts: TelegramWebhookOptions): TelegramWebh
       onApprovalRequest: (request) => sendApprovalRequest(chatId, messageThreadId, request),
       onEvent: progress.onEvent,
     });
-    void enqueued.result
+    launch(enqueued.result
       .then(async (result) => {
         await progressStarted;
         await progress.finish();
@@ -185,11 +217,15 @@ export function createWebhookHandler(opts: TelegramWebhookOptions): TelegramWebh
         await progress.finish();
         log(`[tg-webhook] turn error: ${(err as Error).message}`);
       })
-      .finally(() => {
-        void cleanupTmpMedia(media.tempDirs).catch((err) =>
-          log(`[tg-webhook] media cleanup failed: ${(err as Error).message}`),
-        );
-      });
+      .finally(async () => {
+        try {
+          await cleanupTmpMedia(media.tempDirs);
+        } catch (err) {
+          log(`[tg-webhook] media cleanup failed: ${(err as Error).message}`);
+        } finally {
+          await lifecycle.finish();
+        }
+      }), "turn");
   }
 
   function gateAndStripMention(rawText: string, msg: TgMessage): string | null {

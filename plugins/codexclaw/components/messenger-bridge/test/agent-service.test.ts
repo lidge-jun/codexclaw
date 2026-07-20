@@ -359,6 +359,36 @@ test("cancelTurn terminates the active child for one binding", async () => {
   }
 });
 
+test("shutdown rejects queued entries and AgentService marks each job error", async () => {
+  const cwd = tempCwd();
+  try {
+    await withMode("slow", async () => {
+      const db = openBridgeDb(cwd);
+      const svc = new AgentService({ db, codexBin: FAKE, timeoutMs: 30_000 });
+      let sawThread!: () => void;
+      const started = new Promise<void>((resolve) => { sawThread = resolve; });
+      const first = svc.handleIncoming({
+        kind: "telegram", chatId: "shutdown", text: "active", workdir: cwd,
+        onEvent: (event) => { if (event.kind === "thread") sawThread(); },
+      });
+      await started;
+      const second = svc.handleIncoming({ kind: "telegram", chatId: "shutdown", text: "queued", workdir: cwd });
+      svc.shutdown();
+      const queued = await second;
+      assert.equal(queued.ok, false);
+      assert.match(queued.error ?? "", /queue is closed/);
+      await first;
+      const binding = db.getOrCreateBinding("telegram", "shutdown", cwd);
+      const queuedJob = db.listJobs(binding.id, 10).find((job) => job.prompt_preview === "queued");
+      assert.equal(queuedJob?.state, "error");
+      assert.match(queuedJob?.error ?? "", /queue is closed/);
+      db.close();
+    });
+  } finally {
+    rmRfRetry(cwd);
+  }
+});
+
 test("agent with default model+effort adds no -m/-c flags", async () => {
   const cwd = tempCwd();
   const prevEcho = process.env.FAKE_CODEX_ECHO_ARGS;

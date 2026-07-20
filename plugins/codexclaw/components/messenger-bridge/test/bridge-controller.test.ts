@@ -130,7 +130,7 @@ test("reload runs one adapter per enabled agent, across kinds", async () => {
   assert.equal(tg.byToken.get("tokB")?.starts, 1);
   assert.equal(controller.adapterStatus(), "3 running");
 
-  controller.stop();
+  await controller.stop();
   assert.equal(controller.agentStatuses().length, 0);
   db.close();
 });

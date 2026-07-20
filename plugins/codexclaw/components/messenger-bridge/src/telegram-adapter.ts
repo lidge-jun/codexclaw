@@ -31,6 +31,7 @@ import { sendFormattedTelegramOutput } from "./output-formatter.ts";
 import { createTelegramTurnProgress, type TelegramProgressDeps } from "./telegram-progress.ts";
 import { probeRichSupport } from "./telegram-rich-send.ts";
 import { createToolProgressFilter, DEFAULT_TOOL_PROGRESS } from "./tool-progress.ts";
+import { createTelegramTurnLifecycleManager } from "./telegram-turn-lifecycle.ts";
 
 export interface TelegramAdapterOptions {
   db: BridgeDb;
@@ -62,6 +63,7 @@ const DELETE_CONFIRM_TTL_MS = 60_000;
 export interface TelegramAdapter {
   start: () => Promise<void>;
   stop: () => void;
+  drain: (timeoutMs?: number) => Promise<void>;
   status: () => AdapterStatus;
   botUsername: () => string | null;
 }
@@ -83,6 +85,9 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
   // /delete two-step confirmation: chatId -> pending expiry (epoch ms).
   const pendingDeletes = new Map<string, number>();
   const deleteTtl = opts.deleteConfirmTtlMs ?? DELETE_CONFIRM_TTL_MS;
+  const lifecycleManager = createTelegramTurnLifecycleManager({ api, log });
+  const inFlightTurns = new Set<Promise<void>>();
+  let cleanupPromise: Promise<void> | null = null;
 
   // Agent-scoped vs legacy channel-scoped persistence/gating.
   const savedOffset = () =>
@@ -137,11 +142,14 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
       conflictCount = 0;
       const updates = res.result ?? [];
       for (const update of updates) {
+        if (!running) break;
         // At-most-once: advance + PERSIST offset BEFORE dispatch, so a crash
         // mid-turn never redelivers an already-started full-permission exec.
         offset = update.update_id + 1;
         persistOffset(offset);
-        void dispatch(update).catch((err) => log(`[tg] dispatch error: ${(err as Error).message}`));
+        const turn = dispatch(update).catch((err) => log(`[tg] dispatch error: ${(err as Error).message}`));
+        inFlightTurns.add(turn);
+        void turn.finally(() => inFlightTurns.delete(turn));
       }
     }
     state = state === "conflict" ? "conflict" : "stopped";
@@ -169,36 +177,39 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
       const def = findCommandDef(parsed.command);
       if (def) {
         if (!def.allowUnpaired && !isAllowedChat(chatId)) return;
-        const progress = parsed.command === "retry" ? turnProgress(msg, chatId) : null;
-        await progress?.start();
-        let result: CommandResult | null;
+        const attended = parsed.command === "retry" ? lifecycleManager.begin(msg) : null;
         try {
-          result = await def.handler({
-            chatId,
-            args: parsed.args,
-            db: opts.db,
-            agentService: opts.agentService,
-            binding: null,
-            agentId,
-            workdir: opts.workdir,
-            api,
-            msg,
-            pendingDeletes,
-            deleteTtlMs: deleteTtl,
-            isAllowedChat,
-            isHandshakeOpen,
-            admitChat,
-            removeChat,
-            setPaused: (next) => {
-              paused = next;
-            },
-            onEvent: progress?.onEvent,
-            log,
-          });
+          const progress = attended ? turnProgress(msg, chatId) : null;
+          await progress?.start();
+          let result: CommandResult | null;
+          try {
+            result = await def.handler({
+              chatId,
+              args: parsed.args,
+              db: opts.db,
+              agentService: opts.agentService,
+              binding: null,
+              agentId,
+              workdir: opts.workdir,
+              api,
+              msg,
+              pendingDeletes,
+              deleteTtlMs: deleteTtl,
+              isAllowedChat,
+              isHandshakeOpen,
+              admitChat,
+              removeChat,
+              setPaused: (next) => { paused = next; },
+              onEvent: progress?.onEvent,
+              log,
+            });
+          } finally {
+            await progress?.finish();
+          }
+          await sendCommandResult(chatId, msg, result);
         } finally {
-          await progress?.finish();
+          await attended?.finish();
         }
-        await sendCommandResult(chatId, msg, result);
         return;
       }
     }
@@ -298,45 +309,50 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
   }
 
   async function runTurn(msg: TgMessage, chatId: string, text: string): Promise<void> {
+    const lifecycle = lifecycleManager.begin(msg);
     const threadId = telegramReplyThreadId(msg);
     // plain mode: flatten all topics into a single per-chat binding (topicId=null).
     const rawTopicId = telegramTopicId(msg);
     const threadMode = agentId !== null ? (opts.db.getAgent(agentId)?.thread_mode ?? "thread") : "thread";
     const topicId = threadMode === "plain" ? null : rawTopicId;
-    const progress = turnProgress(msg, chatId);
-    await progress.start();
-    let result;
     try {
-      result = await opts.agentService.handleIncoming({
-        kind: "telegram",
-        chatId,
-        text,
-        workdir: opts.workdir,
-        topicId,
-        agentId: agentId ?? undefined,
-        onApprovalRequest: (request) => sendApprovalRequest(chatId, threadId, request),
-        onEvent: progress.onEvent,
-      });
-    } finally {
-      await progress.finish();
-    }
+      const progress = turnProgress(msg, chatId);
+      await progress.start();
+      let result;
+      try {
+        result = await opts.agentService.handleIncoming({
+          kind: "telegram",
+          chatId,
+          text,
+          workdir: opts.workdir,
+          topicId,
+          agentId: agentId ?? undefined,
+          onApprovalRequest: (request) => sendApprovalRequest(chatId, threadId, request),
+          onEvent: progress.onEvent,
+        });
+      } finally {
+        await progress.finish();
+      }
 
-    if (result.ok && result.text) {
-      await sendFormattedTelegramOutput({
-        api,
-        chatId,
-        richSupported,
-        chatType: msg.chat.type,
-        messageThreadId: threadId,
-        text: result.text,
-      });
-      log(`[tg] out ${chatId}: ${result.text.slice(0, 60)}`);
-    } else {
-      await api.sendMessage({
-        chatId,
-        text: `❌ ${result.error ?? "no response"}`,
-        messageThreadId: threadId,
-      });
+      if (result.ok && result.text) {
+        await sendFormattedTelegramOutput({
+          api,
+          chatId,
+          richSupported,
+          chatType: msg.chat.type,
+          messageThreadId: threadId,
+          text: result.text,
+        });
+        log(`[tg] out ${chatId}: ${result.text.slice(0, 60)}`);
+      } else {
+        await api.sendMessage({
+          chatId,
+          text: `❌ ${result.error ?? "no response"}`,
+          messageThreadId: threadId,
+        });
+      }
+    } finally {
+      await lifecycle.finish();
     }
   }
 
@@ -410,13 +426,31 @@ export function createTelegramAdapter(opts: TelegramAdapterOptions): TelegramAda
     stop() {
       running = false;
       abort?.abort();
+      cleanupPromise ??= lifecycleManager.cleanupAll();
+      void cleanupPromise;
       // The AgentService is SHARED across adapters (v4 multi-agent): its
       // shutdown is owned by BridgeController.stop(), never by one adapter
       // (audit rev-2 fix #1 — stopping one agent must not kill the others'
       // in-flight codex children).
       if (state !== "conflict") state = "stopped";
     },
+    async drain(timeoutMs = 3_000) {
+      cleanupPromise ??= lifecycleManager.cleanupAll();
+      await boundedDrain(inFlightTurns, cleanupPromise, timeoutMs);
+    },
     status: () => state,
     botUsername: () => username,
   };
+}
+
+async function boundedDrain(turns: Set<Promise<void>>, cleanup: Promise<void>, timeoutMs: number): Promise<void> {
+  const settled = (async () => {
+    while (turns.size > 0) await Promise.allSettled([...turns]);
+    await cleanup;
+  })();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([settled, new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, timeoutMs);
+  })]);
+  if (timer) clearTimeout(timer);
 }

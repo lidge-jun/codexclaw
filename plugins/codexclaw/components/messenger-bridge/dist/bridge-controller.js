@@ -70,6 +70,7 @@ import {
 
 
 
+
 export class BridgeController {
           opts                         ;
           db          ;
@@ -175,6 +176,7 @@ export class BridgeController {
       const wantWebhookUrl = want?.kind === "telegram" ? want.webhook_url : "";
       if (!want || want.kind !== entry.kind || want.token !== entry.token || wantWebhookUrl !== entry.webhookUrl) {
         entry.adapter.stop();
+        await entry.adapter.drain();
         this.adapters.delete(id);
         this.recordLifecycle("stop", `${entry.kind}:${entry.name}`);
         this.log(`[bridge] stopped adapter for agent ${entry.name}`);
@@ -212,24 +214,25 @@ export class BridgeController {
           try {
             await registerWebhook(api, webhookUrl, secret);
             const botUsername = await fetchTelegramBotUsername(api, agent.name, this.log);
+            const webhookHandler = createWebhookHandler({
+              api,
+              db: this.db,
+              agentService: this.agentService                ,
+              secretToken: secret,
+              agentId: agent.id,
+              workdir: this.opts.workdir,
+              botUsername,
+              log: this.log,
+            });
             return {
-              adapter: createWebhookAdapter(),
+              adapter: createWebhookAdapter(() => webhookHandler.cleanup()),
               kind: agent.kind,
               token: agent.token,
               name: agent.name,
               mode: "webhook",
               webhookUrl,
               webhookSecret: secret,
-              webhookHandler: createWebhookHandler({
-                api,
-                db: this.db,
-                agentService: this.agentService                ,
-                secretToken: secret,
-                agentId: agent.id,
-                workdir: this.opts.workdir,
-                botUsername,
-                log: this.log,
-              }),
+              webhookHandler,
             };
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
@@ -295,14 +298,16 @@ export class BridgeController {
     return false;
   }
 
-  stop()       {
-    for (const entry of this.adapters.values()) {
+  async stop()                {
+    const entries = [...this.adapters.values()];
+    for (const entry of entries) {
       entry.adapter.stop();
       this.recordLifecycle("stop", `${entry.kind}:${entry.name}`);
     }
     this.adapters.clear();
-    // Shared-service shutdown lives here, not in any adapter (rev-2 fix #1).
+    // Close queues and terminate children only after every ingress is closed.
     this.agentService?.shutdown();
+    await Promise.allSettled(entries.map((entry) => entry.adapter.drain()));
     this.agentService = null;
   }
 
@@ -353,14 +358,25 @@ export class BridgeController {
   }
 }
 
-function createWebhookAdapter()                 {
+function createWebhookAdapter(cleanup                     )                 {
   let running = false;
+  let cleanupPromise                       = null;
   return {
     async start() {
       running = true;
     },
     stop() {
       running = false;
+      cleanupPromise ??= cleanup();
+      void cleanupPromise;
+    },
+    async drain(timeoutMs = 3_000) {
+      cleanupPromise ??= cleanup();
+      let timer                                           ;
+      await Promise.race([cleanupPromise, new Promise      ((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      })]);
+      if (timer) clearTimeout(timer);
     },
     status: () => (running ? "webhook" : "stopped"),
   };

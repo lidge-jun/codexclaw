@@ -51,6 +51,13 @@
 
 
 
+
+
+
+
+
+
+
 const API_BASE = "https://api.telegram.org";
 
 
@@ -144,6 +151,29 @@ export class TelegramApi {
 
   getMe()                                                         {
     return this.call("getMe");
+  }
+
+  getChat(chatId                 )                              {
+    return this.call        ("getChat", { chat_id: chatId });
+  }
+
+  pinChatMessage(params
+
+
+
+   )                               {
+    const payload                          = {
+      chat_id: params.chatId,
+      message_id: params.messageId,
+    };
+    if (params.disableNotification !== undefined) {
+      payload.disable_notification = params.disableNotification;
+    }
+    return this.call         ("pinChatMessage", payload);
+  }
+
+  unpinChatMessage(chatId                 , messageId        )                               {
+    return this.call         ("unpinChatMessage", { chat_id: chatId, message_id: messageId });
   }
 
   getUpdates(offset        , timeoutSec        , signal              )                                  {

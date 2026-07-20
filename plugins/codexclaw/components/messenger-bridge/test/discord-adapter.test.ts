@@ -135,6 +135,39 @@ test("DiscordApi sendFile retries multipart 429 retry_after once", async () => {
   assert.equal(calls, 2);
 });
 
+test("DiscordApi reactions encode raw emoji once, skip percent input, and branch signals", async () => {
+  const calls: Array<{ path: string; method: string; signal: AbortSignal | undefined }> = [];
+  const logs: string[] = [];
+  const timeout = new AbortController().signal;
+  const combined = new AbortController().signal;
+  const anyInputs: AbortSignal[][] = [];
+  const api = new DiscordApi("T", async (url, init) => {
+    calls.push({ path: url.replace(/^https:\/\/discord\.com\/api\/v10/, ""), method: init?.method ?? "", signal: init?.signal ?? undefined });
+    return {
+      ok: true, status: 204, headers: { get: () => null },
+      json: () => Promise.reject(new Error("no json")), text: () => Promise.resolve(""),
+    } as unknown as Response;
+  }, {
+    timeoutSignal: () => timeout,
+    anySignal: (signals) => { anyInputs.push(signals); return combined; },
+    log: (line) => logs.push(line),
+  });
+  const owner = new AbortController();
+  assert.equal((await api.createReaction("c", "m", "👀", { signal: owner.signal })).ok, true);
+  assert.equal((await api.createReaction("c", "m", "name:id")).ok, true);
+  assert.equal((await api.deleteOwnReaction("c", "m", "✅")).ok, true);
+  assert.equal((await api.createReaction("c", "m", "name%3Aid")).ok, false);
+  assert.deepEqual(calls.map((call) => `${call.method} ${call.path}`), [
+    "PUT /channels/c/messages/m/reactions/%F0%9F%91%80/@me",
+    "PUT /channels/c/messages/m/reactions/name%3Aid/@me",
+    "DELETE /channels/c/messages/m/reactions/%E2%9C%85/@me",
+  ]);
+  assert.deepEqual(anyInputs, [[owner.signal, timeout]]);
+  assert.equal(calls[0].signal, combined);
+  assert.equal(calls[1].signal, timeout);
+  assert.equal(logs.length, 1);
+});
+
 
 class FakeWs implements WsLike {
   private listeners = new Map<string, (ev: unknown) => void>();
@@ -270,7 +303,7 @@ test("bot-authored and non-allowlisted messages are ignored", async () => {
   const { db, cwd } = tempDb();
   try {
     db.addAllowlist("discord", "chan-1", "");
-    const { fetchImpl } = makeRestFetch();
+    const { fetchImpl, posts } = makeRestFetch();
     let ws!: FakeWs;
     let called = false;
     const adapter = createDiscordAdapter({
@@ -290,6 +323,7 @@ test("bot-authored and non-allowlisted messages are ignored", async () => {
     await settle();
     adapter.stop();
     assert.equal(called, false);
+    assert.equal(posts.some((post) => post.path.includes("/reactions/")), false);
   } finally {
     await settle();
     db.close();
@@ -728,6 +762,7 @@ test("allowed slash interactions defer before getMe fallback", async () => {
     assert.deepEqual(calls[0]?.body, { type: 5 });
     assert.equal(calls[1]?.path, "/users/@me");
     assert.ok(calls.some((call) => call.path === "/webhooks/app-fallback/interaction-token/messages/@original"));
+    assert.equal(calls.some((call) => call.path.includes("/reactions/")), false);
   } finally {
     await settle();
     db.close();
@@ -824,6 +859,15 @@ test("guild messages start a reply thread and send the final embed there", async
     const threadReply = posts.find((p) => p.path === "/channels/thread-1/messages" && (p.body as { content?: string }).content === "thread reply");
     assert.ok(threadReply, "fresh reply should be sent to the created thread");
     assert.ok(posts.some((p) => p.path === "/channels/thread-1" && p.method === "PATCH" && (p.body as { archived?: boolean }).archived === true));
+    assert.deepEqual(
+      posts.filter((p) => p.path.includes("/reactions/")).map((p) => `${p.method} ${p.path}`),
+      [
+        "PUT /channels/parent-chan/messages/msg-thread/reactions/%F0%9F%91%80/@me",
+        "DELETE /channels/parent-chan/messages/msg-thread/reactions/%F0%9F%91%80/@me",
+        "PUT /channels/parent-chan/messages/msg-thread/reactions/%E2%9C%85/@me",
+        "DELETE /channels/parent-chan/messages/msg-thread/reactions/%F0%9F%91%80/@me",
+      ],
+    );
   } finally {
     await settle();
     db.close();

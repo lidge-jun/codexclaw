@@ -18,7 +18,7 @@ import {
   type ApprovalRequest,
   type ApprovalStore,
 } from "./approval-relay.ts";
-import { SerialQueues, QueueFullError } from "./queue.ts";
+import { QueueClosedError, SerialQueues, QueueFullError } from "./queue.ts";
 import { runTurn, terminateChild, type RunnerEvent, type TurnResult } from "./runner.ts";
 
 export interface AgentServiceOptions {
@@ -113,6 +113,7 @@ export class AgentService {
 
   /** Terminate every in-flight Codex child (called on serve shutdown). */
   shutdown(): void {
+    this.queues.close();
     for (const child of this.children) {
       terminateChild(child);
     }
@@ -141,7 +142,7 @@ export class AgentService {
     try {
       enqueued = this.queues.enqueue(String(binding.id), () => this.runOne(binding.id, jobId, req));
     } catch (err) {
-      if (err instanceof QueueFullError) {
+      if (err instanceof QueueFullError || err instanceof QueueClosedError) {
         db.updateJob(jobId, { state: "error", error: err.message });
         this.recordError(agentId, err.message);
         return {
@@ -158,7 +159,15 @@ export class AgentService {
       bindingId: binding.id,
       jobId,
       queued: queuedAhead > 0 ? queuedAhead : undefined,
-      result: enqueued.result.then((result) => ({ ...result, queued: queuedAhead > 0 ? queuedAhead : undefined })),
+      result: enqueued.result.then(
+        (result) => ({ ...result, queued: queuedAhead > 0 ? queuedAhead : undefined }),
+        (err) => {
+          if (!(err instanceof QueueClosedError)) throw err;
+          db.updateJob(jobId, { state: "error", error: err.message, ended_at: new Date().toISOString() });
+          this.recordError(agentId, err.message);
+          return { ok: false, error: err.message, queued: queuedAhead > 0 ? queuedAhead : undefined };
+        },
+      ),
     };
   }
 
