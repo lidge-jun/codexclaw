@@ -20,18 +20,23 @@ Depends on WP1+WP2 committed locally. Push to origin/main is user-approved
 2. `git push origin main` (fast-forward only; if remote moved, fetch+rebase
    first per maintainer-merge discipline).
 3. `git branch dev main && git push -u origin dev`.
-4. MODIFY `.github/workflows/ci.yml`: trigger on push/PR for `[main, dev]`
-   (verify current triggers first; amend minimally).
-5. NEW (optional, if CI edit is in scope): `enforce-pr-target.yml` port from
-   opencodex with EXPECTED_BASE=dev — decide at P-recheck; default IN, it is
-   16 lines of yml and completes the convention.
-6. Contributor pointer: README "Contributing" one-liner — PRs target `dev`.
-   (Lands with WP2 if convenient, else here.)
+4. MODIFY `.github/workflows/ci.yml`: push `branches: [main]` → `[main, dev]`
+   (line 5; pull_request already unfiltered so dev-target PRs run CI as-is).
+   `docs.yml` stays main-only ON PURPOSE (Pages deploy — opencodex parity);
+   do not add dev there.
+5. NEW `enforce-pr-target.yml` port from opencodex (A-round corrected: 278
+   lines, not 16 — an inline github-script program; SHA-pinned action, minimal
+   `pull-requests: write` permission, EXPECTED_BASE already "dev"). One
+   codexclaw edit required: replace the hardcoded opencodex contributing URL
+   (their line 198) with the codexclaw docs/README §Contributing link.
+6. Contributor pointer: DONE in WP2 (README.md §Contributing, all 3 langs).
 7. Verify: `git branch -r` shows origin/dev; GitHub CI green on both
    branches (poll `gh run list --branch dev --limit 1`).
 
 ## Accept criteria
 
 - origin/main up to date; origin/dev exists with CI configured (CR-D, CR-E).
-- Final release-readiness note in D summary: what a v0.1.0 tag still needs
-  (from 260723 unit: gui/dist decision D1, CHANGELOG D3).
+- Final release-readiness note in D summary, reframed for v0.1.1 (A-round:
+  a v0.1.0 tag ALREADY exists on origin at c266bb06): what a v0.1.1 tag
+  still needs — user decisions D1 (gui/dist) and D3 (CHANGELOG.md, now
+  past-due since v0.1.0 tagged without one); tag creation stays a user call.
