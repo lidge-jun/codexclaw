@@ -8,6 +8,12 @@ The live dispatch set is `enable`, `disable`, `uninstall`, `status`, `orchestrat
 `metric`, `divergence`, `loop`, `goalplan`, `doctor`, `reset`, `subagents`, `map`, `provider`,
 `chat`, `memory`, `skill`, `gui`, `serve`, and `service`.
 
+:::caution[Repository-checkout surface]
+These binaries ship with a source checkout for v0.1.0 (npm link or a shell alias to
+`bin/codexclaw.mjs`). A marketplace plugin install activates skills, hooks, and MCP but does
+not place `cxc` on your `PATH`.
+:::
+
 ## Live commands
 
 | Command | Delegates to | Purpose |

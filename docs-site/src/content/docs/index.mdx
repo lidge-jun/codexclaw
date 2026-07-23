@@ -92,15 +92,20 @@ head:
   </div>
 </div>
 
+_The terminal above uses the `cxc` CLI, which ships with a source checkout — a marketplace
+install activates skills, hooks, and MCP without it. See
+[Installation](/codexclaw/getting-started/installation/)._
+
 **codexclaw** (`cxc`) is a single [OpenAI Codex](https://openai.com/codex) plugin. It reuses the
 Codex runtime and adds development discipline on top: a `cxc-dev` work classifier, an IPABCD
 work loop driven by hooks and file state, multi-model subagent configuration over MCP, a shipped
-GUI dashboard, and an optional detect-only [opencodex](https://github.com/lidge-jun/opencodex)
-provider bridge.
+GUI dashboard (built from the repo checkout until the bundled dashboard ships), and an optional
+detect-only [opencodex](https://github.com/lidge-jun/opencodex) provider bridge.
 
 It is not a Codex fork, not a harness, and not a provider proxy. Everything ships through the
-standard Codex plugin surfaces: skills, hooks, an MCP server, local components, and a small `cxc`
-CLI. The only scoped server exception is the opt-in loopback messenger bridge, which relays to
+standard Codex plugin surfaces: skills, hooks, an MCP server, and local components. The `cxc`
+CLI ships with the repository checkout for v0.1.0 rather than the marketplace payload. The only
+scoped server exception is the opt-in loopback messenger bridge, which relays to
 stock `codex exec` and does not orchestrate subagents.
 
 <section class="cxc-sec">
@@ -122,8 +127,8 @@ Codex runtime
        ├─ skills   →  cxc-dev discipline + dev-* routers + PABCD/loop/interview
        ├─ hooks    →  PABCD state, goal guards, provider detection
        ├─ MCP      →  subagent model/prompt config
-       ├─ GUI      →  dashboard + opt-in messenger bridge
-       └─ cxc CLI  →  enable · status · doctor · orchestrate · gui
+       ├─ GUI      →  dashboard (build from source) + opt-in messenger bridge
+       └─ cxc CLI  →  repo checkout only — enable · status · doctor · orchestrate · gui
 ```
 
 </section>
@@ -134,12 +139,12 @@ Codex runtime
 
 | Surface | Status | Count / scope | Primary docs |
 |---------|--------|---------------|--------------|
-| Skills | <span class="cxc-badge cxc-badge--current">current</span> | 25 skills: eight implicit skills (`dev`, `search`, `interview`, `pabcd`, `recall`, `loop`, `dev-frontend`, `dev-uiux-design`), dev routers, `qa`, `repo-map`, and research/search helpers. | [Skills](/codexclaw/guides/skills/) |
-| Hooks | <span class="cxc-badge cxc-badge--current">current</span> | 12 hook JSON files: `SessionStart` x2, `UserPromptSubmit` x1, `Stop` x1, `PreToolUse` x4, `PostToolUse` x2, `SubagentStop` x1, `PostCompact` x1. | [Hooks](/codexclaw/reference/hooks/) |
+| Skills | <span class="cxc-badge cxc-badge--current">current</span> | 27 skills: the `dev` classifier parent plus 12 surface routers, `pabcd`, `loop`, `interview`, `search`, `recall`, `qa`, `repo-map`, and research/search helpers. | [Skills](/codexclaw/guides/skills/) |
+| Hooks | <span class="cxc-badge cxc-badge--current">current</span> | 18 active hooks: `SessionStart` x4, `UserPromptSubmit` x2, `PreToolUse` x5, `PostToolUse` x2, `Stop` x1, `SubagentStop` x1, `PostCompact` x3. | [Hooks](/codexclaw/reference/hooks/) |
 | MCP | <span class="cxc-badge cxc-badge--current">current</span> | Subagent model and prompt config: `subagents_get`, `subagents_set`, `catalog_list`. | [MCP Tools](/codexclaw/reference/api-mcp/) · [Subagents](/codexclaw/guides/subagents/) |
 | Components | <span class="cxc-badge cxc-badge--current">current</span> | 8 component packages: config guard, ops, recall, PABCD state, provider bridge, subagent config, messenger bridge, skill search. GUI is separate. | [How It Works](/codexclaw/concepts/how-it-works/) |
-| `cxc` CLI | <span class="cxc-badge cxc-badge--current">current</span> | `enable`, `disable`, `uninstall`, `status`, `orchestrate`, `freeze`, `metric`, `divergence`, `loop`, `goalplan`, `doctor`, `reset`, `subagents`, `map`, `provider`, `chat`, `memory`, `skill`, `gui`, `serve`, `service`. | [Commands](/codexclaw/reference/commands/) |
-| GUI | <span class="cxc-badge cxc-badge--current">current</span> | Dashboard plus shipped opt-in loopback messenger bridge through `cxc serve`; not a jaw-style orchestrator. | [GUI Dashboard](/codexclaw/guides/gui/) |
+| `cxc` CLI | <span class="cxc-badge cxc-badge--current">current</span> | Repo checkout surface: `enable`, `disable`, `uninstall`, `status`, `orchestrate`, `freeze`, `metric`, `divergence`, `loop`, `goalplan`, `doctor`, `reset`, `subagents`, `map`, `provider`, `chat`, `memory`, `skill`, `gui`, `serve`, `service`. | [Commands](/codexclaw/reference/commands/) |
+| GUI | <span class="cxc-badge cxc-badge--current">current</span> | Dashboard (build from a repo checkout until bundled) plus opt-in loopback messenger bridge through `cxc serve`; not a jaw-style orchestrator. | [GUI Dashboard](/codexclaw/guides/gui/) |
 
 </section>
 
@@ -152,14 +157,21 @@ Codex runtime
 codex plugin marketplace add lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 
-# Verify the install
+# Verify the marketplace install
+codex plugin list
+```
+
+The marketplace install activates skills, hooks, and MCP. The `cxc` CLI ships with a source
+checkout (see [Installation](/codexclaw/getting-started/installation/) Track 3):
+
+```bash
 cxc doctor
 
 # Start a PABCD work-phase from the terminal
 cxc orchestrate P --attest '{"from":"IDLE","to":"P","did":"plan the change"}'
 ```
 
-The project gate is green at 801 tests. Build and test commands are documented separately so the
+The project gate is green at 1,201 tests. Build and test commands are documented separately so the
 landing page stays a control surface, not a release note.
 
 :::note[Status honesty]
@@ -191,7 +203,7 @@ design but no shipped runtime yet. The docs never describe a planned feature as 
   </a>
   <a class="cxc-index__row" href="/codexclaw/guides/skills/">
     <span class="cxc-index__title">Skills</span>
-    <span class="cxc-index__desc">25 skills: the cxc-dev classifier, surface routers, search, recall, QA.</span>
+    <span class="cxc-index__desc">27 skills: the cxc-dev classifier, surface routers, search, recall, QA.</span>
     <span class="cxc-index__arrow" aria-hidden="true">-&gt;</span>
   </a>
   <a class="cxc-index__row" href="/codexclaw/guides/subagents/">

@@ -33,18 +33,19 @@ a runtime loader. See the [Skills guide](/codexclaw/guides/skills/).
 
 ## Hooks
 
-Twelve hooks connect Codex lifecycle events to codexclaw state, covering session start,
-orchestration, pre/post-tool guards, subagent evidence, and compaction recovery:
+Eighteen active hooks connect Codex lifecycle events to codexclaw state, covering session start,
+orchestration, recall injection, pre/post-tool guards, subagent evidence, and compaction
+recovery:
 
 | Event | Hooks | Role |
 |---|---|---|
-| `SessionStart` (x2) | provider-bridge, map-affordance | Detect `ocx` status; announce `cxc map` availability. |
-| `UserPromptSubmit` (x1) | pabcd-trigger | Parse orchestrate grammar and inject phase directives. |
+| `SessionStart` (x4) | provider-bridge, pabcd-bootstrap, map-affordance, recall-context | Detect `ocx` status; bootstrap session state; announce `cxc map`; inject recall context. |
+| `UserPromptSubmit` (x2) | pabcd-trigger, recall-intent | Parse orchestrate grammar and inject phase directives; detect recall phrasing. |
 | `Stop` | pabcd-continuation | Keep an in-flight cycle advancing under an active goal. |
-| `PreToolUse` (x4) | goal-budget, interview-in-goal, skill-attach, edit-lint | Guard goals, deny interview in goal mode, attach skills to spawns, lint edits. |
+| `PreToolUse` (x5) | goal-budget, interview-in-goal, goal-complete, skill-attach, edit-lint | Guard goals, deny interview in goal mode, gate goal completion, attach skills to spawns, lint edits. |
 | `PostToolUse` (x2) | interview-capture, render-observations | Capture interview answers; track render observations. |
 | `SubagentStop` | evidence-verify | Verify subagent evidence bundles. |
-| `PostCompact` (x1) | reinject-cursor | Recover PABCD state after context compaction. |
+| `PostCompact` (x3) | reinject-cursor, recall-context, bg-terminal-affordance | Recover PABCD state, recall context, and affordance notes after context compaction. |
 
 Full matchers and timeouts are in the [Hooks reference](/codexclaw/reference/hooks/).
 
@@ -63,6 +64,9 @@ pabcd-state, `chat` / `memory` to recall, `skill search` / `skill show` to skill
 to the repo-map skill, `subagents` to subagent-config, `provider` to provider-bridge,
 `serve` / `service` to messenger-bridge, and `gui` to the Vite dashboard. See the
 [Commands reference](/codexclaw/reference/commands/).
+
+The binary ships with the repository checkout for v0.1.0 — the marketplace plugin payload
+activates skills, hooks, and MCP but does not place `cxc` on `PATH`.
 
 ## Components
 

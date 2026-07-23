@@ -6,6 +6,10 @@ description: Run a full PABCD work-phase end to end with codexclaw.
 This walks one PABCD work-phase from start to close. Each forward transition needs an `--attest`
 block; narration alone does not advance the state.
 
+Prerequisite: a source checkout with the `cxc` CLI activated
+([Installation](/codexclaw/getting-started/installation/) Track 3) — the marketplace-only
+install does not provide `cxc`.
+
 ## 1. Plan (P)
 
 ```bash

@@ -3,10 +3,14 @@ title: GUI Dashboard
 description: The codexclaw local dashboard for channels, named agents, subagent model selection, and prompt tuning.
 ---
 
-codexclaw ships a local dashboard for messenger channels, named bridge agents, and subagent
-configuration.
+codexclaw includes a local dashboard for messenger channels, named bridge agents, and subagent
+configuration. Until the bundled `gui/dist` ships in a release, the dashboard runs from a
+repository checkout (see below).
 
 ## Launch
+
+Prerequisite: a source checkout with the `cxc` CLI activated
+([Installation](/codexclaw/getting-started/installation/) Track 3).
 
 ```bash
 cxc gui

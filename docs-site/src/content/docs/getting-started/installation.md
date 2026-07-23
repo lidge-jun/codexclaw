@@ -25,6 +25,18 @@ codex plugin add codexclaw@codexclaw
 The marketplace install registers the plugin manifest with Codex, including its skills, hooks,
 and MCP server.
 
+It does **not** place the `cxc` CLI on your `PATH` — use Track 3 for CLI access.
+
+Update and uninstall use the same marketplace surface:
+
+```bash
+codex plugin marketplace upgrade codexclaw   # update
+codex plugin remove codexclaw@codexclaw      # uninstall
+```
+
+After an upgrade Codex marks the hooks **Modified** — re-approve them to reactivate
+(content-hash trust model).
+
 ## Track 2 — Local dogfood with a dev symlink
 
 For active development, symlink the working checkout into the Codex plugin cache so approved hooks
@@ -46,8 +58,8 @@ entry point:
 node bin/codexclaw.mjs enable
 ```
 
-Once a global `cxc` / `codexclaw` bin is on your `PATH` (npm link or codexclaw marketplace install), use
-`cxc enable` instead.
+Once a global `cxc` / `codexclaw` bin is on your `PATH` (npm link or a shell alias to
+`bin/codexclaw.mjs`), use `cxc enable` instead.
 
 :::caution[npm / npx distribution is planned, not shipped]
 The root package is currently private and `dist/` is not published, so `npx codexclaw` is not yet
@@ -57,7 +69,7 @@ a supported install path. Use a source checkout or the dev symlink until packagi
 
 ## Hook trust
 
-codexclaw ships twelve hooks. Codex requires you to review and trust hooks before they run:
+codexclaw ships 18 active hooks. Codex requires you to review and trust hooks before they run:
 
 - The first start after install or upgrade prompts a Codex hook review.
 - Under the symlink dogfood track, approved hooks execute mutable local checkout files, so review
@@ -66,6 +78,9 @@ codexclaw ships twelve hooks. Codex requires you to review and trust hooks befor
   re-check trust in Codex rather than editing trust files.
 
 ## Verify
+
+Marketplace install: the plugin shows up in `codex plugin list`. From a source checkout with
+the CLI activated:
 
 ```bash
 cxc doctor
