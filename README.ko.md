@@ -47,18 +47,37 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 ## 설치
 
+두 줄이면 설치 끝. 빌드도, npm install도, 설정 파일 수정도 없다.
+
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
-
-# 업데이트
-codex plugin marketplace upgrade codexclaw
-
-# 제거
-codex plugin remove codexclaw@codexclaw
 ```
 
-업그레이드 후에는 Codex가 훅을 **Modified**로 표시한다. 콘텐츠 해시 신뢰 모델이라 다시 승인해야 활성화된다. `cxc` CLI는 리포 체크아웃(`bin/codexclaw.mjs`)에 들어 있고, 마켓플레이스 설치는 이 없이 스킬·훅·MCP를 활성화한다.
+설치 후 Codex를 재시작하고 뜨는 승인 창에서 18개 훅을 승인하면 된다(업그레이드 후에도 다시 승인 — 콘텐츠 해시 신뢰 모델). CLI 없이 채팅에서 바로 쓸 수 있다:
+
+- `orchestrate status` — PABCD 상태 머신 확인
+- "Interview me first, then draft a diff-level plan."
+- "Plan this with codexclaw PABCD and use multi-model subagents."
+
+<details>
+<summary><b>업데이트 / 제거 / 선택적 CLI</b></summary>
+
+```bash
+codex plugin marketplace upgrade codexclaw   # 업데이트
+codex plugin remove codexclaw@codexclaw      # 제거
+```
+
+업그레이드 후에는 Codex가 훅을 **Modified**로 표시한다. 다시 승인해야 활성화된다.
+
+`cxc` CLI는 리포 체크아웃에 들어 있다(마켓플레이스 설치는 이 없이 스킬·훅·MCP를 활성화한다):
+
+```bash
+git clone https://github.com/lidge-jun/codexclaw
+alias cxc='node /path/to/codexclaw/bin/codexclaw.mjs'   # 또는: npm link
+```
+
+</details>
 
 ## 아키텍처
 

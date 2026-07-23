@@ -47,18 +47,37 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 ## 安装
 
+两行命令即可完成安装。无需构建、无需 npm install、无需修改配置文件。
+
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
-
-# 更新
-codex plugin marketplace upgrade codexclaw
-
-# 卸载
-codex plugin remove codexclaw@codexclaw
 ```
 
-升级后 Codex 会将 hooks 标记为 **Modified**，需要重新批准才能激活（内容哈希信任模型）。`cxc` CLI 随仓库检出提供（`bin/codexclaw.mjs`）；marketplace 安装无需它即可激活 skills、hooks 和 MCP。
+然后重启 Codex，并在弹出的审批中批准 18 个 hooks（升级后需再次批准——内容哈希信任模型）。无需 CLI，直接在聊天中使用：
+
+- `orchestrate status` — 查看 PABCD 状态机
+- "Interview me first, then draft a diff-level plan."
+- "Plan this with codexclaw PABCD and use multi-model subagents."
+
+<details>
+<summary><b>更新 / 卸载 / 可选 CLI</b></summary>
+
+```bash
+codex plugin marketplace upgrade codexclaw   # 更新
+codex plugin remove codexclaw@codexclaw      # 卸载
+```
+
+升级后 Codex 会将 hooks 标记为 **Modified**，需要重新批准才能激活。
+
+`cxc` CLI 随仓库检出提供（marketplace 安装无需它即可激活 skills、hooks 和 MCP）：
+
+```bash
+git clone https://github.com/lidge-jun/codexclaw
+alias cxc='node /path/to/codexclaw/bin/codexclaw.mjs'   # 或者：npm link
+```
+
+</details>
 
 ## 架构
 

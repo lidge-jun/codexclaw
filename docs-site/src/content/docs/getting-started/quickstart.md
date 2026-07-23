@@ -10,6 +10,9 @@ Prerequisite: a source checkout with the `cxc` CLI activated
 ([Installation](/codexclaw/getting-started/installation/) Track 3) — the marketplace-only
 install does not provide `cxc`.
 
+No CLI? The same transitions work as line-anchored chat messages — sending `orchestrate P`
+in chat is the human free-pass path.
+
 ## 1. Plan (P)
 
 ```bash

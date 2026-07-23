@@ -37,6 +37,10 @@ codex plugin remove codexclaw@codexclaw      # uninstall
 After an upgrade Codex marks the hooks **Modified** — re-approve them to reactivate
 (content-hash trust model).
 
+**What works immediately:** restart Codex, approve the hooks, and drive everything from
+chat — try `orchestrate status`, or "Interview me first, then draft a diff-level plan."
+The `cxc` binary (Track 3) is a power surface, not a prerequisite.
+
 ## Track 2 — Local dogfood with a dev symlink
 
 For active development, symlink the working checkout into the Codex plugin cache so approved hooks

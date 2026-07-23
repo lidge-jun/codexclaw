@@ -47,18 +47,37 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 ## Install
 
+2 lines to install. No build step, no npm install, no config edits.
+
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
-
-# update
-codex plugin marketplace upgrade codexclaw
-
-# uninstall
-codex plugin remove codexclaw@codexclaw
 ```
 
-After an upgrade Codex marks the hooks **Modified** — re-approve them to reactivate (content-hash trust model). The `cxc` CLI ships with a repository checkout (`bin/codexclaw.mjs`); the marketplace install activates skills, hooks, and MCP without it.
+Then restart Codex and approve the 18 hooks when prompted (upgrades ask again — content-hash trust). Everything runs from chat, no CLI needed:
+
+- `orchestrate status` — check the PABCD state machine
+- "Interview me first, then draft a diff-level plan."
+- "Plan this with codexclaw PABCD and use multi-model subagents."
+
+<details>
+<summary><b>Update / uninstall / optional CLI</b></summary>
+
+```bash
+codex plugin marketplace upgrade codexclaw   # update
+codex plugin remove codexclaw@codexclaw      # uninstall
+```
+
+After an upgrade Codex marks the hooks **Modified** — re-approve them to reactivate.
+
+The `cxc` CLI ships with a repository checkout (the marketplace install activates skills, hooks, and MCP without it):
+
+```bash
+git clone https://github.com/lidge-jun/codexclaw
+alias cxc='node /path/to/codexclaw/bin/codexclaw.mjs'   # or: npm link
+```
+
+</details>
 
 ## Architecture
 
