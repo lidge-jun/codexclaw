@@ -21,7 +21,7 @@ head:
             "url": "https://lidge-jun.github.io/codexclaw/",
             "image": "https://lidge-jun.github.io/codexclaw/og.png",
             "license": "https://github.com/lidge-jun/codexclaw/blob/main/LICENSE",
-            "softwareVersion": "0.1.0",
+            "softwareVersion": "0.1.1",
             "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
             "author": { "@type": "Person", "name": "lidge-jun", "url": "https://github.com/lidge-jun" }
           },
@@ -92,8 +92,9 @@ head:
   </div>
 </div>
 
-_The terminal above uses the `cxc` CLI, which ships with a source checkout — a marketplace
-install activates skills, hooks, and MCP without it. See
+_The terminal above uses the `cxc` CLI. Every install has one: the plugin payload ships a
+dispatcher (`node "<pluginRoot>/bin/cxc.mjs" …` — the SessionStart banner names the exact
+invocation), and a repo checkout can put `cxc` on `PATH`. See
 [Installation](/codexclaw/getting-started/installation/)._
 
 **codexclaw** (`cxc`) is a single [OpenAI Codex](https://openai.com/codex) plugin. It reuses the
@@ -104,7 +105,9 @@ detect-only [opencodex](https://github.com/lidge-jun/opencodex) provider bridge.
 
 It is not a Codex fork, not a harness, and not a provider proxy. Everything ships through the
 standard Codex plugin surfaces: skills, hooks, an MCP server, and local components. The `cxc`
-CLI ships with the repository checkout for v0.1.0 rather than the marketplace payload. The only
+CLI has two tiers for v0.1.1: the marketplace payload ships a dispatcher (`bin/cxc.mjs`) so
+every install has a terminal surface, and a repository checkout can additionally place `cxc` on
+`PATH` (npm link or alias). The only
 scoped server exception is the opt-in loopback messenger bridge, which relays to
 stock `codex exec` and does not orchestrate subagents.
 
@@ -128,7 +131,7 @@ Codex runtime
        ├─ hooks    →  PABCD state, goal guards, provider detection
        ├─ MCP      →  subagent model/prompt config
        ├─ GUI      →  dashboard (build from source) + opt-in messenger bridge
-       └─ cxc CLI  →  repo checkout only — enable · status · doctor · orchestrate · gui
+       └─ cxc CLI  →  ships in payload (bin/cxc.mjs); PATH cxc via checkout
 ```
 
 </section>
@@ -143,7 +146,7 @@ Codex runtime
 | Hooks | <span class="cxc-badge cxc-badge--current">current</span> | 18 active hooks: `SessionStart` x4, `UserPromptSubmit` x2, `PreToolUse` x5, `PostToolUse` x2, `Stop` x1, `SubagentStop` x1, `PostCompact` x3. | [Hooks](/codexclaw/reference/hooks/) |
 | MCP | <span class="cxc-badge cxc-badge--current">current</span> | Subagent model and prompt config: `subagents_get`, `subagents_set`, `catalog_list`. | [MCP Tools](/codexclaw/reference/api-mcp/) · [Subagents](/codexclaw/guides/subagents/) |
 | Components | <span class="cxc-badge cxc-badge--current">current</span> | 8 component packages: config guard, ops, recall, PABCD state, provider bridge, subagent config, messenger bridge, skill search. GUI is separate. | [How It Works](/codexclaw/concepts/how-it-works/) |
-| `cxc` CLI | <span class="cxc-badge cxc-badge--current">current</span> | Repo checkout surface: `enable`, `disable`, `uninstall`, `status`, `orchestrate`, `freeze`, `metric`, `divergence`, `loop`, `goalplan`, `doctor`, `reset`, `subagents`, `map`, `provider`, `chat`, `memory`, `skill`, `gui`, `serve`, `service`. | [Commands](/codexclaw/reference/commands/) |
+| `cxc` CLI | <span class="cxc-badge cxc-badge--current">current</span> | Payload dispatcher + PATH checkout bin: `enable`, `disable`, `uninstall`, `status`, `orchestrate`, `freeze`, `metric`, `divergence`, `loop`, `goalplan`, `plan`, `scan`, `doctor`, `reset`, `hooks`, `subagents`, `map`, `provider`, `chat`, `memory`, `skill`, `gui`, `serve`, `service`. | [Commands](/codexclaw/reference/commands/) |
 | GUI | <span class="cxc-badge cxc-badge--current">current</span> | Dashboard (build from a repo checkout until bundled) plus opt-in loopback messenger bridge through `cxc serve`; not a jaw-style orchestrator. | [GUI Dashboard](/codexclaw/guides/gui/) |
 
 </section>
@@ -161,8 +164,9 @@ codex plugin add codexclaw@codexclaw
 codex plugin list
 ```
 
-The marketplace install activates skills, hooks, and MCP. The `cxc` CLI ships with a source
-checkout (see [Installation](/codexclaw/getting-started/installation/) Track 3):
+The marketplace install activates skills, hooks, MCP, and the payload CLI dispatcher — the
+SessionStart banner names the exact invocation when `cxc` is not on `PATH` (see
+[Installation](/codexclaw/getting-started/installation/)):
 
 ```bash
 cxc doctor
@@ -171,7 +175,7 @@ cxc doctor
 cxc orchestrate P --attest '{"from":"IDLE","to":"P","did":"plan the change"}'
 ```
 
-The project gate is green at 1,201 tests. Build and test commands are documented separately so the
+The project gate is green at 1,213 tests. Build and test commands are documented separately so the
 landing page stays a control surface, not a release note.
 
 :::note[Status honesty]

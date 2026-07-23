@@ -11,12 +11,12 @@ tells Codex which skills, hooks, and MCP servers to load.
 | Field | Value |
 |---|---|
 | `name` | `codexclaw` |
-| `version` | `0.1.0` |
+| `version` | `0.1.1` |
 | `repository` | `https://github.com/lidge-jun/codexclaw` |
 | `homepage` | `https://lidge-jun.github.io/codexclaw/` |
 | `license` | `MIT` |
 | `skills` | `./skills/` — the skill directory root. |
-| `hooks` | Twelve hook JSON files (see [Hooks](/codexclaw/reference/hooks/)). |
+| `hooks` | Eighteen hook JSON files (see [Hooks](/codexclaw/reference/hooks/)). |
 | `mcpServers` | `./.mcp.json` — the subagent-config MCP server. |
 
 ## Registered hooks
@@ -24,22 +24,28 @@ tells Codex which skills, hooks, and MCP servers to load.
 ```json
 "hooks": [
   "./hooks/session-start-ensuring-provider-bridge.json",
+  "./hooks/session-start-bootstrapping-pabcd-state.json",
   "./hooks/session-start-announcing-map-affordance.json",
   "./hooks/user-prompt-submit-checking-pabcd-trigger.json",
   "./hooks/stop-checking-pabcd-continuation.json",
   "./hooks/pre-tool-use-guarding-goal-budget.json",
   "./hooks/pre-tool-use-guarding-interview-in-goal.json",
+  "./hooks/pre-tool-use-guarding-goal-complete.json",
   "./hooks/post-tool-use-capturing-interview-answers.json",
   "./hooks/subagent-stop-verifying-evidence.json",
   "./hooks/pre-tool-use-attaching-skills.json",
   "./hooks/post-compact-resetting-reinject-cursor.json",
   "./hooks/pre-tool-use-linting-apply-patch.json",
-  "./hooks/post-tool-use-tracking-render-observations.json"
+  "./hooks/post-tool-use-tracking-render-observations.json",
+  "./hooks/session-start-injecting-recall-context.json",
+  "./hooks/post-compact-injecting-recall-context.json",
+  "./hooks/post-compact-injecting-bg-terminal-affordance.json",
+  "./hooks/user-prompt-submit-detecting-recall-intent.json"
 ]
 ```
 
 The plugin currently contains eight component packages under `components/` (including
-`skill-search`) and 25 skill directories under `skills/`. The GUI is a separate workspace
+`skill-search`) and 27 skill directories under `skills/`. The GUI is a separate workspace
 package under `plugins/codexclaw/gui/`.
 
 ## Interface metadata

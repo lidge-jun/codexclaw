@@ -18,6 +18,10 @@ On `SessionStart`, codexclaw runs the provider-bridge hook. It detects whether `
 (opencodex) is present and reports status only. It never starts, configures, or mutates a
 provider. If `ocx` is absent, the native Codex model path stays valid.
 
+When `cxc` is not on your `PATH`, the SessionStart banner also names the resolved CLI
+invocation (the payload dispatcher, `node "<pluginRoot>/bin/cxc.mjs" …`) to use wherever docs
+say `cxc`.
+
 ## 3. The IPABCD footer
 
 codexclaw tracks a per-session workflow phase. A status affordance shows the current phase:

@@ -6,9 +6,12 @@ description: Run a full PABCD work-phase end to end with codexclaw.
 This walks one PABCD work-phase from start to close. Each forward transition needs an `--attest`
 block; narration alone does not advance the state.
 
-Prerequisite: a source checkout with the `cxc` CLI activated
-([Installation](/codexclaw/getting-started/installation/) Track 3) — the marketplace-only
-install does not provide `cxc`.
+Prerequisite: the codexclaw plugin installed ([Installation](/codexclaw/getting-started/installation/)).
+Every install provides the CLI: the marketplace payload ships a dispatcher, and a source
+checkout can additionally put `cxc` on `PATH` (Track 3).
+
+The examples below use the short `cxc` form. On a payload-only install, substitute the
+invocation the SessionStart banner names — `node "<pluginRoot>/bin/cxc.mjs" …` — for `cxc`.
 
 No CLI? The same transitions work as line-anchored chat messages — sending `orchestrate P`
 in chat is the human free-pass path.

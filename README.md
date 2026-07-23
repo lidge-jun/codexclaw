@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-1%2C201_passing-brightgreen" alt="1,201 tests passing">
+  <img src="https://img.shields.io/badge/tests-1%2C213_passing-brightgreen" alt="1,213 tests passing">
   <img src="https://img.shields.io/badge/skills-27-blue" alt="27 skills">
   <img src="https://img.shields.io/badge/hooks-18-blue" alt="18 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -41,7 +41,7 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 **Recall** — searches past Codex conversations and the memory store from disk artifacts before asking the user, so context survives session boundaries and compaction.
 
-**Repo Map** — `cxc map <dir>` runs tree-sitter parsing + PageRank ranking to produce a structure overview of unfamiliar code, letting the agent orient before deep `rg` dives.
+**Repo Map** — `cxc map <dir>` runs tree-sitter parsing + PageRank ranking to produce a structure overview of unfamiliar code, letting the agent orient before deep `rg` dives. (Repo checkout only — requires the vendored Python toolchain.)
 
 **Skill Search** — `cxc skill search <query>` discovers dormant skills across cli-jaw-skills (primary), ClawHub, and Hermes catalogs. `cxc skill show <id>` loads them on demand.
 
@@ -54,7 +54,7 @@ codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-Then restart Codex and approve the 18 hooks when prompted (upgrades ask again — content-hash trust). Everything runs from chat, no CLI needed:
+Then restart Codex and approve the 18 hooks when prompted (upgrades ask again — content-hash trust). Everything runs from chat, and the terminal surface ships too — the payload includes its own `cxc` dispatcher, so agent-driven `cxc orchestrate` commands work on every install:
 
 - `orchestrate status` — check the PABCD state machine
 - "Interview me first, then draft a diff-level plan."
@@ -69,8 +69,15 @@ codex plugin remove codexclaw@codexclaw      # uninstall
 ```
 
 After an upgrade Codex marks the hooks **Modified** — re-approve them to reactivate.
+Upgrading to 0.1.1+ also delivers the payload CLI (`bin/cxc.mjs`); existing installs must upgrade (or re-add) to receive new top-level directories.
 
-The `cxc` CLI ships with a repository checkout (the marketplace install activates skills, hooks, and MCP without it):
+The CLI has two tiers. Every install ships the payload dispatcher — no PATH setup needed; when `cxc` isn't on PATH, the session-start banner prints this exact invocation:
+
+```bash
+node "<plugin-root>/bin/cxc.mjs" orchestrate status --session <id>
+```
+
+A PATH-level `cxc` is an optional convenience from a repository checkout (also unlocks `cxc map` and `cxc gui`):
 
 ```bash
 git clone https://github.com/lidge-jun/codexclaw
@@ -83,6 +90,8 @@ alias cxc='node /path/to/codexclaw/bin/codexclaw.mjs'   # or: npm link
 
 ```
 plugins/codexclaw/
+│
+├── bin/cxc.mjs                  payload CLI dispatcher (ships with every install)
 │
 ├── skills/                      27 skills
 │   ├── dev/                     canonical parent — work classifier, routing, verification gate
@@ -116,7 +125,7 @@ plugins/codexclaw/
 └── gui/                         local dashboard (Vite + React, build from source)
 ```
 
-_The `cxc` CLI (`bin/codexclaw.mjs` + `cli/` workspace) lives at the repository root, outside the plugin payload._
+_The PATH-level `cxc` entry (`bin/codexclaw.mjs` + `cli/` workspace) lives at the repository root; the payload's `bin/cxc.mjs` dispatcher covers the same verbs (minus `map`/`gui`) on marketplace installs._
 
 ## Dev Skill Family
 
@@ -143,11 +152,14 @@ Each router carries its own modular references (loaded on demand, never preloade
 ```bash
 cxc orchestrate P|A|B|C|D|status|reset   # PABCD phase control
 cxc loop init|show|validate               # durable goalplan management
-cxc map <dir>                             # tree-sitter structure map
+cxc scan record --session <id>            # record an interview contradiction-scan round
+cxc map <dir>                             # tree-sitter structure map (repo checkout only)
 cxc skill search <query>                  # remote skill discovery
 cxc skill show <id>                       # load a discovered skill
 cxc help                                  # command reference
 ```
+
+On marketplace installs without a PATH-level `cxc`, the same verbs run as `node "<plugin-root>/bin/cxc.mjs" <verb>` — the session-start banner prints the exact path.
 
 ## Ecosystem
 
@@ -164,6 +176,10 @@ codexclaw is the reference implementation. The methodology and skills are ported
 Plugin documentation: **[lidge-jun.github.io/codexclaw](https://lidge-jun.github.io/codexclaw/)**
 
 Methodology and research provenance: **[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)** — skill architecture, delegation economy, loop contracts, devlog records, and the arXiv-backed claim ledger.
+
+## Contributing
+
+Pull requests target the `dev` integration branch; `main` moves by maintainer promotion and carries releases.
 
 ## License
 

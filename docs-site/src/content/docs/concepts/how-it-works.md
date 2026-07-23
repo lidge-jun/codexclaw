@@ -65,8 +65,10 @@ to the repo-map skill, `subagents` to subagent-config, `provider` to provider-br
 `serve` / `service` to messenger-bridge, and `gui` to the Vite dashboard. See the
 [Commands reference](/codexclaw/reference/commands/).
 
-The binary ships with the repository checkout for v0.1.0 — the marketplace plugin payload
-activates skills, hooks, and MCP but does not place `cxc` on `PATH`.
+The CLI has two tiers for v0.1.1. The marketplace payload ships its own dispatcher at
+`bin/cxc.mjs`, so every install can run `node "<pluginRoot>/bin/cxc.mjs" <command>` — the
+SessionStart banner prints the exact resolved invocation when `cxc` is not on `PATH`. Placing
+`cxc` itself on `PATH` remains a repo-checkout convenience (npm link or a shell alias).
 
 ## Components
 

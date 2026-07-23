@@ -5,13 +5,16 @@ description: Every cxc / codexclaw command — live commands and the orchestrate
 
 The `cxc` and `codexclaw` binaries are the same thin delegator over the compiled component CLIs.
 The live dispatch set is `enable`, `disable`, `uninstall`, `status`, `orchestrate`, `freeze`,
-`metric`, `divergence`, `loop`, `goalplan`, `doctor`, `reset`, `subagents`, `map`, `provider`,
-`chat`, `memory`, `skill`, `gui`, `serve`, and `service`.
+`metric`, `divergence`, `loop`, `goalplan`, `plan`, `scan`, `doctor`, `reset`, `hooks`,
+`subagents`, `map`, `provider`, `chat`, `memory`, `skill`, `gui`, `serve`, and `service`.
 
-:::caution[Repository-checkout surface]
-These binaries ship with a source checkout for v0.1.0 (npm link or a shell alias to
-`bin/codexclaw.mjs`). A marketplace plugin install activates skills, hooks, and MCP but does
-not place `cxc` on your `PATH`.
+:::caution[Two CLI tiers]
+For v0.1.1 the plugin payload ships its own dispatcher at `bin/cxc.mjs`, so every marketplace
+install has a working terminal surface: `node "<pluginRoot>/bin/cxc.mjs" <command>`. When `cxc`
+is not on `PATH`, the SessionStart banner prints the exact resolved invocation, and injected
+directives use it. A PATH-level `cxc` / `codexclaw` binary remains a repo-checkout convenience
+(npm link or a shell alias to `bin/codexclaw.mjs`). The payload dispatcher excludes `gui` and
+`map` (repo-checkout-only) and prints a pointer for those instead.
 :::
 
 ## Live commands
@@ -27,8 +30,11 @@ not place `cxc` on your `PATH`.
 | `cxc divergence <verb>` | pabcd-state | Record divergence mode and grounded candidate archive entries. |
 | `cxc loop <verb>` | pabcd-state | Init, show, or validate the project-local loop/goalplan substrate. |
 | `cxc goalplan <verb>` | pabcd-state | Deprecated alias for `cxc loop <verb>`. |
+| `cxc plan init <slug>` | pabcd-state | Scaffold the `devlog/_plan` unit the P→A plan gate verifies. |
+| `cxc scan record` | pabcd-state | Record an interview contradiction-scan round (see below). |
 | `cxc doctor` | cxc-ops | Component health plus `ocx` detection status. |
 | `cxc reset` | cxc-ops | Clean up codexclaw operational state. |
+| `cxc hooks retrust` | cxc-ops | Re-trust plugin hook hashes after editing hook JSONs. |
 | `cxc gui` | gui | Start the local dashboard (Vite). |
 | `cxc subagents` | subagent-config | Read/write per-role subagent model and prompt config. |
 | `cxc map` | repo-map | Generate a ranked repository map from the `repo-map` skill. |
@@ -106,6 +112,19 @@ keeps the single candidate archive.
 ```
 cxc freeze [--dry-run] [--cwd <path>] [--session <id>]
 ```
+
+## scan sub-grammar
+
+```
+cxc scan record --session <id> [--contradictions N] [--high N]
+```
+
+`scan record` records one interview contradiction-scan round. It performs both halves of the
+recording contract: it appends a `scan_completed` event to the per-session interview ledger
+(`.codexclaw/interviews/<id>.jsonl`) and increments the tracker's `scanRounds` /
+`lastScanRoundId` counters via session state. Recorded rounds are what the I→P readiness gate
+reads, so scans count toward the gate without an override. `--session` is required; there is no
+latest-session fallback for mutating commands.
 
 ## loop / goalplan sub-grammar
 

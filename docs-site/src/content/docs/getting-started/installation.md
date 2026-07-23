@@ -25,7 +25,16 @@ codex plugin add codexclaw@codexclaw
 The marketplace install registers the plugin manifest with Codex, including its skills, hooks,
 and MCP server.
 
-It does **not** place the `cxc` CLI on your `PATH` — use Track 3 for CLI access.
+It also ships the CLI: the payload includes a dispatcher at `bin/cxc.mjs`, so every install has
+a working terminal surface without any extra step:
+
+```bash
+node "<pluginRoot>/bin/cxc.mjs" doctor
+```
+
+The SessionStart banner prints the exact resolved invocation for your machine when `cxc` is not
+on `PATH`, and injected directives use it. (`gui` and `map` stay repo-checkout-only; the
+dispatcher prints a pointer for those.)
 
 Update and uninstall use the same marketplace surface:
 
@@ -39,7 +48,7 @@ After an upgrade Codex marks the hooks **Modified** — re-approve them to react
 
 **What works immediately:** restart Codex, approve the hooks, and drive everything from
 chat — try `orchestrate status`, or "Interview me first, then draft a diff-level plan."
-The `cxc` binary (Track 3) is a power surface, not a prerequisite.
+A PATH-level `cxc` binary (Track 3) is a convenience, not a prerequisite.
 
 ## Track 2 — Local dogfood with a dev symlink
 
@@ -53,10 +62,11 @@ scripts/dev-symlink.sh
 This links the plugin-cache children to your checkout. Edits to skills, hooks, and component
 `dist/` take effect without reinstalling.
 
-## Track 3 — Activation from a source checkout
+## Track 3 — PATH-level `cxc` from a source checkout
 
-If you cloned the repo directly and have not linked a global `cxc`, activate through the bundled
-entry point:
+This track is a convenience: it puts a literal `cxc` command on your `PATH` and unlocks the two
+repo-checkout-only verbs (`gui` and `map`). If you cloned the repo directly and have not linked
+a global `cxc`, activate through the bundled entry point:
 
 ```bash
 node bin/codexclaw.mjs enable
