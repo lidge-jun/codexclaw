@@ -18,6 +18,24 @@
  *  - output shape:        omo rules/src/hook-output.ts:10-16 (camelCase hookSpecificOutput)
  */
 import { appendLedger, ensureState, readState, writeState,                        } from "./state.js";
+// Cross-component dist import (precedent: messenger-bridge/src/api-compat.ts:17) —
+// relative .js specifiers survive the build's .ts->.js rewrite untouched and
+// resolve identically from src/ (tests) and dist/ (shipped hooks).
+// Cross-component dist import, LAZY + FAIL-OPEN (260724 WP1): the entry must keep
+// working when the cxc-ops sibling is absent (isolated dist snapshots in tests,
+// partial checkouts). A missing resolver degrades to the literal `cxc`.
+
+let cxcInvocationFn                         = null;
+try {
+  ({ cxcInvocation: cxcInvocationFn } = (await import("../../cxc-ops/dist/cxc-resolve.js"))
+
+   );
+} catch {
+  cxcInvocationFn = null;
+}
+function cxcInvocation(moduleUrl        )         {
+  return cxcInvocationFn ? cxcInvocationFn(moduleUrl) : "cxc";
+}
 import { hasStageMarkerForPhase, isContextPressureTail, readTranscriptTail } from "./transcript.js";
 import { getGoalActiveStatus, suppressesInterview } from "./goal-active.js";
 import { parseOrchestrateCommand } from "./orchestrate-grammar.js";
@@ -107,6 +125,28 @@ import { hasRenderArtifactModified, hasRenderObservation, renderGroundingAdvisor
 
 
 const MAX_CTX = 32_000;
+
+/**
+ * 260724 WP1 (fresh-install RCA): rewrite backtick-anchored `cxc ` command
+ * prefixes in a directive to the invocation that actually resolves on this
+ * machine (PATH `cxc`, or the payload dispatcher `node "<payload>/bin/cxc.mjs"`).
+ * EMIT-TIME ONLY — exported directive constants are never mutated, so
+ * constants-only tests stay byte-stable and the PATH check happens per-machine.
+ *
+ * SAFETY CONTRACT: the /`cxc /g anchor is safe ONLY for directive strings whose
+ * cxc COMMANDS are all backticked. Every call site below was verified against
+ * that claim (noun phrases like "cxc-loop" or "owns cxc orchestration" carry no
+ * backtick-space prefix and are untouched). Do not apply this to free text.
+ */
+export function resolveCxcInDirective(text        )         {
+  try {
+    const inv = cxcInvocation(import.meta.url);
+    if (inv === "cxc") return text;
+    return text.replace(/`cxc /g, `\`${inv} `);
+  } catch {
+    return text; // FAIL-OPEN: a resolution error must not break directive emission
+  }
+}
 
 /**
  * Detect an explicit IPABCD/interview trigger. Explicit only — no goal-mode
@@ -289,7 +329,11 @@ export function interviewDirective()         {
   // minds.ts into the production hook path. It only ever reaches the agent OUTSIDE a
   // goal: the goal-active firewall (explicit + passive I-path) suppresses the whole
   // Interview when a goal is active.
-  return `${PHASE_DIRECTIVES.I}\n\n${MIND_DISPATCH_DIRECTIVE}`;
+  // 260724 WP1: MIND_DISPATCH_DIRECTIVE carries a backticked `cxc subagents set ...`
+  // hint (minds.ts) — resolve the invocation here, at emit time (constant untouched).
+  // Safe per the resolveCxcInDirective contract: every cxc COMMAND in both parts is
+  // backticked; `$codexclaw:cxc-*` skill mentions carry no "`cxc " prefix.
+  return resolveCxcInDirective(`${PHASE_DIRECTIVES.I}\n\n${MIND_DISPATCH_DIRECTIVE}`);
 }
 
 /**
@@ -498,7 +542,10 @@ export function handleUserPromptSubmit(payload                         )        
         injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
       });
       const parts           = [];
-      if (loopArmRequested) parts.push(LOOP_ARM_DIRECTIVE);
+      // 260724 WP1: resolve the invocation at emit time (constant untouched). Safe
+      // per resolveCxcInDirective: every cxc command in LOOP_ARM_DIRECTIVE is
+      // backticked; "cxc-loop"/"cxc-pabcd" skill nouns carry no "`cxc " prefix.
+      if (loopArmRequested) parts.push(resolveCxcInDirective(LOOP_ARM_DIRECTIVE));
       if (agbrowseRequested) parts.push(AGBROWSE_SEARCH_DIRECTIVE);
       return buildContextOutput("UserPromptSubmit", parts.join("\n\n"));
     }
@@ -717,6 +764,10 @@ export function buildStopBlock(
   // G3 (260707 fork-FSM fix): mutating verbs now REQUIRE --session, so the
   // continuation command must carry the session id or it would instruct a
   // failing command. Insert it right after the verb (before ` --attest`/end).
+  // 260724 WP1 ORDERING (A-round H2): this regex matches the LITERAL
+  // `cxc orchestrate <verb>` template, so it must run BEFORE the invocation
+  // resolution below — resolveCxcInDirective is applied LAST, on the fully
+  // assembled reason.
   let nextCommand = STOP_NEXT_COMMAND[phase] ?? "`cxc orchestrate status`";
   if (sessionId) {
     nextCommand = nextCommand.replace(
@@ -743,7 +794,11 @@ export function buildStopBlock(
     );
   }
   lines.push("C→D requires checkOutput+exitCode. D is not a resting state; close the cycle back to IDLE.");
-  const reason = lines.join("\n");
+  // 260724 WP1: emit-time invocation resolution, AFTER the --session insertion
+  // above. Safe per resolveCxcInDirective: the only cxc commands in the reason
+  // (STOP_NEXT_COMMAND entries) are backticked; enrichment/friction lines are
+  // paths and prose with no "`cxc " prefix.
+  const reason = resolveCxcInDirective(lines.join("\n"));
   return `${JSON.stringify({ decision: "block", reason })}\n`;
 }
 
@@ -803,7 +858,11 @@ export function buildGoalIdleBlock(cwd        , state       , sessionId        )
       `No goalplan is bound to this session: run \`cxc loop init --objective "<the goal objective>" --session ${sessionId}\` and register workPhases[]/criteria[] before the next work-phase.`,
     );
   }
-  return `${JSON.stringify({ decision: "block", reason: lines.join("\n") })}\n`;
+  // 260724 WP1: emit-time invocation resolution. Safe per resolveCxcInDirective:
+  // both cxc commands here (`cxc orchestrate P ...`, `cxc loop init ...`) are
+  // backticked and already carry their session id; "$cxc-loop" and goalplan
+  // paths carry no "`cxc " prefix.
+  return `${JSON.stringify({ decision: "block", reason: resolveCxcInDirective(lines.join("\n")) })}\n`;
 }
 
 export function buildPlateauDivergeBlock(phase       , plateau              , cwd         , sessionId         )         {
@@ -965,7 +1024,7 @@ export const RESCAN_REINJECT_DIRECTIVE = [
   "- dispatch read-only Mind contradiction workers (cap 3, lowest-scoring dimensions",
   "  first; if spawn_agent is not visible, tool_search for it first),",
   "- triage returns: high -> ask the user; low/medium -> record as OPEN ASSUMPTION,",
-  "- then record the scan round (cxc scan evidence) so readiness can count it.",
+  "- then record the scan round with `cxc scan record --session <id> [--contradictions N] [--high N]` so readiness can count it.",
   "Minds return contradictions ONLY — they never ask, edit, or write state.",
 ].join("\n");
 
@@ -1005,7 +1064,10 @@ export function handlePostToolUse(
     return `${JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "PostToolUse",
-        additionalContext: RESCAN_REINJECT_DIRECTIVE,
+        // 260724 WP1: emit-time invocation resolution (constant untouched). Safe
+        // per resolveCxcInDirective: the single cxc command (`cxc scan record ...`)
+        // is backticked; the rest is prose.
+        additionalContext: resolveCxcInDirective(RESCAN_REINJECT_DIRECTIVE),
       },
     })}\n`;
   } catch {

@@ -10,6 +10,11 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+// B1 (260724 WP1): the L18 reinjection resolves the `cxc` invocation per-machine,
+// so the equality assertion against RESCAN_REINJECT_DIRECTIVE needs the literal
+// pinned (each test file is its own node --test process — no restore needed).
+process.env.CODEXCLAW_CXC = "cxc";
+
 import {
   captureInterviewAnswers,
   readQaEvents,

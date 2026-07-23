@@ -12,7 +12,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { cachedFetchText } from "./cache.ts";
-import { ADAPTER_PREAMBLE, SEARCH_FOOTER } from "./preamble.ts";
+import { ADAPTER_PREAMBLE, searchFooter } from "./preamble.ts";
 import { rank } from "./scoring.ts";
 import { fetchHermesRows, fetchJawRows, searchClawhubRows } from "./sources.ts";
 import type { FetchText, ScoredRow, SkillRow } from "./types.ts";
@@ -120,7 +120,7 @@ function renderRows(rows: ScoredRow[], json: boolean): string {
     const desc = r.description.length > 120 ? `${r.description.slice(0, 117)}...` : r.description;
     return `${r.id} (${r.source}, ${r.score})${suffix}\n  ${desc}\n  ${r.rawUrl}`;
   });
-  return `${lines.join("\n")}\n${SEARCH_FOOTER}`;
+  return `${lines.join("\n")}\n${searchFooter()}`;
 }
 
 export async function main(argv: string[], fetchText: FetchText = realFetch): Promise<number> {

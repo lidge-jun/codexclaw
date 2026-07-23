@@ -360,6 +360,12 @@ if (isMain) switch (cmd) {
     // Scaffolds devlog/_plan/YYMMDD_slug/ for the P>A plan-artifact gate (260714 wp2).
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
+  case "scan":
+    // pabcd-state CLI expects argv as [kind, ...rest]; kind === "scan".
+    // Records an interview contradiction-scan round (H4, 260724): ledger event +
+    // tracker counters, so the I->P readiness gate is passable without override.
+    process.exit(runPabcdState(process.argv.slice(2)));
+    break;
   case "serve":
   case "service":
     // messenger-bridge CLI expects argv as ["serve"|"service", ...rest].

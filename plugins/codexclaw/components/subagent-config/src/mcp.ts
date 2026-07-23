@@ -20,7 +20,7 @@ import { readConfig, setRole, ROLES, EFFORTS, type RoleName } from "./store.ts";
 import { buildCatalog } from "./catalog.ts";
 
 const PROTOCOL_VERSION = "2024-11-05";
-const SERVER_INFO = { name: "codexclaw-subagent-config", version: "0.1.0" };
+const SERVER_INFO = { name: "codexclaw-subagent-config", version: "0.1.1" };
 
 function send(message: unknown): void {
   process.stdout.write(`${JSON.stringify(message)}\n`);

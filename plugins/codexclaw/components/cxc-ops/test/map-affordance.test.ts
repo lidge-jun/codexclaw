@@ -9,6 +9,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+
+// Pin the cxc-resolve seam (B1): these tests assert literal `cxc ...` command
+// mentions, which would otherwise depend on whether the runner's PATH has cxc.
+process.env.CODEXCLAW_CXC = "cxc";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, symlinkSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -24,7 +28,9 @@ import {
   renderSkillSearchAffordance,
   runMapAffordanceSessionStart,
   MAP_AFFORDANCE_MIN_FILES,
+  resolveCxcCommands,
 } from "../src/map-affordance.ts";
+import { cxcInvocation } from "../src/cxc-resolve.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = resolve(here, "..", "..", "..");
@@ -161,6 +167,28 @@ test("hook JSON wires SessionStart to the cxc-ops dist entry", () => {
   const hook = JSON.parse(readFileSync(hookPath, "utf8"));
   const cmd = hook.hooks.SessionStart[0].hooks[0].command;
   assert.match(cmd, /components\/cxc-ops\/dist\/cli\.js" hook session-start/);
+});
+
+test("degraded mode: no CODEXCLAW_CXC + cxc-free PATH falls back to the payload bin; rewrite is backtick-anchored only", () => {
+  // Injected env: seam unset, PATH has no cxc — the ladder must land on the
+  // payload dispatcher (fresh marketplace install simulation).
+  const env = { PATH: "/usr/bin:/bin" };
+  const invocation = cxcInvocation(import.meta.url, env);
+  assert.match(invocation, /bin[\\/]cxc\.mjs/, "fallback must name the payload dispatcher");
+  assert.match(invocation, /^node "/, "fallback must be runnable via node");
+
+  // Command mentions resolve...
+  const rewritten = resolveCxcCommands("run `cxc map src` now", env);
+  assert.ok(rewritten.includes(`\`${invocation} map src\``), "backticked command must resolve");
+
+  // ...but noun phrases, skill names, and chat commands are byte-identical (H1).
+  for (const untouchable of [
+    "load $codexclaw:cxc-loop for the discipline",
+    "send !cxc start in the channel",
+    "the parent owns cxc orchestration and goal state",
+  ]) {
+    assert.equal(resolveCxcCommands(untouchable, env), untouchable, `must not rewrite: ${untouchable}`);
+  }
 });
 
 test("direct-exec guard fires through a symlinked install path (plugin-cache regression)", () => {

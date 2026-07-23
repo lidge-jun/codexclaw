@@ -1,5 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+
+// Pin the cxc-resolve seam (B1): assertions below expect literal `cxc ...`
+// command lines, which would otherwise depend on the runner's PATH.
+process.env.CODEXCLAW_CXC = "cxc";
 import {
   detectRecallIntent,
   handleUserPromptSubmit,

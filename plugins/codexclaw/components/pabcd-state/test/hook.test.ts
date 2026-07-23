@@ -3,6 +3,12 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+// B1 (260724 WP1): emit sites resolve the `cxc` invocation per-machine. Pin the
+// literal so directive assertions stay deterministic without `cxc` on PATH
+// (each test file is its own node --test process — no restore needed).
+process.env.CODEXCLAW_CXC = "cxc";
+
 import {
   detectTrigger,
   detectAgbrowseSearchRequest,

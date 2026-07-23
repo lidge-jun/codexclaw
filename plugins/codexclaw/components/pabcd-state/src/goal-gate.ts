@@ -34,6 +34,24 @@ const CREATE_GOAL_WARNING =
 import { getGoalActiveStatus, suppressesInterview, type GoalActiveDeps, type GoalActiveStatus } from "./goal-active.ts";
 import { readState } from "./state.ts";
 import { readGoalplan, validateGoalplan } from "./goalplan.ts";
+// Cross-component dist import (precedent: messenger-bridge/src/api-compat.ts:17).
+// 260724 WP1: deny remedies name `cxc orchestrate ...`/`cxc loop validate` — on a
+// payload-only install those must render the resolvable invocation. Emit-time only.
+// Cross-component dist import, LAZY + FAIL-OPEN (260724 WP1): the entry must keep
+// working when the cxc-ops sibling is absent (isolated dist snapshots in tests,
+// partial checkouts). A missing resolver degrades to the literal `cxc`.
+type CxcInvocationFn = (moduleUrl: string, env?: Record<string, string | undefined>) => string;
+let cxcInvocationFn: CxcInvocationFn | null = null;
+try {
+  ({ cxcInvocation: cxcInvocationFn } = (await import("../../cxc-ops/dist/cxc-resolve.js")) as {
+    cxcInvocation: CxcInvocationFn;
+  });
+} catch {
+  cxcInvocationFn = null;
+}
+function cxcInvocation(moduleUrl: string): string {
+  return cxcInvocationFn ? cxcInvocationFn(moduleUrl) : "cxc";
+}
 
 const REQUEST_USER_INPUT_TOOL = "request_user_input";
 const GOAL_MODE_DENY_REASON =
@@ -148,6 +166,14 @@ export function rawLooksLikeRequestUserInput(raw: string): boolean {
 
 /** Shared PreToolUse deny envelope for the goal-complete gate (trailing newline). */
 function goalCompleteDenyEnvelope(reason: string): string {
+  // Safe backtick-anchored rewrite: every cxc command in the deny reasons is
+  // backticked (verified at both call sites); paths/prose carry no "`cxc " prefix.
+  try {
+    const inv = cxcInvocation(import.meta.url);
+    if (inv !== "cxc") reason = reason.replace(/`cxc /g, `\`${inv} `);
+  } catch {
+    // FAIL-OPEN: resolution errors never change the deny decision or reason
+  }
   return `${JSON.stringify({
     hookSpecificOutput: {
       hookEventName: "PreToolUse",

@@ -1,6 +1,6 @@
 {
   "name": "codexclaw",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "cli-jaw-style dev discipline + multi-model subagents for the OpenAI Codex runtime.",
   "type": "module",

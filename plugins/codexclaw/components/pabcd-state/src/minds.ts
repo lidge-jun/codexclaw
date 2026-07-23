@@ -57,7 +57,13 @@ export const MIND_ROLE_PROMPTS: Record<Mind, string> = {
   ].join("\n"),
 };
 
-/** Directive injected when the main session owns an interview round (T4/T7). */
+/**
+ * Directive injected when the main session owns an interview round (T4/T7).
+ *
+ * 260724 WP1: the backticked `cxc subagents set ...` hint below is invocation-
+ * resolved at EMIT time by hook.ts interviewDirective() (resolveCxcInDirective),
+ * so this constant stays literal and constants-only tests stay byte-stable.
+ */
 export const MIND_DISPATCH_DIRECTIVE = [
   "[codexclaw: INTERVIEW — Mind dispatch]",
   "You (the main session) OWN this interview loop: select Minds, dispatch contradiction workers,",

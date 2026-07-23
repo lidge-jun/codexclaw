@@ -1,6 +1,6 @@
 {
   "name": "@codexclaw/provider-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Detect-only opencodex (ocx) status probe at session start; graceful native path when absent.",

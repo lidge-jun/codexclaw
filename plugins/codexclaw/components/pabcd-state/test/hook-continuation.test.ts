@@ -27,6 +27,12 @@ import { recordDivergenceCandidate } from "../src/divergence.ts";
 
 const nodeRequire = createRequire(import.meta.url);
 
+// B1 (260724 WP1): emit sites resolve the `cxc` invocation per-machine (PATH scan /
+// payload dispatcher). Pin the literal so command-string assertions below stay
+// deterministic on machines without `cxc` on PATH. Each test FILE is its own
+// node --test process, so this setup pin needs no restore.
+process.env.CODEXCLAW_CXC = "cxc";
+
 function freshCwd(): string {
   return mkdtempSync(join(tmpdir(), "codexclaw-hook-"));
 }

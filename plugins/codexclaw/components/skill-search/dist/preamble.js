@@ -4,6 +4,24 @@
  * skill body can never silently override codexclaw dev discipline or teach
  * Claude-CLI invocations verbatim.
  */
+// Cross-component dist import (precedent: messenger-bridge api-compat) — resolves
+// from both src (test-time) and shipped dist layouts.
+// Cross-component dist import, LAZY + FAIL-OPEN (260724 WP1): the entry must keep
+// working when the cxc-ops sibling is absent (isolated dist snapshots in tests,
+// partial checkouts). A missing resolver degrades to the literal `cxc`.
+
+let cxcInvocationFn                         = null;
+try {
+  ({ cxcInvocation: cxcInvocationFn } = (await import("../../cxc-ops/dist/cxc-resolve.js"))
+
+   );
+} catch {
+  cxcInvocationFn = null;
+}
+function cxcInvocation(moduleUrl        )         {
+  return cxcInvocationFn ? cxcInvocationFn(moduleUrl) : "cxc";
+}
+
 export const ADAPTER_PREAMBLE = `[codexclaw external skill adapter]
 - This is an EXTERNAL skill. codexclaw dev discipline (cxc-dev) always wins on conflict.
 - Substitute Claude-specific tools with Codex equivalents:
@@ -14,5 +32,12 @@ export const ADAPTER_PREAMBLE = `[codexclaw external skill adapter]
   is authoritative; use this document as supplementary reference only.
 `;
 
-export const SEARCH_FOOTER =
-  "# external skills: load with `cxc skill show <id>` (adapter preamble applies; cxc-dev wins on conflict)";
+/**
+ * Search-result footer. A FUNCTION, not a const: the `cxc` command mention must
+ * resolve at emit time (260724 fresh-install — a payload-only install has no
+ * `cxc` on PATH, so the footer must name the invocation that actually runs).
+ */
+export function searchFooter()         {
+  const cxc = cxcInvocation(import.meta.url);
+  return `# external skills: load with \`${cxc} skill show <id>\` (adapter preamble applies; cxc-dev wins on conflict)`;
+}

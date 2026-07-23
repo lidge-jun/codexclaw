@@ -17,6 +17,32 @@
 import { searchChat,              } from "./chat-search.js";
 import { searchMemory } from "./memory-search.js";
 import { basename } from "node:path";
+// Cross-component dist import (established precedent: messenger-bridge api-compat).
+// Resolves from BOTH src (test-time ../../cxc-ops/dist) and shipped dist layouts.
+// Cross-component dist import, LAZY + FAIL-OPEN (260724 WP1): the entry must keep
+// working when the cxc-ops sibling is absent (isolated dist snapshots in tests,
+// partial checkouts). A missing resolver degrades to the literal `cxc`.
+
+let cxcInvocationFn                         = null;
+try {
+  ({ cxcInvocation: cxcInvocationFn } = (await import("../../cxc-ops/dist/cxc-resolve.js"))
+
+   );
+} catch {
+  cxcInvocationFn = null;
+}
+function cxcInvocation(moduleUrl        )         {
+  return cxcInvocationFn ? cxcInvocationFn(moduleUrl) : "cxc";
+}
+
+/**
+ * The `cxc` prefix for COMMAND lines this hook emits. Resolved at emit time (not
+ * import time) so the CODEXCLAW_CXC test seam and per-machine PATH state apply
+ * per envelope. Recall injections emit BARE (un-backticked) command-block lines,
+ * so only lines built through this helper are rewritten — prose mentions of the
+ * word `cxc` (e.g. "$cxc-recall") keep the literal (H1, 260724 fresh-install).
+ */
+const CXC = ()         => cxcInvocation(import.meta.url);
 
 
 
@@ -65,13 +91,17 @@ export function detectRecallIntent(prompt        )          {
   return RECALL_PATTERNS.some((re) => re.test(prompt));
 }
 
-const DIRECTIVE = [
-  "[cxc-recall] The prompt references past work. Before asking the user to re-explain,",
-  "search prior sessions (read-only):",
-  '  cxc chat search "<distinctive terms>" --days 0   # full-history FTS over ~/.codex',
-  '  cxc memory search "<topic>"                      # durable per-thread summaries',
-  "Add --context 2 to read around a hit, --cwd <repo> to scope. Details: $cxc-recall.",
-].join("\n");
+// WHY a builder, not a const: the command prefix must be resolved per emit.
+function buildDirective()         {
+  const cxc = CXC();
+  return [
+    "[cxc-recall] The prompt references past work. Before asking the user to re-explain,",
+    "search prior sessions (read-only):",
+    `  ${cxc} chat search "<distinctive terms>" --days 0   # full-history FTS over ~/.codex`,
+    `  ${cxc} memory search "<topic>"                      # durable per-thread summaries`,
+    "Add --context 2 to read around a hit, --cwd <repo> to scope. Details: $cxc-recall.",
+  ].join("\n");
+}
 
 const MAX_CTX = 32_768;
 
@@ -93,7 +123,7 @@ export function handleUserPromptSubmit(payload                         )        
     if (payload.hook_event_name !== "UserPromptSubmit") return "";
     const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
     if (!detectRecallIntent(prompt)) return "";
-    return buildContextOutput("UserPromptSubmit", DIRECTIVE);
+    return buildContextOutput("UserPromptSubmit", buildDirective());
   } catch {
     return "";
   }
@@ -188,9 +218,9 @@ export function buildCwdContext(cwd        )         {
     }
 
     if (layer === "L1") {
-      lines.push(`Scope: CWD-local. Use \`cxc chat search "<q>" --days 0\` for global.`);
+      lines.push(`Scope: CWD-local. Use \`${CXC()} chat search "<q>" --days 0\` for global.`);
     } else {
-      lines.push(`Scope: global (no CWD-local hits). Use \`cxc chat search "<q>" --cwd ${cwd}\` to re-scope.`);
+      lines.push(`Scope: global (no CWD-local hits). Use \`${CXC()} chat search "<q>" --cwd ${cwd}\` to re-scope.`);
     }
 
     let result = lines.join("\n");
@@ -217,10 +247,11 @@ export function handleSessionStart(status        , cwd         )         {
   }
 
   // Recall availability notice (pointer)
+  const cxc = CXC();
   const notice = [
     "[cxc-recall] Past-session recall is available (read-only). Before asking the user",
     "about prior work \u2014 unfamiliar terms, lost context, \"\uadf8\ub54c/\uc9c0\ub09c\ubc88/last time\" \u2014 run:",
-    '  cxc chat search "<terms>" --days 0   |   cxc memory search "<topic>"',
+    `  ${cxc} chat search "<terms>" --days 0   |   ${cxc} memory search "<topic>"`,
   ];
   if (status !== "") notice.push(`Index: ${status}. Details: $cxc-recall.`);
   else notice.push("Details: $cxc-recall.");
@@ -242,12 +273,13 @@ export function handlePostCompact(cwd         )         {
     if (cwdCtx) parts.push(cwdCtx);
   }
 
+  const cxc = CXC();
   parts.push(
     [
       "[cxc-recall] Context was just compacted. If any earlier detail is now missing,",
       "recover it from past sessions before asking the user to repeat themselves:",
-      '  cxc chat search "<distinctive terms>" --days 0 --context 2',
-      '  cxc memory search "<topic>"',
+      `  ${cxc} chat search "<distinctive terms>" --days 0 --context 2`,
+      `  ${cxc} memory search "<topic>"`,
       "Details: $cxc-recall.",
     ].join("\n"),
   );

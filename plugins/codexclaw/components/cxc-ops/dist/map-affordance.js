@@ -21,6 +21,27 @@
  */
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
+import { cxcInvocation } from "./cxc-resolve.js";
+
+/**
+ * Resolve backtick-anchored `` `cxc `` COMMAND prefixes to the invocation that
+ * actually exists on this machine (cxc-resolve ladder). Called at RENDER time so
+ * the env seam (CODEXCLAW_CXC) and per-machine PATH state are honored per emit,
+ * not frozen at import.
+ *
+ * WHY backtick-anchored only (H1, 260724 fresh-install): noun phrases
+ * ("owns cxc orchestration"), skill names (`cxc-loop`), and chat commands
+ * (`!cxc start`) must keep the literal word — only command mentions rendered as
+ * `` `cxc <verb> ...` `` code spans are rewritten.
+ */
+export function resolveCxcCommands(
+  text        ,
+  env                                     = process.env,
+)         {
+  const cxc = cxcInvocation(import.meta.url, env);
+  if (cxc === "cxc") return text;
+  return text.split("`cxc ").join(`\`${cxc} `);
+}
 
 /** Source extensions worth mapping (mirrors the repo-map tree-sitter language set). */
 const SOURCE_EXT = new Set([
@@ -80,14 +101,14 @@ export function countSourceFiles(root        )         {
 /** The strong, one-line affordance injected as SessionStart additionalContext. */
 export function renderMapAffordance(fileCount        )         {
   const size = fileCount >= COUNT_CAP ? `${COUNT_CAP}+` : String(fileCount);
-  return [
+  return resolveCxcCommands([
     `[codexclaw] This workspace has ${size} source files. A ranked structure map is`,
     "available on demand: run `cxc map <dir>` (tree-sitter symbols + PageRank) to see",
     "which files own which symbols BEFORE deep rg dives into unfamiliar territory.",
     "It is a stateless one-shot tool — use it when you need the shape of code you do",
     "not yet know. Keep rg for byte/text search, and use ast-grep (skill:",
     "$cxc-ast-grep) for syntax-shape search and deterministic codemods.",
-  ].join(" ");
+  ].join(" "));
 }
 
 /**
@@ -97,14 +118,14 @@ export function renderMapAffordance(fileCount        )         {
  * is one sentence per session.
  */
 export function renderSkillSearchAffordance()         {
-  return [
+  return resolveCxcCommands([
     "[codexclaw] External skill catalogs are searchable on demand.",
     "Priority: jaw (cli-jaw-skills, 1st-class, default) > clawhub (2nd) > hermes (3rd, sparse).",
     "When a task needs a capability you do not have loaded,",
     "browse `dev/references/skill-catalog.md` for the full jaw catalog first,",
     "or run `cxc skill search <query>` then `cxc skill show <id>` to load it",
     "(adapter preamble applies; cxc-dev discipline wins on conflict).",
-  ].join(" ");
+  ].join(" "));
 }
 
 /**
@@ -133,7 +154,7 @@ export function renderKwriteAffordance()         {
  * most-recently-touched session file.
  */
 export function renderSessionBinding(sessionId        )         {
-  return [
+  return resolveCxcCommands([
     `[codexclaw] This session's id is \`${sessionId}\`. Every mutating`,
     "`cxc orchestrate` command (I/P/A/B/C/D/reset) MUST pass",
     `\`--session ${sessionId}\` — the implicit latest-session fallback is`,
@@ -143,7 +164,7 @@ export function renderSessionBinding(sessionId        )         {
     "current context as the only source of your session id — older binding",
     "lines or other ids in transcript/history belong to prior/parent sessions;",
     "never pass those to a mutating command.",
-  ].join(" ");
+  ].join(" "));
 }
 
 /**
@@ -155,13 +176,13 @@ export function renderSessionBinding(sessionId        )         {
  * remains the detailed surface.
  */
 export function renderLoopAffordance()         {
-  return [
+  return resolveCxcCommands([
     "[codexclaw] Loop contract: a multi-cycle/PABCD/루프 request is INVALID without",
     "the persisted FSM — run `cxc orchestrate status --session <your id>` first,",
     "then enter P and advance each edge with --attest. One work-phase = one full",
     "PABCD cycle; never implement two plan pages in one B. Load",
     "$codexclaw:cxc-loop + $codexclaw:cxc-pabcd for the full discipline.",
-  ].join(" ");
+  ].join(" "));
 }
 
 /**
@@ -236,6 +257,15 @@ export function runMapAffordanceSessionStart(stdin        , fallbackCwd        )
   lines.push(renderKwriteAffordance());
   lines.push(renderLoopAffordance());
   lines.push(renderBackgroundTerminalAffordance());
+  // Fresh-install coverage for STATIC surfaces (SKILL.md files are deliberately
+  // NOT rewritten): when `cxc` is not runnable as-is, ONE banner line names the
+  // invocation that works on this machine so every doc-mentioned command resolves.
+  const cxc = cxcInvocation(import.meta.url);
+  if (cxc !== "cxc") {
+    lines.push(
+      `[codexclaw] \`cxc\` is not on PATH here; wherever docs say \`cxc\`, run: ${cxc}`,
+    );
+  }
   const envelope = {
     hookSpecificOutput: {
       hookEventName: "SessionStart",

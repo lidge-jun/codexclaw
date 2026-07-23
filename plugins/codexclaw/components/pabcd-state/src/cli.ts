@@ -52,6 +52,7 @@ import { handleIdleEditAdvisory } from "./idle-edit.ts";
 import { runMetricCli } from "./metric-cli.ts";
 import { parseOrchestrateCliArgs, renderOrchestrateParseError, runOrchestrateCli } from "./orchestrate-cli.ts";
 import { parseGoalplanCliArgs, runGoalplanCli } from "./goalplan-cli.ts";
+import { parseScanCliArgs, runScanCli } from "./scan-cli.ts";
 
 function readStdin(): string {
   try {
@@ -128,6 +129,20 @@ function main(): void {
       process.exit(1);
     }
     const result = runPlanCli(parsed);
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
+  // `scan` command path (260724 WP1): record an interview contradiction-scan
+  // round — the previously-phantom `cxc scan evidence` writer. Double write:
+  // interview ledger event + tracker scanRounds/lastScanRoundId via writeState.
+  if (kind === "scan") {
+    const parsed = parseScanCliArgs(process.argv.slice(3), process.cwd());
+    if ("error" in parsed) {
+      process.stderr.write(`scan: ${parsed.error}\n`);
+      process.exit(1);
+    }
+    const result = runScanCli(parsed);
     process.stdout.write(`${result.output}\n`);
     process.exit(result.code);
   }

@@ -1,5 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+
+// Pin the cxc-resolve seam (B1): a literal `cxc chat search` assertion below
+// must not depend on whether the test runner's PATH carries a cxc binary.
+process.env.CODEXCLAW_CXC = "cxc";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

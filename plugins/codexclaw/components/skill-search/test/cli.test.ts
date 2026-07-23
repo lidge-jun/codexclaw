@@ -1,5 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+
+// Pin the cxc-resolve seam (B1): the search-footer assertion expects a literal
+// `cxc skill show`, which must not depend on the runner's PATH.
+process.env.CODEXCLAW_CXC = "cxc";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

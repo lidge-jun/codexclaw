@@ -20,6 +20,25 @@
 
 import { getGoalActiveStatus } from "./goal-active.js";
 import { readState, writeState } from "./state.js";
+// Cross-component dist import (precedent: messenger-bridge/src/api-compat.ts:17).
+// 260724 WP1: the advisory names a `cxc orchestrate status` command; on a
+// payload-only install (no `cxc` on PATH) that must render the resolvable
+// invocation instead. Emit-time only; the template below stays literal.
+// Cross-component dist import, LAZY + FAIL-OPEN (260724 WP1): the entry must keep
+// working when the cxc-ops sibling is absent (isolated dist snapshots in tests,
+// partial checkouts). A missing resolver degrades to the literal `cxc`.
+
+let cxcInvocationFn                         = null;
+try {
+  ({ cxcInvocation: cxcInvocationFn } = (await import("../../cxc-ops/dist/cxc-resolve.js"))
+
+   );
+} catch {
+  cxcInvocationFn = null;
+}
+function cxcInvocation(moduleUrl        )         {
+  return cxcInvocationFn ? cxcInvocationFn(moduleUrl) : "cxc";
+}
 
 const EDIT_TOOLS = new Set(["apply_patch", "Write", "Edit"]);
 
@@ -27,7 +46,9 @@ const EDIT_TOOLS = new Set(["apply_patch", "Write", "Edit"]);
 const NUDGE_EVERY = 5;
 
 export function idleEditAdvisory(sessionId        )         {
-  return [
+  // Safe backtick-anchored rewrite: the single cxc command below is backticked;
+  // everything else is prose (no bare "cxc " outside backticks).
+  const text = [
     "[codexclaw IDLE-EDIT] You are editing files while the PABCD FSM is un-armed",
     "but this session expects loop/goal work. If this edit belongs to the loop,",
     `arm first: \`cxc orchestrate status --session ${sessionId}\` -> enter P ->`,
@@ -35,6 +56,12 @@ export function idleEditAdvisory(sessionId        )         {
     "C0/C1 fast-path edits may proceed, but leave the numbered record doc in the",
     "owning devlog/_plan unit (UNIT-RESIDENCE-01).",
   ].join(" ");
+  try {
+    const inv = cxcInvocation(import.meta.url);
+    return inv === "cxc" ? text : text.replace(/`cxc /g, `\`${inv} `);
+  } catch {
+    return text; // FAIL-OPEN: resolution errors never break the advisory
+  }
 }
 
 /**

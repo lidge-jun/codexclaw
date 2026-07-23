@@ -1,6 +1,6 @@
 {
   "name": "@codexclaw/messenger-bridge",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "codexclaw messenger bridge — cxc serve HTTP server + SQLite state substrate (zero third-party deps).",
