@@ -1,8 +1,9 @@
 # 010 — codexclaw deployment path (design, phase 1)
 
 Consumes: `001` (readiness audit), `002` (lazycodex reference).
-This doc is a design/decision record. The only file changes it prescribes inside
-this loop land via `020` (README). Everything else is a flagged user decision.
+This doc is a design/decision record. File changes it prescribes inside this
+loop: README changes land via `020`; docs-site synchronization lands via `030`.
+Everything else is a flagged user decision.
 
 ## Verdict: codexclaw is already marketplace-native
 
@@ -60,11 +61,12 @@ codex plugin marketplace remove codexclaw  # remove marketplace source
 
 ## Decision register (user calls; recommendations attached)
 
-- **D1 — gui/dist shipping (High).** Options: (a) commit the 7-file production
+- **D1 — gui/dist shipping (High, RELEASE GATE).** Options: (a) commit the 7-file production
   bundle, matching the component-dist precedent — RECOMMENDED; (b) document
   `npm run build` in gui/ as a post-install step (bad: marketplace install has no
   build hook); (c) drop the GUI mention from public docs until shipped.
-  Interim: 020 adds a README caveat only if D1 is unresolved at WP2 build time.
+  While unresolved, E6 marks every GUI/dashboard claim as repo-checkout-only;
+  release is blocked until (a) or (c) lands.
 - **D2 — devlog public (Med).** 753 tracked files. Plugin payload is only
   `plugins/codexclaw/`, so installs never receive devlog. RECOMMENDED: keep public
   (provenance is a project value); no action.

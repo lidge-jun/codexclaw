@@ -27,14 +27,34 @@ structural parity, run `node plugins/codexclaw/scripts/gate.mjs`.
 
 - `├── dev-*/                     13 surface routers` → `12 surface routers`.
 - `skills/  29 skills` → `27 skills`.
-- `hooks/   14 hooks across the session lifecycle` → `hooks/   18 active hooks
-  across the session lifecycle`; extend the lifecycle list with the 4 missing
-  registrations: `session-start-injecting-recall-context`,
-  `post-compact-injecting-recall-context`,
-  `post-compact-injecting-bg-terminal-affordance`,
-  `user-prompt-submit-detecting-recall-intent`. (Metric: 18 active manifest
-  registrations; 3 deprecated JSONs under `hooks/_deprecated/` are not counted —
-  001 #13.)
+- Hook block — EXACT replacement (before = README.md L70-77, same anchors in
+  ko/zh). Before:
+  ```
+  ├── hooks/                       14 hooks across the session lifecycle
+  │   ├── session-start-*          provider bridge, PABCD bootstrap, map affordance
+  │   ├── user-prompt-submit-*     PABCD trigger detection
+  │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
+  │   ├── post-tool-use-*          interview capture, render observation
+  │   ├── stop-*                   PABCD continuation under active goals
+  │   ├── subagent-stop-*          evidence verification for worker dispatches
+  │   └── post-compact-*           cursor reinject after context compaction
+  ```
+  After:
+  ```
+  ├── hooks/                       18 active hooks across the session lifecycle
+  │   ├── session-start-*          provider bridge, PABCD bootstrap, map affordance, recall context
+  │   ├── user-prompt-submit-*     PABCD trigger detection, recall intent
+  │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
+  │   ├── post-tool-use-*          interview capture, render observation
+  │   ├── stop-*                   PABCD continuation under active goals
+  │   ├── subagent-stop-*          evidence verification for worker dispatches
+  │   └── post-compact-*           cursor reinject, recall context, bg-terminal affordance
+  ```
+  (Covers the 4 registrations the old tree missed: session-start-injecting-
+  recall-context, user-prompt-submit-detecting-recall-intent, post-compact-
+  injecting-recall-context, post-compact-injecting-bg-terminal-affordance.
+  Metric: 18 active manifest registrations; 3 deprecated JSONs under
+  `hooks/_deprecated/` not counted — 001 #13.)
 - Replace the bogus tail `└── cli/  cxc orchestrate | map | loop | skill | ...`
   (no such dir inside `plugins/codexclaw/`) with an explicit ownership boundary:
   ```

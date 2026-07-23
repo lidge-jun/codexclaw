@@ -13,10 +13,10 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-1%2C110_passing-brightgreen" alt="1,110 tests passing">
-  <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
-  <img src="https://img.shields.io/badge/hooks-14-blue" alt="14 hooks">
-  <a href="https://lidge-jun.github.io/pabcd_initiative/"><img src="https://img.shields.io/badge/docs-pabcd_initiative-black" alt="Documentation"></a>
+  <img src="https://img.shields.io/badge/tests-1%2C201_passing-brightgreen" alt="1,201 tests passing">
+  <img src="https://img.shields.io/badge/skills-27-blue" alt="27 skills">
+  <img src="https://img.shields.io/badge/hooks-18-blue" alt="18 hooks">
+  <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
 
@@ -26,7 +26,7 @@ codexclaw turns the Codex runtime into a disciplined development environment. It
 
 ## Features
 
-**Dev Skill Family** — 13 surface-specific routers (`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-diagram-viewer`, `dev-uiux-design`) governed by a canonical parent (`dev`). Every router inherits the parent's rule classes, verification gate, and safety rules. 146 unique rule IDs, 33 bidirectional cross-reference pairs, zero contradictions.
+**Dev Skill Family** — 12 surface-specific routers (`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-diagram-viewer`, `dev-uiux-design`) governed by a canonical parent (`dev`). Every router inherits the parent's rule classes, verification gate, and safety rules. 155 unique rule IDs across the family.
 
 **PABCD Workflow** — Plan / Audit / Build / Check / Done, implemented as a file-backed FSM with attestation-gated transitions. Phases advance through `cxc orchestrate` commands; each transition carries structured evidence. A durable goalplan ledger tracks work phases, success criteria, and captured proof across multiple cycles.
 
@@ -37,7 +37,7 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
        └────┴────┴──── I (Interview, context preserved)
 ```
 
-**Multi-Model Subagents** — role-based dispatch (explorer / reviewer / executor) with per-role model and prompt overrides. Configuration persists across sessions and applies automatically through the spawn-wrapper hook. A local GUI (Vite + React) provides visual config and, when opencodex is detected, a provider link bar.
+**Multi-Model Subagents** — role-based dispatch (explorer / reviewer / executor) with per-role model and prompt overrides. Configuration persists across sessions and applies automatically through the spawn-wrapper hook. A local GUI (Vite + React) provides visual config and, when opencodex is detected, a provider link bar. (Dashboard: build from a repo checkout for now; bundled in a follow-up release.)
 
 **Recall** — searches past Codex conversations and the memory store from disk artifacts before asking the user, so context survives session boundaries and compaction.
 
@@ -50,16 +50,24 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
+
+# update
+codex plugin marketplace upgrade codexclaw
+
+# uninstall
+codex plugin remove codexclaw@codexclaw
 ```
+
+After an upgrade Codex marks the hooks **Modified** — re-approve them to reactivate (content-hash trust model). The `cxc` CLI ships with a repository checkout (`bin/codexclaw.mjs`); the marketplace install activates skills, hooks, and MCP without it.
 
 ## Architecture
 
 ```
 plugins/codexclaw/
 │
-├── skills/                      29 skills
+├── skills/                      27 skills
 │   ├── dev/                     canonical parent — work classifier, routing, verification gate
-│   ├── dev-*/                   13 surface routers (architecture → uiux-design)
+│   ├── dev-*/                   12 surface routers (architecture → uiux-design)
 │   ├── pabcd/                   PABCD workflow phases + attestation
 │   ├── loop/                    durable goalplan + Stop-continuation contract
 │   ├── interview/               IPABCD requirements discovery
@@ -67,14 +75,14 @@ plugins/codexclaw/
 │   ├── recall/                  past-session + memory store search
 │   └── repo-map/                tree-sitter + PageRank structure map
 │
-├── hooks/                       14 hooks across the session lifecycle
-│   ├── session-start-*          provider bridge, PABCD bootstrap, map affordance
-│   ├── user-prompt-submit-*     PABCD trigger detection
+├── hooks/                       18 active hooks across the session lifecycle
+│   ├── session-start-*          provider bridge, PABCD bootstrap, map affordance, recall context
+│   ├── user-prompt-submit-*     PABCD trigger detection, recall intent
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
 │   ├── post-tool-use-*          interview capture, render observation
 │   ├── stop-*                   PABCD continuation under active goals
 │   ├── subagent-stop-*          evidence verification for worker dispatches
-│   └── post-compact-*           cursor reinject after context compaction
+│   └── post-compact-*           cursor reinject, recall context, bg-terminal affordance
 │
 ├── components/                  8 isolated feature modules (src + dist)
 │   ├── pabcd-state/             FSM engine, session files, orchestrate CLI, attest gates
@@ -86,9 +94,10 @@ plugins/codexclaw/
 │   ├── config-guard/            plugin enable/disable/status
 │   └── cxc-ops/                 doctor + reset utilities
 │
-├── gui/                         local dashboard (Vite + React)
-└── cli/                         cxc orchestrate | map | loop | skill | ...
+└── gui/                         local dashboard (Vite + React, build from source)
 ```
+
+_The `cxc` CLI (`bin/codexclaw.mjs` + `cli/` workspace) lives at the repository root, outside the plugin payload._
 
 ## Dev Skill Family
 
@@ -133,9 +142,9 @@ codexclaw is the reference implementation. The methodology and skills are ported
 
 ## Documentation
 
-Full methodology documentation with research provenance: **[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)**
+Plugin documentation: **[lidge-jun.github.io/codexclaw](https://lidge-jun.github.io/codexclaw/)**
 
-Covers skill architecture, delegation economy, loop contracts, devlog records, and arXiv-backed claim ledger.
+Methodology and research provenance: **[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)** — skill architecture, delegation economy, loop contracts, devlog records, and the arXiv-backed claim ledger.
 
 ## License
 
