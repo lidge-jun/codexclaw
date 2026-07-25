@@ -5,12 +5,25 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildCatalog, readNativeCacheDefault, NATIVE_OPENAI_MODELS } from "../src/catalog.ts";
 
-test("native catalog exposes the Luna spawn-contract model", () => {
+test("native catalog stays in sync with the Luna skill's declared model", () => {
+  // TEST-PROMPT-SEAM-01: extract a value from each source and compare them, rather than
+  // asserting that a sentence exists. Source A is the skill frontmatter `description` —
+  // the same field the runtime parses in buildLeafSkillCatalog (spawn-attach-hook.ts);
+  // source B is the code constant.
   const lunaSkill = readFileSync(new URL("../../../skills/lunasearch/SKILL.md", import.meta.url), "utf8");
-  assert.ok(NATIVE_OPENAI_MODELS.includes("gpt-5.6-luna"));
-  assert.ok(!(NATIVE_OPENAI_MODELS as readonly string[]).includes("gpt-5.3-codex-luna"));
-  assert.match(lunaSkill, /model: "gpt-5\.6-luna"/);
-  assert.doesNotMatch(lunaSkill, /gpt-5\.3-codex-luna/);
+  const frontmatter = /^---\n([\s\S]*?)\n---/.exec(lunaSkill);
+  assert.ok(frontmatter, "lunasearch/SKILL.md has no frontmatter");
+  const description = /^description:\s*"?([^"\n]+)"?$/m.exec(frontmatter[1]);
+  assert.ok(description, "lunasearch frontmatter has no description field");
+
+  const declaredModels = description[1].match(/gpt-[\w.-]+/g) ?? [];
+  assert.ok(declaredModels.length > 0, "lunasearch description declares no model token");
+  for (const model of declaredModels) {
+    assert.ok(
+      (NATIVE_OPENAI_MODELS as readonly string[]).includes(model),
+      `lunasearch declares "${model}" but NATIVE_OPENAI_MODELS does not carry it`,
+    );
+  }
 });
 
 test("AC1: ocx absent -> native-catalog state, native entries only", () => {

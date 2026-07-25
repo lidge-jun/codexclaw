@@ -110,61 +110,23 @@ test("L18: search skill is a codex-native 3-tier on-demand hub with Korean guard
   // direct assertion for the search skill).
   assert.equal(readImplicit(yaml), true, "search skill must be allow_implicit_invocation:true");
 
-  const body = readFileSync(skillMd, "utf8");
+  // TEST-PROMPT-SEAM-01: the tier-heading count, forbidden-backend negation scan, section
+  // ordering and Korean trigger-word checks all read one prose file and asserted that
+  // phrases exist. They broke on rewording and proved no behavior. The removed-backend
+  // protection moves to REVIEW-REMOVED-BACKEND-01 (review, not a test); the rest is review.
 
-  // AC: exactly three tier headings.
-  const tierHeads = body.match(/^### Tier [123] /gm) || [];
-  assert.equal(tierHeads.length, 3, `expected exactly 3 tier headings, got ${tierHeads.length}`);
-
-  // AC: no removed cli-jaw backend named as AVAILABLE. They may appear only in
-  // the "do not reintroduce" non-goal sentence, so assert each forbidden name,
-  // where present, sits on a line that also carries a negation marker.
-  const forbidden = ["progrok", "web-AI", "Grok Expert", "GPT Pro", "Exa", "Tavily", "Perplexity", "Brave"];
-  for (const name of forbidden) {
-    for (const line of body.split("\n")) {
-      if (line.includes(name)) {
-        assert.match(
-          line,
-          /do \*\*not\*\*|reintroduce|removed|non-goal|carry over/i,
-          `forbidden backend "${name}" appears outside a non-goal line: ${line.trim()}`,
-        );
-      }
-    }
-  }
-
-  // AC: source-proof invariant precedes the ladder (discover-vs-prove).
-  const proofIdx = body.indexOf("Source-Proof Invariant");
-  const ladderIdx = body.indexOf("## The Ladder");
-  assert.ok(proofIdx !== -1 && ladderIdx !== -1 && proofIdx < ladderIdx, "source-proof invariant must precede the ladder");
-
-  // AC: Korean intent guard with 8 numbered rules.
-  const guardIdx = body.indexOf("Korean Intent Guard");
-  assert.ok(guardIdx !== -1, "Korean Intent Guard section missing");
-  const guardBlock = body.slice(guardIdx, body.indexOf("## When to stop", guardIdx));
-  const numbered = guardBlock.match(/^\d+\. \*\*/gm) || [];
-  assert.equal(numbered.length, 8, `expected 8 numbered Korean-guard rules, got ${numbered.length}`);
-
-  // AC: Korean trigger words present.
-  for (const t of ["검색", "찾아봐", "찾아줘", "알아봐", "웹검색"]) {
-    assert.ok(body.includes(t), `Korean trigger "${t}" missing from search skill`);
-  }
 });
 
-test("L19: dev skill-catalog reference exists and skill-discovery section is present", () => {
+test("L19: dev/SKILL.md points at a skill-catalog reference that actually exists", () => {
+  // TEST-PROMPT-SEAM-01: extract the referenced path from dev/SKILL.md and resolve it on
+  // disk — two sources compared. The catalog's source-priority wording and the discovery
+  // command names are prose with no second source; they are protected by review instead.
   const skillsDir = join(pluginRoot, "skills");
-  const catalogPath = join(skillsDir, "dev", "references", "skill-catalog.md");
-  assert.ok(existsSync(catalogPath), "dev/references/skill-catalog.md missing");
-  const catalog = readFileSync(catalogPath, "utf8");
-
-  // AC: catalog documents source priority (jaw > clawhub > hermes)
-  assert.match(catalog, /1st.*jaw|jaw.*1st/i, "catalog must document jaw as 1st-class source");
-  assert.match(catalog, /2nd.*clawhub|clawhub.*2nd/i, "catalog must document clawhub as 2nd-class source");
-  assert.match(catalog, /3rd.*hermes|hermes.*3rd/i, "catalog must document hermes as 3rd-class source");
-
-  // AC: dev/SKILL.md contains the skill-discovery section
   const devSkill = readFileSync(join(skillsDir, "dev", "SKILL.md"), "utf8");
-  assert.match(devSkill, /## 9\. Skill Discovery/, "dev/SKILL.md must contain §9 Skill Discovery");
-  assert.match(devSkill, /cxc skill search/, "dev/SKILL.md §9 must reference cxc skill search");
-  assert.match(devSkill, /cxc skill show/, "dev/SKILL.md §9 must reference cxc skill show");
-  assert.match(devSkill, /skill-catalog\.md/, "dev/SKILL.md §9 must point to skill-catalog.md");
+  const ref = /references\/([\w.-]+\.md)/.exec(devSkill);
+  assert.ok(ref, "dev/SKILL.md references no file under references/");
+  assert.ok(
+    existsSync(join(skillsDir, "dev", "references", ref[1])),
+    `dev/SKILL.md points at references/${ref[1]} but that file does not exist`,
+  );
 });
