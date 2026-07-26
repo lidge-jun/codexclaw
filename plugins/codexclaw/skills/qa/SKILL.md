@@ -73,11 +73,20 @@ Artifacts live under `.codexclaw/evidence/<sessionId>/qa/<scenario-id>/`:
 - the artifact(s) — capture, screenshot, response, transcript.
 - `verdict.json` — `{ "scenario": "<id>", "criterion": "<what this proves>",
   "surface": "http|cli|tui|web|gui", "verdict": "PASS|FAIL|NA",
-  "artifactRefs": ["<relative paths>"], "note": "<one line>" }`.
+  "artifactRefs": ["<relative paths>"], "note": "<one line>",
+  "capturedAt": "<RFC3339>", "sourceSnapshotAt": { "kind": "resolved|unavailable",
+  "commitSha": "<sha>", "dirty": <bool>, "capturedAt": "<RFC3339>",
+  "treeHash": "<sha256, dirty only>" } }`.
+  On `web` and `gui` only, also `"captureChecks": { "signature": <bool>,
+  "nonEmpty": <bool>, "dimensionsMatch": <bool>, "composited": <bool> }` —
+  all four keys (QA-CAPTURE-INTEGRITY-01 in `references/visual-qa.md`).
 
 Rules:
 
 - Every PASS names at least one non-empty artifact in `artifactRefs`.
+- `capturedAt` and `sourceSnapshotAt` are required on every surface: knowing
+  when evidence was captured, and against which tree, does not depend on what
+  kind of surface produced it (QA-EVIDENCE-FRESHNESS-01).
 - `inferred` and `partial` verdicts DO NOT EXIST — a scenario either ran
   against the real surface or it did not.
 - A scenario that cannot run is a FAIL carrying the blocker and the missing
@@ -88,6 +97,22 @@ Rules:
   (`.codexclaw/evidence/`); main-session QA artifacts do not interact with
   worker receipts (the gate validates only the worker's own
   `EVIDENCE_RECORDED:` marker path).
+
+After every scenario is done, emit the aggregate receipt:
+
+```
+node plugins/codexclaw/skills/qa/scripts/validate-evidence.mjs \
+  .codexclaw/evidence/<sessionId>/qa/ --emit-receipt
+```
+
+It validates every `verdict.json`, confirms they all describe the same tree,
+and writes `.codexclaw/evidence/<sessionId>/qa-receipt.json`. Any failure
+leaves no receipt behind, including deleting one an earlier run produced —
+a receipt that outlives the QA it attests to is worse than none.
+
+Current limitation: the final gate does not pick this file up on its own. Until
+the `final-gate` lifecycle CLI exists, point `finalGate.qaReceiptPath` at that
+path by editing the goalplan directly. Remove this paragraph when that CLI lands.
 
 ## 4. Adversarial classes
 
