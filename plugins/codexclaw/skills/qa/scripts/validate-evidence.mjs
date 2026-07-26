@@ -10,6 +10,7 @@
 // correctly.
 import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const VISUAL_SURFACES = new Set(["web", "gui"]);
@@ -225,7 +226,10 @@ export function validateEvidence(qaDir, { emitReceipt = false, now = () => new D
   return { ok: true, errors, notes, receiptPath };
 }
 
-const isDirect = process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
+// pathToFileURL rather than a "file://" + path concatenation: on Windows the real
+// URL is file:///D:/..., so the naive form never matches and the CLI silently does
+// nothing when run directly.
+const isDirect = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isDirect) {
   const args = process.argv.slice(2);
   const dir = args.find((a) => !a.startsWith("--"));

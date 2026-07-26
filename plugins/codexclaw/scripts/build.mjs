@@ -18,7 +18,7 @@ import {
   statSync,
 } from "node:fs";
 import { join, dirname, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = resolve(here, "..");
@@ -145,8 +145,11 @@ export async function build() {
   return { emitted, errors };
 }
 
+// pathToFileURL rather than a "file://" + path concatenation: on Windows the real
+// URL is file:///D:/..., so the naive form never matches and `npm run build` would
+// exit silently having compiled nothing.
 const isDirect =
-  process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isDirect) {
   const { emitted, errors } = await build();
   const total = Object.values(emitted).reduce((n, a) => n + a.length, 0);

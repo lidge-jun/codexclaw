@@ -281,13 +281,16 @@ test("V32: the emitted receipt satisfies the final gate's parser", () => {
 test("V17: the CLI entry point prints usage without a directory", async () => {
   const script = resolve(dirname(fileURLToPath(import.meta.url)), "..", "skills", "qa", "scripts", "validate-evidence.mjs");
   const { execFileSync } = await import("node:child_process");
+  let result;
   try {
     execFileSync("node", [script], { encoding: "utf8", stdio: "pipe" });
-    assert.fail("expected a non-zero exit");
+    result = { exited: 0, stderr: "" };
   } catch (err) {
-    // execFileSync reports the exit code on `status`, but Windows can surface it
-    // as `code` instead, so accept whichever the platform filled in.
-    assert.equal(err.status ?? err.code, 2);
-    assert.match(String(err.stderr), /usage: validate-evidence\.mjs/);
+    result = { exited: err.status, stderr: String(err.stderr) };
   }
+  // Asserting outside the catch: an assert.fail inside it is itself caught, and
+  // then the assertion reads its own AssertionError instead of the child's exit,
+  // which is how a genuinely broken entry point read as a code mismatch.
+  assert.equal(result.exited, 2, "the entry point must run and reject a missing directory");
+  assert.match(result.stderr, /usage: validate-evidence\.mjs/);
 });
