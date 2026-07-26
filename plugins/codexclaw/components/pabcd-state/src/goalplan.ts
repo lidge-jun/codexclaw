@@ -151,6 +151,8 @@ export interface Goalplan {
   /** absent means 1. v2 plans must clear the final gate before completing. */
   schemaVersion?: number;
   finalGate?: FinalGateState;
+  /** applied steering batches; the source of truth for idempotency. */
+  steeringLog?: SteeringEntry[];
 }
 
 export type GoalplanLedgerEvent =
@@ -159,7 +161,17 @@ export type GoalplanLedgerEvent =
   | "workphase_done"
   | "task_done"
   | "criterion_met"
-  | "host_armed";
+  | "host_armed"
+  | "steered";
+
+export interface SteeringEntry {
+  idempotencyKey: string;
+  rationale: string;
+  evidence: string;
+  appliedAt: string;
+  /** what the batch actually changed — never a copy of the plan. */
+  summary: string;
+}
 
 export interface GoalplanLedgerEntry {
   ts: string;
@@ -269,6 +281,38 @@ function reviveFinalGate(raw: unknown): FinalGateState | undefined {
   return gate;
 }
 
+/**
+ * Revive the steering log, or report that it is unusable.
+ *
+ * Fail-closed, unlike review rounds. steeringLog answers "has this batch already
+ * been applied", so dropping a malformed entry would let that batch run a second
+ * time. Dropping a malformed review round merely loses a review, which fails in
+ * the safe direction; this one fails in the dangerous one.
+ *
+ * Returns "invalid" so the caller can reject the whole plan rather than reading
+ * it as "no steering has happened".
+ */
+function reviveSteeringLog(raw: unknown): SteeringEntry[] | undefined | "invalid" {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) return "invalid";
+  const out: SteeringEntry[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) return "invalid";
+    const e = entry as Record<string, unknown>;
+    for (const key of ["idempotencyKey", "rationale", "evidence", "appliedAt", "summary"]) {
+      if (typeof e[key] !== "string" || (e[key] as string).length === 0) return "invalid";
+    }
+    out.push({
+      idempotencyKey: e.idempotencyKey as string,
+      rationale: e.rationale as string,
+      evidence: e.evidence as string,
+      appliedAt: e.appliedAt as string,
+      summary: e.summary as string,
+    });
+  }
+  return out;
+}
+
 function goalplanPath(cwd: string, slug: string): string {
   return join(goalplanDir(cwd, slug), GOALPLAN_FILE);
 }
@@ -350,6 +394,9 @@ function reviveGoalplan(parsed: unknown): Goalplan | null {
   }
   const finalGate = reviveFinalGate(o.finalGate);
   if (finalGate) plan.finalGate = finalGate;
+  const steeringLog = reviveSteeringLog(o.steeringLog);
+  if (steeringLog === "invalid") return null;
+  if (steeringLog !== undefined) plan.steeringLog = steeringLog;
   return plan;
 }
 

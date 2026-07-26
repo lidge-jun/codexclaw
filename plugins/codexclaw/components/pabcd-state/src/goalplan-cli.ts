@@ -24,11 +24,14 @@ import {
   type GoalplanValidationCtx,
 } from "./goalplan.ts";
 import { deriveSlug } from "./freeze.ts";
-import { readState, writeState } from "./state.ts";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { isCanonicalSessionId, readState, writeState } from "./state.ts";
 import { captureSourceIdentity, compareSource } from "./source-identity.ts";
 import { parseSourceBoundReceipt } from "./source-receipt.ts";
+import { applySteeringBatch } from "./steering.ts";
 
-export type GoalplanVerb = "init" | "show" | "validate";
+export type GoalplanVerb = "init" | "show" | "validate" | "steer";
 
 export interface GoalplanCliArgs {
   verb: GoalplanVerb;
@@ -42,19 +45,21 @@ export interface GoalplanCliArgs {
    * directory scan). Without it, `init` only writes the local artifact.
    */
   session?: string;
+  /** `steer` only: a JSON batch, or a path to a file holding one. */
+  batchJson?: string;
 }
 
 export interface GoalplanCliParseError {
   error: string;
 }
 
-const VERBS: ReadonlySet<string> = new Set<GoalplanVerb>(["init", "show", "validate"]);
+const VERBS: ReadonlySet<string> = new Set<GoalplanVerb>(["init", "show", "validate", "steer"]);
 
 /** Structural argv parse. argv excludes the `goalplan` kind token. */
 export function parseGoalplanCliArgs(argv: string[], cwd: string): GoalplanCliArgs | GoalplanCliParseError {
   const verb = (argv[0] ?? "").toLowerCase();
   if (!VERBS.has(verb)) {
-    return { error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate)` };
+    return { error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer)` };
   }
   const out: GoalplanCliArgs = { verb: verb as GoalplanVerb, cwd, criteria: [] };
   for (let i = 1; i < argv.length; i++) {
@@ -66,6 +71,7 @@ export function parseGoalplanCliArgs(argv: string[], cwd: string): GoalplanCliAr
       if (typeof v === "string" && v.length > 0) out.criteria.push(v);
     } else if (a === "--cwd") out.cwd = argv[++i] ?? cwd;
     else if (a === "--session") out.session = argv[++i];
+    else if (a === "--batch-json") out.batchJson = argv[++i];
   }
   return out;
 }
@@ -82,6 +88,71 @@ function resolveSlug(args: GoalplanCliArgs): string | null {
 }
 
 function renderPlan(plan: Goalplan): string {
+  return renderPlanLines(plan);
+}
+
+/**
+ * `steer` resolves its plan through the session binding rather than a slug flag:
+ * steering targets whatever this session is actually working on.
+ *
+ * The session id must be canonical. State paths sanitize it, so `a/b` would
+ * quietly resolve to session `a-b` and steer a different goal — silent data
+ * corruption dressed up as a typo.
+ */
+function runSteer(args: GoalplanCliArgs): GoalplanCliResult {
+  const session = (args.session ?? "").trim();
+  if (session.length === 0) return { output: "loop steer: --session <id> is required", code: 1 };
+  if (!isCanonicalSessionId(session)) {
+    return {
+      output: `loop steer: --session "${session}" is not a canonical session id — it would resolve to a different state file and steer another goal`,
+      code: 1,
+    };
+  }
+  const raw = (args.batchJson ?? "").trim();
+  if (raw.length === 0) return { output: "loop steer: --batch-json <path-or-json> is required", code: 1 };
+
+  let text = raw;
+  if (!raw.startsWith("{")) {
+    try {
+      text = readFileSync(resolve(args.cwd, raw), "utf8");
+    } catch (err) {
+      return { output: `loop steer: could not read the batch at ${raw} (${err instanceof Error ? err.message : String(err)})`, code: 1 };
+    }
+  }
+  let batch: unknown;
+  try {
+    batch = JSON.parse(text);
+  } catch (err) {
+    return { output: `loop steer: batch is not valid JSON (${err instanceof Error ? err.message : String(err)})`, code: 1 };
+  }
+
+  const slug = readState(args.cwd, session).slug;
+  if (!slug) {
+    return { output: `loop steer: session '${session}' has no bound goalplan — run \`cxc loop init --session ${session}\` first`, code: 1 };
+  }
+
+  const result = applySteeringBatch(args.cwd, slug, batch);
+  switch (result.kind) {
+    case "applied":
+      return {
+        output: result.warning
+          ? `loop steer: applied ${result.entry.idempotencyKey} (${result.entry.summary})\n  warning: ${result.warning}`
+          : `loop steer: applied ${result.entry.idempotencyKey} (${result.entry.summary})`,
+        code: 0,
+      };
+    case "duplicate":
+      return {
+        output: `loop steer: ${result.entry.idempotencyKey} was already applied at ${result.entry.appliedAt} — nothing to do`,
+        code: 0,
+      };
+    case "locked":
+      return { output: `loop steer: ${result.reason}`, code: 1 };
+    case "rejected":
+      return { output: `loop steer: ${result.reason}`, code: 1 };
+  }
+}
+
+function renderPlanLines(plan: Goalplan): string {
   const lines = [
     `[codexclaw loop: ${plan.slug}]`,
     `objective: ${plan.objective}`,
@@ -126,6 +197,8 @@ export function runGoalplanCli(args: GoalplanCliArgs): GoalplanCliResult {
     }
     return { output: renderPlan(readGoalplan(args.cwd, slug) ?? plan), code: 0 };
   }
+
+  if (args.verb === "steer") return runSteer(args);
 
   const slug = resolveSlug(args);
   if (!slug) {

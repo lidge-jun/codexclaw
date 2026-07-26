@@ -168,6 +168,18 @@ export const GOALPLAN_LEDGER_FILE = "ledger.jsonl";
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 export function goalplanDir(cwd        , slug        )         {
   return join(cwd, STATE_DIR, GOALPLANS_SUBDIR, slug);
 }
@@ -269,6 +281,38 @@ function reviveFinalGate(raw         )                             {
   return gate;
 }
 
+/**
+ * Revive the steering log, or report that it is unusable.
+ *
+ * Fail-closed, unlike review rounds. steeringLog answers "has this batch already
+ * been applied", so dropping a malformed entry would let that batch run a second
+ * time. Dropping a malformed review round merely loses a review, which fails in
+ * the safe direction; this one fails in the dangerous one.
+ *
+ * Returns "invalid" so the caller can reject the whole plan rather than reading
+ * it as "no steering has happened".
+ */
+function reviveSteeringLog(raw         )                                          {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) return "invalid";
+  const out                  = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) return "invalid";
+    const e = entry                           ;
+    for (const key of ["idempotencyKey", "rationale", "evidence", "appliedAt", "summary"]) {
+      if (typeof e[key] !== "string" || (e[key]          ).length === 0) return "invalid";
+    }
+    out.push({
+      idempotencyKey: e.idempotencyKey          ,
+      rationale: e.rationale          ,
+      evidence: e.evidence          ,
+      appliedAt: e.appliedAt          ,
+      summary: e.summary          ,
+    });
+  }
+  return out;
+}
+
 function goalplanPath(cwd        , slug        )         {
   return join(goalplanDir(cwd, slug), GOALPLAN_FILE);
 }
@@ -350,6 +394,9 @@ function reviveGoalplan(parsed         )                  {
   }
   const finalGate = reviveFinalGate(o.finalGate);
   if (finalGate) plan.finalGate = finalGate;
+  const steeringLog = reviveSteeringLog(o.steeringLog);
+  if (steeringLog === "invalid") return null;
+  if (steeringLog !== undefined) plan.steeringLog = steeringLog;
   return plan;
 }
 
