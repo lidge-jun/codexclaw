@@ -131,12 +131,12 @@ test("deriveInterviewFlag: false when tracker not ready, true when ready; canEnt
 
 // ── L2/020: legal-transition adjacency table ──
 
-test("VALID_TRANSITIONS matches the cli-jaw table byte-for-byte", () => {
+test("VALID_TRANSITIONS: the cli-jaw table plus the codexclaw A->P repair edge", () => {
   assert.deepEqual(VALID_TRANSITIONS, {
     IDLE: ["I", "P"],
     I: ["P", "IDLE"],
     P: ["I", "A"],
-    A: ["I", "B"],
+    A: ["I", "B", "P"],
     B: ["I", "C"],
     C: ["I", "D", "B", "P"],
     D: ["I", "IDLE"],
@@ -151,10 +151,42 @@ test("isLegalEdge: legal forward + backward edges, illegal jumps", () => {
   // legal backward / replan
   assert.equal(isLegalEdge("C", "B"), true);
   assert.equal(isLegalEdge("C", "P"), true);
+  assert.equal(isLegalEdge("A", "P"), true);
   // illegal jumps
   for (const [from, to] of [["IDLE", "A"], ["IDLE", "B"], ["I", "A"], ["P", "C"], ["A", "D"], ["B", "D"]] as const) {
     assert.equal(isLegalEdge(from, to), false, `${from}->${to} should be illegal`);
   }
+});
+
+// ── A->P repair edge (LOOP-REPAIR-01) ──
+
+test("A->P is enterable without an interview flag, like C->P", () => {
+  // Re-planning after a failed audit is not a reason to redo requirements
+  // discovery, so the interview gate that guards I->P does not apply here.
+  assert.equal(canEnter("P", withFlags({ interview: false }, "A")).ok, true);
+});
+
+test("A->P does not open a path around the audit gate", () => {
+  // The stale auditPassed left over from a previous round must not let the
+  // re-planned cycle walk into B without a fresh attestation. Exercised through
+  // transition(), the agent path: orchestrate-apply's human path pre-flips flags
+  // by design and is a different contract.
+  const start: State = { ...withFlags({ auditPassed: true }, "A") };
+  const replanned = transition(start, "P", { from: "A", to: "P", did: "three failed rounds; rewriting the plan" });
+  assert.equal(replanned.ok, true, replanned.reason);
+  assert.equal(replanned.state?.phase, "P");
+
+  const reaudit = transition(replanned.state as State, "A", { from: "P", to: "A", did: "re-audit the changed plan" });
+  assert.equal(reaudit.ok, true, reaudit.reason);
+
+  const bare = transition(reaudit.state as State, "B", { from: "A", to: "B", did: "trying to build" });
+  assert.equal(bare.ok, false, "A->B must still demand a fresh audit attestation");
+  assert.match(bare.reason ?? "", /auditOutput/);
+});
+
+test("the A->P edge does not make A->D legal", () => {
+  assert.equal(isLegalEdge("A", "D"), false);
+  assert.equal(canEnter("D", withFlags({ checkPassed: true }, "A")).ok, false);
 });
 
 test("canEnter rejects illegal jumps with an 'illegal transition' reason", () => {

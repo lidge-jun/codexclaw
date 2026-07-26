@@ -36,6 +36,16 @@ export const GOALPLAN_LEDGER_FILE = "ledger.jsonl";
  */
 
 
+/**
+ * `blocked` and `superseded` are both "not done" and neither counts as success.
+ * They differ in what they mean for completion: a blocked phase still holds the
+ * goal open (something must happen), while a superseded one does not (something
+ * else covers it).
+ */
+
+
+
+
 
 
 
@@ -333,7 +343,10 @@ function reviveGoalplan(parsed         )                  {
     if (typeof wp !== "object" || wp === null) return null;
     const w = wp                           ;
     if (typeof w.id !== "string" || typeof w.title !== "string") return null;
-    const status = w.status === "in_progress" || w.status === "done" ? w.status : "pending";
+    const status                  =
+      w.status === "in_progress" || w.status === "done" || w.status === "blocked" || w.status === "superseded"
+        ? w.status
+        : "pending";
     const tasks                 = [];
     for (const t of Array.isArray(w.tasks) ? (w.tasks             ) : []) {
       if (typeof t !== "object" || t === null) continue;
@@ -344,7 +357,10 @@ function reviveGoalplan(parsed         )                  {
     const criteriaIds = Array.isArray(w.criteriaIds)
       ? (w.criteriaIds             ).filter((x)              => typeof x === "string")
       : [];
-    workPhases.push({ id: w.id, title: w.title, status, tasks, criteriaIds });
+    const phase                    = { id: w.id, title: w.title, status, tasks, criteriaIds };
+    if (typeof w.blockedReason === "string") phase.blockedReason = w.blockedReason;
+    if (typeof w.supersededBy === "string") phase.supersededBy = w.supersededBy;
+    workPhases.push(phase);
   }
 
   const criteria                      = [];
@@ -476,13 +492,17 @@ export function buildGoalplan(input                  )           {
 
 /** Work phases that are not yet done, in declared order. */
 export function remainingWorkPhases(plan          )                      {
-  return plan.workPhases.filter((wp) => wp.status !== "done");
+  // `superseded` drops out: another phase covers that work, so it cannot hold the
+  // goal open. `blocked` stays in — being stuck is not being finished.
+  return plan.workPhases.filter((wp) => wp.status !== "done" && wp.status !== "superseded");
 }
 
 /** The next pending task in the first non-done work phase, or null when none remain. */
 export function nextOpenTask(plan          )                                                       {
   for (const wp of plan.workPhases) {
-    if (wp.status === "done") continue;
+    // A blocked phase's tasks are not actionable and a superseded phase's tasks
+    // belong to its replacement, so neither can be "the next thing to do".
+    if (wp.status === "done" || wp.status === "blocked" || wp.status === "superseded") continue;
     for (const task of wp.tasks) {
       if (task.status !== "done") return { wp, task };
     }
@@ -559,8 +579,45 @@ export function validateGoalplan(plan          , ctx                        )   
   if (unmet.length > 0) {
     reasons.push(`${unmet.length} unmet criterion/criteria: ${unmet.map((c) => c.id).join(", ")}`);
   }
+  reasons.push(...supersededIntegrityReasons(plan));
   reasons.push(...finalGateReasons(plan, ctx));
   return { ok: reasons.length === 0, reasons };
+}
+
+/**
+ * A `superseded` phase leaves the remaining-work count, so a plan file that
+ * simply says "superseded" would shrink its own completion bar. Editing
+ * goalplan.json by hand is documented as normal workflow, so this is not an
+ * exotic attack — it is the ordinary path.
+ *
+ * Four checks, all structural. Whether the replacement genuinely covers the work
+ * is a judgment no validator can make; that part rides on the rationale and the
+ * ledger. Cycles need no separate walk: any cycle contains a phase whose
+ * replacement is itself superseded, which the third check already rejects.
+ */
+function supersededIntegrityReasons(plan          )           {
+  const out           = [];
+  for (const wp of plan.workPhases) {
+    if (wp.status !== "superseded") continue;
+    const by = wp.supersededBy;
+    if (typeof by !== "string" || by.trim().length === 0) {
+      out.push(`work phase ${wp.id} is superseded but does not name what replaced it (supersededBy)`);
+      continue;
+    }
+    if (by === wp.id) {
+      out.push(`work phase ${wp.id} claims to supersede itself, which would drop it from the remaining work for free`);
+      continue;
+    }
+    const target = plan.workPhases.find((other) => other.id === by);
+    if (!target) {
+      out.push(`work phase ${wp.id} is superseded by '${by}', which is not in this plan`);
+      continue;
+    }
+    if (target.status === "superseded") {
+      out.push(`work phase ${wp.id} is superseded by '${by}', which is itself superseded — the work would vanish`);
+    }
+  }
+  return out;
 }
 
 /** Marker path: promotion to v2 is recorded outside the plan file as well. */
@@ -706,6 +763,11 @@ export function advanceWorkPhase(plan          )                  {
   // 260714 wp4 (implicit cursor): a null/stale cursor adopts the effective active
   // work-phase instead of no-opping, so the standard `loop init` flow (cursor seeded
   // null) still books work-phase closes.
+  //
+  // No explicit guard against blocked/superseded is needed: effectiveActiveWorkPhaseId
+  // already skips them, so neither can be the phase this marks done. When every phase
+  // is blocked or superseded there is no effective id and this returns null, which is
+  // the right answer — there is nothing to close.
   const effectiveId = effectiveActiveWorkPhaseId(plan);
   if (!effectiveId) return null;
   const currentIdx = plan.workPhases.findIndex((wp) => wp.id === effectiveId);
@@ -743,7 +805,10 @@ export function advanceWorkPhase(plan          )                  {
 export function effectiveActiveWorkPhaseId(plan          )                {
   if (plan.activeWorkPhaseId) {
     const cur = plan.workPhases.find((wp) => wp.id === plan.activeWorkPhaseId);
-    if (cur && cur.status !== "done") return cur.id;
+    // A cursor left pointing at a blocked or superseded phase is stale in the same
+    // way a done one is: the loop would otherwise keep cycling on a phase that
+    // cannot advance. Fall through to the next workable phase instead.
+    if (cur && cur.status !== "done" && cur.status !== "blocked" && cur.status !== "superseded") return cur.id;
   }
   const inProgress = plan.workPhases.find((wp) => wp.status === "in_progress");
   if (inProgress) return inProgress.id;

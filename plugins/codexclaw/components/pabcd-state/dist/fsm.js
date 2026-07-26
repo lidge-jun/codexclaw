@@ -6,18 +6,25 @@ import { isInterviewReady } from "./interview.js";
 export const ORDER                   = WORK_PHASES;
 
 /**
- * Legal phase-adjacency table (L2/020), ported byte-faithful from cli-jaw
+ * Legal phase-adjacency table (L2/020), ported from cli-jaw
  * `orchestrator/state-machine.ts` VALID_TRANSITIONS. An edge not listed here is
  * illegal regardless of gate flags — `canEnter` rejects it before the flag checks,
  * so `auditPassed`/`checkPassed` can never unlock an out-of-sequence jump.
- *   IDLE->I|P · I->P|IDLE · P->I|A · A->I|B · B->I|C · C->I|D|B|P · D->I|IDLE
- * Backward edges C->B (re-build) and C->P (re-plan) are intentional loop routes.
+ *   IDLE->I|P · I->P|IDLE · P->I|A · A->I|B|P · B->I|C · C->I|D|B|P · D->I|IDLE
+ * Backward edges C->B (re-build), C->P (re-plan) and A->P are intentional loop routes.
+ *
+ * A->P is one deliberate divergence from the ported table. LOOP-REPAIR-01 tells the
+ * agent to "return to P with a changed plan" after three failed audit rounds
+ * (attest.ts, pabcd/SKILL.md §2), and the ported table had no such edge — the code
+ * refused the recovery its own prose prescribes. Leaving the audit does not clear
+ * `auditPassed`; A->B still validates a fresh attestation, so the loop route cannot
+ * be used to skip the gate.
  */
 export const VALID_TRANSITIONS                                            = {
   IDLE: ["I", "P"],
   I: ["P", "IDLE"],
   P: ["I", "A"],
-  A: ["I", "B"],
+  A: ["I", "B", "P"],
   B: ["I", "C"],
   C: ["I", "D", "B", "P"],
   D: ["I", "IDLE"],
@@ -43,8 +50,9 @@ export function canEnter(to       , state       )                               
       return { ok: true };
     case "P":
       // P is enterable from IDLE (interview optional) or from I once interview ran.
-      // C->P (replan) is a legal adjacency and needs no interview flag.
-      if (state.phase === "IDLE" || state.phase === "C") return { ok: true };
+      // The replan routes C->P and A->P need no interview flag: re-planning after a
+      // failed check or a failed audit is not a reason to redo requirements discovery.
+      if (state.phase === "IDLE" || state.phase === "C" || state.phase === "A") return { ok: true };
       return state.flags.interview
         ? { ok: true }
         : { ok: false, reason: "interview not completed (I->P needs interview flag)" };
