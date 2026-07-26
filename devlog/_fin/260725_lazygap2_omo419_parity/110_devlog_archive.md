@@ -38,12 +38,12 @@ after: 같은 파일들이 `devlog/_fin/260725_lazygap2_omo419_parity/` 아래�
 
 ## 절차
 
-### 1. 완료 판정 — **A 감사 4라운드에서 대체됨 (superseded)**
+### 1. 완료 판정 — **A 감사 4라운드에서 대체됨 — 실행 조건은 §A6**
 
 > 아래 원래 조건("선행 17개 전부 `done`, `c-fin` 외 criteria 전부 `met`")은
 > **더 이상 실행 조건이 아니다.** `done`이 자동 전이된 필드라 완료를 증명하지 못한다는
 > 것이 A 감사 4라운드에서 드러났고, `050`이 `blocked`로 정정되면서 전제 자체가 깨졌다.
-> 실행 조건은 아래 §A5 하나뿐이다. 이 절은 판단 이력으로만 남긴다.
+> 실행 조건은 아래 §A6 하나뿐이다 (A5도 WP19에서 대체됐다). 이 절은 판단 이력으로만 남긴다.
 
 `git log`에 커밋이 있다는 사실은 완료 증거가 **아니다** (2라운드 감사 블로커 6).
 초안이 쓰던 `cxc loop show`는 인자 없이 실행하면 exit 1이고
@@ -160,7 +160,17 @@ jq -e '[.criteria[] | select(.id == "c-050")] | all(.status == "open")' "$PLAN"
 npm test && npm run gate
 ```
 
-## A 감사 5라운드 — 아카이브를 **실행하지 않는다** (BLOCKED)
+## A 감사 5라운드 — **대체됨 (WP19에서 블로커가 제거됨)**
+
+> **이 절 전체는 더 이상 실행 조건이 아니다.** 아래 판단은 `050`이 blocked였을 때
+> 옳았고, 그 결론은 "구현하거나, 범위에서 빼거나, 새 아카이브 상태를 정의하라"였다.
+> **1번을 택했다** — `050`을 구현했다(커밋 `01b66af6`). blocked가 사라졌으므로
+> 이 절이 막던 이유도 사라졌다. 실행 조건은 아래 §A6이다.
+>
+> 판단 이력으로 남긴다: 규약을 지키지 못했을 때 규약의 뜻을 바꾸는 대신
+> **막고 있던 것을 실제로 해결하는 쪽**을 택했다는 기록이다.
+
+### (당시 판단) 아카이브를 실행하지 않는다
 
 4라운드에서 나는 "아카이브는 작업이 끝났다가 아니라 더 할 일이 없다는 판정"이라고
 적었다. 리뷰어가 그 재정의를 반박했고 근거가 맞다.
@@ -179,7 +189,7 @@ npm test && npm run gate
 17개 슬라이스에 걸쳐 없애온 false-enforcement다 — 규약을 지키지 못했을 때
 규약의 뜻을 바꿔 통과하는 행위.
 
-**판정: `wp18-fin`을 BLOCKED로 닫는다.** 유닛은 `devlog/_plan/`에 남는다.
+**(당시) 판정: `wp18-fin`을 BLOCKED로 닫는다.** — WP19에서 뒤집혔다.
 
 ### 무엇이 아카이브를 막고 있나
 
@@ -208,6 +218,42 @@ npm test && npm run gate
 - 무엇이 막고 있고 어떻게 풀 수 있는지가 위 세 선택지로 기록됐다
 
 아래 조건들은 그 재개 시점에 그대로 쓸 수 있다.
+
+## §A6 — 실행 조건 (WP19, 유일한 predicate)
+
+`050`이 shipped되어 blocked가 하나도 없다. 조건이 단순해졌다.
+
+```bash
+SLUG=codexclaw-lazygap2-15-pabcd-devlog-fin-100-060-0
+PLAN=.codexclaw/goalplans/$SLUG/goalplan.json
+
+# (1) 모든 work-phase가 done — 예외 없음
+jq -e '[.workPhases[] | select(.id != "wp18-fin")] | all(.status == "done")' "$PLAN"
+
+# (2) 모든 task가 done — "done은 자동 전이된 필드"라는 A4 지적의 답
+jq -e '[.workPhases[] | select(.id != "wp18-fin") | .tasks[]] | all(.status == "done")' "$PLAN"
+
+# (3) 모든 criterion이 met + 증거
+jq -e '[.criteria[] | select(.id != "c-fin")]
+       | all(.status == "met" and (.capturedEvidence // "" | length) > 0)' "$PLAN"
+
+# (4) 트리 상태
+npm test && npm run gate
+```
+
+**WP19 실측: 넷 다 exit 0** (`ALL_DONE_OK` / `ALL_TASKS_OK` / `ALL_CRITERIA_OK`,
+`npm test` 1,418 pass, `npm run gate` exit 0 / WARN 0).
+
+A4가 지적한 self-certification 문제는 (2)가 답한다 — `done`만 보면 자동 전이를
+읽지만, task까지 보면 실제로 수행된 작업을 읽는다.
+
+### 이동 절차
+
+1. `git mv devlog/_plan/260725_lazygap2_omo419_parity devlog/_fin/`
+   — tracked 12개는 rename, untracked 10개는 add로 기록된다 (A4 실측).
+2. `100_plan_rule_hardening.md`의 `000`/`009` live citation을 `_fin` 경로로 갱신.
+3. 검증: `_fin` 존재, `_plan` 부재, old-path `rg`가 allowlist 3개
+   (`000_plan.md`, `009_reinforcement_roadmap.md`, `110_devlog_archive.md`) 외 0건.
 
 ### 그 밖의 실측
 
