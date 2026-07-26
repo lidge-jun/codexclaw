@@ -39,6 +39,7 @@ import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveSpawnConfig,               } from "./store.js";
+import { checkFinalGatePrereqs } from "./final-gate-guard.js";
 
 function isRecord(v         )                               {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -861,6 +862,16 @@ export function runSpawnAttachHook(raw        )         {
     }
     const promptChanged = injectedPrompt !== null;
     const messageChanged = evidenceExemptMessage !== message || promptChanged;
+
+    // Final-gate prerequisites: only fires on a packet that marked itself as the
+    // final gate, and fails open on every other path. Runs after cwd resolution
+    // and before the allow/no-op below so a denial reaches the caller unchanged.
+    const gateCheck = checkFinalGatePrereqs(
+      evidenceExemptMessage,
+      typeof obj.session_id === "string" ? obj.session_id : "",
+      cwd,
+    );
+    if (!gateCheck.ok) return denyEnvelope(gateCheck.reason ?? "final gate prerequisites are missing");
 
     if (!messageChanged && injectedModel === null && injectedEffort === null) return "";
 
