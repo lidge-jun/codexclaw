@@ -367,6 +367,19 @@ not by itself grounds for calling a boundary guard unnecessary. Trust boundaries
 external input first lands: hook stdin, CLI arguments, file parsing, network responses,
 subagent output.
 
+**REVIEW-REMOVED-BACKEND-01 (DEFAULT).** A change touching `search/SKILL.md` gets checked
+for removed search backends creeping back in as if they were available: `progrok`,
+`web-AI`, `Grok Expert`, `GPT Pro`, `Exa`, `Tavily`, `Perplexity`, `Brave`. These names may
+appear only in non-goal or historical framing.
+
+There is no automated check, and there cannot be a useful one: codexclaw owns no registry
+of available backends to compare the prose against — `web_search` is host-provided. The
+scan that used to guard this read one prose file for phrase existence, broke on rewording,
+and proved nothing, so it was deleted with the protection routed here on purpose
+(`plugins/codexclaw/test/manifest-policy.test.mjs`, the TEST-PROMPT-SEAM-01 comment). This
+is a reviewer's read, not a contract. If a backend registry ever lands in code, revisit
+whether a real two-source check is possible.
+
 Judge by deletion kind. A **replacing/relocating** deletion (the check moved elsewhere) must
 stay GREEN after the old guard is removed, and go RED only when the surviving boundary check
 is removed too. For a **non-replacing** deletion, a regression that goes RED proves the guard
