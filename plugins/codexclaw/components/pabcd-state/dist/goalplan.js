@@ -23,9 +23,56 @@ import { join } from "node:path";
 import { STATE_DIR } from "./state.js";
 import { deriveSlug } from "./freeze.js";
 
+
 export const GOALPLANS_SUBDIR = "goalplans";
 export const GOALPLAN_FILE = "goalplan.json";
 export const GOALPLAN_LEDGER_FILE = "ledger.jsonl";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * What a round is for. A plan audit and a final code gate cannot stand in for
+ * each other, so each purpose carries its own cursor.
+ */
 
 
 
@@ -91,6 +138,74 @@ export function goalplanDir(cwd        , slug        )         {
   return join(cwd, STATE_DIR, GOALPLANS_SUBDIR, slug);
 }
 
+const REVIEW_STATUSES                      = new Set([
+  "pending",
+  "launching",
+  "in_flight",
+  "approved",
+  "changes_requested",
+  "inconclusive",
+]);
+
+function reviveLane(raw         )                    {
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw                           ;
+  if (typeof r.launchId !== "string" || r.launchId.length === 0) return null;
+  const lane             = { launchId: r.launchId };
+  if (typeof r.reviewerSession === "string") lane.reviewerSession = r.reviewerSession;
+  if (typeof r.workspaceRoot === "string") lane.workspaceRoot = r.workspaceRoot;
+  if (typeof r.artifactSha256 === "string") lane.artifactSha256 = r.artifactSha256;
+  if (r.verdict === "pass" || r.verdict === "near-pass" || r.verdict === "fail") lane.verdict = r.verdict;
+  if (typeof r.sourceIdentity === "object" && r.sourceIdentity !== null) {
+    const s = r.sourceIdentity                           ;
+    if (s.kind === "resolved" || s.kind === "unavailable") {
+      const id                 = {
+        kind: s.kind,
+        commitSha: typeof s.commitSha === "string" ? s.commitSha : "",
+        dirty: s.dirty === true,
+        capturedAt: typeof s.capturedAt === "string" ? s.capturedAt : new Date(0).toISOString(),
+      };
+      if (typeof s.treeHash === "string") id.treeHash = s.treeHash;
+      lane.sourceIdentity = id;
+    }
+  }
+  return lane;
+}
+
+/**
+ * Revive the review rounds.
+ *
+ * A round missing its identity, purpose, plan hash or lane is dropped rather
+ * than repaired — a half-round would let a consumer believe a review happened.
+ * Returns undefined when the field is absent so older plans round-trip unchanged.
+ */
+function reviveReviewRounds(raw         )                                 {
+  if (!Array.isArray(raw)) return undefined;
+  const out                     = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const r = entry                           ;
+    if (typeof r.roundId !== "string" || r.roundId.length === 0) continue;
+    if (r.purpose !== "plan_audit" && r.purpose !== "final_gate") continue;
+    if (typeof r.planPath !== "string" || typeof r.planSha256 !== "string") continue;
+    if (typeof r.status !== "string" || !REVIEW_STATUSES.has(r.status)) continue;
+    const lane = reviveLane(r.lane);
+    if (!lane) continue;
+    const round                   = {
+      roundId: r.roundId,
+      purpose: r.purpose,
+      planPath: r.planPath,
+      planSha256: r.planSha256,
+      status: r.status                     ,
+      lane,
+      openedAt: typeof r.openedAt === "string" ? r.openedAt : new Date(0).toISOString(),
+    };
+    if (typeof r.closedAt === "string") round.closedAt = r.closedAt;
+    out.push(round);
+  }
+  return out;
+}
+
 function goalplanPath(cwd        , slug        )         {
   return join(goalplanDir(cwd, slug), GOALPLAN_FILE);
 }
@@ -146,7 +261,9 @@ function reviveGoalplan(parsed         )                  {
     source: hostRaw.source === "freeze" ? "freeze" : "none",
   };
 
-  return {
+  const reviewRounds = reviveReviewRounds(o.reviewRounds);
+
+  const plan           = {
     objective: o.objective,
     slug: o.slug,
     createdAt: typeof o.createdAt === "string" ? o.createdAt : new Date(0).toISOString(),
@@ -156,6 +273,12 @@ function reviveGoalplan(parsed         )                  {
     criteria,
     host,
   };
+  // Only attach the 010 fields when they are actually present, so a plan written
+  // before this feature round-trips byte-identical.
+  if (reviewRounds !== undefined) plan.reviewRounds = reviewRounds;
+  if (typeof o.activePlanAuditRoundId === "string") plan.activePlanAuditRoundId = o.activePlanAuditRoundId;
+  if (typeof o.activeFinalGateRoundId === "string") plan.activeFinalGateRoundId = o.activeFinalGateRoundId;
+  return plan;
 }
 
 /** Read a goalplan; returns null on absent/unreadable/malformed (never throws). */

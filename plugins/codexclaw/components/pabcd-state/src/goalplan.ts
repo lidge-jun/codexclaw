@@ -22,6 +22,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, appendF
 import { join } from "node:path";
 import { STATE_DIR } from "./state.ts";
 import { deriveSlug } from "./freeze.ts";
+import type { SourceIdentity } from "./source-identity.ts";
 
 export const GOALPLANS_SUBDIR = "goalplans";
 export const GOALPLAN_FILE = "goalplan.json";
@@ -60,6 +61,47 @@ export interface GoalplanHostLink {
   source: "freeze" | "none";
 }
 
+export type ReviewRoundStatus =
+  | "pending"
+  | "launching"
+  | "in_flight"
+  | "approved"
+  | "changes_requested"
+  | "inconclusive";
+
+/**
+ * What a round is for. A plan audit and a final code gate cannot stand in for
+ * each other, so each purpose carries its own cursor.
+ */
+export type ReviewPurpose = "plan_audit" | "final_gate";
+
+export interface ReviewLane {
+  /** minted when the round opens; travels out with the spawn packet. */
+  launchId: string;
+  /** whatever the reviewer reports back. */
+  reviewerSession?: string;
+  workspaceRoot?: string;
+  /** sha256 of the verdict document the reviewer produced. */
+  artifactSha256?: string;
+  /** the source state the reviewer actually looked at (see source-identity.ts). */
+  sourceIdentity?: SourceIdentity;
+  verdict?: "pass" | "near-pass" | "fail";
+}
+
+export interface ReviewRoundState {
+  /** r1, r2, ... monotonically increasing per goalplan. */
+  roundId: string;
+  purpose: ReviewPurpose;
+  /** the plan document under audit. */
+  planPath: string;
+  /** sha256 of that document when the round opened; the caller computes it. */
+  planSha256: string;
+  status: ReviewRoundStatus;
+  lane: ReviewLane;
+  openedAt: string;
+  closedAt?: string;
+}
+
 export interface Goalplan {
   objective: string;
   slug: string;
@@ -70,6 +112,11 @@ export interface Goalplan {
   workPhases: GoalplanWorkPhase[];
   criteria: GoalplanCriterion[];
   host: GoalplanHostLink;
+  /** review rounds, oldest first. Absent on plans created before 010. */
+  reviewRounds?: ReviewRoundState[];
+  /** one cursor per purpose: a plan audit and a final gate run independently. */
+  activePlanAuditRoundId?: string;
+  activeFinalGateRoundId?: string;
 }
 
 export type GoalplanLedgerEvent =
@@ -89,6 +136,74 @@ export interface GoalplanLedgerEntry {
 
 export function goalplanDir(cwd: string, slug: string): string {
   return join(cwd, STATE_DIR, GOALPLANS_SUBDIR, slug);
+}
+
+const REVIEW_STATUSES: ReadonlySet<string> = new Set([
+  "pending",
+  "launching",
+  "in_flight",
+  "approved",
+  "changes_requested",
+  "inconclusive",
+]);
+
+function reviveLane(raw: unknown): ReviewLane | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.launchId !== "string" || r.launchId.length === 0) return null;
+  const lane: ReviewLane = { launchId: r.launchId };
+  if (typeof r.reviewerSession === "string") lane.reviewerSession = r.reviewerSession;
+  if (typeof r.workspaceRoot === "string") lane.workspaceRoot = r.workspaceRoot;
+  if (typeof r.artifactSha256 === "string") lane.artifactSha256 = r.artifactSha256;
+  if (r.verdict === "pass" || r.verdict === "near-pass" || r.verdict === "fail") lane.verdict = r.verdict;
+  if (typeof r.sourceIdentity === "object" && r.sourceIdentity !== null) {
+    const s = r.sourceIdentity as Record<string, unknown>;
+    if (s.kind === "resolved" || s.kind === "unavailable") {
+      const id: SourceIdentity = {
+        kind: s.kind,
+        commitSha: typeof s.commitSha === "string" ? s.commitSha : "",
+        dirty: s.dirty === true,
+        capturedAt: typeof s.capturedAt === "string" ? s.capturedAt : new Date(0).toISOString(),
+      };
+      if (typeof s.treeHash === "string") id.treeHash = s.treeHash;
+      lane.sourceIdentity = id;
+    }
+  }
+  return lane;
+}
+
+/**
+ * Revive the review rounds.
+ *
+ * A round missing its identity, purpose, plan hash or lane is dropped rather
+ * than repaired — a half-round would let a consumer believe a review happened.
+ * Returns undefined when the field is absent so older plans round-trip unchanged.
+ */
+function reviveReviewRounds(raw: unknown): ReviewRoundState[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: ReviewRoundState[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const r = entry as Record<string, unknown>;
+    if (typeof r.roundId !== "string" || r.roundId.length === 0) continue;
+    if (r.purpose !== "plan_audit" && r.purpose !== "final_gate") continue;
+    if (typeof r.planPath !== "string" || typeof r.planSha256 !== "string") continue;
+    if (typeof r.status !== "string" || !REVIEW_STATUSES.has(r.status)) continue;
+    const lane = reviveLane(r.lane);
+    if (!lane) continue;
+    const round: ReviewRoundState = {
+      roundId: r.roundId,
+      purpose: r.purpose,
+      planPath: r.planPath,
+      planSha256: r.planSha256,
+      status: r.status as ReviewRoundStatus,
+      lane,
+      openedAt: typeof r.openedAt === "string" ? r.openedAt : new Date(0).toISOString(),
+    };
+    if (typeof r.closedAt === "string") round.closedAt = r.closedAt;
+    out.push(round);
+  }
+  return out;
 }
 
 function goalplanPath(cwd: string, slug: string): string {
@@ -146,7 +261,9 @@ function reviveGoalplan(parsed: unknown): Goalplan | null {
     source: hostRaw.source === "freeze" ? "freeze" : "none",
   };
 
-  return {
+  const reviewRounds = reviveReviewRounds(o.reviewRounds);
+
+  const plan: Goalplan = {
     objective: o.objective,
     slug: o.slug,
     createdAt: typeof o.createdAt === "string" ? o.createdAt : new Date(0).toISOString(),
@@ -156,6 +273,12 @@ function reviveGoalplan(parsed: unknown): Goalplan | null {
     criteria,
     host,
   };
+  // Only attach the 010 fields when they are actually present, so a plan written
+  // before this feature round-trips byte-identical.
+  if (reviewRounds !== undefined) plan.reviewRounds = reviewRounds;
+  if (typeof o.activePlanAuditRoundId === "string") plan.activePlanAuditRoundId = o.activePlanAuditRoundId;
+  if (typeof o.activeFinalGateRoundId === "string") plan.activeFinalGateRoundId = o.activeFinalGateRoundId;
+  return plan;
 }
 
 /** Read a goalplan; returns null on absent/unreadable/malformed (never throws). */
