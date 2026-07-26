@@ -30,6 +30,19 @@ export const GOALPLAN_LEDGER_FILE = "ledger.jsonl";
 
 
 
+/**
+ * What surface a criterion exercises. Drives whether the final gate demands a
+ * QA receipt on top of a test receipt.
+ */
+
+
+
+
+
+
+
+
+
 
 
 
@@ -134,6 +147,27 @@ export const GOALPLAN_LEDGER_FILE = "ledger.jsonl";
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export function goalplanDir(cwd        , slug        )         {
   return join(cwd, STATE_DIR, GOALPLANS_SUBDIR, slug);
 }
@@ -156,19 +190,8 @@ function reviveLane(raw         )                    {
   if (typeof r.workspaceRoot === "string") lane.workspaceRoot = r.workspaceRoot;
   if (typeof r.artifactSha256 === "string") lane.artifactSha256 = r.artifactSha256;
   if (r.verdict === "pass" || r.verdict === "near-pass" || r.verdict === "fail") lane.verdict = r.verdict;
-  if (typeof r.sourceIdentity === "object" && r.sourceIdentity !== null) {
-    const s = r.sourceIdentity                           ;
-    if (s.kind === "resolved" || s.kind === "unavailable") {
-      const id                 = {
-        kind: s.kind,
-        commitSha: typeof s.commitSha === "string" ? s.commitSha : "",
-        dirty: s.dirty === true,
-        capturedAt: typeof s.capturedAt === "string" ? s.capturedAt : new Date(0).toISOString(),
-      };
-      if (typeof s.treeHash === "string") id.treeHash = s.treeHash;
-      lane.sourceIdentity = id;
-    }
-  }
+  const identity = reviveSourceIdentity(r.sourceIdentity);
+  if (identity) lane.sourceIdentity = identity;
   return lane;
 }
 
@@ -204,6 +227,46 @@ function reviveReviewRounds(raw         )                                 {
     out.push(round);
   }
   return out;
+}
+
+const GATE_STATUSES                      = new Set(["pending", "in_flight", "approved", "inconclusive"]);
+
+function reviveSourceIdentity(raw         )                             {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const s = raw                           ;
+  if (s.kind !== "resolved" && s.kind !== "unavailable") return undefined;
+  const id                 = {
+    kind: s.kind,
+    commitSha: typeof s.commitSha === "string" ? s.commitSha : "",
+    dirty: s.dirty === true,
+    capturedAt: typeof s.capturedAt === "string" ? s.capturedAt : new Date(0).toISOString(),
+  };
+  if (typeof s.treeHash === "string") id.treeHash = s.treeHash;
+  return id;
+}
+
+/**
+ * A gate whose status or qaRequired cannot be trusted is dropped entirely, so a
+ * malformed gate reads as "no gate recorded" on a v1 plan and as a schema
+ * violation on a v2 one — never as a silently passing gate.
+ */
+function reviveFinalGate(raw         )                             {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const g = raw                           ;
+  if (typeof g.status !== "string" || !GATE_STATUSES.has(g.status)) return undefined;
+  if (typeof g.qaRequired !== "boolean") return undefined;
+  const gate                 = {
+    status: g.status                            ,
+    qaRequired: g.qaRequired,
+    updatedAt: typeof g.updatedAt === "string" ? g.updatedAt : new Date(0).toISOString(),
+  };
+  if (typeof g.reviewRoundId === "string") gate.reviewRoundId = g.reviewRoundId;
+  if (typeof g.testReceiptPath === "string") gate.testReceiptPath = g.testReceiptPath;
+  if (typeof g.qaReceiptPath === "string") gate.qaReceiptPath = g.qaReceiptPath;
+  if (g.verdict === "pass" || g.verdict === "near-pass" || g.verdict === "fail") gate.verdict = g.verdict;
+  const id = reviveSourceIdentity(g.sourceIdentity);
+  if (id) gate.sourceIdentity = id;
+  return gate;
 }
 
 function goalplanPath(cwd        , slug        )         {
@@ -251,6 +314,10 @@ function reviveGoalplan(parsed         )                  {
       expectedEvidence: typeof cc.expectedEvidence === "string" ? cc.expectedEvidence : "",
       capturedEvidence: typeof cc.capturedEvidence === "string" ? cc.capturedEvidence : null,
       status: cc.status === "met" ? "met" : "open",
+      // preserve only a known surface; missing and unknown both stay undefined
+      ...(cc.surface === "logic" || cc.surface === "web" || cc.surface === "tui"
+        ? { surface: cc.surface }
+        : {}),
     });
   }
 
@@ -278,6 +345,11 @@ function reviveGoalplan(parsed         )                  {
   if (reviewRounds !== undefined) plan.reviewRounds = reviewRounds;
   if (typeof o.activePlanAuditRoundId === "string") plan.activePlanAuditRoundId = o.activePlanAuditRoundId;
   if (typeof o.activeFinalGateRoundId === "string") plan.activeFinalGateRoundId = o.activeFinalGateRoundId;
+  if (typeof o.schemaVersion === "number" && Number.isFinite(o.schemaVersion)) {
+    plan.schemaVersion = Math.floor(o.schemaVersion);
+  }
+  const finalGate = reviveFinalGate(o.finalGate);
+  if (finalGate) plan.finalGate = finalGate;
   return plan;
 }
 
@@ -387,6 +459,31 @@ export function isGoalplanComplete(plan          )          {
 
 
 /**
+ * Everything the v2 checks need that a pure function cannot reach: the current
+ * tree state and the evidence receipts. Passed in rather than imported so the
+ * validator stays testable and so its IO failures surface as reasons instead of
+ * exceptions — an exception would land in goal-gate's outer catch, which fails
+ * open on purpose for unexpected errors and would silently open the gate.
+ */
+
+
+
+
+
+
+
+/** Absent schemaVersion means 1; the marker can only raise the answer. */
+export function effectiveSchemaVersion(plan          , markerPresent         )         {
+  const declared = typeof plan.schemaVersion === "number" ? plan.schemaVersion : 1;
+  return markerPresent ? Math.max(declared, 2) : declared;
+}
+
+/** True when any criterion in the WHOLE plan exercises a visual surface. */
+export function computeQaRequired(plan          )          {
+  return plan.criteria.some((c) => c.surface === "web" || c.surface === "tui");
+}
+
+/**
  * Quality gate (E8): validates a goalplan for goal completion (called by
  * GOAL-COMPLETE-GATE-01 in goal-gate.ts, NOT during D-close).
  *
@@ -395,7 +492,7 @@ export function isGoalplanComplete(plan          )          {
  * 019f4456 session's unregistered plan pass the gate. A plan that never recorded what
  * "done" means cannot certify completion — register workPhases[]/criteria[] first.
  */
-export function validateGoalplan(plan          )                     {
+export function validateGoalplan(plan          , ctx                        )                     {
   const reasons           = [];
   if (plan.workPhases.length === 0 && plan.criteria.length === 0) {
     reasons.push(
@@ -415,7 +512,142 @@ export function validateGoalplan(plan          )                     {
   if (unmet.length > 0) {
     reasons.push(`${unmet.length} unmet criterion/criteria: ${unmet.map((c) => c.id).join(", ")}`);
   }
+  reasons.push(...finalGateReasons(plan, ctx));
   return { ok: reasons.length === 0, reasons };
+}
+
+/** Marker path: promotion to v2 is recorded outside the plan file as well. */
+export function schemaMarkerPath(cwd        , slug        )         {
+  return join(goalplanDir(cwd, slug), "schema-v2.marker");
+}
+
+/**
+ * The v2 final-gate checks.
+ *
+ * Editing goalplan.json by hand is a normal workflow, so keying "is this v2" on
+ * a number inside that same file would make deleting the number a bypass. The
+ * marker file lives beside the plan and can only raise the effective version;
+ * deleting the marker is still possible and is documented as such rather than
+ * claimed impossible.
+ */
+function finalGateReasons(plan          , ctx                        )           {
+  const markerPresent = ctx ? existsSync(schemaMarkerPath(ctx.cwd, plan.slug)) : false;
+  const version = effectiveSchemaVersion(plan, markerPresent);
+  if (version < 2) return [];
+
+  if (!ctx) {
+    return [
+      "this plan is schemaVersion >= 2 but validateGoalplan was called without a validation context, so the final gate could not be checked — this is a refusal, not a pass",
+    ];
+  }
+  if (markerPresent && (plan.schemaVersion ?? 1) < 2) {
+    return [
+      `this plan was promoted to schemaVersion 2 (${schemaMarkerPath(ctx.cwd, plan.slug)} exists) but the plan file declares ${plan.schemaVersion ?? "none"} — restore "schemaVersion": 2 instead of downgrading`,
+    ];
+  }
+
+  const out           = [];
+  for (const c of plan.criteria) {
+    if (c.surface === undefined) {
+      out.push(`criterion ${c.id} has no valid surface ("logic" | "web" | "tui") — schemaVersion 2 requires it, since an unclassified criterion would silently escape the QA requirement`);
+    }
+  }
+  const gate = plan.finalGate;
+  if (!gate) {
+    out.push('schemaVersion 2 requires a finalGate — open one with `cxc loop final-gate open`');
+    return out;
+  }
+  if (gate.status !== "approved") {
+    out.push(`final gate is ${gate.status}, not approved — close the gate before completing the goal`);
+  }
+  if (gate.verdict === "fail") out.push("final gate verdict is fail");
+
+  const expectedQa = computeQaRequired(plan);
+  if (expectedQa !== gate.qaRequired) {
+    out.push(
+      `final gate recorded qaRequired=${gate.qaRequired} but the plan now scans as ${expectedQa} — criteria changed after the gate opened, so re-open it`,
+    );
+  }
+
+  out.push(...roundReasons(plan, gate));
+  out.push(...identityReasons(plan, gate, ctx));
+  return out;
+}
+
+function roundReasons(plan          , gate                )           {
+  if (!gate.reviewRoundId) return ["final gate has no reviewRoundId — an approval must name the round that produced it"];
+  const round = (plan.reviewRounds ?? []).find((r) => r.roundId === gate.reviewRoundId);
+  if (!round) return [`final gate names review round ${gate.reviewRoundId}, which is not in the plan`];
+  const out           = [];
+  if (round.purpose !== "final_gate") {
+    out.push(`review round ${round.roundId} has purpose "${round.purpose}" — a plan audit cannot stand in for the final code gate`);
+  }
+  if (round.status !== "approved") {
+    out.push(`review round ${round.roundId} is ${round.status}, not approved`);
+  }
+  if (round.lane.verdict === undefined) {
+    out.push(`review round ${round.roundId} recorded no verdict`);
+  } else if (round.lane.verdict !== gate.verdict) {
+    out.push(`review round ${round.roundId} says "${round.lane.verdict}" but the final gate says "${gate.verdict}"`);
+  }
+  return out;
+}
+
+/**
+ * Every identity in play must describe the same tree: the tree right now, the
+ * one the gate recorded, the one each receipt was produced against, and the one
+ * the reviewer looked at.
+ */
+function identityReasons(plan          , gate                , ctx                       )           {
+  const out           = [];
+  let current                ;
+  try {
+    current = ctx.captureSourceIdentity(ctx.cwd);
+  } catch (err) {
+    return [`could not capture the current source identity: ${err instanceof Error ? err.message : String(err)}`];
+  }
+  if (!gate.sourceIdentity) {
+    out.push("final gate has no sourceIdentity — an approval must record the tree it approved");
+  }
+
+  const named                                         = [["the final gate", gate.sourceIdentity]];
+  const round = (plan.reviewRounds ?? []).find((r) => r.roundId === gate.reviewRoundId);
+  if (round?.lane.sourceIdentity) named.push(["the reviewer", round.lane.sourceIdentity]);
+
+  for (const [label, path, kind] of [
+    ["the test receipt", gate.testReceiptPath, "test"],
+    ...(gate.qaRequired ? [["the QA receipt", gate.qaReceiptPath, "qa"]         ] : []),
+  ]                                                 ) {
+    if (!path) {
+      out.push(`${label} path is missing`);
+      continue;
+    }
+    let receipt                                                        ;
+    try {
+      receipt = ctx.readReceipt(path, kind);
+    } catch (err) {
+      out.push(`${label} could not be read: ${err instanceof Error ? err.message : String(err)}`);
+      continue;
+    }
+    if ("error" in receipt) {
+      out.push(`${label} is not usable: ${receipt.error}`);
+      continue;
+    }
+    named.push([label, receipt.sourceIdentity]);
+  }
+
+  for (const [label, identity] of named) {
+    if (!identity) continue;
+    const cmp = ctx.compareSource(identity, current);
+    if (cmp.kind === "different") {
+      out.push(`${label} describes a different source than the tree right now (${cmp.detail ?? "changed"}) — re-run the gate`);
+    } else if (cmp.kind === "unavailable") {
+      out.push(
+        `${label} cannot be compared because git could not resolve the source identity — a schemaVersion 2 plan cannot be certified without git; use the v1 flow instead`,
+      );
+    }
+  }
+  return out;
 }
 
 /**

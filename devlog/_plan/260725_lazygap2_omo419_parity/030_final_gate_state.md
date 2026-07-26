@@ -4,26 +4,58 @@
 
 ## 문제
 
-`validateGoalplan`(`plugins/codexclaw/components/pabcd-state/src/goalplan.ts:266-295`)은
+`validateGoalplan`(`plugins/codexclaw/components/pabcd-state/src/goalplan.ts:398-...`
+— WP11 P 실측 정정. 초안의 `:266-295`는 `010`/`020`이 타입을 추가하기 전 위치다)은
 work phase와 criteria/evidence만 본다. 그래서 "모든 작업 완료 + 증거 있음"이면
 최종 검증을 아직 받지 않았어도 `update_goal complete`가 통과한다. upstream은 이 상태를
 명시적으로 표현해 continuation을 유지한다
 (`devlog/.lazycodex/plugins/omo/components/start-work-continuation/src/boulder-reader.ts:37-57`).
 
+## WP11 P: 이 슬라이스를 두 조각으로 자른다
+
+계획대로면 한 사이클에서 `goalplan.ts`, `source-receipt.ts`(신규), `goal-gate.ts`,
+`goalplan-cli.ts`, `hook.ts`와 테스트 3개를 동시에 바꾼다. 그건 하나의 B가 아니라
+세 개다. 그리고 `040`이 이 산출물 위에 다시 쌓인다.
+
+**이 사이클(WP11)의 범위 — 검증 코어:**
+
+| 파일 | 변경 |
+| --- | --- |
+| `src/goalplan.ts` | `FinalGateState`·`schemaVersion` 타입, revive 확장, `validateGoalplan(plan, ctx?)` v2 검사 |
+| `src/source-receipt.ts` | 신규 — fail-closed 파서 |
+| `test/source-receipt.test.ts` | 신규 |
+| `test/goalplan.test.ts` | v2 검증 케이스 추가 |
+
+**후속 조각으로 미루는 것 — 배선:**
+`goal-gate.ts`(ctx 구성·fail-open 경계), `goalplan-cli.ts`(`final-gate open|verdict|show`
+lifecycle + 마커 쓰기), `hook.ts`(IDLE Stop 문구), `test/goal-gate.test.ts`.
+
+근거는 `010`과 같다: **lifecycle CLI가 없는 상태에서 `loop init`을 v2로 바꾸면
+새 goal이 열 수 없는 gate를 요구하게 된다.** 검증기를 먼저 정확히 만들고, 그것을
+켜는 스위치는 CLI와 함께 넣는다. 이 사이클에서 `loop init`은 **v1을 계속 만든다.**
+
+따라서 아래 본문의 "`cxc loop init`이 만드는 신규 계획은 `schemaVersion: 2`" 규칙과
+마커 쓰기, lifecycle 표, IDLE Stop 문구는 **후속 조각의 계약**이다. 이 사이클은
+**읽는 쪽**(유효 버전 계산, 마커 존재 시 v2 판정, v2 검증 규칙 1-11)만 구현한다.
+마커를 쓰는 코드가 아직 없어도 읽는 규칙은 지금 테스트할 수 있다 — fixture로 마커
+파일을 직접 놓으면 된다.
+
 ## 변경 파일 맵
 
 | 파일 | 변경 유형 |
 | --- | --- |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts` | `FinalGateState` 타입 + `validateGoalplan` 확장 |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts` | `validateGoalplan` 시그니처 확장 — 아래 "검증 경계" 절 |
-| `plugins/codexclaw/components/pabcd-state/src/source-receipt.ts` | 신규 — `SourceBoundReceipt` 스키마 + fail-closed 파서 |
-| `plugins/codexclaw/components/pabcd-state/src/goal-gate.ts` | `:216-220` 호출부에 검증 컨텍스트 전달, `:233-235` fail-open이 v2 검증 실패를 삼키지 않게 |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts` | `schemaVersion` 필드 + 신규 계획 생성 시 `finalGate` 필수 등록 |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan-cli.ts` | `loop final-gate <open\|verdict\|show>` 서브버브 (lifecycle 소유자) |
-| `plugins/codexclaw/components/pabcd-state/src/hook.ts` | `buildGoalIdleBlock` 문구 확장 |
-| `plugins/codexclaw/components/pabcd-state/test/goalplan.test.ts` | 케이스 추가 |
-| `plugins/codexclaw/components/pabcd-state/test/source-receipt.test.ts` | 신규 — 파서 적대적 입력 |
-| `plugins/codexclaw/components/pabcd-state/test/goal-gate.test.ts` | v2 검증 실패가 deny로 나오는지 |
+| `src/goalplan.ts` | `FinalGateState`·`schemaVersion` 타입, `reviveGoalplan` 확장, `validateGoalplan(plan, ctx?)` v2 검사 |
+| `src/source-receipt.ts` | 신규 — `SourceBoundReceipt` 스키마 + fail-closed 파서 (`hasValidReceipt` 재사용) |
+| `test/source-receipt.test.ts` | 신규 — 파서 적대적 입력 |
+| `test/goalplan.test.ts` | v2 검증 케이스 추가 |
+| `src/goalplan.ts` | `CriterionSurface` + `GoalplanCriterion.surface`, revive 확장 |
+| `src/goalplan-cli.ts` | `validate` 경로만 read-only `ctx` 구성 (A 감사 Medium) |
+| `test/goalplan-cli.test.ts` 또는 기존 CLI 테스트 | v2 계획을 CLI로 검증 가능한지 |
+
+**후속 조각으로 미룬 파일:** `src/goal-gate.ts`(`:219` 호출부에 ctx 전달, `:232-234`
+fail-open이 v2 실패를 삼키지 않게), `src/goalplan-cli.ts`의 **쓰기 경로**
+(`final-gate open|verdict|show` lifecycle + 마커 쓰기 + `init`을 v2로),
+`src/hook.ts`(IDLE Stop 문구), `test/goal-gate.test.ts`.
 
 ## 검증 경계 (4라운드 감사 2)
 
@@ -40,7 +72,7 @@ gate가 조용히 열린다.
 export interface GoalplanValidationCtx {
   cwd: string;
   captureSourceIdentity: (cwd: string) => SourceIdentity;   // 020
-  readReceipt: (path: string) => SourceBoundReceipt | { error: string }; // 아래 파서
+  readReceipt: (path: string, expectedKind: "test" | "qa") => SourceBoundReceipt | { error: string }; // 아래 파서
 }
 export function validateGoalplan(plan: Goalplan, ctx?: GoalplanValidationCtx): GoalplanValidation;
 ```
@@ -48,6 +80,13 @@ export function validateGoalplan(plan: Goalplan, ctx?: GoalplanValidationCtx): G
 - `ctx`가 없으면 v1 검사만 수행한다 (기존 호출자·테스트 호환).
 - `schemaVersion >= 2` 계획에 `ctx`가 없으면 **`ok: false`** 와 함께
   "final gate 검증 컨텍스트가 없다"를 이유로 반환한다 — 조용한 통과를 만들지 않는다.
+
+  **단 그 규칙 하나만으로는 `cxc loop validate`가 v2 계획을 영원히 검증 실패로
+  보고한다** (A 감사 1 — Medium). `goalplan-cli.ts:140`도 `validateGoalplan(plan)`만
+  부르기 때문이다. 그래서 **이 사이클에 CLI의 read-only `ctx` 구성을 포함한다** —
+  `goalplan-cli.ts`의 `validate` 경로가 실제 `ctx`를 만들어 넘긴다. 상태를 바꾸지
+  않는 읽기 전용 변경이라 core-first 분할을 깨지 않고, "v2 계획을 CLI로 확인할 수 없다"는
+  기간을 만들지 않는다. `goal-gate.ts` 배선(deny 봉투 경로)은 여전히 후속이다.
 - IO/파싱 실패는 예외를 던지지 않고 `reasons`에 담아 `ok: false`로 반환한다.
   그래야 `goal-gate.ts:233-235`의 outer `catch`(진짜 예상 못한 오류용 fail-open)에
   빠지지 않는다.
@@ -57,7 +96,14 @@ export function validateGoalplan(plan: Goalplan, ctx?: GoalplanValidationCtx): G
 
 "영수증에서 `SourceIdentity`를 읽는다"만으로는 형식도, 안전 검사도 정의되지 않았다.
 기존 증거 검증기는 `.codexclaw/evidence` 경로 포함·심링크·realpath를 검사한다
-(`plugins/codexclaw/components/pabcd-state/src/subagent-evidence.ts:93-115`) — 그것을 재사용한다.
+(`subagent-evidence.ts:98-116`, `hasValidReceipt` — WP11 P 실측). **그 함수를 그대로
+호출한다.** 경로 포함·심링크·realpath 이탈·일반 파일·0바이트 다섯 검사가 이미 거기
+있으므로 파서는 그 위에 JSON 파싱과 스키마 검사만 얹는다. 같은 가드를 두 번 쓰지 않는다.
+
+주의: `hasValidReceipt`는 실패 시 `false`를 반환하는 boolean이라 **어느 검사에서
+떨어졌는지 알려주지 않는다.** 파서는 `{error: "receipt failed the evidence-root guard
+(outside .codexclaw/evidence, symlink, non-file, or empty): <path>"}`처럼 한 덩어리로
+보고한다 — 다섯 사유를 구분하려고 가드를 복제하는 것보다 낫다.
 
 ```ts
 export interface SourceBoundReceipt {
@@ -68,9 +114,15 @@ export interface SourceBoundReceipt {
   createdAt: string;
 }
 export function parseSourceBoundReceipt(
-  path: string, cwd: string,
+  path: string, cwd: string, expectedKind: "test" | "qa",
 ): SourceBoundReceipt | { error: string };
 ```
+
+**`expectedKind`가 필수 인자다 (A 감사 2 — High).** 이것 없이 "파서를 통과하는가"만
+보면 `{kind:"test"}` 영수증을 `qaReceiptPath`에 넣어 web criterion의 QA 요구를
+그대로 면제받는다. 호출자가 어느 자리에 쓰는지 알고 있으므로 그 기대를 인자로
+명시하게 하고, 파서가 `kind` 불일치를 `{error}`로 거부한다. 검증기 쪽에서 나중에
+`kind`를 한 번 더 확인하는 방식은 그 검사를 빠뜨리기 쉬워 택하지 않는다.
 
 파서는 fail-closed다. 다음이면 `{error}`를 반환한다 — 경로가 `.codexclaw/evidence` 밖,
 심링크 또는 realpath가 경로 밖으로 탈출, 일반 파일이 아님, 0바이트, JSON 파싱 실패,
@@ -89,11 +141,58 @@ export interface FinalGateState {
   testReceiptPath?: string;
   qaReceiptPath?: string;
   verdict?: "pass" | "near-pass" | "fail";
+  /** gate-open 시점에 계획 전체를 스캔해 고정한 값 (A 감사 1 — High 1).
+   *  optional이 아니다: 없으면 "QA가 필요 없다"와 "아직 안 정했다"를 구분할 수 없다. */
+  qaRequired: boolean;
   updatedAt: string;
 }
 ```
 
 `Goalplan`에 `finalGate?: FinalGateState` 추가 (optional — 기존 계획 파일 그대로 읽힘).
+
+### criterion에 `surface`를 추가한다 (A 감사 1 — High 2)
+
+`qaRequired`를 계산하려면 criterion이 어떤 표면을 검증하는지 알아야 하는데,
+**현재 `GoalplanCriterion`에는 그런 필드가 없다**(`goalplan.ts:34-40`). revive도
+미지 필드를 버리고(`goalplan.ts:238-247`), CLI는 `scenario`만 만든다
+(`goalplan-cli.ts:107`). 즉 지금 상태로는 web/tui 여부를 저장할 수도 읽을 수도 없다.
+
+```ts
+export type CriterionSurface = "logic" | "web" | "tui";
+// GoalplanCriterion에 추가:
+surface?: CriterionSurface;   // 없으면 "logic"으로 읽는다
+```
+
+**v1에서는 optional, v2에서는 필수.** 근거를 나눠 적는다.
+
+- v1 계획에는 이 필드가 아예 없다. 없는 것을 소급 요구하면 기존 계획이 전부 깨진다.
+  그래서 revive는 값이 없거나 세 값 중 하나가 아니면 `"logic"`으로 읽는다.
+- v2 계획에서 `surface`가 빠진 criterion은 **검증 오류**다. 여기서 기본값을 허용하면
+  "분류를 안 적으면 QA를 면제받는다"가 되어 그 자체가 우회 경로가 된다.
+  이건 `finalGate`를 optional로 두면 안 됐던 것과 같은 논리다.
+- **v2에서 값이 세 enum 중 하나가 아닌 것도 같은 오류다** (A 감사 2 — Medium).
+  누락만 막고 `surface: "api"` 같은 미지 값을 `"logic"`으로 normalize하면 오타 하나로
+  QA를 면제받는다.
+
+  **revive 알고리즘 (하나로 고정):**
+
+  ```
+  surface = (값이 "logic" | "web" | "tui" 중 하나) ? 그 값 : undefined
+  ```
+
+  즉 revive는 **normalize하지 않는다.** 유효한 enum만 보존하고, 누락과 미지 값을
+  똑같이 `undefined`로 남긴다. 기본값 `"logic"`은 **소비 시점에만** 적용한다:
+
+  | 버전 | `surface === undefined`일 때 |
+  | --- | --- |
+  | v1 | `?? "logic"`으로 읽는다 (하위 호환) |
+  | v2 | 그 기본값을 적용하기 **전에** 검증 오류로 거부한다 |
+
+  별도 원본 보존 필드(`surfaceRaw` 등)는 필요 없다 — 누락과 오타가 같은 결과이므로
+  검증기가 둘을 구분할 필요가 없다. v2 오타 케이스는 **write/read 왕복 뒤** 검증하는
+  회귀로 만든다. 메모리 상의 객체만 보면 revive를 안 거쳐 의미가 없다.
+
+`qaRequired = 계획 전체 criteria 중 surface가 "web" 또는 "tui"인 것이 하나라도 있는가`.
 
 ### 적용 범위: schemaVersion으로 가른다 (재감사 5 반영 — 핵심 정정)
 
@@ -148,9 +247,11 @@ goalplan JSON을 직접 편집하는 것은 정상 워크플로다
    "fail이 아니다"로 새어 들어간다. 추가로 `lane.verdict ∈ {pass, near-pass}`이고
    `lane.verdict === finalGate.verdict`여야 한다. `near-pass` 허용은 A→B와 동일한 정책이고,
    `undefined`는 거부다.
-3. `testReceiptPath`가 위 파서를 통과한다 (존재·0바이트 검사만이 아니다).
+3. `testReceiptPath`가 위 파서를 **`expectedKind: "test"`로** 통과한다
+   (존재·0바이트 검사만이 아니다).
 4. **계획 전체**의 criteria 중 `surface`가 `web` 또는 `tui`인 것이 있으면
-   `qaReceiptPath`도 3과 같은 조건을 만족한다 (4라운드 감사 5 — 아래 절).
+   `qaReceiptPath`도 같은 조건을 **`expectedKind: "qa"`로** 만족한다
+   (4라운드 감사 5 — 아래 절).
 5. **네 소스 정체성이 모두 `compareSource(...).kind === "same"`이다** — 현재 트리,
    `finalGate.sourceIdentity`, test 영수증의 정체성, (해당 시) QA 영수증의 정체성,
    라운드의 `lane.sourceIdentity`. 하나라도 `different`면 어긋난 항목을 명시해 거부.
@@ -186,8 +287,10 @@ after: 위를 유지하고 `schemaVersion >= 2`인 계획에 대해 추가 검�
 4. `reviewRoundId`가 없거나, 라운드 목록에 없거나, `purpose !== "final_gate"`거나,
    `status !== "approved"`거나, `lane.verdict`가 `finalGate.verdict`와 다르다 → 실패.
 5. `schemaVersion >= 2`인데 `finalGate` 자체가 없다 → 실패 (스키마 위반).
-6. `testReceiptPath`가 없거나 파서가 `{error}`를 반환 → 실패 (이유에 파서 메시지).
-7. `finalGate.qaRequired`인데 `qaReceiptPath`가 없거나 파서 실패 → 실패.
+6. `testReceiptPath`가 없거나 `readReceipt(path, "test")`가 `{error}`를 반환 → 실패
+   (이유에 파서 메시지). QA 영수증을 test 자리에 넣으면 여기서 걸린다.
+7. `finalGate.qaRequired`인데 `qaReceiptPath`가 없거나 `readReceipt(path, "qa")`가
+   실패 → 실패. test 영수증을 QA 자리에 넣으면 여기서 걸린다.
 8. test/QA 영수증의 정체성 또는 `lane.sourceIdentity`가 현재 트리와 다르다 → 실패.
 9. 비교 결과가 `unavailable`(git 없음)이다 → 실패, "git 없는 환경에서는 최종 gate를
    승인할 수 없다" (`020`의 정책과 일치, 아래 참조).
@@ -220,52 +323,105 @@ after: 잔여 work phase와 미충족 criterion이 0인데 `finalGate.status !==
 
 ## 테스트 (accept criteria)
 
-| 시나리오 | 기대 |
-| --- | --- |
-| `schemaVersion: 1`, 작업·criteria 완료, `finalGate` 없음 | 통과 (하위 호환) |
-| `schemaVersion: 2`, `finalGate` 없음 | 실패 (스키마 위반) |
-| `cxc loop init`으로 만든 신규 계획 | `schemaVersion: 2`, `finalGate.status = "pending"` |
-| v2 계획에서 `schemaVersion` 삭제 | 마커 때문에 v2로 판정, 거부 + 복원 안내 |
-| v2 계획에서 `schemaVersion`을 `1`로 변경 | 동일하게 거부 |
-| 마커와 계획이 모두 v2 | 정상 |
-| 마커 없고 계획도 v1 | v1 동작 (진짜 legacy) |
-| 승격 시 마커 생성 확인 | `schema-v2.marker` 존재, ledger에 승격 이벤트 |
-| `schemaVersion: 2`, 작업·criteria 완료, `finalGate.status = "pending"` | 실패, 이유에 pending 명시 |
-| `in_flight` 상태로 완료 시도 | 실패 |
-| `finalGate.status = "approved"`, 소스 동일 | 통과 |
-| `approved` 후 추적 파일 수정 | 실패, 이유에 "소스 변경" |
-| `approved` 후 ignore되지 않은 untracked 파일 추가 | 실패 (`020` 정정 규칙) |
-| `approved` 후 gitignore된 경로에만 파일 추가 | 통과 |
-| `reviewRoundId` 없이 `approved` 기록 시도 | 거부 |
-| `sourceIdentity` 없이 `approved` 기록 시도 | 거부 |
-| `purpose: "plan_audit"` 라운드로 `approved` 기록 시도 | 거부 |
-| `status: "changes_requested"` 라운드로 승인 시도 | 거부 |
-| `status: "inconclusive"` 라운드로 승인 시도 | 거부 |
-| `lane.verdict` undefined | 거부 |
-| `lane.verdict` ≠ `finalGate.verdict` | 거부 |
-| `lane.verdict: "near-pass"` + 일치 | 허용 |
-| `testReceiptPath` 없이 `approved` 기록 시도 | 거부 |
-| test 영수증 0바이트 / malformed JSON / `sourceIdentity` 누락 | 각각 거부 |
-| 영수증 경로가 `.codexclaw/evidence` 밖 (절대경로) | 거부 |
-| 영수증이 심링크로 밖을 가리킴 | 거부 |
-| 영수증이 일반 파일이 아님 (디렉터리/fifo) | 거부 |
-| `web` criterion 있는데 QA 영수증 없음 | 거부 |
-| **마지막 phase done + `activeWorkPhaseId: null` + web criterion + QA 없음** | 거부 (감사 5의 핵심 회귀) |
-| gate-open 이후 web criterion 추가 | 거부, gate 재개시 요구 |
-| `logic` criterion만 있고 QA 영수증 없음 | 승인 가능 |
-| `schemaVersion >= 2`인데 `ctx` 없이 `validateGoalplan` 호출 | `ok: false` (조용한 통과 없음) |
-| v2 검증 중 IO 오류 | `ok: false` + 이유 (outer fail-open으로 새지 않음) |
-| `goal-gate.ts` 경유 `update_goal complete` (v2, gate pending) | deny 봉투 반환 |
-| test 영수증 정체성 ≠ 현재 트리 | 거부, 어긋난 항목 명시 |
-| `lane.sourceIdentity` ≠ `finalGate.sourceIdentity` | 거부 ("리뷰어가 다른 소스를 봤다") |
-| 승인 후 트리 변경 → 완료 시도 | 실패 (완료 시점 재검증) |
-| git 없는 환경, `schemaVersion: 2` | 승인 거부, 메시지에 v1 안내 |
-| git 없는 환경, `schemaVersion: 1` | 기존 동작 (영향 없음) |
-| `verdict = "fail"`인데 `status = "approved"` | 실패 |
-| 잔여 0 + gate pending 상태의 IDLE Stop | 문구에 "최종 gate" 포함 |
-| `schemaVersion: 1` 계획에 `final-gate open` 실행 | `2`로 승격, `pending` 등록 |
+이 사이클의 수용 기준은 **검증 코어**에 한정한다. `cxc loop init`/`final-gate` CLI와
+`goal-gate.ts` 배선, IDLE Stop 문구 케이스는 후속 조각으로 넘긴다 (위 범위 절).
 
-검증 명령: `npm test`, `npx tsc --noEmit`, `npm run gate`.
+| 시나리오 | 기대 | 이 사이클 |
+| --- | --- | --- |
+| `schemaVersion: 1`, 작업·criteria 완료, `finalGate` 없음 | 통과 (하위 호환) | O |
+| `schemaVersion: 2`, `finalGate` 없음 | 실패 (스키마 위반) | O |
+| `cxc loop init`으로 만든 신규 계획 | `schemaVersion: 2`, `finalGate.status = "pending"` | **후속** |
+| v2 계획에서 `schemaVersion` 삭제 (마커 fixture 존재) | 마커 때문에 v2로 판정, 거부 + 복원 안내 | O |
+| v2 계획에서 `schemaVersion`을 `1`로 변경 (마커 fixture 존재) | 동일하게 거부 | O |
+| 마커와 계획이 모두 v2 | 정상 | O |
+| 마커 없고 계획도 v1 | v1 동작 (진짜 legacy) | O |
+| 승격 시 마커 생성 확인 | `schema-v2.marker` 존재, ledger에 승격 이벤트 | **후속** (쓰는 쪽) |
+| `schemaVersion: 2`, 작업·criteria 완료, `finalGate.status = "pending"` | 실패, 이유에 pending 명시 | O |
+| `in_flight` 상태로 완료 시도 | 실패 | O |
+| `finalGate.status = "approved"`, 소스 동일 | 통과 | O |
+| `approved` 후 추적 파일 수정 | 실패, 이유에 "소스 변경" | O |
+| `approved` 후 ignore되지 않은 untracked 파일 추가 | 실패 (`020` 정정 규칙) | O |
+| `approved` 후 gitignore된 경로에만 파일 추가 | 통과 | O |
+| `reviewRoundId` 없이 `approved` 기록 시도 | 거부 | O |
+| `sourceIdentity` 없이 `approved` 기록 시도 | 거부 | O |
+| `purpose: "plan_audit"` 라운드로 `approved` 기록 시도 | 거부 | O |
+| `status: "changes_requested"` 라운드로 승인 시도 | 거부 | O |
+| `status: "inconclusive"` 라운드로 승인 시도 | 거부 | O |
+| `lane.verdict` undefined | 거부 | O |
+| `lane.verdict` ≠ `finalGate.verdict` | 거부 | O |
+| `lane.verdict: "near-pass"` + 일치 | 허용 | O |
+| `testReceiptPath` 없이 `approved` 기록 시도 | 거부 | O |
+| test 영수증 0바이트 / malformed JSON / `sourceIdentity` 누락 | 각각 거부 | O |
+| 영수증 경로가 `.codexclaw/evidence` 밖 (절대경로) | 거부 | O |
+| 영수증이 심링크로 밖을 가리킴 | 거부 | O |
+| 영수증이 일반 파일이 아님 (디렉터리/fifo) | 거부 | O |
+| `web` criterion 있는데 QA 영수증 없음 | 거부 | O |
+| **마지막 phase done + `activeWorkPhaseId: null` + web criterion + QA 없음** | 거부 (감사 5의 핵심 회귀) | O |
+| gate-open 이후 web criterion 추가 | 거부, gate 재개시 요구 | O |
+| `logic` criterion만 있고 QA 영수증 없음 | 승인 가능 | O |
+| `schemaVersion >= 2`인데 `ctx` 없이 `validateGoalplan` 호출 | `ok: false` (조용한 통과 없음) | O |
+| v2 검증 중 IO 오류 | `ok: false` + 이유 (outer fail-open으로 새지 않음) | O |
+| `goal-gate.ts` 경유 `update_goal complete` (v2, gate pending) | deny 봉투 반환 | **후속** |
+| test 영수증 정체성 ≠ 현재 트리 | 거부, 어긋난 항목 명시 | O |
+| `lane.sourceIdentity` ≠ `finalGate.sourceIdentity` | 거부 ("리뷰어가 다른 소스를 봤다") | O |
+| 승인 후 트리 변경 → 완료 시도 | 실패 (완료 시점 재검증) | O |
+| git 없는 환경, `schemaVersion: 2` | 승인 거부, 메시지에 v1 안내 | O |
+| git 없는 환경, `schemaVersion: 1` | 기존 동작 (영향 없음) | O |
+| `verdict = "fail"`인데 `status = "approved"` | 실패 | O |
+| 잔여 0 + gate pending 상태의 IDLE Stop | 문구에 "최종 gate" 포함 | **후속** |
+| `schemaVersion: 1` 계획에 `final-gate open` 실행 | `2`로 승격, `pending` 등록 | **후속** |
+| `finalGate`/`schemaVersion`이 write/read 왕복에서 보존됨 | revive 확장 회귀 (`010`의 R15와 같은 함정) | O |
+| `criteria[].surface`가 왕복에서 보존됨 | revive 확장 회귀 | O |
+| v1 계획의 criterion에 `surface` 없음 | 소비 시점에 `"logic"`으로 읽힌다 (하위 호환) | O |
+| v1 계획의 criterion에 `surface: "api"` | 동일 — v1은 관대하다 | O |
+| v2 계획의 criterion에 `surface` 없음 | 검증 오류 — 기본값으로 QA를 면제받지 못한다 | O |
+| v2 계획의 criterion에 `surface: "api"` (미지 enum), **write/read 왕복 후** 검증 | **동일한 검증 오류** — 오타로 QA를 면제받지 못한다 (메모리 객체가 아니라 revive를 거친 값으로 확인) | O |
+| `qaReceiptPath`에 `{kind:"test"}` 영수증 | 거부 — `readReceipt(path, "qa")`가 kind 불일치를 낸다 (A 감사 2 High) | O |
+| `testReceiptPath`에 `{kind:"qa"}` 영수증 | 거부 — 반대 방향도 막는다 | O |
+| `cxc loop validate`로 v2 계획 검증 | CLI가 read-only `ctx`를 구성해 정상 판정 (A 감사 Medium) | O |
+
+### 검증 명령 (PLAN-VERIFIER-REAL-01)
+
+- `npm test` — baseline 실측 exit 0, **1,287 pass**. 사슬: `package.json:24` glob이
+  `components/pabcd-state/test/*.ts`를 포함한다. → **주 검증기.**
+- 좁은 타입체크 (**B 이후 유효**):
+
+  ```
+  npx tsc --noEmit --allowImportingTsExtensions --module nodenext --target es2022 \
+    --moduleResolution nodenext --strict \
+    plugins/codexclaw/components/pabcd-state/src/source-receipt.ts \
+    plugins/codexclaw/components/pabcd-state/test/source-receipt.test.ts
+  ```
+
+  이 명령은 의존 그래프를 타고 기존 `interview.ts`의 `TS2352` **4건**을 함께 낸다
+  (WP10 실측). 수용 조건은 exit 0이 아니라 **"신규 파일 오류 0건"**이고, 비교는
+  `... 2>&1 | grep 'error TS' | grep -v interview | wc -l` 이 `0`인지로 한다.
+  인자 없는 `npx tsc --noEmit`은 적지 않는다 (root `tsconfig.json` 없음).
+- `npm run build` — 신규 `.ts`가 dist로 컴파일된다(114 → 115). → 관측한다.
+- `npm run gate` — 이 슬라이스를 **관측하지 않는다**. 비관측 baseline 회귀 확인용
+  (현재 exit 0, WARN 4).
+
+## PLAN-BYPASS-NAMED-01
+
+| 필드 | 값 |
+| --- | --- |
+| tier | **E8** — 단, 이 사이클에서 붙는 소비자는 읽기 전용 `cxc loop validate`뿐이고, **완료를 실제로 막는 런타임 강제는 후속**이다 |
+| 실행 주체 | 이 사이클: `cxc loop validate`(보고만 한다). 후속: `goal-gate.ts`가 `update_goal complete` PreToolUse에서 호출해 deny 봉투를 낸다 |
+| 알려진 우회 | `schema-v2.marker` 파일을 지우면 v1으로 되돌아간다 — 파일시스템 권한 밖이라 막을 수 없다. 다만 우연한 편집이 아니라 명시적 우회이고 ledger에 승격 이벤트가 남는다. goalplan JSON 직접 편집은 정상 워크플로이므로(`skills/loop/SKILL.md:147-150`) 숫자 하나에만 의존하지 않는 이유가 이것이다 |
+| 잔여 위험 | 영수증의 `sourceIdentity`는 영수증을 만든 쪽이 적는다 — 위조 가능하다. 잡는 것은 "리뷰/테스트 이후 트리가 움직였다"이지 "리뷰가 실제로 있었다"가 아니다 |
+| 표현 강등 | "최종 검증을 강제한다"가 아니라 **"v2 계획에서 gate 미통과·소스 불일치를 완료 시점에 거부한다"** |
+| 최종 강제층 | **`goal-gate.ts`의 deny 봉투** (후속 조각에서 연결). 이 사이클만으로는 `final layer: none` |
+
+## PLAN-FIELD-CHAIN-01
+
+| 타입 | 생성 | 직렬화 | 역직렬화 | 소비 |
+| --- | --- | --- | --- | --- |
+| `FinalGateState` | 후속 조각의 `final-gate open` (이 사이클에서는 테스트 fixture만) | `writeGoalplan` | `reviveGoalplan` **확장 필수** — 미지 필드는 버려진다 | `validateGoalplan`의 v2 검사 |
+| `FinalGateState.qaRequired` | gate-open 시점의 계획 전체 스캔 (후속이 쓴다) | 위와 동일 | 위와 동일. 불리언이 아니면 스키마 오류 | v2 규칙 7·11 — 고정값과 현재 스캔이 어긋나면 거부 |
+| `CriterionSurface` | 계획 작성자 (v2에서는 필수 입력) | `writeGoalplan` | `reviveGoalplan` — **유효 enum만 보존, 누락·미지 값은 `undefined`** (normalize하지 않는다) | v1: 소비 시 `?? "logic"`. v2: `undefined`면 검증 오류. 이후 `qaRequired` 계산 |
+| `schemaVersion` | 후속 `loop init`/`final-gate open` | 위와 동일 | 위와 동일. 없으면 `1` | 유효 버전 계산 = `max(plan.schemaVersion, 마커 있으면 2)` |
+| `SourceBoundReceipt` | 이 모듈이 아니라 **영수증을 쓰는 쪽**(테스트 러너/QA 도구) | `.codexclaw/evidence/*.json` | `parseSourceBoundReceipt` (fail-closed) | `validateGoalplan` v2 규칙 6·7·8 |
+| `GoalplanValidationCtx` | 호출자 — 이 사이클에서는 테스트, 후속에서는 `goal-gate.ts` | N/A | N/A | `validateGoalplan` 내부 |
 
 ## 범위 밖
 

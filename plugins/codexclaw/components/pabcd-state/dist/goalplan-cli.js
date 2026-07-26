@@ -21,9 +21,12 @@ import {
   remainingWorkPhases,
   unmetCriteria,
 
+
 } from "./goalplan.js";
 import { deriveSlug } from "./freeze.js";
 import { readState, writeState } from "./state.js";
+import { captureSourceIdentity, compareSource } from "./source-identity.js";
+import { parseSourceBoundReceipt } from "./source-receipt.js";
 
 
 
@@ -138,7 +141,16 @@ export function runGoalplanCli(args                 )                    {
   }
 
   // validate (E8 quality gate)
-  const v = validateGoalplan(plan);
+  // A read-only context, so `loop validate` can report on a schemaVersion 2 plan
+  // instead of refusing every one of them for a missing context. Nothing here
+  // mutates state; the enforcing consumer (goal-gate) is wired separately.
+  const ctx                        = {
+    cwd: args.cwd,
+    captureSourceIdentity,
+    compareSource,
+    readReceipt: (path, expectedKind) => parseSourceBoundReceipt(path, args.cwd, expectedKind),
+  };
+  const v = validateGoalplan(plan, ctx);
   if (v.ok) {
     return { output: `[codexclaw loop validate: ${slug}] OK — complete + all met criteria carry evidence`, code: 0 };
   }
