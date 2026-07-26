@@ -357,6 +357,24 @@ tests before deletion.
 | 8 | Scope leaks | Mutable globals or scattered environment reads |
 | 9 | Missing behavior tests | Changed behavior without regression coverage |
 
+**REVIEW-GUARD-REMOVAL-01 (DEFAULT).** Deleting input validation or error handling at a
+trust boundary requires a regression test that actually EXERCISES the deleted path. For an
+input-validation guard that means malformed/hostile input; for an error handler it means
+injecting the fault that reaches it — network timeout, connection reset, filesystem I/O
+failure, subprocess failure. Attaching an unrelated input test to satisfy the form does not
+meet this bar. Without it the deletion is a **High** blocker: row 2 (Over-defense) above is
+not by itself grounds for calling a boundary guard unnecessary. Trust boundaries are where
+external input first lands: hook stdin, CLI arguments, file parsing, network responses,
+subagent output.
+
+Judge by deletion kind. A **replacing/relocating** deletion (the check moved elsewhere) must
+stay GREEN after the old guard is removed, and go RED only when the surviving boundary check
+is removed too. For a **non-replacing** deletion, a regression that goes RED proves the guard
+is load-bearing — do not approve the deletion.
+
+Test adequacy for prose-wording changes follows `dev-testing`'s `TEST-PROMPT-SEAM-01`; that
+skill owns test adequacy (see §"Scope" above) and this rule does not restate it.
+
 ---
 
 ## Changed-File Coverage Ledger (REVIEW-COVERAGE-01, DEFAULT)
