@@ -285,7 +285,9 @@ test("V17: the CLI entry point prints usage without a directory", async () => {
     execFileSync("node", [script], { encoding: "utf8", stdio: "pipe" });
     assert.fail("expected a non-zero exit");
   } catch (err) {
-    assert.equal(err.status, 2);
+    // execFileSync reports the exit code on `status`, but Windows can surface it
+    // as `code` instead, so accept whichever the platform filled in.
+    assert.equal(err.status ?? err.code, 2);
     assert.match(String(err.stderr), /usage: validate-evidence\.mjs/);
   }
 });

@@ -196,7 +196,12 @@ test("T15: assertNever rejects an unhandled case at runtime and at compile time"
 test("T16: paths containing spaces and quotes are reconstructed intact", () => {
   const root = repo();
   const before = captureSourceIdentity(root);
-  const weird = 'untracked "quote" and space.ts';
+  // The point is that git's C-style quoting round-trips, which it triggers on a
+  // space alone. A double quote is simply illegal in a Windows filename, so ask
+  // for one only where the filesystem allows it.
+  const weird = process.platform === "win32"
+    ? "untracked name with spaces.ts"
+    : 'untracked "quote" and space.ts';
   writeFileSync(join(root, weird), "w\n");
   assert.equal(compareSource(before, captureSourceIdentity(root)).kind, "different");
   // and removing it restores identity, proving the path round-tripped
