@@ -1,6 +1,24 @@
 # 050 — 진전 인식 Stop 정체 판정
 
-출처: `001` #9 (ADAPT / E2) · 의존: 없음 (기존 필드만 읽는다) · 상태: **DEFERRED (WP8)**
+출처: `001` #9 (ADAPT / E2) · 의존: 없음 (기존 필드만 읽는다) · 상태: **RESUMED (WP19)**
+
+> ## WP19 재개 (2026-07-26)
+>
+> WP8에서 5라운드 미수렴으로 defer했다. 그때 남은 것은 **설계 결함이 아니라 두 개의
+> 구체적 반례**였고, 아래 "재개할 때의 출발점"이 그것을 회귀 테스트로 먼저 넣으라고
+> 지시한다. 그 지시를 따른다.
+>
+> defer 이후 이 유닛의 후속 슬라이스들이 두 반례를 푸는 재료를 만들었다:
+>
+> | 반례 | 해결 재료 |
+> | --- | --- |
+> | flat key 재방문 (`score=10,10` → `latency=1` → `score=10`) | `checkObjectivePlateau`(`metrics.ts:198-217`)가 이미 `(metricName, workPhaseId)` 창을 계산한다. **그 함수를 직접 호출**하면 지문을 따로 만들 필요가 없다 |
+> | delimiter 주입 (`\|`가 든 work-phase id) | `090`이 `JSON.stringify` 직렬화 패턴을 세웠다. 파이프 구분 문자열을 쓰지 않는다 |
+>
+> **핵심 설계 변경 (WP19):** 별도 지문을 만들어 plateau와 동치를 맞추려던 것이
+> 5라운드 내내 실패한 원인이었다. 두 판정기를 두지 않는다 —
+> `bumpStopCounter`가 **`checkObjectivePlateau`의 결과를 직접 소비**한다.
+> 그러면 동치 문제가 정의상 사라진다. WP8의 마지막 메모가 가리킨 방향이 이것이다.
 
 > ## WP8 종결: 설계 보존 후 정지
 >
@@ -121,185 +139,118 @@ Stop 정체 테스트의 실제 위치는 `test/hook-continuation.test.ts`(675�
 이건 합성이 아니라 이미 배선된 경로이고, plateau 판정과 같은 데이터를 쓰므로
 두 장치가 서로 모순되지 않는다.
 
-#### 정정된 시그니처 — plateau와 같은 키 (A 라운드 2)
+#### WP19 최종 설계 — 이벤트 커서 + plateau 판정
 
-라운드 2 리뷰어가 bare `bestMetric`을 반박했고 맞다. `best`는 metric **이름별**로
-누적되고(`metrics.ts:115-120`), plateau는 마지막 행의 `(metricName, workPhaseId)`
-창을 본다(`metrics.ts:208-217`). 숫자 하나만 지문에 넣으면 `score=10` 다음
-`latency=10`을 기록했을 때 지문은 그대로인데 plateau는 non-flat이 되어 **두 장치가
-반대 판정을 낸다.**
+WP8의 다섯 라운드는 전부 "지문을 어떻게 만들어야 plateau와 어긋나지 않는가"를 풀려다
+실패했다. WP19 첫 시도는 지문을 버리고 `!checkObjectivePlateau(...).flat`을 그대로 진전
+판정으로 썼는데, 리뷰어가 **그것도 같은 계열의 오류**임을 보였다:
 
-#### 진전 판정은 "지문 비교"가 아니라 "최근 창 상승"이다
+> `flat`은 **상태**이지 **이벤트**가 아니다. `[1,2]` 창은 다음 기록이 올 때까지 매 Stop마다
+> `flat: false`다. 한 번의 기록이 최대 24회의 재충전 권한이 된다.
+> 기록이 아예 없으면 `{flat:false}`라 `S1`(metric 없음 → count 1→2→3)이 성립조차 않는다.
 
-라운드 3까지는 지문 문자열 하나로 판정하려 했는데, 어떤 스칼라를 넣어도 plateau와
-어긋난다. 라운드 4 반례가 결정적이다: 같은 키에서 `20 → 10 → 15`면 all-history max는
-계속 20이라 지문이 안 움직이는데(정체 판정), plateau는 최근 창 `10 → 15`를 상승으로
-본다(`metrics.ts:211-217`).
+정확한 지적이다. 진전 판정에는 **두 가지가 다 필요하다**:
 
-그래서 **plateau와 같은 관측을 공유한다.**
-
-```
-observation = {
-  phase,
-  activeWorkPhaseId,
-  metricKey: `${metricName}/${metricWorkPhaseId}`,   // 최신 행 기준
-  window: 그 키의 최근 PLATEAU_METRIC_RECORDS(=2)개 value,   // metrics.ts:210-211과 동일
-}
-```
-
-판정 규칙 (`bumpStopCounter`):
-
-| 조건 | 결과 |
+| 질문 | 답하는 것 |
 | --- | --- |
-| `phase` 또는 `activeWorkPhaseId`가 이전과 다름 | **진전** — count 1 |
-| `metricKey`가 이전과 다름 (새 metric·새 work-phase의 첫 기록) | **진전** — count 1 |
-| 같은 키, 최근 창이 **상승** (`max(window) > window[0]`) | **진전** — count 1 |
-| 같은 키, 창이 flat이거나 하락 | **정체** — count + 1 |
-| metric 기록 없음 (`metricKey === "-/-"`) | 위 두 줄 중 phase/workPhase 비교만 적용 |
+| 직전 Stop 이후 **새 관측이 있었나** | 이벤트 커서 (신규) |
+| 그 관측이 **나아진 것인가** | `checkObjectivePlateau` (기존) |
 
-상승 판정식 `max(window) > window[0]`은 `checkObjectivePlateau`의
-`bestInWindow <= first + noiseFloor` (`noiseFloor = 0`, `hook.ts:710`)의 **정확한
-부정**이다. 즉 plateau가 flat이라고 말하는 창에서는 정체 카운터가 오르고, non-flat인
-창에서는 리셋된다 — 두 장치가 절대 반대 판정을 내지 않는다.
+둘 중 하나만으로는 안 된다. 커서만 보면 같은 값 반복 기록이 진전이 되고, plateau만 보면
+위의 재충전 문제가 생긴다.
 
-`20 → 10 → 15`: 창이 `[10, 15]`, `15 > 10`이므로 진전. plateau도 non-flat. 일치한다.
-`10 → 10`: 창이 `[10, 10]`, 상승 아님 → 정체. plateau도 flat. 일치한다.
-
-**저장된 `best` 필드는 쓰지 않는다.** `recordObjectiveMetric`은 `metricName`만으로
-필터해 누적하므로(`metrics.ts:117-119`) work-phase가 다르면 값이 어긋난다.
-**`recordCount`도 쓰지 않는다** — 같은 값 재기록으로 지문이 바뀌면 `bumpStopCounter`가
-plateau보다 먼저 돌아(`hook.ts:974` → `:975`) 이미 예산을 재충전한 뒤다. 게다가
-`objectivePlateau`는 `readObjectiveKind`가 `maximize`일 때만 동작하므로
-(`hook.ts:906`) `satisfy` 세션에는 divergence 방어 자체가 없다.
-
-#### 직렬화 형태
-
-관측을 문자열로 굳혀 `stopProgressSignature`에 넣는다 — 창까지 포함해야 다음 Stop이
-"직전 창"과 비교할 수 있다.
+**이벤트 커서: metrics ledger의 행 수.** `.codexclaw/metrics.jsonl`은 append-only이고
+(`metrics.ts:130-132`가 `appendFileSync`만 한다), `readObjectiveMetrics(cwd, sessionId)`가
+그 세션의 행을 순서대로 준다. 그 **개수**가 단조 증가하는 커서다. 새 필드를 만들 필요도,
+타임스탬프를 믿을 필요도 없다.
 
 ```
-signature = `${phase}|${activeWorkPhaseId ?? "-"}|${metricKey}|${window.join(",")}`
+const rows = readObjectiveMetrics(cwd, state.sessionId);
+const observedNew = rows.length > state.stopMetricCursor;
+const improved = observedNew && !checkObjectivePlateau(cwd, state.sessionId, PLATEAU_OPTS).flat;
+
+progressed =
+     phase !== stopBlockPhase                    // 단계 전이 (기존 동작)
+  || activeWorkPhaseId !== stopBlockWorkPhaseId  // work-phase 전환
+  || improved;                                   // 새 관측이 있었고, 그것이 나아졌다
 ```
 
-비교는 문자열 동일성이 **아니다.** 역직렬화해서 위 표의 규칙을 적용한다.
-metric 기록이 없으면 `-/-|` (빈 창)이다.
+`stopMetricCursor`는 매 Stop마다 갱신한다 — block이든 release든. 단
+**high-water mark**로 올린다 (A 감사 3라운드):
 
-**goalplan done/met 카운트는 지문에서 뺀다 (라운드 2 Medium 1).** 그 값을 같은 단계에서
-움직이는 공개 생산자가 없다 — `advanceWorkPhase`(`goalplan.ts:303`)는 D-close 전용이고
-`goalplan-cli`는 `init/show/validate`뿐이다(`goalplan-cli.ts:28`). 없는 생산자를
-전제한 지문 조각은 합성 fixture를 부를 뿐이다. `activeWorkPhaseId`는 남기는데, 그건
-D-close에서 바뀌는 값이고 단계 전이 리셋과 같은 방향이라 모순이 없다.
+```
+metricCursor = Math.max(state.stopMetricCursor, rows.length)
+```
 
-#### 종료 보장: 독립 하드 캡
+`rows`는 파일의 물리 행 수가 아니라 **유효 JSON이면서 이 세션인 행**의 수다
+(`metrics.ts:74-112`, malformed 행은 의도적으로 무시된다 `:103-105`).
+그래서 ledger가 손으로 잘리면 `rows.length`가 커서보다 작아질 수 있다.
 
-진전 리셋만 두면 상한이 이론적으로 무한 연장될 수 있다. 그래서 리셋과 무관한
-**누적 카운터**를 함께 둔다.
+그 시점은 `observedNew`가 `false`라 정체로 처리되어 안전하다. 문제는 **그 다음**이다 —
+커서를 작은 값으로 낮추면, 잘린 행이 복구됐을 때 같은 관측이 다시 새 관측으로 세어진다.
+`[1,2]`가 non-flat이므로 새 기록 없이 재충전되는 것이다. high-water는 그 재생을 막는다:
+영구히 잘린 뒤에는 **이전 최고치를 넘길 때까지** 진전을 인식하지 않는다.
+
+`improved`가 `observedNew`를 앞에 두는 것이 핵심이다. 기록이 없으면
+`rows.length === 0 === cursor`라 `observedNew`가 `false`이고, `checkObjectivePlateau`가
+반환하는 `{flat:false}`가 진전으로 새지 않는다 — `S1`이 성립한다.
+
+**`PLATEAU_OPTS`는 상수를 공유한다.** 리뷰어 지적대로 계획에 `2/0`을 리터럴로 적으면
+`objectivePlateau` 래퍼(`hook.ts:904-907`)와 우연히 같을 뿐이다.
+`PLATEAU_METRIC_RECORDS`/`PLATEAU_NOISE_FLOOR`(`hook.ts:709-710`)를 그대로 쓴다.
+
+`objectivePlateau` 래퍼 자체는 쓰지 않는다 — `readObjectiveKind`가 `maximize`일 때만
+동작하는 divergence 전용 게이트라, `satisfy` 세션의 metric 진전을 못 본다.
+
+두 반례는 이 설계에서도 그대로 풀린다 (리뷰어가 확인):
+
+| 반례 | 결과 |
+| --- | --- |
+| `score=10,10` → `latency=1` → `score=10` | 최신 행이 `score`이므로 창이 `[10,10]`, flat → 진전 아님 |
+| `\|`가 든 work-phase id | metric 행은 JSON, work-phase는 값 비교. 파이프를 조립·파싱하는 경로가 없다 |
+
+#### 종료 보장: 독립 하드 캡 (WP8에서 확정, 그대로)
+
+진전 리셋만 두면 상한이 이론적으로 무한 연장된다. 그래서 리셋과 무관한 누적 카운터를
+함께 둔다.
 
 ```
 MAX_STOP_BLOCKS = 3          # 기존, 정체 판정용 (진전 시 리셋)
 MAX_STOP_BLOCKS_TOTAL = 24   # 신규, 세션당 누적 (절대 리셋 안 됨)
 ```
 
-`stopBlockTotal`이 24를 넘으면 진전 여부와 무관하게 해제한다. 24는 슬라이스 8개분
-(3×8) — 이번 goalplan의 work-phase 하나가 대략 그 규모다.
-
-## 변경 파일 맵
-
-| 파일 | 변경 유형 |
-| --- | --- |
-| `plugins/codexclaw/components/pabcd-state/src/state.ts` | `stopProgressSignature: string \| null` + `stopBlockTotal: number` 필드 (default·revive 양쪽) |
-| `plugins/codexclaw/components/pabcd-state/src/hook.ts` | `bumpStopCounter` 로직 변경 (시그니처는 그대로 `(cwd, state)`) + `observeProgress`/`serializeObservation`/`parseObservation`/`isProgress` 신설 + `safeReadBoundGoalplan` 신설 후 raw `readGoalplan` 호출 **네 곳**(`:291` `activeWorkPhaseOpts`, `:673` D-close 전진, `:813` `readStopWorkContext`, `:846` `buildGoalIdleBlock`)을 전부 그것으로 교체 |
-| `plugins/codexclaw/components/pabcd-state/test/hook-continuation.test.ts` | 케이스 추가 (**초안의 `stop-continuation.test.ts`는 존재하지 않는다**) |
-| `plugins/codexclaw/components/pabcd-state/test/state.test.ts` | **필수** — `:27-45`가 persisted 객체를 deep-equal로 고정한다. 신규 필드 2개를 추가하지 않으면 `npm test`가 깨진다 (A 감사 블로커 3) |
-
-## before → after
-
-### 시그니처 정의
-
-```
-signature = `${phase}|${activeWorkPhaseId ?? "-"}|${metricKey}|${window.join(",")}`
-```
-
-모든 값이 이미 존재한다 — goalplan에도 metrics에도 새 필드를 만들지 않는다.
-metric 기록이 없는 세션에서는 조각이 `-/-|`(빈 창)로 고정되므로 **현재 동작과 동일**해진다
-(하위 호환).
-
-**미결박·무기록 세션의 시그니처는 정확히 `${phase}|-|-/-|` 이다** — `phase`만
-남기는 것이 아니라 나머지를 고정 상수로 채운다. 그래야 "첫 metric이 기록됐다"도
-진전으로 잡힌다.
-
-**slug 경로 안전 (블로커 5 + 라운드 2 Medium 2).** `readState`는 slug가 문자열인지만
-본다(`state.ts:146,151`)고, `goalplanDir`은 containment 검사 없이 `join`한다
-(`goalplan.ts:90`). 검증을 시그니처 계산에만 넣으면 같은 Stop 경로의 다른 reader가
-그대로 뚫린다 — `readStopWorkContext:813`과 `buildGoalIdleBlock:846`이 raw slug로
-`readGoalplan`을 부른다.
-
-그래서 검증을 **한 곳에 모은다**:
-
-```ts
-// hook.ts
-export function safeReadBoundGoalplan(cwd: string, slug: string): Goalplan | null {
-  // 정규식만으로는 부족하다: "." 과 ".." 는 문자 클래스를 통과하지만 join() 이
-  // goalplans/ 밖(.codexclaw/ 자체)으로 해석한다 (goalplan.ts:90, 라운드 3 Medium).
-  if (slug === "." || slug === "..") return null;
-  if (!/^[A-Za-z0-9._-]+$/.test(slug)) return null;   // traversal -> 파일을 읽지 않는다
-  return readGoalplan(cwd, slug);
-}
-```
-
-`hook.ts`의 **모든** goalplan reader가 이것을 쓴다 — `:291`(`activeWorkPhaseOpts`,
-UserPromptSubmit 경로. 라운드 3에서 누락이 지적됐다), `:673`(D-close 전진),
-`:813`(`readStopWorkContext`), `:846`(`buildGoalIdleBlock`), 그리고 신규 시그니처 계산.
-`goalplan.ts`는 건드리지 않는다 — orchestrate-cli 등 다른 호출자의 계약을 바꾸지
-않기 위해서다.
-
-**`stopBlockPhase`는 삭제하지 않는다.** 기존 테스트가 그 값을 직접 단정하고
-(`hook-continuation.test.ts:370`, `:469`) 상태 파일 호환도 걸려 있다. 시그니처와
-병행 기록한다 — 판정만 시그니처로 바뀐다.
-
-**카운트는 1부터 시작한다 (기존 규칙 보존).** 초안 pseudocode는 첫 관측을 0으로
-시작해 `MAX_STOP_BLOCKS` 소진 시점을 한 번 늦췄다. 현행은 `nextCount = samePhase ?
-count + 1 : 1`로 **첫 블록이 1**이고, `hook-continuation.test.ts:371`(`stopBlockCount === 1`)과
-`:452`(`=== MAX_STOP_BLOCKS`)가 그것을 단정한다. 정정된 형태는 아래와 같다.
+`stopBlockTotal`이 24를 넘으면 진전 여부와 무관하게 해제한다. **어떤 경로에서도
+감소하지 않는다** — 해제 시에도 누적값을 남긴다. 이것이 총 종료 보장의 근거다
+(`hook.ts:914,925`의 계약 유지).
 
 ### `bumpStopCounter` 변경
 
-before: `state.phase`가 이전과 같으면 `stopBlockCount++`, 다르면 0으로 리셋.
+before: `state.stopBlockPhase`가 이전과 같으면 `stopBlockCount++`, 다르면 1.
 
 after:
 
 ```
-const obs = observeProgress(cwd, state);                // safeReadBoundGoalplan + metrics 최근 창
-const sig = serializeObservation(obs);
-const prev = parseObservation(state.stopProgressSignature);   // null이면 진전으로 간주
-const stalled = !isProgress(prev, obs);                 // 위 판정표
-const nextCount = stalled ? state.stopBlockCount + 1 : 1;   // 진전이면 1로 재시작
+const obs = observeProgress(cwd, state);      // { progressed, metricCursor, workPhaseId }
+const nextCount = obs.progressed ? 1 : state.stopBlockCount + 1;
 const nextTotal = state.stopBlockTotal + 1;
-// 독립 하드 캡: 진전 리셋과 무관하게 세션당 누적 상한을 지킨다.
+// The cursor advances on EVERY Stop, block or release: an observation counts as
+// progress exactly once.
+const carry = { stopMetricCursor: obs.metricCursor, stopBlockTotal: nextTotal };  // high-water
 if (nextCount > MAX_STOP_BLOCKS || nextTotal > MAX_STOP_BLOCKS_TOTAL) {
-  writeState(cwd, { ...state, stopBlockPhase: null, stopBlockCount: 0, stopProgressSignature: null, stopBlockTotal: nextTotal });
+  writeState(cwd, { ...state, ...carry, stopBlockPhase: null,
+                    stopBlockWorkPhaseId: null, stopBlockCount: 0 });
   return "release";
 }
-writeState(cwd, { ...state, stopBlockPhase: state.phase, stopBlockCount: nextCount, stopProgressSignature: sig, stopBlockTotal: nextTotal });
+writeState(cwd, { ...state, ...carry, stopBlockPhase: state.phase,
+                  stopBlockWorkPhaseId: obs.workPhaseId, stopBlockCount: nextCount });
 return nextCount;
 ```
 
-`stopBlockTotal`은 **어떤 경로에서도 감소하지 않는다** — 해제 시에도 누적값을 남긴다.
-이것이 총 종료 보장의 근거다 (`hook.ts:914,925`의 계약 유지).
+`observeProgress`는 **fail-open**이다. goalplan을 못 읽거나 metrics가 없으면 그 항을
+`false`(진전 아님)로 두고 절대 throw하지 않는다 — Stop 훅에서 예외가 나면 루프가 죽는다.
 
-`computeProgressSignature`는 **fail-open**이다. `readGoalplan`이 null이거나 ledger를
-읽지 못하면 그 조각을 `-`/`0`으로 채우고 절대 throw하지 않는다 — Stop 훅에서 예외가
-나면 루프 전체가 죽는다.
-
-### 보존해야 하는 기존 규칙 (전부 그대로)
-
-- 활성 goal 없음 → 해제.
-- 단계 `I` → 항상 해제.
-- 컨텍스트 압력 → 해제.
-- `MAX_STOP_BLOCKS` 도달 → 해제 (상한 자체는 유지, 성공 신호가 아님).
-- goal/work-phase id는 상태 경로 도출 전에 검증한다 (경로 주입 방지).
-
-`stop-checking-ulw-loop-resume.json` 같은 **두 번째 Stop 훅은 추가하지 않는다.**
+`slug` 경로 안전은 `090`이 만든 규칙을 따른다: `readGoalplan` 호출 전에
+`/^[A-Za-z0-9._-]+$/` 검사 + `.`/`..` 명시 거부.
 
 ## PLAN-BYPASS-NAMED-01
 
@@ -314,72 +265,83 @@ return nextCount;
 
 ## PLAN-FIELD-CHAIN-01
 
-신규 필드는 둘이다.
+신규 필드는 셋이다. **`stopProgressSignature`는 만들지 않는다** — 지문 자체를 폐기했다.
 
-**`State.stopProgressSignature: string | null`**
+**`State.stopMetricCursor: number`** (A 감사 2라운드에서 추가)
 
 | 단계 | 경로 |
 | --- | --- |
-| 생성 | `observeProgress(cwd, state)` — `hook.ts` 신규. 입력은 `state.phase`, `safeReadBoundGoalplan()`의 `activeWorkPhaseId`, `readObjectiveMetrics(cwd, state.sessionId)` 최신 행의 `(metricName, workPhaseId)` 키와 **그 키의 최근 `PLATEAU_METRIC_RECORDS`개 value 창** |
-| 직렬화 | `serializeObservation(obs)` → `writeState`가 세션 JSON에 문자열로 기록 (`state.ts`) |
-| 역직렬화 | `readState` revive는 문자열/`null`만 판정. 의미 파싱은 `parseObservation()`이 하고, 파싱 실패나 `null`이면 "이전 관측 없음"으로 다뤄 첫 Stop이 진전(카운트 1)이 된다 — 구버전 상태 파일도 이 경로로 안전하게 흡수된다 |
-| 소비 | `isProgress(prev, obs)` 한 곳 → `bumpStopCounter`의 `stalled` 분기. **문자열 동일성 비교가 아니다** — 창 상승 규칙을 적용한다 |
+| 생성 | `observeProgress`가 `Math.max(state.stopMetricCursor, readObjectiveMetrics(cwd, state.sessionId).length)` — **high-water mark**. 정상 경로에서는 `appendFileSync`(`metrics.ts:130-132`)라 행 수가 단조 증가하지만, 손으로 자른 뒤 복구하면 같은 관측이 재생될 수 있어 커서는 내려가지 않는다 |
+| 직렬화 | `writeState` — **block/release 양쪽 경로에서 반드시 기록** |
+| 역직렬화 | `readState` revive — 유한한 0 이상이 아니면 `0` |
+| 소비 | `observedNew = rows.length > cursor` 한 곳 |
+
+이것이 "상태"와 "이벤트"를 가르는 필드다. 커서 없이 `flat`만 보면 하나의 관측이
+매 Stop마다 진전으로 다시 세어진다.
+
+**`State.stopBlockWorkPhaseId: string | null`**
+
+| 단계 | 경로 |
+| --- | --- |
+| 생성 | `safeReadBoundGoalplan(cwd, state.slug)`의 `effectiveActiveWorkPhaseId` |
+| 직렬화 | `writeState` — 문자열 그대로, 조립하지 않는다 |
+| 역직렬화 | `readState` revive — 문자열이 아니면 `null` |
+| 소비 | 진전 판정의 두 번째 항 (값 비교 한 곳) |
 
 **`State.stopBlockTotal: number`**
 
 | 단계 | 경로 |
 | --- | --- |
-| 생성 | `bumpStopCounter` 내부 `state.stopBlockTotal + 1` |
-| 직렬화 | `writeState` — 해제 경로에서도 기록한다 (감소 없음) |
-| 역직렬화 | `readState` revive — 유한한 0 이상 숫자가 아니면 `0`. `stopBlockCount`의 기존 revive(`state.ts:177-180`)와 같은 형태 |
-| 소비 | `bumpStopCounter`의 하드 캡 비교 한 곳 |
+| 생성 | `bumpStopCounter` 내부 `+1` |
+| 직렬화 | `writeState` — 해제 경로에서도 기록 (감소 없음) |
+| 역직렬화 | `readState` revive — 유한한 0 이상이 아니면 `0` |
+| 소비 | 하드 캡 비교 한 곳 |
 
-`defaultState`(`state.ts:79-92`)에 둘 다 추가한다 — 그래야 `state.test.ts:27-45`의
-deep-equal 계약이 명시적으로 갱신된다.
+`checkObjectivePlateau`의 결과는 저장하지 않는다 — 매 Stop마다 다시 계산한다.
+저장하면 그 값이 plateau와 어긋날 수 있고, 그것이 WP8을 다섯 라운드 붙잡은 문제다.
 
 ## 테스트 (accept criteria)
 
-전부 `test/hook-continuation.test.ts`에 추가한다. 기대값은 하드코딩하고 DUT 출력에서
-파생시키지 않는다 (`TEST-ORACLE-INDEPENDENCE-01`).
+전부 `test/hook-continuation.test.ts`에 추가한다 (WP8 실측: 초안이 지목한
+`stop-continuation.test.ts`는 존재하지 않는다). 기대값은 하드코딩하고 DUT 출력에서
+파생시키지 않는다.
 
-| # | 시나리오 | 기대 | 검증 |
-| --- | --- | --- | --- |
-| S1 | 같은 단계, goalplan 없음, 3회 Stop | `stopBlockCount` 1 → 2 → 3, 4번째 호출이 `""`(해제) | 자동 |
-| S2 | 같은 단계, 2회 Stop 사이에 **공개 CLI** `runMetricCli(["record","--session",id,"--name","score","--value","1"])` → `--value 2` | 두 번째도 `stopBlockCount === 1` (best 상승 = 진전) | 자동 (activation) |
-| S2b | metric **이름이 바뀜** (`score=10` → `latency=10`) | `stopBlockCount === 1` — 지문이 metricName을 포함하므로 plateau와 같은 판정 (라운드 2 High) | 자동 |
-| S2c | 같은 이름, `--work-phase`만 다름 | `stopBlockCount === 1` — 지문이 workPhaseId도 포함 | 자동 |
-| S2d | `--session` 누락 | CLI가 exit 1 (`metric-cli.ts:76`) — 상태가 변하지 않으므로 다음 Stop은 `stopBlockCount === 2` | 자동 |
-| S4 | 같은 단계, 사이에 goalplan을 **내용 변화 없이 재저장**(`updatedAt`만 갱신) | `stopBlockCount === 2` — **진전이 아니다** (블로커 2 회귀 방지) | 자동 |
-| S4b | 같은 단계, 같은 키에 같은 값을 재기록 | `stopBlockCount === 2` — 지문이 불변이므로 진전이 아니다. `recordCount`를 뺐기 때문에 성립한다 (라운드 3 High 1) | 자동 |
-| S4c | `wp-a`에서 `score=100` → `wp-b`에서 `score=10` → `wp-b`에서 `score=20` | 마지막 Stop이 `stopBlockCount === 1`. 저장된 `best`(=100)를 썼다면 실패한다 (라운드 3 High 2) | 자동 |
-| S4d | 같은 키에서 `20 → 10 → 15` | 마지막 Stop이 `stopBlockCount === 1`. all-history max(=20)를 썼다면 실패한다 (라운드 4 High) | 자동 |
-| S4e | 같은 키에서 `20 → 15 → 10` (하락) | `stopBlockCount`가 증가한다 — 하락은 진전이 아니다 | 자동 |
-| S4f | **plateau 동치** — S4b/S4d/S4e 각 시점에 `checkObjectivePlateau`를 직접 불러 `flat` 값과 `isProgress` 결과가 **항상 반대**임을 단정 | 모든 케이스에서 `flat === !isProgress` | 자동 |
-| S5 | 단계 전이(B→C) | 기존 케이스 `:460`이 **무수정** 통과 | 자동 (회귀) |
-| S7 | `MAX_STOP_BLOCKS` 도달 후 해제 시 | `stopProgressSignature`도 `null`로 리셋 | 자동 |
-| S8 | 기존 Stop 케이스 전부 | `hook-continuation.test.ts` 무수정 통과 — `:322`, `:371`, `:443`, `:469` | 자동 (회귀) |
-| S9 | 구버전 상태 파일(신규 필드 없음) | revive가 `null`/`0`, 첫 Stop이 count 1 | 자동 |
-| S10 | **하드 캡** — metric을 매번 올려 진전을 위조하며 Stop 반복 | `MAX_STOP_BLOCKS_TOTAL` 초과 시 해제. 무한 재충전 불가 (블로커 2) | 자동 |
-| S11 | slug traversal (`"../../evil"`) — 그 위치에 **유효한 goalplan fixture**를 실제로 놓는다 | 시그니처가 미결박 형태로 축약되고, **`buildGoalIdleBlock` 출력에도 그 goalplan 내용이 유입되지 않는다** (`safeReadBoundGoalplan` 중앙화 확인, 라운드 2 Medium 2) | 자동 |
-| S11c | `slug: ".."` + `.codexclaw/goalplan.json`에 유효 fixture | 읽히지 않는다. 정규식만으로는 통과하는 케이스라 별도 단정 (라운드 3 Medium) | 자동 |
-| S11d | `slug: ".."`로 UserPromptSubmit B-directive | `activeWorkPhaseOpts`(`hook.ts:291`)도 그 fixture를 읽지 않는다 | 자동 |
-| S11b | 정상 slug | `readStopWorkContext`/`buildGoalIdleBlock`의 기존 enrichment가 그대로 동작 | 자동 (회귀) |
-| S12 | `state.test.ts` default deep-equal | 신규 필드 2개 포함해 갱신, round-trip 일치 (블로커 3) | 자동 |
+### 재개 조건 — 두 반례를 먼저 넣는다
 
-**호출 순서 주의:** `bumpStopCounter`는 plateau 검사보다 먼저 돈다(`hook.ts:974` →
-`:975`). 그래서 "plateau가 나중에 막아줄 것"에 기대는 지문 조각을 넣으면 안 된다 —
-그 시점엔 이미 예산이 재충전된 뒤다. `recordCount`를 뺀 이유가 이것이고, S4b가 그
-계약을 고정한다.
+WP8이 defer하며 "재개 시 반드시 회귀 테스트로 먼저 넣을 것"이라고 명시한 둘이다.
 
-**S3(criterion/task 카운트)는 삭제했다** — 지문에서 뺐으므로 검증 대상이 아니다.
+| # | 반례 | 기대 |
+| --- | --- | --- |
+| **X1** | flat key 재방문: `score=10` → `score=10` → `latency=1` → `score=10` 기록 후 Stop | **정체로 판정** (`stopBlockCount` 증가). 최신 `score` 창이 `[10,10]`이라 `checkObjectivePlateau`가 flat이다. key가 바뀌었다는 이유로 리셋되면 실패 |
+| **X2** | `\|`가 든 work-phase id (`wp\|evil`)로 metric 기록 후 Stop 2회 | 정상 동작. 문자열 조립을 하지 않으므로 파싱이 깨질 자리가 없다. 첫 Stop count 1, 둘째 2 |
 
-**S6은 S1과 중복이라 삭제했다** (둘 다 미결박 세션). `activeWorkPhaseId`는 시그니처
-문자열에만 쓰고 경로로 만들지 않으므로 그쪽 traversal 케이스는 없다 — 실제 경로 입력은
-`slug`이고 그건 S11이 덮는다.
+### 본 케이스
+
+| # | 시나리오 | 기대 |
+| --- | --- | --- |
+| S1 | 같은 단계, metric 없음, 3회 Stop | count 1 → 2 → 3, 4번째가 `""`. 기록이 없으면 `observedNew`가 `false`라 `{flat:false}`가 진전으로 새지 않는다 (A 감사 2라운드 High 1) |
+| S2 | 같은 단계, 사이에 `runMetricCli(["record","--session",id,"--name","score","--value","1"])` → `--value 2` | 두 번째도 count 1 (새 관측 + 창 `[1,2]` 상승) |
+| **S2c** | S2 직후 **새 기록 없이** Stop 2회 더 | count **2, 3** — 하나의 관측은 한 번만 진전이다 (A 감사 2라운드 High 2) |
+| S2b | 같은 값 재기록 (`1` → `1`) | count 2 (새 관측은 있으나 창 `[1,1]`이 flat) |
+| S3 | metric 이름 전환 후 그 키의 첫 기록 | count 1 — 새 관측 + 창 길이 1은 non-flat |
+| **S3b** | S3 직후 **새 기록 없이** Stop | count **2** — 첫 기록도 재충전 권한이 아니다 |
+| S4 | goalplan을 내용 변화 없이 재저장 | count 2 — `updatedAt`을 보지 않는다 |
+| S5 | 단계 전이(B→C) | 기존 케이스 `:460` 무수정 통과 |
+| S6 | `activeWorkPhaseId` 전환 | count 1 |
+| S7 | `MAX_STOP_BLOCKS` 도달 해제 시 | `stopBlockWorkPhaseId`도 `null`로 리셋 |
+| S8 | 기존 Stop 케이스 전부 | `hook-continuation.test.ts` 무수정 통과 (`:322`, `:371`, `:443`, `:469`) |
+| S9 | 구버전 상태 파일 (신규 필드 없음) | revive가 `null`/`0`, 첫 Stop이 count 1 |
+| S10 | **하드 캡** — metric을 매번 올려 진전을 위조하며 Stop 반복 | `MAX_STOP_BLOCKS_TOTAL` 초과 시 해제 |
+| S11 | slug traversal (`"../../evil"`) | goalplan을 읽지 않고, 예외 없음 |
+| S12 | `state.test.ts` default deep-equal | **신규 필드 3개** 포함해 갱신 (`stopMetricCursor`, `stopBlockWorkPhaseId`, `stopBlockTotal`) + 구버전 revive가 `0`/`null`인지 |
+| **S15** | ledger를 잘라 `rows.length < cursor`로 만든 뒤 Stop | 정체 판정, 커서는 **내려가지 않는다** |
+| **S15b** | S15 뒤 잘린 행을 복구하고 Stop | 여전히 정체 — 이전 최고치를 넘기지 않았으므로 과거 관측이 재생되지 않는다 (A 감사 3라운드) |
+| S13 | **plateau 동치** — 새 관측이 있는 시점(S2/S2b/X1)에서 `flat === !progressed` | 일치. 같은 함수를 쓰므로 정의상 참이지만 회귀로 고정한다. **새 관측이 없는 시점(S2c/S3b)은 대상이 아니다** — 그때는 커서가 판정하지 plateau가 판정하지 않는다 |
+| S14 | `stopMetricCursor`가 release 경로에서도 갱신됨 | 캡 초과로 해제된 뒤에도 커서가 `rows.length`와 같다 |
 
 ### 검증 명령 (PLAN-VERIFIER-REAL-01)
 
-- `npm test` — baseline 실측 exit 0, 1,243 pass. 사슬: `package.json:24` glob이
+- `npm test` — baseline 실측 (WP19 A 감사 2라운드) exit 0, **1,405 pass**. 사슬: `package.json:24` glob이
   `components/pabcd-state/test/*.ts`를 포함한다. → **이 슬라이스를 관측하는 주 검증기.**
 - 좁은 타입체크 — **baseline-aware**다 (A 감사 블로커 4). 이 명령은 지금도 exit 2다:
 

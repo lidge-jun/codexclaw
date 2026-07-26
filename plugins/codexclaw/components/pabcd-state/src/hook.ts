@@ -42,7 +42,7 @@ import { parseOrchestrateCommand } from "./orchestrate-grammar.ts";
 import { applyHumanTransition } from "./orchestrate-apply.ts";
 import { captureInterviewAnswers } from "./interview-ledger.ts";
 import { MIND_DISPATCH_DIRECTIVE } from "./minds.ts";
-import { checkObjectivePlateau, readObjectiveKind, type PlateauCheck } from "./metrics.ts";
+import { checkObjectivePlateau, readObjectiveKind, readObjectiveMetrics, type PlateauCheck } from "./metrics.ts";
 import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan, nextOpenTask, unmetCriteria } from "./goalplan.ts";
 import { peakFrictionVerdict, looksLikeFailure, recordFriction } from "./friction.ts";
 import { discardStreak, readDivergenceCandidates } from "./divergence.ts";
@@ -706,6 +706,12 @@ function handleOrchestrateCommand(
 
 /** L6 — max consecutive Stop blocks at the SAME phase before the loop releases. */
 export const MAX_STOP_BLOCKS = 3;
+/**
+ * Absolute per-session bound on Stop blocks, never reset by progress.
+ * MAX_STOP_BLOCKS bounds stagnation and recharges when work moves; this one does
+ * not, so recognising progress can never turn into an unbounded loop.
+ */
+export const MAX_STOP_BLOCKS_TOTAL = 24;
 export const PLATEAU_METRIC_RECORDS = 2;
 export const PLATEAU_NOISE_FLOOR = 0;
 
@@ -718,15 +724,101 @@ export const PLATEAU_NOISE_FLOOR = 0;
  * single total-termination bound for every Stop block path, including GOAL-IDLE
  * blocks (which key the counter at phase "IDLE").
  */
+/**
+ * Read the session-bound goalplan, refusing a slug that could escape its directory.
+ *
+ * readState only checks that a persisted slug is a string, and goalplanDir joins it
+ * without containment checks, so "." and ".." resolve outside goalplans/ even though
+ * they pass a character-class test. Centralised here so every hook reader shares one
+ * rule rather than each remembering it.
+ */
+export function safeReadBoundGoalplan(cwd: string, slug: string): ReturnType<typeof readGoalplan> {
+  if (!slug || slug === "." || slug === "..") return null;
+  if (!/^[A-Za-z0-9._-]+$/.test(slug)) return null;
+  return readGoalplan(cwd, slug);
+}
+
+interface ProgressObservation {
+  progressed: boolean;
+  /** high-water metric cursor to persist, whatever the block decision is. */
+  metricCursor: number;
+  workPhaseId: string | null;
+}
+
+/**
+ * Did anything actually move since the last Stop?
+ *
+ * Three ways it can have. A phase transition or a work-phase switch are plain
+ * value comparisons. The third is metric improvement, and it needs two separate
+ * questions answered:
+ *
+ *   is this observation NEW?  — the ledger cursor
+ *   is it BETTER?             — checkObjectivePlateau
+ *
+ * Neither alone is enough. The cursor alone would count re-recording the same
+ * value as progress. The plateau check alone reports a state, not an event: a
+ * rising window stays non-flat on every later Stop, so one recording would keep
+ * refilling the budget until the absolute cap. That was the defect five audit
+ * rounds kept circling before this slice was deferred.
+ *
+ * checkObjectivePlateau is called directly rather than through objectivePlateau,
+ * which gates on readObjectiveKind === "maximize" for the divergence block and
+ * would hide metric progress in a satisfy session.
+ *
+ * Fail-open throughout: a Stop hook that throws kills the loop.
+ */
+function observeProgress(cwd: string, state: State): ProgressObservation {
+  let metricCursor = state.stopMetricCursor;
+  let improved = false;
+  try {
+    const rows = readObjectiveMetrics(cwd, state.sessionId);
+    // High-water: a hand-truncated ledger must not let restored rows replay as
+    // new observations. rows counts valid rows for this session, not physical
+    // lines, so it can legitimately shrink.
+    metricCursor = Math.max(state.stopMetricCursor, rows.length);
+    if (rows.length > state.stopMetricCursor) {
+      improved = !checkObjectivePlateau(cwd, state.sessionId, {
+        minRecords: PLATEAU_METRIC_RECORDS,
+        noiseFloor: PLATEAU_NOISE_FLOOR,
+      }).flat;
+    }
+  } catch {
+    // leave the cursor where it was and treat this as no progress
+  }
+
+  let workPhaseId: string | null = null;
+  try {
+    const plan = safeReadBoundGoalplan(cwd, state.slug);
+    if (plan) workPhaseId = effectiveActiveWorkPhaseId(plan);
+  } catch {
+    // an unreadable goalplan is not progress
+  }
+
+  const progressed =
+    state.stopBlockPhase !== state.phase || state.stopBlockWorkPhaseId !== workPhaseId || improved;
+  return { progressed, metricCursor, workPhaseId };
+}
+
 function bumpStopCounter(cwd: string, state: State): number | "release" {
-  const samePhase = state.stopBlockPhase === state.phase;
-  const nextCount = samePhase ? state.stopBlockCount + 1 : 1;
-  if (nextCount > MAX_STOP_BLOCKS) {
+  const obs = observeProgress(cwd, state);
+  const nextCount = obs.progressed ? 1 : state.stopBlockCount + 1;
+  const nextTotal = state.stopBlockTotal + 1;
+  // The cursor and the total advance on every Stop, block or release: an
+  // observation counts as progress exactly once, and the absolute bound holds
+  // regardless of how often progress recharges the per-phase counter.
+  const carry = { stopMetricCursor: obs.metricCursor, stopBlockTotal: nextTotal };
+  if (nextCount > MAX_STOP_BLOCKS || nextTotal > MAX_STOP_BLOCKS_TOTAL) {
     // give up the loop: reset the counter and release so the turn can end.
-    writeState(cwd, { ...state, stopBlockPhase: null, stopBlockCount: 0 });
+    writeState(cwd, { ...state, ...carry, stopBlockPhase: null, stopBlockWorkPhaseId: null, stopBlockCount: 0 });
     return "release";
   }
-  writeState(cwd, { ...state, stopBlockPhase: state.phase, stopBlockCount: nextCount });
+  writeState(cwd, {
+    ...state,
+    ...carry,
+    stopBlockPhase: state.phase,
+    stopBlockWorkPhaseId: obs.workPhaseId,
+    stopBlockCount: nextCount,
+  });
   return nextCount;
 }
 

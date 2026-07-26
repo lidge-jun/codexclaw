@@ -162,6 +162,9 @@ test("SessionStart state bootstrap: fresh compiled hook creates exact IDLE state
       interview: null,
       stopBlockPhase: null,
       stopBlockCount: 0,
+      stopBlockWorkPhaseId: null,
+      stopMetricCursor: 0,
+      stopBlockTotal: 0,
       loopArmSeen: false,
       idleEditNudges: 0,
     });

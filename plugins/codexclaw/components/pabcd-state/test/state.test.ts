@@ -44,6 +44,9 @@ test("SessionStart ensureState: fresh session creates the exact default IDLE sta
       interview: null,
       stopBlockPhase: null,
       stopBlockCount: 0,
+      stopBlockWorkPhaseId: null,
+      stopMetricCursor: 0,
+      stopBlockTotal: 0,
       loopArmSeen: false,
       idleEditNudges: 0,
     });

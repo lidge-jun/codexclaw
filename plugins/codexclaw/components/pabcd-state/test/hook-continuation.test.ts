@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +9,7 @@ import {
   handleUserPromptSubmit,
   handleStop,
   MAX_STOP_BLOCKS,
+  MAX_STOP_BLOCKS_TOTAL,
   phaseDirective,
   interviewDirective,
   QUESTION_SHAPE_DIRECTIVE,
@@ -21,7 +22,7 @@ import {
 } from "../src/hook.ts";
 import { GOALS_DB_FILENAME } from "../src/goal-active.ts";
 import { defaultState, readState, writeState } from "../src/state.ts";
-import { recordObjectiveMetric, writeObjectiveKind } from "../src/metrics.ts";
+import { checkObjectivePlateau, recordObjectiveMetric, writeObjectiveKind } from "../src/metrics.ts";
 import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
 import { recordDivergenceCandidate } from "../src/divergence.ts";
 
@@ -670,6 +671,285 @@ test("emergence 020: malformed metric ledger fails open to normal continuation",
       const reason = JSON.parse(handleStop(stop(cwd, "badmetric")).trim()).reason;
       assert.match(reason, /continue PABCD/);
       assert.doesNotMatch(reason, /objective plateau/);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// ── 050: progress-aware stagnation counter ──────────────────────────────────
+//
+// The counter used to reset only on a phase transition, so an audit that took
+// five rounds inside A burned the budget and released a loop that was working.
+// Progress is now three things: a phase change, a work-phase change, or a metric
+// observation that is both NEW (ledger cursor) and BETTER (plateau check).
+//
+// This slice was deferred once after five non-converging audit rounds. X1 and X2
+// are the two counterexamples that stopped it; the resume note in
+// 050_progress_aware_stop.md requires them as the first regressions.
+
+function metricSession(cwd: string, sessionId: string, phase: "P" | "A" | "B" | "C" | "D" = "B"): void {
+  midCycle(cwd, sessionId, phase);
+  writeObjectiveKind(cwd, sessionId, "maximize");
+}
+
+function record(cwd: string, sessionId: string, metricName: string, value: number, workPhaseId?: string): void {
+  recordObjectiveMetric(cwd, { sessionId, metricName, value, source: "operator-entered", workPhaseId });
+}
+
+function blockCount(cwd: string, sessionId: string): number {
+  return readState(cwd, sessionId).stopBlockCount;
+}
+
+test("050 X1: revisiting a flat metric key is not progress", () => {
+  // score=10,10 -> latency=1 -> score=10. The key changed and changed back, but
+  // the latest score window is [10,10]: flat. Judging on key identity alone
+  // would call this progress; judging with the same window function does not.
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "x1", status: "active" }], () => {
+      metricSession(cwd, "x1");
+      record(cwd, "x1", "score", 10);
+      record(cwd, "x1", "score", 10);
+      handleStop(stop(cwd, "x1"));
+      assert.equal(blockCount(cwd, "x1"), 1);
+
+      record(cwd, "x1", "latency", 1);
+      record(cwd, "x1", "score", 10);
+      handleStop(stop(cwd, "x1"));
+      assert.equal(blockCount(cwd, "x1"), 2, "a flat window is not progress even after a key detour");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050 X2: a work-phase id containing a pipe is handled as a value", () => {
+  // The abandoned design serialised observations into a pipe-delimited string,
+  // where an id like this broke parsing and every Stop read as "no prior
+  // observation". Nothing is assembled now, so the character is unremarkable.
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "x2", status: "active" }], () => {
+      metricSession(cwd, "x2");
+      record(cwd, "x2", "score", 1, "wp|evil");
+      handleStop(stop(cwd, "x2"));
+      assert.equal(blockCount(cwd, "x2"), 1);
+      handleStop(stop(cwd, "x2"));
+      assert.equal(blockCount(cwd, "x2"), 2, "no new observation, so the counter advances");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050 S1: with no metrics at all the counter still reaches the cap", () => {
+  // checkObjectivePlateau reports flat:false when there are no records. Gating on
+  // the cursor first is what stops that from reading as perpetual progress.
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "s1", status: "active" }], () => {
+      midCycle(cwd, "s1", "B");
+      for (let i = 1; i <= MAX_STOP_BLOCKS; i++) {
+        assert.notEqual(handleStop(stop(cwd, "s1")), "", `block ${i}`);
+        assert.equal(blockCount(cwd, "s1"), i);
+      }
+      assert.equal(handleStop(stop(cwd, "s1")), "", "the cap still releases");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050 S2: an improving metric recharges the budget", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "s2", status: "active" }], () => {
+      metricSession(cwd, "s2");
+      record(cwd, "s2", "score", 1);
+      handleStop(stop(cwd, "s2"));
+      assert.equal(blockCount(cwd, "s2"), 1);
+      record(cwd, "s2", "score", 2);
+      handleStop(stop(cwd, "s2"));
+      assert.equal(blockCount(cwd, "s2"), 1, "new and better -> back to 1");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050 S2c: one recording is progress once, not on every later Stop", () => {
+  // The window stays non-flat until the next recording arrives. Without the
+  // cursor, a single improvement would refill the budget indefinitely.
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "s2c", status: "active" }], () => {
+      metricSession(cwd, "s2c");
+      record(cwd, "s2c", "score", 1);
+      record(cwd, "s2c", "score", 2);
+      handleStop(stop(cwd, "s2c"));
+      assert.equal(blockCount(cwd, "s2c"), 1);
+      handleStop(stop(cwd, "s2c"));
+      assert.equal(blockCount(cwd, "s2c"), 2, "no new observation");
+      handleStop(stop(cwd, "s2c"));
+      assert.equal(blockCount(cwd, "s2c"), 3);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050 S2b: re-recording the same value is new but not better", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "s2b", status: "active" }], () => {
+      metricSession(cwd, "s2b");
+      record(cwd, "s2b", "score", 1);
+      handleStop(stop(cwd, "s2b"));
+      record(cwd, "s2b", "score", 1);
+      handleStop(stop(cwd, "s2b"));
+      assert.equal(blockCount(cwd, "s2b"), 2, "a flat window is not progress");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050 S3/S3b: a first recording counts once", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "s3", status: "active" }], () => {
+      metricSession(cwd, "s3");
+      handleStop(stop(cwd, "s3"));
+      assert.equal(blockCount(cwd, "s3"), 1);
+      record(cwd, "s3", "coverage", 42);
+      handleStop(stop(cwd, "s3"));
+      assert.equal(blockCount(cwd, "s3"), 1, "a new key's first row is progress");
+      handleStop(stop(cwd, "s3"));
+      assert.equal(blockCount(cwd, "s3"), 2, "but only once");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050 S6: switching work phase is progress", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "s6", status: "active" }], () => {
+      const plan = buildGoalplan({ objective: "work phase switch fixture" });
+      const two = {
+        ...plan,
+        workPhases: [
+          { id: "wpA", title: "a", status: "in_progress" as const, tasks: [], criteriaIds: [] },
+          { id: "wpB", title: "b", status: "pending" as const, tasks: [], criteriaIds: [] },
+        ],
+      };
+      writeGoalplan(cwd, two);
+      writeState(cwd, { ...defaultState("s6"), phase: "B", orchestrationActive: true, slug: plan.slug });
+
+      handleStop(stop(cwd, "s6"));
+      assert.equal(blockCount(cwd, "s6"), 1);
+      handleStop(stop(cwd, "s6"));
+      assert.equal(blockCount(cwd, "s6"), 2);
+
+      writeGoalplan(cwd, {
+        ...two,
+        workPhases: [
+          { ...two.workPhases[0], status: "done" as const },
+          { ...two.workPhases[1], status: "in_progress" as const },
+        ],
+      });
+      handleStop(stop(cwd, "s6"));
+      assert.equal(blockCount(cwd, "s6"), 1, "the active work phase moved");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050 S10/S14: the absolute cap holds against forged progress", () => {
+  // Recording a better value before every Stop keeps the per-phase counter at 1
+  // forever. stopBlockTotal is what actually terminates the loop.
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "s10", status: "active" }], () => {
+      metricSession(cwd, "s10");
+      let released = 0;
+      for (let i = 1; i <= MAX_STOP_BLOCKS_TOTAL + 1; i++) {
+        record(cwd, "s10", "score", i);
+        if (handleStop(stop(cwd, "s10")) === "") released = i;
+      }
+      assert.equal(released, MAX_STOP_BLOCKS_TOTAL + 1, "released exactly at the absolute cap");
+      const st = readState(cwd, "s10");
+      assert.equal(st.stopBlockTotal, MAX_STOP_BLOCKS_TOTAL + 1, "the total never resets");
+      assert.equal(st.stopMetricCursor, MAX_STOP_BLOCKS_TOTAL + 1, "the cursor advances on release too");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050 S15: a truncated ledger cannot replay old observations", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "s15", status: "active" }], () => {
+      metricSession(cwd, "s15");
+      record(cwd, "s15", "score", 1);
+      record(cwd, "s15", "score", 2);
+      handleStop(stop(cwd, "s15"));
+      assert.equal(blockCount(cwd, "s15"), 1);
+      const cursor = readState(cwd, "s15").stopMetricCursor;
+      assert.equal(cursor, 2);
+
+      const ledger = join(cwd, ".codexclaw", "metrics.jsonl");
+      const kept = readFileSync(ledger, "utf8").split("\n").filter((l) => l.trim()).slice(0, 1);
+      writeFileSync(ledger, `${kept.join("\n")}\n`);
+
+      handleStop(stop(cwd, "s15"));
+      assert.equal(blockCount(cwd, "s15"), 2, "fewer rows than the cursor is not progress");
+      assert.equal(readState(cwd, "s15").stopMetricCursor, 2, "the cursor is a high-water mark");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050 S11: a traversal slug is refused before the goalplan is read", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "s11", status: "active" }], () => {
+      writeState(cwd, { ...defaultState("s11"), phase: "B", orchestrationActive: true, slug: "../../evil" });
+      assert.doesNotThrow(() => handleStop(stop(cwd, "s11")));
+      assert.equal(blockCount(cwd, "s11"), 1);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050 S9: a pre-upgrade session file reads as a fresh counter", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "s9", status: "active" }], () => {
+      const dir = join(cwd, ".codexclaw", "sessions");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, "s9.json"),
+        JSON.stringify({
+          phase: "B", sessionId: "s9", slug: "", updatedAt: new Date().toISOString(),
+          flags: { interview: false, auditPassed: false, checkPassed: false },
+          supersededBy: null, injectedTurns: [], lastInjectedPhase: "B",
+          orchestrationActive: true, interview: null,
+          stopBlockPhase: "B", stopBlockCount: 1,
+        }),
+      );
+      const revived = readState(cwd, "s9");
+      assert.equal(revived.stopMetricCursor, 0);
+      assert.equal(revived.stopBlockTotal, 0);
+      assert.equal(revived.stopBlockWorkPhaseId, null);
+      handleStop(stop(cwd, "s9"));
+      assert.equal(blockCount(cwd, "s9"), 2, "the old phase counter carries over");
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050 S13: progress agrees with the plateau verdict when an observation is new", () => {
+  // Not a tautology worth skipping: it pins that the counter and the divergence
+  // block read the same window function, which five audit rounds failed to
+  // achieve with a parallel fingerprint.
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "s13", status: "active" }], () => {
+      metricSession(cwd, "s13");
+      record(cwd, "s13", "score", 1);
+      record(cwd, "s13", "score", 2);
+      handleStop(stop(cwd, "s13"));
+      const rising = checkObjectivePlateau(cwd, "s13", { minRecords: 2, noiseFloor: 0 });
+      assert.equal(rising.flat, false);
+      assert.equal(blockCount(cwd, "s13"), 1, "non-flat window -> progress");
+
+      record(cwd, "s13", "score", 2);
+      handleStop(stop(cwd, "s13"));
+      const flat = checkObjectivePlateau(cwd, "s13", { minRecords: 2, noiseFloor: 0 });
+      assert.equal(flat.flat, true);
+      assert.equal(blockCount(cwd, "s13"), 2, "flat window -> no progress");
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

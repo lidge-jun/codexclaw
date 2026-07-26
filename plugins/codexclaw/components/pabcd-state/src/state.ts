@@ -32,6 +32,16 @@ export interface State {
   // the Stop loop releases once the count would exceed MAX_STOP_BLOCKS (no infinite loop).
   stopBlockPhase: Phase | null;
   stopBlockCount: number;
+  /** the work phase the last Stop block was counted against. */
+  stopBlockWorkPhaseId: string | null;
+  /**
+   * High-water mark of objective-metric rows seen at a Stop. Tells a new
+   * observation from an old one: the plateau check answers "is this better",
+   * but only a cursor answers "is this new".
+   */
+  stopMetricCursor: number;
+  /** Stop blocks this session, never reset — the loop's absolute bound. */
+  stopBlockTotal: number;
   // 260714 wp3 (IDLE-EDIT-ADVISORY-01): true once this session saw a loop-arm request
   // (detectLoopArmRequest). Retained across D-close (multi-cycle re-arm nudge is the
   // feature); cleared only by explicit reset (operator stand-down).
@@ -90,6 +100,9 @@ export function defaultState(sessionId: string, slug = ""): State {
     interview: null,
     stopBlockPhase: null,
     stopBlockCount: 0,
+    stopBlockWorkPhaseId: null,
+    stopMetricCursor: 0,
+    stopBlockTotal: 0,
     loopArmSeen: false,
     idleEditNudges: 0,
   };
@@ -177,6 +190,20 @@ export function readState(cwd: string, sessionId: string): State {
       stopBlockCount:
         typeof parsed.stopBlockCount === "number" && Number.isFinite(parsed.stopBlockCount) && parsed.stopBlockCount >= 0
           ? Math.floor(parsed.stopBlockCount)
+          : 0,
+      // 050: old session files read as null/0 — a fresh cursor and no prior work phase,
+      // which makes the first Stop after an upgrade count as 1 rather than skipping ahead.
+      stopBlockWorkPhaseId:
+        typeof parsed.stopBlockWorkPhaseId === "string" && parsed.stopBlockWorkPhaseId.length > 0
+          ? parsed.stopBlockWorkPhaseId
+          : null,
+      stopMetricCursor:
+        typeof parsed.stopMetricCursor === "number" && Number.isFinite(parsed.stopMetricCursor) && parsed.stopMetricCursor >= 0
+          ? Math.floor(parsed.stopMetricCursor)
+          : 0,
+      stopBlockTotal:
+        typeof parsed.stopBlockTotal === "number" && Number.isFinite(parsed.stopBlockTotal) && parsed.stopBlockTotal >= 0
+          ? Math.floor(parsed.stopBlockTotal)
           : 0,
       // 260714 wp3: strict reconstruction (old files read false/0 — backward-compatible).
       loopArmSeen: parsed.loopArmSeen === true,

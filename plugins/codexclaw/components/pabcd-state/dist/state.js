@@ -56,6 +56,16 @@ export const PHASES                   = WORK_PHASES;
 
 
 
+
+
+
+
+
+
+
+
+
+
 export const STATE_DIR = ".codexclaw";
 export const SESSIONS_SUBDIR = "sessions";
 export const LEDGER_FILE = "ledger.jsonl";
@@ -90,6 +100,9 @@ export function defaultState(sessionId        , slug = "")        {
     interview: null,
     stopBlockPhase: null,
     stopBlockCount: 0,
+    stopBlockWorkPhaseId: null,
+    stopMetricCursor: 0,
+    stopBlockTotal: 0,
     loopArmSeen: false,
     idleEditNudges: 0,
   };
@@ -177,6 +190,20 @@ export function readState(cwd        , sessionId        )        {
       stopBlockCount:
         typeof parsed.stopBlockCount === "number" && Number.isFinite(parsed.stopBlockCount) && parsed.stopBlockCount >= 0
           ? Math.floor(parsed.stopBlockCount)
+          : 0,
+      // 050: old session files read as null/0 — a fresh cursor and no prior work phase,
+      // which makes the first Stop after an upgrade count as 1 rather than skipping ahead.
+      stopBlockWorkPhaseId:
+        typeof parsed.stopBlockWorkPhaseId === "string" && parsed.stopBlockWorkPhaseId.length > 0
+          ? parsed.stopBlockWorkPhaseId
+          : null,
+      stopMetricCursor:
+        typeof parsed.stopMetricCursor === "number" && Number.isFinite(parsed.stopMetricCursor) && parsed.stopMetricCursor >= 0
+          ? Math.floor(parsed.stopMetricCursor)
+          : 0,
+      stopBlockTotal:
+        typeof parsed.stopBlockTotal === "number" && Number.isFinite(parsed.stopBlockTotal) && parsed.stopBlockTotal >= 0
+          ? Math.floor(parsed.stopBlockTotal)
           : 0,
       // 260714 wp3: strict reconstruction (old files read false/0 — backward-compatible).
       loopArmSeen: parsed.loopArmSeen === true,
