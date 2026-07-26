@@ -88,6 +88,7 @@ proof that validates the claim, with the reduced scope stated).
 | `review` / `code_review` | `dev-code-reviewer` | Review requested or C3/C4 |
 | `threat_model` / `security` | `dev-security` | C4 security/data/tooling risk |
 | `observability` / `observability_pipeline` | `dev-backend` (+`dev-data`, `dev-devops` for operational gates) | App instrumentation, production/runtime hooks, incident/release gates |
+| `logging` (CLI / scripts / libraries) | `dev` `references/logging.md` | What to emit and where; service instrumentation stays with `dev-backend` |
 | `debugging` / `debugging_rca` | `dev-debugging` | Repeated failure needs root cause |
 | `migration_backfill` | `dev-data`, `dev-backend`, `dev-testing` | Production or non-trivial data |
 | `product_discovery` (+`_ui`) | `dev` (+`dev-uiux-design`) | Ambiguous behavior/user value/metric/prototype intent |
