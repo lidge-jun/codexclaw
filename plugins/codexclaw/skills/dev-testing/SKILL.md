@@ -420,10 +420,33 @@ header says it is for.
 - Also allowed (outside this rule's scope): asserting on non-prose values — version pins,
   license names, runtime output, CLI stdout, hook payloads, file existence.
 
-**Known violations remain.** `plugins/codexclaw/test/loop-activation-doc-sync.test.mjs` and
-`plugins/codexclaw/test/emergence-doc-sync.test.mjs` still assert phrase existence per source.
-Fixing them needs structured contract fields in the skills and is tracked as its own slice.
-Do not cite them as precedent.
+**The two known violations were deleted, not repaired (260726).**
+`loop-activation-doc-sync.test.mjs` (10 assertions) and the doctrine test inside
+`emergence-doc-sync.test.mjs` (24) both asserted phrase existence across skills, doctrine
+documents and an archived HTML page. Three repair designs were tried and all three were
+worse than deletion:
+
+- A structured `metadata.contract` block in each skill, compared between them: nothing at
+  runtime reads such a field, so it would have been a third source of truth that passes
+  whenever both copies are wrong together.
+- Promoting the activation prose to a behavioural test against `handleStop`: the five
+  guard combinations are already owned by `hook-continuation.test.ts`, so this only
+  duplicated coverage while appearing to offset the deletion.
+- Promoting the collapse doctrine the same way: there is no runtime branch that
+  implements a collapse point, so there is no value to compare against.
+
+What that costs, stated plainly: the collapse-point doctrine, `cxc-search`'s ownership of
+the divergence `strong-1`/`add-1` provenance, and the archived falsifiability SOT now have
+**no automated consistency check**. They are human-review items. The activation contract is
+unaffected — `hook-continuation.test.ts` owns it and always did.
+
+What survived: the tag-balance half of the emergence test counts opening tags against
+closing ones, which is a value compared to a value rather than a phrase lookup. It moved to
+`emergence-html-structure.test.mjs` and still runs.
+
+The lesson worth citing: when prose has no counterpart in code, a test that reads it can
+only check that the words are still there. Deleting it removes a false green; inventing a
+second document to compare it against removes nothing and adds a lie.
 
 **TEST-ORACLE-INDEPENDENCE-01 (DEFAULT).** Never derive the expected value from the code
 under test.
