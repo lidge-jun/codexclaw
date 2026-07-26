@@ -86,57 +86,20 @@ function compileComponent(name) {
   return emitted;
 }
 
-function readJson(path) {
-  return JSON.parse(readFileSync(path, "utf8"));
-}
-
 // ---- validation ----
-function validate() {
+async function validate() {
   const errors = [];
   const manifestPath = join(pluginRoot, ".codex-plugin", "plugin.json");
   const manifestText = readFileSync(manifestPath, "utf8");
   if (PLACEHOLDER_RE.test(manifestText)) errors.push(`placeholder marker in ${manifestPath}`);
   const manifest = JSON.parse(manifestText);
 
-  // hooks: each referenced command path must exist on disk.
-  const hookEntries = Array.isArray(manifest.hooks) ? manifest.hooks : [];
-  for (const hookRel of hookEntries) {
-    const hookFile = join(pluginRoot, hookRel.replace(/^\.\//, ""));
-    if (!existsSync(hookFile)) {
-      errors.push(`manifest hook file missing: ${hookRel}`);
-      continue;
-    }
-    const hookJson = readJson(hookFile);
-    // walk every command string and check the referenced dist file exists.
-    for (const evt of Object.values(hookJson.hooks ?? {})) {
-      for (const group of evt) {
-        for (const h of group.hooks ?? []) {
-          const m = /\$\{PLUGIN_ROOT\}\/([^"]+\.js)/.exec(h.command ?? "");
-          if (m) {
-            const distFile = join(pluginRoot, m[1]);
-            if (!existsSync(distFile)) errors.push(`hook references missing dist: ${m[1]}`);
-          }
-        }
-      }
-    }
-  }
-
-  // mcp: referenced args path must exist.
-  if (typeof manifest.mcpServers === "string") {
-    const mcpFile = join(pluginRoot, manifest.mcpServers.replace(/^\.\//, ""));
-    if (!existsSync(mcpFile)) errors.push(`manifest mcpServers file missing: ${manifest.mcpServers}`);
-    else {
-      const mcp = readJson(mcpFile);
-      for (const [srv, cfg] of Object.entries(mcp.mcpServers ?? {})) {
-        for (const arg of cfg.args ?? []) {
-          if (typeof arg === "string" && arg.endsWith(".js")) {
-            const distFile = join(pluginRoot, arg.replace(/^\.\//, ""));
-            if (!existsSync(distFile)) errors.push(`mcp server ${srv} references missing dist: ${arg}`);
-          }
-        }
-      }
-    }
-  }
+  // hook + mcp targets: delegate to the shared validator that doctor also uses.
+  // Imported from source (.ts) rather than dist/ on purpose — calling dist here
+  // would make the build depend on its own output. Node 24 strips types natively,
+  // so no flag is needed. Kind is ignored: every issue is just a build error.
+  const { validateManifestTargets } = await import("../components/cxc-ops/src/manifest-targets.ts");
+  for (const issue of validateManifestTargets(pluginRoot)) errors.push(issue.message);
 
   // skills: dir exists + every skill dir has a SKILL.md.
   const skillsDir = join(pluginRoot, (manifest.skills ?? "./skills/").replace(/^\.\//, ""));
@@ -175,17 +138,17 @@ function listTsFilesOrJs(dir) {
   return out;
 }
 
-export function build() {
+export async function build() {
   const emitted = {};
   for (const name of COMPONENTS) emitted[name] = compileComponent(name);
-  const errors = validate();
+  const errors = await validate();
   return { emitted, errors };
 }
 
 const isDirect =
   process.argv[1] !== undefined && import.meta.url === `file://${process.argv[1]}`;
 if (isDirect) {
-  const { emitted, errors } = build();
+  const { emitted, errors } = await build();
   const total = Object.values(emitted).reduce((n, a) => n + a.length, 0);
   for (const [name, files] of Object.entries(emitted)) {
     console.log(`[codexclaw] compiled ${name}: ${files.length} file(s) -> dist/`);

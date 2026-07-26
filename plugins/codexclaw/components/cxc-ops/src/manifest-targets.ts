@@ -1,0 +1,191 @@
+/**
+ * Shared manifest-target validator (WP7 / plan 080).
+ *
+ * Both `scripts/build.mjs` and `doctor.ts` need the same question answered:
+ * does every target a manifest declares actually exist, non-empty, inside the
+ * plugin root? Before this module the build had one inline copy and doctor had
+ * a weaker one. This is the single implementation.
+ *
+ * There is no build/installed mode. An installed plugin keeps `${PLUGIN_ROOT}`
+ * placeholders and relative MCP args exactly as the repo does, so one
+ * `pluginRoot` argument covers both callers.
+ */
+import { existsSync, realpathSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { join, resolve, sep } from "node:path";
+
+export type TargetKind = "hook" | "mcp";
+
+export interface TargetIssue {
+  /**
+   * Only doctor consumes this — it renders `hooks` and `mcp-targets` as two
+   * separate checks. `build.mjs` folds every message into one error array and
+   * ignores the kind. The asymmetry is deliberate.
+   */
+  kind: TargetKind;
+  message: string;
+}
+
+/**
+ * A JSON parse failure that remembers where it came from.
+ *
+ * Raw `SyntaxError` from `JSON.parse` carries no filename and no kind — a
+ * broken hook JSON and a broken MCP JSON produce byte-identical messages. That
+ * left doctor unable to route the failure. Extending `SyntaxError` keeps the
+ * build's existing behaviour (it dies) and any `instanceof SyntaxError` check
+ * intact.
+ */
+export class TargetParseError extends SyntaxError {
+  readonly kind: TargetKind;
+  readonly path: string;
+
+  constructor(kind: TargetKind, path: string, cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = "TargetParseError";
+    this.kind = kind;
+    this.path = path;
+  }
+}
+
+interface HookHandler {
+  command?: unknown;
+  commandWindows?: unknown;
+}
+
+interface HookGroup {
+  hooks?: HookHandler[];
+}
+
+interface HookFile {
+  hooks?: Record<string, HookGroup[]>;
+}
+
+interface McpServerConfig {
+  args?: unknown[];
+}
+
+interface McpFile {
+  mcpServers?: Record<string, McpServerConfig>;
+}
+
+interface PluginManifest {
+  hooks?: unknown;
+  mcpServers?: unknown;
+}
+
+function readJson<T>(kind: TargetKind, path: string): T {
+  const text = readFileSync(path, "utf8");
+  try {
+    return JSON.parse(text) as T;
+  } catch (err) {
+    throw new TargetParseError(kind, path, err);
+  }
+}
+
+/**
+ * Every `${PLUGIN_ROOT}/...` target in a command string.
+ *
+ * `commandWindows` uses backslashes and packs two targets into one command (a
+ * `.ps1` launcher plus the real `.js` entry point), so this must collect every
+ * match and must not filter on extension. This repo has zero `commandWindows`
+ * fields today; the branch is exercised by fixtures only.
+ */
+const PLUGIN_ROOT_TARGET = /\$\{PLUGIN_ROOT\}[\\/]([^"\s]+)/g;
+
+function targetsInCommand(command: unknown): string[] {
+  if (typeof command !== "string") return [];
+  const out: string[] = [];
+  for (const match of command.matchAll(PLUGIN_ROOT_TARGET)) {
+    const parts = match[1].split(/[\\/]/).filter((p) => p.length > 0);
+    if (parts.length > 0) out.push(parts.join("/"));
+  }
+  return out;
+}
+
+/** Inside-root test uses realpath so a symlink cannot escape lexically. */
+function escapesRoot(pluginRoot: string, target: string): boolean {
+  let root: string;
+  let real: string;
+  try {
+    root = realpathSync(pluginRoot);
+    real = realpathSync(target);
+  } catch {
+    root = resolve(pluginRoot);
+    real = resolve(target);
+  }
+  return real !== root && !real.startsWith(root.endsWith(sep) ? root : root + sep);
+}
+
+function checkTarget(
+  issues: TargetIssue[],
+  kind: TargetKind,
+  pluginRoot: string,
+  rel: string,
+  missingMessage: string,
+): void {
+  const abs = join(pluginRoot, rel.replace(/^\.\//, ""));
+  if (!existsSync(abs)) {
+    issues.push({ kind, message: missingMessage });
+    return;
+  }
+  if (statSync(abs).size === 0) {
+    issues.push({ kind, message: `target is empty: ${rel}` });
+  }
+  if (escapesRoot(pluginRoot, abs)) {
+    issues.push({ kind, message: `target escapes plugin root: ${rel}` });
+  }
+}
+
+/**
+ * Validate every target declared by the plugin manifest.
+ *
+ * Throws {@link TargetParseError} on malformed JSON — a broken manifest is a
+ * collapsed premise, not a finding, and validation stops there. Callers that
+ * want to report rather than die must catch it.
+ */
+export function validateManifestTargets(pluginRoot: string): TargetIssue[] {
+  const issues: TargetIssue[] = [];
+  const manifestPath = join(pluginRoot, ".codex-plugin", "plugin.json");
+  if (!existsSync(manifestPath)) return issues;
+  const manifest = readJson<PluginManifest>("hook", manifestPath);
+
+  const hookEntries: string[] = Array.isArray(manifest.hooks) ? manifest.hooks : [];
+  for (const hookRel of hookEntries) {
+    const hookFile = join(pluginRoot, hookRel.replace(/^\.\//, ""));
+    if (!existsSync(hookFile)) {
+      issues.push({ kind: "hook", message: `manifest hook file missing: ${hookRel}` });
+      continue;
+    }
+    const hookJson = readJson<HookFile>("hook", hookFile);
+    for (const evt of Object.values(hookJson.hooks ?? {})) {
+      for (const group of evt ?? []) {
+        for (const h of group.hooks ?? []) {
+          for (const command of [h.command, h.commandWindows]) {
+            for (const rel of targetsInCommand(command)) {
+              checkTarget(issues, "hook", pluginRoot, rel, `hook references missing dist: ${rel}`);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (typeof manifest.mcpServers === "string") {
+    const mcpRel = manifest.mcpServers;
+    const mcpFile = join(pluginRoot, mcpRel.replace(/^\.\//, ""));
+    if (!existsSync(mcpFile)) {
+      issues.push({ kind: "mcp", message: `manifest mcpServers file missing: ${mcpRel}` });
+    } else {
+      const mcp = readJson<McpFile>("mcp", mcpFile);
+      for (const [srv, cfg] of Object.entries(mcp.mcpServers ?? {})) {
+        for (const arg of cfg.args ?? []) {
+          if (typeof arg === "string" && arg.endsWith(".js")) {
+            checkTarget(issues, "mcp", pluginRoot, arg, `mcp server ${srv} references missing dist: ${arg}`);
+          }
+        }
+      }
+    }
+  }
+
+  return issues;
+}

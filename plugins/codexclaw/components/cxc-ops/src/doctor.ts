@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { diagnoseHookTrust, readInstalledPluginKeys } from "./hook-trust.ts";
+import { TargetParseError, validateManifestTargets } from "./manifest-targets.ts";
 
 export type Severity = "PASS" | "WARN" | "FAIL";
 
@@ -49,6 +50,43 @@ export function rollup(checks: CheckResult[]): Severity {
  * Run the codexclaw plugin health checks against a plugin root. Returns a
  * structured report; the caller renders it. Every check carries evidence.
  */
+/**
+ * Turn shared-validator output into doctor checks.
+ *
+ * A malformed manifest aborts validation at the first parse failure — the
+ * premise has collapsed, so the remaining targets were never looked at. The
+ * kind that never ran is reported WARN `not evaluated`, never PASS: marking an
+ * unexecuted check as passing would let one broken hook JSON hide every MCP
+ * defect.
+ */
+function manifestTargetChecks(pluginRoot: string): CheckResult[] {
+  const KINDS = [
+    { kind: "hook", name: "hooks" },
+    { kind: "mcp", name: "mcp-targets" },
+  ] as const;
+  try {
+    const issues = validateManifestTargets(pluginRoot);
+    return KINDS.map(({ kind, name }) => {
+      const mine = issues.filter((i) => i.kind === kind);
+      return {
+        name,
+        severity: mine.length === 0 ? ("PASS" as Severity) : ("FAIL" as Severity),
+        evidence: mine.length === 0 ? `all ${kind} target(s) present` : mine.map((i) => i.message).join(", "),
+      };
+    });
+  } catch (err) {
+    if (err instanceof TargetParseError) {
+      return KINDS.map(({ kind, name }) =>
+        kind === err.kind
+          ? { name, severity: "FAIL" as Severity, evidence: `unparseable ${kind} json: ${err.path}` }
+          : { name, severity: "WARN" as Severity, evidence: `not evaluated after ${err.kind} parse failure` },
+      );
+    }
+    // Anything else (permissions, EISDIR, realpath) has no kind — do not guess.
+    return [{ name: "manifest-targets", severity: "FAIL", evidence: `target validation failed: ${String(err)}` }];
+  }
+}
+
 export function runDoctor(
   pluginRoot: string,
   agRunner: typeof spawnSync = spawnSync,
@@ -74,20 +112,13 @@ export function runDoctor(
     }
   }
 
-  // 2. each manifest-referenced hook file exists.
+  // 2. every manifest-declared target exists, is non-empty and stays inside the
+  //    plugin root — same validator the build runs, so doctor and build cannot drift.
+  //    Issues are split by kind: hook problems keep the historical `hooks` check
+  //    name, MCP problems get their own `mcp-targets` check rather than being
+  //    mislabelled as hook failures.
   if (existsSync(manifestPath)) {
-    try {
-      const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { hooks?: string[] };
-      const hooks = Array.isArray(manifest.hooks) ? manifest.hooks : [];
-      const missing = hooks.filter((h) => !existsSync(join(pluginRoot, h)));
-      checks.push({
-        name: "hooks",
-        severity: missing.length === 0 ? "PASS" : "FAIL",
-        evidence: missing.length === 0 ? `all ${hooks.length} hook file(s) present` : `missing: ${missing.join(", ")}`,
-      });
-    } catch {
-      // manifest already reported above; skip a duplicate FAIL.
-    }
+    checks.push(...manifestTargetChecks(pluginRoot));
   }
 
   // 3. skills: each skill dir has SKILL.md + agents/openai.yaml.
