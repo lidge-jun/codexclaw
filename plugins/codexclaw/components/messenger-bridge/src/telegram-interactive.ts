@@ -6,7 +6,7 @@
  */
 import { buildCatalog } from "../../subagent-config/dist/catalog.js";
 import { AGENT_EFFORTS, AGENT_THREAD_MODES, AGENT_TOOL_PROGRESS_MODES, type BridgeDb } from "./db.ts";
-import { telegramReplyThreadId, type TelegramApi, type TgCallbackQuery } from "./telegram-api.ts";
+import { telegramReplyThreadId, telegramTopicId, type TelegramApi, type TgCallbackQuery } from "./telegram-api.ts";
 import type { InlineKeyboard } from "./telegram-commands.ts";
 
 export interface CallbackAction {
@@ -26,6 +26,7 @@ export interface CallbackAuthContext {
     id: string,
     decision: "allow-once" | "allow-always" | "deny",
     chatId: string,
+    topicId: string | null,
   ) => Promise<"resolved" | "not_found" | "unauthorized"> | "resolved" | "not_found" | "unauthorized";
 }
 
@@ -168,7 +169,12 @@ async function handleApproval(
   if (!auth.resolveApproval) return "Approval relay is not wired";
   const parsed = parseApprovalPayload(action);
   if (!parsed) return "Invalid approval action";
-  const status = await auth.resolveApproval(parsed.id, parsed.decision, chatId);
+  const status = await auth.resolveApproval(
+    parsed.id,
+    parsed.decision,
+    chatId,
+    query.message ? telegramTopicId(query.message) : null,
+  );
   switch (status) {
     case "resolved":
       return `Approval ${parsed.decision}`;
@@ -196,6 +202,8 @@ function authorizeCallback(
   if (binding.chat_id !== chatId || binding.agent_id !== auth.agentId) {
     return "This action belongs to another agent";
   }
+  const topicId = query.message ? telegramTopicId(query.message) : null;
+  if ((binding.topic_id ?? null) !== topicId) return "This action belongs to another topic";
   return null;
 }
 

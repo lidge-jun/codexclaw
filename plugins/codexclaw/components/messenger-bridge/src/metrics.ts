@@ -60,10 +60,15 @@
      if (a) a.errors += 1;
    }
  
-   recordRateLimit(platform: "telegram" | "discord"): void {
+  recordRateLimit(platform: "telegram" | "discord"): void {
      if (platform === "telegram") this.rateLimitsTg += 1;
      else this.rateLimitsDc += 1;
-   }
+  }
+
+  /** Drop per-agent lifetime entries when agents are deleted from the DB. */
+  retainAgents(ids: ReadonlySet<number>): void {
+    for (const id of this.agents.keys()) if (!ids.has(id)) this.agents.delete(id);
+  }
  
    snapshot(): MetricsSnapshot {
      const avg =

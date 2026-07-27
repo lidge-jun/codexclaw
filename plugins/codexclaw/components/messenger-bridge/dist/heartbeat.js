@@ -89,6 +89,8 @@ export class HeartbeatScheduler {
       this.log(`[heartbeat] tick skipped: ${(err         ).message}`);
       return;
     }
+    const activeIds = new Set(agents.map((agent) => agent.id));
+    for (const id of this.lastRun.keys()) if (!activeIds.has(id)) this.lastRun.delete(id);
     for (const agent of agents) {
       try {
         await this.tickAgent(agent);

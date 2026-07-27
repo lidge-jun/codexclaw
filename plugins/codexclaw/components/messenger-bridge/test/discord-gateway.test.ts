@@ -1,7 +1,7 @@
 /** discord-gateway.test.ts — opcode lifecycle driven by a fake WebSocket. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DiscordGateway, OP, INTENTS, type DiscordGatewayOptions, type WsLike } from "../src/discord-gateway.ts";
+import { DiscordGateway, OP, INTENTS, validateDiscordResumeUrl, type DiscordGatewayOptions, type WsLike } from "../src/discord-gateway.ts";
 import type { DiscordMessageEvent } from "../src/discord-gateway.ts";
 import type { Interaction } from "../src/discord-interactions.ts";
 
@@ -195,5 +195,33 @@ test("reconnect after READY resumes with session id + seq", () => {
   const d = resume!.d as { session_id: string; seq: number };
   assert.equal(d.session_id, "sess-9");
   assert.equal(d.seq, 3);
+  gw.stop();
+});
+
+test("resume URLs are restricted to Discord-owned WSS hosts", () => {
+  assert.match(validateDiscordResumeUrl("wss://gateway-us-east1-b.discord.gg") ?? "", /encoding=json/);
+  assert.equal(validateDiscordResumeUrl("https://gateway.discord.gg"), null);
+  assert.equal(validateDiscordResumeUrl("wss://discord.gg.attacker.example"), null);
+  assert.equal(validateDiscordResumeUrl("wss://user:pass@gateway.discord.gg"), null);
+});
+
+test("stale sockets cannot dispatch after a reconnect", () => {
+  const sockets: FakeWs[] = [];
+  const seen: DiscordMessageEvent[] = [];
+  const gw = new DiscordGateway({
+    token: "tok",
+    onMessage: (message) => seen.push(message),
+    jitter: () => 0,
+    wsFactory: () => {
+      const socket = new FakeWs();
+      sockets.push(socket);
+      return socket;
+    },
+  });
+  gw.connect();
+  const stale = sockets[0];
+  stale.emit({ op: OP.RECONNECT, d: null });
+  stale.emit({ op: OP.DISPATCH, t: "MESSAGE_CREATE", d: { id: "stale", channel_id: "c", author: { id: "u" } } });
+  assert.equal(seen.length, 0);
   gw.stop();
 });

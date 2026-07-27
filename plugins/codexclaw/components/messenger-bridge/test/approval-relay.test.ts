@@ -60,3 +60,13 @@ test("approval formatters expose allow-once, allow-always, and deny actions", ()
   const disabled = formatApprovalForDiscord(req, true);
   assert.ok(disabled.components[0].components.every((button) => button.disabled === true));
 });
+
+test("default approval ids do not repeat across fresh stores after a restart", () => {
+  const a = createApprovalStore(1_000, { autoExpire: false });
+  const b = createApprovalStore(1_000, { autoExpire: false });
+  const first = a.request({ bindingId: 1, promptHash: "one", workdir: "/tmp" });
+  const second = b.request({ bindingId: 1, promptHash: "two", workdir: "/tmp" });
+  assert.notEqual(first.id, second.id);
+  assert.equal(b.resolve(first.id, "allow-once"), null, "stale id cannot resolve a new request");
+  assert.equal(b.resolve(second.id, "allow-once")?.promptHash, "two");
+});

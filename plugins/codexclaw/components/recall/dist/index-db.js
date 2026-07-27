@@ -12,7 +12,7 @@
  */
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
-import { mkdirSync, existsSync } from "node:fs";
+import { chmodSync, mkdirSync, existsSync } from "node:fs";
 import { openDbReadOnly, openDbReadWrite,           } from "./sqlite.js";
 
 export const INDEX_SCHEMA_VERSION = "2";
@@ -69,7 +69,9 @@ END;
 
 /** Open (creating directories/schema as needed) the sidecar index read-write. */
 export function openIndex(path        )       {
-  mkdirSync(dirname(path), { recursive: true });
+  const dir = dirname(path);
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try { chmodSync(dir, 0o700); } catch { /* non-POSIX filesystem */ }
   const db = openDbReadWrite(path);
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA busy_timeout = 5000");
@@ -86,6 +88,9 @@ export function openIndex(path        )       {
     db.exec("DROP TABLE IF EXISTS msgs; DROP TABLE IF EXISTS files; DROP TABLE IF EXISTS meta;");
     db.exec(SCHEMA);
     db.prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?)").run(INDEX_SCHEMA_VERSION);
+  }
+  for (const file of [path, `${path}-wal`, `${path}-shm`]) {
+    try { chmodSync(file, 0o600); } catch { /* sidecar absent or non-POSIX */ }
   }
   return db;
 }

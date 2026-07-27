@@ -26,7 +26,7 @@ import {
 
 } from "./telegram-commands.js";
 import { handleCallback } from "./telegram-interactive.js";
-import { cleanupTmpMedia, downloadTelegramMessageMedia } from "./media-handler.js";
+import { cleanupTmpMedia, downloadTelegramMessageMedia, MediaCapacityError } from "./media-handler.js";
 import { sendFormattedTelegramOutput } from "./output-formatter.js";
 import { createTelegramTurnProgress,                           } from "./telegram-progress.js";
 import { probeRichSupport } from "./telegram-rich-send.js";
@@ -162,8 +162,8 @@ export function createTelegramAdapter(opts                        )             
       await handleCallback(api, cbq, opts.db, {
         agentId,
         isAllowedChat,
-        resolveApproval: (id, decision, chatId) =>
-          opts.agentService.resolveApproval({ id, decision, chatId, agentId }),
+        resolveApproval: (id, decision, chatId, topicId) =>
+          opts.agentService.resolveApproval({ id, decision, chatId, topicId, agentId }),
       });
       log(`[tg] callback_query from ${cbq.from?.id}: ${cbq.data ?? ""}`);
       return;
@@ -222,7 +222,20 @@ export function createTelegramAdapter(opts                        )             
       let text = gateAndStripMention(msg, rawText);
       if (text === null) return;
 
-      const media = await downloadMediaPrefixes(msg);
+      let media                                            ;
+      try {
+        media = await downloadMediaPrefixes(msg);
+      } catch (err) {
+        if (err instanceof MediaCapacityError) {
+          await api.sendMessage({
+            chatId,
+            text: "codexclaw: attachment downloads are busy; retry shortly.",
+            messageThreadId: telegramReplyThreadId(msg),
+          });
+          return;
+        }
+        throw err;
+      }
       mediaTempDirs = media.tempDirs;
       if (media.prefixes.length > 0) {
         text = [media.prefixes.join("\n"), text.trim()].filter(Boolean).join("\n");

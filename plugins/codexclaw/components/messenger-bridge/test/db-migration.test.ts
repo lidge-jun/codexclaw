@@ -161,7 +161,7 @@ test("v8: agents.thread_mode defaults to 'thread' and accepts 'plain'", () => {
   }
 });
 
-test("v10: upgrades a v9 agent once, preserves rows, and enforces the mode constraint", () => {
+test("v11: upgrades a v9 agent once, preserves rows, and enforces the mode constraint", () => {
   const cwd = mkdtempSync(join(tmpdir(), "bridge-v10-test-"));
   const file = join(cwd, "bridge.db");
   try {
@@ -199,7 +199,7 @@ test("v10: upgrades a v9 agent once, preserves rows, and enforces the mode const
     db.close();
 
     const check = new DatabaseSync(file);
-    assert.equal((check.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 10);
+    assert.equal((check.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 11);
     assert.throws(
       () => check.prepare("UPDATE agents SET tool_progress = 'bogus' WHERE name = 'existing'").run(),
       /CHECK/i,

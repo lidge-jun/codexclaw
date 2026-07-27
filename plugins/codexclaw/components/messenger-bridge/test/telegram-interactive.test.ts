@@ -64,6 +64,18 @@ function callback(data: string): TgCallbackQuery {
   };
 }
 
+function topicCallback(data: string, topicId: number): TgCallbackQuery {
+  return {
+    ...callback(data),
+    message: {
+      message_id: 10,
+      chat: { id: 500, type: "supergroup", is_forum: true },
+      is_topic_message: true,
+      message_thread_id: topicId,
+    },
+  };
+}
+
 function allowAgent(agentId: number) {
   return { agentId, isAllowedChat: (chatId: string) => chatId === "500" };
 }
@@ -241,6 +253,36 @@ test("handleCallback answers malformed mode_select payloads without mutating", a
 
     assert.equal(db.getAgent(agent.id)?.thread_mode, "thread");
     assert.equal(api.calls.at(-1)?.payload[1], "Invalid mode selection");
+  } finally {
+    db.close();
+    rmRfRetry(cwd);
+  }
+});
+
+test("settings callbacks are isolated to the binding's Telegram topic", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "tg-interactive-topic-"));
+  const db = openBridgeDb(cwd);
+  try {
+    const agent = db.createAgent("telegram-topic", "telegram", "tok");
+    const binding = db.getOrCreateAgentBinding(agent.id, "telegram", "500", cwd, "22");
+    const denied = mockApi();
+    await handleCallback(
+      denied,
+      topicCallback(encodeCallback({ type: "effort_select", payload: `${binding.id}:high` }), 11),
+      db,
+      allowAgent(agent.id),
+    );
+    assert.equal(db.getBinding(binding.id)?.effort, "default");
+    assert.equal(denied.calls.at(-1)?.payload[1], "This action belongs to another topic");
+
+    const accepted = mockApi();
+    await handleCallback(
+      accepted,
+      topicCallback(encodeCallback({ type: "effort_select", payload: `${binding.id}:high` }), 22),
+      db,
+      allowAgent(agent.id),
+    );
+    assert.equal(db.getBinding(binding.id)?.effort, "high");
   } finally {
     db.close();
     rmRfRetry(cwd);

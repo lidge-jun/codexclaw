@@ -1,9 +1,8 @@
 /**
  * subagent-evidence.test.ts — lazygap_impl 010 SubagentStop evidence-receipt gate.
  *
- * Covers: gated-agent-type scoping, missing-receipt block (bounded), valid-receipt
- * release, symlink/outside-root rejection, context-pressure bail (child transcript),
- * and total fail-open behavior.
+ * Covers: gated-agent-type scoping, missing-receipt fail-closed escalation,
+ * valid-receipt release, symlink/outside-root rejection, and transcript spoofing.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -19,8 +18,6 @@ import {
   readAttempts,
   MAX_ATTEMPTS,
   GATED_AGENT_TYPES,
-  transcriptHasReadOnlyMarker,
-  EVIDENCE_EXEMPT_TOKEN,
 } from "../src/subagent-evidence.ts";
 import type { SubagentStopPayload } from "../src/hook.ts";
 
@@ -106,22 +103,23 @@ test("010: empty receipt file is not valid", () => {
   assert.equal(hasValidReceipt(cwd, ".codexclaw/evidence/empty.md"), false);
 });
 
-test("010: block is bounded — after MAX_ATTEMPTS the gate releases", () => {
+test("010: after MAX_ATTEMPTS the gate escalates but remains fail-closed", () => {
   const cwd = tmp();
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
     const out = runSubagentStopGate(payload(cwd));
     assert.equal(JSON.parse(out).decision, "block", `attempt ${i + 1} should block`);
   }
-  // next call is over the cap -> release
-  assert.equal(runSubagentStopGate(payload(cwd)), "");
+  const escalated = JSON.parse(runSubagentStopGate(payload(cwd)));
+  assert.equal(escalated.decision, "block");
+  assert.match(escalated.reason, /fail-closed/);
 });
 
-test("010: context-pressure in the CHILD transcript bails (release)", () => {
+test("010: child-authored context-pressure text cannot bypass evidence", () => {
   const cwd = tmp();
   const childTranscript = join(cwd, "child.jsonl");
   writeFileSync(childTranscript, "stuff... Context compacted ...more");
   const out = runSubagentStopGate(payload(cwd, { agent_transcript_path: childTranscript }));
-  assert.equal(out, "");
+  assert.equal(JSON.parse(out).decision, "block");
 });
 
 test("010: extractReceiptPath parses the marker; null when absent", () => {
@@ -168,7 +166,7 @@ test("DISPATCH-AGENT-TYPE-01: default agent_type is not gated", () => {
   assert.equal(out, "");
 });
 
-test("DISPATCH-AGENT-TYPE-01: worker with evidence-exempt token is released", () => {
+test("DISPATCH-AGENT-TYPE-01: worker cannot exempt itself with transcript text", () => {
   const cwd = tmp();
   const transcriptDir = join(cwd, ".codex", "sessions");
   mkdirSync(transcriptDir, { recursive: true });
@@ -177,10 +175,10 @@ test("DISPATCH-AGENT-TYPE-01: worker with evidence-exempt token is released", ()
   const out = runSubagentStopGate(
     payload(cwd, { agent_transcript_path: transcriptPath }),
   );
-  assert.equal(out, "", "evidence-exempt token should bypass evidence gate");
+  assert.equal(JSON.parse(out).decision, "block");
 });
 
-test("DISPATCH-AGENT-TYPE-01: token deep in transcript still matches", () => {
+test("DISPATCH-AGENT-TYPE-01: marker deep in transcript still cannot bypass", () => {
   const cwd = tmp();
   const transcriptDir = join(cwd, ".codex", "sessions");
   mkdirSync(transcriptDir, { recursive: true });
@@ -191,7 +189,7 @@ test("DISPATCH-AGENT-TYPE-01: token deep in transcript still matches", () => {
   const out = runSubagentStopGate(
     payload(cwd, { agent_transcript_path: transcriptPath }),
   );
-  assert.equal(out, "", "token should be found regardless of offset");
+  assert.equal(JSON.parse(out).decision, "block");
 });
 
 test("DISPATCH-AGENT-TYPE-01: generic read-only text without token still blocks", () => {

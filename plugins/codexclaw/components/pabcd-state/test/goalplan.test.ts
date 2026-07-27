@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, mkdirSync, writeFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -63,6 +63,40 @@ test("030: absent or malformed -> readGoalplan returns null (never throws)", () 
   // structurally invalid (missing required fields)
   writeFileSync(join(dir, "goalplan.json"), JSON.stringify({ objective: "x" }));
   assert.equal(readGoalplan(cwd, "bad"), null);
+});
+
+test("goalplan slug is an identifier: stored traversal, mismatches, and symlink roots are rejected", () => {
+  const cwd = tmp();
+  const plan = buildGoalplan({ objective: "safe plan", criteria: [{ scenario: "ok" }] });
+  writeGoalplan(cwd, plan);
+  const file = join(goalplanDir(cwd, plan.slug), "goalplan.json");
+  const stored = JSON.parse(readFileSync(file, "utf8"));
+  writeFileSync(file, JSON.stringify({ ...stored, slug: "../../escaped" }));
+  assert.equal(readGoalplan(cwd, plan.slug), null, "stored slug must match requested slug");
+  assert.throws(() => writeGoalplan(cwd, { ...plan, slug: "../../escaped" }), /invalid goalplan slug/);
+  assert.equal(existsSync(join(cwd, "escaped", "goalplan.json")), false);
+
+  const linked = tmp();
+  const outside = tmp();
+  symlinkSync(outside, join(linked, ".codexclaw"));
+  assert.throws(() => writeGoalplan(linked, buildGoalplan({ objective: "linked root" })), /symlink/);
+});
+
+test("goalplan reads and ledger appends refuse symlink leaf files", () => {
+  const cwd = tmp();
+  const outside = join(tmp(), "outside.txt");
+  writeFileSync(outside, "unchanged");
+  const slug = "leaf-link";
+  const dir = goalplanDir(cwd, slug);
+  mkdirSync(dir, { recursive: true });
+  symlinkSync(outside, join(dir, "goalplan.json"));
+  assert.equal(readGoalplan(cwd, slug), null);
+  symlinkSync(outside, join(dir, "ledger.jsonl"));
+  assert.throws(
+    () => appendGoalplanLedger(cwd, slug, { ts: "now", slug, event: "created", detail: "x" }),
+    /symlink|ELOOP/,
+  );
+  assert.equal(readFileSync(outside, "utf8"), "unchanged");
 });
 
 test("030: derived helpers (remaining/nextOpen/unmet/complete) on fixtures", () => {

@@ -84,6 +84,7 @@ export class BridgeController {
   // Serializes reload(): two concurrent API calls must not interleave the
   // stop/start diff (Map corruption, double-started pollers).
           reloadChain                = Promise.resolve();
+          stopping = false;
 
   constructor(opts                         ) {
     this.opts = opts;
@@ -140,6 +141,7 @@ export class BridgeController {
 
   /** Diff-based reload, serialized: concurrent calls queue behind each other. */
   reload()                {
+    if (this.stopping) return this.reloadChain;
     const run = this.reloadChain.then(() => this.doReload());
     this.reloadChain = run.catch(() => {}); // keep the chain alive on failure
     return run;
@@ -168,6 +170,10 @@ export class BridgeController {
       }
       seenTokens.add(tokenKey);
       desired.set(agent.id, agent);
+    }
+    this.metrics.retainAgents(new Set(this.db.listAgents().map((agent) => agent.id)));
+    for (const id of this.allowlistBaseline.keys()) {
+      if (!desired.has(id)) this.allowlistBaseline.delete(id);
     }
 
     // Stop stale adapters (gone / disabled / token or kind changed).
@@ -298,7 +304,16 @@ export class BridgeController {
     return false;
   }
 
-  async stop()                {
+  stop()                {
+    if (this.stopping) return this.reloadChain;
+    this.stopping = true;
+    this.recordLifecycle("stop", "shutdown requested");
+    const run = this.reloadChain.then(() => this.doStop());
+    this.reloadChain = run.catch(() => {});
+    return run;
+  }
+
+          async doStop()                {
     const entries = [...this.adapters.values()];
     for (const entry of entries) {
       entry.adapter.stop();
@@ -309,6 +324,7 @@ export class BridgeController {
     this.agentService?.shutdown();
     await Promise.allSettled(entries.map((entry) => entry.adapter.drain()));
     this.agentService = null;
+    await this.events.close();
   }
 
           recordLifecycle(action                             , detail         )       {

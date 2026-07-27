@@ -11,12 +11,14 @@ import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 
 import { apiCompatRoutes } from "./api-compat.js";
 import { connectRoutes } from "./connect-routes.js";
 import { agentRoutes } from "./agent-routes.js";
 
 
+import { BodyTooLargeError, localRequestRejection, readBoundedJson } from "./local-http.js";
 
 
 
@@ -200,31 +202,6 @@ function resolveDirectory(input        )                {
   }
 }
 
-const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-
-/**
- * Local-only guard against a malicious web page driving the loopback API
- * (CSRF / DNS-rebinding). Even though the socket binds 127.0.0.1, a browser on
- * this machine can still issue cross-origin requests to it.
- *  - Host header must resolve to loopback (defeats DNS rebinding).
- *  - Mutating requests must be JSON (blocks CORS "simple request" CSRF, which
- *    can't set application/json) AND carry x-codexclaw-local (a custom header
- *    forces a CORS preflight the server never answers → cross-origin blocked).
- * Returns an error string when the request must be rejected, else null.
- */
-function localGuard(req                 )                {
-  const host = (req.headers.host ?? "").split(":")[0];
-  if (host !== "127.0.0.1" && host !== "localhost" && host !== "[::1]" && host !== "") {
-    return "bad host";
-  }
-  if (MUTATING.has(req.method ?? "")) {
-    const ct = String(req.headers["content-type"] ?? "");
-    if (!ct.includes("application/json")) return "content-type must be application/json";
-    if (req.headers["x-codexclaw-local"] !== "1") return "missing x-codexclaw-local header";
-  }
-  return null;
-}
-
 function sendJson(res                , status        , body         )       {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
@@ -234,29 +211,31 @@ function sendJson(res                , status        , body         )       {
   res.end(payload);
 }
 
-function readBody(req                 )                   {
-  return new Promise((resolvePromise, rejectPromise) => {
-    let raw = "";
-    req.on("data", (chunk) => {
-      raw += chunk;
-      if (raw.length > 1_000_000) {
-        rejectPromise(new Error("body too large"));
-        req.destroy();
-      }
-    });
-    req.on("end", () => {
-      if (!raw) return resolvePromise(null);
-      try {
-        resolvePromise(JSON.parse(raw));
-      } catch {
-        rejectPromise(new Error("invalid JSON body"));
-      }
-    });
-    req.on("error", rejectPromise);
-  });
+
+
+function cachedStaticFile(path        , cache                               , immutable         )                   {
+  const stat = statSync(path);
+  const existing = cache.get(path);
+  if (immutable && existing && existing.mtimeMs === stat.mtimeMs && existing.size === stat.size) return existing;
+  const data = readFileSync(path);
+  const value = {
+    data,
+    contentType: CONTENT_TYPES[extname(path)] ?? "application/octet-stream",
+    etag: `\"${createHash("sha256").update(data).digest("base64url").slice(0, 22)}\"`,
+    mtimeMs: stat.mtimeMs,
+    size: stat.size,
+  };
+  if (immutable) cache.set(path, value);
+  return value;
 }
 
-function serveStatic(res                , guiDir        , pathname        )       {
+function serveStatic(
+  req                 ,
+  res                ,
+  guiDir        ,
+  pathname        ,
+  cache                               ,
+)       {
   const root = resolve(guiDir);
   const indexFile = join(root, "index.html");
   const requested = normalize(pathname).replace(/^([/\\])+/, "");
@@ -264,17 +243,32 @@ function serveStatic(res                , guiDir        , pathname        )     
   const inside = candidate === root || candidate.startsWith(root + sep);
 
   if (inside && existsSync(candidate) && statSync(candidate).isFile()) {
-    const type = CONTENT_TYPES[extname(candidate)] ?? "application/octet-stream";
-    const data = readFileSync(candidate);
-    res.writeHead(200, { "content-type": type, "content-length": data.length });
-    res.end(data);
+    const immutable = pathname.startsWith("/assets/");
+    const file = cachedStaticFile(candidate, cache, immutable);
+    if (req.headers["if-none-match"] === file.etag) {
+      res.writeHead(304, { etag: file.etag });
+      res.end();
+      return;
+    }
+    res.writeHead(200, {
+      "content-type": file.contentType,
+      "content-length": file.data.length,
+      etag: file.etag,
+      "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
+    });
+    res.end(req.method === "HEAD" ? undefined : file.data);
     return;
   }
   // SPA fallback: any non-file path serves the app shell.
   if (existsSync(indexFile)) {
-    const data = readFileSync(indexFile);
-    res.writeHead(200, { "content-type": CONTENT_TYPES[".html"], "content-length": data.length });
-    res.end(data);
+    const file = cachedStaticFile(indexFile, cache, false);
+    res.writeHead(200, {
+      "content-type": file.contentType,
+      "content-length": file.data.length,
+      etag: file.etag,
+      "cache-control": "no-cache",
+    });
+    res.end(req.method === "HEAD" ? undefined : file.data);
     return;
   }
   res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
@@ -289,6 +283,7 @@ export function createBridgeServer(opts                     )         {
     controller: opts.controller,
   };
   const routes             = [...baseRoutes(), ...(opts.extraRoutes ?? [])];
+  const staticCache = new Map                          ();
 
   return createServer((req, res) => {
     void handle(req, res).catch((err         ) => {
@@ -314,7 +309,7 @@ export function createBridgeServer(opts                     )         {
     }
 
     if (pathname.startsWith("/api/")) {
-      const rejection = localGuard(req);
+      const rejection = localRequestRejection(req);
       if (rejection) {
         sendJson(res, 403, { error: `forbidden: ${rejection}` });
         return;
@@ -327,9 +322,11 @@ export function createBridgeServer(opts                     )         {
       let body          = null;
       if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
         try {
-          body = await readBody(req);
+          body = await readBoundedJson(req);
         } catch (err) {
-          sendJson(res, 400, { error: err instanceof Error ? err.message : String(err) });
+          sendJson(res, err instanceof BodyTooLargeError ? 413 : 400, {
+            error: err instanceof Error ? err.message : String(err),
+          });
           return;
         }
       }
@@ -355,7 +352,7 @@ export function createBridgeServer(opts                     )         {
       }
       return;
     }
-    serveStatic(res, opts.guiDir, pathname);
+    serveStatic(req, res, opts.guiDir, pathname, staticCache);
   }
 }
 

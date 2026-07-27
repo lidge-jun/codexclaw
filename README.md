@@ -175,6 +175,8 @@ codexclaw is the reference implementation. The methodology and skills are ported
 
 Plugin documentation: **[lidge-jun.github.io/codexclaw](https://lidge-jun.github.io/codexclaw/)**
 
+Runtime trust boundaries and resource limits: **[docs/security-hardening.md](docs/security-hardening.md)**
+
 Methodology and research provenance: **[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)** — skill architecture, delegation economy, loop contracts, devlog records, and the arXiv-backed claim ledger.
 
 ## Contributing

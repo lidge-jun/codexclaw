@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -365,6 +365,24 @@ test("GOAL-COMPLETE-GATE-01: valid goalplan at IDLE -> complete passes", () => {
     writeGoalplan(cwd, plan);
     writeState(cwd, { ...defaultState("gc4"), phase: "IDLE", orchestrationActive: false, slug: plan.slug });
     assert.equal(applyGoalCompleteGuard(ptuAt(cwd, "gc4", "update_goal", { status: "complete" })), "");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-COMPLETE-GATE-01: schema-v2 marker blocks a stored downgrade", () => {
+  const cwd = freshGateCwd();
+  try {
+    const plan = buildGoalplan({ objective: "marker downgrade", criteria: [{ scenario: "tests" }] });
+    plan.criteria[0] = { ...plan.criteria[0], status: "met", capturedEvidence: "green" };
+    plan.schemaVersion = 2;
+    writeGoalplan(cwd, plan);
+    writeFileSync(join(goalplanDir(cwd, plan.slug), "schema-v2.marker"), "2\n");
+    const file = join(goalplanDir(cwd, plan.slug), GOALPLAN_FILE);
+    const stored = JSON.parse(readFileSync(file, "utf8"));
+    delete stored.schemaVersion;
+    writeFileSync(file, JSON.stringify(stored));
+    writeState(cwd, { ...defaultState("gc-marker"), slug: plan.slug });
+    const out = applyGoalCompleteGuard(ptuAt(cwd, "gc-marker", "update_goal", { status: "complete" }));
+    assert.match(JSON.parse(out).hookSpecificOutput.permissionDecisionReason, /restore "schemaVersion": 2/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 

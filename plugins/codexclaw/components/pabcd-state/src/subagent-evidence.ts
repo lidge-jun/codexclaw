@@ -4,8 +4,8 @@
  * A dispatched WRITE/verify subagent (agent_type "worker") cannot "finish" without a
  * non-empty evidence receipt under `.codexclaw/evidence/`. Missing/invalid receipt ->
  * `decision:"block"` with a verifier directive that re-prompts the CHILD (codex-rs
- * turn.rs:323). Bounded to MAX_ATTEMPTS, then fail-open release so it can never trap a
- * session. Every IO/parse failure also fails open (release).
+ * turn.rs:323). After MAX_ATTEMPTS the directive escalates but remains fail-closed;
+ * untrusted child transcript text can never exempt itself from verification.
  *
  * Translates omo's `lazycodex-executor-verify` pattern into codexclaw's no-server model,
  * using direct node:fs (matching interview-ledger.ts / state.ts — no fs-injection seam).
@@ -40,7 +40,7 @@ import type { SubagentStopPayload } from "./hook.ts";
  */
 export const GATED_AGENT_TYPES = new Set<string>(["worker"]);
 
-/** Bounded block budget per (session, agent) so the gate can never trap a session. */
+/** Retry count before the gate switches to an explicit escalation directive. */
 export const MAX_ATTEMPTS = 3;
 
 export const EVIDENCE_SUBDIR = "evidence";
@@ -125,30 +125,6 @@ export function transcriptHasContextPressure(agentTranscriptPath: string | null 
   }
 }
 
-/**
- * DISPATCH-AGENT-TYPE-01 defense-in-depth: detect the structured evidence-
- * exemption token in the child transcript. Dispatchers include this token
- * explicitly in the spawn message for read-only workers that should not be
- * evidence-gated. The spawn hook also auto-injects it on plaintext surfaces
- * when read-only intent is detected (convenience, not correctness path --
- * V2 ciphertext surfaces cannot be read by the hook).
- *
- * Uses a fixed-string check over the transcript. The token is ASCII-only
- * high-entropy, so accidental matches in system prompt content are near-zero.
- * FAIL-OPEN: any error returns false.
- */
-export const EVIDENCE_EXEMPT_TOKEN = "[CXC-EVIDENCE-EXEMPT]";
-
-export function transcriptHasReadOnlyMarker(agentTranscriptPath: string | null | undefined): boolean {
-  if (typeof agentTranscriptPath !== "string" || agentTranscriptPath === "") return false;
-  try {
-    const content = readFileSync(agentTranscriptPath, "utf8");
-    return content.includes(EVIDENCE_EXEMPT_TOKEN);
-  } catch {
-    return false;
-  }
-}
-
 export function readAttempts(cwd: string, sessionId: string, agentId: string): number {
   try {
     const p = attemptsPath(cwd, sessionId, agentId);
@@ -193,6 +169,15 @@ function verifierDirective(attempt: number): string {
   ].join(" ");
 }
 
+function escalationDirective(): string {
+  return [
+    `Evidence verification failed ${MAX_ATTEMPTS} times and is now fail-closed.`,
+    "Do not claim completion. Record the actual validation under `.codexclaw/evidence/`",
+    "and finish with `EVIDENCE_RECORDED: <path>`. If validation cannot run, record",
+    "the blocker and diagnostics in that receipt so the parent can decide safely.",
+  ].join(" ");
+}
+
 /**
  * The SubagentStop decision. Returns the codex hook stdout (a `{decision:"block",reason}`
  * JSON string to force the child to continue, or `""` to release). Total: never throws.
@@ -203,20 +188,6 @@ export function runSubagentStopGate(payload: SubagentStopPayload): string {
     const agentId = payload.agent_id ?? "";
     const { cwd, session_id: sessionId } = payload;
 
-    // DISPATCH-AGENT-TYPE-01 defense-in-depth: if the spawn message (in the
-    // child transcript head) contains read-only markers, release without
-    // demanding evidence — the task was never meant to produce files.
-    if (transcriptHasReadOnlyMarker(payload.agent_transcript_path)) {
-      clearAttempts(cwd, sessionId, agentId);
-      return "";
-    }
-
-    // Compaction recovery: never pile on (read the CHILD transcript).
-    if (transcriptHasContextPressure(payload.agent_transcript_path)) {
-      clearAttempts(cwd, sessionId, agentId);
-      return "";
-    }
-
     const receipt = extractReceiptPath(payload.last_assistant_message);
     if (receipt !== null && hasValidReceipt(cwd, receipt)) {
       clearAttempts(cwd, sessionId, agentId);
@@ -225,15 +196,16 @@ export function runSubagentStopGate(payload: SubagentStopPayload): string {
 
     const attempts = readAttempts(cwd, sessionId, agentId);
     if (attempts >= MAX_ATTEMPTS) {
-      // Bounded: stop blocking so the gate can never trap a session.
-      clearAttempts(cwd, sessionId, agentId);
-      return "";
+      return JSON.stringify({ decision: "block", reason: escalationDirective() });
     }
 
     const next = attempts + 1;
     writeAttempts(cwd, sessionId, agentId, next);
     return JSON.stringify({ decision: "block", reason: verifierDirective(next) });
   } catch {
-    return "";
+    return JSON.stringify({
+      decision: "block",
+      reason: "Evidence verification encountered an internal error and failed closed. Record a valid evidence receipt or report the blocker to the parent.",
+    });
   }
 }

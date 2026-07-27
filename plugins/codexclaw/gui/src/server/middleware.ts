@@ -20,6 +20,11 @@ import type { CodexRunner } from "../../../components/config-guard/src/features.
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
+import {
+  BodyTooLargeError,
+  localRequestRejection,
+  readBoundedJson,
+} from "../../../components/messenger-bridge/src/local-http.ts";
 
 /**
  * Resolve the PROJECT root whose `.codexclaw/` this dashboard manages. The vite dev
@@ -88,23 +93,22 @@ export function codexclawApiMiddleware(): Connect.NextHandleFunction {
     const cwd = resolveProjectRoot();
     if (!url.startsWith("/api/")) return next();
 
+    const rejection = localRequestRejection(req);
+    if (rejection) return send(res, 403, { error: `forbidden: ${rejection}` });
+
     if (url === "/api/subagents" && req.method === "GET") {
       const r = getSubagents(cwd);
       return send(res, r.status, r.body);
     }
     if (url === "/api/subagents" && req.method === "POST") {
-      let raw = "";
-      req.on("data", (c) => (raw += c));
-      req.on("end", () => {
-        let body: unknown = null;
-        try {
-          body = raw ? JSON.parse(raw) : null;
-        } catch {
-          return send(res, 400, { error: "invalid JSON body" });
-        }
-        const r = postSubagents(cwd, body);
-        send(res, r.status, r.body);
-      });
+      void readBoundedJson(req)
+        .then((body) => {
+          const r = postSubagents(cwd, body);
+          send(res, r.status, r.body);
+        })
+        .catch((err: unknown) => send(res, err instanceof BodyTooLargeError ? 413 : 400, {
+          error: err instanceof Error ? err.message : String(err),
+        }));
       return;
     }
     if (url === "/api/catalog" && req.method === "GET") {
@@ -120,18 +124,14 @@ export function codexclawApiMiddleware(): Connect.NextHandleFunction {
       return send(res, r.status, r.body);
     }
     if (url === "/api/multi-agent" && req.method === "POST") {
-      let raw = "";
-      req.on("data", (c) => (raw += c));
-      req.on("end", () => {
-        let body: unknown = null;
-        try {
-          body = raw ? JSON.parse(raw) : null;
-        } catch {
-          return send(res, 400, { error: "invalid JSON body" });
-        }
-        const r = postMultiAgentSurface(codexFeatureDeps(), body);
-        send(res, r.status, r.body);
-      });
+      void readBoundedJson(req)
+        .then((body) => {
+          const r = postMultiAgentSurface(codexFeatureDeps(), body);
+          send(res, r.status, r.body);
+        })
+        .catch((err: unknown) => send(res, err instanceof BodyTooLargeError ? 413 : 400, {
+          error: err instanceof Error ? err.message : String(err),
+        }));
       return;
     }
     return next();

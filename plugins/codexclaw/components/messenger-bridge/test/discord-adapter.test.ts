@@ -60,7 +60,7 @@ test("DiscordApi new REST helpers use expected paths and multipart body", async 
   assert.deepEqual(JSON.parse(String(calls[4].body)), {
     name: "Forum Thread",
     auto_archive_duration: 60,
-    message: { content: "seed" },
+    message: { content: "seed", allowed_mentions: { parse: [] } },
     applied_tags: ["tag-1"],
   });
   assert.deepEqual(JSON.parse(String(calls[5].body)), { archived: true });
@@ -89,6 +89,23 @@ test("DiscordApi redacts interaction and webhook tokens from error strings", asy
   assert.doesNotMatch(webhook.error ?? "", /webhook-secret/);
 });
 
+test("Discord interaction responses disable all automatic mentions", async () => {
+  const bodies: unknown[] = [];
+  const api = new DiscordApi("T", async (_url, init) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    return {
+      ok: true, status: 200, headers: { get: () => null },
+      json: () => Promise.resolve({ id: "ok" }), text: () => Promise.resolve(""),
+    } as unknown as Response;
+  });
+  await api.createInteractionResponse("i", "token", { type: 4, data: { content: "@everyone" } });
+  await api.editOriginalInteractionResponse("app", "token", { content: "@here" });
+  assert.deepEqual(bodies, [
+    { type: 4, data: { content: "@everyone", allowed_mentions: { parse: [] } } },
+    { content: "@here", allowed_mentions: { parse: [] } },
+  ]);
+});
+
 test("DiscordApi suppresses notifications only when explicitly requested", async () => {
   const bodies: unknown[] = [];
   const api = new DiscordApi("T", async (_url, init) => {
@@ -102,9 +119,9 @@ test("DiscordApi suppresses notifications only when explicitly requested", async
   await api.sendEmbed("chan", "", [{ description: "progress" }], undefined, { suppressNotifications: true });
   await api.sendMessage("chan", "final");
   assert.deepEqual(bodies, [
-    { content: "progress", flags: 4096 },
-    { content: "", embeds: [{ description: "progress" }], flags: 4096 },
-    { content: "final" },
+    { content: "progress", allowed_mentions: { parse: [] }, flags: 4096 },
+    { content: "", embeds: [{ description: "progress" }], allowed_mentions: { parse: [] }, flags: 4096 },
+    { content: "final", allowed_mentions: { parse: [] } },
   ]);
 });
 

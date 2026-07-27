@@ -203,6 +203,7 @@ export class AgentService {
     decision: ApprovalDecision;
     bindingId?: number;
     chatId?: string;
+    topicId?: string | null;
     agentId?: number | null;
   }): ApprovalResolveStatus {
     const request = this.approvals.pending.get(input.id);
@@ -211,6 +212,7 @@ export class AgentService {
     if (!binding) return "not_found";
     if (input.bindingId !== undefined && input.bindingId !== binding.id) return "unauthorized";
     if (input.chatId !== undefined && input.chatId !== binding.chat_id) return "unauthorized";
+    if (input.topicId !== undefined && input.topicId !== (binding.topic_id ?? null)) return "unauthorized";
     if (input.agentId !== undefined && (binding.agent_id ?? null) !== (input.agentId ?? null)) {
       return "unauthorized";
     }

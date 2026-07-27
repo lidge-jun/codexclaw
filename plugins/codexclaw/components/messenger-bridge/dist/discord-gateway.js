@@ -77,6 +77,8 @@ export class DiscordGateway {
 
           ws                = null;
           heartbeatTimer                                        = null;
+          firstHeartbeatTimer                                       = null;
+          connectionGeneration = 0;
           seq                = null;
           sessionId                = null;
           resumeUrl                = null;
@@ -116,10 +118,15 @@ export class DiscordGateway {
     if (this.stopped) return;
     this.state = this.sessionId ? "resuming" : "connecting";
     const ws = this.makeWs(url);
+    const generation = ++this.connectionGeneration;
     this.ws = ws;
-    ws.addEventListener("message", (ev) => this.onWsMessage(ev));
-    ws.addEventListener("close", () => this.onWsClose());
-    ws.addEventListener("error", () => this.log("[discord] ws error"));
+    ws.addEventListener("message", (ev) => {
+      if (this.ws === ws && this.connectionGeneration === generation) this.onWsMessage(ev);
+    });
+    ws.addEventListener("close", () => this.onWsClose(ws, generation));
+    ws.addEventListener("error", () => {
+      if (this.ws === ws && this.connectionGeneration === generation) this.log("[discord] ws error");
+    });
     // A fresh socket is live; clear the guard set by reconnect().
     this.reconnecting = false;
   }
@@ -128,11 +135,16 @@ export class DiscordGateway {
     this.stopped = true;
     this.state = "stopped";
     this.clearHeartbeat();
+    this.connectionGeneration += 1;
     this.ws?.close(1000);
     this.ws = null;
   }
 
           clearHeartbeat()       {
+    if (this.firstHeartbeatTimer) {
+      clearTimeout(this.firstHeartbeatTimer);
+      this.firstHeartbeatTimer = null;
+    }
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
@@ -145,6 +157,11 @@ export class DiscordGateway {
 
           startHeartbeat(intervalMs        )       {
     this.clearHeartbeat();
+    if (!Number.isFinite(intervalMs) || intervalMs <= 0 || intervalMs > 3_600_000) {
+      this.log(`[discord] invalid heartbeat interval ${String(intervalMs)} — reconnecting`);
+      void this.reconnect();
+      return;
+    }
     this.acked = true;
     // First beat after a jittered fraction of the interval (per docs).
     const firstDelay = Math.floor(intervalMs * this.jitter());
@@ -158,12 +175,14 @@ export class DiscordGateway {
       this.acked = false;
       this.sendOp(OP.HEARTBEAT, this.seq);
     };
-    const first = setTimeout(() => {
+    this.firstHeartbeatTimer = setTimeout(() => {
+      this.firstHeartbeatTimer = null;
       beat();
+      if (this.stopped || this.reconnecting || !this.ws) return;
       this.heartbeatTimer = setInterval(beat, intervalMs);
       this.heartbeatTimer.unref?.();
     }, firstDelay);
-    first.unref?.();
+    this.firstHeartbeatTimer.unref?.();
   }
 
           identify()       {
@@ -211,7 +230,8 @@ export class DiscordGateway {
     this.connect(this.resumeUrl ?? GATEWAY_URL);
   }
 
-          onWsClose()       {
+          onWsClose(socket        , generation        )       {
+    if (this.ws !== socket || this.connectionGeneration !== generation) return;
     this.clearHeartbeat();
     if (this.stopped || this.reconnecting) return;
     this.log("[discord] ws closed — reconnecting");
@@ -269,9 +289,7 @@ export class DiscordGateway {
 
        ;
       this.sessionId = data.session_id;
-      this.resumeUrl = data.resume_gateway_url
-        ? `${data.resume_gateway_url}/?v=10&encoding=json`
-        : null;
+      this.resumeUrl = validateDiscordResumeUrl(data.resume_gateway_url);
       this.botId = typeof data.user?.id === "string" ? data.user.id : null;
       // READY application.id is the authoritative application id for slash-command registration.
       this.appId = typeof data.application?.id === "string" ? data.application.id : null;
@@ -327,5 +345,21 @@ export class DiscordGateway {
           })),
       });
     }
+  }
+}
+
+/** Accept only Discord-owned WSS resume endpoints before sending a bot token. */
+export function validateDiscordResumeUrl(raw                    )                {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    if (url.protocol !== "wss:" || url.username || url.password) return null;
+    if (host !== "gateway.discord.gg" && !host.endsWith(".discord.gg")) return null;
+    if (url.port && url.port !== "443") return null;
+    url.search = "?v=10&encoding=json";
+    return url.toString();
+  } catch {
+    return null;
   }
 }

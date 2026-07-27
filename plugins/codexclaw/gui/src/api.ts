@@ -89,14 +89,16 @@ const defaultMetrics = (): MetricsSnapshot => ({
   perAgent: {},
 });
 
-async function getJson<T>(path: string, fallback: T): Promise<T> {
+async function getJson<T>(path: string, fallback: T, signal?: AbortSignal): Promise<T> {
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       headers: { accept: "application/json", ...LOCAL_HEADER },
+      signal,
     });
     if (!res.ok) return fallback;
     return (await res.json()) as T;
-  } catch {
+  } catch (err) {
+    if (signal?.aborted) throw err;
     // No backend reachable (static build) -> safe default, no throw.
     return fallback;
   }
@@ -281,6 +283,7 @@ export type BridgeEvent =
   | { type: "rate_limit"; platform: string; retryAfterMs: number; ts: string }
   | { type: "reconnect"; platform: string; ts: string }
   | { type: "circuit_breaker"; platform: string; state: string; ts: string }
+  | { type: "log_dropped"; count: number; ts: string }
   | { type: "lifecycle"; payload: { action: "start" | "stop" | "reload"; detail?: string }; ts: string };
 
 export interface AgentPatchBody {
@@ -327,11 +330,11 @@ export const api = {
   // bridge
   getChannels: () =>
     getJson<ChannelsState>("/api/channels", { channels: [], activeKind: null, adapterStatus: "n/a" }),
-  getBindings: () => getJson<{ bindings: BindingRow[] }>("/api/bindings", { bindings: [] }),
-  getMetrics: () => getJson<MetricsSnapshot>("/api/metrics", defaultMetrics()),
-  getEvents: (n = 50) =>
-    getJson<{ events: BridgeEvent[] }>(`/api/events?n=${encodeURIComponent(String(n))}`, { events: [] }),
-  getAgentStatuses: () => getJson<{ statuses: AgentStatus[] }>("/api/agents/statuses", { statuses: [] }),
+  getBindings: (signal?: AbortSignal) => getJson<{ bindings: BindingRow[] }>("/api/bindings", { bindings: [] }, signal),
+  getMetrics: (signal?: AbortSignal) => getJson<MetricsSnapshot>("/api/metrics", defaultMetrics(), signal),
+  getEvents: (n = 50, signal?: AbortSignal) =>
+    getJson<{ events: BridgeEvent[] }>(`/api/events?n=${encodeURIComponent(String(n))}`, { events: [] }, signal),
+  getAgentStatuses: (signal?: AbortSignal) => getJson<{ statuses: AgentStatus[] }>("/api/agents/statuses", { statuses: [] }, signal),
   resetBinding: (id: number) =>
     postJson<{ ok: boolean; binding?: BindingRow; error?: string }>("/api/bindings/reset", { id }),
   setBindingCwd: (id: number, cwd: string) =>
@@ -351,7 +354,7 @@ export const api = {
     getJson<HandshakeStatus>(`/api/connect/handshake/status?kind=${kind}`, { open: false, pairedChatId: null }),
 
   // named agents (v4)
-  getAgents: () => getJson<{ agents: AgentInfo[] }>("/api/agents", { agents: [] }),
+  getAgents: (signal?: AbortSignal) => getJson<{ agents: AgentInfo[] }>("/api/agents", { agents: [] }, signal),
   createAgent: (name: string, kind: ChannelKind, token: string) =>
     postJson<{ ok: boolean; agent?: AgentInfo; username?: string | null; botId?: string | null; error?: string }>(
       "/api/agents",

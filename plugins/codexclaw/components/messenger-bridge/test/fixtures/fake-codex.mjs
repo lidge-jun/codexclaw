@@ -15,6 +15,7 @@
  *   fail      — emit turn.failed
  */
 import { createInterface } from "node:readline";
+import { spawn } from "node:child_process";
 
 const args = process.argv.slice(2);
 const mode = process.env.FAKE_CODEX_MODE ?? "ok";
@@ -51,6 +52,18 @@ async function main() {
 
   const stdinPrompt = await readStdin();
 
+  if (mode === "grandchild-pipe") {
+    const grandchild = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+      stdio: ["ignore", "inherit", "inherit"],
+    });
+    if (process.env.FAKE_CODEX_PID_FILE) {
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(process.env.FAKE_CODEX_PID_FILE, String(grandchild.pid));
+    }
+    grandchild.unref();
+    process.exit(0);
+  }
+
   // Resume argv shape: exec resume ...flags --json -- <SESSION_ID> <PROMPT>
   const sepIdx = args.indexOf("--");
   const threadId = isResume ? (args[sepIdx + 1] ?? "resumed-thread") : "thread-fresh-1";
@@ -78,10 +91,20 @@ async function main() {
   let reply = `reply to: ${promptSeen}`;
   if (process.env.FAKE_CODEX_ECHO_ARGS === "1") reply = `args: ${args.join(" ")}`;
   if (process.env.FAKE_CODEX_ECHO_CWD === "1") reply = `cwd: ${process.cwd()}`;
-  emit({
-    type: "item.completed",
-    item: { type: "agent_message", text: reply },
-  });
+  if (mode === "oversize-tool") {
+    await new Promise((resolve) => process.stdout.write(JSON.stringify({
+      type: "item.completed",
+      item: { id: "huge-tool", type: "tool_call", name: "huge", output: "x".repeat(9 * 1024 * 1024) },
+    }) + "\n", resolve));
+  }
+  if (mode === "oversize") {
+    await new Promise((resolve) => process.stdout.write(JSON.stringify({
+      type: "item.completed",
+      item: { type: "agent_message", text: "x".repeat(9 * 1024 * 1024) },
+    }) + "\n", resolve));
+  } else {
+    emit({ type: "item.completed", item: { type: "agent_message", text: reply } });
+  }
   emit({ type: "turn.completed", usage: { input_tokens: 10, output_tokens: 5 } });
   process.exit(0);
 }

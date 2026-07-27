@@ -142,6 +142,7 @@ export class DiscordApi {
   ): Promise<DiscordApiResult<{ id: string }>> {
     return this.call("POST", `/channels/${channelId}/messages`, {
       content,
+      allowed_mentions: { parse: [] },
       ...(options.suppressNotifications ? { flags: 4096 } : {}),
     });
   }
@@ -157,6 +158,7 @@ export class DiscordApi {
       content,
       embeds,
       components,
+      allowed_mentions: { parse: [] },
       ...(options.suppressNotifications ? { flags: 4096 } : {}),
     });
   }
@@ -175,7 +177,7 @@ export class DiscordApi {
   }
 
   createInteractionResponse(id: string, token: string, response: unknown): Promise<DiscordApiResult<unknown>> {
-    return this.call("POST", `/interactions/${id}/${token}/callback`, response);
+    return this.call("POST", `/interactions/${id}/${token}/callback`, disableInteractionMentions(response));
   }
 
   editOriginalInteractionResponse(
@@ -183,7 +185,7 @@ export class DiscordApi {
     token: string,
     data: unknown,
   ): Promise<DiscordApiResult<{ id: string }>> {
-    return this.call("PATCH", `/webhooks/${appId}/${token}/messages/@original`, data);
+    return this.call("PATCH", `/webhooks/${appId}/${token}/messages/@original`, disableMentions(data));
   }
 
   registerGlobalCommands(appId: string, commands: unknown[]): Promise<DiscordApiResult<unknown[]>> {
@@ -207,7 +209,11 @@ export class DiscordApi {
     message: { content: string; embeds?: DiscordEmbed[] },
     tags: string[] = [],
   ): Promise<DiscordApiResult<{ id: string; name: string }>> {
-    const body: Record<string, unknown> = { name, auto_archive_duration: 60, message };
+    const body: Record<string, unknown> = {
+      name,
+      auto_archive_duration: 60,
+      message: { ...message, allowed_mentions: { parse: [] } },
+    };
     if (tags.length > 0) body.applied_tags = tags;
     return this.call("POST", `/channels/${channelId}/threads`, body);
   }
@@ -230,7 +236,11 @@ export class DiscordApi {
     pushText(`--${boundary}\r\n`);
     pushText(`Content-Disposition: form-data; name="payload_json"\r\n`);
     pushText("Content-Type: application/json\r\n\r\n");
-    pushText(JSON.stringify({ content, attachments: files.map((file, id) => ({ id, filename: file.name })) }));
+    pushText(JSON.stringify({
+      content,
+      allowed_mentions: { parse: [] },
+      attachments: files.map((file, id) => ({ id, filename: file.name })),
+    }));
     pushText("\r\n");
 
     for (const [id, file] of files.entries()) {
@@ -259,7 +269,12 @@ export class DiscordApi {
     embeds?: DiscordEmbed[],
     components?: unknown[],
   ): Promise<DiscordApiResult<{ id: string }>> {
-    return this.call("PATCH", `/channels/${channelId}/messages/${messageId}`, { content, embeds, components });
+    return this.call("PATCH", `/channels/${channelId}/messages/${messageId}`, {
+      content,
+      embeds,
+      components,
+      allowed_mentions: { parse: [] },
+    });
   }
 
   createReaction(
@@ -300,6 +315,19 @@ export class DiscordApi {
       options?.signal,
     );
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function disableMentions(value: unknown): unknown {
+  return isRecord(value) ? { ...value, allowed_mentions: { parse: [] } } : value;
+}
+
+function disableInteractionMentions(value: unknown): unknown {
+  if (!isRecord(value) || !isRecord(value.data)) return value;
+  return { ...value, data: disableMentions(value.data) };
 }
 
 function escapeMultipartName(name: string): string {

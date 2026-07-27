@@ -30,7 +30,7 @@ import {
 import { registerGlobalCommands as registerDiscordCommands } from "./discord-commands.ts";
 import { handleInteraction, type Interaction } from "./discord-interactions.ts";
 import { buildHelpEntries, dispatchGatewayCommand } from "./gateway-commands.ts";
-import { cleanupTmpMedia, downloadDiscordAttachment } from "./media-handler.ts";
+import { cleanupTmpMedia, downloadDiscordAttachment, MediaCapacityError, withMediaDownloadSlot } from "./media-handler.ts";
 import { sendFormattedDiscordOutput, type DiscordOutputResult } from "./output-formatter.ts";
 import { progressEmbed } from "./discord-interaction-progress.ts";
 import { createToolProgressPolicy, DEFAULT_TOOL_PROGRESS, type ToolProgressMode } from "./tool-progress.ts";
@@ -390,9 +390,11 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
   }
 
   async function downloadAttachmentPrefixes(msg: DiscordMessageEvent): Promise<{ prefixes: string[]; tempDirs: string[] }> {
+    if (msg.attachments.length === 0) return { prefixes: [], tempDirs: [] };
+    return withMediaDownloadSlot(async () => {
     const prefixes: string[] = [];
     const tempDirs: string[] = [];
-    for (const attachment of msg.attachments) {
+    for (const attachment of msg.attachments.slice(0, 4)) {
       try {
         const downloaded = await downloadDiscordAttachment(attachment, { fetchImpl: opts.fetchImpl });
         tempDirs.push(downloaded.tempDir);
@@ -402,6 +404,7 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
       }
     }
     return { prefixes, tempDirs };
+    });
   }
 
   function createProgressWindow(channelId: string, mode: ToolProgressMode) {
@@ -491,7 +494,16 @@ export function createDiscordAdapter(opts: DiscordAdapterOptions): DiscordAdapte
     let reactions: ReturnType<typeof createReactionLifecycle> | null = null;
     let terminalSuccess = false;
     try {
-      const media = await downloadAttachmentPrefixes(msg);
+      let media: { prefixes: string[]; tempDirs: string[] };
+      try {
+        media = await downloadAttachmentPrefixes(msg);
+      } catch (err) {
+        if (err instanceof MediaCapacityError) {
+          await api.sendMessage(channelId, "codexclaw: attachment downloads are busy; retry shortly.");
+          return;
+        }
+        throw err;
+      }
       mediaTempDirs = media.tempDirs;
       text = [media.prefixes.join("\n"), text.trim()].filter(Boolean).join("\n");
       if (!text.trim()) return;

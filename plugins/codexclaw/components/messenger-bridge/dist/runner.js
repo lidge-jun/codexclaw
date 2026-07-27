@@ -16,7 +16,6 @@
  * no rollout found for thread id <id>".
  */
 import { spawn,                   } from "node:child_process";
-import { createInterface } from "node:readline";
 
 
 
@@ -61,6 +60,9 @@ import { createInterface } from "node:readline";
 
 const DEFAULT_TIMEOUT_MS = 600_000;
 const SIGKILL_GRACE_MS = 3_000;
+export const MAX_RUNNER_OUTPUT_BYTES = 8 * 1024 * 1024;
+export const MAX_EXEC_EVENT_LINE_BYTES = 8 * 1024 * 1024;
+const OUTPUT_TRUNCATED = "\n\n[codexclaw: output truncated at 8 MiB to protect bridge memory]";
 // Missing-rollout / bad-session-id signatures for the resume re-seed fallback.
 const RESUME_LOST_RE = /no rollout found|thread\/resume failed|no such (thread|session)|not found/i;
 
@@ -121,7 +123,7 @@ export function parseExecEvent(line        )                     {
     const itemType = item?.type                      ;
     if (itemType === "reasoning" || itemType === "reasoning_summary" || itemType === "thinking") {
       const text = firstString(item, ["text", "summary", "content", "reasoning"]);
-      if (text?.trim()) return { kind: "thinking", text };
+      if (text?.trim()) return { kind: "thinking", text: singleLine(text, 4_000) };
       return null;
     }
     if (itemType === "tool_call" || itemType === "mcp_tool_call") {
@@ -129,7 +131,7 @@ export function parseExecEvent(line        )                     {
       const server = firstString(item, ["server"]);
       const tool = firstString(item, ["name", "tool_name", "server_tool_name", "tool", "command"]);
       const name = server && tool ? `${server}.${tool}` : (tool ?? itemType);
-      const input = stringifyCompact(item.input ?? item.arguments ?? item.args ?? item.params ?? "");
+      const input = singleLine(stringifyCompact(item.input ?? item.arguments ?? item.args ?? item.params ?? ""), 4_000);
       const callId = firstString(item, ["id", "call_id", "callId"]);
       if (!callId) return null;
       const completion = phase === "completed" ? completionDetails(item) : {};
@@ -191,7 +193,7 @@ export function parseExecEvent(line        )                     {
     } catch {
       /* raw string is fine */
     }
-    return { kind: "fail", message: msg };
+    return { kind: "fail", message: singleLine(msg, 2_000) };
   }
   return null;
 }
@@ -259,14 +261,60 @@ function fileChangeAction(raw        )                                 {
 }
 
 export function terminateChild(child              )       {
-  if (child.exitCode !== null || child.signalCode !== null) return;
-  child.kill("SIGTERM");
+  // `exit` does not imply the process group is gone: a grandchild can retain an
+  // inherited stdout/stderr descriptor and prevent Node's `close` event. Always
+  // signal the detached group while the runner still owns this ChildProcess.
+  signalProcessTree(child, "SIGTERM");
   if (process.platform !== "win32") {
     const timer = setTimeout(() => {
-      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+      signalProcessTree(child, "SIGKILL");
     }, SIGKILL_GRACE_MS);
     timer.unref?.();
   }
+}
+
+/** Bound the durable reply string while preserving all ordinary-size output. */
+export function appendBoundedOutput(current        , next        )                                       {
+  const separator = current ? "\n" : "";
+  const candidate = `${current}${separator}${next}`;
+  const candidateBytes = Buffer.byteLength(candidate);
+  if (candidateBytes <= MAX_RUNNER_OUTPUT_BYTES) {
+    return { text: candidate, truncated: false };
+  }
+  return { text: withTruncationMarker(candidate), truncated: true };
+}
+
+function withTruncationMarker(candidate        )         {
+  // Reserve the marker before clipping the combined payload. TextDecoder's
+  // fatal mode backs off at most three bytes so a split multi-byte code point
+  // never introduces a replacement character.
+  const budget = Math.max(0, MAX_RUNNER_OUTPUT_BYTES - Buffer.byteLength(OUTPUT_TRUNCATED));
+  const bytes = Buffer.from(candidate);
+  let end = Math.min(bytes.length, budget);
+  let clipped = "";
+  while (end >= 0) {
+    try {
+      clipped = new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, end));
+      break;
+    } catch {
+      end -= 1;
+    }
+  }
+  return `${clipped}${OUTPUT_TRUNCATED}`;
+}
+
+function signalProcessTree(child              , signal                )       {
+  if (process.platform !== "win32" && child.pid) {
+    try {
+      // POSIX children are spawned into their own process group below, so a
+      // negative PID reaches grandchildren such as shell/MCP helpers too.
+      process.kill(-child.pid, signal);
+      return;
+    } catch {
+      // Race with process exit or a platform without group signalling.
+    }
+  }
+  child.kill(signal);
 }
 
 
@@ -289,11 +337,14 @@ function spawnOnce(argv          , opts                , stdinPrompt            
     const child = spawn(isScript ? process.execPath : bin, isScript ? [bin, ...argv] : argv, {
       cwd: opts.workdir,
       stdio: ["pipe", "pipe", "pipe"],
+      detached: process.platform !== "win32",
     });
     const unregister = opts.register?.(child);
 
     let threadId                = null;
     let text = "";
+    let outputTruncated = false;
+    let sawOversizedEvent = false;
     let usage                                = null;
     let failMsg                = null;
     let sawDone = false;
@@ -318,16 +369,25 @@ function spawnOnce(argv          , opts                , stdinPrompt            
       child.once("spawn", () => child.stdin?.end());
     }
 
-    const rl = createInterface({ input: child.stdout  });
-    rl.on("line", (line) => {
+    const handleLine = (line        ) => {
       const event = parseExecEvent(line);
       if (!event) return;
+      let streamedEvent                     = event;
       switch (event.kind) {
         case "thread":
           threadId = event.threadId;
           break;
         case "message":
-          text += (text ? "\n" : "") + event.text;
+          if (!outputTruncated) {
+            const appended = appendBoundedOutput(text, event.text);
+            text = appended.text;
+            outputTruncated = appended.truncated;
+            if (appended.truncated) {
+              streamedEvent = { kind: "message", text: "[codexclaw: output truncated at 8 MiB]" };
+            }
+          } else {
+            streamedEvent = null;
+          }
           break;
         case "done":
           usage = event.usage;
@@ -342,9 +402,47 @@ function spawnOnce(argv          , opts                , stdinPrompt            
         case "file_change":
           break;
       }
-      opts.onEvent?.(event);
+      if (streamedEvent) opts.onEvent?.(streamedEvent);
+    };
+
+    // readline materializes an entire line before emitting it. Codex JSONL can
+    // contain a whole model response in one line, so frame bytes ourselves and
+    // discard an oversized record without ever retaining more than the cap.
+    let lineParts           = [];
+    let lineBytes = 0;
+    let discardingLine = false;
+    const markOversizedLine = () => {
+      sawOversizedEvent = true;
+      opts.onEvent?.({ kind: "status", label: "oversized Codex event discarded" });
+    };
+    const finishLine = () => {
+      if (!discardingLine && lineBytes > 0) handleLine(Buffer.concat(lineParts, lineBytes).toString("utf8"));
+      lineParts = [];
+      lineBytes = 0;
+      discardingLine = false;
+    };
+    child.stdout?.on("data", (chunk        ) => {
+      let offset = 0;
+      for (;;) {
+        const newline = chunk.indexOf(0x0a, offset);
+        const end = newline === -1 ? chunk.length : newline;
+        const segment = chunk.subarray(offset, end);
+        if (!discardingLine && lineBytes + segment.length <= MAX_EXEC_EVENT_LINE_BYTES) {
+          if (segment.length > 0) lineParts.push(Buffer.from(segment));
+          lineBytes += segment.length;
+        } else if (!discardingLine) {
+          lineParts = [];
+          lineBytes = 0;
+          discardingLine = true;
+          markOversizedLine();
+        }
+        if (newline === -1) break;
+        finishLine();
+        offset = newline + 1;
+      }
     });
-    rl.on("error", () => {});
+    child.stdout?.on("end", finishLine);
+    child.stdout?.on("error", () => {});
 
     child.stderr?.on("data", (chunk        ) => {
       stderr += chunk.toString();
@@ -363,6 +461,11 @@ function spawnOnce(argv          , opts                , stdinPrompt            
       finish({ ok: false, threadId, text, usage, error: err.message });
     });
     child.on("close", (code) => {
+      if (sawOversizedEvent) {
+        const noted = appendBoundedOutput(text, "[codexclaw: oversized Codex event discarded]");
+        text = noted.text;
+        outputTruncated ||= noted.truncated;
+      }
       if (timedOut) {
         finish({ ok: false, threadId, text, usage, error: `timed out after ${timeoutMs}ms` });
         return;

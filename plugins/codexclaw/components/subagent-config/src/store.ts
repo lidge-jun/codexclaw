@@ -7,8 +7,10 @@
  * atomic (temp + rename). NEVER mutates global Codex config; default mode needs
  * no ocx (uses the main Codex model).
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync, rmSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 export const STATE_DIR = ".codexclaw";
 export const STORE_FILE = "subagents.json";
@@ -122,11 +124,11 @@ export function validateRolePatch(patch: Partial<RoleConfig>): string | null {
 /** Atomic write: temp file then rename. Creates .codexclaw/ if needed. */
 export function writeConfig(cwd: string, config: SubagentsConfig): void {
   const dir = join(cwd, STATE_DIR);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
   const path = storePath(cwd);
   const tmp = `${path}.tmp`;
   try {
-    writeFileSync(tmp, `${JSON.stringify(config, null, 2)}\n`);
+    writeFileSync(tmp, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
     renameSync(tmp, path);
   } catch (err) {
     try {
@@ -166,10 +168,68 @@ export interface SpawnResolution {
   /** reasoning-effort override, or null to inherit the parent session's effort. */
   effort: EffortName | null;
   promptOverride: string | null;
+  /** Why a repository-provided config was ignored, if applicable. */
+  trustWarning?: string;
+}
+
+/** True only when Git says the project-local config is part of the checkout. */
+export function isTrackedProjectConfig(cwd: string): boolean {
+  try {
+    return spawnSync(
+      "git",
+      ["-C", cwd, "ls-files", "--error-unmatch", "--", `${STATE_DIR}/${STORE_FILE}`],
+      { stdio: "ignore", timeout: 1_500 },
+    ).status === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Review token bound to both the canonical repository root and the exact config
+ * bytes. A global boolean leaked trust to every later cwd in the same shell.
+ */
+export function projectConfigTrustToken(cwd: string): string | null {
+  try {
+    const configPath = realpathSync(storePath(cwd));
+    const rootResult = spawnSync("git", ["-C", cwd, "rev-parse", "--show-toplevel"], {
+      encoding: "utf8",
+      timeout: 1_500,
+    });
+    const rawRoot = rootResult.status === 0 ? rootResult.stdout.trim() : cwd;
+    const root = realpathSync(resolve(rawRoot));
+    const digest = createHash("sha256")
+      .update(root)
+      .update("\0")
+      .update(configPath)
+      .update("\0")
+      .update(readFileSync(configPath))
+      .digest("hex");
+    return `sha256:${digest}`;
+  } catch {
+    return null;
+  }
 }
 
 /** Resolve how a role should be spawned given the current config. */
-export function resolveSpawnConfig(cwd: string, role: RoleName): SpawnResolution {
+export function resolveSpawnConfig(
+  cwd: string,
+  role: RoleName,
+  env: NodeJS.ProcessEnv = process.env,
+): SpawnResolution {
+  const tracked = isTrackedProjectConfig(cwd);
+  const expectedTrust = tracked ? projectConfigTrustToken(cwd) : null;
+  if (tracked && (expectedTrust === null || env.CODEXCLAW_TRUST_PROJECT_SUBAGENTS !== expectedTrust)) {
+    return {
+      role,
+      model: null,
+      usesMainModel: true,
+      effort: null,
+      promptOverride: null,
+      trustWarning:
+        "ignored Git-tracked .codexclaw/subagents.json; review it, then run `cxc subagents trust-token` and export the printed project-bound value",
+    };
+  }
   const cfg = readConfig(cwd).roles[role];
   const usesMainModel = cfg.mode === "default";
   return {

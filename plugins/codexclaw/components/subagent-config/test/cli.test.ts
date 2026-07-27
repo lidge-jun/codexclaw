@@ -81,3 +81,13 @@ test("run: store validation error surfaces as a non-zero exit", () => {
   assert.equal(res.code, 1);
   assert.match(res.output, /requires a non-empty model id/);
 });
+
+test("run: trust-token prints a config-and-project-bound export", () => {
+  const cwd = tmp();
+  runSubagents(parseSubagentsArgs(["set", "reviewer", "--prompt", "review carefully"]), cwd);
+  const parsed = parseSubagentsArgs(["trust-token"]);
+  assert.equal(parsed.action, "trust-token");
+  const result = runSubagents(parsed, cwd);
+  assert.equal(result.code, 0);
+  assert.match(result.output, /^export CODEXCLAW_TRUST_PROJECT_SUBAGENTS='sha256:[a-f0-9]{64}'$/);
+});

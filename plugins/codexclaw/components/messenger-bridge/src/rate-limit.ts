@@ -39,20 +39,32 @@
  }
  
  /** Async sleep that respects an AbortSignal. */
- export function rateLimitSleep(ms: number, signal?: AbortSignal): Promise<void> {
-   return new Promise((resolve, reject) => {
+export function rateLimitSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
      if (signal?.aborted) {
        reject(new Error("aborted"));
        return;
      }
-     const timer = setTimeout(resolve, ms);
-     (timer as { unref?: () => void }).unref?.();
-     signal?.addEventListener("abort", () => {
-       clearTimeout(timer);
-       reject(new Error("aborted"));
-     }, { once: true });
-   });
- }
+    let settled = false;
+    const cleanup = (): void => signal?.removeEventListener("abort", onAbort);
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+    const onAbort = (): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      cleanup();
+      reject(new Error("aborted"));
+    };
+    const timer = setTimeout(finish, ms);
+    (timer as { unref?: () => void }).unref?.();
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
  
  export type CircuitState = "closed" | "open" | "half-open";
  

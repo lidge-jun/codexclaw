@@ -4,6 +4,7 @@ import { Button, EmptyState, Field, Loading, Modal, StatusDot } from "../ui/kit.
 import { Icon } from "../ui/icons.tsx";
 import { toast } from "../ui/toast.tsx";
 import { HelpDrawer, HelpTopicButton, useHelp } from "../ui/help.tsx";
+import { usePolling } from "../usePolling.ts";
 
 function statusDot(status: string): "ok" | "warn" | "off" | "err" {
   if (status === "idle") return "ok";
@@ -38,16 +39,12 @@ export function SessionsPage() {
   const [jobsFor, setJobsFor] = useState<BindingRow | null>(null);
   const { helpOpen, helpTopic, openHelp, closeHelp } = useHelp("sessions");
 
-  const refresh = async () => {
-    const res = await api.getBindings();
+  const refresh = async (signal?: AbortSignal) => {
+    const res = await api.getBindings(signal);
     setBindings(res.bindings);
   };
 
-  useEffect(() => {
-    void refresh();
-    const t = setInterval(() => void refresh(), 5000);
-    return () => clearInterval(t);
-  }, []);
+  usePolling((signal) => refresh(signal), 5000);
 
   return (
     <>
