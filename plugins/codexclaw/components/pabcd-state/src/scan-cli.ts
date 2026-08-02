@@ -277,6 +277,11 @@ export function runScanCli(args: ScanCliArgs): { output: string; code: number } 
     });
     let dimensions = tracker.dimensions;
     let derivedCount = 0;
+    // Only dimensions this invocation actually modified get their level
+    // recomputed. Recomputing ALL of them would silently revert a prior
+    // `--dim` assertion on the next unrelated `scan record`, because `--dim`
+    // writes `level` without writing any known/unknown to justify it.
+    const touched = new Set<Dimension>();
     if (args.derive) {
       const before = dimensions;
       dimensions = deriveFromLedger(args.cwd, args.sessionId, args.map ?? {}, dimensions);
@@ -286,20 +291,24 @@ export function runScanCli(args: ScanCliArgs): { output: string; code: number } 
           dimensions[d].unknown.length !== before[d].unknown.length;
         if (!moved) continue;
         derivedCount += 1;
+        touched.add(d);
       }
     }
     for (const entry of args.known ?? []) {
       const score = dimensions[entry.dimension];
       dimensions = { ...dimensions, [entry.dimension]: { ...score, known: capKeepFirst(pushUnique(score.known, entry.text)) } };
+      touched.add(entry.dimension);
     }
     for (const entry of args.unknown ?? []) {
       const score = dimensions[entry.dimension];
       dimensions = { ...dimensions, [entry.dimension]: { ...score, unknown: capKeepFirst(pushUnique(score.unknown, entry.text)) } };
+      touched.add(entry.dimension);
     }
-    // Recompute every touched level from coverage AFTER the manual entries land,
+    // Recompute the touched levels from coverage AFTER the manual entries land,
     // so `--known` alone cannot leave a dimension claiming "low" (nothing known)
-    // while holding a fact. Explicit `--dim` still wins below.
-    for (const d of DIMENSIONS) {
+    // while holding a fact. Explicit `--dim` still wins below, and untouched
+    // dimensions keep whatever level a previous invocation asserted.
+    for (const d of touched) {
       const derivedLvl = deriveLevel(dimensions[d]);
       if (dimensions[d].level !== derivedLvl && dimensions[d].level !== "max") {
         dimensions = { ...dimensions, [d]: { ...dimensions[d], level: derivedLvl } };

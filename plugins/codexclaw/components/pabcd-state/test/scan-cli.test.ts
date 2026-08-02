@@ -434,3 +434,28 @@ test("scan record: --known alone still moves the level off low", () => {
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test("scan record: a --dim assertion survives later unrelated scans", () => {
+  const cwd = freshCwd();
+  try {
+    run(cwd, ["record", "--session", "s-persist", "--dim", "goal=high", "--dim", "constraint=mid"]);
+    let dims = readState(cwd, "s-persist").interview?.dimensions;
+    assert.equal(dims?.goal.level, "high");
+    assert.equal(dims?.constraint.level, "mid");
+
+    // A routine scan round -- the command's original purpose -- must not wipe an
+    // operator assertion just because it recomputes coverage.
+    run(cwd, ["record", "--session", "s-persist", "--contradictions", "2", "--high", "1"]);
+    dims = readState(cwd, "s-persist").interview?.dimensions;
+    assert.equal(dims?.goal.level, "high", "an untouched dimension keeps its asserted level");
+    assert.equal(dims?.constraint.level, "mid");
+
+    // Touching a DIFFERENT dimension must also leave the assertions alone.
+    run(cwd, ["record", "--session", "s-persist", "--known", "ontology=an entity"]);
+    dims = readState(cwd, "s-persist").interview?.dimensions;
+    assert.equal(dims?.goal.level, "high");
+    assert.equal(dims?.ontology.level, "high", "the touched dimension is recomputed");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
