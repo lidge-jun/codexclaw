@@ -169,6 +169,47 @@ test("WP4: the directive still fits the injection budget", () => {
   assert.ok(d.length < 8000, `interview directive grew to ${d.length} chars`);
 });
 
+// The three tests above call interviewDirective() directly, so they prove the
+// directive's CONTENTS but not its DELIVERY. A reviewer demonstrated the gap by
+// mutation: swapping interviewDirective() for phaseDirective("I") at the
+// injection sites severed the grounding block from the hook output and the whole
+// suite stayed green, because the generic /INTERVIEW/ assertion still matched.
+// These assert the grounding rules on actual hook STDOUT, so the wiring cannot be
+// cut silently -- the exact failure QUESTION_SHAPE_DIRECTIVE has been living for
+// months.
+
+function groundingContext(out: string): string {
+  assert.notEqual(out, "", "hook emitted nothing");
+  return JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
+}
+
+test("WP4 delivery: the passive I-phase injection carries the grounding rules", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("gr1"), phase: "I", orchestrationActive: true, lastInjectedPhase: "P" });
+    const ctx = groundingContext(handleUserPromptSubmit(ups("continue", cwd, "gr1", "t-gr1")));
+    assert.match(ctx, /INTERVIEW-GROUND-01/, "grounding rule must reach the model");
+    assert.match(ctx, /cxc scan record[^\n]*--derive/, "the deriver command must reach the model");
+    assert.match(ctx, /INTERVIEW-RENDER-01/);
+    assert.match(ctx, /INTERVIEW-INDEPENDENT-01/);
+    assert.match(ctx, /Mind dispatch/i, "the Mind contract must still ride along");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("WP4 delivery: the explicit I trigger carries the grounding rules", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("gr2"), phase: "IDLE" });
+    const ctx = groundingContext(handleUserPromptSubmit(ups("interview me about this", cwd, "gr2", "t-gr2")));
+    assert.match(ctx, /INTERVIEW-GROUND-01/);
+    assert.match(ctx, /--map/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test("hybrid mode 2: active + phase changed -> full directive for new phase", () => {
   const cwd = freshCwd();
   try {

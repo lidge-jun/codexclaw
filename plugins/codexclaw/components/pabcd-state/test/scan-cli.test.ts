@@ -459,3 +459,32 @@ test("scan record: a --dim assertion survives later unrelated scans", () => {
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test("scan record: --derive without --map warns instead of reporting a silent no-op", () => {
+  const cwd = freshCwd();
+  try {
+    captureInterviewAnswers({
+      cwd, sessionId: "s-warn", turnId: "t1",
+      toolInput: { questions: [{ id: "q1", question: "Q?" }] },
+      toolResponse: { answers: { q1: { answers: ["A"] } } },
+    });
+    // Every question is skipped when unmapped, so this writes an empty tracker.
+    // Exiting 0 with no signal is the original blank-slate bug wearing a passing
+    // command; the operator has to be told.
+    const noMap = run(cwd, ["record", "--session", "s-warn", "--derive"]);
+    assert.equal(noMap.code, 0);
+    assert.match(noMap.output, /derived=0/);
+    assert.match(noMap.output, /WARNING: no --map given/);
+
+    // A map that matches nothing is a different mistake and says so.
+    const wrongMap = run(cwd, ["record", "--session", "s-warn", "--derive", "--map", "nonexistent=goal"]);
+    assert.match(wrongMap.output, /WARNING: nothing matched/);
+
+    // A correct map stays quiet.
+    const ok = run(cwd, ["record", "--session", "s-warn", "--derive", "--map", "q1=goal"]);
+    assert.match(ok.output, /derived=1/);
+    assert.doesNotMatch(ok.output, /WARNING/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

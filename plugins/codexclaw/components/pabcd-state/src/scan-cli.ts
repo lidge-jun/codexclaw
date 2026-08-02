@@ -330,7 +330,20 @@ export function runScanCli(args: ScanCliArgs): { output: string; code: number } 
       lastScanRoundId: roundId,
     };
     writeState(args.cwd, { ...state, interview: nextTracker });
-    const derived = args.derive ? `, derived=${derivedCount} dimension(s) from the answer ledger` : "";
+    // A `--derive` with no `--map` skips every question and silently writes an
+    // empty tracker -- the original blank-slate bug wearing a passing exit code.
+    // Say so out loud rather than reporting success.
+    const mapped = Object.keys(args.map ?? {}).length;
+    let derived = "";
+    if (args.derive) {
+      derived = `, derived=${derivedCount} dimension(s) from the answer ledger`;
+      if (derivedCount === 0) {
+        derived +=
+          mapped === 0
+            ? " — WARNING: no --map given, so every question was skipped and the tracker stays empty."
+            : " — WARNING: nothing matched; check that --map ids match the ledger's questionIds.";
+      }
+    }
     return {
       output: `scan record: round ${roundId} recorded for session ${args.sessionId} (contradictions=${args.contradictionCount}, high=${args.highContradictionCount}${derived})`,
       code: 0,
