@@ -63,9 +63,43 @@ function asRecord(v: unknown): Record<string, unknown> | undefined {
   if (typeof v === "string") {
     try {
       const parsed: unknown = JSON.parse(v);
-      return isRecord(parsed) ? parsed : undefined;
+      // Double-encoded payloads were observed in the wild: JSON.parse once
+      // yields another JSON string. Recurse rather than dropping the round.
+      return isRecord(parsed) ? parsed : typeof parsed === "string" ? asRecord(parsed) : firstRecord(parsed);
     } catch {
       return undefined;
+    }
+  }
+  // Content-block transports hand over an array of parts; the payload is the
+  // first element that is (or decodes to) an object.
+  if (Array.isArray(v)) return firstRecord(v);
+  return undefined;
+}
+
+/**
+ * Content-block arrays (`custom_tool_call_output` style) wrap the real payload
+ * in `[{ type: "input_text", text: "<json>" }, ...]`. Return the first element
+ * that is, or decodes to, a record — checking a `text`/`output` field before
+ * giving up. Bounded to the first few entries so a hostile array cannot make
+ * this walk forever.
+ */
+function firstRecord(v: unknown): Record<string, unknown> | undefined {
+  if (!Array.isArray(v)) return undefined;
+  for (const part of v.slice(0, 8)) {
+    if (isRecord(part)) {
+      if (isRecord(part.answers) || Array.isArray(part.questions)) return part;
+      for (const key of ["text", "output", "content"]) {
+        const inner = part[key];
+        if (typeof inner === "string") {
+          const decoded = asRecord(inner);
+          if (decoded) return decoded;
+        }
+      }
+      return part;
+    }
+    if (typeof part === "string") {
+      const decoded = asRecord(part);
+      if (decoded) return decoded;
     }
   }
   return undefined;
@@ -139,9 +173,25 @@ export function parseQuestions(toolInput: unknown): ParsedQuestion[] {
 /** Parse request_user_input tool_response -> answers by question id. Total. */
 export function parseAnswers(toolResponse: unknown): Record<string, string[]> {
   const resp = asRecord(toolResponse);
-  if (!resp || !isRecord(resp.answers)) return {};
-  const out: Record<string, string[]> = {};
-  for (const [qid, val] of Object.entries(resp.answers)) {
+  // Some transports nest the real body under `output`/`text` (a string or an
+  // already-decoded record) instead of exposing `answers` at the top level.
+  const body = isRecord(resp?.answers)
+    ? resp
+    : (() => {
+        for (const key of ["output", "text", "content", "result"]) {
+          const inner = resp?.[key];
+          const decoded = typeof inner === "string" || Array.isArray(inner) || isRecord(inner) ? asRecord(inner) : undefined;
+          if (decoded && isRecord(decoded.answers)) return decoded;
+        }
+        return undefined;
+      })();
+  if (!body || !isRecord(body.answers)) return {};
+  // Object.create(null): a question id of `__proto__` would otherwise replace
+  // this map's prototype instead of creating an own key, letting a crafted id
+  // surface as a forged answer on an unrelated lookup.
+  const out: Record<string, string[]> = Object.create(null) as Record<string, string[]>;
+  for (const [qid, val] of Object.entries(body.answers)) {
+    if (qid === "__proto__" || qid === "constructor" || qid === "prototype") continue;
     if (isRecord(val) && Array.isArray(val.answers)) {
       out[qid] = val.answers.filter((a): a is string => typeof a === "string");
     }

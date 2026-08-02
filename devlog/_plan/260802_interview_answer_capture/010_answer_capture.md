@@ -132,15 +132,21 @@ already exist. The `tool_input` coercion is different in kind: today a string
 sessions that currently have no ledger will start getting one. Two consequences:
 
 1. `readQaEvents` returns data for sessions that previously returned nothing.
-2. `handlePostToolUse` (`hook.ts:1152-1165`) can now emit
-   `RESCAN_REINJECT_DIRECTIVE` on turns that previously stayed silent — a new
-   injection path into live model context. Note `captureInterviewAnswers` runs
-   BEFORE the goal-firewall check (`hook.ts:1142` vs `:1157-1160`), so capture
-   still happens under an active goal even though the tool itself was denied.
+2. ~~`handlePostToolUse` can now emit `RESCAN_REINJECT_DIRECTIVE` on turns that
+   previously stayed silent.~~ **Retracted (audit round 2).** The reviewer ran
+   `handlePostToolUse` against both pre- and post-fix builds and the directive
+   was emitted in ALL cases, including on garbage input: the reinjection at
+   `hook.ts:1157-1165` depends only on goal status and `phase === "I"`, never on
+   whether capture wrote anything. This commit adds no injection path. The
+   original risk statement was wrong in the author's favor.
 
-Neither is harmful — both are the intended behavior finally working — but they
-are behavior changes, not a silent widening, and the B-phase should watch for
-unexpected reinjection volume.
+On ordering: `captureInterviewAnswers` runs BEFORE the goal-firewall check
+(`hook.ts:1142` vs `:1153`). That is deliberate and correct — PreToolUse denies
+the tool outright under an active goal, so nothing reaches here anyway, and
+recording an answer that genuinely happened is the intended behavior.
+
+Growth is bounded by real user answers. A 5MB answer writes a 5MB ledger, but
+that requires a user to type 5MB.
 
 Per `004_wire_capture.md`, the coercion is a WIDENING: it accepts both shapes, so
 it is a no-op wherever the wire is already an object. It cannot be wrong; it can

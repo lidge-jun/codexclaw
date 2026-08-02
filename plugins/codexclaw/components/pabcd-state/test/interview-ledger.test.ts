@@ -135,6 +135,58 @@ test("malformed string payloads stay total and record nothing", () => {
   assert.equal(res.written.length, 0);
 });
 
+// 260802 wp2, audit round 2 — the reviewer showed the JSON-string hypothesis is
+// one member of an equivalence class: SEVEN distinct tool_response shapes all
+// reproduce the 222/0 signature. Handle every recoverable member, since we
+// still have no direct observation of the hook wire (A-WIRE-01).
+
+test("parseAnswers decodes every recoverable transport shape", () => {
+  const body = { answers: { q_scope: { answers: ["adaptive 1-N"] } } };
+  const expect = (v: unknown, label: string) =>
+    assert.deepEqual(parseAnswers(v).q_scope, ["adaptive 1-N"], label);
+
+  expect(body, "plain object");
+  expect(JSON.stringify(body), "json string");
+  expect(JSON.stringify(JSON.stringify(body)), "double-encoded string");
+  expect([body], "array of one object");
+  expect([{ type: "input_text", text: JSON.stringify(body) }], "content blocks");
+  expect({ output: JSON.stringify(body) }, "nested under output");
+  expect({ text: body }, "nested under text as object");
+});
+
+test("unrecoverable shapes still degrade to empty", () => {
+  for (const bad of [undefined, null, 42, true, "plain prose, not json", [], [null], {}]) {
+    assert.deepEqual(parseAnswers(bad), {});
+  }
+});
+
+test("a __proto__ question id cannot forge an answer", () => {
+  const hostile = '{"answers":{"__proto__":{"answers":["pwn"]},"q_real":{"answers":["ok"]}}}';
+  const out = parseAnswers(hostile);
+  assert.deepEqual(out.q_real, ["ok"], "legitimate answer still parses");
+  // Before the guard, out["__proto__"] = [...] replaced the map's prototype, so
+  // an unrelated lookup could surface the attacker's array as a real answer.
+  assert.equal(Object.getPrototypeOf(out), null, "prototype must not be replaced");
+  assert.equal(out.anything_else, undefined, "no forged answer leaks through lookup");
+  assert.deepEqual(Object.getOwnPropertyNames({}), [], "global Object.prototype untouched");
+});
+
+test("goal-firewall capture also holds for string payloads", () => {
+  // Mirror of the object-shaped firewall case: capture is a pure recorder and
+  // must behave identically regardless of payload transport (audit C-5).
+  const cwd = tmp();
+  const res = captureInterviewAnswers({
+    cwd,
+    sessionId: "sess-fw-str",
+    turnId: "turn-1",
+    toolInput: JSON.stringify(TOOL_INPUT),
+    toolResponse: JSON.stringify(TOOL_RESPONSE),
+  });
+  assert.equal(res.written.length, 4);
+  const events = readQaEvents(cwd, "sess-fw-str");
+  assert.equal(events.filter((e) => e.event === "answer_recorded").length, 2);
+});
+
 test("captureInterviewAnswers is idempotent for the same (turn,question,kind)", () => {
   const cwd = tmp();
   const first = captureInterviewAnswers({ cwd, sessionId: "s", turnId: "t1", toolInput: TOOL_INPUT, toolResponse: TOOL_RESPONSE });

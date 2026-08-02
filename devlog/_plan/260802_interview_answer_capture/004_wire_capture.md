@@ -29,7 +29,7 @@ tool_response: obj.tool_response,
 
 So whatever the host writes to stdin is exactly what the parsers see.
 
-## Deductive proof of the asymmetry
+## The asymmetry (and the limit of what it proves)
 
 Even without a live capture, the ledger constrains the answer to exactly one
 possibility. From the observed behavior of the built CLI:
@@ -41,13 +41,35 @@ possibility. From the observed behavior of the built CLI:
 | string in, object out | no | no |
 | string in, string out | no | no |
 
-Production shows `question_asked: 222`, `answer_recorded: 0`. Only ONE row of that
-table matches: **object `tool_input`, string `tool_response`.**
+Production shows `question_asked: 222`, `answer_recorded: 0`. That pins the INPUT
+side: `tool_input` must be a shape `parseQuestions` accepts, or no ledger row
+would exist at all. The rollout string for `arguments` is therefore a
+rollout-serialization artifact.
 
-That is a deductive result, not an inference from the rollout. The asymmetry is
-real and it is exactly what the 010 fix targets. The rollout string for
-`arguments` is therefore a rollout-serialization artifact, while the string for
-`output` happens to match the hook wire.
+**Correction (audit round 2).** An earlier draft of this document called the
+above a "deductive proof" that `tool_response` is a JSON string. That was an
+overclaim, and the round-2 reviewer falsified it by enumerating the response side
+properly. The two-row table above is not exhaustive: **seven** distinct
+`tool_response` shapes reproduce the exact `question_asked=1, answer_recorded=0`
+signature, because `isRecord` rejects all of them equally:
+
+1. a JSON string
+2. a double-encoded JSON string
+3. an array of content blocks (`[{type:"input_text",text:"<json>"}]`)
+4. an array containing the object
+5. `{ output: "<json>" }`
+6. `undefined` / `null`
+7. plain non-JSON text
+
+The JSON-string hypothesis is one member of that equivalence class, not a unique
+solution. What IS proven: **the answer-side payload is something `isRecord`
+rejects.** Which member it is remains unobserved.
+
+Consequence for the fix: rather than betting on one member, `asRecord` +
+`firstRecord` now decode members 1-5 and degrade safely on 6-7. Coverage is
+locked by `test/interview-ledger.test.ts` ("parseAnswers decodes every
+recoverable transport shape"). If the live wire turns out to be member 6 or 7,
+no parser can recover it and the defect is upstream of this module.
 
 ## Live capture (in progress)
 
@@ -85,5 +107,14 @@ replaced.
 
 ## OPEN ASSUMPTION
 
-`A-WIRE-01`: the answer-side payload is a JSON string. Deductively supported,
-not yet directly observed on hook stdin. Revisit when a live capture exists.
+`A-WIRE-01` (restated after audit round 2): the answer-side payload is one of at
+least seven shapes `isRecord` rejects. The fix now handles the five recoverable
+ones, so which member is live no longer changes the patch — but it does mean
+**this commit must not be called proven-effective until a production ledger
+actually shows an `answer_recorded` row.** Until then the claim is "the known
+recoverable shapes are handled", not "the defect is fixed in production".
+
+`A-PROTO-01`: the `__proto__` question-id hazard was pre-existing on the object
+path (`out[qid] = ...` replaced the map prototype rather than creating an own
+key). Closed in this cycle via `Object.create(null)` plus an explicit key skip,
+with a regression test. No global `Object.prototype` pollution ever occurred.
