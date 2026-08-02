@@ -16,6 +16,7 @@ import { join } from "node:path";
 import { parseScanCliArgs, runScanCli, type ScanCliArgs } from "../src/scan-cli.ts";
 import { readInterviewEvents, readState } from "../src/state.ts";
 import { evaluateInterviewGate } from "../src/interview.ts";
+import { captureInterviewAnswers } from "../src/interview-ledger.ts";
 
 function freshCwd(): string {
   return mkdtempSync(join(tmpdir(), "codexclaw-scancli-"));
@@ -158,6 +159,141 @@ test("scan record: one record satisfies the gate's scan requirement (scanRan hal
     // `ready`, and this writer intentionally does not touch them.
     assert.equal(after.scanRan, true);
     assert.ok(!after.warnings.some((w) => /no contradiction scan/.test(w)));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+// ── 260802 WP3: the dimension writer ─────────────────────────────────────────
+//
+// Until now `readQaEvents` had no production consumer: answers were captured
+// (WP2) but never read, so dimensions stayed unwritten and every interview
+// question was generated from a blank slate. These cover the reader.
+
+function run(cwd: string, argv: string[]): { output: string; code: number } {
+  const parsed = parseScanCliArgs(argv, cwd);
+  assert.ok(!("error" in parsed), "error" in parsed ? parsed.error : "");
+  return runScanCli(parsed as ScanCliArgs);
+}
+
+test("scan parse: dimension flags validate fail-closed", () => {
+  const bad = [
+    [["record", "--session", "s", "--dim", "nope=high"], /unknown dimension 'nope'/],
+    [["record", "--session", "s", "--dim", "goal=enormous"], /invalid level 'enormous'/],
+    [["record", "--session", "s", "--dim", "goal"], /--dim expects/],
+    [["record", "--session", "s", "--confidence", "goal=7"], /within \[0,1\]/],
+    [["record", "--session", "s", "--confidence", "goal=abc"], /within \[0,1\]/],
+    [["record", "--session", "s", "--known", "goal="], /must not be empty/],
+    [["record", "--session", "s", "--map", "q1=bogus"], /unknown dimension 'bogus'/],
+  ] as const;
+  for (const [argv, re] of bad) {
+    const parsed = parseScanCliArgs([...argv], "/tmp");
+    assert.ok("error" in parsed, `expected an error for ${argv.join(" ")}`);
+    assert.match(parsed.error, re);
+  }
+});
+
+test("scan record: --dim promotes only the named dimension", () => {
+  const cwd = freshCwd();
+  try {
+    run(cwd, ["record", "--session", "s-dim", "--dim", "goal=high"]);
+    const dims = readState(cwd, "s-dim").interview?.dimensions;
+    assert.equal(dims?.goal.level, "high");
+    assert.equal(dims?.constraint.level, "low");
+    assert.equal(dims?.success.level, "low");
+    assert.equal(dims?.ontology.level, "low");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("scan record: --known/--unknown accumulate and survive a value containing = and :", () => {
+  const cwd = freshCwd();
+  const tricky = "endpoint=https://x/y?a=b:c";
+  try {
+    run(cwd, ["record", "--session", "s-acc", "--known", `goal=${tricky}`]);
+    run(cwd, ["record", "--session", "s-acc", "--known", "goal=second fact", "--unknown", "success=how do we measure it"]);
+    const dims = readState(cwd, "s-acc").interview?.dimensions;
+    assert.deepEqual(dims?.goal.known, [tricky, "second fact"], "first-= split must preserve the value verbatim");
+    assert.deepEqual(dims?.success.unknown, ["how do we measure it"]);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("scan record: --derive folds CAPTURED ANSWERS into dimensions (the WP2->WP3 seam)", () => {
+  const cwd = freshCwd();
+  try {
+    // A real interview round lands in the ledger via the WP2 capture path,
+    // including the JSON-string transport that used to drop every answer.
+    captureInterviewAnswers({
+      cwd,
+      sessionId: "s-derive",
+      turnId: "t1",
+      toolInput: JSON.stringify({
+        questions: [
+          { id: "q_goal", question: "What is the core outcome?" },
+          { id: "q_success", question: "How will we verify it?" },
+        ],
+      }),
+      // Only q_goal is answered; q_success stays open.
+      toolResponse: JSON.stringify({ answers: { q_goal: { answers: ["ship the reader"] } } }),
+    });
+
+    run(cwd, [
+      "record", "--session", "s-derive", "--derive",
+      "--map", "q_goal=goal",
+      "--map", "q_success=success",
+    ]);
+
+    const dims = readState(cwd, "s-derive").interview?.dimensions;
+    // The answer the user actually gave is now interview state.
+    assert.deepEqual(dims?.goal.known, ["ship the reader"]);
+    assert.equal(dims?.goal.level, "high", "answered with no open gap -> high");
+    // The unanswered question is an explicit open gap, not silence.
+    assert.deepEqual(dims?.success.unknown, ["How will we verify it?"]);
+    assert.equal(dims?.success.level, "mid", "asked but unanswered -> mid");
+    // Unmapped dimensions are never guessed at.
+    assert.equal(dims?.ontology.level, "low");
+    assert.deepEqual(dims?.ontology.known, []);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("scan record: --derive never hands out max, and an explicit --dim wins", () => {
+  const cwd = freshCwd();
+  try {
+    captureInterviewAnswers({
+      cwd, sessionId: "s-max", turnId: "t1",
+      toolInput: { questions: [{ id: "q1", question: "Q?" }] },
+      toolResponse: { answers: { q1: { answers: ["A"] } } },
+    });
+    run(cwd, ["record", "--session", "s-max", "--derive", "--map", "q1=goal"]);
+    // "max" gates I->P via isInterviewReady, so a heuristic must never grant it.
+    assert.equal(readState(cwd, "s-max").interview?.dimensions.goal.level, "high");
+
+    run(cwd, ["record", "--session", "s-max", "--derive", "--map", "q1=goal", "--dim", "goal=max"]);
+    assert.equal(readState(cwd, "s-max").interview?.dimensions.goal.level, "max", "explicit assertion wins over derivation");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("scan record: no dimension flags leaves the tracker exactly as before", () => {
+  const cwd = freshCwd();
+  try {
+    record(cwd, "s-noop");
+    const tracker = readState(cwd, "s-noop").interview;
+    for (const d of ["goal", "constraint", "success", "ontology"] as const) {
+      assert.equal(tracker?.dimensions[d].level, "low");
+      assert.deepEqual(tracker?.dimensions[d].known, []);
+      assert.deepEqual(tracker?.dimensions[d].unknown, []);
+      assert.equal(tracker?.dimensions[d].confidence, 0);
+    }
+    // The both-counters contract is untouched by the new code path.
+    assert.equal(tracker?.scanRounds, 1);
+    assert.equal(tracker?.lastScanRoundId, 1);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
