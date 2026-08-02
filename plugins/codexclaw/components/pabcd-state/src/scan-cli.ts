@@ -33,6 +33,7 @@ import { appendInterviewEvent, readState, writeState, type State } from "./state
 import {
   DIMENSIONS,
   DIMENSION_LEVELS,
+  MAX_TRACKER_ARRAY,
   defaultInterview,
   type Dimension,
   type DimensionLevel,
@@ -89,7 +90,10 @@ export function parseScanCliArgs(
   let contradictionCount = 0;
   let highContradictionCount = 0;
   let derive = false;
-  const map: Record<string, Dimension> = {};
+  // Object.create(null): a question id like `toString` or `hasOwnProperty` would
+  // otherwise resolve to an inherited function on a plain literal, defeating the
+  // `if (!dim) continue` skip and crashing the derivation.
+  const map: Record<string, Dimension> = Object.create(null) as Record<string, Dimension>;
   const dims: Partial<Record<Dimension, DimensionLevel>> = {};
   const known: Array<{ dimension: Dimension; text: string }> = [];
   const unknown: Array<{ dimension: Dimension; text: string }> = [];
@@ -118,6 +122,19 @@ export function parseScanCliArgs(
       if (!pair) return { error: "scan record: --dim expects <dimension>=<level>" };
       if (!isDimension(pair.key)) return { error: `scan record: unknown dimension '${pair.key}' (expected ${DIMENSIONS.join("|")})` };
       if (!isLevel(pair.value)) return { error: `scan record: invalid level '${pair.value}' (expected ${DIMENSION_LEVELS.join("|")})` };
+      if (pair.value === "max") {
+        // `max` on all four dimensions is what isInterviewReady gates I->P on.
+        // The sanctioned way to reach P without a genuinely ready interview is
+        // `cxc orchestrate P --attest '{"override":true,...}'`, which validates
+        // the narrative and writes an auditable ledger row. Letting a writer flag
+        // grant `max` would be the same power with no attestation and no trail.
+        return {
+          error:
+            "scan record: --dim cannot set 'max'. That level gates I->P via isInterviewReady; " +
+            "use `cxc orchestrate P --session <id> --attest '{\"from\":\"I\",\"to\":\"P\",\"did\":\"<reason>\",\"override\":true}'` " +
+            "so the bypass is attested and recorded in the ledger.",
+        };
+      }
       dims[pair.key] = pair.value;
       i += 1;
     } else if (arg === "--known" || arg === "--unknown") {
@@ -131,7 +148,9 @@ export function parseScanCliArgs(
       const pair = splitPair(rest[i + 1] ?? "");
       if (!pair) return { error: "scan record: --confidence expects <dimension>=<0..1>" };
       if (!isDimension(pair.key)) return { error: `scan record: unknown dimension '${pair.key}' (expected ${DIMENSIONS.join("|")})` };
-      const num = Number.parseFloat(pair.value);
+      // Number() rather than parseFloat: "0.5abc" must be rejected, not silently
+      // truncated to 0.5.
+      const num = pair.value.trim().length === 0 ? Number.NaN : Number(pair.value);
       if (!Number.isFinite(num) || num < 0 || num > 1) return { error: `scan record: --confidence must be within [0,1], got '${pair.value}'` };
       confidence[pair.key] = num;
       i += 1;
@@ -169,6 +188,19 @@ function pushUnique(list: string[], text: string): string[] {
 }
 
 /**
+ * Keep the FIRST MAX_TRACKER_ARRAY entries rather than the last. `writeState`'s
+ * normalizeInterview caps with drop-oldest, which for interview knowns inverts
+ * the value ordering: the earliest answers are the goal and the constraints,
+ * while late entries are clarifications. Capping here keep-first also makes
+ * re-deriving idempotent — under drop-oldest, `pushUnique` re-appends whatever
+ * the cap already evicted, so repeated no-op derives rotate the window forever
+ * and the tracker never reaches a fixed point.
+ */
+function capKeepFirst(list: string[]): string[] {
+  return list.length <= MAX_TRACKER_ARRAY ? list : list.slice(0, MAX_TRACKER_ARRAY);
+}
+
+/**
  * Fold the captured QA ledger into per-dimension known/unknown sets. An answered
  * question becomes a known fact; a question asked but never answered becomes an
  * open gap. Attribution comes from `--map`; unmapped questions are skipped
@@ -186,18 +218,29 @@ function deriveFromLedger(
   const answers = new Map<string, string[]>();
   for (const ev of events) {
     if (ev.event === "question_asked" && ev.question) questions.set(ev.questionId, ev.question);
-    if (ev.event === "answer_recorded" && Array.isArray(ev.answers)) answers.set(ev.questionId, ev.answers);
+    if (ev.event === "answer_recorded" && Array.isArray(ev.answers)) {
+      // Merge across turns: the same question id answered twice must keep both
+      // answers, not last-write-wins.
+      const prior = answers.get(ev.questionId) ?? [];
+      answers.set(ev.questionId, ev.answers.reduce(pushUnique, prior));
+    }
   }
   const next = { ...dimensions };
   for (const [questionId, questionText] of questions) {
-    const dim = map[questionId];
+    const dim = Object.prototype.hasOwnProperty.call(map, questionId) ? map[questionId] : undefined;
     if (!dim) continue; // unmapped: never guess an attribution
     const score = next[dim];
     const answered = answers.get(questionId);
     if (answered && answered.length > 0) {
-      next[dim] = { ...score, known: answered.reduce(pushUnique, score.known) };
+      // An answered question retires its own gap: a resolved question must not
+      // stay listed as unknown, or deriveLevel pins the dimension at mid forever.
+      next[dim] = {
+        ...score,
+        known: capKeepFirst(answered.reduce(pushUnique, score.known)),
+        unknown: score.unknown.filter((gap) => gap !== questionText),
+      };
     } else {
-      next[dim] = { ...score, unknown: pushUnique(score.unknown, questionText) };
+      next[dim] = { ...score, unknown: capKeepFirst(pushUnique(score.unknown, questionText)) };
     }
   }
   return next;
@@ -243,16 +286,24 @@ export function runScanCli(args: ScanCliArgs): { output: string; code: number } 
           dimensions[d].unknown.length !== before[d].unknown.length;
         if (!moved) continue;
         derivedCount += 1;
-        dimensions = { ...dimensions, [d]: { ...dimensions[d], level: deriveLevel(dimensions[d]) } };
       }
     }
     for (const entry of args.known ?? []) {
       const score = dimensions[entry.dimension];
-      dimensions = { ...dimensions, [entry.dimension]: { ...score, known: pushUnique(score.known, entry.text) } };
+      dimensions = { ...dimensions, [entry.dimension]: { ...score, known: capKeepFirst(pushUnique(score.known, entry.text)) } };
     }
     for (const entry of args.unknown ?? []) {
       const score = dimensions[entry.dimension];
-      dimensions = { ...dimensions, [entry.dimension]: { ...score, unknown: pushUnique(score.unknown, entry.text) } };
+      dimensions = { ...dimensions, [entry.dimension]: { ...score, unknown: capKeepFirst(pushUnique(score.unknown, entry.text)) } };
+    }
+    // Recompute every touched level from coverage AFTER the manual entries land,
+    // so `--known` alone cannot leave a dimension claiming "low" (nothing known)
+    // while holding a fact. Explicit `--dim` still wins below.
+    for (const d of DIMENSIONS) {
+      const derivedLvl = deriveLevel(dimensions[d]);
+      if (dimensions[d].level !== derivedLvl && dimensions[d].level !== "max") {
+        dimensions = { ...dimensions, [d]: { ...dimensions[d], level: derivedLvl } };
+      }
     }
     for (const [dim, value] of Object.entries(args.confidence ?? {})) {
       const d = dim as Dimension;

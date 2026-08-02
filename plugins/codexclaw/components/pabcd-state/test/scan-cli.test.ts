@@ -273,8 +273,13 @@ test("scan record: --derive never hands out max, and an explicit --dim wins", ()
     // "max" gates I->P via isInterviewReady, so a heuristic must never grant it.
     assert.equal(readState(cwd, "s-max").interview?.dimensions.goal.level, "high");
 
-    run(cwd, ["record", "--session", "s-max", "--derive", "--map", "q1=goal", "--dim", "goal=max"]);
-    assert.equal(readState(cwd, "s-max").interview?.dimensions.goal.level, "max", "explicit assertion wins over derivation");
+    // Nor can an operator flag grant it: that would bypass the attested override.
+    const denied = parseScanCliArgs(["record", "--session", "s-max", "--dim", "goal=max"], cwd);
+    assert.ok("error" in denied);
+
+    // A lower explicit level still overrides derivation.
+    run(cwd, ["record", "--session", "s-max", "--derive", "--map", "q1=goal", "--dim", "goal=mid"]);
+    assert.equal(readState(cwd, "s-max").interview?.dimensions.goal.level, "mid", "explicit assertion wins over derivation");
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
@@ -294,6 +299,137 @@ test("scan record: no dimension flags leaves the tracker exactly as before", () 
     // The both-counters contract is untouched by the new code path.
     assert.equal(tracker?.scanRounds, 1);
     assert.equal(tracker?.lastScanRoundId, 1);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+// ── WP3 audit round 2 remediation ────────────────────────────────────────────
+
+test("scan record: a prototype-named questionId cannot crash the derivation", () => {
+  const cwd = freshCwd();
+  try {
+    // parseQuestions applies no id filter, so a payload can legitimately carry
+    // these. On a plain object literal `map["toString"]` resolves to an inherited
+    // function, defeating the unmapped-skip and throwing mid-write -- which left
+    // a scan_completed ledger row with no matching state write (counter drift).
+    captureInterviewAnswers({
+      cwd, sessionId: "s-proto", turnId: "t1",
+      toolInput: { questions: [
+        { id: "toString", question: "hostile id?" },
+        { id: "hasOwnProperty", question: "another?" },
+        { id: "q_real", question: "legit?" },
+      ] },
+      toolResponse: { answers: { q_real: { answers: ["fine"] } } },
+    });
+    const res = run(cwd, ["record", "--session", "s-proto", "--derive", "--map", "q_real=goal"]);
+    assert.equal(res.code, 0, res.output);
+    const tracker = readState(cwd, "s-proto").interview;
+    assert.deepEqual(tracker?.dimensions.goal.known, ["fine"]);
+    // The both-counters contract must survive a hostile id.
+    assert.equal(tracker?.scanRounds, 1);
+    assert.equal(tracker?.lastScanRoundId, 1);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("scan parse: --dim cannot grant max (that bypasses the attested I->P override)", () => {
+  const parsed = parseScanCliArgs(["record", "--session", "s", "--dim", "goal=max"], "/tmp");
+  assert.ok("error" in parsed);
+  assert.match(parsed.error, /cannot set 'max'/);
+  assert.match(parsed.error, /override.*true/, "the error must name the sanctioned path");
+  // The other three levels stay available.
+  for (const lvl of ["low", "mid", "high"]) {
+    assert.ok(!("error" in parseScanCliArgs(["record", "--session", "s", "--dim", `goal=${lvl}`], "/tmp")));
+  }
+});
+
+test("scan parse: --confidence rejects a numeric prefix like 0.5abc", () => {
+  for (const bad of ["0.5abc", "abc", "", " ", "1.5", "-0.1"]) {
+    const parsed = parseScanCliArgs(["record", "--session", "s", "--confidence", `goal=${bad}`], "/tmp");
+    assert.ok("error" in parsed, `expected rejection for '${bad}'`);
+  }
+  assert.ok(!("error" in parseScanCliArgs(["record", "--session", "s", "--confidence", "goal=0.5"], "/tmp")));
+});
+
+test("scan record: answering a question retires its own gap", () => {
+  const cwd = freshCwd();
+  try {
+    captureInterviewAnswers({
+      cwd, sessionId: "s-retire", turnId: "t1",
+      toolInput: { questions: [{ id: "q1", question: "What is the goal?" }] },
+      toolResponse: {},
+    });
+    run(cwd, ["record", "--session", "s-retire", "--derive", "--map", "q1=goal"]);
+    let goal = readState(cwd, "s-retire").interview?.dimensions.goal;
+    assert.deepEqual(goal?.unknown, ["What is the goal?"], "asked but unanswered is an open gap");
+    assert.equal(goal?.level, "mid");
+
+    // Same question, now answered in a later turn.
+    captureInterviewAnswers({
+      cwd, sessionId: "s-retire", turnId: "t2",
+      toolInput: { questions: [{ id: "q1", question: "What is the goal?" }] },
+      toolResponse: { answers: { q1: { answers: ["ship it"] } } },
+    });
+    run(cwd, ["record", "--session", "s-retire", "--derive", "--map", "q1=goal"]);
+    goal = readState(cwd, "s-retire").interview?.dimensions.goal;
+    assert.deepEqual(goal?.known, ["ship it"]);
+    assert.deepEqual(goal?.unknown, [], "a resolved gap must not stay listed");
+    assert.equal(goal?.level, "high", "no open gap -> high");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("scan record: answers to the same id across turns accumulate", () => {
+  const cwd = freshCwd();
+  try {
+    for (const [turn, answer] of [["t1", "first"], ["t2", "second"]] as const) {
+      captureInterviewAnswers({
+        cwd, sessionId: "s-merge", turnId: turn,
+        toolInput: { questions: [{ id: "q1", question: "Q?" }] },
+        toolResponse: { answers: { q1: { answers: [answer] } } },
+      });
+    }
+    run(cwd, ["record", "--session", "s-merge", "--derive", "--map", "q1=goal"]);
+    assert.deepEqual(readState(cwd, "s-merge").interview?.dimensions.goal.known, ["first", "second"]);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("scan record: re-deriving is idempotent past the array cap", () => {
+  const cwd = freshCwd();
+  try {
+    const questions = Array.from({ length: 60 }, (_, i) => ({ id: `q${i}`, question: `Q${i}?` }));
+    const answers: Record<string, { answers: string[] }> = {};
+    for (let i = 0; i < 60; i += 1) answers[`q${i}`] = { answers: [`fact-${i}`] };
+    captureInterviewAnswers({
+      cwd, sessionId: "s-cap", turnId: "t1",
+      toolInput: { questions },
+      toolResponse: { answers },
+    });
+    const argv = ["record", "--session", "s-cap", "--derive", ...questions.flatMap((q) => ["--map", `${q.id}=goal`])];
+    run(cwd, argv);
+    const pass1 = readState(cwd, "s-cap").interview?.dimensions.goal.known ?? [];
+    run(cwd, argv);
+    const pass2 = readState(cwd, "s-cap").interview?.dimensions.goal.known ?? [];
+    assert.equal(pass1.length, 50, "capped at MAX_TRACKER_ARRAY");
+    assert.deepEqual(pass2, pass1, "a no-op re-derive must reach a fixed point, not rotate the window");
+    assert.equal(pass1[0], "fact-0", "keep-first: the earliest answers are the foundational ones");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("scan record: --known alone still moves the level off low", () => {
+  const cwd = freshCwd();
+  try {
+    run(cwd, ["record", "--session", "s-manual", "--known", "goal=a foundational fact"]);
+    const goal = readState(cwd, "s-manual").interview?.dimensions.goal;
+    assert.deepEqual(goal?.known, ["a foundational fact"]);
+    assert.equal(goal?.level, "high", "a dimension holding a fact cannot claim nothing is known");
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
