@@ -132,6 +132,43 @@ test("L17 wiring: interviewDirective carries the Mind-dispatch contract", () => 
   assert.match(d, /contradiction/i);
 });
 
+// 260802 WP4 — the I directive is what actually reaches the model, so the
+// grounding rules are asserted on the EMITTED text, not on a standalone
+// constant. QUESTION_SHAPE_DIRECTIVE is the cautionary case: it has always
+// carried the right words and has never been injected anywhere.
+test("WP4: the emitted interview directive names the state-grounding loop", () => {
+  const d = interviewDirective();
+  // Without this citation no agent has any reason to run the deriver, so the
+  // tracker stays empty and every question is generated from a blank slate.
+  assert.match(d, /cxc scan record[^\n]*--derive/, "must cite the deriver command");
+  assert.match(d, /--map/, "must show how questions are attributed to a dimension");
+  assert.match(d, /known\[\]/, "must name where answers land");
+  assert.match(d, /unknown\[\]/, "must name where gaps land");
+  assert.match(d, /\.codexclaw\/sessions/, "must say where to read the state back");
+  assert.match(d, /INTERVIEW-GROUND-01/);
+});
+
+test("WP4: the emitted interview directive requires a pre-question status render", () => {
+  const d = interviewDirective();
+  assert.match(d, /INTERVIEW-RENDER-01/);
+  assert.match(d, /weakest/i, "the render must name the weakest dimension");
+  assert.match(d, /before the question/i);
+});
+
+test("WP4: batching is governed by independence, not a count", () => {
+  const d = interviewDirective();
+  assert.match(d, /INTERVIEW-INDEPENDENT-01/);
+  assert.match(d, /INDEPENDENT/);
+  assert.match(d, /independence governs, not a count/i);
+});
+
+test("WP4: the directive still fits the injection budget", () => {
+  // Injected context is capped and shared with the Mind-dispatch block and the
+  // phase footer; gjc-scale prose would simply be truncated away.
+  const d = interviewDirective();
+  assert.ok(d.length < 8000, `interview directive grew to ${d.length} chars`);
+});
+
 test("hybrid mode 2: active + phase changed -> full directive for new phase", () => {
   const cwd = freshCwd();
   try {

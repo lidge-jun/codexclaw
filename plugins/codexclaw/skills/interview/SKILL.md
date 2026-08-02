@@ -28,11 +28,48 @@ Use this skill to enter or continue Codexclaw's IPABCD Interview phase.
 ## Question quality (INTERVIEW-Q-01)
 
 - Target the weakest dimension first and name why it is the current bottleneck.
-- Ask one focused question that exposes an ASSUMPTION or boundary — not a feature-list roundup.
+- Ask focused questions that expose an ASSUMPTION or boundary — not a feature-list roundup.
+  Bundle several only when they are INDEPENDENT: never batch two questions where one
+  answer changes the other (INTERVIEW-INDEPENDENT-01). Independence governs, not a count.
+  Note the transport limit: `request_user_input` accepts at most three questions per call,
+  so a larger independent batch has to be split across calls.
 - Prefer repo-grounded confirmation ("the code does X — is that intended?") over re-asking what
   the codebase already answers.
 - Treat every answer as a claim to pressure-test: vague or hedged answers do not raise a
   dimension's readiness; they keep or deepen the gap.
+
+## Grounding questions in state (INTERVIEW-GROUND-01)
+
+Question quality is a STATE problem before it is a wording problem. A question generated with
+no accumulated knowns and no recorded gaps comes out vague no matter how the prompt is phrased
+— that is the failure mode behind questions like "이어서 어느 방향으로 진행할까요?".
+
+The loop that prevents it:
+
+1. Answers are captured automatically by the `PostToolUse` hook into
+   `.codexclaw/interviews/<sessionId>.jsonl`.
+2. Fold them into the tracker before asking again:
+   `cxc scan record --session <id> --derive --map <questionId>=<goal|constraint|success|ontology>`.
+   Each answered question becomes a `known[]` fact on its dimension; each asked-but-unanswered
+   one becomes an explicit `unknown[]` gap, and answering it later retires the gap.
+   Unmapped questions are skipped rather than guessed, so pass `--map` for every question that
+   should count.
+3. Read `.codexclaw/sessions/<id>.json` back and let the weakest dimension choose the next
+   question. This is also what makes Mind routing adaptive: `selectMinds` ranks by dimension
+   level, so with an empty tracker all four tie and it degrades to a fixed order.
+
+`--dim <dimension>=<low|mid|high>` records an explicit assertion when coverage alone
+understates what you know. It deliberately cannot set `max`: that level gates I -> P through
+`isInterviewReady`, and the sanctioned way past an unready interview is the attested
+`cxc orchestrate P --attest '{"override":true,...}'`, which leaves a ledger row.
+
+## Show the state before asking (INTERVIEW-RENDER-01)
+
+Emit a short status block immediately before `request_user_input`: what is now known, which
+dimension is weakest and why it is the current bottleneck, and what the answer will change.
+The runtime cannot force this — hooks only inject text — so it is the main session's job.
+Without it a well-grounded question still reads as context-blind, because the user cannot see
+the reasoning that produced it.
 
 ## Sub-modes (INTERVIEW-CATALOG-01)
 
@@ -96,7 +133,9 @@ work-phase (loop-engineering §11.4).
 In non-goal HITL Interview only (under an active goal the Interview is suppressed and
 `request_user_input` is hard-denied — see Goal firewall), after a scan round do not drift forward
 silently. Present a numbered choice and let the user pick: `1. Proceed to Plan` ·
-`2. Ask 1 more question` · `3. Ask 2-3 more questions` · `4. Record assumptions and pause`.
+`2. Keep interviewing` · `3. Record assumptions and pause`. Do not offer a question BUDGET
+("ask 2-3 more"): no tracker field persists it, so the number is unenforceable across turns,
+and INTERVIEW-INDEPENDENT-01 governs batching by independence rather than count.
 There is no build/execute path out of Interview — the only forward move is Plan, normally after
 the readiness gate passes, unless the human explicitly overrides (override is recorded as an
 audit entry); the agent CLI path also supports override via
