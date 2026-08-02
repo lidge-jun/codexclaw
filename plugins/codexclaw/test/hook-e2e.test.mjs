@@ -496,6 +496,34 @@ test("WP7/G19: post-tool-use hook e2e - captures a request_user_input round into
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
+// 260802 wp2 — the sibling above feeds OBJECT payloads, which is why the suite
+// stayed green while production recorded 222 question_asked rows and ZERO
+// answer_recorded rows. This case replays the JSON-STRING wire shape recorded in
+// devlog/_plan/260802_interview_answer_capture/001_evidence.md.
+test("WP7/G19: post-tool-use hook e2e - captures a JSON-string request_user_input round", () => {
+  const { event, hookEvent, distAbs } = readHookCommand("./hooks/post-tool-use-capturing-interview-answers.json");
+  assert.equal(event, "PostToolUse");
+  const ep = snapshotEntrypoint(distAbs);
+  if (!ep) return;
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-post-str-"));
+  try {
+    const res = runHook(ep, hookEvent, {
+      hook_event_name: "PostToolUse", session_id: "s1", cwd: tmp, turn_id: "t1",
+      tool_name: "request_user_input",
+      tool_input: JSON.stringify({ questions: [{ id: "item3", header: "기준 형태", question: "항목 3의 기준 문서를 어떤 형태로 쓸까요?" }] }),
+      tool_response: JSON.stringify({ answers: { item3: { answers: ["신규 채택에만 적용"] } } }),
+    });
+    assert.equal(res.status, 0, res.stderr);
+    const ledger = join(tmp, ".codexclaw", "interviews", "s1.jsonl");
+    assert.ok(existsSync(ledger), "interview ledger not written for string payload");
+    const rows = readFileSync(ledger, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    assert.ok(rows.some((r) => r.event === "question_asked"), "missing question_asked row");
+    const answered = rows.find((r) => r.event === "answer_recorded");
+    assert.ok(answered, "missing answer_recorded row (the 222/0 defect)");
+    assert.deepEqual(answered.answers, ["신규 채택에만 적용"]);
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
 test("WP7/G19: session-start provider hook e2e - exit 0 + parseable SessionStart envelope", () => {
   const { event, hookEvent, distAbs } = readHookCommand("./hooks/session-start-ensuring-provider-bridge.json");
   assert.equal(event, "SessionStart");

@@ -43,6 +43,34 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
+/**
+ * 260802 — the host may hand the hook a request_user_input payload either as a
+ * structured object or as a JSON STRING. Before this coercion existed, a string
+ * `tool_response` made `parseAnswers` return {} and the answer branch of
+ * `captureInterviewAnswers` never ran: every shipped ledger held
+ * `question_asked` rows and ZERO `answer_recorded` rows, so the interview never
+ * accumulated a single answer and each question was generated from a blank
+ * slate. `hook.ts` already applies the same string tolerance on the friction
+ * path.
+ *
+ * Total by construction: a parse failure, or a valid-JSON non-object such as
+ * `"null"`, `"[]"` or `"5"`, yields undefined and the caller degrades to empty
+ * exactly as it did before. Evidence + the shape argument:
+ * devlog/_plan/260802_interview_answer_capture/004_wire_capture.md
+ */
+function asRecord(v: unknown): Record<string, unknown> | undefined {
+  if (isRecord(v)) return v;
+  if (typeof v === "string") {
+    try {
+      const parsed: unknown = JSON.parse(v);
+      return isRecord(parsed) ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 /** Derive the idempotency key for an event (no hashing — readable + stable). */
 export function deriveEventId(turnId: string, questionId: string, kind: InterviewQaKind): string {
   return `${turnId}:${questionId}:${kind}`;
@@ -95,9 +123,10 @@ export interface ParsedQuestion {
 
 /** Parse request_user_input tool_input -> the questions asked. Total (never throws). */
 export function parseQuestions(toolInput: unknown): ParsedQuestion[] {
-  if (!isRecord(toolInput) || !Array.isArray(toolInput.questions)) return [];
+  const input = asRecord(toolInput);
+  if (!input || !Array.isArray(input.questions)) return [];
   const out: ParsedQuestion[] = [];
-  for (const q of toolInput.questions) {
+  for (const q of input.questions) {
     if (!isRecord(q)) continue;
     const questionId = typeof q.id === "string" ? q.id : "";
     if (!questionId) continue;
@@ -109,9 +138,10 @@ export function parseQuestions(toolInput: unknown): ParsedQuestion[] {
 
 /** Parse request_user_input tool_response -> answers by question id. Total. */
 export function parseAnswers(toolResponse: unknown): Record<string, string[]> {
-  if (!isRecord(toolResponse) || !isRecord(toolResponse.answers)) return {};
+  const resp = asRecord(toolResponse);
+  if (!resp || !isRecord(resp.answers)) return {};
   const out: Record<string, string[]> = {};
-  for (const [qid, val] of Object.entries(toolResponse.answers)) {
+  for (const [qid, val] of Object.entries(resp.answers)) {
     if (isRecord(val) && Array.isArray(val.answers)) {
       out[qid] = val.answers.filter((a): a is string => typeof a === "string");
     }

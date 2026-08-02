@@ -68,6 +68,73 @@ test("captureInterviewAnswers records question + answer events per question", ()
   assert.deepEqual(answered?.answers, ["remove it"]);
 });
 
+// 260802 wp2 — the host may serialize request_user_input payloads as JSON STRINGS.
+// Before this fix, a string tool_response silently produced ZERO answer_recorded
+// events (222 question_asked / 0 answer_recorded across every shipped ledger), so
+// the interview never accumulated a single answer. See
+// devlog/_plan/260802_interview_answer_capture/.
+
+test("parseAnswers accepts a JSON-string tool_response (host wire shape)", () => {
+  const ans = parseAnswers(JSON.stringify(TOOL_RESPONSE));
+  assert.deepEqual(ans.q_scope, ["adaptive 1-N"]);
+  assert.deepEqual(ans.q_chat, ["remove it"]);
+});
+
+test("parseQuestions accepts a JSON-string tool_input (host wire shape)", () => {
+  const qs = parseQuestions(JSON.stringify(TOOL_INPUT));
+  assert.deepEqual(qs.map((q) => q.questionId), ["q_scope", "q_chat"]);
+  assert.equal(qs[0].question, "How wide should the rescan be?");
+});
+
+test("captureInterviewAnswers records answers when tool_response is a JSON string", () => {
+  const cwd = tmp();
+  const res = captureInterviewAnswers({
+    cwd,
+    sessionId: "sess-str",
+    turnId: "turn-1",
+    toolInput: TOOL_INPUT,
+    toolResponse: JSON.stringify(TOOL_RESPONSE),
+  });
+  assert.equal(res.written.length, 4);
+  const events = readQaEvents(cwd, "sess-str");
+  assert.equal(events.filter((e) => e.event === "answer_recorded").length, 2);
+  const answered = events.find((e) => e.event === "answer_recorded" && e.questionId === "q_scope");
+  assert.deepEqual(answered?.answers, ["adaptive 1-N"]);
+});
+
+test("captureInterviewAnswers handles a fully stringified round (both sides)", () => {
+  const cwd = tmp();
+  const res = captureInterviewAnswers({
+    cwd,
+    sessionId: "sess-both",
+    turnId: "turn-1",
+    toolInput: JSON.stringify(TOOL_INPUT),
+    toolResponse: JSON.stringify(TOOL_RESPONSE),
+  });
+  assert.equal(res.written.length, 4);
+  const events = readQaEvents(cwd, "sess-both");
+  assert.equal(events.filter((e) => e.event === "question_asked").length, 2);
+  assert.equal(events.filter((e) => e.event === "answer_recorded").length, 2);
+});
+
+test("malformed string payloads stay total and record nothing", () => {
+  // Each of these must return empty rather than throwing: truncated JSON, a
+  // valid-JSON non-object, an array, and a bare scalar.
+  for (const bad of ["{", "null", "[]", "[1,2]", "5", '"str"', ""]) {
+    assert.deepEqual(parseAnswers(bad), {});
+    assert.deepEqual(parseQuestions(bad), []);
+  }
+  const cwd = tmp();
+  const res = captureInterviewAnswers({
+    cwd,
+    sessionId: "sess-bad",
+    turnId: "turn-1",
+    toolInput: "{",
+    toolResponse: "{",
+  });
+  assert.equal(res.written.length, 0);
+});
+
 test("captureInterviewAnswers is idempotent for the same (turn,question,kind)", () => {
   const cwd = tmp();
   const first = captureInterviewAnswers({ cwd, sessionId: "s", turnId: "t1", toolInput: TOOL_INPUT, toolResponse: TOOL_RESPONSE });
