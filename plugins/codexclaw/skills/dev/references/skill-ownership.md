@@ -9,6 +9,7 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Coupling taxonomy | `dev-architecture` | `dev-code-reviewer` |
 | Barrel / re-export | `dev-architecture` | `dev-scaffolding` |
 | Pre-write search | `dev` §1.5 | `dev-code-reviewer` |
+| Stacked pull requests (`DEV-STACK-*`) | `dev` `references/stacked-prs.md` | `pabcd`, `loop`, `dev-code-reviewer`, `dev-devops` |
 | Edge-first testing | `dev-testing` §6 | — |
 | Manual surface QA / evidence matrix | `cxc-qa` | `dev-testing` §4.6 (tool routing stays there) |
 | Test-induced defense | `dev-testing` §6.7 | `dev-code-reviewer` |

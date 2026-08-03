@@ -1,37 +1,3 @@
-# 010 — Phase 1: Canonical `DEV-STACK-*` doctrine in `dev`
-
-Unit: `260803_stacked_pull_requests` · Work-phase: WP2 · Depends on: none (foundation).
-Deliverable: the single normative definition site for stacked PRs plus its ownership row.
-Independently verifiable: `npm run gate` + `npm test` green, and `rg "DEV-STACK-"` shows
-exactly one definition site with pointer-shaped mentions everywhere else.
-
-## Scope
-
-IN: `plugins/codexclaw/skills/dev/references/stacked-prs.md` (NEW),
-`plugins/codexclaw/skills/dev/SKILL.md` (MODIFY, §5 area + §Modular-reference table row),
-`plugins/codexclaw/skills/dev/references/skill-ownership.md` (MODIFY, one row).
-
-OUT: every other skill (WP3 owns those), frontmatter/keywords (WP4), CLI/hooks.
-
-## Rule ids introduced
-
-| Id | Class | One-line meaning |
-|----|-------|------------------|
-| `DEV-STACK-01` | DEFAULT | When dependent work exceeds one reviewable diff, publish it as a bottom-up stack instead of one large PR or a set of order-less PRs. |
-| `DEV-STACK-02` | STRICT | Editing any layer requires cascading the rebase to every layer above it before pushing; a stale upper base is a defect, not a formatting nit. |
-| `DEV-STACK-03` | DEFAULT | Each layer must stand alone: own thesis, own build, own tests; a layer that cannot be reviewed without the one above it is mis-sliced. |
-| `DEV-STACK-04` | ESCALATE | Merging is bottom-up and remains user-authorized; agents never merge, never force-push without `--force-with-lease`, never reorder a stack that has merged layers. |
-| `DEV-STACK-05` | DEFAULT | Reviewing a layer: review only its own diff, judge it standalone, verify its base ref, re-check findings after a force-push. Approving a layer is not approval to merge. |
-
-`DEV-STACK-05` lives here rather than in `dev-code-reviewer` (A-gate round 2, blocker 2):
-review mechanics for stacks are stack semantics, so they belong to the stack owner. The
-reviewer skill gets a trigger + pointer only.
-
-## NEW — `plugins/codexclaw/skills/dev/references/stacked-prs.md`
-
-Full body (write verbatim):
-
-```markdown
 # Stacked Pull Requests (canonical — `DEV-STACK-*`)
 
 Canonical owner: `dev`. Other skills carry pointer stubs only (see
@@ -65,7 +31,8 @@ Stack when **all** of these hold:
 
 - the work splits into 2+ parts with a real dependency order (later parts consume earlier
   parts' output), and
-- shipping it as one PR would produce a diff too large to review in one sitting, and
+- shipping it as one PR would produce a diff too large to review in one sitting — by your
+  repository's own review-size convention if it has one, otherwise reviewer judgment, and
 - the lower parts are mergeable on their own — they do not need the upper parts to be
   correct or safe.
 
@@ -76,7 +43,7 @@ must close with something independently verifiable. That map **is** a stack plan
 
 Do **not** stack when:
 
-- the change is one cohesive thesis (splitting adds CI and review cost, buys nothing);
+- the change is one cohesive thesis (splitting adds review and CI surface, buys nothing);
 - the parts are independent — open parallel PRs off trunk instead, since a stack imposes a
   false merge order;
 - the lower layer is speculative and likely to be rewritten (every rewrite re-cascades);
@@ -107,7 +74,7 @@ exists. Re-push the cascade before asking for review:
   already merged it switches to `--onto` mode automatically. Conflicts pause the run;
   resume with `--continue`, unwind everything with `--abort`. Scope with `--downstack` /
   `--upstack` / `--no-trunk`.
-- Other tools (Graphite `gt restack`/`gt modify`, Git Town `git town sync`, `spr diff`)
+- Other tools (Graphite `gt restack` / `gt modify`, Git Town `git town sync`, `spr diff`)
   express the same cascade — read their own docs before using their flags.
 
 After the cascade, publish with `git push --force-with-lease` (never bare `--force`) and
@@ -184,6 +151,18 @@ When you are reviewing one layer of a stack:
 - Merge requirements for every PR in a GitHub stack are determined by the **bottom** PR's
   base branch.
 
+## Anti-patterns
+
+| Anti-pattern | Why it bites |
+|---|---|
+| Deep stacks (practitioner guidance: past ~4–5 layers) | Every added layer is another gated PR to review and another branch to re-stack on each cascade; practitioners report navigation cost outweighing the benefit past that range (experience, not a measured limit — see Depth above) |
+| Effort-bucketed layers ("quick wins first") | Produces layers whose dependency runs opposite to the merge order, so the stack cannot land bottom-up |
+| Mid-stack rewrites without a cascade | Upper branches keep a base that no longer exists; the PR diff shows unrelated commits |
+| Force-push without `--force-with-lease` | Overwrites collaborator work, and may invalidate existing review state |
+| Assuming mid-stack PRs are lightly gated | CODEOWNERS and default-branch CI apply to every layer |
+| Merging the top PR expecting only that layer | It brings every PR below it |
+| Stacking a single cohesive change | Every layer is a separately gated PR with its own review and CI, for no parallelism gain |
+
 ## Tooling
 
 You do not need an extension: `gh pr create --base <branch-below>` expresses the chain and
@@ -206,88 +185,3 @@ Sources for the behavioral claims above, all opened 2026-08-03: `git rebase` doc
 (`--update-refs`), GitHub Docs "About stacked pull requests", "Pull request merges", and
 "About protected branches", the `gh pr create` manual, and the `github/gh-stack` README.
 Claim-by-claim provenance: `devlog/_plan/260803_stacked_pull_requests/000_research.md`.
-```
-
-## MODIFY — `plugins/codexclaw/skills/dev/SKILL.md`
-
-### M1. Modular-reference table row (near line 91, the `logging` row block)
-
-Add one row so the reference is discoverable from the routing table:
-
-```diff
- | `logging` (CLI / scripts / libraries) | `dev` `references/logging.md` | What to emit and where; service instrumentation stays with `dev-backend` |
-+| stacked pull requests (`DEV-STACK-*`) | `dev` `references/stacked-prs.md` | When to stack, cascade discipline, layer shape, bottom-up merge safety |
-```
-
-### M2. §5 Safety Rules — new bullet after `DEV-GIT-PUSH-01` (line ~406)
-
-```diff
- - **Push requires explicit user approval (DEV-GIT-PUSH-01, ESCALATE)** — never `git push` without ...
-+- **Stack dependent work instead of one oversized PR (DEV-STACK-01, DEFAULT)** — when a change splits into 2+ dependency-ordered parts and one PR would be too large to review, publish a bottom-up stack: each branch based on the one below, each PR's base pointing at its parent. Editing a lower layer means cascading the rebase to every layer above before pushing (`DEV-STACK-02`, STRICT). Merging a stack is bottom-up and stays user-authorized (`DEV-STACK-04`, ESCALATE). Canonical rules, depth guidance, anti-patterns, and tooling: `references/stacked-prs.md`.
-```
-
-Wording constraint: the bullet must NOT restate the reference body — it names the trigger,
-the strict cascade duty, and the escalate boundary, then points. Duplication would violate
-the family's single-owner rule and the reviewer checks for it.
-
-## MODIFY — `plugins/codexclaw/skills/dev/references/skill-ownership.md`
-
-Insert one row, adjacent to the other process/safety rows:
-
-```diff
- | Pre-write search | `dev` §1.5 | `dev-code-reviewer` |
-+| Stacked pull requests (`DEV-STACK-*`) | `dev` `references/stacked-prs.md` | `pabcd`, `loop`, `dev-code-reviewer`, `dev-devops` |
-```
-
-## Accept criteria (WP2)
-
-1. `rg -n "DEV-STACK-0" plugins/codexclaw/skills` → definitions only in
-   `dev/references/stacked-prs.md`; `dev/SKILL.md` mention is pointer-shaped.
-2. `npm run gate` exits 0 (no forbidden-claims / status-sync / count drift).
-3. `npm test` exits 0.
-4. The reference states depth guidance, a do-not-stack list, and anti-patterns —
-   criterion c4's "reader can decide when NOT to stack".
-5. No claim in the reference is stated as fact from a `lead`- or `unverified`-status ledger
-   row. The K15 depth heuristic ships explicitly labeled as practitioner guidance, and the
-   K20 review-invalidation behavior ships hedged ("depending on repository settings").
-   A-gate round 1 rejected an earlier draft for exactly this; see `001_audit_synthesis.md`.
-6. No CI-rerun or "depth × cascades" arithmetic appears anywhere: the only CI statement is
-   K4's verified one (every layer is a fully gated PR running default-branch checks).
-   A-gate round 2 rejected a draft that kept the claim after dropping its citation.
-7. `DEV-STACK-05` (review mechanics) is defined here, not in `dev-code-reviewer`.
-
-## Activation scenario (C-ACTIVATION-GROUNDING-01)
-
-This phase adds documentation, not a conditional code path — the "activation" is
-routing/visibility, verified in WP4 by grepping the discovery surfaces an agent actually
-reads (frontmatter keywords, ownership map, reference table) rather than by a runtime trace.
-
-## WP2 A-gate: deltas between this plan and the landed file
-
-A fresh reviewer audited the landed implementation against this doc and raised one High
-and one Medium. Recorded here so the doc stays the SoT for what actually shipped.
-
-**High — K15 leaked back in unhedged (ACCEPTED, fixed).** The landed anti-pattern table
-row read "Deep stacks (>4–5 layers) | Rebase and reviewer-navigation cost grow faster than
-the review benefit", asserting as canonical fact the exact threshold the Depth paragraph
-~100 lines earlier had carefully labeled as practitioner experience. A hedge is only worth
-what its weakest restatement says. The row now names the guidance as practitioner
-experience, points back to Depth, and states only the mechanical cost (another gated PR,
-another branch to re-stack). This is the third distinct instance of the same failure family
-in this unit (round 1: lead-as-fact; round 2: citation laundering; here: hedge-defeating
-restatement) — the pattern is that a claim's *status* has to travel with every copy of it.
-
-**Medium — four deviations from "write verbatim" (ACCEPTED as plan amendments, not
-reverted).** The reviewer is right that the landed file is not byte-identical to the body
-prescribed above. Dispositions:
-
-| Deviation | Disposition |
-|---|---|
-| §DEV-STACK-01 do-not-stack: "CI and review cost" → "review and CI surface" | Keep. The plan's phrasing edged toward the K17 cost-arithmetic the round-2 audit deleted; "surface" is the claim K4 supports. |
-| Graphite command pair spacing (`gt restack` / `gt modify`) | Keep. Cosmetic. |
-| Anti-pattern table added to the reference | Keep — it is required by accept criterion 4 (a reader must be able to tell when NOT to stack) and by criterion c4 in the goalplan. The plan listed the anti-patterns in `000_research.md` §4 but never routed them into shipped text; that was a plan gap. The table is the fix, and this section is its amendment record. |
-| `dev/SKILL.md` table row gained "review scope" | Keep. `DEV-STACK-05` was added to the reference during the round-2 relocation, after this doc's table row was drafted; the row now describes the file's real contents. |
-
-**Low — "too large to review in one sitting" is subjective (ACCEPTED, fixed).** The
-criterion now defers to the repository's own review-size convention where one exists and
-names reviewer judgment as the fallback, so the reader knows which authority decides.
