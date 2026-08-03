@@ -100,6 +100,9 @@ policy.
 [dev-devops]      build-image → scan → push-registry → deploy-staging → smoke → promote → deploy-prod
 ```
 
+**Stacked PRs change pipeline sizing (DEFAULT).** When sizing pipelines for a stack of
+pull requests, follow `DEV-STACK-03` in `cxc-dev` `references/stacked-prs.md`.
+
 ### §2.2 GHA Reusable Workflows (DEFAULT)
 
 ```yaml

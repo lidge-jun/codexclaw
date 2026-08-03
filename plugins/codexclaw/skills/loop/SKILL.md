@@ -315,8 +315,13 @@ that belongs to the user.
   remote branch creation, and tag push. If the user pre-approves push at goal
   start (e.g. "push when done"), that counts as approval for the scope they
   named — do not extend it beyond that scope.
+- **A dependent work-phase chain may be publishable as a stack (DEFAULT).** A
+  `LOOP-UNIT-CHAIN-01` chain is stack-shaped: each cycle consumes the previous
+  cycle's verified output. Rules: `cxc-dev` `references/stacked-prs.md`
+  (`DEV-STACK-01`).
 
-Canonical rule ids: `DEV-GIT-COMMIT-01` and `DEV-GIT-PUSH-01` in `cxc-dev` §5.
+Canonical rule ids: `DEV-GIT-COMMIT-01`, `DEV-GIT-PUSH-01`, and the `DEV-STACK-*`
+family in `cxc-dev` §5 / `references/stacked-prs.md`.
 
 ## Terminal outcomes
 

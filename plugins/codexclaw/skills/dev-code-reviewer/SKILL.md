@@ -121,6 +121,9 @@ implementation, and scope-drift abstractions added beyond the request.
 - Tests pass.
 - The change explains what changed and why.
 - The diff is small and structured enough to review.
+- If the PR is one layer of a stack, follow `DEV-STACK-05` in `cxc-dev`
+  `references/stacked-prs.md` — review scope, standalone judgment, base-ref and
+  force-push checks, and the merge boundary all live there.
 
 ---
 
