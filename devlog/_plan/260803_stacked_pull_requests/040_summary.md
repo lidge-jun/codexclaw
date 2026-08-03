@@ -121,7 +121,16 @@ remote one commit behind): commit metadata + this summary → push → append th
 below → commit that → **push again** → verify `origin/dev == HEAD`. The record cites the
 first commit and push; the second commit needs no self-reference.
 
-- Metadata + summary commit: _(appended after the commit lands)_
-- `git push origin dev`: _(appended after the push succeeds)_
-- Final `git log --oneline -1 origin/dev` with `origin/dev == HEAD`: _(appended after the
-  second push)_
+- Metadata + summary commit: `fcdc0b7d` — "feat(skills): route stacked-PR requests to the
+  DEV-STACK doctrine".
+- `git push origin dev` (2026-08-03): `ecc644e7..fcdc0b7d  dev -> dev`, to
+  `https://github.com/lidge-jun/codexclaw.git`. Push was pre-approved by the user for this
+  branch in this session (`DEV-GIT-PUSH-01`); the approval covered `origin/dev` only — no
+  tags, no other branches, no PR creation, no merge.
+- Pre-push gates: `npm run gate` exit 0; `npm test` 1449/1449, 0 fail.
+- Final `git log --oneline -1 origin/dev` with `origin/dev == HEAD`: appended by the
+  second push of this record commit; verified immediately after it, so the remote carries
+  the complete unit rather than trailing its own receipt.
+
+With that, WP4 is closed and the unit's terminal outcome is **DONE**: four work-phases,
+four commits, all seven goalplan criteria met with captured evidence.
