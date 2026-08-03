@@ -1,10 +1,10 @@
 ---
 name: cxc-dev
-description: "MUST USE for every coding task — classifies work depth (C0-C5), defines modular limits, pre-write search, verification-before-completion, and safety rules. Always-on discipline (agent-followed, not hook-enforced) that routes to surface-specific dev-* routers by change surface. Also surfaces browse/QA native tool routing so the model uses agbrowse and Codex browser plugins instead of installing Playwright directly. Triggers: any code change, refactor, bug fix, feature, test, review, scaffolding, browse, browser, QA, 브라우저, 브라우즈, 페이지 열어, URL 확인, 화면 확인, 스크린샷, QA 확인, 플레이라이트."
+description: "MUST USE for every coding task — classifies work depth (C0-C5), defines modular limits, pre-write search, verification-before-completion, and safety rules. Always-on discipline (agent-followed, not hook-enforced) that routes to surface-specific dev-* routers by change surface. Also surfaces browse/QA native tool routing so the model uses agbrowse and Codex browser plugins instead of installing Playwright directly, and owns the stacked-pull-request rules (DEV-STACK-*) for splitting dependent work across a chain of reviewable PRs. Triggers: any code change, refactor, bug fix, feature, test, review, scaffolding, browse, browser, QA, stacked PR, stacked diff, PR stack, restack, 브라우저, 브라우즈, 페이지 열어, URL 확인, 화면 확인, 스크린샷, QA 확인, 플레이라이트, 스택 PR, PR 쪼개기."
 metadata:
   last-verified: "2026-07-02"
   short-description: "Universal dev discipline: work classifier, modular limits, verification gate, safety rules."
-  keywords: ["develop", "implement", "refactor", "feature", "code quality", "verification", "browse", "browser", "QA", "agbrowse", "브라우저", "페이지 확인", "화면 QA", "플레이라이트"]
+  keywords: ["develop", "implement", "refactor", "feature", "code quality", "verification", "browse", "browser", "QA", "agbrowse", "stacked PR", "stacked pull request", "stacked diff", "PR stack", "restack", "브라우저", "페이지 확인", "화면 QA", "플레이라이트", "스택 PR", "PR 쪼개기"]
 ---
 
 # Dev — Common Development Guidelines

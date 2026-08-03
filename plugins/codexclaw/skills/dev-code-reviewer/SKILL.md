@@ -4,7 +4,7 @@ description: "MUST USE for code review and review-readiness — review process, 
 metadata:
   last-verified: "2026-07-02"
   short-description: "Code review router: findings, severity, verdicts, and review workflow."
-  keywords: ["review", "PR", "pull request", "diff", "merge", "feedback", "approve", "code quality"]
+  keywords: ["review", "PR", "pull request", "diff", "merge", "feedback", "approve", "code quality", "stacked PR", "stack review", "스택 PR 리뷰"]
 ---
 
 # Dev-Code-Reviewer — Code Review Guide
