@@ -1,0 +1,5 @@
+interface:
+  display_name: "cxc-worktree-guardian"
+  short_description: "Managed-worktree identity safety - adopt/rename in place, never delete/recreate (워크트리 이름/삭제 방지)."
+policy:
+  allow_implicit_invocation: true

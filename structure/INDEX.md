@@ -135,7 +135,7 @@ Per-role subagent model, reasoning-effort, and prompt configuration. `src/store.
 
 ## Skills Map
 
-codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.yaml` `interface.display_name` values are the user-facing `$` autocomplete names; folder names are implementation paths. The implicit-visible set is `{dev, search, interview, pabcd, recall, loop, dev-frontend, dev-uiux-design}` (`dev` alone carries always-on body discipline). All other `dev-*` routers and the remaining skills are on-demand and explicitly invokable.
+codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.yaml` `interface.display_name` values are the user-facing `$` autocomplete names; folder names are implementation paths. The implicit-visible set is `{dev, search, interview, pabcd, recall, loop, dev-frontend, dev-uiux-design, worktree-guardian}` (`dev` alone carries always-on body discipline). All other `dev-*` routers and the remaining skills are on-demand and explicitly invokable.
 
 | Skill display name | Folder | Role |
 |--------------------|--------|------|
@@ -163,6 +163,7 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-ast-grep` | `skills/ast-grep/` | AST-aware search/codemods using `sg` |
 | `cxc-repo-map` | `skills/repo-map/` | ranked repo structure map (vendored RepoMapper: tree-sitter tags + PageRank) |
 | `cxc-lunasearch` | `skills/lunasearch/` | cheap parallel public-web discovery lane that hands proof back to `cxc-search` |
+| `cxc-worktree-guardian` | `skills/worktree-guardian/` | Codex-app managed-worktree identity safety: adopt-in-place renaming, never delete/recreate, WORKTREE-GUARD-01/02/03 hook interplay |
 | `cxc-ultraresearch` (deprecated, redirects to `cxc-search`) | `skills/ultraresearch/` | multi-wave research protocol with journal and claim-ledger proof discipline |
 
 The `dev` hub routes by change surface toward on-demand `dev-*` skills. `skill-hub` documents the exposure model: `allow_implicit_invocation` controls auto-rendered skill visibility, while explicit `$skill` / path mention still works unless a skill is disabled. The `interview`, `orchestrate`, `loop`, and `goalplan` skills are discoverable contracts for hardening surfaces; their deeper runtime work is tracked in `devlog/_plan/mvp_hard/`.

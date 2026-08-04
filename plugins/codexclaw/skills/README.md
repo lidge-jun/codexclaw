@@ -49,6 +49,10 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   on-demand skill.
 - `lunasearch/` — discoverable `cxc-lunasearch` lane for cheap parallel public-web
   discovery that hands proof back to `cxc-search`.
+- `worktree-guardian/` — discoverable `cxc-worktree-guardian` surface for Codex-app
+  managed-worktree safety: three namespaces (branch/worktree/thread), adopt-in-place
+  renaming, the never-list, and the WORKTREE-GUARD-01/02/03 hook interplay.
+  Ships `allow_implicit_invocation: true`.
 - `ultraresearch/` — discoverable `cxc-ultraresearch (DEPRECATED -> cxc-search)` protocol for multi-wave
   research with journal and claim-ledger proof discipline.
 
