@@ -78,7 +78,6 @@ GitHub openai/codex issues (primary):
   worktree; move is for other/inactive worktrees only.
 - Deleting the directory without `git worktree remove` leaves admin state in
   `$GIT_COMMON_DIR/worktrees/<id>`; pruned per `gc.worktreePruneExpire`.
-- `move`/`repair` exist since git 2.35; check `git --version` on old hosts.
 
 ## 5. Guardrail precedents (lane Nash)
 
@@ -106,8 +105,9 @@ GitHub openai/codex issues (primary):
 Chosen (A): codexclaw hook-based "worktree guardian":
 - SessionStart: detect cwd under `$CODEX_HOME/worktrees/` → inject identity block
   (managed status, base repo, do-not-delete rule, detached-HEAD note, retention fact).
-- UserPromptSubmit: worktree rename-intent trigger → inject the safe rename/adopt
-  procedure (git worktree move / branch -m / thread-vs-dir namespace).
+- UserPromptSubmit: worktree rename-intent trigger → inject the adopt-in-place
+  procedure (branch -m / switch -c / thread-vs-dir namespace; move only for
+  inactive worktrees).
 - PreToolUse: deny commands that delete THIS session's own worktree root
   (`git worktree remove <own>`, `rm -rf` of own root/ancestor) with a remedy message.
 - New `worktree-guardian` skill: concept explainer + procedures + citations.

@@ -43,9 +43,10 @@ are documented in the skill as accepted defense-in-depth limits.
 ## B6 (High) — custom worktree root not detected → ACCEPT (scope narrowing)
 RCA: app settings are closed-source; no verified readable source for a custom root.
 FOLD: detection = default `$CODEX_HOME/worktrees` + `CODEX_HOME` override + new
-`CODEXCLAW_WORKTREE_ROOTS` env (colon-separated extra roots, documented escape
-hatch). Feature claims and injection wording narrowed to "default root + configured
-extra roots"; skill documents the limitation and the env fix.
+`CODEXCLAW_WORKTREE_ROOTS` env (path.delimiter-separated extra roots — round-2
+correction: `:` breaks Windows drive letters). Feature claims and injection wording
+narrowed to "default root + configured extra roots"; skill documents the limitation
+and the env fix.
 
 ## B7 (Medium) — symlink/case canonicalization → ACCEPT
 FOLD: canonicalize with `realpathSync.native`; for non-existent targets, realpath

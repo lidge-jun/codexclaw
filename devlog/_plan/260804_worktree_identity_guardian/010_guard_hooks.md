@@ -26,10 +26,13 @@ export interface WorktreeIdentity {
   slot: string | null;         // first segment under worktreesDir
   slotRoot: string | null;     // <worktreesDir>/<slot> — DELETION boundary
   checkoutRoot: string | null; // nearest ancestor of cwd containing a .git entry,
-                               // capped at slotRoot; fallback slotRoot — git target
+                               // capped at slotRoot; NULL when no .git entry found
+                               // (identity "unconfirmed") — never falls back to
+                               // slotRoot, which is not a git target
 }
 export function candidateWorktreeRoots(env): string[]
-//   [ resolveCodexHome(env)+"/worktrees", ...split(env.CODEXCLAW_WORKTREE_ROOTS, ":") ]
+//   [ resolveCodexHome(env)+"/worktrees", ...split(env.CODEXCLAW_WORKTREE_ROOTS,
+//   path.delimiter) ] — platform-delimited (Windows drive letters stay intact)
 export function resolveCodexHome(env): string          // env.CODEX_HOME ?? ~/.codex
 export function canonicalize(p: string): string
 //   realpathSync.native(p) when it exists; else realpath nearest existing
@@ -87,7 +90,9 @@ export function handleWorktreeGuardPreTool(rawStdin: string): string // enforcem
 ```
 [codexclaw: MANAGED WORKTREE — identity guard (WORKTREE-GUARD-01)]
 This session runs inside a Codex-app-managed worktree: <checkoutRoot>
-(cwd: <cwd>; slot: <slotRoot>; worktrees root: <worktreesDir>).
+   (cwd: <cwd>; slot: <slotRoot>; worktrees root: <worktreesDir>).
+   When checkoutRoot is null the block says "checkout root: unconfirmed (no .git
+   entry found)" and omits git-target advice; slot protection still applies.
 - This thread is BOUND to this worktree. NEVER delete, recreate, or "start fresh"
   to rename it — that destroys uncommitted work and breaks the app binding.
 - App worktrees usually start detached-HEAD: the "worktree name" is the directory
@@ -142,17 +147,29 @@ approval does not unlock self-deletion from inside the session.
 `node --test`, imports `../src/worktree-guard.ts`. Cases:
 1. detect: default `~/.codex/worktrees/<slot>/<repo>` (tmpdir HOME via env) →
    managed, slot, slotRoot, checkoutRoot at the dir containing `.git`;
-   CODEX_HOME override; CODEXCLAW_WORKTREE_ROOTS extra root; non-worktree cwd →
-   not managed; cwd == root → not managed.
-2. canonicalize: symlinked cwd resolves to the real managed path; case-variant
-   path on macOS still matches (skip on case-sensitive fs).
+   CODEX_HOME override; CODEXCLAW_WORKTREE_ROOTS extra root (POSIX list AND a
+   Windows-style `C:\...\worktrees` entry parsed via path.delimiter);
+   non-worktree cwd → not managed; cwd == root → not managed; no `.git` anywhere
+   up to slotRoot → managed with checkoutRoot null (unconfirmed identity, slot
+   still protected).
+2. canonicalize: symlinked cwd resolves INTO the real managed path (symlink-in);
+   a symlink INSIDE the slot pointing OUT does not make the real target managed
+   and the lexical slot path still protects (symlink-out false-positive check);
+   case-variant path on macOS still matches (skip on case-sensitive fs).
 3. SessionStart: managed → WORKTREE-GUARD-01 + checkoutRoot; non-managed → "".
 4. UserPromptSubmit: managed + "워크트리 이름 바꾸고 싶어" → guidance + marker file
    written; second identical prompt → "" (dedupe); managed + unrelated → "";
    non-managed + rename prompt → "".
-5. Grammar: `git worktree remove <checkoutRoot>` deny; `git -C <other> worktree
-   remove <checkoutRoot>` deny; `sudo rm -rf <slotRoot>` deny; `/bin/rm -rf .`
-   (cwd == checkoutRoot) deny; `rm --recursive --force <checkoutRoot>` deny;
+5. Grammar (one activation case per promised branch):
+   `git worktree remove <checkoutRoot>` deny; `git worktree remove --force
+   <checkoutRoot>` deny; `git -C <other> worktree remove <checkoutRoot>` deny;
+   `sudo rm -rf <slotRoot>` deny; `env FOO=1 rm -rf <slotRoot>` deny;
+   `command rm -rf <slotRoot>` deny; `builtin rm -rf <slotRoot>` deny (or
+   documented as unhandled if the shell builtin semantics differ);
+   `/bin/rm -rf .` (cwd == checkoutRoot) deny; `rm --recursive --force
+   <checkoutRoot>` deny; `rm -rf -- <checkoutRoot>` deny (`--` terminator);
+   `rmdir <checkoutRoot>` deny; `unlink <checkoutRoot>/f` allow-with-note or
+   deny per final semantics (unlink of a file inside is harmless — allow);
    `cd /tmp && rm -rf <slotRoot>` deny (compound); `rm -rf "$X"` mentioning slot
    string → conservative deny; `git worktree remove <other path>` allow;
    `git worktree prune` allow; `git status` allow; `rm -rf ./build` allow.
