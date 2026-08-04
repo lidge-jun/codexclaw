@@ -52,7 +52,9 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
 - `worktree-guardian/` — discoverable `cxc-worktree-guardian` surface for Codex-app
   managed-worktree safety: three namespaces (branch/worktree/thread), adopt-in-place
   renaming, the never-list, and the WORKTREE-GUARD-01/02/03 hook interplay.
-  Ships `allow_implicit_invocation: true`.
+  On-demand (`allow_implicit_invocation: false`; the pinned implicit set in
+  `test/manifest-policy.test.mjs` S3 stays untouched) — the WORKTREE-GUARD hooks
+  reference it explicitly.
 - `ultraresearch/` — discoverable `cxc-ultraresearch (DEPRECATED -> cxc-search)` protocol for multi-wave
   research with journal and claim-ledger proof discipline.
 
