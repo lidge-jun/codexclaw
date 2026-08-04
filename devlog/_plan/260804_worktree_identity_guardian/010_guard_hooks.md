@@ -57,9 +57,17 @@ export function handleWorktreeGuardPreTool(rawStdin: string): string // enforcem
    single/double quotes protected).
 2. Per segment, strip leading prefixes `sudo`, `env ...`, `command`, `builtin`.
 3. Executable match by basename: `rm`, `rmdir`, `unlink`, `git`.
-4. `rm`/`rmdir`/`unlink`: recursive/force detection via clustered short flags
-   (`-rf`, `-fr`, `-r -f`, ...) or long flags (`--recursive`, `--force`); `--`
-   ends flag parsing. Each non-flag token is a target path.
+4. Per-command flag semantics (round-3 fix — no shared recursive/force bucket):
+   - `rm`: a directory target is threatened only with recursive (`-r`/`-R`/
+     `--recursive`, clustered forms like `-rf`); `--force`/`-f` alone does not
+     remove dirs. `--` ends flag parsing. Non-flag tokens are targets.
+   - `rmdir`: no flag requirement (removes empty dirs only); any protected target
+     is denied outright (fails harmlessly on non-empty dirs, but deny is clearer).
+   - `unlink`: file-only; a target inside the worktree is ALLOWED (harmless to
+     the worktree itself); `unlink <checkoutRoot>` fails at runtime (EISDIR) →
+     allow. unlink never denies.
+   - Prefix stripping covers `sudo`, `env ...`, `command`, AND `builtin`
+     (deterministic: `builtin rm -rf <slotRoot>` denies).
 5. `git`: scan for `-C <path>` (sets effective cwd for that segment) then
    `worktree remove <path>` (also `--force` variants). `worktree prune` is NOT
    denied (no path arg; does not delete an existing directory).
@@ -164,12 +172,13 @@ approval does not unlock self-deletion from inside the session.
    `git worktree remove <checkoutRoot>` deny; `git worktree remove --force
    <checkoutRoot>` deny; `git -C <other> worktree remove <checkoutRoot>` deny;
    `sudo rm -rf <slotRoot>` deny; `env FOO=1 rm -rf <slotRoot>` deny;
-   `command rm -rf <slotRoot>` deny; `builtin rm -rf <slotRoot>` deny (or
-   documented as unhandled if the shell builtin semantics differ);
+   `command rm -rf <slotRoot>` deny;
    `/bin/rm -rf .` (cwd == checkoutRoot) deny; `rm --recursive --force
    <checkoutRoot>` deny; `rm -rf -- <checkoutRoot>` deny (`--` terminator);
-   `rmdir <checkoutRoot>` deny; `unlink <checkoutRoot>/f` allow-with-note or
-   deny per final semantics (unlink of a file inside is harmless — allow);
+   `builtin rm -rf <slotRoot>` deny (prefix stripping is promised → must deny);
+   `rmdir <checkoutRoot>` deny; `unlink <checkoutRoot>/somefile` → allow, empty
+   output (file-only op, worktree unthreatened); `rm -f <checkoutRoot>/file`
+   (no recursive) → allow;
    `cd /tmp && rm -rf <slotRoot>` deny (compound); `rm -rf "$X"` mentioning slot
    string → conservative deny; `git worktree remove <other path>` allow;
    `git worktree prune` allow; `git status` allow; `rm -rf ./build` allow.
