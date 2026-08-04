@@ -171,7 +171,7 @@ The `dev` hub routes by change surface toward on-demand `dev-*` skills. `skill-h
 
 ## Hooks
 
-The manifest wires 12 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` are both authoritative and locked by `checkCounts`. Seven earlier advisory hooks were retired to `hooks/_deprecated/` in the 2026-07-05 hook diet (their rules were absorbed into the `dev` skill family).
+The manifest wires 21 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` are both authoritative and locked by `checkCounts`. Seven earlier advisory hooks were retired to `hooks/_deprecated/` in the 2026-07-05 hook diet (their rules were absorbed into the `dev` skill family).
 
 | Hook event | Hook file | Command | Live behavior |
 |------------|-----------|---------|---------------|
@@ -187,6 +187,15 @@ The manifest wires 12 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` 
 | `PostCompact` | `hooks/post-compact-resetting-reinject-cursor.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-compact` | resets reinjection cursor/stage context after compaction |
 | `PreToolUse` `^(apply_patch|Write|Edit)$` | `hooks/pre-tool-use-linting-apply-patch.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-edit` | combined edit path: comment lint (deny-capable) then IDLE-edit arming advisory |
 | `PostToolUse` `^(view_image|browser:control-in-app-browser|chrome:control-chrome|computer-use:computer-use|apply_patch)$` | `hooks/post-tool-use-tracking-render-observations.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-render-observation` | tracks render/visual observation events for QA evidence |
+| `SessionStart` | `hooks/session-start-bootstrapping-pabcd-state.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook session-start` | materializes the bound session's default IDLE FSM state; side-effect only, silent |
+| `PreToolUse` `^update_goal$` | `hooks/pre-tool-use-guarding-goal-complete.json` | same pabcd-state CLI | denies `update_goal complete` while a cycle is in flight or the bound goalplan fails E8 |
+| `SessionStart` | `hooks/session-start-injecting-recall-context.json` | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook session-start` | injects CWD-scoped recent-work recall context |
+| `PostCompact` | `hooks/post-compact-injecting-recall-context.json` | same recall CLI | re-injects recall context after compaction |
+| `PostCompact` | `hooks/post-compact-injecting-bg-terminal-affordance.json` | `node "${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js" hook post-compact` | re-announces the background-terminal affordance after compaction |
+| `UserPromptSubmit` | `hooks/user-prompt-submit-detecting-recall-intent.json` | same recall CLI | detects past-session recall intent and injects the recall search affordance |
+| `SessionStart` | `hooks/session-start-detecting-managed-worktree.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | injects the WORKTREE-GUARD-01 identity block when the session cwd is inside an app-managed worktree ($CODEX_HOME/worktrees or CODEXCLAW_WORKTREE_ROOTS) |
+| `UserPromptSubmit` | `hooks/user-prompt-submit-guiding-worktree-rename.json` | same pabcd-state CLI, `hook worktree-guard` | on worktree rename intent inside a managed worktree, injects the adopt-in-place guidance once per session (WORKTREE-GUARD-02) |
+| `PreToolUse` `^Bash$` | `hooks/pre-tool-use-guarding-managed-worktree-deletion.json` | same pabcd-state CLI, `hook worktree-guard-pretool` | denies commands that delete the session's own managed worktree (git worktree remove / rm -r of slot, checkout, cwd, or ancestors) — enforced for subagent turns too (WORKTREE-GUARD-03) |
 
 Hook processes are intentionally short: read stdin JSON, reconstruct state, optionally write `.codexclaw/`, then print either nothing or one JSON hook envelope. `UserPromptSubmit` outputs `hookSpecificOutput.additionalContext`; `PreToolUse` can output `permissionDecision: "deny"` with a reason. Non-PreToolUse errors fail open to avoid blocking Codex; the goal-mode `request_user_input` guard is fail-closed.
 

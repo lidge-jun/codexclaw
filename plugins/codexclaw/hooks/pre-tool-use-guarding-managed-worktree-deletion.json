@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js\" hook worktree-guard-pretool",
+            "timeout": 10,
+            "statusMessage": "(codexclaw) Guarding managed worktree"
+          }
+        ],
+        "matcher": "^Bash$"
+      }
+    ]
+  }
+}

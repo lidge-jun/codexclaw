@@ -37,7 +37,10 @@
     "./hooks/session-start-injecting-recall-context.json",
     "./hooks/post-compact-injecting-recall-context.json",
     "./hooks/post-compact-injecting-bg-terminal-affordance.json",
-    "./hooks/user-prompt-submit-detecting-recall-intent.json"
+    "./hooks/user-prompt-submit-detecting-recall-intent.json",
+    "./hooks/session-start-detecting-managed-worktree.json",
+    "./hooks/user-prompt-submit-guiding-worktree-rename.json",
+    "./hooks/pre-tool-use-guarding-managed-worktree-deletion.json"
   ],
   "mcpServers": "./.mcp.json",
   "interface": {

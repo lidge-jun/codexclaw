@@ -15,7 +15,7 @@
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/tests-1%2C213_passing-brightgreen" alt="1,213 tests passing">
   <img src="https://img.shields.io/badge/skills-27-blue" alt="27 skills">
-  <img src="https://img.shields.io/badge/hooks-18-blue" alt="18 hooks">
+  <img src="https://img.shields.io/badge/hooks-21-blue" alt="21 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
@@ -54,7 +54,7 @@ codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-Then restart Codex and approve the 18 hooks when prompted (upgrades ask again — content-hash trust). Everything runs from chat, and the terminal surface ships too — the payload includes its own `cxc` dispatcher, so agent-driven `cxc orchestrate` commands work on every install:
+Then restart Codex and approve the 21 hooks when prompted (upgrades ask again — content-hash trust). Everything runs from chat, and the terminal surface ships too — the payload includes its own `cxc` dispatcher, so agent-driven `cxc orchestrate` commands work on every install:
 
 - `orchestrate status` — check the PABCD state machine
 - "Interview me first, then draft a diff-level plan."
@@ -103,7 +103,7 @@ plugins/codexclaw/
 │   ├── recall/                  past-session + memory store search
 │   └── repo-map/                tree-sitter + PageRank structure map
 │
-├── hooks/                       18 active hooks across the session lifecycle
+├── hooks/                       21 active hooks across the session lifecycle
 │   ├── session-start-*          provider bridge, PABCD bootstrap, map affordance, recall context
 │   ├── user-prompt-submit-*     PABCD trigger detection, recall intent
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard

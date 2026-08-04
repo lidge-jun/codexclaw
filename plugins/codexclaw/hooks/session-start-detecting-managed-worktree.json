@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js\" hook worktree-guard",
+            "timeout": 10,
+            "statusMessage": "(codexclaw) Checking managed-worktree identity"
+          }
+        ]
+      }
+    ]
+  }
+}

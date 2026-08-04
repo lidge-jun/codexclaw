@@ -44,6 +44,7 @@ import { handleFrictionPreToolUse } from "./friction-gate.ts";
 import { handleEditShapeCapture } from "./edit-shape.ts";
 import { buildRulesContextFromRaw } from "./rules.ts";
 import { handleRenderObservationCapture, handleRenderArtifactCapture } from "./render-observations.ts";
+import { handleWorktreeGuard, handleWorktreeGuardPreTool } from "./worktree-guard.ts";
 import { runSubagentStopGate } from "./subagent-evidence.ts";
 import { runDivergenceCli } from "./divergence-cli.ts";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.ts";
@@ -163,6 +164,20 @@ function main(): void {
   // intentional child-scoped surface. Skipping the fail-closed pre-tool-use
   // gate for children is safe: codex-rs itself denies non-root
   // request_user_input (core/src/tools/handlers/request_user_input.rs:59).
+  // 260804 worktree-guard (WORKTREE-GUARD-03): PreToolUse deletion enforcement
+  // for app-managed worktrees. Deliberately ABOVE the subagent early-exit so
+  // child-agent turns are denied too (audit B3: the riskiest caller class must
+  // not bypass the guard). Fail-open on handler error: a guard crash must never
+  // block an unrelated command.
+  if (event === "worktree-guard-pretool") {
+    try {
+      process.stdout.write(handleWorktreeGuardPreTool(raw));
+    } catch {
+      // fail-open
+    }
+    process.exit(0);
+  }
+
   if (event !== "subagent-stop" && isSubagentHookPayload(raw)) {
     process.exit(0);
   }
@@ -215,6 +230,10 @@ function main(): void {
       // 080.1: FAIL-OPEN friction advisory ("allow" + reason) for a stop-level shell signature.
       // Distinct from the R-9 fail-closed branch; a crash here must never deny a tool.
       output = handleFrictionPreToolUse(raw);
+    } else if (event === "worktree-guard") {
+      // 260804: SessionStart identity + UserPromptSubmit rename guidance for
+      // app-managed worktrees. Context-only; subagent turns already exited above.
+      output = handleWorktreeGuard(raw);
     } else if (event === "post-tool-use-friction") {
       // 080.1: heuristic shell-failure friction capture (matcher ^Bash$); side-effect only.
       const payload = parsePostToolUse(raw);
