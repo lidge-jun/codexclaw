@@ -68,6 +68,14 @@ GitHub openai/codex issues (primary):
   safely (config + reflog included); git only refuses branch mutation when the
   branch is checked out in ANOTHER linked worktree.
 - Manual directory move recovery: `git worktree repair <new-path>`.
+- Version note (corrected in audit round 1): `move`/`repair` appear already in the
+  git 2.30 official docs — do NOT version-gate; feature-detect with
+  `git worktree move -h` / `repair -h`.
+- Session-safety note (audit round 1, blocker B1): `git worktree move` is git-safe
+  but NOT session-safe for the ACTIVE worktree — the running session's cwd is
+  invalidated (next command ENOENT, the incident shape) and app rebinding after a
+  manual move is undocumented. Adopt-in-place is the default for the current
+  worktree; move is for other/inactive worktrees only.
 - Deleting the directory without `git worktree remove` leaves admin state in
   `$GIT_COMMON_DIR/worktrees/<id>`; pruned per `gc.worktreePruneExpire`.
 - `move`/`repair` exist since git 2.35; check `git --version` on old hosts.

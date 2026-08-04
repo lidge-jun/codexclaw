@@ -1,4 +1,4 @@
-# 030 — WP4: validation, SoT sync, publish (diff-level)
+# 030 — WP4: validation, SoT sync, publish (diff-level, rev2 post-audit)
 
 ## Gates (fresh output, exit 0 each)
 
@@ -6,22 +6,27 @@
    worktree-guard.test.ts.
 2. `node plugins/codexclaw/scripts/build.mjs` — dist regeneration; re-run tests
    against dist where the suite does so (dist-freshness test in-repo).
-3. Live-fire (A2/A3 from 010): pipe crafted JSON payloads into
+3. Live-fire (A2/A3 from 010 rev2): pipe crafted JSON payloads into
    `plugins/codexclaw/components/pabcd-state/dist/cli.js hook worktree-guard`:
-   - SessionStart cwd=/Users/jun/.codex/worktrees/probe-slot/repo → WORKTREE-GUARD-01
-   - UserPromptSubmit "워크트리 이름 바꾸자" same cwd → WORKTREE-GUARD-02
-   - PreToolUse `git worktree remove /Users/jun/.codex/worktrees/probe-slot` → deny
-   - PreToolUse `git status` → empty
+   (probe slot dir contains a repo subdir with a `.git` file)
+   - SessionStart cwd=<probeSlot>/repo → WORKTREE-GUARD-01 naming checkoutRoot
+   - UserPromptSubmit "워크트리 이름 바꾸자" same cwd → WORKTREE-GUARD-02 (first
+     time) → "" (second time, dedupe marker)
+   - `hook worktree-guard-pretool` + Bash `git worktree remove <probeSlot>/repo`
+     → deny; same payload with agent_id stamped → still deny (B3);
+     `git status` → empty
    - SessionStart cwd=/Users/jun/Developer/new/700_projects/codexclaw → empty
    Record raw stdout in the D summary.
-4. `git diff --stat` scope check: only the files named in 010/020 + this unit.
+4. `git diff --stat` scope check: only the files named in 010/020 rev2 (component
+   src/test/dist, 3 hook JSONs, plugin.json, skill folder, README.md,
+   structure/INDEX.md, skills/README.md if applicable) + this unit.
 
 ## SoT sync (SOT-SYNC-01)
 
-Check whether the repo has an INDEX/architecture doc enumerating hooks
-(`rg -l "hooks/" README.md docs-site structure`); if a hook list exists, add the
-three new hooks; if none exists, note the recommendation in the D summary instead
-of creating a new SoT doc inside this unit.
+Known SoT surfaces (auditor-verified): README.md (badge + two "18 hooks" texts),
+structure/INDEX.md (hook table/list), skills/README.md (if it enumerates skills).
+All updated in 010/020 scope; this phase verifies the updates landed and the
+counts are self-consistent (21 hooks).
 
 ## Publish (pre-authorized by the user for this goal: dev push + main merge)
 
