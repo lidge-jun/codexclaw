@@ -74,6 +74,62 @@ test('desktop and mobile visual states', async ({ page }) => {
 
 For component libraries, prefer Storybook stories for each state and run Chromatic, Storybook test-runner, or equivalent screenshot checks if already configured.
 
+## Local Client Service Render Path
+
+Applies when the surface belongs to a service someone else operates — a client
+application, another team's product, a repository you hold as a read-only
+reference checkout. The observation requirement does not change; what changes
+is that you cannot assume a dev server, a fixture set, or a safe backend.
+
+### Find the repository-owned start command
+
+Read `package.json` scripts, the README, and any `docs/` entry before inventing
+a command. Ports, proxies, and environment prerequisites are usually written
+down. A command you guessed can start a different app than the one you meant to
+observe.
+
+### Record configuration and remote dependencies
+
+Before starting, establish what the app talks to. An application that reads a
+production API from a local dev server is not a safe observation target: you
+may read live data, and any write path is a real write.
+
+Note which of these apply and say so in the report: required environment
+variables, an auth session, a mock or fixture layer, a staging endpoint, a
+seeded database.
+
+### Start only the required local service
+
+Run the one app that renders the changed surface. Starting a whole monorepo to
+look at one route wastes time and multiplies what can fail.
+
+### Exercise the route with reproducible input
+
+Note the exact route, and the input or fixture that produced the state you
+observed. "The detail page" is not reproducible; a concrete route with a named
+fixture — `/items/<id>/<step>` populated from a fixture you can point at — is.
+
+### Capture viewport and state evidence
+
+Same requirements as above — the viewport set, the states, the screenshot
+paths.
+
+### Stop condition and honest UNVERIFIED report
+
+If the app cannot be started safely — no fixtures, no staging endpoint, only a
+production backend — stop and report `UNVERIFIED` with what was missing. Do not
+substitute a static reading of the code, and do not point at a design-system
+gallery page as if it were the changed surface. A gallery renders its own
+samples, not your change.
+
+**FE-LOCAL-SERVICE-RENDER-01 (DEFAULT):** a render report that depended on
+running a local service must name the start command, the route exercised, the
+input or fixture, the state of external dependencies, the viewports, and the
+screenshot paths. Mechanism: record these while running, not from memory.
+Failure: a later reader cannot tell whether the screenshot came from real data,
+a mock, or a different route. Exception: none; if a field does not apply, say
+so explicitly.
+
 Fail delivery until these are resolved:
 - overlap or clipped text
 - missing assets or unverified external images

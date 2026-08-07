@@ -61,6 +61,7 @@ Use browser fetch/open/text/get-dom/snapshot only after candidate URLs exist.
 | `references/compositional-patterns.md` | Composing hero, navigation, motion, or content structure | 15 compositional patterns from award research: hero types, nav models, motion architectures, content structures |
 | `references/design-trends.md` | Checking dated prevalence, emerging techniques, or promotion status | 2026-07-14 axis-frequency snapshot, technique-level signals, signature ledger, promotion pipeline, and re-crawl protocol |
 | `references/ux-states.md` | Building any stateful UI | Onboarding, empty, error, loading, progressive disclosure |
+| `references/conversational-ai.md` | Designing or reviewing a turn-based AI surface with streaming output, interruption, regeneration, or results the system cannot fully stand behind | Turn-state model, recovery after interruption, uncertainty expression, Korean copy for generated output, streaming a11y |
 | `references/color-system.md` | Generating colors/palette | OKLCH-based palette generation, hue budget, tinted neutrals, dark mode, accessibility |
 | `references/design-system-bootstrap.md` | New project / design system | Token architecture, component hierarchy, **DESIGN.md format** (google-labs-code/design.md) |
 | `references/responsive-nav.md` | Responsive or navigation work | Breakpoints, container queries, nav patterns by density |
