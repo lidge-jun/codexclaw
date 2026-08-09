@@ -7,7 +7,7 @@
 
 ## 1. 결론 한 문단
 
-사용자 보고("다른 세션간 메세지를 볼 수 있게 업데이트")에 해당하는 기능은 **multi-agent v2의 inter-agent communication(mailbox)** 이다. 한 스레드의 에이전트가 같은 `ThreadManager` 프로세스 안의 다른 스레드에 `send_message` / `followup_task` 모델 툴로 메시지를 본다. 수신 세션의 in-memory mailbox(`InputQueue.mailbox_pending_mails`)에 쌓이고, `trigger_turn` 여부와 durable sleep 상태에 따라 진행 중인 턴에 끼어들거나 새 턴을 깨운다. 2026-07-20 `b00c9b2e1`(#34383)에서 multi-agent v2가 stable 선언됐다.
+사용자 보고("다른 세션간 메세지를 볼 수 있게 업데이트")에 해당하는 기능은 **multi-agent v2의 inter-agent communication(mailbox)** 이다. 한 스레드의 에이전트가 같은 `ThreadManager` 프로세스 안의 다른 스레드에 `send_message` / `followup_task` 모델 툴로 메시지를 본다. 수신 세션의 in-memory mailbox(`InputQueue.mailbox_pending_mails`)에 쌓이고, `trigger_turn` 여부와 durable sleep 상태에 따라 진행 중인 턴에 끼어들거나 새 턴을 깨운다. 2026-07-20 `b00c9b2e1`(#34383)에서 multi-agent v2가 stable 선언됐다. 단 stable이어도 **기본 비활성**이다 — `Feature::MultiAgentV2`는 `Stage::Stable`에 `default_enabled: false`로 등록돼 있고(`features/src/lib.rs:1130-1135`), v2 툴 노출은 이 플래그로 게이트된다(`core/src/tools/spec_plan.rs:595, 656, 1127`).
 
 같은 시기에 들어온 유저 메시지 큐 3종(`bf7804c25`, `b87981a51`, `bc8b25ea0`)은 **별개 기능**이다. 그쪽은 "유저(클라이언트) → 한 스레드"의 durable 큐잉이지 "세션 A → 세션 B"가 아니다.
 
@@ -71,7 +71,7 @@ inter-agent send 전용 JSON-RPC 메서드는 **없다**(`common.rs` 메서드 �
 2. `handle_message_string_tool`이 `ensure_v2_agent_loaded`로 수신 스레드를 residency LRU에서 로드하고 `InterAgentCommunication`을 만들어 `agent_control.send_inter_agent_communication` 호출 (`multi_agents_v2/message_tool.rs:52-119`).
 3. `AgentControl`이 실행 용량 체크 후 `ThreadManagerState::send_op(B, Op::InterAgentCommunication{..})` → B의 session IO 채널로 submit (`core/src/agent/control.rs:195-264`, `core/src/thread_manager.rs:1337-1353`).
 4. B의 submission 루프가 `handlers::inter_agent_communication`으로 디스패치 → B의 `InputQueue.enqueue_mailbox_communication`에 push. `trigger_turn==true`이거나 B가 durable sleep 중이면 `maybe_start_turn_for_pending_work`로 턴 시작 (`core/src/session/handlers.rs:284-301, 776-784`; `input_queue.rs:85-98`).
-5. B 턴 경계에서 `drain_mailbox_input_items` → `TurnInput::InterAgentCommunication`으로 변환 (`input_queue.rs:113-132`). 실행 중인 턴이면 commentary/reasoning 아이템 경계에서 preempt해 다음 샘플링 요청에 fold (`turn.rs:2326-2370`); final-answer 이후면 `MailboxDeliveryPhase::NextTurn`으로 다음 턴 배달 (`state/turn.rs:50-56`, `session/mod.rs:4098`).
+5. B 턴 경계에서 `drain_mailbox_input_items` → `TurnInput::InterAgentCommunication`으로 변환 (`input_queue.rs:113-132`). 실행 중인 턴이면 commentary/reasoning 아이템 경계에서 preempt해 다음 샘플링 요청에 fold (`turn.rs:2326-2370`); final-answer 이후면 `MailboxDeliveryPhase::NextTurn`으로 다음 턴 배달 (enum: `state/turn.rs:50-56`, defer 함수: `input_queue.rs:155-176`, 호출부: `stream_events_utils.rs:108-112`).
 6. 배달 시 `record_inter_agent_communication`: B의 rollout에 `InterAgentCommunicationMetadata{trigger_turn}` + ResponseItem 영속, raw response item 이벤트를 클라이언트에 송신 (`session/mod.rs:3211-3238`).
 7. A 측에는 `SubAgentActivityItem{kind: Interacted}` 활동 아이템 emit (`message_tool.rs:120-131`). A는 `wait_agent`로 B의 결과를 폴링 (`wait.rs:142, 179-197`).
 

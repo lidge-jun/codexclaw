@@ -19,6 +19,7 @@ codexclaw는 codex 세션을 **일회성 프로세스**로 다룬다. messenger-
 
 내용: codexclaw의 dispatch doctrine과 role 프롬프트가 v2 통신 툴(`send_message` QueueOnly, `followup_task` TriggerTurn, `wait_agent`)의 semantics를 정확히 가르치도록 한다. 지금도 subagent는 같은 프로세스 안의 스레드라 mailbox가 동작하지만, codexclaw 문서/프롬프트 어디에도 이 트리거 조건과 제약이 기록돼 있지 않다.
 
+- 전제: 이 경로는 `multi_agent_v2` 플래그가 켜져 있을 때만 성립한다 (stable이지만 `default_enabled: false`, `features/src/lib.rs:1130-1135`). codexclaw에서는 config-guard가 이 플래그를 관리한다 (`plugins/codexclaw/components/config-guard/src/multi-agent-v2.ts`, `setMultiAgentV2State` :101).
 - 바꿀 것: `structure/20_pabcd_dispatch_doctrine.md` §3 DISPATCH-ACTOR-01은 이미 "followup_task triggers a turn when idle; send_message is context-only delivery" 구분을 담고 있다(:127-130). 여기에 아직 없는 v2 semantics — root 타겟 불가 가드(`message_tool.rs:78-91`), QueueOnly mail의 다음-턴 지연 배달(`MailboxDeliveryPhase`), trigger-turn mail pending 시 extension idle 턴 거부(`inject.rs:57-63`), `wait_agent` 폴링/타임아웃 지침 — 를 보강하고, subagent-config의 role promptOverride에 mailbox 활동 대기 지침을 추가한다.
 - 장점: 코드 변경 사실상 없음(문서/프롬프트 패치), upstream이 의도한 경로, stable 선언(`b00c9b2e1`) 이후라 API 소거 위험이 낮음.
 - 단점: 프로세스 경계를 못 넘는다. mailbox pending은 in-memory라 재시작에 약함.
