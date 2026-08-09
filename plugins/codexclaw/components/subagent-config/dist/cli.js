@@ -13,7 +13,7 @@
  *   subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort]
  *                        [--prompt <text>|--clear-prompt]
  */
-import { readConfig, setRole, ROLES, EFFORTS,                                                 } from "./store.js";
+import { readConfig, setRole, projectConfigTrustToken, ROLES, EFFORTS,                                                 } from "./store.js";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +33,7 @@ export function parseSubagentsArgs(argv          )                      {
   const sub = argv[0];
   if (sub === undefined || sub === "list") return { action: "list" };
   if (sub === "help" || sub === "--help" || sub === "-h") return { action: "help" };
+  if (sub === "trust-token") return { action: "trust-token" };
 
   if (sub === "get") {
     if (!isRole(argv[1])) return { action: "get", error: `unknown role '${argv[1] ?? ""}' (expected ${ROLES.join("|")})` };
@@ -82,6 +83,7 @@ const HELP = [
   "  subagents               list all role configs",
   "  subagents get <role>    show one role config",
   "  subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort] [--prompt <text>|--clear-prompt]",
+  "  subagents trust-token   print an export bound to this repo and exact config",
   "",
   `  roles: ${ROLES.join(", ")}`,
   `  efforts: ${EFFORTS.join(", ")} (unset = inherit the parent session's effort)`,
@@ -103,6 +105,11 @@ export function runSubagents(parsed                     , cwd        )          
     case "get": {
       const cfg = readConfig(cwd);
       return { code: 0, output: JSON.stringify(cfg.roles[parsed.role            ], null, 2) };
+    }
+    case "trust-token": {
+      const token = projectConfigTrustToken(cwd);
+      if (!token) return { code: 1, output: "subagents: cannot hash .codexclaw/subagents.json" };
+      return { code: 0, output: `export CODEXCLAW_TRUST_PROJECT_SUBAGENTS='${token}'` };
     }
     case "set": {
       try {

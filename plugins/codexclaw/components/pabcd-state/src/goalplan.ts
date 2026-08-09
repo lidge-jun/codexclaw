@@ -18,8 +18,20 @@
  *
  * Pure shaping + direct node:fs IO (consistent with state.ts / freeze.ts; no fs seam).
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import {
+  closeSync,
+  constants as fsConstants,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  writeFileSync,
+  renameSync,
+  rmSync,
+  writeSync,
+} from "node:fs";
+import { join, resolve, sep } from "node:path";
 import { STATE_DIR } from "./state.ts";
 import { deriveSlug } from "./freeze.ts";
 import type { SourceIdentity } from "./source-identity.ts";
@@ -190,8 +202,45 @@ export interface GoalplanLedgerEntry {
   detail: string;
 }
 
+const MAX_SLUG_BYTES = 128;
+
+/** Reject any slug that could be interpreted as a path rather than an identifier. */
+export function validateGoalplanSlug(slug: string): string {
+  if (
+    typeof slug !== "string"
+    || Buffer.byteLength(slug, "utf8") === 0
+    || Buffer.byteLength(slug, "utf8") > MAX_SLUG_BYTES
+    || slug === "."
+    || slug === ".."
+    || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(slug)
+  ) {
+    throw new Error(`invalid goalplan slug: ${JSON.stringify(slug)}`);
+  }
+  return slug;
+}
+
+function assertNotSymlink(path: string): void {
+  if (existsSync(path) && lstatSync(path).isSymbolicLink()) {
+    throw new Error(`goalplan state path must not be a symlink: ${path}`);
+  }
+}
+
+/**
+ * Resolve a goalplan directory with one containment rule for every consumer.
+ * Symlinked state roots are refused because otherwise a lexically safe slug can
+ * still redirect writes outside the project.
+ */
 export function goalplanDir(cwd: string, slug: string): string {
-  return join(cwd, STATE_DIR, GOALPLANS_SUBDIR, slug);
+  const safeSlug = validateGoalplanSlug(slug);
+  const projectRoot = resolve(cwd);
+  const stateRoot = resolve(projectRoot, STATE_DIR);
+  const plansRoot = resolve(stateRoot, GOALPLANS_SUBDIR);
+  const dir = resolve(plansRoot, safeSlug);
+  if (!dir.startsWith(plansRoot + sep)) throw new Error("goalplan path escapes state root");
+  assertNotSymlink(stateRoot);
+  assertNotSymlink(plansRoot);
+  assertNotSymlink(dir);
+  return dir;
 }
 
 const REVIEW_STATUSES: ReadonlySet<string> = new Set([
@@ -332,10 +381,16 @@ function goalplanLedgerPath(cwd: string, slug: string): string {
 }
 
 /** Best-effort structural validation; a malformed object reads as absent (null). */
-function reviveGoalplan(parsed: unknown): Goalplan | null {
+function reviveGoalplan(parsed: unknown, expectedSlug?: string): Goalplan | null {
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
   const o = parsed as Record<string, unknown>;
   if (typeof o.objective !== "string" || typeof o.slug !== "string") return null;
+  try {
+    validateGoalplanSlug(o.slug);
+  } catch {
+    return null;
+  }
+  if (expectedSlug !== undefined && o.slug !== expectedSlug) return null;
   if (!Array.isArray(o.workPhases) || !Array.isArray(o.criteria)) return null;
 
   const workPhases: GoalplanWorkPhase[] = [];
@@ -419,8 +474,10 @@ function reviveGoalplan(parsed: unknown): Goalplan | null {
 /** Read a goalplan; returns null on absent/unreadable/malformed (never throws). */
 export function readGoalplan(cwd: string, slug: string): Goalplan | null {
   try {
-    const raw = readFileSync(goalplanPath(cwd, slug), "utf8");
-    return reviveGoalplan(JSON.parse(raw));
+    const path = goalplanPath(cwd, slug);
+    assertNotSymlink(path);
+    const raw = readFileSync(path, "utf8");
+    return reviveGoalplan(JSON.parse(raw), validateGoalplanSlug(slug));
   } catch {
     return null;
   }
@@ -428,13 +485,16 @@ export function readGoalplan(cwd: string, slug: string): Goalplan | null {
 
 /** Write a goalplan atomically (tmp + rename), refreshing updatedAt. */
 export function writeGoalplan(cwd: string, plan: Goalplan): void {
+  validateGoalplanSlug(plan.slug);
   const dir = goalplanDir(cwd, plan.slug);
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  // Recheck after creation to close the ordinary pre-existing symlink case.
+  goalplanDir(cwd, plan.slug);
   const finalPath = goalplanPath(cwd, plan.slug);
   const tmp = `${finalPath}.${process.pid}.${Date.now()}.tmp`;
   const normalized: Goalplan = { ...plan, updatedAt: new Date().toISOString() };
   try {
-    writeFileSync(tmp, JSON.stringify(normalized, null, 2));
+    writeFileSync(tmp, JSON.stringify(normalized, null, 2), { mode: 0o600 });
     renameSync(tmp, finalPath);
   } catch (err) {
     try {
@@ -448,9 +508,24 @@ export function writeGoalplan(cwd: string, plan: Goalplan): void {
 
 /** Append a goalplan ledger event (append-only, mkdir -p). */
 export function appendGoalplanLedger(cwd: string, slug: string, entry: GoalplanLedgerEntry): void {
+  validateGoalplanSlug(slug);
+  if (entry.slug !== slug) throw new Error("goalplan ledger entry slug does not match target slug");
   const dir = goalplanDir(cwd, slug);
-  mkdirSync(dir, { recursive: true });
-  appendFileSync(goalplanLedgerPath(cwd, slug), `${JSON.stringify(entry)}\n`);
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  goalplanDir(cwd, slug);
+  const path = goalplanLedgerPath(cwd, slug);
+  assertNotSymlink(path);
+  const noFollow = typeof fsConstants.O_NOFOLLOW === "number" ? fsConstants.O_NOFOLLOW : 0;
+  const fd = openSync(
+    path,
+    fsConstants.O_APPEND | fsConstants.O_CREAT | fsConstants.O_WRONLY | noFollow,
+    0o600,
+  );
+  try {
+    writeSync(fd, `${JSON.stringify(entry)}\n`);
+  } finally {
+    closeSync(fd);
+  }
 }
 
 export interface NewGoalplanInput {

@@ -10,7 +10,7 @@
    return mkdtempSync(join(tmpdir(), "evlog-"));
  }
  
- test("EventLog: writes JSONL and recent() returns events", () => {
+test("EventLog: writes JSONL and recent() returns events", async () => {
    const dir = tempDir();
    try {
      const path = join(dir, "events.jsonl");
@@ -24,12 +24,13 @@
      assert.equal(recent[0].type, "message_received");
      assert.equal(recent[1].type, "error");
  
+     await log.flush();
      // File should have 2 lines
      const content = readFileSync(path, "utf8").trim().split("\n");
      assert.equal(content.length, 2);
      assert.equal(JSON.parse(content[0]).type, "message_received");
  
-     log.close();
+     await log.close();
    } finally {
      rmSync(dir, { recursive: true, force: true });
    }
@@ -69,7 +70,7 @@
    }
  });
 
- test("EventLog: rotation on size limit", () => {
+ test("EventLog: rotation on size limit", async () => {
    const dir = tempDir();
    try {
      const path = join(dir, "events.jsonl");
@@ -78,15 +79,16 @@
      for (let i = 0; i < 20; i++) {
        log.log({ type: "reconnect", platform: "telegram", ts: `ts-${i}-${"x".repeat(20)}` });
      }
+     await log.flush();
      // After rotation, .1 should exist
      assert.ok(existsSync(`${path}.1`), "rotated file .1 should exist");
-     log.close();
+     await log.close();
    } finally {
      rmSync(dir, { recursive: true, force: true });
    }
  });
  
- test("EventLog: close() prevents further writes", () => {
+test("EventLog: close() prevents further writes", () => {
    const dir = tempDir();
    try {
      const path = join(dir, "events.jsonl");
@@ -99,3 +101,39 @@
      rmSync(dir, { recursive: true, force: true });
    }
  });
+
+test("EventLog: slow storage keeps the pending queue bounded and records drops", async () => {
+  const dir = tempDir();
+  try {
+    const path = join(dir, "events.jsonl");
+    const writes: string[] = [];
+    let releaseFirst!: () => void;
+    const firstWrite = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    let calls = 0;
+    const log = new EventLog({
+      path,
+      maxPendingEvents: 2,
+      maxPendingBytes: 10_000,
+      append: async (_path, data) => {
+        calls += 1;
+        if (calls === 1) await firstWrite;
+        writes.push(data);
+      },
+    });
+
+    for (let i = 0; i < 20; i++) {
+      log.log({ type: "reconnect", platform: "discord", ts: `t${i}` });
+    }
+    releaseFirst();
+    await log.flush();
+
+    const parsed = writes.flatMap((chunk) => chunk.trim().split("\n").filter(Boolean).map((line) => JSON.parse(line)));
+    const summary = parsed.find((event) => event.type === "log_dropped");
+    assert.ok(summary, "overflow should be summarized instead of retained in memory");
+    assert.ok(summary.count >= 17);
+    assert.ok(parsed.length <= 4, `bounded queue wrote too many retained events: ${parsed.length}`);
+    await log.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

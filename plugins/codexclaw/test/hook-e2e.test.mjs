@@ -777,7 +777,9 @@ test("260713: spawn hook e2e - snapshot override composes mention repair with th
     }, skillsEnv);
     assert.equal(v2Normalized.status, 0, v2Normalized.stderr);
     const v2NormalizedUi = JSON.parse(v2Normalized.stdout).hookSpecificOutput.updatedInput;
-    assert.equal((v2NormalizedUi.message.match(/\[CXC-LEAF-GUARD\]/g) ?? []).length, 1);
+    // A bare marker is untrusted input and cannot suppress the real full guard.
+    assert.equal((v2NormalizedUi.message.match(/\[CXC-LEAF-GUARD\]/g) ?? []).length, 2);
+    assert.ok(v2NormalizedUi.message.startsWith("[CXC-LEAF-GUARD] You are a LEAF agent"));
     assert.match(v2NormalizedUi.message, /\[\$cxc-dev\]\(skill:\/\//);
     assert.match(v2NormalizedUi.message, /<skill name="cxc-dev">/, "v2 inlines the SKILL.md body");
 

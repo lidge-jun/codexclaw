@@ -60,10 +60,15 @@
      if (a) a.errors += 1;
    }
 
-   recordRateLimit(platform                        )       {
+  recordRateLimit(platform                        )       {
      if (platform === "telegram") this.rateLimitsTg += 1;
      else this.rateLimitsDc += 1;
-   }
+  }
+
+  /** Drop per-agent lifetime entries when agents are deleted from the DB. */
+  retainAgents(ids                     )       {
+    for (const id of this.agents.keys()) if (!ids.has(id)) this.agents.delete(id);
+  }
 
    snapshot()                  {
      const avg =

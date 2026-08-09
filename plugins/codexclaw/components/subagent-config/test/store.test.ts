@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 import {
   defaultConfig,
   readConfig,
   writeConfig,
   setRole,
   resolveSpawnConfig,
+  projectConfigTrustToken,
   validateRolePatch,
   ROLES,
   EFFORTS,
@@ -159,4 +161,33 @@ test("merged validation: default->model round-trip needs an explicit model again
   assert.throws(() => setRole(cwd, "reviewer", { mode: "model" }), /requires a non-empty model/);
   const cfg = setRole(cwd, "reviewer", { mode: "model", model: "m2" });
   assert.equal(cfg.roles.reviewer.model, "m2");
+});
+
+test("Git-tracked project config is ignored until the operator explicitly trusts it", () => {
+  const cwd = tmp();
+  setRole(cwd, "executor", { mode: "model", model: "repo-model", promptOverride: "repo instructions" });
+  execFileSync("git", ["init", "-q"], { cwd });
+  execFileSync("git", ["add", "-f", ".codexclaw/subagents.json"], { cwd });
+
+  const denied = resolveSpawnConfig(cwd, "executor", {});
+  assert.equal(denied.usesMainModel, true);
+  assert.equal(denied.promptOverride, null);
+  assert.match(denied.trustWarning ?? "", /Git-tracked/);
+
+  const token = projectConfigTrustToken(cwd);
+  assert.ok(token);
+  const trusted = resolveSpawnConfig(cwd, "executor", { CODEXCLAW_TRUST_PROJECT_SUBAGENTS: token! });
+  assert.equal(trusted.model, "repo-model");
+  assert.equal(trusted.promptOverride, "repo instructions");
+
+  const other = tmp();
+  setRole(other, "executor", { mode: "model", model: "repo-model", promptOverride: "repo instructions" });
+  execFileSync("git", ["init", "-q"], { cwd: other });
+  execFileSync("git", ["add", "-f", ".codexclaw/subagents.json"], { cwd: other });
+  assert.notEqual(projectConfigTrustToken(other), token, "the same bytes in another repository need separate review");
+  assert.equal(resolveSpawnConfig(other, "executor", { CODEXCLAW_TRUST_PROJECT_SUBAGENTS: token! }).model, null);
+
+  writeFileSync(join(cwd, ".codexclaw", "subagents.json"), JSON.stringify({ roles: {} }));
+  assert.notEqual(projectConfigTrustToken(cwd), token, "editing the reviewed config invalidates trust");
+  assert.equal(resolveSpawnConfig(cwd, "executor", { CODEXCLAW_TRUST_PROJECT_SUBAGENTS: token! }).model, null);
 });

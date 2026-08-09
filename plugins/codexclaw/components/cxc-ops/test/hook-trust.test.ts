@@ -148,6 +148,14 @@ test("listHookEntries skips only the group with an invalid matcher", () => {
   ]);
 });
 
+test("listHookEntries refuses manifest hook references outside the plugin root", () => {
+  const root = makePlugin({ hooks: {} });
+  const outside = join(root, "..", "outside-hook.json");
+  writeFileSync(outside, JSON.stringify({ hooks: {} }));
+  writeFileSync(join(root, ".codex-plugin", "plugin.json"), JSON.stringify({ hooks: ["../outside-hook.json"] }));
+  assert.throws(() => listHookEntries(root, PLUGIN_KEY), /escapes plugin root/);
+});
+
 test("readInstalledPluginKeys returns enabled candidates and excludes disabled sections", () => {
   const home = makeCodexHome([
     '[plugins."fixture@one"]',

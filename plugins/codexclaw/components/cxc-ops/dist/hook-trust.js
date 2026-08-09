@@ -11,7 +11,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const EVENT_LABELS = {
@@ -134,6 +134,20 @@ function normalizeHookPath(path        )         {
   return path.replace(/^\.\//, "");
 }
 
+function containedPluginFile(pluginRoot        , reference        )         {
+  const root = realpathSync(pluginRoot);
+  if (isAbsolute(reference)) throw new Error(`plugin manifest path must be relative: ${reference}`);
+  const candidate = resolve(root, normalizeHookPath(reference));
+  if (candidate !== root && !candidate.startsWith(root + sep)) {
+    throw new Error(`plugin manifest path escapes plugin root: ${reference}`);
+  }
+  const real = realpathSync(candidate);
+  if (real !== root && !real.startsWith(root + sep)) {
+    throw new Error(`plugin manifest symlink escapes plugin root: ${reference}`);
+  }
+  return real;
+}
+
 function assertSafeHeaderValue(value        , label        )       {
   if (!value || /["\\\r\n]/.test(value)) throw new Error(`${label} contains characters unsafe for a TOML quoted key`);
 }
@@ -151,7 +165,7 @@ export function listHookEntries(pluginRoot        , pluginKey        )          
     if (typeof hookRef !== "string") throw new Error("plugin manifest hook references must be strings");
     const relativePath = normalizeHookPath(hookRef);
     assertSafeHeaderValue(relativePath, "hook path");
-    const document = JSON.parse(readFileSync(join(pluginRoot, relativePath), "utf8"))
+    const document = JSON.parse(readFileSync(containedPluginFile(pluginRoot, relativePath), "utf8"))
 
      ;
     for (const [rawEventName, rawGroups] of Object.entries(document.hooks ?? {})) {

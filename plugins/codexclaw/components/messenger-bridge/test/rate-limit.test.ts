@@ -1,6 +1,7 @@
  /** rate-limit.test.ts — circuit breaker + rate-limit parsing (Phase E3). */
  import { test } from "node:test";
- import assert from "node:assert/strict";
+import assert from "node:assert/strict";
+import { getEventListeners } from "node:events";
  import {
    CircuitBreaker,
    parseTelegramRateLimit,
@@ -109,9 +110,15 @@
    assert.ok(Date.now() - start >= 40); // ~50ms with some tolerance
  });
  
- test("rateLimitSleep: aborts on signal", async () => {
+test("rateLimitSleep: aborts on signal", async () => {
    const ac = new AbortController();
    const p = rateLimitSleep(10_000, ac.signal);
    setTimeout(() => ac.abort(), 10);
    await assert.rejects(p, /aborted/i);
- });
+});
+
+test("rateLimitSleep removes abort listeners after successful sleeps", async () => {
+  const ac = new AbortController();
+  for (let i = 0; i < 20; i += 1) await rateLimitSleep(1, ac.signal);
+  assert.equal(getEventListeners(ac.signal, "abort").length, 0);
+});

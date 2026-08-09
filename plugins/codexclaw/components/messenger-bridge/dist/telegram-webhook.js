@@ -109,8 +109,8 @@ export function createWebhookHandler(opts                        )              
       void handleCallback(opts.api, update.callback_query, opts.db, {
         agentId: opts.agentId,
         isAllowedChat,
-        resolveApproval: (id, decision, chatId) =>
-          opts.agentService.resolveApproval({ id, decision, chatId, agentId: opts.agentId }),
+        resolveApproval: (id, decision, chatId, topicId) =>
+          opts.agentService.resolveApproval({ id, decision, chatId, topicId, agentId: opts.agentId }),
       }).catch((err) => log(`[tg-webhook] callback error: ${(err         ).message}`));
       return;
     }

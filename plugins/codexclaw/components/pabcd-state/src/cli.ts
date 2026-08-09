@@ -20,7 +20,7 @@
  *
  * argv: [node, cli.ts, kind, event] e.g. ["...", "...", "hook", "user-prompt-submit"].
  */
-import { readFileSync } from "node:fs";
+import { readSync } from "node:fs";
 import {
   handlePostToolUse,
   handleBashFrictionCapture,
@@ -55,12 +55,47 @@ import { parseOrchestrateCliArgs, renderOrchestrateParseError, runOrchestrateCli
 import { parseGoalplanCliArgs, runGoalplanCli } from "./goalplan-cli.ts";
 import { parseScanCliArgs, runScanCli } from "./scan-cli.ts";
 
-function readStdin(): string {
+const MAX_STDIN_BYTES = 4 * 1024 * 1024;
+
+interface StdinRead {
+  raw: string;
+  overflow: boolean;
+}
+
+function readStdin(): StdinRead {
   try {
-    return readFileSync(0, "utf8");
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for (;;) {
+      const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, MAX_STDIN_BYTES + 1 - total));
+      const read = readSync(0, buffer, 0, buffer.length, null);
+      if (read === 0) break;
+      total += read;
+      if (total > MAX_STDIN_BYTES) return { raw: "", overflow: true };
+      chunks.push(buffer.subarray(0, read));
+    }
+    return { raw: Buffer.concat(chunks, total).toString("utf8"), overflow: false };
   } catch {
-    return "";
+    return { raw: "", overflow: false };
   }
+}
+
+function oversizedHookOutput(event: string | undefined): string {
+  const reason = `[codexclaw] hook input exceeded ${MAX_STDIN_BYTES} bytes; refusing to bypass policy enforcement`;
+  if (event?.startsWith("pre-tool-use")) {
+    return `${JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: reason,
+        additionalContext: reason,
+      },
+    })}\n`;
+  }
+  if (event === "subagent-stop" || event === "stop") {
+    return `${JSON.stringify({ decision: "block", reason })}\n`;
+  }
+  return "";
 }
 
 function main(): void {
@@ -93,8 +128,12 @@ function main(): void {
 
   // `metric` command path (emergence harness): record/show true-objective metrics.
   if (kind === "metric") {
-    const stdin = process.argv[3] === "ingest" ? readStdin() : "";
-    const result = runMetricCli(process.argv.slice(3), process.cwd(), stdin);
+    const stdin = process.argv[3] === "ingest" ? readStdin() : { raw: "", overflow: false };
+    if (stdin.overflow) {
+      process.stderr.write(`metric: stdin exceeds ${MAX_STDIN_BYTES} bytes\n`);
+      process.exit(1);
+    }
+    const result = runMetricCli(process.argv.slice(3), process.cwd(), stdin.raw);
     process.stdout.write(`${result.output}\n`);
     process.exit(result.code);
   }
@@ -152,7 +191,13 @@ function main(): void {
     process.exit(0);
   }
 
-  const raw = readStdin();
+  const stdin = readStdin();
+  if (stdin.overflow) {
+    const denied = oversizedHookOutput(event);
+    if (denied) process.stdout.write(denied);
+    process.exit(denied ? 0 : 1);
+  }
+  const raw = stdin.raw;
   let output = "";
 
   // Subagent turn guard (260709): codexclaw governs the ROOT session only.

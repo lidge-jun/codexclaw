@@ -12,7 +12,7 @@
  */
 import { existsSync, realpathSync, statSync } from "node:fs";
 import { readFileSync } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { isAbsolute, join, resolve, sep } from "node:path";
 
 export type TargetKind = "hook" | "mcp";
 
@@ -123,16 +123,18 @@ function checkTarget(
   rel: string,
   missingMessage: string,
 ): void {
-  const abs = join(pluginRoot, rel.replace(/^\.\//, ""));
+  const normalized = rel.replace(/^\.\//, "");
+  const abs = resolve(pluginRoot, normalized);
+  if (isAbsolute(rel) || escapesRoot(pluginRoot, abs)) {
+    issues.push({ kind, message: `target escapes plugin root: ${rel}` });
+    return;
+  }
   if (!existsSync(abs)) {
     issues.push({ kind, message: missingMessage });
     return;
   }
   if (statSync(abs).size === 0) {
     issues.push({ kind, message: `target is empty: ${rel}` });
-  }
-  if (escapesRoot(pluginRoot, abs)) {
-    issues.push({ kind, message: `target escapes plugin root: ${rel}` });
   }
 }
 
@@ -149,9 +151,17 @@ export function validateManifestTargets(pluginRoot: string): TargetIssue[] {
   if (!existsSync(manifestPath)) return issues;
   const manifest = readJson<PluginManifest>("hook", manifestPath);
 
-  const hookEntries: string[] = Array.isArray(manifest.hooks) ? manifest.hooks : [];
+  const hookEntries: unknown[] = Array.isArray(manifest.hooks) ? manifest.hooks : [];
   for (const hookRel of hookEntries) {
-    const hookFile = join(pluginRoot, hookRel.replace(/^\.\//, ""));
+    if (typeof hookRel !== "string") {
+      issues.push({ kind: "hook", message: `manifest hook file must be a string: ${String(hookRel)}` });
+      continue;
+    }
+    const hookFile = resolve(pluginRoot, hookRel.replace(/^\.\//, ""));
+    if (isAbsolute(hookRel) || escapesRoot(pluginRoot, hookFile)) {
+      issues.push({ kind: "hook", message: `manifest hook file escapes plugin root: ${String(hookRel)}` });
+      continue;
+    }
     if (!existsSync(hookFile)) {
       issues.push({ kind: "hook", message: `manifest hook file missing: ${hookRel}` });
       continue;
@@ -172,7 +182,11 @@ export function validateManifestTargets(pluginRoot: string): TargetIssue[] {
 
   if (typeof manifest.mcpServers === "string") {
     const mcpRel = manifest.mcpServers;
-    const mcpFile = join(pluginRoot, mcpRel.replace(/^\.\//, ""));
+    const mcpFile = resolve(pluginRoot, mcpRel.replace(/^\.\//, ""));
+    if (isAbsolute(mcpRel) || escapesRoot(pluginRoot, mcpFile)) {
+      issues.push({ kind: "mcp", message: `manifest mcpServers file escapes plugin root: ${mcpRel}` });
+      return issues;
+    }
     if (!existsSync(mcpFile)) {
       issues.push({ kind: "mcp", message: `manifest mcpServers file missing: ${mcpRel}` });
     } else {

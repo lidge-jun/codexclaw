@@ -325,6 +325,22 @@ export class TelegramApi {
     }
   }
 
+  /** Fetch a Telegram file without buffering it; the media layer owns streaming/limits. */
+  async downloadFileResponse(
+    filePath: string,
+    signal?: AbortSignal,
+  ): Promise<{ ok: boolean; response?: Response; error?: string }> {
+    const url = `${API_BASE}/file/bot${this.token}/${filePath.replace(/^\/+/, "")}`;
+    try {
+      const response = await this.fetchImpl(url, { signal });
+      if (!response.ok) return { ok: false, error: `download failed: ${response.status}` };
+      return { ok: true, response };
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: `download failed: ${reason}` };
+    }
+  }
+
   /** Register bot commands for the command menu. */
   setMyCommands(commands: Array<{ command: string; description: string }>): Promise<TgResponse<boolean>> {
     return this.call<boolean>("setMyCommands", { commands });

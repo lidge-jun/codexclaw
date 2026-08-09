@@ -1,10 +1,11 @@
 /** runner.test.ts — buildExecArgs / parseExecEvent (pure) + runTurn against a fake codex bin. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { buildExecArgs, parseExecEvent, runTurn } from "../src/runner.ts";
+import { appendBoundedOutput, buildExecArgs, MAX_RUNNER_OUTPUT_BYTES, parseExecEvent, runTurn } from "../src/runner.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const FAKE = join(here, "fixtures", "fake-codex.mjs");
@@ -196,6 +197,63 @@ test("runTurn: timeout terminates the child and reports timeout", async () => {
   });
 });
 
+test("runTurn: oversized single JSONL records are discarded before parsing or streaming", async () => {
+  await withMode("oversize", async () => {
+    const messages: string[] = [];
+    const statuses: string[] = [];
+    const result = await runTurn({
+      workdir: here,
+      prompt: "x",
+      codexBin: FAKE,
+      onEvent: (event) => {
+        if (event.kind === "message") messages.push(event.text);
+        if (event.kind === "status") statuses.push(event.label);
+      },
+    });
+    assert.equal(result.ok, true);
+    assert.ok(Buffer.byteLength(result.text) <= MAX_RUNNER_OUTPUT_BYTES);
+    assert.match(result.text, /oversized Codex event discarded/);
+    assert.ok(Buffer.byteLength(result.text) < 1_000, "discarded bytes must not be replaced with dummy payload");
+    assert.deepEqual(messages, []);
+    assert.ok(statuses.includes("oversized Codex event discarded"));
+  });
+});
+
+test("runTurn: an oversized tool record does not suppress the later final message", async () => {
+  await withMode("oversize-tool", async () => {
+    const result = await runTurn({ workdir: here, prompt: "keep-final", codexBin: FAKE });
+    assert.equal(result.ok, true);
+    assert.match(result.text, /reply to: keep-final/);
+    assert.match(result.text, /oversized Codex event discarded/);
+  });
+});
+
+test("runTurn: timeout kills a process group after the direct child has exited", async () => {
+  if (process.platform === "win32") return;
+  const dir = mkdtempSync(join(tmpdir(), "cxc-runner-pgid-"));
+  const pidFile = join(dir, "pid");
+  const previous = process.env.FAKE_CODEX_PID_FILE;
+  process.env.FAKE_CODEX_PID_FILE = pidFile;
+  try {
+    await withMode("grandchild-pipe", async () => {
+      const result = await Promise.race([
+        runTurn({ workdir: here, prompt: "x", codexBin: FAKE, timeoutMs: 300 }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("runner remained stuck on inherited pipe")), 3_000)),
+      ]);
+      assert.equal(result.ok, false);
+      assert.match(String(result.error), /timed out/);
+    });
+    assert.ok(existsSync(pidFile));
+    const pid = Number(readFileSync(pidFile, "utf8"));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.throws(() => process.kill(pid, 0));
+  } finally {
+    if (previous === undefined) delete process.env.FAKE_CODEX_PID_FILE;
+    else process.env.FAKE_CODEX_PID_FILE = previous;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("buildExecArgs: effort appends -c model_reasoning_effort in both branches; default omitted", () => {
   const fresh = buildExecArgs({ prompt: "p", effort: "high" });
   const ci = fresh.indexOf("-c");
@@ -212,4 +270,19 @@ test("buildExecArgs: effort appends -c model_reasoning_effort in both branches; 
   const cIdx = resume.indexOf("-c");
   assert.ok(cIdx > -1 && cIdx < sep, "effort flag must precede -- in resume argv");
   assert.equal(resume[cIdx + 1], "model_reasoning_effort=minimal");
+});
+
+test("runner output accumulation is byte-bounded and marks pathological truncation", () => {
+  const normal = appendBoundedOutput("hello", "world");
+  assert.deepEqual(normal, { text: "hello\nworld", truncated: false });
+  const huge = appendBoundedOutput("", "한".repeat(MAX_RUNNER_OUTPUT_BYTES));
+  assert.equal(huge.truncated, true);
+  assert.ok(Buffer.byteLength(huge.text) <= MAX_RUNNER_OUTPUT_BYTES);
+  assert.match(huge.text, /output truncated/);
+
+  const nearLimit = "x".repeat(MAX_RUNNER_OUTPUT_BYTES - 1);
+  const boundary = appendBoundedOutput(nearLimit, "한글");
+  assert.equal(boundary.truncated, true);
+  assert.ok(Buffer.byteLength(boundary.text) <= MAX_RUNNER_OUTPUT_BYTES);
+  assert.ok(!boundary.text.includes("�"), "UTF-8 clipping must end on a code-point boundary");
 });

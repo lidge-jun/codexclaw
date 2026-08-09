@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { api, type ProviderState } from "./api.ts";
 import { useRoute, navigate } from "./router.ts";
 import { ToastHost } from "./ui/toast.tsx";
 import { Icon, type IconName } from "./ui/icons.tsx";
-import { SubagentsPage } from "./pages/Subagents.tsx";
-import { ChannelsPage } from "./pages/Channels.tsx";
-import { AgentsPage } from "./pages/Agents.tsx";
-import { DashboardPage } from "./pages/Dashboard.tsx";
-import { SessionsPage } from "./pages/Sessions.tsx";
+import { Loading } from "./ui/kit.tsx";
+
+const SubagentsPage = lazy(() => import("./pages/Subagents.tsx").then((m) => ({ default: m.SubagentsPage })));
+const ChannelsPage = lazy(() => import("./pages/Channels.tsx").then((m) => ({ default: m.ChannelsPage })));
+const AgentsPage = lazy(() => import("./pages/Agents.tsx").then((m) => ({ default: m.AgentsPage })));
+const DashboardPage = lazy(() => import("./pages/Dashboard.tsx").then((m) => ({ default: m.DashboardPage })));
+const SessionsPage = lazy(() => import("./pages/Sessions.tsx").then((m) => ({ default: m.SessionsPage })));
 
 interface NavItem {
   route: string;
@@ -67,17 +69,19 @@ export function App() {
       </aside>
 
       <main className="main">
-        {active.route === "/dashboard" ? (
-          <DashboardPage />
-        ) : active.route === "/channels" ? (
-          <ChannelsPage />
-        ) : active.route === "/agents" ? (
-          <AgentsPage />
-        ) : active.route === "/sessions" ? (
-          <SessionsPage />
-        ) : (
-          <SubagentsPage provider={provider} />
-        )}
+        <Suspense fallback={<Loading label="Loading page..." />}>
+          {active.route === "/dashboard" ? (
+            <DashboardPage />
+          ) : active.route === "/channels" ? (
+            <ChannelsPage />
+          ) : active.route === "/agents" ? (
+            <AgentsPage />
+          ) : active.route === "/sessions" ? (
+            <SessionsPage />
+          ) : (
+            <SubagentsPage provider={provider} />
+          )}
+        </Suspense>
       </main>
       <ToastHost />
     </div>

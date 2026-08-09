@@ -35,7 +35,9 @@
  * original input and change only `message`, `model`, and/or `reasoning_effort`.
  * The hook never throws: any doubt/error -> emit "" (allow untouched).
  */
-import { existsSync, readFileSync, readdirSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import { tmpdir } from "node:os";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveSpawnConfig, type RoleName } from "./store.ts";
@@ -66,6 +68,7 @@ function runtimeSkillsDir(): string | null {
  * adversarial inputs; oversized spawn messages pass through untouched.
  */
 const MAX_NORMALIZE_LENGTH = 256 * 1024;
+const MAX_HOOK_STDIN_BYTES = 4 * 1024 * 1024;
 
 /**
  * Index after leading container tokens on a line: `>`, spaces, list markers
@@ -270,6 +273,8 @@ export function normalizeSkillMentions(message: string, skillsDir: string): stri
 
 /** Explicit per-dispatch recursion grant (include in the spawn message to authorize). */
 export const SUBSPAWN_TOKEN = "CXC-SUBSPAWN-ALLOWED";
+const SUBSPAWN_GRANT_RE = /\[CXC-SUBSPAWN-GRANT:([a-f0-9]{64})\]/gi;
+const SUBSPAWN_GRANT_TTL_MS = 15 * 60 * 1000;
 
 /** Dedupe marker for the leaf guard block. */
 export const LEAF_GUARD_MARKER = "[CXC-LEAF-GUARD]";
@@ -325,6 +330,67 @@ function isSubagentSpawner(obj: Record<string, unknown>): boolean {
   const id = obj.agent_id;
   const type = obj.agent_type;
   return (typeof id === "string" && id.length > 0) || (typeof type === "string" && type.length > 0);
+}
+
+function grantScope(obj: Record<string, unknown>): { cwd: string; session: string } {
+  return {
+    cwd: typeof obj.cwd === "string" && obj.cwd.length > 0 ? resolve(obj.cwd) : process.cwd(),
+    session: typeof obj.session_id === "string" && obj.session_id.length > 0 ? obj.session_id : "unknown-session",
+  };
+}
+
+function grantDir(scope: { cwd: string; session: string }): string {
+  const uid = typeof process.getuid === "function" ? String(process.getuid()) : "user";
+  const key = createHash("sha256").update(scope.cwd).update("\0").update(scope.session).digest("hex");
+  return resolve(tmpdir(), `codexclaw-subspawn-${uid}`, key);
+}
+
+function grantPath(scope: { cwd: string; session: string }, nonce: string): string {
+  const digest = createHash("sha256").update(nonce).digest("hex");
+  return resolve(grantDir(scope), `${digest}.json`);
+}
+
+function mintRecursionGrant(obj: Record<string, unknown>): string | null {
+  try {
+    const scope = grantScope(obj);
+    const nonce = randomBytes(32).toString("hex");
+    const dir = grantDir(scope);
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    writeFileSync(grantPath(scope, nonce), JSON.stringify({ expiresAt: Date.now() + SUBSPAWN_GRANT_TTL_MS }), {
+      mode: 0o600,
+      flag: "wx",
+    });
+    return nonce;
+  } catch {
+    return null;
+  }
+}
+
+/** Atomically consume one parent-minted capability; public marker text is never authority. */
+function consumeRecursionGrant(obj: Record<string, unknown>, message: string): boolean {
+  SUBSPAWN_GRANT_RE.lastIndex = 0;
+  const match = SUBSPAWN_GRANT_RE.exec(message);
+  if (!match || SUBSPAWN_GRANT_RE.exec(message)) return false;
+  const path = grantPath(grantScope(obj), match[1]);
+  const claimed = `${path}.claimed-${process.pid}-${randomBytes(4).toString("hex")}`;
+  try {
+    renameSync(path, claimed);
+    const parsed = JSON.parse(readFileSync(claimed, "utf8")) as { expiresAt?: unknown };
+    return typeof parsed.expiresAt === "number" && parsed.expiresAt >= Date.now();
+  } catch {
+    return false;
+  } finally {
+    try { rmSync(claimed, { force: true }); } catch { /* best effort */ }
+  }
+}
+
+function stripControlMarkers(message: string): string {
+  SUBSPAWN_GRANT_RE.lastIndex = 0;
+  return message
+    .replaceAll(SUBSPAWN_TOKEN, "")
+    .replace(SUBSPAWN_GRANT_RE, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /** D1 deny envelope (hookSpecificOutput.permissionDecision "deny" — output_parser.rs:144). */
@@ -473,34 +539,6 @@ export const LEAF_SAFE_SKILL_FOLDERS = new Set([
   "search",
   "lunasearch",
 ]);
-
-/**
- * Evidence-exemption token. Dispatchers include this in worker spawn messages
- * when the task is read-only and should not be evidence-gated. The spawn hook
- * auto-injects it on plaintext surfaces when read-only intent is detected
- * (convenience); V2 ciphertext surfaces require explicit dispatcher inclusion.
- */
-export const EVIDENCE_EXEMPT_TOKEN = "[CXC-EVIDENCE-EXEMPT]";
-
-/** Read-only intent markers for auto-injection (plaintext convenience only). */
-const READ_ONLY_INTENT_MARKERS = [
-  "read-only",
-  "readonly",
-  "chat-only deliverable",
-  "no file writes",
-  "do not write files",
-  "do not edit files",
-  "no evidence files",
-];
-
-/**
- * Check if a spawn message expresses read-only intent. Used by the spawn hook
- * to auto-inject EVIDENCE_EXEMPT_TOKEN for plaintext worker messages.
- */
-export function hasReadOnlyIntent(message: string): boolean {
-  const lower = message.toLowerCase();
-  return READ_ONLY_INTENT_MARKERS.some((m) => lower.includes(m));
-}
 
 /**
  * Scan the skills directory for leaf-safe skill metadata (name + description).
@@ -662,7 +700,9 @@ export function inlineSkillBodies(message: string, skillsDir: string): string {
     // an already-inlined body must not transitively pull in more bodies, and a
     // re-run on an already-inlined message must be a no-op (idempotent).
     const { closedFolders, scanSource } = scanInlineSkillBlocks(message);
-    const folders = [...mentionedFolders(scanSource)].filter((f) => !closedFolders.has(f)).sort();
+    const folders = [...mentionedFolders(scanSource)]
+      .filter((f) => LEAF_SAFE_SKILL_FOLDERS.has(f) && !closedFolders.has(f))
+      .sort();
     if (folders.length === 0) return message;
     const blocks: string[] = [];
     for (const folder of folders) {
@@ -709,6 +749,9 @@ export function mentionedFolders(message: string): Set<string> {
  * provided mentions but never invents them. Total: never throws.
  */
 export function runSpawnAttachHook(raw: string): string {
+  if (Buffer.byteLength(raw ?? "") > MAX_HOOK_STDIN_BYTES) {
+    return denyEnvelope("codexclaw spawn policy input exceeded 4 MiB; refusing to bypass the recursion and trust boundary");
+  }
   try {
     const obj = JSON.parse((raw ?? "").trim() || "{}") as unknown;
     if (!isRecord(obj)) return "";
@@ -729,16 +772,18 @@ export function runSpawnAttachHook(raw: string): string {
     // below: a token-less recursive spawn is denied even when its message is
     // missing/empty.
     const outgoing = typeof toolInput.message === "string" ? toolInput.message : "";
-    if (isSubagentSpawner(obj) && !outgoing.includes(SUBSPAWN_TOKEN)) {
-      return denyEnvelope(RECURSE_DENY_REASON);
-    }
+    const spawnedBySubagent = isSubagentSpawner(obj);
+    if (spawnedBySubagent && !consumeRecursionGrant(obj, outgoing)) return denyEnvelope(RECURSE_DENY_REASON);
 
     // Only rewrite a real message; never invent one (schema shape stays untouched).
     const message = toolInput.message;
     if (typeof message !== "string" || message.trim().length === 0) return "";
+    const recursionRequested = !spawnedBySubagent && message.includes(SUBSPAWN_TOKEN);
+    const mintedGrant = recursionRequested ? mintRecursionGrant(obj) : null;
+    const controlledMessage = stripControlMarkers(message);
 
     const skillsDir = runtimeSkillsDir();
-    const normalizedMessage = skillsDir ? normalizeSkillMentions(message, skillsDir) : message;
+    const normalizedMessage = skillsDir ? normalizeSkillMentions(controlledMessage, skillsDir) : controlledMessage;
     const role = inferRole(toolInput.agent_type, normalizedMessage);
 
     // V2 skill delivery: upstream parses no mentions out of a V2 spawn message, so
@@ -774,32 +819,20 @@ export function runSpawnAttachHook(raw: string): string {
     // on v1 — max_depth + D1 deny). Dedupe checks only the surface-appropriate
     // marker to prevent cross-surface contamination (a foreign marker must not
     // suppress the surface's own guard).
-    const surfaceMarker = v2Spawn ? LEAF_GUARD_MARKER : SCOPE_GUARD_MARKER;
-    const hasExistingGuard = markerScanSource.includes(surfaceMarker);
-    const hasRecursionGrant = markerScanSource.includes(SUBSPAWN_TOKEN);
-    let guard: string;
-    if (hasExistingGuard) {
-      guard = "";
-    } else if (v2Spawn) {
-      guard = hasRecursionGrant ? LEAF_GUARD_BLOCK_COORDINATOR : LEAF_GUARD_BLOCK;
-    } else {
-      guard = hasRecursionGrant ? V1_SCOPE_BLOCK_COORDINATOR : V1_SCOPE_BLOCK;
-    }
-    const updatedMessage = guard.length > 0 ? `${guard}\n\n${affordanceMessage}` : affordanceMessage;
+    const coordinator = mintedGrant !== null;
+    const baseGuard = v2Spawn
+      ? (coordinator ? LEAF_GUARD_BLOCK_COORDINATOR : LEAF_GUARD_BLOCK)
+      : (coordinator ? V1_SCOPE_BLOCK_COORDINATOR : V1_SCOPE_BLOCK);
+    const grantInstruction = mintedGrant
+      ? `\nOne child spawn is authorized. Include this exact one-time capability in that spawn message: [CXC-SUBSPAWN-GRANT:${mintedGrant}]`
+      : "";
+    const guard = `${baseGuard}${grantInstruction}`;
+    // A bare public marker cannot suppress the guard. Exact full-block prefix
+    // recognition retains idempotence when a host applies the hook twice.
+    const hasExactGuard = affordanceMessage.startsWith(`${guard}\n\n`);
+    const updatedMessage = hasExactGuard ? affordanceMessage : `${guard}\n\n${affordanceMessage}`;
 
-    // DISPATCH-AGENT-TYPE-01 evidence-exempt auto-injection (plaintext convenience).
-    // When a worker message expresses read-only intent AND the token is not already
-    // present, inject it so SubagentStop releases without evidence. Skipped for
-    // ciphertext (message === normalizedMessage after failed inlining) — dispatchers
-    // must include the token explicitly on V2 ciphertext surfaces.
     let evidenceExemptMessage = updatedMessage;
-    if (
-      role === "worker" &&
-      !updatedMessage.includes(EVIDENCE_EXEMPT_TOKEN) &&
-      hasReadOnlyIntent(updatedMessage)
-    ) {
-      evidenceExemptMessage = `${EVIDENCE_EXEMPT_TOKEN}\n${updatedMessage}`;
-    }
 
     // Role config routing (both surfaces). resolveSpawnConfig is called once;
     // promptOverride, model, and effort are decided independently.
@@ -813,6 +846,9 @@ export function runSpawnAttachHook(raw: string): string {
     // are skipped there. promptOverride is not subject to this guard.
     const cwd = typeof obj.cwd === "string" && obj.cwd.length > 0 ? obj.cwd : process.cwd();
     const resolution = resolveSpawnConfig(cwd, role);
+    if (resolution.trustWarning) {
+      evidenceExemptMessage = `[CXC-CONFIG-IGNORED] ${resolution.trustWarning}\n\n${evidenceExemptMessage}`;
+    }
     let injectedModel: string | null = null;
     let injectedEffort: string | null = null;
     // promptOverride: always resolved (not gated by full-history fork).
@@ -891,11 +927,21 @@ export function runSpawnAttachHook(raw: string): string {
   }
 }
 
-function readStdin(): string {
+function readStdin(): { raw: string; overflow: boolean } {
   try {
-    return readFileSync(0, "utf8");
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for (;;) {
+      const chunk = Buffer.allocUnsafe(Math.min(64 * 1024, MAX_HOOK_STDIN_BYTES + 1 - total));
+      const read = readSync(0, chunk, 0, chunk.length, null);
+      if (read === 0) break;
+      total += read;
+      if (total > MAX_HOOK_STDIN_BYTES) return { raw: "", overflow: true };
+      chunks.push(chunk.subarray(0, read));
+    }
+    return { raw: Buffer.concat(chunks, total).toString("utf8"), overflow: false };
   } catch {
-    return "";
+    return { raw: "", overflow: false };
   }
 }
 
@@ -905,7 +951,10 @@ function main(): void {
   if (kind !== "hook") {
     process.exit(0);
   }
-  const out = runSpawnAttachHook(readStdin());
+  const stdin = readStdin();
+  const out = stdin.overflow
+    ? denyEnvelope("codexclaw spawn policy input exceeded 4 MiB; refusing to bypass the recursion and trust boundary")
+    : runSpawnAttachHook(stdin.raw);
   if (out) process.stdout.write(out);
   process.exit(0);
 }

@@ -159,6 +159,18 @@ test("B3: a symlink pointing outside the plugin root is rejected", () => {
   ]);
 });
 
+test("B3b: manifest hook documents themselves cannot escape the plugin root", () => {
+  const root = makeRoot();
+  writeFileSync(join(root, "..", "outside-hook.json"), JSON.stringify({ hooks: {} }));
+  writeFileSync(
+    join(root, ".codex-plugin", "plugin.json"),
+    JSON.stringify({ name: "t", hooks: ["../outside-hook.json"] }),
+  );
+  assert.deepEqual(validateManifestTargets(root), [
+    { kind: "hook", message: "manifest hook file escapes plugin root: ../outside-hook.json" },
+  ]);
+});
+
 // The exact upstream value — backslash separators, a .ps1 launcher and a .js
 // entry point inside one command. Copied from
 // devlog/.lazycodex/plugins/omo/hooks/session-start-loading-project-rules.json:11.

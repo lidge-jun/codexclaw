@@ -14,6 +14,7 @@ import { Icon } from "../ui/icons.tsx";
 import { toast } from "../ui/toast.tsx";
 import { PairingPane, TestSendAction, type BotIdentity, type HandshakeAdapter } from "../components/pairing.tsx";
 import { HelpDrawer, HelpTopicButton, useHelp } from "../ui/help.tsx";
+import { usePolling } from "../usePolling.ts";
 
 const AGENT_PAIRING_LINK_SECONDS = 600;
 
@@ -48,18 +49,16 @@ export function AgentsPage() {
   const [modeFor, setModeFor] = useState<AgentInfo | null>(null);
   const { helpOpen, helpTopic, openHelp, closeHelp } = useHelp("agents");
 
-  const refresh = async () => {
-    const [a, b] = await Promise.all([api.getAgents(), api.getBindings()]);
+  const refresh = async (signal?: AbortSignal) => {
+    const [a, b] = await Promise.all([api.getAgents(signal), api.getBindings(signal)]);
     setAgents(a.agents);
     setBindings(b.bindings);
   };
 
   useEffect(() => {
-    void refresh();
     void api.getCatalog().then((c) => setCatalog(c.entries));
-    const t = setInterval(() => void refresh(), 5000);
-    return () => clearInterval(t);
   }, []);
+  usePolling((signal) => refresh(signal), 5000);
 
   return (
     <>

@@ -254,6 +254,44 @@ test("job lifecycle: create, patch, list ordering + preview caps", () => {
   }
 });
 
+test("job retention pruning keeps newest history and the v11 index exists", () => {
+  const cwd = tempCwd();
+  try {
+    const db = openBridgeDb(cwd);
+    const binding = db.getOrCreateBinding("telegram", "prune", cwd);
+    const ids = [db.createJob(binding.id, "one"), db.createJob(binding.id, "two"), db.createJob(binding.id, "three")];
+    assert.equal(db.pruneJobs(binding.id, 2), 1);
+    assert.deepEqual(db.listJobs(binding.id, 10).map((job) => job.id), [ids[2], ids[1]]);
+    db.close();
+  } finally {
+    rmRfRetry(cwd);
+  }
+});
+
+test("startup reconciles crash-stale running jobs so retention cannot grow past them", () => {
+  const cwd = tempCwd();
+  try {
+    let db = openBridgeDb(cwd);
+    const binding = db.getOrCreateBinding("telegram", "crash", cwd);
+    const stale = db.createJob(binding.id, "interrupted");
+    db.updateJob(stale, { state: "running", started_at: "2026-01-01T00:00:00.000Z" });
+    db.close();
+
+    db = openBridgeDb(cwd);
+    const reconciled = db.getJob(stale);
+    assert.equal(reconciled?.state, "error");
+    assert.match(reconciled?.error ?? "", /restarted/);
+    assert.ok(reconciled?.ended_at);
+    for (let i = 0; i < 4; i++) db.createJob(binding.id, `new-${i}`);
+    db.pruneJobs(binding.id, 2);
+    assert.equal(db.getJob(stale), null);
+    assert.equal(db.listJobs(binding.id, 10).length, 2);
+    db.close();
+  } finally {
+    rmRfRetry(cwd);
+  }
+});
+
 test("setBindingWorkdir repoints the exec cwd for one binding only", () => {
   const cwd = tempCwd();
   try {

@@ -104,7 +104,13 @@ export function parseOrchestrateCommand(prompt        )                         
     if (!m) continue;
     const verb = VERB_TOKENS[m[1].toLowerCase()];
     if (!verb) continue; // unknown verb token (e.g. "idle", "proper") -> not a command
-    const { rawAttest, attest, attestError } = parseAttestTail(m[2] ?? "");
+    const rest = (m[2] ?? "").trim();
+    if (rest && !/^--attest\s+\{/.test(rest)) continue;
+    const { rawAttest, attest, attestError } = parseAttestTail(rest);
+    if (rawAttest !== null) {
+      const after = rest.slice(rest.indexOf(rawAttest) + rawAttest.length).trim();
+      if (after !== "") continue;
+    }
     return attestError ? { verb, rawAttest, attest, attestError } : { verb, rawAttest, attest };
   }
   return null;

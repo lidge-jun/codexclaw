@@ -559,6 +559,25 @@ test("resolveApproval rejects unauthorized binding attempts and leaves request p
   }
 });
 
+test("resolveApproval rejects a callback from another Telegram topic", () => {
+  const cwd = tempCwd();
+  try {
+    const db = openBridgeDb(cwd);
+    const agent = db.createAgent("telegram-topic-approval", "telegram", "tok");
+    db.addAgentAllowlist(agent.id, "42");
+    const approvals = createApprovalStore(600_000, { autoExpire: false, idFactory: () => "ap_topic" });
+    const svc = new AgentService({ db, approvalStore: approvals });
+    const binding = db.getOrCreateAgentBinding(agent.id, "telegram", "42", cwd, "22");
+    approvals.request({ bindingId: binding.id, promptHash: "hash", workdir: cwd });
+    assert.equal(svc.resolveApproval({ id: "ap_topic", decision: "allow-once", chatId: "42", topicId: "11", agentId: agent.id }), "unauthorized");
+    assert.equal(approvals.pending.has("ap_topic"), true);
+    assert.equal(svc.resolveApproval({ id: "ap_topic", decision: "allow-once", chatId: "42", topicId: "22", agentId: agent.id }), "resolved");
+    db.close();
+  } finally {
+    rmRfRetry(cwd);
+  }
+});
+
 test("listPendingApprovals filters by binding/agent and prunes expired requests", async () => {
   const cwd = tempCwd();
   try {

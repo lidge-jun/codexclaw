@@ -34,6 +34,8 @@ const CREATE_GOAL_WARNING =
 import { getGoalActiveStatus, suppressesInterview,                                            } from "./goal-active.js";
 import { readState } from "./state.js";
 import { readGoalplan, validateGoalplan } from "./goalplan.js";
+import { captureSourceIdentity, compareSource } from "./source-identity.js";
+import { parseSourceBoundReceipt } from "./source-receipt.js";
 // Cross-component dist import (precedent: messenger-bridge/src/api-compat.ts:17).
 // 260724 WP1: deny remedies name `cxc orchestrate ...`/`cxc loop validate` — on a
 // payload-only install those must render the resolvable invocation. Emit-time only.
@@ -216,7 +218,15 @@ export function applyGoalCompleteGuard(payload                   )         {
     if (state.slug) {
       const plan = readGoalplan(payload.cwd, state.slug);
       if (plan) {
-        const verdict = validateGoalplan(plan);
+        // Completion must use the same marker/source/receipt-aware validation as
+        // `cxc loop validate`; omitting this context turns a removed schemaVersion
+        // field into a downgrade path around the v2 final gate.
+        const verdict = validateGoalplan(plan, {
+          cwd: payload.cwd,
+          captureSourceIdentity,
+          compareSource,
+          readReceipt: (path, expectedKind) => parseSourceBoundReceipt(path, payload.cwd, expectedKind),
+        });
         if (!verdict.ok) {
           const reasons = verdict.reasons.slice(0, 4).join("; ");
           return goalCompleteDenyEnvelope(

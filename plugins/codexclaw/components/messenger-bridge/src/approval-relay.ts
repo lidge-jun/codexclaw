@@ -3,6 +3,7 @@ import { encodeCallback } from "./telegram-interactive.ts";
 import type { ActionRow } from "./discord-components.ts";
 import { buildApprovalCard } from "./discord-components.ts";
 import type { DiscordEmbed } from "./discord-api.ts";
+import { randomBytes } from "node:crypto";
 
 export type ApprovalDecision = "allow-once" | "allow-always" | "deny";
 export type ApprovalOutcome =
@@ -51,8 +52,10 @@ export function createApprovalStore(timeoutMs = DEFAULT_TIMEOUT_MS, opts: Approv
   const cleanups = new Map<string, Array<(request: ApprovalRequest, outcome: ApprovalOutcome) => void | Promise<void>>>();
   const timers = new Map<string, unknown>();
   const now = opts.now ?? Date.now;
-  let seq = 0;
-  const idFactory = opts.idFactory ?? (() => `ap_${(++seq).toString(36)}`);
+  // IDs travel in durable chat buttons. A per-process sequence repeats after a
+  // restart and lets a stale button resolve a different request, so the default
+  // namespace must be unpredictable and restart-unique.
+  const idFactory = opts.idFactory ?? (() => `ap_${randomBytes(12).toString("base64url")}`);
   const setTimer = opts.setTimer ?? ((callback: () => void, ms: number) => {
     const timer = setTimeout(callback, ms);
     timer.unref?.();
@@ -77,7 +80,9 @@ export function createApprovalStore(timeoutMs = DEFAULT_TIMEOUT_MS, opts: Approv
   return {
     pending,
     request(input: ApprovalRequestInput): ApprovalRequest {
-      const id = idFactory();
+      let id = idFactory();
+      for (let attempt = 0; pending.has(id) && attempt < 8; attempt += 1) id = idFactory();
+      if (pending.has(id)) throw new Error("approval id collision");
       const request: ApprovalRequest = {
         id,
         bindingId: input.bindingId,

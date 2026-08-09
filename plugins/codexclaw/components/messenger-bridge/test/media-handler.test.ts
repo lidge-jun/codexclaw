@@ -10,8 +10,11 @@ import {
   DISCORD_ATTACHMENT_MAX_BYTES,
   downloadDiscordAttachment,
   downloadTelegramMedia,
+  MediaCapacityError,
+  MediaDownloadGate,
   telegramMediaRefs,
 } from "../src/media-handler.ts";
+import { streamResponseToFile, withDownloadTimeout, writeAll } from "../src/stream-download.ts";
 import type { TelegramApi, TgMessage } from "../src/telegram-api.ts";
 
 test("telegramMediaRefs picks largest photo and preserves document/voice labels", () => {
@@ -102,4 +105,61 @@ test("downloadDiscordAttachment rejects oversized unknown-size downloads after f
     ),
     /attachment too large after download/,
   );
+});
+
+test("streaming limiter removes a partial file when the actual body exceeds its cap", async () => {
+  const root = mkdtempSync(join(tmpdir(), "stream-media-test-"));
+  const target = join(root, "partial.bin");
+  try {
+    const response = new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(4));
+        controller.enqueue(new Uint8Array(4));
+        controller.close();
+      },
+    }));
+    await assert.rejects(streamResponseToFile(response, target, 5), /too large during stream/);
+    assert.equal(existsSync(target), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("download timeout aborts a stalled operation", async () => {
+  await assert.rejects(
+    withDownloadTimeout((signal) => new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    }), 5),
+    /timed out/,
+  );
+});
+
+test("download timeout returns even when an operation ignores AbortSignal", async () => {
+  const started = Date.now();
+  await assert.rejects(withDownloadTimeout(() => new Promise(() => {}), 5), /timed out/);
+  assert.ok(Date.now() - started < 500);
+});
+
+test("writeAll retries partial file writes until every byte is persisted", async () => {
+  const persisted: number[] = [];
+  await writeAll({
+    async write(buffer, offset = 0, length = buffer.byteLength - offset) {
+      const bytesWritten = Math.min(2, length);
+      persisted.push(...buffer.subarray(offset, offset + bytesWritten));
+      return { bytesWritten };
+    },
+  }, new Uint8Array([1, 2, 3, 4, 5]));
+  assert.deepEqual(persisted, [1, 2, 3, 4, 5]);
+});
+
+test("media download gate rejects overload without building an unbounded wait queue", async () => {
+  const gate = new MediaDownloadGate(2);
+  let release!: () => void;
+  const blocked = new Promise<void>((resolve) => { release = resolve; });
+  const first = gate.run(async () => blocked);
+  const second = gate.run(async () => blocked);
+  await assert.rejects(gate.run(async () => undefined), MediaCapacityError);
+  release();
+  await Promise.all([first, second]);
+  await gate.run(async () => undefined);
 });

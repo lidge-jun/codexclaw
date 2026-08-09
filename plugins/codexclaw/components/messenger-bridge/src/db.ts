@@ -101,6 +101,8 @@ export interface AgentPatch {
 export const AGENT_EFFORTS = ["default", "minimal", "low", "medium", "high", "xhigh"] as const;
 export const AGENT_THREAD_MODES = ["thread", "plain"] as const;
 export const AGENT_TOOL_PROGRESS_MODES = TOOL_PROGRESS_MODES;
+export const MAX_JOBS_PER_BINDING = 1_000;
+const JOB_RETENTION_DAYS = 90;
 
 export interface JobRow {
   id: number;
@@ -188,6 +190,23 @@ export class BridgeDb {
     }
     this.db.exec("PRAGMA journal_mode = WAL");
     this.migrate();
+    this.reconcileInterruptedJobs();
+  }
+
+  /** A process restart means no pre-existing `running` row still has a child. */
+  private reconcileInterruptedJobs(): void {
+    const jobsTable = this.db
+      .prepare("SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'jobs'")
+      .get() as { present: number } | undefined;
+    // Some compatibility fixtures intentionally carry only the table under
+    // migration. Reconciliation is meaningful only for a complete runtime DB.
+    if (!jobsTable) return;
+    const endedAt = nowIso();
+    this.db.prepare(`UPDATE jobs
+      SET state = 'error',
+          error = COALESCE(error, 'bridge restarted before job completion'),
+          ended_at = COALESCE(ended_at, ?)
+      WHERE state = 'running'`).run(endedAt);
   }
 
   private migrate(): void {
@@ -452,6 +471,23 @@ ALTER TABLE agents ADD COLUMN tool_progress TEXT NOT NULL DEFAULT 'new'
         throw err;
       }
       version = 10;
+    }
+
+    // ── v11: bounded job history + hot list index ──
+    if (version < 11) {
+      this.db.exec("BEGIN");
+      try {
+        const hasJobs = this.db
+          .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'jobs'")
+          .get();
+        if (hasJobs) this.db.exec("CREATE INDEX IF NOT EXISTS idx_jobs_binding_id_desc ON jobs (binding_id, id DESC)");
+        this.db.exec("PRAGMA user_version = 11");
+        this.db.exec("COMMIT");
+      } catch (err) {
+        this.db.exec("ROLLBACK");
+        throw err;
+      }
+      version = 11;
     }
   }
 
@@ -945,7 +981,23 @@ ALTER TABLE agents ADD COLUMN tool_progress TEXT NOT NULL DEFAULT 'new'
     const res = this.db
       .prepare("INSERT INTO jobs (binding_id, prompt_preview, created_at) VALUES (?, ?, ?)")
       .run(bindingId, promptPreview.slice(0, 500), nowIso());
+    this.pruneJobs(bindingId);
     return Number(res.lastInsertRowid);
+  }
+
+  /** Keep dashboard/reseed history useful without allowing lifetime growth. */
+  pruneJobs(bindingId: number, keep = MAX_JOBS_PER_BINDING): number {
+    const cutoff = new Date(Date.now() - JOB_RETENTION_DAYS * 86_400_000).toISOString();
+    const aged = this.db
+      .prepare("DELETE FROM jobs WHERE binding_id = ? AND created_at < ? AND state != 'running'")
+      .run(bindingId, cutoff);
+    const excess = this.db
+      .prepare(`DELETE FROM jobs
+        WHERE binding_id = ? AND id NOT IN (
+          SELECT id FROM jobs WHERE binding_id = ? ORDER BY id DESC LIMIT ?
+        ) AND state != 'running'`)
+      .run(bindingId, bindingId, Math.max(1, keep));
+    return Number(aged.changes) + Number(excess.changes);
   }
 
   updateJob(id: number, patch: JobPatch): void {

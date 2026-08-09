@@ -133,6 +133,23 @@ test("static serving + SPA fallback + traversal guard", async () => {
   }
 });
 
+test("static cache refreshes rebuilt files and ETags are content-derived", async () => {
+  const h = await startHarness();
+  try {
+    const first = await fetch(`${h.base}/`);
+    const firstTag = first.headers.get("etag");
+    assert.match(await first.text(), /codexclaw shell/);
+    const index = join(h.cwd, "gui-dist", "index.html");
+    writeFileSync(index, "<html><body>updated shell!!</body></html>");
+    const second = await fetch(`${h.base}/`, { headers: { "if-none-match": firstTag ?? "" } });
+    assert.equal(second.status, 200);
+    assert.match(await second.text(), /updated shell/);
+    assert.notEqual(second.headers.get("etag"), firstTag);
+  } finally {
+    await stopHarness(h);
+  }
+});
+
 test("/readme serves the component README ahead of the SPA fallback", async () => {
   const readmeDir = mkdtempSync(join(tmpdir(), "bridge-readme-test-"));
   const readmeFile = join(readmeDir, "README.md");

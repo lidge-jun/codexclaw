@@ -237,12 +237,16 @@ async function handleKick(ctx                )                         {
 }
 
 async function handleDelete(ctx                )                                {
+  const now = Date.now();
+  for (const [key, expiresAt] of ctx.pendingDeletes) {
+    if (expiresAt < now) ctx.pendingDeletes.delete(key);
+  }
   const confirmed = ctx.args.trim().split(/\s+/)[0] === "confirm";
   const pendingKey = deletePendingKey(ctx);
   const pendingUntil = ctx.pendingDeletes.get(pendingKey) ?? 0;
 
-  if (!confirmed || pendingUntil < Date.now()) {
-    ctx.pendingDeletes.set(pendingKey, Date.now() + ctx.deleteTtlMs);
+  if (!confirmed || pendingUntil < now) {
+    ctx.pendingDeletes.set(pendingKey, now + ctx.deleteTtlMs);
     const target = telegramTopicId(ctx.msg) === null
       ? "this chat's session, history, and pairing"
       : "this topic's session and history";

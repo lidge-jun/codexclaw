@@ -17,6 +17,7 @@ import { Card, EmptyState, Loading, StatusDot, Switch } from "../ui/kit.tsx";
 import { Icon } from "../ui/icons.tsx";
 import { HelpDrawer, HelpTopicButton, useHelp } from "../ui/help.tsx";
 import { toast } from "../ui/toast.tsx";
+import { usePolling } from "../usePolling.ts";
 
 interface DashboardState {
   metrics: MetricsSnapshot;
@@ -72,6 +73,8 @@ function eventDetail(event: BridgeEvent): string {
       return event.platform;
     case "circuit_breaker":
       return `${event.platform} ${event.state}`;
+    case "log_dropped":
+      return `${event.count} event${event.count === 1 ? "" : "s"} dropped under log backpressure`;
     case "lifecycle":
       return [event.payload.action, event.payload.detail].filter(Boolean).join(" ");
   }
@@ -90,11 +93,11 @@ export function DashboardPage() {
   const [savingRole, setSavingRole] = useState<SubagentRole | null>(null);
   const { helpOpen, helpTopic, openHelp, closeHelp } = useHelp("dashboard");
 
-  const refresh = async () => {
+  const refresh = async (signal?: AbortSignal) => {
     const [metrics, events, statuses] = await Promise.all([
-      api.getMetrics(),
-      api.getEvents(50),
-      api.getAgentStatuses(),
+      api.getMetrics(signal),
+      api.getEvents(50, signal),
+      api.getAgentStatuses(signal),
     ]);
     setState({ metrics, events: events.events, statuses: statuses.statuses });
   };
@@ -111,11 +114,9 @@ export function DashboardPage() {
   };
 
   useEffect(() => {
-    void refresh();
     void refreshControls();
-    const t = setInterval(() => void refresh(), 5000);
-    return () => clearInterval(t);
   }, []);
+  usePolling((signal) => refresh(signal), 5000);
 
   const setVersion = async (version: MultiAgentVersion) => {
     const current = surface ?? defaultMultiAgentSurface();
