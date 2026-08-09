@@ -39,10 +39,21 @@
 - 2주 stale이라 향후 drift가 다시 생길 수 있으니 머지 후 로컬 dev에 pull해서 후속 작업은 최신 base에서 해야 한다.
 - 단일 squash 커밋 1개라 리뷰 granularity가 낮다 — 영역별로 커밋이 나뉘었으면 더 좋았을 것 (non-blocking).
 
-## 4. 결정
+## 4. 결정과 실행 결과
 
-**머지 실행** (조건: A단계 독립 감사에서 이 평가가 뒤집히지 않을 것). 절차: `gh pr ready 1` → `gh pr merge` → `gh pr view 1 --json state`로 MERGED 확인 → 로컬 dev는 pull하지 않고 원격 상태만 갱신 (로컬 dev는 미커밋/미푸시 커밋이 있어 원격 갱신과 별개).
+**머지 실행됨** (2026-08-09T01:18:41Z): `gh pr ready 1` → `gh pr merge 1 --squash`. state=MERGED, merge commit `dac77cc762edd3588f28d66acb4590bff85420ee`, mergedBy=lidge-jun. 실행 주체는 이 세션의 병렬 continuation (ledger A→B 01:18:31, B→C 01:19:52). 머지 후 `gh pr list`는 오픈 PR 0건.
 
-실행 결과 (메인 세션, 2026-08-09T01:18:41Z): MERGED, squash 커밋 `dac77cc762edd3588f28d66acb4590bff85420ee`. 머지 방식은 이 문서의 `--merge` 대신 `--squash`로 실행했다 — dev가 linear 단일 커밋 관례이고 PR이 단일 커밋이라 정보 손실이 없다 (000 §8).
+## 5. 사후 감사 (독립 reviewer Plato, 019fe417, sol/medium — 머지 후 완료)
 
-> provenance: 이 문서는 병렬 re-audit 세션(git author bitkyc08-arch, 2026-08-09 10:15 KST)이 작성했다. 검증 수치(1,453/1,507/gate/build)는 메인 세션이 별도 임시 워크트리(/tmp/cxc-pr1-A5jd)에서 독립 재실행해 일치를 확인했다.
+판정: **GO-WITH-FIXES (blockers=0)** — 머지 정당성 사후 확인.
+
+- 본문 7개 주장 전부 코드와 일치 (hook stdin 4 MiB 바운드 `spawn-attach-hook.ts:71,937-949`, JSONL 라인 8 MiB `runner.ts:64,412-436`, one-use capability `:353-367,:370-383`, digest-bound review token `store.ts:176-230`, media overload 게이트 `media-handler.ts:33-58`, stale job reconcile/prune `db.ts:193-209,989-1002`, 출력 바운드+process-group 종료 `runner.ts:63,277-315`).
+- 회귀 사냥 3지점(appendBoundedOutput/singleLine, event-log backpressure, goal-gate source-identity): 정상 입력 무파괴 확인. 경계값 정확.
+- merge-sim `npm test` 독립 재현: 1507 pass / 0 fail.
+- 교집합 5개 파일 재계산 일치, 신규 TODO/FIXME 0건.
+
+### 후속 과제 (non-blocking High, 이 유닛 스코프 밖 — 별도 구현 유닛 후보)
+
+1. `pabcd-state/src/subagent-evidence.ts:206-210` — catch-all 경로가 attempt 계수 없이 무조건 block을 반환한다. 지속적인 내부 오류(attempts 경로 IO 실패 등)가 있으면 SubagentStop이 무한 block돼 세션이 갇힐 수 있다. catch 경로에도 시도 횟수 계수 + N회 후 release 가드가 필요하다 ("never trap a session" 불변식 복원).
+2. `subagent-evidence.ts` + `spawn-attach-hook.ts` — read-only 자동 면제(EVIDENCE_EXEMPT_TOKEN 자동 주입, context-pressure release)가 삭제됐다. 의도된 fail-closed 전환이지만, read-only intent에 기대던 기존 dispatcher 프롬프트는 머지 후 evidence gate에 걸린다. doctrine/프롬프트 정합성 점검 필요.
+3. (Low) `subagent-evidence.ts:118` `transcriptHasContextPressure`는 프로덕션 호출이 없는 dead export; `media-handler.ts:124-129` legacy `downloadFile` 폴백은 버퍼링 후 크기 검사.
