@@ -34,7 +34,7 @@ interface Rig {
 /** tmp HOME + CODEX_HOME with worktrees/<slot>/<repo>/.git (gitfile, like a real worktree). */
 function makeRig(): Rig {
   // realpath: macOS tmpdir is a /var → /private/var symlink; detection canonicalizes.
-  const home = realpathSync(mkdtempSync(join(tmpdir(), "cxc-wg-home-")));
+  const home = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-wg-home-")));
   const codexHome = join(home, ".codex");
   const worktreesDir = join(codexHome, "worktrees");
   const slotRoot = join(worktreesDir, "7627");
