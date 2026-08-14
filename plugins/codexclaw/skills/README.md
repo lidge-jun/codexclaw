@@ -2,6 +2,43 @@
 
 This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin.
 
+## Shipped catalog
+
+The block below is machine-checked against every on-disk skill folder that contains
+`SKILL.md`. Keep it sorted; deprecated redirect folders remain listed because they
+still ship as compatibility surfaces.
+
+<!-- skill-catalog:start -->
+- `ast-grep/`
+- `dev/`
+- `dev-architecture/`
+- `dev-backend/`
+- `dev-code-reviewer/`
+- `dev-data/`
+- `dev-debugging/`
+- `dev-devops/`
+- `dev-diagram-viewer/`
+- `dev-frontend/`
+- `dev-scaffolding/`
+- `dev-security/`
+- `dev-testing/`
+- `dev-uiux-design/`
+- `goalplan/`
+- `interview/`
+- `kwrite/`
+- `loop/`
+- `lunasearch/`
+- `orchestrate/`
+- `pabcd/`
+- `qa/`
+- `recall/`
+- `remote/`
+- `repo-map/`
+- `search/`
+- `skill-hub/`
+- `worktree-guardian/`
+<!-- skill-catalog:end -->
+
 ## Skill set
 
 - `dev/` — always-on universal dev discipline (work classifier C0-C5, modular limits,
@@ -31,9 +68,14 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
 - `goalplan/` — discoverable `cxc-goalplan (DEPRECATED -> cxc-loop)` surface for durable criteria,
   checkpoints, steering, and quality gates.
 - `search/` — discoverable `cxc-search` surface for external/current/public lookup
-  discipline; not memory or chat search.
+  discipline; not memory or chat search. It also owns the former `ultraresearch`
+  multi-wave research protocol; no separate `ultraresearch/` folder ships.
 - `recall/` — discoverable `cxc-recall` surface for read-only past-session chat and
   memory search over `~/.codex` before asking the user to repeat context.
+- `qa/` — discoverable `cxc-qa` manual surface-driving QA gate for web, GUI, TUI,
+  CLI, and HTTP API scenarios, with captured evidence and teardown receipts.
+- `repo-map/` — discoverable `cxc-repo-map` one-shot tree-sitter + PageRank map for
+  unfamiliar repository structure and symbol orientation before deep search.
 - `kwrite/` — discoverable `cxc-kwrite` surface for Korean prose polishing (윤문):
   AI-tell removal, register consistency, rhythm, meaning-exact revision of existing
   Korean text. On-demand: `agents/openai.yaml` sets `allow_implicit_invocation: false`;
@@ -55,8 +97,6 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   On-demand (`allow_implicit_invocation: false`; the pinned implicit set in
   `test/manifest-policy.test.mjs` S3 stays untouched) — the WORKTREE-GUARD hooks
   reference it explicitly.
-- `ultraresearch/` — discoverable `cxc-ultraresearch (DEPRECATED -> cxc-search)` protocol for multi-wave
-  research with journal and claim-ledger proof discipline.
 
 ## Conventions
 
