@@ -25,15 +25,21 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   class-scaled depth. Folds in the structured-development discipline.
 - `interview/` — discoverable `cxc-interview` surface for persistent I-phase
   contradiction discovery, question/answer recording, and readiness gating.
-- `orchestrate/` — discoverable `cxc-orchestrate (DEPRECATED -> cxc-pabcd)` surface for explicit IPABCD
-  phase control from chat plus the live agent-gated `cxc orchestrate` terminal path.
+- `orchestrate/` — deprecated compatibility redirect from `cxc-orchestrate` to
+  `cxc-pabcd`; it has no `agents/openai.yaml` registration of its own.
 - `loop/` — discoverable `cxc-loop` surface for HOTL work-phase continuation.
-- `goalplan/` — discoverable `cxc-goalplan (DEPRECATED -> cxc-loop)` surface for durable criteria,
-  checkpoints, steering, and quality gates.
+- `goalplan/` — deprecated compatibility redirect from `cxc-goalplan` to
+  `cxc-loop`; the `cxc goalplan` CLI remains an alias during migration.
 - `search/` — discoverable `cxc-search` surface for external/current/public lookup
-  discipline; not memory or chat search.
+  discipline; not memory or chat search. Its opt-in Tier 3 protocol owns the former
+  ultraresearch multi-wave journal and claim-ledger discipline.
 - `recall/` — discoverable `cxc-recall` surface for read-only past-session chat and
   memory search over `~/.codex` before asking the user to repeat context.
+- `qa/` — discoverable `cxc-qa` manual surface-driving QA gate for web, GUI, TUI,
+  CLI, and HTTP API changes. It records scenario artifacts and teardown receipts;
+  automated suites remain owned by `dev-testing`.
+- `repo-map/` — on-demand `cxc-repo-map` structure overview using tree-sitter tags
+  and PageRank. It orients unfamiliar codebases before exact `rg` or ast-grep work.
 - `kwrite/` — discoverable `cxc-kwrite` surface for Korean prose polishing (윤문):
   AI-tell removal, register consistency, rhythm, meaning-exact revision of existing
   Korean text. On-demand: `agents/openai.yaml` sets `allow_implicit_invocation: false`;
@@ -45,8 +51,8 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   description match or explicit `$cxc-remote`.
 - `ast-grep/` — discoverable `cxc-ast-grep` surface for optional AST-aware structural
   search/codemods, with `rg` first for ordinary text search.
-- `skill-hub/` — discoverable `cxc-skill-hub (DEPRECATED -> cxc-dev)` catalog for choosing the right
-  on-demand skill.
+- `skill-hub/` — deprecated compatibility redirect from `cxc-skill-hub` to
+  `cxc-dev`; capability routing is canonical in `dev/SKILL.md`.
 - `lunasearch/` — discoverable `cxc-lunasearch` lane for cheap parallel public-web
   discovery that hands proof back to `cxc-search`.
 - `worktree-guardian/` — discoverable `cxc-worktree-guardian` surface for Codex-app
@@ -55,8 +61,6 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   On-demand (`allow_implicit_invocation: false`; the pinned implicit set in
   `test/manifest-policy.test.mjs` S3 stays untouched) — the WORKTREE-GUARD hooks
   reference it explicitly.
-- `ultraresearch/` — discoverable `cxc-ultraresearch (DEPRECATED -> cxc-search)` protocol for multi-wave
-  research with journal and claim-ledger proof discipline.
 
 ## Conventions
 
