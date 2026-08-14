@@ -29,13 +29,13 @@ function catalogFolders() {
 
   const entries = match[1]
     .split("\n")
-    .map((line) => /^- `([a-z0-9][a-z0-9-]*)\/$/.exec(line.trim())?.[1] ?? null)
+    .map((line) => /^- `([a-z0-9][a-z0-9-]*)\/`$/.exec(line.trim())?.[1] ?? null)
     .filter((name) => name !== null);
 
   assert.equal(
     entries.length,
     match[1].split("\n").filter((line) => line.trim()).length,
-    "catalog block contains a line that is not `- `folder/``",
+    "catalog block contains a line that is not a folder entry",
   );
   return entries;
 }
