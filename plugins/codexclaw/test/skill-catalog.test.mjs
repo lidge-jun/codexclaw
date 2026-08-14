@@ -46,6 +46,11 @@ function badgeCount(body, kind) {
   return Number(match[1]);
 }
 
+test("shipped skill catalog is sorted and contains no duplicates", () => {
+  const catalog = catalogFolders();
+  assert.deepEqual(catalog, [...new Set(catalog)].sort());
+});
+
 test("shipped skill catalog exactly matches on-disk SKILL.md folders", () => {
   assert.deepEqual(catalogFolders(), shippedSkillFolders());
 });
