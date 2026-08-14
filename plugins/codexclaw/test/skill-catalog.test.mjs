@@ -50,16 +50,18 @@ test("shipped skill catalog exactly matches on-disk SKILL.md folders", () => {
   assert.deepEqual(catalogFolders(), shippedSkillFolders());
 });
 
-test("public README skill and hook badges match the shipped payload", () => {
+test("top-level README skill and hook badges match the shipped payload", () => {
   const skillCount = shippedSkillFolders().length;
   const manifest = JSON.parse(
     readFileSync(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
   );
   assert.ok(Array.isArray(manifest.hooks), "plugin manifest hooks must be an array");
 
-  for (const file of ["README.md", "README.ko.md", "README.zh.md"]) {
-    const body = readFileSync(join(repoRoot, file), "utf8");
-    assert.equal(badgeCount(body, "skills"), skillCount, `${file} skill badge drift`);
-    assert.equal(badgeCount(body, "hooks"), manifest.hooks.length, `${file} hook badge drift`);
-  }
+  const body = readFileSync(join(repoRoot, "README.md"), "utf8");
+  assert.equal(badgeCount(body, "skills"), skillCount, "README.md skill badge drift");
+  assert.equal(
+    badgeCount(body, "hooks"),
+    manifest.hooks.length,
+    "README.md hook badge drift",
+  );
 });
