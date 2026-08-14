@@ -186,3 +186,69 @@ test("usage string lists only doctor and reset", async () => {
   assert.match(out, /reset/);
   assert.doesNotMatch(out, /chat-search/);
 });
+
+test("doctor report includes schemaVersion 1", () => {
+  const root = makePluginRoot();
+  const codexHome = mkdtempSync(join(tmpdir(), "cxc-doctor-schema-"));
+  writeFileSync(join(codexHome, "config.toml"), '[plugins."test@fixture"]\nenabled = true\n');
+  const agRunner = (() => ({
+    status: 0,
+    stdout: "ast-grep binary: /stub/sg\n  version: ast-grep 0.44.0\n",
+    stderr: "",
+  })) as unknown as typeof import("node:child_process").spawnSync;
+  const report = runDoctor(root, agRunner, { codexHome, pluginKey: "test@fixture" });
+  assert.equal(report.schemaVersion, 1);
+  assert.ok(typeof report.overall === "string");
+  assert.ok(Array.isArray(report.checks));
+});
+
+test("doctor --json outputs valid JSON with schemaVersion", async () => {
+  const { code, out } = await captureMain(["doctor", "--json"]);
+  // The output should be valid JSON (may FAIL overall but still structured)
+  const parsed = JSON.parse(out);
+  assert.equal(parsed.schemaVersion, 1);
+  assert.ok(Array.isArray(parsed.checks));
+  assert.ok(["PASS", "WARN", "FAIL"].includes(parsed.overall));
+});
+
+test("doctor report includes pluginVersion when manifest has version", () => {
+  const root = makePluginRoot();
+  const report = runDoctor(root);
+  assert.equal(report.pluginVersion, "0.0.1");
+});
+
+test("doctor renders codexclaw version header when present", () => {
+  const root = makePluginRoot();
+  const report = runDoctor(root);
+  const rendered = renderDoctor(report);
+  assert.match(rendered, /codexclaw v0.0.1/);
+});
+
+test("doctor PABCD state check passes on clean state", () => {
+  const root = makePluginRoot();
+  const report = runDoctor(root);
+  const pabcdCheck = report.checks.find(c => c.name === "pabcd-state");
+  assert.ok(pabcdCheck, "pabcd-state check should be present");
+  assert.equal(pabcdCheck.severity, "PASS");
+});
+
+test("doctor repair field appears in rendered output for non-PASS checks", () => {
+  const root = makePluginRoot();
+  // Create a corrupt session file
+  const sessDir = join(root, ".codexclaw", "sessions");
+  mkdirSync(sessDir, { recursive: true });
+  writeFileSync(join(sessDir, "corrupt.json"), "NOT JSON");
+  // Override process.cwd to point at root
+  const origCwd = process.cwd;
+  process.cwd = () => root;
+  try {
+    const report = runDoctor(root);
+    const pabcdCheck = report.checks.find(c => c.name === "pabcd-state");
+    assert.equal(pabcdCheck?.severity, "WARN");
+    assert.ok(pabcdCheck?.repair);
+    const rendered = renderDoctor(report);
+    assert.match(rendered, /repair:/);
+  } finally {
+    process.cwd = origCwd;
+  }
+});
