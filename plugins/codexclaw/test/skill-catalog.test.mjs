@@ -70,3 +70,25 @@ test("top-level README skill and hook badges match the shipped payload", () => {
     "README.md hook badge drift",
   );
 });
+
+test("i18n README badges agree with canonical README", () => {
+  const canonical = readFileSync(join(repoRoot, "README.md"), "utf8");
+  const canonSkills = badgeCount(canonical, "skills");
+  const canonHooks = badgeCount(canonical, "hooks");
+
+  for (const variant of ["README.ko.md", "README.zh.md"]) {
+    const path = join(repoRoot, variant);
+    if (!existsSync(path)) continue;
+    const body = readFileSync(path, "utf8");
+    assert.equal(
+      badgeCount(body, "skills"),
+      canonSkills,
+      variant + " skill badge disagrees with canonical README",
+    );
+    assert.equal(
+      badgeCount(body, "hooks"),
+      canonHooks,
+      variant + " hook badge disagrees with canonical README",
+    );
+  }
+});
