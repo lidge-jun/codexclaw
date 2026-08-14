@@ -2,6 +2,43 @@
 
 This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin.
 
+## Shipped catalog
+
+The block below is machine-checked against every on-disk skill folder that contains
+`SKILL.md`. Keep it sorted; deprecated redirect folders remain listed because they
+still ship as compatibility surfaces.
+
+<!-- skill-catalog:start -->
+- `ast-grep/`
+- `dev/`
+- `dev-architecture/`
+- `dev-backend/`
+- `dev-code-reviewer/`
+- `dev-data/`
+- `dev-debugging/`
+- `dev-devops/`
+- `dev-diagram-viewer/`
+- `dev-frontend/`
+- `dev-scaffolding/`
+- `dev-security/`
+- `dev-testing/`
+- `dev-uiux-design/`
+- `goalplan/`
+- `interview/`
+- `kwrite/`
+- `loop/`
+- `lunasearch/`
+- `orchestrate/`
+- `pabcd/`
+- `qa/`
+- `recall/`
+- `remote/`
+- `repo-map/`
+- `search/`
+- `skill-hub/`
+- `worktree-guardian/`
+<!-- skill-catalog:end -->
+
 ## Skill set
 
 - `dev/` — always-on universal dev discipline (work classifier C0-C5, modular limits,
@@ -25,21 +62,20 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   class-scaled depth. Folds in the structured-development discipline.
 - `interview/` — discoverable `cxc-interview` surface for persistent I-phase
   contradiction discovery, question/answer recording, and readiness gating.
-- `orchestrate/` — deprecated compatibility redirect from `cxc-orchestrate` to
-  `cxc-pabcd`; it has no `agents/openai.yaml` registration of its own.
+- `orchestrate/` — discoverable `cxc-orchestrate (DEPRECATED -> cxc-pabcd)` surface for explicit IPABCD
+  phase control from chat plus the live agent-gated `cxc orchestrate` terminal path.
 - `loop/` — discoverable `cxc-loop` surface for HOTL work-phase continuation.
-- `goalplan/` — deprecated compatibility redirect from `cxc-goalplan` to
-  `cxc-loop`; the `cxc goalplan` CLI remains an alias during migration.
+- `goalplan/` — discoverable `cxc-goalplan (DEPRECATED -> cxc-loop)` surface for durable criteria,
+  checkpoints, steering, and quality gates.
 - `search/` — discoverable `cxc-search` surface for external/current/public lookup
-  discipline; not memory or chat search. Its opt-in Tier 3 protocol owns the former
-  ultraresearch multi-wave journal and claim-ledger discipline.
+  discipline; not memory or chat search. It also owns the former `ultraresearch`
+  multi-wave research protocol; no separate `ultraresearch/` folder ships.
 - `recall/` — discoverable `cxc-recall` surface for read-only past-session chat and
   memory search over `~/.codex` before asking the user to repeat context.
 - `qa/` — discoverable `cxc-qa` manual surface-driving QA gate for web, GUI, TUI,
-  CLI, and HTTP API changes. It records scenario artifacts and teardown receipts;
-  automated suites remain owned by `dev-testing`.
-- `repo-map/` — on-demand `cxc-repo-map` structure overview using tree-sitter tags
-  and PageRank. It orients unfamiliar codebases before exact `rg` or ast-grep work.
+  CLI, and HTTP API scenarios, with captured evidence and teardown receipts.
+- `repo-map/` — discoverable `cxc-repo-map` one-shot tree-sitter + PageRank map for
+  unfamiliar repository structure and symbol orientation before deep search.
 - `kwrite/` — discoverable `cxc-kwrite` surface for Korean prose polishing (윤문):
   AI-tell removal, register consistency, rhythm, meaning-exact revision of existing
   Korean text. On-demand: `agents/openai.yaml` sets `allow_implicit_invocation: false`;
@@ -51,8 +87,8 @@ This directory holds the Codex `SKILL.md` skills bundled by the codexclaw plugin
   description match or explicit `$cxc-remote`.
 - `ast-grep/` — discoverable `cxc-ast-grep` surface for optional AST-aware structural
   search/codemods, with `rg` first for ordinary text search.
-- `skill-hub/` — deprecated compatibility redirect from `cxc-skill-hub` to
-  `cxc-dev`; capability routing is canonical in `dev/SKILL.md`.
+- `skill-hub/` — discoverable `cxc-skill-hub (DEPRECATED -> cxc-dev)` catalog for choosing the right
+  on-demand skill.
 - `lunasearch/` — discoverable `cxc-lunasearch` lane for cheap parallel public-web
   discovery that hands proof back to `cxc-search`.
 - `worktree-guardian/` — discoverable `cxc-worktree-guardian` surface for Codex-app
