@@ -169,11 +169,22 @@ deferred receipt
                                                                  even with --allow-deferred
 ```
 
-`--allow-deferred` keeps exactly one job: excusing a receipt that is due when the
-maintainer knowingly ships without it — the beta case. It can no longer excuse a
-receipt that has reached its `requiredFrom`, so no classification path can hand a 1.0
-candidate a pass. Scoped not-yet-due receipts need no flag at all; their exemption
-is automatic.
+So `--allow-deferred` now has **no effect on the gate at all**, and that is the chosen
+policy rather than an accident (A-gate r3 #1: the previous wording left it both
+effective and ineffective, which is not implementable). The two branches cover every
+receipt:
+
+- below its `requiredFrom` -> skipped automatically, no flag needed
+- at or above it, or unscoped -> due, blocks, and no flag waives it
+
+The flag is retained in the CLI and recorded on the manifest purely as **provenance**:
+it states that the operator asked to ship leniently, which is worth having in the
+published artifact even when the gate ignored the request. Train receipts are
+unscoped and therefore always due — which is what kept the wp3 missing-receipt path
+firing, and still does.
+
+Criterion 6 is amended to assert both flag states: a due deferral blocks with AND
+without `--allow-deferred`.
 
 Criterion 3 is amended to run **with** `allowDeferred: true`, and a chain test walks
 the real workflow path: `classify 1.0.0-rc.1` → `prerelease` → `verify --allow-deferred`
