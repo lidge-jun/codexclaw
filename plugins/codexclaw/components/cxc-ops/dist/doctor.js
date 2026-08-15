@@ -31,6 +31,16 @@ import { TargetParseError, validateManifestTargets } from "./manifest-targets.js
 
 
 
+
+
+
+
+
+
+
+
+
+
 function isDir(p        )          {
   try {
     return statSync(p).isDirectory();
@@ -41,6 +51,7 @@ function isDir(p        )          {
 
 /** Worst severity wins: FAIL > WARN > PASS. */
 export function rollup(checks               )           {
+  // justified: Array.prototype method, not dynamic code execution
   if (checks.some((c) => c.severity === "FAIL")) return "FAIL";
   if (checks.some((c) => c.severity === "WARN")) return "WARN";
   return "PASS";
@@ -52,6 +63,40 @@ export function rollup(checks               )           {
  */
 /**
  * Turn shared-validator output into doctor checks.
+  */
+
+/** Detect Codex CLI version by running codex --version. */
+function detectCodexVersion(runner                  )                     {
+  try {
+    const res = runner("codex", ["--version"], { encoding: "utf8", timeout: 5000 });
+    if (res.status === 0 && res.stdout) {
+      const match = res.stdout.match(/(d+.d+.d+)/);
+      return match ? match[1] : res.stdout.trim();
+    }
+  } catch { /* codex not in PATH */ }
+  return undefined;
+}
+
+/** Check PABCD session state health: schema version and corruption. */
+function checkPabcdHealth(projectRoot        )              {
+  const stateDir = join(projectRoot, ".codexclaw", "sessions");
+  if (!isDir(stateDir)) {
+    return { name: "pabcd-state", severity: "PASS", evidence: "no .codexclaw/sessions/ directory (clean state)" };
+  }
+  const files = readdirSync(stateDir).filter(f => f.endsWith(".json"));
+  const corrupt           = [];
+  for (const f of files) {
+    try { JSON.parse(readFileSync(join(stateDir, f), "utf8")); }
+    catch { corrupt.push(f); }
+  }
+  if (corrupt.length > 0) {
+    return { name: "pabcd-state", severity: "WARN", evidence: corrupt.length + " corrupt session file(s): " + corrupt.join(", "), repair: "cxc reset --state" };
+  }
+  return { name: "pabcd-state", severity: "PASS", evidence: files.length + " session file(s), all parseable" };
+}
+
+/**
+  * Turn shared-validator output back into doctor checks.
  *
  * A malformed manifest aborts validation at the first parse failure — the
  * premise has collapsed, so the remaining targets were never looked at. The
@@ -165,7 +210,27 @@ export function runDoctor(
   // 7. ast-grep runtime status (L22).
   checks.push(runAstGrepCheck(pluginRoot, agRunner));
 
-  return { overall: rollup(checks), checks };
+  // 8. PABCD session state health.
+  checks.push(checkPabcdHealth(process.cwd()));
+
+  // Read plugin version for report metadata.
+  let pluginVersion                    ;
+  try {
+    const mf = JSON.parse(readFileSync(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"))                         ;
+    pluginVersion = typeof mf.version === "string" ? mf.version : undefined;
+  } catch { /* already caught by check #1 */ }
+
+  const codexVersion = detectCodexVersion(agRunner);
+  const activeSurface = process.env.CODEX_SURFACE ?? (process.env.CODEX_APP_PORT ? "app" : undefined);
+
+  return {
+    schemaVersion: 1,
+    overall: rollup(checks),
+    checks,
+    pluginVersion,
+    codexVersion,
+    activeSurface,
+  };
 }
 
 export function runHookTrustCheck(pluginRoot        , options                = {})              {
@@ -285,7 +350,13 @@ export function runAstGrepCheck(pluginRoot        , runner                   = s
 
 /** Render a report as aligned PASS/WARN/FAIL lines for CLI stdout. */
 export function renderDoctor(report              )         {
-  const lines = report.checks.map((c) => `[${c.severity}] ${c.name}: ${c.evidence}`);
+  const lines = report.checks.map((c) => {
+    let line = `[${c.severity}] ${c.name}: ${c.evidence}`;
+    if (c.repair && c.severity !== "PASS") line += ` (repair: ${c.repair})`;
+    return line;
+  });
+  if (report.pluginVersion) lines.unshift(`codexclaw v${report.pluginVersion}`);
+  if (report.codexVersion) lines.unshift(`codex v${report.codexVersion}`);
   lines.push(`overall: ${report.overall}`);
   return lines.join("\n");
 }

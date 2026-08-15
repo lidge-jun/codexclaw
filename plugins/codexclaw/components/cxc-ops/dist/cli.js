@@ -75,9 +75,15 @@ export async function main(argv          , metaUrl        )                  {
 
   switch (cmd) {
     case "doctor": {
-      const options = parseHookOptions(rest);
+      const jsonMode = rest.includes("--json");
+      const hookArgs = rest.filter(a => a !== "--json");
+      const options = parseHookOptions(hookArgs);
       const report = runDoctor(pluginRootFrom(metaUrl), undefined, options);
-      process.stdout.write(`${renderDoctor(report)}\n`);
+      if (jsonMode) {
+        process.stdout.write(JSON.stringify(report, null, 2) + "\n");
+      } else {
+        process.stdout.write(`${renderDoctor(report)}\n`);
+      }
       return report.overall === "FAIL" ? 1 : 0;
     }
     case "reset": {
