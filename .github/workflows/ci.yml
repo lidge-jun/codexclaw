@@ -29,4 +29,5 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm test
+      - run: node plugins/codexclaw/scripts/inventory.mjs --check
       - run: node plugins/codexclaw/scripts/gate.mjs

@@ -23,6 +23,7 @@
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join, dirname, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { check as inventoryCheck } from "./inventory.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = join(HERE, "..", "..", "..");
@@ -288,11 +289,30 @@ export function checkCounts(repoRoot = REPO_ROOT) {
   return { ok: violations.length === 0, violations };
 }
 
+/**
+ * Inventory drift, delegated to inventory.mjs. checkCounts above compares hook
+ * CARDINALITY, which an equal-count manifest substitution passes; this compares the
+ * manifest/filesystem/catalog SETS and the published counts. Kept as a separate check
+ * so its violations are attributable.
+ */
+export function checkInventory(repoRoot = REPO_ROOT) {
+  const violations = [];
+  try {
+    const pluginRoot = join(repoRoot, "plugins", "codexclaw");
+    const result = inventoryCheck({ pluginRoot, repoRoot });
+    violations.push(...result.violations);
+  } catch (err) {
+    violations.push("inventory check failed: " + (err?.message ?? String(err)));
+  }
+  return { ok: violations.length === 0, violations };
+}
+
 export function runGate(repoRoot = REPO_ROOT) {
   const checks = {
     statusSync: checkStatusSync(repoRoot),
     forbiddenClaims: checkForbiddenClaims(repoRoot),
     counts: checkCounts(repoRoot),
+    inventory: checkInventory(repoRoot),
     // WP1/100: report-only. Its findings go to `warnings`, never `violations`, so a dead
     // verifier claim is surfaced without walling off work (see checkVerifierClaims).
     verifierClaims: checkVerifierClaims(repoRoot),
@@ -301,6 +321,7 @@ export function runGate(repoRoot = REPO_ROOT) {
     ...checks.statusSync.violations,
     ...checks.forbiddenClaims.violations,
     ...checks.counts.violations,
+    ...checks.inventory.violations,
   ];
   const warnings = [...checks.verifierClaims.warnings];
   return { ok: violations.length === 0, checks, violations, warnings };
@@ -316,7 +337,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     for (const w of result.warnings) console.error(`  - ${w}`);
   };
   if (result.ok) {
-    console.log("[codexclaw gate] OK — no status drift, false-enforcement prose, or count mismatch.");
+    console.log("[codexclaw gate] OK — no status drift, false-enforcement prose, count mismatch, or inventory drift.");
     printWarnings();
     process.exit(0);
   }

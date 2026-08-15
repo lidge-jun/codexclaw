@@ -1,0 +1,300 @@
+{
+  "schemaVersion": 1,
+  "plugin": {
+    "name": "codexclaw",
+    "manifestVersion": "0.1.1+codex.20260807170050",
+    "packageVersion": "0.1.1"
+  },
+  "skills": [
+    {
+      "folder": "ast-grep",
+      "name": "cxc-ast-grep"
+    },
+    {
+      "folder": "dev",
+      "name": "cxc-dev"
+    },
+    {
+      "folder": "dev-architecture",
+      "name": "cxc-dev-architecture"
+    },
+    {
+      "folder": "dev-backend",
+      "name": "cxc-dev-backend"
+    },
+    {
+      "folder": "dev-code-reviewer",
+      "name": "cxc-dev-code-reviewer"
+    },
+    {
+      "folder": "dev-data",
+      "name": "cxc-dev-data"
+    },
+    {
+      "folder": "dev-debugging",
+      "name": "cxc-dev-debugging"
+    },
+    {
+      "folder": "dev-devops",
+      "name": "cxc-dev-devops"
+    },
+    {
+      "folder": "dev-diagram-viewer",
+      "name": "cxc-dev-diagram-viewer"
+    },
+    {
+      "folder": "dev-frontend",
+      "name": "cxc-dev-frontend"
+    },
+    {
+      "folder": "dev-scaffolding",
+      "name": "cxc-dev-scaffolding"
+    },
+    {
+      "folder": "dev-security",
+      "name": "cxc-dev-security"
+    },
+    {
+      "folder": "dev-testing",
+      "name": "cxc-dev-testing"
+    },
+    {
+      "folder": "dev-uiux-design",
+      "name": "cxc-dev-uiux-design"
+    },
+    {
+      "folder": "goalplan",
+      "name": "cxc-goalplan"
+    },
+    {
+      "folder": "interview",
+      "name": "cxc-interview"
+    },
+    {
+      "folder": "kwrite",
+      "name": "cxc-kwrite"
+    },
+    {
+      "folder": "loop",
+      "name": "cxc-loop"
+    },
+    {
+      "folder": "lunasearch",
+      "name": "cxc-lunasearch"
+    },
+    {
+      "folder": "orchestrate",
+      "name": "cxc-orchestrate"
+    },
+    {
+      "folder": "pabcd",
+      "name": "cxc-pabcd"
+    },
+    {
+      "folder": "qa",
+      "name": "cxc-qa"
+    },
+    {
+      "folder": "recall",
+      "name": "cxc-recall"
+    },
+    {
+      "folder": "remote",
+      "name": "cxc-remote"
+    },
+    {
+      "folder": "repo-map",
+      "name": "cxc-repo-map"
+    },
+    {
+      "folder": "search",
+      "name": "cxc-search"
+    },
+    {
+      "folder": "skill-hub",
+      "name": "cxc-skill-hub"
+    },
+    {
+      "folder": "worktree-guardian",
+      "name": "cxc-worktree-guardian"
+    }
+  ],
+  "hooks": [
+    {
+      "file": "post-compact-injecting-bg-terminal-affordance.json",
+      "event": "PostCompact",
+      "component": "cxc-ops",
+      "matcher": null
+    },
+    {
+      "file": "post-compact-injecting-recall-context.json",
+      "event": "PostCompact",
+      "component": "recall",
+      "matcher": null
+    },
+    {
+      "file": "post-compact-resetting-reinject-cursor.json",
+      "event": "PostCompact",
+      "component": "pabcd-state",
+      "matcher": null
+    },
+    {
+      "file": "post-tool-use-capturing-interview-answers.json",
+      "event": "PostToolUse",
+      "component": "pabcd-state",
+      "matcher": "^request_user_input$"
+    },
+    {
+      "file": "post-tool-use-tracking-render-observations.json",
+      "event": "PostToolUse",
+      "component": "pabcd-state",
+      "matcher": "^(view_image|browser:control-in-app-browser|chrome:control-chrome|computer-use:computer-use|apply_patch)$"
+    },
+    {
+      "file": "pre-tool-use-attaching-skills.json",
+      "event": "PreToolUse",
+      "component": "subagent-config",
+      "matcher": "^(collaboration[._]?)?spawn_agent$"
+    },
+    {
+      "file": "pre-tool-use-guarding-goal-budget.json",
+      "event": "PreToolUse",
+      "component": "pabcd-state",
+      "matcher": "^create_goal$"
+    },
+    {
+      "file": "pre-tool-use-guarding-goal-complete.json",
+      "event": "PreToolUse",
+      "component": "pabcd-state",
+      "matcher": "^update_goal$"
+    },
+    {
+      "file": "pre-tool-use-guarding-interview-in-goal.json",
+      "event": "PreToolUse",
+      "component": "pabcd-state",
+      "matcher": "^request_user_input$"
+    },
+    {
+      "file": "pre-tool-use-guarding-managed-worktree-deletion.json",
+      "event": "PreToolUse",
+      "component": "pabcd-state",
+      "matcher": "^Bash$"
+    },
+    {
+      "file": "pre-tool-use-linting-apply-patch.json",
+      "event": "PreToolUse",
+      "component": "pabcd-state",
+      "matcher": "^(apply_patch|Write|Edit)$"
+    },
+    {
+      "file": "session-start-announcing-map-affordance.json",
+      "event": "SessionStart",
+      "component": "cxc-ops",
+      "matcher": null
+    },
+    {
+      "file": "session-start-bootstrapping-pabcd-state.json",
+      "event": "SessionStart",
+      "component": "pabcd-state",
+      "matcher": null
+    },
+    {
+      "file": "session-start-detecting-managed-worktree.json",
+      "event": "SessionStart",
+      "component": "pabcd-state",
+      "matcher": null
+    },
+    {
+      "file": "session-start-ensuring-provider-bridge.json",
+      "event": "SessionStart",
+      "component": "provider-bridge",
+      "matcher": null
+    },
+    {
+      "file": "session-start-injecting-recall-context.json",
+      "event": "SessionStart",
+      "component": "recall",
+      "matcher": null
+    },
+    {
+      "file": "stop-checking-pabcd-continuation.json",
+      "event": "Stop",
+      "component": "pabcd-state",
+      "matcher": null
+    },
+    {
+      "file": "subagent-stop-verifying-evidence.json",
+      "event": "SubagentStop",
+      "component": "pabcd-state",
+      "matcher": "^worker$"
+    },
+    {
+      "file": "user-prompt-submit-checking-pabcd-trigger.json",
+      "event": "UserPromptSubmit",
+      "component": "pabcd-state",
+      "matcher": null
+    },
+    {
+      "file": "user-prompt-submit-detecting-recall-intent.json",
+      "event": "UserPromptSubmit",
+      "component": "recall",
+      "matcher": null
+    },
+    {
+      "file": "user-prompt-submit-guiding-worktree-rename.json",
+      "event": "UserPromptSubmit",
+      "component": "pabcd-state",
+      "matcher": null
+    }
+  ],
+  "components": [
+    {
+      "folder": "config-guard",
+      "packageName": "@codexclaw/config-guard",
+      "version": "0.1.1",
+      "hasTests": true
+    },
+    {
+      "folder": "cxc-ops",
+      "packageName": "@codexclaw/cxc-ops",
+      "version": "0.1.1",
+      "hasTests": true
+    },
+    {
+      "folder": "messenger-bridge",
+      "packageName": "@codexclaw/messenger-bridge",
+      "version": "0.1.1",
+      "hasTests": true
+    },
+    {
+      "folder": "pabcd-state",
+      "packageName": "@codexclaw/pabcd-state",
+      "version": "0.1.1",
+      "hasTests": true
+    },
+    {
+      "folder": "provider-bridge",
+      "packageName": "@codexclaw/provider-bridge",
+      "version": "0.1.1",
+      "hasTests": true
+    },
+    {
+      "folder": "recall",
+      "packageName": "@codexclaw/recall",
+      "version": "0.1.1",
+      "hasTests": true
+    },
+    {
+      "folder": "skill-search",
+      "packageName": "@codexclaw/skill-search",
+      "version": "0.1.1",
+      "hasTests": true
+    },
+    {
+      "folder": "subagent-config",
+      "packageName": "@codexclaw/subagent-config",
+      "version": "0.1.1",
+      "hasTests": true
+    }
+  ]
+}
