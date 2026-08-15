@@ -181,7 +181,7 @@ The `dev` hub routes by change surface toward on-demand `dev-*` skills. `skill-h
 
 ## Hooks
 
-The manifest wires 21 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` are both authoritative and locked by `checkCounts`. Seven earlier advisory hooks were retired to `hooks/_deprecated/` in the 2026-07-05 hook diet (their rules were absorbed into the `dev` skill family).
+The manifest wires 22 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` are both authoritative and locked by `checkCounts`. Seven earlier advisory hooks were retired to `hooks/_deprecated/` in the 2026-07-05 hook diet (their rules were absorbed into the `dev` skill family).
 
 | Hook event | Hook file | Command | Live behavior |
 |------------|-----------|---------|---------------|

@@ -232,10 +232,10 @@ test("C2: deleting a target referenced exactly once yields exactly one issue", (
 test("C2b: deleting a shared target yields one issue per reference", () => {
   const root = copyRealPayload();
   rmSync(join(root, "components/pabcd-state/dist/cli.js"));
-  // 14 is hardcoded: fourteen hooks reference pabcd-state/dist/cli.js today (11 +
-  // the 3 worktree-guard hooks, 260804). If a hook is added or removed this test
-  // should fail and be updated deliberately.
-  assert.equal(validateManifestTargets(root).length, 14);
+  // 15 is hardcoded: fifteen hooks reference pabcd-state/dist/cli.js today (11 +
+  // the 3 worktree-guard hooks 260804 + the review observer 260815). If a hook is
+  // added or removed this test should fail and be updated deliberately.
+  assert.equal(validateManifestTargets(root).length, 15);
 });
 
 // ---- D. doctor integration -------------------------------------------------

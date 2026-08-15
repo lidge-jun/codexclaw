@@ -33,7 +33,7 @@ import {
 } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { STATE_DIR } from "./state.ts";
-import { deriveSlug } from "./freeze.ts";
+import { deriveSlug, type PlanFileHash } from "./freeze.ts";
 import type { SourceIdentity } from "./source-identity.ts";
 
 export const GOALPLANS_SUBDIR = "goalplans";
@@ -135,6 +135,18 @@ export interface ReviewRoundState {
   lane: ReviewLane;
   openedAt: string;
   closedAt?: string;
+  /**
+   * REVIEW-BINDING-01 (060): what this round was opened against, all optional so
+   * existing final_gate rounds and pre-060 plan audits still parse. The A>B gate
+   * treats a missing value as a refusal rather than a pass, so nothing is
+   * grandfathered into approval — reopening a round is the whole cost.
+   */
+  ownerSessionId?: string;
+  workPhaseId?: string;
+  planUnit?: string;
+  planEpoch?: string;
+  /** the exact files the round names; hashed in path order into planSha256. */
+  planFiles?: PlanFileHash[];
 }
 
 export interface FinalGateState {
@@ -295,7 +307,30 @@ function reviveReviewRounds(raw: unknown): ReviewRoundState[] | undefined {
       openedAt: typeof r.openedAt === "string" ? r.openedAt : new Date(0).toISOString(),
     };
     if (typeof r.closedAt === "string") round.closedAt = r.closedAt;
+    // 060 binding fields: revived only when well-formed. A half-parsed binding is
+    // worse than none, since the A>B gate reads a missing field as a refusal.
+    if (typeof r.ownerSessionId === "string" && r.ownerSessionId.length > 0) round.ownerSessionId = r.ownerSessionId;
+    if (typeof r.workPhaseId === "string" && r.workPhaseId.length > 0) round.workPhaseId = r.workPhaseId;
+    if (typeof r.planUnit === "string" && r.planUnit.length > 0) round.planUnit = r.planUnit;
+    if (typeof r.planEpoch === "string" && r.planEpoch.length > 0) round.planEpoch = r.planEpoch;
+    const files = revivePlanFiles(r.planFiles);
+    if (files) round.planFiles = files;
     out.push(round);
+  }
+  return out;
+}
+
+/** 060: every entry must be well-formed, or the whole list is dropped — a partial
+ *  file set would silently narrow what the round claims to have covered. */
+function revivePlanFiles(raw: unknown): PlanFileHash[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out: PlanFileHash[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) return undefined;
+    const f = entry as Record<string, unknown>;
+    if (typeof f.path !== "string" || f.path.length === 0) return undefined;
+    if (typeof f.sha256 !== "string" || f.sha256.length === 0) return undefined;
+    out.push({ path: f.path, sha256: f.sha256 });
   }
   return out;
 }

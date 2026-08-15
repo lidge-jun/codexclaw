@@ -60,6 +60,19 @@ export interface State {
    * other edge has a question to ask of it.
    */
   phaseEntrySource: SourceIdentity | null;
+  /**
+   * REVIEW-BINDING-01 (060): the plan unit P>A validated for this cycle, stored
+   * relative to cwd, plus a nonce minted on the same edge.
+   *
+   * A round records both; A>B requires them to match. Without the epoch,
+   * re-planning through A>P and back to P>A over the same unit would leave the
+   * earlier approval looking valid — same session, same work-phase, same files.
+   *
+   * Both belong to one A and are read back as null on any other phase, the same
+   * discipline as phaseEntrySource: a value must not outlive the span it describes.
+   */
+  planUnit: string | null;
+  planEpoch: string | null;
 }
 
 export interface LedgerEntry {
@@ -144,6 +157,8 @@ export function defaultState(sessionId: string, slug = ""): State {
     loopArmSeen: false,
     idleEditNudges: 0,
     phaseEntrySource: null,
+    planUnit: null,
+    planEpoch: null,
   };
 }
 
@@ -257,6 +272,9 @@ export function readState(cwd: string, sessionId: string): State {
       // found on any other phase is stale by definition and reading it back would
       // keep the invariant true only by accident.
       phaseEntrySource: parsed.phase === "B" ? reconstructSourceIdentity(parsed.phaseEntrySource) : null,
+      // 060: only A can hold a plan binding — minted at P>A, consumed at A>B.
+      planUnit: parsed.phase === "A" && typeof parsed.planUnit === "string" && parsed.planUnit.length > 0 ? parsed.planUnit : null,
+      planEpoch: parsed.phase === "A" && typeof parsed.planEpoch === "string" && parsed.planEpoch.length > 0 ? parsed.planEpoch : null,
     };
   } catch {
     return defaultState(sessionId);

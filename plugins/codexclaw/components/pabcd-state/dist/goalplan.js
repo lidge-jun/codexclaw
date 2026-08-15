@@ -33,7 +33,7 @@ import {
 } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { STATE_DIR } from "./state.js";
-import { deriveSlug } from "./freeze.js";
+import { deriveSlug,                   } from "./freeze.js";
 
 
 export const GOALPLANS_SUBDIR = "goalplans";
@@ -108,6 +108,18 @@ export const GOALPLAN_LEDGER_FILE = "ledger.jsonl";
  * What a round is for. A plan audit and a final code gate cannot stand in for
  * each other, so each purpose carries its own cursor.
  */
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -295,7 +307,30 @@ function reviveReviewRounds(raw         )                                 {
       openedAt: typeof r.openedAt === "string" ? r.openedAt : new Date(0).toISOString(),
     };
     if (typeof r.closedAt === "string") round.closedAt = r.closedAt;
+    // 060 binding fields: revived only when well-formed. A half-parsed binding is
+    // worse than none, since the A>B gate reads a missing field as a refusal.
+    if (typeof r.ownerSessionId === "string" && r.ownerSessionId.length > 0) round.ownerSessionId = r.ownerSessionId;
+    if (typeof r.workPhaseId === "string" && r.workPhaseId.length > 0) round.workPhaseId = r.workPhaseId;
+    if (typeof r.planUnit === "string" && r.planUnit.length > 0) round.planUnit = r.planUnit;
+    if (typeof r.planEpoch === "string" && r.planEpoch.length > 0) round.planEpoch = r.planEpoch;
+    const files = revivePlanFiles(r.planFiles);
+    if (files) round.planFiles = files;
     out.push(round);
+  }
+  return out;
+}
+
+/** 060: every entry must be well-formed, or the whole list is dropped — a partial
+ *  file set would silently narrow what the round claims to have covered. */
+function revivePlanFiles(raw         )                             {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const out                 = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) return undefined;
+    const f = entry                           ;
+    if (typeof f.path !== "string" || f.path.length === 0) return undefined;
+    if (typeof f.sha256 !== "string" || f.sha256.length === 0) return undefined;
+    out.push({ path: f.path, sha256: f.sha256 });
   }
   return out;
 }

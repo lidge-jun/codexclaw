@@ -55,6 +55,8 @@ import { runMetricCli } from "./metric-cli.js";
 import { parseOrchestrateCliArgs, renderOrchestrateParseError, runOrchestrateCli } from "./orchestrate-cli.js";
 import { parseGoalplanCliArgs, runGoalplanCli } from "./goalplan-cli.js";
 import { parseScanCliArgs, runScanCli } from "./scan-cli.js";
+import { parseReviewRoundCliArgs, runReviewRoundCli } from "./review-round-cli.js";
+import { handleReviewObserver } from "./review-observer.js";
 
 const MAX_STDIN_BYTES = 4 * 1024 * 1024;
 
@@ -186,6 +188,19 @@ function main()       {
   // `scan` command path (260724 WP1): record an interview contradiction-scan
   // round — the previously-phantom `cxc scan evidence` writer. Double write:
   // interview ledger event + tracker scanRounds/lastScanRoundId via writeState.
+  // `review-round` command path (060): open and inspect plan-audit rounds. There
+  // is no close verb — the SubagentStop observer writes the verdict.
+  if (kind === "review-round") {
+    const parsed = parseReviewRoundCliArgs(process.argv.slice(3), process.cwd());
+    if ("error" in parsed) {
+      process.stderr.write(`review-round: ${parsed.error}\n`);
+      process.exit(1);
+    }
+    const result = runReviewRoundCli(parsed);
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
   if (kind === "scan") {
     const parsed = parseScanCliArgs(process.argv.slice(3), process.cwd());
     if ("error" in parsed) {
@@ -233,7 +248,9 @@ function main()       {
     process.exit(0);
   }
 
-  if (event !== "subagent-stop" && isSubagentHookPayload(raw)) {
+  // 060: the review observer is child-scoped for the same reason `subagent-stop` is —
+  // it exists to read a subagent's exit, so the root-only early return would silence it.
+  if (event !== "subagent-stop" && event !== "subagent-stop-review" && isSubagentHookPayload(raw)) {
     process.exit(0);
   }
 
@@ -261,6 +278,10 @@ function main()       {
     } else if (event === "post-tool-use") {
       const payload = parsePostToolUse(raw);
       if (payload) output = handlePostToolUse(payload);
+    } else if (event === "subagent-stop-review") {
+      // 060 observer: records a reviewer verdict, never blocks. Kept separate from
+      // the worker receipt gate so the two cannot contend over the same child.
+      out = handleReviewObserver(raw);
     } else if (event === "subagent-stop") {
       const payload = parseSubagentStop(raw);
       if (payload) output = runSubagentStopGate(payload);

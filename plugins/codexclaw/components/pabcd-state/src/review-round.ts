@@ -259,6 +259,75 @@ export function recordVerdict(plan: Goalplan, input: VerdictInput): ReviewRoundR
  * "open" means the round has not reached a verdict yet, so freshness is not a
  * meaningful question.
  */
+
+/**
+ * REVIEW-BINDING-01 (060): the highest-numbered round for a purpose, terminal or
+ * not. The A>B gate reads this rather than effectiveRound(), which skips terminal
+ * rounds and so cannot see an approval at all — and would happily return an older
+ * approved round while a newer one is still in flight.
+ */
+export function latestRound(plan: Goalplan, purpose: ReviewPurpose): ReviewRoundState | null {
+  const all = rounds(plan).filter((r) => r.purpose === purpose);
+  if (all.length === 0) return null;
+  return all.reduce((best, r) => (roundOrder(r.roundId) > roundOrder(best.roundId) ? r : best));
+}
+
+/**
+ * Close the live round as inconclusive. There is deliberately no verdict argument:
+ * an agent may abandon a round, never approve one. Approval belongs to the
+ * SubagentStop observer, which only fires when a reviewer actually ran.
+ */
+export function abortRound(plan: Goalplan, purpose: ReviewPurpose, reason: string): ReviewRoundResult {
+  const live = effectiveRound(plan, purpose);
+  if (!live) return { kind: "not_found", reason: `no open ${purpose} round` };
+  const now = new Date().toISOString();
+  const closed: ReviewRoundState = {
+    ...live,
+    status: "inconclusive",
+    closedAt: now,
+    lane: { ...live.lane, reviewerSession: live.lane.reviewerSession ?? `aborted: ${reason}` },
+  };
+  const list = replaceRound(rounds(plan).slice(), closed);
+  return { kind: "ok", plan: withRounds(plan, list, purpose, undefined), round: closed };
+}
+
+/** A reviewer's sign-off, as the observer expects to find it. */
+export interface ReviewSignoff {
+  launchId: string;
+  verdict: ReviewVerdict;
+}
+
+/**
+ * Parse the last two non-empty lines of a reviewer's final message.
+ *
+ * Strict by position, not by search: a packet that quotes the expected format as
+ * an instruction would otherwise sign itself off. Only the closing lines count.
+ *
+ *   LAUNCH: r3-20260815181200
+ *   VERDICT: PASS
+ *
+ * GO-WITH-FIXES maps to near-pass, matching what reviewers actually write.
+ */
+export function parseSignoff(message: string | null | undefined): ReviewSignoff | null {
+  if (typeof message !== "string") return null;
+  const lines = message.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+  if (lines.length < 2) return null;
+  const launchLine = lines[lines.length - 2];
+  const verdictLine = lines[lines.length - 1];
+  const launchMatch = /^LAUNCH\s*:\s*(\S+)$/i.exec(launchLine);
+  if (!launchMatch) return null;
+  const verdictMatch = /^VERDICT\s*:\s*(.+)$/i.exec(verdictLine);
+  if (!verdictMatch) return null;
+  const raw = verdictMatch[1].trim().toUpperCase();
+  const verdict: ReviewVerdict | null =
+    raw === "PASS" ? "pass"
+    : raw === "FAIL" ? "fail"
+    : raw === "NEAR-PASS" || raw === "GO-WITH-FIXES" ? "near-pass"
+    : null;
+  if (!verdict) return null;
+  return { launchId: launchMatch[1], verdict };
+}
+
 export function staleness(plan: Goalplan, roundId: string, currentPlanSha: string): Staleness {
   const round = rounds(plan).find((r) => r.roundId === roundId);
   if (!round) return "open";

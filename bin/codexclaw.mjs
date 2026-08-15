@@ -365,6 +365,12 @@ if (isMain) switch (cmd) {
     // Release-candidate manifest producer + fail-closed verifier (260815 wp3).
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
+  case "review-round":
+    // pabcd-state CLI expects argv as [kind, ...rest]; kind === "review-round".
+    // Opens and inspects plan-audit rounds for the A>B binding gate (060). There is
+    // no close verb: the SubagentStop observer writes the verdict.
+    process.exit(runPabcdState(process.argv.slice(2)));
+    break;
   case "scan":
     // pabcd-state CLI expects argv as [kind, ...rest]; kind === "scan".
     // Records an interview contradiction-scan round (H4, 260724): ledger event +

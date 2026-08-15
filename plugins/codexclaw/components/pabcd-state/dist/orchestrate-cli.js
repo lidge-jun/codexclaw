@@ -19,7 +19,56 @@ import { coerceAttest, validateWorkPhaseBinding, GATED_TRANSITIONS,             
 import { canEnter, transition } from "./fsm.js";
 import { validatePlanArtifacts } from "./plan-gate.js";
 import { captureSourceIdentity, compareSource, describeSource } from "./source-identity.js";
+import { randomBytes } from "node:crypto";
+
+
+/**
+ * The A>B review binding check (060). Returns a refusal result, or null to pass.
+ *
+ * Missing binding fields are refusals, not passes: rounds written before this
+ * gate existed carry none, and grandfathering them would make the gate advisory
+ * from day one. Reopening a round is the entire cost.
+ */
+function validateReviewBinding(state       , args                    , sessionId        )                                          {
+  const refuse = (why        ) => ({
+    code: 1,
+    output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${why} (REVIEW-BINDING-01). Open a round with \`cxc review-round open --session <id> --plan-path <doc>\`, dispatch an explorer reviewer, and let its exit record the verdict. Nothing was written.`,
+  });
+  let plan                  = null;
+  try {
+    plan = readGoalplan(args.cwd, state.slug);
+  } catch {
+    plan = null;
+  }
+  if (!plan) return refuse(`the bound goalplan "${state.slug}" could not be read`);
+  const round = latestRound(plan, "plan_audit");
+  if (!round) return refuse("no plan audit round has been opened for this cycle");
+  if (round.status !== "approved") return refuse(`the latest audit round ${round.roundId} is ${round.status}, not approved`);
+  if (!round.lane.verdict) return refuse(`round ${round.roundId} is approved but carries no reviewer verdict`);
+  if (!round.ownerSessionId || !round.workPhaseId || !round.planEpoch || !round.planFiles || round.planFiles.length === 0) {
+    return refuse(`round ${round.roundId} predates the binding fields and cannot be spent`);
+  }
+  if (round.ownerSessionId !== sessionId) return refuse(`round ${round.roundId} was opened by a different session`);
+  if (round.planEpoch !== state.planEpoch) return refuse(`round ${round.roundId} audited an earlier plan — re-planning invalidated it`);
+  const activeWp = effectiveActiveWorkPhaseId(plan);
+  if (round.workPhaseId !== activeWp) return refuse(`round ${round.roundId} audited work-phase ${round.workPhaseId}, but ${activeWp ?? "none"} is active`);
+  const current = planFilesHash(recomputed(args.cwd, round.planFiles));
+  if (current !== round.planSha256) return refuse(`the plan changed after round ${round.roundId} approved it`);
+  const attested = args.attest?.auditVerdict;
+  if (attested && attested !== round.lane.verdict) {
+    return refuse(`you attested "${attested}" but the reviewer recorded "${round.lane.verdict}"`);
+  }
+  return null;
+}
+
+/** REVIEW-BINDING-01 (060): one nonce per P>A. Time alone would collide on a fast
+ *  re-plan, which is exactly the case the epoch exists to tell apart. */
+function mintPlanEpoch()         {
+  return `e-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${randomBytes(3).toString("hex")}`;
+}
 import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan,                                   } from "./goalplan.js";
+import { latestRound } from "./review-round.js";
+import { planFilesHash, recomputed } from "./review-round-cli.js";
 import { evaluateInterviewGate } from "./interview.js";
 import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.js";
 import { resetRenderLedger } from "./render-observations.js";
@@ -265,11 +314,16 @@ export function runOrchestrateCli(args                                          
   // P>A plan-artifact gate (260714 wp2, DIFFLEVEL-ROADMAP-01): the plan must
   // exist as numbered on-disk docs before Audit. Runs even when attest is null
   // so the FIRST error names planUnit. Fail-closed on this edge only.
+  // REVIEW-BINDING-01 (060): keep the unit this edge validated, so A can bind a
+  // review round to it. Deriving it again at A time would let the caller name any
+  // unit with numbered docs and buy a fresh verdict from an old cycle's plan.
+  let planBinding                                         = null;
   if (state.phase === "P" && to === "A") {
     const planCheck = validatePlanArtifacts(args.attest, args.cwd);
     if (!planCheck.ok) {
       return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${planCheck.reason}` };
     }
+    planBinding = { unit: planCheck.unit, epoch: mintPlanEpoch() };
   }
   // Work-phase binding gate (260714 wp4, LOOP-UNIT-CHAIN-01): on every gated edge
   // of a goalplan-bound session, the attest must name the ONE effective active
@@ -313,7 +367,9 @@ export function runOrchestrateCli(args                                          
         return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${legal.reason}` };
       }
       // 050: I→P is never B, so the snapshot is explicitly cleared rather than spread.
-      const next        = { ...state, phase: to, flags, orchestrationActive: true, lastInjectedPhase: to, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: null };
+      // 050/060: I→P is neither B nor A, so both bindings are cleared explicitly —
+      // this writer bypasses transition() and would otherwise spread stale values.
+      const next        = { ...state, phase: to, flags, orchestrationActive: true, lastInjectedPhase: to, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: null, planUnit: null, planEpoch: null };
       writeState(args.cwd, next);
       resetRenderLedger(args.cwd);
       appendLedger(args.cwd, {
@@ -342,6 +398,19 @@ export function runOrchestrateCli(args                                          
   }
 
   // SOURCE-DELTA-01 (050): B is the implementation phase, so if the source is
+  // REVIEW-BINDING-01 (060): A>B requires a verdict the agent could not have
+  // written. The round is bound to this session, this work-phase and the epoch
+  // minted at P>A, so an approval from an earlier plan — or from a re-plan over
+  // the same unit — cannot be spent again here.
+  //
+  // Bound sessions only. A HITL session with no goalplan keeps the older
+  // form-level gate, and chat `orchestrate b` stays a human free-pass.
+  if (state.phase === "A" && to === "B" && state.slug) {
+    const verdictCheck = validateReviewBinding(state, args, sessionId);
+    if (verdictCheck) return verdictCheck;
+  }
+
+
   // byte-identical to what it was on entry to B, nothing was implemented during B.
   // That is the "built everything earlier, used B as a rubber stamp" shape this
   // unit set out to catch, and its own ledger caught it happening mid-repair.
@@ -448,7 +517,11 @@ export function runOrchestrateCli(args                                          
   // other edge so a stale snapshot cannot outlive its phase. applyHumanTransition()
   // takes no cwd, so the capture belongs here at the call site rather than inside it.
   const entrySource = result.state.phase === "B" ? captureSourceIdentity(args.cwd, { excludeCodexclawArtifacts: true }) : null;
-  writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: entrySource });
+  // 060: A carries the binding this edge just minted; entering P or I drops it, so
+  // re-planning cannot leave an old approval looking current.
+  const nextUnit = planBinding ? planBinding.unit : result.state.phase === "A" ? state.planUnit : null;
+  const nextEpoch = planBinding ? planBinding.epoch : result.state.phase === "A" ? state.planEpoch : null;
+  writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: entrySource, planUnit: nextUnit, planEpoch: nextEpoch });
   // C-RENDER-GROUNDING-01: a new cycle starts at P — clear the render ledger so the
   // Stop advisory judges THIS cycle's rows only (stale rows both suppress and misfire).
   if (result.state.phase === "P") resetRenderLedger(args.cwd);

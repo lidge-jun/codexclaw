@@ -13,7 +13,16 @@
  */
 
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { isAbsolute, relative, resolve } from "node:path";
+
+
+
+
+/**
+ * REVIEW-BINDING-01 (060): success carries the normalized unit path, so P>A can
+ * persist exactly what it validated. A plain AttestResult would leave the caller
+ * re-deriving it from the attestation, which is the value the gate exists to pin.
+ */
 
 
 
@@ -21,7 +30,7 @@ import { isAbsolute, resolve } from "node:path";
 /** Numbered plan doc: 000_plan.md, 010_phase1_x.md, ... (3-digit repo convention). */
 const NUMBERED_DOC_RE = /^\d{3}_.+\.md$/;
 
-export function validatePlanArtifacts(att                    , cwd        )               {
+export function validatePlanArtifacts(att                    , cwd        )                     {
   if (!att?.planUnit) {
     return {
       ok: false,
@@ -63,5 +72,8 @@ export function validatePlanArtifacts(att                    , cwd        )     
       return { ok: false, reason: `planPaths entry ${p} does not exist on disk.` };
     }
   }
-  return { ok: true };
+  // Normalized relative to cwd: the round binding compares paths, and an absolute
+  // attestation and a relative one naming the same unit must not read as different.
+  const rel = relative(resolve(cwd), unit);
+  return { ok: true, unit: rel === "" ? "." : rel };
 }

@@ -52,6 +52,9 @@ export function clearedIdle(state       )        {
     // 050: a B snapshot must never outlive its cycle. Left in place it would be
     // compared against the next cycle's B and answer a question nobody asked.
     phaseEntrySource: null,
+    // 060: same discipline — the plan binding belongs to one A, not to the session.
+    planUnit: null,
+    planEpoch: null,
   };
 }
 

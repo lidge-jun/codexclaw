@@ -124,7 +124,7 @@ test("WP7/G19: every manifest hook command resolves to an existing dist entrypoi
   // 260804: 18 -> 21 with the worktree-guard hooks (session-start-detecting-
   // managed-worktree, user-prompt-submit-guiding-worktree-rename,
   // pre-tool-use-guarding-managed-worktree-deletion).
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 21, "expected 21 declared hooks");
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 22, "expected 22 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
@@ -171,6 +171,8 @@ test("SessionStart state bootstrap: fresh compiled hook creates exact IDLE state
       loopArmSeen: false,
       idleEditNudges: 0,
       phaseEntrySource: null,
+      planUnit: null,
+      planEpoch: null,
     });
 
     const attest = JSON.stringify({ from: "IDLE", to: "P", did: "SessionStart bound the session" });

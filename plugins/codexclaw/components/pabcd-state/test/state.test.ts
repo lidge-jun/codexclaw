@@ -50,6 +50,8 @@ test("SessionStart ensureState: fresh session creates the exact default IDLE sta
       loopArmSeen: false,
       idleEditNudges: 0,
       phaseEntrySource: null,
+      planUnit: null,
+      planEpoch: null,
     });
     assert.equal(Number.isNaN(Date.parse(persisted.updatedAt)), false);
     assert.deepEqual(readdirSync(dir).filter((name) => name.endsWith(".tmp")), []);

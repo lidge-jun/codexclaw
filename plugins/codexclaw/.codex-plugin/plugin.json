@@ -30,6 +30,7 @@
     "./hooks/pre-tool-use-guarding-goal-complete.json",
     "./hooks/post-tool-use-capturing-interview-answers.json",
     "./hooks/subagent-stop-verifying-evidence.json",
+    "./hooks/subagent-stop-observing-review.json",
     "./hooks/pre-tool-use-attaching-skills.json",
     "./hooks/post-compact-resetting-reinject-cursor.json",
     "./hooks/pre-tool-use-linting-apply-patch.json",

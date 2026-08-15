@@ -1,6 +1,8 @@
 ---
 created: 2026-08-15
-status: design
+status: superseded
+supersededBy: 061_review_binding.md
+warning: 폐기됨 — open/close CLI는 자기 attest와 동형이다. 승인은 observer만 쓸 수 있어야 한다.
 workPhase: wp5
 tags: [codexclaw, review-round, a-to-b]
 ---
@@ -28,6 +30,29 @@ tags: [codexclaw, review-round, a-to-b]
 
 모듈 주석이 명시한다: "이 슬라이스는 상태 기계만 싣는다. A->B attest 게이트 배선은
 CLI가 먼저 있어야 한다." **그 CLI를 만드는 것이 이 work-phase다.**
+
+## 코드 실측 (wp6 P에서 확인)
+
+### 이미 있는 것
+
+`review-round.ts`는 상태 기계를 온전히 갖췄다: `openRound`, `markLaunching`,
+`markInFlight`, `recordVerdict`, `staleness`, `effectiveRound`.
+`ReviewRoundState`는 `roundId`/`purpose`/`planPath`/`planSha256`/
+`status`/`lane`을 담고, `lane`에 `launchId`, `reviewerSession`,
+`artifactSha256`, `sourceIdentity`, `verdict`가 있다.
+
+`staleness(plan, roundId, currentPlanSha)`가 이 게이트의 실제 신호다:
+terminal이 아니면 `open`, `planSha256`이 현재와 같으면 `fresh`, 다르면 `stale`.
+
+### 감사가 지적한 조회 문제 (라운드 5 BLOCKER 2)
+
+`effectiveRound()`는 terminal 상태를 **제외**한다(`review-round.ts:79,81`).
+`approved`는 terminal이므로 승인된 라운드는 이 함수로 못 찾는다. 게다가
+`recordVerdict`가 승인과 동시에 cursor를 지운다.
+
+따라서 A>B 게이트는 별도 조회가 필요하다: **해당 purpose의 라운드 중
+가장 최근 terminal 라운드**를 찾는 함수를 추가한다. 새 상태를 만들지 않고
+기존 배열을 다른 기준으로 읽을 뿐이다.
 
 ## 변경
 
@@ -73,4 +98,3 @@ explorer를 그 deny 경로에 넣으면 정상 read-only 감사가 receipt 때�
 리뷰어 **품질**은 검증할 수 없다. 라운드를 열고 아무 문장으로 닫으면 통과한다.
 이 게이트가 보장하는 것은 "감사 절차를 거쳤다"는 구조적 사실이지
 "감사가 훌륭했다"가 아니다.
-
