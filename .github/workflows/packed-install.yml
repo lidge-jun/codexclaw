@@ -69,7 +69,13 @@ jobs:
           work="$(mktemp -d)"
           tar -xzf "dist-artifacts/codexclaw-payload-${GITHUB_SHA}.tar.gz" -C "$work"
           node "$work/codexclaw/bin/cxc.mjs" orchestrate status --session ci-artifact-probe
-          node "$work/codexclaw/bin/cxc.mjs" release 2>&1 | head -3
+          # `release` with no verb prints usage and exits 1 BY DESIGN, so capture it
+          # rather than letting pipefail treat the usage path as a build failure.
+          usage="$(node "$work/codexclaw/bin/cxc.mjs" release 2>&1 || true)"
+          case "$usage" in
+            *"release init"*) echo "release verb routed from the extracted payload" ;;
+            *) echo "release verb not routed: $usage"; exit 1 ;;
+          esac
           rm -rf "$work"
 
       - name: Upload payload artifact
@@ -137,9 +143,20 @@ jobs:
 
           node "$PLUGIN_ROOT/bin/cxc.mjs" hooks retrust --key codexclaw@codexclaw \
             --codex-home "$CODEX_HOME" --bootstrap-ok
-          node "$PLUGIN_ROOT/bin/cxc.mjs" doctor --json > "${RUNNER_TEMP}/doctor-head.json"
-          node -e 'const r=require(process.argv[1]);if(!r||typeof r!=="object")process.exit(1)' \
-            "${RUNNER_TEMP}/doctor-head.json"
+          # doctor exits nonzero when ANY check is not PASS, including the two
+          # deprecated skills that always report incomplete. Those say nothing about
+          # install health, so assert the checks that do.
+          node "$PLUGIN_ROOT/bin/cxc.mjs" doctor --json > "${RUNNER_TEMP}/doctor-head.json" || true
+          node -e '
+            const r = require(process.argv[1]);
+            const by = Object.fromEntries(r.checks.map((c) => [c.name, c]));
+            for (const name of ["manifest", "hooks", "hook-trust"]) {
+              const c = by[name];
+              if (!c) { console.error("doctor is missing the " + name + " check"); process.exit(1); }
+              if (c.severity === "FAIL") { console.error(name + " FAIL: " + c.evidence); process.exit(1); }
+              console.log(name + ": " + c.severity);
+            }
+          ' "${RUNNER_TEMP}/doctor-head.json"
 
           # Upgrade path: drop to the previous release, then return to HEAD. A
           # marketplace source cannot be re-pointed in place — adding the same name
