@@ -26,6 +26,48 @@ All notable changes to codexclaw are documented here. The format follows
   in `devlog/_plan/260815_release_train_production/060_enforcement_layer.md` does
   exactly that, on purpose, so the residual is demonstrated instead of described.
 
+## [0.2.0] - 2026-08-15
+
+The first stable release since 0.1.0, and the first this project can point at and
+say what is actually in it.
+
+0.2.0-beta.1 shipped the release train but stayed a prerelease, so the releases
+page still advertised 0.1.0 — 25 skills, 12 hooks, 801 tests — as the current
+version. This release is that payload, verified and labelled honestly.
+
+### Added
+
+- **Scoped receipt requirements.** A release receipt now declares the release line
+  it becomes mandatory in, so the nine MLB 1.0 tracks no longer block a 0.2.x
+  release while still blocking the entire 1.0 line — including `1.0.0-rc.1`,
+  because an rc of 1.0 owes 1.0 evidence.
+- `cxc release classify`, one SemVer parser shared with the release workflow.
+- `check-versions.mjs`: the published archive cannot claim a version other than the
+  one being released.
+
+### Fixed
+
+- **An empty receipt array verified as ready.** The gate only inspected receipts
+  that happened to exist, so a 1.0.0 candidate with `receipts: []` passed. The
+  canonical set is now required, and omissions, duplicates and unknown names are
+  rejected.
+- **`requiredFrom` could have been self-authenticated.** `--candidate` accepts
+  arbitrary JSON, so a manifest could have claimed its own evidence was out of
+  scope. The canonical policy in code is authoritative and a disagreeing manifest
+  is rejected.
+- **The workflow's prerelease test was a substring match.** `case $VERSION in *-*)`
+  classified the stable `1.0.0+build-with-hyphen` as a prerelease.
+- **`--allow-deferred` no longer waives anything.** It would have cancelled out the
+  scoping rule: an rc classified `prerelease` would have been handed the flag and
+  skipped its due receipts. Exemption comes from scope alone; the flag survives only
+  as manifest provenance.
+
+### Notes
+
+- Contents are identical in substance to 0.2.0-beta.1 plus the gate corrections
+  above. Everything in that release ships here under an honest stable label.
+- `v0.1.0` and `v0.2.0-beta.1` remain published and unmodified; both tags are
+  protected by `protect-release-tags`.
 ## [0.2.0-beta.1] - 2026-08-15
 
 The first release cut by the release train rather than by hand, and the first to
@@ -83,6 +125,7 @@ carry the runtime hardening merged as `dac77cc7` on 2026-08-09.
 
 First public release. 25 skills, 12 hooks, 801 tests.
 
-[Unreleased]: https://github.com/lidge-jun/codexclaw/compare/v0.2.0-beta.1...HEAD
+[Unreleased]: https://github.com/lidge-jun/codexclaw/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/lidge-jun/codexclaw/compare/v0.2.0-beta.1...v0.2.0
 [0.2.0-beta.1]: https://github.com/lidge-jun/codexclaw/compare/v0.1.0...v0.2.0-beta.1
 [0.1.0]: https://github.com/lidge-jun/codexclaw/releases/tag/v0.1.0
