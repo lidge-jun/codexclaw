@@ -6,6 +6,52 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-08-15
+
+### Fixed
+
+- **The audit and check edges could be crossed without an audit or a check.**
+  0.2.1 closed the three gates around them; these are the two edges themselves,
+  and `A>B` was the worst of the four — 124 of 323 crossings under a second, 38%.
+
+  `REVIEW-BINDING-01` — the verdict is written by a SubagentStop observer when a
+  reviewer subagent actually ends its turn, and by nothing else. An open/close CLI
+  pair was designed first and discarded: closing a round with a verdict you supply
+  is the same self-attestation, spelled with two commands. So there is no close
+  verb. A round binds to the session, the work-phase, the plan unit `P>A`
+  validated, and a nonce minted on that edge — without the nonce, re-planning
+  through `A>P` and back leaves an older approval indistinguishable from a current
+  one. Sign-off is read only from the closing two lines of the reviewer's final
+  message; the child transcript is never scanned, since a `LAUNCH`/`VERDICT`
+  example inside the dispatch packet would otherwise sign off on itself.
+
+  `CHECK-BINDING-01` — `C>D` first requires an `exitCode` at all (it was optional,
+  so `checkOutput: "passed"` cleared the edge with nothing to say how the check
+  ended), and then, on a bound session, a receipt produced by `cxc receipt test`.
+  That producer runs the command and records what happened, so the number is
+  observed rather than chosen. Identity is captured before and after the run: a
+  command that rewrites tracked files produces no receipt, because a check cannot
+  certify the tree it just changed. Receipts carry the session and a check epoch,
+  so one from an earlier check of the same tree cannot be spent again.
+
+  The shared receipt parser keeps its acceptance rules exactly as they were —
+  tightening `kind: "test"` there would have invalidated every existing final-gate
+  receipt, since final-gate calls the same function. Only the return shape widened;
+  the extra requirements live in `check-gate.ts`, on the one edge that needs them.
+
+  Both gates run before any write, so a refusal leaves state, the PABCD ledger and
+  the goalplan untouched. Chat `orchestrate b` remains a human free-pass, as the
+  phase contract has always said.
+
+  What this does not do: neither gate authenticates provenance. A dummy reviewer
+  that returns PASS is accepted, and a hand-written receipt still parses. They
+  refuse the absent, the stale and the reused — not the forged.
+
+### Changed
+
+- Hooks 21 → 22. The new one observes explorer subagent exits and never blocks;
+  the worker receipt gate is untouched.
+
 ## [0.2.1] — 2026-08-15
 
 ### Fixed
