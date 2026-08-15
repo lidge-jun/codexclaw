@@ -28,20 +28,30 @@ time; `package.json` and the git tag carry the bare semver.
 1. Bump `package.json`, `plugin.json`, and component `package.json` versions.
 2. Regenerate inventory; `--check` clean.
 3. Write the `## [0.2.0-beta.1]` CHANGELOG section from the Unreleased block.
-4. Merge `dev` into `main` via PR — repo convention is that PRs target `dev` and
-   `main` receives release promotions (enforced by `enforce-pr-target.yml`).
+4. Promote `dev` to `main` by fast-forward push. **Not a PR**:
+   `enforce-pr-target.yml` drafts and prefixes any PR whose base is not `dev`, and the
+   repo has never used one: `gh pr list --base main --state merged` returns `[]`, and
+   `origin/main` and `origin/dev` are currently the same commit (`15b3d44a`).
+   Fast-forward promotion is the established mechanism and touches no PR
+   automation (004 #10).
 5. Wait for exact-head CI and packed-install runs on the merge commit.
 6. Dispatch `release.yml` with that version.
 7. Verify `gh release view` shows the tag, payload archive, `SHA256SUMS`, and the
    candidate manifest.
 8. Close the issues created in wp0, citing run ids and the release URL.
 
-## Accept criteria
+## Accept criteria (exact commands — 004 #13)
 
-1. `gh release view v0.2.0-beta.1 --json assets` lists at least three assets.
-2. The attached candidate manifest `candidateSha` equals the tagged commit.
-3. Every issue opened for this unit is closed with a comment citing a run id or URL.
-4. `git log origin/main -1` is the merge commit the release points at.
+```bash
+gh release view v0.2.0-beta.1 --repo lidge-jun/codexclaw --json tagName,assets,targetCommitish
+gh api repos/lidge-jun/codexclaw/git/ref/tags/v0.2.0-beta.1 --jq .object.sha
+for n in 24 25 26 27 28; do gh issue view "$n" --repo lidge-jun/codexclaw --json number,state; done
+git rev-parse origin/main
+```
+
+1. The release lists at least three assets: payload archive, `SHA256SUMS`, candidate manifest.
+2. The tag object SHA equals the attached manifest `candidateSha` and equals `origin/main`.
+3. Issues #24-#28 all report state CLOSED, each with an evidence comment.
 
 ## Rollback
 

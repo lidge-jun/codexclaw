@@ -110,3 +110,26 @@ The only real verifier for this phase is executing the workflows. Any claim of
 
 Criterion 4 is the activation scenario for the whole phase: a release workflow that
 has never refused anything has not been shown to gate.
+
+## A-gate amendments (see `004_audit_amendments.md`)
+
+**No PATH `cxc` in the install lane (004 #6).** A marketplace install does not put
+`cxc` on PATH — `README.md:74-80` and `cxc-resolve.ts:4-14` both say so. The lane
+resolves the installed plugin root and runs `node "<plugin-root>/bin/cxc.mjs" ...`,
+and first asserts that `command -v cxc` **fails**. That assertion is the activation
+proof that the lane exercises the installed payload rather than the checkout.
+
+**Committed dist is stale today (004 #7).** `git diff --exit-code
+plugins/codexclaw/components/*/dist` currently exits 1, and rerunning
+`build.mjs` regenerates exactly `cxc-ops/dist/cli.js` and `dist/doctor.js` — i.e.
+the working tree's pre-existing modifications are the *correct* output and HEAD's
+committed dist lags source. 010 commits that regenerated output (preserving the
+existing edits) before this lane is introduced; otherwise a clean GitHub checkout
+fails the freshness step on arrival.
+
+**Build before verify (004 #5).** The job order is build -> archive -> record
+receipts -> verify -> publish, so no receipt is verified before the step that earns
+it.
+
+**No optional install lane (004 #9).** An install lane that cannot run makes the
+phase BLOCKED. It is never silently dropped, and `continue-on-error` is not used.

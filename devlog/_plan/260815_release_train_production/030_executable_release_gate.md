@@ -114,3 +114,32 @@ recorded in the manifest itself so the published artifact states what it skipped
 
 Every row must be observed as a real CLI invocation, not asserted by unit test
 alone — the unit tests prove the predicate, the CLI runs prove it is wired.
+
+## A-gate amendments (see `004_audit_amendments.md`)
+
+**Candidate selector on every verb (004 #4).** Only `init` originally carried
+`--version`, leaving `receipt`, `platform` and `verify` with no deterministic way to
+pick `.codexclaw/release/candidate-<version>.json` once more than one exists. All
+four verbs now require `--version <v>` or `--candidate <path>`; zero matches and
+multiple matches are both explicit errors.
+
+**Root dispatcher parity (004 #2).** `plugins/codexclaw/test/payload-bin.test.mjs`
+asserts that every verb in the payload `COMMAND_TABLE` is also handled by the root
+`bin/codexclaw.mjs`. Adding `release` to only the payload dispatcher would fail that
+test. The file change map therefore also includes `bin/codexclaw.mjs` (case + help
+line).
+
+**Build precedes verification (004 #5).** The `build` receipt cannot be verified
+before the build runs. 040's release job builds and archives first, records the
+`build` receipt from that step's output, and runs `verify` immediately before
+publication.
+
+**Install-lane receipt stays mandatory (004 #9).** `packed-install-lifecycle` is not
+droppable. If the real-`codex` lane genuinely cannot run, the phase is BLOCKED; the
+only permitted degradation is recording artifact-lane evidence in that receipt's
+`evidence` field, which is then visible in the published manifest.
+
+**Field chains.** The complete creation -> serialization -> deserialization ->
+consumer chains for `testSuite`, `inventoryHash`, `capturedSha` and `capturedAt`
+are in `004_audit_amendments.md`. No `release-manifest.ts` exists or is created —
+the earlier reference to it was wrong.

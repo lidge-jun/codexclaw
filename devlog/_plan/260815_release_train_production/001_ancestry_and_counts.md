@@ -28,8 +28,9 @@ dac77cc762edd3588f28d66acb4590bff85420ee 2026-08-09 10:18:41 +0900 fix: harden r
 ```
 
 **Verdict: MERGED via squash.** The PR head `8f2efab` is not in `main` ancestry
-because GitHub rewrote it as `dac77cc7`, which is. `gh pr list --state all` also
-reports `1 ... MERGED 2026-07-27`. The runtime hardening (bounded JSON parsing,
+because GitHub rewrote it as `dac77cc7`, which is. `gh pr view 1` reports
+`mergedAt: 2026-08-09T01:18:41Z` with merge commit `dac77cc7`. The runtime
+hardening (bounded JSON parsing,
 goalplan/recall/subagent validation, evidence gate, backpressure, lifecycle
 shutdown, GUI splitting, messenger isolation, dependency security) is present in
 the current tree, not pending.

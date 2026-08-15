@@ -41,9 +41,14 @@ meaningless without a generator (020 -> 030); the release workflow calls the gat
 ## Scope boundary
 
 IN: `.github/workflows/*`, `plugins/codexclaw/scripts/*`,
-`plugins/codexclaw/components/*/src|test`, `.codex-plugin/plugin.json`,
-`package.json`, `README*.md`, `structure/*.md`, `docs-site/src/*`, `docs/*`,
-this devlog unit.
+`plugins/codexclaw/components/*/{src,test,dist,package.json}`,
+`plugins/codexclaw/.codex-plugin/plugin.json`, `plugins/codexclaw/inventory.json`,
+`plugins/codexclaw/bin/cxc.mjs`, `bin/codexclaw.mjs`, `package.json`,
+`CHANGELOG.md`, `.gitignore`, `README*.md`, `structure/*.md`,
+`docs-site/src/*`, `docs/*`, this devlog unit.
+
+(Boundary widened at the A gate — the reviewer showed the original list omitted
+paths the phase maps require. See `004_audit_amendments.md` #12.)
 
 OUT: skill-architecture changes, PABCD semantics, new dev routers, the public
 comparative eval corpus (P3), recall subsystem redesign, force-push or history rewrite.
@@ -53,6 +58,7 @@ comparative eval corpus (P3), recall subsystem redesign, force-push or history r
 - `001_ancestry_and_counts.md` — PR #1 ancestry resolution and the real test count
 - `002_inventory_drift_map.md` — every published number vs. reality
 - `003_release_channel_state.md` — the release channel today vs. a production train
+- `004_audit_amendments.md` — A-gate audit synthesis and the amendments it forced
 
 ## Implementation documents
 
