@@ -58,6 +58,44 @@ test("SessionStart ensureState: fresh session creates the exact default IDLE sta
   }
 });
 
+test("050: a corrupt snapshot is rejected rather than coerced", () => {
+  const cwd = freshCwd();
+  try {
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    mkdirSync(dir, { recursive: true });
+    // dirty:"yes" used to coerce to false, restoring as a "clean" identity that
+    // compared equal to a clean tree and refused a B>C that should have passed.
+    writeFileSync(join(dir, "corrupt.json"), JSON.stringify({
+      phase: "B",
+      sessionId: "corrupt",
+      phaseEntrySource: { kind: "resolved", commitSha: "abc", dirty: "yes", capturedAt: "2026-01-01T00:00:00Z" },
+    }));
+    assert.equal(readState(cwd, "corrupt").phaseEntrySource, null);
+
+    // dirty with nothing to compare against is equally unusable
+    writeFileSync(join(dir, "nohash.json"), JSON.stringify({
+      phase: "B",
+      sessionId: "nohash",
+      phaseEntrySource: { kind: "resolved", commitSha: "abc", dirty: true, capturedAt: "2026-01-01T00:00:00Z" },
+    }));
+    assert.equal(readState(cwd, "nohash").phaseEntrySource, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050: a snapshot found outside B is dropped on read", () => {
+  const cwd = freshCwd();
+  try {
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    mkdirSync(dir, { recursive: true });
+    const snapshot = { kind: "resolved", commitSha: "abc", dirty: false, capturedAt: "2026-01-01T00:00:00Z" };
+    writeFileSync(join(dir, "stray.json"), JSON.stringify({ phase: "P", sessionId: "stray", phaseEntrySource: snapshot }));
+    assert.equal(readState(cwd, "stray").phaseEntrySource, null);
+    writeFileSync(join(dir, "atb.json"), JSON.stringify({ phase: "B", sessionId: "atb", phaseEntrySource: snapshot }));
+    assert.ok(readState(cwd, "atb").phaseEntrySource, "B keeps its own snapshot");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+
 test("SessionStart ensureState: existing valid state is resume-safe and byte-for-byte unchanged", () => {
   const cwd = freshCwd();
   try {

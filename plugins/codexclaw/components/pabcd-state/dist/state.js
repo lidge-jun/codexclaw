@@ -253,7 +253,10 @@ export function readState(cwd        , sessionId        )        {
       // 050: strict reconstruction. Sessions written before this field existed read
       // as null, which the B>C gate treats as "no snapshot, nothing to compare" —
       // an upgrade must not retroactively refuse a cycle already in flight.
-      phaseEntrySource: reconstructSourceIdentity(parsed.phaseEntrySource),
+      // Normalized to null outside B: only B has a snapshot to hold, so a value
+      // found on any other phase is stale by definition and reading it back would
+      // keep the invariant true only by accident.
+      phaseEntrySource: parsed.phase === "B" ? reconstructSourceIdentity(parsed.phaseEntrySource) : null,
     };
   } catch {
     return defaultState(sessionId);
