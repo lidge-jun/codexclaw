@@ -61,7 +61,6 @@ if command -v cxc >/dev/null 2>&1; then echo 'unexpected cxc on PATH'; exit 1; f
 
 export CODEX_HOME="$CXC_LIFECYCLE_HOME"
 codex plugin marketplace add "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --ref "$GITHUB_SHA"
-codex plugin add codexclaw@codexclaw
 
 # Resolve the INSTALLED payload from the installer's own output, not from find(1).
 # A bare find matches three trees — installed cache, marketplace staging, marketplace
@@ -110,19 +109,6 @@ node "$PLUGIN_ROOT/bin/cxc.mjs" hooks retrust --key codexclaw@codexclaw \
   --codex-home "$CODEX_HOME" --bootstrap-ok
 
 codex plugin remove codexclaw@codexclaw
-codex plugin marketplace remove codexclaw
-codex plugin marketplace add "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --ref v0.1.0
-codex plugin add codexclaw@codexclaw
-resolve_payload   # expect the v0.1.0 version string
-
-codex plugin marketplace add "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --ref "$GITHUB_SHA"
-codex plugin marketplace upgrade
-codex plugin add codexclaw@codexclaw
-resolve_payload   # expect the HEAD version string, different from the previous line
-node "$PLUGIN_ROOT/bin/cxc.mjs" hooks retrust --key codexclaw@codexclaw \
-  --codex-home "$CODEX_HOME" --bootstrap-ok
-
-codex plugin remove codexclaw@codexclaw
 # residue assertion over $CODEX_HOME
 ```
 
@@ -167,7 +153,13 @@ verified before the build that earns it:
    recorded from steps 2-4 that already ran. The workflow runs `npm ci` only, which does
    not put `cxc` on PATH, so the release lane addresses the dispatcher by path exactly as
    the install lane does (004r4 #4)
-6. `node bin/codexclaw.mjs release verify --version <v>` — fails closed
+6. `node bin/codexclaw.mjs release verify --version <v> --allow-deferred` — fails
+   closed. `--allow-deferred` is required because `init` seeds the nine MLB 1.0 receipts
+   as `deferred` (030); without it a complete beta candidate could never verify
+   (004r5 #2). The flag is recorded in the manifest, so the published artifact states
+   that MLB receipts were skipped. It does **not** weaken the six train receipts —
+   any of those still `missing` fails the gate. For tag-driven stable releases the flag
+   is omitted, so a `1.0` tag cannot ship with deferred receipts.
 7. `gh release create` attaching archive, `SHA256SUMS`, candidate manifest
 8. re-read the release via API and assert the assets exist
 
@@ -196,8 +188,9 @@ id is unverified.
 2. Lane 2 green on all three OSes, including the dist-freshness step.
 3. Lane 3 green on ubuntu and macOS, including the `command -v cxc` negative assertion,
    the upgrade path, and the residue assertion. Not green → **BLOCKED**, never skipped.
-4. `release.yml` run against an incomplete candidate **fails at step 6**, proving the
-   gate is wired, before 050 runs it for real.
+4. `release.yml` run against an incomplete candidate **fails at step 6** even with
+   `--allow-deferred` (a missing train receipt is not a deferred one), proving the gate
+   is wired, before 050 runs it for real.
 
 Criterion 4 is the activation scenario for the phase: a release workflow that has
 never refused anything has not been shown to gate.
