@@ -1,6 +1,8 @@
 ---
 created: 2026-08-15
-status: design-final
+status: superseded
+supersededBy: 023_final_design.md
+warning: 폐기됨 — task는 사이클 단위가 아니다. 계약은 one work-phase = one cycle.
 supersedes: [010_phase_tracking.md, 020_collapse_gate.md, 021_audit_fold_redesign.md]
 tags: [codexclaw, pabcd, goalplan, cycle-granularity]
 unit: 260815_pabcd_phase_collapse
@@ -162,4 +164,3 @@ verdict lifecycle을 갖추고 "A→B 배선만 남았다"고 주석에 적어 �
 - **B에서 전부 구현**: 3순위의 소스 비교가 보조 신호를 준다.
 - **A도 안 간다**: 자연어 `IDLE→B` 직행을 2순위가 막는다.
   감사 품질 자체는 다음 work-phase의 `review-round` 배선이 맡는다.
-

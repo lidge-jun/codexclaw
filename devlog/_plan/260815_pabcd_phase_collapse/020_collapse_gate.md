@@ -1,6 +1,8 @@
 ---
 created: 2026-08-15
-status: design
+status: superseded
+supersededBy: 023_final_design.md
+warning: 폐기됨 — A/C는 파일을 안 고치는 것이 정상이므로 편집 카운트 게이트는 틀렸다.
 tags: [codexclaw, pabcd, attest, gate]
 unit: 260815_pabcd_phase_collapse
 ---
@@ -137,4 +139,3 @@ if (!collapse.ok) return { ok: false, reason: collapse.reason };
 카운터를 올리면 통과한다. 그건 받아들인다 — 이 모듈의 적대자는 게으름이고,
 게으름은 정의상 우회에 드는 수고를 들이지 않는다. 능동적으로 게이트를 속이는
 행위는 ledger에 남아 사후에 보인다.
-

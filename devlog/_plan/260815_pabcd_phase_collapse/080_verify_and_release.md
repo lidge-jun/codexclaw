@@ -2,7 +2,7 @@
 created: 2026-08-15
 status: design
 workPhase: wp7
-supersedes: [030_verify_and_release.md]
+supersedes: [011_superseded_verify_and_release.md]
 tags: [codexclaw, release, deploy]
 ---
 
@@ -57,4 +57,3 @@ force push는 하지 않는다.
 
 c5는 푸시된 SHA와 원격 ref로, c6은 실행 id와 릴리스 페이지 출력으로 닫는다.
 확인 못 한 criterion은 열어둔 채 실제 상태를 보고한다.
-

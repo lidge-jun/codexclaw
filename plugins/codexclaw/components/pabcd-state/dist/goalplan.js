@@ -590,9 +590,31 @@ export function unmetCriteria(plan          )                      {
   return plan.criteria.filter((c) => c.status === "open");
 }
 
-/** Complete = no remaining work phases AND no unmet criteria. */
+/**
+ * Work phases marked `done` while still holding open tasks (CYCLE-COMPLETION-01).
+ *
+ * `advanceWorkPhase()` can no longer produce this shape, but plans closed before
+ * 030 can still carry it, and a goalplan is a hand-editable file. Completion is
+ * the right place to catch it: refusing to certify is honest, while rewriting
+ * someone's plan on read is not.
+ */
+export function doneWorkPhasesWithPendingTasks(plan          )                      {
+  return plan.workPhases.filter(
+    (wp) => wp.status === "done" && wp.tasks.some((t) => t.status !== "done"),
+  );
+}
+
+/**
+ * Complete = no remaining work phases, no unmet criteria, and no `done` phase
+ * hiding open tasks. The third clause keeps `loop show` honest: without it the
+ * summary printed complete=true for a plan `loop validate` refuses.
+ */
 export function isGoalplanComplete(plan          )          {
-  return remainingWorkPhases(plan).length === 0 && unmetCriteria(plan).length === 0;
+  return (
+    remainingWorkPhases(plan).length === 0
+    && unmetCriteria(plan).length === 0
+    && doneWorkPhasesWithPendingTasks(plan).length === 0
+  );
 }
 
 
@@ -649,6 +671,11 @@ export function validateGoalplan(plan          , ctx                        )   
   const remaining = remainingWorkPhases(plan);
   if (remaining.length > 0) {
     reasons.push(`${remaining.length} work phase(s) not done: ${remaining.map((w) => w.id).join(", ")}`);
+  }
+  // CYCLE-COMPLETION-01: a phase closed over open tasks cannot certify completion.
+  for (const wp of doneWorkPhasesWithPendingTasks(plan)) {
+    const open = wp.tasks.filter((t) => t.status !== "done").map((t) => t.id).join(", ");
+    reasons.push(`work phase ${wp.id} is marked done but still has open task(s): ${open}`);
   }
   const unmet = unmetCriteria(plan);
   if (unmet.length > 0) {
@@ -830,11 +857,36 @@ function identityReasons(plan          , gate                , ctx              
 }
 
 /**
+ * Outcome of a work-phase close attempt (CYCLE-COMPLETION-01, 030).
+ *
+ * `tasks_pending` is the gate this type exists for: a work-phase whose tasks are
+ * still open cannot be closed, so five declared tasks need five closes rather
+ * than one. Callers MUST treat it as a refusal and write nothing — the D-close
+ * preflight runs before any state, ledger or goalplan write precisely so a
+ * refusal leaves all three untouched.
+ */
+
+
+
+
+
+/**
  * Advance the goalplan's work-phase cursor: mark the current activeWorkPhaseId
  * as `done`, then set the next pending work-phase active.
- * Returns null only when there is no active phase to close.
+ *
+ * Refuses when the active work-phase still holds open tasks. Before 030 this
+ * marked the phase `done` and left its pending tasks behind, and
+ * `remainingWorkPhases()` only reads phase status — so one D-close could retire
+ * a work-phase holding five unfinished units and the completion gate saw
+ * nothing wrong. A survey of the 83 goalplans on disk found task status is
+ * genuinely maintained (763 of 826 tasks done) and only 3 of 227 closed
+ * work-phases carry a pending task, so the refusal lands on the defect rather
+ * than on ordinary use.
+ *
+ * On refusal the input plan is returned untouched: closing a cycle never marks
+ * tasks done on the agent's behalf.
  */
-export function advanceWorkPhase(plan          )                  {
+export function advanceWorkPhase(plan          )                {
   // 260714 wp4 (implicit cursor): a null/stale cursor adopts the effective active
   // work-phase instead of no-opping, so the standard `loop init` flow (cursor seeded
   // null) still books work-phase closes.
@@ -844,28 +896,38 @@ export function advanceWorkPhase(plan          )                  {
   // is blocked or superseded there is no effective id and this returns null, which is
   // the right answer — there is nothing to close.
   const effectiveId = effectiveActiveWorkPhaseId(plan);
-  if (!effectiveId) return null;
+  if (!effectiveId) return { kind: "no_active" };
   const currentIdx = plan.workPhases.findIndex((wp) => wp.id === effectiveId);
-  if (currentIdx < 0) return null;
+  if (currentIdx < 0) return { kind: "no_active" };
   const current = plan.workPhases[currentIdx];
+
+  // CYCLE-COMPLETION-01: refuse before any derivation, and leave `plan` alone.
+  const pending = current.tasks.filter((t) => t.status !== "done");
+  if (pending.length > 0) {
+    return { kind: "tasks_pending", workPhaseId: current.id, pending };
+  }
 
   // Search after current index first (declared order), then wrap.
   const after = plan.workPhases.slice(currentIdx + 1).find((wp) => wp.status === "pending");
   const next = after ?? plan.workPhases.slice(0, currentIdx).find((wp) => wp.status === "pending");
   return {
-    ...plan,
-    activeWorkPhaseId: next?.id ?? null,
-    workPhases: plan.workPhases.map((wp) => {
-      if (wp.id === current.id) {
-        return {
-          ...wp,
-          status: "done"         ,
-          tasks: wp.tasks,
-        };
-      }
-      if (next && wp.id === next.id) return { ...wp, status: "in_progress"          };
-      return wp;
-    }),
+    kind: "ok",
+    closedId: current.id,
+    plan: {
+      ...plan,
+      activeWorkPhaseId: next?.id ?? null,
+      workPhases: plan.workPhases.map((wp) => {
+        if (wp.id === current.id) {
+          return {
+            ...wp,
+            status: "done"         ,
+            tasks: wp.tasks,
+          };
+        }
+        if (next && wp.id === next.id) return { ...wp, status: "in_progress"          };
+        return wp;
+      }),
+    },
   };
 }
 

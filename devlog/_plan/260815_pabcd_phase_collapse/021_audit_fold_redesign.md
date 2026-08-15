@@ -1,6 +1,8 @@
 ---
 created: 2026-08-15
-status: design-superseding
+status: superseded
+supersededBy: 023_final_design.md
+warning: 폐기됨 — porcelain 해시는 source-identity.ts의 열등한 재발명이었다.
 supersedes: [010_phase_tracking.md, 020_collapse_gate.md]
 tags: [codexclaw, pabcd, attest, gate, audit-fold]
 unit: 260815_pabcd_phase_collapse
@@ -167,4 +169,3 @@ export function enterPhase(state: State, to: Phase, now: Date, treeHash: string 
 A>B 경고는 우회 가능하다. explorer 파견은 흔적을 안 남기므로 hard block을
 못 건다. 이건 감사 게이트의 구조적 한계이며, 잘못 막는 것보다 놓치는 쪽을
 택한 의도적 선택이다. B>C의 트리 변화 게이트가 실질적 방어선이 된다.
-

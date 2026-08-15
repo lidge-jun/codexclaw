@@ -627,3 +627,116 @@ test("G20: illegal edge I->B is refused (no attest can force a non-adjacency)", 
     assert.equal(readState(cwd, "s1").phase, "I"); // unchanged
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
+
+// ── CYCLE-COMPLETION-01 (030): D-close preflight ────────────────────────────
+// A cycle may not close over unfinished work, and a refusal must leave state,
+// the PABCD ledger and the goalplan all untouched — the preflight runs before
+// any write precisely so that "FSM idle, ledger done, goalplan unfinished"
+// cannot happen.
+
+function seedBoundCycleAtC(cwd: string, id: string, slug: string, taskStatus: "pending" | "done") {
+  const plan = buildGoalplan({ objective: "cycle completion gate" });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-1", title: "first", status: "in_progress", tasks: [{ id: "t-1", title: "the work", status: taskStatus }], criteriaIds: [] },
+    { id: "wp-2", title: "second", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-1";
+  writeGoalplan(cwd, plan);
+  writeState(cwd, { ...defaultState(id), phase: "C", slug, flags: { interview: false, auditPassed: true, checkPassed: false } });
+}
+
+function goalplanPath(cwd: string, slug: string): string {
+  return join(cwd, STATE_DIR, "goalplans", slug, "goalplan.json");
+}
+
+const D_ATTEST = '{"from":"C","to":"D","did":"ran the suite","checkOutput":"722 pass","exitCode":0,"workPhaseId":"wp-1"}';
+
+test("D-close is refused while the active work-phase still has open tasks, and writes nothing", () => {
+  const cwd = freshCwd();
+  const id = "cycle-pending";
+  seedBoundCycleAtC(cwd, id, "cycle-gate-pending", "pending");
+  const before = readFileSync(goalplanPath(cwd, "cycle-gate-pending"), "utf8");
+
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", D_ATTEST], cwd);
+  assert.ok(!("error" in args));
+  const r = runOrchestrateCli(args as never);
+
+  assert.equal(r.code, 1);
+  assert.match(r.output, /open task/);
+  assert.match(r.output, /t-1/);
+  assert.match(r.output, /CYCLE-COMPLETION-01/);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.equal(ledgerLines(cwd).length, 0);
+  assert.equal(readFileSync(goalplanPath(cwd, "cycle-gate-pending"), "utf8"), before);
+});
+
+test("D-close succeeds once the tasks are done, closing the phase and starting the next", () => {
+  const cwd = freshCwd();
+  const id = "cycle-done";
+  seedBoundCycleAtC(cwd, id, "cycle-gate-done", "done");
+
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", D_ATTEST], cwd);
+  assert.ok(!("error" in args));
+  const r = runOrchestrateCli(args as never);
+
+  assert.equal(r.code, 0);
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  const plan = JSON.parse(readFileSync(goalplanPath(cwd, "cycle-gate-done"), "utf8"));
+  assert.equal(plan.workPhases[0].status, "done");
+  assert.equal(plan.workPhases[1].status, "in_progress");
+  assert.equal(plan.activeWorkPhaseId, "wp-2");
+  assert.equal(ledgerLines(cwd).filter((l) => l.reason === "done").length, 1);
+});
+
+test("D-close on a bound session is refused when the goalplan cannot be read", () => {
+  const cwd = freshCwd();
+  const id = "cycle-unreadable";
+  seedBoundCycleAtC(cwd, id, "cycle-gate-gone", "done");
+  // hand-editing goalplans is ordinary practice here, so a missing file must not
+  // become the cheapest way past the gate
+  rmSync(goalplanPath(cwd, "cycle-gate-gone"), { force: true });
+
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", D_ATTEST], cwd);
+  assert.ok(!("error" in args));
+  const r = runOrchestrateCli(args as never);
+
+  assert.equal(r.code, 1);
+  assert.match(r.output, /could not be read/);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.equal(ledgerLines(cwd).length, 0);
+});
+
+test("D-close is refused when the bound goalplan has no active work-phase", () => {
+  const cwd = freshCwd();
+  const id = "cycle-no-active";
+  const slug = "cycle-gate-empty";
+  const plan = buildGoalplan({ objective: "no active phase" });
+  plan.slug = slug;
+  plan.workPhases = [{ id: "wp-1", title: "closed", status: "done", tasks: [], criteriaIds: [] }];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  writeState(cwd, { ...defaultState(id), phase: "C", slug, flags: { interview: false, auditPassed: true, checkPassed: false } });
+
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", D_ATTEST], cwd);
+  assert.ok(!("error" in args));
+  const r = runOrchestrateCli(args as never);
+
+  assert.equal(r.code, 1);
+  assert.match(r.output, /no active work-phase/);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.equal(ledgerLines(cwd).length, 0);
+});
+
+test("an unbound (HITL) session closes its cycle exactly as before", () => {
+  const cwd = freshCwd();
+  const id = "cycle-hitl";
+  writeState(cwd, { ...defaultState(id), phase: "C", flags: { interview: false, auditPassed: true, checkPassed: false } });
+
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", '{"from":"C","to":"D","did":"ran the suite","checkOutput":"722 pass","exitCode":0}'], cwd);
+  assert.ok(!("error" in args));
+  const r = runOrchestrateCli(args as never);
+
+  assert.equal(r.code, 0);
+  assert.equal(readState(cwd, id).phase, "IDLE");
+});

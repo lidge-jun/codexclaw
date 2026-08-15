@@ -125,22 +125,25 @@ test("with nothing workable the cursor resolves to null", () => {
 
 test("advancing past a blocked cursor closes the next phase, not the blocked one", () => {
   const p = plan([phase("a", "blocked", { blockedReason: "x" }), phase("b", "pending")], { activeWorkPhaseId: "a" });
-  const next = advanceWorkPhase(p);
-  assert.ok(next);
+  const advanced = advanceWorkPhase(p);
+  assert.equal(advanced.kind, "ok");
+  const next = (advanced as { kind: "ok"; plan: Goalplan }).plan;
   assert.equal(next.workPhases.find((wp) => wp.id === "a")?.status, "blocked", "a blocked phase must never become done");
   assert.equal(next.workPhases.find((wp) => wp.id === "b")?.status, "done");
 });
 
 test("advancing past a superseded cursor behaves the same", () => {
   const p = plan([phase("a", "superseded", { supersededBy: "b" }), phase("b", "pending")], { activeWorkPhaseId: "a" });
-  const next = advanceWorkPhase(p);
-  assert.equal(next?.workPhases.find((wp) => wp.id === "a")?.status, "superseded");
-  assert.equal(next?.workPhases.find((wp) => wp.id === "b")?.status, "done");
+  const advanced = advanceWorkPhase(p);
+  assert.equal(advanced.kind, "ok");
+  const next = (advanced as { kind: "ok"; plan: Goalplan }).plan;
+  assert.equal(next.workPhases.find((wp) => wp.id === "a")?.status, "superseded");
+  assert.equal(next.workPhases.find((wp) => wp.id === "b")?.status, "done");
 });
 
 test("with every phase blocked or superseded there is nothing to advance", () => {
   const p = plan([phase("a", "blocked"), phase("b", "superseded", { supersededBy: "a" })], { activeWorkPhaseId: "a" });
-  assert.equal(advanceWorkPhase(p), null);
+  assert.equal(advanceWorkPhase(p).kind, "no_active");
 });
 
 // ── persistence ──

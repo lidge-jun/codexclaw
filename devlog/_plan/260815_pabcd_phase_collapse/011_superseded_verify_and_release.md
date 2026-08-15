@@ -1,11 +1,13 @@
 ---
 created: 2026-08-15
-status: design
+status: superseded
+supersededBy: 080_verify_and_release.md
+warning: 폐기됨 — 구 010/020 설계를 전제한다. 감사 이력으로만 보존.
 tags: [codexclaw, release, deploy]
 unit: 260815_pabcd_phase_collapse
 ---
 
-# 030 — 검증, dev 푸시, 정식 릴리스 배포
+# 011 (폐기) — 검증, dev 푸시, 정식 릴리스 배포
 
 ## 검증 순서
 
@@ -57,4 +59,3 @@ unit: 260815_pabcd_phase_collapse
 
 c5는 푸시된 SHA와 원격 ref로, c6은 실행 id와 릴리스 페이지 출력으로 닫는다.
 어느 하나라도 확인 못 하면 해당 criterion은 열어둔 채 실제 상태를 보고한다.
-

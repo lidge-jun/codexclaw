@@ -45,29 +45,46 @@ task가 있으면 `tasks_pending`을 반환하고 **plan을 전혀 건드리지 
 `done`인데 pending task를 가진 work-phase를 미완으로 취급한다. 둘 다 고쳐야
 `loop show`의 complete와 `loop validate`의 판정이 어긋나지 않는다(감사 MINOR 1).
 
-## preflight 위치 (감사 BLOCKER 2 + MAJOR 2)
+## preflight 위치 (감사 라운드 6에서 확정)
 
 핵심이다. 현재 두 경로 모두 state/ledger를 **먼저 쓰고** `advanceWorkPhase()`를
 부르므로, 거기서 거부하면 "FSM은 IDLE, ledger는 done, goalplan은 미완"이 된다.
 
-감사관이 지목한 정확한 삽입 지점:
-
-- **채팅**: `hook.ts:647`(applyHumanTransition 실패 처리)과 `hook.ts:653`(state write)
-  **사이**. `result.control === "done"`일 때만 실행.
-- **CLI**: `orchestrate-cli.ts:337`(transition 성공)과 `:342`(D write) **사이**.
-
-`transition()` 자체보다 뒤에 두는 이유: 그 함수는 순수하고 I/O가 없으므로,
+`transition()`보다 뒤에 두는 이유: 그 함수는 순수하고 I/O가 없으므로,
 legality/attest 오류가 먼저 나야 기존 오류 우선순위가 보존된다.
 
-성공한 `AdvanceResult.plan`은 보관해서 재사용한다 — mutation 후 재조회하지 않는다.
+### 채팅 경로 (`hook.ts`)
 
-거부 시 상태:
+1. `applyHumanTransition()`과 실패 처리를 먼저 수행한다(`:647`).
+2. status/noop 조기 반환을 먼저 수행한다(`:653`).
+3. **삽입점은 661과 663 사이** — 최초 `writeState`(`:663`) 직전.
+4. `result.control === "done" && state.slug`일 때 goalplan을 읽고
+   `advanceWorkPhase()`를 **한 번만** 호출한다.
+5. unreadable/null, `no_active`, `tasks_pending`이면 즉시 거부를 반환한다.
+   state·PABCD ledger·goalplan **모두 무기록**.
+6. `ok`이면 `plan`과 `closedId`를 보관한 뒤 기존 state/ledger write를 수행한다.
+7. done 분기의 기존 재조회·재호출(`:684`)을 제거하고 **보관한 plan**을 쓴다.
+
+### CLI 경로 (`orchestrate-cli.ts`)
+
+1. 기존 binding gate와 `transition()`을 먼저 실행한다(`:337`).
+2. **삽입점은 transition 성공 처리 직후, `if (to === "D")` 진입 전
+   또는 그 블록의 첫 문장**(`:342`).
+3. 반드시 최초 `writeState`(`:348`)보다 **앞**이어야 한다.
+4. 채팅과 동일하게 bound plan을 읽고 세 결과를 처리해 성공 plan/closedId를 보관한다.
+5. state와 PABCD ledger를 쓴 뒤, 기존 재조회·advance 구간(`:357`)을
+   보관한 plan의 write와 goalplan ledger 기록으로 교체한다.
+
+### 거부 시 상태 (양쪽 공통)
 
 | 대상 | 값 |
 |------|-----|
 | `state.phase` | `C` (불변) |
 | PABCD ledger | 무기록 |
 | goalplan | 무변경 |
+
+테스트는 CLI와 채팅 **각각** `tasks_pending` / unreadable / `no_active` / 정상 통과
+네 경우를 검증하고, 거부 시 위 세 가지가 모두 불변임을 고정한다.
 
 ## fail-closed 결정 (감사 MAJOR 4)
 
@@ -107,4 +124,3 @@ slug 자체가 없으면(HITL 세션) 기존대로 통과한다.
 production 2곳: `hook.ts:689`, `orchestrate-cli.ts:362`.
 테스트 11곳: `goalplan.test.ts` 8곳, `work-phase-states.test.ts` 3곳.
 `null` assertion과 `result.workPhases` 직접 접근이 전부 깨지므로 함께 고친다.
-

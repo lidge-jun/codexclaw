@@ -1,6 +1,8 @@
 ---
 created: 2026-08-15
-status: design
+status: superseded
+supersededBy: 023_final_design.md
+warning: 폐기됨 — 시간 임계값 설계는 정상 감사를 거부한다. 감사 이력으로만 보존.
 tags: [codexclaw, pabcd, state, phase-tracking]
 unit: 260815_pabcd_phase_collapse
 ---
@@ -168,4 +170,3 @@ IDLE 권고의 기존 동작은 그대로다. 달라지는 것은 IDLE이 아닐
   관측만 켜는 단계다.
 - ledger 스키마는 건드리지 않는다. 기존 `LedgerEntry`로 충분하다.
 - 셸 경유 파일 쓰기는 추적하지 않는다. 알려진 한계로 문서에 남긴다.
-

@@ -21,7 +21,8 @@ import {
   type UserPromptSubmitPayload,
   type StopPayload,
 } from "../src/hook.ts";
-import { STATE_DIR, LEDGER_FILE, readState } from "../src/state.ts";
+import { STATE_DIR, LEDGER_FILE, readState, writeState, defaultState } from "../src/state.ts";
+import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
 import { readFileSync } from "node:fs";
 
 function freshCwd(): string {
@@ -551,5 +552,56 @@ test("L5: ledger entries carry ts/from/to/reason on chat + reset paths", () => {
       assert.ok("from" in e && "to" in e);
       assert.ok(e.reason === "chat" || e.reason === "reset");
     }
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// ── CYCLE-COMPLETION-01 (030): chat D-close preflight ───────────────────────
+// Mirror of the CLI gate. The chat path writes state and the ledger before it
+// ever consulted the goalplan, so a late refusal would have left the cycle as
+// "FSM idle, ledger done, goalplan unfinished". The preflight now runs first.
+
+test("chat D-close is refused while the work-phase has open tasks, and writes nothing", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "codexclaw-hook-cycle-"));
+  try {
+    const slug = "chat-cycle-pending";
+    const plan = buildGoalplan({ objective: "chat cycle gate" });
+    plan.slug = slug;
+    plan.workPhases = [
+      { id: "wp-1", title: "first", status: "in_progress", tasks: [{ id: "t-1", title: "the work", status: "pending" }], criteriaIds: [] },
+    ];
+    plan.activeWorkPhaseId = "wp-1";
+    writeGoalplan(cwd, plan);
+    writeState(cwd, { ...defaultState("chat-c"), phase: "C", slug, orchestrationActive: true, flags: { interview: false, auditPassed: true, checkPassed: true } });
+
+    const out = handleUserPromptSubmit(ups("orchestrate d", cwd, "chat-c", "t1"));
+
+    assert.match(out, /refused/);
+    assert.match(out, /open task/);
+    assert.match(out, /CYCLE-COMPLETION-01/);
+    assert.equal(readState(cwd, "chat-c").phase, "C");
+    const ledger = join(cwd, STATE_DIR, LEDGER_FILE);
+    assert.equal(existsSync(ledger) ? readFileSync(ledger, "utf8").trim() : "", "");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("chat D-close succeeds once the tasks are done", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "codexclaw-hook-cycle-"));
+  try {
+    const slug = "chat-cycle-done";
+    const plan = buildGoalplan({ objective: "chat cycle gate" });
+    plan.slug = slug;
+    plan.workPhases = [
+      { id: "wp-1", title: "first", status: "in_progress", tasks: [{ id: "t-1", title: "the work", status: "done" }], criteriaIds: [] },
+    ];
+    plan.activeWorkPhaseId = "wp-1";
+    writeGoalplan(cwd, plan);
+    writeState(cwd, { ...defaultState("chat-d"), phase: "C", slug, orchestrationActive: true, flags: { interview: false, auditPassed: true, checkPassed: true } });
+
+    const out = handleUserPromptSubmit(ups("orchestrate d", cwd, "chat-d", "t1"));
+
+    assert.ok(!/refused/.test(out));
+    assert.equal(readState(cwd, "chat-d").phase, "IDLE");
+    const saved = JSON.parse(readFileSync(join(cwd, STATE_DIR, "goalplans", slug, "goalplan.json"), "utf8"));
+    assert.equal(saved.workPhases[0].status, "done");
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

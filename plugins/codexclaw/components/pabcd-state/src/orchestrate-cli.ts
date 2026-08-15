@@ -18,7 +18,7 @@ import { join } from "node:path";
 import { coerceAttest, validateWorkPhaseBinding, GATED_TRANSITIONS, type Attestation } from "./attest.ts";
 import { canEnter, transition } from "./fsm.ts";
 import { validatePlanArtifacts } from "./plan-gate.ts";
-import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan } from "./goalplan.ts";
+import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan, type AdvanceResult, type Goalplan } from "./goalplan.ts";
 import { evaluateInterviewGate } from "./interview.ts";
 import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.ts";
 import { resetRenderLedger } from "./render-observations.ts";
@@ -345,6 +345,44 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
   // the terminal path matches the chat done-control and L5/L7's "resting state is
   // IDLE" contract. No intermediate phase="D" is persisted and no second ledger row.
   if (to === "D") {
+    // CYCLE-COMPLETION-01 preflight (030): decide the work-phase close BEFORE any
+    // write. Closing the FSM first and consulting the goalplan afterwards is what
+    // let a refusal land as "FSM idle, ledger done, goalplan unfinished" — so the
+    // refusal path below returns with state, PABCD ledger and goalplan untouched.
+    let advanced: AdvanceResult | null = null;
+    if (state.slug) {
+      let plan: Goalplan | null = null;
+      let planReadFailed = false;
+      try {
+        plan = readGoalplan(args.cwd, state.slug);
+      } catch {
+        planReadFailed = true;
+      }
+      if (!plan || planReadFailed) {
+        // FAIL-CLOSED for a bound session only: readGoalplan() swallows every error
+        // into null, and hand-editing a goalplan is ordinary practice here, so a
+        // missing or malformed file would otherwise be the cheapest way past this
+        // gate. Sessions with no bound slug keep the old fail-open behaviour.
+        return {
+          code: 1,
+          output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; the bound goalplan "${state.slug}" could not be read, so this cycle cannot be closed (CYCLE-COMPLETION-01). Restore the goalplan file, or run \`cxc orchestrate reset\` to stand the cycle down.`,
+        };
+      }
+      advanced = advanceWorkPhase(plan);
+      if (advanced.kind === "tasks_pending") {
+        const open = advanced.pending.map((t) => `${t.id} (${t.title})`).join("; ");
+        return {
+          code: 1,
+          output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; work-phase ${advanced.workPhaseId} still has ${advanced.pending.length} open task(s), so this cycle cannot close (CYCLE-COMPLETION-01): ${open}. One work-phase is one full PABCD cycle — finish the task and mark it done, or close the remaining tasks in their own cycles. Nothing was written.`,
+        };
+      }
+      if (advanced.kind === "no_active") {
+        return {
+          code: 1,
+          output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; the bound goalplan "${state.slug}" has no active work-phase to close (CYCLE-COMPLETION-01). Register or unblock a work-phase before closing a cycle. Nothing was written.`,
+        };
+      }
+    }
     writeState(args.cwd, { ...clearedIdle(state), stopBlockPhase: null, stopBlockCount: 0 });
     appendLedger(args.cwd, {
       ts: new Date().toISOString(),
@@ -354,34 +392,30 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
       reason: "done",
       ...(args.attest?.did ? { evidence: args.attest.did } : {}),
     });
-    if (state.slug) {
+    if (advanced && advanced.kind === "ok") {
+      // Persist the plan the preflight computed — re-reading here would race the
+      // decision the refusal above was based on.
       try {
-        const plan = readGoalplan(args.cwd, state.slug);
-        if (plan) {
-          const closedId = effectiveActiveWorkPhaseId(plan);
-          const advanced = advanceWorkPhase(plan);
-          if (advanced) {
-            writeGoalplan(args.cwd, advanced);
-            appendGoalplanLedger(args.cwd, state.slug, {
-              ts: new Date().toISOString(),
-              slug: state.slug,
-              event: "workphase_done",
-              // 260714 wp4: log the EFFECTIVE closed id (implicit cursor may have
-              // started from a null explicit cursor — "closed none" was a lie).
-              detail: `closed ${closedId ?? "none"}`,
-            });
-            if (advanced.activeWorkPhaseId) {
-              appendGoalplanLedger(args.cwd, state.slug, {
-                ts: new Date().toISOString(),
-                slug: state.slug,
-                event: "workphase_started",
-                detail: `started ${advanced.activeWorkPhaseId}`,
-              });
-            }
-          }
+        writeGoalplan(args.cwd, advanced.plan);
+        appendGoalplanLedger(args.cwd, state.slug, {
+          ts: new Date().toISOString(),
+          slug: state.slug,
+          event: "workphase_done",
+          // 260714 wp4: log the EFFECTIVE closed id (implicit cursor may have
+          // started from a null explicit cursor — "closed none" was a lie).
+          detail: `closed ${advanced.closedId}`,
+        });
+        if (advanced.plan.activeWorkPhaseId) {
+          appendGoalplanLedger(args.cwd, state.slug, {
+            ts: new Date().toISOString(),
+            slug: state.slug,
+            event: "workphase_started",
+            detail: `started ${advanced.plan.activeWorkPhaseId}`,
+          });
         }
       } catch {
-        // FAIL-OPEN: goalplan advance failure must not block the D-close.
+        // FAIL-OPEN on the WRITE only: the gate decision already passed, so a disk
+        // failure here must not strand a legitimately closed cycle.
       }
     }
     return { code: 0, output: `orchestrate D: current=${state.phase} -> IDLE (${state.phase} → IDLE, cycle closed, session ${sessionId})` };

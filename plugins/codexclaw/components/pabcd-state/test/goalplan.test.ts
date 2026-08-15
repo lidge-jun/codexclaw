@@ -224,22 +224,46 @@ test("030.3: init WITHOUT --session leaves session state untouched (slug stays e
 test("advanceWorkPhase: marks current done, activates next in declared order", () => {
   const plan = buildGoalplan({ objective: "multi-phase" });
   plan.workPhases = [
-    { id: "wp-1", title: "first", status: "in_progress", tasks: [{ id: "t-1", title: "a", status: "pending" }], criteriaIds: [] },
+    { id: "wp-1", title: "first", status: "in_progress", tasks: [{ id: "t-1", title: "a", status: "done" }], criteriaIds: [] },
     { id: "wp-2", title: "second", status: "pending", tasks: [{ id: "t-2", title: "b", status: "pending" }], criteriaIds: [] },
   ];
   plan.activeWorkPhaseId = "wp-1";
   const advanced = advanceWorkPhase(plan);
-  assert.ok(advanced);
-  assert.equal(advanced!.workPhases[0].status, "done");
-  assert.equal(advanced!.workPhases[0].tasks[0].status, "pending");
-  assert.equal(advanced!.workPhases[1].status, "in_progress");
-  assert.equal(advanced!.activeWorkPhaseId, "wp-2");
+  assert.equal(advanced.kind, "ok");
+  const next = (advanced as { kind: "ok"; plan: typeof plan }).plan;
+  assert.equal(next.workPhases[0].status, "done");
+  assert.equal(next.workPhases[1].status, "in_progress");
+  assert.equal(next.activeWorkPhaseId, "wp-2");
+});
+
+// CYCLE-COMPLETION-01 (030). This case used to assert the opposite: a work-phase
+// went "done" with its task still pending, which is exactly how five units of work
+// were retired by a single D-close. Closing now refuses instead.
+test("advanceWorkPhase: refuses to close a work-phase holding open tasks", () => {
+  const plan = buildGoalplan({ objective: "pending-task" });
+  plan.workPhases = [
+    { id: "wp-1", title: "first", status: "in_progress", tasks: [
+      { id: "t-1", title: "unfinished", status: "pending" },
+      { id: "t-2", title: "finished", status: "done" },
+    ], criteriaIds: [] },
+    { id: "wp-2", title: "second", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-1";
+  const advanced = advanceWorkPhase(plan);
+  assert.equal(advanced.kind, "tasks_pending");
+  const refusal = advanced as { kind: "tasks_pending"; workPhaseId: string; pending: { id: string }[] };
+  assert.equal(refusal.workPhaseId, "wp-1");
+  assert.deepEqual(refusal.pending.map((t) => t.id), ["t-1"]);
+  // the refusal leaves the plan alone — closing a cycle never marks tasks done
+  assert.equal(plan.workPhases[0].status, "in_progress");
+  assert.deepEqual(plan.workPhases[0].tasks.map((t) => t.status), ["pending", "done"]);
+  assert.equal(plan.activeWorkPhaseId, "wp-1");
 });
 
 test("advanceWorkPhase: returns null when plan has no work phases (empty plan)", () => {
   const plan = buildGoalplan({ objective: "no-active" });
   plan.activeWorkPhaseId = null;
-  assert.equal(advanceWorkPhase(plan), null);
+  assert.equal(advanceWorkPhase(plan).kind, "no_active");
 });
 
 test("260714 wp4: null cursor + pending phases -> implicit start closes first pending, persists explicit cursor", () => {
@@ -250,10 +274,11 @@ test("260714 wp4: null cursor + pending phases -> implicit start closes first pe
   ];
   plan.activeWorkPhaseId = null; // standard `loop init` shape — must no longer no-op
   const advanced = advanceWorkPhase(plan);
-  assert.ok(advanced);
-  assert.equal(advanced!.workPhases[0].status, "done");
-  assert.equal(advanced!.workPhases[1].status, "in_progress");
-  assert.equal(advanced!.activeWorkPhaseId, "wp-2");
+  assert.equal(advanced.kind, "ok");
+  const next = (advanced as { kind: "ok"; plan: typeof plan }).plan;
+  assert.equal(next.workPhases[0].status, "done");
+  assert.equal(next.workPhases[1].status, "in_progress");
+  assert.equal(next.activeWorkPhaseId, "wp-2");
 });
 
 test("260714 wp4: stale (ghost) cursor falls through to the effective open phase", () => {
@@ -261,9 +286,10 @@ test("260714 wp4: stale (ghost) cursor falls through to the effective open phase
   plan.workPhases = [{ id: "wp-1", title: "one", status: "pending", tasks: [], criteriaIds: [] }];
   plan.activeWorkPhaseId = "ghost";
   const advanced = advanceWorkPhase(plan);
-  assert.ok(advanced); // ghost cursor no longer freezes the plan
-  assert.equal(advanced!.workPhases[0].status, "done");
-  assert.equal(advanced!.activeWorkPhaseId, null); // no next pending
+  assert.equal(advanced.kind, "ok"); // ghost cursor no longer freezes the plan
+  const next = (advanced as { kind: "ok"; plan: typeof plan }).plan;
+  assert.equal(next.workPhases[0].status, "done");
+  assert.equal(next.activeWorkPhaseId, null); // no next pending
 });
 
 test("260714 wp4: effectiveActiveWorkPhaseId — explicit wins; done/ghost fall through; in_progress > pending; empty -> null", () => {
@@ -290,13 +316,14 @@ test("260714 wp4: effectiveActiveWorkPhaseId — explicit wins; done/ghost fall 
 test("advanceWorkPhase: sets null activeWorkPhaseId when last phase", () => {
   const plan = buildGoalplan({ objective: "last-phase" });
   plan.workPhases = [
-    { id: "wp-1", title: "only", status: "in_progress", tasks: [{ id: "t-1", title: "a", status: "pending" }], criteriaIds: [] },
+    { id: "wp-1", title: "only", status: "in_progress", tasks: [{ id: "t-1", title: "a", status: "done" }], criteriaIds: [] },
   ];
   plan.activeWorkPhaseId = "wp-1";
   const advanced = advanceWorkPhase(plan);
-  assert.ok(advanced);
-  assert.equal(advanced!.activeWorkPhaseId, null);
-  assert.equal(advanced!.workPhases[0].status, "done");
+  assert.equal(advanced.kind, "ok");
+  const next = (advanced as { kind: "ok"; plan: typeof plan }).plan;
+  assert.equal(next.activeWorkPhaseId, null);
+  assert.equal(next.workPhases[0].status, "done");
 });
 
 test("advanceWorkPhase: picks next pending AFTER current, not before", () => {
@@ -308,9 +335,9 @@ test("advanceWorkPhase: picks next pending AFTER current, not before", () => {
   ];
   plan.activeWorkPhaseId = "wp-2";
   const advanced = advanceWorkPhase(plan);
-  assert.ok(advanced);
+  assert.equal(advanced.kind, "ok");
   // Should pick wp-3 (after wp-2), not wp-1 (before wp-2)
-  assert.equal(advanced!.activeWorkPhaseId, "wp-3");
+  assert.equal((advanced as { kind: "ok"; plan: typeof plan }).plan.activeWorkPhaseId, "wp-3");
 });
 
 test("advanceWorkPhase: preserves individual task statuses (no auto-done)", () => {
@@ -323,8 +350,11 @@ test("advanceWorkPhase: preserves individual task statuses (no auto-done)", () =
   ];
   plan.activeWorkPhaseId = "wp-1";
   const advanced = advanceWorkPhase(plan);
-  assert.ok(advanced);
-  assert.deepEqual(advanced!.workPhases[0].tasks.map((task) => task.status), ["pending", "done"]);
+  // CYCLE-COMPLETION-01: the mixed phase can no longer close. The invariant this
+  // case was written to protect still holds and matters more than ever — closing
+  // must never mark a task done on the agent's behalf.
+  assert.equal(advanced.kind, "tasks_pending");
+  assert.deepEqual(plan.workPhases[0].tasks.map((task) => task.status), ["pending", "done"]);
 });
 
 test("advanceWorkPhase: done tasks stay done after advance", () => {
@@ -337,8 +367,9 @@ test("advanceWorkPhase: done tasks stay done after advance", () => {
   ];
   plan.activeWorkPhaseId = "wp-1";
   const advanced = advanceWorkPhase(plan);
-  assert.ok(advanced);
-  assert.deepEqual(advanced!.workPhases[0].tasks.map((task) => task.status), ["done", "done"]);
+  assert.equal(advanced.kind, "ok");
+  const next = (advanced as { kind: "ok"; plan: typeof plan }).plan;
+  assert.deepEqual(next.workPhases[0].tasks.map((task) => task.status), ["done", "done"]);
 });
 
 // ---- CLI output label (Phase 2: cxc loop) ----------------------------------
