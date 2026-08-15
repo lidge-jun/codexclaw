@@ -198,3 +198,10 @@ id is unverified.
 
 Criterion 4 is the activation scenario for the phase: a release workflow that has
 never refused anything has not been shown to gate.
+
+**Amended during execution.** `workflow_dispatch` only resolves workflows that exist
+on the **default branch**: dispatching `release.yml` from `dev` returns
+`HTTP 404: workflow release.yml not found on the default branch`. That is a GitHub
+constraint, not a defect in the workflow, so criterion 4 necessarily runs in 050
+immediately after the promotion to `main` and before the real publish. The criterion
+is not dropped — it moves to the first moment it is executable.
