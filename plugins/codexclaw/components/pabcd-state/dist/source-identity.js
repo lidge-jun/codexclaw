@@ -136,7 +136,23 @@ function hashRecords(cwd        , records                )         {
   return h.digest("hex");
 }
 
-export function captureSourceIdentity(cwd        )                 {
+/**
+ * Entries the B>C source-delta gate must not count as implementation work
+ * (SOURCE-DELTA-01, 050). Writing session state is a side effect of the gate's own
+ * machinery: without this the FSM's `.codexclaw/sessions/<id>.json` write would
+ * register as a tree change and the gate would clear itself on every run.
+ *
+ * Scoped to this option so the default identity — used for review-round and receipt
+ * binding, where the state directory genuinely is part of the tree — is unchanged.
+ */
+const STATE_DIR_PREFIX = ".codexclaw/";
+
+
+
+
+
+
+export function captureSourceIdentity(cwd        , options                 = {})                 {
   const capturedAt = new Date().toISOString();
   let commitSha = "";
   try {
@@ -151,6 +167,9 @@ export function captureSourceIdentity(cwd        )                 {
     records = parseStatusZ(git(cwd, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]));
   } catch {
     return { kind: "unavailable", commitSha: "", dirty: false, capturedAt };
+  }
+  if (options.excludeStateDir) {
+    records = records.filter((r) => !r.path.startsWith(STATE_DIR_PREFIX));
   }
   if (records.length === 0) return { kind: "resolved", commitSha, dirty: false, capturedAt };
   return { kind: "resolved", commitSha, dirty: true, treeHash: hashRecords(cwd, records), capturedAt };

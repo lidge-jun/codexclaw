@@ -8,6 +8,7 @@ import { spawnSync } from "node:child_process";
 import { parseOrchestrateCliArgs, renderOrchestrateParseError, runOrchestrateCli, resolveSession } from "../src/orchestrate-cli.ts";
 import { writeState, readState, defaultState, STATE_DIR, SESSIONS_SUBDIR, LEDGER_FILE } from "../src/state.ts";
 import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
+import { captureSourceIdentity } from "../src/source-identity.ts";
 import { RENDER_OBS_FILE } from "../src/render-observations.ts";
 import { defaultInterview, DIMENSIONS } from "../src/interview.ts";
 
@@ -739,4 +740,91 @@ test("an unbound (HITL) session closes its cycle exactly as before", () => {
 
   assert.equal(r.code, 0);
   assert.equal(readState(cwd, id).phase, "IDLE");
+});
+
+// ── SOURCE-DELTA-01 (050): B>C source delta ────────────────────────────────
+// B is the implementation phase. If the source is byte-identical to what it was
+// on entry to B, nothing was implemented there — the work happened earlier and B
+// is being used as a rubber stamp.
+
+function gitRepo(): string {
+  const cwd = freshCwd();
+  const run = (...a: string[]) => spawnSync("git", a, { cwd, encoding: "utf8" });
+  run("init", "-q");
+  run("config", "user.email", "t@example.com");
+  run("config", "user.name", "t");
+  writeFileSync(join(cwd, "seed.txt"), "seed\n");
+  run("add", "-A");
+  run("commit", "-qm", "seed");
+  return cwd;
+}
+
+function seedAtB(cwd: string, id: string) {
+  writeState(cwd, {
+    ...defaultState(id),
+    phase: "B",
+    flags: { interview: false, auditPassed: true, checkPassed: false },
+    phaseEntrySource: captureSourceIdentity(cwd, { excludeStateDir: true }),
+  });
+}
+
+const C_ATTEST = '{"from":"B","to":"C","did":"implemented the slice"}';
+
+test("B>C is refused when the source never changed during B", () => {
+  const cwd = gitRepo();
+  seedAtB(cwd, "delta-none");
+
+  const args = parseOrchestrateCliArgs(["c", "--session", "delta-none", "--cwd", cwd, "--attest", C_ATTEST], cwd);
+  assert.ok(!("error" in args));
+  const r = runOrchestrateCli(args as never);
+
+  assert.equal(r.code, 1);
+  assert.match(r.output, /source is unchanged/);
+  assert.match(r.output, /SOURCE-DELTA-01/);
+  assert.equal(readState(cwd, "delta-none").phase, "B");
+});
+
+test("B>C passes once B actually changed something", () => {
+  const cwd = gitRepo();
+  seedAtB(cwd, "delta-yes");
+  writeFileSync(join(cwd, "implemented.ts"), "export const x = 1;\n");
+
+  const args = parseOrchestrateCliArgs(["c", "--session", "delta-yes", "--cwd", cwd, "--attest", C_ATTEST], cwd);
+  assert.ok(!("error" in args));
+  const r = runOrchestrateCli(args as never);
+
+  assert.equal(r.code, 0);
+  assert.equal(readState(cwd, "delta-yes").phase, "C");
+});
+
+test("B>C without a snapshot (legacy session or no git) is left alone", () => {
+  const cwd = freshCwd(); // not a repo, and no phaseEntrySource
+  writeState(cwd, { ...defaultState("delta-legacy"), phase: "B", flags: { interview: false, auditPassed: true, checkPassed: false } });
+
+  const args = parseOrchestrateCliArgs(["c", "--session", "delta-legacy", "--cwd", cwd, "--attest", C_ATTEST], cwd);
+  assert.ok(!("error" in args));
+  const r = runOrchestrateCli(args as never);
+
+  assert.equal(r.code, 0);
+  assert.equal(readState(cwd, "delta-legacy").phase, "C");
+});
+
+test("entering B snapshots the source, and leaving B clears it", () => {
+  const cwd = gitRepo();
+  writeState(cwd, { ...defaultState("delta-life"), phase: "A", flags: { interview: false, auditPassed: false, checkPassed: false } });
+
+  const toB = parseOrchestrateCliArgs(["b", "--session", "delta-life", "--cwd", cwd, "--attest",
+    '{"from":"A","to":"B","did":"audited","auditOutput":"VERDICT: PASS","auditVerdict":"pass"}'], cwd);
+  assert.ok(!("error" in toB));
+  assert.equal(runOrchestrateCli(toB as never).code, 0);
+  const atB = readState(cwd, "delta-life");
+  assert.equal(atB.phase, "B");
+  assert.ok(atB.phaseEntrySource, "entering B must snapshot the source");
+  assert.equal(atB.phaseEntrySource?.kind, "resolved");
+
+  writeFileSync(join(cwd, "work.ts"), "export const y = 2;\n");
+  const toC = parseOrchestrateCliArgs(["c", "--session", "delta-life", "--cwd", cwd, "--attest", C_ATTEST], cwd);
+  assert.ok(!("error" in toC));
+  assert.equal(runOrchestrateCli(toC as never).code, 0);
+  assert.equal(readState(cwd, "delta-life").phaseEntrySource, null, "a snapshot must not outlive its phase");
 });

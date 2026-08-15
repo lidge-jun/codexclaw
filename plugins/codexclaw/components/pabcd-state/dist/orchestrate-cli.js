@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { coerceAttest, validateWorkPhaseBinding, GATED_TRANSITIONS,                  } from "./attest.js";
 import { canEnter, transition } from "./fsm.js";
 import { validatePlanArtifacts } from "./plan-gate.js";
+import { captureSourceIdentity, compareSource, describeSource } from "./source-identity.js";
 import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan,                                   } from "./goalplan.js";
 import { evaluateInterviewGate } from "./interview.js";
 import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.js";
@@ -339,6 +340,26 @@ export function runOrchestrateCli(args                                          
     return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${result.reason ?? "transition refused"}` };
   }
 
+  // SOURCE-DELTA-01 (050): B is the implementation phase, so if the source is
+  // byte-identical to what it was on entry to B, nothing was implemented during B.
+  // That is the "built everything earlier, used B as a rubber stamp" shape this
+  // unit set out to catch, and its own ledger caught it happening mid-repair.
+  //
+  // Advisory limits, stated plainly: committing work made in P also changes HEAD
+  // and passes, a shared worktree attributes another session's edits to this one,
+  // and no git means no opinion. It is a supporting signal, not the main defence.
+  if (state.phase === "B" && to === "C" && state.phaseEntrySource) {
+    const now = captureSourceIdentity(args.cwd, { excludeStateDir: true });
+    const cmp = compareSource(state.phaseEntrySource, now);
+    if (cmp.kind === "same") {
+      return {
+        code: 1,
+        output: `orchestrate C: ${renderPhaseContext(state, sessionId)}; the source is unchanged since B began (${describeSource(now)}), so nothing was implemented in this B (SOURCE-DELTA-01). Implement inside B rather than carrying earlier work across the edge. Nothing was written.`,
+      };
+    }
+  }
+
+
   // G1 (L20): D is a CLOSING transition, not a resting badge. Once the C->D attest
   // gate (checkOutput + exitCode:0, enforced by transition() above) passes, close the
   // cycle to IDLE atomically — one clearedIdle write + one done ledger (C->IDLE) — so
@@ -422,7 +443,11 @@ export function runOrchestrateCli(args                                          
   }
 
   // L6: a real CLI transition is progress -> reset the Stop stagnation guard.
-  writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0 });
+  // SOURCE-DELTA-01 (050): snapshot the source on entry to B, and clear it on every
+  // other edge so a stale snapshot cannot outlive its phase. applyHumanTransition()
+  // takes no cwd, so the capture belongs here at the call site rather than inside it.
+  const entrySource = result.state.phase === "B" ? captureSourceIdentity(args.cwd, { excludeStateDir: true }) : null;
+  writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: entrySource });
   // C-RENDER-GROUNDING-01: a new cycle starts at P — clear the render ledger so the
   // Stop advisory judges THIS cycle's rows only (stale rows both suppress and misfire).
   if (result.state.phase === "P") resetRenderLedger(args.cwd);

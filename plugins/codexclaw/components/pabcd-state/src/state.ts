@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync, lin
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { type InterviewTracker, reconstructInterview, normalizeInterview, isInterviewReady } from "./interview.ts";
+import type { SourceIdentity } from "./source-identity.ts";
 
 export type Phase = "IDLE" | "I" | "P" | "A" | "B" | "C" | "D";
 // Work phases run the IPABCD cycle; IDLE is the closed/rest state a cycle returns to.
@@ -49,6 +50,16 @@ export interface State {
   // 260714 wp3: gated-edit counter for the IDLE-edit advisory frequency guard
   // (inject on count % 5 === 0). Reset at every cycle close (clearedIdle).
   idleEditNudges: number;
+  /**
+   * SOURCE-DELTA-01 (050): the source identity captured on entry to B, and null
+   * everywhere else. B is the implementation phase, so if this still matches the
+   * tree at B>C then nothing was built during B — the work was done in an earlier
+   * phase and B is being used as a rubber stamp.
+   *
+   * Captured only on entry to B: git is cheap here (~20ms) but not free, and no
+   * other edge has a question to ask of it.
+   */
+  phaseEntrySource: SourceIdentity | null;
 }
 
 export interface LedgerEntry {
@@ -86,6 +97,27 @@ export function isCanonicalSessionId(value: string): boolean {
   return value.length > 0 && sanitizeKey(value) === value;
 }
 
+/**
+ * SOURCE-DELTA-01 (050): rebuild a persisted SourceIdentity, or null when the shape
+ * is not one we wrote. A half-parsed identity is worse than none — it would compare
+ * unequal against everything and refuse every B>C.
+ */
+function reconstructSourceIdentity(raw: unknown): SourceIdentity | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  if (o.kind !== "resolved" && o.kind !== "unavailable") return null;
+  if (typeof o.commitSha !== "string") return null;
+  if (typeof o.capturedAt !== "string") return null;
+  const id: SourceIdentity = {
+    kind: o.kind,
+    commitSha: o.commitSha,
+    dirty: o.dirty === true,
+    capturedAt: o.capturedAt,
+  };
+  if (typeof o.treeHash === "string") id.treeHash = o.treeHash;
+  return id;
+}
+
 export function defaultState(sessionId: string, slug = ""): State {
   return {
     phase: "IDLE",
@@ -105,6 +137,7 @@ export function defaultState(sessionId: string, slug = ""): State {
     stopBlockTotal: 0,
     loopArmSeen: false,
     idleEditNudges: 0,
+    phaseEntrySource: null,
   };
 }
 
@@ -211,6 +244,10 @@ export function readState(cwd: string, sessionId: string): State {
         typeof parsed.idleEditNudges === "number" && Number.isFinite(parsed.idleEditNudges) && parsed.idleEditNudges >= 0
           ? Math.floor(parsed.idleEditNudges)
           : 0,
+      // 050: strict reconstruction. Sessions written before this field existed read
+      // as null, which the B>C gate treats as "no snapshot, nothing to compare" —
+      // an upgrade must not retroactively refuse a cycle already in flight.
+      phaseEntrySource: reconstructSourceIdentity(parsed.phaseEntrySource),
     };
   } catch {
     return defaultState(sessionId);

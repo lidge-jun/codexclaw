@@ -4,11 +4,22 @@ import { join } from "node:path";
 import {                        reconstructInterview, normalizeInterview, isInterviewReady } from "./interview.js";
 
 
+
 // Work phases run the IPABCD cycle; IDLE is the closed/rest state a cycle returns to.
 export const WORK_PHASES                   = ["I", "P", "A", "B", "C", "D"];
 export const ALL_PHASES                   = ["IDLE", ...WORK_PHASES];
 // PHASES kept as the work-phase list for back-compat (hook directive lookups iterate I..D).
 export const PHASES                   = WORK_PHASES;
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -86,6 +97,27 @@ export function isCanonicalSessionId(value        )          {
   return value.length > 0 && sanitizeKey(value) === value;
 }
 
+/**
+ * SOURCE-DELTA-01 (050): rebuild a persisted SourceIdentity, or null when the shape
+ * is not one we wrote. A half-parsed identity is worse than none — it would compare
+ * unequal against everything and refuse every B>C.
+ */
+function reconstructSourceIdentity(raw         )                        {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const o = raw                           ;
+  if (o.kind !== "resolved" && o.kind !== "unavailable") return null;
+  if (typeof o.commitSha !== "string") return null;
+  if (typeof o.capturedAt !== "string") return null;
+  const id                 = {
+    kind: o.kind,
+    commitSha: o.commitSha,
+    dirty: o.dirty === true,
+    capturedAt: o.capturedAt,
+  };
+  if (typeof o.treeHash === "string") id.treeHash = o.treeHash;
+  return id;
+}
+
 export function defaultState(sessionId        , slug = "")        {
   return {
     phase: "IDLE",
@@ -105,6 +137,7 @@ export function defaultState(sessionId        , slug = "")        {
     stopBlockTotal: 0,
     loopArmSeen: false,
     idleEditNudges: 0,
+    phaseEntrySource: null,
   };
 }
 
@@ -211,6 +244,10 @@ export function readState(cwd        , sessionId        )        {
         typeof parsed.idleEditNudges === "number" && Number.isFinite(parsed.idleEditNudges) && parsed.idleEditNudges >= 0
           ? Math.floor(parsed.idleEditNudges)
           : 0,
+      // 050: strict reconstruction. Sessions written before this field existed read
+      // as null, which the B>C gate treats as "no snapshot, nothing to compare" —
+      // an upgrade must not retroactively refuse a cycle already in flight.
+      phaseEntrySource: reconstructSourceIdentity(parsed.phaseEntrySource),
     };
   } catch {
     return defaultState(sessionId);
