@@ -360,6 +360,11 @@ if (isMain) switch (cmd) {
     // Scaffolds devlog/_plan/YYMMDD_slug/ for the P>A plan-artifact gate (260714 wp2).
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
+  case "release":
+    // pabcd-state CLI expects argv as [kind, ...rest]; kind === "release".
+    // Release-candidate manifest producer + fail-closed verifier (260815 wp3).
+    process.exit(runPabcdState(process.argv.slice(2)));
+    break;
   case "scan":
     // pabcd-state CLI expects argv as [kind, ...rest]; kind === "scan".
     // Records an interview contradiction-scan round (H4, 260724): ledger event +

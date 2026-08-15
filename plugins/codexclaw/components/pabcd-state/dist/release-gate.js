@@ -18,85 +18,85 @@
 export const CANDIDATE_SCHEMA_VERSION = 2;
 
 /** Status of a required receipt. */
-export type ReceiptStatus = "present" | "missing" | "failed" | "deferred";
+
 
 /** A required receipt linked to a release candidate. */
-export interface RequiredReceipt {
-  /** Receipt name (maps to an execution track). */
-  name: string;
-  /** Which issue or track produces this receipt. */
-  source: string;
-  /** Current status. */
-  status: ReceiptStatus;
-  /** Evidence path or description when present. */
-  evidence?: string;
-  /** Reason when deferred. */
-  deferredReason?: string;
-  /** RFC3339 timestamp when this receipt was captured. */
-  capturedAt?: string;
-  /** The commit this receipt was measured on. Must equal candidateSha. */
-  capturedSha?: string;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /** Measured test-suite evidence for the candidate commit. */
-export interface TestSuiteEvidence {
-  pass: number;
-  fail: number;
-  /** The commit the suite was measured on. */
-  measuredSha: string;
-}
+
+
+
+
+
+
 
 /** What the published documentation currently claims, measured from the docs. */
-export interface PublishedCounts {
-  tests: number;
-  skills: number;
-  hooks: number;
-}
+
+
+
+
+
 
 /** Platform-specific test evidence. */
-export interface PlatformEvidence {
-  /** Platform identifier. */
-  platform: "ubuntu" | "windows" | "macos";
-  /** Whether CI passed on this platform. */
-  ciPassed: boolean;
-  /** Exact SHA tested. */
-  testedSha: string;
-  /** CI run URL or identifier. */
-  ciRun?: string;
-}
+
+
+
+
+
+
+
+
+
+
 
 /** MLB 1.0 release candidate manifest. */
-export interface CandidateManifest {
-  schemaVersion: number;
-  /** Exact candidate SHA. */
-  candidateSha: string;
-  /** Release version. */
-  version: string;
-  /** Candidate creation timestamp. */
-  createdAt: string;
-  /** Required receipts from all execution tracks. */
-  receipts: RequiredReceipt[];
-  /** Platform-specific evidence. */
-  platforms: PlatformEvidence[];
-  /** Target scorecard (from the roadmap). */
-  scorecard: Record<string, { baseline: number; target: number; achieved?: number }>;
-  /** Release non-goals explicitly documented. */
-  nonGoals: string[];
-  /** sha256: of the canonical inventory.json (inventory.mjs --hash). */
-  inventoryHash?: string;
-  /** Measured suite result for candidateSha. */
-  testSuite?: TestSuiteEvidence;
-  /** Measured doc claims (inventory.mjs --published). */
-  publishedCounts?: PublishedCounts;
-  /** Recorded when verification ran with --allow-deferred. */
-  allowedDeferred?: boolean;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /** Validate a candidate manifest. Returns error messages or empty array. */
-export function validateCandidateManifest(manifest: unknown): string[] {
-  const errors: string[] = [];
+export function validateCandidateManifest(manifest         )           {
+  const errors           = [];
   if (!manifest || typeof manifest !== "object") return ["manifest must be a non-null object"];
-  const m = manifest as Record<string, unknown>;
+  const m = manifest                           ;
   if (m.schemaVersion !== CANDIDATE_SCHEMA_VERSION) {
     errors.push("schemaVersion must be " + CANDIDATE_SCHEMA_VERSION);
   }
@@ -110,7 +110,7 @@ export function validateCandidateManifest(manifest: unknown): string[] {
   // v2: a present receipt without provenance is indistinguishable from an asserted one.
   if (Array.isArray(m.receipts)) {
     for (const raw of m.receipts) {
-      const r = raw as Record<string, unknown>;
+      const r = raw                           ;
       const name = typeof r?.name === "string" ? r.name : "<unnamed>";
       if (r?.status === "present") {
         if (typeof r.capturedSha !== "string" || !r.capturedSha) {
@@ -127,11 +127,11 @@ export function validateCandidateManifest(manifest: unknown): string[] {
   }
 
   if (m.testSuite !== undefined) {
-    const t = m.testSuite as Record<string, unknown>;
+    const t = m.testSuite                           ;
     if (!t || typeof t !== "object") errors.push("testSuite must be an object");
     else {
-      if (!Number.isInteger(t.pass) || (t.pass as number) < 0) errors.push("testSuite.pass must be a non-negative integer");
-      if (!Number.isInteger(t.fail) || (t.fail as number) < 0) errors.push("testSuite.fail must be a non-negative integer");
+      if (!Number.isInteger(t.pass) || (t.pass          ) < 0) errors.push("testSuite.pass must be a non-negative integer");
+      if (!Number.isInteger(t.fail) || (t.fail          ) < 0) errors.push("testSuite.fail must be a non-negative integer");
       if (typeof t.measuredSha !== "string" || !t.measuredSha) errors.push("testSuite.measuredSha required");
     }
   }
@@ -141,7 +141,7 @@ export function validateCandidateManifest(manifest: unknown): string[] {
   }
 
   if (m.publishedCounts !== undefined) {
-    const c = m.publishedCounts as Record<string, unknown>;
+    const c = m.publishedCounts                           ;
     for (const k of ["tests", "skills", "hooks"]) {
       if (!Number.isInteger(c?.[k])) errors.push("publishedCounts." + k + " must be an integer");
     }
@@ -151,22 +151,22 @@ export function validateCandidateManifest(manifest: unknown): string[] {
 }
 
 /** Check if a candidate is ready for release. */
-export interface ReleaseReadyOptions {
-  /** Permit deferred receipts (prerelease trains). Recorded in the manifest. */
-  allowDeferred?: boolean;
-  /** Freshly recomputed inventory hash from the checkout being released. */
-  actualInventoryHash?: string;
-}
+
+
+
+
+
+
 
 export function isReleaseReady(
-  manifest: CandidateManifest,
-  options: ReleaseReadyOptions = {},
-): {
-  ready: boolean;
-  blockers: string[];
-} {
-  const blockers: string[] = [];
-  
+  manifest                   ,
+  options                      = {},
+)
+
+
+  {
+  const blockers           = [];
+
   // All required receipts must be present
   const missing = manifest.receipts.filter(r => r.status !== "present");
   for (const r of missing) {
@@ -240,7 +240,7 @@ export function isReleaseReady(
 }
 
 /** The required receipts for MLB 1.0. */
-export const MLB_1_0_RECEIPTS: RequiredReceipt[] = [
+export const MLB_1_0_RECEIPTS                    = [
   { name: "activation-baseline", source: "#11 + #18", status: "missing" },
   { name: "hook-benchmark", source: "#13", status: "missing" },
   { name: "doctor-lifecycle", source: "#15", status: "missing" },

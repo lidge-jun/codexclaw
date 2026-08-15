@@ -47,6 +47,7 @@ export const COMMAND_TABLE = Object.freeze({
   goalplan: "pabcd-state",
   plan: "pabcd-state",
   scan: "pabcd-state",
+  release: "pabcd-state",
   chat: "recall",
   memory: "recall",
   skill: "skill-search",

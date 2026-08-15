@@ -47,6 +47,7 @@ import { handleRenderObservationCapture, handleRenderArtifactCapture } from "./r
 import { handleWorktreeGuard, handleWorktreeGuardPreTool } from "./worktree-guard.js";
 import { runSubagentStopGate } from "./subagent-evidence.js";
 import { runDivergenceCli } from "./divergence-cli.js";
+import { runReleaseCli } from "./release-cli.js";
 import { parseFreezeArgs, runFreeze } from "./freeze-cli.js";
 import { parsePlanCliArgs, runPlanCli } from "./plan-cli.js";
 import { handleIdleEditAdvisory } from "./idle-edit.js";
@@ -155,6 +156,15 @@ function main()       {
   // `divergence` command path (emergence harness): project-local mode + candidate archive.
   if (kind === "divergence") {
     const result = runDivergenceCli(process.argv.slice(3), process.cwd());
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
+  // `release` command path (260815 wp3): assemble and verify the release candidate
+  // manifest. release-gate.ts shipped the schema but nothing produced a manifest, so
+  // the gate could not refuse anything; this is the producer.
+  if (kind === "release") {
+    const result = runReleaseCli(process.argv.slice(3), process.cwd());
     process.stdout.write(`${result.output}\n`);
     process.exit(result.code);
   }
