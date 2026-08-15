@@ -96,8 +96,12 @@ codex plugin marketplace add "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --ref v0.1.
 install_and_resolve v0.1.0
 OLD_VERSION="$PLUGIN_VERSION"
 
+# A marketplace source cannot be re-pointed in place: adding the same name from a
+# different ref fails with "already added from a different source". Remove the
+# marketplace first — the installed plugin does NOT need removing (004r6 #1,
+# verified by executing this sequence in an isolated CODEX_HOME).
+codex plugin marketplace remove codexclaw
 codex plugin marketplace add "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --ref "$GITHUB_SHA"
-codex plugin marketplace upgrade
 install_and_resolve head-again
 
 # The upgrade must be observable, not assumed: an unchanged version means the
