@@ -397,6 +397,20 @@ export const AGBROWSE_SEARCH_DIRECTIVE = [
  * Stop hook's GOAL-IDLE-CONTINUE-01: together they close the "loop narrated
  * but never entered via cxc orchestrate" gap at both ends of the turn.
  */
+/**
+ * TRIGGER-AUTHORITY-01 (040): appended when a natural-language trigger asked for a
+ * phase the FSM will not move to. The directive still goes out — the request is
+ * legitimate work — but the phase on disk is unchanged, and this says how to move it.
+ */
+export const TRIGGER_AUTHORITY_NOTE = [
+  "[codexclaw: PHASE UNCHANGED — TRIGGER-AUTHORITY-01]",
+  "That phrase reads as a phase request, but a natural-language trigger no longer moves",
+  "a cycle that is already running: it would skip adjacency, the attest gate and the",
+  "ledger, which is exactly how a cycle ends up recorded without ever happening.",
+  "The phase on disk is unchanged. To actually move it, run",
+  "`cxc orchestrate <I|P|A|B|C|D> --session <id>` — work edges carry --attest.",
+].join(" ");
+
 export const LOOP_ARM_DIRECTIVE = [
   "[codexclaw: LOOP — orchestrate arming mandate (ORCH-MANDATE-01)]",
   "A loop/goalplan claim without persisted FSM evidence is INVALID, and the PABCD FSM is not",
@@ -521,49 +535,91 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
     return "";
   }
 
-  // mode 1: explicit trigger activates orchestration and injects the full directive.
+  const agbrowseRequested = detectAgbrowseSearchRequest(payload.prompt);
+  const loopArmRequested = detectLoopArmRequest(payload.prompt);
+
+  // TRIGGER-AUTHORITY-01 (040): the loop-arm branch is evaluated BEFORE the trigger
+  // branch. "pabcd 여러 번 돌려서 구현해" reads as both a B trigger and a loop request,
+  // and the trigger branch used to return first — so the prompt that most clearly
+  // asks for a loop got a BUILD directive and never saw the arming mandate.
+  // Only the un-armed loop-arm case is promoted; the agbrowse-only case keeps its
+  // original position so a plain search request is unaffected.
+  if (!state.orchestrationActive && loopArmRequested) {
+    // 260714 wp3 (audit decision a): persist loopArmSeen OUTSIDE the turn guard —
+    // a turnless payload must not lose the flag; injectedTurns stays turn-guarded.
+    writeState(payload.cwd, {
+      ...state,
+      loopArmSeen: true,
+      injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
+    });
+    const parts: string[] = [];
+    // 260724 WP1: resolve the invocation at emit time (constant untouched). Safe
+    // per resolveCxcInDirective: every cxc command in LOOP_ARM_DIRECTIVE is
+    // backticked; "cxc-loop"/"cxc-pabcd" skill nouns carry no "`cxc " prefix.
+    parts.push(resolveCxcInDirective(LOOP_ARM_DIRECTIVE));
+    if (agbrowseRequested) parts.push(AGBROWSE_SEARCH_DIRECTIVE);
+    return buildContextOutput("UserPromptSubmit", parts.join("\n\n"));
+  }
+
+  // TRIGGER-AUTHORITY-01 (040): a natural-language trigger may ENTER a cycle from
+  // IDLE, but it may not move one that is already running. Writing `phase` straight
+  // from a phrase like "구현해" skipped adjacency, the attest gate and the ledger
+  // entirely, so IDLE -> B left no trace the ledger could even show. Entry stays
+  // allowed because it is harmless and long-established; mid-cycle jumps now inject
+  // the directive and say which command actually moves the phase.
   if (trigger) {
     const directive = trigger === "I" ? interviewDirective() : phaseDirective(trigger, activeWorkPhaseOpts(payload.cwd, state.slug));
-    if (turn) {
+    const mayEnter = state.phase === "IDLE" && (trigger === "P" || trigger === "I");
+    if (mayEnter) {
+      // Entering a cycle is a real state change, so it persists with or without a
+      // turn id — only injectedTurns is gated on one. A turnless prompt that entered
+      // P and did not record it would leave the next turn thinking nothing happened.
       writeState(payload.cwd, {
         ...state,
         phase: trigger,
         orchestrationActive: true,
         lastInjectedPhase: trigger,
-        injectedTurns: appendTurn(state.injectedTurns, turn),
+        injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
         // 260714 wp3 (audit Med #2): a trigger+loop-phrase prompt ("plan this and
         // loop until done") must not drop the loop-arm flag on the precedence path.
-        ...(detectLoopArmRequest(payload.prompt) ? { loopArmSeen: true } : {}),
+        ...(loopArmRequested ? { loopArmSeen: true } : {}),
       });
+      return buildContextOutput("UserPromptSubmit", withFooter(directive, trigger));
     }
-    return buildContextOutput("UserPromptSubmit", withFooter(directive, trigger));
-  }
-
-  const agbrowseRequested = detectAgbrowseSearchRequest(payload.prompt);
-  const loopArmRequested = detectLoopArmRequest(payload.prompt);
-
-  // fail-closed: no trigger and orchestration never activated -> stay silent.
-  // Exception (ORCH-MANDATE-01): an explicit loop/goalplan request against an un-armed
-  // FSM injects the arming mandate, so a loop can no longer start as pure narration.
-  if (!state.orchestrationActive) {
-    if (agbrowseRequested || loopArmRequested) {
-      // 260714 wp3 (audit decision a): persist loopArmSeen OUTSIDE the turn guard —
-      // a turnless payload must not lose the flag; injectedTurns stays turn-guarded.
+    // Phase-preserving branch: phase, orchestrationActive and lastInjectedPhase are
+    // ALL left alone. Writing some of them is worse than writing none — a persisted
+    // IDLE with orchestrationActive=true makes the next passive turn inject an IDLE
+    // directive. The footer reports the phase actually on disk, not the one asked for.
+    if (turn || loopArmRequested) {
       writeState(payload.cwd, {
         ...state,
+        injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
         ...(loopArmRequested ? { loopArmSeen: true } : {}),
+      });
+    }
+    const guided = `${directive}\n\n${resolveCxcInDirective(TRIGGER_AUTHORITY_NOTE)}`;
+    return buildContextOutput("UserPromptSubmit", withFooter(guided, state.phase));
+  }
+
+  // fail-closed: no trigger and orchestration never activated -> stay silent.
+  if (!state.orchestrationActive) {
+    if (agbrowseRequested) {
+      writeState(payload.cwd, {
+        ...state,
         injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
       });
-      const parts: string[] = [];
-      // 260724 WP1: resolve the invocation at emit time (constant untouched). Safe
-      // per resolveCxcInDirective: every cxc command in LOOP_ARM_DIRECTIVE is
-      // backticked; "cxc-loop"/"cxc-pabcd" skill nouns carry no "`cxc " prefix.
-      if (loopArmRequested) parts.push(resolveCxcInDirective(LOOP_ARM_DIRECTIVE));
-      if (agbrowseRequested) parts.push(AGBROWSE_SEARCH_DIRECTIVE);
-      return buildContextOutput("UserPromptSubmit", parts.join("\n\n"));
+      return buildContextOutput("UserPromptSubmit", AGBROWSE_SEARCH_DIRECTIVE);
     }
     return "";
   }
+
+  // TRIGGER-AUTHORITY-01 (040): an armed session that asks for a loop keeps its
+  // phase and falls through to the passive pipeline, but the flag must survive.
+  // `working` alone is not enough — the passive branches below can return without
+  // writing (context pressure, no turn id), so persist once here and let every
+  // later write spread `working` instead of the stale `state`.
+  const working = loopArmRequested && !state.loopArmSeen ? { ...state, loopArmSeen: true } : state;
+  if (working !== state) writeState(payload.cwd, working);
 
   // L17 firewall: the goal-active interview suppression must also cover the PASSIVE
   // re-injection paths (modes 2/3), not just the explicit `trigger === "I"` path above.
@@ -584,7 +640,7 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
   if (hasStageMarkerForPhase(tail, state.phase)) {
     if (turn) {
       writeState(payload.cwd, {
-        ...state,
+        ...working,
         lastInjectedPhase: state.phase,
         injectedTurns: appendTurn(state.injectedTurns, turn),
       });
@@ -601,7 +657,7 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
     const context = agbrowseRequested ? `${directive}\n\n${AGBROWSE_SEARCH_DIRECTIVE}` : directive;
     if (turn) {
       writeState(payload.cwd, {
-        ...state,
+        ...working,
         lastInjectedPhase: state.phase,
         injectedTurns: appendTurn(state.injectedTurns, turn),
       });
@@ -612,7 +668,7 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
   // mode 3: same phase -> short compaction-immune stage header every turn.
   if (turn) {
     writeState(payload.cwd, {
-      ...state,
+      ...working,
       injectedTurns: appendTurn(state.injectedTurns, turn),
     });
   }

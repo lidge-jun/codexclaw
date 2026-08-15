@@ -252,12 +252,19 @@ test("260714 wp3: loop-arm prompt persists loopArmSeen on the un-armed branch (e
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
-test("260714 wp3: mode-1 trigger + loop phrase sets loopArmSeen on the precedence path", () => {
+// TRIGGER-AUTHORITY-01 (040) reversed the precedence this case pinned. A prompt that
+// asks for a loop AND names a phase used to get the phase directive and arm P; it now
+// gets the arming mandate, because that is the request it most clearly makes. The flag
+// still has to survive, which is what 260714 wp3 was protecting.
+test("040: trigger + loop phrase on an un-armed FSM yields the mandate, not a phase", () => {
   const cwd = freshCwd();
   try {
-    handleUserPromptSubmit(ups("plan this and then 루프 돌려서 끝까지 해줘", cwd, "la3", "t1"));
+    const out = handleUserPromptSubmit(ups("plan this and then 루프 돌려서 끝까지 해줘", cwd, "la3", "t1"));
+    const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
+    assert.match(ctx, /arming mandate/);
     const st = readState(cwd, "la3");
-    assert.equal(st.phase, "P"); // trigger precedence still arms P
+    assert.equal(st.phase, "IDLE"); // the mandate never arms the FSM by itself
+    assert.equal(st.orchestrationActive, false);
     assert.equal(st.loopArmSeen, true); // and the flag survives (audit Med #2)
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
@@ -294,17 +301,21 @@ test("ORCH-MANDATE-01: loop request against un-armed FSM injects the arming mand
   }
 });
 
-test("ORCH-MANDATE-01: explicit PABCD trigger wins over the loop-arm directive (mode 1 precedence)", () => {
+// TRIGGER-AUTHORITY-01 (040): the reverse of what this case used to assert. On an
+// un-armed FSM the loop request is answered first — "plan this and then loop until
+// done" is a request to run the loop, and answering it with a PLAN directive is how
+// a loop used to begin as narration with no FSM behind it.
+test("040: on an un-armed FSM the loop-arm mandate wins over a phase trigger", () => {
   const cwd = freshCwd();
   try {
     const out = handleUserPromptSubmit(ups("plan this and then loop until done", cwd, "s1", "t1"));
     const parsed = JSON.parse(out.trimEnd());
     const ctx = parsed.hookSpecificOutput.additionalContext as string;
-    assert.match(ctx, /\[codexclaw: PLAN\]/);
-    assert.doesNotMatch(ctx, /arming mandate/);
-    // Trigger precedence is about which directive is injected; the FSM phase itself
-    // still moves only via explicit orchestrate commands.
-    assert.equal(readState(cwd, "s1").lastInjectedPhase, "P");
+    assert.match(ctx, /arming mandate/);
+    assert.doesNotMatch(ctx, /\[codexclaw: PLAN\]/);
+    const st = readState(cwd, "s1");
+    assert.equal(st.lastInjectedPhase, null); // the mandate injects no phase
+    assert.equal(st.loopArmSeen, true);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
@@ -604,4 +615,111 @@ test("chat D-close succeeds once the tasks are done", () => {
     const saved = JSON.parse(readFileSync(join(cwd, STATE_DIR, "goalplans", slug, "goalplan.json"), "utf8"));
     assert.equal(saved.workPhases[0].status, "done");
   } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// ── TRIGGER-AUTHORITY-01 (040) ─────────────────────────────────────────────
+// A natural-language trigger may enter a cycle from IDLE but may not move one that
+// is already running. Writing phase straight from a phrase skipped adjacency, the
+// attest gate and the ledger, so "구현해" jumped IDLE to B leaving no trace at all.
+
+test("040: a natural-language build trigger from IDLE leaves the phase alone", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("이거 구현해줘", cwd, "ta1", "t1"));
+    const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
+    assert.match(ctx, /BUILD/);
+    assert.match(ctx, /TRIGGER-AUTHORITY-01/);
+    assert.match(ctx, /orchestrate/);
+    const st = readState(cwd, "ta1");
+    assert.equal(st.phase, "IDLE");
+    assert.equal(st.orchestrationActive, false);
+    assert.equal(st.lastInjectedPhase, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("040: entering P or I from IDLE still works exactly as before", () => {
+  for (const [prompt, want] of [["plan this", "P"], ["interview me", "I"]] as const) {
+    const cwd = freshCwd();
+    try {
+      handleUserPromptSubmit(ups(prompt, cwd, "ta2", "t1"));
+      const st = readState(cwd, "ta2");
+      assert.equal(st.phase, want);
+      assert.equal(st.orchestrationActive, true);
+      assert.equal(st.lastInjectedPhase, want);
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  }
+});
+
+test("040: a mid-cycle trigger cannot move the phase and the footer reports the real one", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("ta3"), phase: "P", orchestrationActive: true, lastInjectedPhase: "P" });
+    const out = handleUserPromptSubmit(ups("이거 구현해줘", cwd, "ta3", "t1"));
+    const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
+    assert.match(ctx, /TRIGGER-AUTHORITY-01/);
+    assert.match(ctx, /IPABCD: P/); // the phase on disk, not the one asked for
+    const st = readState(cwd, "ta3");
+    assert.equal(st.phase, "P");
+    assert.equal(st.orchestrationActive, true);
+    assert.equal(st.lastInjectedPhase, "P");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// The flag has to survive the passive pipeline. Every passive branch used to spread
+// the state captured on entry, so a loopArmSeen written earlier in the same call was
+// silently overwritten — these three cases pin each branch.
+
+test("040: an armed session's loop request records loopArmSeen through the stage-marker branch", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("ar1"), phase: "B", orchestrationActive: true, lastInjectedPhase: "B" });
+    handleUserPromptSubmit(ups("pabcd 여러 번 돌려줘", cwd, "ar1", "t1"));
+    assert.equal(readState(cwd, "ar1").loopArmSeen, true);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("040: same through mode 2 (phase changed since last inject)", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("ar2"), phase: "C", orchestrationActive: true, lastInjectedPhase: "B" });
+    handleUserPromptSubmit(ups("pabcd 여러 번 돌려줘", cwd, "ar2", "t1"));
+    const st = readState(cwd, "ar2");
+    assert.equal(st.loopArmSeen, true);
+    assert.equal(st.phase, "C");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("040: same through mode 3 (same phase, header only)", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("ar3"), phase: "C", orchestrationActive: true, lastInjectedPhase: "C" });
+    handleUserPromptSubmit(ups("pabcd 여러 번 돌려줘", cwd, "ar3", "t1"));
+    assert.equal(readState(cwd, "ar3").loopArmSeen, true);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// Turnless payloads: injectedTurns is the only thing gated on a turn id. Meaningful
+// state changes still have to land, or a turnless prompt silently loses them.
+
+test("040: turnless entry and turnless loop requests still persist their state", () => {
+  const cwdA = freshCwd();
+  try {
+    handleUserPromptSubmit(ups("plan this", cwdA, "tl1", ""));
+    const st = readState(cwdA, "tl1");
+    assert.equal(st.phase, "P");
+    assert.deepEqual(st.injectedTurns, []);
+  } finally { rmSync(cwdA, { recursive: true, force: true }); }
+
+  const cwdB = freshCwd();
+  try {
+    handleUserPromptSubmit(ups("pabcd 여러 번 돌려줘", cwdB, "tl2", ""));
+    assert.equal(readState(cwdB, "tl2").loopArmSeen, true);
+  } finally { rmSync(cwdB, { recursive: true, force: true }); }
+
+  const cwdC = freshCwd();
+  try {
+    writeState(cwdC, { ...defaultState("tl3"), phase: "C", orchestrationActive: true, lastInjectedPhase: "C" });
+    handleUserPromptSubmit(ups("pabcd 여러 번 돌려줘", cwdC, "tl3", ""));
+    assert.equal(readState(cwdC, "tl3").loopArmSeen, true);
+  } finally { rmSync(cwdC, { recursive: true, force: true }); }
 });
