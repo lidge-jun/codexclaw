@@ -28,8 +28,11 @@ plugin integration tests:
 - `pabcd-state`
 - `config-guard`
 - `cxc-ops`
+- `recall`
 - `provider-bridge`
 - `subagent-config`
+- `messenger-bridge`
+- `skill-search`
 - `gui`
 - plugin integration (`plugins/codexclaw/test/*.test.mjs`)
 

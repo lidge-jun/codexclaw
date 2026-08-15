@@ -33,16 +33,16 @@ a runtime loader. See the [Skills guide](/codexclaw/guides/skills/).
 
 ## Hooks
 
-Eighteen active hooks connect Codex lifecycle events to codexclaw state, covering session start,
+Twenty-one active hooks connect Codex lifecycle events to codexclaw state, covering session start,
 orchestration, recall injection, pre/post-tool guards, subagent evidence, and compaction
 recovery:
 
 | Event | Hooks | Role |
 |---|---|---|
-| `SessionStart` (x4) | provider-bridge, pabcd-bootstrap, map-affordance, recall-context | Detect `ocx` status; bootstrap session state; announce `cxc map`; inject recall context. |
-| `UserPromptSubmit` (x2) | pabcd-trigger, recall-intent | Parse orchestrate grammar and inject phase directives; detect recall phrasing. |
+| `SessionStart` (x5) | provider-bridge, pabcd-bootstrap, map-affordance, recall-context, session-start-detecting-managed-worktree | Detect `ocx` status; bootstrap session state; announce `cxc map`; inject recall context; check managed-worktree identity. |
+| `UserPromptSubmit` (x3) | pabcd-trigger, recall-intent, user-prompt-submit-guiding-worktree-rename | Parse orchestrate grammar and inject phase directives; detect recall phrasing; guide managed-worktree renames. |
 | `Stop` | pabcd-continuation | Keep an in-flight cycle advancing under an active goal. |
-| `PreToolUse` (x5) | goal-budget, interview-in-goal, goal-complete, skill-attach, edit-lint | Guard goals, deny interview in goal mode, gate goal completion, attach skills to spawns, lint edits. |
+| `PreToolUse` (x6) | goal-budget, interview-in-goal, goal-complete, skill-attach, edit-lint, pre-tool-use-guarding-managed-worktree-deletion | Guard goals, deny interview in goal mode, gate goal completion, attach skills to spawns, lint edits, guard managed-worktree deletion. |
 | `PostToolUse` (x2) | interview-capture, render-observations | Capture interview answers; track render observations. |
 | `SubagentStop` | evidence-verify | Verify subagent evidence bundles. |
 | `PostCompact` (x3) | reinject-cursor, recall-context, bg-terminal-affordance | Recover PABCD state, recall context, and affordance notes after context compaction. |

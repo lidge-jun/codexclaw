@@ -68,11 +68,11 @@ opencodex (`ocx`) is adjacent but optional. opencodex is a local provider proxy 
 
 | Tier | 문서 / code | 핵심 내용 |
 |:----:|-------------|-----------|
-| **1 — Foundation** | `README.md`, `plugins/codexclaw/.codex-plugin/plugin.json`, `devlog/_plan/mvp_res/000_INDEX.md` | single plugin boundary, manifest surfaces, shipped MVP ledger |
+| **1 — Foundation** | `README.md`, `plugins/codexclaw/.codex-plugin/plugin.json`, `devlog/_fin/mvp_res/000_INDEX.md` | single plugin boundary, manifest surfaces, shipped MVP ledger |
 | **2 — Runtime Flow** | `plugins/codexclaw/hooks/*.json`, `plugins/codexclaw/components/pabcd-state/src/hook.ts`, `plugins/codexclaw/components/pabcd-state/src/goal-gate.ts`, `plugins/codexclaw/components/pabcd-state/src/cli.ts` | Codex hook events -> short Node process -> additionalContext or deny envelope |
 | **3 — State + CLI** | `plugins/codexclaw/components/pabcd-state/src/state.ts`, `fsm.ts`, `bin/codexclaw.mjs`, `plugins/codexclaw/components/cxc-ops/src/*.ts` | `.codexclaw/` session files, phase legality, `cxc` command delegation |
 | **4 — Capabilities** | `plugins/codexclaw/skills/`, `plugins/codexclaw/agents/`, `plugins/codexclaw/components/subagent-config/src/` | `$cxc-*` skill family, inline subagent roles, model/prompt config |
-| **5 — Context** | `devlog/_plan/mvp_res/`, `devlog/_plan/mvp_hard/`, `../opencodex/README.md`, `../opencodex/src/codex-inject.ts` | shipped MVP vs hardening work, optional host/provider proxy relationship |
+| **5 — Context** | `devlog/_fin/mvp_res/`, `devlog/_fin/mvp_hard/`, `../opencodex/README.md`, `../opencodex/src/codex-inject.ts` | shipped MVP vs hardening work, optional host/provider proxy relationship |
 
 > Tier 1 -> 3 gives the live runtime shape. Tier 4 explains how users and subagents experience it. Tier 5 is for historical decisions and parity gaps.
 
@@ -127,6 +127,13 @@ Supporting files include `attest.ts` for evidence validation, `parse.ts` for hoo
 
 opencodex detection, not opencodex management. `src/detect.ts` resolves whether `ocx` is on PATH and parses read-only `ocx status --json` into `provider`, `native`, or `error` status. `src/cli.ts` is the SessionStart hook / manual detect entry. It explicitly does not run `ocx ensure`, `ocx sync`, mutate Codex config, or fail the Codex session when ocx is absent.
 
+### `components/skill-search`
+
+External skill-catalog discovery. Searches the jaw (cli-jaw-skills, first-class default),
+ClawHub, and Hermes catalogs so a capability that is not installed can still be found and
+loaded on demand via `cxc skill search` / `cxc skill show`. Read-only against remote catalogs;
+the adapter preamble applies on load and `cxc-dev` discipline wins on conflict.
+
 ### `components/subagent-config`
 
 Per-role subagent model, reasoning-effort, and prompt configuration. `src/store.ts` reads/writes `.codexclaw/subagents.json` atomically for `explorer`, `reviewer`, and `executor`, defaulting each role to the main Codex model with inherited effort (`effort: null`; valid overrides are the catalog-supported values low/medium/high/xhigh). `src/catalog.ts` builds a selectable model catalog from the native Codex cache allowlist plus optional ocx-backed model ids, with native models first. `src/mcp.ts` serves a stdio MCP server with `subagents_get`, `subagents_set`, and `catalog_list` tools.
@@ -164,9 +171,11 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-repo-map` | `skills/repo-map/` | ranked repo structure map (vendored RepoMapper: tree-sitter tags + PageRank) |
 | `cxc-lunasearch` | `skills/lunasearch/` | cheap parallel public-web discovery lane that hands proof back to `cxc-search` |
 | `cxc-worktree-guardian` | `skills/worktree-guardian/` | Codex-app managed-worktree identity safety: adopt-in-place renaming, never delete/recreate, WORKTREE-GUARD-01/02/03 hook interplay |
-| `cxc-ultraresearch` (deprecated, redirects to `cxc-search`) | `skills/ultraresearch/` | multi-wave research protocol with journal and claim-ledger proof discipline |
+| `cxc-dev-diagram-viewer` | `skills/dev-diagram-viewer/` | render and inspect Mermaid/diagram artifacts |
+| `cxc-kwrite` | `skills/kwrite/` | Korean long-form writing and revision protocol |
+| `cxc-remote` | `skills/remote/` | remote host execution and workload routing |
 
-The `dev` hub routes by change surface toward on-demand `dev-*` skills. `skill-hub` documents the exposure model: `allow_implicit_invocation` controls auto-rendered skill visibility, while explicit `$skill` / path mention still works unless a skill is disabled. The `interview`, `orchestrate`, `loop`, and `goalplan` skills are discoverable contracts for hardening surfaces; their deeper runtime work is tracked in `devlog/_plan/mvp_hard/`.
+The `dev` hub routes by change surface toward on-demand `dev-*` skills. `skill-hub` documents the exposure model: `allow_implicit_invocation` controls auto-rendered skill visibility, while explicit `$skill` / path mention still works unless a skill is disabled. The `interview`, `orchestrate`, `loop`, and `goalplan` skills are discoverable contracts for hardening surfaces; their deeper runtime work is tracked in `devlog/_fin/mvp_hard/`.
 
 ---
 
@@ -305,18 +314,18 @@ The subagent config component can later select per-role models; default mode inh
 
 ## Planning Tracks
 
-`devlog/_plan/mvp_res/` is the canonical shipped MVP ledger. It records L1-L28 as DONE, including state engine, directive hook, goal gate, dev router skills, subagent roles, install activation, provider bridge, subagent config, model catalog, and GUI subagent page. L29-L31 are deferred/planned future work.
+`devlog/_fin/mvp_res/` is the canonical shipped MVP ledger. It records L1-L28 as DONE, including state engine, directive hook, goal gate, dev router skills, subagent roles, install activation, provider bridge, subagent config, model catalog, and GUI subagent page. L29-L31 are deferred/planned future work.
 
-`devlog/_plan/mvp_hard/` is the parity-hardening lane after the MVP. It documents the gap between codexclaw's current `$cxc-*` + hook UX and cli-jaw/jawcode-style explicit PABCD phase control. Its locked constraints are important: no codex-rs fork, no plugin slash commands, no external orchestrator, file-based state only.
+`devlog/_fin/mvp_hard/` is the parity-hardening lane after the MVP. It documents the gap between codexclaw's current `$cxc-*` + hook UX and cli-jaw/jawcode-style explicit PABCD phase control. Its locked constraints are important: no codex-rs fork, no plugin slash commands, no external orchestrator, file-based state only.
 
 The L14 hardening design (subagent skill routing + loop/goal handoff) has largely shipped: its
-root-cause diagnosis lives in `devlog/_plan/mvp_hard/140_L14_loop_goal_routing_followup.md`, its
+root-cause diagnosis lives in `devlog/_fin/mvp_hard/140_L14_loop_goal_routing_followup.md`, its
 fix shape is the design SOT at [`10_subagent_skill_routing.md`](10_subagent_skill_routing.md), and
 the work landed across L14-L19 (all `DONE | DONE`) — including the E5 spawn-attachment builder (L15),
 the E3 PreToolUse mention normalizer (L15.2), and the forward `GOAL_ACTIVATION_DIRECTIVE`
 bridge (`cxc freeze`). One piece stays deferred by design: the **reverse** goal-active auto-arm path
 ("set a goal → loop runs" without a separate orchestrate trigger). The most recent lane is **L20**,
-the L1-L19 full-span gap-remediation loop (`devlog/_plan/mvp_hard/200_L20_gap_register.md`).
+the L1-L19 full-span gap-remediation loop (`devlog/_fin/mvp_hard/200_L20_gap_register.md`).
 
 ---
 
@@ -332,4 +341,4 @@ the L1-L19 full-span gap-remediation loop (`devlog/_plan/mvp_hard/200_L20_gap_re
 
 ---
 
-*Last updated: 2026-07-05. Grounded in `README.md`, `plugins/codexclaw/.codex-plugin/plugin.json`, `plugins/codexclaw/hooks/*.json`, component `src/` files, skill metadata, subagent TOMLs, `devlog/_plan/mvp_res/000_INDEX.md`, `devlog/_plan/mvp_hard/000_INDEX.md`, `devlog/_plan/mvp_hard/141_L14_L19_contradiction_patch_plan.md`, `structure/00_philosophy.md`, `structure/10_subagent_skill_routing.md`, `structure/20_pabcd_dispatch_doctrine.md`, `structure/30_contradiction_register.md`, `structure/40_enforcement_methods.md`, and opencodex + cli-jaw `structure/` files.*
+*Last updated: 2026-07-05. Grounded in `README.md`, `plugins/codexclaw/.codex-plugin/plugin.json`, `plugins/codexclaw/hooks/*.json`, component `src/` files, skill metadata, subagent TOMLs, `devlog/_fin/mvp_res/000_INDEX.md`, `devlog/_fin/mvp_hard/000_INDEX.md`, `devlog/_fin/mvp_hard/141_L14_L19_contradiction_patch_plan.md`, `structure/00_philosophy.md`, `structure/10_subagent_skill_routing.md`, `structure/20_pabcd_dispatch_doctrine.md`, `structure/30_contradiction_register.md`, `structure/40_enforcement_methods.md`, and opencodex + cli-jaw `structure/` files.*

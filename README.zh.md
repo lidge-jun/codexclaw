@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-1%2C213_passing-brightgreen" alt="1,213 tests passing">
+  <img src="https://img.shields.io/badge/tests-1%2C631_passing-brightgreen" alt="1,631 tests passing">
   <img src="https://img.shields.io/badge/skills-28-blue" alt="28 skills">
   <img src="https://img.shields.io/badge/hooks-21-blue" alt="21 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -54,7 +54,7 @@ codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-然后重启 Codex，并在弹出的审批中批准 18 个 hooks（升级后需再次批准——内容哈希信任模型）。既可以直接在聊天中使用，终端界面也随包提供——payload 自带 `cxc` 调度器，代理的 `cxc orchestrate` 命令在任何安装方式下都能运行：
+然后重启 Codex，并在弹出的审批中批准 21 个 hooks（升级后需再次批准——内容哈希信任模型）。既可以直接在聊天中使用，终端界面也随包提供——payload 自带 `cxc` 调度器，代理的 `cxc orchestrate` 命令在任何安装方式下都能运行：
 
 - `orchestrate status` — 查看 PABCD 状态机
 - "Interview me first, then draft a diff-level plan."
@@ -93,7 +93,7 @@ plugins/codexclaw/
 │
 ├── bin/cxc.mjs                  payload CLI dispatcher (ships with every install)
 │
-├── skills/                      27 skills
+├── skills/                      28 skills
 │   ├── dev/                     canonical parent — work classifier, routing, verification gate
 │   ├── dev-*/                   12 surface routers (architecture → uiux-design)
 │   ├── pabcd/                   PABCD workflow phases + attestation
@@ -103,7 +103,7 @@ plugins/codexclaw/
 │   ├── recall/                  past-session + memory store search
 │   └── repo-map/                tree-sitter + PageRank structure map
 │
-├── hooks/                       18 active hooks across the session lifecycle
+├── hooks/                       21 active hooks across the session lifecycle
 │   ├── session-start-*          provider bridge, PABCD bootstrap, map affordance, recall context
 │   ├── user-prompt-submit-*     PABCD trigger detection, recall intent
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard

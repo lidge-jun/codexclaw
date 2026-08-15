@@ -16,7 +16,7 @@ tells Codex which skills, hooks, and MCP servers to load.
 | `homepage` | `https://lidge-jun.github.io/codexclaw/` |
 | `license` | `MIT` |
 | `skills` | `./skills/` — the skill directory root. |
-| `hooks` | Eighteen hook JSON files (see [Hooks](/codexclaw/reference/hooks/)). |
+| `hooks` | Twenty-one hook JSON files (see [Hooks](/codexclaw/reference/hooks/)). |
 | `mcpServers` | `./.mcp.json` — the subagent-config MCP server. |
 
 ## Registered hooks
@@ -40,12 +40,15 @@ tells Codex which skills, hooks, and MCP servers to load.
   "./hooks/session-start-injecting-recall-context.json",
   "./hooks/post-compact-injecting-recall-context.json",
   "./hooks/post-compact-injecting-bg-terminal-affordance.json",
-  "./hooks/user-prompt-submit-detecting-recall-intent.json"
+  "./hooks/user-prompt-submit-detecting-recall-intent.json",
+  "./hooks/session-start-detecting-managed-worktree.json",
+  "./hooks/user-prompt-submit-guiding-worktree-rename.json",
+  "./hooks/pre-tool-use-guarding-managed-worktree-deletion.json"
 ]
 ```
 
 The plugin currently contains eight component packages under `components/` (including
-`skill-search`) and 27 skill directories under `skills/`. The GUI is a separate workspace
+`skill-search`) and 28 skill directories under `skills/`. The GUI is a separate workspace
 package under `plugins/codexclaw/gui/`.
 
 ## Interface metadata

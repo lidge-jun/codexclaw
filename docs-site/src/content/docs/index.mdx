@@ -142,8 +142,8 @@ Codex runtime
 
 | Surface | Status | Count / scope | Primary docs |
 |---------|--------|---------------|--------------|
-| Skills | <span class="cxc-badge cxc-badge--current">current</span> | 27 skills: the `dev` classifier parent plus 12 surface routers, `pabcd`, `loop`, `interview`, `search`, `recall`, `qa`, `repo-map`, and research/search helpers. | [Skills](/codexclaw/guides/skills/) |
-| Hooks | <span class="cxc-badge cxc-badge--current">current</span> | 18 active hooks: `SessionStart` x4, `UserPromptSubmit` x2, `PreToolUse` x5, `PostToolUse` x2, `Stop` x1, `SubagentStop` x1, `PostCompact` x3. | [Hooks](/codexclaw/reference/hooks/) |
+| Skills | <span class="cxc-badge cxc-badge--current">current</span> | 28 skills: the `dev` classifier parent plus 12 surface routers, `pabcd`, `loop`, `interview`, `search`, `recall`, `qa`, `repo-map`, and research/search helpers. | [Skills](/codexclaw/guides/skills/) |
+| Hooks | <span class="cxc-badge cxc-badge--current">current</span> | 21 active hooks: `SessionStart` x5, `UserPromptSubmit` x3, `PreToolUse` x6, `PostToolUse` x2, `Stop` x1, `SubagentStop` x1, `PostCompact` x3. | [Hooks](/codexclaw/reference/hooks/) |
 | MCP | <span class="cxc-badge cxc-badge--current">current</span> | Subagent model and prompt config: `subagents_get`, `subagents_set`, `catalog_list`. | [MCP Tools](/codexclaw/reference/api-mcp/) · [Subagents](/codexclaw/guides/subagents/) |
 | Components | <span class="cxc-badge cxc-badge--current">current</span> | 8 component packages: config guard, ops, recall, PABCD state, provider bridge, subagent config, messenger bridge, skill search. GUI is separate. | [How It Works](/codexclaw/concepts/how-it-works/) |
 | `cxc` CLI | <span class="cxc-badge cxc-badge--current">current</span> | Payload dispatcher + PATH checkout bin: `enable`, `disable`, `uninstall`, `status`, `orchestrate`, `freeze`, `metric`, `divergence`, `loop`, `goalplan`, `plan`, `scan`, `doctor`, `reset`, `hooks`, `subagents`, `map`, `provider`, `chat`, `memory`, `skill`, `gui`, `serve`, `service`. | [Commands](/codexclaw/reference/commands/) |
@@ -175,7 +175,7 @@ cxc doctor
 cxc orchestrate P --attest '{"from":"IDLE","to":"P","did":"plan the change"}'
 ```
 
-The project gate is green at 1,213 tests. Build and test commands are documented separately so the
+The project gate is green at 1,631 tests. Build and test commands are documented separately so the
 landing page stays a control surface, not a release note.
 
 :::note[Status honesty]
@@ -207,7 +207,7 @@ design but no shipped runtime yet. The docs never describe a planned feature as 
   </a>
   <a class="cxc-index__row" href="/codexclaw/guides/skills/">
     <span class="cxc-index__title">Skills</span>
-    <span class="cxc-index__desc">27 skills: the cxc-dev classifier, surface routers, search, recall, QA.</span>
+    <span class="cxc-index__desc">28 skills: the cxc-dev classifier, surface routers, search, recall, QA.</span>
     <span class="cxc-index__arrow" aria-hidden="true">-&gt;</span>
   </a>
   <a class="cxc-index__row" href="/codexclaw/guides/subagents/">

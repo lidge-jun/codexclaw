@@ -1,9 +1,9 @@
 ---
 title: Hooks
-description: codexclaw's 18 Codex hooks — events, matchers, and the commands they run.
+description: codexclaw's 21 Codex hooks — events, matchers, and the commands they run.
 ---
 
-codexclaw registers 18 active hooks in its plugin manifest. Each runs a compiled component CLI
+codexclaw registers 21 active hooks in its plugin manifest. Each runs a compiled component CLI
 under `node`. All commands resolve `${PLUGIN_ROOT}` to the installed plugin directory.
 The removed hook JSON files live under `hooks/_deprecated/` from the 2026-07-05 hook diet.
 
@@ -37,6 +37,9 @@ and is also unaffected.
 | `post-compact-injecting-bg-terminal-affordance.json` | `PostCompact` | — | `node "${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js" hook post-compact` | `(codexclaw) Re-injecting background terminal + loop affordance after compaction` | 10 s |
 | `pre-tool-use-linting-apply-patch.json` | `PreToolUse` | `^(apply_patch\|Write\|Edit)$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-edit` | `(codexclaw) Checking structured edit` | 10 s |
 | `post-tool-use-tracking-render-observations.json` | `PostToolUse` | `^(view_image\|browser:control-in-app-browser\|chrome:control-chrome\|computer-use:computer-use\|apply_patch)$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-render-observation` | `(codexclaw) Tracking render observation` | 10 s |
+| `session-start-detecting-managed-worktree.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | `(codexclaw) Checking managed-worktree identity` | 10 s |
+| `user-prompt-submit-guiding-worktree-rename.json` | `UserPromptSubmit` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | `(codexclaw) Checking worktree rename intent` | 10 s |
+| `pre-tool-use-guarding-managed-worktree-deletion.json` | `PreToolUse` | `^Bash$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard-pretool` | `(codexclaw) Guarding managed worktree` | 10 s |
 
 ## What each hook does
 

@@ -70,7 +70,7 @@ must stay guarded into Playwright.
 | `update_plan` | `cxc-pabcd` PLAN-TRACK-01 — mirror plan items, keep statuses live through B |
 | `imagegen` | `cxc-dev-frontend` / `cxc-dev-uiux-design` — real bitmap assets instead of placeholders |
 | `view_image` | design reads, screenshot evidence, blocked-source captures |
-| `multi_tool_use.parallel` | `cxc-lunasearch` / `cxc-ultraresearch` parallel lanes |
+| `multi_tool_use.parallel` | `cxc-lunasearch` / `cxc-search` Tier-3 parallel lanes |
 | `list_available_plugins_to_install` / `request_plugin_install` | `cxc-skill-hub` capability discovery |
 
 CSV batch fan-out via `spawn_agents_on_csv` and `memories` remain flag-gated and are

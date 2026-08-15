@@ -75,13 +75,14 @@ overlays:
   work.
 - **`cxc-lunasearch`** is a cheap parallel discovery lane that hands candidates back to
   `cxc-search` for proof.
-- **`cxc-ultraresearch`** is the deeper multi-wave research protocol for broad investigations.
+- **`cxc-search` Tier 3** is the deeper multi-wave research protocol for broad
+  investigations. It is part of `cxc-search`, not a separate skill.
 - **`cxc-ast-grep`** is a structural code-search helper. Reach for plain `rg` first for ordinary
   text search, and `ast-grep` when you need syntax-aware matching or rewrites.
 
 ## Shipped skill inventory
 
-codexclaw currently ships 25 skill directories:
+codexclaw currently ships 28 skill directories:
 
 | Skill | Folder | Role |
 |---|---|---|
@@ -109,7 +110,10 @@ codexclaw currently ships 25 skill directories:
 | `cxc-repo-map` | `repo-map` | Tree-sitter/PageRank repository overview for unfamiliar codebase exploration. |
 | `cxc-ast-grep` | `ast-grep` | AST-aware structural search and deterministic codemods. |
 | `cxc-lunasearch` | `lunasearch` | Parallel public-web discovery lane that depends on `cxc-search`. |
-| `cxc-ultraresearch` | `ultraresearch` | Deep multi-source research protocol with journal and claim ledger. |
+| `cxc-dev-diagram-viewer` | `dev-diagram-viewer` | Render and inspect Mermaid/diagram artifacts. |
+| `cxc-kwrite` | `kwrite` | Korean long-form writing and revision protocol. |
+| `cxc-remote` | `remote` | Remote host execution and workload routing. |
+| `cxc-worktree-guardian` | `worktree-guardian` | Managed-worktree identity safety and rename/delete guards. |
 
 :::note[chat-search retired]
 An earlier `chat-search` CLI wrapper was retired (L13). Codex thread search is a native runtime
