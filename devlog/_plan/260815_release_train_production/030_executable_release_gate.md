@@ -126,7 +126,11 @@ commit SHA or test count (020).
 - Known bypass: publishing manually through the GitHub UI, which never calls the gate
 - Residual risk: high until tag protection exists (003: none configured)
 - Wording downgrade: yes — "the release train enforces the gate", never "releases
-  cannot bypass the gate". Final enforcement layer: **none** today.
+  cannot bypass the gate". Final enforcement layer: **`protect-release-tags`**
+  (ruleset `20884836`, added 2026-08-15) — and only partially. Rulesets protect refs,
+  not the Releases API: `gh release create` by hand still skips `release verify`.
+  What is now enforced is that such a release cannot re-point or delete an existing
+  `v*` tag, so published evidence cannot be rewritten after the fact.
 
 ## Accept criteria + activation scenarios
 

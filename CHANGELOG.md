@@ -6,7 +6,25 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- **Enforcement for the release gates.** Two repository rulesets:
+  `protect-release-tags` (`v*`: no deletion, no update, no non-fast-forward) and
+  `protect-main` (no deletion, no force-push, and eight required GitHub Actions
+  contexts). Until now every gate shipped in 0.2.0-beta.1 was an early warning:
+  `gh api rulesets` returned `[]`, so nothing stopped a direct push to `main` or a
+  moved tag.
+
+  Proven by refusal rather than by reading the configuration back — an unchecked
+  commit pushed to a protected branch was rejected with *"8 of 8 required status
+  checks are expected"*, and force-push and deletion were rejected by name.
+
+  Scope, stated precisely: rulesets protect refs, not the Releases API, so
+  `gh release create` by hand still skips the release gate. What it buys is that a
+  published tag can no longer be re-pointed or deleted, which is what 050's rollback
+  policy depends on. A repository admin can still edit a ruleset — the cleanup step
+  in `devlog/_plan/260815_release_train_production/060_enforcement_layer.md` does
+  exactly that, on purpose, so the residual is demonstrated instead of described.
 
 ## [0.2.0-beta.1] - 2026-08-15
 

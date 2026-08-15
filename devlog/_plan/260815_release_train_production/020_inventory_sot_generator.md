@@ -115,7 +115,11 @@ their own violation class.
   a marker block from a file the generator does not require
 - Residual risk: a contributor with push access can land drift by regenerating
 - Wording downgrade: yes — this is an early-warning gate, not enforcement. Final
-  enforcement layer: **none** (no branch protection exists; see 003).
+  enforcement layer: **`protect-main`** (ruleset `20884837`, added 2026-08-15).
+  Drift can no longer reach `main` without the eight CI contexts that run this gate;
+  proven by refusal: an unchecked commit was rejected with "8 of 8 required status
+  checks are expected". It remains an early warning on any other branch, and a
+  repository admin can still edit the ruleset.
 
 ## Accept criteria + activation scenarios
 

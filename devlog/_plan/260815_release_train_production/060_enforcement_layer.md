@@ -1,6 +1,6 @@
 # 060 — Enforcement layer: tag and branch rulesets, proven by refusal
 
-Status: PLANNED — work-phase wp6 (rewritten after the A gate; see §A-gate below)
+Status: DONE — work-phase wp6 (rewritten after the A gate; see §A-gate below)
 
 ## Why this exists
 
@@ -241,3 +241,84 @@ Round 2 independently re-verified: both payloads parse and every field is schema
 recognized; the eight contexts match the real jobs from CI run `31870618796` and
 packed-install run `31870618798`, all from app `15368`; probe B is genuinely
 unchecked; and step E leaves `protect-main` scoped to `refs/heads/main` only.
+
+## Execution record (C)
+
+Applied 2026-08-15. Ruleset ids: `protect-release-tags` = `20884836`,
+`protect-main` = `20884837`. Both `enforcement: active`, `bypass_actors: []`.
+
+### Probe A — create the probe branch at a checked commit: ALLOWED
+
+```text
+* [new branch]  27ed3b25... -> codex/ruleset-probe
+```
+
+### Probe B — push an unchecked commit: **REFUSED**
+
+The commit was built with `git commit-tree` off `27ed3b25`, so no workflow had ever
+run on it (nothing triggers on `codex/*`):
+
+```text
+remote: error: GH013: Repository rule violations found for refs/heads/codex/ruleset-probe.
+remote: - 8 of 8 required status checks are expected.
+ ! [remote rejected]   db293bf5... -> codex/ruleset-probe (push declined due to repository rule violations)
+```
+
+This is the central proof: an unchecked commit cannot reach a protected branch.
+
+### Probe C — force-push backwards: **REFUSED**
+
+```text
+remote: - Cannot force-push to this branch
+remote: - Required status check "test (macos-latest)" is failing.
+ ! [remote rejected]   1cd9447c... -> codex/ruleset-probe
+```
+
+Two rules fired at once. The second line is worth reading carefully: GitHub reports
+a *missing* check on the target commit as "failing", which is why a required context
+that does not exist would block permanently rather than pass silently — the inverted
+claim the A gate caught.
+
+### Probe D — delete the branch: **REFUSED**
+
+```text
+remote: - Cannot delete this branch
+ ! [remote rejected]   codex/ruleset-probe
+```
+
+### Probe E — the admin bypass, executed in the open
+
+The probe branch could not be removed while the rule matched it. Cleanup required
+editing the ruleset:
+
+```text
+$ gh api -X PUT .../rulesets/20884837 --input <main-only payload>
+{"include":["refs/heads/main"],"name":"protect-main"}
+$ git push origin --delete codex/ruleset-probe
+ - [deleted]  codex/ruleset-probe
+```
+
+That sequence **is** the residual bypass. An admin can edit or disable a ruleset and
+then do anything it forbids. Doing it once deliberately, and recording it here, is
+more honest than asserting it in a bullet.
+
+Final read-back:
+
+```json
+{"name":"protect-main","enforcement":"active","include":["refs/heads/main"],
+ "rules":["deletion","non_fast_forward","required_status_checks"],"checks":8}
+```
+
+### What is now true, and what is not
+
+| Operation | Before | After |
+| --- | --- | --- |
+| force-push `main` | allowed | **refused** |
+| delete `main` | allowed | **refused** |
+| push an unchecked commit to `main` | allowed | **refused** |
+| delete or re-point a `v*` tag | allowed | **refused** |
+| publish a release by hand via the API/UI | allowed | still allowed |
+| an admin disabling a ruleset first | allowed | still allowed |
+
+The last two rows are the point of stating this precisely. Rulesets protect refs,
+not the Releases API, and they are administered by the same person they constrain.

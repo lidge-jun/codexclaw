@@ -183,7 +183,9 @@ id is unverified.
 - Tier: E8; executing surface: `release.yml`
 - Known bypass: manual `gh release create` or the GitHub UI
 - Residual risk: high — no tag protection or rulesets exist (003)
-- Wording downgrade: yes. Final enforcement layer: **none**; a tag ruleset is a
+- Wording downgrade: yes. Final enforcement layer: **`protect-release-tags`** +
+  **`protect-main`** (rulesets `20884836` / `20884837`, added 2026-08-15; see 060).
+  Manual publication through the UI is still possible — a ruleset is a
   recommended follow-up, out of scope here.
 
 ## Accept criteria
