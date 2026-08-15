@@ -6,6 +6,52 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-08-15
+
+### Fixed
+
+- **PABCD cycles could be recorded without happening.** Reported as "five or six
+  cycles done as one or two, everything built in B, the audit skipped entirely."
+  The first hypothesis was missing hooks; all 21 are registered and the installed
+  cache is diff-identical to the repo, so that was wrong. Reading
+  `.codexclaw/ledger.jsonl` instead: across 990 gated edges, `A>B` clears in under
+  a second 124 times out of 323 (38%), 70 runs show two or more gated edges
+  clearing in the same second, and the rate is rising — 20% in June, 23% in July,
+  27% in August.
+
+  Three gates now refuse the shapes behind it.
+
+  `CYCLE-COMPLETION-01` — a work-phase can no longer be closed while its tasks are
+  open. `advanceWorkPhase()` marked a phase done without reading its tasks and
+  `remainingWorkPhases()` only checks phase status, so one D-close could retire a
+  phase holding five unfinished units with nothing to show for it. The preflight
+  runs before any write, so a refusal leaves state, the PABCD ledger and the
+  goalplan untouched, and a bound session whose goalplan cannot be read is
+  refused rather than waved through.
+
+  `TRIGGER-AUTHORITY-01` — natural language can enter a cycle from IDLE but can no
+  longer move one that is running. A phrase like "구현해" used to write `phase`
+  directly, with no adjacency check, no attest and no ledger row, so IDLE jumped
+  to B leaving no trace the ledger could show. The loop-arm branch now also runs
+  before the trigger branch: "pabcd 여러 번 돌려서 구현해" reads as both, and the
+  prompt that most clearly asks for a loop was getting a BUILD directive.
+
+  `SOURCE-DELTA-01` — `B>C` is refused when the source is byte-identical to what it
+  was on entry to B, since B is the implementation phase. Reuses
+  `captureSourceIdentity()` rather than adding another tree hash. Advisory by
+  design: committing work made in P also moves HEAD and passes, and a shared
+  worktree attributes another session's edits to this one.
+
+  Two things worth recording. The gate refused the very cycle that built it,
+  because the work had been committed before entering B — the same shape observed
+  one cycle earlier when nothing stopped it. And the first source-delta test
+  failed because writing session state under `.codexclaw/` registered as a tree
+  change, so the gate counted its own machinery as implementation work.
+
+  What this does not do: cycle count is set by how many work-phases the roadmap
+  lock registers, and no runtime gate can supply that after the fact. These gates
+  hold the declared completion conditions and make violations visible.
+
 ### Added
 
 - **Enforcement for the release gates.** Two repository rulesets:
