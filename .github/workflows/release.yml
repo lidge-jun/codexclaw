@@ -1,0 +1,206 @@
+name: Release
+
+# The release train. Publication is gated on evidence that describes THIS commit:
+# exact-SHA CI conclusions, a green suite measured here, the inventory hash the docs
+# were generated from, and the packed-install lifecycle. `cxc release verify` fails
+# closed before anything is published.
+#
+# Step order matters: build and measure FIRST, then record receipts from steps that
+# actually ran, then verify, then publish. Verifying a `build` receipt before the
+# build would be verifying an assertion.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, e.g. 0.2.0-beta.1"
+        required: true
+      prerelease:
+        description: "Mark the GitHub Release as a prerelease"
+        type: boolean
+        default: true
+      dry_run:
+        description: "Run the gate but do not publish"
+        type: boolean
+        default: false
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # create the release and upload assets
+  actions: read     # read exact-SHA run conclusions; declaring any permission
+                    # zeroes the rest, so this must be explicit
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      CODEXCLAW_SKIP_REPOMAP_SMOKE: "1"
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Resolve the release version and exact SHA
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "push" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="${{ inputs.version }}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "releasing $version from $GITHUB_SHA"
+
+      - run: npm ci
+
+      # 1. Measure. The suite and the build must happen before the receipts that
+      #    describe them exist.
+      - name: Run the suite
+        id: suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test 2>&1 | tee /tmp/suite.log
+          pass="$(grep -Eo '^. pass [0-9]+' /tmp/suite.log | tail -1 | grep -Eo '[0-9]+')"
+          fail="$(grep -Eo '^. fail [0-9]+' /tmp/suite.log | tail -1 | grep -Eo '[0-9]+')"
+          echo "pass=$pass" >> "$GITHUB_OUTPUT"
+          echo "fail=$fail" >> "$GITHUB_OUTPUT"
+
+      - name: Gate and inventory
+        id: inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          node plugins/codexclaw/scripts/gate.mjs
+          node plugins/codexclaw/scripts/inventory.mjs --check
+          echo "hash=$(node plugins/codexclaw/scripts/inventory.mjs --hash)" >> "$GITHUB_OUTPUT"
+          published="$(node plugins/codexclaw/scripts/inventory.mjs --published)"
+          echo "tests=$(node -p "JSON.parse(process.argv[1]).tests" "$published")" >> "$GITHUB_OUTPUT"
+          echo "skills=$(node -p "JSON.parse(process.argv[1]).skills" "$published")" >> "$GITHUB_OUTPUT"
+          echo "hooks=$(node -p "JSON.parse(process.argv[1]).hooks" "$published")" >> "$GITHUB_OUTPUT"
+
+      - name: Build and archive the payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          node plugins/codexclaw/scripts/build.mjs
+          git diff --exit-code plugins/codexclaw/components
+          mkdir -p dist-artifacts
+          tar -czf "dist-artifacts/codexclaw-payload-${{ steps.resolve.outputs.version }}.tar.gz" \
+            -C plugins codexclaw
+          (cd dist-artifacts && sha256sum ./*.tar.gz > SHA256SUMS && cat SHA256SUMS)
+
+      # 2. Verify the OTHER workflows on this exact SHA. "Latest run" would let a
+      #    green run from another commit vouch for this one.
+      - name: Exact-head CI conclusions
+        id: exacthead
+        shell: bash
+        run: |
+          set -euo pipefail
+          conclusion_for() {
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${GITHUB_SHA}&per_page=100" \
+              --jq "[.workflow_runs[] | select(.name==\"$1\")] | sort_by(.created_at) | last | .conclusion // \"none\""
+          }
+          ci="$(conclusion_for "CI")"
+          packed="$(conclusion_for "Packed install lifecycle")"
+          echo "CI=$ci packed-install=$packed for $GITHUB_SHA"
+          echo "ci=$ci" >> "$GITHUB_OUTPUT"
+          echo "packed=$packed" >> "$GITHUB_OUTPUT"
+
+      # 3. Record receipts from the steps that actually ran.
+      - name: Assemble the release candidate
+        shell: bash
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          REL=(node bin/codexclaw.mjs release)
+          "${REL[@]}" init --version "$VERSION" --sha "$GITHUB_SHA"
+
+          "${REL[@]}" tests --version "$VERSION" \
+            --pass "${{ steps.suite.outputs.pass }}" --fail "${{ steps.suite.outputs.fail }}" --sha "$GITHUB_SHA"
+          "${REL[@]}" inventory --version "$VERSION" \
+            --hash "${{ steps.inventory.outputs.hash }}" \
+            --skills "${{ steps.inventory.outputs.skills }}" \
+            --hooks "${{ steps.inventory.outputs.hooks }}" \
+            --published-tests "${{ steps.inventory.outputs.tests }}"
+
+          "${REL[@]}" receipt --version "$VERSION" --name test-suite --evidence "$RUN_URL" --sha "$GITHUB_SHA"
+          "${REL[@]}" receipt --version "$VERSION" --name gate --evidence "$RUN_URL" --sha "$GITHUB_SHA"
+          "${REL[@]}" receipt --version "$VERSION" --name build --evidence "$RUN_URL" --sha "$GITHUB_SHA"
+          "${REL[@]}" receipt --version "$VERSION" --name inventory-sync \
+            --evidence "${{ steps.inventory.outputs.hash }}" --sha "$GITHUB_SHA"
+
+          # A non-success conclusion is recorded as failed, so verify refuses rather
+          # than the workflow quietly skipping the receipt.
+          ci_status=missing; [ "${{ steps.exacthead.outputs.ci }}" = "success" ] && ci_status=present
+          packed_status=missing; [ "${{ steps.exacthead.outputs.packed }}" = "success" ] && packed_status=present
+          "${REL[@]}" receipt --version "$VERSION" --name platform-ci \
+            --status "$ci_status" --evidence "CI on $GITHUB_SHA: ${{ steps.exacthead.outputs.ci }}" --sha "$GITHUB_SHA"
+          "${REL[@]}" receipt --version "$VERSION" --name packed-install-lifecycle \
+            --status "$packed_status" \
+            --evidence "packed-install on $GITHUB_SHA: ${{ steps.exacthead.outputs.packed }}" --sha "$GITHUB_SHA"
+
+          for p in ubuntu windows macos; do
+            "${REL[@]}" platform --version "$VERSION" --platform "$p" --sha "$GITHUB_SHA" \
+              --ci-run "${{ github.run_id }}"
+          done
+
+      # 4. Fail closed. --allow-deferred covers the MLB 1.0 receipts on a prerelease
+      #    and is recorded on the manifest; it never excuses a missing train receipt,
+      #    and a stable tag gets no such allowance.
+      - name: Verify the release gate
+        shell: bash
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          flags=""
+          case "$VERSION" in *-*) flags="--allow-deferred" ;; esac
+          node bin/codexclaw.mjs release verify --version "$VERSION" \
+            --actual-inventory-hash "${{ steps.inventory.outputs.hash }}" $flags
+          cp ".codexclaw/release/candidate-${VERSION}.json" dist-artifacts/
+
+      - name: Publish the GitHub Release
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        shell: bash
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            args=(--title "codexclaw $tag" --target "$GITHUB_SHA" --generate-notes)
+            case "$VERSION" in *-*) args+=(--prerelease) ;; esac
+            gh release create "$tag" "${args[@]}"
+          fi
+          gh release upload "$tag" dist-artifacts/* --clobber
+
+      # 5. Post-publish verification: re-read what GitHub actually has.
+      - name: Verify the published release
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        shell: bash
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+          gh release view "$tag" --json tagName,isPrerelease,assets
+          count="$(gh release view "$tag" --json assets --jq '.assets | length')"
+          [ "$count" -ge 3 ] || { echo "expected >=3 assets, got $count"; exit 1; }
+          echo "published $tag with $count assets"

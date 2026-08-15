@@ -13,7 +13,9 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # macOS is the primary development platform and was the only untested one;
+        # a path-case or BSD-tool difference would otherwise ship undetected.
+        os: [ubuntu-latest, windows-latest, macos-latest]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     env:

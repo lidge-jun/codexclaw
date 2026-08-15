@@ -1,0 +1,175 @@
+name: Packed install lifecycle
+
+# Source regression (ci.yml) proves the tree compiles and tests pass. This workflow
+# proves the INSTALLED product works: the payload archive is well-formed, and a real
+# `codex` install/upgrade/uninstall cycle succeeds against an immutable ref.
+#
+# Lane split follows what each lane can honestly claim: the artifact job needs no
+# `codex` binary, the install job genuinely does (hook re-trust shells out to
+# `codex features list`). Neither lane uses continue-on-error — a lane that cannot
+# fail is not evidence.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  artifact:
+    name: artifact (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    env:
+      CODEXCLAW_SKIP_REPOMAP_SMOKE: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+
+      - name: Build the payload
+        run: node plugins/codexclaw/scripts/build.mjs
+
+      # Committed dist IS the install artifact (packaging.test.mjs). If a rebuild
+      # changes it, the published payload does not match its source.
+      - name: Committed dist matches source
+        run: git diff --exit-code plugins/codexclaw/components
+
+      - name: Archive the payload
+        if: runner.os != 'Windows'
+        run: |
+          set -euo pipefail
+          mkdir -p dist-artifacts
+          tar -czf "dist-artifacts/codexclaw-payload-${GITHUB_SHA}.tar.gz" -C plugins codexclaw
+          cd dist-artifacts
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "codexclaw-payload-${GITHUB_SHA}.tar.gz" > SHA256SUMS
+          else
+            shasum -a 256 "codexclaw-payload-${GITHUB_SHA}.tar.gz" > SHA256SUMS
+          fi
+          cat SHA256SUMS
+
+      # The payload ships its own dispatcher precisely so an install does not need
+      # `cxc` on PATH. Extract the archive elsewhere and drive it by path.
+      - name: Extracted payload dispatcher runs without cxc on PATH
+        if: runner.os != 'Windows'
+        run: |
+          set -euo pipefail
+          if command -v cxc >/dev/null 2>&1; then echo "unexpected cxc on PATH"; exit 1; fi
+          work="$(mktemp -d)"
+          tar -xzf "dist-artifacts/codexclaw-payload-${GITHUB_SHA}.tar.gz" -C "$work"
+          node "$work/codexclaw/bin/cxc.mjs" orchestrate status --session ci-artifact-probe
+          node "$work/codexclaw/bin/cxc.mjs" release 2>&1 | head -3
+          rm -rf "$work"
+
+      - name: Upload payload artifact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: codexclaw-payload
+          path: dist-artifacts/
+          if-no-files-found: error
+
+  install:
+    name: install (${{ matrix.os }})
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install the Codex CLI
+        run: npm install --global @openai/codex@0.147.0
+
+      # A marketplace install must not depend on a PATH `cxc`: README and
+      # cxc-resolve.ts both say the payload dispatcher is addressed by path. Asserting
+      # the absence up front is what proves the steps below exercise the INSTALLED
+      # payload rather than this checkout.
+      - name: Install, retrust, upgrade, and remove against an immutable ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v cxc >/dev/null 2>&1; then echo "unexpected cxc on PATH"; exit 1; fi
+
+          export CODEX_HOME="${RUNNER_TEMP}/codex-home"
+          mkdir -p "$CODEX_HOME"
+
+          # Resolve the payload from the installer's own output. A bare `find` matches
+          # the install cache, the marketplace staging tree AND the marketplace source,
+          # so it is not an identity check.
+          install_and_resolve() {
+            local json installed manifest
+            json="$(codex plugin add codexclaw@codexclaw --json)"
+            installed="$(node -e 'const j=JSON.parse(process.argv[1]);process.stdout.write(j.installedPath||j.path||"")' "$json")"
+            if [ -z "$installed" ]; then
+              echo "plugin add --json did not report an install path: $json"; return 1
+            fi
+            case "$installed" in
+              "$CODEX_HOME"/*) : ;;
+              *) echo "refusing payload outside CODEX_HOME: $installed"; return 1 ;;
+            esac
+            manifest="$installed/.codex-plugin/plugin.json"
+            [ -f "$manifest" ] || { echo "no manifest at $manifest"; return 1; }
+            node -e 'if(require(process.argv[1]).name!=="codexclaw")process.exit(1)' "$manifest"
+            PLUGIN_ROOT="$installed"
+            PLUGIN_VERSION="$(node -p "require(process.argv[1]).version" "$manifest")"
+            echo "payload[$1]: $PLUGIN_ROOT version=$PLUGIN_VERSION"
+          }
+
+          codex plugin marketplace add "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" --ref "$GITHUB_SHA"
+          install_and_resolve head
+          HEAD_VERSION="$PLUGIN_VERSION"
+
+          node "$PLUGIN_ROOT/bin/cxc.mjs" hooks retrust --key codexclaw@codexclaw \
+            --codex-home "$CODEX_HOME" --bootstrap-ok
+          node "$PLUGIN_ROOT/bin/cxc.mjs" doctor --json > "${RUNNER_TEMP}/doctor-head.json"
+          node -e 'const r=require(process.argv[1]);if(!r||typeof r!=="object")process.exit(1)' \
+            "${RUNNER_TEMP}/doctor-head.json"
+
+          # Upgrade path: drop to the previous release, then return to HEAD. A
+          # marketplace source cannot be re-pointed in place — adding the same name
+          # from a different ref fails with "already added from a different source" —
+          # so remove the marketplace first. The installed plugin need not be removed.
+          codex plugin remove codexclaw@codexclaw
+          codex plugin marketplace remove codexclaw
+          codex plugin marketplace add "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" --ref v0.1.0
+          install_and_resolve v0.1.0
+          OLD_VERSION="$PLUGIN_VERSION"
+
+          codex plugin marketplace remove codexclaw
+          codex plugin marketplace add "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" --ref "$GITHUB_SHA"
+          install_and_resolve head-again
+
+          # The upgrade must be OBSERVABLE. An unchanged version means it silently kept
+          # the old payload, which would otherwise pass as a green job.
+          [ "$PLUGIN_VERSION" != "$OLD_VERSION" ] || { echo "upgrade no-op: still $OLD_VERSION"; exit 1; }
+          [ "$PLUGIN_VERSION" = "$HEAD_VERSION" ] || { echo "unexpected version $PLUGIN_VERSION"; exit 1; }
+
+          node "$PLUGIN_ROOT/bin/cxc.mjs" hooks retrust --key codexclaw@codexclaw \
+            --codex-home "$CODEX_HOME" --bootstrap-ok
+
+          codex plugin remove codexclaw@codexclaw
+          codex plugin marketplace remove codexclaw
+
+          # Residue: the payload cache must be gone after removal.
+          if [ -d "$PLUGIN_ROOT" ]; then
+            echo "uninstall residue: $PLUGIN_ROOT still exists"
+            find "$PLUGIN_ROOT" -maxdepth 2 | head -20
+            exit 1
+          fi
+          echo "lifecycle OK: install -> retrust -> doctor -> downgrade -> upgrade -> remove, no residue"
