@@ -45,6 +45,8 @@ time; `package.json` and the git tag carry the bare semver.
 ```bash
 REPO=lidge-jun/codexclaw
 TAG=v0.2.0-beta.1
+RELEASE_TMP=$(mktemp -d)
+trap 'rm -rf "$RELEASE_TMP"' EXIT
 
 # 1. assets present (expect >= 3: payload archive, SHA256SUMS, candidate manifest)
 gh release view "$TAG" --repo "$REPO" --json tagName,assets,targetCommitish
@@ -60,6 +62,8 @@ fi
 
 # 3. the published manifest's candidateSha must equal that commit and origin/main
 gh release download "$TAG" --repo "$REPO" --pattern 'candidate-*.json' --dir "$RELEASE_TMP"
+n=$(ls "$RELEASE_TMP"/candidate-*.json 2>/dev/null | wc -l)
+[ "$n" -eq 1 ] || { echo "expected exactly 1 candidate asset, got $n"; exit 1; }
 MANIFEST_SHA=$(node -e "const fs=require('fs'),d=process.argv[1];const f=fs.readdirSync(d)[0];console.log(JSON.parse(fs.readFileSync(d+'/'+f,'utf8')).candidateSha)" "$RELEASE_TMP")
 [ "$MANIFEST_SHA" = "$TAG_COMMIT" ] || echo 'MISMATCH: manifest vs tag'
 [ "$MANIFEST_SHA" = "$(git rev-parse origin/main)" ] || echo 'MISMATCH: manifest vs main'

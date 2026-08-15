@@ -63,16 +63,35 @@ export CODEX_HOME="$CXC_LIFECYCLE_HOME"
 codex plugin marketplace add "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --ref "$GITHUB_SHA"
 codex plugin add codexclaw@codexclaw
 
-# resolve the INSTALLED payload root, then use its dispatcher directly
-PLUGIN_ROOT="$(find "$CODEX_HOME" -type d -path '*codexclaw*' -name bin -print -quit)/.."
+# resolve the INSTALLED payload root deterministically (004r3 #6):
+# find the plugin manifest, not the first directory named bin.
+resolve_payload() {
+  local manifest
+  manifest=$(find "$CODEX_HOME" -type f -path '*codexclaw*/.codex-plugin/plugin.json' -print -quit)
+  [ -n "$manifest" ] || { echo 'installed payload not found'; return 1; }
+  PLUGIN_ROOT=$(dirname "$(dirname "$manifest")")
+  node -e "const m=require(process.argv[1]);if(m.name!=='codexclaw')process.exit(1)" "$manifest"
+  echo "payload: $PLUGIN_ROOT ($(node -p "require('$manifest').version"))"
+}
+resolve_payload
+
 node "$PLUGIN_ROOT/bin/cxc.mjs" hooks retrust --key codexclaw@codexclaw \
   --codex-home "$CODEX_HOME" --bootstrap-ok
 node "$PLUGIN_ROOT/bin/cxc.mjs" doctor --json
 
-# upgrade path: previous release ref -> HEAD, retrust again
+# upgrade path: install the PREVIOUS release, then move to HEAD.
+# 'codex plugin marketplace upgrade' refreshes an existing snapshot; re-resolve the
+# payload after every ref change, since PLUGIN_ROOT and its version both move.
+codex plugin remove codexclaw@codexclaw
+codex plugin marketplace remove codexclaw
 codex plugin marketplace add "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --ref v0.1.0
 codex plugin add codexclaw@codexclaw
+resolve_payload   # expect the v0.1.0 version string
+
 codex plugin marketplace add "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --ref "$GITHUB_SHA"
+codex plugin marketplace upgrade
+codex plugin add codexclaw@codexclaw
+resolve_payload   # expect the HEAD version string, different from the previous line
 node "$PLUGIN_ROOT/bin/cxc.mjs" hooks retrust --key codexclaw@codexclaw \
   --codex-home "$CODEX_HOME" --bootstrap-ok
 
@@ -80,9 +99,15 @@ codex plugin remove codexclaw@codexclaw
 # residue assertion over $CODEX_HOME
 ```
 
-Two properties make this lane real rather than decorative: `--ref "$GITHUB_SHA"`
-pins an immutable commit instead of a moving branch, and the PATH assertion proves
-the commands exercise the **installed payload**, not a checkout binary. `cxc` is not
+`codex plugin marketplace` exposes `add|list|upgrade|remove` and `codex plugin`
+exposes `add|list|marketplace|remove` (verified against the local CLI), so every verb
+above exists.
+
+Three properties make this lane real rather than decorative: `--ref "$GITHUB_SHA"`
+pins an immutable commit instead of a moving branch; the PATH assertion proves the
+commands exercise the **installed payload**, not a checkout binary; and
+`resolve_payload` re-reads the manifest after every ref change, so an upgrade that
+silently kept the old payload shows up as an unchanged version string. `cxc` is not
 on PATH after a marketplace install (`README.md:74-80`, `cxc-resolve.ts:4-14`).
 
 ## Lane 4 — `release.yml`
@@ -95,7 +120,10 @@ on:
       prerelease: { type: boolean, default: true }
   push:
     tags: ["v*"]
-permissions: { contents: write }
+permissions:
+  contents: write   # create the release
+  actions: read     # query exact-SHA run conclusions (004r3 #5:
+                    # specifying any permission zeroes the rest)
 concurrency: { group: release, cancel-in-progress: false }
 ```
 

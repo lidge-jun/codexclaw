@@ -47,7 +47,10 @@ it from the most recent candidate manifest when one is present and leaves it
 untouched otherwise; a stale tests badge is caught by the release gate's
 `testSuite` receipt (030), not by pretending a committed file knows the current
 suite size. `inventory.mjs --hash` prints `sha256:<canonical json>` for 030's
-`inventoryHash` receipt.
+`inventoryHash` receipt, and `inventory.mjs --published` parses every registered marker
+surface and prints the measured `{tests, skills, hooks}` triple for 030's
+`publishedCounts` — failing if two surfaces disagree, so the release gate's comparison
+is measured rather than self-asserted (004r3 #3).
 
 ### Injection mechanism
 
@@ -95,7 +98,7 @@ their own violation class.
 
 | Path | Change |
 | --- | --- |
-| `plugins/codexclaw/scripts/inventory.mjs` | NEW — `collectInventory`, `renderBlock`, `applyBlocks`, `checkSets`; CLI `--check` / `--write` / `--hash` |
+| `plugins/codexclaw/scripts/inventory.mjs` | NEW — `collectInventory`, `renderBlock`, `applyBlocks`, `checkSets`, `readPublished`; CLI `--check` / `--write` / `--hash` / `--published` |
 | `plugins/codexclaw/inventory.json` | NEW — generated artifact, committed |
 | `plugins/codexclaw/scripts/gate.mjs` | add `checkInventory()` to `runGate()` |
 | `plugins/codexclaw/scripts/sync-readme-badges.mjs` | delegate to `inventory.mjs`; keep the entrypoint |
@@ -123,6 +126,7 @@ their own violation class.
 | 4 | equal-count substitution fails | swap one manifest entry for another existing file (count stays 21), expect exit 1 |
 | 5 | missing marker fails | delete a marker pair from a target, expect exit 1 |
 | 6 | unknown marker id fails | add a marker with an unregistered id, expect exit 1 |
+| 7 | surface disagreement fails | hand-edit one README badge away from the others, run `--published`, expect a non-zero exit naming both surfaces |
 
 Criterion 4 is load-bearing: it is precisely the case `gate.mjs:277` misses today.
 If it does not fail, the new gate is no better than the cardinality check it

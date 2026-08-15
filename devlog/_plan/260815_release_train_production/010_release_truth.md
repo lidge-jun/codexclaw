@@ -67,6 +67,7 @@ before and 0 after. Without the before-observation this step proves nothing.
 | `structure/INDEX.md:142-167` | add three skills; remove `ultraresearch` |
 | `structure/INDEX.md` (8 sites) | `devlog/_plan/mvp_*` → `devlog/_fin/mvp_*`; drop the missing `codex-inject.ts` reference |
 | `structure/60_native_capabilities.md:155` | remove `cxc-ultraresearch` |
+| `plugins/codexclaw/skills/skill-hub/references/catalog.md:30` | remove the row claiming `skills/ultraresearch/SKILL.md` ships — found while validating criterion 2; **not** in 002 original table |
 
 ### 3. New file
 
@@ -85,8 +86,11 @@ OUT: the generator (020), workflows (040), version bumps (050).
 # 1. no stale test counts anywhere
 rg -n '1,213|1%2C213' README.md README.ko.md README.zh.md docs-site/src structure   # expect: no matches
 
-# 2. the phantom skill is gone from live docs
-rg -n 'ultraresearch' structure docs-site/src plugins/codexclaw/skills             # expect: no matches
+# 2. no doc claims ultraresearch SHIPS as a skill.
+#    Historical formerly/absorbed mentions are legitimate and stay:
+#    skills/README.md:71-72, search/SKILL.md:118,285, lunasearch/SKILL.md:149,162-167.
+rg -n 'skills/ultraresearch/' structure docs-site/src plugins/codexclaw/skills     # expect: no matches
+rg -n 'cxc-ultraresearch' structure docs-site/src                                  # expect: no matches
 
 # 3. the three worktree hooks are documented everywhere hooks are listed
 for f in docs-site/src/content/docs/reference/hooks.md \
@@ -102,22 +106,39 @@ done                                                                            
 # 4. committed dist matches source
 node plugins/codexclaw/scripts/build.mjs && git diff --exit-code plugins/codexclaw/components
 
-# 5. every repo-root path INDEX.md points at exists
-rg -o '\\((?:\\.\\./)*((?:devlog|structure|plugins|docs|docs-site|scripts|bin|cli)/[^)]+)\\)' -r '$1' \
+# 5. every repo-root path INDEX.md names actually exists
+rg -o '`((?:devlog|structure|plugins|docs|docs-site|scripts|cli|bin)/[A-Za-z0-9_./-]+)`' -r '$1' \
    structure/INDEX.md | sort -u | while read -r p; do [ -e "$p" ] || echo "MISSING: $p"; done
 
 # 6. regression guards
 npm test && node plugins/codexclaw/scripts/gate.mjs
 ```
 
-### Criterion 5 scope (004 #6, corrected)
+### Criterion 5 scope — measured, not assumed
 
-The first draft of this check extracted every inline-code token and reported 103
-false misses — plugin-relative (`components/cxc-ops`), component-relative
-(`agents/openai.yaml`) and illustrative paths are not repo-root paths. The check
-above extracts only **markdown link targets rooted at known top-level directories**,
-which is the class that actually broke when `mvp_*` moved to `_fin/`.
+Two earlier drafts were wrong in opposite directions. Extracting every inline-code
+token reported 103 false misses (plugin-relative `components/cxc-ops`,
+component-relative `agents/openai.yaml`, illustrative paths). Extracting only
+markdown **link targets** reported `miss_count=0` — a silent no-op, because the dead
+references are inline code, not links.
 
-Activation requirement: run it **before** the corrections — it must list the
-`_plan/mvp_*` misses — and **after** — it must print nothing. Output that is empty
-both times means the check is not observing anything and the criterion is unmet.
+The command above anchors inline-code tokens to known top-level directories. Run
+against the current tree it extracts 33 candidates and reports exactly 7 misses:
+
+```text
+MISSING: devlog/_plan/mvp_hard/
+MISSING: devlog/_plan/mvp_hard/000_INDEX.md
+MISSING: devlog/_plan/mvp_hard/140_L14_loop_goal_routing_followup.md
+MISSING: devlog/_plan/mvp_hard/141_L14_L19_contradiction_patch_plan.md
+MISSING: devlog/_plan/mvp_hard/200_L20_gap_register.md
+MISSING: devlog/_plan/mvp_res/
+MISSING: devlog/_plan/mvp_res/000_INDEX.md
+```
+
+That is the intended class and nothing else. This pre-correction output is the
+**before** observation; after the corrections the same command must print nothing.
+Empty output in both runs would mean the check observes nothing and the criterion is
+unmet.
+
+Note: `../opencodex/src/codex-inject.ts` lies outside the repo root and is not
+matched by this check; it is corrected by hand as a listed file-map row.

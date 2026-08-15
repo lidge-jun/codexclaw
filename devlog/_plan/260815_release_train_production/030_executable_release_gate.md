@@ -49,7 +49,10 @@ interface CandidateManifest {
 2. `capturedSha !== candidateSha` → `"<name> captured on <sha>, candidate is <sha>"`.
 3. `testSuite.fail > 0` → blocker; `testSuite.measuredSha !== candidateSha` → blocker.
 4. `inventoryHash` recomputed from the checkout must match.
-5. **Published-count binding (004r2 #2):** `publishedCounts.tests !== testSuite.pass`,
+5. **Published-count binding (004r2 #2, measured — 004r3 #3):** the counts come from
+   `inventory.mjs --published`, which parses each registered marker surface and fails
+   if the surfaces disagree with each other, so the comparison is never tautological.
+    `publishedCounts.tests !== testSuite.pass`,
    or `publishedCounts.skills/hooks` differing from the inventory, is a blocker. This
    is what stops a release shipping a fresh test receipt beside a stale public badge —
    the exact silent drift 001 documented.
@@ -58,23 +61,32 @@ interface CandidateManifest {
 
 | Verb | Full syntax |
 | --- | --- |
-| `init` | `cxc release init --version <v> [--sha <sha>]` — writes `.codexclaw/release/candidate-<v>.json` with the six train receipts, all `missing` |
-| `receipt` | `cxc release receipt --version <v> --name <n> --evidence <e> [--sha <sha>] [--status present|failed|deferred] [--reason <r>]` |
-| `platform` | `cxc release platform --version <v> --platform ubuntu|windows|macos --sha <sha> --ci-run <id> [--passed|--failed]` |
-| `tests` | `cxc release tests --version <v> --pass <n> --fail <n> --sha <sha>` — sets `testSuite` |
-| `inventory` | `cxc release inventory --version <v> --hash <sha256:...> --skills <n> --hooks <n> --published-tests <n>` — sets `inventoryHash` and `publishedCounts` |
-| `verify` | `cxc release verify --version <v> [--json] [--allow-deferred]` — exit 1 on any blocker |
+| `init` | `cxc release init --version <v> [--candidate <path>] [--sha <sha>]` — writes `.codexclaw/release/candidate-<v>.json` seeded with the full receipt set (see below) |
+| `receipt` | `cxc release receipt (--version <v> | --candidate <path>) --name <n> --evidence <e> [--sha <sha>] [--status present|failed|deferred] [--reason <r>]` |
+| `platform` | `cxc release platform (--version <v> | --candidate <path>) --platform ubuntu|windows|macos --sha <sha> --ci-run <id> [--passed|--failed]` |
+| `tests` | `cxc release tests (--version <v> | --candidate <path>) --pass <n> --fail <n> --sha <sha>` — sets `testSuite` |
+| `inventory` | `cxc release inventory (--version <v> | --candidate <path>) --hash <sha256:...> --skills <n> --hooks <n> --published-tests <n>` — sets `inventoryHash` and `publishedCounts` |
+| `verify` | `cxc release verify (--version <v> | --candidate <path>) [--json] [--allow-deferred]` — exit 1 on any blocker |
 
-Every verb takes `--version <v>` or `--candidate <path>`. Zero matching candidates
-and multiple matching candidates are both explicit errors (004 #4). The dedicated
+Every verb takes `--version <v>` or `--candidate <path>`; the two are mutually
+exclusive. For `init`, `--candidate` names the file to create and `--version` remains
+required for the manifest body. For the other verbs, `--version` resolves
+`.codexclaw/release/candidate-<v>.json`; zero matches and multiple matches are both
+explicit errors (004 #4). The dedicated
 `tests` and `inventory` verbs exist because generic `receipt --evidence` cannot
 populate typed top-level fields (004r2 #1).
 
 ### Receipts for this train
 
-`inventory-sync`, `test-suite`, `gate`, `build`, `packed-install-lifecycle`,
-`platform-ci`. MLB 1.0 receipts stay `deferred` with a reason, recorded in the
-published manifest so the artifact states what it skipped. `packed-install-lifecycle`
+`init` seeds **both** sets so the manifest is complete from creation (004r3 #9):
+
+- six train receipts, status `missing`: `inventory-sync`, `test-suite`, `gate`,
+  `build`, `packed-install-lifecycle`, `platform-ci`
+- the nine `MLB_1_0_RECEIPTS`, status `deferred`, each with a `deferredReason` taken
+  from a table in `release-cli.ts` ("target: MLB 1.0, not required for 0.2.x").
+  `validateCandidateManifest` rejects a `deferred` receipt with an empty reason, and
+  `verify` refuses deferred receipts unless `--allow-deferred` is passed, which is itself
+  recorded in the manifest. `packed-install-lifecycle`
 is **not** satisfiable by artifact-lane evidence: if the real install lane cannot
 run, the release is BLOCKED (004 #9, tightened in round 2).
 
@@ -98,7 +110,7 @@ run, the release is BLOCKED (004 #9, tightened in round 2).
 | --- | --- | --- | --- | --- |
 | `testSuite` | `cxc release tests` (040 parses `npm test` output) | candidate JSON | `validateCandidateManifest`: ints ≥ 0, sha format | `isReleaseReady` rules 3 and 5, release notes |
 | `inventoryHash` | `cxc release inventory --hash $(inventory.mjs --hash)` | candidate JSON | `sha256:` prefix check | `isReleaseReady` rule 4 |
-| `publishedCounts` | `cxc release inventory` from the rendered docs | candidate JSON | int triple | `isReleaseReady` rule 5 |
+| `publishedCounts` | `inventory.mjs --published` parses every registered publication surface and prints the measured triple; `cxc release inventory` stores it | candidate JSON | int triple; disagreement between surfaces is a generator error before it reaches the CLI | `isReleaseReady` rule 5 |
 | `capturedSha` / `capturedAt` | `receipt`/`platform` from `--sha` (default `GITHUB_SHA`) and `toISOString()` | receipt object | `present` requires both | `isReleaseReady` rules 1-2, `verify --json` |
 
 No `release-manifest.ts` exists or is created. The inventory artifact carries no

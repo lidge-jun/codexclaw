@@ -40,7 +40,18 @@ Three causes generated most of the thirteen:
 | 12 | Medium | **folded** | Scope boundary extended: `CHANGELOG.md`, `.gitignore`, `plugins/codexclaw/inventory.json`, `plugins/codexclaw/bin/cxc.mjs`, `bin/codexclaw.mjs`, `plugins/codexclaw/components/*/package.json`, `plugins/codexclaw/.codex-plugin/plugin.json` (exact path). |
 | 13 | Medium | **folded** | Exact verifier commands recorded in 050 and 010 (below). |
 
-## Amended field chains (replaces 020 §chain and 030 §chain)
+## Round-1 drafts — SUPERSEDED, NON-NORMATIVE
+
+> Everything from here to "Round 2" is the round-1 amendment draft. Round 2 showed
+> these sections themselves contradicted the rewritten docs (generic `receipt` for
+> `testSuite`, artifact evidence for the install receipt, the 103-false-miss path
+> command). They are kept only as an audit trail. **Canonical text lives in the
+> phase docs:** field chains in `030_executable_release_gate.md` Field chains,
+> verifiers in `010_release_truth.md` and `050_publish_and_close.md` Accept
+> criteria. Where they disagree, the phase doc wins. Round-1 row 9 in particular is
+> superseded: the install receipt is NOT satisfiable by artifact-lane evidence.
+
+### (superseded) Amended field chains
 
 `CandidateManifest.testSuite { pass, fail, measuredSha }`
 
@@ -73,7 +84,7 @@ No `release-manifest.ts` exists or is created; the earlier reference was wrong.
 `measuredCommit` (inventory) is deleted entirely — provenance lives only in the
 candidate manifest as `measuredSha`.
 
-## Amended verifiers (replaces 010 criterion 5 and 050 verifier line)
+### (superseded) Amended verifiers
 
 ```bash
 # 010 criterion 5 — every inline-code path in structure/INDEX.md exists
@@ -91,6 +102,29 @@ for n in 24 25 26 27 28; do gh issue view "$n" --repo lidge-jun/codexclaw --json
 The 010 loop is run **before** the corrections (must print the `_plan/mvp_*`
 misses) and **after** (must print nothing). A run that prints nothing both times
 is not evidence the check works.
+
+## Round 2 (same reviewer, re-audit)
+
+Round 2 confirmed the three load-bearing facts — `inventory.json` holds no SHA or
+test totals, `origin/main == origin/dev == 15b3d44a` with zero merged PRs to main,
+and the two dirty dist files match freshly compiled source byte-for-byte — but
+returned FAIL on 8 new blockers whose common cause was **appending amendments
+instead of replacing the text they contradicted**. The canonical tables still
+described the rejected design while a later section described the accepted one.
+
+| # | Sev | Disposition |
+| --- | --- | --- |
+| 1 | High | folded — `testSuite`/`inventoryHash` had no write path. 030 now has dedicated `cxc release tests` and `cxc release inventory` verbs; generic `receipt --evidence` cannot populate typed top-level fields. |
+| 2 | High | folded — removing tests from the inventory left the public tests badge unprotected. 030 adds `publishedCounts` and blocker rule 5: `publishedCounts.tests !== testSuite.pass` refuses the release. |
+| 3 | High | folded — 030 rewritten; the CLI table now carries full syntax with selectors on every verb, and the file map includes `bin/codexclaw.mjs`. |
+| 4 | High | folded — 040 rewritten; the PATH-`cxc` invocation, verify-before-build order, and the optional install lane are **gone**, not overridden. Artifact substitution removed from the install receipt. |
+| 5 | High | folded — 010 now lists both dist paths in its file map and scope, with the `git diff --exit-code` before/after activation requirement. |
+| 6 | High | folded — the naive path extractor reported 103 false misses (plugin-relative and illustrative paths). 010's check now extracts only markdown link targets rooted at known top-level dirs, which is the class that actually broke. |
+| 7 | Medium | folded — 050 now downloads and parses the manifest asset, dereferences annotated tags, and greps issue comments for a run id or release URL. |
+| 8 | Medium | folded — `generated/inventory.json` → `plugins/codexclaw/inventory.json`; 001 no longer says 020 generates the test count; "merge commit" → fast-forward; BLOCKED now names all three cases. |
+
+Lesson recorded for later cycles: an amendment that leaves the original
+instruction in place produces a nondeterministic plan. Replace the text.
 
 ## Residual, accepted
 
