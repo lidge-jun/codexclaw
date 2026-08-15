@@ -138,9 +138,11 @@ function hashRecords(cwd        , records                )         {
 
 /**
  * Entries the B>C source-delta gate must not count as implementation work
- * (SOURCE-DELTA-01, 050). Writing session state is a side effect of the gate's own
- * machinery: without this the FSM's `.codexclaw/sessions/<id>.json` write would
- * register as a tree change and the gate would clear itself on every run.
+ * (SOURCE-DELTA-01, 050). The FSM's own writes live under `.codexclaw/` — session
+ * state, the ledger, goalplans — so without this the act of recording a transition
+ * would register as a tree change and the gate would clear itself on every run.
+ * The whole directory is excluded, not just sessions, because every file in it is
+ * the harness writing about itself rather than the work being measured.
  *
  * Scoped to this option so the default identity — used for review-round and receipt
  * binding, where the state directory genuinely is part of the tree — is unchanged.
@@ -168,7 +170,7 @@ export function captureSourceIdentity(cwd        , options                 = {})
   } catch {
     return { kind: "unavailable", commitSha: "", dirty: false, capturedAt };
   }
-  if (options.excludeStateDir) {
+  if (options.excludeCodexclawArtifacts) {
     records = records.filter((r) => !r.path.startsWith(STATE_DIR_PREFIX));
   }
   if (records.length === 0) return { kind: "resolved", commitSha, dirty: false, capturedAt };

@@ -23,6 +23,9 @@ import {
 } from "../src/hook.ts";
 import { STATE_DIR, LEDGER_FILE, readState, writeState, defaultState } from "../src/state.ts";
 import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
+import { captureSourceIdentity } from "../src/source-identity.ts";
+import { spawnSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { readFileSync } from "node:fs";
 
 function freshCwd(): string {
@@ -722,4 +725,78 @@ test("040: turnless entry and turnless loop requests still persist their state",
     handleUserPromptSubmit(ups("pabcd 여러 번 돌려줘", cwdC, "tl3", ""));
     assert.equal(readState(cwdC, "tl3").loopArmSeen, true);
   } finally { rmSync(cwdC, { recursive: true, force: true }); }
+});
+
+// ── SOURCE-DELTA-01 (050): the chat path gets the same gate ────────────────
+// Wiring only the CLI would leave a phrasing that bypasses the check entirely.
+
+function gitRepoForHook(): string {
+  const cwd = mkdtempSync(join(tmpdir(), "codexclaw-hook-git-"));
+  const run = (...a: string[]) => spawnSync("git", a, { cwd, encoding: "utf8" });
+  run("init", "-q");
+  run("config", "user.email", "t@example.com");
+  run("config", "user.name", "t");
+  writeFileSync(join(cwd, "seed.txt"), "seed\n");
+  run("add", "-A");
+  run("commit", "-qm", "seed");
+  return cwd;
+}
+
+test("050: chat B>C is refused when the source never changed during B", () => {
+  const cwd = gitRepoForHook();
+  try {
+    writeState(cwd, {
+      ...defaultState("chat-delta"),
+      phase: "B",
+      orchestrationActive: true,
+      lastInjectedPhase: "B",
+      flags: { interview: false, auditPassed: true, checkPassed: false },
+      phaseEntrySource: captureSourceIdentity(cwd, { excludeCodexclawArtifacts: true }),
+    });
+    const out = handleUserPromptSubmit(ups("orchestrate c", cwd, "chat-delta", "t1"));
+    assert.match(out, /refused/);
+    assert.match(out, /SOURCE-DELTA-01/);
+    assert.equal(readState(cwd, "chat-delta").phase, "B");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050: chat A>B snapshots the source and chat B>C passes once it changed", () => {
+  const cwd = gitRepoForHook();
+  try {
+    writeState(cwd, {
+      ...defaultState("chat-life"),
+      phase: "A",
+      orchestrationActive: true,
+      lastInjectedPhase: "A",
+      flags: { interview: false, auditPassed: false, checkPassed: false },
+    });
+    handleUserPromptSubmit(ups("orchestrate b", cwd, "chat-life", "t1"));
+    const atB = readState(cwd, "chat-life");
+    assert.equal(atB.phase, "B");
+    assert.ok(atB.phaseEntrySource, "entering B from chat must snapshot too");
+
+    writeFileSync(join(cwd, "built.ts"), "export const z = 3;\n");
+    handleUserPromptSubmit(ups("orchestrate c", cwd, "chat-life", "t2"));
+    const atC = readState(cwd, "chat-life");
+    assert.equal(atC.phase, "C");
+    assert.equal(atC.phaseEntrySource, null, "a snapshot must not outlive its phase");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("050: closing or resetting a cycle clears the snapshot", () => {
+  for (const verb of ["orchestrate d", "orchestrate reset"]) {
+    const cwd = gitRepoForHook();
+    try {
+      writeState(cwd, {
+        ...defaultState("chat-clear"),
+        phase: "C",
+        orchestrationActive: true,
+        lastInjectedPhase: "C",
+        flags: { interview: false, auditPassed: true, checkPassed: true },
+        phaseEntrySource: captureSourceIdentity(cwd, { excludeCodexclawArtifacts: true }),
+      });
+      handleUserPromptSubmit(ups(verb, cwd, "chat-clear", "t1"));
+      assert.equal(readState(cwd, "chat-clear").phaseEntrySource, null, verb);
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  }
 });

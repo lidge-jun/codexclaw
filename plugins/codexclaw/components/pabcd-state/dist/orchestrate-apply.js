@@ -49,6 +49,9 @@ export function clearedIdle(state       )        {
     // loopArmSeen (the multi-cycle re-arm nudge is the feature; only an explicit
     // reset clears it — see the reset branch below).
     idleEditNudges: 0,
+    // 050: a B snapshot must never outlive its cycle. Left in place it would be
+    // compared against the next cycle's B and answer a question nobody asked.
+    phaseEntrySource: null,
   };
 }
 

@@ -44,6 +44,7 @@ import { captureInterviewAnswers } from "./interview-ledger.js";
 import { MIND_DISPATCH_DIRECTIVE } from "./minds.js";
 import { checkObjectivePlateau, readObjectiveKind, readObjectiveMetrics,                   } from "./metrics.js";
 import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan, nextOpenTask, unmetCriteria,                                   } from "./goalplan.js";
+import { captureSourceIdentity, compareSource, describeSource } from "./source-identity.js";
 import { peakFrictionVerdict, looksLikeFailure, recordFriction } from "./friction.js";
 import { discardStreak, readDivergenceCandidates } from "./divergence.js";
 import { hasRenderArtifactModified, hasRenderObservation, renderGroundingAdvisory } from "./render-observations.js";
@@ -707,6 +708,20 @@ function handleOrchestrateCommand(
   }
 
   // status: read-only, no state change, no ledger.
+  // SOURCE-DELTA-01 (050): the chat path gets the same B>C check as the CLI. Wiring
+  // only one of them would leave a phrasing that bypasses the gate entirely, which
+  // is the class of hole this unit exists to close.
+  if (state.phase === "B" && command.verb === "C" && state.phaseEntrySource) {
+    const now = captureSourceIdentity(payload.cwd, { excludeCodexclawArtifacts: true });
+    if (compareSource(state.phaseEntrySource, now).kind === "same") {
+      return buildContextOutput(
+        "UserPromptSubmit",
+        `[codexclaw — refused: the source is unchanged since B began (${describeSource(now)}), so nothing was implemented in this B (SOURCE-DELTA-01). Nothing was written.]`,
+      );
+    }
+  }
+
+
   if (result.control === "status") {
     return buildContextOutput("UserPromptSubmit", renderStatusLine(state.phase, state.flags));
   }
@@ -755,8 +770,14 @@ function handleOrchestrateCommand(
   }
 
   if (result.state) {
+    // 050: snapshot on entry to B, clear on every other phase. clearedIdle() already
+    // nulls it for reset/done; this covers the forward edges.
+    const entrySource = result.state.phase === "B"
+      ? captureSourceIdentity(payload.cwd, { excludeCodexclawArtifacts: true })
+      : null;
     writeState(payload.cwd, {
       ...result.state,
+      phaseEntrySource: entrySource,
       orchestrationActive: result.control === "reset" || result.control === "done" ? false : true,
       lastInjectedPhase: result.control === "reset" || result.control === "done" ? null : result.state.phase,
       injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,

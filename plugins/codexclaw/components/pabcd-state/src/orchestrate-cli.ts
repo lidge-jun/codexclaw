@@ -312,7 +312,8 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
       if (!legal.ok) {
         return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${legal.reason}` };
       }
-      const next: State = { ...state, phase: to, flags, orchestrationActive: true, lastInjectedPhase: to, stopBlockPhase: null, stopBlockCount: 0 };
+      // 050: I→P is never B, so the snapshot is explicitly cleared rather than spread.
+      const next: State = { ...state, phase: to, flags, orchestrationActive: true, lastInjectedPhase: to, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: null };
       writeState(args.cwd, next);
       resetRenderLedger(args.cwd);
       appendLedger(args.cwd, {
@@ -349,7 +350,7 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
   // and passes, a shared worktree attributes another session's edits to this one,
   // and no git means no opinion. It is a supporting signal, not the main defence.
   if (state.phase === "B" && to === "C" && state.phaseEntrySource) {
-    const now = captureSourceIdentity(args.cwd, { excludeStateDir: true });
+    const now = captureSourceIdentity(args.cwd, { excludeCodexclawArtifacts: true });
     const cmp = compareSource(state.phaseEntrySource, now);
     if (cmp.kind === "same") {
       return {
@@ -446,7 +447,7 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
   // SOURCE-DELTA-01 (050): snapshot the source on entry to B, and clear it on every
   // other edge so a stale snapshot cannot outlive its phase. applyHumanTransition()
   // takes no cwd, so the capture belongs here at the call site rather than inside it.
-  const entrySource = result.state.phase === "B" ? captureSourceIdentity(args.cwd, { excludeStateDir: true }) : null;
+  const entrySource = result.state.phase === "B" ? captureSourceIdentity(args.cwd, { excludeCodexclawArtifacts: true }) : null;
   writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: entrySource });
   // C-RENDER-GROUNDING-01: a new cycle starts at P — clear the render ledger so the
   // Stop advisory judges THIS cycle's rows only (stale rows both suppress and misfire).

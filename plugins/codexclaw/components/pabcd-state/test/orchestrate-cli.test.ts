@@ -764,7 +764,7 @@ function seedAtB(cwd: string, id: string) {
     ...defaultState(id),
     phase: "B",
     flags: { interview: false, auditPassed: true, checkPassed: false },
-    phaseEntrySource: captureSourceIdentity(cwd, { excludeStateDir: true }),
+    phaseEntrySource: captureSourceIdentity(cwd, { excludeCodexclawArtifacts: true }),
   });
 }
 

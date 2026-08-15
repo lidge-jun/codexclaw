@@ -108,10 +108,16 @@ function reconstructSourceIdentity(raw         )                        {
   if (o.kind !== "resolved" && o.kind !== "unavailable") return null;
   if (typeof o.commitSha !== "string") return null;
   if (typeof o.capturedAt !== "string") return null;
+  // Strict, because a half-parsed identity is actively harmful: coercing dirty:"yes"
+  // to false produced a "clean" snapshot that compared equal to a clean tree and
+  // refused a B>C that had every right to pass.
+  if (typeof o.dirty !== "boolean") return null;
+  if (o.treeHash !== undefined && typeof o.treeHash !== "string") return null;
+  if (o.dirty === true && typeof o.treeHash !== "string") return null;
   const id                 = {
     kind: o.kind,
     commitSha: o.commitSha,
-    dirty: o.dirty === true,
+    dirty: o.dirty,
     capturedAt: o.capturedAt,
   };
   if (typeof o.treeHash === "string") id.treeHash = o.treeHash;
