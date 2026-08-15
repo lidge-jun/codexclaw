@@ -63,12 +63,18 @@ function validateReviewBinding(state: State, args: OrchestrateCliArgs, sessionId
 
 /** REVIEW-BINDING-01 (060): one nonce per P>A. Time alone would collide on a fast
  *  re-plan, which is exactly the case the epoch exists to tell apart. */
+function mintEpoch(prefix: string): string {
+  return `${prefix}-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${randomBytes(3).toString("hex")}`;
+}
+
+/** REVIEW-BINDING-01 (060): one nonce per P>A. */
 function mintPlanEpoch(): string {
-  return `e-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${randomBytes(3).toString("hex")}`;
+  return mintEpoch("e");
 }
 import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan, type AdvanceResult, type Goalplan } from "./goalplan.ts";
 import { latestRound } from "./review-round.ts";
 import { planFilesHash, recomputed } from "./review-round-cli.ts";
+import { validateCheckReceipt } from "./check-gate.ts";
 import { evaluateInterviewGate } from "./interview.ts";
 import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.ts";
 import { resetRenderLedger } from "./render-observations.ts";
@@ -369,7 +375,7 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
       // 050: I→P is never B, so the snapshot is explicitly cleared rather than spread.
       // 050/060: I→P is neither B nor A, so both bindings are cleared explicitly —
       // this writer bypasses transition() and would otherwise spread stale values.
-      const next: State = { ...state, phase: to, flags, orchestrationActive: true, lastInjectedPhase: to, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: null, planUnit: null, planEpoch: null };
+      const next: State = { ...state, phase: to, flags, orchestrationActive: true, lastInjectedPhase: to, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: null, planUnit: null, planEpoch: null, checkEpoch: null };
       writeState(args.cwd, next);
       resetRenderLedger(args.cwd);
       appendLedger(args.cwd, {
@@ -436,6 +442,15 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
   // the terminal path matches the chat done-control and L5/L7's "resting state is
   // IDLE" contract. No intermediate phase="D" is persisted and no second ledger row.
   if (to === "D") {
+    // CHECK-BINDING-01 (075): a bound session must name a receipt this cycle produced.
+    // Runs before the goalplan preflight and every write, so a refusal leaves state,
+    // the PABCD ledger and the goalplan untouched.
+    if (state.slug) {
+      const receiptCheck = validateCheckReceipt(state, sessionId, args.attest?.testReceiptPath, args.cwd);
+      if (!receiptCheck.ok) {
+        return { code: 1, output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; ${receiptCheck.reason} Nothing was written.` };
+      }
+    }
     // CYCLE-COMPLETION-01 preflight (030): decide the work-phase close BEFORE any
     // write. Closing the FSM first and consulting the goalplan afterwards is what
     // let a refusal land as "FSM idle, ledger done, goalplan unfinished" — so the
@@ -521,7 +536,10 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
   // re-planning cannot leave an old approval looking current.
   const nextUnit = planBinding ? planBinding.unit : result.state.phase === "A" ? state.planUnit : null;
   const nextEpoch = planBinding ? planBinding.epoch : result.state.phase === "A" ? state.planEpoch : null;
-  writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: entrySource, planUnit: nextUnit, planEpoch: nextEpoch });
+  // 075: entering C mints a check epoch; staying in C keeps it; anywhere else drops it.
+  // A receipt records the epoch it ran under, so re-checking invalidates the old one.
+  const nextCheckEpoch = result.state.phase !== "C" ? null : state.phase === "C" ? state.checkEpoch : mintEpoch("c");
+  writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: entrySource, planUnit: nextUnit, planEpoch: nextEpoch, checkEpoch: nextCheckEpoch });
   // C-RENDER-GROUNDING-01: a new cycle starts at P — clear the render ledger so the
   // Stop advisory judges THIS cycle's rows only (stale rows both suppress and misfire).
   if (result.state.phase === "P") resetRenderLedger(args.cwd);

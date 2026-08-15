@@ -51,6 +51,9 @@ export const AUDIT_VERDICTS                      = new Set(["pass", "near-pass",
 
 
 
+
+
+
 /**
  * Forward dev transitions that require a valid attestation to advance (L2/020).
  * Ported to full cli-jaw parity: all four forward edges P>A, A>B, B>C, C>D are
@@ -102,6 +105,7 @@ export function coerceAttest(obj         )                     {
     if (paths.length > 0) att.planPaths = paths;
   }
   if (typeof rec.workPhaseId === "string") att.workPhaseId = rec.workPhaseId.trim();
+  if (typeof rec.testReceiptPath === "string") att.testReceiptPath = rec.testReceiptPath.trim();
   return att;
 }
 

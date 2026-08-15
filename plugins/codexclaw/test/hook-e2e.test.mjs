@@ -173,6 +173,7 @@ test("SessionStart state bootstrap: fresh compiled hook creates exact IDLE state
       phaseEntrySource: null,
       planUnit: null,
       planEpoch: null,
+      checkEpoch: null,
     });
 
     const attest = JSON.stringify({ from: "IDLE", to: "P", did: "SessionStart bound the session" });

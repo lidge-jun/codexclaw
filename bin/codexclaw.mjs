@@ -365,6 +365,11 @@ if (isMain) switch (cmd) {
     // Release-candidate manifest producer + fail-closed verifier (260815 wp3).
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
+  case "receipt":
+    // pabcd-state CLI expects argv as [kind, ...rest]; kind === "receipt".
+    // Runs a command and records the observed exit for the C>D gate (075).
+    process.exit(runPabcdState(process.argv.slice(2)));
+    break;
   case "review-round":
     // pabcd-state CLI expects argv as [kind, ...rest]; kind === "review-round".
     // Opens and inspects plan-audit rounds for the A>B binding gate (060). There is

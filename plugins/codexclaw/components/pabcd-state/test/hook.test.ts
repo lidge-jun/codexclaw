@@ -25,7 +25,7 @@ import { STATE_DIR, LEDGER_FILE, readState, writeState, defaultState } from "../
 import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
 import { captureSourceIdentity } from "../src/source-identity.ts";
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { readFileSync } from "node:fs";
 
 function freshCwd(): string {
@@ -575,7 +575,7 @@ test("L5: ledger entries carry ts/from/to/reason on chat + reset paths", () => {
 // "FSM idle, ledger done, goalplan unfinished". The preflight now runs first.
 
 test("chat D-close is refused while the work-phase has open tasks, and writes nothing", () => {
-  const cwd = mkdtempSync(join(tmpdir(), "codexclaw-hook-cycle-"));
+  const cwd = gitRepoForHook();
   try {
     const slug = "chat-cycle-pending";
     const plan = buildGoalplan({ objective: "chat cycle gate" });
@@ -585,9 +585,11 @@ test("chat D-close is refused while the work-phase has open tasks, and writes no
     ];
     plan.activeWorkPhaseId = "wp-1";
     writeGoalplan(cwd, plan);
-    writeState(cwd, { ...defaultState("chat-c"), phase: "C", slug, orchestrationActive: true, flags: { interview: false, auditPassed: true, checkPassed: true } });
+    writeState(cwd, { ...defaultState("chat-c"), phase: "C", slug, orchestrationActive: true, checkEpoch: "c-test", flags: { interview: false, auditPassed: true, checkPassed: true } });
+    seedChatReceipt(cwd, "chat-c", "c-test");
 
-    const out = handleUserPromptSubmit(ups("orchestrate d", cwd, "chat-c", "t1"));
+    const attest = JSON.stringify({ from: "C", to: "D", did: "ran the suite", checkOutput: "ok", exitCode: 0, testReceiptPath: ".codexclaw/evidence/chat-c/test-receipt.json" });
+    const out = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, "chat-c", "t1"));
 
     assert.match(out, /refused/);
     assert.match(out, /open task/);
@@ -599,7 +601,7 @@ test("chat D-close is refused while the work-phase has open tasks, and writes no
 });
 
 test("chat D-close succeeds once the tasks are done", () => {
-  const cwd = mkdtempSync(join(tmpdir(), "codexclaw-hook-cycle-"));
+  const cwd = gitRepoForHook();
   try {
     const slug = "chat-cycle-done";
     const plan = buildGoalplan({ objective: "chat cycle gate" });
@@ -609,9 +611,11 @@ test("chat D-close succeeds once the tasks are done", () => {
     ];
     plan.activeWorkPhaseId = "wp-1";
     writeGoalplan(cwd, plan);
-    writeState(cwd, { ...defaultState("chat-d"), phase: "C", slug, orchestrationActive: true, flags: { interview: false, auditPassed: true, checkPassed: true } });
+    writeState(cwd, { ...defaultState("chat-d"), phase: "C", slug, orchestrationActive: true, checkEpoch: "c-test", flags: { interview: false, auditPassed: true, checkPassed: true } });
+    seedChatReceipt(cwd, "chat-d", "c-test");
 
-    const out = handleUserPromptSubmit(ups("orchestrate d", cwd, "chat-d", "t1"));
+    const attest = JSON.stringify({ from: "C", to: "D", did: "ran the suite", checkOutput: "ok", exitCode: 0, testReceiptPath: ".codexclaw/evidence/chat-d/test-receipt.json" });
+    const out = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, "chat-d", "t1"));
 
     assert.ok(!/refused/.test(out));
     assert.equal(readState(cwd, "chat-d").phase, "IDLE");
@@ -729,6 +733,23 @@ test("040: turnless entry and turnless loop requests still persist their state",
 
 // ── SOURCE-DELTA-01 (050): the chat path gets the same gate ────────────────
 // Wiring only the CLI would leave a phrasing that bypasses the check entirely.
+
+
+/** CHECK-BINDING-01 (075): these cases exercise CYCLE-COMPLETION-01, so they need a
+ *  receipt the C>D gate accepts before they can reach it. Needs a real repo. */
+function seedChatReceipt(cwd: string, id: string, epoch: string): void {
+  const dir = join(cwd, STATE_DIR, "evidence", id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "test-receipt.json"), JSON.stringify({
+    kind: "test",
+    sourceIdentity: captureSourceIdentity(cwd, { excludeCodexclawArtifacts: true }),
+    command: "npm test",
+    exitCode: 0,
+    createdAt: new Date().toISOString(),
+    ownerSessionId: id,
+    checkEpoch: epoch,
+  }));
+}
 
 function gitRepoForHook(): string {
   const cwd = mkdtempSync(join(tmpdir(), "codexclaw-hook-git-"));

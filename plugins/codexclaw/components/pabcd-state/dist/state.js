@@ -90,6 +90,14 @@ export const PHASES                   = WORK_PHASES;
 
 
 
+
+
+
+
+
+
+
+
 export const STATE_DIR = ".codexclaw";
 export const SESSIONS_SUBDIR = "sessions";
 export const LEDGER_FILE = "ledger.jsonl";
@@ -159,6 +167,7 @@ export function defaultState(sessionId        , slug = "")        {
     phaseEntrySource: null,
     planUnit: null,
     planEpoch: null,
+    checkEpoch: null,
   };
 }
 
@@ -275,6 +284,8 @@ export function readState(cwd        , sessionId        )        {
       // 060: only A can hold a plan binding — minted at P>A, consumed at A>B.
       planUnit: parsed.phase === "A" && typeof parsed.planUnit === "string" && parsed.planUnit.length > 0 ? parsed.planUnit : null,
       planEpoch: parsed.phase === "A" && typeof parsed.planEpoch === "string" && parsed.planEpoch.length > 0 ? parsed.planEpoch : null,
+      // 075: only C can hold a check binding — minted at B>C, consumed at C>D.
+      checkEpoch: parsed.phase === "C" && typeof parsed.checkEpoch === "string" && parsed.checkEpoch.length > 0 ? parsed.checkEpoch : null,
     };
   } catch {
     return defaultState(sessionId);

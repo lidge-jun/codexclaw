@@ -55,6 +55,7 @@ export function clearedIdle(state: State): State {
     // 060: same discipline — the plan binding belongs to one A, not to the session.
     planUnit: null,
     planEpoch: null,
+    checkEpoch: null,
   };
 }
 

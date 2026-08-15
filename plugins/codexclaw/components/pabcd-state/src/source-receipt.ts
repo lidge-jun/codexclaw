@@ -27,6 +27,20 @@ export interface SourceBoundReceipt {
   command?: string;
   exitCode?: number;
   createdAt: string;
+  /**
+   * 075: carried through for the C>D gate, which binds a receipt to the session
+   * and check cycle that produced it. Optional here on purpose — acceptance is
+   * unchanged, so the final-gate consumers that predate these fields keep
+   * parsing exactly as before and simply ignore them.
+   */
+  ownerSessionId?: string;
+  checkEpoch?: string;
+  /**
+   * Whether the file actually carried a usable createdAt. Without this the epoch
+   * fallback below is indistinguishable from a real 1970 timestamp, and a receipt
+   * with no time at all would read as one with a very old one.
+   */
+  createdAtProvided: boolean;
 }
 
 export interface ReceiptError {
@@ -98,12 +112,17 @@ export function parseSourceBoundReceipt(
   if (!sourceIdentity) {
     return { error: `receipt is missing a well-formed sourceIdentity: ${path}` };
   }
+  const createdAtProvided = typeof r.createdAt === "string" && !Number.isNaN(Date.parse(r.createdAt));
   const receipt: SourceBoundReceipt = {
     kind: r.kind,
     sourceIdentity,
-    createdAt: typeof r.createdAt === "string" ? r.createdAt : new Date(0).toISOString(),
+    createdAt: createdAtProvided ? (r.createdAt as string) : new Date(0).toISOString(),
+    createdAtProvided,
   };
   if (typeof r.command === "string") receipt.command = r.command;
   if (typeof r.exitCode === "number") receipt.exitCode = r.exitCode;
+  // Preserved, never required: the C>D gate decides what to do about them.
+  if (typeof r.ownerSessionId === "string") receipt.ownerSessionId = r.ownerSessionId;
+  if (typeof r.checkEpoch === "string") receipt.checkEpoch = r.checkEpoch;
   return receipt;
 }

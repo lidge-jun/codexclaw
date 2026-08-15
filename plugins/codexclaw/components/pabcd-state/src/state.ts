@@ -73,6 +73,14 @@ export interface State {
    */
   planUnit: string | null;
   planEpoch: string | null;
+  /**
+   * CHECK-BINDING-01 (075): a nonce minted on entry to C. A test receipt records
+   * the epoch it was produced under, and C>D requires a match, so a receipt from
+   * an earlier check — or from another session — cannot be spent twice.
+   *
+   * Lives only in C, like planEpoch lives only in A.
+   */
+  checkEpoch: string | null;
 }
 
 export interface LedgerEntry {
@@ -159,6 +167,7 @@ export function defaultState(sessionId: string, slug = ""): State {
     phaseEntrySource: null,
     planUnit: null,
     planEpoch: null,
+    checkEpoch: null,
   };
 }
 
@@ -275,6 +284,8 @@ export function readState(cwd: string, sessionId: string): State {
       // 060: only A can hold a plan binding — minted at P>A, consumed at A>B.
       planUnit: parsed.phase === "A" && typeof parsed.planUnit === "string" && parsed.planUnit.length > 0 ? parsed.planUnit : null,
       planEpoch: parsed.phase === "A" && typeof parsed.planEpoch === "string" && parsed.planEpoch.length > 0 ? parsed.planEpoch : null,
+      // 075: only C can hold a check binding — minted at B>C, consumed at C>D.
+      checkEpoch: parsed.phase === "C" && typeof parsed.checkEpoch === "string" && parsed.checkEpoch.length > 0 ? parsed.checkEpoch : null,
     };
   } catch {
     return defaultState(sessionId);

@@ -635,6 +635,11 @@ test("G20: illegal edge I->B is refused (no attest can force a non-adjacency)", 
 // any write precisely so that "FSM idle, ledger done, goalplan unfinished"
 // cannot happen.
 
+/** CHECK-BINDING-01 compares source identity, so these cases need a real repo. */
+function boundCwd(): string {
+  return gitRepo();
+}
+
 function seedBoundCycleAtC(cwd: string, id: string, slug: string, taskStatus: "pending" | "done") {
   const plan = buildGoalplan({ objective: "cycle completion gate" });
   plan.slug = slug;
@@ -644,22 +649,47 @@ function seedBoundCycleAtC(cwd: string, id: string, slug: string, taskStatus: "p
   ];
   plan.activeWorkPhaseId = "wp-1";
   writeGoalplan(cwd, plan);
-  writeState(cwd, { ...defaultState(id), phase: "C", slug, flags: { interview: false, auditPassed: true, checkPassed: false } });
+  const epoch = "c-test-epoch";
+  writeState(cwd, { ...defaultState(id), phase: "C", slug, checkEpoch: epoch, flags: { interview: false, auditPassed: true, checkPassed: false } });
+  seedReceipt(cwd, id, epoch);
+}
+
+/**
+ * A receipt the C>D gate accepts (075). These cases predate CHECK-BINDING-01 and
+ * exist to exercise CYCLE-COMPLETION-01, so they need a valid one to reach it.
+ */
+function seedReceipt(cwd: string, id: string, epoch: string): string {
+  const dir = join(cwd, STATE_DIR, "evidence", id);
+  mkdirSync(dir, { recursive: true });
+  const p = join(dir, "test-receipt.json");
+  writeFileSync(p, JSON.stringify({
+    kind: "test",
+    sourceIdentity: captureSourceIdentity(cwd, { excludeCodexclawArtifacts: true }),
+    command: "npm test",
+    exitCode: 0,
+    createdAt: new Date().toISOString(),
+    ownerSessionId: id,
+    checkEpoch: epoch,
+  }));
+  return p;
 }
 
 function goalplanPath(cwd: string, slug: string): string {
   return join(cwd, STATE_DIR, "goalplans", slug, "goalplan.json");
 }
 
-const D_ATTEST = '{"from":"C","to":"D","did":"ran the suite","checkOutput":"722 pass","exitCode":0,"workPhaseId":"wp-1"}';
+const dAttest = (id: string) => JSON.stringify({
+  from: "C", to: "D", did: "ran the suite", checkOutput: "722 pass", exitCode: 0, workPhaseId: "wp-1",
+  testReceiptPath: `.codexclaw/evidence/${id}/test-receipt.json`,
+});
 
 test("D-close is refused while the active work-phase still has open tasks, and writes nothing", () => {
-  const cwd = freshCwd();
+  const cwd = boundCwd();
   const id = "cycle-pending";
   seedBoundCycleAtC(cwd, id, "cycle-gate-pending", "pending");
   const before = readFileSync(goalplanPath(cwd, "cycle-gate-pending"), "utf8");
 
-  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", D_ATTEST], cwd);
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", dAttest(id)], cwd);
   assert.ok(!("error" in args));
   const r = runOrchestrateCli(args as never);
 
@@ -673,11 +703,11 @@ test("D-close is refused while the active work-phase still has open tasks, and w
 });
 
 test("D-close succeeds once the tasks are done, closing the phase and starting the next", () => {
-  const cwd = freshCwd();
+  const cwd = boundCwd();
   const id = "cycle-done";
   seedBoundCycleAtC(cwd, id, "cycle-gate-done", "done");
 
-  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", D_ATTEST], cwd);
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", dAttest(id)], cwd);
   assert.ok(!("error" in args));
   const r = runOrchestrateCli(args as never);
 
@@ -691,14 +721,14 @@ test("D-close succeeds once the tasks are done, closing the phase and starting t
 });
 
 test("D-close on a bound session is refused when the goalplan cannot be read", () => {
-  const cwd = freshCwd();
+  const cwd = boundCwd();
   const id = "cycle-unreadable";
   seedBoundCycleAtC(cwd, id, "cycle-gate-gone", "done");
   // hand-editing goalplans is ordinary practice here, so a missing file must not
   // become the cheapest way past the gate
   rmSync(goalplanPath(cwd, "cycle-gate-gone"), { force: true });
 
-  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", D_ATTEST], cwd);
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", dAttest(id)], cwd);
   assert.ok(!("error" in args));
   const r = runOrchestrateCli(args as never);
 
@@ -709,7 +739,7 @@ test("D-close on a bound session is refused when the goalplan cannot be read", (
 });
 
 test("D-close is refused when the bound goalplan has no active work-phase", () => {
-  const cwd = freshCwd();
+  const cwd = boundCwd();
   const id = "cycle-no-active";
   const slug = "cycle-gate-empty";
   const plan = buildGoalplan({ objective: "no active phase" });
@@ -717,9 +747,11 @@ test("D-close is refused when the bound goalplan has no active work-phase", () =
   plan.workPhases = [{ id: "wp-1", title: "closed", status: "done", tasks: [], criteriaIds: [] }];
   plan.activeWorkPhaseId = null;
   writeGoalplan(cwd, plan);
-  writeState(cwd, { ...defaultState(id), phase: "C", slug, flags: { interview: false, auditPassed: true, checkPassed: false } });
+  const epoch = "c-test-epoch";
+  writeState(cwd, { ...defaultState(id), phase: "C", slug, checkEpoch: epoch, flags: { interview: false, auditPassed: true, checkPassed: false } });
+  seedReceipt(cwd, id, epoch);
 
-  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", D_ATTEST], cwd);
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", dAttest(id)], cwd);
   assert.ok(!("error" in args));
   const r = runOrchestrateCli(args as never);
 

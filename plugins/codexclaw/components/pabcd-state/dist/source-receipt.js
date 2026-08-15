@@ -33,6 +33,20 @@ import { hasValidReceipt } from "./subagent-evidence.js";
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export function isReceiptError(v                                   )                    {
   return "error" in v;
 }
@@ -98,12 +112,17 @@ export function parseSourceBoundReceipt(
   if (!sourceIdentity) {
     return { error: `receipt is missing a well-formed sourceIdentity: ${path}` };
   }
+  const createdAtProvided = typeof r.createdAt === "string" && !Number.isNaN(Date.parse(r.createdAt));
   const receipt                     = {
     kind: r.kind,
     sourceIdentity,
-    createdAt: typeof r.createdAt === "string" ? r.createdAt : new Date(0).toISOString(),
+    createdAt: createdAtProvided ? (r.createdAt          ) : new Date(0).toISOString(),
+    createdAtProvided,
   };
   if (typeof r.command === "string") receipt.command = r.command;
   if (typeof r.exitCode === "number") receipt.exitCode = r.exitCode;
+  // Preserved, never required: the C>D gate decides what to do about them.
+  if (typeof r.ownerSessionId === "string") receipt.ownerSessionId = r.ownerSessionId;
+  if (typeof r.checkEpoch === "string") receipt.checkEpoch = r.checkEpoch;
   return receipt;
 }

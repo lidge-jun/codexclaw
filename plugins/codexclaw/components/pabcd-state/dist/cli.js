@@ -55,7 +55,8 @@ import { runMetricCli } from "./metric-cli.js";
 import { parseOrchestrateCliArgs, renderOrchestrateParseError, runOrchestrateCli } from "./orchestrate-cli.js";
 import { parseGoalplanCliArgs, runGoalplanCli } from "./goalplan-cli.js";
 import { parseScanCliArgs, runScanCli } from "./scan-cli.js";
-import { parseReviewRoundCliArgs, runReviewRoundCli } from "./review-round-cli.js";
+ import { parseReviewRoundCliArgs, runReviewRoundCli } from "./review-round-cli.js";
+import { parseReceiptCliArgs, runReceiptCli } from "./receipt-cli.js";
 import { handleReviewObserver } from "./review-observer.js";
 
 const MAX_STDIN_BYTES = 4 * 1024 * 1024;
@@ -190,6 +191,19 @@ function main()       {
   // interview ledger event + tracker scanRounds/lastScanRoundId via writeState.
   // `review-round` command path (060): open and inspect plan-audit rounds. There
   // is no close verb — the SubagentStop observer writes the verdict.
+  // `receipt` command path (075): run a command and record what happened, so the
+  // C>D gate reads an observation instead of a claim.
+  if (kind === "receipt") {
+    const parsed = parseReceiptCliArgs(process.argv.slice(3), process.cwd());
+    if ("error" in parsed) {
+      process.stderr.write(`receipt: ${parsed.error}\n`);
+      process.exit(1);
+    }
+    const result = runReceiptCli(parsed);
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
   if (kind === "review-round") {
     const parsed = parseReviewRoundCliArgs(process.argv.slice(3), process.cwd());
     if ("error" in parsed) {

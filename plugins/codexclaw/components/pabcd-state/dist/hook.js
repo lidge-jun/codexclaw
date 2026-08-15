@@ -44,7 +44,14 @@ import { captureInterviewAnswers } from "./interview-ledger.js";
 import { MIND_DISPATCH_DIRECTIVE } from "./minds.js";
 import { checkObjectivePlateau, readObjectiveKind, readObjectiveMetrics,                   } from "./metrics.js";
 import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan, nextOpenTask, unmetCriteria,                                   } from "./goalplan.js";
-import { captureSourceIdentity, compareSource, describeSource } from "./source-identity.js";
+ import { captureSourceIdentity, compareSource, describeSource } from "./source-identity.js";
+import { validateCheckReceipt } from "./check-gate.js";
+import { randomBytes } from "node:crypto";
+
+/** CHECK-BINDING-01 (075): one nonce per entry to C, mirroring the CLI producer. */
+function mintCheckEpoch()         {
+  return `c-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${randomBytes(3).toString("hex")}`;
+}
 import { peakFrictionVerdict, looksLikeFailure, recordFriction } from "./friction.js";
 import { discardStreak, readDivergenceCandidates } from "./divergence.js";
 import { hasRenderArtifactModified, hasRenderObservation, renderGroundingAdvisory } from "./render-observations.js";
@@ -739,6 +746,12 @@ function handleOrchestrateCommand(
   // "FSM idle, ledger done, goalplan unfinished".
   let advanced                       = null;
   if (result.control === "done" && state.slug) {
+    // CHECK-BINDING-01 (075): same receipt requirement as the CLI, checked here so
+    // a chat D-close cannot be the way around it.
+    const receiptCheck = validateCheckReceipt(state, payload.session_id, command.attest?.testReceiptPath, payload.cwd);
+    if (!receiptCheck.ok) {
+      return buildContextOutput("UserPromptSubmit", `[codexclaw — refused: ${receiptCheck.reason} Nothing was written.]`);
+    }
     let plan                  = null;
     let planReadFailed = false;
     try {
@@ -778,6 +791,8 @@ function handleOrchestrateCommand(
     writeState(payload.cwd, {
       ...result.state,
       phaseEntrySource: entrySource,
+      // 075: same rule as the CLI — C mints, staying in C keeps, elsewhere drops.
+      checkEpoch: result.state.phase !== "C" ? null : state.phase === "C" ? state.checkEpoch : mintCheckEpoch(),
       orchestrationActive: result.control === "reset" || result.control === "done" ? false : true,
       lastInjectedPhase: result.control === "reset" || result.control === "done" ? null : result.state.phase,
       injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
