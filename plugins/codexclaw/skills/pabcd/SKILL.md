@@ -70,7 +70,7 @@ A = an audit/review verdict that names blockers (`A>B` attest requires a non-emp
 `auditOutput` — the pasted tail of the dispatched reviewer subagent's verdict — plus
 the main agent's `auditVerdict` judgment, AUDIT-LOOP-01); B = the
 implementation delta; C = fresh `tsc`/test/gate output (`C>D` attest requires a non-empty
-`checkOutput`; `exitCode` is optional but, if supplied, must be `0`); D = a cycle summary with
+`checkOutput` and `exitCode`, which must be `0`); D = a cycle summary with
 evidence and the next-phase decision. A phase whose artifact is absent is not done, regardless
 of adjacency.
 
@@ -86,7 +86,7 @@ agent discipline that makes later audit possible.
 | P->A | `did` with plan pointer | |
 | A->B | `did`, `auditOutput`, `auditVerdict` (`pass`/`near-pass`/`fail`); near-pass adds `auditResidual` | FAIL never advances |
 | B->C | `did` with implementation delta | |
-| C->D | `did`, `checkOutput`, optional `exitCode` (must be 0 if supplied) | |
+| C->D | `did`, `checkOutput`, `exitCode` (required, must be 0) | |
 
 These are edge contracts, not substitutes for phase work. Artifact pointers must name
 the evidence produced by the phase being advanced.
@@ -99,7 +99,7 @@ illegal edges remain refused. Agents use
 `cxc orchestrate <verb> --session <id> --attest <json>` and provide real evidence.
 `A>B` requires `auditOutput` plus `auditVerdict`; near-pass also requires
 `auditResidual`.
-`C>D` requires `checkOutput`; an optional `exitCode` must be `0`.
+`C>D` requires `checkOutput` and a passing `exitCode` — omitting it is refused, since a check with no outcome is not a check.
 Mutating verbs require an explicit session; only `status` may use latest-session fallback.
 **SESSION-IDENTITY-01 (STRICT):** use only the latest SessionStart binding in your
 own context, never a parent or transcript-history id; this also governs

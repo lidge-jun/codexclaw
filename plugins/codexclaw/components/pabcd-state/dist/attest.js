@@ -194,7 +194,16 @@ export function validateAttest(from       , to       , att                    ) 
         reason: `C -> D additionally requires "checkOutput": paste the tail of the test/tsc command you actually ran.`,
       };
     }
-    if (typeof att.exitCode === "number" && att.exitCode !== 0) {
+    // exitCode used to be optional, so "checkOutput: passed" cleared this edge on
+    // its own — a claim that a check ran, with nothing to say how it ended. Pasted
+    // text still cannot be verified, but omission is no longer an option.
+    if (typeof att.exitCode !== "number") {
+      return {
+        ok: false,
+        reason: `C -> D additionally requires "exitCode": the exit status of the command whose output you pasted. Report the real number — a check with no outcome is not a check.`,
+      };
+    }
+    if (att.exitCode !== 0) {
       return {
         ok: false,
         reason: `C -> D requires a passing check, but the attestation reports exitCode ${att.exitCode}. Fix the failure (orchestrate B) before advancing.`,

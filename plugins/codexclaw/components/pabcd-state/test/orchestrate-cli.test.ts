@@ -742,6 +742,23 @@ test("an unbound (HITL) session closes its cycle exactly as before", () => {
   assert.equal(readState(cwd, id).phase, "IDLE");
 });
 
+test("070: C>D without exitCode is refused, and the CLI writes nothing", () => {
+  const cwd = freshCwd();
+  const id = "exit-missing";
+  writeState(cwd, { ...defaultState(id), phase: "C", flags: { interview: false, auditPassed: true, checkPassed: false } });
+
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest",
+    '{"from":"C","to":"D","did":"ran the suite","checkOutput":"1702 pass"}'], cwd);
+  assert.ok(!("error" in args));
+  const r = runOrchestrateCli(args as never);
+
+  assert.equal(r.code, 1);
+  assert.match(r.output, /exitCode/);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.equal(ledgerLines(cwd).length, 0);
+});
+
+
 // ── SOURCE-DELTA-01 (050): B>C source delta ────────────────────────────────
 // B is the implementation phase. If the source is byte-identical to what it was
 // on entry to B, nothing was implemented there — the work happened earlier and B

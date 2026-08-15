@@ -124,7 +124,7 @@ BUILD가 아니라 **arming mandate**를 받아야 한다.
 "A→B 배선만 남았다"고 적어 놨다. CLI 표면이 필요한 독립 작업이므로
 **별도 work-phase(wp6)로 등록했다.**
 
-### 070 — C>D source-bound receipt
+### 070 — C>D exitCode 필수화 (+ 075 receipt 배선)
 
 `exitCode`가 optional이라 `checkOutput:"passed"` 문자열만으로 통과한다
 (`attest.ts:190`). `parseSourceBoundReceipt`를 배선하고 exitCode를

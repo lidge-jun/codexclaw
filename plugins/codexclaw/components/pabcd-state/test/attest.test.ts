@@ -139,7 +139,11 @@ test("C->D requires did + checkOutput + passing exitCode", () => {
   assert.equal(validateAttest("C", "D", { ...base }).ok, false); // no checkOutput
   assert.equal(validateAttest("C", "D", { ...base, checkOutput: "77 pass", exitCode: 1 }).ok, false);
   assert.equal(validateAttest("C", "D", { ...base, checkOutput: "77 pass", exitCode: 0 }).ok, true);
-  assert.equal(validateAttest("C", "D", { ...base, checkOutput: "77 pass" }).ok, true); // exitCode optional
+  // Reversed on purpose (070): exitCode used to be optional, so "checkOutput: passed"
+  // cleared this edge with nothing to say how the check ended. Omission is the defect.
+  const noExit = validateAttest("C", "D", { ...base, checkOutput: "77 pass" });
+  assert.equal(noExit.ok, false);
+  assert.match(noExit.reason ?? "", /exitCode/);
 });
 
 test("coerceAttest validates shape", () => {
