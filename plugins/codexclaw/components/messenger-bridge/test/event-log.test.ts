@@ -36,7 +36,7 @@ test("EventLog: writes JSONL and recent() returns events", async () => {
    }
  });
  
- test("EventLog: recent() returns at most N events", () => {
+ test("EventLog: recent() returns at most N events", async () => {
    const dir = tempDir();
    try {
      const path = join(dir, "events.jsonl");
@@ -46,13 +46,13 @@ test("EventLog: writes JSONL and recent() returns events", async () => {
      }
      assert.equal(log.recent(3).length, 3);
      assert.equal(log.recent(3)[0].ts, "t7");
-     log.close();
+     await log.close();
    } finally {
      rmSync(dir, { recursive: true, force: true });
    }
  });
 
- test("EventLog: accepts turn_started and lifecycle events", () => {
+ test("EventLog: accepts turn_started and lifecycle events", async () => {
    const dir = tempDir();
    try {
      const path = join(dir, "events.jsonl");
@@ -64,7 +64,7 @@ test("EventLog: writes JSONL and recent() returns events", async () => {
      assert.equal(recent[0]?.type, "turn_started");
      assert.equal(recent[1]?.type, "lifecycle");
      assert.deepEqual(recent[1], { type: "lifecycle", payload: { action: "reload", detail: "manual" }, ts: "t2" });
-     log.close();
+     await log.close();
    } finally {
      rmSync(dir, { recursive: true, force: true });
    }
@@ -88,13 +88,13 @@ test("EventLog: writes JSONL and recent() returns events", async () => {
    }
  });
  
-test("EventLog: close() prevents further writes", () => {
+test("EventLog: close() prevents further writes", async () => {
    const dir = tempDir();
    try {
      const path = join(dir, "events.jsonl");
      const log = new EventLog({ path });
      log.log({ type: "reconnect", platform: "discord", ts: "t1" });
-     log.close();
+     await log.close();
      log.log({ type: "reconnect", platform: "discord", ts: "t2" });
      assert.equal(log.recent(10).length, 1); // only 1, not 2
    } finally {
