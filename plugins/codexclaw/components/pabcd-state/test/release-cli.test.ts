@@ -165,7 +165,7 @@ test("a stale published test count is refused beside a green fresh suite", () =>
     complete(cwd, { publishedTests: 1213 });
     const r = runReleaseCli(["verify", "--allow-deferred"], cwd);
     assert.equal(r.code, 1);
-    assert.match(r.output, /published tests=1213 but the measured suite passed 1639/);
+    assert.match(r.output, /published tests=1213 but the measured suite reported 1639/);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

@@ -46,6 +46,12 @@ export const CANDIDATE_SCHEMA_VERSION = 2;
 
 
 
+
+
+
+
+
+
 /** What the published documentation currently claims, measured from the docs. */
 
 
@@ -132,6 +138,9 @@ export function validateCandidateManifest(manifest         )           {
     else {
       if (!Number.isInteger(t.pass) || (t.pass          ) < 0) errors.push("testSuite.pass must be a non-negative integer");
       if (!Number.isInteger(t.fail) || (t.fail          ) < 0) errors.push("testSuite.fail must be a non-negative integer");
+      if (t.total !== undefined && (!Number.isInteger(t.total) || (t.total          ) < 0)) {
+        errors.push("testSuite.total must be a non-negative integer");
+      }
       if (typeof t.measuredSha !== "string" || !t.measuredSha) errors.push("testSuite.measuredSha required");
     }
   }
@@ -230,10 +239,15 @@ export function isReleaseReady(
   // v0.1.0 misdescribe the product. Bind the published number to the measured one.
   if (!manifest.publishedCounts) {
     blockers.push("publishedCounts missing");
-  } else if (manifest.testSuite && manifest.publishedCounts.tests !== manifest.testSuite.pass) {
-    blockers.push(
-      "published tests=" + manifest.publishedCounts.tests + " but the measured suite passed " + manifest.testSuite.pass,
-    );
+  } else if (manifest.testSuite) {
+    // The badge counts TESTS. Compare against the reported total when we have it;
+    // pass alone drifts by environment because CI skips the repo-map live smoke.
+    const measured = manifest.testSuite.total ?? manifest.testSuite.pass;
+    if (manifest.publishedCounts.tests !== measured) {
+      blockers.push(
+        "published tests=" + manifest.publishedCounts.tests + " but the measured suite reported " + measured,
+      );
+    }
   }
 
   return { ready: blockers.length === 0, blockers };

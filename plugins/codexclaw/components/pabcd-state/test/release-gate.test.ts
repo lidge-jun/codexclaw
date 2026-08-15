@@ -185,7 +185,7 @@ test("v2: a stale public test count blocks even with a green fresh suite", () =>
   const result = isReleaseReady(manifest);
   assert.equal(result.ready, false);
   assert.ok(
-    result.blockers.some((b) => b.includes("published tests=1213") && b.includes("passed 1639")),
+    result.blockers.some((b) => b.includes("published tests=1213") && b.includes("reported 1639")),
     result.blockers.join(" | "),
   );
 });
@@ -215,4 +215,23 @@ test("v2: a deferred receipt without a reason is invalid", () => {
   assert.ok(
     validateCandidateManifest(manifest).some((e) => e.includes("requires deferredReason")),
   );
+});
+
+test("v2: the published badge is compared against total tests, not passes", () => {
+  // CI skips the repo-map live smoke, so `pass` is environment-dependent while the
+  // badge counts TESTS. Comparing against pass made the gate refuse a correct
+  // release on CI (run 31870411290: published 1659 vs pass 1658).
+  const ciLike = makeManifest({
+    testSuite: { pass: 1658, fail: 0, total: 1659, measuredSha: "abc123def456" },
+    publishedCounts: { tests: 1659, skills: 28, hooks: 21 },
+  });
+  assert.equal(isReleaseReady(ciLike).ready, true, isReleaseReady(ciLike).blockers.join(" | "));
+
+  const drifted = makeManifest({
+    testSuite: { pass: 1658, fail: 0, total: 1700, measuredSha: "abc123def456" },
+    publishedCounts: { tests: 1659, skills: 28, hooks: 21 },
+  });
+  const result = isReleaseReady(drifted);
+  assert.equal(result.ready, false);
+  assert.ok(result.blockers.some((b) => b.includes("reported 1700")), result.blockers.join(" | "));
 });

@@ -59,7 +59,7 @@ function usage(): ReleaseCliResult {
       "  release init      --version <v> [--candidate <output-path>] [--sha <sha>]",
       "  release receipt   (--version <v> | --candidate <path>) --name <n> --evidence <e> [--sha <sha>] [--status present|missing|failed|deferred] [--reason <text>]",
       "  release platform  (--version <v> | --candidate <path>) --platform ubuntu|windows|macos --sha <sha> --ci-run <id> [--passed|--failed]",
-      "  release tests     (--version <v> | --candidate <path>) --pass <n> --fail <n> --sha <sha>",
+      "  release tests     (--version <v> | --candidate <path>) --pass <n> --fail <n> [--total <n>] --sha <sha>",
       "  release inventory (--version <v> | --candidate <path>) --hash <sha256:...> --skills <n> --hooks <n> --published-tests <n>",
       "  release verify    (--version <v> | --candidate <path>) [--json] [--allow-deferred] [--actual-inventory-hash <h>]",
     ].join("\n"),
@@ -271,14 +271,15 @@ function parseIntFlag(argv: string[], name: string): number | null {
 function runTests(argv: string[], cwd: string): ReleaseCliResult {
   const pass = parseIntFlag(argv, "--pass");
   const fail = parseIntFlag(argv, "--fail");
+  const total = parseIntFlag(argv, "--total");
   const sha = readFlag(argv, "--sha") ?? defaultSha();
   if (pass === null || fail === null) {
     return { code: 1, output: "release tests: --pass <n> and --fail <n> must be non-negative integers" };
   }
   if (!sha) return { code: 1, output: "release tests: --sha <sha> is required (or set GITHUB_SHA)" };
   return mutate(argv, cwd, (manifest) => {
-    manifest.testSuite = { pass, fail, measuredSha: sha };
-    return "release tests: pass=" + pass + " fail=" + fail + " sha=" + sha;
+    manifest.testSuite = { pass, fail, measuredSha: sha, ...(total === null ? {} : { total }) };
+    return "release tests: pass=" + pass + " fail=" + fail + (total === null ? "" : " total=" + total) + " sha=" + sha;
   });
 }
 

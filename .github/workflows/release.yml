@@ -77,8 +77,12 @@ jobs:
           npm test 2>&1 | tee /tmp/suite.log
           pass="$(grep -Eo '^. pass [0-9]+' /tmp/suite.log | tail -1 | grep -Eo '[0-9]+')"
           fail="$(grep -Eo '^. fail [0-9]+' /tmp/suite.log | tail -1 | grep -Eo '[0-9]+')"
+          # The published badge counts TESTS. CI skips the repo-map live smoke, so
+          # `pass` is environment-dependent while `tests` is not.
+          total="$(grep -Eo '^. tests [0-9]+' /tmp/suite.log | tail -1 | grep -Eo '[0-9]+')"
           echo "pass=$pass" >> "$GITHUB_OUTPUT"
           echo "fail=$fail" >> "$GITHUB_OUTPUT"
+          echo "total=$total" >> "$GITHUB_OUTPUT"
 
       - name: Gate and inventory
         id: inventory
@@ -133,7 +137,8 @@ jobs:
           "${REL[@]}" init --version "$VERSION" --sha "$GITHUB_SHA"
 
           "${REL[@]}" tests --version "$VERSION" \
-            --pass "${{ steps.suite.outputs.pass }}" --fail "${{ steps.suite.outputs.fail }}" --sha "$GITHUB_SHA"
+            --pass "${{ steps.suite.outputs.pass }}" --fail "${{ steps.suite.outputs.fail }}" \
+            --total "${{ steps.suite.outputs.total }}" --sha "$GITHUB_SHA"
           "${REL[@]}" inventory --version "$VERSION" \
             --hash "${{ steps.inventory.outputs.hash }}" \
             --skills "${{ steps.inventory.outputs.skills }}" \
