@@ -27,7 +27,7 @@ Load an on-demand skill explicitly by `$name` or SKILL.md path.
 | dev-devops | `skills/dev-devops/SKILL.md` | surface | containers, deploy pipelines, k8s, IaC, SRE | false | none |
 | dev-scaffolding | `skills/dev-scaffolding/SKILL.md` | surface | new project/module scaffold, structure audits | false | none |
 | search | `skills/search/SKILL.md` | capability | external/current/web lookups, deep research | true | none |
-| ultraresearch | `skills/ultraresearch/SKILL.md` | capability | deep multi-source research (EXPAND/wave/journal/claim-ledger), Tier-3 explorer swarm | false | none (protocol rides base explorer; agbrowse HTTP proof is opt-in) |
+| search (Tier 3) | `skills/search/SKILL.md` | capability | deep multi-source research (EXPAND/wave/journal/claim-ledger), Tier-3 explorer swarm | false | none (protocol rides base explorer; agbrowse HTTP proof is opt-in) |
 | lunasearch | `skills/lunasearch/SKILL.md` | capability | cheap parallel public-web discovery via Luna explorer subagents; depends on cxc-search for proof | false | none |
 | recall | `skills/recall/SKILL.md` | capability | past-session recall: search prior Codex chats (`cxc chat search`) + memory store (`cxc memory search`) before asking the user | true | none (reads Codex-native `~/.codex` artifacts read-only) |
 | ast-grep | `skills/ast-grep/SKILL.md` | capability | AST-shape search / deterministic codemods (rg-first for byte search) | false | needs `sg` binary (lazy-provisioned) |
