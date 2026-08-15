@@ -42,11 +42,12 @@ be edited independently of the list it summarizes.
 }
 ```
 
-The tests badge is therefore not generated from this file. `inventory.mjs` renders
-it from the most recent candidate manifest when one is present and leaves it
-untouched otherwise; a stale tests badge is caught by the release gate's
-`testSuite` receipt (030), not by pretending a committed file knows the current
-suite size. `inventory.mjs --hash` prints `sha256:<canonical json>` for 030's
+The tests badge is therefore not generated from this file. It is written only by
+`inventory.mjs --write --tests <n>`, where `<n>` comes from a suite run that just
+happened — during 010's correction and again at 050's release-prep step, after every
+test-adding phase has landed. No committed file ever claims to know the current suite
+size on its own, and a stale badge is caught by the release gate's `publishedCounts`
+rule (030). `inventory.mjs --hash` prints `sha256:<canonical json>` for 030's
 `inventoryHash` receipt, and `inventory.mjs --published` parses every registered marker
 surface and prints the measured `{tests, skills, hooks}` triple for 030's
 `publishedCounts` — failing if two surfaces disagree, so the release gate's comparison

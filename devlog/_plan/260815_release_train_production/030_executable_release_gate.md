@@ -61,20 +61,24 @@ interface CandidateManifest {
 
 | Verb | Full syntax |
 | --- | --- |
-| `init` | `cxc release init --version <v> [--candidate <path>] [--sha <sha>]` — writes `.codexclaw/release/candidate-<v>.json` seeded with the full receipt set (see below) |
+| `init` | `cxc release init --version <v> [--candidate <output-path>] [--sha <sha>]` — writes `.codexclaw/release/candidate-<v>.json` seeded with the full receipt set (see below) |
 | `receipt` | `cxc release receipt (--version <v> | --candidate <path>) --name <n> --evidence <e> [--sha <sha>] [--status present|failed|deferred] [--reason <r>]` |
 | `platform` | `cxc release platform (--version <v> | --candidate <path>) --platform ubuntu|windows|macos --sha <sha> --ci-run <id> [--passed|--failed]` |
 | `tests` | `cxc release tests (--version <v> | --candidate <path>) --pass <n> --fail <n> --sha <sha>` — sets `testSuite` |
 | `inventory` | `cxc release inventory (--version <v> | --candidate <path>) --hash <sha256:...> --skills <n> --hooks <n> --published-tests <n>` — sets `inventoryHash` and `publishedCounts` |
 | `verify` | `cxc release verify (--version <v> | --candidate <path>) [--json] [--allow-deferred]` — exit 1 on any blocker |
 
-Every verb takes `--version <v>` or `--candidate <path>`; the two are mutually
-exclusive. For `init`, `--candidate` names the file to create and `--version` remains
-required for the manifest body. For the other verbs, `--version` resolves
-`.codexclaw/release/candidate-<v>.json`; zero matches and multiple matches are both
-explicit errors (004 #4). The dedicated
-`tests` and `inventory` verbs exist because generic `receipt --evidence` cannot
-populate typed top-level fields (004r2 #1).
+Selector semantics (004r4 #2):
+
+- `init` always requires `--version <v>` (it is the manifest body). `--candidate` is
+  optional there and names the **output path** to create; without it the path is
+  `.codexclaw/release/candidate-<v>.json`.
+- The other five verbs operate on an existing candidate and take `--version <v>`
+  **or** `--candidate <path>`, mutually exclusive. `--version` resolves the default
+  path; zero matches and multiple matches are both explicit errors (004 #4).
+
+The dedicated `tests` and `inventory` verbs exist because generic `receipt --evidence`
+cannot populate typed top-level fields (004r2 #1).
 
 ### Receipts for this train
 

@@ -63,25 +63,52 @@ export CODEX_HOME="$CXC_LIFECYCLE_HOME"
 codex plugin marketplace add "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --ref "$GITHUB_SHA"
 codex plugin add codexclaw@codexclaw
 
-# resolve the INSTALLED payload root deterministically (004r3 #6):
-# find the plugin manifest, not the first directory named bin.
-resolve_payload() {
-  local manifest
-  manifest=$(find "$CODEX_HOME" -type f -path '*codexclaw*/.codex-plugin/plugin.json' -print -quit)
-  [ -n "$manifest" ] || { echo 'installed payload not found'; return 1; }
-  PLUGIN_ROOT=$(dirname "$(dirname "$manifest")")
-  node -e "const m=require(process.argv[1]);if(m.name!=='codexclaw')process.exit(1)" "$manifest"
-  echo "payload: $PLUGIN_ROOT ($(node -p "require('$manifest').version"))"
+# Resolve the INSTALLED payload from the installer's own output, not from find(1).
+# A bare find matches three trees — installed cache, marketplace staging, marketplace
+# source — so it is not an identity check (004r4 #3).
+install_and_resolve() {   # $1 = expected ref label, for the log
+  local json installed manifest
+  json=$(codex plugin add codexclaw@codexclaw --json)
+  installed=$(node -e "process.stdout.write(JSON.parse(process.argv[1]).installedPath||'')" "$json")
+  [ -n "$installed" ] || { echo 'plugin add --json did not report installedPath'; return 1; }
+  case "$installed" in
+    "$CODEX_HOME"/plugins/cache/*) : ;;
+    *) echo "refusing payload outside the install cache: $installed"; return 1 ;;
+  esac
+  manifest="$installed/.codex-plugin/plugin.json"
+  [ -f "$manifest" ] || { echo "no manifest at $manifest"; return 1; }
+  PLUGIN_ROOT="$installed"
+  PLUGIN_VERSION=$(node -p "require('$manifest').version")
+  node -e "if(require('$manifest').name!=='codexclaw')process.exit(1)"
+  echo "payload[$1]: $PLUGIN_ROOT version=$PLUGIN_VERSION"
 }
-resolve_payload
+
+install_and_resolve head
+HEAD_VERSION="$PLUGIN_VERSION"
 
 node "$PLUGIN_ROOT/bin/cxc.mjs" hooks retrust --key codexclaw@codexclaw \
   --codex-home "$CODEX_HOME" --bootstrap-ok
 node "$PLUGIN_ROOT/bin/cxc.mjs" doctor --json
 
-# upgrade path: install the PREVIOUS release, then move to HEAD.
-# 'codex plugin marketplace upgrade' refreshes an existing snapshot; re-resolve the
-# payload after every ref change, since PLUGIN_ROOT and its version both move.
+# Upgrade path: drop to the PREVIOUS release, then return to HEAD.
+codex plugin remove codexclaw@codexclaw
+codex plugin marketplace remove codexclaw
+codex plugin marketplace add "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --ref v0.1.0
+install_and_resolve v0.1.0
+OLD_VERSION="$PLUGIN_VERSION"
+
+codex plugin marketplace add "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --ref "$GITHUB_SHA"
+codex plugin marketplace upgrade
+install_and_resolve head-again
+
+# The upgrade must be observable, not assumed: an unchanged version means the
+# upgrade silently kept the old payload and the lane FAILS.
+[ "$PLUGIN_VERSION" != "$OLD_VERSION" ] || { echo "upgrade no-op: still $OLD_VERSION"; exit 1; }
+[ "$PLUGIN_VERSION"  = "$HEAD_VERSION" ] || { echo "unexpected version $PLUGIN_VERSION"; exit 1; }
+
+node "$PLUGIN_ROOT/bin/cxc.mjs" hooks retrust --key codexclaw@codexclaw \
+  --codex-home "$CODEX_HOME" --bootstrap-ok
+
 codex plugin remove codexclaw@codexclaw
 codex plugin marketplace remove codexclaw
 codex plugin marketplace add "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --ref v0.1.0
@@ -106,8 +133,9 @@ above exists.
 Three properties make this lane real rather than decorative: `--ref "$GITHUB_SHA"`
 pins an immutable commit instead of a moving branch; the PATH assertion proves the
 commands exercise the **installed payload**, not a checkout binary; and
-`resolve_payload` re-reads the manifest after every ref change, so an upgrade that
-silently kept the old payload shows up as an unchanged version string. `cxc` is not
+`install_and_resolve` takes the payload path from `plugin add --json`, refuses anything
+outside `$CODEX_HOME/plugins/cache`, and the lane **asserts** the version changed across
+the upgrade — a silent no-op upgrade fails the job instead of passing quietly. `cxc` is not
 on PATH after a marketplace install (`README.md:74-80`, `cxc-resolve.ts:4-14`).
 
 ## Lane 4 — `release.yml`
@@ -135,9 +163,11 @@ verified before the build that earns it:
    `gh api` (never "latest run")
 3. `npm ci && npm test` → capture pass/fail
 4. `build.mjs` → archive + `SHA256SUMS`
-5. `cxc release init/platform/receipt/tests/inventory` — receipts recorded from
-   steps 2-4 that already ran
-6. `cxc release verify --version <v>` — fails closed
+5. `node bin/codexclaw.mjs release init/platform/receipt/tests/inventory` — receipts
+   recorded from steps 2-4 that already ran. The workflow runs `npm ci` only, which does
+   not put `cxc` on PATH, so the release lane addresses the dispatcher by path exactly as
+   the install lane does (004r4 #4)
+6. `node bin/codexclaw.mjs release verify --version <v>` — fails closed
 7. `gh release create` attaching archive, `SHA256SUMS`, candidate manifest
 8. re-read the release via API and assert the assets exist
 

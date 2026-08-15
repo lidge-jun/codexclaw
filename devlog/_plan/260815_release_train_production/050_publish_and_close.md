@@ -26,19 +26,47 @@ time; `package.json` and the git tag carry the bare semver.
 
 ## Sequence
 
+### Why a release-prep step exists (004r4 #1)
+
+010 corrects the tests badge to 1,631, but 020 and 030 each add test files. By the
+time the release runs, the measured suite is larger than the badge — and 030's
+blocker rule 5 (`publishedCounts.tests !== testSuite.pass`) would correctly refuse the
+release. The gate is right; the sequence was wrong. So the count is measured and
+published **once, immediately before promotion**, after all test-adding phases have
+landed.
+
 1. Bump `package.json`, `plugin.json`, and component `package.json` versions.
-2. Regenerate inventory; `inventory.mjs --check` clean.
+2. **Release prep, in one commit:**
+
+```bash
+npm test 2>&1 | tee /tmp/cxc-release-suite.log
+PASS=$(rg -o '^. pass (\d+)' -r '$1' /tmp/cxc-release-suite.log | tail -1)
+FAIL=$(rg -o '^. fail (\d+)' -r '$1' /tmp/cxc-release-suite.log | tail -1)
+[ "$FAIL" = 0 ] || { echo "suite not green: $FAIL failures"; exit 1; }
+
+node plugins/codexclaw/scripts/inventory.mjs --write --tests "$PASS"   # updates every registered tests surface
+node plugins/codexclaw/scripts/inventory.mjs --check
+node plugins/codexclaw/scripts/inventory.mjs --published                # must now print tests=$PASS
+```
+
 3. Write the `## [0.2.0-beta.1]` CHANGELOG section from the Unreleased block.
-4. **Promote `dev` to `main` by fast-forward push — not a PR.**
+4. Commit steps 1-3 together and **rerun exact-head CI on that commit** before any
+   candidate exists. A candidate built against a pre-prep SHA would carry stale
+   published counts.
+5. **Promote `dev` to `main` by fast-forward push — not a PR.**
    `enforce-pr-target.yml` drafts and prefixes any PR whose base is not `dev`, and
    the repo has never promoted by PR: `gh pr list --base main --state merged` returns
-   `[]`, and `origin/main` and `origin/dev` are currently the same commit
-   (`15b3d44a`). Fast-forward promotion is the established mechanism and touches
+   `[]`, and `origin/main` and `origin/dev` were the same commit (`15b3d44a`) when
+   this unit began. Fast-forward promotion is the established mechanism and touches
    no PR automation (004 #10).
-5. Wait for exact-head CI + packed-install runs on the promoted commit.
-6. Dispatch `release.yml` with that version.
-7. Verify assets and tag binding.
-8. Close #24-#28, each with a comment citing a run id or the release URL.
+6. Wait for exact-head CI + packed-install runs on the promoted commit.
+7. Dispatch `release.yml` with that version.
+8. Verify assets and tag binding.
+9. Close #24-#28, each with a comment citing a run id or the release URL.
+
+`inventory.mjs --write --tests <n>` is the only path that writes a test count, and it
+takes the number from a run that just happened — no committed file ever claims to
+know the current suite size on its own (020).
 
 ## Accept criteria — exact commands (004 #13, tightened round 2)
 
