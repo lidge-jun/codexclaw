@@ -28,7 +28,7 @@ Each phase consumes the verified output of the previous one. No effort bucketing
 | Doc | Work-phase | Consumes | Produces |
 | --- | --- | --- | --- |
 | `010` | Release truth | current repo state | correct published numbers, resolved PR #1 ancestry |
-| `020` | Inventory SOT generator + set drift gate | 010 corrected numbers | `generated/inventory.json`, injected doc blocks, set-comparison gate |
+| `020` | Inventory SOT generator + set drift gate | 010 corrected numbers | `plugins/codexclaw/inventory.json`, injected doc blocks, set-comparison gate |
 | `030` | Executable release gate | 020 inventory hash | candidate manifest producer + fail-closed `cxc release` CLI |
 | `040` | Release train channel | 030 gate CLI | macOS CI, packed-install lifecycle job, `release.yml` |
 | `050` | Publish + close channel | 040 green runs | published `v0.2.0-beta.1`, closed issues/PRs |
@@ -71,6 +71,11 @@ comparative eval corpus (P3), recall subsystem redesign, force-push or history r
 ## Terminal outcome expectations
 
 DONE requires a published release whose gate manifest links green exact-head CI runs
-on three platforms plus a packed-install lifecycle receipt. BLOCKED only if GitHub
-authorization fails after retry. Anything requiring force-push or secret exposure is
-UNSAFE and stops the loop.
+on three platforms plus a packed-install lifecycle receipt.
+
+BLOCKED covers three cases, not one: GitHub authorization failing after retry,
+GitHub Actions being unavailable, or the real-`codex` install lane being unable to run
+(040). The install-lifecycle receipt is never satisfied by artifact-lane evidence.
+
+UNSAFE stops the loop for anything requiring force-push, tag deletion, or secret
+exposure.

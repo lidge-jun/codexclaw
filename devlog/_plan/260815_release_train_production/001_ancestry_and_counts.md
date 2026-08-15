@@ -70,7 +70,12 @@ class of failure by generating it.
 
 ## Carried into implementation
 
-- 010 records `dac77cc7` as the ancestry answer in the release notes/changelog.
-- 020 must generate the test count, not just skills/hooks.
-- 030's candidate manifest needs a `test-suite` receipt carrying the measured
-  pass count and the SHA it was measured on.
+- 010 records `dac77cc7` as the ancestry answer in `CHANGELOG.md` and corrects the
+  badge to 1,631 by hand.
+- 020 does **not** generate the test count. A committed artifact cannot know the
+  current suite size without embedding its own commit SHA, which never converges
+  (004 #1). The inventory generator covers skills, hooks and components only.
+- 030 owns test provenance instead: the candidate manifest's `testSuite` carries
+  the measured pass/fail plus `measuredSha`, and `publishedCounts` binds the
+  documented badge value to it — so a release cannot ship a fresh test receipt
+  beside a stale public number (004r2 #2).

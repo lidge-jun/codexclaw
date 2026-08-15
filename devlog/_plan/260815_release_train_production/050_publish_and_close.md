@@ -1,24 +1,25 @@
 # 050 — Publish 0.2.0-beta.1 and close the channel
 
-Status: PLANNED — work-phase wp5
+Status: PLANNED — work-phase wp5 (issue #28). Rewritten after A-gate round 2.
 
 ## Loop spec
 
 - Archetype: spec-satisfaction repair
 - Trigger: `main` carries a month of unreleased work including the PR #1 hardening
 - Goal: a published release whose manifest links green exact-head receipts, with
-  `main` updated and the tracking issues/PRs closed with evidence
-- Verifier: `gh release view v0.2.0-beta.1`, `gh issue list --state open`
-- Stop condition: release exists with assets; issues closed
-- Terminal outcomes: DONE on published release; BLOCKED on auth failure
+  `main` promoted and issues #24-#28 closed with evidence
+- Verifier: the exact commands below
+- Stop condition: release exists with assets; all five issues CLOSED with comments
+- Terminal outcomes: DONE on published release; BLOCKED on auth failure or a
+  missing install-lane receipt
 
 ## Version decision
 
-`0.2.0-beta.1`. Rationale: `main` has diverged materially from `v0.1.0` — runtime
-hardening, +3 hooks, +3 skills, +830 tests, the MLB 1.0 tracks — which is a minor
-bump; `-beta.1` because the packed-install lifecycle lane is brand new and the MLB
-receipts are deferred. Shipping it as stable `0.2.0` would repeat the exact failure
-this unit is fixing: publishing a claim the evidence does not carry.
+`0.2.0-beta.1`. Minor bump because `main` diverged materially from `v0.1.0` —
+runtime hardening, +3 hooks, +3 skills, +830 tests, the MLB 1.0 tracks. `-beta.1`
+because the packed-install lane is brand new and the MLB receipts are deferred.
+Shipping it as stable `0.2.0` would repeat the exact failure this unit is fixing:
+publishing a claim the evidence does not carry.
 
 `plugin.json` keeps its `+codex.<timestamp>` build metadata, regenerated at bump
 time; `package.json` and the git tag carry the bare semver.
@@ -26,32 +27,55 @@ time; `package.json` and the git tag carry the bare semver.
 ## Sequence
 
 1. Bump `package.json`, `plugin.json`, and component `package.json` versions.
-2. Regenerate inventory; `--check` clean.
+2. Regenerate inventory; `inventory.mjs --check` clean.
 3. Write the `## [0.2.0-beta.1]` CHANGELOG section from the Unreleased block.
-4. Promote `dev` to `main` by fast-forward push. **Not a PR**:
-   `enforce-pr-target.yml` drafts and prefixes any PR whose base is not `dev`, and the
-   repo has never used one: `gh pr list --base main --state merged` returns `[]`, and
-   `origin/main` and `origin/dev` are currently the same commit (`15b3d44a`).
-   Fast-forward promotion is the established mechanism and touches no PR
-   automation (004 #10).
-5. Wait for exact-head CI and packed-install runs on the merge commit.
+4. **Promote `dev` to `main` by fast-forward push — not a PR.**
+   `enforce-pr-target.yml` drafts and prefixes any PR whose base is not `dev`, and
+   the repo has never promoted by PR: `gh pr list --base main --state merged` returns
+   `[]`, and `origin/main` and `origin/dev` are currently the same commit
+   (`15b3d44a`). Fast-forward promotion is the established mechanism and touches
+   no PR automation (004 #10).
+5. Wait for exact-head CI + packed-install runs on the promoted commit.
 6. Dispatch `release.yml` with that version.
-7. Verify `gh release view` shows the tag, payload archive, `SHA256SUMS`, and the
-   candidate manifest.
-8. Close the issues created in wp0, citing run ids and the release URL.
+7. Verify assets and tag binding.
+8. Close #24-#28, each with a comment citing a run id or the release URL.
 
-## Accept criteria (exact commands — 004 #13)
+## Accept criteria — exact commands (004 #13, tightened round 2)
 
 ```bash
-gh release view v0.2.0-beta.1 --repo lidge-jun/codexclaw --json tagName,assets,targetCommitish
-gh api repos/lidge-jun/codexclaw/git/ref/tags/v0.2.0-beta.1 --jq .object.sha
-for n in 24 25 26 27 28; do gh issue view "$n" --repo lidge-jun/codexclaw --json number,state; done
-git rev-parse origin/main
+REPO=lidge-jun/codexclaw
+TAG=v0.2.0-beta.1
+
+# 1. assets present (expect >= 3: payload archive, SHA256SUMS, candidate manifest)
+gh release view "$TAG" --repo "$REPO" --json tagName,assets,targetCommitish
+
+# 2. tag -> commit, dereferencing an annotated tag
+TAG_OBJ=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq .object.sha)
+TAG_TYPE=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq .object.type)
+if [ "$TAG_TYPE" = tag ]; then
+  TAG_COMMIT=$(gh api "repos/$REPO/git/tags/$TAG_OBJ" --jq .object.sha)
+else
+  TAG_COMMIT=$TAG_OBJ
+fi
+
+# 3. the published manifest's candidateSha must equal that commit and origin/main
+gh release download "$TAG" --repo "$REPO" --pattern 'candidate-*.json' --dir "$RELEASE_TMP"
+MANIFEST_SHA=$(node -e "const fs=require('fs'),d=process.argv[1];const f=fs.readdirSync(d)[0];console.log(JSON.parse(fs.readFileSync(d+'/'+f,'utf8')).candidateSha)" "$RELEASE_TMP")
+[ "$MANIFEST_SHA" = "$TAG_COMMIT" ] || echo 'MISMATCH: manifest vs tag'
+[ "$MANIFEST_SHA" = "$(git rev-parse origin/main)" ] || echo 'MISMATCH: manifest vs main'
+
+# 4. every issue closed AND carrying an evidence comment
+for n in 24 25 26 27 28; do
+  state=$(gh issue view "$n" --repo "$REPO" --json state --jq .state)
+  ev=$(gh issue view "$n" --repo "$REPO" --json comments \
+        --jq '[.comments[].body | select(test("actions/runs/[0-9]+|releases/tag/"))] | length')
+  echo "#$n state=$state evidence_comments=$ev"
+done
 ```
 
-1. The release lists at least three assets: payload archive, `SHA256SUMS`, candidate manifest.
-2. The tag object SHA equals the attached manifest `candidateSha` and equals `origin/main`.
-3. Issues #24-#28 all report state CLOSED, each with an evidence comment.
+Passing means: at least three assets; `MANIFEST_SHA == TAG_COMMIT == origin/main`
+with no MISMATCH lines; and all five issues `state=CLOSED` with
+`evidence_comments >= 1`.
 
 ## Rollback
 
