@@ -38,6 +38,16 @@ reproduce are known-correct (010 -> 020); the release gate inventoryHash receipt
 meaningless without a generator (020 -> 030); the release workflow calls the gate CLI
 (030 -> 040); publication requires the workflow to have run green (040 -> 050).
 
+## GitHub tracking
+
+| Doc | Work-phase | Issue |
+| --- | --- | --- |
+| `010` | wp1 | [#24](https://github.com/lidge-jun/codexclaw/issues/24) |
+| `020` | wp2 | [#25](https://github.com/lidge-jun/codexclaw/issues/25) |
+| `030` | wp3 | [#26](https://github.com/lidge-jun/codexclaw/issues/26) |
+| `040` | wp4 | [#27](https://github.com/lidge-jun/codexclaw/issues/27) |
+| `050` | wp5 | [#28](https://github.com/lidge-jun/codexclaw/issues/28) |
+
 ## Scope boundary
 
 IN: `.github/workflows/*`, `plugins/codexclaw/scripts/*`,

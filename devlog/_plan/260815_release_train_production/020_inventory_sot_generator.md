@@ -1,6 +1,6 @@
 # 020 — Inventory source-of-truth generator + set-based drift gate
 
-Status: PLANNED — work-phase wp2 (amended at the A gate, see `004_audit_amendments.md`)
+Status: PLANNED — work-phase wp2 (issue #25). Amended at the A gate; see `004_audit_amendments.md`.
 
 ## Loop spec
 
