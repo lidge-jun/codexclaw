@@ -34,6 +34,8 @@ export interface RequiredReceipt {
   deferredReason?: string;
   /** RFC3339 timestamp when this receipt was captured. */
   capturedAt?: string;
+  /** Earliest release line where this receipt becomes mandatory (policy mirror). */
+  requiredFrom?: string;
   /** The commit this receipt was measured on. Must equal candidateSha. */
   capturedSha?: string;
 }
@@ -98,6 +100,93 @@ export interface CandidateManifest {
   allowedDeferred?: boolean;
 }
 
+/* ------------------------------------------------------------ versioning */
+
+/** A parsed SemVer, with build metadata discarded (it never affects precedence). */
+export interface ParsedVersion {
+  major: number;
+  minor: number;
+  patch: number;
+  /** Prerelease identifiers, e.g. ["beta", 1] for 0.2.0-beta.1. Empty when stable. */
+  prerelease: string[];
+}
+
+const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+
+/** Parse a SemVer string. Returns null when malformed — callers must fail closed. */
+export function parseVersion(raw: string): ParsedVersion | null {
+  const m = SEMVER_RE.exec(String(raw ?? "").trim());
+  if (!m) return null;
+  return {
+    major: Number(m[1]),
+    minor: Number(m[2]),
+    patch: Number(m[3]),
+    prerelease: m[4] ? m[4].split(".") : [],
+  };
+}
+
+/** True when the version carries prerelease identifiers (0.2.0-beta.1, 1.0.0-rc.1). */
+export function isPrerelease(raw: string): boolean {
+  const v = parseVersion(raw);
+  return v !== null && v.prerelease.length > 0;
+}
+
+/**
+ * Compare only major.minor.patch, ignoring prerelease identifiers.
+ *
+ * This is deliberately NOT SemVer precedence. Precedence puts 1.0.0-rc.1 below
+ * 1.0.0, which would let a 1.0 release candidate treat 1.0-scoped evidence as
+ * not-yet-due — exactly the evidence 1.0 is defined by. An rc of 1.0 belongs to the
+ * 1.0 line and owes 1.0 receipts, so obligation is decided on the core alone.
+ */
+export function compareCore(a: ParsedVersion, b: ParsedVersion): number {
+  if (a.major !== b.major) return a.major - b.major;
+  if (a.minor !== b.minor) return a.minor - b.minor;
+  return a.patch - b.patch;
+}
+
+/**
+ * Canonical receipt policy: which release line each receipt becomes mandatory in.
+ * This map is the authority. A candidate manifest may carry requiredFrom, but
+ * validation requires it to MATCH this policy — otherwise a hand-written candidate
+ * could set requiredFrom: "9999.0.0" and excuse its own evidence.
+ */
+export const RECEIPT_POLICY: Record<string, { requiredFrom?: string }> = {
+  // Train receipts are unscoped: due for every release, always.
+  "inventory-sync": {},
+  "test-suite": {},
+  "gate": {},
+  "build": {},
+  "packed-install-lifecycle": {},
+  "platform-ci": {},
+  // MLB 1.0 tracks: not required before the 1.0 line.
+  "activation-baseline": { requiredFrom: "1.0.0" },
+  "hook-benchmark": { requiredFrom: "1.0.0" },
+  "doctor-lifecycle": { requiredFrom: "1.0.0" },
+  "capability-lock": { requiredFrom: "1.0.0" },
+  "dispatch-contracts": { requiredFrom: "1.0.0" },
+  "rule-impact-report": { requiredFrom: "1.0.0" },
+  "reference-league": { requiredFrom: "1.0.0" },
+  "scouting-bundle": { requiredFrom: "1.0.0" },
+  "provenance-security": { requiredFrom: "1.0.0" },
+};
+
+/** Every receipt name a candidate manifest must declare. */
+export const CANONICAL_RECEIPT_NAMES: string[] = Object.keys(RECEIPT_POLICY);
+
+/**
+ * Is a receipt due for this candidate version? A scoped receipt is exempt only
+ * while the candidate core is strictly below its requiredFrom core.
+ */
+export function isReceiptDue(receipt: RequiredReceipt, candidateVersion: string): boolean {
+  const scope = RECEIPT_POLICY[receipt.name]?.requiredFrom;
+  if (!scope) return true;
+  const candidate = parseVersion(candidateVersion);
+  const threshold = parseVersion(scope);
+  if (!candidate || !threshold) return true; // fail closed on a malformed version
+  return compareCore(candidate, threshold) >= 0;
+}
+
 /** Validate a candidate manifest. Returns error messages or empty array. */
 export function validateCandidateManifest(manifest: unknown): string[] {
   const errors: string[] = [];
@@ -107,8 +196,45 @@ export function validateCandidateManifest(manifest: unknown): string[] {
     errors.push("schemaVersion must be " + CANDIDATE_SCHEMA_VERSION);
   }
   if (typeof m.candidateSha !== "string" || !m.candidateSha) errors.push("candidateSha required");
-  if (typeof m.version !== "string" || !m.version) errors.push("version required");
-  if (!Array.isArray(m.receipts)) errors.push("receipts must be an array");
+  if (typeof m.version !== "string" || !m.version) {
+    errors.push("version required");
+  } else if (!parseVersion(m.version)) {
+    // Fail closed: an unparseable version cannot be scope-compared, so it must not
+    // silently exempt anything.
+    errors.push("version is not valid semver: " + m.version);
+  }
+  if (!Array.isArray(m.receipts)) {
+    errors.push("receipts must be an array");
+  } else {
+    // Completeness. Previously the gate only inspected receipts that happened to
+    // exist, so a manifest with receipts: [] verified ready:true — evidence could be
+    // omitted rather than deferred. The declared set must be exactly canonical.
+    const names = m.receipts.map((r) => (r as Record<string, unknown>)?.name).filter((n) => typeof n === "string") as string[];
+    const seen = new Set<string>();
+    for (const n of names) {
+      if (seen.has(n)) errors.push("duplicate receipt: " + n);
+      seen.add(n);
+      if (!(n in RECEIPT_POLICY)) errors.push("unknown receipt: " + n);
+    }
+    for (const expected of CANONICAL_RECEIPT_NAMES) {
+      if (!seen.has(expected)) errors.push("missing required receipt: " + expected);
+    }
+    // Policy match. requiredFrom is authoritative in RECEIPT_POLICY; a manifest that
+    // disagrees is rejected, so a hand-written candidate cannot excuse its own
+    // evidence by claiming a later requiredFrom.
+    for (const raw of m.receipts) {
+      const r = raw as Record<string, unknown>;
+      const name = typeof r?.name === "string" ? r.name : null;
+      if (!name || !(name in RECEIPT_POLICY)) continue;
+      const expected = RECEIPT_POLICY[name].requiredFrom;
+      const actual = r.requiredFrom;
+      if ((actual ?? undefined) !== expected) {
+        errors.push(
+          name + ": requiredFrom must be " + (expected ?? "unset") + ", got " + (actual === undefined ? "unset" : String(actual)),
+        );
+      }
+    }
+  }
   if (!Array.isArray(m.platforms)) errors.push("platforms must be an array");
   if (!m.scorecard || typeof m.scorecard !== "object") errors.push("scorecard must be an object");
   if (!Array.isArray(m.nonGoals)) errors.push("nonGoals must be an array");
@@ -161,7 +287,10 @@ export function validateCandidateManifest(manifest: unknown): string[] {
 
 /** Check if a candidate is ready for release. */
 export interface ReleaseReadyOptions {
-  /** Permit deferred receipts (prerelease trains). Recorded in the manifest. */
+  /**
+   * Provenance only: records that the operator asked to ship leniently. It does NOT
+   * waive a due receipt — scope decides exemption (A-gate r3).
+   */
   allowDeferred?: boolean;
   /** Freshly recomputed inventory hash from the checkout being released. */
   actualInventoryHash?: string;
@@ -180,9 +309,11 @@ export function isReleaseReady(
   const missing = manifest.receipts.filter(r => r.status !== "present");
   for (const r of missing) {
     if (r.status === "deferred") {
-      // A prerelease may ship with deferred receipts, but only explicitly: the flag is
-      // recorded on the manifest so the published artifact states what it skipped.
-      if (options.allowDeferred) continue;
+      // Scope, not leniency: a receipt is exempt only while the candidate core is
+      // below its requiredFrom. Once due it blocks, and no flag waives it — otherwise
+      // a 1.0.0-rc.1 classified as "prerelease" would be handed --allow-deferred and
+      // skip exactly the evidence the 1.0 line is defined by.
+      if (!isReceiptDue(r, manifest.version)) continue;
       blockers.push(r.name + " deferred: " + (r.deferredReason || "no reason"));
     } else {
       blockers.push(r.name + " is " + r.status);
@@ -255,14 +386,14 @@ export function isReleaseReady(
 
 /** The required receipts for MLB 1.0. */
 export const MLB_1_0_RECEIPTS: RequiredReceipt[] = [
-  { name: "activation-baseline", source: "#11 + #18", status: "missing" },
-  { name: "hook-benchmark", source: "#13", status: "missing" },
-  { name: "doctor-lifecycle", source: "#15", status: "missing" },
-  { name: "capability-lock", source: "#16", status: "missing" },
-  { name: "dispatch-contracts", source: "#17", status: "missing" },
-  { name: "rule-impact-report", source: "#18", status: "missing" },
-  { name: "reference-league", source: "#19", status: "missing" },
-  { name: "scouting-bundle", source: "#20", status: "missing" },
-  { name: "provenance-security", source: "#8 + #10 + #12", status: "missing" },
+  { name: "activation-baseline", source: "#11 + #18", status: "missing", requiredFrom: "1.0.0" },
+  { name: "hook-benchmark", source: "#13", status: "missing", requiredFrom: "1.0.0" },
+  { name: "doctor-lifecycle", source: "#15", status: "missing", requiredFrom: "1.0.0" },
+  { name: "capability-lock", source: "#16", status: "missing", requiredFrom: "1.0.0" },
+  { name: "dispatch-contracts", source: "#17", status: "missing", requiredFrom: "1.0.0" },
+  { name: "rule-impact-report", source: "#18", status: "missing", requiredFrom: "1.0.0" },
+  { name: "reference-league", source: "#19", status: "missing", requiredFrom: "1.0.0" },
+  { name: "scouting-bundle", source: "#20", status: "missing", requiredFrom: "1.0.0" },
+  { name: "provenance-security", source: "#8 + #10 + #12", status: "missing", requiredFrom: "1.0.0" },
 ];
 

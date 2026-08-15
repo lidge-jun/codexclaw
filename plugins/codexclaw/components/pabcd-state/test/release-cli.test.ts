@@ -79,7 +79,10 @@ test("init seeds both receipt sets: train receipts missing, MLB receipts deferre
   }
 });
 
-test("a fresh candidate refuses, a completed one accepts with --allow-deferred", () => {
+test("a fresh candidate refuses; a completed 0.2.0 accepts with no flag at all", () => {
+  // wp7 changed this contract. The MLB receipts are scoped to the 1.0 line, so a
+  // 0.2.x release is exempt automatically — --allow-deferred is no longer needed,
+  // and no longer waives anything.
   const cwd = scratch();
   try {
     init(cwd);
@@ -88,13 +91,59 @@ test("a fresh candidate refuses, a completed one accepts with --allow-deferred",
     assert.match(fresh.output, /NOT READY/);
 
     complete(cwd);
-    const strict = runReleaseCli(["verify"], cwd);
-    assert.equal(strict.code, 1, "deferred MLB receipts still block without the flag");
+    const stable = runReleaseCli(["verify"], cwd);
+    assert.equal(stable.code, 0, stable.output);
+    assert.match(stable.output, /READY/);
 
-    const beta = runReleaseCli(["verify", "--allow-deferred"], cwd);
-    assert.equal(beta.code, 0, beta.output);
-    assert.match(beta.output, /READY/);
-    assert.equal(read(cwd).allowedDeferred, true, "the allowance must be recorded in the manifest");
+    // the flag is accepted and recorded, but changes nothing
+    const withFlag = runReleaseCli(["verify", "--allow-deferred"], cwd);
+    assert.equal(withFlag.code, 0, withFlag.output);
+    assert.equal(read(cwd).allowedDeferred, true, "the request is recorded as provenance");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("a 1.0.0 candidate is refused, and --allow-deferred does not rescue it", () => {
+  const cwd = scratch();
+  try {
+    const r = runReleaseCli(["init", "--version", "1.0.0", "--sha", SHA], cwd);
+    assert.equal(r.code, 0, r.output);
+    for (const rc of TRAIN_RECEIPTS) {
+      runReleaseCli(["receipt", "--version", "1.0.0", "--name", rc.name, "--evidence", "run://x", "--sha", SHA], cwd);
+    }
+    runReleaseCli(["tests", "--version", "1.0.0", "--pass", "1660", "--fail", "0", "--total", "1660", "--sha", SHA], cwd);
+    runReleaseCli(["inventory", "--version", "1.0.0", "--hash", HASH, "--skills", "28", "--hooks", "21", "--published-tests", "1660"], cwd);
+    for (const [p, run] of [["ubuntu", "1"], ["windows", "2"], ["macos", "3"]]) {
+      runReleaseCli(["platform", "--version", "1.0.0", "--platform", p, "--sha", SHA, "--ci-run", run], cwd);
+    }
+    for (const args of [["verify", "--version", "1.0.0"], ["verify", "--version", "1.0.0", "--allow-deferred"]]) {
+      const result = runReleaseCli(args, cwd);
+      assert.equal(result.code, 1, args.join(" ") + " -> " + result.output);
+      assert.match(result.output, /activation-baseline deferred/);
+    }
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("classify shares one parser with the workflow", () => {
+  const cwd = scratch();
+  try {
+    const cases: Array<[string, string]> = [
+      ["0.2.0-beta.1", "prerelease"],
+      ["0.2.0", "stable"],
+      ["1.0.0", "stable"],
+      // the substring test the workflow used called this a prerelease
+      ["1.0.0+build-with-hyphen", "stable"],
+      ["1.0.0-rc.1", "prerelease"],
+    ];
+    for (const [version, expected] of cases) {
+      const r = runReleaseCli(["classify", "--version", version], cwd);
+      assert.equal(r.code, 0, r.output);
+      assert.equal(r.output, expected, version);
+    }
+    assert.equal(runReleaseCli(["classify", "--version", "nonsense"], cwd).code, 1);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }

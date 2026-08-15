@@ -23,7 +23,9 @@ import { dirname, join, resolve } from "node:path";
 import {
   CANDIDATE_SCHEMA_VERSION,
   MLB_1_0_RECEIPTS,
+  isPrerelease,
   isReleaseReady,
+  parseVersion,
   validateCandidateManifest,
   type CandidateManifest,
   type PlatformEvidence,
@@ -61,6 +63,7 @@ function usage(): ReleaseCliResult {
       "  release platform  (--version <v> | --candidate <path>) --platform ubuntu|windows|macos --sha <sha> --ci-run <id> [--passed|--failed]",
       "  release tests     (--version <v> | --candidate <path>) --pass <n> --fail <n> [--total <n>] --sha <sha>",
       "  release inventory (--version <v> | --candidate <path>) --hash <sha256:...> --skills <n> --hooks <n> --published-tests <n>",
+      "  release classify  --version <v>                     prints: stable | prerelease",
       "  release verify    (--version <v> | --candidate <path>) [--json] [--allow-deferred] [--actual-inventory-hash <h>]",
     ].join("\n"),
   };
@@ -355,6 +358,22 @@ function runVerify(argv: string[], cwd: string): ReleaseCliResult {
   };
 }
 
+/**
+ * `release classify` — one SemVer parser shared with release.yml.
+ *
+ * The workflow previously used `case "$VERSION" in *-*)`, a substring test that
+ * classified the stable `1.0.0+build-with-hyphen` as a prerelease. The same value
+ * drives both the GitHub prerelease label and (formerly) gate leniency, so a
+ * misclassification could mislabel a release. One parser, one answer.
+ */
+function runClassify(argv: string[]): ReleaseCliResult {
+  const version = readFlag(argv, "--version");
+  if (!version) return { code: 1, output: "release classify: --version <v> is required" };
+  const parsed = parseVersion(version);
+  if (!parsed) return { code: 1, output: "release classify: not valid semver: " + version };
+  return { code: 0, output: isPrerelease(version) ? "prerelease" : "stable" };
+}
+
 export function runReleaseCli(argv: string[], cwd: string): ReleaseCliResult {
   const verb = argv[0];
   switch (verb) {
@@ -368,6 +387,8 @@ export function runReleaseCli(argv: string[], cwd: string): ReleaseCliResult {
       return runTests(argv, cwd);
     case "inventory":
       return runInventory(argv, cwd);
+    case "classify":
+      return runClassify(argv);
     case "verify":
       return runVerify(argv, cwd);
     default:

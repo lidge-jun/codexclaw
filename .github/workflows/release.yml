@@ -97,6 +97,15 @@ jobs:
           echo "skills=$(node -p "JSON.parse(process.argv[1]).skills" "$published")" >> "$GITHUB_OUTPUT"
           echo "hooks=$(node -p "JSON.parse(process.argv[1]).hooks" "$published")" >> "$GITHUB_OUTPUT"
 
+# The archive must not claim a version different from the one being released.
+      # package/component versions match exactly; plugin.json and inventory may carry
+      # the canonical +codex.<stamp> build metadata, which never affects precedence.
+      - name: Embedded versions match the release version
+        shell: bash
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: node plugins/codexclaw/scripts/check-versions.mjs "$VERSION"
+
       - name: Build and archive the payload
         shell: bash
         run: |
@@ -175,8 +184,12 @@ jobs:
           VERSION: ${{ steps.resolve.outputs.version }}
         run: |
           set -euo pipefail
+          # One parser, shared with the gate. The old `case $VERSION in *-*)` called the
+          # stable 1.0.0+build-with-hyphen a prerelease.
+          kind="$(node bin/codexclaw.mjs release classify --version "$VERSION")"
+          echo "version kind: $kind"
           flags=""
-          case "$VERSION" in *-*) flags="--allow-deferred" ;; esac
+          [ "$kind" = prerelease ] && flags="--allow-deferred"
           node bin/codexclaw.mjs release verify --version "$VERSION" \
             --actual-inventory-hash "${{ steps.inventory.outputs.hash }}" $flags
           cp ".codexclaw/release/candidate-${VERSION}.json" dist-artifacts/
@@ -191,7 +204,8 @@ jobs:
           tag="v${VERSION}"
           if ! gh release view "$tag" >/dev/null 2>&1; then
             args=(--title "codexclaw $tag" --target "$GITHUB_SHA" --generate-notes)
-            case "$VERSION" in *-*) args+=(--prerelease) ;; esac
+            kind="$(node bin/codexclaw.mjs release classify --version "$VERSION")"
+            [ "$kind" = prerelease ] && args+=(--prerelease)
             gh release create "$tag" "${args[@]}"
           fi
           gh release upload "$tag" dist-artifacts/* --clobber
