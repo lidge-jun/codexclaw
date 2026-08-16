@@ -1,0 +1,5 @@
+interface:
+  display_name: "cxc-skill-hub"
+  short_description: "DEPRECATED - capability routing now lives in cxc-dev."
+policy:
+  allow_implicit_invocation: false
