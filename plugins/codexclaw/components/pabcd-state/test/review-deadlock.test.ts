@@ -119,6 +119,7 @@ test("entering A from chat with a plan attest records the binding", () => {
     const st = readState(cwd, "chat-a");
     assert.equal(st.phase, "A");
     assert.ok(st.planEpoch, "chat entry must mint a binding, the same as the CLI");
-    assert.equal(st.planUnit, "devlog/_plan/260817_probe");
+    // path.relative() reports the platform separator, so compare on segments
+    assert.deepEqual(st.planUnit?.split(/[\\/]/), ["devlog", "_plan", "260817_probe"]);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
