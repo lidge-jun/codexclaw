@@ -72,7 +72,7 @@ function mintPlanEpoch(): string {
   return mintEpoch("e");
 }
 import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan, type AdvanceResult, type Goalplan } from "./goalplan.ts";
-import { latestRound } from "./review-round.ts";
+import { latestRound, supersedeStaleRounds } from "./review-round.ts";
 import { planFilesHash, recomputed } from "./review-round-cli.ts";
 import { validateCheckReceipt } from "./check-gate.ts";
 import { evaluateInterviewGate } from "./interview.ts";
@@ -539,6 +539,44 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
   // 075: entering C mints a check epoch; staying in C keeps it; anywhere else drops it.
   // A receipt records the epoch it ran under, so re-checking invalidates the old one.
   const nextCheckEpoch = result.state.phase !== "C" ? null : state.phase === "C" ? state.checkEpoch : mintEpoch("c");
+  // 032: a fresh epoch orphans every round the old one owned. Close them here,
+  // before the new binding lands, or the gate will wait on a round no sign-off can
+  // reach.
+  //
+  // The old epoch is read from the rounds, not from state: this edge is entered
+  // from P, and state read at P has already normalized the A-only binding to null.
+  // The rounds are the only place the previous epoch still exists.
+  if (planBinding && state.slug) {
+    try {
+      const plan = readGoalplan(args.cwd, state.slug);
+      if (plan) {
+        const stranded = (plan.reviewRounds ?? []).find(
+          (r) => r.purpose === "plan_audit"
+            && r.ownerSessionId === sessionId
+            && r.planEpoch !== undefined
+            && r.planEpoch !== planBinding.epoch
+            && r.status !== "approved"
+            && r.status !== "changes_requested"
+            && r.status !== "inconclusive",
+        );
+        const swept = supersedeStaleRounds(plan, "plan_audit", sessionId, stranded?.planEpoch ?? null);
+        if (swept.closed.length > 0) {
+          writeGoalplan(args.cwd, swept.plan);
+          for (const roundId of swept.closed) {
+            appendGoalplanLedger(args.cwd, state.slug, {
+              ts: new Date().toISOString(),
+              slug: state.slug,
+              event: "review_round_superseded",
+              detail: "the plan was re-planned, so this round can no longer be spent",
+              roundId,
+            });
+          }
+        }
+      }
+    } catch {
+      // FAIL-OPEN: sweeping is housekeeping; a failure here must not block the edge
+    }
+  }
   writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: entrySource, planUnit: nextUnit, planEpoch: nextEpoch, checkEpoch: nextCheckEpoch });
   // C-RENDER-GROUNDING-01: a new cycle starts at P — clear the render ledger so the
   // Stop advisory judges THIS cycle's rows only (stale rows both suppress and misfire).

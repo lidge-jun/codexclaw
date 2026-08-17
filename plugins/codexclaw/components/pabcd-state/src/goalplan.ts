@@ -196,7 +196,12 @@ export type GoalplanLedgerEvent =
   | "task_done"
   | "criterion_met"
   | "host_armed"
-  | "steered";
+  | "steered"
+  // 060/032: why a reviewer's verdict was not recorded, and when a round was
+  // rolled past. Without these the observer's refusals left no trace at all —
+  // the reviewer answered, the gate stayed shut, and nothing said why.
+  | "review_signoff_ignored"
+  | "review_round_superseded";
 
 export interface SteeringEntry {
   idempotencyKey: string;
@@ -212,6 +217,10 @@ export interface GoalplanLedgerEntry {
   slug: string;
   event: GoalplanLedgerEvent;
   detail: string;
+  /** 032: which round the entry is about, so a reader can filter by round rather
+   *  than parse prose. Absent on entries that are not about a review round. */
+  roundId?: string;
+  launchId?: string;
 }
 
 const MAX_SLUG_BYTES = 128;

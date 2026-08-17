@@ -46,7 +46,41 @@ import { checkObjectivePlateau, readObjectiveKind, readObjectiveMetrics, type Pl
 import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan, nextOpenTask, unmetCriteria, type AdvanceResult, type Goalplan } from "./goalplan.ts";
  import { captureSourceIdentity, compareSource, describeSource } from "./source-identity.ts";
 import { validateCheckReceipt } from "./check-gate.ts";
+import { validatePlanArtifacts } from "./plan-gate.ts";
+import { validateWorkPhaseBinding, type Attestation } from "./attest.ts";
 import { randomBytes } from "node:crypto";
+
+
+/**
+ * The plan binding for a chat P>A, or null when the attest does not earn one.
+ *
+ * Chat is a human free-pass for phase movement, but a binding is evidence, and
+ * evidence clears the same bar on both paths: the unit must hold numbered plan
+ * docs, and the attest must name the work-phase the goalplan says is active.
+ * Failing either moves the phase anyway and leaves the binding null — the audit
+ * then refuses to open, which is the honest outcome.
+ */
+function chatPlanBinding(
+  cwd: string,
+  slug: string,
+  attest: Attestation | null,
+): { unit: string; epoch: string } | null {
+  try {
+    if (!attest) return null;
+    const planCheck = validatePlanArtifacts(attest, cwd);
+    if (!planCheck.ok) return null;
+    if (slug) {
+      const plan = readGoalplan(cwd, slug);
+      if (!plan) return null;
+      const bind = validateWorkPhaseBinding(attest, effectiveActiveWorkPhaseId(plan));
+      if (!bind.ok) return null;
+    }
+    const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
+    return { unit: planCheck.unit, epoch: `e-${stamp}-${randomBytes(3).toString("hex")}` };
+  } catch {
+    return null; // FAIL-CLOSED on the binding only: the phase still moves
+  }
+}
 
 /** CHECK-BINDING-01 (075): one nonce per entry to C, mirroring the CLI producer. */
 function mintCheckEpoch(): string {
@@ -788,9 +822,21 @@ function handleOrchestrateCommand(
     const entrySource = result.state.phase === "B"
       ? captureSourceIdentity(payload.cwd, { excludeCodexclawArtifacts: true })
       : null;
+    // 060/032: chat P>A mints the same plan binding the CLI does. Wiring only the
+    // CLI meant a cycle entered from chat reached A with no binding at all, and the
+    // audit refused to open before it could start.
+    //
+    // The checks are the CLI's, not a looser copy: an attest naming any directory
+    // with numbered docs would otherwise bind through chat what the CLI refuses.
+    const planBinding = state.phase === "P" && result.state.phase === "A"
+      ? chatPlanBinding(payload.cwd, state.slug, command.attest)
+      : null;
+    const keepBinding = result.state.phase === "A" && state.phase === "A";
     writeState(payload.cwd, {
       ...result.state,
       phaseEntrySource: entrySource,
+      planUnit: planBinding ? planBinding.unit : keepBinding ? state.planUnit : null,
+      planEpoch: planBinding ? planBinding.epoch : keepBinding ? state.planEpoch : null,
       // 075: same rule as the CLI — C mints, staying in C keeps, elsewhere drops.
       checkEpoch: result.state.phase !== "C" ? null : state.phase === "C" ? state.checkEpoch : mintCheckEpoch(),
       orchestrationActive: result.control === "reset" || result.control === "done" ? false : true,

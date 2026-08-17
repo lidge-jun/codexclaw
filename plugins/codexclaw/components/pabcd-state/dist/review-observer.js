@@ -16,8 +16,8 @@
  * round, while a thrown observer would break an unrelated subagent's exit.
  */
 import { readState } from "./state.js";
-import { readGoalplan, writeGoalplan, effectiveActiveWorkPhaseId } from "./goalplan.js";
-import { effectiveRound, parseSignoff, recordVerdict } from "./review-round.js";
+import { readGoalplan, writeGoalplan, effectiveActiveWorkPhaseId, appendGoalplanLedger } from "./goalplan.js";
+import { roundByLaunchId, parseSignoff, recordVerdict } from "./review-round.js";
 
 
 /**
@@ -41,18 +41,42 @@ export function handleReviewObserver(raw        )         {
     if (!signoff) return "";
 
     const state = readState(cwd, sessionId);
-    // The round belongs to an audit in progress; anywhere else it is stale.
-    if (state.phase !== "A" || !state.slug) return "";
+    if (!state.slug) return "";
 
     const plan = readGoalplan(cwd, state.slug);
     if (!plan) return "";
-    const round = effectiveRound(plan, "plan_audit");
+
+    // Find the round by its launch id before checking anything else. The sign-off
+    // names its own round, and looking it up first means every refusal below is
+    // about a round we can name — which is what makes it worth recording.
+    const round = roundByLaunchId(plan, "plan_audit", signoff.launchId);
     if (!round) return "";
-    if (round.lane.launchId !== signoff.launchId) return "";
-    // The parent may have moved on between dispatch and exit.
-    if (round.ownerSessionId !== sessionId) return "";
-    if (round.planEpoch !== state.planEpoch) return "";
-    if (round.workPhaseId !== effectiveActiveWorkPhaseId(plan)) return "";
+
+    const ignore = (reason        )         => {
+      // Diagnosis only. A reviewer answered and the verdict is not being taken;
+      // saying why is the difference between a closed gate and a silent one.
+      try {
+        appendGoalplanLedger(cwd, state.slug, {
+          ts: new Date().toISOString(),
+          slug: state.slug,
+          event: "review_signoff_ignored",
+          detail: `${signoff.verdict} sign-off was not recorded: ${reason}`,
+          roundId: round.roundId,
+          launchId: signoff.launchId,
+        });
+      } catch {
+        // FAIL-OPEN: a note that cannot be written must not break the child's exit
+      }
+      return "";
+    };
+
+    if (state.phase !== "A") return ignore("the session left A before the reviewer finished");
+    if (round.ownerSessionId !== sessionId) return ignore("the round belongs to another session");
+    if (round.planEpoch !== state.planEpoch) return ignore("the plan was re-planned after this round opened");
+    const activeWp = effectiveActiveWorkPhaseId(plan);
+    if (round.workPhaseId !== activeWp) {
+      return ignore(`the round audited work-phase ${round.workPhaseId ?? "none"}, but ${activeWp ?? "none"} is active`);
+    }
 
     const result = recordVerdict(plan, {
       purpose: "plan_audit",
@@ -61,11 +85,12 @@ export function handleReviewObserver(raw        )         {
       verdict: signoff.verdict,
       reviewerSession: payload.agent_id ?? "",
     });
-    if (result.kind !== "ok") return "";
+    if (result.kind !== "ok") {
+      return ignore("reason" in result ? result.reason : result.kind);
+    }
     writeGoalplan(cwd, result.plan);
     return "";
   } catch {
     return ""; // FAIL-OPEN: never break a subagent's exit
   }
 }
-

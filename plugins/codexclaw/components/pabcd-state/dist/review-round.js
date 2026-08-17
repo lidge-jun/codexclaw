@@ -161,21 +161,49 @@ export function openRound(plan          , input                )                
   return { kind: "ok", plan: withRounds(plan, list, input.purpose, roundId), round };
 }
 
-function requireCursorRound(
+/**
+ * The round a launch id belongs to, whatever the cursor says.
+ *
+ * A sign-off names its own round. Asking which round is "active" instead is how a
+ * verdict ended up landing nowhere: the observer read the cursor while the gate
+ * read the highest round, and a reviewer answering the second one was dropped in
+ * silence.
+ */
+export function roundByLaunchId(plan          , purpose               , launchId        )                          {
+  if (!launchId) return null;
+  return rounds(plan).find((r) => r.purpose === purpose && r.lane.launchId === launchId) ?? null;
+}
+
+/**
+ * True when a later round of the same purpose exists.
+ *
+ * Ordering, not status: a round left in_flight while a newer one opened is still
+ * superseded, and reading status alone would call that a CAS failure instead.
+ */
+function isSuperseded(plan          , purpose               , round                  )          {
+  return rounds(plan).some((r) => r.purpose === purpose && roundOrder(r.roundId) > roundOrder(round.roundId));
+}
+
+function requireRound(
   plan          ,
   purpose               ,
   roundId        ,
   launchId        ,
 )                                       {
-  const live = effectiveRound(plan, purpose);
-  if (!live) return { kind: "not_found", reason: `no open ${purpose} round` };
-  if (live.roundId !== roundId) {
-    return { kind: "stale", reason: `round ${roundId} is no longer the active ${purpose} round (now ${live.roundId})` };
+  const byLaunch = roundByLaunchId(plan, purpose, launchId);
+  if (byLaunch && byLaunch.roundId === roundId) {
+    // Supersession is decided before the CAS: a verdict arriving late for a round
+    // that has already been rolled past is stale, not a second verdict on a live one.
+    if (isSuperseded(plan, purpose, byLaunch)) {
+      return { kind: "stale", reason: `round ${roundId} was superseded before this verdict arrived` };
+    }
+    return byLaunch;
   }
-  if (live.lane.launchId !== launchId) {
-    return { kind: "stale", reason: `launch ${launchId} was superseded by ${live.lane.launchId}` };
+  const byId = rounds(plan).find((r) => r.purpose === purpose && r.roundId === roundId);
+  if (byId) {
+    return { kind: "stale", reason: `launch ${launchId} was superseded by ${byId.lane.launchId}` };
   }
-  return live;
+  return { kind: "not_found", reason: `no ${purpose} round for launch ${launchId}` };
 }
 
 function isResult(v                                      )                         {
@@ -191,7 +219,7 @@ function advance(
   mutate                                           ,
   clearCursor = false,
 )                    {
-  const found = requireCursorRound(plan, purpose, roundId, launchId);
+  const found = requireRound(plan, purpose, roundId, launchId);
   if (isResult(found)) return found;
   if (found.status !== expect) {
     return { kind: "cas_failed", reason: `round ${roundId} is ${found.status}, expected ${expect}`, actual: found.status };
@@ -266,6 +294,39 @@ export function recordVerdict(plan          , input              )              
  * rounds and so cannot see an approval at all — and would happily return an older
  * approved round while a newer one is still in flight.
  */
+
+/**
+ * Close rounds an earlier epoch left behind (032).
+ *
+ * A re-plan mints a new epoch, and every sign-off still in flight for the old one
+ * is already unspendable at the gate. Leaving those rounds open is what stranded a
+ * cycle: the gate saw an in_flight round it could never approve. Cleaning up is
+ * the job of the edge that caused it.
+ *
+ * Scoped deliberately: same session, same purpose, that one earlier epoch. Another
+ * session's rounds and the current epoch's rounds are untouched.
+ */
+export function supersedeStaleRounds(
+  plan          ,
+  purpose               ,
+  sessionId        ,
+  previousEpoch               ,
+)                                       {
+  if (!previousEpoch) return { plan, closed: [] };
+  const now = new Date().toISOString();
+  const closed           = [];
+  const next = rounds(plan).map((r) => {
+    if (r.purpose !== purpose) return r;
+    if (TERMINAL.has(r.status)) return r;
+    if (r.ownerSessionId !== sessionId) return r;
+    if (r.planEpoch !== previousEpoch) return r;
+    closed.push(r.roundId);
+    return { ...r, status: "inconclusive"                     , closedAt: now };
+  });
+  if (closed.length === 0) return { plan, closed: [] };
+  return { plan: withRounds(plan, next, purpose, undefined), closed };
+}
+
 export function latestRound(plan          , purpose               )                          {
   const all = rounds(plan).filter((r) => r.purpose === purpose);
   if (all.length === 0) return null;
