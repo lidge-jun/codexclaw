@@ -10,9 +10,8 @@
             "statusMessage": "(codexclaw) Recording review verdict"
           }
         ],
-        "matcher": "^explorer$"
+        "matcher": "^(explorer)?$"
       }
     ]
   }
 }
-

@@ -12,6 +12,7 @@
  */
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { isAbsolute, relative, resolve } from "node:path";
 import { readState } from "./state.js";
 import { readGoalplan, writeGoalplan, effectiveActiveWorkPhaseId,               } from "./goalplan.js";
@@ -23,6 +24,61 @@ const VERBS                      = new Set                 (["open", "show", "ab
 
 /** Same shape plan-gate enforces at P>A — a plan lives in numbered documents. */
 const NUMBERED_DOC_RE = /^\d{3}_.+\.md$/;
+
+/** Body of a TOML table `[header]`, up to the next table header. */
+function tomlTableBody(content        , header        )                {
+  const lines = content.split("\n");
+  const escaped = header.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const start = lines.findIndex((line) => new RegExp(`^\\s*\\[${escaped}\\]\\s*(?:#.*)?$`).test(line));
+  if (start === -1) return null;
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => /^\s*\[/.test(line));
+  return (end === -1 ? rest : rest.slice(0, end)).join("\n");
+}
+
+function tomlBoolInBody(body        , key        )                 {
+  const match = body.match(new RegExp(`^\\s*${key}\\s*=\\s*(true|false)\\s*(?:#.*)?$`, "m"));
+  return match ? match[1] === "true" : null;
+}
+
+/**
+ * TRUE when the multi_agent_v2 spawn surface is active. Only v2 accepts an
+ * `agent_type` argument; on v1 the field does not exist and a value passed for
+ * it is dropped (050). Telling a v1 caller to "dispatch with agent_type
+ * explorer" is an instruction it cannot carry out, so the dispatch text below
+ * adapts.
+ *
+ * Recognizes the same three shapes config-guard's isMultiAgentV2Enabled does —
+ * table, scalar, inline table. A bare-scalar-only regex read the shipped
+ * `[features.multi_agent_v2] enabled = true` form as v1 (audit r7). Duplicated
+ * rather than imported because pabcd-state does not depend on config-guard;
+ * a missing or unreadable config means the v1 default, which is also the safe
+ * wording.
+ */
+function v2SpawnSurface()          {
+  const home = process.env.CODEX_HOME && process.env.CODEX_HOME.length > 0
+    ? process.env.CODEX_HOME
+    : resolve(homedir(), ".codex");
+  let content        ;
+  try {
+    content = readFileSync(resolve(home, "config.toml"), "utf8");
+  } catch {
+    return false;
+  }
+  const table = tomlTableBody(content, "features.multi_agent_v2");
+  if (table !== null) return tomlBoolInBody(table, "enabled") === true;
+  const features = tomlTableBody(content, "features");
+  if (features !== null) {
+    const bool = tomlBoolInBody(features, "multi_agent_v2");
+    if (bool !== null) return bool;
+    const inline = features.match(/^\s*multi_agent_v2\s*=\s*\{([^}]*)\}/m);
+    if (inline) {
+      const enabled = inline[1].match(/enabled\s*=\s*(true|false)/);
+      if (enabled) return enabled[1] === "true";
+    }
+  }
+  return false;
+}
 
 
 
@@ -153,7 +209,9 @@ export function runReviewRoundCli(args                    )                     
         launchId,
         "",
         `Round ${opened.round.roundId} is in flight over ${collected.files.length} file(s).`,
-        "Dispatch an independent reviewer (agent_type explorer) and require it to end its",
+        v2SpawnSurface()
+          ? "Dispatch an independent reviewer (agent_type explorer) and require it to end its"
+          : "Dispatch an independent reviewer and require it to end its",
         "final message with exactly these two lines:",
         "",
         `  LAUNCH: ${launchId}`,
@@ -201,4 +259,3 @@ export function recomputed(cwd        , files                )                 {
     }
   });
 }
-

@@ -226,7 +226,7 @@
       "file": "subagent-stop-observing-review.json",
       "event": "SubagentStop",
       "component": "pabcd-state",
-      "matcher": "^explorer$"
+      "matcher": "^(explorer)?$"
     },
     {
       "file": "subagent-stop-verifying-evidence.json",

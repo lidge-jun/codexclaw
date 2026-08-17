@@ -8,9 +8,21 @@
  * subagent actually ends its turn.
  *
  * Never blocks. The existing worker evidence gate does the denying (matcher
- * `^worker$`); this observer matches `^explorer$` only, so a read-only audit is
+ * `^worker$`); this observer excludes exactly that type, so a read-only audit is
  * never held to a receipt it was designed to skip (DISPATCH-AGENT-TYPE-01), and
  * the two hooks cannot race over the same child.
+ *
+ * The exclusion is stated as "not worker" rather than "is explorer" on purpose
+ * (050). The v1 spawn surface has no `agent_type` field at all, so a dispatch
+ * cannot label its reviewer and the payload reaches us blank — an "is explorer"
+ * test drops every v1 sign-off before the round can even be named.
+ *
+ * Dropping that test costs identity, so the round re-earns it: the first
+ * sign-off BINDS the round to its agent id, and a later sign-off from a
+ * different child is refused (050 §3b). Launch ids are minted from a round
+ * number and a timestamp, so they are guessable — they name a round, they do
+ * not authenticate a reviewer. Child hooks also inherit the PARENT session id
+ * (cli.ts), so ownerSessionId cannot separate two children of one session.
  *
  * Fail-open on every IO or parse error: a missed recording costs one more audit
  * round, while a thrown observer would break an unrelated subagent's exit.
@@ -28,8 +40,9 @@ export function handleReviewObserver(raw: string): string {
   try {
     const payload = JSON.parse(raw) as SubagentStopPayload;
     if (payload.hook_event_name !== "SubagentStop") return "";
-    // Only explorers audit. A worker's exit belongs to the receipt gate.
-    if (payload.agent_type !== "explorer") return "";
+    // A worker's exit belongs to the receipt gate; everything else is decided by
+    // the sign-off below. Not "=== explorer": v1 spawns carry no agent_type.
+    if (payload.agent_type === "worker") return "";
 
     const { cwd, session_id: sessionId } = payload;
     if (!cwd || !sessionId) return "";
@@ -73,6 +86,15 @@ export function handleReviewObserver(raw: string): string {
     if (state.phase !== "A") return ignore("the session left A before the reviewer finished");
     if (round.ownerSessionId !== sessionId) return ignore("the round belongs to another session");
     if (round.planEpoch !== state.planEpoch) return ignore("the plan was re-planned after this round opened");
+    // One round, one reviewer. The first sign-off binds the round to its agent
+    // id; a second child cannot overwrite that judgement (050 §3b). Child hooks
+    // share the parent session id, so this is the only check that separates two
+    // children of the same session.
+    const agentId = payload.agent_id ?? "";
+    const boundReviewer = round.lane.reviewerSession;
+    if (boundReviewer !== undefined && boundReviewer !== agentId) {
+      return ignore(`round ${round.roundId} was already signed by ${boundReviewer}`);
+    }
     const activeWp = effectiveActiveWorkPhaseId(plan);
     if (round.workPhaseId !== activeWp) {
       return ignore(`the round audited work-phase ${round.workPhaseId ?? "none"}, but ${activeWp ?? "none"} is active`);
@@ -83,7 +105,7 @@ export function handleReviewObserver(raw: string): string {
       roundId: round.roundId,
       launchId: signoff.launchId,
       verdict: signoff.verdict,
-      reviewerSession: payload.agent_id ?? "",
+      reviewerSession: agentId,
     });
     if (result.kind !== "ok") {
       return ignore("reason" in result ? result.reason : result.kind);
