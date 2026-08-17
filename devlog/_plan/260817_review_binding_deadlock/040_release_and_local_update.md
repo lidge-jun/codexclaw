@@ -44,8 +44,10 @@ assert.deepEqual(st.planUnit?.split(/[\\/]/), ["devlog", "_plan", "260817_probe"
 
 1. 루트 `npm test` 전체 통과 (현재 1714/1714).
 2. dev를 원격에 푸시하고, **그 head SHA**에 대해 CI + Packed install
-   lifecycle 두 워크플로가 모두 success인지 확인한다. 지금 head는
-   543a402(050 구현)이며 95c07c0d의 초록은 이 커밋을 대신하지 못한다.
+   lifecycle 두 워크플로가 모두 success인지 확인한다. 문서에 SHA를 적지
+   않는다 — 적는 순간 낡는다(감사 r9가 바로 이 재발을 잡았다). 확인은
+   `git rev-parse HEAD`와 `gh run list --branch dev`의 headSha를 대조하는
+   것이지, 문서에 박힌 값을 믿는 것이 아니다.
 3. `git push origin dev:main` — 룰셋이 정확한 SHA의 필수 체크를 요구하므로
    2가 끝나기 전에는 거부된다.
 4. main 승격이 **재발화시킨** CI를 다시 기다린다. 릴리스 워크플로는 자신의
@@ -100,24 +102,35 @@ codex plugin add codexclaw@codexclaw
 `~/.codex/config.toml`의 `trusted_hash`와 어긋나 **발화하지 않는다.**
 새 observer가 동작한다고 주장하기 전에 신뢰를 갱신해야 한다:
 
+**어느 payload를 신뢰시키는지가 중요하다** (감사 r9 지적). `retrustHooks`는
+`pluginRootFrom()`으로 **자기 자신이 실행된 CLI 파일 위치**에서 루트를
+구한다(`cxc-ops/src/cli.ts:27`). 개발 체크아웃에서 PATH의 `cxc`는 이
+저장소의 `bin/codexclaw.mjs`를 가리키므로 작업 트리 payload를 신뢰시키고,
+캐시 설치본의 dispatcher(`plugins/codexclaw/bin/cxc.mjs`)는 자기 캐시
+payload를 신뢰시킨다. 실제로 발화하는 것은 후자다.
+
+그래서 순서와 대상을 함께 못박는다:
+
 ```
-cxc hooks retrust
+# 1) 캐시버스터 + 재설치 (설치본을 새 코드로)
+codex plugin add codexclaw@codexclaw
+
+# 2) 설치본 payload를 대상으로 재신뢰
+node ~/.codex/plugins/cache/codexclaw/codexclaw/<version>/components/cxc-ops/dist/cli.js \\
+  hooks retrust
 ```
 
-이 명령은 안전핀이 있다 — 기존 항목 중 재계산 해시가 하나도 안 맞으면
-거부하고, 쓰기 전 백업을 남기고, 쓴 뒤 재검증해 실패하면 되돌린다.
-갱신 후 Codex 재시작이 필요하고, 사용자가 훅 승인을 다시 받는다.
+재설치보다 먼저 retrust하면 옛 캐시본 해시를 신뢰시키는 셈이라 아무것도
+달라지지 않는다. 이 명령은 안전핀이 있다 — 기존 항목 중 재계산 해시가
+하나도 안 맞으면 거부하고, 쓰기 전 백업을 남기고, 쓴 뒤 재검증해 실패하면
+되돌린다.
 
-순서가 중요하다: `cxc`는 **작업 트리**의 훅을 읽는데 실제로 실행되는 것은
-**캐시 설치본**의 훅이다. 재설치보다 먼저 retrust하면 작업 트리 해시를
-신뢰시키고 캐시본은 여전히 옛 훅이라 아무것도 달라지지 않는다.
-재설치 -> retrust 순서로 해야 한다.
-
-그리고 실행 중인 Codex는 **세션 시작 시점의 훅 설정을 들고 있다.** 이번
-사이클에서 재설치와 retrust를 마친 뒤에도 현재 세션의 SubagentStop은 옛
-matcher로 계속 동작했다. 새 훅이 실제로 발화하는지는 새 세션에서 확인해야
-한다. 이 사이클에서는 대신 설치본 `cli.js`에 v1 payload를 직접 넣어
-동작을 확인했다(라운드 approved, bystander 서명 거부 + ledger 기록).
+**관측된 동작**(소스로 증명한 것이 아니라 이번 사이클에서 본 것): 재설치와
+retrust를 마친 뒤에도 현재 세션의 SubagentStop은 옛 matcher로 계속
+동작했다. 실행 중인 Codex가 시작 시점 훅 설정을 들고 있는 것으로 보이며,
+README도 업그레이드 후 재시작을 요구한다. 새 훅이 실제로 발화하는지는 새
+세션에서 확인해야 한다. 이 사이클에서는 대신 설치본 `cli.js`에 v1 payload를
+직접 넣어 동작을 확인했다(라운드 approved, bystander 서명 거부 + ledger 기록).
 
 "로컬에도 업데이트"의 마지막 조각이 이것이다. 파일만 새것이고 신뢰가
 옛것이면 업데이트는 끝난 것이 아니다.
