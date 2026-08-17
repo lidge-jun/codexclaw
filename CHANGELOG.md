@@ -6,6 +6,40 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-08-17
+
+### Fixed
+
+- **A re-plan could strand an audit round forever.** Reported as "the gate
+  recorded a verdict but cannot read it": the round was genuinely approved,
+  verdict and all, while the session's `planEpoch` had gone null — so the `A>B`
+  binding check compared two different plans and refused a cycle that had done
+  everything asked of it.
+
+  The observer picked its round by cursor while the gate picked the highest one,
+  so a sign-off could land on a round the gate was not watching. It now looks the
+  round up by the launch id the sign-off carries; a verdict names its own round,
+  and making the observer guess which one is "active" is what let an answer land
+  nowhere. `recordVerdict` goes through the same lookup, since fixing only the
+  observer would have left the write path guessing.
+
+  Supersession is decided before the CAS now. A verdict arriving for a round that
+  has been rolled past is stale, not a second verdict on a live one, and ordering
+  rather than status decides it. A re-plan also closes the rounds it invalidates,
+  reading the old epoch from the rounds rather than from state — that edge is
+  entered from P, and state read at P has already dropped the A-only binding.
+
+  Chat `P>A` mints a plan binding like the CLI does. Only the CLI was wired, so a
+  cycle entered from chat reached A with nothing bound and the audit refused to
+  open before it could start. The checks are the CLI's rather than a looser copy:
+  without the plan-gate and work-phase checks, an attest naming any directory with
+  numbered docs would bind through chat what the CLI turns away.
+
+  Underneath all three, the observer used to drop a verdict without a word — which
+  is why this took a session to find rather than a minute. Every refusal past the
+  point where the round is identified now says why, in the goalplan ledger, and
+  stays fail-open: a note that cannot be written must not break a subagent's exit.
+
 ## [0.2.2] — 2026-08-15
 
 ### Fixed

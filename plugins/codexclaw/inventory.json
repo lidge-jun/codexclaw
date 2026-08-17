@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "plugin": {
     "name": "codexclaw",
-    "manifestVersion": "0.2.2+codex.20260815184716",
-    "packageVersion": "0.2.2"
+    "manifestVersion": "0.2.3+codex.20260817035223",
+    "packageVersion": "0.2.3"
   },
   "skills": [
     {
@@ -257,49 +257,49 @@
     {
       "folder": "config-guard",
       "packageName": "@codexclaw/config-guard",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "hasTests": true
     },
     {
       "folder": "cxc-ops",
       "packageName": "@codexclaw/cxc-ops",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "hasTests": true
     },
     {
       "folder": "messenger-bridge",
       "packageName": "@codexclaw/messenger-bridge",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "hasTests": true
     },
     {
       "folder": "pabcd-state",
       "packageName": "@codexclaw/pabcd-state",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "hasTests": true
     },
     {
       "folder": "provider-bridge",
       "packageName": "@codexclaw/provider-bridge",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "hasTests": true
     },
     {
       "folder": "recall",
       "packageName": "@codexclaw/recall",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "hasTests": true
     },
     {
       "folder": "skill-search",
       "packageName": "@codexclaw/skill-search",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "hasTests": true
     },
     {
       "folder": "subagent-config",
       "packageName": "@codexclaw/subagent-config",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "hasTests": true
     }
   ]
