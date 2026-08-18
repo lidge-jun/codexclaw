@@ -553,7 +553,10 @@ test("v1 mention normalization composes with guard, model routing, and effort", 
   assert.equal(ui.model, "kiro/claude-opus-4.6");
   assert.ok((ui.message as string).startsWith(`${V1_SCOPE_BLOCK}\n\n`));
   assert.match(ui.message as string, /\[\$cxc-dev\]\(skill:\/\//);
-  assert.ok((ui.message as string).endsWith(" map the frontend codebase"));
+  // 260818: the skill BODY is now inlined on v1 too, so the caller's text is no
+  // longer the tail of the message — it is followed by the attached SKILL.md.
+  assert.match(ui.message as string, / map the frontend codebase/);
+  assert.ok((ui.message as string).includes(`${INLINE_SKILL_OPEN}dev">`), "v1 must carry the body");
   assert.equal(ui.trace_id, "keep");
   assert.equal(ui.reasoning_effort, "high", "260710 parity: configured effort is injected");
 });
@@ -814,6 +817,42 @@ test("inlineSkillBodies: appends one block per recognized folder, dedupes repeat
   assert.ok(out.startsWith(msg));
   assert.equal(out.split(`${INLINE_SKILL_OPEN}dev">`).length - 1, 1);
   assert.match(out, /<\/skill>\s*$/);
+});
+
+// 260818 — the v1 spawn surface got a `skill://` LINK and no body. Nothing
+// expands that link for a child, so the skill was effectively undelivered:
+// across 120 real v1 children in one opencodex session, 120 received the link,
+// 0 received a body, and 51 never opened the file at all. Inlining is what
+// actually delivers a skill, so it must not be conditional on the surface.
+test("v1 spawn (no V2 markers) inlines the mentioned SKILL.md body", () => {
+  const out = runSpawnAttachHook(
+    JSON.stringify({
+      hook_event_name: "PreToolUse",
+      tool_name: "spawn_agent",
+      cwd: tempCwd("cxc-v1-inline-"),
+      tool_input: { agent_type: "explorer", message: "use $cxc-dev for this" },
+    }),
+  );
+  const ui = updatedInputOf(out);
+  assert.ok(
+    (ui.message as string).includes(`${INLINE_SKILL_OPEN}dev">`),
+    "a v1 child must receive the SKILL.md body, not just a skill:// link",
+  );
+});
+
+// The companion rule: the hook repairs mentions, it never invents them. A spawn
+// that asked for no skill must come back unchanged on the v1 surface too.
+test("v1 spawn without a skill mention is not given one", () => {
+  const out = runSpawnAttachHook(
+    JSON.stringify({
+      hook_event_name: "PreToolUse",
+      tool_name: "spawn_agent",
+      cwd: tempCwd("cxc-v1-nomention-"),
+      tool_input: { agent_type: "explorer", message: "audit the roadmap and report" },
+    }),
+  );
+  const message = out === "" ? "audit the roadmap and report" : (updatedInputOf(out).message as string);
+  assert.ok(!message.includes(INLINE_SKILL_OPEN), "no skill body may be invented");
 });
 
 test("inlineSkillBodies: unknown folders and mention-free messages are untouched", () => {

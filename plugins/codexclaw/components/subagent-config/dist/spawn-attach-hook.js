@@ -786,9 +786,21 @@ export function runSpawnAttachHook(raw        )         {
     const normalizedMessage = skillsDir ? normalizeSkillMentions(controlledMessage, skillsDir) : controlledMessage;
     const role = inferRole(toolInput.agent_type, normalizedMessage);
 
-    // V2 skill delivery: upstream parses no mentions out of a V2 spawn message, so
-    // inline the recognized cxc SKILL.md bodies (atomic overflow rule inside).
-    const inlinedMessage = v2Spawn && skillsDir
+    // Skill delivery: inline the recognized cxc SKILL.md bodies (atomic overflow
+    // rule inside).
+    //
+    // 260818: this was gated on `v2Spawn`, on the assumption that a v1 mention
+    // resolves upstream while only V2 needs the body carried in the message. It
+    // does not. A `skill://` link in a v1 spawn message is just text to the child
+    // — nothing expands it, so the child either ignores the skill or spends a
+    // tool call opening the file. Measured over 120 real v1 children in one
+    // opencodex session: 120 got the link, 0 got a body, and 51 never opened it.
+    //
+    // Inlining is what actually delivers a skill, so it is no longer conditional
+    // on the surface. The mention is still never invented: `inlineSkillBodies`
+    // returns the message untouched when nothing leaf-safe was mentioned, so a
+    // spawn that asked for no skills is unchanged on both surfaces.
+    const inlinedMessage = skillsDir
       ? inlineSkillBodies(normalizedMessage, skillsDir)
       : normalizedMessage;
 

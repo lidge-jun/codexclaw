@@ -843,9 +843,12 @@ test("260713: spawn hook e2e - cache-shaped fixture uses script-relative skills"
     // Node realpaths the main module, so the script-relative skillsDir and this
     // explicit realpathSync agree on both POSIX and Windows temp roots.
     assert.ok(
-      ui.message.endsWith(`[$cxc-dev](skill://${realpathSync(cacheSkill)}) inspect the cache`),
+      ui.message.includes(`[$cxc-dev](skill://${realpathSync(cacheSkill)}) inspect the cache`),
       "normalized mention link resolves against the script-relative skills dir",
     );
+    // 260818: v1 now carries the SKILL.md BODY as well as the link, so the
+    // caller's text is no longer the tail of the message.
+    assert.ok(ui.message.includes('<skill name="cxc-dev">'), "v1 spawn must carry the skill body");
   } finally {
     rmSync(fixture, { recursive: true, force: true });
     rmSync(cwd, { recursive: true, force: true });
