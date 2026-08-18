@@ -262,3 +262,69 @@ test("the SubagentStop observer matcher admits every non-worker role", () => {
     assert.ok(matcher.test(role), `the observer must be reachable for agent_type "${role}"`);
   }
 });
+
+// LEAN-REVIEW-01 (260818) — the deadlock this whole unit kept re-discovering was
+// structural, not a sequence of separate bugs: A>B could not advance without a
+// verdict only the observer hook could write, so every reason the hook did not
+// fire became a cycle that could never leave A. The round is now opt-in.
+function attestB(cwd: string, id: string, verdict = "pass"): { code: number; output: string } {
+  const args = parseOrchestrateCliArgs(
+    ["b", "--session", id, "--cwd", cwd, "--attest", JSON.stringify({
+      from: "A", to: "B", did: "audited the plan", workPhaseId: "wp0",
+      auditOutput: "reviewer said: VERDICT: PASS", auditVerdict: verdict,
+    })],
+    cwd,
+  );
+  return runOrchestrateCli(args as never);
+}
+
+test("A>B advances on the attest when no audit round was ever opened", () => {
+  const { cwd } = seedAtA("noround");
+  try {
+    const res = attestB(cwd, "noround");
+    assert.equal(res.code, 0, res.output);
+    assert.equal(readState(cwd, "noround").phase, "B");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// The exact shape that stranded a real session: the round is open, the reviewer
+// answered, and the hook never ran — so the round sits in_flight forever.
+test("A>B advances past a round left in flight by a hook that never fired", () => {
+  const { cwd, slug } = seedAtA("inflight");
+  try {
+    openRoundFor(cwd, "inflight");
+    assert.equal(latestRound(readGoalplan(cwd, slug)!, "plan_audit")!.status, "in_flight");
+
+    const res = attestB(cwd, "inflight");
+    assert.equal(res.code, 0, res.output);
+    assert.equal(readState(cwd, "inflight").phase, "B");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// Leaner is not looser. An approval that DID land still cannot be contradicted.
+test("an approved round still refuses an attest that contradicts the reviewer", () => {
+  const { cwd } = seedAtA("contra");
+  try {
+    const launchId = openRoundFor(cwd, "contra");
+    signOffAs(cwd, "contra", "reviewer-1", launchId, "FAIL");
+
+    const res = attestB(cwd, "contra", "pass");
+    assert.equal(res.code, 1, "attesting pass over a recorded fail must refuse");
+    assert.match(res.output, /reviewer recorded/);
+    assert.equal(readState(cwd, "contra").phase, "A");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// ...and an approval cannot outlive the plan it approved.
+test("an approved round cannot be spent after the plan changed", () => {
+  const { cwd } = seedAtA("stale");
+  try {
+    const launchId = openRoundFor(cwd, "stale");
+    signOffAs(cwd, "stale", "reviewer-1", launchId, "PASS");
+    writeFileSync(join(cwd, "devlog", "_plan", "260817_probe", "000_plan.md"), "# probe amended\n");
+
+    const res = attestB(cwd, "stale", "pass");
+    assert.equal(res.code, 1, "a changed plan invalidates the approval");
+    assert.match(res.output, /the plan changed/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});

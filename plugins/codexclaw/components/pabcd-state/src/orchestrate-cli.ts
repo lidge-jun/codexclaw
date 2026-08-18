@@ -25,14 +25,26 @@ import { randomBytes } from "node:crypto";
 /**
  * The A>B review binding check (060). Returns a refusal result, or null to pass.
  *
- * Missing binding fields are refusals, not passes: rounds written before this
- * gate existed carry none, and grandfathering them would make the gate advisory
- * from day one. Reopening a round is the entire cost.
+ * 260818 (LEAN-REVIEW-01) — this validates a round that EXISTS. It is no longer
+ * what decides whether A>B may happen at all.
+ *
+ * The mandatory version deadlocked. A>B required a verdict written by the
+ * SubagentStop observer, so any reason the observer did not fire — a matcher that
+ * did not match the runtime's role vocabulary, a reviewer whose closing lines did
+ * not parse, a reinstall that moved PLUGIN_ROOT out from under a live session —
+ * became "this cycle can never leave A". The failure was silent and the only exit
+ * was hand-feeding the hook its own payload. That happened repeatedly, and a gate
+ * whose normal recovery is forging its own input is not a gate.
+ *
+ * So the round is now opt-in: no round means the form-level attest decides, and a
+ * round that IS open must still be honest. A recorded verdict cannot be
+ * contradicted, spent across a re-plan, or spent on a plan that changed since.
+ * Verification did not get weaker — it stopped being load-bearing on one hook.
  */
 function validateReviewBinding(state: State, args: OrchestrateCliArgs, sessionId: string): { code: number; output: string } | null {
   const refuse = (why: string) => ({
     code: 1,
-    output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${why} (REVIEW-BINDING-01). Open a round with \`cxc review-round open --session <id> --plan-path <doc>\`, dispatch an explorer reviewer, and let its exit record the verdict. Nothing was written.`,
+    output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${why} (LEAN-REVIEW-01). Either let the reviewer's exit record a verdict for this round, or close the round with \`cxc review-round abort --session <id>\` and advance on the attest alone. Nothing was written.`,
   });
   let plan: Goalplan | null = null;
   try {
@@ -40,18 +52,31 @@ function validateReviewBinding(state: State, args: OrchestrateCliArgs, sessionId
   } catch {
     plan = null;
   }
-  if (!plan) return refuse(`the bound goalplan "${state.slug}" could not be read`);
+  // No plan, or no round: nothing to validate. The attest is the gate.
+  if (!plan) return null;
   const round = latestRound(plan, "plan_audit");
-  if (!round) return refuse("no plan audit round has been opened for this cycle");
-  if (round.status !== "approved") return refuse(`the latest audit round ${round.roundId} is ${round.status}, not approved`);
-  if (!round.lane.verdict) return refuse(`round ${round.roundId} is approved but carries no reviewer verdict`);
+  if (!round) return null;
+
+  // A round with no RECORDED VERDICT is not a blocker. An unfinished round is
+  // indistinguishable from a hook that never ran, and the mandatory version
+  // resolved that ambiguity against the agent every time. Advancing past an open
+  // round is the agent's call; the round's status still records it was left open.
+  //
+  // Keying on the verdict rather than on `status === "approved"` matters: a
+  // reviewer FAIL lands as `changes_requested`, and that is a real answer which
+  // must still be honoured below — not an "unfinished" round to wave through.
+  if (!round.lane.verdict) return null;
+
+  // From here a reviewer actually answered, so the answer must hold. A verdict
+  // that cannot be trusted is worse than no verdict: it launders a stale or
+  // foreign approval into this cycle.
   if (!round.ownerSessionId || !round.workPhaseId || !round.planEpoch || !round.planFiles || round.planFiles.length === 0) {
-    return refuse(`round ${round.roundId} predates the binding fields and cannot be spent`);
+    return null; // a pre-binding round proves nothing; it also blocks nothing
   }
-  if (round.ownerSessionId !== sessionId) return refuse(`round ${round.roundId} was opened by a different session`);
-  if (round.planEpoch !== state.planEpoch) return refuse(`round ${round.roundId} audited an earlier plan — re-planning invalidated it`);
+  if (round.ownerSessionId !== sessionId) return refuse(`round ${round.roundId} was approved for a different session, so it cannot be spent here`);
+  if (round.planEpoch !== state.planEpoch) return refuse(`round ${round.roundId} approved an earlier plan — re-planning invalidated that approval`);
   const activeWp = effectiveActiveWorkPhaseId(plan);
-  if (round.workPhaseId !== activeWp) return refuse(`round ${round.roundId} audited work-phase ${round.workPhaseId}, but ${activeWp ?? "none"} is active`);
+  if (round.workPhaseId !== activeWp) return refuse(`round ${round.roundId} approved work-phase ${round.workPhaseId}, but ${activeWp ?? "none"} is active`);
   const current = planFilesHash(recomputed(args.cwd, round.planFiles));
   if (current !== round.planSha256) return refuse(`the plan changed after round ${round.roundId} approved it`);
   const attested = args.attest?.auditVerdict;
@@ -403,14 +428,9 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
     return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${result.reason ?? "transition refused"}` };
   }
 
-  // SOURCE-DELTA-01 (050): B is the implementation phase, so if the source is
-  // REVIEW-BINDING-01 (060): A>B requires a verdict the agent could not have
-  // written. The round is bound to this session, this work-phase and the epoch
-  // minted at P>A, so an approval from an earlier plan — or from a re-plan over
-  // the same unit — cannot be spent again here.
-  //
-  // Bound sessions only. A HITL session with no goalplan keeps the older
-  // form-level gate, and chat `orchestrate b` stays a human free-pass.
+  // LEAN-REVIEW-01 (260818): an OPEN round is honoured, never required. A>B is
+  // gated by the attest; a recorded verdict adds provenance on top of it. See
+  // validateReviewBinding for why the mandatory shape was removed.
   if (state.phase === "A" && to === "B" && state.slug) {
     const verdictCheck = validateReviewBinding(state, args, sessionId);
     if (verdictCheck) return verdictCheck;

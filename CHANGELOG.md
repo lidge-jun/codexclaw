@@ -6,6 +6,44 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.6] — 2026-08-18
+
+### Changed
+
+- **The plan-audit round no longer blocks `A>B` (LEAN-REVIEW-01).** The gate
+  required a verdict only the `SubagentStop` observer could write, so every reason
+  that hook did not fire became a cycle that could never leave A: a matcher that
+  missed the runtime's role vocabulary, a reviewer whose closing lines did not
+  parse, a reinstall that moved `PLUGIN_ROOT` out from under a live session. The
+  documented escape was to feed the hook a hand-written payload — a gate whose
+  normal recovery is forging its own input is not a gate.
+
+  The round is now opt-in and the honesty moved to where it can be enforced: no
+  round, or a round still in flight, advances on the attest; a round carrying a
+  RECORDED verdict is binding, and still refuses an attest that contradicts the
+  reviewer, an approval spent across a re-plan, or one spent on a plan whose files
+  changed after approval. Verification belongs to whichever phase needs it —
+  subagent review lanes at B and C are the intended shape, not A-only review.
+
+### Fixed
+
+- **`cxc doctor` now reports when the installed payload moved (STALE-ROOT-01).**
+  `codex plugin add` keeps exactly one version directory per plugin, so a reinstall
+  DELETES the path a running session already resolved `${PLUGIN_ROOT}` to. Every
+  hook in that session then exits with "Cannot find module" and reports nothing —
+  a hook that cannot start also cannot complain. Four reinstalls in one day each
+  silently disarmed the sessions that predated them.
+
+  The installer is not ours to change, so doctor names the condition instead of
+  hiding it: an `install-root` check FAILs when this payload's version is not the
+  installed one, and says the only thing that actually works — restart Codex.
+
+- **hook-trust counted "nothing verified" as PASS.** `diagnoseHookTrust` skips a
+  handler it cannot hash, so an empty result set reported `0 hook hash(es)` and a
+  green check. It is now a WARN that says nothing was verified. The doctor fixture
+  was itself an example: its hook file was `{}`, so the suite had been asserting
+  PASS over zero examined handlers.
+
 ## [0.2.5] — 2026-08-18
 
 ### Fixed

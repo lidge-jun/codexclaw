@@ -4,8 +4,47 @@ import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readdirSync } from "
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runDoctor, rollup, renderDoctor } from "../src/doctor.ts";
+import { runInstalledRootCheck } from "../src/doctor.ts";
+import { identityHash } from "../src/hook-trust.ts";
 import { runReset, parseResetScope } from "../src/reset.ts";
 import { main } from "../src/cli.ts";
+
+// STALE-ROOT-01 (260818) — `codex plugin add` keeps one version directory per
+// plugin, so a reinstall DELETES the path a running session still resolves
+// `${PLUGIN_ROOT}` to. Every hook in that session then dies with "Cannot find
+// module" and reports nothing. Doctor is the only place that can notice.
+function payloadAt(version: string): string {
+  const root = mkdtempSync(join(tmpdir(), "cxc-payload-"));
+  mkdirSync(join(root, ".codex-plugin"), { recursive: true });
+  writeFileSync(join(root, ".codex-plugin", "plugin.json"), JSON.stringify({ name: "codexclaw", version }));
+  return root;
+}
+
+function homeWithInstalled(version: string): string {
+  const home = mkdtempSync(join(tmpdir(), "cxc-home-"));
+  mkdirSync(join(home, "plugins", "cache", "mkt", "codexclaw", version), { recursive: true });
+  return home;
+}
+
+test("install-root: a payload newer than the installed root FAILS", () => {
+  const codexHome = homeWithInstalled("0.2.5+codex.OLD");
+  const check = runInstalledRootCheck(payloadAt("0.2.5+codex.NEW"), { codexHome });
+  assert.equal(check.severity, "FAIL");
+  assert.match(check.evidence, /STALE-ROOT-01/);
+  assert.match(check.repair ?? "", /RESTART/);
+});
+
+test("install-root: a payload matching the installed root PASSES", () => {
+  const codexHome = homeWithInstalled("0.2.5+codex.SAME");
+  const check = runInstalledRootCheck(payloadAt("0.2.5+codex.SAME"), { codexHome });
+  assert.equal(check.severity, "PASS");
+});
+
+test("install-root: an uninstalled plugin warns rather than failing", () => {
+  const codexHome = mkdtempSync(join(tmpdir(), "cxc-home-empty-"));
+  const check = runInstalledRootCheck(payloadAt("0.2.5+codex.X"), { codexHome });
+  assert.equal(check.severity, "WARN");
+});
 
 // ---- doctor ---------------------------------------------------------------
 
@@ -21,7 +60,12 @@ function makePluginRoot(opts: { hooks?: string[]; skills?: string[]; brokenSkill
   for (const h of hooks) {
     const p = join(root, h);
     mkdirSync(join(p, ".."), { recursive: true });
-    writeFileSync(p, "{}");
+    // A REAL handler, not `{}`. An empty hook file has nothing to hash, and
+    // hook-trust now reports "nothing was verified" as WARN instead of laundering
+    // an empty result set into PASS (STALE-ROOT-01 companion).
+    writeFileSync(p, JSON.stringify({
+      hooks: { Stop: [{ hooks: [{ type: "command", command: "node stub.js" }] }] },
+    }));
   }
   for (const s of opts.skills ?? ["dev"]) {
     mkdirSync(join(root, "skills", s, "agents"), { recursive: true });
@@ -49,7 +93,18 @@ test("rollup: FAIL > WARN > PASS", () => {
 test("doctor: healthy plugin root -> PASS with evidence on every check", () => {
   const root = makePluginRoot();
   const codexHome = mkdtempSync(join(tmpdir(), "cxc-doctor-home-"));
-  writeFileSync(join(codexHome, "config.toml"), '[plugins."test@fixture"]\nenabled = true\n');
+  // The fixture hook must be TRUSTED for a healthy report: hook-trust hashes real
+  // handlers now, and an unhashable/untrusted one is no longer silently a PASS.
+  const trusted = identityHash("Stop", undefined, { type: "command", command: "node stub.js" });
+  writeFileSync(
+    join(codexHome, "config.toml"),
+    '[plugins."test@fixture"]\nenabled = true\n\n'
+      + '[hooks.state."test@fixture:hooks/a.json:stop:0:0"]\n'
+      + `trusted_hash = "${trusted}"\n`,
+  );
+  // A healthy machine has this payload actually installed (STALE-ROOT-01); without
+  // a matching install root the honest answer is WARN, not PASS.
+  mkdirSync(join(codexHome, "plugins", "cache", "fixture", "test", "0.0.1"), { recursive: true });
   // stub the ast-grep runner so the L22 check resolves PASS without a real sg.
   const agRunner = (() => ({
     status: 0,
@@ -57,7 +112,11 @@ test("doctor: healthy plugin root -> PASS with evidence on every check", () => {
     stderr: "",
   })) as unknown as typeof import("node:child_process").spawnSync;
   const report = runDoctor(root, agRunner, { codexHome, pluginKey: "test@fixture" });
-  assert.equal(report.overall, "PASS");
+  assert.equal(
+    report.overall,
+    "PASS",
+    report.checks.filter((c) => c.severity !== "PASS").map((c) => `${c.severity} ${c.name}: ${c.evidence}`).join(" | "),
+  );
   for (const c of report.checks) assert.ok(c.evidence.length > 0, `check ${c.name} has no evidence`);
   assert.match(renderDoctor(report), /overall: PASS/);
 });

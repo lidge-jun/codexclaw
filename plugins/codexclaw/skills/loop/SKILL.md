@@ -42,6 +42,29 @@ with no in-flight cycle gets the Stop-time block naming the arming command
 (GOAL-IDLE-CONTINUE-01) — but neither companion moves a phase for you; the commands
 remain yours to run.
 
+## Lean verification (LEAN-REVIEW-01, 260818)
+
+A loop must not be able to wedge itself. `A>B` used to require a verdict that only
+the `SubagentStop` observer could write, which meant any reason that hook did not
+fire — a matcher that missed the runtime's role vocabulary, a reviewer whose closing
+lines did not parse, a reinstall that moved `PLUGIN_ROOT` out from under a live
+session — ended the loop in a phase it could never leave. The only escape was to feed
+the hook a hand-written payload, which is not verification, it is forgery with extra
+steps.
+
+The gate is now opt-in and honest:
+
+- No round open, or a round still in flight: `A>B` advances on the attest. Whether
+  the plan was audited enough is your judgment, recorded in `auditVerdict`.
+- A round with a RECORDED verdict is binding: you cannot attest `pass` over a
+  reviewer's `fail`, spend an approval across a re-plan, or spend one on a plan
+  whose files changed after approval.
+
+Verification belongs to whichever phase needs it, not to A. Dispatch read-only
+subagent lanes at B for implementation review and at C for check verification, the
+same way A dispatches a plan auditor. A subagent lane costs one spawn and returns
+evidence you can paste into the next attest; a blocked FSM costs the whole loop.
+
 ## Contract
 
 - `cxc-loop` is an overlay on `cxc-pabcd`, not a replacement. Before claiming a

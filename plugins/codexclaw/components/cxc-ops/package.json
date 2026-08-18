@@ -1,6 +1,6 @@
 {
   "name": "@codexclaw/cxc-ops",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "private": true,
   "type": "module",
   "description": "codexclaw ops CLI — doctor (plugin health), reset (scoped state cleanup).",

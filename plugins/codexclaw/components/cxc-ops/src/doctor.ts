@@ -6,7 +6,7 @@
  * is the codexclaw-plugin slice only. Pure filesystem + JSON reads, no network.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { diagnoseHookTrust, readInstalledPluginKeys } from "./hook-trust.ts";
@@ -210,6 +210,10 @@ export function runDoctor(
   // 7. ast-grep runtime status (L22).
   checks.push(runAstGrepCheck(pluginRoot, agRunner));
 
+  // 7b. STALE-ROOT-01: does the payload this process is reading still exist where
+  // the installed hooks point?
+  checks.push(runInstalledRootCheck(pluginRoot, options));
+
   // 8. PABCD session state health.
   checks.push(checkPabcdHealth(process.cwd()));
 
@@ -233,6 +237,72 @@ export function runDoctor(
   };
 }
 
+/**
+ * STALE-ROOT-01 (260818) — the installed payload directory a running Codex still
+ * points at.
+ *
+ * `codex plugin add` keeps exactly ONE version directory per plugin: installing
+ * `0.2.5+codex.B` deletes `0.2.5+codex.A`. Every hook command is
+ * `node "${PLUGIN_ROOT}/..."`, and PLUGIN_ROOT is resolved when a session starts,
+ * so a session that was alive across the reinstall keeps executing the OLD path.
+ * That path is gone, node exits with "Cannot find module", and the hook silently
+ * does nothing for the rest of that session's life.
+ *
+ * Measured 260818: four reinstalls in one day, and after each one the spawn hook
+ * stopped firing in every session that predated it — no error surfaced anywhere,
+ * because a hook that cannot start also cannot report.
+ *
+ * We do not control the installer, so this reports rather than repairs: it names
+ * the live install root and how many sibling roots exist. Nothing can be inferred
+ * about OTHER processes from inside this one, so the evidence stays factual and
+ * the repair line says the only thing that actually works — restart Codex.
+ */
+export function runInstalledRootCheck(pluginRoot: string, options: DoctorOptions = {}): CheckResult {
+  const codexHome = options.codexHome ?? process.env.CODEX_HOME ?? join(homedir(), ".codex");
+  try {
+    const manifest = JSON.parse(readFileSync(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8")) as {
+      name?: unknown;
+      version?: unknown;
+    };
+    const name = typeof manifest.name === "string" ? manifest.name : null;
+    const version = typeof manifest.version === "string" ? manifest.version : null;
+    if (!name || !version) {
+      return { name: "install-root", severity: "WARN", evidence: "manifest has no name/version; cannot locate the install root" };
+    }
+    // cache/<marketplace>/<plugin>/<version>. The marketplace segment is not in
+    // the manifest, so scan for the plugin folder rather than guessing it.
+    const cacheRoot = join(codexHome, "plugins", "cache");
+    if (!existsSync(cacheRoot)) {
+      return { name: "install-root", severity: "WARN", evidence: `no plugin cache at ${cacheRoot} (running uninstalled?)` };
+    }
+    const found: string[] = [];
+    for (const market of readdirSync(cacheRoot)) {
+      const dir = join(cacheRoot, market, name);
+      if (!existsSync(dir)) continue;
+      for (const v of readdirSync(dir)) found.push(join(dir, v));
+    }
+    if (found.length === 0) {
+      return { name: "install-root", severity: "WARN", evidence: `${name} is not installed under ${cacheRoot}` };
+    }
+    const live = found.filter((p) => p.endsWith(`${sep}${version}`));
+    if (live.length === 0) {
+      return {
+        name: "install-root",
+        severity: "FAIL",
+        evidence: `this payload declares ${version}, but the installed root(s) are: ${found.join(", ")}. Any session started before the last reinstall is running hooks from a path that no longer exists (STALE-ROOT-01).`,
+        repair: "codex plugin add <plugin>@<marketplace>, then RESTART Codex — a running session keeps the old PLUGIN_ROOT",
+      };
+    }
+    return {
+      name: "install-root",
+      severity: "PASS",
+      evidence: `installed root matches this payload (${version}); ${found.length} root(s) present`,
+    };
+  } catch (error) {
+    return { name: "install-root", severity: "WARN", evidence: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export function runHookTrustCheck(pluginRoot: string, options: DoctorOptions = {}): CheckResult {
   const codexHome = options.codexHome ?? process.env.CODEX_HOME ?? join(homedir(), ".codex");
   try {
@@ -253,9 +323,14 @@ export function runHookTrustCheck(pluginRoot: string, options: DoctorOptions = {
     const failed = results.filter((result) => result.status !== "trusted");
     return {
       name: "hook-trust",
-      severity: failed.length === 0 ? "PASS" : "FAIL",
+      // An EMPTY result set is not a pass. `diagnoseHookTrust` skips a handler it
+      // cannot hash (invalid matcher, empty command, async), so "0 failed" can also
+      // mean "0 examined" — a green check over hooks nobody verified.
+      severity: results.length === 0 ? "WARN" : failed.length === 0 ? "PASS" : "FAIL",
       evidence:
-        failed.length === 0
+        results.length === 0
+          ? `no hook handler could be hashed for ${pluginKey}; nothing was verified`
+          : failed.length === 0
           ? `${results.length} hook hash(es) trusted for ${pluginKey}`
           : failed
               .map((result) => `${result.status} ${result.key} expected=${result.hash} actual=${result.actual ?? "(none)"}`)
