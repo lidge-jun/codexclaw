@@ -1,6 +1,6 @@
 {
   "name": "@codexclaw/pabcd-state",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "type": "module",
   "description": "IPABCD finite-state machine backed by per-session .codexclaw/sessions/<sessionId>.json + shared ledger.jsonl.",

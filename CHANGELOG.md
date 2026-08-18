@@ -6,6 +6,44 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.4] — 2026-08-18
+
+### Fixed
+
+- **A reviewer's verdict never reached the observer, so plan audits could not
+  close.** The `SubagentStop` hook was registered with the matcher
+  `^(explorer)?$`, which admits only `""` and `"explorer"`. codex-rs normalises a
+  child spawned without a role to the agent_type `default`, and every
+  `multi_agent_v1` spawn is such a child — that tool's schema has no
+  `agent_type` argument at all, so a dispatch cannot label its reviewer. Handler
+  selection dropped the event before the hook command was ever spawned.
+
+  0.2.3 aimed one step past this. It read the same symptom as "the v1 payload
+  reaches us blank" and widened the matcher to accept a blank type; the payload is
+  not blank, it says `default`, so the observer stayed unreachable and the round
+  stayed `in_flight` with `A>B` refused. One session spent eight audit rounds on
+  it, closing each by hand.
+
+  The failure was silent by construction: the code that records why a verdict was
+  dropped lives inside the observer, so a hook that never ran could not explain
+  itself. The matcher is now `.*` — the worker exclusion already lives in the
+  observer, so the receipt gate and this observer still cannot race over one
+  child. A negative lookahead is not available (the runtime's regex engine rejects
+  look-around), and enumerating role names would break again the next time the
+  runtime adds one. Tests bind the matcher to the runtime's real role vocabulary.
+
+- **The hook dispatcher assigned the observer's result to an undeclared `out`.**
+  That throws `ReferenceError` in an ESM module. The observer's write had already
+  landed (the call is evaluated before the assignment) and the surrounding catch
+  swallowed the throw, so nothing surfaced — but every statement after it was
+  skipped, and any real dispatcher error was masked the same way.
+
+- **Drops before the round was identified said nothing.** 0.2.3 made every refusal
+  past that point explain itself, which left the earlier ones as the remaining
+  blind spot. A child that exits without a parseable sign-off while a plan-audit
+  round is in flight, or one naming a launch id nobody minted, now writes a
+  diagnostic line to the goalplan ledger. Both stay fail-open.
+
 ## [0.2.3] — 2026-08-17
 
 ### Fixed
