@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "plugin": {
     "name": "codexclaw",
-    "manifestVersion": "0.2.3+codex.20260817044718",
+    "manifestVersion": "0.2.3+codex.20260818043826",
     "packageVersion": "0.2.3"
   },
   "skills": [
@@ -226,7 +226,7 @@
       "file": "subagent-stop-observing-review.json",
       "event": "SubagentStop",
       "component": "pabcd-state",
-      "matcher": "^(explorer)?$"
+      "matcher": ".*"
     },
     {
       "file": "subagent-stop-verifying-evidence.json",

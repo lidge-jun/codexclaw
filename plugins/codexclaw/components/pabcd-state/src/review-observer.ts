@@ -13,9 +13,20 @@
  * the two hooks cannot race over the same child.
  *
  * The exclusion is stated as "not worker" rather than "is explorer" on purpose
- * (050). The v1 spawn surface has no `agent_type` field at all, so a dispatch
- * cannot label its reviewer and the payload reaches us blank — an "is explorer"
- * test drops every v1 sign-off before the round can even be named.
+ * (050). The v1 spawn surface has no `agent_type` ARGUMENT, so a dispatch cannot
+ * label its reviewer — an "is explorer" test drops every v1 sign-off before the
+ * round can even be named.
+ *
+ * 260818: the earlier note that such a payload "reaches us blank" was wrong, and
+ * the registered matcher was wrong with it. codex-rs normalises a child with no
+ * role to the agent_type `default` (a v1 spawn records `agent_role: null` in its
+ * session_meta), so `^(explorer)?$` — which admits only "" and "explorer" —
+ * matched nothing and the hook command never ran. That is why a dropped verdict
+ * left NO ledger line at all: the refusal below cannot write what was never
+ * invoked. The matcher is now `.*` and the worker exclusion here is what keeps
+ * the receipt gate and this observer off each other's children. Since the type is
+ * no longer a filter, treat every non-worker exit as a possible reviewer and let
+ * the sign-off decide.
  *
  * Dropping that test costs identity, so the round re-earns it: the first
  * sign-off BINDS the round to its agent id, and a later sign-off from a
@@ -41,7 +52,7 @@ export function handleReviewObserver(raw: string): string {
     const payload = JSON.parse(raw) as SubagentStopPayload;
     if (payload.hook_event_name !== "SubagentStop") return "";
     // A worker's exit belongs to the receipt gate; everything else is decided by
-    // the sign-off below. Not "=== explorer": v1 spawns carry no agent_type.
+    // the sign-off below. Not "=== explorer": a v1 child arrives as "default".
     if (payload.agent_type === "worker") return "";
 
     const { cwd, session_id: sessionId } = payload;
@@ -51,9 +62,43 @@ export function handleReviewObserver(raw: string): string {
     // bytes without knowing whose they are, so a LAUNCH/VERDICT example inside the
     // dispatch packet could sign off on itself.
     const signoff = parseSignoff(payload.last_assistant_message);
-    if (!signoff) return "";
-
     const state = readState(cwd, sessionId);
+
+    // Diagnose before the round is known (260818). The refusal ledger below can
+    // only speak once a round has been named, so every earlier drop used to be
+    // invisible — a reviewer answered, nothing moved, and the ledger said nothing.
+    // Once a session is in A with a live round waiting, a child that exits
+    // WITHOUT a parseable sign-off is worth one line: that is the difference
+    // between "the reviewer said nothing usable" and "the gate is broken".
+    const note = (event: string, detail: string, launchId?: string): string => {
+      try {
+        if (!state.slug) return "";
+        appendGoalplanLedger(cwd, state.slug, {
+          ts: new Date().toISOString(),
+          slug: state.slug,
+          event,
+          detail,
+          ...(launchId === undefined ? {} : { launchId }),
+        });
+      } catch {
+        // FAIL-OPEN: a note that cannot be written must not break the child's exit
+      }
+      return "";
+    };
+
+    if (!signoff) {
+      // Only worth saying while a round is actually waiting on a reviewer;
+      // otherwise every ordinary subagent exit would write a line.
+      if (state.phase !== "A" || !state.slug) return "";
+      const plan = readGoalplan(cwd, state.slug);
+      if (!plan || !plan.reviewRounds?.some((r) => r.purpose === "plan_audit" && r.status === "in_flight")) return "";
+      return note(
+        "review_signoff_unparsed",
+        "a subagent exited with no parseable sign-off while a plan_audit round was in flight; "
+          + "the closing two lines must be exactly \"LAUNCH: <id>\" then \"VERDICT: PASS|NEAR-PASS|FAIL\"",
+      );
+    }
+
     if (!state.slug) return "";
 
     const plan = readGoalplan(cwd, state.slug);
@@ -63,7 +108,13 @@ export function handleReviewObserver(raw: string): string {
     // names its own round, and looking it up first means every refusal below is
     // about a round we can name — which is what makes it worth recording.
     const round = roundByLaunchId(plan, "plan_audit", signoff.launchId);
-    if (!round) return "";
+    if (!round) {
+      return note(
+        "review_signoff_ignored",
+        `${signoff.verdict} sign-off named launch ${signoff.launchId}, which belongs to no plan_audit round`,
+        signoff.launchId,
+      );
+    }
 
     const ignore = (reason: string): string => {
       // Diagnosis only. A reviewer answered and the verdict is not being taken;

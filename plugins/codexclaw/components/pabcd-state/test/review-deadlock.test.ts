@@ -197,3 +197,68 @@ test("a second child cannot overwrite the verdict the reviewer already gave", ()
     assert.match(goalplanLedger(cwd, slug), /already signed by reviewer-1/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
+
+// 260818 — the deadlock that survived 050. codex-rs normalises a child spawned
+// with no role to the agent_type `default`, so the registered matcher
+// `^(explorer)?$` matched nothing and the observer was never invoked: eight
+// rounds ran, every verdict vanished, and the ledger stayed empty because a
+// refusal cannot be written by a hook that never ran.
+test("a default-role child (the v1 spawn surface) is recorded, not dropped", () => {
+  const { cwd, slug } = seedAtA("dflt");
+  try {
+    const launchId = openRoundFor(cwd, "dflt");
+    handleReviewObserver(JSON.stringify({
+      hook_event_name: "SubagentStop", session_id: "dflt", cwd,
+      agent_type: "default", agent_id: "d1",
+      last_assistant_message: `reviewed\n\nLAUNCH: ${launchId}\nVERDICT: PASS`,
+    }));
+
+    const round = latestRound(readGoalplan(cwd, slug)!, "plan_audit")!;
+    assert.equal(round.status, "approved", "a default-role reviewer's verdict must land");
+    assert.equal(round.lane.verdict, "pass");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// The drop that told nobody. A reviewer that ends without the exact closing two
+// lines used to return silently, which is indistinguishable from a broken gate.
+test("a child that exits without a parseable sign-off says so in the ledger", () => {
+  const { cwd, slug } = seedAtA("noparse");
+  try {
+    openRoundFor(cwd, "noparse");
+    handleReviewObserver(JSON.stringify({
+      hook_event_name: "SubagentStop", session_id: "noparse", cwd,
+      agent_type: "default", agent_id: "n1",
+      last_assistant_message: "I reviewed the plan and it looks fine to me.",
+    }));
+
+    assert.match(goalplanLedger(cwd, slug), /review_signoff_unparsed/,
+      "an unparseable reviewer exit must be diagnosable");
+    const round = latestRound(readGoalplan(cwd, slug)!, "plan_audit")!;
+    assert.equal(round.status, "in_flight", "and it must not approve anything");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// A sign-off naming a round nobody opened was the other invisible drop.
+test("a sign-off for an unknown launch id is recorded as ignored", () => {
+  const { cwd, slug } = seedAtA("unknown");
+  try {
+    openRoundFor(cwd, "unknown");
+    signOffAs(cwd, "unknown", "r1", "r99-neverminted", "PASS");
+
+    assert.match(goalplanLedger(cwd, slug), /belongs to no plan_audit round/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// The matcher is the thing that actually decides whether any of the above runs.
+// Bind it to the runtime's real role vocabulary so a narrowing cannot ship again.
+test("the SubagentStop observer matcher admits every non-worker role", () => {
+  const hook = JSON.parse(readFileSync(
+    new URL("../../../hooks/subagent-stop-observing-review.json", import.meta.url), "utf8",
+  )) as { hooks: { SubagentStop: { matcher: string }[] } };
+  const matcher = new RegExp(hook.hooks.SubagentStop[0].matcher);
+  // "default" is what codex-rs sends for a child spawned without a role, which is
+  // every multi_agent_v1 spawn: its tool schema has no agent_type argument.
+  for (const role of ["default", "explorer", "reviewer", "executor", ""]) {
+    assert.ok(matcher.test(role), `the observer must be reachable for agent_type "${role}"`);
+  }
+});

@@ -295,7 +295,11 @@ function main()       {
     } else if (event === "subagent-stop-review") {
       // 060 observer: records a reviewer verdict, never blocks. Kept separate from
       // the worker receipt gate so the two cannot contend over the same child.
-      out = handleReviewObserver(raw);
+      // 260818: this assigned to an undeclared `out`, which throws ReferenceError in
+      // an ESM module. The observer's write had already landed (the call is evaluated
+      // before the assignment) and the catch below swallowed the throw, so the bug was
+      // invisible — but it also meant every later statement was skipped.
+      output = handleReviewObserver(raw);
     } else if (event === "subagent-stop") {
       const payload = parseSubagentStop(raw);
       if (payload) output = runSubagentStopGate(payload);
