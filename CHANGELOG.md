@@ -6,6 +6,31 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.5] — 2026-08-18
+
+### Fixed
+
+- **A subagent spawned on the v1 surface was given a link to a skill instead of
+  the skill.** The spawn hook rewrote `$cxc-dev` into a
+  `[$cxc-dev](skill://…/SKILL.md)` link and stopped there, because inlining the
+  SKILL.md body was gated on the V2 spawn shape. The reasoning was that upstream
+  resolves a mention on v1 and only V2 needs the body carried in the message.
+  Upstream does not resolve it — to a child, that link is just text in the
+  prompt, and nothing expands it.
+
+  Measured across 120 real v1 children in a single session: 120 received the
+  link, 0 received a body, and 51 never opened the file at all. Roughly half of
+  every delegated task ran without a line of the discipline it was dispatched
+  with, which is what "the subagent answers are useless" actually was.
+
+  Inlining is what delivers a skill, so it is no longer conditional on the
+  surface. The "repair a mention, never invent one" rule is unchanged:
+  `inlineSkillBodies` returns the message untouched when nothing leaf-safe was
+  mentioned, so a spawn that asked for no skills is byte-identical on both
+  surfaces. Two older assertions had pinned the caller's text as the TAIL of the
+  rewritten v1 message; the attached body now follows it, so both assert
+  containment plus the presence of the body.
+
 ## [0.2.4] — 2026-08-18
 
 ### Fixed
