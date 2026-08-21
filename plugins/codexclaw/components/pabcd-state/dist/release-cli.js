@@ -17,8 +17,9 @@
  * the OUTPUT path. The other verbs address an existing candidate with --version XOR
  * --candidate; zero matches and multiple matches are both explicit errors.
  */
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { renameWithRetry } from "./atomic-write.js";
 
 import {
   CANDIDATE_SCHEMA_VERSION,
@@ -134,7 +135,7 @@ function writeCandidate(path        , manifest                   )       {
   mkdirSync(dirname(path), { recursive: true });
   const tmp = path + ".tmp";
   writeFileSync(tmp, JSON.stringify(manifest, null, 2) + "\n");
-  renameSync(tmp, path);
+  renameWithRetry(tmp, path);
 }
 
 function nowIso()         {

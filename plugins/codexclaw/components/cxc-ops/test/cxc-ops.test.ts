@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import type { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -310,4 +311,26 @@ test("doctor repair field appears in rendered output for non-PASS checks", () =>
   } finally {
     process.cwd = origCwd;
   }
+});
+
+// --- wp05 defect #16: the version regex was missing its backslashes ---
+
+test("doctor parses a semver out of codex --version", () => {
+  // /(d+.d+.d+)/ matched a literal "d", so "codex 1.2.3" fell through to the raw
+  // stdout trim. The report has a codexVersion field; it should hold a version.
+  const runner = ((cmd: string) => {
+    if (cmd === "codex") return { status: 0, stdout: "codex-cli 1.2.3\n", stderr: "" };
+    return { status: 1, stdout: "", stderr: "" };
+  }) as unknown as typeof spawnSync;
+  const report = runDoctor(payloadAt("0.0.1"), runner, { codexHome: mkdtempSync(join(tmpdir(), "cxc-empty-")) });
+  assert.equal(report.codexVersion, "1.2.3");
+});
+
+test("doctor falls back to trimmed stdout when no semver is present", () => {
+  const runner = ((cmd: string) => {
+    if (cmd === "codex") return { status: 0, stdout: "  nightly  \n", stderr: "" };
+    return { status: 1, stdout: "", stderr: "" };
+  }) as unknown as typeof spawnSync;
+  const report = runDoctor(payloadAt("0.0.1"), runner, { codexHome: mkdtempSync(join(tmpdir(), "cxc-empty-")) });
+  assert.equal(report.codexVersion, "nightly");
 });

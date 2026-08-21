@@ -103,3 +103,52 @@ test("BUNDLE_SCHEMA_VERSION is 1", () => {
   assert.equal(BUNDLE_SCHEMA_VERSION, 1);
 });
 
+// --- wp05 Windows path handling (040) ---
+
+test("redactPaths is case-insensitive on win32", () => {
+  // defect #3: tools lowercase paths freely, and the bundle is meant to be shareable.
+  const result = redactPaths("c:\\users\\jun\\.codex", "C:\\Users\\jun", "win32");
+  assert.doesNotMatch(result, /jun/);
+  assert.match(result, /~/);
+});
+
+test("redactPaths stays case-SENSITIVE on posix", () => {
+  // Folding case here would merge two genuinely different POSIX directories.
+  const result = redactPaths("/Users/JUN/x", "/Users/jun", "linux");
+  assert.match(result, /JUN/);
+});
+
+test("redactPaths handles regex metacharacters in the home path", () => {
+  const result = redactPaths("C:\\Users\\a+b(1)\\.codex", "C:\\Users\\a+b(1)", "win32");
+  assert.equal(result, "~\\.codex");
+});
+
+test("an empty homeDir is a no-op, not a shredder", () => {
+  // defect #1: "".split("") used to explode the string into "p~l~u~g~i~n".
+  const result = redactPaths("plugin", "");
+  assert.equal(result, "plugin");
+  assert.notEqual(result, "p~l~u~g~i~n");
+});
+
+test("the longest variant wins", () => {
+  const result = redactPaths("C:/Users/x/AppData and C:/Users/x", "C:/Users/x", "win32");
+  assert.equal(result, "~/AppData and ~");
+});
+
+test("generateBundle with no HOME set produces readable sections", () => {
+  // 002 B3: on Windows HOME is unset, which used to shred every redacted section.
+  const priorHome = process.env.HOME;
+  delete process.env.HOME;
+  try {
+    const root = mkdtempSync(join(tmpdir(), "bundle-nohome-"));
+    mkdirSync(join(root, ".codex-plugin"), { recursive: true });
+    writeFileSync(join(root, ".codex-plugin", "plugin.json"), JSON.stringify({ name: "codexclaw", version: "0.0.1", hooks: [] }));
+    const bundle = generateBundle({ pluginRoot: root });
+    for (const section of bundle.sections) {
+      assert.doesNotMatch(section.content, /(~.){5}/, `section ${section.name} is character-shredded`);
+    }
+  } finally {
+    if (priorHome !== undefined) process.env.HOME = priorHome;
+  }
+});
+

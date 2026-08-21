@@ -5,9 +5,10 @@
  * artifact for field regression diagnosis. Never uploads automatically.
  */
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync, statSync } from "node:fs";
-import { join, basename, relative, sep } from "node:path";
+import { join, basename, relative } from "node:path";
 import { createHash } from "node:crypto";
-import { platform, hostname, release } from "node:os";
+import { platform, hostname, release, homedir } from "node:os";
+import { escapeRegExp, homePathVariants } from "./win-paths.ts";
 
 /** Schema version for the scouting bundle. */
 export const BUNDLE_SCHEMA_VERSION = 1;
@@ -26,19 +27,23 @@ export const SECRET_SENTINELS = [
   /-----BEGIN\s+(RSA|EC|OPENSSH)\s+PRIVATE\s+KEY-----/, // Private keys
 ];
 
-/** Redact home directory paths. */
-export function redactPaths(text: string, homeDir: string): string {
-  // Normalize separators for cross-platform
-  const normalizedHome = homeDir.split(sep).join("/");
-  const windowsHome = homeDir.split("/").join("\\");
-  let result = text;
-  result = result.split(normalizedHome).join("~");
-  if (sep === "\\") {
-    result = result.split(windowsHome).join("~");
-  }
-  // Also redact forward-slash version on Windows
-  result = result.split(homeDir).join("~");
-  return result;
+/**
+ * Redact every spelling of the home directory.
+ *
+ * win32 needs a case-insensitive match (tools lowercase paths freely) and the
+ * 8.3 short form (`C:\Users\SUPER~1`), neither of which a literal split/join finds.
+ * An empty `homeDir` returns the text untouched - `"".split("")` would explode the
+ * string into characters joined by "~" (defect #1).
+ */
+export function redactPaths(
+  text: string,
+  homeDir: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  const variants = homePathVariants(homeDir, platform);
+  if (variants.length === 0) return text;
+  const pattern = variants.map(escapeRegExp).join("|");
+  return text.replace(new RegExp(pattern, platform === "win32" ? "gi" : "g"), "~");
 }
 
 /** Check text for secret sentinels. Returns matched patterns. */
@@ -72,7 +77,10 @@ export function generateBundle(opts: {
   projectRoot?: string;
   homeDir?: string;
 }): ScoutingBundle {
-  const home = opts.homeDir ?? process.env.HOME ?? "";
+  // Windows sets USERPROFILE, not HOME (except under Git Bash), so this used to
+  // resolve to "" and every redactPaths call became split("").join("~") - which
+  // rewrites "plugin" as "p~l~u~g~i~n" and corrupts the whole bundle (defect #1).
+  const home = opts.homeDir ?? homedir();
   const sections: BundleSection[] = [];
 
   // 1. Plugin version and manifest shape
@@ -163,4 +171,3 @@ export function validateBundleSecurity(bundle: ScoutingBundle): { safe: boolean;
   }
   return { safe: violations.length === 0, violations };
 }
-

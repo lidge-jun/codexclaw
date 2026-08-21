@@ -1,5 +1,6 @@
-import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { renameWithRetry } from "./atomic-write.js";
 import { sanitizeKey, STATE_DIR } from "./state.js";
 
 
@@ -138,7 +139,7 @@ export function writeObjectiveKind(cwd        , sessionId        , kind         
   const tmp = `${finalPath}.${process.pid}.${Date.now()}.tmp`;
   try {
     writeFileSync(tmp, JSON.stringify({ sessionId, kind, updatedAt: new Date().toISOString() }, null, 2));
-    renameSync(tmp, finalPath);
+    renameWithRetry(tmp, finalPath);
   } catch (err) {
     try {
       rmSync(tmp, { force: true });

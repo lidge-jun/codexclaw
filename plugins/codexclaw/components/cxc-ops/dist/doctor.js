@@ -70,7 +70,7 @@ function detectCodexVersion(runner                  )                     {
   try {
     const res = runner("codex", ["--version"], { encoding: "utf8", timeout: 5000 });
     if (res.status === 0 && res.stdout) {
-      const match = res.stdout.match(/(d+.d+.d+)/);
+      const match = res.stdout.match(/(\d+\.\d+\.\d+)/);
       return match ? match[1] : res.stdout.trim();
     }
   } catch { /* codex not in PATH */ }

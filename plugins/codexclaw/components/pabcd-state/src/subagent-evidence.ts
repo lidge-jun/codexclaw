@@ -22,12 +22,12 @@ import {
   mkdirSync,
   readFileSync,
   realpathSync,
-  renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
+import { renameWithRetry } from "./atomic-write.ts";
 import { STATE_DIR, sanitizeKey } from "./state.ts";
 import type { SubagentStopPayload } from "./hook.ts";
 
@@ -145,7 +145,7 @@ export function writeAttempts(cwd: string, sessionId: string, agentId: string, a
     mkdirSync(join(cwd, STATE_DIR, EVIDENCE_ATTEMPTS_SUBDIR), { recursive: true });
     const tmp = `${p}.${process.pid}.${Date.now()}.tmp`;
     writeFileSync(tmp, `${JSON.stringify({ attempts })}\n`);
-    renameSync(tmp, p);
+    renameWithRetry(tmp, p);
   } catch {
     /* fail open: a failed write just means the next attempt re-evaluates from disk. */
   }

@@ -27,11 +27,11 @@ import {
   openSync,
   readFileSync,
   writeFileSync,
-  renameSync,
   rmSync,
   writeSync,
 } from "node:fs";
 import { join, resolve, sep } from "node:path";
+import { renameWithRetry } from "./atomic-write.js";
 import { STATE_DIR } from "./state.js";
 import { deriveSlug,                   } from "./freeze.js";
 
@@ -622,7 +622,7 @@ export function writeGoalplan(cwd        , plan          )       {
   const normalized           = { ...plan, updatedAt: new Date().toISOString() };
   try {
     writeFileSync(tmp, JSON.stringify(normalized, null, 2), { mode: 0o600 });
-    renameSync(tmp, finalPath);
+    renameWithRetry(tmp, finalPath);
   } catch (err) {
     try {
       rmSync(tmp, { force: true });

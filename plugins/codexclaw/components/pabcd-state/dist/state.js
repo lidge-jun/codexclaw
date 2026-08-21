@@ -1,6 +1,7 @@
-import { mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync, linkSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, appendFileSync, linkSync, rmSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import { renameWithRetry } from "./atomic-write.js";
 import {                        reconstructInterview, normalizeInterview, isInterviewReady } from "./interview.js";
 
 
@@ -188,7 +189,11 @@ function statePath(cwd        , sessionId        )         {
  * normalized or overwritten here. Later FSM mutations continue to own recovery
  * through readState/writeState.
  */
-export function ensureState(cwd        , sessionId        )          {
+export function ensureState(
+  cwd        ,
+  sessionId        ,
+  link                                              = linkSync,
+)          {
   if (!isCanonicalSessionId(sessionId)) {
     throw new TypeError("sessionId must be a canonical state key");
   }
@@ -199,11 +204,27 @@ export function ensureState(cwd        , sessionId        )          {
   try {
     writeFileSync(tmp, JSON.stringify(defaultState(sessionId), null, 2), { flag: "wx" });
     try {
-      linkSync(tmp, finalPath);
+      link(tmp, finalPath);
       return true;
     } catch (err) {
-      if (err && typeof err === "object" && "code" in err && err.code === "EEXIST") {
-        return false;
+      const code = err && typeof err === "object" && "code" in err ? String(err.code) : "";
+      if (code === "EEXIST") return false;
+      // Hard links need NTFS and a single volume. FAT32/exFAT sticks (and some
+      // mounted shares) answer EPERM/ENOTSUP/EXDEV instead, and this runs from the
+      // SessionStart hook - a throw here kills session bootstrap (defect #13).
+      if (code === "EPERM" || code === "ENOTSUP" || code === "EXDEV") {
+        try {
+          // "wx" gives the same exclusive-create semantics without hard links.
+          writeFileSync(finalPath, JSON.stringify(defaultState(sessionId), null, 2), { flag: "wx" });
+          return true;
+        } catch (fallbackErr) {
+          const fallbackCode =
+            fallbackErr && typeof fallbackErr === "object" && "code" in fallbackErr
+              ? String(fallbackErr.code)
+              : "";
+          if (fallbackCode === "EEXIST") return false;
+          throw fallbackErr;
+        }
       }
       throw err;
     }
@@ -302,7 +323,7 @@ export function writeState(cwd        , next       )       {
     // never reach the hot session JSON.
     const normalized = { ...next, interview: normalizeInterview(next.interview), updatedAt: new Date().toISOString() };
     writeFileSync(tmp, JSON.stringify(normalized, null, 2));
-    renameSync(tmp, finalPath);
+    renameWithRetry(tmp, finalPath);
   } catch (err) {
     try {
       rmSync(tmp, { force: true });
