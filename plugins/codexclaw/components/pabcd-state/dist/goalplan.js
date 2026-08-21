@@ -605,7 +605,9 @@ function firstInvalidField(parsed         )         {
     // Issue #29: hand-authored {bogus: true} criteria used to read as "(unknown)".
     return "criteria[] entries (each needs scenario/expectedEvidence/status)";
   }
-  if (typeof o.host !== "object" || o.host === null) return "host";
+  if (typeof o.host !== "object" || o.host === null || typeof (o.host                           ).armed !== "boolean") {
+    return "host (needs armed/armedAt/source)";
+  }
   if (o.steeringLog !== undefined && !Array.isArray(o.steeringLog)) return "steeringLog";
   return "(unknown)";
 }
