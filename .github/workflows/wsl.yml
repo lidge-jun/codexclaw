@@ -1,0 +1,54 @@
+name: WSL
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wsl:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      # A real WSL2 kernel on a Windows runner, so /proc/version carries
+      # "microsoft" and /proc/mounts reports drvfs for the checkout - the two
+      # signals wp07 keys on and that ubuntu-latest cannot produce.
+      - uses: Vampire/setup-wsl@v6
+        with:
+          distribution: Ubuntu-24.04
+          additional-packages: curl ca-certificates
+      - name: Install Node in the distro
+        shell: wsl-bash {0}
+        run: |
+          curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+          apt-get install -y nodejs
+          node --version
+      # Two checkouts, deliberately. /mnt/c is drvfs and is where the lock and
+      # publish guarantees get weaker; ~ is native ext4 and is what the docs
+      # recommend. Both must pass, and the doctor must TELL THEM APART.
+      - name: Test on drvfs (/mnt/c)
+        shell: wsl-bash {0}
+        run: |
+          cd "$(wslpath '${{ github.workspace }}')"
+          npm ci
+          npm test
+          node bin/codexclaw.mjs doctor | grep -i drvfs
+      - name: Test on native ext4 (~)
+        shell: wsl-bash {0}
+        run: |
+          cp -r "$(wslpath '${{ github.workspace }}')" ~/codexclaw-native
+          cd ~/codexclaw-native
+          npm ci
+          npm test
+          node plugins/codexclaw/scripts/platform-smoke.mjs
+      - name: No wsl.exe subprocess parsing
+        shell: wsl-bash {0}
+        run: |
+          cd "$(wslpath '${{ github.workspace }}')"
+          ! grep -rn "wsl\.exe\|wslpath" plugins/codexclaw/components plugins/codexclaw/scripts bin cli scripts \
+            --include="*.ts" --include="*.mjs" --include="*.js" \
+            | grep -v "/dist/" | grep -v "/test/"
