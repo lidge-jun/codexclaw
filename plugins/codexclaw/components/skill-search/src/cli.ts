@@ -16,6 +16,7 @@ import { ADAPTER_PREAMBLE, searchFooter } from "./preamble.ts";
 import { rank } from "./scoring.ts";
 import { fetchHermesRows, fetchJawRows, searchClawhubRows } from "./sources.ts";
 import type { FetchText, ScoredRow, SkillRow } from "./types.ts";
+import { commandInvocation } from "./win-exec.ts";
 
 const USAGE =
   "cxc skill <search <query...> [--source jaw|hermes|clawhub|gh|all] [--limit N] [--json] [--refresh] | show <id> [--source ...]>";
@@ -73,15 +74,41 @@ async function searchClawhub(query: string, limit: number, fetchText: FetchText)
   return rows.slice(0, limit).map((row, i) => ({ ...row, score: rows.length - i }));
 }
 
-function ghSearch(query: string, limit: number): ScoredRow[] {
-  const res = spawnSync(
-    "gh",
-    ["search", "code", `filename:SKILL.md ${query}`, "--limit", String(limit), "--json", "repository,path"],
-    { encoding: "utf8" },
-  );
+/**
+ * `runner` is injectable on the doctor.ts pattern so the launch-failure and
+ * auth-failure branches are testable without a real gh on PATH.
+ */
+export function ghSearch(
+  query: string,
+  limit: number,
+  runner: typeof spawnSync = spawnSync,
+): ScoredRow[] {
+  // The official gh install ships gh.exe, which PATHEXT resolves; scoop and
+  // npm-wrapped distributions ship a .cmd shim, which needs cmd.exe (002 B5).
+  const inv = commandInvocation("gh", [
+    "search",
+    "code",
+    `filename:SKILL.md ${query}`,
+    "--limit",
+    String(limit),
+    "--json",
+    "repository,path",
+  ]);
+  const res = runner(inv.file, inv.args, { encoding: "utf8", ...inv.options });
+  // A failed LAUNCH sets res.error and leaves status null; a failed AUTH exits
+  // non-zero with a message. Collapsing both into one string made a missing gh
+  // and an expired token indistinguishable.
+  if (res.error) {
+    const hint =
+      (res.error as NodeJS.ErrnoException).code === "ENOENT"
+        ? "gh is not on PATH - install the GitHub CLI from cli.github.com"
+        : `gh could not be launched: ${res.error.message}`;
+    process.stderr.write(`skill-search: ${hint}\n`);
+    return [];
+  }
   if (res.status !== 0 || !res.stdout) {
     process.stderr.write(
-      `skill-search: gh code search unavailable (${res.stderr?.trim() || "gh CLI missing or not authenticated"})\n`,
+      `skill-search: gh code search failed (${res.stderr?.trim() || "gh exited " + String(res.status) + " - try \`gh auth status\`"})\n`,
     );
     return [];
   }

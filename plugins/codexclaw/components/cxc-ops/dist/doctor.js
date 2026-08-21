@@ -11,6 +11,7 @@ import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { diagnoseHookTrust, readInstalledPluginKeys } from "./hook-trust.js";
 import { TargetParseError, validateManifestTargets } from "./manifest-targets.js";
+import { commandInvocation } from "./win-exec.js";
 
 
 
@@ -400,13 +401,40 @@ export function runDriftCheck(pluginRoot        )                {
  * skill helper without crashing when it (or python) is absent. Missing binary
  * is WARN (install hint), not FAIL — ast-grep is optional, on-demand tooling.
  */
-export function runAstGrepCheck(pluginRoot        , runner                   = spawnSync)              {
+export function runAstGrepCheck(
+  pluginRoot        ,
+  runner                   = spawnSync,
+  platform                  = process.platform,
+)              {
   const helper = join(pluginRoot, "skills", "ast-grep", "scripts", "ast_grep_helper.py");
   if (!existsSync(helper)) {
     return { name: "ast-grep", severity: "WARN", evidence: "ast-grep skill helper not installed" };
   }
   try {
-    const res = runner("python3", [helper, "doctor"], { encoding: "utf8", timeout: 8000 });
+    // Bare "python3" on Windows resolves to the Microsoft Store alias: a real
+    // executable that exits 9009 without ever running Python. The py launcher
+    // ships with every python.org install, so it is the win32 entry point here.
+    const pythonBin = platform === "win32" ? "py" : "python3";
+    const pythonArgs = platform === "win32" ? ["-3", helper, "doctor"] : [helper, "doctor"];
+    const inv = commandInvocation(pythonBin, pythonArgs, platform);
+    const res = runner(inv.file, inv.args, { encoding: "utf8", timeout: 8000, ...inv.options });
+    // 9009 is cmd.exe's "command not recognized" and the Store alias's exit code;
+    // 127 is the POSIX equivalent. Neither sets res.error, so the old code read a
+    // missing interpreter as "sg not resolved" and pointed at the wrong install.
+    const interpreterMissing =
+      (res.error                                     )?.code === "ENOENT" ||
+      res.status === 9009 ||
+      res.status === 127;
+    if (interpreterMissing) {
+      return {
+        name: "ast-grep",
+        severity: "WARN",
+        evidence:
+          platform === "win32"
+            ? "python not runnable (the Microsoft Store alias exits 9009) - install Python 3.9+ from python.org"
+            : "python3 not found - install Python 3.9+ to run the ast-grep helper",
+      };
+    }
     const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
     const versionMatch = out.match(/ast-grep\s+(\d+\.\d+\.\d+)/);
     const pathMatch = out.match(/ast-grep binary:\s*(\S+)/);
