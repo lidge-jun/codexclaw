@@ -597,7 +597,14 @@ function firstInvalidField(parsed: unknown): string {
   if (typeof o.objective !== "string") return "objective";
   if (typeof o.slug !== "string") return "slug";
   if (!Array.isArray(o.workPhases)) return "workPhases";
+  if (Array.isArray(o.workPhases) && o.workPhases.some((w) => typeof w !== "object" || w === null || typeof (w as Record<string, unknown>).id !== "string")) {
+    return "workPhases[] entries (each needs id/title/status)";
+  }
   if (!Array.isArray(o.criteria)) return "criteria";
+  if (Array.isArray(o.criteria) && o.criteria.some((c) => typeof c !== "object" || c === null || typeof (c as Record<string, unknown>).scenario !== "string")) {
+    // Issue #29: hand-authored {bogus: true} criteria used to read as "(unknown)".
+    return "criteria[] entries (each needs scenario/expectedEvidence/status)";
+  }
   if (typeof o.host !== "object" || o.host === null) return "host";
   if (o.steeringLog !== undefined && !Array.isArray(o.steeringLog)) return "steeringLog";
   return "(unknown)";
