@@ -2,10 +2,13 @@
  * steering.ts — transactional steering batches (WP14 / plan 090).
  *
  * `$cxc-loop` promises that steering decisions are recorded with rationale and
- * evidence, and that steering weakening completion criteria is refused. Neither
- * existed in code. This slice delivers the first half: a batch either applies
- * whole or not at all, and the fact of it is durable. Refusing weakening
- * steering needs mutation kinds, which is 091 — so this ships `annotate` only.
+ * evidence, and that steering weakening completion criteria is refused. A batch
+ * either applies whole or not at all, and the fact of it is durable.
+ *
+ * Issue #29 adds the two ADDITIVE mutating kinds - `add-criterion` and
+ * `add-work-phase` - so a plan is no longer frozen at birth. Weakening kinds
+ * stay unimplemented: every op here can only raise the completion bar, which is
+ * how the refusal rule is satisfied by construction rather than by a check.
  *
  * "annotate does not change state" would be wrong: it appends to steeringLog and
  * therefore changes idempotency. What it does not change is anything completion
@@ -16,16 +19,27 @@ import { join } from "node:path";
 import {
   appendGoalplanLedger,
   goalplanDir,
-  readGoalplan,
+  readGoalplanDetailed,
   writeGoalplan,
   type Goalplan,
   type SteeringEntry,
 } from "./goalplan.ts";
 
-export interface SteerOp {
-  kind: string;
-  note?: string;
-}
+/**
+ * The op grammar. Both mutating kinds are strictly ADDITIVE (issue #29): adding a
+ * criterion or a work phase raises the completion bar, never lowers it, which is
+ * why they are safe to admit while removal ops are not.
+ */
+export type SteerOp =
+  | { kind: "annotate"; note: string }
+  | {
+      kind: "add-criterion";
+      scenario: string;
+      /** schemaVersion 2 requires this. Defaulted to "logic" at parse time. */
+      surface?: "logic" | "web" | "tui";
+      expectedEvidence?: string;
+    }
+  | { kind: "add-work-phase"; id: string; title: string };
 
 export interface SteerBatch {
   idempotencyKey: string;
@@ -41,8 +55,14 @@ export type SteerResult =
   | { kind: "rejected"; reason: string }
   | { kind: "locked"; reason: string };
 
-/** 091 adds the mutating kinds; until then an unknown kind is a rejection. */
-const SUPPORTED_OPS: ReadonlySet<string> = new Set(["annotate"]);
+/**
+ * Mutating kinds land here (issue #29). An unknown kind is still a rejection.
+ *
+ * Steering must never weaken a plan, and there is deliberately no
+ * `remove-criterion` / `supersede-work-phase` here: those are weakening ops and
+ * need the refusal rule designed first.
+ */
+const SUPPORTED_OPS: ReadonlySet<string> = new Set(["annotate", "add-criterion", "add-work-phase"]);
 
 function lockDir(cwd: string, slug: string): string {
   return join(goalplanDir(cwd, slug), ".steer.lock");
@@ -109,17 +129,46 @@ function validateBatch(batch: unknown): SteerBatch | { error: string } {
     return { error: "ops must be a non-empty array — a batch with nothing to do has nothing to record" };
   }
   const ops: SteerOp[] = [];
+  const SURFACES: ReadonlySet<string> = new Set(["logic", "web", "tui"]);
   for (const [i, raw] of (b.ops as unknown[]).entries()) {
     if (typeof raw !== "object" || raw === null) return { error: `ops[${i}] must be an object` };
     const op = raw as Record<string, unknown>;
     if (typeof op.kind !== "string") return { error: `ops[${i}].kind must be a string` };
     if (!SUPPORTED_OPS.has(op.kind)) {
-      return { error: `ops[${i}].kind "${op.kind}" is not supported yet — this slice implements "annotate" only` };
+      return {
+        error: `ops[${i}].kind "${op.kind}" is not supported - use "annotate", "add-criterion", or "add-work-phase"`,
+      };
     }
-    if (op.kind === "annotate" && (typeof op.note !== "string" || op.note.trim().length === 0)) {
-      return { error: `ops[${i}] is an annotate without a note` };
+    if (op.kind === "annotate") {
+      if (typeof op.note !== "string" || op.note.trim().length === 0) {
+        return { error: `ops[${i}] is an annotate without a note` };
+      }
+      ops.push({ kind: "annotate", note: op.note });
+      continue;
     }
-    ops.push({ kind: op.kind, note: typeof op.note === "string" ? op.note : undefined });
+    if (op.kind === "add-criterion") {
+      if (typeof op.scenario !== "string" || op.scenario.trim().length === 0) {
+        return { error: `ops[${i}] is an add-criterion without a scenario` };
+      }
+      if (op.surface !== undefined && (typeof op.surface !== "string" || !SURFACES.has(op.surface))) {
+        return { error: `ops[${i}].surface must be "logic", "web", or "tui"` };
+      }
+      ops.push({
+        kind: "add-criterion",
+        scenario: op.scenario.trim(),
+        surface: (op.surface as "logic" | "web" | "tui" | undefined) ?? "logic",
+        expectedEvidence: typeof op.expectedEvidence === "string" ? op.expectedEvidence.trim() : "",
+      });
+      continue;
+    }
+    // add-work-phase
+    if (typeof op.id !== "string" || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(op.id)) {
+      return { error: `ops[${i}].id must be a short lowercase work-phase id, e.g. "wp04-loop-criteria"` };
+    }
+    if (typeof op.title !== "string" || op.title.trim().length === 0) {
+      return { error: `ops[${i}] is an add-work-phase without a title` };
+    }
+    ops.push({ kind: "add-work-phase", id: op.id, title: op.title.trim() });
   }
   return {
     idempotencyKey: b.idempotencyKey as string,
@@ -131,6 +180,51 @@ function validateBatch(batch: unknown): SteerBatch | { error: string } {
 
 export interface ApplyOptions {
   now?: () => string;
+}
+
+/**
+ * Fold the ops into a plan. Pure: the caller owns the lock and the write.
+ *
+ * Ids are assigned here rather than accepted from the batch so two concurrent
+ * batches cannot both claim `c-3`. Duplicate detection is on the scenario text
+ * for criteria and on the id for work phases, and a duplicate is a rejection
+ * rather than a silent no-op - a steering batch that did nothing should say so.
+ */
+function applyOps(plan: Goalplan, ops: SteerOp[]): { plan: Goalplan } | { error: string } {
+  let criteria = [...plan.criteria];
+  let workPhases = [...plan.workPhases];
+  for (const op of ops) {
+    if (op.kind === "annotate") continue; // ledger-only, by design
+    if (op.kind === "add-criterion") {
+      const scenario = op.scenario;
+      if (criteria.some((c) => c.scenario === scenario)) {
+        return { error: `a criterion with scenario "${scenario}" is already registered` };
+      }
+      // Ids are dense and monotonic: max existing c-N + 1, never criteria.length,
+      // so a hand-edited plan with a gap cannot produce a collision.
+      const maxId = criteria.reduce((m, c) => {
+        const n = Number(/^c-(\d+)$/.exec(c.id)?.[1] ?? 0);
+        return Number.isFinite(n) && n > m ? n : m;
+      }, 0);
+      criteria = [
+        ...criteria,
+        {
+          id: `c-${maxId + 1}`,
+          scenario,
+          surface: op.surface ?? "logic",
+          expectedEvidence: op.expectedEvidence ?? "",
+          capturedEvidence: null,
+          status: "open",
+        },
+      ];
+      continue;
+    }
+    if (workPhases.some((w) => w.id === op.id)) {
+      return { error: `work phase '${op.id}' is already in this plan` };
+    }
+    workPhases = [...workPhases, { id: op.id, title: op.title, status: "pending", tasks: [], criteriaIds: [] }];
+  }
+  return { plan: { ...plan, criteria, workPhases } };
 }
 
 /**
@@ -165,9 +259,21 @@ export function applySteeringBatch(
   const heldDir = lock.dir;
 
   try {
-    const plan = readGoalplan(cwd, slug);
+    const read = readGoalplanDetailed(cwd, slug);
+    const plan = read.plan;
     if (!plan) {
-      return { kind: "rejected", reason: `goalplan at slug '${slug}' is missing or unreadable` };
+      // Naming the failing field beats "missing or unreadable" for both halves:
+      // a truncated write and an absent plan used to read identically (issue #29).
+      const d = read.diagnostic;
+      const why =
+        d?.kind === "invalid-json"
+          ? `its JSON is invalid: ${d.detail}`
+          : d?.kind === "invalid-shape"
+            ? `field '${d.field}' did not satisfy the schema`
+            : d?.kind === "unreadable"
+              ? `it could not be read: ${d.detail}`
+              : "it does not exist";
+      return { kind: "rejected", reason: `goalplan at slug '${slug}' is unusable - ${why}` };
     }
 
     const existing = (plan.steeringLog ?? []).find((e) => e.idempotencyKey === batch.idempotencyKey);
@@ -183,7 +289,9 @@ export function applySteeringBatch(
 
     // Build the whole next plan first: a batch applies entirely or not at all,
     // so nothing touches disk until every op has been accepted.
-    const next: Goalplan = { ...plan, steeringLog: [...(plan.steeringLog ?? []), entry] };
+    const applied = applyOps(plan, batch.ops);
+    if ("error" in applied) return { kind: "rejected", reason: applied.error };
+    const next: Goalplan = { ...applied.plan, steeringLog: [...(plan.steeringLog ?? []), entry] };
 
     writeGoalplan(cwd, next); // commit point
 

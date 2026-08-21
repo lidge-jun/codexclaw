@@ -515,16 +515,92 @@ function reviveGoalplan(parsed         , expectedSlug         )                 
   return plan;
 }
 
-/** Read a goalplan; returns null on absent/unreadable/malformed (never throws). */
-export function readGoalplan(cwd        , slug        )                  {
+/** Why a read failed. `null` on the diagnostic means the plan loaded. */
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * Read a goalplan and say why when it fails.
+ *
+ * The bare `catch { return null }` made every failure - absent file, bad JSON, a
+ * `steeringLog` the reviver rejected - surface identically as "no plan found at
+ * slug X", so a malformed plan was indistinguishable from no plan at all
+ * (issue #29). Never throws: the diagnostic is the error channel.
+ */
+export function readGoalplanDetailed(cwd        , slug        )                     {
+  let path        ;
+  let raw        ;
   try {
-    const path = goalplanPath(cwd, slug);
-    assertNotSymlink(path);
-    const raw = readFileSync(path, "utf8");
-    return reviveGoalplan(JSON.parse(raw), validateGoalplanSlug(slug));
-  } catch {
-    return null;
+    path = goalplanPath(cwd, slug);
+  } catch (err) {
+    // A rejected slug (traversal, symlinked state root) has no legal path to name.
+    return {
+      plan: null,
+      diagnostic: { kind: "unreadable", path: slug, detail: err instanceof Error ? err.message : String(err) },
+    };
   }
+  try {
+    assertNotSymlink(path);
+    raw = readFileSync(path, "utf8");
+  } catch (err) {
+    const e = err                         ;
+    const detail = e?.message ?? String(err);
+    if (e?.code === "ENOENT") return { plan: null, diagnostic: { kind: "absent", path } };
+    return { plan: null, diagnostic: { kind: "unreadable", path, detail } };
+  }
+  let parsed         ;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return {
+      plan: null,
+      diagnostic: { kind: "invalid-json", path, detail: err instanceof Error ? err.message : String(err) },
+    };
+  }
+  const plan = reviveGoalplan(parsed, validateGoalplanSlug(slug));
+  if (!plan) {
+    const field = firstInvalidField(parsed);
+    return {
+      plan: null,
+      diagnostic: {
+        kind: "invalid-shape",
+        path,
+        field,
+        detail: `the goalplan parsed as JSON but field '${field}' did not satisfy the schema`,
+      },
+    };
+  }
+  return { plan, diagnostic: null };
+}
+
+/** Back-compat wrapper: every existing caller keeps its null-on-failure contract. */
+export function readGoalplan(cwd        , slug        )                  {
+  return readGoalplanDetailed(cwd, slug).plan;
+}
+
+/**
+ * Name the first field the reviver would have rejected. Mirrors reviveGoalplan's
+ * required set in declaration order; `"(unknown)"` when the object looks structurally
+ * fine and the rejection came from a nested reviver such as steeringLog.
+ */
+function firstInvalidField(parsed         )         {
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return "(root: not an object)";
+  const o = parsed                           ;
+  if (typeof o.objective !== "string") return "objective";
+  if (typeof o.slug !== "string") return "slug";
+  if (!Array.isArray(o.workPhases)) return "workPhases";
+  if (!Array.isArray(o.criteria)) return "criteria";
+  if (typeof o.host !== "object" || o.host === null) return "host";
+  if (o.steeringLog !== undefined && !Array.isArray(o.steeringLog)) return "steeringLog";
+  return "(unknown)";
 }
 
 /** Write a goalplan atomically (tmp + rename), refreshing updatedAt. */
@@ -587,6 +663,9 @@ export function buildGoalplan(input                  )           {
   const criteria                      = (input.criteria ?? []).map((c, i) => ({
     id: `c-${i + 1}`,
     scenario: c.scenario,
+    // schemaVersion 2 refuses an unclassified criterion. Defaulting to "logic"
+    // is what makes init-time criteria constructible under v2 at all.
+    surface: c.surface ?? "logic",
     expectedEvidence: c.expectedEvidence ?? "",
     capturedEvidence: null,
     status: "open",
@@ -804,7 +883,13 @@ function finalGateReasons(plan          , ctx                        )          
   }
   const gate = plan.finalGate;
   if (!gate) {
-    out.push('schemaVersion 2 requires a finalGate — open one with `cxc loop final-gate open`');
+    // No `final-gate` verb exists in goalplan-cli.ts or cli.ts (issue #29). Naming a
+    // command the user cannot run is worse than naming none, so this points at the
+    // review-round surface that actually produces a gate.
+    out.push(
+      "schemaVersion 2 requires a finalGate - open a final-gate review round with " +
+        "`cxc review-round open --lane final_gate --session <id>` and record its verdict",
+    );
     return out;
   }
   if (gate.status !== "approved") {

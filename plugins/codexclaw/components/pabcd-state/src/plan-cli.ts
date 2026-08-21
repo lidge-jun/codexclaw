@@ -8,15 +8,17 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
-
-import { deriveSlug } from "./freeze.ts";
+import { join, relative, resolve } from "node:path";
 
 export interface PlanCliArgs {
   verb: "init";
   slug: string;
   phases: number;
   cwd: string;
+  /** YYMMDD parsed off the positional, when the caller already supplied one.
+   *  Null means "stamp today". Never re-derived, so the unit dir a user typed
+   *  is the unit dir they get (issue #30). */
+  date: string | null;
 }
 
 export interface PlanCliResult {
@@ -30,6 +32,40 @@ export function yymmdd(d: Date = new Date()): string {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yy}${mm}${dd}`;
+}
+
+/**
+ * Split a leading YYMMDD date prefix off a positional slug.
+ *
+ * Users copy the directory convention (`260821_win-linux-optimization`) straight
+ * off disk and pass it back. Prepending today's date to that produced
+ * `260821_260821-win-linux-optimization` (issue #30), so the prefix is parsed out
+ * and reused rather than stacked.
+ *
+ * Both separators are accepted because both appear in the wild: `_` is the unit
+ * convention and `-` is what `deriveSlug` turns it into on a prior mangled run.
+ *
+ * A date-only positional (`260821_`) yields an empty `rest`, which the caller
+ * rejects - a bare date is not a unit name.
+ */
+export function splitDatePrefix(raw: string): { date: string | null; rest: string } {
+  const m = /^(\d{6})[_-](.*)$/.exec(raw.trim());
+  if (!m) return { date: null, rest: raw.trim() };
+  return { date: m[1], rest: m[2] };
+}
+
+/**
+ * Slug for a plan unit. Unlike `deriveSlug` (freeze.ts:60), the underscore is a
+ * legal slug character here: `my_slug` is a name the user chose, and silently
+ * returning `my-slug` creates a directory they did not ask for (issue #30).
+ */
+export function derivePlanSlug(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
 }
 
 /** Structural argv parse. argv excludes the `plan` kind token. */
@@ -51,7 +87,12 @@ export function parsePlanCliArgs(argv: string[], cwd: string): PlanCliArgs | { e
     else if (!a.startsWith("--") && slug === "") slug = a;
   }
   if (slug === "") return { error: "plan init requires a <slug> argument" };
-  return { verb: "init", slug: deriveSlug(slug), phases, cwd: outCwd };
+  const { date, rest } = splitDatePrefix(slug);
+  const derived = derivePlanSlug(rest);
+  if (derived === "") {
+    return { error: `plan init: '${slug}' has no usable slug once its date prefix is removed` };
+  }
+  return { verb: "init", slug: derived, phases, cwd: outCwd, date };
 }
 
 const HEADER_NOTE =
@@ -107,7 +148,10 @@ function phaseDoc(n: number, slug: string): string {
 }
 
 export function runPlanCli(args: PlanCliArgs): PlanCliResult {
-  const unitDir = resolve(args.cwd, "devlog", "_plan", `${yymmdd()}_${args.slug}`);
+  // args.date is the caller's own prefix when they passed one; only stamp today
+  // when they did not (issue #30 - the doubled prefix came from stamping always).
+  const unitName = `${args.date ?? yymmdd()}_${args.slug}`;
+  const unitDir = resolve(args.cwd, "devlog", "_plan", unitName);
   if (existsSync(unitDir)) {
     return { output: `plan init: ${unitDir} already exists — refusing to overwrite. Write your docs there.`, code: 1 };
   }
@@ -115,15 +159,20 @@ export function runPlanCli(args: PlanCliArgs): PlanCliResult {
     mkdirSync(unitDir, { recursive: true });
     writeFileSync(join(unitDir, "000_plan.md"), planDoc(args.slug), "utf8");
     for (let n = 1; n <= args.phases; n++) {
-      writeFileSync(join(unitDir, `0${n}0_phase${n}.md`), phaseDoc(n, args.slug), "utf8");
+      // 3-digit decade convention: 010, 020, ... 100. padStart keeps that true
+      // past 9 phases even though the parser caps at 9 today.
+      const decade = String(n * 10).padStart(3, "0");
+      writeFileSync(join(unitDir, `${decade}_phase${n}.md`), phaseDoc(n, args.slug), "utf8");
     }
   } catch (err) {
     return { output: `plan init failed: ${err instanceof Error ? err.message : String(err)}`, code: 1 };
   }
-  const rel = unitDir;
+  // 002 B18: the old local was named `rel` while holding an absolute path, which on
+  // Windows printed a full C:\Users\... line under a variable promising otherwise.
+  const shown = relative(args.cwd, unitDir) || unitDir;
   return {
     output:
-      `plan init: scaffolded ${rel} (000_plan.md + ${args.phases} phase doc(s)).\n` +
+      `plan init: scaffolded ${shown} (000_plan.md + ${args.phases} phase doc(s)).\n` +
       `Write every doc to diff-level BEFORE P -> A; the P>A gate requires planUnit to carry numbered docs.`,
     code: 0,
   };

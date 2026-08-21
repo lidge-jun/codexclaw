@@ -14,6 +14,7 @@
 import {
   buildGoalplan,
   readGoalplan,
+  readGoalplanDetailed,
   writeGoalplan,
   appendGoalplanLedger,
   validateGoalplan,
@@ -21,17 +22,19 @@ import {
   remainingWorkPhases,
   unmetCriteria,
   type Goalplan,
+  type GoalplanReadResult,
   type GoalplanValidationCtx,
 } from "./goalplan.ts";
 import { deriveSlug } from "./freeze.ts";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { isCanonicalSessionId, readState, writeState } from "./state.ts";
 import { captureSourceIdentity, compareSource } from "./source-identity.ts";
 import { parseSourceBoundReceipt } from "./source-receipt.ts";
 import { applySteeringBatch } from "./steering.ts";
 
-export type GoalplanVerb = "init" | "show" | "validate" | "steer";
+export type GoalplanVerb = "init" | "show" | "validate" | "steer" | "add-criterion" | "add-work-phase";
 
 export interface GoalplanCliArgs {
   verb: GoalplanVerb;
@@ -47,19 +50,33 @@ export interface GoalplanCliArgs {
   session?: string;
   /** `steer` only: a JSON batch, or a path to a file holding one. */
   batchJson?: string;
+  /** `init` / `add-criterion`: the criterion surface (logic|web|tui). */
+  surface?: string;
+  /** `add-work-phase` only. */
+  id?: string;
+  title?: string;
 }
 
 export interface GoalplanCliParseError {
   error: string;
 }
 
-const VERBS: ReadonlySet<string> = new Set<GoalplanVerb>(["init", "show", "validate", "steer"]);
+const VERBS: ReadonlySet<string> = new Set<GoalplanVerb>([
+  "init",
+  "show",
+  "validate",
+  "steer",
+  "add-criterion",
+  "add-work-phase",
+]);
 
 /** Structural argv parse. argv excludes the `goalplan` kind token. */
 export function parseGoalplanCliArgs(argv: string[], cwd: string): GoalplanCliArgs | GoalplanCliParseError {
   const verb = (argv[0] ?? "").toLowerCase();
   if (!VERBS.has(verb)) {
-    return { error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer)` };
+    return {
+      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase)`,
+    };
   }
   const out: GoalplanCliArgs = { verb: verb as GoalplanVerb, cwd, criteria: [] };
   for (let i = 1; i < argv.length; i++) {
@@ -72,6 +89,9 @@ export function parseGoalplanCliArgs(argv: string[], cwd: string): GoalplanCliAr
     } else if (a === "--cwd") out.cwd = argv[++i] ?? cwd;
     else if (a === "--session") out.session = argv[++i];
     else if (a === "--batch-json") out.batchJson = argv[++i];
+    else if (a === "--surface") out.surface = argv[++i];
+    else if (a === "--id") out.id = argv[++i];
+    else if (a === "--title") out.title = argv[++i];
   }
   return out;
 }
@@ -89,6 +109,26 @@ function resolveSlug(args: GoalplanCliArgs): string | null {
 
 function renderPlan(plan: Goalplan): string {
   return renderPlanLines(plan);
+}
+
+/**
+ * Turn a failed read into one sentence that names the actual failure.
+ *
+ * Every failure used to render as "no plan found at slug X", so a truncated write
+ * and an absent plan were indistinguishable and the suggested remedy (`loop init`)
+ * was wrong for half of them (issue #29).
+ */
+function describeReadFailure(read: GoalplanReadResult, verb: string, slug: string): string {
+  const d = read.diagnostic;
+  const detail =
+    d?.kind === "absent"
+      ? `no plan found at slug '${slug}' (${d.path} does not exist) - run \`cxc loop init --objective "..."\``
+      : d?.kind === "invalid-json"
+        ? `the plan at ${d.path} is not valid JSON: ${d.detail}`
+        : d?.kind === "invalid-shape"
+          ? `the plan at ${d.path} is structurally invalid - field '${d.field}': ${d.detail}`
+          : `the plan at ${d?.path ?? slug} could not be read: ${d?.kind === "unreadable" ? d.detail : "unknown"}`;
+  return `loop ${verb}: ${detail}`;
 }
 
 /**
@@ -152,6 +192,72 @@ function runSteer(args: GoalplanCliArgs): GoalplanCliResult {
   }
 }
 
+/**
+ * `add-criterion` and `add-work-phase` are thin sugar over applySteeringBatch:
+ * that path already owns the lock, the idempotency key and the ledger entry, so a
+ * second write path would be a second chance to corrupt the plan.
+ */
+const SURFACES: ReadonlySet<string> = new Set(["logic", "web", "tui"]);
+function runAddOp(args: GoalplanCliArgs): GoalplanCliResult {
+  const session = (args.session ?? "").trim();
+  if (session.length === 0) return { output: `loop ${args.verb}: --session <id> is required`, code: 1 };
+  if (!isCanonicalSessionId(session)) {
+    return {
+      output: `loop ${args.verb}: --session "${session}" is not a canonical session id - it would resolve to a different state file and steer another goal`,
+      code: 1,
+    };
+  }
+  const slug = readState(args.cwd, session).slug;
+  if (!slug) {
+    return {
+      output: `loop ${args.verb}: session '${session}' has no bound goalplan - run \`cxc loop init --session ${session}\` first`,
+      code: 1,
+    };
+  }
+
+  let op: Record<string, unknown>;
+  let summary: string;
+  if (args.verb === "add-criterion") {
+    const scenario = (args.criteria[0] ?? "").trim();
+    if (scenario.length === 0) {
+      return { output: 'loop add-criterion: --criterion "<scenario>" is required', code: 1 };
+    }
+    const surface = args.surface ?? "logic";
+    if (!SURFACES.has(surface)) {
+      return { output: `loop add-criterion: --surface must be logic|web|tui (got '${args.surface}')`, code: 1 };
+    }
+    op = { kind: "add-criterion", scenario, surface };
+    summary = scenario;
+  } else {
+    const id = (args.id ?? "").trim();
+    const title = (args.title ?? "").trim();
+    if (id.length === 0 || title.length === 0) {
+      return { output: "loop add-work-phase: --id <id> and --title <text> are both required", code: 1 };
+    }
+    op = { kind: "add-work-phase", id, title };
+    summary = `${id}: ${title}`;
+  }
+
+  // The idempotency key is content-derived, so re-running the same command is a
+  // recorded duplicate rather than a second criterion with the same text.
+  const key = `${args.verb}-${createHash("sha256").update(summary).digest("hex").slice(0, 12)}`;
+  const result = applySteeringBatch(args.cwd, slug, {
+    idempotencyKey: key,
+    rationale: `cxc loop ${args.verb}`,
+    evidence: summary,
+    ops: [op],
+  });
+  switch (result.kind) {
+    case "applied":
+      return { output: renderPlan(result.plan), code: 0 };
+    case "duplicate":
+      return { output: `loop ${args.verb}: already applied at ${result.entry.appliedAt} - nothing to do`, code: 0 };
+    case "locked":
+    case "rejected":
+      return { output: `loop ${args.verb}: ${result.reason}`, code: 1 };
+  }
+}
+
 function renderPlanLines(plan: Goalplan): string {
   const lines = [
     `[codexclaw loop: ${plan.slug}]`,
@@ -163,6 +269,9 @@ function renderPlanLines(plan: Goalplan): string {
   ];
   for (const wp of plan.workPhases) {
     lines.push(`  - ${wp.id} [${wp.status}] ${wp.title}`);
+  }
+  for (const c of plan.criteria) {
+    lines.push(`  - ${c.id} [${c.status}] ${c.scenario}`);
   }
   return lines.join("\n");
 }
@@ -200,13 +309,17 @@ export function runGoalplanCli(args: GoalplanCliArgs): GoalplanCliResult {
 
   if (args.verb === "steer") return runSteer(args);
 
+  if (args.verb === "add-criterion" || args.verb === "add-work-phase") return runAddOp(args);
+
   const slug = resolveSlug(args);
   if (!slug) {
     return { output: `loop ${args.verb}: --slug "<text>" or --objective "<text>" is required`, code: 1 };
   }
   const plan = readGoalplan(args.cwd, slug);
   if (!plan) {
-    return { output: `loop ${args.verb}: no plan found at slug '${slug}'`, code: 1 };
+    // Issue #29: "no plan found" used to hide truncated writes and schema rejects.
+    const read = readGoalplanDetailed(args.cwd, slug);
+    return { output: describeReadFailure(read, args.verb, slug), code: 1 };
   }
 
   if (args.verb === "show") {
