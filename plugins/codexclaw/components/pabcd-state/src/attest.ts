@@ -67,7 +67,20 @@ const PLACEHOLDER_DID = /^(tbd|todo|n\/?a|none|done|ok|\.+|-+)$/i;
 
 export interface AttestResult {
   ok: boolean;
+  /** Human-facing text. Single-reason failures render byte-identically to the
+   *  pre-batch gate, so every existing substring assertion still matches. */
   reason?: string;
+  /** Every failing requirement for this edge, in stable declaration order. */
+  reasons?: string[];
+}
+
+/** One rejection names the whole contract for this edge (issue #31). */
+function failAttest(reasons: string[]): AttestResult {
+  const reason =
+    reasons.length === 1
+      ? reasons[0]
+      : reasons.map((r, i) => `(${i + 1}/${reasons.length}) ${r}`).join("\n");
+  return { ok: false, reason, reasons };
 }
 
 /**
@@ -153,66 +166,67 @@ export function validateAttest(from: Phase, to: Phase, att: Attestation | null):
   const key = `${from}>${to}`;
   if (!GATED_TRANSITIONS.has(key)) return { ok: true };
 
+  // Two hard stops keep their single-reason shape: with no attestation, or with a
+  // mismatched from/to, every other field check would be about the wrong edge.
   if (!att) {
-    return {
-      ok: false,
-      reason: `${from} -> ${to} requires an attestation with a non-empty "did". Pass --attest '{"from":"${from}","to":"${to}","did":"..."}'.`,
-    };
+    return failAttest([
+      `${from} -> ${to} requires an attestation with a non-empty "did". Pass --attest-file <path> (required on Windows) or --attest '{"from":"${from}","to":"${to}","did":"..."}'.`,
+    ]);
   }
   if (att.from !== from || att.to !== to) {
-    return {
-      ok: false,
-      reason: `Attestation from/to (${att.from}->${att.to}) does not match the requested transition ${from}->${to}.`,
-    };
+    return failAttest([
+      `Attestation from/to (${att.from}->${att.to}) does not match the requested transition ${from}->${to}.`,
+    ]);
   }
+
+  const reasons: string[] = [];
   if (!att.did || PLACEHOLDER_DID.test(att.did)) {
-    return {
-      ok: false,
-      reason: `${from} -> ${to} needs a specific "did" narrative (not empty or a placeholder).`,
-    };
+    reasons.push(`${from} -> ${to} needs a specific "did" narrative (not empty or a placeholder).`);
   }
   if (key === "A>B") {
     if (!att.auditOutput) {
-      return {
-        ok: false,
-        reason: `A -> B additionally requires "auditOutput": paste the tail of the independent reviewer verdict you actually received. Dispatch a reviewer subagent (even a small/mini-model one) at the A gate; a self-written sentence is not an audit.`,
-      };
+      reasons.push(`A -> B additionally requires "auditOutput": paste the tail of the independent reviewer verdict you actually received. Dispatch a reviewer subagent with agent_type "explorer" (there is no "reviewer" agent_type; the reviewer ROLE maps to the explorer TYPE per DISPATCH-AGENT-TYPE-01) at the A gate; a self-written sentence is not an audit.`);
     }
     if (!att.auditVerdict || !AUDIT_VERDICTS.has(att.auditVerdict)) {
-      return { ok: false, reason: `A -> B additionally requires "auditVerdict": "pass" | "near-pass" | "fail" — YOUR OWN judgment of this audit round (AUDIT-LOOP-01). "fail" never advances; "near-pass" means every blocking finding was folded into the plan or explicitly rebutted (also supply "auditResidual").` };
-    }
-    if (att.auditVerdict === "fail") {
-      return { ok: false, reason: `A -> B is blocked: you judged this audit round "fail". Synthesize the blockers (REVIEW-SYNTHESIS-01), amend the plan, and re-audit with the SAME reviewer (v2 surface: followup_task to its task_name; v1 surface: send_input to its agent_id). Re-attest with "pass" or "near-pass" once only folded/rebutted residuals remain; after 3 failed rounds return to P with a changed plan (LOOP-REPAIR-01).` };
+      reasons.push(`A -> B additionally requires "auditVerdict": "pass" | "near-pass" | "fail" - YOUR OWN judgment of this audit round (AUDIT-LOOP-01). "fail" never advances; "near-pass" means every blocking finding was folded into the plan or explicitly rebutted (also supply "auditResidual").`);
     }
     if (att.auditVerdict === "near-pass" && !att.auditResidual) {
-      return { ok: false, reason: `A -> B with "near-pass" additionally requires "auditResidual": name each residual blocker and its disposition (folded into plan / rebutted with rationale), e.g. "GO-WITH-FIXES; 2 blockers folded back: (1) ..., (2) ...".` };
+      reasons.push(`A -> B with "near-pass" additionally requires "auditResidual": name each residual blocker and its disposition (folded into plan / rebutted with rationale), e.g. "GO-WITH-FIXES; 2 blockers folded back: (1) ..., (2) ...".`);
     }
-    if (hasFailVerdictTail(att.auditOutput)) {
-      return { ok: false, reason: `The pasted auditOutput tail ends with a FAIL verdict line, contradicting auditVerdict="${att.auditVerdict}". Run another audit round (same reviewer) and paste the round that actually reached PASS / GO-WITH-FIXES — or attest "fail" and keep looping (AUDIT-LOOP-01).` };
+    // Contradiction checks run only once every required field is present, so the
+    // batched message can never both demand a field and reason about its value.
+    if (reasons.length === 0) {
+      if (att.auditVerdict === "fail") {
+        reasons.push(`A -> B is blocked: you judged this audit round "fail". Synthesize the blockers (REVIEW-SYNTHESIS-01), amend the plan, and re-audit with the SAME reviewer (v2 surface: followup_task to its task_name; v1 surface: send_input to its agent_id). Re-attest with "pass" or "near-pass" once only folded/rebutted residuals remain; after 3 failed rounds return to P with a changed plan (LOOP-REPAIR-01).`);
+      } else if (hasFailVerdictTail(att.auditOutput ?? "")) {
+        reasons.push(`The pasted auditOutput tail ends with a FAIL verdict line, contradicting auditVerdict="${att.auditVerdict}". Run another audit round (same reviewer) and paste the round that actually reached PASS / GO-WITH-FIXES - or attest "fail" and keep looping (AUDIT-LOOP-01).`);
+      }
     }
   }
   if (key === "C>D") {
     if (!att.checkOutput) {
-      return {
-        ok: false,
-        reason: `C -> D additionally requires "checkOutput": paste the tail of the test/tsc command you actually ran.`,
-      };
+      reasons.push(`C -> D additionally requires "checkOutput": paste the tail of the test/tsc command you actually ran.`);
     }
     // exitCode used to be optional, so "checkOutput: passed" cleared this edge on
-    // its own — a claim that a check ran, with nothing to say how it ended. Pasted
+    // its own - a claim that a check ran, with nothing to say how it ended. Pasted
     // text still cannot be verified, but omission is no longer an option.
     if (typeof att.exitCode !== "number") {
-      return {
-        ok: false,
-        reason: `C -> D additionally requires "exitCode": the exit status of the command whose output you pasted. Report the real number — a check with no outcome is not a check.`,
-      };
+      reasons.push(`C -> D additionally requires "exitCode": the exit status of the command whose output you pasted. Report the real number - a check with no outcome is not a check.`);
     }
-    if (att.exitCode !== 0) {
-      return {
-        ok: false,
-        reason: `C -> D requires a passing check, but the attestation reports exitCode ${att.exitCode}. Fix the failure (orchestrate B) before advancing.`,
-      };
+    // Count MISSING-FIELD reasons only. The nonzero-exit reason below is not a missing
+    // field - it is a complete attest whose check failed - and must not also draw a
+    // receipt nag. Snapshot the count before that push.
+    const missingFields = reasons.length;
+    if (typeof att.exitCode === "number" && att.exitCode !== 0) {
+      reasons.push(`C -> D requires a passing check, but the attestation reports exitCode ${att.exitCode}. Fix the failure (orchestrate B) before advancing.`);
+    }
+    // CHECK-BINDING-01 is enforced in check-gate.ts (attest.ts stays IO-free), so name
+    // it here rather than letting a goalplan-bound session discover it one edge later.
+    // The nag rides along only when the executor is already going back to fill in a
+    // missing field, so it never turns a one-reason failure into two.
+    if (missingFields > 0 && !att.testReceiptPath) {
+      reasons.push(`C -> D on a goalplan-bound session ALSO requires "testReceiptPath" (CHECK-BINDING-01), produced by \`cxc receipt test -- <command>\`. Supplying it now avoids another round trip.`);
     }
   }
-  return { ok: true };
+  return reasons.length === 0 ? { ok: true } : failAttest(reasons);
 }

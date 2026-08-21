@@ -289,7 +289,9 @@ const PHASE_DIRECTIVES                                 = {
   A: [
     "[codexclaw: AUDIT]",
     "Audit the plan adversarially before building. Dispatch an independent reviewer",
-    "(sub-agent) to challenge assumptions, find blockers, and verify references. If",
+    "as a sub-agent with agent_type \"explorer\" (DISPATCH-AGENT-TYPE-01: there is no",
+    "\"reviewer\" agent_type - the reviewer ROLE maps to the explorer TYPE) to challenge",
+    "assumptions, find blockers, and verify references. If",
     "spawn_agent is not in your visible tools, tool_search for it first. Reuse the SAME",
     "reviewer across audit rounds (v2 surface: followup_task to its task_name; v1",
     "surface: send_input to its agent_id). Name every required skill in the spawn message",
@@ -1013,6 +1015,20 @@ const STOP_NEXT_COMMAND                                 = {
   D: '`cxc orchestrate reset` after the DONE summary is recorded',
 };
 
+/** win32 cannot pass this JSON inline (002 B1), so point at the file flag there. */
+export function stopNextCommand(phase       , platform                  = process.platform)                     {
+  const posix = STOP_NEXT_COMMAND[phase];
+  if (posix === undefined || platform !== "win32") return posix;
+  const json = /--attest '(\{.*\})'/.exec(posix)?.[1];
+  const verb = /cxc orchestrate (\S+)/.exec(posix)?.[1];
+  if (!json || !verb) return posix;
+  // Backtick-quoted for the Stop reason renderer, same as the POSIX table entries.
+  const q = String.fromCharCode(96);
+  const write = q + "'" + json + "' | Set-Content -Encoding utf8 .codexclaw/attest.json" + q;
+  const run = q + "cxc orchestrate " + verb + " --attest-file .codexclaw/attest.json" + q;
+  return write + " then " + run;
+}
+
 /**
  * L6 — build the Stop `{decision:"block",reason}` envelope (NOT the UserPromptSubmit
  * additionalContext shape). The reason nudges the agent to advance the current phase.
@@ -1042,7 +1058,7 @@ export function buildStopBlock(
   // `cxc orchestrate <verb>` template, so it must run BEFORE the invocation
   // resolution below — resolveCxcInDirective is applied LAST, on the fully
   // assembled reason.
-  let nextCommand = STOP_NEXT_COMMAND[phase] ?? "`cxc orchestrate status`";
+  let nextCommand = stopNextCommand(phase) ?? "`cxc orchestrate status`";
   if (sessionId) {
     nextCommand = nextCommand.replace(
       /cxc orchestrate (\w+)/,

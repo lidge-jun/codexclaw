@@ -13,8 +13,8 @@
  * Structural argv parsing (NOT the prompt grammar): verb is argv[0]; `--attest` takes
  * the NEXT single argv token as the exact JSON string (the shell already quoted it).
  */
-import { existsSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { coerceAttest, validateWorkPhaseBinding, GATED_TRANSITIONS, type Attestation } from "./attest.ts";
 import { canEnter, transition } from "./fsm.ts";
 import { validatePlanArtifacts } from "./plan-gate.ts";
@@ -149,12 +149,27 @@ function readFlagValue(argv: string[], name: string): string | undefined {
   return idx >= 0 ? argv[idx + 1] : undefined;
 }
 
-export function renderOrchestrateHelp(): string {
+export function renderOrchestrateHelp(platform: NodeJS.Platform = process.platform): string {
+  // win32 shells cannot pass the inline JSON as one argv token, so the file flag is
+  // the only workable form there (issue #31).
+  const attestExamples = platform === "win32"
+    ? [
+        "Attestation examples (PowerShell single quotes do NOT protect embedded double",
+        "quotes and cmd.exe ignores them entirely, so write the JSON to a file):",
+        "  '{\"from\":\"P\",\"to\":\"A\",\"did\":\"wrote and audited the plan\",\"planUnit\":\"devlog/_plan/260714_slug\",\"workPhaseId\":\"wp1\"}' | Set-Content -Encoding utf8 .codexclaw/attest.json",
+        "  cxc orchestrate A --session <id> --attest-file .codexclaw/attest.json",
+      ]
+    : [
+        "Attestation examples:",
+        "  cxc orchestrate A --session <id> --attest '{\"from\":\"P\",\"to\":\"A\",\"did\":\"wrote and audited the plan\",\"planUnit\":\"devlog/_plan/260714_slug\",\"workPhaseId\":\"wp1\"}'",
+        "  cxc orchestrate B --session <id> --attest '{\"from\":\"A\",\"to\":\"B\",\"did\":\"audit passed\",\"auditOutput\":\"VERDICT: PASS\",\"auditVerdict\":\"pass\",\"workPhaseId\":\"wp1\"}'",
+        "  cxc orchestrate D --session <id> --attest '{\"from\":\"C\",\"to\":\"D\",\"did\":\"verified\",\"checkOutput\":\"tests passed\",\"exitCode\":0,\"workPhaseId\":\"wp1\"}'",
+      ];
   return [
     "cxc orchestrate — agent-gated IPABCD phase control",
     "",
     "Usage:",
-    "  cxc orchestrate <I|P|A|B|C|D|status|reset> [--session <id>] [--attest <json>] [--cwd <path>] [--json]",
+    "  cxc orchestrate <I|P|A|B|C|D|status|reset> [--session <id>] [--attest <json> | --attest-file <path>] [--cwd <path>] [--json]",
     "  cxc orchestrate --help",
     "",
     "Phases:",
@@ -167,10 +182,7 @@ export function renderOrchestrateHelp(): string {
     "  Use your current SessionStart id, or the reserved terminal key 'cli'.",
     "  status is read-only and may use the latest-session fallback when --session is omitted.",
     "",
-    "Attestation examples:",
-    "  cxc orchestrate A --session <id> --attest '{\"from\":\"P\",\"to\":\"A\",\"did\":\"wrote and audited the plan\",\"planUnit\":\"devlog/_plan/260714_slug\",\"workPhaseId\":\"wp1\"}'",
-    "  cxc orchestrate B --session <id> --attest '{\"from\":\"A\",\"to\":\"B\",\"did\":\"audit passed\",\"auditOutput\":\"VERDICT: PASS\",\"auditVerdict\":\"pass\",\"workPhaseId\":\"wp1\"}'",
-    "  cxc orchestrate D --session <id> --attest '{\"from\":\"C\",\"to\":\"D\",\"did\":\"verified\",\"checkOutput\":\"tests passed\",\"exitCode\":0,\"workPhaseId\":\"wp1\"}'",
+    ...attestExamples,
     "  (workPhaseId is required on gated edges whenever a goalplan is bound to the session)",
     "",
     "Status:",
@@ -195,6 +207,8 @@ export function parseOrchestrateCliArgs(argv: string[], cwd: string): Orchestrat
 
   let attest: Attestation | null = null;
   let attestError: string | undefined;
+  let attestFile: string | undefined;
+  let sawInlineAttest = false;
   let session: string | undefined;
   let cwdOut = cwd;
   let json = false;
@@ -202,6 +216,7 @@ export function parseOrchestrateCliArgs(argv: string[], cwd: string): Orchestrat
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--attest") {
+      sawInlineAttest = true;
       const raw = argv[++i];
       if (raw === undefined) { attestError = "--attest requires a JSON argument"; continue; }
       try {
@@ -212,12 +227,37 @@ export function parseOrchestrateCliArgs(argv: string[], cwd: string): Orchestrat
       } catch {
         attestError = "attest JSON is not valid JSON";
       }
+    } else if (a === "--attest-file") {
+      const raw = argv[++i];
+      if (raw === undefined) { attestError = "--attest-file requires a path argument"; continue; }
+      // Resolved AFTER the loop: --cwd may still be ahead of us in argv order.
+      attestFile = raw;
     } else if (a === "--session") {
       session = argv[++i];
     } else if (a === "--cwd") {
       cwdOut = argv[++i] ?? cwd;
     } else if (a === "--json") {
       json = true;
+    }
+  }
+  if (attestFile !== undefined) {
+    if (sawInlineAttest) {
+      attestError = "pass --attest OR --attest-file, not both";
+    } else {
+      const path = resolve(cwdOut, attestFile);
+      try {
+        // Windows PowerShell 5.1 `Set-Content -Encoding utf8` writes a UTF-8 BOM, and
+        // JSON.parse rejects it. Stripping it here is what makes the documented
+        // win32 write-then-attest recipe actually work.
+        const text = readFileSync(path, "utf8").replace(/^\uFEFF/, "");
+        const parsed = JSON.parse(text) as unknown;
+        const coerced = coerceAttest(parsed);
+        if (!coerced) attestError = `attest file ${path} is missing valid from/to`;
+        else attest = coerced;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        attestError = `could not read the attest file at ${path} (${msg})`;
+      }
     }
   }
   return { verb, attest, attestError, session, cwd: cwdOut, json };
