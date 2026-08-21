@@ -24,6 +24,7 @@ import {
 
 
 } from "./goalplan.js";
+import { filesystemTier,              } from "./wsl.js";
 
 /**
  * The op grammar. Both mutating kinds are strictly ADDITIVE (issue #29): adding a
@@ -83,7 +84,11 @@ function ownerPath(dir        )         {
  * Advisory only: D-close calls writeGoalplan directly without consulting this,
  * so it guards steering against steering, nothing more.
  */
-function acquireLock(cwd        , slug        )                                                            {
+function acquireLock(
+  cwd        ,
+  slug        ,
+  wslDeps          = {},
+)                                                            {
   const dir = lockDir(cwd, slug);
   try {
     mkdirSync(dir, { recursive: false });
@@ -94,9 +99,16 @@ function acquireLock(cwd        , slug        )                                 
     } catch {
       // the holder may not have written it yet; the path is the useful part
     }
+    // Naming the tier here rather than refusing outright: a warning the user can
+    // act on beats a refusal that blocks a workflow which usually does work.
+    const tier = filesystemTier(dir, wslDeps);
+    const tierNote =
+      tier === "drvfs" || tier === "9p"
+        ? ` This lock lives on ${tier}, where directory-create atomicity is the filesystem driver's guarantee rather than the kernel's; a checkout under the Linux home avoids the question entirely.`
+        : "";
     return {
       ok: false,
-      reason: `another steering batch holds the lock at ${dir} — owner: ${owner}. If no such process is running, remove that directory by hand (it is never reclaimed automatically, since guessing wrong means two concurrent writers). Underlying error: ${err instanceof Error ? err.message : String(err)}`,
+      reason: `another steering batch holds the lock at ${dir} — owner: ${owner}. If no such process is running, remove that directory by hand (it is never reclaimed automatically, since guessing wrong means two concurrent writers). Underlying error: ${err instanceof Error ? err.message : String(err)}.${tierNote}`,
     };
   }
   try {
@@ -182,6 +194,11 @@ function validateBatch(batch         )                                 {
 
 
 
+
+
+
+
+
 /**
  * Fold the ops into a plan. Pure: the caller owns the lock and the write.
  *
@@ -254,7 +271,7 @@ export function applySteeringBatch(
     return { kind: "rejected", reason: `no goalplan found at slug '${slug}'` };
   }
 
-  const lock = acquireLock(cwd, slug);
+  const lock = acquireLock(cwd, slug, options.wslDeps ?? {});
   if (lock.ok === false) return { kind: "locked", reason: lock.reason };
   const heldDir = lock.dir;
 

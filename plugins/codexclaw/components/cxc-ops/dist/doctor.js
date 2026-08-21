@@ -6,12 +6,20 @@
  * is the codexclaw-plugin slice only. Pure filesystem + JSON reads, no network.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join, sep } from "node:path";
+import { join, posix as posixPath, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { diagnoseHookTrust, readInstalledPluginKeys } from "./hook-trust.js";
 import { TargetParseError, validateManifestTargets } from "./manifest-targets.js";
 import { commandInvocation } from "./win-exec.js";
+import { automountRoot, filesystemTier, isWslRuntime,              } from "./wsl.js";
+
+
+
+
+
+
+
 
 
 
@@ -94,6 +102,42 @@ function checkPabcdHealth(projectRoot        )              {
     return { name: "pabcd-state", severity: "WARN", evidence: corrupt.length + " corrupt session file(s): " + corrupt.join(", "), repair: "cxc reset --state" };
   }
   return { name: "pabcd-state", severity: "PASS", evidence: files.length + " session file(s), all parseable" };
+}
+
+/**
+ * WSL residency + state-filesystem tier.
+ *
+ * The dangerous configuration is not "using WSL" - it is running codex on the
+ * Windows side and codexclaw on the Linux side against one checkout, so two
+ * runtimes write `.codexclaw/` through two filesystem drivers. The steering lock
+ * (mkdir) and the state publish (link) both assume more than drvfs guarantees.
+ *
+ * Probes arrive through `WslDeps` so both branches are reachable from any CI OS.
+ */
+export function checkWslResidency(cwd        , deps          = {})              {
+  if (!isWslRuntime(deps)) {
+    return { name: "wsl", severity: "PASS", evidence: "not running under WSL" };
+  }
+  const root = automountRoot(deps);
+  // The joiner follows the PROBED platform, not the host: node's path.join emits
+  // backslashes on win32, and a /mnt/c/proj\.codexclaw never matches a posix
+  // mount prefix. In production these agree; under injected deps they need not.
+  const joiner = (deps.platform ?? process.platform) === "win32" ? join : posixPath.join;
+  const stateDir = joiner(cwd, ".codexclaw");
+  const tier = filesystemTier(stateDir, deps);
+  if (tier === "drvfs" || tier === "9p") {
+    return {
+      name: "wsl",
+      severity: "WARN",
+      evidence:
+        `.codexclaw state lives on ${tier} (${stateDir}, automount root ${root}). ` +
+        "File locking and atomic publish are weaker there than on a native Linux " +
+        "filesystem, and a Windows-side codex writing the same tree can interleave.",
+      repair:
+        "prefer a checkout under the Linux home, or drive codexclaw from Windows only",
+    };
+  }
+  return { name: "wsl", severity: "PASS", evidence: `WSL with ${tier} state (automount root ${root})` };
 }
 
 /**
@@ -217,6 +261,9 @@ export function runDoctor(
 
   // 8. PABCD session state health.
   checks.push(checkPabcdHealth(process.cwd()));
+
+  // 9. WSL residency and the filesystem tier the state tree actually sits on.
+  checks.push(checkWslResidency(process.cwd(), options.wslDeps ?? {}));
 
   // Read plugin version for report metadata.
   let pluginVersion                    ;
