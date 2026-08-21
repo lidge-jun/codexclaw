@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { renameWithRetry } from "./atomic-write.js";
 import {                        reconstructInterview, normalizeInterview, isInterviewReady } from "./interview.js";
 
+import { splitLines } from "./text-lines.js";
 
 
 // Work phases run the IPABCD cycle; IDLE is the closed/rest state a cycle returns to.
@@ -399,7 +400,7 @@ export function readInterviewEvents(cwd        , sessionId        )             
     return [];
   }
   const out                   = [];
-  for (const line of raw.split("\n")) {
+  for (const line of splitLines(raw)) {
     const t = line.trim();
     if (t.length === 0) continue;
     try {

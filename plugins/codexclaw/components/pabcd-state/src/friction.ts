@@ -19,6 +19,7 @@
 import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { splitLines } from "./text-lines.ts";
 
 export const STATE_DIR = ".codexclaw";
 export const FRICTION_FILE = "friction.jsonl";
@@ -76,7 +77,7 @@ export function readFrictionEntries(cwd: string): FrictionEntry[] {
     return [];
   }
   const out: FrictionEntry[] = [];
-  for (const line of raw.split("\n")) {
+  for (const line of splitLines(raw)) {
     const t = line.trim();
     if (t.length === 0) continue;
     try {

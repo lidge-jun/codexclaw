@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { renameWithRetry } from "./atomic-write.ts";
 import { type InterviewTracker, reconstructInterview, normalizeInterview, isInterviewReady } from "./interview.ts";
 import type { SourceIdentity } from "./source-identity.ts";
+import { splitLines } from "./text-lines.ts";
 
 export type Phase = "IDLE" | "I" | "P" | "A" | "B" | "C" | "D";
 // Work phases run the IPABCD cycle; IDLE is the closed/rest state a cycle returns to.
@@ -399,7 +400,7 @@ export function readInterviewEvents(cwd: string, sessionId: string): InterviewEv
     return [];
   }
   const out: InterviewEvent[] = [];
-  for (const line of raw.split("\n")) {
+  for (const line of splitLines(raw)) {
     const t = line.trim();
     if (t.length === 0) continue;
     try {

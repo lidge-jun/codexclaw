@@ -18,6 +18,7 @@ import { detectOcx } from "../../../components/provider-bridge/src/detect.ts";
 import { resolveCodexHome } from "../../../components/config-guard/src/cli.ts";
 import type { CodexRunner } from "../../../components/config-guard/src/features.ts";
 import { spawnSync } from "node:child_process";
+import { splitLines } from "./text-lines.ts";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
@@ -58,7 +59,8 @@ function detectDeps() {
         encoding: "utf8",
         shell: process.platform !== "win32",
       });
-      const out = res.status === 0 && typeof res.stdout === "string" ? res.stdout.split("\n")[0]?.trim() : null;
+      // where.exe emits CRLF; the trailing .trim() saved this by accident.
+      const out = res.status === 0 && typeof res.stdout === "string" ? splitLines(res.stdout)[0]?.trim() ?? "" : null;
       return out && out.length > 0 ? out : null;
     },
     runStatus: (ocxPath: string) => {

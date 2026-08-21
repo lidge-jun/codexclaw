@@ -21,6 +21,7 @@
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { STATE_DIR, INTERVIEWS_SUBDIR, sanitizeKey } from "./state.js";
+import { splitLines } from "./text-lines.js";
 
 
 
@@ -123,7 +124,7 @@ export function readQaEvents(cwd        , sessionId        )                    
     return [];
   }
   const out                     = [];
-  for (const line of raw.split("\n")) {
+  for (const line of splitLines(raw)) {
     const t = line.trim();
     if (!t) continue;
     try {

@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "
 import { join } from "node:path";
 import { renameWithRetry } from "./atomic-write.ts";
 import { sanitizeKey, STATE_DIR } from "./state.ts";
+import { splitLines } from "./text-lines.ts";
 
 export type CollapsePoint = "P" | "D";
 export type CandidateKind = "strong-1" | "add-1" | "alternative";
@@ -203,7 +204,7 @@ export function readDivergenceCandidates(cwd: string, sessionId?: string): Diver
     return [];
   }
   const out: DivergenceCandidate[] = [];
-  for (const line of raw.split("\n")) {
+  for (const line of splitLines(raw)) {
     if (!line.trim()) continue;
     try {
       const parsed = JSON.parse(line) as Partial<DivergenceCandidate> | null;

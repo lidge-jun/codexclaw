@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "
 import { join } from "node:path";
 import { renameWithRetry } from "./atomic-write.js";
 import { sanitizeKey, STATE_DIR } from "./state.js";
+import { splitLines } from "./text-lines.js";
 
 
 
@@ -72,7 +73,7 @@ function readAllObjectiveMetrics(cwd        )                          {
     return [];
   }
   const out                          = [];
-  for (const line of raw.split("\n")) {
+  for (const line of splitLines(raw)) {
     if (!line.trim()) continue;
     try {
       const parsed = JSON.parse(line)                                         ;

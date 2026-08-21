@@ -57,11 +57,11 @@ function classifyEvent(event) {
   return "other";
 }
 
-function fixturePayload(event) {
+export function fixturePayload(event, benchCwd) {
   const base = {
     hook_event_name: event,
     session_id: "bench-session-" + Math.random().toString(36).slice(2, 8),
-    cwd: "/tmp/bench-cwd",
+    cwd: benchCwd,
   };
   switch (event) {
     case "SessionStart": return JSON.stringify(base);
@@ -74,15 +74,30 @@ function fixturePayload(event) {
   }
 }
 
-function invokeHook(command, payload, tmpHome) {
+export function benchEnv(tmpHome) {
+  return {
+    ...process.env,
+    HOME: tmpHome,
+    // Windows resolves the home from USERPROFILE, so HOME alone left the hook
+    // reading the REAL user home during a benchmark meant to be hermetic.
+    USERPROFILE: tmpHome,
+    CODEX_HOME: join(tmpHome, ".codex"),
+    CODEX_SQLITE_HOME: join(tmpHome, ".codex"),
+  };
+}
+
+function invokeHook(command, payload, tmpHome, benchCwd) {
   const parts = command.replace(/^node\s+/, "").match(/(".*?"|'.*?'|\S+)/g) || [];
   const cleanParts = parts.map(p => p.replace(/^["']|["']$/g, ""));
   const start = performance.now();
   const result = spawnSync("node", cleanParts, {
     input: payload,
     timeout: 15000,
-    env: { ...process.env, HOME: tmpHome, CODEX_HOME: join(tmpHome, ".codex"), CODEX_SQLITE_HOME: join(tmpHome, ".codex") },
-    cwd: "/tmp",
+    env: benchEnv(tmpHome),
+    // /tmp does not exist on Windows, and spawnSync throws ENOENT on a missing
+    // cwd, so the bench failed outright there (002 B8). Line 114 of this same
+    // file already had the right idiom: mkdtempSync(join(tmpdir(), ...)).
+    cwd: benchCwd,
     stdio: ["pipe", "pipe", "pipe"],
     maxBuffer: 1024 * 1024,
   });
@@ -98,77 +113,86 @@ function percentile(sorted, p) {
   return sorted[Math.max(0, idx)];
 }
 
-const args = process.argv.slice(2);
-const jsonMode = args.includes("--json");
-const iterIdx = args.indexOf("--iterations");
-const iterations = iterIdx >= 0 ? parseInt(args[iterIdx + 1], 10) || 5 : 5;
+// Guarded so a test can import fixturePayload/benchEnv without running the bench.
+function main() {
+  const args = process.argv.slice(2);
+  const jsonMode = args.includes("--json");
+  const iterIdx = args.indexOf("--iterations");
+  const iterations = iterIdx >= 0 ? parseInt(args[iterIdx + 1], 10) || 5 : 5;
 
-const hooks = loadHooks();
-
-if (!jsonMode) {
-  console.log("Hook Benchmark Harness (issue #13)");
-  console.log("Hooks: " + hooks.length + ", Iterations: " + iterations);
-  console.log("---");
-}
-
-const tmpHome = mkdtempSync(join(tmpdir(), "cxc-bench-"));
-mkdirSync(join(tmpHome, ".codex"), { recursive: true });
-
-const results = [];
-
-for (const hook of hooks) {
-  const category = classifyEvent(hook.event);
-  const timings = [];
-  let noOps = 0;
-  let errors = 0;
-
-  for (let i = 0; i < iterations; i++) {
-    const payload = fixturePayload(hook.event);
-    try {
-      const r = invokeHook(hook.command, payload, tmpHome);
-      timings.push(r.elapsed);
-      if (r.isNoOp) noOps++;
-      if (r.exitCode !== 0) errors++;
-    } catch { errors++; }
-  }
-
-  timings.sort((a, b) => a - b);
-  results.push({
-    name: hook.name,
-    event: hook.event,
-    category,
-    invocations: iterations,
-    noOpCount: noOps,
-    noOpRate: (noOps / iterations * 100).toFixed(1) + "%",
-    errorCount: errors,
-    p50: percentile(timings, 50).toFixed(1) + "ms",
-    p95: percentile(timings, 95).toFixed(1) + "ms",
-    p99: percentile(timings, 99).toFixed(1) + "ms",
-    max: (timings.length ? timings[timings.length - 1] : 0).toFixed(1) + "ms",
-  });
+  const hooks = loadHooks();
 
   if (!jsonMode) {
-    const r = results[results.length - 1];
-    console.log(r.name + " [" + r.event + "] (" + category + ")");
-    console.log("  no-op: " + r.noOpRate + " | p50: " + r.p50 + " | p95: " + r.p95 + " | max: " + r.max);
+    console.log("Hook Benchmark Harness (issue #13)");
+    console.log("Hooks: " + hooks.length + ", Iterations: " + iterations);
+    console.log("---");
+  }
+
+  const tmpHome = mkdtempSync(join(tmpdir(), "cxc-bench-"));
+  mkdirSync(join(tmpHome, ".codex"), { recursive: true });
+  const benchCwd = mkdtempSync(join(tmpdir(), "cxc-bench-cwd-"));
+
+  const results = [];
+
+  for (const hook of hooks) {
+    const category = classifyEvent(hook.event);
+    const timings = [];
+    let noOps = 0;
+    let errors = 0;
+
+    for (let i = 0; i < iterations; i++) {
+      const payload = fixturePayload(hook.event, benchCwd);
+      try {
+        const r = invokeHook(hook.command, payload, tmpHome, benchCwd);
+        timings.push(r.elapsed);
+        if (r.isNoOp) noOps++;
+        if (r.exitCode !== 0) errors++;
+      } catch { errors++; }
+    }
+
+    timings.sort((a, b) => a - b);
+    results.push({
+      name: hook.name,
+      event: hook.event,
+      category,
+      invocations: iterations,
+      noOpCount: noOps,
+      noOpRate: (noOps / iterations * 100).toFixed(1) + "%",
+      errorCount: errors,
+      p50: percentile(timings, 50).toFixed(1) + "ms",
+      p95: percentile(timings, 95).toFixed(1) + "ms",
+      p99: percentile(timings, 99).toFixed(1) + "ms",
+      max: (timings.length ? timings[timings.length - 1] : 0).toFixed(1) + "ms",
+    });
+
+    if (!jsonMode) {
+      const r = results[results.length - 1];
+      console.log(r.name + " [" + r.event + "] (" + category + ")");
+      console.log("  no-op: " + r.noOpRate + " | p50: " + r.p50 + " | p95: " + r.p95 + " | max: " + r.max);
+    }
+  }
+
+  rmSync(tmpHome, { recursive: true, force: true });
+  rmSync(benchCwd, { recursive: true, force: true });
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ schemaVersion: 1, timestamp: new Date().toISOString(), iterations, hooks: results }, null, 2));
+  }
+
+  if (!jsonMode) {
+    console.log("---");
+    console.log("Summary by category:");
+    const categories = {};
+    for (const r of results) {
+      if (!categories[r.category]) categories[r.category] = [];
+      categories[r.category].push(r);
+    }
+    for (const [cat, entries] of Object.entries(categories)) {
+      console.log("  " + cat + ": " + entries.length + " hooks");
+    }
   }
 }
 
-rmSync(tmpHome, { recursive: true, force: true });
-
-if (jsonMode) {
-  console.log(JSON.stringify({ schemaVersion: 1, timestamp: new Date().toISOString(), iterations, hooks: results }, null, 2));
-}
-
-if (!jsonMode) {
-  console.log("---");
-  console.log("Summary by category:");
-  const categories = {};
-  for (const r of results) {
-    if (!categories[r.category]) categories[r.category] = [];
-    categories[r.category].push(r);
-  }
-  for (const [cat, entries] of Object.entries(categories)) {
-    console.log("  " + cat + ": " + entries.length + " hooks");
-  }
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
+  main();
 }

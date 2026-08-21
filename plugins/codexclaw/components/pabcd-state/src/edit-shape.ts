@@ -23,6 +23,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PostToolUsePayload } from "./hook.ts";
+import { splitLines } from "./text-lines.ts";
 
 export const STATE_DIR = ".codexclaw";
 export const EDIT_SHAPE_FILE = "edit-shapes.jsonl";
@@ -80,7 +81,9 @@ export function fileEditShapes(patchText: string): FileEditShape[] {
     }
     changed = [];
   };
-  for (const raw of patchText.split("\n")) {
+  // A CRLF patch leaves \r on every line, which breaks the FILE-directive match
+  // on the next line and corrupts the linted line content (002 B9).
+  for (const raw of splitLines(patchText)) {
     const dir = FILE_DIRECTIVE.exec(raw);
     if (dir) {
       flush();

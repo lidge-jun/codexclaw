@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "
 import { join } from "node:path";
 import { renameWithRetry } from "./atomic-write.ts";
 import { sanitizeKey, STATE_DIR } from "./state.ts";
+import { splitLines } from "./text-lines.ts";
 
 export type ObjectiveMetricSource = "operator-entered" | "evaluate.sh";
 export type ObjectiveKind = "satisfy" | "maximize";
@@ -72,7 +73,7 @@ function readAllObjectiveMetrics(cwd: string): ObjectiveMetricRecord[] {
     return [];
   }
   const out: ObjectiveMetricRecord[] = [];
-  for (const line of raw.split("\n")) {
+  for (const line of splitLines(raw)) {
     if (!line.trim()) continue;
     try {
       const parsed = JSON.parse(line) as Partial<ObjectiveMetricRecord> | null;
