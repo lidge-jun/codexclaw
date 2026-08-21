@@ -92,6 +92,14 @@ export function checkDoctorWsl() {
   return null;
 }
 
+// FSM viability: the status verb must answer on any host without a session file.
+export function checkOrchestrateStatus() {
+  const res = runCli(["orchestrate", "status", "--session", "smoke-status-probe"]);
+  if (res.status !== 0) return `exit ${res.status}: ${(res.stderr || "").slice(0, 120)}`;
+  if (!/phase=/.test(res.stdout)) return "status output missing phase=";
+  return null;
+}
+
 export function checks() {
   return [
     ["scouting-bundle", checkScoutingBundle],
@@ -99,6 +107,7 @@ export function checks() {
     ["attest-file", checkAttestFile],
     ["hook-bench", checkHookBench],
     ["doctor-wsl", checkDoctorWsl],
+    ["orchestrate-status", checkOrchestrateStatus],
   ];
 }
 

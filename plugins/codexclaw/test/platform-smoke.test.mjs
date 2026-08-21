@@ -6,7 +6,7 @@ test("platform smoke: every check returns a string or null on this host", async 
   const mod = await import("../scripts/platform-smoke.mjs");
   // Importing the module must not auto-run the CLI loop; the exported check
   // functions are exercised here so a throwing check cannot silently pass CI.
-  for (const fn of [mod.checkScoutingBundle, mod.checkMapLadder]) {
+  for (const fn of [mod.checkScoutingBundle, mod.checkMapLadder, mod.checkOrchestrateStatus]) {
     const result = await fn();
     assert.ok(result === null || typeof result === "string", "check returns null|string");
   }
