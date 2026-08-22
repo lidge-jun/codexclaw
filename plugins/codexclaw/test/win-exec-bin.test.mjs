@@ -37,13 +37,20 @@ test("POSIX is a passthrough", () => {
 
 test("an .exe resolves and spawns directly, with no cmd.exe hop", () => {
   const dir = fakePathDir(["gh.exe"]);
+  // Diagnostics for platform-dependent failures: if resolution ever returns the
+  // bare command, show whether the candidate file was actually statable.
+  const dbg = { dir, exists: existsSync(join(dir, "gh.exe")), pathKey: Object.keys({ PATH: dir })[0] };
   const inv = commandInvocation("gh", ["auth", "status"], "win32", {
     PATH: dir,
     PATHEXT: ".COM;.EXE;.BAT;.CMD",
     ComSpec: "C:\\Windows\\system32\\cmd.exe",
   });
   // The extension case comes from PATHEXT, so compare case-insensitively.
-  assert.equal(inv.file.toLowerCase(), join(dir, "gh.exe").toLowerCase());
+  assert.equal(
+    inv.file.toLowerCase(),
+    join(dir, "gh.exe").toLowerCase(),
+    `resolution failed: ${JSON.stringify({ ...dbg, direct: resolveWindowsCommand("gh", { PATH: dir, PATHEXT: ".COM;.EXE;.BAT;.CMD" }), inv })}`,
+  );
   assert.deepEqual(inv.args, ["auth", "status"]);
   assert.equal(inv.options.windowsVerbatimArguments, undefined);
 });
