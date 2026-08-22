@@ -16,6 +16,7 @@ import {
 } from "../src/hook-trust.ts";
 import { runHookTrustCheck } from "../src/doctor.ts";
 import { main } from "../src/cli.ts";
+import { commandInvocation } from "../src/win-exec.ts";
 
 const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const PLUGIN_KEY = "fixture@market";
@@ -342,6 +343,30 @@ test("retrustHooks requires bootstrapOk only when no entries exist for the plugi
   assert.deepEqual(diagnoseHookTrust(home, root, PLUGIN_KEY).map((item) => item.status), ["trusted"]);
 });
 
+test("retrustHooks spawns the codex verifier through the platform invocation shape", () => {
+  const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo verify")] }] } });
+  const home = makeCodexHome('[plugins."fixture@market"]\nenabled = true\n');
+  const calls: Array<{ file: string; args: string[] }> = [];
+  const capture: HookTrustRunner = (file, args) => {
+    calls.push({ file, args });
+    return { status: 0, stdout: "", stderr: "", error: null };
+  };
+
+  retrustHooks(home, root, PLUGIN_KEY, true, capture);
+
+  assert.equal(calls.length, 1);
+  const [call] = calls;
+  // A bare "codex" here is the Windows bug: Node skips PATHEXT for bare command
+  // names and cannot spawn the npm .cmd shim shell-lessly, so retrust died with
+  // EPERM while doctor — which already routes through win-exec — kept working.
+  const expected = commandInvocation("codex", ["features", "list"]);
+  assert.equal(call.file, expected.file);
+  assert.deepEqual(call.args, expected.args);
+  if (process.platform === "win32") {
+    assert.ok(call.file !== "codex", "must not spawn a bare command name on Windows");
+  }
+});
+
 test("retrustHooks preserves a config symlink and atomically updates its resolved target", () => {
   const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo symlink")] }] } });
   const home = tempDir("cxc-hook-link-home-");
@@ -372,7 +397,8 @@ test("retrustHooks rolls back the resolved config when codex verification fails"
   };
 
   assert.throws(() => retrustHooks(home, root, PLUGIN_KEY, false, failingRunner), /codex features list verification failed/);
-  assert.deepEqual(calls, [{ command: "codex", args: ["features", "list"], codexHome: home }]);
+  const invocation = commandInvocation("codex", ["features", "list"]);
+  assert.deepEqual(calls, [{ command: invocation.file, args: invocation.args, codexHome: home }]);
   assert.equal(readFileSync(join(home, "config.toml"), "utf8"), before);
   assert.equal(diagnoseHookTrust(home, root, PLUGIN_KEY)[1].status, "untrusted");
 });

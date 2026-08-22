@@ -13,6 +13,7 @@ import {
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { renameWithRetry } from "./atomic-write.js";
+import { commandInvocation } from "./win-exec.js";
 
 const EVENT_LABELS = {
   PreToolUse: "pre_tool_use",
@@ -369,9 +370,18 @@ function resolvedConfigPath(configPath        )         {
 }
 
 function verifyCodexConfig(codexHome        , runner                 )       {
-  const result = runner("codex", ["features", "list"], {
+  // Windows: `codex` is an npm .cmd shim, and a bare command name skips PATHEXT
+  // resolution, so a shell-less spawn fails outright. With the Codex desktop app
+  // installed it is worse — the first `codex` on PATH is a WindowsApps
+  // app-execution alias, an unreadable reparse point that raises EPERM rather
+  // than ENOENT. Route through commandInvocation() for the same PATHEXT lookup
+  // and cmd.exe escaping doctor.ts already uses; `shell: true` is not an option
+  // because Node leaves cmd metacharacters unescaped (see win-exec.ts).
+  const invocation = commandInvocation("codex", ["features", "list"]);
+  const result = runner(invocation.file, invocation.args, {
     encoding: "utf8",
     env: { ...process.env, CODEX_HOME: codexHome },
+    ...invocation.options,
   });
   if (result.status !== 0) {
     const detail = result.error?.message ?? result.stderr?.trim() ?? `exit ${String(result.status)}`;
