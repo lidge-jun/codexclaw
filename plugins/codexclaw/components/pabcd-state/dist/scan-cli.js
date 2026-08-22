@@ -83,8 +83,20 @@ export function parseScanCliArgs(
   cwd        ,
 )                                  {
   const [action, ...rest] = argv;
+  // #47: --help was an unknown action, and --cwd was rejected outright even though
+  // orchestrate accepts it — which stranded a live session whose answer ledger lived
+  // in a different tree from the process cwd.
+  if (action === "help" || action === "--help" || action === "-h") {
+    return {
+      action: "help",
+      sessionId: "",
+      contradictionCount: 0,
+      highContradictionCount: 0,
+      cwd,
+    };
+  }
   if (action !== "record") {
-    return { error: `unknown scan action '${action ?? ""}' — usage: scan record --session <id> [--contradictions N] [--high N]` };
+    return { error: `unknown scan action '${action ?? ""}'; run cxc scan --help` };
   }
   let sessionId = "";
   let contradictionCount = 0;
@@ -98,10 +110,16 @@ export function parseScanCliArgs(
   const known                                                = [];
   const unknown                                                = [];
   const confidence                                     = {};
+  let resolvedCwd = cwd;
   for (let i = 0; i < rest.length; i += 1) {
     const arg = rest[i];
     if (arg === "--session") {
       sessionId = rest[i + 1] ?? "";
+      i += 1;
+    } else if (arg === "--cwd") {
+      // #47: orchestrate documents and accepts --cwd; scan rejected it, which
+      // stranded a session whose answer ledger was in a different tree.
+      resolvedCwd = rest[i + 1] ?? cwd;
       i += 1;
     } else if (arg === "--contradictions") {
       contradictionCount = Number.parseInt(rest[i + 1] ?? "", 10);
@@ -173,7 +191,7 @@ export function parseScanCliArgs(
     sessionId,
     contradictionCount,
     highContradictionCount,
-    cwd,
+    cwd: resolvedCwd,
     ...(derive ? { derive } : {}),
     ...(Object.keys(map).length > 0 ? { map } : {}),
     ...(Object.keys(dims).length > 0 ? { dims } : {}),
@@ -264,6 +282,28 @@ function deriveLevel(score                )                 {
 }
 
 export function runScanCli(args             )                                   {
+  if (args.action === "help") {
+    return {
+      output: [
+        "cxc scan — record an interview rescan round and fold answers into the tracker",
+        "",
+        "Usage:",
+        "  cxc scan record --session <id> [--cwd <path>] [--contradictions N] [--high N]",
+        "                  [--derive] [--map <questionId>=<dimension>]...",
+        "                  [--dim <dimension>=<level>]... [--known <dimension>=<text>]...",
+        "                  [--unknown <dimension>=<text>]... [--confidence <dimension>=<0..1>]...",
+        "  cxc scan --help",
+        "",
+        "Notes:",
+        "  --session is required; there is no latest-session fallback for a mutating command.",
+        "  --cwd matters when the answer ledger lives outside the process cwd:",
+        "  answers are read from <cwd>/.codexclaw/interviews/<session>.jsonl.",
+        "  --derive folds captured answers in; --map attributes a questionId to a dimension.",
+        "  --dim cannot set 'max' — that level gates I->P and must be attested.",
+      ].join("\n"),
+      code: 0,
+    };
+  }
   try {
     const state        = readState(args.cwd, args.sessionId);
     const tracker                   = state.interview ?? defaultInterview(0);

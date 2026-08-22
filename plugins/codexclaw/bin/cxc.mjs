@@ -18,7 +18,7 @@
  * the payload path). Both print a pointer instead of failing cryptically.
  */
 import { spawnSync } from "node:child_process";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -116,6 +116,20 @@ if (isMain) {
   if (cmd === "help" || cmd === "--help" || cmd === "-h") {
     console.log(HELP);
     process.exit(0);
+  }
+  // #47: `cxc --version` was reported as an unknown command, so the only way to
+  // learn which payload was installed was to read the cache path.
+  if (cmd === "version" || cmd === "--version" || cmd === "-v") {
+    try {
+      const manifest = JSON.parse(
+        readFileSync(join(payloadRoot, ".codex-plugin", "plugin.json"), "utf8"),
+      );
+      console.log(manifest.version ?? "unknown");
+      process.exit(0);
+    } catch (err) {
+      console.error(`cxc --version: could not read the plugin manifest (${err.code ?? err.message})`);
+      process.exit(1);
+    }
   }
   if (cmd === "gui" || cmd === "map") {
     console.log(

@@ -31,7 +31,14 @@ import { STATE_DIR, sanitizeKey } from "./state.js";
 /** Everything after `--` is the command; nothing before it is. */
 export function parseReceiptCliArgs(argv          , cwd        )                                        {
   const verb = (argv[0] ?? "").toLowerCase();
-  if (verb !== "test") return { error: `unknown receipt verb '${argv[0] ?? ""}' (expected test)` };
+  // #47: --help was reported as an unknown verb, so the flags could only be learned
+  // from rejections.
+  if (verb === "help" || verb === "--help" || verb === "-h") {
+    return { verb: "help", cwd, command: [] };
+  }
+  if (verb !== "test") {
+    return { error: `unknown receipt verb '${argv[0] ?? ""}' (expected test); run cxc receipt --help` };
+  }
   const out                 = { verb: "test", cwd, command: [] };
   let i = 1;
   for (; i < argv.length; i++) {
@@ -54,6 +61,27 @@ export function receiptPathFor(cwd        , sessionId        )         {
 
 
 export function runReceiptCli(args                )                   {
+  if (args.verb === "help") {
+    return {
+      output: [
+        "cxc receipt — record a check receipt that binds a command's result to a source tree",
+        "",
+        "Usage:",
+        "  cxc receipt test --session <id> [--cwd <path>] -- <command> [args...]",
+        "  cxc receipt --help",
+        "",
+        "Notes:",
+        "  Everything after `--` is the command; nothing before it is.",
+        "  The session must be at phase C — a receipt is produced during Check.",
+        "  The receipt is written to <cwd>/.codexclaw/evidence/<session>/test-receipt.json",
+        "  and is refused if the command changes the source while it runs.",
+        "",
+        "Example:",
+        "  cxc receipt test --session <id> -- npm test",
+      ].join("\n"),
+      code: 0,
+    };
+  }
   const session = (args.session ?? "").trim();
   if (session.length === 0) return { output: "receipt test: --session <id> is required", code: 1 };
   if (args.command.length === 0) {
