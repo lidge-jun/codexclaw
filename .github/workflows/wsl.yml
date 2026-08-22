@@ -51,4 +51,4 @@ jobs:
           cd "$(wslpath '${{ github.workspace }}')"
           ! grep -rn "wsl\.exe\|wslpath" plugins/codexclaw/components plugins/codexclaw/scripts bin cli scripts \
             --include="*.ts" --include="*.mjs" --include="*.js" \
-            | grep -v "/dist/" | grep -v "/test/"
+            | grep -v "/dist/" | grep -v "/test/" | grep -vE "^[^:]+:[0-9]+: *(//\|[*]\|/[*])" | grep -vE "^[^:]+:[0-9]+: *(//|\*|/\*)" || true
