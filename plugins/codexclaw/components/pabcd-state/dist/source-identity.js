@@ -154,6 +154,17 @@ const STATE_DIR_PREFIX = ".codexclaw/";
 
 
 
+
+
+
+
+
+
+
+
+
+
+
 export function captureSourceIdentity(cwd        , options                 = {})                 {
   const capturedAt = new Date().toISOString();
   let commitSha = "";
@@ -172,6 +183,10 @@ export function captureSourceIdentity(cwd        , options                 = {})
   }
   if (options.excludeCodexclawArtifacts) {
     records = records.filter((r) => !r.path.startsWith(STATE_DIR_PREFIX));
+  }
+  const generated = (options.generatedPaths ?? []).filter((p) => p.length > 0);
+  if (generated.length > 0) {
+    records = records.filter((r) => !generated.some((g) => r.path === g || r.path.startsWith(`${g}/`)));
   }
   if (records.length === 0) return { kind: "resolved", commitSha, dirty: false, capturedAt };
   return { kind: "resolved", commitSha, dirty: true, treeHash: hashRecords(cwd, records), capturedAt };

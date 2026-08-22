@@ -30,7 +30,7 @@
 import { spawnSync } from "node:child_process";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -421,6 +421,21 @@ if (isMain) switch (cmd) {
     console.log(renderTopLevelHelp());
     process.exit(0);
     break;
+  // #47: `cxc --version` was an unknown command, so the only way to learn which
+  // payload was live was to read the cache directory name.
+  case "version":
+  case "--version":
+  case "-v": {
+    try {
+      const manifestPath = join(here, "..", "plugins", "codexclaw", ".codex-plugin", "plugin.json");
+      console.log(JSON.parse(readFileSync(manifestPath, "utf8")).version ?? "unknown");
+      process.exit(0);
+    } catch (err) {
+      console.error(`cxc --version: could not read the plugin manifest (${err.code ?? err.message})`);
+      process.exit(1);
+    }
+    break;
+  }
   case "enable":
     process.exit(runConfigGuard("enable"));
     break;

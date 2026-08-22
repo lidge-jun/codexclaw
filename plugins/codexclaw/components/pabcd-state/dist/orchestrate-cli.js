@@ -15,6 +15,7 @@
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { homedir } from "node:os";
 import { coerceAttest, validateWorkPhaseBinding, GATED_TRANSITIONS,                  } from "./attest.js";
 import { canEnter, transition } from "./fsm.js";
 import { validatePlanArtifacts } from "./plan-gate.js";
@@ -108,6 +109,7 @@ import {
   appendLedger,
   readState,
   writeState,
+  findForeignSessionCopies,
   STATE_DIR,
   SESSIONS_SUBDIR,
 
@@ -303,9 +305,26 @@ function renderPhaseContext(state       , sessionId        )         {
   return `current=${state.phase} session=${sessionId}`;
 }
 
-function renderStatus(state       , json         )         {
-  if (json) return JSON.stringify({ phase: state.phase, flags: state.flags, sessionId: state.sessionId });
-  return `session=${state.sessionId} phase=${state.phase} interview=${state.flags.interview} auditPassed=${state.flags.auditPassed} checkPassed=${state.flags.checkPassed}`;
+function renderStatus(state       , json         , elsewhere           = [])         {
+  if (json) {
+    return JSON.stringify({
+      phase: state.phase,
+      flags: state.flags,
+      sessionId: state.sessionId,
+      ...(elsewhere.length > 0 ? { alsoFoundAt: elsewhere } : {}),
+    });
+  }
+  const line = `session=${state.sessionId} phase=${state.phase} interview=${state.flags.interview} auditPassed=${state.flags.auditPassed} checkPassed=${state.flags.checkPassed}`;
+  // #48: the same id in two trees means this line describes only ONE of them.
+  // Reporting IDLE for a cycle that is really in flight next door is the failure
+  // this warning exists to prevent.
+  if (elsewhere.length === 0) return line;
+  return [
+    line,
+    `WARNING: this session id also has state in ${elsewhere.length} other tree(s); the phase above describes THIS cwd only.`,
+    ...elsewhere.map((p) => `  also at: ${p}`),
+    "  Pass --cwd <path> to address a specific tree.",
+  ].join("\n");
 }
 
 export function renderOrchestrateParseError(error               )         {
@@ -334,7 +353,14 @@ export function runOrchestrateCli(args                                          
   // status: read-only. With no session, report it (don't create one).
   if (args.verb === "status") {
     if (!sessionId) return { code: 0, output: "no active session" };
-    return { code: 0, output: renderStatus(readState(args.cwd, sessionId), args.json) };
+    return {
+      code: 0,
+      output: renderStatus(
+        readState(args.cwd, sessionId),
+        args.json,
+        findForeignSessionCopies(args.cwd, sessionId, siblingRoots(args.cwd)),
+      ),
+    };
   }
 
   // G3 (fork-FSM collision, 260707): mutating verbs REQUIRE an explicit --session.
@@ -543,10 +569,21 @@ export function runOrchestrateCli(args                                          
         };
       }
       if (advanced.kind === "no_active") {
+        // #49: "no active work-phase" has two very different causes. If every phase
+        // is already done, the plan is COMPLETE and refusing D strands the cycle —
+        // the reported workaround was to write a finished phase back to
+        // in_progress just to satisfy this gate, which corrupts the record to
+        // satisfy a check about the record. Only an EMPTY or fully blocked plan is
+        // a real refusal.
+        const closable = plan.workPhases.length > 0 && plan.workPhases.every((wp) => wp.status === "done");
+        if (closable) {
+          advanced = { kind: "ok", closedId: null, plan };
+        } else {
         return {
           code: 1,
-          output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; the bound goalplan "${state.slug}" has no active work-phase to close (CYCLE-COMPLETION-01). Register or unblock a work-phase before closing a cycle. Nothing was written.`,
+          output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; the bound goalplan "${state.slug}" has no work-phase to close (CYCLE-COMPLETION-01): ${plan.workPhases.length === 0 ? "the plan is empty — register workPhases[] first" : "every remaining work-phase is blocked or superseded — unblock one"}. Nothing was written.`,
         };
+        }
       }
     }
     writeState(args.cwd, { ...clearedIdle(state), stopBlockPhase: null, stopBlockCount: 0 });
@@ -569,7 +606,11 @@ export function runOrchestrateCli(args                                          
           event: "workphase_done",
           // 260714 wp4: log the EFFECTIVE closed id (implicit cursor may have
           // started from a null explicit cursor — "closed none" was a lie).
-          detail: `closed ${advanced.closedId}`,
+          // #49: a null id means the plan was already fully done and this cycle
+          // closed without advancing a cursor. Say that rather than "closed null".
+          detail: advanced.closedId
+            ? `closed ${advanced.closedId}`
+            : "cycle closed over an already-complete plan",
         });
         if (advanced.plan.activeWorkPhaseId) {
           appendGoalplanLedger(args.cwd, state.slug, {
@@ -650,4 +691,32 @@ export function runOrchestrateCli(args                                          
     ...(args.attest?.did ? { evidence: args.attest.did } : {}),
   });
   return { code: 0, output: `orchestrate ${args.verb}: current=${state.phase} -> ${result.state.phase} (${state.phase} → ${result.state.phase}, session ${sessionId})` };
+}
+/**
+ * #48: candidate trees to check for the SAME session id. Deliberately shallow —
+ * the immediate children of $HOME plus the parent of cwd — because this is a
+ * warning path on a read-only command, not a filesystem crawl. Anything deeper
+ * would cost more than the warning is worth.
+ */
+function siblingRoots(cwd        )           {
+  const roots           = [];
+  let home        ;
+  try {
+    home = homedir();
+  } catch {
+    return roots;
+  }
+  try {
+    for (const entry of readdirSync(home, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      // Skip the noisy ones a workspace never lives in.
+      if (entry.name === "node_modules" || entry.name === "AppData") continue;
+      roots.push(join(home, entry.name));
+    }
+  } catch {
+    // an unreadable home is not an error for a warning path
+  }
+  const parent = resolve(cwd, "..");
+  if (parent !== resolve(cwd)) roots.push(parent);
+  return roots;
 }

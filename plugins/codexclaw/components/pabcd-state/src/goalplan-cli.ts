@@ -34,7 +34,7 @@ import { captureSourceIdentity, compareSource } from "./source-identity.ts";
 import { parseSourceBoundReceipt } from "./source-receipt.ts";
 import { applySteeringBatch } from "./steering.ts";
 
-export type GoalplanVerb = "init" | "show" | "validate" | "steer" | "add-criterion" | "add-work-phase";
+export type GoalplanVerb = "init" | "show" | "validate" | "steer" | "add-criterion" | "add-work-phase" | "help";
 
 export interface GoalplanCliArgs {
   verb: GoalplanVerb;
@@ -73,9 +73,15 @@ const VERBS: ReadonlySet<string> = new Set<GoalplanVerb>([
 /** Structural argv parse. argv excludes the `goalplan` kind token. */
 export function parseGoalplanCliArgs(argv: string[], cwd: string): GoalplanCliArgs | GoalplanCliParseError {
   const verb = (argv[0] ?? "").toLowerCase();
+  // #47: `--help` on a sibling command used to be reported as an unknown verb, so an
+  // agent that followed `cxc --help`'s own pointer hit a non-zero exit and had to
+  // discover every flag one rejection at a time. Same contract as orchestrate.
+  if (verb === "help" || verb === "--help" || verb === "-h") {
+    return { verb: "help", cwd, criteria: [] };
+  }
   if (!VERBS.has(verb)) {
     return {
-      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase)`,
+      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase); run cxc loop --help`,
     };
   }
   const out: GoalplanCliArgs = { verb: verb as GoalplanVerb, cwd, criteria: [] };
@@ -104,6 +110,14 @@ export interface GoalplanCliResult {
 function resolveSlug(args: GoalplanCliArgs): string | null {
   if (typeof args.slug === "string" && args.slug.length > 0) return deriveSlug(args.slug);
   if (typeof args.objective === "string" && args.objective.length > 0) return deriveSlug(args.objective);
+  // #48: `loop init --session` already binds the slug into the session file, so a
+  // later `show`/`validate` can recover it without the caller re-typing a
+  // 47-character derived slug. This also makes the session the source of truth
+  // when the same id has state in more than one tree.
+  if (typeof args.session === "string" && args.session.length > 0) {
+    const bound = readState(args.cwd, args.session).slug;
+    if (typeof bound === "string" && bound.length > 0) return bound;
+  }
   return null;
 }
 
@@ -276,7 +290,39 @@ function renderPlanLines(plan: Goalplan): string {
   return lines.join("\n");
 }
 
+/**
+ * #47: every flag below used to be discoverable only by running the command and
+ * reading the rejection, one missing argument at a time. The steer batch shape is
+ * spelled out for the same reason.
+ */
+export function renderGoalplanHelp(): string {
+  return [
+    "cxc loop — durable goalplan for a multi-cycle PABCD loop",
+    "",
+    "Usage:",
+    "  cxc loop init --objective <text> --session <id> [--criterion <text>]... [--cwd <path>]",
+    "  cxc loop show (--slug <slug> | --objective <text>) [--cwd <path>]",
+    "  cxc loop validate --slug <slug> [--cwd <path>]",
+    "  cxc loop steer --session <id> --slug <slug> --batch-json <path-or-json> [--cwd <path>]",
+    "  cxc loop add-work-phase --session <id> --slug <slug> --id <id> --title <text>",
+    "  cxc loop add-criterion --session <id> --slug <slug> --criterion <text> [--surface logic|web|tui]",
+    "  cxc loop --help",
+    "",
+    "Notes:",
+    "  Mutating verbs require --session <id>; show and validate are read-only.",
+    "  The goalplan lives at <cwd>/.codexclaw/goalplans/<slug>/goalplan.json, so --cwd",
+    "  matters when the process cwd is not the workspace you are planning in.",
+    "",
+    "steer --batch-json expects an object with:",
+    '  { "idempotencyKey": "<unique>", "rationale": "<why>", "evidence": "<proof>",',
+    '    "ops": [ { "kind": "annotate", "note": "..." } ] }',
+    "  op kinds: annotate | add-criterion | add-work-phase (all additive — steering",
+    "  cannot weaken a completion criterion).",
+  ].join("\n");
+}
+
 export function runGoalplanCli(args: GoalplanCliArgs): GoalplanCliResult {
+  if (args.verb === "help") return { output: renderGoalplanHelp(), code: 0 };
   if (args.verb === "init") {
     const objective = (args.objective ?? "").trim();
     if (objective.length === 0) {
@@ -313,7 +359,10 @@ export function runGoalplanCli(args: GoalplanCliArgs): GoalplanCliResult {
 
   const slug = resolveSlug(args);
   if (!slug) {
-    return { output: `loop ${args.verb}: --slug "<text>" or --objective "<text>" is required`, code: 1 };
+    return {
+      output: `loop ${args.verb}: --slug "<text>", --objective "<text>", or --session <id> (with a bound plan) is required`,
+      code: 1,
+    };
   }
   const plan = readGoalplan(args.cwd, slug);
   if (!plan) {
