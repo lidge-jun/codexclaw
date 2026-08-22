@@ -287,6 +287,61 @@ function isProtectedTarget(target: string, segCwd: string, id: WorktreeIdentity)
   return false;
 }
 
+// Windows removal verbs (100 closeout defect #17). `rm` and `rmdir` are excluded on
+// purpose: they dispatch in their own branches below with POSIX semantics that must not
+// change. The PowerShell aliases `rm`/`rmdir` therefore keep hitting the POSIX
+// branches, which is correct - their argv shape is compatible.
+const PS_REMOVE_VERBS = new Set(["remove-item", "ri", "del", "erase", "rd"]);
+
+// Verbs that mean "remove a directory" outright. Like the existing `rmdir` branch,
+// these deny a protected target with NO recursive requirement.
+const DIR_REMOVE_VERBS = new Set(["rd"]);
+
+// PowerShell parameters that take a VALUE as the next token.
+const PS_VALUE_PARAMS = new Set([
+  "-literalpath",
+  "-path",
+  "-include",
+  "-exclude",
+  "-filter",
+]);
+
+/** Parse PowerShell removal argv. Positional tokens and value-parameter values are
+ *  both targets; `-Recurse` is matched exactly rather than by an `r` substring. */
+function parseWindowsRemoval(rest: string[]): { recursive: boolean; targets: string[] } {
+  let recursive = false;
+  const targets: string[] = [];
+  for (let i = 0; i < rest.length; i++) {
+    const tok = rest[i];
+    const lower = tok.toLowerCase();
+    if (PS_VALUE_PARAMS.has(lower)) {
+      const value = rest[i + 1];
+      // A trailing `-LiteralPath` with nothing after it must not throw.
+      if (value !== undefined && !value.startsWith("-")) {
+        targets.push(value);
+        i++;
+      }
+      continue;
+    }
+    // Exact match: unlike the POSIX /[rR]/ substring test, `-Registry` or
+    // `-Recurse:$false` must not set recursive by accident.
+    if (lower === "-recurse" || lower === "/s") {
+      recursive = true;
+      continue;
+    }
+    // `-Confirm:$false`, `-Recurse:$false`, `-ErrorAction:Stop` carry no target.
+    if (tok.startsWith("-") && tok.includes(":")) continue;
+    if (tok.startsWith("-")) continue; // -Force and friends carry no targets
+    // A leading slash is a cmd.exe switch (/s, /q) ONLY when it is one of those
+    // short forms. POSIX-absolute targets (/tmp/..., /home/...) also start with
+    // "/" and are targets - swallowing them made every Linux/WSL removal fall
+    // through to the conservative fallback instead of the verb branch.
+    if (/^\/[a-z]$/i.test(tok)) continue;
+    targets.push(tok);
+  }
+  return { recursive, targets };
+}
+
 /** Evaluate one segment. Returns a deny verdict or null (no opinion). */
 function evaluateSegment(
   segment: string,
@@ -341,6 +396,24 @@ function evaluateSegment(
     return null;
   }
 
+  // Windows removal verbs get their own branch so the POSIX deny semantics above are
+  // untouched. `rm`/`rmdir` are deliberately NOT in PS_REMOVE_VERBS: they already
+  // dispatch earlier, and re-listing them here would be dead code that invites a future
+  // merge of the two semantics.
+  if (PS_REMOVE_VERBS.has(exe.toLowerCase())) {
+    const { recursive, targets } = parseWindowsRemoval(tokens.slice(1));
+    for (const target of targets) {
+      if (!isProtectedTarget(target, cwd, id)) continue;
+      // `rd` is a directory-removal verb: deny with no recursive requirement,
+      // mirroring the existing `rmdir` branch. The file-oriented verbs mirror the
+      // `rm` branch and require a recursive flag.
+      if (recursive || DIR_REMOVE_VERBS.has(exe.toLowerCase())) {
+        return deny(`${exe} ${target}`);
+      }
+    }
+    return null;
+  }
+
   if (exe === "unlink") return null; // file-only; never threatens the worktree
 
   if (exe === "git") {
@@ -372,7 +445,9 @@ function evaluateSegment(
 }
 
 // unlink is excluded on purpose: file-only, can never threaten the worktree.
-const DESTRUCTIVE_HINT = /(^|[\s/])(rm|rmdir)\b|git\s+(-C\s+\S+\s+)?worktree\s+remove/;
+// The `i` flag is load-bearing: `Remove-Item` is conventionally capitalized.
+const DESTRUCTIVE_HINT =
+  /(^|[\s/])(rm|rmdir|rd|del|erase|ri|remove-item)\b|git\s+(-C\s+\S+\s+)?worktree\s+remove/i;
 
 export function evaluateCommand(
   command: string,

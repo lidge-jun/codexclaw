@@ -1,6 +1,8 @@
-import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { renameWithRetry } from "./atomic-write.ts";
 import { sanitizeKey, STATE_DIR } from "./state.ts";
+import { splitLines } from "./text-lines.ts";
 
 export type CollapsePoint = "P" | "D";
 export type CandidateKind = "strong-1" | "add-1" | "alternative";
@@ -123,7 +125,7 @@ export function writeDivergenceMode(
   const tmp = `${finalPath}.${process.pid}.${Date.now()}.tmp`;
   try {
     writeFileSync(tmp, JSON.stringify(mode, null, 2));
-    renameSync(tmp, finalPath);
+    renameWithRetry(tmp, finalPath);
   } catch (err) {
     try {
       rmSync(tmp, { force: true });
@@ -202,7 +204,7 @@ export function readDivergenceCandidates(cwd: string, sessionId?: string): Diver
     return [];
   }
   const out: DivergenceCandidate[] = [];
-  for (const line of raw.split("\n")) {
+  for (const line of splitLines(raw)) {
     if (!line.trim()) continue;
     try {
       const parsed = JSON.parse(line) as Partial<DivergenceCandidate> | null;

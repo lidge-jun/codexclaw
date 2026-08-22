@@ -18,6 +18,7 @@ import { readConfig, setRole, ROLES } from "../../subagent-config/dist/store.js"
 import { buildCatalog } from "../../subagent-config/dist/catalog.js";
 import { detectOcx } from "../../provider-bridge/dist/detect.js";
 import type { ApiRoute, ApiResponse } from "./server.ts";
+import { splitLines } from "./text-lines.ts";
 
 interface ProviderStatusShape {
   mode: "native" | "provider" | "error";
@@ -33,9 +34,10 @@ function detectDeps(): Record<string, unknown> {
         process.platform === "win32" ? [cmd] : ["-v", cmd],
         { encoding: "utf8", shell: process.platform !== "win32" },
       );
+      // where.exe emits CRLF; the trailing .trim() saved this by accident.
       const out =
         res.status === 0 && typeof res.stdout === "string"
-          ? res.stdout.split("\n")[0]?.trim()
+          ? splitLines(res.stdout)[0]?.trim() ?? ""
           : null;
       return out && out.length > 0 ? out : null;
     },

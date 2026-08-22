@@ -152,7 +152,12 @@ test("allowlisted message drives the agent and sends a reply", async () => {
       }),
     });
     await adapter.start();
-    await settle();
+    // The download + agent round-trip races the fixed 30ms settle on loaded
+    // runners; poll for the observable outcome instead of sleeping.
+    const deadline = Date.now() + 5000;
+    while (seen.length === 0 && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
     adapter.stop();
 
     assert.deepEqual(seen, ["hi there"]);

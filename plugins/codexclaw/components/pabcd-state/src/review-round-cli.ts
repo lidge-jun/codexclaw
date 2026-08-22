@@ -18,6 +18,7 @@ import { readState } from "./state.ts";
 import { readGoalplan, writeGoalplan, effectiveActiveWorkPhaseId, type Goalplan } from "./goalplan.ts";
 import { openRound, markLaunching, markInFlight, latestRound, abortRound, staleness } from "./review-round.ts";
 import type { PlanFileHash } from "./freeze.ts";
+import { splitLines } from "./text-lines.ts";
 
 export type ReviewRoundVerb = "open" | "show" | "abort";
 const VERBS: ReadonlySet<string> = new Set<ReviewRoundVerb>(["open", "show", "abort"]);
@@ -27,7 +28,8 @@ const NUMBERED_DOC_RE = /^\d{3}_.+\.md$/;
 
 /** Body of a TOML table `[header]`, up to the next table header. */
 function tomlTableBody(content: string, header: string): string | null {
-  const lines = content.split("\n");
+  // The user's config.toml is foreign input; a Windows editor writes CRLF.
+  const lines = splitLines(content);
   const escaped = header.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const start = lines.findIndex((line) => new RegExp(`^\\s*\\[${escaped}\\]\\s*(?:#.*)?$`).test(line));
   if (start === -1) return null;

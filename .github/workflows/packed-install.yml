@@ -137,7 +137,8 @@ jobs:
             echo "payload[$1]: $PLUGIN_ROOT version=$PLUGIN_VERSION"
           }
 
-          codex plugin marketplace add "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" --ref "$GITHUB_SHA"
+          PR_SHA=${{ github.event.pull_request.head.sha }}
+          codex plugin marketplace add "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" --ref "${PR_SHA:-$GITHUB_SHA}"
           install_and_resolve head
           HEAD_VERSION="$PLUGIN_VERSION"
 
@@ -169,7 +170,7 @@ jobs:
           OLD_VERSION="$PLUGIN_VERSION"
 
           codex plugin marketplace remove codexclaw
-          codex plugin marketplace add "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" --ref "$GITHUB_SHA"
+          codex plugin marketplace add "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" --ref "${PR_SHA:-$GITHUB_SHA}"
           install_and_resolve head-again
 
           # The upgrade must be OBSERVABLE. An unchanged version means it silently kept

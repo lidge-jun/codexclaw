@@ -13,6 +13,7 @@
  *  - Coverage limit: only structured `apply_patch` edits are seen. Shell/exec file writes
  *    (exec_command/shell_command) do NOT surface here and are NOT linted.
  */
+import { splitLines } from "./text-lines.ts";
 
 export interface ForbiddenPattern {
   re: RegExp;
@@ -51,7 +52,9 @@ function isJustified(line: string): boolean {
  */
 export function addedLines(patchText: string): string[] {
   const out: string[] = [];
-  for (const raw of patchText.split("\n")) {
+  // A CRLF patch leaves \r on every added line, which would leak into the linted
+  // content and into reported findings (002 B9).
+  for (const raw of splitLines(patchText)) {
     if (raw.startsWith("+++") || raw.startsWith("+ +")) continue; // diff file header
     if (raw.startsWith("+")) out.push(raw.slice(1));
   }

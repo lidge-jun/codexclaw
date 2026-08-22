@@ -22,6 +22,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { extname, join } from "node:path";
 
 import { fileEditShapes } from "./edit-shape.js";
+import { splitLines } from "./text-lines.js";
 
 export const STATE_DIR = ".codexclaw";
 export const RENDER_OBS_FILE = "render-observations.jsonl";
@@ -81,7 +82,7 @@ export function readRenderObsRows(cwd        )                 {
     return [];
   }
   const out                 = [];
-  for (const line of raw.split("\n")) {
+  for (const line of splitLines(raw)) {
     const t = line.trim();
     if (t.length === 0) continue;
     try {

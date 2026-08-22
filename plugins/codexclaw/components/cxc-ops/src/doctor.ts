@@ -6,11 +6,13 @@
  * is the codexclaw-plugin slice only. Pure filesystem + JSON reads, no network.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join, sep } from "node:path";
+import { join, posix as posixPath, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { diagnoseHookTrust, readInstalledPluginKeys } from "./hook-trust.ts";
 import { TargetParseError, validateManifestTargets } from "./manifest-targets.ts";
+import { commandInvocation } from "./win-exec.ts";
+import { automountRoot, filesystemTier, isWslRuntime, type WslDeps } from "./wsl.ts";
 
 export type Severity = "PASS" | "WARN" | "FAIL";
 
@@ -39,6 +41,13 @@ export interface DoctorReport {
 export interface DoctorOptions {
   codexHome?: string;
   pluginKey?: string;
+  /**
+   * Filesystem probes for the WSL check. Injected so a test asserting a fully
+   * healthy report does not depend on where the checkout happens to live: the
+   * same fixture sits on ntfs from Windows and on 9p from inside WSL, and only
+   * the latter warns.
+   */
+  wslDeps?: WslDeps;
 }
 
 function isDir(p: string): boolean {
@@ -70,7 +79,7 @@ function detectCodexVersion(runner: typeof spawnSync): string | undefined {
   try {
     const res = runner("codex", ["--version"], { encoding: "utf8", timeout: 5000 });
     if (res.status === 0 && res.stdout) {
-      const match = res.stdout.match(/(d+.d+.d+)/);
+      const match = res.stdout.match(/(\d+\.\d+\.\d+)/);
       return match ? match[1] : res.stdout.trim();
     }
   } catch { /* codex not in PATH */ }
@@ -93,6 +102,42 @@ function checkPabcdHealth(projectRoot: string): CheckResult {
     return { name: "pabcd-state", severity: "WARN", evidence: corrupt.length + " corrupt session file(s): " + corrupt.join(", "), repair: "cxc reset --state" };
   }
   return { name: "pabcd-state", severity: "PASS", evidence: files.length + " session file(s), all parseable" };
+}
+
+/**
+ * WSL residency + state-filesystem tier.
+ *
+ * The dangerous configuration is not "using WSL" - it is running codex on the
+ * Windows side and codexclaw on the Linux side against one checkout, so two
+ * runtimes write `.codexclaw/` through two filesystem drivers. The steering lock
+ * (mkdir) and the state publish (link) both assume more than drvfs guarantees.
+ *
+ * Probes arrive through `WslDeps` so both branches are reachable from any CI OS.
+ */
+export function checkWslResidency(cwd: string, deps: WslDeps = {}): CheckResult {
+  if (!isWslRuntime(deps)) {
+    return { name: "wsl", severity: "PASS", evidence: "not running under WSL" };
+  }
+  const root = automountRoot(deps);
+  // The joiner follows the PROBED platform, not the host: node's path.join emits
+  // backslashes on win32, and a /mnt/c/proj\.codexclaw never matches a posix
+  // mount prefix. In production these agree; under injected deps they need not.
+  const joiner = (deps.platform ?? process.platform) === "win32" ? join : posixPath.join;
+  const stateDir = joiner(cwd, ".codexclaw");
+  const tier = filesystemTier(stateDir, deps);
+  if (tier === "drvfs" || tier === "9p") {
+    return {
+      name: "wsl",
+      severity: "WARN",
+      evidence:
+        `.codexclaw state lives on ${tier} (${stateDir}, automount root ${root}). ` +
+        "File locking and atomic publish are weaker there than on a native Linux " +
+        "filesystem, and a Windows-side codex writing the same tree can interleave.",
+      repair:
+        "prefer a checkout under the Linux home, or drive codexclaw from Windows only",
+    };
+  }
+  return { name: "wsl", severity: "PASS", evidence: `WSL with ${tier} state (automount root ${root})` };
 }
 
 /**
@@ -216,6 +261,9 @@ export function runDoctor(
 
   // 8. PABCD session state health.
   checks.push(checkPabcdHealth(process.cwd()));
+
+  // 9. WSL residency and the filesystem tier the state tree actually sits on.
+  checks.push(checkWslResidency(process.cwd(), options.wslDeps ?? {}));
 
   // Read plugin version for report metadata.
   let pluginVersion: string | undefined;
@@ -400,13 +448,40 @@ export function runDriftCheck(pluginRoot: string): CheckResult[] {
  * skill helper without crashing when it (or python) is absent. Missing binary
  * is WARN (install hint), not FAIL — ast-grep is optional, on-demand tooling.
  */
-export function runAstGrepCheck(pluginRoot: string, runner: typeof spawnSync = spawnSync): CheckResult {
+export function runAstGrepCheck(
+  pluginRoot: string,
+  runner: typeof spawnSync = spawnSync,
+  platform: NodeJS.Platform = process.platform,
+): CheckResult {
   const helper = join(pluginRoot, "skills", "ast-grep", "scripts", "ast_grep_helper.py");
   if (!existsSync(helper)) {
     return { name: "ast-grep", severity: "WARN", evidence: "ast-grep skill helper not installed" };
   }
   try {
-    const res = runner("python3", [helper, "doctor"], { encoding: "utf8", timeout: 8000 });
+    // Bare "python3" on Windows resolves to the Microsoft Store alias: a real
+    // executable that exits 9009 without ever running Python. The py launcher
+    // ships with every python.org install, so it is the win32 entry point here.
+    const pythonBin = platform === "win32" ? "py" : "python3";
+    const pythonArgs = platform === "win32" ? ["-3", helper, "doctor"] : [helper, "doctor"];
+    const inv = commandInvocation(pythonBin, pythonArgs, platform);
+    const res = runner(inv.file, inv.args, { encoding: "utf8", timeout: 8000, ...inv.options });
+    // 9009 is cmd.exe's "command not recognized" and the Store alias's exit code;
+    // 127 is the POSIX equivalent. Neither sets res.error, so the old code read a
+    // missing interpreter as "sg not resolved" and pointed at the wrong install.
+    const interpreterMissing =
+      (res.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT" ||
+      res.status === 9009 ||
+      res.status === 127;
+    if (interpreterMissing) {
+      return {
+        name: "ast-grep",
+        severity: "WARN",
+        evidence:
+          platform === "win32"
+            ? "python not runnable (the Microsoft Store alias exits 9009) - install Python 3.9+ from python.org"
+            : "python3 not found - install Python 3.9+ to run the ast-grep helper",
+      };
+    }
     const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
     const versionMatch = out.match(/ast-grep\s+(\d+\.\d+\.\d+)/);
     const pathMatch = out.match(/ast-grep binary:\s*(\S+)/);

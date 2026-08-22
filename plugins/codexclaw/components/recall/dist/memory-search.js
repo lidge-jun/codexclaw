@@ -14,6 +14,7 @@ import { codexHome, memoriesDir, memoriesDbPath } from "./paths.js";
 import { openReadOnlyDb } from "./threads-db.js";
 import { splitQueryWords } from "./chat-search.js";
 import { expandQueryWords } from "./synonyms.js";
+import { splitLines } from "./text-lines.js";
 
 export const DEFAULT_MEMORY_LIMIT = 20;
 
@@ -198,8 +199,8 @@ function frontmatterThreadId(content        )                {
 /** Paragraph chunks with their 1-based start line, for jump-to-source output. */
 export function paragraphChunks(content        )                                             {
   const chunks                                             = [];
-  // CRLF-safe: strip the trailing \r so Windows-authored markdown chunks cleanly.
-  const lines = content.split("\n").map((l) => (l.endsWith("\r") ? l.slice(0, -1) : l));
+  // CRLF-safe: Windows-authored markdown chunks cleanly.
+  const lines = splitLines(content);
   let buf           = [];
   let start = 1;
   for (let i = 0; i <= lines.length; i++) {

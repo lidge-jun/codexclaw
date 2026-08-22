@@ -28,7 +28,7 @@
  * read-only and does not toggle or ensure opencodex.
  */
 import { spawnSync } from "node:child_process";
-import { dirname, join, resolve } from "node:path";
+import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, realpathSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
@@ -121,6 +121,79 @@ const skillSearchCli = join(
   "dist",
   "cli.js",
 );
+
+/**
+ * Windows spawn helpers, inlined.
+ *
+ * bin/codexclaw.mjs is plain ESM with no build step, so it cannot import the TS
+ * win-exec module the components use; it carries the same three rules here.
+ *
+ *  1. npm-installed CLIs are .cmd shims, and Node refuses shell-less .cmd spawns
+ *     after the CVE-2024-27980 hardening (measured here as EINVAL, not ENOENT).
+ *  2. A bare command name skips PATHEXT resolution, so spawnSync("npm") ENOENTs
+ *     even with npm.cmd on PATH.
+ *  3. shell:true is NOT the fix: Node does not escape cmd metacharacters there,
+ *     and guiDir can contain spaces or an ampersand.
+ */
+
+/** Case-insensitive env lookup: a child can arrive with Path, PATH, or both. */
+export function envValue(env, name) {
+  const direct = env[name];
+  if (direct !== undefined) return direct;
+  const lower = name.toLowerCase();
+  for (const key of Object.keys(env)) {
+    if (key.toLowerCase() === lower) return env[key];
+  }
+  return undefined;
+}
+
+const DEFAULT_PATHEXT = ".COM;.EXE;.BAT;.CMD";
+
+/** Resolve command against PATH x PATHEXT. Returns the input when nothing matches. */
+export function resolveWindowsCommand(command, env) {
+  if (command.includes("/") || command.includes("\\") || isAbsolute(command)) return command;
+  const exts = (envValue(env, "PATHEXT") ?? DEFAULT_PATHEXT).split(";").filter((e) => e.length > 0);
+  const dirs = (envValue(env, "PATH") ?? "").split(delimiter).filter((d) => d.length > 0);
+  for (const dir of dirs) {
+    for (const ext of exts) {
+      const candidate = join(dir, command + ext);
+      if (existsSync(candidate)) return candidate;
+      // Case-sensitive filesystems (WSL, Linux CI): PATHEXT spells ".EXE" but
+      // real shims are "npm.cmd" / "gh.exe", so retry the lowercased extension
+      // before giving up. On win32 this second stat is a no-op hit anyway.
+      const lowered = join(dir, command + ext.toLowerCase());
+      if (existsSync(lowered)) return lowered;
+    }
+  }
+  return command;
+}
+
+/** cross-spawn's escaping: double backslashes before quotes, quote, then caret. */
+function escapeCmdArg(arg) {
+  let out = arg.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\*)$/, "$1$1");
+  out = `"${out}"`;
+  return out.replace(/[()%!^"<>&|;, ]/g, "^$&");
+}
+
+function escapeCmdCommand(command) {
+  return command.replace(/[()%!^"<>&|;, ]/g, "^$&");
+}
+
+/**
+ * Build the spawn shape for command. POSIX is a passthrough; win32 resolves
+ * PATHEXT and routes only .cmd/.bat through cmd.exe.
+ */
+export function commandInvocation(command, args, platform = process.platform, env = process.env) {
+  if (platform !== "win32") return { file: command, args: [...args], options: {} };
+  const resolved = resolveWindowsCommand(command, env);
+  if (!/\.(cmd|bat)$/i.test(resolved)) return { file: resolved, args: [...args], options: {} };
+  const line = [escapeCmdCommand(resolved), ...args.map(escapeCmdArg)].join(" ");
+  return {
+    file: envValue(env, "ComSpec") ?? "cmd.exe",
+    args: ["/d", "/s", "/c", `"${line}"`],
+    options: { windowsVerbatimArguments: true },
+  };
+}
 
 /** Delegate a subcommand to the compiled config-guard CLI; returns its exit code. */
 function runConfigGuard(subcommand) {
@@ -235,7 +308,7 @@ function renderUnknownTopLevelCommand(cmd) {
  *
  * Pure helper (no spawning) so packaging tests can assert the ladder offline.
  */
-export function selectRepoMapCommand(args, env, deps) {
+export function selectRepoMapCommand(args, env, deps, platform = process.platform) {
   const { scriptPath, reqsPath, venvPython, hasUv, hasVenv } = deps;
   const wantsHelp = args.some((a) => a === "--help" || a === "-h");
   if (!wantsHelp && env.CODEXCLAW_PYTHON && env.CODEXCLAW_PYTHON.trim()) {
@@ -250,13 +323,31 @@ export function selectRepoMapCommand(args, env, deps) {
   if (!wantsHelp && hasVenv) {
     return { cmd: venvPython, args: ["-B", scriptPath, ...args] };
   }
+  // On Windows, bare "python3" resolves to the Microsoft Store stub at
+  // %LOCALAPPDATA%\Microsoft\WindowsApps\python3.exe - a real executable that
+  // exits 9009 without running Python, so it is not even an ENOENT. The py
+  // launcher ships with every python.org install at C:\Windows\py.exe.
+  if (platform === "win32" && !(env.CODEXCLAW_PYTHON && env.CODEXCLAW_PYTHON.trim())) {
+    return { cmd: "py", args: ["-3", "-B", scriptPath, ...args] };
+  }
   return { cmd: env.CODEXCLAW_PYTHON || "python3", args: ["-B", scriptPath, ...args] };
 }
 
-/** Locate the user-level rebuildable repomap venv (philosophy §2 derived-cache rule). */
-export function repoMapVenvPython(env, home) {
+/**
+ * Locate the user-level rebuildable repomap venv (philosophy derived-cache rule).
+ *
+ * Windows venvs put the interpreter at Scripts\python.exe, never bin/python3. With
+ * the POSIX-only path, hasVenv was always false on Windows, so every
+ * CODEXCLAW_MAP_BOOTSTRAP=1 run created a venv, failed to find its pip, and
+ * rmSync'd the venv it had just built.
+ *
+ * platform is a parameter so the packaging test can assert both shapes from one OS.
+ */
+export function repoMapVenvPython(env, home, platform = process.platform) {
   const base = env.CODEXCLAW_HOME && env.CODEXCLAW_HOME.trim() !== "" ? env.CODEXCLAW_HOME : join(home, ".codexclaw");
-  return join(base, "venvs", "repomap", "bin", "python3");
+  return platform === "win32"
+    ? join(base, "venvs", "repomap", "Scripts", "python.exe")
+    : join(base, "venvs", "repomap", "bin", "python3");
 }
 
 /** Run the vendored repo-map Python script (skill-owned, no dist build). argv: [...rest]. */
@@ -271,7 +362,11 @@ function runRepoMap(args) {
   if (!hasVenv && process.env.CODEXCLAW_MAP_BOOTSTRAP === "1" && !process.env.CODEXCLAW_PYTHON) {
     const venvDir = dirname(dirname(venvPython));
     console.error(`codexclaw map: bootstrapping venv at ${venvDir} (one-time)...`);
-    const mk = spawnSync("python3", ["-m", "venv", venvDir], { stdio: "inherit" });
+    // Same Store-stub reason as the ladder below: bare python3 exits 9009 here.
+    const bootstrapBin = process.platform === "win32" ? "py" : "python3";
+    const bootstrapArgs =
+      process.platform === "win32" ? ["-3", "-m", "venv", venvDir] : ["-m", "venv", venvDir];
+    const mk = spawnSync(bootstrapBin, bootstrapArgs, { stdio: "inherit" });
     if (mk.status === 0) {
       const pip = spawnSync(venvPython, ["-m", "pip", "install", "-q", "-r", reqsPath], { stdio: "inherit" });
       hasVenv = pip.status === 0;
@@ -285,9 +380,20 @@ function runRepoMap(args) {
   const uvRes = spawnSync("uv", ["--version"], { stdio: "ignore" });
   const hasUv = !uvRes.error && uvRes.status === 0;
   const sel = selectRepoMapCommand(args, process.env, { scriptPath, reqsPath, venvPython, hasUv, hasVenv });
-  const res = spawnSync(sel.cmd, sel.args, { stdio: "inherit" });
-  if (res.error && res.error.code === "ENOENT") {
-    console.error(`codexclaw map: ${sel.cmd} not found; install Python 3.9+ or set CODEXCLAW_PYTHON`);
+  const inv = commandInvocation(sel.cmd, sel.args);
+  const res = spawnSync(inv.file, inv.args, { stdio: "inherit", ...inv.options });
+  // 9009 is cmd.exe's "command not recognized" and the Store stub's exit code;
+  // 127 is the POSIX equivalent. Neither sets res.error, so the ENOENT-only guard
+  // let "cxc map" exit silently with no diagnostic at all.
+  const notFound =
+    (res.error && res.error.code === "ENOENT") || res.status === 9009 || res.status === 127;
+  if (notFound) {
+    console.error(
+      `codexclaw map: ${sel.cmd} could not be run (exit ${res.status ?? "spawn error"}).` +
+        (process.platform === "win32"
+          ? " Install Python 3.9+ from python.org (the Microsoft Store alias exits 9009 without running), or set CODEXCLAW_PYTHON."
+          : " Install Python 3.9+ or set CODEXCLAW_PYTHON."),
+    );
     return 1;
   }
   return typeof res.status === "number" ? res.status : 1;
@@ -393,11 +499,25 @@ if (isMain) switch (cmd) {
     const guiVite = join(guiDir, "node_modules", "vite");
     const rootVite = join(here, "..", "node_modules", "vite");
     if (!existsSync(guiVite) && !existsSync(rootVite)) {
-      console.log("codexclaw gui: dependencies not installed. Run `npm install` in plugins/codexclaw/gui first.");
+      // Name the real directory rather than a POSIX-looking relative path.
+      console.log(`codexclaw gui: dependencies not installed. Run \`npm install\` in ${guiDir} first.`);
       process.exit(1);
     }
     console.log("codexclaw gui: starting the dashboard (Vite will print the local URL)...");
-    const res = spawnSync("npm", ["run", "dev"], { cwd: guiDir, stdio: "inherit" });
+    // npm on PATH is a .cmd shim Node refuses to exec shell-less, and a bare "npm"
+    // skips PATHEXT, so this ENOENTs on Windows even though npm works in the same
+    // shell. shell:true is NOT the fix - guiDir may contain spaces and Node does
+    // not escape cmd metacharacters under shell:true.
+    const inv = commandInvocation("npm", ["run", "dev"]);
+    const res = spawnSync(inv.file, inv.args, { cwd: guiDir, stdio: "inherit", ...inv.options });
+    if (res.error) {
+      const hint =
+        res.error.code === "ENOENT"
+          ? "npm was not found on PATH; install Node.js/npm and retry"
+          : `npm could not be launched: ${res.error.message}`;
+      console.error(`codexclaw gui: ${hint}`);
+      process.exit(1);
+    }
     process.exit(typeof res.status === "number" ? res.status : 1);
     break;
   }

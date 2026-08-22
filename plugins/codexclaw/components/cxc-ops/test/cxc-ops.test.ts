@@ -1,10 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import type { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runDoctor, rollup, renderDoctor } from "../src/doctor.ts";
 import { runInstalledRootCheck } from "../src/doctor.ts";
+import { checkWslResidency } from "../src/doctor.ts";
 import { identityHash } from "../src/hook-trust.ts";
 import { runReset, parseResetScope } from "../src/reset.ts";
 import { main } from "../src/cli.ts";
@@ -111,7 +113,14 @@ test("doctor: healthy plugin root -> PASS with evidence on every check", () => {
     stdout: "ast-grep binary: /stub/sg\n  version: ast-grep 0.44.0\n",
     stderr: "",
   })) as unknown as typeof import("node:child_process").spawnSync;
-  const report = runDoctor(root, agRunner, { codexHome, pluginKey: "test@fixture" });
+  // Pin the WSL probes: run from a /mnt/c checkout inside WSL the state tree is
+  // really on 9p, so an un-injected check would WARN here and the assertion below
+  // would depend on which side of the platform boundary the tests were started.
+  const report = runDoctor(root, agRunner, {
+    codexHome,
+    pluginKey: "test@fixture",
+    wslDeps: { platform: "linux", env: {}, procVersion: null },
+  });
   assert.equal(
     report.overall,
     "PASS",
@@ -310,4 +319,46 @@ test("doctor repair field appears in rendered output for non-PASS checks", () =>
   } finally {
     process.cwd = origCwd;
   }
+});
+
+// --- wp05 defect #16: the version regex was missing its backslashes ---
+
+test("doctor parses a semver out of codex --version", () => {
+  // /(d+.d+.d+)/ matched a literal "d", so "codex 1.2.3" fell through to the raw
+  // stdout trim. The report has a codexVersion field; it should hold a version.
+  const runner = ((cmd: string) => {
+    if (cmd === "codex") return { status: 0, stdout: "codex-cli 1.2.3\n", stderr: "" };
+    return { status: 1, stdout: "", stderr: "" };
+  }) as unknown as typeof spawnSync;
+  const report = runDoctor(payloadAt("0.0.1"), runner, { codexHome: mkdtempSync(join(tmpdir(), "cxc-empty-")) });
+  assert.equal(report.codexVersion, "1.2.3");
+});
+
+test("doctor falls back to trimmed stdout when no semver is present", () => {
+  const runner = ((cmd: string) => {
+    if (cmd === "codex") return { status: 0, stdout: "  nightly  \n", stderr: "" };
+    return { status: 1, stdout: "", stderr: "" };
+  }) as unknown as typeof spawnSync;
+  const report = runDoctor(payloadAt("0.0.1"), runner, { codexHome: mkdtempSync(join(tmpdir(), "cxc-empty-")) });
+  assert.equal(report.codexVersion, "nightly");
+});
+
+// --- wp07 (plan 060): WSL residency + state filesystem tier ---
+
+test("the doctor wsl check is ok off-WSL", () => {
+  const check = checkWslResidency("/home/u/proj", { platform: "linux", env: {}, procVersion: null });
+  assert.equal(check.severity, "PASS");
+  assert.match(check.evidence, /not running under WSL/);
+});
+
+test("the doctor wsl check warns on drvfs state", () => {
+  const check = checkWslResidency("/mnt/c/proj", {
+    platform: "linux",
+    env: { WSL_DISTRO_NAME: "Ubuntu" },
+    wslConf: "[automount]\nroot = /mnt\n",
+    procMounts: ["/dev/sdc / ext4 rw 0 0", "C: /mnt/c drvfs rw 0 0"].join("\n"),
+  });
+  assert.equal(check.severity, "WARN");
+  assert.match(check.evidence, /drvfs/);
+  assert.match(check.evidence, /automount root \/mnt/);
 });

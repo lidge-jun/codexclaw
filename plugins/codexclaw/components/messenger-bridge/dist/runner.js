@@ -15,7 +15,8 @@
  * sandbox, --skip-git-repo-check. Missing rollout emits: "thread/resume failed:
  * no rollout found for thread id <id>".
  */
-import { spawn,                   } from "node:child_process";
+import { spawn, spawnSync,                   } from "node:child_process";
+import { commandInvocation } from "./win-exec.js";
 
 
 
@@ -59,7 +60,7 @@ import { spawn,                   } from "node:child_process";
 
 
 const DEFAULT_TIMEOUT_MS = 600_000;
-const SIGKILL_GRACE_MS = 3_000;
+export const SIGKILL_GRACE_MS = 3_000;
 export const MAX_RUNNER_OUTPUT_BYTES = 8 * 1024 * 1024;
 export const MAX_EXEC_EVENT_LINE_BYTES = 8 * 1024 * 1024;
 const OUTPUT_TRUNCATED = "\n\n[codexclaw: output truncated at 8 MiB to protect bridge memory]";
@@ -260,16 +261,59 @@ function fileChangeAction(raw        )                                 {
   return "modify";
 }
 
-export function terminateChild(child              )       {
+/**
+ * Injection points for terminateChild. Production passes nothing; the tests
+ * drive both platforms and both escalation paths from one OS without ever
+ * signalling a real process.
+ */
+
+
+
+
+
+
+
+export function terminateChild(child              , deps                = {})       {
   // `exit` does not imply the process group is gone: a grandchild can retain an
   // inherited stdout/stderr descriptor and prevent Node's `close` event. Always
   // signal the detached group while the runner still owns this ChildProcess.
-  signalProcessTree(child, "SIGTERM");
-  if (process.platform !== "win32") {
-    const timer = setTimeout(() => {
-      signalProcessTree(child, "SIGKILL");
-    }, SIGKILL_GRACE_MS);
-    timer.unref?.();
+  const platform = deps.platform ?? process.platform;
+  const schedule = deps.schedule ?? ((fn, ms) => setTimeout(fn, ms));
+  signalProcessTree(child, "SIGTERM", platform, deps.kill);
+  // The escalation used to be POSIX-only, so on Windows a codex process that
+  // spawned MCP helpers left them holding the pipe: the turn timeout fired,
+  // terminateChild ran, and the promise never settled (002 B13).
+  const timer = schedule(() => {
+    if (platform === "win32") killWindowsTree(child, deps.spawnFn ?? spawnSync);
+    else signalProcessTree(child, "SIGKILL", platform, deps.kill);
+  }, SIGKILL_GRACE_MS);
+  timer.unref?.();
+}
+
+/**
+ * Windows has no process groups and no real signals, so `child.kill()` reaches only
+ * the direct child. `taskkill /T` walks the tree by parent pid.
+ *
+ * argv array with no shell: the pid is a number we produced, but routing it
+ * through a shell would be a quoting hazard for no benefit.
+ */
+function killWindowsTree(child              , spawnFn                  )       {
+  if (!child.pid) return;
+  try {
+    const inv = commandInvocation("taskkill", ["/pid", String(child.pid), "/T", "/F"], "win32");
+    spawnFn(inv.file, inv.args, {
+      stdio: "ignore",
+      windowsHide: true,
+      timeout: 5_000,
+      ...inv.options,
+    });
+  } catch {
+    // Fall back to the direct child; the process may already be gone.
+  }
+  try {
+    child.kill("SIGKILL");
+  } catch {
+    // Already exited.
   }
 }
 
@@ -303,12 +347,19 @@ function withTruncationMarker(candidate        )         {
   return `${clipped}${OUTPUT_TRUNCATED}`;
 }
 
-function signalProcessTree(child              , signal                )       {
-  if (process.platform !== "win32" && child.pid) {
+function signalProcessTree(
+  child              ,
+  signal                ,
+  platform                  = process.platform,
+  kill                                                = (pid, sig) => {
+    process.kill(pid, sig);
+  },
+)       {
+  if (platform !== "win32" && child.pid) {
     try {
       // POSIX children are spawned into their own process group below, so a
       // negative PID reaches grandchildren such as shell/MCP helpers too.
-      process.kill(-child.pid, signal);
+      kill(-child.pid, signal);
       return;
     } catch {
       // Race with process exit or a platform without group signalling.

@@ -18,6 +18,7 @@ import { readState } from "./state.js";
 import { readGoalplan, writeGoalplan, effectiveActiveWorkPhaseId,               } from "./goalplan.js";
 import { openRound, markLaunching, markInFlight, latestRound, abortRound, staleness } from "./review-round.js";
 
+import { splitLines } from "./text-lines.js";
 
 
 const VERBS                      = new Set                 (["open", "show", "abort"]);
@@ -27,7 +28,8 @@ const NUMBERED_DOC_RE = /^\d{3}_.+\.md$/;
 
 /** Body of a TOML table `[header]`, up to the next table header. */
 function tomlTableBody(content        , header        )                {
-  const lines = content.split("\n");
+  // The user's config.toml is foreign input; a Windows editor writes CRLF.
+  const lines = splitLines(content);
   const escaped = header.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const start = lines.findIndex((line) => new RegExp(`^\\s*\\[${escaped}\\]\\s*(?:#.*)?$`).test(line));
   if (start === -1) return null;

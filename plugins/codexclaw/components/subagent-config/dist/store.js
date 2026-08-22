@@ -7,10 +7,11 @@
  * atomic (temp + rename). NEVER mutates global Codex config; default mode needs
  * no ocx (uses the main Codex model).
  */
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { renameWithRetry } from "./atomic-write.js";
 
 export const STATE_DIR = ".codexclaw";
 export const STORE_FILE = "subagents.json";
@@ -129,7 +130,7 @@ export function writeConfig(cwd        , config                 )       {
   const tmp = `${path}.tmp`;
   try {
     writeFileSync(tmp, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
-    renameSync(tmp, path);
+    renameWithRetry(tmp, path);
   } catch (err) {
     try {
       if (existsSync(tmp)) rmSync(tmp);

@@ -13,6 +13,7 @@
  */
 import { readdirSync, existsSync, openSync, readSync, closeSync } from "node:fs";
 import { join, basename } from "node:path";
+import { splitLines } from "./text-lines.ts";
 
 export type RolloutSource = "main" | "subagent";
 
@@ -212,7 +213,10 @@ function toolOutputText(output: unknown): string {
 /** Extract the full ordered chat/tool entry list from a rollout file's content. */
 export function parseRollout(content: string, includeTools: boolean): ChatEntry[] {
   const entries: ChatEntry[] = [];
-  for (const line of content.split("\n")) {
+  // Rollout JSONL is written by codex, not by us. No offset or length is recorded
+  // off this split, so the CRLF-tolerant idiom is safe here (section 3 exception
+  // checked): only JSON.parse consumes each line.
+  for (const line of splitLines(content)) {
     if (line === "") continue;
     // Cheap structural prefilter: skip lines that cannot be response_items.
     if (!line.includes('"response_item"')) continue;

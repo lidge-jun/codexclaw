@@ -19,6 +19,7 @@
 import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { splitLines } from "./text-lines.ts";
 
 export const STATE_DIR = ".codexclaw";
 export const FRICTION_FILE = "friction.jsonl";
@@ -45,6 +46,10 @@ export function normalizeError(s: string): string {
   out = out.replace(/0x[0-9a-f]+/g, "0xADDR"); // hex addresses
   out = out.replace(/:\d+:\d+/g, ":L:C"); // line:col
   out = out.replace(/:\d+\b/g, ":L"); // bare :line
+  // UNC first: \\server\share\... matches neither the drive-letter rule (no
+  // "c:") nor the posix rule (backslashes), so it survived into the signature
+  // and made every machine's UNC failure a different key (002 B15).
+  out = out.replace(/\\\\[^\s]+/g, "/PATH");
   out = out.replace(/[a-z]:\\[^\s:]+/g, "/PATH"); // windows paths
   out = out.replace(/(\/[^\s:]+)+/g, "/PATH"); // posix-ish paths
   out = out.replace(/\s+/g, " ").trim();
@@ -76,7 +81,7 @@ export function readFrictionEntries(cwd: string): FrictionEntry[] {
     return [];
   }
   const out: FrictionEntry[] = [];
-  for (const line of raw.split("\n")) {
+  for (const line of splitLines(raw)) {
     const t = line.trim();
     if (t.length === 0) continue;
     try {

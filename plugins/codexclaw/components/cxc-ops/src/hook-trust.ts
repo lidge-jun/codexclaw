@@ -6,13 +6,13 @@ import {
   lstatSync,
   readFileSync,
   realpathSync,
-  renameSync,
   statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
+import { renameWithRetry } from "./atomic-write.ts";
 
 const EVENT_LABELS = {
   PreToolUse: "pre_tool_use",
@@ -353,7 +353,7 @@ function writeAtomic(path: string, content: string): void {
   const tmpPath = join(dirname(path), `.config.toml.tmp-${process.pid}-${Date.now()}`);
   try {
     writeFileSync(tmpPath, content, { encoding: "utf8", flag: "wx", mode: statSync(path).mode });
-    renameSync(tmpPath, path);
+    renameWithRetry(tmpPath, path);
   } catch (error) {
     try {
       unlinkSync(tmpPath);

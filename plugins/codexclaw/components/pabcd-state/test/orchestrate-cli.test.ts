@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { parseOrchestrateCliArgs, renderOrchestrateParseError, runOrchestrateCli, resolveSession } from "../src/orchestrate-cli.ts";
+import { parseOrchestrateCliArgs, renderOrchestrateHelp, renderOrchestrateParseError, runOrchestrateCli, resolveSession } from "../src/orchestrate-cli.ts";
 import { writeState, readState, defaultState, STATE_DIR, SESSIONS_SUBDIR, LEDGER_FILE } from "../src/state.ts";
 import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
 import { captureSourceIdentity } from "../src/source-identity.ts";
@@ -68,6 +68,101 @@ test("parseOrchestrateCliArgs: malformed --attest sets attestError, no throw", (
   assert.ok(!("error" in r));
   if ("error" in r) return;
   assert.ok(r.attestError);
+});
+
+// ---- #31: --attest-file (PowerShell cannot pass the inline JSON as one argv token) ----
+
+const FILE_ATTEST = '{"from":"P","to":"A","did":"wrote the plan from a file"}';
+
+test("#31: --attest-file reads JSON from disk", () => {
+  const cwd = freshCwd();
+  try {
+    writeFileSync(join(cwd, "att.json"), FILE_ATTEST, "utf8");
+    const r = parseOrchestrateCliArgs(["a", "--session", "s1", "--attest-file", "att.json", "--cwd", cwd], "/unused");
+    assert.ok(!("error" in r));
+    if ("error" in r) return;
+    assert.equal(r.attestError, undefined);
+    assert.equal(r.attest?.did, "wrote the plan from a file");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("#31: --attest-file resolves against --cwd even when --cwd comes later in argv", () => {
+  const cwd = freshCwd();
+  try {
+    writeFileSync(join(cwd, "att.json"), FILE_ATTEST, "utf8");
+    // the flag is parsed BEFORE --cwd is known, so resolution must be deferred
+    const r = parseOrchestrateCliArgs(["a", "--attest-file", "att.json", "--cwd", cwd], "/unused");
+    assert.ok(!("error" in r));
+    if ("error" in r) return;
+    assert.equal(r.attestError, undefined);
+    assert.equal(r.attest?.from, "P");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("#31: --attest-file on a missing path sets attestError", () => {
+  const cwd = freshCwd();
+  try {
+    const r = parseOrchestrateCliArgs(["a", "--attest-file", "nope.json", "--cwd", cwd], "/unused");
+    assert.ok(!("error" in r));
+    if ("error" in r) return;
+    assert.match(r.attestError ?? "", /could not read the attest file/);
+    assert.equal(r.attest, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("#31: --attest and --attest-file together are rejected", () => {
+  const cwd = freshCwd();
+  try {
+    writeFileSync(join(cwd, "att.json"), FILE_ATTEST, "utf8");
+    const r = parseOrchestrateCliArgs(
+      ["a", "--attest", FILE_ATTEST, "--attest-file", "att.json", "--cwd", cwd],
+      "/unused",
+    );
+    assert.ok(!("error" in r));
+    if ("error" in r) return;
+    assert.match(r.attestError ?? "", /not both/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("#31: --attest-file with no argument sets attestError", () => {
+  const r = parseOrchestrateCliArgs(["a", "--attest-file"], "/tmp");
+  assert.ok(!("error" in r));
+  if ("error" in r) return;
+  assert.match(r.attestError ?? "", /requires a path argument/);
+});
+
+test("#31: --attest-file tolerates CRLF line endings", () => {
+  const cwd = freshCwd();
+  try {
+    const crlf = '{\r\n"from":"P",\r\n"to":"A",\r\n"did":"crlf attest"\r\n}\r\n';
+    writeFileSync(join(cwd, "att.json"), crlf, "utf8");
+    const r = parseOrchestrateCliArgs(["a", "--attest-file", "att.json", "--cwd", cwd], "/unused");
+    assert.ok(!("error" in r));
+    if ("error" in r) return;
+    assert.equal(r.attestError, undefined);
+    assert.equal(r.attest?.did, "crlf attest");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("#31: --attest-file tolerates a UTF-8 BOM (PowerShell 5.1 Set-Content -Encoding utf8)", () => {
+  const cwd = freshCwd();
+  try {
+    writeFileSync(join(cwd, "att.json"), "\uFEFF" + FILE_ATTEST, "utf8");
+    const r = parseOrchestrateCliArgs(["a", "--attest-file", "att.json", "--cwd", cwd], "/unused");
+    assert.ok(!("error" in r));
+    if ("error" in r) return;
+    assert.equal(r.attestError, undefined, "a BOM must not reject the documented win32 recipe");
+    assert.equal(r.attest?.did, "wrote the plan from a file");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("#31: win32 help shows the file form; posix help keeps the inline examples", () => {
+  const win = renderOrchestrateHelp("win32");
+  assert.match(win, /--attest-file/);
+  assert.ok(!win.includes("--attest '{"), "win32 help must not suggest inline JSON");
+  const linux = renderOrchestrateHelp("linux");
+  assert.ok(linux.includes("--attest '{"), "posix help keeps the inline examples");
+  assert.match(linux, /--attest <json> \| --attest-file <path>/);
 });
 
 test("orchestrate help exits 0 and does not mutate state, ledger, or render ledger", () => {

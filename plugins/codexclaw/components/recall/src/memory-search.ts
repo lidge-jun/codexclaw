@@ -14,6 +14,7 @@ import { codexHome, memoriesDir, memoriesDbPath } from "./paths.ts";
 import { openReadOnlyDb } from "./threads-db.ts";
 import { splitQueryWords } from "./chat-search.ts";
 import { expandQueryWords } from "./synonyms.ts";
+import { splitLines } from "./text-lines.ts";
 
 export const DEFAULT_MEMORY_LIMIT = 20;
 
@@ -198,8 +199,8 @@ function frontmatterThreadId(content: string): string | null {
 /** Paragraph chunks with their 1-based start line, for jump-to-source output. */
 export function paragraphChunks(content: string): Array<{ text: string; startLine: number }> {
   const chunks: Array<{ text: string; startLine: number }> = [];
-  // CRLF-safe: strip the trailing \r so Windows-authored markdown chunks cleanly.
-  const lines = content.split("\n").map((l) => (l.endsWith("\r") ? l.slice(0, -1) : l));
+  // CRLF-safe: Windows-authored markdown chunks cleanly.
+  const lines = splitLines(content);
   let buf: string[] = [];
   let start = 1;
   for (let i = 0; i <= lines.length; i++) {

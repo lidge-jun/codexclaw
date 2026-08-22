@@ -16,6 +16,13 @@ jobs:
         # macOS is the primary development platform and was the only untested one;
         # a path-case or BSD-tool difference would otherwise ship undetected.
         os: [ubuntu-latest, windows-latest, macos-latest]
+        # autocrlf=true is what a default Windows git install does, and it is the
+        # configuration that turns CRLF-safe-today readers into broken ones.
+        # Testing only the eol=lf checkout tests a machine our users do not have.
+        autocrlf: [false]
+        include:
+          - os: windows-latest
+            autocrlf: true
       fail-fast: false
     runs-on: ${{ matrix.os }}
     env:
@@ -23,6 +30,8 @@ jobs:
       # from skip to a live network dependency resolve. Keep CI deterministic.
       CODEXCLAW_SKIP_REPOMAP_SMOKE: "1"
     steps:
+      - name: Configure line endings
+        run: git config --global core.autocrlf ${{ matrix.autocrlf }}
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
@@ -33,3 +42,15 @@ jobs:
       - run: npm test
       - run: node plugins/codexclaw/scripts/inventory.mjs --check
       - run: node plugins/codexclaw/scripts/gate.mjs
+      # The suites above are largely pure-function suites. This executes the spawn
+      # ladders, the bench, and the bundle - the surfaces where the audited win32
+      # defects lived (devlog/_plan/260821_win-linux-optimization/002).
+      - name: Platform smoke
+        run: node plugins/codexclaw/scripts/platform-smoke.mjs
+      - name: Upload receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: receipts-${{ matrix.os }}-crlf${{ matrix.autocrlf }}
+          path: .codexclaw/evidence/
+          if-no-files-found: warn

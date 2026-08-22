@@ -1,6 +1,8 @@
-import { appendFileSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { renameWithRetry } from "./atomic-write.ts";
 import { sanitizeKey, STATE_DIR } from "./state.ts";
+import { splitLines } from "./text-lines.ts";
 
 export type ObjectiveMetricSource = "operator-entered" | "evaluate.sh";
 export type ObjectiveKind = "satisfy" | "maximize";
@@ -71,7 +73,7 @@ function readAllObjectiveMetrics(cwd: string): ObjectiveMetricRecord[] {
     return [];
   }
   const out: ObjectiveMetricRecord[] = [];
-  for (const line of raw.split("\n")) {
+  for (const line of splitLines(raw)) {
     if (!line.trim()) continue;
     try {
       const parsed = JSON.parse(line) as Partial<ObjectiveMetricRecord> | null;
@@ -138,7 +140,7 @@ export function writeObjectiveKind(cwd: string, sessionId: string, kind: Objecti
   const tmp = `${finalPath}.${process.pid}.${Date.now()}.tmp`;
   try {
     writeFileSync(tmp, JSON.stringify({ sessionId, kind, updatedAt: new Date().toISOString() }, null, 2));
-    renameSync(tmp, finalPath);
+    renameWithRetry(tmp, finalPath);
   } catch (err) {
     try {
       rmSync(tmp, { force: true });

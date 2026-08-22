@@ -1,1 +1,12 @@
 * text=auto eol=lf
+
+# Generated Windows assets. cmd.exe parses .cmd files in the console's OEM code
+# page and a CRLF-less .cmd can misparse, so these are checked out with CRLF and
+# never normalized (opencodex service.ts:245 writes them CRLF for this reason).
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Fixtures whose bytes are the test subject. Normalizing a CRLF fixture to LF
+# would make the CRLF tests pass vacuously.
+plugins/codexclaw/**/test/fixtures/**/*.crlf.* -text

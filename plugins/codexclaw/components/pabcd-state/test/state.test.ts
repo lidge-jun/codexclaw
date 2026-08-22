@@ -502,3 +502,61 @@ test("G3 (L20): readInterviewEvents returns scan-only rows from a MIXED ledger (
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+// --- wp05 defect #13: hard links need NTFS; FAT32/exFAT/shares answer EPERM ---
+
+test("ensureState falls back when linkSync answers EPERM", () => {
+  const cwd = freshCwd();
+  try {
+    const created = ensureState(cwd, "fat32-eperm", () => {
+      throw Object.assign(new Error("EPERM"), { code: "EPERM" });
+    });
+    assert.equal(created, true);
+    const path = join(cwd, STATE_DIR, SESSIONS_SUBDIR, "fat32-eperm.json");
+    assert.ok(existsSync(path), "the wx fallback must publish the state file");
+    assert.equal(JSON.parse(readFileSync(path, "utf8")).phase, "IDLE");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("the fallback maps EEXIST to false", () => {
+  const cwd = freshCwd();
+  try {
+    // Someone else won the race: the file already exists, so the wx write throws EEXIST.
+    assert.equal(ensureState(cwd, "fat32-race"), true);
+    const second = ensureState(cwd, "fat32-race", () => {
+      throw Object.assign(new Error("ENOTSUP"), { code: "ENOTSUP" });
+    });
+    assert.equal(second, false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("EEXIST from linkSync still returns false without touching the fallback", () => {
+  const cwd = freshCwd();
+  try {
+    let fallbackReached = false;
+    const result = ensureState(cwd, "ntfs-race", () => {
+      fallbackReached = true;
+      throw Object.assign(new Error("EEXIST"), { code: "EEXIST" });
+    });
+    assert.equal(result, false);
+    assert.equal(fallbackReached, true, "the stub itself ran");
+    assert.ok(!existsSync(join(cwd, STATE_DIR, SESSIONS_SUBDIR, "ntfs-race.json")), "EEXIST must not publish");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("a non-link error still propagates", () => {
+  const cwd = freshCwd();
+  try {
+    assert.throws(() => ensureState(cwd, "hard-failure", () => {
+      throw Object.assign(new Error("EIO"), { code: "EIO" });
+    }), /EIO/);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

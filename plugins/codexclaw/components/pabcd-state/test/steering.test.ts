@@ -97,11 +97,56 @@ test("one invalid op rejects the whole batch", () => {
   assert.equal(readGoalplan(cwd, SLUG)?.steeringLog, undefined);
 });
 
-test("an op kind this slice does not implement is rejected", () => {
+test("a weakening op kind is rejected with the supported set named", () => {
   const cwd = workspace();
   const r = applySteeringBatch(cwd, SLUG, batch({ ops: [{ kind: "retitle_work_phase", note: "x" }] }));
   assert.equal(r.kind, "rejected");
-  assert.match((r as { reason: string }).reason, /"annotate" only/);
+  assert.match((r as { reason: string }).reason, /use "annotate", "add-criterion", or "add-work-phase"/);
+});
+
+test("add-criterion appends a criterion and is idempotent on resubmission", () => {
+  const cwd = workspace();
+  const r1 = applySteeringBatch(cwd, SLUG, {
+    idempotencyKey: "k-add-crit",
+    rationale: "test",
+    evidence: "new gate",
+    ops: [{ kind: "add-criterion", scenario: "dual-platform suite green", surface: "logic", expectedEvidence: "receipts" }],
+  });
+  assert.equal(r1.kind, "applied");
+  const plan = readGoalplan(cwd, SLUG);
+  const added = plan?.criteria.find((c) => c.scenario === "dual-platform suite green");
+  assert.ok(added, "criterion registered");
+  assert.equal(added?.status, "open");
+  assert.equal(added?.surface, "logic");
+  const r2 = applySteeringBatch(cwd, SLUG, {
+    idempotencyKey: "k-add-crit",
+    rationale: "test",
+    evidence: "new gate",
+    ops: [{ kind: "add-criterion", scenario: "dual-platform suite green" }],
+  });
+  assert.equal(r2.kind, "duplicate");
+});
+
+test("add-work-phase appends a pending phase; duplicate id is rejected", () => {
+  const cwd = workspace();
+  const r1 = applySteeringBatch(cwd, SLUG, {
+    idempotencyKey: "k-add-wp",
+    rationale: "test",
+    evidence: "scope growth",
+    ops: [{ kind: "add-work-phase", id: "wp99-new", title: "Newly scoped work" }],
+  });
+  assert.equal(r1.kind, "applied");
+  const wp = readGoalplan(cwd, SLUG)?.workPhases.find((w) => w.id === "wp99-new");
+  assert.ok(wp, "work phase registered");
+  assert.equal(wp?.status, "pending");
+  const r2 = applySteeringBatch(cwd, SLUG, {
+    idempotencyKey: "k-add-wp-2",
+    rationale: "test",
+    evidence: "same id again",
+    ops: [{ kind: "add-work-phase", id: "wp99-new", title: "Duplicate" }],
+  });
+  assert.equal(r2.kind, "rejected");
+  assert.match((r2 as { reason: string }).reason, /already in this plan/);
 });
 
 test("an empty ops array is rejected", () => {
