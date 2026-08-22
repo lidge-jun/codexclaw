@@ -6,6 +6,46 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.12] — 2026-08-22
+
+Three bugs filed against codexclaw, all of them cases where the tool obstructed
+an agent that was following its own instructions.
+
+### Fixed
+
+- **`loop`, `scan` and `receipt` had no `--help` (#47).** The top-level help
+  points at those commands, and following that pointer failed — `--help` was
+  reported as an unknown verb, and `cxc --version` as an unknown command.
+  `orchestrate` was fixed for this long ago; its siblings never were.
+
+  The individual error messages were fine. The problem was that discovery was
+  only available through failure: arming a goalplan took six consecutive
+  rejections to assemble one correct command. The `loop` usage now spells out the
+  steer batch shape, which is the one nobody can guess.
+
+  Also from that issue: `scan record` now accepts `--cwd`, which `orchestrate`
+  already documented.
+
+- **The same `--session` id resolved to two different FSMs (#48).** Session files
+  live under the process cwd, so a thread whose cwd is one tree while its work is
+  in another silently interviews one FSM and orchestrates the other. `status` now
+  warns when the id exists elsewhere and names the paths, instead of reporting
+  `IDLE` for a cycle that is live next door. Detection only — the other tree is
+  never read or written. `loop show` also accepts `--session` and resolves the
+  slug the session already carries.
+
+- **Two gates forced the forgery they existed to prevent (#49).** `receipt test`
+  refused a receipt whenever the check dirtied the tree, including when the dirty
+  files were the artifacts the check exists to rebuild — so the reported
+  workaround was a no-op existence check, a receipt that certifies nothing.
+  `--generated <path>` now declares expected rewrites; everything undeclared is
+  still refused.
+
+  `orchestrate D` refused a goalplan whose work-phases were all done, because
+  "complete" and "empty" produced the same internal result. The workaround was to
+  write a finished phase back to `in_progress` purely to pass the gate. D now
+  closes over a complete plan and the refusal names which real cause applies.
+
 ## [0.2.11] — 2026-08-22
 
 ### Fixed
