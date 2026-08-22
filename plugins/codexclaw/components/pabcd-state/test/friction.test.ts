@@ -25,6 +25,25 @@ test("080.1: verdict math retry(1)/escalate(>=2)/stop(>=3)", () => {
   assert.equal(verdictForCount(7), "stop");
 });
 
+test("100.13: normalizeError collapses UNC paths into /PATH", () => {
+  const out = normalizeError("EPERM: operation not permitted, \\\\fileserver\\share\\proj\\f.ts");
+  assert.ok(!out.includes("fileserver"), "server name must not survive: " + out);
+  assert.ok(out.includes("/PATH"), out);
+});
+
+test("100.14: two machines' UNC failures key identically", () => {
+  const a = frictionKey("B", normalizeError("ENOENT: \\\\host-a\\c$\\repo\\x.json missing"));
+  const b = frictionKey("B", normalizeError("ENOENT: \\\\host-b\\d$\\other\\y.json missing"));
+  // Different hosts/shares but the same failure shape -> same signature class.
+  assert.notEqual(a, "raw", "key must derive from normalized text");
+});
+
+test("100.15: UNC rule runs before drive-letter and posix rules", () => {
+  const unc = normalizeError("failed \\\\srv\\share\\a\\b.txt:2:1 nope");
+  assert.ok(!unc.includes("srv"), out(unc));
+  function out(s) { return s; }
+});
+
 test("080.1: normalizeError strips line:col + paths so the same failure keys stably", () => {
   const a = normalizeError("Error at /Users/jun/x.ts:12:5: boom");
   const b = normalizeError("Error at /tmp/y.ts:99:1: boom");

@@ -46,6 +46,10 @@ export function normalizeError(s        )         {
   out = out.replace(/0x[0-9a-f]+/g, "0xADDR"); // hex addresses
   out = out.replace(/:\d+:\d+/g, ":L:C"); // line:col
   out = out.replace(/:\d+\b/g, ":L"); // bare :line
+  // UNC first: \\server\share\... matches neither the drive-letter rule (no
+  // "c:") nor the posix rule (backslashes), so it survived into the signature
+  // and made every machine's UNC failure a different key (002 B15).
+  out = out.replace(/\\\\[^\s]+/g, "/PATH");
   out = out.replace(/[a-z]:\\[^\s:]+/g, "/PATH"); // windows paths
   out = out.replace(/(\/[^\s:]+)+/g, "/PATH"); // posix-ish paths
   out = out.replace(/\s+/g, " ").trim();
