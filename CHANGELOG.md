@@ -6,6 +6,28 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.9] — 2026-08-22
+
+### Changed
+
+- **Two POSIX-only test cases now report as skips instead of silent passes.** They
+  bailed with a bare `if (process.platform === "win32") return`, which reports "ok"
+  while asserting nothing - the same pattern removed from the pabcd-state and
+  cxc-ops suites in 0.2.7. Neither can genuinely run on Windows: process groups and
+  a signal-0 liveness probe are POSIX concepts (Windows kills a tree with
+  `taskkill /T`, which is covered separately), and Windows has no Unix permission
+  bits, so `chmod` cannot build the world-readable file the refusal test needs.
+
+### Fixed
+
+- **A CRLF equivalence test compared a clock.** It invoked the CLI twice and
+  compared the outputs verbatim, but the dispatch text embeds a launch id built
+  from a second-resolution timestamp, so any pair of calls straddling a second
+  boundary differed by one digit and failed for a reason unrelated to line
+  endings. It passed locally on both platforms because the two calls usually land
+  in the same second; a loaded CI runner is where the boundary gets crossed. The
+  launch line is now asserted by shape and normalized before the comparison.
+
 ## [0.2.8] — 2026-08-22
 
 ### Fixed
