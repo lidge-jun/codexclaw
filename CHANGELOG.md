@@ -6,6 +6,35 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.8] — 2026-08-22
+
+### Fixed
+
+- **`cxc receipt test` could not run `npm` on Windows (#40).** The receipt runner
+  handed user argv to a shell-less `spawnSync`, so bare `npm` was `ENOENT`
+  (PATHEXT resolution is a shell behavior `spawnSync` does not perform) and an
+  explicit `npm.cmd` was `EINVAL` (Node refuses shell-less `.cmd` spawns after
+  the CVE-2024-27980 hardening). That matters more than a normal CLI papercut:
+  `orchestrate C -> D` requires a `testReceiptPath` and names this command as the
+  way to produce one, so the documented path to close a work-phase did not work
+  on Windows for the most common test command there is.
+
+  The runner now resolves through the shared `win-exec` helper, which routes only
+  `.cmd`/`.bat` through a caret-escaped `ComSpec` line and spawns a resolved
+  `.exe` directly. `shell: true` was deliberately not used: the command is
+  user-supplied, and Node does not escape cmd metacharacters in that mode, so a
+  path containing `&` or `^` would become an injection. `shell: false` still
+  holds, and the recorded command stays the argv you typed.
+
+- **A Windows PATH was split with the host's separator.** `resolveWindowsCommand`
+  used `node:path`'s `delimiter`, which follows the platform it runs on. When the
+  win32-only resolution walk was exercised from a Linux runner that is `:`, so a
+  `;`-separated Windows PATH collapsed into a single bogus directory entry and
+  resolved nothing. The separator is literal now, and a test asserts that the four
+  copies of the helper stay byte-identical so they cannot drift apart silently.
+
+## [0.2.7] — 2026-08-22
+
 ### Fixed
 
 - **`cxc hooks retrust` could not verify its own write on Windows (#33).** The
