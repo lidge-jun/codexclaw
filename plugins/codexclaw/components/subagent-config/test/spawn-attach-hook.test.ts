@@ -310,11 +310,11 @@ test("mention normalization: adversarial floods stay linear-time", () => {
   let fsFactor = 1;
   if (process.platform === "linux") {
     try {
-      const mounts = readFileSync("/proc/mounts", "utf8");
-      const tmpMount = mounts.split("\n").find((l) => l.includes(" /tmp "));
-      // Measured on GH runners: this fixture is I/O-coupled through SKILLS_DIR,
-      // so drvfs amplification is far steeper than the 091 CPU-only 5x.
-      if (tmpMount && /(drvfs|9p)/.test(tmpMount)) fsFactor = 40;
+      // Inside WSL (any mount flavor) the I/O amplification measured ~25x on
+      // GitHub runners; native Linux keeps the 1s budget. /proc/version is the
+      // wp07-approved signal and works regardless of how the workspace mounts.
+      const version = readFileSync("/proc/version", "utf8");
+      if (/microsoft/i.test(version)) fsFactor = 40;
     } catch {
       // non-Linux or unreadable: keep 1s
     }
