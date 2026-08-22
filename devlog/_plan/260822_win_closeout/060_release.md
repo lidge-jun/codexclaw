@@ -52,3 +52,36 @@ and the evidence-root realpath coverage from the symlink sweep). Badges regenera
 | WSL workflow (drvfs + native ext4) | green |
 | Packed install lifecycle | green on all three runners |
 | release gate | passed, published |
+
+# 061 - the 0.2.8 follow-on
+
+0.2.7 shipped before the #40 receipt fix existed, so that work needed its own
+release. 0.2.8 carries it: every version surface bumped, the published test count
+moved to 1930, and the changelog split between the 0.2.7 section that actually
+shipped those entries and a new 0.2.8 section.
+
+## One more defect the WSL lane caught
+
+PR #43's WSL job failed on a test that has nothing to do with the change:
+
+```
++   '  LAUNCH: r1-20260822102332
+-   '  LAUNCH: r1-20260822102331
+AssertionError: CRLF must produce the same dispatch text
+```
+
+"review-round-cli reads a CRLF config.toml the same as an LF one" calls the CLI
+twice and compares the outputs verbatim, but the dispatch text embeds a LAUNCH id
+built from a second-resolution timestamp. Whenever the two calls straddle a second
+boundary the ids differ by one digit and the test fails for a reason unrelated to
+line endings. It passed locally on both Windows and WSL because the two calls
+usually land in the same second; a loaded CI runner is where the boundary gets
+crossed.
+
+The launch line is asserted by SHAPE and normalized before the comparison, so the
+CRLF-vs-LF equivalence the test exists to prove is still checked while the clock is
+not. 12 consecutive local runs pass, and the WSL lane went green.
+
+## Final state
+
+`v0.2.8` is the latest release. Zero open issues.

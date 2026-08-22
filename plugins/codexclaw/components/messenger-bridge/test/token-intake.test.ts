@@ -52,8 +52,12 @@ test("readTokenFromFile: reads and removes owner-only file", () => {
   }
 });
 
-test("readTokenFromFile: rejects world-readable file on Unix", () => {
-  if (process.platform === "win32") return;
+// Windows has no Unix permission bits, so chmod cannot construct the hostile input
+// this case needs. A skip states that; an early return would report ok while
+// asserting nothing.
+test("readTokenFromFile: rejects world-readable file on Unix", {
+  skip: process.platform === "win32" ? "no Unix permission bits on Windows: the world-readable refusal cannot be constructed" : false,
+}, () => {
   const dir = mkdtempSync(join(tmpdir(), "cxc-token-"));
   try {
     const path = join(dir, "token");

@@ -228,8 +228,12 @@ test("runTurn: an oversized tool record does not suppress the later final messag
   });
 });
 
-test("runTurn: timeout kills a process group after the direct child has exited", async () => {
-  if (process.platform === "win32") return;
+// Process groups and signal-0 liveness probes are POSIX concepts; Windows kills a
+// tree with taskkill /T instead, which terminate-child.test.ts covers. Report the
+// gap as a skip rather than returning early, which would pass while asserting nothing.
+test("runTurn: timeout kills a process group after the direct child has exited", {
+  skip: process.platform === "win32" ? "POSIX process groups; Windows tree-kill is covered by terminate-child.test.ts" : false,
+}, async () => {
   const dir = mkdtempSync(join(tmpdir(), "cxc-runner-pgid-"));
   const pidFile = join(dir, "pid");
   const previous = process.env.FAKE_CODEX_PID_FILE;
