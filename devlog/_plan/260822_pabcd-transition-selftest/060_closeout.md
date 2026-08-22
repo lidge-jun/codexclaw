@@ -20,6 +20,7 @@ PowerShell - and the probe built to prove that became a hunting tool.
 | 15 | serialization | `ConvertTo-Json -Depth 2` default replaces nested data with a type name |
 | 16 | env-paths | `Test-Path` validates a trailing-space path that Node cannot open |
 | 17 | exit-codes | `Start-Process` never sets `$LASTEXITCODE`; a failure inherits the last success |
+| 18 | parsing | `[double]"3,14"` is `314` with no error; `InvariantCulture` does not fix it |
 
 Every one was measured on this host before filing, with the probe output pasted
 into the issue verbatim.
@@ -37,6 +38,7 @@ Three of them fail in the dangerous direction specifically:
 - #15 secrets vanish from a config while the JSON stays valid
 - #16 a validation step certifies a path the consumer cannot open
 - #17 a CI gate passes on a process that exited 1
+- #18 a measurement is silently off by a factor of 100
 
 And two are traps set by the *fix* rather than the original bug: #7 (the
 recommended encoding still breaks anchored grep) and #6 (the escape works right
@@ -132,3 +134,29 @@ parsing (`[double]`, date formats) under a non-en-US locale, and `$PSDefault`
 `ParameterValues` leaking into child scopes. The culture one looks especially
 promising on a Korean-locale host, where decimal separators and date ordering
 differ from what most scripts assume.
+
+Update: the culture lead paid off immediately and became #18. `[double]"3,14"`
+returns `314` - and `[double]"3,14159"` returns `314159`, off by a factor of
+100,000. The casts accept group separators, so a comma-decimal string parses
+*successfully* as a different magnitude. `InvariantCulture` does not help
+because it also treats `,` as grouping; only a `NumberStyles` without
+`AllowThousands` makes the parse strict. It does not require a non-en-US host
+either - an en-US machine mangles comma-decimal DATA, which is where such
+strings actually come from.
+
+Remaining unprobed: remoting serialization, scheduled tasks, ExecutionPolicy
+with signed scripts, and `$PSDefaultParameterValues` scope leakage.
+
+## A closing note on the method
+
+Filing #18 failed on the first attempt, and the failure was #6:
+
+```
+gh issue create --title "parsing: [double]\"3,14\" is 314 ..."
+-> unknown arguments ["is" "314" "with" "no" "error," ...]
+```
+
+The escaped quotes ended the quoted span and the title shattered into flags -
+the exact behaviour filed hours earlier. Assigning the title to a
+single-quoted variable first fixed it. Twelve issues in, the archive was already
+load-bearing for the work that produced it.
