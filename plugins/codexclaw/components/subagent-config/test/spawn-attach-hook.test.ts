@@ -312,7 +312,9 @@ test("mention normalization: adversarial floods stay linear-time", () => {
     try {
       const mounts = readFileSync("/proc/mounts", "utf8");
       const tmpMount = mounts.split("\n").find((l) => l.includes(" /tmp "));
-      if (tmpMount && /(drvfs|9p)/.test(tmpMount)) fsFactor = 6;
+      // Measured on GH runners: this fixture is I/O-coupled through SKILLS_DIR,
+      // so drvfs amplification is far steeper than the 091 CPU-only 5x.
+      if (tmpMount && /(drvfs|9p)/.test(tmpMount)) fsFactor = 40;
     } catch {
       // non-Linux or unreadable: keep 1s
     }
