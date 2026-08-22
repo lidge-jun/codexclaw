@@ -12,6 +12,7 @@
  * update) has no business closing a check with the tree it just changed.
  */
 import { spawnSync } from "node:child_process";
+import { commandInvocation } from "./win-exec.ts";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readState } from "./state.ts";
@@ -75,8 +76,18 @@ export function runReceiptCli(args: ReceiptCliArgs): ReceiptCliResult {
 
   const before = captureSourceIdentity(args.cwd, { excludeCodexclawArtifacts: true });
   const [bin, ...rest] = args.command;
-  // shell:false — the recorded command must be the argv that actually ran.
-  const run = spawnSync(bin, rest, { cwd: args.cwd, stdio: "inherit", shell: false });
+  // Issue #40: `npm` is the command people actually pass here, and a bare
+  // shell-less spawn of it cannot work on Windows - the name alone skips PATHEXT
+  // (ENOENT) and the resolved `npm.cmd` is refused outright (EINVAL). Resolving
+  // through win-exec routes only .cmd/.bat via a caret-escaped ComSpec line, so
+  // shell:false still holds and the recorded command stays the argv the user gave.
+  const invocation = commandInvocation(bin, rest);
+  const run = spawnSync(invocation.file, invocation.args, {
+    cwd: args.cwd,
+    stdio: "inherit",
+    shell: false,
+    ...invocation.options,
+  });
   const after = captureSourceIdentity(args.cwd, { excludeCodexclawArtifacts: true });
 
   if (run.error || typeof run.status !== "number") {
@@ -106,4 +117,3 @@ export function runReceiptCli(args: ReceiptCliArgs): ReceiptCliResult {
   writeFileSync(path, `${JSON.stringify(receipt, null, 2)}\n`);
   return { output: path, code: 0 };
 }
-

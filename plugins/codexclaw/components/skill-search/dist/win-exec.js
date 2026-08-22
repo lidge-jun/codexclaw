@@ -14,7 +14,7 @@
  * (001 3.2).
  */
 import { existsSync } from "node:fs";
-import { delimiter, isAbsolute, join } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 
 
@@ -39,7 +39,10 @@ const DEFAULT_PATHEXT = ".COM;.EXE;.BAT;.CMD";
 export function resolveWindowsCommand(command        , env                   )         {
   if (command.includes("/") || command.includes("\\") || isAbsolute(command)) return command;
   const exts = (envValue(env, "PATHEXT") ?? DEFAULT_PATHEXT).split(";").filter((e) => e.length > 0);
-  const dirs = (envValue(env, "PATH") ?? "").split(delimiter).filter((d) => d.length > 0);
+  // A WINDOWS PATH is always ";"-separated. node:path's `delimiter` follows the
+  // HOST, so on a Linux runner exercising this win32-only walk it would be ":"
+  // and the whole PATH would collapse into one bogus directory entry.
+  const dirs = (envValue(env, "PATH") ?? "").split(";").filter((d) => d.length > 0);
   for (const dir of dirs) {
     for (const ext of exts) {
       const candidate = join(dir, command + ext);
