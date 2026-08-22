@@ -21,6 +21,7 @@ import {
 import { deriveSlug } from "../src/freeze.ts";
 import { parseGoalplanCliArgs, runGoalplanCli } from "../src/goalplan-cli.ts";
 import { readState } from "../src/state.ts";
+import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-support.ts";
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), "cxc-goalplan-"));
@@ -65,7 +66,7 @@ test("030: absent or malformed -> readGoalplan returns null (never throws)", () 
   assert.equal(readGoalplan(cwd, "bad"), null);
 });
 
-test("goalplan slug is an identifier: stored traversal, mismatches, and symlink roots are rejected", () => {
+test("goalplan slug is an identifier: stored traversal, mismatches, and symlink roots are rejected", (t) => {
   const cwd = tmp();
   const plan = buildGoalplan({ objective: "safe plan", criteria: [{ scenario: "ok" }] });
   writeGoalplan(cwd, plan);
@@ -76,13 +77,23 @@ test("goalplan slug is an identifier: stored traversal, mismatches, and symlink 
   assert.throws(() => writeGoalplan(cwd, { ...plan, slug: "../../escaped" }), /invalid goalplan slug/);
   assert.equal(existsSync(join(cwd, "escaped", "goalplan.json")), false);
 
+  // The traversal assertions above already ran; only the linked-root half needs a link.
+  if (!supportsSymlinks().dir) {
+    t.skip("directory links unavailable on this host: symlinked state root not exercised");
+    return;
+  }
   const linked = tmp();
   const outside = tmp();
-  symlinkSync(outside, join(linked, ".codexclaw"));
+  symlinkDirSync(outside, join(linked, ".codexclaw"));
   assert.throws(() => writeGoalplan(linked, buildGoalplan({ objective: "linked root" })), /symlink/);
 });
 
-test("goalplan reads and ledger appends refuse symlink leaf files", () => {
+test("goalplan reads and ledger appends refuse symlink leaf files", (t) => {
+  // Leaf links must point at a FILE, so a junction cannot stand in here.
+  if (!supportsSymlinks().file) {
+    t.skip("file symlinks unavailable on this host: leaf-symlink refusal not exercised");
+    return;
+  }
   const cwd = tmp();
   const outside = join(tmp(), "outside.txt");
   writeFileSync(outside, "unchanged");

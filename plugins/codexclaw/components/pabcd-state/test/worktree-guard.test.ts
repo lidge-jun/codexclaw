@@ -5,9 +5,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, sep } from "node:path";
+import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-support.ts";
 import {
   buildSessionStartContext,
   candidateWorktreeRoots,
@@ -152,12 +153,17 @@ test("detect: no .git entry anywhere up to slotRoot → managed but checkoutRoot
 
 // --- 2. canonicalization ------------------------------------------------------
 
-test("canonicalize: symlinked cwd resolves into the real managed path (symlink-in)", () => {
-  if (process.platform === "win32") return; // symlink privileges
+test("canonicalize: symlinked cwd resolves into the real managed path (symlink-in)", (t) => {
+  // The link target is the checkout DIRECTORY, so a junction expresses it and
+  // this case runs unprivileged on Windows instead of passing silently.
+  if (!supportsSymlinks().dir) {
+    t.skip("directory links unavailable on this host: symlink-in canonicalization not exercised");
+    return;
+  }
   const rig = makeRig();
   try {
     const link = join(rig.home, "link-checkout");
-    symlinkSync(rig.checkoutRoot, link);
+    symlinkDirSync(rig.checkoutRoot, link);
     const id = detectManagedWorktree(link, rig.env);
     assert.equal(id.managed, true);
     assert.equal(id.checkoutRoot, rig.checkoutRoot);
@@ -178,14 +184,18 @@ test("canonicalize: non-existent target resolves via nearest existing ancestor",
   }
 });
 
-test("guard: symlink pointing OUT of the slot does not leak protection or management", () => {
-  if (process.platform === "win32") return;
+test("guard: symlink pointing OUT of the slot does not leak protection or management", (t) => {
+  // Same shape: the escape hatch points at a directory, so a junction suffices.
+  if (!supportsSymlinks().dir) {
+    t.skip("directory links unavailable on this host: symlink-out leak check not exercised");
+    return;
+  }
   const rig = makeRig();
   try {
     const outside = mkdtempSync(join(tmpdir(), "cxc-wg-outside-"));
     try {
       const linkInside = join(rig.slotRoot, "escape");
-      symlinkSync(outside, linkInside);
+      symlinkDirSync(outside, linkInside);
       // lexical path is inside the slot but canonicalizes OUT: not managed
       const id = detectManagedWorktree(join(linkInside, "x"), rig.env);
       assert.equal(id.managed, false);

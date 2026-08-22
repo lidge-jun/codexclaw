@@ -33,6 +33,23 @@ commit, or merge touching `plugins/codexclaw/hooks/*.json`, run `cxc doctor`. If
 a drifted or untrusted hook, run `cxc hooks retrust` to back up the config and atomically
 record safely recomputed hashes, then rerun `cxc doctor`.
 
+Those entries are written by the host Codex binary when you approve a plugin's hooks, not
+by codexclaw. A fresh install therefore starts with no `[hooks.state.*]` sections at all,
+and `cxc doctor` reports every hook as `untrusted ... actual=(none)` until the approval
+happens. codexclaw will not write them on your behalf as a side effect of installation:
+that would bypass the trust prompt the mechanism exists to enforce. To record them
+deliberately, run the command `cxc doctor` prints, which needs `--bootstrap-ok` only when
+no entry exists yet:
+
+```bash
+cxc hooks retrust --key codexclaw@codexclaw --bootstrap-ok
+```
+
+On Windows, `retrust` verifies its own write by running `codex features list`. It resolves
+that executable before spawning it, because a bare `codex` hits either the Store-packaged
+`WindowsApps` binary (`EPERM`) or the npm `.cmd` shim (`EINVAL`). Set `CODEX_BIN` to an
+explicit path if you keep `codex` somewhere the PATH walk cannot see.
+
 ## Browse-use ladder (owned by `cxc-search`)
 
 Proof-of-source escalates through named tools, stopping at the first rung that yields

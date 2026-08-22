@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { resolveProjectRoot } from "../src/server/middleware.ts";
@@ -57,4 +57,27 @@ test(".git outranks an intermediate .codexclaw (hook-state dirs at incidental de
   const nested = join(mid, "gui");
   mkdirSync(nested, { recursive: true });
   assert.equal(resolveProjectRoot(nested, {} as NodeJS.ProcessEnv), root);
+});
+
+test("~/.codexclaw is codexclaw's global store, not a project root", () => {
+  // A real user has ~/.codexclaw (recall index, skill cache). A start dir with no
+  // marker of its own must NOT resolve to the whole home directory just because the
+  // walk passes through it.
+  const bare = join(tmp(), "x", "y");
+  mkdirSync(bare, { recursive: true });
+  assert.notEqual(resolveProjectRoot(bare, {} as NodeJS.ProcessEnv), homedir());
+  assert.equal(resolveProjectRoot(bare, {} as NodeJS.ProcessEnv), bare);
+});
+
+test("the home exclusion survives a differently-cased path on win32", () => {
+  // Windows paths are case-insensitive, so a start dir spelled "c:\users\..." walks
+  // up to a lowercase spelling of home that an exact compare would miss.
+  if (process.platform !== "win32") return;
+  const bare = join(tmp(), "x", "y");
+  mkdirSync(bare, { recursive: true });
+  const lowered = bare.toLowerCase();
+  assert.notEqual(
+    resolveProjectRoot(lowered, {} as NodeJS.ProcessEnv).toLowerCase(),
+    homedir().toLowerCase(),
+  );
 });

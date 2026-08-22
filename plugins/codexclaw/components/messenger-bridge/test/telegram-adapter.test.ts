@@ -106,6 +106,20 @@ async function settle(): Promise<void> {
   await new Promise((r) => setTimeout(r, 30));
 }
 
+// Media turns (getFile + download + agent round-trip) outrun any fixed sleep on a
+// loaded CI runner, so poll for the observable outcome instead of guessing a delay.
+async function waitUntil(
+  predicate: () => boolean,
+  what: string,
+  timeoutMs = 15000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate() && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  assert.ok(predicate(), `timed out after ${timeoutMs}ms waiting for ${what}`);
+}
+
 function manualProgressClock() {
   let now = 10_000;
   let nextId = 1;
@@ -152,13 +166,7 @@ test("allowlisted message drives the agent and sends a reply", async () => {
       }),
     });
     await adapter.start();
-    // The download + agent round-trip races the fixed 30ms settle on loaded
-    // runners; poll for the observable outcome instead of sleeping. 15s covers
-    // the slowest observed CI cell (windows CRLF under load).
-    const deadline = Date.now() + 15000;
-    while (seen.length === 0 && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 25));
-    }
+    await waitUntil(() => seen.length > 0, "the agent to observe the message");
     adapter.stop();
 
     assert.deepEqual(seen, ["hi there"]);
@@ -468,13 +476,16 @@ test("photo-only private message is downloaded and prefixed into the prompt", as
       }),
     });
     await adapter.start();
-    await settle();
+    await waitUntil(() => seen.length > 0, "the photo turn to reach the agent");
     adapter.stop();
 
     assert.equal(seen.length, 1);
     assert.ok(downloadedPath);
-    assert.equal(existsSync(downloadedPath), false);
-    assert.equal(existsSync(dirname(downloadedPath)), false);
+    // Cleanup runs after the agent callback resolves, so it also outlives a fixed sleep.
+    await waitUntil(
+      () => !existsSync(downloadedPath) && !existsSync(dirname(downloadedPath)),
+      "the temp media directory to be removed",
+    );
   } finally {
     await settle();
     db.close();

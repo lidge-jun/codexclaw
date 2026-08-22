@@ -369,12 +369,25 @@ export function runHookTrustCheck(pluginRoot: string, options: DoctorOptions = {
     }
     const results = diagnoseHookTrust(codexHome, pluginRoot, pluginKey);
     const failed = results.filter((result) => result.status !== "trusted");
+    // A fresh install has NO [hooks.state.*] sections at all: the host Codex
+    // binary writes them when the user approves the plugin's hooks, and nothing
+    // in codexclaw may forge them (that would silently bypass the trust prompt).
+    // Distinguish "never trusted" from "drifted" so the repair line is the one
+    // the operator actually needs (issue #33).
+    const neverTrusted = failed.filter((result) => result.actual === null);
+    const repair =
+      failed.length === 0
+        ? undefined
+        : neverTrusted.length === failed.length
+        ? `${failed.length} hook(s) have no trust entry in ${join(codexHome, "config.toml")}; only Codex itself writes those on hook approval. Approve this plugin's hooks in Codex, or record them explicitly with: cxc hooks retrust --key ${pluginKey} --codex-home ${codexHome} --bootstrap-ok`
+        : `cxc hooks retrust --key ${pluginKey} --codex-home ${codexHome}`;
     return {
       name: "hook-trust",
       // An EMPTY result set is not a pass. `diagnoseHookTrust` skips a handler it
       // cannot hash (invalid matcher, empty command, async), so "0 failed" can also
       // mean "0 examined" — a green check over hooks nobody verified.
       severity: results.length === 0 ? "WARN" : failed.length === 0 ? "PASS" : "FAIL",
+      repair,
       evidence:
         results.length === 0
           ? `no hook handler could be hashed for ${pluginKey}; nothing was verified`
