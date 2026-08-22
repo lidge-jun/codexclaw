@@ -40,6 +40,38 @@ Negative results from this pass: `-like` wildcards, `$Matches` population after
 `-match`, and case-insensitive-by-default `-eq` with `-ceq` as the sensitive form
 all behave as documented and are not landmines.
 
+## 9. `return` does not mean return (filed #14)
+
+```powershell
+function Get-WorkDir {
+    New-Item -ItemType Directory -Path "$env:TEMP\wd" -Force
+    return "$env:TEMP\wd"
+}
+$d = Get-WorkDir
+$d.GetType().Name    # Object[]   -- you asked for a path
+```
+
+`return` only sets the exit point; every expression that emits output
+contributes to the result. `New-Item` emits a `DirectoryInfo`, so the real
+return is `@(DirectoryInfo, String)`.
+
+The corruption surfaces far from its cause:
+
+```
+"path is: $d"     -> the path printed TWICE
+node argv.mjs $d  -> argc=2, the same path as two arguments
+Test-Path $d      -> True, twice   (the sanity check confirms the broken value)
+```
+
+`| Out-Null` on the side-effect cmdlet restores `String` and `argc=1`. Note
+`Write-Host` does NOT pollute (it bypasses the output stream) while
+`Write-Output` does, which is why people conclude the rule is about logging when
+it is actually about the output stream.
+
+This is the same unrolling rule as #12 seen from the producer side: a function
+whose side-effect cmdlet happens to be quiet returns a clean scalar, and starts
+returning an array the day it creates something.
+
 ## Running index
 
 | # | category | what |
@@ -52,3 +84,4 @@ all behave as documented and are not landmines.
 | 11 | exit-codes | `if (nativecmd)` branches on output, not exit code |
 | 12 | collections | one-line file makes Get-Content a String |
 | 13 | collections | `-ne` against a list is a filter; denylists fail open |
+| 14 | collections | `return` does not suppress other output; functions leak extra values |
