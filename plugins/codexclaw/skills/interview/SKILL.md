@@ -61,7 +61,9 @@ The loop that prevents it:
 `--dim <dimension>=<low|mid|high>` records an explicit assertion when coverage alone
 understates what you know. It deliberately cannot set `max`: that level gates I -> P through
 `isInterviewReady`, and the sanctioned way past an unready interview is the attested
-`cxc orchestrate P --attest '{"override":true,...}'`, which leaves a ledger row.
+`cxc orchestrate P --attest-file <path>` carrying `{"override":true,...}`, which
+leaves a ledger row. (The file flag is required on Windows: PowerShell cannot pass
+inline JSON as a single argument.)
 
 ## Show the state before asking (INTERVIEW-RENDER-01)
 
@@ -139,7 +141,7 @@ and INTERVIEW-INDEPENDENT-01 governs batching by independence rather than count.
 There is no build/execute path out of Interview — the only forward move is Plan, normally after
 the readiness gate passes, unless the human explicitly overrides (override is recorded as an
 audit entry); the agent CLI path also supports override via
-`--attest '{"override":true}'` with equivalent ledger transparency.
+an attest carrying `{"override":true}` with equivalent ledger transparency.
 `proceed` means "advance to Plan", not permission to implement; the evolving
 plan/devlog stay draft interview artifacts until then.
 A chosen `proceed` executes as a real transition — `cxc orchestrate P --session <id>` (or the
@@ -175,7 +177,8 @@ The interview runtime is shipped, not planned:
   into each task message.
 - Readiness gating requires recorded scan evidence (`scanRounds >= 1`) before I -> P.
 - Agent I→P override: when the agent CLI path (`cxc orchestrate P --session <id>
-  --attest '{"from":"I","to":"P","did":"<reason>","override":true}'`) encounters
+  --attest-file <path>`, carrying
+  `{"from":"I","to":"P","did":"<reason>","override":true}`) encounters
   an unready interview tracker, it bypasses the readiness gate — mirroring the
   human chat override in `applyHumanTransition`. The tracker is NOT modified;
   `flags.interview` is pre-flipped at the transition level. The ledger records

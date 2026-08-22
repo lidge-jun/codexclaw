@@ -131,7 +131,8 @@ export function parseScanCliArgs(
         return {
           error:
             "scan record: --dim cannot set 'max'. That level gates I->P via isInterviewReady; " +
-            "use `cxc orchestrate P --session <id> --attest '{\"from\":\"I\",\"to\":\"P\",\"did\":\"<reason>\",\"override\":true}'` " +
+            "write {\"from\":\"I\",\"to\":\"P\",\"did\":\"<reason>\",\"override\":true} to a file and run " +
+            "`cxc orchestrate P --session <id> --attest-file <path>` (the file flag is required on Windows) " +
             "so the bypass is attested and recorded in the ledger.",
         };
       }

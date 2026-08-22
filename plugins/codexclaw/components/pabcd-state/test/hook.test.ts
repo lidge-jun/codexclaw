@@ -17,6 +17,7 @@ import {
   handleUserPromptSubmit,
   handleStop,
   phaseDirective,
+  loopArmDirective,
   withFooter,
   type UserPromptSubmitPayload,
   type StopPayload,
@@ -206,6 +207,54 @@ test("handleUserPromptSubmit: agbrowse request injects search directive without 
   }
 });
 
+// fuck-powershell#6: PowerShell strips the quotes from an inline JSON argument and,
+// once you escape them, splits the value at its first space. Every gated edge needs a
+// `did` narrative, which always has spaces, so no inline spelling works there. The
+// directive is injected at prompt time, so handing a Windows agent the POSIX form is
+// how it concludes the FSM is broken before running anything.
+//
+// Platform is injected so Linux CI drives the win32 branch (atomic-write.test.ts §1).
+test("win32 arming directive teaches the file flag, not inline attest", () => {
+  const win = loopArmDirective("win32");
+  assert.match(win, /--attest-file \.codexclaw\/attest\.json/);
+  assert.doesNotMatch(win, /--attest <json>/);
+  // A negative alone would pass on text that is merely DIFFERENT. Assert the agent
+  // actually receives the two-step recipe it needs.
+  assert.match(win, /Set-Content -Encoding utf8 \.codexclaw\/attest\.json/);
+  // Everything else must survive the branch.
+  assert.match(win, /ORCH-MANDATE-01/);
+  assert.match(win, /LOOP-UNIT-CHAIN-01/);
+  assert.match(win, /ORCH-ARTIFACT-01/);
+});
+
+// The POSIX text is pinned as a LITERAL snapshot rather than compared against the
+// function that produces it: a self-comparison passes no matter how badly the text is
+// mangled, which is exactly the guarantee this test exists to provide.
+test("posix arming directive is byte-identical to its pinned snapshot", () => {
+  const expected = [
+    "[codexclaw: LOOP — orchestrate arming mandate (ORCH-MANDATE-01)]",
+    "A loop/goalplan claim without persisted FSM evidence is INVALID, and the PABCD FSM is not",
+    "armed right now. Arm it with explicit commands before narrating any loop work:",
+    "1. Session id: take it ONLY from your most recent SessionStart binding line",
+    "   (SESSION-IDENTITY-01 — never an id seen in transcript history).",
+    "2. `cxc orchestrate status --session <id>` — read the real phase first.",
+    "3. HOTL (user asked for autonomous / continue-until-done): create_goal with a detailed",
+    '   objective -> `cxc loop init --objective "<same text>" --session <id>` -> register',
+    "   workPhases[] + criteria[] in the goalplan -> `cxc orchestrate P --session <id>`.",
+    "   HITL (no such ask): enter the cycle explicitly via `cxc orchestrate I|P --session <id>`.",
+    "4. Advance EVERY forward edge yourself with `cxc orchestrate <phase> --attest <json>` —",
+    "   a phase without its persisted transition + artifact did not happen (ORCH-ARTIFACT-01).",
+    "   When a goalplan is bound, include the active workPhaseId in every gated attest",
+    "   (one work-phase = one full PABCD cycle).",
+    "5. After D closes to IDLE with work remaining under an active goal, immediately re-enter",
+    "   with `cxc orchestrate P --session <id>` (LOOP-UNIT-CHAIN-01).",
+    "Load and obey cxc-loop + cxc-pabcd when available. Work done outside the FSM does not",
+    "count as loop progress — re-enter and attest it.",
+  ].join("\n");
+  assert.equal(loopArmDirective("linux"), expected);
+  assert.equal(loopArmDirective("darwin"), expected);
+});
+
 test("ORCH-MANDATE-01: detectLoopArmRequest catches loop/goalplan/continue-until-done intent (EN+KO)", () => {
   assert.equal(detectLoopArmRequest("cxc-loop로 진행하자"), true);
   assert.equal(detectLoopArmRequest("HOTL 모드로 돌려줘"), true);
@@ -286,7 +335,7 @@ test("260714 wp4: B directive starves context to the active work-phase iff bound
 test("ORCH-MANDATE-01: loop request against un-armed FSM injects the arming mandate", () => {
   const cwd = freshCwd();
   try {
-    const out = handleUserPromptSubmit(ups("이 유닛 cxc-loop로 알아서 끝까지 해줘", cwd, "s1", "t1"));
+    const out = handleUserPromptSubmit(ups("이 유닛 cxc-loop로 알아서 끝까지 해줘", cwd, "s1", "t1"), "linux");
     assert.notEqual(out, "");
     const parsed = JSON.parse(out.trimEnd());
     const ctx = parsed.hookSpecificOutput.additionalContext as string;

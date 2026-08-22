@@ -46,7 +46,16 @@ You can return to Interview (I) from any phase to clarify requirements; the plan
 The chat command grammar is:
 
 ```text
-orchestrate <I|P|A|B|C|D|status|reset> [--attest <json>]
+orchestrate <I|P|A|B|C|D|status|reset> [--attest <json> | --attest-file <path>]
+```
+
+**On Windows use `--attest-file`.** PowerShell strips the quotes from inline JSON
+and, once you escape them, splits the value at its first space — and every gated
+edge needs a `did` narrative, which has spaces. Write the JSON first, then attest:
+
+```powershell
+'<json>' | Set-Content -Encoding utf8 .codexclaw/attest.json
+cxc orchestrate A --session <id> --attest-file .codexclaw/attest.json
 ```
 
 Accepted prefixes include `$codexclaw:cxc-orchestrate`, `$cxc-pabcd`,
@@ -96,7 +105,8 @@ the evidence produced by the phase being advanced.
 Chat and CLI control the same persisted FSM and ledger; invocation source selects
 the gate. A line-anchored chat `orchestrate <verb>` is a human free-pass, while
 illegal edges remain refused. Agents use
-`cxc orchestrate <verb> --session <id> --attest <json>` and provide real evidence.
+`cxc orchestrate <verb> --session <id> --attest <json>` (or `--attest-file <path>`,
+required on Windows) and provide real evidence.
 `A>B` requires `auditOutput` plus `auditVerdict`; near-pass also requires
 `auditResidual`.
 `C>D` requires `checkOutput` and a passing `exitCode` — omitting it is refused, since a check with no outcome is not a check.
