@@ -19,6 +19,7 @@ PowerShell - and the probe built to prove that became a hunting tool.
 | 14 | collections | `return` does not suppress other output; functions leak values |
 | 15 | serialization | `ConvertTo-Json -Depth 2` default replaces nested data with a type name |
 | 16 | env-paths | `Test-Path` validates a trailing-space path that Node cannot open |
+| 17 | exit-codes | `Start-Process` never sets `$LASTEXITCODE`; a failure inherits the last success |
 
 Every one was measured on this host before filing, with the probe output pasted
 into the issue verbatim.
@@ -35,6 +36,7 @@ Three of them fail in the dangerous direction specifically:
 - #13 a denylist reports ALLOWED for the value it exists to block
 - #15 secrets vanish from a config while the JSON stays valid
 - #16 a validation step certifies a path the consumer cannot open
+- #17 a CI gate passes on a process that exited 1
 
 And two are traps set by the *fix* rather than the original bug: #7 (the
 recommended encoding still breaks anchored grep) and #6 (the escape works right
@@ -60,6 +62,37 @@ Measured and found NOT to be landmines - recorded so nobody re-tests them:
 - `-like` wildcards, `$Matches` population, `-eq`/`-ceq` case sensitivity: as
   documented
 - `+=` on an array: a performance footgun, not a correctness bug
+
+## 11. `Start-Process` leaves the result invisible (filed #17)
+
+```powershell
+node -e "process.exit(3)"; "before=$LASTEXITCODE"      # before=3
+Start-Process -FilePath node -ArgumentList "-e","process.exit(7)" -Wait -NoNewWindow
+"after=$LASTEXITCODE"                                   # after=3
+```
+
+`Start-Process` is a cmdlet, not a native invocation, so it never touches
+`$LASTEXITCODE` - the variable is not zeroed, it is LEFT ALONE holding the
+previous command's value. A CI gate written correctly against `$LASTEXITCODE`
+therefore reports on a command from an earlier step:
+
+```
+node -e "process.exit(0)"; Start-Process ... exit 1; if ($LASTEXITCODE -eq 0)
+-> CI GATE PASSED (wrong)
+```
+
+`$?` does not rescue it either - it is True, because launching succeeded.
+
+Output has the matching trap: `$out.StandardOutput` is empty while the text
+visibly prints to the console, so it looks captured and is not. `-PassThru` plus
+`.ExitCode`, and `-RedirectStandardOutput` to a file, are the working forms.
+
+The archive's two Start-Process cases are both about ARGUMENTS reaching it;
+grepping them for ExitCode, LASTEXITCODE and PassThru returns nothing.
+
+Negative results from this pass: `& $exe` with a spaced path, `Invoke-Expression`
+with embedded quotes, and `Start-Process -Wait -PassThru` exit capture all work
+correctly.
 
 ## The harness
 
