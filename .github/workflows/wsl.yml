@@ -36,7 +36,7 @@ jobs:
           cd "$(wslpath '${{ github.workspace }}')"
           npm ci
           npm test
-          node bin/codexclaw.mjs doctor | grep -i drvfs
+          node bin/codexclaw.mjs doctor | grep -iE 'drvfs|9p|wsl'
       - name: Test on native ext4 (~)
         shell: wsl-bash {0}
         run: |
