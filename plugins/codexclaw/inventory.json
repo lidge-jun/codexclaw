@@ -299,7 +299,7 @@
     {
       "folder": "subagent-config",
       "packageName": "@codexclaw/subagent-config",
-      "version": "0.2.6",
+      "version": "0.2.7",
       "hasTests": true
     }
   ]
