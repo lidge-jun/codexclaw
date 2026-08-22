@@ -13,11 +13,12 @@ import assert from "node:assert/strict";
 // Pin the cxc-resolve seam (B1): these tests assert literal `cxc ...` command
 // mentions, which would otherwise depend on whether the runner's PATH has cxc.
 process.env.CODEXCLAW_CXC = "cxc";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, symlinkSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-support.ts";
 
 import {
   countSourceFiles,
@@ -191,15 +192,21 @@ test("degraded mode: no CODEXCLAW_CXC + cxc-free PATH falls back to the payload 
   }
 });
 
-test("direct-exec guard fires through a symlinked install path (plugin-cache regression)", () => {
+test("direct-exec guard fires through a symlinked install path (plugin-cache regression)", (t) => {
   // The real plugin cache reaches dist/cli.js through a symlinked components/ dir.
   // A resolve()-only guard compares the symlink path against import.meta.url's real
   // path and silently never runs main(). Prove the shipped dist works via a symlink.
+  // Linking the containing DIRECTORY mirrors the real cache layout more closely than
+  // a leaf file link, and a junction expresses it without elevation on Windows.
+  if (!supportsSymlinks().dir) {
+    t.skip("directory links unavailable on this host: symlinked install path not exercised");
+    return;
+  }
   const distCli = join(pluginRoot, "components", "cxc-ops", "dist", "cli.js");
   assert.ok(existsSync(distCli), "dist/cli.js must exist (run the build first)");
   const linkDir = tmp();
-  const link = join(linkDir, "cli-symlink.js");
-  symlinkSync(distCli, link);
+  symlinkDirSync(dirname(distCli), join(linkDir, "dist-symlink"));
+  const link = join(linkDir, "dist-symlink", "cli.js");
   const big = tmp();
   seedSources(big, MAP_AFFORDANCE_MIN_FILES + 2);
   const res = spawnSync(process.execPath, [link, "hook", "session-start"], {

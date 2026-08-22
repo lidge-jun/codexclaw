@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-support.ts";
 
 import {
   runSubagentStopGate,
@@ -83,18 +84,35 @@ test("010: receipt pointing outside the evidence root is rejected", () => {
   assert.equal(JSON.parse(out).decision, "block");
 });
 
-test("010: symlinked receipt inside the root is rejected", () => {
+test("010: symlinked receipt inside the root is rejected", (t) => {
+  // The link target is a receipt FILE, which a directory junction cannot express.
+  if (!supportsSymlinks().file) {
+    t.skip("file symlinks unavailable on this host: leaf-symlink receipt refusal not exercised");
+    return;
+  }
   const cwd = tmp();
   const target = join(cwd, "secret.md");
   writeFileSync(target, "data");
   mkdirSync(join(cwd, ".codexclaw", "evidence"), { recursive: true });
   const link = join(cwd, ".codexclaw", "evidence", "link.md");
-  try {
-    symlinkSync(target, link);
-  } catch {
-    return; // platform without symlink perms: skip
-  }
+  symlinkSync(target, link);
   assert.equal(hasValidReceipt(cwd, ".codexclaw/evidence/link.md"), false);
+});
+
+test("010: receipt reached through a linked directory inside the root is rejected", (t) => {
+  // The realpath half of the same guard, reachable through a directory link.
+  // Junctions need no elevation, so this runs on a stock Windows checkout.
+  if (!supportsSymlinks().dir) {
+    t.skip("directory links unavailable on this host: linked-directory receipt escape not exercised");
+    return;
+  }
+  const cwd = tmp();
+  const outside = mkdtempSync(join(tmpdir(), "cxc-subev-outside-"));
+  writeFileSync(join(outside, "secret.md"), "data");
+  mkdirSync(join(cwd, ".codexclaw", "evidence"), { recursive: true });
+  symlinkDirSync(outside, join(cwd, ".codexclaw", "evidence", "linked"));
+  // Lexically inside the evidence root; the realpath lands outside it.
+  assert.equal(hasValidReceipt(cwd, ".codexclaw/evidence/linked/secret.md"), false);
 });
 
 test("010: empty receipt file is not valid", () => {

@@ -6,6 +6,66 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **`cxc hooks retrust` could not verify its own write on Windows (#33).** The
+  post-write `codex features list` check spawned a bare `codex` with no shell,
+  which fails two different ways on a Codex-desktop host: the first PATH match is
+  the Store-packaged `WindowsApps\...\codex.EXE`, which is readable, is not a
+  reparse point, and still fails `CreateProcess` with `EPERM`; and the npm shim
+  beside it is `codex.CMD`, which Node refuses to spawn shell-less after the
+  CVE-2024-27980 hardening (`EINVAL`). Verification failed for reasons that had
+  nothing to do with the config, so a correct write was rolled back every time.
+
+  The command is now resolved before it is spawned: an explicit `CODEX_BIN` wins,
+  then a PATH/PATHEXT walk that skips `WindowsApps` entries, then a `cmd.exe`
+  hop with caret-escaped arguments (the only route that starts a Store-aliased
+  `codex`). The injected runner seam is unchanged.
+
+- **`cxc doctor` now names the recovery command for untrusted hooks (#33).** On a
+  fresh Windows install no `[hooks.state.*]` entry exists yet, so every hook read
+  `actual=(none)` with no next step printed. Writing those entries is the host
+  Codex binary's job, performed when the user approves the plugin's hooks;
+  codexclaw does not forge them, because that would silently bypass the trust
+  prompt. Doctor now distinguishes never-trusted from drifted and prints the exact
+  `cxc hooks retrust` invocation for each case, including `--bootstrap-ok` only
+  when the entries genuinely do not exist yet.
+
+- **The GUI dashboard could resolve your entire home directory as the project
+  root.** `resolveProjectRoot` accepted any ancestor holding a `.codexclaw/`
+  directory, and `~/.codexclaw` is codexclaw's own global store (recall index,
+  skill cache). Any start directory outside a repository therefore walked to the
+  filesystem root and answered with `~`, so dashboard reads and writes landed in
+  the global store. The home directory is now excluded from that marker, compared
+  case-insensitively on Windows where `c:\users\me` and `C:\Users\me` are the
+  same directory.
+
+- **Symlink-refusal tests could not run on a stock Windows checkout (#32).**
+  Creating a symlink needs Developer Mode or elevation, so the tests died on the
+  `symlinkSync` that BUILT their hostile input, never reaching the guard under
+  test. Several sibling suites hid the same problem behind a bare
+  `if (process.platform === "win32") return`, which passes the whole case while
+  asserting nothing. A shared capability probe now gates only the link-creating
+  half, and directory cases use junctions - which need no elevation and still
+  report `isSymbolicLink()` - so most of these guards are genuinely exercised on
+  Windows now. Only the three cases that require a link to a FILE report a skip,
+  with the reason stated.
+
+- **The `enforce-target` check blocked the release path it documents.** Every PR
+  had to target `dev`, with no exemption for the `dev` -> `main` promotion, so the
+  release PR was prefixed `[WRONG BRANCH]` and told to retarget itself to the
+  branch it was being promoted from. Same-repository promotions are now exempt;
+  a fork branch merely named `dev` is not. The check also failed outright when
+  `convertPullRequestToDraft` came back `FORBIDDEN`, which the default token is
+  not always granted - a refused draft is now a warning, and a refused
+  ready-for-review restoration is reported instead of being announced as success.
+
+- **A photo-only Telegram turn raced a fixed sleep in CI.** The test waited 30ms
+  for a getFile + download + agent round-trip, which is enough on an idle machine
+  and not on a loaded Windows runner, so the `windows-latest` cell failed
+  intermittently on an assertion about work that simply had not finished. It now
+  polls for the observable outcome and fails with a named cause on timeout.
+
 ## [0.2.6] — 2026-08-18
 
 ### Changed

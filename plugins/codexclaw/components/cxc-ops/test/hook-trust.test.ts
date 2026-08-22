@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { supportsSymlinks } from "../test-support/symlink-support.ts";
 import {
   diagnoseHookTrust,
   identityHash,
@@ -342,7 +343,13 @@ test("retrustHooks requires bootstrapOk only when no entries exist for the plugi
   assert.deepEqual(diagnoseHookTrust(home, root, PLUGIN_KEY).map((item) => item.status), ["trusted"]);
 });
 
-test("retrustHooks preserves a config symlink and atomically updates its resolved target", () => {
+test("retrustHooks preserves a config symlink and atomically updates its resolved target", (t) => {
+  // config.toml is linked as a FILE, which a directory junction cannot express,
+  // so an unprivileged Windows host cannot build this fixture at all.
+  if (!supportsSymlinks().file) {
+    t.skip("file symlinks unavailable on this host: config-symlink preservation not exercised");
+    return;
+  }
   const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo symlink")] }] } });
   const home = tempDir("cxc-hook-link-home-");
   const targetDir = tempDir("cxc-hook-link-target-");
@@ -371,7 +378,13 @@ test("retrustHooks rolls back the resolved config when codex verification fails"
     return { status: 2, stderr: "invalid config" };
   };
 
-  assert.throws(() => retrustHooks(home, root, PLUGIN_KEY, false, failingRunner), /codex features list verification failed/);
+  // Pinned to a POSIX platform so this stays a ROLLBACK test: the win32 spawn
+  // shape is asserted separately, and on a real Windows host the resolver would
+  // otherwise rewrite the command into a cmd.exe hop here.
+  assert.throws(
+    () => retrustHooks(home, root, PLUGIN_KEY, false, failingRunner, "linux"),
+    /codex features list verification failed/,
+  );
   assert.deepEqual(calls, [{ command: "codex", args: ["features", "list"], codexHome: home }]);
   assert.equal(readFileSync(join(home, "config.toml"), "utf8"), before);
   assert.equal(diagnoseHookTrust(home, root, PLUGIN_KEY)[1].status, "untrusted");
@@ -422,3 +435,122 @@ test(
   assert.match(stdout.join(""), /backup: .*config\.toml\.bak-/);
   },
 );
+
+/**
+ * Issue #33 bug A: retrust must not spawn a bare `codex` on Windows.
+ *
+ * The verification runner is the injected seam, so these drive platform="win32"
+ * from any OS and assert on the spawn shape the runner is handed.
+ */
+test("retrustHooks verifies through a cmd.exe hop when only the Store codex is on PATH", () => {
+  const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo store")] }] } });
+  const home = makeCodexHome('[plugins."fixture@market"]\nenabled = true\n');
+  const seen: Array<{ file: string; args: string[]; verbatim?: boolean }> = [];
+  const runner: HookTrustRunner = (file, args, options) => {
+    seen.push({ file, args, verbatim: options.windowsVerbatimArguments });
+    return { status: 0 };
+  };
+  const storeDir = join("C:\\Program Files", "WindowsApps", "OpenAI.Codex_1.0_x64__a", "app");
+  const originalPath = process.env.PATH;
+  const originalComSpec = process.env.ComSpec;
+  const originalBin = process.env.CODEX_BIN;
+  process.env.PATH = storeDir;
+  process.env.ComSpec = "C:\\Windows\\system32\\cmd.exe";
+  delete process.env.CODEX_BIN;
+  try {
+    retrustHooks(home, root, PLUGIN_KEY, true, runner, "win32");
+  } finally {
+    process.env.PATH = originalPath;
+    if (originalComSpec === undefined) delete process.env.ComSpec;
+    else process.env.ComSpec = originalComSpec;
+    if (originalBin !== undefined) process.env.CODEX_BIN = originalBin;
+  }
+  assert.equal(seen.length, 1);
+  // The bare "codex" spawn is what EPERMs on a Codex-desktop host.
+  assert.notEqual(seen[0].file, "codex");
+  assert.match(seen[0].file, /cmd\.exe$/i);
+  assert.deepEqual(seen[0].args.slice(0, 3), ["/d", "/s", "/c"]);
+  assert.equal(seen[0].verbatim, true);
+  assert.match(seen[0].args[3], /codex/);
+  assert.match(seen[0].args[3], /features/);
+});
+
+test("retrustHooks honors CODEX_BIN and still passes CODEX_HOME to the runner", () => {
+  const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo override")] }] } });
+  const home = makeCodexHome('[plugins."fixture@market"]\nenabled = true\n');
+  const binDir = tempDir("cxc-hook-codexbin-");
+  const override = join(binDir, "codex.exe");
+  writeFileSync(override, "");
+  const seen: Array<{ file: string; codexHome: string | undefined }> = [];
+  const runner: HookTrustRunner = (file, _args, options) => {
+    seen.push({ file, codexHome: options.env.CODEX_HOME });
+    return { status: 0 };
+  };
+  const originalBin = process.env.CODEX_BIN;
+  process.env.CODEX_BIN = override;
+  try {
+    retrustHooks(home, root, PLUGIN_KEY, true, runner, "win32");
+  } finally {
+    if (originalBin === undefined) delete process.env.CODEX_BIN;
+    else process.env.CODEX_BIN = originalBin;
+  }
+  assert.deepEqual(seen, [{ file: override, codexHome: home }]);
+});
+
+test("POSIX retrust still spawns a bare codex, unchanged", () => {
+  const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo posix")] }] } });
+  const home = makeCodexHome('[plugins."fixture@market"]\nenabled = true\n');
+  const seen: Array<{ file: string; args: string[] }> = [];
+  const runner: HookTrustRunner = (file, args) => {
+    seen.push({ file, args });
+    return { status: 0 };
+  };
+  const originalBin = process.env.CODEX_BIN;
+  delete process.env.CODEX_BIN;
+  try {
+    retrustHooks(home, root, PLUGIN_KEY, true, runner, "linux");
+  } finally {
+    if (originalBin !== undefined) process.env.CODEX_BIN = originalBin;
+  }
+  assert.deepEqual(seen, [{ file: "codex", args: ["features", "list"] }]);
+});
+
+/**
+ * Issue #33 bug B: a never-trusted install must name the exact recovery command.
+ * Nothing in codexclaw writes [hooks.state.*]; only the host Codex does, so the
+ * check reports rather than forges.
+ */
+test("doctor names the bootstrap retrust command when no trust entry exists at all", () => {
+  const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo fresh")] }] } });
+  const home = makeCodexHome('[plugins."fixture@market"]\nenabled = true\n');
+  const check = runHookTrustCheck(root, { codexHome: home, pluginKey: PLUGIN_KEY });
+  assert.equal(check.severity, "FAIL");
+  assert.match(check.evidence, /untrusted/);
+  assert.match(check.evidence, /actual=\(none\)/);
+  assert.ok(check.repair, "a fresh install must carry a repair line");
+  assert.match(check.repair ?? "", /cxc hooks retrust/);
+  assert.match(check.repair ?? "", /--bootstrap-ok/);
+  assert.match(check.repair ?? "", new RegExp(PLUGIN_KEY.replace("@", "@")));
+  // The remediation must say who owns the write, so nobody hand-forges entries.
+  assert.match(check.repair ?? "", /Codex/);
+});
+
+test("doctor's drift repair omits --bootstrap-ok, which would be the wrong advice", () => {
+  const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo drifted")] }] } });
+  const entries = listHookEntries(root, PLUGIN_KEY);
+  const home = makeCodexHome(trustSection(entries[0], "sha256:stale"));
+  const check = runHookTrustCheck(root, { codexHome: home, pluginKey: PLUGIN_KEY });
+  assert.equal(check.severity, "FAIL");
+  assert.match(check.evidence, /drifted/);
+  assert.match(check.repair ?? "", /cxc hooks retrust/);
+  assert.ok(!(check.repair ?? "").includes("--bootstrap-ok"), "drift is not a bootstrap case");
+});
+
+test("a fully trusted install carries no repair line", () => {
+  const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo trusted")] }] } });
+  const entries = listHookEntries(root, PLUGIN_KEY);
+  const home = makeCodexHome(trustSection(entries[0]));
+  const check = runHookTrustCheck(root, { codexHome: home, pluginKey: PLUGIN_KEY });
+  assert.equal(check.severity, "PASS");
+  assert.equal(check.repair, undefined);
+});

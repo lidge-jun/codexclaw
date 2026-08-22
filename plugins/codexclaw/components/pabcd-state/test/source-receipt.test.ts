@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-support.ts";
 import { isReceiptError, parseSourceBoundReceipt } from "../src/source-receipt.ts";
 
 const IDENTITY = { kind: "resolved", commitSha: "abc1234", dirty: false, capturedAt: "2026-01-01T00:00:00.000Z" };
@@ -63,6 +64,24 @@ test("a zero-byte receipt is rejected by the evidence-root guard", () => {
   assert.match(r.error, /evidence-root guard/);
 });
 
+test("a receipt reached through a linked directory inside the evidence root is rejected", (t) => {
+  // Companion to the leaf-link case above, reaching the same realpath guard
+  // through a DIRECTORY link. Junctions need no elevation, so this half of the
+  // symlink coverage runs on a stock Windows checkout.
+  if (!supportsSymlinks().dir) {
+    t.skip("directory links unavailable on this host: linked-directory escape not exercised");
+    return;
+  }
+  const cwd = workspace();
+  const outside = mkdtempSync(join(tmpdir(), "cxc-receipt-outside-"));
+  writeFileSync(join(outside, "r.json"), JSON.stringify({ kind: "test", sourceIdentity: IDENTITY, createdAt: "x" }));
+  symlinkDirSync(outside, join(cwd, ".codexclaw", "evidence", "linked"));
+  // Lexically inside the evidence root; the realpath still lands outside it.
+  const r = parseSourceBoundReceipt(join(".codexclaw", "evidence", "linked", "r.json"), cwd, "test");
+  assert.ok(isReceiptError(r));
+  assert.match(r.error, /evidence-root guard/);
+});
+
 test("malformed JSON is rejected", () => {
   const cwd = workspace();
   const rel = writeReceipt(cwd, "bad.json", "{not json");
@@ -111,7 +130,13 @@ test("a receipt outside the evidence root is rejected", () => {
   assert.match(r.error, /evidence-root guard/);
 });
 
-test("a symlink into the evidence root is rejected", () => {
+test("a symlink into the evidence root is rejected", (t) => {
+  // The link must point at a receipt FILE, so a directory junction cannot
+  // stand in for it on an unprivileged Windows host.
+  if (!supportsSymlinks().file) {
+    t.skip("file symlinks unavailable on this host: evidence-root symlink refusal not exercised");
+    return;
+  }
   const cwd = workspace();
   const real = join(cwd, "elsewhere.json");
   writeFileSync(real, JSON.stringify({ kind: "test", sourceIdentity: IDENTITY, createdAt: "x" }));

@@ -10,10 +10,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-support.ts";
 import { TargetParseError, validateManifestTargets } from "../src/manifest-targets.ts";
 import { runDoctor } from "../src/doctor.ts";
 
@@ -148,12 +149,18 @@ test("B2: a ../ target resolving outside the plugin root is rejected", () => {
   ]);
 });
 
-test("B3: a symlink pointing outside the plugin root is rejected", () => {
+test("B3: a symlink pointing outside the plugin root is rejected", (t) => {
+  // escapesRoot compares realpaths, so linking the containing DIRECTORY reaches
+  // the same guard as a leaf link and works unprivileged on Windows via junction.
+  if (!supportsSymlinks().dir) {
+    t.skip("directory links unavailable on this host: symlink escape of the plugin root not exercised");
+    return;
+  }
   const root = makeRoot({ hookCommand: 'node "${PLUGIN_ROOT}/components/x/dist/cli.js"' });
   const outside = mkdtempSync(join(tmpdir(), "cxc-outside-"));
-  writeFileSync(join(outside, "evil.js"), "// elsewhere\n");
-  mkdirSync(join(root, "components", "x", "dist"), { recursive: true });
-  symlinkSync(join(outside, "evil.js"), join(root, "components", "x", "dist", "cli.js"));
+  writeFileSync(join(outside, "cli.js"), "// elsewhere\n");
+  mkdirSync(join(root, "components", "x"), { recursive: true });
+  symlinkDirSync(outside, join(root, "components", "x", "dist"));
   assert.deepEqual(validateManifestTargets(root), [
     { kind: "hook", message: "target escapes plugin root: components/x/dist/cli.js" },
   ]);

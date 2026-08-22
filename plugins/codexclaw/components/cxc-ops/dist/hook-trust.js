@@ -13,6 +13,7 @@ import {
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { renameWithRetry } from "./atomic-write.js";
+import { resolveCodexInvocation } from "./codex-bin.js";
 
 const EVENT_LABELS = {
   PreToolUse: "pre_tool_use",
@@ -368,10 +369,26 @@ function resolvedConfigPath(configPath        )         {
   return lstatSync(configPath).isSymbolicLink() ? realpathSync(configPath) : configPath;
 }
 
-function verifyCodexConfig(codexHome        , runner                 )       {
-  const result = runner("codex", ["features", "list"], {
+/**
+ * Prove the rewritten config still parses, by running `codex features list`
+ * against it.
+ *
+ * The invocation is resolved rather than spawned bare: on Windows a bare
+ * `codex` hits either the Store-packaged WindowsApps binary (EPERM) or the npm
+ * `.cmd` shim (EINVAL), and both surfaced as a bogus "verification failed" that
+ * rolled back a perfectly good write (issue #33).
+ */
+function verifyCodexConfig(
+  codexHome        ,
+  runner                 ,
+  platform                  = process.platform,
+)       {
+  const env = { ...process.env, CODEX_HOME: codexHome };
+  const invocation = resolveCodexInvocation("codex", ["features", "list"], platform, env);
+  const result = runner(invocation.file, invocation.args, {
     encoding: "utf8",
-    env: { ...process.env, CODEX_HOME: codexHome },
+    env,
+    ...invocation.options,
   });
   if (result.status !== 0) {
     const detail = result.error?.message ?? result.stderr?.trim() ?? `exit ${String(result.status)}`;
@@ -385,6 +402,7 @@ export function retrustHooks(
   pluginKey        ,
   bootstrapOk = false,
   runner                  = spawnSync,
+  platform                  = process.platform,
 )                {
   assertSupportedPlatform();
   const configPath = join(codexHome, "config.toml");
@@ -437,7 +455,7 @@ export function retrustHooks(
   copyFileSync(targetPath, backupPath, fsConstants.COPYFILE_EXCL);
   try {
     writeAtomic(targetPath, next);
-    verifyCodexConfig(codexHome, runner);
+    verifyCodexConfig(codexHome, runner, platform);
     const verification = diagnoseHookTrust(codexHome, pluginRoot, pluginKey);
     const failed = verification.filter((result) => result.status !== "trusted");
     if (failed.length > 0) throw new Error(`post-write verification failed for ${failed.map((item) => item.key).join(", ")}`);

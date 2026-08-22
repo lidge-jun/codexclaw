@@ -21,6 +21,7 @@ import { spawnSync } from "node:child_process";
 import { splitLines } from "./text-lines.ts";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { homedir } from "node:os";
 import {
   BodyTooLargeError,
   localRequestRejection,
@@ -40,11 +41,22 @@ import {
 export function resolveProjectRoot(start: string = process.cwd(), env: NodeJS.ProcessEnv = process.env): string {
   const override = typeof env.CODEXCLAW_ROOT === "string" ? env.CODEXCLAW_ROOT.trim() : "";
   if (override.length > 0) return override;
+  // ~/.codexclaw is codexclaw's own GLOBAL store (recall index, skill cache), not a
+  // project. Without this exclusion any start dir outside a repo walks up to the
+  // filesystem root and resolves the user's entire home directory as the project.
+  // The compare is case-insensitive on win32: a start dir spelled "c:\users\me\..."
+  // walks up to "c:\users\me", which an exact compare would not match against the
+  // canonical "C:\Users\me" - and the exclusion would silently not apply.
+  const home = homedir();
+  const isHome = (candidate: string): boolean =>
+    process.platform === "win32"
+      ? candidate.toLowerCase() === home.toLowerCase()
+      : candidate === home;
   let firstCodexclaw: string | null = null;
   let dir = start;
   for (;;) {
     if (existsSync(join(dir, ".git"))) return dir;
-    if (firstCodexclaw === null && existsSync(join(dir, ".codexclaw"))) firstCodexclaw = dir;
+    if (firstCodexclaw === null && !isHome(dir) && existsSync(join(dir, ".codexclaw"))) firstCodexclaw = dir;
     const parent = dirname(dir);
     if (parent === dir) return firstCodexclaw ?? start; // filesystem root reached
     dir = parent;
