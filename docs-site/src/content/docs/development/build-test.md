@@ -44,5 +44,33 @@ transition records the test tail and a zero exit code as evidence — see the
 
 ## Node version
 
-Use Node.js 22+. The build relies on built-in TypeScript type stripping, and the hooks and CLI
-run under `node` directly.
+Use Node.js 24, which is what the CI matrix pins. The build and the suite rely on built-in
+TypeScript type stripping, and the hooks and CLI run under `node` directly.
+
+Node 22 does not strip types without an explicit flag, so running `npm test` under it fails on
+every file at once:
+
+```
+TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".ts"
+```
+
+That is a version mismatch, not a broken tree. Check `node --version` before investigating a
+suite that appears to have failed everywhere, including inside WSL, where the distro's `node`
+is often older than the one on the Windows side.
+
+## Verifying on Windows and WSL
+
+Cross-platform behavior is covered by two workflows, and both matter:
+
+- `ci.yml` runs ubuntu-latest, macos-latest, and windows-latest twice - once with
+  `core.autocrlf=false` and once with `true`, because a default Windows git install sets
+  `true` and that is the configuration that turns CRLF-safe-today readers into broken ones.
+- `wsl.yml` runs a real WSL2 distro twice: once on the `/mnt/c` drvfs checkout and once on
+  native ext4. Those are different filesystems with different locking and permission behavior,
+  so a green run on one says nothing about the other.
+
+Some defects only appear on a real installation. `~/.codexclaw` (the global recall index and
+skill cache) exists on a developer machine and not on a runner, symlink creation needs elevation
+on Windows while junctions do not, and the Store-packaged `codex` alias only exists where the
+Codex desktop app is installed. If you are chasing a Windows report, reproduce it on a Windows
+host rather than trusting a green matrix.
