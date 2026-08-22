@@ -331,7 +331,12 @@ function parseWindowsRemoval(rest: string[]): { recursive: boolean; targets: str
     }
     // `-Confirm:$false`, `-Recurse:$false`, `-ErrorAction:Stop` carry no target.
     if (tok.startsWith("-") && tok.includes(":")) continue;
-    if (tok.startsWith("-") || tok.startsWith("/")) continue; // -Force, /q, ...
+    if (tok.startsWith("-")) continue; // -Force and friends carry no targets
+    // A leading slash is a cmd.exe switch (/s, /q) ONLY when it is one of those
+    // short forms. POSIX-absolute targets (/tmp/..., /home/...) also start with
+    // "/" and are targets - swallowing them made every Linux/WSL removal fall
+    // through to the conservative fallback instead of the verb branch.
+    if (/^\/[a-z]$/i.test(tok)) continue;
     targets.push(tok);
   }
   return { recursive, targets };

@@ -158,6 +158,11 @@ export function resolveWindowsCommand(command, env) {
     for (const ext of exts) {
       const candidate = join(dir, command + ext);
       if (existsSync(candidate)) return candidate;
+      // Case-sensitive filesystems (WSL, Linux CI): PATHEXT spells ".EXE" but
+      // real shims are "npm.cmd" / "gh.exe", so retry the lowercased extension
+      // before giving up. On win32 this second stat is a no-op hit anyway.
+      const lowered = join(dir, command + ext.toLowerCase());
+      if (existsSync(lowered)) return lowered;
     }
   }
   return command;
