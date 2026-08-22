@@ -46,18 +46,21 @@ import { buildRulesContextFromRaw } from "./rules.ts";
 import { handleRenderObservationCapture, handleRenderArtifactCapture } from "./render-observations.ts";
 import { handleWorktreeGuard, handleWorktreeGuardPreTool } from "./worktree-guard.ts";
 import { runSubagentStopGate } from "./subagent-evidence.ts";
-import { runDivergenceCli } from "./divergence-cli.ts";
-import { runReleaseCli } from "./release-cli.ts";
-import { parseFreezeArgs, runFreeze } from "./freeze-cli.ts";
-import { parsePlanCliArgs, runPlanCli } from "./plan-cli.ts";
 import { handleIdleEditAdvisory } from "./idle-edit.ts";
-import { runMetricCli } from "./metric-cli.ts";
-import { parseOrchestrateCliArgs, renderOrchestrateParseError, runOrchestrateCli } from "./orchestrate-cli.ts";
-import { parseGoalplanCliArgs, runGoalplanCli } from "./goalplan-cli.ts";
-import { parseScanCliArgs, runScanCli } from "./scan-cli.ts";
- import { parseReviewRoundCliArgs, runReviewRoundCli } from "./review-round-cli.ts";
-import { parseReceiptCliArgs, runReceiptCli } from "./receipt-cli.ts";
 import { handleReviewObserver } from "./review-observer.ts";
+
+// wp10 (090 trim 4c): the ten terminal-only verb modules below are loaded with
+// dynamic import() inside their own branch instead of at module scope.
+//
+// Every hook event pays for every static import, and a --cpu-prof of a
+// PreToolUse invocation on win32 attributed 96% of the above-spawn-floor cost to
+// ESM module load with no codexclaw function in top self time. No hook event
+// reaches freeze/orchestrate/metric/loop/divergence/release/plan/receipt/
+// review-round/scan, so a hook was loading them for nothing.
+//
+// Safe because each of the ten was verified to have zero import-time side
+// effects (no process listeners, no retained handles, no files touched on
+// import), so deferring them moves no observable behavior - only the cost.
 
 const MAX_STDIN_BYTES = 4 * 1024 * 1024;
 
@@ -102,13 +105,14 @@ function oversizedHookOutput(event: string | undefined): string {
   return "";
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const [, , kind, event] = process.argv;
 
   // `freeze` command path (L10.3 runtime wiring): build/preview the freeze
   // manifest + run a stale check. Separate from the hook stdin path.
   if (kind === "freeze") {
     try {
+      const { parseFreezeArgs, runFreeze } = await import("./freeze-cli.ts");
       const out = runFreeze(parseFreezeArgs(process.argv.slice(3)));
       process.stdout.write(`${out}\n`);
       process.exit(0);
@@ -120,6 +124,7 @@ function main(): void {
 
   // `orchestrate` command path (L4): drive the FSM from the terminal (agent-gated).
   if (kind === "orchestrate") {
+    const { parseOrchestrateCliArgs, renderOrchestrateParseError, runOrchestrateCli } = await import("./orchestrate-cli.ts");
     const parsed = parseOrchestrateCliArgs(process.argv.slice(3), process.cwd());
     if ("error" in parsed) {
       process.stderr.write(`${renderOrchestrateParseError(parsed)}\n`);
@@ -137,6 +142,7 @@ function main(): void {
       process.stderr.write(`metric: stdin exceeds ${MAX_STDIN_BYTES} bytes\n`);
       process.exit(1);
     }
+    const { runMetricCli } = await import("./metric-cli.ts");
     const result = runMetricCli(process.argv.slice(3), process.cwd(), stdin.raw);
     process.stdout.write(`${result.output}\n`);
     process.exit(result.code);
@@ -146,6 +152,7 @@ function main(): void {
   // `goalplan` is a deprecated alias for `loop`.
   if (kind === "loop" || kind === "goalplan") {
     const label = kind === "goalplan" ? "goalplan (deprecated, use 'loop')" : "loop";
+    const { parseGoalplanCliArgs, runGoalplanCli } = await import("./goalplan-cli.ts");
     const parsed = parseGoalplanCliArgs(process.argv.slice(3), process.cwd());
     if ("error" in parsed) {
       process.stderr.write(`${label}: ${parsed.error}\n`);
@@ -158,6 +165,7 @@ function main(): void {
 
   // `divergence` command path (emergence harness): project-local mode + candidate archive.
   if (kind === "divergence") {
+    const { runDivergenceCli } = await import("./divergence-cli.ts");
     const result = runDivergenceCli(process.argv.slice(3), process.cwd());
     process.stdout.write(`${result.output}\n`);
     process.exit(result.code);
@@ -167,6 +175,7 @@ function main(): void {
   // manifest. release-gate.ts shipped the schema but nothing produced a manifest, so
   // the gate could not refuse anything; this is the producer.
   if (kind === "release") {
+    const { runReleaseCli } = await import("./release-cli.ts");
     const result = runReleaseCli(process.argv.slice(3), process.cwd());
     process.stdout.write(`${result.output}\n`);
     process.exit(result.code);
@@ -176,6 +185,7 @@ function main(): void {
   // plan-gate verifies. Without this branch the bin's `case "plan"` would
   // fall through to the silent `kind !== "hook"` exit-0 (audit round 2 High #1).
   if (kind === "plan") {
+    const { parsePlanCliArgs, runPlanCli } = await import("./plan-cli.ts");
     const parsed = parsePlanCliArgs(process.argv.slice(3), process.cwd());
     if ("error" in parsed) {
       process.stderr.write(`plan: ${parsed.error}\n`);
@@ -194,6 +204,7 @@ function main(): void {
   // `receipt` command path (075): run a command and record what happened, so the
   // C>D gate reads an observation instead of a claim.
   if (kind === "receipt") {
+    const { parseReceiptCliArgs, runReceiptCli } = await import("./receipt-cli.ts");
     const parsed = parseReceiptCliArgs(process.argv.slice(3), process.cwd());
     if ("error" in parsed) {
       process.stderr.write(`receipt: ${parsed.error}\n`);
@@ -205,6 +216,7 @@ function main(): void {
   }
 
   if (kind === "review-round") {
+    const { parseReviewRoundCliArgs, runReviewRoundCli } = await import("./review-round-cli.ts");
     const parsed = parseReviewRoundCliArgs(process.argv.slice(3), process.cwd());
     if ("error" in parsed) {
       process.stderr.write(`review-round: ${parsed.error}\n`);
@@ -216,6 +228,7 @@ function main(): void {
   }
 
   if (kind === "scan") {
+    const { parseScanCliArgs, runScanCli } = await import("./scan-cli.ts");
     const parsed = parseScanCliArgs(process.argv.slice(3), process.cwd());
     if ("error" in parsed) {
       process.stderr.write(`scan: ${parsed.error}\n`);
@@ -363,4 +376,14 @@ function main(): void {
   process.exit(0);
 }
 
-main();
+// main() became async for the wp10 lazy verb imports, so a rejection would
+// otherwise surface as an unhandled-rejection stack on a path that used to be
+// fail-safe. Registered as a listener rather than a .catch() chain so the file
+// still ends with a bare `main();` call, which hook-e2e's snapshot check uses to
+// tell a fully-written dist entrypoint from one caught mid-rebuild.
+process.on("unhandledRejection", (err: unknown) => {
+  process.stderr.write(`codexclaw cli failed: ${err instanceof Error ? err.message : String(err)}\n`);
+  process.exit(1);
+});
+
+void main();
