@@ -6,6 +6,32 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.10] — 2026-08-22
+
+### Added
+
+- **A release guide.** The promotion path from `dev` to `main`, what the release
+  gate actually checks, and two traps that only show up once: a failed release
+  leaves a tag a repository ruleset forbids reusing, and a change to the
+  target-branch workflow cannot vouch for its own promotion because
+  `pull_request_target` always runs the base branch's copy.
+
+### Changed
+
+- **The build-test guide said "Node 22+".** CI pins 24, and Node 22 does not strip
+  TypeScript types without a flag, so `npm test` under it fails on every file at
+  once with `ERR_UNKNOWN_FILE_EXTENSION` - a version mismatch that reads like a
+  catastrophically broken tree. The guide now names the version, the symptom, what
+  the two CI lanes cover, and the defect classes that only appear on a real
+  installation rather than a runner.
+
+### Fixed
+
+- **A test harness turned a failed port bind into a routing bug.** The bridge
+  server harness fell back to port 0 when `address()` came back unusable, so the
+  failure surfaced several assertions later as `fetch failed: bad port`. It throws
+  at the bind now, naming what happened.
+
 ## [0.2.9] — 2026-08-22
 
 ### Changed
