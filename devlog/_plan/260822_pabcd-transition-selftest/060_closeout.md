@@ -107,3 +107,28 @@ correctly.
 
 The rule that made this productive: never report a behaviour you have not
 watched a process actually perform.
+
+## Corrections to the existing archive
+
+Two filings are not new landmines so much as corrections, and they are worth
+calling out because someone following the archive's advice today gets burned:
+
+- **#7** `oss-outfile-bom` recommends `Out-File -Encoding utf8` on 5.1 and
+  `Set-Content -Encoding utf8NoBOM` on 7+. On this 5.1 host the first still
+  writes a BOM and scores zero anchored matches, and the second is not a legal
+  parameter value - the binder lists the accepted enum names and refuses.
+- **#6** the natural next step after `oss-native-arg-quoting` is to start
+  escaping quotes. That appears to work and then silently changes the argument
+  count the first time a value contains a space.
+
+A workaround that has not been executed on the host it targets is a guess. Both
+of these were caught by running the recommendation rather than trusting it.
+
+## If you extend this
+
+Surfaces still unprobed: remoting and `Invoke-Command` serialization, scheduled
+tasks, `ExecutionPolicy` interaction with signed scripts, culture-dependent
+parsing (`[double]`, date formats) under a non-en-US locale, and `$PSDefault`
+`ParameterValues` leaking into child scopes. The culture one looks especially
+promising on a Korean-locale host, where decimal separators and date ordering
+differ from what most scripts assume.
