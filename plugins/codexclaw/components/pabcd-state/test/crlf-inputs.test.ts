@@ -125,8 +125,18 @@ test("review-round-cli reads a CRLF config.toml the same as an LF one", () => {
   const toml = "[features.multi_agent_v2]\nenabled = true\n";
   const lf = dispatchTextWithConfig(toml, "crlf-lf");
   const crlf = dispatchTextWithConfig(toml.replace(/\n/g, "\r\n"), "crlf-crlf");
-  const tail = (text: string): string => text.split("\n").slice(1).join("\n");
+  // The LAUNCH token embeds a second-resolution timestamp, so two calls that
+  // straddle a second boundary differ by one digit for a reason that has nothing
+  // to do with line endings. Assert its SHAPE, then compare the rest.
+  const LAUNCH = /^ {2}LAUNCH: \w+-\d{14}$/m;
+  const tail = (text: string): string =>
+    text.split("\n").slice(1).join("\n").replace(LAUNCH, "  LAUNCH: <id>");
   assert.match(tail(lf), /agent_type explorer/, "LF baseline detects the v2 surface");
+  assert.match(
+    crlf.split("\n").slice(1).join("\n"),
+    LAUNCH,
+    "the CRLF run still emits a launch id",
+  );
   assert.equal(tail(crlf), tail(lf), "CRLF must produce the same dispatch text");
 });
 
