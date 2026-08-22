@@ -356,3 +356,31 @@ First public release. 25 skills, 12 hooks, 801 tests.
 [0.2.0]: https://github.com/lidge-jun/codexclaw/compare/v0.2.0-beta.1...v0.2.0
 [0.2.0-beta.1]: https://github.com/lidge-jun/codexclaw/compare/v0.1.0...v0.2.0-beta.1
 [0.1.0]: https://github.com/lidge-jun/codexclaw/releases/tag/v0.1.0
+# Changelog
+
+## 0.2.7 (2026-08-22)
+
+Windows/Linux cross-platform optimization campaign (11 PABCD cycles,
+devlog/_plan/260821_win-linux-optimization). Closes #29, #30, #31.
+
+- attest gates batch every missing field into one rejection; new --attest-file
+  for PowerShell (BOM-tolerant); reviewer agent_type wording corrected (#31)
+- plan init no longer doubles a supplied YYMMDD prefix and preserves underscores;
+  decade docs use 3-digit numbering (#30)
+- loop criteria are registrable: init --criteria persists, add-criterion and
+  add-work-phase verbs steer additively; goalplan loader names the exact failing
+  field instead of "no plan found" (#29)
+- scouting bundle: homedir-safe redaction, case- and 8.3-aware path matching
+  (P0 security fixes); doctor version regex repaired
+- win-exec command ladder across bin, cxc-ops, skill-search, messenger-bridge:
+  PATHEXT x PATH resolution, ComSpec route for .cmd/.bat, Store-stub 9009
+  handling, venv Scripts\python.exe on win32, taskkill tree kill
+- filesystem-based WSL residency detection (no wsl.exe subprocess) surfaced in
+  doctor check 9 and the steering lock tier note
+- CRLF-tolerant parsing via splitLines copies in six packages; hook-bench runs
+  from a real tmpdir; .gitattributes eol policy
+- worktree guard covers Remove-Item/ri/del/erase/rd with rmdir semantics
+  preserved; UNC errors normalize to one signature
+- hooks: lazy-load terminal-only verb modules (-22% win32 overhead, measured)
+- CI: platform-smoke real-subprocess verifier, WSL lane (drvfs + ext4),
+  autocrlf=true matrix cell, receipts upload
