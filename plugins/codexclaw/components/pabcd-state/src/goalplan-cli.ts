@@ -110,6 +110,14 @@ export interface GoalplanCliResult {
 function resolveSlug(args: GoalplanCliArgs): string | null {
   if (typeof args.slug === "string" && args.slug.length > 0) return deriveSlug(args.slug);
   if (typeof args.objective === "string" && args.objective.length > 0) return deriveSlug(args.objective);
+  // #48: `loop init --session` already binds the slug into the session file, so a
+  // later `show`/`validate` can recover it without the caller re-typing a
+  // 47-character derived slug. This also makes the session the source of truth
+  // when the same id has state in more than one tree.
+  if (typeof args.session === "string" && args.session.length > 0) {
+    const bound = readState(args.cwd, args.session).slug;
+    if (typeof bound === "string" && bound.length > 0) return bound;
+  }
   return null;
 }
 
@@ -351,7 +359,10 @@ export function runGoalplanCli(args: GoalplanCliArgs): GoalplanCliResult {
 
   const slug = resolveSlug(args);
   if (!slug) {
-    return { output: `loop ${args.verb}: --slug "<text>" or --objective "<text>" is required`, code: 1 };
+    return {
+      output: `loop ${args.verb}: --slug "<text>", --objective "<text>", or --session <id> (with a bound plan) is required`,
+      code: 1,
+    };
   }
   const plan = readGoalplan(args.cwd, slug);
   if (!plan) {

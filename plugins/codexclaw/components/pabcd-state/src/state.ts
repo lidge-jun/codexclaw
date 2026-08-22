@@ -1,6 +1,6 @@
-import { mkdirSync, readFileSync, writeFileSync, appendFileSync, linkSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, linkSync, rmSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { renameWithRetry } from "./atomic-write.ts";
 import { type InterviewTracker, reconstructInterview, normalizeInterview, isInterviewReady } from "./interview.ts";
 import type { SourceIdentity } from "./source-identity.ts";
@@ -179,6 +179,41 @@ function sessionsDir(cwd: string): string {
 
 function statePath(cwd: string, sessionId: string): string {
   return join(sessionsDir(cwd), `${sanitizeKey(sessionId)}.json`);
+}
+
+/**
+ * #48: session files live at `<cwd>/.codexclaw/sessions/<id>.json`, so the SAME
+ * `--session` id resolves to different state depending on where the process was
+ * started. A Codex thread whose cwd is one tree while its work is in another then
+ * interviews one FSM and orchestrates the other, and `status` reports IDLE for a
+ * cycle that is genuinely in flight elsewhere.
+ *
+ * Changing the storage location would break every existing session, so instead we
+ * make the split VISIBLE: look for the same id in the nearest plausible sibling
+ * roots and report what was found. Detection only — nothing is read from or
+ * written to the other tree.
+ */
+export function findForeignSessionCopies(
+  cwd: string,
+  sessionId: string,
+  candidates: string[],
+): string[] {
+  const mine = resolve(statePath(cwd, sessionId));
+  const seen = new Set<string>([mine]);
+  const found: string[] = [];
+  for (const root of candidates) {
+    if (typeof root !== "string" || root.length === 0) continue;
+    let candidate: string;
+    try {
+      candidate = resolve(statePath(root, sessionId));
+    } catch {
+      continue;
+    }
+    if (seen.has(candidate)) continue;
+    seen.add(candidate);
+    if (existsSync(candidate)) found.push(candidate);
+  }
+  return found;
 }
 
 /**
