@@ -44,6 +44,10 @@ export function resolveWindowsCommand(command: string, env: NodeJS.ProcessEnv): 
     for (const ext of exts) {
       const candidate = join(dir, command + ext);
       if (existsSync(candidate)) return candidate;
+      // Case-sensitive filesystems (WSL, Linux CI): PATHEXT spells ".EXE" but
+      // real shims are "npm.cmd" / "gh.exe". Retry the lowercased extension.
+      const lowered = join(dir, command + ext.toLowerCase());
+      if (existsSync(lowered)) return lowered;
     }
   }
   return command;
@@ -80,4 +84,3 @@ export function commandInvocation(
     options: { windowsVerbatimArguments: true },
   };
 }
-
