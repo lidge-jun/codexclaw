@@ -42,6 +42,30 @@ Same area, separate surprise: the captured value's TYPE depends on line count.
 One line is a `String`, two lines is an `Object[]`. So `-eq`, `.Trim()` and
 `.Length` silently change meaning when a tool adds a log line.
 
+## 7. Single-element unrolling (filed #12)
+
+The one that probably costs the most hours across all of these, because the code
+never changes - the data does.
+
+```
+one-line file:  Get-Content -> String    $c[0] = "h"      $c.Length = 5
+two-line file:  Get-Content -> Object[]  $c[0] = "hello"  $c.Length = 2
+empty file:     Get-Content -> $null     @($c).Count = 0
+```
+
+A line counter silently becomes a character counter. It is silent precisely
+because `String` happens to support both `[0]` and `.Length` with different
+meanings - if it did not, you would get a clean method-not-found instead.
+
+`@(...)` at the point of assignment fixes it, and applies to every unrolling
+cmdlet: `Get-ChildItem`, `Select-String`, `Import-Csv`, native capture.
+
+Also measured here: a failing native command does NOT stop the next statement.
+`node exit.mjs 1; node exit.mjs 0` runs both and leaves `$LASTEXITCODE=0`, so
+the failure is erased by the success that follows it. Worth knowing when writing
+multi-command lines, though it follows from the language rather than being a
+surprise on its own.
+
 ## Running index
 
 | # | category | what |
@@ -52,6 +76,7 @@ One line is a `String`, two lines is an `Object[]`. So `-eq`, `.Trim()` and
 | 9 | aliases | Get-Command vs where.exe disagree; both unrunnable |
 | 10 | args-quoting | `$1`/`$100` are variables; regex and money get deleted |
 | 11 | exit-codes | `if (nativecmd)` branches on output, not exit code |
+| 12 | collections | one-line file makes Get-Content a String; `[0]` and `.Length` change meaning |
 
 Skipped as already covered: empty-arg vanishing, `ErrorRecord` wrapping,
 `$?` unreliability, the UTF-16 `Out-File` default, `.ps1` shim precedence.
