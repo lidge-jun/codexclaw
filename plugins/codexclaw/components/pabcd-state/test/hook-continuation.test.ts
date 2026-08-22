@@ -435,12 +435,15 @@ test("GOAL-IDLE-CONTINUE-01: active goal at IDLE blocks with the arming command"
   try {
     withGoalsDb([{ thread_id: "gi1", status: "active" }], () => {
       // no state file at all (019f4407 shape: goal created, FSM never entered)
-      const out = handleStop(stop(cwd, "gi1"));
+      const out = handleStop(stop(cwd, "gi1"), "linux");
       const parsed = JSON.parse(out.trim());
       assert.equal(parsed.decision, "block");
       assert.match(parsed.reason, /goal continuation/);
       assert.match(parsed.reason, /GOAL-IDLE-CONTINUE-01/);
-      assert.match(parsed.reason, /cxc orchestrate P --session gi1 --attest/);
+      // `--attest` is a PREFIX of `--attest-file`, so the old assertion passed on
+      // win32 by accident. Pin the POSIX form explicitly; the win32 branch is
+      // asserted separately below.
+      assert.match(parsed.reason, /cxc orchestrate P --session gi1 --attest '\{/);
       assert.match(parsed.reason, /update_goal/);
       assert.match(parsed.reason, /LOOP-UNIT-CHAIN-01/, "IDLE block must teach heterogeneous work-phase chaining");
       assert.match(parsed.reason, /cxc loop init/, "unbound session must be pointed at loop init");
@@ -448,6 +451,29 @@ test("GOAL-IDLE-CONTINUE-01: active goal at IDLE blocks with the arming command"
       const st = readState(cwd, "gi1");
       assert.equal(st.stopBlockPhase, "IDLE");
       assert.equal(st.stopBlockCount, 1);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+// fuck-powershell#6: the IDLE block is a Stop surface like stopNextCommand, and it
+// degraded the same way - the probe shows the inline JSON arriving as
+// {from:IDLE,to:P,evidence:<diff-level plan for the next work-phase>}.
+// Platform is injected so Linux CI drives the win32 branch.
+test("GOAL-IDLE-CONTINUE-01: the win32 block teaches the file flag, not inline attest", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "gi1", status: "active" }], () => {
+      const parsed = JSON.parse(handleStop(stop(cwd, "gi1"), "win32").trim());
+      assert.equal(parsed.decision, "block");
+      assert.doesNotMatch(parsed.reason, /--attest '\{/);
+      assert.match(parsed.reason, /--attest-file \.codexclaw\/attest\.json/);
+      // The recipe, not just the flag: a negative alone would pass on text that is
+      // merely different rather than usable.
+      assert.match(parsed.reason, /Set-Content -Encoding utf8 \.codexclaw\/attest\.json/);
+      // The rest of the block must survive the branch.
+      assert.match(parsed.reason, /GOAL-IDLE-CONTINUE-01/);
+      assert.match(parsed.reason, /update_goal/);
+      assert.match(parsed.reason, /LOOP-UNIT-CHAIN-01/);
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

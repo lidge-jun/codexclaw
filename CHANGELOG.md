@@ -6,6 +6,41 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.11] — 2026-08-22
+
+### Fixed
+
+- **codexclaw told Windows agents to run a command that cannot work.** Every
+  agent-facing surface handed out inline `--attest '<json>'`. PowerShell strips
+  the quotes from a single-quoted argument, and escaping them ends the quoted
+  span so the value splits at its first space — and every gated edge requires a
+  `did` narrative, which always contains spaces. There is no inline spelling
+  that works, so an agent following the instruction concludes the FSM is broken.
+
+  Two surfaces (`--help` and the Stop next-command) were already platform-aware,
+  which is what made the rest easy to overlook. Now fixed:
+
+  - the arming mandate injected at **prompt time**, which handed a failing
+    command to every agent starting loop work before it had run anything
+  - the goal-continuation Stop block, a sibling of the surface already fixed
+  - the `P -> A` plan-unit rejection, on the most-traveled gated edge
+  - the interview-override rejection, reached exactly when an agent is stuck
+  - the `pabcd`, `loop` and `interview` skills, which taught the inline form
+    as the grammar
+
+  Windows now gets the write-then-attest recipe: `'<json>' | Set-Content
+  -Encoding utf8 .codexclaw/attest.json` then `--attest-file`. POSIX output is
+  unchanged, pinned by a literal snapshot test.
+
+### Changed
+
+- `handleUserPromptSubmit`, `handleStop` and `buildGoalIdleBlock` take an
+  injected `platform`, so Linux CI exercises the win32 branches rather than
+  leaving them untested.
+- A continuation test asserted `/--attest/`, which is a prefix of
+  `--attest-file` and therefore passed on Windows no matter what the code did.
+  It now pins the POSIX form, with a sibling case for win32.
+
 ## [0.2.10] — 2026-08-22
 
 ### Added

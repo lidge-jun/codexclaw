@@ -25,7 +25,9 @@ for EVERY loop entry or re-entry:
    `cxc orchestrate P --session <id>`; HITL -> `cxc orchestrate I|P --session <id>`
    (or the human chat free-pass).
 4. Advance the four gated work edges (P>A, A>B, B>C, C>D) with
-   `cxc orchestrate <phase> --attest <json>` carrying the phase's real artifact
+   `cxc orchestrate <phase> --attest <json>` — or `--attest-file <path>`, which is
+   REQUIRED on Windows because PowerShell cannot pass inline JSON as one argument —
+   carrying the phase's real artifact
    (ORCH-ARTIFACT-01). Entry edges (IDLE→P, I→P) are explicit commands without an
    attest JSON — the shipped gate (`dist/attest.js` GATED_TRANSITIONS) gates exactly
    those four. A phase without its persisted transition did not happen — the

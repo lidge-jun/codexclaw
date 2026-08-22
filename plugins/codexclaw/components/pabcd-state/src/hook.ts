@@ -455,26 +455,49 @@ export const TRIGGER_AUTHORITY_NOTE = [
   "`cxc orchestrate <I|P|A|B|C|D> --session <id>` — work edges carry --attest.",
 ].join(" ");
 
-export const LOOP_ARM_DIRECTIVE = [
-  "[codexclaw: LOOP — orchestrate arming mandate (ORCH-MANDATE-01)]",
-  "A loop/goalplan claim without persisted FSM evidence is INVALID, and the PABCD FSM is not",
-  "armed right now. Arm it with explicit commands before narrating any loop work:",
-  "1. Session id: take it ONLY from your most recent SessionStart binding line",
-  "   (SESSION-IDENTITY-01 — never an id seen in transcript history).",
-  "2. `cxc orchestrate status --session <id>` — read the real phase first.",
-  "3. HOTL (user asked for autonomous / continue-until-done): create_goal with a detailed",
-  '   objective -> `cxc loop init --objective "<same text>" --session <id>` -> register',
-  "   workPhases[] + criteria[] in the goalplan -> `cxc orchestrate P --session <id>`.",
-  "   HITL (no such ask): enter the cycle explicitly via `cxc orchestrate I|P --session <id>`.",
-  "4. Advance EVERY forward edge yourself with `cxc orchestrate <phase> --attest <json>` —",
-  "   a phase without its persisted transition + artifact did not happen (ORCH-ARTIFACT-01).",
-  "   When a goalplan is bound, include the active workPhaseId in every gated attest",
-  "   (one work-phase = one full PABCD cycle).",
-  "5. After D closes to IDLE with work remaining under an active goal, immediately re-enter",
-  "   with `cxc orchestrate P --session <id>` (LOOP-UNIT-CHAIN-01).",
-  "Load and obey cxc-loop + cxc-pabcd when available. Work done outside the FSM does not",
-  "count as loop progress — re-enter and attest it.",
-].join("\n");
+/**
+ * The arming mandate, injected at prompt time by UserPromptSubmit.
+ *
+ * Step 4 is platform-dependent because PowerShell cannot pass inline JSON as one
+ * argv token: single quotes are stripped (`{from:P,to:A,did:wrote the plan}`) and
+ * escaping them ends the quoted span so the value splits at its first space. Every
+ * gated edge requires a `did` narrative, which always contains spaces, so there is
+ * no inline spelling that works. Telling a Windows agent otherwise is how it
+ * concludes the FSM is broken. Same reasoning as `stopNextCommand` below.
+ */
+export function loopArmDirective(platform: NodeJS.Platform = process.platform): string {
+  const advance = platform === "win32"
+    ? [
+        "4. Advance EVERY forward edge yourself. On Windows write the JSON first, then attest:",
+        "   `'<json>' | Set-Content -Encoding utf8 .codexclaw/attest.json` then",
+        "   `cxc orchestrate <phase> --session <id> --attest-file .codexclaw/attest.json` —",
+        "   inline --attest cannot survive PowerShell argument parsing (quotes are stripped,",
+        "   and escaping them splits the value at its first space).",
+      ]
+    : [
+        "4. Advance EVERY forward edge yourself with `cxc orchestrate <phase> --attest <json>` —",
+      ];
+  return [
+    "[codexclaw: LOOP — orchestrate arming mandate (ORCH-MANDATE-01)]",
+    "A loop/goalplan claim without persisted FSM evidence is INVALID, and the PABCD FSM is not",
+    "armed right now. Arm it with explicit commands before narrating any loop work:",
+    "1. Session id: take it ONLY from your most recent SessionStart binding line",
+    "   (SESSION-IDENTITY-01 — never an id seen in transcript history).",
+    "2. `cxc orchestrate status --session <id>` — read the real phase first.",
+    "3. HOTL (user asked for autonomous / continue-until-done): create_goal with a detailed",
+    '   objective -> `cxc loop init --objective "<same text>" --session <id>` -> register',
+    "   workPhases[] + criteria[] in the goalplan -> `cxc orchestrate P --session <id>`.",
+    "   HITL (no such ask): enter the cycle explicitly via `cxc orchestrate I|P --session <id>`.",
+    ...advance,
+    "   a phase without its persisted transition + artifact did not happen (ORCH-ARTIFACT-01).",
+    "   When a goalplan is bound, include the active workPhaseId in every gated attest",
+    "   (one work-phase = one full PABCD cycle).",
+    "5. After D closes to IDLE with work remaining under an active goal, immediately re-enter",
+    "   with `cxc orchestrate P --session <id>` (LOOP-UNIT-CHAIN-01).",
+    "Load and obey cxc-loop + cxc-pabcd when available. Work done outside the FSM does not",
+    "count as loop progress — re-enter and attest it.",
+  ].join("\n");
+}
 
 const STAGE_LABELS: Partial<Record<Phase, string>> = {
   I: "INTERVIEW",
@@ -553,7 +576,10 @@ export function handleSessionStart(payload: SessionStartPayload): string {
  *  - mode 3 (active, no trigger, same phase): inject the short stage header
  *    every turn (compaction-immune, jwc M2 parity).
  */
-export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string {
+export function handleUserPromptSubmit(
+  payload: UserPromptSubmitPayload,
+  platform: NodeJS.Platform = process.platform,
+): string {
   if (payload.hook_event_name !== "UserPromptSubmit") return "";
   const turn = payload.turn_id ?? "";
   const state = readState(payload.cwd, payload.session_id);
@@ -598,9 +624,9 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
     });
     const parts: string[] = [];
     // 260724 WP1: resolve the invocation at emit time (constant untouched). Safe
-    // per resolveCxcInDirective: every cxc command in LOOP_ARM_DIRECTIVE is
+    // per resolveCxcInDirective: every cxc command in the arming directive is
     // backticked; "cxc-loop"/"cxc-pabcd" skill nouns carry no "`cxc " prefix.
-    parts.push(resolveCxcInDirective(LOOP_ARM_DIRECTIVE));
+    parts.push(resolveCxcInDirective(loopArmDirective(platform)));
     if (agbrowseRequested) parts.push(AGBROWSE_SEARCH_DIRECTIVE);
     return buildContextOutput("UserPromptSubmit", parts.join("\n\n"));
   }
@@ -1125,11 +1151,21 @@ export function readStopWorkContext(cwd: string, state: State): StopWorkContext 
  * the remaining work is named; when it is bound but unregistered (empty), the block says
  * to fill it; when none is bound, it points at `cxc loop init`.
  */
-export function buildGoalIdleBlock(cwd: string, state: State, sessionId: string): string {
+export function buildGoalIdleBlock(
+  cwd: string,
+  state: State,
+  sessionId: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  // Same PowerShell constraint as loopArmDirective: inline JSON cannot survive
+  // argument parsing, so win32 gets the write-then-attest pair instead.
+  const startNext = platform === "win32"
+    ? `Either start the next work-phase now: write the JSON with \`'{"from":"IDLE","to":"P","evidence":"<diff-level plan for the next work-phase>"}' | Set-Content -Encoding utf8 .codexclaw/attest.json\` then run \`cxc orchestrate P --session ${sessionId} --attest-file .codexclaw/attest.json\``
+    : `Either start the next work-phase now: \`cxc orchestrate P --session ${sessionId} --attest '{"from":"IDLE","to":"P","evidence":"<diff-level plan for the next work-phase>"}'\``;
   const lines = [
     "[codexclaw — goal continuation] A host goal is ACTIVE but no PABCD cycle is in flight.",
     "GOAL-IDLE-CONTINUE-01: IDLE is not the end while the goal is active (LOOP-CONTINUE-01). Do not end the turn here.",
-    `Either start the next work-phase now: \`cxc orchestrate P --session ${sessionId} --attest '{"from":"IDLE","to":"P","evidence":"<diff-level plan for the next work-phase>"}'\``,
+    startNext,
     'or close the goal honestly: `update_goal` status "complete" (only when the recorded criteria are proven — the E8 gate checks a bound goalplan) or status "blocked" for an external blocker.',
     "LOOP-UNIT-CHAIN-01: work-phases chain HETEROGENEOUS units in one session — an independent feature/plan discovered mid-loop is simply the NEXT work-phase (append it to the goalplan, then orchestrate P). \"Needs its own PABCD\" is a plan statement, not a session boundary; do not close the goal while naming remaining features that fit the objective.",
   ];
@@ -1222,7 +1258,10 @@ function objectivePlateau(cwd: string, sessionId: string): PlateauCheck {
  *    Side effect by design: the counter write creates the session state file, so the
  *    suggested orchestrate command passes the G2 unknown-session guard afterwards.
  */
-export function handleStop(payload: StopPayload): string {
+export function handleStop(
+  payload: StopPayload,
+  platform: NodeJS.Platform = process.platform,
+): string {
   if (payload.hook_event_name !== "Stop") return "";
 
   const state = readState(payload.cwd, payload.session_id);
@@ -1243,7 +1282,7 @@ export function handleStop(payload: StopPayload): string {
     // bail: don't pile on during context-pressure/compaction recovery.
     if (isContextPressureTail(readTranscriptTail(payload.transcript_path))) return "";
     if (bumpStopCounter(payload.cwd, state) === "release") return "";
-    return buildGoalIdleBlock(payload.cwd, state, payload.session_id);
+    return buildGoalIdleBlock(payload.cwd, state, payload.session_id, platform);
   }
 
   // C-RENDER-GROUNDING-01 advisory: when phase === C and render-artifact files were
