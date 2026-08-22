@@ -1004,7 +1004,9 @@ function identityReasons(plan: Goalplan, gate: FinalGateState, ctx: GoalplanVali
  * refusal leaves all three untouched.
  */
 export type AdvanceResult =
-  | { kind: "ok"; plan: Goalplan; closedId: string }
+  // closedId is null when the plan was ALREADY fully done and this cycle closes
+  // without advancing a cursor (#49).
+  | { kind: "ok"; plan: Goalplan; closedId: string | null }
   | { kind: "tasks_pending"; workPhaseId: string; pending: GoalplanTask[] }
   | { kind: "no_active" };
 

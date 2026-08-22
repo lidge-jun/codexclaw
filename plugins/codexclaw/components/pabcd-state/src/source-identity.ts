@@ -152,6 +152,17 @@ const STATE_DIR_PREFIX = ".codexclaw/";
 export interface CaptureOptions {
   /** Drop `.codexclaw/` entries before hashing. Default false. */
   excludeCodexclawArtifacts?: boolean;
+  /**
+   * #49: paths the check command is EXPECTED to rewrite. A validator that
+   * regenerates its own artifacts (`validate.py --build` writing graph.json) is
+   * the documented gate for some repos, and refusing its receipt forces agents to
+   * fake a `test -f` receipt instead — which defeats CHECK-BINDING-01 entirely.
+   *
+   * Prefix match on the repo-relative POSIX path, so `600_ontology` covers the
+   * whole directory and `graph.json` covers exactly that file. Declared by the
+   * caller, never inferred: an undeclared rewrite is still a refusal.
+   */
+  generatedPaths?: string[];
 }
 
 export function captureSourceIdentity(cwd: string, options: CaptureOptions = {}): SourceIdentity {
@@ -172,6 +183,10 @@ export function captureSourceIdentity(cwd: string, options: CaptureOptions = {})
   }
   if (options.excludeCodexclawArtifacts) {
     records = records.filter((r) => !r.path.startsWith(STATE_DIR_PREFIX));
+  }
+  const generated = (options.generatedPaths ?? []).filter((p) => p.length > 0);
+  if (generated.length > 0) {
+    records = records.filter((r) => !generated.some((g) => r.path === g || r.path.startsWith(`${g}/`)));
   }
   if (records.length === 0) return { kind: "resolved", commitSha, dirty: false, capturedAt };
   return { kind: "resolved", commitSha, dirty: true, treeHash: hashRecords(cwd, records), capturedAt };

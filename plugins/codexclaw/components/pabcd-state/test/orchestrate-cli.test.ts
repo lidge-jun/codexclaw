@@ -833,11 +833,15 @@ test("D-close on a bound session is refused when the goalplan cannot be read", (
   assert.equal(ledgerLines(cwd).length, 0);
 });
 
-test("D-close is refused when the bound goalplan has no active work-phase", () => {
+// #49: a plan whose work-phases are ALL done is complete, not broken. Refusing D
+// here stranded the cycle, and the reported workaround was to write a finished
+// phase back to in_progress purely to satisfy this gate — corrupting the record
+// to satisfy a check about the record. It closes now.
+test("D-close succeeds when every work-phase is already done", () => {
   const cwd = boundCwd();
-  const id = "cycle-no-active";
-  const slug = "cycle-gate-empty";
-  const plan = buildGoalplan({ objective: "no active phase" });
+  const id = "cycle-all-done";
+  const slug = "cycle-gate-complete";
+  const plan = buildGoalplan({ objective: "all phases done" });
   plan.slug = slug;
   plan.workPhases = [{ id: "wp-1", title: "closed", status: "done", tasks: [], criteriaIds: [] }];
   plan.activeWorkPhaseId = null;
@@ -850,10 +854,55 @@ test("D-close is refused when the bound goalplan has no active work-phase", () =
   assert.ok(!("error" in args));
   const r = runOrchestrateCli(args as never);
 
+  assert.equal(r.code, 0, r.output);
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(ledgerLines(cwd).length, 1);
+});
+
+// The gate still exists — it just names the two REAL failures instead.
+test("D-close is refused when the bound goalplan is empty", () => {
+  const cwd = boundCwd();
+  const id = "cycle-empty-plan";
+  const slug = "cycle-gate-empty";
+  const plan = buildGoalplan({ objective: "no phases registered" });
+  plan.slug = slug;
+  plan.workPhases = [];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  const epoch = "c-test-epoch";
+  writeState(cwd, { ...defaultState(id), phase: "C", slug, checkEpoch: epoch, flags: { interview: false, auditPassed: true, checkPassed: false } });
+  seedReceipt(cwd, id, epoch);
+
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", dAttest(id)], cwd);
+  assert.ok(!("error" in args));
+  const r = runOrchestrateCli(args as never);
+
   assert.equal(r.code, 1);
-  assert.match(r.output, /no active work-phase/);
+  assert.match(r.output, /the plan is empty/);
   assert.equal(readState(cwd, id).phase, "C");
   assert.equal(ledgerLines(cwd).length, 0);
+});
+
+test("D-close is refused when every remaining work-phase is blocked", () => {
+  const cwd = boundCwd();
+  const id = "cycle-all-blocked";
+  const slug = "cycle-gate-blocked";
+  const plan = buildGoalplan({ objective: "everything blocked" });
+  plan.slug = slug;
+  plan.workPhases = [{ id: "wp-1", title: "stuck", status: "blocked", tasks: [], criteriaIds: [] }];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  const epoch = "c-test-epoch";
+  writeState(cwd, { ...defaultState(id), phase: "C", slug, checkEpoch: epoch, flags: { interview: false, auditPassed: true, checkPassed: false } });
+  seedReceipt(cwd, id, epoch);
+
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", dAttest(id)], cwd);
+  assert.ok(!("error" in args));
+  const r = runOrchestrateCli(args as never);
+
+  assert.equal(r.code, 1);
+  assert.match(r.output, /blocked or superseded/);
+  assert.equal(readState(cwd, id).phase, "C");
 });
 
 test("an unbound (HITL) session closes its cycle exactly as before", () => {

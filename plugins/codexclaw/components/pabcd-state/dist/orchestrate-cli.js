@@ -569,10 +569,21 @@ export function runOrchestrateCli(args                                          
         };
       }
       if (advanced.kind === "no_active") {
+        // #49: "no active work-phase" has two very different causes. If every phase
+        // is already done, the plan is COMPLETE and refusing D strands the cycle —
+        // the reported workaround was to write a finished phase back to
+        // in_progress just to satisfy this gate, which corrupts the record to
+        // satisfy a check about the record. Only an EMPTY or fully blocked plan is
+        // a real refusal.
+        const closable = plan.workPhases.length > 0 && plan.workPhases.every((wp) => wp.status === "done");
+        if (closable) {
+          advanced = { kind: "ok", closedId: null, plan };
+        } else {
         return {
           code: 1,
-          output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; the bound goalplan "${state.slug}" has no active work-phase to close (CYCLE-COMPLETION-01). Register or unblock a work-phase before closing a cycle. Nothing was written.`,
+          output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; the bound goalplan "${state.slug}" has no work-phase to close (CYCLE-COMPLETION-01): ${plan.workPhases.length === 0 ? "the plan is empty — register workPhases[] first" : "every remaining work-phase is blocked or superseded — unblock one"}. Nothing was written.`,
         };
+        }
       }
     }
     writeState(args.cwd, { ...clearedIdle(state), stopBlockPhase: null, stopBlockCount: 0 });
@@ -595,7 +606,11 @@ export function runOrchestrateCli(args                                          
           event: "workphase_done",
           // 260714 wp4: log the EFFECTIVE closed id (implicit cursor may have
           // started from a null explicit cursor — "closed none" was a lie).
-          detail: `closed ${advanced.closedId}`,
+          // #49: a null id means the plan was already fully done and this cycle
+          // closed without advancing a cursor. Say that rather than "closed null".
+          detail: advanced.closedId
+            ? `closed ${advanced.closedId}`
+            : "cycle closed over an already-complete plan",
         });
         if (advanced.plan.activeWorkPhaseId) {
           appendGoalplanLedger(args.cwd, state.slug, {

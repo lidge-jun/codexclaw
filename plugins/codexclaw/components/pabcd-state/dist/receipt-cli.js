@@ -28,6 +28,8 @@ import { STATE_DIR, sanitizeKey } from "./state.js";
 
 
 
+
+
 /** Everything after `--` is the command; nothing before it is. */
 export function parseReceiptCliArgs(argv          , cwd        )                                        {
   const verb = (argv[0] ?? "").toLowerCase();
@@ -46,6 +48,13 @@ export function parseReceiptCliArgs(argv          , cwd        )                
     if (a === "--") { i++; break; }
     if (a === "--session") out.session = argv[++i];
     else if (a === "--cwd") out.cwd = argv[++i] ?? cwd;
+    else if (a === "--generated") {
+      const v = argv[++i];
+      if (typeof v !== "string" || v.length === 0) {
+        return { error: "receipt test: --generated needs a repo-relative path" };
+      }
+      out.generated = [...(out.generated ?? []), v.replace(/\\/g, "/").replace(/^\.\//, "")];
+    }
     else return { error: `unexpected argument '${a}' before --` };
   }
   out.command = argv.slice(i).filter((a) => typeof a === "string" && a.length > 0);
@@ -67,7 +76,7 @@ export function runReceiptCli(args                )                   {
         "cxc receipt — record a check receipt that binds a command's result to a source tree",
         "",
         "Usage:",
-        "  cxc receipt test --session <id> [--cwd <path>] -- <command> [args...]",
+        "  cxc receipt test --session <id> [--cwd <path>] [--generated <path>]... -- <command> [args...]",
         "  cxc receipt --help",
         "",
         "Notes:",
@@ -75,6 +84,8 @@ export function runReceiptCli(args                )                   {
         "  The session must be at phase C — a receipt is produced during Check.",
         "  The receipt is written to <cwd>/.codexclaw/evidence/<session>/test-receipt.json",
         "  and is refused if the command changes the source while it runs.",
+        "  --generated declares paths the check REGENERATES by design (a validator that",
+        "  rebuilds its own artifacts). Repeatable. Undeclared rewrites are still refused.",
         "",
         "Example:",
         "  cxc receipt test --session <id> -- npm test",
@@ -102,7 +113,11 @@ export function runReceiptCli(args                )                   {
   // Clear first: a stale success must not survive a failing re-run.
   rmSync(path, { force: true });
 
-  const before = captureSourceIdentity(args.cwd, { excludeCodexclawArtifacts: true });
+  const capture = {
+    excludeCodexclawArtifacts: true,
+    ...(args.generated && args.generated.length > 0 ? { generatedPaths: args.generated } : {}),
+  };
+  const before = captureSourceIdentity(args.cwd, capture);
   const [bin, ...rest] = args.command;
   // Issue #40: `npm` is the command people actually pass here, and a bare
   // shell-less spawn of it cannot work on Windows - the name alone skips PATHEXT
@@ -116,7 +131,7 @@ export function runReceiptCli(args                )                   {
     shell: false,
     ...invocation.options,
   });
-  const after = captureSourceIdentity(args.cwd, { excludeCodexclawArtifacts: true });
+  const after = captureSourceIdentity(args.cwd, capture);
 
   if (run.error || typeof run.status !== "number") {
     return { output: `receipt test: the command did not run to completion (${run.error?.message ?? "terminated by signal"}); no receipt written`, code: 1 };
@@ -126,7 +141,15 @@ export function runReceiptCli(args                )                   {
   }
   const cmp = compareSource(before, after);
   if (cmp.kind === "different") {
-    return { output: `receipt test: the command changed the source while running (${cmp.detail}); no receipt written — a check cannot certify a tree it rewrote`, code: 1 };
+    return {
+      output: [
+        `receipt test: the command changed the source while running (${cmp.detail}); no receipt written — a check cannot certify a tree it rewrote.`,
+        "If the check REGENERATES artifacts by design, declare them:",
+        "  cxc receipt test --session <id> --generated <path> -- <command>",
+        "(repeatable; a path covers that file or that directory. Undeclared rewrites are still refused.)",
+      ].join("\n"),
+      code: 1,
+    };
   }
   if (cmp.kind === "unavailable") {
     return { output: `receipt test: git could not resolve the source identity (${cmp.reason}); no receipt written`, code: 1 };
@@ -140,6 +163,8 @@ export function runReceiptCli(args                )                   {
     createdAt: new Date().toISOString(),
     ownerSessionId: session,
     checkEpoch: state.checkEpoch,
+    // Recorded so a reader can see WHICH rewrites the check was allowed to make.
+    ...(args.generated && args.generated.length > 0 ? { generatedPaths: args.generated } : {}),
   };
   mkdirSync(join(path, ".."), { recursive: true });
   writeFileSync(path, `${JSON.stringify(receipt, null, 2)}\n`);
