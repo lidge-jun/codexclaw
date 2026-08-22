@@ -26,9 +26,20 @@ async function startHarness(withGui = true, controller?: BridgeControllerLike, r
   }
   const db = openBridgeDb(cwd);
   const server = createBridgeServer({ db, cwd, guiDir, version: "0.1.0-test", controller, readmePath });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      server.removeListener("error", reject);
+      resolve();
+    });
+  });
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
+  // Falling back to 0 turns a failed bind into "fetch failed: bad port" several
+  // assertions later, which reads like a routing bug. Say what actually happened.
+  if (port === 0) {
+    throw new Error(`bridge server did not bind an ephemeral port (address: ${JSON.stringify(address)})`);
+  }
   return { cwd, db, server, base: `http://127.0.0.1:${port}` };
 }
 
