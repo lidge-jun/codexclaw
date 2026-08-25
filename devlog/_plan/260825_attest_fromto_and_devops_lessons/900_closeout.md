@@ -71,8 +71,12 @@ was falsified deliberately:
 
 | Test | Falsified by | Result |
 |------|--------------|--------|
-| The three core hint assertions | Neutering `renderAttestShapeHint` to return `""` | 3/3 failed, as designed |
-| The doc-drift test | Deleting `planUnit` from the P>A table row | Failed with its intended message |
+| The hint assertions | Neutering `renderAttestShapeHint` to return `""` | 5 of 13 failed |
+| The doc-drift test | Deleting `planUnit` from the P>A table row | 1 failed: `P->A row must name "planUnit"` |
+
+Both were re-run at wp4 against the final tree, not quoted from wp1. The hint
+count grew from 3 to 5 because the Stop-command and arming-directive coverage
+added later depends on the same function.
 
 The drift test's FIRST version passed against injected drift, because it read the
 whole table row and the Notes column happened to mention `planUnit`. It was
