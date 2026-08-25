@@ -90,3 +90,37 @@ IN: the three dev-devops files.
 OUT: the opencodex repo itself; `platform-engineering.md` and
 `package-release.md` unless a rule genuinely lands there; any attempt to
 backport these rules into cli-jaw or ima2-gen.
+
+## Delivered, and what the audit changed
+
+Landed in `3d5d0d34`, corrected in `836954db`. Placement moved from the planned
+§2.7 to a **new §2.8**: §2.7 is a three-line published-artifact contract, and
+GO/NO-GO decision rules are a different shelf. The auditor agreed this was the
+right call rather than the deviation it looked like.
+
+**Three claims in the first version were invented.** Not misread sources —
+fabricated supporting detail wrapped around real lessons. An independent lane
+checked each against the opencodex devlogs and the live CI scripts:
+
+| Claimed | Actually |
+|---|---|
+| A train "ran a 100-call canary" whose numbers described the bug | The canary was a GO criterion, REJECTED as the wrong instrument before it ran, once PID 922 was identified as the reporter's pre-fix proxy (`090_wp9`:17, `080_wp8`:24). The measurement never happened. |
+| "run 1 green, run 2 failed, run 3 produced the finding" | The recorded table is green, green, fail (`070`:87-98). |
+| "OpenCodex used three" consecutive greens | Three was the bar they SET and never collected — which is why the PR was deferred (`070`:125-126). |
+| "three load-sensitive files, each in its own job" | Three path PATTERNS covering seven files, run by TWO jobs: `storage policy` takes six together, `api usage` takes one (`run-bun-test-batches.sh`:50, `ci.yml`:304). |
+
+The last one is the instructive failure. That loose wording came from the source
+report itself; copying a report's paraphrase into a STRICT rule is what made it
+load-bearing. The corrected text cites the shell script and the workflow
+directly, not the report's summary of them.
+
+The rules themselves survived unchanged. Only my evidence for them did not — and
+a rule whose cited evidence is wrong is a rule the next reader is right to
+distrust.
+
+Also corrected: the router pointed at `ci-cd-deploy.md` §9 and
+`sre-foundations.md` §6, neither of which exists (the rules are at §6 and §7),
+so an agent following the pointer would have landed in Anti-Patterns. Per-rule
+line citations attached, the cli-jaw start-time-vs-dist-mtime precedent
+cross-referenced, `/health` corrected to `/healthz`, and four AI-tell sentences
+removed.
