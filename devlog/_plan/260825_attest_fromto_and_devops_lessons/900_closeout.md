@@ -108,11 +108,20 @@ external state change that needs explicit approval. The pre-existing dirty
 worktree (`scripts/dev-symlink.sh`, two untracked `devlog/_plan` directories, a
 stray `mktemp:` path) was preserved untouched throughout.
 
-**One correction to that claim.** `3ae38473` staged with `git add devlog` and
-swept in the two untracked plan units — `260722_repo-governance-config` and
-`260814_fix-main-ci-windows-worktree` — which belong to the user's own
-in-progress work. Caught during the wp4 acceptance sweep by noticing they had
-vanished from `git status`. Untracked again in the following commit; the files
-were never modified on disk. Staging by directory instead of by explicit path is
-how it happened, and it is the reason the acceptance sweep re-reads
-`git status` rather than trusting that scope was respected.
+**One correction to that claim, and it happened twice.** `3ae38473` staged with
+`git add devlog` and swept in the two untracked plan units —
+`260722_repo-governance-config` and `260814_fix-main-ci-windows-worktree` —
+which belong to the user's own in-progress work. Caught in the wp4 acceptance
+sweep by noticing they had vanished from `git status`, and untracked in
+`438ddd31`.
+
+Then `260e2b49` did it again, because I reached for `git add devlog` a second
+time. Untracked again in `d0c2ad0`. The files were never modified on disk in
+either case; only their tracked status was.
+
+Recorded twice rather than quietly repaired, because a mistake that recurs after
+being fixed is a habit, not a slip. The fix is mechanical: stage explicit paths,
+never a directory that also contains someone else's work. It is also why the
+acceptance sweep re-reads `git status` instead of trusting that scope was
+respected — the first occurrence was invisible until something compared the
+worktree against its baseline.
