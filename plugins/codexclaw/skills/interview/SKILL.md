@@ -58,12 +58,27 @@ The loop that prevents it:
    question. This is also what makes Mind routing adaptive: `selectMinds` ranks by dimension
    level, so with an empty tracker all four tie and it degrades to a fixed order.
 
-`--dim <dimension>=<low|mid|high>` records an explicit assertion when coverage alone
-understates what you know. It deliberately cannot set `max`: that level gates I -> P through
-`isInterviewReady`, and the sanctioned way past an unready interview is the attested
+**Readiness is reached through step 2, not through an assertion.** A dimension counts
+toward I -> P when the session's interview ledger shows a question that was ASKED, an
+answer that was RECORDED, and a `--map` attributing that question to that dimension.
+That is why `--map` matters: an answered question nobody attributed proves nothing about
+any dimension.
+
+`--known <dimension>=<text>` records a fact you already hold. It moves a dimension off
+`low` and can carry it to `high`, but it can NOT make it count for readiness — a typed
+fact is not an answered question, and four `--known` flags would otherwise be a complete
+interview in one command.
+
+`--dim <dimension>=<low|mid|high>` records an explicit level assertion when coverage alone
+understates what you know. It deliberately cannot set `max`: that level bypasses the ledger
+check entirely, so it stays out of the writer's reach.
+
+When the interview genuinely is not complete, the sanctioned way past the gate is the attested
 `cxc orchestrate P --attest-file <path>` carrying
 `{"from":"I","to":"P","did":"<why the interview is complete>","override":true}`,
-which leaves a ledger row. (The file flag is required on Windows: PowerShell cannot pass
+which leaves a ledger row. It is the exception now, not the only door — until 260825 the gate
+demanded a level no writer could produce, so every interview spent an override and the row
+stopped distinguishing anything. (The file flag is required on Windows: PowerShell cannot pass
 inline JSON as a single argument.) `from`/`to` are not optional here — the parser
 coerces them before the override is ever read, so `{"override":true}` alone is
 refused (ATTEST-SHAPE-01 in `cxc-pabcd`).

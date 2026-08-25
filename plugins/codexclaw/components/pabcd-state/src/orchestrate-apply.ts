@@ -125,6 +125,10 @@ export function applyHumanTransition(
   // overridable gate flags: a ready interview opens it; an explicit human override
   // pre-flips it and records an audit entry; otherwise we advise-block.
   if (from === "I" && to === "P") {
+    // Shape-only on purpose. This is the HUMAN free-pass path: it has no cwd to
+    // read the interview ledger from, and a human is the authority the
+    // provenance check exists to approximate. The agent CLI path passes the
+    // ledger evidence.
     const gate = evaluateInterviewGate(state.interview ?? null);
     if (gate.ready) {
       flags.interview = true;

@@ -27,11 +27,20 @@ test("defaultInterview is not ready (all dimensions low)", () => {
   assert.equal(isInterviewReady(defaultInterview()), false);
 });
 
-test("isInterviewReady: true only for all-max + no contradictions + recorded assumptions", () => {
+test("isInterviewReady: high or max, no contradictions, recorded assumptions", () => {
   const t = readyTracker();
   assert.equal(isInterviewReady(t), true);
-  // any non-max dimension -> false
+  // 260825: "high" now satisfies the SHAPE half. It used to be rejected here,
+  // which made readiness unreachable — deriveLevel tops out at "high" and
+  // `--dim <d>=max` is refused, so no shipped writer could produce the level
+  // this test demanded. Provenance moved to evaluateInterviewGate, which asks
+  // the interview ledger where a "high" came from (interview-readiness.test.ts).
   t.dimensions.goal.level = "high";
+  assert.equal(isInterviewReady(t), true, "a derived level satisfies the shape check");
+  // Anything below "high" still means open gaps, and still blocks.
+  t.dimensions.goal.level = "mid";
+  assert.equal(isInterviewReady(t), false, "mid means unanswered questions remain");
+  t.dimensions.goal.level = "low";
   assert.equal(isInterviewReady(t), false);
 });
 

@@ -399,6 +399,20 @@ export interface InterviewEvent {
   roundId: number;
   contradictionCount: number;
   highContradictionCount: number;
+  /**
+   * 260825: the `--map` attributions this scan round used, questionId -> dimension.
+   *
+   * `deriveFromLedger` takes the map as an argument and then discards it, so a
+   * later reader cannot tell which dimension a questionId belonged to. Readiness
+   * needs exactly that, to distinguish a level derived from a real answer from
+   * one an agent typed with `--known`.
+   *
+   * It lives here rather than on the tracker because the tracker is rewritten on
+   * every `writeState` and is hand-editable; this file is append-only and already
+   * holds the answers the map interprets. Evidence and interpretation share one
+   * provenance.
+   */
+  map?: Record<string, string>;
 }
 
 function interviewsDir(cwd: string): string {

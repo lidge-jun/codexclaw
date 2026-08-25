@@ -102,6 +102,7 @@ import { latestRound, supersedeStaleRounds } from "./review-round.ts";
 import { planFilesHash, recomputed } from "./review-round-cli.ts";
 import { validateCheckReceipt } from "./check-gate.ts";
 import { evaluateInterviewGate } from "./interview.ts";
+import { dimensionsBackedByAnswers } from "./interview-ledger.ts";
 import { applyHumanTransition, clearedIdle } from "./orchestrate-apply.ts";
 import { resetRenderLedger } from "./render-observations.ts";
 import type { OrchestrateVerb } from "./orchestrate-grammar.ts";
@@ -509,7 +510,9 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
   // which has no override support. This adds equivalent logic for I→P only,
   // recording actor:"agent" instead of actor:"human".
   if (state.phase === "I" && to === "P") {
-    const gate = evaluateInterviewGate(state.interview ?? null);
+    const gate = evaluateInterviewGate(state.interview ?? null, {
+      backedDimensions: dimensionsBackedByAnswers(args.cwd, sessionId),
+    });
     if (gate.ready) {
       // Interview is ready — let the normal transition() path handle it.
       // (It will derive flags.interview=true from the tracker.)

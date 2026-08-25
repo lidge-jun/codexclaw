@@ -141,17 +141,23 @@ export function parseScanCliArgs(
       if (!isDimension(pair.key)) return { error: `scan record: unknown dimension '${pair.key}' (expected ${DIMENSIONS.join("|")})` };
       if (!isLevel(pair.value)) return { error: `scan record: invalid level '${pair.value}' (expected ${DIMENSION_LEVELS.join("|")})` };
       if (pair.value === "max") {
-        // `max` on all four dimensions is what isInterviewReady gates I->P on.
-        // The sanctioned way to reach P without a genuinely ready interview is
-        // `cxc orchestrate P --attest '{"override":true,...}'`, which validates
-        // the narrative and writes an auditable ledger row. Letting a writer flag
-        // grant `max` would be the same power with no attestation and no trail.
+        // `max` satisfies readiness without any ledger backing, so a writer flag
+        // that granted it would be the override with no attestation and no trail.
+        //
+        // Until 260825 this message named the override as the ONLY way onward,
+        // because it was: the gate demanded `max` and nothing could write it. Now
+        // the honest path exists, so name that first — an agent reaching for this
+        // flag usually wants a ready interview, not a bypass.
         return {
           error:
-            "scan record: --dim cannot set 'max'. That level gates I->P via isInterviewReady; " +
-            "write {\"from\":\"I\",\"to\":\"P\",\"did\":\"<reason>\",\"override\":true} to a file and run " +
-            "`cxc orchestrate P --session <id> --attest-file <path>` (the file flag is required on Windows) " +
-            "so the bypass is attested and recorded in the ledger.",
+            "scan record: --dim cannot set 'max'. To make a dimension count for I->P, ask a " +
+            "question, record the answer, and attribute it: " +
+            "`cxc scan record --session <id> --derive --map <questionId>=<dimension>`. " +
+            "The gate re-reads the interview ledger, so a level with no answered question " +
+            "behind it does not open P. If the interview genuinely is NOT complete, bypass it " +
+            "deliberately: write {\"from\":\"I\",\"to\":\"P\",\"did\":\"<reason>\",\"override\":true} to a " +
+            "file and run `cxc orchestrate P --session <id> --attest-file <path>` (the file flag " +
+            "is required on Windows) so the bypass is attested and recorded.",
         };
       }
       dims[pair.key] = pair.value;
@@ -266,9 +272,15 @@ function deriveFromLedger(
 }
 
 /**
- * Coverage-derived level. Deliberately never promotes to "max": that level gates
- * I->P through isInterviewReady, so it stays an explicit operator assertion
- * (`--dim <d>=max`) rather than something a heuristic can hand out.
+ * Coverage-derived level, ceiling "high".
+ *
+ * "max" is unreachable from here AND from `--dim`, which rejects it. No writer
+ * produces it; it survives as the level that satisfies readiness without ledger
+ * backing — a deliberate hand-assertion, not something a heuristic hands out.
+ *
+ * "high" says only that this dimension holds facts and lists no open gap. It does
+ * NOT say the facts came from an interview: `--known goal=x` reaches "high" too.
+ * The I->P gate checks provenance separately, in `dimensionsBackedByAnswers`.
  */
 function deriveLevel(score                )                 {
   // "low" means nothing is known about this dimension at all. An asked-but-
@@ -299,7 +311,9 @@ export function runScanCli(args             )                                   
         "  --cwd matters when the answer ledger lives outside the process cwd:",
         "  answers are read from <cwd>/.codexclaw/interviews/<session>.jsonl.",
         "  --derive folds captured answers in; --map attributes a questionId to a dimension.",
-        "  --dim cannot set 'max' — that level gates I->P and must be attested.",
+        "  --derive is what makes a dimension count for I->P readiness: the gate re-reads the",
+        "  ledger and requires an asked+answered+mapped question per dimension. --known records",
+        "  a fact but lends no provenance, and --dim cannot set 'max'.",
       ].join("\n"),
       code: 0,
     };
@@ -315,6 +329,10 @@ export function runScanCli(args             )                                   
       roundId,
       contradictionCount: args.contradictionCount,
       highContradictionCount: args.highContradictionCount,
+      // Carry the attributions this round used. Without them the ledger records
+      // that questions were answered but not which dimension each one settled,
+      // and readiness cannot tell a derived level from a typed one.
+      ...(args.derive && Object.keys(args.map ?? {}).length > 0 ? { map: { ...args.map } } : {}),
     });
     let dimensions = tracker.dimensions;
     let derivedCount = 0;
