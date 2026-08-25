@@ -119,3 +119,65 @@ IN: the seven files above.
 OUT: editing any test file; changing `--test-concurrency=1`; touching
 `dev-data`'s ETL quarantine (a different meaning of the word); `qa`/`loop`/
 `pabcd` retry language, which is repair-loop discipline, not CI flakes.
+
+## Delivered, and what the audit changed
+
+Landed in `6cf7b698`, corrected in `6268501b`. The audit returned
+GO-WITH-FIXES with **zero blockers** — C1–C6 were verified closed in the tree
+rather than relocated, and all four required cross-references resolved. The eight
+nits split into two categories.
+
+### Two were severity-class holes, not prose
+
+Both are worth recording because they are the failure mode a policy rewrite is
+most prone to: the words were right and the classification let them be ignored.
+
+**`QUARANTINE-01` was DEFAULT end to end.** Under `dev` §0.2 a DEFAULT rule can
+be waived with a stated reason — which meant the four required fields, the entire
+receipt, were optional. The permission to defer is legitimately DEFAULT; the
+receipt is not. Split: deferring stays DEFAULT, the four fields are now STRICT.
+
+Related: "blocks unrelated delivery" was unfalsifiable, because any red CI can be
+called blocking. It now requires naming which delivery and why it is independent
+of the code under test.
+
+**`ATTRIBUTION-01` (DEFAULT) mirrors `DEVOPS-BASELINE-DEFECT-01` (STRICT).**
+Same triple, two classes. An agent who loaded only `dev-testing` could state "no
+CI access", waive the DEFAULT rule, and proceed without the freeze-SHA check the
+STRICT rule demands — reaching the weaker class by choosing which skill to read.
+The text now states that a recorded gap is not a waiver and that the STRICT rule
+governs when both apply.
+
+### One was a self-inflicted repeat of the bug being fixed
+
+The first router stub restated all four rules' testable payloads. That is
+precisely the duplication that produced contradiction C3 — two copies drifting
+apart, the router's weaker. 030 asked for "rule ids + one line each", and
+following that literally reintroduced the mechanism. The stub is now a real
+pointer: it names the rule ids and the canonical path, and stops.
+
+### The scope boundary was wrong in one direction
+
+030 scoped test files OUT. The audit found two comments that TEACH what the new
+policy forbids:
+
+- `subagent-config/test/mcp.test.ts` justified a 30s ceiling as absorbing
+  scheduling jitter — timeout-raising as flake absorption, in the very file C10
+  cites.
+- `plugins/codexclaw/test/hook-e2e.test.mjs` said "skip rather than flake".
+
+Neither behavior changed; both comments did. The first is now named as a hang
+detector with the unfixed contention tracked as C10 and the honest fixes listed;
+the second explains that the skip is a missing-fixture precondition, not flake
+avoidance. A comment that teaches a forbidden move is guidance regardless of
+which file it lives in, so "no test edits" was the wrong boundary for a policy
+whose whole point is that the repo should not contradict itself.
+
+### Remaining nits, all fixed
+
+`TEST-ANTI-FLAKE-01` got the pointer this doc promised; the dropped
+"passes locally, fails in CI" row is back as a cause; `skill-ownership.md` points
+at `ci-cd-deploy.md` §6.2/§6.5 rather than `dev-devops` §6, which never mentions
+the family; the `.skip()` red flag names the one quarantine form that is not a
+red flag; a `§5.5` cross-reference that resolved to the wrong local section was
+qualified; and C10's "~8s" was corrected to match the live 30s.
