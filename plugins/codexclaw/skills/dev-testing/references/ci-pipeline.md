@@ -100,9 +100,8 @@ Canonical owner: `dev-testing`. Other skills carry pointer stubs only (see
 method; this section owns the policy — what CI may do about a flake, and what
 counts as closing one.
 
-A flake is not a category of test. It is a defect that has not been diagnosed
-yet, and every mechanism that makes CI green without diagnosing it is a way of
-shipping that defect.
+A flake is a defect that has not been diagnosed yet. Mechanisms that make CI
+green without diagnosing it ship that defect.
 
 ### 5.1 Eliminate the nondeterminism (`TEST-FLAKE-ELIMINATE-01`, STRICT)
 
@@ -110,17 +109,22 @@ A flaky test is a defect in the test or in the code under test. Diagnose the
 source of nondeterminism and remove it. **A flake is closed when the cause is
 named, not when the suite is green.**
 
+This is a CLOSURE rule: it governs the claim "this flake is fixed", not the
+question of whether work may proceed meanwhile. A quarantine under §5.3 does not
+violate it, because a quarantine explicitly does not close the defect.
+
 | Signal | Cause to remove |
 |--------|-----------------|
 | intermittent timeout | implicit timing — wait on an observable condition or a fake clock |
+| passes locally, fails in CI | an unpinned seed, an uncontainerized dependency, or an implicit wait |
 | order-dependent failure | shared mutable state or fixture leakage between tests |
 | CI-only HTTP failure | a live network dependency |
 | snapshot variance | unpinned fonts, time, locale, or dynamic regions |
 | passes alone, fails in the suite | resource contention or global state — isolate, then fix the sharing |
 
-Fixing one instance is half the job: the same cause usually has siblings. After a
-fix, search for other tests with the same missing cleanup or the same timing
-assumption.
+After a fix, search for other tests with the same missing cleanup or the same
+timing assumption. One cause commonly has siblings, and closing only the
+instance that failed leaves the rest to fail later.
 
 ### 5.2 Re-running is not a resolution (`TEST-FLAKE-RERUN-01`, STRICT)
 
@@ -133,14 +137,14 @@ diagnostic input. When you use it that way, write the measurement down — "4 of
 runs, 4 different tests" is evidence; "passed on retry" is not.
 
 This is the CI-facing half of `TEST-ANTI-FLAKE-01` (`dev-testing` SKILL.md §1.5)
-and `TEST-CI-GREEN-01` (§5.5). It exists as its own rule because the pressure to
-re-run arrives precisely when a policy stated only as principle is easiest to
-read past.
+and `TEST-CI-GREEN-01` (`dev-testing` SKILL.md §5.5).
 
 ### 5.3 Quarantine is an exception with a cost (`TEST-FLAKE-QUARANTINE-01`, DEFAULT)
 
-Quarantine is permitted only when the flake blocks unrelated delivery AND all
-four of these are recorded in the same change:
+Quarantine is permitted only when the flake blocks delivery of work that does not
+depend on the code under test — state which delivery, and why it is independent —
+AND all four of these are recorded in the same change (**STRICT**: the four
+fields are not waivable; only the decision to defer is DEFAULT):
 
 1. the exact test name,
 2. a named owner,
@@ -150,10 +154,9 @@ four of these are recorded in the same change:
 A quarantine without a deadline is a deletion with extra steps. Quarantine never
 closes the defect — it defers it, and the deadline is the receipt.
 
-The exception exists deliberately. A policy with no usable escape hatch does not
-eliminate the pressure that produces quarantine; it just relocates it into an
-undocumented `.skip()`, which is worse because nobody is tracking it. The four
-fields are the price of using the hatch honestly.
+A quarantine carrying all four fields is the one form of `.skip()` that is not a
+`TEST-PATCH-INTEGRITY-01` red flag (`dev-testing` SKILL.md §8). An undocumented
+skip still is.
 
 ### 5.4 "Environmental" is a claim, not an observation (`TEST-FLAKE-ATTRIBUTION-01`, DEFAULT)
 
@@ -165,12 +168,14 @@ Before calling a failure environmental or pre-existing, prove it:
 
 Without the triple it stays a candidate defect. This is the test-side mirror of
 `DEVOPS-BASELINE-DEFECT-01` (`dev-devops` `references/ci-cd-deploy.md` §6.2),
-and it is DEFAULT rather than STRICT because step 3 sometimes needs CI access an
-agent does not have — in that case record the gap rather than asserting the
-conclusion.
+and it is DEFAULT rather than STRICT for one reason only: step 3 sometimes needs
+CI access an agent does not have. In that case record the gap. **A recorded gap
+is not a waiver** — the failure remains a candidate defect, and the claim
+"environmental" remains unmade.
 
-"It's flaky" is the single most common way a real defect reaches production. It
-is also frequently true. That is exactly why it needs proof.
+**When both rules apply, the STRICT one governs.** A release or freeze decision
+is covered by `DEVOPS-BASELINE-DEFECT-01` (STRICT), so an agent cannot reach the
+weaker class by loading only `dev-testing`.
 
 ### 5.5 Counting greens
 

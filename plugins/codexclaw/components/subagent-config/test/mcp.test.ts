@@ -23,10 +23,17 @@ async function collect(cwd: string, messages: unknown[], expectedReplies: number
     const child = spawn(process.execPath, [serverJs], { cwd, stdio: ["pipe", "pipe", "inherit"] });
     const out: any[] = [];
     let buf = "";
-    // G23: the MCP stdio roundtrip can exceed a tight budget when this file runs
-    // alongside the rest of the suite (parallel node:test workers contend for CPU,
-    // and a cold spawn pays the type-strip cost). 8s was flaky under that load; 30s
-    // is still a real failure ceiling but absorbs scheduling jitter.
+    // G23 / C10. This ceiling is a HANG detector, not a flake absorber: the
+    // assertion is "the server answered", and any real answer arrives in
+    // milliseconds. The value is generous because a cold spawn under a loaded
+    // suite pays a type-strip cost, so a tight budget would fail on scheduling
+    // jitter rather than on the behavior under test.
+    //
+    // Naming that honestly matters, because raising a timeout until a test passes
+    // is exactly what TEST-FLAKE-RERUN-01 forbids. The underlying contention is
+    // NOT fixed here and is tracked as C10 in structure/30_contradiction_register.md;
+    // the honest fixes are build/test serialization or removing the real-process
+    // dependency from this assertion.
     const MCP_STDIO_TIMEOUT_MS = 30000;
     const timer = setTimeout(() => {
       child.kill();

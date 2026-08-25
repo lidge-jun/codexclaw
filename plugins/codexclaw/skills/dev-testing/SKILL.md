@@ -74,7 +74,7 @@ source-fetch and evidence-status rules.
 - Use factories / builders for setup; avoid repeated inline blobs.
 - A fast real dependency beats a mock. A mock beats an untested branch.
 - If the failure is mysterious, **delegate methodology to `dev-debugging`**, then return here for the regression harness.
-- **STRICT (TEST-ANTI-FLAKE-01):** A time-based flake is a bug. Do not use sleep-based synchronization, retry-as-fix, or green-on-retry acceptance without a deterministic cause and harness correction.
+- **STRICT (TEST-ANTI-FLAKE-01):** A time-based flake is a bug. Do not use sleep-based synchronization, retry-as-fix, or green-on-retry acceptance without a deterministic cause and harness correction. Full policy: `references/ci-pipeline.md` §5 (`TEST-FLAKE-*`).
 - Verification depth follows `dev` §3 `DEV-VERIFY-FLOOR-01`; CRUD per-operation negative coverage is owned by `references/core/crud-test-matrix.md`.
 ---
 ## Limited-Oracle / Score-Objective Evaluation
@@ -209,11 +209,11 @@ See `references/ci-pipeline.md` for job dependencies, concurrency, matrices, sha
 Playwright dependencies, and full GitHub Actions/GitLab CI templates.
 Matrix only across supported runtimes, required OS behavior, or suites exceeding CI budget.
 ### 5.4 Flaky Test Remediation
-Canonical policy: `references/ci-pipeline.md` §5 (`TEST-FLAKE-*`). Summary only:
-- **`TEST-FLAKE-ELIMINATE-01` (STRICT)** — a flake is a defect; it is closed when the cause is named, not when the suite is green.
-- **`TEST-FLAKE-RERUN-01` (STRICT)** — re-running to green is not a fix and is never recorded as one; raising a timeout to pass is the same violation. A re-run may measure the failure RATE, and the measurement gets written down.
-- **`TEST-FLAKE-QUARANTINE-01` (DEFAULT)** — quarantine only when the flake blocks unrelated delivery, and only with test name, owner, removal deadline, and suspected cause recorded together. Without a deadline it is a deletion.
-- **`TEST-FLAKE-ATTRIBUTION-01` (DEFAULT)** — "environmental" needs proof: identical failure on the untouched baseline, no change touching that code, and the matching CI job green at the same SHA.
+A flake is a defect, not a category of test. `TEST-FLAKE-ELIMINATE-01`,
+`TEST-FLAKE-RERUN-01`, `TEST-FLAKE-QUARANTINE-01`, and
+`TEST-FLAKE-ATTRIBUTION-01` are canonical in `references/ci-pipeline.md` §5 —
+read it before treating any flake, including deciding whether one is
+"environmental".
 ### 5.5 CI-Green Loop
 **STRICT (TEST-CI-GREEN-01):** Latest HEAD is the source of truth. Inspect the
 failing job and artifacts before editing, make the minimal correct fix, run local
@@ -486,7 +486,7 @@ Red flags that trigger escalation:
 - Deleted assertions without replacement
 - Snapshot updates without visual/behavioral verification
 - Coverage exclusions added in the same PR as the fix
-- `@skip` or `.skip()` added to failing tests
+- `@skip` or `.skip()` added to failing tests — unless it is a `TEST-FLAKE-QUARANTINE-01` quarantine carrying all four required fields (`references/ci-pipeline.md` §5.3)
 - Threshold reductions (e.g., coverage 80% → 60%)
 - Type assertion suppressions (`as any`, `@ts-ignore`) in test files
 
