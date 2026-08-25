@@ -44,6 +44,9 @@ export interface FreezeCliArgs {
   cwd: string;
   sessionId: string;
   dryRun: boolean;
+  /** True for `help`/`--help`/`-h` or a bare invocation. runFreeze returns
+   *  before any filesystem write when this is set. */
+  help?: boolean;
 }
 
 export function parseFreezeArgs(argv: string[]): FreezeCliArgs {
@@ -55,10 +58,31 @@ export function parseFreezeArgs(argv: string[]): FreezeCliArgs {
     cwd: get("--cwd") ?? process.cwd(),
     sessionId: get("--session") ?? "default",
     dryRun: argv.includes("--dry-run"),
+    // 260825 wp1: `cxc freeze --help` used to fall straight through to runFreeze,
+    // which WROTE .codexclaw/interview/freeze.json and exited 0 — a workspace
+    // mutation behind a read-only-looking flag, with nothing in the output to
+    // signal it. Help is now parsed, and runFreeze returns before any IO.
+    help: argv.length === 0 || argv.some((a) => a === "help" || a === "--help" || a === "-h"),
   };
 }
 
 export function runFreeze(args: FreezeCliArgs): string {
+  if (args.help) {
+    return [
+      "cxc freeze — build or preview the interview freeze manifest",
+      "",
+      "Usage:",
+      "  cxc freeze --session <id> [--cwd <path>]",
+      "  cxc freeze --dry-run --session <id> [--cwd <path>]",
+      "  cxc freeze --help",
+      "",
+      "Notes:",
+      "  Hashes the plan files under .codexclaw/plan/<slug>/ and writes the manifest",
+      "  at .codexclaw/interview/freeze.json, then reports staleness against any",
+      "  existing manifest.",
+      "  --dry-run previews without writing. --help never writes.",
+    ].join("\n");
+  }
   const state = readState(args.cwd, args.sessionId);
   const tracker = state.interview;
   const ready = isInterviewReady(tracker);

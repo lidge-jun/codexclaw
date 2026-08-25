@@ -264,6 +264,9 @@ const TOP_LEVEL_HELP = [
   "  loop init|show|validate         manage the project-local goalplan substrate",
   "  goalplan init|show|validate     deprecated alias for loop",
   "  plan init <slug> [--phases N]   scaffold the devlog/_plan unit the P>A gate verifies",
+  "  receipt test -- <command>       produce the test receipt a bound C>D requires",
+  "  review-round open|show|abort    the opt-in A-gate plan-audit round",
+  "  scan record|show                record interview coverage and contradiction scans",
   "  metric                         record/show objective metrics",
   "  divergence                     record divergence mode and candidate archive state",
   "",
@@ -282,6 +285,8 @@ const TOP_LEVEL_HELP = [
   "",
   "Agent notes:",
   "  Mutating PABCD commands require the current session id: cxc orchestrate P --session <id>",
+  "  Every --attest object names the edge it advances: {\"from\":\"<phase>\",\"to\":\"<phase>\",\"did\":\"...\"}",
+  "  plus that edge's keys. Run cxc orchestrate --help for the per-edge examples.",
   "  Use --json only on subcommands that document it, such as orchestrate status --json.",
   "  For command-specific help, start with: cxc orchestrate --help or cxc map --help.",
 ].join("\n");

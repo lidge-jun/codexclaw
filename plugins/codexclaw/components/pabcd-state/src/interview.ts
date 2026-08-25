@@ -228,10 +228,21 @@ export function reconstructInterview(v: unknown): InterviewTracker | null {
 /**
  * Readiness predicate (single source of truth for flags.interview). True ONLY when:
  *  - tracker is a well-formed object,
- *  - all four dimensions are at level "max",
+ *  - all four dimensions are at level "high" or "max",
  *  - contradictions[] is empty,
  *  - every assumption has recorded:true.
  * Never trusts a `ready` field on the tracker (none exists); always recomputed.
+ *
+ * 260825: this is the SHAPE half only. "max" used to be the sole accepted level,
+ * which no shipped writer could produce — `deriveLevel` tops out at "high" and
+ * `--dim <d>=max` is rejected — so every interview either dead-ended or spent an
+ * attested override, and the override's ledger row stopped distinguishing
+ * anything. Accepting "high" alone would be the opposite failure: four `--known`
+ * flags reach all-high in one command.
+ *
+ * The provenance half lives in `evaluateInterviewGate`, which re-reads the
+ * append-only Q&A ledger. Callers that only need the shape (freeze, state flags)
+ * keep using this; the I->P decision uses the gate.
  */
 /** Strict, fail-closed shape check for a single dimension score. */
 function isValidScore(v: unknown): v is DimensionScore {
@@ -253,11 +264,11 @@ function isValidScore(v: unknown): v is DimensionScore {
 export function isInterviewReady(tracker: InterviewTracker | null): boolean {
   if (!tracker || !isRecord(tracker)) return false;
   if (!isRecord(tracker.dimensions)) return false;
-  // Every dimension must be a fully-valid score at level "max" (T3: a partial
-  // {level:"max"} object must NOT pass).
+  // Every dimension must be a fully-valid score at "high" or "max" (T3: a partial
+  // score object must NOT pass, whatever its level claims).
   for (const d of DIMENSIONS) {
     const score = tracker.dimensions[d];
-    if (!isValidScore(score) || score.level !== "max") return false;
+    if (!isValidScore(score) || (score.level !== "high" && score.level !== "max")) return false;
   }
   // Any contradiction (incl. malformed sentinels) blocks; contradictions must be empty.
   if (!Array.isArray(tracker.contradictions) || tracker.contradictions.length > 0) return false;
@@ -286,7 +297,17 @@ export interface InterviewGate {
  * Evaluate the I->P soft-gate. This is advisory: the caller may advise-block or, on an
  * explicit human override, pre-flip the interview flag and proceed (logging the override).
  */
-export function evaluateInterviewGate(tracker: InterviewTracker | null): InterviewGate {
+/**
+ * The I->P gate: data shape AND provenance.
+ *
+ * `evidence` is optional so existing shape-only callers keep compiling, but the
+ * I->P decision must pass it. Without it the gate degrades to the shape check,
+ * which four `--known` flags can satisfy — see `dimensionsBackedByAnswers`.
+ */
+export function evaluateInterviewGate(
+  tracker: InterviewTracker | null,
+  evidence?: { backedDimensions: ReadonlySet<string> },
+): InterviewGate {
   const t = tracker && isRecord(tracker) ? tracker : null;
   const scanRan = !!t && roundIdNum(t.scanRounds) >= 1;
   const highContradictionCount =
@@ -296,7 +317,25 @@ export function evaluateInterviewGate(tracker: InterviewTracker | null): Intervi
   const warnings: string[] = [];
   if (!scanRan) warnings.push("no contradiction scan has been recorded for this interview");
   if (highContradictionCount > 0) warnings.push(`${highContradictionCount} high-severity contradiction(s) still open`);
-  const ready = isInterviewReady(tracker);
+  const shapeReady = isInterviewReady(tracker);
+  // A dimension at "high" is only as good as where the level came from. "max" is
+  // an explicit assertion no writer produces by accident, so it needs no ledger
+  // backing; "high" is derived, and derivation must trace to a real answer.
+  const unbacked: string[] = [];
+  if (shapeReady && evidence && t) {
+    for (const d of DIMENSIONS) {
+      const score = t.dimensions[d];
+      if (isRecord(score) && score.level === "high" && !evidence.backedDimensions.has(d)) unbacked.push(d);
+    }
+  }
+  if (unbacked.length > 0) {
+    warnings.push(
+      `${unbacked.join(", ")} reached "high" without an answered question in the interview ledger — ` +
+        `ask and record one per dimension (\`cxc scan record --derive --map <questionId>=<dimension>\`), ` +
+        `or assert the level deliberately`,
+    );
+  }
+  const ready = shapeReady && unbacked.length === 0;
   if (!ready && warnings.length === 0) warnings.push("interview is not ready (dimensions/assumptions incomplete)");
   return { ready, scanRan, highContradictionCount, warnings };
 }

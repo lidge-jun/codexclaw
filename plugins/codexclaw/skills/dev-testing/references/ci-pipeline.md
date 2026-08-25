@@ -93,20 +93,95 @@ pytest -n auto --dist=loadgroup
 - keep contract reports separate from unit coverage
 - fail the build when thresholds or diff coverage drop
 
-## 5. Flaky Test Quarantine Strategy
+## 5. Flaky Test Policy (canonical — `TEST-FLAKE-*`)
 
-1. detect the flaky test by exact name
-2. move it to a quarantine tag or job
-3. keep quarantine non-blocking but visible
-4. assign an owner and removal deadline
-5. restore only after repeated green runs
+Canonical owner: `dev-testing`. Other skills carry pointer stubs only (see
+`dev` `references/skill-ownership.md`). `dev-debugging` owns the diagnostic
+method; this section owns the policy — what CI may do about a flake, and what
+counts as closing one.
 
-| Signal | Action |
-|--------|--------|
-| intermittent timeout | replace implicit timing with deterministic waits |
-| order-dependent failure | reset shared state or fixture leakage |
-| CI-only HTTP failure | remove live network dependency |
-| snapshot variance | stabilize fonts, time, locale, and dynamic regions |
+A flake is a defect that has not been diagnosed yet. Mechanisms that make CI
+green without diagnosing it ship that defect.
+
+### 5.1 Eliminate the nondeterminism (`TEST-FLAKE-ELIMINATE-01`, STRICT)
+
+A flaky test is a defect in the test or in the code under test. Diagnose the
+source of nondeterminism and remove it. **A flake is closed when the cause is
+named, not when the suite is green.**
+
+This is a CLOSURE rule: it governs the claim "this flake is fixed", not the
+question of whether work may proceed meanwhile. A quarantine under §5.3 does not
+violate it, because a quarantine explicitly does not close the defect.
+
+| Signal | Cause to remove |
+|--------|-----------------|
+| intermittent timeout | implicit timing — wait on an observable condition or a fake clock |
+| passes locally, fails in CI | an unpinned seed, an uncontainerized dependency, or an implicit wait |
+| order-dependent failure | shared mutable state or fixture leakage between tests |
+| CI-only HTTP failure | a live network dependency |
+| snapshot variance | unpinned fonts, time, locale, or dynamic regions |
+| passes alone, fails in the suite | resource contention or global state — isolate, then fix the sharing |
+
+After a fix, search for other tests with the same missing cleanup or the same
+timing assumption. One cause commonly has siblings, and closing only the
+instance that failed leaves the rest to fail later.
+
+### 5.2 Re-running is not a resolution (`TEST-FLAKE-RERUN-01`, STRICT)
+
+Re-running a failed job or test to obtain green is **not** a fix and is never
+recorded as one. Raising a timeout until a test passes is the same violation
+wearing a config change.
+
+A re-run is permitted for exactly one purpose: measuring the failure RATE as
+diagnostic input. When you use it that way, write the measurement down — "4 of 5
+runs, 4 different tests" is evidence; "passed on retry" is not.
+
+This is the CI-facing half of `TEST-ANTI-FLAKE-01` (`dev-testing` SKILL.md §1.5)
+and `TEST-CI-GREEN-01` (`dev-testing` SKILL.md §5.5).
+
+### 5.3 Quarantine is an exception with a cost (`TEST-FLAKE-QUARANTINE-01`, DEFAULT)
+
+Quarantine is permitted only when the flake blocks delivery of work that does not
+depend on the code under test — state which delivery, and why it is independent —
+AND all four of these are recorded in the same change (**STRICT**: the four
+fields are not waivable; only the decision to defer is DEFAULT):
+
+1. the exact test name,
+2. a named owner,
+3. a removal deadline, and
+4. the suspected cause.
+
+A quarantine without a deadline is a deletion with extra steps. Quarantine never
+closes the defect — it defers it, and the deadline is the receipt.
+
+A quarantine carrying all four fields is the one form of `.skip()` that is not a
+`TEST-PATCH-INTEGRITY-01` red flag (`dev-testing` SKILL.md §8). An undocumented
+skip still is.
+
+### 5.4 "Environmental" is a claim, not an observation (`TEST-FLAKE-ATTRIBUTION-01`, DEFAULT)
+
+Before calling a failure environmental or pre-existing, prove it:
+
+1. the identical failure reproduces on the untouched baseline,
+2. no change in the current set touches that code, and
+3. the matching CI job is green at the same SHA.
+
+Without the triple it stays a candidate defect. This is the test-side mirror of
+`DEVOPS-BASELINE-DEFECT-01` (`dev-devops` `references/ci-cd-deploy.md` §6.2),
+and it is DEFAULT rather than STRICT for one reason only: step 3 sometimes needs
+CI access an agent does not have. In that case record the gap. **A recorded gap
+is not a waiver** — the failure remains a candidate defect, and the claim
+"environmental" remains unmade.
+
+**When both rules apply, the STRICT one governs.** A release or freeze decision
+is covered by `DEVOPS-BASELINE-DEFECT-01` (STRICT), so an agent cannot reach the
+weaker class by loading only `dev-testing`.
+
+### 5.5 Counting greens
+
+How many consecutive green runs make a flaky-capable suite trustworthy is a
+release-gate question, not a remediation one: `DEVOPS-FLAKE-STABILITY-01` in
+`dev-devops` `references/ci-cd-deploy.md` §6.5.
 
 ## 6. Recommended Job Order
 

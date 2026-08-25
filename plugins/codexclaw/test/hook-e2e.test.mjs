@@ -68,7 +68,12 @@ function snapshotEntrypoint(distAbs) {
     rmSync(snapDir, { recursive: true, force: true });
     sleepSync(50);
   }
-  return null; // dist never settled within budget; skip rather than flake
+  // dist never settled within budget. Returning null makes the caller skip, which
+  // is a PRECONDITION failure, not flake avoidance: without a settled dist there
+  // is nothing to exercise, so the test would assert on a build artifact it never
+  // saw. TEST-FLAKE-QUARANTINE-01 does not apply — this skips a missing fixture,
+  // not a failing assertion.
+  return null;
 }
 
 // Resolve a hook JSON's first command string to its absolute dist entrypoint plus

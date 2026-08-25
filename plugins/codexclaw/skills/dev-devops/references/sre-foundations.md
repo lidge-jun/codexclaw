@@ -264,3 +264,52 @@ N+M    Root cause identified → permanent fix planned
 | Blame individuals | Engineers hide mistakes, no systemic improvement | Blameless postmortem culture |
 | No error budget policy | SLO violations have no defined response | Define 3-stage policy |
 | Postmortem without action items | Theater; same incidents repeat | Specific, owned, tracked items |
+| Measuring a long-running process without proving what it is | You benchmarked the bug, not the fix | `DEVOPS-STALE-PROCESS-01` §7.1 |
+| Flipping a true status bit to signal a missing one | The one honest signal now lies too | `DEVOPS-OBS-SIGNAL-01` §7.2 |
+
+---
+
+## §7 Evidence & Operator Signals
+
+### §7.1 Process identity (`DEVOPS-STALE-PROCESS-01`, STRICT)
+
+A live long-running process is not candidate evidence until its start time,
+binary, and config are proven to match the build under test.
+
+This exists because an OpenCodex train had a 100-call live canary as a GO
+criterion, and the process on the expected port turned out to be PID 922, started
+two days earlier: the reporter's own pre-fix proxy
+(`260824_v2_32_1_hotfix_train/090_wp9_issue2472_mixed_sequence_regression.md`:21-23).
+The canary was rejected as the wrong instrument BEFORE it was run, and the phase
+substituted a deterministic mixed-sequence regression
+(`080_wp8_freeze_verification_and_go_nogo.md`:24). The lesson is the identity
+check, not a bad measurement — the measurement never happened, because the
+identity check came first.
+
+Check, in this order: process start time versus the artifact's mtime, the
+resolved binary path versus the one you built, and the config the process
+actually loaded versus the one on disk. A matching port and a healthy `/healthz`
+prove neither.
+
+Independently learned in this project's own history: a cli-jaw deployment proof
+required comparing process start time against the installed `dist` mtime, because
+a matching version string and a green health endpoint were both satisfied by a
+process running the previous build.
+
+### §7.2 Operator signals (`DEVOPS-OBS-SIGNAL-01`, DEFAULT)
+
+When an operator surface is missing a signal, **add the missing signal**. Never
+flip an already-true status bit to compensate.
+
+The instructive case: a status command showed a green proxy line, and users in a
+degraded routing state complained it was misleading. It was not — the proxy was
+up and answering `/healthz`, and the reporter proved that himself by curling it.
+Turning that line yellow would have made the one honest signal lie in order to
+cover for one that was never emitted. The fix is a second line, not a corrupted
+first one
+(`260825_operator_visibility_train/020_wp3_issue2411_status_routing_visibility.md`:16-22).
+
+The negative form of the same rule: a degraded, ineligible, or skipped verdict
+that can reach an operator command must carry a message. A silent `ineligible`
+is how `start`, `ensure`, and `repair` all reported success while doing nothing
+(`260825_operator_visibility_train/001_current_state_inventory.md`:97-118).

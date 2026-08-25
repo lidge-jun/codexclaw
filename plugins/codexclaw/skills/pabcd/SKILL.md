@@ -88,14 +88,35 @@ sentence: plan/devlog paths, changed files, commands with exit codes, and eviden
 ledger paths when present. The runtime gate remains form-only for `did`; this is the
 agent discipline that makes later audit possible.
 
+**ATTEST-SHAPE-01 (STRICT):** every `--attest` object carries `from` and `to`
+naming the edge it advances. The parser coerces before any gate runs
+(`attest.ts` `coerceAttest`), so an attest without them is refused on EVERY
+edge — including ungated entry edges — before `did`, `planUnit`, or
+`workPhaseId` is ever examined.
+
 | Edge | Required attest keys | Notes |
 |------|---------------------|-------|
-| IDLE->P | none (entry command) | |
-| I->P | none (entry command) | |
-| P->A | `did` with plan pointer | |
-| A->B | `did`, `auditOutput`, `auditVerdict` (`pass`/`near-pass`/`fail`); near-pass adds `auditResidual` | FAIL never advances |
-| B->C | `did` with implementation delta | |
-| C->D | `did`, `checkOutput`, `exitCode` (required, must be 0) | |
+| IDLE->P | none — pass no `--attest` at all | If you pass one anyway it is still parsed, so it still needs `from`/`to` |
+| I->P | none — unless overriding an unready interview, which needs `from`, `to`, `did`, `override` | |
+| P->A | `from`, `to`, `did` with plan pointer, `planUnit` | `planUnit` must be a real `devlog/_plan/YYMMDD_slug/` holding numbered docs |
+| A->B | `from`, `to`, `did`, `auditOutput`, `auditVerdict` (`pass`/`near-pass`/`fail`); near-pass adds `auditResidual` | FAIL never advances |
+| B->C | `from`, `to`, `did` with implementation delta | |
+| C->D | `from`, `to`, `did`, `checkOutput`, `exitCode` (required, must be 0) | a goalplan-bound session also needs `testReceiptPath` from `cxc receipt test` |
+
+**Every gated edge additionally requires `workPhaseId` whenever a goalplan is
+bound to the session** — it must equal the active work-phase (LOOP-UNIT-CHAIN-01).
+
+Copy-paste objects. Replace the values; keep every key:
+
+```json
+{"from":"P","to":"A","did":"wrote the diff-level plan at <path>","planUnit":"devlog/_plan/260825_slug","workPhaseId":"wp1"}
+{"from":"A","to":"B","did":"folded 2 blockers, rebutted 1","auditOutput":"<pasted reviewer verdict tail>","auditVerdict":"near-pass","auditResidual":"GO-WITH-FIXES; blocker 1 folded, blocker 2 rebutted because ...","workPhaseId":"wp1"}
+{"from":"B","to":"C","did":"implemented <files>; <n> tests added","workPhaseId":"wp1"}
+{"from":"C","to":"D","did":"verified at <sha>","checkOutput":"<pasted tail of the command>","exitCode":0,"testReceiptPath":".codexclaw/evidence/<session>/test-receipt.json","workPhaseId":"wp1"}
+```
+
+Omit `workPhaseId` when no goalplan is bound, and `testReceiptPath` when the
+session is unbound. Everything else is mandatory on that edge.
 
 These are edge contracts, not substitutes for phase work. Artifact pointers must name
 the evidence produced by the phase being advanced.

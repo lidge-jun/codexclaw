@@ -69,9 +69,34 @@ function renderJson(value         , json         )         {
   return json ? JSON.stringify(value) : "";
 }
 
+export function renderMetricHelp()         {
+  return [
+    "cxc metric — session-scoped objective metrics for maximize-goal loops",
+    "",
+    "Usage:",
+    "  cxc metric record --session <id> --name <metric> --value <number> [--source operator-entered|evaluate.sh] [--work-phase <id>] [--json]",
+    "  cxc metric ingest --session <id> --source evaluate.sh [--json]   (reads stdin)",
+    "  cxc metric show --session <id> [--json]",
+    "  cxc metric kind --session <id> [--set satisfy|maximize] [--json]",
+    "  cxc metric parse-line --session <id>                             (reads stdin)",
+    "  cxc metric --help",
+    "",
+    "Notes:",
+    "  Two non-improving rows on the same metric switch the Stop block to",
+    "  \"step back and re-plan with divergence\" (cxc-loop objective plateau).",
+    "  --source records HOW the number was obtained; an operator-entered value and",
+    "  an evaluate.sh value are not interchangeable evidence.",
+  ].join("\n");
+}
+
 export function runMetricCli(argv          , cwd        , stdin = "")                  {
   const verb = argv[0] ?? "";
   const json = hasFlag(argv, "--json");
+  // 260825 wp1: --help used to be rejected with "--session <id> is required",
+  // so the usage text below was unreachable from the documented entry point.
+  if (argv.length === 0 || verb === "help" || verb === "--help" || verb === "-h") {
+    return { code: 0, output: renderMetricHelp() };
+  }
   const sessionId = readSession(argv);
   if (!sessionId) return { code: 1, output: "metric: --session <id> is required" };
 

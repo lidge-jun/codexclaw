@@ -58,12 +58,30 @@ The loop that prevents it:
    question. This is also what makes Mind routing adaptive: `selectMinds` ranks by dimension
    level, so with an empty tracker all four tie and it degrades to a fixed order.
 
-`--dim <dimension>=<low|mid|high>` records an explicit assertion when coverage alone
-understates what you know. It deliberately cannot set `max`: that level gates I -> P through
-`isInterviewReady`, and the sanctioned way past an unready interview is the attested
-`cxc orchestrate P --attest-file <path>` carrying `{"override":true,...}`, which
-leaves a ledger row. (The file flag is required on Windows: PowerShell cannot pass
-inline JSON as a single argument.)
+**Readiness is reached through step 2, not through an assertion.** A dimension counts
+toward I -> P when the session's interview ledger shows a question that was ASKED, an
+answer that was RECORDED, and a `--map` attributing that question to that dimension.
+That is why `--map` matters: an answered question nobody attributed proves nothing about
+any dimension.
+
+`--known <dimension>=<text>` records a fact you already hold. It moves a dimension off
+`low` and can carry it to `high`, but it can NOT make it count for readiness — a typed
+fact is not an answered question, and four `--known` flags would otherwise be a complete
+interview in one command.
+
+`--dim <dimension>=<low|mid|high>` records an explicit level assertion when coverage alone
+understates what you know. It deliberately cannot set `max`: that level bypasses the ledger
+check entirely, so it stays out of the writer's reach.
+
+When the interview genuinely is not complete, the sanctioned way past the gate is the attested
+`cxc orchestrate P --attest-file <path>` carrying
+`{"from":"I","to":"P","did":"<why the interview is complete>","override":true}`,
+which leaves a ledger row. It is the exception now, not the only door — until 260825 the gate
+demanded a level no writer could produce, so every interview spent an override and the row
+stopped distinguishing anything. (The file flag is required on Windows: PowerShell cannot pass
+inline JSON as a single argument.) `from`/`to` are not optional here — the parser
+coerces them before the override is ever read, so `{"override":true}` alone is
+refused (ATTEST-SHAPE-01 in `cxc-pabcd`).
 
 ## Show the state before asking (INTERVIEW-RENDER-01)
 
@@ -124,11 +142,16 @@ work-phase (loop-engineering §11.4).
 - Run a contradiction rescan after every answer, AND one final rescan before any proceed/close
   decision — surface what still remains. (This final rescan is process discipline; the runtime
   does not encode scan recency.)
-- Runtime readiness predicate (`isInterviewReady`): all dimensions at `max` + contradictions
-  empty + assumptions recorded + `scanRounds >= 1`. Treat readiness as a coverage claim on top of
-  that: each dimension has concrete knowns, no unresolved unknown changes scope, and every
-  contradiction has exited into an answer or a recorded assumption. Summarize the remaining OPEN
-  ASSUMPTIONS before claiming I -> P readiness.
+- Runtime readiness has two halves. **Shape** (`isInterviewReady`): every dimension at `high` or
+  `max` + contradictions empty + assumptions recorded + `scanRounds >= 1`. **Provenance**
+  (the I -> P gate on the agent CLI path): every dimension counted at `high` must trace to a
+  question that was asked, answered, and attributed with `--map`. `max` needs no ledger backing
+  because no writer can produce it.
+- The practical consequence: `--known` alone never opens I -> P. Ask the question, let the
+  `PostToolUse` hook capture the answer, then `cxc scan record --derive --map <qid>=<dimension>`.
+- Treat readiness as a coverage claim on top of that: each dimension has concrete knowns, no
+  unresolved unknown changes scope, and every contradiction has exited into an answer or a
+  recorded assumption. Summarize the remaining OPEN ASSUMPTIONS before claiming I -> P readiness.
 
 ## Closeout fork (INTERVIEW-FORK-01)
 
@@ -141,7 +164,9 @@ and INTERVIEW-INDEPENDENT-01 governs batching by independence rather than count.
 There is no build/execute path out of Interview — the only forward move is Plan, normally after
 the readiness gate passes, unless the human explicitly overrides (override is recorded as an
 audit entry); the agent CLI path also supports override via
-an attest carrying `{"override":true}` with equivalent ledger transparency.
+an attest carrying `{"from":"I","to":"P","did":"<reason>","override":true}` with
+equivalent ledger transparency (`from`/`to` are coerced before the override is
+read, so `{"override":true}` alone is refused — ATTEST-SHAPE-01).
 `proceed` means "advance to Plan", not permission to implement; the evolving
 plan/devlog stay draft interview artifacts until then.
 A chosen `proceed` executes as a real transition — `cxc orchestrate P --session <id>` (or the

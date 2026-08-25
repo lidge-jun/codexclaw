@@ -139,6 +139,77 @@ export function readQaEvents(cwd: string, sessionId: string): InterviewQaEvent[]
   return out;
 }
 
+/**
+ * 260825: which dimensions hold a question the user was actually asked AND
+ * actually answered.
+ *
+ * This exists because `deriveLevel` cannot tell the difference between a
+ * dimension settled by an interview and one an agent typed a fact into. Both
+ * reach `high`; only the first is evidence. Measured before this was written:
+ *
+ *   cxc scan record --session s --known goal=x --known constraint=x \
+ *                   --known success=x --known ontology=x
+ *   -> all four dimensions "high", scanRounds 1, in one command
+ *
+ * The answer is provenance, and provenance lives in this append-only file
+ * rather than on the tracker, which `writeState` rewrites wholesale and which a
+ * hand edit can set to anything. A dimension counts only when the SAME file
+ * carries all three: the question was asked, it was answered, and a
+ * `scan_completed` round attributed that questionId to that dimension.
+ *
+ * Not tamper-proof: this is a JSONL file, and whoever can write session state
+ * can append to it. It closes the accidental path — the one an agent takes
+ * because it is cheaper than asking — and leaves forgery a deliberate act.
+ */
+export function dimensionsBackedByAnswers(cwd: string, sessionId: string): Set<string> {
+  let raw: string;
+  try {
+    raw = readFileSync(ledgerPath(cwd, sessionId), "utf8");
+  } catch {
+    return new Set();
+  }
+  const asked = new Set<string>();
+  const answered = new Set<string>();
+  // questionId -> dimension, accumulated across every scan round in this session.
+  const attribution = new Map<string, string>();
+
+  for (const line of splitLines(raw)) {
+    const t = line.trim();
+    if (!t) continue;
+    let o: unknown;
+    try {
+      o = JSON.parse(t);
+    } catch {
+      continue;
+    }
+    if (!isRecord(o)) continue;
+
+    if (o.event === "question_asked" && typeof o.questionId === "string") {
+      asked.add(o.questionId);
+      continue;
+    }
+    // An empty `answers` array is not an answer. The capture writer only emits
+    // the row when the user responded, but a hand-appended row need not.
+    if (o.event === "answer_recorded" && typeof o.questionId === "string") {
+      if (Array.isArray(o.answers) && o.answers.some((a) => typeof a === "string" && a.trim().length > 0)) {
+        answered.add(o.questionId);
+      }
+      continue;
+    }
+    if (o.event === "scan_completed" && isRecord(o.map)) {
+      for (const [questionId, dimension] of Object.entries(o.map)) {
+        if (typeof dimension === "string" && dimension.length > 0) attribution.set(questionId, dimension);
+      }
+    }
+  }
+
+  const backed = new Set<string>();
+  for (const [questionId, dimension] of attribution) {
+    if (asked.has(questionId) && answered.has(questionId)) backed.add(dimension);
+  }
+  return backed;
+}
+
 /** True when an event with this id already exists (dedup guard). */
 function alreadyRecorded(cwd: string, sessionId: string, eventId: string): boolean {
   return readQaEvents(cwd, sessionId).some((e) => e.eventId === eventId);

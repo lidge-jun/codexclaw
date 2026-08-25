@@ -6,6 +6,69 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.13] — 2026-08-25
+
+Three gates that obstructed the agents following them, and the operational
+lessons from a release train that got several of these wrong first.
+
+### Fixed
+
+- **The attest gate rejected what its own documentation taught.** `coerceAttest`
+  requires `from`/`to` before any other check, and the "Required attest keys"
+  table in `cxc-pabcd` — the table agents copy — named neither, nor `planUnit`,
+  `workPhaseId`, or `testReceiptPath`. A goalplan-bound `P>A` therefore cost
+  three separate refusals, one turn each. `attest JSON missing valid from/to`
+  appears 50+ times across four repos since 2026-08-13.
+
+  The table now names every key each edge requires, with copy-paste objects. The
+  refusal names the real edge instead of restating the problem: `to` is the verb,
+  `from` is the session's phase, and only that edge's extra keys are listed. An
+  illegal edge gets its legal routes and no example, because every example would
+  be rejected.
+
+  Same family, found while inventorying: the goal-idle block emitted `evidence`
+  where the schema says `did` — silently, since `IDLE>P` is ungated;
+  `review-round`, `plan`, `metric` and `divergence` rejected `--help`; and
+  `cxc freeze --help` ran the freeze and wrote `freeze.json`, exiting 0.
+
+- **Interview readiness was unreachable.** `isInterviewReady` demanded level
+  `max` on all four dimensions, and no shipped writer could produce it —
+  `deriveLevel` tops out at `high` and `--dim <d>=max` is rejected. Every
+  interview either dead-ended or spent an attested override, which made the
+  override's ledger row meaningless: it recorded "bypassed the gate" for the
+  thorough interview and the skipped one alike.
+
+  Simply accepting `high` would have been worse — four `--known` flags reach
+  all-`high` in one command. So the gate now asks the append-only Q&A ledger where
+  a level came from: a dimension counts when a question was asked, answered, and
+  attributed with `--map`. `max` still satisfies readiness as a deliberate
+  assertion, and the override survives as the exception it was designed to be.
+
+  Not breaking: an interview that passes today still passes. Worth knowing on
+  upgrade — a session already sitting at all-`high` becomes shape-ready, so
+  `flags.interview`, `cxc freeze`, and the human `orchestrate p` free-pass will
+  now treat it as ready. The agent CLI path still requires the ledger backing.
+  This unsticks interviews that were stranded; it does not close any that were open.
+
+### Added
+
+- **`DEVOPS-*` freeze-gate rules** in `cxc-dev-devops` §2.8 and its references:
+  pin a readiness report to the SHA its gates describe; never excuse a red gate
+  inside the report it failed; unresolved review threads on merged PRs block GO;
+  a gate with no implementing phase is a wish. Plus the evidence mechanics —
+  replay CI's real partition, prove "environmental" with a baseline triple, do
+  not change the verification instrument while certifying with it, re-read the
+  head before claiming exact-head evidence.
+
+### Changed
+
+- **The flaky-test policy is elimination-first and has one owner.**
+  `dev-testing` said a flake is a bug and also said "quarantine if blocking";
+  the router and its reference both claimed the protocol, with different
+  strength. `references/ci-pipeline.md` §5 is now canonical `TEST-FLAKE-*`:
+  re-running to green is not a fix, quarantine needs test name, owner, deadline
+  and suspected cause recorded together, and "environmental" needs proof.
+
 ## [0.2.12] — 2026-08-22
 
 Three bugs filed against codexclaw, all of them cases where the tool obstructed
