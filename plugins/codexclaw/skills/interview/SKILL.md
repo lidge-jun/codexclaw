@@ -144,7 +144,9 @@ and INTERVIEW-INDEPENDENT-01 governs batching by independence rather than count.
 There is no build/execute path out of Interview — the only forward move is Plan, normally after
 the readiness gate passes, unless the human explicitly overrides (override is recorded as an
 audit entry); the agent CLI path also supports override via
-an attest carrying `{"override":true}` with equivalent ledger transparency.
+an attest carrying `{"from":"I","to":"P","did":"<reason>","override":true}` with
+equivalent ledger transparency (`from`/`to` are coerced before the override is
+read, so `{"override":true}` alone is refused — ATTEST-SHAPE-01).
 `proceed` means "advance to Plan", not permission to implement; the evolving
 plan/devlog stay draft interview artifacts until then.
 A chosen `proceed` executes as a real transition — `cxc orchestrate P --session <id>` (or the

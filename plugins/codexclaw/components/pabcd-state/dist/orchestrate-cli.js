@@ -17,7 +17,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { coerceAttest, validateWorkPhaseBinding, GATED_TRANSITIONS,                  } from "./attest.js";
-import { canEnter, transition } from "./fsm.js";
+import { canEnter, transition, isLegalEdge, VALID_TRANSITIONS } from "./fsm.js";
 import { validatePlanArtifacts } from "./plan-gate.js";
 import { captureSourceIdentity, compareSource, describeSource } from "./source-identity.js";
 import { randomBytes } from "node:crypto";
@@ -332,6 +332,18 @@ function renderPhaseContext(state       , sessionId        )         {
 export function renderAttestShapeHint(verb                 , from              )         {
   if (verb === "status" || verb === "reset") return "";
   const to = verb;
+  // A hint is only useful if the attest it teaches would be ACCEPTED. When the
+  // requested edge is illegal from the current phase, printing the real phase as
+  // `from` hands the agent an object that clears this gate and is then refused by
+  // the FSM adjacency check — two wrong refusals instead of one. In that case say
+  // what is actually wrong: the edge, not the JSON.
+  const legal = from === null || isLegalEdge(from, to);
+  if (from !== null && !legal) {
+    return (
+      ` Note ${from} -> ${to} is not a legal edge, so no attest can advance it:` +
+      ` legal from ${from} is ${(VALID_TRANSITIONS[from] ?? []).join("|")}.`
+    );
+  }
   const fromText = from ?? "<see status>";
   const extras                                           = {
     A: ', plus "planUnit":"devlog/_plan/YYMMDD_slug"',
@@ -344,7 +356,7 @@ export function renderAttestShapeHint(verb                 , from              )
     : " Run `cxc orchestrate status --session <id>` to read the current phase.";
   return (
     ` Every attest names the edge it advances: {"from":"${fromText}","to":"${to}","did":"..."}${extra}.` +
-    ` A goalplan-bound session also needs "workPhaseId", and C -> D also needs "testReceiptPath".` +
+    ` A goalplan-bound session also needs "workPhaseId"${to === "D" ? ' and "testReceiptPath"' : ''}.` +
     statusHint
   );
 }

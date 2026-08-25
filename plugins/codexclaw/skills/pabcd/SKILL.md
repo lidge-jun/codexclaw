@@ -104,7 +104,7 @@ edge — including ungated entry edges — before `did`, `planUnit`, or
 | C->D | `from`, `to`, `did`, `checkOutput`, `exitCode` (required, must be 0) | a goalplan-bound session also needs `testReceiptPath` from `cxc receipt test` |
 
 **Every gated edge additionally requires `workPhaseId` whenever a goalplan is
-bound to the session`** — it must equal the active work-phase (LOOP-UNIT-CHAIN-01).
+bound to the session** — it must equal the active work-phase (LOOP-UNIT-CHAIN-01).
 
 Copy-paste objects. Replace the values; keep every key:
 
