@@ -275,14 +275,17 @@ A local one-process full-suite run is **not** the CI suite gate. Replay the
 partition CI actually applies — the general shards plus each segregated job's
 exact command — and record both forms.
 
-Why: OpenCodex segregates three load-sensitive files out of its general batches
-and runs each as its own job. Running everything in one process therefore fails
+Why: OpenCodex excludes three load-sensitive path patterns from its general
+batches (`scripts/ci/run-bun-test-batches.sh`:50) and covers them with two
+dedicated jobs — `storage policy` runs six files together, `api usage` runs one
+(`.github/workflows/ci.yml`). Running everything in one process therefore fails
 tests that CI never runs together, and the resulting red is not the gate's
-verdict. Decomposed, the same tree gave 14565/0 on the general suite and 9/0 on
-the storage-policy job.
+verdict. Decomposed, the same tree gave 14565 pass / 0 fail on the general suite
+and 9/0 on the storage-policy job
+(`260824_v2_32_1_hotfix_train/900_go_nogo_readiness_report.md`:54-58).
 
-A corollary that reads as pedantic until it bites: if you cannot state which CI
-job a local command corresponds to, that command is not a gate.
+Corollary: if you cannot state which CI job a local command corresponds to, that
+command is not a gate.
 
 ### §6.2 Baseline versus defect (`DEVOPS-BASELINE-DEFECT-01`, STRICT)
 
@@ -296,18 +299,22 @@ Two out of three is not evidence. "It's flaky" and "it's environmental" are
 conclusions, not observations, and they need the same proof as every other claim.
 Remediation of a genuine flake is `dev-testing` `references/ci-pipeline.md` §5.
 
+Source: `260824_v2_32_1_hotfix_train/900_go_nogo_readiness_report.md`:69-72, where
+a local `api-usage` failure was waived only after all three legs were shown.
+
 ### §6.3 Instrument stability (`DEVOPS-VERIFY-INSTRUMENT-01`, STRICT)
 
 Do not change the verification instrument — runner flags, parallelism, shard
 layout, timeouts, retry policy — while using it to certify a freeze. Change it
 against a known-good baseline, or defer it.
 
-The OpenCodex phrasing is the clearest statement of the rule: *a verification
-instrument gets changed against a known-good baseline; it does not get used to
-establish one.* Their parallel-runner PR was deferred for exactly this reason —
-five runs flaked four different tests, and the freeze gate was itself a
-full-suite run, so landing the new runner would have made red indistinguishable
-from noise.
+Stated at the source as: *a verification instrument gets changed against a
+known-good baseline; it does not get used to establish one*
+(`260824_v2_32_1_hotfix_train/070_wp2_pr2427_parallel_test_runner.md`:44-45).
+That train deferred its parallel-runner PR for exactly this reason: across five
+recorded runs, four different tests flaked, and the freeze gate was itself a
+full-suite run — so landing the new runner would have made red indistinguishable
+from noise (`070`:78-121).
 
 ### §6.4 Exact-head evidence (`DEVOPS-EXACT-HEAD-01`, STRICT)
 
@@ -315,12 +322,19 @@ Re-read the PR or branch head immediately before claiming exact-head evidence. A
 contributor push mid-verification makes a recorded SHA stale; keep stale rows
 labeled stale and never merge on them. A remembered pass is not evidence.
 
+Source: `070_wp2_pr2427_parallel_test_runner.md`:136-139 — a MERGE recommendation
+was formed against a head the author had already replaced, and the run table keeps
+the superseded rows explicitly marked stale (`070`:87-98).
+
 ### §6.5 Stability counting (`DEVOPS-FLAKE-STABILITY-01`, DEFAULT)
 
 A flaky-capable suite is stable only after N consecutive greens at **one** head
-plus the required CI matrix. Declare N in the GO report; OpenCodex used three.
-One green run is not a land signal — in the case that produced this rule, run 1
-was green, run 2 failed, and run 3 produced the finding.
+plus the required CI matrix. Declare N in the GO report; OpenCodex set its bar at
+N=3 plus Linux and Windows CI
+(`260824_v2_32_1_hotfix_train/070_wp2_pr2427_parallel_test_runner.md`:125-126) —
+and never collected it, which is why that PR was deferred rather than landed.
+One green run is not a land signal: at the head under test the recorded runs were
+green, green, then a failure (`070`:87-98).
 
 This rule counts greens. It does not tell you how to fix a flake: that is
 `dev-testing` `references/ci-pipeline.md` §5, which owns `TEST-FLAKE-*`.

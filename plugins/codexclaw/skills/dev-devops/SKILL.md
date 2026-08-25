@@ -169,10 +169,12 @@ jobs:
 published. This section governs the decision to publish at all — the readiness
 report, and the gates it claims to have passed.
 
-Every rule here was paid for. The sources are the OpenCodex v2.32.1 hotfix train
-and the operator-visibility train that followed it (`devlog/_plan/260824_v2_32_1_hotfix_train/`,
-`devlog/_plan/260825_operator_visibility_train/`), where a freeze audit rejected
-the first GO report on three separate counts.
+Sources: the OpenCodex v2.32.1 hotfix train and the operator-visibility train
+that followed it (`devlog/_plan/260824_v2_32_1_hotfix_train/`,
+`devlog/_plan/260825_operator_visibility_train/`). A freeze audit rejected the
+first GO report there on three counts — unresolved review threads on merged PRs,
+a red gate argued into an exception, and missing frozen-head receipts
+(`900_go_nogo_readiness_report.md`:37-49).
 
 | Rule | Severity | Statement |
 |------|----------|-----------|
@@ -181,18 +183,23 @@ the first GO report on three separate counts.
 | `DEVOPS-REVIEW-THREADS-01` | STRICT | Unresolved review threads on merged PRs are a GO blocker. Count them **after** merge: a thread opened minutes before merge still counts until it is fixed or explicitly dismissed. |
 | `DEVOPS-GATE-OWNER-01` | STRICT | A mandatory GO gate needs an implementing work-phase and a recorded terminal outcome — pass, not-reproduced, or explicitly deregistered. A gate nobody implements is not a gate; it is a wish. |
 
-**Why gate-weakening is the load-bearing rule.** The failure it prevents does not
-look like dishonesty from the inside. The suite was red, the red tests were known to
-be load-sensitive, the fix was real — so the report explained the exception. The
-audit rejected it, correctly: an exception argued *after* a gate fails is
-indistinguishable from an exception argued *because* it failed. The honest move
-was to decompose the gate to match what CI actually runs
-(`DEVOPS-SUITE-PARTITION-01`), which produced a green result on the same evidence.
+Per-rule sources: FREEZE-SHA `900`:3-7; GATE-WEAKEN `900`:47-49; REVIEW-THREADS
+`900`:40-46 and `080_wp8`:47; GATE-OWNER `090_wp9`:6-8 and
+`000_baseline_scope_and_roadmap.md`:243-245.
+
+**Why gate-weakening is the load-bearing rule.** In the case that produced it the
+suite was red, the red tests were known to be load-sensitive, and the fix was
+real — so the report explained the exception. The audit rejected that, correctly:
+an exception argued *after* a gate fails is indistinguishable from an exception
+argued *because* it failed. The honest move was to decompose the gate to match
+what CI actually runs (`DEVOPS-SUITE-PARTITION-01`), which turned the general
+suite green. One local `api-usage` failure remained and was waived separately,
+on the `DEVOPS-BASELINE-DEFECT-01` triple — not by the partitioning.
 
 Operational mechanics — suite partitioning, baseline-versus-defect attribution,
 instrument stability, and exact-head evidence — live in
-`references/ci-cd-deploy.md` §9. Runtime/process evidence rules live in
-`references/sre-foundations.md` §6.
+`references/ci-cd-deploy.md` §6. Runtime and operator-signal evidence rules live
+in `references/sre-foundations.md` §7.
 
 ---
 
