@@ -197,3 +197,64 @@ test("the arming directive shows a from/to-bearing object on both platforms", ()
   }
 });
 
+
+// ---------------------------------------------------------------------------
+// Drift detection. Everything above fixes today's text; this is what fails the
+// build when the NEXT contract change forgets the skill again. The repo already
+// works this way — see "shipped skill catalog exactly matches on-disk SKILL.md
+// folders" — so the genre is house style, not an invention.
+// ---------------------------------------------------------------------------
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve as resolvePath } from "node:path";
+import { parseOrchestrateCommand } from "../src/orchestrate-grammar.ts";
+
+const REPO = resolvePath(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "..");
+
+/** The attest table rows out of pabcd/SKILL.md, keyed by edge. */
+function attestTableRows(): Map<string, string> {
+  const md = readFileSync(resolvePath(REPO, "plugins/codexclaw/skills/pabcd/SKILL.md"), "utf8");
+  const rows = new Map<string, string>();
+  for (const line of md.split("\n")) {
+    const m = /^\|\s*(IDLE->P|I->P|P->A|A->B|B->C|C->D)\s*\|([^|]*)\|/.exec(line.trim());
+    // Capture the KEYS cell only. Taking the rest of the row would let a
+    // mention in the Notes column satisfy a key the contract cell omits — the
+    // exact way this test first passed against injected drift.
+    if (m) rows.set(m[1], m[2]);
+  }
+  return rows;
+}
+
+test("the pabcd attest table names every key its edge's gate requires", () => {
+  const rows = attestTableRows();
+  // A file-wide grep would pass on any incidental mention in a 37k-character
+  // document. Bind to the ROW, so a key documented for the wrong edge fails.
+  const required: Record<string, string[]> = {
+    "P->A": ["from", "to", "did", "planUnit"],
+    "A->B": ["from", "to", "did", "auditOutput", "auditVerdict"],
+    "B->C": ["from", "to", "did"],
+    "C->D": ["from", "to", "did", "checkOutput", "exitCode"],
+  };
+  for (const [edge, keys] of Object.entries(required)) {
+    const row = rows.get(edge);
+    assert.ok(row, `the attest table has no row for ${edge}`);
+    for (const key of keys) {
+      assert.ok(row!.includes(key), `${edge} row must name "${key}" — the gate requires it`);
+    }
+  }
+  // The bound-session keys are stated once beneath the table rather than per row.
+  const md = readFileSync(resolvePath(REPO, "plugins/codexclaw/skills/pabcd/SKILL.md"), "utf8");
+  assert.match(md, /workPhaseId/);
+  assert.match(md, /testReceiptPath/);
+  assert.match(md, /ATTEST-SHAPE-01/);
+});
+
+test("the chat grammar rejects a from/to-less attest with the same guidance", () => {
+  const cmd = parseOrchestrateCommand('orchestrate a --attest {"did":"x"}');
+  assert.ok(cmd, "the line-anchored command must parse");
+  assert.match(cmd!.attestError ?? "", /missing valid from\/to/);
+  // Both parsers now teach the same shape; a reader comparing them cannot
+  // conclude one of the two is authoritative.
+  assert.match(cmd!.attestError ?? "", /ATTEST-SHAPE-01/);
+});
+

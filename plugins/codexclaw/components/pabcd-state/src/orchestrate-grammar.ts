@@ -85,7 +85,20 @@ function parseAttestTail(rest: string): Pick<OrchestrateCommand, "rawAttest" | "
   try {
     const parsed = JSON.parse(json) as unknown;
     const att = coerceAttest(parsed);
-    if (!att) return { rawAttest: json, attest: null, attestError: "attest JSON missing valid from/to" };
+    if (!att) {
+      return {
+        rawAttest: json,
+        attest: null,
+        // Same wording as the CLI path (260825 wp1). The chat surface currently
+        // discards attestError (hook.ts handleOrchestrateCommand) and the human
+        // free-pass advances anyway, so this text is not yet user-visible — but
+        // leaving the two parsers disagreeing is how the next reader concludes
+        // one of them is right.
+        attestError:
+          'attest JSON missing valid from/to. Every attest names the edge it advances: ' +
+          '{"from":"<phase>","to":"<phase>","did":"..."} plus that edge\'s keys (ATTEST-SHAPE-01).',
+      };
+    }
     return { rawAttest: json, attest: att };
   } catch {
     return { rawAttest: json, attest: null, attestError: "attest JSON is not valid JSON" };

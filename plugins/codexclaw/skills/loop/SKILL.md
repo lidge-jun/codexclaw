@@ -28,7 +28,11 @@ for EVERY loop entry or re-entry:
    `cxc orchestrate <phase> --attest <json>` — or `--attest-file <path>`, which is
    REQUIRED on Windows because PowerShell cannot pass inline JSON as one argument —
    carrying the phase's real artifact
-   (ORCH-ARTIFACT-01). Entry edges (IDLE→P, I→P) are explicit commands without an
+   (ORCH-ARTIFACT-01). Every attest names the edge it advances with `from`/`to`,
+   plus that edge's own keys (`planUnit` on P>A, `workPhaseId` on every gated edge
+   under a bound goalplan, `testReceiptPath` on C>D) — canonical table and
+   copy-paste objects: `cxc-pabcd` §"Required attest keys" (ATTEST-SHAPE-01).
+   Entry edges (IDLE→P, I→P) are explicit commands without an
    attest JSON — the shipped gate (`dist/attest.js` GATED_TRANSITIONS) gates exactly
    those four. A phase without its persisted transition did not happen — the
    footer/ledger is the only proof of phase.
