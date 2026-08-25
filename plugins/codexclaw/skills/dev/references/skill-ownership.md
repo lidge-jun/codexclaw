@@ -11,6 +11,7 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Pre-write search | `dev` §1.5 | `dev-code-reviewer` |
 | Stacked pull requests (`DEV-STACK-*`) | `dev` `references/stacked-prs.md` | `pabcd`, `loop`, `dev-code-reviewer`, `dev-devops` |
 | Edge-first testing | `dev-testing` §6 | — |
+| Flaky tests / CI re-run (`TEST-FLAKE-*`) | `dev-testing` `references/ci-pipeline.md` §5 | `dev-testing` §5.4, `dev-debugging` Scenario D, `dev-devops` §6 |
 | Manual surface QA / evidence matrix | `cxc-qa` | `dev-testing` §4.6 (tool routing stays there) |
 | Test-induced defense | `dev-testing` §6.7 | `dev-code-reviewer` |
 | Boundary-only defense | `dev-architecture` §4 | `dev-backend`, `dev-security` |

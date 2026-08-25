@@ -310,6 +310,10 @@ Root cause pattern: List endpoint lazy-loads related records per item (1 query +
 
 Root cause pattern: Test passes in isolation but fails in suite due to shared mutable state (database rows, global variables, uncleared mocks). Compare with stable tests that use transaction rollback in beforeEach/afterEach. Fix: add proper test isolation, then search for other tests missing cleanup.
 
+Policy — what CI may do about a flake, when quarantine is permitted, and what
+counts as closing one — is `dev-testing` `references/ci-pipeline.md` §5
+(`TEST-FLAKE-*`). This skill owns the diagnosis; that file owns the disposition.
+
 ---
 
 ## When to Escalate vs When to Keep Digging

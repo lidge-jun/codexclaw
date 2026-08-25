@@ -209,13 +209,11 @@ See `references/ci-pipeline.md` for job dependencies, concurrency, matrices, sha
 Playwright dependencies, and full GitHub Actions/GitLab CI templates.
 Matrix only across supported runtimes, required OS behavior, or suites exceeding CI budget.
 ### 5.4 Flaky Test Remediation
-| Symptom | First Fix |
-|---------|-----------|
-| passes locally, fails in CI | deterministic seeds, containerized deps, explicit waits |
-| order-dependent failure | reset shared state in fixtures |
-| green on retry only | remove wall-clock / random assumptions |
-| screenshot noise | stable CI image, mask dynamic regions |
-Protocol: detect → quarantine if blocking → assign owner → reinstate after repeated green runs.
+Canonical policy: `references/ci-pipeline.md` §5 (`TEST-FLAKE-*`). Summary only:
+- **`TEST-FLAKE-ELIMINATE-01` (STRICT)** — a flake is a defect; it is closed when the cause is named, not when the suite is green.
+- **`TEST-FLAKE-RERUN-01` (STRICT)** — re-running to green is not a fix and is never recorded as one; raising a timeout to pass is the same violation. A re-run may measure the failure RATE, and the measurement gets written down.
+- **`TEST-FLAKE-QUARANTINE-01` (DEFAULT)** — quarantine only when the flake blocks unrelated delivery, and only with test name, owner, removal deadline, and suspected cause recorded together. Without a deadline it is a deletion.
+- **`TEST-FLAKE-ATTRIBUTION-01` (DEFAULT)** — "environmental" needs proof: identical failure on the untouched baseline, no change touching that code, and the matching CI job green at the same SHA.
 ### 5.5 CI-Green Loop
 **STRICT (TEST-CI-GREEN-01):** Latest HEAD is the source of truth. Inspect the
 failing job and artifacts before editing, make the minimal correct fix, run local
