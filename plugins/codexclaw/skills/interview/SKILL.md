@@ -61,9 +61,12 @@ The loop that prevents it:
 `--dim <dimension>=<low|mid|high>` records an explicit assertion when coverage alone
 understates what you know. It deliberately cannot set `max`: that level gates I -> P through
 `isInterviewReady`, and the sanctioned way past an unready interview is the attested
-`cxc orchestrate P --attest-file <path>` carrying `{"override":true,...}`, which
-leaves a ledger row. (The file flag is required on Windows: PowerShell cannot pass
-inline JSON as a single argument.)
+`cxc orchestrate P --attest-file <path>` carrying
+`{"from":"I","to":"P","did":"<why the interview is complete>","override":true}`,
+which leaves a ledger row. (The file flag is required on Windows: PowerShell cannot pass
+inline JSON as a single argument.) `from`/`to` are not optional here — the parser
+coerces them before the override is ever read, so `{"override":true}` alone is
+refused (ATTEST-SHAPE-01 in `cxc-pabcd`).
 
 ## Show the state before asking (INTERVIEW-RENDER-01)
 

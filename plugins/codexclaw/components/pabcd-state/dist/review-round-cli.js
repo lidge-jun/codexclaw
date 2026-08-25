@@ -95,6 +95,12 @@ function v2SpawnSurface()          {
 
 export function parseReviewRoundCliArgs(argv          , cwd        )                                                {
   const verb = (argv[0] ?? "").toLowerCase();
+  // #47 finished (260825 wp1): --help was an unknown verb here, so an agent that
+  // followed the top-level "run <cmd> --help" pointer hit a rejection and had to
+  // learn every flag from refusals. Same branch shape as scan-cli.
+  if (argv.length === 0 || verb === "help" || verb === "--help" || verb === "-h") {
+    return { verb: "help"                   , cwd, planPaths: [] };
+  }
   if (!VERBS.has(verb)) {
     return { error: `unknown review-round verb '${argv[0] ?? ""}' (expected open|show|abort)` };
   }
@@ -156,7 +162,30 @@ export function planFilesHash(files                )         {
   return sha256(files.map((f) => `${f.path}\u0000${f.sha256}`).join("\u0000"));
 }
 
+export function renderReviewRoundHelp()         {
+  return [
+    "cxc review-round — the opt-in A-gate plan-audit round (LEAN-REVIEW-01)",
+    "",
+    "Usage:",
+    "  cxc review-round open --session <id> [--plan-path <path>]... [--cwd <path>] [--json]",
+    "  cxc review-round show --session <id> [--cwd <path>] [--json]",
+    "  cxc review-round abort --session <id> [--reason <text>] [--cwd <path>]",
+    "  cxc review-round --help",
+    "",
+    "Notes:",
+    "  A round is OPTIONAL. With no round open, A>B advances on the attest alone.",
+    "  With a round whose verdict was RECORDED, that verdict is binding: you cannot",
+    "  attest \"pass\" over a reviewer's \"fail\".",
+    "  open requires the session to be at phase A with a bound goalplan and a plan",
+    "  binding recorded by P>A.",
+    "  abort closes a round that no reviewer will finish, so the cycle is not stuck.",
+  ].join("\n");
+}
+
 export function runReviewRoundCli(args                    )                       {
+  if ((args.verb          ) === "help") {
+    return { code: 0, output: renderReviewRoundHelp() };
+  }
   const session = (args.session ?? "").trim();
   if (session.length === 0) return { output: "review-round: --session <id> is required", code: 1 };
   const state = readState(args.cwd, session);

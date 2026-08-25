@@ -69,7 +69,11 @@ only blocks premature termination (it never transitions phase). Verified against
 cli-jaw's `attestation.ts` requires forward transitions to carry evidence; narration is
 rejected. codexclaw mirrors this as the one place the agent path is genuinely gated:
 
-- Forward transitions (P->A->B->C->D) require `--attest '{"from","to","did"}'`.
+- Forward transitions (P->A->B->C->D) require an attest object carrying at minimum
+  `{"from":"P","to":"A","did":"..."}` — `from` and `to` name the edge and are
+  coerced BEFORE any gate runs, so omitting them is refused on every edge
+  (ATTEST-SHAPE-01). Per-edge extras and copy-paste objects: `cxc-pabcd`
+  §"Required attest keys".
 - A->B additionally requires a pasted `auditOutput` (the dispatched reviewer subagent's
   verdict tail — WP3) plus `auditVerdict` (`pass|near-pass|fail`, the MAIN agent's own
   judgment; `near-pass` also needs `auditResidual` naming each residual blocker's

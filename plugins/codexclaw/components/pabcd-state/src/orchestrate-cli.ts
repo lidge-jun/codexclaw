@@ -165,7 +165,8 @@ export function renderOrchestrateHelp(platform: NodeJS.Platform = process.platfo
         "Attestation examples:",
         "  cxc orchestrate A --session <id> --attest '{\"from\":\"P\",\"to\":\"A\",\"did\":\"wrote and audited the plan\",\"planUnit\":\"devlog/_plan/260714_slug\",\"workPhaseId\":\"wp1\"}'",
         "  cxc orchestrate B --session <id> --attest '{\"from\":\"A\",\"to\":\"B\",\"did\":\"audit passed\",\"auditOutput\":\"VERDICT: PASS\",\"auditVerdict\":\"pass\",\"workPhaseId\":\"wp1\"}'",
-        "  cxc orchestrate D --session <id> --attest '{\"from\":\"C\",\"to\":\"D\",\"did\":\"verified\",\"checkOutput\":\"tests passed\",\"exitCode\":0,\"workPhaseId\":\"wp1\"}'",
+        "  cxc orchestrate C --session <id> --attest '{\"from\":\"B\",\"to\":\"C\",\"did\":\"implemented <files>\",\"workPhaseId\":\"wp1\"}'",
+        "  cxc orchestrate D --session <id> --attest '{\"from\":\"C\",\"to\":\"D\",\"did\":\"verified\",\"checkOutput\":\"tests passed\",\"exitCode\":0,\"testReceiptPath\":\".codexclaw/evidence/<session>/test-receipt.json\",\"workPhaseId\":\"wp1\"}'",
       ];
   return [
     "cxc orchestrate — agent-gated IPABCD phase control",
@@ -185,7 +186,9 @@ export function renderOrchestrateHelp(platform: NodeJS.Platform = process.platfo
     "  status is read-only and may use the latest-session fallback when --session is omitted.",
     "",
     ...attestExamples,
-    "  (workPhaseId is required on gated edges whenever a goalplan is bound to the session)",
+    "  Every attest carries from/to naming the edge; they are coerced before any gate runs.",
+    "  (workPhaseId is required on gated edges whenever a goalplan is bound to the session,",
+    "   and testReceiptPath is required on C -> D for a bound session — see `cxc receipt test`)",
     "",
     "Status:",
     "  cxc orchestrate status --session <id>",
@@ -305,6 +308,47 @@ function renderPhaseContext(state: State, sessionId: string): string {
   return `current=${state.phase} session=${sessionId}`;
 }
 
+/**
+ * Build the recovery half of a malformed-attest refusal (260825 wp1).
+ *
+ * The old text was the bare `attest JSON missing valid from/to`, which names the
+ * problem and nothing else — and it was the single most-hit agent-facing failure
+ * in the archive, because the skill table that agents copy never listed from/to
+ * at all. An agent whose attest was EMPTY already got a worked example from
+ * `attest.ts`; an agent whose attest was INCOMPLETE got nothing and retried the
+ * same omission.
+ *
+ * An earlier draft of the fix assumed the parser cannot know which edge is being
+ * advanced, and proposed `"<current>"/"<target>"` placeholders. An audit
+ * disproved it: `verb` is argv[0], resolved before the attest loop runs, so `to`
+ * is ALWAYS known, and the caller already reads session state on this exact error
+ * path, so `from` is known whenever `--session` resolves. A placeholder appears
+ * only for the value that genuinely cannot be determined.
+ *
+ * The extra keys named are the ones for THIS edge, not a menu of every key the
+ * FSM has. A menu would leave the agent guessing which half applies — the same
+ * failure in a longer form.
+ */
+export function renderAttestShapeHint(verb: OrchestrateVerb, from: Phase | null): string {
+  if (verb === "status" || verb === "reset") return "";
+  const to = verb;
+  const fromText = from ?? "<see status>";
+  const extras: Partial<Record<OrchestrateVerb, string>> = {
+    A: ', plus "planUnit":"devlog/_plan/YYMMDD_slug"',
+    B: ', plus "auditOutput":"<reviewer verdict tail>" and "auditVerdict":"pass|near-pass|fail"',
+    D: ', plus "checkOutput":"<command output tail>" and "exitCode":0',
+  };
+  const extra = extras[to] ?? "";
+  const statusHint = from
+    ? ""
+    : " Run `cxc orchestrate status --session <id>` to read the current phase.";
+  return (
+    ` Every attest names the edge it advances: {"from":"${fromText}","to":"${to}","did":"..."}${extra}.` +
+    ` A goalplan-bound session also needs "workPhaseId", and C -> D also needs "testReceiptPath".` +
+    statusHint
+  );
+}
+
 function renderStatus(state: State, json: boolean, elsewhere: string[] = []): string {
   if (json) {
     return JSON.stringify({
@@ -344,8 +388,18 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
   // malformed --attest is a hard error before any state mutation (except control verbs).
   if (args.attestError && args.verb !== "status" && args.verb !== "reset") {
     const sessionIdForError = args.session && sessionFileExists(args.cwd, args.session) ? args.session : null;
-    const context = sessionIdForError ? `${renderPhaseContext(readState(args.cwd, sessionIdForError), sessionIdForError)}; ` : "";
-    return { code: 1, output: `orchestrate ${args.verb}: ${context}${args.attestError}` };
+    const stateForError = sessionIdForError ? readState(args.cwd, sessionIdForError) : null;
+    const context =
+      stateForError && sessionIdForError
+        ? `${renderPhaseContext(stateForError, sessionIdForError)}; `
+        : "";
+    // Only a SHAPE failure gets the worked example. "not valid JSON" and
+    // "requires a path argument" are different problems, and an example of a
+    // well-formed object would only muddy them.
+    const hint = args.attestError.includes("missing valid from/to")
+      ? renderAttestShapeHint(args.verb, stateForError?.phase ?? null)
+      : "";
+    return { code: 1, output: `orchestrate ${args.verb}: ${context}${args.attestError}.${hint}` };
   }
 
   const sessionId = resolveSession(args.cwd, args.session);

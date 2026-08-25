@@ -465,17 +465,23 @@ export const TRIGGER_AUTHORITY_NOTE = [
  * no inline spelling that works. Telling a Windows agent otherwise is how it
  * concludes the FSM is broken. Same reasoning as `stopNextCommand` below.
  */
+/** The P>A object every arming surface shows. One definition, so the win32 and
+ *  posix branches cannot drift, and so from/to are never dropped from one of them. */
+const PA_ATTEST_EXAMPLE =
+  '{"from":"P","to":"A","did":"...","planUnit":"devlog/_plan/YYMMDD_slug","workPhaseId":"wp1"}';
+
 export function loopArmDirective(platform                  = process.platform)         {
   const advance = platform === "win32"
     ? [
         "4. Advance EVERY forward edge yourself. On Windows write the JSON first, then attest:",
-        "   `'<json>' | Set-Content -Encoding utf8 .codexclaw/attest.json` then",
+        `   \`'${PA_ATTEST_EXAMPLE}' | Set-Content -Encoding utf8 .codexclaw/attest.json\` then`,
         "   `cxc orchestrate <phase> --session <id> --attest-file .codexclaw/attest.json` —",
         "   inline --attest cannot survive PowerShell argument parsing (quotes are stripped,",
         "   and escaping them splits the value at its first space).",
       ]
     : [
         "4. Advance EVERY forward edge yourself with `cxc orchestrate <phase> --attest <json>` —",
+        `   e.g. \`cxc orchestrate A --session <id> --attest '${PA_ATTEST_EXAMPLE}'\` —`,
       ];
   return [
     "[codexclaw: LOOP — orchestrate arming mandate (ORCH-MANDATE-01)]",
@@ -490,6 +496,8 @@ export function loopArmDirective(platform                  = process.platform)  
     "   HITL (no such ask): enter the cycle explicitly via `cxc orchestrate I|P --session <id>`.",
     ...advance,
     "   a phase without its persisted transition + artifact did not happen (ORCH-ARTIFACT-01).",
+    '   EVERY attest carries "from" and "to" naming the edge: they are coerced before any',
+    "   gate runs, so omitting them is refused on every edge (ATTEST-SHAPE-01).",
     "   When a goalplan is bound, include the active workPhaseId in every gated attest",
     "   (one work-phase = one full PABCD cycle).",
     "5. After D closes to IDLE with work remaining under an active goal, immediately re-enter",
@@ -1160,8 +1168,8 @@ export function buildGoalIdleBlock(
   // Same PowerShell constraint as loopArmDirective: inline JSON cannot survive
   // argument parsing, so win32 gets the write-then-attest pair instead.
   const startNext = platform === "win32"
-    ? `Either start the next work-phase now: write the JSON with \`'{"from":"IDLE","to":"P","evidence":"<diff-level plan for the next work-phase>"}' | Set-Content -Encoding utf8 .codexclaw/attest.json\` then run \`cxc orchestrate P --session ${sessionId} --attest-file .codexclaw/attest.json\``
-    : `Either start the next work-phase now: \`cxc orchestrate P --session ${sessionId} --attest '{"from":"IDLE","to":"P","evidence":"<diff-level plan for the next work-phase>"}'\``;
+    ? `Either start the next work-phase now: write the JSON with \`'{"from":"IDLE","to":"P","did":"<diff-level plan for the next work-phase>"}' | Set-Content -Encoding utf8 .codexclaw/attest.json\` then run \`cxc orchestrate P --session ${sessionId} --attest-file .codexclaw/attest.json\\`
+    : `Either start the next work-phase now: \`cxc orchestrate P --session ${sessionId} --attest '{"from":"IDLE","to":"P","did":"<diff-level plan for the next work-phase>"}'\\`;
   const lines = [
     "[codexclaw — goal continuation] A host goal is ACTIVE but no PABCD cycle is in flight.",
     "GOAL-IDLE-CONTINUE-01: IDLE is not the end while the goal is active (LOOP-CONTINUE-01). Do not end the turn here.",

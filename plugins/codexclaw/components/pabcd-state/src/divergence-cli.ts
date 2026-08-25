@@ -69,11 +69,37 @@ function readSession(argv: string[]): string | null {
   return readFlag(argv, "--session") ?? readFlag(argv, "-s");
 }
 
+export function renderDivergenceHelp(): string {
+  return [
+    "cxc divergence — record the deliberate divergence mode and its candidates",
+    "",
+    "Usage:",
+    "  cxc divergence mode on --session <id> --collapse P|D --reason <why> [--json]",
+    "  cxc divergence mode off --session <id> --reason <why> [--json]",
+    "  cxc divergence candidate add --session <id> --kind strong-1|add-1|alternative",
+    "      --change-class parameter-tweak|branch-toggle|state-space-redesign|evaluator-change",
+    "      --title <text> --rationale <text> --source <url> [--source <url>]...",
+    "      [--killed-at-phase P|A|B|C|D] [--json]",
+    "  cxc divergence candidate list --session <id> [--json]",
+    "  cxc divergence --help",
+    "",
+    "Notes:",
+    "  Collapse EARLY at P for satisfy-spec work; collapse LATE at D for",
+    "  maximize-metric work where the local metric can deceive (cxc-loop).",
+    "  Turn divergence off once the plateau is broken — it is a mode, not a state.",
+    "  Every candidate needs at least one --source: an unsourced candidate is a guess.",
+  ].join("\n");
+}
+
 export function runDivergenceCli(argv: string[], cwd: string): DivergenceCliResult {
   const cwdOut = readFlag(argv, "--cwd") ?? cwd;
   const topic = argv[0] ?? "";
   const verb = argv[1] ?? "";
   const json = hasFlag(argv, "--json");
+  // 260825 wp1: same defect as metric — --help died on the session guard.
+  if (argv.length === 0 || topic === "help" || topic === "--help" || topic === "-h") {
+    return { code: 0, output: renderDivergenceHelp() };
+  }
   const sessionId = readSession(argv);
   if (!sessionId) return { code: 1, output: "divergence: --session <id> is required" };
 

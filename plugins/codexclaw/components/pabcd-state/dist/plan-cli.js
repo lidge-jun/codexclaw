@@ -71,6 +71,11 @@ export function derivePlanSlug(raw        )         {
 /** Structural argv parse. argv excludes the `plan` kind token. */
 export function parsePlanCliArgs(argv          , cwd        )                                  {
   const verb = (argv[0] ?? "").toLowerCase();
+  // #47 finished (260825 wp1): --help was an unknown verb, so the top-level help's
+  // "run <cmd> --help" pointer led to a rejection.
+  if (argv.length === 0 || verb === "help" || verb === "--help" || verb === "-h") {
+    return { verb: "help", slug: "", phases: 1, cwd, date: null };
+  }
   if (verb !== "init") {
     return { error: `unknown plan verb '${argv[0] ?? ""}' (expected init)` };
   }
@@ -148,6 +153,25 @@ function phaseDoc(n        , slug        )         {
 }
 
 export function runPlanCli(args             )                {
+  if (args.verb === "help") {
+    return {
+      code: 0,
+      output: [
+        "cxc plan — scaffold a devlog plan unit (DIFFLEVEL-ROADMAP-01)",
+        "",
+        "Usage:",
+        "  cxc plan init --slug <slug> [--phases <n>] [--date <YYMMDD>] [--cwd <path>]",
+        "  cxc plan --help",
+        "",
+        "Notes:",
+        "  Creates devlog/_plan/<YYMMDD>_<slug>/ with 000_plan.md plus one decade doc",
+        "  (010, 020, ...) per phase. P>A requires such a unit to exist on disk with",
+        "  numbered docs — a chat-message plan does not satisfy Plan.",
+        "  --date is for callers that already carry their own prefix; omit it to stamp today.",
+        "  init refuses to overwrite an existing unit.",
+      ].join("\n"),
+    };
+  }
   // args.date is the caller's own prefix when they passed one; only stamp today
   // when they did not (issue #30 - the doubled prefix came from stamping always).
   const unitName = `${args.date ?? yymmdd()}_${args.slug}`;

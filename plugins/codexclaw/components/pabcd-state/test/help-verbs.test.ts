@@ -75,3 +75,65 @@ test("scan record without --cwd still resolves against the process cwd", () => {
   assert.ok(!("error" in args));
   assert.equal((args as { cwd: string }).cwd, CWD);
 });
+
+// ---------------------------------------------------------------------------
+// 260825 wp1 — #47 finished. These five verbs still rejected `--help` (or, worse,
+// silently ran) long after the original fix landed for loop/receipt/scan.
+// ---------------------------------------------------------------------------
+import { parseReviewRoundCliArgs, runReviewRoundCli } from "../src/review-round-cli.ts";
+import { parsePlanCliArgs, runPlanCli } from "../src/plan-cli.ts";
+import { runMetricCli } from "../src/metric-cli.ts";
+import { runDivergenceCli } from "../src/divergence-cli.ts";
+import { parseFreezeArgs, runFreeze } from "../src/freeze-cli.ts";
+import { mkdtempSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+for (const token of ["help", "--help", "-h"]) {
+  test(`review-round ${token} prints usage and exits 0`, () => {
+    const args = parseReviewRoundCliArgs([token], CWD);
+    assert.ok(!("error" in args), `${token} must not be an unknown verb`);
+    const r = runReviewRoundCli(args as never);
+    assert.equal(r.code, 0);
+    assert.match(r.output, /Usage:/);
+    assert.match(r.output, /open --session/);
+    assert.match(r.output, /abort --session/);
+  });
+
+  test(`plan ${token} prints usage and exits 0`, () => {
+    const args = parsePlanCliArgs([token], CWD);
+    assert.ok(!("error" in args), `${token} must not be an unknown verb`);
+    const r = runPlanCli(args as never);
+    assert.equal(r.code, 0);
+    assert.match(r.output, /Usage:/);
+    assert.match(r.output, /--slug/);
+  });
+
+  test(`metric ${token} prints usage without demanding --session`, () => {
+    const r = runMetricCli([token], CWD);
+    assert.equal(r.code, 0);
+    assert.match(r.output, /Usage:/);
+    // The session guard used to fire first, making the usage unreachable.
+    assert.doesNotMatch(r.output, /--session <id> is required/);
+  });
+
+  test(`divergence ${token} prints usage without demanding --session`, () => {
+    const r = runDivergenceCli([token], CWD);
+    assert.equal(r.code, 0);
+    assert.match(r.output, /Usage:/);
+    assert.doesNotMatch(r.output, /--session <id> is required/);
+  });
+}
+
+// The freeze case is the one that mattered most: --help was not merely rejected,
+// it fell through to the real run and WROTE the manifest, exiting 0 so nothing
+// signalled the mutation. The assertion is therefore on the filesystem, not the
+// wording — a help text that still writes would pass a text-only check.
+test("freeze --help prints usage and writes nothing", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "codexclaw-freeze-help-"));
+  const args = parseFreezeArgs(["--help", "--cwd", cwd, "--session", "s1"]);
+  const out = runFreeze(args);
+  assert.match(out, /Usage:/);
+  assert.equal(existsSync(join(cwd, ".codexclaw", "interview", "freeze.json")), false);
+});
+
