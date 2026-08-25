@@ -142,11 +142,16 @@ work-phase (loop-engineering §11.4).
 - Run a contradiction rescan after every answer, AND one final rescan before any proceed/close
   decision — surface what still remains. (This final rescan is process discipline; the runtime
   does not encode scan recency.)
-- Runtime readiness predicate (`isInterviewReady`): all dimensions at `max` + contradictions
-  empty + assumptions recorded + `scanRounds >= 1`. Treat readiness as a coverage claim on top of
-  that: each dimension has concrete knowns, no unresolved unknown changes scope, and every
-  contradiction has exited into an answer or a recorded assumption. Summarize the remaining OPEN
-  ASSUMPTIONS before claiming I -> P readiness.
+- Runtime readiness has two halves. **Shape** (`isInterviewReady`): every dimension at `high` or
+  `max` + contradictions empty + assumptions recorded + `scanRounds >= 1`. **Provenance**
+  (the I -> P gate on the agent CLI path): every dimension counted at `high` must trace to a
+  question that was asked, answered, and attributed with `--map`. `max` needs no ledger backing
+  because no writer can produce it.
+- The practical consequence: `--known` alone never opens I -> P. Ask the question, let the
+  `PostToolUse` hook capture the answer, then `cxc scan record --derive --map <qid>=<dimension>`.
+- Treat readiness as a coverage claim on top of that: each dimension has concrete knowns, no
+  unresolved unknown changes scope, and every contradiction has exited into an answer or a
+  recorded assumption. Summarize the remaining OPEN ASSUMPTIONS before claiming I -> P readiness.
 
 ## Closeout fork (INTERVIEW-FORK-01)
 

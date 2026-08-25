@@ -44,6 +44,12 @@ lessons from a release train that got several of these wrong first.
   attributed with `--map`. `max` still satisfies readiness as a deliberate
   assertion, and the override survives as the exception it was designed to be.
 
+  Not breaking: an interview that passes today still passes. Worth knowing on
+  upgrade — a session already sitting at all-`high` becomes shape-ready, so
+  `flags.interview`, `cxc freeze`, and the human `orchestrate p` free-pass will
+  now treat it as ready. The agent CLI path still requires the ledger backing.
+  This unsticks interviews that were stranded; it does not close any that were open.
+
 ### Added
 
 - **`DEVOPS-*` freeze-gate rules** in `cxc-dev-devops` §2.8 and its references:

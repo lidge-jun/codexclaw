@@ -270,10 +270,13 @@ test("scan record: --derive never hands out max, and an explicit --dim wins", ()
       toolResponse: { answers: { q1: { answers: ["A"] } } },
     });
     run(cwd, ["record", "--session", "s-max", "--derive", "--map", "q1=goal"]);
-    // "max" gates I->P via isInterviewReady, so a heuristic must never grant it.
+    // "max" satisfies readiness with no ledger backing, so a heuristic must never
+    // grant it. Derivation tops out at "high", which the I->P gate then checks
+    // against the answer ledger (interview-readiness.test.ts).
     assert.equal(readState(cwd, "s-max").interview?.dimensions.goal.level, "high");
 
-    // Nor can an operator flag grant it: that would bypass the attested override.
+    // Nor can an operator flag grant it: that would be readiness with no evidence
+    // and no attestation.
     const denied = parseScanCliArgs(["record", "--session", "s-max", "--dim", "goal=max"], cwd);
     assert.ok("error" in denied);
 

@@ -264,8 +264,8 @@ function isValidScore(v         )                      {
 export function isInterviewReady(tracker                         )          {
   if (!tracker || !isRecord(tracker)) return false;
   if (!isRecord(tracker.dimensions)) return false;
-  // Every dimension must be a fully-valid score at level "max" (T3: a partial
-  // {level:"max"} object must NOT pass).
+  // Every dimension must be a fully-valid score at "high" or "max" (T3: a partial
+  // score object must NOT pass, whatever its level claims).
   for (const d of DIMENSIONS) {
     const score = tracker.dimensions[d];
     if (!isValidScore(score) || (score.level !== "high" && score.level !== "max")) return false;
