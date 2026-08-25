@@ -163,6 +163,39 @@ jobs:
 
 ---
 
+### §2.8 Freeze & GO/NO-GO Gates (STRICT)
+
+`DEVOPS-RELEASE-PROOF-01` governs the proof bundle for an artifact you already
+published. This section governs the decision to publish at all — the readiness
+report, and the gates it claims to have passed.
+
+Every rule here was paid for. The sources are the OpenCodex v2.32.1 hotfix train
+and the operator-visibility train that followed it (`devlog/_plan/260824_v2_32_1_hotfix_train/`,
+`devlog/_plan/260825_operator_visibility_train/`), where a freeze audit rejected
+the first GO report on three separate counts.
+
+| Rule | Severity | Statement |
+|------|----------|-----------|
+| `DEVOPS-FREEZE-SHA-01` | STRICT | Pin the readiness report to the code SHA its gates describe. If the head moved after the freeze, prove the delta is docs-only (`git diff --name-only <freeze> <head>`) and keep every gate receipt on the freeze SHA. |
+| `DEVOPS-GATE-WEAKEN-01` | STRICT | A red named gate is never excused inside the report that gate failed. Make the original command green, or replace it with a pre-declared equivalent CI actually runs — and declare the swap **before** the verdict, not after the failure. |
+| `DEVOPS-REVIEW-THREADS-01` | STRICT | Unresolved review threads on merged PRs are a GO blocker. Count them **after** merge: a thread opened minutes before merge still counts until it is fixed or explicitly dismissed. |
+| `DEVOPS-GATE-OWNER-01` | STRICT | A mandatory GO gate needs an implementing work-phase and a recorded terminal outcome — pass, not-reproduced, or explicitly deregistered. A gate nobody implements is not a gate; it is a wish. |
+
+**Why gate-weakening is the load-bearing rule.** The failure it prevents does not
+look like dishonesty from the inside. The suite was red, the red tests were known to
+be load-sensitive, the fix was real — so the report explained the exception. The
+audit rejected it, correctly: an exception argued *after* a gate fails is
+indistinguishable from an exception argued *because* it failed. The honest move
+was to decompose the gate to match what CI actually runs
+(`DEVOPS-SUITE-PARTITION-01`), which produced a green result on the same evidence.
+
+Operational mechanics — suite partitioning, baseline-versus-defect attribution,
+instrument stability, and exact-head evidence — live in
+`references/ci-cd-deploy.md` §9. Runtime/process evidence rules live in
+`references/sre-foundations.md` §6.
+
+---
+
 ## §3 Kubernetes Basics
 
 ### §3.1 Minimum Viable K8s (DEFAULT)
