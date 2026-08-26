@@ -76,12 +76,16 @@ go red against the pre-fix source.
 Live, against the INSTALLED `0.2.14+codex.260826140715` payload:
 
 ```
-6 stops, no receipt      -> block,block,block,release,release,release
-update_goal complete     -> DENIED (names the unverified agent)
-bare evidence resolve    -> refused (--receipt required)
-resolve --receipt <path> -> resolved + ledgered
-update_goal complete     -> ALLOWED
-explorer stop            -> ungated
+6 stops, no receipt                          -> block,block,block,release,release,release
+update_goal complete                         -> DENIED (names the unverified agent)
+update_goal blocked                          -> allowed (honest escape hatch)
+evidence resolve --session <id> --agent <id> -> refused (--receipt required)
+  ... --receipt <path>                       -> resolved + ledgered
+update_goal complete                         -> ALLOWED
+explorer stop                                -> ungated
 ```
+
+Argument order matters when reproducing this: `--session` is validated first, so an
+invocation missing it fails on the session check rather than the receipt check.
 
 Commits: `bb8b5b52` (fix), `a809417` (release 0.2.14).
