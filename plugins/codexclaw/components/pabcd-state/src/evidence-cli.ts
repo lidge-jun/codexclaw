@@ -44,16 +44,21 @@ export function parseEvidenceCliArgs(argv: string[], cwd: string): EvidenceResol
   const agentId = flag("agent");
   const receipt = flag("receipt");
   const turnId = flag("turn");
+  // Report EVERY missing argument at once. Checking them in sequence made the error
+  // depend on argument order, so a resolve missing both --session and --receipt
+  // complained only about the session and read as though evidence were optional
+  // (release audit, 260826).
+  const missing: string[] = [];
   if (!sessionId || !isCanonicalSessionId(sessionId)) {
-    return { error: "--session <id> is required and must be a canonical session id" };
+    missing.push("--session <id> (must be a canonical session id)");
   }
-  if (!agentId) return { error: "--agent <agent-id> is required" };
+  if (!agentId) missing.push("--agent <agent-id>");
   if (!receipt) {
-    return {
-      error:
-        "--receipt <path> is required: resolving without evidence would defeat the gate. If an external blocker prevents verifying the work, use update_goal status \"blocked\" instead.",
-    };
+    missing.push(
+      "--receipt <path> (resolving without evidence would defeat the gate; if an external blocker prevents verifying the work, use update_goal status \"blocked\")",
+    );
   }
+  if (missing.length > 0) return { error: `missing required argument(s): ${missing.join("; ")}` };
   return { verb: "resolve", sessionId, agentId, receipt, turnId, cwd };
 }
 

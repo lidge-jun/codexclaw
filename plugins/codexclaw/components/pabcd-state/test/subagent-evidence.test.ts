@@ -661,6 +661,12 @@ test("020: evidence resolve REQUIRES a receipt and has no override bypass", asyn
   const sid = "01a03c05-2d04-7b62-8c1f-42b155abfc89";
   const bare = parseEvidenceCliArgs(["resolve", "--session", sid, "--agent", "a1"], cwd);
   assert.ok("error" in bare, "a bare resolve must be refused");
+  // Order-independent: a resolve missing BOTH session and receipt must still name the
+  // receipt, or the error reads as though evidence were optional (release audit).
+  const nothing = parseEvidenceCliArgs(["resolve"], cwd);
+  assert.ok("error" in nothing);
+  assert.match((nothing as { error: string }).error, /--receipt/);
+  assert.match((nothing as { error: string }).error, /--session/);
   // The override flag was removed: it is not a recognised escape hatch.
   const overridden = parseEvidenceCliArgs(
     ["resolve", "--session", sid, "--agent", "a1", "--override", "--reason", "trust me"],
