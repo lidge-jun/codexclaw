@@ -265,6 +265,7 @@ const TOP_LEVEL_HELP = [
   "  goalplan init|show|validate     deprecated alias for loop",
   "  plan init <slug> [--phases N]   scaffold the devlog/_plan unit the P>A gate verifies",
   "  receipt test -- <command>       produce the test receipt a bound C>D requires",
+  "  evidence resolve               settle an unverified subagent verdict (needs --receipt)",
   "  review-round open|show|abort    the opt-in A-gate plan-audit round",
   "  scan record|show                record interview coverage and contradiction scans",
   "  metric                         record/show objective metrics",
@@ -494,6 +495,11 @@ if (isMain) switch (cmd) {
   case "receipt":
     // pabcd-state CLI expects argv as [kind, ...rest]; kind === "receipt".
     // Runs a command and records the observed exit for the C>D gate (075).
+    process.exit(runPabcdState(process.argv.slice(2)));
+    break;
+  case "evidence":
+    // pabcd-state CLI expects argv as [kind, ...rest]; kind === "evidence".
+    // Settles an unresolved subagent verification verdict (EVIDENCE-TERMINAL-01).
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
   case "review-round":

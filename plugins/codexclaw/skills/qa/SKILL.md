@@ -97,6 +97,10 @@ Rules:
   (`.codexclaw/evidence/`); main-session QA artifacts do not interact with
   worker receipts (the gate validates only the worker's own
   `EVIDENCE_RECORDED:` marker path).
+- A worker that CANNOT write there was dispatched wrong, not gated wrong: read-only
+  lanes belong on `agent_type:"explorer"`, which the gate never touches. The retry
+  budget is terminal, so a mis-routed worker is released rather than trapped — but its
+  verdict stays unresolved and blocks goal completion until a receipt settles it.
 
 After every scenario is done, emit the aggregate receipt:
 

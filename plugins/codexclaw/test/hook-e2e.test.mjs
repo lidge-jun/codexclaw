@@ -175,6 +175,8 @@ test("SessionStart state bootstrap: fresh compiled hook creates exact IDLE state
       stopBlockTotal: 0,
       loopArmSeen: false,
       idleEditNudges: 0,
+      unverifiedSubagents: [],
+      unverifiedCorrupt: false,
       phaseEntrySource: null,
       planUnit: null,
       planEpoch: null,

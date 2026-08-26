@@ -84,7 +84,12 @@ and is also unaffected.
 ### Subagent & compaction
 
 - **evidence-verify / subagent-stop (`worker`)** — verifies subagent evidence bundles on
-  completion.
+  completion. The retry budget is TERMINAL: after `MAX_ATTEMPTS` blocks the child is
+  released with an unresolved verdict recorded against the session, and
+  `GOAL-COMPLETE-GATE-01` denies `update_goal {status:"complete"}` until it is settled
+  with `cxc evidence resolve --receipt <path>`. Blocking forever was not a safeguard: a
+  read-only child cannot write the receipt, so re-prompting it only hid the outcome from
+  the parent. Read-only lanes should dispatch as `explorer`, which is never gated.
 - **reinject-cursor / post-compact** — recovers PABCD state and re-injection cursor after context
   compaction.
 - **recall-context / post-compact** — re-injects recall context after compaction.

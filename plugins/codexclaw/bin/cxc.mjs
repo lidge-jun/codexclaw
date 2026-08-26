@@ -49,6 +49,7 @@ export const COMMAND_TABLE = Object.freeze({
   scan: "pabcd-state",
   "review-round": "pabcd-state",
   receipt: "pabcd-state",
+  evidence: "pabcd-state",
   release: "pabcd-state",
   chat: "recall",
   memory: "recall",

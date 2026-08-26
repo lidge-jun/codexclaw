@@ -215,6 +215,20 @@ async function main(): Promise<void> {
     process.exit(result.code);
   }
 
+  // `evidence` command path (EVIDENCE-TERMINAL-01): settle an unresolved subagent
+  // verification verdict so GOAL-COMPLETE-GATE-01 can certify the goal.
+  if (kind === "evidence") {
+    const { parseEvidenceCliArgs, runEvidenceCli } = await import("./evidence-cli.ts");
+    const parsed = parseEvidenceCliArgs(process.argv.slice(3), process.cwd());
+    if ("error" in parsed) {
+      process.stderr.write(`evidence: ${parsed.error}\n`);
+      process.exit(1);
+    }
+    const result = runEvidenceCli(parsed);
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
   if (kind === "review-round") {
     const { parseReviewRoundCliArgs, runReviewRoundCli } = await import("./review-round-cli.ts");
     const parsed = parseReviewRoundCliArgs(process.argv.slice(3), process.cwd());
