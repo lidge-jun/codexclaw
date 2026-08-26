@@ -260,6 +260,8 @@ Phase 4: Drop old column
 | Red test waved as "environmental" | The most common way a real defect ships | `DEVOPS-BASELINE-DEFECT-01` §6.2 |
 | New runner flags landed during a freeze | Red becomes indistinguishable from noise | `DEVOPS-VERIFY-INSTRUMENT-01` §6.3 |
 | "It was green when I checked" | The head moved under you | `DEVOPS-EXACT-HEAD-01` §6.4 |
+| `delete_branch_on_merge` treated as full branch hygiene | Closed-unmerged PRs keep their heads forever | `DEVOPS-BRANCH-AUTODELETE-01`, `branch-lifecycle.md` |
+| Bulk-pruning branches by name pattern | Patterns encode neither PR state, stacks, nor forks | `DEVOPS-BRANCH-DELETE-EVIDENCE-01`, `branch-lifecycle.md` |
 
 ---
 

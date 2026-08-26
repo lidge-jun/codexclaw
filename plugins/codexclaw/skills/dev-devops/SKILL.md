@@ -1,9 +1,9 @@
 ---
 name: cxc-dev-devops
-description: "MUST USE for DevOps, infrastructure, or delivery work — container builds, deploy pipelines, Kubernetes, Infrastructure as Code, SRE foundations, edge/serverless, and ML infrastructure. Triggers: 'Dockerfile', 'container build', 'deploy', 'CI/CD', 'Kubernetes', 'K8s', 'Terraform', 'Pulumi', 'Helm', 'SRE', 'SLI', 'SLO', 'error budget', 'serverless', 'edge', '배포', '인프라', '쿠버네티스'."
+description: "MUST USE for DevOps, infrastructure, or delivery work — container builds, deploy pipelines, Kubernetes, Infrastructure as Code, SRE foundations, edge/serverless, ML infrastructure, and repository branch/worktree lifecycle hygiene. Triggers: 'Dockerfile', 'container build', 'deploy', 'CI/CD', 'Kubernetes', 'K8s', 'Terraform', 'Pulumi', 'Helm', 'SRE', 'SLI', 'SLO', 'error budget', 'serverless', 'edge', 'stale branch', 'branch cleanup', 'delete merged branches', 'delete_branch_on_merge', 'worktree cleanup', '배포', '인프라', '쿠버네티스', '브랜치 정리', '브랜치 삭제', '워크트리 정리'."
 metadata:
-  last-verified: "2026-07-02"
-  short-description: "Container, deploy, Kubernetes, IaC, and SRE guidance for production delivery."
+  last-verified: "2026-08-26"
+  short-description: "Container, deploy, Kubernetes, IaC, SRE, and branch-lifecycle guidance for production delivery."
 ---
 
 # Dev-DevOps — Production Infrastructure & Delivery
@@ -36,6 +36,7 @@ Severity mapping: `CRITICAL`/`HIGH` ⇒ STRICT; `MEDIUM` ⇒ DEFAULT (aligned wi
 | `references/platform-engineering.md` | Platform / DORA / provider routing | DORA capabilities, platform guardrails, provider table rows, SLSA handoff |
 | `references/kubernetes.md` | K8s deployment | Gateway API (v1.6+), Kustomize overlays, HPA/VPA, Helm, ArgoCD GitOps |
 | `references/ci-cd-deploy.md` | Deploy pipeline | GHA reusable workflows, deploy strategies, rollback, GitOps, progressive delivery |
+| `references/branch-lifecycle.md` | Branch/worktree cleanup | Closed-PR branch automation, per-branch deletion evidence, worktree dirty audit, stacked-PR safety |
 | `references/iac.md` | Infrastructure code | OpenTofu/Terraform modules, Pulumi, state encryption, blast radius isolation |
 | `references/sre-foundations.md` | Operations/incidents | SLO/SLI/error budget, burn-rate alerting, incident response, blameless postmortem |
 | `references/edge-serverless.md` | Edge/serverless work | Edge request shaping, auth at edge, Cloudflare Workers, Vercel Edge, edge AI triage |
@@ -200,6 +201,42 @@ Operational mechanics — suite partitioning, baseline-versus-defect attribution
 instrument stability, and exact-head evidence — live in
 `references/ci-cd-deploy.md` §6. Runtime and operator-signal evidence rules live
 in `references/sre-foundations.md` §7.
+
+---
+
+## §2.9 Branch Lifecycle Hygiene (STRICT)
+
+Delivery repositories accumulate dead refs, and the cost is not disk. Stale
+branches make `git branch -r` unusable for triage, keep superseded heads
+reachable by tooling that resolves names, and hide the handful of branches that
+actually still matter. Treat branch lifecycle as delivery infrastructure.
+
+| Rule | Severity | Statement |
+|------|----------|-----------|
+| `DEVOPS-BRANCH-AUTODELETE-01` | STRICT | Enable host-side head deletion on merge (`delete_branch_on_merge` on GitHub) **and** close the gap it leaves. That setting fires only on merge; a pull request closed without merging keeps its head branch forever, so the closed-PR case needs its own scheduled automation. |
+| `DEVOPS-BRANCH-DELETE-EVIDENCE-01` | STRICT | Never bulk-prune. Before deleting any ref, prove per branch that it is not protected, not an open PR head, not the base of an open PR, not a fork head, and not carrying unique commits. A name pattern is not evidence. |
+| `DEVOPS-BRANCH-SNAPSHOT-01` | STRICT | Snapshot `git for-each-ref` (SHA + refname) for every local and remote ref to scratch space before the first deletion. Deleted remote branches are restorable with `git push origin <sha>:refs/heads/<name>` only while you still hold the SHA. |
+| `DEVOPS-WORKTREE-DIRTY-01` | STRICT | Check every attached worktree for uncommitted work before removing it, and remove worktrees **before** their branches — an attached branch cannot be deleted, and `--force` on a dirty tree discards work no reflog will return. |
+
+**Why the merged/closed distinction is load-bearing.** `delete_branch_on_merge`
+reads as complete branch hygiene, and a repository with it enabled looks solved.
+It is not: OpenCodex had the setting on and still carried 59 dead remote
+branches, because closed-unmerged PRs are outside what that setting covers. The
+failure is silent and compounds — nothing reports it, and the branch list simply
+degrades until triage stops using it.
+
+**Why stacked PRs break naive cleanup.** A stacked child PR targets its parent's
+head branch. Deleting a closed parent *closes the open child*, so "the PR that
+owned this branch is closed" is insufficient grounds for deletion. The base of
+any open PR is protected regardless of its own PR state.
+
+**Fork heads are out of scope, and identity is by repo id.** A fork's head lives
+in the contributor's repository; deleting refs there is neither permitted nor
+intended. Compare repository **ids**, not names — a fork commonly carries the
+same branch names as upstream, so name comparison silently misclassifies it.
+
+Mechanics, the deletion-plan algorithm, and a worked audit live in
+`references/branch-lifecycle.md`.
 
 ---
 
