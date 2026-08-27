@@ -52,7 +52,7 @@ Mode boundary:
 
 ## G3 — Wake-source bus는 지금 만들지 않는다
 
-Senpi는 extension event bus가 monitor/task active count를 직접 소유하지만 CodexClaw은 host-native child/terminal의 live channel을 관측하는 plugin surface가 없다: `devlog/_fin/260827_omo_senpi_research_gap/002_senpi_active_research.md:37-50`. OMO parent wake도 OpenCode process queue다: `devlog/_fin/260827_omo_senpi_research_gap/001_omo_active_research.md:45-54`. label/count만 goalplan에 추가하면 실제 wake를 재현하지 못하고 stale state만 만든다.
+Senpi core terminal/goal owns monitor counts and wake-source transport: `devlog/_fin/260827_omo_senpi_research_gap/002_senpi_active_research.md:37-50`. OMO child-task state and task-count publication belong to the OMO Senpi adapter: `devlog/_fin/260827_omo_senpi_research_gap/003_omo_senpi_adapter.md:37-46`, `devlog/.omo/packages/omo-senpi/src/components/task/event-bridge.ts:1-5,29-40,63`. OMO OpenCode parent wake is a separate process queue: `devlog/_fin/260827_omo_senpi_research_gap/001_omo_active_research.md:45-54`. CodexClaw은 host-native child/terminal의 live channel을 관측하는 plugin surface가 없으므로 label/count만 goalplan에 추가하면 실제 wake를 재현하지 못하고 stale state만 만든다.
 
 - 현재 owner: host `wait_agent`/task mailbox. CodexClaw은 result/evidence tombstone만 관측할 수 있다.
 - 따라서 hidden timer, event bus, liveness registry, Stop hold는 REJECT한다.
@@ -94,7 +94,7 @@ Source: OMO schema is `devlog/.omo/packages/shared-skills/skills/ulw-research/SK
 
 | Current gap | Prior row | Prior disposition | 5.0 result |
 | --- | --- | --- | --- |
-| G8 scheduler/duplicate runtime | `devlog/_fin/260725_lazygap2_omo419_parity/001_axis_a_loop_orchestration.md:24-30` second orchestrator/automatic transition/multiple Stop owner | REJECT | OMO/Senpi add more runtime machinery but do not change CodexClaw's thin-host boundary; REJECT 유지 |
+| G8 scheduler/duplicate runtime | `devlog/_fin/260725_lazygap2_omo419_parity/001_axis_a_loop_orchestration.md:26,30` automatic transition/multiple Stop owner + `devlog/_fin/260725_lazygap2_omo419_parity/002_axis_b_skills_qa_distribution.md:36-38` second orchestrator | REJECT | OMO/Senpi add more runtime machinery but do not change CodexClaw's thin-host boundary; REJECT 유지 |
 | G9 global parser/arming | `devlog/_fin/260725_lazygap2_omo419_parity/001_axis_a_loop_orchestration.md:14-17` global ultrawork | REJECT | Codex hook unchanged; Senpi adapter overlap/process-global state is weaker; REJECT 유지 |
 | G10 team graph | `devlog/_fin/260725_lazygap2_omo419_parity/002_axis_b_skills_qa_distribution.md:36-40` extra team/runtime ownership | REJECT/locked topology | claim graph alone은 auto-dispatch가 아니고 native Codex owner가 없어 DEFER 유지 |
 

@@ -93,10 +93,10 @@ CodexClaw은 이미:
 ## Verification status
 
 - Production code modified: 0.
-- Reference clone dirtiness: 0.
+- Reference clone dirtiness was checked live in C but no immutable output receipt is committed; treat `clean` as `UNVERIFIED reported evidence`. Source identity pins remain exact.
 - Explorer-reported focused evidence, without committed raw output receipt: OMO Codex `17 pass`; CodexClaw six-file `188 pass`. Treat as `UNVERIFIED reported evidence`, not the basis of the final source-backed verdict.
 - Explorer-reported blocked evidence, without committed raw output receipt: OMO Senpi command `0 pass / 4` dependency-resolution failures before test bodies. All affected claims are source/test-only.
-- Final independent citation/semantic audit: pending C.
+- Final independent citation/semantic audit: first review repaired; exact-HEAD closure re-review pending after the final citation patch.
 
 ## C review synthesis
 
@@ -105,3 +105,4 @@ First C review of commit `ae5e812ff848cf860d0185756b7383aee58862a3` returned roa
 - Accepted: generic parser/new FSM/scheduler/wake bus/duplicate DB rejections and durable research memory as the central gap.
 - Fixed: ledger-only false state, inconsistent lifecycle names, dormant builder dependency, mode-triggered `create_goal`, G1 priority, prior-row keys, OMO Senpi ownership, wake-source citation, reported-vs-executed labels, spawn receipt strength, claim-level citations.
 - Canonical post-fix state: structured work-phase/tasks/criteria are authoritative; successful CLI/steering mutations mirror history to the ledger; Stop/completion never reduce state from prose ledger events.
+- Exact-HEAD re-review `e888f1c9cc145e3f89bff318a791b6ad3bb72d05`: roadmap 5/6 blockers closed, one prior-row key remained; factual review closed ownership/wake citations but requested final evidence labels/full paths. This final patch addresses those residuals; closure verdict follows as a C receipt, not a rewritten historical claim.

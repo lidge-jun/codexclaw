@@ -34,11 +34,11 @@ Runtime source는 260818 이후 V1과 plaintext V2 모두 full SKILL body를 inl
 
 반면 search skill과 dispatch SOT 일부는 아직 V1 parser expansion / V2-only inline을 설명한다: `plugins/codexclaw/skills/search/SKILL.md:194-223`, `structure/20_pabcd_dispatch_doctrine.md:228-247`. 구현은 살아 있으나 docs가 stale이다.
 
-Body delivery와 child compliance는 별개다. Opaque native V2는 body 대신 affordance만 줄 수 있다: `spawn-attach-hook.ts:813-827`.
+Body delivery와 child compliance는 별개다. Opaque native V2는 body 대신 affordance만 줄 수 있다: `plugins/codexclaw/components/subagent-config/src/spawn-attach-hook.ts:813-827`.
 
 ## Dormant activation trace
 
-`TraceBuilder`는 installed/visible/activated/referenced를 기록하지만 caller가 선언한 self-report다. 실제 host skill load를 관찰하는 hook은 없다: `components/cxc-ops/src/activation-trace.ts:18-43,54-150`, `structure/40_enforcement_methods.md:126-137`. MLB receipt도 activation baseline을 missing으로 남긴다: `components/pabcd-state/src/release-gate.ts:387-395`.
+`TraceBuilder`는 installed/visible/activated/referenced를 기록하지만 caller가 선언한 self-report다. 실제 host skill load를 관찰하는 hook은 없다: `plugins/codexclaw/components/cxc-ops/src/activation-trace.ts:18-43,54-150`, `structure/40_enforcement_methods.md:126-137`. MLB receipt도 activation baseline을 missing으로 남긴다: `plugins/codexclaw/components/pabcd-state/src/release-gate.ts:387-395`.
 
 따라서 이를 무작정 wire해서 `activated`를 hard evidence로 쓰면 거짓 observability가 된다. Parser fired, spawn rewritten, child return cited는 관측 가능하다. Host implicit skill loaded/child obeyed는 분리해 `UNOBSERVABLE` 또는 self-report로 표시해야 한다.
 
@@ -48,6 +48,6 @@ Body delivery와 child compliance는 별개다. Opaque native V2는 body 대신 
 - main-only dispatch, leaf topology, explicit skill attachment.
 - durable FSM/goalplan/ledger와 exact session identity.
 - Stop owner 하나와 bounded release.
-- recall은 prompt injection의 untrusted delimiter를 명시하고 local cache를 rebuildable로 둔다: `components/recall/src/hook.ts:141-196`, `components/recall/src/index-db.ts:1-27`.
+- recall은 prompt injection의 untrusted delimiter를 명시하고 local cache를 rebuildable로 둔다: `plugins/codexclaw/components/recall/src/hook.ts:141-196`, `plugins/codexclaw/components/recall/src/index-db.ts:1-27`.
 
 이 경계 때문에 OMO/Senpi whole-runtime copy는 격차 해소가 아니라 architecture regression이다.

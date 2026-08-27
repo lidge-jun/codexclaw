@@ -83,7 +83,7 @@ OMO의 최신 `dev`와 npm beta는 다르다. 이 유닛은 설치 대상인 bet
 ## 파견 계획
 
 - Wave 1: OMO Codex parser, OMO Senpi parser/state, OMO shared `ulw-research`, OMO dynamic-agent prompt, OMO async/background queue, OMO persisted task graph, OMO goal/continuation, Senpi core prompt/parallelism, Senpi builtin goal/todo/terminal, CodexClaw shipped/runtime 경계를 독립 explorer가 조사한다.
-- 4.19 baseline lane은 `001_axis_a_loop_orchestration.md:153-164`의 prior row와 현재 5.0 evidence를 직접 연결한다. 이 lane 없이는 `existing/changed/reopened` 판정을 만들지 않는다.
+- 4.19 baseline lane은 `devlog/_fin/260725_lazygap2_omo419_parity/001_axis_a_loop_orchestration.md:153-164`의 prior row와 현재 5.0 evidence를 직접 연결한다. 이 lane 없이는 `existing/changed/reopened` 판정을 만들지 않는다.
 - Wave 2: Wave 1의 모순과 빈칸만 재질문한다. 동일 질문의 중복 파견은 하지 않는다.
 - 모든 lane은 read-only이고 `$codexclaw:cxc-dev` + `$codexclaw:cxc-search`를 실제 skill attachment로 받는다.
 - 반환 형식은 source `path:line`, 메커니즘의 입력→상태→출력 흐름, CodexClaw 대비 후보, 반증/미확인으로 통일한다.
@@ -124,10 +124,14 @@ test "$(git -C devlog/.omo rev-parse HEAD)" = 84f98d8bd1b5c70c46e6f8a5613ffb3c78
 test "$(git -C devlog/.senpi rev-parse HEAD)" = 703d9d7676b3419273765a4566dd02c1abe75d70
 rg -n "ADOPT|ADAPT|REJECT|DEFER|UNVERIFIED" devlog/_fin/260827_omo_senpi_research_gap/006_gap_matrix.md
 rg -n "devlog/\.(omo|senpi)/.+:[0-9]+|plugins/codexclaw/.+:[0-9]+|structure/.+:[0-9]+" devlog/_fin/260827_omo_senpi_research_gap/*.md
-research_commit="$(git rev-parse HEAD)" # B 직후, C의 첫 명령에서 고정하고 checkOutput에 literal SHA를 남긴다.
-test "$(git show -s --format=%s "$research_commit")" = "docs: analyze OMO beta and Senpi research gaps"
-test "$(git diff-tree --no-commit-id --name-only -r "$research_commit" -- devlog/_fin/260827_omo_senpi_research_gap | wc -l | tr -d ' ')" = 8
-git show --check --oneline --stat "$research_commit" -- devlog/_fin/260827_omo_senpi_research_gap
+unit_add_commit="$(git log -1 --format=%H --grep='^docs: analyze OMO beta and Senpi research gaps$' -- devlog/_fin/260827_omo_senpi_research_gap)"
+unit_base="$(git rev-parse "$unit_add_commit^")"
+final_commit="$(git rev-parse HEAD)" # C close 시 literal SHA를 checkOutput에 남긴다.
+test "$(git show -s --format=%s "$unit_add_commit")" = "docs: analyze OMO beta and Senpi research gaps"
+test "$(git ls-tree -r --name-only "$final_commit" -- devlog/_fin/260827_omo_senpi_research_gap | wc -l | tr -d ' ')" = 8
+test -z "$(git diff --name-only "$unit_base..$final_commit" | rg -v '^devlog/_fin/260827_omo_senpi_research_gap/' || true)"
+git diff --check "$unit_base..$final_commit" -- devlog/_fin/260827_omo_senpi_research_gap
+git log --oneline "$unit_base..$final_commit" -- devlog/_fin/260827_omo_senpi_research_gap
 git status --short -- plugins/codexclaw structure
 ```
 
