@@ -9,8 +9,8 @@ Artifact: `output/pdf/codexclaw-omo-senpi-gap-analysis-ko.pdf`
 - 5 MECE pillars, 20 diagnostic domains, 5 strategic programs.
 - 18+ vector exhibits plus adjacent text alternatives/tables.
 - Pages 40–42: method, page-to-source map, score/N-E ledger.
-- SHA-256: `7cc816fc702385ff1023f1c42f098f201df9ef58d173681823ca6c0af984594c`.
-- Size: 153,772 bytes.
+- SHA-256: `09bc0e6071e79c5771d02612ef4bbeea680563c03cafa7b0e36595e8528daaee`.
+- Size: 160,718 bytes.
 
 ## Verification
 
@@ -28,7 +28,7 @@ Form: none
 
 The PDF verifier reopened the artifact with pypdf and pdfplumber, checked exact page count and A4 bounds, rejected encryption/JavaScript/forms, rendered all pages with Poppler, checked text bounds and nonblank pixels, and built three contact sheets.
 
-Visual review covered all three v6 contact sheets (pages 1–14, 15–28, 29–42) plus high-detail checks of pages 1, 7, 24, 31, 35–37, and 40–42. The final pass includes the repaired page-41 source/footer collision, factual exhibit readouts, claim-basis strips, workstream roadmaps, domain-level owner/KPI/risk strips, exact operating formulas, and reconciled source codes.
+Visual review covered all three v8 contact sheets (pages 1–14, 15–28, 29–42) plus high-detail checks of pages 1, 7, 9, 10, 17, 23–25, 31, 35–37, and 40–42. The final pass includes the repaired page-41 source/footer collision; 2-column score/flow diagnostics with observed evidence and decisions; factual exhibit readouts; claim-basis strips; dependency-rich workstream roadmaps; domain-level owner/KPI/risk strips; exact operating formulas; and reconciled source codes.
 
 Remote/messenger confidence is anchored to shipped runner and command code plus focused executable tests: `runner.test.ts` and `gateway-commands.test.ts` completed with 35 passes and zero failures.
 
