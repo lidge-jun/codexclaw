@@ -38,7 +38,7 @@
 - `tmp/pdfs/build_codexclaw_gap_report.py`: 한국어 문안과 공통 UI 문자열.
 - `tmp/pdfs/verify_korean_localization.py`: 페이지별 한글·잔존 영문 강제 검사.
 - `output/pdf/codexclaw-omo-senpi-gap-analysis-ko.pdf`: 최종 산출물.
-- `devlog/_plan/260827_omo_senpi_gap_report_korean/001_translation_ledger.md`: 번역·검증 원장.
+- `devlog/_fin/260827_omo_senpi_gap_report_korean/001_translation_ledger.md`: 번역·검증 원장.
 
 ## 사용자 가시 문구 인벤토리
 
