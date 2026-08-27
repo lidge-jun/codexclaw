@@ -52,7 +52,7 @@ Mode boundary:
 
 ## G3 — Wake-source bus는 지금 만들지 않는다
 
-Senpi core terminal/goal owns monitor counts and wake-source transport: `devlog/_fin/260827_omo_senpi_research_gap/002_senpi_active_research.md:37-50`. OMO child-task state and task-count publication belong to the OMO Senpi adapter: `devlog/_fin/260827_omo_senpi_research_gap/003_omo_senpi_adapter.md:37-46`, `devlog/.omo/packages/omo-senpi/src/components/task/event-bridge.ts:1-5,29-40,63`. OMO OpenCode parent wake is a separate process queue: `devlog/_fin/260827_omo_senpi_research_gap/001_omo_active_research.md:45-54`. CodexClaw은 host-native child/terminal의 live channel을 관측하는 plugin surface가 없으므로 label/count만 goalplan에 추가하면 실제 wake를 재현하지 못하고 stale state만 만든다.
+Senpi core terminal/goal owns monitor counts and wake-source transport: `devlog/_fin/260827_omo_senpi_research_gap/002_senpi_active_research.md:37-50`. OMO child-task state and `source:"senpi-task"` active-count publication belong to the OMO Senpi adapter: `devlog/_fin/260827_omo_senpi_research_gap/003_omo_senpi_adapter.md:37-46`, `devlog/.omo/packages/omo-senpi/src/components/task/resumption-channel-emitter.ts:13-14,48-53,61-90`. OMO OpenCode parent wake is a separate process queue: `devlog/_fin/260827_omo_senpi_research_gap/001_omo_active_research.md:45-54`. CodexClaw은 host-native child/terminal의 live channel을 관측하는 plugin surface가 없으므로 label/count만 goalplan에 추가하면 실제 wake를 재현하지 못하고 stale state만 만든다.
 
 - 현재 owner: host `wait_agent`/task mailbox. CodexClaw은 result/evidence tombstone만 관측할 수 있다.
 - 따라서 hidden timer, event bus, liveness registry, Stop hold는 REJECT한다.
