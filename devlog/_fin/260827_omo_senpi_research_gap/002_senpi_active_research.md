@@ -41,7 +41,7 @@ Terminal monitor는 단순 polling 지시가 아니라 실제 event path다.
 1. command/regex를 받아 PTY output의 complete line 또는 exit를 event로 만든다: `devlog/.senpi/packages/coding-agent/src/core/extensions/builtin/terminal/monitor-registry.ts:79-100,133-163`.
 2. notifier가 rate-limit/dedupe/wake budget을 적용하고 hidden steer/followUp `triggerTurn:true`를 보낸다: `terminal/notify.ts:28-46`, `terminal/monitor-notify.ts:184-235`.
 3. terminal active count를 `terminal-monitors` wake source로 publish한다: `terminal/extension.ts:53-84`.
-4. Goal continuation은 source가 살아 있으면 immediate continuation을 미루고, drain 뒤 1초에 한 번 fire한다: `goal/lifecycle-helpers.ts:66-89,200-204`, `goal/continuation.ts:7-18,50-64,99-121,170-182`.
+4. Goal continuation은 source가 살아 있으면 immediate continuation을 미루고, drain 뒤 1초에 한 번 fire한다: `devlog/.senpi/packages/coding-agent/src/core/extensions/builtin/goal/monitor-continuation.ts:323-366,386-458,582-618`, `devlog/.senpi/packages/coding-agent/src/core/extensions/builtin/goal/cache-warm.ts:8-29`.
 
 Positive: active goal + idle/no pending + no guard violation; active wake source면 delayed backstop, count가 0으로 drain되면 continuation. Negative: inactive goal, pending messages, non-idle, single-flight, repeated/stale output, cap, user input, flooded history.
 

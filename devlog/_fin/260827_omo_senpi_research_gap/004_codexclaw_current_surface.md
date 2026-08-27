@@ -10,23 +10,23 @@ CodexClaw은 loop/recall/FSM continuation은 deterministic runtime이 강하다.
 
 | Surface | Class | Positive / negative | State/output | 판정 |
 | --- | --- | --- | --- | --- |
-| Generic 한국어/영어 search | prompt-only | SKILL metadata `검색/찾아봐/latest/current` / host가 skill을 고르지 않음 | load/selection state 없음. `plugins/codexclaw/skills/search/SKILL.md:2-14,244-266`, `agents/openai.yaml:1-5` | GAP |
-| explicit agbrowse search | executed/deterministic | `agbrowse` + search action / 일반 `찾아봐`, implementation discussion | UserPromptSubmit directive + session dedupe. `pabcd-state/src/hook.ts:212-223,616-690` | ADOPT current narrow route |
-| Tier 3 research | prompt-only | deliberate comprehensive research / ordinary lookup | 2+ wave/journal/claim ledger를 요구하지만 executor/state machine 없음. `skills/search/SKILL.md:118-177` | GAP |
-| research dispatch builder | deterministic library, test-only as production path | explicit `routeDispatch(intent=research)` / direct native spawn | explorer + cxc-search payload를 만들지만 production caller 미확인. `subagent-config/src/spawn-wrapper.ts:428-500` | DEFER caller proof |
-| spawn attachment hook | deterministic-runtime | supplied plaintext recognized mention / omitted skill, opaque body | V1/V2 plaintext body inline; encrypted V2 self-load affordance. `spawn-attach-hook.ts:745-827` | ADOPT impl, docs drift fix |
-| loop + Stop | deterministic-runtime | loop phrase mandate; active goal+phase Stop / no goal, I, context/cap | repo-local session counters + block reason. `pabcd-state/src/hook.ts:232-249,625-639,1275-1336` | ADOPT |
-| recall | executed/deterministic | 지난번/last session / neutral/already-searching | CWD local context and explicit search directive. `components/recall/src/hook.ts:60-129,150-260` | ADOPT |
-| divergence | deterministic record state | explicit CLI, flat maximize plateau / improving/inactive | mode JSON/candidate JSONL; mode itself은 Stop activation을 통제하지 않음. `pabcd-state/src/divergence.ts:111-196`, `hook.ts:1208-1238` | ADAPT semantics |
-| activation trace | test-only/dormant | env=1 + direct TraceBuilder caller / normal session | four-layer JSONL builder는 있으나 production caller/CLI 없음. `cxc-ops/src/activation-trace.ts:1-12,45-150`, `cxc-ops/src/cli.ts:72-132` | GAP |
+| Generic 한국어/영어 search | prompt-only | SKILL metadata `검색/찾아봐/latest/current` / host가 skill을 고르지 않음 | load/selection state 없음. `plugins/codexclaw/skills/search/SKILL.md:2-14,244-266`, `plugins/codexclaw/skills/search/agents/openai.yaml:1-5` | GAP |
+| explicit agbrowse search | deterministic-runtime | `agbrowse` + search action / 일반 `찾아봐`, implementation discussion | UserPromptSubmit directive + session dedupe. `plugins/codexclaw/components/pabcd-state/src/hook.ts:212-223,616-690` | ADOPT current narrow route |
+| Tier 3 research | prompt-only | deliberate comprehensive research / ordinary lookup | 2+ wave/journal/claim ledger를 요구하지만 executor/state machine 없음. `plugins/codexclaw/skills/search/SKILL.md:118-177` | GAP |
+| research dispatch builder | deterministic library, test-only as production path | explicit `routeDispatch(intent=research)` / direct native spawn | explorer + cxc-search payload를 만들지만 production caller 미확인. `plugins/codexclaw/components/subagent-config/src/spawn-wrapper.ts:428-500` | DEFER caller proof |
+| spawn attachment hook | deterministic-runtime | supplied plaintext recognized mention / omitted skill, opaque body | V1/V2 plaintext body inline; encrypted V2 self-load affordance. `plugins/codexclaw/components/subagent-config/src/spawn-attach-hook.ts:745-827` | ADOPT impl, docs drift fix |
+| loop + Stop | deterministic-runtime | loop phrase mandate; active goal+phase Stop / no goal, I, context/cap | repo-local session counters + block reason. `plugins/codexclaw/components/pabcd-state/src/hook.ts:232-249,625-639,1275-1336` | ADOPT |
+| recall | deterministic-runtime | 지난번/last session / neutral/already-searching | CWD local context and explicit search directive. `plugins/codexclaw/components/recall/src/hook.ts:60-129,150-260` | ADOPT |
+| divergence | deterministic record state | explicit CLI, flat maximize plateau / improving/inactive | mode JSON/candidate JSONL; mode itself은 Stop activation을 통제하지 않음. `plugins/codexclaw/components/pabcd-state/src/divergence.ts:111-196`, `plugins/codexclaw/components/pabcd-state/src/hook.ts:1208-1238` | ADAPT semantics |
+| activation trace | test-only/dormant | env=1 + direct TraceBuilder caller / normal session | four-layer JSONL builder는 있으나 production caller/CLI 없음. `plugins/codexclaw/components/cxc-ops/src/activation-trace.ts:1-12,45-150`, `plugins/codexclaw/components/cxc-ops/src/cli.ts:72-132` | GAP |
 
-## Fresh probes from Wave 1
+## Wave 1 reported probes
 
 - Generic `최신 모델 찾아봐`, bare `검색`: CodexClaw parser `false`.
 - `agbrowse로 최신 모델 찾아봐`: parser `true`.
-- Scoped six test files: 188 pass / 0 fail.
+- Scoped six test files: `188 pass / 0 fail`.
 
-이는 generic search가 runtime parser가 아니라 host implicit selection + skill prose라는 판정을 지지한다. 다만 host가 실제로 어떤 skill body를 load했는지는 repo에서 관측할 수 없다.
+위 결과는 read-only explorer report이며 raw command output은 commit에 없다. 따라서 `UNVERIFIED reported evidence`다. Source 자체는 generic search가 runtime parser가 아니라 host implicit selection + skill prose라는 판정을 독립적으로 지지한다. Host가 실제로 어떤 skill body를 load했는지는 repo에서 관측할 수 없다.
 
 ## Attachment source/docs drift
 

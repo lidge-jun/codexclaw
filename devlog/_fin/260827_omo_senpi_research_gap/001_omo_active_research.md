@@ -70,6 +70,6 @@ CodexClaw의 얇은 host 정책에는 generic dependency graph를 바로 넣지 
 
 ## 검증 상태
 
-- OMO Codex trigger tests: 17 pass / 0 fail, prompt matrix 실행.
-- OpenCode/skill sync 일부 test는 workspace package resolution 부재로 test body 전 실패. 그 행은 source-traced로만 표기한다.
+- Read-only explorer reported OMO Codex trigger tests `17 pass / 0 fail` and a prompt matrix, but raw command output is not committed; this is `UNVERIFIED reported evidence` and is not the basis of the verdict.
+- Explorer reported OpenCode/skill sync tests failed before test bodies due to missing workspace package resolution; raw output is not committed. 그 행은 source-traced로만 표기한다.
 - OMO 문서 자체에도 runtime과 어긋난 부분이 있다. 예: background completion guide와 실제 general manager, team task storage 설명. 채택 시 docs보다 source가 우선이다.

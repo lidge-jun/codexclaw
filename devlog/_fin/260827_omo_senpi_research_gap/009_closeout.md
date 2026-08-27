@@ -27,7 +27,7 @@ OMO beta와 Senpi latest의 날짜가 다르므로 latest Senpi source를 beta r
 
 ### Wave 1 — source ownership and mechanism reconstruction
 
-All five spawns carried real `cxc-dev` and `cxc-search` skill items. Main session was the sole dispatcher; children were read-only and did not recurse.
+Main-session transcript records show all five spawns were authored with skill item paths `/Users/jun/.codex/plugins/cache/codexclaw/codexclaw/0.2.14+codex.260826140715/skills/dev/SKILL.md` and `/Users/jun/.codex/plugins/cache/codexclaw/codexclaw/0.2.14+codex.260826140715/skills/search/SKILL.md`. The repo commit does not contain raw spawn payload receipts, so this is `UNVERIFIED transcript self-report`, not artifact-level proof. Main session was the sole dispatcher; children reported read-only work and no recursion.
 
 | Agent | Axis | Disposition | Key return / EXPAND |
 | --- | --- | --- | --- |
@@ -68,14 +68,14 @@ CodexClaw은 이미:
 ## Recommended implementation roadmap
 
 1. **P0 docs/source-truth correction** — `spawn-attach-hook.ts`의 V1/V2 common inline truth에 맞춰 `search/SKILL.md`, dispatch/native capability docs를 고친다. Omitted skill은 절대 invent하지 않는다.
-2. **P1 goalplan research events** — `research_wave_started`, `research_lead_opened/closed`, `research_claim_recorded`를 기존 ledger에 추가하고 open lead/unproven claim을 remaining work로 표시한다. 새 directory/DB/FSM 없음.
-3. **P1 research spawn return contract** — existing `research → explorer + cxc-search` path에 EXPAND tail을 요구하고 main이 return disposition을 ledger에 쓴다. Production caller가 없으면 먼저 dormant verdict를 확정한다.
+2. **P1 structured goalplan research projection** — existing research work-phase 아래 tasks가 lane/lead/wave-close를, criteria가 claim proof를 소유한다. `steering.ts`/`goalplan-cli.ts`에 additive create와 fail-closed resolve/capture verbs를 추가하고, Stop/completion은 이미 읽는 pending task/open criterion을 그대로 소비한다. Ledger는 run/lane/lead/claim/wave lifecycle의 history를 mirror하며 state를 재구성하지 않는다.
+3. **P1 main-dispatch return contract** — `search/SKILL.md`의 main-agent spawn packet에 EXPAND tail을 요구하고, main이 반환을 structured task/criterion mutation으로 기록한다. Dormant `routeDispatch` builder에는 의존하지 않는다; G7 caller proof 없이는 builder wiring을 별도 구현하지 않는다.
 4. **P2 evidence lineage** — expected truth, support/counter observation, source validity, contamination, excursion ENTER/EXIT를 existing task/criteria/ledger에 map한다.
-5. **P2 named deep-research arm** — 실사용에서 Tier 3 under-fire 증거가 있을 때만 explicit `ulw-research`/`deep research`/`심층 조사` directive를 추가한다. Ordinary 검색/설명/latest에는 fire하지 않고 goal/create/spawn/FSM을 자동 실행하지 않는다.
+5. **Conditional P2 named deep-research arm** — 실사용에서 Tier 3 under-fire 증거가 있을 때만 explicit `ulw-research`/`deep research`/`심층 조사` directive를 추가한다. Ordinary 검색/설명/latest에는 fire하지 않고 goal/create/spawn/FSM을 자동 실행하지 않는다. Deep research wording alone never authorizes `create_goal`; HOTL still requires separate autonomous/continue-until-done intent.
 
 ## Rejected transfers
 
-- OMO global ultrawork substring parser와 Senpi process-global arming.
+- OMO global ultrawork substring parser와 OMO Senpi adapter process-global arming.
 - OMO maximum-roster/team/librarian topology와 mandatory PDF/DOCX.
 - OpenCode BackgroundManager/parent-wake queue/result archive.
 - Senpi duplicate goal/todo/background terminal runtime와 hidden continuation loop.
@@ -94,6 +94,14 @@ CodexClaw은 이미:
 
 - Production code modified: 0.
 - Reference clone dirtiness: 0.
-- Known successful focused evidence: OMO Codex 17 pass; CodexClaw six-file 188 pass.
-- Known blocked evidence: OMO Senpi focused test command 0 pass / 4 dependency-resolution failures before test bodies; claims downgraded to source/test-only.
+- Explorer-reported focused evidence, without committed raw output receipt: OMO Codex `17 pass`; CodexClaw six-file `188 pass`. Treat as `UNVERIFIED reported evidence`, not the basis of the final source-backed verdict.
+- Explorer-reported blocked evidence, without committed raw output receipt: OMO Senpi command `0 pass / 4` dependency-resolution failures before test bodies. All affected claims are source/test-only.
 - Final independent citation/semantic audit: pending C.
+
+## C review synthesis
+
+First C review of commit `ae5e812ff848cf860d0185756b7383aee58862a3` returned roadmap `FAIL` and factual `NEAR-PASS`.
+
+- Accepted: generic parser/new FSM/scheduler/wake bus/duplicate DB rejections and durable research memory as the central gap.
+- Fixed: ledger-only false state, inconsistent lifecycle names, dormant builder dependency, mode-triggered `create_goal`, G1 priority, prior-row keys, OMO Senpi ownership, wake-source citation, reported-vs-executed labels, spawn receipt strength, claim-level citations.
+- Canonical post-fix state: structured work-phase/tasks/criteria are authoritative; successful CLI/steering mutations mirror history to the ledger; Stop/completion never reduce state from prose ledger events.

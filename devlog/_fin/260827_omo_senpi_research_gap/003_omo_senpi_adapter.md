@@ -50,4 +50,4 @@ CodexClaw은 host-native subagents를 사용하므로 child engine/state ID를 �
 - OMO는 Senpi `2026.8.26-2`를 pin하지만 adjacent latest는 `2026.8.27`; `$name`/`$skill:name`, input-hook order, expanded block format이 exact beta와 같은지 UNVERIFIED.
 - queued `ulw-research`는 ultrawork가 먼저 긴 directive를 append한 뒤 skill-pointer가 transformed text를 다시 읽어 directive 내부의 `ulw-loop`까지 spillover할 가능성이 있다.
 - process-global arming ledger는 shutdown cleanup이 없어 session ID 재사용/장기 process accumulation을 측정하지 않았다.
-- focused tests는 missing workspace package 때문에 `0 pass / 4 fail`로 body 진입 전 실패했다. Source evidence만 사용한다.
+- Read-only explorer reported focused tests `0 pass / 4 fail` before test bodies because a workspace package was missing; raw command output is not committed. Source evidence만 사용한다.
