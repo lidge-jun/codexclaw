@@ -39,8 +39,8 @@ git -C devlog/.omo cat-file -e HEAD:packages/omo-opencode/src/tools/delegate-tas
 | Trust/security | 3 | 3 | 4 | H/M/H | C6,O5,S4. CXC lacks signing/SAST; Senpi owns permission/project trust/sandbox. |
 | Release assurance | 4 | 4 | 4 | H/M/H | C7,O7,S5. Candidate design and CI/package matrices; current CXC HEAD certification separate. |
 | Human authority | 4 | 3 | 4 | H/M/H | C8,O1,S4. CXC HITL/HOTL firewall; OMO mode overlap; Senpi ask/deny/user transitions. |
-| Onboarding | 3 | 4 | 3 | H/H/L | C9,O8,S10. Senpi score provisional from bounded runtime guidance. |
-| Operator console | 2 | 4 | 3 | H/H/L | C10,O8,S7. CXC console is bridge-centric; Senpi bounded evidence only. |
+| Onboarding | 3 | 4 | N/E | M/H/- | C9,O8. Senpi onboarding evidence is insufficient for a numeric score. |
+| Operator console | 2 | 4 | N/E | M/H/- | C10,O8. Senpi event/runtime evidence does not establish an operator-console product. |
 | Remote/messenger | 4 | N/E | N/E | H/-/- | C11. No comparable OMO/Senpi surface inspected; excluded from averages. |
 | Observability | 2 | 4 | 4 | H/H/H | C12,O4,S7. CXC metrics/logs reset or fragment; peers own live task/monitor state. |
 | Capability/tool routing | 2 | 4 | 4 | M/H/H | C13,O11,S6. CXC resolver/route builder disconnected; peers production-wire context. |
@@ -50,7 +50,7 @@ git -C devlog/.omo cat-file -e HEAD:packages/omo-opencode/src/tools/delegate-tas
 | Distribution/install | 4 | 4 | 4 | H/H/H | C17,O10,S5. Broad artifacts, but no product receives 5 without measured closed-loop ops. |
 | Model/provider portability | 3 | 4 | 4 | M/H/H | C18,O9,S8. CXC controls are rich but vocabulary/capability truth drifts. |
 | Performance operations | 2 | 3 | 3 | H/M/H | C19,O7,S9. CXC comparator not a gate; Senpi trend advisory. |
-| Ecosystem/extensibility | 3 | 4 | 4 | M/H/H | C20,O10,S10. CXC rich internal skills but mutable external discovery/no stable ABI. |
+| Ecosystem/extensibility | 3 | 4 | 3 | M/H/M | C20,O10,S10. CXC rich internal skills but mutable external discovery/no stable ABI; Senpi extension-runtime evidence is bounded. |
 
 ## Exact anchor code index
 
