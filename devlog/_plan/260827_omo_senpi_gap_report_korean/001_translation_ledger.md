@@ -44,5 +44,5 @@ JSON 영수증은 페이지 1~42를 개별 행으로 기록하며 묶음 행은 
 - `PDF_VERIFY PASS pages=42 contacts=3`
 - `KOREAN_INSPECTION_LEDGER PASS rows=42`
 - `DELTA_VERIFY PASS rows=11`
-- SHA-256: `ee7359077453153ca501c43347ae9b71c23e2c479a6eb309d0bb4fc025509e58`
-- 크기: 232,350 bytes
+- SHA-256: `ce580b39dbe1d8601b5c7bd77fe4595f5dd5b36ce7edf081f7933672843dad98`
+- 크기: 232,359 bytes
