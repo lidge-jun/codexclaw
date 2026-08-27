@@ -64,7 +64,7 @@ git -C devlog/.omo cat-file -e HEAD:packages/omo-opencode/src/tools/delegate-tas
 - C8 `plugins/codexclaw/components/pabcd-state/src/interview.ts:264-340`; `plugins/codexclaw/components/pabcd-state/src/goal-active.ts:57-89`.
 - C9 `README.md:48-61`; `plugins/codexclaw/gui/src/pages/Channels.tsx:216-295`.
 - C10 `plugins/codexclaw/gui/src/App.tsx:20-25`; `plugins/codexclaw/gui/src/pages/Dashboard.tsx:181-243`.
-- C11 `plugins/codexclaw/components/messenger-bridge/README.md:1-30,73-107`.
+- C11 `plugins/codexclaw/components/messenger-bridge/src/runner.ts:78-105,542-573`; `plugins/codexclaw/components/messenger-bridge/test/runner.test.ts:37-53,166-184`; `plugins/codexclaw/components/messenger-bridge/src/gateway-commands.ts:50-66`; `plugins/codexclaw/components/messenger-bridge/test/gateway-commands.test.ts:251-338`.
 - C12 `plugins/codexclaw/components/messenger-bridge/src/event-log.ts:27-45,112-139`; `plugins/codexclaw/components/messenger-bridge/src/metrics.ts:1-20,42-90`.
 - C13 `plugins/codexclaw/components/subagent-config/src/capabilities.ts:54-128`; `plugins/codexclaw/components/subagent-config/src/spawn-wrapper.ts:428-500`.
 - C14 `plugins/codexclaw/components/cxc-ops/src/map-affordance.ts:101-120`; `plugins/codexclaw/bin/cxc.mjs:89-139`.
