@@ -9,8 +9,8 @@ Artifact: `output/pdf/codexclaw-omo-senpi-gap-analysis-ko.pdf`
 - 5 MECE pillars, 20 diagnostic domains, 5 strategic programs.
 - 18+ vector exhibits plus adjacent text alternatives/tables.
 - Pages 40–42: method, page-to-source map, score/N-E ledger.
-- SHA-256: `fc45ecf120c2f6c41963202c50acd2749e238d5d73dd7ad6c4f15d3ddc5357f5`.
-- Size: 132,220 bytes.
+- SHA-256: `142ab8ad2e428a2baf51dc30cf9f2f834a7b1765b9ba4b926d878730bfe562d7`.
+- Size: 153,705 bytes.
 
 ## Verification
 
@@ -27,7 +27,7 @@ Form: none
 
 The PDF verifier reopened the artifact with pypdf and pdfplumber, checked exact page count and A4 bounds, rejected encryption/JavaScript/forms, rendered all pages with Poppler, checked text bounds and nonblank pixels, and built three contact sheets.
 
-Visual review covered all three v3 contact sheets (pages 1–14, 15–28, 29–42) plus high-detail checks of pages 1, 7, 24, 31, 37, 40, 41, and 42. The final pass includes the repaired page-42 clipping, console-caption spacing, domain-level owner/KPI/risk strips, exact operating formulas, and reconciled source codes.
+Visual review covered all three v6 contact sheets (pages 1–14, 15–28, 29–42) plus high-detail checks of pages 1, 7, 24, 31, 35–37, and 40–42. The final pass includes the repaired page-41 source/footer collision, factual exhibit readouts, claim-basis strips, workstream roadmaps, domain-level owner/KPI/risk strips, exact operating formulas, and reconciled source codes.
 
 ## Evidence limits retained in report
 
