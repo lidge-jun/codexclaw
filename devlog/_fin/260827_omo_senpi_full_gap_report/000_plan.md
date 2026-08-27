@@ -111,12 +111,12 @@ De-duplication: orchestration/goal/task/research pages split by authoritative ow
 | --- | --- | --- |
 | `tmp/pdfs/build_codexclaw_gap_report.py` | MODIFY | Rebuild the existing 11-page report into a 42-page exhibit-led report; modular page helpers and vector exhibits; remove unsupported historical PASS/PASS wording. |
 | `output/pdf/codexclaw-omo-senpi-gap-analysis-ko.pdf` | REPLACE | Final 30+ page report. |
-| `devlog/_plan/260827_omo_senpi_full_gap_report/000_plan.md` | NEW | This P plan. |
-| `devlog/_plan/260827_omo_senpi_full_gap_report/001_page_architecture.md` | NEW | Page-by-page content and exhibit contract. |
-| `devlog/_plan/260827_omo_senpi_full_gap_report/002_axis_synthesis.md` | NEW | Six-axis synthesis, maturity matrix, and five programs. |
-| `devlog/_plan/260827_omo_senpi_full_gap_report/003_score_claim_ledger.md` | NEW | Auditable scoring sources, confidence, N/E rules, and count commands. |
-| `devlog/_plan/260827_omo_senpi_full_gap_report/004_operating_model.md` | NEW | Owners, formulas, baselines, cadence, dependencies, and decision gates. |
-| `devlog/_plan/260827_omo_senpi_full_gap_report/005_audit_synthesis.md` | NEW | Audit blocker synthesis and amendments. |
+| `devlog/_fin/260827_omo_senpi_full_gap_report/000_plan.md` | NEW | This completed plan. |
+| `devlog/_fin/260827_omo_senpi_full_gap_report/001_page_architecture.md` | NEW | Page-by-page content and exhibit contract. |
+| `devlog/_fin/260827_omo_senpi_full_gap_report/002_axis_synthesis.md` | NEW | Six-axis synthesis, maturity matrix, and five programs. |
+| `devlog/_fin/260827_omo_senpi_full_gap_report/003_score_claim_ledger.md` | NEW | Auditable scoring sources, confidence, N/E rules, and count commands. |
+| `devlog/_fin/260827_omo_senpi_full_gap_report/004_operating_model.md` | NEW | Owners, formulas, baselines, cadence, dependencies, and decision gates. |
+| `devlog/_fin/260827_omo_senpi_full_gap_report/005_audit_synthesis.md` | NEW | Audit blocker synthesis and amendments. |
 | `tmp/pdfs/verify_full_gap_report.py` | NEW | Executable PDF, render-manifest, bounds, and nonblank verifier. |
 | `tmp/pdfs/verify_allowed_delta.py` | NEW | Snapshot/verify status+hash for all non-report worktree paths. |
 | `tmp/pdfs/full-gap-baseline.json` | GENERATED | Pre-build unrelated dirty-work snapshot. |
@@ -152,7 +152,7 @@ De-duplication: orchestration/goal/task/research pages split by authoritative ow
 test "$(jq '[.pages[] | select(.status != "PASS")] | length' tmp/pdfs/full-gap-inspection.json)" = 0
 /tmp/codexclaw-pdf-venv.PURmmc/bin/python tmp/pdfs/verify_allowed_delta.py verify \
   --baseline tmp/pdfs/full-gap-baseline.json \
-  --allow devlog/_plan/260827_omo_senpi_full_gap_report \
+  --allow devlog/_fin/260827_omo_senpi_full_gap_report \
   --allow tmp/pdfs \
   --allow output/pdf/codexclaw-omo-senpi-gap-analysis-ko.pdf
 test -z "$(git status --short -- plugins/codexclaw structure README.md docs .github package.json bin)"
