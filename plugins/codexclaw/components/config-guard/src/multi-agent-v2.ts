@@ -10,7 +10,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { preserveMultiAgentV2Table } from "./activate.ts";
 import type { CodexRunner } from "./features.ts";
-import { splitLines } from "./text-lines.ts";
+import { tomlTableBody } from "./toml-edit.ts";
 
 export interface MultiAgentV2Deps {
   run: CodexRunner;
@@ -50,18 +50,6 @@ function readConfigText(path: string): string | null {
   } catch {
     return null;
   }
-}
-
-/** Body lines of a TOML table `[header]` up to the next table header. */
-function tomlTableBody(content: string, header: string): string | null {
-  // The user's config.toml is foreign input; a Windows editor writes CRLF.
-  const lines = splitLines(content);
-  const escaped = header.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const start = lines.findIndex((line) => new RegExp(`^\\s*\\[${escaped}\\]\\s*(?:#.*)?$`).test(line));
-  if (start === -1) return null;
-  const rest = lines.slice(start + 1);
-  const end = rest.findIndex((line) => /^\s*\[/.test(line));
-  return (end === -1 ? rest : rest.slice(0, end)).join("\n");
 }
 
 function tomlBoolInBody(body: string, key: string): boolean | null {
