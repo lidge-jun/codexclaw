@@ -41,6 +41,11 @@ import { getGoalActiveStatus, suppressesInterview } from "./goal-active.ts";
 import { parseOrchestrateCommand } from "./orchestrate-grammar.ts";
 import { applyHumanTransition } from "./orchestrate-apply.ts";
 import { captureInterviewAnswers } from "./interview-ledger.ts";
+import {
+  DEFAULT_INTERVIEW_POLICY,
+  decideInterviewEntry,
+  readInterviewPolicy,
+} from "./interview-policy.ts";
 import { MIND_DISPATCH_DIRECTIVE } from "./minds.ts";
 import { checkObjectivePlateau, readObjectiveKind, readObjectiveMetrics, type PlateauCheck } from "./metrics.ts";
 import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan, nextOpenTask, unmetCriteria, type AdvanceResult, type Goalplan } from "./goalplan.ts";
@@ -604,7 +609,21 @@ export function handleUserPromptSubmit(
     // null => fall through to the loose path (e.g. suppressed interview).
   }
 
-  const trigger = detectTrigger(payload.prompt);
+  const rawTrigger = detectTrigger(payload.prompt);
+
+  // 260829 config-autopilot wp4: a plan request may OPEN with the interview instead of
+  // requiring the word "interview". Advisory only — the phase below is unchanged, so
+  // this cannot wedge a session behind the I→P gate. Only the P trigger is eligible
+  // (A/B/C would smuggle entry past mayEnter's TRIGGER-AUTHORITY-01 refusal), and the
+  // goal-active lookup stays behind that check so an ordinary prompt opens no sqlite.
+  const entry = decideInterviewEntry({
+    trigger: rawTrigger,
+    policy: rawTrigger === "P" ? readInterviewPolicy(payload.cwd) : DEFAULT_INTERVIEW_POLICY,
+    orchestrationActive: state.orchestrationActive,
+    goalSuppresses:
+      rawTrigger === "P" ? suppressesInterview(getGoalActiveStatus(payload.session_id)) : false,
+  });
+  const trigger = entry.phase;
 
   // L11: in active goal mode, the Interview (I) phase is suppressed — do not inject
   // the I directive and do not create/update interview state (HOTL boundary). Other
@@ -646,7 +665,10 @@ export function handleUserPromptSubmit(
   // allowed because it is harmless and long-established; mid-cycle jumps now inject
   // the directive and say which command actually moves the phase.
   if (trigger) {
-    const directive = trigger === "I" ? interviewDirective() : phaseDirective(trigger, activeWorkPhaseOpts(payload.cwd, state.slug));
+    const directive =
+      trigger === "I" || entry.adviseInterview
+        ? interviewDirective()
+        : phaseDirective(trigger, activeWorkPhaseOpts(payload.cwd, state.slug));
     const mayEnter = state.phase === "IDLE" && (trigger === "P" || trigger === "I");
     if (mayEnter) {
       // Entering a cycle is a real state change, so it persists with or without a

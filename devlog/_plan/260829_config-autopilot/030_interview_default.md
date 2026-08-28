@@ -162,3 +162,91 @@ IN: 위 세 파일. OUT: `goal-gate.ts`(억제 로직 자체), `interview.ts` �
 - `config-guard/test/activate.test.ts`가 `mkdtempSync` + 가짜 `CodexRunner` + `assertNotRealCodexHome`
   가드로 주입 이음새를 이미 갖췄다. 020/040의 테스트 계획이 그대로 성립한다.
 
+
+## A-phase 감사 정정 (파견 감사자 Zeno, GO-WITH-FIXES blockers=7)
+
+감사가 이 설계의 두 가지 치명적 결함을 잡았다. 설계를 바꾼다.
+
+### B1 (High) — FSM 진입을 쓰지 않는다. 지시문만 주입한다
+
+원안은 `phase:"I"`를 기록했다. 그러면 사용자가 **빠져나올 수 없다.**
+승격된 세션은 `state.interview === null`이라 `isInterviewReady`가 false고, I→P 소프트 게이트가
+"기록된 스캔이 없다"로 막는다. 통과 수단은 `cxc scan record --derive` 또는 `override:true` attest뿐이다.
+게다가 탈출 시도가 순환한다: `orchestrate reset`이 `orchestrationActive:false`로 되돌리므로
+다음 "계획 세워"가 다시 새 유닛으로 판정돼 또 I로 승격된다.
+
+**"계획 세워"라고 말한 사용자가 P에 도달할 방법이 키보드에 없다.** 받아들일 수 없다.
+
+정정: 승격은 **자문 전용(advisory-only)**이다. `interviewDirective()`를 주입하되
+`phase`는 쓰지 않는다. IDLE은 IDLE로 남고 `orchestrationActive`는 false로 남는다.
+사용자가 원한 것("인터뷰가 기본으로 뜬다")은 지시문 주입으로 완전히 충족되고,
+FSM 게이트 노출은 0이다. 진입은 사용자가 명시적으로 `orchestrate i`를 쓸 때만 일어난다.
+
+    // decideInterviewEntry는 phase를 바꾸지 않는다. 무엇을 주입할지만 고른다.
+    export type EntryDecision =
+      | { kind: "phase"; phase: Phase }        // 기존 경로 그대로
+      | { kind: "advise-interview"; phase: Phase };  // 지시문은 I, 상태 기록은 원래 trigger
+
+### B2 (High) — P 트리거만 승격한다. A/B/C는 제외
+
+`mayEnter`(`hook.ts:653`)는 B를 **의도적으로** 제외한다. "구현해"가 IDLE에서 사이클에 진입하지 못하게
+막는 TRIGGER-AUTHORITY-01 규칙이고 `hook.test.ts:686`이 그걸 고정한다.
+B를 I로 승격하면 그 규칙을 우회해 진입이 생긴다.
+
+정정: 결정 규칙 첫 줄에 `if (trigger !== "P") return trigger;`. A/B/C는 승격 대상에서 완전히 빠진다.
+
+### B3 (High) — C0/C1 자동 보호 주장은 거짓이었다
+
+`구현\s*(?:해|하자|좀)`, `검증\s*(?:해|하자|좀)`는 한국어에서 가장 평범한 동사다.
+"이 함수 구현해줘" 같은 한 줄 요청이 그대로 걸린다. "트리거가 안 걸리니 자동 충족"이라는 원안 주장은 틀렸다.
+
+정정: 그 문장을 철회한다. 실제 보호는 B2의 좁히기다 — P 트리거만 승격하므로
+`계획 세워`/`plan this` 계열에만 인터뷰가 붙고, 구현해/검증해는 영향받지 않는다.
+
+### B4·B5 (Medium) — 정책 파일 위치를 바꾼다
+
+`.codexclaw/`는 `.gitignore:4`에 있고 `cxc reset --all`이 디렉터리째 지운다.
+저장소마다 다른 정책을 담겠다는 근거와 모순된다.
+
+정정: **저장소 루트의 `codexclaw.json`** 에 둔다. 커밋 가능하고, reset이 건드리지 않고,
+"이 저장소는 인터뷰를 이렇게 쓴다"를 팀이 공유할 수 있다.
+
+    // codexclaw.json (저장소 루트, 커밋 대상)
+    { "interview": "new-unit" }
+
+파일이 없거나 파싱 실패면 기본값 `new-unit`. 예외를 던지지 않는다.
+
+### B6 (Medium) — sqlite를 매 프롬프트마다 열지 않는다
+
+원안 스니펫은 트리거를 알기 전에 `goalSuppresses`를 계산했다. 지금은
+`trigger === "I"`이거나 `state.phase === "I"`일 때만 `getGoalActiveStatus`에 닿는다.
+
+정정: `const goalSuppresses = rawTrigger === "P" ? suppressesInterview(...) : false;`
+승격 후보일 때만 조회한다. `hook.ts:611`의 기존 줄은 그대로 둔다.
+
+### B7 (Medium) — 깨질 기존 테스트를 명시한다
+
+`hook.test.ts` 다섯 곳이 주입된 phase를 단언한다: 700, 552, 405, 764, 686.
+**B1의 자문 전용 설계 덕분에 phase는 안 바뀌므로 700·552·405·764·686 모두 그대로 통과한다.**
+바뀌는 것은 주입되는 지시문 텍스트뿐이므로, 새 테스트는 "phase는 P로 남고 지시문은 인터뷰"를 단언한다.
+686은 재고정이 필요 없다 — B2가 B 승격을 아예 없앴다.
+
+### 정정된 결정 규칙
+
+    if (trigger === null) return null;                       // C0/C1 무영향
+    if (trigger !== "P") return { kind: "phase", phase: trigger };   // A/B/C 제외 (B2)
+    if (goalSuppresses) return { kind: "phase", phase: trigger };    // 억제 절대 우선
+    if (policy === "off") return { kind: "phase", phase: trigger };
+    if (policy === "always") return { kind: "advise-interview", phase: trigger };
+    return orchestrationActive                                       // new-unit
+      ? { kind: "phase", phase: trigger }
+      : { kind: "advise-interview", phase: trigger };
+
+### 파일 변경 맵 갱신
+
+| 파일 | 동작 |
+|---|---|
+| `pabcd-state/src/interview-policy.ts` | NEW — 정책 읽기(루트 `codexclaw.json`) + `decideInterviewEntry` |
+| `pabcd-state/src/hook.ts` | MODIFY — 자문 전용 배선, phase 미변경 |
+| `pabcd-state/test/interview-policy.test.ts` | NEW |
+

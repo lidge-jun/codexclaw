@@ -17,6 +17,7 @@ import {
   handleUserPromptSubmit,
   handleStop,
   phaseDirective,
+  interviewDirective,
   loopArmDirective,
   withFooter,
   type UserPromptSubmitPayload,
@@ -406,8 +407,25 @@ test("handleUserPromptSubmit: PABCD trigger wins over agbrowse search directive"
   try {
     const out = handleUserPromptSubmit(ups("plan this with agbrowse", cwd, "s1", "t1"));
     const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
-    assert.equal(ctx, withFooter(phaseDirective("P"), "P"));
+    // 260829 wp4: the default interview policy ("new-unit") advises the INTERVIEW on a
+    // fresh plan request. The PHASE is still P — advisory promotion never writes I —
+    // so this test's subject (PABCD beats agbrowse) is unchanged.
+    assert.equal(ctx, withFooter(interviewDirective(), "P"));
     assert.doesNotMatch(ctx, /agbrowse fetch/);
+    assert.equal(readState(cwd, "s1").phase, "P", "advisory promotion must not change the phase");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("wp4: with interview policy off, a plan trigger injects the PLAN directive as before", () => {
+  const cwd = freshCwd();
+  try {
+    writeFileSync(join(cwd, "codexclaw.json"), JSON.stringify({ interview: "off" }), "utf8");
+    const out = handleUserPromptSubmit(ups("plan this with agbrowse", cwd, "s1off", "t1"));
+    const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
+    assert.equal(ctx, withFooter(phaseDirective("P"), "P"));
+    assert.equal(readState(cwd, "s1off").phase, "P");
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
@@ -553,8 +571,10 @@ test("L3b: a prompt with no command still falls through to the loose detectTrigg
   const cwd = freshCwd();
   try {
     const out = handleUserPromptSubmit(ups("plan this feature", cwd, "s7", "t1"));
-    // Loose plan triggers inject P and persist that detected phase without a command ledger entry.
-    assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, withFooter(phaseDirective("P"), "P"));
+    // Loose plan triggers persist the detected phase without a command ledger entry.
+    // The injected TEXT is the interview directive under the default policy (wp4);
+    // the persisted PHASE is still P, which is what this test pins.
+    assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, withFooter(interviewDirective(), "P"));
     assert.equal(readState(cwd, "s7").phase, "P");
     assert.equal(ledgerLines(cwd).length, 0);
   } finally {
