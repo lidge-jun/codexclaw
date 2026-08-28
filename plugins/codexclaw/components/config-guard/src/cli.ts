@@ -53,14 +53,22 @@ function main(argv: readonly string[]): number {
       const r = deactivate({ run, codexHome });
       if (r.noManifest) {
         process.stdout.write("codexclaw: no install manifest; nothing to revert\n");
-      } else if (r.skippedDrift) {
-        process.stdout.write(
-          "codexclaw: config drifted since activation; left flags untouched (safe no-op)\n",
-        );
       } else {
-        process.stdout.write(
-          `codexclaw: disabled [${r.disabled.join(", ") || "none"}]; kept pre-existing [${r.skippedPreExisting.join(", ") || "none"}]\n`,
-        );
+        const lines = [
+          `codexclaw: disabled [${r.disabled.join(", ") || "none"}]; kept pre-existing [${r.skippedPreExisting.join(", ") || "none"}]`,
+        ];
+        if (r.restoredKeys.length > 0) lines.push(`restored keys: ${r.restoredKeys.join(", ")}`);
+        if (r.skippedExternal.length > 0) {
+          const detail = r.skippedExternal.map((s) => `${s.target} (${s.reason})`).join(", ");
+          lines.push(`left to their current owner: ${detail}`);
+        }
+        // Reported, never a gate: the file changing since install is normal, because
+        // codexclaw is not its only writer.
+        if (r.fileDrifted) lines.push("note: config.toml changed since activation; reverted per key");
+        if (r.featuresStateUnavailable) {
+          lines.push("note: could not read 'codex features list'; reverted flags from the manifest alone");
+        }
+        process.stdout.write(`${lines.join("\n")}\n`);
       }
       return 0;
     }

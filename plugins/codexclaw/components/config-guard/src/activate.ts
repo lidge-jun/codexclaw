@@ -23,13 +23,91 @@ export interface FlagRecord {
   enableFailed: boolean;
 }
 
+/**
+ * A non-feature config.toml key codexclaw wrote (managed-keys.ts whitelist).
+ *
+ * `priorValue` is what deactivate restores; null means the key did not exist and
+ * should be removed. `appliedValue` is what we wrote, so the uninstall path can ask
+ * "is my value still there" per key instead of hashing the whole file.
+ */
+export interface TableKeyRecord {
+  table: string;
+  key: string;
+  priorValue: string | null;
+  appliedValue: string;
+  /** False when the key already held the target value, so we changed nothing. */
+  setByCodexclaw: boolean;
+}
+
 export interface InstallManifest {
-  version: 1;
+  /** 1 = flags only (pre-260829). 2 adds `tableKeys`. Readers accept both. */
+  version: 1 | 2;
   activatedAt: string;
   configPath: string;
   backupPath: string | null;
   postActivateHash: string | null;
   flags: Record<string, FlagRecord>;
+  /** Keyed by "<table>.<key>". Absent/empty on a v1 manifest. */
+  tableKeys?: Record<string, TableKeyRecord>;
+}
+
+/**
+ * Runtime shape check for a parsed manifest. This repo has no `tsc` step, so a cast
+ * would let a hand-edited or truncated manifest reach the revert logic as `undefined`
+ * lookups. A malformed manifest is treated as absent by the caller (safe no-op).
+ */
+export function parseInstallManifest(text: string): InstallManifest | null {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  if (o.version !== 1 && o.version !== 2) return null;
+  if (typeof o.configPath !== "string") return null;
+  if (typeof o.flags !== "object" || o.flags === null || Array.isArray(o.flags)) return null;
+
+  const flags: Record<string, FlagRecord> = {};
+  for (const [key, value] of Object.entries(o.flags as Record<string, unknown>)) {
+    if (typeof value !== "object" || value === null) return null;
+    const rec = value as Record<string, unknown>;
+    flags[key] = {
+      priorEnabled: rec.priorEnabled === true,
+      enabledByCodexclaw: rec.enabledByCodexclaw === true,
+      enableFailed: rec.enableFailed === true,
+    };
+  }
+
+  const tableKeys: Record<string, TableKeyRecord> = {};
+  if (o.tableKeys !== undefined) {
+    if (typeof o.tableKeys !== "object" || o.tableKeys === null || Array.isArray(o.tableKeys)) return null;
+    for (const [id, value] of Object.entries(o.tableKeys as Record<string, unknown>)) {
+      if (typeof value !== "object" || value === null) return null;
+      const rec = value as Record<string, unknown>;
+      if (typeof rec.table !== "string" || typeof rec.key !== "string") return null;
+      if (typeof rec.appliedValue !== "string") return null;
+      if (rec.priorValue !== null && typeof rec.priorValue !== "string") return null;
+      tableKeys[id] = {
+        table: rec.table,
+        key: rec.key,
+        priorValue: rec.priorValue as string | null,
+        appliedValue: rec.appliedValue,
+        setByCodexclaw: rec.setByCodexclaw === true,
+      };
+    }
+  }
+
+  return {
+    version: o.version,
+    activatedAt: typeof o.activatedAt === "string" ? o.activatedAt : "",
+    configPath: o.configPath,
+    backupPath: typeof o.backupPath === "string" ? o.backupPath : null,
+    postActivateHash: typeof o.postActivateHash === "string" ? o.postActivateHash : null,
+    flags,
+    tableKeys,
+  };
 }
 
 export interface ActivateDeps {
@@ -123,12 +201,15 @@ export function activate(deps: ActivateDeps): InstallManifest {
   }
 
   const manifest: InstallManifest = {
-    version: 1,
+    version: 2,
     activatedAt: now(),
     configPath,
     backupPath,
     postActivateHash: hashOrNull(configPath),
     flags,
+    // Installation never writes a managed key: every CONFIG_MANAGED_KEYS entry is
+    // autoEnable:false, so this starts empty and only `cxc config set` adds to it.
+    tableKeys: {},
   };
   writeFileSync(manifestPath(codexHome), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   return manifest;

@@ -107,3 +107,87 @@ IN: 위 네 파일. OUT: CLI 출력 문구(wp5에서 새 필드를 함께 렌더
 
 `node --test` 신규/수정 테스트 + `npm test` 전체.
 
+
+## A-phase 감사 정정 (파견 감사자 Darwin, GO-WITH-FIXES blockers=6)
+
+### B1 (High) — 두 writer 사이의 lost update, 순서를 못박는다
+
+`codex features disable`은 toml_edit로 파일 전체를 다시 쓰고, `tableKeys` 패스는 문자열
+read-modify-write다. 순서를 정하지 않으면 한쪽이 다른 쪽을 덮는다.
+
+채택 순서: **`tableKeys` 복원을 먼저, 플래그 패스를 나중에.** 감사자는 반대 순서를 제안했지만
+이쪽이 두 블로커를 동시에 만족한다. 플래그 패스는 **서브프로세스**라 실행 시점에 디스크를 새로 읽으므로
+우리가 먼저 쓴 내용을 그대로 보고 보존한다. 반대로 하면 우리 쪽이 CLI 결과를 다시 읽어야 하는 의존이 생기고,
+B2의 "깨진 codex가 우리 키를 방치하는" 문제가 남는다.
+
+    1. config.toml 한 번 읽기
+    2. 모든 restoreTableKey 변환을 그 내용에 누적 적용
+    3. 한 번 쓰기 (writeFileSync)
+    4. 그 다음 플래그 패스 (codex features disable 서브프로세스)
+
+테스트 추가: 플래그와 tableKey를 한 번의 호출로 되돌리고 **둘 다 생존**을 단언한다.
+
+### B2 (High) — uninstall이 실패하지 않게 fail-open
+
+`readDeclaredState`는 종료코드가 0이 아니면 **throw**한다(`features.ts:63`). 지금 `deactivate`는
+그 함수를 아예 부르지 않아서 codex가 없거나 낡아도 완주한다. 새 의존을 그대로 넣으면 uninstall이
+throw로 죽는다.
+
+정정: `try/catch`로 감싸고 실패 시 **매니페스트 기반 경로로 후퇴**하며 결과에 기록한다
+(`featuresStateUnavailable: boolean`). B1의 순서 덕분에 우리 키는 이미 복원된 뒤라
+깨진 codex가 `dedicated_tools = true`를 방치할 수 없다.
+
+### B3 (High) — 삭제되는 테스트를 명시한다
+
+`activate.test.ts:150` "deactivate detects config drift and refuses to revert"는 이 유닛이 없애는
+동작을 단언한다. 두 단언 모두 뒤집힌다. 파일 맵을 고친다.
+
+정정된 행: `activate.test.ts` MODIFY — 해당 테스트를
+**"deactivate reverts our keys and preserves unrelated edits"로 교체**한다. 새 단언은 느슨해지지 않고
+더 강해야 한다: `disabled`가 비어 있지 않고, **주입된 `# user edit` 줄이 바이트 그대로 살아 있다.**
+
+### B4 (Medium) — 죽은 `skippedDrift`를 남기지 않는다
+
+`cli.ts:56`이 유일한 프로덕션 독자다. 영구 false로 두면 그 분기가 도달 불가가 되고 메시지는 거짓이 된다.
+wp5로 미루면 그 사이 트리가 거짓을 출하한다.
+
+정정: `DeactivateResult`에서 `skippedDrift`를 **제거**하고 `cli.ts`의 해당 분기도 이 사이클에서 지운다.
+컴포넌트 밖에서 `DeactivateResult`를 읽는 곳이 없으므로 API 파손이 아니다.
+`structure/INDEX.md:104`의 "refuses blind revert if the config hash drifted" 서술도 같은 사이클에서 갱신한다.
+
+### B5 (Medium) — 값 일치는 출처 증명이 아니다
+
+boolean 값이 같다는 건 1비트뿐이다. `appliedValue="true"` == live `true`가 "우리가 썼다"를 증명하지 못한다.
+dotfile 동기화나 다른 머신 복원으로 파일이 통째로 바뀌었고 그쪽 주인이 독립적으로 같은 값을 넣었다면,
+새 로직은 **우리가 쓴 적 없는 키를 지운다.** 전체 해시 가드가 잡던 게 정확히 이 경우다.
+
+정정: 해시를 판단에서 빼지 말고 **신호로 격하해 보고**한다.
+
+    fileDrifted: boolean            // postActivateHash 불일치 여부. CLI가 출력한다
+
+그리고 파괴적 하위 경우에만 게이트를 둔다: `fileDrifted && rec.priorValue === null` 이면
+**활성화 시점 백업이 뒷받침할 때만** 키를 지운다(`readTableKey(backupContent, table, key) === null`).
+뒷받침이 없으면 지우지 않고 `skippedExternal`에 새 사유 `unverifiable`로 보고한다.
+
+플래그 쪽도 같은 1비트 문제를 갖지만 여기서는 **받아들인다**: 플래그 되돌리기는 값 삭제가 아니라
+`codex features disable` 호출이고, 사용자가 다시 켜면 원상복구가 한 번의 명령이다. 파괴성이 다르다.
+
+### B6 (Medium) — 버전 타입과 파싱 검증
+
+이 저장소에는 `tsc` 단계가 없다(루트 `test`는 `node --test`뿐). 타입만으로는 아무것도 못 막는다.
+
+정정: `version`을 `1 | 2`로 넓히고, `deactivate.ts:36`의 `JSON.parse(...) as InstallManifest`를
+**런타임 형태 검사**로 바꾼다. 형태가 어긋나면 `noManifest`처럼 안전 무동작으로 처리한다.
+v1 매니페스트 파싱 테스트를 별도로 추가한다(기존 시나리오 6은 동작만 덮고 파싱은 안 덮는다).
+
+### 파일 맵 갱신
+
+| 파일 | 동작 |
+|---|---|
+| `config-guard/src/activate.ts` | MODIFY — v2 매니페스트, `tableKeys`, `version: 1 \| 2` |
+| `config-guard/src/deactivate.ts` | MODIFY — 키 단위 복원, fail-open, 런타임 검증, `fileDrifted` |
+| `config-guard/src/cli.ts` | MODIFY — `skippedDrift` 분기 삭제, 새 필드 출력 (wp5에서 앞당김) |
+| `config-guard/test/activate.test.ts` | MODIFY — 드리프트 테스트 교체 |
+| `config-guard/test/deactivate-drift.test.ts` | NEW |
+| `structure/INDEX.md` | MODIFY — 해시 가드 서술 갱신 |
+

@@ -2,6 +2,13 @@
 // can never reach the real ~/.codex. Activation delegates the actual config write to the
 // official `codex features enable` CLI (format-preserving via toml_edit), so this module
 // never parses or edits config.toml itself.
+//
+// Boundary note (260829 config-autopilot): the CLI only reaches booleans inside
+// [features]. Keys in other tables — `memories.dedicated_tools` first — have no
+// persisted CLI setter, so editing them lives in toml-edit.ts with its whitelist in
+// managed-keys.ts. That module owns the component's TOML grammar; this one stays
+// delegation-only. The two vocabularies are deliberately separate: DECLARED_FEATURES
+// here, CONFIG_MANAGED_KEYS there, and nothing on that list is auto-enabled.
 
 export const DECLARED_FEATURES = [
   "multi_agent",
