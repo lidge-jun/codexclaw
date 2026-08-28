@@ -20,7 +20,7 @@
  * Keeping to P also keeps ordinary Korean verbs — 구현해, 검증해 are the everyday words
  * for implement and verify — from dragging one-line asks into an interview.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 
@@ -61,6 +61,41 @@ export function readInterviewPolicy(cwd        )                  {
   }
 }
 
+/**
+ * Persist the policy, preserving every other key in the file.
+ *
+ * The writer lives beside the reader on purpose: this file's name and shape are owned
+ * by one module, so the CLI cannot drift from what the hook reads on every prompt.
+ * A malformed existing file is replaced rather than merged — there is nothing
+ * trustworthy to merge into — and that is reported to the caller.
+ */
+export function writeInterviewPolicy(
+  cwd        ,
+  policy                 ,
+)                                                                                         {
+  const path = configPath(cwd);
+  let existing                          = {};
+  let replacedMalformed = false;
+  if (existsSync(path)) {
+    try {
+      const raw          = JSON.parse(readFileSync(path, "utf8"));
+      if (typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
+        existing = raw                           ;
+      } else {
+        replacedMalformed = true;
+      }
+    } catch {
+      replacedMalformed = true;
+    }
+  }
+  try {
+    writeFileSync(path, `${JSON.stringify({ ...existing, interview: policy }, null, 2)}\n`, "utf8");
+  } catch (err) {
+    return { ok: false, reason: `could not write ${path}: ${(err         ).message}` };
+  }
+  return { ok: true, path, replacedMalformed };
+}
+
 
 
 
@@ -91,4 +126,3 @@ export function decideInterviewEntry(input                    )                {
   if (policy === "new-unit" && orchestrationActive) return asIs; // mid-cycle: do not interrupt
   return { phase: trigger, adviseInterview: true };
 }
-

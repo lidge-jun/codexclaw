@@ -87,3 +87,72 @@ npm 배포/버전 범프, GUI 표면.
 
 `npm test` 전체 + `cxc doctor` overall PASS + `cxc config list` 수동 실행 출력.
 
+
+## A-phase 감사 정정 (파견 감사자 Pauli, GO-WITH-FIXES blockers=5)
+
+### B1·B2 (High) — 두 bin이 모두 인자를 버린다
+
+`bin/cxc.mjs:149`의 config-guard 분기는 `[subcommand]` 하나만 넘긴다.
+`cxc config set memories.dedicated_tools true`가 컴포넌트에 `["config"]`로 도착해 키와 값이 사라진다.
+루트 `bin/codexclaw.mjs:199`는 더 나쁘다 — `runConfigGuard(subcommand)`가 스칼라 파라미터다.
+그리고 계획의 파일 맵에 루트 bin이 아예 없었다.
+
+정정:
+
+- `bin/cxc.mjs`: `config`만 `process.argv.slice(2)` 전체를 넘기도록 특수화하고,
+  `enable|disable|status|uninstall`은 기존 단일 인자 계약을 유지한다. 147행 주석도 갱신.
+- `bin/codexclaw.mjs`: 파일 맵에 **추가**. `runConfigGuard(args)`로 바꾸고 기존 호출 3곳을 배열 형태로,
+  `case "config":`를 추가해 `process.argv.slice(2)`를 전달.
+- `payload-bin.test.mjs:36`이 루트 bin의 `case` 목록과 `COMMAND_TABLE` 키 일치를 단언하므로
+  둘 중 하나만 고치면 그 테스트가 잡는다. 다만 인자 유실은 못 잡으므로 별도 테스트가 필요하다.
+
+### B3 (High) — set이 매니페스트에 기록하지 않으면 되돌릴 수 없다
+
+가장 중요한 지적이다. `activate()`는 `tableKeys: {}`를 쓰고 "cxc config set만 여기 추가한다"고 주석을 남겼다.
+`deactivate()`는 **기록된 것만** 순회한다. 따라서 `set`이 config.toml만 쓰고 매니페스트를 갱신하지 않으면
+그 키는 **영구히 되돌릴 수 없다.** wp3에서 만든 복원 장치가 무용지물이 된다.
+
+정정: `set`은 한 경로에서 네 가지를 모두 한다.
+
+1. `activate`의 명명 규칙으로 config.toml 백업(`.codexclaw-<timestamp>.bak`)
+2. `setTableKey`로 키 쓰기
+3. `tableKeys[managedKeyId] = { table, key, priorValue, appliedValue, setByCodexclaw }` upsert
+   + `postActivateHash` 갱신
+4. 매니페스트가 없으면 **거부하고** `cxc enable`을 먼저 실행하라고 안내한다.
+   빈 매니페스트를 즉석에서 만드는 쪽은 `flags`가 비어 설치 상태를 거짓으로 표현하므로 택하지 않는다.
+
+테스트 필수: `config set` → `disable` 이 키를 원상복구한다(end-to-end).
+
+### B4 (Medium) — codexclaw.json 소유자는 pabcd-state다
+
+`CONFIG_FILENAME`/`readInterviewPolicy`가 pabcd-state에 있고 그 컴포넌트의 hook이 매 프롬프트마다 읽는다.
+config-guard는 pabcd-state에 의존하지 않으며 다른 파일(`~/.codex/config.toml`)을 소유한다.
+writer를 config-guard에 두면 교차 의존이나 상수 중복 중 하나가 생긴다.
+
+정정: `cxc config interview`는 **pabcd-state**로 라우팅한다. `writeInterviewPolicy()`를 reader 옆에 두고
+디스패처가 `config`의 **하위 명령으로** 갈라 보낸다: `interview` → pabcd-state,
+`list|get|set|unset` → config-guard.
+
+### B5 (Low) — help 계약과 usage 문자열
+
+`cli-usage.test.mjs:42`가 `loop|scan|receipt`에만 `--help` exit 0을 요구한다.
+`config`를 그 목록에 넣고, `cxc.mjs`의 HELP 블록과 `config-guard/src/cli.ts:81` usage 문자열도 갱신한다.
+
+### 계획 본문 오류 정정
+
+앞선 절의 테스트 표 5행이 `.codexclaw/config.json`을 적었다. 실제 구현 경로는 **저장소 루트 `codexclaw.json`**이다
+(wp4의 B4·B5 정정 결과). 표를 그 경로로 고친다.
+
+### 파일 변경 맵 갱신
+
+| 파일 | 동작 |
+|---|---|
+| `bin/cxc.mjs` | MODIFY — `config` 인자 보존 라우팅 + 하위 명령 분기 |
+| `bin/codexclaw.mjs` | MODIFY — `runConfigGuard(args)` 가변화 + `case "config"` |
+| `config-guard/src/cli.ts` | MODIFY — `config list|get|set|unset` + usage |
+| `config-guard/src/config-set.ts` | NEW — 백업·쓰기·매니페스트 upsert를 한 경로로 묶는다 |
+| `pabcd-state/src/interview-policy.ts` | MODIFY — `writeInterviewPolicy()` 추가 |
+| `pabcd-state/src/cli.ts` | MODIFY — `config interview` 처리 |
+| `config-guard/test/config-set.test.ts` | NEW — set→disable 왕복 포함 |
+| `plugins/codexclaw/test/cli-usage.test.mjs` | MODIFY — `config` 추가 |
+

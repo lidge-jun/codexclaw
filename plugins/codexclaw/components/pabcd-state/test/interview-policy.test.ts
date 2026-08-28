@@ -9,8 +9,10 @@ import {
   decideInterviewEntry,
   isInterviewPolicy,
   readInterviewPolicy,
+  writeInterviewPolicy,
   type InterviewPolicy,
 } from "../src/interview-policy.ts";
+import { readFileSync } from "node:fs";
 
 function repoWith(contents: string | null): string {
   const dir = mkdtempSync(join(tmpdir(), "cxc-policy-"));
@@ -117,3 +119,27 @@ test("isInterviewPolicy accepts exactly the three values", () => {
   assert.equal(isInterviewPolicy(undefined), false);
 });
 
+test("wp5: writing the policy round-trips through the reader", () => {
+  const dir = repoWith(null);
+  const res = writeInterviewPolicy(dir, "always");
+  assert.ok(res.ok);
+  if (res.ok) assert.equal(res.replacedMalformed, false);
+  assert.equal(readInterviewPolicy(dir), "always");
+});
+
+test("wp5: writing preserves unrelated keys in codexclaw.json", () => {
+  const dir = repoWith(JSON.stringify({ somethingElse: { nested: 1 }, interview: "off" }));
+  const res = writeInterviewPolicy(dir, "new-unit");
+  assert.ok(res.ok);
+  const parsed = JSON.parse(readFileSync(join(dir, CONFIG_FILENAME), "utf8"));
+  assert.deepEqual(parsed.somethingElse, { nested: 1 }, "a foreign key must survive");
+  assert.equal(parsed.interview, "new-unit");
+});
+
+test("wp5: a malformed file is replaced and the caller is told", () => {
+  const dir = repoWith("{ not json");
+  const res = writeInterviewPolicy(dir, "off");
+  assert.ok(res.ok);
+  if (res.ok) assert.equal(res.replacedMalformed, true);
+  assert.equal(readInterviewPolicy(dir), "off");
+});

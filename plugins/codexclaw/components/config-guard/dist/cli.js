@@ -10,6 +10,88 @@ import { fileURLToPath } from "node:url";
 import { readDeclaredState,                  } from "./features.js";
 import { activate } from "./activate.js";
 import { deactivate } from "./deactivate.js";
+import { applyManagedKey, readManagedState, resolveManagedKey } from "./config-set.js";
+import { CONFIG_MANAGED_KEYS, managedKeyId } from "./managed-keys.js";
+
+const CONFIG_USAGE = [
+  "Usage:",
+  "  cxc config list                          managed keys, their live values and side effects",
+  "  cxc config get <table.key>",
+  "  cxc config set <table.key> <true|false>",
+  "  cxc config unset <table.key>             restore the value from before codexclaw set it",
+  "  cxc config interview [off|new-unit|always]",
+  "",
+  "Only whitelisted keys can be set; 'config list' shows them. Installation never",
+  "enables one on its own — that stays an explicit choice.",
+].join("\n");
+
+function runConfig(argv                   , codexHome        )         {
+  const configPath = join(codexHome, "config.toml");
+  const action = argv[0];
+
+  if (action === undefined || action === "--help" || action === "-h" || action === "help") {
+    process.stdout.write(`${CONFIG_USAGE}\n`);
+    return action === undefined ? 2 : 0;
+  }
+
+  if (action === "list") {
+    for (const { entry, value } of readManagedState(configPath)) {
+      process.stdout.write(`${managedKeyId(entry)} = ${value ?? "(unset)"}\n  ${entry.caution}\n`);
+    }
+    if (CONFIG_MANAGED_KEYS.length === 0) process.stdout.write("(no managed keys)\n");
+    return 0;
+  }
+
+  const id = argv[1];
+  if (!id) {
+    process.stderr.write(`config ${action}: a <table.key> argument is required\n${CONFIG_USAGE}\n`);
+    return 2;
+  }
+
+  if (action === "get") {
+    const resolved = resolveManagedKey(id);
+    if ("error" in resolved) {
+      process.stderr.write(`${resolved.error}\n`);
+      return 2;
+    }
+    const found = readManagedState(configPath).find((s) => managedKeyId(s.entry) === id);
+    process.stdout.write(`${id} = ${found?.value ?? "(unset)"}\n`);
+    return 0;
+  }
+
+  if (action === "set" || action === "unset") {
+    let value                 = null;
+    if (action === "set") {
+      const raw = argv[2];
+      if (raw !== "true" && raw !== "false") {
+        process.stderr.write(`config set: the value must be true or false, got '${raw ?? ""}'\n`);
+        return 2;
+      }
+      value = raw === "true";
+      const resolved = resolveManagedKey(id);
+      if ("error" in resolved) {
+        process.stderr.write(`${resolved.error}\n`);
+        return 2;
+      }
+      // The side effect is shown BEFORE the write, so the decision is made with it in view.
+      process.stdout.write(`주의: ${resolved.caution}\n`);
+    }
+    const res = applyManagedKey({ codexHome }, id, value);
+    if (!res.ok) {
+      process.stderr.write(`config ${action}: ${res.reason}\n`);
+      return 1;
+    }
+    const from = res.priorValue ?? "(unset)";
+    process.stdout.write(
+      `${id}: ${from} -> ${res.appliedValue}${res.changed ? "" : " (already set; recorded)"}\n` +
+        (res.backupPath ? `backup: ${res.backupPath}\n` : ""),
+    );
+    return 0;
+  }
+
+  process.stderr.write(`config: unknown action '${action}'\n${CONFIG_USAGE}\n`);
+  return 2;
+}
 
 export function resolveCodexHome(env                    = process.env)         {
   const fromEnv = env.CODEX_HOME?.trim();
@@ -77,8 +159,10 @@ function main(argv                   )         {
       for (const [k, v] of state) process.stdout.write(`${k}: ${v ? "enabled" : "disabled"}\n`);
       return 0;
     }
+    case "config":
+      return runConfig(argv.slice(1), codexHome);
     default:
-      process.stderr.write("usage: config-guard <enable|disable|status>\n");
+      process.stderr.write("usage: config-guard <enable|disable|status|config>\n");
       return 2;
   }
 }

@@ -195,9 +195,12 @@ export function commandInvocation(command, args, platform = process.platform, en
   };
 }
 
-/** Delegate a subcommand to the compiled config-guard CLI; returns its exit code. */
-function runConfigGuard(subcommand) {
-  const res = spawnSync(process.execPath, [configGuardCli, subcommand], { stdio: "inherit" });
+/**
+ * Delegate to the compiled config-guard CLI; returns its exit code.
+ * Takes an ARRAY: `config set <key> <value>` has to keep its arguments.
+ */
+function runConfigGuard(args) {
+  const res = spawnSync(process.execPath, [configGuardCli, ...args], { stdio: "inherit" });
   return typeof res.status === "number" ? res.status : 1;
 }
 
@@ -443,14 +446,23 @@ if (isMain) switch (cmd) {
     break;
   }
   case "enable":
-    process.exit(runConfigGuard("enable"));
+    process.exit(runConfigGuard(["enable"]));
     break;
   case "uninstall":
   case "disable":
-    process.exit(runConfigGuard("disable"));
+    process.exit(runConfigGuard(["disable"]));
     break;
   case "status":
-    process.exit(runConfigGuard("status"));
+    process.exit(runConfigGuard(["status"]));
+    break;
+  case "config":
+    // `config interview` is owned by pabcd-state (it owns codexclaw.json); the managed
+    // ~/.codex/config.toml keys are owned by config-guard.
+    process.exit(
+      process.argv[3] === "interview"
+        ? runPabcdState(process.argv.slice(2))
+        : runConfigGuard(process.argv.slice(2)),
+    );
     break;
   case "doctor":
   case "reset":

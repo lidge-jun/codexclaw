@@ -39,7 +39,9 @@ test("top-level CLI unknown command fails with recovery hint", () => {
 // pointer failed — --help was an unknown verb on loop/scan/receipt, and
 // --version was an unknown command. These run the REAL binary, because the
 // defect was in the argv dispatch rather than in any parser under test.
-for (const command of ["loop", "scan", "receipt"]) {
+// 260829 wp5: `config` joins the contract — it is a new verb with nested subcommands,
+// which is exactly the shape most likely to exit 2 on --help unnoticed.
+for (const command of ["loop", "scan", "receipt", "config"]) {
   test(`${command} --help exits 0 with usage, like orchestrate`, () => {
     for (const flag of ["--help", "-h"]) {
       const res = spawnSync("node", [cli, command, flag], { cwd: repoRoot, encoding: "utf8" });

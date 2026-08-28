@@ -196,6 +196,44 @@ async function main(): Promise<void> {
     process.exit(result.code);
   }
 
+  // `config interview` (260829 wp5): the interview-entry policy. It lives here, not in
+  // config-guard, because interview-policy.ts owns codexclaw.json and hook.ts reads it on
+  // every prompt — a writer in another component would drift from the reader.
+  if (kind === "config") {
+    const { INTERVIEW_POLICIES, isInterviewPolicy, writeInterviewPolicy, readInterviewPolicy } =
+      await import("./interview-policy.ts");
+    const args = process.argv.slice(3);
+    const usage = `Usage:\n  cxc config interview [${INTERVIEW_POLICIES.join("|")}]\n\n` +
+      "  off       only an explicit 'interview' / '인터뷰' request opens the Interview\n" +
+      "  new-unit  also open it on the first plan request of a new unit (default)\n" +
+      "  always    open it on every plan request\n\n" +
+      "The Interview is advisory: it never changes the PABCD phase, and goal mode always suppresses it.\n";
+    if (args[0] !== "interview") {
+      process.stderr.write(`config: this component handles 'config interview' only\n${usage}`);
+      process.exit(2);
+    }
+    const value = args[1];
+    if (value === undefined || value === "--help" || value === "-h") {
+      process.stdout.write(`${usage}current: ${readInterviewPolicy(process.cwd())}\n`);
+      process.exit(value === undefined ? 0 : 0);
+    }
+    if (!isInterviewPolicy(value)) {
+      process.stderr.write(`config interview: unknown policy '${value}'\n${usage}`);
+      process.exit(2);
+    }
+    const res = writeInterviewPolicy(process.cwd(), value);
+    if (!res.ok) {
+      process.stderr.write(`config interview: ${res.reason}\n`);
+      process.exit(1);
+    }
+    process.stdout.write(
+      `interview policy: ${value} (${res.path})` +
+        (res.replacedMalformed ? " — the previous file was not valid JSON and was replaced" : "") +
+        "\n",
+    );
+    process.exit(0);
+  }
+
   // `scan` command path (260724 WP1): record an interview contradiction-scan
   // round — the previously-phantom `cxc scan evidence` writer. Double write:
   // interview ledger event + tracker scanRounds/lastScanRoundId via writeState.
