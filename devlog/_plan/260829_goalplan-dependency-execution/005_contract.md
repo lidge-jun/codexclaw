@@ -2286,10 +2286,9 @@ dist는 clean이었다. 병렬에서 등록 개수까지 줄어드는 이유는 
 상태를 공유하며 서로를 밟는 것이고, 대표 실패는 `payload-bin.test.mjs`의
 `cxc-payload-sim-*/payload/components/messenger-bridge/dist` ENOENT다.
 
-감사관은 직렬 실행도 흔들린다고 보고했다(163 중 fail 4/1/0). 내 실측에서는 직렬 네 번 연속 163/163/0이라
-재현되지 않았다. 감사관 쪽 흔들림은 사본 구조(형제 컴포넌트 부재)에서 온 인공물로 본다 — 감사관 자신도
-자기 사본의 fail 4건이 `receipt-spawn`이 `.../cxc-ops/src/win-exec.ts`를 ENOENT로 못 읽는 형태라고
-적었다.
+감사관은 직렬 실행도 흔들린다고 보고했다(163 중 fail 4/1/0). 내 실측에서는 직렬 네 번 연속
+163/163/0이라 그때는 사본 인공물로 판정했는데, **그 판정이 틀렸다**. 라운드 4가 원인을 찾았다 — §64를
+보라.
 
 처분: 틀린 면책 조항을 지웠다. "build 없이 나온 실패는 wp6 결함으로 세지 않는다"를 그대로 두면 진짜
 회귀도 같이 면책된다. 대신 실행 조건 둘을 남겼다 — `npm test`를 스크립트 그대로 쓰고 병렬 결과를 근거로
@@ -2323,4 +2322,81 @@ After"나 "그대로 만든다"를 선언하는 블록은 그 자체가 정본�
 
 감사관이 자기 근거의 오류를 스스로 정정한 것도 기록해 둔다. 감사 결과를 무조건 반영하지 않고 주장을
 직접 재현한 덕에 틀린 면책 조항이 계획서에 굳지 않았다.
+
+## §64 wp6 A 라운드 4 — 두 감사관 PASS, C10 경쟁 규명
+
+라운드 4에서 감사 게이트가 닫혔다. 라운드 3 결함 세 건이 실측으로 닫혔고 BLOCKER·High 0건이다.
+
+### 확인된 것
+
+| 항목 | 검증 | 결과 |
+| --- | --- | --- |
+| `--slug` 줄 단위 부재 검사 | 되돌림 다섯 변종에 실행 | 다섯 전부 CAUGHT(꼬리, session 앞, 대괄호, 옛 위치, awp 줄 끝). 읽기 verb 셋은 유지 |
+| unknown-verb `deepEqual` | 실제 parser 출력과 대조 | 글자 단위 일치. 넷 누락 회귀와 순서 변경 둘 다 CAUGHT |
+| 개수 18/1087/2262 | 단언 추가 후 재측정 | 신규 파일 `test(` 18개 유지, 컴포넌트 1087/1087, 합산 2262 |
+| 070 T11 줄 단위 루프 | 독립 파일로 tsc + 실행 | 신규 진단 0건, 1/1 통과. `line!`이 `assert.ok(line, ...)` 뒤라 좁히기 문제 없음 |
+| build·gate | 실행 | `npm run build` OK 156 파일, `npm run gate` OK |
+
+### Medium — 라운드 3의 안정성 주장이 틀렸고 원인은 C10이었다
+
+두 감사관이 정반대 관측을 냈다. 한쪽은 pristine 원본에서 직렬 네 번을 돌려 `156/156/163/163`
+(fail 4/4/8/0)을 보고했고, 다른 쪽은 단독 실행에서 `163/163/0`을 재현하며 자기 라운드 3 보고를
+스스로 철회했다. 감사 결과를 그대로 받지 않고 내가 직접 재현해 둘을 모두 설명하는 원인을 찾았다.
+
+단독 직렬은 안정적이다. 여덟 번 반복해 매번 `tests 163 pass 163 fail 0`이다. 그런데 다른 스위트 실행이
+겹치면 직렬도 오염된다. 병렬 스위트를 띄우고 1초 뒤 직렬 스위트를 붙였다.
+
+```text
+병렬 스위트   tests 156  pass 148  fail 8
+직렬 스위트   tests 163  pass 161  fail 2   ← 단독이면 163/163/0
+```
+
+직렬 쪽 실패 이름이 원인을 지목한다 — `build is idempotent (run twice -> byte-identical dist)`와
+`every manifest-referenced dist + skill path exists post-build`. 이 저장소가 이미 `C10`으로 문서화한
+경쟁이다.
+
+```text
+plugins/codexclaw/test/hook-e2e.test.mjs:29
+// To stay immune to the C10 build/test contention (build.test.mjs and
+// packaging.test.mjs rebuild dist in parallel workers and would clobber a cli.js mid-read)
+
+plugins/codexclaw/scripts/build.mjs:74
+if (existsSync(distDir)) rmSync(distDir, { recursive: true, force: true });
+```
+
+`build.test.mjs`가 `runBuild()`를 부르고 그 build가 `dist`를 지운다. 그 순간 `dist`를 읽는 쪽은
+프로세스가 죽고, 그 파일의 테스트가 등록되지 않아 총계가 163에서 156으로 줄어든다.
+`--test-concurrency=1`은 한 실행 안의 파일 병렬성만 없앤다. `dist`는 프로세스 밖 공유 자원이라 다른
+실행이 동시에 build를 돌리면 그 플래그로 막히지 않는다. 그래서 두 감사관 관측이 갈렸다 — 흔들림을 본
+쪽은 자기 사본 스위트와 원본 스위트를 겹쳐 돌렸고, 안정을 본 쪽은 단독으로 돌렸다. 실패 로그가 원인을
+그대로 보여준다.
+
+```text
+libc++abi: terminating due to uncaught exception of type filesystem_error:
+  directory_iterator: No such file or directory [".../components/pabcd-state/dist"]
+```
+
+처분: 060에 조건 3을 추가했다 — `npm test`를 단독으로 돌리고, 등록 총계가 2262가 아니면 C10을
+의심해 단독 재실행하고, 총계가 2262인데 남는 실패만 wp6 결함으로 다룬다. "순서를 지킨 뒤 남는 실패는
+전부 wp6 결함"을 그대로 두면 C10 경쟁이 wp6 결함으로 오판된다. 등록 개수를 확정 게이트로 둔 이유가 바로
+이것이다. 병렬 실행 수치는 비결정적이라(감사관 실측 fail 8과 내 실측 fail 8~9) 게이트로 쓰지 않는다.
+C10 자체는 wp6 범위가 아니므로 별도 항목으로 남긴다.
+
+### 세 라운드에 걸친 `npm test` 근거의 이력
+
+이 한 문단이 세 번 틀렸다가 라운드 4에서 확정됐다.
+
+| 라운드 | 주장 | 판정 |
+| --- | --- | --- |
+| 2 | pristine HEAD에서 dist 재생성 전이라 `dist-freshness`·`inventory`가 fail | 틀렸다. 감사관이 라운드 3에서 자기 오류를 정정 |
+| 3 | 원인은 `--test-concurrency=1` 누락이고 직렬은 안정적 | 절반 맞다. 병렬이 더 나쁜 것은 맞지만 직렬도 흔들린다 |
+| 4 | 원인은 `build.mjs:74`의 `rmSync(distDir)`와 dist 독자 사이의 C10 경쟁. 프로세스 밖 공유 자원이라 concurrency 플래그로 막히지 않고, 단독 실행이면 안정적이다 | 저장소 자체 주석이 뒷받침하고, 병렬·직렬 겹침 실측으로 재현했다 |
+
+교훈: 실패를 봤을 때 첫 그럴듯한 원인에서 멈추면 안 된다. 세 라운드 모두 그럴듯한 원인을 댔고 둘이
+틀렸다. 확정 근거는 저장소가 이미 이름 붙여 문서화해 둔 곳에 있었다.
+
+두 번째 교훈이 더 실질적이다. 라운드 4에서 두 감사관이 정반대 관측을 냈고, 어느 쪽도 그대로 받으면
+틀린 문서가 남았다. 흔들림 쪽만 받으면 "직렬도 못 믿는다"가 되어 게이트가 무력해지고, 안정 쪽만 받으면
+C10을 못 보고 남은 실패를 전부 wp6 탓으로 돌린다. 겹침 조건을 직접 만들어 재현한 뒤에야 둘을 함께
+설명하는 규칙이 나왔다. 감사관이 갈리면 그 자체가 아직 원인을 못 찾았다는 신호다.
 

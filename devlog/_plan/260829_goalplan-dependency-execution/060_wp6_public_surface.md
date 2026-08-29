@@ -2498,21 +2498,62 @@ node --test --test-concurrency=1 plugins/codexclaw/test/*.test.mjs   tests 163  
 node --test                      plugins/codexclaw/test/*.test.mjs   tests 156  pass 147  fail 9
 ```
 
-직렬 실행을 네 번 반복해도 매번 `163 / 163 / 0`이다. dist는 애초에 clean이었다
-(`git status --porcelain .../pabcd-state/dist/` 0건). 병렬에서 등록 개수까지 163 → 156으로 줄어드는
-이유는 root `*.test.mjs`들이 같은 임시 경로와 git 상태를 공유하며 서로를 밟기 때문이다. 대표 실패는
-`payload-bin.test.mjs`가 `cxc-payload-sim-*/payload/components/messenger-bridge/dist`를 ENOENT로 못
-읽는 형태다.
+라운드 4 확정: 두 감사관이 정반대 관측을 냈고(한쪽은 직렬도 흔들린다, 다른 쪽은 단독 직렬은
+163/163/0으로 안정) 내가 직접 재현해 둘을 모두 설명하는 하나의 원인을 찾았다.
 
-그래서 면책 조항을 쓰지 않는다. 틀린 면책은 진짜 회귀를 같이 가려 준다. 대신 두 조건을 남긴다.
+단독 직렬은 안정적이다. 여덟 번 반복해 매번 `tests 163 pass 163 fail 0`이다. 그런데 다른 `npm test`류
+실행이 겹치면 직렬도 오염된다. 병렬 스위트를 띄우고 1초 뒤 직렬 스위트를 붙여 실측했다.
+
+```text
+병렬 스위트   tests 156  pass 148  fail 8
+직렬 스위트   tests 163  pass 161  fail 2   ← 단독이면 163/163/0
+```
+
+직렬 쪽 실패 이름이 원인을 지목한다.
+
+```text
+✖ build is idempotent (run twice -> byte-identical dist)
+✖ every manifest-referenced dist + skill path exists post-build
+```
+
+이 저장소가 이미 `C10`이라는 이름으로 문서화한 경쟁이다.
+
+```text
+plugins/codexclaw/test/hook-e2e.test.mjs:29
+// To stay immune to the C10 build/test contention (build.test.mjs and
+// packaging.test.mjs rebuild dist in parallel workers and would clobber a cli.js mid-read)
+
+plugins/codexclaw/scripts/build.mjs:74
+if (existsSync(distDir)) rmSync(distDir, { recursive: true, force: true });
+```
+
+`build.test.mjs`가 `runBuild()`로 실제 build를 돌리고 그 build가 `dist`를 지운다. 같은 실행의 다른
+파일이 그 순간 `dist`를 읽으면 프로세스가 죽는다.
+
+```text
+libc++abi: terminating due to uncaught exception of type filesystem_error:
+  directory_iterator: No such file or directory [".../components/pabcd-state/dist"]
+```
+
+`--test-concurrency=1`은 한 실행 안의 파일 병렬성만 없앤다. `dist`는 프로세스 밖 공유 자원이므로
+다른 실행이 동시에 build를 돌리면 그 플래그로 막히지 않는다. 프로세스가 죽으면 그 파일의 테스트가
+등록되지 않아 총계가 163에서 156으로 줄어든다.
+
+두 감사관 관측이 이것으로 설명된다. 흔들림을 본 쪽은 자기 사본 스위트와 원본 스위트를 겹쳐 돌렸고,
+안정을 본 쪽은 단독으로 돌렸다. 뒤 감사관은 자기 라운드 3 보고를 스스로 정정하며 같은 결론에 왔다.
+
+그래서 조건을 개수 기준으로 좁힌다. 면책 조항은 쓰지 않는다 — 틀린 면책은 진짜 회귀를 같이 가려 준다.
 
 1. `npm test`를 그 스크립트 그대로 실행한다. 맨 `node --test` 병렬 실행 결과는 근거로 쓰지 않는다.
-2. src를 고친 뒤 `npm run build`를 건너뛰면 dist byte-equality 검사가 실패한다. 그래서 순서는
-   `build` → `test` → `gate`다. build 전 실패를 정상으로 넘기지 않고, 순서를 지킨 뒤에도 남는 실패는
-   전부 wp6 결함으로 다룬다.
+2. src를 고친 뒤 `npm run build`를 건너뛰면 dist byte-equality 검사가 실패한다. 순서는
+   `build` → `test` → `gate`다.
+3. `npm test`를 단독으로 돌린다. 다른 테스트 실행이나 build가 같은 워크트리에서 동시에 돌면 안 된다.
+   등록 총계가 `2262`가 아니면 C10 경쟁을 의심하고 단독으로 재실행한다. 총계가 `2262`인데 남는 실패만
+   wp6 결함으로 다룬다. 병렬 실행 수치는 비결정적이라 게이트로 쓰지 않는다.
 
 wp5 기준선 `tests 2236`에 위 표의 순증 26을 더한 `tests 2262, fail 0`이 wp6 기대값이다. 등록 개수
-2262가 확정 게이트다 — 개수가 맞고 fail만 있는 상태와 개수 자체가 줄어든 상태는 원인이 다르다.
+2262가 확정 게이트인 이유가 여기 있다 — 개수가 맞고 fail만 있는 상태와 개수 자체가 줄어든 상태는
+원인이 다르다. C10 자체는 wp6 범위가 아니므로 별도 항목으로 남긴다.
 
 ### 미해석 식별자 게이트 — focused보다 먼저
 
