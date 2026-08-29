@@ -6243,10 +6243,16 @@ const initCalls = calls.filter((call) => call.file === "goalplan-cli.ts" && !cal
 const escapedMutations = calls.filter((call) => call.file !== "goalplan-cli.ts" && !call.locked);
 const lockedMutations = calls.filter((call) => call.locked);
 
-assert.equal(calls.length, 8, JSON.stringify(calls));
+wp6 인계(060이 소유): `commitLifecycle()`이 락 callback 안에 write를 하나 더해 총계가 8에서 9로,
+locked mutation이 7에서 8로 올라간다. 구조 조건은 그대로다 — `goalplan-cli.ts` init 하나만 락 밖이고
+나머지는 전부 `withGoalplanWriteLock()` callback 안이다. `add-task`·`complete-task`·`meet-criterion`
+셋이 그 한 함수를 공유하므로 늘어나는 호출은 정확히 하나다. 실측 9곳: hook 1, goalplan-cli 2(init 1 +
+lifecycle 1), orchestrate-cli 2, review-round-cli 2, review-observer 1, steering 1.
+
+assert.equal(calls.length, 9, JSON.stringify(calls));
 assert.equal(initCalls.length, 1, JSON.stringify(calls));
 assert.deepEqual(escapedMutations, [], JSON.stringify(escapedMutations));
-assert.equal(lockedMutations.length, 7, JSON.stringify(calls));
+assert.equal(lockedMutations.length, 8, JSON.stringify(calls));
 
 console.log(JSON.stringify(calls));
 NODE
