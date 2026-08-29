@@ -128,7 +128,7 @@ function validateBatch(batch: unknown): SteerBatch | { error: string } {
 export interface ApplyOptions {
   now?: () => string;
   /**
-   * 050 wp5: the shared goalplan write lock replaces the dedicated `.steer.lock`, so
+   * 050 wp5: the shared goalplan write lock replaces the dedicated steering lock, so
    * steering and D-close serialize against each other instead of only against their
    * own kind. Retry timing and the clock are injected for the contention tests.
    */
