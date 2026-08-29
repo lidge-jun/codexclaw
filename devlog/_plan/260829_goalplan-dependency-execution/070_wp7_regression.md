@@ -194,7 +194,10 @@ collectStrings(snapshot);
 //
 // uuid — version nibble을 [1-5]로 못박으면 이 저장소의 세션 id를 하나도 못 잡는다. 운영 corpus의
 // ownerSessionId·reviewerSession 32건이 전부 UUIDv7이라 nibble이 7이다. 계약 §21이 요구한 것은
-// "UUID 형태"이고 특정 버전이 아니다.
+// "UUID 형태"이고 특정 버전이 아니다. 그 32건은 비식별화 전 운영 corpus 기준이며, 체크인된 fixture
+// 에서는 같은 키 32건(`reviewerSession` 15 + `ownerSessionId` 17)이 전부 22자 alias라 uuid hit이 0건이다
+// (실측). 아래 세 패턴은 셋 다 현재 fixture에서 0건인 것이 정상이다 — 지키는 대상은 alias 치환이 빠진
+// 미래 baseline이다.
 // absolutePath — ^ 앵커는 값 선두만 본다. collectStrings()가 문자열 전체를 하나로 넘기므로
 // objective나 detail 안에 박힌 경로는 선두가 아니다.
 // 라운드 2: \s 경계만으로는 괄호·인용부호·콜론 뒤 경로를 놓쳤다. 실측 false 3건 —
