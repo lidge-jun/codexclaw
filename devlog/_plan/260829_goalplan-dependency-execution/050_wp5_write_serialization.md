@@ -921,7 +921,7 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
 | --- | --- | --- | --- |
 | 1 | slug가 없는 HITL인가 | `writeState` + PABCD `appendLedger` 뒤 옛 성공 문구로 즉시 return | `orchestrate-cli.test.ts:908`에 옛 문구 단언을 추가한다 |
 | 2 | bound plan의 `workPhases.length === 0`인가 | `the plan is empty — register workPhases[] first`로 거부 | 기존 `/the plan is empty/` 단언을 그대로 둔다 |
-| 3 | recovery marker의 세 값이 모두 맞는가 | 이미 통과한 gate를 다시 쓰지 않고, 고정 대상이 아직 `done`이 아니면 `closeFixedWorkPhase()`로 멱등 commit한 뒤 남은 commit만 보충한다 | 네 실패 주입 재시도 테스트가 맡는다 |
+| 3 | recovery marker의 세 값이 모두 맞는가 | 이미 통과한 gate를 다시 쓰지 않고, 고정 대상이 아직 `done`이 아니면 `closeFixedWorkPhase()`로 멱등 commit한 뒤 남은 commit만 보충한다 | §8.3의 marker 재시도 테스트 다섯 건이 맡는다 — 정상 재시도 parity, target 부재, open task, blocked, 의존 미충족 |
 | 4 | work-phase가 하나 이상이고 모두 `done`인가 | 새 marker 없이 첫 락 안에서 PABCD close row까지 끝내고 cycle만 IDLE로 닫는다 | 기존 all-done 성공 테스트를 그대로 성공으로 둔다 |
 | 5 | target이 plan에 있는가 | 빈 id는 `attest.workPhaseId is required`, 없는 id는 `work-phase <id> is not in the bound goalplan`로 거부 | wp5 고정 target 음성 경로 |
 | 6 | target에 pending task가 남았는가 | 기존 `tasks_pending` 문구로 거부 | 기존 open-task 단언을 보존한다 |
@@ -4465,7 +4465,7 @@ rg -n 'the plan is empty|not in the bound goalplan|cycle closed|blocked or super
 | all-done bound chat 정상 종료 | 기존 채팅 회귀 없음 | wp5 | `workPhaseId` 누락·존재 두 경우를 §8.4에서 실행하고 둘 다 marker 없이 IDLE, plan byte 불변, goalplan 원장 부재를 단언 |
 | `Dependency deadlock: ...` | `orchestrate-cli.test.ts`의 `D-close is refused when every remaining work-phase is blocked`가 `/blocked or superseded/` 대기 | wp4 | wp4가 §28에 따라 `/Dependency deadlock: work-phase wp-1 is blocked/`로 먼저 갱신하며 wp5는 그 After를 보존 |
 | HITL 옛 성공 문구 `current=C -> IDLE ...` | `orchestrate-cli.test.ts:908`의 `an unbound (HITL) session closes its cycle exactly as before`가 code/state만 단언 | wp5 | 옛 문구 exact assert와 `/close target/` 부재 단언을 같은 테스트에 추가 |
-| bound `close target <id> is complete`와 marker cleanup 경고 | 기존 문자열 단언 0건. bound 성공 테스트는 `orchestrate-cli.test.ts:803` | wp5 | 기존 bound 성공 테스트에 `/close target wp-1 is complete/`를 추가하고 §8.3 세 실패 주입 재시도가 성공·경고 경로를 고정 |
+| bound `close target <id> is complete`와 marker cleanup 경고 | 기존 문자열 단언 0건. bound 성공 테스트는 `orchestrate-cli.test.ts:803` | wp5 | 기존 bound 성공 테스트에 `/close target wp-1 is complete/`를 추가하고 §8.3 marker 재시도 테스트들이 성공·경고 경로를 고정 |
 | PABCD close 중복 키 `(sessionId, checkEpoch, closedWorkPhaseId)` | 기존 테스트는 `sessionId/from/to`만 세며 둘째 cycle을 닫는 fixture 없음 | wp5 | §8.3 같은 세션 연속 두 cycle 테스트가 `c-test-epoch/wp-1`, `c-second-cycle/wp-2` 두 행을 단언 |
 | persisted state exact shape의 `dcloseRecovery: null` | `components/pabcd-state/test/state.test.ts`의 fresh state shape, `plugins/codexclaw/test/hook-e2e.test.mjs:160-184`의 compiled SessionStart shape | wp5 | §8.2.2와 §8.2.3 두 객체에 `dcloseRecovery: null` 추가. 루트 test 디렉터리의 다른 `deepEqual`은 배열·인자·바이트 단언이라 변경 없음 |
 | marker target이 plan에서 사라진 recovery | 기존 CLI·채팅 회귀는 target `wp-1`을 `done` 상태로 plan에 남김 | wp5 | §8.3 CLI와 §8.4 채팅에서 target 부재, 다음 `wp-2` 존재 fixture로 정리 재개와 close row 1개를 단언 |
