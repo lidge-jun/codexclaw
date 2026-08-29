@@ -39,16 +39,16 @@ task 자신을 가리키면 아래 정본 사유로 거부하고 상태를 만�
 
 | 파일과 줄 | 확인한 사실 | 처분 |
 | --- | --- | --- |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:74-90` | task와 phase 타입 위치 | wp2 필드를 읽는 검증만 추가 |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:428-462` | reviver가 task와 phase를 복원 | wp2 소유, 수정 없음 |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:616-655` | plan rename과 ledger append가 별도 write | wp5·wp6 소유, 수정 없음 |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:752-819` | validation 타입과 E8 validator | 두 순수 함수를 연결 |
+| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:82-115` | `GoalplanTask`와 `GoalplanWorkPhase` 타입, wp2 optional 필드 위치 | wp2 필드를 읽는 검증만 추가 |
+| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:453-523` | `declaredSchemaVersion()`·`reviveDependsOn()`과 `reviveGoalplan()`의 task/phase 복원 | wp2 소유, 수정 없음 |
+| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:695-736` | `writeGoalplan()`의 rename과 `appendGoalplanLedger()`가 별도 write | wp5·wp6 소유, 수정 없음 |
+| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:832-909` | `GoalplanValidation` 타입과 `validateGoalplan()` E8 validator | 두 순수 함수를 연결 |
 | `plugins/codexclaw/components/pabcd-state/src/goal-gate.ts:271-285` | validator 사유 네 개를 deny에 표시 | 안내 문자열만 수정 |
 | `plugins/codexclaw/components/pabcd-state/src/goalplan-cli.ts:246-257` | add-work-phase producer | wp6 소유, 수정 없음 |
 | `plugins/codexclaw/components/pabcd-state/src/steering.ts:176-183,307-320` | 등록 shape와 commit point | wp6·wp5 소유, 수정 없음 |
 | `plugins/codexclaw/components/pabcd-state/src/atomic-write.ts:16,38-45` | rename retry 상수와 실행부 | 수정 없음 |
 | `plugins/codexclaw/components/pabcd-state/src/orchestrate-cli.ts:632-637,671-678,734-739` | D-close와 writer | wp5·wp6 소유, 수정 없음 |
-| `plugins/codexclaw/components/pabcd-state/src/hook.ts:839-845,898-905` | 채팅 D-close와 writer | wp5·wp6 소유, 수정 없음 |
+| `plugins/codexclaw/components/pabcd-state/src/hook.ts:839-875,893-930` | 채팅 D-close preflight, state/PABCD ledger writer, goalplan writer | wp5·wp6 소유, 수정 없음 |
 | `plugins/codexclaw/components/pabcd-state/src/review-round-cli.ts:233-263` | review round writer | wp5 소유, 수정 없음 |
 | `plugins/codexclaw/components/pabcd-state/src/review-observer.ts:119-164` | ignored ledger와 verdict writer | wp5 소유, 수정 없음 |
 
@@ -69,7 +69,7 @@ DELETE는 없다.
 
 ### MODIFY — `plugins/codexclaw/components/pabcd-state/src/goalplan.ts`
 
-현재 `GoalplanValidation` 선언(`:752`) 직전에 넣는다. wp2 적용 뒤에는
+현재 `GoalplanValidation` 선언(`:832`) 직전에 넣는다. wp2 적용 뒤에는
 `doneWorkPhasesWithPendingTasks()` 다음이라는 구조 앵커를 쓴다.
 
 Before:
@@ -134,7 +134,10 @@ export function goalplanDefinitionIntegrityReasons(plan: Goalplan): string[] {
     reasons.push(`duplicate work phase id '${id}' makes dependency references ambiguous`);
   }
   for (const phase of plan.workPhases) {
-    for (const dependencyId of phase.dependsOn ?? []) {
+    // 감사 라운드 1 BLOCKER 1: 같은 참조를 여러 번 쓴 dependsOn이 같은 사유를 반복하면
+    // goal-gate의 slice(0, 4)가 한 문장으로 네 칸을 채워 다른 진단을 가린다. wp2 reviver는
+    // 중복 원소를 거부하지 않으므로(goalplan.ts:466-475) 여기서 첫 등장 순서를 지켜 줄인다.
+    for (const dependencyId of new Set(phase.dependsOn ?? [])) {
       if (dependencyId === phase.id) reasons.push(`work phase ${phase.id} depends on itself`);
       else if (!phaseIds.has(dependencyId)) {
         reasons.push(`work phase ${phase.id} depends on unknown work phase '${dependencyId}'`);
@@ -146,7 +149,7 @@ export function goalplanDefinitionIntegrityReasons(plan: Goalplan): string[] {
       reasons.push(`work phase ${phase.id} has duplicate task id '${id}', so task dependency references are ambiguous`);
     }
     for (const task of phase.tasks) {
-      for (const dependencyId of task.dependsOn ?? []) {
+      for (const dependencyId of new Set(task.dependsOn ?? [])) {
         if (dependencyId === task.id) reasons.push(`task ${phase.id}/${task.id} depends on itself`);
         else if (!taskIds.has(dependencyId)) {
           reasons.push(`task ${phase.id}/${task.id} depends on unknown task '${dependencyId}' in the same work phase`);
@@ -198,7 +201,8 @@ export function goalplanDependencyCompletionReasons(plan: Goalplan): string[] {
   const phasesById = new Map(plan.workPhases.map((phase) => [phase.id, phase]));
   for (const phase of plan.workPhases) {
     if (phase.status === "done") {
-      const open = (phase.dependsOn ?? []).filter(
+      // 중복 참조는 한 사유 안의 목록에도 한 번만 나온다(감사 라운드 1 BLOCKER 1).
+      const open = [...new Set(phase.dependsOn ?? [])].filter(
         (dependencyId) => phasesById.get(dependencyId)?.status !== "done",
       );
       if (open.length > 0) {
@@ -208,7 +212,7 @@ export function goalplanDependencyCompletionReasons(plan: Goalplan): string[] {
     const tasksById = new Map(phase.tasks.map((task) => [task.id, task]));
     for (const task of phase.tasks) {
       if (task.status !== "done") continue;
-      const open = (task.dependsOn ?? []).filter(
+      const open = [...new Set(task.dependsOn ?? [])].filter(
         (dependencyId) => tasksById.get(dependencyId)?.status !== "done",
       );
       if (open.length > 0) {
@@ -298,24 +302,50 @@ rg -n -F \
 task ID 집합과 `tasksById`는 phase 루프 안에서 만든다. 서로 다른 phase의 같은 task ID는
 오류가 아니다. task 의존 참조는 같은 work phase에서 **이미 존재하는 task ID**만 유효하다.
 
-`validateGoalplan()` 시작점(`:791-793`)도 바꾼다.
+### wp2 경계와 겹치지 않는 지점 (P-phase stale check 260829)
+
+wp2의 `reviveDependsOn()`은 **구조 경계**다. 필드가 배열이 아니거나 원소가 문자열이 아니거나
+공백 id면 `"invalid"`를 내고 `reviveGoalplan()`이 plan 전체를 `null`로 거부한다
+(`goalplan.ts:466-475`, `:496-508`). wp3는 그 다음 **의미 경계**다. 정상 `string[]` 안의
+dangling, self, duplicate, cycle과 완료 상태를 본다. 담당이 달라 중복도 모순도 아니다.
+
+여기서 나오는 세 가지 결과:
+
+1. 파일에서 읽은 malformed `dependsOn`은 공개 integrity 함수까지 도달하지 않는다.
+   `readGoalplan()`이 `null`을 내고 goal complete gate는 missing/malformed deny를 낸다
+   (`goal-gate.ts:288-291`). 신규 테스트는 순수 helper 직접 호출과 read 경계 테스트를 섞어
+   해석하지 않는다.
+2. wp2 reviver는 nonblank outcome만 trim해 보존하고 blank·non-string outcome은 필드 자체를
+   버린다(`goalplan.ts:511-514`). 그래서 `pending but has outcome` 사유는 revive 뒤에도 남는
+   nonblank 문자열만 잡는다. blank pending outcome까지 별도 오류로 삼으려면 wp2 계약 변경이
+   먼저 필요하며 이번 범위가 아니다.
+3. definition 오류와 completion 오류는 한 plan에서 함께 나온다. done phase가 dangling 의존을
+   가지면 unknown 사유와 not-done 사유가 모두 생긴다. gate는 앞 네 사유만 보여주므로 신규
+   테스트가 사유 **순서**를 고정한다. `validateGoalplan()`에서 definition 사유가 completion
+   사유보다 먼저 들어가고, 두 묶음 모두 empty-plan 사유보다 앞선다.
+
+`validateGoalplan()` 시작점(`:871-883`)도 바꾼다. **wp2가 확정한 미래 버전 조기 return과 그
+거부 문자열을 글자 그대로 보존하고**, 그 return 뒤에서 integrity 사유를 추가한다. wp2는
+`effectiveSchemaVersion()`·`schemaMarkerPath()`가 아니라 `plan.schemaVersion`을 직접 검사하는
+형태로 착지했으므로(커밋 d9259ca6, `goalplan.ts:871-883`), 아래 Before/After가 그 실제 코드다.
+이전 초안의 marker 기반 가드를 그대로 붙이면 `goalplan.test.ts`의 v4 validate 단언이 깨진다.
 
 Before:
 
 ```ts
-// wp2 적용 후
+// wp2 적용 후 (커밋 d9259ca6 실측)
 export function validateGoalplan(plan: Goalplan, ctx?: GoalplanValidationCtx): GoalplanValidation {
-  const markerPresent = ctx ? existsSync(schemaMarkerPath(ctx.cwd, plan.slug)) : false;
-  const version = effectiveSchemaVersion(plan, markerPresent);
-  if (version > SUPPORTED_MAX_SCHEMA_VERSION) {
+  const reasons: string[] = [];
+  // Refuse before any other check: a plan this binary cannot fully represent must
+  // not be judged complete on a partial reading of it.
+  if (typeof plan.schemaVersion === "number" && plan.schemaVersion > SUPPORTED_MAX_SCHEMA_VERSION) {
     return {
       ok: false,
       reasons: [
-        `unsupported goalplan schemaVersion ${version}; this binary supports at most ${SUPPORTED_MAX_SCHEMA_VERSION} — upgrade CodexClaw before reading or mutating this plan`,
+        `schemaVersion ${plan.schemaVersion} is newer than this build supports (max ${SUPPORTED_MAX_SCHEMA_VERSION}) - upgrade codexclaw before validating this plan`,
       ],
     };
   }
-  const reasons: string[] = [];
   if (plan.workPhases.length === 0 && plan.criteria.length === 0) {
 ```
 
@@ -323,20 +353,21 @@ After:
 
 ```ts
 export function validateGoalplan(plan: Goalplan, ctx?: GoalplanValidationCtx): GoalplanValidation {
-  const markerPresent = ctx ? existsSync(schemaMarkerPath(ctx.cwd, plan.slug)) : false;
-  const version = effectiveSchemaVersion(plan, markerPresent);
-  if (version > SUPPORTED_MAX_SCHEMA_VERSION) {
+  const reasons: string[] = [];
+  // Refuse before any other check: a plan this binary cannot fully represent must
+  // not be judged complete on a partial reading of it.
+  if (typeof plan.schemaVersion === "number" && plan.schemaVersion > SUPPORTED_MAX_SCHEMA_VERSION) {
     return {
       ok: false,
       reasons: [
-        `unsupported goalplan schemaVersion ${version}; this binary supports at most ${SUPPORTED_MAX_SCHEMA_VERSION} — upgrade CodexClaw before reading or mutating this plan`,
+        `schemaVersion ${plan.schemaVersion} is newer than this build supports (max ${SUPPORTED_MAX_SCHEMA_VERSION}) - upgrade codexclaw before validating this plan`,
       ],
     };
   }
-  const reasons: string[] = [
+  reasons.push(
     ...goalplanDefinitionIntegrityReasons(plan),
     ...goalplanDependencyCompletionReasons(plan),
-  ];
+  );
   if (plan.workPhases.length === 0 && plan.criteria.length === 0) {
 ```
 
@@ -562,6 +593,42 @@ test("validateGoalplan places definition and completion reasons first", () => {
     "work phase leaf is done while dependency work phase(s) are not done: base",
   ]);
 });
+
+test("a joining DAG is not a cycle at either layer", () => {
+  // 감사 라운드 1 BLOCKER 2: 기존 cycle 테스트는 2-node 순환만 봐서
+  // findDependencyCycle()의 visited 재방문 분기(합류 지점)를 아무도 밟지 않았다.
+  // diamond는 d를 두 경로로 두 번 만나므로 그 분기를 정확히 통과한다.
+  const plan = planWith([
+    { id: "a", title: "a", status: "pending", tasks: [], criteriaIds: [] },
+    { id: "b", title: "b", status: "pending", tasks: [], criteriaIds: [], dependsOn: ["a"] },
+    { id: "c", title: "c", status: "pending", tasks: [], criteriaIds: [], dependsOn: ["a"] },
+    { id: "d", title: "d", status: "pending", tasks: [], criteriaIds: [], dependsOn: ["b", "c"] },
+    { id: "solo", title: "disconnected", status: "pending", tasks: [
+      { id: "t-a", title: "a", status: "pending" },
+      { id: "t-b", title: "b", status: "pending", dependsOn: ["t-a"] },
+      { id: "t-c", title: "c", status: "pending", dependsOn: ["t-a"] },
+      { id: "t-d", title: "d", status: "pending", dependsOn: ["t-b", "t-c"] },
+    ], criteriaIds: [] },
+  ]);
+
+  assert.deepEqual(goalplanDefinitionIntegrityReasons(plan), []);
+});
+
+test("a repeated dependency reference is reported once, leaving room for other reasons", () => {
+  // 감사 라운드 1 BLOCKER 1: raw 배열을 순회하면 같은 dangling 문장이 네 번 나와
+  // goal-gate의 slice(0, 4)가 한 진단으로 소진된다. 중복은 첫 등장만 남는다.
+  const plan = planWith([
+    { id: "wp-1", title: "phase", status: "pending", tasks: [
+      { id: "t-1", title: "task", status: "pending", outcome: "premature" },
+    ], criteriaIds: ["c-missing"], dependsOn: ["ghost", "ghost", "ghost", "ghost"] },
+  ]);
+
+  assert.deepEqual(goalplanDefinitionIntegrityReasons(plan), [
+    "work phase wp-1 depends on unknown work phase 'ghost'",
+    "task wp-1/t-1 is pending but has outcome",
+    "work phase wp-1 references unknown criterion 'c-missing'",
+  ]);
+});
 ```
 
 ### MODIFY — `plugins/codexclaw/components/pabcd-state/test/goal-gate.test.ts`
@@ -585,7 +652,8 @@ assert.match(reason, /fails the E8 quality\/integrity gate/);
 
 #### B. integrity 사유 통합 테스트 추가
 
-E8 테스트 묶음(`:305-387`)에 아래 본문을 추가한다. 기존 import로 실행된다. A의 기존 단언 갱신도
+기존 E8 실패 테스트(`:305-318`)와 EMPTY 테스트(`:320-330`) 사이에 아래 본문을 추가한다.
+기존 import로 실행된다. A의 기존 단언 갱신도
 보존한 상태가 이 After의 기준이다.
 
 Before:
@@ -701,7 +769,11 @@ node --test plugins/codexclaw/components/pabcd-state/test/goalplan-integrity.tes
 node --test plugins/codexclaw/components/pabcd-state/test/goal-gate.test.ts
 ```
 
-기대값: 첫 명령은 `tests 10`, `pass 10`, `fail 0`, exit 0. 두 번째 명령도 `fail 0`, exit 0.
+기대값: 첫 명령은 `tests 12`, `pass 12`, `fail 0`, exit 0. 두 번째 명령도 `fail 0`, exit 0.
+
+개수 근거: 라운드 1 감사 전 10건에 BLOCKER 2의 합류 DAG 음성 테스트와 BLOCKER 1의 중복 참조
+테스트를 더해 12건이다. `--test-name-pattern`을 쓰지 않고 파일 전체를 돌리므로 매칭 0건에서
+exit 0으로 끝나는 false-green은 발생하지 않는다. 그래도 `# tests` 값이 12인지 함께 읽는다.
 
 ### 전체 회귀와 저장소 gate
 

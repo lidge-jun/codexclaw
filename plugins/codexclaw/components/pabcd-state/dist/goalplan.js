@@ -829,6 +829,152 @@ export function isGoalplanComplete(plan          )          {
   );
 }
 
+// --- dependency integrity (wp3): pure read-only validation, no writes ---
+//
+// Two boundaries, deliberately separate. reviveDependsOn() above is the STRUCTURAL
+// boundary: a non-array, a non-string element, or a blank id fails the whole plan
+// closed before it ever becomes a Goalplan. These two functions are the SEMANTIC
+// boundary: given a well-formed string[], they judge what it refers to. Neither
+// writes goalplan.json or either ledger — a rejection leaves every byte in place.
+
+
+
+
+
+function duplicateIds(ids                   )           {
+  const seen = new Set        ();
+  const duplicates = new Set        ();
+  for (const id of ids) {
+    if (seen.has(id)) duplicates.add(id);
+    else seen.add(id);
+  }
+  return [...duplicates].sort();
+}
+
+function findDependencyCycle(nodes                           )                  {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const visited = new Set        ();
+  const visiting = new Map                ();
+  const stack           = [];
+  const visit = (id        )                  => {
+    const seenAt = visiting.get(id);
+    if (seenAt !== undefined) return [...stack.slice(seenAt), id];
+    if (visited.has(id)) return null;
+    visiting.set(id, stack.length);
+    stack.push(id);
+    for (const dependencyId of [...(byId.get(id)?.dependsOn ?? [])].sort()) {
+      if (!byId.has(dependencyId)) continue;
+      const cycle = visit(dependencyId);
+      if (cycle) return cycle;
+    }
+    stack.pop();
+    visiting.delete(id);
+    visited.add(id);
+    return null;
+  };
+  for (const id of [...byId.keys()].sort()) {
+    const cycle = visit(id);
+    if (cycle) return cycle;
+  }
+  return null;
+}
+
+export function goalplanDefinitionIntegrityReasons(plan          )           {
+  const reasons           = [];
+  const phaseIds = new Set(plan.workPhases.map((phase) => phase.id));
+  for (const id of duplicateIds(plan.workPhases.map((phase) => phase.id))) {
+    reasons.push(`duplicate work phase id '${id}' makes dependency references ambiguous`);
+  }
+  for (const phase of plan.workPhases) {
+    // 감사 라운드 1 BLOCKER 1: 같은 참조를 여러 번 쓴 dependsOn이 같은 사유를 반복하면
+    // goal-gate의 slice(0, 4)가 한 문장으로 네 칸을 채워 다른 진단을 가린다. wp2 reviver는
+    // 중복 원소를 거부하지 않으므로(goalplan.ts:466-475) 여기서 첫 등장 순서를 지켜 줄인다.
+    for (const dependencyId of new Set(phase.dependsOn ?? [])) {
+      if (dependencyId === phase.id) reasons.push(`work phase ${phase.id} depends on itself`);
+      else if (!phaseIds.has(dependencyId)) {
+        reasons.push(`work phase ${phase.id} depends on unknown work phase '${dependencyId}'`);
+      }
+    }
+
+    const taskIds = new Set(phase.tasks.map((task) => task.id));
+    for (const id of duplicateIds(phase.tasks.map((task) => task.id))) {
+      reasons.push(`work phase ${phase.id} has duplicate task id '${id}', so task dependency references are ambiguous`);
+    }
+    for (const task of phase.tasks) {
+      for (const dependencyId of new Set(task.dependsOn ?? [])) {
+        if (dependencyId === task.id) reasons.push(`task ${phase.id}/${task.id} depends on itself`);
+        else if (!taskIds.has(dependencyId)) {
+          reasons.push(`task ${phase.id}/${task.id} depends on unknown task '${dependencyId}' in the same work phase`);
+        }
+      }
+    }
+    const taskCycle = findDependencyCycle(phase.tasks.map((task) => ({
+      id: task.id,
+      dependsOn: (task.dependsOn ?? []).filter((dependencyId) => dependencyId !== task.id),
+    })));
+    if (taskCycle) {
+      reasons.push(`task dependency cycle in work phase ${phase.id}: ${taskCycle.join(" -> ")}`);
+    }
+
+    if ((plan.schemaVersion ?? 1) >= 3) {
+      for (const task of phase.tasks) {
+        if (task.status === "done" && (task.outcome ?? "").trim().length === 0) {
+          reasons.push(`task ${phase.id}/${task.id} is done but has no non-empty outcome`);
+        }
+        if (task.status === "pending" && task.outcome !== undefined) {
+          reasons.push(`task ${phase.id}/${task.id} is pending but has outcome`);
+        }
+      }
+    }
+  }
+
+  const phaseCycle = findDependencyCycle(plan.workPhases.map((phase) => ({
+    id: phase.id,
+    dependsOn: (phase.dependsOn ?? []).filter((dependencyId) => dependencyId !== phase.id),
+  })));
+  if (phaseCycle) reasons.push(`work phase dependency cycle: ${phaseCycle.join(" -> ")}`);
+
+  const criterionIds = new Set(plan.criteria.map((criterion) => criterion.id));
+  for (const id of duplicateIds(plan.criteria.map((criterion) => criterion.id))) {
+    reasons.push(`duplicate criterion id '${id}' makes criteriaIds references ambiguous`);
+  }
+  for (const phase of plan.workPhases) {
+    for (const criterionId of phase.criteriaIds) {
+      if (!criterionIds.has(criterionId)) {
+        reasons.push(`work phase ${phase.id} references unknown criterion '${criterionId}'`);
+      }
+    }
+  }
+  return reasons;
+}
+
+export function goalplanDependencyCompletionReasons(plan          )           {
+  const reasons           = [];
+  const phasesById = new Map(plan.workPhases.map((phase) => [phase.id, phase]));
+  for (const phase of plan.workPhases) {
+    if (phase.status === "done") {
+      // 중복 참조는 한 사유 안의 목록에도 한 번만 나온다(감사 라운드 1 BLOCKER 1).
+      const open = [...new Set(phase.dependsOn ?? [])].filter(
+        (dependencyId) => phasesById.get(dependencyId)?.status !== "done",
+      );
+      if (open.length > 0) {
+        reasons.push(`work phase ${phase.id} is done while dependency work phase(s) are not done: ${open.join(", ")}`);
+      }
+    }
+    const tasksById = new Map(phase.tasks.map((task) => [task.id, task]));
+    for (const task of phase.tasks) {
+      if (task.status !== "done") continue;
+      const open = [...new Set(task.dependsOn ?? [])].filter(
+        (dependencyId) => tasksById.get(dependencyId)?.status !== "done",
+      );
+      if (open.length > 0) {
+        reasons.push(`task ${phase.id}/${task.id} is done while dependency task(s) are not done: ${open.join(", ")}`);
+      }
+    }
+  }
+  return reasons;
+}
+
 
 
 
@@ -880,6 +1026,13 @@ export function validateGoalplan(plan          , ctx                        )   
       ],
     };
   }
+  // Structure before progress: a plan whose references are broken cannot be judged
+  // on its completion state, and goal-gate shows only the first four reasons
+  // (goal-gate.ts slice(0, 4)) - so the repairable ones come first.
+  reasons.push(
+    ...goalplanDefinitionIntegrityReasons(plan),
+    ...goalplanDependencyCompletionReasons(plan),
+  );
   if (plan.workPhases.length === 0 && plan.criteria.length === 0) {
     reasons.push(
       "plan is empty: no workPhases[] and no criteria[] registered — fill the goalplan (schema in $cxc-loop) before the E8 gate can certify completion",

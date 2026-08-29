@@ -311,10 +311,45 @@ test("GOAL-COMPLETE-GATE-01: bound goalplan failing E8 -> deny with the validate
     const out = applyGoalCompleteGuard(ptuAt(cwd, "gc2", "update_goal", { status: "complete" }));
     assert.notEqual(out, "");
     const reason = JSON.parse(out.trimEnd()).hookSpecificOutput.permissionDecisionReason as string;
-    assert.match(reason, /fails the E8 quality gate/);
+    assert.match(reason, /fails the E8 quality\/integrity gate/);
     assert.match(reason, /unmet criterion/);
     assert.match(reason, /cxc loop validate/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-COMPLETE-GATE-01: dependency integrity failure is exposed in update_goal complete denial", () => {
+  const cwd = freshGateCwd();
+  try {
+    const plan = buildGoalplan({ objective: "dependency cycle" });
+    plan.schemaVersion = 3;
+    plan.workPhases = [
+      { id: "b", title: "b", status: "pending", tasks: [], criteriaIds: [], dependsOn: ["a"] },
+      { id: "a", title: "a", status: "pending", tasks: [], criteriaIds: [], dependsOn: ["b"] },
+    ];
+    writeGoalplan(cwd, plan);
+    writeState(cwd, {
+      ...defaultState("gc-integrity"),
+      phase: "IDLE",
+      orchestrationActive: false,
+      slug: plan.slug,
+    });
+
+    const out = applyGoalCompleteGuard(
+      ptuAt(cwd, "gc-integrity", "update_goal", { status: "complete" }),
+    );
+    const parsed = JSON.parse(out.trimEnd()).hookSpecificOutput;
+
+    assert.equal(parsed.permissionDecision, "deny");
+    assert.match(parsed.permissionDecisionReason, /fails the E8 quality\/integrity gate/);
+    assert.match(parsed.permissionDecisionReason, /work phase dependency cycle: a -> b -> a/);
+    assert.match(parsed.permissionDecisionReason, /Repair invalid dependency, outcome, and criteria references first/);
+    assert.equal(
+      applyGoalCompleteGuard(ptuAt(cwd, "gc-integrity", "update_goal", { status: "blocked" })),
+      "",
+    );
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 test("GOAL-COMPLETE-GATE-01: EMPTY bound goalplan -> deny (register the plan first)", () => {
