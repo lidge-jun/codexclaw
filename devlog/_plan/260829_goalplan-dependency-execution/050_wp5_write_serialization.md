@@ -4765,12 +4765,22 @@ module-private `goalplanLedgerRows()`를 호출했다.
 나열이 불완전한 순간 false-green이 된다. 그래서 실제 TypeScript 해석기를 쓴다. 저장소에는
 typecheck script도 tsconfig도 없지만 `node_modules/.bin/tsc` 5.9.3이 이미 있다. 전체 strict
 검사는 이 저장소에 선행 오류가 많아 게이트로 쓸 수 없고, **미해석 식별자 부류만** 뽑으면
-현재 기준선이 정확히 0이다. 그래서 그 네 오류 코드만 센다.
+현재 기준선이 정확히 0이다. 그래서 그 오류 코드만 센다.
 
 - `TS2304` 이름을 찾을 수 없음
 - `TS2552` 오타 추정 이름
 - `TS2305` 모듈에 그 export가 없음
+- `TS2307` 모듈 경로 자체를 찾을 수 없음
 - `TS2724` 모듈에 그 이름의 export가 없음(유사 이름 제안 포함)
+
+`TS2307`이 필요한 이유는 type-only import의 경로가 틀린 경우다. strip-types가 그 줄을 지우고
+가므로 focused suite와 `npm test`가 모두 숨긴다. `TS2459`는 선행 1건
+(`src/interview-policy.ts:25`, `fsm.ts`가 `Phase`를 지역 선언만 하고 export하지 않는다)이 있어
+0을 요구할 수 없으므로 그 한 줄만 허용하는 ratchet으로 둔다.
+
+`tsc ... | rg -c ... || echo 0` 형태를 쓰지 않는다. 그 구조는 미해석 식별자가 없는 경우와 `tsc`
+자체가 실패한 경우를 똑같이 0으로 접는다. 잘못된 플래그, glob 실패, binary 부재가 모두 통과한다.
+실측으로 확인했다. 그래서 실행과 계수를 분리하고 invocation 오류를 먼저 거른다.
 
 ```bash
 #!/usr/bin/env bash
@@ -4779,6 +4789,8 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 
 pab=plugins/codexclaw/components/pabcd-state
 src=$pab/src/goalplan.ts
+gate_tmp="$(mktemp -d)"
+trap 'rm -rf "$gate_tmp"' EXIT
 
 # wp5가 새로 export하는 여섯 이름은 실제로 선언되어야 한다.
 for name in GOALPLAN_LOCK_OWNER_FILE goalplanWriteLockDir goalplanWriteLockStatus \
@@ -4786,22 +4798,54 @@ for name in GOALPLAN_LOCK_OWNER_FILE goalplanWriteLockDir goalplanWriteLockStatu
   rg -q "^export (type|const|function) $name\b" "$src"
 done
 
-# 미해석 식별자 개수. 기준선 0이며 구현 후에도 0이어야 한다.
-unresolved_count() {
-  node_modules/.bin/tsc --noEmit --allowImportingTsExtensions --module nodenext \
-    --target es2023 --moduleResolution nodenext --skipLibCheck --types node \
-    "$pab"/src/*.ts "$pab"/test/*.ts 2>&1 \
-    | rg -c 'TS2304|TS2552|TS2305|TS2724' || echo 0
-}
+test -x node_modules/.bin/tsc
 
-test "$(unresolved_count)" -eq 0
+roots=("$pab"/src/*.ts "$pab"/test/*.ts)
+# 구현 후 신규 concurrency 테스트가 더해져 115개 이상이다.
+test "${#roots[@]}" -ge 115
+
+tsc_log="$gate_tmp/tsc.log"
+set +e
+node_modules/.bin/tsc --noEmit --allowImportingTsExtensions --module nodenext \
+  --target es2023 --moduleResolution nodenext --skipLibCheck --types node \
+  "${roots[@]}" > "$tsc_log" 2>&1
+set -e
+
+# 빈 로그는 깨끗함이 아니라 실행 실패 신호다. 이 저장소에는 선행 진단이 있다.
+test -s "$tsc_log"
+
+# invocation·root-file 오류는 즉시 실패시킨다.
+! rg -q 'TS5023|TS5024|TS5025|TS6046|TS6053|TS18003|TS6231' "$tsc_log"
+
+# 지정한 root가 실제로 분석되었는지 확인한다.
+listed="$gate_tmp/listed.txt"
+node_modules/.bin/tsc --noEmit --allowImportingTsExtensions --module nodenext \
+  --target es2023 --moduleResolution nodenext --skipLibCheck --types node \
+  --listFilesOnly "${roots[@]}" > "$listed" 2>&1
+for root in "${roots[@]}"; do
+  rg -qF "$root" "$listed" || { echo "root not analyzed: $root" >&2; exit 1; }
+done
+
+unresolved="$(rg -c 'TS2304|TS2552|TS2305|TS2307|TS2724' "$tsc_log" || true)"
+test "${unresolved:-0}" -eq 0
+
+ratchet="$(rg -c 'TS2459' "$tsc_log" || true)"
+test "${ratchet:-0}" -eq 1
+rg -q 'src/interview-policy\.ts\(25,15\): error TS2459' "$tsc_log"
 ```
 
-기대값은 여섯 export 선언 검사가 모두 exit 0이고 미해석 식별자 수가 0인 것이다. 이 게이트가
-무엇을 실제로 잡는지 `hook.test.ts` 임시 사본에 네 가지를 주입해 확인했다. 기준선 0에서
-누락 import `dirname` 1건, 누락 타입 `Goalplan` 1건, 다른 파일의 private helper
-`goalplanLedgerRows` 1건, 존재하지 않는 export `GoalplanWorkPhaseStatus` 1건이 각각 잡히고
-복원 뒤 다시 0이 된다. `TS2724`가 없으면 마지막 한 건이 빠져나가므로 네 코드를 모두 센다.
+기대값은 여섯 export 선언 검사가 exit 0, root 전부가 분석 목록에 있고, 미해석 식별자 수가 0,
+`TS2459`가 정확히 그 선행 1건인 것이다.
+
+이 게이트가 무엇을 잡는지 `hook.test.ts` 임시 사본에 주입해 확인했다. 기준선 0에서 누락 import
+`dirname` 1건, 누락 타입 `Goalplan` 1건, 다른 파일의 private helper `goalplanLedgerRows` 1건,
+존재하지 않는 export `GoalplanWorkPhaseStatus` 1건이 각각 잡히고 복원 뒤 다시 0이 된다.
+`TS2724`가 없으면 마지막 한 건이 빠져나간다.
+
+게이트 자체가 false-green이 되는 네 경우도 실패하는지 확인했다. 잘못된 tsc 플래그 주입, binary
+경로 부재, type-only import의 잘못된 모듈 경로(`TS2307`), 추가 `TS2459` 주입 네 건 모두
+exit 1이며 복원 뒤 다시 exit 0이다. 옛 `|| echo 0` 형태는 앞의 두 건을 모두 0으로 접어
+통과시켰다.
 
 이 게이트는 미해석 식별자만 본다. 타입 호환성, signature 불일치, 논리 오류는 잡지 않는다.
 그 부류는 focused suite와 `npm test`가 맡는다.
