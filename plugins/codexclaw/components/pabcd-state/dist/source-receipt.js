@@ -47,6 +47,16 @@ import { hasValidReceipt } from "./subagent-evidence.js";
 
 
 
+
+
+
+
+
+
+
+
+
+
 export function isReceiptError(v                                   )                    {
   return "error" in v;
 }
@@ -124,5 +134,11 @@ export function parseSourceBoundReceipt(
   // Preserved, never required: the C>D gate decides what to do about them.
   if (typeof r.ownerSessionId === "string") receipt.ownerSessionId = r.ownerSessionId;
   if (typeof r.checkEpoch === "string") receipt.checkEpoch = r.checkEpoch;
+  // Only well-formed string entries survive; a malformed list degrades to "no
+  // exclusions declared" rather than rejecting an otherwise valid receipt.
+  if (Array.isArray(r.generatedPaths)) {
+    const declared = r.generatedPaths.filter((p)              => typeof p === "string" && p.length > 0);
+    if (declared.length > 0) receipt.generatedPaths = declared;
+  }
   return receipt;
 }

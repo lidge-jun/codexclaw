@@ -36,6 +36,16 @@ export interface SourceBoundReceipt {
   ownerSessionId?: string;
   checkEpoch?: string;
   /**
+   * #49 wiring (260829): paths the check command was DECLARED to regenerate
+   * (`cxc receipt test --generated <path>`). The writer already records them, but
+   * before this they were never read back, so the C->D gate re-captured the tree
+   * WITHOUT the exclusion the receipt was captured WITH. Any declared path that
+   * kept changing then made the edge structurally unpassable: excluded at capture,
+   * included at verification, so the two hashes could never agree.
+   * Preserved, never required — a receipt without it behaves exactly as before.
+   */
+  generatedPaths?: string[];
+  /**
    * Whether the file actually carried a usable createdAt. Without this the epoch
    * fallback below is indistinguishable from a real 1970 timestamp, and a receipt
    * with no time at all would read as one with a very old one.
@@ -124,5 +134,11 @@ export function parseSourceBoundReceipt(
   // Preserved, never required: the C>D gate decides what to do about them.
   if (typeof r.ownerSessionId === "string") receipt.ownerSessionId = r.ownerSessionId;
   if (typeof r.checkEpoch === "string") receipt.checkEpoch = r.checkEpoch;
+  // Only well-formed string entries survive; a malformed list degrades to "no
+  // exclusions declared" rather than rejecting an otherwise valid receipt.
+  if (Array.isArray(r.generatedPaths)) {
+    const declared = r.generatedPaths.filter((p): p is string => typeof p === "string" && p.length > 0);
+    if (declared.length > 0) receipt.generatedPaths = declared;
+  }
   return receipt;
 }
