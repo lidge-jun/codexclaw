@@ -523,16 +523,16 @@ export function closeFixedWorkPhase(
     next = after ?? closedWorkPhases.slice(0, currentIdx).find(
       (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
     );
-  } else if (recordedNext === null || recordedNext.length === 0) {
-    // §51: an empty string is not an id. readStateStrict() already normalizes it, and
-    // folding it in here keeps a hand-written state file from producing a refusal whose
-    // diagnostic names no work-phase at all.
+  } else if (recordedNext === null) {
     next = undefined;
   } else {
     // §51: a marker naming the target as its own successor is corrupt — a close never
     // activates the phase it just finished. Without this guard the done-successor rule
     // below swallows it, and for an OPEN target it silently nulls the cursor.
-    if (recordedNext === workPhaseId) {
+    // §52: an empty id belongs here, not with the explicit null. readStateStrict() rejects
+    // it too, and treating it as "no successor" would give a damaged marker the authority
+    // of a real decision.
+    if (recordedNext.length === 0 || recordedNext === workPhaseId) {
       return { kind: "successor_lost", successorId: recordedNext, reason: "corrupt" };
     }
     const named = closedWorkPhases.find((wp) => wp.id === recordedNext);
@@ -542,8 +542,11 @@ export function closeFixedWorkPhase(
       // then closed by its own cycle, so this retry has nothing left to activate — and
       // refusing would trap the session: escaping would mean re-opening a completed
       // work-phase or discarding the marker. The settled-shape check below then answers
-      // already_done, which is the truth about this close.
-      next = undefined;
+      // §52: answer already_done directly instead of computing a cursor. Setting `next`
+      // to nothing made the settled shape claim `activeWorkPhaseId: null`, which erased a
+      // cursor the plan had legitimately moved on to — wp-2 finishing can itself have
+      // started wp-3. This close has nothing left to say about the cursor.
+      return { kind: "already_done" };
     } else if (named.status !== "pending" && named.status !== "in_progress") {
       return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
     } else if (!workPhaseDependenciesMet(closedPlan, named)) {
@@ -1137,6 +1140,35 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
           // a genuine commit can be edited afterwards to hide a pending task under a
           // done phase. So the helper runs whenever the target exists, and it answers
           // `already_done` only after its three gates pass.
+          // §52: an absent target does NOT mean there is nothing to finish. The marker
+          // still records the successor this close activated, and skipping straight to
+          // cleanup leaves that phase unstarted while the ledger claims the cycle closed.
+          // Reachable: crash right after the marker, then an edit removes the target.
+          // Only a marker that recorded no successor is safe to clean up directly.
+          if (!fixed && state.dcloseRecovery.nextWorkPhaseId) {
+            const orphan = plan.workPhases.find(
+              (workPhase) => workPhase.id === state.dcloseRecovery.nextWorkPhaseId,
+            );
+            if (!orphan) {
+              return {
+                code: 1 as const,
+                allDone: false as const,
+                output: `orchestrate D: recovery target ${closePhaseId} is gone from the plan and so is the successor ${state.dcloseRecovery.nextWorkPhaseId} it recorded, so this retry cannot tell what to finish. The marker was kept; inspect the goalplan, set the work-phase statuses and activeWorkPhaseId by hand, then run \`cxc orchestrate reset --session ${sessionId}\` to clear the marker. Nothing was written.`,
+              };
+            }
+            if (orphan.status === "pending") {
+              closedPlan = {
+                ...plan,
+                activeWorkPhaseId: orphan.id,
+                workPhases: plan.workPhases.map((workPhase) =>
+                  workPhase.id === orphan.id
+                    ? { ...workPhase, status: "in_progress" as const }
+                    : workPhase
+                ),
+              };
+              writeClosedPlan = true;
+            }
+          }
           if (fixed) {
             const closed = closeFixedWorkPhase(plan, closePhaseId, state.dcloseRecovery.nextWorkPhaseId);
             // §41 W1: a target that gained a pending task or became blocked after its
@@ -1298,12 +1330,15 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
             detail: `closed ${closePhaseId}`,
           });
         }
-        // §51: on `already_done` this is the persisted cursor, not a value this retry
-        // computed. That is the right source: the close it is resuming did activate a
-        // successor, and if that phase has since finished its own cycle the cursor has
-        // moved on and its `started` row was already written by the cycle that ran it.
-        // The hasGoalplanRow guards below make either case idempotent.
-        const startedId = closedPlan.activeWorkPhaseId;
+        // §52: the started row names the successor THIS close activated, which the marker
+        // records. The persisted cursor is the wrong source on a resume: a retry that
+        // answers already_done leaves `closedPlan` as the file, and that cursor may have
+        // moved past the successor — or been nulled by an all-done plan — so the row this
+        // close still owed would never be written. The hasGoalplanRow guard keeps it
+        // idempotent when the row already exists.
+        const startedId = recoveringDclose
+          ? state.dcloseRecovery.nextWorkPhaseId
+          : closedPlan.activeWorkPhaseId;
         if (startedId && !hasGoalplanRow(args.cwd, slug, "workphase_started", `started ${startedId}`)) {
           appendGoalplanLedger(args.cwd, slug, {
             ts: new Date().toISOString(), slug, event: "workphase_started",
@@ -1849,7 +1884,11 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
           detail: `closed ${closePhaseId}`,
         });
       }
-      const startedId = closeResult.plan.activeWorkPhaseId;
+      // §52: same as the CLI — a resume names the marker successor, a fresh close names
+      // the cursor it just computed.
+      const startedId = recoveringDclose
+        ? state.dcloseRecovery.nextWorkPhaseId
+        : closeResult.plan.activeWorkPhaseId;
       if (startedId && !hasGoalplanRow(payload.cwd, state.slug!, "workphase_started", `started ${startedId}`)) {
         appendGoalplanLedger(payload.cwd, state.slug!, {
           ts: new Date().toISOString(), slug: state.slug!, event: "workphase_started",
@@ -4144,6 +4183,84 @@ test("all-done close survives a failure right after its state write", () => {
   );
 });
 
+test("an absent target still activates the successor the marker recorded", () => {
+  // §52: the existing absent-target case seeds wp-2 already in_progress, which hides the
+  // window. Here the crash happened before the plan commit, so wp-2 is still pending when
+  // an edit removes wp-1. Skipping to cleanup would clear the marker and close the cycle
+  // while wp-2 never starts — the ledger would claim a close that scheduled nothing.
+  const cwd = boundCwd();
+  const id = "cli-recovery-absent-pending-successor";
+  const slug = "cli-recovery-absent-pending-successor-plan";
+  const plan = buildGoalplan({ objective: "absent target, pending successor" });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-2", title: "next", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  writeState(cwd, {
+    ...defaultState(id),
+    slug,
+    checkEpoch: "c-absent-pending",
+    dcloseRecovery: {
+      sessionId: id,
+      checkEpoch: "c-absent-pending",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
+    },
+  });
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 0, result.output);
+  const repaired = readGoalplan(cwd, slug)!;
+  assert.equal(repaired.activeWorkPhaseId, "wp-2");
+  assert.equal(repaired.workPhases.find((wp) => wp.id === "wp-2")!.status, "in_progress");
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_started")
+      .map((row) => row.detail),
+    ["started wp-2"],
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+
+test("recovery refuses when both the target and its recorded successor are gone", () => {
+  // §52: with neither phase present there is nothing this retry can honestly finish, so
+  // it keeps everything and points at reset instead of closing a cycle over an empty plan.
+  const cwd = boundCwd();
+  const id = "cli-recovery-both-gone";
+  const slug = "cli-recovery-both-gone-plan";
+  const plan = buildGoalplan({ objective: "target and successor both gone" });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-9", title: "unrelated", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  writeState(cwd, {
+    ...defaultState(id),
+    slug,
+    checkEpoch: "c-both-gone",
+    dcloseRecovery: {
+      sessionId: id,
+      checkEpoch: "c-both-gone",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
+    },
+  });
+  const before = readFileSync(goalplanPath(cwd, slug), "utf8");
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 1);
+  assert.match(result.output, /so is the successor wp-2 it recorded/);
+  assert.match(result.output, new RegExp(`cxc orchestrate reset --session ${id}`));
+  assert.equal(readFileSync(goalplanPath(cwd, slug), "utf8"), before);
+  assert.equal(readState(cwd, id).dcloseRecovery?.closedWorkPhaseId, "wp-1");
+  assert.deepEqual(goalplanLedgerRows(cwd, slug), []);
+});
 test("CLI D-close recovery resumes when the marker target is absent from the plan", () => {
   const cwd = boundCwd();
   const id = "cli-recovery-target-absent";
@@ -5588,20 +5705,20 @@ forgery_arity="$(
 test "$forgery_arity" -eq 2
 forgery_extra_cases=$((forgery_arity - 1))
 
-test "$added_existing_declarations" -eq 53
+test "$added_existing_declarations" -eq 55
 test "$new_file_declarations" -eq 9
 test "$parameterized_extra_cases" -eq 1
 test "$removed_declarations" -eq 5
 
 new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
 net_case_count=$((new_case_count - removed_declarations))
-test "$new_case_count" -eq 66
-test "$net_case_count" -eq 61
+test "$new_case_count" -eq 68
+test "$net_case_count" -eq 63
 
 focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
 focused_case_count=$((focused_declaration_count + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
-test "$focused_declaration_count" -eq 249
-test "$focused_case_count" -eq 253
+test "$focused_declaration_count" -eq 251
+test "$focused_case_count" -eq 255
 
 # 산술 기대값과 실제 등록 수를 대조한다. 이것이 없으면 케이스 하나가 누락된 채
 # 남은 전부가 통과해도 node가 exit 0을 내어 false-green이 된다.
@@ -5620,12 +5737,12 @@ test "$(rg -o '^. fail (\d+)$' -r '$1' "$focused_log" | tail -1)" -eq 0
 
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
-- 기존 파일 추가 선언 53개, 신규 파일 선언 9개
+- 기존 파일 추가 선언 55개, 신규 파일 선언 9개
 - 삭제 5개의 출처는 §8.2의 held-lock·release 2개와 §8.2.1의 drvfs·9p·native 3개다
 - 두 입력을 도는 parameterized 선언의 추가 등록 1개, scenario 배열 원소 3개에서 나오는 추가 등록 2개
-- 계획된 신규 케이스 66개, 삭제 5개, 순증 61개
-- 구현 뒤 선언 249개, 실제 focused 등록 253개
-- node test exit 0, tests 253, pass 253, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
+- 계획된 신규 케이스 68개, 삭제 5개, 순증 63개
+- 구현 뒤 선언 251개, 실제 focused 등록 255개
+- node test exit 0, tests 255, pass 255, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
 
 락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
 CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
@@ -5663,7 +5780,7 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값은 exit 0, tests 2228, pass 2228, fail 0이다. 기존 2167건과 wp5 순증 61건을 모두 실행하며,
+기대값은 exit 0, tests 2230, pass 2230, fail 0이다. 기존 2167건과 wp5 순증 63건을 모두 실행하며,
 루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
 
 ### 10.4 저장소 gate

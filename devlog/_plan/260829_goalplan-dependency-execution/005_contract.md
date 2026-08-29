@@ -1599,7 +1599,8 @@ plan만 고치면 같은 D 요청으로 마칠 수 있고, 그것이 거부 문�
 고치면 풀리지만 이 경우는 marker 자체가 틀렸으므로 "그 work-phase를 복구하라"는 안내가 성립하지 않는다.
 전용 사유 `corrupt`를 두어 reset을 가리키게 한다.
 
-`done` successor를 통과시키면 원장이 빠지지 않는지도 확인했다. `already_done`은 plan write만 생략하고
+`done` successor를 통과시키면 원장이 빠지지 않는지도 확인했다. (§52에서 이 확인이 불완전했음이 드러났다 —
+`started` 행의 출처가 틀렸다.) `already_done`은 plan write만 생략하고
 뒤이은 `hasGoalplanRow` 가드가 `closed wp-1`을 채우며, 최종화 락 안의 `hasPabcdCloseRow` 가드가 PABCD
 close 행을 채운다. `started` 행의 대상은 지속된 커서에서 온다 — 그것이 옳다. 이 close가 실제로 활성화한
 phase가 그 뒤 자기 cycle을 끝냈다면 커서는 이미 넘어갔고 그 phase의 `started` 행은 그것을 실행한
@@ -1609,3 +1610,85 @@ cycle이 이미 남겼다. 두 가드가 어느 경우든 멱등이다. 회귀�
 회귀 둘을 더 둔다. 하나는 `nextWorkPhaseId`가 숫자인 marker를 심어 `readStateStrict()`가 `legacy: true`로
 복원하고 CLI가 아무 write 없이 거부하는지 본다. 다른 하나는 self-successor marker에서 거부 문구가
 `--session`을 포함한 reset을 안내하는지 단언한다.
+
+## 52. 라운드 23 — 재개는 파일이 아니라 marker를 원장의 근거로 쓴다
+
+§51의 `done` successor 처분이 반쪽이었다. 감사관이 세 결함을 재현했고 전부 실질이다.
+
+### 진행된 커서를 지우는 문제
+
+`done`일 때 `next = undefined`로 두면 settled shape가 `activeWorkPhaseId: null`을 주장한다. 그런데
+successor가 자기 cycle을 끝내면서 그 다음 phase를 시작해 둘 수 있다.
+
+```text
+marker: closed=wp-1, next=wp-2
+plan:   wp-1=done, wp-2=done, wp-3=in_progress, 커서 wp-3
+§51:    ok, 커서 null   <- 정상 진행을 끊는다
+```
+
+이 close는 커서에 관해 할 말이 없다. 그래서 계산하지 않고 즉시 `already_done`을 답한다.
+
+```ts
+    if (named.status === "done") {
+      return { kind: "already_done" };
+    }
+```
+
+### `started` 행이 빠지는 문제
+
+`startedId`를 지속된 커서에서 읽으면 재개에서 그 값이 이 close가 활성화한 phase가 아니다. plan commit
+직후 crash한 뒤 successor가 완주하면 커서는 `null`이거나 그 뒤 phase이므로, 이 close가 남겨야 할
+`started` 행이 영구히 빠진다. 라운드 22에서 그 값이 옳다고 적었는데 틀렸다.
+
+marker가 그 값을 갖고 있으므로 재개는 marker를 쓴다. 새 close만 자기가 계산한 커서를 쓴다.
+
+```ts
+const startedId = recoveringDclose
+  ? state.dcloseRecovery.nextWorkPhaseId
+  : closedPlan.activeWorkPhaseId;
+```
+
+`hasGoalplanRow` 가드가 그대로 있으므로 행이 이미 있으면 다시 쓰지 않는다.
+
+### 대상이 사라진 재개가 successor를 버리는 문제
+
+고정 대상이 plan에 없으면 §51까지는 helper를 건너뛰고 원장·state 정리만 했다. 그런데 marker는 여전히
+이 close가 활성화한 successor를 알고 있다. marker 직후 crash한 뒤 대상만 지워지면, 정리로 넘어가는
+판본은 successor를 시작하지 않은 채 cycle을 닫는다 — 원장은 닫혔다고 말하고 아무 일도 예약되지 않는다.
+
+그래서 대상이 없어도 기록된 successor를 강제한다. 그 phase가 `pending`이면 활성화하고, 그것마저 plan에
+없으면 fail-closed한다. successor를 기록하지 않은 marker(`null`)만 곧바로 정리로 간다.
+
+```ts
+if (!fixed && state.dcloseRecovery.nextWorkPhaseId) {
+  const orphan = plan.workPhases.find(
+    (workPhase) => workPhase.id === state.dcloseRecovery.nextWorkPhaseId,
+  );
+  if (!orphan) return /* fail-closed, marker 보존, reset 안내 */;
+  if (orphan.status === "pending") {
+    closedPlan = { ...plan, activeWorkPhaseId: orphan.id, /* orphan을 in_progress로 */ };
+    writeClosedPlan = true;
+  }
+}
+```
+
+### 빈 문자열
+
+`readStateStrict()`는 빈 문자열을 손상으로 보고 fail-closed하는데 helper는 그것을 explicit `null`처럼
+다뤘다. 두 표면의 계약이 갈라지므로 helper도 `corrupt`로 거부한다.
+
+### 실측
+
+| 입력 | 결과 |
+| --- | --- |
+| wp-1 done, wp-2 done, wp-3 in_progress, 커서 wp-3, 기록 wp-2 | `already_done` — 커서 보존 |
+| wp-1 done, wp-2 done, 커서 null, 기록 wp-2 | `already_done` |
+| wp-1 done, wp-2 done, wp-3 pending, 기록 wp-2 | `already_done` |
+| 빈 문자열 기록 | `successor_lost`/corrupt |
+
+§50·§51의 경계 열아홉 가지가 모두 유지된다. 4파일 `tests 162 / pass 162 / fail 0`도 그대로다.
+
+회귀 둘을 더 둔다. 대상이 없고 기록된 successor가 `pending`인 재개는 그 phase를 활성화하고 `started`
+행 하나를 남긴다. 대상과 successor가 둘 다 없으면 code 1로 거부하고 plan·marker·원장을 전부 보존한다.
+라운드 22의 successor 완주 회귀는 이제 `started wp-2` 단언이 실제로 성립한다 — 그전에는 커서가 `null`이라
+그 행이 쓰이지 않아 회귀 자체가 구현 후 실패했다.
