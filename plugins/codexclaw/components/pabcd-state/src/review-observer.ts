@@ -39,7 +39,13 @@
  * round, while a thrown observer would break an unrelated subagent's exit.
  */
 import { readState } from "./state.ts";
-import { readGoalplan, writeGoalplan, effectiveActiveWorkPhaseId, appendGoalplanLedger } from "./goalplan.ts";
+import {
+  appendGoalplanLedger,
+  effectiveActiveWorkPhaseId,
+  readGoalplan,
+  withGoalplanWriteLock,
+  writeGoalplan,
+} from "./goalplan.ts";
 import { roundByLaunchId, parseSignoff, recordVerdict } from "./review-round.ts";
 import type { SubagentStopPayload } from "./hook.ts";
 
@@ -86,83 +92,71 @@ export function handleReviewObserver(raw: string): string {
       return "";
     };
 
-    if (!signoff) {
-      // Only worth saying while a round is actually waiting on a reviewer;
-      // otherwise every ordinary subagent exit would write a line.
-      if (state.phase !== "A" || !state.slug) return "";
-      const plan = readGoalplan(cwd, state.slug);
-      if (!plan || !plan.reviewRounds?.some((r) => r.purpose === "plan_audit" && r.status === "in_flight")) return "";
-      return note(
-        "review_signoff_unparsed",
-        "a subagent exited with no parseable sign-off while a plan_audit round was in flight; "
-          + "the closing two lines must be exactly \"LAUNCH: <id>\" then \"VERDICT: PASS|NEAR-PASS|FAIL\"",
-      );
-    }
-
     if (!state.slug) return "";
+    const locked = withGoalplanWriteLock(cwd, state.slug, (plan): string => {
+      if (!signoff) {
+        const waiting = plan.reviewRounds?.some(
+          (round) => round.purpose === "plan_audit" && round.status === "in_flight",
+        );
+        if (state.phase === "A" && waiting) {
+          return note(
+            "review_signoff_unparsed",
+            (
+              "a subagent exited with no parseable sign-off while a plan_audit round was in flight; "
+              + "the closing two lines must be exactly LAUNCH then VERDICT"
+            ),
+          );
+        }
+        return "";
+      }
 
-    const plan = readGoalplan(cwd, state.slug);
-    if (!plan) return "";
-
-    // Find the round by its launch id before checking anything else. The sign-off
-    // names its own round, and looking it up first means every refusal below is
-    // about a round we can name — which is what makes it worth recording.
-    const round = roundByLaunchId(plan, "plan_audit", signoff.launchId);
-    if (!round) {
-      return note(
-        "review_signoff_ignored",
-        `${signoff.verdict} sign-off named launch ${signoff.launchId}, which belongs to no plan_audit round`,
-        signoff.launchId,
-      );
-    }
-
-    const ignore = (reason: string): string => {
-      // Diagnosis only. A reviewer answered and the verdict is not being taken;
-      // saying why is the difference between a closed gate and a silent one.
-      try {
-        appendGoalplanLedger(cwd, state.slug, {
+      const round = roundByLaunchId(plan, "plan_audit", signoff.launchId);
+      if (!round) {
+        return note(
+          "review_signoff_ignored",
+          `${signoff.verdict} sign-off named launch ${signoff.launchId}, which belongs to no plan_audit round`,
+          signoff.launchId,
+        );
+      }
+      const ignore = (reason: string): string => {
+        appendGoalplanLedger(cwd, state.slug!, {
           ts: new Date().toISOString(),
-          slug: state.slug,
+          slug: state.slug!,
           event: "review_signoff_ignored",
           detail: `${signoff.verdict} sign-off was not recorded: ${reason}`,
           roundId: round.roundId,
           launchId: signoff.launchId,
         });
-      } catch {
-        // FAIL-OPEN: a note that cannot be written must not break the child's exit
+        return "";
+      };
+      if (state.phase !== "A") return ignore("the session left A before the reviewer finished");
+      if (round.ownerSessionId !== sessionId) return ignore("the round belongs to another session");
+      if (round.planEpoch !== state.planEpoch) return ignore("the plan was re-planned after this round opened");
+      const agentId = payload.agent_id ?? "";
+      if (round.lane.reviewerSession !== undefined && round.lane.reviewerSession !== agentId) {
+        return ignore(`round ${round.roundId} was already signed by ${round.lane.reviewerSession}`);
       }
+      const activeWorkPhaseId = effectiveActiveWorkPhaseId(plan);
+      if (round.workPhaseId !== activeWorkPhaseId) {
+        return ignore(
+          `the round audited work-phase ${round.workPhaseId ?? "none"}, `
+            + `but ${activeWorkPhaseId ?? "none"} is active`,
+        );
+      }
+      const recorded = recordVerdict(plan, {
+        purpose: "plan_audit",
+        roundId: round.roundId,
+        launchId: signoff.launchId,
+        verdict: signoff.verdict,
+        reviewerSession: agentId,
+      });
+      if (recorded.kind !== "ok") {
+        return ignore("reason" in recorded ? recorded.reason : recorded.kind);
+      }
+      writeGoalplan(cwd, recorded.plan);
       return "";
-    };
-
-    if (state.phase !== "A") return ignore("the session left A before the reviewer finished");
-    if (round.ownerSessionId !== sessionId) return ignore("the round belongs to another session");
-    if (round.planEpoch !== state.planEpoch) return ignore("the plan was re-planned after this round opened");
-    // One round, one reviewer. The first sign-off binds the round to its agent
-    // id; a second child cannot overwrite that judgement (050 §3b). Child hooks
-    // share the parent session id, so this is the only check that separates two
-    // children of the same session.
-    const agentId = payload.agent_id ?? "";
-    const boundReviewer = round.lane.reviewerSession;
-    if (boundReviewer !== undefined && boundReviewer !== agentId) {
-      return ignore(`round ${round.roundId} was already signed by ${boundReviewer}`);
-    }
-    const activeWp = effectiveActiveWorkPhaseId(plan);
-    if (round.workPhaseId !== activeWp) {
-      return ignore(`the round audited work-phase ${round.workPhaseId ?? "none"}, but ${activeWp ?? "none"} is active`);
-    }
-
-    const result = recordVerdict(plan, {
-      purpose: "plan_audit",
-      roundId: round.roundId,
-      launchId: signoff.launchId,
-      verdict: signoff.verdict,
-      reviewerSession: agentId,
     });
-    if (result.kind !== "ok") {
-      return ignore("reason" in result ? result.reason : result.kind);
-    }
-    writeGoalplan(cwd, result.plan);
-    return "";
+    return locked.kind === "ok" ? locked.value : "";
   } catch {
     return ""; // FAIL-OPEN: never break a subagent's exit
   }
