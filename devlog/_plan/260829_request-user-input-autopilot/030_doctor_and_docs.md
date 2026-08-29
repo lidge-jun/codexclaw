@@ -113,3 +113,37 @@ c5를 이렇게 다시 쓴다: `npm test` 전체 통과 + `features` 체크 PASS
 승인하면 codexclaw가 첫 세션에서 선언된 플래그를 확인해 켜고, 도구 목록은 세션 시작
 시점에 확정되므로 질문선택지 UI는 그 다음 세션부터 나타난다. 이걸 안 쓰면 사용자가
 "깔았는데 안 뜬다"로 시간을 잃는다.
+
+## wp4 실행 기록
+
+### 구현된 것
+
+| 대상 | 내용 |
+|---|---|
+| `cxc-ops/src/doctor.ts` | `buildDeclaredFeaturesCheck` + `parseDoctorFeatures` + `DOCTOR_DECLARED_FEATURES`/`DOCTOR_SOFT_FEATURES`. 체크는 `checkPabcdHealth` 뒤 8b로 들어가고 주입된 `agRunner`를 재사용한다 |
+| `cxc-ops/test/doctor-features.test.ts` | 9개. severity 분기 3종, codex 미도달 2종(exit code / status null), 첫 필드 정확 매칭, 파싱 불가 토큰의 안전 기본값, 그리고 config-guard와의 어휘 드리프트 가드 |
+| `installation.md` | 트랙 1에 훅 승인 의존 + 다음 세션 반영 명시 |
+| `reference/commands.md` | `enable`/`disable`/`status` 세 줄 정정 |
+| `structure/INDEX.md` | self-heal 훅 행 추가 + 컴포넌트 서술에 두 어휘 경계 |
+| `managed-keys.ts`, `cli.ts` | 불변식 서술을 실제 동작에 맞게 좁힘 (SOT-SYNC-01) |
+
+### 감사에서 잡은 결함
+
+`cxc-ops.test.ts:111`의 healthy-report 픽스처 러너가 **인자를 무시하고** 항상 ast-grep
+출력을 반환했다. 새 체크가 그걸 features 목록으로 읽어 "전부 꺼짐"으로 판정했고
+healthy 단정이 FAIL로 깨졌다. 러너를 명령별 분기로 고쳤다.
+
+이건 새 체크가 잘못됐다는 신호가 아니라, 픽스처가 러너를 상수처럼 다뤄서 지금까지
+운이 좋았다는 신호다. `detectCodexVersion`도 같은 러너를 쓰는데 그 테스트들은
+`codexVersion`만 단정하고 overall은 보지 않아 드러나지 않았다.
+
+### c5 최종 판정
+
+정정된 기준대로 검증했다.
+
+| 항목 | 결과 |
+|---|---|
+| `npm test` | 2138 pass / 0 fail |
+| `features` 체크 | `[PASS] features: 4/4 declared flag(s) enabled` |
+| `hook-trust` | 23/23 trusted. wp3에서 새 훅이 FAIL을 냈고 `cxc hooks retrust`(updated=22 appended=1)로 해소했다 — 예고된 회귀였고 `[hooks.state.*]`를 위조하지 않았다 |
+| `cxc doctor` | overall PASS |

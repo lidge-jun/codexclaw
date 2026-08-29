@@ -108,11 +108,18 @@ test("doctor: healthy plugin root -> PASS with evidence on every check", () => {
   // a matching install root the honest answer is WARN, not PASS.
   mkdirSync(join(codexHome, "plugins", "cache", "fixture", "test", "0.0.1"), { recursive: true });
   // stub the ast-grep runner so the L22 check resolves PASS without a real sg.
-  const agRunner = (() => ({
-    status: 0,
-    stdout: "ast-grep binary: /stub/sg\n  version: ast-grep 0.44.0\n",
-    stderr: "",
-  })) as unknown as typeof import("node:child_process").spawnSync;
+  // It must answer per command now: the `features` check also shells out, and a runner
+  // that returned ast-grep text for every call made that check read as not-enabled.
+  const agRunner = ((cmd: string, args?: readonly string[]) => {
+    if (cmd === "codex" && args?.[0] === "features") {
+      return {
+        status: 0,
+        stdout: ["multi_agent  stable  true", "goals  stable  true", "hooks  stable  true", "default_mode_request_user_input  under-development  true"].join("\n"),
+        stderr: "",
+      };
+    }
+    return { status: 0, stdout: "ast-grep binary: /stub/sg\n  version: ast-grep 0.44.0\n", stderr: "" };
+  }) as unknown as typeof import("node:child_process").spawnSync;
   // Pin the WSL probes: run from a /mnt/c checkout inside WSL the state tree is
   // really on 9p, so an un-injected check would WARN here and the assertion below
   // would depend on which side of the platform boundary the tests were started.

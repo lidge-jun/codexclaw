@@ -27,8 +27,10 @@ const CONFIG_USAGE = [
   "  cxc config unset <table.key>             restore the value from before codexclaw set it",
   "  cxc config interview [off|new-unit|always]",
   "",
-  "Only whitelisted keys can be set; 'config list' shows them. Installation never",
-  "enables one on its own — that stays an explicit choice.",
+  "Only whitelisted keys can be set; 'config list' shows them. Installation never enables",
+  "one of THESE on its own — that stays an explicit choice. (Separate vocabulary: the",
+  "[features] flags codexclaw needs to run ARE turned on by install and by SessionStart",
+  "self-heal; see cxc doctor's `features` check.)",
 ].join("\n");
 
 function runConfig(argv                   , codexHome        )         {
