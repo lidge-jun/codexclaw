@@ -1517,3 +1517,63 @@ to clear the marker. Nothing was written.
 회귀 둘을 둔다. 하나는 `nextWorkPhaseId` 키가 없는 marker를 state에 심어 CLI가 code 1과 이 진단을 내고
 plan 바이트와 marker가 그대로인지 단언한다. 다른 하나는 `readStateStrict()`가 그 marker를 `legacy: true`로
 복원하고 새 형식 marker는 `legacy` 없이 복원하는지 본다.
+
+## 51. 라운드 22 — 완주한 successor는 잃어버린 successor가 아니다
+
+§50을 자체 검증하다 `successor_lost`가 만드는 영구 교착을 찾았다. marker가 지목한 successor가 자기
+cycle을 정상적으로 끝내 `done`이 되면, 남아 있던 marker의 재시도가 `not_runnable`로 막힌다. 탈출하려면
+완료된 work-phase를 `pending`으로 되돌리거나 marker를 버려야 한다.
+
+```text
+wp-1 close가 marker 정리 전에 죽었고, 그 사이 wp-2가 자기 cycle로 완주했다
+입력: wp-1=done, wp-2=done, 커서 null, marker의 successor=wp-2
+§50: successor_lost wp-2/not_runnable   <- 갇힌다
+정답: already_done                       <- 이 close는 실제로 끝났다
+```
+
+`done`은 "이 phase를 시작할 수 없다"가 아니라 "이미 시작했고 끝났다"는 뜻이다. marker가 그것을
+activate하려 했고 그 일은 벌어졌다. 그래서 활성화할 것이 남지 않았다고 보고 successor를 비운 뒤
+settled-shape 비교에 맡긴다. 그 비교가 `already_done`을 내며, 그것이 이 close의 진실이다.
+
+```ts
+    if (named.status === "done") {
+      next = undefined;
+    } else if (named.status !== "pending" && named.status !== "in_progress") {
+      return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
+    } else if (!workPhaseDependenciesMet(closedPlan, named)) {
+      return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
+    } else {
+      next = named;
+    }
+```
+
+marker가 대상 자신을 successor로 지목한 경우는 전용 가드로 먼저 잡는다. close는 자기가 방금 끝낸
+phase를 activate하지 않으므로 그런 marker는 손상된 것이다. 가드가 없으면 위 `done` 규칙이 그것을
+삼키고, 대상이 아직 열려 있는 경우에는 커서를 조용히 `null`로 만든다. 실측으로 두 경우 모두 확인했다.
+
+`blocked`와 `superseded`는 그대로 거부한다. 두 상태는 "시작한 적 없고 지금도 시작할 수 없다"이므로
+marker의 의도가 아직 이뤄지지 않았고, 사람이 plan을 고쳐야 한다.
+
+빈 문자열도 함께 막았다. `readStateStrict()`가 이미 `null`로 정규화하지만 손으로 쓴 state 파일이
+들어오면 `successorId`가 비어 있는 거부 문구가 나온다. helper에서 `null`과 같이 취급한다.
+
+실측으로 확인한 경계 일곱 가지다.
+
+| 입력 | 결과 |
+| --- | --- |
+| 빈 문자열 intent | successor 없음으로 취급 |
+| intent가 대상 자신, 대상 done | `successor_lost` `wp-1`/not_runnable — 전용 가드가 잡는다 |
+| intent가 대상 자신, 대상 open | 같음 |
+| 같은 id 중복, 앞이 blocked | `successor_lost`/not_runnable — 첫 일치만 본다 |
+| successor superseded | `successor_lost`/not_runnable |
+| successor done | `already_done` — §51 처분 |
+| 사람이 successor를 pending으로 복구 | `ok` — 거부에서 탈출 가능하다 |
+
+마지막 줄이 `successor_lost`가 진짜 교착이 아님을 보인다. `absent`는 phase를 다시 등록하면 풀리고,
+`not_runnable`은 `blocked`를 풀면, `dependencies_unmet`은 선행을 끝내면 풀린다. 세 경우 모두 사람이
+plan만 고치면 같은 D 요청으로 마칠 수 있고, 그것이 거부 문구가 안내하는 절차다.
+
+§50의 열두 경우와 4파일 `tests 162 / pass 162 / fail 0`도 그대로다.
+
+회귀 하나를 더 둔다. wp-1 marker가 남은 상태에서 wp-2를 정상 close한 뒤 그 marker로 재시도해 code 0과
+`already_done` 경로, 그리고 plan이 그대로임을 단언한다.
