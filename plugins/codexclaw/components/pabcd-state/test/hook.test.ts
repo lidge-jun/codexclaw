@@ -250,6 +250,7 @@ test("posix arming directive is byte-identical to its pinned snapshot", () => {
     "   gate runs, so omitting them is refused on every edge (ATTEST-SHAPE-01).",
     "   When a goalplan is bound, include the active workPhaseId in every gated attest",
     "   (one work-phase = one full PABCD cycle).",
+    "   Bound chat D-close requires workPhaseId as the fixed close target unless every work-phase is already done.",
     "5. After D closes to IDLE with work remaining under an active goal, immediately re-enter",
     "   with `cxc orchestrate P --session <id>` (LOOP-UNIT-CHAIN-01).",
     "Load and obey cxc-loop + cxc-pabcd when available. Work done outside the FSM does not",
@@ -660,7 +661,7 @@ test("chat D-close is refused while the work-phase has open tasks, and writes no
     writeState(cwd, { ...defaultState("chat-c"), phase: "C", slug, orchestrationActive: true, checkEpoch: "c-test", flags: { interview: false, auditPassed: true, checkPassed: true } });
     seedChatReceipt(cwd, "chat-c", "c-test");
 
-    const attest = JSON.stringify({ from: "C", to: "D", did: "ran the suite", checkOutput: "ok", exitCode: 0, testReceiptPath: ".codexclaw/evidence/chat-c/test-receipt.json" });
+    const attest = JSON.stringify({ from: "C", to: "D", did: "ran the suite", checkOutput: "ok", exitCode: 0, workPhaseId: "wp-1", testReceiptPath: ".codexclaw/evidence/chat-c/test-receipt.json" });
     const out = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, "chat-c", "t1"));
 
     assert.match(out, /refused/);
@@ -679,14 +680,14 @@ test("chat D-close succeeds once the tasks are done", () => {
     const plan = buildGoalplan({ objective: "chat cycle gate" });
     plan.slug = slug;
     plan.workPhases = [
-      { id: "wp-1", title: "first", status: "in_progress", tasks: [{ id: "t-1", title: "the work", status: "done" }], criteriaIds: [] },
+      { id: "wp-1", title: "first", status: "in_progress", tasks: [{ id: "t-1", title: "the work", status: "done", outcome: "focused tests passed" }], criteriaIds: [] },
     ];
     plan.activeWorkPhaseId = "wp-1";
     writeGoalplan(cwd, plan);
     writeState(cwd, { ...defaultState("chat-d"), phase: "C", slug, orchestrationActive: true, checkEpoch: "c-test", flags: { interview: false, auditPassed: true, checkPassed: true } });
     seedChatReceipt(cwd, "chat-d", "c-test");
 
-    const attest = JSON.stringify({ from: "C", to: "D", did: "ran the suite", checkOutput: "ok", exitCode: 0, testReceiptPath: ".codexclaw/evidence/chat-d/test-receipt.json" });
+    const attest = JSON.stringify({ from: "C", to: "D", did: "ran the suite", checkOutput: "ok", exitCode: 0, workPhaseId: "wp-1", testReceiptPath: ".codexclaw/evidence/chat-d/test-receipt.json" });
     const out = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, "chat-d", "t1"));
 
     assert.ok(!/refused/.test(out));
