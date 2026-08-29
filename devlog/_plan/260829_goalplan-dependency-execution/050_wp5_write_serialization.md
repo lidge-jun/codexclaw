@@ -4818,10 +4818,13 @@ set +e
 node_modules/.bin/tsc --noEmit --allowImportingTsExtensions --module nodenext \
   --target es2023 --moduleResolution nodenext --skipLibCheck --types node \
   "${roots[@]}" > "$tsc_log" 2>&1
+tsc_status=$?
 set -e
 
-# 빈 로그는 깨끗함이 아니라 실행 실패 신호다. 이 저장소에는 선행 진단이 있다.
-test -s "$tsc_log"
+# tsc가 실제로 실행됐는지는 종료 코드와 아래 양성 확인으로 판정한다. 빈 로그를 실패로
+# 삼지 않는다 — 선행 타입 오류가 모두 정리되면 정상 실행도 빈 로그를 낸다.
+# 2는 진단 있음, 0은 진단 없음이다. 그 밖의 값은 실행 자체가 실패한 것이다.
+test "$tsc_status" -eq 0 -o "$tsc_status" -eq 2
 
 # 컴파일러 bootstrap 실패는 즉시 실패시킨다. TS2688 이후 의미 분석이 중단되므로
 # 미해석 식별자 계수가 0이 되어 게이트가 통과해버린다. 실측으로 재현했다.
@@ -4865,6 +4868,10 @@ bootstrap 실패도 같은 방식으로 확인했다. 계획서의 게이트 블
 해석을 깨면 exit 1, module-private 이름을 named import해 `TS2459`를 하나 더 만들면 exit 1,
 잘못된 플래그도 exit 1이며 복원 뒤 다시 exit 0이다. 추출한 스크립트에서 root 개수 기대값만
 114로 낮춰 실행했다 — 115는 wp5가 신규 concurrency 테스트를 더한 뒤의 수다.
+
+`tsc` 종료 코드도 실측했다. 잘못된 플래그는 1, 진단이 있는 정상 실행은 2다. 그래서 0 또는 2만
+허용한다. 빈 로그를 실패로 삼는 초안은 선행 타입 오류가 모두 정리되는 날 정상 실행을 거부하게
+되므로 쓰지 않는다.
 
 이 게이트는 미해석 식별자만 본다. 타입 호환성, signature 불일치, 논리 오류는 잡지 않는다.
 그 부류는 focused suite와 `npm test`가 맡는다.
