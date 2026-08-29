@@ -4782,6 +4782,15 @@ typecheck script도 tsconfig도 없지만 `node_modules/.bin/tsc` 5.9.3이 이�
 자체가 실패한 경우를 똑같이 0으로 접는다. 잘못된 플래그, glob 실패, binary 부재가 모두 통과한다.
 실측으로 확인했다. 그래서 실행과 계수를 분리하고 invocation 오류를 먼저 거른다.
 
+`@types/node`도 같은 부류의 함정이다. 이 저장소의 `node_modules`에는 `@types/node`가 없고
+`devDependencies`도 비어 있어, 지금 해석되는 경로는 상위 디렉터리
+`/Users/jun/Developer/new/node_modules/@types/node`다. 저장소 밖에 있으므로 clean clone이나
+CI에서는 없을 수 있다. 그 상태에서 `--types node`는 `TS2688`을 내고 의미 분석이 중단되며,
+미해석 식별자 계수는 0이 되어 게이트가 통과한다. 실측으로 재현했다. 그래서 `TS2688`을 실패
+조건에 넣고, `--listFilesOnly` 출력에 `@types/node/index.d.ts`가 실제로 있는지 양성 확인한다.
+wp5는 `package.json`을 수정하지 않는다 — 그 파일은 이 작업 범위 밖이고 다른 작업과 겹친다.
+게이트가 부재를 소리내어 실패하게 만드는 것으로 충분하다.
+
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
@@ -4814,14 +4823,18 @@ set -e
 # 빈 로그는 깨끗함이 아니라 실행 실패 신호다. 이 저장소에는 선행 진단이 있다.
 test -s "$tsc_log"
 
-# invocation·root-file 오류는 즉시 실패시킨다.
-! rg -q 'TS5023|TS5024|TS5025|TS6046|TS6053|TS18003|TS6231' "$tsc_log"
+# 컴파일러 bootstrap 실패는 즉시 실패시킨다. TS2688 이후 의미 분석이 중단되므로
+# 미해석 식별자 계수가 0이 되어 게이트가 통과해버린다. 실측으로 재현했다.
+! rg -q 'TS2688|TS6231|TS5023|TS5024|TS5025|TS6046|TS6053|TS18003' "$tsc_log"
 
-# 지정한 root가 실제로 분석되었는지 확인한다.
+# node 타입이 실제로 해석되었는지 양성 확인. `--types node`만 주면 해석 실패도 조용하다.
 listed="$gate_tmp/listed.txt"
 node_modules/.bin/tsc --noEmit --allowImportingTsExtensions --module nodenext \
   --target es2023 --moduleResolution nodenext --skipLibCheck --types node \
   --listFilesOnly "${roots[@]}" > "$listed" 2>&1
+rg -q '@types/node/index\.d\.ts' "$listed"
+
+# 지정한 root가 실제로 분석되었는지 확인한다.
 for root in "${roots[@]}"; do
   rg -qF "$root" "$listed" || { echo "root not analyzed: $root" >&2; exit 1; }
 done
@@ -4846,6 +4859,12 @@ rg -q 'src/interview-policy\.ts\(25,15\): error TS2459' "$tsc_log"
 경로 부재, type-only import의 잘못된 모듈 경로(`TS2307`), 추가 `TS2459` 주입 네 건 모두
 exit 1이며 복원 뒤 다시 exit 0이다. 옛 `|| echo 0` 형태는 앞의 두 건을 모두 0으로 접어
 통과시켰다.
+
+bootstrap 실패도 같은 방식으로 확인했다. 계획서의 게이트 블록을 문서에서 그대로 추출해
+실행하면 깨끗한 checkout에서 exit 0이고, `--typeRoots`를 없는 경로로 돌려 `@types/node`
+해석을 깨면 exit 1, module-private 이름을 named import해 `TS2459`를 하나 더 만들면 exit 1,
+잘못된 플래그도 exit 1이며 복원 뒤 다시 exit 0이다. 추출한 스크립트에서 root 개수 기대값만
+114로 낮춰 실행했다 — 115는 wp5가 신규 concurrency 테스트를 더한 뒤의 수다.
 
 이 게이트는 미해석 식별자만 본다. 타입 호환성, signature 불일치, 논리 오류는 잡지 않는다.
 그 부류는 focused suite와 `npm test`가 맡는다.
