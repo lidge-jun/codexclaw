@@ -1599,6 +1599,13 @@ plan만 고치면 같은 D 요청으로 마칠 수 있고, 그것이 거부 문�
 고치면 풀리지만 이 경우는 marker 자체가 틀렸으므로 "그 work-phase를 복구하라"는 안내가 성립하지 않는다.
 전용 사유 `corrupt`를 두어 reset을 가리키게 한다.
 
+`done` successor를 통과시키면 원장이 빠지지 않는지도 확인했다. `already_done`은 plan write만 생략하고
+뒤이은 `hasGoalplanRow` 가드가 `closed wp-1`을 채우며, 최종화 락 안의 `hasPabcdCloseRow` 가드가 PABCD
+close 행을 채운다. `started` 행의 대상은 지속된 커서에서 온다 — 그것이 옳다. 이 close가 실제로 활성화한
+phase가 그 뒤 자기 cycle을 끝냈다면 커서는 이미 넘어갔고 그 phase의 `started` 행은 그것을 실행한
+cycle이 이미 남겼다. 두 가드가 어느 경우든 멱등이다. 회귀에서 `closed wp-1` 1건, `started wp-2` 1건,
+`closedWorkPhaseId: "wp-1"`인 PABCD 행 1건을 모두 단언한다.
+
 회귀 둘을 더 둔다. 하나는 `nextWorkPhaseId`가 숫자인 marker를 심어 `readStateStrict()`가 `legacy: true`로
 복원하고 CLI가 아무 write 없이 거부하는지 본다. 다른 하나는 self-successor marker에서 거부 문구가
 `--session`을 포함한 reset을 안내하는지 단언한다.

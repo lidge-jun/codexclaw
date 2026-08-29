@@ -1298,6 +1298,11 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
             detail: `closed ${closePhaseId}`,
           });
         }
+        // §51: on `already_done` this is the persisted cursor, not a value this retry
+        // computed. That is the right source: the close it is resuming did activate a
+        // successor, and if that phase has since finished its own cycle the cursor has
+        // moved on and its `started` row was already written by the cycle that ran it.
+        // The hasGoalplanRow guards below make either case idempotent.
         const startedId = closedPlan.activeWorkPhaseId;
         if (startedId && !hasGoalplanRow(args.cwd, slug, "workphase_started", `started ${startedId}`)) {
           appendGoalplanLedger(args.cwd, slug, {
@@ -3798,6 +3803,24 @@ test("recovery settles when the recorded successor already finished its own cycl
       .filter((row) => row.event === "workphase_started")
       .map((row) => row.detail),
     ["started wp-2"],
+  );
+  // The point of resuming at all: the rows this interrupted close still owed are
+  // written even though no plan write was needed. Without them the ledger would say
+  // wp-1 never closed while the plan says it did.
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_done")
+      .map((row) => row.detail),
+    ["closed wp-1"],
+  );
+  assert.equal(
+    readFileSync(join(cwd, STATE_DIR, LEDGER_FILE), "utf8")
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((row) => row.sessionId === id && row.from === "C" && row.to === "IDLE"
+        && row.closedWorkPhaseId === "wp-1").length,
+    1,
   );
 });
 test("recovery is refused when the marker predates the successor field", () => {
