@@ -1079,3 +1079,33 @@ if (current.status === "done" && plan.activeWorkPhaseId !== workPhaseId) {
 
 회귀는 두 표면 각각에 plan commit 뒤 crash를 주입하고, done인 `wp-1`에 pending task를 넣은 뒤
 재시도가 `tasks_pending`으로 거부되고 marker가 남는지 단언한다.
+
+## 44. 라운드 15 — commit은 plan 전체 모양으로 판정한다
+
+§43은 호출자에게서 판정을 빼앗아 helper로 옮겼다. 그런데 helper의 `already_done` 조건이 여전히
+`done` + 커서 이동 두 개뿐이었다. 손편집으로 둘을 함께 만들면 위조된다.
+
+```text
+wp-1.status = done
+activeWorkPhaseId = wp-2
+wp-2.status = pending      <- 활성화되지 않았다
+```
+
+이 상태에서 `already_done`을 답하면 `started wp-2` 행을 기록하는데 plan의 `wp-2`는 pending이다.
+커서를 `null`로 바꾸면 successor 활성화와 `workphase_started` 행이 함께 사라지고, 다른 phase를
+가리키면 엉뚱한 phase가 started로 기록된다.
+
+처분: **완료된 close가 남기는 모양 전체와 대조한다.** 정상 close 뒤 plan은 둘 중 하나다.
+
+- 커서가 대상이 아닌 `in_progress` phase를 가리킨다
+- 남은 runnable pending phase가 없어 커서가 `null`이다
+
+두 모양 중 하나에 정확히 맞을 때만 `already_done`이다. 아니면 아래 변환으로 떨어져 정상 close와
+같은 after-then-wrap으로 커서와 successor를 다시 세운다.
+
+감사관이 지적한 재적용 위험도 이 판정으로 닫힌다. 정상 commit된 plan은 `settled`가 참이라 변환에
+도달하지 않으므로, `in_progress` successor를 pending 후보로 찾지 못해 커서가 `null`이 되는 경로가
+생기지 않는다. 위조된 모양만 변환을 타며 그때 커서 복구가 정확히 필요한 동작이다.
+
+회귀는 marker 직후 crash 뒤 `wp-1=done`·커서 `wp-2`·`wp-2=pending`으로 손편집하고, 재시도가
+`wp-2`를 `in_progress`로 만들고 `started wp-2` 행이 실제 활성화와 일치하는지 단언한다.

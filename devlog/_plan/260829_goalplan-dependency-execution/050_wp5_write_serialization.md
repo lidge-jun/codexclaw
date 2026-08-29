@@ -143,6 +143,7 @@ block으로 바꾸면 같은 실패가 끝없이 다시 실행될 수 있다.
 | MODIFY | `plugins/codexclaw/components/pabcd-state/test/state.test.ts` | persisted shape와 marker 복원 회귀 |
 | MODIFY | `plugins/codexclaw/components/pabcd-state/test/orchestrate-apply.test.ts` | IDLE+marker reset 회귀 |
 | MODIFY | `plugins/codexclaw/test/hook-e2e.test.mjs` | compiled SessionStart persisted state exact shape에 recovery 기본값 반영 |
+| NEW | `plugins/codexclaw/components/pabcd-state/test/fixtures/tsc-diagnostic-baseline.txt` | §10.7 미해석 식별자 게이트의 선행 진단 fingerprint 정본 |
 
 `goalplan-cli.ts`, `goal-gate.ts`, `atomic-write.ts`, `skills/loop/SKILL.md`는 wp5에서 수정하지 않는다.
 `skills/loop/SKILL.md` 변경은 wp6 소유다. wp6이 lifecycle과 의존 등록 표면을 추가할 때
@@ -475,11 +476,26 @@ export function closeFixedWorkPhase(
   const pending = current.tasks.filter((task) => task.status !== "done");
   if (pending.length > 0) return { kind: "tasks_pending", workPhaseId, pending };
 
-  // §43: only NOW is it safe to say a done target needs no write. Callers used to
-  // make that call themselves from status alone, which skipped all three gates
-  // above — a pending task added to an already-closed phase went unnoticed.
-  if (current.status === "done" && plan.activeWorkPhaseId !== workPhaseId) {
-    return { kind: "already_done" };
+  // §43/§44: only NOW is it safe to ask whether a write is still needed, and the
+  // answer is yes unless the plan ALREADY matches a completed close. Status plus a
+  // moved cursor is not enough: a hand edit can set the target done and point the
+  // cursor at a phase that is still pending, which would log `started <successor>`
+  // for a phase nobody activated. A finished close always leaves the cursor on an
+  // in_progress phase, or null when nothing runnable is left.
+  if (current.status === "done") {
+    const cursor = plan.activeWorkPhaseId;
+    const cursorPhase = cursor === null
+      ? null
+      : plan.workPhases.find((wp) => wp.id === cursor) ?? null;
+    const settled = cursor === null
+      ? !plan.workPhases.some(
+          (wp) => wp.status === "pending" && workPhaseDependenciesMet(plan, wp),
+        )
+      : cursor !== workPhaseId && cursorPhase?.status === "in_progress";
+    // A settled plan needs no write. Anything else falls through to the
+    // transformation below, which repairs the cursor the same way a normal close
+    // would have set it.
+    if (settled) return { kind: "already_done" };
   }
 
   const closedWorkPhases = plan.workPhases.map((wp) =>
@@ -3224,6 +3240,50 @@ test("recovery is refused when a pending task is hidden under the already-closed
   assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
 });
 
+test("recovery repairs a forged cursor that points at a phase nobody activated", () => {
+  // §44: status done plus a moved cursor is forgeable by hand. If the cursor names a
+  // phase that is still pending, answering already_done would log `started wp-2` for
+  // a phase no one activated. The settled test compares the whole post-close shape,
+  // so this falls through and the transformation rebuilds the cursor.
+  const cwd = boundCwd();
+  const id = "recovery-forged-cursor";
+  const slug = "recovery-forged-cursor-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+
+  // Both halves of the old commit test, forged: target done, cursor moved, but the
+  // phase it names was never activated.
+  const plan = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...plan,
+    activeWorkPhaseId: "wp-2",
+    workPhases: plan.workPhases.map((wp) =>
+      wp.id === "wp-1" ? { ...wp, status: "done" as const } : wp
+    ),
+  });
+  assert.equal(readGoalplan(cwd, slug)!.workPhases.find((wp) => wp.id === "wp-2")!.status, "pending");
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  // The successor is genuinely activated, so the started row tells the truth.
+  assertOnlyFirstPhaseClosed(cwd, slug);
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_started").map((row) => row.detail),
+    ["started wp-2"],
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+
 test("recovery re-runs the close when only the target status was edited to done", () => {
   // §42: `done` alone is not proof the plan commit landed. A status-only edit leaves
   // the cursor on wp-1, so treating `done` as committed would skip the helper and
@@ -4731,20 +4791,20 @@ scenario_arity="$(
 test "$scenario_arity" -eq 3
 scenario_extra_cases=$((scenario_arity - 1))
 
-test "$added_existing_declarations" -eq 42
+test "$added_existing_declarations" -eq 43
 test "$new_file_declarations" -eq 6
 test "$parameterized_extra_cases" -eq 1
 test "$removed_declarations" -eq 5
 
 new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases + scenario_extra_cases))
 net_case_count=$((new_case_count - removed_declarations))
-test "$new_case_count" -eq 51
-test "$net_case_count" -eq 46
+test "$new_case_count" -eq 52
+test "$net_case_count" -eq 47
 
 focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
 focused_case_count=$((focused_declaration_count + parameterized_extra_cases + scenario_extra_cases))
-test "$focused_declaration_count" -eq 235
-test "$focused_case_count" -eq 238
+test "$focused_declaration_count" -eq 236
+test "$focused_case_count" -eq 239
 
 # 산술 기대값과 실제 등록 수를 대조한다. 이것이 없으면 케이스 하나가 누락된 채
 # 남은 전부가 통과해도 node가 exit 0을 내어 false-green이 된다.
@@ -4763,12 +4823,12 @@ test "$(rg -o '^. fail (\d+)$' -r '$1' "$focused_log" | tail -1)" -eq 0
 
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
-- 기존 파일 추가 선언 42개, 신규 파일 선언 6개
+- 기존 파일 추가 선언 43개, 신규 파일 선언 6개
 - 삭제 5개의 출처는 §8.2의 held-lock·release 2개와 §8.2.1의 drvfs·9p·native 3개다
 - 두 입력을 도는 parameterized 선언의 추가 등록 1개, scenario 배열 원소 3개에서 나오는 추가 등록 2개
-- 계획된 신규 케이스 51개, 삭제 5개, 순증 46개
-- 구현 뒤 선언 235개, 실제 focused 등록 238개
-- node test exit 0, tests 238, pass 238, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
+- 계획된 신규 케이스 52개, 삭제 5개, 순증 47개
+- 구현 뒤 선언 236개, 실제 focused 등록 239개
+- node test exit 0, tests 239, pass 239, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
 
 락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
 CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
@@ -4806,7 +4866,7 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값은 exit 0, tests 2213, pass 2213, fail 0이다. 기존 2167건과 wp5 순증 46건을 모두 실행하며,
+기대값은 exit 0, tests 2214, pass 2214, fail 0이다. 기존 2167건과 wp5 순증 47건을 모두 실행하며,
 루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
 
 ### 10.4 저장소 gate
