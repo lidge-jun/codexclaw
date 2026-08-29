@@ -2002,3 +2002,24 @@ plan:   wp-1=done, wp-2=done, wp-3=in_progress(dependsOn wp-4), wp-4=pending, �
 
 회귀 하나를 더 둔다. 대상과 successor가 모두 done이고 커서가 의존 미충족 phase를 가리키는 plan에서
 커서가 `null`로 정규화되고 그 phase의 status는 `in_progress`로 남는지 단언한다.
+
+## 57. B 구현 중 발견 — §9 소유 표가 놓친 문구 하나
+
+`steering.ts`를 공통 락으로 옮기면서 §9 표에 없는 기존 단언이 하나 깨졌다. `steering.test.ts`의
+`an unbound slug is refused before anything is touched`가 `/no goalplan found/`를 기다리는데, 그
+문구는 삭제한 `existsSync` preflight에서만 나왔다. 공통 락은 같은 상황을
+`goalplan '<slug>' does not exist`라는 `unreadable` 사유로 답하고, §6.2의 교체 코드는 그것을
+`is unusable - ...`로 감싼다.
+
+`existsSync` preflight를 되살리지 않고 락의 절대 사유를 원래 문구로 매핑했다. 락이 이미 파일 존재를
+판정하므로 검사를 두 번 하지 않고, 사용자가 보는 문구는 그대로다.
+
+```ts
+    if (locked.reason === `goalplan '${slug}' does not exist`) {
+      return { kind: "rejected", reason: `no goalplan found at slug '${slug}'` };
+    }
+```
+
+§9 표에 `no goalplan found` 행이 없었다는 것이 이 발견의 요지다. 문자열 소유 표는 새로 만드는 문구를
+다 적었지만, 삭제하는 코드가 내던 문구를 빠뜨렸다. 나머지 소스 파일에서도 같은 종류를 찾으려면 지우는
+블록의 출력 문구를 먼저 grep해야 한다.

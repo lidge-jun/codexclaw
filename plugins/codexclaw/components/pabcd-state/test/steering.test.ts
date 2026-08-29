@@ -156,25 +156,44 @@ test("an empty ops array is rejected", () => {
   assert.match((r as { reason: string }).reason, /non-empty array/);
 });
 
-test("a held lock blocks the batch and names the owner", () => {
+test("a held common lock blocks the batch and preserves plan and ledger bytes", () => {
   const cwd = workspace();
-  const lock = join(goalplanDir(cwd, SLUG), ".steer.lock");
-  mkdirSync(lock, { recursive: true });
-  writeFileSync(join(lock, "owner.json"), JSON.stringify({ pid: 4242, acquiredAt: "2026-01-01T00:00:00.000Z" }));
-  const r = applySteeringBatch(cwd, SLUG, batch());
-  assert.equal(r.kind, "locked");
-  assert.match((r as { reason: string }).reason, /4242/);
-  assert.match((r as { reason: string }).reason, /\.steer\.lock/);
-  assert.equal(readGoalplan(cwd, SLUG)?.steeringLog, undefined);
+  const lock = join(goalplanDir(cwd, SLUG), ".goalplan.lock");
+  mkdirSync(lock, { recursive: false });
+  writeFileSync(
+    join(lock, "owner.json"),
+    `${JSON.stringify({ pid: 4242, acquiredAt: "2026-08-29T00:00:00.000Z" })}\n`,
+  );
+  const planPath = join(goalplanDir(cwd, SLUG), "goalplan.json");
+  const beforePlan = readFileSync(planPath, "utf8");
+  const beforeLedger = ledgerText(cwd);
+
+  const result = applySteeringBatch(cwd, SLUG, batch(), {
+    lock: { retryDelaysMs: [], sleep: () => assert.fail("no sleep is configured") },
+  });
+
+  assert.equal(result.kind, "locked");
+  assert.match(result.kind === "locked" ? result.reason : "", /4242/);
+  assert.match(result.kind === "locked" ? result.reason : "", /\.goalplan\.lock/);
+  assert.equal(readFileSync(planPath, "utf8"), beforePlan);
+  assert.equal(ledgerText(cwd), beforeLedger);
 });
 
-test("the lock is released on success and on rejection", () => {
+test("the common lock is released after an applied or rejected batch", () => {
   const cwd = workspace();
-  const lock = join(goalplanDir(cwd, SLUG), ".steer.lock");
-  applySteeringBatch(cwd, SLUG, batch());
-  assert.equal(existsSync(lock), false, "released after success");
-  applySteeringBatch(cwd, SLUG, batch({ idempotencyKey: "k2", ops: [{ kind: "nope" }] }));
-  assert.equal(existsSync(lock), false, "released after rejection");
+  const lock = join(goalplanDir(cwd, SLUG), ".goalplan.lock");
+
+  const appliedResult = applySteeringBatch(cwd, SLUG, batch());
+  assert.equal(appliedResult.kind, "applied");
+  assert.equal(existsSync(lock), false);
+
+  const rejectedResult = applySteeringBatch(
+    cwd,
+    SLUG,
+    batch({ idempotencyKey: "k2", ops: [{ kind: "nope" }] }),
+  );
+  assert.equal(rejectedResult.kind, "rejected");
+  assert.equal(existsSync(lock), false);
 });
 
 test("a failed ledger append still succeeds, with a warning and the entry intact", () => {
