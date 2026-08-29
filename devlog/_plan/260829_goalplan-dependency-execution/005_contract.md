@@ -1860,6 +1860,16 @@ next = closedWorkPhases.find(
 | `in_progress`, 커서가 그것을 가리킴 | `cleanup` |
 | `in_progress`, 커서가 다름 | `activate` — 커서만 복구, status는 그대로 |
 
+보존하는 커서에 readiness 검사를 걸지 않는 이유도 실측으로 확인했다. 그 phase가 의존 미충족인 채
+`in_progress`일 수 있는데, 그것은 이 close가 만든 상태가 아니라 이미 존재하던 상태다. 커서를 지우면
+진행을 끊는 §54의 원래 결함으로 되돌아가고, 거부하면 이 close와 무관한 이유로 재개가 막힌다. 실행
+중인 phase를 멈추는 것은 재개의 일이 아니므로 커서를 그대로 둔다. 대상에 의존하던 phase는 이 close가
+대상을 닫으면서 의존이 충족되므로 애초에 문제가 아니다.
+
+`activate`가 status를 바꾸지 않고 커서만 옮기는 것도 무결성과 충돌하지 않는다. 커서 `null`에 running
+phase가 있는 plan과 커서를 그 phase로 옮긴 plan 모두 `goalplanDefinitionIntegrityReasons()`가 빈
+배열을 낸다. 두 상태가 다 유효하고, 후자가 실제 진행을 정직하게 반영한다.
+
 §50~§53의 경계와 4파일 `tests 162 / pass 162 / fail 0`이 유지된다.
 
 회귀 둘을 더 둔다. 대상이 열려 있고 successor가 끝났으며 커서가 진행 중인 phase를 가리키는 plan에서
