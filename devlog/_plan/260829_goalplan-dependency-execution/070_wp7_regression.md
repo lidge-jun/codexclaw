@@ -163,7 +163,9 @@ wp2 생성기는 각 비식별 plan을 임시 디렉터리에 쓴 뒤 parser 결
 ### 3.2 기존 baseline JSON shape·privacy gate
 
 wp7은 wp2가 체크인한 `test/fixtures/goalplans-pre-change-baseline.json`을 읽는다. 수동 축약본이나
-새 parser로 다시 만든 baseline은 받지 않는다. 아래 gate를 먼저 실행한다.
+새 parser로 다시 만든 baseline은 받지 않는다. 아래 gate를 먼저 실행한다. import 경로가 `./plugins/...`로
+시작하므로 **저장소 루트**에서 실행한다 — 컴포넌트 디렉터리에서 돌리면 경로가 겹쳐 `ERR_MODULE_NOT_FOUND`가
+난다(라운드 2 실측).
 
 ```bash
 node --input-type=module <<'NODE'
@@ -195,9 +197,15 @@ collectStrings(snapshot);
 // "UUID 형태"이고 특정 버전이 아니다.
 // absolutePath — ^ 앵커는 값 선두만 본다. collectStrings()가 문자열 전체를 하나로 넘기므로
 // objective나 detail 안에 박힌 경로는 선두가 아니다.
+// 라운드 2: \s 경계만으로는 괄호·인용부호·콜론 뒤 경로를 놓쳤다. 실측 false 3건 —
+// "detail (/Users/jun/private)", 'path="/Users/jun/private/x"', "['/Users/jun/x/y']".
+// 반대로 "/v1/goalplans"와 "https://example.test/v1/goalplans"를 경로로 오탐했다. 경계 문자 집합을
+// 넓히고 API version segment를 negative lookahead로 뺀다. 실측: 9종 경로 전부 true, 11종 비경로
+// (URL·api 경로·enum·alias·"wp-live/ready"·ISO 시각) 전부 false, 실제 fixture 16428 문자열 0건.
 // sha1 — \b{40}\b는 64자 sha256을 놓친다. fixture 키에 planSha256과 sha256이 실재한다.
 const uuid = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
-const absolutePath = /(?:^|\s)\/[A-Za-z0-9._-]+\/|[A-Za-z]:[\\/]/;
+const absolutePath =
+  /(?:^|[\s("'`=,:[])(?:\/(?!(?:v\d+|api)(?:\/|$))[A-Za-z0-9._-]+\/|[A-Za-z]:[\\/])/;
 const hash = /\b[0-9a-f]{32,}\b/i;
 if (strings.some((value) => uuid.test(value))) process.exit(9);
 if (strings.some((value) => absolutePath.test(value))) process.exit(10);
@@ -313,10 +321,13 @@ test("wp7 corpus keeps the pre-change parser result set", () => {
   // 채로 동등해진다. 감사관이 legacy 1건만 남기고 재번호한 baseline에서 3건 전부 통과를 실측했다.
   // 개수를 박지 않고 하한만 둔다 — corpus가 정상 항목을 하나도 안 갖는 상태는 회귀 대상이 아니라
   // baseline이 망가진 상태다.
+  // 라운드 2: sourceClass만 보는 하한은 manifest 전부를 invalid-shape로 바꾼 변이를 통과시켰다.
+  // 실측 출력 {"allInvalidWithNormalAndLegacy":"pass","parsed":0}. parsed와 normal을 한 항목에서
+  // 함께 요구하면 그 변이가 RED가 된다. 실제 fixture에 normal+parsed 쌍이 90건이라 하한은 넉넉하다.
   assert.ok(snapshot.manifest.length > 1, JSON.stringify({ manifest: snapshot.manifest.length }));
   assert.ok(
-    snapshot.manifest.some((entry) => entry.sourceClass === "normal"),
-    "corpus must keep at least one normal fixture",
+    snapshot.manifest.some((entry) => entry.sourceClass === "normal" && entry.expected.kind === "parsed"),
+    "corpus must keep at least one parsed normal fixture",
   );
   const cwd = mkdtempSync(join(tmpdir(), "codexclaw-goalplan-regression-"));
   try {
@@ -744,8 +755,18 @@ test("wp7 preservation: review observer verdict keeps dependsOn and outcome", ()
 
 Stop 최종 문자열과 그 단언은 §33 N6에 따라 wp6만 소유한다. wp7은 테스트를 새로 추가하거나 정규식을
 느슨하게 다시 쓰지 않는다. wp6의 `wp6: Stop reason lists ready work and partial dependency waits
-together`를 아래에 발췌하고 §7.2에서 재실행한다. 정본은 `test/hook-continuation.test.ts`의 현재 본문이며,
-발췌와 어긋나면 소유 파일이 이긴다.
+together`를 아래에 발췌하고 §7.2에서 재실행한다. 정본은 `test/hook-continuation.test.ts:1157~1216`의
+현재 본문이며, 발췌와 어긋나면 소유 파일이 이긴다.
+
+라운드 2 실측에서 이 블록이 소유 파일보다 7줄 짧았다 — `readStopWorkContext()`의 `waitingOn`
+`deepEqual` 구역이 빠져 있었다. 그 구역이 helper 반환값을 고정하고 뒤따르는 `handleStop` 단언이 렌더까지
+확인하는 이중 구조인데, 발췌만 보면 helper 단언이 없는 것처럼 읽혔다. 지금 블록은 소유 파일과 byte 동일
+60줄이다. 아래 명령이 그것을 확인한다.
+
+```bash
+pab=plugins/codexclaw/components/pabcd-state
+sed -n '1157,1216p' "$pab"/test/hook-continuation.test.ts | shasum -a 256
+```
 
 ```ts
 test("wp6: Stop reason lists ready work and partial dependency waits together", () => {
@@ -784,6 +805,13 @@ test("wp6: Stop reason lists ready work and partial dependency waits together", 
         lastInjectedPhase: "B",
         slug: plan.slug,
       });
+
+      const context = readStopWorkContext(cwd, readState(cwd, "wp6-ready"));
+      assert.ok(context);
+      assert.deepEqual(context.waitingOn, [
+        "task wp-live/blocked waits for task wp-live/later (pending)",
+        "work-phase wp-blocked waits for work-phase wp-live (in_progress)",
+      ]);
 
       const output = handleStop(stop(cwd, "wp6-ready"));
       assert.notEqual(output, "");
@@ -1161,7 +1189,7 @@ rg -n --fixed-strings \
 
 | 출력 문자열 | 기존 테스트 검색 결과 | wp7 처분 |
 | --- | --- | --- |
-| `Dependency deadlock: work-phase wp-1 is blocked` | wp4가 갱신을 이미 완료했다. wp7 P 실측: `:927`이 이 문구를 `assert.match`로 기다리고, `/blocked or superseded/`를 담은 세 곳(`hook.test.ts:982`·`:1028`, `orchestrate-cli.test.ts:879`)은 전부 `doesNotMatch`다 | 갱신할 assert가 없다. wp7은 새 문구가 유지되는지 집중 suite로 재검증만 한다 |
+| `Dependency deadlock: work-phase wp-1 is blocked` | wp4가 갱신을 이미 완료했다. wp7 A 라운드 2 실측: `orchestrate-cli.test.ts:927`이 이 문구를 `assert.match`로 기다리고, `/blocked or superseded/`를 담은 세 곳(`hook.test.ts:982`·`:1028`, `orchestrate-cli.test.ts:879`)은 전부 `doesNotMatch`다. 라운드 1까지 이 칸은 `:927`의 소유 파일을 적지 않아 앞의 `hook.test.ts`에 딸린 좌표로 읽혔다 | 갱신할 assert가 없다. wp7은 새 문구가 유지되는지 집중 suite로 재검증만 한다 |
 | `Ready work phases:`, `Ready tasks:`, `Waiting on:` | 변경 전 literal assert 없음 | wp6 소유 Stop 회귀가 `Ready work phases: wp-live (Live)`, `Ready tasks: wp-live/ready (Ready task); wp-live/later (Later task)`, 두 helper 사유가 이어진 `Waiting on:`을 고정한다. wp7은 §4.6에서 인용하고 재실행한다. |
 | `cxc loop show`의 락 경로·나이 label | 기존 literal assert 없음. wp7 P 실측: `rg -c writeLock test/`가 0건이다 — wp6은 이 회귀를 만들지 않았다 | **wp7이 직접 만든다.** 인수 대상이 없으므로 §4.7로 신설한다. 있는 것은 `goalplan-concurrency.test.ts:359`·`:373`의 helper 직접 호출뿐이고, §6이 금지한 바로 그 형태다 |
 
