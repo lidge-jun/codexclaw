@@ -732,7 +732,8 @@ open 직후와 abort 직후를 따로 읽는다. `review-round-cli.ts:237`에서
 
 ### 4.5 MODIFY — `test/review-binding.test.ts`: observer verdict
 
-§4.4와 같은 파일이다. helper와 import는 §4.4에서 이미 놓았으므로 다시 놓지 않는다.
+§4.4와 같은 파일이다. helper와 import는 §4.4에서 이미 놓았으므로 다시 놓지 않는다. 다만 §5 helper
+자체는 이 파일에 **반드시** 있어야 한다 — 이 섹션의 테스트가 `taskFields()`를 호출한다.
 
 before:
 
@@ -968,9 +969,14 @@ import 추가는 `goalplanWriteLockDir`, `goalplanWriteLockStatus`, `mkdirSync`,
 
 `expectedTaskFields`와 `taskFields()`는 각 test file 상단 helper 구역에 같은 내용으로 둔다. 별도
 production helper를 만들지 않는다. 아래 블록은 §4 머리의 블록과 byte 동일하다(라운드 2에서 두 사본의
-서명이 어긋난 것을 고쳤다). 파일은 네 개가 아니라 **세 개**다 — `review-binding.test.ts`는 §4.4와 §4.5가
-같은 파일을 쓰므로 helper를 한 번만 놓는다. 나머지는 `orchestrate-cli.test.ts`, `hook.test.ts`,
-`steering.test.ts`다.
+서명이 어긋난 것을 고쳤다). 파일은 네 개다 — `orchestrate-cli.test.ts`, `hook.test.ts`,
+`steering.test.ts`, `review-binding.test.ts`. 마지막 파일은 §4.4와 §4.5가 같은 파일을 쓰므로 helper를
+**한 번만** 놓는다. 섹션은 다섯이지만 helper를 놓는 자리는 파일마다 하나씩 넷이다.
+
+라운드 2에서 이 문장을 한 번 "세 개"로 잘못 줄였다. 섹션이 다섯이고 파일이 넷이라는 것에서 "§4.4와
+§4.5가 한 파일"을 빼다가 그 파일 자체를 목록에서 지워 버렸다. 감사관이 그대로 적용해 실측했다 — §5
+helper 없이 §4.4·§4.5를 붙인 `review-binding`은 `taskFields is not defined`로 7 pass 2 fail이고, helper를
+넣으면 9/9다. 중복을 줄이는 수정이 대상을 지우지 않는지 확인해야 한다.
 
 before:
 
