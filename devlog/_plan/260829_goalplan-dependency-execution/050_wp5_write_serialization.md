@@ -165,6 +165,9 @@ export interface DcloseRecoveryMarker {
   sessionId: string;
   checkEpoch: string;
   closedWorkPhaseId: string;
+  // §48: the successor the first attempt picked. A retry reads this instead of
+  // guessing from the plan file, which is consistent with two different histories.
+  nextWorkPhaseId: string | null;
 }
 ```
 
@@ -457,6 +460,7 @@ export type CloseFixedResult =
 export function closeFixedWorkPhase(
   plan: Goalplan,
   workPhaseId: string,
+  intendedNextId?: string | null,
 ): CloseFixedResult {
   const currentIdx = plan.workPhases.findIndex((wp) => wp.id === workPhaseId);
   if (currentIdx < 0) return { kind: "absent" };
@@ -486,25 +490,20 @@ export function closeFixedWorkPhase(
   );
   const closedPlan: Goalplan = { ...plan, activeWorkPhaseId: null, workPhases: closedWorkPhases };
 
-  // §47: on a re-application the successor an earlier attempt activated is already
-  // `in_progress`, and a pending-only search would find nothing and null the cursor,
-  // corrupting a plan that was already correct. So that ONE phase reads as a candidate
-  // again — the phase the cursor names, which is exactly the phase a previous attempt
-  // set. Nothing else is normalized.
-  //
-  // Two narrower rules were wrong. Normalizing on a first close broke wp4 parity: with
-  // `wp-1` in_progress, `wp-2` in_progress, `wp-3` pending, advanceWorkPhase() picks
-  // wp-3 and normalization picked wp-2. Normalizing EVERY non-target in_progress phase
-  // during re-application broke idempotency the same way: feeding a completed close
-  // back in re-selected the older running phase instead of answering already_done.
-  const selectable = closedWorkPhases.map((wp) =>
-    wp.id !== workPhaseId
-      && wp.status === "in_progress"
-      && plan.activeWorkPhaseId === wp.id
-      && current.status === "done"
-      ? { ...wp, status: "pending" as const }
-      : wp
-  );
+  // §48: five drafts tried to judge "did my commit land?" from the plan file alone and
+  // every one of them was forgeable, because a single byte pattern is consistent with two
+  // different histories: an attempt that already chose wp-2, and a plan where wp-2 was
+  // running all along and the honest successor is wp-3. The file cannot tell them apart.
+  // So the intent moves to the durable marker: the first attempt records the successor it
+  // picked BEFORE committing the plan, and a retry reads back its own decision instead of
+  // interrogating the file. A first attempt passes nothing and keeps the wp4 selection.
+  const selectable = intendedNextId
+    ? closedWorkPhases.map((wp) =>
+        wp.id === intendedNextId && wp.id !== workPhaseId && wp.status === "in_progress"
+          ? { ...wp, status: "pending" as const }
+          : wp
+      )
+    : closedWorkPhases;
   const selectablePlan: Goalplan = { ...closedPlan, workPhases: selectable };
 
   // Same after-then-wrap order as before, evaluated on the snapshot where the
@@ -641,6 +640,9 @@ export interface DcloseRecoveryMarker {
   sessionId: string;
   checkEpoch: string;
   closedWorkPhaseId: string;
+  // §48: the successor the first attempt picked. A retry reads this instead of
+  // guessing from the plan file, which is consistent with two different histories.
+  nextWorkPhaseId: string | null;
 }
 
 export interface State {
@@ -657,8 +659,9 @@ export interface LedgerEntry {
 }
 ```
 
-`defaultState()`에는 `dcloseRecovery: null`을 넣는다. `readStateStrict()`는 세 문자열이 모두
-비어 있지 않은 marker만 복원하며, marker의 `sessionId`가 현재 state key와 다르면 `null`로
+`defaultState()`에는 `dcloseRecovery: null`을 넣는다. `readStateStrict()`는 필수 세 문자열이 모두
+비어 있지 않은 marker만 복원하고 `nextWorkPhaseId`는 비어 있지 않은 문자열일 때만 살린다.
+marker의 `sessionId`가 현재 state key와 다르면 `null`로
 정규화한다. C 또는 유효 marker가 남은 IDLE에서만 `checkEpoch`를 복원한다.
 
 ```ts
@@ -668,10 +671,17 @@ function reconstructDcloseRecovery(raw: unknown, sessionId: string): DcloseRecov
   if (marker.sessionId !== sessionId) return null;
   if (typeof marker.checkEpoch !== "string" || marker.checkEpoch.length === 0) return null;
   if (typeof marker.closedWorkPhaseId !== "string" || marker.closedWorkPhaseId.length === 0) return null;
+  // §48: absent or malformed reads as null, which means "no successor to re-read" and
+  // falls back to the wp4 selection. A pre-§48 three-value marker still restores.
+  const nextWorkPhaseId =
+    typeof marker.nextWorkPhaseId === "string" && marker.nextWorkPhaseId.length > 0
+      ? marker.nextWorkPhaseId
+      : null;
   return {
     sessionId,
     checkEpoch: marker.checkEpoch,
     closedWorkPhaseId: marker.closedWorkPhaseId,
+    nextWorkPhaseId,
   };
 }
 
@@ -1048,7 +1058,7 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
           // done phase. So the helper runs whenever the target exists, and it answers
           // `already_done` only after its three gates pass.
           if (fixed) {
-            const closed = closeFixedWorkPhase(plan, closePhaseId);
+            const closed = closeFixedWorkPhase(plan, closePhaseId, state.dcloseRecovery.nextWorkPhaseId);
             // §41 W1: a target that gained a pending task or became blocked after its
             // marker is FAIL-CLOSED, and the marker is deliberately left in place so
             // the operator can fix the plan and finish with the same request. Wiping
@@ -1163,6 +1173,10 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
               sessionId: state.sessionId,
               checkEpoch: state.checkEpoch,
               closedWorkPhaseId: closePhaseId,
+              // §48: record the successor BEFORE the plan commit. A retry re-reads this
+              // decision, so a later hand edit of the cursor cannot rewrite what this
+              // close meant to do.
+              nextWorkPhaseId: closedPlan.activeWorkPhaseId,
             },
           });
           commitHooks.afterRecoveryMarkerWrite?.();
@@ -1507,7 +1521,7 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
         // a status-only edit and a pending task hidden under an already-closed phase
         // are caught. `already_done` comes back only after all three gates pass.
         const closed = fixed
-          ? closeFixedWorkPhase(plan, closePhaseId)
+          ? closeFixedWorkPhase(plan, closePhaseId, state.dcloseRecovery.nextWorkPhaseId)
           : { kind: "absent" as const };
         // §41 W1: same fail-closed rule as the CLI. The marker stays so the operator
         // can repair the plan and finish with the same request.
@@ -1653,6 +1667,9 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
             sessionId: state.sessionId,
             checkEpoch: state.checkEpoch,
             closedWorkPhaseId: closePhaseId,
+            // §48: same as the CLI — the successor this close chose is recorded before
+            // the plan commit, so a retry never has to infer it from the file.
+            nextWorkPhaseId: closeResult.plan.activeWorkPhaseId,
           },
         });
         dcloseCommitHooks.afterRecoveryMarkerWrite?.();
@@ -2502,11 +2519,12 @@ test("closing a fixed phase picks the same successor advanceWorkPhase would", ()
   assert.equal(advanced.kind === "ok" ? advanced.plan.activeWorkPhaseId : null, "wp-3");
 });
 
-test("re-applying a completed close answers already_done for every successor shape", () => {
-  // §47: the normalization narrowed to the one phase the cursor names. A wider rule
-  // demoted an older running phase on re-entry, pulled the cursor backward, and made
-  // samePlanShape() disagree — so a retry after a crashed write issued a second write.
-  // Every successful close, fed straight back in, must report already_done.
+test("a retry quoting its recorded successor answers already_done and keeps the cursor", () => {
+  // §48: judging "did my commit land?" from the plan file was forgeable five drafts in a
+  // row, because one byte pattern fits two histories. The first attempt now records the
+  // successor it chose, and the retry re-reads that instead of the file. Both halves are
+  // asserted here: the FIRST call must pick what wp4 picks, and the retry quoting that
+  // choice must answer already_done without moving anything.
   const build = (phases: Array<[string, WorkPhaseStatus]>, cursor: string | null): Goalplan => {
     const plan = buildGoalplan({ objective: "round trip" });
     plan.workPhases = phases.map(([id, status]) => ({
@@ -2520,49 +2538,70 @@ test("re-applying a completed close answers already_done for every successor sha
     return plan;
   };
 
-  const cases: Array<[string, Goalplan, string]> = [
-    ["pending successor", build([["wp-1", "in_progress"], ["wp-2", "pending"]], "wp-1"), "wp-1"],
+  // Each row fixes the successor the FIRST close must choose, so an implementation that
+  // merely round-trips consistently — but picks the wrong phase — still fails.
+  const cases: Array<[string, Goalplan, string, string | null]> = [
+    ["pending successor", build([["wp-1", "in_progress"], ["wp-2", "pending"]], "wp-1"), "wp-1", "wp-2"],
     [
-      "another phase already running",
+      "an unrelated phase is already running",
       build([["wp-1", "in_progress"], ["wp-2", "in_progress"], ["wp-3", "pending"]], "wp-1"),
       "wp-1",
+      // wp4 locked pending-only after-then-wrap: the running wp-2 is not a candidate.
+      "wp-3",
     ],
     [
       "target marked done by hand",
       build([["wp-1", "done"], ["wp-2", "in_progress"], ["wp-3", "pending"]], "wp-1"),
       "wp-1",
+      // No recorded intent, so the running wp-2 stays running and wp-3 starts. This is
+      // the same rule as the row above; a manual `done` does not make wp-2 selectable.
+      "wp-3",
     ],
-    ["wrap to an earlier pending phase", build([["wp-1", "pending"], ["wp-2", "in_progress"]], "wp-2"), "wp-2"],
-    ["no successor left", build([["wp-1", "in_progress"], ["wp-2", "done"]], "wp-1"), "wp-1"],
+    ["wrap to an earlier pending phase", build([["wp-1", "pending"], ["wp-2", "in_progress"]], "wp-2"), "wp-2", "wp-1"],
+    ["no successor left", build([["wp-1", "in_progress"], ["wp-2", "done"]], "wp-1"), "wp-1", null],
   ];
 
-  for (const [label, input, target] of cases) {
+  for (const [label, input, target, expectedNext] of cases) {
     const first = closeFixedWorkPhase(input, target);
     assert.equal(first.kind, "ok", label);
     if (first.kind !== "ok") continue;
-    assert.equal(closeFixedWorkPhase(first.plan, target).kind, "already_done", label);
+    assert.equal(first.plan.activeWorkPhaseId, expectedNext, label);
+    if (expectedNext) {
+      assert.equal(
+        first.plan.workPhases.find((wp) => wp.id === expectedNext)!.status,
+        "in_progress",
+        label,
+      );
+    }
+    // The retry quotes the marker, not the file.
+    assert.equal(closeFixedWorkPhase(first.plan, target, expectedNext).kind, "already_done", label);
   }
 });
 
-test("a status-only edit between the marker and the retry does not pull the cursor backward", () => {
-  // §47 second regression: the marker names wp-1, an unrelated phase is running, and a
-  // pending successor waits. The retry sees the plan a first attempt already committed.
-  const committed = buildGoalplan({ objective: "retry after status edit" });
-  committed.workPhases = [
+test("a forged cursor cannot override the successor the marker recorded", () => {
+  // §48: this is the input that defeated every plan-only rule. The file says the cursor
+  // is wp-2, which is consistent BOTH with an attempt that chose wp-2 and with a plan
+  // where wp-2 was running all along and wp-3 is the honest successor. The marker breaks
+  // the tie: it recorded wp-3, so the retry finishes wp-3 and leaves wp-2 alone.
+  const forged = buildGoalplan({ objective: "forged cursor" });
+  forged.workPhases = [
     { id: "wp-1", title: "first", status: "done", tasks: [], criteriaIds: [] },
     { id: "wp-2", title: "second", status: "in_progress", tasks: [], criteriaIds: [] },
-    { id: "wp-3", title: "third", status: "in_progress", tasks: [], criteriaIds: [] },
+    { id: "wp-3", title: "third", status: "pending", tasks: [], criteriaIds: [] },
   ];
-  committed.activeWorkPhaseId = "wp-3";
+  forged.activeWorkPhaseId = "wp-2";
 
-  const retried = closeFixedWorkPhase(committed, "wp-1");
+  const retried = closeFixedWorkPhase(forged, "wp-1", "wp-3");
 
-  assert.equal(retried.kind, "already_done");
-  assert.equal(committed.activeWorkPhaseId, "wp-3");
+  assert.equal(retried.kind, "ok");
+  if (retried.kind !== "ok") return;
+  assert.equal(retried.plan.activeWorkPhaseId, "wp-3");
   assert.deepEqual(
-    committed.workPhases.map((wp) => [wp.id, wp.status]),
+    retried.plan.workPhases.map((wp) => [wp.id, wp.status]),
     [["wp-1", "done"], ["wp-2", "in_progress"], ["wp-3", "in_progress"]],
   );
+  // And that repaired plan, replayed with the same marker, is settled.
+  assert.equal(closeFixedWorkPhase(retried.plan, "wp-1", "wp-3").kind, "already_done");
 });
 test("read-only lock status reports absolute path and age without consulting owner metadata", () => {
   const { cwd, slug } = workspace("lock status");
@@ -2812,6 +2851,7 @@ test("wp5: valid D-close marker restores with its IDLE check epoch", () => {
         sessionId: "marker-valid",
         checkEpoch: "c-valid",
         closedWorkPhaseId: "wp-1",
+        nextWorkPhaseId: "wp-2",
       },
     });
     const restored = readState(cwd, "marker-valid");
@@ -2820,6 +2860,7 @@ test("wp5: valid D-close marker restores with its IDLE check epoch", () => {
       sessionId: "marker-valid",
       checkEpoch: "c-valid",
       closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
@@ -2834,6 +2875,7 @@ test("wp5: foreign D-close marker is dropped and cannot retain an IDLE epoch", (
         sessionId: "other-session",
         checkEpoch: "c-foreign",
         closedWorkPhaseId: "wp-1",
+        nextWorkPhaseId: "wp-2",
       },
     });
     const restored = readState(cwd, "marker-owner");
@@ -2873,6 +2915,7 @@ test("reset from IDLE clears a D-close marker and check epoch instead of becomin
       sessionId: "t",
       checkEpoch: "c-recovery",
       closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
     },
   };
   const result = applyHumanTransition(state, "reset");
@@ -3052,6 +3095,7 @@ test("a marker from another session cannot authorize recovery", () => {
       sessionId: "different-session",
       checkEpoch: "c-owner",
       closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
     },
   });
   seedReceipt(cwd, id, "c-owner");
@@ -3086,6 +3130,9 @@ test("D-close retry after goalplan commit closes the fixed phase only once", () 
     sessionId: id,
     checkEpoch: "c-test-epoch",
     closedWorkPhaseId: "wp-1",
+    // §48: the marker carries the successor this close picked, so the retry does not
+    // have to infer it from a file a later edit may have touched.
+    nextWorkPhaseId: "wp-2",
   });
 
   const retry = runOrchestrateCli(args);
@@ -3130,6 +3177,9 @@ test("D-close retry after the recovery marker write closes the fixed phase like 
     sessionId: id,
     checkEpoch: "c-test-epoch",
     closedWorkPhaseId: "wp-1",
+    // §48: the marker carries the successor this close picked, so the retry does not
+    // have to infer it from a file a later edit may have touched.
+    nextWorkPhaseId: "wp-2",
   });
   assert.equal(readGoalplan(cwd, slug)!.workPhases.find((wp) => wp.id === "wp-1")!.status, "in_progress");
 
@@ -3247,6 +3297,9 @@ test("recovery is refused when the fixed target gained an open task after its ma
     sessionId: id,
     checkEpoch: "c-test-epoch",
     closedWorkPhaseId: "wp-1",
+    // §48: the marker carries the successor this close picked, so the retry does not
+    // have to infer it from a file a later edit may have touched.
+    nextWorkPhaseId: "wp-2",
   });
   assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
   assert.deepEqual(goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done"), []);
@@ -3321,6 +3374,9 @@ test("recovery is refused when the fixed target lost a dependency after its mark
     sessionId: id,
     checkEpoch: "c-test-epoch",
     closedWorkPhaseId: "wp-1",
+    // §48: the marker carries the successor this close picked, so the retry does not
+    // have to infer it from a file a later edit may have touched.
+    nextWorkPhaseId: "wp-2",
   });
   assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
   assert.deepEqual(goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done"), []);
@@ -3569,6 +3625,7 @@ test("CLI D-close recovery resumes when the marker target is absent from the pla
       sessionId: id,
       checkEpoch: "c-cli-recovery",
       closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
     },
   });
   const planPath = goalplanPath(cwd, slug);
@@ -4164,6 +4221,9 @@ function seedRecoverableChatClose(cwd: string, id: string, slug: string): string
       sessionId: id,
       checkEpoch: "c-recovery",
       closedWorkPhaseId: "wp-1",
+      // §48: this fixture holds one work-phase, so the first attempt had no successor
+      // to activate and the marker records that honestly.
+      nextWorkPhaseId: null,
     },
   });
   return JSON.stringify({
@@ -4320,6 +4380,7 @@ test("chat D-close retry after the recovery marker write matches an uninterrupte
       sessionId: id,
       checkEpoch: "c-chat-epoch",
       closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
     });
     assert.equal(readGoalplan(cwd, slug)!.workPhases.find((wp) => wp.id === "wp-1")!.status, "in_progress");
 

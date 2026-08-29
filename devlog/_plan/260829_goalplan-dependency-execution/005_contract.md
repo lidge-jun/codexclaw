@@ -1260,3 +1260,89 @@ successor가 함께 있는 plan에서 재시도가 커서를 뒤로 밀지 않�
 §43과의 관계도 같이 정리한다. 표 §6.3의 recovery 행에 "대상이 아직 `done`이 아니면 helper를 부른다"가
 남아 있었는데, 이는 판정을 호출자에게 되돌려주는 문구여서 §43과 어긋났다. 대상이 plan에 있으면 상태를
 보지 않고 항상 helper를 부르고, `already_done`일 때만 plan write를 생략한다로 통일한다.
+
+## 48. 라운드 19 — 의도한 successor를 marker에 남긴다
+
+§47까지 다섯 판본이 모두 같은 레버를 돌렸다. plan 파일 내용만 보고 "내 close가 이미 반영됐는가"를
+판정하려 했고, 매번 그 판정을 통과하는 손편집이 나왔다. 라운드 18에서 감사관이 확정한 반례가 이
+접근의 한계를 보여준다.
+
+```text
+파일 상태: wp-1=done(대상), wp-2=in_progress, wp-3=pending, 커서=wp-2
+
+역사 A: 첫 시도가 wp-2를 successor로 골라 commit을 끝냈다 -> already_done이 맞다
+역사 B: wp-2는 원래부터 실행 중이었고 정상 close는 wp-3를 골라야 한다 -> ok가 맞다
+```
+
+같은 바이트가 두 역사와 모두 정합적이다. plan 안에는 둘을 구별할 정보가 없다. 커서를 보든, status를
+보든, 계산한 모양과 동일성을 비교하든 마찬가지다 — 동일성 비교는 "역사 A가 맞다면 이 모양"을 계산하는
+것이므로 역사 B의 파일이 우연히 그 모양이면 구별하지 못한다. §47이 커서를 신뢰해 위조를 허용한 것도,
+§45가 커서 `null` 위조를 복구하려다 §47에서 그 경로를 닫은 것도 같은 뿌리다.
+
+처분: 판정을 plan에서 빼내 marker로 옮긴다. marker는 이미 durable하고 이미 세 값을 담고 있으므로
+네 번째 값을 더한다. 첫 시도가 고른 successor를 plan commit **전에** 기록하므로, 재시도는 파일을
+심문하는 대신 자기가 무엇을 하려 했는지 읽는다.
+
+```ts
+export interface DcloseRecoveryMarker {
+  sessionId: string;
+  checkEpoch: string;
+  closedWorkPhaseId: string;
+  nextWorkPhaseId: string | null;
+}
+```
+
+helper는 세 번째 인자로 그 값을 받는다. 첫 시도는 인자를 주지 않으므로 wp4 선택이 그대로 쓰이고,
+재시도만 지목된 phase 하나를 후보로 되읽는다.
+
+```ts
+const selectable = intendedNextId
+  ? closedWorkPhases.map((wp) =>
+      wp.id === intendedNextId && wp.id !== workPhaseId && wp.status === "in_progress"
+        ? { ...wp, status: "pending" as const }
+        : wp
+    )
+  : closedWorkPhases;
+```
+
+`samePlanShape()` 동일성 판정은 그대로 남는다. 다만 이제 그것이 판정의 전부가 아니다. 재시도는
+"내가 의도한 successor를 되읽은 뒤 계산한 모양"과 비교하므로, 역사 A와 역사 B가 서로 다른
+`intendedNextId`를 낳고 두 경우가 분리된다.
+
+marker에 successor가 없는 경우도 정직하게 처리된다. `nextWorkPhaseId: null`은 첫 시도가 후보를 찾지
+못했다는 뜻이고, 그때 정규화할 대상도 없다. `readStateStrict()`는 이 필드가 문자열이거나 없을 때만
+marker를 복원하며, 없으면 `null`로 채운다. 기존 세 값 marker가 남아 있는 state도 그대로 읽힌다 —
+정규화 없이 재시도하면 wp4 선택 규칙이 적용되고, 그것이 §47 이전의 동작이다.
+
+실측 검증. 이 명세를 실제 `goalplan.ts`에 적용해 확인했다.
+
+| 입력 | `intendedNextId` | 결과 |
+| --- | --- | --- |
+| wp-1 in_progress(대상), wp-2 in_progress, wp-3 pending | 없음 (첫 시도) | `ok`, 커서 `wp-3` — `advanceWorkPhase()`와 동일 |
+| wp-1 done, wp-2 in_progress, 커서 wp-2 | `wp-2` | `already_done` |
+| wp-1 done, wp-2 pending, 커서 wp-2 | `wp-2` | `ok`, `wp-2`를 in_progress로 복구 |
+| wp-1 done, wp-2 in_progress, 커서 `null` | `wp-2` | `ok`, 커서 `wp-2`로 복구 |
+| wp-1 in_progress, wp-2 pending, 커서 wp-1 | `wp-2` | `ok`, 정상 close |
+| wp-1 done, wp-2 in_progress, wp-3 pending, 커서 위조 wp-2 | `wp-3` | `ok`, 커서 `wp-3` — 위조 무시 |
+| 위 결과 그대로 재입력 | `wp-3` | `already_done` |
+
+왕복 세 경우 — pending successor, 다른 phase 실행 중, successor 없음 — 도 첫 결과의 커서를
+`intendedNextId`로 넣으면 전부 `already_done`이었다. `goalplan.test.ts`,
+`work-phase-states.test.ts`, `orchestrate-cli.test.ts`, `goal-gate.test.ts` 네 파일이
+`tests 162 / pass 162 / fail 0`, exit 0이었다. 확인 뒤 원본과 바이트 동일로 복원했다.
+
+§47 판본을 되돌려 같은 입력을 넣어 두 판본을 나란히 비교했다. 커서 `null`+고립 위조에서 §47은
+`already_done`을 내고 §48은 `ok`, 커서 `wp-2`를 낸다. §45가 그 입력에 확정한 답이 후자이므로 §47은
+계약을 깨는 판본이었다. 새 위조-커서 회귀도 §47 판본에서 실제로 실패하며, 왕복 회귀만으로는 §47이
+통과하므로 위조 회귀가 실질 방어선이다.
+§45가 세운 위조 회귀 세 건이 그대로 성립한다. 커서-pending, 커서 `null`+고립, 의존 미충족 모두
+`intendedNextId`가 있으면 복구되고, 의존 미충족은 helper의 readiness 게이트가 먼저 거부한다.
+§46 parity 회귀도 첫 시도 경로이므로 인자 없이 호출되어 그대로다.
+
+두 표면의 marker 기록 지점도 함께 바뀐다. CLI와 채팅 모두 정상 close에서 `advanceWorkPhase()`
+결과의 `activeWorkPhaseId`를 marker에 담아야 하므로, marker write가 plan 계산 **뒤**로 이동한다.
+§40 Z4 8단계 순서는 그대로다 — marker는 여전히 plan commit 전에 기록된다.
+
+회귀를 하나 더 둔다. 정상 close의 marker를 읽어 `nextWorkPhaseId`가 실제 successor와 같은지 단언하고,
+그 marker로 재시도했을 때 커서가 뒤로 밀리지 않는지 본다. 위조된 커서로 재시도하는 회귀도 CLI에 둔다 —
+marker가 `wp-3`를 가리키는데 파일 커서가 `wp-2`면 복구 결과는 `wp-3`여야 한다.
