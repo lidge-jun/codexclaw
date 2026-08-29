@@ -1750,7 +1750,7 @@ export type ResumeAbsentTargetResult =
 | --- | --- |
 | marker에 successor 없음 | `cleanup` — 이 close는 plan을 끝냈다 |
 | plan에 없음 | `successor_lost`/absent |
-| `in_progress` 또는 `done` | `cleanup` — 활성화는 이미 일어났고 원장만 남았다 |
+| `done` | `cleanup` — 활성화는 이미 일어났고 원장만 남았다 (§54가 `in_progress`를 분리했다) |
 | `pending`, 의존 충족 | `activate` |
 | `pending`, 의존 미충족 | `successor_lost`/dependencies_unmet |
 | `blocked`·`superseded` | `successor_lost`/not_runnable |
@@ -1777,3 +1777,91 @@ target 계약의 정의다. 그 결과를 같은 marker로 다시 넣으면 `alr
 
 회귀 하나를 더 둔다. 채팅에서 대상이 없고 기록된 successor가 `pending`인 재개가 그 phase를 활성화하는지
 단언한다. 기존 채팅 대상-부재 테스트는 successor를 미리 `in_progress`로 두어 이 차이를 가렸다.
+
+## 54. 라운드 25 — 재개는 진행을 되돌리지 않는다
+
+§53 판본에서 감사관이 세 결함을 찾았다. 하나는 계획서 코드의 명백한 버그이고 둘은 커서 손상이다.
+
+### 채팅이 공유 판정 결과를 덮어쓰는 문제
+
+대상 부재 분기에서 `closeResult`를 활성화한 plan으로 설정했는데, 바로 뒤 `closed` 분기의 absent 경로가
+그것을 원본 plan으로 다시 덮었다. `writeClosedPlan`은 `true`인데 쓰이는 것은 활성화 전 plan이므로,
+successor는 `pending`인 채 원장에 `started` 행만 남는다. 채팅 회귀가 구현 후 실패한다.
+
+활성화 결과를 `resumedAbsent`에 담아 그 분기를 지나 전달한다. 분기 안에서 `closeResult`를 쓰는 것으로는
+부족하다.
+
+```ts
+let resumedAbsent: Goalplan | null = null;
+// ... 대상 부재 분기에서 resumedAbsent = orphan.plan;
+if (closed.kind === "ok") {
+  closeResult = { kind: "ok" as const, closedId: closed.closedId, plan: closed.plan };
+  writeClosedPlan = true;
+} else if (resumedAbsent) {
+  closeResult = { kind: "ok" as const, closedId: closePhaseId, plan: resumedAbsent };
+  writeClosedPlan = true;
+} else {
+  closeResult = { kind: "ok" as const, closedId: closePhaseId, plan };
+}
+```
+
+### 진행된 커서를 지우는 문제
+
+§53은 대상이 열려 있고 successor가 끝났으면 `next = undefined`로 두었다. 그러면 settled shape가 항상
+커서 `null`을 주장한다. 그런데 successor가 끝나면서 그 다음 phase를 시작해 둘 수 있다.
+
+```text
+marker: closed=wp-1, next=wp-2
+plan:   wp-1=in_progress, wp-2=done, wp-3=in_progress, 커서 wp-3
+§53:    ok, 커서 null   <- wp-3 진행을 끊는다
+§54:    ok, 커서 wp-3   <- 진행 보존
+```
+
+커서가 **다른** phase를 가리키고 그 phase가 정말 `in_progress`일 때만 보존한다. 대상 자신을 가리키는
+커서나 `pending` phase를 가리키는 커서는 진행이 아니다 — §45가 후자를 위조로 확정했다.
+
+```ts
+next = closedWorkPhases.find(
+  (wp) => wp.id === plan.activeWorkPhaseId && wp.id !== workPhaseId
+    && wp.status === "in_progress",
+);
+```
+
+실측 네 경우다.
+
+| 커서 | 결과 |
+| --- | --- |
+| `wp-3`, wp-3가 `in_progress` | 커서 `wp-3` 보존 |
+| 대상 자신 | 커서 `null` |
+| `null` | 커서 `null` |
+| `wp-3`, wp-3가 `pending` | 커서 `null` — 위조 무시 |
+
+### 대상 부재의 `in_progress` cleanup이 고립을 허용하는 문제
+
+공유 helper는 기록된 successor가 `in_progress`면 커서를 보지 않고 `cleanup`을 답했다. 그러면 커서가
+`null`이거나 다른 phase를 가리키는 상태로 marker가 지워져, 그 successor가 커서 없이 고립된다. §45가
+복구 대상으로 확정한 바로 그 손상이다.
+
+커서가 그 successor를 가리킬 때만 `cleanup`이고, 아니면 커서를 복구한다.
+
+```ts
+  if (named.status === "in_progress") {
+    return plan.activeWorkPhaseId === named.id
+      ? { kind: "cleanup" }
+      : { kind: "activate", plan: { ...plan, activeWorkPhaseId: named.id } };
+  }
+```
+
+§53 상태 표의 `in_progress` 또는 `done` 행은 아래로 대체된다.
+
+| orphan 상태 | 판정 |
+| --- | --- |
+| `done` | `cleanup` |
+| `in_progress`, 커서가 그것을 가리킴 | `cleanup` |
+| `in_progress`, 커서가 다름 | `activate` — 커서만 복구, status는 그대로 |
+
+§50~§53의 경계와 4파일 `tests 162 / pass 162 / fail 0`이 유지된다.
+
+회귀 둘을 더 둔다. 대상이 열려 있고 successor가 끝났으며 커서가 진행 중인 phase를 가리키는 plan에서
+그 커서가 살아남는지 단언한다. 대상 부재 + `in_progress` successor + 커서 `null`에서 커서가 그
+successor로 복구되는지도 단언한다. 기존 두 테스트는 커서와 status를 미리 맞춰 두 창을 모두 가렸다.
