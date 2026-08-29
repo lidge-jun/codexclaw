@@ -48,7 +48,7 @@ import {
 } from "./interview-policy.ts";
 import { MIND_DISPATCH_DIRECTIVE } from "./minds.ts";
 import { checkObjectivePlateau, readObjectiveKind, readObjectiveMetrics, type PlateauCheck } from "./metrics.ts";
-import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan, nextOpenTask, unmetCriteria, type AdvanceResult, type Goalplan } from "./goalplan.ts";
+import { advanceWorkPhase, appendGoalplanLedger, dependencyDeadlock, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan, nextOpenTask, unmetCriteria, type AdvanceResult, type Goalplan } from "./goalplan.ts";
  import { captureSourceIdentity, compareSource, describeSource } from "./source-identity.ts";
 import { validateCheckReceipt } from "./check-gate.ts";
 import { validatePlanArtifacts } from "./plan-gate.ts";
@@ -867,9 +867,14 @@ function handleOrchestrateCommand(
       );
     }
     if (advanced.kind === "no_active") {
+      // wp4: name the dependency deadlock when that is why nothing can close.
+      const deadlock = dependencyDeadlock(plan);
+      const detail = deadlock
+        ? `Dependency deadlock: ${deadlock.reasons.join("; ")}`
+        : `the bound goalplan "${state.slug}" has no active work-phase to close`;
       return buildContextOutput(
         "UserPromptSubmit",
-        `[codexclaw — refused: the bound goalplan "${state.slug}" has no active work-phase to close (CYCLE-COMPLETION-01). Nothing was written.]`,
+        `[codexclaw — refused: ${detail} (CYCLE-COMPLETION-01). Nothing was written.]`,
       );
     }
   }
@@ -1103,6 +1108,7 @@ export function stopNextCommand(phase: Phase, platform: NodeJS.Platform = proces
 export interface StopWorkContext {
   nextTaskTitle: string | null;
   expectedEvidence: string | null;
+  dependencyBlockedReason: string | null;
   ledgerPath: string | null;
 }
 
@@ -1136,6 +1142,7 @@ export function buildStopBlock(
     // ENRICHMENT ONLY — appended lines; never replaces the phase command above.
     if (work.nextTaskTitle) lines.push(`Remaining work: ${work.nextTaskTitle}`);
     if (work.expectedEvidence) lines.push(`Required evidence: ${work.expectedEvidence}`);
+    if (work.dependencyBlockedReason) lines.push(work.dependencyBlockedReason);
     if (work.ledgerPath) lines.push(`Record progress in: ${work.ledgerPath}`);
   }
   // 080: friction is an ADVISORY line only (read after the arming guard); it never changes
@@ -1210,6 +1217,7 @@ export function buildGoalIdleBlock(
   if (work) {
     if (work.nextTaskTitle) lines.push(`Remaining work: ${work.nextTaskTitle}`);
     if (work.expectedEvidence) lines.push(`Required evidence: ${work.expectedEvidence}`);
+    if (work.dependencyBlockedReason) lines.push(work.dependencyBlockedReason);
     if (work.ledgerPath) lines.push(`Record progress in: ${work.ledgerPath}`);
   } else if (plan && plan.workPhases.length === 0 && plan.criteria.length === 0) {
     lines.push(

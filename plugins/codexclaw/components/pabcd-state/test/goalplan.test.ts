@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildGoalplan,
+  dependencyDeadlock,
+  dependencyWaitReasons,
   readGoalplan,
   readGoalplanDetailed,
   writeGoalplan,
@@ -737,4 +739,189 @@ test("CLI output uses loop label, not goalplan", () => {
   assert.equal(result.code, 0);
   assert.match(result.output, /\[codexclaw loop:/);
   assert.ok(!result.output.includes("[codexclaw goalplan:"));
+});
+
+test("wp4: nextOpenTask excludes a task whose direct dependency is not done", () => {
+  const plan = buildGoalplan({ objective: "task dependency" });
+  plan.schemaVersion = 3;
+  plan.workPhases = [{
+    id: "wp1",
+    title: "one",
+    status: "in_progress",
+    dependsOn: [],
+    criteriaIds: [],
+    tasks: [
+      { id: "t1", title: "upstream", status: "pending", dependsOn: [] },
+      { id: "t2", title: "downstream", status: "pending", dependsOn: ["t1"] },
+    ],
+  }];
+  assert.equal(nextOpenTask(plan)?.task.id, "t1");
+  plan.workPhases[0].tasks[0].status = "done";
+  plan.workPhases[0].tasks[0].outcome = "upstream task completed";
+  assert.equal(nextOpenTask(plan)?.task.id, "t2");
+});
+
+test("wp4 regression: duplicate task ids in different phases stay phase-local", () => {
+  const plan = buildGoalplan({ objective: "phase-local duplicate task ids" });
+  plan.schemaVersion = 3;
+  plan.workPhases = [
+    {
+      id: "wpA",
+      title: "phase A",
+      status: "done",
+      dependsOn: [],
+      criteriaIds: [],
+      tasks: [{
+        id: "t1",
+        title: "phase A t1",
+        status: "done",
+        dependsOn: [],
+        outcome: "phase A t1 completed",
+      }],
+    },
+    {
+      id: "wpB",
+      title: "phase B",
+      status: "in_progress",
+      dependsOn: [],
+      criteriaIds: [],
+      tasks: [
+        { id: "t2", title: "phase B t2", status: "pending", dependsOn: ["t1"] },
+        { id: "t1", title: "phase B t1", status: "pending", dependsOn: [] },
+      ],
+    },
+  ];
+
+  const next = nextOpenTask(plan);
+
+  assert.deepEqual(
+    next ? { workPhaseId: next.wp.id, taskId: next.task.id } : null,
+    { workPhaseId: "wpB", taskId: "t1" },
+  );
+  assert.notEqual(next?.task.id, "t2");
+});
+
+test("wp4 compatibility: undefined and empty dependsOn have identical selection semantics", () => {
+  const legacy = buildGoalplan({ objective: "legacy undefined" });
+  legacy.workPhases = [
+    { id: "wp1", title: "one", status: "in_progress", tasks: [{ id: "t1", title: "one", status: "pending" }], criteriaIds: [] },
+    { id: "wp2", title: "two", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  legacy.activeWorkPhaseId = "wp1";
+  const explicitEmpty: Goalplan = structuredClone(legacy);
+  explicitEmpty.schemaVersion = 3;
+  explicitEmpty.workPhases = explicitEmpty.workPhases.map((wp) => ({
+    ...wp,
+    dependsOn: [],
+    tasks: wp.tasks.map((task) => ({ ...task, dependsOn: [] })),
+  }));
+  assert.equal(effectiveActiveWorkPhaseId(legacy), effectiveActiveWorkPhaseId(explicitEmpty));
+  assert.equal(nextOpenTask(legacy)?.task.id, nextOpenTask(explicitEmpty)?.task.id);
+  assert.equal(dependencyDeadlock(legacy), null);
+  assert.equal(dependencyDeadlock(explicitEmpty), null);
+});
+
+test("wp4 compatibility: v1 selector and advance golden result stays byte-for-byte stable", () => {
+  // 감사 라운드 1 BLOCKER 1: 앞선 초안은 effective/next를 id로만, advance를 kind와 status
+  // 배열로만 봐서 공개 반환 필드 closedId를 검사하지 않았다. 두 리뷰어가 각각
+  // closedId를 훼손한 변이본으로 187/187 green을 재현했다. 세 경로의 관측값을 하나의
+  // 손작성 golden으로 묶고, 이어지는 wrap까지 같은 테스트에서 실행한다.
+  //
+  // B-phase 변이 확인 260829: wp3의 runnable pending task가 하나뿐이면 nextOpenTask()가
+  // 후보를 첫 개가 아니라 마지막 개로 바꾸는 변이가 관측되지 않아 이 golden이 green으로
+  // 남았다. wp3에 두 번째 pending task를 두어 선언 순서 선택을 실제로 못 박는다.
+  const now = () => "2026-08-29T00:00:00.000Z";
+  const plan = buildGoalplan({ objective: "v1 golden", now });
+  delete plan.schemaVersion;
+  plan.workPhases = [
+    { id: "wp1", title: "before", status: "pending", tasks: [], criteriaIds: [] },
+    { id: "wp2", title: "current", status: "in_progress", tasks: [{ id: "t2", title: "done", status: "done" }], criteriaIds: [] },
+    {
+      id: "wp3",
+      title: "after",
+      status: "pending",
+      tasks: [
+        { id: "t3", title: "next", status: "pending" },
+        { id: "t3b", title: "later", status: "pending" },
+      ],
+      criteriaIds: [],
+    },
+  ];
+  plan.activeWorkPhaseId = "wp2";
+
+  const advanced = advanceWorkPhase(plan);
+  assert.equal(advanced.kind, "ok");
+  if (advanced.kind !== "ok") return;
+
+  assert.deepEqual(
+    {
+      effective: effectiveActiveWorkPhaseId(plan),
+      next: nextOpenTask(plan),
+      advanceKind: advanced.kind,
+      closedId: advanced.closedId,
+      activeWorkPhaseId: advanced.plan.activeWorkPhaseId,
+      workPhases: advanced.plan.workPhases,
+      schemaVersionPresent: Object.prototype.hasOwnProperty.call(advanced.plan, "schemaVersion"),
+    },
+    {
+      effective: "wp2",
+      next: {
+        wp: {
+          id: "wp3",
+          title: "after",
+          status: "pending",
+          tasks: [
+            { id: "t3", title: "next", status: "pending" },
+            { id: "t3b", title: "later", status: "pending" },
+          ],
+          criteriaIds: [],
+        },
+        task: { id: "t3", title: "next", status: "pending" },
+      },
+      advanceKind: "ok",
+      closedId: "wp2",
+      activeWorkPhaseId: "wp3",
+      workPhases: [
+        { id: "wp1", title: "before", status: "pending", tasks: [], criteriaIds: [] },
+        { id: "wp2", title: "current", status: "done", tasks: [{ id: "t2", title: "done", status: "done" }], criteriaIds: [] },
+        {
+          id: "wp3",
+          title: "after",
+          status: "in_progress",
+          tasks: [
+            { id: "t3", title: "next", status: "pending" },
+            { id: "t3b", title: "later", status: "pending" },
+          ],
+          criteriaIds: [],
+        },
+      ],
+      schemaVersionPresent: false,
+    },
+  );
+
+  // 앞쪽으로 되돌아가는 wrap 순회도 같은 v1 fixture에서 직접 실행한다. wp3의 task를 닫고
+  // 다시 advance하면 뒤쪽에 pending이 없어 wp1으로 돌아가야 한다.
+  for (const task of advanced.plan.workPhases[2].tasks) task.status = "done";
+  const wrapped = advanceWorkPhase(advanced.plan);
+  assert.equal(wrapped.kind, "ok");
+  if (wrapped.kind !== "ok") return;
+  assert.deepEqual(
+    {
+      closedId: wrapped.closedId,
+      activeWorkPhaseId: wrapped.plan.activeWorkPhaseId,
+      statuses: wrapped.plan.workPhases.map((wp) => wp.status),
+    },
+    { closedId: "wp3", activeWorkPhaseId: "wp1", statuses: ["in_progress", "done", "done"] },
+  );
+});
+
+test("wp4 compatibility: v2 plans without dependsOn keep the v1 selection result", () => {
+  const plan = buildGoalplan({ objective: "v2 golden" });
+  plan.schemaVersion = 2;
+  plan.workPhases = [
+    { id: "wp1", title: "one", status: "done", tasks: [], criteriaIds: [] },
+    { id: "wp2", title: "two", status: "pending", tasks: [{ id: "t2", title: "next", status: "pending" }], criteriaIds: [] },
+  ];
+  assert.equal(effectiveActiveWorkPhaseId(plan), "wp2");
+  assert.equal(nextOpenTask(plan)?.task.id, "t2");
 });

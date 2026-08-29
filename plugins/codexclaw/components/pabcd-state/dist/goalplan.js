@@ -784,17 +784,147 @@ export function remainingWorkPhases(plan          )                      {
   return plan.workPhases.filter((wp) => wp.status !== "done" && wp.status !== "superseded");
 }
 
-/** The next pending task in the first non-done work phase, or null when none remain. */
+// --- dependency-aware selection (wp4) ---
+//
+// Readiness is derived, never stored: these helpers read the status of each direct
+// dependency and nothing else. They do not mutate a phase or task, do not append to
+// the ledger, and do not decide when the next turn happens - the host continuation
+// driver owns that. A missing dependency target reads as not-done, so a hand-edited
+// plan that slipped past validation cannot be mistaken for runnable.
+function workPhaseDependenciesMet(plan          , phase                   )          {
+  return (phase.dependsOn ?? []).every(
+    (dependencyId) => plan.workPhases.find((candidate) => candidate.id === dependencyId)?.status === "done",
+  );
+}
+
+function taskDependenciesMet(phase                   , task              )          {
+  return (task.dependsOn ?? []).every(
+    (dependencyId) => phase.tasks.find((candidate) => candidate.id === dependencyId)?.status === "done",
+  );
+}
+
+function isRunnablePhase(plan          , wp                   )          {
+  return (
+    (wp.status === "pending" || wp.status === "in_progress")
+    && workPhaseDependenciesMet(plan, wp)
+  );
+}
+
+/** The first runnable pending task in declared order, or null when none remain. */
 export function nextOpenTask(plan          )                                                       {
   for (const wp of plan.workPhases) {
-    // A blocked phase's tasks are not actionable and a superseded phase's tasks
-    // belong to its replacement, so neither can be "the next thing to do".
-    if (wp.status === "done" || wp.status === "blocked" || wp.status === "superseded") continue;
+    if (!isRunnablePhase(plan, wp)) continue;
     for (const task of wp.tasks) {
-      if (task.status !== "done") return { wp, task };
+      if (task.status === "pending" && taskDependenciesMet(wp, task)) return { wp, task };
     }
   }
   return null;
+}
+
+
+
+
+
+function describePhaseDependency(plan          , dependencyId        )         {
+  const dependency = plan.workPhases.find((wp) => wp.id === dependencyId);
+  return `work-phase ${dependencyId} (${dependency?.status ?? "missing"})`;
+}
+
+function describeTaskDependency(phase                   , dependencyId        )         {
+  const dependency = phase.tasks.find((task) => task.id === dependencyId);
+  return `task ${phase.id}/${dependencyId} (${dependency?.status ?? "missing"})`;
+}
+
+function dependencyWaitReason(subject        , dependencies                   )         {
+  return `${subject} waits for ${dependencies.join(", ")}`;
+}
+
+function unmetPhaseDependencyIds(plan          , phase                   )           {
+  // wp3와 같은 규칙: 중복 참조는 첫 등장 순서로 줄인다. 그러지 않으면
+  // dependsOn: ["a", "a"]가 대기 문장 안에 같은 blocker를 두 번 넣는다.
+  return [...new Set(phase.dependsOn ?? [])].filter(
+    (dependencyId) => plan.workPhases.find((candidate) => candidate.id === dependencyId)?.status !== "done",
+  );
+}
+
+function unmetTaskDependencyIds(phase                   , task              )           {
+  return [...new Set(task.dependsOn ?? [])].filter(
+    (dependencyId) => phase.tasks.find((candidate) => candidate.id === dependencyId)?.status !== "done",
+  );
+}
+
+/**
+ * Direct unmet-dependency reasons, independent of whether other work is ready.
+ * This is derived data and never mutates the plan or appends a ledger row.
+ */
+export function dependencyWaitReasons(plan          )           {
+  const reasons           = [];
+  for (const wp of remainingWorkPhases(plan)) {
+    const unmetPhaseDependencies = unmetPhaseDependencyIds(plan, wp);
+    if (unmetPhaseDependencies.length > 0) {
+      reasons.push(dependencyWaitReason(
+        `work-phase ${wp.id}`,
+        unmetPhaseDependencies.map((id) => describePhaseDependency(plan, id)),
+      ));
+    }
+    if (wp.status !== "pending" && wp.status !== "in_progress") continue;
+    for (const task of wp.tasks.filter((candidate) => candidate.status === "pending")) {
+      const unmetTaskDependencies = unmetTaskDependencyIds(wp, task);
+      if (unmetTaskDependencies.length > 0) {
+        reasons.push(dependencyWaitReason(
+          `task ${wp.id}/${task.id}`,
+          unmetTaskDependencies.map((id) => describeTaskDependency(wp, id)),
+        ));
+      }
+    }
+  }
+  return reasons;
+}
+
+/**
+ * Derived runtime diagnosis only. It never mutates a phase/task and is never
+ * appended to the historical ledger by itself.
+ */
+export function dependencyDeadlock(plan          )                            {
+  const unfinished = remainingWorkPhases(plan);
+  if (unfinished.length === 0) return null;
+
+  const runnablePhases = plan.workPhases.filter((wp) => isRunnablePhase(plan, wp));
+  const hasRunnableTask = runnablePhases.some((wp) =>
+    wp.tasks.some((task) => task.status === "pending" && taskDependenciesMet(wp, task))
+  );
+  const hasClosablePhase = runnablePhases.some((wp) =>
+    wp.tasks.every((task) => task.status === "done")
+  );
+  if (hasRunnableTask || hasClosablePhase) return null;
+
+  const reasons           = [];
+  for (const wp of unfinished) {
+    if (wp.status === "blocked") {
+      reasons.push(
+        `work-phase ${wp.id} is blocked${wp.blockedReason ? ` (${wp.blockedReason})` : ""}`,
+      );
+      continue;
+    }
+    const unmetPhaseDependencies = unmetPhaseDependencyIds(plan, wp);
+    if (unmetPhaseDependencies.length > 0) {
+      reasons.push(dependencyWaitReason(
+        `work-phase ${wp.id}`,
+        unmetPhaseDependencies.map((id) => describePhaseDependency(plan, id)),
+      ));
+      continue;
+    }
+    for (const task of wp.tasks.filter((candidate) => candidate.status === "pending")) {
+      const unmetTaskDependencies = unmetTaskDependencyIds(wp, task);
+      if (unmetTaskDependencies.length > 0) {
+        reasons.push(dependencyWaitReason(
+          `task ${wp.id}/${task.id}`,
+          unmetTaskDependencies.map((id) => describeTaskDependency(wp, id)),
+        ));
+      }
+    }
+  }
+  return reasons.length > 0 ? { reasons } : null;
 }
 
 /** Criteria still open. */
@@ -1290,26 +1420,38 @@ export function advanceWorkPhase(plan          )                {
     return { kind: "tasks_pending", workPhaseId: current.id, pending };
   }
 
-  // Search after current index first (declared order), then wrap.
-  const after = plan.workPhases.slice(currentIdx + 1).find((wp) => wp.status === "pending");
-  const next = after ?? plan.workPhases.slice(0, currentIdx).find((wp) => wp.status === "pending");
+  // wp4: dependency readiness is evaluated AFTER the current phase becomes done,
+  // because a direct dependent of `current` becomes runnable at exactly this boundary.
+  const closedWorkPhases = plan.workPhases.map((wp) =>
+    wp.id === current.id
+      ? { ...wp, status: "done"         , tasks: wp.tasks }
+      : wp
+  );
+  const closedPlan           = {
+    ...plan,
+    activeWorkPhaseId: null,
+    workPhases: closedWorkPhases,
+  };
+
+  // Preserve the old cursor order: after current first, then wrap to the front.
+  const after = closedWorkPhases.slice(currentIdx + 1).find(
+    (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+  );
+  const next = after ?? closedWorkPhases.slice(0, currentIdx).find(
+    (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+  );
+  // Closing the current phase succeeds even when nothing else can start: a verified
+  // completion is not rolled back because a successor is blocked. The cursor goes null
+  // and dependencyDeadlock() explains why on the next Stop or D-close.
   return {
     kind: "ok",
     closedId: current.id,
     plan: {
-      ...plan,
+      ...closedPlan,
       activeWorkPhaseId: next?.id ?? null,
-      workPhases: plan.workPhases.map((wp) => {
-        if (wp.id === current.id) {
-          return {
-            ...wp,
-            status: "done"         ,
-            tasks: wp.tasks,
-          };
-        }
-        if (next && wp.id === next.id) return { ...wp, status: "in_progress"          };
-        return wp;
-      }),
+      workPhases: closedWorkPhases.map((wp) =>
+        next && wp.id === next.id ? { ...wp, status: "in_progress"          } : wp
+      ),
     },
   };
 }
@@ -1328,10 +1470,16 @@ export function effectiveActiveWorkPhaseId(plan          )                {
     // A cursor left pointing at a blocked or superseded phase is stale in the same
     // way a done one is: the loop would otherwise keep cycling on a phase that
     // cannot advance. Fall through to the next workable phase instead.
-    if (cur && cur.status !== "done" && cur.status !== "blocked" && cur.status !== "superseded") return cur.id;
+    // wp4: a cursor pointing at a phase whose dependencies are unmet is stale for the
+    // same reason, so isRunnablePhase() carries both conditions.
+    if (cur && isRunnablePhase(plan, cur)) return cur.id;
   }
-  const inProgress = plan.workPhases.find((wp) => wp.status === "in_progress");
+  const inProgress = plan.workPhases.find(
+    (wp) => wp.status === "in_progress" && workPhaseDependenciesMet(plan, wp),
+  );
   if (inProgress) return inProgress.id;
-  const pending = plan.workPhases.find((wp) => wp.status === "pending");
+  const pending = plan.workPhases.find(
+    (wp) => wp.status === "pending" && workPhaseDependenciesMet(plan, wp),
+  );
   return pending?.id ?? null;
 }

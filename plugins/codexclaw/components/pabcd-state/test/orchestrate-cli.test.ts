@@ -901,7 +901,7 @@ test("D-close is refused when every remaining work-phase is blocked", () => {
   const r = runOrchestrateCli(args as never);
 
   assert.equal(r.code, 1);
-  assert.match(r.output, /blocked or superseded/);
+  assert.match(r.output, /Dependency deadlock: work-phase wp-1 is blocked/);
   assert.equal(readState(cwd, id).phase, "C");
 });
 
@@ -1020,4 +1020,71 @@ test("entering B snapshots the source, and leaving B clears it", () => {
   assert.ok(!("error" in toC));
   assert.equal(runOrchestrateCli(toC as never).code, 0);
   assert.equal(readState(cwd, "delta-life").phaseEntrySource, null, "a snapshot must not outlive its phase");
+});
+
+test("wp4: gated attest binds to dependency-aware effective workPhaseId", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("dep-bind"), phase: "B" as never, slug: "dep-bind" });
+    const plan = buildGoalplan({ objective: "dependency binding" });
+    plan.slug = "dep-bind";
+    plan.schemaVersion = 3;
+    plan.activeWorkPhaseId = "blocked-child";
+    plan.workPhases = [
+      { id: "upstream", title: "upstream", status: "blocked", blockedReason: "external", dependsOn: [], tasks: [], criteriaIds: [] },
+      { id: "blocked-child", title: "blocked child", status: "in_progress", dependsOn: ["upstream"], tasks: [], criteriaIds: [] },
+      { id: "ready", title: "ready", status: "pending", dependsOn: [], tasks: [], criteriaIds: [] },
+    ];
+    writeGoalplan(cwd, plan);
+
+    const stale = runOrchestrateCli({
+      verb: "C",
+      attest: { from: "B", to: "C", did: "worked", workPhaseId: "blocked-child" },
+      session: "dep-bind",
+      cwd,
+      json: false,
+    });
+    assert.equal(stale.code, 1);
+    assert.match(stale.output, /active work-phase is ready/);
+
+    const ready = runOrchestrateCli({
+      verb: "C",
+      attest: { from: "B", to: "C", did: "worked", workPhaseId: "ready" },
+      session: "dep-bind",
+      cwd,
+      json: false,
+    });
+    assert.equal(ready.code, 0, ready.output);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("wp4: D-close reports dependency deadlock and writes nothing", () => {
+  const cwd = boundCwd();
+  const id = "cycle-dependency-deadlock";
+  const slug = "cycle-dependency-deadlock";
+  const plan = buildGoalplan({ objective: "dependency deadlock" });
+  plan.slug = slug;
+  plan.schemaVersion = 3;
+  plan.workPhases = [
+    { id: "wp-1", title: "upstream", status: "blocked", blockedReason: "vendor", dependsOn: [], tasks: [], criteriaIds: [] },
+    { id: "wp-2", title: "downstream", status: "pending", dependsOn: ["wp-1"], tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  const before = readFileSync(goalplanPath(cwd, slug), "utf8");
+  const epoch = "c-test-epoch";
+  writeState(cwd, { ...defaultState(id), phase: "C", slug, checkEpoch: epoch, flags: { interview: false, auditPassed: true, checkPassed: false } });
+  seedReceipt(cwd, id, epoch);
+
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", dAttest(id)], cwd);
+  assert.ok(!("error" in args));
+  const result = runOrchestrateCli(args as never);
+  assert.equal(result.code, 1);
+  assert.match(result.output, /Dependency deadlock/);
+  assert.match(result.output, /wp-2 waits for work-phase wp-1 \(blocked\)/);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.equal(ledgerLines(cwd).length, 0);
+  assert.equal(readFileSync(goalplanPath(cwd, slug), "utf8"), before);
 });

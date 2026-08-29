@@ -97,7 +97,7 @@ function mintEpoch(prefix        )         {
 function mintPlanEpoch()         {
   return mintEpoch("e");
 }
-import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan,                                   } from "./goalplan.js";
+import { advanceWorkPhase, appendGoalplanLedger, dependencyDeadlock, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan,                                   } from "./goalplan.js";
 import { latestRound, supersedeStaleRounds } from "./review-round.js";
 import { planFilesHash, recomputed } from "./review-round-cli.js";
 import { validateCheckReceipt } from "./check-gate.js";
@@ -648,9 +648,17 @@ export function runOrchestrateCli(args                                          
         if (closable) {
           advanced = { kind: "ok", closedId: null, plan };
         } else {
+        // wp4: a dependency deadlock is a third cause, distinct from an empty plan
+        // and from an explicitly blocked one, and it names the blocking items.
+        const deadlock = dependencyDeadlock(plan);
+        const reason = plan.workPhases.length === 0
+          ? "the plan is empty — register workPhases[] first"
+          : deadlock
+            ? `Dependency deadlock: ${deadlock.reasons.join("; ")}`
+            : "every remaining work-phase is blocked or superseded — unblock one";
         return {
           code: 1,
-          output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; the bound goalplan "${state.slug}" has no work-phase to close (CYCLE-COMPLETION-01): ${plan.workPhases.length === 0 ? "the plan is empty — register workPhases[] first" : "every remaining work-phase is blocked or superseded — unblock one"}. Nothing was written.`,
+          output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; the bound goalplan "${state.slug}" has no work-phase to close (CYCLE-COMPLETION-01): ${reason}. Nothing was written.`,
         };
         }
       }

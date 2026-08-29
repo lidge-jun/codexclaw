@@ -15,10 +15,42 @@
 - `readStopWorkContext()`는 `nextOpenTask()` 결과를 그대로 “Remaining work”로 노출한다.
 - `orchestrate-cli.ts`의 gated attest는 `effectiveActiveWorkPhaseId()` 결과에 결박된다.
 
-실제 구현 근거는 `goalplan.ts:707-718`의 현재 `nextOpenTask()`, `goalplan.ts:1029-1094`의
-`advanceWorkPhase()`와 `effectiveActiveWorkPhaseId()`, `hook.ts:1081-1192`의 Stop context 소비부,
-`orchestrate-cli.ts:632-655`의 D-close `no_active` 분기다. 이 줄 범위는 wp4 B 착수 직전 다시
+실제 구현 근거는 `goalplan.ts:788-798`의 현재 `nextOpenTask()`, `goalplan.ts:1272-1337`의
+`advanceWorkPhase()`와 `effectiveActiveWorkPhaseId()`, `hook.ts:1103-1214`의 Stop context
+정의·렌더·조회·IDLE 소비부와 `hook.ts:1347`의 mid-cycle 소비 호출,
+`orchestrate-cli.ts:640-656`의 D-close `no_active` 분기다. 이 줄 범위는 wp4 B 착수 직전 다시
 확인하고, 소스가 움직였으면 같은 symbol을 기준으로 before 블록을 갱신한다.
+
+### wp3 코드를 재사용하지 않는 이유 (P-phase stale check 260829)
+
+wp3가 남긴 세 가지는 이름이 비슷해도 wp4의 readiness와 뜻이 다르다. 재사용하면 의미가 섞인다.
+
+| wp3 심볼 | 현재 위치 | 하는 일 | wp4에서 |
+| --- | --- | --- | --- |
+| `findDependencyCycle()` | `goalplan.ts:854-880` | 정의 그래프의 순환을 찾아 정렬된 결정적 경로 문자열을 만든다 | 쓰지 않는다. wp4의 교착은 현재 status에서 실행 가능 항목이 0개인지를 보는 런타임 판정이고 반환형도 다르다 |
+| `goalplanDefinitionIntegrityReasons()` | `goalplan.ts:882-949` | dangling·self·cycle·outcome·criterion 정의 오류 | 쓰지 않는다. pending 후보 선택과 무관하다 |
+| `goalplanDependencyCompletionReasons()` | `goalplan.ts:951-976` | **이미 done인** 항목의 미완료 의존 오류 | 쓰지 않는다. wp4는 아직 done이 아닌 후보의 실행 가능성을 본다 |
+
+wp4가 읽는 것은 `dependsOn`의 직접 대상 status 하나뿐이다. 사유 문자열도 겹치지 않는다. 정의
+무결성은 `work phase <id> depends on ...` 형식이고, wp4 런타임 대기는
+`work-phase <id> waits for ...`와 `task <phase>/<task> waits for ...` 형식이다(정본 §33 N4, §34 T5).
+integrity 문자열을 런타임 문구로 바꾸지 않는다.
+
+또 확인할 두 가지. `buildGoalplan()`은 이제 v3를 선언하므로(`goalplan.ts:764`) v3 fixture에서
+`done` task를 만들면 비어 있지 않은 `outcome`이 필요하다. 기존 oracle을 복사해 v3로 올릴 때
+outcome 누락을 조심한다. 그리고 현재 `TaskStatus`는 `pending | done` 둘뿐이라
+기존 `task.status !== "done"`과 wp4의 `task.status === "pending"`이 동등하다(`goalplan.ts:58`).
+task status가 늘면 이 동등성을 다시 검토한다.
+
+### 불변식 9의 기존 oracle 위치
+
+"의존이 없으면 변경 전과 100% 같다"를 지금 검증하는 테스트는 한 파일에 모여 있지 않다.
+선택·커서·순회는 `goalplan.test.ts:579-592`와 `:624-696`, blocked/superseded 선택과 advance는
+`work-phase-states.test.ts:95-149`, legacy 상태 회귀는 `work-phase-states.test.ts:201`,
+D-close 통합은 `orchestrate-cli.test.ts:800`·`:840`·`:908`, Stop byte 호환은
+`hook-continuation.test.ts:494`·`:652`·`:679`다. 모두 부분 oracle이다. `dependsOn` 부재 상태의
+effective/next/advance 결과를 하나의 golden object로 묶는 이 문서의 신규 v1 테스트가 100%
+불변식의 직접 oracle이며, 그것이 없으면 불변식 9는 회귀로 고정되지 않는다.
 
 wp4는 이 우선순위와 순회 방향을 유지하되, `dependsOn`이 있는 항목에 한해서 **모든 직접 의존이 완료된 후보만** 통과시킨다. 이 goal이 만드는 것은 **dependency-aware control plane**이며 스케줄러나 실행기가 아니다. 두 번째 상태 저장소와 자동 상태 변경도 추가하지 않는다.
 
@@ -264,13 +296,15 @@ function dependencyWaitReason(subject: string, dependencies: readonly string[]):
 }
 
 function unmetPhaseDependencyIds(plan: Goalplan, phase: GoalplanWorkPhase): string[] {
-  return (phase.dependsOn ?? []).filter(
+  // wp3와 같은 규칙: 중복 참조는 첫 등장 순서로 줄인다. 그러지 않으면
+  // dependsOn: ["a", "a"]가 대기 문장 안에 같은 blocker를 두 번 넣는다.
+  return [...new Set(phase.dependsOn ?? [])].filter(
     (dependencyId) => plan.workPhases.find((candidate) => candidate.id === dependencyId)?.status !== "done",
   );
 }
 
 function unmetTaskDependencyIds(phase: GoalplanWorkPhase, task: GoalplanTask): string[] {
-  return (task.dependsOn ?? []).filter(
+  return [...new Set(task.dependsOn ?? [])].filter(
     (dependencyId) => phase.tasks.find((candidate) => candidate.id === dependencyId)?.status !== "done",
   );
 }
@@ -772,8 +806,8 @@ rg -n -F \
 |---|---|---|
 | `dependencyDeadlock()` reason: `work-phase <id> is blocked (<reason>)` / `work-phase <id> waits for work-phase <id> (<status>)`; CLI D-close는 `Dependency deadlock: <reasons>`로 감싼다 | `plugins/codexclaw/components/pabcd-state/test/orchestrate-cli.test.ts:904`가 기존 `/blocked or superseded/`를 기다려 확정 실패 | **reason 형식과 기존 CLI 단언 갱신은 wp4 소유.** 아래 diff로 정확한 새 reason을 기다리게 고친다. `dependencyDeadlock(plan).reasons`와 `dependencyWaitReasons(plan)`의 순수 helper golden은 §7.1이 소유한다 |
 
-`work-phase-states.test.ts:144`의 `blocked or superseded`는 테스트 이름이며 출력 assert가 아니다.
-`goalplan.test.ts:250`, `:364`, `hook.test.ts:644`, `:668`, `orchestrate-cli.test.ts:727`, `:794`의
+`work-phase-states.test.ts:147`의 `blocked or superseded`는 테스트 이름이며 출력 assert가 아니다.
+`goalplan.test.ts:594`, `:708`, `hook.test.ts:644`, `:668`, `orchestrate-cli.test.ts:727`, `:794`의
 `CYCLE-COMPLETION-01`은 바뀌지 않는 invariant 또는 open-task 분기를 검사하므로 갱신하지 않는다.
 `hook-continuation.test.ts`의 기존 `Remaining work:` 단언 두 곳과 040이 제안했던
 `nextTaskTitle`·`dependencyBlockedReason` 단언 세 개는 이 표의 갱신 대상이 아니다. **Stop 표면 단언은
@@ -994,7 +1028,12 @@ test("wp4 compatibility: undefined and empty dependsOn have identical selection 
 });
 
 test("wp4 compatibility: v1 selector and advance golden result stays byte-for-byte stable", () => {
-  const plan = buildGoalplan({ objective: "v1 golden" });
+  // 감사 라운드 1 BLOCKER 1: 앞선 초안은 effective/next를 id로만, advance를 kind와 status
+  // 배열로만 봐서 공개 반환 필드 closedId를 검사하지 않았다. 두 리뷰어가 각각
+  // closedId를 훼손한 변이본으로 187/187 green을 재현했다. 세 경로의 관측값을 하나의
+  // 손작성 golden으로 묶고, 이어지는 wrap까지 같은 테스트에서 실행한다.
+  const now = () => "2026-08-29T00:00:00.000Z";
+  const plan = buildGoalplan({ objective: "v1 golden", now });
   delete plan.schemaVersion;
   plan.workPhases = [
     { id: "wp1", title: "before", status: "pending", tasks: [], criteriaIds: [] },
@@ -1002,20 +1041,52 @@ test("wp4 compatibility: v1 selector and advance golden result stays byte-for-by
     { id: "wp3", title: "after", status: "pending", tasks: [{ id: "t3", title: "next", status: "pending" }], criteriaIds: [] },
   ];
   plan.activeWorkPhaseId = "wp2";
-  assert.equal(effectiveActiveWorkPhaseId(plan), "wp2");
-  assert.deepEqual(
-    { wp: nextOpenTask(plan)?.wp.id, task: nextOpenTask(plan)?.task.id },
-    { wp: "wp3", task: "t3" },
-  );
+
   const advanced = advanceWorkPhase(plan);
   assert.equal(advanced.kind, "ok");
   if (advanced.kind !== "ok") return;
+
   assert.deepEqual(
     {
+      effective: effectiveActiveWorkPhaseId(plan),
+      next: nextOpenTask(plan),
+      advanceKind: advanced.kind,
+      closedId: advanced.closedId,
       activeWorkPhaseId: advanced.plan.activeWorkPhaseId,
-      statuses: advanced.plan.workPhases.map((wp) => wp.status),
+      workPhases: advanced.plan.workPhases,
+      schemaVersionPresent: Object.prototype.hasOwnProperty.call(advanced.plan, "schemaVersion"),
     },
-    { activeWorkPhaseId: "wp3", statuses: ["pending", "done", "in_progress"] },
+    {
+      effective: "wp2",
+      next: {
+        wp: { id: "wp3", title: "after", status: "pending", tasks: [{ id: "t3", title: "next", status: "pending" }], criteriaIds: [] },
+        task: { id: "t3", title: "next", status: "pending" },
+      },
+      advanceKind: "ok",
+      closedId: "wp2",
+      activeWorkPhaseId: "wp3",
+      workPhases: [
+        { id: "wp1", title: "before", status: "pending", tasks: [], criteriaIds: [] },
+        { id: "wp2", title: "current", status: "done", tasks: [{ id: "t2", title: "done", status: "done" }], criteriaIds: [] },
+        { id: "wp3", title: "after", status: "in_progress", tasks: [{ id: "t3", title: "next", status: "pending" }], criteriaIds: [] },
+      ],
+      schemaVersionPresent: false,
+    },
+  );
+
+  // 앞쪽으로 되돌아가는 wrap 순회도 같은 v1 fixture에서 직접 실행한다. wp3의 task를 닫고
+  // 다시 advance하면 뒤쪽에 pending이 없어 wp1으로 돌아가야 한다.
+  advanced.plan.workPhases[2].tasks[0].status = "done";
+  const wrapped = advanceWorkPhase(advanced.plan);
+  assert.equal(wrapped.kind, "ok");
+  if (wrapped.kind !== "ok") return;
+  assert.deepEqual(
+    {
+      closedId: wrapped.closedId,
+      activeWorkPhaseId: wrapped.plan.activeWorkPhaseId,
+      statuses: wrapped.plan.workPhases.map((wp) => wp.status),
+    },
+    { closedId: "wp3", activeWorkPhaseId: "wp1", statuses: ["in_progress", "done", "done"] },
   );
 });
 
@@ -1359,7 +1430,14 @@ node --experimental-strip-types --test plugins/codexclaw/components/pabcd-state/
 #!/usr/bin/env bash
 set -euo pipefail
 cd /Users/jun/Developer/new/700_projects/codexclaw
-node --experimental-strip-types --test --test-name-pattern "wp4 compatibility|schema round-trips" plugins/codexclaw/components/pabcd-state/test/goalplan.test.ts
+# 앵커 없는 패턴은 기존 '030: schema round-trips' 1건만 잡고도 exit 0이 된다.
+# 신규 3건이 실제로 등록됐는지 개수로 먼저 확인한다(P-phase stale check 260829).
+compatibility_case_count="$(rg -n 'test\("(wp4 compatibility:|030: schema round-trips)' \
+  plugins/codexclaw/components/pabcd-state/test/goalplan.test.ts | wc -l | tr -d ' ')"
+test "$compatibility_case_count" -eq 4
+node --experimental-strip-types --test \
+  --test-name-pattern='^(wp4 compatibility:|030: schema round-trips)' \
+  plugins/codexclaw/components/pabcd-state/test/goalplan.test.ts
 ```
 
 기대 결과:
@@ -1378,8 +1456,15 @@ verification_tmp="$(mktemp -d)"
 trap 'rm -rf "$verification_tmp"' EXIT
 export TMPDIR="$verification_tmp"
 cd /Users/jun/Developer/new/700_projects/codexclaw
+# 앵커 없는 'wp4:'는 기존 '260714 wp4:' 4건을 오탐해 신규 0건에서도 exit 0이 된다.
+# 개수 확인을 먼저 두고 패턴에 ^ 앵커를 붙인다(P-phase stale check 260829).
+wp4_case_count="$(rg -n 'test\("(wp4:|wp4 regression:|wp4 compatibility:)' \
+  plugins/codexclaw/components/pabcd-state/test/goalplan.test.ts \
+  plugins/codexclaw/components/pabcd-state/test/work-phase-states.test.ts \
+  plugins/codexclaw/components/pabcd-state/test/orchestrate-cli.test.ts | wc -l | tr -d ' ')"
+test "$wp4_case_count" -eq 16
 node --experimental-strip-types --test \
-  --test-name-pattern='wp4:|wp4 regression:|wp4 compatibility:' \
+  --test-name-pattern='^(wp4:|wp4 regression:|wp4 compatibility:)' \
   plugins/codexclaw/components/pabcd-state/test/goalplan.test.ts \
   plugins/codexclaw/components/pabcd-state/test/work-phase-states.test.ts \
   plugins/codexclaw/components/pabcd-state/test/orchestrate-cli.test.ts
@@ -1480,6 +1565,27 @@ test "$diff_status" -eq 1
 - wp6은 새 helper를 Stop `waitingOn`에 연결하고, wp7은 wp6이 확정한 출력 문자열을 인용만 한다.
 - orchestrate gated attest가 별도 계산 없이 dependency-aware `effectiveActiveWorkPhaseId()`에 결박된다.
 - v1/v2 필드 부재와 v3 빈 배열이 실행 의미상 동일하고 저장 표현은 각각 보존된다.
+- 불변식 9의 v1 golden이 세 경로의 관측값을 한 `deepEqual`로 묶고, wrap 순회까지 같은 테스트에서
+  실행한다. 감사 라운드 1이 요구한 **변이 확인**을 함께 수행한다: `advanceWorkPhase()`의
+  `closedId` 반환을 훼손하면 이 테스트가 RED가 되고, `nextOpenTask()`가 고르는 후보나 wrap
+  방향을 바꿔도 RED가 된다. 세 변이 중 하나라도 green이면 golden이 부족한 것이므로 완료가 아니다.
+
+### 변이 확인 실측 결과 (B-phase 260829)
+
+세 변이를 `goalplan.ts`에 차례로 넣고 focused golden을 돌린 결과다. 변이마다 백업에서 복원한 뒤
+다음 변이를 넣었고, 마지막에 `diff -q`로 원본과 바이트 동일을 확인했다.
+
+| 변이 | 주입 내용 | golden 결과 |
+| --- | --- | --- |
+| M1 | `closedId: current.id` → `closedId: null` | RED (fail 1, golden 본인) |
+| M2 | `nextOpenTask()`가 첫 runnable 대신 마지막 runnable을 반환 | RED (fail 2, golden 포함) |
+| M3 | `const next = after ?? …slice(0, currentIdx).find(…)` → `const next = after` | RED (fail 2, golden 포함) |
+
+M2는 1차 시도에서 golden을 green으로 통과시켰다. golden fixture의 `wp3`에 runnable pending
+task가 `t3` 하나뿐이어서 "첫 개"와 "마지막 개"가 같은 값이었고, 후보 선택 규칙이 관측되지 않았다.
+`wp3`에 두 번째 pending task `t3b`를 넣어 선언 순서 선택을 못 박은 뒤 M2가 golden 자체를 RED로
+바꾼다. wrap 구간도 `tasks[0]`만 닫던 코드를 전체 task 순회로 바꿨다. 이 보강 없이는 §11의
+"후보를 바꿔도 RED" 조건이 실제로 성립하지 않았다.
 - 지정된 네 테스트 파일과 변경 공개 경로 focused gate 뒤 `npm run build` → `npm test` →
   `npm run gate`가 차례로 exit 0이다.
 
