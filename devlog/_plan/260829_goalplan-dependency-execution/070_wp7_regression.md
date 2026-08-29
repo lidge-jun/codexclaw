@@ -777,6 +777,16 @@ open 직후와 abort 직후를 따로 읽는다. `review-round-cli.ts:237`에서
 §4.4와 같은 파일이다. helper와 import는 §4.4에서 이미 놓았으므로 다시 놓지 않는다. 다만 §5 helper
 자체는 이 파일에 **반드시** 있어야 한다 — 이 섹션의 테스트가 `taskFields()`를 호출한다.
 
+C단계 감사관이 이 두 테스트의 변이 격리를 지적했다. `review-round-cli.ts`의 write를 망치면 §4.4와 §4.5가
+함께 red가 되므로 "open/abort 전용"이 증명되지 않는다는 것이다. 실측은 맞지만 이것은 구조 때문이고
+수정 대상이 아니다. `review-observer.ts:113`이 `roundByLaunchId()`로 sign-off의 launch id를 찾는데, 그
+id는 `open`만 만든다. 그래서 observer 테스트는 arrange에서 `open`을 반드시 호출해야 하고, `open`의
+write가 망가지면 arrange 단계에서 넘어진다. 두 테스트를 갈라도 이 의존은 남는다.
+
+격리가 실제로 필요한 방향은 반대쪽이고 그쪽은 성립한다 — `review-observer.ts:156` 변이는 §4.5만 red로
+만들고 §4.4와 나머지 경로 파일은 green으로 남았다(감사관 실측). observer 경로가 자기 회귀를 갖고 있다는
+것이 이 섹션의 목적이므로 그 방향이 지켜지면 충분하다.
+
 before:
 
 ```ts
