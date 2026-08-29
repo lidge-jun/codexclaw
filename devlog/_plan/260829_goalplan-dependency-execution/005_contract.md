@@ -630,6 +630,10 @@ D-close 검사 순서 정본(wp5가 이 순서를 그대로 구현한다):
 2. 빈 plan → 기존 `the plan is empty` 문구로 거부
 3. 전부 done → all-done 특례로 cycle만 닫음(marker 불필요)
 4. recovery marker 일치 → 남은 정리만 수행
+
+> **§39 Y2로 개정됨.** 3번과 4번의 순서가 뒤바뀐다. marker 일치 recovery가 all-done보다 **앞**이며,
+> recovery는 고정 대상의 상태를 확인해 멱등 commit까지 수행한다. 구현은 §39의 개정된 8단계를 따른다.
+
 5. target phase가 plan에 없음 → 거부
 6. pending task 남음 → `tasks_pending` 거부
 7. 의존 교착 → `dependencyDeadlock()` 진단으로 거부
@@ -751,6 +755,11 @@ X2 처분: 채팅 D-close 순서를 정본 §35의 8단계와 정확히 맞춘�
 4. target 검증 → 없으면 거부
 5. 이하 정상 close
 
+> **§39 Y1·Y2로 개정됨.** marker 일치 recovery가 all-done보다 **앞**에 온다(1 → recovery → all-done →
+> target 검증). 그리고 recovery는 marker의 `closedWorkPhaseId`로 plan에서 대상을 찾아 아직 `done`이
+> 아니면 그 phase만 멱등하게 닫는다. 이 조회는 아래가 금지한 "target 검증"이 아니다 — 없으면 거부하지
+> 않고 이미 커밋됐다고 판정한다.
+
 - recovery 판정을 target 조회보다 **앞**에 둔다. marker의 `closedWorkPhaseId`가 이미 그 대상을
   가리키므로 plan에서 다시 찾을 필요가 없다.
 - all-done 경로에서 닫힌 대상이 없음을 바깥으로 전달해 PABCD 행의 `closedWorkPhaseId`를
@@ -759,3 +768,73 @@ X2 처분: 채팅 D-close 순서를 정본 §35의 8단계와 정확히 맞춘�
   필수 target으로 적는다"를 **삭제**한다. §35 U2와 정면으로 충돌한다.
 - 테스트 두 개를 추가한다: marker 일치 + target 부재에서 정리가 재개된다 /
   all-done + `workPhaseId` 제공에서 PABCD 행의 `closedWorkPhaseId`가 null이다.
+
+## 39. 라운드 9 — marker recovery의 lost update 폐쇄 (실측 확인)
+
+P-phase stale check 리뷰어가 §27·§35·§38의 조합에서 lost update 두 건을 재현 가능한 형태로 지적했고,
+050의 명세 코드로 확인했다. 둘 다 실재한다.
+
+| # | 심각도 | 지적 | 소유 |
+| --- | --- | --- | --- |
+| Y1 | Critical | marker는 plan commit **앞**에 기록되는데(§19 1단계), marker 일치 recovery는 `if (!recoveringDclose)` 블록 안에서만 `writeClosedPlan = true`가 된다. marker 직후 crash한 뒤 재시도하면 plan은 닫히지 않은 채 `workphase_done` 원장 행과 IDLE state만 생긴다. 원장은 닫혔다고 말하고 plan은 열려 있다 | wp5 |
+| Y2 | Critical | §35-3 all-done이 §35-4 marker recovery보다 앞이다. 마지막 work-phase의 plan commit 직후 crash하면 plan은 이미 전부 `done`이므로 재시도가 all-done 특례로 들어가 `closedWorkPhaseId: null`로 기록한다. marker가 지목한 실제 대상이 원장에서 사라진다 | wp5 |
+
+두 지적의 뿌리는 하나다. marker가 "어느 대상을 닫는 중"만 말하고 "어디까지 커밋했는지"는 말하지
+않는데, recovery 경로가 커밋 여부를 확인하지 않고 남은 단계로 건너뛴다.
+
+### Y1·Y2 처분 — recovery는 고정 대상의 상태를 확인하고 멱등 commit한다
+
+marker에 stage 필드를 넣지 않는다. 단계를 늘리면 그 단계 자체가 또 crash 지점이 된다. 대신 recovery가
+고정 대상의 현재 상태를 보고 필요한 commit만 다시 수행한다. marker의 `closedWorkPhaseId`는 여전히
+target을 **조회하지 않고** 고정하는 근거지만, 그 대상이 plan에서 이미 `done`인지는 확인한다.
+
+확정 계약:
+
+- recovery 분기는 marker의 `closedWorkPhaseId`로 plan에서 해당 phase를 찾는다. 이 조회는 §38 X2가
+  금지한 "target 검증"이 아니다. 없으면 거부하지 않고, 이미 커밋됐다고 판정해 plan write를 생략한다.
+- 찾았고 status가 `done`이 아니면 그 phase만 `done`으로 만들어 plan을 commit한다. 커서 이동은
+  `advanceWorkPhase()`를 다시 부르지 않고, 첫 시도가 남긴 plan 상태를 존중한다. 즉 recovery의 plan
+  commit은 대상 phase status 하나만 멱등하게 맞춘다.
+- 찾았고 이미 `done`이면 plan write를 생략하고 원장·state 정리로 넘어간다.
+- **검사 순서에서 marker recovery가 all-done보다 앞이다.** §35의 8단계와 §38 X2의 5단계를 아래로
+  개정한다.
+
+개정된 D-close 검사 순서 정본:
+
+1. slug 없음(HITL) → 기존 경로, 즉시 return
+2. 빈 plan → 기존 `the plan is empty` 문구로 거부
+3. **recovery marker 일치 → 고정 대상의 멱등 commit과 남은 정리만 수행**
+4. 전부 done → all-done 특례로 cycle만 닫음(marker 불필요, `closedWorkPhaseId`는 null)
+5. target phase가 plan에 없음 → 거부
+6. pending task 남음 → `tasks_pending` 거부
+7. 의존 교착 → `dependencyDeadlock()` 진단으로 거부
+8. 정상 close → 락 안에서 plan commit + goalplan 원장, 락 밖에서 state + PABCD 원장
+
+3번이 4번보다 앞이면 Y2가 닫힌다. 마지막 phase를 커밋한 뒤 crash해도 marker가 남아 있으므로 재시도가
+recovery 분기로 들어가고, `closedWorkPhaseId`가 원장에 정확히 남는다. marker가 없는 all-done plan은
+여전히 4번에서 정상으로 닫힌다 — §35 U2가 지킨 경로는 그대로다.
+
+3번 안의 멱등 commit이 Y1을 닫는다. marker 직후 crash에서는 대상이 아직 `done`이 아니므로 recovery가
+plan을 닫고, plan commit 직후 crash에서는 이미 `done`이므로 write를 건너뛴다. 두 경우 모두 원장과 plan이
+같은 사실을 말한다.
+
+### Y3 — 최종화 락 실패는 전이를 진행하지 않는다
+
+050 §5 마지막 문단이 "최종화 락을 못 잡으면 CLI는 code 1로 close는 반영됐고 finalization이 남았다고
+알린다"고 적는데, 이건 §11의 operation fail-closed와 충돌한다. 4단계 state write는 이미 락 밖이고
+5·6단계는 다시 락 안이므로, 최종화 락 실패 시점에는 FSM이 이미 IDLE이다. 전이를 되돌리지 않는다.
+
+확정: 최종화 락 실패는 **거부가 아니라 미완 보고**다. §5의 "거부는 아무것도 쓰지 않는다"는 최초
+거부에만 적용되고, 이 지점은 이미 게이트를 통과한 뒤다. CLI는 code 1을 쓰지 않고 code 0으로 닫되
+출력에 marker가 남아 다음 요청이 정리를 끝낸다는 사실을 적는다. 채팅 훅도 같은 문구를 내고 프로세스
+code 0을 지킨다. §11 표의 `CLI D-close` 행은 **최초 락 실패**만 가리킨다는 단서를 붙인다.
+
+### Y4 — verifier의 문서 상태 기대는 tracked 기준이다
+
+§22와 각 decade 문서의 §10이 담당 문서가 untracked라고 전제하고 `git status --porcelain`이 `??` 한 줄을
+낸다고 단언한다. 020·030·040·050은 이미 커밋됐으므로 이 기대는 거짓이고, 출력을 검사하지 않기 때문에
+조용히 통과한다.
+
+확정: 담당 문서 확인은 tracked 여부를 가정하지 않는다. `git ls-files --error-unmatch <문서>`로 저장소에
+등록됐음을 확인하고, 변경이 있으면 `git diff --stat -- <문서>`로 보인다. `git diff --no-index /dev/null`은
+쓰지 않는다. 그 명령은 파일 내용과 무관하게 항상 exit 1이라 아무것도 검증하지 않는다.

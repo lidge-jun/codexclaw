@@ -55,31 +55,45 @@ wp5는 공개 mutation보다 먼저 공통 락을 세운다. 현재 steering 전
 
 ## 2. 현재 소스 근거
 
-- `goalplan.ts:615-636`은 tmp 파일을 rename하는 plan publish만 담당한다.
-- `goalplan.ts:638-658`의 ledger append는 별도 `openSync(O_APPEND)`, `writeSync`, `closeSync`다.
-- `atomic-write.ts:16`은 rename 재시도 상수, `atomic-write.ts:38-45`는 재시도 실행부다.
-- `steering.ts:68-128`은 `.steer.lock` 전용 획득·해제 코드다. 주석도 stale 자동 회수가 없다고 적는다.
-- `steering.ts:270-334`는 락 획득 뒤 plan을 읽고 plan commit과 `steered` append를 실행한다.
-- 실제 HEAD의 `orchestrate-cli.ts:599-697`이 CLI D-close다. 성공 시 `writeState()`로 FSM을 먼저
-  `IDLE`로 닫는 지점은 `orchestrate-cli.ts:658`, PABCD 원장 append는
-  `orchestrate-cli.ts:659-666`이다. goalplan write는 그 뒤 `orchestrate-cli.ts:671`, goalplan 원장
-  append는 `orchestrate-cli.ts:672-690`이며 전체가 `orchestrate-cli.ts:670-695`의 catch fail-open
-  안에 있다.
-  이 순서를 goalplan-first로 바꿀 때 attest의 `workPhaseId`를 닫기 대상 id로 고정하지 않으면
+아래 앵커는 wp4 적용 뒤 HEAD `8321b2d7` 기준이다. 기존 수치는 wp4 삽입분만큼 밀렸다.
+
+- `goalplan.ts:694-715`는 tmp 파일을 쓴 뒤 rename하는 plan publish 경로다.
+- `goalplan.ts:717-737`의 ledger append는 별도 `openSync(O_APPEND)`, `writeSync`, `closeSync`로 구성된다.
+- `atomic-write.ts:16`은 rename 재시도 간격 상수, `atomic-write.ts:38-45`는 재시도 실행부다.
+- `steering.ts:68-128`은 `.steer.lock` 경로와 전용 획득·해제 helper다.
+  `steering.ts:80-85` 주석은 stale lock을 자동 회수하지 않으며 이 락이 steering끼리만 막는다고 명시한다.
+- `steering.ts:193-200`의 `ApplyOptions`에는 `now`와 `wslDeps`만 있다. 공통 락 대기·실패 주입 옵션은 아직 없다.
+- `steering.ts:274-334`는 `.steer.lock`을 잡고 plan을 다시 읽은 뒤 plan commit과 `steered` append를 실행하고 락을 푼다.
+  plan write는 `steering.ts:313`, 원장 append는 `steering.ts:316-321`이다.
+- 실제 HEAD의 `orchestrate-cli.ts:599-705`가 CLI D-close다. 성공 시 `writeState()`로 FSM을 먼저
+  `IDLE`로 닫는 지점은 `orchestrate-cli.ts:666`, PABCD 원장 append는
+  `orchestrate-cli.ts:667-674`다. goalplan write는 그 뒤 `orchestrate-cli.ts:679`,
+  `workphase_done` append는 `orchestrate-cli.ts:680-691`, `workphase_started` append는
+  `orchestrate-cli.ts:693-699`이며 모두 `orchestrate-cli.ts:678-703`의 fail-open catch 안에 있다.
+  이 순서를 goalplan-first로 바꿀 때 attest의 `workPhaseId`를 닫을 phase id로 고정하지 않으면
   state write 실패 뒤 재시도가 다음 pending phase를 한 번 더 닫는다.
-- `orchestrate-cli.ts:719-748`은 P→A stale-round 청소 RMW다.
-- `hook.ts:817-853`은 채팅 D-close preflight, `hook.ts:871-886`은 state와 PABCD 원장 write,
-  `hook.ts:894-916`은 plan과 goalplan 원장 write다.
+- `orchestrate-cli.ts:727-756`은 P→A stale-round 청소 RMW다. plan write는
+  `orchestrate-cli.ts:742`, 닫힌 round 원장 append는 `orchestrate-cli.ts:743-750`이다.
+- `hook.ts:839-880`은 채팅 D-close preflight다. state write는 `hook.ts:898-911`,
+  PABCD 원장 append는 `hook.ts:913`이다. plan과 goalplan 원장 write 블록은
+  `hook.ts:920-944`이며, plan write는 `hook.ts:925`, `workphase_done` append는
+  `hook.ts:926-932`, `workphase_started` append는 `hook.ts:934-939`다.
 - `review-round-cli.ts:201-237`은 open RMW, `review-round-cli.ts:257-264`는 abort RMW다.
-- `review-observer.ts:89-99`는 sign-off 진단 append, `review-observer.ts:104-165`는 verdict RMW다.
-- `goalplan-cli.ts:340-348`의 init은 신규 plan 생성과 `created` append다. 기존 객체 RMW가 아니므로
-  이번 공통 callback 이관 대상에서 제외한다.
+- `review-observer.ts:73-99`는 진단 append helper와 sign-off 파싱 실패 호출부이고,
+  `review-observer.ts:119-135`는 알려진 round의 거부 진단 append다.
+  `review-observer.ts:104-165`는 plan read, round·epoch·reviewer 검사, `recordVerdict()`,
+  plan write까지 이어지는 verdict RMW다.
+- `goalplan-cli.ts:326-353`의 init은 신규 plan 생성 경로다. plan build와 write는
+  `goalplan-cli.ts:336-340`, `created` append는 `goalplan-cli.ts:341-346`, 선택적인 세션 바인딩
+  state write는 `goalplan-cli.ts:349-352`다. 기존 goalplan은 `goalplan-cli.ts:332-335`에서
+  거부하므로 이번 공통 callback 이관 대상에서 제외한다.
 
 ## 3. 실패 의미
 
 | 경로 | 분류 | 락 실패 결과 |
 | --- | --- | --- |
-| CLI D-close | operation fail-closed | code 1, phase 전이 없음, plan·두 원장 불변 |
+| CLI D-close (최초 락) | operation fail-closed | code 1, phase 전이 없음, plan·두 원장 불변 |
+| CLI D-close (최종화 락) | 미완 보고 | code 0, FSM은 이미 IDLE, marker 잔존, 다음 요청이 정리 완료 |
 | 채팅 D-close | operation fail-closed + hook process fail-open | D-close 전이 없음, 사람이 읽는 경고 반환, hook 프로세스 code 0 |
 | steering apply | operation fail-closed | `kind: "locked"`, plan·goalplan 원장 불변 |
 | review-round open/abort | operation fail-closed | code 1, round 불변 |
@@ -153,9 +167,14 @@ target과 pending task를 다시 검사하고, plan을 쓰기 직전에 marker�
 끝나면 goalplan 락을 다시 잡고 `dcloseRecovery: null`, `checkEpoch: null`로 state를 쓴다.
 
 recovery 판정은 아래 세 비교가 모두 참일 때뿐이다. plan의 phase status와 기존 원장 행은 recovery
-자격을 주지 않는다. marker가 맞으면 `closedWorkPhaseId`가 이미 닫힌 대상을 고정하므로 plan에서
-target을 다시 찾지 않는다. CLI와 채팅 모두 빈 plan, all-done, marker recovery, target 검증 순서를
-같게 둔다.
+자격을 주지 않는다. marker가 맞으면 `closedWorkPhaseId`가 대상을 고정하므로 정상 경로의 target
+검증(없으면 거부)은 건너뛴다. 다만 계약 §39 Y1에 따라 **그 고정 대상이 plan에서 이미 `done`인지는
+확인하고, 아직 아니면 그 phase만 멱등하게 닫는다.** marker는 plan commit보다 먼저 기록되므로,
+확인 없이 원장·state 정리로 건너뛰면 원장은 닫혔다고 말하고 plan은 열려 있는 상태가 남는다.
+CLI와 채팅 모두 빈 plan, **marker recovery**, all-done, target 검증 순서를 같게 둔다. recovery가
+all-done보다 앞인 이유는 계약 §39 Y2다. 마지막 work-phase를 커밋한 직후 crash하면 plan이 전부
+`done`이 되므로, all-done이 먼저 오면 재시도가 `closedWorkPhaseId: null`로 기록하고 marker가
+지목한 실제 대상이 원장에서 사라진다.
 
 ```ts
 export function matchesDcloseRecovery(
@@ -179,8 +198,8 @@ work-phase binding, `transition()`, receipt를 다시 검사하고, IDLE에서�
 
 | 순서 | 락 | 커밋 | 직후 실패 시 관측 상태 | 같은 marker·target 재시도 |
 | --- | --- | --- | --- | --- |
-| 1 | 안 | session state에 marker 기록, phase는 C 유지 | marker 있음, plan 미변경 | marker가 세 값을 결박하므로 같은 target부터 재개 |
-| 2 | 안 | `goalplan.json`: `closePhaseId`를 `done`으로 commit | target done, goalplan 원장 없음, state C+marker | plan을 다시 넘기지 않고 3번부터 진행 |
+| 1 | 안 | session state에 marker 기록, phase는 C 유지 | marker 있음, plan 미변경 | recovery가 고정 대상이 `done`이 아님을 보고 2번을 멱등 수행 |
+| 2 | 안 | `goalplan.json`: `closePhaseId`를 `done`으로 commit | target done, goalplan 원장 없음, state C+marker | recovery가 고정 대상이 이미 `done`임을 보고 plan write를 건너뛰고 3번부터 진행 |
 | 3 | 안 | goalplan 원장: `workphase_done`, 필요하면 `workphase_started` append | plan·goalplan 원장 완료, state C+marker | 기존 행 확인 뒤 4번부터 진행 |
 | 4 | 밖 | state를 IDLE로 write, marker와 check epoch는 잠시 보존 | FSM IDLE, PABCD 원장 없음 | IDLE recovery가 5번만 진행 |
 | 5 | 다시 안 | PABCD 원장의 같은 3-tuple 확인·append | 기능 커밋 완료, marker 남음 | 같은 락 안 확인으로 중복 append 불가 |
@@ -189,9 +208,16 @@ work-phase binding, `transition()`, receipt를 다시 검사하고, IDLE에서�
 goalplan 원장 append나 PABCD append가 실제 write 뒤 throw해도 행 존재 확인으로 중복을 막는다.
 PABCD close-row 확인·append·marker cleanup은 한 goalplan 락 callback 안에 있으며 check-then-append
 경쟁이 없다.
-최종화 락을 못 잡으면 CLI는 code 1로 “close는 반영됐고 ledger/marker finalization이 남았다”고 알리고,
-채팅 훅은 같은 경고를 내되 프로세스 code 0을 지킨다. 다음 동일 요청이 marker를 소비해 정리를
-끝낸다. `owner.json`은 recovery 판정에 참여하지 않는다.
+
+1번 직후와 2번 직후의 재시도가 서로 다른 일을 하는 것이 계약 §39 Y1의 핵심이다. recovery는 marker의
+`closedWorkPhaseId`로 plan에서 phase를 찾고, 없으면 이미 커밋됐다고 판정해 write를 생략하고, 있는데
+`done`이 아니면 그 phase status 하나만 `done`으로 맞춰 commit한다. `advanceWorkPhase()`를 다시
+부르지 않는다 — 커서는 첫 시도가 남긴 상태를 존중한다.
+
+최종화 락 실패는 거부가 아니다. 계약 §39 Y3에 따라 4번 state write가 이미 락 밖에서 끝나 FSM이 IDLE이
+된 뒤이므로, 전이를 되돌리지 않는다. CLI는 **code 0**으로 닫고 출력에 marker가 남아 다음 요청이 정리를
+끝낸다는 사실을 적는다. 채팅 훅도 같은 문구를 내고 프로세스 code 0을 지킨다. §3 표의 `CLI D-close`
+fail-closed 행은 **최초 락 실패**만 가리킨다. `owner.json`은 recovery 판정에 참여하지 않는다.
 
 ## 6. 파일별 diff
 
@@ -496,6 +522,10 @@ import { filesystemTier, type WslDeps } from "./wsl.ts";
 
 export interface ApplyOptions {
   now?: () => string;
+  /**
+   * Filesystem probes for the lock-contention diagnostic. Injected so the drvfs
+   * branch is reachable from a test on any OS; production reads /proc/mounts.
+   */
   wslDeps?: WslDeps;
 }
 ```
@@ -776,18 +806,37 @@ CLI D-close 검사 순서는 §35의 여덟 단계로 고정한다. slug 없는 
           };
         }
 
-        // §35-3 / #49: an already-complete non-empty plan closes the cycle only.
-        // No marker, plan write, or goalplan ledger row is needed.
-        if (plan.workPhases.every((workPhase) => workPhase.status === "done")) {
-          return { code: 0 as const, allDone: true as const };
-        }
-
-        // §35-4: the marker already fixes the closed target. Recovery never
-        // looks that target up in the current plan; a partial commit may have
-        // removed it. Only the remaining ledger/state cleanup is resumed.
+        // §39 Y2: recovery comes BEFORE the all-done special case. Crashing right
+        // after the final work-phase was committed leaves an all-done plan, so
+        // checking all-done first would re-enter it as a plain cycle close and
+        // record closedWorkPhaseId: null — losing the target the marker names.
         let closedPlan = plan;
         let writeClosedPlan = false;
-        if (!recoveringDclose) {
+        if (recoveringDclose) {
+          // §39 Y1: the marker is written BEFORE the plan commit, so a matching
+          // marker does not prove the plan was closed. Look the fixed target up —
+          // this is not the §38 X2 "target validation" that refuses on absence.
+          // Absent means a later edit removed it and the commit is not ours to
+          // redo; present-but-open means the marker-then-crash case and we close
+          // exactly that phase. advanceWorkPhase() is NOT called again: the cursor
+          // belongs to whatever the first attempt already persisted.
+          const fixed = plan.workPhases.find((workPhase) => workPhase.id === closePhaseId);
+          if (fixed && fixed.status !== "done") {
+            closedPlan = {
+              ...plan,
+              workPhases: plan.workPhases.map((workPhase) =>
+                workPhase.id === closePhaseId ? { ...workPhase, status: "done" as const } : workPhase
+              ),
+            };
+            writeClosedPlan = true;
+          }
+        } else {
+          // §35-3 / #49: an already-complete non-empty plan closes the cycle only.
+          // No marker, plan write, or goalplan ledger row is needed. This is now
+          // inside the non-recovery branch so a matching marker always wins.
+          if (plan.workPhases.every((workPhase) => workPhase.status === "done")) {
+            return { code: 0 as const, allDone: true as const };
+          }
           // §35-5: input and target membership checks follow all-done and recovery.
           if (!closePhaseId) {
             return {
@@ -917,8 +966,12 @@ CLI D-close 검사 순서는 §35의 여덟 단계로 고정한다. slug 없는 
     });
     if (finalize.kind !== "ok") {
       return {
-        code: 1,
-        output: `orchestrate D: close target ${closePhaseId} is committed, but ledger/marker finalization is pending: ${finalize.reason}`,
+        // §39 Y3: not a refusal. The state write above already moved the FSM to
+        // IDLE outside the lock, so returning code 1 here would report a failure
+        // for a cycle that is functionally closed. The marker survives and the
+        // next D request for the same tuple finishes the cleanup.
+        code: 0,
+        output: `orchestrate D: close target ${closePhaseId} is committed and the cycle is closed, but ledger/marker finalization is pending: ${finalize.reason}. Run the same D request again once the lock clears.`,
       };
     }
     return { code: 0, output: `orchestrate D: close target ${closePhaseId} is complete (cycle closed, session ${sessionId})` };
@@ -1461,11 +1514,35 @@ try {
 if (!plan) {
   return { output: `review-round open: the bound goalplan "${state.slug}" could not be read`, code: 1 };
 }
+const workPhaseId = effectiveActiveWorkPhaseId(plan);
+if (!workPhaseId) return { output: "review-round open: the bound goalplan has no active work-phase", code: 1 };
+
+const collected = collectPlanFiles(args.cwd, state.planUnit, args.planPaths);
+if ("error" in collected) return { output: `review-round open: ${collected.error}`, code: 1 };
+
 const opened = openRound(plan, {
   purpose: "plan_audit",
   planPath: state.planUnit,
   planSha256: planFilesHash(collected.files),
 });
+if (opened.kind !== "ok") return { output: `review-round open: ${"reason" in opened ? opened.reason : opened.kind}`, code: 1 };
+
+// Bind before launching: a round that exists without its identity could be
+// matched by a later cycle.
+let next = opened.plan;
+next = {
+  ...next,
+  reviewRounds: (next.reviewRounds ?? []).map((r) =>
+    r.roundId === opened.round.roundId
+      ? { ...r, ownerSessionId: session, workPhaseId, planUnit: state.planUnit!, planEpoch: state.planEpoch!, planFiles: collected.files }
+      : r,
+  ),
+};
+const launchId = opened.round.lane.launchId;
+const launching = markLaunching(next, "plan_audit", opened.round.roundId, launchId);
+if (launching.kind !== "ok") return { output: `review-round open: ${"reason" in launching ? launching.reason : launching.kind}`, code: 1 };
+const inFlight = markInFlight(launching.plan, "plan_audit", opened.round.roundId, launchId);
+if (inFlight.kind !== "ok") return { output: `review-round open: ${"reason" in inFlight ? inFlight.reason : inFlight.kind}`, code: 1 };
 writeGoalplan(args.cwd, inFlight.plan);
 ```
 
@@ -1597,14 +1674,45 @@ import type { SubagentStopPayload } from "./hook.ts";
 ```ts
 // wp4 적용 후 상태
 const plan = readGoalplan(cwd, state.slug);
+if (!plan) return "";
+
+// Find the round by its launch id before checking anything else. The sign-off
+// names its own round, and looking it up first means every refusal below is
+// about a round we can name.
 const round = roundByLaunchId(plan, "plan_audit", signoff.launchId);
+if (!round) {
+  return note(
+    "review_signoff_ignored",
+    `${signoff.verdict} sign-off named launch ${signoff.launchId}, which belongs to no plan_audit round`,
+    signoff.launchId,
+  );
+}
+
+// ignore() appends a diagnostic row and returns "". FAIL-OPEN throughout: a note
+// that cannot be written must not break the child's exit.
+if (state.phase !== "A") return ignore("the session left A before the reviewer finished");
+if (round.ownerSessionId !== sessionId) return ignore("the round belongs to another session");
+if (round.planEpoch !== state.planEpoch) return ignore("the plan was re-planned after this round opened");
+const agentId = payload.agent_id ?? "";
+const boundReviewer = round.lane.reviewerSession;
+if (boundReviewer !== undefined && boundReviewer !== agentId) {
+  return ignore(`round ${round.roundId} was already signed by ${boundReviewer}`);
+}
+const activeWp = effectiveActiveWorkPhaseId(plan);
+if (round.workPhaseId !== activeWp) {
+  return ignore(`the round audited work-phase ${round.workPhaseId ?? "none"}, but ${activeWp ?? "none"} is active`);
+}
+
 const result = recordVerdict(plan, {
   purpose: "plan_audit",
   roundId: round.roundId,
   launchId: signoff.launchId,
   verdict: signoff.verdict,
-  reviewerSession: payload.agent_id ?? "",
+  reviewerSession: agentId,
 });
+if (result.kind !== "ok") {
+  return ignore("reason" in result ? result.reason : result.kind);
+}
 writeGoalplan(cwd, result.plan);
 ```
 
@@ -1743,9 +1851,9 @@ function commitCompletedTask(
 파일 전체 내용:
 
 ```ts
-// wp5 신규 파일 import 전체; 선행 wp 추가 이름 없음
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
@@ -1767,66 +1875,181 @@ function workspace(objective: string): { cwd: string; slug: string } {
   return { cwd, slug: plan.slug };
 }
 
-test("writers re-read under the common lock and preserve both updates", () => {
-  const { cwd, slug } = workspace("preserve both updates");
-  const outsideA = readGoalplan(cwd, slug)!;
-  const outsideB = readGoalplan(cwd, slug)!;
-  assert.deepEqual(outsideA, outsideB);
+// A same-process sequential A-then-B call proves nothing: B reads what A already
+// persisted whether or not a lock exists. These writers run in real child
+// processes and signal through files, so removing the lock lets both callbacks be
+// active at once and the overlap sentinel appears.
+const GOALPLAN_WRITER_SCRIPT = String.raw`
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 
-  const a = withGoalplanWriteLock(cwd, slug, (plan) => {
-    writeGoalplan(cwd, {
-      ...plan,
-      workPhases: [
-        ...plan.workPhases,
-        { id: "wp-a", title: "A", status: "pending", tasks: [], criteriaIds: [] },
-      ],
-    });
-    return "a";
-  });
-  const b = withGoalplanWriteLock(cwd, slug, (plan) => {
-    assert.deepEqual(plan.workPhases.map((workPhase) => workPhase.id), ["wp-a"]);
-    writeGoalplan(cwd, {
-      ...plan,
-      workPhases: [
-        ...plan.workPhases,
-        { id: "wp-b", title: "B", status: "pending", tasks: [], criteriaIds: [] },
-      ],
-    });
-    return "b";
-  });
+const [
+  goalplanUrl, cwd, slug, writer, enteredPath, activePath, peerActivePath,
+  contendedPath, overlapPath, releasePath, donePath, mode,
+] = process.argv.slice(1);
+const { withGoalplanWriteLock, writeGoalplan } = await import(goalplanUrl);
 
-  assert.deepEqual(a, { kind: "ok", value: "a" });
-  assert.deepEqual(b, { kind: "ok", value: "b" });
-  assert.deepEqual(readGoalplan(cwd, slug)!.workPhases.map((workPhase) => workPhase.id), ["wp-a", "wp-b"]);
+function waitForAny(paths) {
+  const deadline = Date.now() + 10_000;
+  while (!paths.some((path) => path !== "-" && existsSync(path))) {
+    if (Date.now() >= deadline) throw new Error("timed out waiting for: " + paths.join(", "));
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+  }
+}
+
+const delays = [];
+try {
+  const retryDelaysMs = mode === "timeout" ? [5, 10, 20, 40] : [50, 50, 50, 50];
+  const options = writer === "b"
+    ? {
+        retryDelaysMs,
+        sleep(ms) {
+          delays.push(ms);
+          writeFileSync(contendedPath, String(ms) + "\n");
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+        },
+      }
+    : {};
+
+  const result = withGoalplanWriteLock(cwd, slug, (plan) => {
+    writeFileSync(activePath, writer + "\n");
+    try {
+      if (peerActivePath !== "-" && existsSync(peerActivePath)) {
+        writeFileSync(overlapPath, writer + " overlapped its peer\n");
+      }
+      writeGoalplan(cwd, {
+        ...plan,
+        workPhases: [
+          ...plan.workPhases,
+          { id: "wp-" + writer, title: writer.toUpperCase(), status: "pending", tasks: [], criteriaIds: [] },
+        ],
+      });
+      writeFileSync(enteredPath, writer + "\n");
+      if (writer === "a") waitForAny(releasePath === "-" ? [contendedPath, overlapPath] : [releasePath]);
+      return writer;
+    } finally {
+      rmSync(activePath, { force: true });
+    }
+  }, options);
+
+  process.stdout.write(JSON.stringify({ result, delays }));
+} finally {
+  if (donePath !== "-") writeFileSync(donePath, writer + "\n");
+}
+`;
+
+interface GoalplanWriterRun {
+  cwd: string;
+  slug: string;
+  writer: "a" | "b";
+  enteredPath: string;
+  activePath: string;
+  peerActivePath?: string;
+  contendedPath: string;
+  overlapPath: string;
+  releasePath?: string;
+  donePath?: string;
+  mode: "holder" | "handoff" | "timeout";
+}
+
+function runGoalplanWriter(run: GoalplanWriterRun): Promise<{ status: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolveChild, rejectChild) => {
+    const child = spawn(process.execPath, [
+      "--experimental-strip-types", "--input-type=module", "-e", GOALPLAN_WRITER_SCRIPT,
+      new URL("../src/goalplan.ts", import.meta.url).href,
+      run.cwd, run.slug, run.writer, run.enteredPath, run.activePath,
+      run.peerActivePath ?? "-", run.contendedPath, run.overlapPath,
+      run.releasePath ?? "-", run.donePath ?? "-", run.mode,
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8").on("data", (chunk) => { stdout += chunk; });
+    child.stderr.setEncoding("utf8").on("data", (chunk) => { stderr += chunk; });
+    child.on("error", rejectChild);
+    child.on("close", (status) => resolveChild({ status, stdout, stderr }));
+  });
+}
+
+async function waitForFile(path: string): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (!existsSync(path)) {
+    if (Date.now() >= deadline) throw new Error(`timed out waiting for ${path}`);
+    await new Promise<void>((resolveWait) => setTimeout(resolveWait, 5));
+  }
+}
+
+test("real concurrent writers never overlap and preserve both updates", async () => {
+  const { cwd, slug } = workspace("preserve concurrent updates");
+  const enteredA = join(cwd, "writer-a-entered");
+  const activeA = join(cwd, "writer-a-active");
+  const enteredB = join(cwd, "writer-b-entered");
+  const activeB = join(cwd, "writer-b-active");
+  const contendedB = join(cwd, "writer-b-contended");
+  const overlap = join(cwd, "writers-overlapped");
+
+  try {
+    const first = runGoalplanWriter({
+      cwd, slug, writer: "a", enteredPath: enteredA, activePath: activeA,
+      contendedPath: contendedB, overlapPath: overlap, mode: "holder",
+    });
+    await waitForFile(enteredA);
+
+    const second = runGoalplanWriter({
+      cwd, slug, writer: "b", enteredPath: enteredB, activePath: activeB,
+      peerActivePath: activeA, contendedPath: contendedB, overlapPath: overlap, mode: "handoff",
+    });
+    const [a, b] = await Promise.all([first, second]);
+
+    assert.equal(a.status, 0, a.stderr);
+    assert.equal(b.status, 0, b.stderr);
+    assert.equal(JSON.parse(a.stdout).result.kind, "ok");
+    assert.equal(JSON.parse(b.stdout).result.kind, "ok");
+    assert.equal(existsSync(contendedB), true, "writer B must observe the held lock");
+    assert.equal(existsSync(overlap), false, "writer callbacks must never overlap");
+    assert.deepEqual(readGoalplan(cwd, slug)!.workPhases.map((workPhase) => workPhase.id), ["wp-a", "wp-b"]);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
-test("contention waits 75ms, never enters the callback, and names the lock path", () => {
+test("a real contender waits 75ms, times out, and never enters its callback", async () => {
   const { cwd, slug } = workspace("bounded lock wait");
   const dir = goalplanWriteLockDir(cwd, slug);
-  mkdirSync(dir, { recursive: false });
-  const ownerPath = join(dir, GOALPLAN_LOCK_OWNER_FILE);
-  const owner = `${JSON.stringify({ pid: 999999, acquiredAt: "2026-08-29T00:00:00.000Z" })}\n`;
-  writeFileSync(ownerPath, owner);
-  const delays: number[] = [];
-  let calls = 0;
+  const enteredA = join(cwd, "timeout-holder-entered");
+  const activeA = join(cwd, "timeout-holder-active");
+  const enteredB = join(cwd, "timeout-contender-entered");
+  const activeB = join(cwd, "timeout-contender-active");
+  const contendedB = join(cwd, "timeout-contender-contended");
+  const overlap = join(cwd, "timeout-writers-overlapped");
+  const contenderDone = join(cwd, "timeout-contender-done");
 
-  const result = withGoalplanWriteLock(cwd, slug, () => {
-    calls += 1;
-    return "entered";
-  }, {
-    retryDelaysMs: [5, 10, 20, 40],
-    sleep: (ms) => delays.push(ms),
-  });
+  try {
+    const holder = runGoalplanWriter({
+      cwd, slug, writer: "a", enteredPath: enteredA, activePath: activeA,
+      contendedPath: contendedB, overlapPath: overlap, releasePath: contenderDone, mode: "holder",
+    });
+    await waitForFile(enteredA);
 
-  assert.equal(result.kind, "locked");
-  assert.deepEqual(delays, [5, 10, 20, 40]);
-  assert.equal(delays.reduce((sum, delay) => sum + delay, 0), 75);
-  assert.equal(calls, 0);
-  const reason = result.kind === "locked" ? result.reason : "";
-  assert.equal(reason.includes(`Lock directory: ${dir}`), true);
-  assert.equal(reason.includes(dir), true);
-  assert.equal(readFileSync(ownerPath, "utf8"), owner);
-  assert.equal(existsSync(dir), true);
+    const contender = runGoalplanWriter({
+      cwd, slug, writer: "b", enteredPath: enteredB, activePath: activeB,
+      peerActivePath: activeA, contendedPath: contendedB, overlapPath: overlap,
+      donePath: contenderDone, mode: "timeout",
+    });
+    const [a, b] = await Promise.all([holder, contender]);
+
+    assert.equal(a.status, 0, a.stderr);
+    assert.equal(b.status, 0, b.stderr);
+    const report = JSON.parse(b.stdout) as { result: { kind: string; reason?: string }; delays: number[] };
+    assert.equal(report.result.kind, "locked");
+    assert.deepEqual(report.delays, [5, 10, 20, 40]);
+    assert.equal(report.delays.reduce((sum, delay) => sum + delay, 0), 75);
+    assert.equal(existsSync(contendedB), true, "the second process must hit EEXIST");
+    assert.equal(existsSync(enteredB), false, "the timed-out callback must not run");
+    assert.equal(existsSync(overlap), false, "timed-out writers must not overlap");
+    assert.equal(report.result.reason?.includes(`Lock directory: ${dir}`), true);
+    assert.deepEqual(readGoalplan(cwd, slug)!.workPhases.map((workPhase) => workPhase.id), ["wp-a"]);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 test("owner metadata is diagnostic only and cannot trigger automatic deletion", () => {
@@ -2951,13 +3174,19 @@ test("chat D-close rejects an invalid v3 dependency plan before every write", ()
 function seedRecoverableChatClose(cwd: string, id: string, slug: string): string {
   const plan = buildGoalplan({ objective: `recover ${id}` });
   plan.slug = slug;
+  // Marker persisted, plan commit did not — the state right after step 1 of the
+  // §5 table. The phase must stay open: seeding it `done` would make the plan
+  // all-done, and before §39 Y2 the all-done branch consumed the retry and wrote
+  // closedWorkPhaseId: null while these tests expected "wp-1". Recovery now runs
+  // first and idempotently closes this fixed target (§39 Y1).
   plan.workPhases = [
-    { id: "wp-1", title: "first", status: "done", tasks: [], criteriaIds: [] },
+    { id: "wp-1", title: "first", status: "in_progress", tasks: [], criteriaIds: [] },
   ];
-  plan.activeWorkPhaseId = null;
+  plan.activeWorkPhaseId = "wp-1";
   writeGoalplan(cwd, plan);
   writeState(cwd, {
     ...defaultState(id),
+    phase: "C",
     slug,
     orchestrationActive: true,
     checkEpoch: "c-recovery",
@@ -3175,40 +3404,140 @@ test("hook CLI exits 0 when chat D-close cannot acquire the goalplan lock", () =
 });
 ```
 
-같은 marker를 두 프로세스가 동시에 소비해도 close-row는 하나만 남아야 한다.
+첫 프로세스가 PABCD append 직후 finalization callback 안에서 sentinel을 유지한다. 두 번째 프로세스는
+그 sentinel을 확인한 뒤 같은 marker로 D-close를 시작한다. 락이 살아 있으면 두 번째 요청은 75ms 뒤
+경고로 끝나고, 락을 없애면 첫 callback이 열린 동안 두 번째 요청이 완주해 overlap 파일을 남긴다.
+`Promise.all`만으로 두 프로세스를 띄우면 순차 실행돼도 같은 단언이 통과하므로 시작 barrier와 임계
+구역 hold 신호를 명시한다.
 
 ```ts
-function runHookProcess(payload: string): Promise<{ status: number | null; stdout: string; stderr: string }> {
-  return new Promise((resolveChild) => {
-    const child = spawn(
-      process.execPath,
-      ["--experimental-strip-types", resolve(dirname(fileURLToPath(import.meta.url)), "../src/cli.ts"), "hook", "user-prompt-submit"],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    );
+const HOOK_RACE_SCRIPT = String.raw`
+import { existsSync, rmSync, writeFileSync } from "node:fs";
+
+const [
+  hookUrl, encodedPayload, attemptPath, insidePath, peerInsidePath,
+  releasePath, overlapPath, donePath,
+] = process.argv.slice(1);
+const { handleUserPromptSubmit } = await import(hookUrl);
+const payload = JSON.parse(Buffer.from(encodedPayload, "base64").toString("utf8"));
+
+function waitForFile(path) {
+  const deadline = Date.now() + 10_000;
+  while (!existsSync(path)) {
+    if (Date.now() >= deadline) throw new Error("timed out waiting for " + path);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+  }
+}
+
+if (attemptPath !== "-") writeFileSync(attemptPath, "attempted\n");
+const hooks = insidePath === "-"
+  ? {}
+  : {
+      afterPabcdLedgerAppend() {
+        writeFileSync(insidePath, "inside finalization callback\n");
+        try {
+          if (peerInsidePath !== "-" && existsSync(peerInsidePath)) {
+            writeFileSync(overlapPath, "callbacks overlapped\n");
+          }
+          if (releasePath !== "-") waitForFile(releasePath);
+        } finally {
+          rmSync(insidePath, { force: true });
+        }
+      },
+    };
+
+try {
+  const output = handleUserPromptSubmit(payload, process.platform, hooks);
+  // A completed second close while the peer sentinel still exists proves that its
+  // transaction ran before the first finalization callback returned.
+  if (output.includes("[codexclaw: DONE]") && peerInsidePath !== "-" && existsSync(peerInsidePath)) {
+    writeFileSync(overlapPath, "second recovery completed inside its peer\n");
+  }
+  process.stdout.write(output);
+} finally {
+  if (donePath !== "-") writeFileSync(donePath, "done\n");
+}
+`;
+
+interface HookRaceSignals {
+  attemptPath?: string;
+  insidePath?: string;
+  peerInsidePath?: string;
+  releasePath?: string;
+  overlapPath?: string;
+  donePath?: string;
+}
+
+function runHookProcess(
+  payload: string,
+  signals: HookRaceSignals = {},
+): Promise<{ status: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolveChild, rejectChild) => {
+    const child = spawn(process.execPath, [
+      "--experimental-strip-types", "--input-type=module", "-e", HOOK_RACE_SCRIPT,
+      new URL("../src/hook.ts", import.meta.url).href,
+      Buffer.from(payload, "utf8").toString("base64"),
+      signals.attemptPath ?? "-",
+      signals.insidePath ?? "-",
+      signals.peerInsidePath ?? "-",
+      signals.releasePath ?? "-",
+      signals.overlapPath ?? "-",
+      signals.donePath ?? "-",
+    ], { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8").on("data", (chunk) => { stdout += chunk; });
     child.stderr.setEncoding("utf8").on("data", (chunk) => { stderr += chunk; });
+    child.on("error", rejectChild);
     child.on("close", (status) => resolveChild({ status, stdout, stderr }));
-    child.stdin.end(payload);
   });
 }
 
-test("two concurrent chat recoveries consume one marker and append one close row", async () => {
+async function waitForHookSignal(path: string): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (!existsSync(path)) {
+    if (Date.now() >= deadline) throw new Error(`timed out waiting for ${path}`);
+    await new Promise<void>((resolveWait) => setTimeout(resolveWait, 5));
+  }
+}
+
+test("a second chat recovery contends while the first finalizer callback is held", async () => {
   const cwd = gitRepoForHook();
   try {
     const id = "chat-concurrent-recovery";
     const attest = seedRecoverableChatClose(cwd, id, "chat-concurrent-recovery-plan");
     const firstPayload = JSON.stringify(ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"));
     const secondPayload = JSON.stringify(ups(`orchestrate d --attest ${attest}`, cwd, id, "t2"));
+    const firstInside = join(cwd, "first-finalizer-inside");
+    const secondAttempted = join(cwd, "second-recovery-attempted");
+    const secondDone = join(cwd, "second-recovery-done");
+    const overlap = join(cwd, "recovery-finalizers-overlapped");
 
-    const [first, second] = await Promise.all([
-      runHookProcess(firstPayload),
-      runHookProcess(secondPayload),
-    ]);
+    const first = runHookProcess(firstPayload, {
+      insidePath: firstInside,
+      releasePath: secondDone,
+      overlapPath: overlap,
+    });
+    await waitForHookSignal(firstInside);
 
-    assert.equal(first.status, 0, first.stderr);
-    assert.equal(second.status, 0, second.stderr);
+    const second = runHookProcess(secondPayload, {
+      attemptPath: secondAttempted,
+      peerInsidePath: firstInside,
+      overlapPath: overlap,
+      donePath: secondDone,
+    });
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+
+    assert.equal(firstResult.status, 0, firstResult.stderr);
+    assert.equal(secondResult.status, 0, secondResult.stderr);
+    assert.match(firstResult.stdout, /\[codexclaw: DONE\]/);
+    assert.match(secondResult.stdout, /D-close was not applied/);
+    assert.equal(existsSync(secondAttempted), true);
+    assert.equal(
+      existsSync(overlap),
+      false,
+      "the second recovery must not complete while the first finalizer callback is active",
+    );
     assert.equal(
       ledgerLines(cwd).filter(
         (row) => row.sessionId === id && row.from === "C" && row.to === "IDLE"
@@ -3337,94 +3666,249 @@ target 부재 recovery, all-done 채팅 원장 경계는 같은 절에 본문이
 
 ## 10. 검증 명령과 구체 기대값
 
-검증 순서는 `focused test → npm run build → npm test → npm run gate`로 고정한다.
+작업 디렉터리는 `/Users/jun/Developer/new/700_projects/codexclaw`다. 계약 §37 W5에 따라 단계 게이트는
+`focused test → npm run build → npm test → npm run gate` 순서를 지킨다. focused 실행 전에 신규 파일,
+신규 등록 수, 삭제 수, 순증, 최종 등록 수를 각각 검사한다. 앵커 없는 선택자와 존재하지 않는 신규 파일이
+함께 있으면 구현이 0건이어도 exit 0이 나는 false-green이 된다 — wp2·wp3·wp4에서 반복 확인된 결함이다.
+
+### 10.1 focused 등록 수와 실행
 
 ```bash
-node --experimental-strip-types --test --test-concurrency=1 \
-  plugins/codexclaw/components/pabcd-state/test/goalplan-concurrency.test.ts \
-  plugins/codexclaw/components/pabcd-state/test/state.test.ts \
-  plugins/codexclaw/components/pabcd-state/test/orchestrate-apply.test.ts \
-  plugins/codexclaw/components/pabcd-state/test/steering.test.ts \
-  plugins/codexclaw/components/pabcd-state/test/steering-ops.test.ts \
-  plugins/codexclaw/components/pabcd-state/test/orchestrate-cli.test.ts \
-  plugins/codexclaw/components/pabcd-state/test/hook.test.ts \
+#!/usr/bin/env bash
+set -euo pipefail
+cd /Users/jun/Developer/new/700_projects/codexclaw
+
+verification_tmp="$(mktemp -d)"
+trap 'rm -rf "$verification_tmp"' EXIT
+export TMPDIR="$verification_tmp"
+
+baseline_sha=8321b2d7
+new_file=plugins/codexclaw/components/pabcd-state/test/goalplan-concurrency.test.ts
+existing_focused_files=(
+  plugins/codexclaw/components/pabcd-state/test/state.test.ts
+  plugins/codexclaw/components/pabcd-state/test/orchestrate-apply.test.ts
+  plugins/codexclaw/components/pabcd-state/test/steering.test.ts
+  plugins/codexclaw/components/pabcd-state/test/steering-ops.test.ts
+  plugins/codexclaw/components/pabcd-state/test/orchestrate-cli.test.ts
+  plugins/codexclaw/components/pabcd-state/test/hook.test.ts
   plugins/codexclaw/components/pabcd-state/test/review-binding.test.ts
+)
+focused_files=(
+  "$new_file"
+  "${existing_focused_files[@]}"
+)
+
+# 존재하지 않는 신규 파일을 node가 조용히 무시해 GREEN을 내지 못하게 먼저 막는다.
+test -f "$new_file"
+
+baseline_focused_count="$(
+  git grep -E '^[[:space:]]*test\(' "$baseline_sha" -- "${existing_focused_files[@]}" \
+    | wc -l | tr -d '[:space:]'
+)"
+test "$baseline_focused_count" -eq 192
+
+existing_diff="$(git diff --unified=0 "$baseline_sha" -- "${existing_focused_files[@]}")"
+added_existing_declarations="$(printf '%s\n' "$existing_diff" | rg -c '^\+[[:space:]]*test\(')"
+removed_declarations="$(printf '%s\n' "$existing_diff" | rg -c '^-[[:space:]]*test\(')"
+new_file_declarations="$(rg -c '^[[:space:]]*test\(' "$new_file")"
+
+# 이 한 선언은 두 workPhaseId 값으로 테스트 두 건을 등록하므로 선언 수보다 한 건 많다.
+parameterized_extra_cases="$(
+  rg -c '^for \(const workPhaseId of \[undefined, "wp-finished"\] as const\) \{' \
+    plugins/codexclaw/components/pabcd-state/test/hook.test.ts
+)"
+
+test "$added_existing_declarations" -eq 29
+test "$new_file_declarations" -eq 6
+test "$parameterized_extra_cases" -eq 1
+test "$removed_declarations" -eq 5
+
+new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases))
+net_case_count=$((new_case_count - removed_declarations))
+test "$new_case_count" -eq 36
+test "$net_case_count" -eq 31
+
+focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
+focused_case_count=$((focused_declaration_count + parameterized_extra_cases))
+test "$focused_declaration_count" -eq 222
+test "$focused_case_count" -eq 223
+
+node --experimental-strip-types --test --test-concurrency=1 \
+  --test-name-pattern='^' \
+  "${focused_files[@]}"
 ```
 
-기대값: exit 0, fail 0. 락 timeout 테스트에서 delay 배열은 `[5, 10, 20, 40]`, 합은 `75`, callback
-호출 수는 `0`이다. CLI D-close는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
-확인한다. target 부재 recovery는 CLI code 0, CLI·채팅 state `IDLE`, marker `null`,
-`closedWorkPhaseId: "wp-1"`인 PABCD 행 1개를 기다린다. all-done + `workPhaseId` 채팅은 state `IDLE`과
-PABCD tuple `[["c-all-done-null", null]]`을 기다린다.
+기대값은 아래와 같다.
 
-위 focused test가 변경된 공개 경로 `runOrchestrateCli()`, `handleUserPromptSubmit()`,
-`runReviewRoundCli()`, `handleReviewObserver()`, `applyHumanTransition()`, 공통 락 API를 실제 호출하는
-wp5 자립성 게이트다. `npm run build`는 타입을 제거하고 파일을 복사할 뿐 심볼을 해석하지 않으므로
-타입·import·미정의 식별자 검증 근거로 쓰지 않는다.
+- 신규 파일 존재 검사 exit 0
+- 기준 HEAD `8321b2d7`의 focused 등록 수 192
+- 기존 파일 추가 선언 29개, 신규 파일 선언 6개
+- 두 입력을 도는 parameterized 선언의 추가 등록 1개
+- 계획된 신규 케이스 36개, 삭제 5개, 순증 31개
+- 구현 뒤 선언 222개, 실제 focused 등록 223개
+- node test exit 0, tests 223, pass 223, fail 0
+
+락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
+CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
+확인한다. target 부재 recovery는 CLI code 0, state `IDLE`, marker `null`,
+`closedWorkPhaseId: "wp-1"`인 PABCD 행 1개를 기다린다. all-done + `workPhaseId` 채팅은 state
+`IDLE`과 PABCD tuple `[["c-all-done-null", null]]`을 기다린다.
+
+이 focused gate는 `runOrchestrateCli()`, `handleUserPromptSubmit()`, `runReviewRoundCli()`,
+`handleReviewObserver()`, `applyHumanTransition()`, 공통 락 API를 TypeScript 소스에서 직접
+import하고 호출한다. `npm run build`는 타입 제거와 파일 복사를 맡으므로 타입·import·미정의 식별자
+검증 근거로 쓰지 않는다.
+
+### 10.2 tracked dist 생성과 레이아웃 검사
+
+focused gate가 통과한 뒤 실행한다.
 
 ```bash
+#!/usr/bin/env bash
+set -euo pipefail
+cd /Users/jun/Developer/new/700_projects/codexclaw
 npm run build
 ```
 
-기대값: exit 0. 변경한 `src/*.ts`와 같은 basename의 tracked `dist/*.js`를 먼저 재생성한다.
+기대값은 exit 0이다. 변경한 `src/*.ts`와 같은 basename의 tracked `dist/*.js`를 재생성하고
+컴포넌트 산출물 레이아웃 검사를 통과한다.
+
+### 10.3 전체 저장소 회귀
+
+build가 끝난 뒤 실행한다.
 
 ```bash
+#!/usr/bin/env bash
+set -euo pipefail
+cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값: exit 0, fail 0.
+기대값은 exit 0, tests 2198, pass 2198, fail 0이다. 기존 2167건과 wp5 순증 31건을 모두 실행하며,
+루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
+
+### 10.4 저장소 gate
 
 ```bash
+#!/usr/bin/env bash
+set -euo pipefail
+cd /Users/jun/Developer/new/700_projects/codexclaw
 npm run gate
 ```
 
-기대값: exit 0.
+기대값은 exit 0, gate 오류 0이다.
+
+### 10.5 전용 락 잔여와 write 임계 구역 감사
 
 ```bash
+#!/usr/bin/env bash
+set -euo pipefail
+cd /Users/jun/Developer/new/700_projects/codexclaw
+
 ! rg -n '\.steer\.lock' \
   plugins/codexclaw/components/pabcd-state/src \
   plugins/codexclaw/components/pabcd-state/test
 ```
 
-기대값: 0건.
+기대값은 0건이다.
+
+아래 검사는 문자열 위치를 출력하는 데서 끝내지 않는다. 이전 초안은 `rg`로 9곳을 출력만 해서 항상
+exit 0이었다. TypeScript AST에서 `writeGoalplan()` 호출마다 조상 callback을 조사한다. 신규 plan을
+만드는 `goalplan-cli.ts` 호출 한 곳만 락 밖에 둘 수 있고, 기존 plan mutation 일곱 곳은 모두
+`withGoalplanWriteLock()`의 세 번째 인자인 callback 안에 있어야 한다.
 
 ```bash
-rg -n 'writeGoalplan\(' plugins/codexclaw/components/pabcd-state/src
+#!/usr/bin/env bash
+set -euo pipefail
+cd /Users/jun/Developer/new/700_projects/codexclaw
+
+node --input-type=commonjs <<'NODE'
+const assert = require("node:assert/strict");
+const { readdirSync, readFileSync } = require("node:fs");
+const { basename, join } = require("node:path");
+const ts = require("typescript");
+
+const srcDir = "plugins/codexclaw/components/pabcd-state/src";
+const calls = [];
+
+for (const name of readdirSync(srcDir).filter((entry) => entry.endsWith(".ts"))) {
+  const path = join(srcDir, name);
+  const source = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+
+  function visit(node, ancestors = []) {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "writeGoalplan") {
+      const locked = ancestors.some((ancestor) => {
+        if (!ts.isArrowFunction(ancestor) && !ts.isFunctionExpression(ancestor)) return false;
+        const parent = ancestor.parent;
+        return ts.isCallExpression(parent)
+          && ts.isIdentifier(parent.expression)
+          && parent.expression.text === "withGoalplanWriteLock"
+          && parent.arguments[2] === ancestor;
+      });
+      const line = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+      calls.push({ file: basename(path), line, locked });
+    }
+    ts.forEachChild(node, (child) => visit(child, [...ancestors, node]));
+  }
+
+  visit(source);
+}
+
+const initCalls = calls.filter((call) => call.file === "goalplan-cli.ts" && !call.locked);
+const escapedMutations = calls.filter((call) => call.file !== "goalplan-cli.ts" && !call.locked);
+const lockedMutations = calls.filter((call) => call.locked);
+
+assert.equal(calls.length, 8, JSON.stringify(calls));
+assert.equal(initCalls.length, 1, JSON.stringify(calls));
+assert.deepEqual(escapedMutations, [], JSON.stringify(escapedMutations));
+assert.equal(lockedMutations.length, 7, JSON.stringify(calls));
+
+console.log(JSON.stringify(calls));
+NODE
 ```
 
-기대값: 신규 plan 생성 외 기존 plan mutation은 `withGoalplanWriteLock()` callback 안에서만 나온다.
+기대값은 exit 0이다. 출력 배열은 호출 8개를 담고, `goalplan-cli.ts` init 한 곳만 `locked: false`,
+나머지 일곱 곳은 모두 `locked: true`다.
+
+### 10.6 담당 문서 추적·공백 검사
 
 ```bash
+#!/usr/bin/env bash
+set -euo pipefail
+cd /Users/jun/Developer/new/700_projects/codexclaw
+
 doc=devlog/_plan/260829_goalplan-dependency-execution/050_wp5_write_serialization.md
 test -f "$doc"
-git status --porcelain -- "$doc"
-git diff --no-index /dev/null "$doc"
-diff_status=$?
-test "$diff_status" -eq 1
+git ls-files --error-unmatch "$doc" >/dev/null
+
+doc_status="$(git status --porcelain -- "$doc")"
+! printf '%s\n' "$doc_status" | rg -q '^\?\? '
+
+git diff --check -- "$doc"
 ```
 
-기대값: `test -f`는 exit 0이다. status는
-`?? devlog/_plan/260829_goalplan-dependency-execution/050_wp5_write_serialization.md`를 출력한다.
-`git diff --no-index`는 신규 파일 전체 diff를 출력하므로 원래 exit 1이다. `diff_status`가 1인지
-확인한 마지막 `test`가 블록을 exit 0으로 끝내며 `trailing whitespace` 경고가 없어야 한다.
+기대값은 `test -f`, `git ls-files`, `git diff --check`가 모두 exit 0인 것이다. 이 문서는 이미
+tracked이므로 이전 초안의 `?? …050….md` 기대는 거짓이었고, 출력을 검사하지 않아 조용히 통과했다.
+`/dev/null`과 비교하는 `git diff --no-index`는 쓰지 않는다 — 내용과 무관하게 항상 exit 1이라
+아무것도 검증하지 않는다.
 
-### 10.1 import 적층 감사
+### 10.7 import 적층 감사
 
-§36에 맞춰 이 문서가 손대는 파일을 모두 다시 확인한다.
+계약 §36에 맞춰 이 문서가 손대는 파일의 import 처분을 다시 확인한다.
 
 | 파일 | import 처분 |
 | --- | --- |
-| `src/goalplan.ts` | wp4 전체 `node:fs` After를 보존하고 wp5 `statSync`만 추가한다. |
+| `src/goalplan.ts` | wp4 전체 `node:fs` After를 보존하고 wp5 `statSync`만 더한다. |
 | `src/state.ts` | import 변경 없음. |
 | `src/orchestrate-apply.ts` | import 변경 없음. |
-| `src/steering.ts` | wp4의 goalplan 이름을 보존하고 wp5 lock 이름을 더한다. 전용 락에서만 쓰던 fs/path/Wsl 이름만 삭제한다. |
+| `src/steering.ts` | wp4의 goalplan 이름을 보존하고 wp5 lock 이름을 더한다. 전용 락에서만 쓰던 fs/path/Wsl 이름만 지운다. |
 | `src/orchestrate-cli.ts` | wp4 `dependencyDeadlock`을 보존하고 wp5 lock, recovery, 두 integrity helper를 더한다. |
 | `src/hook.ts` | wp4 `dependencyDeadlock`을 보존하고 wp5 fs/path, lock, recovery, 두 integrity helper를 더한다. |
-| `src/review-round-cli.ts` | 현재 전체 import를 Before로 적고 wp5 `withGoalplanWriteLock`, `ReviewRoundState`를 더한 전체 After를 적었다. |
-| `src/review-observer.ts` | 현재 전체 import를 Before로 적고 wp5 `withGoalplanWriteLock`을 더한 전체 After를 적었다. |
-| `test/goalplan-concurrency.test.ts` | 신규 파일 전체 import이며 `isAbsolute`를 포함한다. |
+| `src/review-round-cli.ts` | 현재 전체 import를 Before로 적고 wp5 `withGoalplanWriteLock`, `ReviewRoundState`를 더한 전체 After를 적는다. |
+| `src/review-observer.ts` | 현재 전체 import를 Before로 적고 wp5 `withGoalplanWriteLock`을 더한 전체 After를 적는다. |
+| `test/goalplan-concurrency.test.ts` | 신규 파일 전체 import이며 `isAbsolute`와 `spawn`을 포함한다. |
 | `test/steering.test.ts` | import 변경 없음. |
-| `test/steering-ops.test.ts` | 전체 After에서 전용 `WslDeps`만 삭제한다. |
+| `test/steering-ops.test.ts` | 전체 After에서 전용 `WslDeps`만 지운다. |
 | `test/orchestrate-cli.test.ts` | 기존 goalplan import를 보존하고 `readGoalplan`을 더한다. |
 | `test/hook.test.ts` | 기존 `join`, `spawnSync`를 보존하고 `dirname`, `resolve`, `fileURLToPath`, `spawn`을 더한다. |
 | `test/review-binding.test.ts` | import 변경 없음. |
