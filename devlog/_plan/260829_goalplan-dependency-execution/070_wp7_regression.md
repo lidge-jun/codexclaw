@@ -203,7 +203,9 @@ collectStrings(snapshot);
 // 넓히고 API version segment를 negative lookahead로 뺀다. 실측: 9종 경로 전부 true, 11종 비경로
 // (URL·api 경로·enum·alias·"wp-live/ready"·ISO 시각) 전부 false, 이 walker가 모으는 실제 fixture
 // 문자열 7642건에 hit 0건.
-// sha1 — \b{40}\b는 64자 sha256을 놓친다. `planSha256`·`sha256` 키의 **값**이 그 길이다. 이 walker는
+// sha1 — \b{40}\b는 64자 sha256을 놓친다. 다만 지금 fixture에서 `planSha256`·`sha256` 키의 값 44건은
+// 전부 `fixture-24-string-0131` 같은 22자 alias다(실측: distinct length {22}, hash hit 0건). 그러니
+// 이 패턴이 지키는 것은 현재 상태가 아니라 alias 치환이 빠진 미래 baseline이다. 이 walker는
 // Object.values만 내려가므로 키 이름 8786건은 애초에 스캔 대상이 아니다 — 방어선은 값 쪽이다.
 const uuid = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
 const absolutePath =
