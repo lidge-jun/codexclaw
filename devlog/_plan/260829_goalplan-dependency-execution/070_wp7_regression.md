@@ -29,7 +29,9 @@
 - T3·T9·T11과 Stop 최종 문자열 단언은 wp6이, T8 연속 cycle 단언은 wp5가 소유한다. wp7은 같은
   테스트를 복제하거나 문자열을 다시 정의하지 않고 소유 테스트 파일을 집중 suite에서 재실행한다.
 
-2026-08-29 재측정값은 `goalplan.json` 90개다. 개수는 운영 중 계속 바뀌므로 회귀 기준으로
+wp7 P 실측값은 `goalplan.json` 91개다(디렉터리 92개 중 하나는 `goalplan.json` 없는 껍데기고,
+`.DS_Store`는 slug 검증이 거부한다). 체크인된 baseline이 이미 `sourceCount: 91`이라 산문보다 최신이었다.
+개수는 운영 중 계속 바뀌므로 회귀 기준으로
 고정하지 않는다. wp2 baseline에 기록된 manifest 각 항목의 변경 전 normalized 결과와 wp7이 같은
 fixture를 새 parser로 읽은 변경 후 normalized 결과를 비교한다. manifest 밖에 운영 plan이 새로
 생겨도 이 회귀는 깨지지 않는다. 측정 당시 `opaque-surface-gradient-discipline-3-lane-gpt-5` 한 건은
@@ -44,30 +46,31 @@ schema version 값을 비교하는 선택 분기는 금지한다. 단, done/pend
 
 아래 줄은 2026-08-29 checkout에서 직접 확인했다.
 
-| 경로 | 현재 근거 | wp7이 고정할 성질 |
-| --- | --- | --- |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:538` | `readGoalplanDetailed()` 공개 읽기 입구 | corpus 결과 수집 |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:568` | reviver 호출 | JSON parse와 shape 거부 구분 |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:594` | `firstInvalidField()` 시작 | legacy 한 건의 `invalid-shape` field |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:707` | 기존 `nextOpenTask()` | v1/v2 선언 순서 oracle |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:1029` | `advanceWorkPhase()` 시작 | 기존 close·wrap oracle |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:1050` | 현재 phase 뒤를 먼저 찾음 | wrap 순서 |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:1082` | `effectiveActiveWorkPhaseId()` 시작 | explicit, in-progress, pending 순서 |
-| `plugins/codexclaw/components/pabcd-state/src/orchestrate-cli.ts:633` | CLI D-close pending 거부 | 공개 CLI 경로 |
-| `plugins/codexclaw/components/pabcd-state/src/orchestrate-cli.ts:671` | CLI D-close write | RMW 보존 |
-| `plugins/codexclaw/components/pabcd-state/src/hook.ts:839` | 채팅 D-close advance | 공개 hook 경로 |
-| `plugins/codexclaw/components/pabcd-state/src/hook.ts:898` | 채팅 D-close write | RMW 보존 |
-| `plugins/codexclaw/components/pabcd-state/src/steering.ts:242` | `add-work-phase` 생성 shape | steering RMW 입력 |
-| `plugins/codexclaw/components/pabcd-state/src/steering.ts:313` | steering write | RMW 보존 |
-| `plugins/codexclaw/components/pabcd-state/src/review-round-cli.ts:237` | review-round open write | open 체크포인트 |
-| `plugins/codexclaw/components/pabcd-state/src/review-round-cli.ts:263` | review-round abort write | abort 체크포인트 |
-| `plugins/codexclaw/components/pabcd-state/src/review-observer.ts:123` | ignored sign-off 원장 producer | 성공 write와 혼동 금지 |
-| `plugins/codexclaw/components/pabcd-state/src/review-observer.ts:164` | 승인 verdict write | observer RMW 보존 |
-| `plugins/codexclaw/components/pabcd-state/src/goal-gate.ts:271` | goal-gate plan read | 공개 completion gate 입력 |
-| `plugins/codexclaw/components/pabcd-state/src/goal-gate.ts:276` | `validateGoalplan()` 호출 | outcome 검증 경계 |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:791` | `validateGoalplan(plan, ctx?)` 시작 | outcome 사유와 다른 gate 사유를 분리해 검사 |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:817` | `finalGateReasons(plan, ctx)` 결과를 사유에 합침 | `ok` 전체값을 outcome oracle로 쓰지 않음 |
-| `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:871~879` | schemaVersion 2 이상인데 context가 없으면 `this plan is schemaVersion >= 2 but validateGoalplan was called without a validation context, so the final gate could not be checked — this is a refusal, not a pass` 반환 | outcome 사유 포함 여부만 검사 |
+줄 번호가 아니라 **심볼 이름**으로 앵커를 잡는다. wp1~wp6 구현이 이 표를 세 번 밀었고, wp7
+구현 중에도 또 밀릴 수 있다. 아래 실측 위치는 참고값이며 판정 기준은 심볼이다.
+
+| 경로 | 앵커 심볼 | 실측 위치 | wp7이 고정할 성질 |
+| --- | --- | --- | --- |
+| `src/goalplan.ts` | `readGoalplanDetailed()` | `:607` | corpus 결과 수집 |
+| `src/goalplan.ts` | `reviveGoalplan()` | `:486` | JSON parse와 shape 거부 구분 |
+| `src/goalplan.ts` | `firstInvalidField()` | `:784` | legacy 한 건의 `invalid-shape` field |
+| `src/goalplan.ts` | `nextOpenTask()` | `:963` | v1/v2 선언 순서 oracle |
+| `src/goalplan.ts` | `advanceWorkPhase()` | `:1906` | 기존 close·wrap oracle. wp5 이후 이 함수는 위임만 한다 |
+| `src/goalplan.ts` | `closeFixedWorkPhase()` | `:1691` | wrap 순서의 실제 소유자. 현재 phase 뒤를 먼저 찾는 성질이 여기 있다 |
+| `src/goalplan.ts` | `effectiveActiveWorkPhaseId()` | `:1948` | explicit, in-progress, pending 순서 |
+| `src/goalplan.ts` | `validateGoalplan(plan, ctx?)` | `:1402` | outcome 사유와 다른 gate 사유를 분리해 검사 |
+| `src/goalplan.ts` | `finalGateReasons(plan, ctx)` | `:1499` | `ok` 전체값을 outcome oracle로 쓰지 않음 |
+| `src/orchestrate-cli.ts` | D-close `writeGoalplan` | `:917` | RMW 보존 |
+| `src/orchestrate-cli.ts` | sweep `writeGoalplan` | `:1040` | RMW 보존 |
+| `src/hook.ts` | 채팅 D-close `writeGoalplan` | `:1231` | RMW 보존 |
+| `src/steering.ts` | steering `writeGoalplan` | `:274` | RMW 보존 |
+| `src/review-round-cli.ts` | open `writeGoalplan` | `:267` | open 체크포인트 |
+| `src/review-round-cli.ts` | abort `writeGoalplan` | `:283` | abort 체크포인트 |
+| `src/review-observer.ts` | verdict `writeGoalplan` | `:156` | observer RMW 보존 |
+| `src/goal-gate.ts` | `readGoalplan()` | `:271` | 공개 completion gate 입력 |
+| `src/goal-gate.ts` | `validateGoalplan()` 호출 | `:276` | outcome 검증 경계 |
+| `src/goalplan-cli.ts` | lifecycle `writeGoalplan` | `:475` | wp6 소유. 여섯 번째 RMW이며 T9가 outcome 보존을 검사한다 |
+| `src/goalplan-cli.ts` | init `writeGoalplan` | `:596` | 락 밖 유일 write. 새 plan 생성이라 경합 대상이 아니다 |
 
 ## 2. 변경 지도
 
@@ -82,7 +85,7 @@ schema version 값을 비교하는 선택 분기는 금지한다. 단, done/pend
 | MODIFY | `plugins/codexclaw/components/pabcd-state/test/review-binding.test.ts` | open, abort, observer 뒤 두 필드 재독 |
 | wp5 산출물 재실행 | `plugins/codexclaw/components/pabcd-state/test/orchestrate-cli.test.ts` | 같은 세션의 연속 두 cycle이 서로 다른 close key와 원장 행을 남기는지 검사 |
 | wp6 산출물 재실행 | `plugins/codexclaw/components/pabcd-state/test/goalplan-public-surface.test.ts` | lifecycle 원장 실패의 code 0·경고와 권위 plan commit을 검사 |
-| wp6 산출물 재실행 | `plugins/codexclaw/components/pabcd-state/test/help-verbs.test.ts` | 기존 `--slug <slug>` help 줄 보존을 검사 |
+| wp6 산출물 재실행 | `plugins/codexclaw/components/pabcd-state/test/goalplan-public-surface.test.ts` | T11의 `--slug` 양방향 고정을 검사. wp7 P 실측: `help-verbs.test.ts`에는 `renderGoalplanHelp` 참조가 0건이고 goalplan help 회귀를 하나도 갖고 있지 않다. wp6이 `goalplan-public-surface.test.ts`의 `help lists repeated dependency syntax and required outcome` case 안에 담았다 |
 | dist 변경 없음 | `plugins/codexclaw/components/pabcd-state/dist/` | wp7은 src를 바꾸지 않으므로 새 dist manifest 항목이 없고, 기존 tracked dist freshness만 최종 검사 |
 | DELETE | 없음 | 기존 fixture와 테스트를 지우지 않음 |
 
@@ -772,6 +775,97 @@ work-phase wp-blocked waits for work-phase wp-live (in_progress)
 따라서 이 회귀는 전역 교착 사유에 기대지 않는다. 전역 교착 결과만 읽는 구현이면
 정확한 `Waiting on:` 단언이 실패한다.
 
+### 4.7 MODIFY — `test/goalplan.test.ts`: `show`의 락 표시 렌더 경로
+
+wp7 P stale check이 잡은 항목이다. §6.2가 이 회귀를 wp6 산출물로 인수하려 했으나 실측하니 없다.
+
+```bash
+rg -c 'writeLock' plugins/codexclaw/components/pabcd-state/test/
+# → 0건
+```
+
+production은 실제로 두 줄을 낸다(`goalplan-cli.ts`의 `renderPlanLines()`).
+
+```text
+writeLock: present path=<절대 경로> ageMs=<숫자>
+writeLock: absent path=<절대 경로>
+```
+
+있는 것은 helper 직접 호출뿐이다 — `goalplan-concurrency.test.ts:359`가 `status.ageMs`를,
+`:373`이 `{ path, exists: false, ageMs: null }`을 검사한다. §6이 "helper 직접 호출 결과만으로
+대체하지 않는다"고 못 박은 바로 그 형태다. `show` 렌더 경로는 지금 무방비다.
+
+wp7은 production을 고치지 않는다(§0 범위). 테스트 2건만 더한다.
+
+```ts
+test("wp7 preservation: show renders the write lock path and age", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-wp7-lock-"));
+  const plan = buildGoalplan({ objective: "Ship the loop", criteria: [], now: () => NOW });
+  writeGoalplan(cwd, plan);
+
+  // 락 없음: absent 줄이 절대 경로를 담고 ageMs를 붙이지 않는다.
+  const absent = runGoalplanCli(
+    parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
+  );
+  assert.equal(absent.code, 0);
+  const lockDir = goalplanWriteLockDir(cwd, plan.slug);
+  assert.match(absent.output, new RegExp(`^writeLock: absent path=${escapeRe(lockDir)}$`, "m"));
+  assert.doesNotMatch(absent.output, /ageMs=/);
+
+  // 락 있음: present 줄이 같은 경로와 숫자 나이를 담는다.
+  mkdirSync(lockDir, { recursive: true });
+  const present = runGoalplanCli(
+    parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
+  );
+  assert.equal(present.code, 0);
+  assert.match(present.output, new RegExp(`^writeLock: present path=${escapeRe(lockDir)} ageMs=\\d+$`, "m"));
+
+  // 기존 요약 줄은 두 경우 모두 그대로다. 새 줄이 기존 출력을 밀어내지 않는다.
+  for (const out of [absent.output, present.output]) {
+    assert.match(out, /^\\[codexclaw loop: /m);
+    assert.match(out, /^criteria: 0 \\(unmet 0\\)$/m);
+    assert.match(out, /^complete: /m);
+  }
+});
+
+test("wp7 preservation: show survives a lock that vanishes between exists and stat", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-wp7-race-"));
+  const plan = buildGoalplan({ objective: "Ship the loop", criteria: [], now: () => NOW });
+  writeGoalplan(cwd, plan);
+  const lockDir = goalplanWriteLockDir(cwd, plan.slug);
+  mkdirSync(lockDir, { recursive: true });
+
+  // exists 뒤 stat 사이에 락이 사라지는 경우. 주입 seam은 wp5가 만든 네 번째 인자다.
+  const status = goalplanWriteLockStatus(cwd, plan.slug, Date.now(), () => {
+    const err = new Error("ENOENT") as NodeJS.ErrnoException;
+    err.code = "ENOENT";
+    throw err;
+  });
+  assert.deepEqual(status, { path: lockDir, exists: false, ageMs: null });
+
+  // 그 정규화가 렌더까지 전달되는지: show는 예외 없이 absent를 낸다.
+  rmSync(lockDir, { recursive: true, force: true });
+  const rendered = runGoalplanCli(
+    parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
+  );
+  assert.equal(rendered.code, 0);
+  assert.match(rendered.output, new RegExp(`^writeLock: absent path=${escapeRe(lockDir)}$`, "m"));
+});
+```
+
+`escapeRe()`는 이 파일 helper 구역에 둔다 — 락 경로가 `mktemp` 절대 경로라 정규식 특수문자를
+담을 수 있다.
+
+```ts
+function escapeRe(text: string): string {
+  return text.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
+}
+```
+
+import 추가는 `goalplanWriteLockDir`, `goalplanWriteLockStatus`, `mkdirSync`, `rmSync`,
+`parseGoalplanCliArgs`, `runGoalplanCli`, `type GoalplanCliArgs`다. 앞 둘은 `goalplan.ts`,
+뒤 셋은 `goalplan-cli.ts`에서 온다. 이 파일에 이미 있는 이름은 다시 넣지 않는다.
+
 ## 5. 공통 helper 배치
 
 `expectedTaskFields`와 `taskFields()`는 각 test file 상단 helper 구역에 같은 내용으로 둔다. 별도
@@ -820,7 +914,8 @@ function taskFields(plan: { workPhases: Array<{ tasks: Array<{
   phase와 task가 기다리는 선행 id도 나타난다. helper 직접 호출 결과만으로 대체하지 않는다.
 - `cxc loop show`는 goalplan write lock이 있으면 락 디렉터리 절대 경로와 나이를 표시하고, 락이
   없으면 예외 없이 정상 plan 요약을 표시한다. `existsSync()`와 `statSync()` 사이에 락이 사라지는
-  경우도 `{ exists: false }`로 정규화한다.
+  경우도 `{ exists: false }`로 정규화한다. 이 회귀는 §4.7이 **wp7 소유로 신설**한다 — stale check
+  실측에서 `rg -c writeLock test/`가 0건이었다.
 
 ### 6.1 라운드 5 소유 회귀 인수 목록
 
@@ -1019,9 +1114,9 @@ rg -n --fixed-strings \
 
 | 출력 문자열 | 기존 테스트 검색 결과 | wp7 처분 |
 | --- | --- | --- |
-| `Dependency deadlock: work-phase wp-1 is blocked` | `test/orchestrate-cli.test.ts:886` 테스트가 현재 `:904`에서 `/blocked or superseded/`를 기다림 | 출력 변경 소유자인 wp4 문서의 assert 갱신 diff를 소비한다. wp7은 새 문구가 유지되는지 집중 suite로 재검증한다. |
+| `Dependency deadlock: work-phase wp-1 is blocked` | wp4가 갱신을 이미 완료했다. wp7 P 실측: `:927`이 이 문구를 `assert.match`로 기다리고, `/blocked or superseded/`를 담은 세 곳(`hook.test.ts:982`·`:1028`, `orchestrate-cli.test.ts:879`)은 전부 `doesNotMatch`다 | 갱신할 assert가 없다. wp7은 새 문구가 유지되는지 집중 suite로 재검증만 한다 |
 | `Ready work phases:`, `Ready tasks:`, `Waiting on:` | 변경 전 literal assert 없음 | wp6 소유 Stop 회귀가 `Ready work phases: wp-live (Live)`, `Ready tasks: wp-live/ready (Ready task); wp-live/later (Later task)`, 두 helper 사유가 이어진 `Waiting on:`을 고정한다. wp7은 §4.6에서 인용하고 재실행한다. |
-| `cxc loop show`의 락 경로·나이 label | 기존 literal assert 없음 | wp6이 `test/goalplan.test.ts`에 추가한 회귀를 wp7 집중 suite에 포함한다. |
+| `cxc loop show`의 락 경로·나이 label | 기존 literal assert 없음. wp7 P 실측: `rg -c writeLock test/`가 0건이다 — wp6은 이 회귀를 만들지 않았다 | **wp7이 직접 만든다.** 인수 대상이 없으므로 §4.7로 신설한다. 있는 것은 `goalplan-concurrency.test.ts:359`·`:373`의 helper 직접 호출뿐이고, §6이 금지한 바로 그 형태다 |
 
 따라서 wp7 자체에는 기존 출력 assert 갱신 diff가 없다. 기존 `/blocked or superseded/` 갱신은 문자열을
 바꾸는 wp4 소유다.
@@ -1064,8 +1159,9 @@ node --test plugins/codexclaw/components/pabcd-state/test/review-binding.test.ts
 기대: exit `0`, fail `0`. corpus 테스트는 체크인 manifest 항목의 변경 전후 normalized 결과 집합을
 비교한다. 항목 개수나 parsed 개수를 코드에 박지 않는다. `orchestrate-cli.test.ts`는 같은 세션의 연속
 두 cycle close 행, `steering.test.ts`는 batch의 모든 op 적용, `goalplan-public-surface.test.ts`는 plan
-commit 뒤 ledger append 실패의 code `0`·경고, `help-verbs.test.ts`는 기존 `--slug <slug>` 줄을
-검사한다. `hook-continuation.test.ts`는 mixed 상태의 ready 목록과 부분 대기 사유를 한 Stop reason에서
+commit 뒤 ledger append 실패의 code `0`·경고와 T11의 `--slug` 양방향 고정을
+검사한다. `help-verbs.test.ts`는 goalplan help 회귀를 갖고 있지 않으므로 이 목록에서 빼도 되지만,
+`plan`/`scan` help 계약 회귀를 위해 남긴다. `hook-continuation.test.ts`는 mixed 상태의 ready 목록과 부분 대기 사유를 한 Stop reason에서
 함께 검사한다.
 
 ### 7.3 저장소 게이트
@@ -1135,7 +1231,7 @@ v3 파일을 한 번 쓴 뒤 pre-v3 reviver로 완전 downgrade하지 않는다.
   `warning: goalplan state was committed, but ledger append failed:`가 있다.
 - [ ] help의 읽기 verb 셋(`show`·`validate`·`ready`)에는 `--slug`가 남고, mutating verb
   셋(`steer`·`add-work-phase`·`add-criterion`)에는 `--slug`가 없다. 뒤 셋은 `doesNotMatch`로 고정한다.
-- [ ] `cxc loop show`가 락 디렉터리 절대 경로와 나이를 표시하며 락 소멸 race를 정상화한다.
+- [ ] `cxc loop show`가 락 디렉터리 절대 경로와 나이를 표시하며 락 소멸 race를 정상화한다. §4.7이 신설하는 두 테스트가 렌더 경로를 검사하고, helper 직접 호출로 대체하지 않는다.
 - [ ] 모든 테스트가 arrange, act, 구체 assert 본문을 갖는다.
 - [ ] 루트 `dist-freshness.test.mjs`에서 tracked dist가 src와 byte-equal이다.
 - [ ] 집중 테스트와 저장소 게이트가 모두 exit `0`이다.
