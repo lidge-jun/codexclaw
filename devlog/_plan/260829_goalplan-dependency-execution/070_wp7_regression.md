@@ -935,59 +935,71 @@ writeLock: absent path=<절대 경로>
 
 wp7은 production을 고치지 않는다(§0 범위). 테스트 2건만 더한다.
 
+두 테스트는 `try`/`finally`로 `mkdtempSync()` 작업공간을 회수한다. C단계 검증에서 감사관이 회수 없는
+첫 구현을 실측해 `cxc-wp7-*` 임시 디렉터리 42개가 남는 것을 찾았다. 이 파일의 다른 테스트들이 회수하지
+않는다는 것은 이 두 건의 면허가 아니다 — 새로 넣는 것은 새 규칙을 따른다.
+
 ```ts
 test("wp7 preservation: show renders the write lock path and age", () => {
   const cwd = mkdtempSync(join(tmpdir(), "cxc-wp7-lock-"));
-  const plan = buildGoalplan({ objective: "Ship the loop", criteria: [], now: () => NOW });
-  writeGoalplan(cwd, plan);
+  try {
+    const plan = buildGoalplan({ objective: "Ship the loop", criteria: [], now: () => NOW });
+    writeGoalplan(cwd, plan);
 
-  // 락 없음: absent 줄이 절대 경로를 담고 ageMs를 붙이지 않는다.
-  const absent = runGoalplanCli(
-    parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
-  );
-  assert.equal(absent.code, 0);
-  const lockDir = goalplanWriteLockDir(cwd, plan.slug);
-  assert.match(absent.output, new RegExp(`^writeLock: absent path=${escapeRe(lockDir)}$`, "m"));
-  assert.doesNotMatch(absent.output, /ageMs=/);
+    // 락 없음: absent 줄이 절대 경로를 담고 ageMs를 붙이지 않는다.
+    const absent = runGoalplanCli(
+      parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
+    );
+    assert.equal(absent.code, 0);
+    const lockDir = goalplanWriteLockDir(cwd, plan.slug);
+    assert.match(absent.output, new RegExp(`^writeLock: absent path=${escapeRe(lockDir)}$`, "m"));
+    assert.doesNotMatch(absent.output, /ageMs=/);
 
-  // 락 있음: present 줄이 같은 경로와 숫자 나이를 담는다.
-  mkdirSync(lockDir, { recursive: true });
-  const present = runGoalplanCli(
-    parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
-  );
-  assert.equal(present.code, 0);
-  assert.match(present.output, new RegExp(`^writeLock: present path=${escapeRe(lockDir)} ageMs=\\d+$`, "m"));
+    // 락 있음: present 줄이 같은 경로와 숫자 나이를 담는다.
+    mkdirSync(lockDir, { recursive: true });
+    const present = runGoalplanCli(
+      parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
+    );
+    assert.equal(present.code, 0);
+    assert.match(present.output, new RegExp(`^writeLock: present path=${escapeRe(lockDir)} ageMs=\\d+$`, "m"));
 
-  // 기존 요약 줄은 두 경우 모두 그대로다. 새 줄이 기존 출력을 밀어내지 않는다.
-  for (const out of [absent.output, present.output]) {
-    assert.match(out, /^\[codexclaw loop: /m);
-    assert.match(out, /^criteria: 0 \(unmet 0\)$/m);
-    assert.match(out, /^complete: /m);
+    // 기존 요약 줄은 두 경우 모두 그대로다. 새 줄이 기존 출력을 밀어내지 않는다.
+    for (const out of [absent.output, present.output]) {
+      assert.match(out, /^\[codexclaw loop: /m);
+      assert.match(out, /^criteria: 0 \(unmet 0\)$/m);
+      assert.match(out, /^complete: /m);
+    }
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
   }
 });
 
 test("wp7 preservation: show survives a lock that vanishes between exists and stat", () => {
   const cwd = mkdtempSync(join(tmpdir(), "cxc-wp7-race-"));
-  const plan = buildGoalplan({ objective: "Ship the loop", criteria: [], now: () => NOW });
-  writeGoalplan(cwd, plan);
-  const lockDir = goalplanWriteLockDir(cwd, plan.slug);
-  mkdirSync(lockDir, { recursive: true });
+  try {
+    const plan = buildGoalplan({ objective: "Ship the loop", criteria: [], now: () => NOW });
+    writeGoalplan(cwd, plan);
+    const lockDir = goalplanWriteLockDir(cwd, plan.slug);
+    mkdirSync(lockDir, { recursive: true });
 
-  // exists 뒤 stat 사이에 락이 사라지는 경우. 주입 seam은 wp5가 만든 네 번째 인자다.
-  const status = goalplanWriteLockStatus(cwd, plan.slug, Date.now(), () => {
-    const err = new Error("ENOENT") as NodeJS.ErrnoException;
-    err.code = "ENOENT";
-    throw err;
-  });
-  assert.deepEqual(status, { path: lockDir, exists: false, ageMs: null });
+    // exists 뒤 stat 사이에 락이 사라지는 경우. 주입 seam은 wp5가 만든 네 번째 인자다.
+    const status = goalplanWriteLockStatus(cwd, plan.slug, Date.now(), () => {
+      const err = new Error("ENOENT") as NodeJS.ErrnoException;
+      err.code = "ENOENT";
+      throw err;
+    });
+    assert.deepEqual(status, { path: lockDir, exists: false, ageMs: null });
 
-  // 그 정규화가 렌더까지 전달되는지: show는 예외 없이 absent를 낸다.
-  rmSync(lockDir, { recursive: true, force: true });
-  const rendered = runGoalplanCli(
-    parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
-  );
-  assert.equal(rendered.code, 0);
-  assert.match(rendered.output, new RegExp(`^writeLock: absent path=${escapeRe(lockDir)}$`, "m"));
+    // 그 정규화가 렌더까지 전달되는지: show는 예외 없이 absent를 낸다.
+    rmSync(lockDir, { recursive: true, force: true });
+    const rendered = runGoalplanCli(
+      parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
+    );
+    assert.equal(rendered.code, 0);
+    assert.match(rendered.output, new RegExp(`^writeLock: absent path=${escapeRe(lockDir)}$`, "m"));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 ```
 
@@ -1332,12 +1344,18 @@ byte equality를 확인한다. root에는 typecheck script와 root `tsconfig.jso
 
 `npm test`는 단독으로 돌린다. wp7이 더하는 `test()`는 10건이다 — §3.3이 3건, §4.1·§4.2·§4.3·§4.4·§4.5가
 각 1건, §4.7이 2건이고, §4.6은 wp6 소유 테스트의 재실행이라 0건이다. 그래서 기대 총계는
-컴포넌트 `1087 + 10 = 1097`, 루트 `2262 + 10 = 2272`다. 총계가 줄었으면 통과 개수만 보고 넘기지 말고
+컴포넌트 `1087 + 10 = 1097`, 루트 `2260 + 10 = 2270`이다. 총계가 줄었으면 통과 개수만 보고 넘기지 말고
 계약서 §64의 C10 경쟁(`build.mjs`의 `rmSync(distDir)`가 다른 실행의 dist 독자를 죽인다)을 의심하고,
 병렬 실행을 멈춘 뒤 단독으로 다시 돌린다.
 
 §4.3·§4.4·§4.5의 `before` 블록은 기존 테스트의 `test(` 줄을 앵커로 인용한다. 그 앵커를 신규 건수로
 세면 합계가 13이 되는데, 세 섹션의 `after`가 더하는 것은 각 1건이다.
+
+루트 기준선은 **깨끗한 트리** 기준 2260이다. C단계 검증에서 이 숫자가 두 번 2272로 나왔는데, 그것은
+같은 워크트리에서 작업하는 다른 세션의 미커밋 변경이 `components/cxc-ops/test/ast-grep.test.ts`에
+`test()` 2건을 더해 놓았기 때문이다. 실측 대조: 부모 커밋 `887cfdb3`에서 2260, wp7 커밋 `4fccc712`에서
+2270, delta 정확히 +10. 더러운 워크트리에서 잰 절대 총계를 기준선으로 쓰면 안 된다 — 확정 신호는
+**delta**이고, 절대값은 같은 트리 상태에서 두 번 재야 의미가 있다.
 
 컴포넌트 스위트는 `npm test`(= 인자 없는 `node --test`)가 아니라 루트와 같은 glob으로 돌린다.
 
@@ -1415,7 +1433,8 @@ v3 파일을 한 번 쓴 뒤 pre-v3 reviver로 완전 downgrade하지 않는다.
 - [ ] 루트 `dist-freshness.test.mjs`에서 tracked dist가 src와 byte-equal이다.
 - [ ] 집중 테스트와 저장소 게이트가 모두 exit `0`이다.
 - [ ] wp7이 더한 `test()`가 정확히 10건이고 컴포넌트 총계가 `1087 + 10 = 1097`, 루트 총계가
-  `2262 + 10 = 2272`다.
+  깨끗한 트리에서 `2260 + 10 = 2270`이다. 더러운 워크트리에서는 절대값이 아니라 부모 커밋과의 delta
+  `+10`으로 판정한다.
 - [ ] 컴포넌트 게이트를 `node --test 'test/*.test.ts'`로 돌린다. 인자 없는 `node --test`는 wp2 생성기를
   주워 `ENOENT`로 죽으므로 게이트로 쓰지 않는다(§7.3).
 - [ ] wp5는 lock, wp6는 공개 표면으로만 서술된다.
