@@ -3508,14 +3508,33 @@ test("P-to-A continues when stale-round housekeeping cannot acquire the common l
 기존 bound 채팅 D-close fixture 두 개를 먼저 갱신한다. open-task 거부 fixture도 target 결박을 먼저
 통과해야 의도한 `tasks_pending` 분기에 닿는다.
 
-선행 wp import After를 출발점으로 삼은 변경 import 블록은 아래 셋이다. wp5는 path/url 이름과
-`spawn`을 더하며 기존 `spawnSync`, `join`을 보존한다.
+선행 wp import After를 출발점으로 삼은 변경 import 블록은 아래 넷이다. wp5는 path/url 이름과
+`spawn`을 더하며 기존 `spawnSync`, `join`을 보존한다. goalplan import에는 `readGoalplan`과
+`type Goalplan`을 더한다. 현재 이 파일은 `buildGoalplan`, `writeGoalplan`만 들여오는데 marker seam
+회귀가 plan을 읽어 변형하고 scenario `mutate`가 `Goalplan`을 타입으로 쓰므로 둘 다 필요하다.
 
 ```ts
 // wp4 적용 후 + wp5 추가분: 기존 join/spawnSync 보존; dirname, resolve, fileURLToPath, spawn 추가
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
+```
+
+```ts
+// wp4 적용 후 + wp5 추가분: readGoalplan과 Goalplan 타입 추가
+import { buildGoalplan, readGoalplan, writeGoalplan, type Goalplan } from "../src/goalplan.ts";
+```
+
+§8.3이 `orchestrate-cli.test.ts`에 두는 `goalplanLedgerRows()`는 그 파일의 module-private helper라
+이 파일에서 보이지 않는다. 같은 reader를 여기에도 정의한다. 두 파일이 각각 자기 helper를 갖는 것이
+현재 이 저장소의 테스트 관례이며, 공유 test-support 모듈은 wp5 범위에 없다.
+
+```ts
+function goalplanLedgerRows(cwd: string, slug: string): Array<Record<string, unknown>> {
+  const path = join(cwd, STATE_DIR, "goalplans", slug, "ledger.jsonl");
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
+}
 ```
 
 ```ts
@@ -4721,7 +4740,7 @@ tracked이므로 이전 초안의 `?? …050….md` 기대는 거짓이었고, �
 | `test/steering.test.ts` | import 변경 없음. |
 | `test/steering-ops.test.ts` | 전체 After에서 전용 `WslDeps`만 지운다. |
 | `test/orchestrate-cli.test.ts` | 기존 goalplan import를 보존하고 `readGoalplan`, `goalplanWriteLockDir`, `buildGoalplan`, `writeGoalplan`을 더한다. `node:fs`에서 `mkdirSync`도 더한다(§40 Z2 회귀가 락 디렉터리를 직접 만든다). |
-| `test/hook.test.ts` | 기존 `join`, `spawnSync`를 보존하고 `dirname`, `resolve`, `fileURLToPath`, `spawn`을 더한다. |
+| `test/hook.test.ts` | 기존 `join`, `spawnSync`를 보존하고 `dirname`, `resolve`, `fileURLToPath`, `spawn`을 더한다. goalplan import에 `readGoalplan`과 `type Goalplan`을 더한다. `existsSync`, `readFileSync`, `STATE_DIR`는 이미 있어 `goalplanLedgerRows()` 지역 정의에 추가 import가 필요하지 않다. |
 | `test/review-binding.test.ts` | import 변경 없음. |
 | `test/state.test.ts` | import 변경 없음. |
 | `plugins/codexclaw/test/hook-e2e.test.mjs` | import 변경 없음. persisted state exact shape만 갱신한다. |
