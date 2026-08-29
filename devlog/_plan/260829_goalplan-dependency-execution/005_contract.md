@@ -1109,3 +1109,51 @@ wp-2.status = pending      <- 활성화되지 않았다
 
 회귀는 marker 직후 crash 뒤 `wp-1=done`·커서 `wp-2`·`wp-2=pending`으로 손편집하고, 재시도가
 `wp-2`를 `in_progress`로 만들고 `started wp-2` 행이 실제 활성화와 일치하는지 단언한다.
+
+## 45. 라운드 16 — commit 판정은 술어가 아니라 동일성이다
+
+§42는 커서를 함께 보게 했고 §43은 판정을 helper로 옮겼고 §44는 완료 모양 두 가지와 대조하게 했다.
+그런데 술어를 정교하게 만드는 방향은 매번 새 위조를 낳았다. 감사에서 실측으로 확인된 위조가 네 개다.
+
+| 위조 | 옛 술어 결과 |
+| --- | --- |
+| 커서가 `pending` phase를 가리킨다 | §44 이전 settled |
+| 커서 phase가 `in_progress`지만 의존이 미충족 | §44도 settled |
+| 커서가 진짜 successor가 아닌 임의 phase | §44도 settled |
+| 커서 `null`인데 `in_progress` phase가 남아 있다 | §44도 settled |
+
+처분: **술어를 버리고 동일성으로 판정한다.** helper는 게이트를 통과한 뒤 이 close가 만들 plan을
+먼저 계산하고, 입력 plan이 그것과 구조적으로 같을 때만 `already_done`을 답한다. 위조는 어딘가
+반드시 계산 결과와 다르므로 빠져나갈 틈이 없다.
+
+```ts
+if (samePlanShape(plan, settledPlan)) return { kind: "already_done" };
+return { kind: "ok", closedId: workPhaseId, plan: settledPlan };
+```
+
+`samePlanShape()`는 close가 쓰는 필드만 본다 — 커서, 그리고 각 phase의 id·status·dependsOn과 task의
+id·status다. 전체 JSON을 비교하면 timestamp와 산문 때문에 이유 없이 깨진다.
+
+후보 선택에는 한 가지 정규화가 필요하다. 재시도 시점의 plan에는 앞선 시도가 활성화한 successor가
+`in_progress`로 남아 있을 수 있고, `pending`만 찾으면 아무것도 못 골라 커서를 `null`로 만들어
+이미 올바른 plan을 망친다. 그래서 대상이 아닌 `in_progress` phase는 **선택 단계에서만** `pending`으로
+읽는다. 기록되는 plan은 정규화 전 status를 쓰므로 선택되지 않은 phase의 status는 그대로다.
+
+커서가 가리키는 phase만 정규화하는 초안은 부족했다. 커서를 `null`로 위조해 `in_progress` phase를
+고립시키면 계산 결과와 일치해 settled가 되었다. 실측으로 재현했다.
+
+실측 검증: 이 명세를 실제 `goalplan.ts`에 적용해 goalplan·work-phase-states·orchestrate-cli·goal-gate
+네 파일을 실행하면 `tests 162 / pass 162 / fail 0`이며, 직접 호출 probe 일곱 경우가 아래처럼 나온다.
+
+| 입력 | 결과 |
+| --- | --- |
+| 첫 실행 (`wp-1` in_progress, `wp-2` pending) | `ok`, 커서 `wp-2` |
+| 진짜 commit 재적용 | `already_done` |
+| 커서가 pending phase | `ok`, `wp-2`를 in_progress로 복구 |
+| 커서 phase의 의존 미충족 | `ok`, 커서 `null`로 정직하게 정리 |
+| 커서 null + 고립된 in_progress | `ok`, 커서 `wp-2`로 복구 |
+| 전부 done, 커서 null | `already_done` |
+| 무관한 running phase 존재 | `ok`, 그 phase는 강등되지 않음 |
+
+회귀는 위조 네 가지 중 CLI에 커서-pending, 커서 null+고립, 의존 미충족 세 경우를 두고 채팅에
+커서-pending 한 경우를 둔다.

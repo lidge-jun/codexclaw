@@ -476,53 +476,72 @@ export function closeFixedWorkPhase(
   const pending = current.tasks.filter((task) => task.status !== "done");
   if (pending.length > 0) return { kind: "tasks_pending", workPhaseId, pending };
 
-  // §43/§44: only NOW is it safe to ask whether a write is still needed, and the
-  // answer is yes unless the plan ALREADY matches a completed close. Status plus a
-  // moved cursor is not enough: a hand edit can set the target done and point the
-  // cursor at a phase that is still pending, which would log `started <successor>`
-  // for a phase nobody activated. A finished close always leaves the cursor on an
-  // in_progress phase, or null when nothing runnable is left.
-  if (current.status === "done") {
-    const cursor = plan.activeWorkPhaseId;
-    const cursorPhase = cursor === null
-      ? null
-      : plan.workPhases.find((wp) => wp.id === cursor) ?? null;
-    const settled = cursor === null
-      ? !plan.workPhases.some(
-          (wp) => wp.status === "pending" && workPhaseDependenciesMet(plan, wp),
-        )
-      : cursor !== workPhaseId && cursorPhase?.status === "in_progress";
-    // A settled plan needs no write. Anything else falls through to the
-    // transformation below, which repairs the cursor the same way a normal close
-    // would have set it.
-    if (settled) return { kind: "already_done" };
-  }
-
   const closedWorkPhases = plan.workPhases.map((wp) =>
     wp.id === workPhaseId ? { ...wp, status: "done" as const, tasks: wp.tasks } : wp
   );
   const closedPlan: Goalplan = { ...plan, activeWorkPhaseId: null, workPhases: closedWorkPhases };
 
+  // §45: selection must not be fooled by a successor an earlier attempt already
+  // activated. A retry can find `wp-2` at `in_progress`, and searching only for
+  // `pending` would select nothing and null the cursor, corrupting a plan that was
+  // already correct. Every non-target `in_progress` phase therefore reads as a
+  // candidate for SELECTION only. Restricting this to the phase the cursor names was
+  // not enough: a forged null cursor stranding an `in_progress` phase then matched
+  // the computed result and settled. The written plan uses the unnormalized statuses,
+  // so a phase that is not selected keeps whatever status it had.
+  const selectable = closedWorkPhases.map((wp) =>
+    wp.id !== workPhaseId && wp.status === "in_progress"
+      ? { ...wp, status: "pending" as const }
+      : wp
+  );
+  const selectablePlan: Goalplan = { ...closedPlan, workPhases: selectable };
+
   // Same after-then-wrap order as before, evaluated on the snapshot where the
   // target is already done so a direct dependent becomes runnable here.
-  const after = closedWorkPhases.slice(currentIdx + 1).find(
-    (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+  const after = selectable.slice(currentIdx + 1).find(
+    (wp) => wp.status === "pending" && workPhaseDependenciesMet(selectablePlan, wp),
   );
-  const next = after ?? closedWorkPhases.slice(0, currentIdx).find(
-    (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+  const next = after ?? selectable.slice(0, currentIdx).find(
+    (wp) => wp.status === "pending" && workPhaseDependenciesMet(selectablePlan, wp),
   );
 
-  return {
-    kind: "ok",
-    closedId: workPhaseId,
-    plan: {
-      ...closedPlan,
-      activeWorkPhaseId: next?.id ?? null,
-      workPhases: closedWorkPhases.map((wp) =>
-        next && wp.id === next.id ? { ...wp, status: "in_progress" as const } : wp
-      ),
-    },
+  const settledPlan: Goalplan = {
+    ...closedPlan,
+    activeWorkPhaseId: next?.id ?? null,
+    workPhases: closedWorkPhases.map((wp) =>
+      next && wp.id === next.id ? { ...wp, status: "in_progress" as const } : wp
+    ),
   };
+
+  // §45: the only trustworthy test for "the commit already landed" is that the plan
+  // ALREADY equals what this close produces. Judging it from status, or status plus a
+  // cursor, or a cursor that merely looks in_progress, was forgeable three times over:
+  // a pending phase under the cursor, an in_progress phase whose dependencies are
+  // unmet, an arbitrary phase that is not the real successor, and a null cursor
+  // stranding an in_progress phase all passed those predicates. An identity check has
+  // no such gap, because any forgery differs from the computed result somewhere.
+  if (samePlanShape(plan, settledPlan)) return { kind: "already_done" };
+
+  return { kind: "ok", closedId: workPhaseId, plan: settledPlan };
+}
+
+/**
+ * Structural equality over the fields a close writes: cursor plus every phase id,
+ * status, dependsOn, and task status. Timestamps and prose are irrelevant here, so
+ * comparing whole JSON would make the check brittle for no gain.
+ */
+function samePlanShape(left: Goalplan, right: Goalplan): boolean {
+  if (left.activeWorkPhaseId !== right.activeWorkPhaseId) return false;
+  if (left.workPhases.length !== right.workPhases.length) return false;
+  return left.workPhases.every((wp, idx) => {
+    const other = right.workPhases[idx];
+    return wp.id === other.id
+      && wp.status === other.status
+      && (wp.dependsOn ?? []).join("\u0000") === (other.dependsOn ?? []).join("\u0000")
+      && wp.tasks.length === other.tasks.length
+      && wp.tasks.every((task, i) => task.id === other.tasks[i].id
+        && task.status === other.tasks[i].status);
+  });
 }
 ```
 
@@ -3240,6 +3259,66 @@ test("recovery is refused when a pending task is hidden under the already-closed
   assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
 });
 
+for (const forgery of [
+  {
+    name: "a null cursor stranding an in_progress phase",
+    edit: (plan: Goalplan): Goalplan => ({
+      ...plan,
+      activeWorkPhaseId: null,
+      workPhases: plan.workPhases.map((wp) =>
+        wp.id === "wp-1" ? { ...wp, status: "done" as const }
+          : wp.id === "wp-2" ? { ...wp, status: "in_progress" as const } : wp
+      ),
+    }),
+    cursor: "wp-2",
+  },
+  {
+    name: "an in_progress cursor whose dependency is unmet",
+    edit: (plan: Goalplan): Goalplan => ({
+      ...plan,
+      activeWorkPhaseId: "wp-2",
+      workPhases: [
+        ...plan.workPhases.map((wp) =>
+          wp.id === "wp-1" ? { ...wp, status: "done" as const }
+            : wp.id === "wp-2"
+              ? { ...wp, status: "in_progress" as const, dependsOn: ["wp-3"] }
+              : wp
+        ),
+        { id: "wp-3", title: "third", status: "blocked" as const, tasks: [], criteriaIds: [] },
+      ],
+    }),
+    cursor: null,
+  },
+] as const) {
+  test(`recovery rebuilds the cursor from ${forgery.name}`, () => {
+    // §45: predicates were forgeable four different ways, so the helper compares the
+    // plan against the one it would produce. Whatever the forgery, the retry lands on
+    // that computed shape instead of trusting the file.
+    const cwd = boundCwd();
+    const id = `recovery-forgery-${forgery.name.replace(/\s+/g, "-").slice(0, 30)}`;
+    const slug = `${id}-plan`;
+    seedBoundCycleAtC(cwd, id, slug, "done");
+    const args = parsedDclose(cwd, id);
+
+    assert.throws(
+      () => runOrchestrateCli(args, {
+        afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+      }),
+      /fail right after the marker/,
+    );
+    writeGoalplan(cwd, forgery.edit(readGoalplan(cwd, slug)!));
+
+    const retry = runOrchestrateCli(args);
+
+    assert.equal(retry.code, 0, retry.output);
+    const repaired = readGoalplan(cwd, slug)!;
+    assert.equal(repaired.activeWorkPhaseId, forgery.cursor);
+    assert.equal(repaired.workPhases.find((wp) => wp.id === "wp-1")!.status, "done");
+    assert.equal(readState(cwd, id).phase, "IDLE");
+    assert.equal(readState(cwd, id).dcloseRecovery, null);
+  });
+}
+
 test("recovery repairs a forged cursor that points at a phase nobody activated", () => {
   // §44: status done plus a moved cursor is forgeable by hand. If the cursor names a
   // phase that is still pending, answering already_done would log `started wp-2` for
@@ -4748,6 +4827,7 @@ export TMPDIR="$verification_tmp"
 
 baseline_sha=8321b2d7
 new_file=plugins/codexclaw/components/pabcd-state/test/goalplan-concurrency.test.ts
+pab_cli_test=plugins/codexclaw/components/pabcd-state/test/orchestrate-cli.test.ts
 existing_focused_files=(
   plugins/codexclaw/components/pabcd-state/test/state.test.ts
   plugins/codexclaw/components/pabcd-state/test/orchestrate-apply.test.ts
@@ -4791,20 +4871,28 @@ scenario_arity="$(
 test "$scenario_arity" -eq 3
 scenario_extra_cases=$((scenario_arity - 1))
 
-test "$added_existing_declarations" -eq 43
+# §45 위조 두 가지를 도는 선언도 배열 원소를 세어 추가 등록을 유도한다.
+test "$(rg -c '^for \(const forgery of \[$' "$pab_cli_test")" -eq 1
+forgery_arity="$(
+  rg -c '^    name: "' "$pab_cli_test"
+)"
+test "$forgery_arity" -eq 2
+forgery_extra_cases=$((forgery_arity - 1))
+
+test "$added_existing_declarations" -eq 44
 test "$new_file_declarations" -eq 6
 test "$parameterized_extra_cases" -eq 1
 test "$removed_declarations" -eq 5
 
-new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases + scenario_extra_cases))
+new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
 net_case_count=$((new_case_count - removed_declarations))
-test "$new_case_count" -eq 52
-test "$net_case_count" -eq 47
+test "$new_case_count" -eq 54
+test "$net_case_count" -eq 49
 
 focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
-focused_case_count=$((focused_declaration_count + parameterized_extra_cases + scenario_extra_cases))
-test "$focused_declaration_count" -eq 236
-test "$focused_case_count" -eq 239
+focused_case_count=$((focused_declaration_count + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
+test "$focused_declaration_count" -eq 237
+test "$focused_case_count" -eq 241
 
 # 산술 기대값과 실제 등록 수를 대조한다. 이것이 없으면 케이스 하나가 누락된 채
 # 남은 전부가 통과해도 node가 exit 0을 내어 false-green이 된다.
@@ -4823,12 +4911,12 @@ test "$(rg -o '^. fail (\d+)$' -r '$1' "$focused_log" | tail -1)" -eq 0
 
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
-- 기존 파일 추가 선언 43개, 신규 파일 선언 6개
+- 기존 파일 추가 선언 44개, 신규 파일 선언 6개
 - 삭제 5개의 출처는 §8.2의 held-lock·release 2개와 §8.2.1의 drvfs·9p·native 3개다
 - 두 입력을 도는 parameterized 선언의 추가 등록 1개, scenario 배열 원소 3개에서 나오는 추가 등록 2개
-- 계획된 신규 케이스 52개, 삭제 5개, 순증 47개
-- 구현 뒤 선언 236개, 실제 focused 등록 239개
-- node test exit 0, tests 239, pass 239, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
+- 계획된 신규 케이스 54개, 삭제 5개, 순증 49개
+- 구현 뒤 선언 237개, 실제 focused 등록 241개
+- node test exit 0, tests 241, pass 241, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
 
 락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
 CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
@@ -4866,7 +4954,7 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값은 exit 0, tests 2214, pass 2214, fail 0이다. 기존 2167건과 wp5 순증 47건을 모두 실행하며,
+기대값은 exit 0, tests 2216, pass 2216, fail 0이다. 기존 2167건과 wp5 순증 49건을 모두 실행하며,
 루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
 
 ### 10.4 저장소 gate
