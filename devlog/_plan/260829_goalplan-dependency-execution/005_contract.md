@@ -1013,3 +1013,33 @@ marker를 쓴 직후 seam에서 실패하고, 두 번째 요청이 recovery가 �
 `afterRecoveryMarkerWrite`를 넣고, all-done 테스트에 state-write 실패와 재시도를 넣고, 채팅 state
 write 회귀에 `injectedTurns` 유지·Stop 필드 초기화·같은 turn 재실행 빈 출력을 단언한다. 추가 뒤 §10.1의
 개수 oracle을 실제 선언 수로 다시 계산한다.
+
+## 42. 라운드 13 — `done`만으로 plan commit을 단정하지 않는다
+
+§40 Z1은 recovery가 status 하나만 고치는 것을 막았다. 그런데 반대 방향이 열려 있었다. recovery가
+고정 대상이 이미 `done`이면 `closeFixedWorkPhase()`를 호출하지 않고 원장·state 정리로 넘어간다.
+`done`을 plan commit이 끝났다는 증거로 단독 사용한 것이다.
+
+marker 직후 crash 상태는 `activeWorkPhaseId=wp-1`, `wp-1=in_progress`다. 여기서 plan을 손편집해
+`wp-1.status="done"`만 기록하고 커서를 그대로 두면 recovery가 아래를 전부 건너뛴다.
+
+- helper의 not_runnable·dependencies_unmet·tasks_pending 세 게이트
+- plan write. 커서가 done인 `wp-1`에 그대로 남는다
+- 그 결과 `startedId`가 `wp-1`이 되어 거짓 `started wp-1` 행을 기록한다
+- successor `wp-2`는 pending으로 남고 state는 IDLE, marker는 삭제된다
+
+§40 Z1이 막으려던 커서 손상이 같은 모양으로 다시 열린다. 계약은 marker 이후 외부 편집(대상 삭제
+포함)을 이미 인정하므로 status만 바뀐 편집도 배제할 수 없다.
+
+처분: **commit 판정에 커서를 함께 본다.** 정상 close는 `closeFixedWorkPhase()`가 대상을 `done`으로
+만들고 커서를 대상에서 옮긴다. 따라서 commit이 끝났다는 증거는 두 조건이 함께 참인 것이다.
+
+```ts
+const committed = fixed?.status === "done" && plan.activeWorkPhaseId !== closePhaseId;
+```
+
+`committed`가 거짓이면 helper를 다시 실행한다. helper는 `done` 대상을 받아들이므로 멱등하며, 세
+게이트를 그대로 통과시키고 커서까지 정리한다. CLI와 채팅 두 표면이 같은 문장을 쓴다.
+
+회귀는 두 표면 각각에 marker 직후 crash 뒤 status만 `done`으로 바꾸는 fixture를 두고, 재시도가
+커서를 successor로 옮기고 `started wp-2` 행을 남기며 거짓 `started wp-1`을 만들지 않는지 단언한다.

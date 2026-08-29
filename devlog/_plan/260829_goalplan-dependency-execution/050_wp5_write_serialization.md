@@ -986,7 +986,13 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
           // the normal path uses. Fixing up only the target's status left
           // activeWorkPhaseId on a done phase and logged a false started row.
           const fixed = plan.workPhases.find((workPhase) => workPhase.id === closePhaseId);
-          if (fixed && fixed.status !== "done") {
+          // §42: `done` alone is NOT proof the plan commit landed. A hand edit that
+          // sets only the status leaves the cursor on the target, and skipping the
+          // helper then writes a false `started <target>` row. The commit is proven
+          // only when the cursor has ALSO moved off the target, which is exactly what
+          // closeFixedWorkPhase() does. Otherwise re-run the helper; it is idempotent.
+          const committed = fixed?.status === "done" && plan.activeWorkPhaseId !== closePhaseId;
+          if (fixed && !committed) {
             const closed = closeFixedWorkPhase(plan, closePhaseId);
             // §41 W1: a target that gained a pending task or became blocked after its
             // marker is FAIL-CLOSED, and the marker is deliberately left in place so
@@ -1442,7 +1448,10 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
         // so the recovered plan matches what a normal close would have written —
         // cursor moved, successor in_progress, and a truthful started row.
         const fixed = plan.workPhases.find((workPhase) => workPhase.id === closePhaseId);
-        const closed = fixed && fixed.status !== "done"
+        // §42: same commit test as the CLI. A status-only edit keeps the cursor on the
+        // target, so `done` by itself would skip every gate and log a false started row.
+        const committed = fixed?.status === "done" && plan.activeWorkPhaseId !== closePhaseId;
+        const closed = fixed && !committed
           ? closeFixedWorkPhase(plan, closePhaseId)
           : { kind: "absent" as const };
         // §41 W1: same fail-closed rule as the CLI. The marker stays so the operator
@@ -3163,6 +3172,47 @@ test("recovery is refused when the fixed target lost a dependency after its mark
   assert.deepEqual(goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done"), []);
 });
 
+test("recovery re-runs the close when only the target status was edited to done", () => {
+  // §42: `done` alone is not proof the plan commit landed. A status-only edit leaves
+  // the cursor on wp-1, so treating `done` as committed would skip the helper and
+  // write a false `started wp-1` row while wp-2 stayed pending forever.
+  const cwd = boundCwd();
+  const id = "recovery-status-only-done";
+  const slug = "recovery-status-only-done-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+
+  // Exactly the crash state, with the status hand-edited and the cursor untouched.
+  const plan = readGoalplan(cwd, slug)!;
+  assert.equal(plan.activeWorkPhaseId, "wp-1");
+  writeGoalplan(cwd, {
+    ...plan,
+    workPhases: plan.workPhases.map((wp) =>
+      wp.id === "wp-1" ? { ...wp, status: "done" as const } : wp
+    ),
+  });
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  assertOnlyFirstPhaseClosed(cwd, slug);
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+  // The started row must name the successor, never the closed target.
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_started").map((row) => row.detail),
+    ["started wp-2"],
+  );
+});
+
 test("all-done close survives a failure right after its state write", () => {
   // §40 Z2 + §41 W4: the close row already landed inside the first lock, so a state
   // write that fails afterwards leaves nothing to lose. The retry must not add a
@@ -3997,6 +4047,48 @@ test("chat D-close retry after the recovery marker write matches an uninterrupte
   }
 });
 
+test("chat recovery re-runs the close when only the target status was edited to done", () => {
+  // §42: the chat surface shares the commit test. A status-only edit keeps the cursor
+  // on wp-1, so treating `done` as committed would log a false `started wp-1`.
+  const cwd = gitRepoForHook();
+  try {
+    const id = "chat-status-only-done";
+    const slug = "chat-status-only-done-plan";
+    const attest = seedChatCycleAtC(cwd, id, slug);
+
+    assert.throws(
+      () => handleUserPromptSubmit(
+        ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"),
+        process.platform,
+        { afterRecoveryMarkerWrite: () => { throw new Error("stop at the marker"); } },
+      ),
+      /stop at the marker/,
+    );
+
+    const plan = readGoalplan(cwd, slug)!;
+    assert.equal(plan.activeWorkPhaseId, "wp-1");
+    writeGoalplan(cwd, {
+      ...plan,
+      workPhases: plan.workPhases.map((wp) =>
+        wp.id === "wp-1" ? { ...wp, status: "done" as const } : wp
+      ),
+    });
+
+    const out = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "t2"));
+
+    assert.match(out, /\[codexclaw: DONE\]/);
+    const recovered = readGoalplan(cwd, slug)!;
+    assert.equal(recovered.activeWorkPhaseId, "wp-2");
+    assert.equal(recovered.workPhases.find((wp) => wp.id === "wp-2")!.status, "in_progress");
+    assert.deepEqual(
+      goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_started").map((row) => row.detail),
+      ["started wp-2"],
+    );
+    assert.equal(readState(cwd, id).phase, "IDLE");
+    assert.equal(readState(cwd, id).dcloseRecovery, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
 for (const scenario of [
   { name: "gained an open task", pattern: /gained 1 open task\(s\) after its marker was written/,
     mutate: (plan: Goalplan): Goalplan => ({
@@ -4546,20 +4638,20 @@ scenario_arity="$(
 test "$scenario_arity" -eq 3
 scenario_extra_cases=$((scenario_arity - 1))
 
-test "$added_existing_declarations" -eq 38
+test "$added_existing_declarations" -eq 40
 test "$new_file_declarations" -eq 6
 test "$parameterized_extra_cases" -eq 1
 test "$removed_declarations" -eq 5
 
 new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases + scenario_extra_cases))
 net_case_count=$((new_case_count - removed_declarations))
-test "$new_case_count" -eq 47
-test "$net_case_count" -eq 42
+test "$new_case_count" -eq 49
+test "$net_case_count" -eq 44
 
 focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
 focused_case_count=$((focused_declaration_count + parameterized_extra_cases + scenario_extra_cases))
-test "$focused_declaration_count" -eq 231
-test "$focused_case_count" -eq 234
+test "$focused_declaration_count" -eq 233
+test "$focused_case_count" -eq 236
 
 # 산술 기대값과 실제 등록 수를 대조한다. 이것이 없으면 케이스 하나가 누락된 채
 # 남은 전부가 통과해도 node가 exit 0을 내어 false-green이 된다.
@@ -4578,12 +4670,12 @@ test "$(rg -o '^. fail (\d+)$' -r '$1' "$focused_log" | tail -1)" -eq 0
 
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
-- 기존 파일 추가 선언 38개, 신규 파일 선언 6개
+- 기존 파일 추가 선언 40개, 신규 파일 선언 6개
 - 삭제 5개의 출처는 §8.2의 held-lock·release 2개와 §8.2.1의 drvfs·9p·native 3개다
 - 두 입력을 도는 parameterized 선언의 추가 등록 1개, scenario 배열 원소 3개에서 나오는 추가 등록 2개
-- 계획된 신규 케이스 47개, 삭제 5개, 순증 42개
-- 구현 뒤 선언 231개, 실제 focused 등록 234개
-- node test exit 0, tests 234, pass 234, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
+- 계획된 신규 케이스 49개, 삭제 5개, 순증 44개
+- 구현 뒤 선언 233개, 실제 focused 등록 236개
+- node test exit 0, tests 236, pass 236, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
 
 락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
 CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
@@ -4621,7 +4713,7 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값은 exit 0, tests 2209, pass 2209, fail 0이다. 기존 2167건과 wp5 순증 42건을 모두 실행하며,
+기대값은 exit 0, tests 2211, pass 2211, fail 0이다. 기존 2167건과 wp5 순증 44건을 모두 실행하며,
 루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
 
 ### 10.4 저장소 gate
