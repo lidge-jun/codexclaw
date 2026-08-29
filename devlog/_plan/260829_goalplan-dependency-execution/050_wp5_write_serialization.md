@@ -147,8 +147,9 @@ block으로 바꾸면 같은 실패가 끝없이 다시 실행될 수 있다.
 
 D-close는 CLI의 `args.attest.workPhaseId`, 채팅의 `command.attest.workPhaseId`를 trim한 값을
 `closePhaseId`로 고정한다. slug가 없는 HITL D-close는 이 값을 요구하지 않고 기존 경로로 즉시
-끝낸다. bound goalplan에서는 빈 plan과 all-done 특례를 먼저 판정한다. 그 밖의 bound close에서
-빈 값은 target 조회 단계에서 `attest.workPhaseId is required`로 거부한다.
+끝낸다. bound goalplan에서는 빈 plan, marker recovery, all-done 특례를 이 순서로 먼저 판정한다.
+그 밖의 bound close에서 빈 값은 target 조회 단계에서 `attest.workPhaseId is required`로 거부한다.
+순서 정본은 계약 §40 Z4다.
 
 durable marker의 저장 위치는 `.codexclaw/sessions/<sessionId>.json` 안
 `dcloseRecovery` 필드다. 별도 journal은 만들지 않는다. JSON shape는 아래 하나다.
@@ -169,12 +170,28 @@ target과 pending task를 다시 검사하고, plan을 쓰기 직전에 marker�
 recovery 판정은 아래 세 비교가 모두 참일 때뿐이다. plan의 phase status와 기존 원장 행은 recovery
 자격을 주지 않는다. marker가 맞으면 `closedWorkPhaseId`가 대상을 고정하므로 정상 경로의 target
 검증(없으면 거부)은 건너뛴다. 다만 계약 §39 Y1에 따라 **그 고정 대상이 plan에서 이미 `done`인지는
-확인하고, 아직 아니면 그 phase만 멱등하게 닫는다.** marker는 plan commit보다 먼저 기록되므로,
-확인 없이 원장·state 정리로 건너뛰면 원장은 닫혔다고 말하고 plan은 열려 있는 상태가 남는다.
+확인하고, 아직 아니면 `closeFixedWorkPhase()`로 멱등하게 닫는다.** marker는 plan commit보다 먼저
+기록되므로, 확인 없이 원장·state 정리로 건너뛰면 원장은 닫혔다고 말하고 plan은 열려 있는 상태가 남는다.
+이 조회는 부재 시 거부하는 target 검증이 아니라 이미 커밋됐는지 판정하는 상태 확인이다.
+
+계약 §40 Z1에 따라 recovery는 status 하나만 고치지 않는다. 초안이 그렇게 적었고 감사관 2기가 각각
+실측으로 커서 손상을 재현했다. marker 직후 crash 상태는 `activeWorkPhaseId=wp-1`, `wp-1=in_progress`,
+`wp-2=pending`이므로 status만 바꾸면 커서가 done인 `wp-1`을 계속 가리키고 `startedId`가 거짓
+`started wp-1` 행을 만든다. 정상 close와 recovery는 같은 `closeFixedWorkPhase(plan, workPhaseId)`를
+쓴다. 이 함수는 대상을 `done`으로 만든 뒤 `advanceWorkPhase()`와 같은 after-then-wrap 순서와 같은
+dependency readiness로 다음 후보를 골라 `activeWorkPhaseId`와 successor `in_progress`까지 설정한다.
+`advanceWorkPhase()`는 effective 커서로 대상을 정한 뒤 이 함수에 위임한다.
 CLI와 채팅 모두 빈 plan, **marker recovery**, all-done, target 검증 순서를 같게 둔다. recovery가
 all-done보다 앞인 이유는 계약 §39 Y2다. 마지막 work-phase를 커밋한 직후 crash하면 plan이 전부
 `done`이 되므로, all-done이 먼저 오면 재시도가 `closedWorkPhaseId: null`로 기록하고 marker가
 지목한 실제 대상이 원장에서 사라진다.
+
+all-done 특례는 marker를 만들지 않는다. marker는 닫는 중인 대상을 가리키는 값이고 all-done에는 그런
+대상이 없다. 그래서 계약 §40 Z2대로 all-done은 커밋을 나누지 않는다. **첫 락 임계 구역 안에서**
+PABCD close row 확인·append까지 끝내고, IDLE state write는 락을 놓은 뒤 실행한다. all-done 경로에는
+최종화 락이 아예 없다. 초안은 all-done도 두 번째 락을 쓰게 두었는데, 그러면 최종화 락 실패 시 marker도
+close row도 없이 IDLE만 남아 같은 요청이 `IDLE -> D` illegal transition으로 거부되고 close row가
+영구히 빠진다. §39 Y3의 미완 보고는 marker를 남기는 정상 close와 recovery에만 적용된다.
 
 ```ts
 export function matchesDcloseRecovery(
@@ -198,12 +215,19 @@ work-phase binding, `transition()`, receipt를 다시 검사하고, IDLE에서�
 
 | 순서 | 락 | 커밋 | 직후 실패 시 관측 상태 | 같은 marker·target 재시도 |
 | --- | --- | --- | --- | --- |
-| 1 | 안 | session state에 marker 기록, phase는 C 유지 | marker 있음, plan 미변경 | recovery가 고정 대상이 `done`이 아님을 보고 2번을 멱등 수행 |
-| 2 | 안 | `goalplan.json`: `closePhaseId`를 `done`으로 commit | target done, goalplan 원장 없음, state C+marker | recovery가 고정 대상이 이미 `done`임을 보고 plan write를 건너뛰고 3번부터 진행 |
+| 1 | 안 | session state에 marker 기록, phase는 C 유지 | marker 있음, plan 미변경 | recovery가 고정 대상이 `done`이 아님을 보고 2번을 `closeFixedWorkPhase()`로 멱등 수행 |
+| 2 | 안 | `goalplan.json`: `closeFixedWorkPhase(plan, closePhaseId)` 결과를 commit — 대상 `done`, successor `in_progress`, 커서 이동 포함 | target done, successor in_progress, goalplan 원장 없음, state C+marker | recovery가 고정 대상이 이미 `done`임을 보고 plan write를 건너뛰고 3번부터 진행 |
 | 3 | 안 | goalplan 원장: `workphase_done`, 필요하면 `workphase_started` append | plan·goalplan 원장 완료, state C+marker | 기존 행 확인 뒤 4번부터 진행 |
 | 4 | 밖 | state를 IDLE로 write, marker와 check epoch는 잠시 보존 | FSM IDLE, PABCD 원장 없음 | IDLE recovery가 5번만 진행 |
 | 5 | 다시 안 | PABCD 원장의 같은 3-tuple 확인·append | 기능 커밋 완료, marker 남음 | 같은 락 안 확인으로 중복 append 불가 |
 | 6 | 5와 같은 임계 구역 | state의 marker와 check epoch 삭제 | 정상 완료 | 다음 D 요청은 recovery가 아니며 IDLE에서 거부 |
+
+all-done 특례의 커밋 순서는 위 표를 쓰지 않는다. 계약 §40 Z2대로 두 단계뿐이다.
+
+| 순서 | 락 | 커밋 | 직후 실패 시 관측 상태 | 같은 요청 재시도 |
+| --- | --- | --- | --- | --- |
+| A1 | 안 | PABCD close row 확인·append (`closedWorkPhaseId`는 `null`) | close row 있음, FSM은 C 유지 | `hasPabcdCloseRow()`가 중복 append를 막고 A2만 진행 |
+| A2 | 밖 | state를 IDLE로 write, marker는 만들지 않음 | 정상 완료 | 다음 D 요청은 IDLE에서 거부 |
 
 goalplan 원장 append나 PABCD append가 실제 write 뒤 throw해도 행 존재 확인으로 중복을 막는다.
 PABCD close-row 확인·append·marker cleanup은 한 goalplan 락 callback 안에 있으며 check-then-append
@@ -211,8 +235,9 @@ PABCD close-row 확인·append·marker cleanup은 한 goalplan 락 callback 안�
 
 1번 직후와 2번 직후의 재시도가 서로 다른 일을 하는 것이 계약 §39 Y1의 핵심이다. recovery는 marker의
 `closedWorkPhaseId`로 plan에서 phase를 찾고, 없으면 이미 커밋됐다고 판정해 write를 생략하고, 있는데
-`done`이 아니면 그 phase status 하나만 `done`으로 맞춰 commit한다. `advanceWorkPhase()`를 다시
-부르지 않는다 — 커서는 첫 시도가 남긴 상태를 존중한다.
+`done`이 아니면 `closeFixedWorkPhase()`로 commit한다. 계약 §40 Z1대로 이 함수가 정상 close와 같은
+plan을 만들므로 커서와 successor status가 어긋나지 않는다. 회귀에서는 정상 close 결과와 recovery
+결과를 한 `deepEqual`로 묶어 같은 plan임을 못 박는다.
 
 최종화 락 실패는 거부가 아니다. 계약 §39 Y3에 따라 4번 state write가 이미 락 밖에서 끝나 FSM이 IDLE이
 된 뒤이므로, 전이를 되돌리지 않는다. CLI는 **code 0**으로 닫고 출력에 marker가 남아 다음 요청이 정리를
@@ -373,6 +398,78 @@ export function writeGoalplan(cwd: string, plan: Goalplan): void {
 
 `GoalplanLedgerEvent`와 `GoalplanLedgerEntry`는 wp5에서 바꾸지 않는다. 거부 이벤트와 거부 detail
 필드도 추가하지 않는다.
+
+계약 §40 Z1이 요구한 공유 close 함수를 추가하고 `advanceWorkPhase()`를 그 위로 위임한다. recovery가
+status 하나만 고치면 커서와 successor status가 정상 close와 어긋난다 — 감사관 2기가 각각 재현한
+BLOCKER다. 두 경로가 같은 함수를 쓰면 그 어긋남 자체가 불가능해진다.
+
+#### before — wp4의 `advanceWorkPhase()` 후반부
+
+```ts
+  // Preserve the old cursor order: after current first, then wrap to the front.
+  const after = closedWorkPhases.slice(currentIdx + 1).find(
+    (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+  );
+  const next = after ?? closedWorkPhases.slice(0, currentIdx).find(
+    (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+  );
+```
+
+#### after — 공유 `closeFixedWorkPhase()`
+
+```ts
+/**
+ * Close exactly `workPhaseId` and move the cursor the same way a normal advance
+ * does: after-then-wrap over pending phases whose dependencies are met.
+ *
+ * 050 §40 Z1: D-close recovery used to fix up only the target's status, which left
+ * activeWorkPhaseId pointing at a done phase and logged a false `started <target>`.
+ * Normal close and recovery now share this one transformation, so the two cannot
+ * disagree about the resulting plan.
+ */
+export function closeFixedWorkPhase(
+  plan: Goalplan,
+  workPhaseId: string,
+): { kind: "ok"; plan: Goalplan; closedId: string } | { kind: "absent" } {
+  const currentIdx = plan.workPhases.findIndex((wp) => wp.id === workPhaseId);
+  if (currentIdx < 0) return { kind: "absent" };
+
+  const closedWorkPhases = plan.workPhases.map((wp) =>
+    wp.id === workPhaseId ? { ...wp, status: "done" as const, tasks: wp.tasks } : wp
+  );
+  const closedPlan: Goalplan = { ...plan, activeWorkPhaseId: null, workPhases: closedWorkPhases };
+
+  // Same after-then-wrap order as before, evaluated on the snapshot where the
+  // target is already done so a direct dependent becomes runnable here.
+  const after = closedWorkPhases.slice(currentIdx + 1).find(
+    (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+  );
+  const next = after ?? closedWorkPhases.slice(0, currentIdx).find(
+    (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+  );
+
+  return {
+    kind: "ok",
+    closedId: workPhaseId,
+    plan: {
+      ...closedPlan,
+      activeWorkPhaseId: next?.id ?? null,
+      workPhases: closedWorkPhases.map((wp) =>
+        next && wp.id === next.id ? { ...wp, status: "in_progress" as const } : wp
+      ),
+    },
+  };
+}
+```
+
+`advanceWorkPhase()`의 후반부는 위 함수 호출로 바뀐다. effective 커서 판정, `tasks_pending` 거부,
+`no_active` 판정은 그대로 둔다. wp4가 잠근 불변식 9 golden은 반환값이 동일하므로 계속 통과한다.
+
+```ts
+  const closed = closeFixedWorkPhase(plan, current.id);
+  if (closed.kind !== "ok") return { kind: "no_active" };
+  return { kind: "ok", closedId: closed.closedId, plan: closed.plan };
+```
 
 선행 wp의 `node:fs` After를 출발점으로 삼아 `statSync`만 더한다. `node:path`의 `resolve`는 이미
 선행 상태에 있으므로 다시 쓰지 않는다.
@@ -751,20 +848,20 @@ marker가 없거나 어긋나면 정상 gate를 전부 실행한다. all-done �
 
 receipt 검증 다음의 bound-plan 분기를 아래로 교체한다.
 
-CLI D-close 검사 순서는 §35의 여덟 단계로 고정한다. slug 없는 HITL을 먼저 끝내므로 빈 slug가
-`withGoalplanWriteLock()`에 들어갈 수 없다. bound callback은 빈 plan과 all-done을 target보다 먼저
-판정한다. `attest.workPhaseId` 필수 검사는 5번 target 검사에 포함한다.
+CLI D-close 검사 순서는 계약 §40 Z4의 여덟 단계로 고정한다. slug 없는 HITL을 먼저 끝내므로 빈 slug가
+`withGoalplanWriteLock()`에 들어갈 수 없다. bound callback은 빈 plan, marker recovery, all-done을
+target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 target 검사에 포함한다.
 
 | 순서 | 검사 | 결과·실패 문자열 | 기존 단언 처분 |
 | --- | --- | --- | --- |
 | 1 | slug가 없는 HITL인가 | `writeState` + PABCD `appendLedger` 뒤 옛 성공 문구로 즉시 return | `orchestrate-cli.test.ts:908`에 옛 문구 단언을 추가한다 |
 | 2 | bound plan의 `workPhases.length === 0`인가 | `the plan is empty — register workPhases[] first`로 거부 | 기존 `/the plan is empty/` 단언을 그대로 둔다 |
-| 3 | work-phase가 하나 이상이고 모두 `done`인가 | 새 marker 없이 cycle만 IDLE로 닫는다 | 기존 all-done 성공 테스트를 그대로 성공으로 둔다 |
-| 4 | recovery marker의 세 값이 모두 맞는가 | 이미 통과한 gate를 다시 쓰지 않고 남은 commit만 보충한다 | 세 실패 주입 재시도 테스트가 맡는다 |
+| 3 | recovery marker의 세 값이 모두 맞는가 | 이미 통과한 gate를 다시 쓰지 않고, 고정 대상이 아직 `done`이 아니면 `closeFixedWorkPhase()`로 멱등 commit한 뒤 남은 commit만 보충한다 | 네 실패 주입 재시도 테스트가 맡는다 |
+| 4 | work-phase가 하나 이상이고 모두 `done`인가 | 새 marker 없이 첫 락 안에서 PABCD close row까지 끝내고 cycle만 IDLE로 닫는다 | 기존 all-done 성공 테스트를 그대로 성공으로 둔다 |
 | 5 | target이 plan에 있는가 | 빈 id는 `attest.workPhaseId is required`, 없는 id는 `work-phase <id> is not in the bound goalplan`로 거부 | wp5 고정 target 음성 경로 |
 | 6 | target에 pending task가 남았는가 | 기존 `tasks_pending` 문구로 거부 | 기존 open-task 단언을 보존한다 |
 | 7 | 남은 work-phase가 의존 교착인가 | `dependencyDeadlock()`의 `Dependency deadlock: ...` 진단으로 거부 | wp4 After를 보존한다 |
-| 8 | 정상 close인가 | 락 안에서 plan commit + goalplan 원장, 락 밖에서 state + PABCD 원장 | bound 성공 문구와 멱등 테스트를 wp5가 맡는다 |
+| 8 | 정상 close인가 | 첫 락 안에서 marker + `closeFixedWorkPhase()` plan commit + goalplan 원장, 락 밖에서 state, 둘째 락 안에서 PABCD 원장 + marker cleanup | bound 성공 문구와 멱등 테스트를 wp5가 맡는다 |
 
 ```ts
     // §35-1: unbound HITL keeps the pre-wp5 path byte-for-byte. It never takes a
@@ -818,23 +915,37 @@ CLI D-close 검사 순서는 §35의 여덟 단계로 고정한다. slug 없는 
           // this is not the §38 X2 "target validation" that refuses on absence.
           // Absent means a later edit removed it and the commit is not ours to
           // redo; present-but-open means the marker-then-crash case and we close
-          // exactly that phase. advanceWorkPhase() is NOT called again: the cursor
-          // belongs to whatever the first attempt already persisted.
+          // exactly that phase.
+          //
+          // §40 Z1: closing it means closeFixedWorkPhase(), the same transformation
+          // the normal path uses. Fixing up only the target's status left
+          // activeWorkPhaseId on a done phase and logged a false started row.
           const fixed = plan.workPhases.find((workPhase) => workPhase.id === closePhaseId);
           if (fixed && fixed.status !== "done") {
-            closedPlan = {
-              ...plan,
-              workPhases: plan.workPhases.map((workPhase) =>
-                workPhase.id === closePhaseId ? { ...workPhase, status: "done" as const } : workPhase
-              ),
-            };
-            writeClosedPlan = true;
+            const closed = closeFixedWorkPhase(plan, closePhaseId);
+            if (closed.kind === "ok") {
+              closedPlan = closed.plan;
+              writeClosedPlan = true;
+            }
           }
         } else {
           // §35-3 / #49: an already-complete non-empty plan closes the cycle only.
           // No marker, plan write, or goalplan ledger row is needed. This is now
           // inside the non-recovery branch so a matching marker always wins.
           if (plan.workPhases.every((workPhase) => workPhase.status === "done")) {
+            // §40 Z2: finish the PABCD close row inside THIS lock. all-done mints no
+            // marker, so if the row were left to a second lock and that lock failed,
+            // the retry would hit `IDLE -> D` with nothing to recover from and the
+            // row would be lost for good.
+            if (state.phase === "C" && !hasPabcdCloseRow(args.cwd, sessionId, state.checkEpoch, null)) {
+              appendLedger(args.cwd, {
+                ts: new Date().toISOString(), sessionId: state.sessionId, from: "C", to: "IDLE", reason: "done",
+                checkEpoch: state.checkEpoch,
+                closedWorkPhaseId: null,
+                ...(args.attest?.did ? { evidence: args.attest.did } : {}),
+              });
+              commitHooks.afterPabcdLedgerAppend?.();
+            }
             return { code: 0 as const, allDone: true as const };
           }
           // §35-5: input and target membership checks follow all-done and recovery.
@@ -949,7 +1060,12 @@ CLI D-close 검사 순서는 §35의 여덟 단계로 고정한다. slug 없는 
     }
     // check + append + marker cleanup is one critical section. Two recoveries
     // cannot both observe an absent 3-tuple.
-    const finalize = withGoalplanWriteLock(args.cwd, slug, () => {
+    //
+    // §40 Z2: all-done already wrote its row inside the first lock and has no marker
+    // to clear, so it never enters this second critical section.
+    const finalize = allDoneClose
+      ? { kind: "ok" as const, value: undefined }
+      : withGoalplanWriteLock(args.cwd, slug, () => {
       if (!hasPabcdCloseRow(args.cwd, sessionId, closeCheckEpoch, closedWorkPhaseId)) {
         appendLedger(args.cwd, {
           ts: new Date().toISOString(), sessionId: state.sessionId, from: "C", to: "IDLE", reason: "done",
@@ -971,7 +1087,7 @@ CLI D-close 검사 순서는 §35의 여덟 단계로 고정한다. slug 없는 
         // for a cycle that is functionally closed. The marker survives and the
         // next D request for the same tuple finishes the cleanup.
         code: 0,
-        output: `orchestrate D: close target ${closePhaseId} is committed and the cycle is closed, but ledger/marker finalization is pending: ${finalize.reason}. Run the same D request again once the lock clears.`,
+        output: `orchestrate D: close target ${closePhaseId} is committed and the cycle is closed, but ledger/marker finalization is pending: ${finalize.reason} The recovery marker is still on the session, so running the same D request again finishes the cleanup.`,
       };
     }
     return { code: 0, output: `orchestrate D: close target ${closePhaseId} is complete (cycle closed, session ${sessionId})` };
@@ -1211,20 +1327,47 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
           advanced: null,
         };
       }
-      // §35-3: a non-empty all-done plan closes only the cycle. It needs no
-      // target and writes no recovery marker or goalplan row.
-      if (plan.workPhases.every((workPhase) => workPhase.status === "done")) {
-        closedWorkPhaseId = null;
-        return { output: "", advanced: null };
-      }
-      // §35-4: a matching marker resumes cleanup without target lookup. The
-      // marker's closedWorkPhaseId remains authoritative even if that phase no
-      // longer appears in the partially committed plan.
+      // §39 Y2: recovery is checked BEFORE all-done, in the same order as the CLI
+      // path. Crashing right after the final work-phase commit leaves an all-done
+      // plan; checking all-done first would consume that retry as a plain cycle
+      // close and record closedWorkPhaseId: null, dropping the marker's target.
       let closeResult: AdvanceResult;
       let writeClosedPlan = false;
       if (recoveringDclose) {
-        closeResult = { kind: "ok" as const, closedId: closePhaseId, plan };
+        // §39 Y1: the marker is written before the plan commit, so a matching
+        // marker does not prove the plan was closed. Look the fixed target up —
+        // absent means a later edit removed it and the commit is not ours to redo;
+        // present-but-open is the marker-then-crash case and we close exactly that
+        // phase.
+        //
+        // §40 Z1: the CLI path and this one both go through closeFixedWorkPhase(),
+        // so the recovered plan matches what a normal close would have written —
+        // cursor moved, successor in_progress, and a truthful started row.
+        const fixed = plan.workPhases.find((workPhase) => workPhase.id === closePhaseId);
+        const closed = fixed && fixed.status !== "done"
+          ? closeFixedWorkPhase(plan, closePhaseId)
+          : { kind: "absent" as const };
+        if (closed.kind === "ok") {
+          closeResult = { kind: "ok" as const, closedId: closed.closedId, plan: closed.plan };
+          writeClosedPlan = true;
+        } else {
+          closeResult = { kind: "ok" as const, closedId: closePhaseId, plan };
+        }
       } else {
+        // §35-3: a non-empty all-done plan closes only the cycle. It needs no
+        // target and writes no recovery marker or goalplan row. This now sits
+        // inside the non-recovery branch so a matching marker always wins.
+        if (plan.workPhases.every((workPhase) => workPhase.status === "done")) {
+          closedWorkPhaseId = null;
+          // §40 Z2: same as the CLI — the close row lands inside this first lock,
+          // because all-done leaves no marker for a failed second lock to resume.
+          if (result.ledger && state.phase === "C"
+            && !hasPabcdCloseRow(payload.cwd, payload.session_id, state.checkEpoch, null)) {
+            appendLedger(payload.cwd, { ...result.ledger, checkEpoch: state.checkEpoch, closedWorkPhaseId: null });
+            dcloseCommitHooks.afterPabcdLedgerAppend?.();
+          }
+          return { output: "", advanced: null };
+        }
         // §35-5: target validation follows empty-plan, all-done, and recovery.
         if (!closePhaseId) {
           return {
@@ -1341,11 +1484,18 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
     advanced = locked.value.advanced;
 ```
 
-hook retry는 marker가 일치하면 `closePhaseId`를 plan에서 찾지 않고 plan도 다시 바꾸지 않는다.
+hook retry는 marker가 일치하면 정상 경로의 target 검증(없으면 거부)을 건너뛴다. 다만 계약 §39 Y1에
+따라 고정 대상이 plan에서 이미 `done`인지는 확인하고, 아직 아니면 그 phase만 멱등하게 닫는다.
+marker가 plan commit보다 먼저 기록되기 때문이다. 대상이 plan에 없으면 나중 편집이 지운 것이므로
+plan write 없이 원장·state 정리로 넘어간다. CLI 경로와 분기 순서·판정이 같다.
 all-done 분기의 `{ output: "", advanced: null }`은 target·marker·goalplan 원장 없이 아래
 state/PABCD cycle close만 실행하며 `closedWorkPhaseId`를 `null`로 고정한다. 사용자가
 `workPhaseId`를 넣어도 이 값을 원장에 복사하지 않는다. wp4의
 `Dependency deadlock: ${deadlock.reasons.join("; ")}` 문구는 바꾸지 않는다.
+
+채팅 최종화 락 실패는 계약 §39 Y3대로 거부가 아니다. 바로 위 IDLE state write가 이미 끝났으므로
+전이를 되돌리지 않고, 사람이 읽는 미완 보고만 낸다. hook은 원래 프로세스 code 0이므로 CLI의 code
+0 전환과 의미가 같다. 다음 동일 요청이 marker를 소비해 정리를 끝낸다.
 
 이 블록이 성공한 뒤에만 IDLE state를 쓴다. IDLE write는 marker와 check epoch를 보존한다. 그 뒤
 goalplan 락을 다시 잡아 PABCD 원장의 3-tuple 확인·append와 marker 삭제를 한 임계 구역에서 끝낸다.
@@ -1353,13 +1503,25 @@ goalplan 락을 다시 잡아 PABCD 원장의 3-tuple 확인·append와 marker �
 ```ts
 const recovery = readState(payload.cwd, payload.session_id).dcloseRecovery;
 const closeCheckEpoch = recovery?.checkEpoch ?? state.checkEpoch;
+// §40 Z3: keep every field the existing D-close write sets. Dropping injectedTurns
+// breaks same-turn dedup (a re-run of the same turn would print an IDLE -> D refusal
+// instead of staying quiet), and dropping the stopBlock reset leaves C's stagnation
+// state on an IDLE session. wp5 only layers the recovery fields on top.
 writeState(payload.cwd, {
   ...result.state!,
-  checkEpoch: recovery?.checkEpoch ?? null,
-  dcloseRecovery: recovery,
+  injectedTurns: nextInjectedTurns,
+  stopBlockPhase: null,
+  stopBlockWorkPhaseId: null,
+  stopBlockCount: 0,
+  checkEpoch: allDoneClose ? null : recovery?.checkEpoch ?? null,
+  dcloseRecovery: allDoneClose ? null : recovery,
 });
 dcloseCommitHooks.afterStateWrite?.();
-const finalize = withGoalplanWriteLock(payload.cwd, state.slug, () => {
+// §40 Z2: all-done wrote its close row inside the first lock and has no marker to
+// clear, so it skips this second critical section entirely.
+const finalize = allDoneClose
+  ? { kind: "ok" as const, value: undefined }
+  : withGoalplanWriteLock(payload.cwd, state.slug, () => {
   if (result.ledger && !hasPabcdCloseRow(
     payload.cwd,
     payload.session_id,
@@ -1381,10 +1543,16 @@ const finalize = withGoalplanWriteLock(payload.cwd, state.slug, () => {
 if (finalize.kind !== "ok") {
   return buildContextOutput(
     "UserPromptSubmit",
-    `[codexclaw — D-close was committed, but ledger/marker finalization is pending: ${finalize.reason}]`,
+    `[codexclaw — D-close was committed and the cycle is closed, but ledger/marker `
+      + `finalization is pending: ${finalize.reason} The recovery marker is still on the `
+      + `session, so running the same D request again finishes the cleanup.]`,
   );
 }
 ```
+
+`nextInjectedTurns`는 현재 write가 이미 계산하는 값이다. wp5는 그 계산을 옮기지 않고 그대로 쓴다.
+`allDoneClose`는 위 락 callback이 `closedWorkPhaseId = null`로 표시한 경우를 뜻하며, CLI의 같은
+이름 변수와 의미가 같다.
 
 현재 `hook.ts:894-916`의 plan write 블록은 DELETE한다. outer hook dispatcher는
 `cli.ts:307-390`의 catch와 `process.exit(0)`을 유지한다. `hook.ts`의 state import에는
@@ -2599,6 +2767,107 @@ test("D-close retry after goalplan commit closes the fixed phase only once", () 
   );
 });
 
+test("D-close retry after the recovery marker write closes the fixed phase like a normal close", () => {
+  // §40 Z1: the earlier draft had recovery patch only the target status, which left
+  // activeWorkPhaseId on a done phase and logged a false `started wp-1`. Both paths
+  // now go through closeFixedWorkPhase(), so the recovered plan must equal what an
+  // uninterrupted close would have written.
+  const cwd = boundCwd();
+  const id = "retry-after-marker";
+  const slug = "retry-after-marker-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  const reference = boundCwd();
+  seedBoundCycleAtC(reference, "reference-close", "reference-close-plan", "done");
+  const uninterrupted = runOrchestrateCli(parsedDclose(reference, "reference-close"));
+  assert.equal(uninterrupted.code, 0, uninterrupted.output);
+  const referencePlan = readGoalplan(reference, "reference-close-plan")!;
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+  // The marker survives and the plan is untouched: this is step 1 of the §5 table.
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.deepEqual(readState(cwd, id).dcloseRecovery, {
+    sessionId: id,
+    checkEpoch: "c-test-epoch",
+    closedWorkPhaseId: "wp-1",
+  });
+  assert.equal(readGoalplan(cwd, slug)!.workPhases.find((wp) => wp.id === "wp-1")!.status, "in_progress");
+
+  const retry = runOrchestrateCli(args);
+  assert.equal(retry.code, 0, retry.output);
+  const recovered = readGoalplan(cwd, slug)!;
+  assert.deepEqual(
+    {
+      workPhases: recovered.workPhases.map((wp) => ({ id: wp.id, status: wp.status })),
+      activeWorkPhaseId: recovered.activeWorkPhaseId,
+    },
+    {
+      workPhases: referencePlan.workPhases.map((wp) => ({ id: wp.id, status: wp.status })),
+      activeWorkPhaseId: referencePlan.activeWorkPhaseId,
+    },
+  );
+  assert.equal(recovered.workPhases.find((wp) => wp.id === "wp-1")!.status, "done");
+  assert.equal(recovered.workPhases.find((wp) => wp.id === "wp-2")!.status, "in_progress");
+  assert.equal(recovered.activeWorkPhaseId, "wp-2");
+  // The started row names the successor, not the phase that just closed.
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_started").map((row) => row.detail),
+    ["started wp-2"],
+  );
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done").map((row) => row.detail),
+    ["closed wp-1"],
+  );
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+  rmSync(reference, { recursive: true, force: true });
+});
+
+test("all-done close writes its PABCD row inside the first lock and takes no finalization lock", () => {
+  // §40 Z2: all-done mints no marker. If its close row waited for a second lock and
+  // that lock failed, the retry would hit `IDLE -> D` with nothing to recover from
+  // and the row would be lost permanently.
+  const cwd = boundCwd();
+  const id = "all-done-single-lock";
+  const slug = "all-done-single-lock-plan";
+  const plan = buildGoalplan({ objective: "already finished" });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-1", title: "first", status: "done", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  writeState(cwd, { ...defaultState(id), phase: "C", slug, orchestrationActive: true, checkEpoch: "c-all-done" });
+
+  let stateWrites = 0;
+  const result = runOrchestrateCli(parsedDclose(cwd, id), {
+    afterStateWrite: () => {
+      stateWrites += 1;
+      // A lock held from here on would break a finalization pass. all-done must be
+      // finished already, so this proves there is no second critical section.
+      mkdirSync(goalplanWriteLockDir(cwd, slug), { recursive: false });
+    },
+  });
+
+  assert.equal(result.code, 0, result.output);
+  assert.equal(stateWrites, 1);
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+  assert.deepEqual(
+    ledgerLines(cwd).filter((row) => row.sessionId === id && row.from === "C" && row.to === "IDLE")
+      .map((row) => [row.checkEpoch, row.closedWorkPhaseId]),
+    [["c-all-done", null]],
+  );
+  // No goalplan row and no plan mutation for a cycle-only close.
+  assert.deepEqual(goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done"), []);
+  assert.equal(readGoalplan(cwd, slug)!.activeWorkPhaseId, null);
+});
+
 test("CLI D-close recovery resumes when the marker target is absent from the plan", () => {
   const cwd = boundCwd();
   const id = "cli-recovery-target-absent";
@@ -3718,20 +3987,20 @@ parameterized_extra_cases="$(
     plugins/codexclaw/components/pabcd-state/test/hook.test.ts
 )"
 
-test "$added_existing_declarations" -eq 29
+test "$added_existing_declarations" -eq 31
 test "$new_file_declarations" -eq 6
 test "$parameterized_extra_cases" -eq 1
 test "$removed_declarations" -eq 5
 
 new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases))
 net_case_count=$((new_case_count - removed_declarations))
-test "$new_case_count" -eq 36
-test "$net_case_count" -eq 31
+test "$new_case_count" -eq 38
+test "$net_case_count" -eq 33
 
 focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
 focused_case_count=$((focused_declaration_count + parameterized_extra_cases))
-test "$focused_declaration_count" -eq 222
-test "$focused_case_count" -eq 223
+test "$focused_declaration_count" -eq 224
+test "$focused_case_count" -eq 225
 
 node --experimental-strip-types --test --test-concurrency=1 \
   --test-name-pattern='^' \
@@ -3742,11 +4011,11 @@ node --experimental-strip-types --test --test-concurrency=1 \
 
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
-- 기존 파일 추가 선언 29개, 신규 파일 선언 6개
+- 기존 파일 추가 선언 31개, 신규 파일 선언 6개
 - 두 입력을 도는 parameterized 선언의 추가 등록 1개
-- 계획된 신규 케이스 36개, 삭제 5개, 순증 31개
-- 구현 뒤 선언 222개, 실제 focused 등록 223개
-- node test exit 0, tests 223, pass 223, fail 0
+- 계획된 신규 케이스 38개, 삭제 5개, 순증 33개
+- 구현 뒤 선언 224개, 실제 focused 등록 225개
+- node test exit 0, tests 225, pass 225, fail 0
 
 락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
 CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
@@ -3784,7 +4053,7 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값은 exit 0, tests 2198, pass 2198, fail 0이다. 기존 2167건과 wp5 순증 31건을 모두 실행하며,
+기대값은 exit 0, tests 2200, pass 2200, fail 0이다. 기존 2167건과 wp5 순증 33건을 모두 실행하며,
 루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
 
 ### 10.4 저장소 gate
@@ -3898,7 +4167,7 @@ tracked이므로 이전 초안의 `?? …050….md` 기대는 거짓이었고, �
 
 | 파일 | import 처분 |
 | --- | --- |
-| `src/goalplan.ts` | wp4 전체 `node:fs` After를 보존하고 wp5 `statSync`만 더한다. |
+| `src/goalplan.ts` | wp4 전체 `node:fs` After를 보존하고 wp5 `statSync`만 더한다. `closeFixedWorkPhase()`는 같은 모듈 안 신규 export이므로 import 변경이 없다. |
 | `src/state.ts` | import 변경 없음. |
 | `src/orchestrate-apply.ts` | import 변경 없음. |
 | `src/steering.ts` | wp4의 goalplan 이름을 보존하고 wp5 lock 이름을 더한다. 전용 락에서만 쓰던 fs/path/Wsl 이름만 지운다. |
@@ -3909,7 +4178,7 @@ tracked이므로 이전 초안의 `?? …050….md` 기대는 거짓이었고, �
 | `test/goalplan-concurrency.test.ts` | 신규 파일 전체 import이며 `isAbsolute`와 `spawn`을 포함한다. |
 | `test/steering.test.ts` | import 변경 없음. |
 | `test/steering-ops.test.ts` | 전체 After에서 전용 `WslDeps`만 지운다. |
-| `test/orchestrate-cli.test.ts` | 기존 goalplan import를 보존하고 `readGoalplan`을 더한다. |
+| `test/orchestrate-cli.test.ts` | 기존 goalplan import를 보존하고 `readGoalplan`, `goalplanWriteLockDir`, `buildGoalplan`, `writeGoalplan`을 더한다. `node:fs`에서 `mkdirSync`도 더한다(§40 Z2 회귀가 락 디렉터리를 직접 만든다). |
 | `test/hook.test.ts` | 기존 `join`, `spawnSync`를 보존하고 `dirname`, `resolve`, `fileURLToPath`, `spawn`을 더한다. |
 | `test/review-binding.test.ts` | import 변경 없음. |
 | `test/state.test.ts` | import 변경 없음. |
@@ -3923,7 +4192,12 @@ tracked이므로 이전 초안의 `?? …050….md` 기대는 거짓이었고, �
 - 75ms 뒤 자동 회수 없이 실패하고 오류가 락 경로와 수동 정리 절차를 적는다.
 - `owner.json`은 진단 전용이며 획득·회수·해제 판정 입력이 아니다.
 - CLI lifecycle, steering apply, review open/abort, D-close는 락 실패 시 연산을 중단한다.
-- 채팅 D-close는 전이를 중단하지만 hook 프로세스는 code 0으로 끝난다.
+  이는 **최초 락** 실패에만 적용된다. 최종화 락 실패는 계약 §39 Y3대로 전이를 되돌리지 않고 code 0
+  미완 보고를 내며, 출력에 marker 잔존과 같은 D 재시도 안내를 적는다.
+- 채팅 D-close도 최초 락 실패에서 전이를 중단하고, 최종화 락 실패에서는 같은 미완 보고를 내며 hook
+  프로세스는 언제나 code 0으로 끝난다.
+- 채팅 D-close의 state write는 기존 `injectedTurns` 갱신과 Stop 필드 초기화를 모두 보존하고 그 위에
+  recovery 필드만 덧씌운다. 같은 turn 재실행이 조용히 dedup되는지 단언한다(계약 §40 Z3).
 - observer와 stale-round housekeeping은 부수 기록만 포기한다.
 - 락 실패는 Stop block을 만들지 않는다.
 - 거부 경로는 plan과 goalplan 원장을 한 바이트도 바꾸지 않는다.
@@ -3932,9 +4206,16 @@ tracked이므로 이전 초안의 `?? …050….md` 기대는 거짓이었고, �
 - D-close는 attest의 `workPhaseId`를 고정 target으로 쓰며 이미 done이면 다음 pending phase를 닫지 않는다.
 - slug 없는 HITL D-close는 기존 state/PABCD 원장과 옛 성공 문구로 즉시 끝나며 goalplan 락과 marker 정리를 타지 않는다.
 - 비어 있지 않은 all-done plan은 marker 없이 cycle만 IDLE로 닫고 blocked/superseded 문구를 쓰지 않는다.
+  계약 §40 Z2대로 PABCD close row는 **첫 락 안에서** 끝내고 최종화 락을 아예 타지 않는다. all-done
+  close에서 두 번째 락 획득 시도가 0회임을 단언한다.
 - recovery는 state marker의 `sessionId`, `checkEpoch`, `closedWorkPhaseId`가 모두 맞을 때만 허용한다.
-- marker가 일치한 recovery는 plan에서 target을 다시 찾지 않으며, target이 사라졌어도 남은 원장·state
-  정리를 재개한다. CLI와 채팅은 빈 plan → all-done → marker recovery → target 검증 순서를 같이 쓴다.
+- marker가 일치한 recovery는 정상 경로의 target 검증(없으면 거부)을 건너뛴다. 대신 고정 대상의 상태를
+  확인해 아직 `done`이 아니면 `closeFixedWorkPhase()`로 멱등 commit하고, 대상이 사라졌으면 write 없이
+  남은 원장·state 정리를 재개한다. CLI와 채팅은 계약 §40 Z4의 순서를 같이 쓴다:
+  빈 plan → **marker recovery** → all-done → target 검증.
+- 정상 close와 recovery는 같은 `closeFixedWorkPhase()`로 plan을 만든다. marker 직후 crash를 주입한 뒤
+  재시도하면 대상이 `done`, successor가 `in_progress`, `activeWorkPhaseId`가 successor이며
+  `started <successor>` 행이 정확히 1개다. 정상 close 결과와 recovery 결과를 한 `deepEqual`로 묶는다.
 - PABCD close 원장도 `(sessionId, checkEpoch, closedWorkPhaseId)`를 저장하고 같은 3-tuple만 중복으로 본다.
 - all-done cycle close의 PABCD `closedWorkPhaseId`는 입력 `workPhaseId` 유무와 무관하게 `null`이다.
 - 같은 세션의 다음 cycle은 새 check epoch와 close target으로 별도 PABCD close 행을 남긴다.
@@ -3949,11 +4230,13 @@ tracked이므로 이전 초안의 `?? …050….md` 기대는 거짓이었고, �
 - `goalplanWriteLockStatus()`의 exists→stat ENOENT 경쟁은 `{ exists: false, ageMs: null }`다.
 - wp6은 `cxc loop show`에서 lock status를 소비한다. 이 소비 diff는 060 소유다.
 - goalplan commit, state write, PABCD append 직후 실패를 각각 재시도해도 고정 target의 close 행은 1개다.
-- 커밋 순서는 첫 락 안 `goalplan.json → goalplan 원장`, 락 밖 `state`, 둘째 락 안
-  `PABCD close-row 확인·append → marker cleanup`이다.
+- marker를 남기는 커밋 순서는 첫 락 안 `marker → goalplan.json → goalplan 원장`, 락 밖 `state`,
+  둘째 락 안 `PABCD close-row 확인·append → marker cleanup`이다. all-done은 첫 락 안
+  `PABCD close-row 확인·append`, 락 밖 `state` 두 단계뿐이다.
 - 락 실패 문구와 테스트는 플랫폼 중립적인 절대 lock directory를 적고 `isAbsolute()`로 판정한다.
 - bound CLI D-close는 빈 plan을 target 소속보다 먼저 검사하며 기존 `the plan is empty` 단언을 바꾸지 않는다.
-- bound CLI D-close는 §35의 8단계 검사 순서를 지키고 `close target <id> is complete`를 bound 성공에만 쓴다.
+- bound CLI D-close는 계약 §40 Z4의 8단계 검사 순서를 지키고 `close target <id> is complete`를 bound
+  성공에만 쓴다.
 - 채팅을 포함한 사용자 노출 락 실패·marker 정리 문구는 영어다.
 - `dependencyDeadlock()`은 전역 교착 판정 전용이고 wp4의 `dependencyWaitReasons()`와 교체하지 않는다.
 

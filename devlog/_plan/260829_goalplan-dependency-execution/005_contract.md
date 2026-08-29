@@ -838,3 +838,78 @@ code 0을 지킨다. §11 표의 `CLI D-close` 행은 **최초 락 실패**만 �
 확정: 담당 문서 확인은 tracked 여부를 가정하지 않는다. `git ls-files --error-unmatch <문서>`로 저장소에
 등록됐음을 확인하고, 변경이 있으면 `git diff --stat -- <문서>`로 보인다. `git diff --no-index /dev/null`은
 쓰지 않는다. 그 명령은 파일 내용과 무관하게 항상 exit 1이라 아무것도 검증하지 않는다.
+
+## 40. 라운드 10 — recovery 커서 손상과 all-done 최종화 폐쇄 (감사 2기 독립 재현)
+
+§39를 넣은 뒤 A-phase 감사관 2기가 같은 BLOCKER 2건을 각각 실측으로 재현했다. §39가 lost update는
+닫았지만 새 손상을 만들었다.
+
+| # | 심각도 | 지적 | 소유 |
+| --- | --- | --- | --- |
+| Z1 | BLOCKER | §39의 "대상 phase status 하나만 멱등하게 맞춘다"가 커서를 손상시킨다. marker 직후 crash 상태는 `activeWorkPhaseId=wp-1`, `wp-1=in_progress`, `wp-2=pending`이다. status만 바꾸면 `activeWorkPhaseId`가 done인 `wp-1`을 계속 가리키고 `wp-2`는 pending으로 남는다. 그리고 `startedId = closedPlan.activeWorkPhaseId`이므로 원장에 거짓 `started wp-1`이 들어간다. 정상 close는 `active=wp-2`, `wp-2=in_progress`를 만든다 | wp5 |
+| Z2 | BLOCKER | all-done 특례는 marker를 만들지 않고 IDLE state를 먼저 쓴다. 그 뒤 최종화 락이 실패하면 §39 Y3대로 code 0을 내지만 PABCD close row가 없고 marker도 없다. 같은 D 재시도는 marker가 없어 `IDLE -> D` illegal transition으로 거부되므로 close row가 영구 누락된다 | wp5 |
+
+### Z1 처분 — recovery와 정상 close가 같은 함수로 plan을 만든다
+
+status 하나만 고치는 특수 경로를 없앤다. 두 경로가 같은 plan 변환을 쓰지 않으면 어느 한쪽이 반드시
+어긋난다는 것이 이번 감사의 결론이다.
+
+확정 계약:
+
+- `goalplan.ts`에 `closeFixedWorkPhase(plan, workPhaseId)`를 추가한다. 지정한 phase를 `done`으로 만들고,
+  그 phase를 기준으로 `advanceWorkPhase()`와 **같은 after-then-wrap 순서와 같은 dependency readiness**로
+  다음 후보를 골라 `activeWorkPhaseId`와 successor `in_progress`까지 설정한다. 반환 타입은
+  `AdvanceResult`와 같은 `{ kind: "ok"; plan; closedId }`다.
+- `advanceWorkPhase()`는 effective 커서로 대상을 정한 뒤 이 함수에 위임한다. 정상 close와 recovery가
+  같은 코드로 plan을 만든다.
+- recovery 분기는 고정 대상이 plan에 있고 `done`이 아니면 `closeFixedWorkPhase()`를 부른다. 이미 `done`이면
+  plan write를 생략한다. 없으면 나중 편집이 지운 것이므로 write 없이 정리로 넘어간다.
+- `workphase_started` 행은 항상 이 함수가 계산한 `activeWorkPhaseId`를 쓴다. marker 직후 crash 재시도가
+  `started wp-2`를 정확히 한 번 남긴다.
+- 회귀 테스트: CLI와 채팅 각각 `afterRecoveryMarkerWrite`에서 실패를 주입해 marker 직후 crash를 만들고,
+  재시도 뒤 `wp-1=done`, `wp-2=in_progress`, `activeWorkPhaseId=wp-2`, `started wp-2` 1건, `closed wp-1`
+  1건을 단언한다. 정상 close 결과와 recovery 결과가 같은 plan인지 `deepEqual`로 묶는다.
+
+### Z2 처분 — all-done은 두 번째 락을 쓰지 않는다
+
+all-done에 marker를 도입하지 않는다. marker는 "닫는 중인 대상"을 가리키는 값인데 all-done에는 그런
+대상이 없다. 대신 all-done의 커밋을 나누지 않는다.
+
+확정 계약:
+
+- all-done cycle close는 **첫 락 임계 구역 안에서** PABCD close row 확인·append까지 끝낸다. `closedWorkPhaseId`는
+  `null`이다. plan write와 goalplan 원장 행은 여전히 없다.
+- IDLE state write는 그 락을 놓은 뒤 실행한다. state write가 실패해도 close row는 이미 있고, 같은 요청을
+  다시 실행하면 `hasPabcdCloseRow()` 확인이 중복 append를 막는다.
+- 따라서 all-done 경로에는 최종화 락이 없다. §39 Y3의 "최종화 락 실패는 미완 보고"는 marker를 남기는
+  정상 close와 recovery에만 적용된다.
+- 회귀 테스트: all-done close에서 최종화 락 획득 시도가 0회임을 확인한다. 그리고 IDLE state write 직후
+  실패를 주입한 뒤 같은 요청을 다시 실행해도 close row가 1건인지 단언한다.
+
+### Z3 — 채팅 state write는 기존 필드를 모두 보존한다
+
+감사관 2기가 High로 지적했다. 현재 채팅 D-close의 state write는 `injectedTurns`에 현재 turn을 넣고
+`stopBlockPhase`·`stopBlockCount`를 지운다. 050의 교체 write는 `result.state`, `checkEpoch`, marker만
+적어서 same-turn dedup과 Stop 정리가 사라진다.
+
+확정: 교체 write는 기존 state augmentation을 한 글자도 빼지 않고 그 위에 recovery 필드만 덧씌운다.
+같은 turn 재실행이 빈 출력인지, IDLE state의 Stop 필드가 초기화됐는지 각각 단언한다.
+
+### Z4 — 순서 진술을 한 곳으로 통일한다
+
+§39가 순서를 뒤바꿨는데 050의 §5 서두, CLI 단계 표, §11 완료 기준에는 옛 순서가 남았다. 두 감사관이
+모두 같은 지점을 지적했다.
+
+확정 순서(모든 규범 표면이 이 문장을 그대로 쓴다):
+
+1. slug 없음(HITL) → 기존 경로, 즉시 return
+2. 빈 plan → 기존 문구로 거부
+3. marker 일치 recovery → 고정 대상 상태 확인 후 `closeFixedWorkPhase()`로 멱등 commit, 남은 정리 재개
+4. 전부 done → all-done 특례, 첫 락 안에서 close row까지, `closedWorkPhaseId`는 null
+5. target phase가 plan에 없음 → 거부
+6. pending task 남음 → `tasks_pending` 거부
+7. 의존 교착 → `dependencyDeadlock()` 진단으로 거부
+8. 정상 close → marker → `closeFixedWorkPhase()` plan commit → goalplan 원장 → IDLE state → 최종화 락에서 PABCD 원장·marker 삭제
+
+3번의 대상 조회는 "부재 시 거부하는 target 검증"이 아니라 "이미 커밋됐는지 판정하는 상태 확인"이다.
+§38 X2의 "target 조회 없이"는 이 뜻으로 읽는다.
