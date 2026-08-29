@@ -307,3 +307,73 @@ test("cli: an unknown verb still lists the supported ones", () => {
   assert.ok("error" in parsed);
   assert.match((parsed as { error: string }).error, /init\|show\|validate\|steer/);
 });
+
+test("add-work-phase stores dependencies and records one success event", () => {
+  const cwd = workspace();
+  const plan = readGoalplan(cwd, SLUG)!;
+  plan.workPhases = [
+    { id: "wp-a", title: "A", status: "done", tasks: [], criteriaIds: [] },
+    { id: "wp-b", title: "B", status: "done", tasks: [], criteriaIds: [] },
+  ];
+  writeGoalplan(cwd, plan);
+  const result = applySteeringBatch(cwd, SLUG, batch({
+    idempotencyKey: "k-add-wp-deps",
+    ops: [{ kind: "add-work-phase", id: "wp-c", title: "C", dependsOn: ["wp-a", "wp-b"] }],
+  }));
+  assert.equal(result.kind, "applied");
+  assert.deepEqual(readGoalplan(cwd, SLUG)?.workPhases.at(-1)?.dependsOn, ["wp-a", "wp-b"]);
+  const entries = ledgerText(cwd).trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+  assert.equal(entries.filter((entry) => entry.event === "dependency_registered").length, 1);
+  assert.equal(entries.find((entry) => entry.event === "dependency_registered")?.detail,
+    "wp-c dependsOn=wp-a,wp-b");
+});
+
+test("same-batch backward reference succeeds and forward reference is rejected as dangling", () => {
+  const cwd = workspace();
+  const valid = applySteeringBatch(cwd, SLUG, batch({
+    idempotencyKey: "k-same-batch",
+    ops: [
+      { kind: "add-work-phase", id: "wp-a", title: "A", dependsOn: [] },
+      { kind: "add-work-phase", id: "wp-b", title: "B", dependsOn: ["wp-a"] },
+    ],
+  }));
+  assert.equal(valid.kind, "applied");
+  const stored = readGoalplan(cwd, SLUG)!;
+  assert.deepEqual(
+    stored.workPhases.filter((wp) => wp.id === "wp-a" || wp.id === "wp-b").map((wp) => wp.id),
+    ["wp-a", "wp-b"],
+  );
+  assert.deepEqual(stored.workPhases.find((wp) => wp.id === "wp-b")?.dependsOn, ["wp-a"]);
+  assert.equal(stored.steeringLog?.at(-1)?.summary, "2 op(s): add-work-phase, add-work-phase");
+  const beforePlan = readFileSync(join(goalplanDir(cwd, SLUG), "goalplan.json"), "utf8");
+  const beforeLedger = ledgerText(cwd);
+  const invalid = applySteeringBatch(cwd, SLUG, batch({
+    idempotencyKey: "k-forward-dangling",
+    ops: [
+      { kind: "add-work-phase", id: "wp-x", title: "X", dependsOn: ["wp-y"] },
+      { kind: "add-work-phase", id: "wp-y", title: "Y", dependsOn: ["wp-x"] },
+    ],
+  }));
+  assert.equal(invalid.kind, "rejected");
+  assert.equal(
+    (invalid as { kind: "rejected"; reason: string }).reason,
+    "work phase wp-x depends on unknown work phase 'wp-y'",
+  );
+  assert.equal(readFileSync(join(goalplanDir(cwd, SLUG), "goalplan.json"), "utf8"), beforePlan);
+  assert.equal(ledgerText(cwd), beforeLedger);
+});
+
+test("duplicate dependencies are rejected before write", () => {
+  const cwd = workspace();
+  const beforePlan = readFileSync(join(goalplanDir(cwd, SLUG), "goalplan.json"), "utf8");
+  const beforeLedger = ledgerText(cwd);
+  const result = applySteeringBatch(cwd, SLUG, batch({
+    idempotencyKey: "k-duplicate-deps",
+    ops: [{ kind: "add-work-phase", id: "wp-c", title: "C", dependsOn: ["wp-a", "wp-a"] }],
+  }));
+  assert.equal(result.kind, "rejected");
+  assert.equal((result as { kind: "rejected"; reason: string }).reason,
+    "ops[0].dependsOn must not contain duplicate ids");
+  assert.equal(readFileSync(join(goalplanDir(cwd, SLUG), "goalplan.json"), "utf8"), beforePlan);
+  assert.equal(ledgerText(cwd), beforeLedger);
+});
