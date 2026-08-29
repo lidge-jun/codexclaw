@@ -1346,3 +1346,55 @@ marker를 복원하며, 없으면 `null`로 채운다. 기존 세 값 marker가 
 회귀를 하나 더 둔다. 정상 close의 marker를 읽어 `nextWorkPhaseId`가 실제 successor와 같은지 단언하고,
 그 marker로 재시도했을 때 커서가 뒤로 밀리지 않는지 본다. 위조된 커서로 재시도하는 회귀도 CLI에 둔다 —
 marker가 `wp-3`를 가리키는데 파일 커서가 `wp-2`면 복구 결과는 `wp-3`여야 한다.
+
+## 49. 라운드 20 — 복구도 자기 선택을 marker에 다시 남긴다
+
+§48 자체 검증에서 결함을 찾았다. `nextWorkPhaseId`가 가리키는 phase가 재시도 시점에 후보가 될 수 없으면
+복구는 다른 phase를 고르는데, marker는 낡은 값을 그대로 갖고 있다. 그래서 그 결과를 다시 넣으면
+정규화가 걸리지 않고 후보 검색이 실패해 커서가 `null`로 밀린다. 정상 plan이 손상되고, 한 번 더 넣으면
+그 손상 상태가 `already_done`으로 확정된다.
+
+```text
+입력: wp-1=done(대상), wp-3=pending, 커서 null, marker의 successor=wp-2 (삭제됨)
+1차: ok  커서 wp-3, [wp-1=done, wp-3=in_progress]      <- 정직한 복구
+2차: ok  커서 null,  [wp-1=done, wp-3=in_progress]      <- 손상
+3차: already_done                                       <- 손상 확정
+```
+
+의도한 successor가 삭제된 경우, `blocked`가 된 경우, 손으로 `done` 표시된 경우, 의존이 끊긴 경우,
+marker가 대상 자신을 가리키는 경우 다섯 가지가 모두 같은 방식으로 발산했다.
+
+처분: 복구가 helper에서 `ok`를 받으면 plan commit **전에** marker의 `nextWorkPhaseId`를 그 결과의
+`activeWorkPhaseId`로 갱신한다. 정상 close가 이미 그 순서로 marker를 기록하므로 규칙이 하나로 통일된다 —
+plan을 쓰기 직전의 marker는 언제나 그 write가 만들 커서를 담는다.
+
+```ts
+if (closed.kind === "ok") {
+  // §49: the marker must describe the write that is about to happen, not the one an
+  // earlier attempt planned. If the recorded successor vanished or became unusable,
+  // this close picks a different one, and leaving the stale id behind makes the next
+  // retry re-read a phase that is no longer a candidate — nulling the cursor on a
+  // plan that was already correct.
+  if (closed.plan.activeWorkPhaseId !== state.dcloseRecovery.nextWorkPhaseId) {
+    writeState(args.cwd, {
+      ...state,
+      dcloseRecovery: { ...state.dcloseRecovery, nextWorkPhaseId: closed.plan.activeWorkPhaseId },
+    });
+  }
+  closedPlan = closed.plan;
+  writeClosedPlan = true;
+}
+```
+
+실측으로 여섯 경우를 확인했다. 갱신을 넣으면 삭제·blocked·수동 done·의존 끊김·대상 자신 지목·위조 커서
+모두 한 번의 write 뒤 두 번째 호출에서 `already_done`으로 정착한다. 갱신이 없으면 앞의 다섯 경우가
+`ok -> ok -> already_done`으로 발산한다.
+
+이 갱신은 §40 Z4 8단계 순서를 바꾸지 않는다. marker는 여전히 plan commit 전에 기록되고, 복구가 marker를
+지우는 시점도 그대로 둘째 락 안이다. 갱신 자체가 실패하면 marker는 낡은 값으로 남고 plan은 아직 쓰이지
+않았으므로, 다음 재시도가 같은 판단을 다시 해서 같은 갱신을 시도한다.
+
+채팅 경로도 같은 갱신을 한다. 두 표면이 같은 helper를 쓰므로 한쪽만 고치면 §40 Z1이 깨진다.
+
+회귀는 의도한 successor가 삭제된 plan에서 복구를 두 번 돌려 두 번째가 `already_done`이고 커서가
+그대로인지 단언한다. marker의 `nextWorkPhaseId`가 갱신됐는지도 함께 본다.

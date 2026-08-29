@@ -1086,6 +1086,21 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
               };
             }
             if (closed.kind === "ok") {
+              // §49: the marker must describe the write that is about to happen. If the
+              // recorded successor vanished, turned blocked, or was finished by hand,
+              // this close picks a different one, and leaving the stale id behind makes
+              // the NEXT retry re-read a phase that is no longer a candidate — nulling
+              // the cursor on a plan that was already correct, then settling on that
+              // damage. Measured: ok -> ok -> already_done without this refresh.
+              if (closed.plan.activeWorkPhaseId !== state.dcloseRecovery.nextWorkPhaseId) {
+                writeState(args.cwd, {
+                  ...state,
+                  dcloseRecovery: {
+                    ...state.dcloseRecovery,
+                    nextWorkPhaseId: closed.plan.activeWorkPhaseId,
+                  },
+                });
+              }
               closedPlan = closed.plan;
               writeClosedPlan = true;
             }
@@ -1564,6 +1579,19 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
           };
         }
         if (closed.kind === "ok") {
+          // §49: same refresh as the CLI. A stale successor in the marker makes the next
+          // retry re-read a phase that is no longer a candidate and null the cursor on a
+          // plan that was already correct, so the marker is brought in line with the
+          // write it is about to describe.
+          if (closed.plan.activeWorkPhaseId !== state.dcloseRecovery.nextWorkPhaseId) {
+            writeState(payload.cwd, {
+              ...state,
+              dcloseRecovery: {
+                ...state.dcloseRecovery,
+                nextWorkPhaseId: closed.plan.activeWorkPhaseId,
+              },
+            });
+          }
           closeResult = { kind: "ok" as const, closedId: closed.closedId, plan: closed.plan };
           writeClosedPlan = true;
         } else {
@@ -3488,6 +3516,72 @@ for (const forgery of [
   });
 }
 
+test("recovery refreshes the marker when the recorded successor is gone", () => {
+  // §49: the marker names wp-2, but wp-2 is deleted between the crash and the retry, so
+  // this close picks wp-3 instead. Leaving wp-2 in the marker made the NEXT retry re-read
+  // a phase that is not a candidate: the pending-only search found nothing, the cursor
+  // went null on a plan that was already correct, and a third retry settled on that
+  // damage. Measured ok -> ok -> already_done. Running recovery twice must be a no-op.
+  const cwd = boundCwd();
+  const id = "recovery-stale-successor";
+  const slug = "recovery-stale-successor-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const seeded = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...seeded,
+    workPhases: [
+      ...seeded.workPhases,
+      { id: "wp-3", title: "third", status: "pending" as const, tasks: [], criteriaIds: [] },
+    ],
+  });
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-2");
+
+  // wp-2 is removed, so the recorded successor no longer exists.
+  const crashed = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...crashed,
+    workPhases: crashed.workPhases.filter((wp) => wp.id !== "wp-2"),
+  });
+
+  // The damage needs TWO recoveries, so this one is cut off right after it commits the
+  // plan — the marker survives and a third request comes in.
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterGoalplanCommit: () => { throw new Error("fail right after the plan commit"); },
+    }),
+    /fail right after the plan commit/,
+  );
+  const committed = readGoalplan(cwd, slug)!;
+  assert.equal(committed.activeWorkPhaseId, "wp-3");
+  // The marker now names the successor this close actually chose, not the deleted one.
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-3");
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  const repaired = readGoalplan(cwd, slug)!;
+  assert.equal(repaired.activeWorkPhaseId, "wp-3");
+  assert.deepEqual(
+    repaired.workPhases.map((wp) => [wp.id, wp.status]),
+    [["wp-1", "done"], ["wp-3", "in_progress"]],
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_started")
+      .map((row) => row.detail),
+    ["started wp-3"],
+  );
+});
 test("recovery finishes the successor the marker recorded, not the one the file names", () => {
   // §48: the input that defeated every plan-only rule, run through the real CLI so the
   // marker mint, the recovery branch, both ledgers, and marker cleanup all take part.
@@ -5122,20 +5216,20 @@ forgery_arity="$(
 test "$forgery_arity" -eq 2
 forgery_extra_cases=$((forgery_arity - 1))
 
-test "$added_existing_declarations" -eq 45
+test "$added_existing_declarations" -eq 46
 test "$new_file_declarations" -eq 9
 test "$parameterized_extra_cases" -eq 1
 test "$removed_declarations" -eq 5
 
 new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
 net_case_count=$((new_case_count - removed_declarations))
-test "$new_case_count" -eq 58
-test "$net_case_count" -eq 53
+test "$new_case_count" -eq 59
+test "$net_case_count" -eq 54
 
 focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
 focused_case_count=$((focused_declaration_count + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
-test "$focused_declaration_count" -eq 241
-test "$focused_case_count" -eq 245
+test "$focused_declaration_count" -eq 242
+test "$focused_case_count" -eq 246
 
 # 산술 기대값과 실제 등록 수를 대조한다. 이것이 없으면 케이스 하나가 누락된 채
 # 남은 전부가 통과해도 node가 exit 0을 내어 false-green이 된다.
@@ -5154,12 +5248,12 @@ test "$(rg -o '^. fail (\d+)$' -r '$1' "$focused_log" | tail -1)" -eq 0
 
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
-- 기존 파일 추가 선언 45개, 신규 파일 선언 9개
+- 기존 파일 추가 선언 46개, 신규 파일 선언 9개
 - 삭제 5개의 출처는 §8.2의 held-lock·release 2개와 §8.2.1의 drvfs·9p·native 3개다
 - 두 입력을 도는 parameterized 선언의 추가 등록 1개, scenario 배열 원소 3개에서 나오는 추가 등록 2개
-- 계획된 신규 케이스 58개, 삭제 5개, 순증 53개
-- 구현 뒤 선언 241개, 실제 focused 등록 245개
-- node test exit 0, tests 245, pass 245, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
+- 계획된 신규 케이스 59개, 삭제 5개, 순증 54개
+- 구현 뒤 선언 242개, 실제 focused 등록 246개
+- node test exit 0, tests 246, pass 246, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
 
 락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
 CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
@@ -5197,7 +5291,7 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값은 exit 0, tests 2220, pass 2220, fail 0이다. 기존 2167건과 wp5 순증 53건을 모두 실행하며,
+기대값은 exit 0, tests 2221, pass 2221, fail 0이다. 기존 2167건과 wp5 순증 54건을 모두 실행하며,
 루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
 
 ### 10.4 저장소 gate
