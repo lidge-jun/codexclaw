@@ -201,8 +201,10 @@ collectStrings(snapshot);
 // "detail (/Users/jun/private)", 'path="/Users/jun/private/x"', "['/Users/jun/x/y']".
 // 반대로 "/v1/goalplans"와 "https://example.test/v1/goalplans"를 경로로 오탐했다. 경계 문자 집합을
 // 넓히고 API version segment를 negative lookahead로 뺀다. 실측: 9종 경로 전부 true, 11종 비경로
-// (URL·api 경로·enum·alias·"wp-live/ready"·ISO 시각) 전부 false, 실제 fixture 16428 문자열 0건.
-// sha1 — \b{40}\b는 64자 sha256을 놓친다. fixture 키에 planSha256과 sha256이 실재한다.
+// (URL·api 경로·enum·alias·"wp-live/ready"·ISO 시각) 전부 false, 이 walker가 모으는 실제 fixture
+// 문자열 7642건에 hit 0건.
+// sha1 — \b{40}\b는 64자 sha256을 놓친다. `planSha256`·`sha256` 키의 **값**이 그 길이다. 이 walker는
+// Object.values만 내려가므로 키 이름 8786건은 애초에 스캔 대상이 아니다 — 방어선은 값 쪽이다.
 const uuid = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
 const absolutePath =
   /(?:^|[\s("'`=,:[])(?:\/(?!(?:v\d+|api)(?:\/|$))[A-Za-z0-9._-]+\/|[A-Za-z]:[\\/])/;
@@ -1275,11 +1277,14 @@ dist를 먼저 다시 만든다. 뒤따른 루트 `npm test`의 `dist-freshness.
 byte equality를 확인한다. root에는 typecheck script와 root `tsconfig.json`이 없으므로 인자 없는
 `npx tsc --noEmit`을 성공 게이트로 쓰지 않는다.
 
-`npm test`는 단독으로 돌린다. wp7이 더하는 `test()`는 10건이다 — §3.3이 3건, §4.1·§4.2가 각 1건,
-§4.3·§4.4·§4.5·§4.7이 각 2건이고, §4.6은 wp6 소유 테스트의 재실행이라 0건이다. 그래서 기대 총계는
+`npm test`는 단독으로 돌린다. wp7이 더하는 `test()`는 10건이다 — §3.3이 3건, §4.1·§4.2·§4.3·§4.4·§4.5가
+각 1건, §4.7이 2건이고, §4.6은 wp6 소유 테스트의 재실행이라 0건이다. 그래서 기대 총계는
 컴포넌트 `1087 + 10 = 1097`, 루트 `2262 + 10 = 2272`다. 총계가 줄었으면 통과 개수만 보고 넘기지 말고
 계약서 §64의 C10 경쟁(`build.mjs`의 `rmSync(distDir)`가 다른 실행의 dist 독자를 죽인다)을 의심하고,
 병렬 실행을 멈춘 뒤 단독으로 다시 돌린다.
+
+§4.3·§4.4·§4.5의 `before` 블록은 기존 테스트의 `test(` 줄을 앵커로 인용한다. 그 앵커를 신규 건수로
+세면 합계가 13이 되는데, 세 섹션의 `after`가 더하는 것은 각 1건이다.
 
 컴포넌트 스위트는 `npm test`(= 인자 없는 `node --test`)가 아니라 루트와 같은 glob으로 돌린다.
 
