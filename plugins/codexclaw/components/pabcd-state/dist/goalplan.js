@@ -40,6 +40,14 @@ export const GOALPLANS_SUBDIR = "goalplans";
 export const GOALPLAN_FILE = "goalplan.json";
 export const GOALPLAN_LEDGER_FILE = "ledger.jsonl";
 
+/**
+ * The highest schemaVersion this binary understands. A plan that declares more
+ * than this is REFUSED on read and on validate rather than clamped: an older
+ * binary that quietly accepted a newer plan would strip fields it never learned
+ * about, and the next write would persist that loss (wp2, 260829).
+ */
+export const SUPPORTED_MAX_SCHEMA_VERSION = 3;
+
 
 
 /**
@@ -54,6 +62,23 @@ export const GOALPLAN_LEDGER_FILE = "ledger.jsonl";
  * goal open (something must happen), while a superseded one does not (something
  * else covers it).
  */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -424,6 +449,31 @@ function goalplanLedgerPath(cwd        , slug        )         {
   return join(goalplanDir(cwd, slug), GOALPLAN_LEDGER_FILE);
 }
 
+/** Declared schemaVersion of a raw parsed object; absent means 1. */
+function declaredSchemaVersion(o                         )         {
+  return typeof o.schemaVersion === "number" ? o.schemaVersion : 1;
+}
+
+/**
+ * Revive a `dependsOn` field.
+ *
+ * `undefined` (field absent) and `[]` are distinct storage shapes that mean the
+ * same thing for selection, so both round-trip unchanged. Anything else — a
+ * non-array, a non-string element, a blank id — is `"invalid"` and fails the whole
+ * plan closed: a partially dropped dependency list would silently widen what the
+ * scheduler considers ready.
+ */
+function reviveDependsOn(value         )                                   {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return "invalid";
+  const ids           = [];
+  for (const item of value) {
+    if (typeof item !== "string" || item.trim().length === 0) return "invalid";
+    ids.push(item);
+  }
+  return ids;
+}
+
 /** Best-effort structural validation; a malformed object reads as absent (null). */
 function reviveGoalplan(parsed         , expectedSlug         )                  {
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
@@ -435,6 +485,7 @@ function reviveGoalplan(parsed         , expectedSlug         )                 
     return null;
   }
   if (expectedSlug !== undefined && o.slug !== expectedSlug) return null;
+  if (declaredSchemaVersion(o) > SUPPORTED_MAX_SCHEMA_VERSION) return null;
   if (!Array.isArray(o.workPhases) || !Array.isArray(o.criteria)) return null;
 
   const workPhases                      = [];
@@ -442,6 +493,8 @@ function reviveGoalplan(parsed         , expectedSlug         )                 
     if (typeof wp !== "object" || wp === null) return null;
     const w = wp                           ;
     if (typeof w.id !== "string" || typeof w.title !== "string") return null;
+    const phaseDependsOn = reviveDependsOn(w.dependsOn);
+    if (phaseDependsOn === "invalid") return null;
     const status                  =
       w.status === "in_progress" || w.status === "done" || w.status === "blocked" || w.status === "superseded"
         ? w.status
@@ -451,12 +504,20 @@ function reviveGoalplan(parsed         , expectedSlug         )                 
       if (typeof t !== "object" || t === null) continue;
       const tt = t                           ;
       if (typeof tt.id !== "string" || typeof tt.title !== "string") continue;
-      tasks.push({ id: tt.id, title: tt.title, status: tt.status === "done" ? "done" : "pending" });
+      const taskDependsOn = reviveDependsOn(tt.dependsOn);
+      if (taskDependsOn === "invalid") return null;
+      const task               = { id: tt.id, title: tt.title, status: tt.status === "done" ? "done" : "pending" };
+      if (taskDependsOn !== undefined) task.dependsOn = taskDependsOn;
+      // A blank outcome is no evidence at all, so it stays absent rather than
+      // persisting an empty string that later reads as "recorded".
+      if (typeof tt.outcome === "string" && tt.outcome.trim().length > 0) task.outcome = tt.outcome.trim();
+      tasks.push(task);
     }
     const criteriaIds = Array.isArray(w.criteriaIds)
       ? (w.criteriaIds             ).filter((x)              => typeof x === "string")
       : [];
     const phase                    = { id: w.id, title: w.title, status, tasks, criteriaIds };
+    if (phaseDependsOn !== undefined) phase.dependsOn = phaseDependsOn;
     if (typeof w.blockedReason === "string") phase.blockedReason = w.blockedReason;
     if (typeof w.supersededBy === "string") phase.supersededBy = w.supersededBy;
     workPhases.push(phase);
@@ -596,9 +657,27 @@ function firstInvalidField(parsed         )         {
   const o = parsed                           ;
   if (typeof o.objective !== "string") return "objective";
   if (typeof o.slug !== "string") return "slug";
+  if (declaredSchemaVersion(o) > SUPPORTED_MAX_SCHEMA_VERSION) return "schemaVersion";
   if (!Array.isArray(o.workPhases)) return "workPhases";
-  if (Array.isArray(o.workPhases) && o.workPhases.some((w) => typeof w !== "object" || w === null || typeof (w                           ).id !== "string")) {
-    return "workPhases[] entries (each needs id/title/status)";
+  if (o.workPhases.some((w) => {
+    if (typeof w !== "object" || w === null) return true;
+    const wp = w                           ;
+    return typeof wp.id !== "string" || typeof wp.title !== "string";
+  })) {
+    return "workPhases[] entries (each needs id/title)";
+  }
+  // Mirror the reviver's order: phase dependsOn first, then the tasks it would revive.
+  for (const rawWp of o.workPhases) {
+    const wp = rawWp                           ;
+    if (reviveDependsOn(wp.dependsOn) === "invalid") return "workPhases[].dependsOn";
+    for (const rawTask of Array.isArray(wp.tasks) ? wp.tasks : []) {
+      if (typeof rawTask !== "object" || rawTask === null) continue;
+      const task = rawTask                           ;
+      if (typeof task.id !== "string" || typeof task.title !== "string") continue;
+      if (reviveDependsOn(task.dependsOn) === "invalid") {
+        return "workPhases[].tasks[].dependsOn";
+      }
+    }
   }
   if (!Array.isArray(o.criteria)) return "criteria";
   if (Array.isArray(o.criteria) && o.criteria.some((c) => typeof c !== "object" || c === null || typeof (c                           ).scenario !== "string")) {
@@ -682,6 +761,7 @@ export function buildGoalplan(input                  )           {
   return {
     objective: input.objective,
     slug: deriveSlug(input.objective),
+    schemaVersion: SUPPORTED_MAX_SCHEMA_VERSION,
     createdAt: ts,
     updatedAt: ts,
     activeWorkPhaseId: null,
@@ -790,6 +870,16 @@ export function computeQaRequired(plan          )          {
  */
 export function validateGoalplan(plan          , ctx                        )                     {
   const reasons           = [];
+  // Refuse before any other check: a plan this binary cannot fully represent must
+  // not be judged complete on a partial reading of it.
+  if (typeof plan.schemaVersion === "number" && plan.schemaVersion > SUPPORTED_MAX_SCHEMA_VERSION) {
+    return {
+      ok: false,
+      reasons: [
+        `schemaVersion ${plan.schemaVersion} is newer than this build supports (max ${SUPPORTED_MAX_SCHEMA_VERSION}) - upgrade codexclaw before validating this plan`,
+      ],
+    };
+  }
   if (plan.workPhases.length === 0 && plan.criteria.length === 0) {
     reasons.push(
       "plan is empty: no workPhases[] and no criteria[] registered — fill the goalplan (schema in $cxc-loop) before the E8 gate can certify completion",

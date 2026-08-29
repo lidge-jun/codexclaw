@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   buildGoalplan,
   readGoalplan,
+  readGoalplanDetailed,
   writeGoalplan,
   appendGoalplanLedger,
   goalplanDir,
@@ -16,6 +17,7 @@ import {
   validateGoalplan,
   advanceWorkPhase,
   effectiveActiveWorkPhaseId,
+  effectiveSchemaVersion,
   type Goalplan,
 } from "../src/goalplan.ts";
 import { deriveSlug } from "../src/freeze.ts";
@@ -42,6 +44,343 @@ test("030: schema round-trips (write then read returns an equal Goalplan)", () =
   assert.equal(read!.slug, plan.slug);
   assert.deepEqual(read!.criteria, plan.criteria);
   assert.deepEqual(read!.host, plan.host);
+});
+
+test("schema v3: work-phase/task dependsOn survives a write/read round trip", () => {
+  // arrange
+  const cwd = tmp();
+  const plan = buildGoalplan({ objective: "dependency round trip" });
+  plan.workPhases = [
+    {
+      id: "wp-1",
+      title: "foundation",
+      status: "done",
+      tasks: [{ id: "t-1", title: "first", status: "done" }],
+      criteriaIds: [],
+    },
+    {
+      id: "wp-2",
+      title: "dependent",
+      status: "pending",
+      dependsOn: ["wp-1"],
+      tasks: [
+        { id: "t-1", title: "leader", status: "pending" },
+        { id: "t-2", title: "follower", status: "pending", dependsOn: ["t-1"] },
+      ],
+      criteriaIds: [],
+    },
+  ];
+
+  // act
+  writeGoalplan(cwd, plan);
+  const back = readGoalplan(cwd, plan.slug);
+
+  // assert
+  assert.ok(back);
+  assert.deepEqual(back.workPhases[1].dependsOn, ["wp-1"]);
+  assert.deepEqual(back.workPhases[1].tasks[1].dependsOn, ["t-1"]);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(back.workPhases[0], "dependsOn"),
+    false,
+    "an absent phase dependsOn stays absent",
+  );
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(back.workPhases[1].tasks[0], "dependsOn"),
+    false,
+    "an absent task dependsOn stays absent",
+  );
+});
+
+test("schema v3: an empty dependsOn array is preserved as an empty array", () => {
+  // arrange
+  const cwd = tmp();
+  const plan = buildGoalplan({ objective: "empty dependency list" });
+  plan.workPhases = [{
+    id: "wp-1",
+    title: "phase",
+    status: "pending",
+    dependsOn: [],
+    tasks: [{ id: "t-1", title: "task", status: "pending", dependsOn: [] }],
+    criteriaIds: [],
+  }];
+
+  // act
+  writeGoalplan(cwd, plan);
+  const back = readGoalplan(cwd, plan.slug);
+
+  // assert
+  assert.ok(back);
+  assert.deepEqual(back.workPhases[0].dependsOn, [], "undefined and [] both mean no phase dependency");
+  assert.deepEqual(
+    back.workPhases[0].tasks[0].dependsOn,
+    [],
+    "undefined and [] both mean no task dependency",
+  );
+});
+
+test("schema v3: malformed dependsOn or phase shape rejects the whole plan and names the field", () => {
+  // arrange
+  const cases: Array<{
+    name: string;
+    field: string;
+    detailPattern: RegExp;
+    apply: (raw: Record<string, any>) => void;
+  }> = [
+    { name: "phase is not an array", field: "workPhases[].dependsOn", detailPattern: /dependsOn/, apply: (raw) => { raw.workPhases[0].dependsOn = "wp-0"; } },
+    { name: "phase has a non-string", field: "workPhases[].dependsOn", detailPattern: /dependsOn/, apply: (raw) => { raw.workPhases[0].dependsOn = [1]; } },
+    { name: "phase has an empty id", field: "workPhases[].dependsOn", detailPattern: /dependsOn/, apply: (raw) => { raw.workPhases[0].dependsOn = [" "]; } },
+    { name: "task is not an array", field: "workPhases[].tasks[].dependsOn", detailPattern: /dependsOn/, apply: (raw) => { raw.workPhases[0].tasks[0].dependsOn = "t-0"; } },
+    { name: "task has a non-string", field: "workPhases[].tasks[].dependsOn", detailPattern: /dependsOn/, apply: (raw) => { raw.workPhases[0].tasks[0].dependsOn = [null]; } },
+    { name: "task has an empty id", field: "workPhases[].tasks[].dependsOn", detailPattern: /dependsOn/, apply: (raw) => { raw.workPhases[0].tasks[0].dependsOn = [""]; } },
+    // Audit round 10 blocker 2: cover the widened work-phase shape check (id -> id and title).
+    { name: "phase title is missing", field: "workPhases[] entries (each needs id/title)", detailPattern: /workPhases/, apply: (raw) => { delete raw.workPhases[0].title; } },
+    { name: "phase title is not a string", field: "workPhases[] entries (each needs id/title)", detailPattern: /workPhases/, apply: (raw) => { raw.workPhases[0].title = 42; } },
+  ];
+
+  for (const c of cases) {
+    // arrange
+    const cwd = tmp();
+    const plan = buildGoalplan({ objective: `bad dependsOn ${c.name}` });
+    plan.workPhases = [{
+      id: "wp-1",
+      title: "phase",
+      status: "pending",
+      tasks: [{ id: "t-1", title: "task", status: "pending" }],
+      criteriaIds: [],
+    }];
+    writeGoalplan(cwd, plan);
+    const path = join(goalplanDir(cwd, plan.slug), "goalplan.json");
+    const raw = JSON.parse(readFileSync(path, "utf8"));
+    c.apply(raw);
+    writeFileSync(path, JSON.stringify(raw));
+
+    // act
+    const result = readGoalplanDetailed(cwd, plan.slug);
+
+    // assert
+    assert.equal(result.plan, null, c.name);
+    assert.equal(result.diagnostic?.kind, "invalid-shape", c.name);
+    if (result.diagnostic?.kind === "invalid-shape") {
+      assert.equal(result.diagnostic.field, c.field, c.name);
+      assert.match(result.diagnostic.detail, c.detailPattern, c.name);
+    }
+  }
+});
+
+test("schema v3: task outcome is trimmed while absent and blank outcomes stay absent", () => {
+  // arrange
+  const cwd = tmp();
+  const plan = buildGoalplan({ objective: "outcome round trip" });
+  plan.workPhases = [{
+    id: "wp-1",
+    title: "phase",
+    status: "in_progress",
+    tasks: [
+      { id: "t-1", title: "done", status: "done", outcome: "  node --test: 0 fail  " },
+      { id: "t-2", title: "missing", status: "pending" },
+      { id: "t-3", title: "blank", status: "pending", outcome: "   " },
+      { id: "t-4", title: "non-string", status: "pending" },
+    ],
+    criteriaIds: [],
+  }];
+  writeGoalplan(cwd, plan);
+  const path = join(goalplanDir(cwd, plan.slug), "goalplan.json");
+  const raw = JSON.parse(readFileSync(path, "utf8"));
+  raw.workPhases[0].tasks[3].outcome = 42;
+  writeFileSync(path, JSON.stringify(raw));
+
+  // act
+  const back = readGoalplan(cwd, plan.slug);
+
+  // assert
+  assert.ok(back);
+  assert.equal(back.workPhases[0].tasks[0].outcome, "node --test: 0 fail");
+  assert.equal(Object.prototype.hasOwnProperty.call(back.workPhases[0].tasks[1], "outcome"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(back.workPhases[0].tasks[2], "outcome"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(back.workPhases[0].tasks[3], "outcome"), false);
+});
+
+test("schema v3: legacy plan without outcome keeps byte-identical serialized plan data", () => {
+  // arrange
+  const cwd = tmp();
+  const plan = buildGoalplan({ objective: "legacy outcome omission" });
+  delete plan.schemaVersion;
+  plan.workPhases = [{
+    id: "wp-1",
+    title: "legacy phase",
+    status: "done",
+    tasks: [{ id: "t-1", title: "legacy done task", status: "done" }],
+    criteriaIds: [],
+  }];
+
+  // act
+  writeGoalplan(cwd, plan);
+  const path = join(goalplanDir(cwd, plan.slug), "goalplan.json");
+  const stored = readFileSync(path, "utf8");
+  const back = readGoalplan(cwd, plan.slug);
+
+  // assert
+  assert.ok(back);
+  assert.equal(JSON.stringify(back, null, 2), stored);
+  assert.equal(Object.prototype.hasOwnProperty.call(back, "schemaVersion"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(back.workPhases[0].tasks[0], "outcome"), false);
+});
+
+test("schema v3: buildGoalplan declares schemaVersion 3", () => {
+  // arrange and act
+  const plan = buildGoalplan({ objective: "new v3 plan" });
+
+  // assert
+  assert.equal(plan.schemaVersion, 3);
+  assert.equal(effectiveSchemaVersion(plan, false), 3);
+});
+
+test("schema v3: an unsupported future schemaVersion is rejected on read and on validate", () => {
+  // arrange
+  const cwd = tmp();
+  const plan = buildGoalplan({ objective: "future version" });
+  writeGoalplan(cwd, plan);
+  const path = join(goalplanDir(cwd, plan.slug), "goalplan.json");
+  const raw = JSON.parse(readFileSync(path, "utf8"));
+  raw.schemaVersion = 4;
+  writeFileSync(path, JSON.stringify(raw));
+
+  // act
+  const result = readGoalplanDetailed(cwd, plan.slug);
+  const validated = validateGoalplan({ ...plan, schemaVersion: 4 });
+
+  // assert
+  assert.equal(result.plan, null, "a v4 plan on disk does not read as a plan");
+  assert.equal(result.diagnostic?.kind, "invalid-shape");
+  if (result.diagnostic?.kind === "invalid-shape") {
+    assert.equal(result.diagnostic.field, "schemaVersion");
+    assert.match(result.diagnostic.detail, /schemaVersion/);
+  }
+  assert.equal(validated.ok, false, "validateGoalplan refuses an unsupported future version");
+  assert.ok(
+    validated.reasons.some((reason) => /schemaVersion/.test(reason)),
+    `expected a schemaVersion reason, got ${JSON.stringify(validated.reasons)}`,
+  );
+});
+
+test("schema v3: pre-change baseline records a private-data-free manifest and parser results", () => {
+  // arrange
+  const path = join(
+    import.meta.dirname,
+    "fixtures",
+    "goalplans-pre-change-baseline.json",
+  );
+  type ParserResult =
+    | { kind: "parsed" }
+    | { kind: "absent" | "unreadable" | "invalid-json" }
+    | { kind: "invalid-shape"; field: "criteria-shape" | "other-shape" };
+
+  // act
+  const text = readFileSync(path, "utf8");
+  const snapshot = JSON.parse(text) as {
+    measuredOn: "2026-08-29";
+    sourceCount: number;
+    manifest: Array<{
+      ordinal: number;
+      alias: string;
+      sourceClass: "normal" | "legacy-text-criterion";
+      expected: ParserResult;
+    }>;
+    fixtures: Array<{
+      ordinal: number;
+      alias: string;
+      sourceClass: "normal" | "legacy-text-criterion";
+      expected: ParserResult;
+      plan: Record<string, unknown>;
+    }>;
+  };
+  const preservedEnumsByKey = new Map<string, Set<string>>([
+    ["status", new Set([
+      "pending", "in_progress", "done", "blocked", "superseded", "open", "met",
+      "launching", "in_flight", "approved", "changes_requested", "inconclusive",
+    ])],
+    ["surface", new Set(["logic", "web", "tui"])],
+    ["source", new Set(["freeze", "none"])],
+    ["purpose", new Set(["plan_audit", "final_gate"])],
+    ["verdict", new Set(["pass", "near-pass", "fail"])],
+    ["kind", new Set([
+      "resolved", "unavailable", "parsed", "absent", "unreadable", "invalid-json", "invalid-shape",
+    ])],
+    ["sourceClass", new Set(["normal", "legacy-text-criterion"])],
+    ["field", new Set(["criteria-shape", "other-shape"])],
+  ]);
+  const assertAliased = (value: unknown, ordinal: number, key = ""): void => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => assertAliased(item, ordinal, key));
+      return;
+    }
+    if (value && typeof value === "object") {
+      Object.entries(value).forEach(([childKey, child]) => assertAliased(child, ordinal, childKey));
+      return;
+    }
+    if (typeof value === "string" && !preservedEnumsByKey.get(key)?.has(value)) {
+      if (value === `fixture-${ordinal}`) return;
+      assert.match(value, new RegExp(`^fixture-${ordinal}-string-\\d{4}$`));
+    }
+  };
+
+  // assert
+  assert.equal(snapshot.measuredOn, "2026-08-29");
+  assert.ok(snapshot.sourceCount > 0);
+  assert.equal(snapshot.sourceCount, snapshot.manifest.length);
+  assert.equal(snapshot.fixtures.length, snapshot.manifest.length);
+  assert.deepEqual(
+    snapshot.manifest,
+    snapshot.fixtures.map(({ ordinal, alias, sourceClass, expected }) => ({
+      ordinal,
+      alias,
+      sourceClass,
+      expected,
+    })),
+  );
+  assert.deepEqual(
+    snapshot.fixtures.map(({ ordinal }) => ordinal),
+    snapshot.fixtures.map((_, index) => index + 1),
+  );
+  for (const fixture of snapshot.fixtures) {
+    assert.equal(fixture.alias, `fixture-${fixture.ordinal}`);
+    assert.equal(fixture.plan.slug, fixture.alias);
+    assertAliased(fixture.plan, fixture.ordinal);
+  }
+  const legacy = snapshot.fixtures.find((fixture) => fixture.sourceClass === "legacy-text-criterion");
+  assert.ok(legacy);
+  assert.deepEqual(legacy.expected, { kind: "invalid-shape", field: "criteria-shape" });
+  assert.doesNotMatch(text, /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i);
+  assert.doesNotMatch(text, /"\/(?!\/)/, "absolute POSIX paths must not remain");
+  assert.doesNotMatch(text, /"[A-Za-z]:\\\\/, "absolute Windows paths must not remain");
+  assert.doesNotMatch(text, /\b[0-9a-f]{40}\b/i, "40-character hashes must not remain");
+});
+
+test("schema v3: baseline generator privacy and reparse invariants run on every suite", async () => {
+  // arrange
+  const { assertFixturesPrivateAndStable, normalizeResult, PRIVACY_PATTERNS } = await import(
+    "./fixtures/capture-goalplan-baseline.mjs"
+  );
+  const snapshot = JSON.parse(readFileSync(
+    join(import.meta.dirname, "fixtures", "goalplans-pre-change-baseline.json"),
+    "utf8",
+  )) as { fixtures: Array<{ ordinal: number; alias: string; expected: unknown; plan: Record<string, unknown> }> };
+  const reparseRoot = tmp();
+
+  // act and assert - every checked-in fixture reparses to the same normalized result.
+  assertFixturesPrivateAndStable(snapshot.fixtures, reparseRoot);
+
+  // assert - the helper itself is alive, proven by a negative case.
+  assert.ok(PRIVACY_PATTERNS.length >= 4);
+  assert.throws(
+    () => assertFixturesPrivateAndStable(
+      [{ ordinal: 1, alias: "fixture-1", expected: { kind: "parsed" }, plan: { leak: "/Users/someone/secret" } }],
+      tmp(),
+    ),
+    /privacy scan/,
+    "an absolute path leak must be caught by the generator helper",
+  );
+  assert.deepEqual(normalizeResult({ plan: {}, diagnostic: null }), { kind: "parsed" });
 });
 
 test("030: slug-namespaced path, distinct from plan/interview dirs", () => {
@@ -133,7 +472,9 @@ test("030: derived helpers (remaining/nextOpen/unmet/complete) on fixtures", () 
 });
 
 test("030: validateGoalplan rejects met-without-evidence and incomplete plans", () => {
-  const plan = buildGoalplan({ objective: "v", criteria: [{ scenario: "c" }] });
+  // v1 pinned: this test is about the evidence and completeness rules, not the v2+
+  // final gate that buildGoalplan()'s new v3 default would bring in (wp2, 260829).
+  const plan = { ...buildGoalplan({ objective: "v", criteria: [{ scenario: "c" }] }), schemaVersion: 1 };
   // unmet criterion -> not ok
   assert.equal(validateGoalplan(plan).ok, false);
   // mark met but no evidence -> still not ok (rubber-stamp guard)
@@ -148,12 +489,15 @@ test("030: validateGoalplan rejects met-without-evidence and incomplete plans", 
 
 test("260709: validateGoalplan FAILS an EMPTY plan (no workPhases, no criteria)", () => {
   // 019f4456 regression: a `loop init`-only artifact passed the E8 gate vacuously.
-  const plan = buildGoalplan({ objective: "shell only" });
+  const plan = { ...buildGoalplan({ objective: "shell only" }), schemaVersion: 1 };
   const verdict = validateGoalplan(plan);
   assert.equal(verdict.ok, false);
   assert.ok(verdict.reasons.some((x) => /plan is empty/.test(x)));
   // registering EITHER a criterion or a work phase lifts the empty-plan failure.
-  const withCriterion = buildGoalplan({ objective: "with criterion", criteria: [{ scenario: "c", expectedEvidence: "e" }] });
+  const withCriterion = {
+    ...buildGoalplan({ objective: "with criterion", criteria: [{ scenario: "c", expectedEvidence: "e" }] }),
+    schemaVersion: 1,
+  };
   withCriterion.criteria[0] = { ...withCriterion.criteria[0], status: "met", capturedEvidence: "proof" };
   assert.equal(validateGoalplan(withCriterion).ok, true);
 });

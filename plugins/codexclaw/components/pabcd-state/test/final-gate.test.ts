@@ -66,6 +66,10 @@ function plan(over: Partial<Goalplan> = {}): Goalplan {
   const base = buildGoalplan({ objective: "final gate fixture" });
   return {
     ...base,
+    // buildGoalplan() declares v3 since wp2 (260829). The v1 tests below assert v1
+    // semantics, so they pin the version instead of inheriting the new default;
+    // the v2+ tests in this file override schemaVersion themselves.
+    schemaVersion: 1,
     workPhases: [{ id: "wp1", title: "t", status: "done", tasks: [], criteriaIds: ["c-1"] }],
     criteria: [{ id: "c-1", scenario: "s", expectedEvidence: "e", capturedEvidence: "done", status: "met", surface: "logic" }],
     ...over,

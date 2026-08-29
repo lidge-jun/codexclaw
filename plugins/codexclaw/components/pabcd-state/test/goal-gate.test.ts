@@ -356,10 +356,14 @@ test("GOAL-COMPLETE-GATE-01: slug bound but goalplan file is malformed JSON -> d
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
-test("GOAL-COMPLETE-GATE-01: valid goalplan at IDLE -> complete passes", () => {
+test("GOAL-COMPLETE-GATE-01: valid legacy v1 goalplan at IDLE -> complete passes", () => {
   const cwd = freshGateCwd();
   try {
     const plan = buildGoalplan({ objective: "Done for real", criteria: [{ scenario: "tests", expectedEvidence: "green" }] });
+    // v1 pinned: this test proves the gate passes a complete plan, not that a v3
+    // plan carries a final gate. buildGoalplan() declares v3 since wp2 (260829),
+    // and the v2+ final-gate requirement is covered by its own tests below.
+    plan.schemaVersion = 1;
     plan.criteria[0] = { ...plan.criteria[0], status: "met", capturedEvidence: "node --test: 0 fail" };
     plan.workPhases = [{ id: "wp-1", title: "All", status: "done", tasks: [{ id: "t-1", title: "x", status: "done" }], criteriaIds: ["c-1"] }];
     writeGoalplan(cwd, plan);

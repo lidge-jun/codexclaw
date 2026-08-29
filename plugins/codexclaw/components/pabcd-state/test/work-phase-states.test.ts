@@ -31,7 +31,10 @@ function phase(id: string, status: WorkPhaseStatus, over: Partial<GoalplanWorkPh
 }
 
 function plan(workPhases: GoalplanWorkPhase[], over: Partial<Goalplan> = {}): Goalplan {
-  return { ...buildGoalplan({ objective: "work phase states" }), workPhases, ...over };
+  // schemaVersion 1 keeps these tests about work-phase state transitions: since wp2
+  // (260829) buildGoalplan() declares v3, whose final-gate rule would add unrelated
+  // reasons to every validateGoalplan() assertion here.
+  return { ...buildGoalplan({ objective: "work phase states" }), schemaVersion: 1, workPhases, ...over };
 }
 
 const OPEN_TASK = { tasks: [{ id: "t1", title: "t", status: "pending" as const }] };
