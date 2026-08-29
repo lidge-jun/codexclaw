@@ -7,8 +7,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { readDeclaredState, type CodexRunner } from "./features.ts";
-import { activate } from "./activate.ts";
+import { readDeclaredState, SOFT_FEATURE_IMPACT, type CodexRunner } from "./features.ts";
+import { activate, type FlagRecord } from "./activate.ts";
 import { deactivate } from "./deactivate.ts";
 import { applyManagedKey, readManagedState, resolveManagedKey } from "./config-set.ts";
 import { CONFIG_MANAGED_KEYS, managedKeyId } from "./managed-keys.ts";
@@ -98,6 +98,25 @@ export function resolveCodexHome(env: NodeJS.ProcessEnv = process.env): string {
   return fromEnv && fromEnv.length > 0 ? fromEnv : join(homedir(), ".codex");
 }
 
+/**
+ * The warning text for a soft flag that could not be enabled. PURE so the wording is
+ * testable: main() only writes what this returns.
+ *
+ * The old surface was a parenthetical on the success line -- (soft-failed: x) -- which
+ * read as a footnote to a success rather than as a feature the user just lost.
+ */
+export function renderSoftFailureWarning(key: string, rec: FlagRecord | undefined): string {
+  const impact = SOFT_FEATURE_IMPACT[key] ?? "이 플래그에 의존하는 기능이 비활성화된다.";
+  const lines = [
+    `codexclaw: 경고 — '${key}' 를 켤 수 없었다${rec?.failure ? ` (exit ${rec.failure.exitCode})` : ""}`,
+    `  영향: ${impact}`,
+  ];
+  if (rec?.failure?.message) lines.push(`  codex: ${rec.failure.message}`);
+  lines.push(`  확인: codex features list | grep ${key}`);
+  lines.push(`  수동: codex features enable ${key}`);
+  return `${lines.join("\n")}\n`;
+}
+
 export function makeRealRunner(): CodexRunner {
   return (args) => {
     const res = spawnSync("codex", [...args], { encoding: "utf8" });
@@ -125,10 +144,13 @@ function main(argv: readonly string[]): number {
         .map(([k]) => k);
       process.stdout.write(
         `codexclaw: enabled [${turnedOn.join(", ") || "none"}]` +
-          (failed.length ? ` (soft-failed: ${failed.join(", ")})` : "") +
           (m.backupPath ? `\nbackup: ${m.backupPath}` : "") +
           "\n",
       );
+      // stderr, not stdout: this is a warning about a capability the user asked for,
+      // and it must not read as part of the success line. Exit stays 0 — activation
+      // itself succeeded.
+      for (const key of failed) process.stderr.write(renderSoftFailureWarning(key, m.flags[key]));
       return 0;
     }
     case "disable": {

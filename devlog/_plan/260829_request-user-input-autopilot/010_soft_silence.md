@@ -158,6 +158,17 @@ const hasFailure = typeof f === "object" && f !== null && !Array.isArray(f)
   && typeof (f as Record<string, unknown>).exitCode === "number";
 ```
 
+## wp2 인라인 감사 (리뷰어 은퇴 후 대체)
+
+wp2 리뷰어(Copernicus)가 3회 대기에 무응답이라 DISPATCH-RETIRE-01로 은퇴시키고 직접 감사했다.
+
+| 질문 | 결과 |
+|---|---|
+| `FlagRecord`의 외부 소비자가 새 필드에 깨지는가 | 없다. `rg`로 config-guard 밖의 `FlagRecord`/`enableFailed` 참조를 찾으면 0건이고, 다른 `.flags` 히트는 전부 pabcd-state FSM의 무관한 필드(`interview`/`auditPassed`/`checkPassed`)다 |
+| 옵셔널 필드 추가에 버전을 올려야 하는가 | 아니다. `activate.ts:75`는 `o.version !== 1 && o.version !== 2`만 보고 :124에서 `o.version`을 그대로 통과시킨다. v1/v2로 갈라지는 읽기 분기가 없으므로 옵셔널 필드는 두 버전 모두에서 무해하다. v1→v2 승격은 `tableKeys`라는 **필수 구조**가 생겼기 때문이었고 이번은 그 성격이 아니다 |
+| 소프트 실패에 exit 0이 맞는가 | 맞다. 활성화 자체는 성공했고 skills/hooks/MCP 등록도 끝났다. 여기서 비0을 반환하면 설치 스크립트가 전체 실패로 읽어 되돌릴 수 있다. 사용자가 알아야 한다는 요구는 stderr 경고가 충족한다 |
+| `structure/INDEX.md` 서술 | "soft `default_mode_request_user_input`"만 적고 실패가 어떻게 드러나는지 말하지 않는다. wp4(030)의 문서 정정 대상에 추가한다 |
+
 추가 테스트: `round-trips the failure field through the manifest parser`,
 `ignores a malformed failure field without rejecting the manifest`.
 

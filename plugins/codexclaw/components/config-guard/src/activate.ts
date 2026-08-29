@@ -21,6 +21,13 @@ export interface FlagRecord {
   enabledByCodexclaw: boolean;
   // true when the enable command failed (e.g. soft under-dev flag unavailable).
   enableFailed: boolean;
+  /**
+   * 260829: why the enable failed. Before this, a soft failure recorded only the
+   * boolean, so neither the user nor a later diagnosis could tell whether codex was
+   * missing, the key was unknown to this build, or something else went wrong.
+   * Absent on success and on flags that were never attempted.
+   */
+  failure?: { exitCode: number; message: string };
 }
 
 /**
@@ -78,6 +85,20 @@ export function parseInstallManifest(text: string): InstallManifest | null {
       enabledByCodexclaw: rec.enabledByCodexclaw === true,
       enableFailed: rec.enableFailed === true,
     };
+    // Lenient on purpose: a malformed `failure` drops that one field instead of
+    // rejecting the manifest. The parser's contract is "malformed = absent (safe
+    // no-op)", and voiding a whole manifest over warning metadata would cost the
+    // revert capability the manifest exists to provide.
+    const f = (value as Record<string, unknown>).failure;
+    if (typeof f === "object" && f !== null && !Array.isArray(f)) {
+      const fr = f as Record<string, unknown>;
+      if (typeof fr.exitCode === "number") {
+        flags[key].failure = {
+          exitCode: fr.exitCode,
+          message: typeof fr.message === "string" ? fr.message : "",
+        };
+      }
+    }
   }
 
   const tableKeys: Record<string, TableKeyRecord> = {};
@@ -191,12 +212,18 @@ export function activate(deps: ActivateDeps): InstallManifest {
       flags[key].enabledByCodexclaw = true;
     } else {
       flags[key].enableFailed = true;
+      flags[key].failure = {
+        exitCode: res.exitCode,
+        message: res.stderr.trim().slice(0, 500),
+      };
       if (!SOFT_FEATURES.has(key)) {
         throw new Error(
           `codex features enable ${key} failed (exit ${res.exitCode}): ${res.stderr.trim()}`,
         );
       }
-      // Soft flag (e.g. under-development): log and continue; Interview degrades gracefully.
+      // Soft flag: activation continues, but cli.ts renders an explicit warning from
+      // the recorded failure. Failing the whole activation here would also drop skills,
+      // hooks and MCP registration over one upstream flag — worse than the warning.
     }
   }
 

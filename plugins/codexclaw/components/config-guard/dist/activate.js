@@ -23,6 +23,13 @@ export const INSTALL_MANIFEST = ".codexclaw-install.json";
 
 
 
+
+
+
+
+
+
+
 /**
  * A non-feature config.toml key codexclaw wrote (managed-keys.ts whitelist).
  *
@@ -78,6 +85,20 @@ export function parseInstallManifest(text        )                         {
       enabledByCodexclaw: rec.enabledByCodexclaw === true,
       enableFailed: rec.enableFailed === true,
     };
+    // Lenient on purpose: a malformed `failure` drops that one field instead of
+    // rejecting the manifest. The parser's contract is "malformed = absent (safe
+    // no-op)", and voiding a whole manifest over warning metadata would cost the
+    // revert capability the manifest exists to provide.
+    const f = (value                           ).failure;
+    if (typeof f === "object" && f !== null && !Array.isArray(f)) {
+      const fr = f                           ;
+      if (typeof fr.exitCode === "number") {
+        flags[key].failure = {
+          exitCode: fr.exitCode,
+          message: typeof fr.message === "string" ? fr.message : "",
+        };
+      }
+    }
   }
 
   const tableKeys                                 = {};
@@ -191,12 +212,18 @@ export function activate(deps              )                  {
       flags[key].enabledByCodexclaw = true;
     } else {
       flags[key].enableFailed = true;
+      flags[key].failure = {
+        exitCode: res.exitCode,
+        message: res.stderr.trim().slice(0, 500),
+      };
       if (!SOFT_FEATURES.has(key)) {
         throw new Error(
           `codex features enable ${key} failed (exit ${res.exitCode}): ${res.stderr.trim()}`,
         );
       }
-      // Soft flag (e.g. under-development): log and continue; Interview degrades gracefully.
+      // Soft flag: activation continues, but cli.ts renders an explicit warning from
+      // the recorded failure. Failing the whole activation here would also drop skills,
+      // hooks and MCP registration over one upstream flag — worse than the warning.
     }
   }
 

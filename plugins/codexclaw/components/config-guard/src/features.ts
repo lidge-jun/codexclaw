@@ -19,12 +19,28 @@ export const DECLARED_FEATURES = [
 
 export type DeclaredFeature = (typeof DECLARED_FEATURES)[number];
 
-// Flags that are OFF by default in codex and that codexclaw must turn on. Soft flags may
-// fail to enable (e.g. under-development / unavailable in this build) without failing activation.
+// Flags that are OFF by default in codex and that codexclaw must turn on. A soft flag's
+// enable failure does not fail activation — but it is NOT silent (see SOFT_FEATURE_IMPACT).
+//
+// 260829 정정: 이전 주석은 "under-development 라 실패할 수 있다"고 적었으나 사실이 아니다.
+// codex-rs cli/src/main.rs:915 validate_feature 는 is_known_feature_key 만 보고 stage 를
+// 보지 않으며, under-development 는 성공적 쓰기 뒤 stderr 경고만 낸다(실측 exit 0).
+// 따라서 실제 실패 원인은 하나로 좁혀진다 — 이 codex 빌드가 그 키를 모른다(rename/retire).
+// 그건 조용히 넘길 사안이 아니라 정확히 사용자에게 알려야 하는 사안이다.
 // multi_agent_v2 is NOT declared: codexclaw does not force-enable or manage it.
 // Users who want V2 enable it manually in config.toml; the version-resolution
 // ladder falls back to stable multi_agent (V1) automatically.
 export const SOFT_FEATURES: ReadonlySet<string> = new Set(["default_mode_request_user_input"]);
+
+// What the user loses when a soft flag stays off. Read by the CLI to build the warning,
+// so the impact statement lives next to the membership decision instead of in the printer.
+// Every SOFT_FEATURES member must have an entry; a test enforces that, which is what stops
+// a future addition from silently reintroducing the swallow this table exists to end.
+export const SOFT_FEATURE_IMPACT: Readonly<Record<string, string>> = {
+  default_mode_request_user_input:
+    "Default 모드에서 질문선택지 UI(request_user_input)가 모델에게 노출되지 않는다. " +
+    "Plan 모드에서는 계속 동작한다.",
+};
 
 export interface CodexRunResult {
   stdout: string;
