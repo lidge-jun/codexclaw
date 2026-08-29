@@ -4932,6 +4932,14 @@ bootstrap 실패도 같은 방식으로 확인했다. 계획서의 게이트 블
 `@types/node` 해석 실패, 추가 `TS2459`, 잘못된 플래그, `TS2614`, 억제 주석, namespace 오타,
 같은 코드 신규 fingerprint, 같은 파일 두 번째 억제 주석이다.
 
+남는 한계는 명시한다. `sort -u`가 fingerprint를 중복 제거하므로, 이미 baseline에 있는 진단과
+**파일·코드·메시지가 완전히 같은** 진단을 하나 더 만들면 보이지 않는다. 실측으로 확인했다 —
+`src/cli.ts`의 기존 `TS2339` 메시지를 같은 파일에 한 번 더 만들면 신규 fingerprint가 0이다.
+그러나 이 경로로 미해석 이름을 숨길 수는 없다. 미해석 이름의 메시지에는 그 이름이 그대로 들어가
+(`Cannot find name 'someCompletelyMissingName'`) 항상 새 fingerprint가 된다. 같은 파일에 실제로
+주입해 확인했다. 즉 이 한계는 선행 타입 호환성 진단의 중복에만 해당하며 이 게이트가 지키려는
+부류 밖이다.
+
 이 게이트는 미해석 식별자만 본다. 타입 호환성, signature 불일치, 논리 오류는 잡지 않는다.
 그 부류는 focused suite와 `npm test`가 맡는다.
 
