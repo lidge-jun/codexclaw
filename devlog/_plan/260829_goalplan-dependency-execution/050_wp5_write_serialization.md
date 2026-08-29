@@ -4787,7 +4787,10 @@ wp5는 `package.json`을 수정하지 않는다 — 그 파일은 이 작업 범
 | `TS2322` | 1 | 대입 타입 불일치 |
 | `TS2459` | 1 | export되지 않은 이름 import |
 
-앞 여섯은 wp5가 손대지 않는 선행 부채이며 건수가 늘어도 미해석 식별자와 무관하다. 그래서
+코드 종류만 허용하는 것으로는 부족하다. namespace import의 오타 속성은 미해석 이름 코드가 아니라
+허용된 `TS2339`로 보고되고 종류 집합은 그대로다. 실측에서 `TS2339`가 29에서 30으로만 늘었다.
+그래서 코드별 정확한 건수를 고정한다. 위 표가 그 기대값이며 어느 쪽으로든 달라지면 실패다.
+선행 부채를 고치는 작업은 이 표를 함께 갱신한다. 그래서
 허용 목록에 둔다. `TS2459` 1건은 위치까지 고정하는 ratchet으로 따로 잡는다. 그 밖의 코드가
 하나라도 나타나면 실패다. 새 코드를 미리 알 필요가 없다.
 
@@ -4840,14 +4843,27 @@ for root in "${roots[@]}"; do
   rg -qF "$root" "$listed" || { echo "root not analyzed: $root" >&2; exit 1; }
 done
 
-# 선행 타입 호환성 부류만 허용한다. 그 밖의 코드는 전부 실패다.
-benign='TS2339|TS2352|TS2345|TS2741|TS2554|TS2322'
-offending="$gate_tmp/offending.txt"
-rg -o 'error (TS[0-9]+)' -r '$1' "$tsc_log" | rg -v "^($benign)\$" | sort > "$offending"
+# 코드 종류만 허용하면 그 코드로 이름 오류를 위장할 수 있다. namespace import의 오타 속성은
+# 미해석 이름 코드가 아니라 TS2339로 보고되며 종류 집합은 그대로다. 실측으로 재현했다.
+# 그래서 코드별 정확한 건수를 고정한다. 어느 쪽으로든 달라지면 실패다.
+counts="$gate_tmp/counts.txt"
+rg -o 'error (TS[0-9]+)' -r '$1' "$tsc_log" | sort | uniq -c \
+  | awk '{ print $2 " " $1 }' | sort > "$counts"
 
-# 남는 것은 위치까지 고정된 선행 TS2459 한 건뿐이다.
-test "$(wc -l < "$offending" | tr -d '[:space:]')" -eq 1
-rg -qx 'TS2459' "$offending"
+expected="$gate_tmp/expected.txt"
+cat > "$expected" <<'EOF'
+TS2322 1
+TS2339 29
+TS2345 5
+TS2352 6
+TS2459 1
+TS2554 1
+TS2741 1
+EOF
+sort -o "$expected" "$expected"
+diff -u "$expected" "$counts"
+
+# 선행 TS2459는 위치까지 고정한다.
 rg -q 'src/interview-policy\.ts\(25,15\): error TS2459' "$tsc_log"
 
 # 억제 주석은 미해석 식별자를 진단 자체가 나오지 않게 지운다. 실측으로 확인했다.
@@ -4858,18 +4874,16 @@ rg -q '@ts-expect-error' "$pab/test/source-identity.test.ts"
 ```
 
 기대값은 여섯 export 선언 검사 exit 0, `tsc` 종료 코드 0 또는 2, bootstrap 오류 0건,
-`@types/node/index.d.ts` 적재 확인, root 전부 분석, 허용 목록 밖 진단이 그 선행 `TS2459`
-한 건뿐인 것이다.
+`@types/node/index.d.ts` 적재 확인, root 전부 분석, 코드별 건수가 위 표와 `diff -u`로 완전히
+일치, 선행 `TS2459` 위치 확인, 억제 주석 1건인 것이다.
 
-이 게이트가 무엇을 잡는지 `hook.test.ts` 임시 사본에 주입해 확인했다. 기준선 0에서 누락 import
-`dirname` 1건, 누락 타입 `Goalplan` 1건, 다른 파일의 private helper `goalplanLedgerRows` 1건,
-존재하지 않는 export `GoalplanWorkPhaseStatus` 1건이 각각 잡히고 복원 뒤 다시 0이 된다.
-`TS2724`가 없으면 마지막 한 건이 빠져나간다.
+이 게이트가 무엇을 잡는지 `hook.test.ts` 임시 사본에 주입해 확인했다. 누락 import `dirname`,
+누락 타입 `Goalplan`, 다른 파일의 private helper `goalplanLedgerRows`, 존재하지 않는 export
+`GoalplanWorkPhaseStatus` 네 건이 각각 허용 목록 밖 진단으로 잡히고 복원 뒤 기대값으로 돌아온다.
 
-게이트 자체가 false-green이 되는 네 경우도 실패하는지 확인했다. 잘못된 tsc 플래그 주입, binary
-경로 부재, type-only import의 잘못된 모듈 경로(`TS2307`), 추가 `TS2459` 주입 네 건 모두
-exit 1이며 복원 뒤 다시 exit 0이다. 옛 `|| echo 0` 형태는 앞의 두 건을 모두 0으로 접어
-통과시켰다.
+게이트 자체가 false-green이 되는 경우도 확인했다. 잘못된 tsc 플래그 주입, binary 경로 부재,
+type-only import의 잘못된 모듈 경로(`TS2307`), 추가 `TS2459` 주입 네 건 모두 exit 1이며 복원 뒤
+다시 exit 0이다. 옛 `| rg -c … || echo 0` 형태는 앞의 두 건을 모두 0으로 접어 통과시켰다.
 
 bootstrap 실패도 같은 방식으로 확인했다. 계획서의 게이트 블록을 문서에서 그대로 추출해
 실행하면 깨끗한 checkout에서 exit 0이고, `--typeRoots`를 없는 경로로 돌려 `@types/node`
@@ -4886,8 +4900,9 @@ bootstrap 실패도 같은 방식으로 확인했다. 계획서의 게이트 블
 복원 뒤 다시 exit 0이다. `TS2614`는 코드를 열거하던 세 판본이 모두 놓쳤고 허용 목록 방식은
 아무 것도 추가하지 않은 채로 잡는다.
 
-허용된 여섯 코드로 위장해 미해석 이름을 숨길 수 있는지도 시도했다. member access, cast, 인자
-위치, `any` 우회 네 형태 모두 `TS2304`가 그대로 나와 잡힌다. 실제로 통하는 우회는 하나뿐이었다 —
+허용된 코드로 위장해 미해석 이름을 숨길 수 있는지도 시도했다. member access, cast, 인자 위치,
+`any` 우회 네 형태는 모두 `TS2304`가 그대로 나와 잡힌다. 통하는 우회는 두 가지였다. 하나는
+namespace import 오타이며 건수 고정으로 닫았다. 다른 하나는
 `@ts-ignore`나 `@ts-expect-error`를 붙이면 진단 자체가 발생하지 않는다. 그래서 억제 주석 수도
 ratchet으로 고정한다. 현재 pabcd-state에는 `test/source-identity.test.ts:189` 한 건뿐이며 wp5는
 새로 넣지 않는다. 주입 검증에서 이 경로도 exit 1이다.
