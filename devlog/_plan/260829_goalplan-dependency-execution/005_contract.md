@@ -716,12 +716,17 @@ marker 없이 IDLE로 닫히는 채팅 회귀를 둔다.
 W5 처분: **단계별 검증 순서를 고정한다.**
 
 ```
-focused test  →  npm run build  →  npm test  →  npm run gate
+미해석 식별자 검사  →  focused test  →  npm run build  →  npm test  →  npm run gate
 ```
 
 `npm run build`가 tracked dist를 재생성한 뒤에 `npm test`를 돌려야 freshness test가 통과한다.
 각 wp의 변경 manifest에 변경 src와 같은 basename의 tracked dist 경로를 명시한다.
 예: `src/goalplan.ts`를 바꾸면 `dist/goalplan.js`도 manifest에 들어간다.
+
+미해석 식별자 검사가 맨 앞에 오는 이유는 `node --experimental-strip-types`와 `npm run build`가
+둘 다 타입을 지우고 지나가기 때문이다. 나머지 네 단계는 없는 이름을 참조하는 계획서를 조용히
+통과시켰다. 검사 형태는 `node_modules/.bin/tsc --noEmit`의 `TS2304`·`TS2552`·`TS2305`·`TS2724`
+개수이며 기준선은 0이다. 정본 스크립트는 050 §10.7에 있다.
 
 ### 비차단 잔여 (Medium)
 

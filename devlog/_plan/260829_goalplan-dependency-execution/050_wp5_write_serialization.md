@@ -4753,31 +4753,32 @@ tracked이므로 이전 초안의 `?? …050….md` 기대는 거짓이었고, �
 | `plugins/codexclaw/test/hook-e2e.test.mjs` | import 변경 없음. persisted state exact shape만 갱신한다. |
 | `test/orchestrate-apply.test.ts` | import 변경 없음. |
 
-`node --experimental-strip-types`는 타입 주석을 지우고 실행하므로 존재하지 않는 타입 이름을 참조해도
-focused suite와 `npm test`가 모두 통과한다. 이 문서의 초안이 실제로 `GoalplanWorkPhaseStatus`를 썼고
-정본은 `goalplan.ts:65`의 `WorkPhaseStatus`였는데, 락 게이트 네 단계 전부가 조용히 통과했다.
-저장소에는 typecheck script도 tsconfig도 없어 이 부류를 잡는 표면이 없다. 그러므로 wp5가 새로
-도입하는 타입 이름은 실제 export와 대조한다.
-
-알려진 오타 하나만 막는 검사로는 부족하다. 같은 부류가 실제로 네 건 더 있었다. `hook.ts`의 wp6 인계
-import가 `closeFixedWorkPhase`를 빠뜨렸고, `orchestrate-cli.test.ts`는 `goalplanWriteLockDir`를,
+`node --experimental-strip-types`는 타입 주석을 지우고 실행하므로 존재하지 않는 타입 이름을
+참조해도 focused suite와 `npm test`가 모두 통과한다. 이 문서의 초안이 실제로
+`GoalplanWorkPhaseStatus`를 썼고 정본은 `goalplan.ts:65`의 `WorkPhaseStatus`였는데, 락 게이트 네
+단계 전부가 조용히 통과했다. 같은 부류가 네 건 더 있었다. `hook.ts`의 wp6 인계 import가
+`closeFixedWorkPhase`를 빠뜨렸고, `orchestrate-cli.test.ts`는 `goalplanWriteLockDir`를,
 `hook.test.ts`는 `readGoalplan`과 `Goalplan`을 빠뜨렸으며, 채팅 테스트 두 건은 다른 테스트 파일의
-module-private `goalplanLedgerRows()`를 호출했다. 이름 하나를 찾는 검사는 이 중 어느 것도 잡지 못한다.
-그래서 구현이 끝난 파일에서 **해석되지 않는 식별자 전체**를 센다.
+module-private `goalplanLedgerRows()`를 호출했다.
+
+이름을 손으로 나열하는 검사로는 이 부류를 닫지 못한다. 목록에 없는 이름은 검사되지 않으므로
+나열이 불완전한 순간 false-green이 된다. 그래서 실제 TypeScript 해석기를 쓴다. 저장소에는
+typecheck script도 tsconfig도 없지만 `node_modules/.bin/tsc` 5.9.3이 이미 있다. 전체 strict
+검사는 이 저장소에 선행 오류가 많아 게이트로 쓸 수 없고, **미해석 식별자 부류만** 뽑으면
+현재 기준선이 정확히 0이다. 그래서 그 네 오류 코드만 센다.
+
+- `TS2304` 이름을 찾을 수 없음
+- `TS2552` 오타 추정 이름
+- `TS2305` 모듈에 그 export가 없음
+- `TS2724` 모듈에 그 이름의 export가 없음(유사 이름 제안 포함)
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 cd /Users/jun/Developer/new/700_projects/codexclaw
 
-src=plugins/codexclaw/components/pabcd-state/src/goalplan.ts
-
-# CloseFixedResult가 인용하는 타입은 같은 모듈이 실제로 export하는 이름이어야 한다.
-rg -q '^export type WorkPhaseStatus = ' "$src"
-rg -q '^export interface GoalplanTask ' "$src"
-# 검색 대상은 소스와 테스트뿐이다. 이 문서 본문은 설명으로 옛 이름을 인용하므로
-# devlog를 포함하면 검사가 영구히 실패한다.
-! rg -n 'GoalplanWorkPhaseStatus' plugins/codexclaw/components
+pab=plugins/codexclaw/components/pabcd-state
+src=$pab/src/goalplan.ts
 
 # wp5가 새로 export하는 여섯 이름은 실제로 선언되어야 한다.
 for name in GOALPLAN_LOCK_OWNER_FILE goalplanWriteLockDir goalplanWriteLockStatus \
@@ -4785,37 +4786,25 @@ for name in GOALPLAN_LOCK_OWNER_FILE goalplanWriteLockDir goalplanWriteLockStatu
   rg -q "^export (type|const|function) $name\b" "$src"
 done
 
-# 각 파일이 쓰는 이름은 같은 파일에 선언되어 있거나 그 파일의 import에 있어야 한다.
-# import 블록이 여러 줄이므로 `rg -U`로 본다. strip-types 실행은 타입 누락을 숨기고
-# 저장소에 typecheck가 없으므로 이 검사가 유일한 표면이다.
-resolve_names() {
-  local file="$1"; shift
-  local name
-  for name in "$@"; do
-    rg -Uq "\b${name}\b" "$file" || continue
-    if rg -Uq "import \{[^}]*\b${name}\b[^}]*\} from" "$file"; then continue; fi
-    if rg -Uq "^(export )?(async )?(function|type|interface|const) ${name}\b" "$file"; then continue; fi
-    printf 'unresolved: %s in %s\n' "$name" "$file" >&2
-    return 1
-  done
+# 미해석 식별자 개수. 기준선 0이며 구현 후에도 0이어야 한다.
+unresolved_count() {
+  node_modules/.bin/tsc --noEmit --allowImportingTsExtensions --module nodenext \
+    --target es2023 --moduleResolution nodenext --skipLibCheck --types node \
+    "$pab"/src/*.ts "$pab"/test/*.ts 2>&1 \
+    | rg -c 'TS2304|TS2552|TS2305|TS2724' || echo 0
 }
 
-pab=plugins/codexclaw/components/pabcd-state
-resolve_names "$pab/src/hook.ts" closeFixedWorkPhase withGoalplanWriteLock readGoalplan \
-  matchesDcloseRecovery dependencyDeadlock
-resolve_names "$pab/src/orchestrate-cli.ts" closeFixedWorkPhase withGoalplanWriteLock readGoalplan
-resolve_names "$pab/src/steering.ts" withGoalplanWriteLock
-resolve_names "$pab/src/review-round-cli.ts" withGoalplanWriteLock
-resolve_names "$pab/src/review-observer.ts" withGoalplanWriteLock
-resolve_names "$pab/test/orchestrate-cli.test.ts" goalplanWriteLockDir readGoalplan \
-  buildGoalplan writeGoalplan goalplanLedgerRows mkdirSync
-resolve_names "$pab/test/hook.test.ts" readGoalplan Goalplan goalplanLedgerRows \
-  buildGoalplan writeGoalplan spawn fileURLToPath
-resolve_names "$pab/test/goalplan-concurrency.test.ts" goalplanWriteLockDir \
-  goalplanWriteLockStatus withGoalplanWriteLock isAbsolute spawn
+test "$(unresolved_count)" -eq 0
 ```
 
-기대값은 두 `rg -q`가 exit 0, 존재하지 않는 이름 검색이 0건이라 부정 검사가 exit 0인 것이다.
+기대값은 여섯 export 선언 검사가 모두 exit 0이고 미해석 식별자 수가 0인 것이다. 이 게이트가
+무엇을 실제로 잡는지 `hook.test.ts` 임시 사본에 네 가지를 주입해 확인했다. 기준선 0에서
+누락 import `dirname` 1건, 누락 타입 `Goalplan` 1건, 다른 파일의 private helper
+`goalplanLedgerRows` 1건, 존재하지 않는 export `GoalplanWorkPhaseStatus` 1건이 각각 잡히고
+복원 뒤 다시 0이 된다. `TS2724`가 없으면 마지막 한 건이 빠져나가므로 네 코드를 모두 센다.
+
+이 게이트는 미해석 식별자만 본다. 타입 호환성, signature 불일치, 논리 오류는 잡지 않는다.
+그 부류는 focused suite와 `npm test`가 맡는다.
 
 ## 11. 완료 기준
 
