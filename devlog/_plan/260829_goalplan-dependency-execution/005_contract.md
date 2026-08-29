@@ -913,3 +913,69 @@ all-done에 marker를 도입하지 않는다. marker는 "닫는 중인 대상"�
 
 3번의 대상 조회는 "부재 시 거부하는 target 검증"이 아니라 "이미 커밋됐는지 판정하는 상태 확인"이다.
 §38 X2의 "target 조회 없이"는 이 뜻으로 읽는다.
+
+## 41. 라운드 11 — 공유 close helper가 게이트를 우회하지 않는다
+
+§40 Z1의 공유 helper를 넣은 뒤 재감사에서 새 BLOCKER가 나왔다. helper가 대상 존재만 확인하고 바로
+`done`으로 만들기 때문에, 그 helper를 직접 부르는 recovery가 `advanceWorkPhase()`의 pending-task
+거부와 `no_active` 판정을 건너뛴다. 감사관이 임시 적용본으로 실측했다: pending task가 있는 phase에
+`advanceWorkPhase()`는 `tasks_pending`을 내지만 `closeFixedWorkPhase()`는 `ok`를 내고 그 phase를 닫는다.
+
+도달 가능한 경로다. §39가 marker 이후의 편집을 인정하고 wp6 `add-task`가 live phase에 pending task를
+넣으므로, marker 직후 crash와 recovery 사이에 task가 추가되면 미완 task를 가진 phase가 닫힌다.
+
+| # | 심각도 | 지적 | 소유 |
+| --- | --- | --- | --- |
+| W1 | BLOCKER | `closeFixedWorkPhase()`가 pending task와 blocked/superseded 상태를 검사하지 않아 recovery가 두 거부를 우회한다 | wp5 |
+| W2 | BLOCKER | 050 §6.4 Z3 After가 `nextInjectedTurns`를 참조하는데 `hook.ts`에 그 식별자가 없다. 현재 코드는 객체 literal 안에서 `turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns`를 직접 계산한다 | wp5 |
+| W3 | BLOCKER | §3 실패 표가 CLI만 최초/최종화 락으로 나누고 채팅은 한 행으로 남아 §39 Y3와 어긋난다 | wp5 |
+| W4 | High | §40이 요구한 회귀 세 묶음이 050에 없다: 채팅 marker-직후 crash, all-done state-write 실패 후 재시도, Z3 필드와 same-turn dedup 단언 | wp5 |
+
+### W1 처분 — helper가 자기 게이트를 소유한다
+
+`closeFixedWorkPhase()`의 반환 타입을 넓혀 거부를 표현한다. 판정 소유가 호출자에 흩어지면 recovery
+경로가 다시 게이트를 놓친다.
+
+```ts
+export type CloseFixedResult =
+  | { kind: "ok"; plan: Goalplan; closedId: string }
+  | { kind: "absent" }
+  | { kind: "not_runnable"; status: GoalplanWorkPhaseStatus }
+  | { kind: "tasks_pending"; workPhaseId: string; pending: GoalplanTask[] };
+```
+
+- `absent`: 대상이 plan에 없다. recovery는 이미 커밋됐다고 판정해 plan write를 생략한다.
+- `not_runnable`: 대상이 `blocked` 또는 `superseded`다. 정상 경로에서는 `advanceWorkPhase()`가 애초에
+  이 대상을 고르지 않으므로 나타나지 않고, recovery에서는 marker 이후 상태가 바뀐 경우다.
+- `tasks_pending`: 대상에 미완 task가 남았다. 정상 경로의 기존 거부와 같은 의미다.
+- `ok`: 대상을 `done`으로 만들고 커서를 `advanceWorkPhase()`와 같은 after-then-wrap dependency 순서로
+  옮긴 plan을 돌려준다.
+
+확정 계약:
+
+- `advanceWorkPhase()`는 effective 커서로 대상을 정한 뒤 이 helper에 위임하고, `tasks_pending`을 기존
+  `AdvanceResult`의 같은 variant로 그대로 전달한다. 기존 거부 문구는 바뀌지 않는다.
+- recovery는 `tasks_pending`과 `not_runnable`에서 **marker를 지우지 않고 fail-closed한다.** 원장과
+  state를 바꾸지 않고 사람이 읽는 사유를 낸다. marker가 남으므로 운영자가 plan을 고친 뒤 같은 요청으로
+  정리를 끝낼 수 있다. marker를 지우면 복구 경로가 사라지므로 절대 지우지 않는다.
+- 회귀: marker 직후 crash 뒤 대상에 pending task를 추가하고 재시도하면 거부되고 marker가 남는지,
+  대상을 `blocked`로 바꾼 뒤 재시도해도 같은지 CLI·채팅 각각 단언한다.
+
+### W2 처분 — 존재하는 식만 인용한다
+
+050 §6.4의 state write After는 `nextInjectedTurns`를 새로 만들지 않는다. 현재 객체 literal의
+`injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns`를 그대로 옮겨
+쓴다. Before 블록에도 이 줄을 포함해 적층이 보이게 한다.
+
+### W3 처분 — 채팅도 두 행으로 나눈다
+
+§3 실패 표에 `채팅 D-close (최초 락)`과 `채팅 D-close (최종화 락)`을 별도 행으로 둔다. 최초 락은
+전이 없음 + 경고 + hook code 0, 최종화 락은 FSM이 이미 IDLE인 미완 보고 + marker 잔존 + hook code 0이다.
+표 아래 설명도 최초 락에만 한정한다.
+
+### W4 처분 — 요구한 회귀를 모두 적는다
+
+§40이 글로만 요구하고 050이 코드로 적지 않은 세 묶음을 추가한다. 채팅 seam에
+`afterRecoveryMarkerWrite`를 넣고, all-done 테스트에 state-write 실패와 재시도를 넣고, 채팅 state
+write 회귀에 `injectedTurns` 유지·Stop 필드 초기화·같은 turn 재실행 빈 출력을 단언한다. 추가 뒤 §10.1의
+개수 oracle을 실제 선언 수로 다시 계산한다.
