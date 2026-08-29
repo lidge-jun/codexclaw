@@ -448,7 +448,13 @@ export type CloseFixedResult =
   | { kind: "tasks_pending"; workPhaseId: string; pending: GoalplanTask[] }
   // §50: the marker named a successor this retry cannot use. Never fall back to a
   // different phase — that confirms a close the earlier attempt did not decide.
-  | { kind: "successor_lost"; successorId: string; reason: "absent" | "not_runnable" | "dependencies_unmet" };
+  | {
+      kind: "successor_lost";
+      successorId: string;
+      // §51 `corrupt` is separate because no plan edit fixes it: the marker itself is
+      // wrong, so the refusal must point at resetting rather than at the work-phase.
+      reason: "absent" | "not_runnable" | "dependencies_unmet" | "corrupt";
+    };
 
 /**
  * Close exactly `workPhaseId` and move the cursor the same way a normal advance
@@ -527,7 +533,7 @@ export function closeFixedWorkPhase(
     // activates the phase it just finished. Without this guard the done-successor rule
     // below swallows it, and for an OPEN target it silently nulls the cursor.
     if (recordedNext === workPhaseId) {
-      return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
+      return { kind: "successor_lost", successorId: recordedNext, reason: "corrupt" };
     }
     const named = closedWorkPhases.find((wp) => wp.id === recordedNext);
     if (!named) return { kind: "successor_lost", successorId: recordedNext, reason: "absent" };
@@ -726,12 +732,24 @@ function reconstructDcloseRecovery(raw: unknown, sessionId: string): DcloseRecov
       legacy: true,
     };
   }
+  // §51: a present-but-malformed value must NOT become an explicit null. `null` is an
+  // authoritative "this close had no successor", so promoting a number, an object, or an
+  // empty string to it would let a corrupt marker skip a real successor. Mark it the same
+  // way as a pre-field marker: unreadable intent, hand it to a human.
+  if (recorded !== null && (typeof recorded !== "string" || recorded.length === 0)) {
+    return {
+      sessionId,
+      checkEpoch: marker.checkEpoch,
+      closedWorkPhaseId: marker.closedWorkPhaseId,
+      nextWorkPhaseId: null,
+      legacy: true,
+    };
+  }
   return {
     sessionId,
     checkEpoch: marker.checkEpoch,
     closedWorkPhaseId: marker.closedWorkPhaseId,
-    nextWorkPhaseId:
-      typeof recorded === "string" && recorded.length > 0 ? recorded : null,
+    nextWorkPhaseId: recorded,
   };
 }
 
@@ -1100,7 +1118,7 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
             return {
               code: 1 as const,
               allDone: false as const,
-              output: `orchestrate D: the recovery marker for ${closePhaseId} predates the successor field, so this retry cannot tell whether the plan commit landed. The marker was kept; inspect the goalplan, set the work-phase statuses and activeWorkPhaseId by hand, then run \`cxc orchestrate reset\` to clear the marker. Nothing was written.`,
+              output: `orchestrate D: the recovery marker for ${closePhaseId} predates the successor field, so this retry cannot tell whether the plan commit landed. The marker was kept; inspect the goalplan, set the work-phase statuses and activeWorkPhaseId by hand, then run \`cxc orchestrate reset --session ${sessionId}\` to clear the marker. Nothing was written.`,
             };
           }
           // §39 Y1: the marker is written BEFORE the plan commit, so a matching
@@ -1153,6 +1171,15 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
             // refreshed the marker to whatever this retry chose instead, which let the
             // repair drift away from the write it was resuming.
             if (closed.kind === "successor_lost") {
+              // §51: a corrupt marker names no repairable work-phase, so it gets its own
+              // route out. The other three are fixed by editing the plan.
+              if (closed.reason === "corrupt") {
+                return {
+                  code: 1 as const,
+                  allDone: false as const,
+                  output: `orchestrate D: the recovery marker for ${closePhaseId} names that same work-phase as its successor, which no close can produce, so this retry cannot tell what to finish. The marker was kept; inspect the goalplan, set the work-phase statuses and activeWorkPhaseId by hand, then run \`cxc orchestrate reset --session ${sessionId}\` to clear the marker. Nothing was written.`,
+                };
+              }
               const detail = closed.reason === "absent"
                 ? "is no longer in the plan"
                 : closed.reason === "not_runnable"
@@ -1596,7 +1623,8 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
                 + `successor field, so this retry cannot tell whether the plan commit `
                 + `landed. The marker was kept; inspect the goalplan, set the work-phase `
                 + `statuses and activeWorkPhaseId by hand, then run `
-                + `\`cxc orchestrate reset\` to clear the marker. Nothing was written.]`,
+                + `\`cxc orchestrate reset --session ${payload.session_id}\` to clear the `
+                + `marker. Nothing was written.]`,
             ),
             advanced: null,
             allDone: false as const,
@@ -1660,6 +1688,22 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
         }
         // §50: same binding rule as the CLI.
         if (closed.kind === "successor_lost") {
+          // §51: same split as the CLI — a corrupt marker points at reset, not at a fix.
+          if (closed.reason === "corrupt") {
+            return {
+              output: buildContextOutput(
+                "UserPromptSubmit",
+                `[codexclaw — refused: the recovery marker for ${closePhaseId} names that `
+                  + `same work-phase as its successor, which no close can produce, so this `
+                  + `retry cannot tell what to finish. The marker was kept; inspect the `
+                  + `goalplan, set the work-phase statuses and activeWorkPhaseId by hand, `
+                  + `then run \`cxc orchestrate reset --session ${payload.session_id}\` to `
+                  + `clear the marker. Nothing was written.]`,
+              ),
+              advanced: null,
+              allDone: false as const,
+            };
+          }
           const detail = closed.reason === "absent"
             ? "is no longer in the plan"
             : closed.reason === "not_runnable"
@@ -3012,6 +3056,31 @@ test("wp5: a marker without the successor field restores as legacy", () => {
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
+test("wp5: a malformed successor value restores as legacy instead of an explicit null", () => {
+  // §51: promoting a corrupt value to null would give it the authority of "this close had
+  // no successor", letting a damaged marker skip a real one. Treat unreadable intent the
+  // same way as a pre-field marker.
+  const cwd = freshCwd();
+  try {
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "marker-malformed.json"), `${JSON.stringify({
+      ...defaultState("marker-malformed"),
+      checkEpoch: "c-malformed",
+      dcloseRecovery: {
+        sessionId: "marker-malformed",
+        checkEpoch: "c-malformed",
+        closedWorkPhaseId: "wp-1",
+        nextWorkPhaseId: 7,
+      },
+    })}\n`);
+
+    const restored = readState(cwd, "marker-malformed");
+
+    assert.equal(restored.dcloseRecovery?.legacy, true);
+    assert.equal(restored.dcloseRecovery?.nextWorkPhaseId, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
 test("wp5: an explicit null successor restores without the legacy flag", () => {
   // The counterpart: a §48 marker that honestly recorded "no successor" must NOT be
   // refused, because its history is unambiguous.
@@ -3654,6 +3723,37 @@ for (const forgery of [
   });
 }
 
+test("a marker naming its own target as successor points at reset, not at a plan fix", () => {
+  // §51: the other successor_lost reasons are cleared by editing the plan, but this one
+  // cannot be — the marker itself is wrong. So the refusal names a command that actually
+  // runs, including the --session every mutating verb requires.
+  const cwd = boundCwd();
+  const id = "recovery-self-successor";
+  const slug = "recovery-self-successor-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const statePath = join(cwd, STATE_DIR, SESSIONS_SUBDIR, `${id}.json`);
+  const seededState = JSON.parse(readFileSync(statePath, "utf8")) as Record<string, unknown>;
+  writeFileSync(statePath, `${JSON.stringify({
+    ...seededState,
+    dcloseRecovery: {
+      sessionId: id,
+      checkEpoch: "c-test-epoch",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-1",
+    },
+  })}\n`);
+  const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 1);
+  assert.match(result.output, /names that same work-phase as its successor/);
+  assert.match(result.output, new RegExp(`cxc orchestrate reset --session ${id}`));
+  assert.doesNotMatch(result.output, /restore that work-phase/);
+  assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-1");
+});
 test("recovery settles when the recorded successor already finished its own cycle", () => {
   // §51: a done successor is not a lost one. The recorded phase was started and then
   // closed by its own cycle, so refusing here would trap the session — escaping would
@@ -5465,20 +5565,20 @@ forgery_arity="$(
 test "$forgery_arity" -eq 2
 forgery_extra_cases=$((forgery_arity - 1))
 
-test "$added_existing_declarations" -eq 51
+test "$added_existing_declarations" -eq 53
 test "$new_file_declarations" -eq 9
 test "$parameterized_extra_cases" -eq 1
 test "$removed_declarations" -eq 5
 
 new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
 net_case_count=$((new_case_count - removed_declarations))
-test "$new_case_count" -eq 64
-test "$net_case_count" -eq 59
+test "$new_case_count" -eq 66
+test "$net_case_count" -eq 61
 
 focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
 focused_case_count=$((focused_declaration_count + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
-test "$focused_declaration_count" -eq 247
-test "$focused_case_count" -eq 251
+test "$focused_declaration_count" -eq 249
+test "$focused_case_count" -eq 253
 
 # 산술 기대값과 실제 등록 수를 대조한다. 이것이 없으면 케이스 하나가 누락된 채
 # 남은 전부가 통과해도 node가 exit 0을 내어 false-green이 된다.
@@ -5497,12 +5597,12 @@ test "$(rg -o '^. fail (\d+)$' -r '$1' "$focused_log" | tail -1)" -eq 0
 
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
-- 기존 파일 추가 선언 51개, 신규 파일 선언 9개
+- 기존 파일 추가 선언 53개, 신규 파일 선언 9개
 - 삭제 5개의 출처는 §8.2의 held-lock·release 2개와 §8.2.1의 drvfs·9p·native 3개다
 - 두 입력을 도는 parameterized 선언의 추가 등록 1개, scenario 배열 원소 3개에서 나오는 추가 등록 2개
-- 계획된 신규 케이스 64개, 삭제 5개, 순증 59개
-- 구현 뒤 선언 247개, 실제 focused 등록 251개
-- node test exit 0, tests 251, pass 251, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
+- 계획된 신규 케이스 66개, 삭제 5개, 순증 61개
+- 구현 뒤 선언 249개, 실제 focused 등록 253개
+- node test exit 0, tests 253, pass 253, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
 
 락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
 CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
@@ -5540,7 +5640,7 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값은 exit 0, tests 2226, pass 2226, fail 0이다. 기존 2167건과 wp5 순증 59건을 모두 실행하며,
+기대값은 exit 0, tests 2228, pass 2228, fail 0이다. 기존 2167건과 wp5 순증 61건을 모두 실행하며,
 루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
 
 ### 10.4 저장소 gate

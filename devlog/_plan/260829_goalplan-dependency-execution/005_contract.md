@@ -1507,8 +1507,8 @@ write도 하지 않고 아래 진단으로 거부한다.
 ```text
 orchestrate D: the recovery marker for wp-1 predates the successor field, so this retry
 cannot tell whether the plan commit landed. The marker was kept; inspect the goalplan,
-set the work-phase statuses and activeWorkPhaseId by hand, then run `cxc orchestrate reset`
-to clear the marker. Nothing was written.
+set the work-phase statuses and activeWorkPhaseId by hand, then run
+`cxc orchestrate reset --session <id>` to clear the marker. Nothing was written.
 ```
 
 이 경로가 실제로 도달 가능한 창은 좁다 — §48 이전 버전이 D-close 도중 죽고, 업그레이드 뒤 같은 세션이
@@ -1577,3 +1577,28 @@ plan만 고치면 같은 D 요청으로 마칠 수 있고, 그것이 거부 문�
 
 회귀 하나를 더 둔다. wp-1 marker가 남은 상태에서 wp-2를 정상 close한 뒤 그 marker로 재시도해 code 0과
 `already_done` 경로, 그리고 plan이 그대로임을 단언한다.
+
+감사관이 같은 라운드에서 두 가지를 더 지적했고 둘 다 실질이다.
+
+첫째, `nextWorkPhaseId` 키가 있는데 값이 숫자·객체·빈 문자열이면 §50 초안은 그것을 `null`로 승격했다.
+`null`은 "이 close에는 successor가 없었다"는 권위 있는 결정이므로, 손상된 marker가 정상 marker처럼
+행세해 실제 successor를 건너뛴다. 그래서 값 검증 실패는 네 번째 상태로 다룬다.
+
+| 지속된 값 | 판정 |
+| --- | --- |
+| 키 부재 | pre-§48 marker — fail-closed |
+| `null` | successor 없음이 확정됐다 |
+| 비어 있지 않은 문자열 | 기록된 successor |
+| 그 밖 | 손상된 marker — fail-closed |
+
+둘째, 거부 문구가 안내하는 `cxc orchestrate reset`이 실제로 실행되지 않는다. mutating verb는
+`--session <id>`가 필수이므로 그 인자 없는 명령은 code 1로 거부된다. 안내를
+`cxc orchestrate reset --session <id>`로 고친다.
+
+관련해서 self-successor marker의 탈출로도 손봤다. `successor_lost`의 다른 세 사유는 사람이 plan을
+고치면 풀리지만 이 경우는 marker 자체가 틀렸으므로 "그 work-phase를 복구하라"는 안내가 성립하지 않는다.
+전용 사유 `corrupt`를 두어 reset을 가리키게 한다.
+
+회귀 둘을 더 둔다. 하나는 `nextWorkPhaseId`가 숫자인 marker를 심어 `readStateStrict()`가 `legacy: true`로
+복원하고 CLI가 아무 write 없이 거부하는지 본다. 다른 하나는 self-successor marker에서 거부 문구가
+`--session`을 포함한 reset을 안내하는지 단언한다.
