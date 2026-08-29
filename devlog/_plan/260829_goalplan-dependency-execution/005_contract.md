@@ -1043,3 +1043,39 @@ const committed = fixed?.status === "done" && plan.activeWorkPhaseId !== closePh
 
 회귀는 두 표면 각각에 marker 직후 crash 뒤 status만 `done`으로 바꾸는 fixture를 두고, 재시도가
 커서를 successor로 옮기고 `started wp-2` 행을 남기며 거짓 `started wp-1`을 만들지 않는지 단언한다.
+
+## 43. 라운드 14 — commit 판정은 helper만 한다
+
+§42는 `done`만으로 commit을 단정하는 것을 막고 커서까지 함께 보게 했다. 그런데 커서가 실제로
+옮겨진 경우, 즉 plan commit이 정말 끝난 뒤 crash한 경우가 여전히 열려 있었다. 그때는 `committed`가
+참이므로 helper를 아예 호출하지 않는다.
+
+재현 상태는 아래다.
+
+- marker가 `wp-1`을 지목
+- plan commit 완료: `wp-1=done`, `wp-2=in_progress`, 커서 `wp-2`
+- 재시도 전 손편집으로 `wp-1`에 pending task 추가
+
+D-close가 호출하는 두 integrity helper는 이 상태를 거부하지 않는다. `goalplan.ts:943`의
+`doneWorkPhasesWithPendingTasks()`가 바로 이 모양을 잡는 함수인데 D-close 경로가 쓰지 않는다.
+실측 preflight는 `definition: []`, `dependency: []`, `doneWithPending: ["wp-1"]`이었다. 그래서
+recovery가 `workphase_done` 원장과 IDLE state를 확정하고, plan에는 pending task를 숨긴 done phase가
+남는다. 기존 pending·blocked·dependency 회귀는 모두 target이 아직 `in_progress`인 marker 직후만
+검사하므로 이 분기를 잡지 못한다.
+
+처분: **호출자는 commit 여부를 판정하지 않는다.** 고정 대상이 plan에 있으면 status와 무관하게 항상
+`closeFixedWorkPhase()`를 호출한다. helper는 not_runnable·dependencies_unmet·tasks_pending 세
+게이트를 먼저 통과시킨 뒤에만, 그리고 대상이 `done`이고 커서가 대상을 벗어난 경우에만
+`already_done`을 답한다. `already_done`은 plan write가 필요 없다는 뜻이며 그 판단은 게이트 뒤에서만
+나온다.
+
+```ts
+if (current.status === "done" && plan.activeWorkPhaseId !== workPhaseId) {
+  return { kind: "already_done" };
+}
+```
+
+`already_done`과 `absent`는 둘 다 plan write 없이 남은 정리만 진행한다. CLI와 채팅이 같다.
+
+회귀는 두 표면 각각에 plan commit 뒤 crash를 주입하고, done인 `wp-1`에 pending task를 넣은 뒤
+재시도가 `tasks_pending`으로 거부되고 marker가 남는지 단언한다.

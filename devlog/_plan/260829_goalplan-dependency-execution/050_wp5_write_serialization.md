@@ -425,6 +425,9 @@ BLOCKER다. 두 경로가 같은 함수를 쓰면 그 어긋남 자체가 불가
 ```ts
 export type CloseFixedResult =
   | { kind: "ok"; plan: Goalplan; closedId: string }
+  // §43: the commit already landed and every gate still holds. No plan write is
+  // needed, but the caller only learns that AFTER the gates ran.
+  | { kind: "already_done" }
   | { kind: "absent" }
   | { kind: "not_runnable"; status: WorkPhaseStatus }
   | { kind: "dependencies_unmet"; unmet: string[] }
@@ -471,6 +474,13 @@ export function closeFixedWorkPhase(
   // the phase open on both the normal path and a recovery retry.
   const pending = current.tasks.filter((task) => task.status !== "done");
   if (pending.length > 0) return { kind: "tasks_pending", workPhaseId, pending };
+
+  // §43: only NOW is it safe to say a done target needs no write. Callers used to
+  // make that call themselves from status alone, which skipped all three gates
+  // above — a pending task added to an already-closed phase went unnoticed.
+  if (current.status === "done" && plan.activeWorkPhaseId !== workPhaseId) {
+    return { kind: "already_done" };
+  }
 
   const closedWorkPhases = plan.workPhases.map((wp) =>
     wp.id === workPhaseId ? { ...wp, status: "done" as const, tasks: wp.tasks } : wp
@@ -986,13 +996,12 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
           // the normal path uses. Fixing up only the target's status left
           // activeWorkPhaseId on a done phase and logged a false started row.
           const fixed = plan.workPhases.find((workPhase) => workPhase.id === closePhaseId);
-          // §42: `done` alone is NOT proof the plan commit landed. A hand edit that
-          // sets only the status leaves the cursor on the target, and skipping the
-          // helper then writes a false `started <target>` row. The commit is proven
-          // only when the cursor has ALSO moved off the target, which is exactly what
-          // closeFixedWorkPhase() does. Otherwise re-run the helper; it is idempotent.
-          const committed = fixed?.status === "done" && plan.activeWorkPhaseId !== closePhaseId;
-          if (fixed && !committed) {
+          // §42/§43: the caller never decides whether the commit landed. Status alone
+          // is not proof — a status-only edit keeps the cursor on the target — and even
+          // a genuine commit can be edited afterwards to hide a pending task under a
+          // done phase. So the helper runs whenever the target exists, and it answers
+          // `already_done` only after its three gates pass.
+          if (fixed) {
             const closed = closeFixedWorkPhase(plan, closePhaseId);
             // §41 W1: a target that gained a pending task or became blocked after its
             // marker is FAIL-CLOSED, and the marker is deliberately left in place so
@@ -1448,10 +1457,10 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
         // so the recovered plan matches what a normal close would have written —
         // cursor moved, successor in_progress, and a truthful started row.
         const fixed = plan.workPhases.find((workPhase) => workPhase.id === closePhaseId);
-        // §42: same commit test as the CLI. A status-only edit keeps the cursor on the
-        // target, so `done` by itself would skip every gate and log a false started row.
-        const committed = fixed?.status === "done" && plan.activeWorkPhaseId !== closePhaseId;
-        const closed = fixed && !committed
+        // §42/§43: same rule as the CLI. The helper decides, not the caller, so both
+        // a status-only edit and a pending task hidden under an already-closed phase
+        // are caught. `already_done` comes back only after all three gates pass.
+        const closed = fixed
           ? closeFixedWorkPhase(plan, closePhaseId)
           : { kind: "absent" as const };
         // §41 W1: same fail-closed rule as the CLI. The marker stays so the operator
@@ -3172,6 +3181,49 @@ test("recovery is refused when the fixed target lost a dependency after its mark
   assert.deepEqual(goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done"), []);
 });
 
+test("recovery is refused when a pending task is hidden under the already-closed target", () => {
+  // §43: the plan commit really landed here — wp-1 is done and the cursor moved to
+  // wp-2 — so a caller-side commit test would skip the helper entirely. Neither
+  // integrity helper D-close calls rejects a done phase holding an open task
+  // (goalplan.ts:943 owns that shape and this path never called it), so the gate has
+  // to come from closeFixedWorkPhase() running unconditionally.
+  const cwd = boundCwd();
+  const id = "recovery-done-hides-pending";
+  const slug = "recovery-done-hides-pending-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterGoalplanCommit: () => { throw new Error("fail after goalplan commit"); },
+    }),
+    /fail after goalplan commit/,
+  );
+
+  // The commit landed before the crash: target done, cursor already on the successor.
+  const plan = readGoalplan(cwd, slug)!;
+  assert.equal(plan.workPhases.find((wp) => wp.id === "wp-1")!.status, "done");
+  assert.equal(plan.activeWorkPhaseId, "wp-2");
+  writeGoalplan(cwd, {
+    ...plan,
+    workPhases: plan.workPhases.map((wp) =>
+      wp.id === "wp-1"
+        ? { ...wp, tasks: [...wp.tasks, { id: "t-hidden", title: "snuck in", status: "pending" as const }] }
+        : wp
+    ),
+  });
+  const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 1);
+  assert.match(retry.output, /recovery target wp-1 gained 1 open task\(s\) after its marker was written/);
+  assert.match(retry.output, /The recovery marker was kept/);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.notEqual(readState(cwd, id).dcloseRecovery, null);
+  assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+});
+
 test("recovery re-runs the close when only the target status was edited to done", () => {
   // §42: `done` alone is not proof the plan commit landed. A status-only edit leaves
   // the cursor on wp-1, so treating `done` as committed would skip the helper and
@@ -4047,6 +4099,47 @@ test("chat D-close retry after the recovery marker write matches an uninterrupte
   }
 });
 
+test("chat recovery is refused when a pending task is hidden under the closed target", () => {
+  // §43: the chat surface shares the rule. The commit landed, so only an
+  // unconditional closeFixedWorkPhase() call can still see the open task.
+  const cwd = gitRepoForHook();
+  try {
+    const id = "chat-done-hides-pending";
+    const slug = "chat-done-hides-pending-plan";
+    const attest = seedChatCycleAtC(cwd, id, slug);
+
+    assert.throws(
+      () => handleUserPromptSubmit(
+        ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"),
+        process.platform,
+        { afterGoalplanCommit: () => { throw new Error("stop after the goalplan commit"); } },
+      ),
+      /stop after the goalplan commit/,
+    );
+
+    const plan = readGoalplan(cwd, slug)!;
+    assert.equal(plan.workPhases.find((wp) => wp.id === "wp-1")!.status, "done");
+    assert.equal(plan.activeWorkPhaseId, "wp-2");
+    writeGoalplan(cwd, {
+      ...plan,
+      workPhases: plan.workPhases.map((wp) =>
+        wp.id === "wp-1"
+          ? { ...wp, tasks: [{ id: "t-hidden", title: "snuck in", status: "pending" as const }] }
+          : wp
+      ),
+    });
+    const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+
+    const out = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "t2"));
+
+    assert.match(out, /gained 1 open task\(s\) after its marker was written/);
+    assert.match(out, /The recovery marker was kept/);
+    assert.equal(readState(cwd, id).phase, "C");
+    assert.notEqual(readState(cwd, id).dcloseRecovery, null);
+    assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
 test("chat recovery re-runs the close when only the target status was edited to done", () => {
   // §42: the chat surface shares the commit test. A status-only edit keeps the cursor
   // on wp-1, so treating `done` as committed would log a false `started wp-1`.
@@ -4638,20 +4731,20 @@ scenario_arity="$(
 test "$scenario_arity" -eq 3
 scenario_extra_cases=$((scenario_arity - 1))
 
-test "$added_existing_declarations" -eq 40
+test "$added_existing_declarations" -eq 42
 test "$new_file_declarations" -eq 6
 test "$parameterized_extra_cases" -eq 1
 test "$removed_declarations" -eq 5
 
 new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases + scenario_extra_cases))
 net_case_count=$((new_case_count - removed_declarations))
-test "$new_case_count" -eq 49
-test "$net_case_count" -eq 44
+test "$new_case_count" -eq 51
+test "$net_case_count" -eq 46
 
 focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
 focused_case_count=$((focused_declaration_count + parameterized_extra_cases + scenario_extra_cases))
-test "$focused_declaration_count" -eq 233
-test "$focused_case_count" -eq 236
+test "$focused_declaration_count" -eq 235
+test "$focused_case_count" -eq 238
 
 # 산술 기대값과 실제 등록 수를 대조한다. 이것이 없으면 케이스 하나가 누락된 채
 # 남은 전부가 통과해도 node가 exit 0을 내어 false-green이 된다.
@@ -4670,12 +4763,12 @@ test "$(rg -o '^. fail (\d+)$' -r '$1' "$focused_log" | tail -1)" -eq 0
 
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
-- 기존 파일 추가 선언 40개, 신규 파일 선언 6개
+- 기존 파일 추가 선언 42개, 신규 파일 선언 6개
 - 삭제 5개의 출처는 §8.2의 held-lock·release 2개와 §8.2.1의 drvfs·9p·native 3개다
 - 두 입력을 도는 parameterized 선언의 추가 등록 1개, scenario 배열 원소 3개에서 나오는 추가 등록 2개
-- 계획된 신규 케이스 49개, 삭제 5개, 순증 44개
-- 구현 뒤 선언 233개, 실제 focused 등록 236개
-- node test exit 0, tests 236, pass 236, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
+- 계획된 신규 케이스 51개, 삭제 5개, 순증 46개
+- 구현 뒤 선언 235개, 실제 focused 등록 238개
+- node test exit 0, tests 238, pass 238, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
 
 락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
 CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
@@ -4713,7 +4806,7 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값은 exit 0, tests 2211, pass 2211, fail 0이다. 기존 2167건과 wp5 순증 44건을 모두 실행하며,
+기대값은 exit 0, tests 2213, pass 2213, fail 0이다. 기존 2167건과 wp5 순증 46건을 모두 실행하며,
 루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
 
 ### 10.4 저장소 gate
