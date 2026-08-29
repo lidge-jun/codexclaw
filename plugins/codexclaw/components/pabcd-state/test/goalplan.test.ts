@@ -955,7 +955,9 @@ test("wp7 preservation: show renders the write lock path and age", () => {
       parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
     );
     assert.equal(present.code, 0);
-    assert.match(present.output, new RegExp(`^writeLock: present path=${escapeRe(lockDir)} ageMs=\\d+$`, "m"));
+    // ageMs가 nowMs - statSync().mtimeMs라 1ms 미만이면 소수점이 붙는다(실측 ageMs=0.017333984375).
+    // \\d+만 기다리면 방금 만든 락에서 간헐 실패한다.
+    assert.match(present.output, new RegExp(`^writeLock: present path=${escapeRe(lockDir)} ageMs=\\d+(?:\\.\\d+)?$`, "m"));
 
     // 기존 요약 줄은 두 경우 모두 그대로다. 새 줄이 기존 출력을 밀어내지 않는다.
     for (const out of [absent.output, present.output]) {

@@ -939,6 +939,16 @@ wp7은 production을 고치지 않는다(§0 범위). 테스트 2건만 더한�
 첫 구현을 실측해 `cxc-wp7-*` 임시 디렉터리 42개가 남는 것을 찾았다. 이 파일의 다른 테스트들이 회수하지
 않는다는 것은 이 두 건의 면허가 아니다 — 새로 넣는 것은 새 규칙을 따른다.
 
+`ageMs` 단언은 `\d+(?:\.\d+)?`다. `\d+`만 기다리면 간헐 실패한다 — `goalplanWriteLockStatus()`가
+`nowMs - statSync().mtimeMs`를 그대로 담고 `statSync().mtimeMs`가 부동소수라, 방금 만든 락은 나이가
+1ms 미만이라 소수점이 붙는다. 감사관이 `ageMs=0.017333984375`로 실패하는 실행을 잡았다. 정수만 오는
+값처럼 보여도 production이 정수화하지 않으면 정수를 기다리면 안 된다.
+
+회수와 소수점을 함께 고친 뒤 순서를 섞어 8회 + 6파일 8회 = 16회를 돌려 전부 fail 0을 확인했다. 고치기
+전에는 같은 순서에서 6회 중 1회가 `orchestrate-cli`의 D-close recovery 4건을 포함해 9건을 떨어뜨렸다 —
+남은 임시 디렉터리가 다른 테스트의 상태를 흔든 것이다. 부모 커밋 `887cfdb3`은 같은 순서 8회 전부
+통과였으므로 그 흔들림은 wp7이 들여온 것이다.
+
 ```ts
 test("wp7 preservation: show renders the write lock path and age", () => {
   const cwd = mkdtempSync(join(tmpdir(), "cxc-wp7-lock-"));
@@ -961,7 +971,9 @@ test("wp7 preservation: show renders the write lock path and age", () => {
       parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
     );
     assert.equal(present.code, 0);
-    assert.match(present.output, new RegExp(`^writeLock: present path=${escapeRe(lockDir)} ageMs=\\d+$`, "m"));
+    // ageMs가 nowMs - statSync().mtimeMs라 1ms 미만이면 소수점이 붙는다(실측 ageMs=0.017333984375).
+    // \\d+만 기다리면 방금 만든 락에서 간헐 실패한다.
+    assert.match(present.output, new RegExp(`^writeLock: present path=${escapeRe(lockDir)} ageMs=\\d+(?:\\.\\d+)?$`, "m"));
 
     // 기존 요약 줄은 두 경우 모두 그대로다. 새 줄이 기존 출력을 밀어내지 않는다.
     for (const out of [absent.output, present.output]) {
