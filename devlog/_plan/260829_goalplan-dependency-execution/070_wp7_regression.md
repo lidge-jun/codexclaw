@@ -239,8 +239,10 @@ NODE
 enum 문자열 오탐          넓힌 경로 정규식이 in_progress·logic 둘 다 false
 ```
 
-실효 방어선은 이 정규식이 아니라 alias 불변식이다 — wp2 테스트의 `assertAliased()`가 91개 fixture에
-enum·`fixture-N`·`fixture-N-string-NNNN` 밖의 문자열이 0건임을 강제한다. 이 게이트는 이중 확인이며,
+실효 방어선은 이 정규식이 아니라 alias 불변식이다 — `test/goalplan.test.ts:314`의 `assertAliased()`가
+91개 fixture에 enum·`fixture-N`·`fixture-N-string-NNNN` 밖의 문자열이 0건임을 강제한다. 소유 테스트는
+같은 파일 `:268`의 `schema v3: pre-change baseline records a private-data-free manifest and parser
+results`이고 wp2가 넣었다. 이 게이트는 이중 확인이며,
 이중 확인이 도달 불가면 이중이 아니다.
 
 생성기 `capture-goalplan-baseline.mjs`의 `PRIVACY_PATTERNS`도 같은 세 결함을 갖고 있다. wp7은
