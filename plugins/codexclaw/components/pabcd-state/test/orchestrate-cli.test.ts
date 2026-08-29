@@ -739,7 +739,18 @@ function seedBoundCycleAtC(cwd: string, id: string, slug: string, taskStatus: "p
   const plan = buildGoalplan({ objective: "cycle completion gate" });
   plan.slug = slug;
   plan.workPhases = [
-    { id: "wp-1", title: "first", status: "in_progress", tasks: [{ id: "t-1", title: "the work", status: taskStatus }], criteriaIds: [] },
+    {
+      id: "wp-1",
+      title: "first",
+      status: "in_progress",
+      tasks: [{
+        id: "t-1",
+        title: "the work",
+        status: taskStatus,
+        ...(taskStatus === "done" ? { outcome: "focused tests passed" } : {}),
+      }],
+      criteriaIds: [],
+    },
     { id: "wp-2", title: "second", status: "pending", tasks: [], criteriaIds: [] },
   ];
   plan.activeWorkPhaseId = "wp-1";
@@ -806,7 +817,8 @@ test("D-close succeeds once the tasks are done, closing the phase and starting t
   assert.ok(!("error" in args));
   const r = runOrchestrateCli(args as never);
 
-  assert.equal(r.code, 0);
+  assert.equal(r.code, 0, r.output);
+  assert.match(r.output, /close target wp-1 is complete/);
   assert.equal(readState(cwd, id).phase, "IDLE");
   const plan = JSON.parse(readFileSync(goalplanPath(cwd, "cycle-gate-done"), "utf8"));
   assert.equal(plan.workPhases[0].status, "done");
@@ -855,7 +867,11 @@ test("D-close succeeds when every work-phase is already done", () => {
   const r = runOrchestrateCli(args as never);
 
   assert.equal(r.code, 0, r.output);
+  // 050 wp5 §40 Z2: an all-done plan closes the cycle only. It mints no recovery
+  // marker, and the deadlock wording belongs to a plan that still has open work.
+  assert.doesNotMatch(r.output, /blocked or superseded/);
   assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
   assert.equal(ledgerLines(cwd).length, 1);
 });
 
@@ -915,6 +931,13 @@ test("an unbound (HITL) session closes its cycle exactly as before", () => {
   const r = runOrchestrateCli(args as never);
 
   assert.equal(r.code, 0);
+  // 050 wp5 §35-1: an unbound close never touches the goalplan lock, so it keeps the
+  // pre-wp5 wording. The bound path is the only one that reports a close target.
+  assert.equal(
+    r.output,
+    `orchestrate D: current=C -> IDLE (C → IDLE, cycle closed, session ${id})`,
+  );
+  assert.doesNotMatch(r.output, /close target/);
   assert.equal(readState(cwd, id).phase, "IDLE");
 });
 
