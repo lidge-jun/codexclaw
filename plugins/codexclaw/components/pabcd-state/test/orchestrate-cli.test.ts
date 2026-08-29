@@ -19,6 +19,19 @@ import { captureSourceIdentity } from "../src/source-identity.ts";
 import { RENDER_OBS_FILE } from "../src/render-observations.ts";
 import { defaultInterview, DIMENSIONS } from "../src/interview.ts";
 
+const expectedTaskFields = [
+  { id: "t-1", dependsOn: [], outcome: "first task verified" },
+  { id: "t-2", dependsOn: ["t-1"], outcome: "second task verified" },
+];
+
+function taskFields(plan: { workPhases: Array<{ tasks: Array<{
+  id: string;
+  dependsOn?: string[];
+  outcome?: string;
+}> }> }) {
+  return plan.workPhases[0].tasks.map(({ id, dependsOn, outcome }) => ({ id, dependsOn, outcome }));
+}
+
 // Build an interview-ready tracker (maxed dims, empty contradictions, a scan recorded)
 // so readState() derives flags.interview=true (it ignores a persisted flag — the tracker
 // is the single source of truth).
@@ -2618,4 +2631,29 @@ test("P-to-A continues when stale-round housekeeping cannot acquire the common l
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
+});
+
+test("wp7 preservation: CLI D-close keeps dependsOn and outcome", () => {
+  const cwd = boundCwd();
+  const id = "wp7-cli-d";
+  const slug = "wp7-cli-d";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const seeded = readGoalplan(cwd, slug)!;
+  seeded.schemaVersion = 3;
+  seeded.workPhases[0].tasks = [
+    { id: "t-1", title: "first", status: "done", dependsOn: [], outcome: "first task verified" },
+    { id: "t-2", title: "second", status: "done", dependsOn: ["t-1"], outcome: "second task verified" },
+  ];
+  writeGoalplan(cwd, seeded);
+
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", dAttest(id)], cwd);
+  assert.ok(!("error" in args));
+  const result = runOrchestrateCli(args as never);
+
+  assert.equal(result.code, 0, result.output);
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  const saved = readGoalplan(cwd, slug)!;
+  assert.equal(saved.workPhases[0].status, "done");
+  assert.equal(saved.workPhases[1].status, "in_progress");
+  assert.deepEqual(taskFields(saved), expectedTaskFields);
 });

@@ -31,6 +31,19 @@ import { spawn, spawnSync } from "node:child_process";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { readFileSync } from "node:fs";
 
+const expectedTaskFields = [
+  { id: "t-1", dependsOn: [], outcome: "first task verified" },
+  { id: "t-2", dependsOn: ["t-1"], outcome: "second task verified" },
+];
+
+function taskFields(plan: { workPhases: Array<{ tasks: Array<{
+  id: string;
+  dependsOn?: string[];
+  outcome?: string;
+}> }> }) {
+  return plan.workPhases[0].tasks.map(({ id, dependsOn, outcome }) => ({ id, dependsOn, outcome }));
+}
+
 function freshCwd(): string {
   return mkdtempSync(join(tmpdir(), "codexclaw-hook-"));
 }
@@ -1766,4 +1779,43 @@ test("a second chat recovery contends while the first finalizer callback is held
     );
     assert.equal(readState(cwd, id).dcloseRecovery, null);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("wp7 preservation: chat D-close keeps dependsOn and outcome", () => {
+  const cwd = gitRepoForHook();
+  try {
+    const slug = "wp7-chat-d";
+    const plan = buildGoalplan({ objective: "wp7 chat D" });
+    plan.slug = slug;
+    plan.schemaVersion = 3;
+    plan.workPhases = [{
+      id: "wp-1", title: "first", status: "in_progress", criteriaIds: [],
+      tasks: [
+        { id: "t-1", title: "first", status: "done", dependsOn: [], outcome: "first task verified" },
+        { id: "t-2", title: "second", status: "done", dependsOn: ["t-1"], outcome: "second task verified" },
+      ],
+    }];
+    plan.activeWorkPhaseId = "wp-1";
+    writeGoalplan(cwd, plan);
+    writeState(cwd, {
+      ...defaultState("wp7-chat-d"), phase: "C", slug, orchestrationActive: true,
+      checkEpoch: "wp7-check", flags: { interview: false, auditPassed: true, checkPassed: true },
+    });
+    seedChatReceipt(cwd, "wp7-chat-d", "wp7-check");
+    const attest = JSON.stringify({
+      from: "C", to: "D", did: "ran wp7 suite", checkOutput: "12 passed", exitCode: 0,
+      workPhaseId: "wp-1",
+      testReceiptPath: ".codexclaw/evidence/wp7-chat-d/test-receipt.json",
+    });
+
+    const output = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, "wp7-chat-d", "turn-1"));
+
+    assert.doesNotMatch(output, /refused/);
+    assert.equal(readState(cwd, "wp7-chat-d").phase, "IDLE");
+    const saved = readGoalplan(cwd, slug)!;
+    assert.equal(saved.workPhases[0].status, "done");
+    assert.deepEqual(taskFields(saved), expectedTaskFields);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });

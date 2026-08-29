@@ -17,6 +17,19 @@ import { applySteeringBatch, type SteerResult } from "../src/steering.ts";
 import { parseGoalplanCliArgs, runGoalplanCli } from "../src/goalplan-cli.ts";
 import { defaultState, writeState } from "../src/state.ts";
 
+const expectedTaskFields = [
+  { id: "t-1", dependsOn: [], outcome: "first task verified" },
+  { id: "t-2", dependsOn: ["t-1"], outcome: "second task verified" },
+];
+
+function taskFields(plan: { workPhases: Array<{ tasks: Array<{
+  id: string;
+  dependsOn?: string[];
+  outcome?: string;
+}> }> }) {
+  return plan.workPhases[0].tasks.map(({ id, dependsOn, outcome }) => ({ id, dependsOn, outcome }));
+}
+
 const OBJECTIVE = "steering fixture";
 const SLUG = buildGoalplan({ objective: OBJECTIVE }).slug;
 
@@ -376,4 +389,26 @@ test("duplicate dependencies are rejected before write", () => {
     "ops[0].dependsOn must not contain duplicate ids");
   assert.equal(readFileSync(join(goalplanDir(cwd, SLUG), "goalplan.json"), "utf8"), beforePlan);
   assert.equal(ledgerText(cwd), beforeLedger);
+});
+
+test("wp7 preservation: steering RMW keeps dependsOn and outcome", () => {
+  const cwd = workspace();
+  const seeded = readGoalplan(cwd, SLUG)!;
+  seeded.schemaVersion = 3;
+  seeded.workPhases = [{
+    id: "wp-1", title: "first", status: "in_progress", criteriaIds: [],
+    tasks: [
+      { id: "t-1", title: "first", status: "done", dependsOn: [], outcome: "first task verified" },
+      { id: "t-2", title: "second", status: "done", dependsOn: ["t-1"], outcome: "second task verified" },
+    ],
+  }];
+  seeded.activeWorkPhaseId = "wp-1";
+  writeGoalplan(cwd, seeded);
+
+  const result = applySteeringBatch(cwd, SLUG, batch(), { now: () => "2026-08-29T00:00:00.000Z" });
+
+  assert.equal(result.kind, "applied");
+  const saved = readGoalplan(cwd, SLUG)!;
+  assert.equal(saved.steeringLog?.length, 1);
+  assert.deepEqual(taskFields(saved), expectedTaskFields);
 });

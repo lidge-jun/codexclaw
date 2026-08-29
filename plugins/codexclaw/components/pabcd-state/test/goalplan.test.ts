@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, existsSync, readFileSync, mkdirSync, writeFileSync, symlinkSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, mkdirSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -21,11 +21,19 @@ import {
   effectiveActiveWorkPhaseId,
   effectiveSchemaVersion,
   type Goalplan,
+  goalplanWriteLockDir,
+  goalplanWriteLockStatus,
 } from "../src/goalplan.ts";
 import { deriveSlug } from "../src/freeze.ts";
-import { parseGoalplanCliArgs, runGoalplanCli } from "../src/goalplan-cli.ts";
+import { parseGoalplanCliArgs, runGoalplanCli, type GoalplanCliArgs } from "../src/goalplan-cli.ts";
 import { readState } from "../src/state.ts";
 import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-support.ts";
+
+const NOW = "2026-08-29T00:00:00.000Z";
+
+function escapeRe(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), "cxc-goalplan-"));
@@ -924,4 +932,58 @@ test("wp4 compatibility: v2 plans without dependsOn keep the v1 selection result
   ];
   assert.equal(effectiveActiveWorkPhaseId(plan), "wp2");
   assert.equal(nextOpenTask(plan)?.task.id, "t2");
+});
+
+test("wp7 preservation: show renders the write lock path and age", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-wp7-lock-"));
+  const plan = buildGoalplan({ objective: "Ship the loop", criteria: [], now: () => NOW });
+  writeGoalplan(cwd, plan);
+
+  // 락 없음: absent 줄이 절대 경로를 담고 ageMs를 붙이지 않는다.
+  const absent = runGoalplanCli(
+    parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
+  );
+  assert.equal(absent.code, 0);
+  const lockDir = goalplanWriteLockDir(cwd, plan.slug);
+  assert.match(absent.output, new RegExp(`^writeLock: absent path=${escapeRe(lockDir)}$`, "m"));
+  assert.doesNotMatch(absent.output, /ageMs=/);
+
+  // 락 있음: present 줄이 같은 경로와 숫자 나이를 담는다.
+  mkdirSync(lockDir, { recursive: true });
+  const present = runGoalplanCli(
+    parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
+  );
+  assert.equal(present.code, 0);
+  assert.match(present.output, new RegExp(`^writeLock: present path=${escapeRe(lockDir)} ageMs=\\d+$`, "m"));
+
+  // 기존 요약 줄은 두 경우 모두 그대로다. 새 줄이 기존 출력을 밀어내지 않는다.
+  for (const out of [absent.output, present.output]) {
+    assert.match(out, /^\[codexclaw loop: /m);
+    assert.match(out, /^criteria: 0 \(unmet 0\)$/m);
+    assert.match(out, /^complete: /m);
+  }
+});
+
+test("wp7 preservation: show survives a lock that vanishes between exists and stat", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-wp7-race-"));
+  const plan = buildGoalplan({ objective: "Ship the loop", criteria: [], now: () => NOW });
+  writeGoalplan(cwd, plan);
+  const lockDir = goalplanWriteLockDir(cwd, plan.slug);
+  mkdirSync(lockDir, { recursive: true });
+
+  // exists 뒤 stat 사이에 락이 사라지는 경우. 주입 seam은 wp5가 만든 네 번째 인자다.
+  const status = goalplanWriteLockStatus(cwd, plan.slug, Date.now(), () => {
+    const err = new Error("ENOENT") as NodeJS.ErrnoException;
+    err.code = "ENOENT";
+    throw err;
+  });
+  assert.deepEqual(status, { path: lockDir, exists: false, ageMs: null });
+
+  // 그 정규화가 렌더까지 전달되는지: show는 예외 없이 absent를 낸다.
+  rmSync(lockDir, { recursive: true, force: true });
+  const rendered = runGoalplanCli(
+    parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
+  );
+  assert.equal(rendered.code, 0);
+  assert.match(rendered.output, new RegExp(`^writeLock: absent path=${escapeRe(lockDir)}$`, "m"));
 });
