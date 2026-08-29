@@ -940,7 +940,7 @@ all-done에 marker를 도입하지 않는다. marker는 "닫는 중인 대상"�
 export type CloseFixedResult =
   | { kind: "ok"; plan: Goalplan; closedId: string }
   | { kind: "absent" }
-  | { kind: "not_runnable"; status: GoalplanWorkPhaseStatus }
+  | { kind: "not_runnable"; status: WorkPhaseStatus }
   | { kind: "tasks_pending"; workPhaseId: string; pending: GoalplanTask[] };
 ```
 

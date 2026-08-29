@@ -426,7 +426,7 @@ BLOCKER다. 두 경로가 같은 함수를 쓰면 그 어긋남 자체가 불가
 export type CloseFixedResult =
   | { kind: "ok"; plan: Goalplan; closedId: string }
   | { kind: "absent" }
-  | { kind: "not_runnable"; status: GoalplanWorkPhaseStatus }
+  | { kind: "not_runnable"; status: WorkPhaseStatus }
   | { kind: "dependencies_unmet"; unmet: string[] }
   | { kind: "tasks_pending"; workPhaseId: string; pending: GoalplanTask[] };
 
@@ -4726,6 +4726,29 @@ tracked이므로 이전 초안의 `?? …050….md` 기대는 거짓이었고, �
 | `test/state.test.ts` | import 변경 없음. |
 | `plugins/codexclaw/test/hook-e2e.test.mjs` | import 변경 없음. persisted state exact shape만 갱신한다. |
 | `test/orchestrate-apply.test.ts` | import 변경 없음. |
+
+`node --experimental-strip-types`는 타입 주석을 지우고 실행하므로 존재하지 않는 타입 이름을 참조해도
+focused suite와 `npm test`가 모두 통과한다. 이 문서의 초안이 실제로 `GoalplanWorkPhaseStatus`를 썼고
+정본은 `goalplan.ts:65`의 `WorkPhaseStatus`였는데, 락 게이트 네 단계 전부가 조용히 통과했다.
+저장소에는 typecheck script도 tsconfig도 없어 이 부류를 잡는 표면이 없다. 그러므로 wp5가 새로
+도입하는 타입 이름은 실제 export와 대조한다.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+cd /Users/jun/Developer/new/700_projects/codexclaw
+
+src=plugins/codexclaw/components/pabcd-state/src/goalplan.ts
+
+# CloseFixedResult가 인용하는 타입은 같은 모듈이 실제로 export하는 이름이어야 한다.
+rg -q '^export type WorkPhaseStatus = ' "$src"
+rg -q '^export interface GoalplanTask ' "$src"
+# 검색 대상은 소스와 테스트뿐이다. 이 문서 본문에는 위 설명이 그 이름을 인용하므로
+# devlog를 포함하면 검사가 영구히 실패한다.
+! rg -n 'GoalplanWorkPhaseStatus' plugins/codexclaw/components
+```
+
+기대값은 두 `rg -q`가 exit 0, 존재하지 않는 이름 검색이 0건이라 부정 검사가 exit 0인 것이다.
 
 ## 11. 완료 기준
 
