@@ -615,7 +615,14 @@ function applyOps(plan: Goalplan, ops: SteerOp[]): { plan: Goalplan } | { error:
         },
       ];
       const next: Goalplan = { ...plan, criteria: candidateCriteria, workPhases };
-      const reasons = goalplanDefinitionIntegrityReasons(next);
+      // 감사 라운드 1 High: lifecycle과 `ready`는 두 helper를 다 보는데 steering만 definition만
+      // 봤다. 실측 반례: leaf가 done이고 그 dependency base가 pending인 plan은 definition 0건,
+      // completion 1건이다. 그 plan에서 `add-task`와 `ready`는 거부하는데 steering을 지나는
+      // `add-work-phase`는 새 phase를 써 버린다. 같은 순서로 둘 다 검사한다.
+      const reasons = [
+        ...goalplanDefinitionIntegrityReasons(next),
+        ...goalplanDependencyCompletionReasons(next),
+      ];
       if (reasons.length > 0) return { error: reasons.join("; ") };
       criteria = candidateCriteria;
       continue;
@@ -634,7 +641,10 @@ function applyOps(plan: Goalplan, ops: SteerOp[]): { plan: Goalplan } | { error:
       ...(dependsOn.length > 0 ? { dependsOn } : {}),
     }];
     const next: Goalplan = { ...plan, criteria, workPhases: candidateWorkPhases };
-    const reasons = goalplanDefinitionIntegrityReasons(next);
+    const reasons = [
+      ...goalplanDefinitionIntegrityReasons(next),
+      ...goalplanDependencyCompletionReasons(next),
+    ];
     if (reasons.length > 0) return { error: reasons.join("; ") };
     workPhases = candidateWorkPhases;
     continue;
@@ -854,7 +864,10 @@ dependsOn?: string[];
 workPhaseId?: string;
 evidence?: string;
 outcome?: string;
-json: boolean;
+// 감사 라운드 1 BLOCKER: optional로 둔다. `parseGoalplanCliArgs()`의 help 조기 반환
+// (`goalplan-cli.ts:80`)은 `{ verb: "help", cwd, criteria: [] }`를 그대로 돌려주므로 필수
+// 필드를 더하면 그 반환이 타입 오류가 된다. 소비 지점은 `args.json === true`로 읽는다.
+json?: boolean;
 
 const out: GoalplanCliArgs = {
   verb: verb as GoalplanVerb,
@@ -2288,7 +2301,7 @@ test("comma dependency is rejected while repeated flags persist dependencies", (
 | 파일 | import 처분 |
 | --- | --- |
 | `src/goalplan.ts` | wp5의 `node:fs` After를 보존한다. wp5 추가 이름은 `closeSync`, `fsConstants`, `lstatSync`, `statSync`, `writeSync`이며 wp6 import 추가는 없다. |
-| `src/steering.ts` | wp5의 `withGoalplanWriteLock`, `GoalplanWriteLockOptions`를 보존하고 wp6 `goalplanDefinitionIntegrityReasons`를 더한다. |
+| `src/steering.ts` | wp5의 `withGoalplanWriteLock`, `GoalplanWriteLockOptions`를 보존하고 wp6 `goalplanDefinitionIntegrityReasons`, `goalplanDependencyCompletionReasons`를 더한다. 뒤 이름은 감사 라운드 1 High가 요구한 completion 검사가 쓴다. |
 | `src/goalplan-cli.ts` | wp2 `readGoalplanDetailed`, wp3 두 integrity helper, wp5 `goalplanWriteLockStatus`, `withGoalplanWriteLock`, `GoalplanWriteLockStatus`를 보존하고 wp6 공개 lifecycle 이름을 더한다. |
 | `src/hook.ts` | wp4 `dependencyDeadlock`, `effectiveActiveWorkPhaseId`와 wp5 fs/path/ledger/recovery 이름, `goalplanDefinitionIntegrityReasons`, `goalplanDependencyCompletionReasons`, `withGoalplanWriteLock`, `closeFixedWorkPhase`, 그리고 §53 공유 판정 `absentSuccessorDetail`·`resumeAbsentTarget`을 모두 보존하고 wp6 `dependencyWaitReasons`·`readyWorkPhases`·`readyTasks`를 더한다. 뒤 두 이름은 채팅 D-close의 대상 부재 복구 경로가 쓰므로 빠지면 `TS2304`와 `ReferenceError`가 난다. |
 | `test/goalplan-public-surface.test.ts` | wp6 신규 파일 전체 import다. 선행 wp 추가 이름은 없다. |
@@ -2364,6 +2377,32 @@ trap - EXIT
 `node --test: 24 pass`, `c-1.status`는 `met`이다. 원장의 `task_done.detail`도
 `node --test: 24 pass`다. help에는 `ready --json`, `add-task`, `complete-task --outcome`,
 `meet-criterion --evidence`, 반복 `--depends-on` 문법이 모두 보인다.
+
+### 락 임계 구역 AST oracle 갱신 — wp5 §10.5 소유권 인계
+
+감사 라운드 1 BLOCKER: wp5 §10.5의 감사는 `writeGoalplan()` 호출 수를 하드코딩으로 고정한다. wp6의
+`commitLifecycle()`이 락 callback 안에 write를 하나 더하므로 그 기대값이 확정 실패한다.
+
+```text
+wp5 현재:  total 8, unlocked init 1, locked 7
+wp6 적용:  total 9, unlocked init 1, locked 8
+```
+
+`050_wp5_write_serialization.md` §10.5의 네 단언을 아래로 갱신하는 것은 이 문서가 맡는다. 구조 조건
+(`goalplan-cli.ts` init만 락 밖, 나머지는 전부 `withGoalplanWriteLock()`의 세 번째 인자 callback 안)은
+그대로 두고 개수만 옮긴다. 개수를 지우고 구조 조건만 남기지 않는다 — 개수가 없으면 mutation 하나가
+조용히 락 밖으로 새는 것을 못 잡는다.
+
+```bash
+assert.equal(calls.length, 9, JSON.stringify(calls));
+assert.equal(initCalls.length, 1, JSON.stringify(calls));
+assert.deepEqual(escapedMutations, [], JSON.stringify(escapedMutations));
+assert.equal(lockedMutations.length, 8, JSON.stringify(calls));
+```
+
+`add-work-phase`와 `add-criterion`은 `applySteeringBatch()`를 지나므로 새 write를 만들지 않는다.
+`add-task`, `complete-task`, `meet-criterion` 셋도 `commitLifecycle()` 하나를 공유하므로 늘어나는
+호출은 정확히 하나다.
 
 focused 검증이 모두 끝난 뒤 아래 순서로 저장소 게이트를 실행한다.
 
