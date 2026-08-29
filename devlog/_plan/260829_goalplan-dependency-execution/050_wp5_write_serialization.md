@@ -4874,6 +4874,15 @@ suppressions="$(rg -o '@ts-ignore|@ts-expect-error|@ts-nocheck' "${roots[@]}" | 
 test "$suppressions" -eq 1
 rg -q '^        // @ts-expect-error "unavailable" is still reachable here$' \
   "$pab/test/source-identity.test.ts"
+
+# `--skipLibCheck`는 root에 들어온 `.d.ts` 안의 미해석 타입도 검사하지 않는다. 실측으로
+# 확인했다 — 없는 타입을 참조하는 `.d.ts`를 넣으면 진단이 0건이고, 플래그를 빼면 1건이다.
+# 현재 src·test에 `.d.ts`가 0개이므로 그 수를 고정한다. wp5는 `.d.ts`를 만들지 않는다.
+# `--skipLibCheck`를 빼면 `node_modules` 타입까지 검사해 선행 진단이 폭발하므로 유지한다.
+# `ls`는 일치가 없을 때 종료 코드가 0이 아니므로 `set -e` 아래에서 그대로 쓰면 검사가 아니라
+# 스크립트 종료가 된다. 개수만 받는다.
+dts_count="$( { ls "$pab"/src/*.d.ts "$pab"/test/*.d.ts 2>/dev/null || true; } | wc -l | tr -d '[:space:]')"
+test "$dts_count" -eq 0
 ```
 
 baseline fixture는 wp5가 만드는 tracked 파일이다. 현재 checkout에서 아래로 생성하며 24줄이다.
@@ -4931,6 +4940,7 @@ bootstrap 실패도 같은 방식으로 확인했다. 계획서의 게이트 블
 주입 검증 아홉 경로 전부에서 게이트가 실패하고 복원 뒤 통과한다. 깨끗한 checkout,
 `@types/node` 해석 실패, 추가 `TS2459`, 잘못된 플래그, `TS2614`, 억제 주석, namespace 오타,
 같은 코드 신규 fingerprint, 같은 파일 두 번째 억제 주석이다.
+`.d.ts` 은닉을 더해 열 경로다.
 
 남는 한계는 명시한다. `sort -u`가 fingerprint를 중복 제거하므로, 이미 baseline에 있는 진단과
 **파일·코드·메시지가 완전히 같은** 진단을 하나 더 만들면 보이지 않는다. 실측으로 확인했다 —
