@@ -14,11 +14,18 @@
  * therefore changes idempotency. What it does not change is anything completion
  * is judged on.
  */
+// 060 wp6: applyOps()가 두 integrity helper를 부르므로 두 이름을 함께 import한다. 뒤 이름을
+// 빼면 TS2304 두 건이고, 타입을 지운 런타임에서는 steering.test.ts 두 건이 ReferenceError로
+// 죽는다. 감사 라운드 2에서 감사관 두 기가 각자 사본에서 22개 중 2 fail을 재현했다.
 import {
   appendGoalplanLedger,
+  goalplanDefinitionIntegrityReasons,
+  goalplanDependencyCompletionReasons,
   withGoalplanWriteLock,
   writeGoalplan,
   type Goalplan,
+  type GoalplanCriterion,
+  type GoalplanWorkPhase,
   type GoalplanWriteLockOptions,
   type SteeringEntry,
 } from "./goalplan.ts";
@@ -37,7 +44,7 @@ export type SteerOp =
       surface?: "logic" | "web" | "tui";
       expectedEvidence?: string;
     }
-  | { kind: "add-work-phase"; id: string; title: string };
+  | { kind: "add-work-phase"; id: string; title: string; dependsOn?: string[] };
 
 export interface SteerBatch {
   idempotencyKey: string;
@@ -115,7 +122,18 @@ function validateBatch(batch: unknown): SteerBatch | { error: string } {
     if (typeof op.title !== "string" || op.title.trim().length === 0) {
       return { error: `ops[${i}] is an add-work-phase without a title` };
     }
-    ops.push({ kind: "add-work-phase", id: op.id, title: op.title.trim() });
+    const rawDependsOn = op.dependsOn ?? [];
+if (!Array.isArray(rawDependsOn)) {
+  return { error: `ops[${i}].dependsOn must be an array of non-empty work-phase ids` };
+}
+const dependsOn = rawDependsOn.map((id) => typeof id === "string" ? id.trim() : "");
+if (dependsOn.some((id) => id.length === 0)) {
+  return { error: `ops[${i}].dependsOn must be an array of non-empty work-phase ids` };
+}
+if (new Set(dependsOn).size !== dependsOn.length) {
+  return { error: `ops[${i}].dependsOn must not contain duplicate ids` };
+}
+ops.push({ kind: "add-work-phase", id: op.id, title: op.title.trim(), dependsOn });
   }
   return {
     idempotencyKey: b.idempotencyKey as string,
@@ -143,6 +161,22 @@ export interface ApplyOptions {
  * for criteria and on the id for work phases, and a duplicate is a rejection
  * rather than a silent no-op - a steering batch that did nothing should say so.
  */
+/**
+ * 060 wp6: both mutating branches run the SAME two integrity checks in the SAME order.
+ *
+ * `ready` and the lifecycle verbs gate on both helpers, and steering used to gate on the
+ * definition one alone. A plan whose leaf task is done while its dependency base is still
+ * pending yields zero definition reasons and one completion reason, so `add-task` refused it
+ * while `add-work-phase` wrote a new phase into it. Sharing one function is what keeps the
+ * two surfaces from drifting apart again.
+ */
+function integrityReasons(candidate: Goalplan): string[] {
+  return [
+    ...goalplanDefinitionIntegrityReasons(candidate),
+    ...goalplanDependencyCompletionReasons(candidate),
+  ];
+}
+
 function applyOps(plan: Goalplan, ops: SteerOp[]): { plan: Goalplan } | { error: string } {
   let criteria = [...plan.criteria];
   let workPhases = [...plan.workPhases];
@@ -159,7 +193,7 @@ function applyOps(plan: Goalplan, ops: SteerOp[]): { plan: Goalplan } | { error:
         const n = Number(/^c-(\d+)$/.exec(c.id)?.[1] ?? 0);
         return Number.isFinite(n) && n > m ? n : m;
       }, 0);
-      criteria = [
+      const candidateCriteria: GoalplanCriterion[] = [
         ...criteria,
         {
           id: `c-${maxId + 1}`,
@@ -170,12 +204,26 @@ function applyOps(plan: Goalplan, ops: SteerOp[]): { plan: Goalplan } | { error:
           status: "open",
         },
       ];
+      const criterionReasons = integrityReasons({ ...plan, criteria: candidateCriteria, workPhases });
+      if (criterionReasons.length > 0) return { error: criterionReasons.join("; ") };
+      criteria = candidateCriteria;
       continue;
     }
     if (workPhases.some((w) => w.id === op.id)) {
       return { error: `work phase '${op.id}' is already in this plan` };
     }
-    workPhases = [...workPhases, { id: op.id, title: op.title, status: "pending", tasks: [], criteriaIds: [] }];
+    const dependsOn = op.dependsOn ?? [];
+    const candidateWorkPhases: GoalplanWorkPhase[] = [...workPhases, {
+      id: op.id,
+      title: op.title,
+      status: "pending",
+      tasks: [],
+      criteriaIds: [],
+      ...(dependsOn.length > 0 ? { dependsOn } : {}),
+    }];
+    const phaseReasons = integrityReasons({ ...plan, criteria, workPhases: candidateWorkPhases });
+    if (phaseReasons.length > 0) return { error: phaseReasons.join("; ") };
+    workPhases = candidateWorkPhases;
   }
   return { plan: { ...plan, criteria, workPhases } };
 }
@@ -231,6 +279,21 @@ export function applySteeringBatch(
         event: "steered",
         detail: `${entry.idempotencyKey}: ${entry.summary} — ${entry.rationale}`,
       });
+      // 060 wp6: one row per phase that actually declared prerequisites. The plan file
+      // shows the final graph, so without these rows the ledger cannot say WHEN an edge
+      // appeared — a graph that grew mid-loop reads as if it was declared up front.
+      // Emitted after `steered` so the batch that carried the edge is the row above it.
+      for (const op of batch.ops) {
+        if (op.kind !== "add-work-phase") continue;
+        const dependsOn = op.dependsOn ?? [];
+        if (dependsOn.length === 0) continue;
+        appendGoalplanLedger(cwd, slug, {
+          ts: entry.appliedAt,
+          slug,
+          event: "dependency_registered",
+          detail: `${op.id} dependsOn=${dependsOn.join(",")}`,
+        });
+      }
     } catch (err) {
       return {
         kind: "applied",
