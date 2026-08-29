@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildGoalplan,
+  DEFAULT_NEW_SCHEMA_VERSION,
   dependencyDeadlock,
   dependencyWaitReasons,
   readGoalplan,
@@ -20,6 +21,7 @@ import {
   advanceWorkPhase,
   effectiveActiveWorkPhaseId,
   effectiveSchemaVersion,
+  SUPPORTED_MAX_SCHEMA_VERSION,
   type Goalplan,
   goalplanWriteLockDir,
   goalplanWriteLockStatus,
@@ -236,13 +238,44 @@ test("schema v3: legacy plan without outcome keeps byte-identical serialized pla
   assert.equal(Object.prototype.hasOwnProperty.call(back.workPhases[0].tasks[0], "outcome"), false);
 });
 
-test("schema v3: buildGoalplan declares schemaVersion 3", () => {
+test("a new plan declares v1 by default, and a higher schema only on request", () => {
+  // A new plan used to declare SUPPORTED_MAX_SCHEMA_VERSION, which enrolled it in
+  // the schemaVersion >= 2 finalGate requirement that no shipped verb can satisfy,
+  // so every fresh plan validated with a reason its owner could not discharge.
   // arrange and act
-  const plan = buildGoalplan({ objective: "new v3 plan" });
+  const byDefault = buildGoalplan({ objective: "new default plan" });
+  const optedIn = buildGoalplan({ objective: "opted into v3", schemaVersion: 3 });
 
-  // assert
-  assert.equal(plan.schemaVersion, 3);
-  assert.equal(effectiveSchemaVersion(plan, false), 3);
+  // assert — the default is the version whose rules are all reachable
+  assert.equal(byDefault.schemaVersion, DEFAULT_NEW_SCHEMA_VERSION);
+  assert.equal(byDefault.schemaVersion, 1);
+  assert.equal(effectiveSchemaVersion(byDefault, false), 1);
+
+  // assert — opting in still declares v3, so the v2+ rules still apply
+  assert.equal(optedIn.schemaVersion, 3);
+  assert.equal(effectiveSchemaVersion(optedIn, false), 3);
+});
+
+test("a requested schemaVersion is clamped into the readable range", () => {
+  // A plan declaring more than this build can read is refused on the next read,
+  // so buildGoalplan must never mint a file its own writer cannot reopen.
+  const cases: Array<[unknown, number]> = [
+    [undefined, 1],
+    [0, 1],
+    [-7, 1],
+    [Number.NaN, 1],
+    [2, 2],
+    [2.9, 2],
+    [3, 3],
+    [99, SUPPORTED_MAX_SCHEMA_VERSION],
+  ];
+  for (const [requested, expected] of cases) {
+    const plan = buildGoalplan({
+      objective: `clamp ${String(requested)}`,
+      schemaVersion: requested as number | undefined,
+    });
+    assert.equal(plan.schemaVersion, expected, `requested ${String(requested)}`);
+  }
 });
 
 test("schema v3: an unsupported future schemaVersion is rejected on read and on validate", () => {

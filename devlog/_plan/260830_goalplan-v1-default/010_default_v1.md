@@ -226,7 +226,12 @@ The import list gains `DEFAULT_NEW_SCHEMA_VERSION`.
 - Final enforcement layer: none, and that is unchanged — a user with an editor can
   always rewrite their own plan file.
 
-## Unversioning the task-outcome checks (audit round 2, accepted)
+## Unversioning the task-outcome checks — WITHDRAWN, see 012
+
+> **This section is superseded.** It was implemented and then reverted: two tests
+> encode a deliberate v1/v2 exemption, and removing it made an existing legacy
+> plan un-completable. The version guard stays at `>= 3`. Kept here because `012`
+> refers to it; do not implement it. Rationale and disposition: `012`.
 
 The pair at `:1304-1312` is version-gated only because it arrived with v3. It has
 nothing to do with the final gate, and `cxc loop complete-task --outcome` always

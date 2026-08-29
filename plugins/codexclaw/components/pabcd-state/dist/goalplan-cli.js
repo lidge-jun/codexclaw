@@ -100,6 +100,12 @@ import { applySteeringBatch } from "./steering.js";
 
 
 
+
+
+
+
+
+
 const VERBS                      = new Set              ([
   "init",
   "show",
@@ -143,6 +149,10 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
     else if (a === "--title") out.title = argv[++i];
     else if (a === "--work-phase") out.workPhaseId = argv[++i];
     else if (a === "--outcome") out.outcome = argv[++i];
+    else if (a === "--schema-version") {
+      const parsed = Number(argv[++i]);
+      if (Number.isFinite(parsed)) out.schemaVersion = parsed;
+    }
     else if (a === "--evidence") out.evidence = argv[++i];
     else if (a === "--json") out.json = true;
     else if (a === "--depends-on") {
@@ -544,7 +554,7 @@ export function renderGoalplanHelp()         {
     "cxc loop — durable goalplan for a multi-cycle PABCD loop",
     "",
     "Usage:",
-    "  cxc loop init --objective <text> --session <id> [--criterion <text>]... [--cwd <path>]",
+    "  cxc loop init --objective <text> --session <id> [--criterion <text>]... [--schema-version <n>] [--cwd <path>]",
     "  cxc loop show (--slug <slug> | --objective <text>) [--cwd <path>]",
     "  cxc loop validate --slug <slug> [--cwd <path>]",
     // 060 wp6: --slug is GONE from the three mutating usage lines. `runSteer()` and
@@ -567,6 +577,9 @@ export function renderGoalplanHelp()         {
     "  Repeat --depends-on once per prerequisite; add-task accepts only existing task ids",
     "  from the same work phase; comma-separated values are one id.",
     "  complete-task requires non-empty outcome evidence and never replaces a stored outcome.",
+    "  init declares schemaVersion 1 unless --schema-version says otherwise. 2 and 3",
+    "  additionally require an approved finalGate, and no verb in this build opens a",
+    "  final-gate review round, so opt in only if you can record that gate yourself.",
     "  meet-criterion requires non-empty captured evidence for the same reason.",
     "",
     "steer --batch-json expects an object with:",
@@ -592,6 +605,7 @@ export function runGoalplanCli(args                 )                    {
     const plan = buildGoalplan({
       objective,
       criteria: args.criteria.map((scenario) => ({ scenario })),
+      schemaVersion: args.schemaVersion,
     });
     writeGoalplan(args.cwd, plan);
     appendGoalplanLedger(args.cwd, slug, {

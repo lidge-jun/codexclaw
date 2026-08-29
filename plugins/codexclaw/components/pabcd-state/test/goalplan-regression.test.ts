@@ -202,6 +202,9 @@ function outcomePlan(schemaVersion: undefined | 2 | 3, task: GoalplanTask): Goal
 }
 
 test("wp7 outcome validation starts at schema v3 and is not a selector version branch", () => {
+  // 260830: the new-plan default is now v1, so this exemption is what keeps a plan
+  // written before the rule existed completable. Making it version-independent was
+  // tried and reverted — see the comment at goalplan.ts:1304.
   for (const schemaVersion of [undefined, 2] as const) {
     const legacy = outcomePlan(schemaVersion, { id: "t1", title: "done legacy task", status: "done" });
     assert.deepEqual(goalplanDefinitionIntegrityReasons(legacy).filter((reason) => reason.includes("outcome")), []);

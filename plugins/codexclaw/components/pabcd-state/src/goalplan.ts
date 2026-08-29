@@ -52,6 +52,20 @@ export const GOALPLAN_LOCK_RETRY_DELAYS_MS = [5, 10, 20, 40] as const;
  */
 export const SUPPORTED_MAX_SCHEMA_VERSION = 3;
 
+/**
+ * The schema a NEW plan declares when the caller does not choose one.
+ *
+ * Deliberately NOT `SUPPORTED_MAX_SCHEMA_VERSION`: those two constants answer
+ * different questions. The max is what this build can READ; this is what a fresh
+ * plan should CLAIM. Defaulting to the max enrolled every new plan in the
+ * schemaVersion >= 2 final-gate requirement, and no shipped verb opens a
+ * `final_gate` review round to satisfy it — `review-round open` hardcodes
+ * `purpose: "plan_audit"` and never parses a lane — so every new plan validated
+ * with a reason its owner could not discharge and `update_goal complete` stayed
+ * denied. v1's rules are the ones a user can actually finish (260830).
+ */
+export const DEFAULT_NEW_SCHEMA_VERSION = 1;
+
 export type CriterionStatus = "open" | "met";
 
 /**
@@ -874,7 +888,28 @@ export interface NewGoalplanInput {
   /** seeded acceptance criteria (e.g. from the freeze EvidenceBundle). */
   criteria?: Array<{ scenario: string; expectedEvidence?: string; surface?: CriterionSurface }>;
   host?: Partial<GoalplanHostLink>;
+  /**
+   * The schemaVersion the new plan DECLARES. Absent means
+   * `DEFAULT_NEW_SCHEMA_VERSION`. Requesting 2 or 3 opts into the final-gate
+   * requirement those versions add, which no shipped verb can currently satisfy.
+   */
+  schemaVersion?: number;
   now?: () => string;
+}
+
+/**
+ * Clamp a requested new-plan schema into [1, SUPPORTED_MAX_SCHEMA_VERSION].
+ *
+ * A plan declaring more than this build can read is refused on the next read, so
+ * minting one would create a file its own writer cannot reopen.
+ */
+function normalizeNewSchemaVersion(requested?: number): number {
+  if (typeof requested !== "number" || !Number.isFinite(requested)) {
+    return DEFAULT_NEW_SCHEMA_VERSION;
+  }
+  const floored = Math.floor(requested);
+  if (floored < 1) return DEFAULT_NEW_SCHEMA_VERSION;
+  return Math.min(floored, SUPPORTED_MAX_SCHEMA_VERSION);
 }
 
 /** Build a fresh goalplan (no IO). Slug is derived from the objective. */
@@ -894,7 +929,7 @@ export function buildGoalplan(input: NewGoalplanInput): Goalplan {
   return {
     objective: input.objective,
     slug: deriveSlug(input.objective),
-    schemaVersion: SUPPORTED_MAX_SCHEMA_VERSION,
+    schemaVersion: normalizeNewSchemaVersion(input.schemaVersion),
     createdAt: ts,
     updatedAt: ts,
     activeWorkPhaseId: null,
@@ -1301,6 +1336,16 @@ export function goalplanDefinitionIntegrityReasons(plan: Goalplan): string[] {
       reasons.push(`task dependency cycle in work phase ${phase.id}: ${taskCycle.join(" -> ")}`);
     }
 
+    // Stays gated at >= 3 on purpose (260830). Audit round 2 recommended making
+    // these two rules version-independent so the new v1 default would not lose
+    // them, and that recommendation was tried and REVERTED: v1/v2 plans are
+    // deliberately exempt because they were written before the rule existed
+    // (`goalplan-integrity.test.ts:163`, `goal-gate.test.ts:394`). Applying it
+    // retroactively made an existing v1 plan with a legacy done task suddenly
+    // un-completable — the exact class of surprise blocker this unit removes.
+    // The coverage the default path gives up is bounded: `complete-task` always
+    // writes a non-empty outcome, so only hand-edited plans go unchecked, and
+    // `--schema-version 3` opts back in.
     if ((plan.schemaVersion ?? 1) >= 3) {
       for (const task of phase.tasks) {
         if (task.status === "done" && (task.outcome ?? "").trim().length === 0) {
