@@ -1200,3 +1200,12 @@ successor를 후보로 되읽는다.
 커서 `wp-3`를 낸다. §45 probe 일곱 경우와 4파일 `tests 162 / pass 162 / fail 0`도 그대로다.
 
 회귀는 대상 외 `in_progress` phase가 있는 plan에서 두 함수의 결과 plan을 한 `deepEqual`로 묶는다.
+
+`reapplying`을 `current.status === "done"`으로 판정하는 것이 충분한지도 실측했다. 사용자가 대상을
+수동으로 `done` 표시한 뒤 첫 close를 요청하는 경우가 이 조건에 걸린다. 그때 `wp-1=done`·커서 `wp-1`·
+`wp-2=in_progress`·`wp-3=pending`이면 helper는 커서를 `wp-2`로 정리하고, 같은 입력의
+`advanceWorkPhase()`는 `wp-3`를 낸다. 이 차이는 결함이 아니다 — `advanceWorkPhase()`는 effective
+커서를 스스로 골라 `wp-2`를 닫는 반면 helper는 `wp-1`을 닫으라고 지시받았다. 서로 다른 대상을 닫으므로
+결과가 다른 것이 고정 target 계약의 정의다. helper의 결과는 정직하다: `wp-1`은 done이고 실제로 실행
+중인 `wp-2`가 커서가 된다. §46 parity 회귀는 대상이 `in_progress`인 입력, 즉 두 함수가 같은 대상을
+닫는 경우만 묶는다.
