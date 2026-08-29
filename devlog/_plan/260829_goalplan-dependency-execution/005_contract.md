@@ -1398,3 +1398,122 @@ if (closed.kind === "ok") {
 
 회귀는 의도한 successor가 삭제된 plan에서 복구를 두 번 돌려 두 번째가 `already_done`이고 커서가
 그대로인지 단언한다. marker의 `nextWorkPhaseId`가 갱신됐는지도 함께 본다.
+
+## 50. 라운드 21 — marker의 successor는 힌트가 아니라 강제다
+
+§48이 successor를 marker에 남겼지만 helper는 그 값을 후보 하나를 되읽는 힌트로만 썼고, 정규화 뒤에는
+다시 plan 전체를 after-then-wrap으로 검색했다. 감사관 2기가 각각 같은 결함을 재현했다: 기록된
+successor를 쓸 수 없게 되면 helper가 조용히 **다른** phase를 골라 그것으로 close를 확정한다.
+
+```text
+marker next=wp-3, wp-3 삭제, wp-2=pending          -> 커서 wp-2, started wp-2
+marker next=wp-3, wp-3=blocked, wp-2=pending       -> 커서 wp-2, started wp-2
+marker next=wp-3, wp-3 앞에 wp-2=pending 삽입      -> 커서 wp-2, started wp-2
+marker next=null, 재시도 전 wp-2=pending 추가      -> 커서 wp-2, started wp-2
+```
+
+네 경우 모두 marker가 보존한 의도와 다른 close를 plan에 쓰고 원장에 기록한 뒤 marker를 지운다.
+§49가 이 fallback을 "정직한 복구"로 보고 marker를 갱신하는 처방을 냈는데, 그것이 틀렸다. 복구는
+자기 판단을 새로 하는 것이 아니라 앞선 시도가 확정한 판단을 완성하는 것이다.
+
+`undefined`와 `null`을 truthiness 하나로 합친 것도 결함이다. 두 값의 뜻이 다르다.
+
+| 값 | 뜻 | 동작 |
+| --- | --- | --- |
+| `undefined` | 최초 close다. 아직 아무 결정도 없다 | wp4 after-then-wrap으로 successor를 계산한다 |
+| `null` | 앞선 시도가 "successor 없음"을 확정했다 | successor를 `null`로 고정하고 검색하지 않는다 |
+| 문자열 | 앞선 시도가 그 phase를 골랐다 | 정확히 그 phase만 successor가 된다 |
+
+처분: 세 상태를 분리하고, 문자열 intent가 쓸 수 없는 상태면 다른 phase로 넘어가지 않고 fail-closed
+한다. 새 variant `successor_lost`가 그 사유를 담는다.
+
+```ts
+  let next: { id: string } | undefined;
+  if (recordedNext === undefined) {
+    const after = closedWorkPhases.slice(currentIdx + 1).find(
+      (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+    );
+    next = after ?? closedWorkPhases.slice(0, currentIdx).find(
+      (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+    );
+  } else if (recordedNext === null) {
+    next = undefined;
+  } else {
+    const named = closedWorkPhases.find((wp) => wp.id === recordedNext);
+    if (!named) return { kind: "successor_lost", successorId: recordedNext, reason: "absent" };
+    if (named.status !== "pending" && named.status !== "in_progress") {
+      return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
+    }
+    if (!workPhaseDependenciesMet(closedPlan, named)) {
+      return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
+    }
+    next = named;
+  }
+```
+
+문자열 경로에는 §47까지의 status 정규화가 아예 없다. 지목된 phase가 `pending`이든 `in_progress`든
+똑같이 successor가 되므로, "앞선 시도가 활성화해 둔 phase를 후보로 되읽는다"는 우회가 필요 없다.
+이것이 다섯 판본을 괴롭힌 정규화 자체를 없앤다.
+
+`successor_lost`는 다른 거부와 같은 fail-closed 규칙을 따른다. marker를 남겨 두어 사람이 plan을
+고치고 같은 D 요청으로 마칠 수 있게 한다. 거부 문구는 사유별로 다르다.
+
+```text
+absent:            recovery target wp-1 was closed with successor wp-3, which is no longer in the plan
+not_runnable:      ... successor wp-3, which is now blocked
+dependencies_unmet: ... successor wp-3, which now waits for wp-4
+```
+
+실측 검증. 이 명세를 실제 `goalplan.ts`에 적용해 확인했다.
+
+| 입력 | 결과 |
+| --- | --- |
+| 첫 close (인자 없음), wp-1 in_progress·wp-2 in_progress·wp-3 pending | `ok` 커서 `wp-3` — `advanceWorkPhase()`와 동일 |
+| 기록 `wp-3` 삭제, wp-2 pending | `successor_lost` `wp-3`/absent |
+| 기록 `wp-3` blocked, wp-2 pending | `successor_lost` `wp-3`/not_runnable |
+| 기록 `wp-3` 앞에 wp-2 pending 삽입 | `ok` 커서 `wp-3` — 삽입이 의도를 바꾸지 못한다 |
+| 기록 `null`, wp-2 pending 추가 | `already_done` — successor 없음이 유지된다 |
+| 기록 `wp-2` 의존 미충족 | `successor_lost` `wp-2`/dependencies_unmet |
+| 커서 `null` + 고립 wp-2, 기록 `wp-2` | `ok` 커서 `wp-2` — §45 복구 유지 |
+| 커서가 pending wp-2, 기록 `wp-2` | `ok` 커서 `wp-2` |
+| 위조 커서 `wp-2`, 기록 `wp-3` | `ok` 커서 `wp-3` |
+| 진짜 commit 재입력, 기록 `wp-2` | `already_done` |
+| marker 직후 crash, 기록 `wp-2` | `ok` 커서 `wp-2` |
+| 단일 phase, 기록 `null` | `ok` 커서 `null`, 재입력 `already_done` |
+
+왕복 세 경우도 첫 결과의 커서를 그대로 넣으면 `already_done`이다. 네 파일이
+`tests 162 / pass 162 / fail 0`, exit 0이었고 확인 뒤 원본과 바이트 동일로 복원했다.
+
+§49의 marker 갱신은 이 판본에서 필요 없다. 복구가 다른 successor를 고르는 일이 아예 없으므로 갱신할
+낡은 값이 생기지 않는다. §49가 막으려던 발산(`ok -> ok -> already_done`)도 fallback이 사라져 발생하지
+않는다. 두 표면의 복구 분기에서 갱신 코드를 걷어내고, 대신 `successor_lost` 거부를 넣는다.
+
+legacy marker에 안전한 해석이 없다는 것도 실측으로 확정했다. 필드 없는 marker는 두 상태에서 존재할 수 있다.
+
+```text
+L1 marker 직후 crash:   wp-1=in_progress, wp-2=pending, 커서 wp-1
+L2 plan commit 직후 crash: wp-1=done, wp-2=in_progress, 커서 wp-2
+```
+
+`undefined`로 취급하면 L1은 `ok` 커서 `wp-2`로 올바르게 끝나지만 L2는 pending 후보가 없어 `ok` 커서
+`null`로 정상 plan을 망가뜨린다. `null`로 취급하면 L1이 successor를 시작하지 않고 끝나고 L2도 여전히
+커서를 `null`로 덮는다. 대상 status를 판별자로 쓰는 것도 안 된다 — 대상이 `done`이면서 커서가 위조된
+L3에서는 `already_done`이 나와야 하고, 그 입력은 L2와 status가 같다.
+
+그래서 필드 부재는 `null`과 구별해 보존하고 그 marker는 fail-closed한다. `readStateStrict()`가
+`nextWorkPhaseId` 키의 존재 자체를 보고 `legacy: true`를 표시하며, 복구 분기는 그 marker에서 아무
+write도 하지 않고 아래 진단으로 거부한다.
+
+```text
+orchestrate D: the recovery marker for wp-1 predates the successor field, so this retry
+cannot tell whether the plan commit landed. The marker was kept; inspect the goalplan,
+set the work-phase statuses and activeWorkPhaseId by hand, then run `cxc orchestrate reset`
+to clear the marker. Nothing was written.
+```
+
+이 경로가 실제로 도달 가능한 창은 좁다 — §48 이전 버전이 D-close 도중 죽고, 업그레이드 뒤 같은 세션이
+같은 요청을 다시 내는 경우뿐이다. 그래도 조용히 plan을 망가뜨리는 대신 사람에게 넘긴다.
+
+회귀 둘을 둔다. 하나는 `nextWorkPhaseId` 키가 없는 marker를 state에 심어 CLI가 code 1과 이 진단을 내고
+plan 바이트와 marker가 그대로인지 단언한다. 다른 하나는 `readStateStrict()`가 그 marker를 `legacy: true`로
+복원하고 새 형식 marker는 `legacy` 없이 복원하는지 본다.
