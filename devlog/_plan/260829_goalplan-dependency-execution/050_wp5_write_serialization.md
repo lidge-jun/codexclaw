@@ -4849,6 +4849,12 @@ rg -o 'error (TS[0-9]+)' -r '$1' "$tsc_log" | rg -v "^($benign)\$" | sort > "$of
 test "$(wc -l < "$offending" | tr -d '[:space:]')" -eq 1
 rg -qx 'TS2459' "$offending"
 rg -q 'src/interview-policy\.ts\(25,15\): error TS2459' "$tsc_log"
+
+# 억제 주석은 미해석 식별자를 진단 자체가 나오지 않게 지운다. 실측으로 확인했다.
+# 선행 1건만 허용하고 wp5가 새로 넣지 않았음을 고정한다.
+suppressions="$(rg -c '@ts-ignore|@ts-expect-error|@ts-nocheck' "${roots[@]}" | wc -l | tr -d '[:space:]')"
+test "$suppressions" -eq 1
+rg -q '@ts-expect-error' "$pab/test/source-identity.test.ts"
 ```
 
 기대값은 여섯 export 선언 검사 exit 0, `tsc` 종료 코드 0 또는 2, bootstrap 오류 0건,
@@ -4879,6 +4885,12 @@ bootstrap 실패도 같은 방식으로 확인했다. 계획서의 게이트 블
 추가 `TS2459` exit 1, 잘못된 플래그 exit 1, `TS2614` default-only named import exit 1,
 복원 뒤 다시 exit 0이다. `TS2614`는 코드를 열거하던 세 판본이 모두 놓쳤고 허용 목록 방식은
 아무 것도 추가하지 않은 채로 잡는다.
+
+허용된 여섯 코드로 위장해 미해석 이름을 숨길 수 있는지도 시도했다. member access, cast, 인자
+위치, `any` 우회 네 형태 모두 `TS2304`가 그대로 나와 잡힌다. 실제로 통하는 우회는 하나뿐이었다 —
+`@ts-ignore`나 `@ts-expect-error`를 붙이면 진단 자체가 발생하지 않는다. 그래서 억제 주석 수도
+ratchet으로 고정한다. 현재 pabcd-state에는 `test/source-identity.test.ts:189` 한 건뿐이며 wp5는
+새로 넣지 않는다. 주입 검증에서 이 경로도 exit 1이다.
 
 이 게이트는 미해석 식별자만 본다. 타입 호환성, signature 불일치, 논리 오류는 잡지 않는다.
 그 부류는 focused suite와 `npm test`가 맡는다.
