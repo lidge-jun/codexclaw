@@ -69,8 +69,10 @@ import {
   goalplanDir,
   goalplanDefinitionIntegrityReasons,
   goalplanDependencyCompletionReasons,
-  nextOpenTask,
+  dependencyWaitReasons,
   readGoalplan,
+  readyTasks,
+  readyWorkPhases,
   unmetCriteria,
   withGoalplanWriteLock,
   writeGoalplan,
@@ -1547,6 +1549,15 @@ export function stopNextCommand(phase       , platform                  = proces
 
 
 
+
+
+
+
+
+
+
+
+
 export function buildStopBlock(
   phase       ,
   work                         ,
@@ -1575,9 +1586,14 @@ export function buildStopBlock(
   ];
   if (work) {
     // ENRICHMENT ONLY — appended lines; never replaces the phase command above.
-    if (work.nextTaskTitle) lines.push(`Remaining work: ${work.nextTaskTitle}`);
+    if (work.readyWorkPhases.length > 0) {
+      lines.push(`Ready work phases: ${work.readyWorkPhases.map((wp) => `${wp.id} (${wp.title})`).join(", ")}`);
+    }
+    if (work.readyTasks.length > 0) {
+      lines.push(`Ready tasks: ${work.readyTasks.map((t) => `${t.workPhaseId}/${t.id} (${t.title})`).join("; ")}`);
+    }
+    if (work.waitingOn.length > 0) lines.push(`Waiting on: ${work.waitingOn.join("; ")}`);
     if (work.expectedEvidence) lines.push(`Required evidence: ${work.expectedEvidence}`);
-    if (work.dependencyBlockedReason) lines.push(work.dependencyBlockedReason);
     if (work.ledgerPath) lines.push(`Record progress in: ${work.ledgerPath}`);
   }
   // 080: friction is an ADVISORY line only (read after the arming guard); it never changes
@@ -1609,12 +1625,44 @@ export function readStopWorkContext(cwd        , state       )                  
   if (!slug) return null; // no session-bound slug -> exactly today's behavior
   const plan = readGoalplan(cwd, slug);
   if (!plan) return null;
-  const next = nextOpenTask(plan);
+
+  // 060 wp6: `cxc loop ready` refuses an invalid graph, and this path used to enrich from
+  // one anyway. A plan with two tasks sharing an id would list the id twice, once per copy,
+  // and the agent could not tell which one it was being sent to. Same gate, same order.
+  const integrity = [
+    ...goalplanDefinitionIntegrityReasons(plan),
+    ...goalplanDependencyCompletionReasons(plan),
+  ];
+  if (integrity.length > 0) {
+    return {
+      readyWorkPhases: [],
+      readyTasks: [],
+      expectedEvidence: null,
+      waitingOn: [`the plan is not a valid graph: ${integrity.join("; ")}`],
+      ledgerPath: `.codexclaw/goalplans/${slug}/ledger.jsonl`,
+    };
+  }
+
+  const phases = readyWorkPhases(plan);
+  const tasks = readyTasks(plan);
   const unmet = unmetCriteria(plan);
-  if (!next && unmet.length === 0) return null; // nothing remaining -> no enrichment
+  const deadlock = dependencyDeadlock(plan);
+  // A global deadlock and a partial wait are different states. The deadlock reasons say
+  // nothing can run at all; the wait reasons say something is blocked while other work
+  // remains runnable. Reporting only one of them hides half the picture.
+  const waitingOn = deadlock ? deadlock.reasons : dependencyWaitReasons(plan);
+  if (phases.length === 0 && tasks.length === 0 && unmet.length === 0 && waitingOn.length === 0) {
+    return null; // nothing remaining -> no enrichment
+  }
   return {
-    nextTaskTitle: next ? `${next.wp.title} → ${next.task.title}` : null,
+    readyWorkPhases: phases.map((wp) => ({ id: wp.id, title: wp.title })),
+    readyTasks: tasks.map((entry) => ({
+      workPhaseId: entry.workPhaseId,
+      id: entry.task.id,
+      title: entry.task.title,
+    })),
     expectedEvidence: unmet[0]?.expectedEvidence ?? null,
+    waitingOn,
     ledgerPath: `.codexclaw/goalplans/${slug}/ledger.jsonl`,
   };
 }
@@ -1650,9 +1698,14 @@ export function buildGoalIdleBlock(
   const plan = state.slug ? readGoalplan(cwd, state.slug) : null;
   const work = readStopWorkContext(cwd, state);
   if (work) {
-    if (work.nextTaskTitle) lines.push(`Remaining work: ${work.nextTaskTitle}`);
+    if (work.readyWorkPhases.length > 0) {
+      lines.push(`Ready work phases: ${work.readyWorkPhases.map((wp) => `${wp.id} (${wp.title})`).join(", ")}`);
+    }
+    if (work.readyTasks.length > 0) {
+      lines.push(`Ready tasks: ${work.readyTasks.map((t) => `${t.workPhaseId}/${t.id} (${t.title})`).join("; ")}`);
+    }
+    if (work.waitingOn.length > 0) lines.push(`Waiting on: ${work.waitingOn.join("; ")}`);
     if (work.expectedEvidence) lines.push(`Required evidence: ${work.expectedEvidence}`);
-    if (work.dependencyBlockedReason) lines.push(work.dependencyBlockedReason);
     if (work.ledgerPath) lines.push(`Record progress in: ${work.ledgerPath}`);
   } else if (plan && plan.workPhases.length === 0 && plan.criteria.length === 0) {
     lines.push(

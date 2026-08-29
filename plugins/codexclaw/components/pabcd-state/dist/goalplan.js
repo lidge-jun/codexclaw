@@ -252,6 +252,10 @@ export const SUPPORTED_MAX_SCHEMA_VERSION = 3;
 
 
 
+
+
+
+
 const MAX_SLUG_BYTES = 128;
 
 /** Reject any slug that could be interpreted as a path rather than an identifier. */
@@ -939,15 +943,28 @@ function isRunnablePhase(plan          , wp                   )          {
   );
 }
 
-/** The first runnable pending task in declared order, or null when none remain. */
+export function readyWorkPhases(plan          )                      {
+  return plan.workPhases.filter((wp) => isRunnablePhase(plan, wp));
+}
+
+
+
+
+
+
+export function readyTasks(plan          )                      {
+  return readyWorkPhases(plan).flatMap((wp) =>
+    wp.tasks
+      .filter((task) => task.status === "pending" && taskDependenciesMet(wp, task))
+      .map((task) => ({ workPhaseId: wp.id, task })),
+  );
+}
+
 export function nextOpenTask(plan          )                                                       {
-  for (const wp of plan.workPhases) {
-    if (!isRunnablePhase(plan, wp)) continue;
-    for (const task of wp.tasks) {
-      if (task.status === "pending" && taskDependenciesMet(wp, task)) return { wp, task };
-    }
-  }
-  return null;
+  const next = readyTasks(plan)[0];
+  if (!next) return null;
+  const wp = plan.workPhases.find((candidate) => candidate.id === next.workPhaseId);
+  return wp ? { wp, task: next.task } : null;
 }
 
 
@@ -1054,6 +1071,115 @@ export function dependencyDeadlock(plan          )                            {
     }
   }
   return reasons.length > 0 ? { reasons } : null;
+}
+
+const LIFECYCLE_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
+
+
+
+
+
+
+export function addGoalplanTask(
+  plan          ,
+  workPhaseId        ,
+  input                                                     ,
+)                          {
+  const id = input.id.trim();
+  const title = input.title.trim();
+  const dependsOn = (input.dependsOn ?? []).map((dependencyId) => dependencyId.trim());
+  if (!LIFECYCLE_ID_RE.test(id)) {
+    return { kind: "rejected", reason: "task id must be a short lowercase id, e.g. t-1" };
+  }
+  if (!title) return { kind: "rejected", reason: "task title must not be empty" };
+  if (dependsOn.some((dependencyId) => dependencyId.length === 0)) {
+    return { kind: "rejected", reason: "task dependencies must be non-empty task ids" };
+  }
+  if (new Set(dependsOn).size !== dependsOn.length) {
+    return { kind: "rejected", reason: "task dependencies must not contain duplicate ids" };
+  }
+  const target = plan.workPhases.find((wp) => wp.id === workPhaseId);
+  if (!target) return { kind: "rejected", reason: `work phase '${workPhaseId}' is not in this plan` };
+  if (target.status === "done" || target.status === "superseded") {
+    return { kind: "rejected", reason: `work phase '${workPhaseId}' is ${target.status} and cannot accept a new task` };
+  }
+  if (target.tasks.some((task) => task.id === id)) {
+    return { kind: "rejected", reason: `task '${workPhaseId}/${id}' is already in this work phase` };
+  }
+  const next           = {
+    ...plan,
+    workPhases: plan.workPhases.map((wp) => wp.id === workPhaseId
+      ? {
+          ...wp,
+          tasks: [...wp.tasks, {
+            id,
+            title,
+            status: "pending"         ,
+            ...(dependsOn.length > 0 ? { dependsOn } : {}),
+          }],
+        }
+      : wp),
+  };
+  const reasons = goalplanDefinitionIntegrityReasons(next);
+  return reasons.length > 0
+    ? { kind: "rejected", reason: reasons.join("; ") }
+    : { kind: "changed", plan: next };
+}
+
+export function completeGoalplanTask(
+  plan          ,
+  workPhaseId        ,
+  taskId        ,
+  outcomeText        ,
+)                          {
+  const outcome = outcomeText.trim();
+  if (!outcome) return { kind: "rejected", reason: "task outcome must not be empty" };
+  const target = plan.workPhases.find((wp) => wp.id === workPhaseId)?.tasks.find((task) => task.id === taskId);
+  if (!target) return { kind: "rejected", reason: `task '${workPhaseId}/${taskId}' is not in this plan` };
+  if (target.status === "done") {
+    return { kind: "unchanged", plan, reason: `task '${workPhaseId}/${taskId}' is already done` };
+  }
+  const ready = readyTasks(plan).some((entry) =>
+    entry.workPhaseId === workPhaseId && entry.task.id === taskId
+  );
+  if (!ready) return { kind: "rejected", reason: `task '${workPhaseId}/${taskId}' is not ready` };
+  return {
+    kind: "changed",
+    plan: {
+      ...plan,
+      workPhases: plan.workPhases.map((wp) => wp.id === workPhaseId
+        ? {
+            ...wp,
+            tasks: wp.tasks.map((task) => task.id === taskId
+              ? { ...task, status: "done"         , outcome }
+              : task),
+          }
+        : wp),
+    },
+  };
+}
+
+export function meetGoalplanCriterion(
+  plan          ,
+  criterionId        ,
+  evidenceText        ,
+)                          {
+  const evidence = evidenceText.trim();
+  if (!evidence) return { kind: "rejected", reason: "criterion evidence must not be empty" };
+  const target = plan.criteria.find((criterion) => criterion.id === criterionId);
+  if (!target) return { kind: "rejected", reason: `criterion '${criterionId}' is not in this plan` };
+  if (target.status === "met") {
+    return { kind: "unchanged", plan, reason: `criterion '${criterionId}' is already met` };
+  }
+  return {
+    kind: "changed",
+    plan: {
+      ...plan,
+      criteria: plan.criteria.map((criterion) => criterion.id === criterionId
+        ? { ...criterion, capturedEvidence: evidence, status: "met"          }
+        : criterion),
+    },
+  };
 }
 
 /** Criteria still open. */
