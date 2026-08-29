@@ -497,7 +497,11 @@ outcome 사유의 포함 여부만 판정한다.
 
 ## 4. 다섯 RMW 공개 경로의 필드 보존
 
-공통 기대값은 아래와 같다.
+공통 기대값은 아래와 같다. 이 블록은 §5의 helper 블록과 byte 동일해야 한다 — 라운드 2 실측에서 두
+사본의 `taskFields()` 서명이 달랐다(`plan: Goalplan` 대 구조 타입). 구조 타입 쪽을 정본으로 삼는다.
+`review-binding.test.ts`에는 `type Goalplan` import가 없어서(실측: `:10`이 `buildGoalplan,
+writeGoalplan, readGoalplan`만 가져온다) `Goalplan` 서명을 쓰면 그 파일에만 import를 더해야 한다.
+구조 타입은 네 파일에 그대로 들어간다.
 
 ```ts
 const expectedTaskFields = [
@@ -505,7 +509,11 @@ const expectedTaskFields = [
   { id: "t-2", dependsOn: ["t-1"], outcome: "second task verified" },
 ];
 
-function taskFields(plan: Goalplan) {
+function taskFields(plan: { workPhases: Array<{ tasks: Array<{
+  id: string;
+  dependsOn?: string[];
+  outcome?: string;
+}> }> }) {
   return plan.workPhases[0].tasks.map(({ id, dependsOn, outcome }) => ({ id, dependsOn, outcome }));
 }
 ```
@@ -518,14 +526,21 @@ function taskFields(plan: Goalplan) {
 before:
 
 ```ts
-// wp6 적용 후 상태
-import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
+// wp6 적용 후 상태 — test/orchestrate-cli.test.ts:10~17, 여러 줄 형태
+import {
+  buildGoalplan,
+  effectiveActiveWorkPhaseId,
+  goalplanWriteLockDir,
+  readGoalplan,
+  writeGoalplan,
+  type Goalplan,
+} from "../src/goalplan.ts";
 ```
 
 after:
 
 ```ts
-import { buildGoalplan, readGoalplan, writeGoalplan } from "../src/goalplan.ts";
+// 변경 없다. `readGoalplan`과 `type Goalplan`이 이미 있다.
 ```
 
 기존 D-close harness 아래에 다음 테스트를 추가한다.
@@ -562,14 +577,14 @@ test("wp7 preservation: CLI D-close keeps dependsOn and outcome", () => {
 before:
 
 ```ts
-// wp6 적용 후 상태
-import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
+// wp6 적용 후 상태 — test/hook.test.ts:28
+import { buildGoalplan, readGoalplan, writeGoalplan, type Goalplan } from "../src/goalplan.ts";
 ```
 
 after:
 
 ```ts
-import { buildGoalplan, readGoalplan, writeGoalplan } from "../src/goalplan.ts";
+// 변경 없다.
 ```
 
 ```ts
@@ -615,7 +630,8 @@ test("wp7 preservation: chat D-close keeps dependsOn and outcome", () => {
 
 ### 4.3 MODIFY — `test/steering.test.ts`
 
-현재 import에는 `readGoalplan()`이 이미 있다. 새 import는 없다.
+현재 import에는 `readGoalplan()`이 이미 있다. 새 import는 없다. 실측 `test/steering.test.ts:15`:
+`buildGoalplan, goalplanDir, readGoalplan, writeGoalplan, type Goalplan`.
 
 before:
 
@@ -652,7 +668,9 @@ test("wp7 preservation: steering RMW keeps dependsOn and outcome", () => {
 
 ### 4.4 MODIFY — `test/review-binding.test.ts`: open과 abort
 
-현재 import에는 `readGoalplan()`이 이미 있다.
+현재 import에는 `readGoalplan()`이 이미 있다. 실측 `test/review-binding.test.ts:10`:
+`buildGoalplan, writeGoalplan, readGoalplan`. `type Goalplan`은 없으므로 §5 helper의 구조 타입을
+그대로 쓴다 — `Goalplan` 서명으로 바꾸면 이 파일만 import를 더해야 한다.
 
 before:
 
@@ -706,6 +724,8 @@ open 직후와 abort 직후를 따로 읽는다. `review-round-cli.ts:237`에서
 값을 보존하는 결함을 최종 상태만 보고 놓치지 않는다.
 
 ### 4.5 MODIFY — `test/review-binding.test.ts`: observer verdict
+
+§4.4와 같은 파일이다. helper와 import는 §4.4에서 이미 놓았으므로 다시 놓지 않는다.
 
 before:
 
@@ -940,7 +960,10 @@ import 추가는 `goalplanWriteLockDir`, `goalplanWriteLockStatus`, `mkdirSync`,
 ## 5. 공통 helper 배치
 
 `expectedTaskFields`와 `taskFields()`는 각 test file 상단 helper 구역에 같은 내용으로 둔다. 별도
-production helper를 만들지 않는다. 네 파일의 helper 변경은 아래 형태다.
+production helper를 만들지 않는다. 아래 블록은 §4 머리의 블록과 byte 동일하다(라운드 2에서 두 사본의
+서명이 어긋난 것을 고쳤다). 파일은 네 개가 아니라 **세 개**다 — `review-binding.test.ts`는 §4.4와 §4.5가
+같은 파일을 쓰므로 helper를 한 번만 놓는다. 나머지는 `orchestrate-cli.test.ts`, `hook.test.ts`,
+`steering.test.ts`다.
 
 before:
 
