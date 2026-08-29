@@ -56,6 +56,10 @@ export function clearedIdle(state: State): State {
     planUnit: null,
     planEpoch: null,
     checkEpoch: null,
+    // 050 wp5: a reset clears the D-close recovery marker explicitly rather than
+    // letting the spread carry it into the resting state. A marker that outlives its
+    // cycle would let the next D-close resume a close nobody asked for.
+    dcloseRecovery: null,
   };
 }
 
@@ -76,7 +80,9 @@ export function applyHumanTransition(
   // mid-cycle ->IDLE) and writes the cleared IDLE state directly. Reset from IDLE
   // is a no-op (no ledger spam).
   if (verb === "reset") {
-    if (state.phase === "IDLE") {
+    // 050 wp5: IDLE alone is not rest. A D-close marker or a retained check epoch is
+    // leftover work, and answering no-op there leaves the operator no way to clear it.
+    if (state.phase === "IDLE" && state.checkEpoch === null && state.dcloseRecovery === null) {
       return { ok: true, control: "reset", noop: true };
     }
     return {

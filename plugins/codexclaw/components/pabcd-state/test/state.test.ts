@@ -55,6 +55,7 @@ test("SessionStart ensureState: fresh session creates the exact default IDLE sta
       planUnit: null,
       planEpoch: null,
       checkEpoch: null,
+      dcloseRecovery: null,
     });
     assert.equal(Number.isNaN(Date.parse(persisted.updatedAt)), false);
     assert.deepEqual(readdirSync(dir).filter((name) => name.endsWith(".tmp")), []);
@@ -561,4 +562,124 @@ test("a non-link error still propagates", () => {
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
+});
+
+test("wp5: valid D-close marker restores with its IDLE check epoch", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, {
+      ...defaultState("marker-valid"),
+      checkEpoch: "c-valid",
+      dcloseRecovery: {
+        sessionId: "marker-valid",
+        checkEpoch: "c-valid",
+        closedWorkPhaseId: "wp-1",
+        nextWorkPhaseId: "wp-2",
+      },
+    });
+    const restored = readState(cwd, "marker-valid");
+    assert.equal(restored.checkEpoch, "c-valid");
+    assert.deepEqual(restored.dcloseRecovery, {
+      sessionId: "marker-valid",
+      checkEpoch: "c-valid",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("wp5: a marker without the successor field restores as legacy", () => {
+  // §50: an absent key is a pre-§48 marker. Folding it into an explicit null would let
+  // recovery force "no successor" onto a plan whose commit already activated one,
+  // nulling a correct cursor. The flag keeps the two apart so recovery can refuse.
+  const cwd = freshCwd();
+  try {
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "marker-legacy.json"), `${JSON.stringify({
+      ...defaultState("marker-legacy"),
+      checkEpoch: "c-legacy",
+      dcloseRecovery: {
+        sessionId: "marker-legacy",
+        checkEpoch: "c-legacy",
+        closedWorkPhaseId: "wp-1",
+      },
+    })}\n`);
+
+    const restored = readState(cwd, "marker-legacy");
+
+    assert.deepEqual(restored.dcloseRecovery, {
+      sessionId: "marker-legacy",
+      checkEpoch: "c-legacy",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: null,
+      legacy: true,
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("wp5: a malformed successor value restores as legacy instead of an explicit null", () => {
+  // §51: promoting a corrupt value to null would give it the authority of "this close had
+  // no successor", letting a damaged marker skip a real one. Treat unreadable intent the
+  // same way as a pre-field marker.
+  const cwd = freshCwd();
+  try {
+    const dir = join(cwd, STATE_DIR, SESSIONS_SUBDIR);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "marker-malformed.json"), `${JSON.stringify({
+      ...defaultState("marker-malformed"),
+      checkEpoch: "c-malformed",
+      dcloseRecovery: {
+        sessionId: "marker-malformed",
+        checkEpoch: "c-malformed",
+        closedWorkPhaseId: "wp-1",
+        nextWorkPhaseId: 7,
+      },
+    })}\n`);
+
+    const restored = readState(cwd, "marker-malformed");
+
+    assert.equal(restored.dcloseRecovery?.legacy, true);
+    assert.equal(restored.dcloseRecovery?.nextWorkPhaseId, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+test("wp5: an explicit null successor restores without the legacy flag", () => {
+  // The counterpart: a §48 marker that honestly recorded "no successor" must NOT be
+  // refused, because its history is unambiguous.
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, {
+      ...defaultState("marker-null-next"),
+      checkEpoch: "c-null-next",
+      dcloseRecovery: {
+        sessionId: "marker-null-next",
+        checkEpoch: "c-null-next",
+        closedWorkPhaseId: "wp-1",
+        nextWorkPhaseId: null,
+      },
+    });
+
+    const restored = readState(cwd, "marker-null-next");
+
+    assert.equal(restored.dcloseRecovery?.nextWorkPhaseId, null);
+    assert.equal(restored.dcloseRecovery?.legacy, undefined);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+test("wp5: foreign D-close marker is dropped and cannot retain an IDLE epoch", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, {
+      ...defaultState("marker-owner"),
+      checkEpoch: "c-foreign",
+      dcloseRecovery: {
+        sessionId: "other-session",
+        checkEpoch: "c-foreign",
+        closedWorkPhaseId: "wp-1",
+        nextWorkPhaseId: "wp-2",
+      },
+    });
+    const restored = readState(cwd, "marker-owner");
+    assert.equal(restored.dcloseRecovery, null);
+    assert.equal(restored.checkEpoch, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
