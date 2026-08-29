@@ -229,15 +229,53 @@ NODE
 남으면 exit `9`~`11`, corpus가 비면 exit `12`가 난다. 발견 개수를 특정 숫자와 비교하는 단언은 없다 —
 `12`는 하한이지 고정값이 아니다.
 
-감사 라운드 1이 이 게이트를 14종 변이 baseline에 돌려 exit 9·10·11 셋이 도달 불가임을 실측했다.
-넓힌 패턴을 같은 변이에 다시 돌린 결과다.
+감사 라운드 1이 이 게이트를 변이 baseline에 돌려 exit 9·10·11 셋이 도달 불가임을 실측했다. 넓힌 패턴을
+같은 변이에 다시 돌린 결과가 아래다. 라운드 6까지 이 문단은 변이 개수를 "14종"이라 적었는데 그 수를
+재현할 입력 표가 어디에도 없었다. 개수를 지우고 실행 가능한 입력 목록으로 바꾼다.
 
-```text
-실측 세션 id(UUIDv7)      옛 정규식 false  →  넓힌 정규식 true
-문장 중간 절대 경로        옛 정규식 false  →  넓힌 정규식 true
-64자 sha256                옛 정규식 false  →  넓힌 정규식 true
-enum 문자열 오탐          넓힌 경로 정규식이 in_progress·logic 둘 다 false
+```bash
+node --input-type=module <<'NODE'
+const uuid = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
+const oldPath = /(?:^|\s)\/[A-Za-z0-9._-]+\/|[A-Za-z]:[\\/]/;
+const newPath =
+  /(?:^|[\s("'`=,:[])(?:\/(?!(?:v\d+|api)(?:\/|$))[A-Za-z0-9._-]+\/|[A-Za-z]:[\\/])/;
+const hash = /\b[0-9a-f]{32,}\b/i;
+const oldUuid = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
+const oldHash = /\b[0-9a-f]{40}\b/i;
+
+// [값, 판정해야 하는 패턴, 기대]
+const cases = [
+  ["01a04d46-6ae6-7232-8183-9f3771c3a67d", "uuid", true],
+  ["detail (/Users/jun/private)", "path", true],
+  ['path="/Users/jun/private/x"', "path", true],
+  ["at /Users/jun/private/x", "path", true],
+  ["['/Users/jun/x/y']", "path", true],
+  ["cwd:/Users/jun/x/", "path", true],
+  ["C:\\Users\\jun", "path", true],
+  ["a".repeat(0) + "0".repeat(64), "hash", true],
+  ["/v1/goalplans", "path", false],
+  ["https://example.test/v1/goalplans", "path", false],
+  ["in_progress", "path", false],
+  ["wp-live/ready", "path", false],
+  ["fixture-24-string-0131", "path", false],
+  ["2026-08-29T00:00:00.000Z", "path", false],
+];
+const pick = { uuid, path: newPath, hash };
+let bad = 0;
+for (const [value, which, expected] of cases) {
+  if (pick[which].test(value) !== expected) { bad++; console.log("WRONG", which, JSON.stringify(value)); }
+}
+// 옛 패턴이 놓쳤던 세 건
+if (oldUuid.test("01a04d46-6ae6-7232-8183-9f3771c3a67d")) { bad++; console.log("old uuid unexpectedly caught v7"); }
+if (oldPath.test("detail (/Users/jun/private)")) { bad++; console.log("old path unexpectedly caught paren"); }
+if (oldHash.test("0".repeat(64))) { bad++; console.log("old hash unexpectedly caught sha256"); }
+if (bad !== 0) process.exit(1);
+console.log("privacy pattern cases OK:", cases.length);
+NODE
 ```
+
+기대 출력은 `privacy pattern cases OK: 14`이고 종료 코드는 `0`이다. 세 옛 패턴이 UUIDv7·괄호 경로·64자
+sha256을 놓쳤다는 것도 같은 실행이 확인한다.
 
 실효 방어선은 이 정규식이 아니라 alias 불변식이다 — `test/goalplan.test.ts:314`의 `assertAliased()`가
 91개 fixture에 enum·`fixture-N`·`fixture-N-string-NNNN` 밖의 문자열이 0건임을 강제한다. 소유 테스트는
