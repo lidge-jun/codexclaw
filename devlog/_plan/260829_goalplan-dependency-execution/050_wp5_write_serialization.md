@@ -2449,7 +2449,10 @@ test("an unreadable plan releases the acquired lock", () => {
 
 ### 8.2 MODIFY — `plugins/codexclaw/components/pabcd-state/test/steering.test.ts`
 
-기존 held-lock 테스트와 release 테스트를 다음 두 블록으로 교체한다.
+현재 `:159`의 `a held lock blocks the batch and names the owner`와 `:171`의
+`the lock is released on success and on rejection` 두 선언을 삭제하고 아래 두 블록으로 교체한다.
+선언 삭제 2건, 추가 2건이며 §10.1 `removed_declarations` 5건 중 2건이 여기서 나온다.
+두 옛 테스트는 `.steer.lock` 경로와 그 owner 문구를 기다리므로 공통 락 After에서 그대로 둘 수 없다.
 
 ```ts
 test("a held common lock blocks the batch and preserves plan and ledger bytes", () => {
@@ -4493,6 +4496,7 @@ node --experimental-strip-types --test --test-concurrency=1 \
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
 - 기존 파일 추가 선언 37개, 신규 파일 선언 6개
+- 삭제 5개의 출처는 §8.2의 held-lock·release 2개와 §8.2.1의 drvfs·9p·native 3개다
 - 두 입력을 도는 parameterized 선언의 추가 등록 1개, 세 scenario를 도는 선언의 추가 등록 2개
 - 계획된 신규 케이스 46개, 삭제 5개, 순증 41개
 - 구현 뒤 선언 230개, 실제 focused 등록 233개
