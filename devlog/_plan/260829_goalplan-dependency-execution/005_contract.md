@@ -1209,3 +1209,54 @@ successor를 후보로 되읽는다.
 결과가 다른 것이 고정 target 계약의 정의다. helper의 결과는 정직하다: `wp-1`은 done이고 실제로 실행
 중인 `wp-2`가 커서가 된다. §46 parity 회귀는 대상이 `in_progress`인 입력, 즉 두 함수가 같은 대상을
 닫는 경우만 묶는다.
+
+## 47. 라운드 18 — 정규화 대상은 커서가 지목한 phase 하나뿐이다
+
+§46은 정규화를 재적용으로 좁혔지만 재적용 안에서는 여전히 대상 외 모든 `in_progress` phase를 훑었다.
+그 결과 정상 close의 결과 plan을 그대로 다시 넣으면 `already_done`이 나오지 않는다. 첫 close가 대상을
+`done`으로 만들고 successor를 `in_progress`로 올려두었으니 재입력은 `current.status === "done"`을
+만족해 재적용으로 판정되고, 그때 successor보다 앞서 실행 중이던 다른 phase까지 `pending`으로 강등되어
+후보 검색이 그 phase를 고른다. 커서가 뒤로 밀리고 `samePlanShape()`가 어긋나 두 번째 write가 나간다.
+crash 재시도가 의존하는 멱등성이 바로 이 지점에서 깨진다.
+
+실측:
+
+```text
+입력: wp-1=in_progress(대상), wp-2=in_progress, wp-3=pending
+첫 close 결과:  커서 wp-3, [wp-1=done, wp-2=in_progress, wp-3=in_progress]
+그 결과 재입력: §46 판본은 wp-2를 강등해 커서를 wp-2로 되돌린다  <- 멱등성 위반
+```
+
+처분: 정규화 대상을 **커서가 지목한 phase 하나**로 좁힌다. 그 phase가 곧 앞선 시도가 활성화한
+successor이므로 recovery가 되읽어야 하는 것은 그것뿐이다.
+
+```ts
+const selectable = closedWorkPhases.map((wp) =>
+  wp.id !== workPhaseId
+    && wp.status === "in_progress"
+    && plan.activeWorkPhaseId === wp.id
+    && current.status === "done"
+    ? { ...wp, status: "pending" as const }
+    : wp
+);
+```
+
+네 조건이 각각 무엇을 막는지: `wp.id !== workPhaseId`는 대상 자신을 되돌리지 않고,
+`status === "in_progress"`는 이미 끝난 phase를 되살리지 않고, `plan.activeWorkPhaseId === wp.id`는
+커서가 가리키지 않는 무관한 running phase를 보호하고, `current.status === "done"`은 첫 close에서
+정규화가 일어나지 않게 해 wp4 parity를 지킨다.
+
+실측 재검증 넷을 모두 확인했다. wp4 parity 입력에서 `advanceWorkPhase()`와 `closeFixedWorkPhase()`가
+둘 다 커서 `wp-3`를 냈다. §45 probe 일곱 경우가 그대로였고, 특히 7번 "무관한 running phase는 강등되지
+않는다"가 유지됐다. 새 왕복 probe 다섯 경우 — 단순 pending successor, 다른 phase 실행 중, 수동 done
+대상, 앞으로 감싸는 후보, successor 없음 — 에서 첫 close 결과를 다시 넣으면 전부 `already_done`이었다.
+`goalplan.test.ts`, `work-phase-states.test.ts`, `orchestrate-cli.test.ts`, `goal-gate.test.ts`
+네 파일이 `tests 162 / pass 162 / fail 0`, exit 0이었다. 확인 뒤 원본과 바이트 동일로 복원했다.
+
+회귀 둘을 추가한다. 하나는 정상 close 결과를 helper에 다시 넣어 `already_done`을 단언하는 왕복
+테스트다. 다른 하나는 marker 직후 status-only 편집이 끼어들고 기존 `in_progress` phase와 pending
+successor가 함께 있는 plan에서 재시도가 커서를 뒤로 밀지 않는지 본다.
+
+§43과의 관계도 같이 정리한다. 표 §6.3의 recovery 행에 "대상이 아직 `done`이 아니면 helper를 부른다"가
+남아 있었는데, 이는 판정을 호출자에게 되돌려주는 문구여서 §43과 어긋났다. 대상이 plan에 있으면 상태를
+보지 않고 항상 helper를 부르고, `already_done`일 때만 plan write를 생략한다로 통일한다.

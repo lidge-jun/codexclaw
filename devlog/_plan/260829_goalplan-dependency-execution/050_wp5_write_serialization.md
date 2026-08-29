@@ -486,26 +486,25 @@ export function closeFixedWorkPhase(
   );
   const closedPlan: Goalplan = { ...plan, activeWorkPhaseId: null, workPhases: closedWorkPhases };
 
-  // §46: candidate selection normalizes non-target `in_progress` phases to `pending`,
-  // but ONLY when this call is a recovery re-application — that is, when the target
-  // was already `done` on entry. A retry can find the successor at `in_progress`, and
-  // searching for `pending` alone would select nothing and null the cursor, corrupting
-  // a plan that was already correct.
+  // §47: on a re-application the successor an earlier attempt activated is already
+  // `in_progress`, and a pending-only search would find nothing and null the cursor,
+  // corrupting a plan that was already correct. So that ONE phase reads as a candidate
+  // again — the phase the cursor names, which is exactly the phase a previous attempt
+  // set. Nothing else is normalized.
   //
-  // A first close must NOT normalize. wp4 locked pending-only after-then-wrap, and a
-  // plan may legitimately hold a second `in_progress` phase (definition integrity does
-  // not reject that). Normalizing there would move the cursor to that running phase
-  // instead of the pending phase wp4 selects, re-logging `started` for work already
-  // under way. Measured: for `wp-1` in_progress, `wp-2` in_progress, `wp-3` pending,
-  // advanceWorkPhase() picks wp-3 and an unconditional normalization picked wp-2.
-  const reapplying = current.status === "done";
-  const selectable = reapplying
-    ? closedWorkPhases.map((wp) =>
-        wp.id !== workPhaseId && wp.status === "in_progress"
-          ? { ...wp, status: "pending" as const }
-          : wp
-      )
-    : closedWorkPhases;
+  // Two narrower rules were wrong. Normalizing on a first close broke wp4 parity: with
+  // `wp-1` in_progress, `wp-2` in_progress, `wp-3` pending, advanceWorkPhase() picks
+  // wp-3 and normalization picked wp-2. Normalizing EVERY non-target in_progress phase
+  // during re-application broke idempotency the same way: feeding a completed close
+  // back in re-selected the older running phase instead of answering already_done.
+  const selectable = closedWorkPhases.map((wp) =>
+    wp.id !== workPhaseId
+      && wp.status === "in_progress"
+      && plan.activeWorkPhaseId === wp.id
+      && current.status === "done"
+      ? { ...wp, status: "pending" as const }
+      : wp
+  );
   const selectablePlan: Goalplan = { ...closedPlan, workPhases: selectable };
 
   // Same after-then-wrap order as before, evaluated on the snapshot where the
@@ -978,7 +977,7 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
 | --- | --- | --- | --- |
 | 1 | slug가 없는 HITL인가 | `writeState` + PABCD `appendLedger` 뒤 옛 성공 문구로 즉시 return | `orchestrate-cli.test.ts:908`에 옛 문구 단언을 추가한다 |
 | 2 | bound plan의 `workPhases.length === 0`인가 | `the plan is empty — register workPhases[] first`로 거부 | 기존 `/the plan is empty/` 단언을 그대로 둔다 |
-| 3 | recovery marker의 세 값이 모두 맞는가 | 이미 통과한 gate를 다시 쓰지 않고, 고정 대상이 아직 `done`이 아니면 `closeFixedWorkPhase()`로 멱등 commit한 뒤 남은 commit만 보충한다 | §8.3의 marker 재시도 테스트 다섯 건이 맡는다 — 정상 재시도 parity, target 부재, open task, blocked, 의존 미충족 |
+| 3 | recovery marker의 세 값이 모두 맞는가 | 이미 통과한 gate를 다시 쓰지 않고, 고정 대상이 plan에 있으면 상태를 보지 않고 항상 `closeFixedWorkPhase()`를 부른다. `already_done`이면 plan write만 생략하고 남은 commit을 보충한다 | §8.3의 marker 재시도 테스트 다섯 건이 맡는다 — 정상 재시도 parity, target 부재, open task, blocked, 의존 미충족 |
 | 4 | work-phase가 하나 이상이고 모두 `done`인가 | 새 marker 없이 첫 락 안에서 PABCD close row까지 끝내고 cycle만 IDLE로 닫는다 | 기존 all-done 성공 테스트를 그대로 성공으로 둔다 |
 | 5 | target이 plan에 있는가 | 빈 id는 `attest.workPhaseId is required`, 없는 id는 `work-phase <id> is not in the bound goalplan`로 거부 | wp5 고정 target 음성 경로 |
 | 6 | target에 pending task가 남았는가 | 기존 `tasks_pending` 문구로 거부 | 기존 open-task 단언을 보존한다 |
@@ -2263,6 +2262,8 @@ import {
   readGoalplan,
   withGoalplanWriteLock,
   writeGoalplan,
+  type Goalplan,
+  type WorkPhaseStatus,
 } from "../src/goalplan.ts";
 
 function workspace(objective: string): { cwd: string; slug: string } {
@@ -2499,6 +2500,69 @@ test("closing a fixed phase picks the same successor advanceWorkPhase would", ()
     shape(advanced.kind === "ok" ? advanced.plan : build()),
   );
   assert.equal(advanced.kind === "ok" ? advanced.plan.activeWorkPhaseId : null, "wp-3");
+});
+
+test("re-applying a completed close answers already_done for every successor shape", () => {
+  // §47: the normalization narrowed to the one phase the cursor names. A wider rule
+  // demoted an older running phase on re-entry, pulled the cursor backward, and made
+  // samePlanShape() disagree — so a retry after a crashed write issued a second write.
+  // Every successful close, fed straight back in, must report already_done.
+  const build = (phases: Array<[string, WorkPhaseStatus]>, cursor: string | null): Goalplan => {
+    const plan = buildGoalplan({ objective: "round trip" });
+    plan.workPhases = phases.map(([id, status]) => ({
+      id,
+      title: id,
+      status,
+      tasks: [],
+      criteriaIds: [],
+    }));
+    plan.activeWorkPhaseId = cursor;
+    return plan;
+  };
+
+  const cases: Array<[string, Goalplan, string]> = [
+    ["pending successor", build([["wp-1", "in_progress"], ["wp-2", "pending"]], "wp-1"), "wp-1"],
+    [
+      "another phase already running",
+      build([["wp-1", "in_progress"], ["wp-2", "in_progress"], ["wp-3", "pending"]], "wp-1"),
+      "wp-1",
+    ],
+    [
+      "target marked done by hand",
+      build([["wp-1", "done"], ["wp-2", "in_progress"], ["wp-3", "pending"]], "wp-1"),
+      "wp-1",
+    ],
+    ["wrap to an earlier pending phase", build([["wp-1", "pending"], ["wp-2", "in_progress"]], "wp-2"), "wp-2"],
+    ["no successor left", build([["wp-1", "in_progress"], ["wp-2", "done"]], "wp-1"), "wp-1"],
+  ];
+
+  for (const [label, input, target] of cases) {
+    const first = closeFixedWorkPhase(input, target);
+    assert.equal(first.kind, "ok", label);
+    if (first.kind !== "ok") continue;
+    assert.equal(closeFixedWorkPhase(first.plan, target).kind, "already_done", label);
+  }
+});
+
+test("a status-only edit between the marker and the retry does not pull the cursor backward", () => {
+  // §47 second regression: the marker names wp-1, an unrelated phase is running, and a
+  // pending successor waits. The retry sees the plan a first attempt already committed.
+  const committed = buildGoalplan({ objective: "retry after status edit" });
+  committed.workPhases = [
+    { id: "wp-1", title: "first", status: "done", tasks: [], criteriaIds: [] },
+    { id: "wp-2", title: "second", status: "in_progress", tasks: [], criteriaIds: [] },
+    { id: "wp-3", title: "third", status: "in_progress", tasks: [], criteriaIds: [] },
+  ];
+  committed.activeWorkPhaseId = "wp-3";
+
+  const retried = closeFixedWorkPhase(committed, "wp-1");
+
+  assert.equal(retried.kind, "already_done");
+  assert.equal(committed.activeWorkPhaseId, "wp-3");
+  assert.deepEqual(
+    committed.workPhases.map((wp) => [wp.id, wp.status]),
+    [["wp-1", "done"], ["wp-2", "in_progress"], ["wp-3", "in_progress"]],
+  );
 });
 test("read-only lock status reports absolute path and age without consulting owner metadata", () => {
   const { cwd, slug } = workspace("lock status");
@@ -4926,19 +4990,19 @@ test "$forgery_arity" -eq 2
 forgery_extra_cases=$((forgery_arity - 1))
 
 test "$added_existing_declarations" -eq 44
-test "$new_file_declarations" -eq 7
+test "$new_file_declarations" -eq 9
 test "$parameterized_extra_cases" -eq 1
 test "$removed_declarations" -eq 5
 
 new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
 net_case_count=$((new_case_count - removed_declarations))
-test "$new_case_count" -eq 55
-test "$net_case_count" -eq 50
+test "$new_case_count" -eq 57
+test "$net_case_count" -eq 52
 
 focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
 focused_case_count=$((focused_declaration_count + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
-test "$focused_declaration_count" -eq 238
-test "$focused_case_count" -eq 242
+test "$focused_declaration_count" -eq 240
+test "$focused_case_count" -eq 244
 
 # 산술 기대값과 실제 등록 수를 대조한다. 이것이 없으면 케이스 하나가 누락된 채
 # 남은 전부가 통과해도 node가 exit 0을 내어 false-green이 된다.
@@ -4957,12 +5021,12 @@ test "$(rg -o '^. fail (\d+)$' -r '$1' "$focused_log" | tail -1)" -eq 0
 
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
-- 기존 파일 추가 선언 44개, 신규 파일 선언 7개
+- 기존 파일 추가 선언 44개, 신규 파일 선언 9개
 - 삭제 5개의 출처는 §8.2의 held-lock·release 2개와 §8.2.1의 drvfs·9p·native 3개다
 - 두 입력을 도는 parameterized 선언의 추가 등록 1개, scenario 배열 원소 3개에서 나오는 추가 등록 2개
-- 계획된 신규 케이스 55개, 삭제 5개, 순증 50개
-- 구현 뒤 선언 238개, 실제 focused 등록 242개
-- node test exit 0, tests 242, pass 242, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
+- 계획된 신규 케이스 57개, 삭제 5개, 순증 52개
+- 구현 뒤 선언 240개, 실제 focused 등록 244개
+- node test exit 0, tests 244, pass 244, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
 
 락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
 CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
@@ -5000,7 +5064,7 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값은 exit 0, tests 2217, pass 2217, fail 0이다. 기존 2167건과 wp5 순증 50건을 모두 실행하며,
+기대값은 exit 0, tests 2219, pass 2219, fail 0이다. 기존 2167건과 wp5 순증 52건을 모두 실행하며,
 루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
 
 ### 10.4 저장소 gate
@@ -5122,7 +5186,7 @@ tracked이므로 이전 초안의 `?? …050….md` 기대는 거짓이었고, �
 | `src/hook.ts` | wp4 `dependencyDeadlock`을 보존하고 wp5 fs/path, lock, recovery, 두 integrity helper를 더한다. |
 | `src/review-round-cli.ts` | 현재 전체 import를 Before로 적고 wp5 `withGoalplanWriteLock`, `ReviewRoundState`를 더한 전체 After를 적는다. |
 | `src/review-observer.ts` | 현재 전체 import를 Before로 적고 wp5 `withGoalplanWriteLock`을 더한 전체 After를 적는다. |
-| `test/goalplan-concurrency.test.ts` | 신규 파일 전체 import이며 `isAbsolute`, `spawn`, 그리고 §46 parity 테스트가 쓰는 `advanceWorkPhase`, `closeFixedWorkPhase`, `type Goalplan`을 포함한다. |
+| `test/goalplan-concurrency.test.ts` | 신규 파일 전체 import이며 `isAbsolute`, `spawn`, 그리고 §46 parity 및 §47 왕복 테스트가 쓰는 `advanceWorkPhase`, `closeFixedWorkPhase`, `type Goalplan`, `type WorkPhaseStatus`를 포함한다. |
 | `test/steering.test.ts` | import 변경 없음. |
 | `test/steering-ops.test.ts` | 전체 After에서 전용 `WslDeps`만 지운다. |
 | `test/orchestrate-cli.test.ts` | 기존 goalplan import를 보존하고 `readGoalplan`, `goalplanWriteLockDir`, `buildGoalplan`, `writeGoalplan`을 더한다. `node:fs`에서 `mkdirSync`도 더한다(§40 Z2 회귀가 락 디렉터리를 직접 만든다). |
