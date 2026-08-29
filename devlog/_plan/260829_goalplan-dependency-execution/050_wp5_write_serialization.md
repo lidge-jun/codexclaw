@@ -427,6 +427,7 @@ export type CloseFixedResult =
   | { kind: "ok"; plan: Goalplan; closedId: string }
   | { kind: "absent" }
   | { kind: "not_runnable"; status: GoalplanWorkPhaseStatus }
+  | { kind: "dependencies_unmet"; unmet: string[] }
   | { kind: "tasks_pending"; workPhaseId: string; pending: GoalplanTask[] };
 
 /**
@@ -456,6 +457,14 @@ export function closeFixedWorkPhase(
   // one, so this only fires when a recovery target changed state after its marker.
   if (current.status !== "pending" && current.status !== "in_progress" && current.status !== "done") {
     return { kind: "not_runnable", status: current.status };
+  }
+
+  // §41 W5: runnable means dependencies met, not just a workable status. Checking
+  // status alone let a target through whose dependency turned blocked after the
+  // marker was written — advanceWorkPhase() answers no_active there, and recovery
+  // must not answer ok.
+  if (!workPhaseDependenciesMet(plan, current)) {
+    return { kind: "dependencies_unmet", unmet: unmetPhaseDependencyIds(plan, current) };
   }
 
   // CYCLE-COMPLETION-01, unchanged wording and unchanged variant: an open task keeps
@@ -503,13 +512,28 @@ export function closeFixedWorkPhase(
   if (closed.kind === "tasks_pending") {
     return { kind: "tasks_pending", workPhaseId: closed.workPhaseId, pending: closed.pending };
   }
+  // absent, not_runnable, and dependencies_unmet all fold into the existing no_active
+  // variant: the effective cursor never picks such a phase, so the normal path cannot
+  // reach them and the return shape is unchanged.
   if (closed.kind !== "ok") return { kind: "no_active" };
   return { kind: "ok", closedId: closed.closedId, plan: closed.plan };
 ```
 
+`unmetPhaseDependencyIds()`는 wp4가 이미 만든 module-private helper다. wp5는 새로 만들지 않고 호출만
+한다.
+
 P-phase에서 이 두 블록을 실제 `goalplan.ts` 사본에 적용하고 wp4 focused golden을 돌려 확인했다.
 `tests 14 / pass 14 / fail 0`, exit 0이었고 확인 뒤 원본과 바이트 동일로 복원했다. 반환 shape가 같으므로
 불변식 9 golden의 단일 `deepEqual`이 그대로 성립한다.
+
+`CloseFixedResult`로 게이트를 옮긴 뒤 다시 같은 방식으로 확인했다. `goalplan.test.ts`,
+`work-phase-states.test.ts`, `orchestrate-cli.test.ts`, `goal-gate.test.ts` 네 파일을 함께 실행해
+`tests 162 / pass 162 / fail 0`, exit 0이었다. `tasks_pending` 전달이 기존 반환 shape와 같으므로
+CYCLE-COMPLETION-01 문구를 기다리는 기존 단언이 그대로 통과한다. 확인 뒤 원본과 바이트 동일로 복원했다.
+
+`dependencies_unmet` variant까지 넣은 최종 명세로 같은 네 파일을 다시 실행해 `tests 162 / pass 162 /
+fail 0`을 확인했다. 세 거부 variant가 모두 `no_active`로 접히므로 `AdvanceResult`의 공개 shape는
+wp4와 동일하다.
 
 선행 wp의 `node:fs` After를 출발점으로 삼아 `statSync`만 더한다. `node:path`의 `resolve`는 이미
 선행 상태에 있으므로 다시 쓰지 않는다.
@@ -983,6 +1007,13 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
                 output: `orchestrate D: recovery target ${closePhaseId} is now ${closed.status}, so this cycle cannot close (CYCLE-COMPLETION-01). The recovery marker was kept; restore that work-phase and run the same D request again. Nothing was written.`,
               };
             }
+            if (closed.kind === "dependencies_unmet") {
+              return {
+                code: 1 as const,
+                allDone: false as const,
+                output: `orchestrate D: recovery target ${closePhaseId} now waits for ${closed.unmet.join(", ")}, so this cycle cannot close (CYCLE-COMPLETION-01). The recovery marker was kept; satisfy those work-phases and run the same D request again. Nothing was written.`,
+              };
+            }
             if (closed.kind === "ok") {
               closedPlan = closed.plan;
               writeClosedPlan = true;
@@ -1437,6 +1468,18 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
               `[codexclaw — refused: recovery target ${closePhaseId} is now ${closed.status} `
                 + `(CYCLE-COMPLETION-01). The recovery marker was kept; restore that work-phase `
                 + `and repeat the same D request. Nothing was written.]`,
+            ),
+            advanced: null,
+            allDone: false as const,
+          };
+        }
+        if (closed.kind === "dependencies_unmet") {
+          return {
+            output: buildContextOutput(
+              "UserPromptSubmit",
+              `[codexclaw — refused: recovery target ${closePhaseId} now waits for `
+                + `${closed.unmet.join(", ")} (CYCLE-COMPLETION-01). The recovery marker was kept; `
+                + `satisfy those work-phases and repeat the same D request. Nothing was written.]`,
             ),
             advanced: null,
             allDone: false as const,
@@ -3788,46 +3831,144 @@ test("chat D-close retry after PABCD append keeps one close row", () => {
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
+/**
+ * A bound chat session sitting at C with NO recovery marker, plus the receipt the
+ * C->D gate needs. §41 W6: marker-seam regressions must start here, because
+ * afterRecoveryMarkerWrite only fires on the non-recovery branch — a fixture that
+ * pre-writes the marker never reaches the seam.
+ */
+function seedChatCycleAtC(cwd: string, id: string, slug: string): string {
+  const plan = buildGoalplan({ objective: `chat close ${id}` });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-1", title: "first", status: "in_progress", tasks: [], criteriaIds: [] },
+    { id: "wp-2", title: "second", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-1";
+  writeGoalplan(cwd, plan);
+  const epoch = "c-chat-epoch";
+  writeState(cwd, {
+    ...defaultState(id),
+    phase: "C",
+    slug,
+    orchestrationActive: true,
+    checkEpoch: epoch,
+    flags: { interview: false, auditPassed: true, checkPassed: false },
+  });
+  seedChatReceipt(cwd, id, epoch);
+  return JSON.stringify({ from: "C", to: "D", did: "ran the suite", workPhaseId: "wp-1" });
+}
+
 test("chat D-close retry after the recovery marker write matches an uninterrupted close", () => {
-  // §41 W4: the CLI had this regression and the chat path did not. Both surfaces run
-  // the same closeFixedWorkPhase(), so both need the parity assertion.
+  // §41 W4/W6: the CLI had this regression and the chat path did not. Both surfaces
+  // run the same closeFixedWorkPhase(), so both need the parity assertion — and the
+  // fixture must be marker-free so the seam actually fires.
   const cwd = gitRepoForHook();
+  const reference = gitRepoForHook();
   try {
     const id = "chat-retry-after-marker";
     const slug = "chat-retry-after-marker-plan";
-    const attest = seedRecoverableChatClose(cwd, id, slug);
-    // seedRecoverableChatClose leaves wp-1 open with the marker already written, so
-    // the first call below exercises the marker-then-crash retry directly.
-    const payload = ups(`orchestrate d --attest ${attest}`, cwd, id, "t1");
+    const attest = seedChatCycleAtC(cwd, id, slug);
+
+    const refAttest = seedChatCycleAtC(reference, "chat-reference", "chat-reference-plan");
+    const refOut = handleUserPromptSubmit(ups(`orchestrate d --attest ${refAttest}`, reference, "chat-reference", "r1"));
+    assert.match(refOut, /\[codexclaw: DONE\]/);
+    const referencePlan = readGoalplan(reference, "chat-reference-plan")!;
 
     assert.throws(
-      () => handleUserPromptSubmit(payload, process.platform, {
-        afterRecoveryMarkerWrite: () => { throw new Error("fail right after the chat marker"); },
-      }),
+      () => handleUserPromptSubmit(
+        ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"),
+        process.platform,
+        { afterRecoveryMarkerWrite: () => { throw new Error("fail right after the chat marker"); } },
+      ),
       /fail right after the chat marker/,
     );
     assert.equal(readState(cwd, id).phase, "C");
-    assert.notEqual(readState(cwd, id).dcloseRecovery, null);
+    assert.deepEqual(readState(cwd, id).dcloseRecovery, {
+      sessionId: id,
+      checkEpoch: "c-chat-epoch",
+      closedWorkPhaseId: "wp-1",
+    });
+    assert.equal(readGoalplan(cwd, slug)!.workPhases.find((wp) => wp.id === "wp-1")!.status, "in_progress");
 
     const out = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "t2"));
     assert.match(out, /\[codexclaw: DONE\]/);
     const recovered = readGoalplan(cwd, slug)!;
-    assert.equal(recovered.workPhases.find((wp) => wp.id === "wp-1")!.status, "done");
+    assert.deepEqual(
+      {
+        workPhases: recovered.workPhases.map((wp) => ({ id: wp.id, status: wp.status })),
+        activeWorkPhaseId: recovered.activeWorkPhaseId,
+      },
+      {
+        workPhases: referencePlan.workPhases.map((wp) => ({ id: wp.id, status: wp.status })),
+        activeWorkPhaseId: referencePlan.activeWorkPhaseId,
+      },
+    );
+    assert.deepEqual(
+      goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_started").map((row) => row.detail),
+      ["started wp-2"],
+    );
     assert.equal(readState(cwd, id).phase, "IDLE");
     assert.equal(readState(cwd, id).dcloseRecovery, null);
-    assert.deepEqual(
-      goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done").map((row) => row.detail),
-      ["closed wp-1"],
-    );
-    assert.equal(
-      ledgerLines(cwd).filter(
-        (row) => row.sessionId === id && row.from === "C" && row.to === "IDLE"
-          && row.closedWorkPhaseId === "wp-1",
-      ).length,
-      1,
-    );
-  } finally { rmSync(cwd, { recursive: true, force: true }); }
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(reference, { recursive: true, force: true });
+  }
 });
+
+for (const scenario of [
+  { name: "gained an open task", pattern: /gained 1 open task\(s\) after its marker was written/,
+    mutate: (plan: Goalplan): Goalplan => ({
+      ...plan,
+      workPhases: plan.workPhases.map((wp) =>
+        wp.id === "wp-1"
+          ? { ...wp, tasks: [{ id: "t-late", title: "added late", status: "pending" as const }] }
+          : wp
+      ),
+    }) },
+  { name: "became blocked", pattern: /is now blocked/,
+    mutate: (plan: Goalplan): Goalplan => ({
+      ...plan,
+      workPhases: plan.workPhases.map((wp) => wp.id === "wp-1" ? { ...wp, status: "blocked" as const } : wp),
+    }) },
+  { name: "lost a dependency", pattern: /now waits for wp-2/,
+    mutate: (plan: Goalplan): Goalplan => ({
+      ...plan,
+      workPhases: plan.workPhases.map((wp) =>
+        wp.id === "wp-1" ? { ...wp, dependsOn: ["wp-2"] } : wp
+      ),
+    }) },
+] as const) {
+  test(`chat recovery is refused when the fixed target ${scenario.name} after its marker`, () => {
+    // §41 W1/W5: the same three gates the CLI enforces, on the chat surface. The
+    // marker is kept in every case so the operator can repair and repeat.
+    const cwd = gitRepoForHook();
+    try {
+      const id = `chat-recovery-${scenario.name.replace(/\s+/g, "-")}`;
+      const slug = `${id}-plan`;
+      const attest = seedChatCycleAtC(cwd, id, slug);
+
+      assert.throws(
+        () => handleUserPromptSubmit(
+          ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"),
+          process.platform,
+          { afterRecoveryMarkerWrite: () => { throw new Error("stop at the marker"); } },
+        ),
+        /stop at the marker/,
+      );
+      writeGoalplan(cwd, scenario.mutate(readGoalplan(cwd, slug)!));
+      const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+
+      const out = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "t2"));
+      assert.match(out, scenario.pattern);
+      assert.match(out, /The recovery marker was kept/);
+      assert.equal(readState(cwd, id).phase, "C");
+      assert.notEqual(readState(cwd, id).dcloseRecovery, null);
+      assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+      assert.deepEqual(goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done"), []);
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  });
+}
 
 test("chat D-close keeps same-turn dedup and clears the Stop guard", () => {
   // §40 Z3: the replacement state write must not drop injectedTurns or the stopBlock
@@ -4303,20 +4444,24 @@ parameterized_extra_cases="$(
     plugins/codexclaw/components/pabcd-state/test/hook.test.ts
 )"
 
-test "$added_existing_declarations" -eq 36
+# 세 scenario를 도는 이 선언은 세 건을 등록하므로 선언 수보다 두 건 많다.
+scenario_extra_cases=2
+test "$(rg -c '^for \(const scenario of \[$' plugins/codexclaw/components/pabcd-state/test/hook.test.ts)" -eq 1
+
+test "$added_existing_declarations" -eq 37
 test "$new_file_declarations" -eq 6
 test "$parameterized_extra_cases" -eq 1
 test "$removed_declarations" -eq 5
 
-new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases))
+new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases + scenario_extra_cases))
 net_case_count=$((new_case_count - removed_declarations))
-test "$new_case_count" -eq 43
-test "$net_case_count" -eq 38
+test "$new_case_count" -eq 46
+test "$net_case_count" -eq 41
 
 focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
-focused_case_count=$((focused_declaration_count + parameterized_extra_cases))
-test "$focused_declaration_count" -eq 229
-test "$focused_case_count" -eq 230
+focused_case_count=$((focused_declaration_count + parameterized_extra_cases + scenario_extra_cases))
+test "$focused_declaration_count" -eq 230
+test "$focused_case_count" -eq 233
 
 node --experimental-strip-types --test --test-concurrency=1 \
   --test-name-pattern='^' \
@@ -4327,11 +4472,11 @@ node --experimental-strip-types --test --test-concurrency=1 \
 
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
-- 기존 파일 추가 선언 36개, 신규 파일 선언 6개
-- 두 입력을 도는 parameterized 선언의 추가 등록 1개
-- 계획된 신규 케이스 43개, 삭제 5개, 순증 38개
-- 구현 뒤 선언 229개, 실제 focused 등록 230개
-- node test exit 0, tests 230, pass 230, fail 0
+- 기존 파일 추가 선언 37개, 신규 파일 선언 6개
+- 두 입력을 도는 parameterized 선언의 추가 등록 1개, 세 scenario를 도는 선언의 추가 등록 2개
+- 계획된 신규 케이스 46개, 삭제 5개, 순증 41개
+- 구현 뒤 선언 230개, 실제 focused 등록 233개
+- node test exit 0, tests 233, pass 233, fail 0
 
 락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
 CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
@@ -4369,7 +4514,7 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값은 exit 0, tests 2205, pass 2205, fail 0이다. 기존 2167건과 wp5 순증 38건을 모두 실행하며,
+기대값은 exit 0, tests 2208, pass 2208, fail 0이다. 기존 2167건과 wp5 순증 41건을 모두 실행하며,
 루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
 
 ### 10.4 저장소 gate

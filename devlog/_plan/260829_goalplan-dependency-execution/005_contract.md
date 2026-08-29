@@ -959,7 +959,31 @@ export type CloseFixedResult =
   state를 바꾸지 않고 사람이 읽는 사유를 낸다. marker가 남으므로 운영자가 plan을 고친 뒤 같은 요청으로
   정리를 끝낼 수 있다. marker를 지우면 복구 경로가 사라지므로 절대 지우지 않는다.
 - 회귀: marker 직후 crash 뒤 대상에 pending task를 추가하고 재시도하면 거부되고 marker가 남는지,
-  대상을 `blocked`로 바꾼 뒤 재시도해도 같은지 CLI·채팅 각각 단언한다.
+  대상을 `blocked`로 바꾼 뒤 재시도해도 같은지, 대상의 phase 의존이 미충족으로 바뀐 뒤 재시도해도
+  같은지 CLI·채팅 각각 단언한다.
+
+### W5 — helper는 dependency readiness까지 검사한다 (라운드 12)
+
+§41 W1 수리 뒤 재감사에서 같은 우회가 한 겹 더 남은 것이 실측으로 확인됐다. wp4의 runnable 정의는
+status만이 아니라 `workPhaseDependenciesMet()`까지 요구한다. helper가 blocked/superseded와 pending
+task만 보면, 의존 phase가 marker 이후 `blocked`로 바뀐 경우 `advanceWorkPhase()`는 `no_active`를
+내는데 helper는 `ok`를 내고 대상을 닫는다.
+
+확정: `closeFixedWorkPhase()`는 status 검사와 pending-task 검사 사이에
+`workPhaseDependenciesMet(plan, current)`를 검사한다. 미충족이면 `{ kind: "dependencies_unmet";
+unmet: string[] }`으로 거부하고, recovery는 marker를 남긴 채 fail-closed한다. `advanceWorkPhase()`는
+이 variant를 기존 `no_active`로 접어 넣는다 — effective 커서가 애초에 미충족 phase를 고르지 않으므로
+정상 경로에서는 도달하지 않고, 반환 shape도 바뀌지 않는다.
+
+### W6 — 채팅 marker seam 테스트는 marker 없는 fixture에서 시작한다 (라운드 12)
+
+`afterRecoveryMarkerWrite`는 `if (!recoveringDclose)` 안에서만 호출된다. 그런데 초안의 채팅 회귀는
+marker를 미리 심은 fixture로 시작해 recovery 요청에 seam을 넘겼다. seam이 호출되지 않으므로
+`assert.throws()`가 실패한다.
+
+확정: marker seam을 쓰는 회귀는 **marker 없는 정상 C fixture와 유효한 receipt**로 시작한다. 첫 요청이
+marker를 쓴 직후 seam에서 실패하고, 두 번째 요청이 recovery가 되어 parity를 검증한다. CLI 회귀도 같은
+규칙을 따른다(`seedBoundCycleAtC()`는 marker를 심지 않으므로 이미 맞다).
 
 ### W2 처분 — 존재하는 식만 인용한다
 
