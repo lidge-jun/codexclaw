@@ -26,6 +26,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  statSync,
   writeFileSync,
   rmSync,
   writeSync,
@@ -39,6 +40,9 @@ import { deriveSlug,                   } from "./freeze.js";
 export const GOALPLANS_SUBDIR = "goalplans";
 export const GOALPLAN_FILE = "goalplan.json";
 export const GOALPLAN_LEDGER_FILE = "ledger.jsonl";
+export const GOALPLAN_LOCK_DIR = ".goalplan.lock";
+export const GOALPLAN_LOCK_OWNER_FILE = "owner.json";
+export const GOALPLAN_LOCK_RETRY_DELAYS_MS = [5, 10, 20, 40]         ;
 
 /**
  * The highest schemaVersion this binary understands. A plan that declares more
@@ -652,6 +656,121 @@ export function readGoalplan(cwd        , slug        )                  {
  * required set in declaration order; `"(unknown)"` when the object looks structurally
  * fine and the rejection came from a nested reviver such as steeringLog.
  */
+
+
+
+
+
+
+
+
+
+
+
+function sleepGoalplanLock(ms        )       {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+export function goalplanWriteLockDir(cwd        , slug        )         {
+  return resolve(goalplanDir(cwd, slug), GOALPLAN_LOCK_DIR);
+}
+
+
+
+
+
+
+
+export function goalplanWriteLockStatus(
+  cwd        ,
+  slug        ,
+  nowMs         = Date.now(),
+  stat                                        = statSync,
+)                          {
+  const path = goalplanWriteLockDir(cwd, slug);
+  if (!existsSync(path)) return { path, exists: false, ageMs: null };
+  try {
+    const ageMs = Math.max(0, nowMs - stat(path).mtimeMs);
+    return { path, exists: true, ageMs };
+  } catch (err) {
+    if ((err                         )?.code === "ENOENT") {
+      return { path, exists: false, ageMs: null };
+    }
+    throw err;
+  }
+}
+
+function readGoalplanLockOwnerText(dir        )         {
+  try {
+    return readFileSync(join(dir, GOALPLAN_LOCK_OWNER_FILE), "utf8").trim() || "(empty owner.json)";
+  } catch {
+    return "(owner.json unavailable)";
+  }
+}
+
+export function withGoalplanWriteLock   (
+  cwd        ,
+  slug        ,
+  fn                       ,
+  options                           = {},
+)                             {
+  validateGoalplanSlug(slug);
+  const dir = goalplanWriteLockDir(cwd, slug);
+  const delays = options.retryDelaysMs ?? GOALPLAN_LOCK_RETRY_DELAYS_MS;
+  const sleep = options.sleep ?? sleepGoalplanLock;
+  const ownerPath = join(dir, GOALPLAN_LOCK_OWNER_FILE);
+
+  if (!existsSync(goalplanPath(cwd, slug))) {
+    return { kind: "unreadable", reason: `goalplan '${slug}' does not exist` };
+  }
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      mkdirSync(dir, { recursive: false });
+      break;
+    } catch (err) {
+      if ((err                         )?.code !== "EEXIST") throw err;
+      if (attempt >= delays.length) {
+        const owner = readGoalplanLockOwnerText(dir);
+        return {
+          kind: "locked",
+          reason:
+            `goalplan '${slug}' is busy. Lock directory: ${dir}. owner=${owner}. `
+            + `Inspect ${ownerPath}. After verifying no writer is active, remove that lock directory `
+            + `with a tool for this platform.`,
+        };
+      }
+      sleep(delays[attempt]);
+    }
+  }
+
+  try {
+    try {
+      writeFileSync(
+        ownerPath,
+        `${JSON.stringify({ pid: process.pid, acquiredAt: (options.now ?? (() => new Date().toISOString()))() })}\n`,
+        { mode: 0o600 },
+      );
+    } catch {
+      // Diagnostic only. The directory itself is the lock.
+    }
+
+    const read = readGoalplanDetailed(cwd, slug);
+    if (!read.plan) {
+      return {
+        kind: "unreadable",
+        reason: read.diagnostic?.detail ?? `goalplan '${slug}' could not be read`,
+      };
+    }
+    return { kind: "ok", value: fn(read.plan) };
+  } finally {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // The next acquire reports the leftover path for platform-appropriate cleanup.
+    }
+  }
+}
+
 function firstInvalidField(parsed         )         {
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return "(root: not an object)";
   const o = parsed                           ;
@@ -691,7 +810,11 @@ function firstInvalidField(parsed         )         {
   return "(unknown)";
 }
 
-/** Write a goalplan atomically (tmp + rename), refreshing updatedAt. */
+/**
+ * Low-level atomic publication (tmp + rename), refreshing updatedAt.
+ * A new-plan create path may call this directly. A mutation of an existing plan
+ * MUST call it inside withGoalplanWriteLock().
+ */
 export function writeGoalplan(cwd        , plan          )       {
   validateGoalplanSlug(plan.slug);
   const dir = goalplanDir(cwd, plan.slug);
@@ -1399,6 +1522,255 @@ function identityReasons(plan          , gate                , ctx              
  * On refusal the input plan is returned untouched: closing a cycle never marks
  * tasks done on the agent's behalf.
  */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * Close exactly `workPhaseId` and move the cursor the same way a normal advance
+ * does: after-then-wrap over pending phases whose dependencies are met.
+ *
+ * 050 §40 Z1: D-close recovery used to fix up only the target's status, which left
+ * activeWorkPhaseId pointing at a done phase and logged a false `started <target>`.
+ * Normal close and recovery now share this one transformation, so the two cannot
+ * disagree about the resulting plan.
+ *
+ * 050 §41 W1: the gates live HERE, not in the callers. An earlier draft checked only
+ * that the target existed, so recovery — which calls this directly — skipped the
+ * pending-task refusal and the blocked/superseded check that advanceWorkPhase() runs
+ * first. That is reachable: the marker survives edits, and wp6 add-task can put a
+ * pending task on a live phase between the crash and the retry.
+ */
+export function closeFixedWorkPhase(
+  plan          ,
+  workPhaseId        ,
+  recordedNext                ,
+)                   {
+  const currentIdx = plan.workPhases.findIndex((wp) => wp.id === workPhaseId);
+  if (currentIdx < 0) return { kind: "absent" };
+  const current = plan.workPhases[currentIdx];
+
+  // A blocked or superseded phase is never closable. advanceWorkPhase() never picks
+  // one, so this only fires when a recovery target changed state after its marker.
+  if (current.status !== "pending" && current.status !== "in_progress" && current.status !== "done") {
+    return { kind: "not_runnable", status: current.status };
+  }
+
+  // §41 W5: runnable means dependencies met, not just a workable status. Checking
+  // status alone let a target through whose dependency turned blocked after the
+  // marker was written — advanceWorkPhase() answers no_active there, and recovery
+  // must not answer ok.
+  if (!workPhaseDependenciesMet(plan, current)) {
+    return { kind: "dependencies_unmet", unmet: unmetPhaseDependencyIds(plan, current) };
+  }
+
+  // CYCLE-COMPLETION-01, unchanged wording and unchanged variant: an open task keeps
+  // the phase open on both the normal path and a recovery retry.
+  const pending = current.tasks.filter((task) => task.status !== "done");
+  if (pending.length > 0) return { kind: "tasks_pending", workPhaseId, pending };
+
+  const closedWorkPhases = plan.workPhases.map((wp) =>
+    wp.id === workPhaseId ? { ...wp, status: "done"         , tasks: wp.tasks } : wp
+  );
+  const closedPlan           = { ...plan, activeWorkPhaseId: null, workPhases: closedWorkPhases };
+
+  // §50: `recordedNext` has three meanings and they must stay separate. `undefined` is a
+  // FIRST close with no decision yet, so wp4 after-then-wrap computes the successor.
+  // `null` is an earlier attempt that found none, and a retry must not start a phase
+  // that was added afterwards. A string is the phase that attempt chose, and it is
+  // binding: if it cannot be used, this fails closed instead of quietly picking another
+  // phase and logging `started` for work nobody scheduled.
+  //
+  // §48 explains why the plan file cannot decide this on its own: one byte pattern fits
+  // both an attempt that already chose wp-2 and a plan where wp-2 was running all along.
+  // Because the named phase is accepted at `pending` or `in_progress` alike, the status
+  // normalization five earlier drafts fought over disappears entirely.
+  let next                            ;
+  if (recordedNext === undefined) {
+    const after = closedWorkPhases.slice(currentIdx + 1).find(
+      (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+    );
+    next = after ?? closedWorkPhases.slice(0, currentIdx).find(
+      (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+    );
+  } else if (recordedNext === null) {
+    next = undefined;
+  } else {
+    // §51: a marker naming the target as its own successor is corrupt — a close never
+    // activates the phase it just finished. Without this guard the done-successor rule
+    // below swallows it, and for an OPEN target it silently nulls the cursor.
+    // §52: an empty id belongs here, not with the explicit null. readStateStrict() rejects
+    // it too, and treating it as "no successor" would give a damaged marker the authority
+    // of a real decision.
+    if (recordedNext.length === 0 || recordedNext === workPhaseId) {
+      return { kind: "successor_lost", successorId: recordedNext, reason: "corrupt" };
+    }
+    const named = closedWorkPhases.find((wp) => wp.id === recordedNext);
+    if (!named) return { kind: "successor_lost", successorId: recordedNext, reason: "absent" };
+    if (named.status === "done") {
+      // §51: a finished successor is not a lost one. The recorded phase was started and
+      // then closed by its own cycle, so this retry has nothing left to activate — and
+      // refusing would trap the session: escaping would mean re-opening a completed
+      // work-phase or discarding the marker. The settled-shape check below then answers
+      // §52: do not compute a cursor from a finished successor. Setting `next` to nothing
+      // made the settled shape claim `activeWorkPhaseId: null`, which erased a cursor the
+      // plan had legitimately moved on to — wp-2 finishing can itself have started wp-3.
+      //
+      // §53: but only a target that is ALSO done makes this close settled. A marker can
+      // survive with the target still open — crash before the plan commit, then the
+      // successor finishes on its own — and answering already_done there wrote the close
+      // rows while leaving the target open in the plan. Close it for real, with no
+      // successor to activate because the recorded one is finished.
+      // §54: closing the target must not undo progress the plan already made. The
+      // successor finishing can itself have started wp-3, and nulling the cursor there
+      // cut that off. Keep a cursor only when it names a DIFFERENT phase that is really
+      // running — a cursor on the target, or on a pending phase, is not progress and
+      // §45 established that such a cursor is forgeable.
+      // §55: readiness belongs in the same predicate. A running phase whose dependencies
+      // are unmet is a cursor effectiveActiveWorkPhaseId() already refuses to honour, so
+      // keeping it would leave a stale explicit cursor the next cycle does not follow.
+      // §56: this normalization runs whether or not the target is already done. An earlier
+      // draft returned already_done immediately for a done target, which skipped the whole
+      // check and let exactly the same damaged cursors through — including a cursor on the
+      // done target itself. The settled-shape comparison below is what decides already_done,
+      // and it can only do that against a normalized cursor.
+      next = closedWorkPhases.find(
+        (wp) => wp.id === plan.activeWorkPhaseId && wp.id !== workPhaseId
+          && wp.status === "in_progress" && workPhaseDependenciesMet(closedPlan, wp),
+      );
+    } else if (named.status !== "pending" && named.status !== "in_progress") {
+      return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
+    } else if (!workPhaseDependenciesMet(closedPlan, named)) {
+      return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
+    } else {
+      next = named;
+    }
+  }
+
+  const settledPlan           = {
+    ...closedPlan,
+    activeWorkPhaseId: next?.id ?? null,
+    workPhases: closedWorkPhases.map((wp) =>
+      next && wp.id === next.id ? { ...wp, status: "in_progress"          } : wp
+    ),
+  };
+
+  // §45/§50: identity is the LAST step, not the whole judgement. Predicates over the
+  // plan were forgeable four ways — a pending phase under the cursor, an in_progress
+  // phase whose dependencies are unmet, an arbitrary phase that is not the real
+  // successor, and a null cursor stranding an in_progress phase — so the settled shape
+  // is computed first and compared. But identity alone is not enough either: the
+  // expected shape is only meaningful because `recordedNext` fixed which successor this
+  // close chose. Comparing against a shape derived from the file would just re-ask the
+  // question the file cannot answer.
+  if (samePlanShape(plan, settledPlan)) return { kind: "already_done" };
+
+  return { kind: "ok", closedId: workPhaseId, plan: settledPlan };
+}
+
+/**
+ * Structural equality over the fields a close writes: cursor plus every phase id,
+ * status, dependsOn, and task status. Timestamps and prose are irrelevant here, so
+ * comparing whole JSON would make the check brittle for no gain.
+ */
+/**
+ * §53: what a resume should do when the fixed target is gone from the plan but the
+ * marker still names a successor. Shared by the CLI and the chat path, because a
+ * decision this subtle drifted between the two the moment it lived in one of them.
+ *
+ * The gates mirror closeFixedWorkPhase(): a phase that is blocked, superseded, or
+ * waiting on a dependency was never started and cannot be started now, so the retry
+ * fails closed rather than logging `started` for work nobody scheduled.
+ */
+/** §53: one wording source so the two surfaces cannot describe the same state differently. */
+export function absentSuccessorDetail(
+  reason                                                  ,
+)         {
+  return reason === "absent"
+    ? "is gone too"
+    : reason === "not_runnable"
+      ? "can no longer be started"
+      : "now waits for another work-phase";
+}
+
+
+
+
+
+
+export function resumeAbsentTarget(
+  plan          ,
+  recordedNext               ,
+)                           {
+  // A marker that recorded no successor has nothing to activate: the close it describes
+  // ended the plan, so cleanup is the whole remaining job.
+  if (!recordedNext) return { kind: "cleanup" };
+  const named = plan.workPhases.find((wp) => wp.id === recordedNext);
+  if (!named) return { kind: "successor_lost", successorId: recordedNext, reason: "absent" };
+  // Finished on its own: the activation happened and only the ledger and state rows are
+  // owed. The row guards make those idempotent.
+  if (named.status === "done") return { kind: "cleanup" };
+  if (named.status !== "pending" && named.status !== "in_progress") {
+    return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
+  }
+  // §55: readiness is checked before either branch below, so the absent-target path answers
+  // the same question closeFixedWorkPhase() answers when the target is still there. Gating
+  // only the pending branch made deletion of the target decide the verdict: the same
+  // successor waiting on the same unmet dependency was refused with the target present and
+  // activated with it gone. A dangling dependsOn reads as not-done here by design, and the
+  // pending branch already refused that plan.
+  if (!workPhaseDependenciesMet(plan, named)) {
+    return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
+  }
+  // Running: the activation happened too, but only if the cursor agrees. §45 established
+  // that a null or moved cursor stranding an in_progress phase is exactly the corruption
+  // a resume must repair, so restore the cursor instead of walking away from it.
+  if (named.status === "in_progress") {
+    return plan.activeWorkPhaseId === named.id
+      ? { kind: "cleanup" }
+      : { kind: "activate", plan: { ...plan, activeWorkPhaseId: named.id } };
+  }
+  return {
+    kind: "activate",
+    plan: {
+      ...plan,
+      activeWorkPhaseId: named.id,
+      workPhases: plan.workPhases.map((wp) =>
+        wp.id === named.id ? { ...wp, status: "in_progress"          } : wp
+      ),
+    },
+  };
+}
+
+function samePlanShape(left          , right          )          {
+  if (left.activeWorkPhaseId !== right.activeWorkPhaseId) return false;
+  if (left.workPhases.length !== right.workPhases.length) return false;
+  return left.workPhases.every((wp, idx) => {
+    const other = right.workPhases[idx];
+    return wp.id === other.id
+      && wp.status === other.status
+      && (wp.dependsOn ?? []).join("\u0000") === (other.dependsOn ?? []).join("\u0000")
+      && wp.tasks.length === other.tasks.length
+      && wp.tasks.every((task, i) => task.id === other.tasks[i].id
+        && task.status === other.tasks[i].status);
+  });
+}
+
 export function advanceWorkPhase(plan          )                {
   // 260714 wp4 (implicit cursor): a null/stale cursor adopts the effective active
   // work-phase instead of no-opping, so the standard `loop init` flow (cursor seeded
@@ -1414,46 +1786,23 @@ export function advanceWorkPhase(plan          )                {
   if (currentIdx < 0) return { kind: "no_active" };
   const current = plan.workPhases[currentIdx];
 
-  // CYCLE-COMPLETION-01: refuse before any derivation, and leave `plan` alone.
-  const pending = current.tasks.filter((t) => t.status !== "done");
-  if (pending.length > 0) {
-    return { kind: "tasks_pending", workPhaseId: current.id, pending };
-  }
-
-  // wp4: dependency readiness is evaluated AFTER the current phase becomes done,
-  // because a direct dependent of `current` becomes runnable at exactly this boundary.
-  const closedWorkPhases = plan.workPhases.map((wp) =>
-    wp.id === current.id
-      ? { ...wp, status: "done"         , tasks: wp.tasks }
-      : wp
-  );
-  const closedPlan           = {
-    ...plan,
-    activeWorkPhaseId: null,
-    workPhases: closedWorkPhases,
-  };
-
-  // Preserve the old cursor order: after current first, then wrap to the front.
-  const after = closedWorkPhases.slice(currentIdx + 1).find(
-    (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
-  );
-  const next = after ?? closedWorkPhases.slice(0, currentIdx).find(
-    (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
-  );
+  // The pending-task refusal moves into the shared helper (050 §41 W1) and is forwarded
+  // unchanged, so the CLI and chat wording stay identical.
+  //
   // Closing the current phase succeeds even when nothing else can start: a verified
   // completion is not rolled back because a successor is blocked. The cursor goes null
   // and dependencyDeadlock() explains why on the next Stop or D-close.
-  return {
-    kind: "ok",
-    closedId: current.id,
-    plan: {
-      ...closedPlan,
-      activeWorkPhaseId: next?.id ?? null,
-      workPhases: closedWorkPhases.map((wp) =>
-        next && wp.id === next.id ? { ...wp, status: "in_progress"          } : wp
-      ),
-    },
-  };
+  const closed = closeFixedWorkPhase(plan, current.id);
+  if (closed.kind === "tasks_pending") {
+    return { kind: "tasks_pending", workPhaseId: closed.workPhaseId, pending: closed.pending };
+  }
+  // absent, not_runnable, and dependencies_unmet all fold into the existing no_active
+  // variant: the effective cursor never picks such a phase, so the normal path cannot
+  // reach them and the return shape is unchanged. 050 §50 successor_lost cannot occur
+  // here at all, because this call passes no recorded successor — it is a recovery-only
+  // answer. The catch-all keeps the union exhaustive without inventing new wording.
+  if (closed.kind !== "ok") return { kind: "no_active" };
+  return { kind: "ok", closedId: closed.closedId, plan: closed.plan };
 }
 
 /**

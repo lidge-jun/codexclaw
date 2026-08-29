@@ -86,6 +86,44 @@ export function reconstructUnverified(raw         )                             
   return { entries, corrupt };
 }
 
+/**
+ * 050 wp5 §48: what a D-close recorded about itself before it started writing.
+ * A retry replays the SAME decision instead of recomputing one from a plan file that
+ * cannot say whether the earlier commit landed.
+ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -249,6 +287,7 @@ export function defaultState(sessionId        , slug = "")        {
     planUnit: null,
     planEpoch: null,
     checkEpoch: null,
+    dcloseRecovery: null,
   };
 }
 
@@ -361,6 +400,65 @@ export function readState(cwd        , sessionId        )        {
  * security gate that reads it cannot tell "nothing to report" from "cannot tell".
  * Callers that must fail closed use this and treat `unreadable` as denial.
  */
+/**
+ * 050 wp5 §50/§51: rebuild the recovery marker with the same strictness as every other
+ * persisted field. An absent or malformed `nextWorkPhaseId` is preserved as `legacy`
+ * rather than promoted to an explicit null: `null` is an authoritative "this close had
+ * no successor", and laundering damage into it would let a corrupt marker skip a real
+ * successor.
+ */
+function reconstructDcloseRecovery(raw         , sessionId        )                              {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const marker = raw                           ;
+  if (marker.sessionId !== sessionId) return null;
+  if (typeof marker.checkEpoch !== "string" || marker.checkEpoch.length === 0) return null;
+  if (typeof marker.closedWorkPhaseId !== "string" || marker.closedWorkPhaseId.length === 0) return null;
+  // §50: an ABSENT key is a pre-§48 marker and must not be folded into an explicit
+  // null. Measured: reading it as null nulls the cursor on a plan whose commit already
+  // landed, and reading it as "no decision" does the same, and the target status cannot
+  // tell the two histories apart. So it is preserved as legacy and refused later.
+  const recorded = Object.hasOwn(marker, "nextWorkPhaseId") ? marker.nextWorkPhaseId : undefined;
+  if (recorded === undefined) {
+    return {
+      sessionId,
+      checkEpoch: marker.checkEpoch,
+      closedWorkPhaseId: marker.closedWorkPhaseId,
+      nextWorkPhaseId: null,
+      legacy: true,
+    };
+  }
+  // §51: a present-but-malformed value must NOT become an explicit null. `null` is an
+  // authoritative "this close had no successor", so promoting a number, an object, or an
+  // empty string to it would let a corrupt marker skip a real successor. Mark it the same
+  // way as a pre-field marker: unreadable intent, hand it to a human.
+  if (recorded !== null && (typeof recorded !== "string" || recorded.length === 0)) {
+    return {
+      sessionId,
+      checkEpoch: marker.checkEpoch,
+      closedWorkPhaseId: marker.closedWorkPhaseId,
+      nextWorkPhaseId: null,
+      legacy: true,
+    };
+  }
+  return {
+    sessionId,
+    checkEpoch: marker.checkEpoch,
+    closedWorkPhaseId: marker.closedWorkPhaseId,
+    nextWorkPhaseId: recorded,
+  };
+}
+
+export function matchesDcloseRecovery(
+  state       ,
+  closePhaseId        ,
+)                                                            {
+  const marker = state.dcloseRecovery;
+  return marker !== null
+    && marker.sessionId === state.sessionId
+    && marker.checkEpoch === state.checkEpoch
+    && marker.closedWorkPhaseId === closePhaseId;
+}
+
 export function readStateStrict(cwd        , sessionId        )                                        {
   try {
     const p = statePath(cwd, sessionId);
@@ -381,6 +479,8 @@ export function readStateStrict(cwd        , sessionId        )                 
     }
     const base = defaultState(sessionId, typeof parsed.slug === "string" ? parsed.slug : "");
     // strict reconstruction: only known fields survive (omo-style discipline, no unknown-key passthrough)
+    const dcloseRecovery = reconstructDcloseRecovery(parsed.dcloseRecovery, sessionId);
+    const keepDcloseEpoch = parsed.phase === "IDLE" && dcloseRecovery !== null;
     const rebuilt        = {
       phase: parsed.phase         ,
       sessionId,
@@ -452,7 +552,16 @@ export function readStateStrict(cwd        , sessionId        )                 
       planUnit: parsed.phase === "A" && typeof parsed.planUnit === "string" && parsed.planUnit.length > 0 ? parsed.planUnit : null,
       planEpoch: parsed.phase === "A" && typeof parsed.planEpoch === "string" && parsed.planEpoch.length > 0 ? parsed.planEpoch : null,
       // 075: only C can hold a check binding — minted at B>C, consumed at C>D.
-      checkEpoch: parsed.phase === "C" && typeof parsed.checkEpoch === "string" && parsed.checkEpoch.length > 0 ? parsed.checkEpoch : null,
+      // 050 wp5: a D-close marker keeps its check epoch alive into IDLE. The marker is
+      // written before the plan commit and cleared after both ledgers are paid, so a
+      // retry must still be able to match the epoch the first attempt ran under.
+      checkEpoch:
+        (parsed.phase === "C" || keepDcloseEpoch)
+          && typeof parsed.checkEpoch === "string"
+          && parsed.checkEpoch.length > 0
+          ? parsed.checkEpoch
+          : null,
+      dcloseRecovery,
     };
     return { state: rebuilt, unreadable: false };
   } catch {
