@@ -1164,3 +1164,39 @@ id·status다. 전체 JSON을 비교하면 timestamp와 산문 때문에 이유 
 plan과 pending phase가 하나 더 붙은 plan도 `already_done`이며, 두 경우 모두 그 입력이 실제로 이
 close가 만들 모양과 같기 때문이다. 한 번에 한 phase만 도는 계약에서 뒤에 붙은 pending phase는
 건드릴 대상이 아니다.
+
+## 46. 라운드 17 — 선택 정규화는 recovery 재적용에만 적용한다
+
+§45의 선택 정규화가 정상 close에도 적용되어 wp4가 잠근 pending-only after-then-wrap을 바꿨다.
+`goalplanDefinitionIntegrityReasons()`는 복수 `in_progress`를 거부하지 않으므로 도달 가능한 입력이다.
+실측 비교는 아래다.
+
+```text
+입력: wp-1=in_progress(대상), wp-2=in_progress, wp-3=pending
+advanceWorkPhase():            커서 wp-3
+무조건 정규화한 helper:         커서 wp-2   <- wp4 규칙 위반
+```
+
+구현하면 이미 실행 중인 `wp-2`에 `started wp-2`를 다시 기록하고 시작해야 할 `wp-3`를 남긴다.
+§45의 “무관한 running phase는 강등되지 않는다” 확인은 status만 봤기 때문에 이 커서 변경을 놓쳤다.
+
+처분: 정규화 조건을 **재적용일 때로만** 좁힌다. 재적용은 진입 시점에 대상이 이미 `done`인 경우다.
+
+```ts
+const reapplying = current.status === "done";
+const selectable = reapplying
+  ? closedWorkPhases.map((wp) =>
+      wp.id !== workPhaseId && wp.status === "in_progress"
+        ? { ...wp, status: "pending" as const }
+        : wp
+    )
+  : closedWorkPhases;
+```
+
+첫 close는 정규화하지 않으므로 wp4 선택이 그대로 유지된다. 재적용에서만 앞선 시도가 활성화한
+successor를 후보로 되읽는다.
+
+실측 재검증: 이 조건을 적용하면 같은 입력에서 `advanceWorkPhase()`와 `closeFixedWorkPhase()`가 둘 다
+커서 `wp-3`를 낸다. §45 probe 일곱 경우와 4파일 `tests 162 / pass 162 / fail 0`도 그대로다.
+
+회귀는 대상 외 `in_progress` phase가 있는 plan에서 두 함수의 결과 plan을 한 `deepEqual`로 묶는다.
