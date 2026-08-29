@@ -1716,9 +1716,12 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
 ```
 
 hook retry는 marker가 일치하면 정상 경로의 target 검증(없으면 거부)을 건너뛴다. 다만 계약 §39 Y1에
-따라 고정 대상이 plan에서 이미 `done`인지는 확인하고, 아직 아니면 그 phase만 멱등하게 닫는다.
-marker가 plan commit보다 먼저 기록되기 때문이다. 대상이 plan에 없으면 나중 편집이 지운 것이므로
-plan write 없이 원장·state 정리로 넘어간다. CLI 경로와 분기 순서·판정이 같다.
+따라 고정 대상이 plan에 있으면 status를 보지 않고 항상 `closeFixedWorkPhase()`를 호출한다. marker가
+plan commit보다 먼저 기록되기 때문이다. 계약 §43대로 commit이 이미 끝났는지는 호출자가 판정하지 않고
+helper가 게이트를 통과시킨 뒤 `already_done`으로 답하며, 그때만 plan write를 생략한다. 대상이 plan에
+없으면 나중 편집이 지운 것이므로 plan write 없이 원장·state 정리로 넘어간다. §48대로 marker의
+`nextWorkPhaseId`를 helper에 넘기므로 커서 손편집이 판정을 바꾸지 못한다. CLI 경로와 분기 순서·판정이
+같다.
 all-done 분기의 `{ output: "", advanced: null }`은 target·marker·goalplan 원장 없이 아래
 state/PABCD cycle close만 실행하며 `closedWorkPhaseId`를 `null`로 고정한다. 사용자가
 `workPhaseId`를 넣어도 이 값을 원장에 복사하지 않는다. wp4의
@@ -3485,6 +3488,75 @@ for (const forgery of [
   });
 }
 
+test("recovery finishes the successor the marker recorded, not the one the file names", () => {
+  // §48: the input that defeated every plan-only rule, run through the real CLI so the
+  // marker mint, the recovery branch, both ledgers, and marker cleanup all take part.
+  // A third phase is added so the file can name a DIFFERENT running phase than the one
+  // this close chose: wp-2 was already in_progress before the close, the close picked
+  // wp-3, and a hand edit then moves the cursor onto wp-2. Judging from the file alone,
+  // that plan is indistinguishable from a finished close that chose wp-2, so a
+  // plan-only rule answers already_done and logs `started wp-2` for work nobody
+  // scheduled. The marker settles it.
+  const cwd = boundCwd();
+  const id = "recovery-marker-beats-cursor";
+  const slug = "recovery-marker-beats-cursor-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const seeded = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...seeded,
+    workPhases: [
+      ...seeded.workPhases.map((wp) =>
+        wp.id === "wp-2" ? { ...wp, status: "in_progress" as const } : wp
+      ),
+      { id: "wp-3", title: "third", status: "pending" as const, tasks: [], criteriaIds: [] },
+    ],
+  });
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+  // wp4 selection skips the running wp-2, so the marker must name wp-3.
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-3");
+
+  // The forgery: target done, cursor moved onto the phase that was already running.
+  const crashed = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...crashed,
+    activeWorkPhaseId: "wp-2",
+    workPhases: crashed.workPhases.map((wp) =>
+      wp.id === "wp-1" ? { ...wp, status: "done" as const } : wp
+    ),
+  });
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  const repaired = readGoalplan(cwd, slug)!;
+  assert.equal(repaired.activeWorkPhaseId, "wp-3");
+  assert.deepEqual(
+    repaired.workPhases.map((wp) => [wp.id, wp.status]),
+    [["wp-1", "done"], ["wp-2", "in_progress"], ["wp-3", "in_progress"]],
+  );
+  // The started row names the recorded successor, and wp-2 never gets a second one.
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_started")
+      .map((row) => row.detail),
+    ["started wp-3"],
+  );
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_done")
+      .map((row) => row.detail),
+    ["closed wp-1"],
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
 test("recovery repairs a forged cursor that points at a phase nobody activated", () => {
   // §44: status done plus a moved cursor is forgeable by hand. If the cursor names a
   // phase that is still pending, answering already_done would log `started wp-2` for
@@ -5050,20 +5122,20 @@ forgery_arity="$(
 test "$forgery_arity" -eq 2
 forgery_extra_cases=$((forgery_arity - 1))
 
-test "$added_existing_declarations" -eq 44
+test "$added_existing_declarations" -eq 45
 test "$new_file_declarations" -eq 9
 test "$parameterized_extra_cases" -eq 1
 test "$removed_declarations" -eq 5
 
 new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
 net_case_count=$((new_case_count - removed_declarations))
-test "$new_case_count" -eq 57
-test "$net_case_count" -eq 52
+test "$new_case_count" -eq 58
+test "$net_case_count" -eq 53
 
 focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
 focused_case_count=$((focused_declaration_count + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
-test "$focused_declaration_count" -eq 240
-test "$focused_case_count" -eq 244
+test "$focused_declaration_count" -eq 241
+test "$focused_case_count" -eq 245
 
 # 산술 기대값과 실제 등록 수를 대조한다. 이것이 없으면 케이스 하나가 누락된 채
 # 남은 전부가 통과해도 node가 exit 0을 내어 false-green이 된다.
@@ -5082,12 +5154,12 @@ test "$(rg -o '^. fail (\d+)$' -r '$1' "$focused_log" | tail -1)" -eq 0
 
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
-- 기존 파일 추가 선언 44개, 신규 파일 선언 9개
+- 기존 파일 추가 선언 45개, 신규 파일 선언 9개
 - 삭제 5개의 출처는 §8.2의 held-lock·release 2개와 §8.2.1의 drvfs·9p·native 3개다
 - 두 입력을 도는 parameterized 선언의 추가 등록 1개, scenario 배열 원소 3개에서 나오는 추가 등록 2개
-- 계획된 신규 케이스 57개, 삭제 5개, 순증 52개
-- 구현 뒤 선언 240개, 실제 focused 등록 244개
-- node test exit 0, tests 244, pass 244, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
+- 계획된 신규 케이스 58개, 삭제 5개, 순증 53개
+- 구현 뒤 선언 241개, 실제 focused 등록 245개
+- node test exit 0, tests 245, pass 245, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
 
 락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
 CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
@@ -5125,7 +5197,7 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값은 exit 0, tests 2219, pass 2219, fail 0이다. 기존 2167건과 wp5 순증 52건을 모두 실행하며,
+기대값은 exit 0, tests 2220, pass 2220, fail 0이다. 기존 2167건과 wp5 순증 53건을 모두 실행하며,
 루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
 
 ### 10.4 저장소 gate
