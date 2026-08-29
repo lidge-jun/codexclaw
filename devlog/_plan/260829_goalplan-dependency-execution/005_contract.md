@@ -579,6 +579,13 @@ N6 보충: 같은 테스트 파일의 같은 단언을 두 문서가 반대로 �
 | T11 | High | wp6의 `renderGoalplanHelp()` 전체 After가 현재 `add-work-phase`/`add-criterion` help 줄의 `--slug <slug>`를 지운다 | wp6 |
 | T12 | High | `000_plan.md`의 write scope에 `state.ts`가 없는데 wp5가 recovery marker 때문에 필수로 수정한다 | 000 |
 
+T11 처분: 삭제가 정답이다. wp6 감사 라운드 1이 근거를 실측했다 — `runSteer()`와 `runAddOp()`는
+`readState(cwd, session).slug`만 읽고 `args.slug`를 무시하므로, `steer`·`add-work-phase`·`add-criterion`
+usage의 `--slug <slug>`는 실행되지 않는 문법을 광고한다. 세 줄을 help에서 지우고 parser의 `--slug`
+처리는 남긴다(읽기 verb `show`·`validate`·`ready`가 `resolveSlug()`로 실제 인자를 쓴다). 070의 T11
+회귀는 라운드 2 High에 따라 양방향 고정으로 다시 썼다 — 읽기 verb 셋은 `match`, mutating verb 셋은
+`doesNotMatch`다. 회귀가 한쪽만 보면 나중에 그 인자가 조용히 되돌아온다.
+
 T5 처분: `dependencyDeadlock()`은 **전역 교착 판정 전용**으로 유지한다. 부분 대기 사유는
 `dependencyWaitReasons(plan)` 순수 helper를 **wp4가 신설**해 계산한다. Stop의 `waitingOn`은 새
 helper를 소비하고, ready가 있으면서 동시에 대기 중인 항목이 있는 상태를 표현한다. c-5의 "ready
@@ -2147,3 +2154,74 @@ orchestrate-cli.test.ts  TS2304  Cannot find name 'Goalplan'  (4곳)
 `git diff --no-index /dev/null <문서>`는 내용과 무관하게 항상 exit 1이라 `test "$status" -eq 1`이
 아무것도 판정하지 않았다. 문서는 이미 tracked이므로 `?? …` 기대도 거짓이었다. wp5 §10.6과 같은
 `git ls-files --error-unmatch` + `git diff --check` 형태로 바꿨다.
+
+## §62 wp6 A 라운드 2 — 라운드 1 수정이 만든 BLOCKER와 문서 간 충돌
+
+감사관 두 기를 다른 각도로 파견했다. 한쪽은 컴파일 가능성과 심볼 정합성, 다른 쪽은 기존 테스트 파괴
+예측과 기대값 산술을 봤다. 둘 다 FAIL이고 같은 BLOCKER를 독립으로 재현했다.
+
+### BLOCKER — steering import After가 자기 본문이 부르는 이름을 빼놓았다
+
+라운드 1이 "steering도 completion integrity를 봐야 한다"는 High를 고치면서 `applyOps()` 두 call site에
+`goalplanDependencyCompletionReasons(next)`를 넣었다. 그런데 같은 문서의 import After에는
+`goalplanDefinitionIntegrityReasons`만 있었다. 060의 import 적층 표는 두 이름을 다 더한다고 적어
+문서가 자기 자신과 어긋났다.
+
+```text
+steering.ts(187,12): error TS2304: Cannot find name 'goalplanDependencyCompletionReasons'.
+steering.ts(209,10): error TS2304: Cannot find name 'goalplanDependencyCompletionReasons'.
+
+node --experimental-strip-types --test test/steering.test.ts
+  ReferenceError: goalplanDependencyCompletionReasons is not defined
+  tests 22  pass 20  fail 2
+```
+
+이 진단은 baseline fixture에 없어 060이 스스로 세운 fingerprint 게이트가 막는다. 라운드 1이 잡은 hook
+import BLOCKER와 같은 계열이고, 이번에는 라운드 1 수정 자체가 원인이다. 두 감사관 모두 사본에 그 한 줄을
+넣어 steering 22/22 복구를 확인했다.
+
+교훈: import After 블록을 고칠 때 그 문서가 같은 라운드에서 새로 넣은 호출부까지 다시 세야 한다.
+적층 표와 실제 After 블록은 서로를 검증하는 두 사본이므로 한쪽만 고치면 결함이 남는다.
+
+### High — 070 T11이 새 help 방향과 정면충돌했다
+
+라운드 1이 mutating verb 셋의 `--slug`를 지우기로 정했는데 070의 T11은 그 세 줄이 남는다고 단언했다.
+070을 그대로 구현하면 세 정규식이 확정 실패한다. 감사관이 새 help 텍스트에 070의 다섯 단언을 직접 돌려
+읽기 verb 둘은 PASS, mutating verb 셋은 FAIL을 실측했다.
+
+처분: 070 T11을 양방향 고정으로 다시 썼다. 읽기 verb 셋(`show`·`validate`·`ready`)은 `match`, mutating
+verb 셋은 `doesNotMatch`다. 070 완료 체크리스트와 이 계약서 T11 처분 문단도 같은 방향으로 고쳤다.
+`match`만 있는 회귀는 그 인자가 나중에 조용히 되돌아오는 것을 잡지 못한다.
+
+### Medium 셋
+
+| 결함 | 처분 |
+| --- | --- |
+| hook import After에 고아 `nextOpenTask` 잔존 — `readStopWorkContext()` After가 그 호출을 `readyWorkPhases`/`readyTasks`로 바꾸는데 import는 남았다 | import After에서 삭제. `goalplan.ts` export는 다른 소비자가 있어 유지 |
+| unknown-verb 거부 문구에 새 verb 넷 누락 — `cxc loop redy` 오타를 낸 사용자가 여섯 개짜리 옛 목록을 받는다 | 문구에 넷을 추가하고 신규 공개 표면 테스트가 순서까지 단언 |
+| `goalplan.test.ts` import After가 wp4 `dependencyWaitReasons`를 조용히 지운다 | 되살리고 적층 표에 wp4 보존 이름으로 명시. 지금은 미사용이라 컴파일은 통과하지만 wp7이 그 golden을 넣는 순간 TS2304 |
+| `--slug` 삭제 지점이 "여섯 곳"이라는 근거 없는 개수 | 실측 표로 교체 — 다섯 지점 중 삭제는 help usage 세 줄, 보존은 parser·읽기 verb 둘·오류 문구 |
+| focused·전체 스위트 개수 기대값 미선언 — wp5 §10.3이 세운 개수 게이트가 wp6에서 끊긴다 | 감사관 실측 표를 §검증에 고정(신규 18, steering +3, hook-continuation +5, 컴포넌트 1061→1087, `npm test` 2236→2262) |
+
+### 라운드 2가 실측으로 확인한 정상 항목
+
+두 감사관이 사본에 계획서 After를 삽입해 돌린 결과다. BLOCKER 한 줄을 고친 뒤 060의 나머지 기대값은
+전부 맞았다.
+
+- 신규 `goalplan-public-surface.test.ts` 18건을 문서에서 추출해 실행: 18/18 pass
+- `hook-continuation.test.ts` 실패 2건이 060이 지목한 `:505`·`:692` 바로 그 둘이고, 실제 출력이 새 golden과 글자 단위로 같다. 교체 단언을 넣으면 58/58, 신규 5건까지 63/63
+- 락 AST oracle 9/8 산술이 맞다. `writeGoalplan()` 전수 8곳 + `commitLifecycle()` 하나 = 9
+- steering completion 검사가 기존 fixture를 깨지 않는다(빈 `tasks: []`나 의존 없는 phase뿐이라 completion 사유 0건)
+- Stop integrity 게이트가 기존 Stop 단언을 깨지 않고 `readStopWorkContext returns null without a session-bound slug` 회귀도 살아 있다
+- 빈 plan 분기 불변: waitReasons `[]`, deadlock `null`, unmet 0 → 여전히 null 반환
+- idempotency key `sha256("wp-new: new").slice(0,12) === c90b4bd0e709`
+- 실행 fixture 블록이 선언한 값 그대로: `t-2.status=done`, `outcome=node --test: 24 pass`, `c-1.status=met`, 원장 `created,steered,task_done,dependency_registered,task_done,criterion_met`
+- `SKILL.md` Before 블록이 pristine HEAD와 일치
+- 기존 Stop 문자열을 단언하는 곳은 저장소 전체에서 그 두 줄이 전부다(`nextTaskTitle`·`dependencyBlockedReason`·`Waiting on` 0건, `hook.test.ts` 0건)
+
+### `npm test` 기대값에 붙은 순서 조건
+
+감사관 하나가 pristine HEAD에서 `npm run build` 없이 `npm test`를 돌려 `dist-freshness`·`inventory` 계열
+실패를 봤다. dist 재생성 전이라 당연한 결과다. 060 §검증의 세 명령 순서(`build` → `test` → `gate`)를
+지키지 않은 실패는 wp6 결함으로 세지 않는다는 문장을 명시했다.
+

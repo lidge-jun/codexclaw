@@ -956,10 +956,15 @@ test("ledger append failure keeps the committed lifecycle state and returns code
 });
 ```
 
-#### T11 — 기존 `--slug <slug>` help 줄 보존
+#### T11 — 읽기 verb의 `--slug` 보존과 mutating verb의 `--slug` 부재
 
-소유: wp6 `test/help-verbs.test.ts`와 `test/goalplan-public-surface.test.ts`. 신규 동사만 찾지 않고 기존
-`show`, `validate`, `steer`, `add-work-phase`, `add-criterion`의 slug 문법을 함께 단언한다.
+소유: wp6 `test/help-verbs.test.ts`와 `test/goalplan-public-surface.test.ts`.
+
+wp6 라운드 1 High가 방향을 뒤집었다. `runSteer()`와 `runAddOp()`는 `readState(cwd, session).slug`만 읽고
+`args.slug`를 무시하므로 `steer`·`add-work-phase`·`add-criterion` usage의 `--slug <slug>`는 실행되지 않는
+문법이었다. 그 세 줄은 060이 help에서 지운다. 그래서 이 회귀는 "보존"이 아니라 **양방향 고정**이다.
+읽기 verb 셋(`show`·`validate`·`ready`)은 `resolveSlug()`로 실제 인자를 쓰므로 `--slug`가 남고, mutating
+verb 셋에는 없어야 한다. parser의 `--slug` 처리와 `loop ready`의 인자 없음 오류 문구는 그대로다.
 
 ```ts
 test("help lists repeated dependency syntax and required outcome", () => {
@@ -968,9 +973,13 @@ test("help lists repeated dependency syntax and required outcome", () => {
   assert.match(help, /cxc loop init --objective/);
   assert.match(help, /cxc loop show \(--slug <slug> \| --objective <text>\)/);
   assert.match(help, /cxc loop validate --slug <slug>/);
-  assert.match(help, /cxc loop steer --session <id> --slug <slug> --batch-json/);
-  assert.match(help, /cxc loop add-work-phase --session <id> --slug <slug> --id <id>/);
-  assert.match(help, /cxc loop add-criterion --session <id> --slug <slug> --criterion <text>/);
+  assert.match(help, /cxc loop ready \(--slug <slug> \| --objective <text> \| --session <id>\)/);
+  assert.doesNotMatch(help, /cxc loop steer --session <id> --slug <slug>/);
+  assert.doesNotMatch(help, /cxc loop add-work-phase --session <id> --slug <slug>/);
+  assert.doesNotMatch(help, /cxc loop add-criterion --session <id> --slug <slug>/);
+  assert.match(help, /cxc loop steer --session <id> --batch-json/);
+  assert.match(help, /cxc loop add-work-phase --session <id> --id <id>/);
+  assert.match(help, /cxc loop add-criterion --session <id> --criterion <text>/);
   assert.match(help, /\[--depends-on <id>\]\.\.\./);
   assert.match(help, /ready .*--json/);
   assert.match(help, /add-task .*\[--depends-on <task-id>\]\.\.\./);
@@ -979,6 +988,9 @@ test("help lists repeated dependency syntax and required outcome", () => {
   assert.match(help, /Repeat --depends-on once per prerequisite/);
 });
 ```
+
+`doesNotMatch` 셋이 이 회귀의 핵심이다. 누군가 나중에 `--slug`를 세 mutating usage에 되돌리면 그 인자가
+다시 무시되는데, `match`만 있는 테스트는 그것을 잡지 못한다.
 
 ### 6.2 출력 문자열과 기존 테스트 검색
 
@@ -1112,8 +1124,8 @@ v3 파일을 한 번 쓴 뒤 pre-v3 reviver로 완전 downgrade하지 않는다.
 - [ ] lifecycle ledger append 실패 뒤 task status는 `done`, outcome은
   `authoritative plan proof`, 종료 코드는 `0`, 출력에는
   `warning: goalplan state was committed, but ledger append failed:`가 있다.
-- [ ] help에 기존 `add-work-phase --session <id> --slug <slug>`와
-  `add-criterion --session <id> --slug <slug>` 줄이 남는다.
+- [ ] help의 읽기 verb 셋(`show`·`validate`·`ready`)에는 `--slug`가 남고, mutating verb
+  셋(`steer`·`add-work-phase`·`add-criterion`)에는 `--slug`가 없다. 뒤 셋은 `doesNotMatch`로 고정한다.
 - [ ] `cxc loop show`가 락 디렉터리 절대 경로와 나이를 표시하며 락 소멸 race를 정상화한다.
 - [ ] 모든 테스트가 arrange, act, 구체 assert 본문을 갖는다.
 - [ ] 루트 `dist-freshness.test.mjs`에서 tracked dist가 src와 byte-equal이다.

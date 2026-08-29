@@ -192,6 +192,22 @@ rg -n --glob '*.test.ts' -F \
 verb는 세션 바인딩 없이 plan을 지목하는 읽기 경로 `show`·`validate`·`ready` 셋뿐이고, 그 셋은
 `resolveSlug()`로 실제 인자를 쓴다. parser의 `--slug` 처리 자체는 지우지 않는다 — 읽기 verb가 쓴다.
 
+라운드 2 Medium이 지점 수를 실측했다. `goalplan-cli.ts`에서 `--slug`가 나오는 곳은 다섯이고 삭제 대상은
+**help usage 세 줄**이다.
+
+| 위치 | 내용 | 처분 |
+| --- | --- | --- |
+| `:91` | parser `else if (a === "--slug") out.slug = argv[++i]` | 보존 |
+| `:304` | `cxc loop show (--slug <slug> \| --objective <text>)` | 보존 |
+| `:305` | `cxc loop validate --slug <slug>` | 보존 |
+| `:306` | `cxc loop steer --session <id> --slug <slug>` | **삭제** |
+| `:307` | `cxc loop add-work-phase --session <id> --slug <slug>` | **삭제** |
+| `:308` | `cxc loop add-criterion --session <id> --slug <slug>` | **삭제** |
+| `:363` | `loop ${args.verb}: --slug "<text>", ...` 인자 부족 오류 문구 | 보존 |
+
+help 블록은 함수 전체 교체라 실제로는 새 배열을 쓴다. 그래도 이 표를 남기는 이유는 보존 네 곳이 삭제에
+휩쓸리지 않게 하려는 것이다.
+
 | help에 `ready --json`, `add-task`, `complete-task --outcome`, `meet-criterion --evidence`, 반복 `--depends-on` 추가. `add-work-phase`와 `add-criterion`의 `--slug <slug>`는 **삭제**한다 | `help-verbs.test.ts:18-29`가 loop help의 `Usage:`, `--session`, `--batch-json`, `idempotencyKey`를 검사. 기존 `--slug` 두 줄을 직접 기다리는 테스트는 없다 | **wp6 / 이 문서** | 감사 라운드 1 High: `runAddOp()`는 `readState(args.cwd, session).slug`만 읽고 `args.slug`를 무시하므로, 두 줄은 실행되지 않는 문법을 광고한다. help에서 지우고, 신규 공개 표면 테스트가 두 usage 줄에 `--slug`가 없음을 단언한다 |
 | lifecycle 거부·성공 및 ledger append 경고 문구 신설 | 기존 테스트 없음. `steering.test.ts:180-190`은 steering 전용 ledger 실패 경고 관례만 검사 | **wp6 / 이 문서** | 신규 `goalplan-public-surface.test.ts`가 정확한 문자열·code·무변경과 plan commit 뒤 ledger 실패의 code 0·경고를 검사 |
 
@@ -493,10 +509,14 @@ after:
 
 ```ts
 // wp5 적용 후 + wp6 추가분 (선행 wp5: withGoalplanWriteLock, GoalplanWriteLockOptions;
-// wp6: goalplanDefinitionIntegrityReasons)
+// wp6: goalplanDefinitionIntegrityReasons, goalplanDependencyCompletionReasons)
+// 라운드 2 BLOCKER: 뒤 이름을 빼면 applyOps() 두 호출부가 TS2304이고 타입을 지운
+// 런타임에서는 steering.test.ts 두 건이 ReferenceError로 죽는다. 감사관 두 기가
+// 각자 사본에서 22개 중 2 fail을 재현했고, 이 한 줄을 더하니 22/22로 돌아왔다.
 import {
   appendGoalplanLedger,
   goalplanDefinitionIntegrityReasons,
+  goalplanDependencyCompletionReasons,
   withGoalplanWriteLock,
   writeGoalplan,
   type Goalplan,
@@ -857,6 +877,21 @@ if (args.verb === "show") {
 ```
 
 `GoalplanVerb`과 `VERBS`에 `ready`, `add-task`, `complete-task`, `meet-criterion`을 추가한다.
+
+같은 자리에서 `goalplan-cli.ts:84`의 unknown-verb 거부 문구도 함께 고친다. 라운드 2 Medium: 지금 문구는
+`(expected init|show|validate|steer|add-criterion|add-work-phase)`로 끝나므로 `cxc loop redy` 오타를 낸
+사용자는 새 동사 넷이 빠진 목록을 받는다. help만 고치고 이 문구를 두면 두 표면이 갈린다.
+
+```ts
+// before
+error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase); run cxc loop --help`,
+
+// after
+error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion); run cxc loop --help`,
+```
+
+신규 `goalplan-public-surface.test.ts`가 이 문자열을 단언한다 — 넷을 더하고 기존 여섯을 그대로 남긴 순서까지
+검사해, 다음 verb 추가가 문구를 다시 빠뜨리면 RED가 된다.
 args와 초기 객체는 아래 필드를 가진다.
 
 ```ts
@@ -1145,6 +1180,9 @@ import {
   type Phase,
   type State,
 } from "./state.ts";
+// 라운드 2 Medium: `nextOpenTask`를 뺀다. hook에서 그 함수를 부르던 유일한 지점이
+// `readStopWorkContext()`였고 이 문서가 그 줄을 `readyWorkPhases`/`readyTasks`로 바꾸므로
+// 이름만 남으면 고아가 된다. `goalplan.ts`의 export는 다른 소비자가 있으니 유지한다.
 import { applyHumanTransition, clearedIdle, type ApplyResult } from "./orchestrate-apply.ts";
 import {
   advanceWorkPhase,
@@ -1200,7 +1238,6 @@ import {
   goalplanDir,
   goalplanDefinitionIntegrityReasons,
   goalplanDependencyCompletionReasons,
-  nextOpenTask,
   readGoalplan,
   readyWorkPhases,
   readyTasks,
@@ -1854,6 +1891,7 @@ import {
   writeGoalplan,
   appendGoalplanLedger,
   dependencyDeadlock,
+  dependencyWaitReasons,
   goalplanDir,
   goalplanWriteLockDir,
   remainingWorkPhases,
@@ -2305,7 +2343,7 @@ test("comma dependency is rejected while repeated flags persist dependencies", (
 | `src/goalplan-cli.ts` | wp2 `readGoalplanDetailed`, wp3 두 integrity helper, wp5 `goalplanWriteLockStatus`, `withGoalplanWriteLock`, `GoalplanWriteLockStatus`를 보존하고 wp6 공개 lifecycle 이름을 더한다. |
 | `src/hook.ts` | wp4 `dependencyDeadlock`, `effectiveActiveWorkPhaseId`와 wp5 fs/path/ledger/recovery 이름, `goalplanDefinitionIntegrityReasons`, `goalplanDependencyCompletionReasons`, `withGoalplanWriteLock`, `closeFixedWorkPhase`, 그리고 §53 공유 판정 `absentSuccessorDetail`·`resumeAbsentTarget`을 모두 보존하고 wp6 `dependencyWaitReasons`·`readyWorkPhases`·`readyTasks`를 더한다. 뒤 두 이름은 채팅 D-close의 대상 부재 복구 경로가 쓰므로 빠지면 `TS2304`와 `ReferenceError`가 난다. |
 | `test/goalplan-public-surface.test.ts` | wp6 신규 파일 전체 import다. 선행 wp 추가 이름은 없다. |
-| `test/goalplan.test.ts` | wp2 `readGoalplanDetailed`, `effectiveSchemaVersion`과 wp4 `dependencyDeadlock`을 보존하고 wp6 `goalplanWriteLockDir`를 더한다. |
+| `test/goalplan.test.ts` | wp2 `readGoalplanDetailed`, `effectiveSchemaVersion`과 wp4 `dependencyDeadlock`·`dependencyWaitReasons`를 보존하고 wp6 `goalplanWriteLockDir`를 더한다. 라운드 2 High: 뒤 이름은 현재 본문에서 호출되지 않아 지워도 컴파일은 통과하지만, wp7이 그 helper의 golden을 이 파일에 넣는 순간 `TS2304`가 된다. import 전체 After를 쓰는 문서는 실제 import 문을 세야 한다. |
 | `test/help-verbs.test.ts` | import 변경 없음. |
 | `test/steering.test.ts` | import 변경 없음. |
 | `test/hook-continuation.test.ts` | import 변경 없음. |
@@ -2329,6 +2367,23 @@ node --experimental-strip-types --test plugins/codexclaw/components/pabcd-state/
 `goalplan-public-surface.test.ts`, `goalplan.test.ts`, `hook-continuation.test.ts`의 focused 실행이다.
 세 테스트는 각각 새 CLI 공개 경로, 누적 import를 쓰는 goalplan API, 새 Stop context 소비를 실제
 호출한다.
+
+라운드 2 Medium: exit 0과 fail 0만으로는 부족하다. wp5 §10.3이 `tests 2236, pass 2236`을 못 박은 것과
+같은 이유가 여기에도 걸린다 — 개수가 없으면 테스트 하나가 조용히 등록되지 않아도 게이트가 통과한다.
+감사관이 사본에서 실측한 개수를 아래로 고정한다.
+
+| 스위트 | 변경 전 | wp6 적용 후 | 순증 |
+| --- | --- | --- | --- |
+| `goalplan.test.ts` | 38 | 38 | 0 |
+| `help-verbs.test.ts` | 25 | 25 | 0 |
+| `steering.test.ts` | 22 | 25 | +3 |
+| `hook-continuation.test.ts` | 58 | 63 | +5 |
+| `goalplan-public-surface.test.ts` | 없음 | 18 | +18 |
+| pabcd-state 전체 | 1061 | 1087 | +26 |
+
+`goalplan.test.ts`와 `help-verbs.test.ts`는 기존 case의 단언만 늘어나므로 등록 개수가 그대로다.
+`orchestrate-cli.test.ts`는 wp6이 손대지 않으므로 개수 대상이 아니다. 실측이 이 표와 다르면 B를
+멈추고 어느 case가 등록되지 않았는지 찾는다.
 
 ```bash
 #!/usr/bin/env bash
@@ -2416,6 +2471,11 @@ npm run gate
 tracked `dist/*.js`를 먼저 갱신한다. 그 다음 `npm test`가 dist byte equality를 포함해 fail 0으로
 끝나고, 마지막 `npm run gate`가 exit 0으로 끝난다. build는 타입·import 오류를 검출하는 근거가
 아니며 배포 파일 생성과 manifest 검사만 맡는다.
+
+라운드 2 Medium: `npm test` 기대값에는 순서 조건이 붙는다. 감사관이 pristine HEAD에서 `npm test`를
+먼저 돌렸을 때 `dist-freshness`·`inventory` 계열이 이미 fail이었다 — dist 재생성 전이었기 때문이다.
+그래서 `npm run build`를 반드시 앞에 두고, build 없이 나온 `npm test` 실패는 wp6 결함으로 세지 않는다.
+wp5 기준선 `tests 2236`에 위 표의 순증 26을 더한 `tests 2262, fail 0`이 wp6 기대값이다.
 
 ### 미해석 식별자 게이트 — focused보다 먼저
 
