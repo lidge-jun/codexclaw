@@ -1754,6 +1754,7 @@ import {
   unmetCriteria,
   withGoalplanWriteLock,
   writeGoalplan,
+  closeFixedWorkPhase,
   type AdvanceResult,
   type Goalplan,
 } from "./goalplan.ts";
@@ -2776,11 +2777,17 @@ CYCLE-COMPLETION 테스트 구역의 기존 bound 성공과 HITL 성공을 먼�
 ```
 
 그 뒤 다음 helper와 실패 주입 테스트를 추가한다. 선행 wp가 이 테스트의 `goalplan.ts` import에
-추가한 이름은 없고, wp5가 `readGoalplan`을 더한다.
+추가한 이름은 없고, wp5가 `readGoalplan`과 `goalplanWriteLockDir`을 더한다. 후자는 §40 Z2
+all-done 회귀가 `afterStateWrite` 안에서 락 디렉터리를 직접 만들 때 쓴다.
 
 ```ts
-// wp4 적용 후 + wp5 추가분: 선행 wp 추가 이름 없음; wp5 readGoalplan 추가
-import { buildGoalplan, readGoalplan, writeGoalplan } from "../src/goalplan.ts";
+// wp4 적용 후 + wp5 추가분: 선행 wp 추가 이름 없음; wp5 readGoalplan, goalplanWriteLockDir 추가
+import {
+  buildGoalplan,
+  goalplanWriteLockDir,
+  readGoalplan,
+  writeGoalplan,
+} from "../src/goalplan.ts";
 ```
 
 ```ts
@@ -4752,6 +4759,12 @@ focused suite와 `npm test`가 모두 통과한다. 이 문서의 초안이 실�
 저장소에는 typecheck script도 tsconfig도 없어 이 부류를 잡는 표면이 없다. 그러므로 wp5가 새로
 도입하는 타입 이름은 실제 export와 대조한다.
 
+알려진 오타 하나만 막는 검사로는 부족하다. 같은 부류가 실제로 네 건 더 있었다. `hook.ts`의 wp6 인계
+import가 `closeFixedWorkPhase`를 빠뜨렸고, `orchestrate-cli.test.ts`는 `goalplanWriteLockDir`를,
+`hook.test.ts`는 `readGoalplan`과 `Goalplan`을 빠뜨렸으며, 채팅 테스트 두 건은 다른 테스트 파일의
+module-private `goalplanLedgerRows()`를 호출했다. 이름 하나를 찾는 검사는 이 중 어느 것도 잡지 못한다.
+그래서 구현이 끝난 파일에서 **해석되지 않는 식별자 전체**를 센다.
+
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
@@ -4762,9 +4775,44 @@ src=plugins/codexclaw/components/pabcd-state/src/goalplan.ts
 # CloseFixedResult가 인용하는 타입은 같은 모듈이 실제로 export하는 이름이어야 한다.
 rg -q '^export type WorkPhaseStatus = ' "$src"
 rg -q '^export interface GoalplanTask ' "$src"
-# 검색 대상은 소스와 테스트뿐이다. 이 문서 본문에는 위 설명이 그 이름을 인용하므로
+# 검색 대상은 소스와 테스트뿐이다. 이 문서 본문은 설명으로 옛 이름을 인용하므로
 # devlog를 포함하면 검사가 영구히 실패한다.
 ! rg -n 'GoalplanWorkPhaseStatus' plugins/codexclaw/components
+
+# wp5가 새로 export하는 여섯 이름은 실제로 선언되어야 한다.
+for name in GOALPLAN_LOCK_OWNER_FILE goalplanWriteLockDir goalplanWriteLockStatus \
+  withGoalplanWriteLock closeFixedWorkPhase CloseFixedResult; do
+  rg -q "^export (type|const|function) $name\b" "$src"
+done
+
+# 각 파일이 쓰는 이름은 같은 파일에 선언되어 있거나 그 파일의 import에 있어야 한다.
+# import 블록이 여러 줄이므로 `rg -U`로 본다. strip-types 실행은 타입 누락을 숨기고
+# 저장소에 typecheck가 없으므로 이 검사가 유일한 표면이다.
+resolve_names() {
+  local file="$1"; shift
+  local name
+  for name in "$@"; do
+    rg -Uq "\b${name}\b" "$file" || continue
+    if rg -Uq "import \{[^}]*\b${name}\b[^}]*\} from" "$file"; then continue; fi
+    if rg -Uq "^(export )?(async )?(function|type|interface|const) ${name}\b" "$file"; then continue; fi
+    printf 'unresolved: %s in %s\n' "$name" "$file" >&2
+    return 1
+  done
+}
+
+pab=plugins/codexclaw/components/pabcd-state
+resolve_names "$pab/src/hook.ts" closeFixedWorkPhase withGoalplanWriteLock readGoalplan \
+  matchesDcloseRecovery dependencyDeadlock
+resolve_names "$pab/src/orchestrate-cli.ts" closeFixedWorkPhase withGoalplanWriteLock readGoalplan
+resolve_names "$pab/src/steering.ts" withGoalplanWriteLock
+resolve_names "$pab/src/review-round-cli.ts" withGoalplanWriteLock
+resolve_names "$pab/src/review-observer.ts" withGoalplanWriteLock
+resolve_names "$pab/test/orchestrate-cli.test.ts" goalplanWriteLockDir readGoalplan \
+  buildGoalplan writeGoalplan goalplanLedgerRows mkdirSync
+resolve_names "$pab/test/hook.test.ts" readGoalplan Goalplan goalplanLedgerRows \
+  buildGoalplan writeGoalplan spawn fileURLToPath
+resolve_names "$pab/test/goalplan-concurrency.test.ts" goalplanWriteLockDir \
+  goalplanWriteLockStatus withGoalplanWriteLock isAbsolute spawn
 ```
 
 기대값은 두 `rg -q`가 exit 0, 존재하지 않는 이름 검색이 0건이라 부정 검사가 exit 0인 것이다.

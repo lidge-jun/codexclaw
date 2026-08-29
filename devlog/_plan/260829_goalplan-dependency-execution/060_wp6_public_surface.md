@@ -1140,6 +1140,7 @@ import {
   unmetCriteria,
   withGoalplanWriteLock,
   writeGoalplan,
+  closeFixedWorkPhase,
   type AdvanceResult,
   type Goalplan,
 } from "./goalplan.ts";
@@ -1184,6 +1185,7 @@ import {
   unmetCriteria,
   withGoalplanWriteLock,
   writeGoalplan,
+  closeFixedWorkPhase,
   type AdvanceResult,
   type Goalplan,
 } from "./goalplan.ts";
