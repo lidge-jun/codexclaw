@@ -1157,3 +1157,10 @@ id·status다. 전체 JSON을 비교하면 timestamp와 산문 때문에 이유 
 
 회귀는 위조 네 가지 중 CLI에 커서-pending, 커서 null+고립, 의존 미충족 세 경우를 두고 채팅에
 커서-pending 한 경우를 둔다.
+
+비교에서 빠진 필드로 위조가 되는지도 실측했다. `title`, `criteriaIds`, task `outcome`이 달라도
+`already_done`이 나오는데 이것이 옳다 — close는 그 필드를 쓰지 않으므로 다르다는 사실이 재작성
+사유가 되지 않는다. done task의 `outcome` 부재는 wp3 schema 무결성이 소유한다. phase 순서를 바꾼
+plan과 pending phase가 하나 더 붙은 plan도 `already_done`이며, 두 경우 모두 그 입력이 실제로 이
+close가 만들 모양과 같기 때문이다. 한 번에 한 phase만 도는 계약에서 뒤에 붙은 pending phase는
+건드릴 대상이 아니다.
