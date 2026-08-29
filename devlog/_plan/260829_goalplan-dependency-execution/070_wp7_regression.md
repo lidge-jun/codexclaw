@@ -1224,9 +1224,27 @@ dist를 먼저 다시 만든다. 뒤따른 루트 `npm test`의 `dist-freshness.
 byte equality를 확인한다. root에는 typecheck script와 root `tsconfig.json`이 없으므로 인자 없는
 `npx tsc --noEmit`을 성공 게이트로 쓰지 않는다.
 
-`npm test`는 단독으로 돌린다. 끝난 뒤 등록 총계가 `2262 + wp7 신규 8 = 2270`인지 확인한다. 총계가
-줄었으면 통과 개수만 보고 넘기지 말고 계약서 §64의 C10 경쟁(`build.mjs`의 `rmSync(distDir)`가 다른
-실행의 dist 독자를 죽인다)을 의심하고, 병렬 실행을 멈춘 뒤 단독으로 다시 돌린다.
+`npm test`는 단독으로 돌린다. wp7이 더하는 `test()`는 10건이다 — §3.3이 3건, §4.1·§4.2가 각 1건,
+§4.3·§4.4·§4.5·§4.7이 각 2건이고, §4.6은 wp6 소유 테스트의 재실행이라 0건이다. 그래서 기대 총계는
+컴포넌트 `1087 + 10 = 1097`, 루트 `2262 + 10 = 2272`다. 총계가 줄었으면 통과 개수만 보고 넘기지 말고
+계약서 §64의 C10 경쟁(`build.mjs`의 `rmSync(distDir)`가 다른 실행의 dist 독자를 죽인다)을 의심하고,
+병렬 실행을 멈춘 뒤 단독으로 다시 돌린다.
+
+컴포넌트 스위트는 `npm test`(= 인자 없는 `node --test`)가 아니라 루트와 같은 glob으로 돌린다.
+
+```bash
+cd plugins/codexclaw/components/pabcd-state && node --test 'test/*.test.ts'
+```
+
+인자 없는 `node --test`는 `test/fixtures/capture-goalplan-baseline.mjs`까지 실행 대상으로 줍는다. 그
+생성기는 `process.argv[1]`이 자기 파일명으로 끝나면 `captureBaseline()`을 부르는데, `node --test`도
+`argv[1]`을 그 파일로 채우므로 가드가 뚫린다. 그러면 컴포넌트 cwd에 없는 `.codexclaw/goalplans`를
+`readdirSync`해 `ENOENT`로 죽는다. 실측: 컴포넌트에서 `npm test`는 `pass 1087 fail 1`, 같은 트리에서
+`node --test 'test/*.test.ts'`는 `pass 1087 fail 0`이다. 루트 `npm test`는 `test/*.test.ts` glob이라
+이 파일을 애초에 줍지 않는다.
+
+이 결함은 wp2가 `d9259ca6`에서 들여왔고 wp7 범위가 아니다(§0: production source를 고치지 않으며 이
+파일은 wp2 소유다). wp7은 게이트 명령을 정확히 적어 우회하고, 남은 처분은 §9 뒤 후속으로 넘긴다.
 
 ### 7.4 변경 범위
 
@@ -1287,6 +1305,10 @@ v3 파일을 한 번 쓴 뒤 pre-v3 reviver로 완전 downgrade하지 않는다.
 - [ ] 모든 테스트가 arrange, act, 구체 assert 본문을 갖는다.
 - [ ] 루트 `dist-freshness.test.mjs`에서 tracked dist가 src와 byte-equal이다.
 - [ ] 집중 테스트와 저장소 게이트가 모두 exit `0`이다.
+- [ ] wp7이 더한 `test()`가 정확히 10건이고 컴포넌트 총계가 `1087 + 10 = 1097`, 루트 총계가
+  `2262 + 10 = 2272`다.
+- [ ] 컴포넌트 게이트를 `node --test 'test/*.test.ts'`로 돌린다. 인자 없는 `node --test`는 wp2 생성기를
+  주워 `ENOENT`로 죽으므로 게이트로 쓰지 않는다(§7.3).
 - [ ] wp5는 lock, wp6는 공개 표면으로만 서술된다.
 
 DONE: 070_wp7_regression.md — W5 build 선행 게이트와 tracked dist byte equality 최종 조건을 닫음
