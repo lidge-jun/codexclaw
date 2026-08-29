@@ -767,6 +767,7 @@ import {
   readGoalplan,
   withGoalplanWriteLock,
   writeGoalplan,
+  closeFixedWorkPhase,
   type AdvanceResult,
   type Goalplan,
 } from "./goalplan.ts";
@@ -1244,6 +1245,7 @@ import {
   unmetCriteria,
   withGoalplanWriteLock,
   writeGoalplan,
+  closeFixedWorkPhase,
   type AdvanceResult,
   type Goalplan,
 } from "./goalplan.ts";
@@ -1379,6 +1381,7 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
             `[codexclaw — refused: invalid goalplan: ${integrityReasons.join("; ")}. Nothing was written.]`,
           ),
           advanced: null,
+          allDone: false as const,
         };
       }
       if (plan.workPhases.length === 0) {
@@ -1388,6 +1391,7 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
             `[codexclaw — refused: the bound goalplan "${state.slug}" has no active work-phase to close (CYCLE-COMPLETION-01). Nothing was written.]`,
           ),
           advanced: null,
+          allDone: false as const,
         };
       }
       // §39 Y2: recovery is checked BEFORE all-done, in the same order as the CLI
@@ -1423,6 +1427,7 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
                 + `tasks and repeat the same D request. Nothing was written.]`,
             ),
             advanced: null,
+            allDone: false as const,
           };
         }
         if (closed.kind === "not_runnable") {
@@ -1434,6 +1439,7 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
                 + `and repeat the same D request. Nothing was written.]`,
             ),
             advanced: null,
+            allDone: false as const,
           };
         }
         if (closed.kind === "ok") {
@@ -1455,7 +1461,10 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
             appendLedger(payload.cwd, { ...result.ledger, checkEpoch: state.checkEpoch, closedWorkPhaseId: null });
             dcloseCommitHooks.afterPabcdLedgerAppend?.();
           }
-          return { output: "", advanced: null };
+          // allDone travels back as a discriminant on the callback's return value.
+          // An outer mutable flag would be easy to leave unset, and forgetting it
+          // sends all-done back into the finalization lock §40 Z2 removed.
+          return { output: "", advanced: null, allDone: true as const };
         }
         // §35-5: target validation follows empty-plan, all-done, and recovery.
         if (!closePhaseId) {
@@ -1465,6 +1474,7 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
               "[codexclaw — refused: bound chat D-close requires attest.workPhaseId. Nothing was written.]",
             ),
             advanced: null,
+            allDone: false as const,
           };
         }
         const target = plan.workPhases.find((workPhase) => workPhase.id === closePhaseId);
@@ -1475,6 +1485,7 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
               `[codexclaw — refused: work-phase ${closePhaseId} is not in the bound goalplan. Nothing was written.]`,
             ),
             advanced: null,
+            allDone: false as const,
           };
         }
         closeResult = advanceWorkPhase(plan);
@@ -1490,6 +1501,7 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
               + `(CYCLE-COMPLETION-01): ${open}. Nothing was written.]`,
           ),
           advanced: null,
+          allDone: false as const,
         };
       }
       if (closeResult.kind === "no_active") {
@@ -1503,6 +1515,7 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
             `[codexclaw — refused: ${detail} (CYCLE-COMPLETION-01). Nothing was written.]`,
           ),
           advanced: null,
+          allDone: false as const,
         };
       }
 
@@ -1513,6 +1526,7 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
             `[codexclaw — refused: fixed close target ${closePhaseId} does not match active work-phase ${closeResult.closedId}. Nothing was written.]`,
           ),
           advanced: null,
+          allDone: false as const,
         };
       }
       if (!recoveringDclose) {
@@ -1523,6 +1537,7 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
               "[codexclaw — refused: current C check epoch is required. Nothing was written.]",
             ),
             advanced: null,
+            allDone: false as const,
           };
         }
         writeState(payload.cwd, {
@@ -1554,7 +1569,7 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
           detail: `started ${startedId}`,
         });
       }
-      return { output: "", advanced: closeResult };
+      return { output: "", advanced: closeResult, allDone: false as const };
     });
 
     if (locked.kind === "locked") {
@@ -1573,6 +1588,7 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
     }
     if (locked.value.output) return locked.value.output;
     advanced = locked.value.advanced;
+    const allDoneClose = locked.value.allDone;
 ```
 
 hook retry는 marker가 일치하면 정상 경로의 target 검증(없으면 거부)을 건너뛴다. 다만 계약 §39 Y1에
@@ -2945,6 +2961,9 @@ test("all-done close writes its PABCD row inside the first lock and takes no fin
   plan.activeWorkPhaseId = null;
   writeGoalplan(cwd, plan);
   writeState(cwd, { ...defaultState(id), phase: "C", slug, orchestrationActive: true, checkEpoch: "c-all-done" });
+  // CHECK-BINDING-01 runs before the all-done branch (orchestrate-cli.ts:600-607), so
+  // without a receipt this test would refuse at the gate and never reach its subject.
+  seedReceipt(cwd, id, "c-all-done");
 
   let stateWrites = 0;
   const result = runOrchestrateCli(parsedDclose(cwd, id), {
@@ -2957,6 +2976,10 @@ test("all-done close writes its PABCD row inside the first lock and takes no fin
   });
 
   assert.equal(result.code, 0, result.output);
+  // §39 Y3 makes a failed finalization lock return code 0 too, so code alone cannot
+  // tell "no second lock" from "second lock timed out". The output must be silent
+  // about pending finalization.
+  assert.doesNotMatch(result.output, /finalization is pending/);
   assert.equal(stateWrites, 1);
   assert.equal(readState(cwd, id).phase, "IDLE");
   assert.equal(readState(cwd, id).dcloseRecovery, null);
@@ -3056,6 +3079,7 @@ test("all-done close survives a failure right after its state write", () => {
   plan.activeWorkPhaseId = null;
   writeGoalplan(cwd, plan);
   writeState(cwd, { ...defaultState(id), phase: "C", slug, orchestrationActive: true, checkEpoch: "c-all-done" });
+  seedReceipt(cwd, id, "c-all-done");
 
   assert.throws(
     () => runOrchestrateCli(parsedDclose(cwd, id), {
