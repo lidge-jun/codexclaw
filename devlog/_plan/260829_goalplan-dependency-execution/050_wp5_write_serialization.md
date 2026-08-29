@@ -4806,6 +4806,16 @@ test "$(unresolved_count)" -eq 0
 이 게이트는 미해석 식별자만 본다. 타입 호환성, signature 불일치, 논리 오류는 잡지 않는다.
 그 부류는 focused suite와 `npm test`가 맡는다.
 
+수동 나열이 빠뜨렸던 이름들도 이 게이트는 파일 위치와 무관하게 잡는다. 여섯 곳에 각각 주입해
+확인했다: `src/goalplan.ts`의 `statSync`, `src/steering.ts`의 `GoalplanWriteLockOptions`,
+`src/review-round-cli.ts`의 `ReviewRoundState`, `test/hook.test.ts`의 `resolve`,
+`test/state.test.ts`의 `goalplanWriteLockDir`와 `GOALPLAN_LOCK_OWNER_FILE`. 여섯 건 모두 1로
+올라가고 복원마다 0으로 돌아왔다. 나열 목록이 없으므로 앞으로 추가되는 이름도 자동으로 포함된다.
+
+`--listFiles`로 tsc가 실제로 무엇을 읽는지도 확인했다. 명시한 114개 파일에서 시작해 import를 따라
+pabcd-state 안 159개 파일을 읽고 전체 진단 75줄을 낸다. 기준선 0은 파일을 조용히 건너뛴 결과가
+아니라 이 부류의 오류가 실제로 없다는 뜻이다.
+
 ## 11. 완료 기준
 
 - wp5 선행 조건은 wp2·wp3·wp4이며 wp6 공개 표면보다 먼저 합쳐진다.
