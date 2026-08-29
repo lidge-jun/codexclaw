@@ -4964,8 +4964,12 @@ rg -q 'src/interview-policy\.ts\(25,15\): error TS2459' "$tsc_log"
 # 센다 — `rg -c | wc -l`은 파일 수라서 같은 파일에 더 넣는 것을 놓친다. 실측으로 확인했다.
 suppressions="$(rg -o '@ts-ignore|@ts-expect-error|@ts-nocheck' "${roots[@]}" | wc -l | tr -d '[:space:]')"
 test "$suppressions" -eq 1
-rg -q '^        // @ts-expect-error "unavailable" is still reachable here$' \
-  "$pab/test/source-identity.test.ts"
+# 문구만 고정하면 그 주석을 다른 오류 앞으로 옮길 수 있다. 실측으로 재현했다 — 원래 대상을
+# 정상화하고 같은 문구를 새 미해석 이름 앞에 두면 개수와 문구 검사가 모두 통과한다.
+# 그래서 파일·행 번호·문구·바로 다음 대상 행까지 고정한다. wp5는 이 파일을 수정하지 않는다.
+supp_file=$pab/test/source-identity.test.ts
+test "$(sed -n '189p' "$supp_file")" = '        // @ts-expect-error "unavailable" is still reachable here'
+test "$(sed -n '190p' "$supp_file")" = '        return assertNever(r);'
 
 # `--skipLibCheck`는 root에 들어온 `.d.ts` 안의 미해석 타입도 검사하지 않는다. 실측으로
 # 확인했다 — 없는 타입을 참조하는 `.d.ts`를 넣으면 진단이 0건이고, 플래그를 빼면 1건이다.
@@ -5032,7 +5036,7 @@ bootstrap 실패도 같은 방식으로 확인했다. 계획서의 게이트 블
 주입 검증 아홉 경로 전부에서 게이트가 실패하고 복원 뒤 통과한다. 깨끗한 checkout,
 `@types/node` 해석 실패, 추가 `TS2459`, 잘못된 플래그, `TS2614`, 억제 주석, namespace 오타,
 같은 코드 신규 fingerprint, 같은 파일 두 번째 억제 주석이다.
-`.d.ts` 은닉을 더해 열 경로다.
+`.d.ts` 은닉과 허용 억제 주석을 다른 오류 앞으로 옮기는 경로를 더해 열한 경로다.
 
 남는 한계는 명시한다. `sort -u`가 fingerprint를 중복 제거하므로, 이미 baseline에 있는 진단과
 **파일·코드·메시지가 완전히 같은** 진단을 하나 더 만들면 보이지 않는다. 실측으로 확인했다 —
