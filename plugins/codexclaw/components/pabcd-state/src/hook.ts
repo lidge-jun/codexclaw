@@ -930,9 +930,14 @@ function handleOrchestrateCommand(
   if (result.control === "done" && state.slug) {
     // CHECK-BINDING-01 (075): same receipt requirement as the CLI, checked here so
     // a chat D-close cannot be the way around it.
-    const receiptCheck = validateCheckReceipt(state, payload.session_id, command.attest?.testReceiptPath, payload.cwd);
-    if (!receiptCheck.ok) {
-      return buildContextOutput("UserPromptSubmit", `[codexclaw — refused: ${receiptCheck.reason} Nothing was written.]`);
+    // 050 wp5 §5: a marker-matched retry already spent its receipt in the first
+    // attempt, and re-requiring it would refuse a repair for a gate it cannot satisfy
+    // twice. The CLI path skips it on the same condition.
+    if (!recoveringDclose) {
+      const receiptCheck = validateCheckReceipt(state, payload.session_id, command.attest?.testReceiptPath, payload.cwd);
+      if (!receiptCheck.ok) {
+        return buildContextOutput("UserPromptSubmit", `[codexclaw — refused: ${receiptCheck.reason} Nothing was written.]`);
+      }
     }
     const locked = withGoalplanWriteLock(payload.cwd, state.slug, (plan) => {
       // §5: integrity is checked inside the lock, before marker or any write.

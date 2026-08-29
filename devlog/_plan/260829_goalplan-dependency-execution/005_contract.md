@@ -2044,3 +2044,34 @@ dependency is unmet`은 커서를 successor wp-2 자신에 두고 wp-2의 의존
 `/so is the successor wp-2 it recorded/`를 기다리는데, `absentSuccessorDetail("absent")`는
 `is gone too`를 내므로 실제 문장은 `the successor wp-2 it recorded is gone too`다. 단언을 생산
 문자열에 맞췄다. §53에서 문구를 한 곳으로 모을 때 이 테스트가 같이 갱신되지 않았다.
+
+## 59. B 구현 중 발견 — 채팅 recovery도 receipt를 건너뛴다
+
+§6.4는 채팅 recovery가 binding과 `applyHumanTransition()`을 건너뛴다고만 적었고 receipt 게이트는
+언급하지 않았다. 그대로 구현하니 §8.4의 marker 재시도 다섯 건이 전부
+`C -> D on a goalplan-bound session requires "testReceiptPath"`로 막혔다. 계획서의
+`seedRecoverableChatClose()`가 만드는 attest에 `testReceiptPath`가 없기 때문이다.
+
+fixture가 맞다. recovery는 이미 첫 시도에서 receipt를 소비했고, 그 시도가 어느 epoch에서 돌았는지는
+marker에 남아 있다. 두 번 낼 수 없는 증거를 다시 요구하면 복구 자체가 불가능해진다. CLI도 §5에 따라
+같은 조건으로 건너뛴다. 채팅에 같은 가드를 넣었다.
+
+```ts
+    if (!recoveringDclose) {
+      const receiptCheck = validateCheckReceipt(state, payload.session_id, command.attest?.testReceiptPath, payload.cwd);
+      if (!receiptCheck.ok) { ... }
+    }
+```
+
+§57과 같은 종류의 누락이다. 계획서가 CLI 쪽 게이트 우회 세 곳은 산문으로 적었지만, 채팅 쪽은 두 곳만
+적고 receipt를 빠뜨렸다. 두 표면의 게이트 목록을 나란히 적어 두지 않으면 이렇게 갈린다.
+
+## 60. B 구현 개수 실측
+
+focused 8파일 실측이 §10.1 산술과 정확히 일치했다.
+
+```text
+선언 257, 등록 261, pass 261, fail 0
+```
+
+pabcd-state 컴포넌트 전체는 이 시점에 1077건이다.

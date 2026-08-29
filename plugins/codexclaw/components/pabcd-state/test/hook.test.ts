@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // B1 (260724 WP1): emit sites resolve the `cxc` invocation per-machine. Pin the
 // literal so directive assertions stay deterministic without `cxc` on PATH
@@ -24,9 +25,9 @@ import {
   type StopPayload,
 } from "../src/hook.ts";
 import { STATE_DIR, LEDGER_FILE, readState, writeState, defaultState } from "../src/state.ts";
-import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
+import { buildGoalplan, readGoalplan, writeGoalplan, type Goalplan } from "../src/goalplan.ts";
 import { captureSourceIdentity } from "../src/source-identity.ts";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { readFileSync } from "node:fs";
 
@@ -893,4 +894,876 @@ test("050: closing or resetting a cycle clears the snapshot", () => {
       assert.equal(readState(cwd, "chat-clear").phaseEntrySource, null, verb);
     } finally { rmSync(cwd, { recursive: true, force: true }); }
   }
+});
+
+function goalplanLedgerRows(cwd: string, slug: string): Array<Record<string, unknown>> {
+  const path = join(cwd, STATE_DIR, "goalplans", slug, "ledger.jsonl");
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
+}
+test("bound chat D-close without workPhaseId is refused after empty and all-done checks", () => {
+  const cwd = gitRepoForHook();
+  try {
+    const slug = "chat-missing-target";
+    const plan = buildGoalplan({ objective: "chat missing target" });
+    plan.slug = slug;
+    plan.workPhases = [
+      { id: "wp-1", title: "first", status: "in_progress", tasks: [], criteriaIds: [] },
+    ];
+    plan.activeWorkPhaseId = "wp-1";
+    writeGoalplan(cwd, plan);
+    writeState(cwd, {
+      ...defaultState("chat-missing-target"),
+      phase: "C",
+      slug,
+      orchestrationActive: true,
+      checkEpoch: "c-test",
+      flags: { interview: false, auditPassed: true, checkPassed: true },
+    });
+    seedChatReceipt(cwd, "chat-missing-target", "c-test");
+    const beforePlan = readFileSync(join(cwd, STATE_DIR, "goalplans", slug, "goalplan.json"), "utf8");
+    const attest = JSON.stringify({
+      from: "C",
+      to: "D",
+      did: "ran the suite",
+      checkOutput: "ok",
+      exitCode: 0,
+      testReceiptPath: ".codexclaw/evidence/chat-missing-target/test-receipt.json",
+    });
+
+    const output = handleUserPromptSubmit(
+      ups(`orchestrate d --attest ${attest}`, cwd, "chat-missing-target", "t1"),
+    );
+
+    assert.match(output, /requires attest\.workPhaseId/);
+    assert.equal(readState(cwd, "chat-missing-target").phase, "C");
+    assert.equal(readFileSync(join(cwd, STATE_DIR, "goalplans", slug, "goalplan.json"), "utf8"), beforePlan);
+    assert.equal(ledgerLines(cwd).length, 0);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+for (const workPhaseId of [undefined, "wp-finished"] as const) {
+  test(`all-done bound chat closes without a marker (workPhaseId=${workPhaseId ?? "missing"})`, () => {
+    const cwd = gitRepoForHook();
+    try {
+      const id = `chat-all-done-${workPhaseId ?? "missing"}`;
+      const slug = `${id}-plan`;
+      const plan = buildGoalplan({ objective: "close an all-done chat cycle" });
+      plan.slug = slug;
+      plan.workPhases = [
+        { id: "wp-finished", title: "finished", status: "done", tasks: [], criteriaIds: [] },
+      ];
+      plan.activeWorkPhaseId = null;
+      writeGoalplan(cwd, plan);
+      writeState(cwd, {
+        ...defaultState(id),
+        phase: "C",
+        slug,
+        orchestrationActive: true,
+        checkEpoch: "c-all-done",
+        flags: { interview: false, auditPassed: true, checkPassed: true },
+      });
+      seedChatReceipt(cwd, id, "c-all-done");
+      const attest = JSON.stringify({
+        from: "C",
+        to: "D",
+        did: "verified the completed plan",
+        checkOutput: "ok",
+        exitCode: 0,
+        ...(workPhaseId ? { workPhaseId } : {}),
+        testReceiptPath: `.codexclaw/evidence/${id}/test-receipt.json`,
+      });
+      const planPath = join(cwd, STATE_DIR, "goalplans", slug, "goalplan.json");
+      const beforePlan = readFileSync(planPath, "utf8");
+
+      const output = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"));
+
+      assert.doesNotMatch(output, /refused|blocked or superseded/);
+      assert.equal(readState(cwd, id).phase, "IDLE");
+      assert.equal(readState(cwd, id).dcloseRecovery, null);
+      assert.equal(readFileSync(planPath, "utf8"), beforePlan);
+      assert.equal(
+        existsSync(join(cwd, STATE_DIR, "goalplans", slug, "ledger.jsonl")),
+        false,
+      );
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  });
+}
+test("all-done bound chat records closedWorkPhaseId null even when workPhaseId is provided", () => {
+  const cwd = gitRepoForHook();
+  try {
+    const id = "chat-all-done-ledger-null";
+    const slug = "chat-all-done-ledger-null-plan";
+    const plan = buildGoalplan({ objective: "close an all-done cycle without a target" });
+    plan.slug = slug;
+    plan.workPhases = [
+      { id: "wp-finished", title: "finished", status: "done", tasks: [], criteriaIds: [] },
+    ];
+    plan.activeWorkPhaseId = null;
+    writeGoalplan(cwd, plan);
+    writeState(cwd, {
+      ...defaultState(id),
+      phase: "C",
+      slug,
+      orchestrationActive: true,
+      checkEpoch: "c-all-done-null",
+      flags: { interview: false, auditPassed: true, checkPassed: true },
+    });
+    seedChatReceipt(cwd, id, "c-all-done-null");
+    const attest = JSON.stringify({
+      from: "C",
+      to: "D",
+      did: "verified the completed plan",
+      checkOutput: "ok",
+      exitCode: 0,
+      workPhaseId: "wp-finished",
+      testReceiptPath: `.codexclaw/evidence/${id}/test-receipt.json`,
+    });
+    const planPath = join(cwd, STATE_DIR, "goalplans", slug, "goalplan.json");
+    const beforePlan = readFileSync(planPath, "utf8");
+
+    const output = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"));
+
+    assert.doesNotMatch(output, /refused|blocked or superseded/);
+    const context = JSON.parse(output.trimEnd()).hookSpecificOutput.additionalContext as string;
+    assert.match(context, /\[codexclaw: DONE\]/);
+    assert.match(context, /IPABCD: IDLE/);
+    assert.equal(readState(cwd, id).phase, "IDLE");
+    assert.equal(readState(cwd, id).dcloseRecovery, null);
+    assert.equal(readFileSync(planPath, "utf8"), beforePlan);
+    assert.deepEqual(
+      ledgerLines(cwd)
+        .filter((row) => row.sessionId === id && row.from === "C" && row.to === "IDLE")
+        .map((row) => [row.checkEpoch, row.closedWorkPhaseId]),
+      [["c-all-done-null", null]],
+    );
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+test("chat D-close rejects an invalid v3 dependency plan before every write", () => {
+  const cwd = gitRepoForHook();
+  try {
+    const id = "invalid-v3-chat-close";
+    const slug = "invalid-v3-chat-close-plan";
+    const plan = buildGoalplan({ objective: "invalid chat dependency close" });
+    plan.slug = slug;
+    plan.schemaVersion = 3;
+    plan.workPhases = [
+      { id: "wp-1", title: "broken", status: "in_progress", dependsOn: ["missing"], tasks: [], criteriaIds: [] },
+    ];
+    plan.activeWorkPhaseId = "wp-1";
+    writeGoalplan(cwd, plan);
+    writeState(cwd, {
+      ...defaultState(id), phase: "C", slug, orchestrationActive: true, checkEpoch: "c-invalid",
+      flags: { interview: false, auditPassed: true, checkPassed: true },
+    });
+    seedChatReceipt(cwd, id, "c-invalid");
+    const statePath = join(cwd, STATE_DIR, "sessions", `${id}.json`);
+    const planPath = join(cwd, STATE_DIR, "goalplans", slug, "goalplan.json");
+    const pabcdPath = join(cwd, STATE_DIR, LEDGER_FILE);
+    const goalplanLedgerPath = join(cwd, STATE_DIR, "goalplans", slug, "ledger.jsonl");
+    const before = {
+      state: readFileSync(statePath, "utf8"),
+      plan: readFileSync(planPath, "utf8"),
+      pabcd: existsSync(pabcdPath) ? readFileSync(pabcdPath, "utf8") : "",
+      goalplan: existsSync(goalplanLedgerPath) ? readFileSync(goalplanLedgerPath, "utf8") : "",
+    };
+    const attest = JSON.stringify({
+      from: "C", to: "D", did: "ran the suite", checkOutput: "ok", exitCode: 0,
+      workPhaseId: "wp-1",
+      testReceiptPath: `.codexclaw/evidence/${id}/test-receipt.json`,
+    });
+
+    const output = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id));
+
+    assert.match(output, /invalid goalplan/);
+    assert.equal(readFileSync(statePath, "utf8"), before.state);
+    assert.equal(readFileSync(planPath, "utf8"), before.plan);
+    assert.equal(existsSync(pabcdPath) ? readFileSync(pabcdPath, "utf8") : "", before.pabcd);
+    assert.equal(existsSync(goalplanLedgerPath) ? readFileSync(goalplanLedgerPath, "utf8") : "", before.goalplan);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+function seedRecoverableChatClose(cwd: string, id: string, slug: string): string {
+  const plan = buildGoalplan({ objective: `recover ${id}` });
+  plan.slug = slug;
+  // Marker persisted, plan commit did not — the state right after step 1 of the
+  // §5 table. The phase must stay open: seeding it `done` would make the plan
+  // all-done, and before §39 Y2 the all-done branch consumed the retry and wrote
+  // closedWorkPhaseId: null while these tests expected "wp-1". Recovery now runs
+  // first and idempotently closes this fixed target (§39 Y1).
+  plan.workPhases = [
+    { id: "wp-1", title: "first", status: "in_progress", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-1";
+  writeGoalplan(cwd, plan);
+  writeState(cwd, {
+    ...defaultState(id),
+    phase: "C",
+    slug,
+    orchestrationActive: true,
+    checkEpoch: "c-recovery",
+    dcloseRecovery: {
+      sessionId: id,
+      checkEpoch: "c-recovery",
+      closedWorkPhaseId: "wp-1",
+      // §48: this fixture holds one work-phase, so the first attempt had no successor
+      // to activate and the marker records that honestly.
+      nextWorkPhaseId: null,
+    },
+  });
+  return JSON.stringify({
+    from: "C",
+    to: "D",
+    did: "ran the suite",
+    workPhaseId: "wp-1",
+  });
+}
+
+test("chat recovery activates the recorded successor when the target is absent", () => {
+  // §53: the absent-target decision lives in a shared helper precisely so this surface
+  // behaves like the CLI. Before that, the same marker activated a pending successor
+  // through the CLI and only logged `started` here, leaving the phase unstarted while
+  // the ledger claimed the cycle closed. The case above seeds wp-2 already in_progress,
+  // which hides the difference; this one leaves it pending.
+  const cwd = gitRepoForHook();
+  try {
+    const id = "chat-recovery-absent-pending";
+    const slug = "chat-recovery-absent-pending-plan";
+    const attest = seedRecoverableChatClose(cwd, id, slug);
+    const remaining = buildGoalplan({ objective: "absent target, pending successor" });
+    remaining.slug = slug;
+    remaining.workPhases = [
+      { id: "wp-2", title: "next", status: "pending", tasks: [], criteriaIds: [] },
+    ];
+    remaining.activeWorkPhaseId = null;
+    writeGoalplan(cwd, remaining);
+    // The seed records no successor, so point the marker at wp-2 the way a real close would.
+    const seeded = readState(cwd, id);
+    writeState(cwd, {
+      ...seeded,
+      dcloseRecovery: { ...seeded.dcloseRecovery!, nextWorkPhaseId: "wp-2" },
+    });
+
+    const output = handleUserPromptSubmit(
+      ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"),
+    );
+
+    assert.doesNotMatch(output, /refused/);
+    const repaired = readGoalplan(cwd, slug)!;
+    assert.equal(repaired.activeWorkPhaseId, "wp-2");
+    assert.equal(repaired.workPhases.find((wp) => wp.id === "wp-2")!.status, "in_progress");
+    assert.equal(readState(cwd, id).phase, "IDLE");
+    assert.equal(readState(cwd, id).dcloseRecovery, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+test("chat D-close recovery resumes when the marker target is absent from the plan", () => {
+  const cwd = gitRepoForHook();
+  try {
+    const id = "chat-recovery-target-absent";
+    const slug = "chat-recovery-target-absent-plan";
+    const attest = seedRecoverableChatClose(cwd, id, slug);
+    const remaining = buildGoalplan({ objective: "resume cleanup after target removal" });
+    remaining.slug = slug;
+    remaining.workPhases = [
+      { id: "wp-2", title: "next", status: "in_progress", tasks: [], criteriaIds: [] },
+    ];
+    remaining.activeWorkPhaseId = "wp-2";
+    writeGoalplan(cwd, remaining);
+    const planPath = join(cwd, STATE_DIR, "goalplans", slug, "goalplan.json");
+    const beforePlan = readFileSync(planPath, "utf8");
+
+    const output = handleUserPromptSubmit(
+      ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"),
+    );
+
+    assert.doesNotMatch(output, /refused|not in the bound goalplan/);
+    const context = JSON.parse(output.trimEnd()).hookSpecificOutput.additionalContext as string;
+    assert.match(context, /\[codexclaw: DONE\]/);
+    assert.match(context, /IPABCD: IDLE/);
+    assert.equal(readFileSync(planPath, "utf8"), beforePlan);
+    assert.equal(
+      ledgerLines(cwd).filter(
+        (row) => row.sessionId === id && row.from === "C" && row.to === "IDLE"
+          && row.checkEpoch === "c-recovery" && row.closedWorkPhaseId === "wp-1",
+      ).length,
+      1,
+    );
+    assert.equal(readState(cwd, id).phase, "IDLE");
+    assert.equal(readState(cwd, id).checkEpoch, null);
+    assert.equal(readState(cwd, id).dcloseRecovery, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("chat D-close retry after state write appends the missing PABCD close row", () => {
+  const cwd = gitRepoForHook();
+  try {
+    const id = "chat-retry-state";
+    const attest = seedRecoverableChatClose(cwd, id, "chat-retry-state-plan");
+    assert.throws(
+      () => handleUserPromptSubmit(
+        ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"),
+        process.platform,
+        { afterStateWrite: () => { throw new Error("after state write"); } },
+      ),
+      /after state write/,
+    );
+    assert.equal(ledgerLines(cwd).length, 0);
+
+    const retry = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "t2"));
+    assert.doesNotMatch(retry, /refused/);
+    assert.equal(ledgerLines(cwd).filter((row) => row.sessionId === id && row.from === "C" && row.to === "IDLE").length, 1);
+    assert.equal(readState(cwd, id).dcloseRecovery, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("chat D-close retry after PABCD append keeps one close row", () => {
+  const cwd = gitRepoForHook();
+  try {
+    const id = "chat-retry-append";
+    const attest = seedRecoverableChatClose(cwd, id, "chat-retry-append-plan");
+    assert.throws(
+      () => handleUserPromptSubmit(
+        ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"),
+        process.platform,
+        { afterPabcdLedgerAppend: () => { throw new Error("after PABCD append"); } },
+      ),
+      /after PABCD append/,
+    );
+    assert.equal(ledgerLines(cwd).filter((row) => row.sessionId === id).length, 1);
+
+    handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "t2"));
+    assert.equal(ledgerLines(cwd).filter((row) => row.sessionId === id && row.from === "C" && row.to === "IDLE").length, 1);
+    assert.equal(readState(cwd, id).dcloseRecovery, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+/**
+ * A bound chat session sitting at C with NO recovery marker, plus the receipt the
+ * C->D gate needs. §41 W6: marker-seam regressions must start here, because
+ * afterRecoveryMarkerWrite only fires on the non-recovery branch — a fixture that
+ * pre-writes the marker never reaches the seam.
+ */
+function seedChatCycleAtC(cwd: string, id: string, slug: string): string {
+  const plan = buildGoalplan({ objective: `chat close ${id}` });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-1", title: "first", status: "in_progress", tasks: [], criteriaIds: [] },
+    { id: "wp-2", title: "second", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-1";
+  writeGoalplan(cwd, plan);
+  const epoch = "c-chat-epoch";
+  writeState(cwd, {
+    ...defaultState(id),
+    phase: "C",
+    slug,
+    orchestrationActive: true,
+    checkEpoch: epoch,
+    flags: { interview: false, auditPassed: true, checkPassed: false },
+  });
+  seedChatReceipt(cwd, id, epoch);
+  return JSON.stringify({
+    from: "C",
+    to: "D",
+    did: "ran the suite",
+    checkOutput: "ok",
+    exitCode: 0,
+    workPhaseId: "wp-1",
+    testReceiptPath: `.codexclaw/evidence/${id}/test-receipt.json`,
+  });
+}
+
+test("chat D-close retry after the recovery marker write matches an uninterrupted close", () => {
+  // §41 W4/W6: the CLI had this regression and the chat path did not. Both surfaces
+  // run the same closeFixedWorkPhase(), so both need the parity assertion — and the
+  // fixture must be marker-free so the seam actually fires.
+  const cwd = gitRepoForHook();
+  const reference = gitRepoForHook();
+  try {
+    const id = "chat-retry-after-marker";
+    const slug = "chat-retry-after-marker-plan";
+    const attest = seedChatCycleAtC(cwd, id, slug);
+
+    const refAttest = seedChatCycleAtC(reference, "chat-reference", "chat-reference-plan");
+    const refOut = handleUserPromptSubmit(ups(`orchestrate d --attest ${refAttest}`, reference, "chat-reference", "r1"));
+    assert.match(refOut, /\[codexclaw: DONE\]/);
+    const referencePlan = readGoalplan(reference, "chat-reference-plan")!;
+
+    assert.throws(
+      () => handleUserPromptSubmit(
+        ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"),
+        process.platform,
+        { afterRecoveryMarkerWrite: () => { throw new Error("fail right after the chat marker"); } },
+      ),
+      /fail right after the chat marker/,
+    );
+    assert.equal(readState(cwd, id).phase, "C");
+    assert.deepEqual(readState(cwd, id).dcloseRecovery, {
+      sessionId: id,
+      checkEpoch: "c-chat-epoch",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
+    });
+    assert.equal(readGoalplan(cwd, slug)!.workPhases.find((wp) => wp.id === "wp-1")!.status, "in_progress");
+
+    const out = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "t2"));
+    assert.match(out, /\[codexclaw: DONE\]/);
+    const recovered = readGoalplan(cwd, slug)!;
+    assert.deepEqual(
+      {
+        workPhases: recovered.workPhases.map((wp) => ({ id: wp.id, status: wp.status })),
+        activeWorkPhaseId: recovered.activeWorkPhaseId,
+      },
+      {
+        workPhases: referencePlan.workPhases.map((wp) => ({ id: wp.id, status: wp.status })),
+        activeWorkPhaseId: referencePlan.activeWorkPhaseId,
+      },
+    );
+    assert.deepEqual(
+      goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_started").map((row) => row.detail),
+      ["started wp-2"],
+    );
+    assert.equal(readState(cwd, id).phase, "IDLE");
+    assert.equal(readState(cwd, id).dcloseRecovery, null);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(reference, { recursive: true, force: true });
+  }
+});
+
+test("chat recovery is refused when a pending task is hidden under the closed target", () => {
+  // §43: the chat surface shares the rule. The commit landed, so only an
+  // unconditional closeFixedWorkPhase() call can still see the open task.
+  const cwd = gitRepoForHook();
+  try {
+    const id = "chat-done-hides-pending";
+    const slug = "chat-done-hides-pending-plan";
+    const attest = seedChatCycleAtC(cwd, id, slug);
+
+    assert.throws(
+      () => handleUserPromptSubmit(
+        ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"),
+        process.platform,
+        { afterGoalplanCommit: () => { throw new Error("stop after the goalplan commit"); } },
+      ),
+      /stop after the goalplan commit/,
+    );
+
+    const plan = readGoalplan(cwd, slug)!;
+    assert.equal(plan.workPhases.find((wp) => wp.id === "wp-1")!.status, "done");
+    assert.equal(plan.activeWorkPhaseId, "wp-2");
+    writeGoalplan(cwd, {
+      ...plan,
+      workPhases: plan.workPhases.map((wp) =>
+        wp.id === "wp-1"
+          ? { ...wp, tasks: [{ id: "t-hidden", title: "snuck in", status: "pending" as const }] }
+          : wp
+      ),
+    });
+    const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+
+    const out = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "t2"));
+
+    assert.match(out, /gained 1 open task\(s\) after its marker was written/);
+    assert.match(out, /The recovery marker was kept/);
+    assert.equal(readState(cwd, id).phase, "C");
+    assert.notEqual(readState(cwd, id).dcloseRecovery, null);
+    assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("chat recovery re-runs the close when only the target status was edited to done", () => {
+  // §42: the chat surface shares the commit test. A status-only edit keeps the cursor
+  // on wp-1, so treating `done` as committed would log a false `started wp-1`.
+  const cwd = gitRepoForHook();
+  try {
+    const id = "chat-status-only-done";
+    const slug = "chat-status-only-done-plan";
+    const attest = seedChatCycleAtC(cwd, id, slug);
+
+    assert.throws(
+      () => handleUserPromptSubmit(
+        ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"),
+        process.platform,
+        { afterRecoveryMarkerWrite: () => { throw new Error("stop at the marker"); } },
+      ),
+      /stop at the marker/,
+    );
+
+    const plan = readGoalplan(cwd, slug)!;
+    assert.equal(plan.activeWorkPhaseId, "wp-1");
+    writeGoalplan(cwd, {
+      ...plan,
+      workPhases: plan.workPhases.map((wp) =>
+        wp.id === "wp-1" ? { ...wp, status: "done" as const } : wp
+      ),
+    });
+
+    const out = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "t2"));
+
+    assert.match(out, /\[codexclaw: DONE\]/);
+    const recovered = readGoalplan(cwd, slug)!;
+    assert.equal(recovered.activeWorkPhaseId, "wp-2");
+    assert.equal(recovered.workPhases.find((wp) => wp.id === "wp-2")!.status, "in_progress");
+    assert.deepEqual(
+      goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_started").map((row) => row.detail),
+      ["started wp-2"],
+    );
+    assert.equal(readState(cwd, id).phase, "IDLE");
+    assert.equal(readState(cwd, id).dcloseRecovery, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+for (const scenario of [
+  { name: "gained an open task", pattern: /gained 1 open task\(s\) after its marker was written/,
+    mutate: (plan: Goalplan): Goalplan => ({
+      ...plan,
+      workPhases: plan.workPhases.map((wp) =>
+        wp.id === "wp-1"
+          ? { ...wp, tasks: [{ id: "t-late", title: "added late", status: "pending" as const }] }
+          : wp
+      ),
+    }) },
+  { name: "became blocked", pattern: /is now blocked/,
+    mutate: (plan: Goalplan): Goalplan => ({
+      ...plan,
+      workPhases: plan.workPhases.map((wp) => wp.id === "wp-1" ? { ...wp, status: "blocked" as const } : wp),
+    }) },
+  { name: "lost a dependency", pattern: /now waits for wp-2/,
+    mutate: (plan: Goalplan): Goalplan => ({
+      ...plan,
+      workPhases: plan.workPhases.map((wp) =>
+        wp.id === "wp-1" ? { ...wp, dependsOn: ["wp-2"] } : wp
+      ),
+    }) },
+] as const) {
+  test(`chat recovery is refused when the fixed target ${scenario.name} after its marker`, () => {
+    // §41 W1/W5: the same three gates the CLI enforces, on the chat surface. The
+    // marker is kept in every case so the operator can repair and repeat.
+    const cwd = gitRepoForHook();
+    try {
+      const id = `chat-recovery-${scenario.name.replace(/\s+/g, "-")}`;
+      const slug = `${id}-plan`;
+      const attest = seedChatCycleAtC(cwd, id, slug);
+
+      assert.throws(
+        () => handleUserPromptSubmit(
+          ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"),
+          process.platform,
+          { afterRecoveryMarkerWrite: () => { throw new Error("stop at the marker"); } },
+        ),
+        /stop at the marker/,
+      );
+      writeGoalplan(cwd, scenario.mutate(readGoalplan(cwd, slug)!));
+      const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+
+      const out = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "t2"));
+      assert.match(out, scenario.pattern);
+      assert.match(out, /The recovery marker was kept/);
+      assert.equal(readState(cwd, id).phase, "C");
+      assert.notEqual(readState(cwd, id).dcloseRecovery, null);
+      assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+      assert.deepEqual(goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done"), []);
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  });
+}
+
+test("chat D-close keeps same-turn dedup and clears the Stop guard", () => {
+  // §40 Z3: the replacement state write must not drop injectedTurns or the stopBlock
+  // reset. Without injectedTurns the same turn re-runs and prints an IDLE -> D
+  // refusal instead of staying quiet; without the reset, C stagnation state survives
+  // into IDLE.
+  const cwd = gitRepoForHook();
+  try {
+    const id = "chat-dclose-state-fields";
+    const slug = "chat-dclose-state-fields-plan";
+    const plan = buildGoalplan({ objective: "keep the existing fields" });
+    plan.slug = slug;
+    plan.workPhases = [{ id: "wp-1", title: "first", status: "in_progress", tasks: [], criteriaIds: [] }];
+    plan.activeWorkPhaseId = "wp-1";
+    writeGoalplan(cwd, plan);
+    writeState(cwd, {
+      ...defaultState(id),
+      phase: "C",
+      slug,
+      orchestrationActive: true,
+      checkEpoch: "c-fields",
+      stopBlockPhase: "C",
+      stopBlockWorkPhaseId: "wp-1",
+      stopBlockCount: 3,
+    });
+    // CHECK-BINDING-01 runs before the goalplan branch on the chat path too, so
+    // without both the receipt and its path the first call refuses at the gate and
+    // never reaches the state write this test is about.
+    seedChatReceipt(cwd, id, "c-fields");
+    const attest = JSON.stringify({
+      from: "C",
+      to: "D",
+      did: "ran the suite",
+      checkOutput: "ok",
+      exitCode: 0,
+      testReceiptPath: `.codexclaw/evidence/${id}/test-receipt.json`,
+      workPhaseId: "wp-1",
+    });
+
+    const first = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "same-turn"));
+    assert.match(first, /\[codexclaw: DONE\]/);
+    const after = readState(cwd, id);
+    assert.equal(after.phase, "IDLE");
+    assert.equal(after.stopBlockPhase, null);
+    assert.equal(after.stopBlockWorkPhaseId, null);
+    assert.equal(after.stopBlockCount, 0);
+    assert.equal(after.injectedTurns.includes("same-turn"), true);
+
+    // Same turn again: dedup keeps this silent instead of surfacing IDLE -> D.
+    const repeat = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "same-turn"));
+    assert.equal(repeat, "");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+test("chat D-close lock timeout keeps phase C, emits a warning, and writes no ledger", () => {
+  const cwd = gitRepoForHook();
+  try {
+    const slug = "chat-cycle-lock-timeout";
+    const plan = buildGoalplan({ objective: "chat lock timeout" });
+    plan.slug = slug;
+    plan.workPhases = [
+      {
+        id: "wp-1",
+        title: "first",
+        status: "in_progress",
+        tasks: [{ id: "t-1", title: "the work", status: "done" }],
+        criteriaIds: [],
+      },
+    ];
+    plan.activeWorkPhaseId = "wp-1";
+    writeGoalplan(cwd, plan);
+    writeState(cwd, {
+      ...defaultState("chat-lock"),
+      phase: "C",
+      slug,
+      orchestrationActive: true,
+      checkEpoch: "c-test",
+      flags: { interview: false, auditPassed: true, checkPassed: true },
+    });
+    seedChatReceipt(cwd, "chat-lock", "c-test");
+    const lock = join(cwd, STATE_DIR, "goalplans", slug, ".goalplan.lock");
+    mkdirSync(lock, { recursive: false });
+    writeFileSync(join(lock, "owner.json"), `${JSON.stringify({ pid: 4242 })}\n`);
+    const planPath = join(cwd, STATE_DIR, "goalplans", slug, "goalplan.json");
+    const beforePlan = readFileSync(planPath, "utf8");
+    const attest = JSON.stringify({
+      from: "C",
+      to: "D",
+      did: "ran the suite",
+      checkOutput: "ok",
+      exitCode: 0,
+      workPhaseId: "wp-1",
+      testReceiptPath: ".codexclaw/evidence/chat-lock/test-receipt.json",
+    });
+
+    let output = "";
+    assert.doesNotThrow(() => {
+      output = handleUserPromptSubmit(
+        ups(`orchestrate d --attest ${attest}`, cwd, "chat-lock", "t1"),
+      );
+    });
+
+    assert.match(output, /D-close was not applied/);
+    assert.match(output, /\.goalplan\.lock/);
+    assert.equal(readState(cwd, "chat-lock").phase, "C");
+    assert.equal(readFileSync(planPath, "utf8"), beforePlan);
+    assert.equal(ledgerLines(cwd).length, 0);
+    assert.equal(existsSync(join(cwd, STATE_DIR, "goalplans", slug, "ledger.jsonl")), false);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+test("hook CLI exits 0 when chat D-close cannot acquire the goalplan lock", () => {
+  const cwd = gitRepoForHook();
+  try {
+    const slug = "chat-process-lock-timeout";
+    const plan = buildGoalplan({ objective: "chat process lock timeout" });
+    plan.slug = slug;
+    plan.workPhases = [
+      { id: "wp-1", title: "first", status: "in_progress", tasks: [], criteriaIds: [] },
+    ];
+    plan.activeWorkPhaseId = "wp-1";
+    writeGoalplan(cwd, plan);
+    writeState(cwd, {
+      ...defaultState("chat-process"),
+      phase: "C",
+      slug,
+      orchestrationActive: true,
+      checkEpoch: "c-test",
+      flags: { interview: false, auditPassed: true, checkPassed: true },
+    });
+    seedChatReceipt(cwd, "chat-process", "c-test");
+    const lock = join(cwd, STATE_DIR, "goalplans", slug, ".goalplan.lock");
+    mkdirSync(lock, { recursive: false });
+    writeFileSync(join(lock, "owner.json"), `${JSON.stringify({ pid: 4242 })}\n`);
+    const attest = JSON.stringify({
+      from: "C",
+      to: "D",
+      did: "ran the suite",
+      checkOutput: "ok",
+      exitCode: 0,
+      workPhaseId: "wp-1",
+      testReceiptPath: ".codexclaw/evidence/chat-process/test-receipt.json",
+    });
+    const payload = JSON.stringify(ups(
+      `orchestrate d --attest ${attest}`,
+      cwd,
+      "chat-process",
+      "t1",
+    ));
+
+    const child = spawnSync(
+      process.execPath,
+      ["--experimental-strip-types", resolve(dirname(fileURLToPath(import.meta.url)), "../src/cli.ts"), "hook", "user-prompt-submit"],
+      { input: payload, encoding: "utf8" },
+    );
+
+    assert.equal(child.status, 0, child.stderr);
+    assert.match(child.stdout, /D-close was not applied/);
+    assert.equal(readState(cwd, "chat-process").phase, "C");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+const HOOK_RACE_SCRIPT = String.raw`
+import { existsSync, rmSync, writeFileSync } from "node:fs";
+
+const [
+  hookUrl, encodedPayload, attemptPath, insidePath, peerInsidePath,
+  releasePath, overlapPath, donePath,
+] = process.argv.slice(1);
+const { handleUserPromptSubmit } = await import(hookUrl);
+const payload = JSON.parse(Buffer.from(encodedPayload, "base64").toString("utf8"));
+
+function waitForFile(path) {
+  const deadline = Date.now() + 10_000;
+  while (!existsSync(path)) {
+    if (Date.now() >= deadline) throw new Error("timed out waiting for " + path);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+  }
+}
+
+if (attemptPath !== "-") writeFileSync(attemptPath, "attempted\n");
+const hooks = insidePath === "-"
+  ? {}
+  : {
+      afterPabcdLedgerAppend() {
+        writeFileSync(insidePath, "inside finalization callback\n");
+        try {
+          if (peerInsidePath !== "-" && existsSync(peerInsidePath)) {
+            writeFileSync(overlapPath, "callbacks overlapped\n");
+          }
+          if (releasePath !== "-") waitForFile(releasePath);
+        } finally {
+          rmSync(insidePath, { force: true });
+        }
+      },
+    };
+
+try {
+  const output = handleUserPromptSubmit(payload, process.platform, hooks);
+  // A completed second close while the peer sentinel still exists proves that its
+  // transaction ran before the first finalization callback returned.
+  if (output.includes("[codexclaw: DONE]") && peerInsidePath !== "-" && existsSync(peerInsidePath)) {
+    writeFileSync(overlapPath, "second recovery completed inside its peer\n");
+  }
+  process.stdout.write(output);
+} finally {
+  if (donePath !== "-") writeFileSync(donePath, "done\n");
+}
+`;
+
+interface HookRaceSignals {
+  attemptPath?: string;
+  insidePath?: string;
+  peerInsidePath?: string;
+  releasePath?: string;
+  overlapPath?: string;
+  donePath?: string;
+}
+
+function runHookProcess(
+  payload: string,
+  signals: HookRaceSignals = {},
+): Promise<{ status: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolveChild, rejectChild) => {
+    const child = spawn(process.execPath, [
+      "--experimental-strip-types", "--input-type=module", "-e", HOOK_RACE_SCRIPT,
+      new URL("../src/hook.ts", import.meta.url).href,
+      Buffer.from(payload, "utf8").toString("base64"),
+      signals.attemptPath ?? "-",
+      signals.insidePath ?? "-",
+      signals.peerInsidePath ?? "-",
+      signals.releasePath ?? "-",
+      signals.overlapPath ?? "-",
+      signals.donePath ?? "-",
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8").on("data", (chunk) => { stdout += chunk; });
+    child.stderr.setEncoding("utf8").on("data", (chunk) => { stderr += chunk; });
+    child.on("error", rejectChild);
+    child.on("close", (status) => resolveChild({ status, stdout, stderr }));
+  });
+}
+
+async function waitForHookSignal(path: string): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (!existsSync(path)) {
+    if (Date.now() >= deadline) throw new Error(`timed out waiting for ${path}`);
+    await new Promise<void>((resolveWait) => setTimeout(resolveWait, 5));
+  }
+}
+
+test("a second chat recovery contends while the first finalizer callback is held", async () => {
+  const cwd = gitRepoForHook();
+  try {
+    const id = "chat-concurrent-recovery";
+    const attest = seedRecoverableChatClose(cwd, id, "chat-concurrent-recovery-plan");
+    const firstPayload = JSON.stringify(ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"));
+    const secondPayload = JSON.stringify(ups(`orchestrate d --attest ${attest}`, cwd, id, "t2"));
+    const firstInside = join(cwd, "first-finalizer-inside");
+    const secondAttempted = join(cwd, "second-recovery-attempted");
+    const secondDone = join(cwd, "second-recovery-done");
+    const overlap = join(cwd, "recovery-finalizers-overlapped");
+
+    const first = runHookProcess(firstPayload, {
+      insidePath: firstInside,
+      releasePath: secondDone,
+      overlapPath: overlap,
+    });
+    await waitForHookSignal(firstInside);
+
+    const second = runHookProcess(secondPayload, {
+      attemptPath: secondAttempted,
+      peerInsidePath: firstInside,
+      overlapPath: overlap,
+      donePath: secondDone,
+    });
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+
+    assert.equal(firstResult.status, 0, firstResult.stderr);
+    assert.equal(secondResult.status, 0, secondResult.stderr);
+    assert.match(firstResult.stdout, /\[codexclaw: DONE\]/);
+    assert.match(secondResult.stdout, /D-close was not applied/);
+    assert.equal(existsSync(secondAttempted), true);
+    assert.equal(
+      existsSync(overlap),
+      false,
+      "the second recovery must not complete while the first finalizer callback is active",
+    );
+    assert.equal(
+      ledgerLines(cwd).filter(
+        (row) => row.sessionId === id && row.from === "C" && row.to === "IDLE"
+          && row.checkEpoch === "c-recovery" && row.closedWorkPhaseId === "wp-1",
+      ).length,
+      1,
+    );
+    assert.equal(readState(cwd, id).dcloseRecovery, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
