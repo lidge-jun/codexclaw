@@ -192,7 +192,7 @@ rg -n --glob '*.test.ts' -F \
 verb는 세션 바인딩 없이 plan을 지목하는 읽기 경로 `show`·`validate`·`ready` 셋뿐이고, 그 셋은
 `resolveSlug()`로 실제 인자를 쓴다. parser의 `--slug` 처리 자체는 지우지 않는다 — 읽기 verb가 쓴다.
 
-라운드 2 Medium이 지점 수를 실측했다. `goalplan-cli.ts`에서 `--slug`가 나오는 곳은 다섯이고 삭제 대상은
+라운드 2 Medium이 지점 수를 실측했고 라운드 3이 개수를 정정했다. `goalplan-cli.ts`에서 `--slug`가 나오는 곳은 일곱이고 삭제 대상은
 **help usage 세 줄**이다.
 
 | 위치 | 내용 | 처분 |
@@ -1859,6 +1859,7 @@ test("help lists repeated dependency syntax and required outcome", () => {
   assert.match(help, /cxc loop init --objective/);
   assert.match(help, /cxc loop show \(--slug <slug> \| --objective <text>\)/);
   assert.match(help, /cxc loop validate --slug <slug>/);
+  assert.match(help, /cxc loop ready \(--slug <slug> \| --objective <text> \| --session <id>\)/);
   assert.match(help, /cxc loop steer --session <id> --batch-json/);
   assert.match(help, /cxc loop add-work-phase --session <id> --id <id>/);
   assert.match(help, /cxc loop add-criterion --session <id> --criterion <text>/);
@@ -1868,6 +1869,21 @@ test("help lists repeated dependency syntax and required outcome", () => {
   assert.match(help, /complete-task .*--outcome <text>/);
   assert.match(help, /meet-criterion .*--evidence <text>/);
   assert.match(help, /Repeat --depends-on once per prerequisite/);
+
+  // 라운드 3 High: 산문이 약속한 두 회귀를 이 case 안에 담는다. 새 test로 빼면 신규 개수가
+  // 18에서 19로 바뀌어 §검증의 1087·2262까지 흔들리므로 단언만 더한다.
+  // mutating verb 셋은 세션 바인딩 slug만 읽으므로 usage 줄에 --slug가 없어야 한다.
+  for (const verb of ["steer", "add-work-phase", "add-criterion"]) {
+    const line = help.split("\n").find((row) => row.includes(`cxc loop ${verb} `));
+    assert.ok(line, `usage line missing for ${verb}`);
+    assert.equal(line!.includes("--slug"), false, line!);
+  }
+
+  // unknown-verb 거부 문구가 새 동사 넷을 포함하고 기존 여섯을 순서대로 남긴다.
+  // 다음 verb 추가가 이 문구를 다시 빠뜨리면 여기서 RED가 난다.
+  assert.deepEqual(parseGoalplanCliArgs(["redy"], "/tmp"), {
+    error: "unknown loop verb 'redy' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion); run cxc loop --help",
+  });
 });
 ```
 
@@ -2472,10 +2488,31 @@ tracked `dist/*.js`를 먼저 갱신한다. 그 다음 `npm test`가 dist byte e
 끝나고, 마지막 `npm run gate`가 exit 0으로 끝난다. build는 타입·import 오류를 검출하는 근거가
 아니며 배포 파일 생성과 manifest 검사만 맡는다.
 
-라운드 2 Medium: `npm test` 기대값에는 순서 조건이 붙는다. 감사관이 pristine HEAD에서 `npm test`를
-먼저 돌렸을 때 `dist-freshness`·`inventory` 계열이 이미 fail이었다 — dist 재생성 전이었기 때문이다.
-그래서 `npm run build`를 반드시 앞에 두고, build 없이 나온 `npm test` 실패는 wp6 결함으로 세지 않는다.
-wp5 기준선 `tests 2236`에 위 표의 순증 26을 더한 `tests 2262, fail 0`이 wp6 기대값이다.
+라운드 3 정정: 라운드 2가 이 자리에 적은 인과가 틀렸다. "pristine HEAD에서 dist 재생성 전이라
+`dist-freshness`·`inventory`가 fail이었다"는 서술은 재현되지 않는다. 감사관 자신이 라운드 3에서
+원인을 다시 찾았고, 내가 pristine `f6111d6a`에서 직접 확인했다 — 실패는 dist 상태가 아니라
+`--test-concurrency=1`을 빼고 돌린 탓이다. `npm test`는 그 플래그를 쓴다.
+
+```text
+node --test --test-concurrency=1 plugins/codexclaw/test/*.test.mjs   tests 163  pass 163  fail 0
+node --test                      plugins/codexclaw/test/*.test.mjs   tests 156  pass 147  fail 9
+```
+
+직렬 실행을 네 번 반복해도 매번 `163 / 163 / 0`이다. dist는 애초에 clean이었다
+(`git status --porcelain .../pabcd-state/dist/` 0건). 병렬에서 등록 개수까지 163 → 156으로 줄어드는
+이유는 root `*.test.mjs`들이 같은 임시 경로와 git 상태를 공유하며 서로를 밟기 때문이다. 대표 실패는
+`payload-bin.test.mjs`가 `cxc-payload-sim-*/payload/components/messenger-bridge/dist`를 ENOENT로 못
+읽는 형태다.
+
+그래서 면책 조항을 쓰지 않는다. 틀린 면책은 진짜 회귀를 같이 가려 준다. 대신 두 조건을 남긴다.
+
+1. `npm test`를 그 스크립트 그대로 실행한다. 맨 `node --test` 병렬 실행 결과는 근거로 쓰지 않는다.
+2. src를 고친 뒤 `npm run build`를 건너뛰면 dist byte-equality 검사가 실패한다. 그래서 순서는
+   `build` → `test` → `gate`다. build 전 실패를 정상으로 넘기지 않고, 순서를 지킨 뒤에도 남는 실패는
+   전부 wp6 결함으로 다룬다.
+
+wp5 기준선 `tests 2236`에 위 표의 순증 26을 더한 `tests 2262, fail 0`이 wp6 기대값이다. 등록 개수
+2262가 확정 게이트다 — 개수가 맞고 fail만 있는 상태와 개수 자체가 줄어든 상태는 원인이 다르다.
 
 ### 미해석 식별자 게이트 — focused보다 먼저
 

@@ -2200,7 +2200,7 @@ verb 셋은 `doesNotMatch`다. 070 완료 체크리스트와 이 계약서 T11 �
 | hook import After에 고아 `nextOpenTask` 잔존 — `readStopWorkContext()` After가 그 호출을 `readyWorkPhases`/`readyTasks`로 바꾸는데 import는 남았다 | import After에서 삭제. `goalplan.ts` export는 다른 소비자가 있어 유지 |
 | unknown-verb 거부 문구에 새 verb 넷 누락 — `cxc loop redy` 오타를 낸 사용자가 여섯 개짜리 옛 목록을 받는다 | 문구에 넷을 추가하고 신규 공개 표면 테스트가 순서까지 단언 |
 | `goalplan.test.ts` import After가 wp4 `dependencyWaitReasons`를 조용히 지운다 | 되살리고 적층 표에 wp4 보존 이름으로 명시. 지금은 미사용이라 컴파일은 통과하지만 wp7이 그 golden을 넣는 순간 TS2304 |
-| `--slug` 삭제 지점이 "여섯 곳"이라는 근거 없는 개수 | 실측 표로 교체 — 다섯 지점 중 삭제는 help usage 세 줄, 보존은 parser·읽기 verb 둘·오류 문구 |
+| `--slug` 삭제 지점이 "여섯 곳"이라는 근거 없는 개수 | 실측 표로 교체 — 일곱 지점 중 삭제는 help usage 세 줄, 보존은 parser·읽기 verb 둘·오류 문구 네 곳. 라운드 2가 처음 쓴 "다섯"도 틀렸고 라운드 3이 정정했다 |
 | focused·전체 스위트 개수 기대값 미선언 — wp5 §10.3이 세운 개수 게이트가 wp6에서 끊긴다 | 감사관 실측 표를 §검증에 고정(신규 18, steering +3, hook-continuation +5, 컴포넌트 1061→1087, `npm test` 2236→2262) |
 
 ### 라운드 2가 실측으로 확인한 정상 항목
@@ -2224,4 +2224,103 @@ verb 셋은 `doesNotMatch`다. 070 완료 체크리스트와 이 계약서 T11 �
 감사관 하나가 pristine HEAD에서 `npm run build` 없이 `npm test`를 돌려 `dist-freshness`·`inventory` 계열
 실패를 봤다. dist 재생성 전이라 당연한 결과다. 060 §검증의 세 명령 순서(`build` → `test` → `gate`)를
 지키지 않은 실패는 wp6 결함으로 세지 않는다는 문장을 명시했다.
+
+## §63 wp6 A 라운드 3 — BLOCKER 해소 확인과 감사관 자기 정정
+
+두 감사관이 f6111d6a를 재검증했다. 둘 다 라운드 2 결함 일곱 건이 실제로 닫혔음을 사본 실측으로
+확인했고 BLOCKER 0건을 보고했다. 그런데 둘 다 FAIL을 유지했다 — 각자 다른 잔여 결함을 찾았기 때문이다.
+
+### 닫힌 것 (두 감사관 독립 확인)
+
+| 결함 | 확인 방법 | 결과 |
+| --- | --- | --- |
+| BLOCKER steering import | 사본 tsc + `node --test` | TS2304 0건, steering 22/22 → 25/25 |
+| High `dependencyWaitReasons` | import After 본문 | 되살아났고 적층 표에 명시 |
+| High 070 T11 | 새 help에 단언 10~16개 실행 | 전부 PASS. 가짜 되돌림 help로 `doesNotMatch` 작동도 확인 |
+| Medium 고아 `nextOpenTask` | 적용 후 `rg` | 참조 0건, export 유지 |
+| Medium unknown-verb 문구 | 옛 문구 단언 검색 + 실제 CLI 실행 | 저장소 전체 0건, `help-verbs.test.ts:54`는 `run cxc loop --help` 꼬리만 보므로 계속 통과 |
+| Medium `--slug` 표 | `rg -n -- '--slug'` 대조 | 행별 처분이 실제 소스와 일치 |
+| Medium 스위트 개수 | 기준선·증분·총계 실행 | 표 전부 일치. `npm test 2262`를 컴포넌트별 합산으로 재검산: pabcd-state 1087 + config-guard 93 + cxc-ops 190 + recall 62 + provider-bridge 7 + subagent-config 209 + messenger-bridge 403 + skill-search 24 + gui 24 + root-mjs 163 = 2262 |
+
+### High — 산문이 약속한 회귀 장치가 정본 코드 블록에 없었다
+
+060은 두 곳에서 신규 공개 표면 테스트가 특정 단언을 한다고 적었다(211행 `--slug` 부재, 893행
+unknown-verb 문구). 그런데 "그대로 만든다"고 선언한 verbatim 블록에는 둘 다 없었다. 감사관이 문서에서
+블록을 기계적으로 추출해 확인했다 — `test(` 18개, unknown-verb 단언 0건, `doesNotMatch` 0건.
+
+구현자가 그 블록을 그대로 만들면 18/18 green이 되고 약속한 두 회귀는 존재하지 않는다. 라운드 2가 잡은
+"import 적층 표와 실제 After가 어긋난다"와 같은 종류다. 산문과 코드 블록은 서로를 검증하는 두 사본인데
+한쪽만 고쳤다.
+
+처분: 기존 `help lists repeated dependency syntax and required outcome` case 안에 두 단언을 넣었다.
+새 `test`로 빼면 신규 개수가 18에서 19가 되어 §검증의 1087·2262까지 흔들린다. 감사관 둘이 각자 그
+부수 효과를 지적했고 같은 처방을 권고했다.
+
+`--slug` 부재 검사는 정규식이 아니라 줄 단위로 썼다.
+
+```ts
+for (const verb of ["steer", "add-work-phase", "add-criterion"]) {
+  const line = help.split("\n").find((row) => row.includes(`cxc loop ${verb} `));
+  assert.ok(line, `usage line missing for ${verb}`);
+  assert.equal(line!.includes("--slug"), false, line!);
+}
+```
+
+라운드 3 감사관이 `doesNotMatch` 형태의 탐지 범위를 실측해 누락 셋을 찾았기 때문이다 — `--slug`가
+`--session` 앞에 오는 형태, `[--slug <slug>]` 대괄호 형태, `add-work-phase` 줄 꼬리에 붙는 형태.
+정규식이 옛 문자열 순서를 그대로 담아야만 잡힌다. 줄 단위 검사로 바꾸니 꼬리 되돌림도 잡혔다
+(`tmp/wp6r3-probe.mjs`로 실측). 070 T11도 같은 형태로 강화했다.
+
+### Medium — 라운드 2 근거 하나가 틀렸고 계획서가 그것을 인용했다
+
+라운드 2 감사관이 자기 오류를 스스로 찾아 보고했다. "pristine HEAD에서 dist 재생성 전이라
+`dist-freshness`·`inventory`가 fail이었다"는 근거의 진짜 원인은 dist가 아니라 `--test-concurrency=1`을
+빼고 돌린 것이었다. 내가 pristine `f6111d6a`에서 직접 재확인했다.
+
+```text
+node --test --test-concurrency=1 plugins/codexclaw/test/*.test.mjs   tests 163  pass 163  fail 0
+node --test                      plugins/codexclaw/test/*.test.mjs   tests 156  pass 147  fail 9
+```
+
+dist는 clean이었다. 병렬에서 등록 개수까지 줄어드는 이유는 root `*.test.mjs`들이 같은 임시 경로와 git
+상태를 공유하며 서로를 밟는 것이고, 대표 실패는 `payload-bin.test.mjs`의
+`cxc-payload-sim-*/payload/components/messenger-bridge/dist` ENOENT다.
+
+감사관은 직렬 실행도 흔들린다고 보고했다(163 중 fail 4/1/0). 내 실측에서는 직렬 네 번 연속 163/163/0이라
+재현되지 않았다. 감사관 쪽 흔들림은 사본 구조(형제 컴포넌트 부재)에서 온 인공물로 본다 — 감사관 자신도
+자기 사본의 fail 4건이 `receipt-spawn`이 `.../cxc-ops/src/win-exec.ts`를 ENOENT로 못 읽는 형태라고
+적었다.
+
+처분: 틀린 면책 조항을 지웠다. "build 없이 나온 실패는 wp6 결함으로 세지 않는다"를 그대로 두면 진짜
+회귀도 같이 면책된다. 대신 실행 조건 둘을 남겼다 — `npm test`를 스크립트 그대로 쓰고 병렬 결과를 근거로
+쓰지 않는다, 순서를 지킨 뒤에도 남는 실패는 전부 wp6 결함으로 다룬다. 등록 개수 2262를 확정 게이트로
+두고, 개수가 맞는데 fail만 있는 상태와 개수 자체가 줄어든 상태를 구분한다.
+
+### Medium — `--slug` 개수가 라운드 2에서도 틀렸다
+
+라운드 2가 "근거 없는 개수"를 고치겠다며 쓴 문장에 다시 개수 오류가 남았다. 도입문은 "다섯"인데 바로
+아래 표는 일곱 행이고 실측도 일곱이다(`rg -o -- '--slug' | wc -l` = 7). 060 도입문과 이 계약서 §62
+Medium 표 두 곳을 "일곱"으로 고쳤다.
+
+### 라운드 3이 실측으로 재확인한 정상 항목
+
+steering 22/22 → 25/25, goalplan 38/38, help-verbs 25/25, work-phase-states 30/30, orchestrate-cli
+96/96, 신규 공개 표면 18/18, hook-continuation 63/63. 070 T11 단언 전부 통과. unknown-verb 문구 교체
+후 스위트 무영향. fingerprint 게이트 신규 진단 0건. `npm run build` OK 156 파일, `npm run gate` OK.
+실제 CLI 실행 확인:
+
+```text
+$ cxc loop redy
+loop: unknown loop verb 'redy' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion); run cxc loop --help
+```
+
+### 이 라운드의 교훈
+
+세 라운드 모두 같은 결함 계열이 반복됐다 — 문서의 두 사본이 어긋난다. 라운드 1은 import After와 실제
+import, 라운드 2는 import After와 적층 표, 라운드 3은 산문과 verbatim 코드 블록이었다. 계획서가 "전체
+After"나 "그대로 만든다"를 선언하는 블록은 그 자체가 정본이므로, 산문에서 요구를 추가할 때 블록도 같은
+커밋에서 고쳐야 한다.
+
+감사관이 자기 근거의 오류를 스스로 정정한 것도 기록해 둔다. 감사 결과를 무조건 반영하지 않고 주장을
+직접 재현한 덕에 틀린 면책 조항이 계획서에 굳지 않았다.
 

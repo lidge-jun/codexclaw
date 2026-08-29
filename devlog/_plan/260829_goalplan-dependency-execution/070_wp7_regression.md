@@ -974,9 +974,14 @@ test("help lists repeated dependency syntax and required outcome", () => {
   assert.match(help, /cxc loop show \(--slug <slug> \| --objective <text>\)/);
   assert.match(help, /cxc loop validate --slug <slug>/);
   assert.match(help, /cxc loop ready \(--slug <slug> \| --objective <text> \| --session <id>\)/);
-  assert.doesNotMatch(help, /cxc loop steer --session <id> --slug <slug>/);
-  assert.doesNotMatch(help, /cxc loop add-work-phase --session <id> --slug <slug>/);
-  assert.doesNotMatch(help, /cxc loop add-criterion --session <id> --slug <slug>/);
+  // 라운드 3 관찰: 글자 그대로의 정규식은 `--slug`가 인자 순서를 바꿔 되돌아오면 놓친다.
+  // 감사관이 실측한 누락 셋 — slug가 session 앞, 대괄호 optional, awp 줄 꼬리. verb usage 줄을
+  // 먼저 잡고 그 줄 안 `--slug` 유무를 보면 위치와 무관하게 잡힌다.
+  for (const verb of ["steer", "add-work-phase", "add-criterion"]) {
+    const line = help.split("\n").find((row) => row.includes(`cxc loop ${verb} `));
+    assert.ok(line, `usage line missing for ${verb}`);
+    assert.equal(line!.includes("--slug"), false, line!);
+  }
   assert.match(help, /cxc loop steer --session <id> --batch-json/);
   assert.match(help, /cxc loop add-work-phase --session <id> --id <id>/);
   assert.match(help, /cxc loop add-criterion --session <id> --criterion <text>/);
@@ -989,8 +994,12 @@ test("help lists repeated dependency syntax and required outcome", () => {
 });
 ```
 
-`doesNotMatch` 셋이 이 회귀의 핵심이다. 누군가 나중에 `--slug`를 세 mutating usage에 되돌리면 그 인자가
-다시 무시되는데, `match`만 있는 테스트는 그것을 잡지 못한다.
+줄 단위 부재 검사가 이 회귀의 핵심이다. 누군가 나중에 `--slug`를 세 mutating usage에 되돌리면 그 인자가
+다시 무시되는데, `match`만 있는 테스트는 그것을 잡지 못한다. 라운드 3 감사관이 `doesNotMatch` 형태의
+탐지 범위를 실측해 세 가지 누락을 찾았다 — `--slug`가 `--session` 앞에 오는 형태, `[--slug <slug>]`
+대괄호 형태, `add-work-phase` 줄 꼬리에 붙는 형태. 정규식이 옛 문자열 순서를 그대로 담고 있어야만
+잡히기 때문이다. verb usage 줄을 먼저 찾고 그 줄에 `--slug`가 있는지 보는 형태로 바꾸면 위치와
+무관하게 잡는다. 실측으로 확인했다 — 꼬리 되돌림이 RED가 되고 읽기 verb 셋은 그대로 통과한다.
 
 ### 6.2 출력 문자열과 기존 테스트 검색
 
