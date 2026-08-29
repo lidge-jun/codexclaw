@@ -542,11 +542,20 @@ export function closeFixedWorkPhase(
       // then closed by its own cycle, so this retry has nothing left to activate — and
       // refusing would trap the session: escaping would mean re-opening a completed
       // work-phase or discarding the marker. The settled-shape check below then answers
-      // §52: answer already_done directly instead of computing a cursor. Setting `next`
-      // to nothing made the settled shape claim `activeWorkPhaseId: null`, which erased a
-      // cursor the plan had legitimately moved on to — wp-2 finishing can itself have
-      // started wp-3. This close has nothing left to say about the cursor.
-      return { kind: "already_done" };
+      // §52: do not compute a cursor from a finished successor. Setting `next` to nothing
+      // made the settled shape claim `activeWorkPhaseId: null`, which erased a cursor the
+      // plan had legitimately moved on to — wp-2 finishing can itself have started wp-3.
+      //
+      // §53: but only a target that is ALSO done makes this close settled. A marker can
+      // survive with the target still open — crash before the plan commit, then the
+      // successor finishes on its own — and answering already_done there wrote the close
+      // rows while leaving the target open in the plan. Close it for real, with no
+      // successor to activate because the recorded one is finished.
+      if (current.status !== "done") {
+        next = undefined;
+      } else {
+        return { kind: "already_done" };
+      }
     } else if (named.status !== "pending" && named.status !== "in_progress") {
       return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
     } else if (!workPhaseDependenciesMet(closedPlan, named)) {
@@ -582,6 +591,61 @@ export function closeFixedWorkPhase(
  * status, dependsOn, and task status. Timestamps and prose are irrelevant here, so
  * comparing whole JSON would make the check brittle for no gain.
  */
+/**
+ * §53: what a resume should do when the fixed target is gone from the plan but the
+ * marker still names a successor. Shared by the CLI and the chat path, because a
+ * decision this subtle drifted between the two the moment it lived in one of them.
+ *
+ * The gates mirror closeFixedWorkPhase(): a phase that is blocked, superseded, or
+ * waiting on a dependency was never started and cannot be started now, so the retry
+ * fails closed rather than logging `started` for work nobody scheduled.
+ */
+/** §53: one wording source so the two surfaces cannot describe the same state differently. */
+export function absentSuccessorDetail(
+  reason: "absent" | "not_runnable" | "dependencies_unmet",
+): string {
+  return reason === "absent"
+    ? "is gone too"
+    : reason === "not_runnable"
+      ? "can no longer be started"
+      : "now waits for another work-phase";
+}
+
+export type ResumeAbsentTargetResult =
+  | { kind: "activate"; plan: Goalplan }
+  | { kind: "cleanup" }
+  | { kind: "successor_lost"; successorId: string; reason: "absent" | "not_runnable" | "dependencies_unmet" };
+
+export function resumeAbsentTarget(
+  plan: Goalplan,
+  recordedNext: string | null,
+): ResumeAbsentTargetResult {
+  // A marker that recorded no successor has nothing to activate: the close it describes
+  // ended the plan, so cleanup is the whole remaining job.
+  if (!recordedNext) return { kind: "cleanup" };
+  const named = plan.workPhases.find((wp) => wp.id === recordedNext);
+  if (!named) return { kind: "successor_lost", successorId: recordedNext, reason: "absent" };
+  // Already running, or finished on its own: the activation happened. Only the ledger
+  // and state rows are still owed, and the row guards make those idempotent.
+  if (named.status === "in_progress" || named.status === "done") return { kind: "cleanup" };
+  if (named.status !== "pending") {
+    return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
+  }
+  if (!workPhaseDependenciesMet(plan, named)) {
+    return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
+  }
+  return {
+    kind: "activate",
+    plan: {
+      ...plan,
+      activeWorkPhaseId: named.id,
+      workPhases: plan.workPhases.map((wp) =>
+        wp.id === named.id ? { ...wp, status: "in_progress" as const } : wp
+      ),
+    },
+  };
+}
+
 function samePlanShape(left: Goalplan, right: Goalplan): boolean {
   if (left.activeWorkPhaseId !== right.activeWorkPhaseId) return false;
   if (left.workPhases.length !== right.workPhases.length) return false;
@@ -928,7 +992,9 @@ import {
   readGoalplan,
   withGoalplanWriteLock,
   writeGoalplan,
+  absentSuccessorDetail,
   closeFixedWorkPhase,
+  resumeAbsentTarget,
   type AdvanceResult,
   type Goalplan,
 } from "./goalplan.ts";
@@ -1140,32 +1206,22 @@ target보다 먼저 판정한다. `attest.workPhaseId` 필수 검사는 5번 tar
           // a genuine commit can be edited afterwards to hide a pending task under a
           // done phase. So the helper runs whenever the target exists, and it answers
           // `already_done` only after its three gates pass.
-          // §52: an absent target does NOT mean there is nothing to finish. The marker
-          // still records the successor this close activated, and skipping straight to
-          // cleanup leaves that phase unstarted while the ledger claims the cycle closed.
+          // §52/§53: an absent target does NOT mean there is nothing to finish. The marker
+          // still records the successor this close activated, and skipping to cleanup
+          // leaves that phase unstarted while the ledger claims the cycle closed.
           // Reachable: crash right after the marker, then an edit removes the target.
-          // Only a marker that recorded no successor is safe to clean up directly.
-          if (!fixed && state.dcloseRecovery.nextWorkPhaseId) {
-            const orphan = plan.workPhases.find(
-              (workPhase) => workPhase.id === state.dcloseRecovery.nextWorkPhaseId,
-            );
-            if (!orphan) {
+          // The decision is shared with the chat path so the two cannot diverge.
+          if (!fixed) {
+            const orphan = resumeAbsentTarget(plan, state.dcloseRecovery.nextWorkPhaseId);
+            if (orphan.kind === "successor_lost") {
               return {
                 code: 1 as const,
                 allDone: false as const,
-                output: `orchestrate D: recovery target ${closePhaseId} is gone from the plan and so is the successor ${state.dcloseRecovery.nextWorkPhaseId} it recorded, so this retry cannot tell what to finish. The marker was kept; inspect the goalplan, set the work-phase statuses and activeWorkPhaseId by hand, then run \`cxc orchestrate reset --session ${sessionId}\` to clear the marker. Nothing was written.`,
+                output: `orchestrate D: recovery target ${closePhaseId} is gone from the plan and the successor ${orphan.successorId} it recorded ${absentSuccessorDetail(orphan.reason)}, so this retry cannot tell what to finish. The marker was kept; inspect the goalplan, set the work-phase statuses and activeWorkPhaseId by hand, then run \`cxc orchestrate reset --session ${sessionId}\` to clear the marker. Nothing was written.`,
               };
             }
-            if (orphan.status === "pending") {
-              closedPlan = {
-                ...plan,
-                activeWorkPhaseId: orphan.id,
-                workPhases: plan.workPhases.map((workPhase) =>
-                  workPhase.id === orphan.id
-                    ? { ...workPhase, status: "in_progress" as const }
-                    : workPhase
-                ),
-              };
+            if (orphan.kind === "activate") {
+              closedPlan = orphan.plan;
               writeClosedPlan = true;
             }
           }
@@ -1497,7 +1553,9 @@ import {
   unmetCriteria,
   withGoalplanWriteLock,
   writeGoalplan,
+  absentSuccessorDetail,
   closeFixedWorkPhase,
+  resumeAbsentTarget,
   type AdvanceResult,
   type Goalplan,
 } from "./goalplan.ts";
@@ -1683,6 +1741,32 @@ PABCD close row가 없을 때만 `{ from: "C", to: "IDLE", reason: "done" }` 행
         // §42/§43: same rule as the CLI. The helper decides, not the caller, so both
         // a status-only edit and a pending task hidden under an already-closed phase
         // are caught. `already_done` comes back only after all three gates pass.
+        // §53: the absent-target decision is shared with the CLI. Leaving it out here let
+        // the same marker activate a pending successor on one surface and silently log
+        // `started` without a plan write on the other.
+        if (!fixed) {
+          const orphan = resumeAbsentTarget(plan, state.dcloseRecovery.nextWorkPhaseId);
+          if (orphan.kind === "successor_lost") {
+            return {
+              output: buildContextOutput(
+                "UserPromptSubmit",
+                `[codexclaw — refused: recovery target ${closePhaseId} is gone from the plan `
+                  + `and the successor ${orphan.successorId} it recorded `
+                  + `${absentSuccessorDetail(orphan.reason)}, so this retry cannot tell what `
+                  + `to finish. The marker was kept; inspect the goalplan, set the work-phase `
+                  + `statuses and activeWorkPhaseId by hand, then run `
+                  + `\`cxc orchestrate reset --session ${payload.session_id}\` to clear the `
+                  + `marker. Nothing was written.]`,
+              ),
+              advanced: null,
+              allDone: false as const,
+            };
+          }
+          if (orphan.kind === "activate") {
+            closeResult = { kind: "ok" as const, closedId: closePhaseId, plan: orphan.plan };
+            writeClosedPlan = true;
+          }
+        }
         const closed = fixed
           ? closeFixedWorkPhase(plan, closePhaseId, state.dcloseRecovery.nextWorkPhaseId)
           : { kind: "absent" as const };
@@ -2040,7 +2124,9 @@ import {
   unmetCriteria,
   withGoalplanWriteLock,
   writeGoalplan,
+  absentSuccessorDetail,
   closeFixedWorkPhase,
+  resumeAbsentTarget,
   type AdvanceResult,
   type Goalplan,
 } from "./goalplan.ts";
@@ -4889,6 +4975,43 @@ function seedRecoverableChatClose(cwd: string, id: string, slug: string): string
   });
 }
 
+test("chat recovery activates the recorded successor when the target is absent", () => {
+  // §53: the absent-target decision lives in a shared helper precisely so this surface
+  // behaves like the CLI. Before that, the same marker activated a pending successor
+  // through the CLI and only logged `started` here, leaving the phase unstarted while
+  // the ledger claimed the cycle closed. The case above seeds wp-2 already in_progress,
+  // which hides the difference; this one leaves it pending.
+  const cwd = gitRepoForHook();
+  try {
+    const id = "chat-recovery-absent-pending";
+    const slug = "chat-recovery-absent-pending-plan";
+    const attest = seedRecoverableChatClose(cwd, id, slug);
+    const remaining = buildGoalplan({ objective: "absent target, pending successor" });
+    remaining.slug = slug;
+    remaining.workPhases = [
+      { id: "wp-2", title: "next", status: "pending", tasks: [], criteriaIds: [] },
+    ];
+    remaining.activeWorkPhaseId = null;
+    writeGoalplan(cwd, remaining);
+    // The seed records no successor, so point the marker at wp-2 the way a real close would.
+    const seeded = readState(cwd, id);
+    writeState(cwd, {
+      ...seeded,
+      dcloseRecovery: { ...seeded.dcloseRecovery!, nextWorkPhaseId: "wp-2" },
+    });
+
+    const output = handleUserPromptSubmit(
+      ups(`orchestrate d --attest ${attest}`, cwd, id, "t1"),
+    );
+
+    assert.doesNotMatch(output, /refused/);
+    const repaired = readGoalplan(cwd, slug)!;
+    assert.equal(repaired.activeWorkPhaseId, "wp-2");
+    assert.equal(repaired.workPhases.find((wp) => wp.id === "wp-2")!.status, "in_progress");
+    assert.equal(readState(cwd, id).phase, "IDLE");
+    assert.equal(readState(cwd, id).dcloseRecovery, null);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
 test("chat D-close recovery resumes when the marker target is absent from the plan", () => {
   const cwd = gitRepoForHook();
   try {
@@ -5705,20 +5828,20 @@ forgery_arity="$(
 test "$forgery_arity" -eq 2
 forgery_extra_cases=$((forgery_arity - 1))
 
-test "$added_existing_declarations" -eq 55
+test "$added_existing_declarations" -eq 56
 test "$new_file_declarations" -eq 9
 test "$parameterized_extra_cases" -eq 1
 test "$removed_declarations" -eq 5
 
 new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
 net_case_count=$((new_case_count - removed_declarations))
-test "$new_case_count" -eq 68
-test "$net_case_count" -eq 63
+test "$new_case_count" -eq 69
+test "$net_case_count" -eq 64
 
 focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
 focused_case_count=$((focused_declaration_count + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
-test "$focused_declaration_count" -eq 251
-test "$focused_case_count" -eq 255
+test "$focused_declaration_count" -eq 252
+test "$focused_case_count" -eq 256
 
 # 산술 기대값과 실제 등록 수를 대조한다. 이것이 없으면 케이스 하나가 누락된 채
 # 남은 전부가 통과해도 node가 exit 0을 내어 false-green이 된다.
@@ -5737,12 +5860,12 @@ test "$(rg -o '^. fail (\d+)$' -r '$1' "$focused_log" | tail -1)" -eq 0
 
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
-- 기존 파일 추가 선언 55개, 신규 파일 선언 9개
+- 기존 파일 추가 선언 56개, 신규 파일 선언 9개
 - 삭제 5개의 출처는 §8.2의 held-lock·release 2개와 §8.2.1의 drvfs·9p·native 3개다
 - 두 입력을 도는 parameterized 선언의 추가 등록 1개, scenario 배열 원소 3개에서 나오는 추가 등록 2개
-- 계획된 신규 케이스 68개, 삭제 5개, 순증 63개
-- 구현 뒤 선언 251개, 실제 focused 등록 255개
-- node test exit 0, tests 255, pass 255, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
+- 계획된 신규 케이스 69개, 삭제 5개, 순증 64개
+- 구현 뒤 선언 252개, 실제 focused 등록 256개
+- node test exit 0, tests 256, pass 256, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
 
 락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
 CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
@@ -5780,7 +5903,7 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값은 exit 0, tests 2230, pass 2230, fail 0이다. 기존 2167건과 wp5 순증 63건을 모두 실행하며,
+기대값은 exit 0, tests 2231, pass 2231, fail 0이다. 기존 2167건과 wp5 순증 64건을 모두 실행하며,
 루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
 
 ### 10.4 저장소 gate
@@ -5898,8 +6021,8 @@ tracked이므로 이전 초안의 `?? …050….md` 기대는 거짓이었고, �
 | `src/state.ts` | import 변경 없음. |
 | `src/orchestrate-apply.ts` | import 변경 없음. |
 | `src/steering.ts` | wp4의 goalplan 이름을 보존하고 wp5 lock 이름을 더한다. 전용 락에서만 쓰던 fs/path/Wsl 이름만 지운다. |
-| `src/orchestrate-cli.ts` | wp4 `dependencyDeadlock`을 보존하고 wp5 lock, recovery, 두 integrity helper를 더한다. |
-| `src/hook.ts` | wp4 `dependencyDeadlock`을 보존하고 wp5 fs/path, lock, recovery, 두 integrity helper를 더한다. |
+| `src/orchestrate-cli.ts` | wp4 `dependencyDeadlock`을 보존하고 wp5 lock, recovery, 두 integrity helper, §53 공유 판정 `resumeAbsentTarget`·`absentSuccessorDetail`을 더한다. |
+| `src/hook.ts` | wp4 `dependencyDeadlock`을 보존하고 wp5 fs/path, lock, recovery, 두 integrity helper, §53 공유 판정 두 이름을 더한다. |
 | `src/review-round-cli.ts` | 현재 전체 import를 Before로 적고 wp5 `withGoalplanWriteLock`, `ReviewRoundState`를 더한 전체 After를 적는다. |
 | `src/review-observer.ts` | 현재 전체 import를 Before로 적고 wp5 `withGoalplanWriteLock`을 더한 전체 After를 적는다. |
 | `test/goalplan-concurrency.test.ts` | 신규 파일 전체 import이며 `isAbsolute`, `spawn`, 그리고 §46 parity 및 §47 왕복 테스트가 쓰는 `advanceWorkPhase`, `closeFixedWorkPhase`, `type Goalplan`, `type WorkPhaseStatus`를 포함한다. |

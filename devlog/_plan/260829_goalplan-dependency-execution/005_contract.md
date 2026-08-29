@@ -1692,3 +1692,81 @@ if (!fixed && state.dcloseRecovery.nextWorkPhaseId) {
 행 하나를 남긴다. 대상과 successor가 둘 다 없으면 code 1로 거부하고 plan·marker·원장을 전부 보존한다.
 라운드 22의 successor 완주 회귀는 이제 `started wp-2` 단언이 실제로 성립한다 — 그전에는 커서가 `null`이라
 그 행이 쓰이지 않아 회귀 자체가 구현 후 실패했다.
+
+## 53. 라운드 24 — 대상이 열려 있으면 정착이 아니다
+
+§52의 `done` successor 즉시 정착이 대상 status를 보지 않았다. 감사관이 그 구멍과 함께 두 표면의 어긋남을
+찾았고 셋 다 실질이다.
+
+### 열린 대상을 정착으로 보고하는 문제
+
+marker는 plan commit 전에 기록되므로 대상이 아직 `in_progress`인 채 marker만 남을 수 있다. 그때 다른
+세션이나 편집으로 successor만 끝나면 §52는 `already_done`을 답한다. 결과는 최악이다 — 원장에
+`closed wp-1`·PABCD close 행이 기록되고 marker가 지워지는데 plan의 `wp-1`은 계속 열려 있다.
+
+```text
+marker: closed=wp-1, next=wp-2
+plan:   wp-1=in_progress, wp-2=done, 커서 null
+§52:    already_done   <- 원장은 닫혔다고, plan은 열렸다고 말한다
+§53:    ok, wp-1=done, 커서 null
+```
+
+`already_done`은 대상까지 `done`일 때만 성립한다. 대상이 열려 있으면 실제로 닫고, 기록된 successor는
+이미 끝났으므로 활성화할 것이 없다.
+
+```ts
+    if (named.status === "done") {
+      if (current.status !== "done") {
+        next = undefined;
+      } else {
+        return { kind: "already_done" };
+      }
+    }
+```
+
+### 대상 부재 경로가 게이트를 건너뛰는 문제
+
+§52는 orphan이 `pending`이면 무조건 활성화했다. 그래서 의존이 끊긴 `pending`도 시작하고,
+`blocked`·`superseded`는 plan을 그대로 두면서 `started` 행만 남겼다. 고정 대상 경로가 지키는 게이트가
+이 경로에는 없었다.
+
+### 두 표면이 갈라지는 문제
+
+§52는 CLI에만 적용됐다. 같은 marker와 `pending` successor에서 CLI는 그 phase를 활성화하고 채팅은
+plan을 건드리지 않은 채 `started` 행만 기록한다. 계약 §40 Z1이 요구하는 동일성이 깨진다.
+
+### 처분 — 공유 판정
+
+세 문제를 한 helper로 묶는다. 두 표면이 같은 함수를 부르므로 다시 갈라질 수 없다.
+
+```ts
+export type ResumeAbsentTargetResult =
+  | { kind: "activate"; plan: Goalplan }
+  | { kind: "cleanup" }
+  | { kind: "successor_lost"; successorId: string; reason: "absent" | "not_runnable" | "dependencies_unmet" };
+```
+
+| orphan 상태 | 판정 |
+| --- | --- |
+| marker에 successor 없음 | `cleanup` — 이 close는 plan을 끝냈다 |
+| plan에 없음 | `successor_lost`/absent |
+| `in_progress` 또는 `done` | `cleanup` — 활성화는 이미 일어났고 원장만 남았다 |
+| `pending`, 의존 충족 | `activate` |
+| `pending`, 의존 미충족 | `successor_lost`/dependencies_unmet |
+| `blocked`·`superseded` | `successor_lost`/not_runnable |
+
+거부 문구도 `absentSuccessorDetail()` 하나에서 나오므로 두 표면이 같은 상태를 다르게 설명하지 못한다.
+
+### 실측
+
+| 입력 | 결과 |
+| --- | --- |
+| 대상 in_progress, successor done | `ok`, wp-1=done, 커서 null |
+| 대상 pending, successor done | `ok`, wp-1=done, 커서 null |
+| 대상 done, successor done | `already_done` |
+| 대상 done, successor done, 커서 wp-3 진행 | `already_done` — 커서 보존 |
+
+§50~§52의 경계 스물세 가지가 모두 유지된다.
+
+회귀 하나를 더 둔다. 채팅에서 대상이 없고 기록된 successor가 `pending`인 재개가 그 phase를 활성화하는지
+단언한다. 기존 채팅 대상-부재 테스트는 successor를 미리 `in_progress`로 두어 이 차이를 가렸다.
