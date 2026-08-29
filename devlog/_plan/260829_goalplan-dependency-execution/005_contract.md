@@ -2023,3 +2023,24 @@ plan:   wp-1=done, wp-2=done, wp-3=in_progress(dependsOn wp-4), wp-4=pending, �
 §9 표에 `no goalplan found` 행이 없었다는 것이 이 발견의 요지다. 문자열 소유 표는 새로 만드는 문구를
 다 적었지만, 삭제하는 코드가 내던 문구를 빠뜨렸다. 나머지 소스 파일에서도 같은 종류를 찾으려면 지우는
 블록의 출력 문구를 먼저 grep해야 한다.
+
+## 58. B 구현 중 발견 — §45 위조 목록과 §55가 겹쳤다
+
+§8.3의 §45 위조 시나리오 넷 중 하나가 §55 이후 성립하지 않는다. `an in_progress cursor whose
+dependency is unmet`은 커서를 successor wp-2 자신에 두고 wp-2의 의존을 끊는데, §55는 그 입력을
+`successor_lost/dependencies_unmet`으로 거부한다. 위조를 무시하고 계산된 shape로 착지하는 것이
+§45의 요지인데, 이 경우는 착지 자체가 없다.
+
+시나리오를 커서만 위조하는 형태로 바꿨다. 커서를 실행 불가한 제3의 phase에 두고 recorded successor는
+멀쩡히 둔다. 그러면 §45가 원래 보이려던 것 — 파일의 커서가 판정을 바꾸지 못한다 — 이 그대로 남고,
+의존 미충족 successor 거부는 전용 테스트가 이미 따로 덮는다.
+
+```text
+이전: 커서 wp-2, wp-2 dependsOn wp-3(blocked)     -> §55에서 거부, code 1
+이후: 커서 wp-3(blocked), wp-2는 pending 그대로   -> ok, 커서 wp-2
+```
+
+같은 절의 문구 단언 하나도 실제 생산 문자열과 달랐다. 계획서는
+`/so is the successor wp-2 it recorded/`를 기다리는데, `absentSuccessorDetail("absent")`는
+`is gone too`를 내므로 실제 문장은 `the successor wp-2 it recorded is gone too`다. 단언을 생산
+문자열에 맞췄다. §53에서 문구를 한 곳으로 모을 때 이 테스트가 같이 갱신되지 않았다.
