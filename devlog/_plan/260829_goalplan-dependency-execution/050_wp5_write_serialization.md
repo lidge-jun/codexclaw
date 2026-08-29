@@ -3856,7 +3856,15 @@ function seedChatCycleAtC(cwd: string, id: string, slug: string): string {
     flags: { interview: false, auditPassed: true, checkPassed: false },
   });
   seedChatReceipt(cwd, id, epoch);
-  return JSON.stringify({ from: "C", to: "D", did: "ran the suite", workPhaseId: "wp-1" });
+  return JSON.stringify({
+    from: "C",
+    to: "D",
+    did: "ran the suite",
+    checkOutput: "ok",
+    exitCode: 0,
+    workPhaseId: "wp-1",
+    testReceiptPath: `.codexclaw/evidence/${id}/test-receipt.json`,
+  });
 }
 
 test("chat D-close retry after the recovery marker write matches an uninterrupted close", () => {
@@ -3994,7 +4002,19 @@ test("chat D-close keeps same-turn dedup and clears the Stop guard", () => {
       stopBlockWorkPhaseId: "wp-1",
       stopBlockCount: 3,
     });
-    const attest = JSON.stringify({ from: "C", to: "D", did: "ran the suite", workPhaseId: "wp-1" });
+    // CHECK-BINDING-01 runs before the goalplan branch on the chat path too, so
+    // without both the receipt and its path the first call refuses at the gate and
+    // never reaches the state write this test is about.
+    seedChatReceipt(cwd, id, "c-fields");
+    const attest = JSON.stringify({
+      from: "C",
+      to: "D",
+      did: "ran the suite",
+      checkOutput: "ok",
+      exitCode: 0,
+      testReceiptPath: `.codexclaw/evidence/${id}/test-receipt.json`,
+      workPhaseId: "wp-1",
+    });
 
     const first = handleUserPromptSubmit(ups(`orchestrate d --attest ${attest}`, cwd, id, "same-turn"));
     assert.match(first, /\[codexclaw: DONE\]/);
