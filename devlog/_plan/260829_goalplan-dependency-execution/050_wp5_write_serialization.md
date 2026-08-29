@@ -551,19 +551,23 @@ export function closeFixedWorkPhase(
       // successor finishes on its own — and answering already_done there wrote the close
       // rows while leaving the target open in the plan. Close it for real, with no
       // successor to activate because the recorded one is finished.
-      if (current.status !== "done") {
-        // §54: closing the target must not undo progress the plan already made. The
-        // successor finishing can itself have started wp-3, and nulling the cursor there
-        // cut that off. Keep a cursor only when it names a DIFFERENT phase that is really
-        // running — a cursor on the target, or on a pending phase, is not progress and
-        // §45 established that such a cursor is forgeable.
-        next = closedWorkPhases.find(
-          (wp) => wp.id === plan.activeWorkPhaseId && wp.id !== workPhaseId
-            && wp.status === "in_progress",
-        );
-      } else {
-        return { kind: "already_done" };
-      }
+      // §54: closing the target must not undo progress the plan already made. The
+      // successor finishing can itself have started wp-3, and nulling the cursor there
+      // cut that off. Keep a cursor only when it names a DIFFERENT phase that is really
+      // running — a cursor on the target, or on a pending phase, is not progress and
+      // §45 established that such a cursor is forgeable.
+      // §55: readiness belongs in the same predicate. A running phase whose dependencies
+      // are unmet is a cursor effectiveActiveWorkPhaseId() already refuses to honour, so
+      // keeping it would leave a stale explicit cursor the next cycle does not follow.
+      // §56: this normalization runs whether or not the target is already done. An earlier
+      // draft returned already_done immediately for a done target, which skipped the whole
+      // check and let exactly the same damaged cursors through — including a cursor on the
+      // done target itself. The settled-shape comparison below is what decides already_done,
+      // and it can only do that against a normalized cursor.
+      next = closedWorkPhases.find(
+        (wp) => wp.id === plan.activeWorkPhaseId && wp.id !== workPhaseId
+          && wp.status === "in_progress" && workPhaseDependenciesMet(closedPlan, wp),
+      );
     } else if (named.status !== "pending" && named.status !== "in_progress") {
       return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
     } else if (!workPhaseDependenciesMet(closedPlan, named)) {
@@ -636,6 +640,18 @@ export function resumeAbsentTarget(
   // Finished on its own: the activation happened and only the ledger and state rows are
   // owed. The row guards make those idempotent.
   if (named.status === "done") return { kind: "cleanup" };
+  if (named.status !== "pending" && named.status !== "in_progress") {
+    return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
+  }
+  // §55: readiness is checked before either branch below, so the absent-target path answers
+  // the same question closeFixedWorkPhase() answers when the target is still there. Gating
+  // only the pending branch made deletion of the target decide the verdict: the same
+  // successor waiting on the same unmet dependency was refused with the target present and
+  // activated with it gone. A dangling dependsOn reads as not-done here by design, and the
+  // pending branch already refused that plan.
+  if (!workPhaseDependenciesMet(plan, named)) {
+    return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
+  }
   // Running: the activation happened too, but only if the cursor agrees. §45 established
   // that a null or moved cursor stranding an in_progress phase is exactly the corruption
   // a resume must repair, so restore the cursor instead of walking away from it.
@@ -643,12 +659,6 @@ export function resumeAbsentTarget(
     return plan.activeWorkPhaseId === named.id
       ? { kind: "cleanup" }
       : { kind: "activate", plan: { ...plan, activeWorkPhaseId: named.id } };
-  }
-  if (named.status !== "pending") {
-    return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
-  }
-  if (!workPhaseDependenciesMet(plan, named)) {
-    return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
   }
   return {
     kind: "activate",
@@ -3380,8 +3390,10 @@ all-done 회귀가 `afterStateWrite` 안에서 락 디렉터리를 직접 만들
 
 ```ts
 // wp4 적용 후 + wp5 추가분: 선행 wp 추가 이름 없음; wp5 readGoalplan, goalplanWriteLockDir 추가
+// §56: effectiveActiveWorkPhaseId도 더한다. 커서 정규화 회귀가 저장값과 해석값을 함께 단언한다.
 import {
   buildGoalplan,
+  effectiveActiveWorkPhaseId,
   goalplanWriteLockDir,
   readGoalplan,
   writeGoalplan,
@@ -3958,6 +3970,150 @@ test("closing an open target does not cancel progress the plan already made", ()
   assert.equal(readState(cwd, id).dcloseRecovery, null);
 });
 
+test("a preserved cursor is dropped when the phase it names is not ready", () => {
+  // §55: wp-3 is running but waits on wp-4, so effectiveActiveWorkPhaseId() refuses to
+  // honour that cursor and answers wp-4 instead. Preserving it would write a plan whose
+  // stored cursor and computed cursor disagree, and the next cycle would run a phase the
+  // plan file does not point at. §54 covered only ready cursors, so this window was open.
+  const cwd = boundCwd();
+  const id = "recovery-preserve-unready";
+  const slug = "recovery-preserve-unready-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const seeded = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...seeded,
+    workPhases: [
+      ...seeded.workPhases,
+      { id: "wp-3", title: "third", status: "pending" as const, dependsOn: ["wp-4"], tasks: [], criteriaIds: [] },
+      { id: "wp-4", title: "fourth", status: "pending" as const, tasks: [], criteriaIds: [] },
+    ],
+  });
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-2");
+
+  // wp-2 finished and left the cursor on wp-3, which still waits for wp-4.
+  const crashed = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...crashed,
+    activeWorkPhaseId: "wp-3",
+    workPhases: crashed.workPhases.map((wp) =>
+      wp.id === "wp-2" ? { ...wp, status: "done" as const }
+        : wp.id === "wp-3" ? { ...wp, status: "in_progress" as const } : wp
+    ),
+  });
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  const repaired = readGoalplan(cwd, slug)!;
+  assert.equal(repaired.activeWorkPhaseId, null);
+  // §56: the point of dropping it. The stale explicit cursor is gone, so the derived
+  // selection is the only answer left and it names the phase that can actually run.
+  assert.equal(effectiveActiveWorkPhaseId(repaired), "wp-4");
+  // The close still lands, and wp-3 keeps running: stopping it is not a resume's job.
+  assert.equal(repaired.workPhases.find((wp) => wp.id === "wp-1")!.status, "done");
+  assert.equal(repaired.workPhases.find((wp) => wp.id === "wp-3")!.status, "in_progress");
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+
+test("an already-done target still normalizes a cursor that cannot run", () => {
+  // §56: an earlier draft returned already_done the moment the target was done, which
+  // skipped the cursor normalization entirely. The same damaged cursors went through that
+  // door — including one naming the finished target. Normalize first; the settled-shape
+  // comparison is what decides whether anything is owed.
+  const cwd = boundCwd();
+  const id = "recovery-done-target-unready-cursor";
+  const slug = "recovery-done-target-unready-cursor-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const seeded = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...seeded,
+    workPhases: [
+      ...seeded.workPhases,
+      { id: "wp-3", title: "third", status: "pending" as const, dependsOn: ["wp-4"], tasks: [], criteriaIds: [] },
+      { id: "wp-4", title: "fourth", status: "pending" as const, tasks: [], criteriaIds: [] },
+    ],
+  });
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterGoalplanCommit: () => { throw new Error("fail right after the plan commit"); },
+    }),
+    /fail right after the plan commit/,
+  );
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-2");
+
+  // The commit landed, so wp-1 is done. wp-2 then finished and left the cursor on wp-3,
+  // which still waits for wp-4.
+  const committed = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...committed,
+    activeWorkPhaseId: "wp-3",
+    workPhases: committed.workPhases.map((wp) =>
+      wp.id === "wp-2" ? { ...wp, status: "done" as const }
+        : wp.id === "wp-3" ? { ...wp, status: "in_progress" as const } : wp
+    ),
+  });
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  const repaired = readGoalplan(cwd, slug)!;
+  assert.equal(repaired.activeWorkPhaseId, null);
+  assert.equal(effectiveActiveWorkPhaseId(repaired), "wp-4");
+  // Statuses are untouched: normalizing a cursor is not stopping a phase.
+  assert.deepEqual(
+    repaired.workPhases.map((wp) => [wp.id, wp.status]),
+    [["wp-1", "done"], ["wp-2", "done"], ["wp-3", "in_progress"], ["wp-4", "pending"]],
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+test("an absent target refuses a running successor whose dependency is unmet", () => {
+  // §55: deletion of the target must not decide the verdict. closeFixedWorkPhase() answers
+  // successor_lost/dependencies_unmet for this same successor when the target is still in
+  // the plan, so the absent path cannot activate it. §54 gated only the pending branch.
+  const cwd = boundCwd();
+  const id = "cli-recovery-unready-successor";
+  const slug = "cli-recovery-unready-successor-plan";
+  const plan = buildGoalplan({ objective: "absent target, unready successor" });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-2", title: "next", status: "in_progress", dependsOn: ["wp-9"], tasks: [], criteriaIds: [] },
+    { id: "wp-9", title: "blocker", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+  writeState(cwd, {
+    ...defaultState(id),
+    slug,
+    checkEpoch: "c-unready",
+    dcloseRecovery: {
+      sessionId: id,
+      checkEpoch: "c-unready",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
+    },
+  });
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 1, result.output);
+  assert.match(result.output, /now waits for another work-phase/);
+  // Fail closed: no plan write, no ledger row, and the marker stays for a real repair.
+  assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-2");
+});
 test("an absent target restores the cursor onto a stranded running successor", () => {
   // §54: the recorded successor is already in_progress but the cursor was nulled, which
   // §45 established is corruption a resume must repair. Answering cleanup here cleared
@@ -5938,20 +6094,20 @@ forgery_arity="$(
 test "$forgery_arity" -eq 2
 forgery_extra_cases=$((forgery_arity - 1))
 
-test "$added_existing_declarations" -eq 58
+test "$added_existing_declarations" -eq 61
 test "$new_file_declarations" -eq 9
 test "$parameterized_extra_cases" -eq 1
 test "$removed_declarations" -eq 5
 
 new_case_count=$((added_existing_declarations + new_file_declarations + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
 net_case_count=$((new_case_count - removed_declarations))
-test "$new_case_count" -eq 71
-test "$net_case_count" -eq 66
+test "$new_case_count" -eq 74
+test "$net_case_count" -eq 69
 
 focused_declaration_count="$(rg -n '^[[:space:]]*test\(' "${focused_files[@]}" | wc -l | tr -d '[:space:]')"
 focused_case_count=$((focused_declaration_count + parameterized_extra_cases + scenario_extra_cases + forgery_extra_cases))
-test "$focused_declaration_count" -eq 254
-test "$focused_case_count" -eq 258
+test "$focused_declaration_count" -eq 257
+test "$focused_case_count" -eq 261
 
 # 산술 기대값과 실제 등록 수를 대조한다. 이것이 없으면 케이스 하나가 누락된 채
 # 남은 전부가 통과해도 node가 exit 0을 내어 false-green이 된다.
@@ -5970,12 +6126,12 @@ test "$(rg -o '^. fail (\d+)$' -r '$1' "$focused_log" | tail -1)" -eq 0
 
 - 신규 파일 존재 검사 exit 0
 - 기준 HEAD `8321b2d7`의 focused 등록 수 192
-- 기존 파일 추가 선언 58개, 신규 파일 선언 9개
+- 기존 파일 추가 선언 61개, 신규 파일 선언 9개
 - 삭제 5개의 출처는 §8.2의 held-lock·release 2개와 §8.2.1의 drvfs·9p·native 3개다
 - 두 입력을 도는 parameterized 선언의 추가 등록 1개, scenario 배열 원소 3개에서 나오는 추가 등록 2개
-- 계획된 신규 케이스 71개, 삭제 5개, 순증 66개
-- 구현 뒤 선언 254개, 실제 focused 등록 258개
-- node test exit 0, tests 258, pass 258, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
+- 계획된 신규 케이스 74개, 삭제 5개, 순증 69개
+- 구현 뒤 선언 257개, 실제 focused 등록 261개
+- node test exit 0, tests 261, pass 261, fail 0. 이 세 값은 산술 기대값과 직접 대조한다
 
 락 timeout 테스트는 delay 배열 `[5, 10, 20, 40]`, 합 `75`, callback 진입 0회를 확인한다.
 CLI D-close 최초 락 실패는 code 1과 phase `C`, 채팅 D-close subprocess는 code 0과 phase `C`를
@@ -6013,7 +6169,7 @@ cd /Users/jun/Developer/new/700_projects/codexclaw
 npm test
 ```
 
-기대값은 exit 0, tests 2233, pass 2233, fail 0이다. 기존 2167건과 wp5 순증 66건을 모두 실행하며,
+기대값은 exit 0, tests 2236, pass 2236, fail 0이다. 기존 2167건과 wp5 순증 69건을 모두 실행하며,
 루트 `dist-freshness.test.mjs`가 변경 src와 tracked dist의 byte equality를 확인한다.
 
 ### 10.4 저장소 gate
@@ -6138,7 +6294,7 @@ tracked이므로 이전 초안의 `?? …050….md` 기대는 거짓이었고, �
 | `test/goalplan-concurrency.test.ts` | 신규 파일 전체 import이며 `isAbsolute`, `spawn`, 그리고 §46 parity 및 §47 왕복 테스트가 쓰는 `advanceWorkPhase`, `closeFixedWorkPhase`, `type Goalplan`, `type WorkPhaseStatus`를 포함한다. |
 | `test/steering.test.ts` | import 변경 없음. |
 | `test/steering-ops.test.ts` | 전체 After에서 전용 `WslDeps`만 지운다. |
-| `test/orchestrate-cli.test.ts` | 기존 goalplan import를 보존하고 `readGoalplan`, `goalplanWriteLockDir`, `buildGoalplan`, `writeGoalplan`을 더한다. `node:fs`에서 `mkdirSync`도 더한다(§40 Z2 회귀가 락 디렉터리를 직접 만든다). |
+| `test/orchestrate-cli.test.ts` | 기존 goalplan import를 보존하고 `readGoalplan`, `goalplanWriteLockDir`, `buildGoalplan`, `writeGoalplan`, `effectiveActiveWorkPhaseId`를 더한다. `node:fs`에서 `mkdirSync`도 더한다(§40 Z2 회귀가 락 디렉터리를 직접 만든다). |
 | `test/hook.test.ts` | 기존 `join`, `spawnSync`를 보존하고 `dirname`, `resolve`, `fileURLToPath`, `spawn`을 더한다. goalplan import에 `readGoalplan`과 `type Goalplan`을 더한다. `existsSync`, `readFileSync`, `STATE_DIR`는 이미 있어 `goalplanLedgerRows()` 지역 정의에 추가 import가 필요하지 않다. |
 | `test/review-binding.test.ts` | import 변경 없음. |
 | `test/state.test.ts` | import 변경 없음. |

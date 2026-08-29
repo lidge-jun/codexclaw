@@ -1860,11 +1860,7 @@ next = closedWorkPhases.find(
 | `in_progress`, 커서가 그것을 가리킴 | `cleanup` |
 | `in_progress`, 커서가 다름 | `activate` — 커서만 복구, status는 그대로 |
 
-보존하는 커서에 readiness 검사를 걸지 않는 이유도 실측으로 확인했다. 그 phase가 의존 미충족인 채
-`in_progress`일 수 있는데, 그것은 이 close가 만든 상태가 아니라 이미 존재하던 상태다. 커서를 지우면
-진행을 끊는 §54의 원래 결함으로 되돌아가고, 거부하면 이 close와 무관한 이유로 재개가 막힌다. 실행
-중인 phase를 멈추는 것은 재개의 일이 아니므로 커서를 그대로 둔다. 대상에 의존하던 phase는 이 close가
-대상을 닫으면서 의존이 충족되므로 애초에 문제가 아니다.
+보존하는 커서에 readiness를 걸지 않았던 판단은 §55에서 철회했다.
 
 `activate`가 status를 바꾸지 않고 커서만 옮기는 것도 무결성과 충돌하지 않는다. 커서 `null`에 running
 phase가 있는 plan과 커서를 그 phase로 옮긴 plan 모두 `goalplanDefinitionIntegrityReasons()`가 빈
@@ -1875,3 +1871,134 @@ phase가 있는 plan과 커서를 그 phase로 옮긴 plan 모두 `goalplanDefin
 회귀 둘을 더 둔다. 대상이 열려 있고 successor가 끝났으며 커서가 진행 중인 phase를 가리키는 plan에서
 그 커서가 살아남는지 단언한다. 대상 부재 + `in_progress` successor + 커서 `null`에서 커서가 그
 successor로 복구되는지도 단언한다. 기존 두 테스트는 커서와 status를 미리 맞춰 두 창을 모두 가렸다.
+
+## 55. 라운드 26 — 커서는 지금 읽히는 커서와 같아야 한다
+
+§54가 남긴 두 구멍을 감사관이 독립으로 찾았다. 둘 다 dependency readiness를 어디까지 보는가의 문제다.
+
+### 보존한 커서가 지금 읽히는 커서와 어긋난다
+
+§54는 보존할 커서에 readiness를 걸지 않았고, 그 근거를 "이미 실행 중인 phase를 멈추는 것은 재개의
+일이 아니다"로 적었다. 근거는 맞지만 결론이 틀렸다. `effectiveActiveWorkPhaseId()`는 `isRunnablePhase()`로
+커서를 검사해서 의존 미충족 커서를 이미 무시한다(`goalplan.ts:1467-1485`). 그러니 그런 커서를 파일에
+써 두면 저장된 커서와 계산된 커서가 갈린다.
+
+```text
+marker: closed=wp-1, next=wp-2
+plan:   wp-1=in_progress, wp-2=done, wp-3=in_progress(dependsOn wp-4), wp-4=pending, 커서 wp-3
+§54:    ok, 커서 wp-3   <- 파일은 wp-3, effective는 wp-4
+§55:    ok, 커서 null   <- 파일은 null, effective는 wp-4 (해석이 일치)
+```
+
+저장된 커서가 `null`이 되는 것이지 파일이 wp-4를 가리키는 것은 아니다. 하는 일은 다음 cycle이 따르지
+않을 낡은 명시 커서를 지우는 것이고, 그러면 `effectiveActiveWorkPhaseId()`의 해석이 유일한 답이 된다.
+
+커서를 지우는 것이 wp-3를 멈추지도 않는다. status는 `in_progress`로 그대로 남고 실행 중인 것은 계속
+실행 중이다. 바뀌는 것은 다음 cycle이 무엇을 고를지 두 읽는 쪽이 같은 답을 낸다는 점뿐이다.
+`workPhaseDependenciesMet()`를 같은 술어에 더한다. §54가 잠근 네 경우는 `dependsOn`이 없어 그대로다.
+
+| 커서 | §54 | §55 |
+| --- | --- | --- |
+| `wp-3`, `in_progress`, 의존 충족 | `wp-3` | `wp-3` |
+| `wp-3`, `in_progress`, 의존 미충족 | `wp-3` | `null` |
+| 대상 자신 | `null` | `null` |
+| `null` | `null` | `null` |
+| `wp-3`, `pending` | `null` | `null` |
+
+### 대상 삭제 여부가 판정을 가른다
+
+공유 helper는 `in_progress` orphan을 readiness 없이 통과시켰다. 그런데 같은 successor 상태에서 대상이
+plan에 남아 있으면 `closeFixedWorkPhase()`가 `successor_lost/dependencies_unmet`으로 거부한다.
+
+```text
+plan:   wp-2=in_progress(dependsOn wp-9), wp-9=pending, wp-3=in_progress, 커서 wp-3
+대상 있음: successor_lost wp-2/dependencies_unmet
+§54 대상 없음: activate, 커서 wp-2   <- 삭제가 판정을 바꿨다
+§55 대상 없음: successor_lost wp-2/dependencies_unmet
+```
+
+readiness 검사를 두 분기보다 앞으로 올린다. `pending` 분기는 §53부터 이미 같은 입력을 거부했으니,
+`in_progress`만 통과시킨 것이 비대칭이었다.
+
+```ts
+  if (named.status !== "pending" && named.status !== "in_progress") {
+    return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
+  }
+  if (!workPhaseDependenciesMet(plan, named)) {
+    return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
+  }
+  if (named.status === "in_progress") {
+    return plan.activeWorkPhaseId === named.id
+      ? { kind: "cleanup" }
+      : { kind: "activate", plan: { ...plan, activeWorkPhaseId: named.id } };
+  }
+```
+
+대상이 삭제된 plan에서 successor의 `dependsOn`이 그 대상을 가리키면 이제 미충족이 된다. 그런데 그
+입력은 두 표면에서 이 helper에 닿지도 않는다. 락 안 첫 검사인 `goalplanDefinitionIntegrityReasons()`가
+`depends on unknown work phase 'wp-1'`을 내고 `invalid goalplan`으로 먼저 거부한다. helper 단독
+호출에서 미충족으로 읽히는 것은 그 선행 게이트와 같은 방향이고, `pending` 분기도 §53부터 같은 입력을
+거부해 왔다. 손으로 망가뜨린 dependency를 재개가 대신 고쳐 주는 것은 이 helper의 일이 아니다.
+
+### §54 근거 문단 철회
+
+§54 끝의 "보존하는 커서에 readiness 검사를 걸지 않는 이유" 문단은 철회한다. 그 문단은 커서를 지우면
+진행이 끊긴다고 했는데, 실측하면 status는 그대로 남고 `effectiveActiveWorkPhaseId()`가 같은 phase를
+다시 고를 수도 있다. 커서를 지우는 것과 phase를 멈추는 것은 다른 일이다.
+
+회귀 둘을 둔다. 의존 미충족 phase를 가리키는 커서가 close 뒤 `null`이 되고 그 phase의 status는
+`in_progress`로 남는지 단언한다. 대상 부재 + 의존 미충족 `in_progress` successor에서 CLI가 exit 1,
+plan 파일 무변경, marker 보존으로 답하는지도 단언한다.
+
+§50~§54의 나머지 경계와 4파일 `tests 162 / pass 162 / fail 0`이 유지된다.
+
+## 56. 라운드 27 — 이미 done인 대상도 커서를 정규화한다
+
+§55는 readiness를 `current.status !== "done"` 분기 안에만 넣었다. 대상까지 done이면 그 앞에서
+`already_done`으로 즉시 반환하므로 정규화 자체가 실행되지 않는다. 같은 손상이 그 문으로 다 통과했다.
+
+```text
+marker: closed=wp-1, next=wp-2
+plan:   wp-1=done, wp-2=done, wp-3=in_progress(dependsOn wp-4), wp-4=pending, 커서 wp-3
+§55:    already_done, 파일 커서 wp-3 그대로   <- effective는 wp-4
+§56:    ok, 커서 null
+```
+
+대상 자신을 가리키는 커서도 마찬가지였다. wp-1이 done인데 커서가 wp-1이면 §55는 그것을 손대지 않았다.
+`effectiveActiveWorkPhaseId()`가 무시해 주니 실행은 굴러가지만, 파일에는 끝난 phase를 가리키는 거짓
+주장이 남는다.
+
+두 done 분기를 합친다. 정규화를 먼저 하고, 정착 여부는 그 뒤 settled shape 비교에 맡긴다. 그 비교가
+`already_done`을 판정하는 유일한 곳이라는 §45의 원칙이 여기서도 적용된다 — 정규화 전 커서와 비교하면
+비교 자체가 손상을 승인한다.
+
+```ts
+      next = closedWorkPhases.find(
+        (wp) => wp.id === plan.activeWorkPhaseId && wp.id !== workPhaseId
+          && wp.status === "in_progress" && workPhaseDependenciesMet(closedPlan, wp),
+      );
+```
+
+대상 done 다섯 경우를 실측했다.
+
+| 커서 | §55 | §56 |
+| --- | --- | --- |
+| `wp-3`, `in_progress`, 의존 미충족 | `already_done`, 커서 wp-3 | `ok`, 커서 `null` |
+| 대상 자신 (done) | `already_done`, 커서 wp-1 | `ok`, 커서 `null` |
+| `wp-3`, `pending` | `already_done`, 커서 wp-3 | `ok`, 커서 `null` |
+| `null` | `already_done` | `already_done` |
+| `wp-3`, `in_progress`, 의존 충족 | `already_done` | `already_done` |
+
+뒤 두 줄이 §51을 지킨다. 정말 정착한 plan은 정규화해도 같은 shape가 나오므로 비교가 `already_done`을
+답하고 plan write가 일어나지 않는다. §51 회귀는 커서 `null` 경로라 그대로 통과한다.
+
+### §55 문구 정정
+
+"저장된 커서와 계산된 커서가 같은 답을 낸다"는 표현을 고친다. 결과는 저장값 `null`, 해석값 `wp-4`다.
+하는 일은 다음 cycle이 따르지 않을 낡은 명시 커서를 지우는 것이고, 그러면 해석이 유일한 답이 된다.
+회귀에서 `effectiveActiveWorkPhaseId()` 결과도 함께 단언해 그 설명을 직접 검증한다.
+
+§50~§55의 나머지 경계와 4파일 `tests 162 / pass 162 / fail 0`이 유지된다.
+
+회귀 하나를 더 둔다. 대상과 successor가 모두 done이고 커서가 의존 미충족 phase를 가리키는 plan에서
+커서가 `null`로 정규화되고 그 phase의 status는 `in_progress`로 남는지 단언한다.
