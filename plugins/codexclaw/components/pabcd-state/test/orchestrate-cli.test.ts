@@ -13,6 +13,7 @@ import {
   goalplanWriteLockDir,
   readGoalplan,
   writeGoalplan,
+  type Goalplan,
 } from "../src/goalplan.ts";
 import { captureSourceIdentity } from "../src/source-identity.ts";
 import { RENDER_OBS_FILE } from "../src/render-observations.ts";

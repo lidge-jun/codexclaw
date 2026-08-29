@@ -2075,3 +2075,75 @@ focused 8파일 실측이 §10.1 산술과 정확히 일치했다.
 ```
 
 pabcd-state 컴포넌트 전체는 이 시점에 1077건이다.
+
+## 61. wp6 A 라운드 1 — 060 결함 다섯과 wp5 구현의 타입 결함 셋
+
+wp5가 남긴 §57~§59의 결함 종류를 060에서 먼저 찾도록 감사관을 파견했고, 같은 계열이 그대로 나왔다.
+
+### BLOCKER — hook import 적층이 wp5 이름 둘을 잃었다
+
+060의 `hook.ts` 누적 Before/After가 `absentSuccessorDetail`과 `resumeAbsentTarget`을 빼놓았다. 실제
+소스는 그 둘을 import해서 대상 부재 복구 경로 네 곳에서 쓴다. 계획서의 "전체 After"로 import를 바꾸면
+`TS2304`가 나고, 타입을 지운 런타임에서는 채팅 recovery가 `ReferenceError`로 죽는다.
+
+§57과 같은 종류다. 적층 문서가 "선행이 추가한 이름 전부"를 자칭하면서 실제 소스를 세지 않았다.
+
+### High — ready와 Stop의 무결성 게이트가 갈렸다
+
+`loop ready`는 두 integrity helper로 invalid plan을 거부하는데, `readStopWorkContext()`는 검사 없이
+같은 ready API를 소비했다. 실측 반례다.
+
+```text
+plan: wp-1 tasks = [{id:"dup"}, {id:"dup"}]
+definition reasons: ["work phase wp-1 has duplicate task id 'dup', ..."]
+loop ready:  code 1
+Stop(무게이트): "wp-1/dup (first copy)", "wp-1/dup (second copy)" 둘 다 실행 가능으로 안내
+```
+
+사용자가 그 안내를 따라 `complete-task`를 부르면 invalid goalplan 거부를 받는다. Stop도 같은 게이트를
+지나고, invalid면 ready 목록 대신 진단을 낸다. 목록을 진단 옆에 나란히 두지 않는다 — 모호한 그래프에서
+뽑은 목록은 옆에 놓일 의미가 없다.
+
+§59와 같은 종류다. 같은 규칙을 쓰는 두 표면을 나란히 대조하지 않았다.
+
+### High — help가 실행되지 않는 문법을 광고했다
+
+`runAddOp()`는 `readState(args.cwd, session).slug`만 읽고 `args.slug`를 무시한다. `runSteer()`도
+같다. 그런데 help는 세 verb 모두 `--slug <slug>`를 적었다.
+
+```text
+session s -> slug A에 bound
+cxc loop add-work-phase --session s --slug B --id x --title y
+help상 대상: B / 실제 수정 대상: A
+```
+
+세 verb의 usage에서 `--slug`를 지웠다. `--slug`를 실제로 쓰는 읽기 verb `show`·`validate`·`ready`는
+`resolveSlug()`를 지나므로 그대로 둔다. parser의 `--slug` 처리도 남긴다.
+
+060 자체가 모순이었던 점도 있다. 공개 계약(75행)은 `--slug` 없이 적었는데 help 블록(1082행)은
+보존한다고 적었다.
+
+### High — 검증 순서에서 미해석 식별자 검사가 빠졌다
+
+계약 §37 W5의 첫 단계가 060에 없었다. wp5 §10.7의 `tsc` fingerprint 게이트를 focused보다 먼저 두도록
+고쳤다. 이 게이트를 실제로 돌려 **wp5 구현이 남긴 신규 진단 세 건**을 잡았다.
+
+```text
+goalplan.ts   TS2339  Property 'detail' does not exist on type 'GoalplanReadDiagnostic'
+state.ts      TS2322  Type 'unknown' is not assignable to type 'string'
+orchestrate-cli.test.ts  TS2304  Cannot find name 'Goalplan'  (4곳)
+```
+
+셋 다 실질 결함이다. `GoalplanReadDiagnostic`의 `absent` 변종에는 `detail`이 없어서
+`read.diagnostic?.detail`이 런타임에 조용히 `undefined`가 되고 진짜 사유가 일반 문구로 덮인다.
+`recorded`는 legacy 분기를 지난 뒤에도 `unknown`이라 좁히지 않고 넣었다. 테스트는 `Goalplan`을 타입
+주석으로 쓰면서 import하지 않았다. 세 곳을 고치니 신규 fingerprint 0건이고 focused 261/261이 유지된다.
+
+이것이 wp5 검증의 공백이었다. focused·build·npm test·gate 넷은 타입을 지운 뒤 실행하므로 이 셋 중
+어느 것도 잡지 못했다. wp5 §10.7이 게이트를 정의했지만 wp5 C에서 실행하지 않았다.
+
+### Medium — 문서 추적 검사가 false-green이었다
+
+`git diff --no-index /dev/null <문서>`는 내용과 무관하게 항상 exit 1이라 `test "$status" -eq 1`이
+아무것도 판정하지 않았다. 문서는 이미 tracked이므로 `?? …` 기대도 거짓이었다. wp5 §10.6과 같은
+`git ls-files --error-unmatch` + `git diff --check` 형태로 바꿨다.

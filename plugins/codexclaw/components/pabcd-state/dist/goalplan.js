@@ -756,9 +756,15 @@ export function withGoalplanWriteLock   (
 
     const read = readGoalplanDetailed(cwd, slug);
     if (!read.plan) {
+      // The `absent` variant of GoalplanReadDiagnostic carries no `detail`, so the field
+      // is read only where the union actually has it. An unconditional access compiles
+      // away under type stripping and reads `undefined` at runtime, which would swallow
+      // the real reason behind the generic fallback.
+      const diagnostic = read.diagnostic;
+      const detail = diagnostic && diagnostic.kind !== "absent" ? diagnostic.detail : null;
       return {
         kind: "unreadable",
-        reason: read.diagnostic?.detail ?? `goalplan '${slug}' could not be read`,
+        reason: detail ?? `goalplan '${slug}' could not be read`,
       };
     }
     return { kind: "ok", value: fn(read.plan) };

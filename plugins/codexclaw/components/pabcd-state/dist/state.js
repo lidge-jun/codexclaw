@@ -444,7 +444,9 @@ function reconstructDcloseRecovery(raw         , sessionId        )             
     sessionId,
     checkEpoch: marker.checkEpoch,
     closedWorkPhaseId: marker.closedWorkPhaseId,
-    nextWorkPhaseId: recorded,
+    // Every other shape was routed to `legacy` above, so this is a non-empty string or
+    // an explicit null. The guard narrows the value rather than asserting it.
+    nextWorkPhaseId: typeof recorded === "string" ? recorded : null,
   };
 }
 

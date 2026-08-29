@@ -14,8 +14,8 @@
 
 ## 실제 소스 기준선
 
-- `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:74`의 `GoalplanTask`는 현재
-  `id/title/status`만 가진다. wp2가 `dependsOn?`과 `outcome?`을 먼저 추가한다.
+- `GoalplanTask`는 wp2가 이미 `dependsOn?`과 `outcome?`을 넣었다. wp6은 그 필드를 소비만 한다.
+  wp5 구현으로 행 번호가 전부 밀렸으므로 이 문서의 앵커는 심볼 이름으로 읽는다.
 - `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:192`의 원장 event union에는
   `dependency_registered`가 없다.
 - `plugins/codexclaw/components/pabcd-state/src/goalplan.ts:615`의 `writeGoalplan()`과
@@ -171,6 +171,8 @@ rg -n --glob '*.test.ts' 'Usage:|--session <id>|--batch-json|idempotencyKey|read
 rg -n --glob '*.test.ts' -F \
   -e 'add-work-phase --session <id> --slug <slug>' \
   -e 'add-criterion --session <id> --slug <slug>' \
+  -e 'add-work-phase --session <id> --id' \
+  -e 'add-criterion --session <id> --criterion' \
   -e 'goalplan state was committed, but ledger append failed' \
   -e 'ledger append' \
   plugins/codexclaw/components/pabcd-state/test
@@ -185,7 +187,12 @@ rg -n --glob '*.test.ts' -F \
 | `Waiting on:` | 현재 checkout의 두 지정 테스트 파일에는 없음 | **wp6 / 060** | mixed ready/wait와 전역 교착 Stop 출력 회귀를 이 문서가 추가한다 |
 | `hook.test.ts`의 네 검색어 | `rg` 일치 0건. `CYCLE-COMPLETION-01` 단언은 Stop ready context shape가 아니라 채팅 D-close 거부 계약이다 | **wp6 / 060 검색 확인** | 바꿀 옛 필드·문자열 단언이 없으므로 diff 없음. 대신 `hook-continuation.test.ts`의 인계 세 테스트가 새 전체 shape를 잠근다 |
 | `loop show`에 `writeLock: absent path=<절대 경로>` 또는 `writeLock: present path=<절대 경로> ageMs=<ms>` 추가 | `goalplan.test.ts:194-196`이 기존 show 출력을 검사하며 새 줄 자체를 기다리는 테스트는 없음 | **wp6 / 이 문서** | 같은 기존 show case에 absent assertion을 넣고 present case를 추가 |
-| help에 `ready --json`, `add-task`, `complete-task --outcome`, `meet-criterion --evidence`, 반복 `--depends-on` 추가. 기존 `add-work-phase`와 `add-criterion`의 `--slug <slug>`는 보존 | `help-verbs.test.ts:18-29`가 loop help의 `Usage:`, `--session`, `--batch-json`, `idempotencyKey`를 검사. 기존 `--slug` 두 줄을 직접 기다리는 테스트는 없음 | **wp6 / 이 문서** | 기존 loop help case와 신규 공개 표면 테스트가 두 기존 `--slug` 줄과 새 문법을 함께 단언한다 |
+세 verb가 같은 문제를 공유한다. `runSteer()`도 `readState(args.cwd, session).slug`만 읽고 `args.slug`를
+무시하므로(`goalplan-cli.ts` 183행 근방) `--slug`는 `steer` usage에서도 지운다. `--slug`를 계속 받는
+verb는 세션 바인딩 없이 plan을 지목하는 읽기 경로 `show`·`validate`·`ready` 셋뿐이고, 그 셋은
+`resolveSlug()`로 실제 인자를 쓴다. parser의 `--slug` 처리 자체는 지우지 않는다 — 읽기 verb가 쓴다.
+
+| help에 `ready --json`, `add-task`, `complete-task --outcome`, `meet-criterion --evidence`, 반복 `--depends-on` 추가. `add-work-phase`와 `add-criterion`의 `--slug <slug>`는 **삭제**한다 | `help-verbs.test.ts:18-29`가 loop help의 `Usage:`, `--session`, `--batch-json`, `idempotencyKey`를 검사. 기존 `--slug` 두 줄을 직접 기다리는 테스트는 없다 | **wp6 / 이 문서** | 감사 라운드 1 High: `runAddOp()`는 `readState(args.cwd, session).slug`만 읽고 `args.slug`를 무시하므로, 두 줄은 실행되지 않는 문법을 광고한다. help에서 지우고, 신규 공개 표면 테스트가 두 usage 줄에 `--slug`가 없음을 단언한다 |
 | lifecycle 거부·성공 및 ledger append 경고 문구 신설 | 기존 테스트 없음. `steering.test.ts:180-190`은 steering 전용 ledger 실패 경고 관례만 검사 | **wp6 / 이 문서** | 신규 `goalplan-public-surface.test.ts`가 정확한 문자열·code·무변경과 plan commit 뒤 ledger 실패의 code 0·경고를 검사 |
 
 ### 최종 Stop 출력 문자열 정본 — wp6 단독 소유
@@ -1078,9 +1085,9 @@ export function renderGoalplanHelp(): string {
     "  cxc loop init --objective <text> --session <id> [--criterion <text>]... [--cwd <path>]",
     "  cxc loop show (--slug <slug> | --objective <text>) [--cwd <path>]",
     "  cxc loop validate --slug <slug> [--cwd <path>]",
-    "  cxc loop steer --session <id> --slug <slug> --batch-json <path-or-json> [--cwd <path>]",
-    "  cxc loop add-work-phase --session <id> --slug <slug> --id <id> --title <text> [--depends-on <id>]... [--cwd <path>]",
-    "  cxc loop add-criterion --session <id> --slug <slug> --criterion <text> [--surface logic|web|tui] [--cwd <path>]",
+    "  cxc loop steer --session <id> --batch-json <path-or-json> [--cwd <path>]",
+    "  cxc loop add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]... [--cwd <path>]",
+    "  cxc loop add-criterion --session <id> --criterion <text> [--surface logic|web|tui] [--cwd <path>]",
     "  cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]",
     "  cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]",
     "  cxc loop complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]",
@@ -1140,7 +1147,9 @@ import {
   unmetCriteria,
   withGoalplanWriteLock,
   writeGoalplan,
+  absentSuccessorDetail,
   closeFixedWorkPhase,
+  resumeAbsentTarget,
   type AdvanceResult,
   type Goalplan,
 } from "./goalplan.ts";
@@ -1185,7 +1194,9 @@ import {
   unmetCriteria,
   withGoalplanWriteLock,
   writeGoalplan,
+  absentSuccessorDetail,
   closeFixedWorkPhase,
+  resumeAbsentTarget,
   type AdvanceResult,
   type Goalplan,
 } from "./goalplan.ts";
@@ -1259,6 +1270,27 @@ export function readStopWorkContext(cwd: string, state: State): StopWorkContext 
   if (!slug) return null;
   const plan = readGoalplan(cwd, slug);
   if (!plan) return null;
+
+  // 감사 라운드 1 High: `loop ready` refuses an invalid plan, so Stop must not answer the
+  // same question from one. Measured on a plan with two tasks sharing an id: ready exits 1
+  // with `duplicate task id 'dup'`, while an ungated Stop listed BOTH `wp-1/dup (first)`
+  // and `wp-1/dup (second)` as runnable. The user then follows that guidance into a
+  // complete-task refusal. One gate, both surfaces — and the diagnostic replaces the ready
+  // list rather than sitting beside it, because a list built from an ambiguous graph has no
+  // meaning to sit beside.
+  const invalidReasons = [
+    ...goalplanDefinitionIntegrityReasons(plan),
+    ...goalplanDependencyCompletionReasons(plan),
+  ];
+  if (invalidReasons.length > 0) {
+    return {
+      readyWorkPhases: [],
+      readyTasks: [],
+      waitingOn: [`the goalplan is invalid: ${invalidReasons.join("; ")}`],
+      expectedEvidence: null,
+      ledgerPath: `.codexclaw/goalplans/${slug}/ledger.jsonl`,
+    };
+  }
 
   const phases = readyWorkPhases(plan);
   const tasks = readyTasks(plan);
@@ -1777,9 +1809,9 @@ test("help lists repeated dependency syntax and required outcome", () => {
   assert.match(help, /cxc loop init --objective/);
   assert.match(help, /cxc loop show \(--slug <slug> \| --objective <text>\)/);
   assert.match(help, /cxc loop validate --slug <slug>/);
-  assert.match(help, /cxc loop steer --session <id> --slug <slug> --batch-json/);
-  assert.match(help, /cxc loop add-work-phase --session <id> --slug <slug> --id <id>/);
-  assert.match(help, /cxc loop add-criterion --session <id> --slug <slug> --criterion <text>/);
+  assert.match(help, /cxc loop steer --session <id> --batch-json/);
+  assert.match(help, /cxc loop add-work-phase --session <id> --id <id>/);
+  assert.match(help, /cxc loop add-criterion --session <id> --criterion <text>/);
   assert.match(help, /\[--depends-on <id>\]\.\.\./);
   assert.match(help, /ready .*--json/);
   assert.match(help, /add-task .*\[--depends-on <task-id>\]\.\.\./);
@@ -1862,9 +1894,9 @@ assert.match(r.output, /ready .*--json/);
 assert.match(r.output, /cxc loop init --objective/);
 assert.match(r.output, /cxc loop show \(--slug <slug> \| --objective <text>\)/);
 assert.match(r.output, /cxc loop validate --slug <slug>/);
-assert.match(r.output, /cxc loop steer --session <id> --slug <slug> --batch-json/);
-assert.match(r.output, /cxc loop add-work-phase --session <id> --slug <slug> --id <id>/);
-assert.match(r.output, /cxc loop add-criterion --session <id> --slug <slug> --criterion <text>/);
+assert.match(r.output, /cxc loop steer --session <id> --batch-json/);
+assert.match(r.output, /cxc loop add-work-phase --session <id> --id <id>/);
+assert.match(r.output, /cxc loop add-criterion --session <id> --criterion <text>/);
 assert.match(r.output, /add-task .*\[--depends-on <task-id>\]\.\.\./);
 assert.match(r.output, /complete-task .*--outcome <text>/);
 assert.match(r.output, /meet-criterion .*--evidence <text>/);
@@ -2258,7 +2290,7 @@ test("comma dependency is rejected while repeated flags persist dependencies", (
 | `src/goalplan.ts` | wp5의 `node:fs` After를 보존한다. wp5 추가 이름은 `closeSync`, `fsConstants`, `lstatSync`, `statSync`, `writeSync`이며 wp6 import 추가는 없다. |
 | `src/steering.ts` | wp5의 `withGoalplanWriteLock`, `GoalplanWriteLockOptions`를 보존하고 wp6 `goalplanDefinitionIntegrityReasons`를 더한다. |
 | `src/goalplan-cli.ts` | wp2 `readGoalplanDetailed`, wp3 두 integrity helper, wp5 `goalplanWriteLockStatus`, `withGoalplanWriteLock`, `GoalplanWriteLockStatus`를 보존하고 wp6 공개 lifecycle 이름을 더한다. |
-| `src/hook.ts` | wp4 `dependencyDeadlock`, `effectiveActiveWorkPhaseId`와 wp5 fs/path/ledger/recovery 이름, `goalplanDefinitionIntegrityReasons`, `goalplanDependencyCompletionReasons`, `withGoalplanWriteLock`을 모두 보존하고 wp6 ready 이름을 더한다. |
+| `src/hook.ts` | wp4 `dependencyDeadlock`, `effectiveActiveWorkPhaseId`와 wp5 fs/path/ledger/recovery 이름, `goalplanDefinitionIntegrityReasons`, `goalplanDependencyCompletionReasons`, `withGoalplanWriteLock`, `closeFixedWorkPhase`, 그리고 §53 공유 판정 `absentSuccessorDetail`·`resumeAbsentTarget`을 모두 보존하고 wp6 `dependencyWaitReasons`·`readyWorkPhases`·`readyTasks`를 더한다. 뒤 두 이름은 채팅 D-close의 대상 부재 복구 경로가 쓰므로 빠지면 `TS2304`와 `ReferenceError`가 난다. |
 | `test/goalplan-public-surface.test.ts` | wp6 신규 파일 전체 import다. 선행 wp 추가 이름은 없다. |
 | `test/goalplan.test.ts` | wp2 `readGoalplanDetailed`, `effectiveSchemaVersion`과 wp4 `dependencyDeadlock`을 보존하고 wp6 `goalplanWriteLockDir`를 더한다. |
 | `test/help-verbs.test.ts` | import 변경 없음. |
@@ -2346,21 +2378,64 @@ tracked `dist/*.js`를 먼저 갱신한다. 그 다음 `npm test`가 dist byte e
 끝나고, 마지막 `npm run gate`가 exit 0으로 끝난다. build는 타입·import 오류를 검출하는 근거가
 아니며 배포 파일 생성과 manifest 검사만 맡는다.
 
+### 미해석 식별자 게이트 — focused보다 먼저
+
+감사 라운드 1 High: 계약 §37 W5의 첫 단계가 빠져 있었다. `--experimental-strip-types`와
+`npm run build`는 타입을 지우고 컴파일하므로 import 누락이나 type-only 오류를 잡지 못한다. 실제로
+이 라운드의 BLOCKER — hook `import`에서 `absentSuccessorDetail`·`resumeAbsentTarget`이 사라진 것 —
+는 focused 스위트를 통과하고 런타임 `ReferenceError`로만 드러난다.
+
+wp5가 `050_wp5_write_serialization.md` §10.7에 만든 게이트를 그대로 먼저 실행한다. wp6은 새 게이트를
+만들지 않고 baseline fixture `test/fixtures/tsc-diagnostic-baseline.txt`를 재사용한다. wp6이 만드는
+신규 파일 `test/goalplan-public-surface.test.ts`도 root에 포함되므로 새 진단은 신규 fingerprint로
+잡힌다. wp6 변경으로 선행 진단이 사라지면 `comm -13`이 신규만 보므로 게이트가 막지 않는다.
+
 ```bash
 #!/usr/bin/env bash
-set -u
+set -euo pipefail
 cd /Users/jun/Developer/new/700_projects/codexclaw
-test -f devlog/_plan/260829_goalplan-dependency-execution/060_wp6_public_surface.md
-git status --porcelain -- devlog/_plan/260829_goalplan-dependency-execution/060_wp6_public_surface.md
-status=0
-git diff --no-index /dev/null devlog/_plan/260829_goalplan-dependency-execution/060_wp6_public_surface.md || status=$?
-test "$status" -eq 1
+pab=plugins/codexclaw/components/pabcd-state
+test -f "$pab/test/fixtures/tsc-diagnostic-baseline.txt"
+gate_tmp="$(mktemp -d)"
+trap 'rm -rf "$gate_tmp"' EXIT
+tsc_log="$gate_tmp/tsc.log"
+set +e
+node_modules/.bin/tsc --noEmit --allowImportingTsExtensions --module nodenext \
+  --target es2023 --moduleResolution nodenext --skipLibCheck --types node \
+  "$pab"/src/*.ts "$pab"/test/*.ts > "$tsc_log" 2>&1
+tsc_status=$?
+set -e
+test "$tsc_status" -eq 0 -o "$tsc_status" -eq 2
+rg '^[^ ].*: error TS[0-9]+:' "$tsc_log" \
+  | sed -E 's/\(([0-9]+),([0-9]+)\)//' \
+  | sort -u > "$gate_tmp/fingerprints.txt"
+comm -13 "$pab/test/fixtures/tsc-diagnostic-baseline.txt" "$gate_tmp/fingerprints.txt" > "$gate_tmp/novel.txt"
+if test -s "$gate_tmp/novel.txt"; then
+  echo 'new tsc diagnostics appeared:' >&2
+  cat "$gate_tmp/novel.txt" >&2
+  exit 1
+fi
 ```
 
-첫 명령은 exit 0이다. 둘째 명령은 `?? devlog/_plan/260829_goalplan-dependency-execution/060_wp6_public_surface.md`를
-출력한다. `git diff --no-index`는 untracked 문서 전체 diff를 출력하고 exit 1이며, 마지막 `test`가
-그 상태를 정상값으로 바꿔 블록 전체를 exit 0으로 끝낸다. 출력에서 trailing whitespace와 공백 오류가
-없어야 한다. `git diff --name-only -- <문서>`는 이 검증에 쓰지 않는다.
+기대값은 exit 0이고 신규 fingerprint 0건이다. `tsc` 종료 코드는 선행 부채 때문에 0 또는 2다.
+
+### 담당 문서 추적 검사
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+cd /Users/jun/Developer/new/700_projects/codexclaw
+doc=devlog/_plan/260829_goalplan-dependency-execution/060_wp6_public_surface.md
+test -f "$doc"
+git ls-files --error-unmatch "$doc" >/dev/null
+! git status --porcelain -- "$doc" | rg -q '^\?\? '
+git diff --check -- "$doc"
+```
+
+감사 라운드 1 Medium: 이 문서는 이미 tracked이므로 `?? …060….md` 기대는 거짓이었다. 그리고
+`git diff --no-index /dev/null <문서>`는 내용과 무관하게 항상 exit 1이라 `test "$status" -eq 1`이
+아무것도 검증하지 않는 false-green이었다. wp5 §10.6과 같은 형태로 바꿨다 — `git ls-files`가 추적을,
+`git diff --check`가 공백 오류를 실제로 판정한다.
 
 ## 완료 조건
 
@@ -2389,7 +2464,7 @@ test "$status" -eq 1
   잃지 않고 context를 반환한다.
 - `cxc loop show`는 락 디렉터리 절대 경로와 존재 시 나이를 표시한다. wp5의 락 상태 helper는
   네 번째 `stat` seam을 보존하고 `existsSync()`와 `stat(path)` 사이 ENOENT를 absent로 정규화한다.
-- help 전체 After는 기존 `add-work-phase`와 `add-criterion`의 `--slug <slug>`를 보존한다.
+- help 전체 After는 `steer`, `add-work-phase`, `add-criterion`에서 `--slug <slug>`를 지운다. 세 verb는 세션 바인딩 slug만 읽으므로 그 인자가 실행되지 않는 문법이었다. `show`·`validate`·`ready`는 `resolveSlug()`로 실제 인자를 쓰므로 그대로 둔다.
 - `plugins/codexclaw/skills/loop/SKILL.md`가 스키마, CLI 동사, event, phase-local task 의존을 안내한다.
 - 공개 lifecycle 뒤에도 pending task D-close 거부가 유지된다.
 
