@@ -188,17 +188,47 @@ function collectStrings(value) {
   else if (value && typeof value === "object") Object.values(value).forEach(collectStrings);
 }
 collectStrings(snapshot);
-const uuid = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i;
-const absolutePath = /^(?:\/|[A-Za-z]:[\\/])/;
-const sha1 = /\b[0-9a-f]{40}\b/i;
+// 감사 라운드 1: 세 패턴 모두 도달 불가였다. 실측 근거와 함께 넓힌다.
+//
+// uuid — version nibble을 [1-5]로 못박으면 이 저장소의 세션 id를 하나도 못 잡는다. 운영 corpus의
+// ownerSessionId·reviewerSession 32건이 전부 UUIDv7이라 nibble이 7이다. 계약 §21이 요구한 것은
+// "UUID 형태"이고 특정 버전이 아니다.
+// absolutePath — ^ 앵커는 값 선두만 본다. collectStrings()가 문자열 전체를 하나로 넘기므로
+// objective나 detail 안에 박힌 경로는 선두가 아니다.
+// sha1 — \b{40}\b는 64자 sha256을 놓친다. fixture 키에 planSha256과 sha256이 실재한다.
+const uuid = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
+const absolutePath = /(?:^|\s)\/[A-Za-z0-9._-]+\/|[A-Za-z]:[\\/]/;
+const hash = /\b[0-9a-f]{32,}\b/i;
 if (strings.some((value) => uuid.test(value))) process.exit(9);
 if (strings.some((value) => absolutePath.test(value))) process.exit(10);
-if (strings.some((value) => sha1.test(value))) process.exit(11);
+if (strings.some((value) => hash.test(value))) process.exit(11);
+// 개수 하한. 구조 검사가 전부 상대 비교라 빈 baseline이 통과했다. 개수를 박는 것이 아니라
+// 0 초과만 요구하므로 계약 §26의 개수 고정 금지와 양립한다.
+if (!(snapshot.sourceCount > 0)) process.exit(12);
 NODE
 ```
 
-기대 종료 코드는 `0`이다. schema·manifest가 어긋나면 exit `1`~`8`, UUID·절대 경로·40자 hex가
-남으면 exit `9`~`11`이 난다. 발견 개수를 특정 숫자와 비교하는 단언은 없다.
+기대 종료 코드는 `0`이다. schema·manifest가 어긋나면 exit `1`~`8`, UUID 형태·절대 경로·32자 이상 hex가
+남으면 exit `9`~`11`, corpus가 비면 exit `12`가 난다. 발견 개수를 특정 숫자와 비교하는 단언은 없다 —
+`12`는 하한이지 고정값이 아니다.
+
+감사 라운드 1이 이 게이트를 14종 변이 baseline에 돌려 exit 9·10·11 셋이 도달 불가임을 실측했다.
+넓힌 패턴을 같은 변이에 다시 돌린 결과다.
+
+```text
+실측 세션 id(UUIDv7)      옛 정규식 false  →  넓힌 정규식 true
+문장 중간 절대 경로        옛 정규식 false  →  넓힌 정규식 true
+64자 sha256                옛 정규식 false  →  넓힌 정규식 true
+enum 문자열 오탐          넓힌 경로 정규식이 in_progress·logic 둘 다 false
+```
+
+실효 방어선은 이 정규식이 아니라 alias 불변식이다 — wp2 테스트의 `assertAliased()`가 91개 fixture에
+enum·`fixture-N`·`fixture-N-string-NNNN` 밖의 문자열이 0건임을 강제한다. 이 게이트는 이중 확인이며,
+이중 확인이 도달 불가면 이중이 아니다.
+
+생성기 `capture-goalplan-baseline.mjs`의 `PRIVACY_PATTERNS`도 같은 세 결함을 갖고 있다. wp7은
+production을 고치지 않으므로(§0) 생성기 backpatch는 이번 범위 밖이고, wp7은 게이트 쪽만 넓힌다.
+생성기 결함은 별도 항목으로 남긴다.
 
 ### 3.3 NEW — `test/goalplan-regression.test.ts`
 
@@ -279,6 +309,15 @@ function normalize(result: ReturnType<typeof readGoalplanDetailed>): NormalizedP
 test("wp7 corpus keeps the pre-change parser result set", () => {
   assert.equal(snapshot.sourceCount, snapshot.manifest.length);
   assert.equal(snapshot.fixtures.length, snapshot.manifest.length);
+  // 감사 라운드 1: 아래 deepEqual은 manifest를 자기 자신과 비교하므로 manifest가 축소되면 축소된
+  // 채로 동등해진다. 감사관이 legacy 1건만 남기고 재번호한 baseline에서 3건 전부 통과를 실측했다.
+  // 개수를 박지 않고 하한만 둔다 — corpus가 정상 항목을 하나도 안 갖는 상태는 회귀 대상이 아니라
+  // baseline이 망가진 상태다.
+  assert.ok(snapshot.manifest.length > 1, JSON.stringify({ manifest: snapshot.manifest.length }));
+  assert.ok(
+    snapshot.manifest.some((entry) => entry.sourceClass === "normal"),
+    "corpus must keep at least one normal fixture",
+  );
   const cwd = mkdtempSync(join(tmpdir(), "codexclaw-goalplan-regression-"));
   try {
     for (const fixture of snapshot.fixtures) {
@@ -705,7 +744,8 @@ test("wp7 preservation: review observer verdict keeps dependsOn and outcome", ()
 
 Stop 최종 문자열과 그 단언은 §33 N6에 따라 wp6만 소유한다. wp7은 테스트를 새로 추가하거나 정규식을
 느슨하게 다시 쓰지 않는다. wp6의 `wp6: Stop reason lists ready work and partial dependency waits
-together`를 아래 상태 그대로 인용하고 §7.2에서 재실행한다.
+together`를 아래에 발췌하고 §7.2에서 재실행한다. 정본은 `test/hook-continuation.test.ts`의 현재 본문이며,
+발췌와 어긋나면 소유 파일이 이긴다.
 
 ```ts
 test("wp6: Stop reason lists ready work and partial dependency waits together", () => {
@@ -822,8 +862,8 @@ test("wp7 preservation: show renders the write lock path and age", () => {
 
   // 기존 요약 줄은 두 경우 모두 그대로다. 새 줄이 기존 출력을 밀어내지 않는다.
   for (const out of [absent.output, present.output]) {
-    assert.match(out, /^\\[codexclaw loop: /m);
-    assert.match(out, /^criteria: 0 \\(unmet 0\\)$/m);
+    assert.match(out, /^\[codexclaw loop: /m);
+    assert.match(out, /^criteria: 0 \(unmet 0\)$/m);
     assert.match(out, /^complete: /m);
   }
 });
@@ -853,12 +893,15 @@ test("wp7 preservation: show survives a lock that vanishes between exists and st
 });
 ```
 
-`escapeRe()`는 이 파일 helper 구역에 둔다 — 락 경로가 `mktemp` 절대 경로라 정규식 특수문자를
-담을 수 있다.
+`escapeRe()`와 `NOW`는 이 파일 helper 구역에 둔다. 락 경로가 `mktemp` 절대 경로라 정규식 특수문자를
+담을 수 있고, `NOW`는 이 파일에 아직 없다 — stale check 실측에서 `rg -n '\bNOW\b' test/goalplan.test.ts`가
+0건이었다. 두 이름 모두 위 두 테스트가 참조하므로 같은 커밋에서 helper 구역에 신설한다.
 
 ```ts
+const NOW = "2026-08-29T00:00:00.000Z";
+
 function escapeRe(text: string): string {
-  return text.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 ```
 
@@ -921,6 +964,10 @@ function taskFields(plan: { workPhases: Array<{ tasks: Array<{
 
 wp7은 아래 테스트 본문을 다른 파일에 복제하지 않는다. wp5·wp6의 최종 테스트를 인수하고 §7.2에서
 각 소유 파일을 재실행한다.
+
+아래 네 코드 블록(T3·T8·T9·T11)은 **인수 대상을 식별하는 발췌**다. 정본은 각 항목이 밝힌 소유 파일의
+현재 본문이며, 발췌와 소유 파일이 어긋나면 소유 파일이 이긴다. wp7 B는 이 블록을 붙여넣지 않고
+§7.2에서 소유 파일을 그대로 재실행한다. §4.6의 Stop 인용도 같은 규칙을 따른다.
 
 #### T3 — steering batch의 모든 op 적용
 
@@ -1177,6 +1224,10 @@ dist를 먼저 다시 만든다. 뒤따른 루트 `npm test`의 `dist-freshness.
 byte equality를 확인한다. root에는 typecheck script와 root `tsconfig.json`이 없으므로 인자 없는
 `npx tsc --noEmit`을 성공 게이트로 쓰지 않는다.
 
+`npm test`는 단독으로 돌린다. 끝난 뒤 등록 총계가 `2262 + wp7 신규 8 = 2270`인지 확인한다. 총계가
+줄었으면 통과 개수만 보고 넘기지 말고 계약서 §64의 C10 경쟁(`build.mjs`의 `rmSync(distDir)`가 다른
+실행의 dist 독자를 죽인다)을 의심하고, 병렬 실행을 멈춘 뒤 단독으로 다시 돌린다.
+
 ### 7.4 변경 범위
 
 ```bash
@@ -1184,10 +1235,11 @@ git status --porcelain -- \
   devlog/_plan/260829_goalplan-dependency-execution/070_wp7_regression.md
 ```
 
-이번 P 문서 재작성의 기대 출력은 아래 한 줄뿐이다.
+이번 P 문서 재작성의 기대 출력은 아래 한 줄뿐이다. 이 파일은 wp5에서 이미 tracked가 되었으므로
+`??`가 아니라 수정 표시가 나온다.
 
 ```text
-?? devlog/_plan/260829_goalplan-dependency-execution/070_wp7_regression.md
+ M devlog/_plan/260829_goalplan-dependency-execution/070_wp7_regression.md
 ```
 
 ## 8. 롤백 경계
