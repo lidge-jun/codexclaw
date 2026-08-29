@@ -1,0 +1,24 @@
+plugins/codexclaw/components/pabcd-state/src/cli.ts: error TS2339: Property 'reason' does not exist on type '{ ok: true; path: string; replacedMalformed: boolean; } | { ok: false; reason: string; }'.
+plugins/codexclaw/components/pabcd-state/src/comment-lint.ts: error TS2339: Property 'reason' does not exist on type 'LintResult'.
+plugins/codexclaw/components/pabcd-state/src/hook.ts: error TS2339: Property 'reason' does not exist on type 'CheckGateResult'.
+plugins/codexclaw/components/pabcd-state/src/hook.ts: error TS2741: Property 'dependencyBlockedReason' is missing in type '{ nextTaskTitle: string; expectedEvidence: string; ledgerPath: string; }' but required in type 'StopWorkContext'.
+plugins/codexclaw/components/pabcd-state/src/interview-ledger.ts: error TS2352: Conversion of type 'Record<string, unknown>' to type 'InterviewQaEvent' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+plugins/codexclaw/components/pabcd-state/src/interview-policy.ts: error TS2459: Module '"./fsm.ts"' declares 'Phase' locally, but it is not exported.
+plugins/codexclaw/components/pabcd-state/src/interview.ts: error TS2352: Conversion of type 'Record<string, unknown>' to type 'DimensionScore' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+plugins/codexclaw/components/pabcd-state/src/orchestrate-cli.ts: error TS2339: Property 'reason' does not exist on type 'CheckGateResult'.
+plugins/codexclaw/components/pabcd-state/src/orchestrate-cli.ts: error TS2339: Property 'reason' does not exist on type 'PlanArtifactResult'.
+plugins/codexclaw/components/pabcd-state/src/review-observer.ts: error TS2322: Type 'string' is not assignable to type 'GoalplanLedgerEvent'.
+plugins/codexclaw/components/pabcd-state/src/review-observer.ts: error TS2339: Property 'kind' does not exist on type 'never'.
+plugins/codexclaw/components/pabcd-state/src/review-round-cli.ts: error TS2339: Property 'kind' does not exist on type 'never'.
+plugins/codexclaw/components/pabcd-state/src/review-round-cli.ts: error TS2554: Expected 5 arguments, but got 4.
+plugins/codexclaw/components/pabcd-state/test/check-gate-generated.test.ts: error TS2339: Property 'reason' does not exist on type 'CheckGateResult'.
+plugins/codexclaw/components/pabcd-state/test/crlf-inputs.test.ts: error TS2339: Property 'reason' does not exist on type 'LintResult'.
+plugins/codexclaw/components/pabcd-state/test/fsm.test.ts: error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+plugins/codexclaw/components/pabcd-state/test/interview.test.ts: error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+plugins/codexclaw/components/pabcd-state/test/interview.test.ts: error TS2345: Argument of type '{ roundId: number; dimensions: {}; contradictions: any[]; assumptions: any[]; }' is not assignable to parameter of type 'InterviewTracker'.
+plugins/codexclaw/components/pabcd-state/test/orchestrate-apply.test.ts: error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+plugins/codexclaw/components/pabcd-state/test/orchestrate-cli.test.ts: error TS2339: Property 'attest' does not exist on type 'OrchestrateCliArgs | OrchestrateCliHelpArgs'.
+plugins/codexclaw/components/pabcd-state/test/orchestrate-cli.test.ts: error TS2339: Property 'attestError' does not exist on type 'OrchestrateCliArgs | OrchestrateCliHelpArgs'.
+plugins/codexclaw/components/pabcd-state/test/orchestrate-cli.test.ts: error TS2339: Property 'verb' does not exist on type 'OrchestrateCliArgs | OrchestrateCliHelpArgs'.
+plugins/codexclaw/components/pabcd-state/test/orchestrate-cli.test.ts: error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+plugins/codexclaw/components/pabcd-state/test/subagent-evidence.test.ts: error TS2352: Conversion of type 'State' to type 'Record<string, unknown>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.

@@ -4843,36 +4843,54 @@ for root in "${roots[@]}"; do
   rg -qF "$root" "$listed" || { echo "root not analyzed: $root" >&2; exit 1; }
 done
 
-# 코드 종류만 허용하면 그 코드로 이름 오류를 위장할 수 있다. namespace import의 오타 속성은
-# 미해석 이름 코드가 아니라 TS2339로 보고되며 종류 집합은 그대로다. 실측으로 재현했다.
-# 그래서 코드별 정확한 건수를 고정한다. 어느 쪽으로든 달라지면 실패다.
-counts="$gate_tmp/counts.txt"
-rg -o 'error (TS[0-9]+)' -r '$1' "$tsc_log" | sort | uniq -c \
-  | awk '{ print $2 " " $1 }' | sort > "$counts"
+# 코드별 총합만 고정하면 교환을 놓친다. 선행 TS2339 하나를 고치고 다른 파일에 새 TS2339를
+# 하나 넣으면 총합이 그대로다. 실측으로 재현했다. 그래서 진단마다 파일·코드·메시지
+# fingerprint를 만들고 신규 fingerprint를 금지한다. 기존 것이 사라지는 것은 허용한다 —
+# 선행 부채를 고치는 작업이 이 게이트에 막히지 않아야 한다.
+fingerprints="$gate_tmp/fingerprints.txt"
+rg '^[^ ].*: error TS[0-9]+:' "$tsc_log" \
+  | sed -E 's/\(([0-9]+),([0-9]+)\)//' \
+  | sort -u > "$fingerprints"
 
-expected="$gate_tmp/expected.txt"
-cat > "$expected" <<'EOF'
-TS2322 1
-TS2339 29
-TS2345 5
-TS2352 6
-TS2459 1
-TS2554 1
-TS2741 1
-EOF
-sort -o "$expected" "$expected"
-diff -u "$expected" "$counts"
+# 정본 baseline. 줄 위치를 지웠으므로 코드 이동만으로는 흔들리지 않는다.
+baseline=$pab/test/fixtures/tsc-diagnostic-baseline.txt
+test -f "$baseline"
+
+# 신규 fingerprint가 하나라도 있으면 실패다.
+novel="$gate_tmp/novel.txt"
+comm -13 "$baseline" "$fingerprints" > "$novel"
+if test -s "$novel"; then
+  echo 'new tsc diagnostics appeared:' >&2
+  cat "$novel" >&2
+  exit 1
+fi
 
 # 선행 TS2459는 위치까지 고정한다.
 rg -q 'src/interview-policy\.ts\(25,15\): error TS2459' "$tsc_log"
 
-# 억제 주석은 미해석 식별자를 진단 자체가 나오지 않게 지운다. 실측으로 확인했다.
-# 선행 1건만 허용하고 wp5가 새로 넣지 않았음을 고정한다.
-suppressions="$(rg -c '@ts-ignore|@ts-expect-error|@ts-nocheck' "${roots[@]}" | wc -l | tr -d '[:space:]')"
+# 억제 주석은 진단 자체가 나오지 않게 지우므로 fingerprint로도 잡히지 않는다. occurrence를
+# 센다 — `rg -c | wc -l`은 파일 수라서 같은 파일에 더 넣는 것을 놓친다. 실측으로 확인했다.
+suppressions="$(rg -o '@ts-ignore|@ts-expect-error|@ts-nocheck' "${roots[@]}" | wc -l | tr -d '[:space:]')"
 test "$suppressions" -eq 1
-rg -q '@ts-expect-error' "$pab/test/source-identity.test.ts"
+rg -q '^        // @ts-expect-error "unavailable" is still reachable here$' \
+  "$pab/test/source-identity.test.ts"
 ```
 
+baseline fixture는 wp5가 만드는 tracked 파일이다. 현재 checkout에서 아래로 생성하며 24줄이다.
+
+```bash
+pab=plugins/codexclaw/components/pabcd-state
+node_modules/.bin/tsc --noEmit --allowImportingTsExtensions --module nodenext \
+  --target es2023 --moduleResolution nodenext --skipLibCheck --types node \
+  "$pab"/src/*.ts "$pab"/test/*.ts 2>&1 \
+  | rg '^[^ ].*: error TS[0-9]+:' \
+  | sed -E 's/\(([0-9]+),([0-9]+)\)//' \
+  | sort -u > "$pab/test/fixtures/tsc-diagnostic-baseline.txt"
+```
+
+`(행,열)`을 지우므로 무관한 코드 이동으로 흔들리지 않는다. 메시지에 절대 경로가 들어가는 진단은
+현재 0건이라 체크아웃 위치에도 의존하지 않는다. 선행 부채를 실제로 고치면 fingerprint가 사라지는데
+`comm -13`은 신규만 보므로 게이트가 막지 않는다. 그때 fixture를 줄여 커밋하는 것은 선택이다.
 기대값은 여섯 export 선언 검사 exit 0, `tsc` 종료 코드 0 또는 2, bootstrap 오류 0건,
 `@types/node/index.d.ts` 적재 확인, root 전부 분석, 코드별 건수가 위 표와 `diff -u`로 완전히
 일치, 선행 `TS2459` 위치 확인, 억제 주석 1건인 것이다.
@@ -4901,11 +4919,18 @@ bootstrap 실패도 같은 방식으로 확인했다. 계획서의 게이트 블
 아무 것도 추가하지 않은 채로 잡는다.
 
 허용된 코드로 위장해 미해석 이름을 숨길 수 있는지도 시도했다. member access, cast, 인자 위치,
-`any` 우회 네 형태는 모두 `TS2304`가 그대로 나와 잡힌다. 통하는 우회는 두 가지였다. 하나는
-namespace import 오타이며 건수 고정으로 닫았다. 다른 하나는
-`@ts-ignore`나 `@ts-expect-error`를 붙이면 진단 자체가 발생하지 않는다. 그래서 억제 주석 수도
-ratchet으로 고정한다. 현재 pabcd-state에는 `test/source-identity.test.ts:189` 한 건뿐이며 wp5는
-새로 넣지 않는다. 주입 검증에서 이 경로도 exit 1이다.
+`any` 우회 네 형태는 모두 `TS2304`가 그대로 나와 잡힌다. 통하는 우회는 세 가지였고 셋 다 닫았다.
+
+- namespace import 오타는 허용된 `TS2339`로 보고된다. fingerprint baseline이 새 진단을 잡는다.
+- 선행 진단 하나를 고치고 다른 곳에 같은 코드의 새 진단을 넣는 교환은 코드별 총합을 그대로
+  유지한다. fingerprint는 파일과 메시지까지 보므로 교환도 신규로 잡는다.
+- `@ts-ignore`·`@ts-expect-error`·`@ts-nocheck`는 진단 자체를 없애 fingerprint로도 보이지
+  않는다. occurrence 수를 고정한다. `rg -c | wc -l`은 파일 수라서 같은 파일에 두 번째를 넣는
+  것을 놓쳤다 — `rg -o | wc -l`로 실제 occurrence를 세고 그 한 줄의 정확한 문구까지 고정한다.
+
+주입 검증 아홉 경로 전부에서 게이트가 실패하고 복원 뒤 통과한다. 깨끗한 checkout,
+`@types/node` 해석 실패, 추가 `TS2459`, 잘못된 플래그, `TS2614`, 억제 주석, namespace 오타,
+같은 코드 신규 fingerprint, 같은 파일 두 번째 억제 주석이다.
 
 이 게이트는 미해석 식별자만 본다. 타입 호환성, signature 불일치, 논리 오류는 잡지 않는다.
 그 부류는 focused suite와 `npm test`가 맡는다.
