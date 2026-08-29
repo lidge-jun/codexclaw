@@ -2443,3 +2443,100 @@ Fermat은 코드 실행 가능성·변이 검출 각도였다. 판정은 CHANGES
 소유 파일에서 옮겨온 것이라 시간이 지나면 반드시 어긋나는데, 표시가 없으면 다음 사람이 블록을 소유 파일에
 붙여넣어 소유 규칙을 깬다.
 
+## §66 wp7 A 라운드 2 — 감사관 429 두 번, 결함 계열의 일곱째·여덟째 사례
+
+라운드 1의 두 감사관(Hypatia·Fermat)이 응답 없이 멈춰 DISPATCH-RETIRE-01로 은퇴시켰다. 새로 파견한
+Ramanujan·Erdos도 `429 Too Many Requests`로 죽었다. 세 번째 파견 Chandrasekhar·Sagan을
+`gpt-5.6-terra`로 모델을 바꿔 띄웠고 둘 다 완주했다.
+
+감사관이 세 번 죽는 동안 디스패처가 손을 놓지 않은 것이 이 라운드의 실질적 성과다. 대기만 했다면
+아래 다섯 결함 중 넷을 못 찾았다.
+
+### 디스패처가 직접 실측해 찾은 것
+
+| # | 위치 | 결함 | 근거 |
+| --- | --- | --- | --- |
+| 1 | §7.3 | 신규 `test()` 개수를 8로 적었다 | 섹션별로 세니 10건이다 |
+| 2 | §7.3 | 컴포넌트 게이트로 `npm test`를 적었다 | 그 명령은 `fail 1`을 낸다 |
+| 3 | §6.2 | `:927`에 소유 파일이 없어 `hook.test.ts` 좌표로 읽혔다 | 실제로는 `orchestrate-cli.test.ts:927` |
+| 4 | §4.6 | 인용 블록이 소유 파일보다 7줄 짧았다 | `readStopWorkContext` `waitingOn` `deepEqual` 구역 누락 |
+| 5 | §4.1·§4.2·§4 머리·§5 | import·helper 사본 네 곳이 실제 파일과 어긋났다 | 아래 별도 항목 |
+
+### 컴포넌트 `npm test`가 내는 `fail 1`의 정체
+
+이것을 회귀로 오해하면 wp7 전체가 멈춘다. 원인은 wp2가 `d9259ca6`에서 들여온 생성기다.
+
+```
+test/fixtures/capture-goalplan-baseline.mjs:161
+if (process.argv[1] !== undefined && process.argv[1].endsWith("capture-goalplan-baseline.mjs")) {
+  captureBaseline();
+}
+```
+
+"직접 실행일 때만 돈다"는 가드인데, `node --test`도 `argv[1]`을 발견한 파일로 채운다. 실측으로 확인했다 —
+`node --test`에서 `NODE_TEST_CONTEXT=child-v8`이고 `argv[1]`이 그 파일이다. 그래서 가드가 뚫리고,
+컴포넌트 cwd에 없는 `.codexclaw/goalplans`를 `readdirSync`해 `ENOENT`로 죽는다.
+
+| 명령 | 결과 |
+| --- | --- |
+| 컴포넌트 `npm test`(인자 없는 `node --test`) | `pass 1087 fail 1` |
+| 컴포넌트 `node --test 'test/*.test.ts'` | `pass 1087 fail 0` |
+| 루트 `npm test` | glob이 `test/*.test.ts`라 이 파일을 줍지 않는다 |
+
+wp7은 §0 때문에 이 파일을 고치지 않는다. 게이트 명령만 정확히 적어 우회하고 처분은 후속으로 넘겼다.
+
+### 결함 계열의 일곱째·여덟째 사례
+
+여섯 번까지는 "두 사본이 어긋난다"로 묶였는데, 이번 둘은 어긋나는 방식이 새롭다.
+
+일곱째, **좌표에 소유자가 없으면 앞 문맥에 딸려 읽힌다.** §6.2의 `:927`은 그 자체로 틀리지 않았다.
+앞에 `hook.test.ts:982`·`:1028`이 있어서 같은 파일의 다른 줄로 읽혔을 뿐이다. 좌표는 파일명과 붙어
+있어야 좌표다.
+
+여덟째, **같은 이름의 helper가 문서 두 곳에서 다른 서명을 갖는다.** §4 머리는 `plan: Goalplan`,
+§5는 구조 타입이었다. 구조 타입 쪽을 정본으로 골랐다 — `review-binding.test.ts:10`에 `type Goalplan`
+import가 없어서 `Goalplan` 서명은 그 파일에만 import를 더하게 만든다. 정본을 고르는 기준은 "어느 쪽이
+먼저 쓰였나"가 아니라 "어느 쪽이 대상 파일 전부에 그대로 들어가나"였다.
+
+덧붙여 §5가 "네 파일"이라고 쓴 것도 틀렸다. §4.4와 §4.5가 `review-binding.test.ts` 하나를 공유하므로
+helper가 들어가는 파일은 셋이다. 같은 파일을 두 섹션으로 쪼개면 파일 수와 섹션 수가 갈라진다.
+
+### 감사관 실측 결과
+
+Chandrasekhar(corpus·privacy)가 High 2건을 냈고 둘 다 받았다.
+
+privacy `absolutePath`가 `\s` 경계만 봐서 괄호·인용부호·대괄호 뒤 경로를 놓쳤고, 반대로 `/v1/goalplans`와
+URL을 경로로 오탐했다. 제안받은 형태로 바꾼 뒤 직접 검증했다 — 9종 경로 전부 true, 11종 비경로 전부
+false, 실제 fixture 문자열 7642건에 hit 0건, 게이트 exit 0.
+
+§3.3 corpus 하한이 `sourceClass === "normal"`만 봐서 manifest 전부를 `invalid-shape`로 바꾼 변이를
+통과시켰다. `normal && parsed`를 한 항목에서 함께 요구하도록 바꿨고 그 변이가 RED가 됨을 확인했다.
+
+라운드 3에서 Chandrasekhar가 숫자 하나를 더 잡았다. 내가 `16428 문자열`이라 썼는데 게이트의
+`collectStrings`는 `Object.values`만 내려가므로 7642건이다. 16428은 키를 포함한 다른 walker의 값이었다.
+이걸 고치면서 같은 주석의 "fixture 키에 planSha256과 sha256이 실재한다"도 틀렸다는 것이 드러났다 —
+키 이름 8786건은 스캔 대상이 아니고 방어선은 그 키의 값이다. 숫자 하나를 검증하니 그 숫자를 설명하던
+문장이 같이 무너졌다.
+
+Sagan(RMW 경로)이 BLOCKER 1건을 냈다. 내가 §7.3에 적은 섹션별 분해가 §4.3~§4.5를 각 2건으로 세서
+합계 13이 됐다. 내 카운터가 `before` 블록의 앵커 `test(` 줄을 신규로 셌기 때문이다. 합계 10은 맞았고
+분해가 틀렸다. 총계가 맞으면 분해도 맞다고 넘기면 안 된다.
+
+Sagan의 통과 실측이 wp7 B의 실행 근거다. §4.1~§4.5 after를 실제 사본에 붙여 `orchestrate-cli` 97/97,
+`hook` 76/76, `steering` 26/26, `review-binding` 9/9 통과했고, 여섯 write 지점의 필드 제거 변이가 전부
+`Expected values to be strictly deep-equal`로 CAUGHT됐다. §6.2 좌표도 전수 일치를 확인했다.
+
+### 디스패처의 §4.7 독립 실증
+
+감사관을 기다리는 동안 §4.7 두 테스트를 `test/goalplan.test.ts` 사본에 붙여 40/40 통과를 확인했고
+(기존 38 + 신규 2), 세 변이가 전부 CAUGHT임을 실증했다.
+
+| 변이 | 결과 |
+| --- | --- |
+| 락 렌더 두 줄 제거 | CAUGHT, fail 2 |
+| `ageMs` 출력 제거 | CAUGHT, fail 1 |
+| `goalplanWriteLockStatus()`의 ENOENT 정규화 제거 | CAUGHT, fail 2 |
+
+매 변이 뒤 소스를 byte 동일로 복구하고 `git status`가 비었음을 확인했다. `escapeRe()`도 실행해서
+`/tmp/a.b+c(d)`가 제대로 이스케이프되고 그 정규식이 유사 문자열을 거르는지 봤다.
+
