@@ -1766,6 +1766,13 @@ export type ResumeAbsentTargetResult =
 | 대상 done, successor done | `already_done` |
 | 대상 done, successor done, 커서 wp-3 진행 | `already_done` — 커서 보존 |
 
+대상이 열려 있고 기록된 successor가 끝난 경우 커서를 `null`로 두는 것이 옳은지도 실측했다. 같은 plan에
+`wp-3`가 `pending`으로 있어도 재개는 커서를 `null`로 남긴다. 재개는 앞선 시도가 내린 결정을 완성하는
+일이고 그 결정은 `wp-2`였다. `wp-3`를 시작하는 것은 그 시도가 하지 않은 새 결정이므로 재개가 대신
+내릴 수 없다. 같은 plan을 새로 close하면 `wp-3`를 시작하는 것과 대조된다 — 두 결과가 다른 것이 고정
+target 계약의 정의다. 그 결과를 같은 marker로 다시 넣으면 `already_done`이므로 멱등이다. 커서가 `null`인
+상태에서 남은 `pending` phase는 다음 P가 집어 든다.
+
 §50~§52의 경계 스물세 가지가 모두 유지된다.
 
 회귀 하나를 더 둔다. 채팅에서 대상이 없고 기록된 successor가 `pending`인 재개가 그 phase를 활성화하는지
