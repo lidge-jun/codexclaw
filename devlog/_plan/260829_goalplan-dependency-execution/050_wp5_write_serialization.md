@@ -4764,32 +4764,32 @@ module-private `goalplanLedgerRows()`를 호출했다.
 이름을 손으로 나열하는 검사로는 이 부류를 닫지 못한다. 목록에 없는 이름은 검사되지 않으므로
 나열이 불완전한 순간 false-green이 된다. 그래서 실제 TypeScript 해석기를 쓴다. 저장소에는
 typecheck script도 tsconfig도 없지만 `node_modules/.bin/tsc` 5.9.3이 이미 있다. 전체 strict
-검사는 이 저장소에 선행 오류가 많아 게이트로 쓸 수 없고, **미해석 식별자 부류만** 뽑으면
-현재 기준선이 정확히 0이다. 그래서 그 오류 코드만 센다.
+검사는 이 저장소에 선행 오류가 많아 그대로는 게이트로 쓸 수 없다. 그래서 선행 부류만 허용하고
+나머지 진단을 전부 실패로 보는 방향으로 좁힌다.
 
-- `TS2304` 이름을 찾을 수 없음
-- `TS2552` 오타 추정 이름
-- `TS2305` 모듈에 그 export가 없음
-- `TS2307` 모듈 경로 자체를 찾을 수 없음
-- `TS2724` 모듈에 그 이름의 export가 없음(유사 이름 제안 포함)
-
-`TS2307`이 필요한 이유는 type-only import의 경로가 틀린 경우다. strip-types가 그 줄을 지우고
-가므로 focused suite와 `npm test`가 모두 숨긴다. `TS2459`는 선행 1건
-(`src/interview-policy.ts:25`, `fsm.ts`가 `Phase`를 지역 선언만 하고 export하지 않는다)이 있어
-0을 요구할 수 없으므로 그 한 줄만 허용하는 ratchet으로 둔다.
-
-`tsc ... | rg -c ... || echo 0` 형태를 쓰지 않는다. 그 구조는 미해석 식별자가 없는 경우와 `tsc`
-자체가 실패한 경우를 똑같이 0으로 접는다. 잘못된 플래그, glob 실패, binary 부재가 모두 통과한다.
-실측으로 확인했다. 그래서 실행과 계수를 분리하고 invocation 오류를 먼저 거른다.
-
-`@types/node`도 같은 부류의 함정이다. 이 저장소의 `node_modules`에는 `@types/node`가 없고
-`devDependencies`도 비어 있어, 지금 해석되는 경로는 상위 디렉터리
-`/Users/jun/Developer/new/node_modules/@types/node`다. 저장소 밖에 있으므로 clean clone이나
-CI에서는 없을 수 있다. 그 상태에서 `--types node`는 `TS2688`을 내고 의미 분석이 중단되며,
-미해석 식별자 계수는 0이 되어 게이트가 통과한다. 실측으로 재현했다. 그래서 `TS2688`을 실패
-조건에 넣고, `--listFilesOnly` 출력에 `@types/node/index.d.ts`가 실제로 있는지 양성 확인한다.
 wp5는 `package.json`을 수정하지 않는다 — 그 파일은 이 작업 범위 밖이고 다른 작업과 겹친다.
 게이트가 부재를 소리내어 실패하게 만드는 것으로 충분하다.
+
+오류 코드를 하나씩 열거하는 방식은 이 부류를 닫지 못한다. `TS2305`와 `TS2724`를 넣어도
+`TS2459`가 빠져나갔고, 그것을 넣어도 `TS2614`가 빠져나갔다 — 대상 모듈이 default export를 갖고
+같은 이름을 named import하면 TypeScript는 `TS2614`를 낸다. 열거는 다음 코드가 나올 때마다
+뚫린다. 그래서 방향을 뒤집는다. **이미 있는 부류만 허용하고 나머지 전부를 실패로 본다.**
+
+현재 이 저장소의 선행 진단 44건은 코드별로 아래와 같고 전부 타입 호환성 불만이다.
+
+| 코드 | 건수 | 부류 |
+| --- | --- | --- |
+| `TS2339` | 29 | union에 없는 속성 접근 |
+| `TS2352` | 6 | 겹치지 않는 타입 단정 |
+| `TS2345` | 5 | 인자 타입 불일치 |
+| `TS2741` | 1 | 필수 속성 누락 |
+| `TS2554` | 1 | 인자 개수 불일치 |
+| `TS2322` | 1 | 대입 타입 불일치 |
+| `TS2459` | 1 | export되지 않은 이름 import |
+
+앞 여섯은 wp5가 손대지 않는 선행 부채이며 건수가 늘어도 미해석 식별자와 무관하다. 그래서
+허용 목록에 둔다. `TS2459` 1건은 위치까지 고정하는 ratchet으로 따로 잡는다. 그 밖의 코드가
+하나라도 나타나면 실패다. 새 코드를 미리 알 필요가 없다.
 
 ```bash
 #!/usr/bin/env bash
@@ -4821,13 +4821,11 @@ node_modules/.bin/tsc --noEmit --allowImportingTsExtensions --module nodenext \
 tsc_status=$?
 set -e
 
-# tsc가 실제로 실행됐는지는 종료 코드와 아래 양성 확인으로 판정한다. 빈 로그를 실패로
-# 삼지 않는다 — 선행 타입 오류가 모두 정리되면 정상 실행도 빈 로그를 낸다.
-# 2는 진단 있음, 0은 진단 없음이다. 그 밖의 값은 실행 자체가 실패한 것이다.
+# 잘못된 플래그는 1, 진단이 있는 정상 실행은 2, 진단이 없으면 0이다. 실측값이다.
 test "$tsc_status" -eq 0 -o "$tsc_status" -eq 2
 
 # 컴파일러 bootstrap 실패는 즉시 실패시킨다. TS2688 이후 의미 분석이 중단되므로
-# 미해석 식별자 계수가 0이 되어 게이트가 통과해버린다. 실측으로 재현했다.
+# 미해석 식별자가 남아도 보이지 않는다. 실측으로 재현했다.
 ! rg -q 'TS2688|TS6231|TS5023|TS5024|TS5025|TS6046|TS6053|TS18003' "$tsc_log"
 
 # node 타입이 실제로 해석되었는지 양성 확인. `--types node`만 주면 해석 실패도 조용하다.
@@ -4842,16 +4840,20 @@ for root in "${roots[@]}"; do
   rg -qF "$root" "$listed" || { echo "root not analyzed: $root" >&2; exit 1; }
 done
 
-unresolved="$(rg -c 'TS2304|TS2552|TS2305|TS2307|TS2724' "$tsc_log" || true)"
-test "${unresolved:-0}" -eq 0
+# 선행 타입 호환성 부류만 허용한다. 그 밖의 코드는 전부 실패다.
+benign='TS2339|TS2352|TS2345|TS2741|TS2554|TS2322'
+offending="$gate_tmp/offending.txt"
+rg -o 'error (TS[0-9]+)' -r '$1' "$tsc_log" | rg -v "^($benign)\$" | sort > "$offending"
 
-ratchet="$(rg -c 'TS2459' "$tsc_log" || true)"
-test "${ratchet:-0}" -eq 1
+# 남는 것은 위치까지 고정된 선행 TS2459 한 건뿐이다.
+test "$(wc -l < "$offending" | tr -d '[:space:]')" -eq 1
+rg -qx 'TS2459' "$offending"
 rg -q 'src/interview-policy\.ts\(25,15\): error TS2459' "$tsc_log"
 ```
 
-기대값은 여섯 export 선언 검사가 exit 0, root 전부가 분석 목록에 있고, 미해석 식별자 수가 0,
-`TS2459`가 정확히 그 선행 1건인 것이다.
+기대값은 여섯 export 선언 검사 exit 0, `tsc` 종료 코드 0 또는 2, bootstrap 오류 0건,
+`@types/node/index.d.ts` 적재 확인, root 전부 분석, 허용 목록 밖 진단이 그 선행 `TS2459`
+한 건뿐인 것이다.
 
 이 게이트가 무엇을 잡는지 `hook.test.ts` 임시 사본에 주입해 확인했다. 기준선 0에서 누락 import
 `dirname` 1건, 누락 타입 `Goalplan` 1건, 다른 파일의 private helper `goalplanLedgerRows` 1건,
@@ -4873,18 +4875,24 @@ bootstrap 실패도 같은 방식으로 확인했다. 계획서의 게이트 블
 허용한다. 빈 로그를 실패로 삼는 초안은 선행 타입 오류가 모두 정리되는 날 정상 실행을 거부하게
 되므로 쓰지 않는다.
 
+뒤집은 게이트로 다시 주입 검증했다. 깨끗한 checkout exit 0, `@types/node` 해석 실패 exit 1,
+추가 `TS2459` exit 1, 잘못된 플래그 exit 1, `TS2614` default-only named import exit 1,
+복원 뒤 다시 exit 0이다. `TS2614`는 코드를 열거하던 세 판본이 모두 놓쳤고 허용 목록 방식은
+아무 것도 추가하지 않은 채로 잡는다.
+
 이 게이트는 미해석 식별자만 본다. 타입 호환성, signature 불일치, 논리 오류는 잡지 않는다.
 그 부류는 focused suite와 `npm test`가 맡는다.
 
 수동 나열이 빠뜨렸던 이름들도 이 게이트는 파일 위치와 무관하게 잡는다. 여섯 곳에 각각 주입해
 확인했다: `src/goalplan.ts`의 `statSync`, `src/steering.ts`의 `GoalplanWriteLockOptions`,
 `src/review-round-cli.ts`의 `ReviewRoundState`, `test/hook.test.ts`의 `resolve`,
-`test/state.test.ts`의 `goalplanWriteLockDir`와 `GOALPLAN_LOCK_OWNER_FILE`. 여섯 건 모두 1로
-올라가고 복원마다 0으로 돌아왔다. 나열 목록이 없으므로 앞으로 추가되는 이름도 자동으로 포함된다.
+`test/state.test.ts`의 `goalplanWriteLockDir`와 `GOALPLAN_LOCK_OWNER_FILE`. 여섯 건 모두
+허용 목록 밖 진단으로 올라가고 복원마다 선행 `TS2459` 한 건으로 돌아왔다. `TS2614` 주입도
+같은 방식으로 잡힌다 — 코드를 미리 열거하지 않으므로 앞으로 나올 코드도 자동으로 포함된다.
 
 `--listFiles`로 tsc가 실제로 무엇을 읽는지도 확인했다. 명시한 114개 파일에서 시작해 import를 따라
-pabcd-state 안 159개 파일을 읽고 전체 진단 75줄을 낸다. 기준선 0은 파일을 조용히 건너뛴 결과가
-아니라 이 부류의 오류가 실제로 없다는 뜻이다.
+pabcd-state 안 159개 파일을 읽고 진단 44건을 낸다. 허용 목록 밖이 `TS2459` 한 건뿐이라는 것은
+파일을 조용히 건너뛴 결과가 아니라 실제 상태다.
 
 ## 11. 완료 기준
 
