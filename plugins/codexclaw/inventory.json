@@ -211,6 +211,12 @@
       "matcher": null
     },
     {
+      "file": "session-start-healing-declared-features.json",
+      "event": "SessionStart",
+      "component": "config-guard",
+      "matcher": null
+    },
+    {
       "file": "session-start-injecting-recall-context.json",
       "event": "SessionStart",
       "component": "recall",

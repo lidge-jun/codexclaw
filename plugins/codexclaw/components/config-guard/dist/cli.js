@@ -12,6 +12,12 @@ import { activate,                 } from "./activate.js";
 import { deactivate } from "./deactivate.js";
 import { applyManagedKey, readManagedState, resolveManagedKey } from "./config-set.js";
 import { CONFIG_MANAGED_KEYS, managedKeyId } from "./managed-keys.js";
+import {
+  selfHealDeclaredFeatures,
+  renderSelfHealContext,
+  makeRealSelfHealDeps,
+  clearSelfHealOptOut,
+} from "./self-heal.js";
 
 const CONFIG_USAGE = [
   "Usage:",
@@ -134,8 +140,36 @@ function main(argv                   )         {
   const codexHome = resolveCodexHome();
 
   switch (cmd) {
+    case "hook": {
+      // SessionStart self-heal. FAIL-OPEN without exception: a config-guard problem must
+      // never stop a session from starting, so every failure path is a silent exit 0.
+      if (argv[1] !== "session-start") return 0;
+      try {
+        const outcomes = selfHealDeclaredFeatures(makeRealSelfHealDeps(codexHome, run));
+        const context = renderSelfHealContext(outcomes);
+        if (context) {
+          process.stdout.write(
+            `${JSON.stringify({
+              hookSpecificOutput: {
+                hookEventName: "SessionStart",
+                additionalContext: context,
+              },
+            })}\n`,
+          );
+        }
+      } catch {
+        /* fail-open */
+      }
+      return 0;
+    }
     case "enable": {
       const m = activate({ run, codexHome });
+      // An explicit enable resumes self-heal: the user just asked for codexclaw back.
+      try {
+        clearSelfHealOptOut(codexHome);
+      } catch {
+        /* the opt-out is an optimisation, not a gate */
+      }
       const turnedOn = Object.entries(m.flags)
         .filter(([, r]) => r.enabledByCodexclaw)
         .map(([k]) => k);

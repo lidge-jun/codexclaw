@@ -24,11 +24,14 @@ import { join } from "node:path";
 import { readDeclaredState, type CodexRunner } from "./features.ts";
 import { parseInstallManifest, manifestPath, type TableKeyRecord } from "./activate.ts";
 import { readTableKey, restoreTableKey } from "./toml-edit.ts";
+import { markSelfHealOptedOut } from "./self-heal.ts";
 
 export interface DeactivateDeps {
   run: CodexRunner;
   codexHome: string;
   configPath?: string;
+  /** Injectable clock, so the opt-out timestamp is deterministic in tests. */
+  now?: () => string;
 }
 
 export type SkipReason = "missing" | "changed" | "unverifiable";
@@ -88,6 +91,16 @@ export function decideKeyRestore(
 
 export function deactivate(deps: DeactivateDeps): DeactivateResult {
   const { run, codexHome } = deps;
+  // Opt out of self-heal on EVERY uninstall path, including the early returns below.
+  // `cxc disable` is the user saying they want codexclaw off; a later SessionStart must
+  // not quietly re-enable the flag it just reverted. Placing this at the top rather than
+  // before the final return covers the no-manifest and malformed-manifest exits too,
+  // which are exactly the cases where someone disables an install that never completed.
+  try {
+    markSelfHealOptedOut(codexHome, (deps.now ?? (() => new Date().toISOString()))());
+  } catch {
+    /* the marker is an optimisation, never a gate on uninstall */
+  }
   const empty = (): DeactivateResult => ({
     disabled: [],
     skippedPreExisting: [],
@@ -182,4 +195,3 @@ export function deactivate(deps: DeactivateDeps): DeactivateResult {
     featuresStateUnavailable,
   };
 }
-

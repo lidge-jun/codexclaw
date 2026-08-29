@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/config-guard/dist/cli.js\" hook session-start",
+            "timeout": 20,
+            "statusMessage": "(codexclaw) Ensuring declared codex features"
+          }
+        ]
+      }
+    ]
+  }
+}
