@@ -24,6 +24,15 @@ A new plan you can actually finish.
   gate itself is unchanged: a plan that declares 2 or 3 still fails without an approved
   gate.
 
+- **The published tests badge is checked against the suite that ran.** The README badge
+  had said 2,026 since the suite passed that mark, and the release gate — which binds
+  the published number to the measured one — refused 0.2.16 for it. Skills and hooks
+  could never drift this way because both are counted from the payload; a test total
+  only exists once a suite has run, so nothing compared it. `inventory.mjs --check`
+  now takes an optional `--tests <measured-total>`, and CI passes the total from the
+  `npm test` run it already performs, so this drift fails on a pull request instead of
+  at the release gate three versions later.
+
 - **The `finalGate` reason stops naming a flag that does not exist.** It told the reader
   to run `cxc review-round open --lane final_gate`, which no parser accepts, so the round
   opened as a plan audit and was then refused for being one. The reason now states that

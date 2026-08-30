@@ -18,6 +18,7 @@
  *
  * Usage:
  *   node plugins/codexclaw/scripts/inventory.mjs --check
+ *   node plugins/codexclaw/scripts/inventory.mjs --check --tests <measured-total>
  *   node plugins/codexclaw/scripts/inventory.mjs --write [--tests <n>]
  *   node plugins/codexclaw/scripts/inventory.mjs --hash
  *   node plugins/codexclaw/scripts/inventory.mjs --published
@@ -286,7 +287,7 @@ export function applyBlocks(inventory, options = {}) {
 }
 
 export function check(options = {}) {
-  const { pluginRoot = PLUGIN_ROOT, repoRoot = REPO_ROOT } = options;
+  const { pluginRoot = PLUGIN_ROOT, repoRoot = REPO_ROOT, expectedTests = null } = options;
   const violations = [];
   const inventory = collectInventory(pluginRoot, repoRoot);
 
@@ -313,6 +314,19 @@ export function check(options = {}) {
   if (published.counts.hooks != null && published.counts.hooks !== inventory.hooks.length) {
     violations.push(
       "published hooks=" + published.counts.hooks + " but " + inventory.hooks.length + " ship",
+    );
+  }
+
+  // Skills and hooks can be counted from the payload; the test total cannot — it only
+  // exists once a suite has run. So the caller measures it and passes it in. Without
+  // this comparison the tests badge is checked only against its own copies, which is
+  // how it drifted to 2,026 across three versions and stopped the release gate
+  // instead of CI (devlog/_plan/260830_goalplan-v1-default/040).
+  if (expectedTests != null && published.counts.tests != null &&
+      published.counts.tests !== expectedTests) {
+    violations.push(
+      "published tests=" + published.counts.tests + " but the measured suite reported " +
+        expectedTests + " — run inventory.mjs --write --tests " + expectedTests,
     );
   }
 
@@ -363,13 +377,24 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     process.exit(0);
   }
 
-  const result = check();
+  // --tests on a check is the externally measured suite total. Bare --check keeps its
+  // old behavior so no existing caller has to change.
+  const expectedArg = argValue("--tests");
+  const expectedTests = expectedArg == null ? null : Number(expectedArg);
+  if (expectedArg != null && !Number.isInteger(expectedTests)) {
+    console.error("[codexclaw inventory] --tests must be an integer");
+    process.exit(1);
+  }
+
+  const result = check({ expectedTests });
   if (result.ok) {
     console.log(
       "[codexclaw inventory] OK — " +
         result.inventory.skills.length + " skills, " +
         result.inventory.hooks.length + " hooks, " +
-        result.inventory.components.length + " components; sets and published counts agree.",
+        result.inventory.components.length + " components; sets and published counts agree" +
+        (expectedTests == null ? "" : " (tests badge matches the measured " + expectedTests + ")") +
+        ".",
     );
     process.exit(0);
   }

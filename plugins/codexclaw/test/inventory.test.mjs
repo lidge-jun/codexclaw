@@ -166,3 +166,58 @@ test("inventory hash is stable and changes with content", () => {
   const mutated = { ...inv, skills: inv.skills.slice(0, -1) };
   assert.notEqual(h1, inventoryHash(mutated));
 });
+
+// The tests badge is the only published count that cannot be derived from the payload,
+// so readPublished() can only prove the three READMEs agree with EACH OTHER. A wrong
+// value written to all three is self-consistent and passed the old check: that is how
+// 2,026 survived three releases and surfaced as a release-gate blocker instead of a CI
+// failure. check({ expectedTests }) is the comparison against a real measurement.
+function rewriteTestsBadge(dir, count) {
+  const pretty = count.toLocaleString("en-US").replace(/,/g, "%2C");
+  for (const f of ["README.md", "README.ko.md", "README.zh.md"]) {
+    const p = join(dir, f);
+    const body = readFileSync(p, "utf8").replace(
+      /(badge\/tests-)([\d%C,]+)(_passing)/g,
+      (_m, a, _b, c) => a + pretty + c,
+    );
+    writeFileSync(p, body);
+  }
+}
+
+test("a self-consistent but wrong tests badge fails against a measured total", () => {
+  const { dir, plugin } = scratch();
+  try {
+    rewriteTestsBadge(dir, 1234);
+
+    // Premise: the mutation is invisible to the surface-agreement check, so the
+    // assertion below cannot pass through the pre-existing violation.
+    const { counts, violations } = readPublished(dir);
+    assert.equal(counts.tests, 1234);
+    assert.deepEqual(violations, [], "all three surfaces must still agree");
+
+    const bare = check({ pluginRoot: plugin, repoRoot: dir });
+    assert.equal(bare.ok, true, "bare check must ignore the tests count: " + bare.violations.join(" | "));
+
+    const measured = check({ pluginRoot: plugin, repoRoot: dir, expectedTests: 4321 });
+    assert.equal(measured.ok, false);
+    assert.ok(
+      measured.violations.some((v) =>
+        v.includes("published tests=1234") && v.includes("measured suite reported 4321"),
+      ),
+      measured.violations.join(" | "),
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a tests badge equal to the measured total passes", () => {
+  const { dir, plugin } = scratch();
+  try {
+    rewriteTestsBadge(dir, 4321);
+    const result = check({ pluginRoot: plugin, repoRoot: dir, expectedTests: 4321 });
+    assert.equal(result.ok, true, result.violations.join(" | "));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

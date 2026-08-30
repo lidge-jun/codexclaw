@@ -39,8 +39,30 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      - run: npm test
-      - run: node plugins/codexclaw/scripts/inventory.mjs --check
+      # Measure the suite ONCE and reuse the total. bash is pinned on purpose: the
+      # windows runners default to PowerShell, which does not propagate a pipeline's
+      # exit status, so `npm test | tee` there would report success over a failing
+      # suite. Same TAP grammar as release.yml, so one parser serves both callers.
+      - name: Run the suite
+        id: suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test 2>&1 | tee /tmp/ci-suite.log
+          total="$(grep -Eo '^. tests [0-9]+' /tmp/ci-suite.log | tail -1 | grep -Eo '[0-9]+')"
+          if [ -z "$total" ]; then
+            echo "could not parse a test total out of the suite output" >&2
+            exit 1
+          fi
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+      # The tests badge is the one published count that cannot be derived from the
+      # payload, so it is checked against what the suite just measured. Skipping this
+      # is how 2,026 survived three versions and stopped the release gate instead.
+      - name: Inventory and published counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node plugins/codexclaw/scripts/inventory.mjs --check --tests "${{ steps.suite.outputs.total }}"
       - run: node plugins/codexclaw/scripts/gate.mjs
       # The suites above are largely pure-function suites. This executes the spawn
       # ladders, the bench, and the bundle - the surfaces where the audited win32
