@@ -75,11 +75,21 @@ jobs:
         run: |
           set -euo pipefail
           npm test 2>&1 | tee /tmp/suite.log
-          pass="$(grep -Eo '^. pass [0-9]+' /tmp/suite.log | tail -1 | grep -Eo '[0-9]+')"
-          fail="$(grep -Eo '^. fail [0-9]+' /tmp/suite.log | tail -1 | grep -Eo '[0-9]+')"
           # The published badge counts TESTS. CI skips the repo-map live smoke, so
           # `pass` is environment-dependent while `tests` is not.
-          total="$(grep -Eo '^. tests [0-9]+' /tmp/suite.log | tail -1 | grep -Eo '[0-9]+')"
+          #
+          # Anchor on the right: `ℹ` is three UTF-8 bytes and `^.` only spans it in a
+          # UTF-8 locale. This job runs on ubuntu, where that held — but the same
+          # expression silently matched nothing under the C locale of Git bash, which is
+          # how it failed the first time it ran on a windows runner. Locale-independent
+          # here too, so the grammar cannot rot differently in the two workflows.
+          pass="$(grep -Eo 'pass [0-9]+$' /tmp/suite.log | tail -1 | grep -Eo '[0-9]+' || true)"
+          fail="$(grep -Eo 'fail [0-9]+$' /tmp/suite.log | tail -1 | grep -Eo '[0-9]+' || true)"
+          total="$(grep -Eo 'tests [0-9]+$' /tmp/suite.log | tail -1 | grep -Eo '[0-9]+' || true)"
+          if [ -z "$pass" ] || [ -z "$fail" ] || [ -z "$total" ]; then
+            echo "could not parse the suite summary (pass=$pass fail=$fail total=$total)" >&2
+            exit 1
+          fi
           echo "pass=$pass" >> "$GITHUB_OUTPUT"
           echo "fail=$fail" >> "$GITHUB_OUTPUT"
           echo "total=$total" >> "$GITHUB_OUTPUT"
