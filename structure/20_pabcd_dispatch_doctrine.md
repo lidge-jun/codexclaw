@@ -109,6 +109,16 @@ codexclaw translation:
   `agent_type:"worker"` triggers the evidence-receipt gate (hook matcher `^worker$` +
   runtime `GATED_AGENT_TYPES`). Read-only audit, research, and review dispatches MUST
   use `agent_type:"explorer"` to avoid conflicting evidence-persistence directives.
+- **EVIDENCE-TERMINAL-01 (DEFAULT, 260826).** The evidence gate blocks at most
+  `MAX_ATTEMPTS` times per `(agent, turn)`, then RELEASES with an unresolved verdict
+  recorded in session state. Fail-closed moved from the control flow to the verdict:
+  `GOAL-COMPLETE-GATE-01` denies goal completion while any verdict is unresolved, and
+  `cxc evidence resolve` requires a valid receipt (there is no override flag; the honest
+  escape is `update_goal {status:"blocked"}`). The symptom this replaced: a read-only
+  packet sent to a `worker` produced endless identical SubagentStop blocks, because the
+  child could never create a file under the parent's `.codexclaw/evidence/`. If you see
+  a subagent repeating the same answer against the same directive, check the dispatch
+  lane first — it is almost always a read-only packet on a `worker`.
 - **Audit (A) is never skipped.** Before B, the main session must dispatch an independent
   reviewer subagent via `spawn_agent` for an adversarial review pass. Untested code is
   not "done"; C must run real tsc/tests.

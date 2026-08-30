@@ -135,3 +135,22 @@ test("soft-gate: override is goal-mode-agnostic (operates purely on tracker stat
   assert.equal(overridden.ok, true);
   assert.equal(overridden.ledger?.scanEvidence?.highContradictionCount, 1);
 });
+
+test("reset from IDLE clears a D-close marker and check epoch instead of becoming a no-op", () => {
+  const state = {
+    ...at("IDLE"),
+    checkEpoch: "c-recovery",
+    dcloseRecovery: {
+      sessionId: "t",
+      checkEpoch: "c-recovery",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
+    },
+  };
+  const result = applyHumanTransition(state, "reset");
+  assert.equal(result.ok, true);
+  assert.notEqual(result.noop, true);
+  assert.equal(result.state?.checkEpoch, null);
+  assert.equal(result.state?.dcloseRecovery, null);
+  assert.equal(result.ledger?.reason, "reset");
+});

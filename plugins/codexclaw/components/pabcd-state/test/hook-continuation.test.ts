@@ -502,7 +502,11 @@ test("GOAL-IDLE-CONTINUE-01: bound goalplan names remaining work in the IDLE blo
       writeGoalplan(cwd, plan);
       writeState(cwd, { ...defaultState("gi3"), phase: "IDLE", orchestrationActive: false, slug: plan.slug });
       const reason = JSON.parse(handleStop(stop(cwd, "gi3")).trim()).reason;
-      assert.match(reason, /Remaining work: Stop hook → goal-idle block/);
+      // 060 wp6: the Stop block lists every runnable item instead of one next task, so the
+      // terminal (`cxc loop ready`) and this reason cannot disagree.
+      assert.match(reason, /Ready work phases: wp-1 \(Stop hook\)/);
+      assert.match(reason, /Ready tasks: wp-1\/t-1 \(goal-idle block\)/);
+      assert.doesNotMatch(reason, /Remaining work:/);
       assert.match(reason, /Required evidence: node --test green/);
       assert.doesNotMatch(reason, /cxc loop init/, "bound session must not be told to re-init");
     });
@@ -689,7 +693,9 @@ test("040: with a session-bound slug + goalplan, the block reason names remainin
       writeState(cwd, { ...defaultState("wp1"), phase: "B", orchestrationActive: true, lastInjectedPhase: "B", slug: plan.slug });
       const reason = JSON.parse(handleStop(stop(cwd, "wp1")).trim()).reason;
       assert.match(reason, /continue PABCD/);
-      assert.match(reason, /Remaining work: Backend → add endpoint/);
+      assert.match(reason, /Ready work phases: wp-1 \(Backend\)/);
+      assert.match(reason, /Ready tasks: wp-1\/t-1 \(add endpoint\)/);
+      assert.doesNotMatch(reason, /Remaining work:/);
       assert.match(reason, /Required evidence: npm test green/);
       assert.match(reason, new RegExp(`Record progress in: \\.codexclaw/goalplans/${plan.slug}/ledger\\.jsonl`));
       // enrichment never replaces the phase command or the closing note
@@ -1056,4 +1062,198 @@ test("050 S13: progress agrees with the plateau verdict when an observation is n
       assert.equal(blockCount(cwd, "s13"), 2, "flat window -> no progress");
     });
   } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("wp6: Stop context excludes a task whose dependency is unmet", () => {
+  const cwd = freshCwd();
+  try {
+    const plan = buildGoalplan({ objective: "dependency-aware stop" });
+    plan.schemaVersion = 3;
+    plan.workPhases = [{
+      id: "build",
+      title: "Build",
+      status: "pending",
+      dependsOn: [],
+      criteriaIds: [],
+      tasks: [
+        { id: "blocked", title: "blocked child", status: "pending", dependsOn: ["ready"] },
+        { id: "ready", title: "ready parent", status: "pending", dependsOn: [] },
+      ],
+    }];
+    writeGoalplan(cwd, plan);
+
+    const context = readStopWorkContext(cwd, { ...defaultState("stop-deps"), slug: plan.slug });
+    assert.deepEqual(context?.readyWorkPhases, [{ id: "build", title: "Build" }]);
+    assert.deepEqual(context?.readyTasks, [
+      { workPhaseId: "build", id: "ready", title: "ready parent" },
+    ]);
+    assert.deepEqual(context?.waitingOn, [
+      "task build/blocked waits for task build/ready (pending)",
+    ]);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("wp6: Stop context exposes deadlock reasons in waitingOn", () => {
+  const cwd = freshCwd();
+  try {
+    const plan = buildGoalplan({ objective: "dependency deadlock" });
+    plan.schemaVersion = 3;
+    plan.activeWorkPhaseId = null;
+    plan.workPhases = [
+      {
+        id: "wp1", title: "Upstream", status: "blocked", blockedReason: "vendor",
+        dependsOn: [], tasks: [], criteriaIds: [],
+      },
+      {
+        id: "wp2", title: "Downstream", status: "pending", dependsOn: ["wp1"],
+        tasks: [{ id: "t2", title: "ship", status: "pending", dependsOn: [] }], criteriaIds: [],
+      },
+    ];
+    writeGoalplan(cwd, plan);
+
+    const context = readStopWorkContext(cwd, { ...defaultState("stop-deadlock"), slug: plan.slug });
+    assert.deepEqual(context?.readyWorkPhases, []);
+    assert.deepEqual(context?.readyTasks, []);
+    assert.deepEqual(context?.waitingOn, [
+      "work-phase wp1 is blocked (vendor)",
+      "work-phase wp2 waits for work-phase wp1 (blocked)",
+    ]);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("wp6: legacy plan Stop context uses the ready arrays shape", () => {
+  const cwd = freshCwd();
+  try {
+    const plan = buildGoalplan({
+      objective: "legacy stop",
+      criteria: [{ scenario: "tests", expectedEvidence: "node --test green" }],
+    });
+    plan.workPhases = [{
+      id: "legacy",
+      title: "Legacy",
+      status: "in_progress",
+      tasks: [{ id: "t-1", title: "first task", status: "pending" }],
+      criteriaIds: ["c-1"],
+    }];
+    writeGoalplan(cwd, plan);
+
+    const context = readStopWorkContext(cwd, { ...defaultState("legacy-stop"), slug: plan.slug });
+    assert.deepEqual(context, {
+      readyWorkPhases: [{ id: "legacy", title: "Legacy" }],
+      readyTasks: [{ workPhaseId: "legacy", id: "t-1", title: "first task" }],
+      waitingOn: [],
+      expectedEvidence: "node --test green",
+      ledgerPath: `.codexclaw/goalplans/${plan.slug}/ledger.jsonl`,
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("wp6: Stop reason lists ready work and partial dependency waits together", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "wp6-ready", status: "active" }], () => {
+      const plan = buildGoalplan({
+        objective: "Expose dependency-aware Stop guidance",
+        criteria: [{ scenario: "Stop shows executable work", expectedEvidence: "node --test green" }],
+      });
+      plan.schemaVersion = 3;
+      plan.activeWorkPhaseId = "wp-live";
+      plan.workPhases = [
+        {
+          id: "wp-base", title: "Base", status: "done", dependsOn: [], criteriaIds: [],
+          tasks: [{ id: "base", title: "Base task", status: "done", dependsOn: [], outcome: "base done" }],
+        },
+        {
+          id: "wp-live", title: "Live", status: "in_progress", dependsOn: ["wp-base"], criteriaIds: ["c-1"],
+          tasks: [
+            { id: "ready", title: "Ready task", status: "pending", dependsOn: [] },
+            { id: "blocked", title: "Blocked task", status: "pending", dependsOn: ["later"] },
+            { id: "later", title: "Later task", status: "pending", dependsOn: [] },
+          ],
+        },
+        {
+          id: "wp-blocked", title: "Blocked phase", status: "pending", dependsOn: ["wp-live"],
+          criteriaIds: [], tasks: [],
+        },
+      ];
+      writeGoalplan(cwd, plan);
+      writeState(cwd, {
+        ...defaultState("wp6-ready"),
+        phase: "B",
+        orchestrationActive: true,
+        lastInjectedPhase: "B",
+        slug: plan.slug,
+      });
+
+      const context = readStopWorkContext(cwd, readState(cwd, "wp6-ready"));
+      assert.ok(context);
+      assert.deepEqual(context.waitingOn, [
+        "task wp-live/blocked waits for task wp-live/later (pending)",
+        "work-phase wp-blocked waits for work-phase wp-live (in_progress)",
+      ]);
+
+      const output = handleStop(stop(cwd, "wp6-ready"));
+      assert.notEqual(output, "");
+      const reason = (JSON.parse(output.trim()) as { reason: string }).reason;
+      assert.match(reason, /Ready work phases: wp-live \(Live\)/);
+      assert.match(reason, /Ready tasks: wp-live\/ready \(Ready task\); wp-live\/later \(Later task\)/);
+      assert.match(
+        reason,
+        /Waiting on: task wp-live\/blocked waits for task wp-live\/later \(pending\); work-phase wp-blocked waits for work-phase wp-live \(in_progress\)/,
+      );
+      assert.match(reason, /Required evidence: node --test green/);
+      assert.match(reason, /cxc orchestrate C --session wp6-ready --attest/);
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("wp6: Stop reason keeps a single blocked phase when no work is ready", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([{ thread_id: "wp6-blocked", status: "active" }], () => {
+      const plan = buildGoalplan({ objective: "Expose one blocked phase" });
+      plan.schemaVersion = 3;
+      plan.activeWorkPhaseId = null;
+      plan.workPhases = [{
+        id: "wp-blocked",
+        title: "Blocked phase",
+        status: "blocked",
+        blockedReason: "vendor release",
+        dependsOn: [],
+        criteriaIds: [],
+        tasks: [],
+      }];
+      writeGoalplan(cwd, plan);
+      writeState(cwd, {
+        ...defaultState("wp6-blocked"),
+        phase: "B",
+        orchestrationActive: true,
+        lastInjectedPhase: "B",
+        slug: plan.slug,
+      });
+
+      const context = readStopWorkContext(cwd, readState(cwd, "wp6-blocked"));
+      assert.ok(context);
+      assert.deepEqual(context.readyWorkPhases, []);
+      assert.deepEqual(context.readyTasks, []);
+      assert.deepEqual(context.waitingOn, [
+        "work-phase wp-blocked is blocked (vendor release)",
+      ]);
+
+      const output = handleStop(stop(cwd, "wp6-blocked"));
+      const reason = (JSON.parse(output.trim()) as { reason: string }).reason;
+      assert.doesNotMatch(reason, /Ready work phases:|Ready tasks:/);
+      assert.match(reason, /Waiting on: work-phase wp-blocked is blocked \(vendor release\)/);
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });

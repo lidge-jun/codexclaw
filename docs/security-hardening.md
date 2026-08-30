@@ -22,8 +22,15 @@ PABCD state, recall, subagent configuration, and messenger bridge.
 - Recursive delegation is authorized with a parent-minted, project/session-bound,
   single-use capability. Public marker text is only a request from a root
   dispatcher; it is never authority when supplied by a child. Worker evidence
-  verification likewise ignores child-authored exemption text and remains
-  fail-closed after its retry budget.
+  verification likewise ignores child-authored exemption text. After its retry
+  budget it is fail-closed on the VERDICT and bounded on the CONTROL FLOW: the
+  child is released with an unresolved record, and `update_goal {status:"complete"}`
+  is denied until that record is settled with a valid receipt
+  (`cxc evidence resolve --receipt <path>`, which has no override flag). Blocking a
+  child forever was not the safety property — a read-only child cannot write the
+  receipt, so re-prompting it only hid the outcome from the parent. `status:"blocked"`
+  remains the honest escape hatch, and unreadable verification state denies rather
+  than reads as clean.
 - Telegram callback authorization binds chat, named agent, binding, and forum
   topic. Approval IDs are random across restarts; Discord output disables all
   automatic mention parsing.

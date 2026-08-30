@@ -36,6 +36,9 @@ export const COMMAND_TABLE = Object.freeze({
   disable: "config-guard",
   uninstall: "config-guard",
   status: "config-guard",
+  // `config` splits by subcommand: `interview` belongs to pabcd-state (which owns
+  // codexclaw.json), everything else to config-guard (which owns ~/.codex/config.toml).
+  config: "config-guard",
   doctor: "cxc-ops",
   reset: "cxc-ops",
   hooks: "cxc-ops",
@@ -49,6 +52,7 @@ export const COMMAND_TABLE = Object.freeze({
   scan: "pabcd-state",
   "review-round": "pabcd-state",
   receipt: "pabcd-state",
+  evidence: "pabcd-state",
   release: "pabcd-state",
   chat: "recall",
   memory: "recall",
@@ -76,6 +80,7 @@ const HELP = [
   "",
   "Core:",
   "  enable | disable | status      declared Codex feature flags",
+  "  config                         managed config.toml keys + interview policy",
   "  doctor | reset | hooks         plugin health / state reset / hook re-trust",
   "",
   "Workspace intelligence:",
@@ -143,9 +148,16 @@ if (isMain) {
     process.exit(1);
   }
   // Component CLI argv contracts (mirror root bin):
-  //   config-guard: [subcommand] only; skill-search: [search|show, ...] (drop the "skill" verb);
+  //   config-guard: [subcommand] only, EXCEPT `config`, which forwards its full argv so
+  //     `config set <key> <value>` keeps its arguments; skill-search: [search|show, ...]
+  //     (drop the "skill" verb);
   //   provider-bridge: ["detect"]; everything else: [cmd, ...rest] verbatim.
   if (component === "config-guard") {
+    if (cmd === "config") {
+      // `config interview` is owned by pabcd-state; the rest by config-guard.
+      const target = process.argv[3] === "interview" ? "pabcd-state" : "config-guard";
+      process.exit(delegate(target, process.argv.slice(2)));
+    }
     process.exit(delegate(component, [cmd === "uninstall" ? "disable" : cmd]));
   } else if (component === "skill-search") {
     process.exit(delegate(component, process.argv.slice(3)));

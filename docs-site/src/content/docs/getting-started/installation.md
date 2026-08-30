@@ -25,6 +25,19 @@ codex plugin add codexclaw@codexclaw
 The marketplace install registers the plugin manifest with Codex, including its skills, hooks,
 and MCP server.
 
+There is no separate activation step on this track. codexclaw needs a handful of Codex feature
+flags to be on, and its SessionStart hook checks them once per machine and turns on the ones it
+declares. Two things follow from how Codex loads plugin hooks:
+
+- Hooks from a plugin start out untrusted, so nothing runs until you approve this plugin's hooks
+  when Codex prompts you. That is the same single prompt every other codexclaw hook needs.
+- The tool list is fixed when a session starts. A flag turned on during your first session takes
+  effect from the **next** one — so the question-choice UI (`request_user_input`) in Default mode
+  appears one session after approval, not immediately.
+
+`cxc doctor` reports the live state under `features` at any time, and tells you the exact command
+to run if something is off.
+
 It also ships the CLI: the payload includes a dispatcher at `bin/cxc.mjs`, so every install has
 a working terminal surface without any extra step:
 

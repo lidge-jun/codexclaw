@@ -14,17 +14,21 @@
  * therefore changes idempotency. What it does not change is anything completion
  * is judged on.
  */
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+// 060 wp6: applyOps()가 두 integrity helper를 부르므로 두 이름을 함께 import한다. 뒤 이름을
+// 빼면 TS2304 두 건이고, 타입을 지운 런타임에서는 steering.test.ts 두 건이 ReferenceError로
+// 죽는다. 감사 라운드 2에서 감사관 두 기가 각자 사본에서 22개 중 2 fail을 재현했다.
 import {
   appendGoalplanLedger,
-  goalplanDir,
-  readGoalplanDetailed,
+  goalplanDefinitionIntegrityReasons,
+  goalplanDependencyCompletionReasons,
+  withGoalplanWriteLock,
   writeGoalplan,
 
 
+
+
+
 } from "./goalplan.js";
-import { filesystemTier,              } from "./wsl.js";
 
 /**
  * The op grammar. Both mutating kinds are strictly ADDITIVE (issue #29): adding a
@@ -64,68 +68,6 @@ import { filesystemTier,              } from "./wsl.js";
  * need the refusal rule designed first.
  */
 const SUPPORTED_OPS                      = new Set(["annotate", "add-criterion", "add-work-phase"]);
-
-function lockDir(cwd        , slug        )         {
-  return join(goalplanDir(cwd, slug), ".steer.lock");
-}
-
-function ownerPath(dir        )         {
-  return join(dir, "owner.json");
-}
-
-/**
- * Acquire by creating a directory: mkdir is atomic on POSIX and Windows alike,
- * and needs no dependency. A held lock surfaces as EEXIST.
- *
- * No stale reclamation. Deciding a lock is dead from a pid or a timestamp means
- * trusting clocks and pid reuse, and being wrong means two writers. The failure
- * message shows the path and owner instead, so a human can clear it.
- *
- * Advisory only: D-close calls writeGoalplan directly without consulting this,
- * so it guards steering against steering, nothing more.
- */
-function acquireLock(
-  cwd        ,
-  slug        ,
-  wslDeps          = {},
-)                                                            {
-  const dir = lockDir(cwd, slug);
-  try {
-    mkdirSync(dir, { recursive: false });
-  } catch (err) {
-    let owner = "(no owner file)";
-    try {
-      owner = readFileSync(ownerPath(dir), "utf8").trim();
-    } catch {
-      // the holder may not have written it yet; the path is the useful part
-    }
-    // Naming the tier here rather than refusing outright: a warning the user can
-    // act on beats a refusal that blocks a workflow which usually does work.
-    const tier = filesystemTier(dir, wslDeps);
-    const tierNote =
-      tier === "drvfs" || tier === "9p"
-        ? ` This lock lives on ${tier}, where directory-create atomicity is the filesystem driver's guarantee rather than the kernel's; a checkout under the Linux home avoids the question entirely.`
-        : "";
-    return {
-      ok: false,
-      reason: `another steering batch holds the lock at ${dir} — owner: ${owner}. If no such process is running, remove that directory by hand (it is never reclaimed automatically, since guessing wrong means two concurrent writers). Underlying error: ${err instanceof Error ? err.message : String(err)}.${tierNote}`,
-    };
-  }
-  try {
-    writeFileSync(ownerPath(dir), `${JSON.stringify({ pid: process.pid, acquiredAt: new Date().toISOString() })}\n`);
-  } catch {
-    // best effort: the lock itself is the directory, not this file
-  }
-  return { ok: true, dir };
-}
-
-function releaseLock(dir        )       {
-  try {
-    rmSync(dir, { recursive: true, force: true });
-  } catch {
-    // nothing useful to do; the next acquire reports the stale lock
-  }
-}
 
 function validateBatch(batch         )                                 {
   if (typeof batch !== "object" || batch === null || Array.isArray(batch)) {
@@ -180,7 +122,18 @@ function validateBatch(batch         )                                 {
     if (typeof op.title !== "string" || op.title.trim().length === 0) {
       return { error: `ops[${i}] is an add-work-phase without a title` };
     }
-    ops.push({ kind: "add-work-phase", id: op.id, title: op.title.trim() });
+    const rawDependsOn = op.dependsOn ?? [];
+if (!Array.isArray(rawDependsOn)) {
+  return { error: `ops[${i}].dependsOn must be an array of non-empty work-phase ids` };
+}
+const dependsOn = rawDependsOn.map((id) => typeof id === "string" ? id.trim() : "");
+if (dependsOn.some((id) => id.length === 0)) {
+  return { error: `ops[${i}].dependsOn must be an array of non-empty work-phase ids` };
+}
+if (new Set(dependsOn).size !== dependsOn.length) {
+  return { error: `ops[${i}].dependsOn must not contain duplicate ids` };
+}
+ops.push({ kind: "add-work-phase", id: op.id, title: op.title.trim(), dependsOn });
   }
   return {
     idempotencyKey: b.idempotencyKey          ,
@@ -199,6 +152,7 @@ function validateBatch(batch         )                                 {
 
 
 
+
 /**
  * Fold the ops into a plan. Pure: the caller owns the lock and the write.
  *
@@ -207,6 +161,22 @@ function validateBatch(batch         )                                 {
  * for criteria and on the id for work phases, and a duplicate is a rejection
  * rather than a silent no-op - a steering batch that did nothing should say so.
  */
+/**
+ * 060 wp6: both mutating branches run the SAME two integrity checks in the SAME order.
+ *
+ * `ready` and the lifecycle verbs gate on both helpers, and steering used to gate on the
+ * definition one alone. A plan whose leaf task is done while its dependency base is still
+ * pending yields zero definition reasons and one completion reason, so `add-task` refused it
+ * while `add-work-phase` wrote a new phase into it. Sharing one function is what keeps the
+ * two surfaces from drifting apart again.
+ */
+function integrityReasons(candidate          )           {
+  return [
+    ...goalplanDefinitionIntegrityReasons(candidate),
+    ...goalplanDependencyCompletionReasons(candidate),
+  ];
+}
+
 function applyOps(plan          , ops           )                                         {
   let criteria = [...plan.criteria];
   let workPhases = [...plan.workPhases];
@@ -223,7 +193,7 @@ function applyOps(plan          , ops           )                               
         const n = Number(/^c-(\d+)$/.exec(c.id)?.[1] ?? 0);
         return Number.isFinite(n) && n > m ? n : m;
       }, 0);
-      criteria = [
+      const candidateCriteria                      = [
         ...criteria,
         {
           id: `c-${maxId + 1}`,
@@ -234,12 +204,26 @@ function applyOps(plan          , ops           )                               
           status: "open",
         },
       ];
+      const criterionReasons = integrityReasons({ ...plan, criteria: candidateCriteria, workPhases });
+      if (criterionReasons.length > 0) return { error: criterionReasons.join("; ") };
+      criteria = candidateCriteria;
       continue;
     }
     if (workPhases.some((w) => w.id === op.id)) {
       return { error: `work phase '${op.id}' is already in this plan` };
     }
-    workPhases = [...workPhases, { id: op.id, title: op.title, status: "pending", tasks: [], criteriaIds: [] }];
+    const dependsOn = op.dependsOn ?? [];
+    const candidateWorkPhases                      = [...workPhases, {
+      id: op.id,
+      title: op.title,
+      status: "pending",
+      tasks: [],
+      criteriaIds: [],
+      ...(dependsOn.length > 0 ? { dependsOn } : {}),
+    }];
+    const phaseReasons = integrityReasons({ ...plan, criteria, workPhases: candidateWorkPhases });
+    if (phaseReasons.length > 0) return { error: phaseReasons.join("; ") };
+    workPhases = candidateWorkPhases;
   }
   return { plan: { ...plan, criteria, workPhases } };
 }
@@ -267,33 +251,10 @@ export function applySteeringBatch(
   const batch = validated;
   const now = options.now ?? (() => new Date().toISOString());
 
-  if (!existsSync(join(goalplanDir(cwd, slug), "goalplan.json"))) {
-    return { kind: "rejected", reason: `no goalplan found at slug '${slug}'` };
-  }
-
-  const lock = acquireLock(cwd, slug, options.wslDeps ?? {});
-  if (lock.ok === false) return { kind: "locked", reason: lock.reason };
-  const heldDir = lock.dir;
-
-  try {
-    const read = readGoalplanDetailed(cwd, slug);
-    const plan = read.plan;
-    if (!plan) {
-      // Naming the failing field beats "missing or unreadable" for both halves:
-      // a truncated write and an absent plan used to read identically (issue #29).
-      const d = read.diagnostic;
-      const why =
-        d?.kind === "invalid-json"
-          ? `its JSON is invalid: ${d.detail}`
-          : d?.kind === "invalid-shape"
-            ? `field '${d.field}' did not satisfy the schema`
-            : d?.kind === "unreadable"
-              ? `it could not be read: ${d.detail}`
-              : "it does not exist";
-      return { kind: "rejected", reason: `goalplan at slug '${slug}' is unusable - ${why}` };
-    }
-
-    const existing = (plan.steeringLog ?? []).find((e) => e.idempotencyKey === batch.idempotencyKey);
+  const locked = withGoalplanWriteLock(cwd, slug, (plan)              => {
+    const existing = (plan.steeringLog ?? []).find(
+      (entry) => entry.idempotencyKey === batch.idempotencyKey,
+    );
     if (existing) return { kind: "duplicate", entry: existing };
 
     const entry                = {
@@ -301,17 +262,16 @@ export function applySteeringBatch(
       rationale: batch.rationale,
       evidence: batch.evidence,
       appliedAt: now(),
-      summary: `${batch.ops.length} op(s): ${batch.ops.map((o) => o.kind).join(", ")}`,
+      summary: `${batch.ops.length} op(s): ${batch.ops.map((op) => op.kind).join(", ")}`,
     };
-
-    // Build the whole next plan first: a batch applies entirely or not at all,
-    // so nothing touches disk until every op has been accepted.
     const applied = applyOps(plan, batch.ops);
     if ("error" in applied) return { kind: "rejected", reason: applied.error };
-    const next           = { ...applied.plan, steeringLog: [...(plan.steeringLog ?? []), entry] };
 
-    writeGoalplan(cwd, next); // commit point
-
+    const next           = {
+      ...applied.plan,
+      steeringLog: [...(plan.steeringLog ?? []), entry],
+    };
+    writeGoalplan(cwd, next);
     try {
       appendGoalplanLedger(cwd, slug, {
         ts: entry.appliedAt,
@@ -319,17 +279,45 @@ export function applySteeringBatch(
         event: "steered",
         detail: `${entry.idempotencyKey}: ${entry.summary} — ${entry.rationale}`,
       });
+      // 060 wp6: one row per phase that actually declared prerequisites. The plan file
+      // shows the final graph, so without these rows the ledger cannot say WHEN an edge
+      // appeared — a graph that grew mid-loop reads as if it was declared up front.
+      // Emitted after `steered` so the batch that carried the edge is the row above it.
+      for (const op of batch.ops) {
+        if (op.kind !== "add-work-phase") continue;
+        const dependsOn = op.dependsOn ?? [];
+        if (dependsOn.length === 0) continue;
+        appendGoalplanLedger(cwd, slug, {
+          ts: entry.appliedAt,
+          slug,
+          event: "dependency_registered",
+          detail: `${op.id} dependsOn=${dependsOn.join(",")}`,
+        });
+      }
     } catch (err) {
       return {
         kind: "applied",
         plan: next,
         entry,
-        warning: `the batch was applied but its ledger entry could not be written to .codexclaw/goalplans/${slug}/ledger.jsonl (${err instanceof Error ? err.message : String(err)}). Re-running is a no-op because the key is now recorded, so add the audit line by hand if you need it.`,
+        warning:
+          `the batch was applied but its ledger entry could not be written to `
+          + `.codexclaw/goalplans/${slug}/ledger.jsonl `
+          + `(${err instanceof Error ? err.message : String(err)}). `
+          + `Re-running is a no-op because the key is recorded.`,
       };
     }
-
     return { kind: "applied", plan: next, entry };
-  } finally {
-    releaseLock(heldDir);
+  }, options.lock);
+
+  if (locked.kind === "locked") return { kind: "locked", reason: locked.reason };
+  if (locked.kind === "unreadable") {
+    // The absent-plan refusal predates the shared lock and is asserted by name
+    // (steering.test.ts). The lock reports absence as one `unreadable` reason among
+    // several, so it is mapped back rather than folded into the unusable wording.
+    if (locked.reason === `goalplan '${slug}' does not exist`) {
+      return { kind: "rejected", reason: `no goalplan found at slug '${slug}'` };
+    }
+    return { kind: "rejected", reason: `goalplan at slug '${slug}' is unusable - ${locked.reason}` };
   }
+  return locked.value;
 }

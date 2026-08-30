@@ -12,15 +12,26 @@
  * Structural argv parsing only (no prompt grammar): verb is argv[0]; flags take the next token.
  */
 import {
+  addGoalplanTask,
   buildGoalplan,
+  completeGoalplanTask,
+  goalplanDefinitionIntegrityReasons,
+  goalplanDependencyCompletionReasons,
+  goalplanWriteLockStatus,
+  meetGoalplanCriterion,
   readGoalplan,
   readGoalplanDetailed,
+  readyTasks,
+  readyWorkPhases,
+  withGoalplanWriteLock,
   writeGoalplan,
   appendGoalplanLedger,
   validateGoalplan,
   isGoalplanComplete,
   remainingWorkPhases,
   unmetCriteria,
+
+
 
 
 
@@ -61,6 +72,40 @@ import { applySteeringBatch } from "./steering.js";
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 const VERBS                      = new Set              ([
   "init",
   "show",
@@ -68,6 +113,10 @@ const VERBS                      = new Set              ([
   "steer",
   "add-criterion",
   "add-work-phase",
+  "ready",
+  "add-task",
+  "complete-task",
+  "meet-criterion",
 ]);
 
 /** Structural argv parse. argv excludes the `goalplan` kind token. */
@@ -81,10 +130,10 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
   }
   if (!VERBS.has(verb)) {
     return {
-      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase); run cxc loop --help`,
+      error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion); run cxc loop --help`,
     };
   }
-  const out                  = { verb: verb                , cwd, criteria: [] };
+  const out                  = { verb: verb                , cwd, criteria: [], dependsOn: [] };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--objective") out.objective = argv[++i];
@@ -98,6 +147,27 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
     else if (a === "--surface") out.surface = argv[++i];
     else if (a === "--id") out.id = argv[++i];
     else if (a === "--title") out.title = argv[++i];
+    else if (a === "--work-phase") out.workPhaseId = argv[++i];
+    else if (a === "--outcome") out.outcome = argv[++i];
+    else if (a === "--schema-version") {
+      const parsed = Number(argv[++i]);
+      if (Number.isFinite(parsed)) out.schemaVersion = parsed;
+    }
+    else if (a === "--evidence") out.evidence = argv[++i];
+    else if (a === "--json") out.json = true;
+    else if (a === "--depends-on") {
+      // Repeated, never split: `--depends-on a,b` is ONE id. A comma-splitting parser
+      // would silently invent ids, and the dangling-reference check would then blame
+      // the plan for something the parser did.
+      const raw = argv[++i];
+      const v = typeof raw === "string" ? raw.trim() : "";
+      // Both malformed cases are REJECTIONS, not silent drops. Dropping a blank would
+      // register a phase with fewer prerequisites than the caller typed, and dropping a
+      // repeat would hide a typo that meant a different id.
+      if (v.length === 0) return { error: "--depends-on requires one non-empty prerequisite id" };
+      if (out.dependsOn .includes(v)) return { error: `--depends-on must not repeat prerequisite id '${v}'` };
+      out.dependsOn .push(v);
+    }
   }
   return out;
 }
@@ -121,8 +191,8 @@ function resolveSlug(args                 )                {
   return null;
 }
 
-function renderPlan(plan          )         {
-  return renderPlanLines(plan);
+function renderPlan(plan          , lock                          )         {
+  return renderPlanLines(plan, lock);
 }
 
 /**
@@ -248,7 +318,11 @@ function runAddOp(args                 )                    {
     if (id.length === 0 || title.length === 0) {
       return { output: "loop add-work-phase: --id <id> and --title <text> are both required", code: 1 };
     }
-    op = { kind: "add-work-phase", id, title };
+    const dependsOn = args.dependsOn ?? [];
+    op = { kind: "add-work-phase", id, title, ...(dependsOn.length > 0 ? { dependsOn } : {}) };
+    // dependsOn stays OUT of the summary so a phase registered without prerequisites keeps
+    // the exact idempotency key it had before this upgrade. Re-running an old command must
+    // still be recorded as a duplicate, not applied a second time.
     summary = `${id}: ${title}`;
   }
 
@@ -272,7 +346,180 @@ function runAddOp(args                 )                    {
   }
 }
 
-function renderPlanLines(plan          )         {
+/**
+ * 060 wp6: "what can I run right now" as a first-class read, not a derivation the caller
+ * has to redo. The Stop hook and this verb consume the SAME two helpers, so an agent reading
+ * the terminal and an agent reading the Stop block cannot disagree about readiness.
+ *
+ * Integrity is checked FIRST. Listing ready items out of a plan with a duplicate id or a
+ * dangling edge would hand back a confident answer computed from a graph the plan itself
+ * rejects.
+ */
+function runReady(args                 , plan          )                    {
+  const reasons = [
+    ...goalplanDefinitionIntegrityReasons(plan),
+    ...goalplanDependencyCompletionReasons(plan),
+  ];
+  if (reasons.length > 0) {
+    return {
+      output: [`loop ready: ${plan.slug} has an invalid dependency graph`, ...reasons.map((r) => `  - ${r}`)].join("\n"),
+      code: 1,
+    };
+  }
+
+  const phases = readyWorkPhases(plan);
+  const tasks = readyTasks(plan);
+  if (args.json === true) {
+    return {
+      output: JSON.stringify({
+        slug: plan.slug,
+        // dependsOn is part of the answer: "wp-live is ready" and "wp-live is ready BECAUSE
+        // wp-base is done" are different claims, and only the second one can be audited.
+        readyWorkPhases: phases.map((wp) => ({
+          id: wp.id,
+          title: wp.title,
+          status: wp.status,
+          dependsOn: wp.dependsOn ?? [],
+        })),
+        readyTasks: tasks.map((entry) => ({
+          workPhaseId: entry.workPhaseId,
+          id: entry.task.id,
+          title: entry.task.title,
+        })),
+      }),
+      code: 0,
+    };
+  }
+
+  const lines = [`[codexclaw loop ready: ${plan.slug}]`];
+  lines.push(phases.length > 0
+    ? `readyWorkPhases: ${phases.map((wp) => `${wp.id} (${wp.title})`).join("; ")}`
+    : "readyWorkPhases: none");
+  lines.push(tasks.length > 0
+    ? `readyTasks: ${tasks.map((entry) => `${entry.workPhaseId}/${entry.task.id} (${entry.task.title})`).join("; ")}`
+    : "readyTasks: none");
+  return { output: lines.join("\n"), code: 0 };
+}
+
+/**
+ * 060 wp6: the three lifecycle verbs share one locked read-modify-write.
+ *
+ * They all read the plan, apply one pure transition, then write. Giving each verb its own
+ * critical section would be three chances to forget the lock; sharing one is why the lock
+ * audit counts exactly one new locked write for all three.
+ *
+ * goalplan.json is the commit point. A failed ledger append returns success with a warning
+ * rather than claiming the transition did not happen — the plan on disk already moved.
+ */
+function runLifecycle(args                 )                    {
+  const session = (args.session ?? "").trim();
+  if (session.length === 0) return { output: `loop ${args.verb}: --session <id> is required`, code: 1 };
+  if (!isCanonicalSessionId(session)) {
+    return {
+      output: `loop ${args.verb}: --session "${session}" is not a canonical session id - it would resolve to a different state file and steer another goal`,
+      code: 1,
+    };
+  }
+  const slug = readState(args.cwd, session).slug;
+  if (!slug) {
+    return {
+      output: `loop ${args.verb}: session '${session}' has no bound goalplan - run \`cxc loop init --session ${session}\` first`,
+      code: 1,
+    };
+  }
+
+  const id = (args.id ?? "").trim();
+
+  let ledgerEvent                                                                 = null;
+  let ledgerDetail = "";
+  let transition                                             ;
+
+  if (args.verb === "add-task") {
+    const workPhaseId = (args.workPhaseId ?? "").trim();
+    const title = (args.title ?? "").trim();
+    // One sentence naming every required argument. Reporting them one rejection at a time
+    // is what issue #31 was about: the caller pays a round trip per missing flag.
+    if (workPhaseId.length === 0 || id.length === 0 || title.length === 0) {
+      return { output: "loop add-task: --work-phase, --id, and non-empty --title are required", code: 1 };
+    }
+    const dependsOn = args.dependsOn ?? [];
+    if (dependsOn.length > 0) {
+      ledgerEvent = "dependency_registered";
+      ledgerDetail = `task ${workPhaseId}/${id} depends on ${dependsOn.join(", ")}`;
+    }
+    transition = (plan) => addGoalplanTask(plan, workPhaseId, { id, title, dependsOn });
+  } else if (args.verb === "complete-task") {
+    const workPhaseId = (args.workPhaseId ?? "").trim();
+    const outcome = (args.outcome ?? "").trim();
+    if (workPhaseId.length === 0 || id.length === 0 || outcome.length === 0) {
+      return { output: "loop complete-task: --work-phase, --id, and non-empty --outcome are required", code: 1 };
+    }
+    ledgerEvent = "task_done";
+    ledgerDetail = outcome;
+    transition = (plan) => completeGoalplanTask(plan, workPhaseId, id, outcome);
+  } else {
+    const evidence = (args.evidence ?? "").trim();
+    if (id.length === 0 || evidence.length === 0) {
+      return { output: "loop meet-criterion: --id and non-empty --evidence are required", code: 1 };
+    }
+    ledgerEvent = "criterion_met";
+    ledgerDetail = evidence;
+    transition = (plan) => meetGoalplanCriterion(plan, id, evidence);
+  }
+
+
+
+
+
+
+
+
+
+
+  const locked = withGoalplanWriteLock                 (args.cwd, slug, () => {
+    const plan = readGoalplan(args.cwd, slug);
+    if (!plan) return { kind: "missing" };
+    const result = transition(plan);
+    if (result.kind === "rejected") return { kind: "refused", reason: result.reason };
+    if (result.kind === "unchanged") return { kind: "unchanged", reason: result.reason };
+    writeGoalplan(args.cwd, result.plan);
+    return { kind: "committed" };
+  });
+
+  if (locked.kind === "locked" || locked.kind === "unreadable") {
+    return { output: `loop ${args.verb}: ${locked.reason}`, code: 1 };
+  }
+  const inner = locked.value;
+  if (inner.kind === "missing") {
+    const read = readGoalplanDetailed(args.cwd, slug);
+    return { output: describeReadFailure(read, args.verb, slug), code: 1 };
+  }
+  if (inner.kind === "refused") {
+    return { output: `loop ${args.verb}: ${inner.reason}`, code: 1 };
+  }
+  if (inner.kind === "unchanged") {
+    // The pure reason IS the message. Wrapping it in a second sentence would give the
+    // same state two different wordings depending on which surface reported it.
+    return { output: `loop ${args.verb}: ${inner.reason}; nothing to do`, code: 0 };
+  }
+
+  let warning = "";
+  if (ledgerEvent) {
+    try {
+      appendGoalplanLedger(args.cwd, slug, {
+        ts: new Date().toISOString(),
+        slug,
+        event: ledgerEvent,
+        detail: ledgerDetail,
+      });
+    } catch (err) {
+      warning = `\nwarning: goalplan state was committed, but ledger append failed: ${(err         )?.message ?? String(err)}`;
+    }
+  }
+  return { output: `loop ${args.verb}: ${slug} ${id} applied${warning}`, code: 0 };
+}
+
+function renderPlanLines(plan          , lock                          )         {
   const lines = [
     `[codexclaw loop: ${plan.slug}]`,
     `objective: ${plan.objective}`,
@@ -281,6 +528,13 @@ function renderPlanLines(plan          )         {
     `criteria: ${plan.criteria.length} (unmet ${unmetCriteria(plan).length})`,
     `complete: ${isGoalplanComplete(plan)}`,
   ];
+  if (lock) {
+    // 060 wp6: a stuck lock used to be invisible from the CLI, so a blocked write looked
+    // like a hung command. The age is what tells a live holder from an abandoned one.
+    lines.push(lock.exists
+      ? `writeLock: present path=${lock.path} ageMs=${lock.ageMs}`
+      : `writeLock: absent path=${lock.path}`);
+  }
   for (const wp of plan.workPhases) {
     lines.push(`  - ${wp.id} [${wp.status}] ${wp.title}`);
   }
@@ -300,18 +554,33 @@ export function renderGoalplanHelp()         {
     "cxc loop — durable goalplan for a multi-cycle PABCD loop",
     "",
     "Usage:",
-    "  cxc loop init --objective <text> --session <id> [--criterion <text>]... [--cwd <path>]",
+    "  cxc loop init --objective <text> --session <id> [--criterion <text>]... [--schema-version <n>] [--cwd <path>]",
     "  cxc loop show (--slug <slug> | --objective <text>) [--cwd <path>]",
     "  cxc loop validate --slug <slug> [--cwd <path>]",
-    "  cxc loop steer --session <id> --slug <slug> --batch-json <path-or-json> [--cwd <path>]",
-    "  cxc loop add-work-phase --session <id> --slug <slug> --id <id> --title <text>",
-    "  cxc loop add-criterion --session <id> --slug <slug> --criterion <text> [--surface logic|web|tui]",
+    // 060 wp6: --slug is GONE from the three mutating usage lines. `runSteer()` and
+    // `runAddOp()` read `readState(cwd, session).slug` and ignore `args.slug`, so those
+    // lines advertised syntax that never ran. The read-only verbs keep it because
+    // `resolveSlug()` actually consumes the argument.
+    "  cxc loop steer --session <id> --batch-json <path-or-json> [--cwd <path>]",
+    "  cxc loop add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]... [--cwd <path>]",
+    "  cxc loop add-criterion --session <id> --criterion <text> [--surface logic|web|tui] [--cwd <path>]",
+    "  cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]",
+    "  cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]",
+    "  cxc loop complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]",
+    "  cxc loop meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]",
     "  cxc loop --help",
     "",
     "Notes:",
-    "  Mutating verbs require --session <id>; show and validate are read-only.",
+    "  Mutating verbs require --session <id>; show, validate, and ready are read-only.",
     "  The goalplan lives at <cwd>/.codexclaw/goalplans/<slug>/goalplan.json, so --cwd",
     "  matters when the process cwd is not the workspace you are planning in.",
+    "  Repeat --depends-on once per prerequisite; add-task accepts only existing task ids",
+    "  from the same work phase; comma-separated values are one id.",
+    "  complete-task requires non-empty outcome evidence and never replaces a stored outcome.",
+    "  init declares schemaVersion 1 unless --schema-version says otherwise. 2 and 3",
+    "  additionally require an approved finalGate, and no verb in this build opens a",
+    "  final-gate review round, so opt in only if you can record that gate yourself.",
+    "  meet-criterion requires non-empty captured evidence for the same reason.",
     "",
     "steer --batch-json expects an object with:",
     '  { "idempotencyKey": "<unique>", "rationale": "<why>", "evidence": "<proof>",',
@@ -336,6 +605,7 @@ export function runGoalplanCli(args                 )                    {
     const plan = buildGoalplan({
       objective,
       criteria: args.criteria.map((scenario) => ({ scenario })),
+      schemaVersion: args.schemaVersion,
     });
     writeGoalplan(args.cwd, plan);
     appendGoalplanLedger(args.cwd, slug, {
@@ -353,9 +623,23 @@ export function runGoalplanCli(args                 )                    {
     return { output: renderPlan(readGoalplan(args.cwd, slug) ?? plan), code: 0 };
   }
 
+  if (args.verb === "ready") {
+    const session = (args.session ?? "").trim();
+    // Checked BEFORE resolveSlug(): a non-canonical id would be sanitized into a
+    // DIFFERENT session's state file, and this read-only verb would then print a plan
+    // the caller never named. Fail before anything about that plan reaches the output.
+    if (session.length > 0 && !isCanonicalSessionId(session)) {
+      return { output: "loop ready: session id is not canonical", code: 1 };
+    }
+  }
+
   if (args.verb === "steer") return runSteer(args);
 
   if (args.verb === "add-criterion" || args.verb === "add-work-phase") return runAddOp(args);
+
+  if (args.verb === "add-task" || args.verb === "complete-task" || args.verb === "meet-criterion") {
+    return runLifecycle(args);
+  }
 
   const slug = resolveSlug(args);
   if (!slug) {
@@ -372,8 +656,10 @@ export function runGoalplanCli(args                 )                    {
   }
 
   if (args.verb === "show") {
-    return { output: renderPlan(plan), code: 0 };
+    return { output: renderPlan(plan, goalplanWriteLockStatus(args.cwd, plan.slug)), code: 0 };
   }
+
+  if (args.verb === "ready") return runReady(args, plan);
 
   // validate (E8 quality gate)
   // A read-only context, so `loop validate` can report on a schemaVersion 2 plan

@@ -15,7 +15,14 @@ import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, relative, resolve } from "node:path";
 import { readState } from "./state.js";
-import { readGoalplan, writeGoalplan, effectiveActiveWorkPhaseId,               } from "./goalplan.js";
+import {
+  effectiveActiveWorkPhaseId,
+  readGoalplan,
+  withGoalplanWriteLock,
+  writeGoalplan,
+
+
+} from "./goalplan.js";
 import { openRound, markLaunching, markInFlight, latestRound, abortRound, staleness } from "./review-round.js";
 
 import { splitLines } from "./text-lines.js";
@@ -182,6 +189,24 @@ export function renderReviewRoundHelp()         {
   ].join("\n");
 }
 
+function renderOpenPacket(round                  , fileCount        )         {
+  const launchId = round.lane.launchId;
+  return [
+    launchId,
+    "",
+    `Round ${round.roundId} is in flight over ${fileCount} file(s).`,
+    v2SpawnSurface()
+      ? "Dispatch an independent reviewer (agent_type explorer) and require it to end its"
+      : "Dispatch an independent reviewer and require it to end its",
+    "final message with exactly these two lines:",
+    "",
+    `  LAUNCH: ${launchId}`,
+    "  VERDICT: PASS | NEAR-PASS | FAIL",
+    "",
+    "The verdict is recorded when that reviewer exits. There is no way to write it here.",
+  ].join("\n");
+}
+
 export function runReviewRoundCli(args                    )                       {
   if ((args.verb          ) === "help") {
     return { code: 0, output: renderReviewRoundHelp() };
@@ -198,70 +223,70 @@ export function runReviewRoundCli(args                    )                     
     if (!state.planUnit || !state.planEpoch) {
       return { output: "review-round open: no plan binding on this session — enter A through `cxc orchestrate A` so P>A records the unit it validated", code: 1 };
     }
-    let plan                  = null;
-    try {
-      plan = readGoalplan(args.cwd, state.slug);
-    } catch {
-      plan = null;
-    }
-    if (!plan) return { output: `review-round open: the bound goalplan "${state.slug}" could not be read`, code: 1 };
-    const workPhaseId = effectiveActiveWorkPhaseId(plan);
-    if (!workPhaseId) return { output: "review-round open: the bound goalplan has no active work-phase", code: 1 };
-
     const collected = collectPlanFiles(args.cwd, state.planUnit, args.planPaths);
-    if ("error" in collected) return { output: `review-round open: ${collected.error}`, code: 1 };
-
-    const opened = openRound(plan, {
-      purpose: "plan_audit",
-      planPath: state.planUnit,
-      planSha256: planFilesHash(collected.files),
+    if ("error" in collected) {
+      return { output: `review-round open: ${collected.error}`, code: 1 };
+    }
+    const locked = withGoalplanWriteLock(args.cwd, state.slug, (plan)                       => {
+      const workPhaseId = effectiveActiveWorkPhaseId(plan);
+      if (!workPhaseId) {
+        return { output: "review-round open: the bound goalplan has no active work-phase", code: 1 };
+      }
+      const opened = openRound(plan, {
+        purpose: "plan_audit",
+        planPath: state.planUnit ,
+        planSha256: planFilesHash(collected.files),
+      });
+      if (opened.kind !== "ok") {
+        return { output: `review-round open: ${"reason" in opened ? opened.reason : opened.kind}`, code: 1 };
+      }
+      const bound = {
+        ...opened.plan,
+        reviewRounds: (opened.plan.reviewRounds ?? []).map((round) =>
+          round.roundId === opened.round.roundId
+            ? {
+                ...round,
+                ownerSessionId: session,
+                workPhaseId,
+                planUnit: state.planUnit ,
+                planEpoch: state.planEpoch ,
+                planFiles: collected.files,
+              }
+            : round,
+        ),
+      };
+      const launchId = opened.round.lane.launchId;
+      const launching = markLaunching(bound, "plan_audit", opened.round.roundId, launchId);
+      if (launching.kind !== "ok") {
+        return { output: `review-round open: ${"reason" in launching ? launching.reason : launching.kind}`, code: 1 };
+      }
+      const inFlight = markInFlight(launching.plan, "plan_audit", opened.round.roundId, launchId);
+      if (inFlight.kind !== "ok") {
+        return { output: `review-round open: ${"reason" in inFlight ? inFlight.reason : inFlight.kind}`, code: 1 };
+      }
+      writeGoalplan(args.cwd, inFlight.plan);
+      return { output: renderOpenPacket(opened.round, collected.files.length), code: 0 };
     });
-    if (opened.kind !== "ok") return { output: `review-round open: ${"reason" in opened ? opened.reason : opened.kind}`, code: 1 };
-
-    // Bind before launching: a round that exists without its identity could be
-    // matched by a later cycle.
-    let next = opened.plan;
-    next = {
-      ...next,
-      reviewRounds: (next.reviewRounds ?? []).map((r) =>
-        r.roundId === opened.round.roundId
-          ? { ...r, ownerSessionId: session, workPhaseId, planUnit: state.planUnit , planEpoch: state.planEpoch , planFiles: collected.files }
-          : r,
-      ),
-    };
-    const launchId = opened.round.lane.launchId;
-    const launching = markLaunching(next, "plan_audit", opened.round.roundId, launchId);
-    if (launching.kind !== "ok") return { output: `review-round open: ${"reason" in launching ? launching.reason : launching.kind}`, code: 1 };
-    const inFlight = markInFlight(launching.plan, "plan_audit", opened.round.roundId, launchId);
-    if (inFlight.kind !== "ok") return { output: `review-round open: ${"reason" in inFlight ? inFlight.reason : inFlight.kind}`, code: 1 };
-    writeGoalplan(args.cwd, inFlight.plan);
-    return {
-      output: [
-        launchId,
-        "",
-        `Round ${opened.round.roundId} is in flight over ${collected.files.length} file(s).`,
-        v2SpawnSurface()
-          ? "Dispatch an independent reviewer (agent_type explorer) and require it to end its"
-          : "Dispatch an independent reviewer and require it to end its",
-        "final message with exactly these two lines:",
-        "",
-        `  LAUNCH: ${launchId}`,
-        "  VERDICT: PASS | NEAR-PASS | FAIL",
-        "",
-        "The verdict is recorded when that reviewer exits. There is no way to write it here.",
-      ].join("\n"),
-      code: 0,
-    };
+    if (locked.kind !== "ok") {
+      return { output: `review-round open: ${locked.reason}; retry`, code: 1 };
+    }
+    return locked.value;
   }
 
   if (args.verb === "abort") {
     if (!state.slug) return { output: "review-round abort: this session has no bound goalplan", code: 1 };
-    const plan = readGoalplan(args.cwd, state.slug);
-    if (!plan) return { output: "review-round abort: the bound goalplan could not be read", code: 1 };
-    const aborted = abortRound(plan, "plan_audit", args.reason ?? "aborted by the agent");
-    if (aborted.kind !== "ok") return { output: `review-round abort: ${"reason" in aborted ? aborted.reason : aborted.kind}`, code: 1 };
-    writeGoalplan(args.cwd, aborted.plan);
-    return { output: `review-round abort: ${aborted.round.roundId} closed as inconclusive`, code: 0 };
+    const locked = withGoalplanWriteLock(args.cwd, state.slug, (plan)                       => {
+      const aborted = abortRound(plan, "plan_audit", args.reason ?? "aborted by the agent");
+      if (aborted.kind !== "ok") {
+        return { output: `review-round abort: ${"reason" in aborted ? aborted.reason : aborted.kind}`, code: 1 };
+      }
+      writeGoalplan(args.cwd, aborted.plan);
+      return { output: `review-round abort: ${aborted.round.roundId} closed as inconclusive`, code: 0 };
+    });
+    if (locked.kind !== "ok") {
+      return { output: `review-round abort: ${locked.reason}; retry`, code: 1 };
+    }
+    return locked.value;
   }
 
   // show

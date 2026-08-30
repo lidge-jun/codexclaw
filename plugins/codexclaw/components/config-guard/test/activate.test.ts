@@ -22,10 +22,43 @@ function assertNotRealCodexHome(path: string, env: NodeJS.ProcessEnv = process.e
 // activate snapshot/hash logic exercises a real file — without ever touching ~/.codex.
 function makeFakeCodex(configPath: string, initial: Record<string, boolean>) {
   const state = { ...initial };
+  // Mirror the real `codex features enable|disable`, which edits config.toml in place
+  // via toml_edit and leaves every other line alone. Regenerating the file from scratch
+  // would silently destroy foreign content and let a clobbering bug pass its test.
   const writeConfig = () => {
-    const lines = ["[features]"];
-    for (const [k, v] of Object.entries(state)) lines.push(`${k} = ${v}`);
-    writeFileSync(configPath, lines.join("\n") + "\n", "utf8");
+    const existing = existsSync(configPath) ? readFileSync(configPath, "utf8") : "";
+    const lines = existing.length > 0 ? existing.split("\n") : [];
+    const hasFeatures = lines.some((l) => /^\s*\[features\]\s*$/.test(l));
+    if (!hasFeatures) {
+      if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+      lines.push("[features]");
+    }
+    const headerIdx = lines.findIndex((l) => /^\s*\[features\]\s*$/.test(l));
+    let end = lines.length;
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      if (/^\s*\[/.test(lines[i])) {
+        end = i;
+        break;
+      }
+    }
+    for (const [k, v] of Object.entries(state)) {
+      const re = new RegExp(`^(\\s*)${k}\\s*=\\s*(?:true|false)\\s*$`);
+      let found = -1;
+      for (let i = headerIdx + 1; i < end; i++) {
+        if (re.test(lines[i])) {
+          found = i;
+          break;
+        }
+      }
+      if (found >= 0) {
+        lines[found] = `${k} = ${v}`;
+      } else {
+        lines.splice(end, 0, `${k} = ${v}`);
+        end += 1;
+      }
+    }
+    const out = lines.join("\n");
+    writeFileSync(configPath, out.endsWith("\n") ? out : `${out}\n`, "utf8");
   };
   writeConfig();
   const calls: string[][] = [];
@@ -102,7 +135,7 @@ test("enable then disable restores prior state; pre-existing-true left untouched
   assert.equal(fake.state.goals, true);
 
   const r = deactivate({ run: fake.run, codexHome: home, configPath });
-  assert.equal(r.skippedDrift, false);
+  assert.equal(r.fileDrifted, false);
   // goals/hooks/default... were turned on by codexclaw -> disabled again
   assert.deepEqual(r.disabled.sort(), ["default_mode_request_user_input", "goals", "hooks"]);
   // multi_agent was pre-existing true -> kept
@@ -147,15 +180,26 @@ test("deactivate with no manifest is a safe no-op", () => {
   assert.equal(r.disabled.length, 0);
 });
 
-test("deactivate detects config drift and refuses to revert", () => {
+test("deactivate reverts our keys and preserves unrelated edits", () => {
+  // Replaces "deactivate detects config drift and refuses to revert" (260829 wp3).
+  // The old whole-file hash gate made ONE unrelated edit disable uninstall forever,
+  // stranding flags the user never chose. The contract is now positive: revert our
+  // own items, and leave every foreign byte exactly where it was.
   const { home, configPath } = setup();
   const fake = makeFakeCodex(configPath, { multi_agent: false, goals: false, hooks: false, default_mode_request_user_input: false });
   activate({ run: fake.run, codexHome: home, configPath, now: () => "2026-06-30T00:00:00.000Z" });
   // simulate external edit after activation
   writeFileSync(configPath, readFileSync(configPath, "utf8") + "\n# user edit\n", "utf8");
+
   const r = deactivate({ run: fake.run, codexHome: home, configPath });
-  assert.equal(r.skippedDrift, true);
-  assert.equal(r.disabled.length, 0);
+  assert.equal(r.fileDrifted, true, "the drift is still detected — it is reported, not obeyed");
+  assert.deepEqual(
+    r.disabled.sort(),
+    ["default_mode_request_user_input", "goals", "hooks", "multi_agent"],
+    "every flag codexclaw turned on is reverted despite the unrelated edit",
+  );
+  assert.equal(fake.state.goals, false);
+  assert.match(readFileSync(configPath, "utf8"), /# user edit/, "the foreign line survives verbatim");
 });
 
 test("assertNotRealCodexHome throws on the real ~/.codex, allows temp", () => {

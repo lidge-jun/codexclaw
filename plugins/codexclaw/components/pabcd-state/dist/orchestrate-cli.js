@@ -97,7 +97,24 @@ function mintEpoch(prefix        )         {
 function mintPlanEpoch()         {
   return mintEpoch("e");
 }
-import { advanceWorkPhase, appendGoalplanLedger, effectiveActiveWorkPhaseId, readGoalplan, writeGoalplan,                                   } from "./goalplan.js";
+import {
+  advanceWorkPhase,
+  appendGoalplanLedger,
+  dependencyDeadlock,
+  effectiveActiveWorkPhaseId,
+  GOALPLAN_LEDGER_FILE,
+  goalplanDir,
+  goalplanDefinitionIntegrityReasons,
+  goalplanDependencyCompletionReasons,
+  readGoalplan,
+  withGoalplanWriteLock,
+  writeGoalplan,
+  absentSuccessorDetail,
+  closeFixedWorkPhase,
+  resumeAbsentTarget,
+
+
+} from "./goalplan.js";
 import { latestRound, supersedeStaleRounds } from "./review-round.js";
 import { planFilesHash, recomputed } from "./review-round-cli.js";
 import { validateCheckReceipt } from "./check-gate.js";
@@ -108,11 +125,13 @@ import { resetRenderLedger } from "./render-observations.js";
 
 import {
   appendLedger,
-  readState,
-  writeState,
   findForeignSessionCopies,
-  STATE_DIR,
+  LEDGER_FILE,
+  matchesDcloseRecovery,
+  readState,
   SESSIONS_SUBDIR,
+  STATE_DIR,
+  writeState,
 
 
 } from "./state.js";
@@ -395,7 +414,39 @@ export function renderOrchestrateParseError(error               )         {
 
 
 /** Execute a parsed orchestrate CLI command. Does its own state IO. Never throws. */
-export function runOrchestrateCli(args                                             )            {
+
+
+
+
+
+
+
+function readJsonlObjects(path        )                                 {
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8").split("\n").filter(Boolean)
+    .map((line) => JSON.parse(line)                           );
+}
+
+function hasGoalplanRow(cwd        , slug        , event        , detail        )          {
+  return readJsonlObjects(join(goalplanDir(cwd, slug), GOALPLAN_LEDGER_FILE))
+    .some((row) => row.event === event && row.detail === detail);
+}
+
+function hasPabcdCloseRow(
+  cwd        ,
+  sessionId        ,
+  checkEpoch               ,
+  closedWorkPhaseId               ,
+)          {
+  return readJsonlObjects(join(cwd, STATE_DIR, LEDGER_FILE)).some(
+    (row) => row.sessionId === sessionId && row.from === "C"
+      && row.to === "IDLE" && row.reason === "done"
+      && row.checkEpoch === checkEpoch
+      && row.closedWorkPhaseId === closedWorkPhaseId,
+  );
+}
+
+export function runOrchestrateCli(args                                             , commitHooks                         = {})            {
   if ("help" in args) return { code: 0, output: renderOrchestrateHelp() };
 
   // malformed --attest is a hard error before any state mutation (except control verbs).
@@ -461,6 +512,12 @@ export function runOrchestrateCli(args                                          
     };
   }
   const state = readState(args.cwd, sessionId);
+  // 050 wp5 §5: the fixed close target and whether this D request is finishing a
+  // close that already started. A matching marker means the first attempt already
+  // spent the binding, transition, and receipt gates, so re-consuming them would
+  // refuse a retry for gates it has no way to satisfy twice.
+  const closePhaseId = args.verb === "D" ? args.attest?.workPhaseId?.trim() ?? "" : "";
+  const recoveringDclose = args.verb === "D" && matchesDcloseRecovery(state, closePhaseId);
 
   // reset: control override (same cleared-IDLE write as the human path).
   if (args.verb === "reset") {
@@ -492,7 +549,7 @@ export function runOrchestrateCli(args                                          
   // Work-phase binding gate (260714 wp4, LOOP-UNIT-CHAIN-01): on every gated edge
   // of a goalplan-bound session, the attest must name the ONE effective active
   // work-phase. Fail-open when no goalplan resolves (HITL unchanged).
-  if (GATED_TRANSITIONS.has(`${state.phase}>${to}`) && state.slug) {
+  if (GATED_TRANSITIONS.has(`${state.phase}>${to}`) && state.slug && !recoveringDclose) {
     let effective                = null;
     try {
       const plan = readGoalplan(args.cwd, state.slug);
@@ -558,7 +615,12 @@ export function runOrchestrateCli(args                                          
       };
     }
   }
-  const result = transition(state, to, args.attest);
+  // 050 wp5 §5: a marker-matched D retry is resuming a transition the first attempt
+  // already made legally. state.phase is IDLE by then, so transition() would refuse
+  // C>D on a session whose cycle is functionally mid-close.
+  const result = recoveringDclose
+    ? { ok: true         , state: { ...state, phase: "D"          } }
+    : transition(state, to, args.attest);
   if (!result.ok || !result.state) {
     return { code: 1, output: `orchestrate ${args.verb}: ${renderPhaseContext(state, sessionId)}; ${result.reason ?? "transition refused"}` };
   }
@@ -600,101 +662,341 @@ export function runOrchestrateCli(args                                          
     // CHECK-BINDING-01 (075): a bound session must name a receipt this cycle produced.
     // Runs before the goalplan preflight and every write, so a refusal leaves state,
     // the PABCD ledger and the goalplan untouched.
-    if (state.slug) {
+    // 050 wp5 §5: a marker-matched retry already spent its receipt in the first
+    // attempt, and the epoch it ran under is recorded on the marker.
+    if (state.slug && !recoveringDclose) {
       const receiptCheck = validateCheckReceipt(state, sessionId, args.attest?.testReceiptPath, args.cwd);
       if (!receiptCheck.ok) {
         return { code: 1, output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; ${receiptCheck.reason} Nothing was written.` };
       }
     }
-    // CYCLE-COMPLETION-01 preflight (030): decide the work-phase close BEFORE any
-    // write. Closing the FSM first and consulting the goalplan afterwards is what
-    // let a refusal land as "FSM idle, ledger done, goalplan unfinished" — so the
-    // refusal path below returns with state, PABCD ledger and goalplan untouched.
-    let advanced                       = null;
-    if (state.slug) {
-      let plan                  = null;
-      let planReadFailed = false;
-      try {
-        plan = readGoalplan(args.cwd, state.slug);
-      } catch {
-        planReadFailed = true;
-      }
-      if (!plan || planReadFailed) {
-        // FAIL-CLOSED for a bound session only: readGoalplan() swallows every error
-        // into null, and hand-editing a goalplan is ordinary practice here, so a
-        // missing or malformed file would otherwise be the cheapest way past this
-        // gate. Sessions with no bound slug keep the old fail-open behaviour.
-        return {
-          code: 1,
-          output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; the bound goalplan "${state.slug}" could not be read, so this cycle cannot be closed (CYCLE-COMPLETION-01). Restore the goalplan file, or run \`cxc orchestrate reset\` to stand the cycle down.`,
-        };
-      }
-      advanced = advanceWorkPhase(plan);
-      if (advanced.kind === "tasks_pending") {
-        const open = advanced.pending.map((t) => `${t.id} (${t.title})`).join("; ");
-        return {
-          code: 1,
-          output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; work-phase ${advanced.workPhaseId} still has ${advanced.pending.length} open task(s), so this cycle cannot close (CYCLE-COMPLETION-01): ${open}. One work-phase is one full PABCD cycle — finish the task and mark it done, or close the remaining tasks in their own cycles. Nothing was written.`,
-        };
-      }
-      if (advanced.kind === "no_active") {
-        // #49: "no active work-phase" has two very different causes. If every phase
-        // is already done, the plan is COMPLETE and refusing D strands the cycle —
-        // the reported workaround was to write a finished phase back to
-        // in_progress just to satisfy this gate, which corrupts the record to
-        // satisfy a check about the record. Only an EMPTY or fully blocked plan is
-        // a real refusal.
-        const closable = plan.workPhases.length > 0 && plan.workPhases.every((wp) => wp.status === "done");
-        if (closable) {
-          advanced = { kind: "ok", closedId: null, plan };
-        } else {
-        return {
-          code: 1,
-          output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; the bound goalplan "${state.slug}" has no work-phase to close (CYCLE-COMPLETION-01): ${plan.workPhases.length === 0 ? "the plan is empty — register workPhases[] first" : "every remaining work-phase is blocked or superseded — unblock one"}. Nothing was written.`,
-        };
-        }
-      }
+    // §35-1: unbound HITL keeps the pre-wp5 path byte-for-byte. It never takes a
+    // goalplan lock and never enters marker cleanup.
+    if (!state.slug) {
+      writeState(args.cwd, { ...clearedIdle(state), stopBlockPhase: null, stopBlockCount: 0 });
+      appendLedger(args.cwd, {
+        ts: new Date().toISOString(),
+        sessionId: state.sessionId,
+        from: state.phase,
+        to: "IDLE",
+        reason: "done",
+        ...(args.attest?.did ? { evidence: args.attest.did } : {}),
+      });
+      return { code: 0, output: `orchestrate D: current=${state.phase} -> IDLE (${state.phase} → IDLE, cycle closed, session ${sessionId})` };
     }
-    writeState(args.cwd, { ...clearedIdle(state), stopBlockPhase: null, stopBlockCount: 0 });
-    appendLedger(args.cwd, {
-      ts: new Date().toISOString(),
-      sessionId: state.sessionId,
-      from: state.phase,
-      to: "IDLE",
-      reason: "done",
-      ...(args.attest?.did ? { evidence: args.attest.did } : {}),
-    });
-    if (advanced && advanced.kind === "ok") {
-      // Persist the plan the preflight computed — re-reading here would race the
-      // decision the refusal above was based on.
-      try {
-        writeGoalplan(args.cwd, advanced.plan);
-        appendGoalplanLedger(args.cwd, state.slug, {
-          ts: new Date().toISOString(),
-          slug: state.slug,
-          event: "workphase_done",
-          // 260714 wp4: log the EFFECTIVE closed id (implicit cursor may have
-          // started from a null explicit cursor — "closed none" was a lie).
-          // #49: a null id means the plan was already fully done and this cycle
-          // closed without advancing a cursor. Say that rather than "closed null".
-          detail: advanced.closedId
-            ? `closed ${advanced.closedId}`
-            : "cycle closed over an already-complete plan",
-        });
-        if (advanced.plan.activeWorkPhaseId) {
-          appendGoalplanLedger(args.cwd, state.slug, {
-            ts: new Date().toISOString(),
-            slug: state.slug,
-            event: "workphase_started",
-            detail: `started ${advanced.plan.activeWorkPhaseId}`,
+
+    const slug = state.slug;
+    let allDoneClose = false;
+    const locked = withGoalplanWriteLock(args.cwd, slug, (plan) => {
+        // §5: integrity is checked inside the lock, before marker or any write.
+        const integrityReasons = [
+          ...goalplanDefinitionIntegrityReasons(plan),
+          ...goalplanDependencyCompletionReasons(plan),
+        ];
+        if (integrityReasons.length > 0) {
+          return {
+            code: 1         ,
+            allDone: false         ,
+            output: `orchestrate D: invalid goalplan: ${integrityReasons.join("; ")}. Nothing was written.`,
+          };
+        }
+        // §35-2: preserve the existing empty-plan refusal before target lookup.
+        if (plan.workPhases.length === 0) {
+          return {
+            code: 1         ,
+            allDone: false         ,
+            output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; the bound goalplan "${slug}" has no work-phase to close (CYCLE-COMPLETION-01): the plan is empty — register workPhases[] first. Nothing was written.`,
+          };
+        }
+
+        // §39 Y2: recovery comes BEFORE the all-done special case. Crashing right
+        // after the final work-phase was committed leaves an all-done plan, so
+        // checking all-done first would re-enter it as a plain cycle close and
+        // record closedWorkPhaseId: null — losing the target the marker names.
+        let closedPlan = plan;
+        let writeClosedPlan = false;
+        if (recoveringDclose) {
+          // §50: a marker written before the successor field exists cannot say whether
+          // the plan commit landed, and neither reading of it is safe — treating it as
+          // "no decision" or as "no successor" both null the cursor on a plan that was
+          // already correct, and the target status does not separate the two histories.
+          // Hand it to a human instead of guessing.
+          if (state.dcloseRecovery.legacy) {
+            return {
+              code: 1         ,
+              allDone: false         ,
+              output: `orchestrate D: the recovery marker for ${closePhaseId} predates the successor field, so this retry cannot tell whether the plan commit landed. The marker was kept; inspect the goalplan, set the work-phase statuses and activeWorkPhaseId by hand, then run \`cxc orchestrate reset --session ${sessionId}\` to clear the marker. Nothing was written.`,
+            };
+          }
+          // §39 Y1: the marker is written BEFORE the plan commit, so a matching
+          // marker does not prove the plan was closed. Look the fixed target up —
+          // this is not the §38 X2 "target validation" that refuses on absence.
+          // Absent means a later edit removed it and the commit is not ours to
+          // redo; present-but-open means the marker-then-crash case and we close
+          // exactly that phase.
+          //
+          // §40 Z1: closing it means closeFixedWorkPhase(), the same transformation
+          // the normal path uses. Fixing up only the target's status left
+          // activeWorkPhaseId on a done phase and logged a false started row.
+          const fixed = plan.workPhases.find((workPhase) => workPhase.id === closePhaseId);
+          // §42/§43: the caller never decides whether the commit landed. Status alone
+          // is not proof — a status-only edit keeps the cursor on the target — and even
+          // a genuine commit can be edited afterwards to hide a pending task under a
+          // done phase. So the helper runs whenever the target exists, and it answers
+          // `already_done` only after its three gates pass.
+          // §52/§53: an absent target does NOT mean there is nothing to finish. The marker
+          // still records the successor this close activated, and skipping to cleanup
+          // leaves that phase unstarted while the ledger claims the cycle closed.
+          // Reachable: crash right after the marker, then an edit removes the target.
+          // The decision is shared with the chat path so the two cannot diverge.
+          if (!fixed) {
+            const orphan = resumeAbsentTarget(plan, state.dcloseRecovery.nextWorkPhaseId);
+            if (orphan.kind === "successor_lost") {
+              return {
+                code: 1         ,
+                allDone: false         ,
+                output: `orchestrate D: recovery target ${closePhaseId} is gone from the plan and the successor ${orphan.successorId} it recorded ${absentSuccessorDetail(orphan.reason)}, so this retry cannot tell what to finish. The marker was kept; inspect the goalplan, set the work-phase statuses and activeWorkPhaseId by hand, then run \`cxc orchestrate reset --session ${sessionId}\` to clear the marker. Nothing was written.`,
+              };
+            }
+            if (orphan.kind === "activate") {
+              closedPlan = orphan.plan;
+              writeClosedPlan = true;
+            }
+          }
+          if (fixed) {
+            const closed = closeFixedWorkPhase(plan, closePhaseId, state.dcloseRecovery.nextWorkPhaseId);
+            // §41 W1: a target that gained a pending task or became blocked after its
+            // marker is FAIL-CLOSED, and the marker is deliberately left in place so
+            // the operator can fix the plan and finish with the same request. Wiping
+            // it here would destroy the only route back.
+            if (closed.kind === "tasks_pending") {
+              const open = closed.pending.map((task) => `${task.id} (${task.title})`).join("; ");
+              return {
+                code: 1         ,
+                allDone: false         ,
+                output: `orchestrate D: recovery target ${closePhaseId} gained ${closed.pending.length} open task(s) after its marker was written, so this cycle cannot close (CYCLE-COMPLETION-01): ${open}. The recovery marker was kept; close those tasks and run the same D request again. Nothing was written.`,
+              };
+            }
+            if (closed.kind === "not_runnable") {
+              return {
+                code: 1         ,
+                allDone: false         ,
+                output: `orchestrate D: recovery target ${closePhaseId} is now ${closed.status}, so this cycle cannot close (CYCLE-COMPLETION-01). The recovery marker was kept; restore that work-phase and run the same D request again. Nothing was written.`,
+              };
+            }
+            if (closed.kind === "dependencies_unmet") {
+              return {
+                code: 1         ,
+                allDone: false         ,
+                output: `orchestrate D: recovery target ${closePhaseId} now waits for ${closed.unmet.join(", ")}, so this cycle cannot close (CYCLE-COMPLETION-01). The recovery marker was kept; satisfy those work-phases and run the same D request again. Nothing was written.`,
+              };
+            }
+            // §50: the recorded successor is binding. When it cannot be used this fails
+            // closed and keeps the marker, because picking a different phase would
+            // confirm a close the earlier attempt never decided. An earlier draft
+            // refreshed the marker to whatever this retry chose instead, which let the
+            // repair drift away from the write it was resuming.
+            if (closed.kind === "successor_lost") {
+              // §51: a corrupt marker names no repairable work-phase, so it gets its own
+              // route out. The other three are fixed by editing the plan.
+              if (closed.reason === "corrupt") {
+                return {
+                  code: 1         ,
+                  allDone: false         ,
+                  output: `orchestrate D: the recovery marker for ${closePhaseId} names that same work-phase as its successor, which no close can produce, so this retry cannot tell what to finish. The marker was kept; inspect the goalplan, set the work-phase statuses and activeWorkPhaseId by hand, then run \`cxc orchestrate reset --session ${sessionId}\` to clear the marker. Nothing was written.`,
+                };
+              }
+              const detail = closed.reason === "absent"
+                ? "is no longer in the plan"
+                : closed.reason === "not_runnable"
+                  ? "can no longer be started"
+                  : "now waits for another work-phase";
+              return {
+                code: 1         ,
+                allDone: false         ,
+                output: `orchestrate D: recovery target ${closePhaseId} was closed with successor ${closed.successorId}, which ${detail}, so this cycle cannot close (CYCLE-COMPLETION-01). The recovery marker was kept; restore that work-phase and run the same D request again. Nothing was written.`,
+              };
+            }
+            if (closed.kind === "ok") {
+              closedPlan = closed.plan;
+              writeClosedPlan = true;
+            }
+          }
+        } else {
+          // §35-3 / #49: an already-complete non-empty plan closes the cycle only.
+          // No marker, plan write, or goalplan ledger row is needed. This is now
+          // inside the non-recovery branch so a matching marker always wins.
+          if (plan.workPhases.every((workPhase) => workPhase.status === "done")) {
+            // §40 Z2: finish the PABCD close row inside THIS lock. all-done mints no
+            // marker, so if the row were left to a second lock and that lock failed,
+            // the retry would hit `IDLE -> D` with nothing to recover from and the
+            // row would be lost for good.
+            if (state.phase === "C" && !hasPabcdCloseRow(args.cwd, sessionId, state.checkEpoch, null)) {
+              appendLedger(args.cwd, {
+                ts: new Date().toISOString(), sessionId: state.sessionId, from: "C", to: "IDLE", reason: "done",
+                checkEpoch: state.checkEpoch,
+                closedWorkPhaseId: null,
+                ...(args.attest?.did ? { evidence: args.attest.did } : {}),
+              });
+              commitHooks.afterPabcdLedgerAppend?.();
+            }
+            return { code: 0         , allDone: true          };
+          }
+          // §35-5: input and target membership checks follow all-done and recovery.
+          if (!closePhaseId) {
+            return {
+              code: 1         ,
+              allDone: false         ,
+              output: "orchestrate D: attest.workPhaseId is required. Nothing was written.",
+            };
+          }
+          const target = plan.workPhases.find((workPhase) => workPhase.id === closePhaseId);
+          if (!target) {
+            return {
+              code: 1         ,
+              allDone: false         ,
+              output: `orchestrate D: work-phase ${closePhaseId} is not in the bound goalplan. Nothing was written.`,
+            };
+          }
+          const advanced = advanceWorkPhase(plan);
+          // §35-6: pending tasks are refused before no-active/deadlock handling.
+          if (advanced.kind === "tasks_pending") {
+            const open = advanced.pending.map((task) => `${task.id} (${task.title})`).join("; ");
+            return {
+              code: 1         ,
+              allDone: false         ,
+              output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; work-phase ${advanced.workPhaseId} still has ${advanced.pending.length} open task(s), so this cycle cannot close (CYCLE-COMPLETION-01): ${open}. Nothing was written.`,
+            };
+          }
+          // §35-7: all-done was consumed above, so no_active now means a real
+          // unavailable/deadlocked remainder. Prefer dependencyDeadlock() detail.
+          if (advanced.kind === "no_active") {
+            const deadlock = dependencyDeadlock(plan);
+            const reason = deadlock
+              ? `Dependency deadlock: ${deadlock.reasons.join("; ")}`
+              : "every remaining work-phase is blocked or superseded — unblock one";
+            return {
+              code: 1         ,
+              allDone: false         ,
+              output: `orchestrate D: ${renderPhaseContext(state, sessionId)}; the bound goalplan "${slug}" has no work-phase to close (CYCLE-COMPLETION-01): ${reason}. Nothing was written.`,
+            };
+          }
+          if (advanced.closedId !== closePhaseId) {
+            return {
+              code: 1         ,
+              allDone: false         ,
+              output: `orchestrate D: fixed close target ${closePhaseId} does not match active work-phase ${advanced.closedId}. Nothing was written.`,
+            };
+          }
+          closedPlan = advanced.plan;
+          writeClosedPlan = true;
+
+          // §35-8: only the normal bound close mints a marker and commits the plan.
+          if (state.phase !== "C" || !state.checkEpoch) {
+            return {
+              code: 1         ,
+              allDone: false         ,
+              output: "orchestrate D: current C check epoch is required. Nothing was written.",
+            };
+          }
+          writeState(args.cwd, {
+            ...state,
+            dcloseRecovery: {
+              sessionId: state.sessionId,
+              checkEpoch: state.checkEpoch,
+              closedWorkPhaseId: closePhaseId,
+              // §48: record the successor BEFORE the plan commit. A retry re-reads this
+              // decision, so a later hand edit of the cursor cannot rewrite what this
+              // close meant to do.
+              nextWorkPhaseId: closedPlan.activeWorkPhaseId,
+            },
+          });
+          commitHooks.afterRecoveryMarkerWrite?.();
+        }
+        if (writeClosedPlan) {
+          writeGoalplan(args.cwd, closedPlan);
+          commitHooks.afterGoalplanCommit?.();
+        }
+
+        if (!hasGoalplanRow(args.cwd, slug, "workphase_done", `closed ${closePhaseId}`)) {
+          appendGoalplanLedger(args.cwd, slug, {
+            ts: new Date().toISOString(), slug, event: "workphase_done",
+            detail: `closed ${closePhaseId}`,
           });
         }
-      } catch {
-        // FAIL-OPEN on the WRITE only: the gate decision already passed, so a disk
-        // failure here must not strand a legitimately closed cycle.
-      }
+        // §52: the started row names the successor THIS close activated, which the marker
+        // records. The persisted cursor is the wrong source on a resume: a retry that
+        // answers already_done leaves `closedPlan` as the file, and that cursor may have
+        // moved past the successor — or been nulled by an all-done plan — so the row this
+        // close still owed would never be written. The hasGoalplanRow guard keeps it
+        // idempotent when the row already exists.
+        const startedId = recoveringDclose
+          ? state.dcloseRecovery.nextWorkPhaseId
+          : closedPlan.activeWorkPhaseId;
+        if (startedId && !hasGoalplanRow(args.cwd, slug, "workphase_started", `started ${startedId}`)) {
+          appendGoalplanLedger(args.cwd, slug, {
+            ts: new Date().toISOString(), slug, event: "workphase_started",
+            detail: `started ${startedId}`,
+          });
+        }
+        return { code: 0         , allDone: false          };
+      });
+
+    if (locked.kind === "locked") {
+      return { code: 1, output: `orchestrate D: ${locked.reason} D-close was not applied. Nothing was written.` };
     }
-    return { code: 0, output: `orchestrate D: current=${state.phase} -> IDLE (${state.phase} → IDLE, cycle closed, session ${sessionId})` };
+    if (locked.kind === "unreadable") {
+      return { code: 1, output: `orchestrate D: the bound goalplan "${slug}" could not be read (CYCLE-COMPLETION-01): ${locked.reason}. Nothing was written.` };
+    }
+    if (locked.value.code !== 0) return locked.value;
+    allDoneClose = locked.value.allDone;
+
+    const recovery = readState(args.cwd, sessionId).dcloseRecovery;
+    const closeCheckEpoch = recovery?.checkEpoch ?? state.checkEpoch;
+    const closedWorkPhaseId = allDoneClose ? null : closePhaseId;
+    if (state.phase !== "IDLE") {
+      writeState(args.cwd, {
+        ...clearedIdle(state),
+        checkEpoch: allDoneClose ? null : recovery?.checkEpoch ?? null,
+        dcloseRecovery: allDoneClose ? null : recovery,
+        stopBlockPhase: null,
+        stopBlockCount: 0,
+      });
+      commitHooks.afterStateWrite?.();
+    }
+    // check + append + marker cleanup is one critical section. Two recoveries
+    // cannot both observe an absent 3-tuple.
+    //
+    // §40 Z2: all-done already wrote its row inside the first lock and has no marker
+    // to clear, so it never enters this second critical section.
+    const finalize = allDoneClose
+      ? { kind: "ok"         , value: undefined }
+      : withGoalplanWriteLock(args.cwd, slug, () => {
+      if (!hasPabcdCloseRow(args.cwd, sessionId, closeCheckEpoch, closedWorkPhaseId)) {
+        appendLedger(args.cwd, {
+          ts: new Date().toISOString(), sessionId: state.sessionId, from: "C", to: "IDLE", reason: "done",
+          checkEpoch: closeCheckEpoch,
+          closedWorkPhaseId,
+          ...(args.attest?.did ? { evidence: args.attest.did } : {}),
+        });
+        commitHooks.afterPabcdLedgerAppend?.();
+      }
+      const current = readState(args.cwd, sessionId);
+      if (matchesDcloseRecovery(current, closePhaseId)) {
+        writeState(args.cwd, { ...current, checkEpoch: null, dcloseRecovery: null });
+      }
+    });
+    if (finalize.kind !== "ok") {
+      return {
+        // §39 Y3: not a refusal. The state write above already moved the FSM to
+        // IDLE outside the lock, so returning code 1 here would report a failure
+        // for a cycle that is functionally closed. The marker survives and the
+        // next D request for the same tuple finishes the cleanup.
+        code: 0,
+        output: `orchestrate D: close target ${closePhaseId} is committed and the cycle is closed, but ledger/marker finalization is pending: ${finalize.reason} The recovery marker is still on the session, so running the same D request again finishes the cleanup.`,
+      };
+    }
+    return { code: 0, output: `orchestrate D: close target ${closePhaseId} is complete (cycle closed, session ${sessionId})` };
   }
 
   // L6: a real CLI transition is progress -> reset the Stop stagnation guard.
@@ -718,33 +1020,36 @@ export function runOrchestrateCli(args                                          
   // The rounds are the only place the previous epoch still exists.
   if (planBinding && state.slug) {
     try {
-      const plan = readGoalplan(args.cwd, state.slug);
-      if (plan) {
+      withGoalplanWriteLock(args.cwd, state.slug, (plan) => {
         const stranded = (plan.reviewRounds ?? []).find(
-          (r) => r.purpose === "plan_audit"
-            && r.ownerSessionId === sessionId
-            && r.planEpoch !== undefined
-            && r.planEpoch !== planBinding.epoch
-            && r.status !== "approved"
-            && r.status !== "changes_requested"
-            && r.status !== "inconclusive",
+          (round) => round.purpose === "plan_audit"
+            && round.ownerSessionId === sessionId
+            && round.planEpoch !== undefined
+            && round.planEpoch !== planBinding.epoch
+            && round.status !== "approved"
+            && round.status !== "changes_requested"
+            && round.status !== "inconclusive",
         );
-        const swept = supersedeStaleRounds(plan, "plan_audit", sessionId, stranded?.planEpoch ?? null);
-        if (swept.closed.length > 0) {
-          writeGoalplan(args.cwd, swept.plan);
-          for (const roundId of swept.closed) {
-            appendGoalplanLedger(args.cwd, state.slug, {
-              ts: new Date().toISOString(),
-              slug: state.slug,
-              event: "review_round_superseded",
-              detail: "the plan was re-planned, so this round can no longer be spent",
-              roundId,
-            });
-          }
+        const swept = supersedeStaleRounds(
+          plan,
+          "plan_audit",
+          sessionId,
+          stranded?.planEpoch ?? null,
+        );
+        if (swept.closed.length === 0) return;
+        writeGoalplan(args.cwd, swept.plan);
+        for (const roundId of swept.closed) {
+          appendGoalplanLedger(args.cwd, state.slug , {
+            ts: new Date().toISOString(),
+            slug: state.slug ,
+            event: "review_round_superseded",
+            detail: "the plan was re-planned, so this round can no longer be spent",
+            roundId,
+          });
         }
-      }
+      });
     } catch {
-      // FAIL-OPEN: sweeping is housekeeping; a failure here must not block the edge
+      // Housekeeping is fail-open. The P-to-A edge continues.
     }
   }
   writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: entrySource, planUnit: nextUnit, planEpoch: nextEpoch, checkEpoch: nextCheckEpoch });

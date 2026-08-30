@@ -62,7 +62,13 @@ export function validateCheckReceipt(
     return refuse("the receipt belongs to an earlier check cycle — re-run the command for this one");
   }
 
-  const now = captureSourceIdentity(cwd, { excludeCodexclawArtifacts: true });
+  // #49 wiring: re-capture with the SAME exclusions the receipt was captured with.
+  // Dropping generatedPaths here compared an exclusive hash against an inclusive one,
+  // which no amount of re-running could reconcile while a declared path kept moving.
+  const now = captureSourceIdentity(cwd, {
+    excludeCodexclawArtifacts: true,
+    ...(parsed.generatedPaths ? { generatedPaths: parsed.generatedPaths } : {}),
+  });
   const cmp = compareSource(parsed.sourceIdentity, now);
   if (cmp.kind === "different") {
     return refuse(`the source changed after the check ran (${cmp.detail})`);

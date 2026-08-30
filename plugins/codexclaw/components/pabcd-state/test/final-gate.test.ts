@@ -66,6 +66,10 @@ function plan(over: Partial<Goalplan> = {}): Goalplan {
   const base = buildGoalplan({ objective: "final gate fixture" });
   return {
     ...base,
+    // Pinned deliberately: the v1 tests below assert v1 semantics and must not
+    // depend on whatever buildGoalplan() happens to default to (v1 since 260830,
+    // v3 before it). The v2+ tests in this file override schemaVersion themselves.
+    schemaVersion: 1,
     workPhases: [{ id: "wp1", title: "t", status: "done", tasks: [], criteriaIds: ["c-1"] }],
     criteria: [{ id: "c-1", scenario: "s", expectedEvidence: "e", capturedEvidence: "done", status: "met", surface: "logic" }],
     ...over,
@@ -122,7 +126,11 @@ test("v2 with everything in order passes", () => {
 
 test("v2 without a finalGate is a schema violation", () => {
   const p = plan({ schemaVersion: 2 });
-  assert.match(reasons(p, ctx(cwd())), /requires a finalGate/);
+  assert.match(reasons(p, ctx(cwd())), /requires an approved finalGate/);
+  // The old text told the reader to run `--lane final_gate`, a flag no parser
+  // accepts. Assert on the reason the caller actually receives, so the phantom
+  // flag cannot come back (260830).
+  assert.doesNotMatch(reasons(p, ctx(cwd())), /--lane/);
 });
 
 test("v2 rejects a gate that is still pending or in flight", () => {
@@ -330,5 +338,5 @@ test("a finalGate missing qaRequired is dropped rather than half-trusted", () =>
   writeFileSync(file, JSON.stringify(raw));
   const back = readGoalplan(dir, p.slug);
   assert.equal(back?.finalGate, undefined);
-  assert.match(reasons(back as Goalplan, ctx(dir)), /requires a finalGate/);
+  assert.match(reasons(back as Goalplan, ctx(dir)), /requires an approved finalGate/);
 });

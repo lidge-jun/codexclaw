@@ -195,9 +195,12 @@ export function commandInvocation(command, args, platform = process.platform, en
   };
 }
 
-/** Delegate a subcommand to the compiled config-guard CLI; returns its exit code. */
-function runConfigGuard(subcommand) {
-  const res = spawnSync(process.execPath, [configGuardCli, subcommand], { stdio: "inherit" });
+/**
+ * Delegate to the compiled config-guard CLI; returns its exit code.
+ * Takes an ARRAY: `config set <key> <value>` has to keep its arguments.
+ */
+function runConfigGuard(args) {
+  const res = spawnSync(process.execPath, [configGuardCli, ...args], { stdio: "inherit" });
   return typeof res.status === "number" ? res.status : 1;
 }
 
@@ -265,6 +268,7 @@ const TOP_LEVEL_HELP = [
   "  goalplan init|show|validate     deprecated alias for loop",
   "  plan init <slug> [--phases N]   scaffold the devlog/_plan unit the P>A gate verifies",
   "  receipt test -- <command>       produce the test receipt a bound C>D requires",
+  "  evidence resolve               settle an unverified subagent verdict (needs --receipt)",
   "  review-round open|show|abort    the opt-in A-gate plan-audit round",
   "  scan record|show                record interview coverage and contradiction scans",
   "  metric                         record/show objective metrics",
@@ -442,14 +446,23 @@ if (isMain) switch (cmd) {
     break;
   }
   case "enable":
-    process.exit(runConfigGuard("enable"));
+    process.exit(runConfigGuard(["enable"]));
     break;
   case "uninstall":
   case "disable":
-    process.exit(runConfigGuard("disable"));
+    process.exit(runConfigGuard(["disable"]));
     break;
   case "status":
-    process.exit(runConfigGuard("status"));
+    process.exit(runConfigGuard(["status"]));
+    break;
+  case "config":
+    // `config interview` is owned by pabcd-state (it owns codexclaw.json); the managed
+    // ~/.codex/config.toml keys are owned by config-guard.
+    process.exit(
+      process.argv[3] === "interview"
+        ? runPabcdState(process.argv.slice(2))
+        : runConfigGuard(process.argv.slice(2)),
+    );
     break;
   case "doctor":
   case "reset":
@@ -494,6 +507,11 @@ if (isMain) switch (cmd) {
   case "receipt":
     // pabcd-state CLI expects argv as [kind, ...rest]; kind === "receipt".
     // Runs a command and records the observed exit for the C>D gate (075).
+    process.exit(runPabcdState(process.argv.slice(2)));
+    break;
+  case "evidence":
+    // pabcd-state CLI expects argv as [kind, ...rest]; kind === "evidence".
+    // Settles an unresolved subagent verification verdict (EVIDENCE-TERMINAL-01).
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
   case "review-round":

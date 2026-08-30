@@ -17,6 +17,19 @@ import { applySteeringBatch, type SteerResult } from "../src/steering.ts";
 import { parseGoalplanCliArgs, runGoalplanCli } from "../src/goalplan-cli.ts";
 import { defaultState, writeState } from "../src/state.ts";
 
+const expectedTaskFields = [
+  { id: "t-1", dependsOn: [], outcome: "first task verified" },
+  { id: "t-2", dependsOn: ["t-1"], outcome: "second task verified" },
+];
+
+function taskFields(plan: { workPhases: Array<{ tasks: Array<{
+  id: string;
+  dependsOn?: string[];
+  outcome?: string;
+}> }> }) {
+  return plan.workPhases[0].tasks.map(({ id, dependsOn, outcome }) => ({ id, dependsOn, outcome }));
+}
+
 const OBJECTIVE = "steering fixture";
 const SLUG = buildGoalplan({ objective: OBJECTIVE }).slug;
 
@@ -156,25 +169,44 @@ test("an empty ops array is rejected", () => {
   assert.match((r as { reason: string }).reason, /non-empty array/);
 });
 
-test("a held lock blocks the batch and names the owner", () => {
+test("a held common lock blocks the batch and preserves plan and ledger bytes", () => {
   const cwd = workspace();
-  const lock = join(goalplanDir(cwd, SLUG), ".steer.lock");
-  mkdirSync(lock, { recursive: true });
-  writeFileSync(join(lock, "owner.json"), JSON.stringify({ pid: 4242, acquiredAt: "2026-01-01T00:00:00.000Z" }));
-  const r = applySteeringBatch(cwd, SLUG, batch());
-  assert.equal(r.kind, "locked");
-  assert.match((r as { reason: string }).reason, /4242/);
-  assert.match((r as { reason: string }).reason, /\.steer\.lock/);
-  assert.equal(readGoalplan(cwd, SLUG)?.steeringLog, undefined);
+  const lock = join(goalplanDir(cwd, SLUG), ".goalplan.lock");
+  mkdirSync(lock, { recursive: false });
+  writeFileSync(
+    join(lock, "owner.json"),
+    `${JSON.stringify({ pid: 4242, acquiredAt: "2026-08-29T00:00:00.000Z" })}\n`,
+  );
+  const planPath = join(goalplanDir(cwd, SLUG), "goalplan.json");
+  const beforePlan = readFileSync(planPath, "utf8");
+  const beforeLedger = ledgerText(cwd);
+
+  const result = applySteeringBatch(cwd, SLUG, batch(), {
+    lock: { retryDelaysMs: [], sleep: () => assert.fail("no sleep is configured") },
+  });
+
+  assert.equal(result.kind, "locked");
+  assert.match(result.kind === "locked" ? result.reason : "", /4242/);
+  assert.match(result.kind === "locked" ? result.reason : "", /\.goalplan\.lock/);
+  assert.equal(readFileSync(planPath, "utf8"), beforePlan);
+  assert.equal(ledgerText(cwd), beforeLedger);
 });
 
-test("the lock is released on success and on rejection", () => {
+test("the common lock is released after an applied or rejected batch", () => {
   const cwd = workspace();
-  const lock = join(goalplanDir(cwd, SLUG), ".steer.lock");
-  applySteeringBatch(cwd, SLUG, batch());
-  assert.equal(existsSync(lock), false, "released after success");
-  applySteeringBatch(cwd, SLUG, batch({ idempotencyKey: "k2", ops: [{ kind: "nope" }] }));
-  assert.equal(existsSync(lock), false, "released after rejection");
+  const lock = join(goalplanDir(cwd, SLUG), ".goalplan.lock");
+
+  const appliedResult = applySteeringBatch(cwd, SLUG, batch());
+  assert.equal(appliedResult.kind, "applied");
+  assert.equal(existsSync(lock), false);
+
+  const rejectedResult = applySteeringBatch(
+    cwd,
+    SLUG,
+    batch({ idempotencyKey: "k2", ops: [{ kind: "nope" }] }),
+  );
+  assert.equal(rejectedResult.kind, "rejected");
+  assert.equal(existsSync(lock), false);
 });
 
 test("a failed ledger append still succeeds, with a warning and the entry intact", () => {
@@ -287,4 +319,96 @@ test("cli: an unknown verb still lists the supported ones", () => {
   const parsed = parseGoalplanCliArgs(["wander"], "/tmp");
   assert.ok("error" in parsed);
   assert.match((parsed as { error: string }).error, /init\|show\|validate\|steer/);
+});
+
+test("add-work-phase stores dependencies and records one success event", () => {
+  const cwd = workspace();
+  const plan = readGoalplan(cwd, SLUG)!;
+  plan.workPhases = [
+    { id: "wp-a", title: "A", status: "done", tasks: [], criteriaIds: [] },
+    { id: "wp-b", title: "B", status: "done", tasks: [], criteriaIds: [] },
+  ];
+  writeGoalplan(cwd, plan);
+  const result = applySteeringBatch(cwd, SLUG, batch({
+    idempotencyKey: "k-add-wp-deps",
+    ops: [{ kind: "add-work-phase", id: "wp-c", title: "C", dependsOn: ["wp-a", "wp-b"] }],
+  }));
+  assert.equal(result.kind, "applied");
+  assert.deepEqual(readGoalplan(cwd, SLUG)?.workPhases.at(-1)?.dependsOn, ["wp-a", "wp-b"]);
+  const entries = ledgerText(cwd).trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
+  assert.equal(entries.filter((entry) => entry.event === "dependency_registered").length, 1);
+  assert.equal(entries.find((entry) => entry.event === "dependency_registered")?.detail,
+    "wp-c dependsOn=wp-a,wp-b");
+});
+
+test("same-batch backward reference succeeds and forward reference is rejected as dangling", () => {
+  const cwd = workspace();
+  const valid = applySteeringBatch(cwd, SLUG, batch({
+    idempotencyKey: "k-same-batch",
+    ops: [
+      { kind: "add-work-phase", id: "wp-a", title: "A", dependsOn: [] },
+      { kind: "add-work-phase", id: "wp-b", title: "B", dependsOn: ["wp-a"] },
+    ],
+  }));
+  assert.equal(valid.kind, "applied");
+  const stored = readGoalplan(cwd, SLUG)!;
+  assert.deepEqual(
+    stored.workPhases.filter((wp) => wp.id === "wp-a" || wp.id === "wp-b").map((wp) => wp.id),
+    ["wp-a", "wp-b"],
+  );
+  assert.deepEqual(stored.workPhases.find((wp) => wp.id === "wp-b")?.dependsOn, ["wp-a"]);
+  assert.equal(stored.steeringLog?.at(-1)?.summary, "2 op(s): add-work-phase, add-work-phase");
+  const beforePlan = readFileSync(join(goalplanDir(cwd, SLUG), "goalplan.json"), "utf8");
+  const beforeLedger = ledgerText(cwd);
+  const invalid = applySteeringBatch(cwd, SLUG, batch({
+    idempotencyKey: "k-forward-dangling",
+    ops: [
+      { kind: "add-work-phase", id: "wp-x", title: "X", dependsOn: ["wp-y"] },
+      { kind: "add-work-phase", id: "wp-y", title: "Y", dependsOn: ["wp-x"] },
+    ],
+  }));
+  assert.equal(invalid.kind, "rejected");
+  assert.equal(
+    (invalid as { kind: "rejected"; reason: string }).reason,
+    "work phase wp-x depends on unknown work phase 'wp-y'",
+  );
+  assert.equal(readFileSync(join(goalplanDir(cwd, SLUG), "goalplan.json"), "utf8"), beforePlan);
+  assert.equal(ledgerText(cwd), beforeLedger);
+});
+
+test("duplicate dependencies are rejected before write", () => {
+  const cwd = workspace();
+  const beforePlan = readFileSync(join(goalplanDir(cwd, SLUG), "goalplan.json"), "utf8");
+  const beforeLedger = ledgerText(cwd);
+  const result = applySteeringBatch(cwd, SLUG, batch({
+    idempotencyKey: "k-duplicate-deps",
+    ops: [{ kind: "add-work-phase", id: "wp-c", title: "C", dependsOn: ["wp-a", "wp-a"] }],
+  }));
+  assert.equal(result.kind, "rejected");
+  assert.equal((result as { kind: "rejected"; reason: string }).reason,
+    "ops[0].dependsOn must not contain duplicate ids");
+  assert.equal(readFileSync(join(goalplanDir(cwd, SLUG), "goalplan.json"), "utf8"), beforePlan);
+  assert.equal(ledgerText(cwd), beforeLedger);
+});
+
+test("wp7 preservation: steering RMW keeps dependsOn and outcome", () => {
+  const cwd = workspace();
+  const seeded = readGoalplan(cwd, SLUG)!;
+  seeded.schemaVersion = 3;
+  seeded.workPhases = [{
+    id: "wp-1", title: "first", status: "in_progress", criteriaIds: [],
+    tasks: [
+      { id: "t-1", title: "first", status: "done", dependsOn: [], outcome: "first task verified" },
+      { id: "t-2", title: "second", status: "done", dependsOn: ["t-1"], outcome: "second task verified" },
+    ],
+  }];
+  seeded.activeWorkPhaseId = "wp-1";
+  writeGoalplan(cwd, seeded);
+
+  const result = applySteeringBatch(cwd, SLUG, batch(), { now: () => "2026-08-29T00:00:00.000Z" });
+
+  assert.equal(result.kind, "applied");
+  const saved = readGoalplan(cwd, SLUG)!;
+  assert.equal(saved.steeringLog?.length, 1);
+  assert.deepEqual(taskFields(saved), expectedTaskFields);
 });

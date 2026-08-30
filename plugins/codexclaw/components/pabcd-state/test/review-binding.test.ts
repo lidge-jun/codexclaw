@@ -9,6 +9,19 @@ import { parseSignoff, latestRound } from "../src/review-round.ts";
 import { writeState, readState, defaultState } from "../src/state.ts";
 import { buildGoalplan, writeGoalplan, readGoalplan } from "../src/goalplan.ts";
 
+const expectedTaskFields = [
+  { id: "t-1", dependsOn: [], outcome: "first task verified" },
+  { id: "t-2", dependsOn: ["t-1"], outcome: "second task verified" },
+];
+
+function taskFields(plan: { workPhases: Array<{ tasks: Array<{
+  id: string;
+  dependsOn?: string[];
+  outcome?: string;
+}> }> }) {
+  return plan.workPhases[0].tasks.map(({ id, dependsOn, outcome }) => ({ id, dependsOn, outcome }));
+}
+
 // REVIEW-BINDING-01 (060). The point of these cases is that no sequence of CLI
 // calls writes an approval: only a reviewer's exit does.
 
@@ -124,3 +137,126 @@ test("060: abort closes a round without ever approving it", () => {
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
+test("review-round abort is fail-closed when the common lock is held", () => {
+  const { cwd, slug } = seedAtA();
+  try {
+    assert.equal(open(cwd, "devlog/_plan/260815_probe/000_plan.md").code, 0);
+    const lock = join(cwd, ".codexclaw", "goalplans", slug, ".goalplan.lock");
+    mkdirSync(lock, { recursive: false });
+    writeFileSync(join(lock, "owner.json"), `${JSON.stringify({ pid: 4242 })}\n`);
+    const before = readFileSync(join(cwd, ".codexclaw", "goalplans", slug, "goalplan.json"), "utf8");
+    const parsed = parseReviewRoundCliArgs(
+      ["abort", "--session", "rb", "--cwd", cwd, "--reason", "reviewer died"],
+      cwd,
+    );
+    assert.ok(!("error" in parsed));
+
+    const result = runReviewRoundCli(parsed as never);
+
+    assert.equal(result.code, 1);
+    assert.match(result.output, /\.goalplan\.lock/);
+    assert.equal(readFileSync(join(cwd, ".codexclaw", "goalplans", slug, "goalplan.json"), "utf8"), before);
+    assert.equal(latestRound(readGoalplan(cwd, slug)!, "plan_audit")!.status, "in_flight");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("review observer is fail-open on lock timeout and leaves verdict unrecorded", () => {
+  const { cwd, slug } = seedAtA();
+  try {
+    const opened = open(cwd, "devlog/_plan/260815_probe/000_plan.md");
+    assert.equal(opened.code, 0);
+    const launchId = opened.output.split("\n")[0];
+    const lock = join(cwd, ".codexclaw", "goalplans", slug, ".goalplan.lock");
+    mkdirSync(lock, { recursive: false });
+    writeFileSync(join(lock, "owner.json"), `${JSON.stringify({ pid: 4242 })}\n`);
+    const before = readFileSync(join(cwd, ".codexclaw", "goalplans", slug, "goalplan.json"), "utf8");
+
+    let output = "not-called";
+    assert.doesNotThrow(() => {
+      output = handleReviewObserver(JSON.stringify({
+        hook_event_name: "SubagentStop",
+        session_id: "rb",
+        cwd,
+        agent_type: "explorer",
+        agent_id: "reviewer-1",
+        last_assistant_message: `LAUNCH: ${launchId}\nVERDICT: PASS`,
+      }));
+    });
+
+    assert.equal(output, "");
+    assert.equal(readFileSync(join(cwd, ".codexclaw", "goalplans", slug, "goalplan.json"), "utf8"), before);
+    const round = latestRound(readGoalplan(cwd, slug)!, "plan_audit")!;
+    assert.equal(round.status, "in_flight");
+    assert.equal(round.lane.verdict, undefined);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+function seedWp7ReviewFields(cwd: string, slug: string): void {
+  const plan = readGoalplan(cwd, slug)!;
+  plan.schemaVersion = 3;
+  plan.workPhases[0].tasks = [
+    { id: "t-1", title: "first", status: "done", dependsOn: [], outcome: "first task verified" },
+    { id: "t-2", title: "second", status: "done", dependsOn: ["t-1"], outcome: "second task verified" },
+  ];
+  writeGoalplan(cwd, plan);
+}
+
+test("wp7 preservation: review-round open and abort keep dependsOn and outcome", () => {
+  const { cwd, slug } = seedAtA();
+  try {
+    seedWp7ReviewFields(cwd, slug);
+
+    const opened = open(cwd, "devlog/_plan/260815_probe/000_plan.md");
+
+    assert.equal(opened.code, 0, opened.output);
+    const afterOpen = readGoalplan(cwd, slug)!;
+    assert.equal(latestRound(afterOpen, "plan_audit")?.status, "in_flight");
+    assert.deepEqual(taskFields(afterOpen), expectedTaskFields);
+
+    const args = parseReviewRoundCliArgs([
+      "abort", "--session", "rb", "--cwd", cwd, "--reason", "reviewer stopped",
+    ], cwd);
+    assert.ok(!("error" in args));
+    const aborted = runReviewRoundCli(args as never);
+
+    assert.equal(aborted.code, 0, aborted.output);
+    const afterAbort = readGoalplan(cwd, slug)!;
+    assert.equal(latestRound(afterAbort, "plan_audit")?.status, "inconclusive");
+    assert.deepEqual(taskFields(afterAbort), expectedTaskFields);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("wp7 preservation: review observer verdict keeps dependsOn and outcome", () => {
+  const { cwd, slug } = seedAtA();
+  try {
+    seedWp7ReviewFields(cwd, slug);
+    const opened = open(cwd, "devlog/_plan/260815_probe/000_plan.md");
+    assert.equal(opened.code, 0, opened.output);
+    const launchId = opened.output.split("\n")[0];
+
+    const output = handleReviewObserver(JSON.stringify({
+      hook_event_name: "SubagentStop",
+      session_id: "rb",
+      cwd,
+      agent_type: "explorer",
+      agent_id: "reviewer-wp7",
+      last_assistant_message: `review complete\n\nLAUNCH: ${launchId}\nVERDICT: PASS`,
+    }));
+
+    assert.equal(output, "");
+    const saved = readGoalplan(cwd, slug)!;
+    const round = latestRound(saved, "plan_audit")!;
+    assert.equal(round.status, "approved");
+    assert.equal(round.lane.verdict, "pass");
+    assert.equal(round.lane.reviewerSession, "reviewer-wp7");
+    assert.deepEqual(taskFields(saved), expectedTaskFields);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

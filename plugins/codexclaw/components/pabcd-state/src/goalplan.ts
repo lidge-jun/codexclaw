@@ -26,6 +26,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  statSync,
   writeFileSync,
   rmSync,
   writeSync,
@@ -39,6 +40,31 @@ import type { SourceIdentity } from "./source-identity.ts";
 export const GOALPLANS_SUBDIR = "goalplans";
 export const GOALPLAN_FILE = "goalplan.json";
 export const GOALPLAN_LEDGER_FILE = "ledger.jsonl";
+export const GOALPLAN_LOCK_DIR = ".goalplan.lock";
+export const GOALPLAN_LOCK_OWNER_FILE = "owner.json";
+export const GOALPLAN_LOCK_RETRY_DELAYS_MS = [5, 10, 20, 40] as const;
+
+/**
+ * The highest schemaVersion this binary understands. A plan that declares more
+ * than this is REFUSED on read and on validate rather than clamped: an older
+ * binary that quietly accepted a newer plan would strip fields it never learned
+ * about, and the next write would persist that loss (wp2, 260829).
+ */
+export const SUPPORTED_MAX_SCHEMA_VERSION = 3;
+
+/**
+ * The schema a NEW plan declares when the caller does not choose one.
+ *
+ * Deliberately NOT `SUPPORTED_MAX_SCHEMA_VERSION`: those two constants answer
+ * different questions. The max is what this build can READ; this is what a fresh
+ * plan should CLAIM. Defaulting to the max enrolled every new plan in the
+ * schemaVersion >= 2 final-gate requirement, and no shipped verb opens a
+ * `final_gate` review round to satisfy it — `review-round open` hardcodes
+ * `purpose: "plan_audit"` and never parses a lane — so every new plan validated
+ * with a reason its owner could not discharge and `update_goal complete` stayed
+ * denied. v1's rules are the ones a user can actually finish (260830).
+ */
+export const DEFAULT_NEW_SCHEMA_VERSION = 1;
 
 export type CriterionStatus = "open" | "met";
 
@@ -75,6 +101,21 @@ export interface GoalplanTask {
   id: string;
   title: string;
   status: TaskStatus;
+  /**
+   * Task ids inside the SAME work phase that must be `done` first. Task ids are
+   * unique per phase, not per plan, so a cross-phase task dependency is not
+   * expressible and is rejected by the wp3 integrity checks.
+   *
+   * Absent and `[]` both mean "no dependency" for selection. The stored shape is
+   * preserved as written: absent stays absent on a v1/v2 plan, `[]` stays `[]`.
+   */
+  dependsOn?: string[];
+  /**
+   * Verifiable evidence for a `done` task. Authoritative here rather than only in
+   * the ledger: the plan commit and the ledger append are not atomic, so evidence
+   * kept solely in the ledger can be lost while the task still reads `done`.
+   */
+  outcome?: string;
 }
 
 export interface GoalplanWorkPhase {
@@ -83,6 +124,8 @@ export interface GoalplanWorkPhase {
   status: WorkPhaseStatus;
   tasks: GoalplanTask[];
   criteriaIds: string[];
+  /** Work-phase ids in this plan that must be `done` first; see GoalplanTask.dependsOn. */
+  dependsOn?: string[];
   /** why a `blocked` phase cannot proceed; cleared when it is unblocked. */
   blockedReason?: string;
   /** the phase that took over the work; required on a `superseded` phase. */
@@ -197,6 +240,10 @@ export type GoalplanLedgerEvent =
   | "criterion_met"
   | "host_armed"
   | "steered"
+  // 060/060: a dependency edge was registered on a work phase or a task. The plan
+  // file shows the final graph; without this row the ledger cannot say when an edge
+  // appeared, so a graph that grew mid-loop looks like it was declared up front.
+  | "dependency_registered"
   // 060/032: why a reviewer's verdict was not recorded, and when a round was
   // rolled past. Without these the observer's refusals left no trace at all —
   // the reviewer answered, the gate stayed shut, and nothing said why.
@@ -424,6 +471,31 @@ function goalplanLedgerPath(cwd: string, slug: string): string {
   return join(goalplanDir(cwd, slug), GOALPLAN_LEDGER_FILE);
 }
 
+/** Declared schemaVersion of a raw parsed object; absent means 1. */
+function declaredSchemaVersion(o: Record<string, unknown>): number {
+  return typeof o.schemaVersion === "number" ? o.schemaVersion : 1;
+}
+
+/**
+ * Revive a `dependsOn` field.
+ *
+ * `undefined` (field absent) and `[]` are distinct storage shapes that mean the
+ * same thing for selection, so both round-trip unchanged. Anything else — a
+ * non-array, a non-string element, a blank id — is `"invalid"` and fails the whole
+ * plan closed: a partially dropped dependency list would silently widen what the
+ * scheduler considers ready.
+ */
+function reviveDependsOn(value: unknown): string[] | undefined | "invalid" {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) return "invalid";
+  const ids: string[] = [];
+  for (const item of value) {
+    if (typeof item !== "string" || item.trim().length === 0) return "invalid";
+    ids.push(item);
+  }
+  return ids;
+}
+
 /** Best-effort structural validation; a malformed object reads as absent (null). */
 function reviveGoalplan(parsed: unknown, expectedSlug?: string): Goalplan | null {
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
@@ -435,6 +507,7 @@ function reviveGoalplan(parsed: unknown, expectedSlug?: string): Goalplan | null
     return null;
   }
   if (expectedSlug !== undefined && o.slug !== expectedSlug) return null;
+  if (declaredSchemaVersion(o) > SUPPORTED_MAX_SCHEMA_VERSION) return null;
   if (!Array.isArray(o.workPhases) || !Array.isArray(o.criteria)) return null;
 
   const workPhases: GoalplanWorkPhase[] = [];
@@ -442,6 +515,8 @@ function reviveGoalplan(parsed: unknown, expectedSlug?: string): Goalplan | null
     if (typeof wp !== "object" || wp === null) return null;
     const w = wp as Record<string, unknown>;
     if (typeof w.id !== "string" || typeof w.title !== "string") return null;
+    const phaseDependsOn = reviveDependsOn(w.dependsOn);
+    if (phaseDependsOn === "invalid") return null;
     const status: WorkPhaseStatus =
       w.status === "in_progress" || w.status === "done" || w.status === "blocked" || w.status === "superseded"
         ? w.status
@@ -451,12 +526,20 @@ function reviveGoalplan(parsed: unknown, expectedSlug?: string): Goalplan | null
       if (typeof t !== "object" || t === null) continue;
       const tt = t as Record<string, unknown>;
       if (typeof tt.id !== "string" || typeof tt.title !== "string") continue;
-      tasks.push({ id: tt.id, title: tt.title, status: tt.status === "done" ? "done" : "pending" });
+      const taskDependsOn = reviveDependsOn(tt.dependsOn);
+      if (taskDependsOn === "invalid") return null;
+      const task: GoalplanTask = { id: tt.id, title: tt.title, status: tt.status === "done" ? "done" : "pending" };
+      if (taskDependsOn !== undefined) task.dependsOn = taskDependsOn;
+      // A blank outcome is no evidence at all, so it stays absent rather than
+      // persisting an empty string that later reads as "recorded".
+      if (typeof tt.outcome === "string" && tt.outcome.trim().length > 0) task.outcome = tt.outcome.trim();
+      tasks.push(task);
     }
     const criteriaIds = Array.isArray(w.criteriaIds)
       ? (w.criteriaIds as unknown[]).filter((x): x is string => typeof x === "string")
       : [];
     const phase: GoalplanWorkPhase = { id: w.id, title: w.title, status, tasks, criteriaIds };
+    if (phaseDependsOn !== undefined) phase.dependsOn = phaseDependsOn;
     if (typeof w.blockedReason === "string") phase.blockedReason = w.blockedReason;
     if (typeof w.supersededBy === "string") phase.supersededBy = w.supersededBy;
     workPhases.push(phase);
@@ -591,14 +674,153 @@ export function readGoalplan(cwd: string, slug: string): Goalplan | null {
  * required set in declaration order; `"(unknown)"` when the object looks structurally
  * fine and the rejection came from a nested reviver such as steeringLog.
  */
+export interface GoalplanWriteLockOptions {
+  retryDelaysMs?: readonly number[];
+  sleep?: (ms: number) => void;
+  now?: () => string;
+}
+
+export type GoalplanWriteLockResult<T> =
+  | { kind: "ok"; value: T }
+  | { kind: "locked"; reason: string }
+  | { kind: "unreadable"; reason: string };
+
+function sleepGoalplanLock(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+export function goalplanWriteLockDir(cwd: string, slug: string): string {
+  return resolve(goalplanDir(cwd, slug), GOALPLAN_LOCK_DIR);
+}
+
+export interface GoalplanWriteLockStatus {
+  path: string;
+  exists: boolean;
+  ageMs: number | null;
+}
+
+export function goalplanWriteLockStatus(
+  cwd: string,
+  slug: string,
+  nowMs: number = Date.now(),
+  stat: (path: string) => { mtimeMs: number } = statSync,
+): GoalplanWriteLockStatus {
+  const path = goalplanWriteLockDir(cwd, slug);
+  if (!existsSync(path)) return { path, exists: false, ageMs: null };
+  try {
+    const ageMs = Math.max(0, nowMs - stat(path).mtimeMs);
+    return { path, exists: true, ageMs };
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
+      return { path, exists: false, ageMs: null };
+    }
+    throw err;
+  }
+}
+
+function readGoalplanLockOwnerText(dir: string): string {
+  try {
+    return readFileSync(join(dir, GOALPLAN_LOCK_OWNER_FILE), "utf8").trim() || "(empty owner.json)";
+  } catch {
+    return "(owner.json unavailable)";
+  }
+}
+
+export function withGoalplanWriteLock<T>(
+  cwd: string,
+  slug: string,
+  fn: (plan: Goalplan) => T,
+  options: GoalplanWriteLockOptions = {},
+): GoalplanWriteLockResult<T> {
+  validateGoalplanSlug(slug);
+  const dir = goalplanWriteLockDir(cwd, slug);
+  const delays = options.retryDelaysMs ?? GOALPLAN_LOCK_RETRY_DELAYS_MS;
+  const sleep = options.sleep ?? sleepGoalplanLock;
+  const ownerPath = join(dir, GOALPLAN_LOCK_OWNER_FILE);
+
+  if (!existsSync(goalplanPath(cwd, slug))) {
+    return { kind: "unreadable", reason: `goalplan '${slug}' does not exist` };
+  }
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      mkdirSync(dir, { recursive: false });
+      break;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code !== "EEXIST") throw err;
+      if (attempt >= delays.length) {
+        const owner = readGoalplanLockOwnerText(dir);
+        return {
+          kind: "locked",
+          reason:
+            `goalplan '${slug}' is busy. Lock directory: ${dir}. owner=${owner}. `
+            + `Inspect ${ownerPath}. After verifying no writer is active, remove that lock directory `
+            + `with a tool for this platform.`,
+        };
+      }
+      sleep(delays[attempt]);
+    }
+  }
+
+  try {
+    try {
+      writeFileSync(
+        ownerPath,
+        `${JSON.stringify({ pid: process.pid, acquiredAt: (options.now ?? (() => new Date().toISOString()))() })}\n`,
+        { mode: 0o600 },
+      );
+    } catch {
+      // Diagnostic only. The directory itself is the lock.
+    }
+
+    const read = readGoalplanDetailed(cwd, slug);
+    if (!read.plan) {
+      // The `absent` variant of GoalplanReadDiagnostic carries no `detail`, so the field
+      // is read only where the union actually has it. An unconditional access compiles
+      // away under type stripping and reads `undefined` at runtime, which would swallow
+      // the real reason behind the generic fallback.
+      const diagnostic = read.diagnostic;
+      const detail = diagnostic && diagnostic.kind !== "absent" ? diagnostic.detail : null;
+      return {
+        kind: "unreadable",
+        reason: detail ?? `goalplan '${slug}' could not be read`,
+      };
+    }
+    return { kind: "ok", value: fn(read.plan) };
+  } finally {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // The next acquire reports the leftover path for platform-appropriate cleanup.
+    }
+  }
+}
+
 function firstInvalidField(parsed: unknown): string {
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return "(root: not an object)";
   const o = parsed as Record<string, unknown>;
   if (typeof o.objective !== "string") return "objective";
   if (typeof o.slug !== "string") return "slug";
+  if (declaredSchemaVersion(o) > SUPPORTED_MAX_SCHEMA_VERSION) return "schemaVersion";
   if (!Array.isArray(o.workPhases)) return "workPhases";
-  if (Array.isArray(o.workPhases) && o.workPhases.some((w) => typeof w !== "object" || w === null || typeof (w as Record<string, unknown>).id !== "string")) {
-    return "workPhases[] entries (each needs id/title/status)";
+  if (o.workPhases.some((w) => {
+    if (typeof w !== "object" || w === null) return true;
+    const wp = w as Record<string, unknown>;
+    return typeof wp.id !== "string" || typeof wp.title !== "string";
+  })) {
+    return "workPhases[] entries (each needs id/title)";
+  }
+  // Mirror the reviver's order: phase dependsOn first, then the tasks it would revive.
+  for (const rawWp of o.workPhases) {
+    const wp = rawWp as Record<string, unknown>;
+    if (reviveDependsOn(wp.dependsOn) === "invalid") return "workPhases[].dependsOn";
+    for (const rawTask of Array.isArray(wp.tasks) ? wp.tasks : []) {
+      if (typeof rawTask !== "object" || rawTask === null) continue;
+      const task = rawTask as Record<string, unknown>;
+      if (typeof task.id !== "string" || typeof task.title !== "string") continue;
+      if (reviveDependsOn(task.dependsOn) === "invalid") {
+        return "workPhases[].tasks[].dependsOn";
+      }
+    }
   }
   if (!Array.isArray(o.criteria)) return "criteria";
   if (Array.isArray(o.criteria) && o.criteria.some((c) => typeof c !== "object" || c === null || typeof (c as Record<string, unknown>).scenario !== "string")) {
@@ -612,7 +834,11 @@ function firstInvalidField(parsed: unknown): string {
   return "(unknown)";
 }
 
-/** Write a goalplan atomically (tmp + rename), refreshing updatedAt. */
+/**
+ * Low-level atomic publication (tmp + rename), refreshing updatedAt.
+ * A new-plan create path may call this directly. A mutation of an existing plan
+ * MUST call it inside withGoalplanWriteLock().
+ */
 export function writeGoalplan(cwd: string, plan: Goalplan): void {
   validateGoalplanSlug(plan.slug);
   const dir = goalplanDir(cwd, plan.slug);
@@ -662,7 +888,28 @@ export interface NewGoalplanInput {
   /** seeded acceptance criteria (e.g. from the freeze EvidenceBundle). */
   criteria?: Array<{ scenario: string; expectedEvidence?: string; surface?: CriterionSurface }>;
   host?: Partial<GoalplanHostLink>;
+  /**
+   * The schemaVersion the new plan DECLARES. Absent means
+   * `DEFAULT_NEW_SCHEMA_VERSION`. Requesting 2 or 3 opts into the final-gate
+   * requirement those versions add, which no shipped verb can currently satisfy.
+   */
+  schemaVersion?: number;
   now?: () => string;
+}
+
+/**
+ * Clamp a requested new-plan schema into [1, SUPPORTED_MAX_SCHEMA_VERSION].
+ *
+ * A plan declaring more than this build can read is refused on the next read, so
+ * minting one would create a file its own writer cannot reopen.
+ */
+function normalizeNewSchemaVersion(requested?: number): number {
+  if (typeof requested !== "number" || !Number.isFinite(requested)) {
+    return DEFAULT_NEW_SCHEMA_VERSION;
+  }
+  const floored = Math.floor(requested);
+  if (floored < 1) return DEFAULT_NEW_SCHEMA_VERSION;
+  return Math.min(floored, SUPPORTED_MAX_SCHEMA_VERSION);
 }
 
 /** Build a fresh goalplan (no IO). Slug is derived from the objective. */
@@ -682,6 +929,7 @@ export function buildGoalplan(input: NewGoalplanInput): Goalplan {
   return {
     objective: input.objective,
     slug: deriveSlug(input.objective),
+    schemaVersion: normalizeNewSchemaVersion(input.schemaVersion),
     createdAt: ts,
     updatedAt: ts,
     activeWorkPhaseId: null,
@@ -704,17 +952,269 @@ export function remainingWorkPhases(plan: Goalplan): GoalplanWorkPhase[] {
   return plan.workPhases.filter((wp) => wp.status !== "done" && wp.status !== "superseded");
 }
 
-/** The next pending task in the first non-done work phase, or null when none remain. */
+// --- dependency-aware selection (wp4) ---
+//
+// Readiness is derived, never stored: these helpers read the status of each direct
+// dependency and nothing else. They do not mutate a phase or task, do not append to
+// the ledger, and do not decide when the next turn happens - the host continuation
+// driver owns that. A missing dependency target reads as not-done, so a hand-edited
+// plan that slipped past validation cannot be mistaken for runnable.
+function workPhaseDependenciesMet(plan: Goalplan, phase: GoalplanWorkPhase): boolean {
+  return (phase.dependsOn ?? []).every(
+    (dependencyId) => plan.workPhases.find((candidate) => candidate.id === dependencyId)?.status === "done",
+  );
+}
+
+function taskDependenciesMet(phase: GoalplanWorkPhase, task: GoalplanTask): boolean {
+  return (task.dependsOn ?? []).every(
+    (dependencyId) => phase.tasks.find((candidate) => candidate.id === dependencyId)?.status === "done",
+  );
+}
+
+function isRunnablePhase(plan: Goalplan, wp: GoalplanWorkPhase): boolean {
+  return (
+    (wp.status === "pending" || wp.status === "in_progress")
+    && workPhaseDependenciesMet(plan, wp)
+  );
+}
+
+export function readyWorkPhases(plan: Goalplan): GoalplanWorkPhase[] {
+  return plan.workPhases.filter((wp) => isRunnablePhase(plan, wp));
+}
+
+export interface ReadyGoalplanTask {
+  workPhaseId: string;
+  task: GoalplanTask;
+}
+
+export function readyTasks(plan: Goalplan): ReadyGoalplanTask[] {
+  return readyWorkPhases(plan).flatMap((wp) =>
+    wp.tasks
+      .filter((task) => task.status === "pending" && taskDependenciesMet(wp, task))
+      .map((task) => ({ workPhaseId: wp.id, task })),
+  );
+}
+
 export function nextOpenTask(plan: Goalplan): { wp: GoalplanWorkPhase; task: GoalplanTask } | null {
-  for (const wp of plan.workPhases) {
-    // A blocked phase's tasks are not actionable and a superseded phase's tasks
-    // belong to its replacement, so neither can be "the next thing to do".
-    if (wp.status === "done" || wp.status === "blocked" || wp.status === "superseded") continue;
-    for (const task of wp.tasks) {
-      if (task.status !== "done") return { wp, task };
+  const next = readyTasks(plan)[0];
+  if (!next) return null;
+  const wp = plan.workPhases.find((candidate) => candidate.id === next.workPhaseId);
+  return wp ? { wp, task: next.task } : null;
+}
+
+export interface DependencyDeadlock {
+  reasons: string[];
+}
+
+function describePhaseDependency(plan: Goalplan, dependencyId: string): string {
+  const dependency = plan.workPhases.find((wp) => wp.id === dependencyId);
+  return `work-phase ${dependencyId} (${dependency?.status ?? "missing"})`;
+}
+
+function describeTaskDependency(phase: GoalplanWorkPhase, dependencyId: string): string {
+  const dependency = phase.tasks.find((task) => task.id === dependencyId);
+  return `task ${phase.id}/${dependencyId} (${dependency?.status ?? "missing"})`;
+}
+
+function dependencyWaitReason(subject: string, dependencies: readonly string[]): string {
+  return `${subject} waits for ${dependencies.join(", ")}`;
+}
+
+function unmetPhaseDependencyIds(plan: Goalplan, phase: GoalplanWorkPhase): string[] {
+  // wp3와 같은 규칙: 중복 참조는 첫 등장 순서로 줄인다. 그러지 않으면
+  // dependsOn: ["a", "a"]가 대기 문장 안에 같은 blocker를 두 번 넣는다.
+  return [...new Set(phase.dependsOn ?? [])].filter(
+    (dependencyId) => plan.workPhases.find((candidate) => candidate.id === dependencyId)?.status !== "done",
+  );
+}
+
+function unmetTaskDependencyIds(phase: GoalplanWorkPhase, task: GoalplanTask): string[] {
+  return [...new Set(task.dependsOn ?? [])].filter(
+    (dependencyId) => phase.tasks.find((candidate) => candidate.id === dependencyId)?.status !== "done",
+  );
+}
+
+/**
+ * Direct unmet-dependency reasons, independent of whether other work is ready.
+ * This is derived data and never mutates the plan or appends a ledger row.
+ */
+export function dependencyWaitReasons(plan: Goalplan): string[] {
+  const reasons: string[] = [];
+  for (const wp of remainingWorkPhases(plan)) {
+    const unmetPhaseDependencies = unmetPhaseDependencyIds(plan, wp);
+    if (unmetPhaseDependencies.length > 0) {
+      reasons.push(dependencyWaitReason(
+        `work-phase ${wp.id}`,
+        unmetPhaseDependencies.map((id) => describePhaseDependency(plan, id)),
+      ));
+    }
+    if (wp.status !== "pending" && wp.status !== "in_progress") continue;
+    for (const task of wp.tasks.filter((candidate) => candidate.status === "pending")) {
+      const unmetTaskDependencies = unmetTaskDependencyIds(wp, task);
+      if (unmetTaskDependencies.length > 0) {
+        reasons.push(dependencyWaitReason(
+          `task ${wp.id}/${task.id}`,
+          unmetTaskDependencies.map((id) => describeTaskDependency(wp, id)),
+        ));
+      }
     }
   }
-  return null;
+  return reasons;
+}
+
+/**
+ * Derived runtime diagnosis only. It never mutates a phase/task and is never
+ * appended to the historical ledger by itself.
+ */
+export function dependencyDeadlock(plan: Goalplan): DependencyDeadlock | null {
+  const unfinished = remainingWorkPhases(plan);
+  if (unfinished.length === 0) return null;
+
+  const runnablePhases = plan.workPhases.filter((wp) => isRunnablePhase(plan, wp));
+  const hasRunnableTask = runnablePhases.some((wp) =>
+    wp.tasks.some((task) => task.status === "pending" && taskDependenciesMet(wp, task))
+  );
+  const hasClosablePhase = runnablePhases.some((wp) =>
+    wp.tasks.every((task) => task.status === "done")
+  );
+  if (hasRunnableTask || hasClosablePhase) return null;
+
+  const reasons: string[] = [];
+  for (const wp of unfinished) {
+    if (wp.status === "blocked") {
+      reasons.push(
+        `work-phase ${wp.id} is blocked${wp.blockedReason ? ` (${wp.blockedReason})` : ""}`,
+      );
+      continue;
+    }
+    const unmetPhaseDependencies = unmetPhaseDependencyIds(plan, wp);
+    if (unmetPhaseDependencies.length > 0) {
+      reasons.push(dependencyWaitReason(
+        `work-phase ${wp.id}`,
+        unmetPhaseDependencies.map((id) => describePhaseDependency(plan, id)),
+      ));
+      continue;
+    }
+    for (const task of wp.tasks.filter((candidate) => candidate.status === "pending")) {
+      const unmetTaskDependencies = unmetTaskDependencyIds(wp, task);
+      if (unmetTaskDependencies.length > 0) {
+        reasons.push(dependencyWaitReason(
+          `task ${wp.id}/${task.id}`,
+          unmetTaskDependencies.map((id) => describeTaskDependency(wp, id)),
+        ));
+      }
+    }
+  }
+  return reasons.length > 0 ? { reasons } : null;
+}
+
+const LIFECYCLE_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
+
+export type GoalplanLifecycleResult =
+  | { kind: "changed"; plan: Goalplan }
+  | { kind: "unchanged"; plan: Goalplan; reason: string }
+  | { kind: "rejected"; reason: string };
+
+export function addGoalplanTask(
+  plan: Goalplan,
+  workPhaseId: string,
+  input: { id: string; title: string; dependsOn?: string[] },
+): GoalplanLifecycleResult {
+  const id = input.id.trim();
+  const title = input.title.trim();
+  const dependsOn = (input.dependsOn ?? []).map((dependencyId) => dependencyId.trim());
+  if (!LIFECYCLE_ID_RE.test(id)) {
+    return { kind: "rejected", reason: "task id must be a short lowercase id, e.g. t-1" };
+  }
+  if (!title) return { kind: "rejected", reason: "task title must not be empty" };
+  if (dependsOn.some((dependencyId) => dependencyId.length === 0)) {
+    return { kind: "rejected", reason: "task dependencies must be non-empty task ids" };
+  }
+  if (new Set(dependsOn).size !== dependsOn.length) {
+    return { kind: "rejected", reason: "task dependencies must not contain duplicate ids" };
+  }
+  const target = plan.workPhases.find((wp) => wp.id === workPhaseId);
+  if (!target) return { kind: "rejected", reason: `work phase '${workPhaseId}' is not in this plan` };
+  if (target.status === "done" || target.status === "superseded") {
+    return { kind: "rejected", reason: `work phase '${workPhaseId}' is ${target.status} and cannot accept a new task` };
+  }
+  if (target.tasks.some((task) => task.id === id)) {
+    return { kind: "rejected", reason: `task '${workPhaseId}/${id}' is already in this work phase` };
+  }
+  const next: Goalplan = {
+    ...plan,
+    workPhases: plan.workPhases.map((wp) => wp.id === workPhaseId
+      ? {
+          ...wp,
+          tasks: [...wp.tasks, {
+            id,
+            title,
+            status: "pending" as const,
+            ...(dependsOn.length > 0 ? { dependsOn } : {}),
+          }],
+        }
+      : wp),
+  };
+  const reasons = goalplanDefinitionIntegrityReasons(next);
+  return reasons.length > 0
+    ? { kind: "rejected", reason: reasons.join("; ") }
+    : { kind: "changed", plan: next };
+}
+
+export function completeGoalplanTask(
+  plan: Goalplan,
+  workPhaseId: string,
+  taskId: string,
+  outcomeText: string,
+): GoalplanLifecycleResult {
+  const outcome = outcomeText.trim();
+  if (!outcome) return { kind: "rejected", reason: "task outcome must not be empty" };
+  const target = plan.workPhases.find((wp) => wp.id === workPhaseId)?.tasks.find((task) => task.id === taskId);
+  if (!target) return { kind: "rejected", reason: `task '${workPhaseId}/${taskId}' is not in this plan` };
+  if (target.status === "done") {
+    return { kind: "unchanged", plan, reason: `task '${workPhaseId}/${taskId}' is already done` };
+  }
+  const ready = readyTasks(plan).some((entry) =>
+    entry.workPhaseId === workPhaseId && entry.task.id === taskId
+  );
+  if (!ready) return { kind: "rejected", reason: `task '${workPhaseId}/${taskId}' is not ready` };
+  return {
+    kind: "changed",
+    plan: {
+      ...plan,
+      workPhases: plan.workPhases.map((wp) => wp.id === workPhaseId
+        ? {
+            ...wp,
+            tasks: wp.tasks.map((task) => task.id === taskId
+              ? { ...task, status: "done" as const, outcome }
+              : task),
+          }
+        : wp),
+    },
+  };
+}
+
+export function meetGoalplanCriterion(
+  plan: Goalplan,
+  criterionId: string,
+  evidenceText: string,
+): GoalplanLifecycleResult {
+  const evidence = evidenceText.trim();
+  if (!evidence) return { kind: "rejected", reason: "criterion evidence must not be empty" };
+  const target = plan.criteria.find((criterion) => criterion.id === criterionId);
+  if (!target) return { kind: "rejected", reason: `criterion '${criterionId}' is not in this plan` };
+  if (target.status === "met") {
+    return { kind: "unchanged", plan, reason: `criterion '${criterionId}' is already met` };
+  }
+  return {
+    kind: "changed",
+    plan: {
+      ...plan,
+      criteria: plan.criteria.map((criterion) => criterion.id === criterionId
+        ? { ...criterion, capturedEvidence: evidence, status: "met" as const }
+        : criterion),
+    },
+  };
 }
 
 /** Criteria still open. */
@@ -747,6 +1247,162 @@ export function isGoalplanComplete(plan: Goalplan): boolean {
     && unmetCriteria(plan).length === 0
     && doneWorkPhasesWithPendingTasks(plan).length === 0
   );
+}
+
+// --- dependency integrity (wp3): pure read-only validation, no writes ---
+//
+// Two boundaries, deliberately separate. reviveDependsOn() above is the STRUCTURAL
+// boundary: a non-array, a non-string element, or a blank id fails the whole plan
+// closed before it ever becomes a Goalplan. These two functions are the SEMANTIC
+// boundary: given a well-formed string[], they judge what it refers to. Neither
+// writes goalplan.json or either ledger — a rejection leaves every byte in place.
+interface DependencyNode {
+  id: string;
+  dependsOn: readonly string[];
+}
+
+function duplicateIds(ids: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const id of ids) {
+    if (seen.has(id)) duplicates.add(id);
+    else seen.add(id);
+  }
+  return [...duplicates].sort();
+}
+
+function findDependencyCycle(nodes: readonly DependencyNode[]): string[] | null {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const visited = new Set<string>();
+  const visiting = new Map<string, number>();
+  const stack: string[] = [];
+  const visit = (id: string): string[] | null => {
+    const seenAt = visiting.get(id);
+    if (seenAt !== undefined) return [...stack.slice(seenAt), id];
+    if (visited.has(id)) return null;
+    visiting.set(id, stack.length);
+    stack.push(id);
+    for (const dependencyId of [...(byId.get(id)?.dependsOn ?? [])].sort()) {
+      if (!byId.has(dependencyId)) continue;
+      const cycle = visit(dependencyId);
+      if (cycle) return cycle;
+    }
+    stack.pop();
+    visiting.delete(id);
+    visited.add(id);
+    return null;
+  };
+  for (const id of [...byId.keys()].sort()) {
+    const cycle = visit(id);
+    if (cycle) return cycle;
+  }
+  return null;
+}
+
+export function goalplanDefinitionIntegrityReasons(plan: Goalplan): string[] {
+  const reasons: string[] = [];
+  const phaseIds = new Set(plan.workPhases.map((phase) => phase.id));
+  for (const id of duplicateIds(plan.workPhases.map((phase) => phase.id))) {
+    reasons.push(`duplicate work phase id '${id}' makes dependency references ambiguous`);
+  }
+  for (const phase of plan.workPhases) {
+    // 감사 라운드 1 BLOCKER 1: 같은 참조를 여러 번 쓴 dependsOn이 같은 사유를 반복하면
+    // goal-gate의 slice(0, 4)가 한 문장으로 네 칸을 채워 다른 진단을 가린다. wp2 reviver는
+    // 중복 원소를 거부하지 않으므로(goalplan.ts:466-475) 여기서 첫 등장 순서를 지켜 줄인다.
+    for (const dependencyId of new Set(phase.dependsOn ?? [])) {
+      if (dependencyId === phase.id) reasons.push(`work phase ${phase.id} depends on itself`);
+      else if (!phaseIds.has(dependencyId)) {
+        reasons.push(`work phase ${phase.id} depends on unknown work phase '${dependencyId}'`);
+      }
+    }
+
+    const taskIds = new Set(phase.tasks.map((task) => task.id));
+    for (const id of duplicateIds(phase.tasks.map((task) => task.id))) {
+      reasons.push(`work phase ${phase.id} has duplicate task id '${id}', so task dependency references are ambiguous`);
+    }
+    for (const task of phase.tasks) {
+      for (const dependencyId of new Set(task.dependsOn ?? [])) {
+        if (dependencyId === task.id) reasons.push(`task ${phase.id}/${task.id} depends on itself`);
+        else if (!taskIds.has(dependencyId)) {
+          reasons.push(`task ${phase.id}/${task.id} depends on unknown task '${dependencyId}' in the same work phase`);
+        }
+      }
+    }
+    const taskCycle = findDependencyCycle(phase.tasks.map((task) => ({
+      id: task.id,
+      dependsOn: (task.dependsOn ?? []).filter((dependencyId) => dependencyId !== task.id),
+    })));
+    if (taskCycle) {
+      reasons.push(`task dependency cycle in work phase ${phase.id}: ${taskCycle.join(" -> ")}`);
+    }
+
+    // Stays gated at >= 3 on purpose (260830). Audit round 2 recommended making
+    // these two rules version-independent so the new v1 default would not lose
+    // them, and that recommendation was tried and REVERTED: v1/v2 plans are
+    // deliberately exempt because they were written before the rule existed
+    // (`goalplan-integrity.test.ts:163`, `goal-gate.test.ts:394`). Applying it
+    // retroactively made an existing v1 plan with a legacy done task suddenly
+    // un-completable — the exact class of surprise blocker this unit removes.
+    // The coverage the default path gives up is bounded: `complete-task` always
+    // writes a non-empty outcome, so only hand-edited plans go unchecked, and
+    // `--schema-version 3` opts back in.
+    if ((plan.schemaVersion ?? 1) >= 3) {
+      for (const task of phase.tasks) {
+        if (task.status === "done" && (task.outcome ?? "").trim().length === 0) {
+          reasons.push(`task ${phase.id}/${task.id} is done but has no non-empty outcome`);
+        }
+        if (task.status === "pending" && task.outcome !== undefined) {
+          reasons.push(`task ${phase.id}/${task.id} is pending but has outcome`);
+        }
+      }
+    }
+  }
+
+  const phaseCycle = findDependencyCycle(plan.workPhases.map((phase) => ({
+    id: phase.id,
+    dependsOn: (phase.dependsOn ?? []).filter((dependencyId) => dependencyId !== phase.id),
+  })));
+  if (phaseCycle) reasons.push(`work phase dependency cycle: ${phaseCycle.join(" -> ")}`);
+
+  const criterionIds = new Set(plan.criteria.map((criterion) => criterion.id));
+  for (const id of duplicateIds(plan.criteria.map((criterion) => criterion.id))) {
+    reasons.push(`duplicate criterion id '${id}' makes criteriaIds references ambiguous`);
+  }
+  for (const phase of plan.workPhases) {
+    for (const criterionId of phase.criteriaIds) {
+      if (!criterionIds.has(criterionId)) {
+        reasons.push(`work phase ${phase.id} references unknown criterion '${criterionId}'`);
+      }
+    }
+  }
+  return reasons;
+}
+
+export function goalplanDependencyCompletionReasons(plan: Goalplan): string[] {
+  const reasons: string[] = [];
+  const phasesById = new Map(plan.workPhases.map((phase) => [phase.id, phase]));
+  for (const phase of plan.workPhases) {
+    if (phase.status === "done") {
+      // 중복 참조는 한 사유 안의 목록에도 한 번만 나온다(감사 라운드 1 BLOCKER 1).
+      const open = [...new Set(phase.dependsOn ?? [])].filter(
+        (dependencyId) => phasesById.get(dependencyId)?.status !== "done",
+      );
+      if (open.length > 0) {
+        reasons.push(`work phase ${phase.id} is done while dependency work phase(s) are not done: ${open.join(", ")}`);
+      }
+    }
+    const tasksById = new Map(phase.tasks.map((task) => [task.id, task]));
+    for (const task of phase.tasks) {
+      if (task.status !== "done") continue;
+      const open = [...new Set(task.dependsOn ?? [])].filter(
+        (dependencyId) => tasksById.get(dependencyId)?.status !== "done",
+      );
+      if (open.length > 0) {
+        reasons.push(`task ${phase.id}/${task.id} is done while dependency task(s) are not done: ${open.join(", ")}`);
+      }
+    }
+  }
+  return reasons;
 }
 
 export interface GoalplanValidation {
@@ -790,6 +1446,23 @@ export function computeQaRequired(plan: Goalplan): boolean {
  */
 export function validateGoalplan(plan: Goalplan, ctx?: GoalplanValidationCtx): GoalplanValidation {
   const reasons: string[] = [];
+  // Refuse before any other check: a plan this binary cannot fully represent must
+  // not be judged complete on a partial reading of it.
+  if (typeof plan.schemaVersion === "number" && plan.schemaVersion > SUPPORTED_MAX_SCHEMA_VERSION) {
+    return {
+      ok: false,
+      reasons: [
+        `schemaVersion ${plan.schemaVersion} is newer than this build supports (max ${SUPPORTED_MAX_SCHEMA_VERSION}) - upgrade codexclaw before validating this plan`,
+      ],
+    };
+  }
+  // Structure before progress: a plan whose references are broken cannot be judged
+  // on its completion state, and goal-gate shows only the first four reasons
+  // (goal-gate.ts slice(0, 4)) - so the repairable ones come first.
+  reasons.push(
+    ...goalplanDefinitionIntegrityReasons(plan),
+    ...goalplanDependencyCompletionReasons(plan),
+  );
   if (plan.workPhases.length === 0 && plan.criteria.length === 0) {
     reasons.push(
       "plan is empty: no workPhases[] and no criteria[] registered — fill the goalplan (schema in $cxc-loop) before the E8 gate can certify completion",
@@ -892,12 +1565,16 @@ function finalGateReasons(plan: Goalplan, ctx?: GoalplanValidationCtx): string[]
   }
   const gate = plan.finalGate;
   if (!gate) {
-    // No `final-gate` verb exists in goalplan-cli.ts or cli.ts (issue #29). Naming a
-    // command the user cannot run is worse than naming none, so this points at the
-    // review-round surface that actually produces a gate.
+    // No verb in this build opens a `final_gate` round: `review-round open`
+    // hardcodes `purpose: "plan_audit"` (review-round-cli.ts) and its parser has
+    // no `--lane`. The old text named `--lane final_gate` anyway, so a reader who
+    // followed it opened a plan_audit round that roundReasons below then refused
+    // for being a plan audit — one dead end pointing at another. Say the true
+    // state and name the escape that exists (260830).
     out.push(
-      "schemaVersion 2 requires a finalGate - open a final-gate review round with " +
-        "`cxc review-round open --lane final_gate --session <id>` and record its verdict",
+      `schemaVersion ${version} requires an approved finalGate, and no command in ` +
+        "this build opens a final-gate review round - either record the gate " +
+        "another way or declare schemaVersion 1, which new plans now use by default",
     );
     return out;
   }
@@ -1026,6 +1703,255 @@ export type AdvanceResult =
  * On refusal the input plan is returned untouched: closing a cycle never marks
  * tasks done on the agent's behalf.
  */
+export type CloseFixedResult =
+  | { kind: "ok"; plan: Goalplan; closedId: string }
+  // §43: the commit already landed and every gate still holds. No plan write is
+  // needed, but the caller only learns that AFTER the gates ran.
+  | { kind: "already_done" }
+  | { kind: "absent" }
+  | { kind: "not_runnable"; status: WorkPhaseStatus }
+  | { kind: "dependencies_unmet"; unmet: string[] }
+  | { kind: "tasks_pending"; workPhaseId: string; pending: GoalplanTask[] }
+  // §50: the marker named a successor this retry cannot use. Never fall back to a
+  // different phase — that confirms a close the earlier attempt did not decide.
+  | {
+      kind: "successor_lost";
+      successorId: string;
+      // §51 `corrupt` is separate because no plan edit fixes it: the marker itself is
+      // wrong, so the refusal must point at resetting rather than at the work-phase.
+      reason: "absent" | "not_runnable" | "dependencies_unmet" | "corrupt";
+    };
+
+/**
+ * Close exactly `workPhaseId` and move the cursor the same way a normal advance
+ * does: after-then-wrap over pending phases whose dependencies are met.
+ *
+ * 050 §40 Z1: D-close recovery used to fix up only the target's status, which left
+ * activeWorkPhaseId pointing at a done phase and logged a false `started <target>`.
+ * Normal close and recovery now share this one transformation, so the two cannot
+ * disagree about the resulting plan.
+ *
+ * 050 §41 W1: the gates live HERE, not in the callers. An earlier draft checked only
+ * that the target existed, so recovery — which calls this directly — skipped the
+ * pending-task refusal and the blocked/superseded check that advanceWorkPhase() runs
+ * first. That is reachable: the marker survives edits, and wp6 add-task can put a
+ * pending task on a live phase between the crash and the retry.
+ */
+export function closeFixedWorkPhase(
+  plan: Goalplan,
+  workPhaseId: string,
+  recordedNext?: string | null,
+): CloseFixedResult {
+  const currentIdx = plan.workPhases.findIndex((wp) => wp.id === workPhaseId);
+  if (currentIdx < 0) return { kind: "absent" };
+  const current = plan.workPhases[currentIdx];
+
+  // A blocked or superseded phase is never closable. advanceWorkPhase() never picks
+  // one, so this only fires when a recovery target changed state after its marker.
+  if (current.status !== "pending" && current.status !== "in_progress" && current.status !== "done") {
+    return { kind: "not_runnable", status: current.status };
+  }
+
+  // §41 W5: runnable means dependencies met, not just a workable status. Checking
+  // status alone let a target through whose dependency turned blocked after the
+  // marker was written — advanceWorkPhase() answers no_active there, and recovery
+  // must not answer ok.
+  if (!workPhaseDependenciesMet(plan, current)) {
+    return { kind: "dependencies_unmet", unmet: unmetPhaseDependencyIds(plan, current) };
+  }
+
+  // CYCLE-COMPLETION-01, unchanged wording and unchanged variant: an open task keeps
+  // the phase open on both the normal path and a recovery retry.
+  const pending = current.tasks.filter((task) => task.status !== "done");
+  if (pending.length > 0) return { kind: "tasks_pending", workPhaseId, pending };
+
+  const closedWorkPhases = plan.workPhases.map((wp) =>
+    wp.id === workPhaseId ? { ...wp, status: "done" as const, tasks: wp.tasks } : wp
+  );
+  const closedPlan: Goalplan = { ...plan, activeWorkPhaseId: null, workPhases: closedWorkPhases };
+
+  // §50: `recordedNext` has three meanings and they must stay separate. `undefined` is a
+  // FIRST close with no decision yet, so wp4 after-then-wrap computes the successor.
+  // `null` is an earlier attempt that found none, and a retry must not start a phase
+  // that was added afterwards. A string is the phase that attempt chose, and it is
+  // binding: if it cannot be used, this fails closed instead of quietly picking another
+  // phase and logging `started` for work nobody scheduled.
+  //
+  // §48 explains why the plan file cannot decide this on its own: one byte pattern fits
+  // both an attempt that already chose wp-2 and a plan where wp-2 was running all along.
+  // Because the named phase is accepted at `pending` or `in_progress` alike, the status
+  // normalization five earlier drafts fought over disappears entirely.
+  let next: { id: string } | undefined;
+  if (recordedNext === undefined) {
+    const after = closedWorkPhases.slice(currentIdx + 1).find(
+      (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+    );
+    next = after ?? closedWorkPhases.slice(0, currentIdx).find(
+      (wp) => wp.status === "pending" && workPhaseDependenciesMet(closedPlan, wp),
+    );
+  } else if (recordedNext === null) {
+    next = undefined;
+  } else {
+    // §51: a marker naming the target as its own successor is corrupt — a close never
+    // activates the phase it just finished. Without this guard the done-successor rule
+    // below swallows it, and for an OPEN target it silently nulls the cursor.
+    // §52: an empty id belongs here, not with the explicit null. readStateStrict() rejects
+    // it too, and treating it as "no successor" would give a damaged marker the authority
+    // of a real decision.
+    if (recordedNext.length === 0 || recordedNext === workPhaseId) {
+      return { kind: "successor_lost", successorId: recordedNext, reason: "corrupt" };
+    }
+    const named = closedWorkPhases.find((wp) => wp.id === recordedNext);
+    if (!named) return { kind: "successor_lost", successorId: recordedNext, reason: "absent" };
+    if (named.status === "done") {
+      // §51: a finished successor is not a lost one. The recorded phase was started and
+      // then closed by its own cycle, so this retry has nothing left to activate — and
+      // refusing would trap the session: escaping would mean re-opening a completed
+      // work-phase or discarding the marker. The settled-shape check below then answers
+      // §52: do not compute a cursor from a finished successor. Setting `next` to nothing
+      // made the settled shape claim `activeWorkPhaseId: null`, which erased a cursor the
+      // plan had legitimately moved on to — wp-2 finishing can itself have started wp-3.
+      //
+      // §53: but only a target that is ALSO done makes this close settled. A marker can
+      // survive with the target still open — crash before the plan commit, then the
+      // successor finishes on its own — and answering already_done there wrote the close
+      // rows while leaving the target open in the plan. Close it for real, with no
+      // successor to activate because the recorded one is finished.
+      // §54: closing the target must not undo progress the plan already made. The
+      // successor finishing can itself have started wp-3, and nulling the cursor there
+      // cut that off. Keep a cursor only when it names a DIFFERENT phase that is really
+      // running — a cursor on the target, or on a pending phase, is not progress and
+      // §45 established that such a cursor is forgeable.
+      // §55: readiness belongs in the same predicate. A running phase whose dependencies
+      // are unmet is a cursor effectiveActiveWorkPhaseId() already refuses to honour, so
+      // keeping it would leave a stale explicit cursor the next cycle does not follow.
+      // §56: this normalization runs whether or not the target is already done. An earlier
+      // draft returned already_done immediately for a done target, which skipped the whole
+      // check and let exactly the same damaged cursors through — including a cursor on the
+      // done target itself. The settled-shape comparison below is what decides already_done,
+      // and it can only do that against a normalized cursor.
+      next = closedWorkPhases.find(
+        (wp) => wp.id === plan.activeWorkPhaseId && wp.id !== workPhaseId
+          && wp.status === "in_progress" && workPhaseDependenciesMet(closedPlan, wp),
+      );
+    } else if (named.status !== "pending" && named.status !== "in_progress") {
+      return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
+    } else if (!workPhaseDependenciesMet(closedPlan, named)) {
+      return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
+    } else {
+      next = named;
+    }
+  }
+
+  const settledPlan: Goalplan = {
+    ...closedPlan,
+    activeWorkPhaseId: next?.id ?? null,
+    workPhases: closedWorkPhases.map((wp) =>
+      next && wp.id === next.id ? { ...wp, status: "in_progress" as const } : wp
+    ),
+  };
+
+  // §45/§50: identity is the LAST step, not the whole judgement. Predicates over the
+  // plan were forgeable four ways — a pending phase under the cursor, an in_progress
+  // phase whose dependencies are unmet, an arbitrary phase that is not the real
+  // successor, and a null cursor stranding an in_progress phase — so the settled shape
+  // is computed first and compared. But identity alone is not enough either: the
+  // expected shape is only meaningful because `recordedNext` fixed which successor this
+  // close chose. Comparing against a shape derived from the file would just re-ask the
+  // question the file cannot answer.
+  if (samePlanShape(plan, settledPlan)) return { kind: "already_done" };
+
+  return { kind: "ok", closedId: workPhaseId, plan: settledPlan };
+}
+
+/**
+ * Structural equality over the fields a close writes: cursor plus every phase id,
+ * status, dependsOn, and task status. Timestamps and prose are irrelevant here, so
+ * comparing whole JSON would make the check brittle for no gain.
+ */
+/**
+ * §53: what a resume should do when the fixed target is gone from the plan but the
+ * marker still names a successor. Shared by the CLI and the chat path, because a
+ * decision this subtle drifted between the two the moment it lived in one of them.
+ *
+ * The gates mirror closeFixedWorkPhase(): a phase that is blocked, superseded, or
+ * waiting on a dependency was never started and cannot be started now, so the retry
+ * fails closed rather than logging `started` for work nobody scheduled.
+ */
+/** §53: one wording source so the two surfaces cannot describe the same state differently. */
+export function absentSuccessorDetail(
+  reason: "absent" | "not_runnable" | "dependencies_unmet",
+): string {
+  return reason === "absent"
+    ? "is gone too"
+    : reason === "not_runnable"
+      ? "can no longer be started"
+      : "now waits for another work-phase";
+}
+
+export type ResumeAbsentTargetResult =
+  | { kind: "activate"; plan: Goalplan }
+  | { kind: "cleanup" }
+  | { kind: "successor_lost"; successorId: string; reason: "absent" | "not_runnable" | "dependencies_unmet" };
+
+export function resumeAbsentTarget(
+  plan: Goalplan,
+  recordedNext: string | null,
+): ResumeAbsentTargetResult {
+  // A marker that recorded no successor has nothing to activate: the close it describes
+  // ended the plan, so cleanup is the whole remaining job.
+  if (!recordedNext) return { kind: "cleanup" };
+  const named = plan.workPhases.find((wp) => wp.id === recordedNext);
+  if (!named) return { kind: "successor_lost", successorId: recordedNext, reason: "absent" };
+  // Finished on its own: the activation happened and only the ledger and state rows are
+  // owed. The row guards make those idempotent.
+  if (named.status === "done") return { kind: "cleanup" };
+  if (named.status !== "pending" && named.status !== "in_progress") {
+    return { kind: "successor_lost", successorId: recordedNext, reason: "not_runnable" };
+  }
+  // §55: readiness is checked before either branch below, so the absent-target path answers
+  // the same question closeFixedWorkPhase() answers when the target is still there. Gating
+  // only the pending branch made deletion of the target decide the verdict: the same
+  // successor waiting on the same unmet dependency was refused with the target present and
+  // activated with it gone. A dangling dependsOn reads as not-done here by design, and the
+  // pending branch already refused that plan.
+  if (!workPhaseDependenciesMet(plan, named)) {
+    return { kind: "successor_lost", successorId: recordedNext, reason: "dependencies_unmet" };
+  }
+  // Running: the activation happened too, but only if the cursor agrees. §45 established
+  // that a null or moved cursor stranding an in_progress phase is exactly the corruption
+  // a resume must repair, so restore the cursor instead of walking away from it.
+  if (named.status === "in_progress") {
+    return plan.activeWorkPhaseId === named.id
+      ? { kind: "cleanup" }
+      : { kind: "activate", plan: { ...plan, activeWorkPhaseId: named.id } };
+  }
+  return {
+    kind: "activate",
+    plan: {
+      ...plan,
+      activeWorkPhaseId: named.id,
+      workPhases: plan.workPhases.map((wp) =>
+        wp.id === named.id ? { ...wp, status: "in_progress" as const } : wp
+      ),
+    },
+  };
+}
+
+function samePlanShape(left: Goalplan, right: Goalplan): boolean {
+  if (left.activeWorkPhaseId !== right.activeWorkPhaseId) return false;
+  if (left.workPhases.length !== right.workPhases.length) return false;
+  return left.workPhases.every((wp, idx) => {
+    const other = right.workPhases[idx];
+    return wp.id === other.id
+      && wp.status === other.status
+      && (wp.dependsOn ?? []).join("\u0000") === (other.dependsOn ?? []).join("\u0000")
+      && wp.tasks.length === other.tasks.length
+      && wp.tasks.every((task, i) => task.id === other.tasks[i].id
+        && task.status === other.tasks[i].status);
+  });
+}
+
 export function advanceWorkPhase(plan: Goalplan): AdvanceResult {
   // 260714 wp4 (implicit cursor): a null/stale cursor adopts the effective active
   // work-phase instead of no-opping, so the standard `loop init` flow (cursor seeded
@@ -1041,34 +1967,23 @@ export function advanceWorkPhase(plan: Goalplan): AdvanceResult {
   if (currentIdx < 0) return { kind: "no_active" };
   const current = plan.workPhases[currentIdx];
 
-  // CYCLE-COMPLETION-01: refuse before any derivation, and leave `plan` alone.
-  const pending = current.tasks.filter((t) => t.status !== "done");
-  if (pending.length > 0) {
-    return { kind: "tasks_pending", workPhaseId: current.id, pending };
+  // The pending-task refusal moves into the shared helper (050 §41 W1) and is forwarded
+  // unchanged, so the CLI and chat wording stay identical.
+  //
+  // Closing the current phase succeeds even when nothing else can start: a verified
+  // completion is not rolled back because a successor is blocked. The cursor goes null
+  // and dependencyDeadlock() explains why on the next Stop or D-close.
+  const closed = closeFixedWorkPhase(plan, current.id);
+  if (closed.kind === "tasks_pending") {
+    return { kind: "tasks_pending", workPhaseId: closed.workPhaseId, pending: closed.pending };
   }
-
-  // Search after current index first (declared order), then wrap.
-  const after = plan.workPhases.slice(currentIdx + 1).find((wp) => wp.status === "pending");
-  const next = after ?? plan.workPhases.slice(0, currentIdx).find((wp) => wp.status === "pending");
-  return {
-    kind: "ok",
-    closedId: current.id,
-    plan: {
-      ...plan,
-      activeWorkPhaseId: next?.id ?? null,
-      workPhases: plan.workPhases.map((wp) => {
-        if (wp.id === current.id) {
-          return {
-            ...wp,
-            status: "done" as const,
-            tasks: wp.tasks,
-          };
-        }
-        if (next && wp.id === next.id) return { ...wp, status: "in_progress" as const };
-        return wp;
-      }),
-    },
-  };
+  // absent, not_runnable, and dependencies_unmet all fold into the existing no_active
+  // variant: the effective cursor never picks such a phase, so the normal path cannot
+  // reach them and the return shape is unchanged. 050 §50 successor_lost cannot occur
+  // here at all, because this call passes no recorded successor — it is a recovery-only
+  // answer. The catch-all keeps the union exhaustive without inventing new wording.
+  if (closed.kind !== "ok") return { kind: "no_active" };
+  return { kind: "ok", closedId: closed.closedId, plan: closed.plan };
 }
 
 /**
@@ -1085,10 +2000,16 @@ export function effectiveActiveWorkPhaseId(plan: Goalplan): string | null {
     // A cursor left pointing at a blocked or superseded phase is stale in the same
     // way a done one is: the loop would otherwise keep cycling on a phase that
     // cannot advance. Fall through to the next workable phase instead.
-    if (cur && cur.status !== "done" && cur.status !== "blocked" && cur.status !== "superseded") return cur.id;
+    // wp4: a cursor pointing at a phase whose dependencies are unmet is stale for the
+    // same reason, so isRunnablePhase() carries both conditions.
+    if (cur && isRunnablePhase(plan, cur)) return cur.id;
   }
-  const inProgress = plan.workPhases.find((wp) => wp.status === "in_progress");
+  const inProgress = plan.workPhases.find(
+    (wp) => wp.status === "in_progress" && workPhaseDependenciesMet(plan, wp),
+  );
   if (inProgress) return inProgress.id;
-  const pending = plan.workPhases.find((wp) => wp.status === "pending");
+  const pending = plan.workPhases.find(
+    (wp) => wp.status === "pending" && workPhaseDependenciesMet(plan, wp),
+  );
   return pending?.id ?? null;
 }

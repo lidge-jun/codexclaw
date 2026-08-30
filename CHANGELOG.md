@@ -6,6 +6,124 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.16] — 2026-08-30
+
+A new plan you can actually finish.
+
+### Fixed
+
+- **A new goalplan can be completed again.** `buildGoalplan()` declared the newest
+  schema, so every plan `cxc loop init` created claimed v3 — and every version at or
+  above 2 requires an approved `finalGate` that no shipped verb can produce, because
+  `review-round open` hardcodes `purpose: "plan_audit"` and never parses a lane. The
+  result was a permanent validation failure on every fresh plan and a
+  `GOAL-COMPLETE-GATE-01` denial for all of them. New plans now declare
+  `DEFAULT_NEW_SCHEMA_VERSION` (1), whose rules a user can actually discharge; the
+  stricter schema is available on request via `buildGoalplan({schemaVersion})` or
+  `cxc loop init --schema-version <n>`, clamped to the range this build can read. The
+  gate itself is unchanged: a plan that declares 2 or 3 still fails without an approved
+  gate.
+
+- **The `finalGate` reason stops naming a flag that does not exist.** It told the reader
+  to run `cxc review-round open --lane final_gate`, which no parser accepts, so the round
+  opened as a plan audit and was then refused for being one. The reason now states that
+  no command in this build opens a final-gate round, and reports the schema version it
+  actually saw instead of always saying 2.
+
+## [0.2.15] — 2026-08-30
+
+A plan that knew what order to work in.
+
+### Added
+
+- **goalplan carries a dependency graph.** `GoalplanTask` and `GoalplanWorkPhase` now
+  take `dependsOn`, and tasks record an `outcome` when they close. Schema v3 writes and
+  preserves both; v1/v2 plans keep their sequential-cursor meaning exactly, so nothing on
+  disk has to move. The reviver refuses a future schema version rather than guessing at it.
+
+- **Work is picked by readiness, not declaration order.** `effectiveActiveWorkPhaseId()`,
+  `nextOpenTask()`, and `advanceWorkPhase()` all honour `dependsOn`, so a phase or task
+  whose prerequisites are unfinished is not offered as the next thing to do. The Stop
+  guidance lists what is ready and what each blocked item is waiting for.
+
+- **`cxc loop ready`, `add-task`, `complete-task`, `meet-criterion`, and
+  `add-work-phase --depends-on`** — registering a dependency and asking what is runnable
+  right now are both first-class CLI operations.
+
+- **A broken graph is rejected before anything trusts it.** Dangling references, self
+  references, and cycles fail at registration and at `validateGoalplan()`, and the
+  goal-gate refuses to certify a plan that carries one. A deadlocked graph reports which
+  phase is blocked instead of silently offering no work.
+
+- **`cxc config`** surfaces the managed keys and the interview policy, and **`cxc doctor`**
+  gained a standing check for the declared Codex features.
+
+### Fixed
+
+- **The subagent evidence gate no longer traps a read-only child.** Past the retry cap the
+  gate records an unresolved verdict and releases the child; `GOAL-COMPLETE-GATE-01` holds
+  `update_goal {status:"complete"}` until that verdict is settled. Verification moves to
+  the parent, which is the only actor that can act on it.
+
+- **D-close is idempotent under a shared write lock.** Both the CLI and the chat path take
+  the goalplan lock and leave a durable recovery marker, so a retry after a committed plan
+  write closes the fixed phase once instead of advancing twice. A resume trusts the marker
+  over the file it is repairing, fails closed on an unreadable marker, and treats a
+  finished successor as settled rather than lost.
+
+- **`config-guard` self-heals declared Codex features on SessionStart** and reverts per key
+  instead of refusing on whole-file drift. A soft feature-flag failure is now visible
+  rather than silent.
+
+- **The C→D gate honours a receipt's `generatedPaths`**, so a check that regenerates its
+  own artifacts by design is no longer read as the source changing under it.
+
+- **`cxc evidence resolve` reports every missing argument at once** instead of one per run.
+
+### Changed
+
+- The ledger records dependency events, so the order work actually ran in is auditable
+  after the fact.
+- `cxc-loop` and `cxc-qa` skills document the dependency-aware surface, and `cxc-dev-devops`
+  gained branch and worktree lifecycle rules.
+
+## [0.2.14] — 2026-08-26
+
+A gate that could never be satisfied, and therefore never stopped asking.
+
+### Fixed
+
+- **The SubagentStop evidence gate no longer traps a read-only subagent.** A child
+  dispatched read-only cannot create a receipt under the parent's
+  `.codexclaw/evidence/`, so the receipt check failed forever. Past `MAX_ATTEMPTS` the
+  gate returned `decision:"block"` on every subsequent stop with no terminal release —
+  a real transcript shows 15+ identical escalation blocks against a child that had
+  already finished its work correctly.
+
+  The retry budget is now terminal. At the cap the gate records an unresolved verdict
+  against the session and releases the child, and `GOAL-COMPLETE-GATE-01` denies
+  `update_goal {status:"complete"}` until that verdict is settled with a valid receipt.
+  Verification is not waived; it moves to the parent, which is the only actor that can
+  act on it. `update_goal {status:"blocked"}` remains the honest escape hatch.
+
+### Added
+
+- **`cxc evidence resolve --session <id> --agent <id> [--turn <id>] --receipt <path>`** —
+  settles an unresolved verdict. The receipt is validated through the same evidence-root
+  contract the gate uses, the resolution is ledgered, and there is deliberately no
+  override flag: a CLI flag cannot authenticate a human, and the agent being held back
+  must not be able to erase its own verdict.
+- **`withSessionLock`** — serialized read-modify-write for session state. `writeState`
+  publishes atomically but does not serialize, so concurrent subagent stops could
+  silently erase each other's verdict.
+
+### Changed
+
+- `docs/security-hardening.md`, the dispatch doctrine (new `EVIDENCE-TERMINAL-01`), the
+  hooks reference, and the QA skill now describe the shipped behavior: fail-closed on
+  the verdict, bounded on the control flow. Read-only lanes belong on
+  `agent_type:"explorer"`, which the gate never touches.
+
 ## [0.2.13] — 2026-08-25
 
 Three gates that obstructed the agents following them, and the operational

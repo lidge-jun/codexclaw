@@ -21,9 +21,9 @@ directives use it. A PATH-level `cxc` / `codexclaw` binary remains a repo-checko
 
 | Command | Delegates to | Purpose |
 |---|---|---|
-| `cxc enable` | config-guard | Register skills, hooks, and MCP with Codex. |
-| `cxc disable` / `cxc uninstall` | config-guard | Unregister the plugin. |
-| `cxc status` | config-guard | Report config-guard registration status. |
+| `cxc enable` | config-guard | Turn on the Codex feature flags codexclaw declares, back up `config.toml`, and write the install manifest. (Skills, hooks and MCP are registered by `plugin.json`, not by this command.) |
+| `cxc disable` / `cxc uninstall` | config-guard | Revert exactly what codexclaw turned on, per flag and per managed key, and opt out of SessionStart self-heal. |
+| `cxc status` | config-guard | Report the live enabled-state of the declared feature flags. |
 | `cxc orchestrate <verb>` | pabcd-state | Drive PABCD phase state (see below). |
 | `cxc freeze` | pabcd-state | Freeze the interview plan and surface the goal-activation handoff. |
 | `cxc metric <verb>` | pabcd-state | Record/show true-objective metrics for emergence-harness loops. |

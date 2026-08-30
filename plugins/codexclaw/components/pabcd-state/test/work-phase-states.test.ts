@@ -14,6 +14,8 @@ import { join } from "node:path";
 import {
   advanceWorkPhase,
   buildGoalplan,
+  dependencyDeadlock,
+  dependencyWaitReasons,
   effectiveActiveWorkPhaseId,
   goalplanDir,
   nextOpenTask,
@@ -31,7 +33,11 @@ function phase(id: string, status: WorkPhaseStatus, over: Partial<GoalplanWorkPh
 }
 
 function plan(workPhases: GoalplanWorkPhase[], over: Partial<Goalplan> = {}): Goalplan {
-  return { ...buildGoalplan({ objective: "work phase states" }), workPhases, ...over };
+  // schemaVersion 1 is pinned deliberately, not inherited: these tests are about
+  // work-phase state transitions, and any v2+ plan adds final-gate reasons to every
+  // validateGoalplan() assertion here. buildGoalplan() also defaults to v1 since
+  // 260830, but pinning keeps that a stated premise rather than a coincidence.
+  return { ...buildGoalplan({ objective: "work phase states" }), schemaVersion: 1, workPhases, ...over };
 }
 
 const OPEN_TASK = { tasks: [{ id: "t1", title: "t", status: "pending" as const }] };
@@ -200,4 +206,121 @@ test("a legacy plan with only the original three statuses is unaffected", () => 
   const back = roundTrip(p);
   assert.deepEqual(back?.workPhases.map((wp) => wp.status), ["done", "in_progress", "pending"]);
   assert.deepEqual(remainingWorkPhases(back as Goalplan).map((wp) => wp.id), ["b", "c"]);
+});
+
+test("wp4: effective cursor skips an in-progress phase with unmet dependencies", () => {
+  const p = plan([
+    phase("a", "blocked", { blockedReason: "vendor" }),
+    phase("b", "in_progress", { dependsOn: ["a"] }),
+    phase("c", "pending", { dependsOn: [] }),
+  ], { schemaVersion: 3, activeWorkPhaseId: "b" });
+  assert.equal(effectiveActiveWorkPhaseId(p), "c");
+});
+
+test("wp4: superseded is not dependency completion", () => {
+  const p = plan([
+    phase("a", "superseded", { supersededBy: "replacement" }),
+    phase("replacement", "pending"),
+    phase("consumer", "pending", { dependsOn: ["a"] }),
+  ], { schemaVersion: 3, activeWorkPhaseId: "consumer" });
+  assert.equal(effectiveActiveWorkPhaseId(p), "replacement");
+});
+
+test("wp4: advance evaluates readiness after closing current and unlocks its dependent", () => {
+  const p = plan([
+    phase("current", "in_progress", { tasks: [{ id: "t", title: "done", status: "done", outcome: "current task completed" }] }),
+    phase("dependent", "pending", { dependsOn: ["current"] }),
+  ], { schemaVersion: 3, activeWorkPhaseId: "current" });
+  const advanced = advanceWorkPhase(p);
+  assert.equal(advanced.kind, "ok");
+  if (advanced.kind !== "ok") return;
+  assert.equal(advanced.plan.activeWorkPhaseId, "dependent");
+  assert.deepEqual(advanced.plan.workPhases.map((wp) => wp.status), ["done", "in_progress"]);
+});
+
+test("wp4: advance skips unmet phases after current and preserves wrap order", () => {
+  const p = plan([
+    phase("front-ready", "pending"),
+    phase("current", "in_progress"),
+    phase("after-blocked", "pending", { dependsOn: ["external-blocked"] }),
+    phase("external-blocked", "blocked", { blockedReason: "external" }),
+  ], { schemaVersion: 3, activeWorkPhaseId: "current" });
+  const advanced = advanceWorkPhase(p);
+  assert.equal(advanced.kind, "ok");
+  if (advanced.kind !== "ok") return;
+  assert.equal(advanced.plan.activeWorkPhaseId, "front-ready");
+});
+
+test("wp4: blocked upstream produces a dependency deadlock without a cycle", () => {
+  const p = plan([
+    phase("upstream", "blocked", { blockedReason: "vendor release" }),
+    phase("downstream", "pending", { dependsOn: ["upstream"] }),
+  ], { schemaVersion: 3, activeWorkPhaseId: null });
+  assert.equal(effectiveActiveWorkPhaseId(p), null);
+  assert.equal(nextOpenTask(p), null);
+  assert.deepEqual(dependencyDeadlock(p)?.reasons, [
+    "work-phase upstream is blocked (vendor release)",
+    "work-phase downstream waits for work-phase upstream (blocked)",
+  ]);
+});
+
+test("wp4: runnable empty phase is closable and is not reported as a deadlock", () => {
+  const p = plan([phase("ready", "pending", { dependsOn: [], tasks: [] })], { schemaVersion: 3 });
+  assert.equal(dependencyDeadlock(p), null);
+});
+
+test("wp4: dependency wait reasons survive when other work is ready", () => {
+  const p = plan([phase("build", "in_progress", {
+    dependsOn: [],
+    tasks: [
+      { id: "t-ready", title: "ready", status: "pending", dependsOn: [] },
+      { id: "t-upstream", title: "upstream", status: "pending", dependsOn: [] },
+      { id: "t-waiting", title: "waiting", status: "pending", dependsOn: ["t-upstream"] },
+    ],
+  })], { schemaVersion: 3, activeWorkPhaseId: "build" });
+
+  assert.equal(nextOpenTask(p)?.task.id, "t-ready");
+  assert.equal(dependencyDeadlock(p), null);
+  assert.deepEqual(dependencyWaitReasons(p), [
+    "task build/t-waiting waits for task build/t-upstream (pending)",
+  ]);
+});
+
+test("wp4: dependency wait reasons are empty when every dependency is done", () => {
+  const p = plan([
+    phase("foundation", "done", { dependsOn: [], tasks: [] }),
+    phase("build", "in_progress", {
+      dependsOn: ["foundation"],
+      tasks: [
+        {
+          id: "t-upstream",
+          title: "upstream",
+          status: "done",
+          dependsOn: [],
+          outcome: "upstream completed",
+        },
+        { id: "t-dependent", title: "dependent", status: "pending", dependsOn: ["t-upstream"] },
+      ],
+    }),
+  ], { schemaVersion: 3, activeWorkPhaseId: "build" });
+
+  assert.deepEqual(dependencyWaitReasons(p), []);
+});
+
+test("wp4: dependency wait reasons include phase and task waits", () => {
+  const p = plan([
+    phase("vendor", "blocked", { blockedReason: "release pending", dependsOn: [], tasks: [] }),
+    phase("build", "pending", {
+      dependsOn: ["vendor"],
+      tasks: [
+        { id: "t-upstream", title: "upstream", status: "pending", dependsOn: [] },
+        { id: "t-dependent", title: "dependent", status: "pending", dependsOn: ["t-upstream"] },
+      ],
+    }),
+  ], { schemaVersion: 3, activeWorkPhaseId: null });
+
+  assert.deepEqual(dependencyWaitReasons(p), [
+    "work-phase build waits for work-phase vendor (blocked)",
+    "task build/t-dependent waits for task build/t-upstream (pending)",
+  ]);
 });

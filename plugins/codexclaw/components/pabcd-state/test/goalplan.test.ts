@@ -1,11 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, existsSync, readFileSync, mkdirSync, writeFileSync, symlinkSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, mkdirSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   buildGoalplan,
+  DEFAULT_NEW_SCHEMA_VERSION,
+  dependencyDeadlock,
+  dependencyWaitReasons,
   readGoalplan,
+  readGoalplanDetailed,
   writeGoalplan,
   appendGoalplanLedger,
   goalplanDir,
@@ -16,12 +20,22 @@ import {
   validateGoalplan,
   advanceWorkPhase,
   effectiveActiveWorkPhaseId,
+  effectiveSchemaVersion,
+  SUPPORTED_MAX_SCHEMA_VERSION,
   type Goalplan,
+  goalplanWriteLockDir,
+  goalplanWriteLockStatus,
 } from "../src/goalplan.ts";
 import { deriveSlug } from "../src/freeze.ts";
-import { parseGoalplanCliArgs, runGoalplanCli } from "../src/goalplan-cli.ts";
+import { parseGoalplanCliArgs, runGoalplanCli, type GoalplanCliArgs } from "../src/goalplan-cli.ts";
 import { readState } from "../src/state.ts";
 import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-support.ts";
+
+const NOW = "2026-08-29T00:00:00.000Z";
+
+function escapeRe(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), "cxc-goalplan-"));
@@ -42,6 +56,374 @@ test("030: schema round-trips (write then read returns an equal Goalplan)", () =
   assert.equal(read!.slug, plan.slug);
   assert.deepEqual(read!.criteria, plan.criteria);
   assert.deepEqual(read!.host, plan.host);
+});
+
+test("schema v3: work-phase/task dependsOn survives a write/read round trip", () => {
+  // arrange
+  const cwd = tmp();
+  const plan = buildGoalplan({ objective: "dependency round trip" });
+  plan.workPhases = [
+    {
+      id: "wp-1",
+      title: "foundation",
+      status: "done",
+      tasks: [{ id: "t-1", title: "first", status: "done" }],
+      criteriaIds: [],
+    },
+    {
+      id: "wp-2",
+      title: "dependent",
+      status: "pending",
+      dependsOn: ["wp-1"],
+      tasks: [
+        { id: "t-1", title: "leader", status: "pending" },
+        { id: "t-2", title: "follower", status: "pending", dependsOn: ["t-1"] },
+      ],
+      criteriaIds: [],
+    },
+  ];
+
+  // act
+  writeGoalplan(cwd, plan);
+  const back = readGoalplan(cwd, plan.slug);
+
+  // assert
+  assert.ok(back);
+  assert.deepEqual(back.workPhases[1].dependsOn, ["wp-1"]);
+  assert.deepEqual(back.workPhases[1].tasks[1].dependsOn, ["t-1"]);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(back.workPhases[0], "dependsOn"),
+    false,
+    "an absent phase dependsOn stays absent",
+  );
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(back.workPhases[1].tasks[0], "dependsOn"),
+    false,
+    "an absent task dependsOn stays absent",
+  );
+});
+
+test("schema v3: an empty dependsOn array is preserved as an empty array", () => {
+  // arrange
+  const cwd = tmp();
+  const plan = buildGoalplan({ objective: "empty dependency list" });
+  plan.workPhases = [{
+    id: "wp-1",
+    title: "phase",
+    status: "pending",
+    dependsOn: [],
+    tasks: [{ id: "t-1", title: "task", status: "pending", dependsOn: [] }],
+    criteriaIds: [],
+  }];
+
+  // act
+  writeGoalplan(cwd, plan);
+  const back = readGoalplan(cwd, plan.slug);
+
+  // assert
+  assert.ok(back);
+  assert.deepEqual(back.workPhases[0].dependsOn, [], "undefined and [] both mean no phase dependency");
+  assert.deepEqual(
+    back.workPhases[0].tasks[0].dependsOn,
+    [],
+    "undefined and [] both mean no task dependency",
+  );
+});
+
+test("schema v3: malformed dependsOn or phase shape rejects the whole plan and names the field", () => {
+  // arrange
+  const cases: Array<{
+    name: string;
+    field: string;
+    detailPattern: RegExp;
+    apply: (raw: Record<string, any>) => void;
+  }> = [
+    { name: "phase is not an array", field: "workPhases[].dependsOn", detailPattern: /dependsOn/, apply: (raw) => { raw.workPhases[0].dependsOn = "wp-0"; } },
+    { name: "phase has a non-string", field: "workPhases[].dependsOn", detailPattern: /dependsOn/, apply: (raw) => { raw.workPhases[0].dependsOn = [1]; } },
+    { name: "phase has an empty id", field: "workPhases[].dependsOn", detailPattern: /dependsOn/, apply: (raw) => { raw.workPhases[0].dependsOn = [" "]; } },
+    { name: "task is not an array", field: "workPhases[].tasks[].dependsOn", detailPattern: /dependsOn/, apply: (raw) => { raw.workPhases[0].tasks[0].dependsOn = "t-0"; } },
+    { name: "task has a non-string", field: "workPhases[].tasks[].dependsOn", detailPattern: /dependsOn/, apply: (raw) => { raw.workPhases[0].tasks[0].dependsOn = [null]; } },
+    { name: "task has an empty id", field: "workPhases[].tasks[].dependsOn", detailPattern: /dependsOn/, apply: (raw) => { raw.workPhases[0].tasks[0].dependsOn = [""]; } },
+    // Audit round 10 blocker 2: cover the widened work-phase shape check (id -> id and title).
+    { name: "phase title is missing", field: "workPhases[] entries (each needs id/title)", detailPattern: /workPhases/, apply: (raw) => { delete raw.workPhases[0].title; } },
+    { name: "phase title is not a string", field: "workPhases[] entries (each needs id/title)", detailPattern: /workPhases/, apply: (raw) => { raw.workPhases[0].title = 42; } },
+  ];
+
+  for (const c of cases) {
+    // arrange
+    const cwd = tmp();
+    const plan = buildGoalplan({ objective: `bad dependsOn ${c.name}` });
+    plan.workPhases = [{
+      id: "wp-1",
+      title: "phase",
+      status: "pending",
+      tasks: [{ id: "t-1", title: "task", status: "pending" }],
+      criteriaIds: [],
+    }];
+    writeGoalplan(cwd, plan);
+    const path = join(goalplanDir(cwd, plan.slug), "goalplan.json");
+    const raw = JSON.parse(readFileSync(path, "utf8"));
+    c.apply(raw);
+    writeFileSync(path, JSON.stringify(raw));
+
+    // act
+    const result = readGoalplanDetailed(cwd, plan.slug);
+
+    // assert
+    assert.equal(result.plan, null, c.name);
+    assert.equal(result.diagnostic?.kind, "invalid-shape", c.name);
+    if (result.diagnostic?.kind === "invalid-shape") {
+      assert.equal(result.diagnostic.field, c.field, c.name);
+      assert.match(result.diagnostic.detail, c.detailPattern, c.name);
+    }
+  }
+});
+
+test("schema v3: task outcome is trimmed while absent and blank outcomes stay absent", () => {
+  // arrange
+  const cwd = tmp();
+  const plan = buildGoalplan({ objective: "outcome round trip" });
+  plan.workPhases = [{
+    id: "wp-1",
+    title: "phase",
+    status: "in_progress",
+    tasks: [
+      { id: "t-1", title: "done", status: "done", outcome: "  node --test: 0 fail  " },
+      { id: "t-2", title: "missing", status: "pending" },
+      { id: "t-3", title: "blank", status: "pending", outcome: "   " },
+      { id: "t-4", title: "non-string", status: "pending" },
+    ],
+    criteriaIds: [],
+  }];
+  writeGoalplan(cwd, plan);
+  const path = join(goalplanDir(cwd, plan.slug), "goalplan.json");
+  const raw = JSON.parse(readFileSync(path, "utf8"));
+  raw.workPhases[0].tasks[3].outcome = 42;
+  writeFileSync(path, JSON.stringify(raw));
+
+  // act
+  const back = readGoalplan(cwd, plan.slug);
+
+  // assert
+  assert.ok(back);
+  assert.equal(back.workPhases[0].tasks[0].outcome, "node --test: 0 fail");
+  assert.equal(Object.prototype.hasOwnProperty.call(back.workPhases[0].tasks[1], "outcome"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(back.workPhases[0].tasks[2], "outcome"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(back.workPhases[0].tasks[3], "outcome"), false);
+});
+
+test("schema v3: legacy plan without outcome keeps byte-identical serialized plan data", () => {
+  // arrange
+  const cwd = tmp();
+  const plan = buildGoalplan({ objective: "legacy outcome omission" });
+  delete plan.schemaVersion;
+  plan.workPhases = [{
+    id: "wp-1",
+    title: "legacy phase",
+    status: "done",
+    tasks: [{ id: "t-1", title: "legacy done task", status: "done" }],
+    criteriaIds: [],
+  }];
+
+  // act
+  writeGoalplan(cwd, plan);
+  const path = join(goalplanDir(cwd, plan.slug), "goalplan.json");
+  const stored = readFileSync(path, "utf8");
+  const back = readGoalplan(cwd, plan.slug);
+
+  // assert
+  assert.ok(back);
+  assert.equal(JSON.stringify(back, null, 2), stored);
+  assert.equal(Object.prototype.hasOwnProperty.call(back, "schemaVersion"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(back.workPhases[0].tasks[0], "outcome"), false);
+});
+
+test("a new plan declares v1 by default, and a higher schema only on request", () => {
+  // A new plan used to declare SUPPORTED_MAX_SCHEMA_VERSION, which enrolled it in
+  // the schemaVersion >= 2 finalGate requirement that no shipped verb can satisfy,
+  // so every fresh plan validated with a reason its owner could not discharge.
+  // arrange and act
+  const byDefault = buildGoalplan({ objective: "new default plan" });
+  const optedIn = buildGoalplan({ objective: "opted into v3", schemaVersion: 3 });
+
+  // assert — the default is the version whose rules are all reachable
+  assert.equal(byDefault.schemaVersion, DEFAULT_NEW_SCHEMA_VERSION);
+  assert.equal(byDefault.schemaVersion, 1);
+  assert.equal(effectiveSchemaVersion(byDefault, false), 1);
+
+  // assert — opting in still declares v3, so the v2+ rules still apply
+  assert.equal(optedIn.schemaVersion, 3);
+  assert.equal(effectiveSchemaVersion(optedIn, false), 3);
+});
+
+test("a requested schemaVersion is clamped into the readable range", () => {
+  // A plan declaring more than this build can read is refused on the next read,
+  // so buildGoalplan must never mint a file its own writer cannot reopen.
+  const cases: Array<[unknown, number]> = [
+    [undefined, 1],
+    [0, 1],
+    [-7, 1],
+    [Number.NaN, 1],
+    [2, 2],
+    [2.9, 2],
+    [3, 3],
+    [99, SUPPORTED_MAX_SCHEMA_VERSION],
+  ];
+  for (const [requested, expected] of cases) {
+    const plan = buildGoalplan({
+      objective: `clamp ${String(requested)}`,
+      schemaVersion: requested as number | undefined,
+    });
+    assert.equal(plan.schemaVersion, expected, `requested ${String(requested)}`);
+  }
+});
+
+test("schema v3: an unsupported future schemaVersion is rejected on read and on validate", () => {
+  // arrange
+  const cwd = tmp();
+  const plan = buildGoalplan({ objective: "future version" });
+  writeGoalplan(cwd, plan);
+  const path = join(goalplanDir(cwd, plan.slug), "goalplan.json");
+  const raw = JSON.parse(readFileSync(path, "utf8"));
+  raw.schemaVersion = 4;
+  writeFileSync(path, JSON.stringify(raw));
+
+  // act
+  const result = readGoalplanDetailed(cwd, plan.slug);
+  const validated = validateGoalplan({ ...plan, schemaVersion: 4 });
+
+  // assert
+  assert.equal(result.plan, null, "a v4 plan on disk does not read as a plan");
+  assert.equal(result.diagnostic?.kind, "invalid-shape");
+  if (result.diagnostic?.kind === "invalid-shape") {
+    assert.equal(result.diagnostic.field, "schemaVersion");
+    assert.match(result.diagnostic.detail, /schemaVersion/);
+  }
+  assert.equal(validated.ok, false, "validateGoalplan refuses an unsupported future version");
+  assert.ok(
+    validated.reasons.some((reason) => /schemaVersion/.test(reason)),
+    `expected a schemaVersion reason, got ${JSON.stringify(validated.reasons)}`,
+  );
+});
+
+test("schema v3: pre-change baseline records a private-data-free manifest and parser results", () => {
+  // arrange
+  const path = join(
+    import.meta.dirname,
+    "fixtures",
+    "goalplans-pre-change-baseline.json",
+  );
+  type ParserResult =
+    | { kind: "parsed" }
+    | { kind: "absent" | "unreadable" | "invalid-json" }
+    | { kind: "invalid-shape"; field: "criteria-shape" | "other-shape" };
+
+  // act
+  const text = readFileSync(path, "utf8");
+  const snapshot = JSON.parse(text) as {
+    measuredOn: "2026-08-29";
+    sourceCount: number;
+    manifest: Array<{
+      ordinal: number;
+      alias: string;
+      sourceClass: "normal" | "legacy-text-criterion";
+      expected: ParserResult;
+    }>;
+    fixtures: Array<{
+      ordinal: number;
+      alias: string;
+      sourceClass: "normal" | "legacy-text-criterion";
+      expected: ParserResult;
+      plan: Record<string, unknown>;
+    }>;
+  };
+  const preservedEnumsByKey = new Map<string, Set<string>>([
+    ["status", new Set([
+      "pending", "in_progress", "done", "blocked", "superseded", "open", "met",
+      "launching", "in_flight", "approved", "changes_requested", "inconclusive",
+    ])],
+    ["surface", new Set(["logic", "web", "tui"])],
+    ["source", new Set(["freeze", "none"])],
+    ["purpose", new Set(["plan_audit", "final_gate"])],
+    ["verdict", new Set(["pass", "near-pass", "fail"])],
+    ["kind", new Set([
+      "resolved", "unavailable", "parsed", "absent", "unreadable", "invalid-json", "invalid-shape",
+    ])],
+    ["sourceClass", new Set(["normal", "legacy-text-criterion"])],
+    ["field", new Set(["criteria-shape", "other-shape"])],
+  ]);
+  const assertAliased = (value: unknown, ordinal: number, key = ""): void => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => assertAliased(item, ordinal, key));
+      return;
+    }
+    if (value && typeof value === "object") {
+      Object.entries(value).forEach(([childKey, child]) => assertAliased(child, ordinal, childKey));
+      return;
+    }
+    if (typeof value === "string" && !preservedEnumsByKey.get(key)?.has(value)) {
+      if (value === `fixture-${ordinal}`) return;
+      assert.match(value, new RegExp(`^fixture-${ordinal}-string-\\d{4}$`));
+    }
+  };
+
+  // assert
+  assert.equal(snapshot.measuredOn, "2026-08-29");
+  assert.ok(snapshot.sourceCount > 0);
+  assert.equal(snapshot.sourceCount, snapshot.manifest.length);
+  assert.equal(snapshot.fixtures.length, snapshot.manifest.length);
+  assert.deepEqual(
+    snapshot.manifest,
+    snapshot.fixtures.map(({ ordinal, alias, sourceClass, expected }) => ({
+      ordinal,
+      alias,
+      sourceClass,
+      expected,
+    })),
+  );
+  assert.deepEqual(
+    snapshot.fixtures.map(({ ordinal }) => ordinal),
+    snapshot.fixtures.map((_, index) => index + 1),
+  );
+  for (const fixture of snapshot.fixtures) {
+    assert.equal(fixture.alias, `fixture-${fixture.ordinal}`);
+    assert.equal(fixture.plan.slug, fixture.alias);
+    assertAliased(fixture.plan, fixture.ordinal);
+  }
+  const legacy = snapshot.fixtures.find((fixture) => fixture.sourceClass === "legacy-text-criterion");
+  assert.ok(legacy);
+  assert.deepEqual(legacy.expected, { kind: "invalid-shape", field: "criteria-shape" });
+  assert.doesNotMatch(text, /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i);
+  assert.doesNotMatch(text, /"\/(?!\/)/, "absolute POSIX paths must not remain");
+  assert.doesNotMatch(text, /"[A-Za-z]:\\\\/, "absolute Windows paths must not remain");
+  assert.doesNotMatch(text, /\b[0-9a-f]{40}\b/i, "40-character hashes must not remain");
+});
+
+test("schema v3: baseline generator privacy and reparse invariants run on every suite", async () => {
+  // arrange
+  const { assertFixturesPrivateAndStable, normalizeResult, PRIVACY_PATTERNS } = await import(
+    "./fixtures/capture-goalplan-baseline.mjs"
+  );
+  const snapshot = JSON.parse(readFileSync(
+    join(import.meta.dirname, "fixtures", "goalplans-pre-change-baseline.json"),
+    "utf8",
+  )) as { fixtures: Array<{ ordinal: number; alias: string; expected: unknown; plan: Record<string, unknown> }> };
+  const reparseRoot = tmp();
+
+  // act and assert - every checked-in fixture reparses to the same normalized result.
+  assertFixturesPrivateAndStable(snapshot.fixtures, reparseRoot);
+
+  // assert - the helper itself is alive, proven by a negative case.
+  assert.ok(PRIVACY_PATTERNS.length >= 4);
+  assert.throws(
+    () => assertFixturesPrivateAndStable(
+      [{ ordinal: 1, alias: "fixture-1", expected: { kind: "parsed" }, plan: { leak: "/Users/someone/secret" } }],
+      tmp(),
+    ),
+    /privacy scan/,
+    "an absolute path leak must be caught by the generator helper",
+  );
+  assert.deepEqual(normalizeResult({ plan: {}, diagnostic: null }), { kind: "parsed" });
 });
 
 test("030: slug-namespaced path, distinct from plan/interview dirs", () => {
@@ -133,7 +515,9 @@ test("030: derived helpers (remaining/nextOpen/unmet/complete) on fixtures", () 
 });
 
 test("030: validateGoalplan rejects met-without-evidence and incomplete plans", () => {
-  const plan = buildGoalplan({ objective: "v", criteria: [{ scenario: "c" }] });
+  // v1 pinned: this test is about the evidence and completeness rules, not the v2+
+  // final gate that buildGoalplan()'s new v3 default would bring in (wp2, 260829).
+  const plan = { ...buildGoalplan({ objective: "v", criteria: [{ scenario: "c" }] }), schemaVersion: 1 };
   // unmet criterion -> not ok
   assert.equal(validateGoalplan(plan).ok, false);
   // mark met but no evidence -> still not ok (rubber-stamp guard)
@@ -148,12 +532,15 @@ test("030: validateGoalplan rejects met-without-evidence and incomplete plans", 
 
 test("260709: validateGoalplan FAILS an EMPTY plan (no workPhases, no criteria)", () => {
   // 019f4456 regression: a `loop init`-only artifact passed the E8 gate vacuously.
-  const plan = buildGoalplan({ objective: "shell only" });
+  const plan = { ...buildGoalplan({ objective: "shell only" }), schemaVersion: 1 };
   const verdict = validateGoalplan(plan);
   assert.equal(verdict.ok, false);
   assert.ok(verdict.reasons.some((x) => /plan is empty/.test(x)));
   // registering EITHER a criterion or a work phase lifts the empty-plan failure.
-  const withCriterion = buildGoalplan({ objective: "with criterion", criteria: [{ scenario: "c", expectedEvidence: "e" }] });
+  const withCriterion = {
+    ...buildGoalplan({ objective: "with criterion", criteria: [{ scenario: "c", expectedEvidence: "e" }] }),
+    schemaVersion: 1,
+  };
   withCriterion.criteria[0] = { ...withCriterion.criteria[0], status: "met", capturedEvidence: "proof" };
   assert.equal(validateGoalplan(withCriterion).ok, true);
 });
@@ -393,4 +780,253 @@ test("CLI output uses loop label, not goalplan", () => {
   assert.equal(result.code, 0);
   assert.match(result.output, /\[codexclaw loop:/);
   assert.ok(!result.output.includes("[codexclaw goalplan:"));
+});
+
+test("wp4: nextOpenTask excludes a task whose direct dependency is not done", () => {
+  const plan = buildGoalplan({ objective: "task dependency" });
+  plan.schemaVersion = 3;
+  plan.workPhases = [{
+    id: "wp1",
+    title: "one",
+    status: "in_progress",
+    dependsOn: [],
+    criteriaIds: [],
+    tasks: [
+      { id: "t1", title: "upstream", status: "pending", dependsOn: [] },
+      { id: "t2", title: "downstream", status: "pending", dependsOn: ["t1"] },
+    ],
+  }];
+  assert.equal(nextOpenTask(plan)?.task.id, "t1");
+  plan.workPhases[0].tasks[0].status = "done";
+  plan.workPhases[0].tasks[0].outcome = "upstream task completed";
+  assert.equal(nextOpenTask(plan)?.task.id, "t2");
+});
+
+test("wp4 regression: duplicate task ids in different phases stay phase-local", () => {
+  const plan = buildGoalplan({ objective: "phase-local duplicate task ids" });
+  plan.schemaVersion = 3;
+  plan.workPhases = [
+    {
+      id: "wpA",
+      title: "phase A",
+      status: "done",
+      dependsOn: [],
+      criteriaIds: [],
+      tasks: [{
+        id: "t1",
+        title: "phase A t1",
+        status: "done",
+        dependsOn: [],
+        outcome: "phase A t1 completed",
+      }],
+    },
+    {
+      id: "wpB",
+      title: "phase B",
+      status: "in_progress",
+      dependsOn: [],
+      criteriaIds: [],
+      tasks: [
+        { id: "t2", title: "phase B t2", status: "pending", dependsOn: ["t1"] },
+        { id: "t1", title: "phase B t1", status: "pending", dependsOn: [] },
+      ],
+    },
+  ];
+
+  const next = nextOpenTask(plan);
+
+  assert.deepEqual(
+    next ? { workPhaseId: next.wp.id, taskId: next.task.id } : null,
+    { workPhaseId: "wpB", taskId: "t1" },
+  );
+  assert.notEqual(next?.task.id, "t2");
+});
+
+test("wp4 compatibility: undefined and empty dependsOn have identical selection semantics", () => {
+  const legacy = buildGoalplan({ objective: "legacy undefined" });
+  legacy.workPhases = [
+    { id: "wp1", title: "one", status: "in_progress", tasks: [{ id: "t1", title: "one", status: "pending" }], criteriaIds: [] },
+    { id: "wp2", title: "two", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  legacy.activeWorkPhaseId = "wp1";
+  const explicitEmpty: Goalplan = structuredClone(legacy);
+  explicitEmpty.schemaVersion = 3;
+  explicitEmpty.workPhases = explicitEmpty.workPhases.map((wp) => ({
+    ...wp,
+    dependsOn: [],
+    tasks: wp.tasks.map((task) => ({ ...task, dependsOn: [] })),
+  }));
+  assert.equal(effectiveActiveWorkPhaseId(legacy), effectiveActiveWorkPhaseId(explicitEmpty));
+  assert.equal(nextOpenTask(legacy)?.task.id, nextOpenTask(explicitEmpty)?.task.id);
+  assert.equal(dependencyDeadlock(legacy), null);
+  assert.equal(dependencyDeadlock(explicitEmpty), null);
+});
+
+test("wp4 compatibility: v1 selector and advance golden result stays byte-for-byte stable", () => {
+  // 감사 라운드 1 BLOCKER 1: 앞선 초안은 effective/next를 id로만, advance를 kind와 status
+  // 배열로만 봐서 공개 반환 필드 closedId를 검사하지 않았다. 두 리뷰어가 각각
+  // closedId를 훼손한 변이본으로 187/187 green을 재현했다. 세 경로의 관측값을 하나의
+  // 손작성 golden으로 묶고, 이어지는 wrap까지 같은 테스트에서 실행한다.
+  //
+  // B-phase 변이 확인 260829: wp3의 runnable pending task가 하나뿐이면 nextOpenTask()가
+  // 후보를 첫 개가 아니라 마지막 개로 바꾸는 변이가 관측되지 않아 이 golden이 green으로
+  // 남았다. wp3에 두 번째 pending task를 두어 선언 순서 선택을 실제로 못 박는다.
+  const now = () => "2026-08-29T00:00:00.000Z";
+  const plan = buildGoalplan({ objective: "v1 golden", now });
+  delete plan.schemaVersion;
+  plan.workPhases = [
+    { id: "wp1", title: "before", status: "pending", tasks: [], criteriaIds: [] },
+    { id: "wp2", title: "current", status: "in_progress", tasks: [{ id: "t2", title: "done", status: "done" }], criteriaIds: [] },
+    {
+      id: "wp3",
+      title: "after",
+      status: "pending",
+      tasks: [
+        { id: "t3", title: "next", status: "pending" },
+        { id: "t3b", title: "later", status: "pending" },
+      ],
+      criteriaIds: [],
+    },
+  ];
+  plan.activeWorkPhaseId = "wp2";
+
+  const advanced = advanceWorkPhase(plan);
+  assert.equal(advanced.kind, "ok");
+  if (advanced.kind !== "ok") return;
+
+  assert.deepEqual(
+    {
+      effective: effectiveActiveWorkPhaseId(plan),
+      next: nextOpenTask(plan),
+      advanceKind: advanced.kind,
+      closedId: advanced.closedId,
+      activeWorkPhaseId: advanced.plan.activeWorkPhaseId,
+      workPhases: advanced.plan.workPhases,
+      schemaVersionPresent: Object.prototype.hasOwnProperty.call(advanced.plan, "schemaVersion"),
+    },
+    {
+      effective: "wp2",
+      next: {
+        wp: {
+          id: "wp3",
+          title: "after",
+          status: "pending",
+          tasks: [
+            { id: "t3", title: "next", status: "pending" },
+            { id: "t3b", title: "later", status: "pending" },
+          ],
+          criteriaIds: [],
+        },
+        task: { id: "t3", title: "next", status: "pending" },
+      },
+      advanceKind: "ok",
+      closedId: "wp2",
+      activeWorkPhaseId: "wp3",
+      workPhases: [
+        { id: "wp1", title: "before", status: "pending", tasks: [], criteriaIds: [] },
+        { id: "wp2", title: "current", status: "done", tasks: [{ id: "t2", title: "done", status: "done" }], criteriaIds: [] },
+        {
+          id: "wp3",
+          title: "after",
+          status: "in_progress",
+          tasks: [
+            { id: "t3", title: "next", status: "pending" },
+            { id: "t3b", title: "later", status: "pending" },
+          ],
+          criteriaIds: [],
+        },
+      ],
+      schemaVersionPresent: false,
+    },
+  );
+
+  // 앞쪽으로 되돌아가는 wrap 순회도 같은 v1 fixture에서 직접 실행한다. wp3의 task를 닫고
+  // 다시 advance하면 뒤쪽에 pending이 없어 wp1으로 돌아가야 한다.
+  for (const task of advanced.plan.workPhases[2].tasks) task.status = "done";
+  const wrapped = advanceWorkPhase(advanced.plan);
+  assert.equal(wrapped.kind, "ok");
+  if (wrapped.kind !== "ok") return;
+  assert.deepEqual(
+    {
+      closedId: wrapped.closedId,
+      activeWorkPhaseId: wrapped.plan.activeWorkPhaseId,
+      statuses: wrapped.plan.workPhases.map((wp) => wp.status),
+    },
+    { closedId: "wp3", activeWorkPhaseId: "wp1", statuses: ["in_progress", "done", "done"] },
+  );
+});
+
+test("wp4 compatibility: v2 plans without dependsOn keep the v1 selection result", () => {
+  const plan = buildGoalplan({ objective: "v2 golden" });
+  plan.schemaVersion = 2;
+  plan.workPhases = [
+    { id: "wp1", title: "one", status: "done", tasks: [], criteriaIds: [] },
+    { id: "wp2", title: "two", status: "pending", tasks: [{ id: "t2", title: "next", status: "pending" }], criteriaIds: [] },
+  ];
+  assert.equal(effectiveActiveWorkPhaseId(plan), "wp2");
+  assert.equal(nextOpenTask(plan)?.task.id, "t2");
+});
+
+test("wp7 preservation: show renders the write lock path and age", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-wp7-lock-"));
+  try {
+    const plan = buildGoalplan({ objective: "Ship the loop", criteria: [], now: () => NOW });
+    writeGoalplan(cwd, plan);
+
+    // 락 없음: absent 줄이 절대 경로를 담고 ageMs를 붙이지 않는다.
+    const absent = runGoalplanCli(
+      parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
+    );
+    assert.equal(absent.code, 0);
+    const lockDir = goalplanWriteLockDir(cwd, plan.slug);
+    assert.match(absent.output, new RegExp(`^writeLock: absent path=${escapeRe(lockDir)}$`, "m"));
+    assert.doesNotMatch(absent.output, /ageMs=/);
+
+    // 락 있음: present 줄이 같은 경로와 숫자 나이를 담는다.
+    mkdirSync(lockDir, { recursive: true });
+    const present = runGoalplanCli(
+      parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
+    );
+    assert.equal(present.code, 0);
+    // ageMs가 nowMs - statSync().mtimeMs라 1ms 미만이면 소수점이 붙는다(실측 ageMs=0.017333984375).
+    // \\d+만 기다리면 방금 만든 락에서 간헐 실패한다.
+    assert.match(present.output, new RegExp(`^writeLock: present path=${escapeRe(lockDir)} ageMs=\\d+(?:\\.\\d+)?$`, "m"));
+
+    // 기존 요약 줄은 두 경우 모두 그대로다. 새 줄이 기존 출력을 밀어내지 않는다.
+    for (const out of [absent.output, present.output]) {
+      assert.match(out, /^\[codexclaw loop: /m);
+      assert.match(out, /^criteria: 0 \(unmet 0\)$/m);
+      assert.match(out, /^complete: /m);
+    }
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("wp7 preservation: show survives a lock that vanishes between exists and stat", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-wp7-race-"));
+  try {
+    const plan = buildGoalplan({ objective: "Ship the loop", criteria: [], now: () => NOW });
+    writeGoalplan(cwd, plan);
+    const lockDir = goalplanWriteLockDir(cwd, plan.slug);
+    mkdirSync(lockDir, { recursive: true });
+
+    // exists 뒤 stat 사이에 락이 사라지는 경우. 주입 seam은 wp5가 만든 네 번째 인자다.
+    const status = goalplanWriteLockStatus(cwd, plan.slug, Date.now(), () => {
+      const err = new Error("ENOENT") as NodeJS.ErrnoException;
+      err.code = "ENOENT";
+      throw err;
+    });
+    assert.deepEqual(status, { path: lockDir, exists: false, ageMs: null });
+
+    // 그 정규화가 렌더까지 전달되는지: show는 예외 없이 absent를 낸다.
+    rmSync(lockDir, { recursive: true, force: true });
+    const rendered = runGoalplanCli(
+      parseGoalplanCliArgs(["show", "--slug", plan.slug, "--cwd", cwd], cwd) as GoalplanCliArgs,
+    );
+    assert.equal(rendered.code, 0);
+    assert.match(rendered.output, new RegExp(`^writeLock: absent path=${escapeRe(lockDir)}$`, "m"));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });

@@ -311,10 +311,45 @@ test("GOAL-COMPLETE-GATE-01: bound goalplan failing E8 -> deny with the validate
     const out = applyGoalCompleteGuard(ptuAt(cwd, "gc2", "update_goal", { status: "complete" }));
     assert.notEqual(out, "");
     const reason = JSON.parse(out.trimEnd()).hookSpecificOutput.permissionDecisionReason as string;
-    assert.match(reason, /fails the E8 quality gate/);
+    assert.match(reason, /fails the E8 quality\/integrity gate/);
     assert.match(reason, /unmet criterion/);
     assert.match(reason, /cxc loop validate/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("GOAL-COMPLETE-GATE-01: dependency integrity failure is exposed in update_goal complete denial", () => {
+  const cwd = freshGateCwd();
+  try {
+    const plan = buildGoalplan({ objective: "dependency cycle" });
+    plan.schemaVersion = 3;
+    plan.workPhases = [
+      { id: "b", title: "b", status: "pending", tasks: [], criteriaIds: [], dependsOn: ["a"] },
+      { id: "a", title: "a", status: "pending", tasks: [], criteriaIds: [], dependsOn: ["b"] },
+    ];
+    writeGoalplan(cwd, plan);
+    writeState(cwd, {
+      ...defaultState("gc-integrity"),
+      phase: "IDLE",
+      orchestrationActive: false,
+      slug: plan.slug,
+    });
+
+    const out = applyGoalCompleteGuard(
+      ptuAt(cwd, "gc-integrity", "update_goal", { status: "complete" }),
+    );
+    const parsed = JSON.parse(out.trimEnd()).hookSpecificOutput;
+
+    assert.equal(parsed.permissionDecision, "deny");
+    assert.match(parsed.permissionDecisionReason, /fails the E8 quality\/integrity gate/);
+    assert.match(parsed.permissionDecisionReason, /work phase dependency cycle: a -> b -> a/);
+    assert.match(parsed.permissionDecisionReason, /Repair invalid dependency, outcome, and criteria references first/);
+    assert.equal(
+      applyGoalCompleteGuard(ptuAt(cwd, "gc-integrity", "update_goal", { status: "blocked" })),
+      "",
+    );
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 test("GOAL-COMPLETE-GATE-01: EMPTY bound goalplan -> deny (register the plan first)", () => {
@@ -356,10 +391,16 @@ test("GOAL-COMPLETE-GATE-01: slug bound but goalplan file is malformed JSON -> d
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
-test("GOAL-COMPLETE-GATE-01: valid goalplan at IDLE -> complete passes", () => {
+test("GOAL-COMPLETE-GATE-01: valid legacy v1 goalplan at IDLE -> complete passes", () => {
   const cwd = freshGateCwd();
   try {
     const plan = buildGoalplan({ objective: "Done for real", criteria: [{ scenario: "tests", expectedEvidence: "green" }] });
+    // v1 pinned: this test proves the gate passes a complete plan, not that a v2+
+    // plan carries a final gate, so it states its version rather than inheriting
+    // the buildGoalplan() default. The v2+ requirement has its own tests below.
+    // This is also the test that refuted making the outcome rule unconditional:
+    // its done task carries no outcome on purpose (see goalplan.ts:1304).
+    plan.schemaVersion = 1;
     plan.criteria[0] = { ...plan.criteria[0], status: "met", capturedEvidence: "node --test: 0 fail" };
     plan.workPhases = [{ id: "wp-1", title: "All", status: "done", tasks: [{ id: "t-1", title: "x", status: "done" }], criteriaIds: ["c-1"] }];
     writeGoalplan(cwd, plan);

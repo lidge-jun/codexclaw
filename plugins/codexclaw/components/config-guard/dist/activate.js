@@ -30,7 +30,106 @@ export const INSTALL_MANIFEST = ".codexclaw-install.json";
 
 
 
+/**
+ * A non-feature config.toml key codexclaw wrote (managed-keys.ts whitelist).
+ *
+ * `priorValue` is what deactivate restores; null means the key did not exist and
+ * should be removed. `appliedValue` is what we wrote, so the uninstall path can ask
+ * "is my value still there" per key instead of hashing the whole file.
+ */
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * Runtime shape check for a parsed manifest. This repo has no `tsc` step, so a cast
+ * would let a hand-edited or truncated manifest reach the revert logic as `undefined`
+ * lookups. A malformed manifest is treated as absent by the caller (safe no-op).
+ */
+export function parseInstallManifest(text        )                         {
+  let raw         ;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+  const o = raw                           ;
+  if (o.version !== 1 && o.version !== 2) return null;
+  if (typeof o.configPath !== "string") return null;
+  if (typeof o.flags !== "object" || o.flags === null || Array.isArray(o.flags)) return null;
+
+  const flags                             = {};
+  for (const [key, value] of Object.entries(o.flags                           )) {
+    if (typeof value !== "object" || value === null) return null;
+    const rec = value                           ;
+    flags[key] = {
+      priorEnabled: rec.priorEnabled === true,
+      enabledByCodexclaw: rec.enabledByCodexclaw === true,
+      enableFailed: rec.enableFailed === true,
+    };
+    // Lenient on purpose: a malformed `failure` drops that one field instead of
+    // rejecting the manifest. The parser's contract is "malformed = absent (safe
+    // no-op)", and voiding a whole manifest over warning metadata would cost the
+    // revert capability the manifest exists to provide.
+    const f = (value                           ).failure;
+    if (typeof f === "object" && f !== null && !Array.isArray(f)) {
+      const fr = f                           ;
+      if (typeof fr.exitCode === "number") {
+        flags[key].failure = {
+          exitCode: fr.exitCode,
+          message: typeof fr.message === "string" ? fr.message : "",
+        };
+      }
+    }
+  }
+
+  const tableKeys                                 = {};
+  if (o.tableKeys !== undefined) {
+    if (typeof o.tableKeys !== "object" || o.tableKeys === null || Array.isArray(o.tableKeys)) return null;
+    for (const [id, value] of Object.entries(o.tableKeys                           )) {
+      if (typeof value !== "object" || value === null) return null;
+      const rec = value                           ;
+      if (typeof rec.table !== "string" || typeof rec.key !== "string") return null;
+      if (typeof rec.appliedValue !== "string") return null;
+      if (rec.priorValue !== null && typeof rec.priorValue !== "string") return null;
+      tableKeys[id] = {
+        table: rec.table,
+        key: rec.key,
+        priorValue: rec.priorValue                 ,
+        appliedValue: rec.appliedValue,
+        setByCodexclaw: rec.setByCodexclaw === true,
+      };
+    }
+  }
+
+  return {
+    version: o.version,
+    activatedAt: typeof o.activatedAt === "string" ? o.activatedAt : "",
+    configPath: o.configPath,
+    backupPath: typeof o.backupPath === "string" ? o.backupPath : null,
+    postActivateHash: typeof o.postActivateHash === "string" ? o.postActivateHash : null,
+    flags,
+    tableKeys,
+  };
+}
 
 
 
@@ -113,22 +212,31 @@ export function activate(deps              )                  {
       flags[key].enabledByCodexclaw = true;
     } else {
       flags[key].enableFailed = true;
+      flags[key].failure = {
+        exitCode: res.exitCode,
+        message: res.stderr.trim().slice(0, 500),
+      };
       if (!SOFT_FEATURES.has(key)) {
         throw new Error(
           `codex features enable ${key} failed (exit ${res.exitCode}): ${res.stderr.trim()}`,
         );
       }
-      // Soft flag (e.g. under-development): log and continue; Interview degrades gracefully.
+      // Soft flag: activation continues, but cli.ts renders an explicit warning from
+      // the recorded failure. Failing the whole activation here would also drop skills,
+      // hooks and MCP registration over one upstream flag — worse than the warning.
     }
   }
 
   const manifest                  = {
-    version: 1,
+    version: 2,
     activatedAt: now(),
     configPath,
     backupPath,
     postActivateHash: hashOrNull(configPath),
     flags,
+    // Installation never writes a managed key: every CONFIG_MANAGED_KEYS entry is
+    // autoEnable:false, so this starts empty and only `cxc config set` adds to it.
+    tableKeys: {},
   };
   writeFileSync(manifestPath(codexHome), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   return manifest;

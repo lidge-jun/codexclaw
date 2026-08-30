@@ -7,10 +7,30 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { parseOrchestrateCliArgs, renderOrchestrateHelp, renderOrchestrateParseError, runOrchestrateCli, resolveSession } from "../src/orchestrate-cli.ts";
 import { writeState, readState, defaultState, STATE_DIR, SESSIONS_SUBDIR, LEDGER_FILE } from "../src/state.ts";
-import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
+import {
+  buildGoalplan,
+  effectiveActiveWorkPhaseId,
+  goalplanWriteLockDir,
+  readGoalplan,
+  writeGoalplan,
+  type Goalplan,
+} from "../src/goalplan.ts";
 import { captureSourceIdentity } from "../src/source-identity.ts";
 import { RENDER_OBS_FILE } from "../src/render-observations.ts";
 import { defaultInterview, DIMENSIONS } from "../src/interview.ts";
+
+const expectedTaskFields = [
+  { id: "t-1", dependsOn: [], outcome: "first task verified" },
+  { id: "t-2", dependsOn: ["t-1"], outcome: "second task verified" },
+];
+
+function taskFields(plan: { workPhases: Array<{ tasks: Array<{
+  id: string;
+  dependsOn?: string[];
+  outcome?: string;
+}> }> }) {
+  return plan.workPhases[0].tasks.map(({ id, dependsOn, outcome }) => ({ id, dependsOn, outcome }));
+}
 
 // Build an interview-ready tracker (maxed dims, empty contradictions, a scan recorded)
 // so readState() derives flags.interview=true (it ignores a persisted flag — the tracker
@@ -739,7 +759,18 @@ function seedBoundCycleAtC(cwd: string, id: string, slug: string, taskStatus: "p
   const plan = buildGoalplan({ objective: "cycle completion gate" });
   plan.slug = slug;
   plan.workPhases = [
-    { id: "wp-1", title: "first", status: "in_progress", tasks: [{ id: "t-1", title: "the work", status: taskStatus }], criteriaIds: [] },
+    {
+      id: "wp-1",
+      title: "first",
+      status: "in_progress",
+      tasks: [{
+        id: "t-1",
+        title: "the work",
+        status: taskStatus,
+        ...(taskStatus === "done" ? { outcome: "focused tests passed" } : {}),
+      }],
+      criteriaIds: [],
+    },
     { id: "wp-2", title: "second", status: "pending", tasks: [], criteriaIds: [] },
   ];
   plan.activeWorkPhaseId = "wp-1";
@@ -806,7 +837,8 @@ test("D-close succeeds once the tasks are done, closing the phase and starting t
   assert.ok(!("error" in args));
   const r = runOrchestrateCli(args as never);
 
-  assert.equal(r.code, 0);
+  assert.equal(r.code, 0, r.output);
+  assert.match(r.output, /close target wp-1 is complete/);
   assert.equal(readState(cwd, id).phase, "IDLE");
   const plan = JSON.parse(readFileSync(goalplanPath(cwd, "cycle-gate-done"), "utf8"));
   assert.equal(plan.workPhases[0].status, "done");
@@ -855,7 +887,11 @@ test("D-close succeeds when every work-phase is already done", () => {
   const r = runOrchestrateCli(args as never);
 
   assert.equal(r.code, 0, r.output);
+  // 050 wp5 §40 Z2: an all-done plan closes the cycle only. It mints no recovery
+  // marker, and the deadlock wording belongs to a plan that still has open work.
+  assert.doesNotMatch(r.output, /blocked or superseded/);
   assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
   assert.equal(ledgerLines(cwd).length, 1);
 });
 
@@ -901,7 +937,7 @@ test("D-close is refused when every remaining work-phase is blocked", () => {
   const r = runOrchestrateCli(args as never);
 
   assert.equal(r.code, 1);
-  assert.match(r.output, /blocked or superseded/);
+  assert.match(r.output, /Dependency deadlock: work-phase wp-1 is blocked/);
   assert.equal(readState(cwd, id).phase, "C");
 });
 
@@ -915,6 +951,13 @@ test("an unbound (HITL) session closes its cycle exactly as before", () => {
   const r = runOrchestrateCli(args as never);
 
   assert.equal(r.code, 0);
+  // 050 wp5 §35-1: an unbound close never touches the goalplan lock, so it keeps the
+  // pre-wp5 wording. The bound path is the only one that reports a close target.
+  assert.equal(
+    r.output,
+    `orchestrate D: current=C -> IDLE (C → IDLE, cycle closed, session ${id})`,
+  );
+  assert.doesNotMatch(r.output, /close target/);
   assert.equal(readState(cwd, id).phase, "IDLE");
 });
 
@@ -1020,4 +1063,1597 @@ test("entering B snapshots the source, and leaving B clears it", () => {
   assert.ok(!("error" in toC));
   assert.equal(runOrchestrateCli(toC as never).code, 0);
   assert.equal(readState(cwd, "delta-life").phaseEntrySource, null, "a snapshot must not outlive its phase");
+});
+
+test("wp4: gated attest binds to dependency-aware effective workPhaseId", () => {
+  const cwd = freshCwd();
+  try {
+    writeState(cwd, { ...defaultState("dep-bind"), phase: "B" as never, slug: "dep-bind" });
+    const plan = buildGoalplan({ objective: "dependency binding" });
+    plan.slug = "dep-bind";
+    plan.schemaVersion = 3;
+    plan.activeWorkPhaseId = "blocked-child";
+    plan.workPhases = [
+      { id: "upstream", title: "upstream", status: "blocked", blockedReason: "external", dependsOn: [], tasks: [], criteriaIds: [] },
+      { id: "blocked-child", title: "blocked child", status: "in_progress", dependsOn: ["upstream"], tasks: [], criteriaIds: [] },
+      { id: "ready", title: "ready", status: "pending", dependsOn: [], tasks: [], criteriaIds: [] },
+    ];
+    writeGoalplan(cwd, plan);
+
+    const stale = runOrchestrateCli({
+      verb: "C",
+      attest: { from: "B", to: "C", did: "worked", workPhaseId: "blocked-child" },
+      session: "dep-bind",
+      cwd,
+      json: false,
+    });
+    assert.equal(stale.code, 1);
+    assert.match(stale.output, /active work-phase is ready/);
+
+    const ready = runOrchestrateCli({
+      verb: "C",
+      attest: { from: "B", to: "C", did: "worked", workPhaseId: "ready" },
+      session: "dep-bind",
+      cwd,
+      json: false,
+    });
+    assert.equal(ready.code, 0, ready.output);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("wp4: D-close reports dependency deadlock and writes nothing", () => {
+  const cwd = boundCwd();
+  const id = "cycle-dependency-deadlock";
+  const slug = "cycle-dependency-deadlock";
+  const plan = buildGoalplan({ objective: "dependency deadlock" });
+  plan.slug = slug;
+  plan.schemaVersion = 3;
+  plan.workPhases = [
+    { id: "wp-1", title: "upstream", status: "blocked", blockedReason: "vendor", dependsOn: [], tasks: [], criteriaIds: [] },
+    { id: "wp-2", title: "downstream", status: "pending", dependsOn: ["wp-1"], tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  const before = readFileSync(goalplanPath(cwd, slug), "utf8");
+  const epoch = "c-test-epoch";
+  writeState(cwd, { ...defaultState(id), phase: "C", slug, checkEpoch: epoch, flags: { interview: false, auditPassed: true, checkPassed: false } });
+  seedReceipt(cwd, id, epoch);
+
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", dAttest(id)], cwd);
+  assert.ok(!("error" in args));
+  const result = runOrchestrateCli(args as never);
+  assert.equal(result.code, 1);
+  assert.match(result.output, /Dependency deadlock/);
+  assert.match(result.output, /wp-2 waits for work-phase wp-1 \(blocked\)/);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.equal(ledgerLines(cwd).length, 0);
+  assert.equal(readFileSync(goalplanPath(cwd, slug), "utf8"), before);
+});
+
+function goalplanLedgerRows(cwd: string, slug: string): Array<Record<string, unknown>> {
+  const path = join(cwd, STATE_DIR, "goalplans", slug, "ledger.jsonl");
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
+}
+
+function parsedDclose(cwd: string, id: string) {
+  const parsed = parseOrchestrateCliArgs(
+    ["d", "--session", id, "--cwd", cwd, "--attest", dAttest(id)],
+    cwd,
+  );
+  assert.ok(!("error" in parsed));
+  return parsed as never;
+}
+
+function assertOnlyFirstPhaseClosed(cwd: string, slug: string): void {
+  const plan = readGoalplan(cwd, slug)!;
+  assert.equal(plan.workPhases.find((workPhase) => workPhase.id === "wp-1")?.status, "done");
+  assert.equal(plan.workPhases.find((workPhase) => workPhase.id === "wp-2")?.status, "in_progress");
+  assert.equal(plan.activeWorkPhaseId, "wp-2");
+  assert.equal(
+    goalplanLedgerRows(cwd, slug).filter(
+      (row) => row.event === "workphase_done" && row.detail === "closed wp-1",
+    ).length,
+    1,
+  );
+}
+
+test("past done phase id in C does not become a recovery marker", () => {
+  const cwd = boundCwd();
+  const id = "past-done-c";
+  const slug = "past-done-c-plan";
+  const plan = buildGoalplan({ objective: "past done phase" });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-1", title: "past", status: "done", tasks: [], criteriaIds: [] },
+    { id: "wp-2", title: "current", status: "in_progress", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-2";
+  writeGoalplan(cwd, plan);
+  writeState(cwd, {
+    ...defaultState(id),
+    phase: "C",
+    slug,
+    checkEpoch: "c-past",
+    flags: { interview: false, auditPassed: true, checkPassed: true },
+  });
+  seedReceipt(cwd, id, "c-past");
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 1);
+  assert.match(result.output, /active work-phase is wp-2/);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+  assert.equal(readGoalplan(cwd, slug)!.workPhases[1].status, "in_progress");
+});
+
+test("IDLE D attest without a matching marker is refused", () => {
+  const cwd = boundCwd();
+  const id = "idle-no-marker";
+  const slug = "idle-no-marker-plan";
+  const plan = buildGoalplan({ objective: "idle without marker" });
+  plan.slug = slug;
+  plan.workPhases = [{ id: "wp-1", title: "past", status: "done", tasks: [], criteriaIds: [] }];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  writeState(cwd, { ...defaultState(id), slug });
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 1);
+  assert.match(result.output, /cannot transition|illegal|IDLE/);
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+
+test("a marker from another session cannot authorize recovery", () => {
+  const cwd = boundCwd();
+  const id = "marker-owner";
+  const slug = "marker-owner-plan";
+  const plan = buildGoalplan({ objective: "foreign marker" });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-1", title: "past", status: "done", tasks: [], criteriaIds: [] },
+    { id: "wp-2", title: "current", status: "in_progress", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-2";
+  writeGoalplan(cwd, plan);
+  writeState(cwd, {
+    ...defaultState(id),
+    phase: "C",
+    slug,
+    checkEpoch: "c-owner",
+    dcloseRecovery: {
+      sessionId: "different-session",
+      checkEpoch: "c-owner",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
+    },
+  });
+  seedReceipt(cwd, id, "c-owner");
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 1);
+  assert.match(result.output, /active work-phase is wp-2/);
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+  assert.equal(readGoalplan(cwd, slug)!.workPhases[1].status, "in_progress");
+});
+
+test("D-close retry after goalplan commit closes the fixed phase only once", () => {
+  const cwd = boundCwd();
+  const id = "retry-after-goalplan";
+  const slug = "retry-after-goalplan-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterGoalplanCommit: () => { throw new Error("fail after goalplan commit"); },
+    }),
+    /fail after goalplan commit/,
+  );
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.equal(
+    goalplanLedgerRows(cwd, slug).filter((row) => row.detail === "closed wp-1").length,
+    0,
+  );
+  assert.deepEqual(readState(cwd, id).dcloseRecovery, {
+    sessionId: id,
+    checkEpoch: "c-test-epoch",
+    closedWorkPhaseId: "wp-1",
+    // §48: the marker carries the successor this close picked, so the retry does not
+    // have to infer it from a file a later edit may have touched.
+    nextWorkPhaseId: "wp-2",
+  });
+
+  const retry = runOrchestrateCli(args);
+  assert.equal(retry.code, 0, retry.output);
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+  assertOnlyFirstPhaseClosed(cwd, slug);
+  assert.equal(
+    ledgerLines(cwd).filter(
+      (row) => row.sessionId === id && row.from === "C" && row.to === "IDLE",
+    ).length,
+    1,
+  );
+});
+
+test("D-close retry after the recovery marker write closes the fixed phase like a normal close", () => {
+  // §40 Z1: the earlier draft had recovery patch only the target status, which left
+  // activeWorkPhaseId on a done phase and logged a false `started wp-1`. Both paths
+  // now go through closeFixedWorkPhase(), so the recovered plan must equal what an
+  // uninterrupted close would have written.
+  const cwd = boundCwd();
+  const id = "retry-after-marker";
+  const slug = "retry-after-marker-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  const reference = boundCwd();
+  seedBoundCycleAtC(reference, "reference-close", "reference-close-plan", "done");
+  const uninterrupted = runOrchestrateCli(parsedDclose(reference, "reference-close"));
+  assert.equal(uninterrupted.code, 0, uninterrupted.output);
+  const referencePlan = readGoalplan(reference, "reference-close-plan")!;
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+  // The marker survives and the plan is untouched: this is step 1 of the §5 table.
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.deepEqual(readState(cwd, id).dcloseRecovery, {
+    sessionId: id,
+    checkEpoch: "c-test-epoch",
+    closedWorkPhaseId: "wp-1",
+    // §48: the marker carries the successor this close picked, so the retry does not
+    // have to infer it from a file a later edit may have touched.
+    nextWorkPhaseId: "wp-2",
+  });
+  assert.equal(readGoalplan(cwd, slug)!.workPhases.find((wp) => wp.id === "wp-1")!.status, "in_progress");
+
+  const retry = runOrchestrateCli(args);
+  assert.equal(retry.code, 0, retry.output);
+  const recovered = readGoalplan(cwd, slug)!;
+  assert.deepEqual(
+    {
+      workPhases: recovered.workPhases.map((wp) => ({ id: wp.id, status: wp.status })),
+      activeWorkPhaseId: recovered.activeWorkPhaseId,
+    },
+    {
+      workPhases: referencePlan.workPhases.map((wp) => ({ id: wp.id, status: wp.status })),
+      activeWorkPhaseId: referencePlan.activeWorkPhaseId,
+    },
+  );
+  assert.equal(recovered.workPhases.find((wp) => wp.id === "wp-1")!.status, "done");
+  assert.equal(recovered.workPhases.find((wp) => wp.id === "wp-2")!.status, "in_progress");
+  assert.equal(recovered.activeWorkPhaseId, "wp-2");
+  // The started row names the successor, not the phase that just closed.
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_started").map((row) => row.detail),
+    ["started wp-2"],
+  );
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done").map((row) => row.detail),
+    ["closed wp-1"],
+  );
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+  rmSync(reference, { recursive: true, force: true });
+});
+
+test("all-done close writes its PABCD row inside the first lock and takes no finalization lock", () => {
+  // §40 Z2: all-done mints no marker. If its close row waited for a second lock and
+  // that lock failed, the retry would hit `IDLE -> D` with nothing to recover from
+  // and the row would be lost permanently.
+  const cwd = boundCwd();
+  const id = "all-done-single-lock";
+  const slug = "all-done-single-lock-plan";
+  const plan = buildGoalplan({ objective: "already finished" });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-1", title: "first", status: "done", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  writeState(cwd, { ...defaultState(id), phase: "C", slug, orchestrationActive: true, checkEpoch: "c-all-done" });
+  // CHECK-BINDING-01 runs before the all-done branch (orchestrate-cli.ts:600-607), so
+  // without a receipt this test would refuse at the gate and never reach its subject.
+  seedReceipt(cwd, id, "c-all-done");
+
+  let stateWrites = 0;
+  const result = runOrchestrateCli(parsedDclose(cwd, id), {
+    afterStateWrite: () => {
+      stateWrites += 1;
+      // A lock held from here on would break a finalization pass. all-done must be
+      // finished already, so this proves there is no second critical section.
+      mkdirSync(goalplanWriteLockDir(cwd, slug), { recursive: false });
+    },
+  });
+
+  assert.equal(result.code, 0, result.output);
+  // §39 Y3 makes a failed finalization lock return code 0 too, so code alone cannot
+  // tell "no second lock" from "second lock timed out". The output must be silent
+  // about pending finalization.
+  assert.doesNotMatch(result.output, /finalization is pending/);
+  assert.equal(stateWrites, 1);
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+  assert.deepEqual(
+    ledgerLines(cwd).filter((row) => row.sessionId === id && row.from === "C" && row.to === "IDLE")
+      .map((row) => [row.checkEpoch, row.closedWorkPhaseId]),
+    [["c-all-done", null]],
+  );
+  // No goalplan row and no plan mutation for a cycle-only close.
+  assert.deepEqual(goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done"), []);
+  assert.equal(readGoalplan(cwd, slug)!.activeWorkPhaseId, null);
+});
+
+test("recovery is refused when the fixed target gained an open task after its marker", () => {
+  // §41 W1: the marker survives edits, and add-task can put a pending task on a live
+  // phase between the crash and the retry. The gate lives in closeFixedWorkPhase(),
+  // so recovery cannot slip past it. The marker is kept on purpose — wiping it would
+  // remove the only route back.
+  const cwd = boundCwd();
+  const id = "recovery-target-gained-task";
+  const slug = "recovery-target-gained-task-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+
+  const plan = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...plan,
+    workPhases: plan.workPhases.map((wp) =>
+      wp.id === "wp-1"
+        ? { ...wp, tasks: [...wp.tasks, { id: "t-late", title: "added late", status: "pending" as const }] }
+        : wp
+    ),
+  });
+  const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+
+  const retry = runOrchestrateCli(args);
+  assert.equal(retry.code, 1);
+  assert.match(retry.output, /recovery target wp-1 gained 1 open task\(s\) after its marker was written/);
+  assert.match(retry.output, /The recovery marker was kept/);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.deepEqual(readState(cwd, id).dcloseRecovery, {
+    sessionId: id,
+    checkEpoch: "c-test-epoch",
+    closedWorkPhaseId: "wp-1",
+    // §48: the marker carries the successor this close picked, so the retry does not
+    // have to infer it from a file a later edit may have touched.
+    nextWorkPhaseId: "wp-2",
+  });
+  assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+  assert.deepEqual(goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done"), []);
+});
+
+test("recovery is refused when the fixed target became blocked after its marker", () => {
+  const cwd = boundCwd();
+  const id = "recovery-target-blocked";
+  const slug = "recovery-target-blocked-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+
+  const plan = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...plan,
+    workPhases: plan.workPhases.map((wp) =>
+      wp.id === "wp-1" ? { ...wp, status: "blocked" as const } : wp
+    ),
+  });
+
+  const retry = runOrchestrateCli(args);
+  assert.equal(retry.code, 1);
+  assert.match(retry.output, /recovery target wp-1 is now blocked/);
+  assert.match(retry.output, /The recovery marker was kept/);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.notEqual(readState(cwd, id).dcloseRecovery, null);
+});
+
+test("recovery is refused when the fixed target lost a dependency after its marker", () => {
+  // §41 W5: the third gate closeFixedWorkPhase() owns. add-dependency can put an
+  // unmet edge on the fixed target between the crash and the retry, and the chat
+  // 3-scenario loop already covers it. Without this case the CLI
+  // `dependencies_unmet` branch (§6.3) has no regression at all, so deleting it or
+  // letting it wipe the marker would still leave the focused suite green.
+  const cwd = boundCwd();
+  const id = "recovery-target-lost-dependency";
+  const slug = "recovery-target-lost-dependency-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+
+  // wp-2 is the pending successor seedBoundCycleAtC() already creates, so this edge
+  // is unmet without inventing a phase the integrity check would reject.
+  const plan = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...plan,
+    workPhases: plan.workPhases.map((wp) =>
+      wp.id === "wp-1" ? { ...wp, dependsOn: ["wp-2"] } : wp
+    ),
+  });
+  const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+
+  const retry = runOrchestrateCli(args);
+  assert.equal(retry.code, 1);
+  assert.match(retry.output, /recovery target wp-1 now waits for wp-2/);
+  assert.match(retry.output, /The recovery marker was kept/);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.deepEqual(readState(cwd, id).dcloseRecovery, {
+    sessionId: id,
+    checkEpoch: "c-test-epoch",
+    closedWorkPhaseId: "wp-1",
+    // §48: the marker carries the successor this close picked, so the retry does not
+    // have to infer it from a file a later edit may have touched.
+    nextWorkPhaseId: "wp-2",
+  });
+  assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+  assert.deepEqual(goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done"), []);
+});
+
+test("recovery is refused when a pending task is hidden under the already-closed target", () => {
+  // §43: the plan commit really landed here — wp-1 is done and the cursor moved to
+  // wp-2 — so a caller-side commit test would skip the helper entirely. Neither
+  // integrity helper D-close calls rejects a done phase holding an open task
+  // (goalplan.ts:943 owns that shape and this path never called it), so the gate has
+  // to come from closeFixedWorkPhase() running unconditionally.
+  const cwd = boundCwd();
+  const id = "recovery-done-hides-pending";
+  const slug = "recovery-done-hides-pending-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterGoalplanCommit: () => { throw new Error("fail after goalplan commit"); },
+    }),
+    /fail after goalplan commit/,
+  );
+
+  // The commit landed before the crash: target done, cursor already on the successor.
+  const plan = readGoalplan(cwd, slug)!;
+  assert.equal(plan.workPhases.find((wp) => wp.id === "wp-1")!.status, "done");
+  assert.equal(plan.activeWorkPhaseId, "wp-2");
+  writeGoalplan(cwd, {
+    ...plan,
+    workPhases: plan.workPhases.map((wp) =>
+      wp.id === "wp-1"
+        ? { ...wp, tasks: [...wp.tasks, { id: "t-hidden", title: "snuck in", status: "pending" as const }] }
+        : wp
+    ),
+  });
+  const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 1);
+  assert.match(retry.output, /recovery target wp-1 gained 1 open task\(s\) after its marker was written/);
+  assert.match(retry.output, /The recovery marker was kept/);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.notEqual(readState(cwd, id).dcloseRecovery, null);
+  assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+});
+
+for (const forgery of [
+  {
+    name: "a null cursor stranding an in_progress phase",
+    edit: (plan: Goalplan): Goalplan => ({
+      ...plan,
+      activeWorkPhaseId: null,
+      workPhases: plan.workPhases.map((wp) =>
+        wp.id === "wp-1" ? { ...wp, status: "done" as const }
+          : wp.id === "wp-2" ? { ...wp, status: "in_progress" as const } : wp
+      ),
+    }),
+    cursor: "wp-2",
+  },
+  {
+    // §55: a cursor on a phase that is NOT the recorded successor and cannot run. The
+    // recorded successor wp-2 stays runnable, so the retry still settles; the forged
+    // cursor is simply not what decides the shape. Pointing this at wp-2 itself would
+    // not be a forgery case at all — an unready successor is refused outright now,
+    // which the dedicated dependencies_unmet test covers.
+    name: "a cursor on a phase that cannot run",
+    edit: (plan: Goalplan): Goalplan => ({
+      ...plan,
+      activeWorkPhaseId: "wp-3",
+      workPhases: [
+        ...plan.workPhases,
+        { id: "wp-3", title: "third", status: "blocked" as const, tasks: [], criteriaIds: [] },
+      ],
+    }),
+    cursor: "wp-2",
+  },
+] as const) {
+  test(`recovery rebuilds the cursor from ${forgery.name}`, () => {
+    // §45: predicates were forgeable four different ways, so the helper compares the
+    // plan against the one it would produce. Whatever the forgery, the retry lands on
+    // that computed shape instead of trusting the file.
+    const cwd = boundCwd();
+    const id = `recovery-forgery-${forgery.name.replace(/\s+/g, "-").slice(0, 30)}`;
+    const slug = `${id}-plan`;
+    seedBoundCycleAtC(cwd, id, slug, "done");
+    const args = parsedDclose(cwd, id);
+
+    assert.throws(
+      () => runOrchestrateCli(args, {
+        afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+      }),
+      /fail right after the marker/,
+    );
+    writeGoalplan(cwd, forgery.edit(readGoalplan(cwd, slug)!));
+
+    const retry = runOrchestrateCli(args);
+
+    assert.equal(retry.code, 0, retry.output);
+    const repaired = readGoalplan(cwd, slug)!;
+    assert.equal(repaired.activeWorkPhaseId, forgery.cursor);
+    assert.equal(repaired.workPhases.find((wp) => wp.id === "wp-1")!.status, "done");
+    assert.equal(readState(cwd, id).phase, "IDLE");
+    assert.equal(readState(cwd, id).dcloseRecovery, null);
+  });
+}
+
+test("a marker naming its own target as successor points at reset, not at a plan fix", () => {
+  // §51: the other successor_lost reasons are cleared by editing the plan, but this one
+  // cannot be — the marker itself is wrong. So the refusal names a command that actually
+  // runs, including the --session every mutating verb requires.
+  const cwd = boundCwd();
+  const id = "recovery-self-successor";
+  const slug = "recovery-self-successor-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const statePath = join(cwd, STATE_DIR, SESSIONS_SUBDIR, `${id}.json`);
+  const seededState = JSON.parse(readFileSync(statePath, "utf8")) as Record<string, unknown>;
+  writeFileSync(statePath, `${JSON.stringify({
+    ...seededState,
+    dcloseRecovery: {
+      sessionId: id,
+      checkEpoch: "c-test-epoch",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-1",
+    },
+  })}\n`);
+  const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 1);
+  assert.match(result.output, /names that same work-phase as its successor/);
+  assert.match(result.output, new RegExp(`cxc orchestrate reset --session ${id}`));
+  assert.doesNotMatch(result.output, /restore that work-phase/);
+  assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-1");
+});
+test("closing an open target does not cancel progress the plan already made", () => {
+  // §54: the recorded successor finished and started wp-3 on its way out. An earlier draft
+  // nulled the cursor while closing the still-open target, cutting wp-3 off. A cursor is
+  // preserved only when it names a different phase that is really running.
+  const cwd = boundCwd();
+  const id = "recovery-preserve-progress";
+  const slug = "recovery-preserve-progress-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const seeded = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...seeded,
+    workPhases: [
+      ...seeded.workPhases,
+      { id: "wp-3", title: "third", status: "pending" as const, tasks: [], criteriaIds: [] },
+    ],
+  });
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-2");
+
+  // The target never closed, but wp-2 ran and finished, starting wp-3.
+  const crashed = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...crashed,
+    activeWorkPhaseId: "wp-3",
+    workPhases: crashed.workPhases.map((wp) =>
+      wp.id === "wp-2" ? { ...wp, status: "done" as const }
+        : wp.id === "wp-3" ? { ...wp, status: "in_progress" as const } : wp
+    ),
+  });
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  const repaired = readGoalplan(cwd, slug)!;
+  assert.equal(repaired.activeWorkPhaseId, "wp-3");
+  assert.deepEqual(
+    repaired.workPhases.map((wp) => [wp.id, wp.status]),
+    [["wp-1", "done"], ["wp-2", "done"], ["wp-3", "in_progress"]],
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+
+test("a preserved cursor is dropped when the phase it names is not ready", () => {
+  // §55: wp-3 is running but waits on wp-4, so effectiveActiveWorkPhaseId() refuses to
+  // honour that cursor and answers wp-4 instead. Preserving it would write a plan whose
+  // stored cursor and computed cursor disagree, and the next cycle would run a phase the
+  // plan file does not point at. §54 covered only ready cursors, so this window was open.
+  const cwd = boundCwd();
+  const id = "recovery-preserve-unready";
+  const slug = "recovery-preserve-unready-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const seeded = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...seeded,
+    workPhases: [
+      ...seeded.workPhases,
+      { id: "wp-3", title: "third", status: "pending" as const, dependsOn: ["wp-4"], tasks: [], criteriaIds: [] },
+      { id: "wp-4", title: "fourth", status: "pending" as const, tasks: [], criteriaIds: [] },
+    ],
+  });
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-2");
+
+  // wp-2 finished and left the cursor on wp-3, which still waits for wp-4.
+  const crashed = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...crashed,
+    activeWorkPhaseId: "wp-3",
+    workPhases: crashed.workPhases.map((wp) =>
+      wp.id === "wp-2" ? { ...wp, status: "done" as const }
+        : wp.id === "wp-3" ? { ...wp, status: "in_progress" as const } : wp
+    ),
+  });
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  const repaired = readGoalplan(cwd, slug)!;
+  assert.equal(repaired.activeWorkPhaseId, null);
+  // §56: the point of dropping it. The stale explicit cursor is gone, so the derived
+  // selection is the only answer left and it names the phase that can actually run.
+  assert.equal(effectiveActiveWorkPhaseId(repaired), "wp-4");
+  // The close still lands, and wp-3 keeps running: stopping it is not a resume's job.
+  assert.equal(repaired.workPhases.find((wp) => wp.id === "wp-1")!.status, "done");
+  assert.equal(repaired.workPhases.find((wp) => wp.id === "wp-3")!.status, "in_progress");
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+
+test("an already-done target still normalizes a cursor that cannot run", () => {
+  // §56: an earlier draft returned already_done the moment the target was done, which
+  // skipped the cursor normalization entirely. The same damaged cursors went through that
+  // door — including one naming the finished target. Normalize first; the settled-shape
+  // comparison is what decides whether anything is owed.
+  const cwd = boundCwd();
+  const id = "recovery-done-target-unready-cursor";
+  const slug = "recovery-done-target-unready-cursor-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const seeded = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...seeded,
+    workPhases: [
+      ...seeded.workPhases,
+      { id: "wp-3", title: "third", status: "pending" as const, dependsOn: ["wp-4"], tasks: [], criteriaIds: [] },
+      { id: "wp-4", title: "fourth", status: "pending" as const, tasks: [], criteriaIds: [] },
+    ],
+  });
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterGoalplanCommit: () => { throw new Error("fail right after the plan commit"); },
+    }),
+    /fail right after the plan commit/,
+  );
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-2");
+
+  // The commit landed, so wp-1 is done. wp-2 then finished and left the cursor on wp-3,
+  // which still waits for wp-4.
+  const committed = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...committed,
+    activeWorkPhaseId: "wp-3",
+    workPhases: committed.workPhases.map((wp) =>
+      wp.id === "wp-2" ? { ...wp, status: "done" as const }
+        : wp.id === "wp-3" ? { ...wp, status: "in_progress" as const } : wp
+    ),
+  });
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  const repaired = readGoalplan(cwd, slug)!;
+  assert.equal(repaired.activeWorkPhaseId, null);
+  assert.equal(effectiveActiveWorkPhaseId(repaired), "wp-4");
+  // Statuses are untouched: normalizing a cursor is not stopping a phase.
+  assert.deepEqual(
+    repaired.workPhases.map((wp) => [wp.id, wp.status]),
+    [["wp-1", "done"], ["wp-2", "done"], ["wp-3", "in_progress"], ["wp-4", "pending"]],
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+test("an absent target refuses a running successor whose dependency is unmet", () => {
+  // §55: deletion of the target must not decide the verdict. closeFixedWorkPhase() answers
+  // successor_lost/dependencies_unmet for this same successor when the target is still in
+  // the plan, so the absent path cannot activate it. §54 gated only the pending branch.
+  const cwd = boundCwd();
+  const id = "cli-recovery-unready-successor";
+  const slug = "cli-recovery-unready-successor-plan";
+  const plan = buildGoalplan({ objective: "absent target, unready successor" });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-2", title: "next", status: "in_progress", dependsOn: ["wp-9"], tasks: [], criteriaIds: [] },
+    { id: "wp-9", title: "blocker", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+  writeState(cwd, {
+    ...defaultState(id),
+    slug,
+    checkEpoch: "c-unready",
+    dcloseRecovery: {
+      sessionId: id,
+      checkEpoch: "c-unready",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
+    },
+  });
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 1, result.output);
+  assert.match(result.output, /now waits for another work-phase/);
+  // Fail closed: no plan write, no ledger row, and the marker stays for a real repair.
+  assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-2");
+});
+test("an absent target restores the cursor onto a stranded running successor", () => {
+  // §54: the recorded successor is already in_progress but the cursor was nulled, which
+  // §45 established is corruption a resume must repair. Answering cleanup here cleared
+  // the marker and left that phase running with no cursor pointing at it.
+  const cwd = boundCwd();
+  const id = "cli-recovery-stranded-successor";
+  const slug = "cli-recovery-stranded-successor-plan";
+  const plan = buildGoalplan({ objective: "absent target, stranded successor" });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-2", title: "next", status: "in_progress", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  writeState(cwd, {
+    ...defaultState(id),
+    slug,
+    checkEpoch: "c-stranded",
+    dcloseRecovery: {
+      sessionId: id,
+      checkEpoch: "c-stranded",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
+    },
+  });
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 0, result.output);
+  const repaired = readGoalplan(cwd, slug)!;
+  assert.equal(repaired.activeWorkPhaseId, "wp-2");
+  // Status untouched: it was already running, only the cursor was missing.
+  assert.equal(repaired.workPhases.find((wp) => wp.id === "wp-2")!.status, "in_progress");
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+test("recovery settles when the recorded successor already finished its own cycle", () => {
+  // §51: a done successor is not a lost one. The recorded phase was started and then
+  // closed by its own cycle, so refusing here would trap the session — escaping would
+  // mean re-opening a completed work-phase or discarding the marker. The settled-shape
+  // check answers already_done, which is the truth about this close.
+  const cwd = boundCwd();
+  const id = "recovery-successor-finished";
+  const slug = "recovery-successor-finished-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterGoalplanCommit: () => { throw new Error("fail right after the plan commit"); },
+    }),
+    /fail right after the plan commit/,
+  );
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-2");
+
+  // wp-2 runs to completion in the meantime, so the plan is all done while the wp-1
+  // marker is still pending cleanup.
+  const committed = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...committed,
+    activeWorkPhaseId: null,
+    workPhases: committed.workPhases.map((wp) =>
+      wp.id === "wp-2" ? { ...wp, status: "done" as const } : wp
+    ),
+  });
+  const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  // No plan write: the close this marker describes is already reflected.
+  assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+  // And wp-2 keeps exactly one started row from its own activation.
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_started")
+      .map((row) => row.detail),
+    ["started wp-2"],
+  );
+  // The point of resuming at all: the rows this interrupted close still owed are
+  // written even though no plan write was needed. Without them the ledger would say
+  // wp-1 never closed while the plan says it did.
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_done")
+      .map((row) => row.detail),
+    ["closed wp-1"],
+  );
+  assert.equal(
+    readFileSync(join(cwd, STATE_DIR, LEDGER_FILE), "utf8")
+      .split("\n")
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((row) => row.sessionId === id && row.from === "C" && row.to === "IDLE"
+        && row.closedWorkPhaseId === "wp-1").length,
+    1,
+  );
+});
+test("recovery is refused when the marker predates the successor field", () => {
+  // §50: this marker could have been written before OR after the plan commit and the
+  // file cannot say which, so neither a wp4 search nor a forced null is safe. Refuse and
+  // keep everything, including the marker, so a human can finish it.
+  const cwd = boundCwd();
+  const id = "recovery-legacy-marker";
+  const slug = "recovery-legacy-marker-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const statePath = join(cwd, STATE_DIR, SESSIONS_SUBDIR, `${id}.json`);
+  const seededState = JSON.parse(readFileSync(statePath, "utf8")) as Record<string, unknown>;
+  writeFileSync(statePath, `${JSON.stringify({
+    ...seededState,
+    dcloseRecovery: {
+      sessionId: id,
+      checkEpoch: "c-test-epoch",
+      closedWorkPhaseId: "wp-1",
+    },
+  })}\n`);
+  const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 1);
+  assert.match(result.output, /predates the successor field/);
+  assert.match(result.output, /The marker was kept/);
+  assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.equal(readState(cwd, id).dcloseRecovery?.legacy, true);
+  assert.deepEqual(goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_done"), []);
+});
+test("recovery is refused when the recorded successor left the plan", () => {
+  // §50: the marker names wp-2 and wp-2 is deleted between the crash and the retry. An
+  // earlier draft let the search fall through to wp-3 and confirmed a close the first
+  // attempt never decided, logging `started wp-3` and clearing the marker. The recorded
+  // successor is binding, so this fails closed and keeps the marker for a human.
+  const cwd = boundCwd();
+  const id = "recovery-successor-lost";
+  const slug = "recovery-successor-lost-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const seeded = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...seeded,
+    workPhases: [
+      ...seeded.workPhases,
+      { id: "wp-3", title: "third", status: "pending" as const, tasks: [], criteriaIds: [] },
+    ],
+  });
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-2");
+
+  // wp-2 is removed, so the recorded successor no longer exists. wp-3 is still pending
+  // and would have been picked by a fallback search.
+  const crashed = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...crashed,
+    workPhases: crashed.workPhases.filter((wp) => wp.id !== "wp-2"),
+  });
+  const before = readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8");
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 1);
+  assert.match(retry.output, /successor wp-2, which is no longer in the plan/);
+  assert.match(retry.output, /The recovery marker was kept/);
+  assert.equal(readFileSync(join(cwd, ".codexclaw/goalplans", slug, "goalplan.json"), "utf8"), before);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-2");
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_started"),
+    [],
+  );
+});
+
+test("recovery with an explicit no-successor marker does not start a phase added later", () => {
+  // §50: `nextWorkPhaseId: null` is a durable decision — that close found no successor.
+  // Merging null with undefined let a phase registered after the crash be started,
+  // contradicting the marker. The retry must settle without touching it.
+  const cwd = boundCwd();
+  const id = "recovery-null-successor";
+  const slug = "recovery-null-successor-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const seeded = readGoalplan(cwd, slug)!;
+  // One phase only, so the close finds no successor and records null.
+  writeGoalplan(cwd, {
+    ...seeded,
+    activeWorkPhaseId: "wp-1",
+    workPhases: seeded.workPhases.filter((wp) => wp.id === "wp-1"),
+  });
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterGoalplanCommit: () => { throw new Error("fail right after the plan commit"); },
+    }),
+    /fail right after the plan commit/,
+  );
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, null);
+
+  // A new phase appears between the crash and the retry.
+  const committed = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...committed,
+    workPhases: [
+      ...committed.workPhases,
+      { id: "wp-9", title: "registered later", status: "pending" as const, tasks: [], criteriaIds: [] },
+    ],
+  });
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  const repaired = readGoalplan(cwd, slug)!;
+  assert.equal(repaired.activeWorkPhaseId, null);
+  assert.deepEqual(
+    repaired.workPhases.map((wp) => [wp.id, wp.status]),
+    [["wp-1", "done"], ["wp-9", "pending"]],
+  );
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug).filter((row) => row.event === "workphase_started"),
+    [],
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+test("recovery finishes the successor the marker recorded, not the one the file names", () => {
+  // §48: the input that defeated every plan-only rule, run through the real CLI so the
+  // marker mint, the recovery branch, both ledgers, and marker cleanup all take part.
+  // A third phase is added so the file can name a DIFFERENT running phase than the one
+  // this close chose: wp-2 was already in_progress before the close, the close picked
+  // wp-3, and a hand edit then moves the cursor onto wp-2. Judging from the file alone,
+  // that plan is indistinguishable from a finished close that chose wp-2, so a
+  // plan-only rule answers already_done and logs `started wp-2` for work nobody
+  // scheduled. The marker settles it.
+  const cwd = boundCwd();
+  const id = "recovery-marker-beats-cursor";
+  const slug = "recovery-marker-beats-cursor-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const seeded = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...seeded,
+    workPhases: [
+      ...seeded.workPhases.map((wp) =>
+        wp.id === "wp-2" ? { ...wp, status: "in_progress" as const } : wp
+      ),
+      { id: "wp-3", title: "third", status: "pending" as const, tasks: [], criteriaIds: [] },
+    ],
+  });
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+  // wp4 selection skips the running wp-2, so the marker must name wp-3.
+  assert.equal(readState(cwd, id).dcloseRecovery?.nextWorkPhaseId, "wp-3");
+
+  // The forgery: target done, cursor moved onto the phase that was already running.
+  const crashed = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...crashed,
+    activeWorkPhaseId: "wp-2",
+    workPhases: crashed.workPhases.map((wp) =>
+      wp.id === "wp-1" ? { ...wp, status: "done" as const } : wp
+    ),
+  });
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  const repaired = readGoalplan(cwd, slug)!;
+  assert.equal(repaired.activeWorkPhaseId, "wp-3");
+  assert.deepEqual(
+    repaired.workPhases.map((wp) => [wp.id, wp.status]),
+    [["wp-1", "done"], ["wp-2", "in_progress"], ["wp-3", "in_progress"]],
+  );
+  // The started row names the recorded successor, and wp-2 never gets a second one.
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_started")
+      .map((row) => row.detail),
+    ["started wp-3"],
+  );
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_done")
+      .map((row) => row.detail),
+    ["closed wp-1"],
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+test("recovery repairs a forged cursor that points at a phase nobody activated", () => {
+  // §44: status done plus a moved cursor is forgeable by hand. If the cursor names a
+  // phase that is still pending, answering already_done would log `started wp-2` for
+  // a phase no one activated. The settled test compares the whole post-close shape,
+  // so this falls through and the transformation rebuilds the cursor.
+  const cwd = boundCwd();
+  const id = "recovery-forged-cursor";
+  const slug = "recovery-forged-cursor-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+
+  // Both halves of the old commit test, forged: target done, cursor moved, but the
+  // phase it names was never activated.
+  const plan = readGoalplan(cwd, slug)!;
+  writeGoalplan(cwd, {
+    ...plan,
+    activeWorkPhaseId: "wp-2",
+    workPhases: plan.workPhases.map((wp) =>
+      wp.id === "wp-1" ? { ...wp, status: "done" as const } : wp
+    ),
+  });
+  assert.equal(readGoalplan(cwd, slug)!.workPhases.find((wp) => wp.id === "wp-2")!.status, "pending");
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  // The successor is genuinely activated, so the started row tells the truth.
+  assertOnlyFirstPhaseClosed(cwd, slug);
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_started").map((row) => row.detail),
+    ["started wp-2"],
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+
+test("recovery re-runs the close when only the target status was edited to done", () => {
+  // §42: `done` alone is not proof the plan commit landed. A status-only edit leaves
+  // the cursor on wp-1, so treating `done` as committed would skip the helper and
+  // write a false `started wp-1` row while wp-2 stayed pending forever.
+  const cwd = boundCwd();
+  const id = "recovery-status-only-done";
+  const slug = "recovery-status-only-done-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterRecoveryMarkerWrite: () => { throw new Error("fail right after the marker"); },
+    }),
+    /fail right after the marker/,
+  );
+
+  // Exactly the crash state, with the status hand-edited and the cursor untouched.
+  const plan = readGoalplan(cwd, slug)!;
+  assert.equal(plan.activeWorkPhaseId, "wp-1");
+  writeGoalplan(cwd, {
+    ...plan,
+    workPhases: plan.workPhases.map((wp) =>
+      wp.id === "wp-1" ? { ...wp, status: "done" as const } : wp
+    ),
+  });
+
+  const retry = runOrchestrateCli(args);
+
+  assert.equal(retry.code, 0, retry.output);
+  assertOnlyFirstPhaseClosed(cwd, slug);
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+  // The started row must name the successor, never the closed target.
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_started").map((row) => row.detail),
+    ["started wp-2"],
+  );
+});
+
+test("all-done close survives a failure right after its state write", () => {
+  // §40 Z2 + §41 W4: the close row already landed inside the first lock, so a state
+  // write that fails afterwards leaves nothing to lose. The retry must not add a
+  // second row.
+  const cwd = boundCwd();
+  const id = "all-done-state-write-failure";
+  const slug = "all-done-state-write-failure-plan";
+  const plan = buildGoalplan({ objective: "already finished" });
+  plan.slug = slug;
+  plan.workPhases = [{ id: "wp-1", title: "first", status: "done", tasks: [], criteriaIds: [] }];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  writeState(cwd, { ...defaultState(id), phase: "C", slug, orchestrationActive: true, checkEpoch: "c-all-done" });
+  seedReceipt(cwd, id, "c-all-done");
+
+  assert.throws(
+    () => runOrchestrateCli(parsedDclose(cwd, id), {
+      afterStateWrite: () => { throw new Error("fail right after the state write"); },
+    }),
+    /fail right after the state write/,
+  );
+  assert.equal(
+    ledgerLines(cwd).filter((row) => row.sessionId === id && row.from === "C" && row.to === "IDLE").length,
+    1,
+  );
+
+  // The state write did land before the injected throw, so the session is IDLE and
+  // the ordinary illegal-transition refusal applies. The row is already complete.
+  const retry = runOrchestrateCli(parsedDclose(cwd, id));
+  assert.equal(retry.code, 1);
+  assert.equal(
+    ledgerLines(cwd).filter((row) => row.sessionId === id && row.from === "C" && row.to === "IDLE").length,
+    1,
+  );
+});
+
+test("an absent target still activates the successor the marker recorded", () => {
+  // §52: the existing absent-target case seeds wp-2 already in_progress, which hides the
+  // window. Here the crash happened before the plan commit, so wp-2 is still pending when
+  // an edit removes wp-1. Skipping to cleanup would clear the marker and close the cycle
+  // while wp-2 never starts — the ledger would claim a close that scheduled nothing.
+  const cwd = boundCwd();
+  const id = "cli-recovery-absent-pending-successor";
+  const slug = "cli-recovery-absent-pending-successor-plan";
+  const plan = buildGoalplan({ objective: "absent target, pending successor" });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-2", title: "next", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  writeState(cwd, {
+    ...defaultState(id),
+    slug,
+    checkEpoch: "c-absent-pending",
+    dcloseRecovery: {
+      sessionId: id,
+      checkEpoch: "c-absent-pending",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
+    },
+  });
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 0, result.output);
+  const repaired = readGoalplan(cwd, slug)!;
+  assert.equal(repaired.activeWorkPhaseId, "wp-2");
+  assert.equal(repaired.workPhases.find((wp) => wp.id === "wp-2")!.status, "in_progress");
+  assert.deepEqual(
+    goalplanLedgerRows(cwd, slug)
+      .filter((row) => row.event === "workphase_started")
+      .map((row) => row.detail),
+    ["started wp-2"],
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+
+test("recovery refuses when both the target and its recorded successor are gone", () => {
+  // §52: with neither phase present there is nothing this retry can honestly finish, so
+  // it keeps everything and points at reset instead of closing a cycle over an empty plan.
+  const cwd = boundCwd();
+  const id = "cli-recovery-both-gone";
+  const slug = "cli-recovery-both-gone-plan";
+  const plan = buildGoalplan({ objective: "target and successor both gone" });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-9", title: "unrelated", status: "pending", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = null;
+  writeGoalplan(cwd, plan);
+  writeState(cwd, {
+    ...defaultState(id),
+    slug,
+    checkEpoch: "c-both-gone",
+    dcloseRecovery: {
+      sessionId: id,
+      checkEpoch: "c-both-gone",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
+    },
+  });
+  const before = readFileSync(goalplanPath(cwd, slug), "utf8");
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 1);
+  assert.match(result.output, /the successor wp-2 it recorded is gone too/);
+  assert.match(result.output, new RegExp(`cxc orchestrate reset --session ${id}`));
+  assert.equal(readFileSync(goalplanPath(cwd, slug), "utf8"), before);
+  assert.equal(readState(cwd, id).dcloseRecovery?.closedWorkPhaseId, "wp-1");
+  assert.deepEqual(goalplanLedgerRows(cwd, slug), []);
+});
+test("CLI D-close recovery resumes when the marker target is absent from the plan", () => {
+  const cwd = boundCwd();
+  const id = "cli-recovery-target-absent";
+  const slug = "cli-recovery-target-absent-plan";
+  const plan = buildGoalplan({ objective: "resume a partially committed CLI close" });
+  plan.slug = slug;
+  plan.workPhases = [
+    { id: "wp-2", title: "next", status: "in_progress", tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-2";
+  writeGoalplan(cwd, plan);
+  writeState(cwd, {
+    ...defaultState(id),
+    slug,
+    checkEpoch: "c-cli-recovery",
+    dcloseRecovery: {
+      sessionId: id,
+      checkEpoch: "c-cli-recovery",
+      closedWorkPhaseId: "wp-1",
+      nextWorkPhaseId: "wp-2",
+    },
+  });
+  const planPath = goalplanPath(cwd, slug);
+  const beforePlan = readFileSync(planPath, "utf8");
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 0, result.output);
+  assert.equal(
+    result.output,
+    `orchestrate D: close target wp-1 is complete (cycle closed, session ${id})`,
+  );
+  assert.doesNotMatch(result.output, /not in the bound goalplan/);
+  assert.equal(readFileSync(planPath, "utf8"), beforePlan);
+  assert.equal(
+    ledgerLines(cwd).filter(
+      (row) => row.sessionId === id && row.from === "C" && row.to === "IDLE"
+        && row.checkEpoch === "c-cli-recovery" && row.closedWorkPhaseId === "wp-1",
+    ).length,
+    1,
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(readState(cwd, id).checkEpoch, null);
+  assert.equal(readState(cwd, id).dcloseRecovery, null);
+});
+
+test("D-close retry after state write appends only the missing PABCD row", () => {
+  const cwd = boundCwd();
+  const id = "retry-after-state";
+  const slug = "retry-after-state-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterStateWrite: () => { throw new Error("fail after state write"); },
+    }),
+    /fail after state write/,
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(
+    ledgerLines(cwd).filter(
+      (row) => row.sessionId === id && row.from === "C" && row.to === "IDLE",
+    ).length,
+    0,
+  );
+
+  const retry = runOrchestrateCli(args);
+  assert.equal(retry.code, 0, retry.output);
+  assertOnlyFirstPhaseClosed(cwd, slug);
+  assert.equal(
+    ledgerLines(cwd).filter(
+      (row) => row.sessionId === id && row.from === "C" && row.to === "IDLE",
+    ).length,
+    1,
+  );
+});
+
+test("D-close retry after PABCD append is a no-op and does not close wp-2", () => {
+  const cwd = boundCwd();
+  const id = "retry-after-pabcd-ledger";
+  const slug = "retry-after-pabcd-ledger-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const args = parsedDclose(cwd, id);
+
+  assert.throws(
+    () => runOrchestrateCli(args, {
+      afterPabcdLedgerAppend: () => { throw new Error("fail after PABCD append"); },
+    }),
+    /fail after PABCD append/,
+  );
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.equal(
+    ledgerLines(cwd).filter(
+      (row) => row.sessionId === id && row.from === "C" && row.to === "IDLE",
+    ).length,
+    1,
+  );
+
+  const retry = runOrchestrateCli(args);
+  assert.equal(retry.code, 0, retry.output);
+  assertOnlyFirstPhaseClosed(cwd, slug);
+  assert.equal(
+    ledgerLines(cwd).filter(
+      (row) => row.sessionId === id && row.from === "C" && row.to === "IDLE",
+    ).length,
+    1,
+  );
+});
+
+test("one session closes two consecutive cycles with distinct close keys", () => {
+  const cwd = boundCwd();
+  const id = "two-cycles-one-session";
+  const slug = "two-cycles-one-session-plan";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+
+  const first = runOrchestrateCli(parsedDclose(cwd, id));
+  assert.equal(first.code, 0, first.output);
+  assert.equal(readGoalplan(cwd, slug)!.activeWorkPhaseId, "wp-2");
+
+  const secondEpoch = "c-second-cycle";
+  writeState(cwd, {
+    ...readState(cwd, id),
+    phase: "C",
+    checkEpoch: secondEpoch,
+    dcloseRecovery: null,
+    flags: { interview: false, auditPassed: true, checkPassed: true },
+  });
+  seedReceipt(cwd, id, secondEpoch);
+  const secondAttest = JSON.stringify({
+    from: "C",
+    to: "D",
+    did: "verified the second cycle",
+    checkOutput: "tests passed",
+    exitCode: 0,
+    workPhaseId: "wp-2",
+    testReceiptPath: `.codexclaw/evidence/${id}/test-receipt.json`,
+  });
+  const secondArgs = parseOrchestrateCliArgs(
+    ["d", "--session", id, "--cwd", cwd, "--attest", secondAttest],
+    cwd,
+  );
+  assert.ok(!("error" in secondArgs));
+
+  const second = runOrchestrateCli(secondArgs as never);
+
+  assert.equal(second.code, 0, second.output);
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  assert.deepEqual(
+    ledgerLines(cwd)
+      .filter((row) => row.sessionId === id && row.from === "C" && row.to === "IDLE")
+      .map((row) => [row.checkEpoch, row.closedWorkPhaseId]),
+    [
+      ["c-test-epoch", "wp-1"],
+      [secondEpoch, "wp-2"],
+    ],
+  );
+  assert.equal(readGoalplan(cwd, slug)!.workPhases[1].status, "done");
+});
+test("D-close lock timeout returns code 1 and leaves phase, plan, and both ledgers unchanged", () => {
+  const cwd = boundCwd();
+  const id = "cycle-lock-timeout";
+  const slug = "cycle-gate-lock-timeout";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const lock = join(cwd, STATE_DIR, "goalplans", slug, ".goalplan.lock");
+  mkdirSync(lock, { recursive: false });
+  writeFileSync(join(lock, "owner.json"), `${JSON.stringify({ pid: 4242 })}\n`);
+  const planPath = goalplanPath(cwd, slug);
+  const goalplanLedgerPath = join(cwd, STATE_DIR, "goalplans", slug, "ledger.jsonl");
+  const beforePlan = readFileSync(planPath, "utf8");
+  const beforePabcdLedger = ledgerLines(cwd);
+  const beforeGoalplanLedger = existsSync(goalplanLedgerPath)
+    ? readFileSync(goalplanLedgerPath, "utf8")
+    : "";
+
+  const parsed = parseOrchestrateCliArgs(
+    ["d", "--session", id, "--cwd", cwd, "--attest", dAttest(id)],
+    cwd,
+  );
+  assert.ok(!("error" in parsed));
+  const result = runOrchestrateCli(parsed as never);
+
+  assert.equal(result.code, 1);
+  assert.match(result.output, /\.goalplan\.lock/);
+  assert.match(result.output, /D-close was not applied/);
+  assert.equal(readState(cwd, id).phase, "C");
+  assert.equal(readFileSync(planPath, "utf8"), beforePlan);
+  assert.deepEqual(ledgerLines(cwd), beforePabcdLedger);
+  assert.equal(
+    existsSync(goalplanLedgerPath) ? readFileSync(goalplanLedgerPath, "utf8") : "",
+    beforeGoalplanLedger,
+  );
+});
+test("CLI D-close rejects an invalid v3 dependency plan before every write", () => {
+  const cwd = boundCwd();
+  const id = "invalid-v3-cli-close";
+  const slug = "invalid-v3-cli-close-plan";
+  const plan = buildGoalplan({ objective: "invalid dependency close" });
+  plan.slug = slug;
+  plan.schemaVersion = 3;
+  plan.workPhases = [
+    { id: "wp-1", title: "broken", status: "in_progress", dependsOn: ["missing"], tasks: [], criteriaIds: [] },
+  ];
+  plan.activeWorkPhaseId = "wp-1";
+  writeGoalplan(cwd, plan);
+  writeState(cwd, {
+    ...defaultState(id), phase: "C", slug, checkEpoch: "c-invalid",
+    flags: { interview: false, auditPassed: true, checkPassed: true },
+  });
+  seedReceipt(cwd, id, "c-invalid");
+  const statePath = join(cwd, STATE_DIR, SESSIONS_SUBDIR, `${id}.json`);
+  const planPath = goalplanPath(cwd, slug);
+  const pabcdPath = join(cwd, STATE_DIR, LEDGER_FILE);
+  const goalplanLedgerPath = join(cwd, STATE_DIR, "goalplans", slug, "ledger.jsonl");
+  const before = {
+    state: readFileSync(statePath, "utf8"),
+    plan: readFileSync(planPath, "utf8"),
+    pabcd: existsSync(pabcdPath) ? readFileSync(pabcdPath, "utf8") : "",
+    goalplan: existsSync(goalplanLedgerPath) ? readFileSync(goalplanLedgerPath, "utf8") : "",
+  };
+
+  const result = runOrchestrateCli(parsedDclose(cwd, id));
+
+  assert.equal(result.code, 1);
+  assert.match(result.output, /invalid goalplan/);
+  assert.equal(readFileSync(statePath, "utf8"), before.state);
+  assert.equal(readFileSync(planPath, "utf8"), before.plan);
+  assert.equal(existsSync(pabcdPath) ? readFileSync(pabcdPath, "utf8") : "", before.pabcd);
+  assert.equal(existsSync(goalplanLedgerPath) ? readFileSync(goalplanLedgerPath, "utf8") : "", before.goalplan);
+});
+test("P-to-A continues when stale-round housekeeping cannot acquire the common lock", () => {
+  const cwd = freshCwd();
+  try {
+    const id = "housekeeping-lock";
+    const slug = "housekeeping-lock-plan";
+    const planUnit = seedPlanUnit(cwd);
+    const plan = buildGoalplan({ objective: "housekeeping lock plan" });
+    plan.slug = slug;
+    plan.workPhases = [
+      { id: "wp1", title: "one", status: "in_progress", tasks: [], criteriaIds: [] },
+    ];
+    plan.activeWorkPhaseId = "wp1";
+    plan.reviewRounds = [
+      {
+        roundId: "r1",
+        purpose: "plan_audit",
+        planPath: planUnit,
+        planSha256: "a".repeat(64),
+        status: "in_flight",
+        lane: { launchId: "r1-launch" },
+        openedAt: "2026-08-28T00:00:00.000Z",
+        ownerSessionId: id,
+        workPhaseId: "wp1",
+        planUnit,
+        planEpoch: "e-old",
+      },
+    ];
+    plan.activePlanAuditRoundId = "r1";
+    writeGoalplan(cwd, plan);
+    writeState(cwd, { ...defaultState(id), phase: "P", slug });
+    const lock = join(cwd, STATE_DIR, "goalplans", slug, ".goalplan.lock");
+    mkdirSync(lock, { recursive: false });
+    writeFileSync(join(lock, "owner.json"), `${JSON.stringify({ pid: 4242 })}\n`);
+
+    const result = runOrchestrateCli({
+      verb: "A",
+      attest: {
+        from: "P",
+        to: "A",
+        did: "audited the plan",
+        planUnit,
+        workPhaseId: "wp1",
+      },
+      session: id,
+      cwd,
+      json: false,
+    });
+
+    assert.equal(result.code, 0, result.output);
+    assert.equal(readState(cwd, id).phase, "A");
+    assert.equal(ledgerLines(cwd).at(-1)?.to, "A");
+    const stored = JSON.parse(readFileSync(goalplanPath(cwd, slug), "utf8"));
+    assert.equal(stored.reviewRounds[0].status, "in_flight");
+    assert.equal(existsSync(lock), true);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("wp7 preservation: CLI D-close keeps dependsOn and outcome", () => {
+  const cwd = boundCwd();
+  const id = "wp7-cli-d";
+  const slug = "wp7-cli-d";
+  seedBoundCycleAtC(cwd, id, slug, "done");
+  const seeded = readGoalplan(cwd, slug)!;
+  seeded.schemaVersion = 3;
+  seeded.workPhases[0].tasks = [
+    { id: "t-1", title: "first", status: "done", dependsOn: [], outcome: "first task verified" },
+    { id: "t-2", title: "second", status: "done", dependsOn: ["t-1"], outcome: "second task verified" },
+  ];
+  writeGoalplan(cwd, seeded);
+
+  const args = parseOrchestrateCliArgs(["d", "--session", id, "--cwd", cwd, "--attest", dAttest(id)], cwd);
+  assert.ok(!("error" in args));
+  const result = runOrchestrateCli(args as never);
+
+  assert.equal(result.code, 0, result.output);
+  assert.equal(readState(cwd, id).phase, "IDLE");
+  const saved = readGoalplan(cwd, slug)!;
+  assert.equal(saved.workPhases[0].status, "done");
+  assert.equal(saved.workPhases[1].status, "in_progress");
+  assert.deepEqual(taskFields(saved), expectedTaskFields);
 });

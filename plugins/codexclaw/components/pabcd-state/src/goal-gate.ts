@@ -32,10 +32,11 @@ const CREATE_GOAL_WARNING =
   "Use create_goal with objective only. Omit token_budget so the goal stays unlimited, and put lifecycle status changes on update_goal.";
 
 import { getGoalActiveStatus, suppressesInterview, type GoalActiveDeps, type GoalActiveStatus } from "./goal-active.ts";
-import { readState } from "./state.ts";
+import { readStateStrict } from "./state.ts";
 import { readGoalplan, validateGoalplan } from "./goalplan.ts";
 import { captureSourceIdentity, compareSource } from "./source-identity.ts";
 import { parseSourceBoundReceipt } from "./source-receipt.ts";
+import { hasSpentBudget, unrecordableVerdictStatus } from "./subagent-evidence.ts";
 // Cross-component dist import (precedent: messenger-bridge/src/api-compat.ts:17).
 // 260724 WP1: deny remedies name `cxc orchestrate ...`/`cxc loop validate` — on a
 // payload-only install those must render the resolvable invocation. Emit-time only.
@@ -209,10 +210,61 @@ export function applyGoalCompleteGuard(payload: PreToolUsePayload): string {
     if (payload.tool_name !== UPDATE_GOAL_TOOL_NAME) return "";
     if (!isRecord(payload.tool_input) || payload.tool_input.status !== "complete") return "";
 
-    const state = readState(payload.cwd, payload.session_id);
+    const { state, unreadable } = readStateStrict(payload.cwd, payload.session_id);
+    // A clean default also means "no unresolved verdicts", so unreadable session
+    // state cannot be treated as a clean bill of health: it is exactly the case where
+    // an unresolved subagent failure would be invisible. Deny completion; `blocked`
+    // stays available. (An ABSENT state file is not unreadable — a session that never
+    // delegated anything still completes normally.)
+    if (unreadable) {
+      return goalCompleteDenyEnvelope(
+        `GOAL-COMPLETE-GATE-01: this session's state is unreadable, so unresolved subagent evidence failures cannot be ruled out. Restore or reset the session state after verifying the delegated work, or use update_goal status "blocked".`,
+      );
+    }
     if (state.orchestrationActive && state.phase !== "IDLE" && state.phase !== "I") {
       return goalCompleteDenyEnvelope(
         `GOAL-COMPLETE-GATE-01: a PABCD cycle is in flight at phase ${state.phase}. Close the cycle first (advance to D via \`cxc orchestrate ... --session ${payload.session_id}\`, or \`cxc orchestrate reset --session ${payload.session_id}\`), then mark the goal complete. If an external blocker prevents closing, use update_goal status "blocked" instead.`,
+      );
+    }
+    // EVIDENCE-TERMINAL-01 (260826): the SubagentStop gate no longer blocks a child
+    // forever when it cannot produce a receipt — it releases and records the
+    // unresolved verdict here. This is where that verdict is enforced: a subagent
+    // whose evidence was never verified cannot be laundered into a completed goal.
+    // Checked before the goalplan branch so it also holds at IDLE and for sessions
+    // with no bound goalplan.
+    if (state.unverifiedCorrupt) {
+      return goalCompleteDenyEnvelope(
+        `GOAL-COMPLETE-GATE-01: the subagent verification record for this session is unreadable or overflowed, so unresolved evidence failures cannot be ruled out. Re-verify the delegated work, or use update_goal status "blocked".`,
+      );
+    }
+    // A verdict that existed but could not be persisted must not read as "no verdict",
+    // and neither must an unreadable marker directory.
+    const marker = unrecordableVerdictStatus(payload.cwd, payload.session_id);
+    if (marker.present || marker.unreadable) {
+      return goalCompleteDenyEnvelope(
+        `GOAL-COMPLETE-GATE-01: a delegated subagent failed evidence verification but the verdict could not be confirmed (see .codexclaw/evidence-unrecordable/). Re-verify that work and clear the marker, or use update_goal status "blocked".`,
+      );
+    }
+    // Independent durable signal: a retry counter still at the cap means an agent
+    // exhausted verification and was never verified. It is written during NORMAL
+    // operation (calls 1..3) and cleared only by a valid receipt, so it survives a
+    // transient failure at terminal time even if the filesystem later recovers and
+    // every other probe looks healthy.
+    const unresolved = state.unverifiedSubagents;
+    if (unresolved.length > 0) {
+      const named = unresolved
+        .slice(0, 3)
+        .map((e) => (e.resolvable ? e.agentId : "<no agent id>"))
+        .join(", ");
+      return goalCompleteDenyEnvelope(
+        `GOAL-COMPLETE-GATE-01: ${unresolved.length} delegated subagent completion(s) exhausted evidence verification without a valid receipt (${named}). Their work is unverified. Re-run or verify it and record a receipt with \`cxc evidence resolve --session ${payload.session_id} --agent <agent-id> --receipt <path>\`, or use update_goal status "blocked" if an external blocker prevents it.`,
+      );
+    }
+    // Checked AFTER the tombstone list so the specific verdict speaks first. This is
+    // the fallback signal for the case a tombstone could not be written.
+    if (hasSpentBudget(payload.cwd, payload.session_id)) {
+      return goalCompleteDenyEnvelope(
+        `GOAL-COMPLETE-GATE-01: a delegated subagent exhausted its evidence-verification budget without a valid receipt. Re-verify that work and record a receipt with \`cxc evidence resolve --session ${payload.session_id} --agent <agent-id> --receipt <path>\`, or use update_goal status "blocked".`,
       );
     }
     if (state.slug) {
@@ -230,7 +282,7 @@ export function applyGoalCompleteGuard(payload: PreToolUsePayload): string {
         if (!verdict.ok) {
           const reasons = verdict.reasons.slice(0, 4).join("; ");
           return goalCompleteDenyEnvelope(
-            `GOAL-COMPLETE-GATE-01: the session-bound goalplan '${state.slug}' fails the E8 quality gate: ${reasons}. Finish the remaining work and record fresh capturedEvidence in .codexclaw/goalplans/${state.slug}/goalplan.json (check with \`cxc loop validate --slug "${state.slug}"\`), or use update_goal status "blocked" if an external blocker prevents completion. Do not shrink the objective to escape the gate (LOOP-CONTINUE-01).`,
+            `GOAL-COMPLETE-GATE-01: the session-bound goalplan '${state.slug}' fails the E8 quality/integrity gate: ${reasons}. Repair invalid dependency, outcome, and criteria references first; then finish remaining work and record fresh capturedEvidence in .codexclaw/goalplans/${state.slug}/goalplan.json (check with \`cxc loop validate --slug "${state.slug}"\`), or use update_goal status "blocked" if an external blocker prevents completion. Do not shrink the objective to escape the gate (LOOP-CONTINUE-01).`,
           );
         }
       } else {

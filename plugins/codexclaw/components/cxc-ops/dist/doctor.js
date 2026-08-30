@@ -4,6 +4,11 @@
  * Self-checks plugin-specific health (skills, hooks, agent role configs, manifest
  * integrity). The codex install probe itself is delegated to `codex doctor`; this
  * is the codexclaw-plugin slice only. Pure filesystem + JSON reads, no network.
+ *
+ * One exception to "pure filesystem": the `features` check shells out to
+ * `codex features list`, because that state lives in the codex config and only codex can
+ * answer for it authoritatively. It WARNs rather than FAILs when the call cannot be made,
+ * so an unreadable probe never manufactures a verdict about state it did not see.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, posix as posixPath, sep } from "node:path";
@@ -87,6 +92,71 @@ function detectCodexVersion(runner                  )                     {
 }
 
 /** Check PABCD session state health: schema version and corruption. */
+/**
+ * Are the codex feature flags codexclaw declares actually on?
+ *
+ * The two one-shot surfaces that report this (`cxc enable`'s warning and the SessionStart
+ * self-heal context) both speak once and are gone. Without a standing surface, a user asking
+ * "why is the question-choice UI missing" has nothing to read.
+ *
+ * Severity is deliberately split. A missing SOFT flag is reduced capability, not breakage,
+ * so it warns — making it FAIL would leave a Plan-mode-only user permanently red. A missing
+ * HARD flag means activation never ran, which is the one case worth failing on. An
+ * unreachable codex warns rather than fails: a diagnostic must not manufacture a verdict
+ * about state it could not read.
+ */
+export const DOCTOR_DECLARED_FEATURES = ["multi_agent", "goals", "hooks", "default_mode_request_user_input"]         ;
+export const DOCTOR_SOFT_FEATURES                      = new Set(["default_mode_request_user_input"]);
+
+/** Parse `codex features list`: `{name}  {stage}  {true|false}`, matching the first field exactly. */
+export function parseDoctorFeatures(stdout        )                       {
+  const declared = new Set        (DOCTOR_DECLARED_FEATURES);
+  const out = new Map                 ();
+  for (const line of stdout.split(/\r?\n/)) {
+    const fields = line.trim().split(/\s+/);
+    if (fields.length < 2) continue;
+    if (!declared.has(fields[0])) continue;
+    const last = fields[fields.length - 1].toLowerCase();
+    if (last === "true") out.set(fields[0], true);
+    else if (last === "false") out.set(fields[0], false);
+  }
+  return out;
+}
+
+export function buildDeclaredFeaturesCheck(res                                                           )              {
+  if (res.status !== 0) {
+    return {
+      name: "features",
+      severity: "WARN",
+      evidence: `could not read 'codex features list'${res.status === null ? "" : ` (exit ${res.status})`}${res.stderr.trim() ? `: ${res.stderr.trim().slice(0, 160)}` : ""}`,
+      repair: "ensure the `codex` binary is on PATH, then re-run `cxc doctor`",
+    };
+  }
+  const state = parseDoctorFeatures(res.stdout);
+  const off = DOCTOR_DECLARED_FEATURES.filter((k) => state.get(k) !== true);
+  const total = DOCTOR_DECLARED_FEATURES.length;
+  if (off.length === 0) {
+    return { name: "features", severity: "PASS", evidence: `${total}/${total} declared flag(s) enabled` };
+  }
+  const hardOff = off.filter((k) => !DOCTOR_SOFT_FEATURES.has(k));
+  if (hardOff.length > 0) {
+    return {
+      name: "features",
+      severity: "FAIL",
+      evidence: `${total - off.length}/${total} enabled; codexclaw requires [${hardOff.join(", ")}]`,
+      repair: "cxc enable",
+    };
+  }
+  return {
+    name: "features",
+    severity: "WARN",
+    evidence:
+      `${total - off.length}/${total} enabled; optional [${off.join(", ")}] off — ` +
+      "request_user_input is not exposed in Default mode (Plan mode is unaffected)",
+    repair: `codex features enable ${off.join(" ")}`,
+  };
+}
+
 function checkPabcdHealth(projectRoot        )              {
   const stateDir = join(projectRoot, ".codexclaw", "sessions");
   if (!isDir(stateDir)) {
@@ -261,6 +331,22 @@ export function runDoctor(
 
   // 8. PABCD session state health.
   checks.push(checkPabcdHealth(process.cwd()));
+
+  // 8b. Are the codex feature flags codexclaw declares actually on? The one-shot
+  // surfaces (cxc enable's warning, the SessionStart self-heal context) speak once;
+  // this is the standing one.
+  checks.push(
+    buildDeclaredFeaturesCheck(
+      (() => {
+        try {
+          const r = agRunner("codex", ["features", "list"], { encoding: "utf8", timeout: 8000 });
+          return { status: r.status, stdout: typeof r.stdout === "string" ? r.stdout : "", stderr: typeof r.stderr === "string" ? r.stderr : "" };
+        } catch (err) {
+          return { status: null, stdout: "", stderr: err instanceof Error ? err.message : String(err) };
+        }
+      })(),
+    ),
+  );
 
   // 9. WSL residency and the filesystem tier the state tree actually sits on.
   checks.push(checkWslResidency(process.cwd(), options.wslDeps ?? {}));
