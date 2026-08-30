@@ -112,6 +112,43 @@ running the same `npm test` under the same Node, so the matrix still tests the
 platform, not the shell. The parse reuses the release workflow's TAP expression so
 one grammar serves both callers, and a missing/unparseable total fails the step
 instead of silently passing an empty argument.
+
+### What actually broke on Windows, and the amendment (C-phase finding)
+
+Pinning bash was necessary but not sufficient. CI run `33286176438` failed both
+windows jobs at "Run the suite" while reporting `tests 2273`, `fail 0`,
+`skipped 7` — a suite that had passed. The reused expression was the defect:
+
+```
+grep -Eo '^. tests [0-9]+'
+```
+
+`node --test` prefixes its summary with `ℹ`, which is three UTF-8 bytes, and `^.`
+only spans that under a multibyte-aware locale. Git bash on the windows runners
+runs under `C`, where the pattern matches nothing; ubuntu's UTF-8 locale is why the
+release workflow never showed it. Proved directly:
+
+```
+LC_ALL=en_US.UTF-8 grep -Eo '^. tests [0-9]+'  ->  ℹ tests 2273
+LC_ALL=C           grep -Eo '^. tests [0-9]+'  ->  (no match)
+LC_ALL=C           grep -Eo 'tests [0-9]+$'    ->  tests 2273
+```
+
+With no match the total came back empty and `set -e` killed the step at the grep,
+before the explicit emptiness check could name the problem. Two amendments:
+
+1. Anchor on the value (`tests [0-9]+$`) instead of the leading glyph, in BOTH
+   workflows — `release.yml` carries the same latent bug and would hit it the day it
+   runs anywhere but ubuntu. On a real 2,300-line log that pattern matches exactly
+   one line, the summary, because a test title never ends that way.
+2. Add `|| true` to the capture so a miss reaches the explicit check and reports
+   "could not parse a test total" instead of dying anonymously.
+
+New file `plugins/codexclaw/test/suite-summary-parse.test.mjs` extracts every
+summary pattern from both workflow files and runs it under `C` and `en_US.UTF-8`,
+asserting identical matches and that the digits read are the summary's rather than a
+test title's trailing number. Restoring the old anchor makes it fail on any machine,
+so this cannot regress silently again.
 IN scope: the published tests count and its protection. OUT of scope: the badge
 *mechanism* (shields.io markup, `PUBLISHED_SURFACES`), the gate rule in
 `release-gate.ts`, the version numbers, historical counts in `CHANGELOG.md` and

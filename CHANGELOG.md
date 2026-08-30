@@ -33,6 +33,14 @@ A new plan you can actually finish.
   `npm test` run it already performs, so this drift fails on a pull request instead of
   at the release gate three versions later.
 
+- **The suite-summary parser no longer depends on the shell's locale.** Both workflows
+  read how many tests ran with `grep -Eo '^. tests [0-9]+'`. `node --test` prefixes that
+  line with `ℹ`, three UTF-8 bytes that `^.` only spans in a UTF-8 locale — so under the
+  C locale of Git bash on the windows runners the pattern matched nothing and the step
+  failed on a suite that had passed with `fail 0`. Both workflows now anchor on the value
+  instead of the glyph, report an unparseable summary explicitly rather than dying inside
+  the pipeline, and a new test runs every extracted pattern under both locales.
+
 - **The `finalGate` reason stops naming a flag that does not exist.** It told the reader
   to run `cxc review-round open --lane final_gate`, which no parser accepts, so the round
   opened as a plan audit and was then refused for being one. The reason now states that

@@ -42,14 +42,20 @@ jobs:
       # Measure the suite ONCE and reuse the total. bash is pinned on purpose: the
       # windows runners default to PowerShell, which does not propagate a pipeline's
       # exit status, so `npm test | tee` there would report success over a failing
-      # suite. Same TAP grammar as release.yml, so one parser serves both callers.
+      # suite.
+      #
+      # The pattern anchors on the RIGHT, not on the leading glyph. `ℹ` is three UTF-8
+      # bytes, and `^.` only spans it in a UTF-8 locale: Git bash on the windows runners
+      # runs under C, where `^. tests` matches nothing. In a full log `tests <n>$` matches
+      # exactly one line — the TAP summary — because a test title never ends that way.
       - name: Run the suite
         id: suite
         shell: bash
         run: |
           set -euo pipefail
           npm test 2>&1 | tee /tmp/ci-suite.log
-          total="$(grep -Eo '^. tests [0-9]+' /tmp/ci-suite.log | tail -1 | grep -Eo '[0-9]+')"
+          # `|| true` so a miss reaches the explicit check below instead of dying on set -e.
+          total="$(grep -Eo 'tests [0-9]+$' /tmp/ci-suite.log | tail -1 | grep -Eo '[0-9]+' || true)"
           if [ -z "$total" ]; then
             echo "could not parse a test total out of the suite output" >&2
             exit 1
