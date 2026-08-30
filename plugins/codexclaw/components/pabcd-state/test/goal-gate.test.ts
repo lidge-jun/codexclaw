@@ -395,9 +395,11 @@ test("GOAL-COMPLETE-GATE-01: valid legacy v1 goalplan at IDLE -> complete passes
   const cwd = freshGateCwd();
   try {
     const plan = buildGoalplan({ objective: "Done for real", criteria: [{ scenario: "tests", expectedEvidence: "green" }] });
-    // v1 pinned: this test proves the gate passes a complete plan, not that a v3
-    // plan carries a final gate. buildGoalplan() declares v3 since wp2 (260829),
-    // and the v2+ final-gate requirement is covered by its own tests below.
+    // v1 pinned: this test proves the gate passes a complete plan, not that a v2+
+    // plan carries a final gate, so it states its version rather than inheriting
+    // the buildGoalplan() default. The v2+ requirement has its own tests below.
+    // This is also the test that refuted making the outcome rule unconditional:
+    // its done task carries no outcome on purpose (see goalplan.ts:1304).
     plan.schemaVersion = 1;
     plan.criteria[0] = { ...plan.criteria[0], status: "met", capturedEvidence: "node --test: 0 fail" };
     plan.workPhases = [{ id: "wp-1", title: "All", status: "done", tasks: [{ id: "t-1", title: "x", status: "done" }], criteriaIds: ["c-1"] }];

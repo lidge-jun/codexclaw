@@ -33,9 +33,10 @@ function phase(id: string, status: WorkPhaseStatus, over: Partial<GoalplanWorkPh
 }
 
 function plan(workPhases: GoalplanWorkPhase[], over: Partial<Goalplan> = {}): Goalplan {
-  // schemaVersion 1 keeps these tests about work-phase state transitions: since wp2
-  // (260829) buildGoalplan() declares v3, whose final-gate rule would add unrelated
-  // reasons to every validateGoalplan() assertion here.
+  // schemaVersion 1 is pinned deliberately, not inherited: these tests are about
+  // work-phase state transitions, and any v2+ plan adds final-gate reasons to every
+  // validateGoalplan() assertion here. buildGoalplan() also defaults to v1 since
+  // 260830, but pinning keeps that a stated premise rather than a coincidence.
   return { ...buildGoalplan({ objective: "work phase states" }), schemaVersion: 1, workPhases, ...over };
 }
 

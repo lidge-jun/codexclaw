@@ -1565,12 +1565,16 @@ function finalGateReasons(plan: Goalplan, ctx?: GoalplanValidationCtx): string[]
   }
   const gate = plan.finalGate;
   if (!gate) {
-    // No `final-gate` verb exists in goalplan-cli.ts or cli.ts (issue #29). Naming a
-    // command the user cannot run is worse than naming none, so this points at the
-    // review-round surface that actually produces a gate.
+    // No verb in this build opens a `final_gate` round: `review-round open`
+    // hardcodes `purpose: "plan_audit"` (review-round-cli.ts) and its parser has
+    // no `--lane`. The old text named `--lane final_gate` anyway, so a reader who
+    // followed it opened a plan_audit round that roundReasons below then refused
+    // for being a plan audit — one dead end pointing at another. Say the true
+    // state and name the escape that exists (260830).
     out.push(
-      "schemaVersion 2 requires a finalGate - open a final-gate review round with " +
-        "`cxc review-round open --lane final_gate --session <id>` and record its verdict",
+      `schemaVersion ${version} requires an approved finalGate, and no command in ` +
+        "this build opens a final-gate review round - either record the gate " +
+        "another way or declare schemaVersion 1, which new plans now use by default",
     );
     return out;
   }
