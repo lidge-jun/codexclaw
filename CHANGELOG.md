@@ -6,6 +6,30 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.16] — 2026-08-30
+
+A new plan you can actually finish.
+
+### Fixed
+
+- **A new goalplan can be completed again.** `buildGoalplan()` declared the newest
+  schema, so every plan `cxc loop init` created claimed v3 — and every version at or
+  above 2 requires an approved `finalGate` that no shipped verb can produce, because
+  `review-round open` hardcodes `purpose: "plan_audit"` and never parses a lane. The
+  result was a permanent validation failure on every fresh plan and a
+  `GOAL-COMPLETE-GATE-01` denial for all of them. New plans now declare
+  `DEFAULT_NEW_SCHEMA_VERSION` (1), whose rules a user can actually discharge; the
+  stricter schema is available on request via `buildGoalplan({schemaVersion})` or
+  `cxc loop init --schema-version <n>`, clamped to the range this build can read. The
+  gate itself is unchanged: a plan that declares 2 or 3 still fails without an approved
+  gate.
+
+- **The `finalGate` reason stops naming a flag that does not exist.** It told the reader
+  to run `cxc review-round open --lane final_gate`, which no parser accepts, so the round
+  opened as a plan audit and was then refused for being one. The reason now states that
+  no command in this build opens a final-gate round, and reports the schema version it
+  actually saw instead of always saying 2.
+
 ## [0.2.15] — 2026-08-30
 
 A plan that knew what order to work in.
