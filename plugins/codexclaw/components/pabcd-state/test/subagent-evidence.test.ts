@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, existsSync, chmodSync, rmSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-support.ts";
 
 import {
@@ -253,11 +253,12 @@ test("010: an old state file without the field is clean, not corrupt", () => {
  */
 test("010: concurrent terminal stops do not lose a tombstone", async () => {
   const cwd = tmp();
-  // `new URL(...).pathname` yields "/D:/a/..." on Windows, which is not a path any
-  // loader accepts, so the spawned children failed to import and the race looked
-  // lost. fileURLToPath is what every other suite here uses (260830).
+  // The child imports this module by specifier, and an ESM specifier must be a
+  // file:// URL - a bare "D:\\a\\..." is not resolvable, which is why both children
+  // died on Windows and the race read as lost. `stdio: "ignore"` hid the error,
+  // so the failure looked like a lock bug rather than a spawn bug (260830).
   const here = dirname(fileURLToPath(import.meta.url));
-  const src = join(here, "..", "src", "subagent-evidence.ts");
+  const src = pathToFileURL(join(here, "..", "src", "subagent-evidence.ts")).href;
   // Pre-spend each agent's budget so both processes land on the terminal branch.
   for (const agent of ["racer-a", "racer-b"]) {
     for (let i = 0; i < MAX_ATTEMPTS; i++) runSubagentStopGate(payload(cwd, { agent_id: agent }));
@@ -265,14 +266,23 @@ test("010: concurrent terminal stops do not lose a tombstone", async () => {
   const runner = (agent: string) =>
     `import{runSubagentStopGate}from${JSON.stringify(src)};runSubagentStopGate({hook_event_name:"SubagentStop",session_id:"s1",cwd:${JSON.stringify(cwd)},agent_type:"worker",agent_id:${JSON.stringify(agent)},last_assistant_message:null});`;
   const { spawn } = await import("node:child_process");
+  const childErrors: string[] = [];
   const go = (agent: string) =>
     new Promise<void>((done) => {
       const p = spawn(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", runner(agent)], {
-        stdio: "ignore",
+        stdio: ["ignore", "ignore", "pipe"],
       });
-      p.on("exit", () => done());
+      // Keep the child's stderr: a silent spawn failure is indistinguishable from a
+      // lost verdict, and that ambiguity cost a full CI cycle to diagnose.
+      let err = "";
+      p.stderr?.on("data", (chunk) => { err += String(chunk); });
+      p.on("exit", (code) => {
+        if (code !== 0) childErrors.push(`${agent} exited ${code}: ${err.trim().split("\n").slice(-3).join(" | ")}`);
+        done();
+      });
     });
   await Promise.all([go("racer-a"), go("racer-b")]);
+  assert.deepEqual(childErrors, [], "both racers must actually run; a dead child is not a passed race");
   const ids = readState(cwd, "s1").unverifiedSubagents.map((e) => e.agentId).sort();
   assert.deepEqual(ids, ["racer-a", "racer-b"], "both verdicts must survive the race");
 });
