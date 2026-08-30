@@ -8,7 +8,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, existsSync, chmodSync, rmSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-support.ts";
 
 import {
@@ -252,7 +253,10 @@ test("010: an old state file without the field is clean, not corrupt", () => {
  */
 test("010: concurrent terminal stops do not lose a tombstone", async () => {
   const cwd = tmp();
-  const here = new URL(".", import.meta.url).pathname;
+  // `new URL(...).pathname` yields "/D:/a/..." on Windows, which is not a path any
+  // loader accepts, so the spawned children failed to import and the race looked
+  // lost. fileURLToPath is what every other suite here uses (260830).
+  const here = dirname(fileURLToPath(import.meta.url));
   const src = join(here, "..", "src", "subagent-evidence.ts");
   // Pre-spend each agent's budget so both processes land on the terminal branch.
   for (const agent of ["racer-a", "racer-b"]) {
@@ -349,7 +353,14 @@ test("010: a lock is released after a successful critical section", async () => 
  * "false", which reported a real storage failure as "this session never delegated"
  * and allowed completion.
  */
-test("010: a storage error (ENOTDIR) denies completion, unlike a genuine absence", () => {
+test("010: a storage error (ENOTDIR) denies completion, unlike a genuine absence", (t) => {
+  // Windows does not raise ENOTDIR for a file standing where a directory is
+  // expected, so the premise cannot be staged there at all (260830). The rule
+  // itself is platform-independent; only this way of provoking it is not.
+  if (process.platform === "win32") {
+    t.skip("win32 does not surface ENOTDIR for a file in a directory position");
+    return;
+  }
   const cwd = tmp();
   // Make `.codexclaw/sessions` a FILE so the session path lookup fails with ENOTDIR.
   mkdirSync(join(cwd, ".codexclaw"), { recursive: true });
@@ -430,6 +441,13 @@ test("010: a readable-but-unwritable marker directory denies completion", (t) =>
   const cwd = tmp();
   const dir = join(cwd, ".codexclaw", "evidence-unrecordable");
   mkdirSync(dir, { recursive: true });
+  // chmod is advisory on Windows: 0o500 leaves the directory writable, so the
+  // "unwritable" premise never holds and the guard correctly sees nothing wrong
+  // (260830). Skip rather than assert a condition the platform cannot create.
+  if (process.platform === "win32") {
+    t.skip("win32 does not enforce chmod write bits on directories");
+    return;
+  }
   try {
     chmodSync(dir, 0o500); // r-x: listable, not writable
   } catch {
