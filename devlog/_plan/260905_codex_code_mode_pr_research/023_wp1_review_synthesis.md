@@ -26,3 +26,9 @@ The original42 test declarations remain represented exactly once after splitting
 New owners: `probe-evidence.test.mjs`, `probe-recorder.test.mjs`, `probe-compiled-hooks.test.mjs`; shared fixture-only files under `test/probe-fixtures/`. All files are below400 lines.43 physical recorder/process cases explicitly skip outside Darwin and always run on macmini; portable analyzer and compiled-hook contracts remain selected on other OS. Non-Darwin execution has not been claimed or performed in this task.
 
 Identity revalidation covers every snapshot's canonical directory/file ancestry and containment, then bytes. Same-content config, installed root, Codex home, home, launcher directory and both launcher-file symlinks are exercised at preflight, execution and postdoctor boundaries. A linked dispatcher is not executed after drift. The recorder is not a sandbox against a fully privileged concurrent attacker; this is experiment identity hygiene and lifecycle validation.
+
+## Same-reviewer closure
+
+Mendel re-reviewed committed `cb4a5f8 → 340f2b0`, all17 interdiff files, and returned `VERDICT: PASS`, no remaining implementation blockers. The reviewer independently accounted for all42 original declarations and inspected their relocated fixtures/assertions/teardown. All four findings and the test-size maintenance issue closed at source-review level. Remote126/0 evidence was supplied by main; native non-Darwin execution remains unverified.
+
+This verdict does not grant hook trust, establish real installed-probe evidence, or complete WP1. Phase stays B with the baseline task pending until the requested probe-only trust registration is authorized and the real fixture can run. No production skill/guide reduction has started.
