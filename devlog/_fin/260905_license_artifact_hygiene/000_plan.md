@@ -1,5 +1,7 @@
 # License and artifact hygiene
 
+Status: implementation and verification complete; archived 2026-09-05.
+
 User scope: continue removal of unused artifacts; change CodexClaw to AGPL. No
 runtime refactor, release, install, Git history rewrite or third-party relicensing.
 This is compact repository/documentation maintenance, not a new autonomous loop.
@@ -53,3 +55,20 @@ licenses on earlier distributed versions.
   notices, not a legal opinion on every historical contribution.
 - Commit cleanup and license changes separately, then push to the same requested
   `dev` target only if it is still a fast-forward. Do not promote main or release.
+
+## Verification results
+
+- Removed 54 unreferenced files totaling 36.88 MiB. Active site/plugin assets,
+  selected logo originals and documented QA/design evidence were unchanged.
+- Packaging/vendor checks: **14 passed, 0 failed, 0 skipped**; content gate and
+  `git diff --check` passed. No repository-wide suite or runtime build was run.
+- Root and payload AGPL text exactly match GNU's 34,523-byte source,
+  SHA-256 `0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0`.
+  NOTICE copies match. A `git archive HEAD:plugins/codexclaw` inventory includes
+  both project legal files and the original vendor LICENSE/NOTICE.md.
+- Only the root license entry changed in package-lock.json. Original vendor
+  notices and dependency metadata were compared and remained byte-for-byte intact.
+- Independent reviewer Carver (`01a0716c-4608-7041-a492-dd3e90e402a0`) inspected
+  **70/70 changed files**, including all deletions, at `f13e1e6f..e5c065b` and reran
+  the 14 checks and gate. **VERDICT: PASS**, no blockers. This is technical
+  consistency/packaging verification, not a legal opinion on contribution rights.
