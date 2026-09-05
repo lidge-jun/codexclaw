@@ -175,9 +175,12 @@ export function payloadDigest(root) {
   return digest(JSON.stringify(rows));
 }
 
-export function probeEnv(home) {
+const shellQuote = value => "'" + value.replaceAll("'", "'\\''") + "'";
+
+export function probeEnv(home, launchDir, pluginRoot) {
   return {
-    PATH: process.env.PATH || "/usr/bin:/bin",
+    PATH: [launchDir, dirname(process.execPath), "/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(":"),
+    CODEXCLAW_CXC: shellQuote(process.execPath) + " " + shellQuote(join(pluginRoot, "bin", "cxc.mjs")),
     LANG: "en_US.UTF-8", HOME: home, USERPROFILE: home,
     CODEX_HOME: join(home, ".codex"), CODEX_SQLITE_HOME: join(home, ".codex"),
     TMPDIR: join(home, "tmp"),
@@ -223,10 +226,16 @@ function prepare(spec) {
   cleanSource(sourceRoot, spec.sourceSha);
   const codexBin = realpathSync(spec.codexBin);
   if (!isAbsolute(spec.codexBin)) throw new Error("absolute Codex binary required");
+  payloadDigest(pluginRoot); // reject nested links before executing any candidate code
+  const launchDir = join(home, "probe-bin");
+  mkdirSync(launchDir, {mode:0o700});
+  const env = probeEnv(home, launchDir, pluginRoot);
+  writeFileSync(join(launchDir, "cxc"), "#!/bin/sh\nexec " + env.CODEXCLAW_CXC + ' "$@"\n', {flag:"wx", mode:0o700});
+  writeFileSync(join(launchDir, "codex"), "#!/bin/sh\nexec " + shellQuote(codexBin) + ' "$@"\n', {flag:"wx", mode:0o700});
   const out = join(root, "output");
   mkdirSync(out, {mode:0o700}); // exclusive; a failed run is never overwritten
   mkdirSync(join(home, "tmp"), {recursive:true, mode:0o700});
-  return {root, sourceRoot, home, cwd, codexHome, pluginRoot, codexBin, out, timeoutMs, env:probeEnv(home)};
+  return {root, sourceRoot, home, cwd, codexHome, pluginRoot, codexBin, launchDir, out, timeoutMs, env};
 }
 
 function doctor(p, label) {
@@ -245,7 +254,8 @@ function doctor(p, label) {
 }
 
 function snapshot(p) {
-  return {config:fileDigest(join(p.codexHome, "config.toml")), payload:payloadDigest(p.pluginRoot)};
+  return {config:fileDigest(join(p.codexHome, "config.toml")), payload:payloadDigest(p.pluginRoot),
+    cxcLauncher:fileDigest(join(p.launchDir, "cxc")), codexLauncher:fileDigest(join(p.launchDir, "codex"))};
 }
 
 export function runOwned({bin, args, cwd, env, prompt, timeoutMs, stdoutFd, stderrFd}) {
@@ -282,7 +292,7 @@ export function runOwned({bin, args, cwd, env, prompt, timeoutMs, stdoutFd, stde
 
 export async function record(spec) {
   const p = prepare(spec);
-  const beforeDoctor = doctor(p, "before"), before = snapshot(p);
+  const before = snapshot(p), beforeDoctor = doctor(p, "before");
   const prompt = readFileSync(join(p.root, "prompt.txt"));
   const finalPath = join(p.out, "final.txt"), args = execArgs(spec.serviceTier, finalPath);
   const stdoutFd = openSync(join(p.out, "stdout.jsonl"), "wx", 0o600);
@@ -304,6 +314,7 @@ export async function record(spec) {
     schemaVersion:1, candidate:spec.candidate, sourceSha:spec.sourceSha,
     pluginRoot:p.pluginRoot, version:spec.expectedVersion,
     codexBin:p.codexBin, codexSha256:fileDigest(p.codexBin),
+    dispatch:{path:p.env.PATH, cxc:p.env.CODEXCLAW_CXC, launcherRoot:p.launchDir},
     recorderSha256:fileDigest(fileURLToPath(import.meta.url)),
     approvalSha256:fileDigest(join(p.root, "approval.md")),
     installSha256:fileDigest(join(p.root, "install.json")), promptSha256:digest(prompt),
@@ -673,8 +684,10 @@ test("args are exact and do not bypass hook trust; environment does not inherit 
   assert.ok(args.includes('service_tier="priority"'));
   assert.ok(!args.includes("--dangerously-bypass-hook-trust"));
   assert.throws(() => execArgs("default", "/tmp/final.txt"));
-  const env = probeEnv("/tmp/isolated");
-  assert.deepEqual(Object.keys(env).sort(), ["CODEX_HOME","CODEX_SQLITE_HOME","HOME","LANG","PATH","TMPDIR","USERPROFILE"].sort());
+  const env = probeEnv("/tmp/isolated", "/tmp/isolated/probe-bin", "/tmp/isolated/.codex/plugins/candidate");
+  assert.equal(env.PATH.split(":")[0], "/tmp/isolated/probe-bin");
+  assert.ok(env.CODEXCLAW_CXC.includes("/tmp/isolated/.codex/plugins/candidate/bin/cxc.mjs"));
+  assert.deepEqual(Object.keys(env).sort(), ["CODEXCLAW_CXC","CODEX_HOME","CODEX_SQLITE_HOME","HOME","LANG","PATH","TMPDIR","USERPROFILE"].sort());
 });
 test("payload digest changes on byte change", () => {
   const dir = mkdtempSync(join(tmpdir(), "cxc-payload-"));
@@ -717,6 +730,8 @@ and fs; never a real model, SSH, shared config or production service.
 | raw response tier priority on known non-authoritative path | keep other required evidence exact | scheduler remains unknown, not confirmed |
 | response echo or limitation flag absent | valid required model/effort/wire proof | still eligible; raw missing echo null; no scheduler inference |
 | payload nested symlink | payloadDigest(temp root) | throws; original target unchanged |
+| record(spec) dispatcher symlink, not merely payloadDigest unit call | Use the valid macOS integration fixture and clean source git repo; replace only installed bin/cxc.mjs with a symlink to a test-owned script outside payload that writes a marker and emits valid four-check doctor JSON | record rejects with payload-symlink error; target marker remains absent. Reverting validation to after doctor must make this test fail |
+| conflicting global cxc and candidate dispatcher | Valid macOS record fixture; put a marker-writing foreign cxc on the original process PATH. Fake Codex invokes cxc through its received PATH; candidate cxc handles doctor normally and writes a distinct candidate marker for that invocation | Candidate marker present, foreign marker absent; run.json dispatch and launcher digests match candidate. Restore test PATH in finally. Final native fixture additionally inspects actual cxc resolution inside the model shell |
 | incompatible benchmark host/harness; 1 iteration; negative floor | analyzeBench separately | UNKNOWN/2, no percentage claim |
 | benchmark duplicated keys / added hook / one hook regression | analyzeBench separately | FAILED/1; existing missing-hook regression remains intact |
 | alternate --plugin-root with fixture manifest and node entrypoint returning `{}` | spawn common benchmark controller --iterations 2 --json | reported command points to fixture; harness digest stable across two roots; stdoutBytes=6 for two `{}` plus newline outputs |

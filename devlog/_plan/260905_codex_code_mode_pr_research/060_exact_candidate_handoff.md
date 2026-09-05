@@ -67,7 +67,7 @@ After source and installed verification, an independent reviewer receives the ex
 
 ## B and C artifacts
 
-During B, update the listed SoT documents from actual selected behavior and write `061_final_evidence.md`. During C, run exact-candidate remote verification, capture the local source-bound receipt that invokes the authorized remote verifier, and write `062_final_review.md` from the actual returned verdict. Do not claim remote evidence belongs to the main source unless the artifact identity matches.
+During B, update the listed SoT documents from actual selected behavior and write `061_final_evidence.md`. During C, run exact-candidate remote verification, obtain the independent verdict, and finalize `062_final_review.md` plus all tracked evidence documents. Only then capture the terminal local source-bound receipt invoking the authorized read-only remote verification. No tracked source or devlog file may change between that receipt and C→D; if one changes, recapture the receipt after a fresh check. Do not exclude review files to force acceptance. Remote evidence belongs to the main source only when artifact identity matches.
 
 ## D closure
 

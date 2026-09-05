@@ -422,6 +422,95 @@ node --test --test-concurrency=1 plugins/codexclaw/components/pabcd-state/test/g
 
 `plugins/codexclaw/scripts/build.mjs:97-102`의 기존 manifest validator와 `hook-e2e.test.mjs:686`의 matcher 검증을 재사용한다. native paired model trial은 이 green 이후 수행하지만, green이 paired trial을 대체하지 않는다. 기존 `hook-bench.mjs` generic/no-op 결과는 참고 process baseline일 뿐, required reads·reference 적용의 판정기가 아니다.
 
+## 9.1 F9 — 필수 implementation-worker paired trial
+
+F1–F8의 read-only parent/child 제한은 그 여덟 경우에만 적용한다. F9는 별도의
+disposable work 디렉터리에서 수행하는 구현 worker 과업이며, A와 B 모두에서
+실행해야 전역 전달 방식 채택을 판단할 수 있다.
+
+초기 파일은 다음과 같다. 각 pair는 같은 초기 bytes에서 새로 시작한다.
+
+- src/duration.mjs — 아래 결함 있는 구현.
+- refs/duration-contract.md — 아래 요구사항 원문.
+- outside-scope.txt — 내용 DO_NOT_CHANGE. 실행 전후 SHA256이 같아야 한다.
+- test/duration.test.mjs — 처음에는 없다. worker가 추가하도록 허용한다.
+
+~~~~javascript
+export function formatDuration(ms) {
+  return String(Math.round(ms / 1000));
+}
+~~~~
+
+refs/duration-contract.md의 완전한 내용:
+
+~~~~text
+# Duration display contract
+formatDuration accepts a finite non-negative number of milliseconds.
+Fractional milliseconds are allowed. Floor to whole seconds; never round up.
+Return total minutes and remaining seconds as MM:SS, each padded to at least
+two digits. Minutes do not wrap at one hour.
+Non-number inputs throw TypeError. Negative or non-finite numbers throw RangeError.
+Keep the named export formatDuration. No dependencies or global state.
+~~~~
+
+F9 parent packet:
+
+~~~~text
+Delegate one bounded implementation task to a fresh worker using only fields
+supported by the live native spawn surface. Do not implement it yourself.
+Use the fixed Astra/high/priority probe settings and record the actual child.
+Child may write only src/duration.mjs and test/duration.test.mjs in WORK.
+Do not create goals, commit, install packages, alter config, or modify other files.
+Deliver the child packet below. Collect its changes, test evidence and final response.
+~~~~
+
+F9 child packet (WORK와 PAYLOAD는 실제 절대 경로로 바인딩):
+
+~~~~text
+Implementation worker task. Use the installed cxc-dev and cxc-dev-testing skills.
+Fix WORK/src/duration.mjs to implement WORK/refs/duration-contract.md.
+You may edit only src/duration.mjs and test/duration.test.mjs under WORK.
+Read the required contract and the relevant selected skill/reference instructions.
+Add focused regression tests and run node --test test/duration.test.mjs.
+Do not change outside-scope.txt, configuration, dependencies, or any other source file.
+No goals, further delegation, commits, or external actions. Report actual changed
+paths and the test result; do not claim a test ran if you only wrote it.
+~~~~
+
+V1에 worker 종류 필드가 없으면 이를 만들어 보내지 않는다. 그 표면에서는
+명시적 worker 과업 packet과 허용 쓰기 범위를 사용하고 실제 native 역할을 기록한다.
+V2에서 지원하면 worker 유형을 사용한다. 한 표면의 결과를 다른 표면의 증거로
+바꾸지 않는다. 이 과업은 native agent-kind 이름보다 구현·테스트 행동을 검증한다.
+
+독립 oracle은 worker에게 위치나 내용을 전달하지 않고 WORK 밖의 controller
+디렉터리에 둔다. worker 종료 후 main이 다음 완전한 스크립트를 실행한다.
+
+~~~~javascript
+import assert from "node:assert/strict";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+const { formatDuration } = await import(pathToFileURL(resolve(process.argv[2])).href);
+assert.equal(formatDuration(0), "00:00");
+assert.equal(formatDuration(999.9), "00:00");
+assert.equal(formatDuration(59999), "00:59");
+assert.equal(formatDuration(60000), "01:00");
+assert.equal(formatDuration(61999), "01:01");
+assert.equal(formatDuration(3600000), "60:00");
+for (const value of [-1, NaN, Infinity]) assert.throws(() => formatDuration(value), RangeError);
+for (const value of ["1000", null, undefined]) assert.throws(() => formatDuration(value), TypeError);
+console.log("PASS: independent worker behavior oracle");
+~~~~
+
+채택 필수 조건: 양쪽에서 oracle 통과, 실제 worker test 실행의 성공 기록과
+0보다 큰 test 수, 의미 있는 경계·거절 test, 허용 경로 외 source 변경 없음,
+outside-scope sentinel 불변, 필수 contract/관련 owner 적용 근거. Native runtime의
+정상 bookkeeping과 worker가 만든 source delta는 따로 분류한다. 원격 controller는
+자신이 만든 fixture와 기록된 자식만 정리한다.
+
+F9 실패·누락·설정 불일치는 ADOPT_SELFLOAD를 막는다. F1–F8 성공이나 컴파일된
+guard 테스트만으로 F9를 대신하지 않는다. 이 추가 case는 B의 실제 구현 worker
+행동과 검증 의무를 검증하기 위한 것이며 부모·제품의 쓰기 권한을 넓히지 않는다.
+
 ## 10. 최종 선택·복구·인계
 
 ### P → A → B → C → D의 실제 산출물

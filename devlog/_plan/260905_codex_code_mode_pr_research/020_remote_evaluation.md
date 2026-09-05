@@ -77,6 +77,8 @@ neither is wired into normal sessions, a CLI dispatcher, hooks, or CI in wp1.
 
 No DELETE, new dependencies, package scripts, workflow, manifest, component source,
 component dist, activation-trace, or production hook changes in this wp1 slice.
+
+Audit correction: the recorder must not inherit the host's executable search path. After validating the entire installed payload, provision two experiment-owned cxc/codex launchers in the fresh isolated home, prepend only that launcher directory and the selected Node/system paths, and set CODEXCLAW_CXC to the absolute candidate dispatcher. Record and hash those launchers. Test a conflicting global cxc that writes a marker: the actual launched cxc must be the candidate and the global marker must stay absent. A separate record(spec) fixture places a symlinked dispatcher inside the otherwise valid payload; it must be rejected before doctor or any linked target executes. Final native probes also verify the actual executable resolution rather than trusting PATH construction alone.
 Candidate payload construction/version changes belong to the main roadmap's
 candidate owner, not this measurement plan. New `.mjs` files need no component
 build; existing component gates are regression checks only.

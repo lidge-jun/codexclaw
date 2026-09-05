@@ -63,6 +63,25 @@ plugin.json → hook JSON → 기존 component dist/cli entry
 
 ## Strategy A — wp3의 확정 제안
 
+### H0 — Interview owner에 기존 의무를 먼저 보존
+
+감사에서 hook 축소 전에 owner 이전이 빠진 부분을 발견했다. `plugins/codexclaw/skills/interview/SKILL.md`의 `## Question quality (INTERVIEW-Q-01)` 앞에 아래 절을 추가한다. 기존 hook.ts:306–315의 의무를 옮기는 것이며 새 전역 방법론을 추가하지 않는다.
+
+```markdown
+## Classify the loop before Plan
+
+Before leaving Interview, identify whether the verifier defines done (specification
+or repair) or only better (open-ended optimization), and record the corresponding
+loop archetype. Ground the distinction in the repository and the user's outcome.
+For a load-bearing architecture or workflow choice, explain the concrete trade-offs
+before narrowing it; include a materially different approach when it helps expose
+an assumption. When evidence cannot settle a cheap, bounded comparison, offer a
+parallel spike and evidence-based selection. Do not invent irrelevant feature or
+technology choices that the project already settles.
+```
+
+이 skill 파일을 wp3 MODIFY 지도에 추가한다. H0를 적용한 뒤 H1의 중복 hook 문구를 제거한다. native Interview fixture 두 개를 사용한다: 고정된 회귀 테스트 수리 요청은 done을 정의하는 검증기로, 훅 비용·스킬 신뢰성 개선 요청은 better를 정의하는 비교기로 분류해야 한다. 실제 응답이 비교 기준과 적절한 대안을 설명하고 Plan/구현에 들어가지 않는지 독립적으로 확인한다. 문구 존재 검사로 대체하지 않는다.
+
 선제 본문 transport를 유지한 채 phase 안내를 owner pointer로 줄인다. 단, I의 state-grounding anchor와 Mind 전달, Windows attest recipe는 첫 축소에서 유지한다. pointer는 SKILL 본문이나 references를 hook이 대신 읽어서 붙인다는 뜻이 아니다.
 
 ### 변경 파일 지도: dependency order
