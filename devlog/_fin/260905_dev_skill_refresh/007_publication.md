@@ -25,3 +25,11 @@
 GNU checksum 로컬 재현으로 H2를 확인했다. backslash가 들어 있는 정상 fixture 경로에서 macOS 기본 checksum은 PASS, GNU coreutils로 바꾸면 같은 digest 앞에 backslash가 붙어 drift로 오판했다. 출력은 `6bcb01...47dce -> \6bcb01...47dce`였다. 파일과 version은 정상 선택돼 H1 경로 접근 실패가 아니며, script 파싱도 정상이라 H3도 이 재현의 원인이 아니다.
 
 해결: named-file checksum 출력에서 첫 단어를 파싱하지 않고, 파일을 stdin으로 공급해 filename escaping이 digest에 섞이지 않게 한다. sha256sum/shasum 두 경로에 같은 원칙을 적용했다. fixture 경로에 backslash를 넣어 POSIX의 GNU 도구에서도 회귀가 재현되게 했고 기대값/skip 조건은 유지했다. Windows 실제 결과는 최신 CI에서 확인한다.
+
+## PR review의 runtime consumer 보완
+
+자동 reviewer가 지적한 두 runtime 지침을 실제 source에서 확인했다. hook.ts의 AGBROWSE_SEARCH_DIRECTIVE가 예전 고정 ladder/blind start를 유지했고, idle-edit.ts가 C0/C1 모두 numbered record를 요구했다. 새 공통 정책을 주입 지침에도 적용한다. trigger·FSM·frequency·allow/deny 동작은 변경하지 않는다.
+
+계획: (1) 기존 hook activation/idle advisory 테스트에 새 payload 계약을 넣어 RED 확인, (2) 두 지침 문구만 변경, (3) 기존 compileSource로 해당 dist 두 개 재생성, (4) targeted tests/build freshness와 최신 PR CI 확인. 추가 test case 수는 늘리지 않으므로 total2277은 유지된다. 이는 prose 파일 단어 존재 검사가 아니라 실제 hook 입력을 호출해 반환된 payload와 상태 비변경을 확인하는 기존 테스트의 확장이다.
+
+두 지점의 RED를 확인한 뒤, source 문구와 generated dist를 맞췄다. hook.test.ts + idle-edit.test.ts는 79/79 PASS(0 skip). advisory의 allow envelope, 빈 입력/armed 상태의 무응답, frequency, trigger/dedup/phase 상태 검증은 그대로 통과했다.

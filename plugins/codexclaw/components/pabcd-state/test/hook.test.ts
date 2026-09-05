@@ -214,6 +214,11 @@ test("handleUserPromptSubmit: agbrowse request injects search directive without 
     assert.match(ctx, /cxc-search/);
     assert.match(ctx, /agbrowse fetch/);
     assert.match(ctx, /Never use plain `agbrowse search/);
+    assert.match(ctx, /dev\/references\/browser-routing\.md/);
+    assert.match(ctx, /optional/);
+    assert.match(ctx, /diagnosed CDP connection failure/);
+    assert.match(ctx, /task-owned/);
+    assert.doesNotMatch(ctx, /browser:control-in-app-browser|chrome:control-chrome|computer-use:computer-use/);
     const st = readState(cwd, "s1");
     assert.equal(st.orchestrationActive, false);
     assert.equal(st.lastInjectedPhase, null);
