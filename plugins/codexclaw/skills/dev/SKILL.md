@@ -1,6 +1,6 @@
 ---
 name: cxc-dev
-description: "MUST USE for every coding task — classifies work depth (C0-C5), defines modular limits, pre-write search, verification-before-completion, and safety rules. Always-on discipline (agent-followed, not hook-enforced) that routes to surface-specific dev-* routers by change surface. Also surfaces browse/QA native tool routing so the model uses agbrowse and Codex browser plugins instead of installing Playwright directly, and owns the stacked-pull-request rules (DEV-STACK-*) for splitting dependent work across a chain of reviewable PRs. Triggers: any code change, refactor, bug fix, feature, test, review, scaffolding, browse, browser, QA, stacked PR, stacked diff, PR stack, restack, 브라우저, 브라우즈, 페이지 열어, URL 확인, 화면 확인, 스크린샷, QA 확인, 플레이라이트, 스택 PR, PR 쪼개기."
+description: "MUST USE for coding, PR creation/review/merge, dependent branches, scaffolding, and QA. Classify C0-C5, preserve safety and fresh proof, and load the matching surface owner. Triggers: develop, fix, refactor, test, review, docs, browse, QA, stacked PR, 개발, 수정, 검토, 스택 PR."
 metadata:
   last-verified: "2026-07-02"
   short-description: "Universal dev discipline: work classifier, modular limits, verification gate, safety rules."
@@ -10,6 +10,8 @@ metadata:
 # Dev — Common Development Guidelines
 
 Core rules applied to every coding task, regardless of surface.
+
+User instructions and the actual host's safety/tool contracts take precedence over skill guidance. A diagnosis or review authorizes investigation, not fixes, installs, publishing, or account changes; a change request authorizes only its scoped implementation.
 
 ## §0.0 Work Classifier (C0-C5)
 
@@ -45,9 +47,10 @@ For **C0/C1 work** (bounded by "one file, no new abstractions, local behavior" �
 in-place edit is an example, not a limit):
 - Skip: §0.5 convention discovery, §1.5 pre-write search, reference file reading
 - Keep: §3 verification gate, §4 change documentation, §5 safety rules (imports/exports),
-  §7.2 static analysis. C0 patches (typo, config, one-line fix) are exempt from
-  numbered implementation-unit records. C1 patches record in the owning unit only
-  when a unit already exists (UNIT-RESIDENCE-01, `pabcd` Implementation-Unit Documents).
+  §7 type/static checks when applicable. C0 changes with zero behavior impact are exempt
+  from numbered implementation-unit records. C1 patches leave a short change/reason/proof
+  record only when an owning unit already exists; do not create a unit just for C0/C1.
+  Security, data-loss, or new-abstraction changes are not this fast path. This exception applies (UNIT-RESIDENCE-01, `pabcd` Implementation-Unit Documents).
 - Role skills: read only the `SKILL.md` routing table — skip references unless the table explicitly routes to one
 
 This is scope guidance, not an exemption. Conventions visible in the touched file still
@@ -60,8 +63,13 @@ relevant reference.
 
 ## §0.2 Rule Classes
 
-Every rule in the dev skill family carries one severity class. When a rule's class is not
-marked, treat prohibitions (⛔/MUST/NEVER) as STRICT and everything else as DEFAULT.
+Rule authority is based on purpose, not typography. Safety, correctness, permission
+boundaries, and truthful verification are mandatory. File-size thresholds, naming,
+module layout, implementation style, and aesthetic choices are DEFAULT or STYLE_SAMPLE,
+even when an older reference calls them MUST/NEVER or assigns HIGH severity. A documented
+project/user contract may make a particular constraint mandatory; cite that contract.
+Explicitly requested workflows retain their phase/evidence requirements. An unclassified
+rule is DEFAULT unless violating it has a concrete safety or correctness consequence.
 
 - **STRICT** — always applies; violating it blocks completion (safety, broken builds, secrets).
 - **DEFAULT** — apply unless a documented, stated reason says otherwise.
@@ -72,36 +80,18 @@ marked, treat prohibitions (⛔/MUST/NEVER) as STRICT and everything else as DEF
 
 ## §0.3 Methodology Overlays
 
-Methodologies are **conditional overlays, never universal**. They activate when the routing
-skill's description matches the work surface, when the user explicitly asks for the method,
-when repo convention requires it, or when a strict trigger applies — required evidence
-applies only when the strict trigger applies (low-risk/local work uses the smallest
-proof that validates the claim, with the reduced scope stated).
+For PR creation/review/merge or dependent work-phase delivery, read
+[stacked PRs](references/stacked-prs.md) (DEV-STACK-06/07), even without a DevOps
+trigger. Verify native membership and CI separately; a body map or parent base
+is not registration. Generic CSS/runtime stacks are not PR-stack signals.
 
-| Overlay | Loads | Strict trigger |
-|---------|-------|----------------|
-| `tdd` / `testing` | `dev-testing` | User/repo enforces TDD, or regression risk |
-| `bdd_acceptance` | `dev-testing`, `dev` | Ambiguous acceptance behavior |
-| `ddd` / `clean_arch` / `hexagonal` / `architecture` | `dev-architecture`, `dev-backend` | Real boundary pressure at C3/C4 |
-| `vertical_slice` | `dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing` | Thin end-to-end slice (C2) |
-| `adr_rfc` | `dev-architecture`, `dev-scaffolding` | Significant decision, domain vocabulary, or ADR source-of-truth work |
-| `review` / `code_review` | `dev-code-reviewer` | Review requested or C3/C4 |
-| `threat_model` / `security` | `dev-security` | C4 security/data/tooling risk |
-| `observability` / `observability_pipeline` | `dev-backend` (+`dev-data`, `dev-devops` for operational gates) | App instrumentation, production/runtime hooks, incident/release gates |
-| `logging` (CLI / scripts / libraries) | `dev` `references/logging.md` | What to emit and where; service instrumentation stays with `dev-backend` |
-| stacked pull requests (`DEV-STACK-*`) | `dev` `references/stacked-prs.md` | When to stack, cascade discipline, layer shape, review scope, bottom-up merge safety |
-| `debugging` / `debugging_rca` | `dev-debugging` | Repeated failure needs root cause |
-| `migration_backfill` | `dev-data`, `dev-backend`, `dev-testing` | Production or non-trivial data |
-| `product_discovery` (+`_ui`) | `dev` (+`dev-uiux-design`) | Ambiguous behavior/user value/metric/prototype intent |
-| `release_cd` | `dev-testing`, `dev-scaffolding`, `dev-devops` (+`dev-backend` for app hooks) | Release/CI/CD surface, rollback/smoke gates, app readiness hooks |
-| `devops` / `infra` / `deploy` | `dev-devops` | Container/K8s/IaC/deploy pipeline/SRE |
-| `mobile_native` | `dev-frontend` + `dev-uiux-design` + `dev-backend` (refs) | RN/Flutter/Swift/Kotlin native app |
-| `ml` / `ai` / `llm` / `rag` | `dev-backend` + `dev-data` + `dev-testing` (+`dev-devops`) | ML serving, RAG, pipeline, evaluation |
-| `frontend_ui` | `dev-frontend` + `dev-uiux-design` | UI/design intent or runnable prototype variant work |
-| `crud_fullstack` | `dev-backend`, `dev-frontend`, `dev-testing` | Full-stack slice with coupled UI + API verification |
-
-For C2 ordinary product slices, read `references/product/crud-product-development.md`
-only when building a conventional feature slice.
+Methodologies are conditional, not universal. For an explicit method, repo
+requirement, or a matching strict trigger, read
+[Methodology overlays](references/methodology-overlays.md).
+The surface table below remains mandatory before writing in that surface.
+C2 conventional product slices also select
+[CRUD product development](references/product/crud-product-development.md).
+Read selected references only; do not preload every overlay's owners.
 
 ## §0.4 Workflow Modes
 
@@ -133,11 +123,23 @@ precondition for writing code there. Skipping it is a STRICT violation (dev §0.
 same severity as a broken build. When a change spans multiple surfaces, read each
 matching router first.
 
+For required full-file reads, bound batches by both the nested read tool's output
+budget and the enclosing code-mode output budget. A truncated result is incomplete:
+read the missing portions before the governed action. A successful command exit
+does not prove that all instructions reached the model. Keep the C0/C1 scope
+exceptions; this is not a request to load every linked reference.
+
+If a selected file's output is truncated, re-read that file separately. Do not
+guess missing ranges from an elision marker. If it cannot fit one result, use
+numbered, contiguous, non-overlapping chunks through EOF and verify no gaps.
+Keep both nested and outer output budgets large enough for each returned chunk.
+
 | Change surface | Primary router | Also load |
 |---------------|----------------|-----------|
 | Backend / API / server | `dev-backend` | `dev-security` for auth/input |
 | Frontend / UI / web | `dev-frontend` | `dev-uiux-design` for vague/open visual direction, UX-state meaning, IA, brand, concept gen |
-| Database / schema / data | `dev-data` | `dev-backend` for migrations |
+| App database / OLTP / transactional schema | `dev-backend` | `dev-security` for access; `dev-testing` for migrations |
+| Analytics / ETL / data quality / analytical backfills | `dev-data` | `dev-backend` for API integration |
 | Tests / QA | `dev-testing` | `dev-frontend` for browser QA |
 | Security / auth / secrets | `dev-security` | surface-specific router |
 | Architecture / modules / deps | `dev-architecture` | `dev-scaffolding` for new structure |
@@ -157,28 +159,23 @@ Surface-to-owner mappings live in `references/skill-ownership.md`; router trigge
 metadata remains canonical in each skill's `agents/openai.yaml`.
 
 ### Capability Routing Hub
+
+**Independent peers:** for substantive work, consider whether another existing
+task owns a relevant decision, dependency, or finding. When that can affect either
+task, read [peer collaboration](references/peer-collaboration.md): discover and
+read selectively, consult or notify only for a concrete reason, and preserve each
+task's user authority. No mandatory lookup for trivial work or per-turn polling.
 Use `dev` plus repo tools for local facts; load `search`, `pabcd`, `loop`, `recall`,
 `cxc-qa`, or the matching `dev-*` owner for their named domains. `skill-hub` is deprecated.
 
 ### Browse / QA Tool Routing
 
-**STRICT (DEV-BROWSE-NATIVE-01): for ad-hoc browse and exploratory QA tasks (브라우저
-열기, 페이지 확인, URL 검증, 화면 QA, 스크린샷), do NOT install Playwright, puppeteer,
-or browser drivers.** Use `tool_search` for the native browser tools first — they are
-stable and enabled by default (`structure/60_native_capabilities.md` §3). Intentional
-Playwright E2E test suites (플레이라이트 E2E 테스트 스위트) are `dev-testing` §4's
-domain and not covered by this rule.
-
-Two scoped ladders exist — the ordering is intentional, not contradictory:
-
-| Context | Ladder | Order (start at 1; state why when skipping) | Owner |
-|---------|--------|----------------------------------------------|-------|
-| Public-web proof (search, research, URL verification) | SEARCH-BROWSE-01 | 1. `agbrowse` (scripted HTTP/CDP) → 2. `browser:control-in-app-browser` → 3. `chrome:control-chrome` → 4. `computer-use:computer-use` | `cxc-search` Tier 2 |
-| QA of agent-built/served surfaces | QA-TOOL-LADDER-01 | 1. `browser:control-in-app-browser` → 2. `chrome:control-chrome` → 3. `computer-use:computer-use` → 4. `agbrowse` (public-URL shape checks only) | `dev-testing` §4.6 |
-
-> **agbrowse 실패 시:** agbrowse 명령이 실패하면(connection refused, no browser 등) `agbrowse start`부터 실행한 뒤 재시도할 것.
-
-Full ladder protocols and rationale live in their owners above.
+Canonical selection policy: [Portable browser routing](references/browser-routing.md).
+Use it for public proof, authenticated research, parallel extraction, and local UI QA.
+Aside is preferred when suitable and available; agbrowse is recommended, not required.
+No optional browser, CLI, account, or native plugin is assumed installed on every host.
+Do not install a new driver/runner merely because a request says Playwright; use the
+available capability. Explicit project-owned E2E work remains `dev-testing`'s domain.
 
 ### Skill Ownership Map
 Canonical rule ownership and stub locations live in `references/skill-ownership.md`.
@@ -240,117 +237,26 @@ flag risk, recommend one, and confirm once; skip clarification when intent is cl
 
 ## 0.5 Repository Convention Discovery
 
-Before broad changes, inspect source layout, source-of-truth docs, agent instructions,
-toolchain config, and sibling naming/test/module patterns. Devlogs use decade-range
-numbering, never bare `PLAN.md`/`PHASES.md`/`RCA.md` (LEXICO-SPLIT-01; see `pabcd`).
-
-Discover conventions in order: repo instructions/SoT docs → toolchain/config → owning
-module → direct callers → 2-3 sibling examples.
-
-MUST follow existing conventions when they are clear.
-MUST read existing source-of-truth docs before broad implementation.
-MUST NOT create docs folders, instruction files, or new tooling silently in an existing repo.
-
-If the repo is immature, undocumented, or inconsistent, propose a lightweight source-of-truth structure and ask for approval before creating it.
-
-### Broad Change Preview
-
-For directory changes, 5+ files, cross-surface work, new modules/services, or new
-project docs, preview current signals, a compact tree (max ~40 lines), planned
-touch points, and whether existing conventions are reused or need approval.
-
----
+C2+ implementation first reads
+[Development practice](references/development-practice.md): repository conventions,
+modular limits, necessity and owner search, read-before-edit, and friction rules.
+The C0/C1 fast-path in §0.1 applies. Read the source and direct callers before
+proposing a change; do not invent new structure without the required approval.
 
 ## 1. Modular Development
 
-Give every file, function, and class a single, clear responsibility.
-
-**Hard limits (DEFAULT — exceed only with a stated reason):**
-
-| Metric | Threshold | Action |
-| ------ | --------- | ------ |
-| File length | >400 lines | Split into focused modules (canonical owner: `dev-architecture` §1) |
-| Function length | >50 lines | Extract helper functions |
-| Class methods | >20 methods | Split by responsibility |
-| Nesting depth | >4 levels | Flatten with early returns or extraction |
-| Function parameters | >5 | Use an options/config object |
-| PR changeset | >500 lines | Split into focused PRs |
-
-### Blast Radius Limits
-
-Each PR/changeset MUST be scoped to one logical change. Opportunistic rewrites, unrelated cleanup, and drive-by refactors go in separate PRs.
-
-| Change Scope | Max Blast Radius | Exceeds → |
-|---|---|---|
-| Single bug fix | 1–3 files | Split fix from cleanup |
-| Feature addition | 1 module/package | Separate infra from feature |
-| Refactoring | Pre-approved scope only | Get scope approval first |
-| Dependency upgrade | Isolated PR | Never bundle with features |
-
-**Rules:**
-- Use ES Module (`import`/`export`) in JS/TS projects — CommonJS `require()` breaks tree-shaking and static analysis.
-- One default export per file when the file has a primary purpose (JS/TS convention; other languages follow their idioms).
-- Follow existing naming conventions in the project. Check sibling files before creating new ones.
-- New files must match the directory structure and naming patterns already in use.
-- Devlog phase documents use decade-range numbering (LEXICO-SPLIT-01, `pabcd` Implementation-Unit Documents). Never use bare filenames like `PLAN.md`, `PHASES.md`, or `RCA.md`.
-
----
+Canonical details remain in [Development practice](references/development-practice.md).
 
 ## 1.5 Necessity Gate & Pre-Write Search Obligation
 
-**DEV-NECESSITY-01 (DEFAULT — ponytail discipline, verified 2026-07-02):** before writing
-ANY code, check the no-code options in order — do nothing / delete / configure / reuse —
-and state which you rejected and why. Frame tasks exclusions-first (what NOT to add)
-before the goal. Never lazy about STRICT domains: trust boundaries, data loss, security,
-accessibility.
-
-**Rule:** Before creating a new function, helper, type, component, constant, route, fixture, or module, search the codebase for an existing owner or equivalent implementation. No new abstraction may be introduced without search evidence. This section does not apply on the §0.1 fast path (C0/C1 — no new abstractions are being created).
-
-**Structure map first (DEFAULT — DEV-MAP-FIRST-01):** for C2+ work in unfamiliar territory,
-run `cxc map <dir>` (repo-map skill, tree-sitter + PageRank overview) before deep `rg`
-dives; then use `rg`/ast-grep to confirm the narrowed targets. Guidance, not hook-enforced.
-
-**Read before editing (DEV-READ-FIRST-01).** Beyond new-abstraction creation, any C2+ edit to
-existing code reads the target file (and its direct caller/consumer when the change crosses a
-boundary) before writing. Do not propose or apply a change to code you have not read. The §0.1
-fast path still applies to C0/C1.
-
-| Artifact being created | Required searches | Preferred outcome |
-|---|---|---|
-| Function/helper | Exact name, verb phrase, domain noun | Extend existing helper or add next to owner |
-| Type/interface/schema | Exact type name and shape fields | Reuse or extend existing contract |
-| Component | UI label, route, component name, feature folder | Modify owning component |
-| Constant/magic string | Literal value and semantic name | Move to existing constants/contract module |
-| Test fixture/factory | Fixture factory and existing test data | Extend shared fixture factory |
-| Route/API client | Endpoint path, handler name, client wrapper | Update both server and client owner |
-| Config/env flag | Env var prefix and config module | Add to central config owner |
-
-**Banned patterns:**
-- Creating `utils.ts`, `helpers.ts`, or `common.ts` without owner search
-- Duplicating a type because import path was not obvious
-- Creating parallel API clients for the same endpoint
-- "I could not find it" without showing search terms
-
-**Search evidence required:** When code is changed, include terms searched, files inspected, reuse decision, and new-code justification in the final response.
-
----
+Before any new abstraction, apply DEV-NECESSITY-01 and owner search in
+[Development practice](references/development-practice.md).
 
 ## 2. Systematic Debugging
 
-Root-cause method, instrumentation, hypothesis testing, emergency stop triggers,
-and postmortems are canonical in `dev-debugging/SKILL.md`. Reproduce and isolate
-before editing for any non-obvious defect. Load `dev-debugging` for runtime failures,
-unclear causality, or after 2 failed repair attempts.
-
-**Repeated-friction rule (DEV-FRICTION-01, DEFAULT).** When the same shell command
-class fails twice with the same normalized error, do not retry a third time
-unchanged: switch approach (different tool, different flags, or root-cause the
-environment). Repeated identical failures are friction evidence, not bad luck.
-
-**Repeated-edit-shape rule (DEV-EDIT-SHAPE-01, DEFAULT).** Three same-shaped edits
-in a row (same structural transform on different sites) mean you are hand-running
-a codemod: stop and switch to `$cxc-ast-grep` (or a scripted rewrite) so the
-remaining sites are transformed deterministically.
+For non-obvious defects or repeated failed repairs load cxc-dev-debugging.
+DEV-FRICTION-01 and DEV-EDIT-SHAPE-01 remain in
+[Development practice](references/development-practice.md).
 
 ---
 
@@ -380,7 +286,7 @@ minimum *scope* scales with the work class (§0.0). This is the floor, not a cap
 
 | Class | Minimum verification |
 | ----- | -------------------- |
-| C0/C1 | Smallest proof for the change (build/type-check or the one relevant test) |
+| C0/C1 | Smallest relevant proof: text consistency for C0; focused test/checker for C1, or an observed repro with stated limits when automation does not fit |
 | C2 | Focused integration/contract test for the touched slice + targeted build/typecheck + UI smoke if UI changed (CRUD per-operation negatives: see `dev-testing` references/core/crud-test-matrix.md) |
 | C3 | Affected suites + docs/contract consistency when a public contract changed |
 | C4 | Full relevant gates + negative cases + durable evidence record |
@@ -390,15 +296,16 @@ minimum *scope* scales with the work class (§0.0). This is the floor, not a cap
 ---
 
 ## 4. Change Documentation
-When a worklog or changelog is provided, add one factual entry per changed file:
-`### [filename] — [reason]`, then `Changes`, `Impact`, and `Verification`
-(command + result). Keep entries concise.
+For C2+ work with a supplied log, add a concise factual change/reason/verification entry.
+C0/C1 automatic record duties follow §0.1; merely finding a devlog or changelog does
+not reinstate them. An explicit user request or a documented release-record contract
+still governs its named log. Do not create an unrelated record to satisfy this section.
 
 ---
 
 ## 5. Safety Rules
 
-- **Preserve existing exports** — other modules may depend on them. Deprecate first if removal is needed.
+- **Preserve public contracts** — trace external consumers before removing exports. Internal unused exports may be removed within scope after consumer search; public removals need a compatibility/migration decision.
 - **Verify imports exist** before adding `import` statements. Confirm the target file and export are real.
 - **Externalize configuration** — use config files or environment variables. Place magic strings and numbers in named constants.
 - **Handle all async errors explicitly** — surface failures at a clear boundary. In JS/TS backend code, the Result pattern (`neverthrow`) may replace per-call `try/catch` when failures are surfaced at a verified boundary (see `dev-backend/SKILL.md` §3). In other cases, use `try/catch` and log with context (`console.error('[module]', error.message)`).

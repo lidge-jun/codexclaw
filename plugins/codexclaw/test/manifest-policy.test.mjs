@@ -117,16 +117,54 @@ test("L18: search skill is a codex-native 3-tier on-demand hub with Korean guard
 
 });
 
-test("L19: dev/SKILL.md points at a skill-catalog reference that actually exists", () => {
-  // TEST-PROMPT-SEAM-01: extract the referenced path from dev/SKILL.md and resolve it on
-  // disk — two sources compared. The catalog's source-priority wording and the discovery
-  // command names are prose with no second source; they are protected by review instead.
+test("selected router references resolve to real owner files", () => {
   const skillsDir = join(pluginRoot, "skills");
-  const devSkill = readFileSync(join(skillsDir, "dev", "SKILL.md"), "utf8");
-  const ref = /references\/([\w.-]+\.md)/.exec(devSkill);
-  assert.ok(ref, "dev/SKILL.md references no file under references/");
-  assert.ok(
-    existsSync(join(skillsDir, "dev", "references", ref[1])),
-    `dev/SKILL.md points at references/${ref[1]} but that file does not exist`,
-  );
+  const routes = {
+    dev: [
+      "references/methodology-overlays.md",
+      "references/development-practice.md",
+      "references/product/crud-product-development.md",
+    ],
+    pabcd: [
+      "references/phase-control.md",
+      "references/phase-plan.md",
+      "references/plan-output.md",
+      "references/phase-audit.md",
+      "references/phase-check.md",
+      "references/implementation-units.md",
+      "references/optimization.md",
+      "references/loop-engineering.md",
+      "references/delegation.md",
+    ],
+    loop: [
+      "../dev/SKILL.md",
+      "../pabcd/SKILL.md",
+      "references/runtime-lifecycle.md",
+      "references/durable-goalplan.md",
+      "references/waiting.md",
+      "../pabcd/references/implementation-units.md",
+      "../pabcd/references/loop-engineering.md",
+      "../pabcd/references/optimization.md",
+      "references/divergence-tiers.md",
+      "../pabcd/references/delegation.md",
+    ],
+  };
+  for (const [folder, refs] of Object.entries(routes)) {
+    const md = readFileSync(join(skillsDir, folder, "SKILL.md"), "utf8");
+    for (const ref of refs) {
+      assert.ok(md.includes("](" + ref + ")"), folder + " missing route " + ref);
+      const target = resolve(skillsDir, folder, ref);
+      assert.ok(existsSync(target), folder + " missing target " + ref);
+      assert.ok(readFileSync(target, "utf8").trim().length > 0, "empty " + target);
+    }
+  }
+  const dev = readFileSync(join(skillsDir, "dev", "SKILL.md"), "utf8");
+  const delegation = readFileSync(join(skillsDir, "pabcd", "references", "delegation.md"), "utf8");
+  const waitRef = "../../loop/references/waiting.md";
+  assert.ok(delegation.includes("](" + waitRef + ")"), "delegation missing mode-neutral wait route");
+  const waitTarget = resolve(skillsDir, "pabcd", "references", waitRef);
+  assert.ok(existsSync(waitTarget), "delegation missing wait target");
+  assert.ok(readFileSync(waitTarget, "utf8").trim().length > 0, "empty wait target");
+  assert.ok(dev.includes("references/skill-catalog.md"));
+  assert.ok(existsSync(join(skillsDir, "dev", "references", "skill-catalog.md")));
 });

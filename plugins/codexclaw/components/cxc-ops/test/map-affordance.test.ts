@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 // Pin the cxc-resolve seam (B1): these tests assert literal `cxc ...` command
 // mentions, which would otherwise depend on whether the runner's PATH has cxc.
 process.env.CODEXCLAW_CXC = "cxc";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -28,6 +28,7 @@ import {
   renderSessionBinding,
   renderSkillSearchAffordance,
   runMapAffordanceSessionStart,
+  runPostCompactAffordance,
   MAP_AFFORDANCE_MIN_FILES,
   resolveCxcCommands,
 } from "../src/map-affordance.ts";
@@ -106,17 +107,76 @@ test("kwrite affordance: always on, genre-free pointer to $cxc-kwrite", () => {
   assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /cxc-kwrite/);
 });
 
-test("ORCH-ARM-VISIBILITY-01: loop-contract line rides every SessionStart envelope", () => {
+test("critical loop and stack guidance survives SessionStart and PostCompact without intent triggers", () => {
   const text = renderLoopAffordance();
   assert.match(text, /Loop contract:/);
   assert.match(text, /cxc orchestrate status/);
   assert.match(text, /one full PABCD cycle/i);
   assert.match(text, /cxc-loop/);
+  assert.match(text, /Bare cxc-loop means scoped HOTL/);
+  assert.match(text, /Exact user limits and separately allowed actions/);
+  assert.match(text, /No extra external permissions/);
   assert.ok(text.length < 600, "affordance must stay a one-liner-ish pointer");
   // rides every SessionStart envelope regardless of repo size
   const small = tmp();
   const out = runMapAffordanceSessionStart("", small);
   assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /Loop contract:/);
+  assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /Bare cxc-loop means scoped HOTL/);
+  assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /Exact user limits and separately allowed actions/);
+  assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /No extra external permissions/);
+});
+
+test("wp3: SessionStart and PostCompact both emit the same scoped loop pointer", () => {
+  const cwd = tmp();
+  try {
+    const outputs = [
+      ["SessionStart", runMapAffordanceSessionStart(JSON.stringify({ cwd, session_id: "wp3-child" }), cwd)],
+      ["PostCompact", runPostCompactAffordance()],
+    ] as const;
+    for (const [event, out] of outputs) {
+      const envelope = JSON.parse(out).hookSpecificOutput;
+      assert.equal(envelope.hookEventName, event);
+      const ctx = envelope.additionalContext as string;
+      const pointer = ctx.split("\n\n").find(line => line.startsWith("[codexclaw] Loop contract:"));
+      assert.ok(pointer);
+      assert.match(pointer, /Bare cxc-loop means scoped HOTL; a mention alone grants no authority/);
+      assert.match(pointer, /Exact user limits and separately allowed actions scope this pointer and its owners/);
+      assert.match(pointer, /No-delegation means no dispatch/);
+      assert.match(pointer, /Read-only inspection remains allowed under no-goal\/no-FSM/);
+      assert.match(pointer, /No-tests does not forbid an explicitly allowed build/);
+      assert.match(pointer, /One work-phase = one full PABCD cycle/);
+      assert.match(pointer, /No extra external permissions/);
+      assert.ok(pointer.length < 600);
+      if (event === "SessionStart") {
+        assert.match(ctx, /This session's id is `wp3-child`/);
+        assert.match(ctx, /--session wp3-child/);
+        assert.match(ctx, /MOST RECENT SessionStart binding line/);
+      } else assert.doesNotMatch(ctx, /This session's id/);
+    }
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("wp3: SessionStart preserves the complete binding literal for each session", () => {
+  for (const id of ["parent-session", "child-session"]) {
+    const expected = [
+      `[codexclaw] This session's id is \`${id}\`. Every mutating`,
+      "`cxc orchestrate` command (I/P/A/B/C/D/reset) MUST pass",
+      `\`--session ${id}\` — the implicit latest-session fallback is`,
+      "disabled for writes, which prevents ACCIDENTAL implicit-fallback",
+      "collisions between concurrent/forked sessions.",
+      "IDENTITY RULE: use the MOST RECENT SessionStart binding line in your",
+      "current context as the only source of your session id — older binding",
+      "lines or other ids in transcript/history belong to prior/parent sessions;",
+      "never pass those to a mutating command.",
+    ].join(" ");
+    const cwd = tmp();
+    try {
+      const out = runMapAffordanceSessionStart(JSON.stringify({ cwd, session_id: id }), cwd);
+      const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
+      assert.equal(renderSessionBinding(id), expected);
+      assert.equal(ctx.split("\n\n")[0], expected);
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  }
 });
 
 test("G3: session-id binding line rides the SessionStart envelope", () => {
@@ -157,9 +217,33 @@ test("cwd is read from the stdin payload; malformed stdin falls back safely", ()
   // malformed stdin -> uses fallback cwd (the big repo) -> still fires, no throw
   const viaFallback = runMapAffordanceSessionStart("{not json", big);
   assert.match(JSON.parse(viaFallback).hookSpecificOutput.additionalContext, /cxc map/);
+  assert.match(JSON.parse(viaFallback).hookSpecificOutput.additionalContext, /DEV-STACK-06\/07/);
   // empty stdin + small fallback -> no map line, skill line still present, no throw
   const smallOut = runMapAffordanceSessionStart("", empty);
   assert.doesNotMatch(JSON.parse(smallOut).hookSpecificOutput.additionalContext, /cxc map/);
+});
+
+test("stack guidance survives SessionStart and PostCompact without a DevOps trigger", () => {
+  const cwd = tmp();
+  try {
+    const out = runMapAffordanceSessionStart(JSON.stringify({ cwd }), cwd);
+    for (const [event, raw] of [["SessionStart", out], ["PostCompact", runPostCompactAffordance()]]) {
+      const envelope = JSON.parse(raw);
+      assert.equal(envelope.hookSpecificOutput.hookEventName, event);
+      const ctx = envelope.hookSpecificOutput.additionalContext;
+      const stackLine = ctx.split("\n").find((line: string) => line.includes("DEV-STACK-06/07"));
+      assert.ok(stackLine, `${event} must expose stack guidance even in an empty non-Git repo`);
+      assert.match(stackLine, /cxc-dev.*references\/stacked-prs\.md/);
+      assert.match(stackLine, /even without a DevOps trigger/);
+      assert.match(stackLine, /not native stack registration/);
+      assert.match(stackLine, /Per-PR CI is expected/);
+      assert.match(stackLine, /Publish GitHub stacks natively; verify registration/);
+      assert.match(stackLine, /not authorization/);
+      assert.ok(stackLine.length < 600, "global guidance must remain a bounded pointer");
+      assert.deepEqual(Object.keys(envelope), ["hookSpecificOutput"]);
+      assert.deepEqual(Object.keys(envelope.hookSpecificOutput).sort(), ["additionalContext", "hookEventName"]);
+    }
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
 test("hook JSON wires SessionStart to the cxc-ops dist entry", () => {
@@ -216,4 +300,10 @@ test("direct-exec guard fires through a symlinked install path (plugin-cache reg
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
   assert.match(res.stdout, /additionalContext/, "symlink invocation must emit the envelope");
   assert.match(res.stdout, /cxc map/, "envelope must carry the map pointer");
+  assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /DEV-STACK-06\/07/);
+  const compact = spawnSync(process.execPath, [link, "hook", "post-compact"], { encoding: "utf8" });
+  assert.equal(compact.status, 0, compact.stderr);
+  const compactEnvelope = JSON.parse(compact.stdout).hookSpecificOutput;
+  assert.equal(compactEnvelope.hookEventName, "PostCompact");
+  assert.match(compactEnvelope.additionalContext, /DEV-STACK-06\/07/);
 });

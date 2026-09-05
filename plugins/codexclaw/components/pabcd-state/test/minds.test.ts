@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import {
   MINDS,
   MIND_ROLE_PROMPTS,
@@ -26,16 +27,16 @@ test("L9.3: dispatch directive states main owns loop + hook is injector-only + .
   assert.match(MIND_DISPATCH_DIRECTIVE, /if you are yourself a subagent/i); // T7
 });
 
-test("MIND-SPAWN-SHAPE-01: dispatch directive carries the spawn shape + effort routing contract", () => {
-  // Non-full-history fork is what keeps model/effort overrides + role-config injection legal.
-  assert.match(MIND_DISPATCH_DIRECTIVE, /fork_turns:"none"/);
-  assert.match(MIND_DISPATCH_DIRECTIVE, /agent_type/);
-  assert.match(MIND_DISPATCH_DIRECTIVE, /task_name mind_/);
-  assert.match(MIND_DISPATCH_DIRECTIVE, /full-history fork rejects model\/effort overrides/i);
-  // Effort routing rides the explorer role config; explicit pinning is the offered path.
-  assert.match(MIND_DISPATCH_DIRECTIVE, /explorer role config/i);
-  assert.match(MIND_DISPATCH_DIRECTIVE, /cxc subagents set explorer --effort/);
-  // Minds are stateless — the dispatcher packs the interview snapshot.
+test("MIND-SPAWN-SHAPE-01: runtime pointer preserves scope and resolves the schema-dependent owner", () => {
+  assert.match(MIND_DISPATCH_DIRECTIVE, /only when Mind dispatch is authorized/);
+  assert.match(MIND_DISPATCH_DIRECTIVE, /Use the live tool schema; never invent unsupported arguments/);
+  assert.match(MIND_DISPATCH_DIRECTIVE, /read-only explorer intent/);
+  assert.match(MIND_DISPATCH_DIRECTIVE, /mind_<mindname> labels/);
+  assert.match(MIND_DISPATCH_DIRECTIVE, /NON-full-history tasks and explicit user settings/);
+  const reference = MIND_DISPATCH_DIRECTIVE.match(/references\/[\w/-]+\.md/)?.[0];
+  assert.equal(reference, "references/mind-dispatch.md");
+  assert.ok(existsSync(new URL(`../../../skills/interview/${reference}`, import.meta.url)));
+  // Runtime routing/packaging proof only; native N22 proves actual schema use.
   assert.match(MIND_DISPATCH_DIRECTIVE, /interview snapshot/i);
 });
 

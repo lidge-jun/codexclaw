@@ -177,12 +177,25 @@ export function renderSessionBinding(sessionId        )         {
  */
 export function renderLoopAffordance()         {
   return resolveCxcCommands([
-    "[codexclaw] Loop contract: a multi-cycle/PABCD/루프 request is INVALID without",
-    "the persisted FSM — run `cxc orchestrate status --session <your id>` first,",
-    "then enter P and advance each edge with --attest. One work-phase = one full",
-    "PABCD cycle; never implement two plan pages in one B. Load",
-    "$codexclaw:cxc-loop + $codexclaw:cxc-pabcd for the full discipline.",
+    "[codexclaw] Loop contract: for actual loop work load $codexclaw:cxc-loop + $codexclaw:cxc-pabcd.",
+    "Bare cxc-loop means scoped HOTL; a mention alone grants no authority.",
+    "Exact user limits and separately allowed actions scope this pointer and its owners. No-delegation means no dispatch.",
+    "Read-only inspection remains allowed under no-goal/no-FSM; for actual loop work inspect `cxc orchestrate status --session <your id>` first.",
+    "No-tests does not forbid an explicitly allowed build. One work-phase = one full PABCD cycle.",
+    "No extra external permissions; do not bypass guards or invent evidence.",
   ].join(" "));
+}
+
+/** Global discovery only; the agent verifies membership and CI on demand. */
+export function renderStackedPrAffordance()         {
+  return [
+    "[codexclaw] For PR creation/review/merge or dependent branches (stacked PR/스택 PR),",
+    "read $codexclaw:cxc-dev references/stacked-prs.md (DEV-STACK-06/07), even without",
+    "a DevOps trigger. A parent base or Can Stack banner is not native stack registration;",
+    "verify GitHub membership and CI separately. Per-PR CI is expected, not proof of a broken stack.",
+    "Publish GitHub stacks natively; verify registration before claiming delivery.",
+    "This is guidance, not authorization to register, restack, cancel CI, or merge.",
+  ].join(" ");
 }
 
 /**
@@ -214,6 +227,7 @@ export function runPostCompactAffordance()         {
   const lines           = [];
   lines.push(renderBackgroundTerminalAffordance());
   lines.push(renderLoopAffordance());
+  lines.push(renderStackedPrAffordance());
   const envelope = {
     hookSpecificOutput: {
       hookEventName: "PostCompact",
@@ -256,6 +270,7 @@ export function runMapAffordanceSessionStart(stdin        , fallbackCwd        )
   lines.push(renderSkillSearchAffordance());
   lines.push(renderKwriteAffordance());
   lines.push(renderLoopAffordance());
+  lines.push(renderStackedPrAffordance());
   lines.push(renderBackgroundTerminalAffordance());
   // Fresh-install coverage for STATIC surfaces (SKILL.md files are deliberately
   // NOT rewritten): when `cxc` is not runnable as-is, ONE banner line names the

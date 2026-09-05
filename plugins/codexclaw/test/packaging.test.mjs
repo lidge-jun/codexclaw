@@ -6,6 +6,8 @@
  * repo IS the install artifact. `.gitignore` ignores dist wholesale and runtime files are
  * force-added; this test fails if any dist file transitively loaded by a runtime
  * entrypoint is NOT git-tracked (i.e. would be missing from a fresh clone).
+ * All compiler outputs must also be tracked: release archives contain the full
+ * post-build directory, including modules outside the current runtime graph.
  *
  * Entrypoint roots (Aquinas A-gate, 2026-06-30): every dist file Codex executes directly.
  *  - the 5 component cli.js entries (bin/codexclaw.mjs spawns these; hooks invoke pabcd-state
@@ -18,9 +20,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { COMPONENTS, listTsFiles } from "../scripts/build.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = resolve(here, "..");
@@ -78,14 +82,38 @@ function isTracked(absPath) {
   }
 }
 
-test("L19: every runtime entrypoint dist file exists", () => {
+test("L19: runtime entrypoints and matching project/payload licensing artifacts exist", () => {
   for (const ep of ENTRYPOINTS) {
     assert.ok(existsSync(ep), `missing runtime entrypoint: ${relative(repoRoot, ep)}`);
   }
+  const project = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
+  const lock = JSON.parse(readFileSync(join(repoRoot, "package-lock.json"), "utf8"));
+  const manifest = JSON.parse(readFileSync(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"));
+  assert.equal(project.license, "MIT");
+  assert.equal(manifest.license, project.license);
+  assert.equal(lock.packages[""].license, project.license);
+  for (const file of ["LICENSE", "NOTICE.md"]) {
+    const rootCopy = readFileSync(join(repoRoot, file), "utf8");
+    const payloadCopy = readFileSync(join(pluginRoot, file), "utf8");
+    assert.equal(payloadCopy, rootCopy, `${file} must survive the payload-only install boundary`);
+  }
+  assert.match(readFileSync(join(repoRoot, "LICENSE"), "utf8"), /^MIT License/);
+  assert.match(readFileSync(join(pluginRoot, "NOTICE.md"), "utf8"), /SPDX-License-Identifier: MIT/);
+  const upstreamLicense = readFileSync(join(pluginRoot, "skills", "ast-grep", "LICENSE"), "utf8");
+  assert.match(upstreamLicense, /^MIT License/);
+  assert.match(upstreamLicense, /Copyright \(c\) 2026 Yeongyu Kim/);
+  // Immutable upstream grant from LazyCodex db0f80f0, skills/ast-grep/LICENSE.
+  assert.equal(createHash("sha256").update(upstreamLicense.replace(/\r\n/g, "\n")).digest("hex"),
+    "b083425948376611de9b92b0aeb7377e604505756ea427e541a34d9b030d4dc1");
+  const projectTerms = readFileSync(join(repoRoot, "LICENSE"), "utf8").split("\n").slice(4).join("\n");
+  assert.equal(upstreamLicense.split("\n").slice(4).join("\n"), projectTerms, "both MIT permission notices must retain the full terms");
 });
 
-test("L19: every dist file reachable from a runtime entrypoint is git-tracked (ships on clone)", () => {
+test("L19: runtime closure and payload license notices are git-tracked (ship on clone)", () => {
   const graph = resolveRuntimeGraph(ENTRYPOINTS);
+  graph.add(join(pluginRoot, "LICENSE"));
+  graph.add(join(pluginRoot, "NOTICE.md"));
+  graph.add(join(pluginRoot, "skills", "ast-grep", "LICENSE"));
   const untracked = [...graph].filter((f) => !isTracked(f)).map((f) => relative(repoRoot, f)).sort();
   assert.deepEqual(untracked, [], `untracked runtime dist files (would be missing from a fresh clone):\n${untracked.join("\n")}`);
 });
@@ -96,4 +124,21 @@ test("L19: the runtime graph reaches the known transitive modules (walker sanity
   assert.ok(graph.has("components/pabcd-state/dist/hook.js"), "hook.js must be in the runtime graph");
   assert.ok(graph.has("components/pabcd-state/dist/interview-ledger.js"), "interview-ledger.js must be reached");
   assert.ok(graph.has("components/pabcd-state/dist/orchestrate-cli.js"), "orchestrate-cli.js must be reached");
+});
+
+test("L19: every compiler output is git-tracked for archive/marketplace parity", () => {
+  const tracked = new Set(execFileSync("git", ["ls-files", "-z", "--", "plugins/codexclaw/components"], {
+    cwd: repoRoot, encoding: "utf8", timeout: 10000,
+  }).split("\0"));
+  const missing = [];
+  for (const component of COMPONENTS) {
+    const src = join(pluginRoot, "components", component, "src");
+    const dist = join(pluginRoot, "components", component, "dist");
+    for (const file of listTsFiles(src)) {
+      const output = join(dist, relative(src, file).replace(/\.ts$/, ".js"));
+      const path = relative(repoRoot, output).split(sep).join("/");
+      if (!tracked.has(path)) missing.push(path);
+    }
+  }
+  assert.deepEqual(missing.sort(), [], `compiler outputs absent from Git installations:\n${missing.sort().join("\n")}`);
 });

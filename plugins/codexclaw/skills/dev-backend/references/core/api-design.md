@@ -19,7 +19,9 @@ Synthesized from dev-backend + senior-backend (alirezarezvani) + mrgoonie backen
 
 ## Consistent Response Envelope
 
-Every endpoint MUST use the same envelope:
+For APIs that choose a shared envelope, use it consistently within that contract.
+Preserve existing contracts and protocol-native GraphQL/gRPC/SSE responses; do not
+wrap them in this REST sample. Responses such as HTTP 204 have no JSON body.
 
 ```json
 // Success

@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -22,8 +22,8 @@ import {
   parseQuestions,
   parseAnswers,
 } from "../src/interview-ledger.ts";
-import { handlePostToolUse, RESCAN_REINJECT_DIRECTIVE, type PostToolUsePayload } from "../src/hook.ts";
-import { defaultState, writeState } from "../src/state.ts";
+import { handlePostToolUse, handleUserPromptSubmit, RESCAN_REINJECT_DIRECTIVE, type PostToolUsePayload } from "../src/hook.ts";
+import { defaultState, readState, writeState } from "../src/state.ts";
 
 function tmp() {
   return mkdtempSync(join(tmpdir(), "cxc-iledger-"));
@@ -285,4 +285,46 @@ test("handlePostToolUse L18: goal active or unreadable => capture only, no reinj
     assert.equal(handlePostToolUse(base, { goalStatus: () => status }), "");
     assert.equal(readQaEvents(cwd, "s").length, 4, `capture must still run when goal is ${status}`);
   }
+});
+
+test("wp3: post-answer scope is independent, capture dedups and no readiness is invented", () => {
+  const cwd = tmp();
+  try {
+    // Enter through the real explicit command path, not a natural hint.
+    handleUserPromptSubmit({ hook_event_name: "UserPromptSubmit", cwd, session_id: "wp3-answer",
+      prompt: "orchestrate I", turn_id: "entry", transcript_path: null });
+    const before = readState(cwd, "wp3-answer");
+    assert.equal(before.phase, "I");
+    const payload: PostToolUsePayload = {
+      hook_event_name: "PostToolUse", session_id: "wp3-answer", cwd,
+      tool_name: "request_user_input", tool_input: TOOL_INPUT,
+      tool_response: TOOL_RESPONSE, turn_id: "answer1",
+    };
+    const output = handlePostToolUse(payload, { goalStatus: () => "inactive" });
+    const envelope = JSON.parse(output).hookSpecificOutput;
+    assert.equal(envelope.hookEventName, "PostToolUse");
+    const ctx = envelope.additionalContext as string;
+    assert.match(ctx, /^\[codexclaw: INTERVIEW — post-answer rescan\]/);
+    assert.match(ctx, /exact user limits and permissions\. No-delegation means no dispatch/);
+    assert.match(ctx, /required work or tracker writes are forbidden, report them as unmet/);
+    assert.match(ctx, /do not record a completed scan or claim readiness/);
+    assert.match(ctx, /Only when dispatch is authorized/);
+    assert.match(ctx, /Inline reasoning is not evidence that independent Minds ran/);
+    assert.match(ctx, /record only actual authorized work with `cxc scan record/);
+    assert.match(ctx, /current plan\/tracker position; cap 3, lowest-scoring dimensions first/);
+    assert.doesNotMatch(ctx, /rescan NOW|^- dispatch read-only Mind/m);
+    const events = readQaEvents(cwd, "wp3-answer");
+    assert.equal(events.length, 4);
+    assert.deepEqual(readState(cwd, "wp3-answer"), before);
+    handlePostToolUse(payload, { goalStatus: () => "inactive" });
+    assert.deepEqual(readQaEvents(cwd, "wp3-answer"), events);
+    assert.deepEqual(readState(cwd, "wp3-answer"), before);
+    for (const status of ["active", "unreadable"] as const) {
+      const deniedContext = handlePostToolUse({ ...payload, turn_id: `answer-${status}` },
+        { goalStatus: () => status });
+      assert.equal(deniedContext, "");
+    }
+    assert.equal(readQaEvents(cwd, "wp3-answer").length, 12);
+    assert.deepEqual(readState(cwd, "wp3-answer"), before);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

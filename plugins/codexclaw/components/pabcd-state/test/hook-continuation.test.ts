@@ -82,15 +82,17 @@ test("L11: active goal suppresses I-trigger (no directive, no interview state)",
   }
 });
 
-test("L11: inactive goal allows I-trigger (interview directive injected)", () => {
+test("L11: inactive goal allows I advice without automatic phase entry", () => {
   const cwd = freshCwd();
   try {
     withGoalsDb([{ thread_id: "sg2", status: "complete" }], () => {
       const out = handleUserPromptSubmit(ups("please interview me", cwd, "sg2", "t1"));
       assert.notEqual(out, "", "inactive goal must allow the interview directive");
       const st = readState(cwd, "sg2");
-      assert.equal(st.orchestrationActive, true);
-      assert.equal(st.lastInjectedPhase, "I");
+      assert.equal(st.phase, "IDLE");
+      assert.equal(st.orchestrationActive, false);
+      assert.equal(st.lastInjectedPhase, null);
+      assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /IPABCD: IDLE \(IDLE\)/);
     });
   } finally {
     rmSync(cwd, { recursive: true, force: true });
@@ -205,6 +207,10 @@ test("WP4 delivery: the explicit I trigger carries the grounding rules", () => {
     const ctx = groundingContext(handleUserPromptSubmit(ups("interview me about this", cwd, "gr2", "t-gr2")));
     assert.match(ctx, /INTERVIEW-GROUND-01/);
     assert.match(ctx, /--map/);
+    assert.equal(readState(cwd, "gr2").phase, "IDLE");
+    assert.equal(readState(cwd, "gr2").orchestrationActive, false);
+    assert.equal(readState(cwd, "gr2").lastInjectedPhase, null);
+    assert.match(ctx, /IPABCD: IDLE \(IDLE\)/);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
@@ -217,9 +223,76 @@ test("hybrid mode 2: active + phase changed -> full directive for new phase", ()
     const out = handleUserPromptSubmit(ups("here is my work", cwd, "s1", "t2"));
     const parsed = JSON.parse(out.trimEnd());
     assert.equal(parsed.hookSpecificOutput.additionalContext, withFooter(phaseDirective("A"), "A"));
+    assert.match(parsed.hookSpecificOutput.additionalContext, /\$codexclaw:cxc-pabcd/);
+    assert.match(parsed.hookSpecificOutput.additionalContext, /\$codexclaw:cxc-dev-code-reviewer/);
     assert.equal(readState(cwd, "s1").lastInjectedPhase, "A");
   } finally {
     rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("wp3: passive phase pointers carry limits while mode3 and dedup remain unchanged", () => {
+  for (const phase of ["P", "A", "B", "C", "D"] as const) {
+    const cwd = freshCwd();
+    try {
+      const session = "wp3-passive";
+      writeState(cwd, { ...defaultState(session), phase,
+        orchestrationActive: true, lastInjectedPhase: "I" });
+      const first = handleUserPromptSubmit(ups("Read-only; no-tests; no-delegation; no-FSM.", cwd, session, "p1"));
+      const ctx = groundingContext(first);
+      assert.match(ctx, /Apply this pointer and its owners within exact user limits and permissions/);
+      assert.match(ctx, /No-delegation means no dispatch/);
+      assert.doesNotMatch(ctx, /forbids tests\/build\/typecheck|forbid agent goal\/state commands/);
+      assert.ok(ctx.includes(`IPABCD: ${phase} (`));
+      assert.equal(readState(cwd, session).phase, phase);
+      assert.equal(readState(cwd, session).lastInjectedPhase, phase);
+      assert.equal(handleUserPromptSubmit(ups("Read-only; no-tests.", cwd, session, "p1")), "");
+      const second = groundingContext(handleUserPromptSubmit(ups("Read-only; no-tests.", cwd, session, "p2")));
+      assert.equal(second, withFooter(buildStageHeader(phase), phase));
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  }
+});
+
+test("wp3: I preserves Mind delivery and explicitly scopes it under no-delegation", () => {
+  const cwd = freshCwd();
+  try {
+    withGoalsDb([], () => {
+      const ctx = groundingContext(handleUserPromptSubmit(ups(
+        "Interview me only; no delegation, no tests, no implementation.", cwd, "wp3-i", "i1")));
+      assert.match(ctx, /No-delegation means no dispatch/);
+      assert.match(ctx, /This also scopes the Mind instructions below/);
+      assert.match(ctx, /Mind dispatch/);
+      assert.match(ctx, /INTERVIEW-GROUND-01/);
+      assert.match(ctx, /INTERVIEW-RENDER-01/);
+      assert.match(ctx, /INTERVIEW-INDEPENDENT-01/);
+      assert.match(ctx, /Report unmet actions, not false readiness/);
+      assert.equal(readState(cwd, "wp3-i").phase, "IDLE");
+      assert.equal(readState(cwd, "wp3-i").orchestrationActive, false);
+      assert.equal(readState(cwd, "wp3-i").lastInjectedPhase, null);
+      assert.match(ctx, /IPABCD: IDLE \(IDLE\)/);
+    });
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("wp3: unarmed active or blocked goal still receives inspect-before-create guidance", () => {
+  for (const status of ["active", "blocked"] as const) {
+    const cwd = freshCwd();
+    try {
+      withGoalsDb([{ thread_id: "wp3-resume", status }], () => {
+        const ctx = groundingContext(handleUserPromptSubmit(ups(
+          "cxc-loop: resume the matching unfinished goal; do not create another goal or reinitialize its plan.",
+          cwd, "wp3-resume", "r1")));
+        assert.match(ctx, /Inspect the host goal with get_goal first/);
+        assert.match(ctx, /Resume a matching unfinished goal; do not duplicate it/);
+        assert.match(ctx, /Only when no unfinished goal exists and new HOTL is authorized, create_goal/);
+        assert.match(ctx, /different unfinished goal or unsupported resume, report the conflict/);
+        assert.match(ctx, /On resume inspect\/reuse the bound goalplan; do not reinitialize it/);
+        assert.ok(ctx.indexOf("get_goal first") < ctx.indexOf("create_goal"));
+        assert.equal(readState(cwd, "wp3-resume").phase, "IDLE");
+        assert.equal(readState(cwd, "wp3-resume").orchestrationActive, false);
+        assert.equal(readState(cwd, "wp3-resume").loopArmSeen, true);
+      });
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
   }
 });
 

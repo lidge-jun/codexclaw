@@ -1,0 +1,295 @@
+[
+  {
+    "id": "S01",
+    "url": "https://nodejs.org/api/esm.html",
+    "title": "Modules: ECMAScript modules | Node.js v26.8.1 Documentation",
+    "checkedAt": "2026-09-05",
+    "publishedAt": "not shown in inspected portion",
+    "status": "verified",
+    "proof": {
+      "surface": "agbrowse fetch",
+      "toolVerdict": "strong_ok",
+      "toolOk": true,
+      "contentBytes": 42166,
+      "contentTruncated": false,
+      "signals": [
+        "score:71",
+        "source:fetch",
+        "text:42166",
+        "density:0.31",
+        "http-200",
+        "text/html; charset=utf-8",
+        "stream-limited",
+        "title"
+      ],
+      "excerpt": "The CommonJS module require currently only supports loading synchronous ES",
+      "captureKind": "curated excerpt and observed metadata, not full raw response"
+    },
+    "independentCorroboration": false
+  },
+  {
+    "id": "S02",
+    "url": "https://react.dev/reference/react/memo",
+    "title": "memo – React",
+    "checkedAt": "2026-09-05",
+    "publishedAt": "not shown in inspected portion",
+    "status": "verified",
+    "proof": {
+      "surface": "agbrowse browser",
+      "toolVerdict": "strong_ok",
+      "toolOk": true,
+      "contentBytes": 17699,
+      "contentTruncated": false,
+      "signals": [
+        "browser-defuddle",
+        "http-200"
+      ],
+      "excerpt": "automatically applies the equivalent of `memo` to all components",
+      "captureKind": "curated excerpt and observed metadata, not full raw response"
+    },
+    "independentCorroboration": false
+  },
+  {
+    "id": "S03",
+    "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html",
+    "title": "Cross-Site Request Forgery Prevention - OWASP Cheat Sheet Series",
+    "checkedAt": "2026-09-05",
+    "publishedAt": "not shown in inspected portion",
+    "status": "verified",
+    "proof": {
+      "surface": "agbrowse fetch",
+      "toolVerdict": "strong_ok",
+      "toolOk": true,
+      "contentBytes": 70768,
+      "contentTruncated": true,
+      "signals": [
+        "score:56",
+        "source:fetch",
+        "text:70729",
+        "density:0.31",
+        "metadata:2",
+        "marker:challenge",
+        "http-200",
+        "text/html; charset=utf-8",
+        "stream-limited",
+        "title",
+        "description",
+        "canonical"
+      ],
+      "excerpt": "SameSite is useful as a defense-in-depth control",
+      "captureKind": "curated excerpt and observed metadata, not full raw response"
+    },
+    "independentCorroboration": false
+  },
+  {
+    "id": "S04",
+    "url": "https://www.postgresql.org/docs/current/sql-explain.html",
+    "title": "EXPLAIN",
+    "checkedAt": "2026-09-05",
+    "publishedAt": "not shown in inspected portion",
+    "status": "verified",
+    "proof": {
+      "surface": "agbrowse fetch",
+      "toolVerdict": "strong_ok",
+      "toolOk": true,
+      "contentBytes": 13697,
+      "contentTruncated": false,
+      "signals": [
+        "score:79",
+        "source:fetch",
+        "text:13687",
+        "density:0.39",
+        "metadata:3",
+        "http-200",
+        "text/html; charset=utf-8",
+        "stream-limited",
+        "title",
+        "description",
+        "canonical"
+      ],
+      "excerpt": "The ANALYZE option causes the statement to be actually executed, not only planned.",
+      "captureKind": "curated excerpt and observed metadata, not full raw response"
+    },
+    "independentCorroboration": false
+  },
+  {
+    "id": "S05",
+    "url": "https://peps.python.org/pep-0008/",
+    "title": "PEP 8 – Style Guide for Python Code | peps.python.org",
+    "checkedAt": "2026-09-05",
+    "publishedAt": "2001-07-05 (PEP Created)",
+    "status": "verified",
+    "proof": {
+      "surface": "agbrowse fetch",
+      "toolVerdict": "strong_ok",
+      "toolOk": true,
+      "contentBytes": 46368,
+      "contentTruncated": false,
+      "signals": [
+        "score:87",
+        "source:fetch",
+        "text:46148",
+        "density:0.38",
+        "metadata:3",
+        "http-200",
+        "text/html; charset=utf-8",
+        "stream-limited",
+        "title",
+        "description",
+        "canonical",
+        "feed-link"
+      ],
+      "excerpt": "Modules should have short, all-lowercase names.",
+      "captureKind": "curated excerpt and observed metadata, not full raw response"
+    },
+    "independentCorroboration": false
+  },
+  {
+    "id": "S06",
+    "url": "https://kubernetes.io/docs/concepts/services-networking/ingress/",
+    "title": "Ingress",
+    "checkedAt": "2026-09-05",
+    "publishedAt": "not shown in inspected portion",
+    "status": "verified",
+    "proof": {
+      "surface": "agbrowse fetch",
+      "toolVerdict": "weak_ok",
+      "toolOk": true,
+      "contentBytes": 49252,
+      "contentTruncated": false,
+      "signals": [
+        "score:43",
+        "source:fetch",
+        "text:49104",
+        "density:0.08",
+        "metadata:2",
+        "marker:challenge",
+        "http-200",
+        "text/html; charset=UTF-8",
+        "stream-limited",
+        "title",
+        "description"
+      ],
+      "excerpt": "The Kubernetes project has no plans to remove Ingress from Kubernetes.",
+      "captureKind": "curated excerpt and observed metadata, not full raw response"
+    },
+    "independentCorroboration": false
+  },
+  {
+    "id": "S07",
+    "url": "https://raw.githubusercontent.com/OWASP/ASVS/master/5.0/en/0x15-V6-Authentication.md",
+    "title": "ASVS 5.0 V6 Authentication",
+    "checkedAt": "2026-09-05",
+    "publishedAt": "not shown in inspected portion",
+    "status": "verified",
+    "proof": {
+      "surface": "agbrowse public_endpoint",
+      "toolVerdict": "strong_ok",
+      "toolOk": true,
+      "contentBytes": 22498,
+      "contentTruncated": false,
+      "signals": [
+        "score:84",
+        "source:public_endpoint",
+        "text:22498",
+        "density:1.00",
+        "http-200",
+        "text/plain; charset=utf-8",
+        "stream-limited"
+      ],
+      "excerpt": "# V6 Authentication",
+      "captureKind": "curated excerpt and observed metadata, not full raw response"
+    },
+    "independentCorroboration": false
+  },
+  {
+    "id": "S08",
+    "url": "https://opentelemetry.io/status/",
+    "title": "Status",
+    "checkedAt": "2026-09-05",
+    "publishedAt": "2025-02-12 (page Last modified)",
+    "status": "verified",
+    "proof": {
+      "surface": "agbrowse fetch",
+      "toolVerdict": "strong_ok",
+      "toolOk": true,
+      "contentBytes": 20791,
+      "contentTruncated": false,
+      "signals": [
+        "score:67",
+        "source:fetch",
+        "text:20740",
+        "density:0.04",
+        "metadata:2",
+        "http-200",
+        "text/html; charset=UTF-8",
+        "stream-limited",
+        "title",
+        "description"
+      ],
+      "excerpt": "JavaScript Stable Stable Development",
+      "captureKind": "curated excerpt and observed metadata, not full raw response"
+    },
+    "independentCorroboration": false
+  },
+  {
+    "id": "S09",
+    "url": "https://raw.githubusercontent.com/OWASP/ASVS/master/5.0/en/0x16-V7-Session-Management.md",
+    "title": "ASVS 5.0 V7 Session Management",
+    "checkedAt": "2026-09-05",
+    "publishedAt": "not shown in inspected portion",
+    "status": "verified",
+    "proof": {
+      "surface": "agbrowse public_endpoint",
+      "toolVerdict": "strong_ok",
+      "toolOk": true,
+      "contentBytes": 8957,
+      "contentTruncated": false,
+      "signals": [
+        "score:84",
+        "source:public_endpoint",
+        "text:8957",
+        "density:1.00",
+        "http-200",
+        "text/plain; charset=utf-8",
+        "stream-limited"
+      ],
+      "excerpt": "# V7 Session Management",
+      "captureKind": "curated excerpt and observed metadata, not full raw response"
+    },
+    "independentCorroboration": false
+  },
+  {
+    "id": "S10",
+    "url": "https://developers.openai.com/api/docs/guides/latest-model",
+    "title": "Model guidance | OpenAI API",
+    "checkedAt": "2026-09-05",
+    "publishedAt": "not shown in inspected portion",
+    "status": "verified",
+    "proof": {
+      "surface": "agbrowse fetch",
+      "toolVerdict": "strong_ok",
+      "toolOk": true,
+      "contentBytes": 24797,
+      "contentTruncated": false,
+      "signals": [
+        "score:56",
+        "source:fetch",
+        "text:24773",
+        "density:0.06",
+        "metadata:3",
+        "marker:challenge",
+        "http-200",
+        "text/html",
+        "stream-limited",
+        "title",
+        "description",
+        "canonical",
+        "feed-link"
+      ],
+      "excerpt": "unclear or conflicting guidance in a skill file may cause the model to pause and block work early.",
+      "captureKind": "curated excerpt and observed metadata, not full raw response"
+    },
+    "independentCorroboration": false
+  }
+]

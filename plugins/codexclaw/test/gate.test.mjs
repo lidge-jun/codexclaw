@@ -126,3 +126,21 @@ test("L18: checkCounts FIRES on hook-count mismatch (negative control)", () => {
     assert.match(res.violations[0], /hook count mismatch/);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("reference relocation retains false-enforcement detection", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gate-reference-"));
+  try {
+    const refs = join(dir, "plugins", "codexclaw", "skills", "x", "references", "nested");
+    mkdirSync(refs, { recursive: true });
+    const path = join(refs, "method.md");
+    writeFileSync(path, "The hook automatically injects the dev skill.\n");
+    const negative = checkForbiddenClaims(dir);
+    assert.equal(negative.ok, false);
+    assert.equal(negative.violations.length, 1);
+    assert.ok(negative.violations[0].includes("references/nested/method.md:1:"));
+    writeFileSync(path, "The hook does not automatically inject the dev skill.\n");
+    assert.equal(checkForbiddenClaims(dir).ok, true);
+    writeFileSync(path, "The hook automatically injects the dev skill. <!-- gate-ok: fixture -->\n");
+    assert.equal(checkForbiddenClaims(dir).ok, true);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

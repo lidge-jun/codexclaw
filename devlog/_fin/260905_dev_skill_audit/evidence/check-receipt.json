@@ -1,0 +1,14 @@
+{
+  "kind": "test",
+  "sourceIdentity": {
+    "kind": "resolved",
+    "commitSha": "9fc9dd24fd649dd0403e4f97d101a2515e27bc15",
+    "dirty": false,
+    "capturedAt": "2026-09-05T06:25:39.044Z"
+  },
+  "command": "node devlog/_plan/260905_dev_skill_audit/evidence/verify.mjs devlog/_plan/260905_dev_skill_audit",
+  "exitCode": 0,
+  "createdAt": "2026-09-05T06:25:39.068Z",
+  "ownerSessionId": "01a0702d-41a2-7640-a78b-6e761b42e3ab",
+  "checkEpoch": "c-20260905061908-4dd33e"
+}

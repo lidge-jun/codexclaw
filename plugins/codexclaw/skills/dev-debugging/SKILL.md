@@ -34,8 +34,10 @@ dev §2        = summary pointer to this skill (the overview)
 ## Core Principle
 
 Check if the problem is structural before debugging code.
-Complete root cause investigation before proposing any fix.
-If Phase 1 is not done, keep investigating.
+Before a permanent fix, investigate and explain the cause. During an active incident,
+an already-authorized, reversible mitigation may precede full RCA; follow `dev-devops`
+incident policy and preserve evidence. Diagnosis alone never authorizes a code fix,
+rollback, production access, or an upstream issue submission.
 
 ---
 
@@ -189,11 +191,12 @@ explaining the causal mechanism before patching.
 2. **Make the minimal fix** — address the root cause, not symptoms. One logical
    change only.
 
-3. **Verify**: the test passes, no regressions (run the full test suite:
-   `npm test` / `pytest` / equivalent).
+3. **Verify**: reproduce the repaired behavior and run affected checks at the
+   `dev` §3 / `dev-testing` risk floor. Respect user restrictions on local suites.
 
 4. **Check for similar patterns** — does the same bug class exist elsewhere in
-   the codebase? Search for it. Fix all instances, not just the one you found.
+   the codebase? Search for it. Fix instances within the authorized scope; report
+   additional affected areas rather than silently expanding the patch.
 
 5. **Document** — final report and commit message explain root cause AND fix,
    including rejected hypotheses and rejection evidence. Not "fixed bug"
@@ -237,7 +240,7 @@ Slop debugging is spray-and-pray: guess, patch, pray, repeat.
 | Skimming stack traces | Read every line of stack trace, note line numbers |
 | Silent `catch` blocks that suppress errors | Log with context (`[module] error.message`), re-throw or handle |
 | Modifying failing tests to pass | Fix the code, not the test — a failing test is evidence |
-| Claiming "fixed" without running verification | Run full test suite, show green output, verify the original symptom |
+| Claiming "fixed" without running verification | Run the relevant checks, show output, and verify the original symptom |
 | Copy-pasting a fix without understanding | Understand why the fix works, then adapt to your codebase |
 | Suppressive try/catch (catch-and-ignore, catch-and-return-null) | Fix at the source. Boundary catch with logging/re-throw is fine — see dev-architecture §4. |
 | Guessing at types, nulls, or undefined values | Add diagnostic logging, inspect actual runtime values |
@@ -330,7 +333,7 @@ counts as closing one — is `dev-testing` `references/ci-pipeline.md` §5
 ### Escalate When:
 
 - **Repeated fix attempts failed** — likely architectural; needs human judgment
-- **Undocumented library behavior** — file an issue upstream, work around it
+- **Undocumented library behavior** — document evidence; propose an upstream report or scoped workaround without posting externally unless authorized
 - **Environment-specific** — requires access you don't have (prod DB, cloud IAM)
 - **Security-sensitive** — don't debug auth/crypto/payment alone; flag for human review
 - **Multi-team dependency** — bug is in another team's service or API contract
@@ -397,14 +400,15 @@ action item that prevents the same class of bug from recurring.
 
 ## Security-Sensitive Bugs
 
-For security-sensitive bugs (auth bypass, data leak, injection), follow the incident response in `dev-security/SKILL.md` before applying a fix.
+For security-sensitive bugs (auth bypass, data leak, injection), use `dev-security` for
+controls and `dev-devops` for incident response. Preserve the same authorization boundary.
 
 ---
 
 ## Compact Summary
 
 When context is limited, preserve: (1) Phase 0 — is it a bug or a design problem?,
-(2) Core principle — no fixes without root cause,
+(2) Core principle — RCA before permanent repair; preauthorized reversible incident mitigation may come first,
 (3) phases 0-4 — architecture check → investigate → analyze → hypothesize → implement,
 (4) Repeated Failure Rule — after repeated failures, reassess, (5) one variable at a time,
 (6) evidence over intuition, (7) failing test first.

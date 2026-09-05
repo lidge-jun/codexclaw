@@ -2,6 +2,27 @@
 
 This reference owns the detailed DIVERGE-TIER-01 cost tiers and operational rules.
 
+## Emergence / Divergence Layer
+
+PABCD is convergence-first. Activate divergence deliberately during HITL I/P when intent
+is open, the approach is uncertain, the objective is maximize/deceptive, or the user asks
+to compare alternatives. In goal mode, non-improving maximize metrics may prompt it via
+the Stop hook. Pause semantics remain: hooks neither build candidates nor move phases.
+
+When divergence is ON:
+
+- Record mode explicitly: `cxc divergence mode --session <id> on --collapse P|D --reason <why>`.
+- Select the cost tier under DIVERGE-TIER-01: Tier 0 inline concepts, Tier 1 conceptual
+  candidate docs (default), or Tier 2 isolated executable races only for load-bearing
+  conflicts that paper analysis cannot resolve.
+- Collapse early at P for satisfy-spec work (pass/fail, locally checkable). Collapse
+  late at D for maximize-metric work where the local metric can deceive: build
+  candidates in isolated worktrees, run the same `evaluate.sh`, then keep/discard by
+  the recorded metric.
+- After the plateau is broken or a candidate is kept/discarded, turn divergence off:
+  `cxc divergence mode --session <id> off --reason resolved`, then return to the
+  normal N=1 loop.
+
 ## Tier Selection
 
 - **Tier 0:** inline brainstorm in the plan with no dispatch.

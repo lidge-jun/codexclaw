@@ -70,9 +70,12 @@ Keep it light:
 ## 2.1 Lightweight Source of Truth (implementation-unit devlog)
 
 The implementation-unit devlog routine (`devlog/_plan/` units — `pabcd` §Work-Phase
-Loop, UNIT-RESIDENCE-01) is the DEFAULT for any repo you do development work in — a
-process rule, not a named style to be requested. Propose the `docs/`/`plans/`
+Loop, UNIT-RESIDENCE-01) is the DEFAULT for C2+ work where the repository uses it.
+C0/C1 follow the record exemptions in `dev` §0.1; do not create a unit just for them. Propose the `docs/`/`plans/`
 architecture docs when:
+
+C0/C1 record exemptions are owned by cxc-dev §0.1; this routine does not override them.
+
 - The repo is immature, undocumented, or inconsistent; or
 - The user asks for a durable source-of-truth structure; or
 - A broad change needs a durable plan/current-architecture record.
@@ -110,16 +113,14 @@ Implementation-unit devlog method:
 - Keep chat summaries short: explain the phase, show a compact tree/change map, then link the plan file.
 - Move completed plan folders to an archive/done area if the repo already uses that convention.
 
-Phase document naming uses decade-range prefixes (LEXICO-SPLIT-01). For the canonical
-table (000-009 research, 010-019 Phase 1, etc.), see `pabcd/SKILL.md`
-Implementation-Unit Documents — that is the single source of truth. This repo uses
-3-digit prefixes; do not mix with 2-digit.
+Phase naming is owned by [Implementation units](../pabcd/references/implementation-units.md)
+(LEXICO-SPLIT-01). Use the existing three-digit convention; do not mix two-digit names.
 
 Before creating any new source-of-truth folders, ask concisely: state that no durable docs were found,
 show the proposed tree, give a specific recommendation, and confirm you will not create them without approval.
-This gate governs INTRODUCING the convention to a repo (the first `devlog/` or source-of-truth structure);
-once `devlog/_plan/` exists, creating unit subfolders — including the minimal record unit mandated by
-UNIT-RESIDENCE-01 — is routine and needs no approval dialogue.
+This gate governs introducing a convention, not routine unit subfolders in an
+existing devlog/_plan. Create a unit only when required; cxc-dev §0.1 does not
+require a new unit for a C0/C1 fast-path record.
 
 ## 2.2 Project Skeleton
 
@@ -183,7 +184,7 @@ When adding a new feature, create a folder under `src/` with these files:
 | ---------- | ------------- | -------------- | -------------- | ---------------------- |
 | JavaScript | `kebab-case/` | `name.tool.js` | `name.test.js` | `index.js`             |
 | TypeScript | `kebab-case/` | `name.tool.ts` | `name.test.ts` | `index.ts`             |
-| Python     | `kebab-case/` | `name_tool.py` | `test_name.py` | `__init__.py`          |
+| Python     | `package_name/` | `name_tool.py` | `test_name.py` | `__init__.py`          |
 | Go         | `kebab-case/` | `name.go`      | `name_test.go` | *(package = boundary)* |
 | Rust       | `kebab-case/` | `name.rs`      | inline `#[cfg(test)]` or `tests/` | `lib.rs`/parent `mod name;` |
 
@@ -197,7 +198,8 @@ Principle: “flat until you can't” — start flat, add a sub-folder only when
 
 | Item                | Rule                  | Example                      |
 | ------------------- | --------------------- | ---------------------------- |
-| Folders             | kebab-case            | `stock-price/`, `user-auth/` |
+| Repository folders | Follow existing convention; kebab-case is a JS/TS sample | `stock-price/` |
+| Importable packages | Follow language identifiers; no hyphens in normal Python imports | `stockprice/`, `stock_price/` |
 | JS/TS files         | kebab-case + suffix   | `stock-price.tool.ts`        |
 | Python files        | snake_case + suffix   | `stock_price_tool.py`        |
 | Go files            | snake_case            | `stock_price.go`             |
@@ -296,7 +298,7 @@ When generating project documentation or scaffolding docs:
 3. Follow the repo's existing source-of-truth convention when one exists
 
 ### Planning Documentation
-1. Follow decade numbering (`pabcd/SKILL.md` Implementation-Unit Documents, LEXICO-SPLIT-01): 000-009 research, 010-019 phase 1, etc.
+1. Follow decade numbering (../pabcd/references/implementation-units.md, LEXICO-SPLIT-01): 000-009 research, 010-019 phase 1, etc.
 2. Each plan entry should capture: title, date, what changed, why, evidence paths
 3. Cross-reference related plan entries within the same work folder when helpful
 
@@ -323,8 +325,10 @@ A scaffold operation must be deterministic and verifiable:
 
 ## Post-Scaffold Verification (SCAFFOLD-VERIFY-01, DEFAULT)
 
-After scaffolding, verify the result is usable — do not claim done from
-structural inspection alone:
+Apply the following only to a runnable project scaffold and only for supported commands.
+Documentation scaffolds use link/structure/contract checks; module scaffolds use affected
+checks. Do not install dependencies, start servers, or run a broad suite merely to validate prose.
+For a runnable scaffold, verify usability within the authorized environment:
 
 1. `npm install` / `pip install` / equivalent dependency installation succeeds
 2. `npm run build` / `cargo build` / equivalent build succeeds

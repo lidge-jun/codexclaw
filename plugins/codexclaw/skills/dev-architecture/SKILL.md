@@ -15,7 +15,9 @@ metadata:
 
 Enforces architectural rules that prevent structural decay: circular dependencies, implicit coupling, barrel abuse, and misplaced validation. These rules are mechanical — an AI coding agent can follow them without subjective judgment.
 
-Severity mapping (dev §0.2): `Severity: CRITICAL`/`HIGH` ⇒ STRICT; `MEDIUM` ⇒ DEFAULT.
+Severity describes impact only when backed by a concrete failure. Style, coupling
+heuristics, and size limits follow `dev` §0.2 DEFAULT exceptions; uppercase severity
+alone does not turn a structural preference into a safety gate.
 
 ## Modular References
 
@@ -212,11 +214,14 @@ refactoring patterns, and banned review responses.
 ## 4. Boundary-Only Defensive Programming
 
 **Severity: CRITICAL**
-**Rule:** Validation and defensive checks belong ONLY at system boundaries. Internal module boundaries MUST trust their callers.
+**Rule:** Parse untrusted data at trust boundaries and avoid repeating shape validation
+inside one trusted typed boundary. Domain invariants (valid ranges, state transitions,
+relational constraints) belong to the domain owner even for in-process callers.
+Authorization and assertions for genuinely reachable invalid states remain allowed.
 
-Ownership split: **placement** (validation happens at the boundary, nowhere else) is owned
-by this section; **what the validation schema enforces** (content/policy) is owned by
-`dev-security` §1.
+Ownership: this section distinguishes ingress shape parsing, domain invariants and
+reachable-state assertions. `dev-security` owns security validation and authorization
+policy; placement must not erase a business invariant or required defense-in-depth.
 
 ### Validation Location Matrix
 
@@ -227,18 +232,18 @@ by this section; **what the validation schema enforces** (content/policy) is own
 | File system reads | YES | External data, may be corrupt | Parse + validate structure |
 | Database query results | YES at ORM-untyped/raw-query boundaries (shape only); NO when a typed schema/ORM guarantees the shape | Untyped results may drift; typed guarantees are trusted (see Banned Patterns) | Check raw-query nulls/shape; trust typed ORM results |
 | Message queue consumer | YES | Cross-process boundary | Validate message schema |
-| **Internal function params** | **NO** | Caller is trusted code you control | Type system handles this |
-| **Private method args** | **NO** | Same module, same author | Redundant — types suffice |
-| **Service-to-service in same process** | **NO** | In-process calls share type system | Interface contracts handle this |
+| **Internal function params** | No repeated shape parsing; domain constraints may apply | Types prove shape, not every business invariant | Domain owner checks start <= end |
+| **Private method args** | No repeated shape parsing; invariants may apply | Types do not prove every valid state | Enforce the private method's real domain constraints |
+| **Service-to-service in same process** | No repeated trusted shape parsing; enforce domain/security rules | In-process is not a waiver for invariants or authorization | Validate the actual boundary/constraint |
 
 ### Banned Patterns
 
 | Banned Pattern | Why Banned | Fix |
 |----------------|-----------|-----|
 | `if (!param) throw` at start of every internal function | Redundant with type system, clutters code | Remove — let TypeScript/types enforce |
-| Runtime type checks in typed language internals | Duplicates compiler work, adds noise | Trust the type system |
-| `assert(x !== null)` in module-internal code | If x can be null, fix the type; if it can't, the assert is noise | Fix type signature or remove assert |
-| Validation in domain entity constructor for in-process callers | Entities should be created from validated data | Validate at boundary, trust domain layer |
+| Repeated runtime shape checks on already validated trusted values | Adds noise without a new boundary | Trust the parsed shape; retain domain invariants and reachable-state checks |
+| Assertions on a state proven impossible by the actual contract | Distracts from reachable failures | Fix types where sufficient; retain assertions for real domain/state constraints |
+| Repeating the same input shape parser in every domain constructor | Duplicates a trusted ingress contract | Parse shape once; enforce domain invariants in the entity/value-object owner |
 | Try-catch around every internal call | Hides bugs, makes debugging harder | Let errors propagate, catch at boundary |
 | Null checks after DB query that schema guarantees NOT NULL | Distrusts your own schema | Trust schema, validate at migration time |
 
@@ -297,8 +302,8 @@ When reviewing any PR that adds/modifies module structure, verify:
 - [ ] **Coupling classified** — any new cross-module dependency has coupling type identified
 - [ ] **No CRITICAL/HIGH coupling without justification** — Content/Common/Control coupling blocked
 - [ ] **Barrel files** — no new internal barrels; existing public barrels use named exports only
-- [ ] **Validation placement** — new validation is at system boundary, not internal functions
-- [ ] **Module size** — new/modified modules under 400 LOC
+- [ ] **Validation placement** — parse untrusted shape at ingress; enforce domain invariants in their owner and preserve required security checks
+- [ ] **Module size** — review >400 LOC for cohesion; document a justified exception rather than blocking by size alone
 - [ ] **No "utils" growth** — shared code placed in domain-specific module, not catch-all utils
 - [ ] **Dependency direction** — dependencies point inward toward Domain: outer layers depend on inner layers (Presentation/Application/Infrastructure -> Domain), and inner layers never import outward
 - [ ] **No lazy-import hacks** — no `require()` inside function body to hide circular deps
@@ -358,9 +363,9 @@ What type? (see taxonomy above)
 ```
 Is the data source external (HTTP, file, queue, DB, user input)?
   YES -> Validate here (boundary)
-  NO  -> Is this a security-critical path?
-    YES -> Validate (defense in depth)
-    NO  -> Trust the type system, no validation needed
+  NO  -> Is this a security-critical path or a domain/state invariant?
+    YES -> Enforce the relevant invariant/authorization in its owner
+    NO  -> Avoid duplicating already-proven shape validation
 ```
 
 ---

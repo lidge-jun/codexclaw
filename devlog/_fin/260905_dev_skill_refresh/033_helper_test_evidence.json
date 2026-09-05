@@ -1,0 +1,18 @@
+{
+  "red": {
+    "command": "node --test plugins/codexclaw/test/visualize-inspection.test.mjs",
+    "chunk_id": "d1c9b9",
+    "wall_time_seconds": 0.0000045,
+    "exit_code": 1,
+    "original_token_count": 254,
+    "output": "✖ visualize inspection uses explicit root, version order, and failure states (31.594792ms)\nℹ tests 1\nℹ suites 0\nℹ pass 0\nℹ fail 1\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 78.473666\n\n✖ failing tests:\n\ntest at plugins/codexclaw/test/visualize-inspection.test.mjs:11:1\n✖ visualize inspection uses explicit root, version order, and failure states (31.594792ms)\n  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  \n  1 !== 0\n  \n      at TestContext.<anonymous> (file:///Users/jun/.codex/worktrees/297d/codexclaw/plugins/codexclaw/test/visualize-inspection.test.mjs:34:12)\n      at Test.runInAsyncScope (node:async_hooks:227:14)\n      at Test.run (node:internal/test_runner/test:1306:25)\n      at Test.start (node:internal/test_runner/test:1177:17)\n      at startSubtestAfterBootstrap (node:internal/test_runner/harness:385:17) {\n    generatedMessage: true,\n    code: 'ERR_ASSERTION',\n    actual: 1,\n    expected: 0,\n    operator: 'strictEqual',\n    diff: 'simple'\n  }\n"
+  },
+  "green": {
+    "command": "node --test plugins/codexclaw/test/manifest-policy.test.mjs plugins/codexclaw/test/visualize-inspection.test.mjs; bash syntax and current-cache inspection; git diff --check",
+    "chunk_id": "f8f838",
+    "wall_time_seconds": 0.097817,
+    "exit_code": 0,
+    "original_token_count": 216,
+    "output": "✔ skill SKILL.md frontmatter carries no forbidden fields (license/keywords) (2.918875ms)\n✔ S3: implicit set is exactly {dev,+7}; other dev-* routers are on-demand (1.001625ms)\n✔ L3: PreToolUse goal-budget hook is registered in the plugin manifest (0.2245ms)\n✔ S5: each role TOML is spawn-valid (name + description + default model + instructions) (0.244833ms)\n✔ L18: search skill is a codex-native 3-tier on-demand hub with Korean guard (0.065458ms)\n✔ L19: dev/SKILL.md points at a skill-catalog reference that actually exists (0.108209ms)\n✔ visualize inspection uses explicit root, version order, and failure states (142.5905ms)\nℹ tests 7\nℹ suites 0\nℹ pass 7\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 181.458416\nupstream in sync (version 1.0.29, hash be82c4e573ffe2fc0921a10f49eb690ce6f7c8a06acffb2789600be677720d05)\n"
+  }
+}
