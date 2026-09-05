@@ -60,9 +60,8 @@ export const MIND_ROLE_PROMPTS: Record<Mind, string> = {
 /**
  * Directive injected when the main session owns an interview round (T4/T7).
  *
- * 260724 WP1: the backticked `cxc subagents set ...` hint below is invocation-
- * resolved at EMIT time by hook.ts interviewDirective() (resolveCxcInDirective),
- * so this constant stays literal and constants-only tests stay byte-stable.
+ * Detailed, schema-dependent dispatch mechanics live in the authorized-only
+ * Interview reference. The hook remains a pointer, not a native tool adapter.
  */
 export const MIND_DISPATCH_DIRECTIVE = [
   "[codexclaw: INTERVIEW — Mind dispatch]",
@@ -73,13 +72,9 @@ export const MIND_DISPATCH_DIRECTIVE = [
   "dispatch is unavailable (no nested orchestration) — fall back to inline reasoning, do not nest.",
   "Each Mind is a read-only lens: it returns contradictions ONLY (never asks/edits/calls/writes).",
   `Choose Minds by lowest-scoring dimensions; concurrent cap ${MIND_CONCURRENCY_CAP}.`,
-  "Spawn shape (MIND-SPAWN-SHAPE-01 — required so model/effort routing applies): agent_type",
-  '"explorer", task_name mind_<mindname>, and a NON-full-history fork — V2 fork_turns:"none"',
-  "(V1: omit fork_context). A full-history fork rejects model/effort overrides upstream and",
-  "skips the .codexclaw/subagents.json role-config injection entirely.",
-  "Mind lenses ride the explorer role config: its configured model/reasoning_effort are injected",
-  "when you omit those fields. Lens work seldom needs parent-strength reasoning — pin it via",
-  "`cxc subagents set explorer --effort <low|medium|high|xhigh>` or pass reasoning_effort explicitly.",
+  "MIND-SPAWN-SHAPE-01: only when Mind dispatch is authorized, fully read cxc-interview's",
+  "references/mind-dispatch.md before dispatch. Use the live tool schema; never invent unsupported arguments.",
+  "Keep read-only explorer intent, mind_<mindname> labels, NON-full-history tasks and explicit user settings.",
   "Minds are stateless: pack the lens prompt PLUS a compact interview snapshot (dimension scores,",
   "knowns, open assumptions, draft plan path) into each task message.",
   "State + plan artifacts live under .codexclaw/ (session tracker + .codexclaw/plan/).",

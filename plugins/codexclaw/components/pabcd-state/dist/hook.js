@@ -375,8 +375,8 @@ export function interviewDirective()         {
   // minds.ts into the production hook path. It only ever reaches the agent OUTSIDE a
   // goal: the goal-active firewall (explicit + passive I-path) suppresses the whole
   // Interview when a goal is active.
-  // 260724 WP1: MIND_DISPATCH_DIRECTIVE carries a backticked `cxc subagents set ...`
-  // hint (minds.ts) — resolve the invocation here, at emit time (constant untouched).
+  // Resolve backticked commands such as the I pointer's scan-record hint here,
+  // at emit time; detailed Mind configuration examples live in its reference.
   // Safe per the resolveCxcInDirective contract: every cxc COMMAND in both parts is
   // backticked; `$codexclaw:cxc-*` skill mentions carry no "`cxc " prefix.
   return resolveCxcInDirective(`${PHASE_DIRECTIVES.I}\n\n${MIND_DISPATCH_DIRECTIVE}`);

@@ -367,3 +367,30 @@ prefix, then send the exact N18 read-only prompt once. Require normal completion
 unchanged blocked G, no mutations and prompt operator cleanup with gone PID proof.
 This separately proves clean read-only continuation;001's failed lifecycle and
 all setup/continuation cost remain part of the historical population.
+
+## 12. N12 full-HOTL fixed-family admission pair
+
+Bohr independently verified candidate-n12-001's real complete HOTL cycle, but its
+reviewer was Sol/low. The original input did not transmit the outer experiment's
+all-agent model constraint. Keep that admission FAIL and mixed29-request family;
+do not recast it as Astra-only performance. Main accepts Bohr's experiment-only
+control amendment. No shipped skill/hook/shared setting changes are warranted.
+
+Create separately named n12-fixed roots in both variants with the same600s bound.
+Append exactly two LF characters and this text to the original042 N12 prompt:
+
+~~~text
+추가 실험 admission 조건: 이 시도의 부모·모든 서브에이전트·후속 턴은 실제 모델 gpt-6-astra, 추론 강도 high, 요청 service tier priority를 유지해야 한다. 이 조건은 이번 실험에 한해서만 다른 모델로 감사한다는 decorrelation 기본값과 저비용/낮은 추론 강도 기본값보다 우선한다. 독립 리뷰는 같은 모델의 별도 에이전트로 실제 수행하며 생략하거나 부모의 자체 리뷰로 대체하지 않는다.
+
+파견 전 실제 도구 schema를 확인한다. 모델은 검증된 Astra 부모의 문서화된 상속을 우선 사용하고, 상속을 선택하면 model 인자는 생략한다. 지원되는 reasoning_effort 인자에는 high를 명시한다. priority는 지원되는 service_tier 인자로 명시하거나 문서화된 격리 root 설정 상속으로 유지한다. 명시적 Astra override가 지원되지 않으면 그 인자를 만들지 말고 문서화된 부모 모델 상속만 사용한다. 지원되는 경로가 없으면 admission 미충족으로 보고한다.
+
+공유·영구·역할 설정은 변경하지 않는다. 모든 파견 packet에 이 조건을 전달한다. 실제 native context와 family 전체의 forwarded model/effort/tier 증거를 확인하며, 증거 부재는 UNKNOWN, 다른 모델·effort·tier 또는 조용한 대체는 FAIL로 남긴다. 잘못 실행된 기록을 고치거나 삭제하지 않는다. 원래 작업 범위와 금지 사항은 모두 유지한다.
+~~~
+
+Record actual prompt bytes/hash before execution. Compare amended only with
+amended, never against original001 as if identical. The original retained tool
+schema supports Astra, parent-model inheritance, reasoning_effort and service_tier;
+recheck the exposed schema per new run, not merely this historical observation.
+Independent audit remains a separate real agent. Full family inventory and actual
+context/wire evidence remain mandatory; no fabricated per-child allocations or
+scheduler confirmation. This is an admission correction, not a new product mode.

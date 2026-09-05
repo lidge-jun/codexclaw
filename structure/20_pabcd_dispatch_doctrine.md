@@ -108,7 +108,11 @@ codexclaw translation:
   canonical dispatch classifier for the SubagentStop evidence gate: only
   `agent_type:"worker"` triggers the evidence-receipt gate (hook matcher `^worker$` +
   runtime `GATED_AGENT_TYPES`). Read-only audit, research, and review dispatches MUST
-  use `agent_type:"explorer"` to avoid conflicting evidence-persistence directives.
+  use `agent_type:"explorer"` when that field is exposed. With schema-minimal native
+  tools, carry the logical role and read-only scope in the message instead; that
+  label is not native role enforcement and cannot evade an actual worker receipt
+  requirement. Follow the live-schema/returned-handle owner in installed
+  `pabcd/references/delegation.md`; never invent unsupported fields or IDs.
 - **EVIDENCE-TERMINAL-01 (DEFAULT, 260826).** The evidence gate blocks at most
   `MAX_ATTEMPTS` times per `(agent, turn)`, then RELEASES with an unresolved verdict
   recorded in session state. Fail-closed moved from the control flow to the verdict:

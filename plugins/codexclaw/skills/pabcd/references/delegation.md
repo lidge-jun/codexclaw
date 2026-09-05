@@ -16,6 +16,25 @@ topology: `structure/20_pabcd_dispatch_doctrine.md` §3. This is not an installe
 prerequisite; do not assume the path exists inside the plugin payload. An explicitly
 required task source still must be loaded or reported missing before its governed action.
 
+### Live tool schema and role transport
+
+Use the loaded native tool schema, not a version label, to choose arguments.
+`explorer`/`worker` express the intended role; `agent_type` and `task_name` are
+not universal fields. Use them only when exposed. Otherwise put the logical
+role, task/lens name and exact read/write scope in the task message, without
+inventing arguments or claiming a native permission profile was selected.
+Prompt labels are not enforcement and cannot bypass an actual worker receipt
+requirement or other runtime guard. If the requested protection cannot be
+represented, report that gap rather than silently weakening it.
+
+Map each logical task to the handle actually returned by the tool: for example,
+a V1 agent_id or a V2 canonical task_name. Use the actual handle and supported
+follow-up/wait/retirement schema, never a display label or guessed ID. Apply only
+supported fork/model/effort/tier fields and honor explicit user constraints;
+documented inheritance still needs observed settings when exact identity matters.
+Do not mutate shared or persistent role configuration without authorization.
+Reading this transport owner does not turn a non-audit task into a PABCD A gate.
+
 **Lifecycle contract.** If `spawn_agent` is not visible, use `tool_search` for it before
 concluding delegation is unavailable. Fan out independent lanes before waiting, and
 reuse the same reviewer throughout the A loop.
