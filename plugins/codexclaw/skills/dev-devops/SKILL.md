@@ -1,6 +1,6 @@
 ---
 name: cxc-dev-devops
-description: "MUST USE for DevOps, infrastructure, or delivery work — container builds, deploy pipelines, Kubernetes, Infrastructure as Code, SRE foundations, edge/serverless, ML infrastructure, and repository branch/worktree lifecycle hygiene. Triggers: 'Dockerfile', 'container build', 'deploy', 'CI/CD', 'Kubernetes', 'K8s', 'Terraform', 'Pulumi', 'Helm', 'SRE', 'SLI', 'SLO', 'error budget', 'serverless', 'edge', 'stale branch', 'branch cleanup', 'delete merged branches', 'delete_branch_on_merge', 'worktree cleanup', '배포', '인프라', '쿠버네티스', '브랜치 정리', '브랜치 삭제', '워크트리 정리'."
+description: "MUST USE for DevOps, infrastructure, or delivery work — container builds, deploy pipelines, stacked-PR CI diagnosis, Kubernetes, Infrastructure as Code, SRE foundations, edge/serverless, ML infrastructure, and repository branch/worktree lifecycle hygiene. Triggers: 'Dockerfile', 'container build', 'deploy', 'CI/CD', 'stacked PR CI', 'duplicate CI', 'Kubernetes', 'K8s', 'Terraform', 'Pulumi', 'Helm', 'SRE', 'SLI', 'SLO', 'error budget', 'serverless', 'edge', 'stale branch', 'branch cleanup', 'delete merged branches', 'delete_branch_on_merge', 'worktree cleanup', '스택 PR CI', '배포', '인프라', '쿠버네티스', '브랜치 정리', '브랜치 삭제', '워크트리 정리'."
 metadata:
   last-verified: "2026-08-26"
   short-description: "Container, deploy, Kubernetes, IaC, SRE, and branch-lifecycle guidance for production delivery."
@@ -37,6 +37,7 @@ proof remain mandatory; architecture/tool preferences need project-specific just
 | `references/platform-engineering.md` | Platform / DORA / provider routing | DORA capabilities, platform guardrails, provider table rows, SLSA handoff |
 | `references/kubernetes.md` | K8s deployment | Gateway API (v1.6+), Kustomize overlays, HPA/VPA, Helm, ArgoCD GitOps |
 | `references/ci-cd-deploy.md` | Deploy pipeline | GHA reusable workflows, deploy strategies, rollback, GitOps, progressive delivery |
+| `../dev/references/stacked-prs.md` | Stacked/dependent PRs or unexpected CI runs | `DEV-STACK-03/06/07`: native membership preflight and CI diagnosis; also reached globally through `dev` |
 | `references/branch-lifecycle.md` | Branch/worktree cleanup | Closed-PR branch automation, per-branch deletion evidence, worktree dirty audit, stacked-PR safety |
 | `references/iac.md` | Infrastructure code | OpenTofu/Terraform modules, Pulumi, state encryption, blast radius isolation |
 | `references/sre-foundations.md` | Operations/incidents | SLO/SLI/error budget, burn-rate alerting, incident response, blameless postmortem |
@@ -104,8 +105,11 @@ policy.
 [dev-devops]      build-image → scan → push-registry → deploy-staging → smoke → promote → deploy-prod
 ```
 
-**Stacked PRs change pipeline sizing (DEFAULT).** When sizing pipelines for a stack of
-pull requests, follow `DEV-STACK-03` in `cxc-dev` `references/stacked-prs.md`.
+**Stacked-PR CI preflight (DEFAULT).** For stack sizing, repeated runs or missing
+checks, follow `DEV-STACK-03/06/07` in
+[`cxc-dev`'s canonical stack reference](../dev/references/stacked-prs.md).
+Stack recognition also applies without this DevOps router; the global `dev` entry
+owns it. Keep membership and CI decisions in that owner, not a second procedure here.
 
 ### §2.2 GHA Reusable Workflows (DEFAULT)
 

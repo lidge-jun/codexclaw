@@ -185,6 +185,18 @@ export function renderLoopAffordance()         {
   ].join(" "));
 }
 
+/** Global discovery only; the agent verifies membership and CI on demand. */
+export function renderStackedPrAffordance()         {
+  return [
+    "[codexclaw] For PR creation/review/merge or dependent branches (stacked PR/스택 PR),",
+    "read $codexclaw:cxc-dev references/stacked-prs.md (DEV-STACK-06/07), even without",
+    "a DevOps trigger. A parent base or Can Stack banner is not native stack registration;",
+    "verify GitHub membership and CI separately. Per-PR CI is expected, not proof of a broken stack.",
+    "Publish GitHub stacks natively; verify registration before claiming delivery.",
+    "This is guidance, not authorization to register, restack, cancel CI, or merge.",
+  ].join(" ");
+}
+
 /**
  * Always-on background-terminal affordance (BG-TERMINAL-AFFORDANCE-01, 260715).
  * Long-running or collision-risky commands (dev servers, builds, 5min+ probes)
@@ -214,6 +226,7 @@ export function runPostCompactAffordance()         {
   const lines           = [];
   lines.push(renderBackgroundTerminalAffordance());
   lines.push(renderLoopAffordance());
+  lines.push(renderStackedPrAffordance());
   const envelope = {
     hookSpecificOutput: {
       hookEventName: "PostCompact",
@@ -256,6 +269,7 @@ export function runMapAffordanceSessionStart(stdin        , fallbackCwd        )
   lines.push(renderSkillSearchAffordance());
   lines.push(renderKwriteAffordance());
   lines.push(renderLoopAffordance());
+  lines.push(renderStackedPrAffordance());
   lines.push(renderBackgroundTerminalAffordance());
   // Fresh-install coverage for STATIC surfaces (SKILL.md files are deliberately
   // NOT rewritten): when `cxc` is not runnable as-is, ONE banner line names the

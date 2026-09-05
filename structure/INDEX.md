@@ -177,6 +177,12 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 
 The `dev` hub routes by change surface toward on-demand `dev-*` skills. `skill-hub` documents the exposure model: `allow_implicit_invocation` controls auto-rendered skill visibility, while explicit `$skill` / path mention still works unless a skill is disabled. The `interview`, `orchestrate`, `loop`, and `goalplan` skills are discoverable contracts for hardening surfaces; their deeper runtime work is tracked in `devlog/_fin/mvp_hard/`.
 
+Stack awareness (`DEV-STACK-06/07`) belongs to `skills/dev/references/stacked-prs.md`,
+not exclusively to DevOps. The existing cxc-ops SessionStart/PostCompact envelopes
+expose a bounded pointer in every workspace. The agent inspects native membership and
+CI on demand; the hook does not query GitHub, classify the repository, load skills,
+register stacks or change checks. DevOps remains on-demand and points to the same owner.
+
 ---
 
 ## Hooks
@@ -186,7 +192,7 @@ The manifest wires 22 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` 
 | Hook event | Hook file | Command | Live behavior |
 |------------|-----------|---------|---------------|
 | `SessionStart` | `hooks/session-start-ensuring-provider-bridge.json` | `node "${PLUGIN_ROOT}/components/provider-bridge/dist/cli.js" hook session-start` | emits one ocx status JSON line; detect-only |
-| `SessionStart` | `hooks/session-start-announcing-map-affordance.json` | `node "${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js" hook session-start` | announces `cxc map` availability (a POINTER, not the map body) when the repo clears a source-file size gate; read-only, fail-silent |
+| `SessionStart` | `hooks/session-start-announcing-map-affordance.json` | `node "${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js" hook session-start` | size-gated map pointer plus global skill/loop/stack/background guidance; pointers only, no GitHub lookup |
 | `UserPromptSubmit` | `hooks/user-prompt-submit-checking-pabcd-trigger.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook user-prompt-submit` | detects explicit IPABCD triggers and injects phase context |
 | `Stop` | `hooks/stop-checking-pabcd-continuation.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook stop` | active only under a native goal + in-flight PABCD cycle; bounded by re-entry, IDLE/no-goal, context-pressure, and stagnation guards |
 | `PreToolUse` `^create_goal$` | `hooks/pre-tool-use-guarding-goal-budget.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use` | denies `create_goal` inputs with keys other than `objective` |
@@ -201,7 +207,7 @@ The manifest wires 22 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` 
 | `PreToolUse` `^update_goal$` | `hooks/pre-tool-use-guarding-goal-complete.json` | same pabcd-state CLI | denies `update_goal complete` while a cycle is in flight or the bound goalplan fails E8 |
 | `SessionStart` | `hooks/session-start-injecting-recall-context.json` | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook session-start` | injects CWD-scoped recent-work recall context |
 | `PostCompact` | `hooks/post-compact-injecting-recall-context.json` | same recall CLI | re-injects recall context after compaction |
-| `PostCompact` | `hooks/post-compact-injecting-bg-terminal-affordance.json` | `node "${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js" hook post-compact` | re-announces the background-terminal affordance after compaction |
+| `PostCompact` | `hooks/post-compact-injecting-bg-terminal-affordance.json` | `node "${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js" hook post-compact` | restores background-terminal, loop and stack guidance after compaction |
 | `UserPromptSubmit` | `hooks/user-prompt-submit-detecting-recall-intent.json` | same recall CLI | detects past-session recall intent and injects the recall search affordance |
 | `SessionStart` | `hooks/session-start-detecting-managed-worktree.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | injects the WORKTREE-GUARD-01 identity block when the session cwd is inside an app-managed worktree ($CODEX_HOME/worktrees or CODEXCLAW_WORKTREE_ROOTS) |
 | `UserPromptSubmit` | `hooks/user-prompt-submit-guiding-worktree-rename.json` | same pabcd-state CLI, `hook worktree-guard` | on worktree rename intent inside a managed worktree, injects the adopt-in-place guidance once per session (WORKTREE-GUARD-02) |
