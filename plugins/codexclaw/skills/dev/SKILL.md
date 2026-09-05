@@ -378,7 +378,7 @@ minimum *scope* scales with the work class (§0.0). This is the floor, not a cap
 
 | Class | Minimum verification |
 | ----- | -------------------- |
-| C0/C1 | Smallest relevant proof; text/docs edits use consistency checks, behavior edits use the focused test or checker |
+| C0/C1 | Smallest relevant proof: text consistency for C0; focused test/checker for C1, or an observed repro with stated limits when automation does not fit |
 | C2 | Focused integration/contract test for the touched slice + targeted build/typecheck + UI smoke if UI changed (CRUD per-operation negatives: see `dev-testing` references/core/crud-test-matrix.md) |
 | C3 | Affected suites + docs/contract consistency when a public contract changed |
 | C4 | Full relevant gates + negative cases + durable evidence record |
@@ -388,9 +388,10 @@ minimum *scope* scales with the work class (§0.0). This is the floor, not a cap
 ---
 
 ## 4. Change Documentation
-When a worklog or changelog is provided, add one factual entry per changed file:
-`### [filename] — [reason]`, then `Changes`, `Impact`, and `Verification`
-(command + result). Keep entries concise.
+For C2+ work with a supplied log, add a concise factual change/reason/verification entry.
+C0/C1 automatic record duties follow §0.1; merely finding a devlog or changelog does
+not reinstate them. An explicit user request or a documented release-record contract
+still governs its named log. Do not create an unrelated record to satisfy this section.
 
 ---
 
