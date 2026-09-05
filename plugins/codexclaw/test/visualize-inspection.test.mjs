@@ -15,7 +15,9 @@ test('visualize inspection uses explicit root, version order, and failure states
     const hash = createHash('sha256').update('current-contract').digest('hex');
     const tracking = join(root, 'visualize-upstream.md');
     writeFileSync(tracking, '- Current SHA-256: `' + hash + '`\n- Version: `1.0.10`\n');
-    const cache = join(root, 'override');
+    // A backslash is a native separator on Windows and a legal POSIX filename byte.
+    // Both forms exercise checksum tools that escape backslashes in named-file output.
+    const cache = join(root, 'override\\root');
     const add = (version, content) => {
       const dir = join(cache, version, 'skills', 'visualize');
       mkdirSync(dir, { recursive: true });

@@ -80,9 +80,9 @@ for candidate in "${candidates[@]:1}"; do
 done
 
 if command -v sha256sum >/dev/null 2>&1; then
-  current_hash="$(sha256sum "$upstream_file" | awk '{ print $1 }')"
+  current_hash="$(sha256sum < "$upstream_file" | awk '{ print $1 }')"
 elif command -v shasum >/dev/null 2>&1; then
-  current_hash="$(shasum -a 256 "$upstream_file" | awk '{ print $1 }')"
+  current_hash="$(shasum -a 256 < "$upstream_file" | awk '{ print $1 }')"
 else
   printf 'unable to check visualize upstream: no SHA-256 tool found\n' >&2
   printf 'install sha256sum or shasum and rerun this script\n' >&2

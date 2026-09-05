@@ -21,3 +21,7 @@
 - H3: shell/환경 또는 줄바꿈 때문에 script 자체가 오동작. 반증: 초기 empty-cache와 tracking 파싱이 정상이며 LF/CRLF 모두 같은 후속 지점에서 실패한다. .gitattributes는 sh를 LF로 유지한다.
 
 원인 확정은 helper 출력과 실제 Windows 재검사로 한다. 단순 재시도나 Windows skip으로 처리하지 않는다.
+
+GNU checksum 로컬 재현으로 H2를 확인했다. backslash가 들어 있는 정상 fixture 경로에서 macOS 기본 checksum은 PASS, GNU coreutils로 바꾸면 같은 digest 앞에 backslash가 붙어 drift로 오판했다. 출력은 `6bcb01...47dce -> \6bcb01...47dce`였다. 파일과 version은 정상 선택돼 H1 경로 접근 실패가 아니며, script 파싱도 정상이라 H3도 이 재현의 원인이 아니다.
+
+해결: named-file checksum 출력에서 첫 단어를 파싱하지 않고, 파일을 stdin으로 공급해 filename escaping이 digest에 섞이지 않게 한다. sha256sum/shasum 두 경로에 같은 원칙을 적용했다. fixture 경로에 backslash를 넣어 POSIX의 GNU 도구에서도 회귀가 재현되게 했고 기대값/skip 조건은 유지했다. Windows 실제 결과는 최신 CI에서 확인한다.
