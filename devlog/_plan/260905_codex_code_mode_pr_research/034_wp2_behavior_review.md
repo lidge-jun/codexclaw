@@ -107,7 +107,34 @@ The initial C2 proof collection captured parents only; its analyzer screening is
 not proof of complete request/child inventory. Main is collecting actual child
 rollouts and correlated usage before any provenance claim.
 
+To isolate skill routing from that known Korean CHECK trigger, add a separate
+c2-neutral control with the same source/oracle/restrictions and an English prompt
+that requests ordinary implementation and node test execution without a phase
+trigger phrase. Run BOTH variants; retain the original Korean C2 failure as a
+mandatory WP3 integration case. This is an orthogonal control, not a renamed
+passing replacement. It must still preserve no-delegation and complete reads.
+
 ## Complete proposed plan-output.md
+
+### Fresh002 native fold-back (same reviewer)
+
+Candidate e7ce2fe plan-only002 PASS: all nine concepts appear in final.txt
+lines1,3,20,24–36; original parent rollout13/17/21/25 fully carries loop, dev,
+pabcd and selected references without truncation. No forbidden actions. Some
+concepts occur outside the opening header; reviewer retains this nonblocking
+formatting residual rather than claiming exact template conformance.
+
+Baseline plan-only002 still FAIL: parent rollout18 loses7,384 tokens and later
+partial reading does not recover the full material; output still omits required
+concepts. Candidate explanation002 PASS: waiting and delegation read fully at
+parent17/23, retirement/same-agent rule applied in final3–6, no repository-only
+missing lookup or failed command. Baseline explanation002 behavioral PASS with
+an exit1/no-match repository doctrine search retained as lookup residual.
+
+Reviewer recomputed44 artifact hashes for the four002 runs, with unchanged
+before/after identities and no forbidden edits/tests/goals/FSM/commits/dispatch.
+This fixes the targeted candidate issues in a fresh run, not the historical001
+failures, C2 hook conflict, whole-cycle performance or child request attribution.
 
 The narrow amendment received the same reviewer's plan PASS and implementation
 fold-back PASS. The new reference matches the approved2,326-byte body exactly;
