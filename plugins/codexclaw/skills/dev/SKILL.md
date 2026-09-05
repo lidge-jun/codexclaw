@@ -116,6 +116,11 @@ read the missing portions before the governed action. A successful command exit
 does not prove that all instructions reached the model. Keep the C0/C1 scope
 exceptions; this is not a request to load every linked reference.
 
+If a selected file's output is truncated, re-read that file separately. Do not
+guess missing ranges from an elision marker. If it cannot fit one result, use
+numbered, contiguous, non-overlapping chunks through EOF and verify no gaps.
+Keep both nested and outer output budgets large enough for each returned chunk.
+
 | Change surface | Primary router | Also load |
 |---------------|----------------|-----------|
 | Backend / API / server | `dev-backend` | `dev-security` for auth/input |

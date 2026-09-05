@@ -39,6 +39,10 @@ Batch known independent reads within both nested-tool and outer code-mode output
 budgets. If output is truncated, recover the missing content before the governed
 action; command exit0 is not a complete read. Reuse content still present in context; after context
 loss reload the applicable owner, not the whole skill family.
+If a selected file's output is truncated, re-read that file separately. Do not
+guess missing ranges from an elision marker. If it cannot fit one result, use
+numbered, contiguous, non-overlapping chunks through EOF and verify no gaps.
+Keep both nested and outer output budgets large enough for each returned chunk.
 Do not recursively load every linked file. A missing mandatory reference is a
 preflight failure: resolve it or report the limitation before the governed action.
 
