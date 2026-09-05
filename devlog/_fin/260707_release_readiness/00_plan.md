@@ -106,6 +106,8 @@ Per-blocker RCA + accept/rebut:
    the author's identity (lidge-jun) is already on the repo, the corpus
    contains no credentials, and publishing the devlog is part of the project's
    working-in-public intent. Recorded here as the explicit keep decision.
+   Superseded in part on 2026-09-05: the owner requested removal of `.omo/evidence/`
+   from the current tree. The historical devlog remains; old receipts stay in Git history.
 4. **repo-map smoke networks on GitHub runners — ACCEPT.** ubuntu-latest ships
    `uv`, so `depsAvailable()` returns true and the test exercises a live
    dependency resolve (tiktoken download). Fix (minimal, CI-enabling): add an

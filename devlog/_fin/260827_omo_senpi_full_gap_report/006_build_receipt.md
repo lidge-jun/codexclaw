@@ -3,6 +3,10 @@
 Date: 2026-08-27
 Artifact: `output/pdf/codexclaw-omo-senpi-gap-analysis-ko.pdf`
 
+Archive note (2026-09-05): the owner removed generated `output/pdf/` exports from
+the current tree. This is a historical receipt; the later pre-cleanup artifact remains
+in [Git history](https://github.com/lidge-jun/codexclaw/blob/6eccf0d4f7fc5e16c37ac141614cd156f675f111/output/pdf/codexclaw-omo-senpi-gap-analysis-ko.pdf).
+
 ## Final build
 
 - 42 A4 pages.

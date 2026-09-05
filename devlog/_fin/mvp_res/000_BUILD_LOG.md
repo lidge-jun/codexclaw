@@ -4,6 +4,10 @@ Status: PROVENANCE · 2026-06-30 · cxc
 Purpose: record how the loop-ordered `mvp_res/` docs were produced, so the `000_INDEX.md`
 "Subagent build provenance" reference resolves and future readers can audit grounding.
 
+Archive note (2026-09-05): the owner removed the legacy `.omo/evidence/` receipts
+from the current tree. References below describe historical artifacts; their originals
+remain in [the pre-cleanup tree](https://github.com/lidge-jun/codexclaw/tree/6eccf0d4f7fc5e16c37ac141614cd156f675f111/.omo/evidence).
+
 ## Authoring model
 - L-docs (010–310) authored by parallel **gpt-5.5** subagents over disjoint decade ranges, each
   grounded in the decade-themed source-of-record under `../260629_codexclaw_mvp/` plus live

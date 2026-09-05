@@ -2,6 +2,10 @@ node_modules/
 dist/
 __pycache__/
 .codexclaw/
+# Retired local review receipts, design experiments, and generated PDF exports.
+/.omo/evidence/
+/mockup-scroll-motion/
+/output/pdf/
 *.log
 .DS_Store
 # reference clone (not part of codexclaw source)
