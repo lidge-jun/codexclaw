@@ -576,9 +576,12 @@ For S/{dev,pabcd,loop}/agents/openai.yaml replace only interface.short_descripti
 
 | File | Exact new YAML scalar |
 |---|---|
-| dev/agents/openai.yaml | "Class-scaled development, surface routing, safety, and fresh completion proof." |
-| pabcd/agents/openai.yaml | "PABCD phase work and evidence; explicit interview and plan-only limits remain." |
-| loop/agents/openai.yaml | "Scoped HOTL completion by default; explicit explanation, interview, plan-only, and HITL limits win." |
+| dev/agents/openai.yaml | "Class-scaled development, routing, safety, and proof." |
+| pabcd/agents/openai.yaml | "PABCD phases, evidence, and explicit scope boundaries." |
+| loop/agents/openai.yaml | "Scoped HOTL completion with explicit scope limits." |
+
+WP2 A amendment: these UI summaries fit the25–64-character openai.yaml contract.
+Full intent precedence remains in description and the skill body, not the UI label.
 
 Preserve allow_implicit_invocation: true for these three. Preserve every other
 skill policy file, especially frontend/uiux and explicit-only routers.
