@@ -1,6 +1,6 @@
 ---
 name: cxc-dev
-description: "MUST USE for every coding task — classifies work depth (C0-C5), defines modular limits, pre-write search, verification-before-completion, and safety rules. Always-on discipline (agent-followed, not hook-enforced) that routes to surface-specific dev-* routers by change surface. Also surfaces browse/QA native tool routing so the model uses agbrowse and Codex browser plugins instead of installing Playwright directly, and owns the stacked-pull-request rules (DEV-STACK-*) for splitting dependent work across a chain of reviewable PRs. Triggers: any code change, refactor, bug fix, feature, test, review, scaffolding, browse, browser, QA, stacked PR, stacked diff, PR stack, restack, 브라우저, 브라우즈, 페이지 열어, URL 확인, 화면 확인, 스크린샷, QA 확인, 플레이라이트, 스택 PR, PR 쪼개기."
+description: "MUST USE for every coding task — classifies work depth (C0-C5), defines modular limits, pre-write search, verification-before-completion, and safety rules. Always-on discipline (agent-followed, not hook-enforced) that routes to surface-specific dev-* routers by change surface. Also surfaces browse/QA native tool routing and owns stacked-PR discovery, native registration checks, and CI diagnosis (DEV-STACK-*), without requiring DevOps invocation. Triggers: any code change, refactor, bug fix, feature, test, review, scaffolding, PR creation/review/merge, dependent branches, browse, browser, QA, stacked PR, stacked diff, PR stack, restack, 브라우저, 브라우즈, 페이지 열어, URL 확인, 화면 확인, 스크린샷, QA 확인, 플레이라이트, 스택 PR, PR 쪼개기, 연쇄 브랜치."
 metadata:
   last-verified: "2026-07-02"
   short-description: "Universal dev discipline: work classifier, modular limits, verification gate, safety rules."
@@ -80,6 +80,14 @@ rule is DEFAULT unless violating it has a concrete safety or correctness consequ
 
 ## §0.3 Methodology Overlays
 
+**Stack awareness is global PR discipline, not a DevOps-only route.** For PR
+creation/review/merge, dependent work-phase delivery, or an observed PR base pointing
+at another PR's head, read [stacked PRs](references/stacked-prs.md)
+(`DEV-STACK-06/07`) before choosing the workflow. Existing PRs need this preflight even
+when the current edit is small. Generic CSS/runtime stacks are not PR-stack signals.
+The canonical owner defines membership proof, CI diagnosis and authority boundaries;
+do not infer them from a body map or the word "stack".
+
 Methodologies are **conditional overlays, never universal**. They activate when the routing
 skill's description matches the work surface, when the user explicitly asks for the method,
 when repo convention requires it, or when a strict trigger applies — required evidence
@@ -97,7 +105,7 @@ proof that validates the claim, with the reduced scope stated).
 | `threat_model` / `security` | `dev-security` | C4 security/data/tooling risk |
 | `observability` / `observability_pipeline` | `dev-backend` (+`dev-data`, `dev-devops` for operational gates) | App instrumentation, production/runtime hooks, incident/release gates |
 | `logging` (CLI / scripts / libraries) | `dev` `references/logging.md` | What to emit and where; service instrumentation stays with `dev-backend` |
-| stacked pull requests (`DEV-STACK-*`) | `dev` `references/stacked-prs.md` | When to stack, cascade discipline, layer shape, review scope, bottom-up merge safety |
+| stacked pull requests (`DEV-STACK-*`) | `dev` `references/stacked-prs.md` | Global PR/dependency preflight, native membership, CI diagnosis, cascading, layer review and merge safety |
 | `debugging` / `debugging_rca` | `dev-debugging` | Repeated failure needs root cause |
 | `migration_backfill` | `dev-data`, `dev-backend`, `dev-testing` | Production or non-trivial data |
 | `product_discovery` (+`_ui`) | `dev` (+`dev-uiux-design`) | Ambiguous behavior/user value/metric/prototype intent |
