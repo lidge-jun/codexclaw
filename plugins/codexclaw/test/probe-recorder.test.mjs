@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { closeSync, cpSync, existsSync, lstatSync, openSync, readFileSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { analyzeRun } from "../scripts/probe-evidence.mjs";
 import { execArgs, probeEnv, payloadDigest, record, runOwned } from "../scripts/probe-recorder.mjs";
 import { sha, readJson, tempRoot, put, putJson, isolatedEnv, recorderUrl, darwinOnly } from "./probe-fixtures/filesystem.mjs";
@@ -64,6 +65,12 @@ test("record accepts a clean isolated fixture exactly once and persists private 
   assert.equal(run.pluginRoot, f.installed);
   assert.equal(run.before.config, sha(readFileSync(f.config)));
   assert.equal(run.codexSha256, sha(readFileSync(f.spec.codexBin)));
+  assert.equal(run.approvalSha256, run.before.approval);
+  assert.equal(run.installSha256, run.before.install);
+  assert.equal(run.promptSha256, run.before.prompt);
+  assert.equal(run.codexSha256, run.before.codex);
+  assert.equal(run.recorderSha256, run.before.recorder);
+  assert.equal(run.before.source, sha(JSON.stringify([f.spec.sourceSha, [["fixture.txt", sha("synthetic source identity\n")]]])));
   assert.deepEqual(run.beforeDoctor, { rc: 0, selectedChecks: "PASS" });
   assert.deepEqual(run.afterDoctor, { rc: 0, selectedChecks: "PASS" });
   assert.deepEqual(run.before, run.after);
@@ -277,3 +284,58 @@ for (const phase of ["preflight", "execution", "postdoctor"]) {
     });
   }
 }
+
+for (const phase of ["preflight", "execution", "postdoctor"]) {
+  for (const identity of ["approval", "install", "prompt", "source", "source-head", "source-hidden", "source-untracked", "codex"]) {
+    test(`record rejects ${phase} provenance ${identity} drift`, darwinOnly, async t => {
+      const f = recordFixture(t, `${phase}-provenance-${identity}`);
+      const original = Object.fromEntries(["approval", "install", "prompt", "codex"].map(k => [k, sha(readFileSync(f.provenance[k]))]));
+      if (phase === "preflight") {
+        await assert.rejects(() => record(f.spec), /identity|source/);
+        assertNoExec(f);
+      } else {
+        const result = await record(f.spec), run = recordReport(f);
+        assert.equal(run.outcome.rc, 0, "mutation must reach the postflight boundary");
+        assert.equal(result.ok, false);
+        assert.equal(run.postflightError, true);
+        assert.equal(run.sourceSha, f.spec.sourceSha);
+        assert.equal(run.approvalSha256, original.approval);
+        assert.equal(run.installSha256, original.install);
+        assert.equal(run.promptSha256, original.prompt);
+        assert.equal(run.codexSha256, original.codex);
+        assert.equal(existsSync(join(result.out, "doctor-after.json")), phase === "postdoctor");
+        if (identity === "source-hidden") assert.notEqual(run.before.source, run.after.source);
+        assertVerdict(() => analyzeRun(result.out), 1);
+      }
+    });
+  }
+}
+
+for (const identity of ["approval", "install"]) {
+  test(`record retains original provenance and failed report after ${identity} deletion`, darwinOnly, async t => {
+    const f = recordFixture(t, `execution-provenance-${identity}-delete`);
+    const original = sha(readFileSync(f.provenance[identity]));
+    const result = await record(f.spec), run = recordReport(f);
+    assert.equal(result.ok, false);
+    assert.equal(run.outcome.rc, 0);
+    assert.equal(run.postflightError, true);
+    assert.equal(run[`${identity}Sha256`], original);
+    assert.equal(existsSync(f.provenance[identity]), false);
+    assertVerdict(() => analyzeRun(result.out), 1);
+  });
+}
+
+test("record pins its own module bytes before a child mutates an isolated copy", darwinOnly, async t => {
+  const f = recordFixture(t, "execution-provenance-recorder");
+  const bytes = readFileSync(new URL(recorderUrl));
+  put(f.base, "recorder-copy.mjs", bytes);
+  const { record: copiedRecord } = await import(pathToFileURL(f.provenance.recorder).href);
+  const result = await copiedRecord(f.spec), run = recordReport(f);
+  assert.equal(result.ok, false);
+  assert.equal(run.outcome.rc, 0);
+  assert.equal(run.postflightError, true);
+  assert.equal(run.recorderSha256, sha(bytes));
+  assert.notEqual(sha(readFileSync(f.provenance.recorder)), sha(bytes));
+  assert.deepEqual(readFileSync(new URL(recorderUrl)), bytes, "real recorder must remain untouched");
+  assertVerdict(() => analyzeRun(result.out), 1);
+});
