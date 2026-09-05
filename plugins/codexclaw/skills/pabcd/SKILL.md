@@ -24,13 +24,14 @@ cxc-dev is canonical for work class, C0/C1 fast-path, proof, and safety.
 
 Two distinct things, do not conflate them:
 
-- **Hook auto-trigger (narrow):** the `pabcd-state` `UserPromptSubmit` hook only
-  auto-detects the explicit phrases `interview`, `인터뷰`, and `orchestrate i`
-  (`detectTrigger`). These inject the I directive automatically.
-- **Agent judgment (broad):** for other phrasings — "요구사항 정리", "스펙 정리해줘",
-  "뭘 만들어야 하는지 정리", or any variation that signals unclear requirements — the
-  hook does NOT auto-fire; YOU decide to enter Interview by invoking `cxc-interview`
-  (or running `cxc orchestrate I --session <id>`). The breadth lives in agent judgment, not in a regex.
+- **Hook hint (narrow):** `UserPromptSubmit` detects `interview` / `인터뷰`
+  and other existing lexical phase hints and injects scoped advice only. Natural
+  hints never enter or advance a phase. A line-anchored `orchestrate i` command
+  instead takes the existing explicit-command parser path.
+- **Agent judgment (broad):** for unclear requirements phrased otherwise, select
+  `cxc-interview` and its applicable references. Loading a skill is not a state
+  transition. When phase entry is authorized, use `cxc orchestrate I --session <id>`
+  with the current SessionStart binding; explicit user commands are also supported.
 
 **I — Interview**: HITL-only requirements discovery. Canonical rules (four dimensions, contradiction scanning, readiness gating, Q/A capture) live in `cxc-interview`; PABCD owns the phase edge I->P and the return-to-Interview affordance from any phase.
 

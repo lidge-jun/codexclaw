@@ -43,6 +43,22 @@ The methodology is capability-responsive:
 - mechanics enforce only invariants that must not depend on probabilistic obedience, such as state transitions, attestation, Stop continuation, source identity, and evidence-backed completion
 - C0/C1 retain fast paths; higher-risk work earns deeper process
 
+Phase hooks carry compact owner pointers and current work-phase scope; the agent
+loads applicable skills and references. Natural-language hints do not enter or
+advance a phase: explicit user commands or authorized agent CLI calls do that.
+Session identity, legal transitions, attestation/source/receipt checks and bounded
+Stop continuation remain separate mechanical responsibilities, including active-
+goal arming at IDLE. Existing spawn skill-body transport remains until measured
+self-loading parity is established.
+
+A bare cxc-loop execution request means scoped HOTL. Explicit interview-only,
+plan-only, HITL, read-only, no-goal/no-FSM and no-delegation limits scope all
+procedure pointers and their references. No-tests does not ban separately allowed
+build/typecheck; read-only state inspection is not mutation. Required but forbidden
+work stays unmet/NOT RUN, never passing evidence. Reuse a matching unfinished goal
+and bound plan; create a new goal only when authorized and no unfinished one exists.
+These instructions grant no extra external permission and add no semantic classifier.
+
 ## Dispatch boundary
 
 Dispatch is decided by:
@@ -88,6 +104,13 @@ replay measures synthetic invocation cost, not host matcher/trust activation.
 Installed version, selected configuration, and actual routed model/service tier
 are separate claims. Missing execution proof is unknown, never an inferred pass;
 raw artifacts and parent/child provenance must be reviewed before adoption.
+
+Explicit shared-family evidence counts request records once and cannot certify
+per-thread request attribution. Native context/causal inventory and complete
+originals remain review dependencies. Supplemental same-thread/pending-answer
+checks may use a bounded first-party app-server stdio process; they are separately
+labeled from exec and are not a permanent daemon, replacement runtime or a reason
+to reinterpret unsupported history/transport as certified evidence.
 
 Failure behavior must be explainable. Unsupported capability, stale state, or malformed payloads must not silently invent a provider, tool, model, or success result.
 
