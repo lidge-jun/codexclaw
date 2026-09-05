@@ -173,6 +173,16 @@ contract). Recording that dropped idea here keeps a future maintainer from
 
 ---
 
+## 6.1 Distributed skill policy (2026-09-05 Interview decision)
+
+Safety, correctness, permission boundaries, and evidence remain mandatory.
+Size/style/layout preferences admit documented project-specific exceptions.
+C0 changes have no devlog obligation; C1 records only in an existing owning unit.
+Optional browser capabilities are selected at runtime: suitable Aside is preferred,
+agbrowse supports HTTP/parallel collection without being a required dependency,
+and available native tools may substitute when they preserve access and proof.
+Missing tools never authorize silent installs or a lower verification standard.
+
 ## 7. How to use this file
 
 When you add a feature, walk the principles in order and ask:

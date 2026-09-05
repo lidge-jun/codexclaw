@@ -70,8 +70,8 @@ Keep it light:
 ## 2.1 Lightweight Source of Truth (implementation-unit devlog)
 
 The implementation-unit devlog routine (`devlog/_plan/` units — `pabcd` §Work-Phase
-Loop, UNIT-RESIDENCE-01) is the DEFAULT for any repo you do development work in — a
-process rule, not a named style to be requested. Propose the `docs/`/`plans/`
+Loop, UNIT-RESIDENCE-01) is the DEFAULT for C2+ work where the repository uses it.
+C0/C1 follow the record exemptions in `dev` §0.1; do not create a unit just for them. Propose the `docs/`/`plans/`
 architecture docs when:
 - The repo is immature, undocumented, or inconsistent; or
 - The user asks for a durable source-of-truth structure; or
@@ -118,8 +118,8 @@ Implementation-Unit Documents — that is the single source of truth. This repo 
 Before creating any new source-of-truth folders, ask concisely: state that no durable docs were found,
 show the proposed tree, give a specific recommendation, and confirm you will not create them without approval.
 This gate governs INTRODUCING the convention to a repo (the first `devlog/` or source-of-truth structure);
-once `devlog/_plan/` exists, creating unit subfolders — including the minimal record unit mandated by
-UNIT-RESIDENCE-01 — is routine and needs no approval dialogue.
+once `devlog/_plan/` exists, creating a scoped C2+ unit subfolder is routine.
+This does not revoke C0/C1 exemptions or authorize unrelated documentation.
 
 ## 2.2 Project Skeleton
 
@@ -183,7 +183,7 @@ When adding a new feature, create a folder under `src/` with these files:
 | ---------- | ------------- | -------------- | -------------- | ---------------------- |
 | JavaScript | `kebab-case/` | `name.tool.js` | `name.test.js` | `index.js`             |
 | TypeScript | `kebab-case/` | `name.tool.ts` | `name.test.ts` | `index.ts`             |
-| Python     | `kebab-case/` | `name_tool.py` | `test_name.py` | `__init__.py`          |
+| Python     | `package_name/` | `name_tool.py` | `test_name.py` | `__init__.py`          |
 | Go         | `kebab-case/` | `name.go`      | `name_test.go` | *(package = boundary)* |
 | Rust       | `kebab-case/` | `name.rs`      | inline `#[cfg(test)]` or `tests/` | `lib.rs`/parent `mod name;` |
 
@@ -197,7 +197,8 @@ Principle: “flat until you can't” — start flat, add a sub-folder only when
 
 | Item                | Rule                  | Example                      |
 | ------------------- | --------------------- | ---------------------------- |
-| Folders             | kebab-case            | `stock-price/`, `user-auth/` |
+| Repository folders | Follow existing convention; kebab-case is a JS/TS sample | `stock-price/` |
+| Importable packages | Follow language identifiers; no hyphens in normal Python imports | `stockprice/`, `stock_price/` |
 | JS/TS files         | kebab-case + suffix   | `stock-price.tool.ts`        |
 | Python files        | snake_case + suffix   | `stock_price_tool.py`        |
 | Go files            | snake_case            | `stock_price.go`             |
@@ -323,8 +324,10 @@ A scaffold operation must be deterministic and verifiable:
 
 ## Post-Scaffold Verification (SCAFFOLD-VERIFY-01, DEFAULT)
 
-After scaffolding, verify the result is usable — do not claim done from
-structural inspection alone:
+Apply the following only to a runnable project scaffold and only for supported commands.
+Documentation scaffolds use link/structure/contract checks; module scaffolds use affected
+checks. Do not install dependencies, start servers, or run a broad suite merely to validate prose.
+For a runnable scaffold, verify usability within the authorized environment:
 
 1. `npm install` / `pip install` / equivalent dependency installation succeeds
 2. `npm run build` / `cargo build` / equivalent build succeeds

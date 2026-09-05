@@ -23,15 +23,15 @@ codexclaw's no-server, Codex-native-tool model.
 | `references/http-api-qa.md` | HTTP API surface scenarios | Wire-driving procedure (QA-HTTP-01): curl capture discipline, auth-state/contract/idempotency/boundary/content-negotiation/CORS axes, status-code truth table |
 | `references/cli-tui-qa.md` | CLI or TUI surface scenarios | Session mechanics (QA-CLI-01): stdout/stderr separation, TTY-vs-pipe, env/config precedence, signal cleanup, tmux lifecycle + wait-for-marker driving |
 
-The QA tool ladder (QA-TOOL-LADDER-01 — in-app browser > chrome > computer-use,
-agbrowse for public-URL shape checks only) is canonically owned by
-`dev-testing` §4.6.
+Browser selection (QA-TOOL-LADDER-01) is owned by
+[portable browser routing](../dev/references/browser-routing.md). Suitable available
+Aside, agbrowse and native browser capabilities may drive built UI; none is required.
 
 ## 0. Scope split (single ownership)
 
 - `cxc-dev-testing` owns AUTOMATED verification: unit, contract, E2E,
-  Playwright suites, CI gates — and the exploratory-tier TOOL ROUTING
-  (which browser/computer-use tool drives which surface, §4.6 TEST-CU-QA-01).
+  Playwright suites and CI gates. Browser selection lives in the shared dev policy;
+  `dev-testing` §4.7 connects that policy to exploratory tests.
 - `cxc-qa` (this skill) owns the manual QA PROCEDURE: scenario matrix,
   faithful channels, evidence contract, adversarial classes, oracle passes,
   teardown receipts.
@@ -61,8 +61,7 @@ not evidence of the layer you changed:
 | Web UI | browser screenshot at a STATED viewport, read via `view_image` — workflow in `references/visual-qa.md` | screenshot(s) |
 | Desktop GUI | computer-use + screenshots (per-app approval; never drive terminals/Codex itself) | screenshots + action log |
 
-Tool choice for the browser/CU rows follows QA-TOOL-LADDER-01 (`dev-testing`
-§4.6); the inspect -> act -> re-inspect protocol applies. Data-shaped behavior
+Tool choice for the browser/CU rows follows the shared portable browser policy; the inspect -> act -> re-inspect protocol applies. Data-shaped behavior
 may use parsed CLI/data output as its channel.
 
 ## 3. Evidence contract

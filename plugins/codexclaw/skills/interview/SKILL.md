@@ -189,9 +189,11 @@ The interview runtime is shipped, not planned:
   so the main session runs the contradiction-rescan loop: select Minds, dispatch
   read-only contradiction lenses, triage (high -> ask the user; low/medium -> recorded
   assumption), then ask the user to proceed or keep interviewing.
-- Mind spawn shape (MIND-SPAWN-SHAPE-01): dispatch each Mind as `agent_type "explorer"`,
-  `task_name mind_<mindname>`, and a NON-full-history fork (V2 `fork_turns:"none"`; V1 omits
-  `fork_context`) — a full-history fork rejects model/effort overrides upstream AND skips the
+- Mind spawn shape (MIND-SPAWN-SHAPE-01): use the actual host schema. When supported,
+  set `agent_type "explorer"`, `task_name mind_<mindname>`, and a non-full-history fork.
+  Omit unsupported fields (V1 may expose neither agent_type nor task_name); put the
+  lens identity and read-only scope in the task packet. Do not claim prompt scope is
+  host-enforced access control. V2 may use `fork_turns:"none"`; V1 omits `fork_context` — a full-history fork rejects model/effort overrides upstream AND skips the
   `.codexclaw/subagents.json` role-config injection. Mind lenses ride the **explorer** role
   config: pin lens strength with `cxc subagents set explorer --effort <low|medium|high|xhigh>`
   (or pass `reasoning_effort` explicitly); omitted fields inherit the parent session. Known

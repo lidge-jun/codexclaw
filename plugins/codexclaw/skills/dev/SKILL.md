@@ -11,6 +11,8 @@ metadata:
 
 Core rules applied to every coding task, regardless of surface.
 
+User instructions and the actual host's safety/tool contracts take precedence over skill guidance. A diagnosis or review authorizes investigation, not fixes, installs, publishing, or account changes; a change request authorizes only its scoped implementation.
+
 ## §0.0 Work Classifier (C0-C5)
 
 **Classify every task before choosing process depth** (DEV-CLASS-01). The class selects how much
@@ -45,9 +47,10 @@ For **C0/C1 work** (bounded by "one file, no new abstractions, local behavior" �
 in-place edit is an example, not a limit):
 - Skip: §0.5 convention discovery, §1.5 pre-write search, reference file reading
 - Keep: §3 verification gate, §4 change documentation, §5 safety rules (imports/exports),
-  §7.2 static analysis. C0 patches (typo, config, one-line fix) are exempt from
-  numbered implementation-unit records. C1 patches record in the owning unit only
-  when a unit already exists (UNIT-RESIDENCE-01, `pabcd` Implementation-Unit Documents).
+  §7 type/static checks when applicable. C0 changes with zero behavior impact are exempt
+  from numbered implementation-unit records. C1 patches leave a short change/reason/proof
+  record only when an owning unit already exists; do not create a unit just for C0/C1.
+  Security, data-loss, or new-abstraction changes are not this fast path. This exception applies (UNIT-RESIDENCE-01, `pabcd` Implementation-Unit Documents).
 - Role skills: read only the `SKILL.md` routing table — skip references unless the table explicitly routes to one
 
 This is scope guidance, not an exemption. Conventions visible in the touched file still
@@ -60,8 +63,13 @@ relevant reference.
 
 ## §0.2 Rule Classes
 
-Every rule in the dev skill family carries one severity class. When a rule's class is not
-marked, treat prohibitions (⛔/MUST/NEVER) as STRICT and everything else as DEFAULT.
+Rule authority is based on purpose, not typography. Safety, correctness, permission
+boundaries, and truthful verification are mandatory. File-size thresholds, naming,
+module layout, implementation style, and aesthetic choices are DEFAULT or STYLE_SAMPLE,
+even when an older reference calls them MUST/NEVER or assigns HIGH severity. A documented
+project/user contract may make a particular constraint mandatory; cite that contract.
+Explicitly requested workflows retain their phase/evidence requirements. An unclassified
+rule is DEFAULT unless violating it has a concrete safety or correctness consequence.
 
 - **STRICT** — always applies; violating it blocks completion (safety, broken builds, secrets).
 - **DEFAULT** — apply unless a documented, stated reason says otherwise.
@@ -137,7 +145,8 @@ matching router first.
 |---------------|----------------|-----------|
 | Backend / API / server | `dev-backend` | `dev-security` for auth/input |
 | Frontend / UI / web | `dev-frontend` | `dev-uiux-design` for vague/open visual direction, UX-state meaning, IA, brand, concept gen |
-| Database / schema / data | `dev-data` | `dev-backend` for migrations |
+| App database / OLTP / transactional schema | `dev-backend` | `dev-security` for access; `dev-testing` for migrations |
+| Analytics / ETL / data quality / analytical backfills | `dev-data` | `dev-backend` for API integration |
 | Tests / QA | `dev-testing` | `dev-frontend` for browser QA |
 | Security / auth / secrets | `dev-security` | surface-specific router |
 | Architecture / modules / deps | `dev-architecture` | `dev-scaffolding` for new structure |
@@ -168,23 +177,12 @@ Use `dev` plus repo tools for local facts; load `search`, `pabcd`, `loop`, `reca
 
 ### Browse / QA Tool Routing
 
-**STRICT (DEV-BROWSE-NATIVE-01): for ad-hoc browse and exploratory QA tasks (브라우저
-열기, 페이지 확인, URL 검증, 화면 QA, 스크린샷), do NOT install Playwright, puppeteer,
-or browser drivers.** Use `tool_search` for the native browser tools first — they are
-stable and enabled by default (`structure/60_native_capabilities.md` §3). Intentional
-Playwright E2E test suites (플레이라이트 E2E 테스트 스위트) are `dev-testing` §4's
-domain and not covered by this rule.
-
-Two scoped ladders exist — the ordering is intentional, not contradictory:
-
-| Context | Ladder | Order (start at 1; state why when skipping) | Owner |
-|---------|--------|----------------------------------------------|-------|
-| Public-web proof (search, research, URL verification) | SEARCH-BROWSE-01 | 1. `agbrowse` (scripted HTTP/CDP) → 2. `browser:control-in-app-browser` → 3. `chrome:control-chrome` → 4. `computer-use:computer-use` | `cxc-search` Tier 2 |
-| QA of agent-built/served surfaces | QA-TOOL-LADDER-01 | 1. `browser:control-in-app-browser` → 2. `chrome:control-chrome` → 3. `computer-use:computer-use` → 4. `agbrowse` (public-URL shape checks only) | `dev-testing` §4.6 |
-
-> **agbrowse 실패 시:** agbrowse 명령이 실패하면(connection refused, no browser 등) `agbrowse start`부터 실행한 뒤 재시도할 것.
-
-Full ladder protocols and rationale live in their owners above.
+Canonical selection policy: [Portable browser routing](references/browser-routing.md).
+Use it for public proof, authenticated research, parallel extraction, and local UI QA.
+Aside is preferred when suitable and available; agbrowse is recommended, not required.
+No optional browser, CLI, account, or native plugin is assumed installed on every host.
+Do not install a new driver/runner merely because a request says Playwright; use the
+available capability. Explicit project-owned E2E work remains `dev-testing`'s domain.
 
 ### Skill Ownership Map
 Canonical rule ownership and stub locations live in `references/skill-ownership.md`.
@@ -271,7 +269,7 @@ touch points, and whether existing conventions are reused or need approval.
 
 Give every file, function, and class a single, clear responsibility.
 
-**Hard limits (DEFAULT — exceed only with a stated reason):**
+**Review signals (DEFAULT — exceed with a stated responsibility/risk rationale):**
 
 | Metric | Threshold | Action |
 | ------ | --------- | ------ |
@@ -294,7 +292,7 @@ Each PR/changeset MUST be scoped to one logical change. Opportunistic rewrites, 
 | Dependency upgrade | Isolated PR | Never bundle with features |
 
 **Rules:**
-- Use ES Module (`import`/`export`) in JS/TS projects — CommonJS `require()` breaks tree-shaking and static analysis.
+- Prefer ESM for new JS/TS code when the runtime and repository support it. Preserve required CommonJS configuration/package interfaces; interop and bundler optimization are separate checks, not reasons for a blanket migration.
 - One default export per file when the file has a primary purpose (JS/TS convention; other languages follow their idioms).
 - Follow existing naming conventions in the project. Check sibling files before creating new ones.
 - New files must match the directory structure and naming patterns already in use.
@@ -386,7 +384,7 @@ minimum *scope* scales with the work class (§0.0). This is the floor, not a cap
 
 | Class | Minimum verification |
 | ----- | -------------------- |
-| C0/C1 | Smallest proof for the change (build/type-check or the one relevant test) |
+| C0/C1 | Smallest relevant proof: text consistency for C0; focused test/checker for C1, or an observed repro with stated limits when automation does not fit |
 | C2 | Focused integration/contract test for the touched slice + targeted build/typecheck + UI smoke if UI changed (CRUD per-operation negatives: see `dev-testing` references/core/crud-test-matrix.md) |
 | C3 | Affected suites + docs/contract consistency when a public contract changed |
 | C4 | Full relevant gates + negative cases + durable evidence record |
@@ -396,15 +394,16 @@ minimum *scope* scales with the work class (§0.0). This is the floor, not a cap
 ---
 
 ## 4. Change Documentation
-When a worklog or changelog is provided, add one factual entry per changed file:
-`### [filename] — [reason]`, then `Changes`, `Impact`, and `Verification`
-(command + result). Keep entries concise.
+For C2+ work with a supplied log, add a concise factual change/reason/verification entry.
+C0/C1 automatic record duties follow §0.1; merely finding a devlog or changelog does
+not reinstate them. An explicit user request or a documented release-record contract
+still governs its named log. Do not create an unrelated record to satisfy this section.
 
 ---
 
 ## 5. Safety Rules
 
-- **Preserve existing exports** — other modules may depend on them. Deprecate first if removal is needed.
+- **Preserve public contracts** — trace external consumers before removing exports. Internal unused exports may be removed within scope after consumer search; public removals need a compatibility/migration decision.
 - **Verify imports exist** before adding `import` statements. Confirm the target file and export are real.
 - **Externalize configuration** — use config files or environment variables. Place magic strings and numbers in named constants.
 - **Handle all async errors explicitly** — surface failures at a clear boundary. In JS/TS backend code, the Result pattern (`neverthrow`) may replace per-call `try/catch` when failures are surfaced at a verified boundary (see `dev-backend/SKILL.md` §3). In other cases, use `try/catch` and log with context (`console.error('[module]', error.message)`).

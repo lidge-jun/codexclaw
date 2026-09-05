@@ -130,7 +130,9 @@ See `references/core/api-design.md` for protocol-specific patterns.
 
 Rules for SSE, WebSocket, and any connection held open beyond a single request-response cycle.
 
-**Lifecycle Rules:**
+**Lifecycle examples (HEURISTIC):** tune these to protocol version, proxy limits,
+capacity and product needs. The common six-connection browser limit concerns HTTP/1.x;
+HTTP/2 stream limits are negotiated. These values are not universal failure thresholds.
 
 | Parameter | Default | Rationale |
 |-----------|---------|-----------|
@@ -205,7 +207,7 @@ When work exceeds what an HTTP response cycle should hold open, use a queue.
 
 | Condition | Use Queue | Use Direct |
 |-----------|-----------|------------|
-| Execution time >5s | Yes | No |
+| Work exceeds the actual request/proxy budget (5s is only an example) | Usually | Streaming/bounded synchronous work may be appropriate |
 | Must be retryable on failure | Yes | No |
 | Fire-and-forget (caller doesn't wait) | Yes | No |
 | <1s, idempotent, caller needs immediate result | No | Yes |
@@ -247,7 +249,7 @@ When work exceeds what an HTTP response cycle should hold open, use a queue.
 
 | Banned | Fix |
 |--------|-----|
-| Synchronous long operation blocking HTTP response (>5s) | Enqueue + return 202 + job ID |
+| Long work exceeds the declared request budget or blocks the event loop | Queue, stream, or isolate according to the actual contract; 5s is not a universal cutoff |
 | Queue without DLQ | Always configure DLQ; alert on DLQ depth > 0 |
 | Infinite retries (no max) | Set maxRetries=3 with exponential backoff |
 | No idempotency (duplicate jobs on retry) | Idempotency key on every enqueue; dedup in worker |
@@ -272,7 +274,8 @@ Use a centralized `AppError` class (DEFAULT — when the repo already has an err
 
 ### Error Taxonomy (AppError Hierarchy)
 
-Create an AppError base class with statusCode, code, and isOperational properties. Extend for each error type (ValidationError, NotFoundError, etc.).
+If the repository chooses AppError, a base class may carry statusCode, code, and
+isOperational. Do not introduce a parallel hierarchy into an established Result/error model.
 
 ### Result Pattern (conditional)
 
@@ -283,7 +286,8 @@ Consider the Result/Either pattern (e.g. neverthrow) for recoverable domain erro
 | **neverthrow** | Default choice — small explicit `Result<T, E>` for recoverable domain errors |
 | **Effect** | Only when the app benefits from a full effect runtime: typed errors, retries, resources, concurrency, tracing |
 
-**Rule:** Use `Result` where recoverable/domain errors are first-class. Reserve `try/catch` for error boundaries (middleware, top-level handlers) only.
+Use Result only when selected for this repository. Otherwise propagate errors to a
+clear handling boundary; do not add wrappers or change public error contracts by preference.
 
 ---
 
@@ -412,12 +416,12 @@ possible:
 ## 12. Pre-Flight Checklist
 
 Before delivering:
-- [ ] Consistent response envelope on every endpoint
+- [ ] Existing/protocol response contract preserved; shared envelope only where applicable (§5)
 - [ ] Input validation with schema (Zod, Pydantic, etc.)
 - [ ] Authentication middleware on protected routes
 - [ ] Rate limiting on public endpoints
 - [ ] Structured JSON logging with `requestId` and `traceId`
-- [ ] Error handler returns proper HTTP codes via `AppError` hierarchy
+- [ ] Error handler preserves the repository's error convention and correct HTTP mapping; AppError is one optional pattern
 - [ ] No raw SQL in service layer
 - [ ] No hardcoded secrets
 - [ ] Migration code is backward-compatible when release sequencing requires it

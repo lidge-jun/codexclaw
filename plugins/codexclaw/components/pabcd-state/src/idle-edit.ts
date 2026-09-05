@@ -5,7 +5,7 @@
  * FSM is un-armed becomes VISIBLE when this session either saw a loop-arm
  * request (state.loopArmSeen, set by detectLoopArmRequest) or runs under an
  * ACTIVE native goal. Advisory only — never denies; a legitimate C0/C1
- * fast-path edit stays allowed (UNIT-RESIDENCE-01 still asks for a record doc).
+ * fast-path edit stays allowed; record exceptions follow dev §0.1.
  *
  * Envelope contract (audit-pinned, codex-rs pre_tool_use.rs:226-230): only
  * `additionalContext` reaches the model on a non-deny decision —
@@ -53,8 +53,9 @@ export function idleEditAdvisory(sessionId: string): string {
     "but this session expects loop/goal work. If this edit belongs to the loop,",
     `arm first: \`cxc orchestrate status --session ${sessionId}\` -> enter P ->`,
     "advance edges with --attest (one work-phase = one full PABCD cycle).",
-    "C0/C1 fast-path edits may proceed, but leave the numbered record doc in the",
-    "owning devlog/_plan unit (UNIT-RESIDENCE-01).",
+    "C0 edits need no automatic devlog record. C1 edits record only in an existing owning unit.",
+    "Do not create a unit just for a fast-path edit; explicit user/release record requirements remain controlling",
+    "(UNIT-RESIDENCE-01, dev §0.1).",
   ].join(" ");
   try {
     const inv = cxcInvocation(import.meta.url);

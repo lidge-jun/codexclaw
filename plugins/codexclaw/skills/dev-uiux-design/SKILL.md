@@ -75,7 +75,7 @@ Use browser fetch/open/text/get-dom/snapshot only after candidate URLs exist.
 | `references/intent-discovery-ladder.md` | UX-INTENT-01 optional deepening (Steps 1-6) | Mood/lightness/density/shape/viewport/reference ladder, vague request disambiguation |
 | `references/anti-rationalization.md` | **Before C-phase verification** | Agent-shortcut excuse/rebuttal table (UX-ANTI-RATIONAL-01) |
 | `references/korean-design-vocabulary.md` | Korean design briefs or Korean-first UI | Korean descriptor → CSS token translation, quick-match table, font selection guidelines |
-| `../../../../.codexclaw/goalplans/design-award-research-skill-expansion-000-plan-010-crawl/devlog/090/090-synthesis.md` | Calibrating anti-slop rules against award evidence | Context-gated exemptions for centered heroes, split media, one-hue fields, gradients, motion, oversized type, navigation, and media |
+| `references/design-trends.md` | Calibrating a dated design example | Source provenance, surface-specific exceptions, and re-verification before promoting a sample to a default |
 
 ---
 
@@ -234,16 +234,16 @@ Inference rules:
 - Creative/portfolio/editorial → VARIANCE 6-9, MOTION 5-7 (landing-bucket scroll floor applies, FE-MOTION-BUCKET-01), density D1-D3
 - Dashboard/SaaS/admin → VARIANCE 2-4, MOTION 1-2 (scroll-driven = 0), density D4-D5
 - "Complex" in brief → increase density profile (functional depth), NOT VARIANCE or MOTION
-- "Simple" in brief → decrease all three proportionally
+- "Simple" in brief → determine whether it means fewer choices, less decoration, or less information; do not automatically decrease information density
 
 "복잡하다" = high DESIGN_VARIANCE is WRONG. Complexity means more features/data/flows, not more visual tricks (carousels, parallax, animations).
 
 ### Dial Presets (UX-DIAL-PRESET-01, STYLE_SAMPLE)
 
 Source: taste-skill v2 (62k stars). Exact tuples for common use cases.
-Presets are authoritative specializations that may exceed the inference ranges
-above (e.g. Agency motion 8 exceeds the general landing 5-7 range). When a
-preset exists for the exact use case, use it directly; adjust from Design Read.
+Presets are illustrative starting points, not authoritative constraints. They may
+fall outside the rough inference ranges. Prefer the brief, existing design system,
+accessibility and task evidence; record a different choice without treating it as failure.
 
 | Use case | V | M | D | Notes |
 |----------|---|---|---|-------|
@@ -263,7 +263,7 @@ preset exists for the exact use case, use it directly; adjust from Design Read.
 - Preserve redesign: V = match existing, M = match + 1, D = match existing
 - Overhaul redesign: V = existing + 2, M = existing + 2, D = match existing
 - "Complex" in brief: increase density (D), NOT variance or motion
-- "Simple" in brief: decrease variance and motion; density stays or increases
+- "Simple" in brief: reduce the complexity the user actually names; derive density from the task, not a fixed arithmetic rule
 
 Score existing surface using preset rules. Clamp all arithmetic to 1-10 / D1-D8.
 Example: existing SaaS 7/6/4 preserve -> 7/7/4; overhaul -> 9/8/4.
@@ -280,7 +280,9 @@ without matching motion output is a lie. See dev-frontend/references/core/motion
 
 ### Anti-Default Discipline
 Do not default to: warm beige backgrounds, centered hero, three equal feature cards, generic glassmorphism, Inter + slate-900, card-based everything. These are LLM defaults. Reach past them BASED ON the design read.
-Award evidence calibrates these defaults without reversing them: a normally generic device is defensible only when it is the minimum expression of a specific product, artifact, or narrative and remains accessible without the effect. Apply the context gates in the award-research synthesis §5 rather than treating any winner example as a blanket exemption.
+Award evidence is a dated sample, not an exemption or universal prohibition. Consult
+`references/design-trends.md` and its actual sources, explain the surface-specific
+purpose, and retain accessibility. Do not depend on a private goalplan synthesis.
 When no brief exists at all, the sanctioned replacement for these generic
 defaults is the named kit in §1 UX-DEFAULT-ISM-01 — deliberate, domain-gated,
 and stated as an assumption; it is not an exemption from this discipline.

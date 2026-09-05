@@ -4,7 +4,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRACKING_FILE="$SCRIPT_DIR/visualize-upstream.md"
-VISUALIZE_ROOT="$HOME/.codex/plugins/cache/openai-bundled/visualize"
+VISUALIZE_ROOT="${CXC_VISUALIZE_ROOT:-${CODEX_HOME:-$HOME/.codex}/plugins/cache/openai-bundled/visualize}"
 
 if [[ ! -f "$TRACKING_FILE" ]]; then
   printf 'unable to check visualize upstream: tracking file not found\n' >&2
@@ -80,9 +80,9 @@ for candidate in "${candidates[@]:1}"; do
 done
 
 if command -v sha256sum >/dev/null 2>&1; then
-  current_hash="$(sha256sum "$upstream_file" | awk '{ print $1 }')"
+  current_hash="$(sha256sum < "$upstream_file" | awk '{ print $1 }')"
 elif command -v shasum >/dev/null 2>&1; then
-  current_hash="$(shasum -a 256 "$upstream_file" | awk '{ print $1 }')"
+  current_hash="$(shasum -a 256 < "$upstream_file" | awk '{ print $1 }')"
 else
   printf 'unable to check visualize upstream: no SHA-256 tool found\n' >&2
   printf 'install sha256sum or shasum and rerun this script\n' >&2
@@ -99,9 +99,9 @@ printf '\nChange summary:\n'
 printf '  version: %s -> %s\n' "${stored_version:-unknown}" "$upstream_version"
 printf '  path:    %s -> %s\n' "${stored_path:-unknown}" "$upstream_file"
 printf '  SHA-256: %s -> %s\n' "$stored_hash" "$current_hash"
-printf '\nUpdate required:\n'
-printf '  1. Compare the installed SKILL.md with ../reference/visualize-contract.md.\n'
-printf '  2. Re-extract changed diagram-viewer contract sections.\n'
-printf '  3. Update the path, hash, version, date, and changelog in %s.\n' "$TRACKING_FILE"
-printf '  4. Rerun this script until it prints "upstream in sync".\n'
+printf '\nInspection required:\n'
+printf '  1. Read the current host-provided visualize skill in full.\n'
+printf '  2. Verify the applicable output and interaction requirements; do not embed a frozen copy.\n'
+printf '  3. Update inspection provenance in %s only after that review.\n' "$TRACKING_FILE"
+printf '  4. A matching hash is a freshness hint, not rendering or compatibility proof.\n'
 exit 1

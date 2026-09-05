@@ -32,6 +32,9 @@ test("IDLE-EDIT-ADVISORY-01: IDLE + loopArmSeen -> allow envelope with additiona
     assert.match(parsed.hookSpecificOutput.additionalContext, /IDLE-EDIT/);
     assert.match(parsed.hookSpecificOutput.additionalContext, /cxc orchestrate status --session s1/);
     assert.match(parsed.hookSpecificOutput.additionalContext, /UNIT-RESIDENCE-01/);
+    assert.match(parsed.hookSpecificOutput.additionalContext, /C0.*no automatic devlog/);
+    assert.match(parsed.hookSpecificOutput.additionalContext, /C1.*only.*existing owning unit/);
+    assert.match(parsed.hookSpecificOutput.additionalContext, /Do not create a unit/);
     // counter incremented
     assert.equal(readState(cwd, "s1").idleEditNudges, 1);
   } finally { rmSync(cwd, { recursive: true, force: true }); }

@@ -75,7 +75,7 @@ Domain skills own architecture and implementation details.
 | `references/owasp-top10.md` | Any security-sensitive code | OWASP Top 10:2025 with unsafe/safe code pairs and checklists |
 | `references/language-quirks.md` | When coding in JS/TS, Python, SQL, or Go | Per-language pitfalls that scanners and reviewers commonly miss |
 | `references/static-analysis.md` | Before claiming code is secure | Semgrep, CodeQL, ESLint security, npm audit, pip-audit, Bandit, gitleaks, CI, pre-commit |
-| `references/asvs-checklist.md` | Before deploy or release | ASVS 5.0.0 pre-deploy checklist by chapter (V-shortcodes) and requirement level L1/L2 |
+| `references/asvs-checklist.md` | Before deploy or release | Local release checklist; formal ASVS 5.0.0 assessment requires full applicable requirement-level evidence |
 | `references/agentic-ai-security.md` | When building tool-using agents or prompt-driven flows | OWASP ASI01-ASI10 mapped to agent rules and safe operating patterns |
 | `references/llm-supply-chain.md` | When integrating LLMs, RAG pipelines, or consuming tool/agent output | Indirect prompt injection defense, RAG poisoning controls, tool output trust, CI adversarial tests |
 | `references/mcp-supply-chain.md` | Adding MCP servers or vetting agent tools | OWASP MCP secure-development + third-party vetting guides (no official "MCP Top 10" exists — map MCP risks to LLM01/03/06 + Agentic Top 10 ASI02/04/05), server vetting checklist, allowlist/pinning, sandbox, audit logging |
@@ -111,7 +111,7 @@ Use this checklist for login, session, token, password reset, magic link, OAuth,
 - [ ] Passwords hashed with `argon2id` (preferred); `scrypt` next if unavailable; `bcrypt` mainly for legacy; PBKDF2 only for FIPS-140 contexts. MD5/SHA1/raw SHA256 never for passwords. (OWASP ordering, checked 2026-07-02.)
 - [ ] Access tokens are short-lived with reduced scope (RFC 9700). Exact TTLs are risk-based org policy — 15-60 minutes is a common starting range, not a standard-mandated number.
 - [ ] Refresh tokens rotate on use and support family invalidation after reuse detection.
-- [ ] Browser tokens live in `httpOnly`, `secure`, `sameSite` cookies; keep session tokens out of `localStorage`.
+- [ ] Browser session tokens use an appropriate httpOnly/secure/SameSite cookie strategy; keep session tokens out of localStorage. For cookie-authenticated state changes, verify framework CSRF protection or an appropriate token/origin/Fetch-Metadata defense; SameSite alone is not sufficient in most deployments.
 - [ ] OAuth uses Authorization Code + PKCE; avoid implicit flow (deprecated, token-in-URL exposure).
 - [ ] Sensitive actions such as email change, MFA reset, payout change, and password change require step-up auth.
 - [ ] Failed logins are rate-limited and delayed progressively.
@@ -120,7 +120,8 @@ Use this checklist for login, session, token, password reset, magic link, OAuth,
 - [ ] Auth errors are generic — avoid revealing whether a specific email exists.
 
 See `references/owasp-top10.md` A07 for implementation patterns.
-See `references/asvs-checklist.md` V2 and V3 before deploy.
+See `references/asvs-checklist.md` for the local release checklist and the distinction
+from formal ASVS 5.0.0 evidence (Authentication V6, Session Management V7).
 
 ## 3. Authorization and Sensitive Flows
 
@@ -277,7 +278,7 @@ A security-sensitive change is complete only when every applicable item passes.
 - [ ] Rate limiting covers auth, public endpoints, and abuse-prone flows.
 - [ ] Static analysis runs clean enough for the repository policy: Semgrep, CodeQL or equivalent, dependency audit, and secret scan.
 - [ ] Error handling returns safe client messages and preserves structured server-side diagnostics.
-- [ ] ASVS Level 1 passes for all security-sensitive changes; Level 2 passes for auth, payments, PII, admin, or multi-tenant flows.
+- [ ] Applicable security requirements are mapped to the pinned ASVS version, requirement IDs, applicability decisions and evidence. The local checklist alone never certifies ASVS L1/L2 compliance.
 - [ ] Agentic workflows resist prompt injection, tool misuse, exfiltration, and excessive agency.
 
 ### Must-Pass Addenda for High-Risk Changes
