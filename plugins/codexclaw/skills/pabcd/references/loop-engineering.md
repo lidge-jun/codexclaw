@@ -45,10 +45,11 @@ the failing delta → re-verify.
 
 - **DEFAULT (LOOP-REPAIR-01):** 2 consecutive failed repairs of the same failure → stop
   patching, enter root-cause mode (`dev-debugging`). 3 → escalate: replan (return to P)
-  or Interview return. "One more attempt" past these thresholds is the doom loop.
-- **HEURISTIC (LOOP-DOOM-01):** 3 attestation failures in the same phase within one
-  work-phase → treat as no-progress and force an Interview return. Self-applied for now;
-  server-side enforcement is recorded as backlog.
+  or Interview return in HITL. "One more attempt" past these thresholds is the doom loop.
+- **LOOP-DOOM-01 (HEURISTIC):** 3 attestation failures in the same PABCD-phase within
+  one work-phase means no-progress. In HITL, return to Interview. In HOTL, do not
+  fake Interview while a goal is active; either replan at P from the evidence already
+  available, or close the work-phase as `NEEDS_HUMAN`, `BLOCKED`, or `UNSAFE`.
 - **DEFAULT (REVIEW-SYNTHESIS-01):** after a reviewer/verifier FAIL verdict, the main
   session records a synthesis BEFORE re-patching or re-dispatching: per-blocker root
   cause, conflicts between blockers (and against the standing plan), and an explicit
@@ -70,7 +71,7 @@ Classify the work-phase's problem type before choosing the inner loop shape:
   adversarial opponents). Repair loops plateau at local optima here: they polish the
   current strategy instead of finding the missing one. Use an **explore-and-select
   loop**: generate diverse candidates in parallel (different strategies, not parameter
-  tweaks — LOOP-CANDIDATE-ANCHOR-01 in §10), evaluate all on the same instances, keep
+  tweaks — LOOP-CANDIDATE-ANCHOR-01 in optimization.md), evaluate all on the same instances, keep
   best-so-far, regenerate from the winner. Stop on plateau (LOOP-PHASE-DEATH-01) or
   budget; the exit state is `BUDGET_EXHAUSTED` with the best candidate adopted — not
   `DONE`.
@@ -94,8 +95,8 @@ an **analysis deliverable** — not a patch:
    **expanding the allowed patch surface** — that is a P-level amendment, which is
    exactly why new capabilities can never emerge from a surface-bounded repair loop.
 
-Candidates are then sourced from these hypotheses (§10 LOOP-CANDIDATE-ANCHOR-01), and
-the next P quotes them (§10 LOOP-CONTINUITY-01). A generation that skips analysis and
+Candidates are then sourced from these hypotheses (optimization.md LOOP-CANDIDATE-ANCHOR-01), and
+the next P quotes them (../SKILL.md Work-Phase Loop, LOOP-CONTINUITY-01). A generation that skips analysis and
 regenerates straight from scores is a repair loop wearing an explore costume.
 
 ### §11.4b Mechanism activation proof (DEFAULT, LOOP-MECHANISM-PROOF-01)
@@ -138,3 +139,8 @@ of the two traces — the peer's trace is a free counterexample to the environme
 Goal-mode (unattended) loop-specs must state: tool/credential scope (what the loop may
 touch), token/cost budget, and a wall-clock bound. For C4 surfaces, an unattended loop
 with unstated scope is an ESCALATE-class omission — stop and ask before running it.
+
+Continuation belongs to [cxc-loop](../../loop/SKILL.md);
+divergence operation belongs to [Divergence tiers](../../loop/references/divergence-tiers.md).
+Optimization meta-rules are in [Optimization rules](optimization.md).
+Read only the owner needed by the current action.

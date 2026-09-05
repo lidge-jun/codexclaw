@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
 import {
+  buildLeafSkillCatalog,
   INLINE_SKILL_OPEN,
   LEAF_GUARD_BLOCK,
   LEAF_GUARD_BLOCK_COORDINATOR,
@@ -1024,4 +1025,27 @@ test("skillAffordanceBlock names the skills dir and the mention forms", () => {
   assert.ok(block.startsWith(SKILL_AFFORDANCE_MARKER));
   assert.ok(block.includes(`${SKILLS_DIR}/<name>/SKILL.md`));
   assert.ok(block.includes("$codexclaw:cxc-<name>"));
+});
+
+test("concise dev metadata remains readable by the real leaf catalog", () => {
+  const md = readFileSync(join(SKILLS_DIR, "dev", "SKILL.md"), "utf8");
+  const descriptionLine = md.split("\n").find((line) => line.startsWith("description: "));
+  assert.ok(descriptionLine);
+  const description = JSON.parse(descriptionLine!.slice("description: ".length));
+  assert.equal(typeof description, "string");
+  assert.ok(description.length > 0);
+  const catalog = buildLeafSkillCatalog(SKILLS_DIR);
+  assert.ok(catalog.includes("- cxc-dev: " + description.slice(0, 120)));
+  assert.ok(!catalog.includes("- cxc-loop:"));
+  assert.ok(!catalog.includes("- cxc-pabcd:"));
+});
+
+test("concise entrypoint is delivered once without recursively inlining its refs", () => {
+  const md = readFileSync(join(SKILLS_DIR, "dev", "SKILL.md"), "utf8").trim();
+  const first = inlineSkillBodies("use $cxc-dev", SKILLS_DIR);
+  assert.ok(first.includes(md));
+  assert.equal(first.indexOf(md), first.lastIndexOf(md));
+  assert.equal(inlineSkillBodies(first, SKILLS_DIR), first);
+  const detail = readFileSync(join(SKILLS_DIR, "dev", "references", "development-practice.md"), "utf8").trim();
+  assert.ok(!first.includes(detail));
 });

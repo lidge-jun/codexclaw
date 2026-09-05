@@ -8,7 +8,7 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Module boundaries / layers | `dev-architecture` | `dev-backend`, `dev-frontend` |
 | Coupling taxonomy | `dev-architecture` | `dev-code-reviewer` |
 | Barrel / re-export | `dev-architecture` | `dev-scaffolding` |
-| Pre-write search | `dev` §1.5 | `dev-code-reviewer` |
+| Pre-write search | dev references/development-practice.md (§1.5) | `dev-code-reviewer` |
 | Stacked pull requests (`DEV-STACK-*`) | `dev` `references/stacked-prs.md` | `pabcd`, `loop`, `dev-code-reviewer`, `dev-devops` |
 | Edge-first testing | `dev-testing` §6 | — |
 | Flaky tests / CI re-run (`TEST-FLAKE-*`) | `dev-testing` `references/ci-pipeline.md` §5 | `dev-testing` §5.4, `dev-debugging` Scenario D, `dev-devops` `references/ci-cd-deploy.md` §6.2/§6.5 |
@@ -26,6 +26,12 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Design judgment | `dev-uiux-design` | `dev-frontend` |
 | Operational gates | `dev-devops` | `dev-backend`, `dev-scaffolding` |
 | Project scaffolding / docs | `dev-scaffolding` | `pabcd` |
+| C0/C1 classification and record exemption | dev §0.0/§0.1 | pabcd, dev-scaffolding |
+| Unit residence and numbered roadmap contents | pabcd references/implementation-units.md, subject to dev §0.1 | loop, dev-scaffolding |
+| Loop intent, docs-first activation, scoped continuation | loop SKILL.md | pabcd, goalplan |
+| Goalplan schema and runtime lifecycle | loop references/durable-goalplan.md and references/runtime-lifecycle.md respectively | pabcd, goalplan |
+| Phase control and phase work | pabcd references/phase-control.md and phase-plan/audit/check.md respectively | loop, orchestrate |
+| Repair and optimization method | pabcd references/loop-engineering.md and optimization.md respectively | loop |
 | PABCD workflow | `pabcd` | — |
 | Anti-slop output | `dev` §Family Invariants | all `dev-*` |
 | file:line evidence | `dev` §Family Invariants | all `dev-*` |

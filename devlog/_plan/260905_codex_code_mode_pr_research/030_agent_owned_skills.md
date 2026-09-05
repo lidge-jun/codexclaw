@@ -101,6 +101,16 @@ an unshipped candidate; do not publish contradictory guide/runtime behavior.
 
 ## 4. Total-loaded-path design, not an entrypoint line-count target
 
+User clarification during wp2 B (2026-09-05): lightweight skills preserve modular
+ownership and may add more reference files. Neither total reference count nor
+total stored knowledge is a reduction target. Reduce unconditional instruction
+exposure, keeping complete task-relevant obligations in discoverable modules.
+Split references further when their selection conditions differ; do not merge
+unrelated modules or delete rules merely to produce fewer files or shorter text.
+Evaluate actual selected-path coverage, repeated reads and round-trip cost, not
+the number of references. This clarifies the existing acceptance criteria below;
+it does not waive any safety, evidence or runtime verification requirement.
+
 The old loop loads goal schema, phase-control repetition, repair, optimization,
 divergence, waits, and Stop history even for plan-only work. The new loop carries
 intent and invariant summaries, selecting details only for the actual action.

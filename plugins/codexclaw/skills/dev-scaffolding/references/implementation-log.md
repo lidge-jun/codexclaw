@@ -1,10 +1,11 @@
 # Implementation Log (devlog) Routine — the documentation loop inside PABCD
 
-Canonical spec for the per-implementation-unit documentation routine that rides the
-PABCD cycle. Companion to `pabcd/SKILL.md` (numbering) and
-`dev-scaffolding/SKILL.md` §2.1 (folder proposal rules). Read before any development
-work: unit residence is universal (UNIT-RESIDENCE-01) — the full routine below is for
-C2+/multi-phase work; C0-C1 leaves a numbered record doc (see the last section).
+Canonical placement and documentation routine for implementation units.
+Numbering and general residence belong to
+[Implementation units](../../pabcd/references/implementation-units.md);
+folder introduction belongs to ../SKILL.md §2.1.
+Read this routine for C2+/multi-phase unit documentation, not every small edit.
+cxc-dev §0.1 is canonical for the C0 exemption and existing-unit-only C1 record.
 
 ## The unit: one implementation unit = one plan folder
 
@@ -66,13 +67,11 @@ Two deliberate differences from common practice, kept on purpose:
    here it is a hard gate because the executor (an agent) will otherwise
    confidently build from a flawed plan.
 
-## Ceremony scales; residence does not
+## Class-scaled documentation
 
-Every piece of work lands in an implementation unit (UNIT-RESIDENCE-01). The full
-routine above (master plan + all-phase diff-level docs + doc audit) is mandatory for
-C4, for any multi-phase unit regardless of class, and for C3 when state must persist
-across turns/agents or contracts/architecture need a durable audit trail. C0-C1
-fast-path work skips the ceremony but still leaves a numbered record doc in its
-owning unit (what changed, why the fast path applied, verification evidence);
-create a minimal unit folder if none exists. Over-documenting small work is process
-slop — but "small" scales the ceremony down, never the record away.
+The full master-plan, diff-level roadmap, and doc-audit routine is mandatory for
+C4, multi-phase units, and C3 needing persistent contract/architecture evidence.
+General unit residence belongs to pabcd's implementation-units reference.
+C0/C1 follows cxc-dev §0.1: C0 needs no numbered unit record; C1 records only in
+an existing owning unit. Do not create a unit solely for a fast-path record.
+Preserve the smallest fresh verification and all safety rules.
