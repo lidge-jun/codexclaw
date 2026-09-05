@@ -467,7 +467,7 @@ Deliver the child packet below. Collect its changes, test evidence and final res
 F9 child packet (WORK와 PAYLOAD는 실제 절대 경로로 바인딩):
 
 ~~~~text
-Implementation worker task. Use the installed cxc-dev and cxc-dev-testing skills.
+Implementation worker task. Use $codexclaw:cxc-dev and $codexclaw:cxc-dev-testing.
 Fix WORK/src/duration.mjs to implement WORK/refs/duration-contract.md.
 You may edit only src/duration.mjs and test/duration.test.mjs under WORK.
 Read the required contract and the relevant selected skill/reference instructions.
@@ -510,6 +510,11 @@ outside-scope sentinel 불변, 필수 contract/관련 owner 적용 근거. Nativ
 F9 실패·누락·설정 불일치는 ADOPT_SELFLOAD를 막는다. F1–F8 성공이나 컴파일된
 guard 테스트만으로 F9를 대신하지 않는다. 이 추가 case는 B의 실제 구현 worker
 행동과 검증 의무를 검증하기 위한 것이며 부모·제품의 쓰기 권한을 넓히지 않는다.
+
+plaintext worker pair는 A에서 위 canonical mentions가 실제 본문 주입을 발동하고,
+B에서는 본문 주입 없이 필요한 파일을 읽었음을 관측해야 유효하다. 둘 다
+self-load로 통과했거나 A 본문 전달이 확인되지 않은 pair는 inlining 제거의
+검증으로 세지 않는다. Opaque/native surface는 별도 분류하고 지원을 추정하지 않는다.
 
 ## 10. 최종 선택·복구·인계
 

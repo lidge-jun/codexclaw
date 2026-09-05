@@ -303,7 +303,13 @@ export async function record(spec) {
       timeoutMs:p.timeoutMs, stdoutFd, stderrFd});
   } finally { closeSync(stdoutFd); closeSync(stderrFd); }
   let afterDoctor, after, postflightError = false;
-  try { afterDoctor = doctor(p, "after"); after = snapshot(p); }
+  try {
+    after = snapshot(p);
+    if (JSON.stringify(before) !== JSON.stringify(after)) throw new Error("identity changed during run");
+    afterDoctor = doctor(p, "after");
+    after = snapshot(p);
+    if (JSON.stringify(before) !== JSON.stringify(after)) throw new Error("identity changed during doctor");
+  }
   catch { postflightError = true; }
   const files = {};
   for (const name of ["stdout.jsonl", "stderr.log", "final.txt", "doctor-before.json",
@@ -405,9 +411,10 @@ function source(root, description) {
 }
 
 function transport(root, run) {
-  need(run.schemaVersion === 1 && run.outcome && run.before && run.after, "incomplete run record");
+  need(run.schemaVersion === 1 && run.outcome && run.before, "incomplete run record");
   check(run.outcome.rc === 0 && !run.outcome.signal && !run.outcome.interruption
     && !run.outcome.spawnError && !run.postflightError, "run transport/postflight failed");
+  need(run.after, "missing postflight identity");
   check(JSON.stringify(run.before) === JSON.stringify(run.after), "config/payload changed during run");
   check(run.beforeDoctor?.selectedChecks === "PASS" && run.afterDoctor?.selectedChecks === "PASS", "doctor check failed");
   for (const name of ["stdout.jsonl", "stderr.log", "final.txt", "doctor-before.json", "doctor-after.json"]) {
@@ -731,6 +738,7 @@ and fs; never a real model, SSH, shared config or production service.
 | response echo or limitation flag absent | valid required model/effort/wire proof | still eligible; raw missing echo null; no scheduler inference |
 | payload nested symlink | payloadDigest(temp root) | throws; original target unchanged |
 | record(spec) dispatcher symlink, not merely payloadDigest unit call | Use the valid macOS integration fixture and clean source git repo; replace only installed bin/cxc.mjs with a symlink to a test-owned script outside payload that writes a marker and emits valid four-check doctor JSON | record rejects with payload-symlink error; target marker remains absent. Reverting validation to after doctor must make this test fail |
+| record(spec) payload replaced during Codex execution | Valid preflight; fake Codex replaces bin/cxc.mjs with the marker-writing external symlink before exiting successfully | record returns not ok with postflightError; analyzer classifies FAILED before requiring absent after identity; linked marker absent and no postflight doctor execution. Repeat with config/launcher byte drift, and with a doctor that mutates an identity file after its valid invocation |
 | conflicting global cxc and candidate dispatcher | Valid macOS record fixture; put a marker-writing foreign cxc on the original process PATH. Fake Codex invokes cxc through its received PATH; candidate cxc handles doctor normally and writes a distinct candidate marker for that invocation | Candidate marker present, foreign marker absent; run.json dispatch and launcher digests match candidate. Restore test PATH in finally. Final native fixture additionally inspects actual cxc resolution inside the model shell |
 | incompatible benchmark host/harness; 1 iteration; negative floor | analyzeBench separately | UNKNOWN/2, no percentage claim |
 | benchmark duplicated keys / added hook / one hook regression | analyzeBench separately | FAILED/1; existing missing-hook regression remains intact |
