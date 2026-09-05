@@ -26,16 +26,16 @@ test('visualize inspection uses explicit root, version order, and failure states
         CODEX_HOME: join(root, 'wrong-default'), CXC_VISUALIZE_ROOT: cache, ...env }
     });
     let result = run({});
-    assert.equal(result.status, 1);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.match(result.stderr, /installed SKILL.md not found/);
     add('1.0.9', 'older-contract');
     add('1.0.10', 'current-contract');
     result = run({});
-    assert.equal(result.status, 0);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /version 1\.0\.10/);
     add('1.0.11', 'different-contract');
     result = run({});
-    assert.equal(result.status, 1);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.match(result.stdout, /drift detected/);
     const defaultRoot = join(root, 'codex-home');
     const homeRoot = join(root, 'home');
@@ -46,21 +46,21 @@ test('visualize inspection uses explicit root, version order, and failure states
     }
     // Explicit override still wins over a populated, different CODEX_HOME.
     result = run({ CODEX_HOME: defaultRoot, HOME: homeRoot });
-    assert.equal(result.status, 1);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.match(result.stdout, /1\.0\.11/);
     for (const override of ['', undefined]) {
       result = run({ CXC_VISUALIZE_ROOT: override, CODEX_HOME: defaultRoot, HOME: homeRoot });
-      assert.equal(result.status, 0);
+      assert.equal(result.status, 0, result.stdout + result.stderr);
       assert.match(result.stdout, /version 2\.0\.0/);
     }
     for (const codexHome of ['', undefined]) {
       result = run({ CXC_VISUALIZE_ROOT: undefined, CODEX_HOME: codexHome, HOME: homeRoot });
-      assert.equal(result.status, 0);
+      assert.equal(result.status, 0, result.stdout + result.stderr);
       assert.match(result.stdout, /version 3\.0\.0/);
     }
     writeFileSync(tracking, '- Current SHA-256: `invalid`\n');
     result = run({});
-    assert.equal(result.status, 1);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.match(result.stderr, /stored SHA-256 is missing or invalid/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

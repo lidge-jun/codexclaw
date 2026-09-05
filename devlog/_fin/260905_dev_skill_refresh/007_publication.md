@@ -11,3 +11,13 @@
 - repo generator `inventory.mjs --write --tests 2277`로 README 세 언어의 badge/alt만 갱신했고, `--check --tests 2277` PASS. 테스트 기준이나 CI gate를 낮추지 않았다.
 
 최종 PR head의 모든 CI와 review 상태를 다시 확인한 뒤 정상 merge한다. 결과 링크와 merge SHA는 PR 및 사용자 응답에 남긴다. 이 문서는 아직 진행 중인 Windows/WSL 검사나 merge를 완료로 표시하지 않는다.
+
+## Windows CI 진단
+
+첫 run의 Windows LF/CRLF 두 lane 모두 새 visualize test line34에서 status1/expected0로 실패했다. 다른 테스트 실패는 없었다. stdout/stderr가 assertion에 없어 실제 helper 진단을 볼 수 없었으므로, 기존 repo의 subprocess assertion 방식처럼 실패 출력만 추가했다. 기대값·skip·gate는 바꾸지 않았다.
+
+- H1: native Windows 경로의 backslash가 Bash glob 접근을 깨뜨림. 반증: candidate가 선택되고 hash drift가 보고되면 경로 접근은 됐다.
+- H2: checksum 출력의 filename escaping이 digest 비교에 섞임. 반증: reported digest가 깨끗한 64자리이고 선택된 파일이 동일하면 다른 원인이다.
+- H3: shell/환경 또는 줄바꿈 때문에 script 자체가 오동작. 반증: 초기 empty-cache와 tracking 파싱이 정상이며 LF/CRLF 모두 같은 후속 지점에서 실패한다. .gitattributes는 sh를 LF로 유지한다.
+
+원인 확정은 helper 출력과 실제 Windows 재검사로 한다. 단순 재시도나 Windows skip으로 처리하지 않는다.
