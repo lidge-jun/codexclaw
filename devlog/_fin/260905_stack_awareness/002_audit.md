@@ -1,4 +1,4 @@
-# A audit and synthesis
+# A audit and synthesis (archived)
 
 Independent reviewer James (`01a07167-c3ee-7133-90d8-4725b324ecae`) read the plan, target sources and primary GitHub docs at baseline `01c2bc2a9676c112bd864aa8351d9a075455eabc`.
 

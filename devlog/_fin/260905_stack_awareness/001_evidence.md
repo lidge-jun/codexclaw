@@ -1,4 +1,4 @@
-# Evidence and root cause
+# Evidence and root cause (archived snapshot)
 
 Observed 2026-09-05; OpenCodex calls were read-only.
 

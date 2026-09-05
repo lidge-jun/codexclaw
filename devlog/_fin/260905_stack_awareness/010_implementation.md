@@ -1,4 +1,4 @@
-# wp1 — global native/manual stack awareness
+# wp1 — global native/manual stack awareness (implemented)
 
 Depends on: none. One complete PABCD; no additional implementation decades.
 

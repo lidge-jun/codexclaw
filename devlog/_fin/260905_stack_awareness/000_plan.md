@@ -1,5 +1,7 @@
 # Stack awareness — one cohesive work-phase
 
+Implementation and C verification are complete; closure evidence is in `011_verification.md`.
+
 ## Loop spec
 
 - Class: C3, spec-satisfaction repair; one PABCD cycle (`wp1`).
