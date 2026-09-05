@@ -18,3 +18,11 @@ Trust registration remains pending user direction. No change in this correction 
 Remote RED used the new marker-preload regression against the prior benchmark: exit1, one failed test, marker unexpectedly present. Artifact `floor-env-red.log`. After using the same benchEnv for spawn-floor and hooks plus process.execPath for both, the benchmark report/cwd/comparison selection passed15/0 with no skips, exit0 (`floor-env-green.log`). This demonstrates environment parity in the tested subprocesses; it is not a model-performance improvement claim.
 
 The epsilon correction consumes compareReports' own deltaPct result. Ordinary missing-hook/regression failures are checked first; only otherwise eligible rows with non-finite percentage become UNKNOWN. No duplicate private epsilon constant or weaker comparison threshold is introduced.
+
+## Relocation and lifecycle verification
+
+The original42 test declarations remain represented exactly once after splitting: portable analyzer54 cases, recorder/process24, benchmark/compiled-hook8, plus unchanged benchmark suite14 made the previous100. Added21 same-byte lifecycle negatives,4 epsilon/control/precedence cases and1 preload test. Actual macmini run:126 passed,0 failed,0 skipped, exit0 (`wp1-review-fixes.log`).
+
+New owners: `probe-evidence.test.mjs`, `probe-recorder.test.mjs`, `probe-compiled-hooks.test.mjs`; shared fixture-only files under `test/probe-fixtures/`. All files are below400 lines.43 physical recorder/process cases explicitly skip outside Darwin and always run on macmini; portable analyzer and compiled-hook contracts remain selected on other OS. Non-Darwin execution has not been claimed or performed in this task.
+
+Identity revalidation covers every snapshot's canonical directory/file ancestry and containment, then bytes. Same-content config, installed root, Codex home, home, launcher directory and both launcher-file symlinks are exercised at preflight, execution and postdoctor boundaries. A linked dispatcher is not executed after drift. The recorder is not a sandbox against a fully privileged concurrent attacker; this is experiment identity hygiene and lifecycle validation.

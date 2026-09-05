@@ -17,12 +17,18 @@ const inside = (root, file) => file.startsWith(root + sep);
 
 function real(file) {
   if (!isAbsolute(file)) throw new Error("absolute path required");
+  // Check every component, including a link whose resolved spelling is unchanged.
+  for (let path = resolve(file); ; path = dirname(path)) {
+    if (lstatSync(path).isSymbolicLink()) throw new Error("symlinked path refused");
+    if (dirname(path) === path) break;
+  }
   const path = realpathSync(file);
   if (path !== resolve(file)) throw new Error("symlinked path refused");
   return path;
 }
 
 export function payloadDigest(root) {
+  real(root); // Walking entries alone misses a replaced payload root/ancestor.
   const rows = [];
   function walk(dir) {
     for (const name of readdirSync(dir).sort()) {
@@ -118,8 +124,26 @@ function doctor(p, label) {
 }
 
 function snapshot(p) {
-  return {config:fileDigest(join(p.codexHome, "config.toml")), payload:payloadDigest(p.pluginRoot),
-    cxcLauncher:fileDigest(join(p.launchDir, "cxc")), codexLauncher:fileDigest(join(p.launchDir, "codex"))};
+  // A matching digest is not path identity: re-establish isolation at EVERY
+  // snapshot, before dispatching either doctor and after either child returns.
+  for (const path of [p.root, p.sourceRoot, p.home, p.cwd, p.codexHome, p.pluginRoot, p.launchDir, p.out]) {
+    if (!lstatSync(real(path)).isDirectory()) throw new Error("identity directory required");
+  }
+  if (p.root === p.sourceRoot || inside(p.sourceRoot, p.root)) throw new Error("run root must be outside source");
+  if (p.home === realpathSync(homedir())) throw new Error("shared HOME refused");
+  for (const [root, path] of [[p.root, p.home], [p.root, p.cwd], [p.home, p.codexHome],
+    [p.codexHome, p.pluginRoot], [p.home, p.launchDir], [p.root, p.out]]) {
+    if (!inside(root, path)) throw new Error("identity path escapes isolated root");
+  }
+  const hashes = {};
+  for (const [key, root, name] of [["config", p.codexHome, "config.toml"],
+    ["cxcLauncher", p.launchDir, "cxc"], ["codexLauncher", p.launchDir, "codex"]]) {
+    const path = real(join(root, name));
+    if (!inside(root, path) || !lstatSync(path).isFile()) throw new Error("contained identity file required");
+    hashes[key] = fileDigest(path);
+  }
+  return {config:hashes.config, payload:payloadDigest(p.pluginRoot),
+    cxcLauncher:hashes.cxcLauncher, codexLauncher:hashes.codexLauncher};
 }
 
 export function runOwned({bin, args, cwd, env, prompt, timeoutMs, stdoutFd, stderrFd}) {
