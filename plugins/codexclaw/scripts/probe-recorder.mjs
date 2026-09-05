@@ -71,6 +71,14 @@ function cleanSource(root, sha) {
     const r = spawnSync("git", args, {cwd:root, encoding:"utf8", timeout:10000});
     if (r.status !== 0 || r.stdout.trim() !== expected) throw new Error("source identity mismatch or dirty source");
   }
+  const listed = spawnSync("git", ["ls-files", "-z"], {cwd:root, encoding:"utf8", timeout:10000, maxBuffer:16 * 1024 * 1024});
+  if (listed.error || listed.signal || listed.status !== 0) throw new Error("source file inventory failed");
+  const files = listed.stdout.split("\0").filter(Boolean).sort().map(name => {
+    const path = real(resolve(root, name));
+    if (!inside(root, path) || !lstatSync(path).isFile()) throw new Error("contained source file required");
+    return [name, fileDigest(path)];
+  });
+  return digest(JSON.stringify([sha, files]));
 }
 
 function prepare(spec) {
@@ -105,7 +113,7 @@ function prepare(spec) {
   const out = join(root, "output");
   mkdirSync(out, {mode:0o700}); // exclusive; a failed run is never overwritten
   mkdirSync(join(home, "tmp"), {recursive:true, mode:0o700});
-  return {root, sourceRoot, home, cwd, codexHome, pluginRoot, codexBin, launchDir, out, timeoutMs, env};
+  return {root, sourceRoot, sourceSha:spec.sourceSha, home, cwd, codexHome, pluginRoot, codexBin, launchDir, out, timeoutMs, env};
 }
 
 function doctor(p, label) {
@@ -137,13 +145,18 @@ function snapshot(p) {
   }
   const hashes = {};
   for (const [key, root, name] of [["config", p.codexHome, "config.toml"],
-    ["cxcLauncher", p.launchDir, "cxc"], ["codexLauncher", p.launchDir, "codex"]]) {
+    ["cxcLauncher", p.launchDir, "cxc"], ["codexLauncher", p.launchDir, "codex"],
+    ["approval", p.root, "approval.md"], ["install", p.root, "install.json"], ["prompt", p.root, "prompt.txt"]]) {
     const path = real(join(root, name));
     if (!inside(root, path) || !lstatSync(path).isFile()) throw new Error("contained identity file required");
     hashes[key] = fileDigest(path);
   }
-  return {config:hashes.config, payload:payloadDigest(p.pluginRoot),
-    cxcLauncher:hashes.cxcLauncher, codexLauncher:hashes.codexLauncher};
+  for (const [key, file] of [["codex", p.codexBin], ["recorder", fileURLToPath(import.meta.url)]]) {
+    const path = real(file);
+    if (!lstatSync(path).isFile()) throw new Error("entrypoint identity file required");
+    hashes[key] = fileDigest(path);
+  }
+  return {...hashes, payload:payloadDigest(p.pluginRoot), source:cleanSource(p.sourceRoot, p.sourceSha)};
 }
 
 export function runOwned({bin, args, cwd, env, prompt, timeoutMs, stdoutFd, stderrFd}) {
@@ -185,6 +198,7 @@ export async function record(spec) {
     throw new Error("identity changed during preflight doctor");
   }
   const prompt = readFileSync(join(p.root, "prompt.txt"));
+  if (digest(prompt) !== before.prompt) throw new Error("prompt identity changed before dispatch");
   const finalPath = join(p.out, "final.txt"), args = execArgs(spec.serviceTier, finalPath);
   const stdoutFd = openSync(join(p.out, "stdout.jsonl"), "wx", 0o600);
   const stderrFd = openSync(join(p.out, "stderr.log"), "wx", 0o600);
@@ -208,13 +222,13 @@ export async function record(spec) {
     if (existsSync(join(p.out, name))) files[name] = fileDigest(join(p.out, name));
   }
   const report = {
-    schemaVersion:1, candidate:spec.candidate, sourceSha:spec.sourceSha,
+    schemaVersion:1, candidate:spec.candidate, sourceSha:p.sourceSha,
     pluginRoot:p.pluginRoot, version:spec.expectedVersion,
-    codexBin:p.codexBin, codexSha256:fileDigest(p.codexBin),
+    codexBin:p.codexBin, codexSha256:before.codex,
     dispatch:{path:p.env.PATH, cxc:p.env.CODEXCLAW_CXC, launcherRoot:p.launchDir},
-    recorderSha256:fileDigest(fileURLToPath(import.meta.url)),
-    approvalSha256:fileDigest(join(p.root, "approval.md")),
-    installSha256:fileDigest(join(p.root, "install.json")), promptSha256:digest(prompt),
+    recorderSha256:before.recorder,
+    approvalSha256:before.approval,
+    installSha256:before.install, promptSha256:digest(prompt),
     requested:{model:"gpt-6-astra", effort:"high", serviceTier:spec.serviceTier},
     args, timeoutMs:p.timeoutMs, before, after, beforeDoctor, afterDoctor, postflightError, outcome, files,
   };
