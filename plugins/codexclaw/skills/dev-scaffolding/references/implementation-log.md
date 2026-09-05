@@ -3,8 +3,8 @@
 Canonical spec for the per-implementation-unit documentation routine that rides the
 PABCD cycle. Companion to `pabcd/SKILL.md` (numbering) and
 `dev-scaffolding/SKILL.md` §2.1 (folder proposal rules). Read before any development
-work: unit residence is universal (UNIT-RESIDENCE-01) — the full routine below is for
-C2+/multi-phase work; C0-C1 leaves a numbered record doc (see the last section).
+work: the full routine below is for C2+/multi-phase work. C0/C1 exceptions follow
+`dev` §0.1: no C0 devlog, and a short C1 record only in an existing owning unit.
 
 ## The unit: one implementation unit = one plan folder
 
@@ -66,13 +66,12 @@ Two deliberate differences from common practice, kept on purpose:
    here it is a hard gate because the executor (an agent) will otherwise
    confidently build from a flawed plan.
 
-## Ceremony scales; residence does not
 
-Every piece of work lands in an implementation unit (UNIT-RESIDENCE-01). The full
-routine above (master plan + all-phase diff-level docs + doc audit) is mandatory for
-C4, for any multi-phase unit regardless of class, and for C3 when state must persist
-across turns/agents or contracts/architecture need a durable audit trail. C0-C1
-fast-path work skips the ceremony but still leaves a numbered record doc in its
-owning unit (what changed, why the fast path applied, verification evidence);
-create a minimal unit folder if none exists. Over-documenting small work is process
-slop — but "small" scales the ceremony down, never the record away.
+
+## Class-scaled residence
+
+The full routine applies to C4, multi-phase units, and C3 work needing durable
+cross-session or contract evidence. C2+ uses the repository's unit convention.
+For C0/C1, defer to `dev` §0.1: C0 has no devlog obligation; C1 leaves a short
+record only in an existing owning unit. No new unit is required for either.
+Record substantive findings and verification truthfully without inflating trivial work.

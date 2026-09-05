@@ -104,11 +104,12 @@ codexclaw translation:
 - Role -> built-in agent type: `explorer`/`reviewer` -> `explorer` (read-only),
   `executor` -> `worker` (scoped write). codexclaw cannot register custom roles, so the
   role prompt is injected inline (the B-opt2 pattern).
-- **DISPATCH-AGENT-TYPE-01 (DEFAULT).** The role-to-agent-type mapping above is the
-  canonical dispatch classifier for the SubagentStop evidence gate: only
-  `agent_type:"worker"` triggers the evidence-receipt gate (hook matcher `^worker$` +
-  runtime `GATED_AGENT_TYPES`). Read-only audit, research, and review dispatches MUST
-  use `agent_type:"explorer"` to avoid conflicting evidence-persistence directives.
+- **DISPATCH-AGENT-TYPE-01 (DEFAULT).** Read the actual spawn schema first.
+  On hosts exposing `agent_type`, use `explorer` for read-only audit/research
+  and `worker` for scoped writes; that vocabulary also affects evidence hooks.
+  Other hosts may omit the field entirely. There, omit unsupported arguments
+  and specify read/write scope in the task packet; do not claim the host
+  enforced read-only access merely because the prompt requested it.
 - **EVIDENCE-TERMINAL-01 (DEFAULT, 260826).** The evidence gate blocks at most
   `MAX_ATTEMPTS` times per `(agent, turn)`, then RELEASES with an unresolved verdict
   recorded in session state. Fail-closed moved from the control flow to the verdict:

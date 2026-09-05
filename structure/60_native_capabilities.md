@@ -6,6 +6,16 @@ aliases: [Native Capability Matrix, codex native tools, browse use, computer use
 
 # 60 — Codex Native Capability Matrix (SOT)
 
+## Runtime boundary (2026-09-05)
+
+The matrix below is a historical capability inventory, not a promise that every host
+exposes these tool names or arguments. Inspect the callable catalog/schema for the
+current task. Optional native browser plugins, `tool_search`, `update_plan`, and
+`agent_type`/fork fields may be absent. Use supported equivalents only; record any
+missing capability without fabricating a successful call. Portable browser selection
+is owned by `plugins/codexclaw/skills/dev/references/browser-routing.md`.
+
+
 Status: VERIFIED against live probes plus the codex-rs snapshot on 2026-07-10, including
 V1/V2 schema, lifecycle, catalog-selection, and hook-name paths. Re-verify on Codex
 upgrades — deferred-tool routing and plugin sets drift per release.

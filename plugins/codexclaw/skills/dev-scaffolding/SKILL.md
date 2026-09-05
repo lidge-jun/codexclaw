@@ -70,8 +70,8 @@ Keep it light:
 ## 2.1 Lightweight Source of Truth (implementation-unit devlog)
 
 The implementation-unit devlog routine (`devlog/_plan/` units — `pabcd` §Work-Phase
-Loop, UNIT-RESIDENCE-01) is the DEFAULT for any repo you do development work in — a
-process rule, not a named style to be requested. Propose the `docs/`/`plans/`
+Loop, UNIT-RESIDENCE-01) is the DEFAULT for C2+ work where the repository uses it.
+C0/C1 follow the record exemptions in `dev` §0.1; do not create a unit just for them. Propose the `docs/`/`plans/`
 architecture docs when:
 - The repo is immature, undocumented, or inconsistent; or
 - The user asks for a durable source-of-truth structure; or
@@ -118,8 +118,8 @@ Implementation-Unit Documents — that is the single source of truth. This repo 
 Before creating any new source-of-truth folders, ask concisely: state that no durable docs were found,
 show the proposed tree, give a specific recommendation, and confirm you will not create them without approval.
 This gate governs INTRODUCING the convention to a repo (the first `devlog/` or source-of-truth structure);
-once `devlog/_plan/` exists, creating unit subfolders — including the minimal record unit mandated by
-UNIT-RESIDENCE-01 — is routine and needs no approval dialogue.
+once `devlog/_plan/` exists, creating a scoped C2+ unit subfolder is routine.
+This does not revoke C0/C1 exemptions or authorize unrelated documentation.
 
 ## 2.2 Project Skeleton
 

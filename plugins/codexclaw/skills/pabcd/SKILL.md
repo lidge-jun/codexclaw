@@ -160,7 +160,7 @@ These align with the directives the `pabcd-state` hook injects per phase:
    **PLAN-FIELD-CHAIN-01 (DEFAULT).** A plan that adds a field to a type, or a value to an enum, must enumerate the value's WHOLE chain in the file-change map: creation (input type, builder, CLI arg) -> serialization -> deserialization (reviver, unknown-value handling) -> every consumer. When adding an enum value, search three things, not one: the type name, the field name, and every existing enum value — then also check non-comparison consumption: destructuring/aliases, `default` branches, generic predicates, and every function taking that type. Give each of the four stages a path or an explicit `N/A + reason`; a blank is indistinguishable from "did not check". A missed consumer makes the new value a ghost state counted by nothing; a missed creation path means the value can never be produced, so any condition depending on it never arms.
 
    **PLAN-BYPASS-NAMED-01 (DEFAULT).** A plan that adds enforcement must also record HOW to bypass it, in five fields: tier (E1-E8), executing surface (which hook/script/human), known bypass path, residual risk, and whether the wording was downgraded. A bypassable layer is called an "early warning", never "enforcement". `final layer: none` is an allowed answer — the point is to stop claiming enforcement that does not exist, not to manufacture an unbypassable layer. If you claim no bypass exists, give the evidence; that claim is usually wrong.
-2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent reviewer (`spawn_agent`, `agent_type:"explorer"` per DISPATCH-AGENT-TYPE-01) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. For each conditional path the plan adds, the reviewer also asks: is the trigger reachable at all from states the system actually visits (callers exist, preconditions can co-occur, upstream code does not consume the trigger first), and does the plan name its activation scenario (C-ACTIVATION-GROUNDING-01)? An unreachable-by-construction branch is a plan blocker, not a C-phase discovery. The reviewer also checks: new devlog phase documents use the numbered lexicographic filename convention; bare-named or research/implementation-mixed docs are a FAIL (LEXICO-SPLIT-01). Multi-phase units satisfy DIFFLEVEL-ROADMAP-01: every roadmap phase has a diff-level decade doc (no outline-only or missing phases), and the phase map is dependency-ordered, not effort-bucketed (PHASE-SPLIT-01). **Audit loop (STRICT, AUDIT-LOOP-01):** A is a loop — audit -> synthesize -> amend plan -> re-audit — not a single round. Exit A>B only when the MAIN agent judges the round **pass** (reviewer approved) or **near-pass**: every High/Critical blocker was folded into the plan as a concrete amendment or explicitly rebutted with recorded rationale, and only non-blocking residuals remain (`GO-WITH-FIXES; 2 blockers folded back` qualifies — the main agent is the judge, not a string parser). A FAIL round never exits: apply REVIEW-SYNTHESIS-01 (§11.3), amend the plan, and re-audit with the SAME reviewer (V2 `followup_task` to its task_name or V1 `send_input` to its agent_id; DISPATCH-ACTOR-01); LOOP-REPAIR-01 bounds the loop — after 3 failed rounds return to P with a changed plan (HITL may return to Interview). The dispatch packet explicitly names `$codexclaw:cxc-dev-code-reviewer` AND `$codexclaw:cxc-search` (reference/version/external-claim verification rides the search ladder) and instructs the reviewer to end with a normalized final line `VERDICT: PASS | GO-WITH-FIXES (blockers=N) | FAIL` plus numbered blockers. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict) plus `auditVerdict` (`pass|near-pass|fail` — the MAIN agent's own judgment of the round); `near-pass` additionally requires `auditResidual` naming each residual blocker and its disposition (folded/rebutted). A declared `fail` never advances, and a pasted tail whose final verdict line says FAIL is rejected regardless of the claimed judgment. Still a form-only bar: the gate cannot verify the paste's provenance, so faithful execution (really dispatching the reviewer, really looping) remains the agent's obligation.
+2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent read-only reviewer using the exposed spawn schema (`agent_type:"explorer"` only when that field is supported, per DISPATCH-AGENT-TYPE-01) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. For each conditional path the plan adds, the reviewer also asks: is the trigger reachable at all from states the system actually visits (callers exist, preconditions can co-occur, upstream code does not consume the trigger first), and does the plan name its activation scenario (C-ACTIVATION-GROUNDING-01)? An unreachable-by-construction branch is a plan blocker, not a C-phase discovery. The reviewer also checks: new devlog phase documents use the numbered lexicographic filename convention; bare-named or research/implementation-mixed docs are a FAIL (LEXICO-SPLIT-01). Multi-phase units satisfy DIFFLEVEL-ROADMAP-01: every roadmap phase has a diff-level decade doc (no outline-only or missing phases), and the phase map is dependency-ordered, not effort-bucketed (PHASE-SPLIT-01). **Audit loop (STRICT, AUDIT-LOOP-01):** A is a loop — audit -> synthesize -> amend plan -> re-audit — not a single round. Exit A>B only when the MAIN agent judges the round **pass** (reviewer approved) or **near-pass**: every High/Critical blocker was folded into the plan as a concrete amendment or explicitly rebutted with recorded rationale, and only non-blocking residuals remain (`GO-WITH-FIXES; 2 blockers folded back` qualifies — the main agent is the judge, not a string parser). A FAIL round never exits: apply REVIEW-SYNTHESIS-01 (§11.3), amend the plan, and re-audit with the SAME reviewer (V2 `followup_task` to its task_name or V1 `send_input` to its agent_id; DISPATCH-ACTOR-01); LOOP-REPAIR-01 bounds the loop — after 3 failed rounds return to P with a changed plan (HITL may return to Interview). The dispatch packet explicitly names `$codexclaw:cxc-dev-code-reviewer` AND `$codexclaw:cxc-search` (reference/version/external-claim verification rides the search ladder) and instructs the reviewer to end with a normalized final line `VERDICT: PASS | GO-WITH-FIXES (blockers=N) | FAIL` plus numbered blockers. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict) plus `auditVerdict` (`pass|near-pass|fail` — the MAIN agent's own judgment of the round); `near-pass` additionally requires `auditResidual` naming each residual blocker and its disposition (folded/rebutted). A declared `fail` never advances, and a pasted tail whose final verdict line says FAIL is rejected regardless of the claimed judgment. Still a form-only bar: the gate cannot verify the paste's provenance, so faithful execution (really dispatching the reviewer, really looping) remains the agent's obligation.
 
    **Plan-rule checks (PLAN-VERIFIER-REAL-01 / PLAN-FIELD-CHAIN-01 / PLAN-BYPASS-NAMED-01).** The reviewer additionally verifies, and any one of these failing is a blocker: (a) every verifier command the plan names actually exists AND reads the change target — the reviewer RUNS it rather than trusting the plan; (b) each new field/enum value has its full creation -> serialization -> deserialization -> consumer chain enumerated, with `N/A + reason` where a stage does not apply; (c) when several documents reference a shared type, the field NAMES match, not just the concept; (d) each document's header dependency declaration matches the types its body actually uses; (e) any plan adding enforcement records the five bypass fields (tier / executing surface / known bypass / residual risk / wording downgrade) and either names the final enforcement layer or states `none`.
 
@@ -253,14 +253,12 @@ phase designs (decade ranges) are SEPARATE documents: no diffs inside a research
 doc, no survey prose padding a phase doc — a document that mixes both fails the
 audit.
 
-**Unit residence (STRICT, UNIT-RESIDENCE-01):** every piece of development work
-belongs to an implementation unit (`devlog/_plan/YYMMDD_slug/`). Ceremony scales
-with class (PABCD Depth by Work Class below); residence does not. C0-C1 fast-path
-work skips the PABCD ceremony but MUST leave a numbered record doc in its owning
-unit — next free index in the matching decade, e.g. `040_hotfix_dropdown_crash.md`
-— stating what changed, why the fast path applied (class call), and the
-verification evidence. No owning unit → create a minimal unit folder holding only
-that record. Interview settles residence before P (Interview Trigger above).
+**Unit residence (UNIT-RESIDENCE-01):** C2+ development belongs to an existing
+implementation unit or a proposed unit under the repository's established convention.
+C0/C1 record exceptions are canonical in `dev` §0.1: C0 needs no devlog; C1 records
+briefly only if an owning unit exists. Do not create a unit merely for that fast path.
+Retain safety classification and smallest relevant verification. Interview settles
+residence before P when clarification is needed, not for already-clear trivial edits.
 
 Devlog plan artifacts use decade-range numbering to separate concerns:
 
@@ -275,8 +273,8 @@ Rules:
 - 000-range durable research is **mandatory for C4**, and for C3 only when state must persist
   across turns/agents, public contract or architecture decisions need durable audit, or the
   repo already uses devlog planning for that task; optional for C0-C2 and
-  low-persistence C3 (a response-level plan is enough — but the work still leaves its
-  numbered record in a unit, UNIT-RESIDENCE-01).
+  low-persistence C3 (a response-level plan can suffice; C0/C1 record exceptions
+  follow dev §0.1, and C2+ uses the owning unit convention).
 - Default: sequential within decade (`000`, `001`, `002`...).
 - Overflow (>10 docs in a range): use sub-index (`000_0_name.md`, `000_1_name.md`).
 - NEVER use bare filenames like `PLAN.md`, `DIFF_PLAN.md`, `PHASES.md`, `RCA.md`.
@@ -311,9 +309,9 @@ pauses remain real confirmation points.
 
 **Faithful execution (anti-skip)**: do the real work of each PABCD-phase — P writes the real diff-level plan, A really dispatches the audit, B really implements AND verifies, C really runs tsc/tests/scrutiny, D really summarizes with evidence. Advancing the state is NOT the same as doing the phase; never rubber-stamp a phase to move on.
 
-**Native plan tracker (PLAN-TRACK-01)**: mirror the plan's work items into the native
-`update_plan` tool at P and keep statuses current through B — the harness renders it as
-live progress. `update_plan` is the visibility surface, not the plan itself; the
+**Native plan tracker (PLAN-TRACK-01)**: when the host exposes `update_plan`, mirror
+work items there at P and keep statuses current through B. If unavailable, use the
+existing devlog/goalplan and concise progress updates; do not invent a tool call. `update_plan` is the visibility surface, not the plan itself; the
 diff-level plan document remains the SSOT, and updating the tracker never substitutes
 for a phase's real work.
 
@@ -355,7 +353,7 @@ for a phase's real work.
 
 | Class | Plan (P) | Audit (A) | Build (B) | Check (C) | Record (D) |
 |-------|----------|-----------|-----------|-----------|------------|
-| C0-C1 | None/inline | Optional | Direct fix | Smallest proof | One-line summary as a numbered record doc in the owning unit (UNIT-RESIDENCE-01) |
+| C0-C1 | None/inline | Optional | Direct fix | Smallest proof | C0 no devlog; C1 short record only in an existing owning unit (dev §0.1) |
 | C2 | Compact plan | Micro-audit | Implement + focused tests | Targeted gate | Summary |
 | C3 | Compact or full plan depending on persistence/risk | Required when public contract, architecture, persistence, or cross-session risk exists; otherwise focused audit | Implement; use a reviewer subagent when useful | Affected suite + docs consistency when contracts changed | Summary + evidence; durable record only when state must persist |
 | C4 | Full PABCD plan (mandatory) | Required, independent reviewer | Implement; independent verification | Full relevant gates | Durable risk/approval/evidence record |
@@ -379,8 +377,10 @@ integrates. Dispatch only specifiable work whose coordination cost is justified
 Full lifecycle, economy, isolation, skill transport, and topology rules:
 `structure/20_pabcd_dispatch_doctrine.md` §3.
 
-**Lifecycle contract.** If `spawn_agent` is not visible, use `tool_search` for it before
-concluding delegation is unavailable. Fan out independent lanes before waiting, and
+**Lifecycle contract.** Discover the actual spawn capability through the host's tool
+catalog/search when available. Read its schema before calling: omit unsupported
+`agent_type`, `task_name`, `items`, fork, or model fields; encode read/write scope in
+the task packet. If no discovery/spawn capability exists, report that gap. Fan out independent lanes before waiting, and
 reuse the same reviewer throughout the A loop.
 
 - **V1:** `wait_agent` returns final status plus content; `send_input` reuses an agent;
@@ -392,7 +392,9 @@ reuse the same reviewer throughout the A loop.
 
 - **DISPATCH-ISOLATION-01:** every lane gets explicit read and write access lists;
   never share in-progress output across lanes.
-- **REVIEW-DECORRELATE-01:** use a different model family for the A-gate reviewer.
+- **REVIEW-DECORRELATE-01:** prefer an independent context; use a different model family
+  only when host policy and user authorization permit the override. Otherwise inherit
+  and record that family-level independence was not established.
 - **SPECIALIST-CRUX-01:** when a narrow crux lies outside the builder's domain,
   dispatch a specialist to re-derive it from first principles.
 - Returns preserve VERBATIM ANCHORS: exact `path:line` quotations, exact figures,
