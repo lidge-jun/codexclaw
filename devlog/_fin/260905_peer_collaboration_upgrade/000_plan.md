@@ -2,6 +2,7 @@
 
 Owner: 01a07026-2e97-7b53-9234-9e8aae6b15c2. Branch: codex/peer-collaboration-guidance.
 Base source: 0445e50a49d5b150f335e2949a22f1661e02dded. Class C3; HOTL explicitly authorized.
+Final verification and archived reproduction commands: [022](022_closeout.md).
 Prior research consulted: local untracked 260905_cross_worktree_status_reporting/007_astra_direction_interview.md.
 Its historical research cycle is not archived or certified complete by this unit.
 
