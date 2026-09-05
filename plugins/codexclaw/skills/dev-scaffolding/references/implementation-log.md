@@ -1,10 +1,11 @@
 # Implementation Log (devlog) Routine — the documentation loop inside PABCD
 
-Canonical spec for the per-implementation-unit documentation routine that rides the
-PABCD cycle. Companion to `pabcd/SKILL.md` (numbering) and
-`dev-scaffolding/SKILL.md` §2.1 (folder proposal rules). Read before any development
-work: the full routine below is for C2+/multi-phase work. C0/C1 exceptions follow
-`dev` §0.1: no C0 devlog, and a short C1 record only in an existing owning unit.
+Canonical placement and documentation routine for implementation units.
+Numbering and general residence belong to
+[Implementation units](../../pabcd/references/implementation-units.md);
+folder introduction belongs to ../SKILL.md §2.1.
+Read this routine for C2+/multi-phase unit documentation, not every small edit.
+cxc-dev §0.1 is canonical for the C0 exemption and existing-unit-only C1 record.
 
 ## The unit: one implementation unit = one plan folder
 
@@ -66,12 +67,11 @@ Two deliberate differences from common practice, kept on purpose:
    here it is a hard gate because the executor (an agent) will otherwise
    confidently build from a flawed plan.
 
+## Class-scaled documentation
 
-
-## Class-scaled residence
-
-The full routine applies to C4, multi-phase units, and C3 work needing durable
-cross-session or contract evidence. C2+ uses the repository's unit convention.
-For C0/C1, defer to `dev` §0.1: C0 has no devlog obligation; C1 leaves a short
-record only in an existing owning unit. No new unit is required for either.
-Record substantive findings and verification truthfully without inflating trivial work.
+The full master-plan, diff-level roadmap, and doc-audit routine is mandatory for
+C4, multi-phase units, and C3 needing persistent contract/architecture evidence.
+General unit residence belongs to pabcd's implementation-units reference.
+C0/C1 follows cxc-dev §0.1: C0 needs no numbered unit record; C1 records only in
+an existing owning unit. Do not create a unit solely for a fast-path record.
+Preserve the smallest fresh verification and all safety rules.

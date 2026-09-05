@@ -9,8 +9,13 @@
  *   node plugins/codexclaw/scripts/hook-bench.mjs              # run benchmark
  *   node plugins/codexclaw/scripts/hook-bench.mjs --json        # machine-readable output
  *   node plugins/codexclaw/scripts/hook-bench.mjs --iterations N  # custom iteration count
+ *   node plugins/codexclaw/scripts/hook-bench.mjs --plugin-root PATH  # installed payload
+ *
+ * This is synthetic entrypoint replay, not host matcher/trust activation.
+ * Empty output does not prove that a hook performed no state changes.
  */
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync, existsSync, mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,15 +23,16 @@ import { tmpdir, release } from "node:os";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PLUG_ROOT = resolve(HERE, "..");
-const MANIFEST_PATH = join(PLUG_ROOT, ".codex-plugin", "plugin.json");
+const HARNESS_SHA256 = createHash("sha256")
+  .update(readFileSync(fileURLToPath(import.meta.url))).digest("hex");
 
-function loadHooks() {
-  const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8"));
+function loadHooks(pluginRoot = PLUG_ROOT) {
+  const manifest = JSON.parse(readFileSync(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"));
   const hookFiles = manifest.hooks || [];
   const hooks = [];
   for (const relPath of hookFiles) {
-    const absPath = join(PLUG_ROOT, relPath.replace(/^\.\//, ""));
-    if (!existsSync(absPath)) continue;
+    const absPath = join(pluginRoot, relPath.replace(/^\.\//, ""));
+    if (!existsSync(absPath)) throw new Error("missing manifest hook file: " + relPath);
     const config = JSON.parse(readFileSync(absPath, "utf8"));
     const fileName = relPath.replace(/.*\//, "").replace(".json", "");
     for (const [event, groups] of Object.entries(config.hooks || {})) {
@@ -36,7 +42,7 @@ function loadHooks() {
             hooks.push({
               name: fileName,
               event,
-              command: hook.command.replace(/\$\{PLUGIN_ROOT\}/g, PLUG_ROOT),
+              command: hook.command.replace(/\$\{PLUGIN_ROOT\}/g, pluginRoot),
               timeout: hook.timeout || 10,
             });
           }
@@ -75,7 +81,7 @@ export function fixturePayload(event, benchCwd) {
 }
 
 export function benchEnv(tmpHome) {
-  return {
+  const env = {
     ...process.env,
     HOME: tmpHome,
     // Windows resolves the home from USERPROFILE, so HOME alone left the hook
@@ -84,13 +90,18 @@ export function benchEnv(tmpHome) {
     CODEX_HOME: join(tmpHome, ".codex"),
     CODEX_SQLITE_HOME: join(tmpHome, ".codex"),
   };
+  for (const key of Object.keys(env)) {
+    if (/^(?:CXC_|CODEXCLAW_)/.test(key)) delete env[key];
+  }
+  delete env.NODE_OPTIONS;
+  return env;
 }
 
 function invokeHook(command, payload, tmpHome, benchCwd) {
   const parts = command.replace(/^node\s+/, "").match(/(".*?"|'.*?'|\S+)/g) || [];
   const cleanParts = parts.map(p => p.replace(/^["']|["']$/g, ""));
   const start = performance.now();
-  const result = spawnSync("node", cleanParts, {
+  const result = spawnSync(process.execPath, cleanParts, {
     input: payload,
     timeout: 15000,
     env: benchEnv(tmpHome),
@@ -104,7 +115,11 @@ function invokeHook(command, payload, tmpHome, benchCwd) {
   const elapsed = performance.now() - start;
   const stdout = (result.stdout || "").toString().trim();
   const isNoOp = stdout === "" || stdout === "{}";
-  return { elapsed, exitCode: result.status, isNoOp };
+  return {
+    elapsed, exitCode: result.status, isNoOp,
+    stdoutBytes: Buffer.byteLength(result.stdout || ""),
+    stderrBytes: Buffer.byteLength(result.stderr || ""),
+  };
 }
 
 export function percentile(sorted, p) {
@@ -128,11 +143,12 @@ function fmtMs(value) {
  * has no fork(), so CreateProcess + PE loading + Defender's filter driver all
  * land in this number.
  */
-export function measureSpawnFloor(iterations) {
+export function measureSpawnFloor(iterations, env = benchEnv(tmpdir())) {
   const timings = [];
   for (let i = 0; i < iterations; i++) {
     const start = performance.now();
-    spawnSync(process.execPath, ["-e", ""], { stdio: "ignore", timeout: 15000 });
+    const result = spawnSync(process.execPath, ["-e", ""], { stdio: "ignore", timeout: 15000, env });
+    if (result.error || result.status !== 0) throw new Error("spawn floor process failed");
     timings.push(performance.now() - start);
   }
   timings.sort((a, b) => a - b);
@@ -169,7 +185,12 @@ function main() {
   const iterIdx = args.indexOf("--iterations");
   const iterations = iterIdx >= 0 ? parseInt(args[iterIdx + 1], 10) || 5 : 5;
 
-  const hooks = loadHooks();
+  const rootIdx = args.indexOf("--plugin-root");
+  if (rootIdx >= 0 && (!args[rootIdx + 1] || args[rootIdx + 1].startsWith("--"))) {
+    throw new Error("--plugin-root requires a directory");
+  }
+  const pluginRoot = rootIdx >= 0 ? resolve(args[rootIdx + 1]) : PLUG_ROOT;
+  const hooks = loadHooks(pluginRoot);
 
   if (!jsonMode) {
     console.log("Hook Benchmark Harness (issue #13)");
@@ -181,7 +202,7 @@ function main() {
   mkdirSync(join(tmpHome, ".codex"), { recursive: true });
   const benchCwd = mkdtempSync(join(tmpdir(), "cxc-bench-cwd-"));
 
-  const spawnFloor = measureSpawnFloor(iterations);
+  const spawnFloor = measureSpawnFloor(iterations, benchEnv(tmpHome));
   if (!jsonMode) {
     console.log("spawn floor: p50 " + fmtMs(spawnFloor.p50) + " | p95 " + fmtMs(spawnFloor.p95));
     console.log("---");
@@ -194,6 +215,8 @@ function main() {
     const timings = [];
     let noOps = 0;
     let errors = 0;
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
 
     for (let i = 0; i < iterations; i++) {
       const payload = fixturePayload(hook.event, benchCwd);
@@ -202,6 +225,8 @@ function main() {
         timings.push(r.elapsed);
         if (r.isNoOp) noOps++;
         if (r.exitCode !== 0) errors++;
+        stdoutBytes += r.stdoutBytes;
+        stderrBytes += r.stderrBytes;
       } catch { errors++; }
     }
 
@@ -218,6 +243,8 @@ function main() {
       noOpRate: (noOps / iterations * 100).toFixed(1) + "%",
       noOpRatio: iterations > 0 ? noOps / iterations : 0,
       errorCount: errors,
+      stdoutBytes,
+      stderrBytes,
       p50: fmtMs(percentile(timings, 50)),
       p95: fmtMs(percentile(timings, 95)),
       p99: fmtMs(percentile(timings, 99)),
@@ -242,6 +269,8 @@ function main() {
   if (jsonMode) {
     console.log(JSON.stringify({
       schemaVersion: 1,
+      harnessSha256: HARNESS_SHA256,
+      pluginRoot,
       timestamp: new Date().toISOString(),
       platform: process.platform,
       release: release(),

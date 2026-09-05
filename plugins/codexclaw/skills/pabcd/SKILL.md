@@ -1,6 +1,6 @@
 ---
 name: cxc-pabcd
-description: "MUST USE for any non-trivial multi-step development task that benefits from disciplined planning before execution — features, refactors, cross-module changes, or anything large enough to need explore-first planning, an audit gate, staged build, and verification before done. Scales depth by work class (C0-C5). Triggers: 'plan this', 'let's build X properly', 'interview me', 'be thorough', 'do it right', '제대로 만들자', '기획부터', '인터뷰하자', '요구사항 정리', 'PABCD 돌려', 'PABCD 여러 번', '한 사이클씩', '단계별로 제대로'."
+description: "Use for class-scaled Plan-Audit-Build-Check-Done work. Explicit explanation, interview, plan-only, and read-only limits win; loading the skill does not activate a loop. Triggers: PABCD, plan this, 기획, 단계별로, 요구사항 정리."
 metadata:
   last-verified: "2026-07-02"
   short-description: "Codex-native PABCD loop (Interview/Plan/Audit/Build/Check/Done) with class-scaled depth."
@@ -12,17 +12,26 @@ A Codex-native reimplementation of the IPABCD development loop (Interview + Plan
 
 > **C0/C1 work (small in-place patches):** See `dev` §0.0 Work Classifier and §0.1 Patch Fast-Path first — full PABCD is mandatory for C4 and conditional for C3, never the baseline for every task.
 
+## Intent boundary
+
+Loading this skill is not authority to execute phases. Explanation, review,
+interview-only, plan-only, read-only, no-goal, no-FSM, and no-delegation limits win.
+Use the requested method only within that scope. An operative bare cxc-loop
+request selects scoped HOTL through cxc-loop; ordinary PABCD use does not.
+cxc-dev is canonical for work class, C0/C1 fast-path, proof, and safety.
+
 ## Interview Trigger
 
 Two distinct things, do not conflate them:
 
-- **Hook auto-trigger (narrow):** the `pabcd-state` `UserPromptSubmit` hook only
-  auto-detects the explicit phrases `interview`, `인터뷰`, and `orchestrate i`
-  (`detectTrigger`). These inject the I directive automatically.
-- **Agent judgment (broad):** for other phrasings — "요구사항 정리", "스펙 정리해줘",
-  "뭘 만들어야 하는지 정리", or any variation that signals unclear requirements — the
-  hook does NOT auto-fire; YOU decide to enter Interview by invoking `cxc-interview`
-  (or running `cxc orchestrate I --session <id>`). The breadth lives in agent judgment, not in a regex.
+- **Hook hint (narrow):** `UserPromptSubmit` detects `interview` / `인터뷰`
+  and other existing lexical phase hints and injects scoped advice only. Natural
+  hints never enter or advance a phase. A line-anchored `orchestrate i` command
+  instead takes the existing explicit-command parser path.
+- **Agent judgment (broad):** for unclear requirements phrased otherwise, select
+  `cxc-interview` and its applicable references. Loading a skill is not a state
+  transition. When phase entry is authorized, use `cxc orchestrate I --session <id>`
+  with the current SessionStart binding; explicit user commands are also supported.
 
 **I — Interview**: HITL-only requirements discovery. Canonical rules (four dimensions, contradiction scanning, readiness gating, Q/A capture) live in `cxc-interview`; PABCD owns the phase edge I->P and the return-to-Interview affordance from any phase.
 
@@ -41,185 +50,33 @@ You can return to Interview (I) from any phase to clarify requirements; the plan
 
 ## Phase Control / Orchestrate
 
-### Chat Surface
-
-The chat command grammar is:
-
-```text
-orchestrate <I|P|A|B|C|D|status|reset> [--attest <json> | --attest-file <path>]
-```
-
-**On Windows use `--attest-file`.** PowerShell strips the quotes from inline JSON
-and, once you escape them, splits the value at its first space — and every gated
-edge needs a `did` narrative, which has spaces. Write the JSON first, then attest:
-
-```powershell
-'<json>' | Set-Content -Encoding utf8 .codexclaw/attest.json
-cxc orchestrate A --session <id> --attest-file .codexclaw/attest.json
-```
-
-Accepted prefixes include `$codexclaw:cxc-orchestrate`, `$cxc-pabcd`,
-`cxc orchestrate`, `/orchestrate`, and bare `orchestrate`.
-
-### Semantics
-
-- Chat-submitted commands are the human path.
-- Human path can advance legal adjacent phases without attestation.
-- Agent/terminal path is the live `cxc orchestrate` CLI and is attest-gated:
-  forward edges (P>A, A>B, B>C, C>D) require `--attest` evidence.
-- `D` is a closing action that returns to `IDLE`; it is not a resting badge.
-- `status` is read-only.
-- `reset` is an explicit control action, not a normal phase edge.
-
-### Per-phase artifact obligation (ORCH-ARTIFACT-01)
-
-Advancing a phase is not the same as doing it (see `pabcd` faithful-execution). Each forward
-edge must carry its real artifact, not just an `--attest` string: P = the actual diff-level plan;
-A = an audit/review verdict that names blockers (`A>B` attest requires a non-empty
-`auditOutput` — the pasted tail of the dispatched reviewer subagent's verdict — plus
-the main agent's `auditVerdict` judgment, AUDIT-LOOP-01); B = the
-implementation delta; C = fresh `tsc`/test/gate output (`C>D` attest requires a non-empty
-`checkOutput` and `exitCode`, which must be `0`); D = a cycle summary with
-evidence and the next-phase decision. A phase whose artifact is absent is not done, regardless
-of adjacency.
-
-**ATTEST-EVIDENCE-01 (DEFAULT):** write `did` with artifact pointers, not only a
-sentence: plan/devlog paths, changed files, commands with exit codes, and evidence or
-ledger paths when present. The runtime gate remains form-only for `did`; this is the
-agent discipline that makes later audit possible.
-
-**ATTEST-SHAPE-01 (STRICT):** every `--attest` object carries `from` and `to`
-naming the edge it advances. The parser coerces before any gate runs
-(`attest.ts` `coerceAttest`), so an attest without them is refused on EVERY
-edge — including ungated entry edges — before `did`, `planUnit`, or
-`workPhaseId` is ever examined.
-
-| Edge | Required attest keys | Notes |
-|------|---------------------|-------|
-| IDLE->P | none — pass no `--attest` at all | If you pass one anyway it is still parsed, so it still needs `from`/`to` |
-| I->P | none — unless overriding an unready interview, which needs `from`, `to`, `did`, `override` | |
-| P->A | `from`, `to`, `did` with plan pointer, `planUnit` | `planUnit` must be a real `devlog/_plan/YYMMDD_slug/` holding numbered docs |
-| A->B | `from`, `to`, `did`, `auditOutput`, `auditVerdict` (`pass`/`near-pass`/`fail`); near-pass adds `auditResidual` | FAIL never advances |
-| B->C | `from`, `to`, `did` with implementation delta | |
-| C->D | `from`, `to`, `did`, `checkOutput`, `exitCode` (required, must be 0) | a goalplan-bound session also needs `testReceiptPath` from `cxc receipt test` |
-
-**Every gated edge additionally requires `workPhaseId` whenever a goalplan is
-bound to the session** — it must equal the active work-phase (LOOP-UNIT-CHAIN-01).
-
-Copy-paste objects. Replace the values; keep every key:
-
-```json
-{"from":"P","to":"A","did":"wrote the diff-level plan at <path>","planUnit":"devlog/_plan/260825_slug","workPhaseId":"wp1"}
-{"from":"A","to":"B","did":"folded 2 blockers, rebutted 1","auditOutput":"<pasted reviewer verdict tail>","auditVerdict":"near-pass","auditResidual":"GO-WITH-FIXES; blocker 1 folded, blocker 2 rebutted because ...","workPhaseId":"wp1"}
-{"from":"B","to":"C","did":"implemented <files>; <n> tests added","workPhaseId":"wp1"}
-{"from":"C","to":"D","did":"verified at <sha>","checkOutput":"<pasted tail of the command>","exitCode":0,"testReceiptPath":".codexclaw/evidence/<session>/test-receipt.json","workPhaseId":"wp1"}
-```
-
-Omit `workPhaseId` when no goalplan is bound, and `testReceiptPath` when the
-session is unbound. Everything else is mandatory on that edge.
-
-These are edge contracts, not substitutes for phase work. Artifact pointers must name
-the evidence produced by the phase being advanced.
-
-### Control surfaces (shipped)
-
-Chat and CLI control the same persisted FSM and ledger; invocation source selects
-the gate. A line-anchored chat `orchestrate <verb>` is a human free-pass, while
-illegal edges remain refused. Agents use
-`cxc orchestrate <verb> --session <id> --attest <json>` (or `--attest-file <path>`,
-required on Windows) and provide real evidence.
-`A>B` requires `auditOutput` plus `auditVerdict`; near-pass also requires
-`auditResidual`.
-`C>D` requires `checkOutput` and a passing `exitCode` — omitting it is refused, since a check with no outcome is not a check.
-Mutating verbs require an explicit session; only `status` may use latest-session fallback.
-**SESSION-IDENTITY-01 (STRICT):** use only the latest SessionStart binding in your
-own context, never a parent or transcript-history id; this also governs
-`cxc loop init` and `cxc goalplan`. SessionStart creates missing IDLE state without
-clobbering resumed state; `cli` is terminal-only. Injected directives end with
-`IPABCD: <phase> (<LABEL>)`; after D, the displayed state is IDLE.
-
-### Loop / goal activation handoff
-
-`cxc-loop` depends on PABCD; it does not replace it.
-HITL enters I or P explicitly, needs no host goal, and pauses at P/A/B for the human.
-HOTL requires both an ACTIVE host goal and a non-IDLE PABCD cycle before Stop
-continuation arms. The main session alone owns host-goal lifecycle and PABCD
-transitions; subagents only assist. **ORCH-MANDATE-01 (STRICT):** narrated phases
-are invalid without persisted transitions. Arm at I or P, advance every edge with
-evidence-bearing `--attest`, and re-enter work done outside the FSM.
+Before an authorized state-control action read
+[Phase control](references/phase-control.md). It owns the chat/CLI distinction,
+SESSION-IDENTITY-01, ORCH-ARTIFACT-01, ATTEST-SHAPE-01, Windows attest-file usage,
+and every edge's required keys. Entry edges are not the four gated work edges.
+Do not claim a phase from narration; do its work and record the real transition.
+Goal activation and scoped continuation are owned by [cxc-loop](../loop/SKILL.md).
 
 ## Phases
 
-These align with the directives the `pabcd-state` hook injects per phase:
+Read only the current phase's detailed owner before doing its work. A reference
+link is a conditional routing edge, not a command to preload the entire graph.
 
-0. **I — Interview**: HITL-only requirements discovery; canonical rules live in `cxc-interview`. PABCD owns I->P and return-to-Interview phase edges.
-1. **P — Plan**: Explore first (read real code, configs, docs). **Slice and order phases by dependency/architecture structure (STRICT, PHASE-SPLIT-01)** — the orthodox unlimited-time build order: foundations (schema, contracts, core data flow) → core capabilities → integration → hardening/polish — so each phase consumes the verified output of the previous one. Effort-based bucketing is FORBIDDEN: never split or order phases by estimated effort or payoff speed — no "quick win vs heavy" buckets, no impact/effort matrices, no time-boxed slices. Phase boundaries encode the system's build order, not the schedule. DB/API/UI/test work inside a phase are subtasks, not top-level phases by default, and every phase must still close with something independently verifiable (build, tests, or a demonstrable surface). Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable accept criteria. For every planned conditional path (error handler, fallback, guard, gated branch, threshold behavior), the accept criteria name its **activation scenario** — how C will trigger it and what observable effect proves it ran (C-ACTIVATION-GROUNDING-01). For C2+ plans, begin with a loop-spec header: Loop archetype; Trigger; Goal (user-visible outcome); Non-goals; Verifier (command/gate and what it measures); Stop condition; Memory artifact; Expected terminal outcomes; Escalation condition — stated BIDIRECTIONALLY where delegation is planned: upward (main reclaims a slice after two distinct agents fail its packet, per DISPATCH-RETIRE-01 packet-failure reclaim) and downward (pushing a slice down to a worker is a P-phase amendment, never a mid-B improvisation). HOTL goal plans also state the `cxc-loop` HOTL resource bounds. For open-ended optimization, include the divergence plan, deterministic selection rule, and telemetry schema; if the verifier only reports scalar outcome, instrumentation is B's first work item before candidates. Ground every decision in code you have read. No implementation yet. For broad or unfamiliar repos, include a compact tree, detected conventions, which existing logs/docs you will reuse, and the SoT sync target (SOT-SYNC-01): which general source-of-truth doc (architecture/INDEX docs, or equivalent) this unit will patch in C — or, if the repo has none, the plan recommends creating one (dev-scaffolding §2.1). **A dependency-ordered phase map may be publishable as a PR stack (`DEV-STACK-01`).** When the unit will produce dependent branches too large to review as one diff, P decides whether to stack and records it. Rules: `cxc-dev` `references/stacked-prs.md`.
+| Phase / trigger | Mandatory owner before work |
+|---|---|
+| I | cxc-interview; no active host goal |
+| P, including plan-only | [Plan phase](references/phase-plan.md); C2+ plans also read [Plan output](references/plan-output.md) |
+| A, if authorized | [Audit phase](references/phase-audit.md) |
+| C | [Check phase](references/phase-check.md) |
+| P/A specifying render or conditional-path verification | [Check phase](references/phase-check.md), to define reachable activation and observable evidence |
 
-   **PLAN-VERIFIER-REAL-01 (DEFAULT).** Before writing a verifier command into the plan, RUN it. A command that does not exist (missing script/config) or does not read the change target is not a verifier. Next to each verifier record one line: its exit code, and whether it actually reads this unit's change target. Prove the "reads the target" claim with one of: the target path appears as a direct argument; a script/glob definition that includes it (quote the glob); a config `include`/`files` entry (quote it); or a call chain into a sub-script that reads it (cite file:line). If none of those hold, write "this command does not observe this change" and classify that acceptance row as human review — do NOT claim a gate protects it. Two common traps: a command that silently checks nothing when its config file is absent, and naming a gate as verifier for prose it never reads.
+P explores and plans without implementing; PHASE-SPLIT-01 and the diff-level
+contract apply. A actually audits, folds/rebuts blockers, and re-audits; only pass
+or justified near-pass exits. C requires fresh relevant proof and SoT sync;
+passing unrelated checks is not evidence. Explicit execution restrictions are not
+overridden by a reference asking to run a verifier or dispatch a reviewer.
 
-   **PLAN-FIELD-CHAIN-01 (DEFAULT).** A plan that adds a field to a type, or a value to an enum, must enumerate the value's WHOLE chain in the file-change map: creation (input type, builder, CLI arg) -> serialization -> deserialization (reviver, unknown-value handling) -> every consumer. When adding an enum value, search three things, not one: the type name, the field name, and every existing enum value — then also check non-comparison consumption: destructuring/aliases, `default` branches, generic predicates, and every function taking that type. Give each of the four stages a path or an explicit `N/A + reason`; a blank is indistinguishable from "did not check". A missed consumer makes the new value a ghost state counted by nothing; a missed creation path means the value can never be produced, so any condition depending on it never arms.
-
-   **PLAN-BYPASS-NAMED-01 (DEFAULT).** A plan that adds enforcement must also record HOW to bypass it, in five fields: tier (E1-E8), executing surface (which hook/script/human), known bypass path, residual risk, and whether the wording was downgraded. A bypassable layer is called an "early warning", never "enforcement". `final layer: none` is an allowed answer — the point is to stop claiming enforcement that does not exist, not to manufacture an unbypassable layer. If you claim no bypass exists, give the evidence; that claim is usually wrong.
-2. **A — Audit**: Adversarial, read-only review of the plan against the real codebase. Dispatch an independent read-only reviewer using the exposed spawn schema (`agent_type:"explorer"` only when that field is supported, per DISPATCH-AGENT-TYPE-01) — even a small/mini-model one — to challenge assumptions, find blockers (rollback gaps, missing callers, phantom constants), and verify references. For each conditional path the plan adds, the reviewer also asks: is the trigger reachable at all from states the system actually visits (callers exist, preconditions can co-occur, upstream code does not consume the trigger first), and does the plan name its activation scenario (C-ACTIVATION-GROUNDING-01)? An unreachable-by-construction branch is a plan blocker, not a C-phase discovery. The reviewer also checks: new devlog phase documents use the numbered lexicographic filename convention; bare-named or research/implementation-mixed docs are a FAIL (LEXICO-SPLIT-01). Multi-phase units satisfy DIFFLEVEL-ROADMAP-01: every roadmap phase has a diff-level decade doc (no outline-only or missing phases), and the phase map is dependency-ordered, not effort-bucketed (PHASE-SPLIT-01). **Audit loop (STRICT, AUDIT-LOOP-01):** A is a loop — audit -> synthesize -> amend plan -> re-audit — not a single round. Exit A>B only when the MAIN agent judges the round **pass** (reviewer approved) or **near-pass**: every High/Critical blocker was folded into the plan as a concrete amendment or explicitly rebutted with recorded rationale, and only non-blocking residuals remain (`GO-WITH-FIXES; 2 blockers folded back` qualifies — the main agent is the judge, not a string parser). A FAIL round never exits: apply REVIEW-SYNTHESIS-01 (§11.3), amend the plan, and re-audit with the SAME reviewer (V2 `followup_task` to its task_name or V1 `send_input` to its agent_id; DISPATCH-ACTOR-01); LOOP-REPAIR-01 bounds the loop — after 3 failed rounds return to P with a changed plan (HITL may return to Interview). The dispatch packet explicitly names `$codexclaw:cxc-dev-code-reviewer` AND `$codexclaw:cxc-search` (reference/version/external-claim verification rides the search ladder) and instructs the reviewer to end with a normalized final line `VERDICT: PASS | GO-WITH-FIXES (blockers=N) | FAIL` plus numbered blockers. No code changes. The `A>B` attest structurally requires `auditOutput` (the pasted tail of the reviewer's verdict) plus `auditVerdict` (`pass|near-pass|fail` — the MAIN agent's own judgment of the round); `near-pass` additionally requires `auditResidual` naming each residual blocker and its disposition (folded/rebutted). A declared `fail` never advances, and a pasted tail whose final verdict line says FAIL is rejected regardless of the claimed judgment. Still a form-only bar: the gate cannot verify the paste's provenance, so faithful execution (really dispatching the reviewer, really looping) remains the agent's obligation.
-
-   **Plan-rule checks (PLAN-VERIFIER-REAL-01 / PLAN-FIELD-CHAIN-01 / PLAN-BYPASS-NAMED-01).** The reviewer additionally verifies, and any one of these failing is a blocker: (a) every verifier command the plan names actually exists AND reads the change target — the reviewer RUNS it rather than trusting the plan; (b) each new field/enum value has its full creation -> serialization -> deserialization -> consumer chain enumerated, with `N/A + reason` where a stage does not apply; (c) when several documents reference a shared type, the field NAMES match, not just the concept; (d) each document's header dependency declaration matches the types its body actually uses; (e) any plan adding enforcement records the five bypass fields (tier / executing surface / known bypass / residual risk / wording downgrade) and either names the final enforcement layer or states `none`.
-
-   **Verification is not pinned to A (LEAN-REVIEW-01, 260818).** `cxc review-round open` still exists, and a verdict a reviewer's exit records is still honoured: it cannot be contradicted by your attest, spent after a re-plan, or spent on a plan that changed since. What changed is that an open round no longer BLOCKS `A>B`. It used to, and that produced a deadlock — every reason the SubagentStop observer did not fire (a matcher that missed the runtime's role vocabulary, a reviewer whose closing lines did not parse, a reinstall that moved `PLUGIN_ROOT` out from under a live session) became a cycle that could never leave A, whose only escape was hand-feeding the hook its own payload. A gate whose normal recovery is forging its own input is not a gate.
-
-   Dispatch reviewers wherever they actually help — plan audit at A, implementation lanes at B, verification lanes at C — instead of treating A as the one phase that owns review. Open a round when you want the verdict bound to the plan hash and this cycle; otherwise attest and move. Both are honest; only claiming a reviewer ran when none did is not.
-   When the verdict is FAIL, fold-back follows REVIEW-SYNTHESIS-01 (§11.3): synthesize root causes and accept/rebut decisions before re-planning or re-dispatching the reviewer.
 3. **B — Build**: Implement the audited plan in small atomic commits (DEV-GIT-COMMIT-01). Verify as you go. Stay inside the plan's scope boundary; surface deviations instead of silently expanding scope. Never push to a remote without explicit user approval (DEV-GIT-PUSH-01, ESCALATE). When P declared a stack, follow `DEV-STACK-02` in `cxc-dev` `references/stacked-prs.md`.
-4. **C — Check**: Run the relevant real verification at the dev §3 work-class floor, plus adversarial review. Runnable source changes use the applicable build/typecheck/tests; docs-only changes use document/contract checks and semantic review, not unrelated product suites. Capture fresh output as evidence. Do not claim pass without artifact-level proof. When the unit changed a user-facing surface (web/TUI/CLI/API), C also closes with a `cxc-qa` evidence matrix — real invocations, adversarial classes, teardown receipts (E7 discipline; see `skills/qa/SKILL.md`).
-
-   **SoT sync (DEFAULT, SOT-SYNC-01):** locate the repo's general source-of-truth
-   docs (architecture/INDEX docs, or equivalent) — found in P, patched HERE so SoT
-   and code never diverge silently; if the repo has none, recommend creating one
-   (dev-scaffolding §2.1) in the D summary.
-
-   **DEFAULT (C-RENDER-GROUNDING-01):** When the work-phase produces a render artifact
-   (HTML, SVG, layout-defining CSS, canvas/animation/chart JS, .jsx/.tsx layout
-   components) whose correctness only shows when run or rendered, C MUST include a
-   render-grounding loop before C->D: (1) **RUN** it in its natural execution
-   environment -- headless-browser screenshot for web, SVG->PNG render, execute scripts,
-   drive stateful artifacts until the first interactive state change; (2) **OBSERVE** the
-   output -- actually read the screenshot/console back; a produced-but-unread screenshot
-   is not observation; (3) **FIX** what the observation reveals, then re-run and
-   re-observe. Trigger on artifact type + change ("could this look or behave wrong in a
-   way that only shows when it runs?"), never on task depth alone. Stop after ONE clean
-   observation; re-render only after a change. Well-formed (tsc/lint/parse passing) is
-   not correct -- static gates do not satisfy this rule. Defaults (HEURISTIC -- deviate
-   with a stated reason): 1280x720 viewport; stateful artifacts driven until the first
-   interactive state change. Evidence scales with class: C2-C3 record the observation in
-   the attestation narrative; C4 (STRICT) additionally persists the screenshot to the
-   devlog. The render observation is valid `checkOutput` evidence for C->D and the `did`
-   must reference it. Excluded: pure logic/config/prose covered by its own test suite.
-   (Adopted 2026-07-05 from fablize verification-grounding; devlog
-   `260705_pabcd_render_grounding`.)
-
-   **DEFAULT (C-ACTIVATION-GROUNDING-01):** The conditional-path sibling of render
-   grounding. When the work-phase adds or changes a code path that only runs under a
-   trigger condition absent from the default/happy path — error handlers, fallbacks,
-   retries, caches, guards, feature-gated branches, mode switches, migration/upgrade
-   handlers, "from turn/size/load X" behaviors — C MUST include activation evidence
-   before C->D: (1) **TRIGGER** the condition for real (a test or scenario that drives
-   it, a fixture that crosses the threshold, a fault injection); (2) **OBSERVE** the
-   new path execute with its intended effect (a hit test assertion, log/debug line,
-   counter, or trace — read back, not just produced); (3) **FIX** and re-trigger if the
-   observation contradicts intent. "All tests green" does not satisfy this rule when no
-   test drives the trigger; a branch nobody can show firing is unverified regardless of
-   suite status. Two loud signals that mandate this check retroactively: a change whose
-   observable output is byte-identical to the baseline everywhere (presume the path is
-   dead, instrument before concluding "no effect"), and a D-summary claim of
-   "handled/defended/falls back" with no fired-path artifact behind it. The activation
-   observation is valid `checkOutput` evidence for C->D and the `did` must reference
-   it. Excluded: unconditional straight-line changes fully exercised by existing
-   coverage. P names the activation scenario for each such path when planning it, and
-   the A reviewer checks that every planned conditional path has one (see phase P/A).
-   For score-optimization loops the specialized forms LOOP-MECHANISM-PROOF-01 /
-   LOOP-RESIDUAL-TRACE-01 apply on top. (Grounded 2026-07-06: a contest bot's endgame
-   branch shipped inside a passing combo while structurally unreachable — its solo
-   ablation was baseline-exact and no gate asked "did it fire?"; devlog
-   `260706_loop_mechanism_research`.)
 5. **D — Done**: Summarize what was checked with evidence, update STATUS/devlog, commit (local only — pushing remains gated by DEV-GIT-PUSH-01), and confirm no pending work remains for this work-phase before returning to idle. For loop/multi-pass work, **LOOP-PESSIMIST-01 (DEFAULT)** also records what did not improve, which hypothesis died, and what evidence would show the current direction is wrong; D -> IDLE -> P is a context/bias-flush boundary, so the next cycle resumes from disk artifacts rather than transcript momentum.
 
 ## Work-Phase Loop (multi-pass tasks)
@@ -228,132 +85,32 @@ These align with the directives the `pabcd-state` hook injects per phase:
 
 **Invariant — one work-phase = one full PABCD cycle.** Run P→A→B→C→D for a work-phase, close D (state → IDLE), then start the next work-phase at P. Do NOT run B for several work-phases back-to-back, and do NOT commit a work-phase straight out of B without passing C and D.
 
+Faithful execution: perform each phase's actual work; the state transition is not
+its artifact. C0/C1 keeps cxc-dev's fast-path; a real loop still cannot skip phases.
+LOOP-CONTINUITY-01: P quotes the previous D conclusion/direction, with a reason
+for changing it. PLAN-TRACK-01: when available, the native update_plan surface
+mirrors progress; the durable plan remains the source of truth.
+
 ### Implementation-Unit Documents
 
-Full documentation routine (P concretizes the docs, A audits them as a hard gate, D
-archives to `_fin/`, plus the mainstream design-doc/RFC translation table):
-`dev-scaffolding/references/implementation-log.md`.
-
-**Difflevel roadmap plan (STRICT, DIFFLEVEL-ROADMAP-01):** for any multi-phase unit
-(2+ work-phases), the FIRST P — or the dedicated design-only Phase-0 pass — must
-deliver the entire roadmap concretized: `000_plan.md` (objective, constraints,
-dependency-ordered work-phase map) PLUS every phase's decade doc written to full
-diff-level precision (exact paths, NEW/MODIFY/DELETE, before/after diffs) — each one
-a copy-paste-executable PRD, not an outline. Scaffolding empty decade files to "fill
-per cycle" does NOT satisfy this rule. Each later cycle's P starts from its
-pre-written doc: re-verify it against the current codebase (stale check — earlier
-phases may have moved lines, signatures, or files), amend the doc, then execute.
-LOOP-CONTINUITY-01 applies on top.
-
-**Lexicographic separation (STRICT, LEXICO-SPLIT-01):** every document in a unit
-carries a numeric lexicographic prefix — bare semantic filenames (`PLAN.md`,
-`DIFF_PLAN.md`, `PHASES.md`, `RCA.md`, an unnumbered `mvpplan/`-style folder) are an
-A-phase FAIL, not a style nit. Research/spec material (000-range) and implementation
-phase designs (decade ranges) are SEPARATE documents: no diffs inside a research
-doc, no survey prose padding a phase doc — a document that mixes both fails the
-audit.
-
-**Unit residence (UNIT-RESIDENCE-01):** C2+ development belongs to an existing
-implementation unit or a proposed unit under the repository's established convention.
-C0/C1 record exceptions are canonical in `dev` §0.1: C0 needs no devlog; C1 records
-briefly only if an owning unit exists. Do not create a unit merely for that fast path.
-Retain safety classification and smallest relevant verification. Interview settles
-residence before P when clarification is needed, not for already-clear trivial edits.
-
-Devlog plan artifacts use decade-range numbering to separate concerns:
-
-| Range | Purpose | Examples |
-|-------|---------|----------|
-| 000-009 | Research, specs, MOC | `000_plan.md`, `001_api_survey.md`, `002_competitor_analysis.md` |
-| 010-019 | Phase 1 | `010_phase1_auth_module.md`, `011_phase1_db_schema.md` |
-| 020-029 | Phase 2 | `020_phase2_frontend.md` |
-| 030-039 | Phase 3 | ... |
-
-Rules:
-- 000-range durable research is **mandatory for C4**, and for C3 only when state must persist
-  across turns/agents, public contract or architecture decisions need durable audit, or the
-  repo already uses devlog planning for that task; optional for C0-C2 and
-  low-persistence C3 (a response-level plan can suffice; C0/C1 record exceptions
-  follow dev §0.1, and C2+ uses the owning unit convention).
-- Default: sequential within decade (`000`, `001`, `002`...).
-- Overflow (>10 docs in a range): use sub-index (`000_0_name.md`, `000_1_name.md`).
-- NEVER use bare filenames like `PLAN.md`, `DIFF_PLAN.md`, `PHASES.md`, `RCA.md`.
-- This repo uses 3-digit prefixes (`000_`, `010_`, `020_`). Do not mix with 2-digit.
-
-**Loop / multi-pass tasks**: a "loop"/"루프" request (or work too large for one cycle) runs
-as MULTIPLE PABCD passes — one per work-phase. Pre-plan the full slice map and WRITE
-all per-phase decade docs (010_phase1, 020_phase2, ...) to diff-level up front
-(DIFFLEVEL-ROADMAP-01) — scaffolding empty files is not pre-planning. Each
-later cycle's P re-verifies its pre-written doc against the current codebase and
-amends it before building. The first pass MAY be a design-only PABCD pass (Phase 0):
-a code-free whole-system design/documentation cycle that produces exactly this
-difflevel roadmap before the first implementation work-phase. Under a `cxc-loop`
-multi-cycle entry this Phase-0 docs-only pass is the DEFAULT first work-phase, and
-STRICT for HOTL goal loops (LOOP-DOCS-FIRST-01, `cxc-loop`) — there the roadmap
-cycle's D locks the goalplan work-phase map before any implementation cycle starts.
-The slice map is APPEND-friendly (LOOP-UNIT-CHAIN-01): an independent unit discovered
-mid-loop — including a feature unrelated to the current slice — becomes a NEW
-work-phase appended to the map/goalplan via a P-phase amendment, then runs as the next
-cycle in the same session. "This needs its own PABCD" is a plan statement, never a
-reason to close the goal or wait for a new session.
-
-HITL and goal PABCD may both use `cxc-loop` divergence/collapse. In HITL, the agent
-may choose divergence deliberately during I/P when intent is open, algorithmic direction
-is uncertain, the objective is maximize/deceptive, or the user asks for alternatives.
-In goal mode, the shipped automatic entry is the plateau Stop directive after recorded
-non-improving metrics. Either way, record N>=2 grounded candidates, choose early
-collapse at P for satisfy-spec work or late collapse at D for deceptive metrics, and
-keep all candidate provenance in `.codexclaw/divergence/`. The agent still owns every
-phase transition; no hook builds or races candidates automatically, and HITL P/A/B
-pauses remain real confirmation points.
-
-**Faithful execution (anti-skip)**: do the real work of each PABCD-phase — P writes the real diff-level plan, A really dispatches the audit, B really implements AND verifies, C really runs tsc/tests/scrutiny, D really summarizes with evidence. Advancing the state is NOT the same as doing the phase; never rubber-stamp a phase to move on.
-
-**Native plan tracker (PLAN-TRACK-01)**: when the host exposes `update_plan`, mirror
-work items there at P and keep statuses current through B. If unavailable, use the
-existing devlog/goalplan and concise progress updates; do not invent a tool call. `update_plan` is the visibility surface, not the plan itself; the
-diff-level plan document remains the SSOT, and updating the tracker never substitutes
-for a phase's real work.
+Before C2+ unit planning or any multi-phase roadmap, read
+[Implementation units](references/implementation-units.md).
+It owns DIFFLEVEL-ROADMAP-01, PHASE-SPLIT-01 linkage, LEXICO-SPLIT-01,
+UNIT-RESIDENCE-01, numbering, and docs-first document contents.
+cxc-dev §0.1 owns C0/C1 record exemptions. cxc-loop owns when docs-first begins.
 
 ### Optimization-Loop Meta-Rules (plateau discipline)
 
-| Rule | Trigger | Required action |
-|------|---------|----------------|
-| LOOP-PHASE-DEATH-01 | Same class kills 3 candidates | Target the killing mechanism |
-| LOOP-CONTINUITY-01 | New cycle | Quote prior D direction |
-| LOOP-CANDIDATE-ANCHOR-01 | Only parameter tweaks | Regenerate from state evidence |
-| LOOP-INSTANCE-CHECK-01 | Fixed enumerable instances | Consider per-instance specialization |
-| LOOP-MECHANISM-PROOF-01 | New branch/mechanism | Prove activation before adoption |
-| LOOP-RESIDUAL-TRACE-01 | Residual failure | Record trace or `unexplained` |
-| LOOP-PEER-CONTRAST-01 | Peer succeeds on our failure | Diff behaviors before generating |
-| LOOP-FANOUT-TIMING-01 | Coarse search plateaus | Begin parallel fine-grained lanes |
-| COLLAPSE-AGGREGATOR-01 | Candidates disagree on crux | Use crux-matched synthesis |
-
-- **LOOP-PHASE-DEATH-01:** "same class" means the same candidate class
-  (`parameter-tweak`, `branch-toggle`, `state-space redesign`, or `evaluator change`)
-  dies at the same phase three times; target that killing mechanism next.
-- **LOOP-CONTINUITY-01:** begin P by quoting the prior D conclusion and next direction;
-  contradicting it requires an explicit reason, preventing amnesiac retries.
-- **LOOP-CANDIDATE-ANCHOR-01:** thresholds and guards are parameter-space search;
-  regenerate from logs, trajectories, instances, and failure states in state-space.
-- **LOOP-INSTANCE-CHECK-01:** when instances are fixed and enumerable, evaluate
-  fingerprint-plus-playbook specialization before more generic tuning.
-- **LOOP-MECHANISM-PROOF-01:** require a firing counter or trace; a baseline-exact
-  single-feature ablation is evidence to instrument the mechanism before combining it.
-- **LOOP-RESIDUAL-TRACE-01:** explain which relevant branches fired and why, or label
-  the residual `unexplained`; a plausible environmental story is not a trace.
-- **LOOP-PEER-CONTRAST-01:** when a peer succeeds on the same failed instance, make a
-  behavioral trace diff the next analysis deliverable before generating candidates.
-- **LOOP-FANOUT-TIMING-01:** stay single-track while coarse levers move the metric;
-  fan out when the plateau shifts work to fine-grained candidates.
-- **COLLAPSE-AGGREGATOR-01:** "crux-matched" means the synthesizer is strongest in
-  the disputed domain; it returns the verdict while the main session owns collapse.
+For optimization, mechanism comparison, or plateau analysis, read
+[Optimization rules](references/optimization.md) and
+[Loop engineering](references/loop-engineering.md). Ordinary repair does not
+preload optimization material.
 
 ## PABCD Depth by Work Class
 
 | Class | Plan (P) | Audit (A) | Build (B) | Check (C) | Record (D) |
 |-------|----------|-----------|-----------|-----------|------------|
-| C0-C1 | None/inline | Optional | Direct fix | Smallest proof | C0 no devlog; C1 short record only in an existing owning unit (dev §0.1) |
+| C0-C1 | None/inline | Optional | Direct fix | Smallest proof | cxc-dev §0.1: C0 exempt; C1 records only in an existing owning unit |
 | C2 | Compact plan | Micro-audit | Implement + focused tests | Targeted gate | Summary |
 | C3 | Compact or full plan depending on persistence/risk | Required when public contract, architecture, persistence, or cross-session risk exists; otherwise focused audit | Implement; use a reviewer subagent when useful | Affected suite + docs consistency when contracts changed | Summary + evidence; durable record only when state must persist |
 | C4 | Full PABCD plan (mandatory) | Required, independent reviewer | Implement; independent verification | Full relevant gates | Durable risk/approval/evidence record |
@@ -368,63 +125,19 @@ For context, contract negotiation, or material cross-task findings, follow
 [peer collaboration](../dev/references/peer-collaboration.md). Each peer retains
 its own goal, plan and phase authority; a peer message never advances either FSM.
 
-The main session owns the plan, host goal, and every PABCD transition.
-At A, dispatch an independent `explorer`; use a `worker` for bounded writes
-(DISPATCH-AGENT-TYPE-01).
-Subagents are leaves (LEAF-TOPOLOGY-01) unless recursion is explicitly granted.
-Every dispatch carries a structured TASK packet (DISPATCH-TASK-01):
-`TASK`, `SCOPE`, `MUST DO`, `MUST NOT`, `PROOF`, `RETURN FORMAT`, and decision boundary.
-Write scopes must be disjoint, with explicit read bounds and peer-edit protections.
-Pass the concrete plan and scope; never let a subagent reconstruct the plan.
-Subagents return evidence and unresolved judgments; the main session decides and
-integrates. Dispatch only specifiable work whose coordination cost is justified
-(DISPATCH-ECONOMY-01).
-Full lifecycle, economy, isolation, skill transport, and topology rules:
-`structure/20_pabcd_dispatch_doctrine.md` §3.
-
-**Lifecycle contract.** Discover the actual spawn capability through the host's tool
-catalog/search when available. Read its schema before calling: omit unsupported
-`agent_type`, `task_name`, `items`, fork, or model fields; encode read/write scope in
-the task packet. If no discovery/spawn capability exists, report that gap. Fan out independent lanes before waiting, and
-reuse the same reviewer throughout the A loop.
-
-- **V1:** `wait_agent` returns final status plus content; `send_input` reuses an agent;
-  `close_agent` retires it and `resume_agent` restores it.
-- **V2:** `wait_agent` is a no-content mailbox; `followup_task` triggers more work;
-  `send_message` is context-only, and `interrupt_agent` stops a runaway turn.
-
-**Delegation safeguards:**
-
-- **DISPATCH-ISOLATION-01:** every lane gets explicit read and write access lists;
-  never share in-progress output across lanes.
-- **REVIEW-DECORRELATE-01:** prefer an independent context; use a different model family
-  only when host policy and user authorization permit the override. Otherwise inherit
-  and record that family-level independence was not established.
-- **SPECIALIST-CRUX-01:** when a narrow crux lies outside the builder's domain,
-  dispatch a specialist to re-derive it from first principles.
-- Returns preserve VERBATIM ANCHORS: exact `path:line` quotations, exact figures,
-  and source URLs, so the main session can spot-check the evidence.
+The main session owns the plan, host goal, and transitions. Before authorized
+dispatch read [Delegation](references/delegation.md). Leaves do not spawn by
+default; attachments name the needed owner skills explicitly.
+No-delegation and scoped read/write restrictions take precedence.
 
 ## Loop Engineering (§11)
 
-Full rules live in `references/loop-engineering.md`. Key rules:
-
-| Area | Summary |
-|------|---------|
-| §11.1 Values | Feedback changes action; verifier wins; persist memory; pressure is not exhaustion |
-| §11.2 Terminal states | D reports DONE, NOOP, BLOCKED, UNSAFE, NEEDS_HUMAN, or BUDGET_EXHAUSTED |
-| §11.3 Repair | LOOP-REPAIR-01, LOOP-DOOM-01, and REVIEW-SYNTHESIS-01 bound repeated failures |
-| §11.4 Archetype | LOOP-ARCHETYPE-01 separates repair from explore-and-select |
-| §11.4a Regeneration | LOOP-REANALYZE-01 requires analysis before each new generation |
-| §11.5 Resources | State tool, credential, cost, token, and wall-clock bounds |
-| §11.6 Continuation | LOOP-CONTINUE-01 and LOOP-UNIT-CHAIN-01 continue from durable repo state |
-| §11.7 Divergence | Converge by default; diverge deliberately and collapse by archetype |
-
-**Repair thresholds:** under **LOOP-REPAIR-01**, two consecutive repairs with the same
-failure enter root-cause mode; three require a replan (or Interview return in HITL).
-Under **LOOP-DOOM-01**, three attestation failures in one phase are no-progress and
-force the repair path. Under **REVIEW-SYNTHESIS-01**, reviewer FAIL requires blocker
-RCA, conflict analysis, and accept/rebut decisions before re-patching or re-dispatching.
+For repeated failure, reviewer FAIL, or loop-archetype selection, read
+[Loop engineering](references/loop-engineering.md). LOOP-REPAIR-01: two repeated
+failed repairs require root-cause work, three require replan. LOOP-DOOM-01:
+three failed attestations are no-progress, never success. REVIEW-SYNTHESIS-01
+requires accept/rebut synthesis before re-dispatch. HOTL never returns to I
+while its goal is active.
 
 ## Catalog Discovery routing
 

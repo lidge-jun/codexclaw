@@ -20,6 +20,7 @@ import {
   phaseDirective,
   interviewDirective,
   loopArmDirective,
+  TRIGGER_AUTHORITY_NOTE,
   withFooter,
   type UserPromptSubmitPayload,
   type StopPayload,
@@ -106,6 +107,125 @@ test("phase directives use resolvable skill mentions for spawn messages", () => 
   }
 });
 
+test("wp3: phase pointers retain owners and active work-phase boundaries", () => {
+  for (const phase of ["P", "A", "B", "C", "D"] as const) {
+    assert.match(phaseDirective(phase), /\$codexclaw:cxc-pabcd/);
+  }
+  assert.match(interviewDirective(), /\$codexclaw:cxc-interview/);
+  assert.match(interviewDirective(), /Mind dispatch/i);
+  assert.match(phaseDirective("P"), /No implementation yet/);
+  assert.match(phaseDirective("A"), /cxc-dev-code-reviewer/);
+  assert.match(phaseDirective("C"), /C-RENDER-GROUNDING-01/);
+  const bound = phaseDirective("B", { activeWorkPhase: { id: "wp3", title: "minimal hooks" } });
+  assert.match(bound, /ACTIVE WORK-PHASE: wp3 — minimal hooks/);
+  assert.match(bound, /other work-phases are OUT OF SCOPE until D closes/);
+});
+
+const WP3_ORIGINAL_C2_PROMPT = "README 계약에 맞게 기존 내부 메모 생성/목록 기능을 완성해줘. 네트워크 서버나 공개 API는 아니고 src/route.mjs와 src/service.mjs의 기존 빈 구현을 채우는 작업이야. src/store.mjs와 test/notes.test.mjs는 수정하지 마. 기존 번호 문서에 결과를 기록하고 node --test test/notes.test.mjs로 실제 검증해줘. 새 의존성/추상화/파일, goal/FSM 변경, 커밋, 서브에이전트 파견은 하지 마.";
+
+test("wp3: original Korean C2 still reaches scoped CHECK without entering C", () => {
+  for (const turn of ["t1", ""] as const) {
+    const cwd = freshCwd();
+    try {
+      const session = "wp3-original-c2";
+      const before = readState(cwd, session);
+      assert.equal(detectTrigger(WP3_ORIGINAL_C2_PROMPT), "C");
+      assert.equal(detectLoopArmRequest(WP3_ORIGINAL_C2_PROMPT), false);
+      const payload = ups(WP3_ORIGINAL_C2_PROMPT, cwd, session, turn);
+      const output = handleUserPromptSubmit(payload, "linux");
+      const envelope = JSON.parse(output).hookSpecificOutput;
+      assert.equal(envelope.hookEventName, "UserPromptSubmit");
+      const ctx = envelope.additionalContext as string;
+      assert.match(ctx, /^\[codexclaw: CHECK\]/);
+      assert.match(ctx, /No-delegation means no dispatch/);
+      assert.match(ctx, /No-tests forbids tests, not separately authorized build\/typecheck/);
+      assert.match(ctx, /Independent review needs owner applicability and dispatch permission/);
+      assert.match(ctx, /Report unmet review; inline review is not its proof/);
+      assert.match(ctx, /A lexical phase hint is not execution authority/);
+      assert.match(ctx, /Only if a phase transition is authorized/);
+      assert.match(ctx, /IPABCD: IDLE \(IDLE\)/);
+      assert.doesNotMatch(ctx, /pass, dispatch with|retain independent review/);
+      const after = readState(cwd, session);
+      assert.equal(after.phase, before.phase);
+      assert.equal(after.orchestrationActive, before.orchestrationActive);
+      assert.equal(after.lastInjectedPhase, before.lastInjectedPhase);
+      assert.deepEqual(after.flags, before.flags);
+      assert.equal(after.loopArmSeen, before.loopArmSeen);
+      assert.deepEqual(after.injectedTurns, turn ? [turn] : []);
+      assert.equal(existsSync(join(cwd, STATE_DIR, LEDGER_FILE)), false);
+      if (turn) assert.equal(handleUserPromptSubmit(payload, "linux"), "");
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  }
+});
+
+test("wp3: CHECK negatives retain lexical trigger and the actual persisted phase", () => {
+  const prompts = [
+    "검증해줘. 읽기 전용으로 코드만 검토해. 수정, 테스트/빌드/타입검사, goal/FSM 변경, 서브에이전트 파견 금지.",
+    "Check this code by reading it only; no edits, no tests, no build, no typecheck, no goals, no FSM changes, no delegation.",
+  ];
+  for (const prompt of prompts) {
+    for (const phase of ["IDLE", "P", "B", "C"] as const) {
+      const cwd = freshCwd();
+      try {
+        const session = "wp3-check-negative";
+        const before = { ...defaultState(session), phase,
+          orchestrationActive: phase !== "IDLE",
+          lastInjectedPhase: phase === "IDLE" ? null : phase };
+        writeState(cwd, before);
+        assert.equal(detectTrigger(prompt), "C");
+        const ctx = JSON.parse(handleUserPromptSubmit(ups(prompt, cwd, session, "n1")))
+          .hookSpecificOutput.additionalContext as string;
+        assert.match(ctx, /within exact user limits and permissions/);
+        assert.match(ctx, /No-delegation means no dispatch/);
+        assert.match(ctx, /Forbidden checks: NOT RUN/);
+        assert.match(ctx, /No-goal\/no-FSM restrict creation\/mutations, not read-only inspection/);
+        assert.ok(ctx.includes(`IPABCD: ${phase} (`));
+        const after = readState(cwd, session);
+        assert.equal(after.phase, before.phase);
+        assert.equal(after.orchestrationActive, before.orchestrationActive);
+        assert.equal(after.lastInjectedPhase, before.lastInjectedPhase);
+        assert.deepEqual(after.flags, before.flags);
+        assert.equal(existsSync(join(cwd, STATE_DIR, LEDGER_FILE)), false);
+      } finally { rmSync(cwd, { recursive: true, force: true }); }
+    }
+  }
+});
+
+test("wp3: neutral C2 remains an ordinary non-trigger control", () => {
+  const prompt = "Complete the existing internal notes create/list slice according to README.md. Fill only the existing src/route.mjs and src/service.mjs stubs; this is not a network server or public API. Do not modify src/store.mjs or test/notes.test.mjs. Record results in the existing numbered implementation document and execute node --test test/notes.test.mjs. Do not add dependencies, abstractions or files; do not create goals, mutate FSM state, commit, or delegate to subagents.";
+  const cwd = freshCwd();
+  try {
+    assert.equal(detectTrigger(prompt), null);
+    assert.equal(detectLoopArmRequest(prompt), false);
+    assert.equal(handleUserPromptSubmit(ups(prompt, cwd, "wp3-neutral", "n1")), "");
+    assert.equal(existsSync(join(cwd, STATE_DIR)), false);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("wp3: CHECK preserves separately allowed build and read-only state inspection", () => {
+  for (const prompt of [
+    "Check this. No-tests, but npm run build is explicitly allowed. No delegation or goal/FSM mutations.",
+    "검증해줘. 테스트는 금지지만 빌드와 타입검사는 허용해. goal/FSM 생성과 변경은 금지하고 상태 조회는 허용해. 파견 금지.",
+    "Check this read-only. No-goal/no-FSM mutations; inspect get_goal and orchestrate status only. No edits, tests, build, typecheck or delegation.",
+  ]) {
+    const cwd = freshCwd();
+    try {
+      assert.equal(detectTrigger(prompt), "C");
+      const before = readState(cwd, "wp3-exact-limits");
+      const ctx = JSON.parse(handleUserPromptSubmit(ups(prompt, cwd, "wp3-exact-limits", "e1")))
+        .hookSpecificOutput.additionalContext as string;
+      assert.match(ctx, /No-tests forbids tests, not separately authorized build\/typecheck/);
+      assert.match(ctx, /no-goal\/no-FSM restrict creation\/mutations, not read-only get_goal or orchestrate status/);
+      assert.match(ctx, /No-delegation means no dispatch/);
+      assert.doesNotMatch(ctx, /forbids tests\/build\/typecheck|forbid agent goal\/state commands/);
+      const after = readState(cwd, "wp3-exact-limits");
+      assert.equal(after.phase, before.phase);
+      assert.equal(after.orchestrationActive, before.orchestrationActive);
+      assert.deepEqual(after.flags, before.flags);
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  }
+});
+
 test("detectAgbrowseSearchRequest: Korean/English search requests, including typo, are detected", () => {
   assert.equal(detectAgbrowseSearchRequest("agbrowse를 통해서 질문해줘"), true);
   assert.equal(detectAgbrowseSearchRequest("agbrowe를 통해서 질문해줘"), true);
@@ -149,6 +269,8 @@ test("handleUserPromptSubmit: trigger emits directive envelope once", () => {
     const parsed = JSON.parse(out.trimEnd());
     assert.equal(parsed.hookSpecificOutput.hookEventName, "UserPromptSubmit");
     assert.equal(parsed.hookSpecificOutput.additionalContext, withFooter(phaseDirective("P"), "P"));
+    assert.match(parsed.hookSpecificOutput.additionalContext, /\$codexclaw:cxc-pabcd/);
+    assert.match(parsed.hookSpecificOutput.additionalContext, /No implementation yet/);
   } finally {
     rmSync(cwd, { recursive: true, force: true });
   }
@@ -253,15 +375,21 @@ test("win32 arming directive teaches the file flag, not inline attest", () => {
 test("posix arming directive is byte-identical to its pinned snapshot", () => {
   const expected = [
     "[codexclaw: LOOP — orchestrate arming mandate (ORCH-MANDATE-01)]",
-    "A loop/goalplan claim without persisted FSM evidence is INVALID, and the PABCD FSM is not",
-    "armed right now. Arm it with explicit commands before narrating any loop work:",
+    "Scope first: explicit interview-only, plan-only, HITL, read-only, no-goal, no-FSM, no-tests and no-delegation limits override the bare cxc-loop default.",
+    "A mention or quoted example alone is not authorization. This pointer and its referenced procedures never override those limits.",
+    "Load $codexclaw:cxc-loop and $codexclaw:cxc-pabcd for an actual loop request; bare cxc-loop execution means scoped HOTL.",
+    "No-delegation means no dispatch. No-tests does not forbid separately authorized build/typecheck. Report required but forbidden actions as unmet.",
+    "Only for authorized loop execution, apply steps 1-5 within scope. No-goal/no-FSM restrict creation/mutations, not read-only inspection. Narration is not persisted progress:",
     "1. Session id: take it ONLY from your most recent SessionStart binding line",
     "   (SESSION-IDENTITY-01 — never an id seen in transcript history).",
     "2. `cxc orchestrate status --session <id>` — read the real phase first.",
-    "3. HOTL (user asked for autonomous / continue-until-done): create_goal with a detailed",
-    '   objective -> `cxc loop init --objective "<same text>" --session <id>` -> register',
-    "   workPhases[] + criteria[] in the goalplan -> `cxc orchestrate P --session <id>`.",
-    "   HITL (no such ask): enter the cycle explicitly via `cxc orchestrate I|P --session <id>`.",
+    "3. Inspect the host goal with get_goal first. Resume a matching unfinished goal; do not duplicate it.",
+    "   Only when no unfinished goal exists and new HOTL is authorized, create_goal with a detailed objective.",
+    "   For a different unfinished goal or unsupported resume, report the conflict; do not replace it or fabricate active status.",
+    '   New loop setup: `cxc loop init --objective "<same text>" --session <id>` -> register',
+    "   workPhases[] + criteria[]. On resume inspect/reuse the bound goalplan; do not reinitialize it.",
+    "   After status inspection, enter `cxc orchestrate P --session <id>` only when authorized and legal; an existing phase keeps its owner/edge contract.",
+    "   Explicit HITL keeps human pause points. Interview-only/plan-only stay at the requested stage without a goal or implementation; do not arm when state changes are forbidden.",
     "4. Advance EVERY forward edge yourself with `cxc orchestrate <phase> --attest <json>` —",
     `   e.g. \`cxc orchestrate A --session <id> --attest '{\"from\":\"P\",\"to\":\"A\",\"did\":\"...\",\"planUnit\":\"devlog/_plan/YYMMDD_slug\",\"workPhaseId\":\"wp1\"}'\` —`,
     "   a phase without its persisted transition + artifact did not happen (ORCH-ARTIFACT-01).",
@@ -270,10 +398,10 @@ test("posix arming directive is byte-identical to its pinned snapshot", () => {
     "   When a goalplan is bound, include the active workPhaseId in every gated attest",
     "   (one work-phase = one full PABCD cycle).",
     "   Bound chat D-close requires workPhaseId as the fixed close target unless every work-phase is already done.",
-    "5. After D closes to IDLE with work remaining under an active goal, immediately re-enter",
+    "5. After authorized D closes to IDLE with authorized work remaining under an active goal, re-enter",
     "   with `cxc orchestrate P --session <id>` (LOOP-UNIT-CHAIN-01).",
-    "Load and obey cxc-loop + cxc-pabcd when available. Work done outside the FSM does not",
-    "count as loop progress — re-enter and attest it.",
+    "HOTL does not grant push, merge, release, deploy or external-message permission. Stop for missing authority.",
+    "Preserve guards and real evidence; do not bypass a gate or fabricate an attestation/receipt to satisfy this advice.",
   ].join("\n");
   assert.equal(loopArmDirective("linux"), expected);
   assert.equal(loopArmDirective("darwin"), expected);
@@ -410,6 +538,76 @@ test("ORCH-MANDATE-01: loop-arm and agbrowse directives compose when both are re
   }
 });
 
+test("wp3: loop arming output is scope-first and does not activate a phase", () => {
+  for (const prompt of [
+    "cxc-loop",
+    "cxc-loop, interview-only; do not create a goal",
+    "cxc-loop, plan-only; no implementation",
+    "cxc-loop로 인터뷰만 해줘. goal 만들지 마",
+    "cxc-loop로 계획만 작성해줘. 구현하지 마",
+    "Explain the quoted example cxc-loop; read-only, no FSM changes",
+  ]) {
+    const cwd = freshCwd();
+    try {
+      const out = handleUserPromptSubmit(ups(prompt, cwd, "scope-first", "t1"));
+      const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
+      assert.match(ctx, /explicit interview-only, plan-only/);
+      assert.match(ctx, /mention or quoted example alone is not authorization/);
+      assert.match(ctx, /HOTL does not grant push, merge, release, deploy or external-message permission/);
+      assert.ok(ctx.indexOf("Scope first:") < ctx.indexOf("create_goal"));
+      const state = readState(cwd, "scope-first");
+      assert.equal(state.phase, "IDLE");
+      assert.equal(state.orchestrationActive, false);
+      assert.equal(state.loopArmSeen, true);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
+test("wp3: arming limits precede recipes on both platforms and never arm a phase", () => {
+  for (const platform of ["linux", "win32"] as const) {
+    for (const prompt of [
+      "cxc-loop",
+      "cxc-loop, plan-only; no-goal, no-FSM, no-tests, no-delegation; read-only",
+      "cxc-loop로 인터뷰만 해줘. goal/FSM 변경, 테스트, 수정, 파견 금지.",
+      "Explain the quoted cxc-loop example; read-only, no-goal, no-FSM, no-tests, no-delegation.",
+      "cxc-loop, explicit HITL; no-delegation; tests only on macmini, no local tests",
+    ]) {
+      const cwd = freshCwd();
+      try {
+        const ctx = JSON.parse(handleUserPromptSubmit(ups(prompt, cwd, "wp3-arm", "a1"), platform))
+          .hookSpecificOutput.additionalContext as string;
+        assert.match(ctx, /no-FSM, no-tests and no-delegation limits override/);
+        assert.match(ctx, /mention or quoted example alone is not authorization/);
+        assert.match(ctx, /Only for authorized loop execution, apply steps 1-5 within scope/);
+        assert.match(ctx, /No-delegation means no dispatch/);
+        assert.match(ctx, /No-tests does not forbid separately authorized build\/typecheck/);
+        assert.match(ctx, /No-goal\/no-FSM restrict creation\/mutations, not read-only inspection/);
+        assert.ok(ctx.indexOf("Scope first:") < ctx.indexOf("create_goal"));
+        assert.ok(ctx.indexOf("get_goal first") < ctx.indexOf("create_goal"));
+        assert.match(ctx, /Resume a matching unfinished goal; do not duplicate it/);
+        assert.match(ctx, /Only when no unfinished goal exists and new HOTL is authorized, create_goal/);
+        assert.match(ctx, /different unfinished goal or unsupported resume, report the conflict/);
+        assert.match(ctx, /On resume inspect\/reuse the bound goalplan; do not reinitialize it/);
+        assert.match(ctx, /Stop for missing authority/);
+        assert.match(ctx, /do not bypass a gate or fabricate an attestation\/receipt/);
+        if (platform === "win32") {
+          assert.match(ctx, /Set-Content -Encoding utf8/);
+          assert.match(ctx, /--attest-file \.codexclaw\/attest\.json/);
+          assert.doesNotMatch(ctx, /--attest <json>/);
+        } else assert.match(ctx, /--attest <json>/);
+        const state = readState(cwd, "wp3-arm");
+        assert.equal(state.phase, "IDLE");
+        assert.equal(state.orchestrationActive, false);
+        assert.equal(state.lastInjectedPhase, null);
+        assert.equal(state.loopArmSeen, true);
+        assert.deepEqual(state.injectedTurns, ["a1"]);
+      } finally { rmSync(cwd, { recursive: true, force: true }); }
+    }
+  }
+});
+
 test("handleUserPromptSubmit: agbrowse request is idempotent within same turn", () => {
   const cwd = freshCwd();
   try {
@@ -422,33 +620,36 @@ test("handleUserPromptSubmit: agbrowse request is idempotent within same turn", 
   }
 });
 
-test("handleUserPromptSubmit: PABCD trigger wins over agbrowse search directive", () => {
+test("handleUserPromptSubmit: PABCD hint wins over agbrowse without phase entry", () => {
   const cwd = freshCwd();
   try {
     const out = handleUserPromptSubmit(ups("plan this with agbrowse", cwd, "s1", "t1"));
-    const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
-    // 260829 wp4: the default interview policy ("new-unit") advises the INTERVIEW on a
-    // fresh plan request. The PHASE is still P — advisory promotion never writes I —
-    // so this test's subject (PABCD beats agbrowse) is unchanged.
-    assert.equal(ctx, withFooter(interviewDirective(), "P"));
+    const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
+    assert.equal(ctx, withFooter(`${interviewDirective()}\n\n${TRIGGER_AUTHORITY_NOTE}`, "IDLE"));
     assert.doesNotMatch(ctx, /agbrowse fetch/);
-    assert.equal(readState(cwd, "s1").phase, "P", "advisory promotion must not change the phase");
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
+    const state = readState(cwd, "s1");
+    assert.equal(state.phase, "IDLE");
+    assert.equal(state.orchestrationActive, false);
+    assert.equal(state.lastInjectedPhase, null);
+    assert.deepEqual(state.injectedTurns, ["t1"]);
+    assert.equal(ledgerLines(cwd).length, 0);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
-test("wp4: with interview policy off, a plan trigger injects the PLAN directive as before", () => {
+test("wp4: interview policy off selects PLAN advice without phase entry", () => {
   const cwd = freshCwd();
   try {
     writeFileSync(join(cwd, "codexclaw.json"), JSON.stringify({ interview: "off" }), "utf8");
     const out = handleUserPromptSubmit(ups("plan this with agbrowse", cwd, "s1off", "t1"));
-    const ctx = JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext as string;
-    assert.equal(ctx, withFooter(phaseDirective("P"), "P"));
-    assert.equal(readState(cwd, "s1off").phase, "P");
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
+    const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
+    assert.equal(ctx, withFooter(`${phaseDirective("P")}\n\n${TRIGGER_AUTHORITY_NOTE}`, "IDLE"));
+    assert.doesNotMatch(ctx, /agbrowse fetch/);
+    const state = readState(cwd, "s1off");
+    assert.equal(state.phase, "IDLE");
+    assert.equal(state.orchestrationActive, false);
+    assert.equal(state.lastInjectedPhase, null);
+    assert.equal(ledgerLines(cwd).length, 0);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
 test("handleStop: releases (no block) when there is no active cycle/goal", () => {
@@ -483,7 +684,7 @@ test("hybrid FAIL-CLOSED: fresh session, non-trigger prompt -> '' (no I-phase le
   }
 });
 
-test("hybrid mode 1: explicit trigger activates orchestration + injects directive", () => {
+test("hybrid command path: explicit orchestrate P activates orchestration + injects directive", () => {
   const cwd = freshCwd();
   try {
     const out = handleUserPromptSubmit(ups("orchestrate P", cwd, "s1", "t1"));
@@ -587,19 +788,18 @@ test("L3b: same-turn re-fire does NOT double-append the ledger", () => {
   }
 });
 
-test("L3b: a prompt with no command still falls through to the loose detectTrigger path", () => {
+test("L3b: no command falls through to advisory detectTrigger without a transition", () => {
   const cwd = freshCwd();
   try {
     const out = handleUserPromptSubmit(ups("plan this feature", cwd, "s7", "t1"));
-    // Loose plan triggers persist the detected phase without a command ledger entry.
-    // The injected TEXT is the interview directive under the default policy (wp4);
-    // the persisted PHASE is still P, which is what this test pins.
-    assert.equal(JSON.parse(out.trimEnd()).hookSpecificOutput.additionalContext, withFooter(interviewDirective(), "P"));
-    assert.equal(readState(cwd, "s7").phase, "P");
+    assert.equal(JSON.parse(out).hookSpecificOutput.additionalContext,
+      withFooter(`${interviewDirective()}\n\n${TRIGGER_AUTHORITY_NOTE}`, "IDLE"));
+    const state = readState(cwd, "s7");
+    assert.equal(state.phase, "IDLE");
+    assert.equal(state.orchestrationActive, false);
+    assert.equal(state.lastInjectedPhase, null);
     assert.equal(ledgerLines(cwd).length, 0);
-  } finally {
-    rmSync(cwd, { recursive: true, force: true });
-  }
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
 // ── L5/050: phase footer + status polish + D-close ──
@@ -717,9 +917,7 @@ test("chat D-close succeeds once the tasks are done", () => {
 });
 
 // ── TRIGGER-AUTHORITY-01 (040) ─────────────────────────────────────────────
-// A natural-language trigger may enter a cycle from IDLE but may not move one that
-// is already running. Writing phase straight from a phrase skipped adjacency, the
-// attest gate and the ledger, so "구현해" jumped IDLE to B leaving no trace at all.
+// Natural-language hints never enter or advance a phase; explicit commands own transitions.
 
 test("040: a natural-language build trigger from IDLE leaves the phase alone", () => {
   const cwd = freshCwd();
@@ -736,16 +934,39 @@ test("040: a natural-language build trigger from IDLE leaves the phase alone", (
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
-test("040: entering P or I from IDLE still works exactly as before", () => {
-  for (const [prompt, want] of [["plan this", "P"], ["interview me", "I"]] as const) {
-    const cwd = freshCwd();
-    try {
-      handleUserPromptSubmit(ups(prompt, cwd, "ta2", "t1"));
-      const st = readState(cwd, "ta2");
-      assert.equal(st.phase, want);
-      assert.equal(st.orchestrationActive, true);
-      assert.equal(st.lastInjectedPhase, want);
-    } finally { rmSync(cwd, { recursive: true, force: true }); }
+test("wp3: plain P/I hints never enter or advance, including explicit no-FSM", () => {
+  for (const prompt of [
+    "plan this", "interview me", "계획을 세워줘", "인터뷰만 해줘",
+    "Plan this read-only; no FSM mutations, goals, tests or delegation.",
+    "인터뷰만 해줘. FSM 변경, goal 생성, 파일 수정, 테스트, 서브에이전트 파견 금지.",
+  ]) {
+    for (const phase of ["IDLE", "P", "B"] as const) {
+      for (const turn of ["t1", ""] as const) {
+        const cwd = freshCwd();
+        try {
+          const session = "wp3-plain-hint";
+          const before = { ...defaultState(session), phase,
+            orchestrationActive: phase !== "IDLE",
+            lastInjectedPhase: phase === "IDLE" ? null : phase };
+          writeState(cwd, before);
+          assert.ok(detectTrigger(prompt) === "P" || detectTrigger(prompt) === "I");
+          assert.equal(detectLoopArmRequest(prompt), false);
+          const out = handleUserPromptSubmit(ups(prompt, cwd, session, turn));
+          const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
+          assert.match(ctx, /TRIGGER-AUTHORITY-01/);
+          assert.match(ctx, /No-delegation means no dispatch/);
+          assert.ok(ctx.includes(`IPABCD: ${phase} (`));
+          const after = readState(cwd, session);
+          assert.equal(after.phase, before.phase);
+          assert.equal(after.orchestrationActive, before.orchestrationActive);
+          assert.equal(after.lastInjectedPhase, before.lastInjectedPhase);
+          assert.deepEqual(after.flags, before.flags);
+          assert.deepEqual(after.injectedTurns, turn ? [turn] : []);
+          assert.equal(ledgerLines(cwd).length, 0);
+          if (turn) assert.equal(handleUserPromptSubmit(ups(prompt, cwd, session, turn)), "");
+        } finally { rmSync(cwd, { recursive: true, force: true }); }
+      }
+    }
   }
 });
 
@@ -800,26 +1021,30 @@ test("040: same through mode 3 (same phase, header only)", () => {
 // Turnless payloads: injectedTurns is the only thing gated on a turn id. Meaningful
 // state changes still have to land, or a turnless prompt silently loses them.
 
-test("040: turnless entry and turnless loop requests still persist their state", () => {
+test("040: turnless hints preserve phase while loop requests persist bookkeeping", () => {
   const cwdA = freshCwd();
   try {
-    handleUserPromptSubmit(ups("plan this", cwdA, "tl1", ""));
-    const st = readState(cwdA, "tl1");
-    assert.equal(st.phase, "P");
-    assert.deepEqual(st.injectedTurns, []);
+    const out = handleUserPromptSubmit(ups("plan this", cwdA, "tl1", ""));
+    assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /IPABCD: IDLE \(IDLE\)/);
+    const state = readState(cwdA, "tl1");
+    assert.equal(state.phase, "IDLE");
+    assert.equal(state.orchestrationActive, false);
+    assert.equal(state.lastInjectedPhase, null);
+    assert.deepEqual(state.injectedTurns, []);
+    assert.equal(existsSync(join(cwdA, STATE_DIR)), false);
   } finally { rmSync(cwdA, { recursive: true, force: true }); }
-
   const cwdB = freshCwd();
   try {
     handleUserPromptSubmit(ups("pabcd 여러 번 돌려줘", cwdB, "tl2", ""));
     assert.equal(readState(cwdB, "tl2").loopArmSeen, true);
+    assert.equal(readState(cwdB, "tl2").phase, "IDLE");
   } finally { rmSync(cwdB, { recursive: true, force: true }); }
-
   const cwdC = freshCwd();
   try {
     writeState(cwdC, { ...defaultState("tl3"), phase: "C", orchestrationActive: true, lastInjectedPhase: "C" });
     handleUserPromptSubmit(ups("pabcd 여러 번 돌려줘", cwdC, "tl3", ""));
     assert.equal(readState(cwdC, "tl3").loopArmSeen, true);
+    assert.equal(readState(cwdC, "tl3").phase, "C");
   } finally { rmSync(cwdC, { recursive: true, force: true }); }
 });
 

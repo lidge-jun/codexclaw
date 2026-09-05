@@ -7,7 +7,10 @@ metadata:
 
 # cxc-interview
 
-Use this skill to enter or continue Codexclaw's IPABCD Interview phase.
+Use this skill for Interview work within the user's scope. Loading it or receiving
+a natural-language I hint does not enter the phase. Actual entry uses an explicit
+user command or authorized `cxc orchestrate I --session <id>` with the current
+SessionStart binding. No-FSM requests remain advisory without a transition.
 
 ## Contract
 
@@ -24,6 +27,17 @@ Use this skill to enter or continue Codexclaw's IPABCD Interview phase.
   (LOOP-DOCS-FIRST-01, `cxc-loop`). Interview settles unit residence
   (UNIT-RESIDENCE-01) but does not write decade docs — that is the roadmap
   cycle's job.
+
+## Classify the loop before Plan
+
+Before leaving Interview, identify whether the verifier defines done (specification
+or repair) or only better (open-ended optimization), and record the corresponding
+loop archetype. Ground the distinction in the repository and the user's outcome.
+For a load-bearing architecture or workflow choice, explain the concrete trade-offs
+before narrowing it; include a materially different approach when it helps expose
+an assumption. When evidence cannot settle a cheap, bounded comparison, offer a
+parallel spike and evidence-based selection. Do not invent irrelevant feature or
+technology choices that the project already settles.
 
 ## Question quality (INTERVIEW-Q-01)
 
@@ -189,19 +203,10 @@ The interview runtime is shipped, not planned:
   so the main session runs the contradiction-rescan loop: select Minds, dispatch
   read-only contradiction lenses, triage (high -> ask the user; low/medium -> recorded
   assumption), then ask the user to proceed or keep interviewing.
-- Mind spawn shape (MIND-SPAWN-SHAPE-01): use the actual host schema. When supported,
-  set `agent_type "explorer"`, `task_name mind_<mindname>`, and a non-full-history fork.
-  Omit unsupported fields (V1 may expose neither agent_type nor task_name); put the
-  lens identity and read-only scope in the task packet. Do not claim prompt scope is
-  host-enforced access control. V2 may use `fork_turns:"none"`; V1 omits `fork_context` — a full-history fork rejects model/effort overrides upstream AND skips the
-  `.codexclaw/subagents.json` role-config injection. Mind lenses ride the **explorer** role
-  config: pin lens strength with `cxc subagents set explorer --effort <low|medium|high|xhigh>`
-  (or pass `reasoning_effort` explicitly); omitted fields inherit the parent session. Known
-  caveat: role inference is keyword-based, so a packed snapshot containing review words
-  ("review"/"검증"/"검토") can route the reviewer role's config instead — harmless (it only
-  changes which configured model applies). Minds are stateless: pack the lens prompt plus a
-  compact interview snapshot (dimension scores, knowns, open assumptions, draft plan path)
-  into each task message.
+- Mind spawn shape (MIND-SPAWN-SHAPE-01): only when Mind dispatch is authorized,
+  read [Mind dispatch](references/mind-dispatch.md) completely before dispatch.
+  It preserves read-only lens roles, non-full forks, snapshot and settings contracts
+  while adapting argument fields and returned handles to the live native schema.
 - Readiness gating requires recorded scan evidence (`scanRounds >= 1`) before I -> P.
 - Agent I→P override: when the agent CLI path (`cxc orchestrate P --session <id>
   --attest-file <path>`, carrying

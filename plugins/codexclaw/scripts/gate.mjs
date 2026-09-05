@@ -15,7 +15,7 @@
  *  - Rows decomposed inside another doc (no own decade file) are allowlisted.
  *  - checkForbiddenClaims uses NARROW false-enforcement patterns; a line opts out with a
  *    trailing `<!-- gate-ok: <reason> -->` when the claim is genuinely hook-backed. It
- *    scans both the skills SKILL.md tree and the declared SOT structure markdown; lines
+ *    scans SKILL.md and nested reference markdown plus declared SOT structure markdown; lines
  *    that NEGATE the phrase ("no hook enforces ...") or CITE it as an example/violation
  *    are exempt, since those are the opposite of a false assertion.
  *  - checkCounts reads the real manifest at `.codex-plugin/plugin.json`.
@@ -145,11 +145,14 @@ function isExemptClaimLine(line) {
   return GATE_OK.test(line) || NEGATION_CUE.test(line) || META_CUE.test(line);
 }
 
-function walkSkillMds(dir, out) {
+function walkSkillMds(dir, out, inReferences = false) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
-    if (e.isDirectory()) walkSkillMds(p, out);
-    else if (e.name === "SKILL.md") out.push(p);
+    if (e.isDirectory()) {
+      walkSkillMds(p, out, inReferences || e.name === "references");
+    } else if (e.name === "SKILL.md" || (inReferences && e.name.endsWith(".md"))) {
+      out.push(p);
+    }
   }
 }
 

@@ -1,5 +1,5 @@
 interface:
   display_name: "cxc-dev"
-  short_description: "Universal dev discipline: work classifier, modular limits, verification gate, safety rules."
+  short_description: "Class-scaled development, routing, safety, and proof."
 policy:
   allow_implicit_invocation: true

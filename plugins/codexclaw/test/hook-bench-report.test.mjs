@@ -6,9 +6,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { summarizeTimings, percentile, measureSpawnFloor } from "../scripts/hook-bench.mjs";
+import { summarizeTimings, percentile, measureSpawnFloor, benchEnv } from "../scripts/hook-bench.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const benchScript = resolve(here, "..", "scripts", "hook-bench.mjs");
@@ -64,4 +66,26 @@ test("the spawn floor measures a real node process", () => {
   assert.equal(floor.samples, 3);
   assert.ok(floor.p50 > 0, "spawning node cannot cost zero");
   assert.ok(floor.p95 >= floor.p50);
+});
+
+test("spawn floor and hook children exclude the same ambient preload", () => {
+  const root = mkdtempSync(join(tmpdir(), "cxc-floor-env-"));
+  const marker = join(root, "preload-marker");
+  const preload = join(root, "preload.cjs");
+  const previous = process.env.NODE_OPTIONS;
+  try {
+    mkdirSync(join(root, ".codex"));
+    writeFileSync(preload, 'require("node:fs").writeFileSync(' + JSON.stringify(marker) + ', "ran");');
+    process.env.NODE_OPTIONS = "--require=" + JSON.stringify(preload);
+    const env = benchEnv(root);
+    assert.equal(env.NODE_OPTIONS, undefined);
+    assert.equal(measureSpawnFloor(2, env).samples, 2);
+    assert.equal(existsSync(marker), false);
+    assert.equal(measureSpawnFloor(1).samples, 1);
+    assert.equal(existsSync(marker), false, "default floor must sanitize too");
+  } finally {
+    if (previous === undefined) delete process.env.NODE_OPTIONS;
+    else process.env.NODE_OPTIONS = previous;
+    rmSync(root, { recursive: true, force: true });
+  }
 });
