@@ -1,7 +1,7 @@
 # WP3 implementation record
 
-Status: B in progress after combined independent A PASS in044. No candidate
-native behavior or final adoption is claimed yet.
+Status: C in progress after combined independent A PASS in044 and implemented B.
+Candidate N1 behavior is verified below; whole WP3/final adoption remain open.
 
 Source baseline for implementation:336bf1f (product payload unchanged from91e051df).
 Disjoint workers own hook/test changes and the offline family evaluator. Main
@@ -53,6 +53,34 @@ remain valid. Preserve runs/wp3-baseline-c2-001 as a failed sample; no performan
 comparison against a successful candidate may erase this failure.
 
 ## Pending
+
+### C continuation: N1 and exact SoT candidate
+
+Pauli independently read the complete original native C2 packet and returned PASS
+for7027353262378081fcf2584cd715624d73b9cb37 only. Original Korean prompt SHA256
+c464d7311463911b3d13ccf2e6f6212601913761ad969471d119d2f27962a3b1 is identical
+across WP2 and WP3 variants. CHECK actually arrived; truncated initial reads were
+fully recovered before governed actions. Five selected skills/four references were
+delivered. Original eight tests went from eight failures to eight passes with no
+skip, only the three authorized paths changed, and no child, goal, phase mutation
+or commit occurred. Eleven requests/attempts are Astra/high/forwarded priority;
+native usage agrees, with no fallback/recovery. All904 installed files match source.
+This is not a scheduler Fast confirmation or a timing win over the failed baseline.
+
+Source a933ba0ec2804eb24659a2b407b91e17a06720eb additionally synchronizes the
+PABCD entrypoint and general SoT. Fresh source wp3-candidate-check-source and
+fresh normally trusted installs preserve7027353's original packet. New operator
+fixtures reuse021 recorder and exact042 prompts; no product observer or alternate
+runtime was added. Current concurrency cap is two ordinary CLI probes plus one
+manually controlled supplemental native process; each CLI model turn retains180s
+deadline. Both N3 variants started with their own home/work/source/payload records.
+This records execution, not prospective PASS. Required050/060 successors are not
+waived.
+
+The native host goal still reports blocked on resume, while the bound FSM is C.
+No available goal tool can resume it; no goal DB is changed or replacement created.
+Work proceeds under the user's renewed request and durable plan; automatic HOTL
+Stop-continuation is not asserted armed.
 
 Exact candidate native original Korean no-delegation/phase and answer cases,
 native goal admission and scope checks, final family evidence review,
