@@ -26,3 +26,12 @@ B에서 56개 변경을 적용했다. C 선행 검사: 누적 26개 파일이 lo
 독립 C 의미 검토는 Russell에게 6개 사례(520줄 interval/domain invariant, GraphQL/Result, production query 진단, ASVS 주장, incident mitigation, Iconoir/Compiler)를 주어 실행했다. 이는 가상 입력에 대한 지침 검토이며 제품 동작 검증이 아니다.
 
 Russell의 초기 판정은 GO-WITH-FIXES(blockers=0). 세 consumer 문구가 남아 022 amendment로 수정했고, ASVS 로컬 assurance 목표도 명시적으로 유지했다. 재검토 VERDICT PASS, residual 0. 누적 계획 전달 검사는 27개 파일 PASS, 기존 6개 검사 PASS. 처음 링크 스캔의 2개 오류는 skill:// 템플릿을 filesystem으로 푼 오탐이었다. URI scheme을 구분해 실제 상대 Markdown 링크 5개를 다시 검사했고 누락 0.
+
+wp2는 4167472에서 receipt 검증 후 D 종료했다.
+
+## wp3 시각화와 통합 검사
+
+Kuhn A: 4167472 기준 8 operations/6 files, PASS. B에서 먼저 완성된 fixture test만 추가해 기존 helper가 CXC_VISUALIZE_ROOT를 무시하는 RED를 확인했다(exit 1, line34 actual1/expected0). 이후 helper와 문서를 적용해 같은 test GREEN.
+C 선행: existing6 + new1 = 7/7 tests PASS, skip0. 하나의 새 test 안에서 실제 shell9회 호출로 없는 cache, numeric version order, override 우선, unset/empty override, unset/empty CODEX_HOME, hash drift, 잘못된 tracking hash를 검사한다. 매회 고유 임시 디렉터리를 만들고 finally로 지운다.
+실제 readonly cache inspection도 version1.0.29 / be82c4e… hash 일치로 exit0. 이 결과는 active renderer 기능 검증이 아니며 freshness 참고다.
+누적 33개 파일이 exact plan과 일치, YAML17 PASS, Bash syntax 및 whitespace PASS. 최종 독립 통합 검토는 새 문맥 Erdos에게 요청했다.
