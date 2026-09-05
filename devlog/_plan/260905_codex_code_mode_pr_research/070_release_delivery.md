@@ -37,6 +37,12 @@ structure/20_pabcd_dispatch_doctrine.md and structure/INDEX.md (15 total).
 Preserve dev's peer/stack guidance and this branch's schema-adaptive dispatch and
 scoped-hook descriptions together; inventory and public
 test counts are generated from the integrated full-suite result, not the703 subset.
+Where the research moved a dev policy out of SKILL.md, carry the dev interdiff to
+its existing destination: dev/references/development-practice.md (size/ESM),
+methodology-overlays.md (stack routing), loop/references/waiting.md (peer boundary),
+pabcd/references/delegation.md (live discovery/model authority), phase-audit.md
+(optional native role field), and phase-check.md (docs-only verification).
+No policy is dropped merely because Git reports a modify/delete-style conflict.
 
 Initial full-suite check on f0a141a, Node22.22.0:2521 tests,2513pass,0fail,
 7cancelled,1skip; exit is not PASS. All cancellations are in existing messenger

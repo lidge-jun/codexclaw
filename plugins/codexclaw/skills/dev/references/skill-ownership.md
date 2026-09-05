@@ -9,17 +9,18 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Coupling taxonomy | `dev-architecture` | `dev-code-reviewer` |
 | Barrel / re-export | `dev-architecture` | `dev-scaffolding` |
 | Pre-write search | dev references/development-practice.md (§1.5) | `dev-code-reviewer` |
+| Independent peer collaboration | `dev/references/peer-collaboration.md` | `dev`, `search`, `pabcd`, `loop`, structure 20/60 |
 | Stacked pull requests (`DEV-STACK-*`) | `dev` `references/stacked-prs.md` | `pabcd`, `loop`, `dev-code-reviewer`, `dev-devops` |
 | Edge-first testing | `dev-testing` §6 | — |
 | Flaky tests / CI re-run (`TEST-FLAKE-*`) | `dev-testing` `references/ci-pipeline.md` §5 | `dev-testing` §5.4, `dev-debugging` Scenario D, `dev-devops` `references/ci-cd-deploy.md` §6.2/§6.5 |
-| Manual surface QA / evidence matrix | `cxc-qa` | `dev-testing` §4.6 (tool routing stays there) |
+| Manual surface QA / evidence matrix | `cxc-qa` | `dev-testing` §4.7; selection in `dev/references/browser-routing.md` |
 | Test-induced defense | `dev-testing` §6.7 | `dev-code-reviewer` |
 | Boundary-only defense | `dev-architecture` §4 | `dev-backend`, `dev-security` |
 | Process isolation | `dev-backend` references/ | `dev-code-reviewer`, `dev-devops` |
 | Long-lived connections | `dev-backend` §1 app hooks | `dev-frontend`, `dev-devops` operational gates |
 | Async task queue | `dev-backend` §2 app hooks | `dev-devops` operational gates |
 | Debugging methodology | `dev-debugging` | `dev-code-reviewer` |
-| Browse / QA tool routing | `dev-testing` §4.6 (QA ladder), `cxc-search` (search ladder) | `dev` (routing summary) |
+| Browse / QA tool routing | `dev/references/browser-routing.md` | `dev`, `dev-testing` §4.7, `search`, `dev-frontend`, `dev-diagram-viewer` |
 | Data pipeline patterns | `dev-data` | `dev-backend` |
 | Frontend implementation | `dev-frontend` | `dev-uiux-design` |
 | Design intent discovery | `dev-uiux-design` | `dev-frontend` |

@@ -9,7 +9,7 @@ metadata:
 # Testing & QA
 Balance: ~40% Backend/API, ~40% Frontend/E2E (Playwright), ~20% Cross-cutting (CI, Security, TDD, Coverage) -- directional guidance, not a hard ratio.
 **Scope**: test harnesses, fixtures, mock policy, runners, Playwright, CI gates, coverage. Root-cause analysis and debugging playbooks → `dev-debugging`.
-- Review/test boundary and test adequacy findings: see `dev-code-reviewer`.
+- This skill owns test adequacy; `dev-code-reviewer` owns finding severity and review process.
 - CI pipeline ownership and deployment verification: see `dev-devops`.
 - Data pipeline testing and ETL validation: see `dev-data`.
 - Design direction context for rendered verification: see `dev-uiux-design`.
@@ -190,17 +190,17 @@ python scripts/with_server.py \
 - Use Playwright for **rendered truth**, not as a replacement for service tests.
 - Prefer one smoke flow per critical path over many brittle micro-flows.
 - If a failure looks like data-shape drift, go back to **§2 Backend & API Testing** or **§3 Contract Testing**.
-### 4.7 Native Computer-Use / Browse-Use QA (exploratory tier) (TEST-CU-QA-01)
+### 4.7 Exploratory browser QA (TEST-CU-QA-01)
+
 Browser QA loads `dev-frontend` for rendered implementation context.
-Playwright owns deterministic suites; native tools own immediate exploratory proof.
-**QA-TOOL-LADDER-01:** start at 1 and state why when skipping:
-1. `browser:control-in-app-browser` for built or locally served web UI.
-2. `chrome:control-chrome` for real profile, login, extension, or WAF state.
-3. `computer-use:computer-use` for desktop or GUI-only flows; keep credentials human-supervised.
-4. `agbrowse` only for public-URL response-shape proof, never built-UI driving.
-Use inspect -> act -> re-inspect; use screenshots plus `view_image` when DOM inspection fails.
-Evidence names the flow, states, result, and screenshots; promote durable flows to Playwright.
-Load `cxc-qa` for scenario matrices, adversarial/oracle passes, evidence layout, and teardown.
+Follow [portable browser routing](../dev/references/browser-routing.md)
+(QA-TOOL-LADDER-01). Suitable available Aside, native browsers, and agbrowse may
+drive built UI; no one optional tool is required. Inspect -> act -> re-inspect,
+exercise the promised interaction, and retain the state/result evidence.
+Repository-owned Playwright suites remain the deterministic regression path.
+Load `cxc-qa` for scenario matrices, adversarial/oracle passes, and teardown.
+Missing tool/access -> report the gap, never mark an unperformed check passed.
+
 ## 5. CI Pipeline Integration
 > Full workflow templates: `references/ci-pipeline.md`
 ### 5.1 Pipeline Order

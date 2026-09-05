@@ -107,7 +107,7 @@ test("kwrite affordance: always on, genre-free pointer to $cxc-kwrite", () => {
   assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /cxc-kwrite/);
 });
 
-test("ORCH-ARM-VISIBILITY-01: loop-contract line rides every SessionStart envelope", () => {
+test("critical loop and stack guidance survives SessionStart and PostCompact without intent triggers", () => {
   const text = renderLoopAffordance();
   assert.match(text, /Loop contract:/);
   assert.match(text, /cxc orchestrate status/);
@@ -217,9 +217,33 @@ test("cwd is read from the stdin payload; malformed stdin falls back safely", ()
   // malformed stdin -> uses fallback cwd (the big repo) -> still fires, no throw
   const viaFallback = runMapAffordanceSessionStart("{not json", big);
   assert.match(JSON.parse(viaFallback).hookSpecificOutput.additionalContext, /cxc map/);
+  assert.match(JSON.parse(viaFallback).hookSpecificOutput.additionalContext, /DEV-STACK-06\/07/);
   // empty stdin + small fallback -> no map line, skill line still present, no throw
   const smallOut = runMapAffordanceSessionStart("", empty);
   assert.doesNotMatch(JSON.parse(smallOut).hookSpecificOutput.additionalContext, /cxc map/);
+});
+
+test("stack guidance survives SessionStart and PostCompact without a DevOps trigger", () => {
+  const cwd = tmp();
+  try {
+    const out = runMapAffordanceSessionStart(JSON.stringify({ cwd }), cwd);
+    for (const [event, raw] of [["SessionStart", out], ["PostCompact", runPostCompactAffordance()]]) {
+      const envelope = JSON.parse(raw);
+      assert.equal(envelope.hookSpecificOutput.hookEventName, event);
+      const ctx = envelope.hookSpecificOutput.additionalContext;
+      const stackLine = ctx.split("\n").find((line: string) => line.includes("DEV-STACK-06/07"));
+      assert.ok(stackLine, `${event} must expose stack guidance even in an empty non-Git repo`);
+      assert.match(stackLine, /cxc-dev.*references\/stacked-prs\.md/);
+      assert.match(stackLine, /even without a DevOps trigger/);
+      assert.match(stackLine, /not native stack registration/);
+      assert.match(stackLine, /Per-PR CI is expected/);
+      assert.match(stackLine, /Publish GitHub stacks natively; verify registration/);
+      assert.match(stackLine, /not authorization/);
+      assert.ok(stackLine.length < 600, "global guidance must remain a bounded pointer");
+      assert.deepEqual(Object.keys(envelope), ["hookSpecificOutput"]);
+      assert.deepEqual(Object.keys(envelope.hookSpecificOutput).sort(), ["additionalContext", "hookEventName"]);
+    }
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
 test("hook JSON wires SessionStart to the cxc-ops dist entry", () => {
@@ -276,4 +300,10 @@ test("direct-exec guard fires through a symlinked install path (plugin-cache reg
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
   assert.match(res.stdout, /additionalContext/, "symlink invocation must emit the envelope");
   assert.match(res.stdout, /cxc map/, "envelope must carry the map pointer");
+  assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /DEV-STACK-06\/07/);
+  const compact = spawnSync(process.execPath, [link, "hook", "post-compact"], { encoding: "utf8" });
+  assert.equal(compact.status, 0, compact.stderr);
+  const compactEnvelope = JSON.parse(compact.stdout).hookSpecificOutput;
+  assert.equal(compactEnvelope.hookEventName, "PostCompact");
+  assert.match(compactEnvelope.additionalContext, /DEV-STACK-06\/07/);
 });

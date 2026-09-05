@@ -13,12 +13,14 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-2%2C276_passing-brightgreen" alt="2,276 tests passing">
+  <img src="https://img.shields.io/badge/tests-2%2C277_passing-brightgreen" alt="2,277 tests passing">
   <img src="https://img.shields.io/badge/skills-28-blue" alt="28 skills">
   <img src="https://img.shields.io/badge/hooks-23-blue" alt="23 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
+
+워크플로 아이디어는 [OMO / oh-my-openagent](https://github.com/code-yeongyu/oh-my-openagent)를 참고했다. 일부 구성요소는 당시 MIT로 공개된 LazyCodex/OMO를 수정해 사용하며, [저작권·원본 커밋·변경 내역](NOTICE.md)을 명시한다. CodexClaw는 OMO의 공식 배포판이 아닌 별도 프로젝트다.
 
 ---
 
@@ -183,6 +185,6 @@ Pull request는 `dev` 통합 브랜치로 보낸다. `main`은 메인테이너�
 
 ## 라이선스
 
-[MIT](LICENSE)
+[MIT](LICENSE). 저작권·원본 출처·외부 코드 적용 범위는 [NOTICE.md](NOTICE.md)에 명시한다.
 
 서드파티: RepoMapper(MIT, Pete Davis), Aider tree-sitter 쿼리(Apache-2.0). 자세한 내용은 [`NOTICE.md`](plugins/codexclaw/skills/repo-map/scripts/NOTICE.md)를 참고한다.

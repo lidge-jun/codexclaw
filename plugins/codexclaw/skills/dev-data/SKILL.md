@@ -95,7 +95,7 @@ Before any transformation, validate incoming data:
 ✅ Check: Required fields are not null
 ✅ Check: Values are within expected ranges
 ✅ Check: No unexpected duplicate keys
-❌ Fail: If any check fails, write to error log with row details. Don't silently drop.
+❌ Fail: Quarantine invalid rows under the dataset's access/retention policy; log redacted identifiers and diagnostics, not raw PII. Don't silently drop.
 ```
 
 ---
@@ -284,7 +284,7 @@ See `references/streaming.md` for Kafka configuration, CDC patterns, and windowi
 |--------|--------|--------|--------|
 | **Best for** | Required pandas-only downstream compatibility | Batch ETL, performance, DataFrame workflows | SQL analytics, ad-hoc queries, small exploration |
 | **Execution** | Single-threaded, eager | Multi-threaded Rust, lazy eval | Vectorized, auto disk spill |
-| **Speed (groupby/join)** | Baseline | 5-10x faster | Matches Polars on SQL-native |
+| **Speed (groupby/join)** | Measure on representative input | Depends on expressions, data and execution mode | Depends on SQL plan, data and memory budget |
 | **Memory** | Full load into RAM | Streaming, lazy chains | Spill-to-disk for out-of-core |
 | **API style** | DataFrame (imperative) | DataFrame (expression-based) | SQL-first |
 | **ML interop** | Excellent (scikit-learn, etc.) | Good (`.to_pandas()`) | Good (`.fetchdf()`) |
@@ -344,7 +344,11 @@ See `references/governance.md` for detailed implementation patterns, row-level s
 
 Ownership note: this section covers analytical SQL, warehouse/lakehouse queries, and pipeline transforms. Plain app CRUD SQL, OLTP schema design, and transactional query tuning belong to `dev-backend/references/stacks/database.md`.
 
-- Every query that runs in production: EXPLAIN ANALYZE before deploy
+- Start query investigation with non-executing EXPLAIN. EXPLAIN ANALYZE actually executes
+  the statement, including writes and possible function/external side effects. Use it
+  only with authorized execution on representative isolated data and a resource budget.
+  A rollback does not undo every possible external effect; never treat ANALYZE as a
+  read-only diagnostic. See the PostgreSQL EXPLAIN documentation for the pinned version.
 - Slow query threshold: > 100ms for OLTP, > 5s for OLAP/analytics
 - Index strategy: B-tree for equality/range, GIN for array/JSONB, GiST for geo
 - Missing index detection: `pg_stat_user_tables` → seq_scan / idx_scan ratio
@@ -371,7 +375,7 @@ Data engineering does not exist in isolation. Cross-reference these skills when 
 | `dev-frontend` | Downstream reporting/dashboard consumers, data format expectations | §15 Backend Contract & Security Alignment |
 
 **Integration patterns:**
-- Data APIs serving frontend dashboards must use the standard response envelope (`dev-backend` §5)
+- Data APIs preserve the existing/protocol contract and its exceptions (`dev-backend` §5); do not wrap GraphQL, gRPC, SSE, or an established API just to match a sample envelope
 - PII pipelines must classify columns and apply masking per `dev-security` guidance before this skill's §7 rules
 - Data contract changes (§4 Data Contracts) must notify downstream consumers including frontend teams
 

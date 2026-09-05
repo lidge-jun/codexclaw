@@ -1,6 +1,7 @@
 # React Stack — Development Rules
 
-Rules specific to React projects. Read `core/aesthetics.md`, `core/anti-slop.md`, and `core/visual-verification.md` first.
+Rules specific to React projects. Load only the owning frontend references needed
+by the actual surface; ordinary CRUD work does not require a marketing design survey.
 
 ---
 
@@ -189,15 +190,17 @@ import { cn } from '@/lib/utils';
 
 Before importing ANY 3rd party library:
 1. Check `package.json`
-2. If missing, output `npm install <package>` BEFORE providing code
+2. If missing, consider an existing equivalent and propose the pinned dependency only when needed; do not silently install it
 3. **Never assume** a library exists
 
 ---
 
 ## Icons
 
-Use EXACTLY `@phosphor-icons/react` or `@radix-ui/react-icons` as import paths.
-Standardize `strokeWidth` globally (e.g., exclusively `1.5` or `2.0`).
+Use the icon system selected by the existing design system or Design Read. Follow
+`dev-uiux-design` Icon Strategy and `dev-frontend` FE-ICON-01; this stack reference
+must not replace Iconoir, Hugeicons, Lucide, or another approved library with a fixed pair.
+Use the actual library's supported weight/stroke API consistently.
 **NEVER** use emoji — see `anti-slop.md`.
 
 ---
@@ -216,8 +219,11 @@ Standardize `strokeWidth` globally (e.g., exclusively `1.5` or `2.0`).
 - Parallel fetch: `Promise.all([getUser(), getStats()])`
 - Streaming: `<Suspense fallback={<Skeleton />}>`
 - Avoid waterfall: never fetch sequentially in nested components
-- `React.memo` for expensive pure components
-- `useMemo` / `useCallback` only when measured, not preemptively
+- Check the installed React version and whether React Compiler is enabled on this code.
+- Compiler-optimized components already receive automatic memoization; do not add manual memo by reflex.
+- Without the compiler, or for measured remaining work, use React.memo/useMemo/useCallback selectively.
+- Validate profiler behavior before removing an existing optimization; memoization is not a correctness guarantee.
+- Official guidance: https://react.dev/reference/react/memo
 
 ### Image Optimization
 ```tsx

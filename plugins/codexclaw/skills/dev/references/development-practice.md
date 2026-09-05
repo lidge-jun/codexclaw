@@ -27,7 +27,7 @@ touch points, and whether existing conventions are reused or need approval.
 
 Give every file, function, and class a single, clear responsibility.
 
-**Hard limits (DEFAULT — exceed only with a stated reason):**
+**Review signals (DEFAULT — exceed with a stated responsibility/risk rationale):**
 
 | Metric | Threshold | Action |
 | ------ | --------- | ------ |
@@ -50,7 +50,7 @@ Each PR/changeset MUST be scoped to one logical change. Opportunistic rewrites, 
 | Dependency upgrade | Isolated PR | Never bundle with features |
 
 **Rules:**
-- Use ES Module (`import`/`export`) in JS/TS projects — CommonJS `require()` breaks tree-shaking and static analysis.
+- Prefer ESM for new JS/TS code when the runtime and repository support it. Preserve required CommonJS configuration/package interfaces; interop and bundler optimization are separate checks, not reasons for a blanket migration.
 - One default export per file when the file has a primary purpose (JS/TS convention; other languages follow their idioms).
 - Follow existing naming conventions in the project. Check sibling files before creating new ones.
 - New files must match the directory structure and naming patterns already in use.

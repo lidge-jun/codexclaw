@@ -1,6 +1,6 @@
 # Check phase
 
-4. **C — Check**: Run the real verification — build, typecheck, and targeted tests, plus adversarial review. Capture fresh command output as evidence. Do not claim pass without artifact-level proof. When the unit changed a user-facing surface (web/TUI/CLI/API), C also closes with a `cxc-qa` evidence matrix — real invocations, adversarial classes, teardown receipts (E7 discipline; see `../../qa/SKILL.md`).
+4. **C — Check**: Run the relevant real verification at the dev §3 work-class floor, plus adversarial review. Runnable source changes use the applicable build/typecheck/tests; docs-only changes use document/contract checks and semantic review, not unrelated product suites. Capture fresh output as evidence. Do not claim pass without artifact-level proof. When the unit changed a user-facing surface (web/TUI/CLI/API), C also closes with a `cxc-qa` evidence matrix — real invocations, adversarial classes, teardown receipts (E7 discipline; see `../../qa/SKILL.md`).
 
    **SoT sync (DEFAULT, SOT-SYNC-01):** locate the repo's general source-of-truth
    docs (architecture/INDEX docs, or equivalent) — found in P, patched HERE so SoT

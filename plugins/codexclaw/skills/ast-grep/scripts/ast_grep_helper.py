@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Adapted from MIT-licensed LazyCodex/OMO; Copyright (c) 2026 Yeongyu Kim.
+# Original permission notice: ../LICENSE. Source and modifications: plugin NOTICE.md.
 """ast-grep-helper: a thin LLM-friendly wrapper around `sg` (ast-grep).
 
 Single-file Python 3 stdlib. No deps. Works on macOS, Linux, Windows, WSL.

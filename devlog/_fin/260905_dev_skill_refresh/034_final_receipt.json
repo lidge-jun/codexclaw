@@ -1,0 +1,14 @@
+{
+  "kind": "test",
+  "sourceIdentity": {
+    "kind": "resolved",
+    "commitSha": "fb5d3f492bea6379ff7cdf235e80c07c6c3c0035",
+    "dirty": false,
+    "capturedAt": "2026-09-05T07:05:41.084Z"
+  },
+  "command": "node --test plugins/codexclaw/test/manifest-policy.test.mjs plugins/codexclaw/test/visualize-inspection.test.mjs",
+  "exitCode": 0,
+  "createdAt": "2026-09-05T07:05:41.113Z",
+  "ownerSessionId": "01a0702d-41a2-7640-a78b-6e761b42e3ab",
+  "checkEpoch": "c-20260905070135-d2d15c"
+}

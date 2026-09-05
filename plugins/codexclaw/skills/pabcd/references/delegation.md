@@ -35,8 +35,9 @@ documented inheritance still needs observed settings when exact identity matters
 Do not mutate shared or persistent role configuration without authorization.
 Reading this transport owner does not turn a non-audit task into a PABCD A gate.
 
-**Lifecycle contract.** If `spawn_agent` is not visible, use `tool_search` for it before
-concluding delegation is unavailable. Fan out independent lanes before waiting, and
+**Lifecycle contract.** Discover the actual spawn capability through the host's
+catalog/search when available, then use its live schema as described above.
+If no discovery/spawn capability exists, report the gap. Fan out independent lanes before waiting, and
 reuse the same reviewer throughout the A loop.
 
 Before waiting on dispatched work, read the mode-neutral
@@ -52,7 +53,9 @@ This route does not authorize an otherwise forbidden dispatch, wait, or mode tra
 
 - **DISPATCH-ISOLATION-01:** every lane gets explicit read and write access lists;
   never share in-progress output across lanes.
-- **REVIEW-DECORRELATE-01:** use a different model family for the A-gate reviewer.
+- **REVIEW-DECORRELATE-01:** prefer an independent context; use a different model family
+  only when host policy and user authorization permit the override. Otherwise inherit
+  and record that family-level independence was not established.
 - **SPECIALIST-CRUX-01:** when a narrow crux lies outside the builder's domain,
   dispatch a specialist to re-derive it from first principles.
 - Returns preserve VERBATIM ANCHORS: exact `path:line` quotations, exact figures,

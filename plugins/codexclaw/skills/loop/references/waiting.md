@@ -2,6 +2,11 @@
 
 Read while awaiting dispatched work or long external processes in either HITL or HOTL.
 
+These continuation/dispatch rules concern this goal's own work and delegated
+subagents, not independent peer advice. Peer timeouts do not authorize retirement,
+replacement, forced wakeups, or an unconditional wait; use
+[peer collaboration](../../dev/references/peer-collaboration.md).
+
 ## Wait visibility (LOOP-WAIT-VISIBILITY-01, DEFAULT)
 
 Long silent waits read as a dead loop to the user and invite interrupts that

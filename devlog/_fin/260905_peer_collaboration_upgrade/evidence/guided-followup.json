@@ -1,0 +1,29 @@
+{
+  "priorUncertainty": "Whether ordinary-user cancellation deletes the job or retains a resumable checkpoint.",
+  "newEvidence": {
+    "source": "Simulated response from addressed peer-api, citing tests/api-cancel-contract.spec",
+    "revision": "API revision3",
+    "status": "Peer reports accepted and current, not draft; not independently verified.",
+    "facts": [
+      "Cancel pauses processing and retains the checkpoint.",
+      "Retained checkpoints expire after 24 hours; expired jobs cannot resume.",
+      "Permanent deletion is a separate admin-only action."
+    ]
+  },
+  "decision": "Finalize ordinary-user cancel UI as non-destructive pause with time-limited resumability. Do not imply permanent deletion or indefinite resume availability, expose admin deletion, or change backend behavior.",
+  "actions": [
+    {
+      "kind": "record",
+      "target": "own UI decision record",
+      "message": "Proposed: record API revision3, the peer-reported test source, checkpoint expiration and admin-only deletion exceptions, and the resolution from uncertain cancellation semantics to non-destructive pause."
+    },
+    {
+      "kind": "continue",
+      "target": "ordinary-user cancel UI specification",
+      "message": "Proposed: describe cancellation as stopping processing while retaining a checkpoint for 24 hours. Specify resume availability only for unexpired checkpoints and an explanatory non-resumable state after expiration."
+    }
+  ],
+  "remainingUncertainty": [
+    "The cited tests and actual backend behavior have not been independently inspected or validated in this simulation."
+  ]
+}

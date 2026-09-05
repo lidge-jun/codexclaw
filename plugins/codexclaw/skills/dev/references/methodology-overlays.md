@@ -17,7 +17,7 @@ proof that validates the claim, with the reduced scope stated).
 | `threat_model` / `security` | `dev-security` | C4 security/data/tooling risk |
 | `observability` / `observability_pipeline` | `dev-backend` (+`dev-data`, `dev-devops` for operational gates) | App instrumentation, production/runtime hooks, incident/release gates |
 | `logging` (CLI / scripts / libraries) | `dev` `logging.md` | What to emit and where; service instrumentation stays with `dev-backend` |
-| stacked pull requests (`DEV-STACK-*`) | `dev` `stacked-prs.md` | When to stack, cascade discipline, layer shape, review scope, bottom-up merge safety |
+| stacked pull requests (`DEV-STACK-*`) | `dev` `stacked-prs.md` | Global PR/dependency preflight, native membership, CI diagnosis, cascading, layer review and merge safety |
 | `debugging` / `debugging_rca` | `dev-debugging` | Repeated failure needs root cause |
 | `migration_backfill` | `dev-data`, `dev-backend`, `dev-testing` | Production or non-trivial data |
 | `product_discovery` (+`_ui`) | `dev` (+`dev-uiux-design`) | Ambiguous behavior/user value/metric/prototype intent |
