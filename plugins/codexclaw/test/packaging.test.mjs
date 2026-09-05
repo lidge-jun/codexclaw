@@ -6,6 +6,8 @@
  * repo IS the install artifact. `.gitignore` ignores dist wholesale and runtime files are
  * force-added; this test fails if any dist file transitively loaded by a runtime
  * entrypoint is NOT git-tracked (i.e. would be missing from a fresh clone).
+ * All compiler outputs must also be tracked: release archives contain the full
+ * post-build directory, including modules outside the current runtime graph.
  *
  * Entrypoint roots (Aquinas A-gate, 2026-06-30): every dist file Codex executes directly.
  *  - the 5 component cli.js entries (bin/codexclaw.mjs spawns these; hooks invoke pabcd-state
@@ -22,6 +24,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, join, resolve, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { COMPONENTS, listTsFiles } from "../scripts/build.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = resolve(here, "..");
@@ -121,4 +124,21 @@ test("L19: the runtime graph reaches the known transitive modules (walker sanity
   assert.ok(graph.has("components/pabcd-state/dist/hook.js"), "hook.js must be in the runtime graph");
   assert.ok(graph.has("components/pabcd-state/dist/interview-ledger.js"), "interview-ledger.js must be reached");
   assert.ok(graph.has("components/pabcd-state/dist/orchestrate-cli.js"), "orchestrate-cli.js must be reached");
+});
+
+test("L19: every compiler output is git-tracked for archive/marketplace parity", () => {
+  const tracked = new Set(execFileSync("git", ["ls-files", "-z", "--", "plugins/codexclaw/components"], {
+    cwd: repoRoot, encoding: "utf8", timeout: 10000,
+  }).split("\0"));
+  const missing = [];
+  for (const component of COMPONENTS) {
+    const src = join(pluginRoot, "components", component, "src");
+    const dist = join(pluginRoot, "components", component, "dist");
+    for (const file of listTsFiles(src)) {
+      const output = join(dist, relative(src, file).replace(/\.ts$/, ".js"));
+      const path = relative(repoRoot, output).split(sep).join("/");
+      if (!tracked.has(path)) missing.push(path);
+    }
+  }
+  assert.deepEqual(missing.sort(), [], `compiler outputs absent from Git installations:\n${missing.sort().join("\n")}`);
 });
