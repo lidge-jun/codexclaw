@@ -440,3 +440,43 @@ effect, NOT an independent audit result. Its actor:human/reason:chat ledger is n
 P/A work, an agent attestation or a verification certificate. Do not forge state,
 delete the automatic evidence or use this path as a normal gate bypass. A rejected
 edge, scope violation or timeout is retained and stops that attempt.
+
+## 14. One-shot terminal cleanup for goal-absent cases
+
+Two completed API cases later hit the idle600s fallback while the main operator
+was analyzing other work. Preserve those lifecycle failures. Do not launch an
+API process until its control sequence is ready. A private mechanical cleanup
+helper may watch only the final target turn of a goal-absent case with no remaining
+callback, follow-up RPC, child work or user control. It is never used for active,
+paused or blocked goals, nor first-question/intermediate turns.
+
+operator/cleanup-native-turn.mjs SHA256:
+0c54d2f5098456b786995c3351b99f3357ef3647ce2665cb1c8537fa04ed1691.
+Pauli's final static targeted verdict PASS followed retained FAIL rounds. Accepted
+repairs: native event time/order must meet180s; wrapper deadline cannot become
+operator shutdown; missing goal DB fails closed; exact wrapper/entrypoint paths,
+hashes and PID launch chain are revalidated immediately before TERM.
+
+Arguments are approved ROOT, three-digit output serial, actual root T and actual
+final U. The helper reads complete JSONL records already produced by the unchanged
+wrapper, binds one actual turn/started, and watches exact T/U turn/completed.
+An item completion, child completion, ACK, late terminal or invalid timestamp is
+not an on-time root completion. Native emittedAtMs sets the180s bound, not helper
+start time. It requires an existing owned read-only goals DB with zero goal rows.
+A normal read-only native goal query may establish availability; do not fabricate
+or seed a database to satisfy the helper.
+
+Before any TERM it rechecks actual ps PID/PPID/PGID/start-time/argv plus lsof cwd,
+approved exact wrapper path/hash/arguments, started-record identity, and resolved
+Codex launcher path/digest. Only that wrapper receives TERM; its existing group
+escalation and600s fallback stay unchanged. Errors/ESRCH never become clean success.
+The helper checks wrapper/server/group survivors and appends its own operator
+receipt (line/T/U/status/error/trigger/signals/outcome) without editing raw RPC or
+ended.json. Its zero exit requires completed/error-null and clean operator-term
+teardown; it does not certify functionality, children, scope or admission.
+
+Remote syntax/mechanical checks and real cleanup evidence remain required. A
+helper error stops automatic signaling; main diagnoses within the existing owned
+resource scope. All failed and unfinished child/turn work remains in the population.
+No new plugin hook, collector, dispatcher, model runtime or permanent listener is
+introduced. This is a bounded process-owner helper, not a product observer.
