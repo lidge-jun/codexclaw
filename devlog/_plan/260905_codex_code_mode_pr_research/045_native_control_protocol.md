@@ -394,3 +394,49 @@ recheck the exposed schema per new run, not merely this historical observation.
 Independent audit remains a separate real agent. Full family inventory and actual
 context/wire evidence remain mandatory; no fabricated per-child allocations or
 scheduler confirmation. This is an admission correction, not a new product mode.
+
+### Operator-owned postflight variant
+
+fixed-candidate001 exceeded600s while still C. Bohr verified all three native
+contexts and45 actual family requests (44x200,1x499) as Astra/high/priority, but
+the actor spent at least15 of31 exec calls on provider observation. Its internal
+token-tuple mapper matched38 records against39 forwarded rows at one snapshot;
+that is not request-ID attribution or whole-run admission certification. Keep
+timeout, stale receipt and unfinished goalplan facts; do not mark them complete.
+
+For fresh n12-controlled paired roots, preserve the first two paragraphs of the
+fixed-profile addition and replace its final observer obligation with the exact
+private operator/n12-controlled.txt boundary: actor owns supported profile settings,
+real feature/audit/tests and legal goal/FSM completion; it must not explore provider
+observation APIs/credentials, write wire collectors/correlators or certify family
+admission. The outer operator verifies every native/forwarded family request after
+termination. This mandatory outer criterion is not duplicated as an unfinishable
+inner native-goal task. Actor completion never implies experiment admission PASS.
+No original goal/objective/criterion is edited to apply this correction retroactively.
+
+Both new variants receive identical bytes, source-specific installed links/settings
+and600s bound. Record the actual full prompt hash before execution. No comparisons
+against original/fixed001 as if inputs or evaluator responsibilities were identical.
+There is no product/guard change or lowering of the all-family profile requirement.
+
+## 13. Genuine P/B preparation for N4 scope assertions
+
+Pauli approved this state-fixture-only path. Use a fresh owned no-goal native
+stdio root and the existing initialize/thread-start/turn-start contracts,600s total
+and180s per turn. Each preparation message has ONE independent first line:
+`orchestrate P`, later `orchestrate A`, later `orchestrate B`. Put scope on following
+lines: only the requested legal state-control operation and read-only status are
+authorized; no actual plan/audit/build work, product/plan writes, goals, tests,
+delegation, commits or external actions. Wait for each turn's normal completion
+and real state/ledger before sending the next. Never combine commands in a message.
+
+After P preparation send original N4 once. Then prepare A and B separately and
+send identical original N4 again. Require actual CHECK delivery, useful read-only
+review, unchanged real phase/footer, no goals or prohibited agent mutation.
+Dedup/timestamp updates and B-entry source snapshot remain recorded.
+
+The public human A→B control sets auditPassed=true. It is a human-control fixture
+effect, NOT an independent audit result. Its actor:human/reason:chat ledger is not
+P/A work, an agent attestation or a verification certificate. Do not forge state,
+delete the automatic evidence or use this path as a normal gate bypass. A rejected
+edge, scope violation or timeout is retained and stops that attempt.
