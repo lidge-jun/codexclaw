@@ -192,6 +192,7 @@ export function renderStackedPrAffordance(): string {
     "read $codexclaw:cxc-dev references/stacked-prs.md (DEV-STACK-06/07), even without",
     "a DevOps trigger. A parent base or Can Stack banner is not native stack registration;",
     "verify GitHub membership and CI separately. Per-PR CI is expected, not proof of a broken stack.",
+    "Publish GitHub stacks natively; verify registration before claiming delivery.",
     "This is guidance, not authorization to register, restack, cancel CI, or merge.",
   ].join(" ");
 }

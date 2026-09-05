@@ -55,13 +55,16 @@ or restack while you work. GitHub native stacks currently require one repository
 
 `gh pr create --base <parent>`, a body stack map, labels, and the **Can Stack** banner
 do not certify native registration. The banner offers conversion; confirmation is a
-separate operation. When GitHub stack publication is authorized, prefer a registered
-native stack. Inspect available tooling (`gh extension list`, installed command help)
+separate operation. **For authorized GitHub stack publication, use a registered native
+stack by default. Base chaining alone is not completed stack delivery.** Inspect
+available tooling (`gh extension list`, installed command help)
 and choose `gh stack submit`, the website's Create stack confirmation, or the
 [documented REST create endpoint](https://docs.github.com/en/rest/pulls/stacks#create-a-pull-request-stack)
 (POST with an ordered `pull_requests` array, bottom to top). Re-read membership after
-the write. Do not install an extension automatically or claim native completion when
-registration is unavailable; identify the manual fallback and its limits.
+the write; completion evidence includes the native stack number, trunk and ordered
+members. Do not install an extension automatically. If native registration is unavailable,
+report the limitation and obtain the user's choice before using a manual-chain fallback.
+When native stacks were explicitly requested, a manual chain never satisfies completion.
 
 **Authority:** inspection is read-only. Registration, branch rewrites, PR retargeting,
 CI changes/cancellation and merging need authority for that operation and those PRs.

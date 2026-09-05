@@ -39,6 +39,11 @@ No-code options: doing nothing leaves native-only promises attached to manual ch
 6. Native merge/rebase/protection promises are qualified; a manual child merge is not a trunk landing. Preserve children until retarget/restack and reverify exact heads after changes.
 7. Focused tests, generated dist, gates and independent review pass. Publish the scoped PR, report the real remote head and CI state, and do not mutate OpenCodex.
 
+User clarification during C: "네이티브 스택을 쓰도록". Native registration is now the
+explicit default for GitHub stack publication, with stack number/trunk/member read-back
+required for completion. Native unavailability requires a user decision, not a silent
+manual-chain fallback. This changes guidance in this PR, not authority over OpenCodex.
+
 ## Verifier preflight (2026-09-05)
 
 - `node --test plugins/codexclaw/components/cxc-ops/test/map-affordance.test.ts plugins/codexclaw/test/manifest-policy.test.mjs`: exit 0, 17/17. Direct arguments cover the changed runtime via imports, emitted CLI envelope and implicit policy; does not validate semantic prose.

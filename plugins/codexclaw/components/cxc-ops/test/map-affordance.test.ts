@@ -128,6 +128,7 @@ test("critical loop and stack guidance survives SessionStart and PostCompact wit
     assert.match(stackLine, /even without a DevOps trigger/);
     assert.match(stackLine, /not native stack registration/);
     assert.match(stackLine, /Per-PR CI is expected/);
+    assert.match(stackLine, /Publish GitHub stacks natively; verify registration/);
     assert.match(stackLine, /not authorization/);
     assert.ok(stackLine.length < 600, "global guidance must remain a bounded pointer");
     assert.deepEqual(Object.keys(envelope), ["hookSpecificOutput"]);

@@ -85,6 +85,7 @@ creation/review/merge, dependent work-phase delivery, or an observed PR base poi
 at another PR's head, read [stacked PRs](references/stacked-prs.md)
 (`DEV-STACK-06/07`) before choosing the workflow. Existing PRs need this preflight even
 when the current edit is small. Generic CSS/runtime stacks are not PR-stack signals.
+GitHub stack publication uses the native workflow and completion proof defined there.
 The canonical owner defines membership proof, CI diagnosis and authority boundaries;
 do not infer them from a body map or the word "stack".
 

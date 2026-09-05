@@ -16,6 +16,7 @@ export function renderStackedPrAffordance(): string {
     "read $codexclaw:cxc-dev references/stacked-prs.md (DEV-STACK-06/07), even without",
     "a DevOps trigger. A parent base or Can Stack banner is not native stack registration;",
     "verify GitHub membership and CI separately. Per-PR CI is expected, not proof of a broken stack.",
+    "Publish GitHub stacks natively; verify registration before claiming delivery.",
     "This is guidance, not authorization to register, restack, cancel CI, or merge.",
   ].join(" ");
 }
@@ -35,7 +36,7 @@ Insert `DEV-STACK-06 — Recognize and register deliberately` after the model:
 - Act on PR/dependency semantics, parent-base discovery, English/Korean stack requests, not only a DevOps keyword; no generic CSS/runtime-stack trigger.
 - Separate manual branch chain, confirmed native stack and unknown membership.
 - Read PR base/head and repo identity, then GET the documented stacks endpoint with `pull_request=N`; inspect successful membership, ordered PR numbers and trunk. Successful `[]` means no membership reported; errors/unsupported APIs remain unknown.
-- `gh pr create --base`, body maps, labels and Can Stack are not registration. For authorized GitHub stack publication prefer native registration; use available `gh stack submit`, website confirmation or documented REST POST with bottom-to-top numbers. Publishing/registering is a write; inspect/help first, never install automatically. Verify membership afterward and report fallback/unavailability honestly.
+- `gh pr create --base`, body maps, labels and Can Stack are not registration. For authorized GitHub stack publication use native registration by default; use available `gh stack submit`, website confirmation or documented REST POST with bottom-to-top numbers. Publishing/registering is a write; inspect/help first, never install automatically. Verify stack number/trunk/members afterward. Report unavailability and ask before a manual fallback; explicit native requests cannot complete as manual chains (user C-phase clarification).
 
 Insert `DEV-STACK-07 — Diagnose CI independently`:
 
