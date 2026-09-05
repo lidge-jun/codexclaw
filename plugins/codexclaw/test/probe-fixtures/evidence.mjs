@@ -82,3 +82,45 @@ export function bench() {
     iterations: 3, hooks: [{ name: "guard", event: "PreToolUse", aboveFloorMs: 10,
       errorCount: 0, invocations: 3, stdoutBytes: 0, stderrBytes: 0 }] };
 }
+
+export function familyFixture(t) {
+  const f = fixture(t);
+  f.proof.schemaVersion = 2; f.proof.correlationMode = "native-shared-family-v1";
+  f.proof.runtimePointers = {model:"/payload/model", effort:"/payload/effort"};
+  f.proof.sessions.push({id:"child", role:"child", source:"child"});
+  f.proof.sources.child = {file:"evidence/child.jsonl"};
+  f.run.codexSha256 = "b".repeat(64);
+  f.proof.family = {nativeAudit:{reviewedBy:"main", cliVersion:"0.146.0",
+    sourceSha:"e363b08c9175ac1cbe5893615dd2cb9ddf95043b", files:{}}, review:{file:"evidence/family-review.jsonl"}};
+  for (const name of ["core/src/agent/control.rs", "core/src/session/session.rs", "core/src/session/turn_context.rs",
+    "core/src/client.rs", "codex-api/src/requests/headers.rs", "exec/src/event_processor_with_jsonl_output.rs", "exec/src/lib.rs"]) {
+    const file = "evidence/native/" + name; put(f.root, file, "SYNTHETIC " + name);
+    f.proof.family.nativeAudit.files[name] = {file, sha256:sha("SYNTHETIC " + name)};
+  }
+  const {model, effort} = runtimeRows()[1];
+  const rows = (id, child) => [{type:"session_meta", payload:{id, session_id:"abc", cli_version:"0.146.0", history_mode:"legacy",
+    source:child ? {subagent:{thread_spawn:{parent_thread_id:"abc", depth:1}}} : "exec",
+    thread_source:child ? "subagent" : "user", ...(child ? {parent_thread_id:"abc", multi_agent_version:"v1"} : {})}},
+    {type:"event_msg", payload:{type:"task_started", turn_id:id + "-turn"}},
+    {type:"turn_context", payload:{model, effort, turn_id:id + "-turn", multi_agent_version:"v1"}},
+    {type:"event_msg", payload:{type:"task_complete", turn_id:id + "-turn"}}];
+  f.parentRows = rows("abc", false); f.childRows = rows("child", true);
+  const item = {id:"spawn-1", type:"collab_tool_call", tool:"spawn_agent", sender_thread_id:"abc"};
+  f.events = [{type:"thread.started", thread_id:"abc"},
+    {type:"item.started", item:{...item, status:"in_progress", receiver_thread_ids:[]}},
+    {type:"item.completed", item:{...item, status:"completed", receiver_thread_ids:["child"]}}, {type:"turn.completed"}];
+  f.usageRows = [f.row, {...f.row, requestId:"request-two"}];
+  f.review = {schemaVersion:1, reviewedBy:"main", topology:"root-direct-children", originalsComplete:true,
+    noUnlistedDescendants:true, noResumeOrFork:true, usageComplete:true};
+  saveFamily(f); return f;
+}
+export function saveFamily(f) {
+  setArtifact(f, "stdout.jsonl", jsonl(f.events));
+  setSource(f, "parent", f.parentRows); setSource(f, "child", f.childRows); setSource(f, "usage", f.usageRows);
+  const {family, ...manifest} = f.proof;
+  f.review.inputDigests = [["manifest", sha(JSON.stringify({...manifest, nativeAudit:family.nativeAudit}))],
+    ["stdout.jsonl", sha(jsonl(f.events))], ["codexEntrypoint", f.run.codexSha256],
+    ...Object.keys(f.proof.sources).map(key => [key, f.proof.sources[key].sha256])].sort(([a], [b]) => a.localeCompare(b));
+  const text = jsonl([f.review]); put(f.root, f.proof.family.review.file, text);
+  f.proof.family.review.sha256 = sha(text); putJson(f.root, "proof.json", f.proof);
+}

@@ -120,6 +120,122 @@ function usageFor(rows, pointers, id) {
   });
 }
 
+const nativeFiles = ["core/src/agent/control.rs", "core/src/session/session.rs", "core/src/session/turn_context.rs",
+  "core/src/client.rs", "codex-api/src/requests/headers.rs", "exec/src/event_processor_with_jsonl_output.rs", "exec/src/lib.rs"];
+const nativeSha = "e363b08c9175ac1cbe5893615dd2cb9ddf95043b";
+const exactId = value => typeof value === "string" && value.length > 0 && value === value.trim();
+function nativeAudit(root, proof) {
+  const audit = proof.family?.nativeAudit;
+  need(audit?.reviewedBy === "main" && audit.cliVersion === "0.146.0"
+    && audit.sourceSha === nativeSha, "unsupported/unreviewed native source");
+  for (const name of nativeFiles) {
+    const item = audit.files?.[name];
+    need(item && /^[a-f0-9]{64}$/.test(item.sha256 || ""), "missing native source snapshot");
+    check(fileDigest(local(root, item.file)) === item.sha256, "native snapshot digest mismatch");
+  }
+}
+function nativeSession(root, proof, session, parent) {
+  const rows = source(root, proof.sources?.[session.source]);
+  const meta = rows.filter(r => r.value.type === "session_meta");
+  need(meta.length > 0, "missing native metadata");
+  check(meta.length === 1, "ambiguous native metadata");
+  const m = meta[0].value.payload;
+  need(m && exactId(m.id) && exactId(m.session_id), "missing native identities");
+  check(m.id === session.id && m.session_id === parent, "native family identity mismatch");
+  need(m.cli_version === "0.146.0" && m.history_mode === "legacy" && !m.forked_from_id, "unsupported native history/version");
+  if (session.role === "parent") {
+    need(m.source === "exec" && m.thread_source === "user" && !m.parent_thread_id, "unsupported root source");
+  } else {
+    check(session.role === "child", "invalid native role");
+    const spawn = m.source?.subagent?.thread_spawn;
+    need(spawn && exactId(spawn.parent_thread_id) && exactId(m.parent_thread_id), "missing causal parent");
+    need(spawn.depth === 1 && m.thread_source === "subagent" && m.multi_agent_version === "v1", "unsupported native topology");
+    check(spawn.parent_thread_id === parent && m.parent_thread_id === parent, "causal parent mismatch");
+  }
+  const events = rows.filter(r => r.value.type === "event_msg");
+  check(!events.some(r => ["error", "task_failed", "turn_aborted"].includes(r.value.payload?.type)), "native turn failed");
+  need(!events.some(r => r.value.payload?.type?.startsWith("collab_agent_spawn")), "unsupported descendant event source");
+  const starts = events.filter(r => r.value.payload?.type === "task_started");
+  const ends = events.filter(r => r.value.payload?.type === "task_complete");
+  need(starts.length > 0 && ends.length > 0, "incomplete native lifecycle");
+  need(starts.length === 1 && ends.length === 1, "unsupported multi-turn/resumed history");
+  need(exactId(starts[0].value.payload.turn_id) && exactId(ends[0].value.payload.turn_id), "missing native turn identity");
+  check(starts[0].line < ends[0].line && starts[0].value.payload.turn_id === ends[0].value.payload.turn_id, "native lifecycle mismatch");
+  need(proof.runtimePointers?.model === "/payload/model" && proof.runtimePointers?.effort === "/payload/effort", "unsupported native runtime pointers");
+  for (const row of rows.filter(r => r.value.type === "turn_context")) {
+    const context = row.value.payload;
+    need(context && exactId(context.turn_id), "missing native context turn identity");
+    check(context.turn_id === starts[0].value.payload.turn_id, "native context turn mismatch");
+    need(context.multi_agent_version === "v1", "unsupported/missing native context version");
+  }
+  return {id:session.id, role:session.role, source:session.source, metadataLine:meta[0].line,
+    sharedSessionId:m.session_id, parentId:session.role === "child" ? m.parent_thread_id : null,
+    effectiveLines:runtime(root, proof, session), requests:null, requestCount:null};
+}
+function directSpawns(root, parent, sessions) {
+  const rows = lines(local(root, "stdout.jsonl")), started = new Map(), completed = new Map();
+  need(!rows.some(r => r.value.type === "warning"), "CLI warning requires completeness review");
+  const calls = rows.filter(r => r.value.item?.type === "collab_tool_call");
+  for (const row of calls) {
+    const e = row.value, item = e.item;
+    need(["spawn_agent", "wait", "send_input", "close_agent"].includes(item.tool), "unsupported CLI collab tool");
+    need(item.sender_thread_id === parent, "unsupported non-root CLI sender");
+    need(Array.isArray(item.receiver_thread_ids) && item.receiver_thread_ids.every(exactId), "missing CLI receiver inventory");
+    if (item.tool !== "spawn_agent") continue;
+    need(exactId(item.id), "missing CLI spawn identity");
+    need(["item.started", "item.completed"].includes(e.type), "unsupported CLI spawn event");
+    const target = e.type === "item.started" ? started : completed;
+    check(!target.has(item.id), "duplicate CLI spawn record");
+    check(item.status === (e.type === "item.started" ? "in_progress" : "completed"), "CLI spawn failed");
+    check(item.receiver_thread_ids.length === (e.type === "item.started" ? 0 : 1), "ambiguous CLI spawn receivers");
+    target.set(item.id, row);
+  }
+  need(started.size > 0 && completed.size > 0, "shared-family mode needs original CLI spawn records");
+  need(started.size === completed.size && [...started.keys()].every(id => completed.has(id)), "incomplete CLI spawn lifecycle");
+  const inventory = [...completed].map(([id, row]) => {
+    check(started.get(id).line < row.line, "CLI spawn order mismatch");
+    return {id:row.value.item.receiver_thread_ids[0], spawnItemId:id, startedLine:started.get(id).line, completedLine:row.line};
+  });
+  check(new Set(inventory.map(s => s.id)).size === inventory.length, "duplicate spawned child");
+  const children = sessions.filter(s => s.role === "child").map(s => s.id).sort();
+  check(JSON.stringify(children) === JSON.stringify(inventory.map(s => s.id).sort()), "CLI child inventory mismatch");
+  check(calls.every(r => r.value.item.receiver_thread_ids.every(id => children.includes(id))), "unlisted CLI receiver");
+  return inventory;
+}
+function familyReview(root, proof, run) {
+  need(/^[a-f0-9]{64}$/.test(run.codexSha256 || ""), "missing Codex entrypoint identity");
+  const rows = source(root, proof.family?.review);
+  check(rows.length === 1, "ambiguous family review");
+  const r = rows[0].value;
+  need(r.schemaVersion === 1 && r.reviewedBy === "main" && r.topology === "root-direct-children"
+    && r.originalsComplete === true && r.noUnlistedDescendants === true && r.noResumeOrFork === true
+    && r.usageComplete === true, "family completeness/topology not established");
+  const {family, ...manifest} = proof;
+  const inputs = [["manifest", digest(JSON.stringify({...manifest, nativeAudit:family.nativeAudit}))],
+    ["stdout.jsonl", run.files["stdout.jsonl"]], ["codexEntrypoint", run.codexSha256],
+    ...Object.entries(proof.sources).map(([key, s]) => [key, s.sha256])].sort(([a], [b]) => a.localeCompare(b));
+  check(JSON.stringify(r.inputDigests) === JSON.stringify(inputs), "stale family review binding");
+}
+function familyEvidence(root, proof, parent, run, usage) {
+  for (const description of Object.values(proof.sources)) source(root, description);
+  nativeAudit(root, proof);
+  check(proof.sessions.every(s => exactId(s.id) && ["parent", "child"].includes(s.role)), "invalid native inventory");
+  const sessions = proof.sessions.map(s => nativeSession(root, proof, s, parent));
+  const inventory = directSpawns(root, parent, sessions);
+  familyReview(root, proof, run);
+  const childDigests = new Set(sessions.filter(s => s.role === "child").map(s => conversationDigest(s.id)));
+  check(!childDigests.has(conversationDigest(parent)), "ambiguous family digest");
+  check(!usage.some(r => childDigests.has(pointer(r.value, proof.usagePointers?.conversationId))), "mixed direct/shared usage source");
+  const requests = usageFor(usage, proof.usagePointers, parent);
+  return {state:"eligible-for-review", schemaVersion:2, proofScope:"shared-family", eligibility:"configured-priority-only",
+    requestedExact:true, nativeThreadModelEffortExact:true, familyConfiguredWireExact:true,
+    perThreadRequestAttribution:"unavailable", pairedComparisonEligible:false, familyComparisonEligibleForReview:true,
+    schedulerConfirmation:"unknown", confirmedFastPerformanceClaim:false, hookInvocationCount:null,
+    requiresMainReview:["independent behavioral invariants", "paired input/config/host conditions", "source/live and completeness review authenticity"],
+    sessions, family:{rootId:parent, sharedSessionId:parent, conversationId:conversationDigest(parent),
+      usageSource:proof.usageSource, review:proof.family.review, inventory, requestCount:requests.length, requests}};
+}
+
 export function analyzeRun(root) {
   const run = json(join(root, "run.json"));
   const parent = transport(root, run);
@@ -128,13 +244,16 @@ export function analyzeRun(root) {
   let proof;
   try { proof = json(join(root, "proof.json")); }
   catch (error) { if (error.code === "ENOENT") throw new Unknown("model/tier proof not supplied"); throw error; }
-  need(proof.schemaVersion === 1 && Array.isArray(proof.sessions), "invalid proof manifest");
+  need(Array.isArray(proof.sessions), "invalid proof manifest");
+  need((proof.schemaVersion === 1 && proof.correlationMode === undefined && proof.family === undefined)
+    || (proof.schemaVersion === 2 && proof.correlationMode === "native-shared-family-v1"), "unsupported proof mode");
   auditAdapter(root, proof.adapterAudit);
   const parents = proof.sessions.filter(s => s.role === "parent");
   check(parents.length === 1 && parents[0].id === parent, "parent inventory mismatch");
   const ids = proof.sessions.map(s => s.id);
   check(ids.every(id => typeof id === "string" && id.length > 0) && new Set(ids).size === ids.length, "invalid session inventory");
   const usage = source(root, proof.sources?.[proof.usageSource]);
+  if (proof.schemaVersion === 2) return familyEvidence(root, proof, parent, run, usage);
   const sessions = proof.sessions.map(session => ({id:session.id, role:session.role,
     effectiveLines:runtime(root, proof, session),
     requests:usageFor(usage, proof.usagePointers, session.id)}));
