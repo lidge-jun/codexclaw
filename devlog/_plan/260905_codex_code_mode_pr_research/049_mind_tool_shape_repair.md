@@ -1,7 +1,10 @@
 # WP3 C repair: live-schema Mind dispatch
 
-Status: native004 RED; bounded design independently approved by Pauli. No native
-GREEN or whole-WP3 completion is claimed. This repairs the existing instructional
+Status: native004 RED; native005 behavioral GREEN independently reviewed by Pauli.
+The old-shape-only native causal toggle was not executed. Native005's wrapper
+ended by deadline; exact outbound effort and scheduler priority remain unknown.
+Fresh current-product affected checks pass703/0; see [research wrap](049_1_research_wrap.md).
+No whole-WP3 completion is claimed. This repairs the existing instructional
 hook/owner compatibility, not050's inline/selfload delivery mechanism.
 
 ## Symptom, competing explanations and accepted boundary

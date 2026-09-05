@@ -134,6 +134,12 @@ accounting review, without laundering their original behavioral failures.
 
 ## Still required before advancing
 
+User-directed disposition: stop expanding experiments and wrap the collected data.
+The [research wrap](049_1_research_wrap.md) supersedes pending-review labels where
+new evidence exists and records the remaining gaps without marking them passed.
+The obligations below describe the original full-program acceptance, not work
+authorized to continue after this wrap request.
+
 Close the pending native controls and independent reviews, complete matched
 context/cost evidence with explicit unavailable fields, recheck the full general
 040 matrix's actual-versus-synthetic coverage, synchronize final SoT and obtain

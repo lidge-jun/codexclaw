@@ -1,5 +1,14 @@
 # Codex 실행 기능과 upstream PR 흐름 조사
 
+## Current disposition — user-directed research wrap
+
+On 2026-09-05 the user asked to finish with the data already collected.
+[Research wrap](049_1_research_wrap.md) is now the entrypoint: implemented changes,
+fresh verification, independently reviewed observations and explicit limitations.
+No further native experiments or successor phases are scheduled by this handoff.
+WP3 remains C/incomplete under the original acceptance contract; 050/060 were not
+executed. The historical stage descriptions below are not current completion claims.
+
 최신 재개 지점: wp0·wp1·wp2는 각 C/D를 마쳤고, 현재 wp3 A에서 훅·검증
 절차를 감사 중이다. 사용자가 승인한 원칙은 모듈 책임과 지식을 보존하고 reference를
 늘려도 된다는 것이다. 파일 수가 아니라 매 작업의 불필요한 읽기를 줄인다.
