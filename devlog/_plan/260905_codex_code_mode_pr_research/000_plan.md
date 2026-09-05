@@ -1,12 +1,14 @@
 # Codex 실행 기능과 upstream PR 흐름 조사
 
-최신 재개 지점: wp0·wp1은 끝났고, 현재 wp2 B에서 실제 읽기·규칙 적용을
-검증 중이다. 사용자가 승인한 원칙은 모듈 책임과 지식을 보존하고 reference를
+최신 재개 지점: wp0·wp1·wp2는 각 C/D를 마쳤고, 현재 wp3 A에서 훅·검증
+절차를 감사 중이다. 사용자가 승인한 원칙은 모듈 책임과 지식을 보존하고 reference를
 늘려도 된다는 것이다. 파일 수가 아니라 매 작업의 불필요한 읽기를 줄인다.
 구현·회귀 검증은 [032](032_wp2_execution.md), 실제 프로브는
 [033](033_wp2_native_fixtures.md), 실패와 수정은
 [034](034_wp2_behavior_review.md)·[036](036_wp2_read_recovery.md),
 요청 식별자 한계는 [035](035_native_identity_observations.md)에 기록했다.
+스킬 단계 인계는 [037](037_wp2_handoff.md), 훅 단계의 감사·보완은
+[044](044_wp3_audit_synthesis.md)와 [045](045_native_control_protocol.md)가 현재 지점이다.
 CHECK 훅 충돌·전체 전달 비교·최종 설치 검증은 미완료다. 아래 초기 조사 기록은
 현재 실행 권한이나 완료 상태가 아니다.
 

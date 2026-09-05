@@ -1,6 +1,9 @@
 # WP2 check handoff — modular instruction candidate
 
-Status: ready for fresh C, not global adoption or release.
+Status: WP2 C/D closed. Fresh source91e051df verification passed118 tests, gate,
+inventory, route mutations and three native packet rechecks. The archived receipt
+is .codexclaw/evidence/01a0702d-c493-7510-801f-7d8772a2689c/wp2/test-receipt.json.
+This is not global adoption or release; WP3 A and downstream gates remain open.
 
 ## Implemented slice
 
