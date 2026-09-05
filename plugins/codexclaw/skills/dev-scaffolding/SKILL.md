@@ -183,7 +183,7 @@ When adding a new feature, create a folder under `src/` with these files:
 | ---------- | ------------- | -------------- | -------------- | ---------------------- |
 | JavaScript | `kebab-case/` | `name.tool.js` | `name.test.js` | `index.js`             |
 | TypeScript | `kebab-case/` | `name.tool.ts` | `name.test.ts` | `index.ts`             |
-| Python     | `kebab-case/` | `name_tool.py` | `test_name.py` | `__init__.py`          |
+| Python     | `package_name/` | `name_tool.py` | `test_name.py` | `__init__.py`          |
 | Go         | `kebab-case/` | `name.go`      | `name_test.go` | *(package = boundary)* |
 | Rust       | `kebab-case/` | `name.rs`      | inline `#[cfg(test)]` or `tests/` | `lib.rs`/parent `mod name;` |
 
@@ -197,7 +197,8 @@ Principle: “flat until you can't” — start flat, add a sub-folder only when
 
 | Item                | Rule                  | Example                      |
 | ------------------- | --------------------- | ---------------------------- |
-| Folders             | kebab-case            | `stock-price/`, `user-auth/` |
+| Repository folders | Follow existing convention; kebab-case is a JS/TS sample | `stock-price/` |
+| Importable packages | Follow language identifiers; no hyphens in normal Python imports | `stockprice/`, `stock_price/` |
 | JS/TS files         | kebab-case + suffix   | `stock-price.tool.ts`        |
 | Python files        | snake_case + suffix   | `stock_price_tool.py`        |
 | Go files            | snake_case            | `stock_price.go`             |
@@ -323,8 +324,10 @@ A scaffold operation must be deterministic and verifiable:
 
 ## Post-Scaffold Verification (SCAFFOLD-VERIFY-01, DEFAULT)
 
-After scaffolding, verify the result is usable — do not claim done from
-structural inspection alone:
+Apply the following only to a runnable project scaffold and only for supported commands.
+Documentation scaffolds use link/structure/contract checks; module scaffolds use affected
+checks. Do not install dependencies, start servers, or run a broad suite merely to validate prose.
+For a runnable scaffold, verify usability within the authorized environment:
 
 1. `npm install` / `pip install` / equivalent dependency installation succeeds
 2. `npm run build` / `cargo build` / equivalent build succeeds

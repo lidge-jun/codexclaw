@@ -50,7 +50,9 @@ go vet ./...
 
 ### Rust
 
-Rust's module system prevents circular dependencies at compile time. No detection tooling needed.
+Distinguish Cargo package dependency cycles from references between Rust modules.
+Do not claim that compiling proves an acyclic architectural module graph. Use the
+repository's dependency rules or inspect module edges when that property matters.
 
 ---
 
@@ -134,6 +136,6 @@ AFTER (merged):
 After resolving a cycle, always:
 
 1. Re-run detection command — must report zero cycles
-2. Run full test suite — ensure no behavioral regression
+2. Run the affected tests/checks at the depth required by `dev` §3; respect explicit execution constraints
 3. Check bundle size — extraction should not increase bundle
 4. Review the dependency direction — dependencies point inward toward Domain; outer layers depend on inner layers, never the reverse

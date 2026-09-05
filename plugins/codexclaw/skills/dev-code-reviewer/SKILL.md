@@ -50,7 +50,9 @@ verification after candidate URLs exist, not a raw-query search substitute.
 
 ### Automated Pre-Scan
 
-Run repo-native lint, type checks, and tests first.
+Run the smallest repo-native checks that observe the requested review scope.
+Docs-only reviews use document/contract checks; a diagnostic review does not authorize
+installs, product changes, or a repository-wide suite prohibited by the user.
 
 1. Errors block review readiness.
 2. Warnings are non-blocking but must be reported.
@@ -164,7 +166,7 @@ Canonical rule imported from `dev-architecture` §1: **>400 LOC -> split (DEFAUL
 |-------|---------------|
 | 200-400 lines | Healthy — easy to navigate and review |
 | 400-500 lines | Should split unless the author states a concrete reason |
-| >500 lines | Blocking review finding unless already being split in this diff |
+| >500 lines | Strong review signal; not a blocker by size alone. Accept a documented cohesion/risk rationale |
 
 ### Review Verdict
 
@@ -200,7 +202,7 @@ author with a stated reason, Medium may pass with a tracked follow-up. Style nev
 | Unreachable code after return/throw | `no-unreachable`, compiler warnings | Delete the dead branch |
 | Unused imports / variables | `no-unused-vars`, `@typescript-eslint/no-unused-vars` | Remove |
 | Commented-out code blocks | Manual review | Delete — use version control history |
-| Unused exports | `ts-prune`, `knip`, grep for import sites | Remove export; delete if no internal use |
+| Unused exports | `ts-prune`, `knip`, consumer search | Remove scoped internal dead exports; public contracts require compatibility review before removal |
 | Stale feature-flagged code | Check flag status in flag service | Remove dead branch and the flag check |
 
 Dead code is a maintenance tax — remove rather than comment out.
@@ -272,7 +274,7 @@ Scan every PR for these common performance pitfalls:
 
 | Check | Red Flag | Fix |
 |-------|----------|-----|
-| Unnecessary re-renders | State updates in parent causing child re-render cascade | `React.memo`, `useMemo`, extract state down |
+| Measured expensive re-renders | Profiler identifies repeat work | Check Compiler activation and state ownership first; use manual memoization only where still useful |
 | Bundle size impact | New large dependency (>50KB gzipped) | Check `bundlephobia.com`, consider alternatives or lazy loading |
 | Missing `key` prop | List rendering without stable keys | Use unique ID, never array index for dynamic lists |
 | Unoptimized images | Large images without `next/image`, `loading="lazy"`, or srcset | Use framework image optimization |

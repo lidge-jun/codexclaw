@@ -111,7 +111,7 @@ Use this checklist for login, session, token, password reset, magic link, OAuth,
 - [ ] Passwords hashed with `argon2id` (preferred); `scrypt` next if unavailable; `bcrypt` mainly for legacy; PBKDF2 only for FIPS-140 contexts. MD5/SHA1/raw SHA256 never for passwords. (OWASP ordering, checked 2026-07-02.)
 - [ ] Access tokens are short-lived with reduced scope (RFC 9700). Exact TTLs are risk-based org policy — 15-60 minutes is a common starting range, not a standard-mandated number.
 - [ ] Refresh tokens rotate on use and support family invalidation after reuse detection.
-- [ ] Browser tokens live in `httpOnly`, `secure`, `sameSite` cookies; keep session tokens out of `localStorage`.
+- [ ] Browser session tokens use an appropriate httpOnly/secure/SameSite cookie strategy; keep session tokens out of localStorage. For cookie-authenticated state changes, verify framework CSRF protection or an appropriate token/origin/Fetch-Metadata defense; SameSite alone is not sufficient in most deployments.
 - [ ] OAuth uses Authorization Code + PKCE; avoid implicit flow (deprecated, token-in-URL exposure).
 - [ ] Sensitive actions such as email change, MFA reset, payout change, and password change require step-up auth.
 - [ ] Failed logins are rate-limited and delayed progressively.
@@ -120,7 +120,8 @@ Use this checklist for login, session, token, password reset, magic link, OAuth,
 - [ ] Auth errors are generic — avoid revealing whether a specific email exists.
 
 See `references/owasp-top10.md` A07 for implementation patterns.
-See `references/asvs-checklist.md` V2 and V3 before deploy.
+See `references/asvs-checklist.md` for the local release checklist and the distinction
+from formal ASVS 5.0.0 evidence (Authentication V6, Session Management V7).
 
 ## 3. Authorization and Sensitive Flows
 
@@ -277,7 +278,7 @@ A security-sensitive change is complete only when every applicable item passes.
 - [ ] Rate limiting covers auth, public endpoints, and abuse-prone flows.
 - [ ] Static analysis runs clean enough for the repository policy: Semgrep, CodeQL or equivalent, dependency audit, and secret scan.
 - [ ] Error handling returns safe client messages and preserves structured server-side diagnostics.
-- [ ] ASVS Level 1 passes for all security-sensitive changes; Level 2 passes for auth, payments, PII, admin, or multi-tenant flows.
+- [ ] Applicable security requirements are mapped to the pinned ASVS version, requirement IDs, applicability decisions and evidence. The local checklist alone never certifies ASVS L1/L2 compliance.
 - [ ] Agentic workflows resist prompt injection, tool misuse, exfiltration, and excessive agency.
 
 ### Must-Pass Addenda for High-Risk Changes

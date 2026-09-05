@@ -35,7 +35,7 @@ wiring, visual verification, and frontend platform rules.
 | ----------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------- |
 | `references/core/crud-ui.md`              | C2 list/detail/form product screens  | State coverage (loading/empty/error/permission), forms, objective UX gates         |
 | `references/core/anti-slop.md`            | New/redesigned visual surfaces, visual audits, and variant generation | 2026 AI slop patterns, Korean slop, oversized text, fake assets, default UI smells |
-| `../../../../.codexclaw/goalplans/design-award-research-skill-expansion-000-plan-010-crawl/devlog/090/090-synthesis.md` | Calibrating anti-slop rules against award evidence | Context-gated exemptions for centered/split heroes, one-hue fields, gradients, motion, oversized type, navigation, and media |
+| `../dev-uiux-design/references/design-trends.md` | Calibrating a dated design example | Source provenance, surface-specific exceptions, and re-verification before promoting a sample to a default |
 | `../dev-uiux-design/references/design-trends.md` | Implementing a dated trend or checking whether a technique is stable | 2026-07-14 axis prevalence, technique maturity, signature status, risks, and re-crawl/promotion rules |
 | `references/core/aesthetics.md`           | Implementing an established visual direction | Domain-correct typography, color, composition constraints, serif three-role system, expressive/functional layers, AI-brand grammar |
 | `references/core/product-density.md`      | Apps, tools, dashboards              | Density profiles for landing, consumer app, SaaS, ops, finance, devtools          |
@@ -224,7 +224,7 @@ Read `references/core/aesthetics.md` for full guidelines. Summary:
   palette, lighting, style, and aspect per `asset-requirements.md`.
 
   Concept mockups guide implementation and are not shipped; production assets require candidate inspection and selection; cutout assets additionally follow FE-ASSET-BG-01.
-- **Visual verification**: after UI changes, exercise the flow per `cxc-dev-testing` §4.6 (TEST-CU-QA-01) — `browser:control-in-app-browser` on the dev server, screenshot, `view_image` — instead of claiming visual correctness from code alone.
+- **Visual verification**: exercise the changed flow using the available capability selected by `dev/references/browser-routing.md` and `dev-testing` §4.7. Read rendered output and verify the interaction; no single optional browser is mandatory.
 
 ### Icon Implementation (FE-ICON-01, DEFAULT)
 
@@ -254,7 +254,9 @@ values and palettes are STYLE_SAMPLE (§1.5); the emoji-as-UI-icon ban is the on
 
 Read `references/core/anti-slop.md` for full rules. Key standards:
 
-Award evidence does not repeal these rules. Use the context-gated calibrations in the award-research synthesis §5: an exception is valid only when the device expresses specific product, artifact, or narrative content and the surface remains accessible without the effect.
+Award examples do not establish universal taste rules. Use the shipped design-trends
+reference and reopen its sources; explain the product-specific role and preserve
+accessibility. No private goalplan is required to justify a design decision.
 
 ### Hero discipline (FE-HERO-01)
 

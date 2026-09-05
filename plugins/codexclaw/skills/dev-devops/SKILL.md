@@ -23,7 +23,8 @@ This skill is a routing role that activates by **change-surface**: whenever the 
 
 > **`dev` is canonical:** `dev` §0.2 Rule Classes, §3 Verification Gate, and §5 Safety Rules apply to all work governed by this skill.
 
-Severity mapping: `CRITICAL`/`HIGH` ⇒ STRICT; `MEDIUM` ⇒ DEFAULT (aligned with `dev` §0.2).
+Severity and rule authority are distinct (`dev` §0.2). Safety/correctness and release
+proof remain mandatory; architecture/tool preferences need project-specific justification.
 
 ## Modular References
 
@@ -74,7 +75,9 @@ For canonical Dockerfile templates, read `references/docker.md` §1.
 
 ### §1.2 Image Security (STRICT)
 
-CRITICAL/HIGH findings → block push. No exceptions. Read
+CRITICAL/HIGH image findings block push under this image policy. General checklist
+exception language does not waive this gate: changing it needs a separately approved,
+predeclared security policy, never an exception invented in the failing release report. Read
 `references/docker.md` §4 for scan/SBOM/sign command examples, and
 `../dev-security/references/supply-chain-sbom.md` for deeper SBOM/signing
 policy.
@@ -205,6 +208,10 @@ in `references/sre-foundations.md` §7.
 ---
 
 ## §2.9 Branch Lifecycle Hygiene (STRICT)
+
+This section guides explicitly requested branch-lifecycle work. A review or routine
+feature change does not authorize changing host settings, creating scheduled jobs,
+or deleting refs. Propose missing automation first; enact it only when authorized.
 
 Delivery repositories accumulate dead refs, and the cost is not disk. Stale
 branches make `git branch -r` unusable for triage, keep superseded heads
