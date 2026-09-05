@@ -11,6 +11,10 @@ This is compact repository/documentation maintenance, not a new autonomous loop.
   Inventory: 31.98 MiB. Searches of paths and filenames found no active runtime,
   packaging or docs-site dependency. Retain selected logos, applied assets and
   referenced QA/design evidence. Update selected-logo provenance links to Git history.
+- Follow-up inventory found `devlog/_fin/260711_docs_site_upgrade/` contains only
+  19 screenshots, no accompanying documents and no tracked references to the unit
+  or sampled filenames. DELETE that orphan directory too; other media-bearing units
+  have documentation and remain intact. Total cleanup: 54 files.
 - MODIFY `.gitignore` with exact retired paths, not broad image or devlog exclusions.
 - MODIFY root `LICENSE` to the verbatim GNU AGPL v3 text. NEW root `NOTICE.md`
   declares `AGPL-3.0-only`, retains the 2026 lidge-jun copyright, and preserves
