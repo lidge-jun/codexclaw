@@ -7,7 +7,10 @@ metadata:
 
 # cxc-interview
 
-Use this skill to enter or continue Codexclaw's IPABCD Interview phase.
+Use this skill for Interview work within the user's scope. Loading it or receiving
+a natural-language I hint does not enter the phase. Actual entry uses an explicit
+user command or authorized `cxc orchestrate I --session <id>` with the current
+SessionStart binding. No-FSM requests remain advisory without a transition.
 
 ## Contract
 
@@ -24,6 +27,17 @@ Use this skill to enter or continue Codexclaw's IPABCD Interview phase.
   (LOOP-DOCS-FIRST-01, `cxc-loop`). Interview settles unit residence
   (UNIT-RESIDENCE-01) but does not write decade docs — that is the roadmap
   cycle's job.
+
+## Classify the loop before Plan
+
+Before leaving Interview, identify whether the verifier defines done (specification
+or repair) or only better (open-ended optimization), and record the corresponding
+loop archetype. Ground the distinction in the repository and the user's outcome.
+For a load-bearing architecture or workflow choice, explain the concrete trade-offs
+before narrowing it; include a materially different approach when it helps expose
+an assumption. When evidence cannot settle a cheap, bounded comparison, offer a
+parallel spike and evidence-based selection. Do not invent irrelevant feature or
+technology choices that the project already settles.
 
 ## Question quality (INTERVIEW-Q-01)
 

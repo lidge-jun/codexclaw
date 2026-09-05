@@ -63,6 +63,32 @@ function ledgerLines(cwd: string): Array<Record<string, unknown>> {
   return readFileSync(p, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
 }
 
+test("wp3: explicit agent CLI enters P/I; adjacent work edges remain gated", () => {
+  for (const phase of ["P", "I"] as const) {
+    const cwd = freshCwd();
+    try {
+      seedSession(cwd, "wp3-cli-entry", "IDLE");
+      const result = runOrchestrateCli({ verb: phase, attest: null,
+        session: "wp3-cli-entry", cwd, json: false });
+      assert.equal(result.code, 0, result.output);
+      assert.equal(readState(cwd, "wp3-cli-entry").phase, phase);
+      assert.equal(readState(cwd, "wp3-cli-entry").orchestrationActive, true);
+      const rows = ledgerLines(cwd);
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].from, "IDLE");
+      assert.equal(rows[0].to, phase);
+      assert.equal(rows[0].reason, "cli");
+      if (phase === "P") {
+        const denied = runOrchestrateCli({ verb: "A", attest: null,
+          session: "wp3-cli-entry", cwd, json: false });
+        assert.equal(denied.code, 1);
+        assert.equal(readState(cwd, "wp3-cli-entry").phase, "P");
+        assert.equal(ledgerLines(cwd).length, 1);
+      }
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  }
+});
+
 test("parseOrchestrateCliArgs: verb + structural --attest (single quoted token)", () => {
   const r = parseOrchestrateCliArgs(["a", "--attest", '{"from":"P","to":"A","did":"x y z"}'], "/tmp");
   assert.ok(!("error" in r));

@@ -84,30 +84,36 @@ test("compiled dist rewrote .ts import specifiers to .js", () => {
   }
 });
 
-test("compiled pabcd-state hook runs end-to-end (trigger -> directive + state write)", () => {
+test("compiled pabcd-state natural I hint emits advice and dedup without phase entry", () => {
   runBuild();
   const cli = join(pluginRoot, "components", "pabcd-state", "dist", "cli.js");
   const tmp = mkdtempSync(join(tmpdir(), "ccx-build-"));
+  const home = mkdtempSync(join(tmpdir(), "ccx-build-goals-"));
   try {
     const payload = JSON.stringify({
-      hook_event_name: "UserPromptSubmit",
-      prompt: "interview me about this feature",
-      cwd: tmp,
-      session_id: "s-build-test",
-      turn_id: "t1",
+      hook_event_name: "UserPromptSubmit", prompt: "interview me about this feature",
+      cwd: tmp, session_id: "s-build-test", turn_id: "t1",
     });
-    const res = spawnSync("node", [cli, "hook", "user-prompt-submit"], { input: payload, encoding: "utf8" });
-    assert.equal(res.status, 0, `hook exited ${res.status}: ${res.stderr}`);
-    const out = JSON.parse(res.stdout);
-    assert.match(out.hookSpecificOutput.additionalContext, /codexclaw: INTERVIEW/);
-    // S2: orchestrationActive written to the per-session state file in payload cwd.
+    const res = spawnSync("node", [cli, "hook", "user-prompt-submit"], {
+      input: payload, encoding: "utf8",
+      env: { ...process.env, CODEX_HOME: home, CODEX_SQLITE_HOME: home },
+    });
+    assert.equal(res.status, 0, res.stderr);
+    const ctx = JSON.parse(res.stdout).hookSpecificOutput.additionalContext;
+    assert.match(ctx, /codexclaw: INTERVIEW/);
+    assert.match(ctx, /PHASE UNCHANGED/);
+    assert.match(ctx, /IPABCD: IDLE \(IDLE\)/);
     const stateFile = join(tmp, ".codexclaw", "sessions", "s-build-test.json");
-    assert.ok(existsSync(stateFile), "session state file not written");
+    assert.ok(existsSync(stateFile), "turn dedup state must still be written");
     const state = JSON.parse(readFileSync(stateFile, "utf8"));
-    assert.equal(state.orchestrationActive, true);
-    assert.equal(state.lastInjectedPhase, "I");
+    assert.equal(state.phase, "IDLE");
+    assert.equal(state.orchestrationActive, false);
+    assert.equal(state.lastInjectedPhase, null);
+    assert.deepEqual(state.injectedTurns, ["t1"]);
+    assert.equal(existsSync(join(tmp, ".codexclaw", "ledger.jsonl")), false);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
   }
 });
 

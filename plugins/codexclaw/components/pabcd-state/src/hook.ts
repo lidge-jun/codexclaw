@@ -290,92 +290,43 @@ export function detectLoopArmRequest(prompt: string): boolean {
 const PHASE_DIRECTIVES: Partial<Record<Phase, string>> = {
   I: [
     "[codexclaw: INTERVIEW]",
-    "Clarify requirements before planning. Cover four dimensions — Goal, Constraint,",
-    "Success criteria, Ontology. Research the repo first, then ask focused questions.",
-    "GROUND EVERY QUESTION IN STATE, not in a blank slate (INTERVIEW-GROUND-01). Before",
-    "asking, fold the answers you already have into the tracker:",
-    "`cxc scan record --session <id> --derive --map <questionId>=<dimension> ...` reads the",
-    "captured answer ledger and writes each answered question into that dimension's known[]",
-    "and each unanswered one into unknown[]. Read the result back from",
-    "`.codexclaw/sessions/<id>.json` and let the weakest dimension pick your next question.",
-    "Then SHOW YOUR WORK before the question (INTERVIEW-RENDER-01): a short status block",
-    "naming what is now known, which dimension is weakest and why, and what the answer will",
-    "change. A question the user cannot situate reads as context-blind even when it is not.",
-    "Cite the repo evidence that triggered a brownfield question — the file, symbol, or",
-    "pattern — instead of asking the user to rediscover it.",
-    "Settle the loop archetype before P (INTERVIEW-CLASSIFY-01): does a verifier define",
-    "*done* (spec work), or only *better* (open-ended optimization)? Teach the decision",
-    "space, don't only narrow it (INTERVIEW-TEACH-01): options with per-option trade-offs",
-    "at every load-bearing altitude (stack/architecture/algorithm/evaluation), including",
-    "one atypical option; offer BOTH (parallel spike, select by evidence) when a",
-    "load-bearing choice is uncertain and a spike is cheap (INTERVIEW-DIVERGE-01).",
-    "When you ask, use request_user_input with background + 2-3 concrete options",
-    "(recommendation FIRST) + one impact/tradeoff sentence per option. Bundle questions only",
-    "when they are INDEPENDENT — never batch two where one answer changes the other",
-    "(INTERVIEW-INDEPENDENT-01); independence governs, not a count. Do NOT start implementing yet.",
+    "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
+    "This also scopes the Mind instructions below. Load $codexclaw:cxc-interview for dimensions, questions, loop classification and readiness. Do not implement.",
+    "INTERVIEW-GROUND-01: when tracker writes are authorized, `cxc scan record --session <id> --derive --map <questionId>=<dimension> ...`",
+    "records known[]/unknown[]; read `.codexclaw/sessions/<id>.json` before the next question. Report unmet actions, not false readiness.",
+    "INTERVIEW-RENDER-01: show knowns, the weakest dimension and the answer's impact before the question.",
+    "INTERVIEW-INDEPENDENT-01: batch only INDEPENDENT questions; independence governs, not a count.",
   ].join("\n"),
   P: [
     "[codexclaw: PLAN]",
-    "Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable",
-    "accept criteria. Open C2+ plans with a loop-spec header: loop archetype (from",
-    "Interview) · verifier (and what it measures) · stop condition · expected terminal",
-    "outcomes · escalation. For open-ended optimization add the divergence plan",
-    "(descriptor axes, candidate assignments, deterministic selection rule, telemetry",
-    "schema); a win/lose-only verifier means instrumentation is B's first work item.",
-    "Ground decisions in real code you have read. No implementation yet.",
+    "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
+    "Load $codexclaw:cxc-pabcd for P and C2+ plan-output; $codexclaw:cxc-dev selects class and relevant surfaces. No implementation yet.",
+    "Plan-only ends with the plan. Forbidden checks: NOT RUN; naming an artifact grants no write permission.",
   ].join("\n"),
   A: [
     "[codexclaw: AUDIT]",
-    "Audit the plan adversarially before building. Dispatch an independent reviewer",
-    "as a sub-agent with agent_type \"explorer\" (DISPATCH-AGENT-TYPE-01: there is no",
-    "\"reviewer\" agent_type - the reviewer ROLE maps to the explorer TYPE) to challenge",
-    "assumptions, find blockers, and verify references. If",
-    "spawn_agent is not in your visible tools, tool_search for it first. Reuse the SAME",
-    "reviewer across audit rounds (v2 surface: followup_task to its task_name; v1",
-    "surface: send_input to its agent_id). Name every required skill in the spawn message",
-    "with plugin-native",
-    "$codexclaw:cxc-* mentions ($codexclaw:cxc-dev-code-reviewer AND",
-    "$codexclaw:cxc-search plus the matching $codexclaw:cxc-dev-* surface skill). The",
-    "spawn-attach hook normalizes mentions and inlines SKILL.md bodies when the spawn",
-    "message reaches it as plaintext (native ChatGPT-backend V2 encrypts it — there only",
-    "the leaf guard and configured model/effort injection apply), and NEVER invents",
-    "skills the dispatcher did not name; the dispatcher still names every required skill. Ask",
-    "the reviewer to end with a final line: VERDICT: PASS | GO-WITH-FIXES (blockers=N)",
-    "| FAIL. A is a loop (AUDIT-LOOP-01): on FAIL, synthesize (REVIEW-SYNTHESIS-01),",
-    "amend the plan, re-audit with the SAME reviewer; advance only when YOU judge the",
-    "round pass or near-pass (all blocking findings folded into the plan or rebutted).",
+    "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
+    "Load $codexclaw:cxc-dev-code-reviewer for review and $codexclaw:cxc-dev for relevant surfaces; authorized PABCD A uses $codexclaw:cxc-pabcd's audit owner. Do not build yet.",
+    "Authorized dispatch follows the owner's named-skill, same-reviewer and verdict contracts; main synthesizes. Report unmet independent review; inline review is not its proof. Do not bypass gates.",
   ].join("\n"),
   B: [
     "[codexclaw: BUILD]",
-    "Implement the audited plan in small atomic commits. Verify as you go (run tests).",
-    "When delegating a build slice, put the surface's $codexclaw:cxc-dev-* mention in",
-    "the spawn message so the subagent loads the discipline. Stay inside the plan's",
-    "scope boundary; surface deviations instead of silently expanding.",
+    "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
+    "Use $codexclaw:cxc-dev for class/surfaces; authorized PABCD B uses $codexclaw:cxc-pabcd. Implement only authorized scope.",
+    "Forbidden checks: NOT RUN; no invented proof.",
   ].join("\n"),
   C: [
     "[codexclaw: CHECK]",
-    "Run the real verification: tests, type checks, and adversarial review. For the review",
-    "pass, dispatch with $codexclaw:cxc-dev-code-reviewer in the spawn message",
-    "(tool_search for spawn_agent first if it is not visible). For UI-facing changes,",
-    "also exercise the real flow (browser:control-in-app-browser / computer-use:computer-use)",
-    "and capture screenshot evidence per cxc-dev-testing TEST-CU-QA-01. Capture fresh",
-    "command output as evidence. Do not claim pass without artifact-level proof.",
-    "C-RENDER-GROUNDING-01: when this work-phase modified a render artifact (HTML, SVG,",
-    "layout CSS, canvas/animation/chart JS, JSX/TSX layout components), RUN it in its",
-    "execution environment, OBSERVE the output (read the screenshot back -- produced but",
-    "unread is not observation), and FIX what the observation reveals before C->D.",
-    "Defaults: 1280x720 viewport; drive stateful artifacts until the first interactive",
-    "state change. One clean observation suffices; re-render only after a change.",
-    "Well-formed (tsc/lint) is not correct -- static gates do not satisfy this rule.",
+    "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
+    "Use $codexclaw:cxc-dev and $codexclaw:cxc-dev-testing; authorized PABCD C uses $codexclaw:cxc-pabcd's check owner, including C-RENDER-GROUNDING-01.",
+    "No-tests forbids tests, not separately authorized build/typecheck. No-goal/no-FSM restrict creation/mutations, not read-only inspection.",
+    "Independent review needs owner applicability and dispatch permission. Report unmet review; inline review is not its proof. Forbidden checks: NOT RUN. No pass or gate bypass without real evidence.",
   ].join("\n"),
   D: [
     "[codexclaw: DONE]",
-    "Summarize what was checked with evidence, update STATUS/devlog, and commit. Confirm",
-    "no pending work remains for this work-phase before closing. For loop/multi-pass",
-    "work add the pessimistic close-out (LOOP-PESSIMIST-01): what did NOT improve, which",
-    "hypothesis died, what evidence would falsify the direction — the next P quotes it.",
-    "D -> IDLE -> P is a context/bias flush: resume from disk artifacts, not transcript",
-    "momentum. A budget/time stop is BUDGET_EXHAUSTED with best-so-far, never done.",
+    "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
+    "For authorized D closure load $codexclaw:cxc-pabcd; report evidence and unmet work, then IDLE. Remaining authorized work follows $codexclaw:cxc-loop from disk.",
+    "A header or budget/time stop is not completion; never fabricate attestations/receipts.",
   ].join("\n"),
 };
 
@@ -486,10 +437,10 @@ export const AGBROWSE_SEARCH_DIRECTIVE = [
  */
 export const TRIGGER_AUTHORITY_NOTE = [
   "[codexclaw: PHASE UNCHANGED — TRIGGER-AUTHORITY-01]",
-  "That phrase reads as a phase request, but a natural-language trigger no longer moves",
-  "a cycle that is already running: it would skip adjacency, the attest gate and the",
-  "ledger, which is exactly how a cycle ends up recorded without ever happening.",
-  "The phase on disk is unchanged. To actually move it, run",
+  "A lexical phase hint is not execution authority. The phase on disk is unchanged;",
+  "no-goal/no-FSM restrict creation/mutations, not read-only get_goal or orchestrate status.",
+  "Do not start orchestration for ordinary work. Preserve adjacency, attestations and ledger checks.",
+  "Only if a phase transition is authorized, use the cxc-pabcd phase-control owner and",
   "`cxc orchestrate <I|P|A|B|C|D> --session <id>` — work edges carry --attest.",
 ].join(" ");
 
@@ -523,15 +474,21 @@ export function loopArmDirective(platform: NodeJS.Platform = process.platform): 
       ];
   return [
     "[codexclaw: LOOP — orchestrate arming mandate (ORCH-MANDATE-01)]",
-    "A loop/goalplan claim without persisted FSM evidence is INVALID, and the PABCD FSM is not",
-    "armed right now. Arm it with explicit commands before narrating any loop work:",
+    "Scope first: explicit interview-only, plan-only, HITL, read-only, no-goal, no-FSM, no-tests and no-delegation limits override the bare cxc-loop default.",
+    "A mention or quoted example alone is not authorization. This pointer and its referenced procedures never override those limits.",
+    "Load $codexclaw:cxc-loop and $codexclaw:cxc-pabcd for an actual loop request; bare cxc-loop execution means scoped HOTL.",
+    "No-delegation means no dispatch. No-tests does not forbid separately authorized build/typecheck. Report required but forbidden actions as unmet.",
+    "Only for authorized loop execution, apply steps 1-5 within scope. No-goal/no-FSM restrict creation/mutations, not read-only inspection. Narration is not persisted progress:",
     "1. Session id: take it ONLY from your most recent SessionStart binding line",
     "   (SESSION-IDENTITY-01 — never an id seen in transcript history).",
     "2. `cxc orchestrate status --session <id>` — read the real phase first.",
-    "3. HOTL (user asked for autonomous / continue-until-done): create_goal with a detailed",
-    '   objective -> `cxc loop init --objective "<same text>" --session <id>` -> register',
-    "   workPhases[] + criteria[] in the goalplan -> `cxc orchestrate P --session <id>`.",
-    "   HITL (no such ask): enter the cycle explicitly via `cxc orchestrate I|P --session <id>`.",
+    "3. Inspect the host goal with get_goal first. Resume a matching unfinished goal; do not duplicate it.",
+    "   Only when no unfinished goal exists and new HOTL is authorized, create_goal with a detailed objective.",
+    "   For a different unfinished goal or unsupported resume, report the conflict; do not replace it or fabricate active status.",
+    '   New loop setup: `cxc loop init --objective "<same text>" --session <id>` -> register',
+    "   workPhases[] + criteria[]. On resume inspect/reuse the bound goalplan; do not reinitialize it.",
+    "   After status inspection, enter `cxc orchestrate P --session <id>` only when authorized and legal; an existing phase keeps its owner/edge contract.",
+    "   Explicit HITL keeps human pause points. Interview-only/plan-only stay at the requested stage without a goal or implementation; do not arm when state changes are forbidden.",
     ...advance,
     "   a phase without its persisted transition + artifact did not happen (ORCH-ARTIFACT-01).",
     '   EVERY attest carries "from" and "to" naming the edge: they are coerced before any',
@@ -539,10 +496,10 @@ export function loopArmDirective(platform: NodeJS.Platform = process.platform): 
     "   When a goalplan is bound, include the active workPhaseId in every gated attest",
     "   (one work-phase = one full PABCD cycle).",
     "   Bound chat D-close requires workPhaseId as the fixed close target unless every work-phase is already done.",
-    "5. After D closes to IDLE with work remaining under an active goal, immediately re-enter",
+    "5. After authorized D closes to IDLE with authorized work remaining under an active goal, re-enter",
     "   with `cxc orchestrate P --session <id>` (LOOP-UNIT-CHAIN-01).",
-    "Load and obey cxc-loop + cxc-pabcd when available. Work done outside the FSM does not",
-    "count as loop progress — re-enter and attest it.",
+    "HOTL does not grant push, merge, release, deploy or external-message permission. Stop for missing authority.",
+    "Preserve guards and real evidence; do not bypass a gate or fabricate an attestation/receipt to satisfy this advice.",
   ].join("\n");
 }
 
@@ -613,11 +570,10 @@ export function handleSessionStart(payload: SessionStartPayload): string {
 /**
  * UserPromptSubmit handler — hybrid directive injection (018.3, audit-revised).
  *
- * Idempotent per (session, turn) via state.injectedTurns. Three modes, all
- * gated FAIL-CLOSED behind state.orchestrationActive so an un-orchestrated
- * session injects NOTHING (jwc parity; audit blocker #1):
- *  - mode 1 (explicit trigger, any phase): inject the full phase directive and
- *    turn orchestration ON. This is the ONLY way orchestration activates.
+ * Idempotent per (session, turn) via state.injectedTurns. Explicit commands
+ * are parsed first and own transitions. Natural-language hints inject scoped
+ * guidance without changing phase or activating orchestration.
+ * Passive modes are gated behind state.orchestrationActive:
  *  - mode 2 (active, no trigger, phase changed since last inject): inject the
  *    full directive for the current phase (state-transition directive).
  *  - mode 3 (active, no trigger, same phase): inject the short stage header
@@ -683,7 +639,7 @@ export function handleUserPromptSubmit(
   // 260829 config-autopilot wp4: a plan request may OPEN with the interview instead of
   // requiring the word "interview". Advisory only — the phase below is unchanged, so
   // this cannot wedge a session behind the I→P gate. Only the P trigger is eligible
-  // (A/B/C would smuggle entry past mayEnter's TRIGGER-AUTHORITY-01 refusal), and the
+  // (A/B/C stay non-Interview hints under TRIGGER-AUTHORITY-01), and the
   // goal-active lookup stays behind that check so an ordinary prompt opens no sqlite.
   const entry = decideInterviewEntry({
     trigger: rawTrigger,
@@ -727,38 +683,15 @@ export function handleUserPromptSubmit(
     return buildContextOutput("UserPromptSubmit", parts.join("\n\n"));
   }
 
-  // TRIGGER-AUTHORITY-01 (040): a natural-language trigger may ENTER a cycle from
-  // IDLE, but it may not move one that is already running. Writing `phase` straight
-  // from a phrase like "구현해" skipped adjacency, the attest gate and the ledger
-  // entirely, so IDLE -> B left no trace the ledger could even show. Entry stays
-  // allowed because it is harmless and long-established; mid-cycle jumps now inject
-  // the directive and say which command actually moves the phase.
+  // Natural-language triggers are advisory only. Explicit chat commands above or
+  // authorized agent CLI calls own phase entry and advancement through real gates.
   if (trigger) {
     const directive =
       trigger === "I" || entry.adviseInterview
         ? interviewDirective()
         : phaseDirective(trigger, activeWorkPhaseOpts(payload.cwd, state.slug));
-    const mayEnter = state.phase === "IDLE" && (trigger === "P" || trigger === "I");
-    if (mayEnter) {
-      // Entering a cycle is a real state change, so it persists with or without a
-      // turn id — only injectedTurns is gated on one. A turnless prompt that entered
-      // P and did not record it would leave the next turn thinking nothing happened.
-      writeState(payload.cwd, {
-        ...state,
-        phase: trigger,
-        orchestrationActive: true,
-        lastInjectedPhase: trigger,
-        injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
-        // 260714 wp3 (audit Med #2): a trigger+loop-phrase prompt ("plan this and
-        // loop until done") must not drop the loop-arm flag on the precedence path.
-        ...(loopArmRequested ? { loopArmSeen: true } : {}),
-      });
-      return buildContextOutput("UserPromptSubmit", withFooter(directive, trigger));
-    }
-    // Phase-preserving branch: phase, orchestrationActive and lastInjectedPhase are
-    // ALL left alone. Writing some of them is worse than writing none — a persisted
-    // IDLE with orchestrationActive=true makes the next passive turn inject an IDLE
-    // directive. The footer reports the phase actually on disk, not the one asked for.
+    // Keep phase, orchestrationActive and lastInjectedPhase unchanged, including
+    // from IDLE. Only dedup/loop-arm bookkeeping is recorded here.
     if (turn || loopArmRequested) {
       writeState(payload.cwd, {
         ...state,
@@ -1871,7 +1804,7 @@ export function renderGroundingAdvisoryForStop(cwd: string, phase: Phase): strin
 }
 
 /**
- * L18 — post-answer rescan reinjection (INTERVIEW-SCAN-01 enforcement). Injected as
+ * L18 — post-answer rescan reinjection (INTERVIEW-SCAN-01 guidance). Injected as
  * PostToolUse additionalContext right after a `request_user_input` answer is captured,
  * so the main session actually runs the contradiction-rescan round instead of letting
  * the I-directive fade with transcript distance. Only fires in an interactive I-phase
@@ -1879,14 +1812,11 @@ export function renderGroundingAdvisoryForStop(cwd: string, phase: Phase): strin
  */
 export const RESCAN_REINJECT_DIRECTIVE = [
   "[codexclaw: INTERVIEW — post-answer rescan]",
-  "An interview answer was just recorded. Per INTERVIEW-SCAN-01, run the contradiction",
-  "rescan NOW before asking anything else or advancing:",
-  "- state the CURRENT plan/tracker position explicitly in each Mind's task message,",
-  "- dispatch read-only Mind contradiction workers (cap 3, lowest-scoring dimensions",
-  "  first; if spawn_agent is not visible, tool_search for it first),",
-  "- triage returns: high -> ask the user; low/medium -> record as OPEN ASSUMPTION,",
-  "- then record the scan round with `cxc scan record --session <id> [--contradictions N] [--high N]` so readiness can count it.",
-  "Minds return contradictions ONLY — they never ask, edit, or write state.",
+  "An answer was recorded. Apply this pointer and $codexclaw:cxc-interview only within exact user limits and permissions. No-delegation means no dispatch.",
+  "INTERVIEW-SCAN-01: rescan contradictions before the next question or advancement. If required work or tracker writes are forbidden, report them as unmet; do not record a completed scan or claim readiness.",
+  "Only when dispatch is authorized: give each read-only Mind the current plan/tracker position; cap 3, lowest-scoring dimensions first. Discover spawn_agent if needed.",
+  "Minds return contradictions only, never ask, edit or write state. Inline reasoning is not evidence that independent Minds ran.",
+  "Triage high contradictions into user questions and low/medium into OPEN ASSUMPTIONS; record only actual authorized work with `cxc scan record --session <id> [--contradictions N] [--high N]`.",
 ].join("\n");
 
 /**

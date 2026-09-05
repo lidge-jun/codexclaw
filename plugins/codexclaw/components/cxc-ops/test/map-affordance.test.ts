@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 // Pin the cxc-resolve seam (B1): these tests assert literal `cxc ...` command
 // mentions, which would otherwise depend on whether the runner's PATH has cxc.
 process.env.CODEXCLAW_CXC = "cxc";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -28,6 +28,7 @@ import {
   renderSessionBinding,
   renderSkillSearchAffordance,
   runMapAffordanceSessionStart,
+  runPostCompactAffordance,
   MAP_AFFORDANCE_MIN_FILES,
   resolveCxcCommands,
 } from "../src/map-affordance.ts";
@@ -112,11 +113,70 @@ test("ORCH-ARM-VISIBILITY-01: loop-contract line rides every SessionStart envelo
   assert.match(text, /cxc orchestrate status/);
   assert.match(text, /one full PABCD cycle/i);
   assert.match(text, /cxc-loop/);
+  assert.match(text, /Bare cxc-loop means scoped HOTL/);
+  assert.match(text, /Exact user limits and separately allowed actions/);
+  assert.match(text, /No extra external permissions/);
   assert.ok(text.length < 600, "affordance must stay a one-liner-ish pointer");
   // rides every SessionStart envelope regardless of repo size
   const small = tmp();
   const out = runMapAffordanceSessionStart("", small);
   assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /Loop contract:/);
+  assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /Bare cxc-loop means scoped HOTL/);
+  assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /Exact user limits and separately allowed actions/);
+  assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /No extra external permissions/);
+});
+
+test("wp3: SessionStart and PostCompact both emit the same scoped loop pointer", () => {
+  const cwd = tmp();
+  try {
+    const outputs = [
+      ["SessionStart", runMapAffordanceSessionStart(JSON.stringify({ cwd, session_id: "wp3-child" }), cwd)],
+      ["PostCompact", runPostCompactAffordance()],
+    ] as const;
+    for (const [event, out] of outputs) {
+      const envelope = JSON.parse(out).hookSpecificOutput;
+      assert.equal(envelope.hookEventName, event);
+      const ctx = envelope.additionalContext as string;
+      const pointer = ctx.split("\n\n").find(line => line.startsWith("[codexclaw] Loop contract:"));
+      assert.ok(pointer);
+      assert.match(pointer, /Bare cxc-loop means scoped HOTL; a mention alone grants no authority/);
+      assert.match(pointer, /Exact user limits and separately allowed actions scope this pointer and its owners/);
+      assert.match(pointer, /No-delegation means no dispatch/);
+      assert.match(pointer, /Read-only inspection remains allowed under no-goal\/no-FSM/);
+      assert.match(pointer, /No-tests does not forbid an explicitly allowed build/);
+      assert.match(pointer, /One work-phase = one full PABCD cycle/);
+      assert.match(pointer, /No extra external permissions/);
+      assert.ok(pointer.length < 600);
+      if (event === "SessionStart") {
+        assert.match(ctx, /This session's id is `wp3-child`/);
+        assert.match(ctx, /--session wp3-child/);
+        assert.match(ctx, /MOST RECENT SessionStart binding line/);
+      } else assert.doesNotMatch(ctx, /This session's id/);
+    }
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("wp3: SessionStart preserves the complete binding literal for each session", () => {
+  for (const id of ["parent-session", "child-session"]) {
+    const expected = [
+      `[codexclaw] This session's id is \`${id}\`. Every mutating`,
+      "`cxc orchestrate` command (I/P/A/B/C/D/reset) MUST pass",
+      `\`--session ${id}\` — the implicit latest-session fallback is`,
+      "disabled for writes, which prevents ACCIDENTAL implicit-fallback",
+      "collisions between concurrent/forked sessions.",
+      "IDENTITY RULE: use the MOST RECENT SessionStart binding line in your",
+      "current context as the only source of your session id — older binding",
+      "lines or other ids in transcript/history belong to prior/parent sessions;",
+      "never pass those to a mutating command.",
+    ].join(" ");
+    const cwd = tmp();
+    try {
+      const out = runMapAffordanceSessionStart(JSON.stringify({ cwd, session_id: id }), cwd);
+      const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
+      assert.equal(renderSessionBinding(id), expected);
+      assert.equal(ctx.split("\n\n")[0], expected);
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  }
 });
 
 test("G3: session-id binding line rides the SessionStart envelope", () => {

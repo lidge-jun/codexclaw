@@ -556,38 +556,70 @@ test("WP7/G19: session-start provider hook e2e - exit 0 + parseable SessionStart
   } finally { rmSync(emptyPath, { recursive: true, force: true }); }
 });
 
-// WP22 (Volta completion-audit finding): the manifest's sixth hook,
-// user-prompt-submit, was only path-resolution-checked above, never invoked.
-// These two cases drive its REAL dist entrypoint to close the e2e gap: an
-// orchestration-activating trigger must inject the phase directive envelope, and a
-// non-orchestrated no-trigger prompt must stay silent (fail-closed). Determinism:
-// the loose "P" trigger path never reads the goals DB (only the I paths do), and all
-// state writes land under the temp cwd (.codexclaw/sessions/<key>.json), so no
-// CODEX_HOME seeding is needed.
-test("WP22/G19: user-prompt-submit hook e2e - 'plan this' trigger injects the P directive envelope + footer", () => {
+// Real registered dist entry: natural hints emit guidance/dedup only; explicit
+// commands below prove legal entry. Use an isolated inactive-goal environment.
+test("WP22/G19: natural plan hint emits PLAN advice with IDLE footer, never activates", () => {
   const { event, hookEvent, distAbs } = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
   assert.equal(event, "UserPromptSubmit");
   const ep = snapshotEntrypoint(distAbs);
-  if (!ep) return;
+  assert.ok(ep, "compiled entry required for WP3 verification");
   const tmp = mkdtempSync(join(tmpdir(), "ccx-ups-"));
+  const home = emptyCodexHome();
   try {
+    writeFileSync(join(tmp, "codexclaw.json"), JSON.stringify({ interview: "off" }));
     const res = runHook(ep, hookEvent, {
       hook_event_name: "UserPromptSubmit", session_id: "s1", cwd: tmp, turn_id: "t1",
       prompt: "plan this",
-    });
+    }, home.env);
     assert.equal(res.status, 0, res.stderr);
     const out = JSON.parse(res.stdout);
     assert.equal(out.hookSpecificOutput.hookEventName, "UserPromptSubmit");
     const ctx = out.hookSpecificOutput.additionalContext;
-    assert.match(ctx, /PLAN/, "missing PLAN phase directive");
-    assert.match(ctx, /IPABCD: P \(PLAN\)/, "missing IPABCD P footer");
-    // mode-1 persists orchestration under the temp cwd (turn_id present).
+    assert.match(ctx, /codexclaw: PLAN/);
+    assert.match(ctx, /PHASE UNCHANGED/);
+    assert.match(ctx, /IPABCD: IDLE \(IDLE\)/);
     const stateFile = join(tmp, ".codexclaw", "sessions", "s1.json");
-    assert.ok(existsSync(stateFile), "session state not persisted");
-    const persisted = JSON.parse(readFileSync(stateFile, "utf8"));
-    assert.equal(persisted.orchestrationActive, true, "trigger must activate orchestration");
-    assert.equal(persisted.lastInjectedPhase, "P", "lastInjectedPhase should be P");
-  } finally { rmSync(tmp, { recursive: true, force: true }); }
+    assert.ok(existsSync(stateFile));
+    const state = JSON.parse(readFileSync(stateFile, "utf8"));
+    assert.equal(state.phase, "IDLE");
+    assert.equal(state.orchestrationActive, false);
+    assert.equal(state.lastInjectedPhase, null);
+    assert.deepEqual(state.injectedTurns, ["t1"]);
+    assert.equal(existsSync(join(tmp, ".codexclaw", "ledger.jsonl")), false);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+    rmSync(home.dir, { recursive: true, force: true });
+  }
+});
+
+test("wp3: registered explicit orchestrate P/I commands still enter and record chat edges", () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep, "compiled entry required for WP3 verification");
+  for (const phase of ["P", "I"]) {
+    const tmp = mkdtempSync(join(tmpdir(), "ccx-command-entry-"));
+    const home = emptyCodexHome();
+    try {
+      const res = runHook(ep, hookEvent, {
+        hook_event_name: "UserPromptSubmit", session_id: "explicit-entry", cwd: tmp,
+        turn_id: "t1", prompt: `orchestrate ${phase}`,
+      }, home.env);
+      assert.equal(res.status, 0, res.stderr);
+      assert.ok(JSON.parse(res.stdout).hookSpecificOutput.additionalContext.includes(`IPABCD: ${phase} (`));
+      const state = JSON.parse(readFileSync(join(tmp, ".codexclaw", "sessions", "explicit-entry.json"), "utf8"));
+      assert.equal(state.phase, phase);
+      assert.equal(state.orchestrationActive, true);
+      const rows = readFileSync(join(tmp, ".codexclaw", "ledger.jsonl"), "utf8")
+        .trim().split("\n").map(line => JSON.parse(line));
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].from, "IDLE");
+      assert.equal(rows[0].to, phase);
+      assert.equal(rows[0].reason, "chat");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+      rmSync(home.dir, { recursive: true, force: true });
+    }
+  }
 });
 
 test("WP22/G19: user-prompt-submit hook e2e - no trigger + un-orchestrated stays silent (fail-closed)", () => {
@@ -986,7 +1018,7 @@ test("subagent-guard: user-prompt-submit with agent fields is silent and writes 
   try {
     const res = runHook(ep, hookEvent, {
       hook_event_name: "UserPromptSubmit", session_id: "s-parent", cwd: tmp, turn_id: "t1",
-      prompt: "interview me, then plan this", // would trigger + write state for a root turn
+      prompt: "interview me, then plan this", // root hints emit guidance/dedup; child guard must remain silent
       agent_id: "agent-1", agent_type: "worker",
     });
     assert.equal(res.status, 0, res.stderr);

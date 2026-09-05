@@ -12,11 +12,10 @@
  * soft gate blocks it, and `orchestrate reset` only makes the next prompt promote again.
  * There was no keyboard-reachable path back to P. So promotion is ADVISORY: the
  * interview directive is injected, the FSM is left exactly where it was, and entering
- * the I phase stays an explicit user action.
+ * the I phase requires an explicit user command or authorized agent CLI action.
  *
- * Scope of promotion: the P trigger only. A/B/C are excluded because `mayEnter` in
- * hook.ts deliberately refuses to enter a cycle on "구현해"/"검증해"
- * (TRIGGER-AUTHORITY-01), and promoting those would smuggle entry past that rule.
+ * Scope of promotion: the P trigger only. A/B/C remain non-Interview hints
+ * (TRIGGER-AUTHORITY-01). All natural hints leave phase entry to explicit commands.
  * Keeping to P also keeps ordinary Korean verbs — 구현해, 검증해 are the everyday words
  * for implement and verify — from dragging one-line asks into an interview.
  */
