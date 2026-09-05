@@ -16,8 +16,11 @@ left half with an OpenClaw-style crimson claw right half.
 - Earlier h3 crop:
   `devlog/_plan/logo-selected/codexclaw-h3-selected.png`
 - Reference sheets:
-  `devlog/_plan/logo-i2i-half/_contact-sheet.png`
-  `devlog/_plan/logo-fusion/_contact-sheet.png`
+  [i2i sheet (Git history)](https://github.com/lidge-jun/codexclaw/blob/f13e1e6f4ba9ac3fa33affd291b87773ca1be20c/devlog/_fin/logo-i2i-half/_contact-sheet.png)
+  [fusion sheet (Git history)](https://github.com/lidge-jun/codexclaw/blob/f13e1e6f4ba9ac3fa33affd291b87773ca1be20c/devlog/_fin/logo-fusion/_contact-sheet.png)
+
+The unused experiment/reference directories were removed on 2026-09-05 at the
+owner's request. Selected originals and applied site assets are retained.
 
 ## Applied Site Assets
 
