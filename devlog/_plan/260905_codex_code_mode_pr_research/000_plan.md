@@ -1,5 +1,7 @@
 # Codex 실행 기능과 upstream PR 흐름 조사
 
+현재 상태 보충: 사용자 요청으로 2026-09-05 P → I로 돌아갔다. 아래는 최초 리서치의 범위·상태 기록이다. 원격 업데이트 승인과 후속 인터뷰 조건은 [006 인터뷰 보충](006_interview_remote_probes.md)이 우선한다.
+
 - 조사일: 2026-09-05 (KST)
 - 작업 위치: `/Users/jun/.codex/worktrees/974c/codexclaw`
 - 세션: `01a0702d-c493-7510-801f-7d8772a2689c`
