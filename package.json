@@ -8,7 +8,7 @@
     "type": "git",
     "url": "git+https://github.com/lidge-jun/codexclaw.git"
   },
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "bin": {
     "codexclaw": "bin/codexclaw.mjs",
     "cxc": "bin/codexclaw.mjs"

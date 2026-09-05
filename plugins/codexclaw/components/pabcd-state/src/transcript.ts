@@ -1,6 +1,8 @@
 /**
  * transcript.ts — transcript-grounded idempotency + context-pressure suppression
  * for the UserPromptSubmit hook (007 R-11, ported from omo ultrawork codex-hook.ts).
+ * Original reference: MIT, Copyright (c) 2026 Yeongyu Kim.
+ * Pinned source and original permission notice: see the plugin NOTICE.md.
  *
  * The local injectedTurns flag dedups within a (session,turn), but a turn_id can
  * churn or reset after compaction, so a passive re-fire could double-inject the

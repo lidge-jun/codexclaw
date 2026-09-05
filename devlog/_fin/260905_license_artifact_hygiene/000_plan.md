@@ -2,6 +2,9 @@
 
 Status: implementation and verification complete; archived 2026-09-05.
 
+License selection superseded by the owner's MIT follow-up; see
+[`010_mit_and_provenance.md`](010_mit_and_provenance.md). The cleanup remains unchanged.
+
 User scope: continue removal of unused artifacts; change CodexClaw to AGPL. No
 runtime refactor, release, install, Git history rewrite or third-party relicensing.
 This is compact repository/documentation maintenance, not a new autonomous loop.

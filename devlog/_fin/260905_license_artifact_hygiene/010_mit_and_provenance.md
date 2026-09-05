@@ -1,0 +1,42 @@
+# MIT selection and verified OMO provenance
+
+Owner follow-up: use MIT and make upstream acknowledgement visible at the top of
+the README as well as the legal notices. Supersedes the AGPL selection in `000_plan.md`.
+No cleanup reversal, runtime rewrite, release, installation or Git history rewriting.
+
+## Evidence before changing attribution
+
+- `transcript.ts` has a `ported from omo` comment; introduction `2a579e4c` records
+  OMO guard parity. Keep that provenance rather than relabelling it as fully original.
+- `f9c715e1` explicitly adopted the OMO ast-grep helper with path/environment changes.
+  Comparison against the pre-import LazyCodex snapshot shows those limited changes;
+  it is not accurate to describe the whole helper as independent code.
+- The actual historical source is `code-yeongyu/lazycodex` at
+  `db0f80f0aecdd43f95c6b739f12fdeb747cc250f` (2026-06-29). Both its root LICENSE
+  and `plugins/omo/skills/ast-grep/LICENSE` are MIT, Copyright (c) 2026 Yeongyu Kim.
+  Confirmed from the existing read-only reference clone and opened public raw URLs:
+  https://raw.githubusercontent.com/code-yeongyu/lazycodex/db0f80f0aecdd43f95c6b739f12fdeb747cc250f/LICENSE
+  https://raw.githubusercontent.com/code-yeongyu/lazycodex/db0f80f0aecdd43f95c6b739f12fdeb747cc250f/plugins/omo/skills/ast-grep/LICENSE
+- Current `code-yeongyu/oh-my-openagent` SUL is not the license of this pinned source.
+  Source acknowledgement is not a blanket grant to copy future SUL material.
+
+## Scoped change map
+
+- Restore standard MIT with lidge-jun copyright in root/payload LICENSE.
+- Root/payload NOTICE: MIT project scope; OMO acknowledgement, pinned historical
+  MIT grant, known adapted paths and modification summary, no affiliation/endorsement;
+  preserve RepoMapper/Aider terms and prior-distribution licensing.
+- Restore upstream `skills/ast-grep/LICENSE` byte-for-byte; add source/license pointers
+  in the helper and transcript comment. Regenerate only the resulting transcript dist.
+- Change root package/lock/plugin SPDX, README badges/license sections, docs manifest
+  and SoftwareApplication license URL. Add honest top-of-README credits in all three
+  languages, plus a visible docs-site acknowledgement. No blanket independence claim.
+- Update existing packaging/ast-grep checks for MIT, upstream-grant inclusion and
+  root/payload parity. Keep dependency metadata and existing third-party notices intact.
+
+## Verification
+
+Focused packaging, ast-grep, transcript and dist-freshness tests; content gate;
+full-byte upstream license comparison; no executable-code delta beyond comments;
+no repository-wide local suite. Independent review is technical scope/provenance
+verification, not a guarantee about every historical copyright or trademark issue.
