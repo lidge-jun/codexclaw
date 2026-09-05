@@ -1,6 +1,8 @@
 # Codex 실행 기능과 upstream PR 흐름 조사
 
-현재 상태 보충: 사용자 요청으로 2026-09-05 P → I로 돌아갔다. 아래는 최초 리서치의 범위·상태 기록이다. 원격 업데이트 승인과 후속 인터뷰 조건은 [006 인터뷰 보충](006_interview_remote_probes.md)이 우선한다.
+현재 상태 보충: 인터뷰와 initiative 대조 후 사용자가 시간 제한 없는 HOTL 실행을 승인했다. 실제 host goal을 등록하고 I → P override 전이를 기록했다. 초기 5개 work-phase를 문서 lock 전에 6개로 구체화해 전달 방식 비교를 독립 사이클로 추가했다. 현재 wp0는 docs-only roadmap 단계다. 아래는 최초 리서치의 범위·상태 기록이며, 실행 로드맵은 [010](010_roadmap_lock.md), 원격 조건과 방향은 [006](006_interview_remote_probes.md)·[007](007_methodology_alignment.md), 실제 기준선은 [008](008_baseline_observations.md)이 우선한다.
+
+활성 goalplan: `.codexclaw/goalplans/implement-and-verify-the-agreed-researcher-style/goalplan.json`. 관리 worktree를 유지하며 branch `codex/agent-led-lazy-skills`를 제자리에서 생성했다. 제품 변경은 wp0 감사·문서 lock 이후 사이클에서 시작한다.
 
 - 조사일: 2026-09-05 (KST)
 - 작업 위치: `/Users/jun/.codex/worktrees/974c/codexclaw`
