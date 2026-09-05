@@ -1,0 +1,22 @@
+{
+  "id": "cold_start",
+  "nextAction": {
+    "tool": "read_thread",
+    "arguments": {
+      "threadId": "session-42",
+      "hostId": "local",
+      "turnLimit": 3,
+      "includeOutputs": false
+    }
+  },
+  "supportingFacts": [
+    "Account-session contract belongs to current-project and its summary directly concerns account-switch draft behavior.",
+    "The summary is a discovery hint, not proof of the current contract or decision ownership.",
+    "Its idle status permits read-only inspection but does not establish permission to wake it.",
+    "The private-project incident is outside the authorized scope; footer spelling and runner caching do not address this contract."
+  ],
+  "loadedGuidance": [
+    "plugins/codexclaw/skills/dev/SKILL.md",
+    "plugins/codexclaw/skills/dev/references/peer-collaboration.md"
+  ]
+}

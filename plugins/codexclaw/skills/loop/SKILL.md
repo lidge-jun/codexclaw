@@ -13,6 +13,11 @@ loops (Stop-hook continuation after D/IDLE).
 
 ## Orchestrate mandate (ORCH-MANDATE-01, STRICT)
 
+An incoming peer question is not a new loop request or permission to resume an old
+goal. Follow [peer collaboration](../dev/references/peer-collaboration.md) for
+question-only wakes and independent task authority; apply this loop only to work
+the user actually authorized.
+
 A loop claim without persisted FSM evidence is INVALID. Narrating phases ("now I'm in
 B", "audit passed") without their `cxc orchestrate` transitions is the exact
 failure mode this rule exists to stop: the Stop hook never arms, the ledger stays
@@ -197,6 +202,10 @@ goalplan to slip past the gate; that is a LOOP-CONTINUE-01 violation and the
 edit is visible in the ledger.
 
 ## Wait visibility (LOOP-WAIT-VISIBILITY-01, DEFAULT)
+
+The continuation/dispatch rules below concern this goal's own work and delegated
+subagents, not independent peer advice. Peer timeouts do not authorize retirement,
+replacement, forced wakeups, or an unconditional wait; use the peer contract above.
 
 Long silent waits read as a dead loop to the user and invite interrupts that
 kill the work-phase (019f4456: a 6-minute silent `wait_agent` stretch looked
