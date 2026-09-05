@@ -1,6 +1,7 @@
 # 043 — WP3 prerequisite: explicit shared-family evidence
 
 Status: complete proposed patch/test packet, NOT implemented or executed. Anchor: `91e051df54609ebabf5710c5485c63faaaa57f47`, checkout `/Users/jun/.codex/worktrees/974c/codexclaw`. Dependencies: [035](035_native_identity_observations.md), [020](020_remote_evaluation.md), [021](021_evaluation_contract.md), [023](023_wp1_review_synthesis.md). Main owns WP3 P, 040 integration, audit, execution and all goal/FSM state. This author writes only this page.
+Pre-B amendment: both accepted evidence findings in [044](044_wp3_audit_synthesis.md) are folded into the candidate below. Every schema-2 parent/child context binds its native payload turn ID to the actual matching start/end and requires V1; missing identity/version or V2 is UNKNOWN, a differing turn ID is FAILED. Every declared `proof.sources` entry is read, hash-checked and parsed through existing `source()`, including unused declarations; unchanged-review extra-source tampering is FAILED and deletion UNKNOWN. Schema 1 and the unavailable per-thread wire attribution remain unchanged. These are proposed repairs, not executed verification or an A PASS.
 
 ## Contract and authority
 
@@ -16,7 +17,7 @@ Schema 1 and its direct-thread output remain unchanged. Schema 2 requires `corre
 
 The review record is `{schemaVersion:1,reviewedBy:"main",topology:"root-direct-children",originalsComplete:true,noUnlistedDescendants:true,noResumeOrFork:true,usageComplete:true,inputDigests:[...]}`. `inputDigests` binds every declared raw source, original stdout, recorded Codex invocation-entrypoint/launcher hash (`codexEntrypoint`), and manifest (including pointer mappings, inventory and both source audits, excluding only the self-referential review descriptor); exact construction is below. It does not bind or attest the native Rust binary. Main records these assertions only after reviewing complete post-completion originals, all child activity, isolated-home inventory, root CLI spawn records, adapter/source-to-live correspondence and unfiltered request coverage. This is a review record, not a cryptographic signature. CLI version/source correspondence alone cannot prove request completeness. Hash refresh without a new review is forbidden.
 
-State machine: transport/request validation → explicit schema dispatch → existing adapter audit → parent/unique-ID inventory → native audit → every native metadata/context and terminal lifecycle → original CLI spawn inventory equality → byte-bound main completeness review → one root-digest usage scan → scoped report. Missing inputs, unresolved starts, absent terminal lifecycle, unknown versions/modes, unsupported depth/source/history/V2/resume/fork or unestablished completeness → UNKNOWN/rc2. Contradictory IDs, stale hashes, duplicate identities/spawns/requests, malformed JSONL, failed transport or any matched request mismatch → FAILED/rc1. First encountered error wins; there is no error aggregation or fallback. No partial sessions/groups or eligibility escape an error.
+State machine: transport/request validation → explicit schema dispatch → existing adapter audit → parent/unique-ID inventory → all declared source bytes → native audit → every native metadata/context and terminal lifecycle → original CLI spawn inventory equality → byte-bound main completeness review → one root-digest usage scan → scoped report. Missing inputs, unresolved starts, absent terminal lifecycle, unknown versions/modes, unsupported depth/source/history/V2/resume/fork or unestablished completeness → UNKNOWN/rc2. Contradictory IDs, stale hashes, duplicate identities/spawns/requests, malformed JSONL, failed transport or any matched request mismatch → FAILED/rc1. First encountered error wins; there is no error aggregation or fallback. No partial sessions/groups or eligibility escape an error.
 
 Eligible schema 2 reports `proofScope:"shared-family"`, `pairedComparisonEligible:false`, `familyComparisonEligibleForReview:true`, `perThreadRequestAttribution:"unavailable"`, each session `requests:null,requestCount:null`, and exactly one family request array. It deliberately omits schema 1's unscoped `configuredWireExact` and `effectiveModelEffortExact` booleans; scoped fields are `familyConfiguredWireExact` and `nativeThreadModelEffortExact`. A report's rc0 is not adoption PASS. 040 must explicitly consume the family field only for whole-run/family comparisons; a per-thread-required row stays unavailable/ineligible. Behavioral acceptance, input/config/host pairing and scheduler status remain independent. The observed C2 baseline/candidate both retain `failed-original-no-delegation`; 12/13 shared requests cannot repair that failure.
 
@@ -24,7 +25,7 @@ Mandatory-trial boundary: planned 050 F7 full-history trials and any supported V
 
 ## Exact future file map / copy-paste hunks
 
-Only future modifications: `plugins/codexclaw/scripts/probe-evidence.mjs` (193 lines before patch; insert 107 private-function lines before `analyzeRun` at :123, replace the schema guard, and add the dispatch statement below: approximately 303 lines); `plugins/codexclaw/test/probe-fixtures/evidence.mjs` (84 existing + 38 appended fixture lines); NEW `plugins/codexclaw/test/probe-evidence-family.test.mjs` (entire 146-line listing). Existing portable/recorder/compiled-hook tests stay intact. Every resulting source/test file must remain <400 lines. The general SoT `docs/native-thin-harness.md:86–90` is owned by main's 040 integration: add “Shared-family request evidence is explicitly scoped, counted once, and cannot satisfy per-thread request attribution; native child inventory and completeness require independent review.” No extra file is authorized in this authoring task.
+Only future modifications: `plugins/codexclaw/scripts/probe-evidence.mjs` (193 lines before patch; insert the private functions before `analyzeRun` at :123, replace the schema guard, and add the dispatch statement below); `plugins/codexclaw/test/probe-fixtures/evidence.mjs` (84 existing lines; append the native-shaped fixture below); NEW `plugins/codexclaw/test/probe-evidence-family.test.mjs` (entire listing). Existing portable/recorder/compiled-hook tests stay intact. Every resulting source/test file must remain <400 lines. The general SoT `docs/native-thin-harness.md:86–90` is owned by main's 040 integration: add “Shared-family request evidence is explicitly scoped, counted once, and cannot satisfy per-thread request attribution; native child inventory and completeness require independent review.” No extra file is authorized in this authoring task.
 
 Replace `need(proof.schemaVersion === 1 && Array.isArray(proof.sessions), "invalid proof manifest");` at :131 with:
 ```js
@@ -79,6 +80,13 @@ function nativeSession(root, proof, session, parent) {
   need(starts.length === 1 && ends.length === 1, "unsupported multi-turn/resumed history");
   need(exactId(starts[0].value.payload.turn_id) && exactId(ends[0].value.payload.turn_id), "missing native turn identity");
   check(starts[0].line < ends[0].line && starts[0].value.payload.turn_id === ends[0].value.payload.turn_id, "native lifecycle mismatch");
+  need(proof.runtimePointers?.model === "/payload/model" && proof.runtimePointers?.effort === "/payload/effort", "unsupported native runtime pointers");
+  for (const row of rows.filter(r => r.value.type === "turn_context")) {
+    const context = row.value.payload;
+    need(context && exactId(context.turn_id), "missing native context turn identity");
+    check(context.turn_id === starts[0].value.payload.turn_id, "native context turn mismatch");
+    need(context.multi_agent_version === "v1", "unsupported/missing native context version");
+  }
   return {id:session.id, role:session.role, source:session.source, metadataLine:meta[0].line,
     sharedSessionId:m.session_id, parentId:session.role === "child" ? m.parent_thread_id : null,
     effectiveLines:runtime(root, proof, session), requests:null, requestCount:null};
@@ -128,6 +136,7 @@ function familyReview(root, proof, run) {
   check(JSON.stringify(r.inputDigests) === JSON.stringify(inputs), "stale family review binding");
 }
 function familyEvidence(root, proof, parent, run, usage) {
+  for (const description of Object.values(proof.sources)) source(root, description);
   nativeAudit(root, proof);
   check(proof.sessions.every(s => exactId(s.id) && ["parent", "child"].includes(s.role)), "invalid native inventory");
   const sessions = proof.sessions.map(s => nativeSession(root, proof, s, parent));
@@ -154,6 +163,7 @@ This reuses synthetic `fixture`, hashing, source/artifact writers and cleanup; s
 export function familyFixture(t) {
   const f = fixture(t);
   f.proof.schemaVersion = 2; f.proof.correlationMode = "native-shared-family-v1";
+  f.proof.runtimePointers = {model:"/payload/model", effort:"/payload/effort"};
   f.proof.sessions.push({id:"child", role:"child", source:"child"});
   f.proof.sources.child = {file:"evidence/child.jsonl"};
   f.run.codexSha256 = "b".repeat(64);
@@ -164,10 +174,12 @@ export function familyFixture(t) {
     const file = "evidence/native/" + name; put(f.root, file, "SYNTHETIC " + name);
     f.proof.family.nativeAudit.files[name] = {file, sha256:sha("SYNTHETIC " + name)};
   }
+  const {model, effort} = runtimeRows()[1];
   const rows = (id, child) => [{type:"session_meta", payload:{id, session_id:"abc", cli_version:"0.146.0", history_mode:"legacy",
     source:child ? {subagent:{thread_spawn:{parent_thread_id:"abc", depth:1}}} : "exec",
     thread_source:child ? "subagent" : "user", ...(child ? {parent_thread_id:"abc", multi_agent_version:"v1"} : {})}},
-    {type:"event_msg", payload:{type:"task_started", turn_id:id + "-turn"}}, runtimeRows(id)[1],
+    {type:"event_msg", payload:{type:"task_started", turn_id:id + "-turn"}},
+    {type:"turn_context", payload:{model, effort, turn_id:id + "-turn", multi_agent_version:"v1"}},
     {type:"event_msg", payload:{type:"task_complete", turn_id:id + "-turn"}}];
   f.parentRows = rows("abc", false); f.childRows = rows("child", true);
   const item = {id:"spawn-1", type:"collab_tool_call", tool:"spawn_agent", sender_thread_id:"abc"};
@@ -220,7 +232,7 @@ test("schema 1 keeps direct proof; schema 2 never allocates group requests to th
 });
 test("two direct children still have only one family request array; unrelated rows stay unrelated", t => {
   const f = familyFixture(t), sibling = structuredClone(f.childRows);
-  sibling[0].payload.id = "sibling"; sibling[1].payload.turn_id = sibling[3].payload.turn_id = "sibling-turn";
+  sibling[0].payload.id = "sibling"; sibling[1].payload.turn_id = sibling[2].payload.turn_id = sibling[3].payload.turn_id = "sibling-turn";
   f.proof.sources.sibling = {file:"evidence/sibling.jsonl"};
   f.proof.sessions.push({id:"sibling", role:"child", source:"sibling"}); setSource(f, "sibling", sibling);
   const start = structuredClone(f.events[1]), end = structuredClone(f.events[2]);
@@ -249,8 +261,8 @@ const cases = [
   ["whitespace thread identity", 1, /invalid native inventory/, f => { f.proof.sessions[1].id = " child "; }],
   ["missing metadata", 2, /missing native metadata/, f => { f.childRows.shift(); }],
   ["missing child contexts", 2, /no effective runtime/, f => { f.childRows.splice(2, 1); }],
-  ["missing context effort", 2, /missing proof field/, f => { delete f.childRows[2].effort; }],
-  ["missing runtime pointer", 2, /missing observed JSON Pointer/, f => { delete f.proof.runtimePointers.effort; }],
+  ["missing context effort", 2, /missing proof field/, f => { delete f.childRows[2].payload.effort; }],
+  ["missing runtime pointer", 2, /unsupported native runtime pointers/, f => { delete f.proof.runtimePointers.effort; }],
   ["causal parent", 1, /causal parent mismatch/, f => { f.childRows[0].payload.source.subagent.thread_spawn.parent_thread_id = "foreign"; }],
   ["metadata parent", 1, /causal parent mismatch/, f => { f.childRows[0].payload.parent_thread_id = "foreign"; }],
   ["absent causal parent", 2, /missing causal parent/, f => { delete f.childRows[0].payload.parent_thread_id; }],
@@ -308,8 +320,25 @@ for (const field of ["requestId", "requestedEffort", "wireValue"]) test(`missing
   const f = familyFixture(t); delete f.usageRows[1][field]; saveFamily(f); assertVerdict(() => analyzeRun(f.root), 2);
 });
 for (const field of ["model", "effort"]) test(`every child context validates ${field}`, t => {
-  const f = familyFixture(t); f.childRows.splice(3, 0, {...f.childRows[2], [field]:"different"}); saveFamily(f);
+  const f = familyFixture(t); f.childRows.splice(3, 0, {type:"turn_context", payload:{...f.childRows[2].payload, [field]:"different"}}); saveFamily(f);
   assert.throws(() => analyzeRun(f.root), new RegExp(`effective ${field} mismatch`)); assertVerdict(() => analyzeRun(f.root), 1);
+});
+for (const role of ["parentRows", "childRows"]) for (const index of [0, 1])
+  for (const [field, value, rc, error] of [["turn_id", undefined, 2, /missing native context turn/],
+    ["turn_id", "foreign-turn", 1, /native context turn mismatch/], ["multi_agent_version", undefined, 2, /native context version/],
+    ["multi_agent_version", "v2", 2, /native context version/]]) test(`${role} context ${index} ${field}=${value}`, t => {
+    const f = familyFixture(t); if (index) f[role].splice(3, 0, structuredClone(f[role][2]));
+    if (value === undefined) delete f[role][2 + index].payload[field]; else f[role][2 + index].payload[field] = value;
+    saveFamily(f); assert.throws(() => analyzeRun(f.root), error); assertVerdict(() => analyzeRun(f.root), rc);
+  });
+for (const [action, rc] of [["tamper", 1], ["delete", 2]]) test(`reviewed extra source ${action} is detected without review refresh`, t => {
+  const f = familyFixture(t); f.proof.sources.extra = {file:"evidence/extra.jsonl"};
+  setSource(f, "extra", [{kind:"extra-original"}]); saveFamily(f); assertVerdict(() => analyzeRun(f.root), 0);
+  const proofBefore = readFileSync(join(f.root, "proof.json")), reviewBefore = readFileSync(join(f.root, f.proof.family.review.file));
+  if (action === "tamper") put(f.root, "evidence/extra.jsonl", '{"kind":"changed"}\n'); else rmSync(join(f.root, "evidence/extra.jsonl"));
+  if (action === "tamper") assert.throws(() => analyzeRun(f.root), /source digest mismatch/);
+  assertVerdict(() => analyzeRun(f.root), rc); assert.deepEqual(readFileSync(join(f.root, "proof.json")), proofBefore);
+  assert.deepEqual(readFileSync(join(f.root, f.proof.family.review.file)), reviewBefore);
 });
 for (const echo of ["default", "priority", undefined]) test(`family echo ${echo} does not confirm scheduler`, t => {
   const f = familyFixture(t); f.usageRows[1].responseServiceTier = echo; saveFamily(f);

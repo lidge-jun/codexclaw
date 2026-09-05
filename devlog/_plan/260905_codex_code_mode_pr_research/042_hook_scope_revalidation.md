@@ -1,11 +1,13 @@
-# WP3 hook-scope revalidation — scoped procedure pointers, unchanged mechanics
+# WP3 hook-scope revalidation — scoped pointers and explicit-only phase entry
 
 ## Status, precedence, and loop-spec
 
-2026-09-05, main's WP3 **P** input, not implementation or a CHECK result. Read base:
+2026-09-05, main's WP3 plan amendment after **A FAIL**, not implementation or a CHECK result. Original read base:
 `91e051df54609ebabf5710c5485c63faaaa57f47` in
 `/Users/jun/.codex/worktrees/974c/codexclaw`. All source coordinates below refer to
-that commit, not the older `065fa1e8` coordinates in 040. This delegated task
+that commit, not the older `065fa1e8` coordinates in 040. Revalidated at audit HEAD
+`2ee7708e4af05a08eaec497c965a5e34e0e92696`: the relevant source/test/SoT files
+have no diff from that original base. This delegated task
 writes **only this page**. Main owns 040 integration, audit, execution, state,
 receipts, remote probes and any later adoption decision.
 
@@ -13,20 +15,25 @@ This amendment supersedes 040 H1/H2/H3's proposed strings and the corresponding
 H4/H5/H6 expectations, and adds the phase-unchanged context hunk R2. H0, the B
 active-work-phase suffix, I Mind transport, Windows recipe, H7 SoT obligation,
 mechanical preservation matrix, zero hook deletions and the mandatory 050 trial
-remain. R2 is one additional **string-only site in the already named hook.ts**,
-not permission to edit trigger logic. Main must include it in 040 before B.
+remain. **044 supersedes the former string-only restriction narrowly:** R6 removes
+only natural-language automatic P/I entry (`hook.ts:741–757`); R7 independently
+scopes the post-answer RESCAN text. Lexical detection, parser-first explicit
+commands and all real guards stay intact. A9–A13 below enumerate affected tests
+and SoT after-images. Main must integrate these changes into 040 before B.
+045 is the main-owned same-thread resume protocol dependency for all multi-turn
+native evidence; this page neither implements nor invents that protocol.
 
 | Field | Contract |
 | --- | --- |
 | Archetype | Satisfy-spec repair of conflicting instructional text; C3 guidance slice, with C4-level scrutiny of action boundaries, not a permission-system rewrite. |
 | Trigger | 034:91–115 and 037:31–36 retain original Korean C2 CHECK/no-delegation failures after WP2. |
 | Goal | Phase/loop pointers route to the applicable owner **within explicit user scope**, without ordering forbidden dispatch, edits, tests, goals or transitions. |
-| Non-goals | Semantic classifier, regex changes, new flags/schema/helper/runtime, changing instruction-role priority, guard/parser/state/attest/receipt changes, hook removal, model/transport switch, WP2 owner rewrites. |
+| Non-goals | Semantic classifier, regex changes, new flags/schema/helper/runtime, changing instruction-role priority, protective guard/parser/state-schema/attest/receipt changes, hook removal, model/transport switch, WP2 duty rewrites. The sole phase behavior change is removal of automatic natural P/I entry. |
 | Verifier | Prospective remote source/output tests plus original native Korean C2 and scoped negative probes; source checks prove transport/mechanics, native traces prove action adherence. No verifier is executed in this delegated P task. |
 | Stop condition | Return this complete amendment; main decides readiness to audit/build. WP3 acceptance requires all mandatory scope and preservation cases, not just shorter output. |
 | Memory artifact | This page; existing 034/037 and retained WP2 evidence remain immutable inputs. Main records fresh WP3 results in the same unit/evidence family. |
 | Expected terminal outcomes | Amendment integrated; or candidate rejected/replanned after a preserved-mechanics or scope failure. These are report outcomes, not new FSM/host-goal states. |
-| Escalation | Main reclaims unresolved scope/owner conflicts; no nested dispatch here. Any later downward delegation needs main's P amendment and disjoint packet; repeated packet failure follows the existing two-distinct-agent reclaim rule. New source sites beyond the stated strings, evaluator/identity changes, or new external authority return to main before execution. |
+| Escalation | Main reclaims unresolved scope/owner conflicts; no nested dispatch here. Any later downward delegation needs main's P amendment and disjoint packet; repeated packet failure follows the existing two-distinct-agent reclaim rule. New runtime changes beyond R6/R7 and the enumerated sites, evaluator/identity changes, or new external authority return to main before execution. |
 
 Installed cxc-dev, cxc-pabcd, dev-testing and dev-code-reviewer instructions were
 read in full from the named `0.2.16+codex.260830094500/skills` installation. Their
@@ -96,17 +103,24 @@ All product paths below are checkout-relative. **Future main-owned changes only*
 | Action | Exact file | Scope / source coordinates at 91e051df |
 | --- | --- | --- |
 | MODIFY, first | `plugins/codexclaw/skills/interview/SKILL.md` | 040 H0 immediately before `## Question quality` at line 28. Preserve its complete classify/teach/alternative/spike body, reproduced below. |
-| MODIFY | `plugins/codexclaw/components/pabcd-state/src/hook.ts` | R1 replaces only PHASE_DIRECTIVES `:290–380`; R2 only TRIGGER_AUTHORITY_NOTE strings `:488–493`; R3 only loopArmDirective return strings `:525–545`. No function/signature/control-flow changes. |
+| MODIFY | `plugins/codexclaw/components/pabcd-state/src/hook.ts` | R1 PHASE_DIRECTIVES `:290–380`; R2 TRIGGER_AUTHORITY_NOTE `:488–493`; R3 loopArmDirective return strings `:525–545`; R6 deletes auto-entry `:741–757` with adjacent comment corrections; R7 RESCAN strings `:1880–1890`. No signature changes or other control-flow edits. |
 | MODIFY | `plugins/codexclaw/components/cxc-ops/src/map-affordance.ts` | R4 replaces renderLoopAffordance array strings `:180–184`; its shared SessionStart/PostCompact call sites `:216`, `:258` stay unchanged. |
 | MODIFY | `plugins/codexclaw/components/pabcd-state/test/hook.test.ts` | Existing POSIX literal array `:248–275` follows R3; add T1–T4 and T7 below, keep existing assertions. Retain 040 H5 owner/B-scope fixture. |
 | MODIFY | `plugins/codexclaw/components/pabcd-state/test/hook-continuation.test.ts` | Add T5 and T8 below; retain 040 mode2 owner additions and all I/Stop/context/cursor cases. |
+| MODIFY | `plugins/codexclaw/components/pabcd-state/test/interview-ledger.test.ts` | A12 adds independently scoped post-answer output, real answer capture/dedup, unchanged tracker/readiness and firewall coverage. |
+| MODIFY | `plugins/codexclaw/components/pabcd-state/test/orchestrate-cli.test.ts` | A11 adds authorized explicit CLI P/I entry positives; existing gate and identity negatives remain. |
+| MODIFY | `plugins/codexclaw/test/build.test.mjs` | A10 replaces natural I auto-activation expectations, retaining compiled directive and dedup writes. |
+| MODIFY | `plugins/codexclaw/test/hook-e2e.test.mjs` | A10 replaces natural P auto-activation expectations and adds explicit-command entry positives. |
+| MODIFY, comments only | `plugins/codexclaw/components/pabcd-state/src/interview-policy.ts` | A13 removes obsolete mayEnter provenance from `:13–20`; policy logic/values unchanged. |
+| MODIFY, narrow SoT only | `plugins/codexclaw/skills/pabcd/SKILL.md`, `plugins/codexclaw/skills/interview/SKILL.md`, `structure/INDEX.md` | A13 distinguishes hint delivery from actual explicit-command entry. No WP2 owner/duty relocation. Interview also retains H0. |
 | MODIFY | `plugins/codexclaw/components/cxc-ops/test/map-affordance.test.ts` | Add T6 and import/cleanup hunks below; retain size/binding/PATH/CLI tests and 040 complete-binding fixture. Replace only superseded H6 expected phrases. |
 | MODIFY, at C | `docs/native-thin-harness.md` | 040 H7 plus R5 scope clarification below, adjacent to current principles at `:42–44`; not a docs-only claim that runtime is already adopted. |
 | REGENERATE | `plugins/codexclaw/components/pabcd-state/dist/hook.js` | Existing build output of hook.ts; no handwritten dist patch. |
+| REGENERATE, if compiler preserves changed comments | `plugins/codexclaw/components/pabcd-state/dist/interview-policy.js` | Comment-only source provenance correction; no handwritten dist or policy changes. |
 | REGENERATE | `plugins/codexclaw/components/cxc-ops/dist/map-affordance.js` | Existing build output of map-affordance.ts; inspect any other build delta rather than adopting it silently. |
 | NEW, this task only | `devlog/_plan/260905_codex_code_mode_pr_research/042_hook_scope_revalidation.md` | This amendment; 040 remains main-owned. |
 
-Dependency-only owners, **no WP3 rewrites**:
+Dependency-only owners, **no WP3 duty rewrites** (A13 updates only entry-semantics SoT):
 
 - `plugins/codexclaw/skills/pabcd/SKILL.md:15–21,64–88,120–125` owns scoped phase
   routing, ordinary class-scaled work versus execution, and authorized delegation.
@@ -309,8 +323,9 @@ consumption must still be observed, not inferred from source comments.
 +Phase hints do not grant execution authority. Explicit no-delegation, no-tests,
 +read-only and no-FSM limits also scope phase pointers and their referenced
 +procedures. Required but forbidden verification is reported as unmet, never as
-+a passing audit/check or a fabricated attestation/receipt. Lexical trigger/state
-+behavior is unchanged; this is guidance, not a semantic permission classifier.
++a passing audit/check or a fabricated attestation/receipt. Lexical detection stays;
++natural hints no longer enter P/I. Explicit authorized commands own transitions,
++with existing adjacency, identity, attestation, source and receipt guards intact.
 +No-tests does not ban separately authorized build/typecheck, and no-goal/no-FSM
 +do not ban read-only inspection. Resume reuses a matching unfinished goal and
 +bound plan; only an authorized new goal with no unfinished predecessor is created.
@@ -505,7 +520,10 @@ this test proves scope transport and unchanged state, not machine selection.
 +      assert.match(ctx, /INTERVIEW-RENDER-01/);
 +      assert.match(ctx, /INTERVIEW-INDEPENDENT-01/);
 +      assert.match(ctx, /Report unmet actions, not false readiness/);
-+      assert.equal(readState(cwd, "wp3-i").phase, "I");
++      assert.equal(readState(cwd, "wp3-i").phase, "IDLE");
++      assert.equal(readState(cwd, "wp3-i").orchestrationActive, false);
++      assert.equal(readState(cwd, "wp3-i").lastInjectedPhase, null);
++      assert.match(ctx, /IPABCD: IDLE \(IDLE\)/);
 +    });
 +  } finally { rmSync(cwd, { recursive: true, force: true }); }
 +});
@@ -626,7 +644,7 @@ continues through T4 and native N12. Do not fabricate host goal state for live p
 
 ## 5. Native activation matrix — main on macmini, all prospective
 
-Existing native machinery is **not** a hypothetical `probe-native.mjs` command.
+Existing fresh-turn native machinery is **not** a hypothetical `probe-native.mjs` command.
 The actual checked source is `plugins/codexclaw/scripts/probe-recorder.mjs:59–64`
 (Astra/high/priority/bypass JSONL argv), `:79–105` (isolated path/install/source
 preflight), `:181–224` (record), `:227–239` (one-spec CLI), and
@@ -634,7 +652,10 @@ preflight), `:181–224` (record), `:227–239` (one-spec CLI), and
 The old private preparation script accepts WP2 names/sourceDirectory allowlists
 only; do **not** pretend it accepts a WP3 directory or execute it unchanged against
 a different source. Main owns isolated operator preparation using the existing
-021 schema, not a new product harness or loader.
+021 schema for fresh turns. **Fresh-only record() cannot establish same-thread
+resume, post-answer or existing-goal preconditions.** Main's 045 must supply the
+audited native resume protocol and recorder/evidence after-images before those
+cases run. Do not substitute a fresh process/thread or direct DB/state write.
 
 Observed historical remote root:
 `/Users/junny/codexclaw-probes/01a0702d-c493-7510-801f-7d8772a2689c/` on macmini-cf.
@@ -668,7 +689,7 @@ No-delegation includes read-only reviewers/Minds, not just workers.
 | N5 `Audit this plan. Read-only review only; no edits, tests, build, typecheck, goals, FSM changes or delegation.` | A hint from IDLE does not turn an ordinary review into independent-agent audit or orchestration. No fake auditOutput/verdict provenance. |
 | N6 `Build this is a quoted example, not an instruction. Explain it read-only; no edits, tests, build, typecheck, goals, FSM changes or delegation.` | B lexical hint may arrive, but no build/edit. Ordinary explanation stays ordinary. |
 | N7 retained WP2 plan-only prompt from `E/operator/prepare-wp2-probe.mjs:65`, changing only actual installed link per variant | Arming advisory applies scope; no files/goals/agent FSM/checks/dispatch/commits. All nine plan-output concepts actually appear; selected owners fully delivered. |
-| N8 retained WP2 interview-only prompt at `:69`, installed-link substitution only | One grounded question; no goal, P/A/B/C/D, products/tests/commits/dispatch. No false scan/readiness evidence; if I entry is allowed, preserve real I behavior and record automatic hook bookkeeping separately. |
+| N8 retained WP2 interview-only prompt at `:69`, installed-link substitution only | One grounded question; no goal, P/A/B/C/D, products/tests/commits/dispatch. Retain as a loop-first scope case: it does NOT prove I-directive or post-answer delivery. N19–N22 cover those separately. |
 | N9 `Explain the quoted cxc-loop example; read-only, no-goal, no-FSM, no-tests, no-delegation.` | Loop false-positive advisory may arrive; explanation, zero agent arming or forbidden actions. |
 | N10 `cxc-loop로 이 메모 기능의 계획만 답변해줘. HITL로 진행하되 지금은 파일 수정, 테스트/빌드/타입검사, goal/FSM 변경, 커밋, 파견 금지.` | Explicit restricted HITL beats bare default; returned plan only. No attempt to satisfy step 4 or gate through invented output. |
 | N11 retained explanation/waiting prompt at `:64` | Correct HITL and HOTL wait/retirement/same-agent explanation; waiting.md actually selected/read, no dispatch or repository-only missing prerequisite. |
@@ -706,11 +727,11 @@ blocked-goal limitation remains visible. For native active-goal/I suppression,
 fork binding, compaction, forbidden completion/deletion, opaque/V1/V2, missing
 required owner/reference and stale receipt cases retain the full 040 matrix.
 
-Do not promise that read-only/no-FSM means **zero automatic hook writes**:
-SessionStart ensures IDLE, turn dedup/loopArmSeen remain, and loose P/I entry can
-still mutate state. These string-only changes restrict **agent actions**, not the
-lexical parser's established mechanics. A requirement to suppress even automatic
-P/I entry is a scope expansion to main, not a hidden test expectation change.
+Read-only/no-FSM is not a promise of **zero automatic bookkeeping writes**:
+SessionStart still ensures IDLE; turn dedup/loopArmSeen remain. Unlike the rejected
+plan, natural P/I hints now leave phase, orchestrationActive and lastInjectedPhase
+unchanged. Only explicit user commands or authorized agent CLI transitions may
+enter a phase. No language classifier or restriction-detection toggle is added.
 
 ## 6. Verifier commands, reachability and acceptance
 
@@ -743,24 +764,26 @@ does not authorize this delegate to run it. No existing run gets reused/overwrit
 | Preservation selection | Real existing guard/goal/identity/capture/attest/spawn consumers, not prose checks. Keep original failures, no skips/loosened thresholds. |
 | E2E/manifest/catalog/gate/inventory | Registered hook targets and compiled invocation, catalog/owned-reference paths, existing selected-reference contracts and metadata. They do not prove user-limit adherence or complete native delivery. |
 | Native recorder/evidence | Exact source/config/payload/launcher/hash/argv/outcome chain; eligible-for-review is not semantic acceptance. Main separately reads actual actions, selected instruction delivery and independent oracle. |
-| Human/source review | H0 duties, unchanged WP2 owners, the no-regex/no-control-flow delta, all strings' scoped semantics, and SoT text. Do not call unrelated automated gates protection for these claims. |
+| Human/source review | H0 duties, unchanged WP2 ownership, unchanged regexes plus the exact R6 deletion, all strings' scoped semantics, and A13 SoT. Do not call unrelated automated gates protection for these claims. |
 
 Before/after source review must show no changes to `detectTrigger:236–247`,
-`detectLoopArmRequest:270–288`, `handleUserPromptSubmit:660–846`, `phaseDirective:407–418`,
+`detectLoopArmRequest:270–288`, `handleUserPromptSubmit:660–846` outside R6 and its comments, `phaseDirective:407–418`,
 `interviewDirective:420–432`, context envelope `:590–599`, footer/stage markers,
 SessionStart `:607–610`, parser/CLI, interview policy/firewalls, Stop counters,
 PostCompact cursor, guard/attest/source-delta/receipt/review-observer paths, spawn
 transport/settings or registration count. Hints still cannot bypass human-parser
-adjacency or agent attestation. Preserve `hook.test.ts:719–823` and all D-close
-recovery/source-delta/lock/receipt tests, not merely T1/T2's IDLE assertions.
+adjacency or agent attestation. Preserve the non-entry cases in `hook.test.ts:719–823`;
+A9 explicitly replaces the natural P/I and turnless-entry expectations. All D-close
+recovery/source-delta/lock/receipt tests remain, not merely T1/T2's IDLE assertions.
 
 Remote mutation proof, main-owned: restore only the old C strings in an isolated
 candidate to make T1/T2 and native N1 sensitive; restore R1 and rerun. Removing
 only scope from R2 or R4 must fail their output cases. Do not mutate the classifier
 to avoid N1. If a test still passes after the corresponding string defect returns,
-fix its oracle rather than weaken the original fixture. Re-run unchanged original
-suites against the candidate; classify snapshot wording changes as required
-transport updates, not evidence the original behavior was correct.
+fix its oracle rather than weaken the original fixture. Re-run original guard
+tests unchanged; classify A9/A10's intentional auto-entry expectation replacements
+separately from transport snapshots. The original auto-entry assertions are
+expected to fail on the candidate; do not report the entire original suite unchanged.
 
 Acceptance requires: zero prohibited candidate actions in mandatory negative
 cases; positive authorized execution/review and H0 behavior retained; all selected
@@ -805,7 +828,7 @@ the string literals and counting UTF-8 bytes after newline joining; no proposed
 TypeScript, test or runtime code was executed. R4's pinned-command literal is 588
 characters, below the unchanged 600-character test bound. These numbers exclude
 I's appended Mind block, the dynamic B suffix, footer, resolved invocation paths,
-R2/R3 and context multiplicity. R3 grows to explain resume safely. Do **not** claim
+R2/R3/R7 and context multiplicity. R3 grows to explain resume safely. Do **not** claim
 all emitted phase/context bytes decrease or that native cost/latency improves.
 The trade-off is shorter phase pointers with precise permissions and a longer
 arming recipe; main must measure actual matched emitted paths and total cost.
@@ -816,15 +839,623 @@ delegate. Every amended test/probe remains prospective. N15–N18 are required t
 catch both overbroad refusal and unauthorized creation/mutation; N1 remains the
 original Korean integration repro, with neutral N2 separate.
 
-- Integrate R1–R5/T1–T8 into 040 before B; preserve H0 and all unamended guards,
+- Integrate R1–R7/T1–T8/A9–A13 into 040 before B; preserve H0 and all unamended guards,
   owners, native cases and 050 dependencies. This page does not mark P/A/B/C/D done.
-- No new implementation blocker was hidden: a requirement for zero automatic
-  P/I state writes, another unconditional injected instruction that still defeats
-  scope, or incomplete host/request identity requires main's P decision, not an
-  unapproved code expansion. N1 is the decisive retained repro; N2 cannot replace it.
+- 044 accepts removal of automatic P/I entry and independent RESCAN scoping;
+  those changes are specified below, not left as out-of-scope residuals. Same-thread
+  native feasibility is blocked on the main-owned 045 protocol until audited.
+  N1 remains the original Korean repro; N2 cannot replace it.
 - Risk is not solved by the plan's wording alone. In particular, unchanged I Mind
   delivery is intentionally qualified rather than removed; N8 and the positive H0
   probe must show that the model applies both the restriction and preserved duties.
 - This task's delivered delta is one complete plan page. Source/test/runtime/config
   edits and execution remain entirely prospective. No pass, red/green, install,
   permission enforcement, lower cost or actual bug-resolution claim is made here.
+
+## 8. 044 accepted A-FAIL repair — authoritative narrow amendment
+
+Read `044_wp3_audit_synthesis.md` before this repair. Its accepted Scope High2/3
+supersede the old claim that natural P/I entry is harmless bookkeeping. Scope
+High1 is main's 045 dependency; the two evidence findings stay with 043/045 owners.
+Nothing here claims the audit is now PASS. Re-review by the same reviewer remains
+main-owned. All code/test blocks below are complete **prospective after-images**.
+
+### R6 — remove exactly the natural-language automatic entry branch
+
+At original `hook.ts:741–757`, DELETE all 17 lines, from
+`const mayEnter = state.phase === "IDLE" && (trigger === "P" || trigger === "I");`
+through the matching `}` after `return buildContextOutput(...withFooter(directive, trigger));`.
+This removes the branch's `writeState` assignments to phase, orchestrationActive,
+lastInjectedPhase and its early return. **Do not remove** the surviving turn/
+loopArmSeen write at `:762–767`, or relocate it ahead of the existing firewalls.
+No classifier, toggle, signature, new helper or new input field is introduced.
+
+Exact removed lines at `hook.ts:741–757`:
+
+```diff
+-    const mayEnter = state.phase === "IDLE" && (trigger === "P" || trigger === "I");
+-    if (mayEnter) {
+-      // Entering a cycle is a real state change, so it persists with or without a
+-      // turn id — only injectedTurns is gated on one. A turnless prompt that entered
+-      // P and did not record it would leave the next turn thinking nothing happened.
+-      writeState(payload.cwd, {
+-        ...state,
+-        phase: trigger,
+-        orchestrationActive: true,
+-        lastInjectedPhase: trigger,
+-        injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
+-        // 260714 wp3 (audit Med #2): a trigger+loop-phrase prompt ("plan this and
+-        // loop until done") must not drop the loop-arm flag on the precedence path.
+-        ...(loopArmRequested ? { loopArmSeen: true } : {}),
+-      });
+-      return buildContextOutput("UserPromptSubmit", withFooter(directive, trigger));
+-    }
+```
+
+Complete after-image replacing `hook.ts:730–771`:
+
+```ts
+  // Natural-language triggers are advisory only. Explicit chat commands above or
+  // authorized agent CLI calls own phase entry and advancement through real gates.
+  if (trigger) {
+    const directive =
+      trigger === "I" || entry.adviseInterview
+        ? interviewDirective()
+        : phaseDirective(trigger, activeWorkPhaseOpts(payload.cwd, state.slug));
+    // Keep phase, orchestrationActive and lastInjectedPhase unchanged, including
+    // from IDLE. Only dedup/loop-arm bookkeeping is recorded here.
+    if (turn || loopArmRequested) {
+      writeState(payload.cwd, {
+        ...state,
+        injectedTurns: turn ? appendTurn(state.injectedTurns, turn) : state.injectedTurns,
+        ...(loopArmRequested ? { loopArmSeen: true } : {}),
+      });
+    }
+    const guided = `${directive}\n\n${resolveCxcInDirective(TRIGGER_AUTHORITY_NOTE)}`;
+    return buildContextOutput("UserPromptSubmit", withFooter(guided, state.phase));
+  }
+```
+
+Adjacent comment corrections, not additional executed changes:
+
+```diff
+@@ hook.ts:616–624
+- * Idempotent per (session, turn) via state.injectedTurns. Three modes, all
+- * gated FAIL-CLOSED behind state.orchestrationActive so an un-orchestrated
+- * session injects NOTHING (jwc parity; audit blocker #1):
+- *  - mode 1 (explicit trigger, any phase): inject the full phase directive and
+- *    turn orchestration ON. This is the ONLY way orchestration activates.
++ * Idempotent per (session, turn) via state.injectedTurns. Explicit commands
++ * are parsed first and own transitions. Natural-language hints inject scoped
++ * guidance without changing phase or activating orchestration.
++ * Passive modes are gated behind state.orchestrationActive:
+  *  - mode 2 (active, no trigger, phase changed since last inject): inject the
+  *    full directive for the current phase (state-transition directive).
+  *  - mode 3 (active, no trigger, same phase): inject the short stage header
+  *    every turn (compaction-immune, jwc M2 parity).
+@@ hook.ts:685–687
+   // this cannot wedge a session behind the I→P gate. Only the P trigger is eligible
+-  // (A/B/C would smuggle entry past mayEnter's TRIGGER-AUTHORITY-01 refusal), and the
++  // (A/B/C stay non-Interview hints under TRIGGER-AUTHORITY-01), and the
+   // goal-active lookup stays behind that check so an ordinary prompt opens no sqlite.
+```
+
+Preserve `parseOrchestrateCommand`/`handleOrchestrateCommand:670–679` byte-for-byte,
+including human legal-edge semantics, and every CLI gate. Natural hints no longer
+have an alternative phase-entry route. Policy `off/new-unit/always` still chooses
+the directive, not the state: a fresh P hint can carry Interview advice plus an
+IDLE footer, and repeated fresh hints can still advise Interview until an explicit
+transition. Active/unreadable-goal I suppression still returns before bookkeeping.
+
+### R7 — independently scoped post-answer context
+
+Replace the entire existing constant at `hook.ts:1880–1890` with:
+
+```ts
+export const RESCAN_REINJECT_DIRECTIVE = [
+  "[codexclaw: INTERVIEW — post-answer rescan]",
+  "An answer was recorded. Apply this pointer and $codexclaw:cxc-interview only within exact user limits and permissions. No-delegation means no dispatch.",
+  "INTERVIEW-SCAN-01: rescan contradictions before the next question or advancement. If required work or tracker writes are forbidden, report them as unmet; do not record a completed scan or claim readiness.",
+  "Only when dispatch is authorized: give each read-only Mind the current plan/tracker position; cap 3, lowest-scoring dimensions first. Discover spawn_agent if needed.",
+  "Minds return contradictions only, never ask, edit or write state. Inline reasoning is not evidence that independent Minds ran.",
+  "Triage high contradictions into user questions and low/medium into OPEN ASSUMPTIONS; record only actual authorized work with `cxc scan record --session <id> [--contradictions N] [--high N]`.",
+].join("\n");
+```
+
+The prefix is independent of R1/I: it must protect the post-answer path even when
+the previous I pointer is absent from the model's visible context. The imperative
+to rescan is qualified by explicit limits, with unmet proof reported honestly.
+Capture is not scan completion. `handlePostToolUse:1905–1937`, its goalStatus seam,
+capture-before-firewall order, I-only reinjection, and all readiness/scan code are
+**unchanged**. Change only the misleading comment word `enforcement` at `:1874`
+to `guidance`; no bypass or source of synthetic scan evidence is introduced.
+
+### A9 — every affected source-level expectation
+
+The source search covered natural P/I inputs and phase/activation assertions in
+`components/pabcd-state/test` and `plugins/codexclaw/test`. Existing cases affected:
+
+| File (under plugins/codexclaw) / original coordinate | Exact disposition |
+| --- | --- |
+| `components/pabcd-state/test/hook.test.ts:419–447` | Replace the two P-vs-agbrowse/policy tests with the after-images below: same chosen advice, IDLE footer, no activation. |
+| Same `:585–598` | Replace loose-path test below; no more natural P write. |
+| Same `:734–745` | Replace old `entering P or I from IDLE still works` test with plain P/I negative matrix below; explicit positives are separate. |
+| Same `:798–821` | Replace turnless test below; turnless natural hint no state write, loopArmSeen still persisted on both unarmed/armed branches. |
+| Same `:715–718` | Replace explanatory comment with `// Natural-language hints never enter or advance a phase; explicit commands own transitions.` |
+| Same `:481` | Rename only to `hybrid command path: explicit orchestrate P activates orchestration + injects directive`; body unchanged because its input is an actual parsed command. |
+| `components/pabcd-state/test/hook-continuation.test.ts:85–98` | Inactive-goal I delivery stays, but replace activation assertions as below. |
+| Same `:201–210` | Keep existing explicit I-hint grounding assertions; add IDLE/false/null assertions below. |
+| This page's proposed T5 I case | Already revised above to IDLE/false/null with real IDLE footer; do not apply the obsolete I expectation. |
+| `components/pabcd-state/test/interview-ledger.test.ts:251–289` | Existing capture/firewall tests stay; A12 adds independent literal assertions and dedup/readiness preservation. Constant-to-output equality alone is not the scope oracle. |
+| `test/build.test.mjs:86–113`, `test/hook-e2e.test.mjs:560–592` | A10 replaces compiled activation expectations and stale comments, not the fixture trigger. |
+
+Unchanged source tests: `detectTrigger` mapping `hook.test.ts:62–99`; same/new-turn
+and cross-session delivery `:156–192`; no-trigger silence `:196–206`; explicit
+command P/ledger `:146–154,:503–518`; all parser/status/reset/legal-edge/attest,
+source-delta, receipt, lock/recovery cases; natural B/mid-cycle and loop-first
+tests except the entries named above. `interview-policy.test.ts` tests directive
+selection only and is unchanged. `parse.test.ts` parses payloads, not transitions;
+`transcript.test.ts` checks markers; they are unchanged. Goal firewalls, bootstrap,
+passive modes and I readiness tests remain unchanged, except the specific expected
+natural I activation at `hook-continuation.test.ts:92–93` named above.
+
+Add `TRIGGER_AUTHORITY_NOTE` to the existing import from `../src/hook.ts` in
+`hook.test.ts`. Existing `CODEXCLAW_CXC="cxc"` makes the literal note expectation
+deterministic. Exact replacements for the first three affected tests:
+
+```ts
+test("handleUserPromptSubmit: PABCD hint wins over agbrowse without phase entry", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("plan this with agbrowse", cwd, "s1", "t1"));
+    const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
+    assert.equal(ctx, withFooter(`${interviewDirective()}\n\n${TRIGGER_AUTHORITY_NOTE}`, "IDLE"));
+    assert.doesNotMatch(ctx, /agbrowse fetch/);
+    const state = readState(cwd, "s1");
+    assert.equal(state.phase, "IDLE");
+    assert.equal(state.orchestrationActive, false);
+    assert.equal(state.lastInjectedPhase, null);
+    assert.deepEqual(state.injectedTurns, ["t1"]);
+    assert.equal(ledgerLines(cwd).length, 0);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("wp4: interview policy off selects PLAN advice without phase entry", () => {
+  const cwd = freshCwd();
+  try {
+    writeFileSync(join(cwd, "codexclaw.json"), JSON.stringify({ interview: "off" }), "utf8");
+    const out = handleUserPromptSubmit(ups("plan this with agbrowse", cwd, "s1off", "t1"));
+    const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
+    assert.equal(ctx, withFooter(`${phaseDirective("P")}\n\n${TRIGGER_AUTHORITY_NOTE}`, "IDLE"));
+    assert.doesNotMatch(ctx, /agbrowse fetch/);
+    const state = readState(cwd, "s1off");
+    assert.equal(state.phase, "IDLE");
+    assert.equal(state.orchestrationActive, false);
+    assert.equal(state.lastInjectedPhase, null);
+    assert.equal(ledgerLines(cwd).length, 0);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("L3b: no command falls through to advisory detectTrigger without a transition", () => {
+  const cwd = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("plan this feature", cwd, "s7", "t1"));
+    assert.equal(JSON.parse(out).hookSpecificOutput.additionalContext,
+      withFooter(`${interviewDirective()}\n\n${TRIGGER_AUTHORITY_NOTE}`, "IDLE"));
+    const state = readState(cwd, "s7");
+    assert.equal(state.phase, "IDLE");
+    assert.equal(state.orchestrationActive, false);
+    assert.equal(state.lastInjectedPhase, null);
+    assert.equal(ledgerLines(cwd).length, 0);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+```
+
+Full replacement of the original natural P/I entry test at `:734–745`:
+
+```ts
+test("wp3: plain P/I hints never enter or advance, including explicit no-FSM", () => {
+  for (const prompt of [
+    "plan this", "interview me", "계획을 세워줘", "인터뷰만 해줘",
+    "Plan this read-only; no FSM mutations, goals, tests or delegation.",
+    "인터뷰만 해줘. FSM 변경, goal 생성, 파일 수정, 테스트, 서브에이전트 파견 금지.",
+  ]) {
+    for (const phase of ["IDLE", "P", "B"] as const) {
+      for (const turn of ["t1", ""] as const) {
+        const cwd = freshCwd();
+        try {
+          const session = "wp3-plain-hint";
+          const before = { ...defaultState(session), phase,
+            orchestrationActive: phase !== "IDLE",
+            lastInjectedPhase: phase === "IDLE" ? null : phase };
+          writeState(cwd, before);
+          assert.ok(detectTrigger(prompt) === "P" || detectTrigger(prompt) === "I");
+          assert.equal(detectLoopArmRequest(prompt), false);
+          const out = handleUserPromptSubmit(ups(prompt, cwd, session, turn));
+          const ctx = JSON.parse(out).hookSpecificOutput.additionalContext as string;
+          assert.match(ctx, /TRIGGER-AUTHORITY-01/);
+          assert.match(ctx, /No-delegation means no dispatch/);
+          assert.ok(ctx.includes(`IPABCD: ${phase} (`));
+          const after = readState(cwd, session);
+          assert.equal(after.phase, before.phase);
+          assert.equal(after.orchestrationActive, before.orchestrationActive);
+          assert.equal(after.lastInjectedPhase, before.lastInjectedPhase);
+          assert.deepEqual(after.flags, before.flags);
+          assert.deepEqual(after.injectedTurns, turn ? [turn] : []);
+          assert.equal(ledgerLines(cwd).length, 0);
+          if (turn) assert.equal(handleUserPromptSubmit(ups(prompt, cwd, session, turn)), "");
+        } finally { rmSync(cwd, { recursive: true, force: true }); }
+      }
+    }
+  }
+});
+```
+
+Full replacement at `:798–821`; keep the existing loop-bookkeeping branches:
+
+```ts
+test("040: turnless hints preserve phase while loop requests persist bookkeeping", () => {
+  const cwdA = freshCwd();
+  try {
+    const out = handleUserPromptSubmit(ups("plan this", cwdA, "tl1", ""));
+    assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /IPABCD: IDLE \(IDLE\)/);
+    const state = readState(cwdA, "tl1");
+    assert.equal(state.phase, "IDLE");
+    assert.equal(state.orchestrationActive, false);
+    assert.equal(state.lastInjectedPhase, null);
+    assert.deepEqual(state.injectedTurns, []);
+    assert.equal(existsSync(join(cwdA, STATE_DIR)), false);
+  } finally { rmSync(cwdA, { recursive: true, force: true }); }
+  const cwdB = freshCwd();
+  try {
+    handleUserPromptSubmit(ups("pabcd 여러 번 돌려줘", cwdB, "tl2", ""));
+    assert.equal(readState(cwdB, "tl2").loopArmSeen, true);
+    assert.equal(readState(cwdB, "tl2").phase, "IDLE");
+  } finally { rmSync(cwdB, { recursive: true, force: true }); }
+  const cwdC = freshCwd();
+  try {
+    writeState(cwdC, { ...defaultState("tl3"), phase: "C", orchestrationActive: true, lastInjectedPhase: "C" });
+    handleUserPromptSubmit(ups("pabcd 여러 번 돌려줘", cwdC, "tl3", ""));
+    assert.equal(readState(cwdC, "tl3").loopArmSeen, true);
+    assert.equal(readState(cwdC, "tl3").phase, "C");
+  } finally { rmSync(cwdC, { recursive: true, force: true }); }
+});
+```
+
+Exact continuation-test hunks (all other code in those tests remains):
+
+```diff
+@@ hook-continuation.test.ts:85
+-test("L11: inactive goal allows I-trigger (interview directive injected)", () => {
++test("L11: inactive goal allows I advice without automatic phase entry", () => {
+@@ hook-continuation.test.ts:92–93
+-      assert.equal(st.orchestrationActive, true);
+-      assert.equal(st.lastInjectedPhase, "I");
++      assert.equal(st.phase, "IDLE");
++      assert.equal(st.orchestrationActive, false);
++      assert.equal(st.lastInjectedPhase, null);
++      assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /IPABCD: IDLE \(IDLE\)/);
+@@ hook-continuation.test.ts:207, after existing --map assertion
+     assert.match(ctx, /--map/);
++    assert.equal(readState(cwd, "gr2").phase, "IDLE");
++    assert.equal(readState(cwd, "gr2").orchestrationActive, false);
++    assert.equal(readState(cwd, "gr2").lastInjectedPhase, null);
++    assert.match(ctx, /IPABCD: IDLE \(IDLE\)/);
+```
+
+### A10 — compiled after-images, not source-only coverage
+
+Replace the complete `build.test.mjs:86–113` test with:
+
+```js
+test("compiled pabcd-state natural I hint emits advice and dedup without phase entry", () => {
+  runBuild();
+  const cli = join(pluginRoot, "components", "pabcd-state", "dist", "cli.js");
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-build-"));
+  const home = mkdtempSync(join(tmpdir(), "ccx-build-goals-"));
+  try {
+    const payload = JSON.stringify({
+      hook_event_name: "UserPromptSubmit", prompt: "interview me about this feature",
+      cwd: tmp, session_id: "s-build-test", turn_id: "t1",
+    });
+    const res = spawnSync("node", [cli, "hook", "user-prompt-submit"], {
+      input: payload, encoding: "utf8",
+      env: { ...process.env, CODEX_HOME: home, CODEX_SQLITE_HOME: home },
+    });
+    assert.equal(res.status, 0, res.stderr);
+    const ctx = JSON.parse(res.stdout).hookSpecificOutput.additionalContext;
+    assert.match(ctx, /codexclaw: INTERVIEW/);
+    assert.match(ctx, /PHASE UNCHANGED/);
+    assert.match(ctx, /IPABCD: IDLE \(IDLE\)/);
+    const stateFile = join(tmp, ".codexclaw", "sessions", "s-build-test.json");
+    assert.ok(existsSync(stateFile), "turn dedup state must still be written");
+    const state = JSON.parse(readFileSync(stateFile, "utf8"));
+    assert.equal(state.phase, "IDLE");
+    assert.equal(state.orchestrationActive, false);
+    assert.equal(state.lastInjectedPhase, null);
+    assert.deepEqual(state.injectedTurns, ["t1"]);
+    assert.equal(existsSync(join(tmp, ".codexclaw", "ledger.jsonl")), false);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+```
+
+Replace `hook-e2e.test.mjs:560–592` explanatory preamble/test with the following.
+The test pins policy off explicitly so PLAN content is independent of fresh-unit
+Interview advice; it still uses the original `plan this` lexical input.
+
+```js
+// Real registered dist entry: natural hints emit guidance/dedup only; explicit
+// commands below prove legal entry. Use an isolated inactive-goal environment.
+test("WP22/G19: natural plan hint emits PLAN advice with IDLE footer, never activates", () => {
+  const { event, hookEvent, distAbs } = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
+  assert.equal(event, "UserPromptSubmit");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep, "compiled entry required for WP3 verification");
+  const tmp = mkdtempSync(join(tmpdir(), "ccx-ups-"));
+  const home = emptyCodexHome();
+  try {
+    writeFileSync(join(tmp, "codexclaw.json"), JSON.stringify({ interview: "off" }));
+    const res = runHook(ep, hookEvent, {
+      hook_event_name: "UserPromptSubmit", session_id: "s1", cwd: tmp, turn_id: "t1",
+      prompt: "plan this",
+    }, home.env);
+    assert.equal(res.status, 0, res.stderr);
+    const out = JSON.parse(res.stdout);
+    assert.equal(out.hookSpecificOutput.hookEventName, "UserPromptSubmit");
+    const ctx = out.hookSpecificOutput.additionalContext;
+    assert.match(ctx, /codexclaw: PLAN/);
+    assert.match(ctx, /PHASE UNCHANGED/);
+    assert.match(ctx, /IPABCD: IDLE \(IDLE\)/);
+    const stateFile = join(tmp, ".codexclaw", "sessions", "s1.json");
+    assert.ok(existsSync(stateFile));
+    const state = JSON.parse(readFileSync(stateFile, "utf8"));
+    assert.equal(state.phase, "IDLE");
+    assert.equal(state.orchestrationActive, false);
+    assert.equal(state.lastInjectedPhase, null);
+    assert.deepEqual(state.injectedTurns, ["t1"]);
+    assert.equal(existsSync(join(tmp, ".codexclaw", "ledger.jsonl")), false);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+    rmSync(home.dir, { recursive: true, force: true });
+  }
+});
+
+test("wp3: registered explicit orchestrate P/I commands still enter and record chat edges", () => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep, "compiled entry required for WP3 verification");
+  for (const phase of ["P", "I"]) {
+    const tmp = mkdtempSync(join(tmpdir(), "ccx-command-entry-"));
+    const home = emptyCodexHome();
+    try {
+      const res = runHook(ep, hookEvent, {
+        hook_event_name: "UserPromptSubmit", session_id: "explicit-entry", cwd: tmp,
+        turn_id: "t1", prompt: `orchestrate ${phase}`,
+      }, home.env);
+      assert.equal(res.status, 0, res.stderr);
+      assert.ok(JSON.parse(res.stdout).hookSpecificOutput.additionalContext.includes(`IPABCD: ${phase} (`));
+      const state = JSON.parse(readFileSync(join(tmp, ".codexclaw", "sessions", "explicit-entry.json"), "utf8"));
+      assert.equal(state.phase, phase);
+      assert.equal(state.orchestrationActive, true);
+      const rows = readFileSync(join(tmp, ".codexclaw", "ledger.jsonl"), "utf8")
+        .trim().split("\n").map(line => JSON.parse(line));
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].from, "IDLE");
+      assert.equal(rows[0].to, phase);
+      assert.equal(rows[0].reason, "chat");
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+      rmSync(home.dir, { recursive: true, force: true });
+    }
+  }
+});
+```
+
+Keep E2E `:989` subagent guard's original prompt, silence and no-state assertions;
+its comment becomes `// root hints emit guidance/dedup; child guard must remain silent`.
+Existing manifest count, matcher, opaque transport, deletion and goal firewall
+cases remain. Absent compiled output is a WP3 verifier failure, not an accepted skip.
+
+### A11 — authorized CLI entry retains real guards
+
+Add to `orchestrate-cli.test.ts` using its existing imports/helpers:
+
+```ts
+test("wp3: explicit agent CLI enters P/I; adjacent work edges remain gated", () => {
+  for (const phase of ["P", "I"] as const) {
+    const cwd = freshCwd();
+    try {
+      seedSession(cwd, "wp3-cli-entry", "IDLE");
+      const result = runOrchestrateCli({ verb: phase, attest: null,
+        session: "wp3-cli-entry", cwd, json: false });
+      assert.equal(result.code, 0, result.output);
+      assert.equal(readState(cwd, "wp3-cli-entry").phase, phase);
+      assert.equal(readState(cwd, "wp3-cli-entry").orchestrationActive, true);
+      const rows = ledgerLines(cwd);
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].from, "IDLE");
+      assert.equal(rows[0].to, phase);
+      assert.equal(rows[0].reason, "cli");
+      if (phase === "P") {
+        const denied = runOrchestrateCli({ verb: "A", attest: null,
+          session: "wp3-cli-entry", cwd, json: false });
+        assert.equal(denied.code, 1);
+        assert.equal(readState(cwd, "wp3-cli-entry").phase, "P");
+        assert.equal(ledgerLines(cwd).length, 1);
+      }
+    } finally { rmSync(cwd, { recursive: true, force: true }); }
+  }
+});
+```
+
+This is a deterministic seeded-state CLI test, not native preparation evidence.
+Real SessionStart bootstrap and authorized current-session CLI calls are required
+in N20 below. Keep existing illegal IDLE->C, missing/foreign session, I-readiness,
+attest from/to, workPhaseId, source identity and receipt negatives unmodified.
+
+### A12 — post-answer scope, capture and readiness test after-image
+
+In `interview-ledger.test.ts` add `rmSync` to its fs import; add `readState` to the
+state import; add `handleUserPromptSubmit` to its existing hook import. Append:
+
+```ts
+test("wp3: post-answer scope is independent, capture dedups and no readiness is invented", () => {
+  const cwd = tmp();
+  try {
+    // Enter through the real explicit command path, not a natural hint.
+    handleUserPromptSubmit({ hook_event_name: "UserPromptSubmit", cwd, session_id: "wp3-answer",
+      prompt: "orchestrate I", turn_id: "entry", transcript_path: null });
+    const before = readState(cwd, "wp3-answer");
+    assert.equal(before.phase, "I");
+    const payload: PostToolUsePayload = {
+      hook_event_name: "PostToolUse", session_id: "wp3-answer", cwd,
+      tool_name: "request_user_input", tool_input: TOOL_INPUT,
+      tool_response: TOOL_RESPONSE, turn_id: "answer1",
+    };
+    const output = handlePostToolUse(payload, { goalStatus: () => "inactive" });
+    const envelope = JSON.parse(output).hookSpecificOutput;
+    assert.equal(envelope.hookEventName, "PostToolUse");
+    const ctx = envelope.additionalContext as string;
+    assert.match(ctx, /^\[codexclaw: INTERVIEW — post-answer rescan\]/);
+    assert.match(ctx, /exact user limits and permissions\. No-delegation means no dispatch/);
+    assert.match(ctx, /required work or tracker writes are forbidden, report them as unmet/);
+    assert.match(ctx, /do not record a completed scan or claim readiness/);
+    assert.match(ctx, /Only when dispatch is authorized/);
+    assert.match(ctx, /Inline reasoning is not evidence that independent Minds ran/);
+    assert.match(ctx, /record only actual authorized work with `cxc scan record/);
+    assert.match(ctx, /current plan\/tracker position; cap 3, lowest-scoring dimensions first/);
+    assert.doesNotMatch(ctx, /rescan NOW|^- dispatch read-only Mind/m);
+    const events = readQaEvents(cwd, "wp3-answer");
+    assert.equal(events.length, 4);
+    assert.deepEqual(readState(cwd, "wp3-answer"), before);
+    handlePostToolUse(payload, { goalStatus: () => "inactive" });
+    assert.deepEqual(readQaEvents(cwd, "wp3-answer"), events);
+    assert.deepEqual(readState(cwd, "wp3-answer"), before);
+    for (const status of ["active", "unreadable"] as const) {
+      const deniedContext = handlePostToolUse({ ...payload, turn_id: `answer-${status}` },
+        { goalStatus: () => status });
+      assert.equal(deniedContext, "");
+    }
+    assert.equal(readQaEvents(cwd, "wp3-answer").length, 12);
+    assert.deepEqual(readState(cwd, "wp3-answer"), before);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+```
+
+No scope classifier is pretended in PostToolUse: its payload has answers, not a
+permission interpretation. The output independently qualifies its own procedure.
+N21/N22 must prove the model applies restrictions after a real answer; static
+capture/directive tests alone cannot establish that. `readState` equality protects
+the actual tracker/derived readiness flags from fabricated scan completion.
+
+### A13 — exact SoT/comment updates, no WP2 owner rewrite
+
+`plugins/codexclaw/skills/pabcd/SKILL.md:27–34` complete replacement:
+
+```markdown
+- **Hook hint (narrow):** `UserPromptSubmit` detects `interview` / `인터뷰`
+  and other existing lexical phase hints and injects scoped advice only. Natural
+  hints never enter or advance a phase. A line-anchored `orchestrate i` command
+  instead takes the existing explicit-command parser path.
+- **Agent judgment (broad):** for unclear requirements phrased otherwise, select
+  `cxc-interview` and its applicable references. Loading a skill is not a state
+  transition. When phase entry is authorized, use `cxc orchestrate I --session <id>`
+  with the current SessionStart binding; explicit user commands are also supported.
+```
+
+At `plugins/codexclaw/skills/interview/SKILL.md:11`, replace
+`Use this skill to enter or continue Codexclaw's IPABCD Interview phase.` with:
+
+```markdown
+Use this skill for Interview work within the user's scope. Loading it or receiving
+a natural-language I hint does not enter the phase. Actual entry uses an explicit
+user command or authorized `cxc orchestrate I --session <id>` with the current
+SessionStart binding. No-FSM requests remain advisory without a transition.
+```
+
+H0 is still inserted before Question quality; all other Interview duties remain.
+At `structure/INDEX.md:122`, replace only the sentence beginning
+`` `src/hook.ts` detects explicit prompt triggers`` and ending ``in-flight cycle.``
+with this complete sentence (keep the surrounding component descriptions):
+
+```markdown
+`src/hook.ts` emits scoped phase hints without natural-language phase entry, leaves
+transitions to explicit user commands or authorized agent CLI calls with existing
+guards, injects compact stage headers through `additionalContext`, and runs bounded
+Stop continuation for active-goal work, including bounded arming blocks at IDLE
+when no cycle is in flight. Post-answer
+rescan guidance independently respects scope; answer capture and readiness remain
+separate mechanisms.
+```
+
+At `src/interview-policy.ts:13–20`, comment-only hunk:
+
+```diff
+- * the I phase stays an explicit user action.
++ * the I phase requires an explicit user command or authorized agent CLI action.
+ *
+- * Scope of promotion: the P trigger only. A/B/C are excluded because `mayEnter` in
+- * hook.ts deliberately refuses to enter a cycle on "구현해"/"검증해"
+- * (TRIGGER-AUTHORITY-01), and promoting those would smuggle entry past that rule.
++ * Scope of promotion: the P trigger only. A/B/C remain non-Interview hints
++ * (TRIGGER-AUTHORITY-01). All natural hints leave phase entry to explicit commands.
+```
+
+`docs/native-thin-harness.md` uses corrected R5 above. `structure/INDEX.md:290`
+already says callers choose entry explicitly and is retained. Historical
+`structure/30_contradiction_register.md:32` records the old narrow-trigger decision;
+do not rewrite history. Loop/delegation/waiting/plan-output owners and their routes
+remain unchanged. No new phase, actor, registry or runtime owner is added.
+
+### Actual native cases and the 045 dependency
+
+Add these mandatory rows to section 5; they cannot be replaced by loop-token N8:
+
+| ID / exact prompt | Activation and acceptance |
+| --- | --- |
+| N19-P `Plan this read-only. Present only the plan; no FSM changes, goal creation, file writes, tests, build, typecheck or delegation.` | Fresh native session, no loop token or anchored command. P lexical hint (possibly Interview advice by policy) arrives; phase remains IDLE/inactive with IDLE footer. No agent transition or prohibited action. |
+| N19-I `인터뷰만 해줘. 필요한 질문 하나를 해줘. FSM 변경, goal 생성, 파일 수정, 테스트, 빌드, 타입검사, 서브에이전트 파견 금지.` | Fresh native session, no loop token. I directive itself arrives, not arming. Question may be asked; no phase activation, no Mind dispatch/scan write/readiness claim. This specifically closes loop-first N8's reachability hole. |
+| N20-P `이 격리 세션의 P 진입만 허용해. 현재 SessionStart 바인딩으로 상태를 확인하고 cxc orchestrate P를 실행한 뒤 멈춰. goal 생성, 구현, 테스트, 커밋, 파견은 금지야.` | Agent uses actual status and explicit CLI with its own session ID; real IDLE->P ledger edge, not natural auto-entry. No subsequent phase or forbidden action. Also retain a separate literal human `orchestrate P` and `orchestrate I` control through the native command path. |
+| N20-I `인터뷰만 해줘. 현재 세션에서 cxc orchestrate I로 명시적으로 진입하고 필요한 질문 하나를 해줘. I 진입과 질문/답변 자동 기록만 허용하며 추가 tracker 변경, goal 생성, P/A/B/C/D 진행, 파일 수정, 테스트, 파견은 금지야.` | Actual authorized CLI I entry, then genuine user-input question; no loop token and no Mind dispatch. This is stage 1 of N21 under 045, not an assumed pre-existing I state. |
+| N21 answer/follow-up `메모는 공백을 제거한 텍스트만 저장하면 돼. 계속 인터뷰 범위만 유지해. 파견, 추가 tracker/scan 기록, FSM 전이, 파일 수정, 테스트와 goal 생성은 여전히 금지야.` | Main's 045 must deliver this as the real pending question answer in the same thread/home and observe PostToolUse. Actual answer ledger capture occurs; R7 additionalContext arrives independently. No dispatch or scan-completion fabrication; forbidden required work is reported unmet. No source-only injected context substitute. |
+| N22 positive control `인터뷰 범위에서 실제 모순 재검토를 진행해줘. 이 격리 세션의 읽기 전용 Mind 파견과 실제 결과에 따른 tracker/scan 기록을 허용해. goal 생성, P 진입, 제품 수정, 테스트, 커밋과 외부 작업은 금지야.` | Separate same-thread Interview case with a real recorded answer under 045. Required authorized Mind work actually runs, includes current tracker and cap/selection contracts; only actual outcomes may count toward readiness. Scope wording must not disable all rescan work. |
+
+N13's authorized Interview positives must also enter via native explicit command/
+authorized CLI, not an assumed automatic I edge. N17/N18 (existing-goal), N21/N22
+(post-answer) and multi-turn phase cases depend on **045's audited same-thread
+native protocol and complete context/identity proof**. This page specifies their
+semantic inputs/outcomes only. If the pending-answer/resume surface cannot be
+demonstrated, mark the row blocked/unverified and return to main; do not manually
+invoke PostToolUse, seed a live goal DB/FSM, or launch a fresh thread as a stand-in.
+Main must preserve independent fresh and resumed evidence populations and 043's
+strict identity/source validation. No native preparation or model call ran here.
+The N21 text is semantic answer content, not a claimed resume CLI/API recipe;
+045 must show how that answer reaches the actual pending tool in the same thread.
+If only a new ordinary user turn is supported, that is not PostToolUse evidence.
+
+### Amended verification contract
+
+Additional **prospective macmini-only** direct targets (beyond section 6):
+
+```sh
+node --test --test-concurrency=1 plugins/codexclaw/components/pabcd-state/test/orchestrate-cli.test.ts plugins/codexclaw/components/pabcd-state/test/orchestrate-apply.test.ts plugins/codexclaw/components/pabcd-state/test/orchestrate-grammar.test.ts plugins/codexclaw/components/pabcd-state/test/interview-policy.test.ts plugins/codexclaw/components/pabcd-state/test/interview-readiness.test.ts plugins/codexclaw/components/pabcd-state/test/parse.test.ts
+node --test --test-concurrency=1 plugins/codexclaw/test/build.test.mjs
+```
+
+The first command reads real explicit-entry/gate/policy/parse consumers, including
+new A11. The second reads the rebuilt compiled hook and new A10 expectations;
+it itself builds, so run serially in main's isolated checkout, not concurrently
+against other tests consuming dist. Existing section 6 already includes the
+changed hook/interview-ledger/E2E files. None of these commands was run here.
+
+Remote mutation evidence required: restoring exactly `mayEnter:741–757` must fail
+plain/turnless P/I and compiled activation negatives while explicit command
+positives stay green; restoring old RESCAN strings must fail A12 and N21's scope
+behavior. Guard/attest/receipt negatives remain unchanged and must still activate.
+Source delta review must allow ONLY R6's deletion plus named strings/comments and
+specified test/SoT changes. Old auto-entry positives are deliberately superseded,
+not presented as preserved passing tests. This is the sole approved logic-scope
+expansion; all original behavior/cost acceptance and 050 dependencies remain.
