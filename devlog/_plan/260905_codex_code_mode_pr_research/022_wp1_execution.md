@@ -25,3 +25,15 @@ Remote source: `/Users/junny/codexclaw-probes/01a0702d-c493-7510-801f-7d8772a268
 Recorder worker source review found that an initial doctor could mutate identity before inference. Main extended the already approved before/after-candidate-execution invariant to this boundary: validate immediately after initial doctor, before Codex spawn. `021` was amended before live execution, and the test worker must prove the fake inference marker remains absent under doctor-induced drift. Goalplan steering records `20260905-wp1-preflight-doctor-drift`.
 
 The recorder's platform check is described as Darwin support only; physical macmini identity remains an operator-verified condition. No claim that checking process.platform proves the hardware.
+
+## First complete remote execution
+
+The new evaluator/recorder suite plus benchmark cwd/report/comparison suites ran on macmini with exit 0: 100 tests passed, 0 failed, 0 skipped. Artifact: remote experiment root `wp1-tests-first.log`. This includes compiled V1/V2 spawn activation, worktree and completion denials, initial/postflight payload drift, controlled executables, fake subprocess lifecycle and deterministic evidence cases. It does not replace a real installed-candidate model run or independent implementation review.
+
+The single new test file is 1,012 lines because the approved initial write scope kept all deterministic fixtures in one owner. This is test-only density, not production-module growth; split by recorder/analysis/compiled-hook responsibilities before final maintenance handoff if warranted after integration proof, preserving every case.
+
+## Native trust prerequisite
+
+Read-only diagnosis of the existing macmini CodexClaw installation found 23 declared synchronous hooks, 22 trusted. `session-start-healing-declared-features` has no native hook-state section or trusted hash. The source global config is unchanged. An isolated baseline Codex home has been prepared with a loopback OCX provider and no copied credentials, but no hook-trust bypass or bootstrap grant has been applied.
+
+The recorder deliberately requires the selected hook-trust diagnostic to pass. Do not relax that check, silently omit the handler, or grant trust by copying a blanket state. Before live installed-candidate execution, obtain direction for normal trust registration of the reviewed CodexClaw hooks in the probe-only home. Existing approval/sandbox bypass is a separate permission and remains the fixed probe condition.
