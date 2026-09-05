@@ -59,7 +59,7 @@ the failing delta → re-verify.
   not hook-enforced). Lineage: jawcode devlog `260615_pabcd_synthesis_review_loops`
   (design-note lineage, not production-validated). Reviewer lifecycle across rounds is
   owned by `structure/20_pabcd_dispatch_doctrine.md` §3 (DISPATCH-ACTOR-01 /
-  DISPATCH-RETIRE-01).
+  DISPATCH-RETIRE-01; repository-only provenance, not an installed prerequisite).
 
 ### §11.4 Loop archetype by problem type (DEFAULT, LOOP-ARCHETYPE-01)
 

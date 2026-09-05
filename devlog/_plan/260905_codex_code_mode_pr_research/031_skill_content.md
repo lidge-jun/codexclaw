@@ -51,6 +51,12 @@ these amendment coordinates (all other BEFORE coordinates remain 065fa1e8):
 
 ## 1. Complete replacement: S/loop/SKILL.md
 
+Later WP2 native-behavior evidence requires the narrow, independently audited
+[034 repair amendment](034_wp2_behavior_review.md): plan-output ownership,
+complete-read recovery and explicit repository-only provenance. Its exact content
+and specified replacements supersede the corresponding recipes below, with no
+other source move or runtime change.
+
 Replace current lines 1–488 with exactly:
 
 ~~~~markdown

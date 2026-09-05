@@ -11,8 +11,10 @@ Pass the concrete plan and scope; never let a subagent reconstruct the plan.
 Subagents return evidence and unresolved judgments; the main session decides and
 integrates. Dispatch only specifiable work whose coordination cost is justified
 (DISPATCH-ECONOMY-01).
-Full lifecycle, economy, isolation, skill transport, and topology rules:
-`structure/20_pabcd_dispatch_doctrine.md` §3.
+Repository-only provenance for lifecycle, economy, isolation, skill transport and
+topology: `structure/20_pabcd_dispatch_doctrine.md` §3. This is not an installed
+prerequisite; do not assume the path exists inside the plugin payload. An explicitly
+required task source still must be loaded or reported missing before its governed action.
 
 **Lifecycle contract.** If `spawn_agent` is not visible, use `tool_search` for it before
 concluding delegation is unavailable. Fan out independent lanes before waiting, and
@@ -43,4 +45,4 @@ Dispatching phase-N+1 work while phase N is building is default-OFF. Only
 phase-invariant external research that reads no repository state may overlap phases.
 Mark its results `candidate — unverified`, then revalidate them against the landed tree
 at the next P; discard them when the phase map changes. See DISPATCH-ECONOMY-01 in
-`structure/20_pabcd_dispatch_doctrine.md` §3.
+`structure/20_pabcd_dispatch_doctrine.md` §3 (repository-only provenance, not an installed prerequisite).

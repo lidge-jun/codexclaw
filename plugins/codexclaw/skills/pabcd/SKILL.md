@@ -64,7 +64,7 @@ link is a conditional routing edge, not a command to preload the entire graph.
 | Phase / trigger | Mandatory owner before work |
 |---|---|
 | I | cxc-interview; no active host goal |
-| P, including plan-only | [Plan phase](references/phase-plan.md) |
+| P, including plan-only | [Plan phase](references/phase-plan.md); C2+ plans also read [Plan output](references/plan-output.md) |
 | A, if authorized | [Audit phase](references/phase-audit.md) |
 | C | [Check phase](references/phase-check.md) |
 | P/A specifying render or conditional-path verification | [Check phase](references/phase-check.md), to define reachable activation and observable evidence |

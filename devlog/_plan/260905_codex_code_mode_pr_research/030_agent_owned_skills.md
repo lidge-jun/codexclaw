@@ -77,7 +77,7 @@ wp2 checks proposed skill/ref links against the materialized candidate tree.
 |---|---|---|
 | A | MODIFY S/dev/references/skill-ownership.md | Add explicit owner rows and dev fast-path precedence before relocating callers |
 | B | NEW S/dev/references/methodology-overlays.md; S/dev/references/development-practice.md | Exact source moves in 031 §3 |
-| B | NEW S/pabcd/references/phase-control.md; phase-plan.md; phase-audit.md; phase-check.md; implementation-units.md; optimization.md; delegation.md | Each basename after the first is in the same S/pabcd/references directory; exact ranges in 031 §4 |
+| B | NEW S/pabcd/references/phase-control.md; phase-plan.md; phase-audit.md; phase-check.md; plan-output.md; implementation-units.md; optimization.md; delegation.md | Each basename after the first is in the same S/pabcd/references directory; exact ranges in 031 §4 and034's reviewed output-contract amendment |
 | B | NEW S/loop/references/runtime-lifecycle.md; S/loop/references/durable-goalplan.md; S/loop/references/waiting.md | Exact constructions in 031 §2 plus WP2 review amendment; no extra runtime/schema |
 | B | MODIFY S/pabcd/references/loop-engineering.md; S/loop/references/divergence-tiers.md | Keep existing owners; move details and fix existing HOTL Interview-return contradiction |
 | C | MODIFY S/dev/SKILL.md; S/pabcd/SKILL.md; S/loop/SKILL.md | Replace entrypoints with 031 content/splices; no mandatory global reloading of all new refs |
@@ -124,7 +124,7 @@ recursive loader or forced chain of discovery commands.
 | C0 single-file typo | dev + matching surface router SKILL if applicable | practice, overlays, pabcd, loop, new unit record |
 | C1 local behavior | same, existing-unit record only when one exists | full method ceremony and blanket specialist refs |
 | C2 ordinary implementation | dev + practice + matching owners; CRUD reference if a conventional slice | all overlays, loop/HOTL, optimization/divergence |
-| P-only planning | dev + pabcd + phase-plan + applicable unit/scaffolding refs | runtime-lifecycle, goalplan, phase-audit, delegation absent authorization |
+| P-only planning | dev + pabcd + phase-plan + plan-output for C2+ + applicable unit/scaffolding refs | runtime-lifecycle, goalplan, phase-audit, delegation absent authorization |
 | P names a conditional/render check | previous row + phase-check | implementation or actual verifier execution when forbidden |
 | New HOTL single-cycle entry | loop + dev + pabcd + runtime-lifecycle + durable-goalplan + phase-control + current phase refs | optimization, divergence, unused later-phase details |
 | HOTL multi-cycle P | previous row + implementation-units + applicable scaffold routine | A/C details except planned conditional/render proof |

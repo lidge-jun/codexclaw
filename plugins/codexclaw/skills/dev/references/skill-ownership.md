@@ -31,6 +31,7 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Loop intent, docs-first activation, scoped continuation | loop SKILL.md | pabcd, goalplan |
 | Goalplan schema and runtime lifecycle | loop references/durable-goalplan.md and references/runtime-lifecycle.md respectively | pabcd, goalplan |
 | Phase control and phase work | pabcd references/phase-control.md and phase-plan/audit/check.md respectively | loop, orchestrate |
+| C2+ P-phase loop-spec output fields | pabcd references/plan-output.md | pabcd P router, phase-plan |
 | Repair and optimization method | pabcd references/loop-engineering.md and optimization.md respectively | loop |
 | PABCD workflow | `pabcd` | — |
 | Anti-slop output | `dev` §Family Invariants | all `dev-*` |

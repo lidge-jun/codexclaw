@@ -35,7 +35,9 @@ conditions. A plugin hook accepting a call is not proof that the call is authori
 The agent selects owners from the task, work class, risk, and current phase.
 Read each selected SKILL.md completely; then read only references whose conditions
 apply. Resolve relative links from this skill's directory, not the working directory.
-Batch known independent reads. Reuse content still present in context; after context
+Batch known independent reads within both nested-tool and outer code-mode output
+budgets. If output is truncated, recover the missing content before the governed
+action; command exit0 is not a complete read. Reuse content still present in context; after context
 loss reload the applicable owner, not the whole skill family.
 Do not recursively load every linked file. A missing mandatory reference is a
 preflight failure: resolve it or report the limitation before the governed action.

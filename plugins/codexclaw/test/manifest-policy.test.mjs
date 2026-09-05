@@ -128,6 +128,7 @@ test("selected router references resolve to real owner files", () => {
     pabcd: [
       "references/phase-control.md",
       "references/phase-plan.md",
+      "references/plan-output.md",
       "references/phase-audit.md",
       "references/phase-check.md",
       "references/implementation-units.md",

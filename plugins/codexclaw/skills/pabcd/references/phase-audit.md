@@ -15,4 +15,5 @@
   passing the synthesis plus a change-diff summary so the reviewer keeps its context.
   The final C adversarial gate (or any contaminated reviewer) gets a fresh reviewer or
   a direct independent audit instead. Normative lifecycle rules: DISPATCH-ACTOR-01 /
-  DISPATCH-RETIRE-01 in `structure/20_pabcd_dispatch_doctrine.md` §3.
+  DISPATCH-RETIRE-01 in `structure/20_pabcd_dispatch_doctrine.md` §3
+  (repository-only provenance, not an installed prerequisite).

@@ -110,6 +110,12 @@ precondition for writing code there. Skipping it is a STRICT violation (dev §0.
 same severity as a broken build. When a change spans multiple surfaces, read each
 matching router first.
 
+For required full-file reads, bound batches by both the nested read tool's output
+budget and the enclosing code-mode output budget. A truncated result is incomplete:
+read the missing portions before the governed action. A successful command exit
+does not prove that all instructions reached the model. Keep the C0/C1 scope
+exceptions; this is not a request to load every linked reference.
+
 | Change surface | Primary router | Also load |
 |---------------|----------------|-----------|
 | Backend / API / server | `dev-backend` | `dev-security` for auth/input |
