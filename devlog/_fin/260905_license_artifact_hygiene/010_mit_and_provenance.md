@@ -40,3 +40,18 @@ Focused packaging, ast-grep, transcript and dist-freshness tests; content gate;
 full-byte upstream license comparison; no executable-code delta beyond comments;
 no repository-wide local suite. Independent review is technical scope/provenance
 verification, not a guarantee about every historical copyright or trademark issue.
+
+## Completed verification
+
+- Implementation `8895582921f6a793761a7f5e092c93a84235d219` restores MIT across
+  both distribution boundaries and all public metadata/README surfaces.
+- Focused checks: **24 passed, 0 failed/skipped**; build **156 files**, gate and
+  `git diff --check` passed. Rebuilt runtime output differs only in attribution comments.
+- Restored upstream LICENSE exactly matches the pinned source:
+  SHA-256 `b083425948376611de9b92b0aeb7377e604505756ea427e541a34d9b030d4dc1`.
+  The packaging test pins this grant and checks that it is tracked/in the payload.
+- Root/payload LICENSE and NOTICE copies match. Dependency lock metadata changed
+  only at the project license field; existing RepoMapper/Aider files are unchanged.
+- Independent reviewer Carver (`01a0716c-4608-7041-a492-dd3e90e402a0`) confirmed
+  the scoped notices against historical MIT sources, retained port provenance and
+  lack of any blanket independence claim; reran the 24 tests. **VERDICT: PASS**.
