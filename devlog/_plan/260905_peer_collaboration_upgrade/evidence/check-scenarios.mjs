@@ -24,3 +24,11 @@ for (const row of guided) {
 const kinds = (rows, id) => rows.find((r) => r.id === id).actions.map((a) => a.kind);
 console.log("PASS 12 guided scenario action boundaries (simulation; semantic review required)");
 console.log("ACK baseline=" + kinds(baseline, "ack").join(",") + "; guided=" + kinds(guided, "ack").join(","));
+const unsafe = read("guided-unsafe.json");
+assert.equal(unsafe.id, read("unsafe-case.json").id);
+assert.ok(!unsafe.actions.some((a) => ["send", "execute"].includes(a.kind)), "known-unsafe wake");
+assert.ok(unsafe.actions.some((a) => a.kind === "continue"), "preserve unrelated progress");
+const followup = read("guided-followup.json");
+assert.equal(followup.newEvidence.revision, "API revision3");
+assert.ok(!followup.actions.some((a) => ["send", "execute"].includes(a.kind)), "follow-up should record/specify, not execute");
+console.log("PASS known-unsafe wake regression and follow-up provenance; 13 scenario boundaries");
