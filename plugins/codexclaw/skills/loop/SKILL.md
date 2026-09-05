@@ -51,6 +51,7 @@ preflight failure: resolve it or report the limitation before the governed actio
 | Score optimization, plateau, or mechanism comparison | [Optimization rules](../pabcd/references/optimization.md) and loop engineering |
 | Deliberate divergence/candidate comparison | [Divergence tiers](references/divergence-tiers.md) |
 | Dispatch is authorized and needed | [Delegation](../pabcd/references/delegation.md) |
+| Waiting on dispatched work or long external processes, HITL or HOTL | [Waiting on work](references/waiting.md) |
 
 The installed skill listing and owner routers are the discovery path. cxc skill
 search searches external catalogs; it is not the native installed-skill loader.

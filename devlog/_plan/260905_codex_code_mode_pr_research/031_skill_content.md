@@ -21,6 +21,34 @@ The full loop replacement below is proposed product content, not instructions to
 activate this planning session. wp2 is a temporary candidate until wp3 aligns the
 runtime arming text and the integrated activation probes pass.
 
+### WP2 review amendment: mode-neutral waiting owner
+
+Independent reviewer Boole found that the approved relocation put
+LOOP-WAIT-VISIBILITY-01 behind a HOTL-only runtime route, omitting it for HITL
+review dispatch. Main accepts this as a preservation gap in the plan. This
+amendment supersedes the wait-block placement in section2, not the rule itself.
+
+Use the materialized candidate at 4f25dac7033263871a0aafe15472bd72ad862715 for
+these amendment coordinates (all other BEFORE coordinates remain 065fa1e8):
+
+- NEW S/loop/references/waiting.md: concatenate heading `# Waiting on work`,
+  one sentence stating that this applies while awaiting dispatched work or long
+  external processes in either HITL or HOTL, and the unchanged runtime-lifecycle
+  lines61–77. Do not paraphrase its retirement/same-agent-retry rule.
+- Replace runtime-lifecycle lines61–77 with a direct Markdown link to waiting.md
+  instructing the reader to load it when waiting; no duplicate canonical body.
+- Add a loop SKILL reading-table row selecting references/waiting.md whenever
+  waiting on dispatched work or long external processes in either mode.
+- Add a pre-wait link in pabcd/references/delegation.md to
+  ../../loop/references/waiting.md. It does not authorize an otherwise forbidden
+  dispatch, wait, or mode transition.
+- Add the loop waiting route to the existing selected-router contract test, and
+  check the actual delegation-to-waiting link/target. Keep consumer tests intact.
+- Verify unchanged rule bytes against4f25dac, direct reachability from HITL
+  delegation, negative route controls and the same remote118-test selection.
+  Fold back to the same reviewer before acceptance; model waiting behavior is
+  still not proven by source reachability alone.
+
 ## 1. Complete replacement: S/loop/SKILL.md
 
 Replace current lines 1–488 with exactly:

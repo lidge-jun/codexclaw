@@ -18,6 +18,10 @@ Full lifecycle, economy, isolation, skill transport, and topology rules:
 concluding delegation is unavailable. Fan out independent lanes before waiting, and
 reuse the same reviewer throughout the A loop.
 
+Before waiting on dispatched work, read the mode-neutral
+[Waiting on work](../../loop/references/waiting.md) rules in either HITL or HOTL.
+This route does not authorize an otherwise forbidden dispatch, wait, or mode transition.
+
 - **V1:** `wait_agent` returns final status plus content; `send_input` reuses an agent;
   `close_agent` retires it and `resume_agent` restores it.
 - **V2:** `wait_agent` is a no-content mailbox; `followup_task` triggers more work;

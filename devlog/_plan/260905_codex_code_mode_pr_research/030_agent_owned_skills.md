@@ -78,7 +78,7 @@ wp2 checks proposed skill/ref links against the materialized candidate tree.
 | A | MODIFY S/dev/references/skill-ownership.md | Add explicit owner rows and dev fast-path precedence before relocating callers |
 | B | NEW S/dev/references/methodology-overlays.md; S/dev/references/development-practice.md | Exact source moves in 031 §3 |
 | B | NEW S/pabcd/references/phase-control.md; phase-plan.md; phase-audit.md; phase-check.md; implementation-units.md; optimization.md; delegation.md | Each basename after the first is in the same S/pabcd/references directory; exact ranges in 031 §4 |
-| B | NEW S/loop/references/runtime-lifecycle.md; S/loop/references/durable-goalplan.md | Exact constructions in 031 §2, no extra runtime/schema |
+| B | NEW S/loop/references/runtime-lifecycle.md; S/loop/references/durable-goalplan.md; S/loop/references/waiting.md | Exact constructions in 031 §2 plus WP2 review amendment; no extra runtime/schema |
 | B | MODIFY S/pabcd/references/loop-engineering.md; S/loop/references/divergence-tiers.md | Keep existing owners; move details and fix existing HOTL Interview-return contradiction |
 | C | MODIFY S/dev/SKILL.md; S/pabcd/SKILL.md; S/loop/SKILL.md | Replace entrypoints with 031 content/splices; no mandatory global reloading of all new refs |
 | C | MODIFY S/dev/agents/openai.yaml; S/pabcd/agents/openai.yaml; S/loop/agents/openai.yaml | Description only, preserve policy booleans and names |
@@ -129,6 +129,7 @@ recursive loader or forced chain of discovery commands.
 | New HOTL single-cycle entry | loop + dev + pabcd + runtime-lifecycle + durable-goalplan + phase-control + current phase refs | optimization, divergence, unused later-phase details |
 | HOTL multi-cycle P | previous row + implementation-units + applicable scaffold routine | A/C details except planned conditional/render proof |
 | A or reviewer FAIL | phase-audit + applicable loop-engineering/delegation | unrelated discovery/candidate recipes |
+| Waiting on delegated work or long external work in HITL or HOTL | waiting reference, linked directly from loop and delegation | HOTL setup/Stop details merely to discover wait rules |
 | C | phase-check + relevant verification owners | unrelated overlays or finished P/A content reread merely because it is linked |
 | Ordinary optimization | optimization + loop-engineering; divergence-tiers only if selected | all unrelated surface skills |
 

@@ -140,6 +140,7 @@ test("selected router references resolve to real owner files", () => {
       "../pabcd/SKILL.md",
       "references/runtime-lifecycle.md",
       "references/durable-goalplan.md",
+      "references/waiting.md",
       "../pabcd/references/implementation-units.md",
       "../pabcd/references/loop-engineering.md",
       "../pabcd/references/optimization.md",
@@ -157,6 +158,12 @@ test("selected router references resolve to real owner files", () => {
     }
   }
   const dev = readFileSync(join(skillsDir, "dev", "SKILL.md"), "utf8");
+  const delegation = readFileSync(join(skillsDir, "pabcd", "references", "delegation.md"), "utf8");
+  const waitRef = "../../loop/references/waiting.md";
+  assert.ok(delegation.includes("](" + waitRef + ")"), "delegation missing mode-neutral wait route");
+  const waitTarget = resolve(skillsDir, "pabcd", "references", waitRef);
+  assert.ok(existsSync(waitTarget), "delegation missing wait target");
+  assert.ok(readFileSync(waitTarget, "utf8").trim().length > 0, "empty wait target");
   assert.ok(dev.includes("references/skill-catalog.md"));
   assert.ok(existsSync(join(skillsDir, "dev", "references", "skill-catalog.md")));
 });

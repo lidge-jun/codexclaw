@@ -44,5 +44,22 @@ Node v22.22.0. No local tests, builds or typecheck were run.
 - Inventory exit0:28 skills,23 hooks,8 components. Gate exit0 with reference
   scanning enabled (wp2-inventory.log, wp2-gate.log).
 
-Behavioral and loaded-path trials, independent verdict, fresh C receipt and WP2
-closure remain pending. Static passes do not prove that an agent follows a rule.
+## Review fold-back and mode-neutral waiting
+
+Boole found one preservation gap in the approved recipe: the wait/retirement rule
+was routed only through HOTL runtime details, omitting HITL reviewer waits. Main
+amended030/031 before repair, moved the exact rule to a new waiting.md module,
+and linked it from loop and delegation for either mode. The same reviewer verified
+byte equality and direct paths and returned PASS. More references here preserve
+modularity and applicable rules without loading unrelated HOTL setup.
+
+Remote rerun after the correction:118/0/no-skips, gate0, inventory0
+(wp2-suite-waiting.log). Isolated route controls pass: unchanged fixture0;
+removed route1; renamed target1; empty target1, each with the expected assertion
+(wp2-route-mutations-v2.log). The first mutation harness attempt removed only one
+of two equivalent links; the surviving route correctly kept the test green. The
+corrected mutation removes all links. Retain that failed harness attempt as
+wp2-route-mutations.log, not as evidence that a missing route passed.
+
+Behavioral and loaded-path trials, fresh C receipt and WP2 closure remain pending.
+Static passes and review do not prove that an agent follows a rule.
