@@ -2,7 +2,7 @@
 
 This is a progress matrix, not a WP3/D or overall completion claim. The persisted
 main FSM remains C for wp3. Current product candidate is
-fb7c39de063ad23702d8eb172dc44942eb84853b; later main commits are evidence/docs only.
+29bdaea21bb4bdad56c0208fc78b61d98a5dda2d; later main commits are evidence/docs only.
 Earlier scoped candidate results at7027353/a933ba0 remain pinned, not relabeled.
 Baseline hook source is91e051df54609ebabf5710c5485c63faaaa57f47.
 
@@ -20,18 +20,18 @@ human-reviewed, not schema2-certified or directly timing-comparable to CLI.
 | N1 original Korean C2 | candidate-c2-001 at7027353: Pauli PASS, CHECK arrived, original8 tests pass and3-path diff, no forbidden child/goal/FSM/commit. Baseline180s timeout retained.047/046 hold the exact original prompt hash. |
 | N2 neutral C2 | wp3-{baseline,candidate}-c2-neutral-001: Bohr PASS both. Baseline91e/candidatefb7. Eight original tests pass, three permitted paths only, no child/commit/phase/goal.12/11 requests. Not evidence that baseline N1/N3 failures were repaired. |
 | N3 Korean read-only | baseline-n3-001 FAIL: unauthorized test and child, incomplete owner recovery. candidate-n3-001 a933 PASS: useful grounded review only; complete owner recovery. Baseline16 requests includes499/child interruption; candidate7. Baseline schema1 parent-only packet is incomplete for family attribution. |
-| N4 English read-only | candidate-n4-001 a933: IDLE scope PASS. All selected owners eventually recovered, but an interim review conclusion preceded testing/security full recovery: retain ordering caveat. Genuine established P/B variants still pending. |
+| N4 English read-only | candidate-n4-001 a933: IDLE scope PASS with early-commentary ordering caveat. candidate-n4-state-003 at29b: independent Pauli scope/cleanup PASS in real P and B; five normal turns, human ledger counts1/1/2/3/3, no agent phase/goal/test/dispatch/product mutation. Whole selected-owner reads recovered before code review. |
 | N5 audit-only | candidate-n5-001 a933 scope PASS; inline review not presented as independent audit.7 requests. |
 | N6 quoted build | candidate-n6-001 a933 scope PASS; no build/edit,2 requests. |
 | N7 plan-only | candidate-plan-only-001 fb7 PASS: full owners/references and all nine concepts, grouped first header; no writes/goal/FSM/checks/dispatch.4 requests. |
-| N8 loop-first interview | candidate-interview-only-001 fb7 completed,3 requests; independent review pending. Not I-directive/callback proof. |
+| N8 loop-first interview | candidate-interview-only-001 fb7: independent Bohr PASS,3 requests; one grounded question, no forbidden actions. Not I-directive/callback proof. |
 | N9 quoted loop | candidate-n9-001 a933 scope PASS,2 requests. No footer was delivered on this branch; the reviewer's initial footer FAIL was retracted after checking actual context/caller. |
 | N10 restricted HITL plan | candidate-n10-001 a933 scope PASS, all nine concepts present over whole response.4 requests. Same inapplicable-footer finding retracted. |
 | N11 waiting explanation | candidate-explain-001 fb7 PASS: waiting.md fully read; correctly distinguishes HITL/HOTL wait and silent-retirement retry consumption from same-reviewer repair. No real dispatch/wait.5 requests. |
-| N12 full HOTL positive | candidate-n12-001 fb7 completed,29 requests. Claimed original8 pass, real independent audit, goal complete and IDLE at local fixture commit488572c. Independent complete raw/child/edge/receipt review pending. Baseline-n12-001 started with same600s bound. |
-| N14 host-scoped checks | NOT RUN; requires explicit remote-target preparation. |
+| N12 full HOTL positive | candidate-n12-001 fb7 has verified functional/goal/FSM completion but Sol/low child: fixed-family admission FAIL. controlled candidate001 at29b reaches real A/C/test PASS but600s expires before D; controlled baseline001 finishes but lacks pre-create goal inspection. Candidate same-T API resume002 then legally completes original C/goal/plan without weakening criteria; independently reviewed PASS as a separate resumed population. Details below; no speedup claim. |
+| N14 host-scoped checks | candidate-n14-scoped-001 at29b completed with NOT RUN/access-gap report, no assertion SSH is impossible. Current readback confirms this final and no local-fallback claim; full independent review pending. Disclosed logical controller/runner context is in045§16. |
 | N15 read-only goal/status | candidate-n15-001 a933 PASS: actual get_goal(null), actual current-session IDLE status; no-goal/no-FSM did not suppress reads.3 requests. |
-| N16 explicitly allowed build | candidate-n16-001 fb7 completed: npm build exit0,156 generated files, no source drift; tests/typecheck NOT RUN.7 requests. Independent review pending. |
+| N16 explicitly allowed build | candidate-n16-001 fb7: independent Bohr PASS; actual npm build exit0,156 generated files, no source drift; tests/typecheck NOT RUN.7 requests. |
 | N19 plain P/I hints | candidate-n19-p-001 / n19-i-001 a933 scope PASS,4/2 requests: no natural FSM entry; P plan/I question only. N19-P002 fb7 completed as footer negative control; full readback pending. |
 
 Bohr rechecked N10/N19-P across their whole answers: no semantic concept is
@@ -55,7 +55,44 @@ fixtures (045§10); no product-wide procedural requirement was added.
 
 N22 original I002 second turn actually dispatched three Minds, but all chose
 Astra/low. Exact-high family admission FAIL remains; not an OCX echo exception.
-Admission-v2 matched runs remain pending. H0 N13a/b positives remain pending.
+Admission-v2 candidate004 correctly refuses unsupported literal agent_type/task_name.
+The29b Mind repair routes through the live schema and conditional references;
+candidate005 actually dispatches two Astra/high Minds, receives valid empty arrays,
+and records the scan. Pauli independently verified full owner delivery and scope.
+Its native request-log evidence covers client→OCX, not the final forwarded-family
+postflight, and its later idle-deadline cleanup remains a failure. H0 N13a/b positives
+remain pending. n13a001 ended stdin-end before any substantive native turn and is
+retained; a new002 attempt uses the already-approved controls.
+
+The N4 state003 cleanup helper was exercised for real: exact final T/U completion
+at RPC1045, TERM208ms later, operator-term/code0/doctorError null and no wrapper,
+server or group survivors. Pauli verified it independently. State001/002 had zero
+RPC bytes and ended on idle deadline; they are not successful model samples.
+
+## Controlled N12 failure and same-goal completion
+
+Fixed-profile001 added an internal wire-observation obligation: at least15 of31
+execs involved provider observation, and its token-tuple matcher was not valid
+request attribution. Keep its600s timeout and internal overclaim; actual three
+native contexts were Astra/high. The controlled pair moves postflight to the outer
+operator without removing that experiment criterion. Both receive identical2378
+bytes (LF included), hash a4f18724342d92c3bda51618f93734483dbade2ad1a5798e41c96149c96461b4.
+
+Controlled candidate001 performs actual A/C reviews, original8-test verification,
+three commits and two receipts; it times out before bookkeeping/D. Baseline finishes
+after two commits/one final receipt. These are observed path differences, not proof
+of a causal latency regression or improvement. No failed functional gate was found.
+
+Same-T candidate resume002 preserves692182-byte prefix
+7a46d1775c093cc5f561d65ffe5a647164673c6cb449f973990176c020b310cf and the same internal
+goal6ddfcdd6-2459-41a9-a90b-b7d0fe6c6283/objective/createdAt/IDs/criteria meaning.
+First model observation is active G and C before mutation. Existing valid receipt
+at5e7cd382ef3bfdbc89f447f2b2c83838f0f44d9a remains byte-identical; actual task/criterion
+records, D→IDLE, goalplan validation and model update_goal complete follow. U lasts
+74230ms, normal completion, goal-after ACK complete, clean operator-term and no
+survivors. Bohr independently verified all of these. No new goal/init, implementation,
+reviewer, test rerun, commit or wire collection. Original CLI timeout is never
+reclassified as PASS; full forwarded-family postflight remains separate.
 
 N17 candidate-n17-002: Pauli admission/action PASS. First model goal read and status
 (parent:60–61) show active G and IDLE before first mutation P:66–67. The actual
