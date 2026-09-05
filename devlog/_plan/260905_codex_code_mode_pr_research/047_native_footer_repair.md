@@ -1,7 +1,8 @@
 # WP3 C repair: prompt-time footer versus a later real transition
 
-Status: native RED recorded; bounded design independently approved by Sartre.
-Implementation/causal toggle/native GREEN remain required. This is the existing
+Status: native RED, fixed-source GREEN and old-footer-only causal toggle observed;
+bounded design and P GREEN independently approved by Sartre. Toggle review is
+pending. This is the existing
 WP3 C repair loop, not the050 delivery experiment or a new orchestration mechanism.
 
 ## Evidence and competing explanations
@@ -66,6 +67,21 @@ An old-footer-only native toggle must restore the defect or the causal claim sta
 unverified. No wording-only assertion or unrelated green suite proves native repair.
 
 ## Other C observations, not conflated with this repair
+
+Fixed candidate fb7c39de063ad23702d8eb172dc44942eb84853b: original N20-P002
+prints P/PLAN after successful status/entry, no additional polling or forbidden
+action; independently reviewed PASS. Original unchanged N20-I/N21 003 prints
+I/INTERVIEW after real entry/callback/R7, with no additional forbidden work;
+Pauli independently confirmed footer repair, owner delivery and clean teardown.
+003 still omits the separately required pre-I status, so its overall N20
+admission remains FAIL; this is not silently waived by the footer GREEN.
+
+Private semantic toggle source18b762931138f2fe460f5128fdd8a0389917bb86 is based on
+fb7c39d and restores only phaseFooter plus its remotely generated dist output.
+All other source/reference bytes stay fixed. Original N20-P003 again enters P
+successfully but prints IDLE. Each fixed/toggle P run uses5 requests. This native
+off/on observation supports the stale higher-priority snapshot mechanism, not a
+universal model success rate or whole-WP3 acceptance. Originals are retained.
 
 Remote wp3-source footer build succeeded. Existing source hook/continuation/CLI
 and compiled e2e selection, including the new public seam case:277 pass,0 fail,

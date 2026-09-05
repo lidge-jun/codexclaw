@@ -274,3 +274,54 @@ Changes: replaced incomplete 045 with pinned source-shaped RPCs, exact existing 
 Verification here: required skill and full 040–045 reads; git show at the pinned native commit for schema/control/goal code; script/hash reads; read-only SSH original RPC/control/terminal observations. Proposed native/model/CLI sequences are **NOT RUN** by this delegate. File-only readback/diff/whitespace/sibling hashes are document checks, not product tests.
 
 Main's remaining gates: confirm wrapper revision/provision matched roots and scope; obtain **actual N17 active admission/order**; obtain **genuine ≥3-turn blocked state**; prove I→real N21 answer→delivered R7 and separately permitted N22; review complete contexts/accounting and clean teardown. These execution gates are not asserted achieved. Failed/unconstructible preconditions stay INVALID PRECONDITION/UNVERIFIED. Main alone integrates sibling precedence, re-audits and authorizes execution.
+
+## 10. C execution amendments: input transport and admission-v2
+
+Original failed packets remain unchanged. N20-answer-001 hit immediate stdin EOF;
+002/003 used a local retained PTY with SSH remote stdio pipes and real callbacks.
+N17-001's long goal/set input never reached the remote requests.jsonl: only init,
+initialized, thread/start and goal/get(null) arrived. No ACK or goal creation can
+be claimed. The local canonical input buffer retained the long line. Stop the
+owned wrapper; do not replay an uncertain write into an existing native goal.
+
+For subsequent fresh roots, launch the retained local tool terminal with
+`tty:true` and run `stty -icanon -echo` before SSH. Do not allocate a remote TTY.
+Remote app-server remains the same pipe-backed protocol/logger and source/config.
+This removes local canonical line buffering/echo, not an RPC or permission gate.
+Require exact remote parsed request bytes and its corresponding ACK for every
+control, especially a long business objective or setup prompt. ACK bounds and
+all teardown/unknown-request rules remain unchanged. N17-002 is the first such
+input-transport attempt, not a retroactive repair of001.
+
+Pauli independently identified two admission mismatches in N20-answer-002:
+the oracle required pre-I public status, but the fixed input did not request it;
+N22 required all children high, but its input allowed model-selected low. Both
+old failures remain failures. Main accepts the following minimal disclosed
+fixture amendments, not product-wide status polling or global model forcing.
+
+In a separately named admission-v2 pair, append exactly two LF characters plus
+the following N20-I text to section7's full N20-I+English question fixture:
+
+~~~text
+추가 fixture 조건: I 진입 전에 최신 SessionStart 바인딩의 자기 세션 ID로 `cxc orchestrate status --session <자기 세션 ID>`를 실제 실행하고 결과를 읽어. 이 읽기 전용 조회를 명시적으로 허용하며, 조회 실패나 세션 불일치 시 I에 진입하지 말고 보고해.
+~~~
+
+Append exactly two LF characters plus this text to section7's N22 permission:
+
+~~~text
+추가 fixture 조건: 모든 Mind는 모델 gpt-6-astra, 추론 강도 high를 파견 인자에 명시해. priority 요청은 이 격리 시도에 승인된 설정을 상속해 유지해. 이 파견별 설정만 허용하며 공유·영구·역할 설정 변경은 금지야. 지원하지 않는 인자나 조용한 대체를 사용하지 말고, 지원 불가 또는 실제 전달 증거의 부재·불일치는 admission 미충족으로 보고해.
+~~~
+
+No final LF inside the RPC text. Pauli's computed complete prompt fingerprints:
+N20-I940 UTF-8 bytes, SHA256c1459d5cf5ad1d631dee4d8c84a3dd96cdf9219386591f47f1f7d9727d5d6f4a;
+N22 710 bytes, SHA256c123fad0564e9089399337a16660266c9902decbaa1b55c3fcc3aa7b5ba4222d.
+Main must recompute before dispatch, and preserve actual full prompt bytes.
+
+Both variants receive identical amended bytes/config/callback/grant sequence;
+only actual session and callback IDs differ. No unsupported child priority field
+may be invented: inherit supported settings, then independently inspect actual
+wire/native context. Missing evidence stays UNKNOWN, conflicting high/priority
+stays FAIL. All existing full-read, identity, scope, ledger and prohibition rules
+remain required. v2 proves compliance with explicit admission instructions, not
+spontaneous status/high selection. Do not combine it with original003's unchanged
+prompt footer comparison or claim the added fixture proves a footer-only effect.
