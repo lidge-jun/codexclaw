@@ -480,3 +480,33 @@ helper error stops automatic signaling; main diagnoses within the existing owned
 resource scope. All failed and unfinished child/turn work remains in the population.
 No new plugin hook, collector, dispatcher, model runtime or permanent listener is
 introduced. This is a bounded process-owner helper, not a product observer.
+
+## 15. Same-goal completion after the controlled N12 timeout
+
+Bohr approved this bounded continuation design. It is a separate resumed
+population, never a replacement for the original600s CLI timeout. Use only
+candidate-n12-controlled-001 at29bdaea, whose functional checks and A/C reviews
+passed but pending check/record entries and C→D/goal completion were not executed.
+Do not use this to hide the older fixed001's misplaced admission criterion.
+
+Before launch confirm the original owned process ended and preserve full rollout
+prefix bytes/hash, logical goal, plan, FSM, receipt and Git state. Use fresh
+native-stdio-preflight-002 and native-api-bin-002 with the reviewed v2 wrapper.
+Initialize→unloaded existing active G get→USER status-only pause ACK→same paused
+G get→exact-T resume. No thread/start, new goal, objective replacement, loop init,
+history or path override. Same source/home/T/createdAt/objective/slug/IDs remain.
+
+The new user request authorizes only the remaining C evidence bookkeeping,
+current-source verification/receipt if needed, legal D closing and same-goal
+completion. Do not repeat implementation or add reviewers without a real blocker.
+After request ACK and actual turn/started, USER activation must be acknowledged;
+the first model get_goal must observe active G and its first status must be C,
+before any model mutation. Otherwise preserve invalid admission, not a fake pass.
+
+Use actual existing A/C/test/document evidence. An unchanged, valid same-epoch
+receipt needs no unconditional rerun; drift requires its real producer. Complete
+pending tasks/criteria only with that evidence, then actual C→D→IDLE, goalplan
+validation and model update_goal complete. USER API never sets complete/blocked.
+Verify normal final turn, same G complete and no surviving owned processes before
+stopping. Goal-absent cleanup watcher is inapplicable. All original failure and
+resumed costs remain; the outer operator still owns full-family postflight.
