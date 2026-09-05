@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/skills-28-blue" alt="28 skills">
   <img src="https://img.shields.io/badge/hooks-23-blue" alt="23 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--only-green" alt="AGPL-3.0-only"></a>
 </p>
 
 ---
@@ -183,6 +183,6 @@ Pull request는 `dev` 통합 브랜치로 보낸다. `main`은 메인테이너�
 
 ## 라이선스
 
-[MIT](LICENSE)
+[GNU AGPL v3 전용(AGPL-3.0-only)](LICENSE). 저작권과 외부 코드 적용 범위는 [NOTICE.md](NOTICE.md)에 명시한다.
 
 서드파티: RepoMapper(MIT, Pete Davis), Aider tree-sitter 쿼리(Apache-2.0). 자세한 내용은 [`NOTICE.md`](plugins/codexclaw/skills/repo-map/scripts/NOTICE.md)를 참고한다.

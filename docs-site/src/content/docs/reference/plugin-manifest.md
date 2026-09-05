@@ -14,7 +14,7 @@ tells Codex which skills, hooks, and MCP servers to load.
 | `version` | `0.1.1` |
 | `repository` | `https://github.com/lidge-jun/codexclaw` |
 | `homepage` | `https://lidge-jun.github.io/codexclaw/` |
-| `license` | `MIT` |
+| `license` | `AGPL-3.0-only` — the payload includes `LICENSE` and `NOTICE.md`. |
 | `skills` | `./skills/` — the skill directory root. |
 | `hooks` | Twenty-one hook JSON files (see [Hooks](/codexclaw/reference/hooks/)). |
 | `mcpServers` | `./.mcp.json` — the subagent-config MCP server. |

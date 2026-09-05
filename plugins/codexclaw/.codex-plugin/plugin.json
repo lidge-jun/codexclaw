@@ -8,7 +8,7 @@
   },
   "repository": "https://github.com/lidge-jun/codexclaw",
   "homepage": "https://lidge-jun.github.io/codexclaw/",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "keywords": [
     "codex",
     "codex-plugin",

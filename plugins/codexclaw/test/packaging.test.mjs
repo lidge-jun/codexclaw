@@ -78,14 +78,29 @@ function isTracked(absPath) {
   }
 }
 
-test("L19: every runtime entrypoint dist file exists", () => {
+test("L19: runtime entrypoints and matching project/payload licensing artifacts exist", () => {
   for (const ep of ENTRYPOINTS) {
     assert.ok(existsSync(ep), `missing runtime entrypoint: ${relative(repoRoot, ep)}`);
   }
+  const project = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
+  const lock = JSON.parse(readFileSync(join(repoRoot, "package-lock.json"), "utf8"));
+  const manifest = JSON.parse(readFileSync(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"));
+  assert.equal(project.license, "AGPL-3.0-only");
+  assert.equal(manifest.license, project.license);
+  assert.equal(lock.packages[""].license, project.license);
+  for (const file of ["LICENSE", "NOTICE.md"]) {
+    const rootCopy = readFileSync(join(repoRoot, file), "utf8");
+    const payloadCopy = readFileSync(join(pluginRoot, file), "utf8");
+    assert.equal(payloadCopy, rootCopy, `${file} must survive the payload-only install boundary`);
+  }
+  assert.match(readFileSync(join(repoRoot, "LICENSE"), "utf8"), /GNU AFFERO GENERAL PUBLIC LICENSE/);
+  assert.match(readFileSync(join(pluginRoot, "NOTICE.md"), "utf8"), /SPDX-License-Identifier: AGPL-3\.0-only/);
 });
 
-test("L19: every dist file reachable from a runtime entrypoint is git-tracked (ships on clone)", () => {
+test("L19: runtime closure and payload license notices are git-tracked (ship on clone)", () => {
   const graph = resolveRuntimeGraph(ENTRYPOINTS);
+  graph.add(join(pluginRoot, "LICENSE"));
+  graph.add(join(pluginRoot, "NOTICE.md"));
   const untracked = [...graph].filter((f) => !isTracked(f)).map((f) => relative(repoRoot, f)).sort();
   assert.deepEqual(untracked, [], `untracked runtime dist files (would be missing from a fresh clone):\n${untracked.join("\n")}`);
 });
