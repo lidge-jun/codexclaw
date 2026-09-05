@@ -95,6 +95,12 @@ means shipped + tested" — D cannot close without verification output.
 
 ## 3. Dispatch doctrine: who spawns whom, and what they may write
 
+The main/child rules below govern delegated subagents. Independent user-owned tasks
+are peers, not additional employees of this main session. Their selective discovery,
+consultation, notification and wake boundaries live in the canonical
+[peer collaboration reference](../plugins/codexclaw/skills/dev/references/peer-collaboration.md).
+They retain separate user instructions, goals and FSMs; this adds no team manager.
+
 cli-jaw: **only the Boss dispatches employees; employees use their own CLI sub-agents;
 in B phase the Boss writes code and workers are read-only verifiers unless `--mutable`.**
 codexclaw translation:
