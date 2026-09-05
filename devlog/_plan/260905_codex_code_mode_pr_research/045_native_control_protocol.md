@@ -325,3 +325,45 @@ stays FAIL. All existing full-read, identity, scope, ledger and prohibition rule
 remain required. v2 proves compliance with explicit admission instructions, not
 spontaneous status/high selection. Do not combine it with original003's unchanged
 prompt footer comparison or claim the added fixture proves a footer-only effect.
+
+## 11. Named fresh-process continuation of an existing owned home
+
+Main and Pauli reviewed the bounded private wrapper revision, not a product
+recorder/evaluator change. Original native-stdio-preflight.mjs remains unchanged
+at SHA2564d8d24485ee49fdc176d1bb84663c8c9bb517df6033e26e2bae9011edd993b95.
+New operator/native-stdio-preflight-v2.mjs SHA256 is
+90f5ecb946a6417bd8e893ccb3b5c950be285cc93ec4bb319967279bb1884819.
+Its only changes are:
+
+~~~diff
++const serial = process.argv[3];
++assert.match(serial, /^\d{3}$/);
++assert.ok(Number(serial) >= 2, 'original attempt is reserved');
+-const home = join(root, 'home'), cwd = join(root, 'work'), out = join(root, 'native-stdio-preflight-001');
+-const launchDir = join(home, 'native-api-bin'), codex = realpathSync(spec.codexBin);
++const home = join(root, 'home'), cwd = join(root, 'work'), out = join(root, `native-stdio-preflight-${serial}`);
++const launchDir = join(home, `native-api-bin-${serial}`), codex = realpathSync(spec.codexBin);
+~~~
+
+Use an unused002..999 serial, only after the preceding owned process has ended.
+Both directories must be absent; nonrecursive mkdir/wx refuse collisions. A
+partial directory created before a later failure is retained, not deleted/reused.
+The root/home/work/config/payload/source/native DB are unchanged; only new private
+log/launcher directories are created. All original deadlines, raw logging,
+permissions, hashes, doctors and no-auto-RPC/approval behavior remain unchanged.
+Pauli's static diff verdict: PASS, no identity/naming blocker; runtime proof still
+required. Preserve both script bodies rather than overwriting the old source.
+
+First authorized use: N18-blocked-001 retained home, serial002. It follows actual
+three-active-turn blocked preparation and completed N18 assertion in001, whose
+server later reached its600s deadline while idle. Do not relabel that as operator
+shutdown. Its goal-after client line has no server ACK and is not evidence.
+
+Launch v2 ROOT002 with local `stty -icanon -echo`, remote stdio pipes. Initialize,
+then thread/goal/get using the exact persisted T while unloaded; require same
+blocked objective/createdAt. **Do not call thread/start or any goal/set.** Resume
+that exact T via section5's explicit-ID request, preserve the entire old rollout
+prefix, then send the exact N18 read-only prompt once. Require normal completion,
+unchanged blocked G, no mutations and prompt operator cleanup with gone PID proof.
+This separately proves clean read-only continuation;001's failed lifecycle and
+all setup/continuation cost remain part of the historical population.
