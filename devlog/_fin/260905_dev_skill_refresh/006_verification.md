@@ -43,3 +43,10 @@ git diff --check
 본 패치는 source 전달 완료이며 설치 사용자에게 배포됐다는 뜻은 아니다. 이후 설치/릴리스는 별도 요청에서 다룬다.
 
 D와 goalplan 종료는 실제 실행 뒤 기록한다.
+
+## 실제 D 종료
+
+fb5d3f4에서 최종 `cxc receipt test`를 발행했다. 7/7 tests,0 skipped,exit0이며 034_final_receipt.json은 실제 receipt의 보관본이다.
+wp3 D: `close target wp3 is complete`, exit0. 뒤이은 status는 IDLE. wp0/1/2/3 모두 완료됐고, archive 이후 최종 source 일치와 goalplan quality gate를 다시 확인한다. 후속 archive commit은 기록·경로만 바꾸며 source/helper/test 변경은 없다.
+
+Archive 후 exact delivery33 PASS. `cxc loop validate --slug modernize-the-complete-dev-skill-audit-findings`도 `OK — complete + all met criteria carry evidence`, exit0을 확인했다. 최종 verdict는 scoped DONE이다.
