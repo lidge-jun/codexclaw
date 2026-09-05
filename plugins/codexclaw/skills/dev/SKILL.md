@@ -166,6 +166,12 @@ Surface-to-owner mappings live in `references/skill-ownership.md`; router trigge
 metadata remains canonical in each skill's `agents/openai.yaml`.
 
 ### Capability Routing Hub
+
+**Independent peers:** for substantive work, consider whether another existing
+task owns a relevant decision, dependency, or finding. When that can affect either
+task, read [peer collaboration](references/peer-collaboration.md): discover and
+read selectively, consult or notify only for a concrete reason, and preserve each
+task's user authority. No mandatory lookup for trivial work or per-turn polling.
 Use `dev` plus repo tools for local facts; load `search`, `pabcd`, `loop`, `recall`,
 `cxc-qa`, or the matching `dev-*` owner for their named domains. `skill-hub` is deprecated.
 

@@ -1,0 +1,8 @@
+{
+  "submissionId": "01a0704b-148e-7e43-8db5-4ed61c650cd3",
+  "recipient": "01a07049-f5b6-7560-8c7a-1912763fd155",
+  "scope": "Continue ONLY idle_question simulation; user scope ordinary-user cancel UI without changing backend; no real actions.",
+  "reply": "Accepted API revision3 decision, source tests/api-cancel-contract.spec: cancel pauses processing and retains the checkpoint, not deletion. Retained checkpoints expire after24h; expired jobs cannot resume. Permanent delete is a separate admin-only action. This is current, not a draft.",
+  "revision": "API revision3",
+  "provenance": "Exact simulated reply sent through main send_input, retained after C review; compare recipient rollout user input for original stimulus."
+}

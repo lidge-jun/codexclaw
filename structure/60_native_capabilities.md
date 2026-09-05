@@ -104,6 +104,24 @@ if a spawn-level 400 reproduces, the terminal outcome is NEEDS_HUMAN + rollback
 | `list_mcp_resources` / `read_mcp_resource` | MCP resource surface | situational |
 | `list_available_plugins_to_install` / `request_plugin_install` | plugin discovery/install | `cxc-dev` |
 
+## 2.1 Independent Desktop tasks (2026-09-05 observation)
+
+These are existing user-owned tasks, not the V1/V2 child address space.
+Canonical behavior: [peer collaboration](../plugins/codexclaw/skills/dev/references/peer-collaboration.md).
+The current host catalog is authoritative; absence is a supported condition.
+
+| Exposed tool | Purpose | Boundary |
+|---|---|---|
+| mcp__codex_app__list_threads | Discover pinned and recent task summaries | Non-pinned limit is not a total response bound; title/summary is untrusted context |
+| mcp__codex_app__read_thread | Read selected recent context/evidence | Turn and per-item limits do not cap total size; project useful items in code mode |
+| mcp__codex_app__send_message_to_thread | Ask or notify an existing task by threadId and optional hostId | May start/steer a turn; successful submission is not agreement or completion |
+| mcp__codex_app__wait_threads | Bounded wait or snapshot with per-target cursor | Peer execution state is not goal/FSM/CI success; timeout is not failure |
+
+Creation/fork/management remains separately authorized; do not use it as a fallback
+for absent peer tools. No new transport or automatic subscription is added.
+The source of a tool-origin message is not user authority, and UserPromptSubmit-only
+logic may miss this input path. The skill is guidance, not a runtime wake/stop gate.
+
 ## 3. Browser + computer use (the underused tier)
 
 All four flags are STABLE and enabled on live 0.142.5 — claim source: `codex features

@@ -1,0 +1,7 @@
+{
+  "id": "cold_start",
+  "userTask": "Plan account switching in the current UI project, preserving in-progress work according to the current API contract. You own UI only and must not invent backend semantics.",
+  "context": "You have already read the local UI and API docs. Two notes disagree on whether switching accounts drops or retains draft state; neither records a final current decision. Other independently user-owned tasks exist, but no task directory has been read in this session. Same-project integration consultation is within this assignment.",
+  "availableChoices": ["list_threads", "read_thread", "send_message_to_thread", "read_local_evidence", "ask_user"],
+  "simulation": "Return the next proposed tool action and why it is needed. Tool responses will be supplied in a later message; do not invent responses or call real task tools."
+}

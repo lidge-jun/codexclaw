@@ -1,0 +1,27 @@
+{
+  "id": "private_source",
+  "actions": [
+    {
+      "kind": "record_local",
+      "target": "private investigation record only",
+      "message": "Record that peer sharing is prohibited. Keep the finding and its provenance within the authorized private scope; do not copy them into team-project artifacts."
+    },
+    {
+      "kind": "continue",
+      "target": "private account investigation",
+      "message": "Continue the authorized investigation using private evidence. Do not contact the team peer or transmit a paraphrase, hint, or derived recommendation based on the confidential finding."
+    }
+  ],
+  "decision": "Do not send a peer message. No peer read is needed to resolve the explicit sharing restriction.",
+  "supportingFacts": [
+    "The user explicitly prohibits sharing investigation contents and derived confidential findings with the team project.",
+    "The only useful finding comes from the private investigation; no independent public source supports it.",
+    "A fresh permitted index already establishes peer relevance and ordinary messaging eligibility, but neither grants permission to share restricted information.",
+    "All actions are proposals; no messages, writes, or external calls were performed."
+  ],
+  "loadedGuidance": [
+    "plugins/codexclaw/skills/search/SKILL.md: Source-Proof Invariant and peer-collaboration routing",
+    "plugins/codexclaw/skills/dev/references/peer-collaboration.md: scope, sharing authority, selective contact, and evidence boundaries",
+    "User-attached codexclaw:cxc-dev-code-reviewer: independent evidence posture"
+  ]
+}
