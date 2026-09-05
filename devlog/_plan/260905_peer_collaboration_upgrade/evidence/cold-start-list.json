@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 4,
+  "pinnedThreads": [],
+  "threads": [
+    {
+      "id": "private-7",
+      "hostId": "local",
+      "projectId": "private-project",
+      "title": "Draft retention incident",
+      "summary": "Private client incident notes; sharing restricted",
+      "status": "active"
+    },
+    {
+      "id": "ui-typo",
+      "hostId": "local",
+      "projectId": "current-project",
+      "title": "Polish footer text",
+      "summary": "Fix spelling only",
+      "status": "active"
+    },
+    {
+      "id": "session-42",
+      "hostId": "local",
+      "projectId": "current-project",
+      "title": "Account-session contract",
+      "summary": "Current account-switch API contract and draft-state behavior",
+      "status": "idle"
+    },
+    {
+      "id": "infra-3",
+      "hostId": "local",
+      "projectId": "current-project",
+      "title": "Runner cache",
+      "summary": "Investigate test runner caching",
+      "status": "active"
+    }
+  ]
+}

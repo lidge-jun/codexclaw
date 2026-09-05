@@ -1,0 +1,19 @@
+{
+  "id": "cold_start",
+  "nextAction": {
+    "tool": "list_threads",
+    "arguments": {
+      "limit": 10
+    }
+  },
+  "supportingFacts": [
+    "Local notes disagree on draft retention; neither establishes the current API decision.",
+    "UI ownership does not authorize inventing backend semantics.",
+    "Same-project consultation is authorized, but no task directory has been read.",
+    "Peer guidance calls for discovery before selecting a relevant task to read; listing does not contact or wake peers."
+  ],
+  "loadedGuidance": [
+    "plugins/codexclaw/skills/dev/SKILL.md",
+    "plugins/codexclaw/skills/dev/references/peer-collaboration.md"
+  ]
+}
