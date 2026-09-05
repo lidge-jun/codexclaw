@@ -229,6 +229,40 @@ When you are reviewing one layer of a stack:
 - Merge requirements for every PR in a **registered GitHub stack** are determined by the **bottom** PR's
   base branch.
 
+### Known failure: `gh pr merge --admin` still calls the legacy API
+
+Observed in an owner-provided OpenCodex transcript on 2026-09-05: a native-stack
+`gh pr merge ... --merge --admin --match-head-commit ...` failed with exit 1:
+
+```text
+GraphQL: This pull request is part of a stack and must be merged using the asynchronous merge REST API. (mergePullRequest)
+```
+
+That invocation used the unsupported GraphQL path; `--admin` did not change it.
+Do not repeat the same command for every layer, dissolve the stack, or retarget it
+to evade this error. `mergeable_state: blocked` is a separate observation, not proof
+that this transport error was fixed. Inspect membership and the actual merge result.
+
+After verifying the authorized stack prefix and current member heads, target the
+highest PR in that prefix **once**. Recheck installed CLI support; otherwise use the
+[async REST API](https://docs.github.com/en/rest/pulls/pulls#merge-a-pull-request-asynchronously):
+
+```sh
+# Substitute the approved repository, PR and reviewed head SHA; this is a write.
+gh api --method PUT 'repos/OWNER/REPO/pulls/PR/merge-async' \
+  -f sha='REVIEWED_HEAD_SHA' -f merge_method=merge -f merge_action=default
+# Use the returned details.uuid to poll the same request (read-only).
+gh api 'repos/OWNER/REPO/pulls/PR/merge-async/UUID'
+```
+
+The `sha` guard covers the requested PR, not independent pins for all lower members.
+On 202, retain `details.uuid`; on 409, inspect the existing request/options instead of
+resubmitting. Poll with bounded waits; HTTP 200 may still contain `status: pending`.
+Already merged/queued responses are distinct; neither acceptance nor queue entry proves
+landing. Verify `status: merged`, returned SHA and each PR's actual target integration.
+Rule failures can arrive later. Do not invent an `admin` parameter or treat
+`direct_merge` as permission to bypass repository rules.
+
 ## Anti-patterns
 
 | Anti-pattern | Why it bites |
