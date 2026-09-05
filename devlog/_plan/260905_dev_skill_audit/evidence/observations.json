@@ -1,0 +1,53 @@
+{
+  "checkedAt": "2026-09-05",
+  "aside": {
+    "version": "1.26.902.1732",
+    "surface": "aside repl twitter.search",
+    "query": "agent skills instructions contradictions",
+    "countRequested": 5,
+    "countReturned": 2,
+    "exitCode": 0,
+    "elapsedReported": "998ms",
+    "status": "executed; no primary evidence found",
+    "candidateUrls": [
+      "https://x.com/SpiritofAlyahw/status/2095984559401910548",
+      "https://x.com/YarosTime/status/2088875409173561536"
+    ],
+    "limitations": "Service returned results through existing profile; no cookie/account identifiers printed; no new login, posting, follow, messages, or settings changes. Results not used as technical proof."
+  },
+  "visualize": {
+    "command": "bash plugins/codexclaw/skills/dev-diagram-viewer/upstream/sync-check.sh",
+    "exitCode": 1,
+    "storedVersion": "1.0.11",
+    "installedVersion": "1.0.29",
+    "storedHash": "174968af443c48fa2ace0fb73c35b86be6d63a3049fb88312e59e500d337db4d",
+    "installedHash": "be82c4e573ffe2fc0921a10f49eb690ce6f7c8a06acffb2789600be677720d05"
+  },
+  "hostSurface": {
+    "spawnTool": "multi_agent_v1__spawn_agent",
+    "observedFields": [
+      "fork_context",
+      "items",
+      "message",
+      "model",
+      "reasoning_effort"
+    ],
+    "agentTypeFieldPresent": false,
+    "updatePlanToolPresent": false,
+    "cuaTool": "mcp__cua_repl.js"
+  },
+  "fetchCaveats": [
+    {
+      "sourceId": "S02",
+      "httpVerdict": "strong_ok",
+      "actual": "navigation shell only; no target memo claim",
+      "resolution": "--browser required failed ECONNREFUSED; agbrowse start; retry rendered main successfully"
+    },
+    {
+      "sourceId": "S10",
+      "firstVerdict": "strong_ok",
+      "actual": "public_endpoint returned RSS instead of target article",
+      "resolution": "--no-public-endpoints returned article body"
+    }
+  ]
+}
