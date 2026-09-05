@@ -1,5 +1,15 @@
 # Codex 실행 기능과 upstream PR 흐름 조사
 
+최신 재개 지점: wp0·wp1은 끝났고, 현재 wp2 B에서 실제 읽기·규칙 적용을
+검증 중이다. 사용자가 승인한 원칙은 모듈 책임과 지식을 보존하고 reference를
+늘려도 된다는 것이다. 파일 수가 아니라 매 작업의 불필요한 읽기를 줄인다.
+구현·회귀 검증은 [032](032_wp2_execution.md), 실제 프로브는
+[033](033_wp2_native_fixtures.md), 실패와 수정은
+[034](034_wp2_behavior_review.md)·[036](036_wp2_read_recovery.md),
+요청 식별자 한계는 [035](035_native_identity_observations.md)에 기록했다.
+CHECK 훅 충돌·전체 전달 비교·최종 설치 검증은 미완료다. 아래 초기 조사 기록은
+현재 실행 권한이나 완료 상태가 아니다.
+
 현재 상태 보충: 인터뷰와 initiative 대조 후 사용자가 시간 제한 없는 HOTL 실행을 승인했다. 실제 host goal을 등록하고 I → P override 전이를 기록했다. 초기 5개 work-phase를 문서 lock 전에 6개로 구체화해 전달 방식 비교를 독립 사이클로 추가했다. 현재 wp0는 docs-only roadmap 단계다. 아래는 최초 리서치의 범위·상태 기록이며, 실행 로드맵은 [010](010_roadmap_lock.md), 원격 조건과 방향은 [006](006_interview_remote_probes.md)·[007](007_methodology_alignment.md), 실제 기준선은 [008](008_baseline_observations.md)이 우선한다.
 
 활성 goalplan: `.codexclaw/goalplans/implement-and-verify-the-agreed-researcher-style/goalplan.json`. 관리 worktree를 유지하며 branch `codex/agent-led-lazy-skills`를 제자리에서 생성했다. 제품 변경은 wp0 감사·문서 lock 이후 사이클에서 시작한다.
