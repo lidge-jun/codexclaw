@@ -1,6 +1,10 @@
 # 전체 인벤토리와 스킬별 진단
 
-기준 HEAD: `048ae759c715051f2fde807624e85cf1ec6c6d55`. 설치본은 `0.2.16+codex.260830094500`이다. 2026-09-05에 원본과 설치본을 SHA-256으로 대조했다. **13개 router, 본문 5,424줄, 전체 189개 파일, reference 계열 147개 파일**이다. 189개 모두 설치본과 동일하다. 따라서 아래 문제는 설치 캐시만 낡아서 생긴 문제가 아니다. 이 비교는 upstream Git 최신 여부까지 보증하지 않는다.
+기준 HEAD: `048ae759c715051f2fde807624e85cf1ec6c6d55`. 설치본은 `0.2.16+codex.260830094500`이다. 2026-09-05에 원본과 설치본을 SHA-256으로 대조했다. **저장소는 13개 router, 본문 5,424줄, 전체 189개 파일, reference 계열 147개 파일**이다. C 독립 감사와 재검사 기준 **185개 동일, diagram 관련 4개 상이**, 설치본에 실질 파일 1개가 추가로 있다. 이 비교는 upstream Git 최신 여부까지 보증하지 않는다.
+
+초기 스캔은 189개 모두 같다고 출력했으나 재검사와 일치하지 않았다. 그 원인은 확인하지 못했으므로 처음 수치를 현재 증거로 쓰지 않는다. 최초 기록은 commit `5b8a0379`에 남아 있고, 현재 manifest에는 양쪽 hash와 재검사 시각을 기록했다.
+
+다른 파일은 `dev-diagram-viewer/SKILL.md`, `reference/visualize-contract.md`, `scripts/diagram-to-html.sh`, `upstream/visualize-upstream.md`다. 설치본에만 `upstream/extract-contract.mjs`가 있다. 설치본의 `.DS_Store` 16개는 Finder metadata라 실질 파일 비교에서 제외했다. 설치된 diagram은 visualize 1.0.22를 추적하고 이미 1 MB/절대 경로 content reference를 사용한다. 저장소의 1.0.11 계약 문제를 설치본에도 그대로 적용하지 않는다.
 
 전체 파일과 hash는 [inventory.json](evidence/inventory.json)에 있다. 각 router의 `SKILL.md`를 끝까지 읽었다. reference는 모든 경로·hash를 수집했고, 아래 심층 목록은 본문까지 대조했다. 나머지 reference의 모든 기술 예제·버전·라이선스를 검증한 것은 아니다.
 

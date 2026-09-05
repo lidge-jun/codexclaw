@@ -63,6 +63,17 @@ function verify(unit) {
       .filter(f => fs.statSync(path.join(root, dir, f)).isFile()).map(f => `${dir}/${f}`);
   }).sort();
   assert.deepEqual(inventory.files.map(f => f.path).sort(), actualFiles, 'inventory file list drift');
+  const installedPath = f => path.join(inventory.installedRoot, f.path.replace('plugins/codexclaw/skills/', ''));
+  const installed = inventory.files.map(f => ({ file: f, hash: sha(installedPath(f)) }));
+  for (const { file, hash } of installed)
+    assert.equal(file.installedEqual, file.sha256 === hash, `installed equality drift: ${file.path}`);
+  const installedFiles = actualNames.flatMap(n => {
+    const dir = path.join(inventory.installedRoot, n);
+    return fs.readdirSync(dir, { recursive: true }).filter(f => !f.endsWith('.DS_Store') &&
+      fs.statSync(path.join(dir, f)).isFile()).map(f => `plugins/codexclaw/skills/${n}/${f}`);
+  });
+  assert.deepEqual(installedFiles.filter(f => !actualFiles.includes(f)).sort(), inventory.installedOnly,
+    'installed-only file list drift');
   const coveredNames = [...read('001_inventory.md').matchAll(/^## (dev(?:-[a-z-]+)?)$/gm)].map(m => m[1]);
   const allText = docs.map(read).join('\n');
   const citations = [...allText.matchAll(/`((?:plugins\/|structure\/|\/Users\/jun\/\.codex\/)[^`\s]+):(\d+)`/g)]
@@ -76,7 +87,8 @@ function verify(unit) {
   const changed = [...new Set([...gitPaths(['diff', '--name-only', '-z', base]),
     ...gitPaths(['ls-files', '--others', '--exclude-standard', '-z'])])];
   const facts = { actualNames, coveredNames, citations, sources, changed,
-    hashes: inventory.files.map(f => ({ expected: f.sha256, actual: sha(path.join(root, f.path)) })) };
+    hashes: [...inventory.files.map(f => ({ expected: f.sha256, actual: sha(path.join(root, f.path)) })),
+      ...installed.map(({ file, hash }) => ({ expected: file.installedSha256, actual: hash }))] };
   const errors = validate(facts);
   for (const c of citations.filter(c => !c.exists || c.line > c.lines)) console.error(c);
   assert.deepEqual(errors, [], `document integrity errors: ${errors.join(',')}`);
@@ -90,6 +102,7 @@ function verify(unit) {
   // Git diff does not cover untracked files; inspect delivered prose separately.
   for (const f of docs) assert.ok(!read(f).split('\n').some(l => /[\t ]+$/.test(l)), `trailing whitespace: ${f}`);
   console.log(`DOCS PASS: ${actualNames.length} routers; ${actualFiles.length} source hashes; ${citations.length} citations; ${found.length} findings; ${sources.length} sources; ${changed.length} scoped paths`);
+  console.log(`INSTALLED PASS: ${installed.filter(x => x.file.installedEqual).length} equal; ${installed.filter(x => !x.file.installedEqual).length} different; ${inventory.installedOnly.length} substantive extra file(s)`);
 }
 
 try {

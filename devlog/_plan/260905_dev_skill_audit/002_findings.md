@@ -27,6 +27,7 @@
 - 실행 증거: `bash plugins/codexclaw/skills/dev-diagram-viewer/upstream/sync-check.sh` → exit 1, `1.0.11 -> 1.0.29`, 양쪽 hash 불일치.
 - 재현 입력: 1.5 MB fragment를 옛 directive로 전달한다. 내장 계약에는 맞아도 현재 상류 계약을 만족하지 못한다.
 - 한계: 실제 앱에서 렌더 실패까지 재현하지 않았다. 확정한 것은 **계약 불일치**이며 모든 구문이 즉시 실패한다고 주장하지 않는다.
+- C 감사 보정: 이 항목의 구형 계약은 **저장소 baseline**이다. 설치된 codexclaw diagram의 `reference/visualize-contract.md:73`은 이미 1 MB, 89줄은 절대 경로 content reference다. 해당 설치본의 `upstream/visualize-upstream.md:10`은 1.0.22를 추적한다. 현재 visualize 1.0.29와의 나머지 차이는 별도 비교해야 하며, 설치본에 옛 directive가 남았다고 주장하지 않는다.
 - 수정 후보: 복사 계약을 갱신하거나 현재 skill로 위임. Q12.
 
 ## F04 — ASVS 5.0 이름 아래 장 번호와 자체 기준이 섞였다
