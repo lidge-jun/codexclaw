@@ -592,6 +592,52 @@ test("WP22/G19: natural plan hint emits PLAN advice with IDLE footer, never acti
   }
 });
 
+test("wp3: advisory snapshot then agent CLI entry reports real state and preserves denied edges", () => {
+  const start = readHookCommand("./hooks/session-start-bootstrapping-pabcd-state.json");
+  const prompt = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
+  const ep = snapshotEntrypoint(start.distAbs);
+  assert.ok(ep, "compiled entry required for WP3 verification");
+  for (const phase of ["P", "I"]) {
+    const cwd = mkdtempSync(join(tmpdir(), "ccx-footer-transition-"));
+    const home = emptyCodexHome();
+    const sessionId = "footer-current-session";
+    const cli = verb => spawnSync(process.execPath, [ep, "orchestrate", verb,
+      "--session", sessionId, "--cwd", cwd], { cwd, env: { ...process.env, ...home.env }, encoding: "utf8" });
+    try {
+      const boot = runHook(ep, start.hookEvent, { hook_event_name: "SessionStart", session_id: sessionId, cwd }, home.env);
+      assert.equal(boot.status, 0, boot.stderr);
+      const hint = runHook(ep, prompt.hookEvent, { hook_event_name: "UserPromptSubmit",
+        session_id: sessionId, cwd, turn_id: "hint", prompt: phase === "P" ? "plan this" : "인터뷰만 해줘" }, home.env);
+      assert.equal(hint.status, 0, hint.stderr);
+      assert.match(JSON.parse(hint.stdout).hookSpecificOutput.additionalContext, /IPABCD: IDLE \(IDLE\)/);
+      assert.match(cli("status").stdout, /phase=IDLE/);
+      const entered = cli(phase);
+      assert.equal(entered.status, 0, entered.stderr);
+      const status = cli("status");
+      assert.equal(status.status, 0, status.stderr);
+      assert.ok(status.stdout.includes(`phase=${phase}`));
+      const statePath = join(cwd, ".codexclaw", "sessions", `${sessionId}.json`);
+      assert.equal(JSON.parse(readFileSync(statePath, "utf8")).phase, phase);
+      const ledgerPath = join(cwd, ".codexclaw", "ledger.jsonl");
+      const ledger = readFileSync(ledgerPath, "utf8");
+      const rows = ledger.trim().split("\n").map(JSON.parse);
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].from, "IDLE");
+      assert.equal(rows[0].to, phase);
+      assert.equal(rows[0].reason, "cli");
+      if (phase === "P") {
+        assert.notEqual(cli("A").status, 0, "missing attestation must be refused");
+        assert.match(cli("status").stdout, /phase=P/);
+        assert.equal(readFileSync(ledgerPath, "utf8"), ledger);
+        assert.equal(JSON.parse(readFileSync(statePath, "utf8")).phase, "P");
+      }
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(home.dir, { recursive: true, force: true });
+    }
+  }
+});
+
 test("wp3: registered explicit orchestrate P/I commands still enter and record chat edges", () => {
   const { hookEvent, distAbs } = readHookCommand("./hooks/user-prompt-submit-checking-pabcd-trigger.json");
   const ep = snapshotEntrypoint(distAbs);

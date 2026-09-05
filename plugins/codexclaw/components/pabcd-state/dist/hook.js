@@ -525,7 +525,17 @@ export function buildStageHeader(phase       )         {
  */
 export function phaseFooter(phase       )         {
   const label = STAGE_LABELS[phase] ?? phase;
-  return `At the end of your reply, print exactly one status line: \`IPABCD: ${phase} (${label})\`. D is a closing transition — once a cycle closes, the resting state is IDLE.`;
+  return [
+    `Prompt-time persisted snapshot: \`IPABCD: ${phase} (${label})\`.`,
+    "At the end of your reply, print exactly one status line in the format",
+    "`IPABCD: <phase> (<LABEL>)`, using the latest verified persisted phase",
+    "and its matching label for the current SessionStart-bound session and cwd.",
+    "A later authorized, successful phase transition supersedes this snapshot for reporting.",
+    "Otherwise retain the latest verified state; a request, lexical hint, narration,",
+    "or failed transition is not a persisted phase change.",
+    "This reporting instruction requires no additional tool calls and authorizes no transitions or gate bypasses.",
+    "D closes to IDLE; a later authorized successful re-entry supersedes that resting state too.",
+  ].join(" ");
 }
 
 /** Append the phase footer to a directive/header (one blank line between). */

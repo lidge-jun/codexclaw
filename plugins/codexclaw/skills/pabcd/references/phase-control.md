@@ -95,7 +95,12 @@ Mutating verbs require an explicit session; only `status` may use latest-session
 own context, never a parent or transcript-history id; this also governs
 `cxc loop init` and `cxc goalplan`. SessionStart creates missing IDLE state without
 clobbering resumed state; `cli` is terminal-only. Injected directives end with
-`IPABCD: <phase> (<LABEL>)`; after D, the displayed state is IDLE.
+`IPABCD: <phase> (<LABEL>)`. Injected footer values are prompt-time snapshots.
+The final status reports the latest verified persisted phase and matching label
+for the current SessionStart-bound session and cwd, including a later authorized
+successful transition. This reporting rule requires no additional calls and grants
+no transition authority. D closes to IDLE unless later authorized successful
+re-entry occurs.
 
 ### Loop / goal activation handoff
 
