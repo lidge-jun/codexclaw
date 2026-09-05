@@ -75,8 +75,10 @@ and leaves old implementation/CI/deploy work alone unless separately authorized.
 An independently authorized active goal may still continue; a peer question neither
 cancels that authorization nor expands it.
 This prose does not suppress host auto-continuation or install a stop-state detector.
-If runtime behavior cannot preserve that boundary, do not claim safe wakeup or work
-around it by changing another task's goal; report the limitation.
+If runtime behavior is known not to preserve that boundary, do not send the wake.
+Use read-only evidence or request direction only when blocked; report the limitation.
+Never work around it by changing another task's goal. A warning does not make an
+unsafe wake permissible.
 
 ## Exchange a useful question, impact, or agreement
 
