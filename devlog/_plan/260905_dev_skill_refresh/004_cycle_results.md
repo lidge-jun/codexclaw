@@ -35,3 +35,7 @@ Kuhn A: 4167472 기준 8 operations/6 files, PASS. B에서 먼저 완성된 fixt
 C 선행: existing6 + new1 = 7/7 tests PASS, skip0. 하나의 새 test 안에서 실제 shell9회 호출로 없는 cache, numeric version order, override 우선, unset/empty override, unset/empty CODEX_HOME, hash drift, 잘못된 tracking hash를 검사한다. 매회 고유 임시 디렉터리를 만들고 finally로 지운다.
 실제 readonly cache inspection도 version1.0.29 / be82c4e… hash 일치로 exit0. 이 결과는 active renderer 기능 검증이 아니며 freshness 참고다.
 누적 33개 파일이 exact plan과 일치, YAML17 PASS, Bash syntax 및 whitespace PASS. 최종 독립 통합 검토는 새 문맥 Erdos에게 요청했다.
+
+Erdos 최종 VERDICT PASS, blocker0. 전체 변경 source/helper/test와 계획/evidence를 검토했고 7/7(0 skip), YAML17,109 operations/33 files 일치, 상대 링크9개/누락0, syntax/whitespace를 독립 재실행했다. F01–F21 모두 승인한 정책/helper 범위에서 해소됐다고 확인했다.
+추가 tabletop: visualize/Aside 없는 host에서도 available browser로 standalone 전달 가능. slider callback이 깨지면 초기 그림이 보여도 interaction FAIL이며 static으로 몰래 성공 처리하지 않는다는 판단을 도출했다.
+이는 Windows runtime, live browser 전체 흐름, 147개 reference 전수 최신화, workflow 종료를 미리 인증한 결과가 아니다. 실제 D 종료는 아래 후속 기록으로 남긴다.
