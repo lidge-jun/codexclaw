@@ -1,5 +1,46 @@
 # wp3 — 최소 훅: 짧은 phase pointer와 기존 보호 경계
 
+## Current WP3 P revalidation (2026-09-05)
+
+WP2 closed through its own C/D at source91e051df with118 fresh passing tests and
+bounded native skill/read/application evidence. The next direction in037 is
+binding: preserve modular references, remove the CHECK authority conflict and
+resolve shared-family measurement before delivery comparisons. The native host
+goal still has no exposed resume surface; no native DB state is forged.
+
+The original H1 CHECK phrase `retain independent review` is NOT sufficient:
+both original Korean C2 probes received a higher-priority directive and delegated
+despite explicit no-delegation. Revalidate all phase pointer language as advisory
+and scope-limited, not merely shorter. Existing trigger/state/guard mechanics stay
+unchanged; do not implement a semantic classifier to guess user authority.
+
+042_hook_scope_revalidation.md is the P amendment owner for exact hook strings and
+their observed-trigger tests.043_shared_family_evidence.md is the P amendment owner
+for an explicit extension to the existing opt-in evaluator: native thread identity
+and shared session correlation are distinct. This offline evidence-schema change
+is an explicit exception to the older no-new-schema wording below; runtime FSM,
+goalplan, plugin config, hook registration and provider schemas do not change.
+There is no new daemon, model client, proxy, packer or general trace framework.
+Both amendment pages require independent audit before B; their existence is not
+an implementation or adoption verdict. Original failures remain in the population.
+
+Resolved precedence for implementation:042 R1–R5 and T1–T8 replace the older
+H1–H6 string/test proposals wherever they conflict; H0 and untouched mechanical
+contracts remain.043 adds only the explicit family-evidence branch in
+scripts/probe-evidence.mjs, its existing evidence fixture extension and
+test/probe-evidence-family.test.mjs. Schema1 remains direct-thread evidence;
+schema2 sets pairedComparisonEligible=false and exposes a separate, scoped
+familyComparisonEligibleForReview. It never satisfies a per-thread-attribution
+row. Full-history and other supported native surfaces remain mandatory under050,
+not waived by this initial legacyV1/direct-child mode.
+
+Implementation ordering within this phase is evidence-contract prerequisites,
+then scoped instructional text/H0 ownership, generated payload, regression checks
+and real native comparisons.050 remains a separate mandatory cycle after this one.
+Known response-tier echo stays excluded as the user directed; every observed
+request still must carry the exact Astra/high/priority condition. Deduplicate
+shared-family usage; never manufacture child-specific wire attribution.
+
 ## 상태와 실행 경계
 
 - 작성일: 2026-09-05. **wp0 P의 문서 산출물이며 wp3 구현/검증 결과가 아니다.**
