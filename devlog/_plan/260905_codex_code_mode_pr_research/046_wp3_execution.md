@@ -86,3 +86,21 @@ Exact candidate native original Korean no-delegation/phase and answer cases,
 native goal admission and scope checks, final family evidence review,
 SoT update and fresh C receipt remain required. 050 delivery comparison and
 final installed handoff remain separate downstream cycles.
+
+### Additional bounded C controls
+
+For the already-approved N12 full HOTL completion positive, main selects a600s
+single-run recorder deadline before its first attempt (the existing recorder
+accepts1000–600000ms). This allows real plan/audit/build/check/close work and
+independent review; ordinary scoped CLI cases remain180s. No total task budget
+is introduced, no timeout is silently extended mid-attempt. Two CLI roots plus
+one supplemental native root remain the concurrency cap. Failures/extra goal
+turns and child costs remain in the population; the600s control is not directly
+comparable to180s truncated attempts.
+
+N16 uses a fresh full source-tree fixture (without its .git), then a new isolated
+fixture commit and normal installed plugin. Its original prompt permits build
+and dist outputs only, not tests or source edits. Existing build has no external
+compiler/dependencies and is not typechecking. The recorder source stays clean
+and separate from the work fixture. N14 preparation remains pending until its
+remote-target context is explicit; simply adding a prompt name is not execution.
