@@ -66,3 +66,7 @@ devlog/_plan/260905_dev_skill_audit/
 4. Aside를 실제 read-only 호출하고 결과 또는 정확한 실패를 남김. 비밀과 무관한 개인 정보는 기록하지 않음.
 5. 독립 감사와 fresh 문서 검증. 이번 unit 이외 추적 파일 변경 없음.
 6. 로컬 commit, D/IDLE, goalplan 검증 뒤 인터뷰. push는 하지 않음.
+
+## D 종료
+
+`wp1` 문서화는 DONE이다. C 최종 감사 PASS, 실문서 receipt 발행 후 D를 실행해 `close target wp1 is complete`와 IDLE을 확인했다. 구현은 미착수다. 이후 작업은 `004_interview.md`의 Q01부터 사용자의 정책 선택을 받는다. unit은 기존 관례대로 `_fin/260905_dev_skill_audit/`에 보관한다. 검증·정정 과정은 `011_audit.md`, `012_verification.md`에 있다.
