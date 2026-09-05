@@ -286,7 +286,7 @@ for (const phase of ["preflight", "execution", "postdoctor"]) {
 }
 
 for (const phase of ["preflight", "execution", "postdoctor"]) {
-  for (const identity of ["approval", "install", "prompt", "source", "source-head", "source-hidden", "codex"]) {
+  for (const identity of ["approval", "install", "prompt", "source", "source-head", "source-hidden", "source-untracked", "codex"]) {
     test(`record rejects ${phase} provenance ${identity} drift`, darwinOnly, async t => {
       const f = recordFixture(t, `${phase}-provenance-${identity}`);
       const original = Object.fromEntries(["approval", "install", "prompt", "codex"].map(k => [k, sha(readFileSync(f.provenance[k]))]));

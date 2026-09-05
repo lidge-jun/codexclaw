@@ -66,7 +66,7 @@ export function execArgs(tier, finalPath) {
 function cleanSource(root, sha) {
   if (!/^[a-f0-9]{40}$/.test(sha)) throw new Error("exact source SHA required");
   for (const [args, expected] of [
-    [["rev-parse", "HEAD"], sha], [["status", "--porcelain"], ""],
+    [["rev-parse", "HEAD"], sha], [["status", "--porcelain", "--untracked-files=all"], ""],
   ]) {
     const r = spawnSync("git", args, {cwd:root, encoding:"utf8", timeout:10000});
     if (r.status !== 0 || r.stdout.trim() !== expected) throw new Error("source identity mismatch or dirty source");

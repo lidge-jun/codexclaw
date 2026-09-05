@@ -30,6 +30,9 @@ function mutateProvenance(phase) {
   if (key === "source-head") {
     git(["-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false",
       "-c", "core.hooksPath=/dev/null", "commit", "--allow-empty", "--quiet", "-m", "changed source identity"]);
+  } else if (key === "source-untracked") {
+    git(["config", "status.showUntrackedFiles", "no"]);
+    writeFileSync(join(f.sourceRoot, "untracked.txt"), "untracked source drift\n");
   } else if (key.endsWith("-delete")) unlinkSync(f.provenance[key.slice(0, -7)]);
   else {
     if (key === "source-hidden") git(["update-index", "--assume-unchanged", "fixture.txt"]);
@@ -96,6 +99,7 @@ async function fakeCodex() {
 function scriptSource(f, fn) {
   return `#!${process.execPath}\nimport { appendFileSync, existsSync, readFileSync, writeFileSync, unlinkSync, symlinkSync, renameSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { join } from "node:path";
 const f = ${JSON.stringify(f)};
 ${replaceIdentity.toString()}
 ${mutateProvenance.toString()}
