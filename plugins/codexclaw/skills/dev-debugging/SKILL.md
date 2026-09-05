@@ -408,7 +408,7 @@ controls and `dev-devops` for incident response. Preserve the same authorization
 ## Compact Summary
 
 When context is limited, preserve: (1) Phase 0 — is it a bug or a design problem?,
-(2) Core principle — no fixes without root cause,
+(2) Core principle — RCA before permanent repair; preauthorized reversible incident mitigation may come first,
 (3) phases 0-4 — architecture check → investigate → analyze → hypothesize → implement,
 (4) Repeated Failure Rule — after repeated failures, reassess, (5) one variable at a time,
 (6) evidence over intuition, (7) failing test first.

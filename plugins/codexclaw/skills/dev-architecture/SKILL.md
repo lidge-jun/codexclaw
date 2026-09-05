@@ -233,8 +233,8 @@ policy; placement must not erase a business invariant or required defense-in-dep
 | Database query results | YES at ORM-untyped/raw-query boundaries (shape only); NO when a typed schema/ORM guarantees the shape | Untyped results may drift; typed guarantees are trusted (see Banned Patterns) | Check raw-query nulls/shape; trust typed ORM results |
 | Message queue consumer | YES | Cross-process boundary | Validate message schema |
 | **Internal function params** | No repeated shape parsing; domain constraints may apply | Types prove shape, not every business invariant | Domain owner checks start <= end |
-| **Private method args** | **NO** | Same module, same author | Redundant — types suffice |
-| **Service-to-service in same process** | **NO** | In-process calls share type system | Interface contracts handle this |
+| **Private method args** | No repeated shape parsing; invariants may apply | Types do not prove every valid state | Enforce the private method's real domain constraints |
+| **Service-to-service in same process** | No repeated trusted shape parsing; enforce domain/security rules | In-process is not a waiver for invariants or authorization | Validate the actual boundary/constraint |
 
 ### Banned Patterns
 

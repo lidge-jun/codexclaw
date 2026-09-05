@@ -1,7 +1,10 @@
 # Application security release checklist — ASVS-informed, not a conformance certificate
 
 This is a local risk checklist, not the complete OWASP ASVS and not an official L1/L2
-mapping. Select the required assurance level from the product's threat model.
+mapping. Keep existing assurance requirements: the local baseline target is L1 for
+ordinary authenticated apps and L2 for admin, multi-tenant, PII, payments, uploads,
+and elevated internal tools. The threat model may require more; lowering an existing
+target requires a separately approved policy, not this documentation rewrite.
 Passing these summaries alone does not establish ASVS compliance.
 
 ## Official baseline
