@@ -41,6 +41,15 @@ Known response-tier echo stays excluded as the user directed; every observed
 request still must carry the exact Astra/high/priority condition. Deduplicate
 shared-family usage; never manufacture child-specific wire attribution.
 
+045 is the explicit supplemental native-control protocol for same-thread goals
+and real pending answers that0.146 exec cannot expose/answer reliably. It uses
+only a bounded first-party app-server stdio process and existing private byte
+passthrough, not a product recorder change, permanent daemon or alternate model
+runtime. Ordinary exec populations remain separate.043 does not certify these
+resumed/API packets; independent native-control review is required. User API
+preparation controls are logged outside the tested agent-action window, never
+presented as model actions or permission grants from a scripted answer.
+
 ## 상태와 실행 경계
 
 - 작성일: 2026-09-05. **wp0 P의 문서 산출물이며 wp3 구현/검증 결과가 아니다.**

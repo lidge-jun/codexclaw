@@ -41,3 +41,11 @@ is incomplete. No proposed implementation or regression result is claimed here.
 completed turn, plus same-thread paused-goal inspection through first-party APIs.
 The separate CLI resume timeout remains a failed specimen. All temporary native
 server processes used so far have exited; exact protocol and acceptance audit remain.
+
+045 now contains the complete proposed fixed operator/RPC sequence and independent
+acceptance path, with actual callback and paused same-thread inspection evidence.
+The source-backed supplemental app-server route supersedes the originally proposed
+product-recorder extension: exec remains primary, no new shipped recorder/runtime.
+Cicero is reviewing this final High1 dependency. Actual N17 active admission,
+genuine blocked preparation and I/post-answer behavior still require execution;
+neither a proposed recipe nor a timeout specimen is a native acceptance PASS.
