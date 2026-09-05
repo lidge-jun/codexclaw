@@ -101,7 +101,7 @@ function invokeHook(command, payload, tmpHome, benchCwd) {
   const parts = command.replace(/^node\s+/, "").match(/(".*?"|'.*?'|\S+)/g) || [];
   const cleanParts = parts.map(p => p.replace(/^["']|["']$/g, ""));
   const start = performance.now();
-  const result = spawnSync("node", cleanParts, {
+  const result = spawnSync(process.execPath, cleanParts, {
     input: payload,
     timeout: 15000,
     env: benchEnv(tmpHome),
@@ -143,11 +143,12 @@ function fmtMs(value) {
  * has no fork(), so CreateProcess + PE loading + Defender's filter driver all
  * land in this number.
  */
-export function measureSpawnFloor(iterations) {
+export function measureSpawnFloor(iterations, env = benchEnv(tmpdir())) {
   const timings = [];
   for (let i = 0; i < iterations; i++) {
     const start = performance.now();
-    spawnSync(process.execPath, ["-e", ""], { stdio: "ignore", timeout: 15000 });
+    const result = spawnSync(process.execPath, ["-e", ""], { stdio: "ignore", timeout: 15000, env });
+    if (result.error || result.status !== 0) throw new Error("spawn floor process failed");
     timings.push(performance.now() - start);
   }
   timings.sort((a, b) => a - b);
@@ -201,7 +202,7 @@ function main() {
   mkdirSync(join(tmpHome, ".codex"), { recursive: true });
   const benchCwd = mkdtempSync(join(tmpdir(), "cxc-bench-cwd-"));
 
-  const spawnFloor = measureSpawnFloor(iterations);
+  const spawnFloor = measureSpawnFloor(iterations, benchEnv(tmpHome));
   if (!jsonMode) {
     console.log("spawn floor: p50 " + fmtMs(spawnFloor.p50) + " | p95 " + fmtMs(spawnFloor.p95));
     console.log("---");

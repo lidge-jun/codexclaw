@@ -1,5 +1,7 @@
 # 020 — wp1 remote evaluation: installed payload and execution evidence
 
+Implementation review amendment: [023](023_wp1_review_synthesis.md) supersedes the initial single-test-file scope and initial measurement/lifecycle snippets where explicitly listed. Portable, Darwin process and compiled-hook fixtures are split without removing cases. Spawn floor and hook children use the same sanitized environment and Node executable; unusable comparator percentage rows are UNKNOWN. Identity snapshots revalidate paths as well as bytes.
+
 Status: PROPOSED, written during wp0 P. Main must verify these documents and audit
 them before B. No command in this document was executed while authoring it.
 The `020` filename is the user-assigned slot; this document designs **wp1**, not wp2.

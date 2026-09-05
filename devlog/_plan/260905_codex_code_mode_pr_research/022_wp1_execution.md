@@ -37,3 +37,11 @@ The single new test file is 1,012 lines because the approved initial write scope
 Read-only diagnosis of the existing macmini CodexClaw installation found 23 declared synchronous hooks, 22 trusted. `session-start-healing-declared-features` has no native hook-state section or trusted hash. The source global config is unchanged. An isolated baseline Codex home has been prepared with a loopback OCX provider and no copied credentials, but no hook-trust bypass or bootstrap grant has been applied.
 
 The recorder deliberately requires the selected hook-trust diagnostic to pass. Do not relax that check, silently omit the handler, or grant trust by copying a blanket state. Before live installed-candidate execution, obtain direction for normal trust registration of the reviewed CodexClaw hooks in the probe-only home. Existing approval/sandbox bypass is a separate permission and remains the fixed probe condition.
+
+## Additional regression check while trust approval is pending
+
+Remote original hook-bench/cwd/report/comparison, PABCD continuation and spawn-attach regression selection returned exit 0: 155 passed, zero failed/skipped. Raw log `wp1-original-regressions.log` was copied into the session-local baseline evidence folder. These 155 overlap the earlier 100-test selection; they are not 255 unique tests.
+
+SHA256 comparisons between local and remote copies matched for probe-recorder, probe-evidence, hook-bench, probe-evidence.test and hook-bench-cwd.test. The approved docs/native-thin-harness.md measurement-boundary paragraph was added; independent implementation review remains in progress.
+
+The automatic Stop continuation is not human hook-trust approval. Actual phase remains B/wp1 and live installed-candidate evidence is pending; no artificial B→C/D or criterion completion is recorded.

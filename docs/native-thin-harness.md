@@ -83,6 +83,12 @@ Review rules:
 
 Hook count alone is not a performance metric. Measure session-once and hot-path hooks separately, including invocation frequency, no-op rate, process creation, filesystem IO, and platform-specific p50/p95. Security and PABCD invariants may intentionally cost more, but they still require an explicit budget and regression fixture.
 
+Evaluation scripts are opt-in and run outside ordinary sessions. Compiled hook
+replay measures synthetic invocation cost, not host matcher/trust activation.
+Installed version, selected configuration, and actual routed model/service tier
+are separate claims. Missing execution proof is unknown, never an inferred pass;
+raw artifacts and parent/child provenance must be reviewed before adoption.
+
 Failure behavior must be explainable. Unsupported capability, stale state, or malformed payloads must not silently invent a provider, tool, model, or success result.
 
 ## Deliberate non-goals

@@ -1,5 +1,7 @@
 # 021 — wp1 recorder/analyzer complete proposed source
 
+The original audited source listings below are design history. Accepted implementation-review corrections in [023](023_wp1_review_synthesis.md) take precedence: lifecycle path revalidation, platform-specific test routing/splitting, identical benchmark subprocess environments, and rejection of comparator rows with unusable percentage baselines. Actual implementation and remote regression artifacts are recorded in 022; unchanged listings are not claims of current byte identity.
+
 Status: PROPOSED code listings, not executed or installed. Dependency: [020](020_remote_evaluation.md).
 Only this Markdown file is written in wp0. Main audits before extracting files in B.
 All source paths below are relative to `/Users/jun/.codex/worktrees/974c/codexclaw`.

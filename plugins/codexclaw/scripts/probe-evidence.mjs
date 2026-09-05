@@ -168,6 +168,7 @@ export function analyzeBench(before, after, threshold) {
   check(after.hooks.every(h => beforeKeys.has(`${h.name}::${h.event}`)), "added hook requires separate review");
   const comparison = compareReports(before, after, threshold);
   check(comparison.ok, "per-hook regression or missing hook");
+  need(comparison.rows.every(row => Number.isFinite(row.deltaPct)), "comparison baseline too small for a percentage claim");
   return {state:"eligible-for-review", scope:"synthetic-replay-only", comparison};
 }
 
