@@ -50,3 +50,18 @@ test("the bench env sets USERPROFILE alongside HOME", () => {
   assert.equal(env.CODEX_HOME, join(tmpHome, ".codex"));
   assert.equal(env.CODEX_SQLITE_HOME, join(tmpHome, ".codex"));
 });
+
+test("bench env removes ambient routing and preload overrides", () => {
+  const keys = ["CXC_SKILLS_DIR", "CODEXCLAW_WORKTREE_ROOTS", "NODE_OPTIONS"];
+  const before = keys.map(key => process.env[key]);
+  try {
+    for (const key of keys) process.env[key] = "probe-sentinel";
+    const env = benchEnv(join(tmpdir(), "cxc-bench-home-probe"));
+    for (const key of keys) assert.equal(env[key], undefined);
+  } finally {
+    keys.forEach((key, i) => {
+      if (before[i] === undefined) delete process.env[key];
+      else process.env[key] = before[i];
+    });
+  }
+});

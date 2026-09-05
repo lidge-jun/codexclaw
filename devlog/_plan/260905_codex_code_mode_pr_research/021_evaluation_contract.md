@@ -293,6 +293,9 @@ export function runOwned({bin, args, cwd, env, prompt, timeoutMs, stdoutFd, stde
 export async function record(spec) {
   const p = prepare(spec);
   const before = snapshot(p), beforeDoctor = doctor(p, "before");
+  if (JSON.stringify(before) !== JSON.stringify(snapshot(p))) {
+    throw new Error("identity changed during preflight doctor");
+  }
   const prompt = readFileSync(join(p.root, "prompt.txt"));
   const finalPath = join(p.out, "final.txt"), args = execArgs(spec.serviceTier, finalPath);
   const stdoutFd = openSync(join(p.out, "stdout.jsonl"), "wx", 0o600);
@@ -739,6 +742,7 @@ and fs; never a real model, SSH, shared config or production service.
 | payload nested symlink | payloadDigest(temp root) | throws; original target unchanged |
 | record(spec) dispatcher symlink, not merely payloadDigest unit call | Use the valid macOS integration fixture and clean source git repo; replace only installed bin/cxc.mjs with a symlink to a test-owned script outside payload that writes a marker and emits valid four-check doctor JSON | record rejects with payload-symlink error; target marker remains absent. Reverting validation to after doctor must make this test fail |
 | record(spec) payload replaced during Codex execution | Valid preflight; fake Codex replaces bin/cxc.mjs with the marker-writing external symlink before exiting successfully | record returns not ok with postflightError; analyzer classifies FAILED before requiring absent after identity; linked marker absent and no postflight doctor execution. Repeat with config/launcher byte drift, and with a doctor that mutates an identity file after its valid invocation |
+| initial doctor mutates an identity component | Valid fixture until doctor executes; fake doctor changes config, payload or a launcher and still prints valid PASS diagnostics | record rejects before starting fake Codex; inference marker remains absent. A valid doctor report cannot override changed bytes |
 | conflicting global cxc and candidate dispatcher | Valid macOS record fixture; put a marker-writing foreign cxc on the original process PATH. Fake Codex invokes cxc through its received PATH; candidate cxc handles doctor normally and writes a distinct candidate marker for that invocation | Candidate marker present, foreign marker absent; run.json dispatch and launcher digests match candidate. Restore test PATH in finally. Final native fixture additionally inspects actual cxc resolution inside the model shell |
 | incompatible benchmark host/harness; 1 iteration; negative floor | analyzeBench separately | UNKNOWN/2, no percentage claim |
 | benchmark duplicated keys / added hook / one hook regression | analyzeBench separately | FAILED/1; existing missing-hook regression remains intact |
