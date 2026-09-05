@@ -51,3 +51,24 @@ c2-neutral run with unchanged prompt and independent oracle. Baseline comparison
 remains separate, and no old failure is removed. Same reviewer reconstructs full
 model-visible coverage; command success alone is insufficient. A repeated failure
 returns to measured source/owner modularization design, not a stronger hook.
+
+## Fresh native recovery result
+
+Candidate d8c63f0 c2-neutral002 completed with unchanged prompt, exact Astra/high/
+priority on8 recorded requests and no delegation. Same-reviewer behavioral PASS:
+outer rollout24 still truncates9,970 tokens, but separate file reads and expanded
+outer budget fully deliver testing, matrix, reviewer and security at28. No missing
+lines remain before RED31–32 and first implementation34. This is successful
+recovery, not a claim that truncation never occurred.
+
+Original8 tests go RED then8PASS/0FAIL/0skip in the model's recorded execution.
+Main independently reran the unchanged oracle and checked read-only files against
+the original fixture, allowed3paths and commit count1. Reviewer verified11 raw
+artifact hashes and actual CHECK absence/IDLE state. Operator elapsed112,511ms,
+CLI input311,470 including cached260,992; no performance win is inferred from
+comparison with incomplete baseline/earlier failed candidates.
+
+Raw run: wp2-candidate-c2-neutral-002 under the existing remote experiment root.
+The original Korean C2 CHECK/no-delegation failure, shared-family request limitation,
+broader repeated cost tests and integrated HOTL remain open in their downstream
+owners. This result resolves only the targeted complete-read recovery fixture.
