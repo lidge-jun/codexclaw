@@ -510,3 +510,36 @@ validation and model update_goal complete. USER API never sets complete/blocked.
 Verify normal final turn, same G complete and no surviving owned processes before
 stopping. Goal-absent cleanup watcher is inapplicable. All original failure and
 resumed costs remain; the outer operator still owns full-family postflight.
+
+## 16. N14 execution referent and H0 preparation
+
+Pauli approved the disclosed N14 unavailable-runner negative: preserve original
+042 prompt, append explicit context that current hardware is macmini-cf but
+"local" means this isolated controller process/HOME. Authorized remote means a
+separately provisioned SSH runner alias macmini-cf; no config/identity/agent is
+provisioned here and ambient credentials/config/agents or bare SSH attempts are
+not authorized. Inspect only this HOME, report NOT RUN/access gap and do not fall
+back locally. Do not claim SSH is technically impossible. n14-scoped uses this
+fixed supplemental context, whose actual prompt hash is recorded before execution.
+
+N13a uses a fresh notes fixture; N13b a fresh source-tree copy excluding .git,
+including the reviewed source/plan/evidence documents already present at its pin.
+Product/source copies are read-only; Interview tracker/Q&A records alone are
+writable when authorized. Start with literal human `orchestrate I` plus state-
+control-only preparation. Those no-work restrictions end after that prep turn;
+the separately stated Astra/high/requested-priority requirement persists for all
+later H0 turns and Minds. Use supported fields/inheritance, no shared settings or
+actor wire/credential collection; outer postflight owns full-family verification.
+
+After real I entry/normal prep completion, submit exact042 N13a/b text. Verify
+grounded done-versus-better distinction, relevant trade-offs and only proposed
+spikes for N13b, plus actual authorized Minds/scan evidence. Main reviews genuine
+question callbacks and answers only from the fixed fixture/approved scope; unknown
+preferences are UNVERIFIED, not guessed. No Plan, product changes, tests, goal or
+experiment execution. Preserve all callback/answer/turn evidence.
+
+Before first H0 execution main sets a300s bound for the substantive H0 turn,
+which can include an actual human answer and rescan; prep remains180s and wrapper
+600s. This is an operator test bound, not a native goal budget or runtime option.
+Goal-absent180s cleanup watcher is not used for this longer case. The control
+sequence waits for real completion and promptly closes the verified owned wrapper.
