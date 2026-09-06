@@ -123,8 +123,8 @@ precondition for writing code there. Skipping it is a STRICT violation (dev §0.
 same severity as a broken build. When a change spans multiple surfaces, read each
 matching router first.
 
-For required full-file reads, bound batches by both the nested read tool's output
-budget and the enclosing code-mode output budget. A truncated result is incomplete:
+For required full-file reads, keep batches within the active tool's output limits.
+A truncated result is incomplete:
 read the missing portions before the governed action. A successful command exit
 does not prove that all instructions reached the model. Keep the C0/C1 scope
 exceptions; this is not a request to load every linked reference.
@@ -132,7 +132,6 @@ exceptions; this is not a request to load every linked reference.
 If a selected file's output is truncated, re-read that file separately. Do not
 guess missing ranges from an elision marker. If it cannot fit one result, use
 numbered, contiguous, non-overlapping chunks through EOF and verify no gaps.
-Keep both nested and outer output budgets large enough for each returned chunk.
 
 | Change surface | Primary router | Also load |
 |---------------|----------------|-----------|
@@ -167,6 +166,13 @@ read selectively, consult or notify only for a concrete reason, and preserve eac
 task's user authority. No mandatory lookup for trivial work or per-turn polling.
 Use `dev` plus repo tools for local facts; load `search`, `pabcd`, `loop`, `recall`,
 `cxc-qa`, or the matching `dev-*` owner for their named domains. `skill-hub` is deprecated.
+
+### Native execution
+
+For tool composition, response projection, or in-context JS computation, prefer
+exposed native Code Mode and read [native execution](references/native-execution.md)
+before nontrivial use. Simple direct calls and explicit tool restrictions take
+precedence; do not enable features or invent a runtime when the capability is absent.
 
 ### Browse / QA Tool Routing
 
