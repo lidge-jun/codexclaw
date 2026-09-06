@@ -4,6 +4,16 @@ All notable changes to codexclaw are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.19] - 2026-09-06
+
+### Changed
+
+- Keep messages to independent tasks default-off. Contact now requires an explicit
+  user request or necessary coordination of a confirmed blocking CI/merge collision,
+  with host permission and wake checks. Routine progress notices and unsolicited
+  follow-ups stay in the current task; read-only context and authorized subagents
+  remain available.
+
 ## [Unreleased]
 
 ## [0.2.16] — 2026-08-30

@@ -96,8 +96,10 @@ means shipped + tested" — D cannot close without verification output.
 ## 3. Dispatch doctrine: who spawns whom, and what they may write
 
 The main/child rules below govern delegated subagents. Independent user-owned tasks
-are peers, not additional employees of this main session. Their selective discovery,
-consultation, notification and wake boundaries live in the canonical
+are peers, not additional employees of this main session. Keep their evidence
+read-only by default. Outbound contact is limited to explicit user requests or
+necessary confirmed blocking CI/merge collision coordination, subject to host
+permissions and wake checks in the canonical
 [peer collaboration reference](../plugins/codexclaw/skills/dev/references/peer-collaboration.md).
 They retain separate user instructions, goals and FSMs; this adds no team manager.
 

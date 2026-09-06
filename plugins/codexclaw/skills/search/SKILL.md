@@ -24,10 +24,13 @@ declare an answer final on snippet text alone.
 
 ## Divergence Candidate Grounding
 
-When an existing task owns relevant research, a counterexample, or a live decision,
-use [peer collaboration](../dev/references/peer-collaboration.md) for selective
-discovery and consultation. This does not activate a Tier-3 swarm; peer reports are
-leads, not primary-source proof or independent corroboration.
+Use an existing task's research as read-only context only when needed for a
+specific uncertainty; relevant research does not justify an unsolicited message.
+[Peer collaboration](../dev/references/peer-collaboration.md) limits contact to
+explicit user requests or necessary confirmed blocking CI/merge collision
+coordination, with host permission and wake checks. This does not activate a
+Tier-3 swarm; peer reports are leads, not primary-source proof or independent
+corroboration.
 
 When any PABCD workflow enters divergence mode (HITL manual entry or goal-mode
 plateau prompt), every N>=2 candidate must carry search provenance in the divergence

@@ -1,22 +1,37 @@
 # Independent peer collaboration
 
-Use an existing task's living context when it could change a decision, resolve a
-dependency, prevent duplicate investigation, or help another task act on a finding.
-This applies to coding and research. It is agent-followed guidance, not a scheduler,
-delivery guarantee, permission grant, or runtime enforcement.
+Keep work in the current task by default. Read another task's existing evidence
+when it resolves a specific uncertainty; sending a message is a separate decision.
+This is agent-followed guidance, not a scheduler, permission grant, delivery
+guarantee, or runtime enforcement.
 
-## Decide whether another task can help
+## Decide whether to contact another task
 
-A peer is an independently user-owned task, not a child assigned by this task.
-Each keeps its user conversation, goal, worktree, plan, and phase authority.
-Use a subagent for a bounded slice of your own assignment; consult a peer for
-context or decisions it already owns. The two patterns can coexist.
+A peer is an independently user-owned task with its own conversation, goal,
+worktree, plan, and phase authority. A subagent explicitly dispatched for this
+assignment follows its scoped packet and native child tools; this peer policy
+does not restrict that authorized delegation.
 
-At the start of substantive work or a material direction change, consider a light
-look at nearby work. Also look when an unknown decision owner, conflicting contract,
-or duplicate investigation emerges. Send useful impacts outward when a new finding
-changes a known peer's premise. Do not require discovery for trivial/self-contained
-work, poll every turn, broadcast introductions, or promise exhaustive discovery.
+**Outbound messages are default-off.** Send to an existing peer only when:
+
+- The user explicitly requests that contact, within the named recipient and scope; or
+- Current evidence identifies an actual CI/merge collision involving that peer
+  which blocks this assignment, and a minimal coordination message is necessary
+  because read-only evidence or an isolated local action cannot resolve it.
+
+The collision exception is a reason to consider contact, not extra permission:
+obey host permission requirements and the wake checks below. Record the affected
+PR/commit/run or shared resource, the observed collision, and the smallest question
+needed. A red CI run by itself, a shared repo, speculative overlap, an unknown
+owner, or a potentially useful finding does not satisfy this exception.
+
+The following notification defaults do not prohibit contact explicitly requested
+by the user. Do not routinely scan nearby tasks at startup or a direction change.
+Do not send unsolicited introductions, progress reports, advisory impacts,
+completion notices, follow-up work, or requests to keep another task busy. Keep
+useful nonblocking findings in this task's own record. Do not contact peers merely to save research
+or to get general design approval. Both send triggers still preserve each task's
+authority and any explicit no-contact instruction.
 
 ## Discover, read, then decide whether to talk
 
@@ -36,9 +51,11 @@ and disclose the limitation; do not emulate delivery by editing rollout files or
   fresh index and refresh a stale recipient/context before acting. Do not repeatedly
   reload everything. A summary may omit a material exception: request the narrow
   source or clarification when the missing detail matters.
-- If reading answers the question, stop there. Talk when current judgment,
-  negotiation, acceptance, or an actionable impact is needed. A discovered peer
-  need not be contacted.
+- If reading answers a question and no contact was requested, stop there.
+  Otherwise, apply the two outbound-message triggers above and all authority/wake
+  checks. Relevance or a need for fresh judgment alone does not authorize contact.
+  Do not substitute a read-only answer for explicitly requested delivery.
+  Continue independent work where possible.
 
 Use [native execution](native-execution.md) for composition and failure handling.
 Code mode can project tool responses before returning them to the model: keep
@@ -55,14 +72,16 @@ that affects the decision. Character counts are not exact model token/cost count
 
 ## Wake and authority boundaries
 
-A necessary relevant question may wake an idle or previously completed task when
-within the user's authorized collaboration scope. Idle/completed does not itself
-mean user-stopped. Check recent user intent or another reliable stop-state source:
+Apply these checks only after an outbound-message trigger is satisfied. Idle or
+completed tasks stay asleep by default; a CI collision alone does not justify
+waking them. Waking one requires explicit user authorization for that contact and
+current evidence that the wake stays within its scope. Idle/completed does not
+itself mean user-stopped. Check recent user intent or a reliable stop-state source:
 do not wake an explicitly stopped task, and do not infer eligibility from app status
 alone. If eligibility remains unknown after a narrow read, do not automatically
 send; use available evidence and continue independent work. Ask the user only when
 that unanswered dependency actually prevents progress. Apply this wake check to
-every outbound message: advisory-only notifications must not wake idle/completed
+every outbound message: unsolicited advisory-only notifications must not wake idle/completed
 peers. Keep that impact in your own artifact for later authorized contact instead.
 
 Answering a peer question is not permission to resume an old goal, append new work
@@ -81,7 +100,7 @@ Use read-only evidence or request direction only when blocked; report the limita
 Never work around it by changing another task's goal. A warning does not make an
 unsafe wake permissible.
 
-## Exchange a useful question, impact, or agreement
+## Send the minimum authorized message
 
 Prefer concise natural language: why this recipient, the specific question/impact,
 source and revision, applicable conditions/exceptions, what is tentative, and whether
@@ -89,10 +108,11 @@ a reply is needed. Do not override recipient model/settings just to send context
 Creating, forking, archiving, or interrupting a user task remains a separate action,
 not an implicit part of discovering or consulting an existing peer.
 
-For example, ask the API task whether its current cancel contract retains a
-resumable job before committing a destructive UI action; do not ask it to rebuild
-your UI. Tell a documentation task which accepted API revision invalidates its
-example, rather than forwarding your whole conversation.
+For example, when the user asks you to contact a named task, send that bounded
+question. For a confirmed collision between two active release jobs using the same
+resource, include the run IDs and ask which job owns the next step, if host rules
+permit contact. If an API change makes another task's docs stale, record it locally
+unless the user requests contact; relevance alone is not a send trigger.
 
 Delivery success is not acceptance or completion. A promise you depend on needs
 explicit acceptance of the same issue, revision and scope; silence or an ACK is not
@@ -100,9 +120,11 @@ agreement. Record consequential decisions and their source in your existing plan
 or devlog. Each party owns its record; do not audit the other's private bookkeeping
 or invent a globally committed agreement state.
 
-If your user changes direction, distinguish your withdrawn promise, notification
-delivery, and the peer's still-unconfirmed impact assessment. Do not overwrite its
-plan. Do not reply to every ACK, send repeated nudges, or turn a nonblocking advisory
+If your user changes direction, re-check authorization before further contact;
+distinguish a withdrawn promise from any delivered message and the peer's still
+unconfirmed impact assessment. Do not automatically send a withdrawal notification
+or overwrite its plan. Without an explicit user request, do not reply to ACKs or send repeated nudges.
+Do not silently turn a nonblocking advisory
 into a required wait. For a real dependency use native bounded waits/cursors; a
 timeout is not proof the peer failed or permission to replace/terminate it.
 
@@ -124,6 +146,21 @@ briefly to the user, not a transcript of all coordination.
 Evaluate relevant and irrelevant peers, stale or contradictory context, absent
 tools, idle/explicit-stop/unknown intent, incoming questions, silent/ACK replies,
 and changed user directions. Distinguish simulation from live task delivery.
-Add runtime machinery only after useful collaboration is established and a concrete
-activation, delivery, or recovery gap justifies it. CI/merge is one domain example,
-not the organizing model for all peers.
+Review these cases without sending live probe messages to unrelated tasks:
+
+Apply explicit user contact instructions first. The other rows describe defaults
+without such a request; host permissions and wake checks always apply.
+
+| Situation | Expected action |
+|---|---|
+| User explicitly requests contact with a named task | Send only that request after authority and wake checks |
+| Confirmed CI/merge collision with an active peer blocks current work | Read first; send the minimum necessary coordination only if permitted |
+| CI fails without evidence of a peer collision | Diagnose within this task; do not contact peers |
+| Related research, stale docs, useful finding, or completion update | Read when needed; keep findings local; no unsolicited message |
+| Idle/completed peer, no explicit contact request | Do not wake it, including for a collision |
+| Explicitly stopped peer or unknown wake eligibility | Do not send automatically; ask only if the dependency blocks progress |
+| Peer acknowledges, stays silent, or send outcome is uncertain | No courtesy reply or nudge; inspect before any justified retry |
+| This task's explicitly dispatched child needs coordination | Use its native subagent tools within the original assignment |
+
+A scenario review proves the wording, not live model compliance. Add runtime
+machinery only for a separately scoped, demonstrated enforcement gap.
