@@ -36,7 +36,7 @@ import {
 // Cross-component dist import, LAZY + FAIL-OPEN (260724 WP1): the entry must keep
 // working when the cxc-ops sibling is absent (isolated dist snapshots in tests,
 // partial checkouts). A missing resolver degrades to the literal `cxc`.
-type CxcInvocationFn = (moduleUrl: string, env?: Record<string, string | undefined>) => string;
+type CxcInvocationFn = (moduleUrl: string, env?: Record<string, string | undefined>, command?: string) => string;
 let cxcInvocationFn: CxcInvocationFn | null = null;
 try {
   ({ cxcInvocation: cxcInvocationFn } = (await import("../../cxc-ops/dist/cxc-resolve.js")) as {
@@ -45,8 +45,8 @@ try {
 } catch {
   cxcInvocationFn = null;
 }
-function cxcInvocation(moduleUrl: string): string {
-  return cxcInvocationFn ? cxcInvocationFn(moduleUrl) : "cxc";
+function cxcInvocation(moduleUrl: string, command?: string): string {
+  return cxcInvocationFn ? cxcInvocationFn(moduleUrl, process.env, command) : "cxc";
 }
 import { hasStageMarkerForPhase, isContextPressureTail, readTranscriptTail } from "./transcript.ts";
 import { getGoalActiveStatus, suppressesInterview } from "./goal-active.ts";
@@ -220,9 +220,8 @@ const MAX_CTX = 32_000;
  */
 export function resolveCxcInDirective(text: string): string {
   try {
-    const inv = cxcInvocation(import.meta.url);
-    if (inv === "cxc") return text;
-    return text.replace(/`cxc /g, `\`${inv} `);
+    return text.replace(/`cxc ([^\s`]+)/g,
+      (_prefix: string, command: string) => `\`${cxcInvocation(import.meta.url, command)} ${command}`);
   } catch {
     return text; // FAIL-OPEN: a resolution error must not break directive emission
   }
@@ -472,8 +471,9 @@ export function loopArmDirective(platform: NodeJS.Platform = process.platform): 
     "Load $codexclaw:cxc-loop and $codexclaw:cxc-pabcd for an actual loop request; bare cxc-loop execution means scoped HOTL.",
     "No-delegation means no dispatch. No-tests does not forbid separately authorized build/typecheck. Report required but forbidden actions as unmet.",
     "Only for authorized loop execution, apply steps 1-5 within scope. No-goal/no-FSM restrict creation/mutations, not read-only inspection. Narration is not persisted progress:",
-    "1. Session id: take it ONLY from your most recent SessionStart binding line",
-    "   (SESSION-IDENTITY-01 — never an id seen in transcript history).",
+    "1. Session id: use the current SessionStart binding, corroborated by `cxc session current` when native CODEX_THREAD_ID is available.",
+    "   Missing/inherited/conflicting binding: use `cxc session current` then explicit `cxc session bind` in its verified cwd. Never set the environment id or replay hook JSON.",
+    "   SESSION-IDENTITY-01: never a parent/history id; binding alone does not verify hook execution or Stop-continuation.",
     "2. `cxc orchestrate status --session <id>` — read the real phase first.",
     "3. Inspect the host goal with get_goal first. Resume a matching unfinished goal; do not duplicate it.",
     "   Only when no unfinished goal exists and new HOTL is authorized, create_goal with a detailed objective.",

@@ -92,11 +92,11 @@ export function checkDoctorWsl() {
   return null;
 }
 
-// FSM viability: the status verb must answer on any host without a session file.
+// FSM viability: missing state must be diagnosed on every host, never fabricated.
 export function checkOrchestrateStatus() {
   const res = runCli(["orchestrate", "status", "--session", "smoke-status-probe"]);
-  if (res.status !== 0) return `exit ${res.status}: ${(res.stderr || "").slice(0, 120)}`;
-  if (!/phase=/.test(res.stdout)) return "status output missing phase=";
+  if (res.status !== 1) return `unexpected exit ${res.status}`;
+  if (!/state is missing/.test(res.stdout)) return "missing-state diagnostic absent";
   return null;
 }
 

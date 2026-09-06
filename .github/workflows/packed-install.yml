@@ -68,7 +68,16 @@ jobs:
           if command -v cxc >/dev/null 2>&1; then echo "unexpected cxc on PATH"; exit 1; fi
           work="$(mktemp -d)"
           tar -xzf "dist-artifacts/codexclaw-payload-${GITHUB_SHA}.tar.gz" -C "$work"
-          node "$work/codexclaw/bin/cxc.mjs" orchestrate status --session ci-artifact-probe
+          # A missing explicit session is an error, not an invented IDLE state.
+          set +e
+          status="$(node "$work/codexclaw/bin/cxc.mjs" orchestrate status --session ci-artifact-probe)"
+          status_code=$?
+          set -e
+          [ "$status_code" -eq 1 ]
+          case "$status" in
+            *"state is missing"*) echo "missing state diagnosed by extracted payload" ;;
+            *) echo "unexpected status result: $status"; exit 1 ;;
+          esac
           # `release` with no verb prints usage and exits 1 BY DESIGN, so capture it
           # rather than letting pipefail treat the usage path as a build failure.
           usage="$(node "$work/codexclaw/bin/cxc.mjs" release 2>&1 || true)"

@@ -4,6 +4,18 @@ All notable changes to codexclaw are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.21] - 2026-09-07
+
+### Fixed
+
+- Recover missing root-session FSM state with `cxc session current` and explicit
+  `cxc session bind`, corroborating native identity and cwd without borrowing a
+  parent session or replaying hooks. Existing state is preserved; incompatible
+  native metadata and subagent identities are refused.
+- Report missing session state instead of fabricated IDLE, and prefer verified
+  native identity over newest-file selection for implicit terminal status.
+- Document binding recovery separately from hook execution and Stop-continuation.
+
 ## [0.2.20] - 2026-09-06
 
 ### Changed

@@ -81,8 +81,14 @@ Keep explicit-only skills and leaf-safe delivery restrictions intact.
 
 - ORCH-MANDATE-01 (STRICT): a claimed active loop needs real persisted FSM evidence,
   not narrated phase names. Read actual session state before entry or re-entry.
-  SESSION-IDENTITY-01 uses only your latest SessionStart binding, never a parent's
-  or historical transcript's id. Phase-control details belong to cxc-pabcd.
+  SESSION-IDENTITY-01 uses your current SessionStart binding, corroborated with
+  `cxc session current` when native CODEX_THREAD_ID is available. For a missing,
+  inherited or conflicting line, use `cxc session current` then explicit
+  `cxc session bind` in the verified native cwd. Never set that environment ID,
+  replay hook JSON or borrow a parent's/history ID. Binding does not verify hooks.
+  If PATH resolves an older development CLI, invoke this installed plugin's
+  `node "<pluginRoot>/bin/cxc.mjs"` for these commands; preserve the development checkout.
+  Phase-control details belong to cxc-pabcd.
 - HOTL needs both an ACTIVE host goal and an in-flight PABCD cycle; HITL needs no
   host goal. If a required capability or binding is absent, report the preflight
   failure rather than claiming Stop-continuation is armed.
