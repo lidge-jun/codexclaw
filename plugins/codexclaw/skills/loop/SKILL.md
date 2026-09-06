@@ -35,25 +35,31 @@ goal. Follow [peer collaboration](../dev/references/peer-collaboration.md) for
 question-only wakes and independent task authority; apply this loop only to work
 the user actually authorized.
 
+For useful mid-work questions, follow [Async user questions](../dev/references/async-questions.md)
+when the tool is exposed and the host permits it. Leave optional questions without
+expecting replies, keep working and incorporate answers if they arrive. An unanswered
+optional question does not block completion. Interview retains its existing goal
+restrictions; async is not a workaround for a denied question or missing approval.
+
 ## Select the smallest sufficient reading path
 
 The agent selects owners from the task, work class, risk, and current phase.
 Read each selected SKILL.md completely; then read only references whose conditions
 apply. Resolve relative links from this skill's directory, not the working directory.
-Batch known independent reads within both nested-tool and outer code-mode output
-budgets. If output is truncated, recover the missing content before the governed
+Keep read batches within the active tool's output limits.
+If output is truncated, recover the missing content before the governed
 action; command exit0 is not a complete read. Reuse content still present in context; after context
 loss reload the applicable owner, not the whole skill family.
 If a selected file's output is truncated, re-read that file separately. Do not
 guess missing ranges from an elision marker. If it cannot fit one result, use
 numbered, contiguous, non-overlapping chunks through EOF and verify no gaps.
-Keep both nested and outer output budgets large enough for each returned chunk.
 Do not recursively load every linked file. A missing mandatory reference is a
 preflight failure: resolve it or report the limitation before the governed action.
 
 | Condition | Read before the governed action |
 |---|---|
 | Development or governed review | [cxc-dev](../dev/SKILL.md), then its matching surface routers |
+| Tool composition, response projection, or in-context JS computation | [Native execution](../dev/references/native-execution.md); prefer exposed Code Mode, not a forced runtime |
 | Real PABCD work or a PABCD plan | [cxc-pabcd](../pabcd/SKILL.md), then only the current phase references it selects |
 | Start/resume HOTL or diagnose its continuation/completion | [Runtime lifecycle](references/runtime-lifecycle.md) |
 | Create, register, amend, or inspect durable goalplan schema/CLI | [Durable goalplan](references/durable-goalplan.md) |

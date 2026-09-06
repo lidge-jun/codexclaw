@@ -58,7 +58,7 @@ function cxcInvocation(moduleUrl        )         {
 
 const REQUEST_USER_INPUT_TOOL = "request_user_input";
 const GOAL_MODE_DENY_REASON =
-  "Goal mode is active: interview / request_user_input is denied. Autonomous execution must not block on the user. Use autonomous backfill (verified fact, contradiction, or high-severity assumption requiring later review) instead.";
+  "Goal mode denies blocking Interview / request_user_input, also when goal state is unreadable. For useful mid-work questions, use exposed and host-allowed request_user_input_async without expecting a reply; keep working with verified facts and authorized assumptions. Silence grants no approval.";
 
 const UPDATE_GOAL_TOOL_NAME = "update_goal";
 

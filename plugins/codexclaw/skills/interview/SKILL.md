@@ -14,6 +14,10 @@ SessionStart binding. No-FSM requests remain advisory without a transition.
 
 ## Contract
 
+- Interview questions use synchronous `request_user_input`, subject to the host's
+  rules. Do not use `request_user_input_async` or a legacy async variant for
+  Interview rounds: this workflow needs returned answers and ledger-backed readiness.
+  General mid-work questions follow [Async user questions](../dev/references/async-questions.md).
 - The main session owns questions, user answers, tracker updates, and devlog
   records.
 - Subagents may search for contradictions and propose question candidates, but
