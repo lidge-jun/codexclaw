@@ -1067,7 +1067,9 @@ test("BUG-R1: CLI source and dist drain large rewritten spawn JSON over a pipe",
         input: payload,
         encoding: "utf8",
         maxBuffer: 2 * 1024 * 1024,
+        timeout: 20_000,
       });
+      assert.ifError(result.error);
       assert.equal(result.status, 0, `${label} exit status`);
       const parsed = JSON.parse(result.stdout);
       const ui = parsed.hookSpecificOutput.updatedInput as Record<string, unknown>;

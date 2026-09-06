@@ -1,6 +1,6 @@
 {
   "name": "@codexclaw/gui",
-  "version": "0.2.21",
+  "version": "0.2.22",
   "private": true,
   "type": "module",
   "description": "codexclaw local dashboard (Vite + React) \u2014 subagent config, prompts, provider link bar.",
