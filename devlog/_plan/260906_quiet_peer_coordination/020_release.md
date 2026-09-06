@@ -58,3 +58,28 @@ through a new commit if necessary. Never overwrite/delete a published version ta
 
 P refresh: wp1 D complete at 15ae4434 with native21/gate/independent PASS.
 Source state is clean apart from this roadmap amendment. Version still0.2.18.
+
+## Release review repair amendment
+
+PR75 merged at aebead02 after11 green checks. Post-merge review thread
+PRRT_kwDOTLf_586fp6Sp reports P2 ambiguity: categorical notification bans can also
+read as forbidding explicitly requested status/result delivery. Accept the finding;
+two independent reviews missed this wording contradiction. No dependency or phase
+conflict: retain default-off, qualify only unsolicited notification restrictions.
+Reset/re-enter wp2 P before this bounded source repair; version remains0.2.19 and
+nothing has been published. Main owns the patch; same A reviewer verifies amendment.
+
+MODIFY plugins/codexclaw/skills/dev/references/peer-collaboration.md:
+- Before: `introductions, progress reports, advisory impacts, completion notices, unsolicited`
+- After: `unsolicited introductions, progress reports, advisory impacts, completion notices, or`
+- Before: `follow-up work, or requests to keep another task busy.`
+- After: `follow-up work, or requests to keep another task busy.`
+- Add before the list: `The following notification defaults do not prohibit contact explicitly requested by the user.`
+MODIFY plugins/codexclaw/skills/loop/SKILL.md:
+- Before: `Keep this goal's work local; do not send progress or completion notices to other`
+- After: `Keep this goal's work local; do not send unsolicited progress or completion notices to other`
+
+Verifier: independently contrast explicitly requested status/result sends (allowed
+subject to host/wake checks) and unsolicited progress/result sends (denied). Rerun
+native21/gate/diff and fresh exact-head PR/dev/main CI. Resolve the existing review
+thread only after the corrective commit is verified and landed; no waiver or dismissal.

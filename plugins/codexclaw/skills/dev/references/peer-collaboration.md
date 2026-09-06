@@ -25,10 +25,11 @@ PR/commit/run or shared resource, the observed collision, and the smallest quest
 needed. A red CI run by itself, a shared repo, speculative overlap, an unknown
 owner, or a potentially useful finding does not satisfy this exception.
 
-Do not routinely scan nearby tasks at startup or a direction change. Do not send
-introductions, progress reports, advisory impacts, completion notices, unsolicited
-follow-up work, or requests to keep another task busy. Keep useful nonblocking
-findings in this task's own record. Do not contact peers merely to save research
+The following notification defaults do not prohibit contact explicitly requested
+by the user. Do not routinely scan nearby tasks at startup or a direction change.
+Do not send unsolicited introductions, progress reports, advisory impacts,
+completion notices, follow-up work, or requests to keep another task busy. Keep
+useful nonblocking findings in this task's own record. Do not contact peers merely to save research
 or to get general design approval. Both send triggers still preserve each task's
 authority and any explicit no-contact instruction.
 
