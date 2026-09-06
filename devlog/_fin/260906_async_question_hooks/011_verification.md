@@ -30,3 +30,9 @@ permission branches. Test-first red remains the main agent's recorded observatio
 Evidence limits: tests verify emitted guidance and existing permission boundaries,
 not that every model obeys text or that a real async reply was delivered. No native
 catalog, installed plugin cache, hook JSON, trust settings or Interview ledger changed.
+
+Correction during0.2.18 integration: the PostCompact stdout observations above
+did not prove model-context delivery. Native PostCompact accepts universal output
+only. PR69's reviewed correction queues a scoped marker and emits once at the next
+root UserPromptSubmit; see devlog/_plan/260906_release_0_2_18/011_repair_evidence.md.
+This historical record is retained, not relabeled as a successful native delivery.
