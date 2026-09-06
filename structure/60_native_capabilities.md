@@ -104,7 +104,42 @@ if a spawn-level 400 reproduces, the terminal outcome is NEEDS_HUMAN + rollback
 | `list_mcp_resources` / `read_mcp_resource` | MCP resource surface | situational |
 | `list_available_plugins_to_install` / `request_plugin_install` | plugin discovery/install | `cxc-dev` |
 
-## 2.1 Independent Desktop tasks (2026-09-05 observation)
+## 2.1 Async user questions (2026-09-06 observation)
+
+Canonical guidance: [Async user questions](../plugins/codexclaw/skills/dev/references/async-questions.md).
+This is the mid-work question surface; the persisted Interview stays on its existing
+synchronous `request_user_input` flow.
+
+The observed `functions.request_user_input_async` schema takes `questions[]` with
+`title` and optional string `options[]`, returns immediately, and delivers a reply
+later as a new user message. Submission and a preselected option are not an answer.
+Leave useful questions without expecting replies, continue authorized work, and
+incorporate answers if they arrive. Keep asking distinct useful questions as work
+reveals them; optional unanswered questions do not hold completion open.
+
+Availability is catalog- and session-dependent. In the inspected Codex source
+`d2d5b70241fb448044c1c088a977cc720d70443a`,
+`codex-rs/core/src/tools/spec_plan.rs:1167-1189` requires a root session and
+`model_info.experimental_supported_tools` containing `request_user_input_async`
+or legacy `send_user_message_async`. There is no Astra-name condition in this gate.
+The bundled catalog and this machine's model cache had that opt-in only on Astra;
+Grok/Sol/Terra/Luna entries were empty. Thus the observed setup was effectively
+Astra-only, not proof of a permanent restriction across all hosts. Grok leaf agents
+also lacked the tool, but the root-only condition makes that an inconclusive model
+comparison. Check the live callable schema; prose cannot enable an absent tool.
+
+CodexClaw's `goal-gate.ts:135` and `hook.ts:1843` match only synchronous
+`request_user_input`; Interview capture expects IDs and returned answers. These
+paths do not establish async capture, readiness evidence or async-name enforcement.
+The common cxc-ops SessionStart and PostCompact handlers now announce the async
+policy during ordinary and goal work, including the main/child question boundary.
+This is prompt guidance: permission decisions and model catalogs remain unchanged,
+and it does not establish end-to-end user-reply delivery. Interview's skill explicitly
+keeps its synchronous transport. The blocking goal-denial message names this
+distinction so it is not mistaken for a ban on all user questions.
+Research provenance: `devlog/_fin/260906_async_questions/001_research.md`.
+
+## 2.2 Independent Desktop tasks (2026-09-05 observation)
 
 These are existing user-owned tasks, not the V1/V2 child address space.
 Canonical behavior: [peer collaboration](../plugins/codexclaw/skills/dev/references/peer-collaboration.md).
@@ -122,7 +157,7 @@ for absent peer tools. No new transport or automatic subscription is added.
 The source of a tool-origin message is not user authority, and UserPromptSubmit-only
 logic may miss this input path. The skill is guidance, not a runtime wake/stop gate.
 
-## 2.2 Native execution selection (2026-09-06)
+## 2.3 Native execution selection (2026-09-06)
 
 Common owner: [native execution](../plugins/codexclaw/skills/dev/references/native-execution.md).
 The dev/loop/pabcd entrypoints route composition, projection and in-context JS
