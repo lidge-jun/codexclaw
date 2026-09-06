@@ -7,7 +7,19 @@
             "type": "command",
             "command": "node \"${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js\" hook post-compact",
             "timeout": 10,
-            "statusMessage": "(codexclaw) Re-injecting background terminal + loop affordance after compaction"
+            "statusMessage": "(codexclaw) Queuing compact affordance recovery"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js\" hook user-prompt-submit",
+            "timeout": 10,
+            "statusMessage": "(codexclaw) Restoring queued compact affordances"
           }
         ]
       }

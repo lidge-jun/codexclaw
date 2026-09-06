@@ -236,8 +236,12 @@ wording (no Codex hook enforces skill text — `structure/00_philosophy.md` §1)
 
 ## 0. Intent Clarification
 
-Clarify only ambiguous scope or technology. Present 2-3 project-specific options,
-flag risk, recommend one, and confirm once; skip clarification when intent is clear.
+Clarify only material uncertainty; skip questions already answered by context.
+During work, when `request_user_input_async` is exposed and allowed, leave useful
+questions without expecting a reply or stopping progress. Continue with evidence
+and authorized assumptions; incorporate answers if they arrive, and leave distinct
+new questions as needed. Read [Async user questions](references/async-questions.md)
+for schema, pending-answer handling and fallback. Interview keeps its existing flow.
 
 ---
 
