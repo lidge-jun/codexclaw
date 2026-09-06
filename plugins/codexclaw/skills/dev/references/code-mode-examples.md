@@ -37,13 +37,15 @@ const reads = outcomes.map((o, i) => {
   if (o.status === "rejected") return {source, status: "rejected",
     error: String(o.reason), completeRead: false};
   const r = o.value;
-  if (!r || typeof r !== "object" || typeof r.output !== "string")
+  if (!r || typeof r !== "object")
     return {source, status: "malformed", completeRead: false};
-  const status = r.isError === true ? "failed" : r.session_id != null ? "pending"
+  const hasOutput = typeof r.output === "string";
+  const status = !hasOutput ? "malformed" : r.isError === true ? "failed" : r.session_id != null ? "pending"
     : !Number.isInteger(r.exit_code) ? "malformed" : r.exit_code === 0 ? "completed" : "failed";
   return {source, status, exitCode: r.exit_code ?? null, sessionId: r.session_id ?? null,
-    preview: r.output.slice(0, 300), outputChars: r.output.length,
-    previewTruncated: r.output.length > 300, upstreamTruncated: r.truncated ?? null,
+    toolError: r.isError === true,
+    preview: hasOutput ? r.output.slice(0, 300) : null, outputChars: hasOutput ? r.output.length : null,
+    previewTruncated: hasOutput && r.output.length > 300, upstreamTruncated: r.truncated ?? null,
     originalTokenCount: r.original_token_count ?? null, completeRead: false};
 });
 store(key, {schema: 1, reads});

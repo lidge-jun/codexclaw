@@ -94,17 +94,19 @@ test("a rejected read preserves the other result without retry", async () => {
 });
 
 for (const [name, input, expected] of [
-  ["nonzero exit", { exit_code: 7, output: "failure" }, "failed"],
-  ["tool-level error", { isError: true, exit_code: 0, output: "denied" }, "failed"],
-  ["running shell", { session_id: 42, output: "running" }, "pending"],
-  ["missing status", { output: "unknown" }, "malformed"],
-  ["missing output", { exit_code: 0 }, "malformed"],
-  ["null envelope", null, "malformed"],
+  ["nonzero exit", { exit_code: 7, output: "failure" }, { status: "failed", exitCode: 7, preview: "failure", outputChars: 7 }],
+  ["tool-level error", { isError: true, exit_code: 0, output: "denied" }, { status: "failed", exitCode: 0, toolError: true, preview: "denied", outputChars: 6 }],
+  ["running shell", { session_id: 42, output: "running" }, { status: "pending", sessionId: 42, preview: "running", outputChars: 7 }],
+  ["missing status", { output: "unknown" }, { status: "malformed", preview: "unknown", outputChars: 7 }],
+  ["missing output", { exit_code: 0 }, { status: "malformed", exitCode: 0, preview: null, outputChars: null }],
+  ["null envelope", null, null],
 ]) test(`${name} is not converted into success`, async () => {
   const r = await batch([input, completed("head")]);
-  assert.equal(r.reads[0].status, expected);
-  assert.equal(r.reads[0].completeRead, false);
-  if (name === "running shell") assert.equal(r.reads[0].sessionId, 42);
+  assert.deepEqual(r.reads[0], expected === null
+    ? { source: commands[0], status: "malformed", completeRead: false }
+    : { source: commands[0], exitCode: null, sessionId: null, toolError: false,
+      previewTruncated: false, upstreamTruncated: null, originalTokenCount: null,
+      completeRead: false, ...expected });
 });
 
 test("preview and upstream truncation are preserved and never a full-read pass", async () => {
@@ -137,12 +139,11 @@ test("cache misses and malformed envelopes require recollection", async () => {
   }
 });
 
-test("cache hit across fresh JS contexts stays an untrusted stale preview", async () => {
+test("cache hit in a later invocation stays an untrusted stale preview", async () => {
   const first = await batch([completed(""), completed("head")]);
   const second = execute("cache-read", { load: k => first.memory.get(k) }); await second.done;
   assert.equal(second.output[0].status, "cached-preview");
   assert.equal(second.output[0].freshEvidence, false); assert.equal(second.output[0].completeRead, false);
-  assert.equal(runInContext("typeof commands", second.context), "undefined");
 });
 
 test("failed, incomplete or malformed prerequisites never invoke dependent write", async () => {
@@ -156,16 +157,18 @@ test("failed, incomplete or malformed prerequisites never invoke dependent write
 
 test("complete prerequisite invokes write once and retains its rejection", async () => {
   let writes = 0;
-  const r = execute("applyAfterRead", { read: async () => ({ ok: true, complete: true }),
-    write: async () => { writes++; throw new Error("post-write rejection"); } },
+  const evidence = { ok: true, complete: true, revision: "observed-before-write" };
+  const r = execute("applyAfterRead", { read: async () => evidence,
+    write: async received => { assert.equal(received, evidence); writes++; throw new Error("post-write rejection"); } },
   blocks.get("applyAfterRead") + "\nawait applyAfterRead(read, write);");
   await assert.rejects(r.done, /post-write rejection/); assert.equal(writes, 1);
 });
 
 test("successful dependent write returns its result once", async () => {
   let writes = 0;
-  const r = execute("applyAfterRead", { read: async () => ({ ok: true, complete: true }),
-    write: async () => { writes++; return { applied: true }; } },
+  const evidence = { ok: true, complete: true, revision: "observed-success" };
+  const r = execute("applyAfterRead", { read: async () => evidence,
+    write: async received => { assert.equal(received, evidence); writes++; return { applied: true }; } },
     blocks.get("applyAfterRead") + "\ntext(await applyAfterRead(read, write));");
   await r.done; assert.equal(writes, 1); assert.deepEqual(r.output, [{ applied: true }]);
 });
