@@ -12,7 +12,13 @@ failure mode this rule exists to stop: the Stop hook never arms, the ledger stay
 empty, and the "loop" is one ordinary turn wearing a loop costume. Mandatory sequence
 for EVERY loop entry or re-entry:
 
-1. Session id from YOUR most recent SessionStart binding line only (SESSION-IDENTITY-01).
+1. Use YOUR current SessionStart binding (SESSION-IDENTITY-01). When native
+   CODEX_THREAD_ID is present, corroborate it with `cxc session current` before
+   mutation. Missing, inherited or conflicting line: run `cxc session current`,
+   then explicit `cxc session bind` from the verified native cwd. Never set the
+   environment ID yourself, choose latest state or replay a synthetic hook event.
+   If validation fails, report it and continue independently authorized work.
+   Binding creates missing FSM state only; it does not verify hooks or arm Stop.
 2. `cxc orchestrate status --session <id>` — read the real phase before claiming any.
 3. For a new authorized HOTL goal: create_goal, cxc loop init, register the plan,
    then enter P. On resume, inspect and reuse the matching active goal and bound

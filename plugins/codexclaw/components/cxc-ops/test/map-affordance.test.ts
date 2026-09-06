@@ -17,7 +17,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-support.ts";
 
 import {
@@ -185,10 +185,10 @@ test("wp3: SessionStart preserves the complete binding literal for each session"
       `\`--session ${id}\` — the implicit latest-session fallback is`,
       "disabled for writes, which prevents ACCIDENTAL implicit-fallback",
       "collisions between concurrent/forked sessions.",
-      "IDENTITY RULE: use the MOST RECENT SessionStart binding line in your",
-      "current context as the only source of your session id — older binding",
-      "lines or other ids in transcript/history belong to prior/parent sessions;",
-      "never pass those to a mutating command.",
+      "IDENTITY RULE: use the MOST RECENT SessionStart binding line, never a parent/history id.",
+      "With native CODEX_THREAD_ID, verify via `cxc session current` before mutation.",
+      "Missing/inherited/conflicting binding: use `cxc session current`, then `cxc session bind` in its verified cwd.",
+      "Never set the environment id. Binding does not verify hooks or arm Stop-continuation.",
     ].join(" ");
     const cwd = tmp();
     try {
@@ -287,6 +287,21 @@ test("degraded mode: no CODEXCLAW_CXC + cxc-free PATH falls back to the payload 
   // Command mentions resolve...
   const rewritten = resolveCxcCommands("run `cxc map src` now", env);
   assert.ok(rewritten.includes(`\`${invocation} map src\``), "backticked command must resolve");
+
+  const staleBin = tmp();
+  try {
+    writeFileSync(join(staleBin, "cxc"), "stale repository CLI");
+    const staleEnv = { PATH: staleBin };
+    const owned = cxcInvocation(import.meta.url, staleEnv, "session");
+    assert.match(owned, /bin[\\/]cxc\.mjs/);
+    assert.equal(cxcInvocation(import.meta.url, staleEnv, "map"), "cxc");
+    assert.equal(cxcInvocation(import.meta.url, staleEnv, "gui"), "cxc");
+    assert.equal(cxcInvocation(import.meta.url, { ...staleEnv, CODEXCLAW_CXC: "chosen-cxc" }, "session"), "chosen-cxc");
+    const mixed = resolveCxcCommands("`cxc session current` and `cxc map src`", staleEnv);
+    assert.equal(mixed, `\`${owned} session current\` and \`cxc map src\``);
+    const absent = pathToFileURL(join(staleBin, "absent", "components", "cxc-ops", "src", "cxc-resolve.ts")).href;
+    assert.equal(cxcInvocation(absent, staleEnv, "session"), "cxc");
+  } finally { rmSync(staleBin, { recursive: true, force: true }); }
 
   // ...but noun phrases, skill names, and chat commands are byte-identical (H1).
   for (const untouchable of [

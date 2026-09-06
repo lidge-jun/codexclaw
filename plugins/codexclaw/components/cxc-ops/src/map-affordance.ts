@@ -40,9 +40,8 @@ export function resolveCxcCommands(
   text: string,
   env: Record<string, string | undefined> = process.env,
 ): string {
-  const cxc = cxcInvocation(import.meta.url, env);
-  if (cxc === "cxc") return text;
-  return text.split("`cxc ").join(`\`${cxc} `);
+  return text.replace(/`cxc ([^\s`]+)/g,
+    (_prefix: string, command: string) => `\`${cxcInvocation(import.meta.url, env, command)} ${command}`);
 }
 
 /** Source extensions worth mapping (mirrors the repo-map tree-sitter language set). */
@@ -162,10 +161,10 @@ export function renderSessionBinding(sessionId: string): string {
     `\`--session ${sessionId}\` — the implicit latest-session fallback is`,
     "disabled for writes, which prevents ACCIDENTAL implicit-fallback",
     "collisions between concurrent/forked sessions.",
-    "IDENTITY RULE: use the MOST RECENT SessionStart binding line in your",
-    "current context as the only source of your session id — older binding",
-    "lines or other ids in transcript/history belong to prior/parent sessions;",
-    "never pass those to a mutating command.",
+    "IDENTITY RULE: use the MOST RECENT SessionStart binding line, never a parent/history id.",
+    "With native CODEX_THREAD_ID, verify via `cxc session current` before mutation.",
+    "Missing/inherited/conflicting binding: use `cxc session current`, then `cxc session bind` in its verified cwd.",
+    "Never set the environment id. Binding does not verify hooks or arm Stop-continuation.",
   ].join(" "));
 }
 
