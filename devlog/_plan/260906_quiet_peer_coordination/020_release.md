@@ -58,3 +58,77 @@ through a new commit if necessary. Never overwrite/delete a published version ta
 
 P refresh: wp1 D complete at 15ae4434 with native21/gate/independent PASS.
 Source state is clean apart from this roadmap amendment. Version still0.2.18.
+
+## Release review repair amendment
+
+PR75 merged at aebead02 after11 green checks. Post-merge review thread
+PRRT_kwDOTLf_586fp6Sp reports P2 ambiguity: categorical notification bans can also
+read as forbidding explicitly requested status/result delivery. Accept the finding;
+two independent reviews missed this wording contradiction. No dependency or phase
+conflict: retain default-off, qualify only unsolicited notification restrictions.
+Reset/re-enter wp2 P before this bounded source repair; version remains0.2.19 and
+nothing has been published. Main owns the patch; same A reviewer verifies amendment.
+
+MODIFY plugins/codexclaw/skills/dev/references/peer-collaboration.md:
+- Before: `introductions, progress reports, advisory impacts, completion notices, unsolicited`
+- After: `unsolicited introductions, progress reports, advisory impacts, completion notices, or`
+- Before: `follow-up work, or requests to keep another task busy.`
+- After: `follow-up work, or requests to keep another task busy.`
+- Add before the list: `The following notification defaults do not prohibit contact explicitly requested by the user.`
+MODIFY plugins/codexclaw/skills/loop/SKILL.md:
+- Before: `Keep this goal's work local; do not send progress or completion notices to other`
+- After: `Keep this goal's work local; do not send unsolicited progress or completion notices to other`
+
+Verifier: independently contrast explicitly requested status/result sends (allowed
+subject to host/wake checks) and unsolicited progress/result sends (denied). Rerun
+native21/gate/diff and fresh exact-head PR/dev/main CI. Resolve the existing review
+thread only after the corrective commit is verified and landed; no waiver or dismissal.
+
+### Notification repair root-cause and full route closure
+
+PR76 review PRRT_kwDOTLf_586fp-aw identifies the still-categorical waiting ban.
+Root cause is incomplete propagation of the explicit-request exception through all
+entrypoints, not a broken send implementation. Main reclaims the route inventory;
+search all eight changed guidance files for send/contact/notice/notification/nudge.
+The search also found dev's broad progress-notification phrase and owner's advisory
+wake phrase. These are the same failure class; stop one-location patching and amend
+all reachable wording in this one repair, followed by fresh independent audit.
+Existing user authorization is not weakened and no new outbound trigger is introduced.
+
+MODIFY plugins/codexclaw/skills/loop/references/waiting.md:
+`Do not send\nprogress notices or nudges` -> `Do not send\nunsolicited progress notices or nudges`.
+MODIFY plugins/codexclaw/skills/dev/SKILL.md:
+`progress notifications, or unsolicited follow-ups` ->
+`unsolicited progress notifications or follow-ups`.
+MODIFY plugins/codexclaw/skills/dev/references/peer-collaboration.md:
+`every outbound message: advisory-only notifications must not wake idle/completed` ->
+`every outbound message: unsolicited advisory-only notifications must not wake idle/completed`.
+Before the scenario table add: `Apply explicit user contact instructions first. The
+other rows describe defaults without such a request; host permissions and wake
+checks always apply.` This clarifies all default examples, including ACK/silence.
+
+Fresh reviewer must trace every entrypoint and compare requested progress/result
+contact in normal/waiting/idle states against unsolicited sends. Explicitly stopped,
+unknown eligibility, unsafe runtime wake, host denial and scope limits remain denied.
+Then rerun native21/gate/diff, push a new PR76 head, require all new-head checks, and
+resolve both review threads only after the verified corrective head lands.
+
+Fresh full-route A review (Schrodinger) found two further manifestations of the same
+root cause. Accept both; no conflict with prior amendments. Read-first early exit
+must not substitute a context answer for requested delivery; ACK/nudge body rules
+must also distinguish unsolicited contact. This is a source-guidance repair, not
+runtime enforcement. Add the following exact owner replacements before B:
+
+- Replace the read-first bullet with: `If reading answers a question and no contact
+  was requested, stop there. Otherwise, apply the two outbound-message triggers
+  above and all authority/wake checks. Relevance or a need for fresh judgment alone
+  does not authorize contact. Do not substitute a read-only answer for explicitly
+  requested delivery. Continue independent work where possible.`
+- Replace `Do not reply to every ACK, send repeated nudges, or turn a nonblocking advisory`
+  with `Without an explicit user request, do not reply to ACKs or send repeated nudges.
+  Do not silently turn a nonblocking advisory`.
+
+RCA: prohibitions were reviewed as isolated snippets rather than ordered decision
+paths. The fresh reviewer checks the full contact path (explicit instruction ->
+read -> wake/authority -> send -> follow-up), including early exits and body rules,
+not just the scenario table. Re-audit with that same reviewer after amendment.

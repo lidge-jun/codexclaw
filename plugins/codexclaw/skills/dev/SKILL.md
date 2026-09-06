@@ -164,7 +164,7 @@ needed. Outbound messages are default-off: contact an existing task only on an
 explicit user request or for necessary coordination of a confirmed blocking
 CI/merge collision, subject to host permissions and wake checks in
 [peer collaboration](references/peer-collaboration.md). No routine discovery,
-progress notifications, or unsolicited follow-ups. Authorized subagent work uses
+unsolicited progress notifications or follow-ups. Authorized subagent work uses
 its own scoped delegation tools.
 Use `dev` plus repo tools for local facts; load `search`, `pabcd`, `loop`, `recall`,
 `cxc-qa`, or the matching `dev-*` owner for their named domains. `skill-hub` is deprecated.
