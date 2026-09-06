@@ -96,7 +96,9 @@ and is also unaffected.
   the parent. Read-only lanes should dispatch as `explorer`, which is never gated.
 - **reinject-cursor / post-compact** — recovers PABCD state and re-injection cursor after context
   compaction.
-- **recall-context / post-compact** — re-injects recall context after compaction.
+- **recall-context / post-compact** — invokes the recall recovery handler. On hosts
+  accepting only universal PostCompact output, event-specific context is not proof
+  that the model received the recall text.
 - **bg-terminal-affordance / post-compact** — queues a workspace/session-scoped
   recovery marker and emits no event-specific context. PostCompact cannot carry
   this guidance directly on hosts accepting only universal output fields.
