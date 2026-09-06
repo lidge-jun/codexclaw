@@ -108,6 +108,13 @@ function oversizedHookOutput(event                    )         {
 async function main()                {
   const [, , kind, event] = process.argv;
 
+  if (kind === "session") {
+    const { runSessionCli } = await import("./session-cli.js");
+    const result = runSessionCli(process.argv.slice(3), process.cwd());
+    process.stdout.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
   // `freeze` command path (L10.3 runtime wiring): build/preview the freeze
   // manifest + run a stale check. Separate from the hook stdin path.
   if (kind === "freeze") {
@@ -130,7 +137,7 @@ async function main()                {
       process.stderr.write(`${renderOrchestrateParseError(parsed)}\n`);
       process.exit(1);
     }
-    const result = runOrchestrateCli(parsed);
+    const result = runOrchestrateCli(parsed, {}, process.env);
     process.stdout.write(`${result.output}\n`);
     process.exit(result.code);
   }

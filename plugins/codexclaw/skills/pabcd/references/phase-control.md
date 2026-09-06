@@ -91,9 +91,17 @@ required on Windows) and provide real evidence.
 `auditResidual`.
 `C>D` requires `checkOutput` and a passing `exitCode` — omitting it is refused, since a check with no outcome is not a check.
 Mutating verbs require an explicit session; only `status` may use latest-session fallback.
-**SESSION-IDENTITY-01 (STRICT):** use only the latest SessionStart binding in your
-own context, never a parent or transcript-history id; this also governs
-`cxc loop init` and `cxc goalplan`. SessionStart creates missing IDLE state without
+**SESSION-IDENTITY-01 (STRICT):** use the current SessionStart binding, never a
+parent or transcript-history id; this also governs `cxc loop init` and `cxc goalplan`.
+When native CODEX_THREAD_ID is available, corroborate the binding using
+`cxc session current` before mutation. Missing, inherited or conflicting binding:
+run `cxc session current` then explicit `cxc session bind` from the verified native
+cwd. Never assign the environment ID, replay hook JSON or substitute `cli`.
+The command verifies the native ID/cwd against Codex's read-only thread database,
+rejects subagents and unavailable/incompatible identity, and preserves existing
+state. A failed verification is not permission to guess. Binding reports
+`hooksVerified:false`: it does not prove hook delivery, enable hooks or arm Stop.
+SessionStart creates missing IDLE state without
 clobbering resumed state; `cli` is terminal-only. Injected directives end with
 `IPABCD: <phase> (<LABEL>)`. Injected footer values are prompt-time snapshots.
 The final status reports the latest verified persisted phase and matching label

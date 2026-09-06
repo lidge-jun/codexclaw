@@ -112,3 +112,27 @@ and is also unaffected.
 
 Hooks run only after you trust them in Codex. See
 [Installation → Hook trust](/codexclaw/getting-started/installation/).
+
+## Missing session binding
+
+An ordinary Codex fork has its own native thread ID. A missing SessionStart
+message or missing `.codexclaw/sessions/<id>.json` must not be repaired by copying
+an ID from inherited chat history or by choosing the newest session file.
+
+From the current Codex terminal tool, run `cxc session current --json`. It reads
+native `CODEX_THREAD_ID`, corroborates the exact ID and cwd against Codex's local
+thread database, and reports whether FSM state exists. Run `cxc session bind`
+explicitly in that verified cwd to create missing IDLE state. Existing state is
+preserved; malformed state, subagent identity, mismatched cwd and unavailable
+native metadata fail with a diagnostic. Do not assign `CODEX_THREAD_ID` yourself.
+
+Binding repairs state only. `hooksVerified: false` means it does not establish that
+SessionStart, prompt or Stop hooks ran. Check `cxc doctor` from the installed payload
+for installation/trust issues; compare its version to a PATH-level development CLI.
+A running process may retain old plugin paths after an update. Refresh/restart that
+process when appropriate; successful installation alone is not live hook proof.
+
+Implicit `orchestrate status` uses the verified native identity when present and
+never falls back after a native validation failure. Explicit missing state reports
+an error with `phase: null`, rather than inventing IDLE. Plain terminals without
+native identity retain their read-only latest-file compatibility fallback.

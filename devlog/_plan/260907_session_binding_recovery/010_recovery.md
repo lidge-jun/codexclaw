@@ -18,7 +18,7 @@ NEW session-cli.ts: `cxc session current [--json]` reads identity/state availabi
 No arbitrary --session argument. Reject symlink state paths, preserve existing bytes,
 refuse corrupt/wrong-identity state. Return cwd, sessionId, identity source, created,
 statePath and hooksVerified:false. Binding does not prove hooks ran or arm a goal.
-MODIFY cli.ts + bin/codexclaw.mjs: lazy-route session command and help.
+MODIFY cli.ts + bin/codexclaw.mjs + plugins/codexclaw/bin/cxc.mjs: lazy-route session command and help.
 MODIFY orchestrate-cli.ts status only: prefer validated native env ID over latest
 when present; missing exact state must report missing, not fake IDLE. Plain terminal
 fallback retained for compatibility and labelled when used. Writes remain explicit.
@@ -26,7 +26,7 @@ MODIFY hook.ts LOOP_ARM_DIRECTIVE, cxc-ops map-affordance.ts binding, loop/SKILL
 loop/runtime-lifecycle.md, pabcd/phase-control.md: fresh binding preferred; missing
 line uses session current/bind only after successful native identity validation.
 Never copy parent ID, synthesize hook payload, use cli as native substitute or claim
-hook health from state alone. Source-of-truth docs/hooks-reference.md updated.
+hook health from state alone. Source-of-truth docs-site/src/content/docs/reference/hooks.md updated.
 REGENERATE affected component dist through existing build script.
 
 Tests: real temp native SQLite, separate parent/child states; missing env, invalid UUID,

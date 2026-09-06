@@ -262,6 +262,7 @@ const TOP_LEVEL_HELP = [
   "  hooks retrust                  re-trust plugin hook hashes after editing hook JSONs",
   "",
   "PABCD / loop:",
+  "  session current|bind           verify native identity or recover missing FSM state",
   "  orchestrate <verb>             drive IPABCD state (try: cxc orchestrate --help)",
   "  freeze                         freeze the interview plan and show goal handoff",
   "  loop init|show|validate         manage the project-local goalplan substrate",
@@ -469,6 +470,7 @@ if (isMain) switch (cmd) {
   case "hooks":
     process.exit(runCxcOps(process.argv.slice(2)));
     break;
+  case "session":
   case "orchestrate":
     // pabcd-state CLI expects argv as [kind, ...rest]; kind === "orchestrate".
     process.exit(runPabcdState(process.argv.slice(2)));

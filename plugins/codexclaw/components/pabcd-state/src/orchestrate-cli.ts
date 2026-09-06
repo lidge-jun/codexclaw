@@ -16,6 +16,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { homedir } from "node:os";
+import { resolveNativeSession } from "./session-binding.ts";
 import { coerceAttest, validateWorkPhaseBinding, GATED_TRANSITIONS, type Attestation } from "./attest.ts";
 import { canEnter, transition, isLegalEdge, VALID_TRANSITIONS } from "./fsm.ts";
 import { validatePlanArtifacts } from "./plan-gate.ts";
@@ -203,7 +204,8 @@ export function renderOrchestrateHelp(platform: NodeJS.Platform = process.platfo
     "Agent safety:",
     "  Mutating verbs (I/P/A/B/C/D/reset) require explicit --session <id>.",
     "  Use your current SessionStart id, or the reserved terminal key 'cli'.",
-    "  status is read-only and may use the latest-session fallback when --session is omitted.",
+    "  status uses native CODEX_THREAD_ID when present; plain terminals may use latest-session fallback.",
+    "  Missing/inherited binding? Run cxc session current, then cxc session bind in the native cwd.",
     "",
     ...attestExamples,
     "  Every attest carries from/to naming the edge; they are coerced before any gate runs.",
@@ -446,7 +448,7 @@ function hasPabcdCloseRow(
   );
 }
 
-export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpArgs, commitHooks: OrchestrateCommitHooks = {}): CliResult {
+export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpArgs, commitHooks: OrchestrateCommitHooks = {}, nativeEnv: NodeJS.ProcessEnv = {}): CliResult {
   if ("help" in args) return { code: 0, output: renderOrchestrateHelp() };
 
   // malformed --attest is a hard error before any state mutation (except control verbs).
@@ -466,11 +468,28 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
     return { code: 1, output: `orchestrate ${args.verb}: ${context}${args.attestError}.${hint}` };
   }
 
-  const sessionId = resolveSession(args.cwd, args.session);
+  // Only the terminal entry supplies nativeEnv. Hook/library callers retain their
+  // payload identity; subagent hook session_id need not equal CODEX_THREAD_ID.
+  let sessionId: string | null;
+  if (args.verb === "status" && !args.session && nativeEnv.CODEX_THREAD_ID !== undefined) {
+    const native = resolveNativeSession(args.cwd, nativeEnv);
+    if (!native.ok) return { code: 1, output: args.json
+      ? JSON.stringify({ error: native.error, phase: null })
+      : `orchestrate status: ${native.error}` };
+    sessionId = native.sessionId;
+  } else {
+    sessionId = resolveSession(args.cwd, args.session);
+  }
 
   // status: read-only. With no session, report it (don't create one).
   if (args.verb === "status") {
     if (!sessionId) return { code: 0, output: "no active session" };
+    if (!sessionFileExists(args.cwd, sessionId)) {
+      const error = "session state is missing in this cwd; run cxc session current and cxc session bind from the native session cwd. Binding does not verify hook execution.";
+      return { code: 1, output: args.json
+        ? JSON.stringify({ sessionId, phase: null, stateExists: false, error })
+        : `session=${sessionId}: ${error}` };
+    }
     return {
       code: 0,
       output: renderStatus(
@@ -508,7 +527,7 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
   if (args.session && !sessionFileExists(args.cwd, sessionId) && !RESERVED_SESSION_KEYS.has(sessionId)) {
     return {
       code: 1,
-      output: `orchestrate ${args.verb}: unknown session '${sessionId}' — no .codexclaw/sessions/${sessionId}.json exists. Target an existing session or use the terminal key 'cli'.`,
+      output: `orchestrate ${args.verb}: unknown session '${sessionId}' — no .codexclaw/sessions/${sessionId}.json exists. Run cxc session current and cxc session bind in the native session cwd; use 'cli' only for a standalone terminal.`,
     };
   }
   const state = readState(args.cwd, sessionId);
