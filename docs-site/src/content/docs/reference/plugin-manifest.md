@@ -11,12 +11,12 @@ tells Codex which skills, hooks, and MCP servers to load.
 | Field | Value |
 |---|---|
 | `name` | `codexclaw` |
-| `version` | `0.1.1` |
+| `version` | Release version with `+codex.<stamp>` cachebuster metadata; read the current installed manifest for the exact value. |
 | `repository` | `https://github.com/lidge-jun/codexclaw` |
 | `homepage` | `https://lidge-jun.github.io/codexclaw/` |
 | `license` | `MIT` — the payload includes `LICENSE`, `NOTICE.md` and upstream license notices. |
 | `skills` | `./skills/` — the skill directory root. |
-| `hooks` | Twenty-one hook JSON files (see [Hooks](/codexclaw/reference/hooks/)). |
+| `hooks` | Twenty-three JSON files defining 24 event handlers; one file handles two events (see [Hooks](/codexclaw/reference/hooks/)). |
 | `mcpServers` | `./.mcp.json` — the subagent-config MCP server. |
 
 ## Registered hooks
@@ -25,6 +25,7 @@ tells Codex which skills, hooks, and MCP servers to load.
 "hooks": [
   "./hooks/session-start-ensuring-provider-bridge.json",
   "./hooks/session-start-bootstrapping-pabcd-state.json",
+  "./hooks/session-start-healing-declared-features.json",
   "./hooks/session-start-announcing-map-affordance.json",
   "./hooks/user-prompt-submit-checking-pabcd-trigger.json",
   "./hooks/stop-checking-pabcd-continuation.json",
@@ -33,6 +34,7 @@ tells Codex which skills, hooks, and MCP servers to load.
   "./hooks/pre-tool-use-guarding-goal-complete.json",
   "./hooks/post-tool-use-capturing-interview-answers.json",
   "./hooks/subagent-stop-verifying-evidence.json",
+  "./hooks/subagent-stop-observing-review.json",
   "./hooks/pre-tool-use-attaching-skills.json",
   "./hooks/post-compact-resetting-reinject-cursor.json",
   "./hooks/pre-tool-use-linting-apply-patch.json",
