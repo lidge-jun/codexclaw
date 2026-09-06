@@ -30,13 +30,15 @@ No implementation/runtime changes are planned in this phase.
 
 ## Integration and publication
 
-1. Review scoped policy diff and current origin/dev; commit and push only this branch.
-   Create a PR to dev with a short behavior description and verification evidence.
-   Require the PR's exact head checks; refresh head/base before normal merge.
-   Never merge unrelated open PRs or modify other local worktrees.
-2. Verify origin/dev contains the policy commit. Apply release metadata on a current
-   dev-based branch (the current branch may be reused if clean); open/merge its
-   scoped release-preparation PR after exact-head checks. No force-push needed.
+1. Revalidate wp1 D evidence and origin/dev; prepare the 0.2.19 metadata before
+   publishing the branch. Policy and release metadata use separate local commits in
+   one scoped PR to dev. This P amendment avoids an extra CI/PR round while preserving
+   every exact-head gate; no unrelated PRs or local worktrees are changed.
+2. Review all changes, push only this branch and open its PR to dev. Require exact-head
+   checks; refresh head/base before normal merge and prove dev contains the policy
+   commit. No force-push. The >500-line review includes the required diff-level roadmap;
+   the eight-file production guidance delta is 145 lines, so splitting these same
+   task artifacts into a PR stack would add coordination without isolating behavior.
 3. Verify resulting dev SHA CI, WSL and packed-install. Create dev -> main promotion
    PR; inspect its complete delta and keep unrelated pending work out of this task.
    Merge normally after checks and record merge SHA. If dev moved, re-read the delta.
@@ -53,3 +55,6 @@ Baseline native-execution tests are 21/21 and gate exit0. Full suite measurement
 from current-head CI, never a remembered badge. Fix any actual failures before release.
 Rollback: preserve v0.2.18 immutable assets and existing install payloads; revert source
 through a new commit if necessary. Never overwrite/delete a published version tag.
+
+P refresh: wp1 D complete at 15ae4434 with native21/gate/independent PASS.
+Source state is clean apart from this roadmap amendment. Version still0.2.18.
