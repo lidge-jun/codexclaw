@@ -20,3 +20,17 @@ Fresh Desktop0.153.4 app-server --stdio read-only hooks/list:24 codexclaw hooks,
 zero discovery warnings/errors. Existing daemon proxy initialize timed out25s;
 no thread/start or turn/start sent, no hook execution was simulated. This rules out
 current disk legacy-array/hash incompatibility, not a stale live-app snapshot.
+
+Implementation review1a720d9: Kant found P2 terminal fallback provenance omitted.
+Accepted: status now exposes selection=explicit/native/latest-file in JSON and
+labels latest-file as an unverified terminal fallback in text. Regression asserts
+native and fallback selections; no ID selection or mutation semantics weakened.
+
+Reaudit PASS on status provenance interdiff; all three touched files (source/test/dist)
+reviewed, no remaining actionable blockers. Focused rerun104passed0fail. Full remote
+measurement on macmini archive:2646total,2642pass,3fail,1existing skip; all3 failures
+require Git tracking metadata omitted by the archive transport. This is NOT a green
+suite claim. Exact-head GitHub checkout CI is the full-suite acceptance; measured
+total2646 feeds inventory. Build/platform/gate and core265focused tests passed.
+Metadata bump changes only owned package versions/manifest/inventory; dependency
+resolutions unchanged. Live bind preserved119 preexisting session hashes.

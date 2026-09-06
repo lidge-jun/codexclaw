@@ -49,6 +49,7 @@ test("implicit status selects the native root fork, not a newer parent file", t 
   assert.equal(r.status, 0, r.stderr);
   assert.equal(JSON.parse(r.stdout).sessionId, id);
   assert.equal(JSON.parse(r.stdout).phase, "P");
+  assert.equal(JSON.parse(r.stdout).selection, "native");
   assert.deepEqual(readFileSync(parent), before);
 });
 
@@ -81,6 +82,10 @@ test("plain terminal retains read-only latest-state fallback", t => {
   const r = run(["orchestrate", "status", "--json"], cli, { CODEX_THREAD_ID: undefined });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(JSON.parse(r.stdout).sessionId, other);
+  assert.equal(JSON.parse(r.stdout).selection, "latest-file");
+  const text = run(["orchestrate", "status"], cli, { CODEX_THREAD_ID: undefined });
+  assert.equal(text.status, 0, text.stderr);
+  assert.match(text.stdout, /selection=latest-file \(unverified terminal fallback\)/);
 });
 
 test("repository and installed-payload dispatch session recovery end to end", t => {

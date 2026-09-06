@@ -383,16 +383,18 @@ export function renderAttestShapeHint(verb: OrchestrateVerb, from: Phase | null)
   );
 }
 
-function renderStatus(state: State, json: boolean, elsewhere: string[] = []): string {
+function renderStatus(state: State, json: boolean, elsewhere: string[] = [], selection = "explicit"): string {
   if (json) {
     return JSON.stringify({
       phase: state.phase,
       flags: state.flags,
       sessionId: state.sessionId,
+      selection,
       ...(elsewhere.length > 0 ? { alsoFoundAt: elsewhere } : {}),
     });
   }
-  const line = `session=${state.sessionId} phase=${state.phase} interview=${state.flags.interview} auditPassed=${state.flags.auditPassed} checkPassed=${state.flags.checkPassed}`;
+  const line = `session=${state.sessionId} phase=${state.phase} interview=${state.flags.interview} auditPassed=${state.flags.auditPassed} checkPassed=${state.flags.checkPassed}`
+    + (selection === "latest-file" ? " selection=latest-file (unverified terminal fallback)" : "");
   // #48: the same id in two trees means this line describes only ONE of them.
   // Reporting IDLE for a cycle that is really in flight next door is the failure
   // this warning exists to prevent.
@@ -496,6 +498,7 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
         readState(args.cwd, sessionId),
         args.json,
         findForeignSessionCopies(args.cwd, sessionId, siblingRoots(args.cwd)),
+        args.session ? "explicit" : nativeEnv.CODEX_THREAD_ID !== undefined ? "native" : "latest-file",
       ),
     };
   }
