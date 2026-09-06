@@ -59,6 +59,10 @@ Goal activation and scoped continuation are owned by [cxc-loop](../loop/SKILL.md
 
 ## Phases
 
+For tool composition, response projection, or in-context JS computation during
+phase work, use [native execution](../dev/references/native-execution.md).
+This selects an available execution path, never a phase or new authority.
+
 Read only the current phase's detailed owner before doing its work. A reference
 link is a conditional routing edge, not a command to preload the entire graph.
 

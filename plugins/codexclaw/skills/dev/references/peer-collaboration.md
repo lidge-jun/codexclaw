@@ -40,6 +40,7 @@ and disclose the limitation; do not emulate delivery by editing rollout files or
   negotiation, acceptance, or an actionable impact is needed. A discovered peer
   need not be contacted.
 
+Use [native execution](native-execution.md) for composition and failure handling.
 Code mode can project tool responses before returning them to the model: keep
 addresses, exact titles, scope and useful summaries; for a narrow read, keep relevant
 user/agent messages and add specific evidence only when needed. Do not dump command

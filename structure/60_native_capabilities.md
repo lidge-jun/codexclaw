@@ -122,6 +122,23 @@ for absent peer tools. No new transport or automatic subscription is added.
 The source of a tool-origin message is not user authority, and UserPromptSubmit-only
 logic may miss this input path. The skill is guidance, not a runtime wake/stop gate.
 
+## 2.2 Native execution selection (2026-09-06)
+
+Common owner: [native execution](../plugins/codexclaw/skills/dev/references/native-execution.md).
+The dev/loop/pabcd entrypoints route composition, projection and in-context JS
+there; this is preferred-use guidance, not an automatic loader or enforced switch.
+The current callable contract, not this historical inventory, decides availability.
+
+| Exposed capability | Purpose | Boundary |
+|---|---|---|
+| Code Mode exec (here functions.exec) | Fresh-isolate JS and awaited nested tools | Not Node, shell or browser eval; no global feature toggles |
+| ALL_TOOLS / tools when offered | Discover metadata and call a schema-confirmed nested tool | No guessed names/arguments; metadata is not authority |
+| store / load when offered | Bounded serializable same-session data | Cache, not durable evidence, credentials or transactional state |
+| Code Mode wait (here functions.wait) | Resume a returned running cell | Not shell session_id or agent handle; timeout is not cancellation |
+
+Executable examples are fixture-tested separately from observed native usage.
+No new hook, runtime, dependency or performance guarantee is introduced.
+
 ## 3. Browser + computer use (the underused tier)
 
 All four flags are STABLE and enabled on live 0.142.5 — claim source: `codex features
