@@ -39,7 +39,7 @@ recovery:
 
 | Event | Hooks | Role |
 |---|---|---|
-| `SessionStart` (x6) | provider-bridge, pabcd-bootstrap, feature-healing, map-affordance, recall-context, session-start-detecting-managed-worktree | Detect `ocx` status; bootstrap session state; reconcile declared features; announce affordances; inject recall context; check managed-worktree identity. |
+| `SessionStart` (x6) | provider-bridge, pabcd-bootstrap, feature-healing, map-affordance, recall-context, session-start-detecting-managed-worktree | Detect `ocx` status; bootstrap session state; heal declared soft flags (hard flags require `cxc enable`); announce affordances; inject recall context; check managed-worktree identity. |
 | `UserPromptSubmit` (x4) | pabcd-trigger, recall-intent, user-prompt-submit-guiding-worktree-rename, compact-affordance recovery | Parse orchestrate grammar and inject phase directives; detect recall phrasing; guide managed-worktree renames; consume a queued compact hint once for the root session. |
 | `Stop` | pabcd-continuation | Keep an in-flight cycle advancing under an active goal. |
 | `PreToolUse` (x6) | goal-budget, interview-in-goal, goal-complete, skill-attach, edit-lint, pre-tool-use-guarding-managed-worktree-deletion | Guard goals, deny interview in goal mode, gate goal completion, attach skills to spawns, lint edits, guard managed-worktree deletion. |
