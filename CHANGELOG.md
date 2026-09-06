@@ -4,6 +4,15 @@ All notable changes to codexclaw are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.20] - 2026-09-06
+
+### Changed
+
+- Default to ordinary pull requests and manual branch chains. GitHub native stacks
+  now require a clear, strong request for that feature in the current task; do not
+  proactively suggest or create them. Align the dev/DevOps guidance and the actual
+  SessionStart and compact-recovery hints while preserving existing-stack safety.
+
 ## [0.2.19] - 2026-09-06
 
 ### Changed

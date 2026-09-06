@@ -255,10 +255,11 @@ test("stack guidance survives SessionStart and deferred compact recovery without
       const stackLine = ctx.split("\n").find((line: string) => line.includes("DEV-STACK-06/07"));
       assert.ok(stackLine, `${event} must expose stack guidance even in an empty non-Git repo`);
       assert.match(stackLine, /cxc-dev.*references\/stacked-prs\.md/);
-      assert.match(stackLine, /even without a DevOps trigger/);
-      assert.match(stackLine, /not native stack registration/);
+      assert.match(stackLine, /ordinary PRs\/manual chains by default/);
+      assert.match(stackLine, /parent base or Can Stack banner is not opt-in/);
       assert.match(stackLine, /Per-PR CI is expected/);
-      assert.match(stackLine, /Publish GitHub stacks natively; verify registration/);
+      assert.match(stackLine, /Do not suggest or create GitHub native stacks unless the user clearly and strongly requests them for this task/);
+      assert.doesNotMatch(stackLine, /Publish GitHub stacks natively/);
       assert.match(stackLine, /not authorization/);
       assert.ok(stackLine.length < 600, "global guidance must remain a bounded pointer");
       assert.deepEqual(Object.keys(envelope), ["hookSpecificOutput"]);
@@ -322,6 +323,7 @@ test("direct-exec guard fires through a symlinked install path (plugin-cache reg
   assert.match(res.stdout, /additionalContext/, "symlink invocation must emit the envelope");
   assert.match(res.stdout, /cxc map/, "envelope must carry the map pointer");
   assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /DEV-STACK-06\/07/);
+  assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /native stacks unless the user clearly and strongly requests them for this task/);
   assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /User questions:.*request_user_input_async/);
   const compact = spawnSync(process.execPath, [link, "hook", "post-compact"], {
     input: JSON.stringify({ hook_event_name: "PostCompact", cwd: big, session_id: "linked" }), encoding: "utf8" });
@@ -333,5 +335,6 @@ test("direct-exec guard fires through a symlinked install path (plugin-cache reg
   const compactEnvelope = JSON.parse(prompt.stdout).hookSpecificOutput;
   assert.equal(compactEnvelope.hookEventName, "UserPromptSubmit");
   assert.match(compactEnvelope.additionalContext, /DEV-STACK-06\/07/);
+  assert.match(compactEnvelope.additionalContext, /native stacks unless the user clearly and strongly requests them for this task/);
   assert.match(compactEnvelope.additionalContext, /User questions:.*request_user_input_async/);
 });
