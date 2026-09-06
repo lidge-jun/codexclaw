@@ -46,3 +46,8 @@ Resolver amendment audit rejected unconditional payload preference because paylo
 existing exported COMMAND_TABLE; preserve legacy fallback for repo-only commands,
 prefer owned dispatcher for supported recovery/FSM commands. No unrelated global
 PATH mutation is used to conceal the mismatch.
+
+Pre-resolver candidatee38115b exact-head GitHub CI completed SUCCESS on Linux,
+macOS and both Windows line-ending modes. Packed install completed SUCCESS.
+Final resolver candidateb464737 is separately reviewed/retested before a fresh
+CI run; earlier-head green is not carried as final-head certification.
