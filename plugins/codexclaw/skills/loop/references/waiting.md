@@ -5,7 +5,10 @@ Read while awaiting dispatched work or long external processes in either HITL or
 These continuation/dispatch rules concern this goal's own work and delegated
 subagents, not independent peer advice. Peer timeouts do not authorize retirement,
 replacement, forced wakeups, or an unconditional wait; use
-[peer collaboration](../../dev/references/peer-collaboration.md).
+[peer collaboration](../../dev/references/peer-collaboration.md). Do not send
+progress notices or nudges to independent tasks while waiting. Contact requires
+an explicit user request or necessary confirmed blocking CI/merge collision
+coordination, plus host permission and wake checks.
 
 ## Wait visibility (LOOP-WAIT-VISIBILITY-01, DEFAULT)
 

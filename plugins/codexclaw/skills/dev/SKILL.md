@@ -159,11 +159,13 @@ metadata remains canonical in each skill's `agents/openai.yaml`.
 
 ### Capability Routing Hub
 
-**Independent peers:** for substantive work, consider whether another existing
-task owns a relevant decision, dependency, or finding. When that can affect either
-task, read [peer collaboration](references/peer-collaboration.md): discover and
-read selectively, consult or notify only for a concrete reason, and preserve each
-task's user authority. No mandatory lookup for trivial work or per-turn polling.
+**Independent peers:** keep work local and use selective read-only evidence when
+needed. Outbound messages are default-off: contact an existing task only on an
+explicit user request or for necessary coordination of a confirmed blocking
+CI/merge collision, subject to host permissions and wake checks in
+[peer collaboration](references/peer-collaboration.md). No routine discovery,
+progress notifications, or unsolicited follow-ups. Authorized subagent work uses
+its own scoped delegation tools.
 Use `dev` plus repo tools for local facts; load `search`, `pabcd`, `loop`, `recall`,
 `cxc-qa`, or the matching `dev-*` owner for their named domains. `skill-hub` is deprecated.
 
