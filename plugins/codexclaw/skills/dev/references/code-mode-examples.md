@@ -1,7 +1,8 @@
 # Code Mode examples
 
-Use only with the matching live executor/tool contract. Submit raw JS inside a
-fence, not Markdown or JSON-quoted code. These are task-local patterns, not new
+Use only with the matching live executor/tool contract. Submit only the JavaScript
+contents of each fence, without backticks, a language label, or JSON quoting.
+These are task-local patterns, not new
 native tools or a module to import. Adapt scope/keys/arguments after inspecting
 the real task and schema. Tests execute these exact fences with controlled tools;
 they do not emulate Codex security, serialization or cancellation.

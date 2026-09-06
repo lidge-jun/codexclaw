@@ -83,3 +83,11 @@ initial head 6866280596b14be520fa7ab0c6b7371eac89449e. CI is pending at submissi
 not inferred green from remote tests. Initial code-review findings are all resolved;
 the candidate payload has no diff after 26e90521. Remaining changes are generated
 test badges and this unit's evidence/archive, not a version or production install.
+
+GitHub review PRRT_kwDOTLf_586fo86c identified ambiguous wording in the examples'
+opening sentence: "Submit raw JS inside a fence" could be read as sending the
+Markdown wrapper. Accepted as a C0 clarification of the already-audited raw-JS
+contract: explicitly submit only the fence contents, no backticks/language label
+or JSON quoting. All four extracted JS bodies are byte-identical to 26e90521;
+no runtime behavior, tests, count, hooks or configuration changed. This additional
+prose delta is separate from the earlier implementation freeze and badge/archive.
