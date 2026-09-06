@@ -4,6 +4,28 @@ Canonical owner: `dev`. Other skills carry pointer stubs only (see
 `references/skill-ownership.md`). Rules here are tool-agnostic: the portable model first,
 CLI recipes second.
 
+## Native stacks are explicit-only (DEV-STACK-OPT-IN-01)
+
+Use ordinary pull requests by default; use a manual branch chain when dependencies
+justify it. GitHub native stacks are default-off. Do not suggest, register, convert
+to, or select a native-stack workflow unless the user clearly and strongly requests
+GitHub native stacks for this specific task.
+
+A generic request to "stack", split PRs, follow a dependency roadmap, improve CI,
+merge, or release is not native opt-in. Neither platform support, a Can Stack banner,
+nor existing membership supplies that intent. Do not ask users to opt in as a routine
+step. One unmistakable request naming the native feature is enough: no repeated
+confirmation, begging, emotional-word test, or special phrase is required. Preserve
+that authorization within its stated task scope and respect later changes of mind.
+
+This selection rule governs every native procedure below. Read-only inspection of
+an existing stack remains allowed for safety; it does not authorize creating one,
+merging its members, restacking, or dissolving it. If an existing stack prevents an
+ordinary authorized operation, explain the concrete blocker and continue independent
+work. Ask for direction only when necessary; do not push the user toward native use.
+Explicit requests to leave or remove an existing stack are separate scoped actions,
+not requests to adopt native stacks. Never change membership merely to avoid an error.
+
 ## The model
 
 A **stack** is an ordered chain of branches. The **bottom** branch is based on trunk
@@ -55,16 +77,15 @@ or restack while you work. GitHub native stacks currently require one repository
 
 `gh pr create --base <parent>`, a body stack map, labels, and the **Can Stack** banner
 do not certify native registration. The banner offers conversion; confirmation is a
-separate operation. **For authorized GitHub stack publication, use a registered native
-stack by default. Base chaining alone is not completed stack delivery.** Inspect
-available tooling (`gh extension list`, installed command help)
-and choose `gh stack submit`, the website's Create stack confirmation, or the
-[documented REST create endpoint](https://docs.github.com/en/rest/pulls/stacks#create-a-pull-request-stack)
-(POST with an ordered `pull_requests` array, bottom to top). Re-read membership after
-the write; completion evidence includes the native stack number, trunk and ordered
-members. Do not install an extension automatically. If native registration is unavailable,
-report the limitation and obtain the user's choice before using a manual-chain fallback.
-When native stacks were explicitly requested, a manual chain never satisfies completion.
+separate operation. **Ordinary PRs and manual chains are the default delivery path;
+native registration requires the clear, strong, task-specific opt-in above.** A
+manual chain satisfies a generic stacked-PR request without a native upgrade prompt.
+Only after native selection and the particular write are authorized, inspect the
+available tooling and use a supported native registration path. Re-read membership
+after the write and record the stack number, trunk and ordered members. Never install
+an extension automatically. If explicitly requested native support is unavailable,
+report that limitation; do not claim a manual chain delivered the requested native
+feature or silently change the user's chosen mode.
 
 **Authority:** inspection is read-only. Registration, branch rewrites, PR retargeting,
 CI changes/cancellation and merging need authority for that operation and those PRs.
@@ -104,10 +125,10 @@ Stack when **all** of these hold:
 - the lower parts are mergeable on their own — they do not need the upper parts to be
   correct or safe.
 
-Codexclaw produces stack-shaped work by construction: a `cxc-pabcd` PHASE-SPLIT-01 phase
-map is dependency-ordered (foundations → core → integration → hardening) and each phase
-must close with something independently verifiable. That map **is** a stack plan; a
-`cxc-loop` chain of work-phases under one goal is the same shape across cycles.
+A `cxc-pabcd` PHASE-SPLIT-01 map orders implementation dependencies, not GitHub
+features. A phase map or `cxc-loop` chain alone selects neither a PR stack nor native
+registration. Decide whether a manual chain is useful using the criteria above;
+the native feature still requires DEV-STACK-OPT-IN-01.
 
 Do **not** stack when:
 
@@ -139,7 +160,7 @@ before asking for review:
   at a commit inside the rebased range. Branches checked out in another worktree are not
   updated. Prefer the per-invocation flag; do not change global Git configuration as
   an incidental step of stack work.
-- `gh stack rebase` fetches origin and cascades from trunk upward; if a layer's PR has
+- Only for an explicitly authorized native workflow, `gh stack rebase` fetches origin and cascades from trunk upward; if a layer's PR has
   already merged it switches to `--onto` mode automatically. Conflicts pause the run;
   resume with `--continue`, unwind everything with `--abort`. Scope with `--downstack` /
   `--upstack` / `--no-trunk`.
@@ -202,6 +223,11 @@ When you are reviewing one layer of a stack:
 
 ## DEV-STACK-04 — Merging and safety (ESCALATE)
 
+Native procedures in this section require DEV-STACK-OPT-IN-01 plus authorization
+for the affected members. Existing membership and a generic merge request do not
+authorize a native merge of lower members. Inspect first and report a real blocker;
+do not auto-convert, dissolve, or issue native writes to complete an ordinary PR.
+
 - **Merge bottom-up.** In a **registered GitHub stack**, merging the top PR brings every PR below it; merging a
   mid-stack PR merges everything below it while the PRs above stay open and re-target the
   stack's base automatically.
@@ -239,11 +265,13 @@ GraphQL: This pull request is part of a stack and must be merged using the async
 ```
 
 That invocation used the unsupported GraphQL path; `--admin` did not change it.
-Do not repeat the same command for every layer, dissolve the stack, or retarget it
-to evade this error. `mergeable_state: blocked` is a separate observation, not proof
+Do not automatically repeat the same command for every layer, dissolve the stack,
+or retarget it to evade this error. An explicit user request to unstack is a
+separately scoped cleanup action, not native adoption. `mergeable_state: blocked` is a separate observation, not proof
 that this transport error was fixed. Inspect membership and the actual merge result.
 
-After verifying the authorized stack prefix and current member heads, target the
+After the required native opt-in and authorization for the stack prefix, verify
+current member heads and target the
 highest PR in that prefix **once**. Recheck installed CLI support; otherwise use the
 [async REST API](https://docs.github.com/en/rest/pulls/pulls#merge-a-pull-request-asynchronously):
 
@@ -286,7 +314,9 @@ is omitted, `gh` uses the `branch.<current>.gh-merge-base` config and, if that i
 the repository's default branch — so a layer can silently target trunk instead of its
 parent.
 
-GitHub's first-party extension is `gh stack` (`gh extension install github/gh-stack`,
+Only when the user clearly and strongly selected GitHub native stacks for this
+task should these native tools be considered. Do not suggest or install them for
+ordinary PRs or manual chains. GitHub's first-party extension is `gh stack` (`gh extension install github/gh-stack`,
 requires `gh` v2.0+). Core verbs: `init`, `add`, `push`, `view`, `submit`, `rebase`,
 `modify`; `up`/`down` navigate (up = away from trunk). Stack metadata lives in
 `.git/gh-stack` (JSON, uncommitted) and it enables `git rerere` on init so conflict

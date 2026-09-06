@@ -109,7 +109,10 @@ policy.
 checks, follow `DEV-STACK-03/06/07` in
 [`cxc-dev`'s canonical stack reference](../dev/references/stacked-prs.md).
 Stack recognition also applies without this DevOps router; the global `dev` entry
-owns it. Keep membership and CI decisions in that owner, not a second procedure here.
+owns it. Ordinary PRs/manual chains are the default. Do not suggest or adopt GitHub
+native stacks without the user's clear, strong request for that feature in this task
+(DEV-STACK-OPT-IN-01). Existing membership is a safety fact, not new authorization.
+Keep membership and CI decisions in the canonical owner.
 
 ### §2.2 GHA Reusable Workflows (DEFAULT)
 

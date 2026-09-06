@@ -191,12 +191,11 @@ export function renderLoopAffordance()         {
 /** Global discovery only; the agent verifies membership and CI on demand. */
 export function renderStackedPrAffordance()         {
   return [
-    "[codexclaw] For PR creation/review/merge or dependent branches (stacked PR/스택 PR),",
-    "read $codexclaw:cxc-dev references/stacked-prs.md (DEV-STACK-06/07), even without",
-    "a DevOps trigger. A parent base or Can Stack banner is not native stack registration;",
-    "verify GitHub membership and CI separately. Per-PR CI is expected, not proof of a broken stack.",
-    "Publish GitHub stacks natively; verify registration before claiming delivery.",
-    "This is guidance, not authorization to register, restack, cancel CI, or merge.",
+    "[codexclaw] For PR work or dependent branches, read $codexclaw:cxc-dev references/stacked-prs.md (DEV-STACK-06/07).",
+    "Use ordinary PRs/manual chains by default.",
+    "Do not suggest or create GitHub native stacks unless the user clearly and strongly requests them for this task.",
+    "Inspect existing membership and CI separately; a parent base or Can Stack banner is not opt-in.",
+    "Per-PR CI is expected. This is guidance, not authorization to register, restack, cancel CI, or merge.",
   ].join(" ");
 }
 
