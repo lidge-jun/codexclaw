@@ -32,3 +32,15 @@ at install, not assumed unchanged. Immediate same-turn/Stop recovery is not clai
 Historical PR69 stdout-only observations remain in its archived unit; they are
 superseded as delivery evidence by this supported-event lifecycle correction.
 Actual model obedience or user async replies are not certified by these fixtures.
+
+Independent source/dist repair reread at9387d78d returned no remaining blockers.
+The first remote checkout of that commit was refused because its owned generated
+outputs were uncommitted. Their bytes were proved identical to the target, then
+checkpointed in the isolated remote clone before a normal checkout; no reset or
+user work deletion. The refused checkout did not run the full suite.
+
+Full suite then ran on clean9387d78d:2579 total,2578 pass,0 fail,0 cancelled,
+1 existing optional repo-map skip;73816.479542ms. Gate passed. The existing
+inventory generator updated exactly the three README test badges to measured2579.
+No dependency or version changed in this repair. Original69 permission branches
+remain byte-identical. Updated69 is a fast-forward, never a force push.
