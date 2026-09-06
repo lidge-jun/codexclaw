@@ -82,8 +82,10 @@ rule is DEFAULT unless violating it has a concrete safety or correctness consequ
 
 For PR creation/review/merge or dependent work-phase delivery, read
 [stacked PRs](references/stacked-prs.md) (DEV-STACK-06/07), even without a DevOps
-trigger. Verify native membership and CI separately; a body map or parent base
-is not registration. Generic CSS/runtime stacks are not PR-stack signals.
+trigger. Default to ordinary PRs/manual chains. Do not suggest or create GitHub
+native stacks unless the user clearly and strongly requests that feature for this
+task (DEV-STACK-OPT-IN-01). Inspect existing membership and CI separately for safety;
+a body map or parent base is not native opt-in. Generic CSS/runtime stacks are unrelated.
 
 Methodologies are conditional, not universal. For an explicit method, repo
 requirement, or a matching strict trigger, read
