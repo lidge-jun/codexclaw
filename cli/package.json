@@ -1,6 +1,6 @@
 {
   "name": "@codexclaw/cli",
-  "version": "0.2.21",
+  "version": "0.2.22",
   "private": true,
   "type": "module",
   "description": "codexclaw CLI \u2014 status, subagent config, provider toggle, GUI launcher.",

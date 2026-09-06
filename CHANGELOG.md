@@ -4,6 +4,14 @@ All notable changes to codexclaw are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.22] - 2026-09-07
+
+### Fixed
+
+- Let spawn-hook stdout drain before exiting so large piped JSON retains the full
+  message and configured subagent model/effort. Includes source and shipped-CLI
+  regression coverage. Thanks to @thisisjun786 for PR #80.
+
 ## [0.2.21] - 2026-09-07
 
 ### Fixed

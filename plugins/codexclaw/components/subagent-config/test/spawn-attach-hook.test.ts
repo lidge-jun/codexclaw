@@ -1049,3 +1049,36 @@ test("concise entrypoint is delivered once without recursively inlining its refs
   const detail = readFileSync(join(SKILLS_DIR, "dev", "references", "development-practice.md"), "utf8").trim();
   assert.ok(!first.includes(detail));
 });
+
+test("BUG-R1: CLI source and dist drain large rewritten spawn JSON over a pipe", () => {
+  const SENTINEL = "CXC-STDOUT-DRAIN-SENTINEL-END";
+  const originalMessage = `${"A".repeat(200 * 1024)}${SENTINEL}`;
+  assert.ok(originalMessage.length < 256 * 1024, "spawn message must stay under the normalization cap");
+  const cwd = workspaceWithConfig({
+    executor: { mode: "model", model: "gpt-5.6-luna", effort: "high", promptOverride: null },
+  });
+  const payload = spawnPayloadAt(cwd, { agent_type: "worker", message: originalMessage });
+  try {
+    for (const [label, cli] of [
+      ["source", resolve(here, "../src/spawn-attach-hook.ts")],
+      ["dist", resolve(here, "../dist/spawn-attach-hook.js")],
+    ] as const) {
+      const result = spawnSync(process.execPath, [cli, "hook", "pre-tool-use"], {
+        input: payload,
+        encoding: "utf8",
+        maxBuffer: 2 * 1024 * 1024,
+        timeout: 20_000,
+      });
+      assert.ifError(result.error);
+      assert.equal(result.status, 0, `${label} exit status`);
+      const parsed = JSON.parse(result.stdout);
+      const ui = parsed.hookSpecificOutput.updatedInput as Record<string, unknown>;
+      assert.equal(ui.model, "gpt-5.6-luna", `${label} model`);
+      assert.equal(ui.reasoning_effort, "high", `${label} effort`);
+      assert.equal(typeof ui.message, "string", `${label} message type`);
+      assert.ok(String(ui.message).endsWith(originalMessage), `${label} original message retained`);
+    }
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
