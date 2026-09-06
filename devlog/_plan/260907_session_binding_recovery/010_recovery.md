@@ -54,3 +54,22 @@ malicious modification of env/DB/files is outside this advisory ownership model.
 5. Native SQL state supports only columns actually read; unsupported schemas fail
 with a diagnosis, no auto migration or fallback. Current is read-only, bind is the
 sole create path. Existing corrupt, wrong-ID or nonregular file is preserved/refused.
+
+## Integration amendment: stale PATH command
+Live `cxc` is an npm link to dirty development0.2.16 while native plugin0.2.20 is
+installed. `cxc-resolve.ts` currently prefers any PATH file, so even new recovery
+hints can invoke an old CLI that lacks `session`. Modify its existing resolution
+ladder: explicit CODEXCLAW_CXC override remains first; existing payload-resident
+bin/cxc.mjs precedes PATH; PATH is fallback only without a payload dispatcher.
+Use the existing degraded-mode test to seed a stale PATH cxc and prove hints still
+point to the emitting payload, preserving explicit override behavior. No new test
+case/count, no global npm-link or original checkout mutation. Regenerate cxc-resolve
+dist and rerun map-affordance/related hook tests before latest-head CI.
+
+Resolver audit correction: global prefix preference would regress `map`/`gui`,
+which only the repository CLI provides. Add optional command argument to the existing
+cxcInvocation helper; use the payload dispatcher only for commands in its exported
+COMMAND_TABLE, retaining legacy no-command/map/gui/PATH fallback and override.
+resolveCxcCommands rewrites each backtick command with its own verb, and pabcd hook
+resolve-commands similarly selects per verb. Tests seed a stale PATH file and assert
+session recovery uses payload while map/gui stay PATH and explicit override wins.

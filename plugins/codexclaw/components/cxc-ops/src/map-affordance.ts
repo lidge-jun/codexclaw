@@ -40,9 +40,8 @@ export function resolveCxcCommands(
   text: string,
   env: Record<string, string | undefined> = process.env,
 ): string {
-  const cxc = cxcInvocation(import.meta.url, env);
-  if (cxc === "cxc") return text;
-  return text.split("`cxc ").join(`\`${cxc} `);
+  return text.replace(/`cxc ([^\s`]+)/g,
+    (_prefix: string, command: string) => `\`${cxcInvocation(import.meta.url, env, command)} ${command}`);
 }
 
 /** Source extensions worth mapping (mirrors the repo-map tree-sitter language set). */

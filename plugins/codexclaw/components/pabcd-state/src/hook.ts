@@ -36,7 +36,7 @@ import {
 // Cross-component dist import, LAZY + FAIL-OPEN (260724 WP1): the entry must keep
 // working when the cxc-ops sibling is absent (isolated dist snapshots in tests,
 // partial checkouts). A missing resolver degrades to the literal `cxc`.
-type CxcInvocationFn = (moduleUrl: string, env?: Record<string, string | undefined>) => string;
+type CxcInvocationFn = (moduleUrl: string, env?: Record<string, string | undefined>, command?: string) => string;
 let cxcInvocationFn: CxcInvocationFn | null = null;
 try {
   ({ cxcInvocation: cxcInvocationFn } = (await import("../../cxc-ops/dist/cxc-resolve.js")) as {
@@ -45,8 +45,8 @@ try {
 } catch {
   cxcInvocationFn = null;
 }
-function cxcInvocation(moduleUrl: string): string {
-  return cxcInvocationFn ? cxcInvocationFn(moduleUrl) : "cxc";
+function cxcInvocation(moduleUrl: string, command?: string): string {
+  return cxcInvocationFn ? cxcInvocationFn(moduleUrl, process.env, command) : "cxc";
 }
 import { hasStageMarkerForPhase, isContextPressureTail, readTranscriptTail } from "./transcript.ts";
 import { getGoalActiveStatus, suppressesInterview } from "./goal-active.ts";
@@ -220,9 +220,8 @@ const MAX_CTX = 32_000;
  */
 export function resolveCxcInDirective(text: string): string {
   try {
-    const inv = cxcInvocation(import.meta.url);
-    if (inv === "cxc") return text;
-    return text.replace(/`cxc /g, `\`${inv} `);
+    return text.replace(/`cxc ([^\s`]+)/g,
+      (_prefix: string, command: string) => `\`${cxcInvocation(import.meta.url, command)} ${command}`);
   } catch {
     return text; // FAIL-OPEN: a resolution error must not break directive emission
   }

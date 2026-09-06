@@ -86,6 +86,8 @@ Keep explicit-only skills and leaf-safe delivery restrictions intact.
   inherited or conflicting line, use `cxc session current` then explicit
   `cxc session bind` in the verified native cwd. Never set that environment ID,
   replay hook JSON or borrow a parent's/history ID. Binding does not verify hooks.
+  If PATH resolves an older development CLI, invoke this installed plugin's
+  `node "<pluginRoot>/bin/cxc.mjs"` for these commands; preserve the development checkout.
   Phase-control details belong to cxc-pabcd.
 - HOTL needs both an ACTIVE host goal and an in-flight PABCD cycle; HITL needs no
   host goal. If a required capability or binding is absent, report the preflight

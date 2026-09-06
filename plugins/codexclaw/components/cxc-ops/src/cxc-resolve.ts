@@ -10,8 +10,8 @@
  *
  * Resolution ladder (deterministic per-process, B1 seam):
  *   1. `CODEXCLAW_CXC` env override (test pin + power-user override), trimmed.
- *   2. `cxc` found on PATH (file scan, no spawn) -> literal "cxc".
- *   3. Payload-resident dispatcher -> `node "<payloadRoot>/bin/cxc.mjs"`.
+ *   2. Known payload command + existing dispatcher -> owned payload invocation.
+ *   3. Legacy/no-command or repo-only command: PATH `cxc`, then payload fallback.
  *
  * H1 (260724 A-round): there is deliberately NO free-text rewrite helper here.
  * Noun-phrase uses ("owns cxc orchestration"), prohibitions, Discord `!cxc` chat
@@ -31,6 +31,13 @@ import { fileURLToPath } from "node:url";
 export function payloadRootFromModule(moduleUrl: string): string {
   const file = fileURLToPath(moduleUrl);
   return resolve(dirname(file), "..", "..", "..");
+}
+
+// Reuse the dispatcher's actual command set. A partial payload without its bin
+// retains the legacy PATH fallback; importing this module never runs a command.
+let payloadCommands: Readonly<Record<string, string>> = {};
+if (existsSync(join(payloadRootFromModule(import.meta.url), "bin", "cxc.mjs"))) {
+  ({ COMMAND_TABLE: payloadCommands } = await import("../../../bin/cxc.mjs"));
 }
 
 /** Windows-aware executable name candidates for a PATH scan. */
@@ -67,9 +74,14 @@ export function cxcOnPath(env: Record<string, string | undefined> = process.env)
 export function cxcInvocation(
   moduleUrl: string,
   env: Record<string, string | undefined> = process.env,
+  command?: string,
 ): string {
   const override = env.CODEXCLAW_CXC;
   if (typeof override === "string" && override.trim().length > 0) return override.trim();
+  const dispatcher = join(payloadRootFromModule(moduleUrl), "bin", "cxc.mjs");
+  if (command && Object.hasOwn(payloadCommands, command) && existsSync(dispatcher)) {
+    return `node "${dispatcher}"`;
+  }
   if (cxcOnPath(env)) return "cxc";
-  return `node "${join(payloadRootFromModule(moduleUrl), "bin", "cxc.mjs")}"`;
+  return `node "${dispatcher}"`;
 }

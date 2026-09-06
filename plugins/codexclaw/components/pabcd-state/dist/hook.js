@@ -45,8 +45,8 @@ try {
 } catch {
   cxcInvocationFn = null;
 }
-function cxcInvocation(moduleUrl        )         {
-  return cxcInvocationFn ? cxcInvocationFn(moduleUrl) : "cxc";
+function cxcInvocation(moduleUrl        , command         )         {
+  return cxcInvocationFn ? cxcInvocationFn(moduleUrl, process.env, command) : "cxc";
 }
 import { hasStageMarkerForPhase, isContextPressureTail, readTranscriptTail } from "./transcript.js";
 import { getGoalActiveStatus, suppressesInterview } from "./goal-active.js";
@@ -220,9 +220,8 @@ const MAX_CTX = 32_000;
  */
 export function resolveCxcInDirective(text        )         {
   try {
-    const inv = cxcInvocation(import.meta.url);
-    if (inv === "cxc") return text;
-    return text.replace(/`cxc /g, `\`${inv} `);
+    return text.replace(/`cxc ([^\s`]+)/g,
+      (_prefix        , command        ) => `\`${cxcInvocation(import.meta.url, command)} ${command}`);
   } catch {
     return text; // FAIL-OPEN: a resolution error must not break directive emission
   }

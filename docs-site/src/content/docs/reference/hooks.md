@@ -136,3 +136,9 @@ Implicit `orchestrate status` uses the verified native identity when present and
 never falls back after a native validation failure. Explicit missing state reports
 an error with `phase: null`, rather than inventing IDLE. Plain terminals without
 native identity retain their read-only latest-file compatibility fallback.
+
+Emitted hints prefer the emitting plugin's dispatcher for commands it supports,
+so an old development `cxc` on PATH cannot capture new recovery commands. Repo-only
+`map`/`gui` keep their PATH routing; explicit `CODEXCLAW_CXC` overrides still win.
+For direct commands from static docs, use `node "<pluginRoot>/bin/cxc.mjs"` when
+the PATH CLI is older than the installed plugin.

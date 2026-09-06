@@ -34,3 +34,15 @@ suite claim. Exact-head GitHub checkout CI is the full-suite acceptance; measure
 total2646 feeds inventory. Build/platform/gate and core265focused tests passed.
 Metadata bump changes only owned package versions/manifest/inventory; dependency
 resolutions unchanged. Live bind preserved119 preexisting session hashes.
+
+Git-bearing macmini clonee38115b closes all3 archive-only failures: packaging L19
+4selected tests and dist-freshness F1 1selected test PASS. GitHub Linux full suite
+passes on e38115b; other platform jobs pending. Current FSM recovery cycle entered
+C, detected stale PATH command selection, then legally returned C->P for the scoped
+resolver amendment. A direct B->P attempt was refused; no phase/reset bypass used.
+
+Resolver amendment audit rejected unconditional payload preference because payload
+`map`/`gui` are intentionally unavailable. Folded: command-aware dispatch using
+existing exported COMMAND_TABLE; preserve legacy fallback for repo-only commands,
+prefer owned dispatcher for supported recovery/FSM commands. No unrelated global
+PATH mutation is used to conceal the mismatch.
