@@ -51,9 +51,11 @@ and disclose the limitation; do not emulate delivery by editing rollout files or
   fresh index and refresh a stale recipient/context before acting. Do not repeatedly
   reload everything. A summary may omit a material exception: request the narrow
   source or clarification when the missing detail matters.
-- If reading answers the question, stop there. If it does not, apply the two
-  outbound-message triggers above; relevance or a need for fresh judgment alone
-  does not authorize contact. Continue independent work where possible.
+- If reading answers a question and no contact was requested, stop there.
+  Otherwise, apply the two outbound-message triggers above and all authority/wake
+  checks. Relevance or a need for fresh judgment alone does not authorize contact.
+  Do not substitute a read-only answer for explicitly requested delivery.
+  Continue independent work where possible.
 
 Use [native execution](native-execution.md) for composition and failure handling.
 Code mode can project tool responses before returning them to the model: keep
@@ -79,7 +81,7 @@ do not wake an explicitly stopped task, and do not infer eligibility from app st
 alone. If eligibility remains unknown after a narrow read, do not automatically
 send; use available evidence and continue independent work. Ask the user only when
 that unanswered dependency actually prevents progress. Apply this wake check to
-every outbound message: advisory-only notifications must not wake idle/completed
+every outbound message: unsolicited advisory-only notifications must not wake idle/completed
 peers. Keep that impact in your own artifact for later authorized contact instead.
 
 Answering a peer question is not permission to resume an old goal, append new work
@@ -121,7 +123,8 @@ or invent a globally committed agreement state.
 If your user changes direction, re-check authorization before further contact;
 distinguish a withdrawn promise from any delivered message and the peer's still
 unconfirmed impact assessment. Do not automatically send a withdrawal notification
-or overwrite its plan. Do not reply to every ACK, send repeated nudges, or turn a nonblocking advisory
+or overwrite its plan. Without an explicit user request, do not reply to ACKs or send repeated nudges.
+Do not silently turn a nonblocking advisory
 into a required wait. For a real dependency use native bounded waits/cursors; a
 timeout is not proof the peer failed or permission to replace/terminate it.
 
@@ -144,6 +147,9 @@ Evaluate relevant and irrelevant peers, stale or contradictory context, absent
 tools, idle/explicit-stop/unknown intent, incoming questions, silent/ACK replies,
 and changed user directions. Distinguish simulation from live task delivery.
 Review these cases without sending live probe messages to unrelated tasks:
+
+Apply explicit user contact instructions first. The other rows describe defaults
+without such a request; host permissions and wake checks always apply.
 
 | Situation | Expected action |
 |---|---|
