@@ -150,6 +150,9 @@ test("applyGoalModeInterviewGuard: active goal -> deny request_user_input", () =
   assert.equal(hso.hookEventName, "PreToolUse");
   assert.equal(hso.permissionDecision, "deny");
   assert.match(hso.additionalContext, /goal-active=active/);
+  assert.match(hso.permissionDecisionReason, /blocking Interview.*request_user_input/);
+  assert.match(hso.permissionDecisionReason, /exposed.*host-allowed.*request_user_input_async/);
+  assert.match(hso.permissionDecisionReason, /without expecting a reply/);
 });
 
 test("applyGoalModeInterviewGuard: unreadable goal DB -> deny (fail closed)", () => {
@@ -174,6 +177,9 @@ test("applyGoalModeInterviewGuard: non-request_user_input tool -> passthrough ''
     },
   };
   assert.equal(applyGoalModeInterviewGuard(ptu("shell", { command: "ls" }), spyDeps), "");
+  for (const tool of ["request_user_input_async", "send_user_message_async"]) {
+    assert.equal(applyGoalModeInterviewGuard(ptu(tool, { questions: [{ title: "Preference?" }] }), spyDeps), "");
+  }
   assert.equal(opened, false);
 });
 
@@ -267,6 +273,13 @@ test("L12.2 boundary: goal active DENIES request_user_input; inactive ALLOWS it"
   // inactive goal -> interview is allowed (HITL interactive interview).
   const allowed = handlePreToolUseFailClosed(rawPtu("request_user_input"), depsWithStatus("complete"));
   assert.equal(allowed, "", "inactive goal must allow request_user_input (interactive interview)");
+  for (const status of ["active", "complete", 123, null]) {
+    for (const tool of ["request_user_input_async", "send_user_message_async"]) {
+      assert.equal(handlePreToolUseFailClosed(rawPtu(tool), depsWithStatus(status)), "",
+        `${tool} must remain passthrough even when goal state is ${status}`);
+      assert.equal(rawLooksLikeRequestUserInput(rawPtu(tool)), false);
+    }
+  }
 });
 
 // --- GOAL-COMPLETE-GATE-01 (260709): deterministic anti-lazy-completion --------

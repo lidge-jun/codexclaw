@@ -218,6 +218,18 @@ export function renderBackgroundTerminalAffordance()         {
   ].join(" ");
 }
 
+/** Question transport guidance only; does not expose tools or change permissions. */
+function renderQuestionAffordance()         {
+  return [
+    "[codexclaw] User questions: main agents may leave useful questions during work, including active goals.",
+    "Outside Interview, prefer exposed and host-allowed `request_user_input_async`; do not expect replies or wait.",
+    "Continue authorized work with reasonable assumptions, incorporate later replies, and ask distinct useful questions without reminders.",
+    "Interview uses `request_user_input` only; see $codexclaw:cxc-interview.",
+    "Absent tools stay absent; silence grants no approval. Subagents send question candidates to main.",
+    "Details: $codexclaw:cxc-dev references/async-questions.md.",
+  ].join(" ");
+}
+
 /**
  * PostCompact handler — re-injects the subset of affordances that agents commonly
  * lose after compaction. SessionStart-only lines (session binding, map) are not
@@ -228,6 +240,7 @@ export function runPostCompactAffordance()         {
   lines.push(renderBackgroundTerminalAffordance());
   lines.push(renderLoopAffordance());
   lines.push(renderStackedPrAffordance());
+  lines.push(renderQuestionAffordance());
   const envelope = {
     hookSpecificOutput: {
       hookEventName: "PostCompact",
@@ -272,6 +285,7 @@ export function runMapAffordanceSessionStart(stdin        , fallbackCwd        )
   lines.push(renderLoopAffordance());
   lines.push(renderStackedPrAffordance());
   lines.push(renderBackgroundTerminalAffordance());
+  lines.push(renderQuestionAffordance());
   // Fresh-install coverage for STATIC surfaces (SKILL.md files are deliberately
   // NOT rewritten): when `cxc` is not runnable as-is, ONE banner line names the
   // invocation that works on this machine so every doc-mentioned command resolves.

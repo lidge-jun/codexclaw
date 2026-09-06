@@ -66,6 +66,7 @@ test("size gate: below threshold -> no map line (skill line only), at threshold 
   const smallEnv = JSON.parse(smallOut);
   assert.doesNotMatch(smallEnv.hookSpecificOutput.additionalContext, /cxc map/);
   assert.match(smallEnv.hookSpecificOutput.additionalContext, /cxc skill search/);
+  assert.match(smallEnv.hookSpecificOutput.additionalContext, /User questions:/);
 
   const big = tmp();
   seedSources(big, MAP_AFFORDANCE_MIN_FILES);
@@ -147,6 +148,18 @@ test("wp3: SessionStart and PostCompact both emit the same scoped loop pointer",
       assert.match(pointer, /One work-phase = one full PABCD cycle/);
       assert.match(pointer, /No extra external permissions/);
       assert.ok(pointer.length < 600);
+      const questions = ctx.split("\n\n").filter(line => line.startsWith("[codexclaw] User questions:"));
+      assert.equal(questions.length, 1, `${event} must surface the question policy exactly once`);
+      assert.match(questions[0], /including active goals/);
+      assert.match(questions[0], /Outside Interview.*request_user_input_async/);
+      assert.match(questions[0], /do not expect replies or wait/);
+      assert.match(questions[0], /Continue authorized work/);
+      assert.match(questions[0], /Interview uses `request_user_input` only/);
+      assert.match(questions[0], /Subagents send question candidates to main/);
+      assert.match(questions[0], /exposed.*host-allowed/);
+      assert.match(questions[0], /silence grants no approval/);
+      assert.ok(questions[0].length < 800, "question policy stays a compact pointer");
+      assert.equal(existsSync(join(cwd, ".codexclaw")), false, "guidance must not start a phase or goal");
       if (event === "SessionStart") {
         assert.match(ctx, /This session's id is `wp3-child`/);
         assert.match(ctx, /--session wp3-child/);
@@ -301,9 +314,11 @@ test("direct-exec guard fires through a symlinked install path (plugin-cache reg
   assert.match(res.stdout, /additionalContext/, "symlink invocation must emit the envelope");
   assert.match(res.stdout, /cxc map/, "envelope must carry the map pointer");
   assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /DEV-STACK-06\/07/);
+  assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /User questions:.*request_user_input_async/);
   const compact = spawnSync(process.execPath, [link, "hook", "post-compact"], { encoding: "utf8" });
   assert.equal(compact.status, 0, compact.stderr);
   const compactEnvelope = JSON.parse(compact.stdout).hookSpecificOutput;
   assert.equal(compactEnvelope.hookEventName, "PostCompact");
   assert.match(compactEnvelope.additionalContext, /DEV-STACK-06\/07/);
+  assert.match(compactEnvelope.additionalContext, /User questions:.*request_user_input_async/);
 });

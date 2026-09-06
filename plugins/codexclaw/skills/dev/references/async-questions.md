@@ -5,6 +5,11 @@ tool schema and instructions decide availability and permitted use; model names
 (Astra, Grok, Sol, etc.) do not substitute for checking the callable tool list.
 Ask only when the answer changes the work and is not already available in context.
 
+Main agents may leave useful async questions throughout ordinary work and active
+goals, whenever the tool is exposed and the host permits it. No Interview entry
+or phase change is needed. The common SessionStart and PostCompact hooks announce
+this policy; they neither enable a missing tool nor force the model to ask.
+
 ## Select the exposed tool
 
 - When `request_user_input_async` is exposed and allowed, prefer it for a question
@@ -64,8 +69,9 @@ Interview retains its existing blocking question flow; do not migrate it to asyn
 ## Goal and Interview boundaries
 
 Follow the actual host's question/approval rules and the current goal's authority.
-Async delivery does not grant permission to interrupt an unattended workflow or
-bypass a denied question. Subagents return question candidates to the main agent;
+An active goal alone does not prohibit optional async questions or make their
+answers a completion dependency. Do not bypass an actual host prohibition or
+turn async questions into a blocking Interview. Subagents return question candidates to the main agent;
 they do not question the user independently.
 
 The persisted CodexClaw Interview currently captures synchronous `request_user_input`

@@ -131,8 +131,13 @@ comparison. Check the live callable schema; prose cannot enable an absent tool.
 CodexClaw's `goal-gate.ts:135` and `hook.ts:1843` match only synchronous
 `request_user_input`; Interview capture expects IDs and returned answers. These
 paths do not establish async capture, readiness evidence or async-name enforcement.
-No runtime/config changes or end-to-end user-reply tests accompany this guidance.
-Research provenance: `devlog/_fin/260906_async_questions/001_research.md` after closure.
+The common cxc-ops SessionStart and PostCompact handlers now announce the async
+policy during ordinary and goal work, including the main/child question boundary.
+This is prompt guidance: permission decisions and model catalogs remain unchanged,
+and it does not establish end-to-end user-reply delivery. Interview's skill explicitly
+keeps its synchronous transport. The blocking goal-denial message names this
+distinction so it is not mistaken for a ban on all user questions.
+Research provenance: `devlog/_fin/260906_async_questions/001_research.md`.
 
 ## 2.2 Independent Desktop tasks (2026-09-05 observation)
 
