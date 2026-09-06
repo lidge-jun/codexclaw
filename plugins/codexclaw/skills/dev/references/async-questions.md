@@ -7,8 +7,10 @@ Ask only when the answer changes the work and is not already available in contex
 
 Main agents may leave useful async questions throughout ordinary work and active
 goals, whenever the tool is exposed and the host permits it. No Interview entry
-or phase change is needed. The common SessionStart and PostCompact hooks announce
-this policy; they neither enable a missing tool nor force the model to ask.
+or phase change is needed. SessionStart announces this policy. PostCompact only
+queues a workspace/session-scoped hint; the next root UserPromptSubmit consumes
+it once on an event that accepts model context. No prompt means no same-turn/Stop
+recovery guarantee. These hooks neither enable a missing tool nor force a question.
 
 ## Select the exposed tool
 

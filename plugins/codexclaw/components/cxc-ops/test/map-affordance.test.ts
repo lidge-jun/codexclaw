@@ -29,6 +29,7 @@ import {
   renderSkillSearchAffordance,
   runMapAffordanceSessionStart,
   runPostCompactAffordance,
+  runUserPromptAffordance,
   MAP_AFFORDANCE_MIN_FILES,
   resolveCxcCommands,
 } from "../src/map-affordance.ts";
@@ -39,6 +40,12 @@ const pluginRoot = resolve(here, "..", "..", "..");
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), "cxc-map-affordance-"));
+}
+
+function afterCompact(cwd: string): string {
+  const raw = { cwd, session_id: "root", hook_event_name: "PostCompact" };
+  assert.equal(runPostCompactAffordance(JSON.stringify(raw)), "");
+  return runUserPromptAffordance(JSON.stringify({ ...raw, hook_event_name: "UserPromptSubmit" }));
 }
 
 function seedSources(root: string, n: number): void {
@@ -127,12 +134,12 @@ test("critical loop and stack guidance survives SessionStart and PostCompact wit
   assert.match(JSON.parse(out).hookSpecificOutput.additionalContext, /No extra external permissions/);
 });
 
-test("wp3: SessionStart and PostCompact both emit the same scoped loop pointer", () => {
+test("wp3: SessionStart and deferred compact recovery emit the same scoped loop pointer", () => {
   const cwd = tmp();
   try {
     const outputs = [
       ["SessionStart", runMapAffordanceSessionStart(JSON.stringify({ cwd, session_id: "wp3-child" }), cwd)],
-      ["PostCompact", runPostCompactAffordance()],
+      ["UserPromptSubmit", afterCompact(cwd)],
     ] as const;
     for (const [event, out] of outputs) {
       const envelope = JSON.parse(out).hookSpecificOutput;
@@ -159,7 +166,8 @@ test("wp3: SessionStart and PostCompact both emit the same scoped loop pointer",
       assert.match(questions[0], /exposed.*host-allowed/);
       assert.match(questions[0], /silence grants no approval/);
       assert.ok(questions[0].length < 800, "question policy stays a compact pointer");
-      assert.equal(existsSync(join(cwd, ".codexclaw")), false, "guidance must not start a phase or goal");
+      assert.equal(existsSync(join(cwd, ".codexclaw", "sessions")), false, "guidance must not start a phase");
+      assert.equal(existsSync(join(cwd, ".codexclaw", "goalplans")), false, "guidance must not start a goal");
       if (event === "SessionStart") {
         assert.match(ctx, /This session's id is `wp3-child`/);
         assert.match(ctx, /--session wp3-child/);
@@ -236,11 +244,11 @@ test("cwd is read from the stdin payload; malformed stdin falls back safely", ()
   assert.doesNotMatch(JSON.parse(smallOut).hookSpecificOutput.additionalContext, /cxc map/);
 });
 
-test("stack guidance survives SessionStart and PostCompact without a DevOps trigger", () => {
+test("stack guidance survives SessionStart and deferred compact recovery without a DevOps trigger", () => {
   const cwd = tmp();
   try {
     const out = runMapAffordanceSessionStart(JSON.stringify({ cwd }), cwd);
-    for (const [event, raw] of [["SessionStart", out], ["PostCompact", runPostCompactAffordance()]]) {
+    for (const [event, raw] of [["SessionStart", out], ["UserPromptSubmit", afterCompact(cwd)]]) {
       const envelope = JSON.parse(raw);
       assert.equal(envelope.hookSpecificOutput.hookEventName, event);
       const ctx = envelope.hookSpecificOutput.additionalContext;
@@ -315,10 +323,15 @@ test("direct-exec guard fires through a symlinked install path (plugin-cache reg
   assert.match(res.stdout, /cxc map/, "envelope must carry the map pointer");
   assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /DEV-STACK-06\/07/);
   assert.match(JSON.parse(res.stdout).hookSpecificOutput.additionalContext, /User questions:.*request_user_input_async/);
-  const compact = spawnSync(process.execPath, [link, "hook", "post-compact"], { encoding: "utf8" });
+  const compact = spawnSync(process.execPath, [link, "hook", "post-compact"], {
+    input: JSON.stringify({ hook_event_name: "PostCompact", cwd: big, session_id: "linked" }), encoding: "utf8" });
   assert.equal(compact.status, 0, compact.stderr);
-  const compactEnvelope = JSON.parse(compact.stdout).hookSpecificOutput;
-  assert.equal(compactEnvelope.hookEventName, "PostCompact");
+  assert.equal(compact.stdout, "");
+  const prompt = spawnSync(process.execPath, [link, "hook", "user-prompt-submit"], {
+    input: JSON.stringify({ hook_event_name: "UserPromptSubmit", cwd: big, session_id: "linked" }), encoding: "utf8" });
+  assert.equal(prompt.status, 0, prompt.stderr);
+  const compactEnvelope = JSON.parse(prompt.stdout).hookSpecificOutput;
+  assert.equal(compactEnvelope.hookEventName, "UserPromptSubmit");
   assert.match(compactEnvelope.additionalContext, /DEV-STACK-06\/07/);
   assert.match(compactEnvelope.additionalContext, /User questions:.*request_user_input_async/);
 });

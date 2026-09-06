@@ -131,8 +131,10 @@ comparison. Check the live callable schema; prose cannot enable an absent tool.
 CodexClaw's `goal-gate.ts:135` and `hook.ts:1843` match only synchronous
 `request_user_input`; Interview capture expects IDs and returned answers. These
 paths do not establish async capture, readiness evidence or async-name enforcement.
-The common cxc-ops SessionStart and PostCompact handlers now announce the async
-policy during ordinary and goal work, including the main/child question boundary.
+The common cxc-ops SessionStart announces the async policy. PostCompact queues a
+workspace/session hint; the next root UserPromptSubmit emits it once. Child events
+neither enqueue nor consume a parent's marker. This does not promise same-turn/Stop
+recovery before another prompt. Explicit state reset removes pending markers.
 This is prompt guidance: permission decisions and model catalogs remain unchanged,
 and it does not establish end-to-end user-reply delivery. Interview's skill explicitly
 keeps its synchronous transport. The blocking goal-denial message names this

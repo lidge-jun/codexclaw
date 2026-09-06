@@ -15,12 +15,14 @@
  * affordance is silent (a tiny repo does not need a map). The count is a cheap
  * bounded source-file walk (skips vendored/build/VCS dirs, caps traversal).
  *
- * SAFETY: read-only, never throws, always exit 0. On any doubt (unreadable cwd,
+ * SAFETY: SessionStart is read-only; compact recovery writes only a scoped hint
+ * marker, never FSM/goal state. Always exit 0. On any doubt (unreadable cwd,
  * walk error) it emits nothing rather than a broken envelope — a missing
  * affordance is strictly better than a failed session start.
  */
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, mkdirSync, lstatSync, realpathSync, writeFileSync, unlinkSync } from "node:fs";
+import { join, isAbsolute } from "node:path";
+import { createHash } from "node:crypto";
 import { cxcInvocation } from "./cxc-resolve.ts";
 
 /**
@@ -202,8 +204,7 @@ export function renderStackedPrAffordance(): string {
  * Always-on background-terminal affordance (BG-TERMINAL-AFFORDANCE-01, 260715).
  * Long-running or collision-risky commands (dev servers, builds, 5min+ probes)
  * should use managed background execution instead of blocking the turn inline.
- * Injected at SessionStart AND PostCompact so the agent never forgets this
- * capability exists — even after context compaction wipes the conversation.
+ * Emitted at SessionStart and the first root UserPromptSubmit after compact.
  */
 export function renderBackgroundTerminalAffordance(): string {
   return [
@@ -230,12 +231,49 @@ function renderQuestionAffordance(): string {
   ].join(" ");
 }
 
-/**
- * PostCompact handler — re-injects the subset of affordances that agents commonly
- * lose after compaction. SessionStart-only lines (session binding, map) are not
- * repeated here because they persist in the session metadata layer.
- */
-export function runPostCompactAffordance(): string {
+/** Resolve only a valid root event; child sessions may reuse the parent's id. */
+function recoveryPath(stdin: string, event: string, create: boolean): string | null {
+  try {
+    const p = JSON.parse(stdin);
+    if (!p || typeof p !== "object" || Array.isArray(p) || p.hook_event_name !== event
+      || typeof p.cwd !== "string" || !isAbsolute(p.cwd)
+      || typeof p.session_id !== "string" || !p.session_id.trim() || p.session_id.length > 256
+      || (p.agent_id != null && p.agent_id !== "") || (p.agent_type != null && p.agent_type !== "")) return null;
+    const state = join(realpathSync(p.cwd), ".codexclaw");
+    const dir = join(state, "affordance-recovery");
+    for (const path of [state, dir]) {
+      let st;
+      try { st = lstatSync(path); }
+      catch (error) {
+        if (!create || (error as NodeJS.ErrnoException).code !== "ENOENT") return null;
+        mkdirSync(path, { mode: 0o700 });
+        st = lstatSync(path);
+      }
+      if (!st.isDirectory() || st.isSymbolicLink()) return null;
+    }
+    return join(dir, createHash("sha256").update(p.session_id).digest("hex") + ".pending");
+  } catch { return null; }
+}
+
+/** PostCompact accepts no event-specific context; queue a best-effort hint only. */
+export function runPostCompactAffordance(stdin = ""): string {
+  const path = recoveryPath(stdin, "PostCompact", true);
+  if (path) {
+    try { writeFileSync(path, "pending\n", { flag: "wx", mode: 0o600 }); }
+    catch { /* An existing marker coalesces compactions; IO failure loses only a hint. */ }
+  }
+  return "";
+}
+
+/** Emit once on the next root prompt, not on every tool/Stop or on a child. */
+export function runUserPromptAffordance(stdin: string): string {
+  const path = recoveryPath(stdin, "UserPromptSubmit", false);
+  if (!path) return "";
+  try {
+    const st = lstatSync(path);
+    if (!st.isFile() || st.isSymbolicLink()) return "";
+    unlinkSync(path); // only one concurrent consumer can remove the marker
+  } catch { return ""; }
   const lines: string[] = [];
   lines.push(renderBackgroundTerminalAffordance());
   lines.push(renderLoopAffordance());
@@ -243,7 +281,7 @@ export function runPostCompactAffordance(): string {
   lines.push(renderQuestionAffordance());
   const envelope = {
     hookSpecificOutput: {
-      hookEventName: "PostCompact",
+      hookEventName: "UserPromptSubmit",
       additionalContext: lines.join("\n\n"),
     },
   };

@@ -3,7 +3,7 @@
  *
  * Scopes (never touches codex global config under ~/.codex):
  *  - "state":     PABCD state only — .codexclaw/sessions/*.json + .codexclaw/ledger.jsonl
- *                 + .codexclaw/interviews/ (per-session scan-evidence ledgers)
+ *                 + .codexclaw/interviews/ and affordance-recovery/ hint markers
  *  - "generated": generated artifacts — .codexclaw/interview/, freeze manifests
  *  - "goalplans": project-local goalplan substrate — .codexclaw/goalplans/ (lazygap_impl 030).
  *                 A goalplan can outlive a session reset (like a freeze manifest), so "state"
@@ -68,6 +68,7 @@ export function runReset(cwd: string, scope: ResetScope): ResetResult {
     rmIfExists(join(stateDir, LEDGER_FILE), removed, absent);
     // 131/D2': per-session interview scan-evidence ledgers are session state too.
     rmIfExists(join(stateDir, INTERVIEWS_SUBDIR), removed, absent);
+    rmIfExists(join(stateDir, "affordance-recovery"), removed, absent);
     return { scope, removed, absent };
   }
 
