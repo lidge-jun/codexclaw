@@ -968,7 +968,8 @@ function main()       {
     ? denyEnvelope("codexclaw spawn policy input exceeded 4 MiB; refusing to bypass the recursion and trust boundary")
     : runSpawnAttachHook(stdin.raw);
   if (out) process.stdout.write(out);
-  process.exit(0);
+  // Piped stdout is asynchronous on POSIX; let pending writes finish before exiting.
+  process.exitCode = 0;
 }
 
 // Only run as a CLI entrypoint, not when imported by tests. Compare via realpath:
