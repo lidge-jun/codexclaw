@@ -77,3 +77,9 @@ One cohesive policy PR to dev. Product diff is under 400 lines at the implementa
 checkpoint; separate numbered planning/interview/evidence documents retain the
 requested multi-cycle work rather than being hidden to meet a line-count heuristic.
 No merge, release, deployment or branch-protection changes are authorized here.
+
+PR submitted: https://github.com/lidge-jun/codexclaw/pull/70, base dev,
+initial head 6866280596b14be520fa7ab0c6b7371eac89449e. CI is pending at submission,
+not inferred green from remote tests. Initial code-review findings are all resolved;
+the candidate payload has no diff after 26e90521. Remaining changes are generated
+test badges and this unit's evidence/archive, not a version or production install.

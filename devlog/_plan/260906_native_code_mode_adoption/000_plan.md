@@ -72,3 +72,14 @@ Existing authorization/hooks still govern actual tool execution.
 
 P/wp0: repository and native description inspected; two Grok-4.6 interview lanes
 dispatched. No production instruction changed before the roadmap audit.
+
+wp0 D: c3313333 locked the docs-only roadmap after two Grok design rounds and
+four folded audit findings; document receipt passed. Next: implement010.
+wp1 D: 26e90521 completed the common policy and four executable examples; all
+independent review findings folded, remote29/29 and gate passed; reviewer interdiff
+PASS subsequently confirmed the fixes. Next: native forward proof and PR020.
+wp2 C: actual native observations, admitted forward tasks, final remote2572 suite,
+measured badge updates, and PR70 submitted. Initial old-skill admission failures
+and remaining model efficiency variation are retained, not rewritten as successes.
+After final receipt the unit closes and archives; current-head GitHub CI is checked
+separately before handoff. Original 260905 research remains incomplete by design.
