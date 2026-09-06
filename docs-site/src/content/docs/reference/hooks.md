@@ -1,9 +1,10 @@
 ---
 title: Hooks
-description: codexclaw's 21 Codex hooks — events, matchers, and the commands they run.
+description: codexclaw's 23 hook files and 24 event handlers — events, matchers, and commands.
 ---
 
-codexclaw registers 21 active hooks in its plugin manifest. Each runs a compiled component CLI
+codexclaw registers 23 hook files with 24 event handlers in its plugin manifest.
+The compact-affordance file handles both PostCompact and UserPromptSubmit. Each handler runs a compiled component CLI
 under `node`. All commands resolve `${PLUGIN_ROOT}` to the installed plugin directory.
 The removed hook JSON files live under `hooks/_deprecated/` from the 2026-07-05 hook diet.
 
@@ -21,22 +22,25 @@ and is also unaffected.
 |---|---|---|---|---|---|
 | `session-start-ensuring-provider-bridge.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/provider-bridge/dist/cli.js" hook session-start` | `(codexclaw) Detecting provider bridge` | 20 s |
 | `session-start-bootstrapping-pabcd-state.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook session-start` | `(codexclaw) Bootstrapping PABCD session state` | 15 s |
+| `session-start-healing-declared-features.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/config-guard/dist/cli.js" hook session-start` | `(codexclaw) Ensuring declared codex features` | 20 s |
 | `session-start-announcing-map-affordance.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js" hook session-start` | `(codexclaw) Announcing cxc map affordance` | 10 s |
-| `session-start-injecting-recall-context.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook session-start` | `(codexclaw) Injecting recall context` | 10 s |
 | `user-prompt-submit-checking-pabcd-trigger.json` | `UserPromptSubmit` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook user-prompt-submit` | `(codexclaw) Checking PABCD trigger` | 15 s |
-| `user-prompt-submit-detecting-recall-intent.json` | `UserPromptSubmit` | — | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook user-prompt-submit` | `(codexclaw) Checking recall intent` | 5 s |
 | `stop-checking-pabcd-continuation.json` | `Stop` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook stop` | `(codexclaw) Checking PABCD continuation` | 15 s |
 | `pre-tool-use-guarding-goal-budget.json` | `PreToolUse` | `^create_goal$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use` | `(codexclaw) Guarding goal budget` | 15 s |
 | `pre-tool-use-guarding-interview-in-goal.json` | `PreToolUse` | `^request_user_input$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use` | `(codexclaw) Denying interview/user-input in goal mode` | 15 s |
 | `pre-tool-use-guarding-goal-complete.json` | `PreToolUse` | `^update_goal$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use` | `(codexclaw) Gating lazy goal completion (E8)` | 15 s |
 | `post-tool-use-capturing-interview-answers.json` | `PostToolUse` | `^request_user_input$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use` | `(codexclaw) Capturing interview answer` | 15 s |
 | `subagent-stop-verifying-evidence.json` | `SubagentStop` | `^worker$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook subagent-stop` | `(codexclaw) Verifying subagent evidence` | 10 s |
-| `pre-tool-use-attaching-skills.json` | `PreToolUse` | `^spawn_agent$` | `node "${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js" hook pre-tool-use` | `(codexclaw) Attaching skills to spawn` | 10 s |
+| `subagent-stop-observing-review.json` | `SubagentStop` | `.*` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook subagent-stop-review` | `(codexclaw) Recording review verdict` | 10 s |
+| `pre-tool-use-attaching-skills.json` | `PreToolUse` | `^(collaboration[._]?)?spawn_agent$` | `node "${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js" hook pre-tool-use` | `(codexclaw) Attaching skills to spawn` | 10 s |
 | `post-compact-resetting-reinject-cursor.json` | `PostCompact` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-compact` | `(codexclaw) Recovering PABCD state after compaction` | 10 s |
-| `post-compact-injecting-recall-context.json` | `PostCompact` | — | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook post-compact` | `(codexclaw) Recovering recall context after compaction` | 10 s |
-| `post-compact-injecting-bg-terminal-affordance.json` | `PostCompact` | — | `node "${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js" hook post-compact` | `(codexclaw) Re-injecting background terminal + loop affordance after compaction` | 10 s |
 | `pre-tool-use-linting-apply-patch.json` | `PreToolUse` | `^(apply_patch\|Write\|Edit)$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-edit` | `(codexclaw) Checking structured edit` | 10 s |
 | `post-tool-use-tracking-render-observations.json` | `PostToolUse` | `^(view_image\|browser:control-in-app-browser\|chrome:control-chrome\|computer-use:computer-use\|apply_patch)$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-render-observation` | `(codexclaw) Tracking render observation` | 10 s |
+| `session-start-injecting-recall-context.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook session-start` | `(codexclaw) Injecting recall context` | 10 s |
+| `post-compact-injecting-recall-context.json` | `PostCompact` | — | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook post-compact` | `(codexclaw) Recovering recall context after compaction` | 10 s |
+| `post-compact-injecting-bg-terminal-affordance.json` | `PostCompact` | — | `node "${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js" hook post-compact` | `(codexclaw) Queuing compact affordance recovery` | 10 s |
+| `post-compact-injecting-bg-terminal-affordance.json` | `UserPromptSubmit` | — | `node "${PLUGIN_ROOT}/components/cxc-ops/dist/cli.js" hook user-prompt-submit` | `(codexclaw) Restoring queued compact affordances` | 10 s |
+| `user-prompt-submit-detecting-recall-intent.json` | `UserPromptSubmit` | — | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook user-prompt-submit` | `(codexclaw) Checking recall intent` | 5 s |
 | `session-start-detecting-managed-worktree.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | `(codexclaw) Checking managed-worktree identity` | 10 s |
 | `user-prompt-submit-guiding-worktree-rename.json` | `UserPromptSubmit` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | `(codexclaw) Checking worktree rename intent` | 10 s |
 | `pre-tool-use-guarding-managed-worktree-deletion.json` | `PreToolUse` | `^Bash$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard-pretool` | `(codexclaw) Guarding managed worktree` | 10 s |
@@ -92,9 +96,17 @@ and is also unaffected.
   the parent. Read-only lanes should dispatch as `explorer`, which is never gated.
 - **reinject-cursor / post-compact** — recovers PABCD state and re-injection cursor after context
   compaction.
-- **recall-context / post-compact** — re-injects recall context after compaction.
-- **bg-terminal-affordance / post-compact** — re-injects the background-terminal and loop
-  affordance notes after compaction.
+- **recall-context / post-compact** — invokes the recall recovery handler. On hosts
+  accepting only universal PostCompact output, event-specific context is not proof
+  that the model received the recall text.
+- **bg-terminal-affordance / post-compact** — queues a workspace/session-scoped
+  recovery marker and emits no event-specific context. PostCompact cannot carry
+  this guidance directly on hosts accepting only universal output fields.
+- **bg-terminal-affordance / user-prompt-submit** — consumes that marker once on
+  the next root prompt and emits background-terminal, loop, stack and async-question
+  guidance through UserPromptSubmit. Either child stamp prevents enqueue/consume;
+  explicit `reset --state` clears pending markers. No prompt means no same-turn/Stop
+  recovery guarantee. This is hint delivery, not permission or forced tool use.
 
 ## Trust
 
