@@ -125,8 +125,10 @@ See `dev` §0.0 for the full class definitions and tie-break rules.
 ## Delegation Model (subagents)
 
 This section governs dispatched children, not independently user-owned peer tasks.
-For context, contract negotiation, or material cross-task findings, follow
-[peer collaboration](../dev/references/peer-collaboration.md). Each peer retains
+For necessary read-only context, follow
+[peer collaboration](../dev/references/peer-collaboration.md). Outbound contact
+requires an explicit user request or necessary coordination of a confirmed
+blocking CI/merge collision, plus host permission and wake checks. Each peer retains
 its own goal, plan and phase authority; a peer message never advances either FSM.
 
 The main session owns the plan, host goal, and transitions. Before authorized

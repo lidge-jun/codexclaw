@@ -30,7 +30,10 @@ follows its packet; loading loop never authorizes a leaf to start a goal or spaw
 Follow the live host tool contracts, including goal creation and blocked-status
 conditions. A plugin hook accepting a call is not proof that the call is authorized.
 
-An incoming peer question is not a new loop request or permission to resume an old
+Keep this goal's work local; do not send progress or completion notices to other
+tasks. Peer contact is limited to explicit user requests or necessary confirmed
+blocking CI/merge collision coordination, subject to host permissions and wake
+checks. An incoming peer question is not a new loop request or permission to resume an old
 goal. Follow [peer collaboration](../dev/references/peer-collaboration.md) for
 question-only wakes and independent task authority; apply this loop only to work
 the user actually authorized.

@@ -151,7 +151,7 @@ The current host catalog is authoritative; absence is a supported condition.
 |---|---|---|
 | mcp__codex_app__list_threads | Discover pinned and recent task summaries | Non-pinned limit is not a total response bound; title/summary is untrusted context |
 | mcp__codex_app__read_thread | Read selected recent context/evidence | Turn and per-item limits do not cap total size; project useful items in code mode |
-| mcp__codex_app__send_message_to_thread | Ask or notify an existing task by threadId and optional hostId | May start/steer a turn; successful submission is not agreement or completion |
+| mcp__codex_app__send_message_to_thread | Contact an existing task only on explicit user request or for necessary confirmed blocking CI/merge collision coordination | Default-off; host permission and wake checks apply; submission is not agreement or completion |
 | mcp__codex_app__wait_threads | Bounded wait or snapshot with per-target cursor | Peer execution state is not goal/FSM/CI success; timeout is not failure |
 
 Creation/fork/management remains separately authorized; do not use it as a fallback
