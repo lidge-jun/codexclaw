@@ -68,3 +68,16 @@ A real `session current --json` call shows the new sourceCwd field while retaini
 the actual native session identity/cwd. Existing blocked sessions were not
 advanced or rebound by this patch. Plugin update/reinstall can overwrite a local
 cache patch; upstream delivery remains a separate PR, not a release.
+
+## PR CI follow-up
+
+The remote Ubuntu suite ran all 2,668 tests with zero failures (2,597 passed,
+71 conditional skips). Its count gate exposed stale published test badges;
+`inventory.mjs --write --tests 2668` updates them and the measured-count check passes.
+
+Packed install used the upstream repository with a fork-only head SHA and failed
+before installation (`unable to read tree`). The workflow now passes the matching
+head repository/SHA via environment variables for head installs, retaining the
+upstream release source for the downgrade. YAML and shell syntax checks pass.
+An isolated probe with the workflow's exact Codex 0.147.0 successfully resolves
+the fork marketplace at the immutable head SHA. No runtime payload file changed.
