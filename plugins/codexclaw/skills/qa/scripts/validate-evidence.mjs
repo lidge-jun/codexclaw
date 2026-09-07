@@ -9,7 +9,7 @@
 // integrity from a curl transcript would fail three surfaces that are working
 // correctly.
 import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { isAbsolute, basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -36,6 +36,7 @@ function identityErrors(id, label) {
   if (typeof id.dirty !== "boolean") out.push(`${label}.dirty must be a boolean`);
   if (!isRfc3339(id.capturedAt)) out.push(`${label}.capturedAt must be an RFC3339 timestamp`);
   if (id.treeHash !== undefined && typeof id.treeHash !== "string") out.push(`${label}.treeHash must be a string when present`);
+  if (id.sourceRoot !== undefined && (typeof id.sourceRoot !== "string" || !isAbsolute(id.sourceRoot))) out.push(`${label}.sourceRoot must be an absolute path when present`);
   return out;
 }
 
@@ -46,6 +47,7 @@ function identityErrors(id, label) {
  * fresh time, so comparing it would reject QA runs that never left the tree.
  */
 function sameTree(a, b) {
+  if (a.sourceRoot !== b.sourceRoot) return false;
   if (a.kind !== b.kind) return false;
   if (a.commitSha !== b.commitSha) return false;
   if (a.dirty !== b.dirty) return false;

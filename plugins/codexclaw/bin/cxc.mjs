@@ -71,7 +71,7 @@ const HELP = [
   '  node "<payloadRoot>/bin/cxc.mjs" <command> [args]',
   "",
   "PABCD / loop:",
-  "  session current|bind          verify native identity / recover missing FSM state",
+  "  session current|bind|source   verify native identity / bind a source worktree",
   "  orchestrate <verb>             drive IPABCD state (try: orchestrate --help)",
   "  freeze | metric | divergence   interview freeze / metrics / divergence state",
   "  loop init|show|validate        manage the project-local goalplan substrate",

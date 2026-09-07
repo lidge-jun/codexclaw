@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, linkSync, rmSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { renameWithRetry } from "./atomic-write.js";
 import {                        reconstructInterview, normalizeInterview, isInterviewReady } from "./interview.js";
 
@@ -215,6 +215,8 @@ export function reconstructUnverified(raw         )                             
 
 
 
+
+
 export const STATE_DIR = ".codexclaw";
 export const SESSIONS_SUBDIR = "sessions";
 export const LEDGER_FILE = "ledger.jsonl";
@@ -259,6 +261,10 @@ function reconstructSourceIdentity(raw         )                        {
     capturedAt: o.capturedAt,
   };
   if (typeof o.treeHash === "string") id.treeHash = o.treeHash;
+  if (o.sourceRoot !== undefined) {
+    if (typeof o.sourceRoot !== "string" || !isAbsolute(o.sourceRoot)) return null;
+    id.sourceRoot = o.sourceRoot;
+  }
   return id;
 }
 
@@ -550,6 +556,7 @@ export function readStateStrict(cwd        , sessionId        )                 
       // found on any other phase is stale by definition and reading it back would
       // keep the invariant true only by accident.
       phaseEntrySource: parsed.phase === "B" ? reconstructSourceIdentity(parsed.phaseEntrySource) : null,
+      ...(typeof parsed.boundSourceRoot === "string" && isAbsolute(parsed.boundSourceRoot) ? { boundSourceRoot: parsed.boundSourceRoot } : {}),
       // 060: only A can hold a plan binding — minted at P>A, consumed at A>B.
       planUnit: parsed.phase === "A" && typeof parsed.planUnit === "string" && parsed.planUnit.length > 0 ? parsed.planUnit : null,
       planEpoch: parsed.phase === "A" && typeof parsed.planEpoch === "string" && parsed.planEpoch.length > 0 ? parsed.planEpoch : null,

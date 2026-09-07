@@ -262,3 +262,11 @@ test("T21: MD and AD statuses are recorded through the fallback rule", () => {
   assert.match(status, /AD added\.ts/);
   assert.equal(compareSource(before, captureSourceIdentity(root)).kind, "different");
 });
+
+test("bound identities do not equate different worktrees with identical commits", () => {
+  const identity = { kind: "resolved" as const, commitSha: "same", dirty: false, capturedAt: "2026-09-07" };
+  const a = { ...identity, sourceRoot: "/worktree-a" };
+  assert.equal(compareSource(a, { ...identity, sourceRoot: "/worktree-b" }).kind, "different");
+  assert.equal(compareSource(a, identity).kind, "different");
+  assert.equal(compareSource(a, { ...a }).kind, "same");
+});

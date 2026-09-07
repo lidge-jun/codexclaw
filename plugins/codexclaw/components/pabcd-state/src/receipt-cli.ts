@@ -16,7 +16,9 @@ import { commandInvocation } from "./win-exec.ts";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readState } from "./state.ts";
-import { captureSourceIdentity, compareSource } from "./source-identity.ts";
+import { compareSource } from "./source-identity.ts";
+import { resolveSessionSource } from "./session-source.ts";
+import { captureSessionSourceIdentity } from "./session-source-identity.ts";
 import { STATE_DIR, sanitizeKey } from "./state.ts";
 
 export interface ReceiptCliArgs {
@@ -113,11 +115,15 @@ export function runReceiptCli(args: ReceiptCliArgs): ReceiptCliResult {
   // Clear first: a stale success must not survive a failing re-run.
   rmSync(path, { force: true });
 
+  let sourceCwd: string;
+  try { sourceCwd = resolveSessionSource(args.cwd, session); }
+  catch (err) { return { code: 1, output: `receipt test: SOURCE-ROOT: ${err instanceof Error ? err.message : String(err)}` }; }
+
   const capture = {
     excludeCodexclawArtifacts: true,
     ...(args.generated && args.generated.length > 0 ? { generatedPaths: args.generated } : {}),
   };
-  const before = captureSourceIdentity(args.cwd, capture);
+  const before = captureSessionSourceIdentity(args.cwd, session, capture);
   const [bin, ...rest] = args.command;
   // Issue #40: `npm` is the command people actually pass here, and a bare
   // shell-less spawn of it cannot work on Windows - the name alone skips PATHEXT
@@ -126,12 +132,14 @@ export function runReceiptCli(args: ReceiptCliArgs): ReceiptCliResult {
   // shell:false still holds and the recorded command stays the argv the user gave.
   const invocation = commandInvocation(bin, rest);
   const run = spawnSync(invocation.file, invocation.args, {
-    cwd: args.cwd,
+    cwd: sourceCwd,
     stdio: "inherit",
     shell: false,
     ...invocation.options,
   });
-  const after = captureSourceIdentity(args.cwd, capture);
+  let after;
+  try { after = captureSessionSourceIdentity(args.cwd, session, capture); }
+  catch (err) { return { code: 1, output: `receipt test: SOURCE-ROOT: ${err instanceof Error ? err.message : String(err)}; no receipt written` }; }
 
   if (run.error || typeof run.status !== "number") {
     return { output: `receipt test: the command did not run to completion (${run.error?.message ?? "terminated by signal"}); no receipt written`, code: 1 };

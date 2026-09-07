@@ -6,20 +6,20 @@
  * against a tree nobody had tested.
  *
  * This is NOT the enforcement layer. It only fires when the packet carries the
- * [CXC-FINAL-GATE] marker, so omitting the marker skips it entirely, and every
- * broken link in the lookup chain fails open. The layer that actually refuses is
+ * [CXC-FINAL-GATE] marker, so omitting the marker skips it entirely. Missing
+ * goal metadata retains the legacy fail-open behavior; an explicit source
+ * resolution failure refuses the marked spawn. The layer that actually refuses is
  * validateGoalplan's v2 checks, which deny `update_goal complete` when the gate
  * is not approved. This one just says it earlier.
  *
- * Reads the goalplan JSON directly rather than importing pabcd-state: the build
- * compiles each component's src into its own dist and only rewrites relative
- * specifiers (build.mjs:25-27, :42), so a cross-component source import would
- * resolve to a path that does not exist in the shipped dist. The cost is a
- * second copy of schema knowledge, which is why schema drift here fails open.
+ * Reads the goalplan projection locally. Source identity is loaded from the
+ * sibling pabcd-state dist module so this guard and the enforcing final gate
+ * use identical worktree resolution and dirty-content hashing in installed payloads.
  */
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
-import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+const nodeRequire = createRequire(import.meta.url);
 
 export const FINAL_GATE_MARKER = "[CXC-FINAL-GATE]";
 
@@ -34,15 +34,17 @@ export interface SourceIdentityLite {
   commitSha: string;
   dirty: boolean;
   treeHash?: string;
+  sourceRoot?: string;
 }
 
 /**
- * Same four branches, in the same order, as compareSource in
+ * Same identity fields, in the same order, as compareSource in
  * pabcd-state/src/source-identity.ts. "unavailable" is checked first and is
  * never treated as an empty sha, so the two implementations cannot disagree.
  */
 function compareIdentity(a: SourceIdentityLite, b: SourceIdentityLite): "same" | "different" | "unavailable" {
   if (a.kind === "unavailable" || b.kind === "unavailable") return "unavailable";
+  if (a.sourceRoot !== b.sourceRoot) return "different";
   if (a.commitSha !== b.commitSha) return "different";
   if (a.dirty !== b.dirty) return "different";
   if ((a.treeHash ?? "") !== (b.treeHash ?? "")) return "different";
@@ -74,19 +76,11 @@ function readIdentity(raw: unknown): SourceIdentityLite | null {
   if (typeof s.commitSha !== "string" || typeof s.dirty !== "boolean") return null;
   const id: SourceIdentityLite = { kind: s.kind, commitSha: s.commitSha, dirty: s.dirty };
   if (typeof s.treeHash === "string") id.treeHash = s.treeHash;
-  return id;
-}
-
-function captureCurrentIdentity(cwd: string): SourceIdentityLite {
-  // Deliberately minimal: this guard only needs to notice that the tree moved.
-  // The authoritative capture lives in pabcd-state/src/source-identity.ts.
-  try {
-    const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
-    const status = execFileSync("git", ["status", "--porcelain=v1", "-z", "--untracked-files=all"], { cwd, encoding: "utf8" });
-    return { kind: "resolved", commitSha: sha, dirty: status.length > 0 };
-  } catch {
-    return { kind: "unavailable", commitSha: "", dirty: false };
+  if (s.sourceRoot !== undefined) {
+    if (typeof s.sourceRoot !== "string" || !isAbsolute(s.sourceRoot)) return null;
+    id.sourceRoot = s.sourceRoot;
   }
+  return id;
 }
 
 interface ReceiptSlot {
@@ -116,7 +110,7 @@ export function checkFinalGatePrereqs(
   packetText: string,
   sessionId: string,
   cwd: string,
-  captureIdentity: (cwd: string) => SourceIdentityLite = captureCurrentIdentity,
+  captureIdentity?: (cwd: string) => SourceIdentityLite,
 ): FinalGateCheck {
   try {
     if (!packetText.includes(FINAL_GATE_MARKER)) return { ok: true };
@@ -143,7 +137,24 @@ export function checkFinalGatePrereqs(
 
     const missing: string[] = [];
     const stale: string[] = [];
-    const current = captureIdentity(cwd);
+    let current: SourceIdentityLite;
+    try {
+      // Both src/ and dist/ sit one level below the component root. Load shipped
+      // dist explicitly: build's .ts -> .js rewrite cannot translate cross-src paths.
+      const source = nodeRequire("../../pabcd-state/dist/session-source-identity.js") as {
+        captureSessionSourceIdentity(cwd: string, sessionId: string): SourceIdentityLite;
+      };
+      if (captureIdentity) {
+        const binding = nodeRequire("../../pabcd-state/dist/session-source.js") as {
+          resolveSessionSource(cwd: string, sessionId: string): string;
+        };
+        const sourceCwd = binding.resolveSessionSource(cwd, sessionId);
+        const captured = captureIdentity(sourceCwd);
+        current = sourceCwd === cwd ? captured : { ...captured, sourceRoot: sourceCwd };
+      } else current = source.captureSessionSourceIdentity(cwd, sessionId);
+    } catch {
+      return { ok: false, reason: "[codexclaw — final gate] SOURCE-ROOT: source identity is unavailable; inspect the binding and installed modules before review." };
+    }
 
     for (const slot of slots) {
       if (typeof slot.path !== "string" || slot.path.length === 0) {

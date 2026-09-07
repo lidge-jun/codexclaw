@@ -42,6 +42,8 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { isCanonicalSessionId, readState, writeState } from "./state.ts";
 import { captureSourceIdentity, compareSource } from "./source-identity.ts";
+import { captureSessionSourceIdentity } from "./session-source-identity.ts";
+import { resolveSessionSource } from "./session-source.ts";
 import { parseSourceBoundReceipt } from "./source-receipt.ts";
 import { applySteeringBatch } from "./steering.ts";
 
@@ -665,9 +667,15 @@ export function runGoalplanCli(args: GoalplanCliArgs): GoalplanCliResult {
   // A read-only context, so `loop validate` can report on a schemaVersion 2 plan
   // instead of refusing every one of them for a missing context. Nothing here
   // mutates state; the enforcing consumer (goal-gate) is wired separately.
+  if (args.session) {
+    try { resolveSessionSource(args.cwd, args.session); }
+    catch (err) { return { code: 1, output: `loop validate: SOURCE-ROOT: ${err instanceof Error ? err.message : String(err)}` }; }
+  } else if (plan.finalGate?.sourceIdentity?.sourceRoot) {
+    return { code: 1, output: "loop validate: SOURCE-ROOT: pass --session <id> to validate a bound source worktree." };
+  }
   const ctx: GoalplanValidationCtx = {
     cwd: args.cwd,
-    captureSourceIdentity,
+    captureSourceIdentity: (cwd) => args.session ? captureSessionSourceIdentity(cwd, args.session) : captureSourceIdentity(cwd),
     compareSource,
     readReceipt: (path, expectedKind) => parseSourceBoundReceipt(path, args.cwd, expectedKind),
   };

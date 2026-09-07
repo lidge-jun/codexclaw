@@ -23,6 +23,8 @@ import { join } from "node:path";
 
 
 
+
+
 /**
  * discriminated result. A boolean|string union would let "unavailable" pass as
  * truthy and read as "same". Naming all three cases forces the consumer to
@@ -195,6 +197,9 @@ export function captureSourceIdentity(cwd        , options                 = {})
 export function compareSource(a                , b                )                   {
   if (a.kind === "unavailable" || b.kind === "unavailable") {
     return { kind: "unavailable", reason: "git could not resolve the source identity on at least one side" };
+  }
+  if (a.sourceRoot !== b.sourceRoot) {
+    return { kind: "different", detail: "source root changed or binding is missing" };
   }
   if (a.commitSha !== b.commitSha) {
     return { kind: "different", detail: `commit ${a.commitSha.slice(0, 7)} -> ${b.commitSha.slice(0, 7)}` };

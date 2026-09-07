@@ -21,6 +21,8 @@ export interface SourceIdentity {
   /** hash of every non-clean entry; absent on a clean tree. */
   treeHash?: string;
   capturedAt: string;
+  /** Canonical worktree root for an explicitly bound session; absent on legacy captures. */
+  sourceRoot?: string;
 }
 
 /**
@@ -195,6 +197,9 @@ export function captureSourceIdentity(cwd: string, options: CaptureOptions = {})
 export function compareSource(a: SourceIdentity, b: SourceIdentity): SourceComparison {
   if (a.kind === "unavailable" || b.kind === "unavailable") {
     return { kind: "unavailable", reason: "git could not resolve the source identity on at least one side" };
+  }
+  if (a.sourceRoot !== b.sourceRoot) {
+    return { kind: "different", detail: "source root changed or binding is missing" };
   }
   if (a.commitSha !== b.commitSha) {
     return { kind: "different", detail: `commit ${a.commitSha.slice(0, 7)} -> ${b.commitSha.slice(0, 7)}` };

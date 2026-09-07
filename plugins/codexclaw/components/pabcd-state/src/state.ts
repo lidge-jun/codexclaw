@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync, linkSync, rmSync, statSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { renameWithRetry } from "./atomic-write.ts";
 import { type InterviewTracker, reconstructInterview, normalizeInterview, isInterviewReady } from "./interview.ts";
 import type { SourceIdentity } from "./source-identity.ts";
@@ -162,6 +162,8 @@ export interface State {
    * other edge has a question to ask of it.
    */
   phaseEntrySource: SourceIdentity | null;
+  /** Source root pinned at B entry; retained so deleting a binding cannot switch Check to native. */
+  boundSourceRoot?: string;
   /**
    * REVIEW-BINDING-01 (060): the plan unit P>A validated for this cycle, stored
    * relative to cwd, plus a nonce minted on the same edge.
@@ -259,6 +261,10 @@ function reconstructSourceIdentity(raw: unknown): SourceIdentity | null {
     capturedAt: o.capturedAt,
   };
   if (typeof o.treeHash === "string") id.treeHash = o.treeHash;
+  if (o.sourceRoot !== undefined) {
+    if (typeof o.sourceRoot !== "string" || !isAbsolute(o.sourceRoot)) return null;
+    id.sourceRoot = o.sourceRoot;
+  }
   return id;
 }
 
@@ -550,6 +556,7 @@ export function readStateStrict(cwd: string, sessionId: string): { state: State;
       // found on any other phase is stale by definition and reading it back would
       // keep the invariant true only by accident.
       phaseEntrySource: parsed.phase === "B" ? reconstructSourceIdentity(parsed.phaseEntrySource) : null,
+      ...(typeof parsed.boundSourceRoot === "string" && isAbsolute(parsed.boundSourceRoot) ? { boundSourceRoot: parsed.boundSourceRoot } : {}),
       // 060: only A can hold a plan binding — minted at P>A, consumed at A>B.
       planUnit: parsed.phase === "A" && typeof parsed.planUnit === "string" && parsed.planUnit.length > 0 ? parsed.planUnit : null,
       planEpoch: parsed.phase === "A" && typeof parsed.planEpoch === "string" && parsed.planEpoch.length > 0 ? parsed.planEpoch : null,
