@@ -297,4 +297,3 @@ test("capture ignores inherited GIT_DIR/GIT_WORK_TREE and describes cwd's own tr
     rmSync(decoy, { recursive: true, force: true });
   }
 });
-

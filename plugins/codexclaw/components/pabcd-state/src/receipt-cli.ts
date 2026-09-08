@@ -16,7 +16,7 @@ import { commandInvocation } from "./win-exec.ts";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { readState } from "./state.ts";
-import { compareSource } from "./source-identity.ts";
+import { compareSource, gitEnv } from "./source-identity.ts";
 import { resolveSessionSource } from "./session-source.ts";
 import { captureSessionSourceIdentity } from "./session-source-identity.ts";
 import { STATE_DIR, sanitizeKey } from "./state.ts";
@@ -131,11 +131,15 @@ export function runReceiptCli(args: ReceiptCliArgs): ReceiptCliResult {
   // through win-exec routes only .cmd/.bat via a caret-escaped ComSpec line, so
   // shell:false still holds and the recorded command stays the argv the user gave.
   const invocation = commandInvocation(bin, rest);
+  // The check command runs in the bound source tree, so Git inside it must resolve that
+  // tree from cwd alone: inherited GIT_DIR/GIT_WORK_TREE would let a clean native checkout
+  // certify a dirty bound worktree (reviewer probe, wp4 round 2).
   const run = spawnSync(invocation.file, invocation.args, {
     cwd: sourceCwd,
     stdio: "inherit",
     shell: false,
     ...invocation.options,
+    env: gitEnv(),
   });
   let after;
   try { after = captureSessionSourceIdentity(args.cwd, session, capture); }

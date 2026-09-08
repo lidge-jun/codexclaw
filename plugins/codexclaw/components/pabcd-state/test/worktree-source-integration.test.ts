@@ -256,3 +256,25 @@ test("explicit loop validation rejects a lost binding even for legacy goalplans"
   const result = runGoalplanCli(args);
   assert.equal(result.code, 1); assert.match(result.output, /SOURCE-ROOT/);
 });
+
+test("receipt command runs without inherited Git routing variables", t => {
+  // Round-2 reviewer probe: with GIT_DIR/GIT_WORK_TREE pointing at the clean native
+  // checkout, `git diff --exit-code` inside the bound (dirty) source must still see the
+  // bound tree and exit 1, so no receipt is written.
+  const f = fixture(t); bind(f);
+  assert.equal(edge(f.cwd, "B", "A").code, 0);
+  writeFileSync(join(f.source, "implemented"), "yes");
+  assert.equal(edge(f.cwd, "C", "B").code, 0);
+  writeFileSync(join(f.source, "seed"), "dirty in bound source");
+  const saved = { GIT_DIR: process.env.GIT_DIR, GIT_WORK_TREE: process.env.GIT_WORK_TREE };
+  process.env.GIT_DIR = join(f.cwd, ".git");
+  process.env.GIT_WORK_TREE = f.cwd;
+  try {
+    const r = runReceiptCli({ verb: "test", cwd: f.cwd, session: id, command: ["git", "diff", "--exit-code", "--quiet", "--", "seed"] });
+    assert.equal(r.code, 1, r.output);
+    assert.match(r.output, /exited 1; no receipt written/);
+  } finally {
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+});
+

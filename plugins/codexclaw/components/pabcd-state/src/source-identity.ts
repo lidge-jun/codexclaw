@@ -60,8 +60,8 @@ interface StatusRecord {
  */
 const GIT_ROUTING_VARS = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"];
 
-function gitEnv(): NodeJS.ProcessEnv {
-  const env = { ...process.env };
+export function gitEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env = { ...base };
   for (const name of GIT_ROUTING_VARS) delete env[name];
   return env;
 }
