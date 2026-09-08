@@ -29,7 +29,10 @@ from the shipped executor prompt, omitting the plugin's `model = "default"` sent
 The installed role does not override model, effort, sandbox or approval policy.
 Registration marks the prompt with a content hash. Repeating this command updates an
 unchanged managed prompt; user edits, differing unmarked files and symlinks are preserved
-and reported as conflicts. Existing worker files and project model settings are preserved.
+and reported as conflicts. Updates retain the previous bytes beside the role as
+`executor.toml.backup-<sha256>`. An abandoned `.executor-update.lock` directory
+blocks updates; inspect it and confirm no registrar is running before manual removal.
+Existing worker files and project model settings are preserved.
 
 For marketplace-only installs without `cxc` on PATH, ask in Codex chat:
 
