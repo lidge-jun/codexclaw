@@ -52,8 +52,22 @@ interface StatusRecord {
   origPath?: string;
 }
 
+/**
+ * Git must resolve the repository from `cwd` alone. Inherited GIT_DIR / GIT_WORK_TREE
+ * (and friends) would silently redirect status/rev-parse to another tree, so a receipt
+ * captured "for" a bound source worktree could describe the native checkout instead.
+ * Same sanitization as session-source.ts.
+ */
+const GIT_ROUTING_VARS = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"];
+
+function gitEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const name of GIT_ROUTING_VARS) delete env[name];
+  return env;
+}
+
 function git(cwd: string, args: string[]): Buffer {
-  return execFileSync("git", args, { cwd, maxBuffer: 64 * 1024 * 1024 });
+  return execFileSync("git", args, { cwd, env: gitEnv(), maxBuffer: 64 * 1024 * 1024 });
 }
 
 /**

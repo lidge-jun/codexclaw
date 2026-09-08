@@ -270,3 +270,31 @@ test("bound identities do not equate different worktrees with identical commits"
   assert.equal(compareSource(a, identity).kind, "different");
   assert.equal(compareSource(a, { ...a }).kind, "same");
 });
+
+test("capture ignores inherited GIT_DIR/GIT_WORK_TREE and describes cwd's own tree", () => {
+  // Reviewer-found blocker: a receipt captured "for" a bound worktree must never be
+  // computed from another repository that the environment happens to route Git to.
+  const target = repo();
+  const decoy = repo();
+  writeFileSync(join(target, "only-in-target"), "x");
+  const saved = { GIT_DIR: process.env.GIT_DIR, GIT_WORK_TREE: process.env.GIT_WORK_TREE };
+  process.env.GIT_DIR = join(decoy, ".git");
+  process.env.GIT_WORK_TREE = decoy;
+  try {
+    const id = captureSourceIdentity(target);
+    assert.equal(id.kind, "resolved");
+    if (id.kind !== "resolved") throw new Error("unreachable");
+    assert.equal(id.dirty, true, "target's untracked file must be seen");
+    // The decoy is clean, so a capture routed there by the environment would read clean.
+    const decoyId = captureSourceIdentity(decoy);
+    assert.equal(decoyId.kind, "resolved");
+    if (decoyId.kind !== "resolved") throw new Error("unreachable");
+    assert.equal(decoyId.dirty, false);
+    assert.notEqual(id.treeHash, decoyId.treeHash, "must not have described the decoy repo");
+  } finally {
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    rmSync(target, { recursive: true, force: true });
+    rmSync(decoy, { recursive: true, force: true });
+  }
+});
+
