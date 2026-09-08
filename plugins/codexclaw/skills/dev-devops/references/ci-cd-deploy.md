@@ -262,6 +262,8 @@ Phase 4: Drop old column
 | "It was green when I checked" | The head moved under you | `DEVOPS-EXACT-HEAD-01` §6.4 |
 | `delete_branch_on_merge` treated as full branch hygiene | Closed-unmerged PRs keep their heads forever | `DEVOPS-BRANCH-AUTODELETE-01`, `branch-lifecycle.md` |
 | Bulk-pruning branches by name pattern | Patterns encode neither PR state, stacks, nor forks | `DEVOPS-BRANCH-DELETE-EVIDENCE-01`, `branch-lifecycle.md` |
+| Repository accepting agent PRs with no intake policy | Review budget is consumed by volume, not by risk | `DEVOPS-AGENT-INTAKE-01`, `agent-pr-intake.md` |
+| Local worktree cleanup by ancestry alone under squash merging | Merged branches read as unmerged; reused names get deleted | `DEVOPS-LOCAL-GC-01`, `local-gc.md` |
 
 ---
 

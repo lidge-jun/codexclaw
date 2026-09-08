@@ -41,6 +41,7 @@ proof remain mandatory; architecture/tool preferences need project-specific just
 | `references/branch-lifecycle.md` | Branch/worktree cleanup | Closed-PR branch automation, per-branch deletion evidence, worktree dirty audit, stacked-PR safety |
 | `references/repo-bootstrap.md` | New or under-configured repository; branch protection, rulesets, auto-delete, PR limits | Ruleset-first setup, merge-setting fields, closed-PR job values, PR limits, labels/template, read-only bootstrap check |
 | `references/agent-pr-intake.md` | Many agent-authored PRs/issues; intake policy; superseded PRs | Identity tiers, agent convention table, draft-first, supersede procedure, weak/medium/strong policy options with sources |
+| `references/local-gc.md` | Local worktree/branch garbage collection; scheduled local cleanup | PR-state merge truth, candidate classes, worktree exclusions, config hygiene, dry-run schedule, `cxc worktree gc` contract |
 | `references/iac.md` | Infrastructure code | OpenTofu/Terraform modules, Pulumi, state encryption, blast radius isolation |
 | `references/sre-foundations.md` | Operations/incidents | SLO/SLI/error budget, burn-rate alerting, incident response, blameless postmortem |
 | `references/edge-serverless.md` | Edge/serverless work | Edge request shaping, auth at edge, Cloudflare Workers, Vercel Edge, edge AI triage |
