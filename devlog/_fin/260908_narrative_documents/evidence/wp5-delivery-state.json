@@ -1,0 +1,69 @@
+{
+  "repo": "lidge-jun/codexclaw",
+  "worktree": "/Users/jun/Developer/new/700_projects/codexclaw-narrative",
+  "version": "0.2.24",
+  "manifestVersion": "0.2.24+codex.20260908031619",
+  "prs": {
+    "narrative": 87,
+    "pr84Integration": 84,
+    "releasePrep": 88,
+    "promotion": 89
+  },
+  "devHead": "95402628",
+  "mainHead": "bb8522726c1491b40895cbbdcb91c8e6ec3caba7",
+  "tag": "v0.2.24",
+  "mainChecks": {
+    "ci": 34184492720,
+    "packed": 34184492791,
+    "wsl": 34184492713
+  },
+  "releaseRun": 34185250992,
+  "releaseURL": "https://github.com/lidge-jun/codexclaw/releases/tag/v0.2.24",
+  "assets": [
+    "candidate-0.2.24.json",
+    "codexclaw-payload-0.2.24.tar.gz",
+    "SHA256SUMS"
+  ],
+  "sha256sumsVerified": true,
+  "installs": {
+    "local": {
+      "host": "jun mac",
+      "previous": "0.2.23+codex.20260908004251",
+      "installed": "0.2.24+codex.20260908031619",
+      "filesMatched": 941,
+      "doctor": "PASS",
+      "hookTrust": 24,
+      "backup": "/Users/jun/Developer/new/700_projects/codexclaw-narrative/.codexclaw/evidence/narrative-release-0.2.24/rollback/installed-0.2.23"
+    },
+    "macmini-cf": {
+      "previous": "0.2.22+codex.20260906224615",
+      "installed": "0.2.24+codex.20260908031619",
+      "filesMatched": 941,
+      "doctor": "PASS",
+      "hookTrust": 24,
+      "backup": "/Users/junny/codexclaw-deploy-0.2.24-01a07e62/backup"
+    },
+    "suji": {
+      "previous": "0.2.22+codex.20260906224615",
+      "installed": "0.2.24+codex.20260908031619",
+      "filesMatched": 941,
+      "doctor": "PASS",
+      "hookTrust": 24,
+      "backup": "/Users/neuralarcadepro/codexclaw-deploy-0.2.24-01a07e62/backup"
+    },
+    "desktop-c795oh4": {
+      "previous": "0.2.21+0.2.22 caches",
+      "installed": "0.2.24+codex.20260908031619",
+      "filesMatched": 941,
+      "doctor": "WARN (python store alias; codex features list under non-interactive SSH) — same conditions on the previous 0.2.22 payload; hook-trust 24, install-root PASS",
+      "hookTrust": 24,
+      "backup": "C:\\Users\\user\\codexclaw-deploy-0.2.24-01a07e62\\backup",
+      "note": "first attempt corrupted config.toml via regex; restored from preimage and re-applied with literal replace"
+    }
+  },
+  "notDeployed": {
+    "lidge,intmb,cursor": "codex present, no codexclaw install (not targets)",
+    "oracle,ocx-ci,win,clisu-oracle*": "unreachable/no install in the last probe; state unknown"
+  },
+  "caveat": "Running Codex sessions keep the previously loaded plugin root; new sessions pick up 0.2.24. No hot-reload claim."
+}

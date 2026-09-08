@@ -1,0 +1,21 @@
+artifact (macos-latest)	pass	25s	https://github.com/lidge-jun/codexclaw/actions/runs/34183660349/job/101927613245	
+artifact (macos-latest)	pass	15s	https://github.com/lidge-jun/codexclaw/actions/runs/34183664416/job/101927624387	
+artifact (ubuntu-latest)	pass	13s	https://github.com/lidge-jun/codexclaw/actions/runs/34183660349/job/101927613288	
+artifact (ubuntu-latest)	pass	17s	https://github.com/lidge-jun/codexclaw/actions/runs/34183664416/job/101927624247	
+artifact (windows-latest)	pass	28s	https://github.com/lidge-jun/codexclaw/actions/runs/34183660349/job/101927613317	
+artifact (windows-latest)	pass	41s	https://github.com/lidge-jun/codexclaw/actions/runs/34183664416/job/101927624101	
+enforce-target	pass	5s	https://github.com/lidge-jun/codexclaw/actions/runs/34183664454/job/101927624745	
+install (macos-latest)	pass	42s	https://github.com/lidge-jun/codexclaw/actions/runs/34183660349/job/101927613277	
+install (macos-latest)	pass	36s	https://github.com/lidge-jun/codexclaw/actions/runs/34183664416/job/101927624195	
+install (ubuntu-latest)	pass	31s	https://github.com/lidge-jun/codexclaw/actions/runs/34183660349/job/101927613061	
+install (ubuntu-latest)	pass	21s	https://github.com/lidge-jun/codexclaw/actions/runs/34183664416/job/101927624294	
+test (macos-latest, false)	pass	2m56s	https://github.com/lidge-jun/codexclaw/actions/runs/34183660308/job/101927613227	
+test (macos-latest, false)	pass	2m2s	https://github.com/lidge-jun/codexclaw/actions/runs/34183664379/job/101927624280	
+test (ubuntu-latest, false)	pass	1m25s	https://github.com/lidge-jun/codexclaw/actions/runs/34183660308/job/101927613219	
+test (ubuntu-latest, false)	pass	1m24s	https://github.com/lidge-jun/codexclaw/actions/runs/34183664379/job/101927624393	
+test (windows-latest, false)	pass	4m15s	https://github.com/lidge-jun/codexclaw/actions/runs/34183660308/job/101927613221	
+test (windows-latest, false)	pass	4m34s	https://github.com/lidge-jun/codexclaw/actions/runs/34183664379/job/101927624130	
+test (windows-latest, true)	pass	3m38s	https://github.com/lidge-jun/codexclaw/actions/runs/34183660308/job/101927613020	
+test (windows-latest, true)	pass	4m12s	https://github.com/lidge-jun/codexclaw/actions/runs/34183664379/job/101927624292	
+wsl	pass	12m3s	https://github.com/lidge-jun/codexclaw/actions/runs/34183660297/job/101927613059	
+wsl	pass	13m36s	https://github.com/lidge-jun/codexclaw/actions/runs/34183664449/job/101927624274	

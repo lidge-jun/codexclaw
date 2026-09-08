@@ -1,0 +1,8 @@
+[WARN] ast-grep: python not runnable (the Microsoft Store alias exits 9009) - install Python 3.9+ from python.org
+[FAIL] install-root: this payload declares 0.2.22+codex.20260906224615, but the installed root(s) are: C:\Users\user\.codex\plugins\cache\codexclaw\codexclaw\0.2.24+codex.20260908031619. Any session started before the last reinstall is running hooks from a path that no longer exists (STALE-ROOT-01). (repair: codex plugin add <plugin>@<marketplace>, then RESTART Codex ??a running session keeps the old PLUGIN_ROOT)
+[WARN] features: could not read 'codex features list' (repair: ensure the `codex` binary is on PATH, then re-run `cxc doctor`)
+overall: FAIL
+apply_patch_freeform                 removed            false
+apply_patch_streaming_events         under development  false
+apps                                 stable             true
+apps_mcp_path_override               removed            false

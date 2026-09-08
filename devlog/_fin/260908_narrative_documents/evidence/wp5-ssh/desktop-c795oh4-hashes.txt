@@ -1,0 +1,4 @@
+ok=941 bad=0 missing=0
+[WARN] ast-grep: python not runnable (the Microsoft Store alias exits 9009) - install Python 3.9+ from python.org
+[WARN] features: could not read 'codex features list' (repair: ensure the `codex` binary is on PATH, then re-run `cxc doctor`)
+overall: WARN
