@@ -67,7 +67,9 @@ the screenshot.
 
 Record the source identity at capture time in `verdict.json` as
 `sourceSnapshotAt` (the `SourceIdentity` shape: `kind`, `commitSha`, `dirty`,
-`capturedAt`, and `treeHash` when dirty). If that identity no longer describes
+`capturedAt`, `treeHash` when dirty, and `sourceRoot` for a bound worktree).
+For a bound session, capture the `sourceIdentity` from `cxc session current --json`
+at observation time; keep its canonical root in every scenario and receipt. If that identity no longer describes
 the tree, the artifact does not support a PASS — re-capture rather than
 re-argue.
 

@@ -4,6 +4,16 @@ All notable changes to codexclaw are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Bind a native session to a same-repository source worktree with `cxc session
+  source <path>`. Phase delta checks, test commands, receipts and final validation
+  follow that tree while native session identity and evidence storage stay put.
+  `session current --json` exposes a bound source snapshot for QA/review producers.
+  Refuse missing/switched source roots instead of accepting them as implementation.
+
 ## [0.2.23] - 2026-09-08
 
 ### Changed

@@ -117,6 +117,9 @@ jobs:
       # payload rather than this checkout.
       - name: Install, retrust, upgrade, and remove against an immutable ref
         shell: bash
+        env:
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           if command -v cxc >/dev/null 2>&1; then echo "unexpected cxc on PATH"; exit 1; fi
@@ -146,8 +149,8 @@ jobs:
             echo "payload[$1]: $PLUGIN_ROOT version=$PLUGIN_VERSION"
           }
 
-          PR_SHA=${{ github.event.pull_request.head.sha }}
-          codex plugin marketplace add "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" --ref "${PR_SHA:-$GITHUB_SHA}"
+          # Fork commits must be resolved in the repository that owns the head.
+          codex plugin marketplace add "${GITHUB_SERVER_URL}/${HEAD_REPOSITORY}" --ref "$HEAD_REVISION"
           install_and_resolve head
           HEAD_VERSION="$PLUGIN_VERSION"
 
@@ -179,7 +182,7 @@ jobs:
           OLD_VERSION="$PLUGIN_VERSION"
 
           codex plugin marketplace remove codexclaw
-          codex plugin marketplace add "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" --ref "${PR_SHA:-$GITHUB_SHA}"
+          codex plugin marketplace add "${GITHUB_SERVER_URL}/${HEAD_REPOSITORY}" --ref "$HEAD_REVISION"
           install_and_resolve head-again
 
           # The upgrade must be OBSERVABLE. An unchanged version means it silently kept

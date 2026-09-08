@@ -11,7 +11,8 @@
  * edge that needs them.
  */
 import { parseSourceBoundReceipt, isReceiptError } from "./source-receipt.js";
-import { captureSourceIdentity, compareSource } from "./source-identity.js";
+import { compareSource } from "./source-identity.js";
+import { captureSessionSourceIdentity } from "./session-source-identity.js";
 
 
 
@@ -65,10 +66,15 @@ export function validateCheckReceipt(
   // #49 wiring: re-capture with the SAME exclusions the receipt was captured with.
   // Dropping generatedPaths here compared an exclusive hash against an inclusive one,
   // which no amount of re-running could reconcile while a declared path kept moving.
-  const now = captureSourceIdentity(cwd, {
-    excludeCodexclawArtifacts: true,
-    ...(parsed.generatedPaths ? { generatedPaths: parsed.generatedPaths } : {}),
-  });
+  let now;
+  try {
+    now = captureSessionSourceIdentity(cwd, sessionId, {
+      excludeCodexclawArtifacts: true,
+      ...(parsed.generatedPaths ? { generatedPaths: parsed.generatedPaths } : {}),
+    });
+  } catch (err) {
+    return refuse(`SOURCE-ROOT: ${err instanceof Error ? err.message : String(err)}`);
+  }
   const cmp = compareSource(parsed.sourceIdentity, now);
   if (cmp.kind === "different") {
     return refuse(`the source changed after the check ran (${cmp.detail})`);

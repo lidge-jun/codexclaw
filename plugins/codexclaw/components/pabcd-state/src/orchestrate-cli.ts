@@ -20,7 +20,9 @@ import { resolveNativeSession } from "./session-binding.ts";
 import { coerceAttest, validateWorkPhaseBinding, GATED_TRANSITIONS, type Attestation } from "./attest.ts";
 import { canEnter, transition, isLegalEdge, VALID_TRANSITIONS } from "./fsm.ts";
 import { validatePlanArtifacts } from "./plan-gate.ts";
-import { captureSourceIdentity, compareSource, describeSource } from "./source-identity.ts";
+import { compareSource, describeSource } from "./source-identity.ts";
+import { resolveSessionSource } from "./session-source.ts";
+import { captureSessionSourceIdentity } from "./session-source-identity.ts";
 import { randomBytes } from "node:crypto";
 
 
@@ -554,6 +556,9 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
 
   // phase verb: AGENT-GATED via the un-weakened transition().
   const to = args.verb as Phase;
+  // Validate before any phase/goalplan writes; identity and artifact cwd stay native.
+  try { resolveSessionSource(args.cwd, sessionId); }
+  catch (err) { return { code: 1, output: `orchestrate ${args.verb}: SOURCE-ROOT: ${err instanceof Error ? err.message : String(err)}` }; }
   // P>A plan-artifact gate (260714 wp2, DIFFLEVEL-ROADMAP-01): the plan must
   // exist as numbered on-disk docs before Audit. Runs even when attest is null
   // so the FIRST error names planUnit. Fail-closed on this edge only.
@@ -663,8 +668,15 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
   // Advisory limits, stated plainly: committing work made in P also changes HEAD
   // and passes, a shared worktree attributes another session's edits to this one,
   // and no git means no opinion. It is a supporting signal, not the main defence.
+  if (state.phase === "B" && to === "C" && !state.phaseEntrySource
+      && resolveSessionSource(args.cwd, sessionId) !== args.cwd) {
+    return { code: 1, output: "orchestrate C: SOURCE-ROOT: bound source has no valid B baseline. Re-plan before continuing." };
+  }
   if (state.phase === "B" && to === "C" && state.phaseEntrySource) {
-    const now = captureSourceIdentity(args.cwd, { excludeCodexclawArtifacts: true });
+    const now = captureSessionSourceIdentity(args.cwd, sessionId, { excludeCodexclawArtifacts: true });
+    if (state.phaseEntrySource.sourceRoot !== now.sourceRoot) {
+      return { code: 1, output: "orchestrate C: SOURCE-ROOT: source binding changed since B began. Re-plan and capture a new baseline; nothing was written." };
+    }
     const cmp = compareSource(state.phaseEntrySource, now);
     if (cmp.kind === "same") {
       return {
@@ -1025,7 +1037,7 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
   // SOURCE-DELTA-01 (050): snapshot the source on entry to B, and clear it on every
   // other edge so a stale snapshot cannot outlive its phase. applyHumanTransition()
   // takes no cwd, so the capture belongs here at the call site rather than inside it.
-  const entrySource = result.state.phase === "B" ? captureSourceIdentity(args.cwd, { excludeCodexclawArtifacts: true }) : null;
+  const entrySource = result.state.phase === "B" ? captureSessionSourceIdentity(args.cwd, sessionId, { excludeCodexclawArtifacts: true }) : null;
   // 060: A carries the binding this edge just minted; entering P or I drops it, so
   // re-planning cannot leave an old approval looking current.
   const nextUnit = planBinding ? planBinding.unit : result.state.phase === "A" ? state.planUnit : null;
@@ -1074,7 +1086,7 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
       // Housekeeping is fail-open. The P-to-A edge continues.
     }
   }
-  writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: entrySource, planUnit: nextUnit, planEpoch: nextEpoch, checkEpoch: nextCheckEpoch });
+  writeState(args.cwd, { ...result.state, orchestrationActive: result.state.phase !== "IDLE", lastInjectedPhase: result.state.phase, stopBlockPhase: null, stopBlockCount: 0, phaseEntrySource: entrySource, ...(entrySource?.sourceRoot ? { boundSourceRoot: entrySource.sourceRoot } : {}), planUnit: nextUnit, planEpoch: nextEpoch, checkEpoch: nextCheckEpoch });
   // C-RENDER-GROUNDING-01: a new cycle starts at P — clear the render ledger so the
   // Stop advisory judges THIS cycle's rows only (stale rows both suppress and misfire).
   if (result.state.phase === "P") resetRenderLedger(args.cwd);

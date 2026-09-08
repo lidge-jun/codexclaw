@@ -1,5 +1,7 @@
 import { closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { bindSessionSource, resolveSessionSource } from "./session-source.js";
+import { captureSessionSourceIdentity } from "./session-source-identity.js";
 import { resolveNativeSession } from "./session-binding.js";
 import { ALL_PHASES, ensureState, SESSIONS_SUBDIR, STATE_DIR,            } from "./state.js";
 
@@ -64,8 +66,12 @@ export function runSessionCli(argv          , cwd        , env                  
     output: json ? JSON.stringify({ ok: false, error, hooksVerified: false }) : `${error}\nhooksVerified: false`,
   });
   const [command, ...flags] = argv;
-  if ((command !== "current" && command !== "bind") || flags.length > 1 || (flags.length === 1 && flags[0] !== "--json")) {
-    return fail("Usage: cxc session current [--json] | cxc session bind [--json]");
+  const sourceCommand = command === "source";
+  const validFlags = sourceCommand
+    ? (flags.length === 1 || (flags.length === 2 && flags[1] === "--json")) && !flags[0].startsWith("--")
+    : flags.length === 0 || (flags.length === 1 && flags[0] === "--json");
+  if (!["current", "bind", "source"].includes(command) || !validFlags) {
+    return fail("Usage: cxc session current [--json] | cxc session bind [--json] | cxc session source <absolute-worktree> [--json]");
   }
   const identity = resolveNativeSession(cwd, env);
   if (!identity.ok) return fail(identity.error);
@@ -84,10 +90,21 @@ export function runSessionCli(argv          , cwd        , env                  
     if (!state.ok) return fail(state.error);
     if (!state.stateExists) return fail("Session state disappeared during bind. Retry after the concurrent operation finishes.");
   }
+  let sourceCwd        ;
+  let sourceIdentity;
+  try {
+    if (sourceCommand && !state.stateExists) return fail("Bind session state before binding a source worktree.");
+    sourceCwd = sourceCommand
+      ? bindSessionSource(identity.cwd, identity.sessionId, flags[0])
+      : resolveSessionSource(identity.cwd, identity.sessionId);
+    if (sourceCwd !== identity.cwd) sourceIdentity = captureSessionSourceIdentity(identity.cwd, identity.sessionId);
+  } catch (err) { return fail(`SOURCE-ROOT: ${err instanceof Error ? err.message : String(err)}`); }
   const output = {
     ok: true,
     sessionId: identity.sessionId,
     cwd: identity.cwd,
+    sourceCwd,
+    ...(sourceIdentity ? { sourceIdentity } : {}),
     source: "CODEX_THREAD_ID",
     dbPath: identity.dbPath,
     statePath: join(identity.cwd, STATE_DIR, SESSIONS_SUBDIR, `${identity.sessionId}.json`),

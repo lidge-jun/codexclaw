@@ -34,7 +34,9 @@ const CREATE_GOAL_WARNING =
 import { getGoalActiveStatus, suppressesInterview,                                            } from "./goal-active.js";
 import { readStateStrict } from "./state.js";
 import { readGoalplan, validateGoalplan } from "./goalplan.js";
-import { captureSourceIdentity, compareSource } from "./source-identity.js";
+import { compareSource } from "./source-identity.js";
+import { captureSessionSourceIdentity } from "./session-source-identity.js";
+import { resolveSessionSource } from "./session-source.js";
 import { parseSourceBoundReceipt } from "./source-receipt.js";
 import { hasSpentBudget, unrecordableVerdictStatus } from "./subagent-evidence.js";
 // Cross-component dist import (precedent: messenger-bridge/src/api-compat.ts:17).
@@ -268,6 +270,8 @@ export function applyGoalCompleteGuard(payload                   )         {
       );
     }
     if (state.slug) {
+      try { resolveSessionSource(payload.cwd, payload.session_id); }
+      catch (err) { return goalCompleteDenyEnvelope(`SOURCE-ROOT: ${err instanceof Error ? err.message : String(err)}`); }
       const plan = readGoalplan(payload.cwd, state.slug);
       if (plan) {
         // Completion must use the same marker/source/receipt-aware validation as
@@ -275,14 +279,14 @@ export function applyGoalCompleteGuard(payload                   )         {
         // field into a downgrade path around the v2 final gate.
         const verdict = validateGoalplan(plan, {
           cwd: payload.cwd,
-          captureSourceIdentity,
+          captureSourceIdentity: (cwd) => captureSessionSourceIdentity(cwd, payload.session_id),
           compareSource,
           readReceipt: (path, expectedKind) => parseSourceBoundReceipt(path, payload.cwd, expectedKind),
         });
         if (!verdict.ok) {
           const reasons = verdict.reasons.slice(0, 4).join("; ");
           return goalCompleteDenyEnvelope(
-            `GOAL-COMPLETE-GATE-01: the session-bound goalplan '${state.slug}' fails the E8 quality/integrity gate: ${reasons}. Repair invalid dependency, outcome, and criteria references first; then finish remaining work and record fresh capturedEvidence in .codexclaw/goalplans/${state.slug}/goalplan.json (check with \`cxc loop validate --slug "${state.slug}"\`), or use update_goal status "blocked" if an external blocker prevents completion. Do not shrink the objective to escape the gate (LOOP-CONTINUE-01).`,
+            `GOAL-COMPLETE-GATE-01: the session-bound goalplan '${state.slug}' fails the E8 quality/integrity gate: ${reasons}. Repair invalid dependency, outcome, and criteria references first; then finish remaining work and record fresh capturedEvidence in .codexclaw/goalplans/${state.slug}/goalplan.json (check with \`cxc loop validate --session ${payload.session_id} --slug "${state.slug}"\`), or use update_goal status "blocked" if an external blocker prevents completion. Do not shrink the objective to escape the gate (LOOP-CONTINUE-01).`,
           );
         }
       } else {

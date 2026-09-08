@@ -31,7 +31,7 @@ import {
   rmSync,
   writeSync,
 } from "node:fs";
-import { join, resolve, sep } from "node:path";
+import { isAbsolute, join, resolve, sep } from "node:path";
 import { renameWithRetry } from "./atomic-write.ts";
 import { STATE_DIR } from "./state.ts";
 import { deriveSlug, type PlanFileHash } from "./freeze.ts";
@@ -404,6 +404,10 @@ function reviveSourceIdentity(raw: unknown): SourceIdentity | undefined {
     capturedAt: typeof s.capturedAt === "string" ? s.capturedAt : new Date(0).toISOString(),
   };
   if (typeof s.treeHash === "string") id.treeHash = s.treeHash;
+  if (s.sourceRoot !== undefined) {
+    if (typeof s.sourceRoot !== "string" || !isAbsolute(s.sourceRoot)) return undefined;
+    id.sourceRoot = s.sourceRoot;
+  }
   return id;
 }
 

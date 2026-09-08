@@ -21,6 +21,8 @@ export interface SourceIdentity {
   /** hash of every non-clean entry; absent on a clean tree. */
   treeHash?: string;
   capturedAt: string;
+  /** Canonical worktree root for an explicitly bound session; absent on legacy captures. */
+  sourceRoot?: string;
 }
 
 /**
@@ -50,8 +52,22 @@ interface StatusRecord {
   origPath?: string;
 }
 
+/**
+ * Git must resolve the repository from `cwd` alone. Inherited GIT_DIR / GIT_WORK_TREE
+ * (and friends) would silently redirect status/rev-parse to another tree, so a receipt
+ * captured "for" a bound source worktree could describe the native checkout instead.
+ * Same sanitization as session-source.ts.
+ */
+const GIT_ROUTING_VARS = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"];
+
+export function gitEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env = { ...base };
+  for (const name of GIT_ROUTING_VARS) delete env[name];
+  return env;
+}
+
 function git(cwd: string, args: string[]): Buffer {
-  return execFileSync("git", args, { cwd, maxBuffer: 64 * 1024 * 1024 });
+  return execFileSync("git", args, { cwd, env: gitEnv(), maxBuffer: 64 * 1024 * 1024 });
 }
 
 /**
@@ -195,6 +211,9 @@ export function captureSourceIdentity(cwd: string, options: CaptureOptions = {})
 export function compareSource(a: SourceIdentity, b: SourceIdentity): SourceComparison {
   if (a.kind === "unavailable" || b.kind === "unavailable") {
     return { kind: "unavailable", reason: "git could not resolve the source identity on at least one side" };
+  }
+  if (a.sourceRoot !== b.sourceRoot) {
+    return { kind: "different", detail: "source root changed or binding is missing" };
   }
   if (a.commitSha !== b.commitSha) {
     return { kind: "different", detail: `commit ${a.commitSha.slice(0, 7)} -> ${b.commitSha.slice(0, 7)}` };
