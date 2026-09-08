@@ -26,6 +26,14 @@ exit code or treat the plan as implementation proof. Likewise, naming a memory
 artifact or escalation path does not authorize a file write, host goal, dispatch,
 phase transition or external action.
 
+## Reader summary
+
+A C2+ unit's `000_plan.md` opens with a reader-facing summary per
+[Reader documents](../../dev/references/reader-documents.md) READER-DOC-02: the
+problem, the answer this unit gives, and what changes for whom, in one short
+paragraph before the loop-spec fields. Research and evidence stay in the 00x docs
+and evidence/ (LEXICO-SPLIT-01 is unchanged); the summary links them.
+
 Before returning the plan, check the nine concepts and the phase-plan owner's
 file map, scope, conditional-path evidence and source-of-truth requirements.
 Reading this reference is not proof that those requirements appear in the result.

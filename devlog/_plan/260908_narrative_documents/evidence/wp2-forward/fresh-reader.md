@@ -1,0 +1,9 @@
+# Fresh-reader response — wp2-forward/status-report.md
+
+**(1) Answer/state.** CodexClaw 0.2.24 has not been released. The last shipped version is v0.2.23 (2026-09-08 01:40 UTC). One thing blocks the release: PR #84, which GitHub flags as conflicting with `dev`, but the conflict is only in `CHANGELOG.md` — an ordering question, not code. Nothing suggests the release was started.
+
+**(2) Why I believe it.** The trial merge (A6) is the load-bearing item: it turns a scary "CONFLICTING" label into a one-file bookkeeping fix. The full run on that merged tree — 1857 pass, 0 fail (A7) — convinced me the code side is genuinely clean, and `gh release list` showing v0.2.23 as Latest (A8) pins the release state. Every claim carries an anchor back to the raw dump, and the report is candid that no PR CI result exists, only local runs.
+
+**(3) What to do next.** Resolve `CHANGELOG.md` and clear the stale empty `Unreleased` heading at line 57 in the same edit; push to the contributor's branch (maintainer write is allowed) and let CI run; cut 0.2.24 by pushing the tag, since dispatching `release.yml` silently defaults to a prerelease; then install on macmini-cf, suji, and desktop-c795oh4, which is two versions behind. Re-probe oracle, ocx-ci, and win before writing them off.
+
+**(4) Where I got lost.** One place. The report says "**Assumption (not in the dump):** that PR #84's content is the intended payload of 0.2.24." I had to re-read the whole piece looking for what #84 actually changes, and it is never stated — the deploy section and the tests read as if I already know. Flagging the gap honestly is good, but a returning maintainer still cannot judge release scope without it. Minor second stumble: the local model endpoint on 127.0.0.1:10100 (A5) appears in the deploy section with no stated bearing on the release, so I reread that paragraph to check whether I had missed a dependency.

@@ -38,7 +38,9 @@ A browser screenshot, successful open command or HTML file is not a PDF export.
 
 ## Build the reading order
 
-Lead with the decision or result, then evidence, method and detailed records.
+Structure follows [Reader documents](../../dev/references/reader-documents.md);
+the rest of this section is print-specific.
+
 Use a bounded text measure and a clear heading scale; avoid a cover that pushes
 all useful information off the first page. Label chart axes and disclose units.
 Keep a chart's source data in a table or equivalent readable text.

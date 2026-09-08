@@ -83,3 +83,7 @@ See 001_sources.md for research and 002_verifiers.md for commands with observed 
   CHANGELOG heading rule, refusal acceptance, Aside guard-default permission, stub of
   diagram-viewer line 71), rollback trigger added to 050, link checker written.
 
+- wp2 P (re-entry): previous D closed wp1 DONE with the roadmap locked. Direction unchanged:
+  implement 010 as written (anchors re-verified at this P: dev/SKILL.md:197,
+  diagram-viewer:55/67/71, document-pdf:39, plan-output end, phase-check SoT paragraph,
+  pabcd/SKILL.md:84, implementation-log:70, kwrite:67, skill-ownership:30).

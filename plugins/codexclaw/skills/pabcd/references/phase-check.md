@@ -7,6 +7,11 @@
    and code never diverge silently; if the repo has none, recommend creating one
    (dev-scaffolding §2.1) in the D summary.
 
+   **C-READER-01 (DEFAULT):** when the work-phase delivers a document, report or
+   visualization to a person, C includes the fresh-reader check from
+   [Reader documents](../../dev/references/reader-documents.md) READER-DOC-05 and records
+   where the reader stumbled and what was changed.
+
    **DEFAULT (C-RENDER-GROUNDING-01):** When the work-phase produces a render artifact
    (HTML, SVG, layout-defining CSS, canvas/animation/chart JS, .jsx/.tsx layout
    components) whose correctness only shows when run or rendered, C MUST include a

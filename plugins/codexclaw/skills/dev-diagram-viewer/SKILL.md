@@ -41,9 +41,9 @@ focused explanation. Neither phrase grants permission to publish or install.
 | In-conversation comparison, simulation or explainer | Current host's exposed `visualize` skill, if available | Its current full SKILL.md; [delivery](reference/environment-detection.md) |
 | Small static structure expressible as labeled nodes/edges | Mermaid if host supports it; otherwise a suitable artifact | [SVG and interaction](reference/svg-and-interaction.md) only for custom output |
 | Editable SVG diagram or infographic | Native SVG with legible geometry and text | [Visual design](reference/visual-design.md), [SVG and interaction](reference/svg-and-interaction.md) |
-| HTML report, technical brief, visual review or document | Semantic HTML with purposeful figures and readable sections | [Visual design](reference/visual-design.md), [documents/PDF](reference/document-pdf.md) |
+| HTML report, technical brief, visual review or document | Semantic HTML with purposeful figures and readable sections | [Reader documents](../dev/references/reader-documents.md), [Visual design](reference/visual-design.md), [documents/PDF](reference/document-pdf.md) |
 | Interactive HTML model | One useful visual plus requested inputs that change it | [SVG and interaction](reference/svg-and-interaction.md), design reference if styling is open |
-| PDF, print report or handout | Choose an available print/PDF engine; actually export | [Documents/PDF](reference/document-pdf.md); current PDF skill if available |
+| PDF, print report or handout | Choose an available print/PDF engine; actually export | [Reader documents](../dev/references/reader-documents.md), [Documents/PDF](reference/document-pdf.md); current PDF skill if available |
 | Word/Google Docs, Slides/PPTX or spreadsheet | Available format-specific owner; use this skill for visual composition | [Documents/PDF](reference/document-pdf.md) for boundaries |
 | Scientific figure intended for export/publication | Standard plotting tools and vector/raster artifact | Design/label principles here; scientific tool's own workflow |
 | Website, app page or existing component change | Frontend owner and project conventions; Sites if required by the project | This skill only for embedded explanatory artifacts |
@@ -54,8 +54,10 @@ the missing requested output. Never call print-ready HTML a generated PDF.
 
 ## Compose before styling
 
-Use a compact design read: **reader → question → information structure → visual
-encoding → type/color/spacing → output constraints**. State the chosen direction
+Start from the reader contract and document type in
+[Reader documents](../dev/references/reader-documents.md), then run a compact design
+read: **reader → question → information structure → visual encoding →
+type/color/spacing → output constraints**. State the chosen direction
 briefly when it helps the user evaluate an open brief. Reuse existing design tokens.
 
 [Visual design](reference/visual-design.md) supplies distinct optional directions
@@ -68,7 +70,8 @@ Examples of structure that earns its form:
 
 - Explain a mechanism with actions on connectors and a caption stating what changes.
 - Compare alternatives on the same dimensions and scale, with a table for exact values.
-- Introduce the decision in a report, show its evidence, then expose detail and sources.
+- Reports and explainers follow [Reader documents](../dev/references/reader-documents.md):
+  answer first, claim-shaped headings, evidence in an appendix.
 - For a dense system, use overview plus focused detail rather than shrinking every label.
 
 Keep document narrative in the document. Inline conversation visuals instead obey

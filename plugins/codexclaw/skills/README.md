@@ -44,6 +44,8 @@ still ship as compatibility surfaces.
 - `dev/` — always-on universal dev discipline (work classifier C0-C5, modular limits,
   pre-write search, verification gate, safety rules). The hub that routes to the
   surface-specific routers below. `agents/openai.yaml` sets `allow_implicit_invocation: true`.
+  Its `references/reader-documents.md` owns reader-facing document structure (answer first,
+  evidence separated) for every report, explainer or visual document a dev skill delivers.
 - `dev-*` — surface routers, each activated by its description matching the change surface:
   `dev-architecture`, `dev-backend`, `dev-code-reviewer`, `dev-data`, `dev-debugging`,
   `dev-devops`, `dev-frontend`, `dev-scaffolding`, `dev-security`, `dev-testing`,
