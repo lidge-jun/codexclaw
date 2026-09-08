@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, realpathSync, writeFileSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import { runSessionCli } from "../src/session-cli.ts";
+import { bindSessionSource, resolveSessionSource } from "../src/session-source.ts";
 import { defaultState, writeState, readState } from "../src/state.ts";
 import { runOrchestrateCli, parseOrchestrateCliArgs } from "../src/orchestrate-cli.ts";
 import { runReceiptCli } from "../src/receipt-cli.ts";
@@ -45,6 +46,40 @@ function bind(f: ReturnType<typeof fixture>) {
   const r = runSessionCli(["source", f.source, "--json"], f.cwd, f.env);
   assert.equal(r.code, 0, r.output);
 }
+
+test("Windows short paths bind and resolve the same immutable worktree", { skip: process.platform !== "win32" }, t => {
+  const f = fixture(t);
+  const root = dirname(f.cwd);
+  const shortRoot = execFileSync("cmd.exe", ["/d", "/c", 'for %I in ("%CXC_TEST_LONG_PATH%") do @echo %~sI'], {
+    env: { ...process.env, CXC_TEST_LONG_PATH: root }, encoding: "utf8", windowsVerbatimArguments: true,
+  }).trim();
+  if (shortRoot === root) { t.skip("8.3 names are unavailable on the temporary volume"); return; }
+  assert.equal(realpathSync.native(shortRoot), root);
+  const shortCwd = join(shortRoot, "native"), shortSource = join(shortRoot, "source");
+  assert.equal(bindSessionSource(shortCwd, id, shortSource), f.source);
+  const path = join(f.cwd, ".codexclaw", "sources", `${id}.json`);
+  const bytes = readFileSync(path, "utf8");
+  const binding = JSON.parse(bytes);
+  assert.equal(binding.nativeCwd, f.cwd);
+  assert.equal(binding.sourceRoot, f.source);
+  assert.equal(resolveSessionSource(f.cwd, id), f.source);
+  assert.equal(resolveSessionSource(shortCwd, id), f.source);
+  assert.equal(bindSessionSource(f.cwd, id, f.source), f.source);
+  const bound = runSessionCli(["source", shortSource, "--json"], f.cwd, f.env);
+  assert.equal(bound.code, 0, bound.output);
+  assert.equal(JSON.parse(bound.output).cwd, f.cwd);
+  assert.equal(JSON.parse(bound.output).sourceCwd, f.source);
+  assert.equal(readFileSync(path, "utf8"), bytes);
+  assert.equal(edge(shortCwd, "B", "A").code, 0);
+  assert.equal(readState(f.cwd, id).boundSourceRoot, f.source);
+  writeFileSync(join(f.source, "implemented"), "yes");
+  const check = edge(f.cwd, "C", "B");
+  assert.equal(check.code, 0, check.output);
+  const receipt = runReceiptCli({ verb: "test", cwd: f.cwd, session: id,
+    command: [process.execPath, "-e", `require('node:assert/strict').equal(process.cwd(), ${JSON.stringify(f.source)})`] });
+  assert.equal(receipt.code, 0, receipt.output);
+  assert.equal(validateCheckReceipt(readState(f.cwd, id), id, receipt.output, f.cwd).ok, true);
+});
 
 test("worktree change advances B and Check runs there while receipts stay native", t => {
   const f = fixture(t); bind(f);
