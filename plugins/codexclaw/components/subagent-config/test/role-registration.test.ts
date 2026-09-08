@@ -74,6 +74,9 @@ test("native CLI registers concurrently in CODEX_HOME and refuses later conflict
   const role = join(home, "agents/executor.toml");
   assert.match(readFileSync(role, "utf8"), /^name = "executor"$/m);
   writeFileSync(role, "# user's customized executor\n");
-  await assert.rejects(run(), /Existing executor role differs/);
+  await assert.rejects(run(), (err: NodeJS.ErrnoException & { stdout?: string }) => {
+    assert.match(err.stdout ?? "", /Existing executor role differs/);
+    return true;
+  });
   assert.equal(readFileSync(role, "utf8"), "# user's customized executor\n");
 });
