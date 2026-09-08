@@ -91,3 +91,10 @@ See 001_sources.md for research and 002_verifiers.md for commands with observed 
   not described) which is a property of the input dump, not of the reference; direction kept.
 - wp3 P (re-entry): implement 020 as written; SKILL.md Tier 3 replacement is net-negative
   (268 -> 240 lines); Aside permission text uses guard default per audit fold.
+- wp3 D: DONE at 260469de. Two trial leaves stalled after planning with zero opens;
+  the reference now requires opening sources in wave 1 and incremental artifacts; trial 3
+  completed with 12 opens and a rendered report. Direction kept.
+- wp4 P (re-entry): 030 amended in the field — maintainerCanModify path taken; merge commit
+  2947266b pushed to the fork; Windows CI exposed an 8.3 short-name path bug in the PR's
+  session-source.ts (SOURCE-ROOT refusal), reproduced on desktop-c795oh4 with TEMP forced
+  to a short name and fixed with realpathSync.native (bb204ead). Waiting on exact-head CI.
