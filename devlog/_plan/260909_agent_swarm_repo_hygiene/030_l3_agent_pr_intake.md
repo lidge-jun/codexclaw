@@ -122,7 +122,7 @@ Four disagreements the sources do not settle; record which side the repository t
   incentive worked where banning the tool would not.
   Do not cite curl as proof that AI reports are worthless.
 - **Ban the tool or cap the rate.** Zig, QEMU, Gentoo and Servo judge AI-ness (total
-  bans in the policy table); Godot's ban is announced but not yet in its CONTRIBUTING. OpenSSL,
+  bans; see the policy summary in `oss-ai-contribution-policies.md` under the unit evidence); Godot's ban is announced but not yet in its CONTRIBUTING. OpenSSL,
   llama.cpp, GitHub and Crossplane cap concurrency regardless of provenance. GitHub's
   implementation is the tell: agent PRs count toward the limit, drafts do not.
 
@@ -152,13 +152,13 @@ removal of bait labels (`repo-bootstrap.md` §6).
 ## §7 Sources (read 2026-09-09)
 
 - Copilot cloud agent: https://docs.github.com/en/copilot/concepts/agents/cloud-agent/risks-and-mitigations ; https://docs.github.com/en/copilot/how-tos/use-copilot-agents/cloud-agent/configuring-agent-settings ; https://docs.github.com/en/copilot/how-tos/use-copilot-agents/cloud-agent/use-cloud-agent-on-github
-- Codex cloud branch format: live settings UI at chatgpt.com/codex/cloud/settings/general; PR author identity and draft default were searched in the Codex docs and not found (negative result recorded in `evidence/research/github-rulesets-and-agent-conventions.md` §2.2)
+- Codex cloud branch format: live settings UI at chatgpt.com/codex/cloud/settings/general; PR author identity and draft default were searched in the Codex docs and not found (negative result recorded in `devlog/_plan/260909_agent_swarm_repo_hygiene/evidence/research/github-rulesets-and-agent-conventions.md` §2.2)
 - Claude Code GitHub Actions: action inputs and docs as summarized in `devlog/_plan/260909_agent_swarm_repo_hygiene/evidence/research/github-rulesets-and-agent-conventions.md` §2.3
 - Agent control plane GA (`actor_is_agent`): https://github.blog/changelog/2026-02-26-enterprise-ai-controls-agent-control-plane-now-generally-available ; Agents tab: https://github.blog/changelog/2026-01-26-introducing-the-agents-tab-in-your-repository
 - Pull request limits: https://github.blog/open-source/maintainers/how-pull-request-limits-are-cutting-down-the-noise/
-- Practitioner policies (LLVM, OpenSSL, dotnet/runtime, ghostty, Godot, Kubernetes, Crossplane, llama.cpp, curl, Zig, Ladybird, OpenSSF): `evidence/research/agent-pr-flood-practitioner-writeups.md` and `evidence/research/oss-ai-contribution-policies.md` in the same unit, each entry with its URL
+- Practitioner policies (LLVM, OpenSSL, dotnet/runtime, ghostty, Godot, Kubernetes, Crossplane, llama.cpp, curl, Zig, Ladybird, OpenSSF): `devlog/_plan/260909_agent_swarm_repo_hygiene/evidence/research/agent-pr-flood-practitioner-writeups.md` and `evidence/research/oss-ai-contribution-policies.md` in the same unit, each entry with its URL
 - Laravel Issues decision: https://x.com/taylorotwell/status/2095516796748996843 (first-hand report)
-- Live opencodex numbers: `evidence/research/lidge-jun-repos-settings-audit.md` §5.1
+- Live opencodex numbers: `devlog/_plan/260909_agent_swarm_repo_hygiene/evidence/research/lidge-jun-repos-settings-audit.md` §5.1
 ````
 
 ## MODIFY `plugins/codexclaw/skills/dev-devops/SKILL.md` — Modular References table
@@ -177,7 +177,7 @@ IN: the new file and one router row. OUT: workflow YAML, label creation, the GC 
 | # | Criterion | Evidence |
 |---|---|---|
 | A1 | Rule IDs `DEVOPS-AGENT-IDENTITY-01`, `DEVOPS-DRAFT-FIRST-01`, `DEVOPS-PR-SUPERSEDE-01`, `DEVOPS-AGENT-INTAKE-01` defined once | grep |
-| A2 | Three strength columns present; every non-"none" cell names a source | reviewer |
+| A2 | Three strength columns present; every cell carrying a number or a quoted rule names its project | reviewer |
 | A3 | Codex author/signing cells marked unverified; X posts cited as first-hand reports only | grep |
 | A4 | Convention table matches ledger 3.1-3.3 | reviewer |
 | A5 | gate + catalog/manifest tests exit 0 at L3 tip; Modular References 15 rows | receipt, grep |
