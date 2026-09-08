@@ -98,3 +98,9 @@ See 001_sources.md for research and 002_verifiers.md for commands with observed 
   2947266b pushed to the fork; Windows CI exposed an 8.3 short-name path bug in the PR's
   session-source.ts (SOURCE-ROOT refusal), reproduced on desktop-c795oh4 with TEMP forced
   to a short name and fixed with realpathSync.native (bb204ead). Waiting on exact-head CI.
+- wp4 D: DONE. PR #84 merged as c44ab989 after three review rounds surfaced two real
+  environment-leak defects on top of the Windows short-name failure; all fixed with
+  red/green tests. TOCTOU on the sources dir is recorded as follow-up, not fixed.
+- wp5 P (re-entry): 040/050 re-verified against dev c44ab989 (PRs #87 and #84 both in).
+  Version surfaces to bump: package.json, cli, 8 component package.json, gui, lock,
+  plugin.json stamp, inventory.json, CHANGELOG (top Unreleased -> 0.2.24; stale one deleted).
