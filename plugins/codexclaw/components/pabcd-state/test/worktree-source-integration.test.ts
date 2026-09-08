@@ -19,7 +19,8 @@ import { handleUserPromptSubmit } from "../src/hook.ts";
 
 const id = "019a0000-0000-7000-8000-000000000123";
 function fixture(t: TestContext) {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "cxc-source-flow-")));
+  // realpathSync.native expands Windows 8.3 short names (RUNNER~1) the way Git reports them.
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-source-flow-")));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const cwd = join(root, "native"), source = join(root, "source"), home = join(root, "home");
   mkdirSync(cwd); mkdirSync(home);

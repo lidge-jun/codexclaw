@@ -14,15 +14,25 @@ interface SourceBinding {
   gitDir: string;
 }
 
+/**
+ * Canonical absolute path. `realpathSync.native` expands Windows 8.3 short names
+ * (`RUNNER~1`) that the JS implementation leaves intact; Git always reports the long
+ * form, so comparing a short-name cwd against `rev-parse` output would refuse a
+ * valid worktree (observed on windows-latest CI where TEMP is a short path).
+ */
+function canonical(path: string): string {
+  return realpathSync.native(path);
+}
+
 function gitIdentity(cwd: string): { root: string; commonDir: string; gitDir: string } {
   const env = { ...process.env };
   for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"]) delete env[name];
   const git = (...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
   try {
     return {
-      root: realpathSync(git("rev-parse", "--show-toplevel")),
-      commonDir: realpathSync(git("rev-parse", "--path-format=absolute", "--git-common-dir")),
-      gitDir: realpathSync(git("rev-parse", "--absolute-git-dir")),
+      root: canonical(git("rev-parse", "--show-toplevel")),
+      commonDir: canonical(git("rev-parse", "--path-format=absolute", "--git-common-dir")),
+      gitDir: canonical(git("rev-parse", "--absolute-git-dir")),
     };
   } catch { throw new Error("Cannot resolve source Git worktree identity."); }
 }
@@ -59,7 +69,7 @@ function readBinding(cwd: string, sessionId: string): SourceBinding | null {
   finally { closeSync(fd); }
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Invalid source binding.");
   const b = raw as Record<string, unknown>;
-  if (b.version !== 1 || b.ownerSessionId !== sessionId || b.nativeCwd !== realpathSync(cwd)
+  if (b.version !== 1 || b.ownerSessionId !== sessionId || b.nativeCwd !== canonical(cwd)
       || ![b.sourceRoot, b.commonDir, b.gitDir].every(p => typeof p === "string" && isAbsolute(p))) {
     throw new Error("Source binding has invalid identity or paths.");
   }
@@ -87,8 +97,8 @@ export function resolveSessionSource(cwd: string, sessionId: string): string {
 /** Caller must corroborate native identity and inspect the existing state first. */
 export function bindSessionSource(cwd: string, sessionId: string, target: string): string {
   if (!isAbsolute(target)) throw new Error("Source worktree path must be absolute.");
-  const nativeCwd = realpathSync(cwd);
-  const sourceRoot = realpathSync(target);
+  const nativeCwd = canonical(cwd);
+  const sourceRoot = canonical(target);
   const native = gitIdentity(cwd), source = gitIdentity(sourceRoot);
   if (source.root !== sourceRoot || source.commonDir !== native.commonDir || source.gitDir === native.gitDir) {
     throw new Error("Source must be a linked worktree root in the native session's repository.");
