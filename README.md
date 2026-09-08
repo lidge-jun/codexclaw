@@ -49,12 +49,22 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 ## Install
 
-2 lines to install. No build step, no npm install, no config edits.
+Install the plugin, then register the implementation role once. No build step or npm install.
 
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
+
+Before implementation dispatch, register the canonical executor role once:
+
+```sh
+node "<plugin-root>/bin/cxc.mjs" subagents register executor
+```
+
+Start a new session and verify `executor` appears in the live spawn schema. Registration
+preserves existing user roles and project model settings; conflicting files are refused.
+See [role setup and legacy worker compatibility](plugins/codexclaw/agents/README.md).
 
 Then restart Codex and approve the 23 hooks when prompted (upgrades ask again — content-hash trust). Everything runs from chat, and the terminal surface ships too — the payload includes its own `cxc` dispatcher, so agent-driven `cxc orchestrate` commands work on every install:
 
@@ -111,7 +121,7 @@ plugins/codexclaw/
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
 │   ├── post-tool-use-*          interview capture, render observation
 │   ├── stop-*                   PABCD continuation under active goals
-│   ├── subagent-stop-*          evidence verification for worker dispatches
+│   ├── subagent-stop-*          evidence verification for executor dispatches (legacy worker supported)
 │   └── post-compact-*           cursor reinject, recall context, bg-terminal affordance
 │
 ├── components/                  8 isolated feature modules (src + dist)

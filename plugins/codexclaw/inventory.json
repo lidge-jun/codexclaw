@@ -238,7 +238,7 @@
       "file": "subagent-stop-verifying-evidence.json",
       "event": "SubagentStop",
       "component": "pabcd-state",
-      "matcher": "^worker$"
+      "matcher": "^(executor|worker)$"
     },
     {
       "file": "user-prompt-submit-checking-pabcd-trigger.json",

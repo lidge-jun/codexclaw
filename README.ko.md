@@ -49,12 +49,22 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 ## 설치
 
-두 줄이면 설치 끝. 빌드도, npm install도, 설정 파일 수정도 없다.
+플러그인을 설치한 뒤 구현 역할을 한 번 등록한다. 빌드나 npm install은 필요 없다.
 
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
+
+구현 담당 이름은 화면·설정·호출 모두 `executor`다. 설치 경로의 CLI로 등록한다:
+
+```sh
+node "<plugin-root>/bin/cxc.mjs" subagents register executor
+```
+
+새 Codex 세션에서 호출 도구의 역할 목록에 `executor`가 있는지 확인한다.
+기존 사용자 역할과 모델 설정은 보존하며, 같은 이름의 다른 파일은 덮어쓰지 않는다.
+[역할 등록과 기존 worker 호환 안내](plugins/codexclaw/agents/README.md)를 참고한다.
 
 설치 후 Codex를 재시작하고 뜨는 승인 창에서 22개 훅을 승인하면 된다(업그레이드 후에도 다시 승인 — 콘텐츠 해시 신뢰 모델). 채팅에서 바로 쓸 수 있고, 터미널 표면도 같이 배송된다 — 페이로드에 자체 `cxc` 디스패처가 들어 있어 에이전트의 `cxc orchestrate` 명령이 모든 설치에서 동작한다:
 
@@ -111,7 +121,7 @@ plugins/codexclaw/
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
 │   ├── post-tool-use-*          interview capture, render observation
 │   ├── stop-*                   PABCD continuation under active goals
-│   ├── subagent-stop-*          evidence verification for worker dispatches
+│   ├── subagent-stop-*          evidence verification for executor dispatches (legacy worker supported)
 │   └── post-compact-*           cursor reinject, recall context, bg-terminal affordance
 │
 ├── components/                  8 isolated feature modules (src + dist)

@@ -4,6 +4,12 @@ All notable changes to codexclaw are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- Make executor the canonical implementation dispatch role. Add explicit, non-overwriting
+  `cxc subagents register executor` setup; preserve legacy worker model routing and exit
+  evidence checks. Start a new session after registration and re-approve changed hooks.
+
 ## [0.2.24] - 2026-09-08
 
 ### Added

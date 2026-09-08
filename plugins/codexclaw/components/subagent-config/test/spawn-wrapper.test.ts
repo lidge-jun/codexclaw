@@ -36,10 +36,10 @@ function tmp() {
   return mkdtempSync(join(tmpdir(), "cxc-spawn-"));
 }
 
-test("agent_type mapping: explorer/reviewer -> explorer, executor -> worker", () => {
+test("agent_type mapping: explorer/reviewer -> explorer, executor -> registered executor", () => {
   assert.equal(ROLE_AGENT_TYPE.explorer, "explorer");
   assert.equal(ROLE_AGENT_TYPE.reviewer, "explorer");
-  assert.equal(ROLE_AGENT_TYPE.executor, "worker");
+  assert.equal(ROLE_AGENT_TYPE.executor, "executor");
 });
 
 test("parseRoleToml reads model sentinel + triple-quoted developer_instructions", () => {
@@ -120,7 +120,7 @@ test("buildSpawnPayload: promptOverride REPLACES the TOML developer_instructions
     resolution: { role: "executor", model: null, usesMainModel: true, effort: null, promptOverride: "CUSTOM PROMPT" },
     developerInstructions: "Role: executor (TOML body).",
   });
-  assert.equal(payload.agent_type, "worker");
+  assert.equal(payload.agent_type, "executor");
   assert.match(payload.message, /CUSTOM PROMPT/);
   assert.ok(!payload.message.includes("TOML body"), "override must replace the TOML body");
 });

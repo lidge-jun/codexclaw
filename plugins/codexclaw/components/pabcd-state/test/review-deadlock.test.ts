@@ -328,3 +328,18 @@ test("an approved round cannot be spent after the plan changed", () => {
     assert.match(res.output, /the plan changed/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
+
+test("an executor exit is never recorded by the review observer", () => {
+  const { cwd, slug } = seedAtA("ex");
+  try {
+    const launchId = openRoundFor(cwd, "ex");
+    handleReviewObserver(JSON.stringify({
+      hook_event_name: "SubagentStop", session_id: "ex", cwd,
+      agent_type: "executor", agent_id: "w1",
+      last_assistant_message: `done\n\nLAUNCH: ${launchId}\nVERDICT: PASS`,
+    }));
+
+    const round = latestRound(readGoalplan(cwd, slug)!, "plan_audit")!;
+    assert.equal(round.status, "in_flight", "the receipt gate owns an executor exit");
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});

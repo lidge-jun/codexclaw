@@ -6,8 +6,8 @@
  * L9 gap where the resolver existed but nothing consumed it at spawn time.
  *
  * Contract (omo B-opt2 parity, agents/README.md):
- *  - role -> built-in agent_type (explorer/reviewer -> "explorer", executor -> "worker");
- *    the wrapper NEVER invents a role name (codex plugins can't register roles).
+ *  - role -> built-in agent_type (explorer/reviewer -> "explorer", executor -> registered "executor");
+ *    executor requires `cxc subagents register executor` and a fresh Codex session.
  *  - the role prompt is injected INLINE in the message ("TASK: ..."), since plugin
  *    install dirs are not a config layer.
  *  - model selection is not emitted by the v2 builder. The durable per-role model in
@@ -20,11 +20,11 @@ import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join, isAbsolute, resolve as resolvePath } from "node:path";
 import { resolveSpawnConfig,                                     } from "./store.js";
 
-/** Built-in codex agent_type each canonical role maps to (core/src/agent/role.rs). */
-export const ROLE_AGENT_TYPE                                          = {
+/** Native agent_type for each role; executor is explicitly registered during setup. */
+export const ROLE_AGENT_TYPE                                            = {
   explorer: "explorer",
   reviewer: "explorer",
-  executor: "worker",
+  executor: "executor",
 };
 
 /**

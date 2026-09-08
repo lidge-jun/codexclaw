@@ -1,7 +1,7 @@
 ## Delegation Model (subagents)
 
 The main session owns the plan, host goal, and every PABCD transition.
-At A, dispatch an independent `explorer`; use a `worker` for bounded writes
+At A, dispatch an independent `explorer`; use the registered `executor` for bounded writes
 (DISPATCH-AGENT-TYPE-01).
 Subagents are leaves (LEAF-TOPOLOGY-01) unless recursion is explicitly granted.
 Every dispatch carries a structured TASK packet (DISPATCH-TASK-01):
@@ -19,13 +19,19 @@ required task source still must be loaded or reported missing before its governe
 ### Live tool schema and role transport
 
 Use the loaded native tool schema, not a version label, to choose arguments.
-`explorer`/`worker` express the intended role; `agent_type` and `task_name` are
+`explorer`/`executor` express the intended role; `agent_type` and `task_name` are
 not universal fields. Use them only when exposed. Otherwise put the logical
 role, task/lens name and exact read/write scope in the task message, without
 inventing arguments or claiming a native permission profile was selected.
 Prompt labels are not enforcement and cannot bypass an actual worker receipt
 requirement or other runtime guard. If the requested protection cannot be
 represented, report that gap rather than silently weakening it.
+
+Before executor dispatch, run the authorized setup `cxc subagents register executor`
+once, start a new Codex session, and inspect the live spawn schema's role list. If
+`executor` is absent or rejected, report the registration/restart prerequisite; do
+not silently substitute a role. `worker` is accepted only for legacy callers.
+The registration command does not overwrite user roles or alter model/permissions.
 
 Map each logical task to the handle actually returned by the tool: for example,
 a V1 agent_id or a V2 canonical task_name. Use the actual handle and supported
