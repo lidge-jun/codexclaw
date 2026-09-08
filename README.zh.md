@@ -49,12 +49,22 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 ## 安装
 
-两行命令即可完成安装。无需构建、无需 npm install、无需修改配置文件。
+安装插件后，需注册一次实现角色。无需构建或 npm install。
 
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
+
+实现角色统一命名为 `executor`。使用安装目录中的 CLI 注册：
+
+```sh
+node "<plugin-root>/bin/cxc.mjs" subagents register executor
+```
+
+启动新的 Codex 会话，确认调用工具的角色列表包含 `executor`。
+注册命令保留现有用户角色和模型设置，不会覆盖同名的不同文件。
+参见[角色注册与旧 worker 兼容说明](plugins/codexclaw/agents/README.md)。
 
 然后重启 Codex，并在弹出的审批中批准 22 个 hooks（升级后需再次批准——内容哈希信任模型）。既可以直接在聊天中使用，终端界面也随包提供——payload 自带 `cxc` 调度器，代理的 `cxc orchestrate` 命令在任何安装方式下都能运行：
 
@@ -111,7 +121,7 @@ plugins/codexclaw/
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
 │   ├── post-tool-use-*          interview capture, render observation
 │   ├── stop-*                   PABCD continuation under active goals
-│   ├── subagent-stop-*          evidence verification for worker dispatches
+│   ├── subagent-stop-*          evidence verification for executor dispatches (legacy worker supported)
 │   └── post-compact-*           cursor reinject, recall context, bg-terminal affordance
 │
 ├── components/                  8 isolated feature modules (src + dist)

@@ -29,3 +29,5 @@ Normal hook reapproval and session restart are required. No trust records were e
 | canonical/legacy exit evidence | PASS (entrypoint) | hook-e2e.test.mjs |
 | native executor dispatch + scoped file readback | PASS (probe report) | native trace and executor-proof.txt |
 | native changed hook activation | PENDING user reapproval | doctor output above |
+
+Final independent code review: 01a07f96-ca60-7e60-bae4-0b6dcbb4615e VERDICT: PASS, no blockers; reviewer independently ran219 focused tests +2 dist exit tests. Nonblocking README.zh and QA canonical-name guidance fixed; hard-link support documented. Same-user race EEXIST wording remains a nonblocking usability residual.

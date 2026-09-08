@@ -28,7 +28,8 @@ This creates `$CODEX_HOME/agents/executor.toml` (default `~/.codex/agents/execut
 from the shipped executor prompt, omitting the plugin's `model = "default"` sentinel.
 The installed role does not override model, effort, sandbox or approval policy. Identical
 files are left unchanged; conflicting files and symlinks are refused without overwrite.
-Existing worker files and project model settings are preserved.
+Existing worker files and project model settings are preserved. Publication requires
+filesystem hard-link support; unsupported filesystems fail without replacing a role.
 
 Start a new Codex session and check that the live spawn schema exposes `executor`.
 If it does not, or the host rejects that agent_type, report the unmet setup prerequisite;
