@@ -79,7 +79,7 @@ closed history of every earlier PR that had used it. Rule 8 makes the disposable
 namespace an explicit allowlist (`DISPOSABLE_BRANCH_PREFIXES`); a repository adopting
 the planner declares its own. Rules 9-10 bind deletion to the exact commit a closed PR
 pointed at. The shipped check, last because it is the most expensive
-(`.github/scripts/closed-pr-branch-cleanup.cjs` 207-224, shape preserved, variable
+(`.github/scripts/closed-pr-branch-cleanup.cjs` 206-220, shape preserved, variable
 names as in source):
 
 ```js
@@ -92,8 +92,8 @@ if (!closedOids.has(currentOid)) { keep(KEEP_REASONS.MOVED_SINCE_CLOSE); continu
 
 ### Merge truth is PR state, not ancestry
 
-`git branch --merged` and `git branch -d` test reachability: "branches whose tips are
-reachable from `<commit>`". `git merge --squash` does "not actually make a commit,
+`git branch --merged` and `git branch -d` test reachability — the manual lists
+branches whose tips are reachable from the specified commit. `git merge --squash` does "not actually make a commit,
 move the HEAD, or record `$GIT_DIR/MERGE_HEAD`", so a squash-merged branch tip is
 never an ancestor of the target and `--merged` never lists it. Rebase merges rewrite
 SHAs and fail the same test. `git cherry` compares per-commit patch ids, so it catches
