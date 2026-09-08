@@ -6,16 +6,16 @@
  * the Vite dev middleware. When cxc serve hosts the built GUI statically those
  * routes must exist or role saves silently fail (A-audit finding 2).
  *
- * Source of truth for the route semantics: gui/src/server/middleware.ts +
- * gui/src/server/handlers.ts. This module mirrors them over the already
+ * Subagent settings semantics are shared with the Vite handlers through
+ * subagent-config/settings-api. Other routes mirror them over the already
  * COMPILED component dists (relative .js specifiers survive the build's
  * .ts→.js rewrite untouched and resolve identically from src/ and dist/).
  * Phase 6 unifies the GUI dev middleware onto this module.
  */
 import { spawnSync } from "node:child_process";
 // Compiled component dists — runtime-typed, so minimal local shapes below.
-import { readConfig, setRole, ROLES } from "../../subagent-config/dist/store.js";
-import { buildCatalog } from "../../subagent-config/dist/catalog.js";
+import { getSettings, updateSettings, settingsResponse } from "../../subagent-config/dist/settings-api.js";
+import { readCatalog } from "../../subagent-config/dist/live-catalog.js";
 import { detectOcx } from "../../provider-bridge/dist/detect.js";
 import type { ApiRoute, ApiResponse } from "./server.ts";
 import { splitLines } from "./text-lines.ts";
@@ -51,41 +51,8 @@ function detectDeps(): Record<string, unknown> {
   };
 }
 
-/** Map provider detection to the catalog's provider input — mirrored from gui/src/server/handlers.ts. */
-function providerToCatalogInput(status: ProviderStatusShape): Record<string, unknown> {
-  if (status.mode === "provider") {
-    // ocx-synced models surface via the native config cache, not a live call.
-    return { mode: "provider", ocxModels: undefined };
-  }
-  return { mode: status.mode === "error" ? "error" : "native" };
-}
-
-function getSubagentsRoute(cwd: string): ApiResponse {
-  return { status: 200, body: readConfig(cwd) };
-}
-
-function postSubagentsRoute(cwd: string, body: unknown): ApiResponse {
-  if (!body || typeof body !== "object") return { status: 400, body: { error: "missing body" } };
-  const b = body as Record<string, unknown>;
-  const role = b.role as (typeof ROLES)[number];
-  if (!ROLES.includes(role)) {
-    return { status: 400, body: { error: `unknown role "${String(b.role)}"` } };
-  }
-  const patch: Record<string, unknown> = {};
-  if (b.mode !== undefined) patch.mode = b.mode;
-  if (b.model !== undefined) patch.model = b.model;
-  if (b.promptOverride !== undefined) patch.promptOverride = b.promptOverride;
-  try {
-    return { status: 200, body: setRole(cwd, role, patch) };
-  } catch (err) {
-    return { status: 400, body: { error: err instanceof Error ? err.message : String(err) } };
-  }
-}
-
-function getCatalogRoute(): ApiResponse {
-  const status = detectOcx(detectDeps()) as ProviderStatusShape;
-  const catalog = buildCatalog({ providerStatus: providerToCatalogInput(status) });
-  return { status: 200, body: catalog };
+async function getCatalogRoute(forceRefresh = false): Promise<ApiResponse> {
+  return { status: 200, body: await readCatalog({ forceRefresh }) };
 }
 
 function getProviderRoute(): ApiResponse {
@@ -100,14 +67,14 @@ export function apiCompatRoutes(): ApiRoute[] {
     {
       method: "GET",
       path: "/api/subagents",
-      handler: (ctx) => getSubagentsRoute(ctx.cwd),
+      handler: (ctx, _body, url) => settingsResponse(() => getSettings(ctx.cwd, url.searchParams.get("scope") ?? undefined)),
     },
     {
       method: "POST",
       path: "/api/subagents",
-      handler: (ctx, body) => postSubagentsRoute(ctx.cwd, body),
+      handler: (ctx, body) => settingsResponse(() => updateSettings(ctx.cwd, body)),
     },
-    { method: "GET", path: "/api/catalog", handler: () => getCatalogRoute() },
+    { method: "GET", path: "/api/catalog", handler: (_ctx, _body, url) => getCatalogRoute(url.searchParams.get("refresh") === "1") },
     { method: "GET", path: "/api/provider", handler: () => getProviderRoute() },
   ];
 }

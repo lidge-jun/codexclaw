@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -120,7 +120,7 @@ test("buildSpawnPayload: promptOverride REPLACES the TOML developer_instructions
     resolution: { role: "executor", model: null, usesMainModel: true, effort: null, promptOverride: "CUSTOM PROMPT" },
     developerInstructions: "Role: executor (TOML body).",
   });
-  assert.equal(payload.agent_type, "executor");
+  assert.equal(payload.agent_type, "worker");
   assert.match(payload.message, /CUSTOM PROMPT/);
   assert.ok(!payload.message.includes("TOML body"), "override must replace the TOML body");
 });
@@ -398,4 +398,23 @@ test("dev2: buildSpawnPayload emits task_name + fork_turns none (fresh spawn kee
   assert.ok(!("model" in payload));
   assert.ok(!("reasoning_effort" in payload));
   assert.ok(!("items" in payload));
+});
+
+
+test("executor resolution on upgrade falls back to worker until native registration exists", t => {
+  const home = mkdtempSync(join(tmpdir(), "executor-upgrade-"));
+  t.after(() => rmSync(home, {recursive:true, force:true}));
+  const env = { ...process.env, CODEX_HOME: home };
+  const before = resolveSpawnPayload(home, "executor", "apply patch", AGENTS_DIR, env);
+  assert.equal(before.agent_type, "worker");
+  assert.match(before.message, /TASK: apply patch/);
+  mkdirSync(join(home, "agents"));
+  mkdirSync(join(home, "agents/executor.toml"));
+  assert.equal(resolveSpawnPayload(home, "executor", "apply patch", AGENTS_DIR, env).agent_type, "worker");
+  rmSync(join(home, "agents/executor.toml"), {recursive:true});
+  writeFileSync(join(home, "agents/executor.toml"), 'name = "executor"\n');
+  const after = resolveSpawnPayload(home, "executor", "apply patch", AGENTS_DIR, env);
+  assert.equal(after.agent_type, "executor");
+  assert.equal(after.message, before.message);
+  assert.equal(resolveSpawnPayload(home, "reviewer", "review patch", AGENTS_DIR, env).agent_type, "explorer");
 });

@@ -13,10 +13,11 @@
  *   subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort]
  *                        [--prompt <text>|--clear-prompt]
  */
-import { readConfig, setRole, projectConfigTrustToken, ROLES, EFFORTS,                                                 } from "./store.js";
+import { readConfig, setRole, resetRole,                   projectConfigTrustToken, ROLES, EFFORTS,                                                 } from "./store.js";
 import { registerExecutor } from "./role-registration.js";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+
 
 
 
@@ -31,6 +32,14 @@ function isRole(v                    )                {
 
 /** Pure structural parse of the `subagents` argv (excluding the leading verb). */
 export function parseSubagentsArgs(argv          )                      {
+  // Scope is an explicit trailing selector, so prompt/model values stay literal.
+  if (argv.at(-1) === "--global" && !["--prompt", "--model"].includes(argv.at(-2) ?? "")) {
+    return { ...parseProjectArgs(argv.slice(0, -1)), scope: "global" };
+  }
+  return parseProjectArgs(argv);
+}
+
+function parseProjectArgs(argv          )                      {
   const sub = argv[0];
   if (sub === undefined || sub === "list") return { action: "list" };
   if (sub === "help" || sub === "--help" || sub === "-h") return { action: "help" };
@@ -41,7 +50,10 @@ export function parseSubagentsArgs(argv          )                      {
       ? { action: "register", role: "executor" }
       : { action: "register", error: "usage: subagents register executor" };
   }
-
+  if (sub === "reset") {
+    if (!isRole(argv[1]) || argv.length !== 2) return { action: "reset", error: "reset requires exactly one valid role" };
+    return { action: "reset", role: argv[1] };
+  }
   if (sub === "get") {
     if (!isRole(argv[1])) return { action: "get", error: `unknown role '${argv[1] ?? ""}' (expected ${ROLES.join("|")})` };
     return { action: "get", role: argv[1] };
@@ -90,7 +102,9 @@ const HELP = [
   "  subagents               list all role configs",
   "  subagents get <role>    show one role config",
   "  subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort] [--prompt <text>|--clear-prompt]",
-  "  subagents register executor   register native role; restart Codex afterward",
+  "  subagents register executor   register or update managed role; restart Codex afterward",
+  "  subagents reset <role>  remove the role override and inherit the next scope",
+  "  Append --global to list/get/set/reset to manage user defaults",
   "  subagents trust-token   print an export bound to this repo and exact config",
   "",
   `  roles: ${ROLES.join(", ")}`,
@@ -109,9 +123,9 @@ export function runSubagents(parsed                     , cwd        )          
     case "help":
       return { code: 0, output: HELP };
     case "list":
-      return { code: 0, output: JSON.stringify(readConfig(cwd), null, 2) };
+      return { code: 0, output: JSON.stringify(readConfig(cwd, parsed.scope), null, 2) };
     case "get": {
-      const cfg = readConfig(cwd);
+      const cfg = readConfig(cwd, parsed.scope);
       return { code: 0, output: JSON.stringify(cfg.roles[parsed.role            ], null, 2) };
     }
     case "trust-token": {
@@ -122,14 +136,22 @@ export function runSubagents(parsed                     , cwd        )          
     case "register": {
       try {
         const result = registerExecutor();
-        return { code: 0, output: `${result.created ? "Registered" : "Already registered"}: ${result.path}\nStart a new Codex session and verify executor appears in the live spawn schema.` };
+        return { code: 0, output: `${result.created ? "Registered" : result.updated ? "Updated" : "Already registered"}: ${result.path}\nStart a new Codex session and verify executor appears in the live spawn schema.` };
+      } catch (err) {
+        return { code: 1, output: `subagents: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
+    case "reset": {
+      try {
+        const cfg = resetRole(cwd, parsed.role            , parsed.scope);
+        return { code: 0, output: JSON.stringify(cfg.roles[parsed.role            ], null, 2) };
       } catch (err) {
         return { code: 1, output: `subagents: ${err instanceof Error ? err.message : String(err)}` };
       }
     }
     case "set": {
       try {
-        const cfg = setRole(cwd, parsed.role            , parsed.patch ?? {});
+        const cfg = setRole(cwd, parsed.role            , parsed.patch ?? {}, parsed.scope);
         return { code: 0, output: JSON.stringify(cfg.roles[parsed.role            ], null, 2) };
       } catch (err) {
         return { code: 1, output: `subagents: ${err instanceof Error ? err.message : String(err)}` };

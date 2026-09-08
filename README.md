@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-2%2C681_passing-brightgreen" alt="2,681 tests passing">
+  <img src="https://img.shields.io/badge/tests-2%2C711_passing-brightgreen" alt="2,711 tests passing">
   <img src="https://img.shields.io/badge/skills-28-blue" alt="28 skills">
   <img src="https://img.shields.io/badge/hooks-23-blue" alt="23 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -41,6 +41,14 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 **Multi-Model Subagents** — role-based dispatch (explorer / reviewer / executor) with per-role model and prompt overrides. Configuration persists across sessions and applies automatically through the spawn-wrapper hook. A local GUI (Vite + React) provides visual config and, when opencodex is detected, a provider link bar. (Dashboard: build from a repo checkout for now; bundled in a follow-up release.)
 
+Subagent settings resolve **per role: project → global → original session**. Open **Global Settings** to edit user defaults in `$CODEXCLAW_HOME/subagents.json` (default `~/.codexclaw/subagents.json`). The existing **Subagents** page edits `<project>/.codexclaw/subagents.json`: each model dropdown offers **Main model**, **Global settings**, and individual models. Global settings follows the entire role's defaults, including effort and prompt; choose a main/direct model to customize that project role. Existing explicit project entries and `effort: null` retain their meaning. Main model changes only the model source; session effort separately inherits the original session's effort.
+
+The shared catalog reads OCX's enabled models with the non-mutating `ocx models live --json`, refreshes after a short cache lifetime, and supports **Refresh models**. Disabled or pending models are excluded. If OCX is absent it reads the configured Codex catalog (`model_catalog_json`, with `CODEX_MODELS_CACHE_PATH` override). An unavailable source yields an explicit error or labeled last-known list, never a fabricated four-model roster. The dashboard restricts effort choices to the model's advertised supported values; CLI/MCP validation still validates wire values only, not model-specific compatibility.
+
+CLI list/get/set/reset accept trailing `--global`. MCP `subagents_get`/`subagents_set` and GET `/api/subagents?scope=global` / POST `scope: "global"` share the same store. `inherit: true` removes the selected scope's entire role override; `effort: null` only clears effort. The former unpublished `$CODEX_HOME/codexclaw/subagents.json` path is read only if the canonical file is absent and `CODEXCLAW_HOME` is not explicitly set. The first explicit global edit/reset preserves its other roles in the canonical file and leaves the old file untouched.
+
+
+
 **Recall** — searches past Codex conversations and the memory store from disk artifacts before asking the user, so context survives session boundaries and compaction.
 
 **Repo Map** — `cxc map <dir>` runs tree-sitter parsing + PageRank ranking to produce a structure overview of unfamiliar code, letting the agent orient before deep `rg` dives. (Repo checkout only — requires the vendored Python toolchain.)
@@ -49,24 +57,28 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 ## Install
 
-Install the plugin, then register the implementation role once. No build step or npm install.
+Install the plugin. Executor tasks work immediately through the built-in worker. No build step or npm install.
 
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-Before implementation dispatch, register the canonical executor role once:
+Restart Codex and approve the 23 hooks when prompted (upgrades ask again because trust is bound to content hashes). You can then optionally register the canonical executor role. For a CLI installation:
 
 ```sh
-node "<plugin-root>/bin/cxc.mjs" subagents register executor
+cxc subagents register executor
 ```
 
+For a marketplace-only installation without `cxc` on PATH, send this in Codex chat:
+
+> Register the CXC executor role using the installed plugin’s `subagents register executor` command.
+
 Start a new session and verify `executor` appears in the live spawn schema. Registration
-preserves existing user roles and project model settings; conflicting files are refused.
+preserves user edits and project settings. Repeating it updates unchanged CXC-managed roles; conflicting files are refused.
 See [role setup and legacy worker compatibility](plugins/codexclaw/agents/README.md).
 
-Then restart Codex and approve the 23 hooks when prompted (upgrades ask again — content-hash trust). Everything runs from chat, and the terminal surface ships too — the payload includes its own `cxc` dispatcher, so agent-driven `cxc orchestrate` commands work on every install:
+Everything runs from chat, and the terminal surface ships too — the payload includes its own `cxc` dispatcher, so agent-driven `cxc orchestrate` commands work on every install:
 
 - `orchestrate status` — check the PABCD state machine
 - "Interview me first, then draft a diff-level plan."
@@ -97,6 +109,75 @@ alias cxc='node /path/to/codexclaw/bin/codexclaw.mjs'   # or: npm link
 ```
 
 </details>
+
+## Development install (dogfooding)
+
+To change codexclaw while running it inside Codex, install your working checkout as a **real
+plugin copy** from a local marketplace rooted at the repo:
+
+```bash
+scripts/dev-install.sh
+```
+
+That is the whole setup. The script points the `codexclaw` marketplace at your checkout itself,
+including when a published git marketplace already holds that name — adding it by hand would fail
+with `marketplace 'codexclaw' is already added from a different source`.
+
+A git-source marketplace pins a commit, so a checkout under active development has to use the
+local source — otherwise Codex keeps loading the pinned snapshot no matter what you edit.
+
+### Why not symlinks
+
+An earlier `scripts/dev-symlink.sh` replaced each child of the plugin cache version directory with a
+symlink into the repo, so edits were live with no reinstall. Codex does not resolve those
+symlinked entries reliably and the plugin can silently fail to load, so that track is retired.
+When `dev-install.sh` finds any symlink left in the plugin cache it clears the whole cache
+directory and reinstalls from scratch.
+
+### What the install actually does
+
+`codex plugin add codexclaw@codexclaw` copies the payload into
+`~/.codex/plugins/cache/codexclaw/codexclaw/<version>/` and **prunes files that no longer exist in
+the source**. A same-version reinstall is therefore a true resync rather than a no-op, which is why
+re-running the script is the whole update loop and the manifest version never needs bumping.
+
+| Command | Effect |
+|---|---|
+| `scripts/dev-install.sh` | build components, repoint the marketplace if it drifted, clear stale symlinks, reinstall, prune old version dirs, run doctor |
+| `scripts/dev-install.sh --no-build` | the same without `npm run build`, for skill, hook or docs-only edits |
+| `scripts/dev-install.sh --status` | report source, manifest version, marketplace root, cache roots and symlink count; change nothing |
+
+### The update loop
+
+Edit -> `scripts/dev-install.sh` -> **open a new Codex thread**. Skills, hooks and MCP tools are read
+when a session starts, so the thread you are in does not pick up the change.
+
+Hook trust is hashed over the hook **declaration** — the event, matcher, command, timeout, async
+flag and status message — not over the files a hook runs. Editing a matcher or command in
+`hooks/*.json` breaks trust and Codex marks that hook **Modified** until you re-approve it, while
+rebuilding the component `dist/` a hook invokes changes many bytes and keeps its trust.
+`cxc doctor`'s `hook-trust` line tells you which case you are in. codexclaw never writes trust
+state itself.
+
+### Verifying the install
+
+```bash
+VER=$(python3 -c "import json;print(json.load(open('plugins/codexclaw/.codex-plugin/plugin.json'))['version'])")
+CACHE=~/.codex/plugins/cache/codexclaw/codexclaw
+
+diff -rq plugins/codexclaw "$CACHE/$VER"   # installed payload matches the checkout
+find "$CACHE" -type l | wc -l              # expect 0 — no symlinks survived
+node "$CACHE/$VER/bin/cxc.mjs" doctor       # expect: overall: PASS
+                                            # FAIL on hook-trust alone = hooks await re-approval
+```
+
+To go back to the published track, remove the local marketplace and re-add the git URL:
+
+```bash
+codex plugin remove codexclaw@codexclaw
+codex plugin marketplace remove codexclaw
+codex plugin marketplace add https://github.com/lidge-jun/codexclaw
+```
 
 ## Architecture
 
@@ -186,6 +267,8 @@ codexclaw is the reference implementation. The methodology and skills are ported
 ## Documentation
 
 Plugin documentation: **[lidge-jun.github.io/codexclaw](https://lidge-jun.github.io/codexclaw/)**
+
+Development install and the dogfood loop: **[Dogfood & Dev Install](https://lidge-jun.github.io/codexclaw/development/dogfood-dev-install/)**
 
 Runtime trust boundaries and resource limits: **[docs/security-hardening.md](docs/security-hardening.md)**
 

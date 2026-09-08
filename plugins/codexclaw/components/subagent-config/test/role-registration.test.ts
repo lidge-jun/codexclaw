@@ -80,3 +80,34 @@ test("native CLI registers concurrently in CODEX_HOME and refuses later conflict
   });
   assert.equal(readFileSync(role, "utf8"), "# user's customized executor\n");
 });
+
+
+test("registration upgrades intact managed prompts, keeps a backup and preserves edited prompts", async t => {
+  const { createHash } = await import("node:crypto");
+  const home = mkdtempSync(join(tmpdir(), "executor-update-"));
+  t.after(() => rmSync(home, {recursive:true,force:true}));
+  mkdirSync(join(home,"agents"));
+  const path = join(home,"agents/executor.toml");
+  const old = 'name = "executor"\ndeveloper_instructions = "previous shipped prompt"\n';
+  const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+  const signed = `# codexclaw-managed: ${hash(old)}\n${old}`;
+  writeFileSync(path,signed);
+  assert.equal(registerExecutor(home).updated,true);
+  assert.equal(readFileSync(join(home,"agents",`executor.toml.backup-${hash(signed)}`),"utf8"),signed);
+  assert.match(readFileSync(path,"utf8"),/^# codexclaw-managed: [a-f0-9]{64}\n/);
+  assert.equal(registerExecutor(home).created,false);
+  const edited=readFileSync(path,"utf8")+'# user edit\n';
+  writeFileSync(path,edited);
+  assert.throws(()=>registerExecutor(home),/differs/);
+  assert.equal(readFileSync(path,"utf8"),edited);
+});
+
+test("identical legacy role is adopted without losing its previous bytes", t => {
+  const home=mkdtempSync(join(tmpdir(),"executor-adopt-"));
+  t.after(()=>rmSync(home,{recursive:true,force:true}));
+  const first=registerExecutor(home);
+  const body=readFileSync(first.path,"utf8").replace(/^# codexclaw-managed: [a-f0-9]{64}\n/,"");
+  writeFileSync(first.path,body);
+  assert.equal(registerExecutor(home).updated,true);
+  assert.equal(readFileSync(first.path,"utf8").split("\n").slice(1).join("\n"),body);
+});

@@ -15,27 +15,31 @@ through the `dev-*` skills for its surface.
 Built-in `agent_type` values are codex-native (`core/src/agent/role.rs`: `default`, `explorer`,
 `worker`). `explorer` is read-only; `worker` may write.
 
-## Register executor before dispatch
+## Optional native executor registration
 
 Plugin directories are not Codex configuration layers, so installing the plugin alone
-cannot register these TOML files as live roles. Run the explicit setup command:
+cannot register these TOML files as live roles. Unregistered installs automatically dispatch executor tasks as built-in `worker`. With the CLI installed, run:
 
 ```sh
-node "<plugin-root>/bin/cxc.mjs" subagents register executor
+cxc subagents register executor
 ```
 
 This creates `$CODEX_HOME/agents/executor.toml` (default `~/.codex/agents/executor.toml`)
 from the shipped executor prompt, omitting the plugin's `model = "default"` sentinel.
-The installed role does not override model, effort, sandbox or approval policy. Identical
-files are left unchanged; conflicting files and symlinks are refused without overwrite.
-Existing worker files and project model settings are preserved. Publication requires
-filesystem hard-link support; unsupported filesystems fail without replacing a role.
+The installed role does not override model, effort, sandbox or approval policy.
+Registration marks the prompt with a content hash. Repeating this command updates an
+unchanged managed prompt; user edits, differing unmarked files and symlinks are preserved
+and reported as conflicts. Existing worker files and project model settings are preserved.
 
-Start a new Codex session and check that the live spawn schema exposes `executor`.
-If it does not, or the host rejects that agent_type, report the unmet setup prerequisite;
-do not invent support or silently switch roles. Registration is never run by a spawn hook.
-The canonical builder emits `executor`; callers on older setups can still explicitly use
-`worker` as a legacy alias. Both names select `roles.executor` and require exit evidence.
+For marketplace-only installs without `cxc` on PATH, ask in Codex chat:
+
+> Register the CXC executor role using the installed plugin’s `subagents register executor` command.
+
+Start a new Codex session after registration and verify the live spawn schema exposes
+`executor`. File presence cannot prove that an already-running session loaded the role.
+Registration never runs from a spawn hook. Missing registrations use `worker`; both
+names select `roles.executor` and require exit evidence. The shipped prompt remains
+inline so the legacy path retains the same instructions.
 
 After upgrading the SubagentStop matcher, re-approve Modified hooks using Codex's normal
 hook approval UI and check `cxc doctor`. A passing unit test does not prove hook delivery.

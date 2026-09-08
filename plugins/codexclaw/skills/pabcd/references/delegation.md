@@ -1,7 +1,7 @@
 ## Delegation Model (subagents)
 
 The main session owns the plan, host goal, and every PABCD transition.
-At A, dispatch an independent `explorer`; use the registered `executor` for bounded writes
+At A, dispatch an independent `explorer`; use `executor` when registered, otherwise built-in `worker`, for bounded writes
 (DISPATCH-AGENT-TYPE-01).
 Subagents are leaves (LEAF-TOPOLOGY-01) unless recursion is explicitly granted.
 Every dispatch carries a structured TASK packet (DISPATCH-TASK-01):
@@ -27,11 +27,16 @@ Prompt labels are not enforcement and cannot bypass an actual worker receipt
 requirement or other runtime guard. If the requested protection cannot be
 represented, report that gap rather than silently weakening it.
 
-Before executor dispatch, run the authorized setup `cxc subagents register executor`
-once, start a new Codex session, and inspect the live spawn schema's role list. If
-`executor` is absent or rejected, report the registration/restart prerequisite; do
-not silently substitute a role. `worker` is accepted only for legacy callers.
-The registration command does not overwrite user roles or alter model/permissions.
+For implementation dispatch, prefer `executor` when exposed by the live schema.
+Existing installations without it may use built-in `worker`; both names route to
+logical executor settings and the same receipt gate. The payload resolver selects
+worker when `$CODEX_HOME/agents/executor.toml` is missing. If registration exists
+but the current session has not loaded it, use the live schema rather than assuming
+that disk presence proves availability. Registering `executor` is optional: run
+`cxc subagents register executor`, then restart Codex before selecting that native
+role. The command updates unchanged managed prompts and preserves user edits,
+model choices and permissions. Never substitute a role explicitly forbidden by
+the user or host.
 
 Map each logical task to the handle actually returned by the tool: for example,
 a V1 agent_id or a V2 canonical task_name. Use the actual handle and supported

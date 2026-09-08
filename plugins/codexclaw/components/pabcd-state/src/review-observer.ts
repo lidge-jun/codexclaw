@@ -58,7 +58,7 @@ export function handleReviewObserver(raw: string): string {
   try {
     const payload = JSON.parse(raw) as SubagentStopPayload;
     if (payload.hook_event_name !== "SubagentStop") return "";
-    // A worker's exit belongs to the receipt gate; everything else is decided by
+    // An executor/worker exit belongs to the receipt gate; everything else is decided by
     // the sign-off below. Not "=== explorer": a v1 child arrives as "default".
     if (GATED_AGENT_TYPES.has(payload.agent_type ?? "")) return "";
 

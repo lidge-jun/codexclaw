@@ -8,6 +8,7 @@ import { openBridgeDb } from "../src/db.ts";
 import {
   buildEffortPicker,
   buildModelPicker,
+  modelToken,
   buildToolProgressPicker,
   decodeCallback,
   encodeCallback,
@@ -131,14 +132,20 @@ test("handleCallback updates model and always answers the callback", async () =>
   try {
     const agent = db.createAgent("telegram-1", "telegram", "tok");
     const binding = db.getOrCreateAgentBinding(agent.id, "telegram", "500", cwd);
-    const firstModel = loadModelCatalog()[0]?.id;
+    const firstModel = "fixture/model-a";
     assert.ok(firstModel, "model catalog should not be empty");
     const api = mockApi();
 
-    await handleCallback(api, callback(encodeCallback({ type: "model_select", payload: `${binding.id}:0` })), db, allowAgent(agent.id));
+    await handleCallback(api, callback(encodeCallback({ type: "model_select", payload: `${binding.id}:${modelToken(firstModel)}` })), db, allowAgent(agent.id), async () => [{id: "fixture/model-b"}, {id: firstModel}]);
 
     assert.equal(db.getAgent(agent.id)?.model, "default");
     assert.equal(db.getBinding(binding.id)?.model, firstModel);
+    // Old positional callbacks expire rather than selecting a different live row.
+    await handleCallback(api, callback(encodeCallback({type:"model_select",payload:`${binding.id}:0`})), db, allowAgent(agent.id), async()=>[{id:"wrong-model"}]);
+    assert.equal(db.getBinding(binding.id)?.model, firstModel);
+    const rendered = buildModelPicker([{id:firstModel},{id:"fixture/model-b"}],firstModel,binding.id);
+    await handleCallback(api,callback(rendered[1][0].callback_data!),db,allowAgent(agent.id),async()=>[{id:"fixture/model-b"},{id:firstModel}]);
+    assert.equal(db.getBinding(binding.id)?.model,"fixture/model-b");
     assert.ok(api.calls.some((call) => call.method === "sendMessage"));
     assert.ok(api.calls.some((call) => call.method === "answerCallbackQuery"));
   } finally {

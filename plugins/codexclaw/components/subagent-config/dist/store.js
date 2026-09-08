@@ -4,13 +4,15 @@
  * Per-role subagent model mode + prompt override for the three Phase-1 roles
  * (explorer/reviewer/executor). Missing file -> defaults; malformed values are
  * normalized per-field (strict reconstruct, never throws on read). Writes are
- * atomic (temp + rename). NEVER mutates global Codex config; default mode needs
+ * atomic (temp + rename). User defaults live in CODEXCLAW_HOME; native
+ * Codex config is never mutated. Default mode needs
  * no ocx (uses the main Codex model).
  */
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { homedir } from "node:os";
+import { createHash, randomUUID } from "node:crypto";
 import { renameWithRetry } from "./atomic-write.js";
 
 export const STATE_DIR = ".codexclaw";
@@ -26,12 +28,8 @@ export const ROLES = ["explorer", "reviewer", "executor"]         ;
  * the parent session's effort (the jawcode/cli-jaw policy default). An invalid
  * effort HARD-FAILS the spawn on the codex side, so the store validates on write.
  */
-// SCOPED to the universally-supported set: codex-rs validates the requested effort
-// against the resolved model's supported_reasoning_levels and HARD-FAILS the spawn on
-// a miss (multi_agents_common.rs validate_spawn_agent_reasoning_effort). Every model in
-// the live catalog supports exactly {low,medium,high,xhigh}; the ReasoningEffort enum
-// also defines none/minimal/max/ultra, but no selectable model advertises them, so
-// offering them would let a saved config brick every later spawn.
+// Supported wire values retained for backward compatibility. Model capabilities vary;
+// the dashboard narrows these options using the current catalog's reasoningEfforts.
 export const EFFORTS = ["low", "medium", "high", "xhigh"]         ;
 
 
@@ -77,28 +75,96 @@ function reconstructRole(raw         )             {
   return { mode, model, effort, promptOverride };
 }
 
-/**
- * Read + normalize the config. Missing file -> defaults. Malformed JSON ->
- * defaults (never throws). Each role is strictly reconstructed.
- */
-export function readConfig(cwd        )                  {
-  const path = storePath(cwd);
-  if (!existsSync(path)) return defaultConfig();
-  let parsed         ;
-  try {
-    parsed = JSON.parse(readFileSync(path, "utf8"));
-  } catch {
-    return defaultConfig();
+
+
+
+
+
+
+
+
+
+export function configScope(value          = "project")              {
+  if (value !== "project" && value !== "global") throw new Error(`invalid scope "${String(value)}"`);
+  return value;
+}
+
+export function cxcHome(env                    = process.env)         {
+  return env.CODEXCLAW_HOME?.trim() || join(homedir(), ".codexclaw");
+}
+
+export function globalStorePath(env                    = process.env)         {
+  return join(cxcHome(env), STORE_FILE);
+}
+
+/** Compatibility with the unpublished first scoped-settings patch. Reads never migrate. */
+function readGlobalRaw(env                   , forWrite = false)            {
+  const canonical = globalStorePath(env);
+  if (!existsSync(canonical) && !env.CODEXCLAW_HOME?.trim()) {
+    const legacy = join(env.CODEX_HOME?.trim() || join(homedir(), ".codex"), "codexclaw", STORE_FILE);
+    if (existsSync(legacy)) return readRaw(legacy, forWrite);
   }
-  const roles = (parsed && typeof parsed === "object" ? (parsed                       ).roles : null)
+  return readRaw(canonical, forWrite);
+}
+
+function scopedPath(cwd        , scope             , env                   )         {
+  return configScope(scope) === "global" ? globalStorePath(env) : storePath(cwd);
+}
 
 
-               ;
-  const out = defaultConfig();
-  if (roles && typeof roles === "object") {
-    for (const role of ROLES) out.roles[role] = reconstructRole(roles[role]);
+function readRaw(path        , forWrite = false)            {
+  try {
+    const parsed          = JSON.parse(readFileSync(path, "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("config must be an object");
+    const raw = parsed                           ;
+    if (raw.roles !== undefined && (!raw.roles || typeof raw.roles !== "object" || Array.isArray(raw.roles))) {
+      throw new Error("roles must be an object");
+    }
+    return { ...raw, roles: { ...(raw.roles                                       ) } };
+  } catch (err) {
+    if (forWrite && (err                         ).code !== "ENOENT") {
+      throw new Error(`cannot update subagent config: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return { roles: {} };
+  }
+}
+
+function projectTrustWarning(cwd        , env                   )                     {
+  if (!isTrackedProjectConfig(cwd)) return undefined;
+  const token = projectConfigTrustToken(cwd);
+  if (token !== null && env.CODEXCLAW_TRUST_PROJECT_SUBAGENTS === token) return undefined;
+  return "ignored Git-tracked .codexclaw/subagents.json; review it, then run `cxc subagents trust-token` and export the printed project-bound value";
+}
+
+/** Resolve whole roles, preserving explicit null as original-session inheritance. */
+export function readSettings(cwd        , scope              = "project", env                    = process.env)                   {
+  configScope(scope);
+  const global = readGlobalRaw(env);
+  const project = scope === "project" ? readRaw(storePath(cwd)) : { roles: {} };
+  const trustWarning = scope === "project" ? projectTrustWarning(cwd, env) : undefined;
+  const out                   = {
+    ...defaultConfig(), scope,
+    sources: { explorer: "session", reviewer: "session", executor: "session" },
+    overrides: { explorer: false, reviewer: false, executor: false },
+    ...(trustWarning ? { trustWarning } : {}),
+  };
+  for (const role of ROLES) {
+    out.overrides[role] = Object.hasOwn((scope === "project" ? project : global).roles, role);
+    if (Object.hasOwn(global.roles, role)) {
+      out.roles[role] = reconstructRole(global.roles[role]);
+      out.sources[role] = "global";
+    }
+    if (!trustWarning && Object.hasOwn(project.roles, role)) {
+      out.roles[role] = reconstructRole(project.roles[role]);
+      out.sources[role] = "project";
+    }
   }
   return out;
+}
+
+/** Effective config without UI metadata; reads never change persisted settings. */
+export function readConfig(cwd        , scope              = "project", env                    = process.env)                  {
+  return { roles: readSettings(cwd, scope, env).roles };
 }
 
 /** Validate a role patch, returning an error message or null. */
@@ -122,42 +188,48 @@ export function validateRolePatch(patch                     )                {
   return null;
 }
 
-/** Atomic write: temp file then rename. Creates .codexclaw/ if needed. */
-export function writeConfig(cwd        , config                 )       {
-  const dir = join(cwd, STATE_DIR);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const path = storePath(cwd);
-  const tmp = `${path}.tmp`;
+/** Atomic write with an exclusive temporary file; preserve unrelated JSON fields. */
+function writeRaw(path        , config         )       {
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  const tmp = `${path}.${randomUUID()}.tmp`;
   try {
-    writeFileSync(tmp, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+    writeFileSync(tmp, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600, flag: "wx" });
     renameWithRetry(tmp, path);
-  } catch (err) {
-    try {
-      if (existsSync(tmp)) rmSync(tmp);
-    } catch {
-      // best-effort cleanup
-    }
-    throw err;
+  } finally {
+    rmSync(tmp, { force: true });
   }
 }
 
-/**
- * Apply a patch to one role and persist. Returns the updated config.
- * Validates the MERGED role (not the bare patch), so `{mode:"model"}` alone is
- * valid when the role already has a saved model — the GUI checkbox depends on
- * this. Throws on an invalid merged state (caller surfaces the message).
- */
-export function setRole(cwd        , role          , patch                     )                  {
+/** Explicit full-config writes remain available to existing callers. */
+export function writeConfig(cwd        , config                 )       {
+  writeRaw(storePath(cwd), config);
+}
+
+/** Merge only the selected role; missing roles continue to inherit dynamically. */
+export function setRole(cwd        , role          , patch                     , scope              = "project", env                    = process.env)                  {
   if (!ROLES.includes(role)) throw new Error(`unknown role "${role}"`);
-  const config = readConfig(cwd);
-  const next             = { ...config.roles[role], ...patch };
+  const path = scopedPath(cwd, scope, env);
+  const raw = scope === "global" ? readGlobalRaw(env, true) : readRaw(path, true);
+  const current = Object.hasOwn(raw.roles, role) ? reconstructRole(raw.roles[role]) : readConfig(cwd, scope, env).roles[role];
+  const next             = { ...current, ...patch };
   const err = validateRolePatch(next);
   if (err) throw new Error(err);
-  // enforce the default-mode invariant: default mode ignores model.
   if (next.mode === "default") next.model = null;
-  config.roles[role] = next;
-  writeConfig(cwd, config);
-  return config;
+  raw.roles[role] = { ...(typeof raw.roles[role] === "object" && raw.roles[role] !== null ? raw.roles[role]                            : {}), ...next };
+  writeRaw(path, raw);
+  return readConfig(cwd, scope, env);
+}
+
+/** Remove a role override. null fields deliberately do not perform this action. */
+export function resetRole(cwd        , role          , scope              = "project", env                    = process.env)                  {
+  if (!ROLES.includes(role)) throw new Error(`unknown role "${role}"`);
+  const path = scopedPath(cwd, scope, env);
+  const raw = scope === "global" ? readGlobalRaw(env, true) : readRaw(path, true);
+  if (Object.hasOwn(raw.roles, role)) {
+    delete raw.roles[role];
+    writeRaw(path, raw);
+  }
+  return readConfig(cwd, scope, env);
 }
 
 
@@ -218,20 +290,8 @@ export function resolveSpawnConfig(
   role          ,
   env                    = process.env,
 )                  {
-  const tracked = isTrackedProjectConfig(cwd);
-  const expectedTrust = tracked ? projectConfigTrustToken(cwd) : null;
-  if (tracked && (expectedTrust === null || env.CODEXCLAW_TRUST_PROJECT_SUBAGENTS !== expectedTrust)) {
-    return {
-      role,
-      model: null,
-      usesMainModel: true,
-      effort: null,
-      promptOverride: null,
-      trustWarning:
-        "ignored Git-tracked .codexclaw/subagents.json; review it, then run `cxc subagents trust-token` and export the printed project-bound value",
-    };
-  }
-  const cfg = readConfig(cwd).roles[role];
+  const settings = readSettings(cwd, "project", env);
+  const cfg = settings.roles[role];
   const usesMainModel = cfg.mode === "default";
   return {
     role,
@@ -239,5 +299,6 @@ export function resolveSpawnConfig(
     usesMainModel,
     effort: cfg.effort,
     promptOverride: cfg.promptOverride,
+    ...(settings.trustWarning ? { trustWarning: settings.trustWarning } : {}),
   };
 }

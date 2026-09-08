@@ -7,7 +7,7 @@
  *
  * Contract (omo B-opt2 parity, agents/README.md):
  *  - role -> built-in agent_type (explorer/reviewer -> "explorer", executor -> registered "executor");
- *    executor requires `cxc subagents register executor` and a fresh Codex session.
+ *    unregistered installs keep using built-in worker; registration requires a fresh session.
  *  - the role prompt is injected INLINE in the message ("TASK: ..."), since plugin
  *    install dirs are not a config layer.
  *  - model selection is not emitted by the v2 builder. The durable per-role model in
@@ -16,7 +16,8 @@
  *
  * Zero third-party deps (node:* only) so the build's type-strip stays sound.
  */
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, isAbsolute, resolve as resolvePath } from "node:path";
 import { resolveSpawnConfig, type RoleName, type SpawnResolution } from "./store.ts";
 
@@ -335,7 +336,7 @@ export function taskNameForRole(role: RoleName, task: string): string {
  * full-history fork. `fork_turns: "none"` here keeps that injection legal on V2.
  */
 export interface SpawnPayload {
-  agent_type: "explorer" | "executor";
+  agent_type: "explorer" | "executor" | "worker";
   message: string;
   /** v2 spawn schema: required task name, `[a-z0-9_]+`. Present when V2 is active. */
   task_name?: string;
@@ -365,6 +366,8 @@ export interface BuildSpawnPayloadInput {
   resolution: SpawnResolution;
   /** developer_instructions from the role TOML (used unless promptOverride replaces it). */
   developerInstructions: string;
+  /** Registration availability is supplied by the host-facing resolver. */
+  executorRegistered?: boolean;
 }
 
 /**
@@ -374,7 +377,7 @@ export interface BuildSpawnPayloadInput {
  */
 export function buildSpawnPayload(input: BuildSpawnPayloadInput): SpawnPayload {
   const { role, task, resolution, developerInstructions } = input;
-  const agent_type = ROLE_AGENT_TYPE[role];
+  const agent_type = role === "executor" && !input.executorRegistered ? "worker" : ROLE_AGENT_TYPE[role];
   const rolePrompt = (resolution.promptOverride ?? developerInstructions ?? "").trim();
   const taskText = (task ?? "").trim();
   const message = rolePrompt.length > 0 ? `${rolePrompt}\n\nTASK: ${taskText}` : `TASK: ${taskText}`;
@@ -391,10 +394,13 @@ export function buildSpawnPayload(input: BuildSpawnPayloadInput): SpawnPayload {
  * Production entry point: resolve the role config from `.codexclaw/subagents.json`,
  * read the role TOML developer_instructions, and build the spawn payload. Never throws.
  */
-export function resolveSpawnPayload(cwd: string, role: RoleName, task: string, agentsDir: string): SpawnPayload {
-  const resolution = resolveSpawnConfig(cwd, role);
+export function resolveSpawnPayload(cwd: string, role: RoleName, task: string, agentsDir: string, env: NodeJS.ProcessEnv = process.env): SpawnPayload {
+  const resolution = resolveSpawnConfig(cwd, role, env);
   const { developerInstructions } = readRoleToml(agentsDir, role);
-  return buildSpawnPayload({ role, task, resolution, developerInstructions });
+  let executorRegistered = false;
+  try { executorRegistered = statSync(join(env.CODEX_HOME || join(homedir(), ".codex"), "agents", "executor.toml")).isFile(); }
+  catch { /* Missing or inaccessible registration retains the built-in worker. */ }
+  return buildSpawnPayload({ role, task, resolution, developerInstructions, executorRegistered });
 }
 
 /**
