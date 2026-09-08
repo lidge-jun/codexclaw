@@ -87,3 +87,7 @@ See 001_sources.md for research and 002_verifiers.md for commands with observed 
   implement 010 as written (anchors re-verified at this P: dev/SKILL.md:197,
   diagram-viewer:55/67/71, document-pdf:39, plan-output end, phase-check SoT paragraph,
   pabcd/SKILL.md:84, implementation-log:70, kwrite:67, skill-ownership:30).
+- wp2 D: DONE at 8095ecfe; fresh reader found one gap in the trial report (PR #84 payload
+  not described) which is a property of the input dump, not of the reference; direction kept.
+- wp3 P (re-entry): implement 020 as written; SKILL.md Tier 3 replacement is net-negative
+  (268 -> 240 lines); Aside permission text uses guard default per audit fold.

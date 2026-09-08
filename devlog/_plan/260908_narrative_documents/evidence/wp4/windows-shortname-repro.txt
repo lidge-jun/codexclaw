@@ -1,0 +1,2 @@
+Windows host desktop-c795oh4, TEMP forced to C:\Users\user\LONGTE~1 (8.3 short name), PR head 2947266b + shortname patch:
+worktree-source-integration.test.ts + source-identity.test.ts -> pass 39, fail 0 (before patch: pass 1, fail 16 on the integration file alone)

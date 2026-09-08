@@ -10,7 +10,7 @@ CLI's documentation before invoking it. A missing optional tool is normal.
 |---|---|---|
 | Public static source | Hosted search for URL discovery, then HTTP source-open; agbrowse fetch when installed | Host fetch/open or another available source reader |
 | Many independent public pages | agbrowse HTTP or CDP extraction with independent task-owned tabs | Bounded native-tab or serial reads |
-| Signed-in / judgment-heavy browsing | Aside when installed, running, permitted, and appropriate to the task | Native signed-in browser or agbrowse session that actually has the required access |
+| Signed-in / judgment-heavy browsing, delegated research surveys | Aside when installed, running, permitted, and appropriate to the task (deep-research lane: `search/references/deep-research.md`) | Native signed-in browser or agbrowse session that actually has the required access |
 | Local UI / interactive QA | Suitable available Aside or native browser; agbrowse is also valid for built-UI driving | Another available browser capability preserving the required render/action/evidence features |
 | Desktop / browser-chrome-only UI | Available native computer-use capability | Report the specific capability gap |
 | Maintained E2E regression | Repository-owned test runner and fixtures | Report unavailable test prerequisites; exploratory QA is not a replacement |

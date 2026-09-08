@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Which open-source deep-research framework should a small team adopt?</title>
+<style>
+  :root { --ink:#1a1a1a; --mute:#5c6370; --line:#dfe3e8; --warn:#8a5a00; --warnbg:#fff8e6;
+          --ok:#1f6f4a; --bad:#a33; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:2.5rem 1.25rem 5rem; font:16px/1.65 -apple-system,BlinkMacSystemFont,
+         "Segoe UI",Roboto,"Helvetica Neue",sans-serif; color:var(--ink); background:#fcfcfd; }
+  main { max-width:46rem; margin:0 auto; }
+  h1 { font-size:1.85rem; line-height:1.25; margin:0 0 .5rem; letter-spacing:-.01em; }
+  h2 { font-size:1.2rem; margin:2.6rem 0 .6rem; line-height:1.35; letter-spacing:-.005em; }
+  h3 { font-size:1rem; margin:1.8rem 0 .4rem; color:#333; }
+  p { margin:0 0 1rem; }
+  .meta { color:var(--mute); font-size:.9rem; margin:0 0 1.75rem; padding-bottom:1.25rem;
+          border-bottom:1px solid var(--line); }
+  .meta span { margin-right:1.1rem; white-space:nowrap; }
+  .banner { background:var(--warnbg); border:1px solid #f0dca8; border-left:4px solid var(--warn);
+            border-radius:5px; padding:.9rem 1.1rem; margin:0 0 1.75rem; font-size:.94rem; }
+  .banner strong { color:var(--warn); }
+  .answer { background:#fff; border:1px solid var(--line); border-radius:6px;
+            padding:1.15rem 1.35rem; margin:0 0 1rem; }
+  .answer p:last-child { margin-bottom:0; }
+  table { border-collapse:collapse; width:100%; font-size:.88rem; margin:1rem 0 .6rem; }
+  th,td { border:1px solid var(--line); padding:.5rem .6rem; text-align:left; vertical-align:top; }
+  th { background:#f4f6f8; font-weight:600; }
+  td.unk { color:var(--mute); font-style:italic; }
+  caption { caption-side:bottom; text-align:left; color:var(--mute); font-size:.83rem;
+            padding-top:.6rem; line-height:1.5; }
+  figure { margin:1.5rem 0; }
+  figcaption { color:var(--mute); font-size:.85rem; margin-top:.5rem; line-height:1.5; }
+  ol,ul { margin:0 0 1rem; padding-left:1.3rem; }
+  li { margin-bottom:.45rem; }
+  code { background:#eef1f4; padding:.1em .35em; border-radius:3px; font-size:.88em; }
+  .tag { display:inline-block; font-size:.72rem; font-weight:600; letter-spacing:.03em;
+         padding:.12em .45em; border-radius:3px; border:1px solid currentColor; }
+  .t1 { color:var(--warn); }
+  .srcs { font-size:.88rem; color:#333; }
+  .srcs li { margin-bottom:.3rem; word-break:break-word; }
+  a { color:#1a5fb4; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Which open-source deep-research framework should a small team adopt?</h1>
+<p class="meta"><span>For: engineering lead, small team</span><span>2026-09-08</span><span>Decision window: one week</span></p>
+
+<div class="banner">
+<strong>Evidence status:</strong> one discovery wave ran and <strong>zero sources were opened</strong>
+(0 of a budgeted 12). Every claim below is Tier&nbsp;1 — found in a search result, never confirmed
+in the source. Nothing here is a verified fact about any repository's current state.
+</div>
+
+<h2>The answer: a lean, not a decision — and a two-hour test that settles it</h2>
+
+<div class="answer">
+<p>Your question's first clause — which frameworks are <em>actively maintained</em> — is
+unanswered. No repository page, commit history, or release list was opened, so no commit date,
+release, license, or star count was read for any candidate.</p>
+<p>What the research does support is a provisional lean. <strong>Lean toward LangChain Open Deep
+Research</strong>, because it is the only candidate whose loop was described consistently and
+specifically by more than one independent result, and because its described shape makes per-claim
+citation tractable. Then run the two-hour verification at the bottom of this page before you
+commit.</p>
+</div>
+
+<h2>Only one framework's loop is described specifically enough to classify</h2>
+
+<p>Open Deep Research is an <strong>orchestrator-worker</strong> loop: a clarification step, a
+research brief, a supervisor that spawns parallel researcher sub-agents each holding isolated
+context, a compression stage, and a dedicated final report writer. Model roles are split across
+summarization, research, compression, and report generation.</p>
+
+<p>SkyworkAI DeepResearchAgent was described as hierarchical with a top-level planner, which
+sounds orchestrator-worker but is not specific enough to distinguish from recursive decomposition.
+The rest carry no architectural description at all.</p>
+
+<figure>
+<svg viewBox="0 0 640 250" width="100%" role="img" aria-labelledby="svgt svgd"
+     xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif">
+  <title id="svgt">Orchestrator-worker loop versus recursive breadth/depth loop</title>
+  <desc id="svgd">Left: a supervisor fans out to three parallel workers that report back to a
+  compression and report-writing stage. Right: the recursive pattern is shown greyed out because
+  no evidence was gathered for it.</desc>
+
+  <text x="12" y="20" font-size="13" font-weight="600" fill="#1a1a1a">Orchestrator-worker</text>
+  <text x="12" y="36" font-size="11" fill="#5c6370">Open Deep Research (Tier 1 description)</text>
+
+  <rect x="12" y="52" width="270" height="30" rx="5" fill="#e8effa" stroke="#1a5fb4"/>
+  <text x="147" y="72" font-size="12" text-anchor="middle" fill="#14396e">brief &#8594; supervisor</text>
+
+  <line x1="70"  y1="82" x2="45"  y2="108" stroke="#1a5fb4" stroke-width="1.4"/>
+  <line x1="147" y1="82" x2="147" y2="108" stroke="#1a5fb4" stroke-width="1.4"/>
+  <line x1="224" y1="82" x2="249" y2="108" stroke="#1a5fb4" stroke-width="1.4"/>
+
+  <rect x="12"  y="110" width="66" height="46" rx="5" fill="#fff" stroke="#1a5fb4"/>
+  <rect x="114" y="110" width="66" height="46" rx="5" fill="#fff" stroke="#1a5fb4"/>
+  <rect x="216" y="110" width="66" height="46" rx="5" fill="#fff" stroke="#1a5fb4"/>
+  <text x="45"  y="130" font-size="10.5" text-anchor="middle" fill="#14396e">worker</text>
+  <text x="45"  y="145" font-size="10.5" text-anchor="middle" fill="#5c6370">own ctx</text>
+  <text x="147" y="130" font-size="10.5" text-anchor="middle" fill="#14396e">worker</text>
+  <text x="147" y="145" font-size="10.5" text-anchor="middle" fill="#5c6370">own ctx</text>
+  <text x="249" y="130" font-size="10.5" text-anchor="middle" fill="#14396e">worker</text>
+  <text x="249" y="145" font-size="10.5" text-anchor="middle" fill="#5c6370">own ctx</text>
+
+  <line x1="45"  y1="156" x2="70"  y2="182" stroke="#1a5fb4" stroke-width="1.4"/>
+  <line x1="147" y1="156" x2="147" y2="182" stroke="#1a5fb4" stroke-width="1.4"/>
+  <line x1="249" y1="156" x2="224" y2="182" stroke="#1a5fb4" stroke-width="1.4"/>
+
+  <rect x="12" y="184" width="270" height="30" rx="5" fill="#e8effa" stroke="#1a5fb4"/>
+  <text x="147" y="204" font-size="12" text-anchor="middle" fill="#14396e">compress &#8594; report writer</text>
+  <text x="12" y="234" font-size="10.5" fill="#5c6370">Citation survives if URLs travel as data here.</text>
+
+  <line x1="320" y1="14" x2="320" y2="236" stroke="#dfe3e8" stroke-width="1"/>
+
+  <text x="352" y="20" font-size="13" font-weight="600" fill="#9aa1ab">Recursive breadth/depth</text>
+  <text x="352" y="36" font-size="11" fill="#9aa1ab">no evidence gathered</text>
+
+  <rect x="352" y="52" width="180" height="28" rx="5" fill="#f4f5f7" stroke="#c9ced6" stroke-dasharray="4 3"/>
+  <text x="442" y="71" font-size="11.5" text-anchor="middle" fill="#9aa1ab">query</text>
+  <line x1="400" y1="80" x2="386" y2="104" stroke="#c9ced6" stroke-width="1.3" stroke-dasharray="4 3"/>
+  <line x1="484" y1="80" x2="498" y2="104" stroke="#c9ced6" stroke-width="1.3" stroke-dasharray="4 3"/>
+  <rect x="352" y="106" width="76" height="26" rx="5" fill="#f4f5f7" stroke="#c9ced6" stroke-dasharray="4 3"/>
+  <rect x="456" y="106" width="76" height="26" rx="5" fill="#f4f5f7" stroke="#c9ced6" stroke-dasharray="4 3"/>
+  <text x="390" y="124" font-size="10.5" text-anchor="middle" fill="#9aa1ab">sub-query</text>
+  <text x="494" y="124" font-size="10.5" text-anchor="middle" fill="#9aa1ab">sub-query</text>
+  <line x1="390" y1="132" x2="380" y2="156" stroke="#c9ced6" stroke-width="1.3" stroke-dasharray="4 3"/>
+  <line x1="494" y1="132" x2="504" y2="156" stroke="#c9ced6" stroke-width="1.3" stroke-dasharray="4 3"/>
+  <rect x="344" y="158" width="72" height="26" rx="5" fill="#f4f5f7" stroke="#c9ced6" stroke-dasharray="4 3"/>
+  <rect x="468" y="158" width="72" height="26" rx="5" fill="#f4f5f7" stroke="#c9ced6" stroke-dasharray="4 3"/>
+  <text x="380" y="176" font-size="10.5" text-anchor="middle" fill="#9aa1ab">depth &#8722; 1</text>
+  <text x="504" y="176" font-size="10.5" text-anchor="middle" fill="#9aa1ab">depth &#8722; 1</text>
+  <text x="352" y="212" font-size="10.5" fill="#9aa1ab">Queries for the two projects expected to</text>
+  <text x="352" y="227" font-size="10.5" fill="#9aa1ab">represent this pole never returned results.</text>
+</svg>
+<figcaption><strong>Figure 1.</strong> The comparison you asked for has only one pole. The
+orchestrator-worker shape on the left is described (at Tier 1) for Open Deep Research; the
+recursive pattern on the right is drawn greyed out because no evidence was gathered for it —
+the queries for dzhng/deep-research and STORM/Co-STORM were issued but never returned.</figcaption>
+</figure>
+
+<h2>The candidate set, with every unknown marked as unknown</h2>
+
+<table>
+<caption><strong>Table 1.</strong> All eight candidates. Every cell marked <em>not read</em> means
+the repository was never opened — these are not inferred, estimated, or remembered values.
+<span class="tag t1">T1</span> marks a claim discovered in a search result only.</caption>
+<thead>
+<tr><th>Project</th><th>Loop architecture</th><th>Maintained?</th><th>Citation support</th><th>License</th></tr>
+</thead>
+<tbody>
+<tr>
+  <td>langchain-ai/<br>open_deep_research</td>
+  <td>Orchestrator-worker: supervisor &#8594; parallel workers &#8594; compress &#8594; writer <span class="tag t1">T1</span></td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+</tr>
+<tr>
+  <td>assafelovic/<br>gpt-researcher</td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+  <td>"produces cited reports"; mechanism unknown <span class="tag t1">T1</span></td>
+  <td class="unk">not read</td>
+</tr>
+<tr>
+  <td>SkyworkAI/<br>DeepResearchAgent</td>
+  <td>Hierarchical: top-level planner + specialized sub-agents; too vague to classify <span class="tag t1">T1</span></td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+</tr>
+<tr>
+  <td>Alibaba-NLP/<br>DeepResearch (Tongyi)</td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+</tr>
+<tr>
+  <td>modelscope/<br>ms-agent</td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+</tr>
+<tr>
+  <td>OPPO-PersonalAI/<br>O-Researcher</td>
+  <td class="unk">not read — described as a training/data-synthesis project, possibly not a deployable runtime</td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+</tr>
+<tr>
+  <td>MiroFlow</td>
+  <td class="unk">agent graphs + deep-reasoning modes; paper never opened, arXiv ID unverified <span class="tag t1">T1</span></td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+</tr>
+<tr>
+  <td>AutoSearch</td>
+  <td class="unk">not read</td>
+  <td class="unk">a search result called it "actively updated in 2026", but cited a topic index rather than the repo — not evidence</td>
+  <td class="unk">not read</td>
+  <td class="unk">not read</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Citation handling is your decision driver and the weakest-evidenced column</h2>
+
+<p>GPT Researcher was described as producing "cited reports", but nothing describes the mechanism.
+The distinction that matters is whether source URLs are carried through the pipeline as structured
+data alongside retrieved text, or re-emitted by the model at write time. A model that regenerates
+URLs from context at report time will invent them, which is exactly the failure a citation-heavy
+bot cannot tolerate.</p>
+
+<p>This is also why the orchestrator-worker shape is the right target regardless of which project
+you pick. A separate compression stage and a separate report writer give you two places to keep
+<code>(claim, source_url)</code> paired as data.</p>
+
+<h2>What this does not cover</h2>
+
+<ul>
+<li><strong>Maintenance, entirely.</strong> Zero repositories were opened.</li>
+<li><strong>The recursive loop pattern.</strong> Three of five planned queries were issued but
+never returned results, removing that side of the comparison.</li>
+<li><strong>The opposing view.</strong> "Skip the framework and build the loop on an agent SDK"
+was never tested. For two to five engineers this deserves real weight: these loops are a few
+hundred lines, and a framework you must debug is worse than a loop you wrote.</li>
+<li><strong>Benchmarks and the MiroFlow paper.</strong> The arXiv identifier came from a search
+result and was never checked for existence. Do not cite it without opening it.</li>
+</ul>
+
+<h2>Next steps: two hours converts this lean into a decision</h2>
+
+<ol>
+<li>Open the four most plausible repositories — Open Deep Research, GPT Researcher, SkyworkAI
+DeepResearchAgent, Alibaba-NLP DeepResearch.</li>
+<li>For each, read exactly three things: <strong>commit history for the last 90 days</strong>,
+the <strong>license file</strong>, and the <strong>code path where a retrieved source URL reaches
+the report writer</strong>.</li>
+<li>Adopt Open Deep Research if it passes both the maintenance and the URL-as-data test. If it
+fails either, keep the orchestrator-worker shape and build it yourself on an agent SDK — a
+defensible second choice at your team size.</li>
+</ol>
+
+<h2>Sources</h2>
+<p style="font-size:.9rem;color:#5c6370;margin-bottom:.6rem;">All Tier 1 — discovered in search
+results, none opened. Full record in the internal ledger.</p>
+<ol class="srcs">
+<li><a href="https://github.com/langchain-ai/open_deep_research">langchain-ai/open_deep_research</a> — NOT OPENED</li>
+<li><a href="https://github.com/assafelovic/gpt-researcher">assafelovic/gpt-researcher</a> — NOT OPENED</li>
+<li><a href="https://github.com/SkyworkAI/DeepResearchAgent">SkyworkAI/DeepResearchAgent</a> — NOT OPENED</li>
+<li><a href="https://github.com/Alibaba-NLP/DeepResearch">Alibaba-NLP/DeepResearch</a> — NOT OPENED</li>
+<li><a href="https://github.com/modelscope/ms-agent">modelscope/ms-agent</a> — NOT OPENED</li>
+<li><a href="https://github.com/OPPO-PersonalAI/O-Researcher">OPPO-PersonalAI/O-Researcher</a> — NOT OPENED</li>
+<li><a href="https://arxiv.org/abs/2602.22808">MiroFlow (paper)</a> — NOT OPENED, identifier unverified</li>
+<li><a href="https://github.com/topics/research-agent">GitHub research-agent topic index</a> — NOT OPENED</li>
+</ol>
+
+</main>
+</body>
+</html>
