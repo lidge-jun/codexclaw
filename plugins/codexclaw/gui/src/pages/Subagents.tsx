@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, getSubagentSettings, setSubagentRole, type SubagentsConfig, type CatalogEntry, type ProviderState, type SubagentScope, type SubagentRole, type RoleConfig, type ModelCatalog } from "../api.ts";
 import { ModelSelect } from "../components/ModelSelect.tsx";
 import { EffortSelect } from "../components/EffortSelect.tsx";
+import { effortExcluded } from "../effort-support.ts";
 import { Loading } from "../ui/kit.tsx";
 import { toast } from "../ui/toast.tsx";
 import { HelpDrawer, HelpTopicButton, useHelp } from "../ui/help.tsx";
@@ -62,8 +63,11 @@ export function SubagentsPage({ provider, scope = "project" }: { provider: Provi
   async function save(role: SubagentRole, patch: Partial<RoleConfig> & { inherit?: boolean }) {
     if (!config || saving.current) return;
     if (patch.mode === "model" && patch.model && config.roles[role].effort !== null) {
-      const supported = catalog.find(entry => entry.id === patch.model)?.reasoningEfforts ?? [];
-      if (!supported.includes(config.roles[role].effort!)) {
+      // Only an advertised ladder can refuse a model. A missing catalog entry or an
+      // unreported ladder both arrive as null/undefined here, and neither is evidence
+      // that the model rejects the saved effort.
+      const supported = catalog.find(entry => entry.id === patch.model)?.reasoningEfforts;
+      if (effortExcluded(supported, config.roles[role].effort!)) {
         setError("This model does not support the saved effort. Select session effort first, then choose the model. If using global settings, choose Main model first to customize this role."); return;
       }
     }
@@ -106,7 +110,7 @@ export function SubagentsPage({ provider, scope = "project" }: { provider: Provi
               const ignored = scope === "project" && !!config.trustWarning;
               const inherited = scope === "project" && !config.overrides![role];
               const supported = r.mode === "model" ? (catalog.find(entry => entry.id === r.model)?.reasoningEfforts ?? null) : undefined;
-              const unsupported = r.effort !== null && supported !== undefined && !(supported ?? []).includes(r.effort);
+              const unsupported = r.effort !== null && effortExcluded(supported, r.effort);
               const effectiveModel = r.mode === "model" ? r.model : null;
               return (
                 <section key={role} className="list-row role-row" aria-label={`${role} settings`}>
