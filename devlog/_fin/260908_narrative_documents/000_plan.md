@@ -104,3 +104,21 @@ See 001_sources.md for research and 002_verifiers.md for commands with observed 
 - wp5 P (re-entry): 040/050 re-verified against dev c44ab989 (PRs #87 and #84 both in).
   Version surfaces to bump: package.json, cli, 8 component package.json, gui, lock,
   plugin.json stamp, inventory.json, CHANGELOG (top Unreleased -> 0.2.24; stale one deleted).
+- wp5 D: DONE. v0.2.24 released from main bb852272 (run 34185250992); installed and
+  verified on local, macmini-cf, suji, desktop-c795oh4 (941/941 payload files each).
+
+## D closure
+
+DONE. All five criteria met with captured evidence (`cxc loop validate` OK). What did
+not go as planned: two deep-research trial leaves stalled after planning (kept as
+run1/run2), the Windows CI on PR #84 exposed an 8.3 short-name path bug, and an
+independent review found two Git-environment leaks in the contributor's binding
+code; all were fixed with red/green tests before merge. The Windows deployment
+script's first regex edit corrupted config.toml and was restored from the preimage.
+Follow-ups not done here: parent-directory TOCTOU on `.codexclaw/sources` (accepted
+under the documented same-user exclusion), `session-binding.ts` JS realpath
+normalization, and the desktop-c795oh4 environment WARNs (Python store alias, codex
+features under non-interactive SSH), which predate this release.
+What would invalidate this: a fresh session on any target loading a pre-0.2.24 skill
+body, a mismatch between the release payload and installed hashes, or a future
+forward-use trial that again stalls with zero source opens.
