@@ -1,0 +1,10 @@
+artifact (macos-latest)	pass	16s	https://github.com/lidge-jun/codexclaw/actions/runs/34182089768/job/101923062598	
+artifact (ubuntu-latest)	pass	10s	https://github.com/lidge-jun/codexclaw/actions/runs/34182089768/job/101923062597	
+artifact (windows-latest)	pass	30s	https://github.com/lidge-jun/codexclaw/actions/runs/34182089768/job/101923062560	
+install (macos-latest)	pass	35s	https://github.com/lidge-jun/codexclaw/actions/runs/34182089768/job/101923062657	
+install (ubuntu-latest)	pass	20s	https://github.com/lidge-jun/codexclaw/actions/runs/34182089768/job/101923062368	
+test (macos-latest, false)	pass	2m31s	https://github.com/lidge-jun/codexclaw/actions/runs/34182089685/job/101923062406	
+test (ubuntu-latest, false)	pass	1m28s	https://github.com/lidge-jun/codexclaw/actions/runs/34182089685/job/101923062352	
+test (windows-latest, false)	pass	4m12s	https://github.com/lidge-jun/codexclaw/actions/runs/34182089685/job/101923062391	
+test (windows-latest, true)	pass	3m40s	https://github.com/lidge-jun/codexclaw/actions/runs/34182089685/job/101923062191	
+wsl	pass	11m34s	https://github.com/lidge-jun/codexclaw/actions/runs/34182089702/job/101923062230	

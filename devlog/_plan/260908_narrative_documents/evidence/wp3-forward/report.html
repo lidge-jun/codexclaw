@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adopt gpt-researcher for a citation-heavy research bot — September 2026</title>
+<style>
+  :root { --ink:#16191d; --mute:#5b636d; --line:#dfe3e8; --accent:#1f6f5c; --warn:#a33a2a; --bg:#fbfbfa; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif; }
+  main { max-width:820px; margin:0 auto; padding:48px 24px 96px; }
+  h1 { font-size:1.85rem; line-height:1.25; margin:0 0 .4rem; letter-spacing:-.01em; }
+  h2 { font-size:1.18rem; margin:2.6rem 0 .7rem; line-height:1.35; border-top:1px solid var(--line); padding-top:1.5rem; }
+  h3 { font-size:1rem; margin:1.6rem 0 .4rem; }
+  .meta { color:var(--mute); font-size:.88rem; margin-bottom:1.8rem; }
+  .answer { background:#fff; border:1px solid var(--line); border-left:3px solid var(--accent);
+            padding:18px 20px; border-radius:4px; margin:1.4rem 0 0; }
+  .answer strong { color:var(--accent); }
+  table { border-collapse:collapse; width:100%; margin:1rem 0; font-size:.9rem; background:#fff; }
+  th,td { border:1px solid var(--line); padding:7px 10px; text-align:left; vertical-align:top; }
+  th { background:#f2f4f5; font-weight:600; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .dead { color:var(--warn); font-weight:600; }
+  .stale { color:#8a6d1f; font-weight:600; }
+  .live { color:var(--accent); font-weight:600; }
+  figure { margin:1.6rem 0; }
+  figcaption { color:var(--mute); font-size:.85rem; margin-top:.5rem; }
+  ol.src { font-size:.85rem; color:var(--mute); padding-left:1.4rem; }
+  ol.src li { margin:.3rem 0; word-break:break-all; }
+  a { color:var(--accent); }
+  .limits { background:#fff; border:1px solid var(--line); padding:14px 20px; border-radius:4px; font-size:.93rem; }
+  sup a { text-decoration:none; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Adopt gpt-researcher for a citation-heavy research bot</h1>
+<p class="meta">Research report &middot; 2026-09-08 &middot; For an engineering lead choosing a framework within one week.
+Repository state as returned by the GitHub REST API on 2026-09-08.</p>
+
+<p>A small team needs one open-source deep-research framework to carry a citation-heavy
+research bot. The obvious starting point no longer works: LangChain&rsquo;s
+<code>open_deep_research</code> is archived, and Stanford&rsquo;s STORM &mdash; the strongest
+citation design in the field &mdash; has not been pushed in about eleven months. That leaves
+a choice between lightweight recursive loops and heavyweight orchestrator-worker harnesses.</p>
+
+<div class="answer">
+<p><strong>Adopt gpt-researcher.</strong> It is the only candidate that is at once actively
+maintained (last push 2026-08-27<sup><a href="#s2">2</a></sup>), permissively licensed
+(Apache-2.0), sized for a small team, and built around cited reports as its stated
+output<sup><a href="#s8">8</a></sup>. Its loop is a planner/execution split with an optional
+recursive depth-and-breadth mode, so you start simple and turn on recursion only where a
+topic needs it.</p>
+</div>
+
+<h2>Maintenance status eliminates two candidates before architecture matters</h2>
+
+<table>
+<thead><tr><th>Repository</th><th>Stars</th><th>Last push</th><th>Archived</th><th>License</th><th>Language</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>bytedance/deer-flow</td><td class="num">81,881</td><td class="live">2026-09-08</td><td>no</td><td>MIT</td><td>Python</td><td><a href="#s5">5</a></td></tr>
+<tr><td>modelscope/ms-agent</td><td class="num">4,380</td><td class="live">2026-09-07</td><td>no</td><td>Apache-2.0</td><td>Python</td><td><a href="#s6">6</a></td></tr>
+<tr><td>langchain-ai/deepagents</td><td class="num">29,121</td><td class="live">2026-09-07</td><td>no</td><td>MIT</td><td>Python</td><td><a href="#s7">7</a></td></tr>
+<tr><td><strong>assafelovic/gpt-researcher</strong></td><td class="num">29,337</td><td class="live">2026-08-27</td><td>no</td><td>Apache-2.0</td><td>Python</td><td><a href="#s2">2</a></td></tr>
+<tr><td>dzhng/deep-research</td><td class="num">19,650</td><td class="stale">2026-04-11</td><td>no</td><td>MIT</td><td>TypeScript</td><td><a href="#s4">4</a></td></tr>
+<tr><td>stanford-oval/storm</td><td class="num">31,247</td><td class="stale">2025-09-30</td><td>no</td><td>MIT</td><td>Python</td><td><a href="#s3">3</a></td></tr>
+<tr><td>langchain-ai/open_deep_research</td><td class="num">12,675</td><td>2026-08-10</td><td class="dead">yes</td><td>MIT</td><td>Python</td><td><a href="#s1">1</a></td></tr>
+</tbody>
+</table>
+
+<p>Four repositories saw a push within the last month. <code>dzhng/deep-research</code> is
+five months stale, survivable for a reference implementation you copy from and
+disqualifying for a dependency. STORM is eleven months stale. <code>open_deep_research</code>
+is read-only. The GitHub payload carries no <code>archived_at</code> value, so the archive
+date itself is unknown and is not claimed here.</p>
+
+<h2>Two loop shapes divide the field, and picking one is really a team-size decision</h2>
+
+<figure>
+<svg viewBox="0 0 780 320" width="100%" role="img" aria-label="Recursive breadth/depth loop compared with orchestrator-worker delegation">
+  <rect x="0" y="0" width="780" height="320" fill="#ffffff" stroke="#dfe3e8"/>
+  <text x="24" y="34" font-size="15" font-weight="600" fill="#16191d">Recursive breadth / depth</text>
+  <text x="24" y="54" font-size="11.5" fill="#5b636d">dzhng &middot; gpt-researcher deep mode</text>
+  <circle cx="110" cy="96" r="20" fill="#1f6f5c"/><text x="110" y="101" font-size="11" fill="#fff" text-anchor="middle">Q</text>
+  <line x1="110" y1="116" x2="60"  y2="156" stroke="#1f6f5c" stroke-width="1.5"/>
+  <line x1="110" y1="116" x2="110" y2="156" stroke="#1f6f5c" stroke-width="1.5"/>
+  <line x1="110" y1="116" x2="160" y2="156" stroke="#1f6f5c" stroke-width="1.5"/>
+  <circle cx="60"  cy="172" r="15" fill="#8fbfb2"/><circle cx="110" cy="172" r="15" fill="#8fbfb2"/><circle cx="160" cy="172" r="15" fill="#8fbfb2"/>
+  <line x1="60" y1="187" x2="40" y2="220" stroke="#8fbfb2" stroke-width="1.5"/>
+  <line x1="60" y1="187" x2="80" y2="220" stroke="#8fbfb2" stroke-width="1.5"/>
+  <line x1="160" y1="187" x2="140" y2="220" stroke="#8fbfb2" stroke-width="1.5"/>
+  <line x1="160" y1="187" x2="180" y2="220" stroke="#8fbfb2" stroke-width="1.5"/>
+  <circle cx="40" cy="232" r="10" fill="#cde3dc"/><circle cx="80" cy="232" r="10" fill="#cde3dc"/>
+  <circle cx="140" cy="232" r="10" fill="#cde3dc"/><circle cx="180" cy="232" r="10" fill="#cde3dc"/>
+  <text x="250" y="176" font-size="11.5" fill="#5b636d">breadth = fan-out per level</text>
+  <text x="250" y="194" font-size="11.5" fill="#5b636d">depth = recursion while depth &gt; 0</text>
+  <text x="250" y="212" font-size="11.5" fill="#5b636d">cost controlled by two integers</text>
+  <line x1="400" y1="20" x2="400" y2="300" stroke="#dfe3e8" stroke-width="1"/>
+  <text x="430" y="34" font-size="15" font-weight="600" fill="#16191d">Orchestrator &ndash; worker</text>
+  <text x="430" y="54" font-size="11.5" fill="#5b636d">deer-flow &middot; ms-agent</text>
+  <rect x="590" y="80" width="110" height="34" rx="4" fill="#16191d"/>
+  <text x="645" y="102" font-size="11.5" fill="#fff" text-anchor="middle">lead agent</text>
+  <rect x="470" y="170" width="100" height="30" rx="4" fill="#4d6b7f"/><text x="520" y="190" font-size="11" fill="#fff" text-anchor="middle">searcher</text>
+  <rect x="595" y="170" width="100" height="30" rx="4" fill="#4d6b7f"/><text x="645" y="190" font-size="11" fill="#fff" text-anchor="middle">worker</text>
+  <rect x="720" y="170" width="50" height="30" rx="4" fill="#4d6b7f"/><text x="745" y="190" font-size="11" fill="#fff" text-anchor="middle">…</text>
+  <line x1="645" y1="114" x2="520" y2="170" stroke="#4d6b7f" stroke-width="1.5"/>
+  <line x1="645" y1="114" x2="645" y2="170" stroke="#4d6b7f" stroke-width="1.5"/>
+  <line x1="645" y1="114" x2="745" y2="170" stroke="#4d6b7f" stroke-width="1.5"/>
+  <line x1="520" y1="200" x2="645" y2="245" stroke="#a9b6c0" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <line x1="645" y1="200" x2="645" y2="245" stroke="#a9b6c0" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <line x1="745" y1="200" x2="645" y2="245" stroke="#a9b6c0" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <rect x="575" y="245" width="140" height="30" rx="4" fill="#1f6f5c"/>
+  <text x="645" y="265" font-size="11" fill="#fff" text-anchor="middle">synthesis / reporter</text>
+  <text x="430" y="176" font-size="11.5" fill="#5b636d">isolated</text>
+  <text x="430" y="194" font-size="11.5" fill="#5b636d">context</text>
+  <text x="430" y="212" font-size="11.5" fill="#5b636d">per worker</text>
+</svg>
+<figcaption>The choice is operational, not intellectual: recursion is tuned with two numbers a
+small team can reason about, while delegation buys parallelism and specialist behavior in
+exchange for a harness someone has to run. Shapes read from the project READMEs
+(<a href="#s9">9</a>, <a href="#s11">11</a>, <a href="#s12">12</a>).</figcaption>
+</figure>
+
+<table>
+<thead><tr><th>Framework</th><th>Loop architecture</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>gpt-researcher</td><td>Planner writes research questions, execution agents gather in parallel, publisher aggregates; a separate Deep Research mode adds &ldquo;tree-like exploration with configurable depth and breadth&rdquo;</td><td>README L56, L215&ndash;217 <a href="#s8">8</a></td></tr>
+<tr><td>dzhng/deep-research</td><td>Pure recursive breadth/depth: SERP query fan-out, learnings extracted, recursion continues while <code>depth &gt; 0</code> (breadth 3&ndash;10, default 4; depth 1&ndash;5, default 2)</td><td>README L72, L140&ndash;141, L182&ndash;196 <a href="#s9">9</a></td></tr>
+<tr><td>stanford-oval/storm</td><td>Neither: two-stage pipeline (research and outline, then cited writing) driven by perspective-guided question asking; Co-STORM adds a turn-managed discourse protocol</td><td>README L44&ndash;68 <a href="#s10">10</a></td></tr>
+<tr><td>bytedance/deer-flow</td><td>Orchestrator-worker on LangGraph: a lead agent spawns isolated-context sub-agents, which the README calls &ldquo;an optimization, not the default response to a complex request&rdquo;</td><td>README L12, L879, L1218&ndash;1226 <a href="#s11">11</a></td></tr>
+<tr><td>modelscope/ms-agent</td><td>Orchestrator-worker: Researcher plus tool-augmented Searcher/Reporter sub-agents over a decoupled todo list, evidence store, and report generator</td><td>README L338, L341 <a href="#s12">12</a></td></tr>
+</tbody>
+</table>
+
+<h2>Three frameworks treat citations as a design goal, and only one of them is alive</h2>
+
+<p>STORM is the strongest on paper: its entire two-stage design exists to produce long
+articles <em>with citations</em>, collecting references before writing rather than
+retrofitting them<sup><a href="#s10">10</a></sup>. gpt-researcher states that its reports are
+&ldquo;detailed, factual, and unbiased&hellip; with citations&rdquo;<sup><a href="#s8">8</a></sup>.
+MS-Agent ships a decoupled evidence store and report generator, the right shape for
+provenance<sup><a href="#s12">12</a></sup>. dzhng compiles sources and references at report
+time<sup><a href="#s9">9</a></sup>. DeerFlow documents sub-agent receipts, but its scope is a
+general super-agent harness rather than a citation pipeline<sup><a href="#s11">11</a></sup>.</p>
+
+<p>Because STORM is not being pushed, the practical path is to build on gpt-researcher and
+borrow STORM&rsquo;s ordering: pin the reference set first, then write against that fixed set.</p>
+
+<h2>Why not the others</h2>
+
+<p><strong>deer-flow</strong> is the most active and by far the most starred, but it is a
+super-agent harness for long-horizon work with sandboxes, memory, skills, and a message
+gateway. Its 897 open issues<sup><a href="#s5">5</a></sup> and the sheer breadth of its README
+are the signal: adopting it means inheriting a platform. Choose it only if the roadmap also
+wants coding and long-horizon surfaces.</p>
+
+<p><strong>ms-agent</strong> is current and has the cleanest evidence-store story. It claims
+#2 open-source (#5 overall) on DeepResearch Bench at 55.31<sup><a href="#s12">12</a></sup>,
+but that is the project&rsquo;s own README; the leaderboard was not opened, so the standing
+is unverified here.</p>
+
+<p><strong>dzhng/deep-research</strong> is the best code to read and the worst to depend on:
+deliberately the simplest implementation of the loop, in TypeScript, five months without a
+push. Copy the loop, skip the dependency.</p>
+
+<p><strong>open_deep_research</strong> is archived<sup><a href="#s1">1</a></sup>.
+<strong>deepagents</strong> in the same organization is live<sup><a href="#s7">7</a></sup>,
+but no opened source declares it the successor, so that stays an open question.</p>
+
+<h2>What this does not cover</h2>
+<div class="limits">
+<ul>
+<li>Architecture claims come from READMEs, not from reading loop implementations; a README can describe intent the code drifted from.</li>
+<li>No output-quality comparison was run. Nothing here says which framework produces better citations, only which are designed around them.</li>
+<li>Star counts measure attention, not adoption of an architecture.</li>
+<li>STORM&rsquo;s eleven-month gap is a fact; calling it abandonment is an inference. No maintainer statement was opened.</li>
+<li>The candidate-completeness sweep was not run within budget, so a leader outside these seven repositories could have been missed.</li>
+<li>MS-Agent&rsquo;s benchmark standing is self-reported.</li>
+</ul>
+</div>
+
+<h3>Open questions</h3>
+<ol>
+<li>Is deepagents the official successor to open_deep_research?</li>
+<li>Does MS-Agent&rsquo;s DeepResearch Bench claim hold on the independent leaderboard?</li>
+<li>Is STORM deliberately finished, or unmaintained?</li>
+</ol>
+
+<h2>Next steps</h2>
+<p>Prototype on gpt-researcher this week. Run the standard planner/execution pipeline first,
+enable the recursive depth/breadth mode only for topics that need it, and adopt STORM&rsquo;s
+reference-before-writing ordering for citation fidelity. Revisit deer-flow only if the
+roadmap grows past research into long-horizon agent work.</p>
+
+<h2>Sources</h2>
+<p class="meta">All retrieved 2026-09-08. Every number, date, and license above traces to one of these opened URLs.</p>
+<ol class="src">
+<li id="s1">GitHub REST &mdash; langchain-ai/open_deep_research. https://api.github.com/repos/langchain-ai/open_deep_research</li>
+<li id="s2">GitHub REST &mdash; assafelovic/gpt-researcher. https://api.github.com/repos/assafelovic/gpt-researcher</li>
+<li id="s3">GitHub REST &mdash; stanford-oval/storm. https://api.github.com/repos/stanford-oval/storm</li>
+<li id="s4">GitHub REST &mdash; dzhng/deep-research. https://api.github.com/repos/dzhng/deep-research</li>
+<li id="s5">GitHub REST &mdash; bytedance/deer-flow. https://api.github.com/repos/bytedance/deer-flow</li>
+<li id="s6">GitHub REST &mdash; modelscope/ms-agent. https://api.github.com/repos/modelscope/ms-agent</li>
+<li id="s7">GitHub REST &mdash; langchain-ai/deepagents. https://api.github.com/repos/langchain-ai/deepagents</li>
+<li id="s8">gpt-researcher README. https://raw.githubusercontent.com/assafelovic/gpt-researcher/main/README.md</li>
+<li id="s9">dzhng/deep-research README. https://raw.githubusercontent.com/dzhng/deep-research/main/README.md</li>
+<li id="s10">STORM README. https://raw.githubusercontent.com/stanford-oval/storm/main/README.md</li>
+<li id="s11">DeerFlow README. https://raw.githubusercontent.com/bytedance/deer-flow/main/README.md</li>
+<li id="s12">MS-Agent README. https://raw.githubusercontent.com/modelscope/ms-agent/main/README.md</li>
+</ol>
+
+<h2>Appendix: evidence trail</h2>
+<p class="meta">Audit artifacts kept separately in this directory (READER-DOC-04):
+<code>plan.md</code> (scope, query families, stated budget), <code>journal.md</code> (wave log
+and stop rule), <code>ledger.md</code> (14 claim-to-source rows with tier and confidence),
+<code>gap-matrix.md</code> (post-wave reflections). Raw payloads: <code>api-*.json</code>,
+<code>readme-*.md</code>. Twelve counted Tier-2 opens across two waves; six earlier
+unauthenticated requests returned HTTP 403 rate-limit bodies, were not counted as opens, and
+were re-run against the same REST endpoints with authentication.</p>
+
+</main>
+</body>
+</html>
+

@@ -74,6 +74,10 @@ function parseIdentity(raw: unknown): SourceIdentity | null {
     capturedAt: typeof s.capturedAt === "string" ? s.capturedAt : new Date(0).toISOString(),
   };
   if (typeof s.treeHash === "string") id.treeHash = s.treeHash;
+  if (s.sourceRoot !== undefined) {
+    if (typeof s.sourceRoot !== "string" || !isAbsolute(s.sourceRoot)) return null;
+    id.sourceRoot = s.sourceRoot;
+  }
   return id;
 }
 

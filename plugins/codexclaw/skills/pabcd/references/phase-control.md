@@ -114,3 +114,40 @@ re-entry occurs.
 
 Execution intent and HOTL activation belong to [cxc-loop](../../loop/SKILL.md).
 This reference owns phase commands and attestations, not permission to execute.
+
+### Source worktrees
+
+A native session may keep its original cwd while implementing in a linked Git
+worktree. From the native cwd, run `cxc session source /absolute/worktree --json`
+before entering B. It verifies native identity, pins the source worktree in the
+same repository, and leaves session/goalplan/evidence storage in the native cwd.
+`cxc session current --json` reports `sourceCwd` and, for a bound worktree,
+`sourceIdentity`. This is a source snapshot, not evidence that a check ran.
+
+B entry/delta, `receipt test` execution and Check/final validation use that
+worktree. Plans and receipt paths still resolve from the native cwd; use absolute
+worktree paths for plan documents. The binding is immutable; repeating the same
+command is idempotent. B entry pins the root in session state; if its binding file
+is lost, the command can restore only that same pinned root, including during Check. A missing or changed binding cannot count as implementation.
+A linked worktree is not exclusive to a session: edits by another actor in the
+same worktree remain indistinguishable. Use a task-owned worktree.
+
+For QA verdict `sourceSnapshotAt`, reviewer-lane `sourceIdentity` and final-gate
+`sourceIdentity`, capture `session current --json` at observation time and retain
+the entire identity, including `sourceRoot`. Do not copy an old snapshot or
+reconstruct it from native HEAD. Test receipts capture automatically. Rootless
+legacy receipts remain usable for unbound sessions only. Run
+`cxc loop validate --session <id> --slug <slug>` so validation uses the same binding.
+
+An old, unbound B cycle cannot be rebound retroactively: its baseline describes the old
+source. Preserve its evidence, stop any active goal using host-supported controls,
+then use the supported return-to-I/replan path (I -> P with an explicit documented
+readiness override when requirements are already known), bind before B, review the
+plan and perform real new work before Check. Never fabricate a baseline or edit
+native SQLite/FSM bytes to make the old cycle pass. An explicit reset also starts
+a new cycle but is a separately authorized control operation.
+
+If the pinned worktree was removed, recreate it at that path or start a new
+native session for a different worktree. Reset does not retarget a source.
+Binding publication requires filesystem hard-link support; unsupported filesystems
+fail without replacing existing state or bindings.

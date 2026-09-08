@@ -82,7 +82,9 @@ import {
 
 
 } from "./goalplan.js";
- import { captureSourceIdentity, compareSource, describeSource } from "./source-identity.js";
+ import { compareSource, describeSource } from "./source-identity.js";
+import { resolveSessionSource } from "./session-source.js";
+import { captureSessionSourceIdentity } from "./session-source-identity.js";
 import { validateCheckReceipt } from "./check-gate.js";
 import { validatePlanArtifacts } from "./plan-gate.js";
 import { validateWorkPhaseBinding,                  } from "./attest.js";
@@ -806,6 +808,11 @@ function handleOrchestrateCommand(
     return null;
   }
 
+  if (command.verb !== "status" && command.verb !== "reset") {
+    try { resolveSessionSource(payload.cwd, payload.session_id); }
+    catch (err) { return buildContextOutput("UserPromptSubmit", `[codexclaw — refused: SOURCE-ROOT: ${err instanceof Error ? err.message : String(err)}]`); }
+  }
+
   const closePhaseId = command.verb === "D" ? command.attest?.workPhaseId?.trim() ?? "" : "";
   const recoveringDclose = command.verb === "D" && matchesDcloseRecovery(state, closePhaseId);
   let closedWorkPhaseId                = closePhaseId || null;
@@ -834,8 +841,15 @@ function handleOrchestrateCommand(
   // SOURCE-DELTA-01 (050): the chat path gets the same B>C check as the CLI. Wiring
   // only one of them would leave a phrasing that bypasses the gate entirely, which
   // is the class of hole this unit exists to close.
+  if (state.phase === "B" && command.verb === "C" && !state.phaseEntrySource
+      && resolveSessionSource(payload.cwd, payload.session_id) !== payload.cwd) {
+    return buildContextOutput("UserPromptSubmit", "[codexclaw — refused: SOURCE-ROOT: bound source has no valid B baseline. Re-plan before continuing.]");
+  }
   if (state.phase === "B" && command.verb === "C" && state.phaseEntrySource) {
-    const now = captureSourceIdentity(payload.cwd, { excludeCodexclawArtifacts: true });
+    const now = captureSessionSourceIdentity(payload.cwd, payload.session_id, { excludeCodexclawArtifacts: true });
+    if (state.phaseEntrySource.sourceRoot !== now.sourceRoot) {
+      return buildContextOutput("UserPromptSubmit", "[codexclaw — refused: SOURCE-ROOT: source binding changed since B began. Re-plan and capture a new baseline; nothing was written.]");
+    }
     if (compareSource(state.phaseEntrySource, now).kind === "same") {
       return buildContextOutput(
         "UserPromptSubmit",
@@ -1212,7 +1226,7 @@ function handleOrchestrateCommand(
   // ordinary forward-edge write, so they are computed once here instead of inside one
   // branch. The values are unchanged from the pre-wp5 block.
   const entrySource = result.state && result.state.phase === "B"
-    ? captureSourceIdentity(payload.cwd, { excludeCodexclawArtifacts: true })
+    ? captureSessionSourceIdentity(payload.cwd, payload.session_id, { excludeCodexclawArtifacts: true })
     : null;
   const planBinding = state.phase === "P" && result.state?.phase === "A"
     ? chatPlanBinding(payload.cwd, state.slug, command.attest)
@@ -1290,6 +1304,7 @@ function handleOrchestrateCommand(
     writeState(payload.cwd, {
       ...result.state,
       phaseEntrySource: entrySource,
+      ...(entrySource?.sourceRoot ? { boundSourceRoot: entrySource.sourceRoot } : {}),
       planUnit: planBinding ? planBinding.unit : keepBinding ? state.planUnit : null,
       planEpoch: planBinding ? planBinding.epoch : keepBinding ? state.planEpoch : null,
       // 075: same rule as the CLI — C mints, staying in C keeps, elsewhere drops.

@@ -9,6 +9,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateEvidence } from "../skills/qa/scripts/validate-evidence.mjs";
+import { buildGoalplan, writeGoalplan, readGoalplan, validateGoalplan } from "../components/pabcd-state/src/goalplan.ts";
+import { compareSource } from "../components/pabcd-state/src/source-identity.ts";
 import { parseSourceBoundReceipt } from "../components/pabcd-state/src/source-receipt.ts";
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -293,4 +295,53 @@ test("V17: the CLI entry point prints usage without a directory", async () => {
   // which is how a genuinely broken entry point read as a code mismatch.
   assert.equal(result.exited, 2, "the entry point must run and reject a missing directory");
   assert.match(result.stderr, /usage: validate-evidence\.mjs/);
+});
+
+test("bound QA receipts retain the root and reject mixed worktrees", () => {
+  const root = workspace();
+  const sourceRoot = resolve(root, "worktree");
+  scenario(root, "a", webVerdict({ sourceSnapshotAt: identity({ sourceRoot }) }), { "shot.png": pngBytes() });
+  const receipt = validateEvidence(qaDir(root), { emitReceipt: true });
+  assert.equal(receipt.ok, true, receipt.errors.join("; "));
+  const parsed = parseSourceBoundReceipt(receipt.receiptPath, root, "qa");
+  assert.equal(parsed.sourceIdentity?.sourceRoot, sourceRoot);
+  scenario(root, "b", webVerdict({ sourceSnapshotAt: identity({ sourceRoot: resolve(root, "other") }) }), { "shot.png": pngBytes() });
+  assert.equal(validateEvidence(qaDir(root)).ok, false);
+});
+
+test("malformed QA source roots are refused", () => {
+  for (const sourceRoot of [123, "", "relative/path"]) {
+    const root = workspace();
+    scenario(root, "a", webVerdict({ sourceSnapshotAt: identity({ sourceRoot }) }), { "shot.png": pngBytes() });
+    assert.equal(validateEvidence(qaDir(root)).ok, false);
+  }
+});
+
+
+test("bound QA receipt survives final goalplan validation and root removal fails", () => {
+  const root = workspace();
+  const source = identity({ sourceRoot: resolve(root, "worktree") });
+  scenario(root, "a", webVerdict({ sourceSnapshotAt: source }), { "shot.png": pngBytes() });
+  const qa = validateEvidence(qaDir(root), { emitReceipt: true });
+  assert.equal(qa.ok, true, qa.errors.join("; "));
+  const testPath = join(root, ".codexclaw", "evidence", "test.json");
+  writeFileSync(testPath, JSON.stringify({ kind: "test", sourceIdentity: source }));
+  const base = buildGoalplan({ objective: "bound final QA" });
+  const plan = { ...base, schemaVersion: 2,
+    workPhases: [{ id: "wp1", title: "done", status: "done", tasks: [], criteriaIds: ["c-1"] }],
+    criteria: [{ id: "c-1", scenario: "visual", expectedEvidence: "capture", capturedEvidence: qa.receiptPath, status: "met", surface: "web" }],
+    finalGate: { status: "approved", reviewRoundId: "r1", sourceIdentity: source, testReceiptPath: testPath, qaReceiptPath: qa.receiptPath, verdict: "pass", qaRequired: true, updatedAt: source.capturedAt },
+    reviewRounds: [{ roundId: "r1", purpose: "final_gate", planPath: "plan.md", planSha256: "c".repeat(64), status: "approved", openedAt: source.capturedAt, lane: { launchId: "r1-x", verdict: "pass", sourceIdentity: source } }],
+  };
+  writeGoalplan(root, plan);
+  const restored = readGoalplan(root, plan.slug);
+  const context = { cwd: root, captureSourceIdentity: () => source, compareSource, readReceipt: (path, kind) => parseSourceBoundReceipt(path, root, kind) };
+  const result = validateGoalplan(restored, context);
+  assert.equal(result.ok, true, result.reasons.join("; "));
+  const bytes = JSON.parse(readFileSync(qa.receiptPath, "utf8"));
+  delete bytes.sourceIdentity.sourceRoot;
+  writeFileSync(qa.receiptPath, JSON.stringify(bytes));
+  const invalid = validateGoalplan(restored, context);
+  assert.equal(invalid.ok, false);
+  assert.match(invalid.reasons.join("; "), /QA receipt.*different source/);
 });

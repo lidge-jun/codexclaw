@@ -67,6 +67,14 @@ Two deliberate differences from common practice, kept on purpose:
    here it is a hard gate because the executor (an agent) will otherwise
    confidently build from a flawed plan.
 
+## Reader narrative vs evidence
+
+`000_plan.md` carries the reader narrative: the answer, why, and what changed, per
+[Reader documents](../../dev/references/reader-documents.md). Evidence, receipts and
+probe logs live under `evidence/` or a numbered evidence doc and are linked from the
+narrative, never inlined into it. A reviewer who opens `000_plan.md` should be able
+to say what the unit decided without reading a single command transcript.
+
 ## Class-scaled documentation
 
 The full master-plan, diff-level roadmap, and doc-audit routine is mandatory for
