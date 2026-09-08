@@ -15,3 +15,11 @@ command observes, per PLAN-VERIFIER-REAL-01.
 
 Not run: full product build/typecheck (docs-only work-phases); GUI tests.
 
+
+## wp1 C run
+
+- check-links.mjs over the seven plan docs: exit 1 with 5 missing targets, all of them
+  quoted future paths (`reader-documents.md`, `deep-research.md`) that wp2/wp3 create.
+  Expected for plan text; the checker is meant for shipped skill files, where it must be 0.
+- `cxc receipt test -- node --test plugins/codexclaw/test/skill-catalog.test.mjs`: 4 pass,
+  receipt at .codexclaw/evidence/<session>/test-receipt.json.
