@@ -4,7 +4,20 @@ All notable changes to codexclaw are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.24] - 2026-09-08
+
+### Added
+
+- Reader-facing document structure: `cxc-dev` `references/reader-documents.md`
+  (READER-DOC-01..05) — reader contract, answer first (SCQA / 두괄식), claim-shaped
+  descending sections, evidence separated into an anchored appendix, fresh-reader
+  check — routed from `cxc-dev-diagram-viewer`, `cxc-pabcd` plan/check/D,
+  `cxc-dev-scaffolding` implementation-log and `cxc-kwrite`.
+- Deep research protocol: `cxc-search` `references/deep-research.md`
+  (SEARCH-DEEP-01..06) with query families, gap matrix, budgets and stop rules,
+  claim-to-source ledger, `report-source.md`, artifact delivery and an Aside
+  browser lane; triggers 딥리서치 / 심층 조사 / deep-research; aligned with the host
+  deep-research skill.
 
 ### Fixed
 
@@ -13,6 +26,9 @@ All notable changes to codexclaw are documented here. The format follows
   follow that tree while native session identity and evidence storage stay put.
   `session current --json` exposes a bound source snapshot for QA/review producers.
   Refuse missing/switched source roots instead of accepting them as implementation.
+  (#84, thisisjun786). Canonicalize binding paths with `realpathSync.native` so Windows
+  8.3 short-name temp directories bind, and strip inherited Git routing variables from
+  source capture and the receipt command so a receipt never describes another tree.
 
 ## [0.2.23] - 2026-09-08
 
@@ -63,8 +79,6 @@ All notable changes to codexclaw are documented here. The format follows
   with host permission and wake checks. Routine progress notices and unsolicited
   follow-ups stay in the current task; read-only context and authorized subagents
   remain available.
-
-## [Unreleased]
 
 ## [0.2.16] — 2026-08-30
 
