@@ -178,7 +178,7 @@ Fill this before proposing anything:
 | Control | Expected | Observed | Delta |
 |---|---|---|---|
 | Rulesets on `main`/`preview`/`dev` | deletion, non_fast_forward, pull_request, required_status_checks | | |
-| Tag ruleset `v*` | deletion, non_fast_forward, update; no bypass | | |
+| Tag ruleset `v*` | deletion, non_fast_forward; no bypass (`update`: verify on a created ruleset) | | |
 | Classic protection | none | | |
 | `delete_branch_on_merge` | true | | |
 | `allow_auto_merge` + required checks | true + present | | |
