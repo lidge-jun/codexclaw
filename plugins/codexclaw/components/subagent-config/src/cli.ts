@@ -14,11 +14,12 @@
  *                        [--prompt <text>|--clear-prompt]
  */
 import { readConfig, setRole, projectConfigTrustToken, ROLES, EFFORTS, type RoleName, type RoleConfig, type EffortName } from "./store.ts";
+import { registerExecutor } from "./role-registration.ts";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export interface ParsedSubagentsArgs {
-  action: "list" | "get" | "set" | "trust-token" | "help";
+  action: "list" | "get" | "set" | "trust-token" | "register" | "help";
   role?: RoleName;
   patch?: Partial<RoleConfig>;
   error?: string;
@@ -34,6 +35,12 @@ export function parseSubagentsArgs(argv: string[]): ParsedSubagentsArgs {
   if (sub === undefined || sub === "list") return { action: "list" };
   if (sub === "help" || sub === "--help" || sub === "-h") return { action: "help" };
   if (sub === "trust-token") return { action: "trust-token" };
+
+  if (sub === "register") {
+    return argv.length === 2 && argv[1] === "executor"
+      ? { action: "register", role: "executor" }
+      : { action: "register", error: "usage: subagents register executor" };
+  }
 
   if (sub === "get") {
     if (!isRole(argv[1])) return { action: "get", error: `unknown role '${argv[1] ?? ""}' (expected ${ROLES.join("|")})` };
@@ -83,6 +90,7 @@ const HELP = [
   "  subagents               list all role configs",
   "  subagents get <role>    show one role config",
   "  subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort] [--prompt <text>|--clear-prompt]",
+  "  subagents register executor   register native role; restart Codex afterward",
   "  subagents trust-token   print an export bound to this repo and exact config",
   "",
   `  roles: ${ROLES.join(", ")}`,
@@ -110,6 +118,14 @@ export function runSubagents(parsed: ParsedSubagentsArgs, cwd: string): Subagent
       const token = projectConfigTrustToken(cwd);
       if (!token) return { code: 1, output: "subagents: cannot hash .codexclaw/subagents.json" };
       return { code: 0, output: `export CODEXCLAW_TRUST_PROJECT_SUBAGENTS='${token}'` };
+    }
+    case "register": {
+      try {
+        const result = registerExecutor();
+        return { code: 0, output: `${result.created ? "Registered" : "Already registered"}: ${result.path}\nStart a new Codex session and verify executor appears in the live spawn schema.` };
+      } catch (err) {
+        return { code: 1, output: `subagents: ${err instanceof Error ? err.message : String(err)}` };
+      }
     }
     case "set": {
       try {
