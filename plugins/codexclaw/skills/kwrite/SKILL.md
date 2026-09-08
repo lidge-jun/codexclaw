@@ -70,5 +70,8 @@ apply silently when polishing your own outgoing Korean prose.
   for a specific platform, audience, or format is a different job — use the
   skill that owns that surface (or plain judgment) and then run this
   protocol on the draft.
+- Structure is out of scope here. When the draft is a report or explainer, apply
+  [Reader documents](../dev/references/reader-documents.md) first (두괄식: 결론이
+  맨 앞에 있는지), then run this protocol on the sentences.
 - Non-Korean text: out of scope. Mixed-language docs: polish only the Korean
   prose, leave code/English untouched.

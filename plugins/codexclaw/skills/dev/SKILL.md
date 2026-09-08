@@ -212,6 +212,10 @@ wording (no Codex hook enforces skill text — `structure/00_philosophy.md` §1)
   rationale. Ship no placeholders, TODO-only deliverables, fake fallbacks, speculative wrapper
   layers, or broad defensive clutter without a named boundary reason. Code-smell catalog lives
   in §6 + `dev-code-reviewer` §3; this rule is about not emitting slop in the first place.
+- **Reader deliverables (FAMILY-READER-01).** A report, explainer, visual document or summary
+  written for a person follows [Reader documents](references/reader-documents.md): answer
+  first, evidence separated and anchored, fresh-reader check for delivered reports. Audit
+  artifacts (receipts, logs, ledgers) keep their raw form and are linked, not narrated.
 - **file:line evidence (FAMILY-CITE-01).** When reporting code findings, plans, reviews, or
   contradictions, cite `path:line`. Plans list exact paths + the verification command; review
   and audit findings carry `path:line`; verification claims carry the command + its output or

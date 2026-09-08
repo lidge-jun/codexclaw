@@ -27,7 +27,9 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Frontend implementation | `dev-frontend` | `dev-uiux-design` |
 | Design intent discovery | `dev-uiux-design` | `dev-frontend` |
 | Design judgment | `dev-uiux-design` | `dev-frontend` |
-| Visual document composition / diagram and report delivery | `dev-diagram-viewer` | `dev`; format-specific document owners retain PDF/DOCX/Slides mechanics |
+| Visual document composition / diagram and report rendering and delivery mechanics | `dev-diagram-viewer` | `dev`; format-specific document owners retain PDF/DOCX/Slides mechanics |
+| Reader-facing document structure (READER-DOC-*) | `dev/references/reader-documents.md` | `dev` Family Invariants, `dev-diagram-viewer`, `pabcd` plan-output/phase-check/D, `dev-scaffolding` implementation-log, `kwrite`, `search` deep-research |
+| Deep research protocol (SEARCH-DEEP-*) | `search/references/deep-research.md` | `search` Tier 3, `dev` browser-routing |
 | Operational gates | `dev-devops` | `dev-backend`, `dev-scaffolding` |
 | Project scaffolding / docs | `dev-scaffolding` | `pabcd` |
 | C0/C1 classification and record exemption | dev §0.0/§0.1 | pabcd, dev-scaffolding |

@@ -1,9 +1,9 @@
 ---
 name: cxc-search
-description: "MUST USE for external, current, real-time, or public-web lookups — latest releases/versions, news, prices, docs, status, X/Twitter, and deep research. Routes Korean and English lookup verbs to a codex-native search ladder, never an accidental repository grep. Triggers: search, look up, latest, current, news, real-time, X, Twitter, deep research, 검색, 검색해, 찾아봐, 찾아줘, 알아봐, 웹검색."
+description: "MUST USE for external, current, real-time, or public-web lookups — latest releases/versions, news, prices, docs, status, X/Twitter, and deep research with a cited report. Routes Korean and English lookup verbs to a codex-native search ladder, never an accidental repository grep. Triggers: search, look up, latest, current, news, real-time, X, Twitter, deep research, deep-research, 검색, 검색해, 찾아봐, 찾아줘, 알아봐, 웹검색, 딥리서치, 심층 조사."
 metadata:
-  last-verified: "2026-07-02"
-  short-description: "Codex-native unified search: 3-tier discover->prove->deep-research ladder + Korean intent guard."
+  last-verified: "2026-09-08"
+  short-description: "Codex-native unified search: discover -> prove -> deep-research ladder with Aside lane and Korean intent guard."
 ---
 
 # search — Unified Search Hub
@@ -60,7 +60,8 @@ Korean Intent Guard (which picks web vs docs vs repo):
 - **official-doc fact** — API/library behavior. Prefer official docs first, then open for proof.
 - **implementation/source fact** — how something is built. Open the source/repo, not a summary.
 - **comprehensive research** — multi-source/contested. This is the only depth that justifies
-  Tier 3; ordinary latest/current lookups never auto-escalate to a subagent swarm.
+  Tier 3 ([Deep research](references/deep-research.md)); ordinary latest/current lookups never
+  auto-escalate to a subagent swarm.
 
 ### Tier 1 — Hosted web search (discovery)
 Use the built-in hosted web-search tool (the model-facing `web_search`) to run 1-3 focused,
@@ -78,7 +79,8 @@ via `scripts/agbrowse_helper.py doctor`, `agbrowse fetch "<url>" --json --browse
 is the recommended first attempt, not a prerequisite for all users.
 
 For JS-rendered or inaccessible content, select a suitable available browser. Prefer
-Aside for existing authenticated or judgment-heavy flows; use agbrowse for independent
+Aside for existing authenticated or judgment-heavy flows (deep-research Aside lane:
+[references/deep-research.md](references/deep-research.md)); use agbrowse for independent
 parallel extraction; available native browsers are valid alternatives. Local UI QA is
 not prohibited on agbrowse. Read current CLI/tool docs rather than assuming tool names,
 flags, schemas, platform support, or account access.
@@ -95,64 +97,32 @@ hosted search candidates via its documented input, or open known URLs. Never inv
 URLs. Optional tool absence does not justify installing drivers without authorization.
 Fallbacks preserve session, permission, and evidence boundaries from the shared policy.
 
-### Tier 3 — Deep Research Protocol (opt-in, formerly cxc-ultraresearch)
+### Tier 3 — Deep research (opt-in)
 
-For broad, costly, or multi-source research, the main agent deliberately spawns
-an explorer swarm: one query family or source class per explorer, source URLs
-returned, no edits, no hidden providers. Tier 3 is opt-in and must be requested
-deliberately — it never auto-fires for ordinary latest/current lookups. It is
-not a durable/background facility; durability is Phase 3 work.
+Read [Deep research](references/deep-research.md) before any Tier 3 work; it is the
+canonical owner of the protocol (SEARCH-DEEP-01..06). Enter only on an explicit
+request — "deep research", "딥리서치", "심층 조사", `$deep-research`, or the host's
+Deep research mode. Ordinary latest/current lookups never auto-escalate.
 
-#### EXPAND — query families first
-
-Before fetching, expand the question into distinct query families (entities,
-time windows, source classes, rival hypotheses). Each family is a separate line
-of proof, not a reworded duplicate. Record the expanded set so a reader can see
-the search space you chose.
-
-#### Waves
-
-- First wave: assign one query family or source class per explorer. Spawn a real
-  floor of at least two explorers when the question is genuinely multi-source; a
-  single agent is not a "swarm."
-- Run at least two expansion waves before converging: wave 1 discovers, wave 2
-  fills the gaps and chases the strongest leads from wave 1.
-- Stop rule: stop after three consecutive no-new-lead results, or at five waves,
-  whichever comes first. State which stop fired.
-- Dispatch mechanics depend on the session-pinned surface. On V2, spawn each explorer
-  with a distinct `task_name`, wait through the no-content mailbox, and chase a lead
-  with `followup_task(task_name)`; `interrupt_agent` stops a runaway turn. On V1,
-  `wait_agent` returns final status plus content, `send_input(agent_id)` reuses an
-  explorer, and `close_agent`/`resume_agent` retire or restore one. Spawn the whole
-  wave before waiting. Concurrency is V1 `agents.max_threads` (default 6) versus V2
-  `max_concurrent_threads_per_session` (default 4, root included).
-
-#### Journal + claim-ledger
-
-- Journal: each wave appends what was searched, what was found, and what remains
-  open. The journal is the audit trail of the research, not a summary written at
-  the end.
-- Claim-ledger: every factual claim is recorded with its proving source URL and
-  the tier it reached (Tier 1 discovered vs Tier 2 proven). A claim with no
-  Tier-2 proof is marked unverified, never promoted silently.
-- Verified-claims: the converged answer cites only claims that reached Tier-2
-  proof; unverified leads are listed separately as open questions.
-
-#### Grounding (no invention)
-
-Snippet consensus is not verification: agreement among any number of search
-snippets never substitutes for opening the source — a claim reaches verified
-only via Tier-2 proof. Every candidate and claim must come from a real search
-result, not memory. Discovery stays Tier 1 (hosted `web_search`); proof opens
-the source (`cxc-search` Tier 2, optionally the `agbrowse` HTTP-first proof
-helper). Do not fabricate URLs; do not cite a number before the source is
-opened.
+The loop in one paragraph: scope the question and reader, expand it into query
+families that each carry a goal, run discovery waves with an isolated reflection
+step that updates a gap matrix, budget source opens by question shape and state
+the stop rule that fired, keep one claim-to-source ledger, write `report-source.md`
+with gapless citations, then deliver the artifact through `dev-diagram-viewer` or
+the format-specific owner and verify it. Direct retrieval is the default; two or
+three explorer subagents only when independent lanes each need several dependent
+reads, each with this skill attached (SEARCH-ATTACH-01); dispatch mechanics are
+owned by `pabcd/references/delegation.md`. For signed-in,
+JS-rendered or delegated survey browsing the reference defines an Aside lane
+(SEARCH-DEEP-04) under the portable browser policy. When the host exposes a native
+deep-research skill, it owns plan tracking and artifact mechanics; this ladder
+supplies the search discipline underneath it.
 
 #### Boundaries
 
 - No new subagent role: this protocol rides base `explorer` subagents.
-- No server/daemon and no hidden providers; the swarm is one-shot agent work the
-  main agent requested.
+- No server/daemon and no hidden providers; any explorer dispatch is one-shot agent
+  work the main agent requested, and direct retrieval remains the default.
 - This protocol is on-demand Tier 3 work; it is selected deliberately and
   nothing auto-loads or auto-runs it.
 
@@ -263,6 +233,9 @@ spend Tier 3 subagents on a question Tier 1+2 already settled.
   on every distribution or host.
 - The blocked-URL reader and ultraresearch decomposition are absorbed as Tier 2
   helper tactics and Tier 3 method, not as new tiers or vendored browsers.
+- A host-exposed deep-research skill (for example `deep-research-work`) owns plan
+  tracking and artifact mechanics; `references/deep-research.md` supplies the search
+  discipline underneath it and aligns its steps with that skill.
 - `$cxc-lunasearch` is a dependent tool, not a tier. It hardcodes the Luna
   model and skips catalog probing; its error fallback is serial dispatch
   (re-spawn without the model field), not a probe round-trip.
