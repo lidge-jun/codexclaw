@@ -145,7 +145,7 @@ Every coding task is classified (C0-C5) before process depth is chosen. The pare
 | DevOps / infra | `dev-devops` | `dev-security` for credentials |
 | Scaffolding | `dev-scaffolding` | `dev-architecture` for boundaries |
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
-| Diagrams | `dev-diagram-viewer` | — |
+| Diagrams, visual documents, HTML/SVG reports and PDF composition | `dev-diagram-viewer` | Available document-format owner for export |
 
 Each router carries its own modular references (loaded on demand, never preloaded) and inherits the parent's verification gate, rule classes, and safety rules.
 
