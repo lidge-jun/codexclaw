@@ -71,3 +71,23 @@ symlink track viable again and the reinstall step unnecessary friction.
 
 The held PR is the other open thread. If its author adds the fallback, the executor role becomes
 canonical and this hold was a one-cycle delay rather than a rejection.
+
+## Final verification (head `6edae545`)
+
+Re-measured on the final head rather than carried from an earlier cycle.
+
+| Check | Command | Result |
+|---|---|---|
+| local == remote | `git rev-parse HEAD origin/dev` | both `6edae5451a05b32de209c353727854a83c4eced5` |
+| fast-forward | `git merge-base --is-ancestor 6d70ef44 HEAD` | FF_ANCESTRY_PROVEN, no force push |
+| dist drift | `git status --porcelain plugins/codexclaw/components` after `npm run build` | empty |
+| suite | `npm test` | tests 2697, pass 2696, fail 0, skip 1 |
+| gate | `npm run gate` | OK |
+| install fidelity | `diff -rq plugins/codexclaw <cache>/<version>` | exit 0 |
+| no symlinks | `find <cache> -type l \| wc -l` | 0 |
+| doctor | `node <cache>/<version>/bin/cxc.mjs doctor` | overall: PASS, 24 hook hashes trusted |
+
+Hook trust survived every reinstall in this unit. That is consistent with the corrected
+understanding: the trust hash covers the hook declaration, and no `hooks/*.json` declaration changed
+here. PR 91, which does change a matcher, would have broken it — one more reason its hold is
+the conservative call.
