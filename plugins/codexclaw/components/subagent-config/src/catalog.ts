@@ -1,24 +1,7 @@
-/**
- * catalog.ts — selectable model catalog (L25 / 250-252).
- *
- * Source = Codex-native catalog (always) + ocx-backed models (when ocx is
- * detected and exposes a catalog). Native entries come first; entries are
- * deduplicated by stable model id keeping the native one. No network fetch, no
- * vendored ocx files, no selected-model persistence (L24 owns that).
- *
- * Native source: the Codex live catalog cache at CODEX_MODELS_CACHE_PATH, read
- * through an allowlist. When the cache is absent/unreadable, fall back to the
- * documented NATIVE_OPENAI_MODELS set (opencodex src/codex-catalog.ts:44).
- *
- * Slug parity (L9.2 / 092): the LIVE Codex catalog keys each entry by `slug`
- * (bare like "gpt-5.5", or routed "provider/model"), not `id` (opencodex
- * codex-catalog.ts:152,183). The cache reader therefore accepts BOTH `id` and
- * `slug`, and dedup compares on the resolved key so a native slug and an ocx id
- * for the same model collapse, native kept first.
- */
+/** Native catalog parsing and pure catalog composition. Live OCX discovery lives in live-catalog.ts. */
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 
 export const NATIVE_OPENAI_MODELS = ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.6-luna"] as const;
 
@@ -26,11 +9,12 @@ export type ModelSource = "native" | "ocx";
 
 export interface CatalogEntry {
   id: string;
+  reasoningEfforts?: string[] | null;
   source: ModelSource;
   label: string;
 }
 
-export type CatalogState = "native-catalog" | "ocx-active" | "unsupported-ocx-catalog";
+export type CatalogState = "native-catalog" | "ocx-active" | "unsupported-ocx-catalog" | "unavailable";
 
 export interface Catalog {
   state: CatalogState;
@@ -71,47 +55,62 @@ function isRoutedSlug(key: string): boolean {
   return key.includes("/");
 }
 
-/** Read the Codex live catalog cache (CODEX_MODELS_CACHE_PATH) through the
- *  allowlist. Reads each entry by `id` OR `slug` (live catalog uses slug).
- *  Returns ids or null when absent/unreadable.
- *
- *  L20/WP4: the cache is the codex config catalog, which opencodex SYNCS its
- *  routed `provider/model` slugs into. codexclaw reads that config (it never
- *  calls ocx directly). So the allowlist admits BOTH the documented native ids
- *  AND any routed slug (contains "/") — dropping routed slugs would hide exactly
- *  the ocx-synced models the subagent config is meant to select. */
-export function readNativeCacheDefault(env: NodeJS.ProcessEnv = process.env): string[] | null {
-  // Resolve like opencodex (codex-paths.ts:30): explicit override, else
-  // $CODEX_HOME/models_cache.json, else ~/.codex/models_cache.json. Nothing in
-  // `cxc serve` sets CODEX_MODELS_CACHE_PATH, so the homedir default is what
-  // makes the ocx-synced routed slugs actually load in practice.
-  const path =
-    env.CODEX_MODELS_CACHE_PATH ??
-    join(env.CODEX_HOME ?? join(homedir(), ".codex"), "models_cache.json");
-  if (!existsSync(path)) return null;
+/** Root-level TOML path only: never read a similarly named key inside a table. */
+export function nativeCatalogPath(env: NodeJS.ProcessEnv = process.env): string | null {
+  if (env.CODEX_MODELS_CACHE_PATH?.trim()) return env.CODEX_MODELS_CACHE_PATH;
+  const home = env.CODEX_HOME?.trim() || join(homedir(), ".codex");
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
-    const list = Array.isArray(parsed) ? parsed : (parsed as { models?: unknown })?.models;
-    if (!Array.isArray(list)) return null;
-    const ids = list.map(entryKey).filter((x): x is string => typeof x === "string");
-    // allowlist: ship documented native ids AND routed provider/model slugs
-    // (the ocx-synced entries). Dedup preserves first-seen order so a slug+id
-    // duplicate yields one entry.
-    const seen = new Set<string>();
-    const allowed = ids.filter(
-      (id) =>
-        ((NATIVE_OPENAI_MODELS as readonly string[]).includes(id) || isRoutedSlug(id)) &&
-        !seen.has(id) &&
-        (seen.add(id), true),
-    );
-    return allowed.length ? allowed : null;
-  } catch {
-    return null;
+    const lines = readFileSync(join(home, "config.toml"), "utf8").split(/\r?\n/);
+    for (const line of lines) {
+      if (/^\s*\[/.test(line)) break;
+      if (!/^\s*(?:model_catalog_json|"model_catalog_json"|'model_catalog_json')\s*=/.test(line)) continue;
+      const match = /^\s*(?:model_catalog_json|"model_catalog_json"|'model_catalog_json')\s*=\s*("(?:\\.|[^"\\])*"|'[^']*')\s*(?:#.*)?$/.exec(line);
+      if (!match) return null;
+      const value: string = match[1].startsWith("'") ? match[1].slice(1, -1) : JSON.parse(match[1]);
+      if (!value.trim()) return null;
+      const expanded = value.startsWith("~/") || value.startsWith("~\\") ? join(homedir(), value.slice(2)) : value;
+      return isAbsolute(expanded) ? expanded : resolve(home, expanded);
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") return null;
   }
+  return join(home, "models_cache.json");
+}
+
+export function reasoningEfforts(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  return [...new Set(raw.flatMap(value => {
+    const effort = typeof value === "string" ? value : value && typeof value === "object" ? (value as { effort?: unknown }).effort : undefined;
+    return typeof effort === "string" && effort.length > 0 ? [effort] : [];
+  }))];
+}
+
+export function readNativeCatalog(env: NodeJS.ProcessEnv = process.env): CatalogEntry[] | null {
+  const path = nativeCatalogPath(env);
+  if (!path || !existsSync(path)) return null;
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+    const list = Array.isArray(parsed) ? parsed : (parsed as { models?: unknown } | null)?.models;
+    if (!Array.isArray(list)) return null;
+    const seen = new Set<string>();
+    return list.flatMap(raw => {
+      const id = entryKey(raw);
+      const row = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+      if (!id?.trim() || seen.has(id) || row.disabled === true || row.visibility === "hide") return [];
+      seen.add(id);
+      const source: ModelSource = isRoutedSlug(id) ? "ocx" : "native";
+      return [{ id, source, label: id, reasoningEfforts: reasoningEfforts(row.reasoningEfforts ?? row.supported_reasoning_levels) }];
+    });
+  } catch { return null; }
+}
+
+/** Legacy ID-only reader retained for pure consumers and fixtures. */
+export function readNativeCacheDefault(env: NodeJS.ProcessEnv = process.env): string[] | null {
+  return readNativeCatalog(env)?.map(entry => entry.id) ?? null;
 }
 
 function nativeEntries(deps: CatalogDeps): CatalogEntry[] {
-  const ids = (deps.readNativeCache ?? readNativeCacheDefault)() ?? [...NATIVE_OPENAI_MODELS];
+  const ids = (deps.readNativeCache ?? readNativeCacheDefault)() ?? [];
   // Entries from the codex config cache: bare ids are native; routed `provider/model`
   // slugs were synced in by opencodex, so label them as ocx-origin even though they
   // arrive through the native cache (codexclaw never calls ocx directly).
@@ -131,7 +130,7 @@ export function buildCatalog(deps: CatalogDeps = {}): Catalog {
   const status = deps.providerStatus;
 
   if (!status || status.mode !== "provider") {
-    return { state: "native-catalog", entries: native };
+    return { state: native.length ? "native-catalog" : "unavailable", entries: native };
   }
 
   // ocx is active. If it exposes no catalog interface, the cache-sync channel may

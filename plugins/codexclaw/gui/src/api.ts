@@ -9,9 +9,7 @@
  */
 export type RoleMode = "default" | "model";
 
-// Mirror of store.ts EFFORTS (separate GUI bundle). Scoped to the universally-supported
-// set: codex-rs hard-fails a spawn whose effort is not in the resolved model's
-// supported_reasoning_levels, and every selectable model supports exactly these four.
+// Store wire values; the UI narrows choices using the selected model capabilities.
 export const EFFORTS = ["low", "medium", "high", "xhigh"] as const;
 export type EffortName = (typeof EFFORTS)[number];
 
@@ -23,11 +21,18 @@ export interface RoleConfig {
   promptOverride: string | null;
 }
 
+export type SubagentScope = "project" | "global";
+export type SubagentRole = "explorer" | "reviewer" | "executor";
 export interface SubagentsConfig {
+  scope?: SubagentScope;
+  sources?: Record<SubagentRole, SubagentScope | "session">;
+  overrides?: Record<SubagentRole, boolean>;
+  trustWarning?: string;
   roles: { explorer: RoleConfig; reviewer: RoleConfig; executor: RoleConfig };
 }
 
 export interface CatalogEntry {
+  reasoningEfforts?: string[] | null;
   id: string;
   source: "native" | "ocx";
   label: string;
@@ -122,14 +127,15 @@ export interface SetMultiAgentSurfaceResult {
  *  UI can show the real error instead of a false success. */
 export async function setSubagentRole(
   role: "explorer" | "reviewer" | "executor",
-  patch: Partial<RoleConfig> & { role?: never },
+  patch: Partial<RoleConfig> & { role?: never; inherit?: boolean },
   fallback: SubagentsConfig,
+  scope?: SubagentScope,
 ): Promise<SetRoleResult> {
   try {
     const res = await fetch(`${API_BASE}/api/subagents`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-codexclaw-local": "1" },
-      body: JSON.stringify({ role, ...patch }),
+      body: JSON.stringify({ role, ...patch, ...(scope ? { scope } : {}) }),
     });
     const body = (await res.json().catch(() => null)) as
       | (SubagentsConfig & { error?: string })
@@ -138,6 +144,7 @@ export async function setSubagentRole(
     if (!res.ok || !body || !("roles" in body)) {
       return { ok: false, config: fallback, error: body?.error ?? `save failed (${res.status})` };
     }
+    if (scope && !isScopedConfig(body, scope)) return { ok: false, config: fallback, error: "Invalid scoped settings response. Reload and try again." };
     return { ok: true, config: body as SubagentsConfig };
   } catch {
     return { ok: false, config: fallback, error: "backend unreachable" };
@@ -314,17 +321,45 @@ async function postJson<T>(path: string, body: unknown): Promise<{ ok: boolean; 
   }
 }
 
+function isScopedConfig(body: unknown, scope: SubagentScope): body is SubagentsConfig {
+  if (!body || typeof body !== "object") return false;
+  const b = body as SubagentsConfig;
+  return b.scope === scope && (["explorer", "reviewer", "executor"] as const).every(role =>
+    b.roles?.[role] && ["project", "global", "session"].includes(b.sources?.[role] ?? "") && typeof b.overrides?.[role] === "boolean");
+}
+
+/** Settings must load honestly; fabricated defaults could overwrite saved overrides. */
+export async function getSubagentSettings(scope: SubagentScope = "project", signal?: AbortSignal): Promise<SubagentsConfig> {
+  const res = await fetch(`${API_BASE}/api/subagents?scope=${scope}`, { headers: { accept: "application/json", ...LOCAL_HEADER }, signal });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error ?? `Settings load failed (${res.status})`);
+  if (!isScopedConfig(body, scope)) throw new Error("Invalid scoped settings response. Update the CXC server and reload.");
+  return body;
+}
+
+export interface ModelCatalog {
+  state: string;
+  entries: CatalogEntry[];
+  status: "fresh" | "stale" | "unavailable";
+  source: "ocx" | "native";
+  fetchedAt: string | null;
+  message?: string;
+}
+export async function getModelCatalog(refresh = false): Promise<ModelCatalog> {
+  try {
+    const res = await fetch(`${API_BASE}/api/catalog${refresh ? "?refresh=1" : ""}`, { headers: { accept: "application/json", ...LOCAL_HEADER } });
+    const body = await res.json();
+    if (!res.ok || !body || !Array.isArray(body.entries) || !["fresh", "stale", "unavailable"].includes(body.status)) throw new Error("invalid catalog response");
+    return body as ModelCatalog;
+  } catch {
+    return { state: "unavailable", entries: [], status: "unavailable", source: "native", fetchedAt: null, message: "Model list could not be loaded. Retry or check the CXC server." };
+  }
+}
+
 export const api = {
   getSubagents: () => getJson<SubagentsConfig>("/api/subagents", defaultConfig()),
   getMultiAgentSurface: () => getJson<MultiAgentSurface>("/api/multi-agent", defaultMultiAgentSurface()),
-  getCatalog: () =>
-    getJson<{ state: string; entries: CatalogEntry[] }>("/api/catalog", {
-      state: "native-catalog",
-      entries: [
-        { id: "gpt-5.5", source: "native", label: "gpt-5.5 (native)" },
-        { id: "gpt-5.4", source: "native", label: "gpt-5.4 (native)" },
-      ],
-    }),
+  getCatalog: getModelCatalog,
   getProvider: () => getJson<ProviderState>("/api/provider", { mode: "native", port: null }),
 
   // bridge

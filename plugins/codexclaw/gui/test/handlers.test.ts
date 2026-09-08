@@ -81,20 +81,12 @@ test("AC3: provider gating — ocx detected -> provider mode + port; absent -> n
   assert.equal((absent.body as any).port, null);
 });
 
-test("catalog: native entries always present; ocx-present-no-list -> unsupported state", () => {
-  const native = getCatalog({ which: () => null });
-  assert.equal((native.body as any).state, "native-catalog");
-  assert.ok((native.body as any).entries.length > 0);
-
-  const ocx = getCatalog({
-    which: () => "/x/ocx",
-    runStatus: () => ({ status: 0, stdout: JSON.stringify({ proxy: { running: true }, listen: { port: 10100 } }) }),
-  });
-  // Default reader is machine-dependent (may load the real ~/.codex cache):
-  // the invariant is state honesty — ocx-active iff ocx-sourced entries exist.
-  const body = ocx.body as { state: string; entries: Array<{ source: string }> };
-  const hasOcx = body.entries.some((e) => e.source === "ocx");
-  assert.equal(body.state, hasOcx ? "ocx-active" : "unsupported-ocx-catalog");
+test("catalog handler passes refresh to the shared live reader", async () => {
+  const catalog = { state: "ocx-active" as const, status: "fresh" as const, source: "ocx" as const, fetchedAt: "2026-09-08T00:00:00Z", entries: [] };
+  let refreshed = false;
+  const result = await getCatalog(true, async options => { refreshed = options?.forceRefresh === true; return catalog; });
+  assert.equal(refreshed, true);
+  assert.equal(result.body, catalog);
 });
 
 test("GUI checkbox flow: bare mode:model on fresh role -> 400 with real error; with model -> 200; bare re-assert keeps model", () => {

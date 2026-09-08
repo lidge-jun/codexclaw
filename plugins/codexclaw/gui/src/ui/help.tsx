@@ -77,13 +77,16 @@ export const HELP_CONTENT: Record<HelpTopicId, HelpEntry> = {
     body: (
       <>
         <p className="help-lead">
-          Explorer, Reviewer, Executor 세 역할에 대해 모델과 프롬프트를 개별 설정하는 곳입니다.
+          Explorer, Reviewer, Executor의 모델, 추론 강도, 프롬프트를 설정합니다.
         </p>
         <ul className="help-bullets">
           <li>기본값은 메인 모델을 그대로 사용합니다. 드롭다운에서 다른 모델을 선택하면 해당 역할만 오버라이드됩니다.</li>
-          <li>추론 강도(effort)도 역할별로 다르게 설정할 수 있습니다.</li>
-          <li>프롬프트 오버라이드를 입력하면 해당 역할의 시스템 프롬프트가 교체됩니다.</li>
-          <li>설정은 <code>.codexclaw/subagents.json</code>에 저장됩니다.</li>
+          <li>역할별로 프로젝트 설정 → 전역 설정 → 원본 세션 순서로 적용됩니다. 전역 기본값은 Global Settings에서, 프로젝트 설정은 Subagents에서 바꿀 수 있습니다.</li>
+          <li>session effort는 원본 세션의 추론 강도를 따릅니다. 전역 값을 따르려면 모델 메뉴에서 Global settings를 선택하세요.</li>
+          <li>모델 목록은 OCX에서 활성화한 모델을 조회합니다. 실패하면 이전 목록 또는 오류 상태를 표시합니다. Refresh models로 다시 조회할 수 있습니다.</li>
+          <li>화면의 effort 선택지는 해당 모델이 지원하는 값으로 제한됩니다. CLI와 MCP 저장 검증은 모델별 지원 범위를 검사하지 않습니다.</li>
+          <li>프롬프트를 입력한 뒤 Save prompt를 누르면 해당 역할의 프롬프트에 반영됩니다.</li>
+          <li>프로젝트 설정은 <code>.codexclaw/subagents.json</code>, 전역 설정은 <code>~/.codexclaw/subagents.json</code>에 저장됩니다.</li>
         </ul>
       </>
     ),

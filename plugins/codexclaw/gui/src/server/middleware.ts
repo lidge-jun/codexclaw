@@ -103,7 +103,8 @@ function send(res: import("node:http").ServerResponse, status: number, body: unk
 
 export function codexclawApiMiddleware(): Connect.NextHandleFunction {
   return (req, res, next) => {
-    const url = req.url ?? "";
+    const requestUrl = new URL(req.url ?? "/", "http://localhost");
+    const url = requestUrl.pathname;
     const cwd = resolveProjectRoot();
     if (!url.startsWith("/api/")) return next();
 
@@ -111,7 +112,7 @@ export function codexclawApiMiddleware(): Connect.NextHandleFunction {
     if (rejection) return send(res, 403, { error: `forbidden: ${rejection}` });
 
     if (url === "/api/subagents" && req.method === "GET") {
-      const r = getSubagents(cwd);
+      const r = getSubagents(cwd, requestUrl.searchParams.get("scope") ?? undefined);
       return send(res, r.status, r.body);
     }
     if (url === "/api/subagents" && req.method === "POST") {
@@ -126,8 +127,10 @@ export function codexclawApiMiddleware(): Connect.NextHandleFunction {
       return;
     }
     if (url === "/api/catalog" && req.method === "GET") {
-      const r = getCatalog(detectDeps());
-      return send(res, r.status, r.body);
+      void getCatalog(requestUrl.searchParams.get("refresh") === "1")
+        .then(r => send(res, r.status, r.body))
+        .catch(() => send(res, 500, { error: "Model catalog unavailable" }));
+      return;
     }
     if (url === "/api/provider" && req.method === "GET") {
       const r = getProvider(detectDeps());

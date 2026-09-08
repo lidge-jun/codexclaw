@@ -8,7 +8,7 @@
 import { realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { buildCatalog } from "../../subagent-config/dist/catalog.js";
+import { readCatalog } from "../../subagent-config/dist/live-catalog.js";
 import type { AgentService, IncomingRequest, IncomingResult } from "./agent-service.ts";
 import type { ApprovalDecision } from "./approval-relay.ts";
 import { chunkEmbedDescription, type DiscordEmbed } from "./discord-api.ts";
@@ -29,6 +29,7 @@ export interface GatewayCommandContext {
   onApprovalRequest?: IncomingRequest["onApprovalRequest"];
   onEvent?: IncomingRequest["onEvent"];
   now?: () => Date;
+  readModelCatalog?: () => Promise<{ entries: Array<{ id: string; label: string; source: string }> }>;
 }
 
 export interface GatewayCommandResult {
@@ -315,7 +316,7 @@ async function handleModel(ctx: GatewayCommandContext): Promise<GatewayCommandRe
   if (arg) {
     // Reserved /model subcommands are checked before save-verbatim so model ids
     // named "list" or "reset" cannot be stored accidentally.
-    if (arg === "list") return modelListResult();
+    if (arg === "list") return modelListResult(ctx.readModelCatalog);
     if (arg === "reset") {
       ctx.db.setBindingModel(binding.id, "default");
       const next = effectiveModel(ctx.db.getBinding(binding.id) ?? binding, agent);
@@ -436,8 +437,8 @@ export function validateWorkdir(input: string): string | null {
   }
 }
 
-function modelListResult(): GatewayCommandResult {
-  const catalog = buildCatalog() as { entries?: Array<{ id?: unknown; label?: unknown; source?: unknown }> };
+async function modelListResult(reader: NonNullable<GatewayCommandContext["readModelCatalog"]> = readCatalog): Promise<GatewayCommandResult> {
+  const catalog = await reader() as { entries?: Array<{ id?: unknown; label?: unknown; source?: unknown }> };
   const groups = groupCatalogEntries(catalog.entries ?? []);
   const text = groups.length === 0
     ? "No models found."

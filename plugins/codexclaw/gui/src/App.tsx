@@ -23,6 +23,7 @@ const NAV: NavItem[] = [
   { route: "/agents", label: "Agents", icon: "cpu" },
   { route: "/sessions", label: "Sessions", icon: "database" },
   { route: "/subagents", label: "Subagents", icon: "sliders" },
+  { route: "/settings", label: "Global Settings", icon: "sliders" },
 ];
 
 export function App() {
@@ -79,7 +80,7 @@ export function App() {
           ) : active.route === "/sessions" ? (
             <SessionsPage />
           ) : (
-            <SubagentsPage provider={provider} />
+            <SubagentsPage key={active.route} provider={provider} scope={active.route === "/settings" ? "global" : "project"} />
           )}
         </Suspense>
       </main>

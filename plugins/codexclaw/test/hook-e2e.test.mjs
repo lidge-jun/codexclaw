@@ -121,7 +121,7 @@ function runHookAsync(distAbs, hookEvent, payload, extraEnv = {}) {
 
 function emptyCodexHome() {
   const dir = mkdtempSync(join(tmpdir(), "ccx-home-"));
-  return { dir, env: { CODEX_HOME: dir, CODEX_SQLITE_HOME: dir } };
+  return { dir, env: { CODEX_HOME: dir, CODEXCLAW_HOME: join(dir, "cxc"), CODEX_SQLITE_HOME: dir } };
 }
 
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
@@ -1093,7 +1093,7 @@ test("subagent-guard: pre-tool-use interview gate denies root, skips subagent pa
     db.exec("CREATE TABLE thread_goals (thread_id TEXT PRIMARY KEY NOT NULL, goal_id TEXT NOT NULL, objective TEXT NOT NULL, status TEXT NOT NULL);");
     db.prepare("INSERT INTO thread_goals (thread_id, goal_id, objective, status) VALUES (?,?,?,?)").run("s1", "g1", "obj", "active");
     db.close();
-    const env = { CODEX_HOME: home, CODEX_SQLITE_HOME: home };
+    const env = { CODEX_HOME: home, CODEXCLAW_HOME: join(home, "cxc"), CODEX_SQLITE_HOME: home };
     const payload = {
       hook_event_name: "PreToolUse", session_id: "s1", cwd: tmp,
       tool_name: "request_user_input", tool_input: { questions: [] },

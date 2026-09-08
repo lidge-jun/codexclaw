@@ -169,14 +169,14 @@ test("Git-tracked project config is ignored until the operator explicitly trusts
   execFileSync("git", ["init", "-q"], { cwd });
   execFileSync("git", ["add", "-f", ".codexclaw/subagents.json"], { cwd });
 
-  const denied = resolveSpawnConfig(cwd, "executor", {});
+  const denied = resolveSpawnConfig(cwd, "executor", { CODEXCLAW_HOME: join(cwd, "test-global") });
   assert.equal(denied.usesMainModel, true);
   assert.equal(denied.promptOverride, null);
   assert.match(denied.trustWarning ?? "", /Git-tracked/);
 
   const token = projectConfigTrustToken(cwd);
   assert.ok(token);
-  const trusted = resolveSpawnConfig(cwd, "executor", { CODEXCLAW_TRUST_PROJECT_SUBAGENTS: token! });
+  const trusted = resolveSpawnConfig(cwd, "executor", { CODEXCLAW_HOME: join(cwd, "test-global"), CODEXCLAW_TRUST_PROJECT_SUBAGENTS: token! });
   assert.equal(trusted.model, "repo-model");
   assert.equal(trusted.promptOverride, "repo instructions");
 
@@ -185,9 +185,9 @@ test("Git-tracked project config is ignored until the operator explicitly trusts
   execFileSync("git", ["init", "-q"], { cwd: other });
   execFileSync("git", ["add", "-f", ".codexclaw/subagents.json"], { cwd: other });
   assert.notEqual(projectConfigTrustToken(other), token, "the same bytes in another repository need separate review");
-  assert.equal(resolveSpawnConfig(other, "executor", { CODEXCLAW_TRUST_PROJECT_SUBAGENTS: token! }).model, null);
+  assert.equal(resolveSpawnConfig(other, "executor", { CODEXCLAW_HOME: join(cwd, "test-global"), CODEXCLAW_TRUST_PROJECT_SUBAGENTS: token! }).model, null);
 
   writeFileSync(join(cwd, ".codexclaw", "subagents.json"), JSON.stringify({ roles: {} }));
   assert.notEqual(projectConfigTrustToken(cwd), token, "editing the reviewed config invalidates trust");
-  assert.equal(resolveSpawnConfig(cwd, "executor", { CODEXCLAW_TRUST_PROJECT_SUBAGENTS: token! }).model, null);
+  assert.equal(resolveSpawnConfig(cwd, "executor", { CODEXCLAW_HOME: join(cwd, "test-global"), CODEXCLAW_TRUST_PROJECT_SUBAGENTS: token! }).model, null);
 });
