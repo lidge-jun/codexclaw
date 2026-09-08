@@ -4,6 +4,17 @@ All notable changes to codexclaw are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.23] - 2026-09-08
+
+### Changed
+
+- Extend `cxc-dev-diagram-viewer` to compose visual documents, HTML reports,
+  editable SVG, interactive explanations and PDF deliverables. Preserve explicit
+  formats and the current host rendering contract.
+- Add audience-specific design recipes, Korean typography, print pagination,
+  offline interaction and output verification guidance, with an original report
+  example and a dated source/license ledger.
+
 ## [0.2.22] - 2026-09-07
 
 ### Fixed
