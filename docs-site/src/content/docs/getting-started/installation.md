@@ -63,17 +63,19 @@ After an upgrade Codex marks the hooks **Modified** — re-approve them to react
 chat — try `orchestrate status`, or "Interview me first, then draft a diff-level plan."
 A PATH-level `cxc` binary (Track 3) is a convenience, not a prerequisite.
 
-## Track 2 — Local dogfood with a dev symlink
+## Track 2 — Local dogfood with a dev install
 
-For active development, symlink the working checkout into the Codex plugin cache so approved hooks
-execute your local files:
+For active development, install the working checkout as a real plugin copy from a local
+marketplace rooted at the repo:
 
 ```bash
-scripts/dev-symlink.sh
+scripts/dev-install.sh
 ```
 
-This links the plugin-cache children to your checkout. Edits to skills, hooks, and component
-`dist/` take effect without reinstalling.
+The script builds the components, points the `codexclaw` marketplace at your checkout, and reinstalls
+the plugin. Re-run it after each change and open a new thread. See
+[Dogfood & Dev Install](/codexclaw/development/dogfood-dev-install/) for the full loop and why the
+old symlink track was retired.
 
 ## Track 3 — PATH-level `cxc` from a source checkout
 
@@ -90,7 +92,7 @@ Once a global `cxc` / `codexclaw` bin is on your `PATH` (npm link or a shell ali
 
 :::caution[npm / npx distribution is planned, not shipped]
 The root package is currently private and `dist/` is not published, so `npx codexclaw` is not yet
-a supported install path. Use a source checkout or the dev symlink until packaging lands
+a supported install path. Use a source checkout or the dev install until packaging lands
 (tracked as L20 on the [parity roadmap](/codexclaw/development/parity-roadmap/)).
 :::
 

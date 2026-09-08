@@ -56,7 +56,7 @@ codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-설치 후 Codex를 재시작하고 뜨는 승인 창에서 22개 훅을 승인하면 된다(업그레이드 후에도 다시 승인 — 콘텐츠 해시 신뢰 모델). 채팅에서 바로 쓸 수 있고, 터미널 표면도 같이 배송된다 — 페이로드에 자체 `cxc` 디스패처가 들어 있어 에이전트의 `cxc orchestrate` 명령이 모든 설치에서 동작한다:
+설치 후 Codex를 재시작하고 뜨는 승인 창에서 23개 훅을 승인하면 된다(업그레이드 후에도 다시 승인 — 콘텐츠 해시 신뢰 모델). 채팅에서 바로 쓸 수 있고, 터미널 표면도 같이 배송된다 — 페이로드에 자체 `cxc` 디스패처가 들어 있어 에이전트의 `cxc orchestrate` 명령이 모든 설치에서 동작한다:
 
 - `orchestrate status` — PABCD 상태 머신 확인
 - "Interview me first, then draft a diff-level plan."
@@ -87,6 +87,67 @@ alias cxc='node /path/to/codexclaw/bin/codexclaw.mjs'   # 또는: npm link
 ```
 
 </details>
+
+## 개발 설치 (도그푸딩)
+
+codexclaw를 Codex 안에서 돌리면서 고치려면, 작업 중인 체크아웃을 리포 자체를 루트로 삼는 로컬
+마켓플레이스에서 **실제 복사본**으로 설치한다.
+
+```bash
+codex plugin marketplace add /path/to/codexclaw   # git URL이 아니라 로컬 체크아웃
+scripts/dev-install.sh
+```
+
+git 소스 마켓플레이스는 특정 커밋에 고정된다. 그래서 한창 고치는 중인 체크아웃은 로컬 소스로
+잡아야 한다. 안 그러면 뭘 편집하든 Codex는 고정된 스냅샷만 계속 읽는다.
+
+### symlink을 안 쓰는 이유
+
+예전 `scripts/dev-symlink.sh`는 플러그인 캐시 버전 디렉터리의 각 항목을 리포로 향하는 symlink로
+바꿔서 재설치 없이 편집이 바로 반영되게 했다. 그런데 Codex가 그 symlink 항목을 안정적으로 풀지
+못해서 플러그인이 조용히 로드에 실패할 수 있다. 그래서 그 방식은 접었다. `dev-install.sh`는 설치
+전에 캐시에 남아 있는 symlink를 지운다.
+
+### 설치가 실제로 하는 일
+
+`codex plugin add codexclaw@codexclaw`는 페이로드를
+`~/.codex/plugins/cache/codexclaw/codexclaw/<version>/`으로 복사하고, **소스에서 사라진 파일은
+캐시에서도 지운다**. 그래서 같은 버전으로 다시 설치해도 아무 일도 안 일어나는 게 아니라 진짜로
+동기화된다. 스크립트를 다시 돌리는 게 업데이트 루프의 전부이고, 매니페스트 버전을 올릴 필요도 없다.
+
+| 명령 | 하는 일 |
+|---|---|
+| `scripts/dev-install.sh` | 컴포넌트 빌드, 마켓플레이스가 어긋났으면 다시 지정, 남은 symlink 제거, 재설치, 옛 버전 디렉터리 정리, doctor 실행 |
+| `scripts/dev-install.sh --no-build` | `npm run build` 없이 나머지만. 스킬·훅·문서만 고쳤을 때 |
+| `scripts/dev-install.sh --status` | 소스, 매니페스트 버전, 마켓플레이스 루트, 캐시 루트, symlink 개수를 보여주고 아무것도 바꾸지 않는다 |
+
+### 업데이트 루프
+
+편집 -> `scripts/dev-install.sh` -> **새 Codex 스레드 열기**. 스킬과 훅, MCP 도구는 세션이 시작할 때
+읽히기 때문에 지금 있는 스레드에는 변경이 반영되지 않는다.
+
+훅 신뢰는 콘텐츠 해시 기반이다. 재설치로 훅 파일의 바이트가 바뀌었으면 Codex가 **Modified**로
+표시하고, 다시 승인하기 전까지 그 훅은 돌지 않는다. 바이트가 그대로면 신뢰도 그대로다. 어느 쪽인지는
+`cxc doctor`의 `hook-trust` 줄로 확인한다. codexclaw가 신뢰 상태를 직접 쓰는 일은 없다.
+
+### 설치 검증
+
+```bash
+VER=$(python3 -c "import json;print(json.load(open('plugins/codexclaw/.codex-plugin/plugin.json'))['version'])")
+CACHE=~/.codex/plugins/cache/codexclaw/codexclaw
+
+diff -rq plugins/codexclaw "$CACHE/$VER"   # 설치본이 체크아웃과 같은지
+find "$CACHE" -type l | wc -l              # 0이어야 한다 — symlink가 남지 않았는지
+node "$CACHE/$VER/bin/cxc.mjs" doctor       # overall: PASS
+```
+
+배포 트랙으로 돌아가려면 로컬 마켓플레이스를 지우고 git URL을 다시 등록한다.
+
+```bash
+codex plugin remove codexclaw@codexclaw
+codex plugin marketplace remove codexclaw
+codex plugin marketplace add https://github.com/lidge-jun/codexclaw
+```
 
 ## 아키텍처
 
@@ -176,6 +237,8 @@ codexclaw는 참조 구현이다. 방법론과 스킬은 에이전트에 종속�
 ## 문서
 
 플러그인 문서: **[lidge-jun.github.io/codexclaw](https://lidge-jun.github.io/codexclaw/)**
+
+개발 설치와 도그푸딩 루프: **[Dogfood & Dev Install](https://lidge-jun.github.io/codexclaw/development/dogfood-dev-install/)**
 
 방법론과 연구 출처는 **[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)**에서 다룬다 — 스킬 아키텍처, 위임 비용, 루프 계약, devlog 기록, arXiv 근거가 있는 주장 원장.
 

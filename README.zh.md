@@ -56,7 +56,7 @@ codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-然后重启 Codex，并在弹出的审批中批准 22 个 hooks（升级后需再次批准——内容哈希信任模型）。既可以直接在聊天中使用，终端界面也随包提供——payload 自带 `cxc` 调度器，代理的 `cxc orchestrate` 命令在任何安装方式下都能运行：
+然后重启 Codex，并在弹出的审批中批准 23 个 hooks（升级后需再次批准——内容哈希信任模型）。既可以直接在聊天中使用，终端界面也随包提供——payload 自带 `cxc` 调度器，代理的 `cxc orchestrate` 命令在任何安装方式下都能运行：
 
 - `orchestrate status` — 查看 PABCD 状态机
 - "Interview me first, then draft a diff-level plan."
@@ -87,6 +87,66 @@ alias cxc='node /path/to/codexclaw/bin/codexclaw.mjs'   # 或者：npm link
 ```
 
 </details>
+
+## 开发安装（dogfooding）
+
+若要一边在 Codex 中运行 codexclaw 一边修改它，请把当前检出以**真实副本**的方式，从以仓库自身为根的
+本地 marketplace 安装：
+
+```bash
+codex plugin marketplace add /path/to/codexclaw   # 本地检出，而非 git URL
+scripts/dev-install.sh
+```
+
+git 源的 marketplace 会锁定某个提交，因此正在开发中的检出必须使用本地源；否则无论你改动什么，
+Codex 都只会加载那个被锁定的快照。
+
+### 为什么不用 symlink
+
+早期的 `scripts/dev-symlink.sh` 会把插件缓存版本目录下的每个子项替换为指向仓库的 symlink，这样无需
+重装即可让改动生效。但 Codex 无法可靠地解析这些 symlink 条目，插件可能悄无声息地加载失败，因此该
+方式已废弃。`dev-install.sh` 会在安装前清除缓存中残留的 symlink。
+
+### 安装实际做了什么
+
+`codex plugin add codexclaw@codexclaw` 会把 payload 复制到
+`~/.codex/plugins/cache/codexclaw/codexclaw/<version>/`，并**删除源中已不存在的文件**。因此以相同
+版本重新安装是一次真正的重新同步，而不是空操作；这也是为什么重跑脚本就是完整的更新循环，无需提升
+manifest 版本号。
+
+| 命令 | 作用 |
+|---|---|
+| `scripts/dev-install.sh` | 构建组件、必要时重新指向 marketplace、清除残留 symlink、重新安装、清理旧版本目录、运行 doctor |
+| `scripts/dev-install.sh --no-build` | 同上但跳过 `npm run build`，适用于仅修改 skills、hooks 或文档 |
+| `scripts/dev-install.sh --status` | 报告源、manifest 版本、marketplace 根、缓存根与 symlink 数量，不做任何改动 |
+
+### 更新循环
+
+修改 -> `scripts/dev-install.sh` -> **打开新的 Codex 线程**。skills、hooks 与 MCP 工具在会话启动时读取，
+因此当前线程不会拾取这些改动。
+
+hook 信任基于内容哈希。如果重装改变了某个 hook 的字节，Codex 会将其标记为 **Modified**，在你重新批准
+之前该 hook 不会运行；字节未变则信任保持不变。`cxc doctor` 的 `hook-trust` 一行会告诉你属于哪种
+情况。codexclaw 从不自行写入信任状态。
+
+### 验证安装
+
+```bash
+VER=$(python3 -c "import json;print(json.load(open('plugins/codexclaw/.codex-plugin/plugin.json'))['version'])")
+CACHE=~/.codex/plugins/cache/codexclaw/codexclaw
+
+diff -rq plugins/codexclaw "$CACHE/$VER"   # 安装的 payload 与检出一致
+find "$CACHE" -type l | wc -l              # 预期为 0 —— 没有 symlink 残留
+node "$CACHE/$VER/bin/cxc.mjs" doctor       # 预期：overall: PASS
+```
+
+若要回到发布轨道，移除本地 marketplace 并重新添加 git URL：
+
+```bash
+codex plugin remove codexclaw@codexclaw
+codex plugin marketplace remove codexclaw
+codex plugin marketplace add https://github.com/lidge-jun/codexclaw
+```
 
 ## 架构
 
@@ -176,6 +236,8 @@ codexclaw 是参考实现。其方法论和 skills 已移植到以下项目中�
 ## 文档
 
 插件文档：**[lidge-jun.github.io/codexclaw](https://lidge-jun.github.io/codexclaw/)**
+
+开发安装与 dogfooding 循环：**[Dogfood & Dev Install](https://lidge-jun.github.io/codexclaw/development/dogfood-dev-install/)**
 
 方法论与研究来源见 **[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)**，涵盖 skill 架构、委派经济性、循环契约、devlog 记录，以及由 arXiv 论文支持的主张账本。
 

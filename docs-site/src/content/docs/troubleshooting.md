@@ -8,8 +8,8 @@ description: Common codexclaw issues — hooks not running, stale state, provide
 Codex runs hooks only after you trust them.
 
 - Re-open Codex's hook review and trust codexclaw's hooks.
-- Under the [dev symlink](/codexclaw/development/dogfood-dev-symlink/), trust applies to your
-  live checkout files — re-trust after large changes.
+- After a [dev install](/codexclaw/development/dogfood-dev-install/), changed hook files are marked
+  Modified — re-trust them.
 - codexclaw never forges hook trust. If a hook still does not run, confirm `${PLUGIN_ROOT}`
   resolves and the component `dist/` is built (`npm run build`).
 

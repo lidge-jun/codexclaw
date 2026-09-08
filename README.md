@@ -96,6 +96,67 @@ alias cxc='node /path/to/codexclaw/bin/codexclaw.mjs'   # or: npm link
 
 </details>
 
+## Development install (dogfooding)
+
+To change codexclaw while running it inside Codex, install your working checkout as a **real
+plugin copy** from a local marketplace rooted at the repo:
+
+```bash
+codex plugin marketplace add /path/to/codexclaw   # the local checkout, not the git URL
+scripts/dev-install.sh
+```
+
+A git-source marketplace pins a commit, so a checkout under active development has to use the
+local source — otherwise Codex keeps loading the pinned snapshot no matter what you edit.
+
+### Why not symlinks
+
+An earlier `scripts/dev-symlink.sh` replaced each child of the plugin cache version directory with a
+symlink into the repo, so edits were live with no reinstall. Codex does not resolve those
+symlinked entries reliably and the plugin can silently fail to load, so that track is retired.
+`dev-install.sh` deletes any leftover symlinks it finds in the cache before installing.
+
+### What the install actually does
+
+`codex plugin add codexclaw@codexclaw` copies the payload into
+`~/.codex/plugins/cache/codexclaw/codexclaw/<version>/` and **prunes files that no longer exist in
+the source**. A same-version reinstall is therefore a true resync rather than a no-op, which is why
+re-running the script is the whole update loop and the manifest version never needs bumping.
+
+| Command | Effect |
+|---|---|
+| `scripts/dev-install.sh` | build components, repoint the marketplace if it drifted, clear stale symlinks, reinstall, prune old version dirs, run doctor |
+| `scripts/dev-install.sh --no-build` | the same without `npm run build`, for skill, hook or docs-only edits |
+| `scripts/dev-install.sh --status` | report source, manifest version, marketplace root, cache roots and symlink count; change nothing |
+
+### The update loop
+
+Edit -> `scripts/dev-install.sh` -> **open a new Codex thread**. Skills, hooks and MCP tools are read
+when a session starts, so the thread you are in does not pick up the change.
+
+Hook trust is content-hashed. If a reinstall changed a hook's bytes, Codex marks it **Modified** and
+it stops running until you re-approve it; unchanged bytes keep their trust. `cxc doctor`'s
+`hook-trust` line tells you which case you are in. codexclaw never writes trust state itself.
+
+### Verifying the install
+
+```bash
+VER=$(python3 -c "import json;print(json.load(open('plugins/codexclaw/.codex-plugin/plugin.json'))['version'])")
+CACHE=~/.codex/plugins/cache/codexclaw/codexclaw
+
+diff -rq plugins/codexclaw "$CACHE/$VER"   # installed payload matches the checkout
+find "$CACHE" -type l | wc -l              # expect 0 — no symlinks survived
+node "$CACHE/$VER/bin/cxc.mjs" doctor       # expect: overall: PASS
+```
+
+To go back to the published track, remove the local marketplace and re-add the git URL:
+
+```bash
+codex plugin remove codexclaw@codexclaw
+codex plugin marketplace remove codexclaw
+codex plugin marketplace add https://github.com/lidge-jun/codexclaw
+```
+
 ## Architecture
 
 ```
@@ -184,6 +245,8 @@ codexclaw is the reference implementation. The methodology and skills are ported
 ## Documentation
 
 Plugin documentation: **[lidge-jun.github.io/codexclaw](https://lidge-jun.github.io/codexclaw/)**
+
+Development install and the dogfood loop: **[Dogfood & Dev Install](https://lidge-jun.github.io/codexclaw/development/dogfood-dev-install/)**
 
 Runtime trust boundaries and resource limits: **[docs/security-hardening.md](docs/security-hardening.md)**
 
