@@ -13,13 +13,14 @@
  *   subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort]
  *                        [--prompt <text>|--clear-prompt]
  */
-import { readConfig, setRole, projectConfigTrustToken, ROLES, EFFORTS, type RoleName, type RoleConfig, type EffortName } from "./store.ts";
+import { readConfig, setRole, resetRole, type ConfigScope, projectConfigTrustToken, ROLES, EFFORTS, type RoleName, type RoleConfig, type EffortName } from "./store.ts";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export interface ParsedSubagentsArgs {
-  action: "list" | "get" | "set" | "trust-token" | "help";
+  action: "list" | "get" | "set" | "reset" | "trust-token" | "help";
   role?: RoleName;
+  scope?: ConfigScope;
   patch?: Partial<RoleConfig>;
   error?: string;
 }
@@ -30,11 +31,23 @@ function isRole(v: string | undefined): v is RoleName {
 
 /** Pure structural parse of the `subagents` argv (excluding the leading verb). */
 export function parseSubagentsArgs(argv: string[]): ParsedSubagentsArgs {
+  // Scope is an explicit trailing selector, so prompt/model values stay literal.
+  if (argv.at(-1) === "--global" && !["--prompt", "--model"].includes(argv.at(-2) ?? "")) {
+    return { ...parseProjectArgs(argv.slice(0, -1)), scope: "global" };
+  }
+  return parseProjectArgs(argv);
+}
+
+function parseProjectArgs(argv: string[]): ParsedSubagentsArgs {
   const sub = argv[0];
   if (sub === undefined || sub === "list") return { action: "list" };
   if (sub === "help" || sub === "--help" || sub === "-h") return { action: "help" };
   if (sub === "trust-token") return { action: "trust-token" };
 
+  if (sub === "reset") {
+    if (!isRole(argv[1]) || argv.length !== 2) return { action: "reset", error: "reset requires exactly one valid role" };
+    return { action: "reset", role: argv[1] };
+  }
   if (sub === "get") {
     if (!isRole(argv[1])) return { action: "get", error: `unknown role '${argv[1] ?? ""}' (expected ${ROLES.join("|")})` };
     return { action: "get", role: argv[1] };
@@ -83,6 +96,8 @@ const HELP = [
   "  subagents               list all role configs",
   "  subagents get <role>    show one role config",
   "  subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort] [--prompt <text>|--clear-prompt]",
+  "  subagents reset <role>  remove the role override and inherit the next scope",
+  "  Append --global to list/get/set/reset to manage user defaults",
   "  subagents trust-token   print an export bound to this repo and exact config",
   "",
   `  roles: ${ROLES.join(", ")}`,
@@ -101,9 +116,9 @@ export function runSubagents(parsed: ParsedSubagentsArgs, cwd: string): Subagent
     case "help":
       return { code: 0, output: HELP };
     case "list":
-      return { code: 0, output: JSON.stringify(readConfig(cwd), null, 2) };
+      return { code: 0, output: JSON.stringify(readConfig(cwd, parsed.scope), null, 2) };
     case "get": {
-      const cfg = readConfig(cwd);
+      const cfg = readConfig(cwd, parsed.scope);
       return { code: 0, output: JSON.stringify(cfg.roles[parsed.role as RoleName], null, 2) };
     }
     case "trust-token": {
@@ -111,9 +126,17 @@ export function runSubagents(parsed: ParsedSubagentsArgs, cwd: string): Subagent
       if (!token) return { code: 1, output: "subagents: cannot hash .codexclaw/subagents.json" };
       return { code: 0, output: `export CODEXCLAW_TRUST_PROJECT_SUBAGENTS='${token}'` };
     }
+    case "reset": {
+      try {
+        const cfg = resetRole(cwd, parsed.role as RoleName, parsed.scope);
+        return { code: 0, output: JSON.stringify(cfg.roles[parsed.role as RoleName], null, 2) };
+      } catch (err) {
+        return { code: 1, output: `subagents: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
     case "set": {
       try {
-        const cfg = setRole(cwd, parsed.role as RoleName, parsed.patch ?? {});
+        const cfg = setRole(cwd, parsed.role as RoleName, parsed.patch ?? {}, parsed.scope);
         return { code: 0, output: JSON.stringify(cfg.roles[parsed.role as RoleName], null, 2) };
       } catch (err) {
         return { code: 1, output: `subagents: ${err instanceof Error ? err.message : String(err)}` };

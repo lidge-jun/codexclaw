@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-2%2C671_passing-brightgreen" alt="2,671 tests passing">
+  <img src="https://img.shields.io/badge/tests-2%2C697_passing-brightgreen" alt="2,697 tests passing">
   <img src="https://img.shields.io/badge/skills-28-blue" alt="28 skills">
   <img src="https://img.shields.io/badge/hooks-23-blue" alt="23 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -40,6 +40,14 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 ```
 
 **Multi-Model Subagents** — role-based dispatch (explorer / reviewer / executor) with per-role model and prompt overrides. Configuration persists across sessions and applies automatically through the spawn-wrapper hook. A local GUI (Vite + React) provides visual config and, when opencodex is detected, a provider link bar. (Dashboard: build from a repo checkout for now; bundled in a follow-up release.)
+
+Subagent settings resolve **per role: project → global → original session**. Open **Global Settings** to edit user defaults in `$CODEXCLAW_HOME/subagents.json` (default `~/.codexclaw/subagents.json`). The existing **Subagents** page edits `<project>/.codexclaw/subagents.json`: each model dropdown offers **Main model**, **Global settings**, and individual models. Global settings follows the entire role's defaults, including effort and prompt; choose a main/direct model to customize that project role. Existing explicit project entries and `effort: null` retain their meaning. Main model changes only the model source; session effort separately inherits the original session's effort.
+
+The shared catalog reads OCX's enabled models with the non-mutating `ocx models live --json`, refreshes after a short cache lifetime, and supports **Refresh models**. Disabled or pending models are excluded. If OCX is absent it reads the configured Codex catalog (`model_catalog_json`, with `CODEX_MODELS_CACHE_PATH` override). An unavailable source yields an explicit error or labeled last-known list, never a fabricated four-model roster. The dashboard restricts effort choices to the model's advertised supported values; CLI/MCP validation still validates wire values only, not model-specific compatibility.
+
+CLI list/get/set/reset accept trailing `--global`. MCP `subagents_get`/`subagents_set` and GET `/api/subagents?scope=global` / POST `scope: "global"` share the same store. `inherit: true` removes the selected scope's entire role override; `effort: null` only clears effort. The former unpublished `$CODEX_HOME/codexclaw/subagents.json` path is read only if the canonical file is absent and `CODEXCLAW_HOME` is not explicitly set. The first explicit global edit/reset preserves its other roles in the canonical file and leaves the old file untouched.
+
+
 
 **Recall** — searches past Codex conversations and the memory store from disk artifacts before asking the user, so context survives session boundaries and compaction.
 

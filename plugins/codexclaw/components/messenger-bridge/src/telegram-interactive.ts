@@ -2,9 +2,10 @@
  * telegram-interactive.ts — inline keyboard callback encoding and dispatch.
  *
  * Telegram callback_data is capped at 64 bytes, so payloads stay compact and
- * model selections use catalog indexes instead of full model ids.
+ * model selections use stable ID hashes instead of mutable catalog indexes.
  */
-import { buildCatalog } from "../../subagent-config/dist/catalog.js";
+import { readCatalog } from "../../subagent-config/dist/live-catalog.js";
+import { createHash } from "node:crypto";
 import { AGENT_EFFORTS, AGENT_THREAD_MODES, AGENT_TOOL_PROGRESS_MODES, type BridgeDb } from "./db.ts";
 import { telegramReplyThreadId, telegramTopicId, type TelegramApi, type TgCallbackQuery } from "./telegram-api.ts";
 import type { InlineKeyboard } from "./telegram-commands.ts";
@@ -61,8 +62,8 @@ export function decodeCallback(data: string): CallbackAction | null {
   return { type, payload: rest.join(":") };
 }
 
-export function loadModelCatalog(): CatalogEntry[] {
-  const catalog = buildCatalog() as { entries?: Array<{ id?: unknown; label?: unknown }> };
+export async function loadModelCatalog(): Promise<CatalogEntry[]> {
+  const catalog = await readCatalog() as { entries?: Array<{ id?: unknown; label?: unknown }> };
   const entries = Array.isArray(catalog.entries) ? catalog.entries : [];
   return entries
     .filter((entry): entry is { id: string; label?: string } => typeof entry.id === "string" && entry.id.length > 0)
@@ -72,11 +73,15 @@ export function loadModelCatalog(): CatalogEntry[] {
     }));
 }
 
+export function modelToken(id: string): string {
+  return "h" + createHash("sha256").update(id).digest("hex").slice(0, 24);
+}
+
 export function buildModelPicker(catalog: CatalogEntry[], current: string, bindingId = 0): InlineKeyboard {
   return rows(
-    catalog.map((entry, index) => ({
+    catalog.map((entry) => ({
       text: `${entry.id === current ? "* " : ""}${entry.label ?? entry.id}`,
-      callback_data: encodeCallback({ type: "model_select", payload: `${bindingId}:${index}` }),
+      callback_data: encodeCallback({ type: "model_select", payload: `${bindingId}:${modelToken(entry.id)}` }),
     })),
     1,
   );
@@ -116,6 +121,7 @@ export async function handleCallback(
   query: TgCallbackQuery,
   db: BridgeDb,
   auth: CallbackAuthContext,
+  readModels: () => Promise<CatalogEntry[]> = loadModelCatalog,
 ): Promise<void> {
   let answer = "Action handled";
   try {
@@ -131,7 +137,7 @@ export async function handleCallback(
     }
 
     if (action.type === "model_select") {
-      answer = await handleModelSelect(api, query, db, action.payload);
+      answer = await handleModelSelect(api, query, db, action.payload, readModels);
       return;
     }
     if (action.type === "effort_select") {
@@ -222,15 +228,17 @@ async function handleModelSelect(
   query: TgCallbackQuery,
   db: BridgeDb,
   payload: string,
+  readModels: () => Promise<CatalogEntry[]>,
 ): Promise<string> {
   const parsed = parsePayload(payload);
   if (!parsed) return "Invalid model selection";
   const binding = db.getBinding(parsed.bindingId);
   if (!binding) return "Binding not found";
 
-  const catalog = loadModelCatalog();
-  const entry = catalog[Number(parsed.value)];
-  if (!entry) return "Model not found";
+  const catalog = await readModels();
+  const matches = catalog.filter(entry => modelToken(entry.id) === parsed.value);
+  if (matches.length !== 1) return "Model selection expired. Open the model picker again.";
+  const entry = matches[0];
 
   db.setBindingModel(parsed.bindingId, entry.id);
   await sendCallbackMessage(api, query, `Model set to ${entry.id}`);

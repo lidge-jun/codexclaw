@@ -18,7 +18,16 @@ PABCD state, recall, subagent configuration, and messenger bridge.
   it, spawn-time model, effort, and prompt overrides are ignored unless the
   operator reviews it, runs `cxc subagents trust-token`, and exports the printed
   value. The value binds the canonical repository path and exact config digest,
-  so it cannot silently trust another checkout or later edits.
+  so it cannot silently trust another checkout or later edits. Ignored project
+  overrides fall back to operator-owned global roles, then the original session.
+  The settings API and spawn hook share this resolver; the dashboard reports the
+  warning and effective source. Global subagent defaults are stored separately at
+  `$CODEXCLAW_HOME/subagents.json` (default `~/.codexclaw/subagents.json`).
+  Live model discovery invokes only the read-only OCX model command with bounded
+  execution/output and keeps its shared cache under CXC home. It does not write
+  Codex or OCX preferences.
+  Global writes use the same local HTTP guards and cannot select a request-supplied
+  filesystem path. Neither scope writes native Codex `config.toml` or agent files.
 - Recursive delegation is authorized with a parent-minted, project/session-bound,
   single-use capability. Public marker text is only a request from a root
   dispatcher; it is never authority when supplied by a child. Worker evidence

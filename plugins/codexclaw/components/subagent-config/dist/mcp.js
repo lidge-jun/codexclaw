@@ -6,18 +6,17 @@
  *  - Persist per-role subagent config: default-model vs multi-model mapping,
  *    and per-role prompt overrides (store: .codexclaw/subagents.json).
  *  - Expose the config to the codexclaw GUI and as MCP tools.
- *  - Model catalog comes from the Codex config cache (CODEX_MODELS_CACHE_PATH).
- *    opencodex SYNCS its routed `provider/model` models into that codex config, so
- *    ocx-backed models appear in the catalog WITHOUT codexclaw calling ocx directly
- *    (detect-only boundary). `catalog_list` reads that cache via buildCatalog().
+ *  - Model catalog uses read-only OCX discovery and a shared CXC cache.
+ *    When OCX is absent, the configured Codex catalog is read instead.
  *
  * Current scope: a spec-compliant stdio MCP server that completes the JSON-RPC
  * `initialize` handshake and advertises the subagent config/catalog tools below.
  * Zero third-party deps: newline-delimited JSON-RPC over stdin/stdout (node:* only).
  */
 import { createInterface } from "node:readline";
-import { readConfig, setRole, ROLES, EFFORTS,               } from "./store.js";
-import { buildCatalog } from "./catalog.js";
+import { ROLES, EFFORTS } from "./store.js";
+import { getSettings, updateSettings } from "./settings-api.js";
+import { readCatalog } from "./live-catalog.js";
 
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_INFO = { name: "codexclaw-subagent-config", version: "0.1.1" };
@@ -33,8 +32,8 @@ function reply(id         , result         )       {
 const TOOLS = [
   {
     name: "subagents_get",
-    description: "Read the per-role subagent config (explorer/reviewer/executor): mode, model, promptOverride.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    description: "Read the per-role subagent config (explorer/reviewer/executor): mode, model, effort, promptOverride, source and scope. Project defaults to global, then original session.",
+    inputSchema: { type: "object", properties: { scope: { type: "string", enum: ["project", "global"] } }, additionalProperties: false },
   },
   {
     name: "subagents_set",
@@ -43,6 +42,8 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
+        scope: { type: "string", enum: ["project", "global"] },
+        inherit: { type: "boolean", description: "Remove this entire role override and inherit the next scope; do not combine with role settings." },
         role: { type: "string", enum: [...ROLES] },
         mode: { type: "string", enum: ["default", "model"] },
         model: { type: ["string", "null"] },
@@ -68,41 +69,27 @@ function toolError(id         , message        )       {
   reply(id, { content: [{ type: "text", text: JSON.stringify({ error: message }) }], isError: true });
 }
 
-function callTool(id         , params                                                        )       {
+async function callTool(id         , params                                                        )                {
   const cwd = process.cwd();
   const args = params.arguments ?? {};
-  if (params.name === "subagents_get") {
-    toolResult(id, readConfig(cwd));
-    return;
-  }
-  if (params.name === "subagents_set") {
-    const role = args.role            ;
-    if (!ROLES.includes(role)) {
-      toolError(id, `unknown role "${String(args.role)}"`);
-      return;
-    }
-    const patch                          = {};
-    if (args.mode !== undefined) patch.mode = args.mode;
-    if (args.model !== undefined) patch.model = args.model;
-    if (args.effort !== undefined) patch.effort = args.effort;
-    if (args.promptOverride !== undefined) patch.promptOverride = args.promptOverride;
+  if (params.name === "subagents_get" || params.name === "subagents_set") {
     try {
-      toolResult(id, setRole(cwd, role, patch));
+      toolResult(id, params.name === "subagents_get" ? getSettings(cwd, args.scope) : updateSettings(cwd, args));
     } catch (err) {
       toolError(id, err instanceof Error ? err.message : String(err));
     }
     return;
   }
   if (params.name === "catalog_list") {
-    // Catalog read from the Codex config cache (native + ocx-synced routed slugs).
-    // L24 owns selection persistence; this never writes and never calls ocx directly.
-    toolResult(id, buildCatalog());
+    // Read-only OCX discovery may update the shared catalog cache.
+    // Model and effort preferences are never changed by discovery.
+    toolResult(id, await readCatalog());
     return;
   }
   toolError(id, `unknown tool: ${String(params.name)}`);
 }
 
-function handle(msg                                   )       {
+async function handle(msg                                   )                {
   const { id, method } = msg;
   switch (method) {
     case "initialize":
@@ -116,7 +103,7 @@ function handle(msg                                   )       {
       reply(id, { tools: TOOLS });
       return;
     case "tools/call":
-      callTool(id, (msg                                                                       ).params ?? {});
+      await callTool(id, (msg                                                                       ).params ?? {});
       return;
     case "ping":
       reply(id, {});
@@ -134,7 +121,7 @@ rl.on("line", (line        ) => {
   const trimmed = line.trim();
   if (!trimmed) return;
   try {
-    handle(JSON.parse(trimmed)                                     );
+    void handle(JSON.parse(trimmed)                                     ).catch(() => { /* malformed requests do not crash stdio */ });
   } catch {
     // Malformed line: ignore rather than crash the long-lived server.
   }
