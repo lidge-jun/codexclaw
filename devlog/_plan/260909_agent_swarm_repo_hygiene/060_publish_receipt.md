@@ -9,7 +9,7 @@ Manual PR chain on lidge-jun/codexclaw, base `dev` @ 6e97e73d (unchanged from st
 | 1 | #94 | dev | codex/agent-swarm-hygiene-l1 | 46a9bc9d | 11 pass | 34257783590 | 34257783537 | 34257783562 | 34257820264 |
 | 2 | #95 | l1 | codex/agent-swarm-hygiene-l2 | 3e7302ec | 11 pass | 34257787659 | 34257787703 | 34257787629 | 34257824607 |
 | 3 | #96 | l2 | codex/agent-swarm-hygiene-l3 | 6ca0c3d8 | 11 pass | 34257793492 | 34257793661 | 34257793628 | 34257830060 |
-| 4 | #97 | l3 | codex/agent-swarm-hygiene-l4 | f2b29e86 | 11 pass | 34257795555 | 34257795623 | 34257795584 | 34257838159 |
+| 4 | #97 | l3 | codex/agent-swarm-hygiene-l4 | f2b29e86 → e686f990 (receipt commit) | 11 pass at f2b29e86; 10 pass at e686f990 (enforce-target runs once per open/edit, not per push) | 34257795555 / re-run on e686f990 | 34257795623 / re-run | 34257795584 / 34259519357 | 34257838159 |
 
 Chain proof (run before push, same SHAs): `git merge-base --is-ancestor` exit 0 for
 origin/dev→l1, l1→l2, l2→l3, l3→l4.
