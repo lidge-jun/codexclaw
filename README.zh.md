@@ -94,9 +94,12 @@ alias cxc='node /path/to/codexclaw/bin/codexclaw.mjs'   # 或者：npm link
 本地 marketplace 安装：
 
 ```bash
-codex plugin marketplace add /path/to/codexclaw   # 本地检出，而非 git URL
 scripts/dev-install.sh
 ```
+
+这就是全部配置。脚本会自行把 `codexclaw` marketplace 指向你的检出，即使已发布的 git marketplace
+已占用同一名称也是如此——手动添加会失败并提示
+`marketplace 'codexclaw' is already added from a different source`。
 
 git 源的 marketplace 会锁定某个提交，因此正在开发中的检出必须使用本地源；否则无论你改动什么，
 Codex 都只会加载那个被锁定的快照。
@@ -105,7 +108,7 @@ Codex 都只会加载那个被锁定的快照。
 
 早期的 `scripts/dev-symlink.sh` 会把插件缓存版本目录下的每个子项替换为指向仓库的 symlink，这样无需
 重装即可让改动生效。但 Codex 无法可靠地解析这些 symlink 条目，插件可能悄无声息地加载失败，因此该
-方式已废弃。`dev-install.sh` 会在安装前清除缓存中残留的 symlink。
+方式已废弃。当 `dev-install.sh` 在插件缓存中发现任何 symlink 时，会清空整个缓存目录并重新安装。
 
 ### 安装实际做了什么
 
@@ -125,9 +128,11 @@ manifest 版本号。
 修改 -> `scripts/dev-install.sh` -> **打开新的 Codex 线程**。skills、hooks 与 MCP 工具在会话启动时读取，
 因此当前线程不会拾取这些改动。
 
-hook 信任基于内容哈希。如果重装改变了某个 hook 的字节，Codex 会将其标记为 **Modified**，在你重新批准
-之前该 hook 不会运行；字节未变则信任保持不变。`cxc doctor` 的 `hook-trust` 一行会告诉你属于哪种
-情况。codexclaw 从不自行写入信任状态。
+hook 信任的哈希覆盖的是 hook **声明**——事件、matcher、command、timeout、async 与状态消息——而不是
+hook 所运行的文件。因此修改 `hooks/*.json` 中的 matcher 或 command 会破坏信任，Codex 将其标记为
+**Modified**，在你重新批准之前该 hook 不会运行；而重新构建 hook 所调用的组件 `dist/` 即便改动大量
+字节，信任依然保持。`cxc doctor` 的 `hook-trust` 一行会告诉你属于哪种情况。codexclaw 从不自行
+写入信任状态。
 
 ### 验证安装
 
@@ -138,6 +143,7 @@ CACHE=~/.codex/plugins/cache/codexclaw/codexclaw
 diff -rq plugins/codexclaw "$CACHE/$VER"   # 安装的 payload 与检出一致
 find "$CACHE" -type l | wc -l              # 预期为 0 —— 没有 symlink 残留
 node "$CACHE/$VER/bin/cxc.mjs" doctor       # 预期：overall: PASS
+                                            # 仅 hook-trust 为 FAIL 表示 hooks 待重新批准
 ```
 
 若要回到发布轨道，移除本地 marketplace 并重新添加 git URL：

@@ -47,9 +47,11 @@ npm run build
 
 See [Build & Test](/codexclaw/development/build-test/) for the build and test harness.
 
-:::caution[Trust is content-hashed]
-Reinstalling rewrites the cached hook files. If their contents changed, Codex marks the hooks
-**Modified** and they stop running until you re-approve them. codexclaw must not forge hook trust —
+:::caution[Trust hashes the declaration, not the files]
+The trust hash covers each hook's declaration — event, matcher, command, timeout, async flag and
+status message — not the files the hook runs. Editing a matcher or command in `hooks/*.json` breaks
+trust and Codex marks that hook **Modified** until you re-approve it; rebuilding the component
+`dist/` a hook invokes changes many bytes and keeps its trust. codexclaw must not forge hook trust —
 re-trust through Codex.
 :::
 

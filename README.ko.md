@@ -94,19 +94,22 @@ codexclaw를 Codex 안에서 돌리면서 고치려면, 작업 중인 체크아�
 마켓플레이스에서 **실제 복사본**으로 설치한다.
 
 ```bash
-codex plugin marketplace add /path/to/codexclaw   # git URL이 아니라 로컬 체크아웃
 scripts/dev-install.sh
 ```
+
+설정은 이게 전부다. `codexclaw` 마켓플레이스를 체크아웃 쪽으로 돌리는 일은 스크립트가 알아서 한다.
+이미 배포용 git 마켓플레이스가 같은 이름을 쓰고 있어도 마찬가지다. 손으로 등록하면
+`marketplace 'codexclaw' is already added from a different source`로 막힌다.
 
 git 소스 마켓플레이스는 특정 커밋에 고정된다. 그래서 한창 고치는 중인 체크아웃은 로컬 소스로
 잡아야 한다. 안 그러면 뭘 편집하든 Codex는 고정된 스냅샷만 계속 읽는다.
 
-### symlink을 안 쓰는 이유
+### symlink를 안 쓰는 이유
 
 예전 `scripts/dev-symlink.sh`는 플러그인 캐시 버전 디렉터리의 각 항목을 리포로 향하는 symlink로
 바꿔서 재설치 없이 편집이 바로 반영되게 했다. 그런데 Codex가 그 symlink 항목을 안정적으로 풀지
-못해서 플러그인이 조용히 로드에 실패할 수 있다. 그래서 그 방식은 접었다. `dev-install.sh`는 설치
-전에 캐시에 남아 있는 symlink를 지운다.
+못해서 플러그인이 조용히 로드에 실패할 수 있다. 그래서 그 방식은 접었다. `dev-install.sh`는 캐시에
+symlink가 하나라도 남아 있으면 캐시 디렉터리를 통째로 지우고 새로 설치한다.
 
 ### 설치가 실제로 하는 일
 
@@ -126,8 +129,10 @@ git 소스 마켓플레이스는 특정 커밋에 고정된다. 그래서 한창
 편집 -> `scripts/dev-install.sh` -> **새 Codex 스레드 열기**. 스킬과 훅, MCP 도구는 세션이 시작할 때
 읽히기 때문에 지금 있는 스레드에는 변경이 반영되지 않는다.
 
-훅 신뢰는 콘텐츠 해시 기반이다. 재설치로 훅 파일의 바이트가 바뀌었으면 Codex가 **Modified**로
-표시하고, 다시 승인하기 전까지 그 훅은 돌지 않는다. 바이트가 그대로면 신뢰도 그대로다. 어느 쪽인지는
+훅 신뢰 해시는 훅이 실행하는 파일이 아니라 훅 **선언**을 대상으로 한다. 이벤트, matcher, command,
+timeout, async, 상태 메시지가 그 대상이다. 그래서 `hooks/*.json`의 matcher나 command를 고치면
+신뢰가 깨져 Codex가 **Modified**로 표시하고 다시 승인할 때까지 그 훅은 돌지 않는다. 반대로 훅이
+호출하는 컴포넌트 `dist/`를 다시 빌드하면 바이트는 많이 바뀌어도 신뢰는 유지된다. 어느 쪽인지는
 `cxc doctor`의 `hook-trust` 줄로 확인한다. codexclaw가 신뢰 상태를 직접 쓰는 일은 없다.
 
 ### 설치 검증
@@ -138,7 +143,8 @@ CACHE=~/.codex/plugins/cache/codexclaw/codexclaw
 
 diff -rq plugins/codexclaw "$CACHE/$VER"   # 설치본이 체크아웃과 같은지
 find "$CACHE" -type l | wc -l              # 0이어야 한다 — symlink가 남지 않았는지
-node "$CACHE/$VER/bin/cxc.mjs" doctor       # overall: PASS
+node "$CACHE/$VER/bin/cxc.mjs" doctor       # overall: PASS 여야 한다
+                                            # hook-trust만 FAIL이면 훅 재승인이 남은 것
 ```
 
 배포 트랙으로 돌아가려면 로컬 마켓플레이스를 지우고 git URL을 다시 등록한다.

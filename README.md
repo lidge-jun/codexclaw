@@ -102,9 +102,12 @@ To change codexclaw while running it inside Codex, install your working checkout
 plugin copy** from a local marketplace rooted at the repo:
 
 ```bash
-codex plugin marketplace add /path/to/codexclaw   # the local checkout, not the git URL
 scripts/dev-install.sh
 ```
+
+That is the whole setup. The script points the `codexclaw` marketplace at your checkout itself,
+including when a published git marketplace already holds that name — adding it by hand would fail
+with `marketplace 'codexclaw' is already added from a different source`.
 
 A git-source marketplace pins a commit, so a checkout under active development has to use the
 local source — otherwise Codex keeps loading the pinned snapshot no matter what you edit.
@@ -114,7 +117,8 @@ local source — otherwise Codex keeps loading the pinned snapshot no matter wha
 An earlier `scripts/dev-symlink.sh` replaced each child of the plugin cache version directory with a
 symlink into the repo, so edits were live with no reinstall. Codex does not resolve those
 symlinked entries reliably and the plugin can silently fail to load, so that track is retired.
-`dev-install.sh` deletes any leftover symlinks it finds in the cache before installing.
+When `dev-install.sh` finds any symlink left in the plugin cache it clears the whole cache
+directory and reinstalls from scratch.
 
 ### What the install actually does
 
@@ -134,9 +138,12 @@ re-running the script is the whole update loop and the manifest version never ne
 Edit -> `scripts/dev-install.sh` -> **open a new Codex thread**. Skills, hooks and MCP tools are read
 when a session starts, so the thread you are in does not pick up the change.
 
-Hook trust is content-hashed. If a reinstall changed a hook's bytes, Codex marks it **Modified** and
-it stops running until you re-approve it; unchanged bytes keep their trust. `cxc doctor`'s
-`hook-trust` line tells you which case you are in. codexclaw never writes trust state itself.
+Hook trust is hashed over the hook **declaration** — the event, matcher, command, timeout, async
+flag and status message — not over the files a hook runs. Editing a matcher or command in
+`hooks/*.json` breaks trust and Codex marks that hook **Modified** until you re-approve it, while
+rebuilding the component `dist/` a hook invokes changes many bytes and keeps its trust.
+`cxc doctor`'s `hook-trust` line tells you which case you are in. codexclaw never writes trust
+state itself.
 
 ### Verifying the install
 
@@ -147,6 +154,7 @@ CACHE=~/.codex/plugins/cache/codexclaw/codexclaw
 diff -rq plugins/codexclaw "$CACHE/$VER"   # installed payload matches the checkout
 find "$CACHE" -type l | wc -l              # expect 0 — no symlinks survived
 node "$CACHE/$VER/bin/cxc.mjs" doctor       # expect: overall: PASS
+                                            # FAIL on hook-trust alone = hooks await re-approval
 ```
 
 To go back to the published track, remove the local marketplace and re-add the git URL:
