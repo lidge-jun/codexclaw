@@ -94,3 +94,12 @@ then 2,697 after adding the four regression tests, written through
 | 92 | APPROVE-WITH-NITS | Merged first (badge ordering) |
 | 91 | REQUEST-CHANGES (BLOCKER) | **Held.** Not merged. |
 | 93 | REQUEST-CHANGES (2 MAJOR) | Fixed in-place, then merged |
+
+## Delivery of the held review
+
+PR 91's hold was communicated to its author rather than left silent:
+[#91 comment](https://github.com/lidge-jun/codexclaw/pull/91#issuecomment-5585802286). The comment
+carries the blocker with its anchors, the independent confirmation that `~/.codex/agents/` is empty
+on this host, the suggested `resolveSpawnPayload` fallback, the two MAJOR follow-ons, and the
+explicit record of what the reviewer confirmed as correct. It also notes that `dev` has moved and
+the branch needs a rebase.
