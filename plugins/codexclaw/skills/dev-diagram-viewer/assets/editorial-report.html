@@ -1,0 +1,264 @@
+<!doctype html>
+<!-- Original codexclaw example; provenance: ../reference/source-patterns.md -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>분기 운영 검토 | 원가 변화 시나리오</title>
+<meta name="description" content="72개 예시 기록으로 살펴보는 원가 상승과 잔액의 관계">
+<style>
+:root { color-scheme: light; --ink: #20252c; --muted: #505d6b; --blue: #204f9b; --line: #c8cdd3; --paper: #fff; --wash: #f1f3f5; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--wash); color: var(--ink); font: 1rem/1.7 "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+main { max-width: 1000px; margin: 36px auto; padding: 44px 56px; background: var(--paper); }
+a { color: var(--blue); }
+.skip { position: absolute; left: 12px; top: -80px; background: white; padding: 10px; }
+.skip:focus { top: 12px; }
+h1, h2, h3, figcaption { text-wrap: balance; word-break: keep-all; overflow-wrap: anywhere; }
+h1 { font-size: clamp(1.8rem, 4vw, 2.5rem); line-height: 1.35; margin: 18px 0; font-weight: 700; }
+h2 { font-size: 1.3rem; line-height: 1.4; margin: 0 0 16px; }
+h3 { font-size: 1rem; margin: 0 0 6px; }
+p { max-width: 66ch; word-break: keep-all; overflow-wrap: anywhere; margin: 0 0 16px; }
+.masthead { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-bottom: 2px solid var(--ink); padding-bottom: 12px; font-size: .85rem; }
+.lead { color: var(--muted); font-size: 1.05rem; }
+.notice { font-size: .85rem; color: var(--muted); }
+section { margin-top: 36px; }
+.summary { border-top: 1px solid var(--line); padding-top: 24px; }
+.summary-line { font-size: 1.1rem; }
+.summary-line strong { font-size: 1.4rem; font-variant-numeric: tabular-nums; color: var(--blue); }
+.controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 16px 0; }
+.control { flex: 1 1 260px; }
+label { display: block; font-weight: 600; }
+input { accent-color: var(--blue); width: 100%; min-height: 44px; margin: 0; }
+button { min-height: 44px; border: 1px solid var(--muted); background: white; color: var(--ink); padding: 8px 16px; font: inherit; cursor: pointer; }
+button:hover { background: var(--wash); }
+button:active { transform: translateY(1px); }
+button.primary { background: var(--blue); color: white; border-color: var(--blue); }
+:focus-visible { outline: 3px solid var(--blue); outline-offset: 4px; }
+[hidden] { display: none !important; }
+.scenario { padding: 12px 16px; border-left: 3px solid var(--blue); background: var(--wash); }
+.scenario p { margin: 0; }
+figure { margin: 20px 0; }
+.chart-label { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; font-size: .9rem; }
+.chart-label strong { font-variant-numeric: tabular-nums; }
+svg { display: block; width: 100%; height: auto; margin: 10px 0; }
+.cost-mark { fill: var(--blue); }
+.margin-mark { fill: #d8dfe9; stroke: var(--muted); stroke-width: 1; }
+.legend { display: flex; gap: 20px; margin: 12px 0; font-size: .85rem; }
+.legend span { display: flex; gap: 8px; align-items: center; }
+.swatch { display: inline-block; width: 18px; height: 12px; border: 1px solid var(--muted); }
+.swatch.cost { background: var(--blue); }
+.swatch.balance { background: #d8dfe9; }
+figcaption { color: var(--muted); font-size: .85rem; margin-top: 12px; }
+.reading { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
+.reading > div { min-width: 0; }
+.reading p { font-size: .9rem; }
+.table-note { color: var(--muted); font-size: .85rem; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: .9rem; font-variant-numeric: tabular-nums; }
+caption { text-align: left; font-weight: 600; padding: 0 0 12px; }
+th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: right; overflow-wrap: anywhere; }
+th:first-child, td:first-child { text-align: left; width: 40%; }
+thead th { background: var(--wash); border-top: 2px solid var(--ink); font-weight: 700; }
+tbody th { font-weight: 400; }
+tfoot th, tfoot td { border-top: 2px solid var(--ink); font-weight: 700; }
+footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--ink); color: var(--muted); font-size: .8rem; }
+@media (max-width: 767px) {
+  main { margin: 0; padding: 28px 20px; }
+  .reading { grid-template-columns: 1fr; gap: 8px; }
+  th, td { padding: 7px 4px; font-size: .8rem; }
+  th:first-child, td:first-child { width: 34%; }
+  .controls { gap: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { button:active { transform: none; } }
+@page { size: A4; margin: 16mm; }
+@media print {
+  html, body { background: white; font-size: 10.5pt; }
+  main { max-width: none; width: auto; margin: 0; padding: 0; }
+  .screen-controls, .skip { display: none !important; }
+  h1 { font-size: 24pt; }
+  h2 { font-size: 15pt; break-after: avoid; }
+  h3 { break-after: avoid; }
+  p { widows: 3; orphans: 3; }
+  section { margin-top: 18pt; }
+  .records { break-before: page; }
+  .reading { display: block; }
+  .reading > div { break-inside: avoid; }
+  .reading p { margin-bottom: 8pt; }
+  .scenario { background: white; }
+  figure { break-inside: avoid; margin: 12pt 0; }
+  svg { max-height: 80px; }
+  table, tbody { break-inside: auto; }
+  thead { display: table-header-group; }
+  tfoot { display: table-row-group; }
+  tr { break-inside: avoid; }
+  th, td { padding: 4pt 6pt; font-size: 10pt; }
+  th:first-child, td:first-child { width: 40%; }
+  * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#report">보고서 본문으로</a>
+<main id="report">
+<header>
+  <div class="masthead"><strong>분기 운영 검토</strong><span>2026년 3분기 / 검토용 예시</span></div>
+  <h1>원가가 오르면<br>얼마가 남을까</h1>
+  <p class="lead">매출을 유지한 채 원가만 바뀌는 상황을 살펴봅니다. 72개 작업 기록의 합계에서 비용 변동이 잔액에 미치는 영향을 확인합니다.</p>
+  <p class="notice">모든 이름과 수치는 설명을 위한 가상 자료입니다. 실제 회사의 실적이나 예측이 아닙니다. 금액 단위: 만원.</p>
+</header>
+<section class="summary" aria-labelledby="scenario-heading">
+  <h2 id="scenario-heading">원가 변화 시나리오</h2>
+  <p class="summary-line">매출 <strong>9,828</strong>만원 중 기준 원가는 <strong>6,948</strong>만원입니다.</p>
+  <div class="controls screen-controls" id="controls" hidden>
+    <div class="control"><label for="uplift">원가 상승률 <output id="rate" for="uplift">0%</output></label>
+    <input id="uplift" type="range" min="0" max="20" step="1" value="0" aria-describedby="range-help">
+    <small id="range-help">0%부터 20%까지, 1% 단위로 조정</small></div>
+    <button id="reset" type="button">기준값으로</button>
+    <button id="print" class="primary" type="button">인쇄 / PDF 저장</button>
+  </div>
+  <noscript><p class="notice">현재 문서는 기준값 0%입니다. 시나리오 조정은 JavaScript를 켠 브라우저에서 사용할 수 있습니다.</p></noscript>
+  <div class="scenario" aria-live="polite" aria-atomic="true">
+    <p id="selected">선택한 원가 상승률: 0%</p>
+    <p>조정 원가 <strong id="cost">6,948</strong>만원 / 남는 금액 <strong id="balance">2,880</strong>만원</p>
+    <p>기준 대비 잔액 감소: <strong id="loss">0</strong>만원</p>
+  </div>
+  <figure>
+    <div class="chart-label"><span>기준 원가 / 잔액</span><strong>6,948 / 2,880만원</strong></div>
+    <svg viewBox="0 0 600 34" role="img" aria-labelledby="base-title base-desc">
+      <title id="base-title">기준 매출의 구성</title><desc id="base-desc">총 9,828만원 중 원가 6,948만원, 잔액 2,880만원.</desc>
+      <rect class="cost-mark" x="0" y="2" width="424.1768" height="30"/>
+      <rect class="margin-mark" x="424.1768" y="2" width="175.8232" height="30"/>
+    </svg>
+    <div class="chart-label"><span>선택한 시나리오 원가 / 잔액</span><strong id="chart-values">6,948 / 2,880만원</strong></div>
+    <svg viewBox="0 0 600 34" role="img" aria-labelledby="scenario-title scenario-desc">
+      <title id="scenario-title">선택한 시나리오의 매출 구성</title><desc id="scenario-desc">원가 상승률 0%. 원가 6,948만원, 잔액 2,880만원.</desc>
+      <rect id="cost-bar" class="cost-mark" x="0" y="2" width="424.1768" height="30"/>
+      <rect id="balance-bar" class="margin-mark" x="424.1768" y="2" width="175.8232" height="30"/>
+    </svg>
+    <div class="legend" aria-hidden="true"><span><i class="swatch cost"></i>원가</span><span><i class="swatch balance"></i>잔액</span></div>
+    <figcaption>두 막대의 전체 길이는 같은 매출 9,828만원입니다. 원가 증가분만큼 잔액이 줄어듭니다.</figcaption>
+  </figure>
+  <div class="reading">
+    <div><h3>계산 범위</h3><p>조정 원가 = 기준 원가 × (1 + 상승률). 잔액 = 매출 - 조정 원가. 소수 둘째 자리까지 표시합니다.</p></div>
+    <div><h3>해석할 때</h3><p>매출과 작업 수는 고정했습니다. 세금, 금융비용, 추가 고정비를 제외하므로 잔액은 회계상 순이익과 다릅니다.</p></div>
+  </div>
+</section>
+<section class="records" aria-labelledby="records-heading">
+  <h2 id="records-heading">기준 작업 기록</h2>
+  <p class="table-note">아래 표는 조정 전 기준값입니다. 원가 상승률은 앞의 시나리오 합계에만 적용됩니다.</p>
+  <table>
+    <caption>72개 가상 작업의 매출과 원가 (단위: 만원)</caption>
+    <thead><tr><th scope="col">작업명</th><th scope="col">매출</th><th scope="col">원가</th><th scope="col">잔액</th></tr></thead>
+    <tbody>
+    <tr><th scope="row">서교 편집 01</th><td>101</td><td>61</td><td>40</td></tr>
+    <tr><th scope="row">성수 인쇄 02</th><td>102</td><td>62</td><td>40</td></tr>
+    <tr><th scope="row">연남 교정 03</th><td>103</td><td>63</td><td>40</td></tr>
+    <tr><th scope="row">망원 제본 04</th><td>104</td><td>64</td><td>40</td></tr>
+    <tr><th scope="row">문래 제작 05</th><td>105</td><td>65</td><td>40</td></tr>
+    <tr><th scope="row">을지 검수 06</th><td>106</td><td>66</td><td>40</td></tr>
+    <tr><th scope="row">서교 편집 07</th><td>107</td><td>67</td><td>40</td></tr>
+    <tr><th scope="row">성수 인쇄 08</th><td>108</td><td>68</td><td>40</td></tr>
+    <tr><th scope="row">연남 교정 09</th><td>109</td><td>69</td><td>40</td></tr>
+    <tr><th scope="row">망원 제본 10</th><td>110</td><td>70</td><td>40</td></tr>
+    <tr><th scope="row">문래 제작 11</th><td>111</td><td>71</td><td>40</td></tr>
+    <tr><th scope="row">을지 검수 12</th><td>112</td><td>72</td><td>40</td></tr>
+    <tr><th scope="row">서교 편집 13</th><td>113</td><td>73</td><td>40</td></tr>
+    <tr><th scope="row">성수 인쇄 14</th><td>114</td><td>74</td><td>40</td></tr>
+    <tr><th scope="row">연남 교정 15</th><td>115</td><td>75</td><td>40</td></tr>
+    <tr><th scope="row">망원 제본 16</th><td>116</td><td>76</td><td>40</td></tr>
+    <tr><th scope="row">문래 제작 17</th><td>117</td><td>77</td><td>40</td></tr>
+    <tr><th scope="row">을지 검수 18</th><td>118</td><td>78</td><td>40</td></tr>
+    <tr><th scope="row">서교 편집 19</th><td>119</td><td>79</td><td>40</td></tr>
+    <tr><th scope="row">성수 인쇄 20</th><td>120</td><td>80</td><td>40</td></tr>
+    <tr><th scope="row">연남 교정 21</th><td>121</td><td>81</td><td>40</td></tr>
+    <tr><th scope="row">망원 제본 22</th><td>122</td><td>82</td><td>40</td></tr>
+    <tr><th scope="row">문래 제작 23</th><td>123</td><td>83</td><td>40</td></tr>
+    <tr><th scope="row">을지 검수 24</th><td>124</td><td>84</td><td>40</td></tr>
+    <tr><th scope="row">서교 편집 25</th><td>125</td><td>85</td><td>40</td></tr>
+    <tr><th scope="row">성수 인쇄 26</th><td>126</td><td>86</td><td>40</td></tr>
+    <tr><th scope="row">연남 교정 27</th><td>127</td><td>87</td><td>40</td></tr>
+    <tr><th scope="row">망원 제본 28</th><td>128</td><td>88</td><td>40</td></tr>
+    <tr><th scope="row">문래 제작 29</th><td>129</td><td>89</td><td>40</td></tr>
+    <tr><th scope="row">을지 검수 30</th><td>130</td><td>90</td><td>40</td></tr>
+    <tr><th scope="row">서교 편집 31</th><td>131</td><td>91</td><td>40</td></tr>
+    <tr><th scope="row">성수 인쇄 32</th><td>132</td><td>92</td><td>40</td></tr>
+    <tr><th scope="row">연남 교정 33</th><td>133</td><td>93</td><td>40</td></tr>
+    <tr><th scope="row">망원 제본 34</th><td>134</td><td>94</td><td>40</td></tr>
+    <tr><th scope="row">문래 제작 35</th><td>135</td><td>95</td><td>40</td></tr>
+    <tr><th scope="row">을지 검수 36</th><td>136</td><td>96</td><td>40</td></tr>
+    <tr><th scope="row">서교 편집 37</th><td>137</td><td>97</td><td>40</td></tr>
+    <tr><th scope="row">성수 인쇄 38</th><td>138</td><td>98</td><td>40</td></tr>
+    <tr><th scope="row">연남 교정 39</th><td>139</td><td>99</td><td>40</td></tr>
+    <tr><th scope="row">망원 제본 40</th><td>140</td><td>100</td><td>40</td></tr>
+    <tr><th scope="row">문래 제작 41</th><td>141</td><td>101</td><td>40</td></tr>
+    <tr><th scope="row">을지 검수 42</th><td>142</td><td>102</td><td>40</td></tr>
+    <tr><th scope="row">서교 편집 43</th><td>143</td><td>103</td><td>40</td></tr>
+    <tr><th scope="row">성수 인쇄 44</th><td>144</td><td>104</td><td>40</td></tr>
+    <tr><th scope="row">연남 교정 45</th><td>145</td><td>105</td><td>40</td></tr>
+    <tr><th scope="row">망원 제본 46</th><td>146</td><td>106</td><td>40</td></tr>
+    <tr><th scope="row">문래 제작 47</th><td>147</td><td>107</td><td>40</td></tr>
+    <tr><th scope="row">을지 검수 48</th><td>148</td><td>108</td><td>40</td></tr>
+    <tr><th scope="row">서교 편집 49</th><td>149</td><td>109</td><td>40</td></tr>
+    <tr><th scope="row">성수 인쇄 50</th><td>150</td><td>110</td><td>40</td></tr>
+    <tr><th scope="row">연남 교정 51</th><td>151</td><td>111</td><td>40</td></tr>
+    <tr><th scope="row">망원 제본 52</th><td>152</td><td>112</td><td>40</td></tr>
+    <tr><th scope="row">문래 제작 53</th><td>153</td><td>113</td><td>40</td></tr>
+    <tr><th scope="row">을지 검수 54</th><td>154</td><td>114</td><td>40</td></tr>
+    <tr><th scope="row">서교 편집 55</th><td>155</td><td>115</td><td>40</td></tr>
+    <tr><th scope="row">성수 인쇄 56</th><td>156</td><td>116</td><td>40</td></tr>
+    <tr><th scope="row">연남 교정 57</th><td>157</td><td>117</td><td>40</td></tr>
+    <tr><th scope="row">망원 제본 58</th><td>158</td><td>118</td><td>40</td></tr>
+    <tr><th scope="row">문래 제작 59</th><td>159</td><td>119</td><td>40</td></tr>
+    <tr><th scope="row">을지 검수 60</th><td>160</td><td>120</td><td>40</td></tr>
+    <tr><th scope="row">서교 편집 61</th><td>161</td><td>121</td><td>40</td></tr>
+    <tr><th scope="row">성수 인쇄 62</th><td>162</td><td>122</td><td>40</td></tr>
+    <tr><th scope="row">연남 교정 63</th><td>163</td><td>123</td><td>40</td></tr>
+    <tr><th scope="row">망원 제본 64</th><td>164</td><td>124</td><td>40</td></tr>
+    <tr><th scope="row">문래 제작 65</th><td>165</td><td>125</td><td>40</td></tr>
+    <tr><th scope="row">을지 검수 66</th><td>166</td><td>126</td><td>40</td></tr>
+    <tr><th scope="row">서교 편집 67</th><td>167</td><td>127</td><td>40</td></tr>
+    <tr><th scope="row">성수 인쇄 68</th><td>168</td><td>128</td><td>40</td></tr>
+    <tr><th scope="row">연남 교정 69</th><td>169</td><td>129</td><td>40</td></tr>
+    <tr><th scope="row">망원 제본 70</th><td>170</td><td>130</td><td>40</td></tr>
+    <tr><th scope="row">문래 제작 71</th><td>171</td><td>131</td><td>40</td></tr>
+    <tr><th scope="row">최종기록 72</th><td>172</td><td>132</td><td>40</td></tr>
+    </tbody>
+    <tfoot><tr><th scope="row">기준 합계</th><td>9,828</td><td>6,948</td><td>2,880</td></tr></tfoot>
+  </table>
+</section>
+<footer>
+  <p>자료: 설명용으로 구성한 72개 기록. i번째 기록의 매출은 100+i, 원가는 60+i입니다. 실제 의사결정에는 검증된 자료를 사용하세요.</p>
+</footer>
+</main>
+<script>
+(() => {
+  const input = document.getElementById('uplift');
+  const text = (id, value) => { document.getElementById(id).textContent = value; };
+  const format = value => new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 2 }).format(value);
+  function update() {
+    const rate = Number(input.value);
+    const cost = 6948 * (1 + rate / 100);
+    const balance = 9828 - cost;
+    const width = 600 * cost / 9828;
+    text('rate', `${rate}%`);
+    input.setAttribute('aria-valuetext', `${rate}%`);
+    text('selected', `선택한 원가 상승률: ${rate}%`);
+    text('cost', format(cost));
+    text('balance', format(balance));
+    text('loss', format(cost - 6948));
+    text('chart-values', `${format(cost)} / ${format(balance)}만원`);
+    text('scenario-desc', `원가 상승률 ${rate}%. 원가 ${format(cost)}만원, 잔액 ${format(balance)}만원.`);
+    document.getElementById('cost-bar').setAttribute('width', width);
+    document.getElementById('balance-bar').setAttribute('x', width);
+    document.getElementById('balance-bar').setAttribute('width', 600 - width);
+  }
+  input.addEventListener('input', update);
+  document.getElementById('reset').addEventListener('click', () => { input.value = '0'; update(); });
+  document.getElementById('print').addEventListener('click', async () => { await document.fonts.ready; update(); window.print(); });
+  window.addEventListener('beforeprint', update);
+  update();
+  document.getElementById('controls').hidden = false;
+})();
+</script>
+</body>
+</html>
