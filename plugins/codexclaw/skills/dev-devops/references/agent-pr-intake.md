@@ -1,22 +1,3 @@
-# 030 — L3: agent-PR intake reference
-
-Status: PLANNED
-Branch: `codex/agent-swarm-hygiene-l3` (base `codex/agent-swarm-hygiene-l2`)
-Thesis (PR title): "dev-devops: add agent-pr-intake reference (identity, draft-first, supersede, three policy strengths)"
-Class: C2 (one NEW reference file, one router row).
-
-## Why this layer exists
-
-No skill file addresses the volume of agent-authored PRs (000_plan problem 3). The
-practitioner record is large and contradictory (ledger 3.5), so the skill presents the
-options with their sources rather than picking one — user instruction 2026-09-09:
-"모두 표시해서 옵션으로".
-
-## NEW `plugins/codexclaw/skills/dev-devops/references/agent-pr-intake.md`
-
-Full body (B copies verbatim):
-
-````markdown
 # Agent PR Intake — Identity, Draft-First, Supersede, Policy Strengths
 
 Last reviewed: 2026-09-09
@@ -159,26 +140,3 @@ removal of bait labels (`repo-bootstrap.md` §6).
 - Practitioner policies (LLVM, OpenSSL, dotnet/runtime, ghostty, Godot, Kubernetes, Crossplane, llama.cpp, curl, Zig, Ladybird, OpenSSF): `evidence/research/agent-pr-flood-practitioner-writeups.md` and `evidence/research/oss-ai-contribution-policies.md` in the same unit, each entry with its URL
 - Laravel Issues decision: https://x.com/taylorotwell/status/2095516796748996843 (first-hand report)
 - Live opencodex numbers: `evidence/research/lidge-jun-repos-settings-audit.md` §5.1
-````
-
-## MODIFY `plugins/codexclaw/skills/dev-devops/SKILL.md` — Modular References table
-
-After the `references/repo-bootstrap.md` row:
-```diff
-+| `references/agent-pr-intake.md` | Many agent-authored PRs/issues; intake policy; superseded PRs | Identity tiers, agent convention table, draft-first, supersede procedure, weak/medium/strong policy options with sources |
-```
-
-## Scope boundary
-
-IN: the new file and one router row. OUT: workflow YAML, label creation, the GC file.
-
-## Accept criteria
-
-| # | Criterion | Evidence |
-|---|---|---|
-| A1 | Rule IDs `DEVOPS-AGENT-IDENTITY-01`, `DEVOPS-DRAFT-FIRST-01`, `DEVOPS-PR-SUPERSEDE-01`, `DEVOPS-AGENT-INTAKE-01` defined once | grep |
-| A2 | Three strength columns present; every non-"none" cell names a source | reviewer |
-| A3 | Codex author/signing cells marked unverified; X posts cited as first-hand reports only | grep |
-| A4 | Convention table matches ledger 3.1-3.3 | reviewer |
-| A5 | gate + catalog/manifest tests exit 0 at L3 tip; Modular References 15 rows | receipt, grep |
-| A6 | Opus-5 audit: no source misattribution | attest |
