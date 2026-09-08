@@ -26,3 +26,6 @@ Main owns role mapping, prompt/README/skill call guidance, model routing tests, 
 
 ## Previous cycle
 Previous cycle fixed source worktree binding and ended IDLE. This distinct cycle fixes role identity; no old worktree/phase evidence is reused as proof.
+
+## Delivery conclusion
+Implementation and local registration are complete; PR https://github.com/lidge-jun/codexclaw/pull/91 targets dev. Canonical executor naming, legacy compatibility and configuration-preserving registration passed independent review and local checks. Final local payload covers18files after documentation follow-up. No merge/release performed. Normal user hook reapproval is still required before claiming changed native SubagentStop activation; this is an explicit handoff prerequisite, not a passing hook-delivery claim. CI is tracked on the PR separately from local proof. CXC cycle closed to IDLE after verified local checks.
