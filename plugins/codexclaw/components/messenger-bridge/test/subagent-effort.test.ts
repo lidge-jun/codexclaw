@@ -43,7 +43,7 @@ test("serve persists effort across GET and process restart, preserves models, ac
   const cwd = mkdtempSync(join(tmpdir(), "cxc-effort-"));
   let server = await startServer(cwd);
   try {
-    const models = { explorer: "fixture-luna", reviewer: "fixture-sol", executor: "fixture-terra" };
+    const models = { explorer: "fixture-luna", reviewer: "fixture-sol", executor: "fixture-terra", architect: "fixture-design" };
     for (const [role, model] of Object.entries(models)) {
       assert.equal((await post(server.base, { role, mode: "model", model, promptOverride: `${role} prompt` })).status, 200);
     }

@@ -16,6 +16,17 @@ All notable changes to codexclaw are documented here. The format follows
   `DEVOPS-REPO-BOOTSTRAP-01`, `DEVOPS-AGENT-INTAKE-01`, `DEVOPS-LOCAL-GC-01` and
   their sub-rules.
 
+### Changed
+
+- Architect now dispatches as the independent native `architect` role, with its
+  own CXC model/effort/prompt settings and read-only role configuration. It no longer
+  uses an explorer alias. Existing installations must explicitly run
+  `cxc subagents register architect`, start a fresh Codex session and verify the
+  role is exposed before first use; otherwise the host rejects the unknown role.
+  Registration preserves custom files, backs up managed updates and pins no model.
+  The shared registrar retains `register executor` compatibility. Installing the
+  plugin alone does not register either role.
+
 ### Fixed
 
 - `branch-lifecycle.md` keep rules now match the shipped OpenCodex closed-PR planner

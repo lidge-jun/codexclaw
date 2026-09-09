@@ -1,8 +1,8 @@
 /**
  * store.ts — `.codexclaw/subagents.json` config store (L24 / 240-242).
  *
- * Per-role subagent model mode + prompt override for the three Phase-1 roles
- * (explorer/reviewer/executor). Missing file -> defaults; malformed values are
+ * Per-role subagent model mode + prompt override for the configurable roles
+ * (explorer/reviewer/executor/architect). Missing file -> defaults; malformed values are
  * normalized per-field (strict reconstruct, never throws on read). Writes are
  * atomic (temp + rename). User defaults live in CODEXCLAW_HOME; native
  * Codex config is never mutated. Default mode needs
@@ -17,7 +17,7 @@ import { renameWithRetry } from "./atomic-write.ts";
 
 export const STATE_DIR = ".codexclaw";
 export const STORE_FILE = "subagents.json";
-export const ROLES = ["explorer", "reviewer", "executor"] as const;
+export const ROLES = ["explorer", "reviewer", "executor", "architect"] as const;
 export type RoleName = (typeof ROLES)[number];
 
 export type RoleMode = "default" | "model";
@@ -69,7 +69,7 @@ export function defaultRole(): RoleConfig {
 }
 
 export function defaultConfig(): SubagentsConfig {
-  return { roles: { explorer: defaultRole(), reviewer: defaultRole(), executor: defaultRole() } };
+  return { roles: { explorer: defaultRole(), reviewer: defaultRole(), executor: defaultRole(), architect: defaultRole() } };
 }
 
 function storePath(cwd: string): string {
@@ -180,8 +180,8 @@ export function readSettings(cwd: string, scope: ConfigScope = "project", env: N
   const trustWarning = scope === "project" ? projectTrustWarning(cwd, env) : undefined;
   const out: SubagentSettings = {
     ...defaultConfig(), scope,
-    sources: { explorer: "session", reviewer: "session", executor: "session" },
-    overrides: { explorer: false, reviewer: false, executor: false },
+    sources: { explorer: "session", reviewer: "session", executor: "session", architect: "session" },
+    overrides: { explorer: false, reviewer: false, executor: false, architect: false },
     ...(trustWarning ? { trustWarning } : {}),
   };
   for (const role of ROLES) {

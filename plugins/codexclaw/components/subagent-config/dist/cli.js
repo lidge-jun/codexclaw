@@ -14,7 +14,7 @@
  *                        [--prompt <text>|--clear-prompt]
  */
 import { readConfig, setRole, resetRole,                   projectConfigTrustToken, ROLES, EFFORTS,                                                } from "./store.js";
-import { registerExecutor } from "./role-registration.js";
+import { registerRole, resolveNativeRoleHome } from "./role-registration.js";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -32,6 +32,12 @@ function isRole(v                    )                {
 
 /** Pure structural parse of the `subagents` argv (excluding the leading verb). */
 export function parseSubagentsArgs(argv          )                      {
+  // Register rejects extra flags, including trailing --global, before scope stripping.
+  if (argv[0] === "register") {
+    return argv.length === 2 && (argv[1] === "executor" || argv[1] === "architect")
+      ? { action: "register", role: argv[1] }
+      : { action: "register", error: "usage: subagents register executor|architect" };
+  }
   // Scope is an explicit trailing selector, so prompt/model values stay literal.
   if (argv.at(-1) === "--global" && !["--prompt", "--model", "--fallback-model"].includes(argv.at(-2) ?? "")) {
     return { ...parseProjectArgs(argv.slice(0, -1)), scope: "global" };
@@ -45,11 +51,6 @@ function parseProjectArgs(argv          )                      {
   if (sub === "help" || sub === "--help" || sub === "-h") return { action: "help" };
   if (sub === "trust-token") return { action: "trust-token" };
 
-  if (sub === "register") {
-    return argv.length === 2 && argv[1] === "executor"
-      ? { action: "register", role: "executor" }
-      : { action: "register", error: "usage: subagents register executor" };
-  }
   if (sub === "reset") {
     if (!isRole(argv[1]) || argv.length !== 2) return { action: "reset", error: "reset requires exactly one valid role" };
     return { action: "reset", role: argv[1] };
@@ -117,7 +118,7 @@ const HELP = [
   "  subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort] [--prompt <text>|--clear-prompt]",
   "  --fallback-model <id> [--fallback-effort low|medium|high|xhigh|inherit] | --clear-fallback",
   "  subagents dispatch      main-owned fallback protocol; JSON stdin (start/claim/report/status)",
-  "  subagents register executor   register or update managed role; restart Codex afterward",
+  "  subagents register executor|architect   register or update managed role; restart Codex afterward",
   "  subagents reset <role>  remove the role override and inherit the next scope",
   "  Append --global to list/get/set/reset to manage user defaults",
   "  subagents trust-token   print an export bound to this repo and exact config",
@@ -132,7 +133,7 @@ const HELP = [
 
 
 /** Execute a parsed `subagents` command against the store at `cwd`. Never throws. */
-export function runSubagents(parsed                     , cwd        )                  {
+export function runSubagents(parsed                     , cwd        , nativeHome         )                  {
   if (parsed.error) return { code: 1, output: `subagents: ${parsed.error}` };
   switch (parsed.action) {
     case "help":
@@ -150,8 +151,8 @@ export function runSubagents(parsed                     , cwd        )          
     }
     case "register": {
       try {
-        const result = registerExecutor();
-        return { code: 0, output: `${result.created ? "Registered" : result.updated ? "Updated" : "Already registered"}: ${result.path}\nStart a new Codex session and verify executor appears in the live spawn schema.` };
+        const result = registerRole(parsed.role                            , nativeHome ?? resolveNativeRoleHome());
+        return { code: 0, output: `${result.created ? "Registered" : result.updated ? "Updated" : "Already registered"}: ${result.path}\nStart a new Codex session and verify ${parsed.role} appears in the live spawn schema.` };
       } catch (err) {
         return { code: 1, output: `subagents: ${err instanceof Error ? err.message : String(err)}` };
       }

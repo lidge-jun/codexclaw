@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-2%2C875_passing-brightgreen" alt="2,875 tests passing">
+  <img src="https://img.shields.io/badge/tests-2%2C903_passing-brightgreen" alt="2,903 tests passing">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
   <img src="https://img.shields.io/badge/hooks-25-blue" alt="25 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -39,7 +39,11 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
        └────┴────┴──── I (Interview, context preserved)
 ```
 
-**Multi-Model Subagents** — role-based dispatch (explorer / reviewer / executor) with per-role model and prompt overrides. Configuration persists across sessions and applies automatically through the spawn-wrapper hook. A local GUI (Vite + React) provides visual config and, when opencodex is detected, a provider link bar. (Dashboard: build from a repo checkout for now; bundled in a follow-up release.)
+**Multi-Model Subagents** — role-based dispatch (explorer / reviewer / executor / architect) with per-role model and prompt overrides. Configuration persists across sessions and applies automatically through the spawn-wrapper hook. A local GUI (Vite + React) provides visual config and, when opencodex is detected, a provider link bar. (Dashboard: build from a repo checkout for now; bundled in a follow-up release.)
+
+Architect proposes design and checks main's plan for alignment in each formal P plan; main owns the executable plan and decisions, and the independent reviewer retains A audit. It reuses one context per plan and rechecks only recorded design-decision changes. This is agent-followed guidance, not runtime enforcement. See the [planning lifecycle](plugins/codexclaw/skills/pabcd/references/phase-plan.md).
+
+Architect uses its own native `agent_type: "architect"`. Before first use, explicitly run `cxc subagents register architect`, start a fresh Codex session, and verify the role appears in the spawn schema. It uses architect settings and never falls back to explorer/reviewer. Registration is separate from plugin installation and is never performed by dispatch.
 
 Subagent settings resolve **per role: project → global → original session**. Open **Global Settings** to edit user defaults in `$CODEXCLAW_HOME/subagents.json` (default `~/.codexclaw/subagents.json`). The existing **Subagents** page edits `<project>/.codexclaw/subagents.json`: each model dropdown offers **Main model**, **Global settings**, and individual models. Global settings follows the entire role's defaults, including effort and prompt; choose a main/direct model to customize that project role. Existing explicit project entries and `effort: null` retain their meaning. Main model changes only the model source; session effort separately inherits the original session's effort.
 

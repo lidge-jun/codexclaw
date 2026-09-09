@@ -2,8 +2,10 @@
  * dispatch-contract.ts — typed DispatchPacket and DispatchReceipt (issue #17).
  *
  * Expresses PABCD dispatch economy as typed contracts over native Codex spawn,
- * without adding a scheduler or multiplying permanent agent roles.
+ * without adding a scheduler or registering native agents.
  */
+
+import { ROLES, type RoleName } from "./store.ts";
 
 /** Worktree access policy for a dispatched subagent. */
 export type WorktreePolicy = "shared-read" | "isolated-write";
@@ -34,8 +36,8 @@ export interface DispatchPacket {
   worktreePolicy: WorktreePolicy;
   /** Judgment ownership is always with the main agent (invariant). */
   judgmentOwnership: "main";
-  /** Role: explorer (read-only), reviewer (audit), or executor (write). */
-  role: "explorer" | "reviewer" | "executor";
+  /** Role: explorer (discovery), reviewer (audit), executor (write), architect (design). */
+  role: RoleName;
 }
 
 /**
@@ -79,8 +81,8 @@ export function validatePacket(packet: unknown): string[] {
     errors.push("worktreePolicy must be shared-read or isolated-write");
   }
   if (p.judgmentOwnership !== "main") errors.push("judgmentOwnership must be main");
-  if (p.role !== "explorer" && p.role !== "reviewer" && p.role !== "executor") {
-    errors.push("role must be explorer, reviewer, or executor");
+  if (!ROLES.includes(p.role as RoleName)) {
+    errors.push(`role must be one of ${ROLES.join(", ")}`);
   }
   // Check for oversized skill attachment
   if (Array.isArray(p.requiredSkills) && p.requiredSkills.length > 10) {

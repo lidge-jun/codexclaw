@@ -2,8 +2,10 @@
  * dispatch-contract.ts — typed DispatchPacket and DispatchReceipt (issue #17).
  *
  * Expresses PABCD dispatch economy as typed contracts over native Codex spawn,
- * without adding a scheduler or multiplying permanent agent roles.
+ * without adding a scheduler or registering native agents.
  */
+
+import { ROLES,               } from "./store.js";
 
 /** Worktree access policy for a dispatched subagent. */
 
@@ -79,8 +81,8 @@ export function validatePacket(packet         )           {
     errors.push("worktreePolicy must be shared-read or isolated-write");
   }
   if (p.judgmentOwnership !== "main") errors.push("judgmentOwnership must be main");
-  if (p.role !== "explorer" && p.role !== "reviewer" && p.role !== "executor") {
-    errors.push("role must be explorer, reviewer, or executor");
+  if (!ROLES.includes(p.role            )) {
+    errors.push(`role must be one of ${ROLES.join(", ")}`);
   }
   // Check for oversized skill attachment
   if (Array.isArray(p.requiredSkills) && p.requiredSkills.length > 10) {

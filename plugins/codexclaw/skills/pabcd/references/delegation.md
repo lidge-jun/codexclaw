@@ -1,8 +1,10 @@
 ## Delegation Model (subagents)
 
 The main session owns the plan, host goal, and every PABCD transition.
-At A, dispatch an independent `explorer`; use `executor` when registered, otherwise built-in `worker`, for bounded writes
-(DISPATCH-AGENT-TYPE-01).
+At P, consult a read-only architect; at A, dispatch an independent reviewer.
+Use a supported read-only transport for both and a supported write role for bounded
+implementation (DISPATCH-AGENT-TYPE-01 and the live schema below).
+The executor role resolves to its registered native `executor` type once `cxc subagents register executor` has run; unregistered installs keep the built-in `worker`.
 Subagents are leaves (LEAF-TOPOLOGY-01) unless recursion is explicitly granted.
 Every dispatch carries a structured TASK packet (DISPATCH-TASK-01):
 `TASK`, `SCOPE`, `MUST DO`, `MUST NOT`, `PROOF`, `RETURN FORMAT`, and decision boundary.
@@ -71,6 +73,48 @@ This route does not authorize an otherwise forbidden dispatch, wait, or mode tra
   dispatch a specialist to re-derive it from first principles.
 - Returns preserve VERBATIM ANCHORS: exact `path:line` quotations, exact figures,
   and source URLs, so the main session can spot-check the evidence.
+
+### Architect context and routing
+
+Architect is a configurable logical role, with `dev` and `dev-architecture` as its
+base skills. It proposes design and checks reflection; it cannot write, own the goal
+or FSM, spawn children, or replace the main's judgment or independent reviewer.
+
+Architect dispatch requires `agent_type: "architect"` in the live schema. If it is
+missing, report the unmet setup requirement: explicitly register with
+`cxc subagents register architect`, start a fresh session, and verify the exposed
+role. Registration is a separate authorized installation action; never perform it
+as a hidden dispatch side effect or substitute explorer/reviewer. A schema without
+an architect role cannot satisfy this dispatch contract. Include the structured
+packet and existing skill attachments; the message may retain `CXC-ROLE: architect`
+for provenance, but native type owns architect routing even without that marker.
+The same header supports read-only `reviewer` and `explorer` routing. Explicit native
+write/reviewer roles take precedence; a message marker cannot select a write role.
+Keep `CXC-ROLE:` lines out of role prompt overrides: injected override text can shift
+logical role on a repeated raw hook pass. This is routing hygiene, not a permission
+boundary. Pass the role instructions and skill attachments in the supported payload.
+
+Use the configured architect model/effort, retaining default inheritance and explicit
+caller overrides; no provider is a universal architect default. For hook-based routing,
+use readable message transport: items-only manual payloads and ciphertext do not prove
+configured-model injection. Without readable role metadata, keyword/default inference
+can select another logical role, including explorer on legacy transports. An explicit native architect type retains
+architect routing; items-only/no-message hook paths still do not prove settings
+injection. Honor full-history fork restrictions. If exact routing
+cannot be observed, report it as unverified; do not infer it from the prompt label.
+
+Map this plan to the actual returned handle. Reuse it for proposal, reflection and
+named decision revisions within ONE plan; a separate new plan starts a fresh context.
+Do not promise cost savings from reuse. Use the host's supported follow-up and wait
+operations; an empty timed wait alone is not evidence of a failed call.
+
+On an actual failed call, preserve the failure evidence and apply the existing
+retirement rule: at most one retry on the same handle, then a fresh context carrying
+the failure and plan. If a second distinct context also fails, main reclaims the
+planning work under the existing lifecycle rule, but the missing architect consultation
+remains unmet. Report the gap and stop dependent completion; main self-check does not
+replace it. Do not silently switch models, register roles, or bypass host restrictions.
+Explicit user limits still govern dispatch and completion scope.
 
 ## Speculative dispatch (DISPATCH-SPECULATE-01, HEURISTIC)
 

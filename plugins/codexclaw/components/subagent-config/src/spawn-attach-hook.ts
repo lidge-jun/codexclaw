@@ -433,15 +433,23 @@ const REVIEW_KEYWORDS = [
 
 /**
  * Map the spawn's agent_type (+ message intent) back to a base RoleName.
- * executor is canonical; worker is a legacy implementation-role alias.
- * Legacy explorer-typed reviews cannot be distinguished by type, so review-intent
+ * Architect uses its registered native type; reviewer retains its legacy explorer
+ * mapping. Explicit host roles win. Legacy role markers carry no permission authority.
+ * The agent_type alone cannot tell reviewer from explorer, so review-intent
+ * executor is canonical; worker is its legacy built-in alias (both resolve to the executor role).
  * keywords in the message upgrade the explorer surface to "reviewer" — this is
  * what lets a reviewer-specific model in .codexclaw/subagents.json take effect
  * on hook-path dispatches.
  */
 export function inferRole(agentType: unknown, message: string): RoleName {
   if (agentType === "worker" || agentType === "executor") return "executor";
-  if (agentType === "reviewer") return "reviewer";
+  if (agentType === "architect" || agentType === "reviewer") return agentType;
+  // Only the producer header selects a logical read-only role. Quoted task
+  // content cannot replace it, and the first marker beats prompt-override text.
+  const taskStart = (message ?? "").search(/^TASK:/m);
+  const header = taskStart < 0 ? (message ?? "") : message.slice(0, taskStart);
+  const marker = /^CXC-ROLE: (architect|reviewer|explorer)[ \t]*$/m.exec(header);
+  if (marker) return marker[1] as RoleName;
   const m = (message ?? "").toLowerCase();
   return REVIEW_KEYWORDS.some((k) => m.includes(k)) ? "reviewer" : "explorer";
 }
