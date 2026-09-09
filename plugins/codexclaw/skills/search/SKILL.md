@@ -108,7 +108,7 @@ The loop in one paragraph: scope the question and reader, expand it into query
 families that each carry a goal, run discovery waves with an isolated reflection
 step that updates a gap matrix, budget source opens by question shape and state
 the stop rule that fired, keep one claim-to-source ledger, write `report-source.md`
-with gapless citations, then deliver the artifact through `dev-diagram-viewer` or
+with gapless citations, then deliver the artifact through `dev-visualizer` or
 the format-specific owner and verify it. Direct retrieval is the default; two or
 three explorer subagents only when independent lanes each need several dependent
 reads, each with this skill attached (SEARCH-ATTACH-01); dispatch mechanics are

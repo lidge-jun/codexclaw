@@ -148,7 +148,7 @@ numbered, contiguous, non-overlapping chunks through EOF and verify no gaps.
 | DevOps / deploy / infra | `dev-devops` | `dev-security` for credentials |
 | Scaffolding / docs / setup | `dev-scaffolding` | `dev-architecture` for boundaries |
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
-| Diagrams / charts / visual documents / reports / PDF composition | `dev-diagram-viewer` | Available document-format owner for PDF/DOCX/Slides mechanics; `dev-frontend` and `dev-uiux-design` retain implementation/design ownership |
+| Diagrams / charts / visual documents / reports / PDF composition | `dev-visualizer` | Available document-format owner for PDF/DOCX/Slides mechanics; `dev-frontend` and `dev-uiux-design` retain implementation/design ownership |
 
 ### Subagent Skill Injection (DEV-SKILL-INJECT-01)
 Attach `cxc-dev` and every relevant surface skill explicitly to governed subagents.

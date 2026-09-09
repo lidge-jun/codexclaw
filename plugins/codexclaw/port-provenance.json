@@ -59,12 +59,20 @@
       "gate": "npm test (manifest-policy)"
     },
     {
+      "skill": "dev-visualizer",
+      "upstream": null,
+      "destination": "plugins/codexclaw/skills/dev-visualizer/SKILL.md",
+      "status": "extension",
+      "deltas": ["Codex Desktop app rendering detection", "report writing rules, A4 paged template and export QA (renamed from dev-diagram-viewer 2026-09-09)"],
+      "gate": "npm test (manifest-policy)"
+    },
+    {
       "skill": "dev-diagram-viewer",
       "upstream": null,
       "destination": "plugins/codexclaw/skills/dev-diagram-viewer/SKILL.md",
-      "status": "extension",
-      "deltas": ["Codex Desktop app rendering detection"],
-      "gate": "npm test (manifest-policy)"
+      "status": "deprecated-redirect",
+      "redirectTo": "dev-visualizer",
+      "gate": null
     },
     {
       "skill": "dev-frontend",

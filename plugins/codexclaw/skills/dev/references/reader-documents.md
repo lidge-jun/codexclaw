@@ -96,7 +96,7 @@ Status · Date · Deciders
 
 Visual explainer: question → one figure whose caption states what changes and why
 → detail on demand → sources. Composition and rendering rules stay with
-`dev-diagram-viewer`.
+`dev-visualizer`.
 
 ## Layer order for polish
 
