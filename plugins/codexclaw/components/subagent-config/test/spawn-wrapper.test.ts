@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -447,3 +447,23 @@ test('intent dispatch includes the native type for existing review and implement
   assert.equal(routeDispatch({ intent: 'review', task: 'review diff', skillsDir: SKILLS_DIR }).agent_type, 'explorer');
   assert.equal(routeDispatch({ intent: 'implement', task: 'implement slice', skillsDir: SKILLS_DIR }).agent_type, 'worker');
 });
+
+// Executor registration resolution (PR #91).
+test("executor resolution on upgrade falls back to worker until native registration exists", t => {
+  const home = mkdtempSync(join(tmpdir(), "executor-upgrade-"));
+  t.after(() => rmSync(home, {recursive:true, force:true}));
+  const env = { ...process.env, CODEX_HOME: home };
+  const before = resolveSpawnPayload(home, "executor", "apply patch", AGENTS_DIR, env);
+  assert.equal(before.agent_type, "worker");
+  assert.match(before.message, /TASK: apply patch/);
+  mkdirSync(join(home, "agents"));
+  mkdirSync(join(home, "agents/executor.toml"));
+  assert.equal(resolveSpawnPayload(home, "executor", "apply patch", AGENTS_DIR, env).agent_type, "worker");
+  rmSync(join(home, "agents/executor.toml"), {recursive:true});
+  writeFileSync(join(home, "agents/executor.toml"), 'name = "executor"\n');
+  const after = resolveSpawnPayload(home, "executor", "apply patch", AGENTS_DIR, env);
+  assert.equal(after.agent_type, "executor");
+  assert.equal(after.message, before.message);
+  assert.equal(resolveSpawnPayload(home, "reviewer", "review patch", AGENTS_DIR, env).agent_type, "explorer");
+});
+

@@ -175,8 +175,8 @@ A user-facing surface change closes C with BOTH: the automated gate
 (dev-testing) AND this skill's QA matrix — any FAIL verdict blocks the C>D
 claim until repaired (LOOP-REPAIR-01 counts apply) or the criterion is
 re-scoped through a P-phase amendment, never silently. This is E7 discipline:
-no hook reads verdict.json. The E2 touchpoint: QA delegated to a `worker`
-subagent rides the existing SubagentStop receipt gate — the worker cannot
+no hook reads verdict.json. The E2 touchpoint: QA delegated to a registered `executor`
+subagent rides the existing SubagentStop receipt gate (legacy `worker` also supported) — the executor cannot
 finish without a non-empty receipt under `.codexclaw/evidence/`.
 
 ## v2 candidates (deliberately not shipped)

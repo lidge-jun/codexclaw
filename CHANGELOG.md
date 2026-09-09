@@ -34,6 +34,12 @@ All notable changes to codexclaw are documented here. The format follows
   unknown-head-sha and branch-moved-since-close from lidge-jun/opencodex `59d9bc95f`)
   and state that PR state, not ancestry, is merge truth under squash merging.
 
+### Changed
+
+- Make executor the canonical implementation dispatch role. Add explicit, non-overwriting
+  `cxc subagents register executor` setup; preserve legacy worker model routing and exit
+  evidence checks. Start a new session after registration and re-approve changed hooks.
+
 ## [0.2.24] - 2026-09-08
 
 ### Added

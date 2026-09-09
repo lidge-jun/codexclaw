@@ -736,8 +736,8 @@ test("010: transcriptHasContextPressure is false for missing/empty path", () => 
 
 // --- DISPATCH-AGENT-TYPE-01 invariant tests ---
 
-test("DISPATCH-AGENT-TYPE-01: hook manifest matcher gates only worker agents", async () => {
-  // The SubagentStop hook JSON must match only "worker" so explorer/default agents
+test("DISPATCH-AGENT-TYPE-01: hook manifest matcher gates executor and legacy worker agents", async () => {
+  // The SubagentStop hook JSON must match implementation roles so explorer/default agents
   // never even trigger the evidence-receipt gate command. This is the first line of
   // defense; GATED_AGENT_TYPES in the runtime is the second.
   const { readFileSync } = await import("node:fs");
@@ -750,14 +750,14 @@ test("DISPATCH-AGENT-TYPE-01: hook manifest matcher gates only worker agents", a
   const matchers = manifest.hooks.SubagentStop.map(
     (entry: { matcher?: string }) => entry.matcher,
   );
-  // Exactly one entry with the ^worker$ matcher.
-  assert.deepEqual(matchers, ["^worker$"]);
+  // Canonical and legacy names share one handler.
+  assert.deepEqual(matchers, ["^(executor|worker)$"]);
 });
 
-test("DISPATCH-AGENT-TYPE-01: GATED_AGENT_TYPES contains only worker", () => {
-  // Runtime defense-in-depth: even if the hook matcher is changed, only worker
+test("DISPATCH-AGENT-TYPE-01: GATED_AGENT_TYPES contains executor and legacy worker", () => {
+  // Runtime defense-in-depth: even if the hook matcher is changed, only implementation
   // agents are evidence-gated. Adding a new gated type requires deliberate change.
-  assert.deepEqual([...GATED_AGENT_TYPES].sort(), ["worker"]);
+  assert.deepEqual([...GATED_AGENT_TYPES].sort(), ["executor", "worker"]);
 });
 
 test("DISPATCH-AGENT-TYPE-01: default agent_type is not gated", () => {
@@ -816,4 +816,10 @@ test("DISPATCH-AGENT-TYPE-01: worker without token still blocks", () => {
   );
   const parsed = JSON.parse(out);
   assert.equal(parsed.decision, "block", "write task should still be gated");
+});
+
+test("canonical executor exit without a receipt is blocked", () => {
+  const cwd = tmp();
+  const out = runSubagentStopGate(payload(cwd, { agent_type: "executor" }));
+  assert.equal(JSON.parse(out).decision, "block");
 });

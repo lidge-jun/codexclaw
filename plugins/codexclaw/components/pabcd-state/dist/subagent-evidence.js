@@ -1,7 +1,7 @@
 /**
  * subagent-evidence.ts — SubagentStop evidence-receipt gate (lazygap_impl 010).
  *
- * A dispatched WRITE/verify subagent (agent_type "worker") cannot "finish" without a
+ * A dispatched WRITE/verify subagent (agent_type "executor", or legacy "worker") cannot "finish" without a
  * non-empty evidence receipt under `.codexclaw/evidence/`. Missing/invalid receipt ->
  * `decision:"block"` with a verifier directive that re-prompts the CHILD (codex-rs
  * turn.rs:323). After MAX_ATTEMPTS the directive escalates but remains fail-closed;
@@ -56,12 +56,12 @@ import {
 
 /**
  * agent_type values this gate refuses to release without a receipt.
- * DISPATCH-AGENT-TYPE-01: only "worker" is gated. Read-only audit/research
+ * DISPATCH-AGENT-TYPE-01: executor and legacy worker are gated. Read-only audit/research
  * dispatches MUST use agent_type:"explorer" so they bypass both the hook
- * manifest matcher (^worker$) and this runtime gate. See
+ * manifest matcher (^(executor|worker)$) and this runtime gate. See
  * structure/20_pabcd_dispatch_doctrine.md §3.
  */
-export const GATED_AGENT_TYPES = new Set        (["worker"]);
+export const GATED_AGENT_TYPES = new Set        (["executor", "worker"]);
 
 /** Blocks allowed per agent before the gate terminates and releases. */
 export const MAX_ATTEMPTS = 3;

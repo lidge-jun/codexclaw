@@ -436,6 +436,7 @@ const REVIEW_KEYWORDS = [
  * Architect uses its registered native type; reviewer retains its legacy explorer
  * mapping. Explicit host roles win. Legacy role markers carry no permission authority.
  * The agent_type alone cannot tell reviewer from explorer, so review-intent
+ * executor is canonical; worker is its legacy built-in alias (both resolve to the executor role).
  * keywords in the message upgrade the explorer surface to "reviewer" — this is
  * what lets a reviewer-specific model in .codexclaw/subagents.json take effect
  * on hook-path dispatches.

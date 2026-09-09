@@ -1149,3 +1149,29 @@ test('native architect keeps its own model and prompt without trusting message r
     assert.ok(!('reasoning_effort' in out));
   }
 });
+
+// Executor identity (PR #91): implementation intent must not become review routing.
+test("executor and legacy worker retain executor model and effort on fresh v1/v2 spawns", (t) => {
+  const cwd = workspaceWithConfig({
+    explorer: { mode: "model", model: "explorer-model", effort: "low", promptOverride: null },
+    reviewer: { mode: "model", model: "reviewer-model", effort: "medium", promptOverride: null },
+    executor: { mode: "model", model: "executor-model", effort: "high", promptOverride: null },
+  });
+  t.after(() => rmSync(cwd, { recursive: true, force: true }));
+  for (const agent_type of ["executor", "worker"]) {
+    for (const surface of [{ fork_context: false }, { task_name: "implement", fork_turns: "none" }]) {
+      const ui = updatedInputOf(runSpawnAttachHook(spawnPayloadAt(cwd, {
+        ...surface, agent_type, message: "Implement and review the bounded change",
+      })));
+      assert.equal(ui.agent_type, agent_type);
+      assert.equal(ui.model, "executor-model");
+      assert.equal(ui.reasoning_effort, "high");
+    }
+  }
+});
+
+test("explicit executor and reviewer roles take precedence over message keywords", () => {
+  assert.equal(inferRole("executor", "review the implementation"), "executor");
+  assert.equal(inferRole("reviewer", "inspect correctness"), "reviewer");
+});
+

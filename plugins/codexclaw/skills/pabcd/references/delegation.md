@@ -4,6 +4,7 @@ The main session owns the plan, host goal, and every PABCD transition.
 At P, consult a read-only architect; at A, dispatch an independent reviewer.
 Use a supported read-only transport for both and a supported write role for bounded
 implementation (DISPATCH-AGENT-TYPE-01 and the live schema below).
+The executor role resolves to its registered native `executor` type once `cxc subagents register executor` has run; unregistered installs keep the built-in `worker`.
 Subagents are leaves (LEAF-TOPOLOGY-01) unless recursion is explicitly granted.
 Every dispatch carries a structured TASK packet (DISPATCH-TASK-01):
 `TASK`, `SCOPE`, `MUST DO`, `MUST NOT`, `PROOF`, `RETURN FORMAT`, and decision boundary.
@@ -20,13 +21,24 @@ required task source still must be loaded or reported missing before its governe
 ### Live tool schema and role transport
 
 Use the loaded native tool schema, not a version label, to choose arguments.
-`explorer`/`worker` express the intended role; `agent_type` and `task_name` are
+`explorer`/`executor` express the intended role; `agent_type` and `task_name` are
 not universal fields. Use them only when exposed. Otherwise put the logical
 role, task/lens name and exact read/write scope in the task message, without
 inventing arguments or claiming a native permission profile was selected.
 Prompt labels are not enforcement and cannot bypass an actual worker receipt
 requirement or other runtime guard. If the requested protection cannot be
 represented, report that gap rather than silently weakening it.
+
+For implementation dispatch, prefer `executor` when exposed by the live schema.
+Existing installations without it may use built-in `worker`; both names route to
+logical executor settings and the same receipt gate. The payload resolver selects
+worker when `$CODEX_HOME/agents/executor.toml` is missing. If registration exists
+but the current session has not loaded it, use the live schema rather than assuming
+that disk presence proves availability. Registering `executor` is optional: run
+`cxc subagents register executor`, then restart Codex before selecting that native
+role. The command updates unchanged managed prompts and preserves user edits,
+model choices and permissions. Never substitute a role explicitly forbidden by
+the user or host.
 
 Map each logical task to the handle actually returned by the tool: for example,
 a V1 agent_id or a V2 canonical task_name. Use the actual handle and supported

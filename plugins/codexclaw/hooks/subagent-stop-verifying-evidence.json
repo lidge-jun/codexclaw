@@ -10,7 +10,7 @@
             "statusMessage": "(codexclaw) Verifying subagent evidence"
           }
         ],
-        "matcher": "^worker$"
+        "matcher": "^(executor|worker)$"
       }
     ]
   }

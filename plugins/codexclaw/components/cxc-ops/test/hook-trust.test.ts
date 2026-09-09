@@ -67,11 +67,11 @@ test("identityHash keeps the matcher in the live SubagentStop hook golden fixtur
   const document = JSON.parse(readFileSync(fixturePath, "utf8")) as {
     hooks: { SubagentStop: Array<{ matcher?: string; hooks: HookHandler[] }> };
   };
-  const group = document.hooks.SubagentStop.find((candidate) => candidate.matcher === "^worker$");
-  assert.ok(group, "the real SubagentStop hook must keep its ^worker$ matcher group");
+  const group = document.hooks.SubagentStop.find((candidate) => candidate.matcher === "^(executor|worker)$");
+  assert.ok(group, "the real SubagentStop hook must keep its executor/worker matcher group");
   assert.equal(
     identityHash("SubagentStop", group.matcher, group.hooks[0]),
-    "sha256:9afd7aeccc4c240163001eec376823a6566ce30572fafcc300ceb1d6bb4c6290",
+    "sha256:84e1bb4945bc1f0c31d20ff1cfd3dc555eb266362cc159182962fc6c71f2e6d8",
   );
 });
 

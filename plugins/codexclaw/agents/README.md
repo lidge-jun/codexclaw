@@ -1,7 +1,7 @@
 # codexclaw subagent roles
 
 These `.toml` files define codexclaw's subagent roles — the Codex equivalent of orchestrated
-"employees". Each role pairs a built-in Codex `agent_type` with a developer prompt that routes
+"employees". Each role pairs a native Codex `agent_type` with a developer prompt that routes
 through the `dev-*` skills for its surface.
 
 ## Roles
@@ -11,32 +11,54 @@ through the `dev-*` skills for its surface.
 | `explorer` | `explorer` | no | dev-architecture, dev-debugging, dev-backend/frontend |
 | `reviewer` | `explorer` | no | dev-code-reviewer, dev-security, dev-architecture, dev-testing |
 | `architect` | `architect` | no | dev + dev-architecture; proposal and plan reflection |
-| `executor` | `worker` | yes (scoped) | dev (classifier) + surface router (frontend/backend/testing/scaffolding) |
+| `executor` | `executor` when registered, else `worker` | yes (scoped) | dev (classifier) + surface router (frontend/backend/testing/scaffolding) |
 
 Built-in `agent_type` values are codex-native (`core/src/agent/role.rs`: `default`, `explorer`,
 `worker`). `explorer` is read-only; `worker` may write. Follow the live schema when
 registered roles are exposed. Architect requires its own registered native role;
 there is no explorer/reviewer fallback for architect.
 
-## Phase 1 = B-opt2 (inline injection)
+## Optional native executor registration
 
-Codex plugin manifests expose only `skills`, `hooks`, `mcpServers`, and `apps` — there is **no
-`agents` field** (`core-plugins/src/manifest.rs`). Agent roles are discovered only per config
-layer at `<config_folder>/agents/*.toml` (`core/src/config/agent_roles.rs`), and a plugin's
-install directory is never registered as a config layer. So these files are **not
-auto-registered** as live roles.
+Plugin directories are not Codex configuration layers, so installing the plugin alone
+cannot register these TOML files as live roles. Unregistered installs automatically dispatch executor tasks as built-in `worker`. With the CLI installed, run:
 
-Instead, the main agent injects each role's `developer_instructions` **inline** when spawning:
-
+```sh
+cxc subagents register executor
 ```
+
+This creates `$CODEX_HOME/agents/executor.toml` (default `~/.codex/agents/executor.toml`)
+from the shipped executor prompt, omitting the plugin's `model = "default"` sentinel.
+The installed role does not override model, effort, sandbox or approval policy.
+Registration marks the prompt with a content hash. Repeating this command updates an
+unchanged managed prompt; user edits, differing unmarked files and symlinks are preserved
+and reported as conflicts. Updates retain the previous bytes beside the role as
+`executor.toml.backup-<sha256>`. An abandoned `.executor-update.lock` directory
+blocks updates; inspect it and confirm no registrar is running before manual removal.
+Existing worker files and project model settings are preserved.
+
+For marketplace-only installs without `cxc` on PATH, ask in Codex chat:
+
+> Register the CXC executor role using the installed plugin’s `subagents register executor` command.
+
+Start a new Codex session after registration and verify the live spawn schema exposes
+`executor`. File presence cannot prove that an already-running session loaded the role.
+Registration never runs from a spawn hook. Missing registrations use `worker`; both
+names select `roles.executor` and require exit evidence. The shipped prompt remains
+inline so the legacy path retains the same instructions.
+
+After upgrading the SubagentStop matcher, re-approve Modified hooks using Codex's normal
+hook approval UI and check `cxc doctor`. A passing unit test does not prove hook delivery.
+
+Fresh V2 call example (use only fields the live tool exposes):
+
+```js
 spawn_agent({ agent_type: "explorer", task_name: "explorer_<slug>", fork_turns: "none",
               message: "TASK: <role instructions + the concrete task>" })
 spawn_agent({ agent_type: "architect", task_name: "architect_<slug>", fork_turns: "none",
               message: "CXC-ROLE: architect\n\n$codexclaw:cxc-dev $codexclaw:cxc-dev-architecture\n\nTASK: <role instructions + design or reflection packet>" })
 spawn_agent({ agent_type: "worker",   task_name: "executor_<slug>", fork_turns: "none",
               message: "TASK: <executor instructions + scoped task>" })
-// V2 shape: task_name is required ([a-z0-9_]+); fork_turns "none" keeps
-// agent_type/model/effort overrides legal (a full-history fork rejects them).
 ```
 
 This is omo's proven pattern. The `.toml` files are the canonical SOURCE of those prompts and
@@ -46,10 +68,13 @@ the same files can be copied into a config-layer `agents/` dir with no rewrite.
 Note: these files intentionally carry no `read_only` key — that is not a valid agent-role-file
 field (`ConfigToml` uses `deny_unknown_fields`). Architect uses the supported `sandbox_mode = "read-only"` key in its registered
 file. Other prompt sources retain their existing mapping and instructions.
+The registered executor role supplies its base developer instructions; inline task
+instructions remain for project prompt overrides and legacy worker calls. A `promptOverride`
+replaces the inline template, not the registered native developer instructions.
 
 ## Model / prompt override status
 
-`model = "default"` means inherit the parent model. The `.codexclaw/subagents.json`
+The shipped TOML `model = "default"` is a plugin sentinel, not a native model name. The `.codexclaw/subagents.json`
 store, MCP/GUI roundtrip, and `resolveSpawnConfig(cwd, role)` resolver are shipped; S8/S10
 tests prove persistence and resolver behavior. The store also carries a per-role `effort`
 override (codex wire values low/medium/high/xhigh; null = inherit).
