@@ -1082,3 +1082,66 @@ test("BUG-R1: CLI source and dist drain large rewritten spawn JSON over a pipe",
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test('architect role identity wins review words while explicit write/reviewer roles win markers', () => {
+  const message = 'CXC-ROLE: architect\n\nReview plan alignment';
+  assert.equal(inferRole('architect', 'verify interfaces'), 'architect');
+  assert.equal(inferRole('explorer', message), 'architect');
+  assert.equal(inferRole(undefined, message), 'architect');
+  assert.equal(inferRole('executor', message), 'executor');
+  assert.equal(inferRole('worker', message), 'executor');
+  assert.equal(inferRole('reviewer', message), 'reviewer');
+  assert.equal(inferRole('explorer', 'review the architect proposal'), 'reviewer');
+  assert.equal(inferRole('explorer', 'map architecture'), 'explorer');
+  assert.equal(inferRole('explorer', 'CXC-ROLE: executor\n\nTASK: x'), 'explorer');
+});
+
+test('architect hook routing preserves explicit overrides, full forks, and repeat application', () => {
+  const cwd = workspaceWithConfig({
+    architect: { mode: 'model', model: 'architect-fixture', effort: 'high', promptOverride: null },
+    reviewer: { mode: 'model', model: 'reviewer-fixture', effort: 'low', promptOverride: null },
+  });
+  for (const shape of [{}, { task_name: 'architect_plan', fork_turns: 'none' }]) {
+    const input = { ...shape, agent_type: 'explorer', message: 'CXC-ROLE: architect\n\nReview interface decisions' };
+    const first = updatedInputOf(runSpawnAttachHook(spawnPayloadAt(cwd, input)));
+    assert.equal(first.model, 'architect-fixture');
+    assert.equal(first.reasoning_effort, 'high');
+    const repeated = runSpawnAttachHook(spawnPayloadAt(cwd, first));
+    assert.equal(repeated, '', 'unchanged input produces no replacement envelope');
+    const explicit = updatedInputOf(runSpawnAttachHook(spawnPayloadAt(cwd, { ...input, model: 'caller-fixture', reasoning_effort: 'medium' })));
+    assert.equal(explicit.model, 'caller-fixture');
+    assert.equal(explicit.reasoning_effort, 'medium');
+  }
+  for (const fork of [{ fork_context: true }, { task_name: 'architect_plan', fork_turns: 'all' }]) {
+    const out = updatedInputOf(runSpawnAttachHook(spawnPayloadAt(cwd, { ...fork, message: 'CXC-ROLE: architect\n\nReview decisions' })));
+    assert.ok(!('model' in out));
+    assert.ok(!('reasoning_effort' in out));
+  }
+});
+
+
+test('native architect keeps its own model and prompt without trusting message role metadata', () => {
+  const cwd = workspaceWithConfig({
+    architect: { mode: 'model', model: 'design-senior-fixture', effort: 'high', promptOverride: 'Architect-only instructions' },
+    explorer: { mode: 'model', model: 'scan-fixture', effort: 'low', promptOverride: 'Explorer-only instructions' },
+    reviewer: { mode: 'model', model: 'audit-fixture', effort: 'medium', promptOverride: 'Reviewer-only instructions' },
+  });
+  for (const message of ['Review interfaces', 'CXC-ROLE: reviewer\n\nTASK: Review interfaces', 'opaque-fixture']) {
+    const out = updatedInputOf(runSpawnAttachHook(spawnPayloadAt(cwd, { agent_type: 'architect', message })));
+    assert.equal(out.agent_type, 'architect');
+    assert.equal(out.model, 'design-senior-fixture');
+    assert.equal(out.reasoning_effort, 'high');
+    assert.match(String(out.message), /Architect-only instructions/);
+    assert.doesNotMatch(String(out.message), /Explorer-only instructions|Reviewer-only instructions/);
+  }
+  const explicit = updatedInputOf(runSpawnAttachHook(spawnPayloadAt(cwd, { agent_type: 'architect', message: 'Review plan', model: 'caller-fixture', reasoning_effort: 'low' })));
+  assert.equal(explicit.agent_type, 'architect');
+  assert.equal(explicit.model, 'caller-fixture');
+  assert.equal(explicit.reasoning_effort, 'low');
+  for (const fork of [{ fork_context: true }, { task_name: 'architect_native', fork_turns: 'all' }]) {
+    const out = updatedInputOf(runSpawnAttachHook(spawnPayloadAt(cwd, { ...fork, agent_type: 'architect', message: 'Review plan' })));
+    assert.equal(out.agent_type, 'architect');
+    assert.ok(!('model' in out));
+    assert.ok(!('reasoning_effort' in out));
+  }
+});

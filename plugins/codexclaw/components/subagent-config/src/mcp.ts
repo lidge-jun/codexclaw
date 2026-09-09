@@ -32,7 +32,7 @@ function reply(id: unknown, result: unknown): void {
 const TOOLS = [
   {
     name: "subagents_get",
-    description: "Read the per-role subagent config (explorer/reviewer/executor): mode, model, effort, promptOverride, source and scope. Project defaults to global, then original session.",
+    description: "Read the per-role subagent config (explorer/reviewer/executor/architect): mode, model, effort, promptOverride, source and scope. Project defaults to global, then original session.",
     inputSchema: { type: "object", properties: { scope: { type: "string", enum: ["project", "global"] } }, additionalProperties: false },
   },
   {

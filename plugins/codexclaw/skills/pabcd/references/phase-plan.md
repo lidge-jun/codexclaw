@@ -1,5 +1,31 @@
 # Plan phase
 
+## Architect consultation for formal P
+
+Every formal P plan follows this sequence, including plan-only work that enters P.
+The dev-owned C0/C1 fast path remains unchanged. Explicit user limits (such as
+no delegation) take precedence; record any resulting consultation gap honestly.
+
+1. Main gathers requirements and source evidence, identifies scope and existing owners.
+2. Dispatch a read-only `architect` with `dev` and `dev-architecture` attached.
+   Request a bounded design proposal: stable decision IDs for module responsibilities,
+   data structures, interfaces and execution flow; source path:line evidence;
+   alternatives and tradeoffs; unresolved assumptions.
+3. Main records acceptance, rejection or amendment of each proposal and writes the
+   executable plan: files, dependency order, changes and observable acceptance criteria.
+   Architecture proposals inform these decisions; main owns the plan and final judgment.
+4. Send that concrete plan to the SAME architect for a reflection check. Require
+   `ALIGNED` or `MISALIGNED`, a decision-ID-to-plan mapping and exact gaps. Resolve
+   material gaps with recorded main dispositions before independent A audit. A missing
+   proposal or reflection check is not completed consultation.
+5. Dispatch the independent A reviewer. Architect reflection never replaces A.
+
+Use the [delegation owner](delegation.md#architect-context-and-routing) for supported
+transport, returned handles, one-plan context reuse and call failures. These are
+agent-followed instructions (E7), not a new phase or hook-enforced consultation gate.
+
+## Phase entry and executable plan
+
 0. **I — Interview**: HITL-only requirements discovery; canonical rules live in `cxc-interview`. PABCD owns I->P and return-to-Interview phase edges.
 1. **P — Plan**: Explore first (read real code, configs, docs). **Slice and order phases by dependency/architecture structure (STRICT, PHASE-SPLIT-01)** — the orthodox unlimited-time build order: foundations (schema, contracts, core data flow) → core capabilities → integration → hardening/polish — so each phase consumes the verified output of the previous one. Effort-based bucketing is FORBIDDEN: never split or order phases by estimated effort or payoff speed — no "quick win vs heavy" buckets, no impact/effort matrices, no time-boxed slices. Phase boundaries encode the system's build order, not the schedule. DB/API/UI/test work inside a phase are subtasks, not top-level phases by default, and every phase must still close with something independently verifiable (build, tests, or a demonstrable surface). Write a diff-level plan: file change map, scope boundary (IN/OUT), and testable accept criteria. For every planned conditional path (error handler, fallback, guard, gated branch, threshold behavior), the accept criteria name its **activation scenario** — how C will trigger it and what observable effect proves it ran (C-ACTIVATION-GROUNDING-01). For C2+ plans, including plan-only requests, begin with the loop-spec header required by [Plan output](plan-output.md). For open-ended optimization, include the divergence plan, deterministic selection rule, and telemetry schema; if the verifier only reports scalar outcome, instrumentation is B's first work item before candidates. Ground every decision in code you have read. No implementation yet. For broad or unfamiliar repos, include a compact tree, detected conventions, which existing logs/docs you will reuse, and the SoT sync target (SOT-SYNC-01): which general source-of-truth doc (architecture/INDEX docs, or equivalent) this unit will patch in C — or, if the repo has none, the plan recommends creating one (dev-scaffolding §2.1). **A dependency-ordered phase map may be publishable as a PR stack (`DEV-STACK-01`).** When the unit will produce dependent branches too large to review as one diff, P decides whether to stack and records it. Rules: `cxc-dev` `../../dev/references/stacked-prs.md`.
 

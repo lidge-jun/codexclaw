@@ -8,11 +8,21 @@ codexclaw lets you assign a model and prompt override to each subagent role, per
 
 ## Roles
 
-Three roles cover the common subagent workflow:
+Four roles cover the common subagent workflow:
 
 - **explorer** — broad codebase investigation and research.
 - **reviewer** — adversarial audit and review.
 - **executor** — focused implementation.
+- **architect** — read-only design proposals and checks of main-owned executable plans.
+
+## Native architect setup
+
+Architect uses `agent_type: "architect"`, its own model/effort/prompt settings and
+read-only sandbox configuration. Run `cxc subagents register architect` as an explicit
+installation action, start a fresh Codex session and verify the live spawn schema
+exposes architect. Registration preserves user edits and does not pin a model.
+An unavailable architect is an unmet setup requirement, not permission to use an
+explorer or reviewer alias. The registrar also supports `register executor`.
 
 ## MCP tools
 
@@ -26,7 +36,7 @@ Three roles cover the common subagent workflow:
 
 ```jsonc
 {
-  "role": "reviewer",           // explorer | reviewer | executor
+  "role": "reviewer",           // explorer | reviewer | executor | architect
   "mode": "model",              // "default" (main model) or "model" (needs a model id)
   "model": "gpt-5.5",           // required when mode is "model"
   "promptOverride": "..."       // optional per-role prompt, or null

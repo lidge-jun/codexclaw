@@ -1,7 +1,6 @@
 # codexclaw subagent role: executor
-# Bounded code changes in a disjoint write scope. Maps to the codex built-in `worker` agent_type
-# (writes enabled). Phase 1 (B-opt2): instructions injected INLINE via spawn_agent message; this
-# file is the canonical SOURCE, not an auto-registered role.
+# Bounded code changes in a disjoint write scope. Register with `cxc subagents register executor`.
+# This is the canonical prompt source; plugin installation alone does not register a native role.
 name = "executor"
 description = "Implements a bounded, well-scoped code change in a clear write scope and reports the files it touched."
 nickname_candidates = ["Builder", "Maker", "Hand"]

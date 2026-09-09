@@ -22,13 +22,13 @@ export interface RoleConfig {
 }
 
 export type SubagentScope = "project" | "global";
-export type SubagentRole = "explorer" | "reviewer" | "executor";
+export type SubagentRole = "explorer" | "reviewer" | "executor" | "architect";
 export interface SubagentsConfig {
   scope?: SubagentScope;
   sources?: Record<SubagentRole, SubagentScope | "session">;
   overrides?: Record<SubagentRole, boolean>;
   trustWarning?: string;
-  roles: { explorer: RoleConfig; reviewer: RoleConfig; executor: RoleConfig };
+  roles: { explorer: RoleConfig; reviewer: RoleConfig; executor: RoleConfig; architect: RoleConfig };
 }
 
 export interface CatalogEntry {
@@ -59,7 +59,7 @@ export interface MultiAgentSurface {
 const defaultRole = (): RoleConfig => ({ mode: "default", model: null, effort: null, promptOverride: null });
 
 export const defaultConfig = (): SubagentsConfig => ({
-  roles: { explorer: defaultRole(), reviewer: defaultRole(), executor: defaultRole() },
+  roles: { explorer: defaultRole(), reviewer: defaultRole(), executor: defaultRole(), architect: defaultRole() },
 });
 
 export const defaultMultiAgentSurface = (): MultiAgentSurface => ({
@@ -126,7 +126,7 @@ export interface SetMultiAgentSurfaceResult {
 /** POST a role patch. Failures are surfaced (never silently swallowed) so the
  *  UI can show the real error instead of a false success. */
 export async function setSubagentRole(
-  role: "explorer" | "reviewer" | "executor",
+  role: SubagentRole,
   patch: Partial<RoleConfig> & { role?: never; inherit?: boolean },
   fallback: SubagentsConfig,
   scope?: SubagentScope,
@@ -324,7 +324,7 @@ async function postJson<T>(path: string, body: unknown): Promise<{ ok: boolean; 
 function isScopedConfig(body: unknown, scope: SubagentScope): body is SubagentsConfig {
   if (!body || typeof body !== "object") return false;
   const b = body as SubagentsConfig;
-  return b.scope === scope && (["explorer", "reviewer", "executor"] as const).every(role =>
+  return b.scope === scope && (["explorer", "reviewer", "executor", "architect"] as const).every(role =>
     b.roles?.[role] && ["project", "global", "session"].includes(b.sources?.[role] ?? "") && typeof b.overrides?.[role] === "boolean");
 }
 

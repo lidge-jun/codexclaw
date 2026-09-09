@@ -134,3 +134,9 @@ test("receiptSatisfiesPacket: no verifier commands, no verifier result is ok", (
   assert.equal(result.satisfied, true);
 });
 
+
+test('architect packet roundtrips with main judgment ownership', () => {
+  const packet = makePacket({ role: 'architect', objective: 'Propose interfaces' });
+  assert.deepEqual(validatePacket(JSON.parse(JSON.stringify(packet))), []);
+  assert.ok(validatePacket({ ...packet, judgmentOwnership: 'architect' }).includes('judgmentOwnership must be main'));
+});

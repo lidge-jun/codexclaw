@@ -39,7 +39,11 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
        └────┴────┴──── I (Interview, context preserved)
 ```
 
-**Multi-Model Subagents** — 역할 기반 디스패치(explorer / reviewer / executor)를 제공하며 역할마다 모델과 프롬프트를 따로 지정할 수 있다. 설정은 세션이 끝나도 유지되며 spawn-wrapper 훅이 자동으로 적용한다. 로컬 GUI(Vite + React)에서 설정을 시각적으로 관리할 수 있고, opencodex를 감지하면 프로바이더 링크 바도 표시한다. (대시보드는 지금은 리포 체크아웃에서 빌드해 쓰고, 후속 릴리스에 번들한다.)
+**Multi-Model Subagents** — 역할 기반 디스패치(explorer / reviewer / executor / architect)를 제공하며 역할마다 모델과 프롬프트를 따로 지정할 수 있다. 설정은 세션이 끝나도 유지되며 spawn-wrapper 훅이 자동으로 적용한다. 로컬 GUI(Vite + React)에서 설정을 시각적으로 관리할 수 있고, opencodex를 감지하면 프로바이더 링크 바도 표시한다. (대시보드는 지금은 리포 체크아웃에서 빌드해 쓰고, 후속 릴리스에 번들한다.)
+
+Architect는 정식 P 단계마다 설계를 제안하고 메인의 실행 계획이 설계와 맞는지 확인한다. 메인이 실행 계획과 최종 결정을 맡고, 독립 reviewer가 A 감사를 맡는다. 같은 계획에서는 문맥을 재사용하며, 기록된 설계 결정이 바뀔 때만 다시 확인한다. 이는 에이전트가 따르는 지침이며 런타임 강제 검사가 아니다. [계획 흐름](plugins/codexclaw/skills/pabcd/references/phase-plan.md)을 참고한다.
+
+Architect는 독립 역할인 `agent_type: "architect"`로 호출한다. 처음 쓰기 전에 `cxc subagents register architect`로 명시적으로 등록하고, 새 Codex 세션에서 역할 목록에 architect가 나타나는지 확인한다. architect 전용 설정을 쓰며 explorer/reviewer로 대체하지 않는다. 등록은 플러그인 설치와 별개이며 호출 중 자동으로 실행하지 않는다.
 
 **Recall** — 사용자에게 다시 묻기 전에 디스크 아티팩트에서 과거 Codex 대화와 메모리 저장소를 검색한다. 세션이 바뀌거나 컨텍스트가 압축돼도 이전 맥락을 이어 간다.
 

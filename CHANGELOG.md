@@ -4,6 +4,19 @@ All notable changes to codexclaw are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Architect now dispatches as the independent native `architect` role, with its
+  own CXC model/effort/prompt settings and read-only role configuration. It no longer
+  uses an explorer alias. Existing installations must explicitly run
+  `cxc subagents register architect`, start a fresh Codex session and verify the
+  role is exposed before first use; otherwise the host rejects the unknown role.
+  Registration preserves custom files, backs up managed updates and pins no model.
+  The shared registrar retains `register executor` compatibility. Installing the
+  plugin alone does not register either role.
+
 ## [0.2.24] - 2026-09-08
 
 ### Added

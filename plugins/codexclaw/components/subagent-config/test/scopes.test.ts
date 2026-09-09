@@ -16,7 +16,7 @@ function fixture(t: { after: (fn: () => void) => void }) {
 
 test('role precedence, explicit null, reset, sparse writes, and project independence', t => {
   const { cwd, env, root } = fixture(t);
-  assert.deepEqual(Object.values(readSettings(cwd, 'project', env).sources), ['session', 'session', 'session']);
+  assert.deepEqual(Object.values(readSettings(cwd, 'project', env).sources), ['session', 'session', 'session', 'session']);
   setRole(cwd, 'explorer', { mode: 'model', model: 'global-model', effort: 'high' }, 'global', env);
   assert.equal(readSettings(cwd, 'project', env).sources.explorer, 'global');
   assert.equal(resolveSpawnConfig(cwd, 'explorer', env).effort, 'high');
@@ -100,4 +100,25 @@ test('malformed persisted state is not overwritten during an edit or reset', t =
   assert.throws(() => setRole(cwd, 'reviewer', { effort: null }, 'global', env), /cannot update/);
   assert.throws(() => resetRole(cwd, 'explorer', 'global', env), /cannot update/);
   assert.equal(readFileSync(path, 'utf8'), '{broken');
+});
+
+test('architect inherits without migrating legacy files and preserves sibling overrides', t => {
+  const { cwd, env } = fixture(t);
+  setRole(cwd, 'reviewer', { mode: 'model', model: 'reviewer-local', effort: 'low' }, 'project', env);
+  const path = join(cwd, '.codexclaw/subagents.json');
+  const before = readFileSync(path, 'utf8');
+  assert.equal(resolveSpawnConfig(cwd, 'architect', env).usesMainModel, true);
+  assert.equal(readFileSync(path, 'utf8'), before);
+  setRole(cwd, 'architect', { mode: 'model', model: 'architect-global', effort: 'high' }, 'global', env);
+  assert.equal(resolveSpawnConfig(cwd, 'architect', env).model, 'architect-global');
+  setRole(cwd, 'architect', { model: 'architect-project', promptOverride: 'design only', effort: null }, 'project', env);
+  assert.equal(resolveSpawnConfig(cwd, 'architect', env).model, 'architect-project');
+  assert.equal(resolveSpawnConfig(cwd, 'architect', env).effort, null);
+  assert.equal(resolveSpawnConfig(cwd, 'reviewer', env).model, 'reviewer-local');
+  resetRole(cwd, 'architect', 'project', env);
+  assert.equal(resolveSpawnConfig(cwd, 'architect', env).model, 'architect-global');
+  assert.equal(readSettings(cwd, 'project', env).overrides.architect, false);
+  resetRole(cwd, 'architect', 'global', env);
+  assert.equal(resolveSpawnConfig(cwd, 'architect', env).model, null);
+  assert.equal(readFileSync(path, 'utf8'), before);
 });

@@ -117,3 +117,19 @@ test("MCP: subagents_set effort roundtrips; invalid effort is isError", async ()
   if (bad.length === 0) return;
   assert.equal(bad[0].result.isError, true);
 });
+
+test('MCP advertises and persists architect with independent reviewer settings', async () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'cxc-mcp-architect-'));
+  assert.ok(existsSync(serverJs), 'compiled MCP server required');
+  const replies = await collect(cwd, [
+    { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+    { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'subagents_set', arguments: { role: 'architect', mode: 'model', model: 'design-fixture', effort: 'high' } } },
+    { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'subagents_get', arguments: {} } },
+  ], 3);
+  const advertised = replies.find(r => r.id === 1).result.tools.find((tool: { name: string }) => tool.name === 'subagents_set');
+  assert.ok(advertised.inputSchema.properties.role.enum.includes('architect'));
+  const settings = JSON.parse(replies.find(r => r.id === 3).result.content[0].text);
+  assert.equal(settings.roles.architect.model, 'design-fixture');
+  assert.equal(settings.roles.architect.effort, 'high');
+  assert.equal(settings.roles.reviewer.model, null);
+});

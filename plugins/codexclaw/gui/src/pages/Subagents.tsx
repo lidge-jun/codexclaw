@@ -7,11 +7,12 @@ import { Loading } from "../ui/kit.tsx";
 import { toast } from "../ui/toast.tsx";
 import { HelpDrawer, HelpTopicButton, useHelp } from "../ui/help.tsx";
 
-const ROLES = ["explorer", "reviewer", "executor"] as const;
+const ROLES = ["explorer", "reviewer", "executor", "architect"] as const;
 const ROLE_DESC = {
   explorer: "Read-only search and codebase mapping.",
   reviewer: "Independent verification and audits.",
   executor: "Implementation and mutation work.",
+  architect: "Design proposals and plan alignment checks.",
 };
 const SOURCE_LABEL = { project: "Project override", global: "Global defaults", session: "Original session" };
 
@@ -25,7 +26,7 @@ export function SubagentsPage({ provider, scope = "project" }: { provider: Provi
   const [savingRole, setSavingRole] = useState<SubagentRole | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [prompts, setPrompts] = useState<Record<SubagentRole, string>>({ explorer: "", reviewer: "", executor: "" });
+  const [prompts, setPrompts] = useState<Record<SubagentRole, string>>({ explorer: "", reviewer: "", executor: "", architect: "" });
   const saving = useRef(false);
   const generation = useRef(0);
   const { helpOpen, helpTopic, openHelp, closeHelp } = useHelp("subagents");
@@ -53,7 +54,7 @@ export function SubagentsPage({ provider, scope = "project" }: { provider: Provi
     void getSubagentSettings(scope, controller.signal).then(next => {
       if (controller.signal.aborted || current !== generation.current) return;
       setConfig(next);
-      setPrompts({ explorer: next.roles.explorer.promptOverride ?? "", reviewer: next.roles.reviewer.promptOverride ?? "", executor: next.roles.executor.promptOverride ?? "" });
+      setPrompts({ explorer: next.roles.explorer.promptOverride ?? "", reviewer: next.roles.reviewer.promptOverride ?? "", executor: next.roles.executor.promptOverride ?? "", architect: next.roles.architect.promptOverride ?? "" });
     }).catch(err => {
       if (!controller.signal.aborted) setError(err instanceof Error ? err.message : "Settings could not be loaded.");
     });

@@ -175,8 +175,9 @@ codexclaw sidecar index.
 
 ```
 cxc subagents
-cxc subagents get <explorer|reviewer|executor>
-cxc subagents set <explorer|reviewer|executor> --mode default|model [--model <id>] [--prompt <text>|--clear-prompt]
+cxc subagents register <architect|executor>
+cxc subagents get <explorer|reviewer|executor|architect>
+cxc subagents set <explorer|reviewer|executor|architect> --mode default|model [--model <id>] [--prompt <text>|--clear-prompt]
 ```
 
 ## serve / service sub-grammar
