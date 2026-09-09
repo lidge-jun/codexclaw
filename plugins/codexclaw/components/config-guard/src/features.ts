@@ -8,7 +8,9 @@
 // persisted CLI setter, so editing them lives in toml-edit.ts with its whitelist in
 // managed-keys.ts. That module owns the component's TOML grammar; this one stays
 // delegation-only. The two vocabularies are deliberately separate: DECLARED_FEATURES
-// here, CONFIG_MANAGED_KEYS there, and nothing on that list is auto-enabled.
+// here, CONFIG_MANAGED_KEYS there. 260909: that list is no longer uniformly
+// auto-enable:false — an entry may opt in per key (managed-keys.ts), and activate.ts
+// writes those directly rather than through this CLI, which cannot reach them.
 
 export const DECLARED_FEATURES = [
   "multi_agent",
