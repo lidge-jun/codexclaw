@@ -23,6 +23,9 @@ on:
         description: "Run the gate but do not publish"
         type: boolean
         default: false
+      expected_sha:
+        description: "Audited commit this dispatch must publish (fails if main moved)"
+        required: true
   push:
     tags: ["v*"]
 
@@ -30,6 +33,8 @@ permissions:
   contents: write   # create the release and upload assets
   actions: read     # read exact-SHA run conclusions; declaring any permission
                     # zeroes the rest, so this must be explicit
+  id-token: write   # Sigstore OIDC identity for the build-provenance attestation
+  attestations: write  # store the attestation
 
 concurrency:
   group: release
@@ -64,6 +69,62 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           echo "releasing $version from $GITHUB_SHA"
+
+      # A dispatch publishes whatever the selected ref's HEAD is at run time.
+      # Pin the audited commit and the release line before anything expensive
+      # runs: branches move between the release audit and the dispatch.
+      - name: Guard the dispatch
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+              echo "::error::release dispatch must run from main, got $GITHUB_REF"
+              exit 1
+            fi
+            if [ -z "$EXPECTED_SHA" ]; then
+              echo "::error::expected_sha is required; refusing to publish without an audited commit"
+              exit 1
+            fi
+            if [ "$EXPECTED_SHA" != "$GITHUB_SHA" ]; then
+              echo "::error::main moved after the release audit (expected $EXPECTED_SHA, got $GITHUB_SHA) — refusing to publish an unaudited commit"
+              exit 1
+            fi
+          fi
+
+      # Fail closed on pre-existing publication. The tag-push trigger always
+      # finds its own tag at this SHA; anything else means this version already
+      # shipped (or the tag was repointed), and re-publishing would overwrite
+      # the payload users installed. A zero-asset release is an incomplete
+      # earlier attempt of this same publish and may be resumed.
+      - name: Preflight release metadata
+        shell: bash
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          git fetch --force --tags origin
+          tag="v${VERSION}"
+          existing_tag_sha="$(git rev-parse -q --verify "refs/tags/${tag}^{commit}" || true)"
+          if [ -n "$existing_tag_sha" ] && [ "$existing_tag_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::$tag already points at $existing_tag_sha, not $GITHUB_SHA"
+            exit 1
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$existing_tag_sha" ] && [ "$DRY_RUN" != "true" ]; then
+            echo "::error::$tag already exists. Refusing to publish a version with pre-existing Git metadata; push the tag to trigger its release, or pick an unused version."
+            exit 1
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            assets="$(gh release view "$tag" --json assets --jq '.assets | length')"
+            if [ "$assets" != "0" ] && [ "$DRY_RUN" != "true" ]; then
+              echo "::error::GitHub Release $tag already exists with $assets asset(s). Refusing to overwrite a published payload; choose the next unused patch version."
+              exit 1
+            fi
+            echo "::notice::$tag release exists with no assets; resuming an incomplete publish"
+          fi
 
       - run: npm ci
 
@@ -204,6 +265,16 @@ jobs:
             --actual-inventory-hash "${{ steps.inventory.outputs.hash }}" $flags
           cp ".codexclaw/release/candidate-${VERSION}.json" dist-artifacts/
 
+      # npm publishers get Sigstore provenance from Trusted Publishing; this
+      # artifact is a tarball, so the equivalent is an explicit attestation
+      # binding the payload, its sums, and the candidate manifest to this
+      # workflow run's identity.
+      - name: Attest build provenance
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist-artifacts/
+
       - name: Publish the GitHub Release
         if: ${{ github.event_name == 'push' || !inputs.dry_run }}
         shell: bash
@@ -218,7 +289,10 @@ jobs:
             [ "$kind" = prerelease ] && args+=(--prerelease)
             gh release create "$tag" "${args[@]}"
           fi
-          gh release upload "$tag" dist-artifacts/* --clobber
+          # No --clobber: an asset name that already exists fails the upload
+          # loudly instead of silently overwriting a shipped payload. The
+          # preflight above already refused releases that completed a publish.
+          gh release upload "$tag" dist-artifacts/*
 
       # 5. Post-publish verification: re-read what GitHub actually has.
       - name: Verify the published release
@@ -233,3 +307,5 @@ jobs:
           count="$(gh release view "$tag" --json assets --jq '.assets | length')"
           [ "$count" -ge 3 ] || { echo "expected >=3 assets, got $count"; exit 1; }
           echo "published $tag with $count assets"
+          body_len="$(gh release view "$tag" --json body --jq '.body | length')"
+          [ "$body_len" -gt 0 ] || { echo "release notes body is empty"; exit 1; }
