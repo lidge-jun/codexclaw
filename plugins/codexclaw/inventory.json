@@ -197,6 +197,12 @@
       "matcher": "^(apply_patch|Write|Edit)$"
     },
     {
+      "file": "session-start-adopting-background-completions.json",
+      "event": "SessionStart",
+      "component": "bg-wake",
+      "matcher": null
+    },
+    {
       "file": "session-start-announcing-map-affordance.json",
       "event": "SessionStart",
       "component": "cxc-ops",
@@ -245,6 +251,12 @@
       "matcher": null
     },
     {
+      "file": "stop-waking-on-background-completion.json",
+      "event": "Stop",
+      "component": "bg-wake",
+      "matcher": null
+    },
+    {
       "file": "subagent-stop-observing-review.json",
       "event": "SubagentStop",
       "component": "pabcd-state",
@@ -263,6 +275,12 @@
       "matcher": null
     },
     {
+      "file": "user-prompt-submit-delivering-background-completions.json",
+      "event": "UserPromptSubmit",
+      "component": "bg-wake",
+      "matcher": null
+    },
+    {
       "file": "user-prompt-submit-detecting-recall-intent.json",
       "event": "UserPromptSubmit",
       "component": "recall",
@@ -276,6 +294,12 @@
     }
   ],
   "components": [
+    {
+      "folder": "bg-wake",
+      "packageName": "@codexclaw/bg-wake",
+      "version": "0.2.24",
+      "hasTests": true
+    },
     {
       "folder": "config-guard",
       "packageName": "@codexclaw/config-guard",

@@ -44,7 +44,10 @@
     "./hooks/session-start-detecting-managed-worktree.json",
     "./hooks/user-prompt-submit-guiding-worktree-rename.json",
     "./hooks/pre-tool-use-guarding-managed-worktree-deletion.json",
-    "./hooks/pre-tool-use-guarding-memory-write.json"
+    "./hooks/pre-tool-use-guarding-memory-write.json",
+    "./hooks/stop-waking-on-background-completion.json",
+    "./hooks/user-prompt-submit-delivering-background-completions.json",
+    "./hooks/session-start-adopting-background-completions.json"
   ],
   "mcpServers": "./.mcp.json",
   "interface": {

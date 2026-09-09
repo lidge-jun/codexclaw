@@ -24,7 +24,13 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pluginRoot = resolve(here, "..");
 export const componentsRoot = join(pluginRoot, "components");
 
-export const COMPONENTS = ["pabcd-state", "config-guard", "provider-bridge", "subagent-config", "cxc-ops", "recall", "messenger-bridge", "skill-search"];
+// Required components are listed unconditionally: a missing directory there is a broken
+// checkout and the build should fail loudly. Only OPTIONAL_COMPONENTS are tolerated when
+// absent, which is what lets bg-wake be uninstalled by deleting its directory without
+// taking the build down before the rest of its checklist is applied.
+export const REQUIRED_COMPONENTS = ["pabcd-state", "config-guard", "provider-bridge", "subagent-config", "cxc-ops", "recall", "messenger-bridge", "skill-search"];
+export const OPTIONAL_COMPONENTS = ["bg-wake"];
+export const COMPONENTS = [...REQUIRED_COMPONENTS, ...OPTIONAL_COMPONENTS.filter((c) => existsSync(join(componentsRoot, c)))];
 
 // Markers that must NOT appear in shipped runtime sources or compiled output or the manifest.
 const PLACEHOLDER_RE = /\[TODO\]|TODO\(|FIXME|\bTBD\b/;

@@ -242,6 +242,16 @@ function runMessengerBridge(args) {
   return typeof res.status === "number" ? res.status : 1;
 }
 
+/** Delegate to the compiled bg-wake CLI (background task registry + completion wake). */
+function runBgWake(args) {
+  // providerBridgeCli ends in .../components/provider-bridge/dist/cli.js, so two levels
+  // up is components/. One was missing here and every root "cxc bg" call — including
+  // the off switch — failed to spawn.
+  const cli = join(dirname(providerBridgeCli), "..", "..", "bg-wake", "dist", "cli.js");
+  const res = spawnSync(process.execPath, [cli, ...args], { stdio: "inherit" });
+  return res.status ?? 1;
+}
+
 /** Delegate to the compiled provider-bridge CLI in detect mode (read-only status). */
 function runProvider() {
   const res = spawnSync(process.execPath, [providerBridgeCli, "detect"], { stdio: "inherit" });
@@ -286,6 +296,7 @@ const TOP_LEVEL_HELP = [
   "Operations:",
   "  subagents                      read/write per-role subagent model+prompt config",
   "  provider                       show read-only opencodex provider status",
+  "  bg run|list|get|off            background tasks + completion wake (cxc bg removal to uninstall)",
   "  serve                          run the bridge server",
   "  service                        install/uninstall/status the serve daemon",
   "  gui                            launch the web dashboard",
@@ -589,6 +600,9 @@ if (isMain) switch (cmd) {
     break;
   case "provider":
     process.exit(runProvider());
+    break;
+  case "bg":
+    process.exit(runBgWake(process.argv.slice(3)));
     break;
   default:
     console.error(renderUnknownTopLevelCommand(cmd));
