@@ -62,6 +62,7 @@ export const COMMAND_TABLE = Object.freeze({
   serve: "messenger-bridge",
   service: "messenger-bridge",
   provider: "provider-bridge",
+  bg: "bg-wake",
 });
 
 const HELP = [
@@ -91,6 +92,7 @@ const HELP = [
   "",
   "Operations:",
   "  subagents | provider | serve | service",
+  "  bg run|list|get|off            background tasks + completion wake (cxc bg removal to uninstall)",
   "",
   "Repo-checkout only (not in the payload dispatcher):",
   "  gui, map — use a git checkout of codexclaw (README: Development)",
@@ -169,7 +171,10 @@ if (isMain) {
     const entry = componentCli(component).replace(/cli\.js$/, "fallback-dispatch-cli.js");
     const result = spawnSync(process.execPath, [entry, ...process.argv.slice(4)], { stdio: "inherit" });
     process.exit(typeof result.status === "number" ? result.status : 1);
-  } else if (component === "skill-search") {
+  } else if (component === "skill-search" || component === "bg-wake") {
+    // These two take the verb as argv[0] of their own CLI, so the leading command word
+    // is dropped here rather than re-parsed downstream. Everything else still receives
+    // [cmd, ...rest] verbatim.
     process.exit(delegate(component, process.argv.slice(3)));
   } else if (component === "provider-bridge") {
     process.exit(delegate(component, ["detect"]));

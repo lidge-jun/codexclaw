@@ -21,7 +21,7 @@
   "scripts": {
     "build": "node plugins/codexclaw/scripts/build.mjs",
     "gate": "node plugins/codexclaw/scripts/gate.mjs",
-    "test": "node plugins/codexclaw/scripts/test.mjs \"plugins/codexclaw/components/pabcd-state/test/*.test.ts\" \"plugins/codexclaw/components/config-guard/test/*.test.ts\" \"plugins/codexclaw/components/cxc-ops/test/*.test.ts\" \"plugins/codexclaw/components/recall/test/*.test.ts\" \"plugins/codexclaw/components/provider-bridge/test/*.test.ts\" \"plugins/codexclaw/components/subagent-config/test/*.test.ts\" \"plugins/codexclaw/components/messenger-bridge/test/*.test.ts\" \"plugins/codexclaw/components/skill-search/test/*.test.ts\" \"plugins/codexclaw/gui/test/*.test.ts\" \"plugins/codexclaw/test/*.test.mjs\" \".github/scripts/pr-labeler.test.cjs\" \".github/scripts/closed-pr-branch-cleanup.test.cjs\"",
+    "test": "node plugins/codexclaw/scripts/test.mjs \"plugins/codexclaw/components/pabcd-state/test/*.test.ts\" \"plugins/codexclaw/components/config-guard/test/*.test.ts\" \"plugins/codexclaw/components/cxc-ops/test/*.test.ts\" \"plugins/codexclaw/components/recall/test/*.test.ts\" \"plugins/codexclaw/components/provider-bridge/test/*.test.ts\" \"plugins/codexclaw/components/subagent-config/test/*.test.ts\" \"plugins/codexclaw/components/messenger-bridge/test/*.test.ts\" \"plugins/codexclaw/components/skill-search/test/*.test.ts\" \"plugins/codexclaw/components/bg-wake/test/*.test.ts\" \"plugins/codexclaw/gui/test/*.test.ts\" \"plugins/codexclaw/test/*.test.mjs\" \".github/scripts/pr-labeler.test.cjs\" \".github/scripts/closed-pr-branch-cleanup.test.cjs\"",
     "smoke": "node plugins/codexclaw/scripts/platform-smoke.mjs"
   },
   "overrides": {

@@ -131,7 +131,10 @@ test("WP7/G19: every manifest hook command resolves to an existing dist entrypoi
   // pre-tool-use-guarding-managed-worktree-deletion).
   // 260909 wp1-A: 23 -> 24 with the memory-write gate
   // (pre-tool-use-guarding-memory-write).
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 25, "expected 25 declared hooks");
+  // 260910: 25 -> 28 with bg-wake's three hooks. The pin is deliberate — it is the
+  // machine-checked partner of the README badges and inventory.json, so an optional
+  // component removes itself here too (see `cxc bg removal`).
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 28, "expected 28 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
