@@ -15,6 +15,7 @@
  * 32k cap — this directive is far below the cap).
  */
 import { searchChat,              } from "./chat-search.js";
+import { listCwdSessions,                 } from "./cwd-context.js";
 import { basename } from "node:path";
 // Cross-component dist import (established precedent: messenger-bridge api-compat).
 // Resolves from BOTH src (test-time ../../cxc-ops/dist) and shipped dist layouts.
@@ -138,7 +139,12 @@ const AUTO_INJECT_BUDGET = 1400;
 
 
 
-const DEFAULT_RECALL_DEPS                    = { searchChat };
+
+
+
+
+
+const DEFAULT_RECALL_DEPS                    = { searchChat, listCwdSessions };
 
 function quoteUntrusted(value        )         {
   // JSON quoting removes control/newline structure; escaping angle brackets
@@ -197,6 +203,22 @@ export function buildCwdContext(cwd        , deps                    = DEFAULT_R
   if (!cwd) return "";
   try {
     const cwdName = basename(cwd);
+    const topN = 5;
+
+    // Preferred path: enumerate this cwd's sessions from the index directly.
+    // Falls through to the text-search path when the index is unavailable.
+    const direct = deps.listCwdSessions ? deps.listCwdSessions(cwd, topN) : null;
+    if (direct) {
+      const sessions             = [];
+      for (const session of direct) {
+        if (session.excerpt === "") continue; // nothing worth showing for this session
+        sessions.push([`  \u2022 [${session.date}] ${quoteUntrusted(session.excerpt)}`]);
+      }
+      // Collect, THEN check for emptiness, THEN render: an empty result must stay
+      // an empty string rather than a header with no content.
+      if (sessions.length === 0) return "";
+      return renderCwdBlock(cwdName, sessions, AUTO_INJECT_BUDGET);
+    }
 
     const localChat = deps.searchChat(cwdName, {
       cwd,
@@ -216,7 +238,7 @@ export function buildCwdContext(cwd        , deps                    = DEFAULT_R
       if (!seenThreads.has(key)) seenThreads.set(key, hit);
     }
     const sessions             = [];
-    for (const [, hit] of [...seenThreads.entries()].slice(0, 5)) {
+    for (const [, hit] of [...seenThreads.entries()].slice(0, topN)) {
       const date = hit.ts.slice(0, 10);
       const raw = (hit.title ?? hit.text).replace(/\n/g, " ").trim();
       const title = raw.length > 60 ? raw.slice(0, 57) + "..." : raw;
