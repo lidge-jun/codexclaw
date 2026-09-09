@@ -11,7 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   classifyMemoryWrite,
   detectMemoryWriteRequest,
@@ -226,7 +226,8 @@ test("shell surface: destination-based classification, not body path strings", (
   // (4) sed -i of a memory file remains a write.
   const sedInPlace = classify(`sed -i 's/a/b/' ${mem}/MEMORY.md`);
   assert.equal(sedInPlace.surface, "shell");
-  assert.equal(sedInPlace.target, `${mem}/MEMORY.md`);
+  // target is absolutized with path.resolve, so compare on the platform form (D:\h\... on Windows).
+  assert.equal(sedInPlace.target, resolve(`${mem}/MEMORY.md`));
   // (5) stdout redirect into memories remains a write.
   assert.equal(classify(`echo hi > ${mem}/notes.md`).surface, "shell");
   // (A1) no-space redirections and `>|` clobber are real writes (audit round 1 found the
