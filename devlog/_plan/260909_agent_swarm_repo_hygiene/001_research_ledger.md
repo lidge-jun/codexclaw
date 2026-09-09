@@ -33,6 +33,7 @@ API/UI in this session; **U** unverified — must not appear as fact in a skill 
 | 2.10 | `good first issue`-style labels attract agent PRs within minutes | A (one first-hand X report) | https://x.com/sebastienlorber/status/2095806439646224590 |
 | 2.11 | Push rules path exceptions (2026-08-25); required reviewer rule GA (2026-02-17); restrict review dismissal (2026-07-07) | V | github.blog changelog month archives, evidence §3 |
 | 2.12 | Live settings of lidge-jun repos (auto-delete off on codexclaw; cli-jaw classic protection only; ima2-gen force-push allowed; opencodex DeployKey "always" bypass on main/preview; no repo requires status checks at ruleset level except codexclaw; `allow_update_branch` false on all four) | A | evidence/research/lidge-jun-repos-settings-audit.md (lines 44, 65, 80, 95 for update-branch) |
+| 2.13 | `enforce-pr-target.yml` exists in both opencodex and codexclaw (`pull_request_target`; base must be `dev` except `dev -> main`; wrong base gets title prefix, draft conversion and a comment) | A | codexclaw `.github/workflows/enforce-pr-target.yml` lines 1-8, 186-200; opencodex same file |
 
 ## L3 — agent-PR intake
 
