@@ -1,0 +1,126 @@
+name: PR Labeler
+
+# pull_request_target always loads this workflow from the repository DEFAULT
+# branch (currently main), not from dev. Landing here on dev alone does
+# not change live labeler behavior until the change is also on that default
+# branch — same promotion model as enforce-pr-target.yml.
+on:
+  pull_request_target:
+    # labeled/unlabeled let a human type-label change enqueue a fresher run in the
+    # per-PR concurrency group, cancelling any in-flight title sync that started
+    # before the override.
+    types: [opened, edited, synchronize, labeled, unlabeled]
+
+concurrency:
+  group: pr-labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # pulls.get only needs read, but the issues label endpoints are shared with
+  # pull requests: adding or removing a label on a PR number is rejected with
+  # "Resource not accessible by integration" unless the token also carries
+  # pull_requests=write (the API reports issues=write; pull_requests=write
+  # in x-accepted-github-permissions).
+  pull-requests: write
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout labeler script (default-branch trusted code)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Apply type label from PR title
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const {
+              planTypeLabelSync,
+            } = require('./.github/scripts/pr-labeler.cjs');
+
+            const title = context.payload.pull_request.title || '';
+            const pr = context.payload.pull_request.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Refetch live PR title to avoid race with title edits.
+            const { data: livePr } = await github.rest.pulls.get({
+              owner, repo, pull_number: pr,
+            });
+            const liveTitle = livePr.title || title;
+
+            const { data: currentLabels } = await github.rest.issues.listLabelsOnIssue({
+              owner, repo, issue_number: pr,
+            });
+
+            // Issue event timeline (same number space as PRs). Used to detect a
+            // sticky human override — once someone other than github-actions[bot]
+            // changes a managed type label, we never overwrite that choice again.
+            const events = await github.paginate(github.rest.issues.listEvents, {
+              owner, repo, issue_number: pr, per_page: 100,
+            });
+
+            // Titles that carry no recognisable type (e.g. 'stack 3/5: ...')
+            // fall back to the PR's commits, which stay conventional even when
+            // the title does not. Covered by the existing contents: read.
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner, repo, pull_number: pr, per_page: 100,
+            });
+
+            const plan = planTypeLabelSync({
+              title: liveTitle,
+              currentLabels: currentLabels.map((label) => label.name),
+              events,
+              commitMessages: commits.map((commit) => commit.commit?.message || ''),
+            });
+
+            if (plan.skip) {
+              core.info(`Skipping type-label sync for PR #${pr}: ${plan.reason}`);
+              return;
+            }
+
+            // Ensure the target label exists (create if missing).
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: plan.detected });
+            } catch (err) {
+              if (err.status === 404) {
+                const colors = {
+                  enhancement: '0075ca',
+                  bug: 'd73a4a',
+                  documentation: '0075ca',
+                  chore: 'e4e669',
+                };
+                try {
+                  await github.rest.issues.createLabel({
+                    owner, repo,
+                    name: plan.detected,
+                    color: colors[plan.detected] || 'ededed',
+                  });
+                  core.info(`Created missing label "${plan.detected}"`);
+                } catch (createErr) {
+                  if (createErr.status !== 422) throw createErr;
+                  core.info(`Label "${plan.detected}" was created concurrently; continuing.`);
+                }
+              } else {
+                throw err;
+              }
+            }
+
+            for (const label of plan.remove) {
+              await github.rest.issues.removeLabel({
+                owner, repo, issue_number: pr, name: label,
+              });
+              core.info(`Removed stale type label "${label}" from PR #${pr}`);
+            }
+
+            if (plan.add) {
+              await github.rest.issues.addLabels({
+                owner, repo, issue_number: pr, labels: [plan.add],
+              });
+              core.info(`Applied label "${plan.add}" to PR #${pr}`);
+            }
