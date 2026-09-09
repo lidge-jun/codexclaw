@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { searchMemory, CWD_BOOST } from "../src/memory-search.ts";
+import { normalizeCwd } from "../src/rollout.ts";
 import { main as cliMain } from "../src/cli.ts";
 
 const HERE = "/proj/here";
@@ -227,4 +228,61 @@ test("frontmatter cwd is read from the leading block, not any later line", () =>
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
+});
+
+test("windows-shaped input reaches a posix-recorded project (CI regression)", () => {
+  const home = buildScopedHome();
+  try {
+    // The fixture records cwd the way a POSIX session does. On Windows the CLI
+    // hands the same directory over with backslashes, and resolve() used to
+    // rewrite the query side only, so the two never compared equal and every
+    // scoped assertion failed on windows-latest while ubuntu/macos passed.
+    const backslashed = HERE.replace(/\//g, "\\");
+    const scoped = searchMemory("wombat", { home, cwd: backslashed });
+    assert.equal(scoped.hits[0].cwd, HERE, "a backslash query still finds a slash-recorded cwd");
+
+    const only = searchMemory("wombat", { home, cwd: backslashed, cwdOnly: true });
+    assert.equal(only.hits.length, 1, "the hard filter matches across separator styles");
+    assert.equal(only.hits[0].cwd, HERE);
+
+    // The prose signal reads both spellings too.
+    assert.equal(
+      searchMemory("wombat", { home, cwd: backslashed, cwdOnly: true }).hits[0].origin,
+      "file",
+    );
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("drive-lettered paths compare by drive, separator and boundary", () => {
+  const home = mkdtempSync(join(tmpdir(), "recall-cwd-drive-"));
+  try {
+    const summaries = join(home, "memories", "rollout_summaries");
+    mkdirSync(summaries, { recursive: true });
+    // A session recorded on Windows stores a drive-lettered, backslashed cwd.
+    writeFileSync(
+      join(summaries, "win.md"),
+      "thread_id: t-win\ncwd: C:\\proj\\here\\sub\n\n# Notes\n\nThe numbat pipeline shipped.\n",
+    );
+    // Same directory, every spelling a caller might type.
+    for (const q of ["C:\\proj\\here", "C:/proj/here", "c:/proj/here", "C:\\proj\\here\\"]) {
+      const r = searchMemory("numbat", { home, cwd: q, cwdOnly: true });
+      assert.equal(r.hits.length, 1, `${q} must reach the recorded cwd`);
+    }
+    // ...and a sibling that merely shares the prefix characters must not.
+    const sibling = searchMemory("numbat", { home, cwd: "C:\\proj\\here2", cwdOnly: true });
+    assert.equal(sibling.hits.length, 0, "C:\\proj\\here2 is a different directory");
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("normalizeCwd folds separators and drive case without folding path case", () => {
+  assert.equal(normalizeCwd("/proj/here/"), "/proj/here");
+  assert.equal(normalizeCwd("\\proj\\here"), "/proj/here");
+  assert.equal(normalizeCwd("c:\\proj\\here"), "C:/proj/here");
+  assert.equal(normalizeCwd("C:/proj/here/"), "C:/proj/here");
+  // Path case is meaningful on the case-sensitive hosts this also runs on.
+  assert.notEqual(normalizeCwd("/Proj/Here"), normalizeCwd("/proj/here"));
 });

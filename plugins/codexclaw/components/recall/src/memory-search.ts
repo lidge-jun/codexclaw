@@ -9,10 +9,10 @@
  * source_updated_at).
  */
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
+import { join, relative, resolve, sep, posix as posixPath, win32 as win32Path } from "node:path";
 import { codexHome, memoriesDir, memoriesDbPath, stateDbPath } from "./paths.ts";
 import { openReadOnlyDb, loadThreadMeta, type ThreadMeta } from "./threads-db.ts";
-import { cwdMatches } from "./rollout.ts";
+import { cwdMatches, normalizeCwd } from "./rollout.ts";
 import {
   splitQueryWordsRaw,
   termIndexOf,
@@ -273,7 +273,8 @@ function frontmatterCwd(content: string): string | null {
  */
 type CwdScope = {
   prefix: string;
-  lowerPrefix: string;
+  /** lowercased prose forms of the prefix, one per separator style. */
+  lowerPrefixes: string[];
   only: boolean;
   threadCwd: Map<string, ThreadMeta>;
 };
@@ -281,14 +282,25 @@ type CwdScope = {
 function buildCwdScope(home: string, opts: MemorySearchOptions, warnings: string[]): CwdScope | null {
   const raw = opts.cwd ?? null;
   if (raw === null || raw.trim() === "") return null;
-  // resolve() so `--cwd .` and a trailing slash mean the same directory the
-  // separator-aware prefix test expects.
-  const prefix = resolve(raw);
+  // Relative input resolves against the process cwd so `--cwd .` means this
+  // directory; an absolute path is left alone, because resolve() rewrites its
+  // separators to the host style while stored cwds keep the style of whatever
+  // platform recorded them. Absoluteness is judged under both path flavors: a
+  // POSIX path is still absolute when read on Windows, and vice versa.
+  const absolute = posixPath.isAbsolute(raw) || win32Path.isAbsolute(raw);
+  const prefix = normalizeCwd(absolute ? raw : resolve(raw));
   // The join only pays for itself when a scope is requested: loading 12,908
   // thread rows costs ~90ms against a search budget measured in tens of ms.
   const meta = loadThreadMeta(stateDbPath(home));
   if (meta.warning) warnings.push(meta.warning);
-  return { prefix, lowerPrefix: prefix.toLowerCase(), only: opts.cwdOnly === true, threadCwd: meta.byId };
+  // Prose carries whatever separator its author typed, so both spellings count.
+  const lower = prefix.toLowerCase();
+  return {
+    prefix,
+    lowerPrefixes: [lower, lower.replace(/\//g, "\\")],
+    only: opts.cwdOnly === true,
+    threadCwd: meta.byId,
+  };
 }
 
 /**
@@ -308,7 +320,7 @@ function scopeAdjust(
   if (scope === null) return { keep: true, bonus: 0 };
   const matched = hitCwd !== null && hitCwd !== "" && cwdMatches(hitCwd, scope.prefix);
   if (matched) return { keep: true, bonus: CWD_BOOST };
-  const mentioned = lowerText.includes(scope.lowerPrefix);
+  const mentioned = scope.lowerPrefixes.some((p) => lowerText.includes(p));
   if (mentioned) return { keep: true, bonus: CWD_BOOST / 2 };
   return { keep: !scope.only, bonus: 0 };
 }
