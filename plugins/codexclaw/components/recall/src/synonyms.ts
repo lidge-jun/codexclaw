@@ -11,8 +11,15 @@
  * group therefore collapse into the same requirement (documented behavior:
  * `plan audit` matches anything with one pabcd-family word).
  *
- * Emitted group members carry the boundary flag decided by query-words.ts, so a
- * symbol-shaped query word stays boundary-gated through expansion.
+ * Korean ending trimming (R2) rides in the same OR-group. Memory search matches
+ * by substring, so a query of `배포` already reaches text saying `배포까지`; the
+ * failing direction is the opposite one, where a user types `배포까지` and never
+ * reaches a document that only says `배포`. Measured ending-attachment rates on
+ * the memories corpus are high enough for this to be the common case: 배포 60%,
+ * 검색 60%, 스킬 56%, 세션 51% (011_survey_recall_search.md 3.3).
+ *
+ * Adding the stem as a second group member fixes that without touching the
+ * matching, scoring or excerpt code, because the group is already an OR.
  */
 import {
   isSymbolWord,
@@ -44,6 +51,10 @@ export const SYNONYM_GROUPS: string[][] = [
   ["hook", "hooks", "훅"],
   ["config", "configuration", "설정"],
   ["deploy", "deployment", "배포"],
+  ["release", "releases", "릴리스", "릴리즈"],
+  ["commit", "commits", "커밋"],
+  ["review", "reviews", "리뷰", "검토"],
+  ["branch", "branches", "브랜치"],
 ];
 
 /** Max members per expanded group (original word + synonyms). */
@@ -55,6 +66,87 @@ for (const group of SYNONYM_GROUPS) {
 }
 
 /**
+ * Korean particles and verbalizer endings, matched longest-first so `에서는`
+ * never loses to `는`. Derived from the measured top endings in the memories
+ * corpus (011 3.3, 3.5).
+ */
+const KOREAN_ENDINGS: string[] = [
+  // 3 syllables
+  "에서는",
+  "으로는",
+  // 2 syllables
+  "에서",
+  "으로",
+  "에는",
+  "이나",
+  "까지",
+  "부터",
+  "처럼",
+  "보다",
+  "마다",
+  "라고",
+  "하고",
+  "해서",
+  "하는",
+  "한테",
+  "들을",
+  "들이",
+  "에게",
+  // 1 syllable
+  "을",
+  "를",
+  "이",
+  "가",
+  "은",
+  "는",
+  "의",
+  "에",
+  "도",
+  "과",
+  "와",
+  "만",
+  "로",
+].sort((a, b) => b.length - a.length);
+
+/** Hangul-syllable-only words are the only trimming candidates. */
+const HANGUL_ONLY = /^[가-힣]+$/;
+
+/**
+ * Conjugated 하-verbalizer tail: `결정했지`, `배포하고`, `검색해야` all reduce to
+ * their noun stem. The fixed ending list above cannot cover these because the
+ * tense and mood suffixes are open-ended, and the roadmap's own Korean
+ * verification query (`왜 그렇게 결정했지`) needs the reduction.
+ *
+ * The stem-length rule below is what keeps this safe: 이해, 오해, 방해, 지하 and
+ * every other two-syllable noun that merely ends in 하/해 leaves a one-syllable
+ * stem and is rejected.
+ */
+const HA_VERB_TAIL = /(?:했|하|해)[가-힣]{0,3}$/;
+
+/** A trimmed stem shorter than this is rejected: 검사 → 검 explodes recall. */
+const MIN_STEM_SYLLABLES = 2;
+
+/**
+ * Korean stem for a query word, or null when nothing safe can be trimmed.
+ * Three guards, all from 011 3.6: Hangul-only input, a stem of at least two
+ * syllables, and no removal of the original (callers always keep it).
+ */
+export function koreanStem(word: string): string | null {
+  if (!HANGUL_ONLY.test(word)) return null;
+  for (const ending of KOREAN_ENDINGS) {
+    if (!word.endsWith(ending)) continue;
+    const stem = word.slice(0, word.length - ending.length);
+    if ([...stem].length >= MIN_STEM_SYLLABLES) return stem;
+  }
+  const ha = HA_VERB_TAIL.exec(word);
+  if (ha) {
+    const stem = word.slice(0, ha.index);
+    if ([...stem].length >= MIN_STEM_SYLLABLES) return stem;
+  }
+  return null;
+}
+
+/**
  * Expand query words into OR-groups of matchable terms. Words arrive with their
  * original case because symbol judgment needs it (`CI` vs a bare `ci`
  * fragment); every emitted term text is lowercase.
@@ -63,6 +155,10 @@ for (const group of SYNONYM_GROUPS) {
  * scoring still prefer what the user actually typed. Unknown words become
  * singleton groups. Members are deduped case-insensitively and capped at
  * GROUP_CAP.
+ *
+ * Order matters: the Korean stem is resolved first and then re-looked-up in the
+ * synonym table, which is what makes `배포를` reach `deploy`. Looking up only
+ * the raw lowercase word (the pre-R2 behavior) missed every inflected form.
  */
 export function expandQueryWords(words: string[]): QueryGroup[] {
   return words.map((word) => {
@@ -74,9 +170,15 @@ export function expandQueryWords(words: string[]): QueryGroup[] {
       if (c !== "" && !texts.includes(c)) texts.push(c);
     };
 
-    for (const member of TERM_TO_GROUP.get(lower) ?? []) {
-      if (texts.length >= GROUP_CAP) break;
-      push(member);
+    const stem = koreanStem(lower);
+    if (stem) push(stem);
+    // Synonyms of the raw word first, then of the trimmed stem: 배포를 has no
+    // table entry of its own but its stem does.
+    for (const key of stem ? [lower, stem] : [lower]) {
+      for (const member of TERM_TO_GROUP.get(key) ?? []) {
+        if (texts.length >= GROUP_CAP) break;
+        push(member);
+      }
     }
 
     return texts.slice(0, GROUP_CAP).map((text): QueryTerm => ({ text, boundary }));

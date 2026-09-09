@@ -40,7 +40,7 @@ const USAGE = [
   "  --no-tools   skip tool call/output (tool_log) matching",
   "  --scan       force the raw JSONL scan path (skip the sidecar index)",
   "  --no-refresh skip refresh-on-query ingest (fastest, index may be stale)",
-  "  --no-synonyms disable curated ko/en synonym expansion (memory search)",
+  "  --no-synonyms memory search: raw words only — no ko/en synonyms, no korean stem",
   "  --json       machine-readable output (text fields clipped at 500 chars)",
   "  --full       with --json: emit unclipped text fields",
   "  --home PATH  search an alternate Codex home (default $CODEX_HOME ?? ~/.codex)",
