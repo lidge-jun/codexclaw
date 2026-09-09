@@ -2,9 +2,9 @@
 name: cxc-dev-visualizer
 description: "Create well-composed visual documents, HTML reports, SVG diagrams, charts, interactive explainers and PDF deliverables. Use for visualize, visual explanations, architecture diagrams, comparison reports, infographics, document creation, 시각화, 그려줘, 문서 만들어줘, 보고서, PDF 생성. Preserve explicit formats and templates; text-only requests and ordinary code changes do not need a visual."
 metadata:
-  last-verified: "2026-09-08"
+  last-verified: "2026-09-09"
   short-description: "Visual documents, SVG/HTML explainers and verified PDF delivery."
-  keywords: [diagram, visualization, visualize, document, report, SVG, HTML, PDF, interactive]
+  keywords: [diagram, visualization, visualize, document, report, SVG, HTML, PDF, interactive, cover, contents, storyline]
 ---
 
 # Visual documents — compose, render, deliver
@@ -43,6 +43,7 @@ focused explanation. Neither phrase grants permission to publish or install.
 | Small static structure expressible as labeled nodes/edges | Mermaid if host supports it; otherwise a suitable artifact | [SVG and interaction](reference/svg-and-interaction.md) only for custom output |
 | Editable SVG diagram or infographic | Native SVG with legible geometry and text | [Visual design](reference/visual-design.md), [SVG and interaction](reference/svg-and-interaction.md) |
 | HTML report, technical brief, visual review or document | Semantic HTML with purposeful figures and readable sections | [Reader documents](../dev/references/reader-documents.md), [Visual design](reference/visual-design.md), [documents/PDF](reference/document-pdf.md) |
+| Multi-page report for a decision maker (client report, research report, proposal, 보고서) | [Report writing](reference/report-writing.md) storyline first, then [paged-report.html](assets/paged-report.html) exported with `scripts/export-paged-report.mjs` | [Report writing](reference/report-writing.md), [Documents/PDF](reference/document-pdf.md) REPORT-PRINT-01/QA-01 and the CJK recipe, [Visual design](reference/visual-design.md) REPORT-DESIGN-01/VIZ-01 |
 | Interactive HTML model | One useful visual plus requested inputs that change it | [SVG and interaction](reference/svg-and-interaction.md), design reference if styling is open |
 | PDF, print report or handout | Choose an available print/PDF engine; actually export | [Reader documents](../dev/references/reader-documents.md), [Documents/PDF](reference/document-pdf.md); current PDF skill if available |
 | Word/Google Docs, Slides/PPTX or spreadsheet | Available format-specific owner; use this skill for visual composition | [Documents/PDF](reference/document-pdf.md) for boundaries |
@@ -73,6 +74,12 @@ Examples of structure that earns its form:
 - Compare alternatives on the same dimensions and scale, with a table for exact values.
 - Reports and explainers follow [Reader documents](../dev/references/reader-documents.md):
   answer first, claim-shaped headings, evidence in an appendix.
+- A report over about four pages follows [Report writing](reference/report-writing.md):
+  write the dot-dash storyline before any HTML, make every section heading a claim
+  that reads in sequence to the ask, give the summary a full page that decides
+  alone, number and source every exhibit, hold one register, and name the issuing
+  organization the way the reader knows it. Cover and contents pages are part of
+  the document, not decoration.
 - For a dense system, use overview plus focused detail rather than shrinking every label.
 
 Keep document narrative in the document. Inline conversation visuals instead obey
@@ -89,6 +96,14 @@ are appropriate, but size/wrap labels from actual text metrics and inspect the r
 dependency-free example for reports with a live scenario and print output. Adapt
 its content and visual direction; it is not a mandatory template or a finished
 report about the user's data. See the document reference for export readiness.
+[paged-report.html](assets/paged-report.html) is the A4 report skeleton set as a
+publication (REPORT-DESIGN-01: hairlines and type, one accent, a data chart, no
+cards or tinted boxes): cover, contents with page numbers, summary page, flowing
+body with claim headings and numbered exhibits, appendix and notice, with a
+house-style token block at the top. Its company and numbers are fictional.
+`scripts/export-paged-report.mjs <in.html> <out.pdf>` prints it with a local
+Chromium, fills the contents page numbers in a second pass and reports layout
+findings; `--qa-only <pdf>` audits a PDF from any engine.
 
 Prefer native HTML/CSS/SVG and existing libraries. For library-dependent visuals,
 verify actual versions and APIs, use authorized pinned assets, and distinguish
@@ -113,7 +128,10 @@ For interaction, change the primary input and observe the resulting marks/values
 exercise keyboard access and reset when provided. A static screenshot is not
 interaction proof. For PDF, inspect the **actual exported pages**, including
 multipage tables, final content, Korean glyphs and selected scenario state.
-Print CSS or a PDF filename alone proves nothing.
+Print CSS or a PDF filename alone proves nothing. For a delivered report, run the
+export script's QA (REPORT-QA-01) and the fresh-reader check on the rendered pages
+(REPORT-FRESH-01); an orphan line at the top of a page, a heading stranded at the
+bottom, a half-empty page or a figure whose text prints under 8.5pt is a defect.
 
 **DIAGRAM-SYNTAX-01:** use an existing supported parser/checker where available.
 XML validation can catch malformed SVG; it cannot catch overlapped labels. Do not

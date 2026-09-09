@@ -56,9 +56,10 @@ still ship as compatibility surfaces.
   `agents/openai.yaml` with `allow_implicit_invocation: false`.
 - `dev-visualizer/` — visual documents, reports and diagrams: composes HTML/SVG
   explainers, report documents with cover and contents pages, charts and
-  interactive models, then renders and verifies the delivered artifact (PDF included).
-  Reader-facing structure comes from `dev/references/reader-documents.md`; report
-  storyline and paragraph rules live in its `reference/report-writing.md`. Ships
+  interactive models, then renders and verifies the delivered artifact (PDF included,
+  via `scripts/export-paged-report.mjs`). Reader-facing structure comes from
+  `dev/references/reader-documents.md`; report storyline, paragraph, exhibit and
+  page-design rules (REPORT-*) live in its `reference/` files. Ships
   `allow_implicit_invocation: false`; activates by description match or explicit
   `$cxc-dev-visualizer`. `dev-diagram-viewer/` is the deprecated redirect folder for
   the previous name.
