@@ -1,6 +1,6 @@
 # Branch Lifecycle — Cleanup, Automation, and Deletion Evidence
 
-Last reviewed: 2026-08-26
+Last reviewed: 2026-09-09
 Applies to: GitHub repositories with pull-request workflows; git worktrees
 When to read: Stale branch/worktree cleanup, or automating branch deletion
 Canonical owner: dev-devops §2.9
@@ -37,24 +37,28 @@ it deletes work that was merely parked.
 ## §2 Deletion Plan — Keep Rules
 
 Every keep rule below exists because the opposite behavior destroys work that is
-still referenced. Apply them as an ordered filter over candidate branches.
+still referenced. Apply every rule to each candidate; any one that matches keeps
+the branch. The planner evaluates them in the order below.
 
 | # | Keep when | Because |
 |---|---|---|
 | 1 | Branch is protected (`main`, `dev`, `preview`, `gh-pages`, or host-marked protected) | Integration and release lines are never candidates |
-| 2 | **Any** PR that ever used it as a head is merged | Reopening a PR whose head branch is gone cannot restore commits |
-| 3 | **Any** PR that ever used it as a head is open | Deleting an open PR's head closes the PR |
-| 4 | It is the **base** of an open PR | Deleting a stack parent closes the open child |
-| 5 | Any related PR is cross-repository (fork) | The ref lives in the contributor's repository |
+| 2 | Any related PR is cross-repository (fork) | The ref lives in the contributor's repository |
+| 3 | **Any** PR that ever used it as a head is merged | Reopening a PR whose head branch is gone cannot restore commits |
+| 4 | **Any** PR that ever used it as a head is open | Deleting an open PR's head closes the PR |
+| 5 | It is the **base** of an open PR | Deleting a stack parent closes the open child |
 | 6 | `closed_at` is missing on a related closed PR | Cannot compute eligibility; fail closed |
 | 7 | Newest `closed_at` is inside the grace period | Leaves room to reopen a mistaken close |
-| 8 | No PR ever used it as a head | No recorded terminal decision; out of automation scope |
+| 8 | The name is outside the repository's declared **disposable namespace** (planner default `codex/`, `ingw/`) | A human-named branch with closed PRs may be parked work; only namespaces declared disposable are automation's to delete |
+| 9 | The branch's current tip SHA is unknown, or no related closed PR reports a head SHA (`unknown-head-sha`) | Cannot prove the branch is the one the PR closed; fail closed |
+| 10 | The tip is not the head SHA of any related closed PR (`branch-moved-since-close`) | A reused name inherits every earlier PR's closed state; deleting by name destroys the new work |
+| — | No PR ever used it as a head | Not a keep rule: the planner skips the branch (`continue`) as out of automation scope |
 
-Rules 2 and 3 quantify over **every** PR that used the branch as a head, not the
+Rules 3 and 4 quantify over **every** PR that used the branch as a head, not the
 most recent one. A branch reused across several PRs is common, and one merged or
 open PR anywhere in that set is enough to keep it.
 
-Rule 5 compares repository **ids**:
+Rule 2 compares repository **ids**:
 
 ```js
 // Correct: a fork commonly reuses upstream branch names
@@ -67,6 +71,37 @@ const isCrossRepository =
 
 Re-check host branch protection at delete time, not only at plan time. The plan
 is a snapshot; protection is authoritative.
+
+Rules 8-10 are the ones a name-only planner misses. They were added after the planner
+nearly deleted reused branches (lidge-jun/opencodex `59d9bc95f`, 2026-08-27, "stop
+deleting reused branches"): a `codex/`-style name reused for new work inherited the
+closed history of every earlier PR that had used it. Rule 8 makes the disposable
+namespace an explicit allowlist (`DISPOSABLE_BRANCH_PREFIXES`); a repository adopting
+the planner declares its own. Rules 9-10 bind deletion to the exact commit a closed PR
+pointed at. The shipped check, last because it is the most expensive
+(`.github/scripts/closed-pr-branch-cleanup.cjs` 206-220, shape preserved, variable
+names as in source):
+
+```js
+const currentOid = existing.get(branch) || null;
+if (!currentOid) { keep(KEEP_REASONS.UNKNOWN_HEAD_SHA); continue; }
+const closedOids = new Set(related.map((pr) => normalizeOid(pr && pr.headRefOid)).filter(Boolean));
+if (closedOids.size === 0) { keep(KEEP_REASONS.UNKNOWN_HEAD_SHA); continue; }
+if (!closedOids.has(currentOid)) { keep(KEEP_REASONS.MOVED_SINCE_CLOSE); continue; }
+```
+
+### Merge truth is PR state, not ancestry
+
+`git branch --merged` and `git branch -d` test reachability — the manual lists
+branches whose tips are reachable from the specified commit. `git merge --squash` does "not actually make a commit,
+move the HEAD, or record `$GIT_DIR/MERGE_HEAD`", so a squash-merged branch tip is
+never an ancestor of the target and `--merged` never lists it. Rebase merges rewrite
+SHAs and fail the same test. `git cherry` compares per-commit patch ids, so it catches
+rebase and cherry-pick but not a multi-commit branch collapsed into one squash commit.
+On a repository that allows squash or rebase merging, the forge's PR state
+(`mergedAt`, `mergeCommit`) is the reliable merge truth; ancestry is a secondary
+confirmation only. Sources: git-branch, git-merge, gitfaq and git-cherry manuals at
+git-scm.com/docs, read 2026-09-09.
 
 ---
 
@@ -92,7 +127,8 @@ trigger surface is a security boundary.
 Extract the deletion plan as a pure function so the keep rules can be tested
 directly. Each rule in §2 deserves a test whose failure means real work is
 destroyed: merged head, open head, stacked base, fork head, grace period,
-missing timestamp, protected branch.
+missing timestamp, protected branch, branch outside the disposable namespace,
+reused branch whose tip moved after close, closed PR with no recorded head SHA.
 
 ---
 
@@ -176,6 +212,8 @@ branches already deleted upstream. It does not, and must not, touch the fork.
 | `git worktree remove --force` before a dirty check | Discards uncommitted work irrecoverably | Audit every worktree first |
 | Deleting refs with no snapshot | Remote deletions are unrecoverable without the SHA | `for-each-ref` snapshot first |
 | `workflow_dispatch` on a `contents: write` cleanup job | Runs a chosen branch's body with write scope | Schedule-only trigger |
+| Deleting by name match alone | A reused name inherits every earlier PR's closed state | Rules 9-10: tip must equal a closed PR head |
+| Treating every closed-PR branch as disposable | Human-named branches may be parked work with a closed PR | Rule 8: declared disposable namespace only |
 | Fork branch matching by name | Same-name forks get misclassified as local | Compare repo ids |
 
 ---
@@ -191,3 +229,7 @@ The automation gap in §1 was found during that cleanup and closed by
 `.github/workflows/cleanup-closed-pr-branches.yml` with the plan extracted to
 `.github/scripts/closed-pr-branch-cleanup.cjs` (lidge-jun/opencodex#2664,
 merged as `bae100aa7`).
+
+Rules 8-10 were reconciled against the live planner on 2026-09-09
+(`closed-pr-branch-cleanup.cjs` `KEEP_REASONS`, lines 60-71 and 157-224; commit
+`59d9bc95f`); this document had lagged the code by one commit since 2026-08-27.

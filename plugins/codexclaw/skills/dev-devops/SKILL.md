@@ -1,8 +1,8 @@
 ---
 name: cxc-dev-devops
-description: "MUST USE for DevOps, infrastructure, or delivery work — container builds, deploy pipelines, stacked-PR CI diagnosis, Kubernetes, Infrastructure as Code, SRE foundations, edge/serverless, ML infrastructure, and repository branch/worktree lifecycle hygiene. Triggers: 'Dockerfile', 'container build', 'deploy', 'CI/CD', 'stacked PR CI', 'duplicate CI', 'Kubernetes', 'K8s', 'Terraform', 'Pulumi', 'Helm', 'SRE', 'SLI', 'SLO', 'error budget', 'serverless', 'edge', 'stale branch', 'branch cleanup', 'delete merged branches', 'delete_branch_on_merge', 'worktree cleanup', '스택 PR CI', '배포', '인프라', '쿠버네티스', '브랜치 정리', '브랜치 삭제', '워크트리 정리'."
+description: "MUST USE for DevOps, infrastructure, or delivery work — container builds, deploy pipelines, stacked-PR CI diagnosis, Kubernetes, Infrastructure as Code, SRE foundations, edge/serverless, ML infrastructure, repository bootstrap, agent-PR intake policy, and repository branch/worktree lifecycle hygiene. Triggers: 'Dockerfile', 'container build', 'deploy', 'CI/CD', 'stacked PR CI', 'duplicate CI', 'Kubernetes', 'K8s', 'Terraform', 'Pulumi', 'Helm', 'SRE', 'SLI', 'SLO', 'error budget', 'serverless', 'edge', 'stale branch', 'branch cleanup', 'delete merged branches', 'delete_branch_on_merge', 'worktree cleanup', 'repo bootstrap', 'branch protection', 'ruleset', 'PR limits', 'agent PR', 'agent PRs', 'AI PR policy', 'superseded PR', 'worktree gc', '스택 PR CI', '배포', '인프라', '쿠버네티스', '브랜치 정리', '브랜치 삭제', '워크트리 정리', '저장소 세팅', '브랜치 보호', '에이전트 PR', 'PR 정책'."
 metadata:
-  last-verified: "2026-08-26"
+  last-verified: "2026-09-09"
   short-description: "Container, deploy, Kubernetes, IaC, SRE, and branch-lifecycle guidance for production delivery."
 ---
 
@@ -231,6 +231,10 @@ actually still matter. Treat branch lifecycle as delivery infrastructure.
 | `DEVOPS-BRANCH-DELETE-EVIDENCE-01` | STRICT | Never bulk-prune. Before deleting any ref, prove per branch that it is not protected, not an open PR head, not the base of an open PR, not a fork head, and not carrying unique commits. A name pattern is not evidence. |
 | `DEVOPS-BRANCH-SNAPSHOT-01` | STRICT | Snapshot `git for-each-ref` (SHA + refname) for every local and remote ref to scratch space before the first deletion. Deleted remote branches are restorable with `git push origin <sha>:refs/heads/<name>` only while you still hold the SHA. |
 | `DEVOPS-WORKTREE-DIRTY-01` | STRICT | Check every attached worktree for uncommitted work before removing it, and remove worktrees **before** their branches — an attached branch cannot be deleted, and `--force` on a dirty tree discards work no reflog will return. |
+| `DEVOPS-BRANCH-NAMESPACE-01` | STRICT | Automation deletes only inside a declared disposable namespace (planner default `codex/`, `ingw/`; a repository may add prefixes such as `agent/`) and only when the branch tip still equals a closed PR's head SHA. A name match is not evidence; a reused name is new work. |
+| `DEVOPS-REPO-BOOTSTRAP-01` | DEFAULT | A repository that receives agent PRs is set up ruleset-first: protected integration lines, auto-delete on merge, closed-PR cleanup job, merge-method policy, PR limits, labels and template, each verified by a read-back command. Owner: `references/repo-bootstrap.md` (arrives with L2 of the 260909 chain). |
+| `DEVOPS-AGENT-INTAKE-01` | DEFAULT | Agent-authored PRs enter through a declared intake policy (weak, medium or strong) that names identity, draft rule, review budget, supersede procedure and close conditions. Owner: `references/agent-pr-intake.md` (L3). |
+| `DEVOPS-LOCAL-GC-01` | STRICT | Local worktree and branch GC uses PR state as merge truth, snapshots first, audits dirty trees, never touches the active or a locked worktree, and defaults to dry-run. Owner: `references/local-gc.md` (L4). |
 
 **Why the merged/closed distinction is load-bearing.** `delete_branch_on_merge`
 reads as complete branch hygiene, and a repository with it enabled looks solved.
@@ -250,7 +254,8 @@ intended. Compare repository **ids**, not names — a fork commonly carries the
 same branch names as upstream, so name comparison silently misclassifies it.
 
 Mechanics, the deletion-plan algorithm, and a worked audit live in
-`references/branch-lifecycle.md`.
+`references/branch-lifecycle.md`. Setup, intake and local GC have their own owner
+files; each is registered in Modular References by the chain layer that adds it.
 
 ---
 
