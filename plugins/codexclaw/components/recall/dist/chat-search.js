@@ -23,8 +23,10 @@ import {
 import { loadThreadMeta } from "./threads-db.js";
 import { openIndex, openIndexReadOnly, indexPath, indexStatus } from "./index-db.js";
 import { ingest } from "./ingest.js";
-import { queryIndex } from "./index-search.js";
+import { queryIndex,                } from "./index-search.js";
 import { splitQueryWords, MAX_WORDS } from "./query-words.js";
+
+
 
 export const DEFAULT_DAYS = 7;
 export const DEFAULT_LIMIT = 50;
@@ -33,6 +35,16 @@ export const MAX_LIMIT = 200;
 // imports from there directly, so the old memory-search → chat-search edge is
 // gone; these two keep working for existing callers and tests.
 export { splitQueryWords, MAX_WORDS };
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -189,6 +201,8 @@ function searchViaIndex(
       includeSynthetic: opts.includeSynthetic ?? false,
       includeTools: opts.includeTools ?? true,
       home: shared.home,
+      order: opts.order ?? "relevance",
+      nowMs: opts.nowMs,
     });
     if (roWarning) result.warnings.push(roWarning);
     // Freshness metadata (evaluator round-1 gap #7): how stale is what you just read?

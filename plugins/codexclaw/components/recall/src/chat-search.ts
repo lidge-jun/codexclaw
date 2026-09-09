@@ -23,8 +23,10 @@ import {
 import { loadThreadMeta } from "./threads-db.ts";
 import { openIndex, openIndexReadOnly, indexPath, indexStatus } from "./index-db.ts";
 import { ingest } from "./ingest.ts";
-import { queryIndex } from "./index-search.ts";
+import { queryIndex, type ChatOrder } from "./index-search.ts";
 import { splitQueryWords, MAX_WORDS } from "./query-words.ts";
+
+export type { ChatOrder } from "./index-search.ts";
 
 export const DEFAULT_DAYS = 7;
 export const DEFAULT_LIMIT = 50;
@@ -49,6 +51,14 @@ export type ChatSearchOptions = {
   scan?: boolean;
   /** skip refresh-on-query ingest for maximum speed (index may be stale). */
   noRefresh?: boolean;
+  /**
+   * Result ordering. "relevance" (default) fuses BM25 and trigram lanes with
+   * a recency term; "recent" is pure ts DESC. Only the index engine ranks —
+   * the raw JSONL scan path has no lane scores and always orders by recency.
+   */
+  order?: ChatOrder;
+  /** clock override for deterministic recency scoring in tests. */
+  nowMs?: number;
   /** sidecar index location override (tests); defaults to ~/.codexclaw/recall/index.sqlite. */
   indexPath?: string;
 };
@@ -64,6 +74,8 @@ export type ChatHit = {
   gitBranch: string | null;
   source: RolloutSource;
   file: string;
+  /** fused relevance score; present only for index-mode relevance ordering. */
+  score?: number;
   context: Array<{ ts: string; role: string; text: string; isMatch: boolean }>;
 };
 
@@ -189,6 +201,8 @@ function searchViaIndex(
       includeSynthetic: opts.includeSynthetic ?? false,
       includeTools: opts.includeTools ?? true,
       home: shared.home,
+      order: opts.order ?? "relevance",
+      nowMs: opts.nowMs,
     });
     if (roWarning) result.warnings.push(roWarning);
     // Freshness metadata (evaluator round-1 gap #7): how stale is what you just read?

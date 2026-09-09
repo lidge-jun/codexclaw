@@ -28,7 +28,7 @@ Both commands are strictly read-only over `~/.codex`; they never modify anything
 ```
 cxc chat search "<query>" [--days N] [--cwd PATH] [--role r] [--source main|subagent|all]
                           [--limit N] [--context N] [--any] [--all] [--no-tools]
-                          [--scan] [--no-refresh] [--json]
+                          [--recent] [--scan] [--no-refresh] [--json]
 cxc chat index [--rebuild] [--status]
 cxc memory search "<query>" [--days N] [--limit N] [--any] [--no-synonyms] [--json]
 ```
@@ -42,6 +42,10 @@ Defaults that matter:
   `--source subagent|all` (cli-jaw has no equivalent corpus).
 - Harness-injected synthetic messages (AGENTS.md preambles, environment context) are
   hidden; `--all` reveals them.
+- Hits come back BY RELEVANCE: a BM25 lane and a trigram lane are fused (reciprocal
+  rank fusion) and freshness breaks ties among comparable matches, so the best answer
+  can be an old one. Pass `--recent` for plain newest-first when you want a timeline
+  rather than an answer.
 - Korean works in both engines (trigram FTS >=3 chars; shorter words auto-fallback).
 
 ## How memory search reads your query

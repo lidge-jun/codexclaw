@@ -298,6 +298,10 @@ export function buildCwdContext(
       noRefresh: true,
       source: "main",
       includeTools: false,
+      // Auto-injection summarizes "recent work", and the dedup below keeps the
+      // first hit per thread — so this path stays on time order regardless of
+      // what explicit search defaults to.
+      order: "recent",
     });
     const chatHits = localChat.hits.filter((hit) => hit.cwd === cwd);
     if (chatHits.length === 0) return "";
