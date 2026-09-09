@@ -21,6 +21,14 @@ import {
 
 
 } from "./cwd-context.js";
+import {
+  bumpHitCounts,
+  hitCountRef,
+  indexPath,
+  openIndex,
+  readHitCounts,
+} from "./index-db.js";
+import { existsSync } from "node:fs";
 import { basename } from "node:path";
 // Cross-component dist import (established precedent: messenger-bridge api-compat).
 // Resolves from BOTH src (test-time ../../cxc-ops/dist) and shipped dist layouts.
@@ -163,6 +171,33 @@ export const FULL_BUDGET               = { chars: 1400, topN: 5, snippet: 100 };
  */
 export const COMPACTED_BUDGET               = { chars: 800, topN: 2, snippet: 100 };
 
+/**
+ * Repeat-injection penalty. A thread that has already been pushed into several
+ * sessions has had its chance to be useful, so it yields its slot to something
+ * the agent has not seen yet. Formula from jawcode memory-quality.ts:45-59:
+ * nothing below the threshold, then half a unit more for each repeat.
+ *
+ * The unit is calibrated against the scale that exists on THIS path rather than
+ * memory-search's chunk scores, which rank different objects. Adjacent sessions
+ * sit one apart here, so half a unit is half a position: the first repeats past
+ * the threshold only close the gap, a session has to keep coming back before it
+ * actually drops a place, and each further repeat costs another half step. That
+ * is deliberately gentle — a thread that is genuinely the current work should
+ * survive a few sessions of being right.
+ */
+const HIT_PENALTY_THRESHOLD = 3;
+const HIT_PENALTY_UNIT = 0.5;
+
+export function hitCountPenalty(count        )         {
+  return count >= HIT_PENALTY_THRESHOLD ? (count - HIT_PENALTY_THRESHOLD + 1) * HIT_PENALTY_UNIT : 0;
+}
+
+/**
+ * Injection-history store for the auto-inject path. Kept behind an interface so
+ * the penalty is reachable ONLY from here: explicit `cxc chat/memory search`
+ * must answer the same query the same way every time, and the surest guarantee
+ * of that is that the search core has no way to reach this code at all.
+ */
 
 
 
@@ -174,7 +209,43 @@ export const COMPACTED_BUDGET               = { chars: 800, topN: 2, snippet: 10
 
 
 
-const DEFAULT_RECALL_DEPS                    = { searchChat, listCwdSessions, loadSummaryIndex };
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * Open the sidecar index read-write for counting. Never creates the index: if
+ * recall has no index yet there is no history to record, and a hook must not
+ * materialize a 12GB cache as a side effect of starting a session.
+ */
+function openSidecarHitCounts()                       {
+  try {
+    const path = indexPath();
+    if (!existsSync(path)) return null;
+    const db = openIndex(path);
+    return {
+      read: (refs) => readHitCounts(db, refs),
+      bump: (refs) => bumpHitCounts(db, refs, new Date().toISOString()),
+      close: () => db.close(),
+    };
+  } catch {
+    return null; // fail-soft: ranking degrades to neutral, injection still happens.
+  }
+}
+
+const DEFAULT_RECALL_DEPS                    = {
+  searchChat,
+  listCwdSessions,
+  loadSummaryIndex,
+  openHitCounts: openSidecarHitCounts,
+};
 
 function quoteUntrusted(value        )         {
   // JSON quoting removes control/newline structure; escaping angle brackets
@@ -250,6 +321,73 @@ export function renderCwdBlock(
 }
 
 /**
+ * Pick what to inject, pushing back whatever has already been injected repeatedly.
+ *
+ * Candidates arrive newest-first, so their index IS their rank; the penalty is
+ * added to that index and the list re-sorted, which keeps the whole policy in
+ * units of list positions. Ties keep time order, so an entry never moves
+ * without an earned penalty and the output stays deterministic for a given
+ * (corpus, history) pair.
+ *
+ * Generic over the candidate shape because the two injection paths carry
+ * different records — enumerated sessions and chat hits — but rank on the same
+ * refs, so one history serves both and a session cannot dodge its count by
+ * arriving through the other door.
+ *
+ * Reading and writing happen exactly once each, here, and only for the entries
+ * that end up in the injection: read before the choice, write after it. Every
+ * failure mode degrades to the neutral order rather than to no injection —
+ * a broken history store must not cost the session its context.
+ */
+function demoteRepeats   (
+  candidates     ,
+  limit        ,
+  refOf                     ,
+  deps                   ,
+)      {
+  const neutral = candidates.slice(0, limit);
+  // No candidates means no injection, so there is nothing to record and no
+  // reason to touch the sidecar: an idle project cannot accumulate history.
+  if (candidates.length === 0) return neutral;
+  let store                       = null;
+  try {
+    store = deps.openHitCounts?.() ?? null;
+  } catch {
+    return neutral;
+  }
+  if (!store) return neutral;
+  try {
+    const refs = candidates.map(refOf);
+    const counts = store.read(refs);
+    const ranked = candidates
+      .map((item, index) => ({
+        item,
+        ref: refs[index] ,
+        rank: index + hitCountPenalty(counts.get(refs[index] ) ?? 0),
+      }))
+      .sort((a, b) => a.rank - b.rank);
+    const chosen = ranked.slice(0, limit);
+    store.bump(chosen.map((c) => c.ref));
+    return chosen.map((c) => c.item);
+  } catch {
+    return neutral;
+  } finally {
+    try { store.close(); } catch { /* already closed or never opened cleanly */ }
+  }
+}
+
+/**
+ * How many candidates to gather before demoting down to `topN`.
+ *
+ * Demotion can only work if there is something below the cut to promote, so the
+ * pool widens when — and only when — a history store is configured. Without one
+ * the enumeration cost stays exactly what it was before the penalty existed.
+ */
+function candidatePool(topN        , deps                   )         {
+  return deps.openHitCounts ? topN * 2 : topN;
+}
+
+/**
  * Build compact, project-scoped context. Automatic hooks never federate across
  * CWDs: global recall remains available only through the explicit CLI command.
  * Historical text is enclosed as untrusted data so it cannot impersonate hook
@@ -267,15 +405,26 @@ export function buildCwdContext(
 
     // Preferred path: enumerate this cwd's sessions from the index directly.
     // Falls through to the text-search path when the index is unavailable.
-    const direct = deps.listCwdSessions ? deps.listCwdSessions(cwd, topN) : null;
+    const direct = deps.listCwdSessions
+      ? deps.listCwdSessions(cwd, candidatePool(topN, deps))
+      : null;
     if (direct) {
+      // Rank BEFORE rendering, and only over sessions that would actually be
+      // shown: an empty excerpt renders nothing, so charging it an injection
+      // would record a hit the agent never saw.
+      const showable = direct.filter((session) => session.excerpt !== "");
+      const chosen = demoteRepeats(
+        showable,
+        topN,
+        (session) => hitCountRef(session.threadId, session.path),
+        deps,
+      );
       // Summaries are a bonus tier: loaded once, joined by thread id, and omitted
       // entirely for sessions that have none.
-      const summaries = direct.length > 0 && deps.loadSummaryIndex ? deps.loadSummaryIndex() : null;
+      const summaries = chosen.length > 0 && deps.loadSummaryIndex ? deps.loadSummaryIndex() : null;
       const sessions             = [];
       let latestDate = "";
-      for (const session of direct) {
-        if (session.excerpt === "") continue; // nothing worth showing for this session
+      for (const session of chosen) {
         const excerpt = clip(session.excerpt, budget.snippet);
         const entry = [`  \u2022 [${session.date}] ${quoteUntrusted(excerpt)}`];
         const summary = session.threadId ? summaries?.get(session.threadId) : undefined;
@@ -312,9 +461,19 @@ export function buildCwdContext(
       const key = hit.threadId ?? hit.ts;
       if (!seenThreads.has(key)) seenThreads.set(key, hit);
     }
+
+    // Nothing is recorded before this point: a CWD with no hits injects nothing
+    // and must leave no trace, so an unused project cannot accumulate history.
+    const chosenHits = demoteRepeats(
+      [...seenThreads.values()],
+      topN,
+      (hit) => hitCountRef(hit.threadId, hit.file),
+      deps,
+    );
+
     const sessions             = [];
     let latestDate = "";
-    for (const [, hit] of [...seenThreads.entries()].slice(0, topN)) {
+    for (const hit of chosenHits) {
       const date = hit.ts.slice(0, 10);
       const raw = (hit.title ?? hit.text).replace(/\n/g, " ").trim();
       sessions.push([`  \u2022 [${date}] ${quoteUntrusted(clip(raw, 60))}`]);
