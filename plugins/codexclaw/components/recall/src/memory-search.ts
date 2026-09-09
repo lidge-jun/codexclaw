@@ -9,9 +9,10 @@
  * source_updated_at).
  */
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
-import { join, relative, sep } from "node:path";
-import { codexHome, memoriesDir, memoriesDbPath } from "./paths.ts";
-import { openReadOnlyDb } from "./threads-db.ts";
+import { join, relative, resolve, sep } from "node:path";
+import { codexHome, memoriesDir, memoriesDbPath, stateDbPath } from "./paths.ts";
+import { openReadOnlyDb, loadThreadMeta, type ThreadMeta } from "./threads-db.ts";
+import { cwdMatches } from "./rollout.ts";
 import {
   splitQueryWordsRaw,
   termIndexOf,
@@ -35,6 +36,10 @@ export type MemorySearchOptions = {
   synonyms?: boolean;
   /** clock override for deterministic recency ranking in tests. */
   nowMs?: number;
+  /** project scope: hits recorded under this working directory rank higher. */
+  cwd?: string | null;
+  /** with cwd: drop everything outside the scope instead of only boosting it. */
+  cwdOnly?: boolean;
 };
 
 /**
@@ -60,6 +65,8 @@ export type MemoryHit = {
   updatedAt: string | null;
   excerpt: string;
   startLine: number | null;
+  /** working directory this artifact was recorded under, when it is known. */
+  cwd: string | null;
   /** final relevance score (text score + kind priority + recency boost). */
   score: number;
 };
@@ -74,6 +81,14 @@ const PER_FILE_CAP = 2;
  * survives even if a future caller merges the two passes.
  */
 const RELAXED_PENALTY = 2;
+
+/**
+ * Score added to a hit recorded under the requested project (`--cwd`). Worth one
+ * coverage group, so an in-project hit outranks an equally relevant hit from
+ * another project without overriding text relevance: a five-group match
+ * elsewhere still beats a one-group match here.
+ */
+export const CWD_BOOST = 2;
 
 /** Classify a memories-root relpath into its artifact kind. */
 export function kindOfRelpath(relpath: string, origin: "file" | "stage1" = "file"): MemoryKind {
@@ -206,6 +221,75 @@ function frontmatterThreadId(content: string): string | null {
   return m ? m[1] : null;
 }
 
+/**
+ * `cwd:` from a file's leading frontmatter block — the contiguous `key: value`
+ * lines before the first blank line.
+ *
+ * Reading `^cwd:` anywhere near the top instead is wrong on the live store:
+ * `raw_memories.md` concatenates 448 per-thread blocks, each with its own
+ * `cwd:`, and the first one would label the whole file with a single project.
+ * All 256 rollout summaries carry cwd in their leading block, so the accurate
+ * reading costs nothing there. Chunks inside an aggregate file still reach the
+ * scope through the path mention in their own body.
+ */
+function frontmatterCwd(content: string): string | null {
+  for (const line of splitLines(content.slice(0, 2_000))) {
+    if (line.trim() === "") return null; // end of the leading block
+    const m = /^([a-z_]+):\s*(\S+)/.exec(line);
+    if (!m) return null; // a heading or prose: this file has no frontmatter
+    if (m[1] === "cwd") return m[2];
+  }
+  return null;
+}
+
+/**
+ * Project scope for one search. Holds the normalized prefix, whether it filters
+ * or only boosts, and the thread metadata used to give stage1 rows a cwd —
+ * `stage1_outputs` has no cwd column, so the only accurate source is a
+ * thread_id join against the Codex state db.
+ */
+type CwdScope = {
+  prefix: string;
+  lowerPrefix: string;
+  only: boolean;
+  threadCwd: Map<string, ThreadMeta>;
+};
+
+function buildCwdScope(home: string, opts: MemorySearchOptions, warnings: string[]): CwdScope | null {
+  const raw = opts.cwd ?? null;
+  if (raw === null || raw.trim() === "") return null;
+  // resolve() so `--cwd .` and a trailing slash mean the same directory the
+  // separator-aware prefix test expects.
+  const prefix = resolve(raw);
+  // The join only pays for itself when a scope is requested: loading 12,908
+  // thread rows costs ~90ms against a search budget measured in tens of ms.
+  const meta = loadThreadMeta(stateDbPath(home));
+  if (meta.warning) warnings.push(meta.warning);
+  return { prefix, lowerPrefix: prefix.toLowerCase(), only: opts.cwdOnly === true, threadCwd: meta.byId };
+}
+
+/**
+ * How one candidate relates to the requested project.
+ *
+ * A structured `cwd` (summary frontmatter, or threads.cwd for a stage1 row) is
+ * the strong signal. Curated files carry no cwd at all, so a chunk that names
+ * the path in prose — MEMORY.md writes `applies_to: cwd=/...` — counts as a
+ * weaker one at half the boost. Without that second signal `--cwd-only` would
+ * discard the handbook entirely, which is where project rules actually live.
+ */
+function scopeAdjust(
+  scope: CwdScope | null,
+  hitCwd: string | null,
+  lowerText: string,
+): { keep: boolean; bonus: number } {
+  if (scope === null) return { keep: true, bonus: 0 };
+  const matched = hitCwd !== null && hitCwd !== "" && cwdMatches(hitCwd, scope.prefix);
+  if (matched) return { keep: true, bonus: CWD_BOOST };
+  const mentioned = lowerText.includes(scope.lowerPrefix);
+  if (mentioned) return { keep: true, bonus: CWD_BOOST / 2 };
+  return { keep: !scope.only, bonus: 0 };
+}
+
 /** Paragraph chunks with their 1-based start line, for jump-to-source output. */
 export function paragraphChunks(content: string): Array<{ text: string; startLine: number }> {
   const chunks: Array<{ text: string; startLine: number }> = [];
@@ -278,6 +362,7 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
 
   const root = memoriesDir(home);
   const files = listMarkdownFiles(root);
+  const scope = buildCwdScope(home, opts, warnings);
 
   const collect = (active: QueryGroup[]): MemoryHit[] => {
     const candidates: MemoryHit[] = [];
@@ -300,9 +385,15 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
       if (threadId) matchedThreadIds.add(threadId);
       const relpath = relative(root, file).split(sep).join("/");
       const kind = kindOfRelpath(relpath, "file");
+      // Frontmatter first, then the thread join: a summary states its own cwd,
+      // and a file that only carries a thread_id still resolves through state.
+      const fileCwd =
+        frontmatterCwd(content) ?? (threadId ? scope?.threadCwd.get(threadId)?.cwd ?? null : null);
       for (const chunk of paragraphChunks(content)) {
         const lower = chunk.text.toLowerCase();
         if (!matches(lower, active, anyMode)) continue;
+        const scoped = scopeAdjust(scope, fileCwd, lower);
+        if (!scoped.keep) continue;
         candidates.push({
           origin: "file",
           kind,
@@ -312,11 +403,23 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
           updatedAt: new Date(mtimeMs).toISOString(),
           excerpt: excerptAround(chunk.text, firstPresentMember(lower, active), 400),
           startLine: chunk.startLine,
-          score: finalScore(scoreChunk(lower, active, lowerPhrase), kind, mtimeMs, nowMs),
+          cwd: fileCwd,
+          score: finalScore(scoreChunk(lower, active, lowerPhrase), kind, mtimeMs, nowMs) + scoped.bonus,
         });
       }
     }
-    searchStage1(home, active, anyMode, cutoffMs, lowerPhrase, nowMs, candidates, matchedThreadIds, warnings);
+    searchStage1(
+      home,
+      active,
+      anyMode,
+      cutoffMs,
+      lowerPhrase,
+      nowMs,
+      candidates,
+      matchedThreadIds,
+      warnings,
+      scope,
+    );
     return candidates;
   };
 
@@ -331,6 +434,9 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
       for (const hit of candidates) hit.score -= RELAXED_PENALTY;
       warnings.push("no word-boundary matches — showing substring matches (lower confidence)");
     }
+  }
+  if (candidates.length === 0 && scope?.only) {
+    warnings.push(`no matches inside --cwd-only ${scope.prefix} — retry with --cwd to rank it first instead`);
   }
 
   const hits = rankAndTrim(candidates, limit);
@@ -348,6 +454,7 @@ function searchStage1(
   candidates: MemoryHit[],
   matchedThreadIds: Set<string>,
   warnings: string[],
+  scope: CwdScope | null,
 ): void {
   const dbPath = memoriesDbPath(home);
   if (!dbPath) {
@@ -386,6 +493,11 @@ function searchStage1(
       const lowerBody = body.toLowerCase();
       // The LIKE prefilter above ignores boundaries; enforce them here.
       if (!matches(lowerBody, groups, anyMode)) continue;
+      // stage1_outputs has no cwd column (schema dump, 011 4.3); threads.cwd is
+      // the accurate substitute and it covered all 516 rows in the live store.
+      const rowCwd = threadId ? scope?.threadCwd.get(threadId)?.cwd ?? null : null;
+      const scoped = scopeAdjust(scope, rowCwd, lowerBody);
+      if (!scoped.keep) continue;
       const updatedMs = updatedSec !== null ? updatedSec * 1000 : null;
       candidates.push({
         origin: "stage1",
@@ -395,7 +507,8 @@ function searchStage1(
         updatedAt: updatedMs !== null ? new Date(updatedMs).toISOString() : null,
         excerpt: excerptAround(body, firstPresentMember(lowerBody, groups), 400),
         startLine: null,
-        score: finalScore(scoreChunk(lowerBody, groups, lowerPhrase), "stage1", updatedMs, nowMs),
+        cwd: rowCwd,
+        score: finalScore(scoreChunk(lowerBody, groups, lowerPhrase), "stage1", updatedMs, nowMs) + scoped.bonus,
       });
     }
   } catch (err) {

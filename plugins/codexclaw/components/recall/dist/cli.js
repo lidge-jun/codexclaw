@@ -27,10 +27,12 @@ const USAGE = [
   "                           [--limit N] [--context N] [--any] [--all] [--no-tools]",
   "                           [--recent] [--scan] [--no-refresh] [--json]",
   "cxc chat index [--rebuild] [--status] [--json]",
-  "cxc memory search \"<query>\" [--days N] [--limit N] [--any] [--no-synonyms] [--json]",
+  "cxc memory search \"<query>\" [--days N] [--limit N] [--any] [--no-synonyms]",
+  "                             [--cwd PATH] [--cwd-only PATH] [--json]",
   "",
   `  --days N     restrict to the last N days (chat default ${DEFAULT_DAYS}, 0 = full history)`,
-  "  --cwd PATH   only sessions whose working directory starts with PATH",
+  "  --cwd PATH   chat: only sessions under PATH; memory: rank hits under PATH first",
+  "  --cwd-only PATH  memory search: drop hits recorded outside PATH",
   "  --role r     only messages with this role (user|assistant|tool)",
   "  --source s   main (default) | subagent | all",
   `  --limit N    max hits (chat default ${DEFAULT_LIMIT}, memory default ${DEFAULT_MEMORY_LIMIT})`,
@@ -62,6 +64,7 @@ function parseFlags(args          )              {
       context: { type: "string", short: "c" },
       role: { type: "string" },
       cwd: { type: "string" },
+      "cwd-only": { type: "string" },
       source: { type: "string" },
       any: { type: "boolean", default: false },
       all: { type: "boolean", default: false },
@@ -140,6 +143,10 @@ function runMemorySearch(args          )         {
     any: values.any === true,
     synonyms: values["no-synonyms"] !== true,
     home: typeof values.home === "string" ? values.home : undefined,
+    // --cwd-only carries its own path, so `--cwd-only PATH` needs no second flag.
+    // Bare `--cwd-only` (parsed as a boolean) hardens an accompanying --cwd.
+    cwd: typeof values["cwd-only"] === "string" ? values["cwd-only"] : typeof values.cwd === "string" ? values.cwd : null,
+    cwdOnly: values["cwd-only"] !== undefined && values["cwd-only"] !== false,
   };
   const result = searchMemory(query, opts);
   process.stdout.write(
