@@ -30,7 +30,7 @@ cxc chat search "<query>" [--days N] [--cwd PATH] [--role r] [--source main|suba
                           [--limit N] [--context N] [--any] [--all] [--no-tools]
                           [--scan] [--no-refresh] [--json]
 cxc chat index [--rebuild] [--status]
-cxc memory search "<query>" [--days N] [--limit N] [--any] [--json]
+cxc memory search "<query>" [--days N] [--limit N] [--any] [--no-synonyms] [--json]
 ```
 
 Defaults that matter:
@@ -43,6 +43,29 @@ Defaults that matter:
 - Harness-injected synthetic messages (AGENTS.md preambles, environment context) are
   hidden; `--all` reveals them.
 - Korean works in both engines (trigram FTS >=3 chars; shorter words auto-fallback).
+
+## How memory search reads your query
+
+`cxc memory search` judges each query word by its shape, so short symbols and
+Korean prose can coexist in one query.
+
+Symbol-shaped words — uppercase acronyms (`CI`, `LSP`), one-to-three-letter
+ASCII words (`go`, `id`), numbers (`3956`, `#3956`), SHAs, filenames and paths —
+match on word boundaries only. Searching `LSP` no longer returns
+`NaiControlsPanel`, and `3956` no longer returns a thread id that happens to
+contain those digits. When a symbol query finds nothing on boundaries, results
+fall back to substring matching and the output carries a
+`lower confidence` warning, so an empty answer is never the outcome.
+
+Everything else keeps substring matching, including Korean. Korean queries also
+get their ending trimmed and the stem searched alongside the original, so
+`배포까지`, `배포를` and `배포했다` all reach a document that only says `배포` —
+and the stem is looked up in the synonym table too, so `배포를` reaches
+`deploy`. Trimming only ever adds terms; the word you typed still anchors the
+excerpt. Stems shorter than two syllables are never produced, so `검사` is not
+split into `검`.
+
+Pass `--no-synonyms` for literal matching with no expansion at all.
 
 ## Escalation ladder
 
