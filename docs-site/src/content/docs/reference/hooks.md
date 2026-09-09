@@ -56,7 +56,12 @@ and is also unaffected.
 - **map-affordance / session-start** — announces `cxc map` availability through the `cxc-ops`
   CLI at session start.
 - **recall-context / session-start** — injects recent past-session and memory context at
-  session start.
+  session start, scoped to the current working directory. Sessions are listed from
+  the sidecar index by `cwd`, each shown by its opening user message plus a
+  rollout-summary line when one exists. The block is labelled with the date of the
+  newest session and wrapped as untrusted data. When `source` is `compact` the
+  block is capped to fewer sessions and this hook also carries the post-compaction
+  recovery directive, since `PostCompact` itself cannot.
 
 ### Prompt & orchestration
 
@@ -97,9 +102,11 @@ and is also unaffected.
   the parent. Read-only lanes should dispatch as `explorer`, which is never gated.
 - **reinject-cursor / post-compact** — recovers PABCD state and re-injection cursor after context
   compaction.
-- **recall-context / post-compact** — invokes the recall recovery handler. On hosts
-  accepting only universal PostCompact output, event-specific context is not proof
-  that the model received the recall text.
+- **recall-context / post-compact** — registered but intentionally silent: it emits
+  no output and has no side effects. The PostCompact output wire accepts only the
+  universal fields, so an event-specific envelope is rejected and the run is
+  recorded as failed. The recovery text is delivered by the SessionStart handler,
+  which the runtime re-fires with `source` `compact` after a compaction.
 - **bg-terminal-affordance / post-compact** — queues a workspace/session-scoped
   recovery marker and emits no event-specific context. PostCompact cannot carry
   this guidance directly on hosts accepting only universal output fields.
