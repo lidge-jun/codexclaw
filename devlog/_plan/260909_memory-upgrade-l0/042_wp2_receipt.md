@@ -35,3 +35,8 @@ stage1 SQL 은 `LIKE '%w%'` 프리필터로 두고 행 본문에 경계 재검�
 
 `rollout.ts:192` 와 `chat-search.ts:94` 는 의도적으로 두었다. chat 검색의 인덱스 경로가 trigram MATCH 로 단어를 풀기 때문에 스캔 의미만 바꾸면 `test/index.test.ts:46` 의 동치 오라클이 깨진다.
 
+
+## 머지 순서
+
+이 레이어는 `memory-search.ts` 를 wp3 과 공유한다. #105 를 먼저 머지하면 [#108](https://github.com/lidge-jun/codexclaw/pull/108) 의 diff 가 자기 커밋 셋으로 줄어든다.
+
