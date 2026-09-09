@@ -280,6 +280,7 @@ without matching motion output is a lie. See dev-frontend/references/core/motion
 
 ### Anti-Default Discipline
 Do not default to: warm beige backgrounds, centered hero, three equal feature cards, generic glassmorphism, Inter + slate-900, card-based everything. These are LLM defaults. Reach past them BASED ON the design read.
+The same discipline applies to printed and PDF documents, where the defaults are stat-card rows, tinted callouts with a colored left border, numbered circles and box-and-arrow figures; the document grammar (hairlines, type hierarchy, one accent, data charts) is `dev-visualizer` REPORT-DESIGN-01.
 Award evidence is a dated sample, not an exemption or universal prohibition. Consult
 `references/design-trends.md` and its actual sources, explain the surface-specific
 purpose, and retain accessibility. Do not depend on a private goalplan synthesis.

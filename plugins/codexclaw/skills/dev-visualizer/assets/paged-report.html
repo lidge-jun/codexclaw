@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>첫 달 경험을 바꿔야 정기배송 이탈이 줄어듭니다 | 예시 보고서</title>
+<meta name="description" content="cxc-dev-visualizer paged report template (editorial design): A4 cover, contents with page numbers, one-page summary, claim headings, numbered exhibits with a data chart, appendix and notice. All names and numbers are fictional.">
+<style>
+/* ===== House style tokens (REPORT-BRAND-01). Change these, not the content.
+   The issuer also appears in the @page running header below. ===== */
+:root {
+  --ink: #1a1a1a; --ink-2: #444; --muted: #6b6b6b; --rule: #c9c9c9; --paper: #fff;
+  --accent: #0b3d5c;           /* one accent: the claim series in charts, the ask */
+  --serif: "Noto Serif KR", "KoPubWorld Batang", "Nanum Myeongjo", "Apple Myungjo", serif;
+  --sans: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", "KoPubWorld Dotum", "Malgun Gothic", sans-serif;
+}
+
+/* ===== Page furniture (REPORT-PRINT-01). Measured on HeadlessChrome 152: margin
+   boxes and counter(page)/counter(pages) work; string-set and target-counter do
+   not, so the running header is static text and contents page numbers are filled
+   by scripts/export-paged-report.mjs in a second pass. ===== */
+@page {
+  size: A4 portrait;
+  margin: 20mm 18mm 22mm 18mm;
+  @top-left { content: "가온리테일 · 정기배송 첫 달 경험 개선안"; font: 8pt/1 "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; color: #6b6b6b; }
+  @top-right { content: "2026. 9. 9."; font: 8pt/1 "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; color: #6b6b6b; }
+  @bottom-center { content: counter(page); font: 8.5pt/1 "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; color: #444; }
+}
+@page :first { @top-left { content: none } @top-right { content: none } @bottom-center { content: none } }
+
+/* ===== Type (CJK print recipe: klreq word-based breaking, strict line-start
+   prohibitions, 1.7 leading; see document-pdf.md) ===== */
+* { box-sizing: border-box }
+html { font-size: 10pt }
+body { margin: 0; color: var(--ink); background: #ececec; font-family: var(--sans); line-height: 1.7; word-break: keep-all; line-break: strict; overflow-wrap: break-word; font-kerning: normal; }
+main { max-width: 174mm; margin: 0 auto; background: var(--paper); padding: 20mm 18mm }
+@media screen { main { box-shadow: 0 1px 12px rgba(0,0,0,.15); margin: 16px auto } }
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; line-height: 1.3; margin: 0; color: var(--ink); text-wrap: balance; letter-spacing: -0.01em }
+h2 { font-size: 15pt; margin: 0 0 4mm; padding-top: 3mm; border-top: 0.6pt solid var(--ink) }
+h2 .num { font-family: var(--sans); font-weight: 500; font-size: 9pt; color: var(--muted); display: block; margin-bottom: 1.5mm; letter-spacing: 0 }
+h3 { font-size: 11pt; margin: 5mm 0 1.5mm }
+p { margin: 0 0 3mm; max-width: 122mm }         /* narrow measure: about 36 Korean characters */
+p.lead { font-size: 10.5pt; max-width: 130mm }
+p.wide, .wide p { max-width: none }
+.small { font-size: 8.5pt; color: var(--muted) }
+.n { font-variant-numeric: tabular-nums }
+strong { font-weight: 600 }
+
+/* ===== Sheets that must start a page ===== */
+.sheet { break-before: page }
+.sheet:first-child { break-before: auto }
+.summary { break-after: page }
+section.body { margin-top: 7mm }
+section.body:first-of-type { margin-top: 0 }
+section.body.chapter { break-before: page; margin-top: 0 }
+
+/* ===== Cover: type and white space only ===== */
+.cover { min-height: 250mm; display: grid; grid-template-rows: auto 1fr auto }
+.cover .issuer { font-size: 9pt; color: var(--ink-2); padding-bottom: 3mm; border-bottom: 0.6pt solid var(--ink) }
+.cover .kind { font-size: 10pt; color: var(--muted); margin: 38mm 0 5mm }
+.cover h1 { font-size: 27pt; max-width: 150mm }
+.cover .sub { font-size: 11.5pt; color: var(--ink-2); margin-top: 7mm; max-width: 135mm; font-family: var(--sans) }
+.cover .meta { border-top: 0.6pt solid var(--ink); padding-top: 4mm; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6mm; font-size: 9pt }
+.cover .meta dt { color: var(--muted); font-size: 8pt; margin-bottom: .5mm }
+.cover .meta dd { margin: 0 }
+.cover .conf { font-size: 8pt; color: var(--muted); margin-top: 3mm; max-width: none }
+
+/* ===== Contents ===== */
+.contents h2 { border: 0; padding: 0; margin-bottom: 7mm }
+.toc { list-style: none; margin: 0; padding: 0; max-width: 150mm }
+.toc li { display: grid; grid-template-columns: 10mm 1fr 8mm; column-gap: 3mm; align-items: baseline; padding: 2.4mm 0; border-bottom: 0.4pt solid var(--rule) }
+.toc .n { color: var(--muted); font-size: 9pt }
+.toc a { text-decoration: none; color: inherit }
+.toc .t { font-family: var(--serif); font-weight: 600 }
+.toc .r { display: block; color: var(--muted); font-size: 8.5pt; margin-top: .4mm }
+.toc .pg { text-align: right; color: var(--ink-2); font-variant-numeric: tabular-nums }
+.toc .pg:empty::before { content: "–" }
+
+/* ===== Exhibits: rules, not boxes ===== */
+figure { margin: 4mm 0 5mm; break-inside: avoid }
+figcaption { font-size: 9.5pt; margin-bottom: 2mm }
+figcaption .lbl, caption .lbl { font-weight: 600; margin-right: .6em }
+.source { font-size: 8pt; color: var(--muted); margin: 1.5mm 0 0; max-width: none }
+svg text { font-family: var(--sans) }
+table { width: 100%; border-collapse: collapse; margin: 2.5mm 0 1mm; font-size: 9.5pt; table-layout: fixed; border-top: 0.8pt solid var(--ink); border-bottom: 0.8pt solid var(--ink) }
+caption { text-align: left; font-size: 9.5pt; margin-bottom: 2mm; caption-side: top }
+th, td { padding: 1.8mm 2mm 1.8mm 0; vertical-align: top; text-align: left; border-bottom: 0.3pt solid var(--rule) }
+th:last-child, td:last-child { padding-right: 0 }
+thead th { font-weight: 500; font-size: 8.5pt; color: var(--muted); border-bottom: 0.5pt solid var(--ink) }
+tbody tr:last-child td { border-bottom: 0 }
+thead { display: table-header-group }
+tr { break-inside: avoid }
+table.keep { break-inside: avoid }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums }
+.keyfig th:first-child, .keyfig td:first-child { width: 42% }
+
+/* ===== Summary asks and notes: indentation and a run-in heading, no boxes ===== */
+.ask { margin: 5mm 0 0; max-width: 130mm }
+.ask h3 { color: var(--accent) }
+.ask ol { margin: 0; padding-left: 5mm }
+.ask li { margin-bottom: 1.6mm }
+.note { margin: 3mm 0 3mm 6mm; padding-left: 4mm; border-left: 0.5pt solid var(--rule); max-width: 118mm; break-inside: avoid }
+.note b { display: block; font-weight: 600; margin-bottom: .6mm }
+
+/* ===== Break control ===== */
+h2, h3, figcaption, caption { break-after: avoid }
+p, li { orphans: 3; widows: 3 }
+.keep { break-inside: avoid }
+.notice { font-size: 8pt; color: var(--muted); border-top: 0.4pt solid var(--rule); padding-top: 2.5mm; margin-top: 4mm; max-width: none }
+
+@media print {
+  body { background: #fff }
+  main { max-width: none; margin: 0; padding: 0; box-shadow: none }
+  * { print-color-adjust: exact; -webkit-print-color-adjust: exact }
+}
+@media (max-width: 736px) {
+  main { padding: 20px 16px }
+  .cover .meta { grid-template-columns: 1fr 1fr }
+  p, p.lead, .toc, .ask, .note { max-width: none }
+}
+</style>
+</head>
+<body>
+<main>
+
+<!-- 1. Cover -->
+<section class="sheet cover" aria-label="표지">
+  <div class="issuer">가온리테일 구독사업부 · 예시 문서 (가상의 회사와 수치)</div>
+  <div>
+    <div class="kind">정기배송 개선안</div>
+    <h1>첫 달 경험을 바꿔야 정기배송 이탈이 줄어듭니다</h1>
+    <p class="sub">2026년 5월부터 8월까지의 이탈 원인 분석, 7월 시범 운영 결과, 그리고 10월 전면 적용 전에 정해야 할 세 가지</p>
+  </div>
+  <div>
+    <dl class="meta">
+      <div><dt>작성</dt><dd>구독사업부 CX팀</dd></div>
+      <div><dt>수신</dt><dd>경영위원회</dd></div>
+      <div><dt>일자</dt><dd>2026년 9월 9일</dd></div>
+      <div><dt>구분</dt><dd>v1.0 · 사내 한정</dd></div>
+    </dl>
+    <p class="conf">수치는 구독 데이터 마트(2026-05-01~08-31)와 7월 시범 운영 기록을 근거로 합니다. 이 문서의 회사·인물·수치는 양식 설명을 위한 가상의 것입니다.</p>
+  </div>
+</section>
+
+<!-- 2. Contents: page numbers are filled by export-paged-report.mjs -->
+<section class="sheet contents" aria-label="목차">
+  <h2>목차</h2>
+  <ol class="toc">
+    <li><span class="n">요약</span><a href="#summary"><span class="t">이 문서가 답하는 것</span></a><span class="pg" data-toc-for="summary"></span></li>
+    <li><span class="n">1</span><a href="#s1"><span class="t">이탈의 61%는 첫 달에 일어나고, 원인은 배송이 아니라 첫 상자입니다</span></a><span class="pg" data-toc-for="s1"></span></li>
+    <li><span class="n">2</span><a href="#s2"><span class="t">7월 시범 운영에서 첫 달 이탈률이 12.4%에서 8.1%로 내려갔습니다</span></a><span class="pg" data-toc-for="s2"></span></li>
+    <li><span class="n">3</span><a href="#s3"><span class="t">10월 전면 적용은 세 단계로 나누고 11월 말에 1차 확인합니다</span></a><span class="pg" data-toc-for="s3"></span></li>
+    <li><span class="n">4</span><a href="#s4"><span class="t">전면 적용 전에 경영위원회가 정해야 할 것은 세 가지입니다</span></a><span class="pg" data-toc-for="s4"></span></li>
+    <li><span class="n">부록</span><a href="#appendix"><span class="t">데이터 정의와 시범 운영 설계</span></a><span class="pg" data-toc-for="appendix"></span></li>
+  </ol>
+</section>
+
+<!-- 3. Summary: one full page that decides alone (REPORT-SUMMARY-01) -->
+<section class="sheet summary" id="summary" data-toc="이 문서가 답하는 것" aria-labelledby="summary-h">
+  <h2 id="summary-h">요약: 이 문서가 답하는 것</h2>
+  <p class="lead">정기배송 구독자의 월 이탈률은 5월 이후 6.8%에서 7.9%로 올랐고, 이탈의 61%는 첫 결제 후 30일 안에 일어납니다. 첫 달 이탈자 인터뷰 40건에서 배송 지연을 꼽은 사람은 4명이었고, 나머지는 첫 상자가 기대와 달랐다고 답했습니다. 7월에 첫 상자를 취향 설문 기반으로 바꾸고 첫 주에 안내 메시지를 두 번 보내는 시범 운영을 신규 가입자 1,240명에게 적용하자 첫 달 이탈률이 12.4%에서 8.1%로 내려갔습니다. 10월 전면 적용을 제안하며, 그 전에 정해야 할 것은 예산 범위, 취향 설문의 필수 여부, 11월 말 판단 기준입니다.</p>
+  <table class="keyfig keep">
+    <caption><span class="lbl">표 A.</span>핵심 수치: 기준 대비 시범 운영 결과</caption>
+    <thead><tr><th scope="col">지표</th><th scope="col" class="n">기준 (5~6월)</th><th scope="col" class="n">시범 (7월)</th><th scope="col" class="n">변화</th></tr></thead>
+    <tbody>
+      <tr><td>첫 달 이탈률</td><td class="n">12.4%</td><td class="n">8.1%</td><td class="n">−4.3%p</td></tr>
+      <tr><td>첫 상자 만족 응답 비율</td><td class="n">58%</td><td class="n">79%</td><td class="n">+21%p</td></tr>
+      <tr><td>가입자당 첫 상자 원가</td><td class="n">18,200원</td><td class="n">19,600원</td><td class="n">+1,400원</td></tr>
+      <tr><td>6개월 예상 유지 가치</td><td class="n">61,000원</td><td class="n">68,400원</td><td class="n">+7,400원</td></tr>
+    </tbody>
+  </table>
+  <p class="source">자료: 구독 데이터 마트 (2026-05-01~08-31), 7월 시범 운영 기록 (신규 가입자 1,240명), CX팀 정리. 유지 가치는 5~6월 코호트 곡선을 적용한 추정값입니다.</p>
+  <div class="ask">
+    <h3>10월 전면 적용 전에 정해 주셔야 할 것</h3>
+    <ol>
+      <li>첫 상자 원가 상한을 얼마로 둘지. 시범 운영은 가입자당 1,400원이 더 들었고, 유지 가치 증가분 7,400원 안에서 상한을 정하면 됩니다.</li>
+      <li>취향 설문을 가입 필수 단계로 넣을지. 필수로 두면 응답률은 오르지만 가입 완료율이 낮아질 수 있어 A/B로 확인할지 결정이 필요합니다.</li>
+      <li>11월 말 1차 확인에서 무엇을 보고 계속할지. 첫 달 이탈률 9% 이하와 첫 상자 만족 75% 이상을 기준으로 제안합니다.</li>
+    </ol>
+  </div>
+  <h3>전면 적용이 자리 잡았을 때의 상태</h3>
+  <p>내년 1분기에는 신규 가입자 전원이 취향에 맞춘 첫 상자와 첫 주 안내를 받고, 첫 달 이탈률이 9% 아래에서 유지되며, 첫 상자 원가가 상한 안에 머무는 상태가 목표입니다. 1절은 그 근거, 2절은 시범 운영 결과, 3절은 10월 일정, 4절은 결정 요청입니다.</p>
+</section>
+
+<!-- 4. Body: claim headings in storyline order. A heading, its lead paragraph and
+     the first short exhibit sit inside one div.keep so a page break never strands
+     the heading (REPORT-PRINT-01 item 5). -->
+<section class="body" id="s1" data-toc="이탈의 61%는 첫 달에 일어나고, 원인은 배송이 아니라 첫 상자입니다" aria-labelledby="s1-h">
+  <h2 id="s1-h"><span class="num">1</span>이탈의 61%는 첫 달에 일어나고, 원인은 배송이 아니라 첫 상자입니다</h2>
+  <p class="lead">5월부터 8월까지 해지한 구독자 3,912명 중 2,386명(61%)이 첫 결제 후 30일 안에 해지했습니다. 둘째 달 이후의 월 이탈률은 4% 안팎으로 안정적이어서, 문제는 구독 전체가 아니라 첫 달에 집중돼 있습니다.</p>
+  <figure aria-labelledby="fig1">
+    <figcaption id="fig1"><span class="lbl">그림 1.</span>가입 후 경과 월별 이탈률: 첫 달이 12.4%로 둘째 달 이후의 세 배입니다</figcaption>
+    <svg viewBox="0 0 720 230" width="100%" role="img" aria-label="막대 차트. 가입 후 1개월 12.4%, 2개월 4.3%, 3개월 3.9%, 4개월 3.6%, 5개월 3.4%, 6개월 3.5%. 첫 달 막대만 강조색.">
+      <g font-size="14" fill="#444">
+        <line x1="60" y1="190" x2="700" y2="190" stroke="#1a1a1a" stroke-width="1"/>
+        <g font-size="13" fill="#6b6b6b" text-anchor="end">
+          <text x="52" y="194">0%</text><text x="52" y="134">5%</text><text x="52" y="74">10%</text>
+        </g>
+        <line x1="60" y1="130" x2="700" y2="130" stroke="#c9c9c9" stroke-width="0.6"/>
+        <line x1="60" y1="70" x2="700" y2="70" stroke="#c9c9c9" stroke-width="0.6"/>
+        <rect x="90" y="41.2" width="70" height="148.8" fill="#0b3d5c"/>
+        <rect x="192" y="138.4" width="70" height="51.6" fill="#b8b8b8"/>
+        <rect x="294" y="143.2" width="70" height="46.8" fill="#b8b8b8"/>
+        <rect x="396" y="146.8" width="70" height="43.2" fill="#b8b8b8"/>
+        <rect x="498" y="149.2" width="70" height="40.8" fill="#b8b8b8"/>
+        <rect x="600" y="148" width="70" height="42" fill="#b8b8b8"/>
+        <g text-anchor="middle" font-weight="600" fill="#1a1a1a">
+          <text x="125" y="34" fill="#0b3d5c">12.4%</text><text x="227" y="131">4.3%</text><text x="329" y="136">3.9%</text><text x="431" y="140">3.6%</text><text x="533" y="142">3.4%</text><text x="635" y="141">3.5%</text>
+        </g>
+        <g text-anchor="middle" font-size="13">
+          <text x="125" y="212">1개월</text><text x="227" y="212">2개월</text><text x="329" y="212">3개월</text><text x="431" y="212">4개월</text><text x="533" y="212">5개월</text><text x="635" y="212">6개월</text>
+        </g>
+      </g>
+    </svg>
+    <p class="source">자료: 구독 데이터 마트, 2026-05-01~08-31 가입 코호트 (n=31,540). 이탈률 = 해당 월 해지 수 ÷ 월초 활성 구독자 수.</p>
+  </figure>
+  <p>첫 달에 해지한 구독자 40명을 전화로 인터뷰했습니다. 배송 지연이나 파손을 꼽은 사람은 4명이었고, 26명은 첫 상자의 구성이 가입 때 본 예시와 달랐다고 답했으며, 10명은 상자를 어떻게 활용하는지 몰라 두 번째 상자를 기다릴 이유가 없었다고 했습니다. 배송 품질은 지난 1년간 정시 도착률 97% 이상을 유지해 왔으므로, 첫 달 이탈을 줄이려면 배송이 아니라 첫 상자와 첫 주 경험을 바꿔야 합니다.</p>
+  <p>한 가지는 구분해서 봐 주시면 좋겠습니다. 전체 월 이탈률 상승분 1.1%p 중 첫 달 기여분은 0.8%p이고, 나머지 0.3%p는 6월 가격 인상 뒤 장기 구독자에서 나왔습니다. 이 문서는 첫 달 구간만 다루고, 장기 구독자 이탈은 별도 분석이 필요합니다.</p>
+</section>
+
+<section class="body" id="s2" data-toc="7월 시범 운영에서 첫 달 이탈률이 12.4%에서 8.1%로 내려갔습니다" aria-labelledby="s2-h">
+  <div class="keep">
+  <h2 id="s2-h"><span class="num">2</span>7월 시범 운영에서 첫 달 이탈률이 12.4%에서 8.1%로 내려갔습니다</h2>
+  <p class="lead">7월 신규 가입자 2,480명을 무작위로 둘로 나눠, 1,240명에게 취향 설문 기반 첫 상자와 첫 주 안내 메시지 두 통을 적용했습니다. 30일 뒤 시범군의 이탈률은 8.1%, 대조군은 12.1%였습니다.</p>
+  <table class="keep">
+    <caption><span class="lbl">표 1.</span>시범군과 대조군의 30일 결과</caption>
+    <thead><tr><th scope="col">지표</th><th scope="col" class="n">대조군 (n=1,240)</th><th scope="col" class="n">시범군 (n=1,240)</th><th scope="col" class="n">차이</th></tr></thead>
+    <tbody>
+      <tr><td>30일 이탈률</td><td class="n">12.1%</td><td class="n">8.1%</td><td class="n">−4.0%p</td></tr>
+      <tr><td>첫 상자 만족 응답 (5점 중 4 이상)</td><td class="n">57%</td><td class="n">79%</td><td class="n">+22%p</td></tr>
+      <tr><td>취향 설문 응답률</td><td class="n">해당 없음</td><td class="n">71%</td><td class="n">—</td></tr>
+      <tr><td>첫 상자 원가 (가입자당)</td><td class="n">18,200원</td><td class="n">19,600원</td><td class="n">+1,400원</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="source">자료: 7월 시범 운영 기록. 배정은 가입 순서 기준 교차 배정, 95% 신뢰구간에서 이탈률 차이는 −6.3%p~−1.7%p.</p>
+  <p>효과는 설문에 응답한 가입자에게 집중됐습니다. 설문 응답자(880명)의 30일 이탈률은 6.9%였고 미응답자(360명)는 11.1%로 대조군과 거의 같았습니다. 즉 안내 메시지만으로는 효과가 작고, 첫 상자가 취향에 맞을 때 이탈이 줄어듭니다. 이 점이 4절의 두 번째 결정(설문 필수 여부)으로 이어집니다.</p>
+  <div class="note keep">
+    <b>시범 운영이 말해 주지 않는 것</b>
+    <p>한 달짜리 결과라 둘째 달 이후 유지율 차이는 아직 모릅니다. 표 A의 유지 가치 증가분 7,400원은 첫 달 이탈률 차이만 반영한 추정이며, 11월 말 1차 확인에서 3개월 코호트로 다시 계산합니다.</p>
+  </div>
+</section>
+
+<section class="body" id="s3" data-toc="10월 전면 적용은 세 단계로 나누고 11월 말에 1차 확인합니다" aria-labelledby="s3-h">
+  <div class="keep">
+  <h2 id="s3-h"><span class="num">3</span>10월 전면 적용은 세 단계로 나누고 11월 말에 1차 확인합니다</h2>
+  <p class="lead">전면 적용은 취향 설문을 가입 흐름에 넣는 일, 첫 상자 구성 규칙을 물류에 반영하는 일, 첫 주 안내를 자동화하는 일로 나뉩니다. 세 가지는 서로 다른 팀이 맡고, 순서대로 10월 첫째 주부터 셋째 주까지 들어갑니다.</p>
+  <table class="keep">
+    <caption><span class="lbl">표 2.</span>단계별 할 일과 끝났을 때의 상태</caption>
+    <thead><tr><th scope="col" style="width:18%">시기</th><th scope="col">하는 일</th><th scope="col" style="width:16%">담당</th><th scope="col" style="width:30%">끝나면 이런 상태</th></tr></thead>
+    <tbody>
+      <tr><td>10/1 – 10/7</td><td>가입 흐름에 취향 설문 5문항 추가, 미응답 시 기본 구성 규칙</td><td>제품팀</td><td>신규 가입자 전원이 설문을 만납니다</td></tr>
+      <tr><td>10/8 – 10/14</td><td>설문 결과별 첫 상자 구성 규칙 12종을 물류 시스템에 등록</td><td>물류팀</td><td>첫 상자가 설문 결과대로 나갑니다</td></tr>
+      <tr><td>10/15 – 10/21</td><td>첫 주 안내 메시지 2통 자동 발송, 응답 채널 연결</td><td>CX팀</td><td>사람 손 없이 첫 주 안내가 나갑니다</td></tr>
+      <tr><td>11/24 – 11/28</td><td>10월 가입 코호트의 30일·60일 결과 확인</td><td>CX팀 · 데이터팀</td><td>계속할지 조정할지 판단할 근거가 나옵니다</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="source">자료: 구독사업부 10월 실행 계획 (2026-09-09 기준).</p>
+  <p>11월 말 확인은 최종 판정이 아니라 1차 확인입니다. 그 시점에 확보되는 것은 10월 가입자의 30일 결과와 일부의 60일 결과이고, 6개월 유지 가치는 내년 4월에야 실측할 수 있습니다. 그래서 4절의 세 번째 결정은 "무엇을 보고 계속할지"를 지금 정해 두자는 것입니다.</p>
+</section>
+
+<section class="body" id="s4" data-toc="전면 적용 전에 경영위원회가 정해야 할 것은 세 가지입니다" aria-labelledby="s4-h">
+  <div class="keep">
+  <h2 id="s4-h"><span class="num">4</span>전면 적용 전에 경영위원회가 정해야 할 것은 세 가지입니다</h2>
+  <p class="lead">실무 준비는 각 팀과 진행하고 있습니다. 여기 적은 것은 방향에 대한 결정이 필요한 부분이고, 세 가지가 정해져야 10월 일정이 성립합니다.</p>
+  <table class="keep">
+    <caption><span class="lbl">표 3.</span>세 결정과 각각이 미뤄졌을 때 멈추는 단계</caption>
+    <thead><tr><th scope="col" style="width:30%">정할 것</th><th scope="col">제안</th><th scope="col" style="width:32%">정하지 않으면</th></tr></thead>
+    <tbody>
+      <tr><td>첫 상자 원가 상한</td><td>가입자당 20,000원. 시범 운영 원가 19,600원에 여유 400원</td><td>물류팀이 구성 규칙을 확정하지 못합니다</td></tr>
+      <tr><td>취향 설문 필수 여부</td><td>10월은 선택으로 두고 필수 A/B를 병행, 11월 말에 결정</td><td>가입 완료율 하락 위험을 모른 채 전면 적용하게 됩니다</td></tr>
+      <tr><td>11월 말 판단 기준</td><td>첫 달 이탈률 9% 이하, 첫 상자 만족 75% 이상이면 계속</td><td>결과가 나와도 계속할지 다툴 근거가 없습니다</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>세 번째는 숫자를 지금 박자는 뜻이 아니라, 판단의 잣대를 결과가 나오기 전에 합의하자는 뜻입니다. 시범 운영 결과가 8.1%였으므로 9%는 보수적인 기준입니다.</p>
+  <h3>이 문서는 장기 구독자 이탈과 가격 정책을 다루지 않습니다</h3>
+  <p>6월 가격 인상 뒤 장기 구독자 이탈 0.3%p는 별도 분석이 필요하고, 이 문서의 처방은 첫 달 구간에만 해당합니다.</p>
+</section>
+
+<section class="body appendix" id="appendix" data-toc="데이터 정의와 시범 운영 설계" aria-labelledby="ax-h">
+  <h2 id="ax-h"><span class="num">부록</span>데이터 정의와 시범 운영 설계</h2>
+  <h3>A1. 지표 정의</h3>
+  <table>
+    <thead><tr><th scope="col" style="width:26%">지표</th><th scope="col">정의</th></tr></thead>
+    <tbody>
+      <tr><td>월 이탈률</td><td>해당 월 해지 수 ÷ 월초 활성 구독자 수. 결제 실패로 인한 자동 해지는 포함, 일시정지는 제외</td></tr>
+      <tr><td>첫 달 이탈률</td><td>첫 결제 후 30일 안에 해지한 비율. 가입 코호트 기준</td></tr>
+      <tr><td>첫 상자 만족</td><td>첫 상자 수령 3일 뒤 발송한 1문항 설문에서 5점 중 4점 이상 응답 비율. 응답률 7월 63%</td></tr>
+      <tr><td>유지 가치</td><td>월 구독료 × 6개월 예상 유지 개월 수. 5~6월 코호트 곡선 적용</td></tr>
+    </tbody>
+  </table>
+  <h3>A2. 시범 운영 설계</h3>
+  <p class="small">7월 1일부터 31일까지 신규 가입자 2,480명을 가입 순서로 교차 배정. 시범군은 가입 직후 취향 설문 5문항(선택), 설문 결과별 첫 상자 구성 규칙 12종, 첫 주 안내 메시지 2통(수령 당일·3일 뒤). 대조군은 기존 흐름. 결과 집계는 8월 31일 기준.</p>
+  <p class="notice">가온리테일 구독사업부 · 정기배송 첫 달 경험 개선안 · 2026년 9월 9일 · 사내 한정. 이 문서의 회사·인물·수치는 cxc-dev-visualizer 양식 설명용 가상 자료입니다.</p>
+</section>
+
+</main>
+</body>
+</html>
+
