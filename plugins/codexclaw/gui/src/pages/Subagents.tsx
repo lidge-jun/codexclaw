@@ -71,6 +71,9 @@ export function SubagentsPage({ provider, scope = "project" }: { provider: Provi
         setError("This model does not support the saved effort. Select session effort first, then choose the model. If using global settings, choose Main model first to customize this role."); return;
       }
     }
+    if (patch.fallback?.effort && effortExcluded(catalog.find(entry => entry.id === patch.fallback?.model)?.reasoningEfforts, patch.fallback.effort)) {
+      setError("The fallback model does not support this effort. Select session effort first."); return;
+    }
     saving.current = true; setSavingRole(role); setError(null);
     const current = generation.current;
     const result = await setSubagentRole(role, patch, config, scope);
@@ -124,6 +127,12 @@ export function SubagentsPage({ provider, scope = "project" }: { provider: Provi
                       <ModelSelect inherited={inherited} onInherit={scope === "project" ? () => void save(role, { inherit: true }) : undefined} value={effectiveModel} disabled={savingRole !== null || ignored} entries={catalog} onChange={model => void save(role, { mode: model ? "model" : "default", model })} />
                       <EffortSelect supported={supported} value={r.effort} disabled={savingRole !== null || ignored || inherited} onChange={effort => void save(role, { effort })} />
                     </div>
+                    <div className="role-selects" style={{ marginTop: 8 }}>
+                      <span className="sub">First fallback</span>
+                      <ModelSelect label={`${role} fallback model`} emptyLabel="No fallback" value={r.fallback?.model ?? null} disabled={savingRole !== null || ignored || inherited} entries={catalog} onChange={model => void save(role, { fallback: model ? { model, effort: r.fallback?.effort ?? null } : null })} />
+                      <EffortSelect label={`${role} fallback effort`} value={r.fallback?.effort ?? null} supported={catalog.find(entry => entry.id === r.fallback?.model)?.reasoningEfforts} disabled={savingRole !== null || ignored || inherited || !r.fallback} onChange={effort => r.fallback && void save(role, { fallback: { ...r.fallback, effort } })} />
+                    </div>
+                    <p className="sub">After attempts fail, the main agent takes over remaining work.{role === "reviewer" ? " Independent review is still required." : ""}</p>
                     {unsupported ? <p className="sub" role="status">Saved effort {r.effort} is not advertised by this model. Select session effort or another supported level.</p> : null}
                     <textarea className="textarea" disabled={ignored || inherited} aria-label={`${role} prompt override`} placeholder="Role prompt override (blank = inherit role skill prompt)" rows={2} value={prompts[role]} onChange={e => setPrompts(previous => ({ ...previous, [role]: e.target.value }))} />
                     <div className="role-selects">

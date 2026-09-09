@@ -13,9 +13,9 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-2%2C807_passing-brightgreen" alt="2,807 tests passing">
+  <img src="https://img.shields.io/badge/tests-2%2C875_passing-brightgreen" alt="2,875 tests passing">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
-  <img src="https://img.shields.io/badge/hooks-24-blue" alt="24 hooks">
+  <img src="https://img.shields.io/badge/hooks-25-blue" alt="25 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
@@ -28,7 +28,7 @@ codexclaw turns the Codex runtime into a disciplined development environment. It
 
 ## Features
 
-**Dev Skill Family** — 12 surface-specific routers (`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-visualizer`, `dev-uiux-design`) governed by a canonical parent (`dev`). Every router inherits the parent's rule classes, verification gate, and safety rules. 155 unique rule IDs across the family.
+**Dev Skill Family** — 12 surface-specific routers (`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-diagram-viewer`, `dev-uiux-design`) governed by a canonical parent (`dev`). Every router inherits the parent's rule classes, verification gate, and safety rules. 155 unique rule IDs across the family.
 
 **PABCD Workflow** — Plan / Audit / Build / Check / Done, implemented as a file-backed FSM with attestation-gated transitions. Phases advance through `cxc orchestrate` commands; each transition carries structured evidence. A durable goalplan ledger tracks work phases, success criteria, and captured proof across multiple cycles.
 
@@ -57,28 +57,14 @@ CLI list/get/set/reset accept trailing `--global`. MCP `subagents_get`/`subagent
 
 ## Install
 
-Install the plugin. Executor tasks work immediately through the built-in worker. No build step or npm install.
+2 lines to install. No build step, no npm install, no config edits.
 
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-Restart Codex and approve the 24 hooks when prompted (upgrades ask again because trust is bound to content hashes). You can then optionally register the canonical executor role. For a CLI installation:
-
-```sh
-cxc subagents register executor
-```
-
-For a marketplace-only installation without `cxc` on PATH, send this in Codex chat:
-
-> Register the CXC executor role using the installed plugin’s `subagents register executor` command.
-
-Start a new session and verify `executor` appears in the live spawn schema. Registration
-preserves user edits and project settings. Repeating it updates unchanged CXC-managed roles; conflicting files are refused.
-See [role setup and legacy worker compatibility](plugins/codexclaw/agents/README.md).
-
-Everything runs from chat, and the terminal surface ships too — the payload includes its own `cxc` dispatcher, so agent-driven `cxc orchestrate` commands work on every install:
+Then restart Codex and approve the 24 hooks when prompted (upgrades ask again — content-hash trust). Everything runs from chat, and the terminal surface ships too — the payload includes its own `cxc` dispatcher, so agent-driven `cxc orchestrate` commands work on every install:
 
 - `orchestrate status` — check the PABCD state machine
 - "Interview me first, then draft a diff-level plan."
@@ -202,7 +188,7 @@ plugins/codexclaw/
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
 │   ├── post-tool-use-*          interview capture, render observation
 │   ├── stop-*                   PABCD continuation under active goals
-│   ├── subagent-stop-*          evidence verification for executor dispatches (legacy worker supported)
+│   ├── subagent-stop-*          evidence verification for worker dispatches
 │   └── post-compact-*           cursor reinject, recall context, bg-terminal affordance
 │
 ├── components/                  8 isolated feature modules (src + dist)
@@ -236,7 +222,7 @@ Every coding task is classified (C0-C5) before process depth is chosen. The pare
 | DevOps / infra | `dev-devops` | `dev-security` for credentials |
 | Scaffolding | `dev-scaffolding` | `dev-architecture` for boundaries |
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
-| Diagrams, visual documents, HTML/SVG reports and PDF composition | `dev-visualizer` | Available document-format owner for export |
+| Diagrams, visual documents, HTML/SVG reports and PDF composition | `dev-diagram-viewer` | Available document-format owner for export |
 
 Each router carries its own modular references (loaded on demand, never preloaded) and inherits the parent's verification gate, rule classes, and safety rules.
 

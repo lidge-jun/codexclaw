@@ -13,9 +13,9 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-2%2C807_passing-brightgreen" alt="2,807 tests passing">
+  <img src="https://img.shields.io/badge/tests-2%2C875_passing-brightgreen" alt="2,875 tests passing">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
-  <img src="https://img.shields.io/badge/hooks-24-blue" alt="24 hooks">
+  <img src="https://img.shields.io/badge/hooks-25-blue" alt="25 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
@@ -28,7 +28,7 @@ codexclaw는 Codex 런타임을 체계적인 개발 환경으로 바꾼다. 별�
 
 ## 주요 기능
 
-**Dev Skill Family** — 표준 부모 스킬(`dev`)이 관리하는 12개 작업 영역별 라우터(`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-visualizer`, `dev-uiux-design`)로 구성된다. 모든 라우터는 부모 스킬의 규칙 등급, 검증 게이트, 안전 규칙을 물려받는다. 고유 규칙 ID는 155개다.
+**Dev Skill Family** — 표준 부모 스킬(`dev`)이 관리하는 12개 작업 영역별 라우터(`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-diagram-viewer`, `dev-uiux-design`)로 구성된다. 모든 라우터는 부모 스킬의 규칙 등급, 검증 게이트, 안전 규칙을 물려받는다. 고유 규칙 ID는 155개다.
 
 **PABCD Workflow** — Plan / Audit / Build / Check / Done을 증명 기반 전환 게이트가 있는 파일 기반 FSM으로 구현했다. `cxc orchestrate` 명령으로 단계를 진행하며, 각 전환에는 구조화된 근거가 붙는다. 영속적인 goalplan 원장이 여러 사이클에 걸쳐 작업 단계, 성공 기준, 수집한 증거를 추적한다.
 
@@ -49,7 +49,7 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 ## 설치
 
-플러그인을 설치한 뒤 구현 역할을 한 번 등록한다. 빌드나 npm install은 필요 없다.
+두 줄이면 설치 끝. 빌드도, npm install도, 설정 파일 수정도 없다.
 
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
@@ -61,12 +61,6 @@ codex plugin add codexclaw@codexclaw
 - `orchestrate status` — PABCD 상태 머신 확인
 - "Interview me first, then draft a diff-level plan."
 - "Plan this with codexclaw PABCD and use multi-model subagents."
-
-미등록 환경의 구현 작업은 기본 `worker`로 계속 동작한다. 네이티브 `executor`를 쓰려면 훅 승인 후 Codex 채팅에 다음을 요청하면 된다:
-
-> 설치된 CXC 플러그인의 `subagents register executor` 명령으로 executor 역할을 등록해줘.
-
-CLI 설치자는 `cxc subagents register executor`를 실행해도 된다. 등록 후 새 세션을 시작해야 한다. 같은 명령을 다시 실행하면 수정하지 않은 CXC 관리 파일만 갱신하며, 사용자 수정 파일은 보존한다.
 
 <details>
 <summary><b>업데이트 / 제거 / 선택적 CLI</b></summary>
@@ -184,7 +178,7 @@ plugins/codexclaw/
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
 │   ├── post-tool-use-*          interview capture, render observation
 │   ├── stop-*                   PABCD continuation under active goals
-│   ├── subagent-stop-*          evidence verification for executor dispatches (legacy worker supported)
+│   ├── subagent-stop-*          evidence verification for worker dispatches
 │   └── post-compact-*           cursor reinject, recall context, bg-terminal affordance
 │
 ├── components/                  8 isolated feature modules (src + dist)
@@ -218,7 +212,7 @@ _PATH 수준 `cxc` 진입점(`bin/codexclaw.mjs` + `cli/` 워크스페이스)은
 | DevOps / infra | `dev-devops` | `dev-security` for credentials |
 | Scaffolding | `dev-scaffolding` | `dev-architecture` for boundaries |
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
-| Diagrams | `dev-visualizer` | — |
+| Diagrams | `dev-diagram-viewer` | — |
 
 각 라우터는 필요할 때만 불러오는 자체 모듈형 참고 자료를 갖추고 있으며, 부모 스킬의 검증 게이트, 규칙 등급, 안전 규칙을 물려받는다.
 

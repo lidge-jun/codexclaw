@@ -218,7 +218,9 @@ function runPabcdState(args) {
 
 /** Delegate to the compiled subagent-config CLI. argv: ["subagents", ...rest]. */
 function runSubagents(args) {
-  const res = spawnSync(process.execPath, [subagentConfigCli, ...args], { stdio: "inherit" });
+  const dispatch = args[1] === "dispatch";
+  const entry = dispatch ? subagentConfigCli.replace(/cli\.js$/, "fallback-dispatch-cli.js") : subagentConfigCli;
+  const res = spawnSync(process.execPath, [entry, ...(dispatch ? args.slice(2) : args)], { stdio: "inherit" });
   return typeof res.status === "number" ? res.status : 1;
 }
 

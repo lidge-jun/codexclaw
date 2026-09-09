@@ -13,9 +13,9 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-2%2C807_passing-brightgreen" alt="2,807 tests passing">
+  <img src="https://img.shields.io/badge/tests-2%2C875_passing-brightgreen" alt="2,875 tests passing">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
-  <img src="https://img.shields.io/badge/hooks-24-blue" alt="24 hooks">
+  <img src="https://img.shields.io/badge/hooks-25-blue" alt="25 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
@@ -28,7 +28,7 @@ codexclaw 将 Codex 运行时转变为规范化的开发环境。它不提供独
 
 ## 功能
 
-**Dev Skill Family** — 由规范父级 `dev` 统一管理的 12 个特定领域路由器（`dev-architecture`、`dev-backend`、`dev-frontend`、`dev-testing`、`dev-security`、`dev-debugging`、`dev-data`、`dev-devops`、`dev-code-reviewer`、`dev-scaffolding`、`dev-visualizer`、`dev-uiux-design`）。所有路由器都继承父级的规则分类、验证门和安全规则。共包含 155 个唯一规则 ID。
+**Dev Skill Family** — 由规范父级 `dev` 统一管理的 12 个特定领域路由器（`dev-architecture`、`dev-backend`、`dev-frontend`、`dev-testing`、`dev-security`、`dev-debugging`、`dev-data`、`dev-devops`、`dev-code-reviewer`、`dev-scaffolding`、`dev-diagram-viewer`、`dev-uiux-design`）。所有路由器都继承父级的规则分类、验证门和安全规则。共包含 155 个唯一规则 ID。
 
 **PABCD Workflow** — Plan / Audit / Build / Check / Done，基于文件驱动的 FSM 实现，并通过证明材料控制阶段转换。各阶段通过 `cxc orchestrate` 命令推进，每次转换都携带结构化证据。持久化 goalplan 账本可跨多个周期跟踪工作阶段、成功标准和已收集的证据。
 
@@ -49,7 +49,7 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 ## 安装
 
-安装插件后，需注册一次实现角色。无需构建或 npm install。
+两行命令即可完成安装。无需构建、无需 npm install、无需修改配置文件。
 
 ```bash
 codex plugin marketplace add https://github.com/lidge-jun/codexclaw
@@ -61,12 +61,6 @@ codex plugin add codexclaw@codexclaw
 - `orchestrate status` — 查看 PABCD 状态机
 - "Interview me first, then draft a diff-level plan."
 - "Plan this with codexclaw PABCD and use multi-model subagents."
-
-未注册时，执行任务继续使用内置 `worker`。批准 hooks 后，可在 Codex 聊天中请求：
-
-> 请使用已安装 CXC 插件的 `subagents register executor` 命令注册 executor 角色。
-
-CLI 用户也可运行 `cxc subagents register executor`。注册后启动新会话；再次运行仅更新未被用户修改的 CXC 管理文件，保留用户自定义内容。
 
 <details>
 <summary><b>更新 / 卸载 / 可选 CLI</b></summary>
@@ -183,7 +177,7 @@ plugins/codexclaw/
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
 │   ├── post-tool-use-*          interview capture, render observation
 │   ├── stop-*                   PABCD continuation under active goals
-│   ├── subagent-stop-*          evidence verification for executor dispatches (legacy worker supported)
+│   ├── subagent-stop-*          evidence verification for worker dispatches
 │   └── post-compact-*           cursor reinject, recall context, bg-terminal affordance
 │
 ├── components/                  8 isolated feature modules (src + dist)
@@ -217,7 +211,7 @@ _PATH 级 `cxc` 入口（`bin/codexclaw.mjs` + `cli/` 工作区）位于仓库�
 | DevOps / infra | `dev-devops` | `dev-security` for credentials |
 | Scaffolding | `dev-scaffolding` | `dev-architecture` for boundaries |
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
-| Diagrams | `dev-visualizer` | — |
+| Diagrams | `dev-diagram-viewer` | — |
 
 每个路由器都有独立的模块化参考资料，仅在需要时加载，不会预加载；同时继承父级的验证门、规则分类和安全规则。
 
