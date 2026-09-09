@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js\" hook pre-tool-use-memory-write",
+            "timeout": 10,
+            "statusMessage": "(codexclaw) Guarding memory write"
+          }
+        ],
+        "matcher": "^(memories[._]?add_ad_hoc_note|apply_patch|Write|Edit|Bash)$"
+      }
+    ]
+  }
+}

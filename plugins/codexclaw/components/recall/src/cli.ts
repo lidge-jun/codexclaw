@@ -25,12 +25,14 @@ import {
 const USAGE = [
   "cxc chat search \"<query>\" [--days N] [--cwd PATH] [--role r] [--source main|subagent|all]",
   "                           [--limit N] [--context N] [--any] [--all] [--no-tools]",
-  "                           [--scan] [--no-refresh] [--json]",
+  "                           [--recent] [--scan] [--no-refresh] [--json]",
   "cxc chat index [--rebuild] [--status] [--json]",
-  "cxc memory search \"<query>\" [--days N] [--limit N] [--any] [--json]",
+  "cxc memory search \"<query>\" [--days N] [--limit N] [--any] [--no-synonyms]",
+  "                             [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json]",
   "",
   `  --days N     restrict to the last N days (chat default ${DEFAULT_DAYS}, 0 = full history)`,
-  "  --cwd PATH   only sessions whose working directory starts with PATH",
+  "  --cwd PATH   chat: only sessions under PATH; memory: rank hits under PATH first",
+  "  --cwd-only PATH  memory search: drop hits recorded outside PATH",
   "  --role r     only messages with this role (user|assistant|tool)",
   "  --source s   main (default) | subagent | all",
   `  --limit N    max hits (chat default ${DEFAULT_LIMIT}, memory default ${DEFAULT_MEMORY_LIMIT})`,
@@ -38,9 +40,12 @@ const USAGE = [
   "  --any        OR the query words (default: AND)",
   "  --all        include harness-injected synthetic messages",
   "  --no-tools   skip tool call/output (tool_log) matching",
+  "  --recent     order by time instead of relevance (index engine default: relevance)",
+  "  --rank       order by relevance (the default; accepted for explicitness)",
+  "  --no-chat    memory search: do not fall back to raw chat when nothing matches",
   "  --scan       force the raw JSONL scan path (skip the sidecar index)",
   "  --no-refresh skip refresh-on-query ingest (fastest, index may be stale)",
-  "  --no-synonyms disable curated ko/en synonym expansion (memory search)",
+  "  --no-synonyms memory search: raw words only — no ko/en synonyms, no korean stem",
   "  --json       machine-readable output (text fields clipped at 500 chars)",
   "  --full       with --json: emit unclipped text fields",
   "  --home PATH  search an alternate Codex home (default $CODEX_HOME ?? ~/.codex)",
@@ -60,13 +65,17 @@ function parseFlags(args: string[]): ParsedFlags {
       context: { type: "string", short: "c" },
       role: { type: "string" },
       cwd: { type: "string" },
+      "cwd-only": { type: "string" },
       source: { type: "string" },
       any: { type: "boolean", default: false },
       all: { type: "boolean", default: false },
       "no-tools": { type: "boolean", default: false },
+      rank: { type: "boolean", default: false },
+      recent: { type: "boolean", default: false },
       scan: { type: "boolean", default: false },
       "no-refresh": { type: "boolean", default: false },
       "no-synonyms": { type: "boolean", default: false },
+      "no-chat": { type: "boolean", default: false },
       full: { type: "boolean", default: false },
       rebuild: { type: "boolean", default: false },
       status: { type: "boolean", default: false },
@@ -109,6 +118,7 @@ function runChatSearch(args: string[]): number {
     source,
     includeSynthetic: values.all === true,
     includeTools: values["no-tools"] !== true,
+    order: values.recent === true && values.rank !== true ? "recent" : "relevance",
     scan: values.scan === true,
     noRefresh: values["no-refresh"] === true,
     home: typeof values.home === "string" ? values.home : undefined,
@@ -135,6 +145,13 @@ function runMemorySearch(args: string[]): number {
     any: values.any === true,
     synonyms: values["no-synonyms"] !== true,
     home: typeof values.home === "string" ? values.home : undefined,
+    // --cwd-only carries its own path, so `--cwd-only PATH` needs no second flag.
+    // Bare `--cwd-only` (parsed as a boolean) hardens an accompanying --cwd.
+    cwd: typeof values["cwd-only"] === "string" ? values["cwd-only"] : typeof values.cwd === "string" ? values.cwd : null,
+    cwdOnly: values["cwd-only"] !== undefined && values["cwd-only"] !== false,
+    // Injected rather than imported by memory-search: the module keeps no edge
+    // to chat-search, and the fallback is one flag away from being off.
+    searchChat: values["no-chat"] === true ? undefined : searchChat,
   };
   const result = searchMemory(query, opts);
   process.stdout.write(
@@ -206,10 +223,13 @@ async function runHook(event: string): Promise<number> {
     if (event === "user-prompt-submit") {
       out = handleUserPromptSubmit(JSON.parse(raw) as UserPromptSubmitPayload);
     } else if (event === "session-start") {
-      const payload = raw.trim() ? JSON.parse(raw) as { cwd?: string } : {};
-      out = handleSessionStart(indexStatusLine(), payload.cwd ?? process.cwd());
+      // `source` distinguishes a fresh start from a post-compaction restart; the
+      // runtime re-fires SessionStart with source "compact" after compacting.
+      const payload = raw.trim() ? JSON.parse(raw) as { cwd?: string; source?: string } : {};
+      out = handleSessionStart(indexStatusLine(), payload.cwd ?? process.cwd(), payload.source);
     } else if (event === "post-compact") {
       const payload = raw.trim() ? JSON.parse(raw) as { cwd?: string } : {};
+      // Always "" — PostCompact output is universal-only (see handlePostCompact).
       out = handlePostCompact(payload.cwd ?? process.cwd());
     }
     if (out !== "") process.stdout.write(out);

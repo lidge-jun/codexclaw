@@ -217,6 +217,19 @@ export function reconstructUnverified(raw         )                             
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 export const STATE_DIR = ".codexclaw";
 export const SESSIONS_SUBDIR = "sessions";
 export const LEDGER_FILE = "ledger.jsonl";
@@ -287,6 +300,9 @@ export function defaultState(sessionId        , slug = "")        {
     stopBlockTotal: 0,
     loopArmSeen: false,
     idleEditNudges: 0,
+    memoryWriteRequested: false,
+    memoryWriteTurn: null,
+    memoryWriteGrant: false,
     unverifiedSubagents: [],
     unverifiedCorrupt: false,
     phaseEntrySource: null,
@@ -542,6 +558,15 @@ export function readStateStrict(cwd        , sessionId        )                 
         typeof parsed.idleEditNudges === "number" && Number.isFinite(parsed.idleEditNudges) && parsed.idleEditNudges >= 0
           ? Math.floor(parsed.idleEditNudges)
           : 0,
+      // MEMORY-WRITE-GATE-01: strict reconstruction. A state file written before this
+      // field existed reads false — an upgrade must not silently hand an old session a
+      // standing authorization to write memory.
+      memoryWriteRequested: parsed.memoryWriteRequested === true,
+      memoryWriteTurn:
+        typeof parsed.memoryWriteTurn === "string" && parsed.memoryWriteTurn.length > 0
+          ? parsed.memoryWriteTurn
+          : null,
+      memoryWriteGrant: parsed.memoryWriteGrant === true,
       // EVIDENCE-TERMINAL-01: an ABSENT field is an old state file and rebuilds
       // clean; a PRESENT but malformed one is corruption and must not be laundered
       // into an empty (= all resolved) list. `unverifiedCorrupt` is sticky: it is

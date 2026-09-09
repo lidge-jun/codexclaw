@@ -36,3 +36,8 @@ Source: sol research (microsoft/skills governance, cloudflare/skills sandbox, go
 | Delete/revoke/scale-down | Explicit per-resource confirmation |
 | Cross-account/cross-region | Elevated approval + blast-radius statement |
 | Production environment | Always requires human confirmation |
+
+## Pull-request intake
+This file governs agents operating infrastructure. Agents *contributing* pull
+requests are governed by `agent-pr-intake.md` (DEVOPS-AGENT-INTAKE-01); the approval
+classes above do not map onto PR review.

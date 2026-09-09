@@ -65,11 +65,29 @@ export function localDateString(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Separator-aware cwd prefix test: /repo matches /repo and /repo/x, never /repo2. */
+/**
+ * Canonical form for comparing two working directories.
+ *
+ * Separators fold to "/" and a trailing one is dropped, so a path stored by a
+ * POSIX session and the same path typed with backslashes compare equal. Drive
+ * letters upper-case because Windows reports them either way for one directory.
+ * Case is otherwise preserved: macOS and Linux both host case-sensitive paths,
+ * and folding them would let /Repo match /repo.
+ */
+export function normalizeCwd(cwd: string): string {
+  const unified = cwd.replace(/\\/g, "/").replace(/\/+$/, "");
+  return /^[a-z]:/.test(unified) ? unified[0].toUpperCase() + unified.slice(1) : unified;
+}
+
+/**
+ * Separator-aware cwd prefix test: /repo matches /repo and /repo/x, never
+ * /repo2. Both sides are normalized first, so the comparison does not depend on
+ * which platform recorded the session or which separator the caller typed.
+ */
 export function cwdMatches(sessionCwd: string, prefix: string): boolean {
-  return (
-    sessionCwd === prefix || sessionCwd.startsWith(`${prefix}/`) || sessionCwd.startsWith(`${prefix}\\`)
-  );
+  const s = normalizeCwd(sessionCwd);
+  const p = normalizeCwd(prefix);
+  return s === p || s.startsWith(`${p}/`);
 }
 
 /** rollout-YYYY-MM-DDTHH-MM-SS-<uuid>.jsonl → YYYY-MM-DD (null when unparseable). */

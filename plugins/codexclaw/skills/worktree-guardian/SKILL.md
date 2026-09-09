@@ -65,6 +65,8 @@ session's cwd (next command: ENOENT) and app rebinding is undocumented — don't
 `git worktree remove <path>` — never `rm -rf`. A directory deleted without
 `git worktree remove` leaves admin state under `.git/worktrees/`; recover with
 `git worktree prune` (dry-run first).
+Automated or bulk cleanup of other worktrees follows `cxc-dev-devops`
+`references/local-gc.md` (DEVOPS-LOCAL-GC-01); the never-list above still wins.
 
 ## 5. Defense-in-depth limits (WG-LIMIT-01)
 
