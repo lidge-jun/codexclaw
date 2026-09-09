@@ -32,3 +32,8 @@ Codex 는 compaction 직후 `SessionStartSource::Compact` 를 큐에 넣고 Sess
 
 훅은 `--no-refresh` 로 질의하므로 마지막 ingest 이후 만들어진 워크트리는 이 변경과 무관하게 아무것도 못 본다. 그래서 커버리지 수정은 실제 ingest 경로로 만든 픽스처 인덱스에 대해 증명했다. 인덱스 신선도는 보고만 하고 손대지 않았다.
 
+
+## 머지 순서
+
+wp4 는 `recall/src/hook.ts` 를 wp5b 와 공유한다. [#104](https://github.com/lidge-jun/codexclaw/pull/104) 는 다른 레이어와 파일이 겹치지 않아 독립 머지가 가능하다.
+
