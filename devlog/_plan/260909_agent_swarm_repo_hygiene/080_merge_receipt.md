@@ -13,6 +13,7 @@ so no gate was bypassed or overridden; `--admin` was never used.
 | L2 | #95 | 3e7302ec616d5d95d788d25495d86ce140c2981f | 11/11 pass | 2d3c95a0f58939c26861b4266dbeb1ee57bd51be | 2d3c95a0 |
 | L3 | #96 | 6ca0c3d88861d2ed3b6096d7b820681bf41cea95 | 11/11 pass | 44f2617065c9d1f5f44d2e1cb4345e08c555bb18 | 44f26170 |
 | L4 | #97 | a72d73c167107647a0ccbc1b75ca5d6860491595 | 11/11 pass | 1f81109209450a70ffe96595c8f449fbf0bc570b | 1f811092 |
+| receipt | #98 | 5898d1c85c9641e4baa8f1610419ee34ba5da213 | 11/11 pass | 0cacdc8d2e8df26b96d47a325270cc7a25069904 | 0cacdc8d |
 
 ## Log
 
@@ -40,7 +41,12 @@ so no gate was bypassed or overridden; `--admin` was never used.
   (`local-gc.md`, the four pointer files, `CHANGELOG.md`, `dev-devops/SKILL.md`) plus the
   `040`, `060` and `070` plan documents. Pre-merge `CLEAN`, 11 checks pass.
 
-`origin/dev`: `6e97e73d` → `c45e5159` → `2d3c95a0` → `44f26170` → `1f811092`.
+- **#98 (this receipt)** opened against `dev` after the chain landed, because #97's merge
+  SHA cannot exist while its own branch is open. Merged 2026-09-09T00:59Z at head
+  `5898d1c8`, `CLEAN`, 11 checks pass.
+
+`origin/dev`: `6e97e73d` → `c45e5159` → `2d3c95a0` → `44f26170` → `1f811092` →
+`0cacdc8d`.
 
 ## Post-merge verification (2026-09-09, dev at `1f811092`)
 
