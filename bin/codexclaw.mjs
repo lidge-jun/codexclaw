@@ -564,7 +564,14 @@ if (isMain) switch (cmd) {
   case "chat":
   case "memory":
     // recall CLI expects argv as [kind, "search", ...rest]; read-only over ~/.codex.
-    process.exit(runRecall(process.argv.slice(2)));
+    // `memory allow-write` is the exception: it records the MEMORY-WRITE-GATE-01 grant
+    // in pabcd-state's session file, which owns that state and reads it in the hook.
+    // Same owner-based split as `config interview` above.
+    process.exit(
+      cmd === "memory" && process.argv[3] === "allow-write"
+        ? runPabcdState(process.argv.slice(2))
+        : runRecall(process.argv.slice(2)),
+    );
     break;
   case "skill":
     // skill-search CLI: remote dormant-skill search/show (jaw/hermes/clawhub/gh).

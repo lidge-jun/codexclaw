@@ -161,6 +161,10 @@ if (isMain) {
       process.exit(delegate(target, process.argv.slice(2)));
     }
     process.exit(delegate(component, [cmd === "uninstall" ? "disable" : cmd]));
+  } else if (cmd === "memory" && process.argv[3] === "allow-write") {
+    // `memory search` is recall's; `memory allow-write` records the
+    // MEMORY-WRITE-GATE-01 grant in the pabcd-state session file that owns it.
+    process.exit(delegate("pabcd-state", process.argv.slice(2)));
   } else if (component === "skill-search") {
     process.exit(delegate(component, process.argv.slice(3)));
   } else if (component === "provider-bridge") {

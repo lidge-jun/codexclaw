@@ -88,6 +88,39 @@ test("L3: PreToolUse goal-budget hook is registered in the plugin manifest", () 
   assert.equal(entry.matcher, "^create_goal$", "PreToolUse goal-budget hook must match only ^create_goal$");
 });
 
+test("MEMORY-WRITE-GATE-01: the memory-write hook is registered and pins both write surfaces", () => {
+  const manifest = JSON.parse(readFileSync(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"));
+  const rel = manifest.hooks.find((h) => h.includes("pre-tool-use-guarding-memory-write"));
+  assert.ok(rel, "pre-tool-use-guarding-memory-write hook not in manifest.hooks");
+  const hookJson = JSON.parse(readFileSync(join(pluginRoot, rel), "utf8"));
+  const entry = hookJson.hooks.PreToolUse[0];
+
+  // The matcher is the union of the two ways a memory file gets written: the memory
+  // tool, and an ordinary edit/shell write into ~/.codex/memories.
+  assert.equal(
+    entry.matcher,
+    "^(memories[._]?add_ad_hoc_note|apply_patch|Write|Edit|Bash)$",
+    "memory-write gate matcher must cover the tool AND the file-edit surfaces",
+  );
+
+  // T2 anti-drift: codex-rs flat_tool_name concatenates namespace + name with no
+  // separator (core/src/tools/mod.rs:40-54), so the live name is
+  // `memoriesadd_ad_hoc_note`. `[._]?` keeps a future upstream separator covered;
+  // dropping it would silently reopen the surface.
+  const re = new RegExp(entry.matcher);
+  for (const name of ["memoriesadd_ad_hoc_note", "memories.add_ad_hoc_note", "memories_add_ad_hoc_note"]) {
+    assert.ok(re.test(name), `matcher must catch ${name}`);
+  }
+  // Read-only memory tools stay out of the gate.
+  for (const name of ["memoriessearch", "memorieslist", "memoriesread"]) {
+    assert.ok(!re.test(name), `matcher must NOT catch the read tool ${name}`);
+  }
+
+  // Own event slug: the gate is FAIL-OPEN and must not ride the fail-closed
+  // `pre-tool-use` dispatcher.
+  assert.match(entry.hooks[0].command, /hook pre-tool-use-memory-write/);
+});
+
 test("S5: each role TOML is spawn-valid (name + description + default model + instructions)", () => {
   const agentsDir = join(pluginRoot, "agents");
   for (const role of ["explorer", "reviewer", "executor", "architect"]) {

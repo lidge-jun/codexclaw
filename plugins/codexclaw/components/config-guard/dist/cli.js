@@ -11,7 +11,7 @@ import { readDeclaredState, SOFT_FEATURE_IMPACT,                  } from "./feat
 import { activate,                 } from "./activate.js";
 import { deactivate } from "./deactivate.js";
 import { applyManagedKey, readManagedState, resolveManagedKey } from "./config-set.js";
-import { CONFIG_MANAGED_KEYS, managedKeyId } from "./managed-keys.js";
+import { CONFIG_MANAGED_KEYS, findManagedKey, managedKeyId } from "./managed-keys.js";
 import {
   selfHealDeclaredFeatures,
   renderSelfHealContext,
@@ -27,8 +27,9 @@ const CONFIG_USAGE = [
   "  cxc config unset <table.key>             restore the value from before codexclaw set it",
   "  cxc config interview [off|new-unit|always]",
   "",
-  "Only whitelisted keys can be set; 'config list' shows them. Installation never enables",
-  "one of THESE on its own — that stays an explicit choice. (Separate vocabulary: the",
+  "Only whitelisted keys can be set; 'config list' shows them. Installation writes just the",
+  "ones marked auto-enable in managed-keys.ts, records the pre-install value, and 'cxc",
+  "disable' restores it; the rest stay an explicit choice. (Separate vocabulary: the",
   "[features] flags codexclaw needs to run ARE turned on by install and by SessionStart",
   "self-heal; see cxc doctor's `features` check.)",
 ].join("\n");
@@ -178,8 +179,21 @@ function main(argv                   )         {
       const failed = Object.entries(m.flags)
         .filter(([, r]) => r.enableFailed)
         .map(([k]) => k);
+      // Keys installation wrote itself. Printed with their caution because the user did
+      // not type this write: `cxc config set` shows the side effect before asking, and an
+      // auto-enabled key owes the same disclosure after the fact.
+      const keysSet = Object.entries(m.tableKeys ?? {})
+        .filter(([, r]) => r.setByCodexclaw)
+        .map(([id]) => id);
       process.stdout.write(
         `codexclaw: enabled [${turnedOn.join(", ") || "none"}]` +
+          (keysSet.length > 0 ? `\nconfig keys: ${keysSet.join(", ")}` : "") +
+          keysSet
+            .map((id) => {
+              const caution = findManagedKey(id)?.caution;
+              return caution ? `\n  ${caution}` : "";
+            })
+            .join("") +
           (m.backupPath ? `\nbackup: ${m.backupPath}` : "") +
           "\n",
       );

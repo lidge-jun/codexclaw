@@ -16,7 +16,7 @@ tells Codex which skills, hooks, and MCP servers to load.
 | `homepage` | `https://lidge-jun.github.io/codexclaw/` |
 | `license` | `MIT` — the payload includes `LICENSE`, `NOTICE.md` and upstream license notices. |
 | `skills` | `./skills/` — the skill directory root. |
-| `hooks` | Twenty-three JSON files defining 24 event handlers; one file handles two events (see [Hooks](/codexclaw/reference/hooks/)). |
+| `hooks` | Twenty-four JSON files defining 25 event handlers; one file handles two events (see [Hooks](/codexclaw/reference/hooks/)). |
 | `mcpServers` | `./.mcp.json` — the subagent-config MCP server. |
 
 ## Registered hooks
