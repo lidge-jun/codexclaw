@@ -56,8 +56,10 @@ parent, so each child must be retargeted after its parent lands).
    confirm it lists only this layer's files, then merge with
    `--match-head-commit 3e7302ec616d5d95d788d25495d86ce140c2981f`.
 3. **#96.** Same sequence, head `6ca0c3d88861d2ed3b6096d7b820681bf41cea95`.
-4. **#97.** Same sequence, retarget to `dev`; re-read the head first (this plan document
-   is on that branch, so it is past `ccfdf7fd`) and pin that full SHA.
+4. **#97.** Same sequence, retarget to `dev`, head
+   `fcfb55a60a06a8247fd3deec66b43a681133e2ac` (this plan document is on that branch, so
+   the head moved past `ccfdf7fd`). Re-read it once more before merging: any further
+   commit here, including a plan amendment, moves it again.
 
 `--match-head-commit` is the safety pin: if anything pushed to a layer between plan and
 merge, the merge is refused rather than landing an unreviewed head. It goes to the merge
@@ -90,8 +92,20 @@ an exception.
 
 - `gh pr view <n> --json state,mergeCommit` reports `MERGED` for all four.
 - `git fetch origin dev` then `git merge-base --is-ancestor <layer head> origin/dev`
-  exits 0 for 46a9bc9d, 3e7302ec, 6ca0c3d8, and the #97 head pinned in step 4 (past
-  `ccfdf7fd`; `ccfdf7fd` alone would prove nothing about the merged head).
+  exits 0 for 46a9bc9d, 3e7302ec, 6ca0c3d8, and `fcfb55a6` — the #97 head pinned in
+  step 4. `ccfdf7fd` alone would prove nothing about the merged head.
+
+## Pre-merge state (read 2026-09-09, immediately before step 1)
+
+| PR | Head (full) | mergeable | mergeStateStatus |
+|----|-------------|-----------|------------------|
+| #94 | 46a9bc9dfa4e44c381a169645b0b850f3b8f1fa8 | MERGEABLE | CLEAN |
+| #95 | 3e7302ec616d5d95d788d25495d86ce140c2981f | MERGEABLE | CLEAN |
+| #96 | 6ca0c3d88861d2ed3b6096d7b820681bf41cea95 | MERGEABLE | CLEAN |
+| #97 | fcfb55a60a06a8247fd3deec66b43a681133e2ac | MERGEABLE | UNSTABLE (CI re-running on the amended head) |
+
+#97 is UNSTABLE only because its checks restarted on this plan's own commits. Step 4
+waits for every check to conclude green before merging, per the refusal table.
 - `git diff --stat origin/dev codex/agent-swarm-hygiene-l4 -- <the touched paths>` is
   empty, proving the merged tree equals the reviewed L4 content for those files.
 - `node plugins/codexclaw/scripts/gate.mjs` exit 0 and `node --test` skill-catalog +
