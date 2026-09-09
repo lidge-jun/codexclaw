@@ -3,6 +3,7 @@ import { effortExcluded } from "../effort-support.ts";
 
 interface Props {
   value: EffortName | null;
+  label?: string;
   disabled: boolean;
   supported?: readonly string[] | null;
   onChange: (effort: EffortName | null) => void;
@@ -17,7 +18,7 @@ interface Props {
  *  source did not advertise a ladder. Only an array may disable an option — folding
  *  `null` into `[]` would grey out every effort for a model whose ladder OCX does not
  *  report, which is a live state on real rosters. */
-export function EffortSelect({ value, disabled, onChange, supported }: Props) {
+export function EffortSelect({ value, disabled, onChange, supported, label = "reasoning effort" }: Props) {
   return (
     <select
       className="select"
@@ -25,7 +26,7 @@ export function EffortSelect({ value, disabled, onChange, supported }: Props) {
       disabled={disabled}
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value === "" ? null : (e.target.value as EffortName))}
-      aria-label="reasoning effort"
+      aria-label={label}
     >
       <option value="">session effort</option>
       {EFFORTS.map((eff) => (

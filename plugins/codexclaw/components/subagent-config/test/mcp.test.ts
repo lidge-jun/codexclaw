@@ -117,3 +117,18 @@ test("MCP: subagents_set effort roundtrips; invalid effort is isError", async ()
   if (bad.length === 0) return;
   assert.equal(bad[0].result.isError, true);
 });
+
+test("MCP: first fallback roundtrips for every role and rejects invalid nested effort", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-mcp-fallback-"));
+  for (const role of ["explorer", "reviewer", "executor"]) {
+    const replies = await collect(cwd, [
+      { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "subagents_set", arguments: { role, fallback: { model: "cursor/grok-4.6", effort: "low" } } } },
+      { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "subagents_get", arguments: {} } },
+    ], 2);
+    assert.equal(replies.length, 2, "built MCP server is required for fallback verification");
+    const result = JSON.parse(replies.find(r => r.id === 2).result.content[0].text);
+    assert.deepEqual(result.roles[role].fallback, { model: "cursor/grok-4.6", effort: "low" });
+  }
+  const rejected = await collect(cwd, [{ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "subagents_set", arguments: { role: "executor", fallback: { effort: "invalid" } } } }], 1);
+  assert.equal(rejected[0].result.isError, true);
+});

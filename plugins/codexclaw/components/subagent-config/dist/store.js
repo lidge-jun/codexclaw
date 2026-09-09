@@ -48,8 +48,24 @@ export const EFFORTS = ["low", "medium", "high", "xhigh"]         ;
 
 
 
+
+
+
+
+
+
+
+/** Patch shape: fallback may be a partial nested update or null to clear. */
+
+
+
+
+
+
+
+
 export function defaultRole()             {
-  return { mode: "default", model: null, effort: null, promptOverride: null };
+  return { mode: "default", model: null, effort: null, promptOverride: null, fallback: null };
 }
 
 export function defaultConfig()                  {
@@ -70,9 +86,29 @@ function reconstructRole(raw         )             {
   // effort: only a known wire value survives; anything else -> null (inherit).
   const effort = (EFFORTS                     ).includes(r.effort          ) ? (r.effort              ) : null;
   const promptOverride = typeof r.promptOverride === "string" ? r.promptOverride : null;
+  const fallback = reconstructFallback(r.fallback);
   // A "model" mode with no valid model is invalid -> fall back to default (fail safe).
-  if (mode === "model" && model === null) return { mode: "default", model: null, effort, promptOverride };
-  return { mode, model, effort, promptOverride };
+  if (mode === "model" && model === null) return { mode: "default", model: null, effort, promptOverride, fallback };
+  return { mode, model, effort, promptOverride, fallback };
+}
+
+/** Missing or malformed fallback becomes null; invalid nested effort becomes inherit. */
+function reconstructFallback(raw         )                      {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const f = raw                           ;
+  if (typeof f.model !== "string" || f.model.trim().length === 0) return null;
+  const effort = (EFFORTS                     ).includes(f.effort          ) ? (f.effort              ) : null;
+  return { model: f.model, effort };
+}
+
+function mergeFallback(current                     , patch                                          )                      {
+  if (patch === undefined) return current;
+  if (patch === null) return null;
+  const model = typeof patch.model === "string" ? patch.model : (current?.model ?? "");
+  const effort = Object.prototype.hasOwnProperty.call(patch, "effort")
+    ? (patch.effort === undefined ? null : patch.effort)
+    : (current?.effort ?? null);
+  return { model, effort };
 }
 
 
@@ -168,7 +204,7 @@ export function readConfig(cwd        , scope              = "project", env     
 }
 
 /** Validate a role patch, returning an error message or null. */
-export function validateRolePatch(patch                     )                {
+export function validateRolePatch(patch           )                {
   if (patch.mode !== undefined && patch.mode !== "default" && patch.mode !== "model") {
     return `invalid mode "${String(patch.mode)}" (must be "default" or "model")`;
   }
@@ -184,6 +220,30 @@ export function validateRolePatch(patch                     )                {
   }
   if (patch.promptOverride !== undefined && patch.promptOverride !== null && typeof patch.promptOverride !== "string") {
     return "promptOverride must be a string or null";
+  }
+  if (patch.fallback !== undefined && patch.fallback !== null) {
+    if (typeof patch.fallback !== "object" || Array.isArray(patch.fallback)) {
+      return "fallback must be an object or null";
+    }
+    if (patch.fallback.model !== undefined && !(typeof patch.fallback.model === "string" && patch.fallback.model.trim().length > 0)) {
+      return "fallback requires a non-empty model id";
+    }
+    if (
+      patch.fallback.effort !== undefined &&
+      patch.fallback.effort !== null &&
+      !(EFFORTS                     ).includes(patch.fallback.effort          )
+    ) {
+      return `invalid fallback effort "${String(patch.fallback.effort)}" (must be one of ${EFFORTS.join("/")} or null)`;
+    }
+  }
+  if (
+    patch.mode === "model" &&
+    typeof patch.model === "string" &&
+    patch.fallback &&
+    typeof patch.fallback.model === "string" &&
+    patch.fallback.model === patch.model
+  ) {
+    return "fallback model must differ from the primary model";
   }
   return null;
 }
@@ -206,15 +266,22 @@ export function writeConfig(cwd        , config                 )       {
 }
 
 /** Merge only the selected role; missing roles continue to inherit dynamically. */
-export function setRole(cwd        , role          , patch                     , scope              = "project", env                    = process.env)                  {
+export function setRole(cwd        , role          , patch           , scope              = "project", env                    = process.env)                  {
   if (!ROLES.includes(role)) throw new Error(`unknown role "${role}"`);
   const path = scopedPath(cwd, scope, env);
   const raw = scope === "global" ? readGlobalRaw(env, true) : readRaw(path, true);
   const current = Object.hasOwn(raw.roles, role) ? reconstructRole(raw.roles[role]) : readConfig(cwd, scope, env).roles[role];
-  const next             = { ...current, ...patch };
+  if (patch.fallback !== undefined && patch.fallback !== null && (typeof patch.fallback !== "object" || Array.isArray(patch.fallback))) {
+    throw new Error("fallback must be an object or null");
+  }
+  const fallbackError = validateRolePatch({ fallback: patch.fallback });
+  if (fallbackError) throw new Error(fallbackError);
+  const { fallback: fallbackPatch, ...rest } = patch;
+  const next             = { ...current, ...rest, fallback: mergeFallback(current.fallback, fallbackPatch) };
   const err = validateRolePatch(next);
   if (err) throw new Error(err);
   if (next.mode === "default") next.model = null;
+  if (next.fallback) next.fallback = { model: next.fallback.model, effort: next.fallback.effort };
   raw.roles[role] = { ...(typeof raw.roles[role] === "object" && raw.roles[role] !== null ? raw.roles[role]                            : {}), ...next };
   writeRaw(path, raw);
   return readConfig(cwd, scope, env);
