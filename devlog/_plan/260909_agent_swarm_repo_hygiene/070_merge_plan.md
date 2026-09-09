@@ -34,29 +34,35 @@ ruleset**, so no required review or status check blocks these merges. `origin/de
 ## Merge method
 
 Merge commit (`--merge`), matching the repository's existing `dev` history
-("Merge pull request #93 from …"). Squash is wrong here: it would collapse each layer's
-reviewed commits and break the ancestry proof that criterion c-2 requires, and it would
-make the later layers' identical commits reappear as conflicts.
+("Merge pull request #93 from …"). Squash is wrong here: it rewrites each layer into a
+new commit, so `git merge-base --is-ancestor 46a9bc9d origin/dev` would exit 1 and the
+ancestry proof criterion c-2 requires collapses. It also makes every retargeted child
+re-show its parent's files, since the parent's original commits never reach `dev`.
 
 ## Order and procedure
 
 Bottom-up, one layer at a time (`DEV-STACK-04`: manual chains merge into their named
 parent, so each child must be retargeted after its parent lands).
 
-1. **#94 → `dev`.** Base is already `dev`. Confirm `mergeStateStatus: CLEAN` and all
-   checks pass on `46a9bc9d`, then `gh pr merge 94 --merge --match-head-commit 46a9bc9d`.
+1. **#94 → `dev`.** Base is already `dev`. Confirm `mergeStateStatus` is `CLEAN` and
+   every check has concluded successfully on `46a9bc9d`, then
+   `gh pr merge 94 --merge --match-head-commit 46a9bc9dfa4e44c381a169645b0b850f3b8f1fa8`.
 2. **#95.** Its base branch `codex/agent-swarm-hygiene-l1` still exists (auto-delete is
    off), but the layer below has landed, so retarget: `gh pr edit 95 --base dev`. This
    fires `enforce-pr-target.yml`, which removes the `[WRONG BRANCH]` prefix and updates
-   its comment once the base is `dev`. Wait for that run to finish, re-read
-   `mergeable`/`mergeStateStatus` (retargeting recomputes them), then merge with
-   `--match-head-commit 3e7302ec`.
-3. **#96.** Same, retarget to `dev`, head `6ca0c3d8`.
-4. **#97.** Same, retarget to `dev`; re-read the head first (this plan document is on
-   that branch) and pin it.
+   its comment once the base is `dev` (the `pull_request_target: edited` path; no human
+   title edit is needed). Wait for that run to finish, re-read
+   `mergeable`/`mergeStateStatus` (retargeting recomputes them), re-read the PR diff and
+   confirm it lists only this layer's files, then merge with
+   `--match-head-commit 3e7302ec616d5d95d788d25495d86ce140c2981f`.
+3. **#96.** Same sequence, head `6ca0c3d88861d2ed3b6096d7b820681bf41cea95`.
+4. **#97.** Same sequence, retarget to `dev`; re-read the head first (this plan document
+   is on that branch, so it is past `ccfdf7fd`) and pin that full SHA.
 
 `--match-head-commit` is the safety pin: if anything pushed to a layer between plan and
-merge, the merge is refused rather than landing an unreviewed head.
+merge, the merge is refused rather than landing an unreviewed head. It goes to the merge
+API's `sha` field and is compared literally, so it must be the **full 40-character SHA**;
+an abbreviation is not expanded and the merge fails.
 
 After each merge, fetch and confirm the layer head is an ancestor of `origin/dev` before
 starting the next layer. Do not batch the four merges.
@@ -72,6 +78,7 @@ files, stop: that means a layer landed out of order or `dev` moved.
 | Refusal | Meaning | Response |
 |---|---|---|
 | `mergeStateStatus: BLOCKED` | A rule or required review appeared | Report the rule; do not use `--admin`, do not change repository settings |
+| `mergeStateStatus: UNSTABLE` | A check is still running, or a non-required check failed | Wait until every check has concluded; merge only when all are green. Never merge on pending |
 | `mergeStateStatus: BEHIND` or `DIRTY` | `dev` moved under the chain | Update the layer branch from `dev`, re-run gate and skill tests, re-verify CI, then merge |
 | `--match-head-commit` mismatch | The head moved after the plan | Re-read the new head, re-verify its checks, update this document, then merge |
 | Merge API error | Transport or transient | Re-read PR state before retrying; never retry blind, a merge may have landed |
@@ -83,7 +90,8 @@ an exception.
 
 - `gh pr view <n> --json state,mergeCommit` reports `MERGED` for all four.
 - `git fetch origin dev` then `git merge-base --is-ancestor <layer head> origin/dev`
-  exits 0 for 46a9bc9d, 3e7302ec, 6ca0c3d8, ccfdf7fd.
+  exits 0 for 46a9bc9d, 3e7302ec, 6ca0c3d8, and the #97 head pinned in step 4 (past
+  `ccfdf7fd`; `ccfdf7fd` alone would prove nothing about the merged head).
 - `git diff --stat origin/dev codex/agent-swarm-hygiene-l4 -- <the touched paths>` is
   empty, proving the merged tree equals the reviewed L4 content for those files.
 - `node plugins/codexclaw/scripts/gate.mjs` exit 0 and `node --test` skill-catalog +
