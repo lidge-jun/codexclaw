@@ -2,33 +2,117 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, preview, dev]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# A pull request's newer push supersedes its older run; an integration-line push
+# never cancels another, so every dev/main SHA keeps its own evidence.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # GitHub runners preinstall uv, which would flip the repo-map smoke test
+  # from skip to a live network dependency resolve. Keep CI deterministic.
+  CODEXCLAW_SKIP_REPOMAP_SMOKE: "1"
+
 jobs:
+  # The one lane that runs the whole suite in a single process. Its measured total
+  # is what the published tests badge is checked against; a shard cannot know it.
   test:
+    name: test (ubuntu-latest, false)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure line endings
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      # Measure the suite ONCE and reuse the total. bash is pinned on purpose: a
+      # PowerShell pipeline does not propagate its exit status. The pattern anchors
+      # on the RIGHT: `ℹ` is three UTF-8 bytes and `^.` only spans it in a UTF-8
+      # locale; `tests <n>$` matches exactly the TAP summary line.
+      - name: Run the suite
+        id: suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test 2>&1 | tee /tmp/ci-suite.log
+          total="$(grep -Eo 'tests [0-9]+$' /tmp/ci-suite.log | tail -1 | grep -Eo '[0-9]+' || true)"
+          if [ -z "$total" ]; then
+            echo "could not parse a test total out of the suite output" >&2
+            exit 1
+          fi
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+      # The tests badge is the one published count that cannot be derived from the
+      # payload, so it is checked against what the suite just measured.
+      - name: Inventory and published counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node plugins/codexclaw/scripts/inventory.mjs --check --tests "${{ steps.suite.outputs.total }}"
+      - run: node plugins/codexclaw/scripts/gate.mjs
+      - name: Platform smoke
+        run: node plugins/codexclaw/scripts/platform-smoke.mjs
+      - name: Upload receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: receipts-ubuntu-latest-crlffalse
+          path: .codexclaw/evidence/
+          if-no-files-found: warn
+
+  # macOS is the primary development platform; a path-case or BSD-tool difference
+  # would otherwise ship undetected. Three minutes unsharded, so it stays whole.
+  test-macos:
+    name: test (macos-latest, false)
+    runs-on: macos-latest
+    timeout-minutes: 12
+    steps:
+      - name: Configure line endings
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: node plugins/codexclaw/scripts/gate.mjs
+      - name: Platform smoke
+        run: node plugins/codexclaw/scripts/platform-smoke.mjs
+      - name: Upload receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: receipts-macos-latest-crlffalse
+          path: .codexclaw/evidence/
+          if-no-files-found: warn
+
+  # Windows was the critical path at 9 minutes per leg. Each autocrlf variant runs
+  # as two shards of scripts/test.mjs --shard i/2 (sorted round-robin over the file
+  # list, see plugins/codexclaw/test/test-shard.test.mjs), so a leg finishes in
+  # about half the time. autocrlf=true is what a default Windows git install does;
+  # testing only eol=lf tests a machine our users do not have.
+  test-windows:
+    name: test (windows-latest, ${{ matrix.autocrlf }}, shard ${{ matrix.shard }}/2)
+    runs-on: windows-latest
+    timeout-minutes: 12
     strategy:
-      matrix:
-        # macOS is the primary development platform and was the only untested one;
-        # a path-case or BSD-tool difference would otherwise ship undetected.
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        # autocrlf=true is what a default Windows git install does, and it is the
-        # configuration that turns CRLF-safe-today readers into broken ones.
-        # Testing only the eol=lf checkout tests a machine our users do not have.
-        autocrlf: [false]
-        include:
-          - os: windows-latest
-            autocrlf: true
       fail-fast: false
-    runs-on: ${{ matrix.os }}
-    env:
-      # GitHub runners preinstall uv, which would flip the repo-map smoke test
-      # from skip to a live network dependency resolve. Keep CI deterministic.
-      CODEXCLAW_SKIP_REPOMAP_SMOKE: "1"
+      matrix:
+        autocrlf: [false, true]
+        shard: [1, 2]
     steps:
       - name: Configure line endings
         run: git config --global core.autocrlf ${{ matrix.autocrlf }}
@@ -39,46 +123,49 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      # Measure the suite ONCE and reuse the total. bash is pinned on purpose: the
-      # windows runners default to PowerShell, which does not propagate a pipeline's
-      # exit status, so `npm test | tee` there would report success over a failing
-      # suite.
-      #
-      # The pattern anchors on the RIGHT, not on the leading glyph. `ℹ` is three UTF-8
-      # bytes, and `^.` only spans it in a UTF-8 locale: Git bash on the windows runners
-      # runs under C, where `^. tests` matches nothing. In a full log `tests <n>$` matches
-      # exactly one line — the TAP summary — because a test title never ends that way.
-      - name: Run the suite
-        id: suite
+      - name: Run shard ${{ matrix.shard }}/2
         shell: bash
-        run: |
-          set -euo pipefail
-          npm test 2>&1 | tee /tmp/ci-suite.log
-          # `|| true` so a miss reaches the explicit check below instead of dying on set -e.
-          total="$(grep -Eo 'tests [0-9]+$' /tmp/ci-suite.log | tail -1 | grep -Eo '[0-9]+' || true)"
-          if [ -z "$total" ]; then
-            echo "could not parse a test total out of the suite output" >&2
-            exit 1
-          fi
-          echo "total=$total" >> "$GITHUB_OUTPUT"
-      # The tests badge is the one published count that cannot be derived from the
-      # payload, so it is checked against what the suite just measured. Skipping this
-      # is how 2,026 survived three versions and stopped the release gate instead.
-      - name: Inventory and published counts
-        shell: bash
-        run: |
-          set -euo pipefail
-          node plugins/codexclaw/scripts/inventory.mjs --check --tests "${{ steps.suite.outputs.total }}"
+        run: npm test -- --shard ${{ matrix.shard }}/2
       - run: node plugins/codexclaw/scripts/gate.mjs
-      # The suites above are largely pure-function suites. This executes the spawn
-      # ladders, the bench, and the bundle - the surfaces where the audited win32
-      # defects lived (devlog/_plan/260821_win-linux-optimization/002).
+      # The spawn ladders, the bench and the bundle run once per autocrlf variant;
+      # they are fixed cost and paying them per shard would eat what sharding saves.
       - name: Platform smoke
+        if: matrix.shard == 1
         run: node plugins/codexclaw/scripts/platform-smoke.mjs
       - name: Upload receipts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: receipts-${{ matrix.os }}-crlf${{ matrix.autocrlf }}
+          name: receipts-windows-latest-crlf${{ matrix.autocrlf }}-shard${{ matrix.shard }}
           path: .codexclaw/evidence/
           if-no-files-found: warn
+
+  # One check to require. `if: always()` is load-bearing: without it a failed or
+  # skipped dependency skips this job, and a skipped required check reads as green
+  # in the merge box. Every leg must be success; skipped and cancelled fail here.
+  ci:
+    name: ci
+    if: always()
+    needs: [test, test-macos, test-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every leg succeeded
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "$RESULTS"
+          bad="$(printf '%s' "$RESULTS" | node -e '
+            let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
+              const needs = JSON.parse(s);
+              const bad = Object.entries(needs).filter(([, v]) => v.result !== "success").map(([k, v]) => k + "=" + v.result);
+              process.stdout.write(bad.join(" "));
+            });')"
+          if [ -n "$bad" ]; then
+            echo "::error::legs not successful: $bad"
+            exit 1
+          fi
+          echo "all legs succeeded"
+
