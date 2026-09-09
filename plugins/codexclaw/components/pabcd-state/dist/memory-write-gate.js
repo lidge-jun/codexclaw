@@ -50,6 +50,9 @@ import { homedir } from "node:os";
 import { isAbsolute, join, normalize, resolve, sep } from "node:path";
 import { readState, writeState } from "./state.js";
 import { splitLines } from "./text-lines.js";
+import { shellWriteDestinations } from "./shell-write-destinations.js";
+
+export { shellWriteDestinations } from "./shell-write-destinations.js";
 
 /**
  * Hook-facing names for the memory write tool. `memoriesadd_ad_hoc_note` is what
@@ -153,22 +156,6 @@ export function patchTargets(patchText        )           {
   return out;
 }
 
-/**
- * Shell tokens that could name a write destination. Deliberately BROAD and
- * path-shaped: it collects every token that mentions a memories path rather than
- * modelling redirection, `tee`, `sed -i` and friends separately. Over-collection is
- * safe here — the caller still requires the token to resolve under the memories
- * root, and the remedy for a false deny is one CLI grant.
- */
-export function shellPathTokens(command        )           {
-  const out           = [];
-  for (const token of command.split(/[\s;|&()<>]+/)) {
-    const cleaned = token.replace(/^["']|["']$/g, "");
-    if (cleaned.includes("memories")) out.push(cleaned);
-  }
-  return out;
-}
-
 
 
 
@@ -207,12 +194,12 @@ export function classifyMemoryWrite(
   if (SHELL_TOOLS.has(toolName)) {
     const command = typeof toolInput.command === "string" ? toolInput.command : "";
     if (command === "") return { surface: "", target: "" };
-    // A read is not a write. Only commands that can CREATE or MUTATE bytes are gated,
-    // so `cat`/`rg` over memories (what cxc-recall does constantly) stays free.
-    if (!/>>?|\btee\b|\bsed\b|\bcp\b|\bmv\b|\brm\b|\btouch\b|\bmkdir\b|\bdd\b|\bteee?\b|\bwrite\b|\binstall\b/.test(command)) {
-      return { surface: "", target: "" };
-    }
-    for (const token of shellPathTokens(command)) {
+    // Classify by WRITE DESTINATION (260910 wp1). A memories path that appears only
+    // as a read operand, inside quotes, or in a heredoc body is not a write, so
+    // `sed -n`, `rg ... 2>/dev/null` and a devlog heredoc whose body mentions the
+    // memories root stay free. Redirections, `tee`, `sed -i`, `cp`/`mv` targets and
+    // `perl -i`/`ruby -i` operands are the write surface.
+    for (const token of shellWriteDestinations(command)) {
       const abs = absolutize(token, cwd);
       if (isMemoryPath(abs, root)) return { surface: "shell", target: abs };
     }

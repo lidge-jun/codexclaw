@@ -11,7 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   classifyMemoryWrite,
   detectMemoryWriteRequest,
@@ -19,6 +19,7 @@ import {
   isMemoryPath,
   memoriesRoot,
   patchTargets,
+  shellWriteDestinations,
   MEMORY_WRITE_TOOL_NAMES,
 } from "../src/memory-write-gate.ts";
 import { handleUserPromptSubmit } from "../src/hook.ts";
@@ -203,4 +204,74 @@ test("old state files read as unauthorized (no retroactive standing grant)", () 
   assert.equal(state.memoryWriteRequested, false);
   assert.equal(state.memoryWriteGrant, false);
   assert.equal(state.memoryWriteTurn, null);
+});
+
+test("shell surface: destination-based classification, not body path strings", () => {
+  const root = memoriesRoot({ CODEX_HOME: "/h" });
+  const mem = "/h/memories";
+  const classify = (command: string, tool = "Bash") =>
+    classifyMemoryWrite(tool, { command }, "/w", root);
+
+  // (1) sed -n is a read.
+  assert.equal(classify(`sed -n '1p' ${mem}/MEMORY.md`).surface, "");
+  // (2) stderr redirect is not a write destination.
+  assert.equal(classify(`rg foo ${mem}/MEMORY.md 2>/dev/null`).surface, "");
+  // (3) heredoc body names the memories root; the write destination is devlog.
+  const heredoc = [
+    "mkdir -p /w/devlog/_plan/notes",
+    `&& cat > /w/devlog/_plan/notes/00_brief.md <<'EOF'`,
+    `\n${mem}\nEOF`,
+  ].join(" ");
+  assert.equal(classify(heredoc).surface, "");
+  // (4) sed -i of a memory file remains a write.
+  const sedInPlace = classify(`sed -i 's/a/b/' ${mem}/MEMORY.md`);
+  assert.equal(sedInPlace.surface, "shell");
+  // target is absolutized with path.resolve, so compare on the platform form (D:\h\... on Windows).
+  assert.equal(sedInPlace.target, resolve(`${mem}/MEMORY.md`));
+  // (5) stdout redirect into memories remains a write.
+  assert.equal(classify(`echo hi > ${mem}/notes.md`).surface, "shell");
+  // (A1) no-space redirections and `>|` clobber are real writes (audit round 1 found the
+  // first parser draft returning [] for all three).
+  assert.equal(classify(`echo hi>${mem}/n.md`).surface, "shell");
+  assert.equal(classify(`echo hi>>${mem}/n.md`).surface, "shell");
+  assert.equal(classify(`echo hi >| ${mem}/n.md`).surface, "shell");
+  assert.equal(classify(`echo 'a>b'`).surface, "");
+  assert.equal(classify(`grep -- '->' /w/f`).surface, "");
+
+  // Live shape from notes/00 and notes/03 §6: worktree dest, tilde path in the body.
+  const live = [
+    "mkdir -p /Users/jun/.codex/worktrees/3412/codexclaw/devlog/_plan/260910_memory-followup-roadmap/notes /tmp/mfu-260910",
+    "&& cat > /Users/jun/.codex/worktrees/3412/codexclaw/devlog/_plan/260910_memory-followup-roadmap/notes/00_brief.md <<'EOF'",
+    "\n~/.codex/memories\nEOF",
+  ].join(" ");
+  assert.equal(classify(live).surface, "");
+
+  // Old >>? regex false-denies (notes/03 §4, §6 table).
+  assert.equal(classify(`python3 -c "from pathlib import Path; print(Path('${mem}/MEMORY.md').read_text()); print('x -> y')"`).surface, "");
+  assert.equal(classify(`rg '<prose>' ${mem}/MEMORY.md`).surface, "");
+
+  assert.equal(classify(`rg foo /w | tee ${mem}/out.md`).surface, "shell");
+  assert.equal(classify(`cp /w/a.md ${mem}/b.md`).surface, "shell");
+  assert.equal(classify(`cp ${mem}/a.md /w/b.md`).surface, "");
+  assert.equal(classify(`mv /w/a.md ${mem}/b.md`).surface, "shell");
+  assert.equal(classify(`perl -i -pe 's/a/b/' ${mem}/MEMORY.md`).surface, "shell");
+  assert.equal(classify(`ruby -i -pe 's/a/b/' ${mem}/MEMORY.md`).surface, "shell");
+  assert.equal(classify(`sed -n '1p' ${mem}/MEMORY.md`, "exec_command").surface, "");
+  assert.equal(classify(`echo hi > ${mem}/notes.md`, "exec_command").surface, "shell");
+});
+
+test("shellWriteDestinations: stderr, arrows in prose, and heredoc bodies are not dests", () => {
+  assert.deepEqual(shellWriteDestinations("rg foo /h/memories 2>/dev/null"), []);
+  assert.deepEqual(shellWriteDestinations("echo 'a > b'"), []);
+  assert.deepEqual(shellWriteDestinations("echo hi > /tmp/out.md"), ["/tmp/out.md"]);
+  assert.deepEqual(
+    shellWriteDestinations("cat > /tmp/out.md <<'EOF'\n~/.codex/memories\nEOF"),
+    ["/tmp/out.md"],
+  );
+  assert.deepEqual(shellWriteDestinations("sed -n '1p' /h/memories/MEMORY.md"), []);
+  assert.deepEqual(shellWriteDestinations("sed -i 's/a/b/' /h/memories/MEMORY.md"), ["/h/memories/MEMORY.md"]);
+  assert.deepEqual(shellWriteDestinations("echo hi>/h/memories/n.md"), ["/h/memories/n.md"]);
+  assert.deepEqual(shellWriteDestinations("echo hi>>/h/memories/n.md"), ["/h/memories/n.md"]);
+  assert.deepEqual(shellWriteDestinations("echo hi >| /h/memories/n.md"), ["/h/memories/n.md"]);
+  assert.deepEqual(shellWriteDestinations("x -> y"), []);
 });
