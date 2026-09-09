@@ -8,6 +8,23 @@ All notable changes to codexclaw are documented here. The format follows
 
 ### Added
 
+- `cxc-dev-visualizer` (renamed from `cxc-dev-diagram-viewer`, old folder redirects):
+  `reference/report-writing.md` with the REPORT-* rules for multi-page reports
+  (storyline that reads in sequence, claim headings, a summary page that decides
+  alone, one register, numbered and sourced exhibits, cover/contents/appendix/notice
+  anatomy, issuer naming, polish that keeps numbers), `assets/paged-report.html`
+  (A4 skeleton set as a publication with fictional data) and
+  `scripts/export-paged-report.mjs` (Chromium print, second pass that fills contents
+  page numbers, layout QA, `--qa-only` for any PDF). `document-pdf.md` gains
+  REPORT-PRINT-01/QA-01, the measured Chromium paged-media support table and a
+  klreq/jlreq/clreq CSS recipe; `visual-design.md` gains REPORT-DESIGN-01 and the
+  REPORT-VIZ-01 print legibility floor.
+- `cxc-dev` DEV-PRIVACY-01 (client and personal material stay outside the repository,
+  pre-push identifier self-check) and a FAMILY-SLOP-01 pointer for prose and
+  page-design reflexes; READER-DOC-05 reads rendered pages; `kwrite` CAT-11 and the
+  number/polarity/causation revert rule; `dev-uiux-design` document defaults line;
+  pabcd check lists paged output as a render artifact.
+
 - Agent-swarm repository hygiene in `cxc-dev-devops`: `references/repo-bootstrap.md`
   (ruleset-first setup, merge settings, PR limits, labels), `references/agent-pr-intake.md`
   (identity tiers, draft-first, supersede procedure, weak/medium/strong policy options

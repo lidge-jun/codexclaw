@@ -33,3 +33,17 @@ goalplan: `.codexclaw/goalplans/hotl-1-finish-the-cxc-dev-visualizer-report-qual
 | wp6 | wp5 | [030_pr_queue.md](030_pr_queue.md) §C | #110, #91 충돌 해결·머지 |
 
 순서는 wp2 → wp3 → wp4 → wp5 → wp6. dev가 앞서 나가면 각 PR은 머지 직전에 최신 dev 위에서 CI를 다시 받는다.
+
+## 결과 (2026-09-10)
+
+| PR | 최종 헤드 | 머지 커밋 | 비고 |
+|---|---|---|---|
+| #117 visualizer | d900d155 | 5c9fd59f | 히스토리를 4개 커밋으로 재작성해 비공개 증거 제거 후 push |
+| #116 subagent first fallback | 831b37fd | bef704ff | 포크 브랜치에 dev 머지 + 리뷰 소프트 2건 반영 (maintainer edit) |
+| #112 release dispatch hardening | 9d3159e4 | fc12bde5 | dev 위로 두 번 rebase해 최신 CI |
+| #113 pr lifecycle hygiene | 3fe44dc7 | d1f08e42 | README·inventory 재생성, CI 측정 테스트 수 2845로 정정 |
+| #111 closed-pr branch cleanup | 3534a2d0 | 1ca63c86 | package.json test 글롭 충돌 해결 |
+| #110 architect role | 03ff1edb | 369ed0e1 | 다른 세션이 dev를 미리 머지해 둬 충돌 0; 로드맵과 달리 #91보다 먼저 머지 |
+| #91 executor registration | c2558a4c | 9dd8ae7b | #110 registrar 유지 + #91 executor 해석 결합, 양쪽 테스트 보존 |
+
+각 머지 뒤 `git merge-base --is-ancestor <head> origin/dev` 확인, 증거는 `evidence/pr*-merge.json`(gh 출력). 임시 작업 트리는 이 세션의 WORKTREE-GUARD-03이 `git worktree remove`를 막아 외부에서 정리했다. 서브에이전트는 사용자 지시로 xai/grok-4.6만 사용(#110·#91 감사).
