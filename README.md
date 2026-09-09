@@ -268,6 +268,17 @@ Methodology and research provenance: **[lidge-jun.github.io/pabcd_initiative](ht
 
 Pull requests target the `dev` integration branch; `main` moves by maintainer promotion and carries releases.
 
+CI on a pull request runs the checks a reviewer needs; the slow installation lanes run when a change lands on an integration line.
+
+| Check | Pull request | Push to `dev` / `preview` / `main` |
+|---|---|---|
+| `ci` (aggregate of `test (ubuntu-latest, false)`, `test (macos-latest, false)`, four Windows shards) | yes | yes |
+| `artifact (…)` / `install (…)` packed-install lifecycle | yes | yes |
+| `enforce-target` | yes | — |
+| `wsl (drvfs /mnt/c)`, `wsl (native ext4 ~)` | no (also `workflow_dispatch`) | yes |
+
+`ci` fails when any leg fails, is cancelled or is skipped; it is the one check to require. The ubuntu lane runs the whole suite in one process and is where the tests badge total is measured; the Windows legs run `scripts/test.mjs --shard i/2`.
+
 ## License
 
 [MIT](LICENSE). Copyright, upstream provenance and third-party scope: [NOTICE.md](NOTICE.md).
