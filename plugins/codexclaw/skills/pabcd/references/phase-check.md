@@ -10,11 +10,12 @@
    **C-READER-01 (DEFAULT):** when the work-phase delivers a document, report or
    visualization to a person, C includes the fresh-reader check from
    [Reader documents](../../dev/references/reader-documents.md) READER-DOC-05 and records
-   where the reader stumbled and what was changed.
+   where the reader stumbled and what was changed. For rendered output the reader
+   works from the rendered pages, as READER-DOC-05 specifies.
 
    **DEFAULT (C-RENDER-GROUNDING-01):** When the work-phase produces a render artifact
    (HTML, SVG, layout-defining CSS, canvas/animation/chart JS, .jsx/.tsx layout
-   components) whose correctness only shows when run or rendered, C MUST include a
+   components, PDF or other paged output) whose correctness only shows when run or rendered, C MUST include a
    render-grounding loop before C->D: (1) **RUN** it in its natural execution
    environment -- headless-browser screenshot for web, SVG->PNG render, execute scripts,
    drive stateful artifacts until the first interactive state change; (2) **OBSERVE** the
