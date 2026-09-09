@@ -44,6 +44,22 @@ Defaults that matter:
   hidden; `--all` reveals them.
 - Korean works in both engines (trigram FTS >=3 chars; shorter words auto-fallback).
 
+## How memory search reads your query
+
+`cxc memory search` judges each query word by its shape, so short symbols and
+Korean prose can coexist in one query.
+
+Symbol-shaped words — uppercase acronyms (`CI`, `LSP`), one-to-three-letter
+ASCII words (`go`, `id`), numbers (`3956`, `#3956`), SHAs, filenames and paths —
+match on word boundaries only. Searching `LSP` no longer returns
+`NaiControlsPanel`, and `3956` no longer returns a thread id that happens to
+contain those digits. When a symbol query finds nothing on boundaries, results
+fall back to substring matching and the output carries a
+`lower confidence` warning, so an empty answer is never the outcome.
+
+Everything else keeps substring matching, including Korean, which is why a query
+of `검색` still reaches `검색해봐`.
+
 ## Escalation ladder
 
 1. `cxc chat search "<distinctive terms>" --days 0` — find the conversation.

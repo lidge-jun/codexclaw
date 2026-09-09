@@ -1,16 +1,24 @@
 /**
- * synonyms.ts — curated bidirectional ko/en synonym table for memory search
- * query expansion (WP2). Static and in-code on purpose: recall keeps its
- * read-only-derived-cache posture, so there is no sqlite synonym table to
- * migrate or corrupt (cli-jaw stores the same seeds in a memory_synonyms
- * table; codexclaw ports the data, not the storage).
+ * synonyms.ts — curated bidirectional ko/en synonym table plus Korean ending
+ * trimming for memory search query expansion. Static and in-code on purpose:
+ * recall keeps its read-only-derived-cache posture, so there is no sqlite
+ * synonym table to migrate or corrupt (cli-jaw stores the same seeds in a
+ * memory_synonyms table; codexclaw ports the data, not the storage).
  *
  * Expansion model (cli-jaw indexing.ts parity): each query word becomes an
  * OR-group — the chunk matches the group when ANY member is present — and
  * matching stays AND across groups. Two query words that live in the same
  * group therefore collapse into the same requirement (documented behavior:
  * `plan audit` matches anything with one pabcd-family word).
+ *
+ * Emitted group members carry the boundary flag decided by query-words.ts, so a
+ * symbol-shaped query word stays boundary-gated through expansion.
  */
+import {
+  isSymbolWord,
+
+
+} from "./query-words.js";
 
 /** Each group is one concept; membership is bidirectional and case-insensitive. */
 export const SYNONYM_GROUPS             = [
@@ -47,21 +55,30 @@ for (const group of SYNONYM_GROUPS) {
 }
 
 /**
- * Expand lowercase query words into OR-groups. The original word always leads
- * its group; unknown words become singleton groups. Members are deduped
- * case-insensitively and capped at GROUP_CAP.
+ * Expand query words into OR-groups of matchable terms. Words arrive with their
+ * original case because symbol judgment needs it (`CI` vs a bare `ci`
+ * fragment); every emitted term text is lowercase.
+ *
+ * The original word always leads its group, so the excerpt anchor and density
+ * scoring still prefer what the user actually typed. Unknown words become
+ * singleton groups. Members are deduped case-insensitively and capped at
+ * GROUP_CAP.
  */
-export function expandQueryWords(words          )             {
+export function expandQueryWords(words          )               {
   return words.map((word) => {
+    const boundary = isSymbolWord(word);
     const lower = word.toLowerCase();
-    const group = TERM_TO_GROUP.get(lower);
-    if (!group) return [lower];
-    const out           = [lower];
-    for (const member of group) {
-      const m = member.toLowerCase();
-      if (m !== lower && !out.includes(m)) out.push(m);
-      if (out.length >= GROUP_CAP) break;
+    const texts           = [lower];
+    const push = (candidate        ) => {
+      const c = candidate.toLowerCase();
+      if (c !== "" && !texts.includes(c)) texts.push(c);
+    };
+
+    for (const member of TERM_TO_GROUP.get(lower) ?? []) {
+      if (texts.length >= GROUP_CAP) break;
+      push(member);
     }
-    return out;
+
+    return texts.slice(0, GROUP_CAP).map((text)            => ({ text, boundary }));
   });
 }

@@ -12,7 +12,15 @@ import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { codexHome, memoriesDir, memoriesDbPath } from "./paths.ts";
 import { openReadOnlyDb } from "./threads-db.ts";
-import { splitQueryWords } from "./chat-search.ts";
+import {
+  splitQueryWordsRaw,
+  termIndexOf,
+  termIncludes,
+  countTermOccurrences,
+  hasBoundaryTerm,
+  relaxQueryGroups,
+  type QueryGroup,
+} from "./query-words.ts";
 import { expandQueryWords } from "./synonyms.ts";
 import { splitLines } from "./text-lines.ts";
 
@@ -58,6 +66,14 @@ export type MemoryHit = {
 
 /** Hits from the same file beyond this cap are dropped so one fat file (MEMORY.md) cannot consume every slot. */
 const PER_FILE_CAP = 2;
+
+/**
+ * Score penalty applied to substring-only hits from the relaxed retry. One
+ * coverage unit is +2, so this puts a relaxed hit a full group behind anything
+ * a strict pass could have produced — the "low-confidence fallback" ordering
+ * survives even if a future caller merges the two passes.
+ */
+const RELAXED_PENALTY = 2;
 
 /** Classify a memories-root relpath into its artifact kind. */
 export function kindOfRelpath(relpath: string, origin: "file" | "stage1" = "file"): MemoryKind {
@@ -126,20 +142,14 @@ export function finalScore(textScore: number, kind: MemoryKind, updatedAtMs: num
  * dominates, occurrence density (on the best-present member of each OR-group)
  * and exact-phrase/heading boosts break ties.
  */
-export function scoreChunk(lowerText: string, groups: string[][], lowerPhrase: string): number {
+export function scoreChunk(lowerText: string, groups: QueryGroup[], lowerPhrase: string): number {
   let score = 0;
   for (const group of groups) {
     // Density rides on the best-present member (C-gate blocker #1: a synonym
     // hit must not score below the same text queried by its literal word).
     let bestOcc = 0;
     for (const member of group) {
-      let at = lowerText.indexOf(member);
-      if (at === -1) continue;
-      let occ = 0;
-      while (at !== -1 && occ < 5) {
-        occ += 1;
-        at = lowerText.indexOf(member, at + member.length);
-      }
+      const occ = countTermOccurrences(lowerText, member, 5);
       if (occ > bestOcc) bestOcc = occ;
     }
     if (bestOcc === 0) continue;
@@ -220,23 +230,23 @@ export function paragraphChunks(content: string): Array<{ text: string; startLin
 }
 
 /** AND across groups, OR within a group; anyMode = any member of any group. */
-function matches(lowerText: string, groups: string[][], anyMode: boolean): boolean {
-  const groupHit = (group: string[]) => group.some((w) => lowerText.includes(w));
+function matches(lowerText: string, groups: QueryGroup[], anyMode: boolean): boolean {
+  const groupHit = (group: QueryGroup) => group.some((term) => termIncludes(lowerText, term));
   return anyMode ? groups.some(groupHit) : groups.every(groupHit);
 }
 
 /** First group member actually present in the text (excerpt anchor), else the lead word. */
-function firstPresentMember(lowerText: string, groups: string[][]): string {
+function firstPresentMember(lowerText: string, groups: QueryGroup[]): QueryGroup[0] {
   for (const group of groups) {
-    const w = group.find((member) => lowerText.includes(member));
-    if (w !== undefined) return w;
+    const term = group.find((member) => termIncludes(lowerText, member));
+    if (term !== undefined) return term;
   }
   return groups[0][0];
 }
 
-function excerptAround(text: string, word: string, span: number): string {
+function excerptAround(text: string, term: QueryGroup[0], span: number): string {
   const lower = text.toLowerCase();
-  const at = lower.indexOf(word);
+  const at = termIndexOf(lower, term);
   if (at === -1) return text.slice(0, span);
   const from = Math.max(0, at - Math.floor(span / 2));
   return text.slice(from, from + span);
@@ -251,12 +261,14 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
   // One clock capture per search: recency boosts must not drift mid-ranking.
   const nowMs = opts.nowMs ?? Date.now();
   const cutoffMs = days > 0 ? nowMs - days * 86_400_000 : null;
-  const words = splitQueryWords(query);
-  const groups = (opts.synonyms ?? true) ? expandQueryWords(words) : words.map((w) => [w]);
+  // Original case survives to expansion: the uppercase-acronym rule is the only
+  // thing separating `CI` from a two-letter fragment (query-words.ts).
+  const words = splitQueryWordsRaw(query);
+  const groups: QueryGroup[] = (opts.synonyms ?? true)
+    ? expandQueryWords(words)
+    : expandQueryWords(words).map((group) => [group[0]]);
   const lowerPhrase = query.toLowerCase().replace(/\s+/g, " ").trim();
   const warnings: string[] = [];
-  const candidates: MemoryHit[] = [];
-  const matchedThreadIds = new Set<string>();
   let scannedFiles = 0;
 
   if (words.length === 0) {
@@ -265,41 +277,61 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
   }
 
   const root = memoriesDir(home);
-  for (const file of listMarkdownFiles(root)) {
-    let content: string;
-    let mtimeMs: number;
-    try {
-      content = readFileSync(file, "utf8");
-      mtimeMs = statSync(file).mtimeMs;
-    } catch {
-      warnings.push(`unreadable memory file: ${file}`);
-      continue;
+  const files = listMarkdownFiles(root);
+
+  const collect = (active: QueryGroup[]): MemoryHit[] => {
+    const candidates: MemoryHit[] = [];
+    const matchedThreadIds = new Set<string>();
+    scannedFiles = 0;
+    for (const file of files) {
+      let content: string;
+      let mtimeMs: number;
+      try {
+        content = readFileSync(file, "utf8");
+        mtimeMs = statSync(file).mtimeMs;
+      } catch {
+        warnings.push(`unreadable memory file: ${file}`);
+        continue;
+      }
+      if (cutoffMs && mtimeMs < cutoffMs) continue;
+      scannedFiles += 1;
+      if (!matches(content.toLowerCase(), active, anyMode)) continue;
+      const threadId = frontmatterThreadId(content);
+      if (threadId) matchedThreadIds.add(threadId);
+      const relpath = relative(root, file).split(sep).join("/");
+      const kind = kindOfRelpath(relpath, "file");
+      for (const chunk of paragraphChunks(content)) {
+        const lower = chunk.text.toLowerCase();
+        if (!matches(lower, active, anyMode)) continue;
+        candidates.push({
+          origin: "file",
+          kind,
+          // Forward-slash relpaths on every platform (Codex memory backend parity).
+          relpath,
+          threadId,
+          updatedAt: new Date(mtimeMs).toISOString(),
+          excerpt: excerptAround(chunk.text, firstPresentMember(lower, active), 400),
+          startLine: chunk.startLine,
+          score: finalScore(scoreChunk(lower, active, lowerPhrase), kind, mtimeMs, nowMs),
+        });
+      }
     }
-    if (cutoffMs && mtimeMs < cutoffMs) continue;
-    scannedFiles += 1;
-    if (!matches(content.toLowerCase(), groups, anyMode)) continue;
-    const threadId = frontmatterThreadId(content);
-    if (threadId) matchedThreadIds.add(threadId);
-    const relpath = relative(root, file).split(sep).join("/");
-    const kind = kindOfRelpath(relpath, "file");
-    for (const chunk of paragraphChunks(content)) {
-      const lower = chunk.text.toLowerCase();
-      if (!matches(lower, groups, anyMode)) continue;
-      candidates.push({
-        origin: "file",
-        kind,
-        // Forward-slash relpaths on every platform (Codex memory backend parity).
-        relpath,
-        threadId,
-        updatedAt: new Date(mtimeMs).toISOString(),
-        excerpt: excerptAround(chunk.text, firstPresentMember(lower, groups), 400),
-        startLine: chunk.startLine,
-        score: finalScore(scoreChunk(lower, groups, lowerPhrase), kind, mtimeMs, nowMs),
-      });
+    searchStage1(home, active, anyMode, cutoffMs, lowerPhrase, nowMs, candidates, matchedThreadIds, warnings);
+    return candidates;
+  };
+
+  let candidates = collect(groups);
+  // Relaxed retry: a symbol query that lands nowhere on token boundaries is
+  // better answered with low-confidence substring hits than with nothing. This
+  // is the fallback half of R1 — `3956` written as `PR3956` has no boundary in
+  // front of the digits, and a strict-only gate would hide it.
+  if (candidates.length === 0 && hasBoundaryTerm(groups)) {
+    candidates = collect(relaxQueryGroups(groups));
+    if (candidates.length > 0) {
+      for (const hit of candidates) hit.score -= RELAXED_PENALTY;
+      warnings.push("no word-boundary matches — showing substring matches (lower confidence)");
     }
   }
-
-  searchStage1(home, groups, anyMode, cutoffMs, lowerPhrase, nowMs, candidates, matchedThreadIds, warnings);
 
   const hits = rankAndTrim(candidates, limit);
   return { hits, warnings, scannedFiles, elapsedMs: Date.now() - started };
@@ -308,7 +340,7 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
 /** stage1_outputs holds per-thread raw_memory + rollout_summary; read-only, fail-soft. */
 function searchStage1(
   home: string,
-  groups: string[][],
+  groups: QueryGroup[],
   anyMode: boolean,
   cutoffMs: number | null,
   lowerPhrase: string,
@@ -327,10 +359,15 @@ function searchStage1(
     db = openReadOnlyDb(dbPath);
     // One bound LIKE parameter per group member (injection-safe: terms never
     // enter SQL text); OR within a group, AND/OR across groups per anyMode.
+    //
+    // LIKE stays substring even for boundary-gated terms: SQL has no word
+    // boundary and adding one would mean shipping a custom collation. It is a
+    // prefilter, and the row body is re-checked with the same `matches`
+    // predicate the file path uses, so boundary semantics hold either way.
     const params: string[] = [];
     const conds = groups.map((group) => {
       const members = group.map((w) => {
-        params.push(`%${w}%`);
+        params.push(`%${w.text}%`);
         const n = params.length;
         return `(lower(raw_memory) LIKE ?${n} OR lower(rollout_summary) LIKE ?${n})`;
       });
@@ -346,6 +383,9 @@ function searchStage1(
       const updatedSec = typeof r.source_updated_at === "number" ? r.source_updated_at : null;
       if (cutoffMs && updatedSec !== null && updatedSec * 1000 < cutoffMs) continue;
       const body = `${String(r.raw_memory ?? "")}\n${String(r.rollout_summary ?? "")}`;
+      const lowerBody = body.toLowerCase();
+      // The LIKE prefilter above ignores boundaries; enforce them here.
+      if (!matches(lowerBody, groups, anyMode)) continue;
       const updatedMs = updatedSec !== null ? updatedSec * 1000 : null;
       candidates.push({
         origin: "stage1",
@@ -353,9 +393,9 @@ function searchStage1(
         relpath: `stage1_outputs/${threadId ?? "unknown"}`,
         threadId,
         updatedAt: updatedMs !== null ? new Date(updatedMs).toISOString() : null,
-        excerpt: excerptAround(body, firstPresentMember(body.toLowerCase(), groups), 400),
+        excerpt: excerptAround(body, firstPresentMember(lowerBody, groups), 400),
         startLine: null,
-        score: finalScore(scoreChunk(body.toLowerCase(), groups, lowerPhrase), "stage1", updatedMs, nowMs),
+        score: finalScore(scoreChunk(lowerBody, groups, lowerPhrase), "stage1", updatedMs, nowMs),
       });
     }
   } catch (err) {

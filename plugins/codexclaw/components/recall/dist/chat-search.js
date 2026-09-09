@@ -24,11 +24,15 @@ import { loadThreadMeta } from "./threads-db.js";
 import { openIndex, openIndexReadOnly, indexPath, indexStatus } from "./index-db.js";
 import { ingest } from "./ingest.js";
 import { queryIndex } from "./index-search.js";
+import { splitQueryWords, MAX_WORDS } from "./query-words.js";
 
 export const DEFAULT_DAYS = 7;
 export const DEFAULT_LIMIT = 50;
 export const MAX_LIMIT = 200;
-export const MAX_WORDS = 8;
+// Re-exported from query-words.ts, which now owns tokenization. memory-search
+// imports from there directly, so the old memory-search → chat-search edge is
+// gone; these two keep working for existing callers and tests.
+export { splitQueryWords, MAX_WORDS };
 
 
 
@@ -82,14 +86,12 @@ export const MAX_WORDS = 8;
 
 
 
-export function splitQueryWords(query        )           {
-  return query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((w) => w.length > 0)
-    .slice(0, MAX_WORDS);
-}
-
+/**
+ * Chat matching stays substring on raw lowercase words. R1's boundary gating is
+ * scoped to memory search on purpose: the index path resolves words through
+ * trigram MATCH, and changing chat semantics without changing the index query
+ * would break the index/scan equivalence oracle (test/index.test.ts:46).
+ */
 function entryMatches(lowerText        , words          , anyMode         )          {
   return anyMode ? words.some((w) => lowerText.includes(w)) : words.every((w) => lowerText.includes(w));
 }

@@ -27,7 +27,7 @@ const USAGE = [
   "                           [--limit N] [--context N] [--any] [--all] [--no-tools]",
   "                           [--scan] [--no-refresh] [--json]",
   "cxc chat index [--rebuild] [--status] [--json]",
-  "cxc memory search \"<query>\" [--days N] [--limit N] [--any] [--json]",
+  "cxc memory search \"<query>\" [--days N] [--limit N] [--any] [--no-synonyms] [--json]",
   "",
   `  --days N     restrict to the last N days (chat default ${DEFAULT_DAYS}, 0 = full history)`,
   "  --cwd PATH   only sessions whose working directory starts with PATH",

@@ -1,5 +1,5 @@
 /**
- * synonyms.test.ts — WP2 curated ko/en synonym expansion for memory search:
+ * synonyms.test.ts — curated ko/en synonym expansion for memory search:
  * cross-language recall, opt-out, AND-across-groups preservation, and the
  * documented same-group multiword collapse (A-gate reviewer warning #2).
  */
@@ -9,6 +9,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expandQueryWords, SYNONYM_GROUPS } from "../src/synonyms.ts";
+import { groupTexts } from "../src/query-words.ts";
 import { searchMemory, scoreChunk } from "../src/memory-search.ts";
 
 test("scoreChunk: synonym hit scores density on the best-present member (C-gate blocker #1)", () => {
@@ -21,9 +22,9 @@ test("scoreChunk: synonym hit scores density on the best-present member (C-gate 
 test("expandQueryWords: OR-groups lead with the original word, unknown words stay singleton", () => {
   const groups = expandQueryWords(["결정", "quagga"]);
   assert.equal(groups.length, 2);
-  assert.equal(groups[0][0], "결정");
-  assert.ok(groups[0].includes("decision"), "korean term expands to its english family");
-  assert.deepEqual(groups[1], ["quagga"]);
+  assert.equal(groups[0][0].text, "결정");
+  assert.ok(groupTexts(groups[0]).includes("decision"), "korean term expands to its english family");
+  assert.deepEqual(groupTexts(groups[1]), ["quagga"]);
   for (const g of expandQueryWords(SYNONYM_GROUPS.map((g) => g[0]))) {
     assert.ok(g.length <= 8, "group cap holds");
   }
