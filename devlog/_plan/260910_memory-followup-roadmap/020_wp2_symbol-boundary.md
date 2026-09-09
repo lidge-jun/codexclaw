@@ -541,3 +541,15 @@ node plugins/codexclaw/scripts/test.mjs "plugins/codexclaw/test/dist-freshness.t
 ## A 감사 반영 (round 1, 2026-09-10)
 
 blocker 없음. Low: §2의 "`splitQueryWords`만 쓰고"는 `chat-search.ts:27`이 `splitQueryWords, MAX_WORDS` 둘을 import하므로 "경계 매칭 함수를 쓰지 않고"로 읽는다. 본론(chat 경로에 경계 매칭 부재)은 그대로다.
+
+
+## P 재검증 (wp2 사이클, 2026-09-10)
+
+기준 트리 `91745432`(origin/dev, #124 머지 직후). `git diff --stat 369ed0e1 HEAD -- plugins/codexclaw/components/recall`이 비어 있어 §2 인용 행(`query-words.ts:54-74, 84-90, 126-139`, `memory-search.ts:351-355, 461-471`)은 그대로다. A 감사 반영(Low 1건)이 접혀 있으므로 이 문서를 그대로 실행한다. 브랜치 `codex/memory-l1-wp2-symbol`(origin/dev 위), PR base dev. wp1과 독립.
+
+
+
+## A 감사 반영 (wp2 round 1, 2026-09-10)
+
+리뷰어(grok-4.6) GO-WITH-FIXES(Medium 1): §4.1 after 펜스를 `query-words.ts:126-139`의 교체로 적용하면 `hasBoundaryTerm`(127-129)과 `relaxQueryGroups`(137-139)가 사라져 4.2의 재시도와 기존 테스트(`query-words.test.ts:82`)가 깨진다. 결정: 126-139는 **교체가 아니라 추가**다. `hasBoundaryTerm`은 그대로 두고, `relaxQueryGroups`는 `relaxGroupsAt(groups, new Set(groups.keys()))`에 위임하는 구현으로 유지하며, `relaxGroupsAt`은 그 아래에 추가한다. §4.1의 "after (해당 구간 교체·추가)" 문구는 이 절이 우선한다. Low: 헤더 HEAD는 P 재검증(91745432)이 덮고, 테스트의 `relaxGroupsAt` import는 직접 호출이 없으면 넣지 않는다.
+

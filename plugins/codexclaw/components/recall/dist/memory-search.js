@@ -19,7 +19,7 @@ import {
   termIncludes,
   countTermOccurrences,
   hasBoundaryTerm,
-  relaxQueryGroups,
+  relaxGroupsAt,
 
 } from "./query-words.js";
 import { expandQueryWords } from "./synonyms.js";
@@ -348,10 +348,24 @@ export function paragraphChunks(content        )                                
   return chunks;
 }
 
+function groupHit(lowerText        , group            )          {
+  return group.some((term) => termIncludes(lowerText, term));
+}
+
 /** AND across groups, OR within a group; anyMode = any member of any group. */
 function matches(lowerText        , groups              , anyMode         )          {
-  const groupHit = (group            ) => group.some((term) => termIncludes(lowerText, term));
-  return anyMode ? groups.some(groupHit) : groups.every(groupHit);
+  return anyMode ? groups.some((g) => groupHit(lowerText, g)) : groups.every((g) => groupHit(lowerText, g));
+}
+
+/**
+ * Record which groups occur anywhere in this text (independently of the other
+ * groups). Drives the per-group relaxed retry: only a boundary group that is
+ * absent from the WHOLE corpus is opened to substring matching.
+ */
+function markGroupPresence(lowerText        , groups              , present           )       {
+  for (let i = 0; i < groups.length; i++) {
+    if (!present[i] && groupHit(lowerText, groups[i])) present[i] = true;
+  }
 }
 
 /** First group member actually present in the text (excerpt anchor), else the lead word. */
@@ -399,7 +413,8 @@ export function searchMemory(query        , opts                      = {})     
   const files = listMarkdownFiles(root);
   const scope = buildCwdScope(home, opts, warnings);
 
-  const collect = (active              )              => {
+  const present            = groups.map(() => false);
+  const collect = (active              , tallyPresence         )              => {
     const candidates              = [];
     const matchedThreadIds = new Set        ();
     scannedFiles = 0;
@@ -415,7 +430,9 @@ export function searchMemory(query        , opts                      = {})     
       }
       if (cutoffMs && mtimeMs < cutoffMs) continue;
       scannedFiles += 1;
-      if (!matches(content.toLowerCase(), active, anyMode)) continue;
+      const lowerFile = content.toLowerCase();
+      if (tallyPresence) markGroupPresence(lowerFile, groups, present);
+      if (!matches(lowerFile, active, anyMode)) continue;
       const threadId = frontmatterThreadId(content);
       if (threadId) matchedThreadIds.add(threadId);
       const relpath = relative(root, file).split(sep).join("/");
@@ -458,16 +475,25 @@ export function searchMemory(query        , opts                      = {})     
     return candidates;
   };
 
-  let candidates = collect(groups);
-  // Relaxed retry: a symbol query that lands nowhere on token boundaries is
-  // better answered with low-confidence substring hits than with nothing. This
-  // is the fallback half of R1 — `3956` written as `PR3956` has no boundary in
-  // front of the digits, and a strict-only gate would hide it.
+  let candidates = collect(groups, true);
+  // Relaxed retry (per group, 260910 wp2): a symbol query that lands nowhere on
+  // token boundaries is better answered with low-confidence substring hits than
+  // with nothing — `3956` written as `PR3956` has no boundary in front of the
+  // digits. Only the boundary groups absent from the whole corpus are relaxed;
+  // a group that does hit somewhere keeps its precision (c-4: `LSP` must not
+  // start matching NaiControlsPanel because another group missed).
   if (candidates.length === 0 && hasBoundaryTerm(groups)) {
-    candidates = collect(relaxQueryGroups(groups));
-    if (candidates.length > 0) {
-      for (const hit of candidates) hit.score -= RELAXED_PENALTY;
-      warnings.push("no word-boundary matches — showing substring matches (lower confidence)");
+    fillStage1Presence(home, groups, present, cutoffMs, warnings);
+    const miss = new Set        ();
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some((t) => t.boundary) && !present[i]) miss.add(i);
+    }
+    if (miss.size > 0) {
+      candidates = collect(relaxGroupsAt(groups, miss), false);
+      if (candidates.length > 0) {
+        for (const hit of candidates) hit.score -= RELAXED_PENALTY;
+        warnings.push("no word-boundary matches — showing substring matches (lower confidence)");
+      }
     }
   }
   const hits = rankAndTrim(candidates, limit);
@@ -552,6 +578,37 @@ function backfillFromChat(
   } catch (err) {
     warnings.push(`chat fallback unavailable (${err instanceof Error ? err.message : String(err)})`);
     return hits;
+  }
+}
+
+/** stage1_outputs holds per-thread raw_memory + rollout_summary; read-only, fail-soft. */
+function fillStage1Presence(
+  home        ,
+  groups              ,
+  present           ,
+  cutoffMs               ,
+  warnings          ,
+)       {
+  if (present.every(Boolean)) return;
+  const dbPath = memoriesDbPath(home);
+  if (!dbPath) return;
+  let db                                           = null;
+  try {
+    db = openReadOnlyDb(dbPath);
+    const rows = db
+      .prepare("SELECT raw_memory, rollout_summary, source_updated_at FROM stage1_outputs")
+      .all()                                  ;
+    for (const r of rows) {
+      const updatedSec = typeof r.source_updated_at === "number" ? r.source_updated_at : null;
+      if (cutoffMs && updatedSec !== null && updatedSec * 1000 < cutoffMs) continue;
+      const body = `${String(r.raw_memory ?? "")}\n${String(r.rollout_summary ?? "")}`.toLowerCase();
+      markGroupPresence(body, groups, present);
+      if (present.every(Boolean)) return;
+    }
+  } catch (err) {
+    warnings.push(`memories db unreadable (${err instanceof Error ? err.message : String(err)})`);
+  } finally {
+    db?.close();
   }
 }
 

@@ -51,10 +51,24 @@ const SHORT_ASCII = /^[a-z]{1,3}$/;
 const NUMERIC_ID = /^#?\d{2,10}$/;
 /** Abbreviated or full commit SHA. */
 const SHA = /^[0-9a-f]{7,40}$/;
+/**
+ * Dotted version: 2.49, 2.49.0, 2.49.0-rc.1, with an optional leading v. Judged
+ * BEFORE the filename rule (260910 wp2): `2.49.0` ends in `.0`, which FILENAME
+ * read as an extension, and a version written as `v2.49.0` in the corpus then
+ * failed the token-boundary test because the `v` is a token character.
+ */
+const VERSION = /^v?\d+\.\d+(?:\.\d+)*(?:-[a-z0-9.]+)?$/;
+/** Version core without the v — the slice looked up in the haystack for "2.49.0". */
+const VERSION_CORE = /^\d+\.\d+(?:\.\d+)*(?:-[a-z0-9.]+)?$/;
 /** Filename with an extension: hook.ts, plan.md. */
 const FILENAME = /\.[a-z0-9]{1,5}$/;
 /** Anything carrying a path separator: src/hook.ts. */
 const PATH_LIKE = /[/\\]/;
+
+/** Is this query word a dotted version (optionally v-prefixed)? */
+export function isVersionWord(rawWord: string): boolean {
+  return VERSION.test(rawWord.toLowerCase());
+}
 
 /**
  * Is this query word symbol-shaped, i.e. should it match on token boundaries?
@@ -65,6 +79,7 @@ export function isSymbolWord(rawWord: string): boolean {
   if (UPPER_ACRONYM.test(rawWord)) return true;
   const lower = rawWord.toLowerCase();
   return (
+    isVersionWord(rawWord) ||
     SHORT_ASCII.test(lower) ||
     NUMERIC_ID.test(lower) ||
     SHA.test(lower) ||
@@ -83,11 +98,21 @@ export function isSymbolWord(rawWord: string): boolean {
  */
 const TOKEN_CHAR = /[A-Za-z0-9_]/;
 
+function isTokenEdge(ch: string): boolean {
+  return ch === "" || !TOKEN_CHAR.test(ch);
+}
+
 function isBoundaryAt(lowerText: string, at: number, length: number): boolean {
   const before = at > 0 ? lowerText[at - 1] : "";
   const after = at + length < lowerText.length ? lowerText[at + length] : "";
-  // Empty string (start/end of text) is a boundary: TOKEN_CHAR never matches "".
-  return !TOKEN_CHAR.test(before) && !TOKEN_CHAR.test(after);
+  if (isTokenEdge(before) && isTokenEdge(after)) return true;
+  // v2.49.0 / (v2.49.0): a lone v immediately before a VERSION core counts as a
+  // boundary iff that v itself sits on a token edge. av2.49.0 and 12.49.0 stay out.
+  if (before === "v" && isTokenEdge(after) && VERSION_CORE.test(lowerText.slice(at, at + length))) {
+    const beforeV = at >= 2 ? lowerText[at - 2] : "";
+    return isTokenEdge(beforeV);
+  }
+  return false;
 }
 
 /**
@@ -135,7 +160,18 @@ export function hasBoundaryTerm(groups: QueryGroup[]): boolean {
  * `PR3956` has no boundary before the digits).
  */
 export function relaxQueryGroups(groups: QueryGroup[]): QueryGroup[] {
-  return groups.map((group) => group.map((term) => ({ text: term.text, boundary: false })));
+  return relaxGroupsAt(groups, new Set(groups.keys()));
+}
+
+/**
+ * Drop boundary gating only for the groups at `indexes`. The per-group retry
+ * (260910 wp2) relaxes just the symbol groups that found nothing anywhere in the
+ * corpus, so a group that does hit on boundaries keeps its precision.
+ */
+export function relaxGroupsAt(groups: QueryGroup[], indexes: ReadonlySet<number>): QueryGroup[] {
+  return groups.map((group, i) =>
+    indexes.has(i) ? group.map((term) => ({ text: term.text, boundary: false })) : group,
+  );
 }
 
 /** Plain member texts of a group — for assertions and diagnostics. */
