@@ -40,3 +40,6 @@ PR 한 건의 CI 벽시계 시간은 WSL 잡이 정한다(817초). WSL은 wp07�
 
 Privacy gate(DEV-PRIVACY-01): 이 unit은 CI 설정만 다루며 고객·개인 데이터가 없다.
 
+## 결과 (2026-09-10)
+
+PR #121(헤드 50f6609c) 머지 커밋 `ba458867`. PR에서 새 ci.yml이 그대로 돌아 Windows 샤드 4개, macOS, ubuntu 전체 레인, 집계 `ci` 모두 SUCCESS(`evidence/pr121-checks.json`). 첫 헤드에서는 ubuntu 레인이 뱃지 총계(2941≠2945)로 실패했고 집계 `ci`가 그것을 FAILURE로 드러냈다(집계가 설계대로 동작한 증거). dev push `ba458867`에서 CI와 WSL(wsl-drvfs, wsl-ext4) 모두 SUCCESS(`evidence/dev-push-ba458867-runs.json`, 잡별 시간 포함). main 룰셋 20884837의 필수 체크를 `ci` + artifact/install로 갱신(`evidence/ruleset-20884837-before.json`, `-after.json`). 이 unit의 기록 커밋은 별도 문서 PR로 dev에 올린다.
