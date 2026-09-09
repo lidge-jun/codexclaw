@@ -30,7 +30,8 @@ cxc chat search "<query>" [--days N] [--cwd PATH] [--role r] [--source main|suba
                           [--limit N] [--context N] [--any] [--all] [--no-tools]
                           [--recent] [--scan] [--no-refresh] [--json]
 cxc chat index [--rebuild] [--status]
-cxc memory search "<query>" [--days N] [--limit N] [--any] [--no-synonyms] [--json]
+cxc memory search "<query>" [--days N] [--limit N] [--any] [--no-synonyms]
+                            [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json]
 ```
 
 Defaults that matter:
@@ -70,6 +71,39 @@ excerpt. Stems shorter than two syllables are never produced, so `검사` is not
 split into `검`.
 
 Pass `--no-synonyms` for literal matching with no expansion at all.
+
+## Scoping memory search to a project
+
+`--cwd <path>` ranks memories recorded under that working directory first; it
+does not hide anything else. That is deliberate. The memory store is heavily
+concentrated in a few long-running projects, and a worktree checkout typically
+owns one summary or none, so a hard filter would answer nothing exactly when you
+most need history. A boost puts the project's own memories on top and keeps the
+rest reachable below them.
+
+`--cwd-only <path>` is the hard filter, for when unrelated projects are noise
+rather than context. When it empties the result, the output says so and points
+back at `--cwd`.
+
+Scope comes from a rollout summary's `cwd:` frontmatter, and for stage1 rows
+from a thread-id join against the Codex state db (`stage1_outputs` stores no
+working directory). Curated files such as MEMORY.md carry no cwd at all, so a
+chunk that names the path in prose counts as a weaker signal at half the boost
+— that is what keeps handbook rules inside a `--cwd-only` result. Prefix
+matching is separator-aware: `/repo` never matches `/repo2`. Every hit prints
+its `{cwd}` when one is known.
+
+## When memory has nothing
+
+The memory store is consolidated on a delay, so a topic from an hour ago may
+have no summary yet. When `cxc memory search` finds no artifact, it answers
+from the raw chat corpus instead: up to five session messages, labelled
+`(chat/chat)`, with a warning saying the result was substituted. Tool call and
+output text is excluded — it matches almost any query and drowns out what was
+actually said. Pass `--no-chat` for a memory-only answer.
+
+The backfill never refreshes the sidecar index, so it costs a query rather than
+an ingest, and `--cwd-only` stays in force across it.
 
 ## Escalation ladder
 
