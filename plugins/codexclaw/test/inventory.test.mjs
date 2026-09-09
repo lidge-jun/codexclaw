@@ -146,12 +146,12 @@ test("applyBlocks rewrites a stale badge and reports the drifted file", () => {
   const { dir } = scratch();
   try {
     const p = join(dir, "README.md");
-    writeFileSync(p, readFileSync(p, "utf8").replace("badge/hooks-23-", "badge/hooks-18-"));
+    writeFileSync(p, readFileSync(p, "utf8").replace(/badge\/hooks-\d+-/, "badge/hooks-0-"));
     const inv = collectInventory(pluginRoot, dir);
     const drifted = applyBlocks(inv, { write: false, repoRoot: dir });
     assert.deepEqual(drifted, ["README.md"]);
     applyBlocks(inv, { write: true, repoRoot: dir });
-    assert.match(readFileSync(p, "utf8"), /badge\/hooks-23-/);
+    assert.ok(readFileSync(p, "utf8").includes(`badge/hooks-${inv.hooks.length}-`));
     assert.deepEqual(applyBlocks(inv, { write: false, repoRoot: dir }), []);
   } finally {
     rmSync(dir, { recursive: true, force: true });

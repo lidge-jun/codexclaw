@@ -18,8 +18,8 @@ test("real CLI persists route, survives separate processes, and emits startup pr
     assert.equal(child.status, 0, child.stdout + child.stderr);
     return child.stdout ? JSON.parse(child.stdout) : null;
   };
-  assert.match(call({ cwd }, ["session-start"]).hookSpecificOutput.additionalContext, /executor/);
-  assert.equal(call({ cwd, agent_id: "child" }, ["session-start"]), null);
+  assert.match(call({ cwd }, ["hook", "session-start"]).hookSpecificOutput.additionalContext, /executor/);
+  assert.equal(call({ cwd, agent_id: "child" }, ["hook", "session-start"]), null);
   const base = { sessionId: "fixture", dispatchId: "one" };
   const first = call({ ...base, action: "start", role: "executor" });
   const claim = call({ ...base, action: "claim", attemptId: first.attemptId });
@@ -44,7 +44,7 @@ test("real CLI refuses corrupt state and invalid JSON rather than resetting it",
   assert.equal(out.status, 1); assert.match(out.stdout, /invalid dispatch identity/);
 });
 test("malformed startup payload is silent, malformed dispatch input is visible", () => {
-  const hook = spawnSync(process.execPath, [cli, "session-start"], { input: "", encoding: "utf8" });
+  const hook = spawnSync(process.execPath, [cli, "hook", "session-start"], { input: "", encoding: "utf8" });
   assert.equal(hook.status, 0); assert.equal(hook.stdout, "");
   const command = spawnSync(process.execPath, [cli], { input: "", encoding: "utf8" });
   assert.equal(command.status, 1); assert.ok(JSON.parse(command.stdout).error);

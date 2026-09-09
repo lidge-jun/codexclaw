@@ -13,6 +13,7 @@ export function sessionFallbackNotice(cwd: string): string {
   return JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: `[codexclaw] First fallback configured for ${active.join(", ")}. ${DISPATCH_GUIDANCE}` } }) + "\n";
 }
 function main(): void {
+  const sessionStart = process.argv[2] === "session-start" || (process.argv[2] === "hook" && process.argv[3] === "session-start");
   try {
     const buffer = Buffer.alloc(64 * 1024 + 1);
     let size = 0;
@@ -23,7 +24,7 @@ function main(): void {
       if (size === buffer.length) throw new Error("dispatch input exceeds 64 KiB");
     }
     const raw = buffer.subarray(0, size).toString("utf8");
-    if (process.argv[2] === "session-start") {
+    if (sessionStart) {
       const payload = JSON.parse(raw) as { cwd?: unknown; agent_id?: unknown };
       if (typeof payload.agent_id === "string" && payload.agent_id) return;
       process.stdout.write(sessionFallbackNotice(typeof payload.cwd === "string" ? payload.cwd : process.cwd()));
@@ -31,7 +32,7 @@ function main(): void {
     }
     process.stdout.write(JSON.stringify(runDispatch(process.cwd(), JSON.parse(raw))) + "\n");
   } catch (error) {
-    if (process.argv[2] === "session-start") return;
+    if (sessionStart) return;
     process.stdout.write(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }) + "\n");
     process.exitCode = 1;
   }

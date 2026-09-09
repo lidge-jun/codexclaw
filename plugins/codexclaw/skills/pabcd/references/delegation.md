@@ -81,7 +81,8 @@ protocol. A PreToolUse reminder after a direct call cannot retroactively manage 
    permits one native call. Prepend the returned `marker` and a newline to the
    original bounded task and required skills. Use a fresh context and the returned
    candidate's model/effort (null inherits the original session). Preserve the role.
-3. Report `outcome:created` and the actual `agentId`, then use native wait. Report
+3. Every report includes `sessionId`, `dispatchId`, and the current `attemptId`.
+   Report `outcome:created` and the actual `agentId`, then use native wait. Report
    `outcome:complete` with that ID on successful completion. Do not confuse a
    successful spawn with successful work.
 4. On failure report `outcome:failed`, the original `error`, and `executionState`:
@@ -98,7 +99,12 @@ protocol. A PreToolUse reminder after a direct call cannot retroactively manage 
 
 Use `action:status` to recover after interruption. It never reissues an executable
 spawn. A claimed attempt with a lost response must be reconciled, not claimed
-again. Do not remove locks to make a retry work. This is a main-followed protocol,
+again. Do not remove locks to make a retry work. If a lock survives a crashed
+CLI process, the task owner first verifies that no writer process remains and
+reconciles native child status and workspace changes. Preserve the dispatch JSON
+as evidence; only then remove that task's empty `.json.lock` directory with
+`rmdir` and inspect `status`. A claimed attempt still does not become replayable.
+Never delete dispatch state or create a replacement task ID to evade reconciliation. This is a main-followed protocol,
 not universal enforcement over callers that bypass it.
 
 OCX owns request retries, cooldown and its existing global/per-model fallback.

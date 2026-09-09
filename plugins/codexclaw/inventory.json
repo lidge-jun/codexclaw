@@ -193,6 +193,12 @@
       "matcher": null
     },
     {
+      "file": "session-start-announcing-subagent-fallback.json",
+      "event": "SessionStart",
+      "component": "subagent-config",
+      "matcher": null
+    },
+    {
       "file": "session-start-bootstrapping-pabcd-state.json",
       "event": "SessionStart",
       "component": "pabcd-state",
