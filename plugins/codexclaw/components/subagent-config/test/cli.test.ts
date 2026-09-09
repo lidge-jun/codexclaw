@@ -33,12 +33,12 @@ test("parse: unknown role / bad mode / no-op set are errors", () => {
   assert.match(parseSubagentsArgs(["set", "reviewer"]).error ?? "", /requires at least one/);
 });
 
-test("run: list returns all three roles defaulted", () => {
+test("run: list returns all four roles defaulted", () => {
   const cwd = tmp();
   const res = runSubagents(parseSubagentsArgs(["list"]), cwd);
   assert.equal(res.code, 0);
   const cfg = JSON.parse(res.output);
-  for (const role of ["explorer", "reviewer", "executor"]) {
+  for (const role of ["explorer", "reviewer", "executor", "architect"]) {
     assert.equal(cfg.roles[role].mode, "default");
   }
 });
@@ -90,4 +90,13 @@ test("run: trust-token prints a config-and-project-bound export", () => {
   const result = runSubagents(parsed, cwd);
   assert.equal(result.code, 0);
   assert.match(result.output, /^export CODEXCLAW_TRUST_PROJECT_SUBAGENTS='sha256:[a-f0-9]{64}'$/);
+});
+
+test('architect CLI settings roundtrip without changing reviewer', () => {
+  const cwd = tmp();
+  runSubagents(parseSubagentsArgs(['set', 'reviewer', '--mode', 'model', '--model', 'reviewer-only']), cwd);
+  const result = runSubagents(parseSubagentsArgs(['set', 'architect', '--mode', 'model', '--model', 'architect-only', '--effort', 'high']), cwd);
+  assert.equal(result.code, 0);
+  assert.equal(JSON.parse(runSubagents(parseSubagentsArgs(['get', 'architect']), cwd).output).model, 'architect-only');
+  assert.equal(readConfig(cwd).roles.reviewer.model, 'reviewer-only');
 });

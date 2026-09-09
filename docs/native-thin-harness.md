@@ -69,7 +69,7 @@ Dispatch is decided by:
 
 Complex work may be dispatched when the packet is specifiable and verifiable. Simple-looking work stays with the main agent when its decision boundary is unclear. Two distinct agents failing the same unchanged packet retires the packet; the main agent reclaims the slice.
 
-Use native Codex spawn surfaces. Permanent roles remain explorer, reviewer, and executor; surface specialization is attached as skills rather than multiplied into a role catalog.
+Use native Codex spawn surfaces. Configurable logical roles are explorer, reviewer, executor, and architect. Architect uses the existing dev-architecture skill for design proposals and plan-alignment checks; main retains judgment. These prompt sources do not auto-register native roles. Other surface specialization stays attached as skills.
 
 ## Extension admission contract
 

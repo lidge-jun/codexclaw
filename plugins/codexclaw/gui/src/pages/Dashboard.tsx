@@ -25,13 +25,14 @@ interface DashboardState {
   statuses: AgentStatus[];
 }
 
-const SUBAGENT_ROLES = ["explorer", "reviewer", "executor"] as const;
+const SUBAGENT_ROLES = ["explorer", "reviewer", "executor", "architect"] as const;
 type SubagentRole = (typeof SUBAGENT_ROLES)[number];
 
 const ROLE_META: Record<SubagentRole, { label: string; desc: string }> = {
   explorer: { label: "Explorer", desc: "Discovery and context gathering" },
   reviewer: { label: "Reviewer", desc: "Audit, review, and verification" },
   executor: { label: "Executor", desc: "Focused implementation work" },
+  architect: { label: "Architect", desc: "Design proposals and plan alignment checks." },
 };
 
 function statusDot(status: string): "ok" | "warn" | "off" | "err" {

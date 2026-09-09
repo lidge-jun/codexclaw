@@ -17,3 +17,21 @@
   a direct independent audit instead. Normative lifecycle rules: DISPATCH-ACTOR-01 /
   DISPATCH-RETIRE-01 in `structure/20_pabcd_dispatch_doctrine.md` §3
   (repository-only provenance, not an installed prerequisite).
+
+## Architect recheck after audit amendments
+
+Keep the independent reviewer and its audit loop. Reinvoke the plan's architect only
+when an amendment changes a documented design decision: module responsibility,
+data structure, interface or execution flow. Main names the decision ID, before/after
+and reason, updates the executable plan, and requests reflection from the SAME architect
+before completing A. Text edits or test clarification alone do not trigger a call.
+If test work changes an interface or flow decision, that decision change does.
+Record the reflection and main disposition separately, then re-audit the amended plan
+with the reviewer. Lifecycle and failure handling: [delegation](delegation.md#architect-context-and-routing).
+
+Prefer receiving the reviewer result before requesting architect revisions; if opening a new
+review round, do so after reflection. An unsigned architect exit overlapping an in-flight A
+round can produce `review_signoff_unparsed` in the existing review observer. That is a
+diagnostic about missing reviewer sign-off, not architect failure, A approval or a gate
+verdict. Record its cause if it occurs. Do not manufacture `LAUNCH`/`VERDICT` reviewer
+sign-off for the architect; its `ALIGNED`/`MISALIGNED` result has a different purpose.

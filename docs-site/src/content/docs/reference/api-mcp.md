@@ -10,7 +10,7 @@ role configuration. It is declared through the plugin manifest's `mcpServers` en
 
 ### subagents_get
 
-Read the per-role subagent config (`explorer` / `reviewer` / `executor`): `mode`, `model`,
+Read the per-role subagent config (`explorer` / `reviewer` / `executor` / `architect`): `mode`, `model`,
 `promptOverride`.
 
 ```jsonc
@@ -25,7 +25,7 @@ Update one role's subagent config.
 ```jsonc
 // input
 {
-  "role": "explorer | reviewer | executor",   // required
+  "role": "explorer | reviewer | executor | architect",   // required
   "mode": "default | model",                    // "model" requires a model id
   "model": "<model id> | null",
   "promptOverride": "<string> | null"

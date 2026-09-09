@@ -14,11 +14,12 @@
  *                        [--prompt <text>|--clear-prompt]
  */
 import { readConfig, setRole, resetRole, type ConfigScope, projectConfigTrustToken, ROLES, EFFORTS, type RoleName, type RolePatch, type EffortName } from "./store.ts";
+import { registerRole, resolveNativeRoleHome } from "./role-registration.ts";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export interface ParsedSubagentsArgs {
-  action: "list" | "get" | "set" | "reset" | "trust-token" | "help";
+  action: "list" | "get" | "set" | "reset" | "register" | "trust-token" | "help";
   role?: RoleName;
   scope?: ConfigScope;
   patch?: RolePatch;
@@ -31,6 +32,12 @@ function isRole(v: string | undefined): v is RoleName {
 
 /** Pure structural parse of the `subagents` argv (excluding the leading verb). */
 export function parseSubagentsArgs(argv: string[]): ParsedSubagentsArgs {
+  // Register rejects extra flags, including trailing --global, before scope stripping.
+  if (argv[0] === "register") {
+    return argv.length === 2 && (argv[1] === "executor" || argv[1] === "architect")
+      ? { action: "register", role: argv[1] }
+      : { action: "register", error: "usage: subagents register executor|architect" };
+  }
   // Scope is an explicit trailing selector, so prompt/model values stay literal.
   if (argv.at(-1) === "--global" && !["--prompt", "--model", "--fallback-model"].includes(argv.at(-2) ?? "")) {
     return { ...parseProjectArgs(argv.slice(0, -1)), scope: "global" };
@@ -111,6 +118,7 @@ const HELP = [
   "  subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort] [--prompt <text>|--clear-prompt]",
   "  --fallback-model <id> [--fallback-effort low|medium|high|xhigh|inherit] | --clear-fallback",
   "  subagents dispatch      main-owned fallback protocol; JSON stdin (start/claim/report/status)",
+  "  subagents register executor|architect   register or update managed role; restart Codex afterward",
   "  subagents reset <role>  remove the role override and inherit the next scope",
   "  Append --global to list/get/set/reset to manage user defaults",
   "  subagents trust-token   print an export bound to this repo and exact config",
@@ -125,7 +133,7 @@ export interface SubagentsResult {
 }
 
 /** Execute a parsed `subagents` command against the store at `cwd`. Never throws. */
-export function runSubagents(parsed: ParsedSubagentsArgs, cwd: string): SubagentsResult {
+export function runSubagents(parsed: ParsedSubagentsArgs, cwd: string, nativeHome?: string): SubagentsResult {
   if (parsed.error) return { code: 1, output: `subagents: ${parsed.error}` };
   switch (parsed.action) {
     case "help":
@@ -140,6 +148,14 @@ export function runSubagents(parsed: ParsedSubagentsArgs, cwd: string): Subagent
       const token = projectConfigTrustToken(cwd);
       if (!token) return { code: 1, output: "subagents: cannot hash .codexclaw/subagents.json" };
       return { code: 0, output: `export CODEXCLAW_TRUST_PROJECT_SUBAGENTS='${token}'` };
+    }
+    case "register": {
+      try {
+        const result = registerRole(parsed.role as "architect" | "executor", nativeHome ?? resolveNativeRoleHome());
+        return { code: 0, output: `${result.created ? "Registered" : result.updated ? "Updated" : "Already registered"}: ${result.path}\nStart a new Codex session and verify ${parsed.role} appears in the live spawn schema.` };
+      } catch (err) {
+        return { code: 1, output: `subagents: ${err instanceof Error ? err.message : String(err)}` };
+      }
     }
     case "reset": {
       try {

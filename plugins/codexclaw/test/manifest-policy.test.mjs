@@ -123,7 +123,7 @@ test("MEMORY-WRITE-GATE-01: the memory-write hook is registered and pins both wr
 
 test("S5: each role TOML is spawn-valid (name + description + default model + instructions)", () => {
   const agentsDir = join(pluginRoot, "agents");
-  for (const role of ["explorer", "reviewer", "executor"]) {
+  for (const role of ["explorer", "reviewer", "executor", "architect"]) {
     const toml = readFileSync(join(agentsDir, `${role}.toml`), "utf8");
     assert.match(toml, new RegExp(`name\\s*=\\s*"${role}"`), `${role}.toml name mismatch`);
     assert.match(toml, /description\s*=\s*"/, `${role}.toml missing description`);

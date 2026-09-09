@@ -127,7 +127,7 @@ export interface SpawnSkillRef {
 }
 
 export interface SpawnPayload {
-  agent_type: "explorer" | "worker";
+  agent_type: "explorer" | "worker" | "architect";
   message: string;
   model?: string;
   items?: SpawnItem[];   // skill attachments + the task text, when used
