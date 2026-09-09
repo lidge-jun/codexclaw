@@ -103,6 +103,14 @@ export async function readCatalog(options: CatalogOptions = {}): Promise<LiveCat
         if (native === null) throw new Error("native catalog unavailable");
         entries = native;
       }
+      if (source === "ocx") {
+        const seen = new Set(entries.map(entry => entry.id));
+        for (const entry of readNativeCatalog(env, true) ?? []) {
+          if (seen.has(entry.id)) continue;
+          seen.add(entry.id);
+          entries.push(entry);
+        }
+      }
       const catalog: LiveCatalog = { state: source === "ocx" ? "ocx-active" : "native-catalog", entries,
         status: "fresh", source, fetchedAt: new Date(now()).toISOString() };
       if (!persist(path, key, catalog, home)) catalog.message = "Model list loaded; its cache could not be saved.";

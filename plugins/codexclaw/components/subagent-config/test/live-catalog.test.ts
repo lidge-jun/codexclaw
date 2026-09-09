@@ -83,3 +83,20 @@ test('real subprocess timeout and oversized stdout are bounded', {skip:process.p
   const started=Date.now();await assert.rejects(runOcxModels(childEnv));
   assert.ok(Date.now()-started<18_000,'timeout failed to stop owned subprocess');
 });
+
+
+test('account selectors merge with live models and disappear after catalog refresh', async t => {
+  const {env}=fixture(t);
+  const path=join(env.CODEX_HOME,'models_cache.json');
+  const account={slug:'main/gpt-daybreak-blue-latest',display_name:'main / Daybreak Blue',opencodex_catalog_kind:'account-selector-v1',supported_reasoning_levels:[{effort:'high'}]};
+  writeFileSync(path,JSON.stringify({models:[account,{...account,slug:'second/gpt-daybreak-blue-latest'},{slug:'stale/general'},{...account,slug:'hidden/daybreak',visibility:'hide'}]}));
+  const options={env,forceRefresh:true,runOcx:async()=>JSON.stringify([{namespaced:'gpt-daybreak-blue-latest',native:true}])};
+  const result=await readCatalog(options);
+  assert.deepEqual(result.entries.map(e=>e.id),['gpt-daybreak-blue-latest','main/gpt-daybreak-blue-latest','second/gpt-daybreak-blue-latest']);
+  assert.equal(result.entries[1].label,'main / Daybreak Blue');
+  assert.deepEqual(result.entries[1].reasoningEfforts,['high']);
+  const duplicate=await readCatalog({...options,runOcx:async()=>JSON.stringify([{namespaced:account.slug,native:true}])});
+  assert.equal(duplicate.entries.filter(e=>e.id===account.slug).length,1);
+  writeFileSync(path,JSON.stringify({models:[]}));
+  assert.deepEqual((await readCatalog(options)).entries.map(e=>e.id),['gpt-daybreak-blue-latest']);
+});

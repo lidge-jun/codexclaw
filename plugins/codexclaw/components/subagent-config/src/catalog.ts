@@ -85,7 +85,7 @@ export function reasoningEfforts(raw: unknown): string[] | null {
   }))];
 }
 
-export function readNativeCatalog(env: NodeJS.ProcessEnv = process.env): CatalogEntry[] | null {
+export function readNativeCatalog(env: NodeJS.ProcessEnv = process.env, accountSelectorsOnly = false): CatalogEntry[] | null {
   const path = nativeCatalogPath(env);
   if (!path || !existsSync(path)) return null;
   try {
@@ -96,10 +96,11 @@ export function readNativeCatalog(env: NodeJS.ProcessEnv = process.env): Catalog
     return list.flatMap(raw => {
       const id = entryKey(raw);
       const row = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+      if (accountSelectorsOnly && (row.opencodex_catalog_kind !== "account-selector-v1" || !id || id.split("/").length !== 2 || id.split("/").some(part => !part))) return [];
       if (!id?.trim() || seen.has(id) || row.disabled === true || row.visibility === "hide") return [];
       seen.add(id);
       const source: ModelSource = isRoutedSlug(id) ? "ocx" : "native";
-      return [{ id, source, label: id, reasoningEfforts: reasoningEfforts(row.reasoningEfforts ?? row.supported_reasoning_levels) }];
+      return [{ id, source, label: typeof row.display_name === "string" && row.display_name.trim() ? row.display_name : id, reasoningEfforts: reasoningEfforts(row.reasoningEfforts ?? row.supported_reasoning_levels) }];
     });
   } catch { return null; }
 }
