@@ -206,10 +206,13 @@ async function runHook(event: string): Promise<number> {
     if (event === "user-prompt-submit") {
       out = handleUserPromptSubmit(JSON.parse(raw) as UserPromptSubmitPayload);
     } else if (event === "session-start") {
-      const payload = raw.trim() ? JSON.parse(raw) as { cwd?: string } : {};
-      out = handleSessionStart(indexStatusLine(), payload.cwd ?? process.cwd());
+      // `source` distinguishes a fresh start from a post-compaction restart; the
+      // runtime re-fires SessionStart with source "compact" after compacting.
+      const payload = raw.trim() ? JSON.parse(raw) as { cwd?: string; source?: string } : {};
+      out = handleSessionStart(indexStatusLine(), payload.cwd ?? process.cwd(), payload.source);
     } else if (event === "post-compact") {
       const payload = raw.trim() ? JSON.parse(raw) as { cwd?: string } : {};
+      // Always "" — PostCompact output is universal-only (see handlePostCompact).
       out = handlePostCompact(payload.cwd ?? process.cwd());
     }
     if (out !== "") process.stdout.write(out);

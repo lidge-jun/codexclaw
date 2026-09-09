@@ -76,12 +76,29 @@ test("session-start advertises recall with and without index status", () => {
   assert.ok(!bare.hookSpecificOutput.additionalContext.includes("Index:"));
 });
 
-test("post-compact steers recovery through recall search", () => {
-  const out = JSON.parse(handlePostCompact());
-  assert.equal(out.hookSpecificOutput.hookEventName, "PostCompact");
-  assert.match(out.hookSpecificOutput.additionalContext, /compacted/);
-  assert.match(out.hookSpecificOutput.additionalContext, /cxc chat search/);
-  assert.match(out.hookSpecificOutput.additionalContext, /cxc memory search/);
+test("post-compact emits nothing: its output wire cannot carry context", () => {
+  // The PostCompact output wire is universal-only and denies unknown fields, so a
+  // hookSpecificOutput envelope is rejected and the run is recorded as failed.
+  // Empty stdout is the success path; the recovery text moved to SessionStart.
+  assert.equal(handlePostCompact(), "");
+  assert.equal(handlePostCompact("/repo/current"), "");
+});
+
+test("session-start carries the recovery directive when the source is a compaction", () => {
+  const compacted = JSON.parse(handleSessionStart("", undefined, "compact"));
+  assert.equal(compacted.hookSpecificOutput.hookEventName, "SessionStart");
+  const text = compacted.hookSpecificOutput.additionalContext;
+  assert.match(text, /compacted/);
+  assert.match(text, /cxc chat search/);
+  assert.match(text, /cxc memory search/);
+
+  // A normal start keeps the availability wording and must not claim a compaction.
+  for (const source of [undefined, "startup", "resume", "clear"]) {
+    const plain = JSON.parse(handleSessionStart("", undefined, source)).hookSpecificOutput
+      .additionalContext;
+    assert.doesNotMatch(plain, /compacted/, `source=${source} must not mention compaction`);
+    assert.match(plain, /recall is available/);
+  }
 });
 
 test("automatic recall stays CWD-local and labels historical text as untrusted data", () => {

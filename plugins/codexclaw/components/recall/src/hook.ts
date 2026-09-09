@@ -55,6 +55,8 @@ export interface SessionStartPayload {
   hook_event_name?: string;
   cwd?: string;
   session_id?: string;
+  /** "startup" | "resume" | "clear" | "compact" (codex-rs session-start input wire). */
+  source?: string;
 }
 
 /** Past-work recall idioms. Korean forms cover 그때/지난번/저번/예전에/기억/뭐였지. */
@@ -231,9 +233,15 @@ export function buildCwdContext(cwd: string, deps: RecallContextDeps = DEFAULT_R
 /**
  * SessionStart: inject CWD-scoped recent work context + recall availability notice.
  * The `cwd` comes from the hook JSON payload; `status` is the index status line.
+ *
+ * `source` is the runtime's own signal for why the session started. Compaction
+ * re-fires SessionStart with source "compact" (codex-rs queues SessionStartSource::Compact
+ * after a compaction), which is where the post-compaction recovery directive is
+ * delivered — PostCompact output itself cannot carry it (see handlePostCompact).
  */
-export function handleSessionStart(status: string, cwd?: string): string {
+export function handleSessionStart(status: string, cwd?: string, source?: string): string {
   const parts: string[] = [];
+  const compacted = source === "compact";
 
   // Auto-inject CWD context (the actual memory recovery)
   if (cwd) {
@@ -241,13 +249,22 @@ export function handleSessionStart(status: string, cwd?: string): string {
     if (cwdCtx) parts.push(cwdCtx);
   }
 
-  // Recall availability notice (pointer)
   const cxc = CXC();
-  const notice = [
-    "[cxc-recall] Past-session recall is available (read-only). Before asking the user",
-    "about prior work \u2014 unfamiliar terms, lost context, \"\uadf8\ub54c/\uc9c0\ub09c\ubc88/last time\" \u2014 run:",
-    `  ${cxc} chat search "<terms>" --days 0   |   ${cxc} memory search "<topic>"`,
-  ];
+  // Recall availability notice (pointer). After a compaction the same pointer is
+  // framed as recovery: the detail the agent is missing was just dropped from the
+  // context window, not never seen.
+  const notice = compacted
+    ? [
+        "[cxc-recall] Context was just compacted. If any earlier detail is now missing,",
+        "recover it from past sessions before asking the user to repeat themselves:",
+        `  ${cxc} chat search "<distinctive terms>" --days 0 --context 2`,
+        `  ${cxc} memory search "<topic>"`,
+      ]
+    : [
+        "[cxc-recall] Past-session recall is available (read-only). Before asking the user",
+        "about prior work \u2014 unfamiliar terms, lost context, \"\uadf8\ub54c/\uc9c0\ub09c\ubc88/last time\" \u2014 run:",
+        `  ${cxc} chat search "<terms>" --days 0   |   ${cxc} memory search "<topic>"`,
+      ];
   if (status !== "") notice.push(`Index: ${status}. Details: $cxc-recall.`);
   else notice.push("Details: $cxc-recall.");
   parts.push(notice.join("\n"));
@@ -256,28 +273,22 @@ export function handleSessionStart(status: string, cwd?: string): string {
 }
 
 /**
- * PostCompact: compaction IS the context-loss moment. Re-inject CWD context so
- * the agent doesn't lose project awareness, plus the recovery directive.
+ * PostCompact: side-effect-free no-op. ALWAYS returns "".
+ *
+ * Compaction is the context-loss moment, but this event cannot carry the recovery
+ * text. The PostCompact output wire is universal-only (continue / stopReason /
+ * suppressOutput / systemMessage) and rejects unknown fields, so the
+ * `hookSpecificOutput` envelope this handler used to print failed to parse. A
+ * non-empty stdout that starts with '{' is then treated as invalid output: the
+ * handler was recorded as Failed with "hook returned invalid PostCompact hook JSON
+ * output" on every compaction, and the context never reached the model.
+ *
+ * Empty stdout is the documented success path for this event. The recovery
+ * directive now rides on SessionStart with source "compact", which the runtime
+ * re-fires after a compaction and which does honor additionalContext. Same posture
+ * as pabcd-state's PostCompact handler and cxc-ops' marker affordance.
  */
 export function handlePostCompact(cwd?: string): string {
-  const parts: string[] = [];
-
-  // Re-inject CWD context after compact
-  if (cwd) {
-    const cwdCtx = buildCwdContext(cwd);
-    if (cwdCtx) parts.push(cwdCtx);
-  }
-
-  const cxc = CXC();
-  parts.push(
-    [
-      "[cxc-recall] Context was just compacted. If any earlier detail is now missing,",
-      "recover it from past sessions before asking the user to repeat themselves:",
-      `  ${cxc} chat search "<distinctive terms>" --days 0 --context 2`,
-      `  ${cxc} memory search "<topic>"`,
-      "Details: $cxc-recall.",
-    ].join("\n"),
-  );
-
-  return buildContextOutput("PostCompact", parts.join("\n\n"));
+  void cwd;
+  return "";
 }
