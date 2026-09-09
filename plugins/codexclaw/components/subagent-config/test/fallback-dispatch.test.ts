@@ -18,6 +18,46 @@ function fixture(role: typeof ROLES[number] = "executor") {
   return { cwd, base, call, start };
 }
 
+// Captured from real Codex 0.153.4 wait_agent results against a loopback provider.
+const nativeFailures = [
+  ["exceeded retry limit, last status: 429 Too Many Requests", "rate_limit_exceeded"],
+  ["Quota exceeded. Check your plan and billing details.", "insufficient_quota"],
+  ["rate limit exceeded: Cursor rate limit exceeded: fixture exhausted", "rate_limit_exceeded"],
+  ["We're currently experiencing high demand, which may cause temporary errors.", "upstream_server_error"],
+] as const;
+
+test("native wait errors retain fallback eligibility after Codex rewrites provider codes", () => {
+  for (const [message, code] of nativeFailures) {
+    assert.deepEqual(decodeDispatchFailure(message), { code, action: "next" });
+    assert.equal(decodeDispatchFailure({ error: { code: "permission_denied", message } }).action, "stop");
+    assert.equal(decodeDispatchFailure(`Task output: ${message}`).action, "unknown");
+  }
+  for (const message of [
+    "exceeded retry limit, last status: 403 Forbidden",
+    "unexpected status 403 Forbidden: Quota exceeded. Check your plan and billing details.",
+    "Quota exceeded. Check your plan and billing details. Permission denied.",
+    "We're currently experiencing high demand, which may cause temporary errors. Permission denied.",
+    "rate limit exceededness",
+  ]) assert.equal(decodeDispatchFailure(message).action, "unknown");
+});
+
+for (const role of ROLES) test(`${role}: native errors select fallback only after child reconciliation`, () => {
+  for (const [error] of nativeFailures) {
+    const { call, start } = fixture(role);
+    call({ action: "claim", attemptId: start.attemptId });
+    call({ action: "report", attemptId: start.attemptId, outcome: "created", agentId: "native-first" });
+    const report = { action: "report", attemptId: start.attemptId, outcome: "failed", error, agentId: "native-first" };
+    assert.equal(call({ ...report, executionState: "unknown" }).action, "reconcile");
+    const next = call({ ...report, executionState: "stopped", reconciliation: "native wait terminal; close completed; inspected workspace" });
+    assert.equal(next.action, "ready");
+    const claim = call({ action: "claim", attemptId: next.attemptId });
+    assert.equal(claim.candidate?.model, "cursor/grok-4.6");
+    const end = call({ action: "report", attemptId: next.attemptId, outcome: "failed", error, executionState: "not_created", reconciliation: "native creation rejected without child" });
+    assert.equal(end.action, "main-direct");
+    assert.equal(end.independentReviewRequired, role === "reviewer");
+  }
+});
+
 test("unknown and policy failures never offer fallback or main-direct", () => {
   for (const error of ["some vague failure", { error: { code: "permission_denied" } }, { code: "cyber_policy" }, "client_cancelled"]) {
     const { call, start } = fixture();

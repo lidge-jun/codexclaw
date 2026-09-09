@@ -10,6 +10,17 @@ export function decodeDispatchFailure(value         )                  {
   if (typeof value === "string") {
     const text = value.trim();
     try { return decodeDispatchFailure(JSON.parse(text)); } catch { /* native prose surface */ }
+    // Codex 0.153.4 rewrites HTTP/SSE errors before wait_agent exposes them.
+    // Match observed host templates, not quota/server keywords in arbitrary prose.
+    if (text === "Quota exceeded. Check your plan and billing details.") {
+      return codeDecision("insufficient_quota");
+    }
+    if (text === "exceeded retry limit, last status: 429 Too Many Requests" || text.startsWith("rate limit exceeded: ")) {
+      return codeDecision("rate_limit_exceeded");
+    }
+    if (text === "We're currently experiencing high demand, which may cause temporary errors.") {
+      return codeDecision("upstream_server_error");
+    }
     // Only complete code tokens and canonical transport prefixes, never arbitrary keywords.
     if (/^[a-z][a-z0-9_]*$/.test(text)) return codeDecision(text);
     if (/^(?:Cursor rate limit exceeded|Rate limit reached)(?:[\s.:]|$)/i.test(text)) {
