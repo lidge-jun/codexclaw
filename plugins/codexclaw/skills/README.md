@@ -23,6 +23,7 @@ still ship as compatibility surfaces.
 - `dev-security/`
 - `dev-testing/`
 - `dev-uiux-design/`
+- `dev-visualizer/`
 - `goalplan/`
 - `interview/`
 - `kwrite/`
@@ -53,13 +54,15 @@ still ship as compatibility surfaces.
   `allow_implicit_invocation: true` (implicit-visible, mutually cross-referenced, so
   anti-slop design grammar reaches every UI-generating session); the rest ship
   `agents/openai.yaml` with `allow_implicit_invocation: false`.
-- `dev-diagram-viewer/` — on-demand environment-aware diagram rendering: detects the
-  runtime surface (Codex Desktop app vs CLI) and routes diagram output to native
-  inline rendering (mermaid) or browser-based display (SVG, Chart.js, ECharts, D3,
-  Leaflet, Three.js, interactive widgets). Ships `allow_implicit_invocation: false`;
-  activates by description match or explicit `$cxc-dev-diagram-viewer`.
-  Includes `scripts/diagram-to-html.sh` helper and `reference/html-templates.md`
-  with self-contained HTML wrapper templates for all diagram types.
+- `dev-visualizer/` — visual documents, reports and diagrams: composes HTML/SVG
+  explainers, report documents with cover and contents pages, charts and
+  interactive models, then renders and verifies the delivered artifact (PDF included,
+  via `scripts/export-paged-report.mjs`). Reader-facing structure comes from
+  `dev/references/reader-documents.md`; report storyline, paragraph, exhibit and
+  page-design rules (REPORT-*) live in its `reference/` files. Ships
+  `allow_implicit_invocation: false`; activates by description match or explicit
+  `$cxc-dev-visualizer`. `dev-diagram-viewer/` is the deprecated redirect folder for
+  the previous name.
 - `pabcd/` — Codex-native PABCD workflow (Interview/Plan/Audit/Build/Check/Done) with
   class-scaled depth. Folds in the structured-development discipline.
 - `interview/` — discoverable `cxc-interview` surface for persistent I-phase

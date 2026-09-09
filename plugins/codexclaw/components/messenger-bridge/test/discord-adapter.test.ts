@@ -265,7 +265,10 @@ async function settle() {
 }
 
 async function waitFor(predicate: () => boolean, label: string): Promise<void> {
-  const deadline = Date.now() + 1000;
+  // 1s was tight enough that a slow filesystem (WSL over ext4) could miss a
+  // cleanup that does complete. The wait still exits as soon as the predicate
+  // holds, so a healthy run costs nothing extra.
+  const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
     if (predicate()) return;
     await settle();
@@ -412,7 +415,13 @@ test("message attachments are downloaded, prefixed into prompt, and cleaned up",
       attachments: [{ id: "a1", filename: "note.txt", url: "https://cdn.example/note.txt", content_type: "text/plain", size: 5 }],
     });
     await settle();
-    await waitFor(() => Boolean(downloadedPath) && !existsSync(downloadedPath), "attachment temp file cleanup");
+    // cleanupTmpMedia removes the temp DIRECTORY recursively, so the file can be
+    // gone a beat before its parent is. Waiting only on the file left the parent
+    // assertion racing the same rm() call, which is how this went red on WSL.
+    await waitFor(
+      () => Boolean(downloadedPath) && !existsSync(downloadedPath) && !existsSync(dirname(downloadedPath)),
+      "attachment temp dir cleanup",
+    );
     adapter.stop();
 
     assert.ok(downloadedPath);

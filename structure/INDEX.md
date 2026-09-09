@@ -171,7 +171,7 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-repo-map` | `skills/repo-map/` | ranked repo structure map (vendored RepoMapper: tree-sitter tags + PageRank) |
 | `cxc-lunasearch` | `skills/lunasearch/` | cheap parallel public-web discovery lane that hands proof back to `cxc-search` |
 | `cxc-worktree-guardian` | `skills/worktree-guardian/` | Codex-app managed-worktree identity safety: adopt-in-place renaming, never delete/recreate, WORKTREE-GUARD-01/02/03 hook interplay |
-| `cxc-dev-diagram-viewer` | `skills/dev-diagram-viewer/` | render and inspect Mermaid/diagram artifacts |
+| `cxc-dev-visualizer` | `skills/dev-visualizer/` | render and inspect Mermaid/diagram artifacts |
 | `cxc-kwrite` | `skills/kwrite/` | Korean long-form writing and revision protocol |
 | `cxc-remote` | `skills/remote/` | remote host execution and workload routing |
 

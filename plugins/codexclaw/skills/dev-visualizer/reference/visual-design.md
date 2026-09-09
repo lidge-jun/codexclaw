@@ -48,6 +48,31 @@ Long tables remain complete: split or paginate appropriately rather than droppin
 
 ## Four optional art directions
 
+### REPORT-DESIGN-01 A report is set like a publication, not a dashboard (STRICT for delivered reports)
+
+The parts an agent reaches for by reflex are exactly what makes a page read as
+machine-made. For a printed or PDF report these are not used:
+
+| Reflex part | What a reader sees | Use instead |
+|---|---|---|
+| Row of big-number "stat cards" | a SaaS landing page | a small key-figures table: 지표 · 기준 · 현재 · 변화, or the number inside the sentence |
+| Callout box with a colored left border, tinted rounded panel | a chatbot answer | an indented paragraph with a run-in bold heading and a hairline |
+| Numbered circles, icon bullets, badge chips | a slide template | plain numbered list or prose |
+| Box-and-arrow SVG as the default figure | a diagram of nothing | a chart with data (bar, line, dot), directly labeled, or no figure |
+| Uppercase tracked eyebrow, decorative colored rule bar, gradient | a startup deck | the issuer name in small text and a 0.6pt rule |
+| Every section with the same rhythm (heading → lead → table → source) | a generator | vary the page: one exhibit per page carries the argument, some sections are prose only |
+| System default sans for everything | no identity | one heading face (a Korean serif such as Noto Serif KR / KoPubWorld Batang) and one body face (Pretendard / Apple SD Gothic Neo / Noto Sans KR), decided before writing |
+
+What remains: hairlines (0.3–0.8pt) and white space to separate, type size and
+weight to rank, one accent color used only for the series that carries the claim
+and for the ask, tables with top and bottom rules and no fills, a narrow text
+measure (about 36 Korean characters) with full-width exhibits. Decide the face
+pair, the accent and the rule weights before writing (pair with
+`dev-uiux-design` when the brief is open) and use nothing else. Real
+McKinsey/MGI, Bain and Korean securities PDFs inspected 2026-09-09 all follow this
+grammar; `assets/paged-report.html` implements it. Brand assets (logo, palette,
+licensed type) replace the token block; they are not invented.
+
 Choose one only when it fits the audience. These recipes illustrate decisions;
 their colors, proportions and typefaces are replaceable, not universal bans.
 
@@ -113,6 +138,17 @@ Do not insert viewport-specific hard breaks or ellipsize evidence to make a head
 Check font-loaded and fallback states; do not assume matching font names mean identical metrics.
 
 ## Truthful charts and evidence
+
+### REPORT-VIZ-01 Print legibility floor for figures (STRICT for PDF delivery)
+
+A figure is scaled to the text column when printed, so size type by its printed
+result, not by its on-screen viewBox. With a 174mm column and `viewBox` width 720,
+1 SVG unit prints at about 0.69pt: labels need `font-size` 13 or more to print at
+9pt, and body-role text 15 or more. Check the scale factor for the viewBox you use
+and keep printed text at 8.5pt or larger, in ink no lighter than the document's
+secondary text color (contrast 4.5:1 or better); light gray (`#8894a0`) labels do
+not survive print. A figure that restates a table on the same page is removed.
+Verify on the rendered page image, not in the browser at 100%.
 
 - State source, observation period, units, denominator and relevant aggregation/filter.
 - Mark illustrative data and modeled/forecast values explicitly; do not imply measurements.

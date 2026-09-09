@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/tests-2%2C794_passing-brightgreen" alt="2,794 tests passing">
-  <img src="https://img.shields.io/badge/skills-28-blue" alt="28 skills">
+  <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
   <img src="https://img.shields.io/badge/hooks-24-blue" alt="24 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
@@ -28,7 +28,7 @@ codexclaw 将 Codex 运行时转变为规范化的开发环境。它不提供独
 
 ## 功能
 
-**Dev Skill Family** — 由规范父级 `dev` 统一管理的 12 个特定领域路由器（`dev-architecture`、`dev-backend`、`dev-frontend`、`dev-testing`、`dev-security`、`dev-debugging`、`dev-data`、`dev-devops`、`dev-code-reviewer`、`dev-scaffolding`、`dev-diagram-viewer`、`dev-uiux-design`）。所有路由器都继承父级的规则分类、验证门和安全规则。共包含 155 个唯一规则 ID。
+**Dev Skill Family** — 由规范父级 `dev` 统一管理的 12 个特定领域路由器（`dev-architecture`、`dev-backend`、`dev-frontend`、`dev-testing`、`dev-security`、`dev-debugging`、`dev-data`、`dev-devops`、`dev-code-reviewer`、`dev-scaffolding`、`dev-visualizer`、`dev-uiux-design`）。所有路由器都继承父级的规则分类、验证门和安全规则。共包含 155 个唯一规则 ID。
 
 **PABCD Workflow** — Plan / Audit / Build / Check / Done，基于文件驱动的 FSM 实现，并通过证明材料控制阶段转换。各阶段通过 `cxc orchestrate` 命令推进，每次转换都携带结构化证据。持久化 goalplan 账本可跨多个周期跟踪工作阶段、成功标准和已收集的证据。
 
@@ -211,7 +211,7 @@ _PATH 级 `cxc` 入口（`bin/codexclaw.mjs` + `cli/` 工作区）位于仓库�
 | DevOps / infra | `dev-devops` | `dev-security` for credentials |
 | Scaffolding | `dev-scaffolding` | `dev-architecture` for boundaries |
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
-| Diagrams | `dev-diagram-viewer` | — |
+| Diagrams | `dev-visualizer` | — |
 
 每个路由器都有独立的模块化参考资料，仅在需要时加载，不会预加载；同时继承父级的验证门、规则分类和安全规则。
 
