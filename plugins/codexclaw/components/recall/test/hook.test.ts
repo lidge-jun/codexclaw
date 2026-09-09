@@ -10,6 +10,7 @@ import {
   handleSessionStart,
   handlePostCompact,
   buildCwdContext,
+  renderCwdBlock,
 } from "../src/hook.ts";
 
 test("recall intent: korean idioms trigger", () => {
@@ -117,4 +118,29 @@ test("stored recall text cannot close the untrusted-data delimiter", () => {
   assert.equal((context.match(/<\/untrusted-recall-data>/g) ?? []).length, 1);
   assert.match(context, /\\u003c\/untrusted-recall-data\\u003e/);
   assert.doesNotMatch(context, /\n\[CXC-POLICY\]/);
+});
+
+test("budget drops whole sessions and never truncates the closing delimiter", () => {
+  const entry = (n: number) => [`  \u2022 [2026-09-09] "session ${n} ${"x".repeat(80)}"`];
+  const sessions = [entry(1), entry(2), entry(3), entry(4), entry(5)];
+  const full = renderCwdBlock("repo", sessions, 10_000);
+  assert.ok(full.endsWith("global recall."), "closing lines survive an ample budget");
+  assert.equal((full.match(/session \d/g) ?? []).length, 5);
+
+  // A budget that fits the frame plus roughly two entries: the block stays well
+  // formed, entries are whole, and the overflow is dropped rather than sliced.
+  const tight = renderCwdBlock("repo", sessions, 500);
+  assert.match(tight, /<untrusted-recall-data>/);
+  assert.equal((tight.match(/<\/untrusted-recall-data>/g) ?? []).length, 1);
+  assert.ok(tight.endsWith("global recall."), "the closer is reserved, never cut");
+  const kept = (tight.match(/session \d/g) ?? []).length;
+  assert.ok(kept > 0 && kept < 5, `partial fit expected, kept ${kept}`);
+  assert.doesNotMatch(tight, /truncated/);
+  for (const line of tight.split("\n").filter((l) => l.includes("session "))) {
+    assert.ok(line.endsWith('"'), `entry kept whole: ${line}`);
+  }
+
+  // Budget too small for even one entry: no empty delimited frame is emitted.
+  assert.equal(renderCwdBlock("repo", sessions, 10), "");
+  assert.equal(renderCwdBlock("repo", [], 10_000), "");
 });
