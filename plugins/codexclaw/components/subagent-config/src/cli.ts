@@ -95,7 +95,7 @@ function parseProjectArgs(argv: string[]): ParsedSubagentsArgs {
     }
     if (clearFallback && setFallback) return { action: "set", role, error: "--clear-fallback cannot be combined with fallback settings" };
     if (Object.keys(patch).length === 0) {
-      return { action: "set", role, error: "set requires at least one of --mode/--model/--effort/--clear-effort/--prompt/--clear-prompt" };
+      return { action: "set", role, error: "set requires at least one of --mode/--model/--effort/--clear-effort/--prompt/--clear-prompt/--fallback-model/--fallback-effort/--clear-fallback" };
     }
     return { action: "set", role, patch };
   }

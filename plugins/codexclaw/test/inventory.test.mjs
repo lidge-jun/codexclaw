@@ -131,7 +131,11 @@ test("published counts disagreeing across surfaces is an error", () => {
   const { dir } = scratch();
   try {
     const p = join(dir, "README.ko.md");
-    writeFileSync(p, readFileSync(p, "utf8").replace("badge/skills-28-", "badge/skills-27-"));
+    // Derive the current badge count so the fixture survives skill additions and renames.
+    writeFileSync(
+      p,
+      readFileSync(p, "utf8").replace(/badge\/skills-(\d+)-/, (_m, n) => "badge/skills-" + (Number(n) - 1) + "-"),
+    );
     const { violations } = readPublished(dir);
     assert.ok(
       violations.some((v) => v.startsWith("skills disagrees across surfaces:")),

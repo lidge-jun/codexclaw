@@ -148,7 +148,7 @@ numbered, contiguous, non-overlapping chunks through EOF and verify no gaps.
 | DevOps / deploy / infra | `dev-devops` | `dev-security` for credentials |
 | Scaffolding / docs / setup | `dev-scaffolding` | `dev-architecture` for boundaries |
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
-| Diagrams / charts / visual documents / reports / PDF composition | `dev-diagram-viewer` | Available document-format owner for PDF/DOCX/Slides mechanics; `dev-frontend` and `dev-uiux-design` retain implementation/design ownership |
+| Diagrams / charts / visual documents / reports / PDF composition | `dev-visualizer` | Available document-format owner for PDF/DOCX/Slides mechanics; `dev-frontend` and `dev-uiux-design` retain implementation/design ownership |
 
 ### Subagent Skill Injection (DEV-SKILL-INJECT-01)
 Attach `cxc-dev` and every relevant surface skill explicitly to governed subagents.
@@ -212,6 +212,11 @@ wording (no Codex hook enforces skill text — `structure/00_philosophy.md` §1)
   rationale. Ship no placeholders, TODO-only deliverables, fake fallbacks, speculative wrapper
   layers, or broad defensive clutter without a named boundary reason. Code-smell catalog lives
   in §6 + `dev-code-reviewer` §3; this rule is about not emitting slop in the first place.
+  Prose and document deliverables have their own reflexes (DEFAULT): em dashes and
+  connector openers in Korean text, bold-label bullets and rule-of-three lists where
+  a sentence would do, and stat cards, tinted callouts and box-and-arrow figures in a
+  printed page. `kwrite` owns the Korean sentence tells; `dev-visualizer`
+  REPORT-DESIGN-01 owns the page-design tells.
 - **Reader deliverables (FAMILY-READER-01).** A report, explainer, visual document or summary
   written for a person follows [Reader documents](references/reader-documents.md): answer
   first, evidence separated and anchored, fresh-reader check for delivered reports. Audit
@@ -330,6 +335,7 @@ still governs its named log. Do not create an unrelated record to satisfy this s
 - **Confirm before destructive operations (ESCALATE)** — deleting files, dropping tables, resetting state, or clearing caches require explicit user approval.
 - **Commit incrementally (DEV-GIT-COMMIT-01, DEFAULT)** — commit working progress as you go during implementation. Each logically complete step (passing test, wired feature, fixed bug) gets its own commit so that progress is checkpointed on disk and recoverable after compaction or failure. Do not accumulate an entire feature as uncommitted changes.
 - **Push requires explicit user approval (DEV-GIT-PUSH-01, ESCALATE)** — never `git push` without the user's explicit approval in the current session. Committing locally is autonomous; pushing to a remote is an external state change that the user must authorize. If the user has not approved a push, do not push — even at D/completion. This applies equally to force-push, branch creation on remote, and tag push.
+- **Keep client and personal data out of the repository (DEV-PRIVACY-01, STRICT)** — devlog evidence, fixtures and skill sample assets never carry raw client material or personal data: message transcripts, copies of a client's documents or figures, named private conversations, credentials. Such evidence stays in the task's workspace outside the checkout; the devlog keeps the file name, date and a summary. Before the first push of a branch, the task lists the identifiers that would betray the client or person (company, product, people, distinctive numbers) and greps the push range for them (DEFAULT self-check; the list is the task's, the rule does not fix one). A hit is fixed by rewriting the unpushed commits, not by a follow-up commit, because a public remote keeps history.
 - **Stack dependent work instead of one oversized PR (DEV-STACK-01, DEFAULT)** — when a change splits into 2+ dependency-ordered parts and one PR would be too large to review, publish a bottom-up stack: each branch based on the one below, each PR's base pointing at its parent. Editing a lower layer means cascading the rebase to every layer above before pushing (`DEV-STACK-02`, STRICT). Merging a stack is bottom-up and stays user-authorized (`DEV-STACK-04`, ESCALATE). Canonical rules, depth guidance, anti-patterns, review scope, and tooling: `references/stacked-prs.md`.
 
 ---

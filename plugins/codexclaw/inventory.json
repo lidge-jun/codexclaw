@@ -63,6 +63,10 @@
       "name": "cxc-dev-uiux-design"
     },
     {
+      "folder": "dev-visualizer",
+      "name": "cxc-dev-visualizer"
+    },
+    {
       "folder": "goalplan",
       "name": "cxc-goalplan"
     },

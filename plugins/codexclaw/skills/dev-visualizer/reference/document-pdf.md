@@ -49,7 +49,51 @@ Use explicit chapter breaks only at real reading boundaries, not every section.
 
 ## HTML print baseline
 
-This is an adaptable fragment, not a compulsory visual style:
+For a multi-page report, start from [paged-report.html](../assets/paged-report.html)
+and export with `scripts/export-paged-report.mjs`; the rules below are what that
+asset implements. Visual style stays adaptable; the furniture does not.
+
+### REPORT-PRINT-01 Page furniture for a paged report (STRICT)
+
+1. `@page { size: A4 portrait; margin: 20mm 18mm 22mm 18mm }` unless the recipient's
+   standard is Letter. Declare it; do not inherit the renderer default.
+2. Page numbers on every page except the cover, from one mechanism only. In
+   Chromium use the `@page` margin box `@bottom-center { content: counter(page) " / "
+   counter(pages) }` and `@page :first { @bottom-center { content: none } }`.
+3. A running header on every body page: document title left, date or section
+   right. Chromium ignores `string-set`, so the header text is static in the CSS
+   (edit it with the title) or supplied by Paged.js/WeasyPrint.
+4. Contents page with page numbers. Chromium ignores `target-counter()`; mark each
+   target `<section id="s1" data-toc="heading text">` and each entry
+   `<span data-toc-for="s1"></span>`, then let the export script fill them from
+   the rendered PDF in a second pass and verify them in a third extraction.
+5. Break control: `.sheet { break-before: page }` only for cover, contents,
+   summary and real chapter starts; body sections flow. `h2, h3, figcaption,
+   caption { break-after: avoid }`, `p, li { orphans: 3; widows: 3 }`, `figure,
+   tr, .callout { break-inside: avoid }`, `thead { display: table-header-group }`.
+   Short tables (under about eight rows) take `class="keep"` so they never split
+   leaving one row on the next page; a heading, its lead paragraph and a short
+   table that must stay together go inside one `<div class="keep">`. Never
+   `break-inside: avoid` on a whole long table or section, and do not put
+   `break-after: avoid` on paragraphs: Chrome 152 then splits the paragraph and
+   ignores `widows` (measured 2026-09-09, a one-line fragment at a page top).
+6. Exhibits numbered and sourced (REPORT-EXHIBIT-01 in report-writing.md); text
+   inside SVG at the print legibility floor (REPORT-VIZ-01 in visual-design.md).
+
+Measured engine support (2026-09-09, HeadlessChrome 152, `--print-to-pdf`):
+
+| Feature | Chromium 152 | Paged.js | WeasyPrint |
+|---|---|---|---|
+| `@page size/margin`, `:first` | yes | yes | yes |
+| Margin boxes with `counter(page)`/`counter(pages)` | yes | yes | yes |
+| `string-set` / `string()` running headers | no (static text only) | yes | yes |
+| `target-counter()` contents page numbers | no (two-pass script) | yes | yes |
+| `break-*`, `orphans`, `widows` | yes | yes | yes |
+| JavaScript charts before print | yes | yes | no |
+
+Probe: `devlog/_plan/260909_visualizer_report_quality/evidence/chrome-paged-probe.md`.
+
+The generic fragment below remains for single documents that are not reports:
 
 ```css
 @page { size: A4; margin: 18mm 16mm 20mm; }
@@ -82,6 +126,48 @@ Use only one page-number mechanism, with enough reserved margin for its text.
 Margin boxes, named pages and running headers differ across rendering engines.
 
 ## Fonts and Korean text
+
+### CJK print recipe (klreq / jlreq / clreq, Chromium print, 2026-09-09)
+
+Findings with sources are in `devlog/_plan/260909_visualizer_loop_merge/evidence/aside-G_cjk_typography.md`.
+What they settle for an A4 report rendered by Chromium:
+
+- Korean: word-based breaking (`word-break: keep-all`) for body text per klreq's
+  author choice; character breaking only in narrow columns. `line-break: strict`
+  enforces the line-start prohibitions (closing brackets, 가운뎃점, 마침표·쉼표).
+  Horizontal Korean uses ASCII `.` `,` `?` `!` and full-width 「」『』《》〈〉 with
+  `·` (U+00B7) for enumeration, never for ranges (ranges take `~`). First-line
+  indent of 1em is the klreq default; a report may use paragraph spacing instead,
+  but not both. Body 9.5–10.5pt with line-height 1.6–1.8 is Korean print practice,
+  not a klreq number. `hanging-punctuation` is unsupported in Chromium; do not fake
+  it with negative margins.
+- Japanese: character breaking (`word-break: normal`) with `line-break: strict`
+  for 禁則処理 (JIS X 4051 sets); `word-break: auto-phrase` on headings (Chrome
+  119+, needs `lang="ja"`); `text-indent: 1em`.
+- Chinese: `line-break: strict` for 避头尾, `text-indent: 2em` (首行缩进), regional
+  font per locale (SC/TC) so Han unification does not swap glyph shapes.
+- All three: `text-autospace: normal` and `text-spacing-trim: normal` where the
+  font ships `halt`/`chws`; `text-align: justify; text-justify: inter-word` is the
+  klreq default for body, left alignment is acceptable for reports; never
+  `line-break: anywhere` on body text.
+
+```css
+:lang(ko) { font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  word-break: keep-all; line-break: strict; overflow-wrap: break-word; line-height: 1.7; }
+:lang(ja) { font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", sans-serif;
+  word-break: normal; line-break: strict; text-indent: 1em; }
+:lang(ja) h1, :lang(ja) h2 { word-break: auto-phrase; }
+:lang(zh) { font-family: "Noto Sans SC", "PingFang SC", sans-serif; line-break: strict; text-indent: 2em; }
+pre, code, table { text-autospace: no-autospace; line-break: normal; }
+```
+
+Embedding-safe families (all SIL OFL 1.1, PDF embedding allowed): Pretendard,
+Noto Sans/Serif KR·JP·SC·TC, Source Han Sans/Serif (본고딕/본명조), IBM Plex Sans KR,
+Nanum Gothic/Myeongjo. KoPub (Dotum/Batang/World) is free for print and PDF but web
+serving via `@font-face` needs the publisher's approval. Subset to WOFF2 per
+language when embedding; verify `halt`/`chws` in the build before relying on
+`text-spacing-trim`. The template's stacks name these families and fall back to
+system faces; the skill does not vendor font files.
 
 Choose a Korean-capable family deliberately, including the required weights.
 A useful local fallback order is Noto Sans KR, Apple SD Gothic Neo, Malgun Gothic,
@@ -129,6 +215,20 @@ Prefer SVG for chart lines and labels when the renderer supports the features us
 PDF/A, PDF/UA or tagged-output options require independent conformance validation.
 
 ## Output QA and evidence
+
+### REPORT-QA-01 Render check before delivery (STRICT for delivered reports)
+
+Run `node scripts/export-paged-report.mjs <in.html> <out.pdf>` (or `--qa-only
+<pdf>` for a PDF from another engine). It reports page size, contents page
+numbers, missing page numbers, an orphan fragment at the top of a page, a heading
+stranded at the bottom, and pages with 30% or more of the text area blank. A
+`REVIEW` verdict is read, each finding fixed or justified in the evidence note.
+Then render the pages (`pdftoppm -r 60 -png`) and look at every page for what
+text extraction cannot see: figure text under 8.5pt, low-contrast labels, a figure
+separated from its heading, a table header row that failed to repeat, missing
+Hangul glyphs, and a summary page that is mostly white. Yesterday's failure mode
+was a PDF whose CSS looked right while page 5 opened with "구간입니다." alone and
+three pages were half empty; the script and the page images are how that is caught.
 
 - Check file existence, nonzero size, parsability, page count and page dimensions.
 - Extract text; reconcile all records, totals, final-row marker and selected inputs.

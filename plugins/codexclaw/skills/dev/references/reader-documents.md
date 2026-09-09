@@ -37,7 +37,11 @@ Open with the situation, the complication, the question and the answer (SCQA) in
 one short paragraph; the governing conclusion appears before any evidence. Every
 heading below it states a claim, not a topic ("Cost drops 12% under the selected
 scenario", not "Analysis"). Korean documents use 두괄식: 결론·전망·요약을 맨 앞에.
-기승전결 (문제 제기→전개→전환→결론) is for narrative pieces and never for reports.
+Answer-first does not mean the sections may be a flat list of findings: after the
+answer, the sections still walk the reader from the situation they accept to the
+decision being asked (the storyline in `dev-visualizer/reference/report-writing.md`
+REPORT-STORY-01). What reports avoid is the narrative 기승전결 that withholds the
+conclusion until the end, not the progression itself.
 
 ## READER-DOC-03 Descending structure (DEFAULT)
 
@@ -66,6 +70,14 @@ questions in its own words: what is the answer, why should I believe it, what do
 I do next. Where it stumbled, fix the structure. Record the check (who read,
 where they stumbled, what changed) in the evidence section. A reader who has to
 read the document twice has found a defect in the document.
+
+For a rendered deliverable (PDF, paged HTML, slides) the fresh reader reads the
+rendered pages as images, not the source, so that page breaks, stranded headings,
+unreadable figure text and half-empty pages are seen the way the recipient sees
+them. Add two questions: which page made you stop, and which visual elements look
+like a generated template (cards, tinted boxes, numbered circles, box-and-arrow
+figures). Structure fixes come first; layout fixes follow (REPORT-* rules in
+`dev-visualizer`).
 
 ## Skeletons
 
@@ -96,7 +108,11 @@ Status · Date · Deciders
 
 Visual explainer: question → one figure whose caption states what changes and why
 → detail on demand → sources. Composition and rendering rules stay with
-`dev-diagram-viewer`.
+`dev-visualizer`.
+
+Multi-page report (cover, contents, one-page summary, claim headings, numbered
+exhibits, appendix, notice): the REPORT-* rules and the paged template in
+`dev-visualizer/reference/report-writing.md` and `assets/paged-report.html`.
 
 ## Layer order for polish
 
@@ -111,4 +127,3 @@ Patterns adopted from opened sources with dates and licenses:
 `devlog/_plan/260908_narrative_documents/001_sources.md` (Minto Pyramid/SCQA and
 MECE, Korean 두괄식 guidance, Amazon narrative memos, Google design docs, MADR,
 Diátaxis, Anthropic doc-coauthoring, executive-summary skills). No text is vendored.
-
