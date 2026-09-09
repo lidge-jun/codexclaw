@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-2%2C941_passing-brightgreen" alt="2,941 tests passing">
+  <img src="https://img.shields.io/badge/tests-2%2C945_passing-brightgreen" alt="2,945 tests passing">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
   <img src="https://img.shields.io/badge/hooks-28-blue" alt="28 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -267,6 +267,17 @@ Methodology and research provenance: **[lidge-jun.github.io/pabcd_initiative](ht
 ## Contributing
 
 Pull requests target the `dev` integration branch; `main` moves by maintainer promotion and carries releases.
+
+CI on a pull request runs the checks a reviewer needs; the slow installation lanes run when a change lands on an integration line.
+
+| Check | Pull request | Push to `dev` / `preview` / `main` |
+|---|---|---|
+| `ci` (aggregate of `test (ubuntu-latest, false)`, `test (macos-latest, false)`, four Windows shards) | yes | yes |
+| `artifact (…)` / `install (…)` packed-install lifecycle | yes | yes |
+| `enforce-target` | yes | — |
+| `wsl (drvfs /mnt/c)`, `wsl (native ext4 ~)` | no (also `workflow_dispatch`) | yes |
+
+`ci` fails when any leg fails, is cancelled or is skipped; it is the one check to require. The ubuntu lane runs the whole suite in one process and is where the tests badge total is measured; the Windows legs run `scripts/test.mjs --shard i/2`.
 
 ## License
 
