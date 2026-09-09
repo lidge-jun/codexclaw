@@ -33,7 +33,7 @@ a runtime loader. See the [Skills guide](/codexclaw/guides/skills/).
 
 ## Hooks
 
-Twenty-three registered hook files provide 24 event handlers connecting Codex lifecycle events to state, covering session start,
+Twenty-four registered hook files provide 25 event handlers connecting Codex lifecycle events to state, covering session start,
 orchestration, recall injection, pre/post-tool guards, subagent evidence, and compaction
 recovery:
 
