@@ -13,7 +13,13 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-2%2C718_passing-brightgreen" alt="2,718 tests passing">
+<<<<<<< HEAD
+  <img src="https://img.shields.io/badge/tests-2%2C734_passing-brightgreen" alt="2,734 tests passing">
+||||||| parent of 30203965 (Publish the test count this branch's suite measures)
+  <img src="https://img.shields.io/badge/tests-2%2C734_passing-brightgreen" alt="2,734 tests passing">
+=======
+  <img src="https://img.shields.io/badge/tests-2%2C734_passing-brightgreen" alt="2,734 tests passing">
+>>>>>>> 30203965 (Publish the test count this branch's suite measures)
   <img src="https://img.shields.io/badge/skills-28-blue" alt="28 skills">
   <img src="https://img.shields.io/badge/hooks-24-blue" alt="24 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
