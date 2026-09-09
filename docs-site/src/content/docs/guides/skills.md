@@ -110,7 +110,7 @@ codexclaw currently ships 28 skill directories:
 | `cxc-repo-map` | `repo-map` | Tree-sitter/PageRank repository overview for unfamiliar codebase exploration. |
 | `cxc-ast-grep` | `ast-grep` | AST-aware structural search and deterministic codemods. |
 | `cxc-lunasearch` | `lunasearch` | Parallel public-web discovery lane that depends on `cxc-search`. |
-| `cxc-dev-diagram-viewer` | `dev-diagram-viewer` | Render and inspect Mermaid/diagram artifacts. |
+| `cxc-dev-visualizer` | `dev-visualizer` | Render and inspect Mermaid/diagram artifacts. |
 | `cxc-kwrite` | `kwrite` | Korean long-form writing and revision protocol. |
 | `cxc-remote` | `remote` | Remote host execution and workload routing. |
 | `cxc-worktree-guardian` | `worktree-guardian` | Managed-worktree identity safety and rename/delete guards. |

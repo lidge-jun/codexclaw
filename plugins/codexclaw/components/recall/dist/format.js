@@ -57,7 +57,8 @@ export function formatMemoryResult(result                    )         {
     lines.push("");
     const loc = hit.startLine !== null ? `${hit.relpath}:${hit.startLine}` : hit.relpath;
     const when = hit.updatedAt ? ` [${hit.updatedAt}]` : "";
-    lines.push(`(${hit.origin}/${hit.kind}) ${loc}${when}`);
+    const cwd = hit.cwd ? ` {${hit.cwd}}` : "";
+    lines.push(`(${hit.origin}/${hit.kind}) ${loc}${when}${cwd}`);
     lines.push(clip(hit.excerpt, EXCERPT));
     lines.push("---");
   }

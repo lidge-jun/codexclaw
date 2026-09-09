@@ -242,6 +242,9 @@ do not auto-convert, dissolve, or issue native writes to complete an ordinary PR
   stack is a strictly larger external state change. Never merge, never enable auto-merge,
   and never bypass a queue on the agent's own initiative.
 - **Never reorder or drop a layer that has already merged** — reconstruct forward instead.
+- **A superseded layer** is closed with the supersede procedure in `cxc-dev-devops`
+  `references/agent-pr-intake.md` (DEVOPS-PR-SUPERSEDE-01); keep a superseded parent
+  branch while any child PR is open.
 - **Squash caution.** Squash merging collapses a PR's commits into one and does not
   preserve the originals. GitHub's own guidance is that squash merging works best for
   short-lived branches: if you keep working on the same head branch afterwards, later PRs

@@ -13,9 +13,9 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-2%2C711_passing-brightgreen" alt="2,711 tests passing">
-  <img src="https://img.shields.io/badge/skills-28-blue" alt="28 skills">
-  <img src="https://img.shields.io/badge/hooks-23-blue" alt="23 hooks">
+  <img src="https://img.shields.io/badge/tests-2%2C807_passing-brightgreen" alt="2,807 tests passing">
+  <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
+  <img src="https://img.shields.io/badge/hooks-24-blue" alt="24 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
@@ -28,7 +28,7 @@ codexclaw turns the Codex runtime into a disciplined development environment. It
 
 ## Features
 
-**Dev Skill Family** — 12 surface-specific routers (`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-diagram-viewer`, `dev-uiux-design`) governed by a canonical parent (`dev`). Every router inherits the parent's rule classes, verification gate, and safety rules. 155 unique rule IDs across the family.
+**Dev Skill Family** — 12 surface-specific routers (`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-visualizer`, `dev-uiux-design`) governed by a canonical parent (`dev`). Every router inherits the parent's rule classes, verification gate, and safety rules. 155 unique rule IDs across the family.
 
 **PABCD Workflow** — Plan / Audit / Build / Check / Done, implemented as a file-backed FSM with attestation-gated transitions. Phases advance through `cxc orchestrate` commands; each transition carries structured evidence. A durable goalplan ledger tracks work phases, success criteria, and captured proof across multiple cycles.
 
@@ -64,7 +64,7 @@ codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-Restart Codex and approve the 23 hooks when prompted (upgrades ask again because trust is bound to content hashes). You can then optionally register the canonical executor role. For a CLI installation:
+Restart Codex and approve the 24 hooks when prompted (upgrades ask again because trust is bound to content hashes). You can then optionally register the canonical executor role. For a CLI installation:
 
 ```sh
 cxc subagents register executor
@@ -196,7 +196,7 @@ plugins/codexclaw/
 │   ├── recall/                  past-session + memory store search
 │   └── repo-map/                tree-sitter + PageRank structure map
 │
-├── hooks/                       23 active hooks across the session lifecycle
+├── hooks/                       24 active hooks across the session lifecycle
 │   ├── session-start-*          provider bridge, PABCD bootstrap, map affordance, recall context
 │   ├── user-prompt-submit-*     PABCD trigger detection, recall intent
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
@@ -236,7 +236,7 @@ Every coding task is classified (C0-C5) before process depth is chosen. The pare
 | DevOps / infra | `dev-devops` | `dev-security` for credentials |
 | Scaffolding | `dev-scaffolding` | `dev-architecture` for boundaries |
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
-| Diagrams, visual documents, HTML/SVG reports and PDF composition | `dev-diagram-viewer` | Available document-format owner for export |
+| Diagrams, visual documents, HTML/SVG reports and PDF composition | `dev-visualizer` | Available document-format owner for export |
 
 Each router carries its own modular references (loaded on demand, never preloaded) and inherits the parent's verification gate, rule classes, and safety rules.
 

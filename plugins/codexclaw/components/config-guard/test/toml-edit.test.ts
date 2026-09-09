@@ -8,7 +8,12 @@ import {
   setTableKey,
   tomlTableBody,
 } from "../src/toml-edit.ts";
-import { CONFIG_MANAGED_KEYS, findManagedKey, managedKeyId } from "../src/managed-keys.ts";
+import {
+  CONFIG_MANAGED_KEYS,
+  autoEnabledManagedKeys,
+  findManagedKey,
+  managedKeyId,
+} from "../src/managed-keys.ts";
 import { splitLines } from "../src/text-lines.ts";
 
 const LF = "[memories]\ngenerate_memories = true\nuse_memories = true\n";
@@ -154,10 +159,10 @@ test("a missing table makes restore a no-op instead of an error", () => {
   assert.equal(r.content, input);
 });
 
-test("policy: every managed key is autoEnable:false, so installation flips nothing", () => {
+test("policy: auto-enable is a per-entry decision, and every entry carries a caution", () => {
   assert.ok(CONFIG_MANAGED_KEYS.length > 0);
   for (const entry of CONFIG_MANAGED_KEYS) {
-    assert.equal(entry.autoEnable, false);
+    assert.equal(typeof entry.autoEnable, "boolean");
     assert.ok(entry.caution.length > 20, `${managedKeyId(entry)} needs a real caution`);
   }
   assert.equal(managedKeyId(CONFIG_MANAGED_KEYS[0]), "memories.dedicated_tools");
@@ -165,3 +170,10 @@ test("policy: every managed key is autoEnable:false, so installation flips nothi
   assert.equal(findManagedKey("tools.dangerous"), null);
 });
 
+test("memories.dedicated_tools is the auto-enabled entry, and it is the only one", () => {
+  const auto = autoEnabledManagedKeys().map(managedKeyId);
+  assert.deepEqual(auto, ["memories.dedicated_tools"]);
+  // The subset must never be "the whole list by construction": a key gets in on its
+  // own evidence, and the write gate is what `memories.dedicated_tools` has.
+  assert.equal(findManagedKey("memories.dedicated_tools")?.autoEnable, true);
+});

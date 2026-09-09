@@ -58,13 +58,25 @@ test("oracle: index-mode hits equal scan-mode hits across engines and filters", 
     ["trigram", { source: "all", cwd: "/proj/alpha" }],
   ];
   for (const [q, o] of cases) {
-    const a = viaIndex(q, { ...o, noRefresh: true });
+    // The oracle pins WHAT MATCHES, not what ranks: compare against the scan
+    // path in recency order, which is the ordering the scan path can produce.
+    // Relevance ordering is checked for set-equality below and ranked in
+    // index-rank.test.ts.
+    const a = viaIndex(q, { ...o, noRefresh: true, order: "recent" });
     const b = viaScan(q, o);
     assert.equal(a.mode, "index", `index mode expected for ${q}`);
     assert.deepEqual(
       a.hits.map((h) => [h.ts, h.role, h.text, h.matchField, h.source, h.cwd]),
       b.hits.map((h) => [h.ts, h.role, h.text, h.matchField, h.source, h.cwd]),
       `oracle mismatch for query=${JSON.stringify(q)} opts=${JSON.stringify(o)}`,
+    );
+    // Default (relevance) ordering must match the very same SET of messages.
+    const ranked = viaIndex(q, { ...o, noRefresh: true });
+    const key = (h: { ts: string; text: string; source: string }) => `${h.ts}|${h.source}|${h.text}`;
+    assert.deepEqual(
+      ranked.hits.map(key).sort(),
+      b.hits.map(key).sort(),
+      `ranking changed the hit set for query=${JSON.stringify(q)} opts=${JSON.stringify(o)}`,
     );
   }
 });

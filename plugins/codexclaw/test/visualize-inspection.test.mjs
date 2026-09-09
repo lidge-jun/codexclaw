@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
-const source = resolve('plugins/codexclaw/skills/dev-diagram-viewer/upstream/sync-check.sh');
+const source = resolve('plugins/codexclaw/skills/dev-visualizer/upstream/sync-check.sh');
 const hasBash = spawnSync('bash', ['--version']).status === 0;
 test('visualize inspection uses explicit root, version order, and failure states', { skip: !hasBash }, t => {
   const root = mkdtempSync(join(tmpdir(), 'cxc-visualize-test-'));

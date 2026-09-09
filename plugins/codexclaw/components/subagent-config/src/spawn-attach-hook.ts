@@ -527,7 +527,7 @@ export const LEAF_SAFE_SKILL_FOLDERS = new Set([
   "dev-data",
   "dev-debugging",
   "dev-devops",
-  "dev-diagram-viewer",
+  "dev-visualizer",
   "dev-frontend",
   "dev-scaffolding",
   "dev-security",

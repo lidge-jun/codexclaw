@@ -131,7 +131,11 @@ test("published counts disagreeing across surfaces is an error", () => {
   const { dir } = scratch();
   try {
     const p = join(dir, "README.ko.md");
-    writeFileSync(p, readFileSync(p, "utf8").replace("badge/skills-28-", "badge/skills-27-"));
+    // Derive the current badge count so the fixture survives skill additions and renames.
+    writeFileSync(
+      p,
+      readFileSync(p, "utf8").replace(/badge\/skills-(\d+)-/, (_m, n) => "badge/skills-" + (Number(n) - 1) + "-"),
+    );
     const { violations } = readPublished(dir);
     assert.ok(
       violations.some((v) => v.startsWith("skills disagrees across surfaces:")),
@@ -146,12 +150,12 @@ test("applyBlocks rewrites a stale badge and reports the drifted file", () => {
   const { dir } = scratch();
   try {
     const p = join(dir, "README.md");
-    writeFileSync(p, readFileSync(p, "utf8").replace("badge/hooks-23-", "badge/hooks-18-"));
+    writeFileSync(p, readFileSync(p, "utf8").replace("badge/hooks-24-", "badge/hooks-18-"));
     const inv = collectInventory(pluginRoot, dir);
     const drifted = applyBlocks(inv, { write: false, repoRoot: dir });
     assert.deepEqual(drifted, ["README.md"]);
     applyBlocks(inv, { write: true, repoRoot: dir });
-    assert.match(readFileSync(p, "utf8"), /badge\/hooks-23-/);
+    assert.match(readFileSync(p, "utf8"), /badge\/hooks-24-/);
     assert.deepEqual(applyBlocks(inv, { write: false, repoRoot: dir }), []);
   } finally {
     rmSync(dir, { recursive: true, force: true });

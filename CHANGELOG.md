@@ -4,7 +4,26 @@ All notable changes to codexclaw are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [Unreleased]
+
+### Added
+
+- Agent-swarm repository hygiene in `cxc-dev-devops`: `references/repo-bootstrap.md`
+  (ruleset-first setup, merge settings, PR limits, labels), `references/agent-pr-intake.md`
+  (identity tiers, draft-first, supersede procedure, weak/medium/strong policy options
+  with sources), `references/local-gc.md` (worktree/branch GC conventions and the
+  `cxc worktree gc` contract); rule IDs `DEVOPS-BRANCH-NAMESPACE-01`,
+  `DEVOPS-REPO-BOOTSTRAP-01`, `DEVOPS-AGENT-INTAKE-01`, `DEVOPS-LOCAL-GC-01` and
+  their sub-rules.
+
+### Fixed
+
+- `branch-lifecycle.md` keep rules now match the shipped OpenCodex closed-PR planner
+  (ten keep reasons in evaluation order, including disposable namespace,
+  unknown-head-sha and branch-moved-since-close from lidge-jun/opencodex `59d9bc95f`)
+  and state that PR state, not ancestry, is merge truth under squash merging.
+
+### Changed
 
 - Make executor the canonical implementation dispatch role. Add explicit, non-overwriting
   `cxc subagents register executor` setup; preserve legacy worker model routing and exit
@@ -842,7 +861,7 @@ carry the runtime hardening merged as `dac77cc7` on 2026-08-09.
 
 First public release. 25 skills, 12 hooks, 801 tests.
 
-[Unreleased]: https://github.com/lidge-jun/codexclaw/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/lidge-jun/codexclaw/compare/v0.2.24...HEAD
 [0.2.0]: https://github.com/lidge-jun/codexclaw/compare/v0.2.0-beta.1...v0.2.0
 [0.2.0-beta.1]: https://github.com/lidge-jun/codexclaw/compare/v0.1.0...v0.2.0-beta.1
 [0.1.0]: https://github.com/lidge-jun/codexclaw/releases/tag/v0.1.0

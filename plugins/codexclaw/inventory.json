@@ -63,6 +63,10 @@
       "name": "cxc-dev-uiux-design"
     },
     {
+      "folder": "dev-visualizer",
+      "name": "cxc-dev-visualizer"
+    },
+    {
       "folder": "goalplan",
       "name": "cxc-goalplan"
     },
@@ -179,6 +183,12 @@
       "event": "PreToolUse",
       "component": "pabcd-state",
       "matcher": "^Bash$"
+    },
+    {
+      "file": "pre-tool-use-guarding-memory-write.json",
+      "event": "PreToolUse",
+      "component": "pabcd-state",
+      "matcher": "^(memories[._]?add_ad_hoc_note|apply_patch|Write|Edit|Bash)$"
     },
     {
       "file": "pre-tool-use-linting-apply-patch.json",
