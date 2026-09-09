@@ -13,6 +13,9 @@
  */
 import { openIndexReadOnly, indexPath } from "./index-db.ts";
 import { isSyntheticUserText } from "./rollout.ts";
+import { readdirSync, openSync, readSync, closeSync } from "node:fs";
+import { join } from "node:path";
+import { codexHome, memoriesDir } from "./paths.ts";
 
 export type CwdSession = {
   /** Rollout file path (index primary key). */
@@ -126,4 +129,56 @@ export function listCwdSessions(
       /* already closed */
     }
   }
+}
+
+export type SummaryEntry = { relpath: string; title: string };
+
+/** Frontmatter head size: thread_id/cwd sit in the first few lines, the title right after. */
+const SUMMARY_HEAD_BYTES = 1200;
+
+/**
+ * Index rollout summaries by thread id, mapping to their first markdown heading.
+ *
+ * These are human-written one-line summaries of what a session accomplished, which
+ * is better context than anything derivable from the transcript. Only the head of
+ * each file is read (measured at ~37ms for 256 files), and the join is by thread
+ * id, so a session without a summary simply does not get this line. Coverage is
+ * uneven across directories, which makes this a bonus tier rather than the main
+ * material. Returns an empty map on any failure.
+ */
+export function loadSummaryIndex(home = codexHome()): Map<string, SummaryEntry> {
+  const out = new Map<string, SummaryEntry>();
+  const dir = join(memoriesDir(home), "rollout_summaries");
+  let names: string[];
+  try {
+    names = readdirSync(dir).filter((n) => n.endsWith(".md"));
+  } catch {
+    return out; // no summaries on this machine
+  }
+  for (const name of names) {
+    let fd: number;
+    try {
+      fd = openSync(join(dir, name), "r");
+    } catch {
+      continue;
+    }
+    try {
+      const buf = Buffer.alloc(SUMMARY_HEAD_BYTES);
+      const len = readSync(fd, buf, 0, SUMMARY_HEAD_BYTES, 0);
+      const head = buf.toString("utf8", 0, len);
+      const threadId = /^thread_id:\s*(\S+)\s*$/m.exec(head);
+      const title = /^#\s+(.+)$/m.exec(head);
+      if (!threadId || !title) continue;
+      out.set(threadId[1], { relpath: name, title: title[1].trim() });
+    } catch {
+      /* unreadable file contributes nothing */
+    } finally {
+      try {
+        closeSync(fd);
+      } catch {
+        /* already closed */
+      }
+    }
+  }
+  return out;
 }

@@ -7,6 +7,7 @@ import { dateParts } from "./fixtures.ts";
 import { openIndex } from "../src/index-db.ts";
 import { ingest } from "../src/ingest.ts";
 import { listCwdSessions } from "../src/cwd-context.ts";
+import { loadSummaryIndex } from "../src/cwd-context.ts";
 
 // A real ingested index, not a hand-built table: the cwd column and the synthetic
 // flag must come from the same code path production uses.
@@ -145,3 +146,48 @@ test("excerpts are single-line and length-capped", () => {
   }
 });
 
+test("summary index maps thread ids to the first heading, tolerating bad files", () => {
+  const root = mkdtempSync(join(tmpdir(), "recall-summaries-"));
+  try {
+    const dir = join(root, "memories", "rollout_summaries");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "2026-09-09-abcd-good.md"),
+      [
+        "thread_id: 019f0000-0000-7000-8000-0000000000c1",
+        "updated_at: 2026-09-09T03:19:27+00:00",
+        "cwd: /repo/current",
+        "",
+        "# Fixed the PostCompact envelope and moved recovery to SessionStart",
+        "",
+        "# A second heading that must not win",
+      ].join("\n"),
+    );
+    // No heading: contributes nothing rather than an empty title.
+    writeFileSync(
+      join(dir, "2026-09-08-efgh-headless.md"),
+      "thread_id: 019f0000-0000-7000-8000-0000000000c2\ncwd: /repo/current\n",
+    );
+    // No frontmatter at all.
+    writeFileSync(join(dir, "2026-09-08-ijkl-bare.md"), "# heading with no thread id\n");
+    // Non-markdown is ignored outright.
+    writeFileSync(join(dir, "notes.txt"), "thread_id: x\n# nope\n");
+
+    const index = loadSummaryIndex(root);
+    assert.equal(index.size, 1);
+    const entry = index.get("019f0000-0000-7000-8000-0000000000c1");
+    assert.equal(entry?.title, "Fixed the PostCompact envelope and moved recovery to SessionStart");
+    assert.equal(entry?.relpath, "2026-09-09-abcd-good.md");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a machine with no summaries yields an empty map, never a throw", () => {
+  const root = mkdtempSync(join(tmpdir(), "recall-nosummaries-"));
+  try {
+    assert.equal(loadSummaryIndex(root).size, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
