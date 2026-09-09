@@ -24,6 +24,12 @@ import {
 } from "./query-words.ts";
 import { expandQueryWords } from "./synonyms.ts";
 import { splitLines } from "./text-lines.ts";
+// Type-only: erased by the type-stripping build, so memory search still ships
+// with no runtime edge to chat-search.ts. The function itself arrives through
+// MemorySearchOptions.searchChat (the RecallContextDeps pattern in hook.ts).
+import type { searchChat } from "./chat-search.ts";
+
+export type ChatSearchFn = typeof searchChat;
 
 export const DEFAULT_MEMORY_LIMIT = 20;
 
@@ -40,6 +46,16 @@ export type MemorySearchOptions = {
   cwd?: string | null;
   /** with cwd: drop everything outside the scope instead of only boosting it. */
   cwdOnly?: boolean;
+  /**
+   * Chat search used to backfill an empty memory result. Injected rather than
+   * imported so this module keeps no edge to chat-search.ts and tests can run
+   * the memory path with the fallback switched off.
+   */
+  searchChat?: ChatSearchFn;
+  /** backfill from chat when the memory store returns at most this many hits (default 0). */
+  chatFallbackBelow?: number;
+  /** include tool call/output text in the chat backfill (default false). */
+  chatIncludeTools?: boolean;
 };
 
 /**
@@ -55,10 +71,11 @@ export type MemoryKind =
   | "raw" // raw_memories.md — merged phase-1 raw input
   | "rollout" // rollout_summaries/** — per-thread episodic summaries
   | "stage1" // stage1_outputs rows — episodic, pre-consolidation
+  | "chat" // raw session messages, backfilled when memory has nothing
   | "other";
 
 export type MemoryHit = {
-  origin: "file" | "stage1";
+  origin: "file" | "stage1" | "chat";
   kind: MemoryKind;
   relpath: string;
   threadId: string | null;
@@ -91,8 +108,9 @@ const RELAXED_PENALTY = 2;
 export const CWD_BOOST = 2;
 
 /** Classify a memories-root relpath into its artifact kind. */
-export function kindOfRelpath(relpath: string, origin: "file" | "stage1" = "file"): MemoryKind {
+export function kindOfRelpath(relpath: string, origin: MemoryHit["origin"] = "file"): MemoryKind {
   if (origin === "stage1") return "stage1";
+  if (origin === "chat") return "chat";
   if (relpath === "memory_summary.md") return "summary";
   if (relpath === "MEMORY.md") return "handbook";
   if (relpath === "raw_memories.md") return "raw";
@@ -115,6 +133,10 @@ export const KIND_PRIORITY: Record<MemoryKind, number> = {
   raw: 0.5,
   rollout: 0,
   stage1: 0,
+  // Raw conversation is the least consolidated source there is; it only ever
+  // appears when nothing else answered, so its priority only orders the
+  // backfill against itself.
+  chat: -1,
   other: 0,
 };
 
@@ -123,6 +145,7 @@ export const HALF_LIFE_HOURS: Record<MemoryKind, number> = {
   rollout: 24 * 7,
   stage1: 24 * 7,
   other: 24 * 7,
+  chat: 24 * 7,
   raw: 24 * 30,
   extension: 24 * 90,
   summary: Infinity,
@@ -435,12 +458,89 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
       warnings.push("no word-boundary matches — showing substring matches (lower confidence)");
     }
   }
-  if (candidates.length === 0 && scope?.only) {
+  const hits = rankAndTrim(candidates, limit);
+  const backfilled = backfillFromChat(query, hits, opts, home, scope, limit, nowMs, days, warnings);
+  // Only advise widening the scope when nothing at all came back; the chat
+  // backfill answers within the same scope and carries its own warning.
+  if (backfilled.length === 0 && scope?.only) {
     warnings.push(`no matches inside --cwd-only ${scope.prefix} — retry with --cwd to rank it first instead`);
   }
+  return { hits: backfilled, warnings, scannedFiles, elapsedMs: Date.now() - started };
+}
 
-  const hits = rankAndTrim(candidates, limit);
-  return { hits, warnings, scannedFiles, elapsedMs: Date.now() - started };
+/** Chat backfill excerpt length, matching the memory excerpt window. */
+const CHAT_EXCERPT = 400;
+
+/**
+ * Backfill an empty memory result from the chat corpus.
+ *
+ * The memory store is consolidated and therefore lags: a topic discussed an
+ * hour ago has no summary yet, and the honest answer "no memories" hides a
+ * conversation that does exist. Chat hits are labelled `chat/chat` and
+ * announced in the warnings so a backfilled answer is never mistaken for a
+ * curated one.
+ *
+ * Tool logs are excluded. They are the measured pollution source — command text
+ * and file dumps match almost any query — and a backfill exists to surface what
+ * was said, not what was executed.
+ *
+ * The call is skipped entirely unless the caller injected searchChat, so the
+ * memory path keeps its cost when nothing needs backfilling.
+ */
+function backfillFromChat(
+  query: string,
+  hits: MemoryHit[],
+  opts: MemorySearchOptions,
+  home: string,
+  scope: CwdScope | null,
+  limit: number,
+  nowMs: number,
+  days: number,
+  warnings: string[],
+): MemoryHit[] {
+  const chat = opts.searchChat;
+  const threshold = Math.max(opts.chatFallbackBelow ?? 0, 0);
+  if (chat === undefined || hits.length > threshold) return hits;
+  const want = Math.min(limit, 5);
+  try {
+    const result = chat(query, {
+      home,
+      // Full history by default: a backfill that inherited chat's 7-day window
+      // would go looking for old context and find only the last week of it.
+      days,
+      limit: want,
+      // Never trigger ingest here — a refresh over the multi-GB index would
+      // dwarf the entire memory search it is standing in for.
+      noRefresh: true,
+      includeTools: opts.chatIncludeTools === true,
+      source: "main",
+      context: 0,
+      // A hard memory scope stays hard in the backfill; a boost does not filter.
+      cwd: scope?.only ? scope.prefix : null,
+    });
+    const out: MemoryHit[] = result.hits.slice(0, want).map((hit) => {
+      const updatedMs = Date.parse(hit.ts);
+      return {
+        origin: "chat",
+        kind: "chat",
+        relpath: hit.file,
+        threadId: hit.threadId,
+        updatedAt: hit.ts,
+        excerpt: hit.text.slice(0, CHAT_EXCERPT),
+        startLine: null,
+        cwd: hit.cwd,
+        score: finalScore(0, "chat", Number.isFinite(updatedMs) ? updatedMs : null, nowMs),
+      };
+    });
+    if (out.length === 0) return hits;
+    warnings.push(
+      `no memory artifacts matched — ${out.length} raw session message(s) shown instead (tool logs excluded)`,
+    );
+    return out;
+  } catch (err) {
+    warnings.push(`chat fallback unavailable (${err instanceof Error ? err.message : String(err)})`);
+    return hits;
+  }
 }
 
 /** stage1_outputs holds per-thread raw_memory + rollout_summary; read-only, fail-soft. */

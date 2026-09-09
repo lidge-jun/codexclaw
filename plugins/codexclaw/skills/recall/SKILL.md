@@ -31,7 +31,7 @@ cxc chat search "<query>" [--days N] [--cwd PATH] [--role r] [--source main|suba
                           [--recent] [--scan] [--no-refresh] [--json]
 cxc chat index [--rebuild] [--status]
 cxc memory search "<query>" [--days N] [--limit N] [--any] [--no-synonyms]
-                            [--cwd PATH] [--cwd-only PATH] [--json]
+                            [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json]
 ```
 
 Defaults that matter:
@@ -92,6 +92,18 @@ chunk that names the path in prose counts as a weaker signal at half the boost
 — that is what keeps handbook rules inside a `--cwd-only` result. Prefix
 matching is separator-aware: `/repo` never matches `/repo2`. Every hit prints
 its `{cwd}` when one is known.
+
+## When memory has nothing
+
+The memory store is consolidated on a delay, so a topic from an hour ago may
+have no summary yet. When `cxc memory search` finds no artifact, it answers
+from the raw chat corpus instead: up to five session messages, labelled
+`(chat/chat)`, with a warning saying the result was substituted. Tool call and
+output text is excluded — it matches almost any query and drowns out what was
+actually said. Pass `--no-chat` for a memory-only answer.
+
+The backfill never refreshes the sidecar index, so it costs a query rather than
+an ingest, and `--cwd-only` stays in force across it.
 
 ## Escalation ladder
 

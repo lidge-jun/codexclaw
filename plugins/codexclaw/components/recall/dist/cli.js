@@ -28,7 +28,7 @@ const USAGE = [
   "                           [--recent] [--scan] [--no-refresh] [--json]",
   "cxc chat index [--rebuild] [--status] [--json]",
   "cxc memory search \"<query>\" [--days N] [--limit N] [--any] [--no-synonyms]",
-  "                             [--cwd PATH] [--cwd-only PATH] [--json]",
+  "                             [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json]",
   "",
   `  --days N     restrict to the last N days (chat default ${DEFAULT_DAYS}, 0 = full history)`,
   "  --cwd PATH   chat: only sessions under PATH; memory: rank hits under PATH first",
@@ -42,6 +42,7 @@ const USAGE = [
   "  --no-tools   skip tool call/output (tool_log) matching",
   "  --recent     order by time instead of relevance (index engine default: relevance)",
   "  --rank       order by relevance (the default; accepted for explicitness)",
+  "  --no-chat    memory search: do not fall back to raw chat when nothing matches",
   "  --scan       force the raw JSONL scan path (skip the sidecar index)",
   "  --no-refresh skip refresh-on-query ingest (fastest, index may be stale)",
   "  --no-synonyms memory search: raw words only — no ko/en synonyms, no korean stem",
@@ -74,6 +75,7 @@ function parseFlags(args          )              {
       scan: { type: "boolean", default: false },
       "no-refresh": { type: "boolean", default: false },
       "no-synonyms": { type: "boolean", default: false },
+      "no-chat": { type: "boolean", default: false },
       full: { type: "boolean", default: false },
       rebuild: { type: "boolean", default: false },
       status: { type: "boolean", default: false },
@@ -147,6 +149,9 @@ function runMemorySearch(args          )         {
     // Bare `--cwd-only` (parsed as a boolean) hardens an accompanying --cwd.
     cwd: typeof values["cwd-only"] === "string" ? values["cwd-only"] : typeof values.cwd === "string" ? values.cwd : null,
     cwdOnly: values["cwd-only"] !== undefined && values["cwd-only"] !== false,
+    // Injected rather than imported by memory-search: the module keeps no edge
+    // to chat-search, and the fallback is one flag away from being off.
+    searchChat: values["no-chat"] === true ? undefined : searchChat,
   };
   const result = searchMemory(query, opts);
   process.stdout.write(

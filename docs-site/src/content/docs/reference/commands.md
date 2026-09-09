@@ -166,7 +166,7 @@ cxc chat search "<query>" [--days N] [--cwd PATH] [--role user|assistant|tool] [
                          [--recent] [--scan] [--no-refresh] [--json] [--full] [--home PATH]
 cxc chat index [--rebuild] [--status] [--json] [--home PATH] [--index-path PATH]
 cxc memory search "<query>" [--days N] [--limit N] [--any] [--no-synonyms]
-                          [--cwd PATH] [--cwd-only PATH] [--json] [--home PATH]
+                          [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json] [--home PATH]
 ```
 
 Recall commands are read-only against Codex data. `cxc chat index` writes only the derived

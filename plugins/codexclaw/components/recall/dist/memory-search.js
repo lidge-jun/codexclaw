@@ -24,8 +24,24 @@ import {
 } from "./query-words.js";
 import { expandQueryWords } from "./synonyms.js";
 import { splitLines } from "./text-lines.js";
+// Type-only: erased by the type-stripping build, so memory search still ships
+// with no runtime edge to chat-search.ts. The function itself arrives through
+// MemorySearchOptions.searchChat (the RecallContextDeps pattern in hook.ts).
+
+
+
 
 export const DEFAULT_MEMORY_LIMIT = 20;
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -71,6 +87,7 @@ export const DEFAULT_MEMORY_LIMIT = 20;
 
 
 
+
 /** Hits from the same file beyond this cap are dropped so one fat file (MEMORY.md) cannot consume every slot. */
 const PER_FILE_CAP = 2;
 
@@ -91,8 +108,9 @@ const RELAXED_PENALTY = 2;
 export const CWD_BOOST = 2;
 
 /** Classify a memories-root relpath into its artifact kind. */
-export function kindOfRelpath(relpath        , origin                    = "file")             {
+export function kindOfRelpath(relpath        , origin                      = "file")             {
   if (origin === "stage1") return "stage1";
+  if (origin === "chat") return "chat";
   if (relpath === "memory_summary.md") return "summary";
   if (relpath === "MEMORY.md") return "handbook";
   if (relpath === "raw_memories.md") return "raw";
@@ -115,6 +133,10 @@ export const KIND_PRIORITY                             = {
   raw: 0.5,
   rollout: 0,
   stage1: 0,
+  // Raw conversation is the least consolidated source there is; it only ever
+  // appears when nothing else answered, so its priority only orders the
+  // backfill against itself.
+  chat: -1,
   other: 0,
 };
 
@@ -123,6 +145,7 @@ export const HALF_LIFE_HOURS                             = {
   rollout: 24 * 7,
   stage1: 24 * 7,
   other: 24 * 7,
+  chat: 24 * 7,
   raw: 24 * 30,
   extension: 24 * 90,
   summary: Infinity,
@@ -435,12 +458,89 @@ export function searchMemory(query        , opts                      = {})     
       warnings.push("no word-boundary matches — showing substring matches (lower confidence)");
     }
   }
-  if (candidates.length === 0 && scope?.only) {
+  const hits = rankAndTrim(candidates, limit);
+  const backfilled = backfillFromChat(query, hits, opts, home, scope, limit, nowMs, days, warnings);
+  // Only advise widening the scope when nothing at all came back; the chat
+  // backfill answers within the same scope and carries its own warning.
+  if (backfilled.length === 0 && scope?.only) {
     warnings.push(`no matches inside --cwd-only ${scope.prefix} — retry with --cwd to rank it first instead`);
   }
+  return { hits: backfilled, warnings, scannedFiles, elapsedMs: Date.now() - started };
+}
 
-  const hits = rankAndTrim(candidates, limit);
-  return { hits, warnings, scannedFiles, elapsedMs: Date.now() - started };
+/** Chat backfill excerpt length, matching the memory excerpt window. */
+const CHAT_EXCERPT = 400;
+
+/**
+ * Backfill an empty memory result from the chat corpus.
+ *
+ * The memory store is consolidated and therefore lags: a topic discussed an
+ * hour ago has no summary yet, and the honest answer "no memories" hides a
+ * conversation that does exist. Chat hits are labelled `chat/chat` and
+ * announced in the warnings so a backfilled answer is never mistaken for a
+ * curated one.
+ *
+ * Tool logs are excluded. They are the measured pollution source — command text
+ * and file dumps match almost any query — and a backfill exists to surface what
+ * was said, not what was executed.
+ *
+ * The call is skipped entirely unless the caller injected searchChat, so the
+ * memory path keeps its cost when nothing needs backfilling.
+ */
+function backfillFromChat(
+  query        ,
+  hits             ,
+  opts                     ,
+  home        ,
+  scope                 ,
+  limit        ,
+  nowMs        ,
+  days        ,
+  warnings          ,
+)              {
+  const chat = opts.searchChat;
+  const threshold = Math.max(opts.chatFallbackBelow ?? 0, 0);
+  if (chat === undefined || hits.length > threshold) return hits;
+  const want = Math.min(limit, 5);
+  try {
+    const result = chat(query, {
+      home,
+      // Full history by default: a backfill that inherited chat's 7-day window
+      // would go looking for old context and find only the last week of it.
+      days,
+      limit: want,
+      // Never trigger ingest here — a refresh over the multi-GB index would
+      // dwarf the entire memory search it is standing in for.
+      noRefresh: true,
+      includeTools: opts.chatIncludeTools === true,
+      source: "main",
+      context: 0,
+      // A hard memory scope stays hard in the backfill; a boost does not filter.
+      cwd: scope?.only ? scope.prefix : null,
+    });
+    const out              = result.hits.slice(0, want).map((hit) => {
+      const updatedMs = Date.parse(hit.ts);
+      return {
+        origin: "chat",
+        kind: "chat",
+        relpath: hit.file,
+        threadId: hit.threadId,
+        updatedAt: hit.ts,
+        excerpt: hit.text.slice(0, CHAT_EXCERPT),
+        startLine: null,
+        cwd: hit.cwd,
+        score: finalScore(0, "chat", Number.isFinite(updatedMs) ? updatedMs : null, nowMs),
+      };
+    });
+    if (out.length === 0) return hits;
+    warnings.push(
+      `no memory artifacts matched — ${out.length} raw session message(s) shown instead (tool logs excluded)`,
+    );
+    return out;
+  } catch (err) {
+    warnings.push(`chat fallback unavailable (${err instanceof Error ? err.message : String(err)})`);
+    return hits;
+  }
 }
 
 /** stage1_outputs holds per-thread raw_memory + rollout_summary; read-only, fail-soft. */
