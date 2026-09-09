@@ -83,6 +83,13 @@ and is also unaffected.
   mentions already present in spawn messages; it never adds omitted role or surface skills.
 - **edit-lint / pre-tool-use (`apply_patch|Write|Edit`)** — lints structured edits before they
   apply.
+- **memory-write / pre-tool-use (`memories[._]?add_ad_hoc_note|apply_patch|Write|Edit|Bash`)** —
+  denies an unauthorized write into the Codex memories directory. The shell leg classifies by
+  write destination (`>`, `>>`, `>|`, `tee`, `sed -i`, `cp`/`mv` target, `perl -i`/`ruby -i`),
+  not by a memories path string in the command body, so `sed -n` reads, `2>/dev/null` stderr
+  redirects, and heredoc bodies that mention the memories path are allowed. Fail-open on crash.
+  Early warning, not enforcement: subshells, variable expansions, and `python -c` writers are
+  residual bypasses.
 
 ### Post-tool capture
 

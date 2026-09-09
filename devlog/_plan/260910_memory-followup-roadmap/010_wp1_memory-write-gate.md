@@ -85,7 +85,7 @@ export function shellPathTokens(command: string): string[] {
 
 | 파일 | NEW/MODIFY/DELETE | 변경 요지 | 예상 줄수 |
 |---|---|---|---|
-| `plugins/codexclaw/components/pabcd-state/src/shell-write-destinations.ts` | NEW | §4.1의 목적지 파서 전체(`splitShellSegments`, `skipQuoted`, `skipHeredoc`, `readToken`, `redirectDestinations`, `commandDestinations`, `shellWriteDestinations` export). 순수 함수, import 없음 (A/B8 분리) | ~300 |
+| `plugins/codexclaw/components/pabcd-state/src/shell-write-destinations.ts` | NEW | §4.1의 목적지 파서 전체(`splitShellSegments`, `skipQuoted`, `skipHeredoc`, `readToken`, `redirectDestinations`, `verbDestinations`, `shellWriteDestinations` export). 순수 함수, import 없음 (A/B8 분리) | ~300 |
 | `plugins/codexclaw/components/pabcd-state/src/memory-write-gate.ts` | MODIFY | `shellPathTokens`·write-verb 정규식 삭제. `import { shellWriteDestinations } from "./shell-write-destinations.ts"`. 셸 분기가 그 목록만 `isMemoryPath`로 본다 | 삭제 ~25, 추가 ~10 |
 | `plugins/codexclaw/components/pabcd-state/test/shell-write-destinations.test.ts` | NEW | 파서 단위 케이스: 공백 없는 `>`/`>>`/`>|`, `->`, 따옴표, heredoc, `2>/dev/null`, `&>`, tee/cp/mv/sed -i/perl -i | ~120 |
 | `plugins/codexclaw/components/pabcd-state/dist/shell-write-destinations.js` | NEW | `npm run build` 산출, src와 같은 커밋 | compileSource 결과 |
@@ -104,7 +104,7 @@ export function shellPathTokens(command: string): string[] {
 
 before (`:156-170`, `:207-219`): §2 인용과 동일. `export function shellPathTokens`를 지운다. 이 이름을 다른 파일이 import하지 않는다 (워크트리 rg, 2026-09-10).
 
-after: `:156`–`:170`을 아래 블록으로 바꾸고, `classifyMemoryWrite`의 셸 분기를 그 다음 블록으로 바꾼다. 써드파티 import 없음. 기존 `node:os` / `node:path` / `./state.ts` / `./text-lines.ts`만 쓴다. `worktree-guard.ts` tokenizer는 heredoc 본문을 건너뛰지 않아 (`worktree-guard.ts:219-253`) 여기로 가져오지 않는다.
+after (A/B8 분리 기준): 아래 TS 블록은 **새 파일 `src/shell-write-destinations.ts` 전체**다(순수 함수, import 없음). `memory-write-gate.ts`에서는 (a) `:156`–`:170`의 `shellPathTokens`와 `:157-161` 주석을 삭제하고, (b) 상단 import에 `import { shellWriteDestinations } from "./shell-write-destinations.ts";`와 그 아래 `export { shellWriteDestinations } from "./shell-write-destinations.ts";`(re-export, 기존 테스트 파일이 같은 모듈에서 가져오기 위함)를 추가하며, (c) `classifyMemoryWrite`의 셸 분기(`:207-219`)만 이 절 말미의 after 블록으로 바꾼다. 게이트의 다른 import(`node:os` / `node:path` / `./state.ts` / `./text-lines.ts`)는 그대로다. `worktree-guard.ts` tokenizer는 heredoc 본문을 건너뛰지 않아 (`worktree-guard.ts:219-253`) 여기로 가져오지 않는다.
 
 ```ts
 /**
@@ -443,7 +443,7 @@ write-verb 정규식은 제거한다. 목적지가 없으면 surface는 `""`이�
 
 before: `:174-183` 한 테스트. cat/rg 허용, echo 리다이렉트 메모리 거부, 워크트리 허용.
 
-after: 기존 테스트를 남기고, import에 `shellWriteDestinations`를 추가한 뒤 아래를 `:183` 다음에 붙인다. 테스트는 `node:test` + `node:assert/strict`, 소스는 `../src/memory-write-gate.ts` (확장자 포함). 메모리 경로는 픽스처에서 `CODEX_HOME=/h`의 `/h/memories`를 쓰고, 라이브 재현만 본문에 `~/.codex/memories` 물결표를 쓴다.
+after: 기존 테스트를 남기고, import 목록에 `shellWriteDestinations`를 추가하고(게이트가 `export { shellWriteDestinations } from "./shell-write-destinations.ts"`로 re-export하므로 같은 모듈에서 가져올 수 있다; 파서 단위 테스트는 `test/shell-write-destinations.test.ts`가 `../src/shell-write-destinations.ts`를 직접 import한다) 아래를 `:183` 다음에 붙인다. 테스트는 `node:test` + `node:assert/strict`, 소스는 `../src/memory-write-gate.ts` (확장자 포함). 메모리 경로는 픽스처에서 `CODEX_HOME=/h`의 `/h/memories`를 쓰고, 라이브 재현만 본문에 `~/.codex/memories` 물결표를 쓴다.
 
 ```ts
 test("shell surface: destination-based classification, not body path strings", () => {
@@ -469,6 +469,13 @@ test("shell surface: destination-based classification, not body path strings", (
   assert.equal(sedInPlace.target, `${mem}/MEMORY.md`);
   // (5) stdout redirect into memories remains a write.
   assert.equal(classify(`echo hi > ${mem}/notes.md`).surface, "shell");
+  // (A1) no-space redirections and `>|` clobber are real writes (audit round 1 found the
+  // first parser draft returning [] for all three).
+  assert.equal(classify(`echo hi>${mem}/n.md`).surface, "shell");
+  assert.equal(classify(`echo hi>>${mem}/n.md`).surface, "shell");
+  assert.equal(classify(`echo hi >| ${mem}/n.md`).surface, "shell");
+  assert.equal(classify(`echo 'a>b'`).surface, "");
+  assert.equal(classify(`grep -- '->' /w/f`).surface, "");
 
   // Live shape from notes/00 and notes/03 §6: worktree dest, tilde path in the body.
   const live = [
@@ -502,6 +509,10 @@ test("shellWriteDestinations: stderr, arrows in prose, and heredoc bodies are no
   );
   assert.deepEqual(shellWriteDestinations("sed -n '1p' /h/memories/MEMORY.md"), []);
   assert.deepEqual(shellWriteDestinations("sed -i 's/a/b/' /h/memories/MEMORY.md"), ["/h/memories/MEMORY.md"]);
+  assert.deepEqual(shellWriteDestinations("echo hi>/h/memories/n.md"), ["/h/memories/n.md"]);
+  assert.deepEqual(shellWriteDestinations("echo hi>>/h/memories/n.md"), ["/h/memories/n.md"]);
+  assert.deepEqual(shellWriteDestinations("echo hi >| /h/memories/n.md"), ["/h/memories/n.md"]);
+  assert.deepEqual(shellWriteDestinations("x -> y"), []);
 });
 ```
 
@@ -556,8 +567,10 @@ after: `:85` 다음에 항목을 넣는다. 표 `:47` matcher 열은 바꾸지 �
 Build 단계:
 
 ```bash
-cd plugins/codexclaw/components/pabcd-state && node --test test/memory-write-gate.test.ts
-npm run build
+node plugins/codexclaw/scripts/test.mjs "plugins/codexclaw/components/pabcd-state/test/*.test.ts"   # 레포 루트
+npm run build                                                                                   # 레포 루트 (scripts/build.mjs)
+git add -f plugins/codexclaw/components/pabcd-state/dist/shell-write-destinations.js plugins/codexclaw/components/pabcd-state/dist/memory-write-gate.js
+node plugins/codexclaw/scripts/test.mjs "plugins/codexclaw/test/dist-freshness.test.mjs" "plugins/codexclaw/test/packaging.test.mjs"
 node plugins/codexclaw/scripts/test.mjs plugins/codexclaw/test/dist-freshness.test.mjs
 ```
 
@@ -567,7 +580,7 @@ node plugins/codexclaw/scripts/test.mjs plugins/codexclaw/test/dist-freshness.te
 
 `memory-write-gate.ts`를 고치면 같은 커밋에 `npm run build` 결과 `plugins/codexclaw/components/pabcd-state/dist/memory-write-gate.js`를 담는다. `dist-freshness.test.mjs:40-47`가 이 파일의 커밋 바이트를 `compileSource(src)`와 비교한다. 빠지면 CI F1 실패 (260909 `000_plan.md:325` R-7).
 
-바뀔 dist 파일: `plugins/codexclaw/components/pabcd-state/dist/memory-write-gate.js` 하나. `dist/cli.js` / `dist/hook.js`는 이 src를 import만 하고 자체 바이트는 그대로다.
+바뀔 dist 파일: `plugins/codexclaw/components/pabcd-state/dist/memory-write-gate.js`(MODIFY)와 `dist/shell-write-destinations.js`(NEW). `dist/`는 루트 `.gitignore:2`에 있어 새 파일은 `git add -f`로 추적한다(§6 Build 블록). `packaging.test.mjs` L19가 src마다 tracked dist를 요구하므로 누락되면 CI가 잡는다. `dist/cli.js` / `dist/hook.js`는 이 src를 import만 하고 자체 바이트는 그대로다.
 
 ## 8. 위험·롤백
 
@@ -641,3 +654,22 @@ node plugins/codexclaw/scripts/test.mjs "plugins/codexclaw/test/dist-freshness.t
 - §8 known bypass 표에 "공백 없는 리다이렉션 / `>|` clobber"를 9번째 항목으로 추가하고 이 수정으로 닫힘을 명시.
 
 B8(파일 크기): `memory-write-gate.ts`가 315→약 600줄이 되므로 목적지 파서를 `pabcd-state/src/shell-write-destinations.ts`(NEW, 약 300줄)로 분리하고 `memory-write-gate.ts`는 `import { shellWriteDestinations } from "./shell-write-destinations.ts"`로 소비한다. 테스트는 `test/shell-write-destinations.test.ts`(NEW)에 파서 단위 케이스, `memory-write-gate.test.ts`에 게이트 통합 케이스로 나눈다. dist는 `dist/shell-write-destinations.js`가 추가된다(같은 커밋에 빌드).
+
+
+## P 재검증 (wp1 사이클, 2026-09-10 08:05)
+
+기준 트리 `db4e9412`(origin/dev, #123 머지 직후). `git diff --stat 369ed0e1 HEAD -- plugins/`에서 게이트 관련 파일 변경 없음(추가된 것은 `plugins/codexclaw/test/test-shard.test.mjs`뿐). §2 인용 행(`memory-write-gate.ts:156-170, 207-219, 237-245, 312-314`)은 그대로 유효하다. A 감사 반영(A1·B8)이 본문에 접혀 있으므로 이 문서를 그대로 실행한다. 브랜치 `codex/memory-l1-wp1-gate`(origin/dev 위), PR base dev.
+
+
+
+## A 감사 반영 (wp1 round 1, 2026-09-10)
+
+리뷰어(grok-4.6) FAIL 4건을 본문에 접었다.
+
+1. §4.1 인라인 vs B8 분리: §4.1의 TS 블록은 **새 파일 `src/shell-write-destinations.ts` 전용**이다. `memory-write-gate.ts`는 `shellPathTokens`(:156-170)와 write-verb 정규식(:212)을 삭제하고, 상단 import에 `import { shellWriteDestinations } from "./shell-write-destinations.ts";`를 추가하며, 셸 분기(:207-219)만 §4.1 말미의 after 블록으로 교체한다. 게이트는 `export { shellWriteDestinations } from "./shell-write-destinations.ts";`로 re-export해 기존 테스트 파일이 같은 모듈에서 가져올 수 있게 한다(§4.2 문구 수정).
+2. re-export: 위 1과 같다.
+3. dist: 루트 `.gitignore:2`가 `dist/`이므로 새 산출 `dist/shell-write-destinations.js`는 `git add -f`로 추적해야 한다. F1(dist-freshness)은 untracked dist를 건너뛰므로 `packaging.test.mjs` L19(src마다 tracked dist)를 검증에 추가했다(§6 Build 블록 수정).
+4. A1 픽스처: §4.2 게이트 테스트와 파서 단위 테스트에 `echo hi>P` / `>>P` / `>| P` deny와 `echo 'a>b'` / `grep -- '->'` allow를 추가했다.
+
+Medium(빌드 cwd): Build 블록을 레포 루트 명령으로 고쳤다. Low(심볼명): §3의 `commandDestinations`를 `verbDestinations`로 맞췄다.
+
