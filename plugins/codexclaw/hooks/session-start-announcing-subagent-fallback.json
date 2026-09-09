@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "SessionStart": [{
+      "hooks": [{
+        "type": "command",
+        "command": "node \"${PLUGIN_ROOT}/components/subagent-config/dist/fallback-dispatch-cli.js\" session-start",
+        "timeout": 10,
+        "statusMessage": "(codexclaw) Loading subagent fallback protocol"
+      }]
+    }]
+  }
+}

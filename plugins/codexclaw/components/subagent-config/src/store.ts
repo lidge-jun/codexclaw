@@ -42,14 +42,30 @@ export interface RoleConfig {
   effort: EffortName | null;
   /** role prompt-segment override; null means "no override" (never fabricated). */
   promptOverride: string | null;
+  /**
+   * Optional first fallback after the primary candidate. null = no fallback.
+   * Independent of primary effort. Duplicate model IDs are rejected only when
+   * mode is "model" (default-mode primary identity is unknown).
+   */
+  fallback: RoleFallback | null;
 }
+
+export interface RoleFallback {
+  model: string;
+  effort: EffortName | null;
+}
+
+/** Patch shape: fallback may be a partial nested update or null to clear. */
+export type RolePatch = Partial<Omit<RoleConfig, "fallback">> & {
+  fallback?: Partial<RoleFallback> | null;
+};
 
 export interface SubagentsConfig {
   roles: Record<RoleName, RoleConfig>;
 }
 
 export function defaultRole(): RoleConfig {
-  return { mode: "default", model: null, effort: null, promptOverride: null };
+  return { mode: "default", model: null, effort: null, promptOverride: null, fallback: null };
 }
 
 export function defaultConfig(): SubagentsConfig {
@@ -70,9 +86,29 @@ function reconstructRole(raw: unknown): RoleConfig {
   // effort: only a known wire value survives; anything else -> null (inherit).
   const effort = (EFFORTS as readonly string[]).includes(r.effort as string) ? (r.effort as EffortName) : null;
   const promptOverride = typeof r.promptOverride === "string" ? r.promptOverride : null;
+  const fallback = reconstructFallback(r.fallback);
   // A "model" mode with no valid model is invalid -> fall back to default (fail safe).
-  if (mode === "model" && model === null) return { mode: "default", model: null, effort, promptOverride };
-  return { mode, model, effort, promptOverride };
+  if (mode === "model" && model === null) return { mode: "default", model: null, effort, promptOverride, fallback };
+  return { mode, model, effort, promptOverride, fallback };
+}
+
+/** Missing or malformed fallback becomes null; invalid nested effort becomes inherit. */
+function reconstructFallback(raw: unknown): RoleFallback | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const f = raw as Record<string, unknown>;
+  if (typeof f.model !== "string" || f.model.trim().length === 0) return null;
+  const effort = (EFFORTS as readonly string[]).includes(f.effort as string) ? (f.effort as EffortName) : null;
+  return { model: f.model, effort };
+}
+
+function mergeFallback(current: RoleFallback | null, patch: Partial<RoleFallback> | null | undefined): RoleFallback | null {
+  if (patch === undefined) return current;
+  if (patch === null) return null;
+  const model = typeof patch.model === "string" ? patch.model : (current?.model ?? "");
+  const effort = Object.prototype.hasOwnProperty.call(patch, "effort")
+    ? (patch.effort === undefined ? null : patch.effort)
+    : (current?.effort ?? null);
+  return { model, effort };
 }
 
 export type ConfigScope = "project" | "global";
@@ -168,7 +204,7 @@ export function readConfig(cwd: string, scope: ConfigScope = "project", env: Nod
 }
 
 /** Validate a role patch, returning an error message or null. */
-export function validateRolePatch(patch: Partial<RoleConfig>): string | null {
+export function validateRolePatch(patch: RolePatch): string | null {
   if (patch.mode !== undefined && patch.mode !== "default" && patch.mode !== "model") {
     return `invalid mode "${String(patch.mode)}" (must be "default" or "model")`;
   }
@@ -184,6 +220,30 @@ export function validateRolePatch(patch: Partial<RoleConfig>): string | null {
   }
   if (patch.promptOverride !== undefined && patch.promptOverride !== null && typeof patch.promptOverride !== "string") {
     return "promptOverride must be a string or null";
+  }
+  if (patch.fallback !== undefined && patch.fallback !== null) {
+    if (typeof patch.fallback !== "object" || Array.isArray(patch.fallback)) {
+      return "fallback must be an object or null";
+    }
+    if (patch.fallback.model !== undefined && !(typeof patch.fallback.model === "string" && patch.fallback.model.trim().length > 0)) {
+      return "fallback requires a non-empty model id";
+    }
+    if (
+      patch.fallback.effort !== undefined &&
+      patch.fallback.effort !== null &&
+      !(EFFORTS as readonly string[]).includes(patch.fallback.effort as string)
+    ) {
+      return `invalid fallback effort "${String(patch.fallback.effort)}" (must be one of ${EFFORTS.join("/")} or null)`;
+    }
+  }
+  if (
+    patch.mode === "model" &&
+    typeof patch.model === "string" &&
+    patch.fallback &&
+    typeof patch.fallback.model === "string" &&
+    patch.fallback.model === patch.model
+  ) {
+    return "fallback model must differ from the primary model";
   }
   return null;
 }
@@ -206,15 +266,22 @@ export function writeConfig(cwd: string, config: SubagentsConfig): void {
 }
 
 /** Merge only the selected role; missing roles continue to inherit dynamically. */
-export function setRole(cwd: string, role: RoleName, patch: Partial<RoleConfig>, scope: ConfigScope = "project", env: NodeJS.ProcessEnv = process.env): SubagentsConfig {
+export function setRole(cwd: string, role: RoleName, patch: RolePatch, scope: ConfigScope = "project", env: NodeJS.ProcessEnv = process.env): SubagentsConfig {
   if (!ROLES.includes(role)) throw new Error(`unknown role "${role}"`);
   const path = scopedPath(cwd, scope, env);
   const raw = scope === "global" ? readGlobalRaw(env, true) : readRaw(path, true);
   const current = Object.hasOwn(raw.roles, role) ? reconstructRole(raw.roles[role]) : readConfig(cwd, scope, env).roles[role];
-  const next: RoleConfig = { ...current, ...patch };
+  if (patch.fallback !== undefined && patch.fallback !== null && (typeof patch.fallback !== "object" || Array.isArray(patch.fallback))) {
+    throw new Error("fallback must be an object or null");
+  }
+  const fallbackError = validateRolePatch({ fallback: patch.fallback });
+  if (fallbackError) throw new Error(fallbackError);
+  const { fallback: fallbackPatch, ...rest } = patch;
+  const next: RoleConfig = { ...current, ...rest, fallback: mergeFallback(current.fallback, fallbackPatch) };
   const err = validateRolePatch(next);
   if (err) throw new Error(err);
   if (next.mode === "default") next.model = null;
+  if (next.fallback) next.fallback = { model: next.fallback.model, effort: next.fallback.effort };
   raw.roles[role] = { ...(typeof raw.roles[role] === "object" && raw.roles[role] !== null ? raw.roles[role] as Record<string, unknown> : {}), ...next };
   writeRaw(path, raw);
   return readConfig(cwd, scope, env);

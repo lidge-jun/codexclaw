@@ -19,6 +19,7 @@ export interface RoleConfig {
   /** reasoning-effort override; null = inherit the parent session's effort. */
   effort: EffortName | null;
   promptOverride: string | null;
+  fallback?: { model: string; effort: EffortName | null } | null;
 }
 
 export type SubagentScope = "project" | "global";

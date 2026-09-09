@@ -68,3 +68,43 @@ phase-invariant external research that reads no repository state may overlap pha
 Mark its results `candidate — unverified`, then revalidate them against the landed tree
 at the next P; discard them when the phase map changes. See DISPATCH-ECONOMY-01 in
 `structure/20_pabcd_dispatch_doctrine.md` §3 (repository-only provenance, not an installed prerequisite).
+
+## Configured first fallback
+
+When a role has `fallback` configured, the main session uses `cxc subagents dispatch`
+with JSON on stdin before its first native call. The command selects and records
+candidates; it does not invoke a model or native tool. SessionStart announces this
+protocol. A PreToolUse reminder after a direct call cannot retroactively manage it.
+
+1. `start`: supply `sessionId`, a unique `dispatchId`, and `role`.
+2. `claim`: supply those IDs and the returned `attemptId`. Only `action:spawn`
+   permits one native call. Prepend the returned `marker` and a newline to the
+   original bounded task and required skills. Use a fresh context and the returned
+   candidate's model/effort (null inherits the original session). Preserve the role.
+3. Report `outcome:created` and the actual `agentId`, then use native wait. Report
+   `outcome:complete` with that ID on successful completion. Do not confuse a
+   successful spawn with successful work.
+4. On failure report `outcome:failed`, the original `error`, and `executionState`:
+   `not_created`, `stopped`, `unknown`, or `running`. Known no-child failures need
+   concrete `reconciliation` evidence. A stopped child requires its recorded
+   `agentId` and evidence that work/processes stopped and changes were inspected;
+   pass only remaining work to the replacement. Unknown outcomes never authorize
+   another child. If native spawn is absent, report `outcome:unavailable` with
+   confirmed `not_created` and capability evidence, never a policy denial.
+5. `ready` means claim the next attempt. `main-direct` means main reclaims the
+   remaining work; `independentReviewRequired` stays true for reviewer tasks.
+   Main implementation is never independent review. `stop` or `reconcile` means
+   no model switch or direct-execution permission. Inspect the reason and state.
+
+Use `action:status` to recover after interruption. It never reissues an executable
+spawn. A claimed attempt with a lost response must be reconciled, not claimed
+again. Do not remove locks to make a retry work. This is a main-followed protocol,
+not universal enforcement over callers that bypass it.
+
+OCX owns request retries, cooldown and its existing global/per-model fallback.
+CXC bounds its own native attempts to primary plus one fallback; OCX may rewrite
+those model IDs downstream. Record `observedModel` only from runtime evidence,
+never copy the requested candidate as proof. Structured OCX codes are preferred.
+Native wait may return prose: only complete JSON error envelopes, exact code
+strings and a small set of canonical quota-message prefixes are decoded. Unknown
+prose requires investigation; never invent an error code to force a fallback.

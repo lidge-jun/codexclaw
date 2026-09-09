@@ -48,6 +48,12 @@ const TOOLS = [
         mode: { type: "string", enum: ["default", "model"] },
         model: { type: ["string", "null"] },
         effort: { type: ["string", "null"], enum: [...EFFORTS, null] },
+        fallback: {
+          type: ["object", "null"],
+          description: "Optional first fallback. Null clears; omitted nested effort inherits existing fallback effort or session effort.",
+          properties: { model: { type: "string", minLength: 1 }, effort: { type: ["string", "null"], enum: [...EFFORTS, null] } },
+          additionalProperties: false,
+        },
         promptOverride: { type: ["string", "null"] },
       },
       required: ["role"],

@@ -13,7 +13,7 @@
  *   subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort]
  *                        [--prompt <text>|--clear-prompt]
  */
-import { readConfig, setRole, resetRole,                   projectConfigTrustToken, ROLES, EFFORTS,                                                 } from "./store.js";
+import { readConfig, setRole, resetRole,                   projectConfigTrustToken, ROLES, EFFORTS,                                                } from "./store.js";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -32,7 +32,7 @@ function isRole(v                    )                {
 /** Pure structural parse of the `subagents` argv (excluding the leading verb). */
 export function parseSubagentsArgs(argv          )                      {
   // Scope is an explicit trailing selector, so prompt/model values stay literal.
-  if (argv.at(-1) === "--global" && !["--prompt", "--model"].includes(argv.at(-2) ?? "")) {
+  if (argv.at(-1) === "--global" && !["--prompt", "--model", "--fallback-model"].includes(argv.at(-2) ?? "")) {
     return { ...parseProjectArgs(argv.slice(0, -1)), scope: "global" };
   }
   return parseProjectArgs(argv);
@@ -56,7 +56,9 @@ function parseProjectArgs(argv          )                      {
   if (sub === "set") {
     if (!isRole(argv[1])) return { action: "set", error: `unknown role '${argv[1] ?? ""}' (expected ${ROLES.join("|")})` };
     const role = argv[1];
-    const patch                      = {};
+    const patch            = {};
+    let clearFallback = false;
+    let setFallback = false;
     for (let i = 2; i < argv.length; i++) {
       const a = argv[i];
       if (a === "--mode") {
@@ -65,6 +67,16 @@ function parseProjectArgs(argv          )                      {
         patch.mode = v;
       } else if (a === "--model") {
         patch.model = argv[++i] ?? "";
+      } else if (a === "--fallback-model") {
+        const model = argv[++i];
+        if (!model?.trim()) return { action: "set", role, error: "--fallback-model requires a model id" };
+        patch.fallback = { ...patch.fallback, model }; setFallback = true;
+      } else if (a === "--fallback-effort") {
+        const value = argv[++i];
+        if (value !== "inherit" && !(EFFORTS                     ).includes(value ?? "")) return { action: "set", role, error: "invalid --fallback-effort" };
+        patch.fallback = { ...patch.fallback, effort: value === "inherit" ? null : value               }; setFallback = true;
+      } else if (a === "--clear-fallback") {
+        clearFallback = true; patch.fallback = null;
       } else if (a === "--effort") {
         const v = argv[++i];
         if (!(EFFORTS                     ).includes(v ?? "")) {
@@ -81,6 +93,7 @@ function parseProjectArgs(argv          )                      {
         return { action: "set", role, error: `unknown flag '${a}'` };
       }
     }
+    if (clearFallback && setFallback) return { action: "set", role, error: "--clear-fallback cannot be combined with fallback settings" };
     if (Object.keys(patch).length === 0) {
       return { action: "set", role, error: "set requires at least one of --mode/--model/--effort/--clear-effort/--prompt/--clear-prompt" };
     }
@@ -96,6 +109,8 @@ const HELP = [
   "  subagents               list all role configs",
   "  subagents get <role>    show one role config",
   "  subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort] [--prompt <text>|--clear-prompt]",
+  "  --fallback-model <id> [--fallback-effort low|medium|high|xhigh|inherit] | --clear-fallback",
+  "  subagents dispatch      main-owned fallback protocol; JSON stdin (start/claim/report/status)",
   "  subagents reset <role>  remove the role override and inherit the next scope",
   "  Append --global to list/get/set/reset to manage user defaults",
   "  subagents trust-token   print an export bound to this repo and exact config",
