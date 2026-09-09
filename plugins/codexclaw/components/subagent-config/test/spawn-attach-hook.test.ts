@@ -775,6 +775,10 @@ test("oversized spawn hook stdin is denied before JSON parsing", () => {
 
 test("inferRole: worker -> executor; review keywords -> reviewer; default explorer", () => {
   assert.equal(inferRole("worker", "review this"), "executor");
+  // Managed fallback dispatches spawn with explicit role names; the direct path
+  // honours them too, so "executor"/"reviewer" never fall back to keyword scans.
+  assert.equal(inferRole("executor", "map the codebase"), "executor");
+  assert.equal(inferRole("reviewer", "map the codebase"), "reviewer");
   assert.equal(inferRole("explorer", "audit the plan for blockers"), "reviewer");
   assert.equal(inferRole("explorer", "코드 검증 부탁"), "reviewer");
   assert.equal(inferRole("explorer", "map the codebase"), "explorer");

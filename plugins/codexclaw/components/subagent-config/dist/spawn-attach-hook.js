@@ -40,7 +40,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveSpawnConfig,               } from "./store.js";
+import { readConfig, resolveSpawnConfig,               } from "./store.js";
+import { managedSpawn, issueManagedSpawn } from "./fallback-dispatch.js";
+import { DISPATCH_GUIDANCE } from "./fallback-dispatch-cli.js";
 import { checkFinalGatePrereqs } from "./final-gate-guard.js";
 
 function isRecord(v         )                               {
@@ -786,13 +788,23 @@ export function runSpawnAttachHook(raw        )         {
     // Only rewrite a real message; never invent one (schema shape stays untouched).
     const message = toolInput.message;
     if (typeof message !== "string" || message.trim().length === 0) return "";
+    const cwd = typeof obj.cwd === "string" && obj.cwd.length > 0 ? obj.cwd : process.cwd();
+    const dispatchScan = scanInlineSkillBlocks(message).scanSource;
+    let managed                                  = null;
+    if (/^\[CXC-DISPATCH:/m.test(dispatchScan)) {
+      try {
+        if (isFullHistoryFork(toolInput)) return denyEnvelope("managed fallback requires a fresh context");
+        managed = managedSpawn(cwd, typeof obj.session_id === "string" ? obj.session_id : "", dispatchScan);
+        if (!managed) return denyEnvelope("invalid managed dispatch marker");
+      } catch (error) { return denyEnvelope(`managed dispatch: ${error instanceof Error ? error.message : String(error)}`); }
+    }
     const recursionRequested = !spawnedBySubagent && message.includes(SUBSPAWN_TOKEN);
     const mintedGrant = recursionRequested ? mintRecursionGrant(obj) : null;
     const controlledMessage = stripControlMarkers(message);
 
     const skillsDir = runtimeSkillsDir();
     const normalizedMessage = skillsDir ? normalizeSkillMentions(controlledMessage, skillsDir) : controlledMessage;
-    const role = inferRole(toolInput.agent_type, normalizedMessage);
+    const role = managed?.role ?? inferRole(toolInput.agent_type, normalizedMessage);
 
     // Skill delivery: inline the recognized cxc SKILL.md bodies (atomic overflow
     // rule inside).
@@ -864,7 +876,6 @@ export function runSpawnAttachHook(raw        )         {
     // FULL-HISTORY FORK GUARD (model/effort only): codex-rs hard-rejects
     // model/reasoning_effort overrides on full-history forks, so those two fields
     // are skipped there. promptOverride is not subject to this guard.
-    const cwd = typeof obj.cwd === "string" && obj.cwd.length > 0 ? obj.cwd : process.cwd();
     const resolution = resolveSpawnConfig(cwd, role);
     if (resolution.trustWarning) {
       evidenceExemptMessage = `[CXC-CONFIG-IGNORED] ${resolution.trustWarning}\n\n${evidenceExemptMessage}`;
@@ -875,7 +886,7 @@ export function runSpawnAttachHook(raw        )         {
     const injectedPrompt = typeof resolution.promptOverride === "string" && resolution.promptOverride.trim().length > 0
       ? resolution.promptOverride.trim()
       : null;
-    if (!isFullHistoryFork(toolInput)) {
+    if (!managed && !isFullHistoryFork(toolInput)) {
       const callerModel = toolInput.model;
       const callerPickedModel = typeof callerModel === "string" && callerModel.trim().length > 0;
       const callerEffort = toolInput.reasoning_effort;
@@ -902,7 +913,7 @@ export function runSpawnAttachHook(raw        )         {
         // Guard was empty (existing guard already present in message, or no guard
         // needed). Find the existing guard marker and insert after the guard block;
         // if no marker is found, prepend to the whole message.
-        const markerIdx = evidenceExemptMessage.indexOf(surfaceMarker);
+        const markerIdx = evidenceExemptMessage.indexOf(v2Spawn ? LEAF_GUARD_MARKER : SCOPE_GUARD_MARKER);
         if (markerIdx !== -1) {
           // Find the end of the existing guard block (first double newline after marker).
           const blockEnd = evidenceExemptMessage.indexOf("\n\n", markerIdx);
@@ -929,17 +940,29 @@ export function runSpawnAttachHook(raw        )         {
     );
     if (!gateCheck.ok) return denyEnvelope(gateCheck.reason ?? "final gate prerequisites are missing");
 
-    if (!messageChanged && injectedModel === null && injectedEffort === null) return "";
+    const fallbackNotice = !managed && readConfig(cwd).roles[role].fallback
+      ? `[codexclaw] This direct spawn is not managed by first-fallback tracking. For subsequent tasks: ${DISPATCH_GUIDANCE}` : null;
+    if (!managed && !fallbackNotice && !messageChanged && injectedModel === null && injectedEffort === null) return "";
 
     // Full replacement: echo every original key; change only message/model/effort.
     const updatedInput                          = { ...toolInput, message: evidenceExemptMessage };
     if (injectedModel !== null) updatedInput.model = injectedModel;
     if (injectedEffort !== null) updatedInput.reasoning_effort = injectedEffort;
+    if (managed) {
+      try {
+        issueManagedSpawn(cwd, typeof obj.session_id === "string" ? obj.session_id : "", dispatchScan, typeof obj.tool_use_id === "string" ? obj.tool_use_id : null);
+      } catch (error) { return denyEnvelope(`managed dispatch: ${error instanceof Error ? error.message : String(error)}`); }
+      if (managed.candidate.model === null) delete updatedInput.model;
+      else updatedInput.model = managed.candidate.model;
+      if (managed.candidate.effort === null) delete updatedInput.reasoning_effort;
+      else updatedInput.reasoning_effort = managed.candidate.effort;
+    }
     return `${JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
         permissionDecision: "allow",
         updatedInput,
+        ...(fallbackNotice ? { additionalContext: fallbackNotice } : {}),
       },
     })}\n`;
   } catch {

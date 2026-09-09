@@ -31,6 +31,13 @@ test("payload bin exists and `help` exits 0 headed as the payload dispatcher", (
   const res = spawnSync(process.execPath, [payloadBin, "help"], { encoding: "utf8" });
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
   assert.match(res.stdout, /payload dispatcher/);
+  // The installed entrypoint must forward dispatch stdin, not send it to the
+  // settings parser. Invalid input exercises routing without writing state.
+  const dispatch = spawnSync(process.execPath, [payloadBin, "subagents", "dispatch"], {
+    encoding: "utf8", input: "{}",
+  });
+  assert.equal(dispatch.status, 1);
+  assert.equal(JSON.parse(dispatch.stdout).error, "invalid sessionId");
 });
 
 test("parity: every payload COMMAND_TABLE verb is handled by the root bin", async () => {

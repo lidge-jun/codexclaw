@@ -13,7 +13,7 @@ export function updateSettings(cwd        , body         )                   {
   const scope = configScope(b.scope);
   if (b.inherit !== undefined && typeof b.inherit !== 'boolean') throw new Error('inherit must be a boolean');
   const patch                          = {};
-  for (const key of ['mode', 'model', 'effort', 'promptOverride']) {
+  for (const key of ['mode', 'model', 'effort', 'promptOverride', 'fallback']) {
     if (b[key] !== undefined) patch[key] = b[key];
   }
   if (b.inherit === true) {
