@@ -1,9 +1,9 @@
 ---
 title: Hooks
-description: codexclaw's 23 hook files and 24 event handlers — events, matchers, and commands.
+description: codexclaw's 24 hook files and 25 event handlers — events, matchers, and commands.
 ---
 
-codexclaw registers 23 hook files with 24 event handlers in its plugin manifest.
+codexclaw registers 24 hook files with 25 event handlers in its plugin manifest.
 The compact-affordance file handles both PostCompact and UserPromptSubmit. Each handler runs a compiled component CLI
 under `node`. All commands resolve `${PLUGIN_ROOT}` to the installed plugin directory.
 The removed hook JSON files live under `hooks/_deprecated/` from the 2026-07-05 hook diet.
@@ -44,6 +44,7 @@ and is also unaffected.
 | `session-start-detecting-managed-worktree.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | `(codexclaw) Checking managed-worktree identity` | 10 s |
 | `user-prompt-submit-guiding-worktree-rename.json` | `UserPromptSubmit` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | `(codexclaw) Checking worktree rename intent` | 10 s |
 | `pre-tool-use-guarding-managed-worktree-deletion.json` | `PreToolUse` | `^Bash$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard-pretool` | `(codexclaw) Guarding managed worktree` | 10 s |
+| `pre-tool-use-guarding-memory-write.json` | `PreToolUse` | `^(memories[._]?add_ad_hoc_note\|apply_patch\|Write\|Edit\|Bash)$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-memory-write` | `(codexclaw) Guarding memory write` | 10 s |
 
 ## What each hook does
 

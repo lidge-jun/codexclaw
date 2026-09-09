@@ -129,6 +129,7 @@ function mintCheckEpoch()         {
 import { peakFrictionVerdict, looksLikeFailure, recordFriction } from "./friction.js";
 import { discardStreak, readDivergenceCandidates } from "./divergence.js";
 import { hasRenderArtifactModified, hasRenderObservation, renderGroundingAdvisory } from "./render-observations.js";
+import { detectMemoryWriteRequest } from "./memory-write-gate.js";
 
 
 
@@ -625,6 +626,27 @@ export function handleUserPromptSubmit(
 )         {
   if (payload.hook_event_name !== "UserPromptSubmit") return "";
   const turn = payload.turn_id ?? "";
+
+  // MEMORY-WRITE-GATE-01 (260909 wp1-A): record the remember request BEFORE the turn
+  // guard and before every early return below. PreToolUse carries no prompt
+  // (codex-rs hooks/src/schema.rs:278-296), so this write is the only place the gate's
+  // evidence can come from — and the paths that return early here (an already-injected
+  // turn, a suppressed interview, a silent un-armed session) are ordinary prompts that
+  // may still ask to remember something. Same placement rule as loopArmSeen below.
+  // Directive-free: the marker is bookkeeping, so nothing is injected into the model.
+  //
+  // It also runs BEFORE the state snapshot every later branch spreads. Writing it
+  // afterwards would land the marker on disk and then have the next `{ ...state }`
+  // write overwrite it with the pre-marker snapshot.
+  if (detectMemoryWriteRequest(payload.prompt)) {
+    try {
+      const fresh = readState(payload.cwd, payload.session_id);
+      writeState(payload.cwd, { ...fresh, memoryWriteRequested: true, memoryWriteTurn: turn === "" ? null : turn });
+    } catch {
+      // A marker that cannot be persisted degrades to a deny the user can lift with
+      // `cxc memory allow-write`; it must never break prompt handling.
+    }
+  }
   const state = readState(payload.cwd, payload.session_id);
   if (turn && state.injectedTurns.includes(turn)) return "";
 

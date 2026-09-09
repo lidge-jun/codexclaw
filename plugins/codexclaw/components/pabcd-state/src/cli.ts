@@ -47,6 +47,7 @@ import { handleRenderObservationCapture, handleRenderArtifactCapture } from "./r
 import { handleWorktreeGuard, handleWorktreeGuardPreTool } from "./worktree-guard.ts";
 import { runSubagentStopGate } from "./subagent-evidence.ts";
 import { handleIdleEditAdvisory } from "./idle-edit.ts";
+import { handleMemoryWriteGate } from "./memory-write-gate.ts";
 import { handleReviewObserver } from "./review-observer.ts";
 
 // wp10 (090 trim 4c): the ten terminal-only verb modules below are loaded with
@@ -274,6 +275,27 @@ async function main(): Promise<void> {
     process.exit(result.code);
   }
 
+  // `memory allow-write` (MEMORY-WRITE-GATE-01): the operator grant the PreToolUse
+  // memory gate consumes. Only this verb belongs here — `cxc memory search` is
+  // recall's, and the bins split the two the same way they split `config interview`.
+  if (kind === "memory") {
+    const { MEMORY_USAGE, parseMemoryCliArgs, runMemoryCli } = await import("./memory-cli.ts");
+    const argv = process.argv.slice(3);
+    if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
+      process.stdout.write(`${MEMORY_USAGE}\n`);
+      process.exit(0);
+    }
+    const parsed = parseMemoryCliArgs(argv, process.cwd());
+    if ("error" in parsed) {
+      process.stderr.write(`memory: ${parsed.error}\n${MEMORY_USAGE}\n`);
+      process.exit(2);
+    }
+    const result = runMemoryCli(parsed);
+    const stream = result.code === 0 ? process.stdout : process.stderr;
+    stream.write(`${result.output}\n`);
+    process.exit(result.code);
+  }
+
   if (kind === "review-round") {
     const { parseReviewRoundCliArgs, runReviewRoundCli } = await import("./review-round-cli.ts");
     const parsed = parseReviewRoundCliArgs(process.argv.slice(3), process.cwd());
@@ -330,6 +352,23 @@ async function main(): Promise<void> {
       process.stdout.write(handleWorktreeGuardPreTool(raw));
     } catch {
       // fail-open
+    }
+    process.exit(0);
+  }
+
+  // MEMORY-WRITE-GATE-01 (260909 wp1-A): PreToolUse enforcement over the memory write
+  // surface. Its own event slug rather than a fourth leg of `pre-tool-use`, because
+  // that dispatcher is deliberately FAIL-CLOSED for goal mode and this gate is
+  // FAIL-OPEN — a crash must not block a write the user asked for. Same shape as
+  // worktree-guard-pretool above, and placed ABOVE the subagent early-exit for the
+  // same reason: a delegated child must not be the way around the gate. A child has
+  // no UserPromptSubmit of its own (the marker cannot exist), so it is denied unless
+  // the parent recorded an explicit `cxc memory allow-write` grant.
+  if (event === "pre-tool-use-memory-write") {
+    try {
+      process.stdout.write(handleMemoryWriteGate(raw));
+    } catch {
+      // fail-open: never block on a gate crash
     }
     process.exit(0);
   }
