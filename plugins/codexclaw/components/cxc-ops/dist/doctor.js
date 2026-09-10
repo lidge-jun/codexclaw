@@ -461,27 +461,41 @@ export function runHookTrustCheck(pluginRoot        , options                = {
     // Distinguish "never trusted" from "drifted" so the repair line is the one
     // the operator actually needs (issue #33).
     const neverTrusted = failed.filter((result) => result.actual === null);
+    // Drift and absence are different facts. A recorded hash that no longer
+    // matches means the manifest moved on while the hooks kept running — the
+    // host decides trust from its own record, so codexclaw reporting this as a
+    // failure would paint every post-update machine red for a condition that
+    // blocks nothing (PLAN-BYPASS-NAMED-01). A MISSING entry is different: the
+    // hooks were never approved, and that stays a failure.
+    const driftedOnly = failed.length > 0 && neverTrusted.length === 0;
     const repair =
       failed.length === 0
         ? undefined
         : neverTrusted.length === failed.length
         ? `${failed.length} hook(s) have no trust entry in ${join(codexHome, "config.toml")}; only Codex itself writes those on hook approval. Approve this plugin's hooks in Codex, or record them explicitly with: cxc hooks retrust --key ${pluginKey} --codex-home ${codexHome} --bootstrap-ok`
         : `cxc hooks retrust --key ${pluginKey} --codex-home ${codexHome}`;
+    const failureDetail = failed
+      .map(
+        (result) =>
+          `${result.status} ${result.key} expected=${result.hash} actual=${result.actual ?? "(none)"} file_sha256=${result.fileSha256.slice(0, 16)}`,
+      )
+      .join("; ");
     return {
       name: "hook-trust",
       // An EMPTY result set is not a pass. `diagnoseHookTrust` skips a handler it
       // cannot hash (invalid matcher, empty command, async), so "0 failed" can also
       // mean "0 examined" — a green check over hooks nobody verified.
-      severity: results.length === 0 ? "WARN" : failed.length === 0 ? "PASS" : "FAIL",
+      severity:
+        results.length === 0 ? "WARN" : failed.length === 0 ? "PASS" : driftedOnly ? "WARN" : "FAIL",
       repair,
       evidence:
         results.length === 0
           ? `no hook handler could be hashed for ${pluginKey}; nothing was verified`
           : failed.length === 0
           ? `${results.length} hook hash(es) trusted for ${pluginKey}`
-          : failed
-              .map((result) => `${result.status} ${result.key} expected=${result.hash} actual=${result.actual ?? "(none)"}`)
-              .join("; "),
+          : driftedOnly
+          ? `trusted_hash drift (reinstall updates it; hooks still run): ${failureDetail}`
+          : failureDetail,
     };
   } catch (error) {
     return { name: "hook-trust", severity: "FAIL", evidence: error instanceof Error ? error.message : String(error) };

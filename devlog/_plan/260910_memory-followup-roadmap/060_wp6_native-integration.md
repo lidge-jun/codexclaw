@@ -770,3 +770,21 @@ B4(000과의 정합): 000 §work-phase 맵의 wp6 설명을 이 문서 기준(sr
 | rollout_summaries 256 상한 영향 | 파일 수·날짜 분포와 `max_raw_memories_for_consolidation` 대조 | 동일 |
 
 행 번호 정정: `hook.ts:110-145`, `hook.ts:499-531`, `format.ts:52-67`.
+
+
+## P 재검증 (wp6 사이클, 2026-09-10)
+
+기준 트리 = origin/dev(#128 머지 직후). 계획 이후 `recall/src/hook.ts`는 wp4(#127)가 `listCwdSessions` 호출부와 "Recent work — project" 문구를 바꿨고(cwd-context.ts repo_key 연합), `format.ts`·`cxc-ops/src/doctor.ts`·`hook-trust.ts`는 계획 시점과 동일하다. §4.1의 SessionStart 분기는 #127의 cwd-context 호출을 그대로 감싸고, `dedicatedToolsEnabled`는 A 감사 반영대로 `paths.ts codexHome()`을 쓴다. §4.4의 훅 결과 헬퍼는 `assertLegalHookResult({stdout, stderr, code})`(자식 프로세스 실행). §10 관측 항목은 C에서 실측해 receipt에 붙인다. B는 행이 아니라 심볼로 patch한다. 브랜치 `codex/memory-l1-wp6-native`.
+
+
+
+## A 감사 반영 (wp6 round 1, 2026-09-10)
+
+리뷰어(grok-4.6) GO-WITH-FIXES(blocker 3, Medium 1, Low 1). 구현 제약으로 접는다.
+
+1. resume 안내문은 기존 테스트가 요구하는 "recall is available" 문구를 유지한다(resume 전용 문구는 그 뒤에 덧붙이는 형태). `hook.test.ts:98-102`의 startup/resume/clear 루프는 그대로 통과해야 한다.
+2. `handleSessionStart`의 `dedicatedTools` 기본값은 이 머신 config(`[memories] dedicated_tools = true`)를 읽으므로, 기존 SessionStart 테스트(`hook.test.ts:74, :94` `/cxc chat search/`)는 `{ dedicatedTools: false }`를 명시하거나 테스트 홈의 config.toml 픽스처로 분기를 고정한다. §5의 "false/생략 → cxc chat search" 기대에서 "생략"을 뺀다. 분기 활성화 테스트는 두 값을 모두 명시.
+3. §4.2 활성화 행의 프롬프트를 `그때 그 작업 hook.ts MEMORY-WRITE-GATE`(현재 `detectRecallIntent` 참)로 바꾼다. `그때` 단독은 트리거가 아니다.
+4. Medium: §4.4 자식 프로세스 테스트는 `hook-e2e.test.mjs:10-16,124`의 `emptyCodexHome()` 패턴대로 `CODEX_HOME`·`CODEX_SQLITE_HOME`을 빈 임시 홈으로 고정한다(러너의 `CODEXCLAW_HOME`만으로는 라이브 `~/.codex`를 읽는다).
+5. Low: doctor WARN 강등이 바꾸는 기존 단언은 `hook-trust.test.ts:256`, `:543`(drifted FAIL→WARN, :240 제목)이고 `:527`(untrusted FAIL)은 유지.
+

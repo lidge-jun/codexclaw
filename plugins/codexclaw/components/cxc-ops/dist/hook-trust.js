@@ -87,6 +87,12 @@ const MATCHER_DROPPED_EVENTS = new Set               (["UserPromptSubmit", "Stop
 
 
 
+
+
+
+
+
+
 function assertSupportedPlatform()       {}
 
 function sorted(value         )          {
@@ -166,7 +172,9 @@ export function listHookEntries(pluginRoot        , pluginKey        )          
     if (typeof hookRef !== "string") throw new Error("plugin manifest hook references must be strings");
     const relativePath = normalizeHookPath(hookRef);
     assertSafeHeaderValue(relativePath, "hook path");
-    const document = JSON.parse(readFileSync(containedPluginFile(pluginRoot, relativePath), "utf8"))
+    const raw = readFileSync(containedPluginFile(pluginRoot, relativePath));
+    const fileSha256 = createHash("sha256").update(raw).digest("hex");
+    const document = JSON.parse(raw.toString("utf8"))
 
      ;
     for (const [rawEventName, rawGroups] of Object.entries(document.hooks ?? {})) {
@@ -197,6 +205,7 @@ export function listHookEntries(pluginRoot        , pluginKey        )          
           entries.push({
             key: `${pluginKey}:${relativePath}:${EVENT_LABELS[eventName]}:${groupIdx}:${handlerIdx}`,
             hash: identityHash(eventName, group.matcher                      , handler),
+            fileSha256,
           });
         }
       }

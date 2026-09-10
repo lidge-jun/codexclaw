@@ -1,11 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // Pin the cxc-resolve seam (B1): assertions below expect literal `cxc ...`
 // command lines, which would otherwise depend on the runner's PATH.
 process.env.CODEXCLAW_CXC = "cxc";
 import {
   detectRecallIntent,
+  dedicatedToolsEnabled,
+  extractRecallTargets,
+  assertLegalHookResult,
   handleUserPromptSubmit,
   handleSessionStart,
   handlePostCompact,
@@ -69,11 +77,17 @@ test("handler emits the pabcd-parity envelope only for recall intents", () => {
 });
 
 test("session-start advertises recall with and without index status", () => {
-  const withStatus = JSON.parse(handleSessionStart("1769 files / 354798 messages, last ingest X"));
+  // dedicatedTools is pinned: the default reads THIS machine's config.toml, and a
+  // unit assertion about wording must not depend on the operator's install.
+  const withStatus = JSON.parse(
+    handleSessionStart("1769 files / 354798 messages, last ingest X", undefined, undefined, {
+      dedicatedTools: false,
+    }),
+  );
   assert.equal(withStatus.hookSpecificOutput.hookEventName, "SessionStart");
   assert.match(withStatus.hookSpecificOutput.additionalContext, /cxc chat search/);
   assert.match(withStatus.hookSpecificOutput.additionalContext, /Index: 1769 files/);
-  const bare = JSON.parse(handleSessionStart(""));
+  const bare = JSON.parse(handleSessionStart("", undefined, undefined, { dedicatedTools: false }));
   assert.match(bare.hookSpecificOutput.additionalContext, /\$cxc-recall/);
   assert.ok(!bare.hookSpecificOutput.additionalContext.includes("Index:"));
 });
@@ -87,7 +101,9 @@ test("post-compact emits nothing: its output wire cannot carry context", () => {
 });
 
 test("session-start carries the recovery directive when the source is a compaction", () => {
-  const compacted = JSON.parse(handleSessionStart("", undefined, "compact"));
+  const compacted = JSON.parse(
+    handleSessionStart("", undefined, "compact", { dedicatedTools: false }),
+  );
   assert.equal(compacted.hookSpecificOutput.hookEventName, "SessionStart");
   const text = compacted.hookSpecificOutput.additionalContext;
   assert.match(text, /compacted/);
@@ -96,8 +112,9 @@ test("session-start carries the recovery directive when the source is a compacti
 
   // A normal start keeps the availability wording and must not claim a compaction.
   for (const source of [undefined, "startup", "resume", "clear"]) {
-    const plain = JSON.parse(handleSessionStart("", undefined, source)).hookSpecificOutput
-      .additionalContext;
+    const plain = JSON.parse(
+      handleSessionStart("", undefined, source, { dedicatedTools: false }),
+    ).hookSpecificOutput.additionalContext;
     assert.doesNotMatch(plain, /compacted/, `source=${source} must not mention compaction`);
     assert.match(plain, /recall is available/);
   }
@@ -331,4 +348,212 @@ test("summary text is quoted and capped like every other untrusted field", () =>
   for (const line of context.split("\n").filter((l) => l.includes("\u21b3"))) {
     assert.ok(line.length < 130, `summary line is capped: ${line.length}`);
   }
+});
+
+// ─── wp6: source-shaped briefings ───────────────────────────────────────────
+
+const notice = (source?: string, opts: { dedicatedTools?: boolean } = { dedicatedTools: false }) =>
+  JSON.parse(handleSessionStart("", undefined, source, opts)).hookSpecificOutput
+    .additionalContext as string;
+
+test("session-start briefings are shaped by source and always end on a recall pointer", () => {
+  const startup = notice("startup");
+  assert.match(startup, /recall is available/);
+  assert.doesNotMatch(startup, /resumed after a pause/);
+
+  // Resume keeps the availability wording and adds why the context may be thin.
+  const resume = notice("resume");
+  assert.match(resume, /recall is available/);
+  assert.match(resume, /resumed after a pause/);
+  assert.ok(
+    resume.indexOf("recall is available") < resume.indexOf("resumed after a pause"),
+    "the resume sentence follows the availability wording",
+  );
+
+  const compact = notice("compact");
+  assert.match(compact, /Context was just compacted/);
+  assert.doesNotMatch(compact, /resumed after a pause/);
+
+  for (const [label, text] of [
+    ["startup", startup],
+    ["resume", resume],
+    ["compact", compact],
+  ] as const) {
+    const pointer = text.split("\n").find((line) => line.startsWith("Recall: ")) ?? "";
+    assert.ok(pointer.length > 0, `${label} carries the recall pointer`);
+    assert.ok(pointer.length <= 160, `${label} pointer stays one capped line (${pointer.length})`);
+    assert.match(text.trimEnd().split("\n").at(-1) ?? "", /Details: \$cxc-recall\./);
+  }
+});
+
+test("a session with no cwd hits gets the notice and nothing else", () => {
+  const text = notice("startup");
+  assert.doesNotMatch(text, /<untrusted-recall-data>/);
+  assert.doesNotMatch(text, /Recent work/);
+  assert.match(text, /^\[cxc-recall\]/);
+});
+
+test("the recall pointer names the native tool only when config.toml enables it", () => {
+  const home = mkdtempSync(join(tmpdir(), "recall-wp6-home-"));
+  const previous = process.env.CODEX_HOME;
+  try {
+    process.env.CODEX_HOME = home;
+
+    // No [memories] table: fail-open to the commands, which are always correct.
+    writeFileSync(join(home, "config.toml"), "[other]\nx = 1\n");
+    assert.equal(dedicatedToolsEnabled(), false);
+    const off = JSON.parse(handleSessionStart("", undefined, "startup")).hookSpecificOutput
+      .additionalContext as string;
+    assert.match(off, /cxc chat search/);
+    assert.doesNotMatch(off, /memories\.search/);
+
+    writeFileSync(join(home, "config.toml"), "[memories]\ndedicated_tools = true\n\n[other]\nx = 1\n");
+    assert.equal(dedicatedToolsEnabled(), true);
+    const on = JSON.parse(handleSessionStart("", undefined, "startup")).hookSpecificOutput
+      .additionalContext as string;
+    assert.match(on, /memories\.search/);
+    assert.doesNotMatch(on, /cxc chat search/);
+
+    // The key counts only inside [memories], and a missing file is not a crash.
+    writeFileSync(join(home, "config.toml"), "[tools]\ndedicated_tools = true\n");
+    assert.equal(dedicatedToolsEnabled(), false);
+    rmSync(join(home, "config.toml"));
+    assert.equal(dedicatedToolsEnabled(), false);
+  } finally {
+    if (previous === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previous;
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+// ─── wp6: targeted recall hints (no search) ─────────────────────────────────
+
+test("wp6 trigger idioms widen without catching ordinary instructions", () => {
+  for (const p of [
+    "이전에 했던 배포 스크립트 다시 보자",
+    "그 세션에서 정한 예산이 뭐지",
+    "prior work on ingest?",
+    "we shipped that a while ago, right?",
+  ]) {
+    assert.ok(detectRecallIntent(p), `should trigger: ${p}`);
+  }
+  for (const p of ["add a --json flag to the status command", "hook.ts를 고쳐줘", "deploy 2.49.0 now"]) {
+    assert.equal(detectRecallIntent(p), false, `should NOT trigger: ${p}`);
+  }
+});
+
+test("recall intent appends suggested terms and still runs no search", () => {
+  const text = JSON.parse(
+    handleUserPromptSubmit({
+      hook_event_name: "UserPromptSubmit",
+      prompt: "그때 그 작업 hook.ts MEMORY-WRITE-GATE",
+    }),
+  ).hookSpecificOutput.additionalContext as string;
+  assert.match(text, /Suggested recall terms:/);
+  assert.match(text, /hook\.ts/);
+  assert.match(text, /MEMORY-WRITE-GATE/);
+  // The directive itself is untouched.
+  assert.match(text, /cxc chat search/);
+  assert.match(text, /cxc memory search/);
+  // Nothing was searched, so no search-output shape can appear.
+  assert.doesNotMatch(text, /memory hits/);
+  assert.doesNotMatch(text, /^Index:/m);
+  assert.doesNotMatch(text, /^---$/m);
+
+  const plain = JSON.parse(
+    handleUserPromptSubmit({ hook_event_name: "UserPromptSubmit", prompt: "지난번 세션 이어서" }),
+  ).hookSpecificOutput.additionalContext as string;
+  assert.doesNotMatch(plain, /Suggested recall terms:/);
+});
+
+test("extractRecallTargets keeps distinctive tokens, drops idioms, and stays fast", () => {
+  assert.deepEqual(extractRecallTargets("지난번 2.49.0 provenance와 hook.ts, 그리고 SessionStart"), [
+    "2.49.0",
+    "hook.ts",
+    "SessionStart",
+  ]);
+  assert.deepEqual(extractRecallTargets('그때 "the ingest race" 얘기했잖아'), ["the ingest race"]);
+  assert.deepEqual(extractRecallTargets("지난번 그 작업 이어서"), []);
+  assert.equal(extractRecallTargets("2.1 2.2 2.3 2.4 2.5 2.6").length, 4, "the list is capped");
+
+  // UserPromptSubmit runs on every prompt, so extraction is regex-only: an 8KB
+  // prompt must not spend a measurable slice of the 5s hook budget.
+  const prompt = `그때 그 작업 hook.ts 2.49.0 ${"수정하고 다시 검증하자 ".repeat(400)}`.slice(0, 8000);
+  const started = performance.now();
+  extractRecallTargets(prompt);
+  const elapsed = performance.now() - started;
+  assert.ok(elapsed < 20, `extraction stays inside the hook budget (${elapsed}ms)`);
+});
+
+// ─── wp6: hook stdout/stderr/exit contract, through the real entrypoint ─────
+
+const recallCli = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
+
+test("every recall hook event writes empty stdout or one JSON object, and exits 0", (t) => {
+  if (!existsSync(recallCli)) return t.skip("dist/cli.js absent; run npm run build first");
+  const home = mkdtempSync(join(tmpdir(), "recall-wp6-hookhome-"));
+  try {
+    // The operator's real ~/.codex must stay out of this: CODEXCLAW_HOME alone
+    // still leaves the handler reading live sessions (hook-e2e emptyCodexHome).
+    const env = {
+      ...process.env,
+      CODEX_HOME: home,
+      CODEX_SQLITE_HOME: home,
+      CODEXCLAW_HOME: join(home, "cxc"),
+      CODEXCLAW_CXC: "cxc",
+    };
+    const run = (event: string, payload: unknown) => {
+      const child = spawnSync(process.execPath, [recallCli, "hook", event], {
+        input: payload === null ? "" : JSON.stringify(payload),
+        encoding: "utf8",
+        env,
+      });
+      return { stdout: child.stdout ?? "", stderr: child.stderr ?? "", code: child.status ?? 1 };
+    };
+    const cases: Array<[string, unknown]> = [
+      ["session-start", { hook_event_name: "SessionStart", cwd: home, source: "startup" }],
+      ["session-start", { hook_event_name: "SessionStart", cwd: home, source: "compact" }],
+      ["session-start", null],
+      [
+        "user-prompt-submit",
+        { hook_event_name: "UserPromptSubmit", cwd: home, prompt: "지난번 hook.ts 작업 이어서" },
+      ],
+      [
+        "user-prompt-submit",
+        { hook_event_name: "UserPromptSubmit", cwd: home, prompt: "\u001b[31m지난번\u001b[0m 그 작업" },
+      ],
+      ["post-compact", { hook_event_name: "PostCompact", cwd: home }],
+      ["not-an-event", { hook_event_name: "Nonsense", cwd: home }],
+    ];
+    for (const [event, payload] of cases) {
+      const result = run(event, payload);
+      assert.doesNotThrow(
+        () => assertLegalHookResult(result),
+        `${event}: ${result.code} ${JSON.stringify(result.stdout.slice(0, 80))}`,
+      );
+    }
+    assert.equal(
+      run("post-compact", { hook_event_name: "PostCompact", cwd: home }).stdout,
+      "",
+      "PostCompact still carries no envelope",
+    );
+    assert.equal(run("not-an-event", { hook_event_name: "Nonsense" }).stdout, "");
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("assertLegalHookResult rejects the shapes that broke SessionStart upstream", () => {
+  assert.throws(() => assertLegalHookResult({ stdout: "", stderr: "", code: 3 }), /exited 3/);
+  assert.throws(
+    () => assertLegalHookResult({ stdout: "", stderr: "\u001b[32mdone\u001b[0m", code: 0 }),
+    /ANSI to stderr/,
+  );
+  assert.throws(() => assertLegalHookResult({ stdout: "plain text", stderr: "", code: 0 }));
+  assert.throws(
+    () => assertLegalHookResult({ stdout: "[1,2]", stderr: "", code: 0 }),
+    /not a JSON object/,
+  );
+  assert.doesNotThrow(() => assertLegalHookResult({ stdout: "", stderr: "note\n", code: 0 }));
+  assert.doesNotThrow(() => assertLegalHookResult({ stdout: '{"a":1}\n', stderr: "", code: 0 }));
 });
