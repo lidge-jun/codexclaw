@@ -24,7 +24,10 @@ function assertReviewerAdvice(cwd: string, emitted: string) {
   const nativeType = /agent_type[: ]+[`"]?(reviewer)\b/.exec(emitted)?.[1];
   const legacyType = /agent_type[: ]+[`"]?(explorer)\b/.exec(emitted)?.[1];
   const roleHeader = /CXC-ROLE: (reviewer)\b/.exec(emitted)?.[0];
-  const packets: Array<[string | undefined, string]> = [[nativeType, "TASK: audit"], [legacyType, `${roleHeader ?? ""}\nTASK: audit`]];
+  assert.match(emitted, /omit agent_type/, "field-less hosts need an executable omission instruction");
+  const packets: Array<[string | undefined, string]> = [[nativeType, "TASK: locate the owner"],
+    [legacyType, `${roleHeader ?? ""}\nTASK: locate the owner`],
+    [undefined, `${roleHeader ?? ""}\nTASK: locate the owner`]];
   for (const [agentType, packet] of packets) {
     const resolved = resolveSpawnConfig(cwd, inferRole(agentType, packet), { CODEXCLAW_HOME: join(cwd, "isolated-global") });
     assert.equal(resolved.model, "reviewer-only");

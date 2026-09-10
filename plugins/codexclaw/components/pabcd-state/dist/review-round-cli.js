@@ -196,8 +196,8 @@ function renderOpenPacket(round                  , fileCount        )         {
     "",
     `Round ${round.roundId} is in flight over ${fileCount} file(s).`,
     v2SpawnSurface()
-      ? "Dispatch an independent reviewer (agent_type \"reviewer\" if exposed; otherwise agent_type \"explorer\" with CXC-ROLE: reviewer before TASK:) and require it to end its"
-      : "Dispatch an independent reviewer (agent_type \"reviewer\" if exposed; otherwise agent_type \"explorer\" with CXC-ROLE: reviewer before TASK:) and require it to end its",
+      ? "Dispatch an independent reviewer (agent_type \"reviewer\" if exposed; otherwise agent_type \"explorer\" with CXC-ROLE: reviewer before TASK:; if the host has no agent_type field, omit agent_type and prepend CXC-ROLE: reviewer before TASK:) and require it to end its"
+      : "Dispatch an independent reviewer (agent_type \"reviewer\" if exposed; otherwise agent_type \"explorer\" with CXC-ROLE: reviewer before TASK:; if the host has no agent_type field, omit agent_type and prepend CXC-ROLE: reviewer before TASK:) and require it to end its",
     "final message with exactly these two lines:",
     "",
     `  LAUNCH: ${launchId}`,
