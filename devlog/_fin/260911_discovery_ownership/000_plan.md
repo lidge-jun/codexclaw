@@ -5,8 +5,9 @@ main choose it. A subsequent read-only investigation loaded several independent
 source areas, repeatedly truncated output, and never dispatched discovery despite
 reading the installed guidance. This unit makes ownership an early decision and
 reopens it when scope grows. It preserves small local lookups and user restrictions.
-The [design](010_discovery_ownership.md) modifies existing guidance owners; native
-behavior, including failures, will be recorded in a numbered evidence document.
+The [design](010_discovery_ownership.md) modifies existing guidance owners;
+[native evidence](011_verification.md) records successful Astra/Sol discovery,
+boundary cases, observed failures and resulting repairs.
 
 - **Archetype / trigger:** C3 satisfy-spec, one PABCD work-phase; requested follow-up
   to PR #130 after observable non-delegation on both main model families.
@@ -58,7 +59,13 @@ alone proves the sole cause. Prompt behavior remains probabilistic.
 
 ## Closure
 
-Pending implementation and actual behavior evidence.
+Implemented early ownership, scope reconsideration, bounded return verification,
+and precise report wire fields. Fresh Astra and Sol runs each complete with one
+useful explorer; existing narrow/no-delegation cases retain local handling.
+Source and compiled guidance are installed from the preserved local integration.
+The evidence records timeouts, a recovered attempt-ID mistake, cost limits and
+the CLI-version confound rather than claiming universal enforcement or savings.
+Delivery target: ordinary PR #130 to dev; current CI status is linked from that PR.
 
 ## Audit synthesis
 
