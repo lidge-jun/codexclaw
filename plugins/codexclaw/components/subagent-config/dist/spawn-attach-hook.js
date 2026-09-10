@@ -41,7 +41,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readConfig, resolveSpawnConfig,               } from "./store.js";
+import { readConfig, readSettings, ROLES, resolveSpawnConfig,               } from "./store.js";
 import { managedSpawn, issueManagedSpawn } from "./fallback-dispatch.js";
 import { DISPATCH_GUIDANCE } from "./fallback-dispatch-cli.js";
 import { checkFinalGatePrereqs } from "./final-gate-guard.js";
@@ -387,13 +387,44 @@ function consumeRecursionGrant(obj                         , message        )   
   }
 }
 
-function stripControlMarkers(message        )         {
+function stripControlMarkers(message        , preserveWhitespace = false)         {
   SUBSPAWN_GRANT_RE.lastIndex = 0;
-  return message
+  const stripped = message
     .replaceAll(SUBSPAWN_TOKEN, "")
-    .replace(SUBSPAWN_GRANT_RE, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+    .replace(SUBSPAWN_GRANT_RE, "");
+  return preserveWhitespace ? stripped : stripped.replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** Only the first producer line carries dispatch authority. On reapplication,
+ * unwrap exact hook-owned prefixes and consider each trusted role's prompt;
+ * the ledger, not native explorer transport, determines which role is valid. */
+function dispatchSources(message        , cwd        )                                             {
+  const line = (s        ) => s.split(/\r?\n/, 1)[0];
+  if (message.startsWith("[CXC-DISPATCH:")) return [{ source: line(message) }];
+  const settings = readSettings(cwd);
+  let rest = message;
+  const warning = settings.trustWarning ? `[CXC-CONFIG-IGNORED] ${settings.trustWarning}\n\n` : "";
+  if (warning && rest.startsWith(warning)) rest = rest.slice(warning.length);
+  let unwrapped = false;
+  for (const guard of [V1_SCOPE_BLOCK, LEAF_GUARD_BLOCK, V1_SCOPE_BLOCK_COORDINATOR, LEAF_GUARD_BLOCK_COORDINATOR]) {
+    if (!rest.startsWith(guard)) continue;
+    let tail = rest.slice(guard.length);
+    if (guard === V1_SCOPE_BLOCK_COORDINATOR || guard === LEAF_GUARD_BLOCK_COORDINATOR) {
+      tail = tail.replace(/^\nOne child spawn is authorized\. Include this exact one-time capability in that spawn message: \[CXC-SUBSPAWN-GRANT:[a-f0-9]{64}\]/i, "");
+    }
+    if (!tail.startsWith("\n\n")) continue;
+    rest = tail.slice(2);
+    unwrapped = true;
+    break;
+  }
+  if (!unwrapped) return [];
+  return ROLES.map(role => ({ role, prompt: settings.roles[role].promptOverride?.trim() ?? "" }))
+    .sort((a, b) => b.prompt.length - a.prompt.length)
+    .flatMap(({ role, prompt }) => {
+      if (prompt && !rest.startsWith(`${prompt}\n\n`)) return [];
+      const source = line(prompt ? rest.slice(prompt.length + 2) : rest);
+      return source.startsWith("[CXC-DISPATCH:") ? [{ source, role }] : [];
+    });
 }
 
 /** D1 deny envelope (hookSpecificOutput.permissionDecision "deny" — output_parser.rs:144). */
@@ -710,24 +741,7 @@ export function inlineSkillBodies(message        , skillsDir        )         {
     // Scan mentions OUTSIDE validated closed <skill> blocks only: mentions inside
     // an already-inlined body must not transitively pull in more bodies, and a
     // re-run on an already-inlined message must be a no-op (idempotent).
-    const { closedFolders, scanSource } = scanInlineSkillBlocks(message);
-    const folders = [...mentionedFolders(scanSource)]
-      .filter((f) => LEAF_SAFE_SKILL_FOLDERS.has(f) && !closedFolders.has(f))
-      .sort();
-    if (folders.length === 0) return message;
-    const blocks           = [];
-    for (const folder of folders) {
-      const path = skillPath(skillsDir, folder);
-      if (!path) continue;
-      let body = "";
-      try {
-        body = readFileSync(path, "utf8");
-      } catch {
-        continue;
-      }
-      if (body.trim().length === 0) continue;
-      blocks.push(`${INLINE_SKILL_OPEN}${folder}">\n${body.trim()}\n</skill>`);
-    }
+    const blocks = skillBlocks([message], skillsDir);
     if (blocks.length === 0) return message;
     const candidate = `${message}\n\n${blocks.join("\n\n")}`;
     if (candidate.length > MAX_NORMALIZE_LENGTH) return message; // atomic: all or nothing
@@ -735,6 +749,25 @@ export function inlineSkillBodies(message        , skillsDir        )         {
   } catch {
     return message;
   }
+}
+
+/** Shared collection keeps item boundaries intact while deduplicating globally. */
+function skillBlocks(texts          , skillsDir        )           {
+  if (texts.reduce((n, text) => n + text.length, Math.max(0, texts.length - 1) * 2) > MAX_NORMALIZE_LENGTH) return [];
+  const scans = texts.map(scanInlineSkillBlocks);
+  const closed = new Set(scans.flatMap(scan => [...scan.closedFolders]));
+  const folders = new Set(scans.flatMap(scan => [...mentionedFolders(scan.scanSource)]));
+  const blocks           = [];
+  for (const folder of [...folders].sort()) {
+    if (!LEAF_SAFE_SKILL_FOLDERS.has(folder) || closed.has(folder)) continue;
+    const path = skillPath(skillsDir, folder);
+    if (!path) continue;
+    try {
+      const body = readFileSync(path, "utf8").trim();
+      if (body) blocks.push(`${INLINE_SKILL_OPEN}${folder}">\n${body}\n</skill>`);
+    } catch { /* an unreadable skill is not attached */ }
+  }
+  return blocks;
 }
 
 /**
@@ -802,13 +835,21 @@ export function runSpawnAttachHook(raw        )         {
       ? textItems.map(item => scanInlineSkillBlocks(item.text).scanSource).join("\n\n")
       : scanInlineSkillBlocks(message).scanSource;
     let managed                                  = null;
-    if (/^\[CXC-DISPATCH:/m.test(dispatchScan)) {
+    let dispatchSource = "";
+    let dispatchError         ;
+    const sources = dispatchSources(validItems ? textItems[0]?.text ?? "" : message, cwd);
+    for (const candidate of sources) {
       try {
         if (isFullHistoryFork(toolInput)) return denyEnvelope("managed fallback requires a fresh context");
-        managed = managedSpawn(cwd, typeof obj.session_id === "string" ? obj.session_id : "", dispatchScan);
-        if (!managed) return denyEnvelope("invalid managed dispatch marker");
-      } catch (error) { return denyEnvelope(`managed dispatch: ${error instanceof Error ? error.message : String(error)}`); }
+        const resolved = managedSpawn(cwd, typeof obj.session_id === "string" ? obj.session_id : "", candidate.source);
+        if (!resolved) throw new Error("invalid managed dispatch marker");
+        if (candidate.role !== undefined && resolved.role !== candidate.role) continue;
+        managed = resolved;
+        dispatchSource = candidate.source;
+        break;
+      } catch (error) { dispatchError = error; }
     }
+    if (!managed && sources.length > 0) return denyEnvelope(`managed dispatch: ${dispatchError instanceof Error ? dispatchError.message : "dispatch header does not match its configured role"}`);
     const recursionRequested = !spawnedBySubagent && message.includes(SUBSPAWN_TOKEN);
     const mintedGrant = recursionRequested ? mintRecursionGrant(obj) : null;
     const skillsDir = runtimeSkillsDir();
@@ -816,16 +857,19 @@ export function runSpawnAttachHook(raw        )         {
     // join fences, links or skill mentions. Preserve every non-text item verbatim.
     const mappedItems = validItems ? itemInput.map(item => {
       if (item.type !== "text") return item;
-      const controlled = stripControlMarkers(item.text);
+      const controlled = stripControlMarkers(item.text, true);
       const normalized = skillsDir ? normalizeSkillMentions(controlled, skillsDir) : controlled;
-      return { ...item, text: skillsDir ? inlineSkillBodies(normalized, skillsDir) : normalized };
+      return { ...item, text: normalized };
     }) : null;
+    const itemBlocks = mappedItems && skillsDir ? skillBlocks(mappedItems.filter(item => item.type === "text").map(item => item.text          ), skillsDir) : [];
     const firstText = mappedItems?.findIndex(item => item.type === "text") ?? -1;
     const controlledMessage = mappedItems
       ? (firstText < 0 ? "" : mappedItems[firstText].text          )
       : stripControlMarkers(message);
     const normalizedMessage = !mappedItems && skillsDir ? normalizeSkillMentions(controlledMessage, skillsDir) : controlledMessage;
     const role = managed?.role ?? inferRole(toolInput.agent_type, validItems ? dispatchScan : normalizedMessage);
+    const resolution = resolveSpawnConfig(cwd, role);
+    const trustPrefix = resolution.trustWarning ? `[CXC-CONFIG-IGNORED] ${resolution.trustWarning}\n\n` : "";
 
     // Skill delivery: inline the recognized cxc SKILL.md bodies (atomic overflow
     // rule inside).
@@ -880,6 +924,7 @@ export function runSpawnAttachHook(raw        )         {
       ? `\nOne child spawn is authorized. Include this exact one-time capability in that spawn message: [CXC-SUBSPAWN-GRANT:${mintedGrant}]`
       : "";
     const guard = `${baseGuard}${grantInstruction}`;
+    if (trustPrefix && affordanceMessage.startsWith(trustPrefix)) affordanceMessage = affordanceMessage.slice(trustPrefix.length);
     // A bare public marker cannot suppress the guard. Exact full-block prefix
     // recognition retains idempotence when a host applies the hook twice.
     const hasExactGuard = affordanceMessage === guard || affordanceMessage.startsWith(`${guard}\n\n`);
@@ -898,10 +943,6 @@ export function runSpawnAttachHook(raw        )         {
     // FULL-HISTORY FORK GUARD (model/effort only): codex-rs hard-rejects
     // model/reasoning_effort overrides on full-history forks, so those two fields
     // are skipped there. promptOverride is not subject to this guard.
-    const resolution = resolveSpawnConfig(cwd, role);
-    if (resolution.trustWarning) {
-      evidenceExemptMessage = `[CXC-CONFIG-IGNORED] ${resolution.trustWarning}\n\n${evidenceExemptMessage}`;
-    }
     let injectedModel                = null;
     let injectedEffort                = null;
     // promptOverride: always resolved (not gated by full-history fork).
@@ -952,10 +993,20 @@ export function runSpawnAttachHook(raw        )         {
       }
     }
     const promptChanged = injectedPrompt !== null;
+    if (trustPrefix) evidenceExemptMessage = `${trustPrefix}${evidenceExemptMessage}`;
     const updatedItems = mappedItems ? [...mappedItems] : null;
     if (updatedItems) {
       if (firstText < 0) updatedItems.unshift({ type: "text", text: evidenceExemptMessage });
       else updatedItems[firstText] = { ...updatedItems[firstText], text: evidenceExemptMessage };
+      if (itemBlocks.length > 0) {
+        const textIndexes = updatedItems.flatMap((item, i) => item.type === "text" ? [i] : []);
+        const length = textIndexes.reduce((n, i) => n + (updatedItems[i].text          ).length, Math.max(0, textIndexes.length - 1) * 2);
+        const suffix = `\n\n${itemBlocks.join("\n\n")}`;
+        if (length + suffix.length <= MAX_NORMALIZE_LENGTH) {
+          const last = textIndexes.at(-1) ;
+          updatedItems[last] = { ...updatedItems[last], text: `${updatedItems[last].text}${suffix}` };
+        }
+      }
     }
     const messageChanged = updatedItems
       ? JSON.stringify(updatedItems) !== JSON.stringify(itemInput)
@@ -983,7 +1034,7 @@ export function runSpawnAttachHook(raw        )         {
     if (injectedEffort !== null) updatedInput.reasoning_effort = injectedEffort;
     if (managed) {
       try {
-        issueManagedSpawn(cwd, typeof obj.session_id === "string" ? obj.session_id : "", dispatchScan, typeof obj.tool_use_id === "string" ? obj.tool_use_id : null);
+        issueManagedSpawn(cwd, typeof obj.session_id === "string" ? obj.session_id : "", dispatchSource, typeof obj.tool_use_id === "string" ? obj.tool_use_id : null);
       } catch (error) { return denyEnvelope(`managed dispatch: ${error instanceof Error ? error.message : String(error)}`); }
       if (managed.candidate.model === null) delete updatedInput.model;
       else updatedInput.model = managed.candidate.model;

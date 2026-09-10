@@ -23,6 +23,19 @@ read-only transport, prepend `CXC-ROLE: reviewer` before `TASK:` to select revie
 settings. An explicit explorer without that header keeps explorer settings even
 when its task mentions review or verification. Task vocabulary is not a role choice.
 
+For native `items`, the hook preserves text whitespace (apart from explicit control
+tokens), attachment contents and order. Skill bodies are deduplicated across all
+text items and appended once to the last text item only when the complete projected
+text, including hook prefixes, fits the 256 KiB character limit. Otherwise no new
+skill body is attached. Existing caller text is not truncated to meet that limit.
+Ignored-config warnings and ordinary scope guards remain stable on reapplication.
+
+Managed dispatch requires its marker as the first line of the first text item (or
+the message). Later task text, quoted logs and attachments carry no dispatch authority.
+On reapplication, exact hook prefixes and the configured role prompt may precede the
+marker; the ledger role must match that prompt. Coordinator prefix recognition keeps
+managed routing, while recursion grants retain their existing lifecycle.
+
 ## Optional native executor registration
 
 Plugin directories are not Codex configuration layers, so installing the plugin alone
