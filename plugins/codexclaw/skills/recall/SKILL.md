@@ -11,6 +11,9 @@ Codex already persists every session (`~/.codex/sessions/**/rollout-*.jsonl`) an
 per-thread memory store (`~/.codex/memories/`). This skill is the discipline for
 SEARCHING that history instead of asking the user to repeat themselves.
 
+Injected `memory_summary.md` and SessionStart snippets are locators, never proof.
+Search, then open the winning file, before answering a past-work question.
+
 ## Recall Lookup Scope (read first)
 
 When ANY of these happen, search BEFORE asking the user:
@@ -21,56 +24,173 @@ When ANY of these happen, search BEFORE asking the user:
   "예전에 만든", "last time", "the thing we did earlier", "as discussed previously".
 - You are about to write "I don't have context about X" — search X first.
 
-Both commands are strictly read-only over `~/.codex`; they never modify anything.
+`cxc chat search` and `cxc memory search` do not write Codex session files or the
+memory store. They are not write-free against the sidecar: without `--no-refresh`,
+`cxc chat search` refreshes the sidecar index at `~/.codexclaw/recall/index.sqlite`,
+and `cxc chat index --rebuild` deletes and re-ingests that index. Pass
+`--no-refresh` when the index must stay untouched. Never call
+`memories.add_ad_hoc_note` from this skill.
 
 ## Commands
 
 ```
 cxc chat search "<query>" [--days N] [--cwd PATH] [--role r] [--source main|subagent|all]
                           [--limit N] [--context N] [--any] [--all] [--no-tools]
-                          [--recent] [--scan] [--no-refresh] [--json]
-cxc chat index [--rebuild] [--status]
+                          [--recent] [--rank] [--scan] [--no-refresh] [--json] [--full]
+                          [--home PATH]
+cxc chat index [--rebuild] [--status] [--json]
 cxc memory search "<query>" [--days N] [--limit N] [--any] [--no-synonyms]
                             [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json]
+                            [--home PATH]
 ```
+
+Flags that live in the CLI USAGE and are easy to miss:
+
+- `--rank` — relevance order (the default; accepted for explicitness). `--recent`
+  is newest-first.
+- `--full` — with `--json`, skip the 500-char clip.
+- `--home PATH` — search an alternate Codex home (default `$CODEX_HOME` ?? `~/.codex`).
+- `--json` on `cxc chat index` prints index status as JSON.
 
 Defaults that matter:
 
 - Words AND together; pass `--any` for OR. Quote the whole query.
-- `--days` defaults to 7 for chat; pass `--days 0` for FULL history (the sidecar FTS
-  index answers full-history queries in tens of milliseconds).
-- `--source main` is default; subagent transcripts are searchable with
-  `--source subagent|all` (cli-jaw has no equivalent corpus).
-- Harness-injected synthetic messages (AGENTS.md preambles, environment context) are
-  hidden; `--all` reveals them.
-- Hits come back BY RELEVANCE: a BM25 lane and a trigram lane are fused (reciprocal
-  rank fusion) and freshness breaks ties among comparable matches, so the best answer
-  can be an old one. Pass `--recent` for plain newest-first when you want a timeline
-  rather than an answer.
-- Korean works in both engines (trigram FTS >=3 chars; shorter words auto-fallback).
+- After a space split, at most 8 words are kept (`MAX_WORDS`). There is no
+  stopword list, so 그 / 진짜 / 지난번 / 문제 / 방법 stay required AND terms.
+- Do not paste a Korean or English sentence as-is. Do not use `--any` on a long
+  sentence — it fills the page with common-word noise and is not a relevance rewrite.
+- `--days` defaults to **7 for chat** and **0 (full history) for memory**. They
+  are different. Pass `--days 0` on chat for full history.
+- `--limit` defaults: chat 50 (cap 200), memory 20.
+- `--source main` is default; subagent transcripts need `--source subagent|all`.
+- Harness-injected synthetic messages are hidden; `--all` reveals them.
+- Chat matches tool call/output (`tool_log`) by default. Recall questions should
+  pass `--no-tools`.
+- Chat hits come back BY RELEVANCE: a BM25 lane and a trigram lane are fused
+  (reciprocal rank fusion) and freshness breaks ties among comparable matches.
+  Pass `--recent` for newest-first. This ordering is chat index only; memory
+  ranks by its own chunk score (group coverage, density, kind, freshness).
 
-## How memory search reads your query
+## Two engines (do not mix their rules)
 
-`cxc memory search` judges each query word by its shape, so short symbols and
-Korean prose can coexist in one query.
+Chat (`cxc chat search`, sidecar FTS index):
 
-Symbol-shaped words — uppercase acronyms (`CI`, `LSP`), one-to-three-letter
-ASCII words (`go`, `id`), numbers (`3956`, `#3956`), SHAs, filenames and paths —
-match on word boundaries only. Searching `LSP` no longer returns
-`NaiControlsPanel`, and `3956` no longer returns a thread id that happens to
-contain those digits. When a symbol query finds nothing on boundaries, results
-fall back to substring matching and the output carries a
-`lower confidence` warning, so an empty answer is never the outcome.
+- Lowercase substring AND (OR with `--any`). No Korean stemming. No synonym table.
+- Drop particles yourself (`코덱스를` → `코덱스` or `codex`).
+- Trigram FTS for words of length >= 3; LIKE fallback below that. This is chat index only.
+- Empty results are possible. There is no substring fallback for a failed AND.
 
-Everything else keeps substring matching, including Korean. Korean queries also
-get their ending trimmed and the stem searched alongside the original, so
-`배포까지`, `배포를` and `배포했다` all reach a document that only says `배포` —
-and the stem is looked up in the synonym table too, so `배포를` reaches
-`deploy`. Trimming only ever adds terms; the word you typed still anchors the
-excerpt. Stems shorter than two syllables are never produced, so `검사` is not
-split into `검`.
+Memory (`cxc memory search`):
 
-Pass `--no-synonyms` for literal matching with no expansion at all.
+- Paragraph scan over `~/.codex/memories/` (MEMORY.md, memory_summary.md,
+  rollout_summaries, stage1, ad-hoc notes).
+- Korean ending trim + ko/en synonym expansion (unless `--no-synonyms`).
+  `--no-synonyms` on chat is a no-op because chat never expands.
+- Symbol-shaped words — uppercase acronyms (`CI`, `LSP`), one-to-three-letter
+  ASCII (`go`, `id`), numbers (`3956`, `#3956`), SHAs, dotted versions (`2.49.0`,
+  `v2.49.0`; judged before the filename rule), filenames and paths — match on
+  word boundaries only. `LSP` does not return `NaiControlsPanel`. A version
+  written as `v2.49.0` in the corpus still matches the query `2.49.0`: a lone
+  token-edge `v` before a version counts as a boundary.
+- When a query finds nothing at all, memory retries with substring matching
+  only for the boundary groups that occur nowhere in the corpus, and warns
+  `lower confidence`. A group that does hit on boundaries keeps its precision,
+  so `3956 LSP` never lets `LSP` match inside `NaiControlsPanel`. Korean prose
+  has no boundary term, so that retry does **not** run for it. Empty results
+  are common for unsplit sentences.
+- Trimming only ever adds terms; the word you typed still anchors the excerpt.
+  Stems shorter than two syllables are never produced, so `검사` is not split
+  into `검`.
+
+## Natural-language → keyword ladder
+
+Do not start with the user's sentence. Rewrite, then search. Each rewrite is its
+own query (`--days 0`, chat then memory unless the noun is known to live in notes):
+
+1. Proper nouns / versions / hostnames / filenames as a single token
+   (`BundledPluginsMarketplace`, `2.49.0`, a thread id).
+2. Korean/English synonym pair of that noun (`도그푸딩` and `dogfooding`,
+   `플러그인` and `plugin restart`, `배포` and `provenance` / `SLSA`).
+3. Short 2–3 word keyword query (`로컬 소스 서비스`, `2.49.0 배포 npm`).
+4. `cxc chat search "<keywords>" --days 0 --no-tools` — find the conversation.
+   Add `--context 2`. Add `--source all` if the work was delegated.
+5. `cxc memory search "<keywords>"` — durable summary. Omit `--no-chat` so empty
+   memory can backfill up to 5 raw messages labelled `(chat/chat)`.
+6. Open the winning rollout / memory file (`rollout_path` is on the hit). Do not
+   answer from the excerpt.
+7. Only if the rewritten queries miss, ask the user and list what you searched.
+
+Worked recoveries (eval 2026-09-10): the sentences
+`지난번 로컬 소스를 실제 서비스에 연결하고 정상 동작까지 확인한 방법`,
+`코덱스를 재시작하면 플러그인이 사라지는 문제`,
+`2.49.0 배포하고 npm 패키지가 진짜 그 소스인지 검증한 기록`
+are 0 hits as-is. They recover as `source dogfooding` / `plugin restart` /
+`2.49.0 배포 npm`.
+
+## Result checks (before treating a hit as the answer)
+
+- Request vs completion: a user line or "진행할게" is a locator, not proof.
+  Prefer assistant text that names the outcome (healthz, npm latest, recovered).
+- Version-string trap: a hit that contains `2.49.0` may be the previous release
+  bumping *toward* 2.49.0. Check the title/date/task_outcome. Do not take the
+  first version match. `2.49.0 provenance` ranked a 2.48 session first.
+- Correction history: later ad-hoc notes and MEMORY.md entries override older
+  summaries. If two hits disagree, read the newer file, then the rollout.
+- `--any` hits are not evidence by mere existence.
+
+## Subagent / managed worktree
+
+- Chat default `--source main` hides subagent transcripts. Delegated work:
+  `--source all` or `--source subagent`.
+- This skill's CLI search is allowed in a read-only subagent. Do not ask the
+  parent or the user to recap a term until the ladder above has run.
+
+Managed-worktree cwd (Codex app hash-named checkouts under `~/.codex/worktrees`):
+
+- **Until wp4 (project identity key) lands.** `--cwd PATH` only boosts; it does
+  not hide other projects. A worktree path is a different prefix from the main
+  checkout, so `--cwd-only <worktree>` currently returns 0 hits even when the
+  same repo has summaries under the main checkout. Do not start with
+  `--cwd-only`. Pass the main checkout path to `--cwd`, or omit the flag. If
+  `--cwd-only` warns it emptied the result, retry `--cwd`.
+- **After wp4.** `--cwd <worktree>` includes hits that share the same git
+  `repository_url` as that worktree (the main checkout of the same origin).
+  `--cwd-only` still hides other remotes. Sessions with no origin fall back to
+  cwd prefix. When wp4 merges, delete the "Until wp4" paragraph and keep this
+  one.
+
+## Native `memories.*` vs `cxc`
+
+When Codex `[memories] dedicated_tools=true` (codexclaw `cxc enable` turns this
+on), `memories.search` / `memories.read` / `memories.list` search the memory
+store as dedicated tools (path-scoped, `match_mode` any | all_on_same_line |
+all_within_lines). They do not search session JSONL.
+
+Use them to open a known memory file or to scan MEMORY.md without a shell. They
+are not a substitute for `cxc chat search --days 0`. `cxc memory search` adds
+ko/en synonyms, Korean stems, cwd boost, kind priority, and chat fallback — use
+it when the native tool returns nothing or only the saturated `memory_summary.md`.
+
+Native injection limits (not a cxc bug):
+
+- The injected `memory_summary.md` is **not** filtered by the current cwd. Other
+  projects' blocks ride along.
+- `## User preferences` is promoted from session quotes. The quoted instruction
+  may not be this task's authorization. Live AGENTS.md wins.
+- Re-search MEMORY.md `applies_to: cwd=` when the summary is too global.
+
+## Optional extra lanes (only if the tool is installed)
+
+These are not part of cxc. Skip the whole section when the binary is missing.
+
+- **Aside** (`aside` on PATH): `aside memory search --json "<q>"`. If the top
+  score is below 0.72, treat the semantic lane as a miss. Recover proper nouns
+  with `rg --fixed-strings`. Dedupe by `path` (neighbor chunks of the same file
+  are not extra evidence).
+- **kim_wiki** (`~/kim_wiki/scripts/ask.py` exists):
+  `python3 ~/kim_wiki/scripts/ask.py "<q>"`. Do not add entries/raw/nodes scores
+  together. If the entries lane is empty, open the detailed document that
+  nodes/raw pointed at and confirm with `rg`.
 
 ## Scoping memory search to a project
 
@@ -83,7 +203,8 @@ rest reachable below them.
 
 `--cwd-only <path>` is the hard filter, for when unrelated projects are noise
 rather than context. When it empties the result, the output says so and points
-back at `--cwd`.
+back at `--cwd`. See "Subagent / managed worktree" before using it on a
+Codex-managed worktree.
 
 Scope comes from a rollout summary's `cwd:` frontmatter, and for stage1 rows
 from a thread-id join against the Codex state db (`stage1_outputs` stores no
@@ -105,44 +226,43 @@ actually said. Pass `--no-chat` for a memory-only answer.
 The backfill never refreshes the sidecar index, so it costs a query rather than
 an ingest, and `--cwd-only` stays in force across it.
 
-## Escalation ladder
-
-1. `cxc chat search "<distinctive terms>" --days 0` — find the conversation.
-   Add `--context 2` to read around a hit; `--cwd <repo>` to scope to a project.
-2. `cxc memory search "<topic>"` — find the durable per-thread summary
-   (`rollout_summaries`, MEMORY.md, stage1 outputs); hits carry `rollout_path` and
-   thread ids for deep-dive.
-3. Open the winning rollout file directly (path is in every hit) for full detail.
-4. Only if all three miss, ask the user — and say what you searched.
-
 ## Reading results
 
-Text mode prints `[timestamp] (role) «thread title» {cwd}` + excerpt per hit;
-`--json` returns `{hits, warnings, scannedFiles, totalFiles, elapsedMs, mode}` where
-`mode` is `index` (sidecar FTS) or `scan` (raw JSONL fallback). Warnings are
-non-fatal degradations (missing state db, truncation at --limit) — read them.
+Text mode prints `[timestamp] (role) «thread title» {cwd}` + excerpt per hit.
+
+Chat `--json` returns `{hits, warnings, scannedFiles, matchedFiles, totalFiles,
+elapsedMs, mode, index?, clipped}`. `mode` is `index` (sidecar FTS) or `scan`
+(raw JSONL fallback). Pass `--full` to skip 500-char clipping.
+
+Memory `--json` returns `{hits, warnings, scannedFiles, elapsedMs}` only.
+There is no `mode` / `totalFiles` field.
+
+Warnings are non-fatal degradations (missing state db, truncation at --limit,
+chat fallback) — read them.
 
 ## Scope: single Codex home (deliberate non-goal)
 
-Recall searches ONE Codex home per invocation — `$CODEX_HOME ?? ~/.codex`, overridable
-per query with `--home <path>`. Cross-home federation (cli-jaw's multi-instance model)
-is an explicit non-goal: Codex is a single-home runtime, and pointing `--home` at an
-alternate root covers the rare multi-root case without a registry or rerank layer.
+Recall searches ONE Codex home per invocation — `$CODEX_HOME ?? ~/.codex`,
+overridable per query with `--home <path>`. Cross-home federation is an
+explicit non-goal.
 
 ## Maintenance
 
-The sidecar index self-refreshes on every query (changed files only). `cxc chat index
---status` shows freshness; `--rebuild` drops and re-ingests after schema-level doubts.
-Deleting `~/.codexclaw/recall/index.sqlite` is always safe (rebuildable cache).
+The sidecar index self-refreshes on every chat query (changed files only) unless
+`--no-refresh`. `cxc chat index --status` shows freshness; `--rebuild` drops and
+re-ingests after schema-level doubts. Deleting `~/.codexclaw/recall/index.sqlite`
+is always safe (rebuildable cache).
 
 ## Automatic session-start injection
 
-Separate from these commands, the SessionStart hook injects a short CWD-scoped list of
-recent sessions, including the start that follows a compaction. That list rotates: a
-session already injected several times is pushed back so a start sees something it has
-not seen yet. Counts live in the same rebuildable sidecar, so deleting the index also
-resets the rotation to plain newest-first.
+Separate from these commands, the SessionStart hook injects a short CWD-scoped
+list of recent sessions, including the start that follows a compaction. That
+list rotates: a session already injected several times is pushed back so a
+start sees something it has not seen yet. Counts live in the same rebuildable
+sidecar, so deleting the index also resets the rotation to plain newest-first.
 
-The rotation applies to the automatic injection ALONE. `cxc chat search` and `cxc memory
-search` never consult it: the same query returns the same ranking however many times you
-run it.
+The rotation applies to the automatic injection ALONE. `cxc chat search` and
+`cxc memory search` never consult it: the same query returns the same ranking
+however many times you run it. After compaction the same hook re-fires with
+`source=compact` and a smaller block plus a recovery pointer; the PostCompact
+recall handler itself emits nothing.

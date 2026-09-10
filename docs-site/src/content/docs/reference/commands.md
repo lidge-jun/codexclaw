@@ -41,6 +41,7 @@ directives use it. A PATH-level `cxc` / `codexclaw` binary remains a repo-checko
 | `cxc provider` | provider-bridge | Show read-only opencodex (`ocx`) provider status (detect mode). |
 | `cxc chat search` / `cxc chat index` | recall | Search or index read-only Codex rollout history under `CODEX_HOME` / `~/.codex`. |
 | `cxc memory search` | recall | Search read-only Codex memory artifacts under `CODEX_HOME` / `~/.codex`. |
+| `cxc memory allow-write` | pabcd-state | Record a one-shot grant so the next memory write in that session passes the PreToolUse memory-write gate (`cxc memory allow-write --session <id>`). |
 | `cxc skill search` / `cxc skill show` | skill-search | Search or show remote dormant skills from jaw, hermes, clawhub, or GitHub sources. |
 | `cxc serve` | messenger-bridge | Start the opt-in loopback dashboard/API/messenger bridge on `127.0.0.1`. |
 | `cxc service` | messenger-bridge | Install, uninstall, or inspect the macOS launchd service for `cxc serve`. |
@@ -163,11 +164,18 @@ source is unavailable.
 ```
 cxc chat search "<query>" [--days N] [--cwd PATH] [--role user|assistant|tool] [--source main|subagent|all]
                          [--limit N] [--context N] [--any] [--all] [--no-tools]
-                         [--recent] [--scan] [--no-refresh] [--json] [--full] [--home PATH]
+                         [--recent] [--rank] [--scan] [--no-refresh] [--json] [--full] [--home PATH]
 cxc chat index [--rebuild] [--status] [--json] [--home PATH] [--index-path PATH]
 cxc memory search "<query>" [--days N] [--limit N] [--any] [--no-synonyms]
                           [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json] [--home PATH]
+cxc memory allow-write --session <id>
 ```
+
+`--rank` names the default relevance order. Memory `--days` defaults to 0 (full
+history); chat `--days` defaults to 7. `cxc enable` turns on
+`memories.dedicated_tools` so the native `memories.search` / `read` / `list` /
+`add_ad_hoc_note` tools appear. The write tool still needs an explicit user
+request or `cxc memory allow-write`.
 
 Recall commands are read-only against Codex data. `cxc chat index` writes only the derived
 codexclaw sidecar index.

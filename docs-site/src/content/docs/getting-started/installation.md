@@ -98,7 +98,7 @@ a supported install path. Use a source checkout or the dev install until packagi
 
 ## Hook trust
 
-codexclaw registers 24 hook files containing 25 event handlers. The compact-affordance
+codexclaw registers 28 hook files containing 29 event handlers. The compact-affordance
 file handles both PostCompact and UserPromptSubmit. Codex requires you to review and trust hooks before they run:
 
 - The first start after install or upgrade prompts a Codex hook review.

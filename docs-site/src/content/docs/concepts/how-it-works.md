@@ -33,19 +33,19 @@ a runtime loader. See the [Skills guide](/codexclaw/guides/skills/).
 
 ## Hooks
 
-Twenty-four registered hook files provide 25 event handlers connecting Codex lifecycle events to state, covering session start,
+Twenty-eight registered hook files provide 29 event handlers connecting Codex lifecycle events to state, covering session start,
 orchestration, recall injection, pre/post-tool guards, subagent evidence, and compaction
 recovery:
 
 | Event | Hooks | Role |
 |---|---|---|
-| `SessionStart` (x6) | provider-bridge, pabcd-bootstrap, feature-healing, map-affordance, recall-context, session-start-detecting-managed-worktree | Detect `ocx` status; bootstrap session state; heal declared soft flags (hard flags require `cxc enable`); announce affordances; inject recall context; check managed-worktree identity. |
-| `UserPromptSubmit` (x4) | pabcd-trigger, recall-intent, user-prompt-submit-guiding-worktree-rename, compact-affordance recovery | Parse orchestrate grammar and inject phase directives; detect recall phrasing; guide managed-worktree renames; consume a queued compact hint once for the root session. |
-| `Stop` | pabcd-continuation | Keep an in-flight cycle advancing under an active goal. |
-| `PreToolUse` (x6) | goal-budget, interview-in-goal, goal-complete, skill-attach, edit-lint, pre-tool-use-guarding-managed-worktree-deletion | Guard goals, deny interview in goal mode, gate goal completion, attach skills to spawns, lint edits, guard managed-worktree deletion. |
+| `SessionStart` (x8) | provider-bridge, pabcd-bootstrap, feature-healing, map-affordance, subagent-fallback, recall-context, session-start-detecting-managed-worktree, bg-wake-adopt | Detect `ocx` status; bootstrap session state; heal declared soft flags (hard flags require `cxc enable`); announce affordances; announce the subagent fallback protocol; inject recall context; check managed-worktree identity; adopt background completions. |
+| `UserPromptSubmit` (x5) | pabcd-trigger, recall-intent, user-prompt-submit-guiding-worktree-rename, compact-affordance recovery, bg-wake-deliver | Parse orchestrate grammar and inject phase directives; detect recall phrasing; guide managed-worktree renames; consume a queued compact hint once for the root session. |
+| `Stop` (x2) | pabcd-continuation, bg-wake-stop | Keep an in-flight cycle advancing under an active goal; wake on background task completion. |
+| `PreToolUse` (x7) | goal-budget, interview-in-goal, goal-complete, skill-attach, edit-lint, pre-tool-use-guarding-managed-worktree-deletion, pre-tool-use-guarding-memory-write | Guard goals, deny interview in goal mode, gate goal completion, attach skills to spawns, lint edits, guard managed-worktree deletion, deny unsolicited writes under the Codex memories directory. |
 | `PostToolUse` (x2) | interview-capture, render-observations | Capture interview answers; track render observations. |
 | `SubagentStop` (x2) | evidence-verify, review-observer | Verify evidence bundles and record review verdicts. |
-| `PostCompact` (x3) | reinject-cursor, recall-context, bg-terminal-affordance | Reset the PABCD reinjection cursor; invoke recall recovery; queue an affordance marker for a later root prompt. |
+| `PostCompact` (x3) | reinject-cursor, recall-context, bg-terminal-affordance | Reset the PABCD reinjection cursor; emit nothing from recall PostCompact (recovery rides SessionStart `source=compact`); queue an affordance marker for a later root prompt. |
 
 The compact-affordance file registers both `PostCompact` and `UserPromptSubmit`.
 `PostCompact` itself emits no affordance context: the next root prompt consumes its
