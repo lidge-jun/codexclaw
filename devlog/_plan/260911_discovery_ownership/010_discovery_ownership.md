@@ -6,12 +6,31 @@
 | --- | --- | --- |
 | MODIFY | `plugins/codexclaw/skills/dev/SKILL.md` | Initial class can persist through a broad investigation -> provisional classification and early link to discovery ownership; replace `consider` paragraph with minimal orientation, separate question/read scope, dispatch before consuming that scope, concrete local exceptions, resplit triggers and anchored return. |
 | MODIFY | `plugins/codexclaw/skills/pabcd/references/delegation.md` | Short discovery pointer -> keep the pointer and add a compact discovery profile of DISPATCH-TASK-01: TASK, SCOPE (read area and separate main work), MUST DO, MUST NOT, PROOF, RETURN FORMAT, DECISION BOUNDARY / STOP. Retain every common packet obligation and existing managed routing rules. |
-| MODIFY | `plugins/codexclaw/skills/dev/references/native-execution.md` | Independent-read batch advice without ownership qualification -> choose owner first, recognize all parallel output still reaches main, budget outer aggregation and recover only missing regions after truncation. |
+| MODIFY | `plugins/codexclaw/skills/dev/references/native-execution.md` | Independent-read batch advice without ownership qualification -> choose owner first, distinguish raw output from bounded projections, budget outer aggregation and recover only missing regions after truncation. |
 | MODIFY | `structure/20_pabcd_dispatch_doctrine.md` | Economy doctrine without discovery entry link -> concise pointer to the dev owner and its scope-growth reconsideration rule. |
 | NEW | this unit `011_verification.md` | Sanitized reproducible cases, observed results and limits; raw logs outside Git. |
+| MODIFY (observed repair) | `plugins/codexclaw/components/subagent-config/src/fallback-dispatch-cli.ts` | SessionStart says "Report created" without wire fields -> name `action:"report"` and `outcome:"created"` / `"complete"` / `"failed"` explicitly. Existing dispatcher behavior and permissions stay unchanged. |
 
 No new runtime hook, API, dependency, provider default or permission rule. No text-
 presence test can demonstrate model behavior. Existing execution examples remain valid.
+
+Check-phase repair evidence: two candidate runs sent `action:"created"` and got
+`action must be start, claim, report or status`, then searched installed CXC source
+to recover the schema. Clarify the existing SessionStart hint and add one complete
+created/complete JSON example beside the discovery packet, using placeholders and
+the existing IDs. Do not add an alias accepting the wrong action or another
+dispatcher. Rebuild/install, run the affected dispatch tests, and repeat native
+broad probes on the same CLI 0.154.0 to observe whether reporting needs repair.
+
+The same traces also show main rereading entire files from a delegated native-client
+or API scope after receiving anchored findings. Tighten the existing dev return
+rule: inspect only spans needed to settle a cited claim, do not open every returned
+file by default, and name the evidence gap/reassigned question before broadening.
+The discovery packet requests the direct answer, key anchors and unresolved points,
+omitting extra candidate lists or an exploration narrative. No fixed spawn/output
+quota; cost evaluation uses served-model rates for main and child input/cache/output,
+not aggregate token counts. Record dollar-price source and whether it represents
+UI/API-equivalent valuation or an actual marginal bill.
 
 ## Decision contract
 

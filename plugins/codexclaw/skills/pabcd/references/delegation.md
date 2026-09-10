@@ -28,10 +28,24 @@ child packet still includes every DISPATCH-TASK-01 field:
 - **MUST DO:** find or trace the answer; stop when it is answered.
 - **MUST NOT:** writes, or work that overlaps main.
 - **PROOF:** source anchors (`path:line` quotations, figures, URLs).
-- **RETURN FORMAT:** compact answer, findings, and uncertainties, not full file dumps.
+- **RETURN FORMAT:** direct answer, key source anchors and unresolved points; omit
+  extra candidate lists, exploration narrative and full file dumps.
 - **DECISION BOUNDARY / STOP:** return unresolved judgments and any scope growth to main.
 
 Managed routing, isolation, lifecycle, and fallback in this file are unchanged.
+For a configured fallback, report creation and completion with the wire fields
+below (substitute the actual native IDs). `created` is an outcome, not an action;
+creation is not completion. Omit `observedModel` unless runtime evidence proves it.
+
+```json
+{"action":"report","outcome":"created","sessionId":"<main-id>","dispatchId":"<task-id>","attemptId":"<attempt-id>","agentId":"<child-id>"}
+```
+
+After native completion, use a separate invocation:
+
+```json
+{"action":"report","outcome":"complete","sessionId":"<main-id>","dispatchId":"<task-id>","attemptId":"<attempt-id>","agentId":"<child-id>"}
+```
 
 ### Live tool schema and role transport
 

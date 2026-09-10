@@ -2,9 +2,12 @@
 
 ## Environment and boundary
 
-Native CLI 0.153.4, fresh `codex exec` primary sessions, normal installed CXC/OCX
-entrypoint, `xhigh` effort, workspace-write sandbox. Desktop tool exposure is a
-separate surface. No role or provider policy is changed for these cases. An initial
+Fresh `codex exec` primary sessions, normal installed CXC/OCX entrypoint, `xhigh`
+effort, workspace-write sandbox. Baselines ran on CLI 0.153.4; candidate installation
+subsequently observed CLI 0.154.0. This task did not request a CLI upgrade. The
+version change confounds attribution of old/new differences to guidance alone.
+Desktop tool exposure is a separate surface. No role or provider policy is changed
+for these cases. An initial
 WebSocket 426 fell back to the normal HTTP transport; completed runs exited zero.
 
 A private 42-file source snapshot spans a service, web client, native client and
@@ -40,8 +43,14 @@ spawn an explorer):
   implementation and file locations; no edits, services or external API calls.
 - Narrow: report exported function names and lines in one named recommendation file.
 - Restricted: inspect web and API for two improvements; explicitly do not delegate.
-- Expanded: investigate stale web recommendation values, then trace API refresh
-  and whether the native client shares the issue; propose grounded improvements.
+- Expanded: resume the completed narrow task and ask it to investigate stale web
+  recommendation values, API refresh and whether the native client shares the
+  issue; propose grounded improvements. The initial local lookup is retained in
+  context, so this exercises a real change from narrow to multi-surface scope.
+
+Use the supported `codex exec ... resume <native-id> -` surface for that second
+turn. Capture each completed run's time cutoff: the narrow result excludes all
+later calls/children; expanded totals explicitly include both turns.
 
 Inspect native main/child transcripts for dispatch-before-source timing, useful
 anchored return, separate main work, overlap, repeated broad reads and truncation.

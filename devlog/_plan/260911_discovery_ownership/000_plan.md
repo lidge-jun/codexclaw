@@ -47,7 +47,7 @@ Main performs paired native probes and evidence analysis independently of those 
 Baseline PR head: `1587ae6bdad98e5a2d25675ad4d0eb063af0a9fc`.
 The weak `consider` paragraph already exists in dev and was delivered in the
 observed task. The trace supports failure to reconsider ownership, not certainty
-about a model's internal motive. Parallel shell calls aggregate source into main.
+about a model's internal motive. Unprojected parallel shell calls aggregate source into main.
 The installed native CLI is 0.153.4; the old macOS-only recorder has a different
 audited environment and is not modified or used to imply compatible evidence.
 
@@ -68,3 +68,8 @@ actions and decision boundary; and candidate native tests need an explicit merge
 from the PR revision into local integration before installation. The design now
 states both obligations. They do not change the four-file implementation scope or
 grant new permission; they prevent contract loss and testing a stale installation.
+
+C review found an overstatement: parallel calls can project output, so they do not
+necessarily return all source to main. Accepted; qualify raw/unprojected output and
+preserve finite projections as a valid tool path. Native traces additionally drove
+the report-wire-format and claim-span verification repairs specified in 010.

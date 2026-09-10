@@ -29,7 +29,8 @@ concrete composition, projection, or cache pattern would help.
 
 ## Compose without losing outcomes
 
-Parallel shell reads still return all their context to main. Choose ownership
+Parallelism alone does not limit returned context: raw, unprojected shell results
+still reach main, while a scoped projection can reduce them. Choose ownership
 using [dev's Discovery delegation](../SKILL.md) before
 composing a broad source-read batch; parallel calls do not replace that decision.
 

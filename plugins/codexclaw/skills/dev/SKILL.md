@@ -189,9 +189,13 @@ with bounded local reads.
 
 Use a bounded [discovery packet](../pabcd/references/delegation.md#discovery-packet)
 with findings, source anchors and uncertainties, not full file dumps. Main checks
-the relevant anchors and unresolved points instead of repeating the entire search.
+only the spans needed to settle a cited claim, not every returned file by default.
+If a broader read is necessary, name the evidence gap and reassign that question
+before expanding; do not repeat a delegated investigation as routine verification.
 Discovery does not replace implementation delegation or independent review.
 Confirm actual model routing from runtime evidence when reporting identity or cost.
+When comparing cost, use main plus child served-model input/cache/output prices and
+applicable tiers; token totals alone cannot compare differently priced models.
 
 ### Capability Routing Hub
 
