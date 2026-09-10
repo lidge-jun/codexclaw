@@ -1,9 +1,9 @@
 ---
 title: Hooks
-description: codexclaw's 24 hook files and 25 event handlers — events, matchers, and commands.
+description: codexclaw's 28 hook files and 29 event handlers — events, matchers, and commands.
 ---
 
-codexclaw registers 24 hook files with 25 event handlers in its plugin manifest.
+codexclaw registers 28 hook files with 29 event handlers in its plugin manifest.
 The compact-affordance file handles both PostCompact and UserPromptSubmit. Each handler runs a compiled component CLI
 under `node`. All commands resolve `${PLUGIN_ROOT}` to the installed plugin directory.
 The removed hook JSON files live under `hooks/_deprecated/` from the 2026-07-05 hook diet.
@@ -33,6 +33,7 @@ and is also unaffected.
 | `subagent-stop-verifying-evidence.json` | `SubagentStop` | `^worker$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook subagent-stop` | `(codexclaw) Verifying subagent evidence` | 10 s |
 | `subagent-stop-observing-review.json` | `SubagentStop` | `.*` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook subagent-stop-review` | `(codexclaw) Recording review verdict` | 10 s |
 | `pre-tool-use-attaching-skills.json` | `PreToolUse` | `^(collaboration[._]?)?spawn_agent$` | `node "${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js" hook pre-tool-use` | `(codexclaw) Attaching skills to spawn` | 10 s |
+| `session-start-announcing-subagent-fallback.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/subagent-config/dist/fallback-dispatch-cli.js" hook session-start` | `(codexclaw) Loading subagent fallback protocol` | 10 s |
 | `post-compact-resetting-reinject-cursor.json` | `PostCompact` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-compact` | `(codexclaw) Recovering PABCD state after compaction` | 10 s |
 | `pre-tool-use-linting-apply-patch.json` | `PreToolUse` | `^(apply_patch\|Write\|Edit)$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-edit` | `(codexclaw) Checking structured edit` | 10 s |
 | `post-tool-use-tracking-render-observations.json` | `PostToolUse` | `^(view_image\|browser:control-in-app-browser\|chrome:control-chrome\|computer-use:computer-use\|apply_patch)$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-render-observation` | `(codexclaw) Tracking render observation` | 10 s |
@@ -45,6 +46,9 @@ and is also unaffected.
 | `user-prompt-submit-guiding-worktree-rename.json` | `UserPromptSubmit` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | `(codexclaw) Checking worktree rename intent` | 10 s |
 | `pre-tool-use-guarding-managed-worktree-deletion.json` | `PreToolUse` | `^Bash$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard-pretool` | `(codexclaw) Guarding managed worktree` | 10 s |
 | `pre-tool-use-guarding-memory-write.json` | `PreToolUse` | `^(memories[._]?add_ad_hoc_note\|apply_patch\|Write\|Edit\|Bash)$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-memory-write` | `(codexclaw) Guarding memory write` | 10 s |
+| `stop-waking-on-background-completion.json` | `Stop` | — | `node "${PLUGIN_ROOT}/components/bg-wake/dist/cli.js" hook stop` | `(codexclaw) Checking background task completions` | 10 s |
+| `user-prompt-submit-delivering-background-completions.json` | `UserPromptSubmit` | — | `node "${PLUGIN_ROOT}/components/bg-wake/dist/cli.js" hook user-prompt-submit` | `(codexclaw) Delivering background completions` | 10 s |
+| `session-start-adopting-background-completions.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/bg-wake/dist/cli.js" hook session-start` | `(codexclaw) Adopting background completions` | 10 s |
 
 ## What each hook does
 
@@ -114,6 +118,8 @@ and is also unaffected.
   universal fields, so an event-specific envelope is rejected and the run is
   recorded as failed. The recovery text is delivered by the SessionStart handler,
   which the runtime re-fires with `source` `compact` after a compaction.
+  The table's `statusMessage` is the registration string from the hook JSON; the
+  handler's stdout is the empty string.
 - **bg-terminal-affordance / post-compact** — queues a workspace/session-scoped
   recovery marker and emits no event-specific context. PostCompact cannot carry
   this guidance directly on hosts accepting only universal output fields.

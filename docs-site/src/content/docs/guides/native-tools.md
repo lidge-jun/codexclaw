@@ -90,6 +90,10 @@ must stay guarded into Playwright.
 | `multi_tool_use.parallel` | `cxc-lunasearch` / `cxc-search` Tier-3 parallel lanes |
 | `list_available_plugins_to_install` / `request_plugin_install` | `cxc-skill-hub` capability discovery |
 
-CSV batch fan-out via `spawn_agents_on_csv` and `memories` remain flag-gated and are
-documented as future surfaces. V2 is live through catalog selection or the fallback
-feature flag; it is not part of this "not shipped" set.
+CSV batch fan-out via `spawn_agents_on_csv` remains flag-gated and is documented as a
+future surface. `memories.dedicated_tools` is not: `cxc enable` turns it on so
+`memories.search` / `read` / `list` / `add_ad_hoc_note` appear, and `cxc disable`
+restores the previous value. The write tool is still denied unless the user asked
+to remember something or the session holds a `cxc memory allow-write` grant.
+V2 is live through catalog selection or the fallback feature flag; it is not part
+of this "not shipped" set.

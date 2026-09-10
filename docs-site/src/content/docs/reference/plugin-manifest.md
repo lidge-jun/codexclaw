@@ -16,36 +16,41 @@ tells Codex which skills, hooks, and MCP servers to load.
 | `homepage` | `https://lidge-jun.github.io/codexclaw/` |
 | `license` | `MIT` — the payload includes `LICENSE`, `NOTICE.md` and upstream license notices. |
 | `skills` | `./skills/` — the skill directory root. |
-| `hooks` | Twenty-four JSON files defining 25 event handlers; one file handles two events (see [Hooks](/codexclaw/reference/hooks/)). |
+| `hooks` | Twenty-eight JSON files defining 29 event handlers; one file handles two events (see [Hooks](/codexclaw/reference/hooks/)). |
 | `mcpServers` | `./.mcp.json` — the subagent-config MCP server. |
 
 ## Registered hooks
 
 ```json
 "hooks": [
-  "./hooks/session-start-ensuring-provider-bridge.json",
-  "./hooks/session-start-bootstrapping-pabcd-state.json",
-  "./hooks/session-start-healing-declared-features.json",
-  "./hooks/session-start-announcing-map-affordance.json",
-  "./hooks/user-prompt-submit-checking-pabcd-trigger.json",
-  "./hooks/stop-checking-pabcd-continuation.json",
-  "./hooks/pre-tool-use-guarding-goal-budget.json",
-  "./hooks/pre-tool-use-guarding-interview-in-goal.json",
-  "./hooks/pre-tool-use-guarding-goal-complete.json",
-  "./hooks/post-tool-use-capturing-interview-answers.json",
-  "./hooks/subagent-stop-verifying-evidence.json",
-  "./hooks/subagent-stop-observing-review.json",
-  "./hooks/pre-tool-use-attaching-skills.json",
-  "./hooks/post-compact-resetting-reinject-cursor.json",
-  "./hooks/pre-tool-use-linting-apply-patch.json",
-  "./hooks/post-tool-use-tracking-render-observations.json",
-  "./hooks/session-start-injecting-recall-context.json",
-  "./hooks/post-compact-injecting-recall-context.json",
-  "./hooks/post-compact-injecting-bg-terminal-affordance.json",
-  "./hooks/user-prompt-submit-detecting-recall-intent.json",
-  "./hooks/session-start-detecting-managed-worktree.json",
-  "./hooks/user-prompt-submit-guiding-worktree-rename.json",
-  "./hooks/pre-tool-use-guarding-managed-worktree-deletion.json"
+    "./hooks/session-start-ensuring-provider-bridge.json",
+    "./hooks/session-start-bootstrapping-pabcd-state.json",
+    "./hooks/session-start-healing-declared-features.json",
+    "./hooks/session-start-announcing-map-affordance.json",
+    "./hooks/user-prompt-submit-checking-pabcd-trigger.json",
+    "./hooks/stop-checking-pabcd-continuation.json",
+    "./hooks/pre-tool-use-guarding-goal-budget.json",
+    "./hooks/pre-tool-use-guarding-interview-in-goal.json",
+    "./hooks/pre-tool-use-guarding-goal-complete.json",
+    "./hooks/post-tool-use-capturing-interview-answers.json",
+    "./hooks/subagent-stop-verifying-evidence.json",
+    "./hooks/subagent-stop-observing-review.json",
+    "./hooks/pre-tool-use-attaching-skills.json",
+    "./hooks/session-start-announcing-subagent-fallback.json",
+    "./hooks/post-compact-resetting-reinject-cursor.json",
+    "./hooks/pre-tool-use-linting-apply-patch.json",
+    "./hooks/post-tool-use-tracking-render-observations.json",
+    "./hooks/session-start-injecting-recall-context.json",
+    "./hooks/post-compact-injecting-recall-context.json",
+    "./hooks/post-compact-injecting-bg-terminal-affordance.json",
+    "./hooks/user-prompt-submit-detecting-recall-intent.json",
+    "./hooks/session-start-detecting-managed-worktree.json",
+    "./hooks/user-prompt-submit-guiding-worktree-rename.json",
+    "./hooks/pre-tool-use-guarding-managed-worktree-deletion.json",
+    "./hooks/pre-tool-use-guarding-memory-write.json",
+    "./hooks/stop-waking-on-background-completion.json",
+    "./hooks/user-prompt-submit-delivering-background-completions.json",
+    "./hooks/session-start-adopting-background-completions.json"
 ]
 ```
 

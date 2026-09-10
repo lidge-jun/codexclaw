@@ -27,7 +27,7 @@
 - `guides/skills.md:74,108`의 "읽기 전용 검색" 한 줄. 플래그 상세는 commands·SKILL이 맡는다.
 - `memories.add_ad_hoc_note` / `cxc memory allow-write` 동작 변경. allow-write는 commands.md에 적기만 한다.
 
-성공 기준: (1) SKILL Commands 펜스의 플래그가 `cli.ts` USAGE와 같고, notes/04 18행이 스킬 본문에서 더 이상 거짓이 아니다. (2) docs-site가 plugin.json 25파일·26핸들러, PreToolUse x7+memory-write, SessionStart x7+subagent-fallback, PostCompact recall silent, commands에 allow-write·`--rank`·dedicated_tools를 보인다. (3) 평가 원문 3건을 사다리대로 다시 쓰면 0건이 아니다 (코드 변경 없이 절차만).
+성공 기준: (1) SKILL Commands 펜스의 플래그가 `cli.ts` USAGE와 같고, notes/04 18행이 스킬 본문에서 더 이상 거짓이 아니다. (2) docs-site가 plugin.json 28파일·29핸들러, PreToolUse x7+memory-write, SessionStart x8 (subagent-fallback + bg-wake), PostCompact recall silent, commands에 allow-write·`--rank`·dedicated_tools를 보인다. (3) 평가 원문 3건을 사다리대로 다시 쓰면 0건이 아니다 (코드 변경 없이 절차만).
 
 ---
 
@@ -158,15 +158,15 @@ export type MemorySearchResult = {
 
 memory 0건 → chat 최대 5, tool 제외, noRefresh 강제 (`memory-search.ts:514-531`). `--no-chat`면 주입 자체를 안 한다 (`cli.ts:154`). 이 동작은 스킬 98-103과 일치한다. 사다리 108-116은 fallback을 단계로 안 적는다.
 
-### 2.3 훅 목록은 plugin.json이 25파일·26핸들러
+### 2.3 훅 목록은 plugin.json이 28파일·29핸들러
 
-`plugin.json:22-47` hooks 배열은 25파일이다. compact-affordance 파일(`post-compact-injecting-bg-terminal-affordance.json`)이 PostCompact와 UserPromptSubmit을 같이 등록하므로 핸들러는 26개다.
+`plugin.json:22-50` hooks 배열은 28파일이다(계획 시점 25 + #119 bg-wake 3). compact-affordance 파일(`post-compact-injecting-bg-terminal-affordance.json`)이 PostCompact와 UserPromptSubmit을 같이 등록하므로 핸들러는 29개다.
 
 | 이벤트 | 파일 수 | 비고 |
 |---|---:|---|
-| SessionStart | 7 | how-it-works·index는 x6. 빠진 파일: `session-start-announcing-subagent-fallback.json` (#116) |
-| UserPromptSubmit | 4 | compact-affordance 겸직 포함 |
-| Stop | 1 | |
+| SessionStart | 8 | how-it-works·index는 x6. 빠진 파일: `session-start-announcing-subagent-fallback.json` (#116), `session-start-adopting-background-completions.json` (#119) |
+| UserPromptSubmit | 5 | compact-affordance 겸직 포함, `user-prompt-submit-delivering-background-completions.json` (#119) |
+| Stop | 2 | `stop-waking-on-background-completion.json` (#119) |
 | PreToolUse | 7 | how-it-works 표는 x6, memory-write 행이 없음. index.mdx 숫자는 이미 x7 |
 | PostToolUse | 2 | |
 | SubagentStop | 2 | |
@@ -220,13 +220,13 @@ kim_wiki entries는 대표 문서만 후보 (notes/07). 스킬 계약: 설치돼
 | `plugins/codexclaw/skills/recall/SKILL.md` | MODIFY | 시놉시스=USAGE, 14+항목 정정, 사다리, 검증 규칙, 서브에이전트·워크트리(wp4 전/후), native vs cxc, 조건부 외부 레인 | 148 → 262 |
 | `plugins/codexclaw/skills/recall/agents/openai.yaml` | (유지) | 변경 없음 | 0 |
 | `plugins/codexclaw/test/recall-skill-synopsis.test.mjs` | NEW | USAGE 플래그 ⊆ SKILL Commands 펜스, 금지 문구 부재 | ~80 |
-| `docs-site/src/content/docs/concepts/how-it-works.md` | MODIFY | 25파일/26핸들러, SessionStart x7, PreToolUse x7+memory-write, PostCompact silent | ~20 |
+| `docs-site/src/content/docs/concepts/how-it-works.md` | MODIFY | 28파일/29핸들러, SessionStart x8·UserPromptSubmit x5·Stop x2, PreToolUse x7+memory-write, PostCompact silent | ~24 |
 | `docs-site/src/content/docs/reference/commands.md` | MODIFY | allow-write 행, chat `--rank`, memory days=0, dedicated_tools 주석 | ~25 |
-| `docs-site/src/content/docs/reference/hooks.md` | MODIFY | 25/26, fallback 행 추가, PostCompact recall은 stdout 빈 문자열이라고 본문에 명시 (JSON statusMessage는 그대로) | ~15 |
-| `docs-site/src/content/docs/reference/plugin-manifest.md` | MODIFY | hooks JSON을 plugin.json 25파일과 동일하게 | ~20 |
+| `docs-site/src/content/docs/reference/hooks.md` | MODIFY | 28/29, fallback 행 추가, PostCompact recall은 stdout 빈 문자열이라고 본문에 명시 (JSON statusMessage는 그대로) | ~15 |
+| `docs-site/src/content/docs/reference/plugin-manifest.md` | MODIFY | hooks JSON을 plugin.json 28파일과 동일하게 | ~24 |
 | `docs-site/src/content/docs/guides/native-tools.md` | MODIFY | dedicated_tools는 `cxc enable`이 켠다. memories가 "future/flag-gated"가 아님 | ~8 |
-| `docs-site/src/content/docs/index.mdx` | MODIFY | Hooks 행 24/25 x6 → 25/26, SessionStart x7 | 1 |
-| `docs-site/src/content/docs/getting-started/installation.md` | MODIFY | 24/25 → 25/26 | 2 |
+| `docs-site/src/content/docs/index.mdx` | MODIFY | Hooks 행 24/25 x6 → 28/29, SessionStart x8 | 1 |
+| `docs-site/src/content/docs/getting-started/installation.md` | MODIFY | 24/25 → 28/29 | 2 |
 
 dist: src를 안 고치므로 `npm run build` 재생성 대상 없음. §7.
 
@@ -332,9 +332,10 @@ Defaults that matter:
 - Harness-injected synthetic messages are hidden; `--all` reveals them.
 - Chat matches tool call/output (`tool_log`) by default. Recall questions should
   pass `--no-tools`.
-- Hits come back BY RELEVANCE: a BM25 lane and a trigram lane are fused
+- Chat hits come back BY RELEVANCE: a BM25 lane and a trigram lane are fused
   (reciprocal rank fusion) and freshness breaks ties among comparable matches.
-  Pass `--recent` for newest-first.
+  Pass `--recent` for newest-first. This ordering is chat index only; memory
+  ranks by its own chunk score (group coverage, density, kind, freshness).
 
 ## Two engines (do not mix their rules)
 
@@ -342,8 +343,7 @@ Chat (`cxc chat search`, sidecar FTS index):
 
 - Lowercase substring AND (OR with `--any`). No Korean stemming. No synonym table.
 - Drop particles yourself (`코덱스를` → `코덱스` or `codex`).
-- Trigram FTS for words of length >= 3; LIKE fallback below that. This is **chat
-  index only**.
+- Trigram FTS for words of length >= 3; LIKE fallback below that. This is chat index only.
 - Empty results are possible. There is no substring fallback for a failed AND.
 
 Memory (`cxc memory search`):
@@ -353,11 +353,17 @@ Memory (`cxc memory search`):
 - Korean ending trim + ko/en synonym expansion (unless `--no-synonyms`).
   `--no-synonyms` on chat is a no-op because chat never expands.
 - Symbol-shaped words — uppercase acronyms (`CI`, `LSP`), one-to-three-letter
-  ASCII (`go`, `id`), numbers (`3956`, `#3956`), SHAs, filenames and paths —
-  match on word boundaries only. `LSP` does not return `NaiControlsPanel`.
-- When a **symbol** query finds nothing on boundaries, memory retries substring
-  and warns `lower confidence`. Korean prose has no boundary term, so that retry
-  does **not** run. Empty results are common for unsplit sentences.
+  ASCII (`go`, `id`), numbers (`3956`, `#3956`), SHAs, dotted versions (`2.49.0`,
+  `v2.49.0`; judged before the filename rule), filenames and paths — match on
+  word boundaries only. `LSP` does not return `NaiControlsPanel`. A version
+  written as `v2.49.0` in the corpus still matches the query `2.49.0`: a lone
+  token-edge `v` before a version counts as a boundary.
+- When a query finds nothing at all, memory retries with substring matching
+  only for the boundary groups that occur nowhere in the corpus, and warns
+  `lower confidence`. A group that does hit on boundaries keeps its precision,
+  so `3956 LSP` never lets `LSP` match inside `NaiControlsPanel`. Korean prose
+  has no boundary term, so that retry does **not** run for it. Empty results
+  are common for unsplit sentences.
 - Trimming only ever adds terms; the word you typed still anchors the excerpt.
   Stems shorter than two syllables are never produced, so `검사` is not split
   into `검`.
@@ -587,11 +593,11 @@ recovery:
 after:
 
 ```
-Twenty-five registered hook files provide 26 event handlers connecting Codex lifecycle events to state, covering session start,
+Twenty-eight registered hook files provide 29 event handlers connecting Codex lifecycle events to state, covering session start,
 orchestration, recall injection, pre/post-tool guards, subagent evidence, and compaction
 recovery:
 ...
-| `SessionStart` (x7) | provider-bridge, pabcd-bootstrap, feature-healing, map-affordance, subagent-fallback, recall-context, session-start-detecting-managed-worktree | Detect `ocx` status; bootstrap session state; heal declared soft flags (hard flags require `cxc enable`); announce affordances; announce the subagent fallback protocol; inject recall context; check managed-worktree identity. |
+| `SessionStart` (x8) | provider-bridge, pabcd-bootstrap, feature-healing, map-affordance, subagent-fallback, recall-context, session-start-detecting-managed-worktree, bg-wake (session-start) | Detect `ocx` status; bootstrap session state; heal declared soft flags (hard flags require `cxc enable`); announce affordances; announce the subagent fallback protocol; inject recall context; check managed-worktree identity. |
 | `PreToolUse` (x7) | goal-budget, interview-in-goal, goal-complete, skill-attach, edit-lint, pre-tool-use-guarding-managed-worktree-deletion, pre-tool-use-guarding-memory-write | Guard goals, deny interview in goal mode, gate goal completion, attach skills to spawns, lint edits, guard managed-worktree deletion, deny unsolicited writes under the Codex memories directory. |
 | `PostCompact` (x3) | reinject-cursor, recall-context, bg-terminal-affordance | Reset the PABCD reinjection cursor; emit nothing from recall PostCompact (recovery rides SessionStart `source=compact`); queue an affordance marker for a later root prompt. |
 ```
@@ -632,21 +638,24 @@ cxc memory allow-write --session <id>
 
 before 제목/도입: "24 hook files and 25 event handlers" / "registers 24 hook files with 25 event handlers".
 
-after: "25 hook files and 26 event handlers" 두 곳.
+after: "28 hook files and 29 event handlers" 두 곳 (A 감사 반영: #119 bg-wake 3파일이 계획 이후 들어옴; plugin.json:22-50 기준).
 
-표에서 `pre-tool-use-attaching-skills.json` 다음, plugin.json 순서대로 한 행:
+표에서 `pre-tool-use-attaching-skills.json` 다음에 fallback 행을, 표 끝에 bg-wake 3행을 plugin.json 순서대로 넣는다(command/statusMessage/timeout은 각 훅 JSON 원문에서 채운다):
 
 ```
 | `session-start-announcing-subagent-fallback.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/subagent-config/dist/fallback-dispatch-cli.js" hook session-start` | `(codexclaw) Loading subagent fallback protocol` | 10 s |
+| `stop-waking-on-background-completion.json` | `Stop` | — | (plugin.json #119 bg-wake) | see hook JSON | see hook JSON |
+| `user-prompt-submit-delivering-background-completions.json` | `UserPromptSubmit` | — | (plugin.json #119 bg-wake) | see hook JSON | see hook JSON |
+| `session-start-adopting-background-completions.json` | `SessionStart` | — | (plugin.json #119 bg-wake) | see hook JSON | see hook JSON |
 ```
 
 PostCompact recall 설명 (hooks.md:105-109)은 이미 silent로 맞다. 표 statusMessage "(codexclaw) Recovering recall context after compaction"은 훅 JSON 원문이므로 표는 유지하고, "What each hook does" 문장에 "statusMessage는 등록 문자열이고 stdout은 빈 문자열"을 한 줄 보탠다. 훅 JSON은 수정하지 않는다.
 
 #### plugin-manifest.md:19 + Registered hooks JSON
 
-`hooks` 셀 after: "Twenty-five JSON files defining 26 event handlers; one file handles two events".
+`hooks` 셀 after: "Twenty-eight JSON files defining 29 event handlers; one file handles two events".
 
-JSON 배열 after (`plugin.json:22-47`과 동일, 현행 사이트는 23파일이라 fallback·memory-write 두 줄이 빠져 있다):
+JSON 배열 after (`plugin.json:22-50`과 동일, 28개; 현행 사이트는 23파일이라 fallback·memory-write·bg-wake 3파일이 빠져 있다):
 
 ```json
 "hooks": [
@@ -674,7 +683,10 @@ JSON 배열 after (`plugin.json:22-47`과 동일, 현행 사이트는 23파일�
     "./hooks/session-start-detecting-managed-worktree.json",
     "./hooks/user-prompt-submit-guiding-worktree-rename.json",
     "./hooks/pre-tool-use-guarding-managed-worktree-deletion.json",
-    "./hooks/pre-tool-use-guarding-memory-write.json"
+    "./hooks/pre-tool-use-guarding-memory-write.json",
+    "./hooks/stop-waking-on-background-completion.json",
+    "./hooks/user-prompt-submit-delivering-background-completions.json",
+    "./hooks/session-start-adopting-background-completions.json"
 ]
 ```
 
@@ -704,13 +716,13 @@ of this "not shipped" set.
 
 before: `24 registered files, 25 handlers: `SessionStart` x6, ... `PreToolUse` x7, ...`
 
-after: `25 registered files, 26 handlers: `SessionStart` x7, `UserPromptSubmit` x4, `PreToolUse` x7, `PostToolUse` x2, `Stop` x1, `SubagentStop` x2, `PostCompact` x3.`
+after: `28 registered files, 29 handlers: `SessionStart` x8, `UserPromptSubmit` x5, `PreToolUse` x7, `PostToolUse` x2, `Stop` x2, `SubagentStop` x2, `PostCompact` x3.`
 
 #### installation.md:101-102
 
 before: `codexclaw registers 24 hook files containing 25 event handlers.`
 
-after: `codexclaw registers 25 hook files containing 26 event handlers.`
+after: `codexclaw registers 28 hook files containing 29 event handlers.`
 
 ---
 
@@ -839,7 +851,7 @@ that already recovers the three eval sentences as `source dogfooding` /
 `plugin restart` / `2.49.0 배포 npm`.
 
 docs-site still said 24 hook files / 25 handlers and "invoke recall recovery"
-on PostCompact. plugin.json has 25 files / 26 handlers; recall PostCompact
+on PostCompact. plugin.json has 28 files / 29 handlers; recall PostCompact
 returns "". This PR also documents `cxc memory allow-write`, `--rank`, and
 `memories.dedicated_tools` auto-enable.
 
@@ -879,3 +891,20 @@ node plugins/codexclaw/scripts/test.mjs "plugins/codexclaw/test/dist-freshness.t
 blocker #5(030↔040 계약): 이 문서가 wp4에 요구한 "Until wp4" 문단 삭제를 040 §1 IN에 넣었다(040의 A 감사 반영 참조). wp3 머지 시점의 SKILL.md는 "`--cwd`는 접두사 부스트만 하므로 관리형 워크트리에서는 `--cwd-only`에 메인 체크아웃 경로를 넘겨라"를 담고, wp4가 그 문단을 "같은 git origin의 세션을 함께 묶는다"로 교체한다. 두 문구가 동시에 존재하는 커밋은 없다.
 
 검증 명령 정정: §6.1의 `cd <comp> && node --test`는 레포 러너 형태로 읽는다(문서 말미 정정 블록).
+
+
+## P 재검증 (wp3 사이클, 2026-09-10)
+
+기준 트리 `e23e1285`(origin/dev, #124·#125 머지 직후). 계획 이후 바뀐 대상은 `docs-site/.../reference/hooks.md`뿐이며(wp1이 Pre-tool guards 목록에 memory-write 항목 7줄 추가), §4.4의 hooks.md 변경(제목 개수 28/29, subagent-fallback 표 행, PostCompact 문장)과 겹치지 않는다. §2.1의 "Pre-tool guards에 memory-write가 없다"는 wp1로 해소됐으므로 이 사이클은 그 항목을 다시 넣지 않는다. SKILL.md·cli.ts USAGE·나머지 docs-site 파일은 계획 시점과 동일. wp1(게이트)·wp2(심볼 경계)가 dev에 있으므로 SKILL.md 문구("--cwd-only는 wp4 전까지 메인 체크아웃 경로", 심볼 경계·완화 설명)를 그대로 확정한다. 브랜치 `codex/memory-l1-wp3-skill`(origin/dev 위).
+
+
+
+## A 감사 반영 (wp3 round 1, 2026-09-10)
+
+리뷰어(grok-4.6) FAIL 3 + Medium 1을 본문(§4.2 SKILL 전문, §4.4)에 접었다.
+
+1. Two engines: 심볼 목록에 dotted VERSION(`2.49.0`, `v2.49.0`, 파일명 규칙보다 먼저)과 v접두 경계 예외를 넣고, 완화 재시도를 "전체 0건일 때 코퍼스 어디에도 없는 경계 그룹만 substring, 잡힌 그룹은 경계 유지(`3956 LSP`에서 LSP는 NaiControlsPanel에 안 붙음)"로 고쳤다(#125 동작).
+2. `chat index only`를 한 줄 평문으로 바꿔 §4.3 테스트 정규식과 맞췄다.
+3. 훅 개수: 계획 이후 #119(bg-wake 3파일: `stop-waking-on-background-completion`, `user-prompt-submit-delivering-background-completions`, `session-start-adopting-background-completions`)가 들어와 plugin.json은 28파일/29핸들러다. §4.4의 after를 28/29와 이벤트 분해(SessionStart 8, UserPromptSubmit 5, Stop 2, PreToolUse 7, PostToolUse 2, SubagentStop 2, PostCompact 3)로 고쳤고, hooks.md 표에는 fallback 행 외에 bg-wake 3행을, plugin-manifest.md JSON 배열은 `plugin.json:22-50` 전체(28개)를 그대로 복사한다. P 재검증이 plugin.json을 안 본 것이 원인이다.
+4. Medium: Commands 절의 BM25/RRF 문장을 chat 한정으로 고치고 memory는 자체 청크 점수라고 명시했다.
+
