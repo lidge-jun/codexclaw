@@ -1,7 +1,9 @@
 # Explorer routing verification
 
-2026-09-10. Implementation: `5fd6a6fd670cfaf66d3c0a4dbf867ec9bfe363e6`,
-based on dev `9cd52769`. Later evidence-only changes do not change that code.
+2026-09-10. Implementation: `9ec9c99acc74e860aa597d96cbfc4ea9628ab1e9`,
+based on dev `9cd52769`. GitHub email privacy required changing unpublished
+commit metadata; the implementation tree stayed identical to the tested tree.
+Later evidence-only changes do not change that code.
 Local environment: Linux, Node 24.20.0, Codex CLI 0.153.4.
 
 The CXC hook now routes both native input forms and preserves explicit explorer
