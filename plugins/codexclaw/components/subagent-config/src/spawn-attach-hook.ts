@@ -410,7 +410,7 @@ function dispatchSources(message: string, cwd: string): Array<{ source: string; 
     if (!rest.startsWith(guard)) continue;
     let tail = rest.slice(guard.length);
     if (guard === V1_SCOPE_BLOCK_COORDINATOR || guard === LEAF_GUARD_BLOCK_COORDINATOR) {
-      tail = tail.replace(/^\nOne child spawn is authorized\. Include this exact one-time capability in that spawn message: \[CXC-SUBSPAWN-GRANT:[a-f0-9]{64}\]/i, "");
+      tail = tail.replace(/^\nOne child spawn is authorized\. Include this exact one-time capability in that spawn message: \[CXC-SUBSPAWN-GRANT:[a-f0-9]{64}\]/, "");
     }
     if (!tail.startsWith("\n\n")) continue;
     rest = tail.slice(2);
