@@ -15,6 +15,7 @@ import { readdirSync, existsSync, openSync, readSync, closeSync } from "node:fs"
 import { join, basename } from "node:path";
 import { splitLines } from "./text-lines.js";
 import { normalizeRepoKey } from "./repo-key.js";
+import { planMatches, planIsEmpty,                } from "./query-words.js";
 
 
 
@@ -233,14 +234,16 @@ function readFirstLine(path        )         {
 }
 
 /**
- * File-level prefilter: one lowercase pass, no line split / JSON.parse.
- * AND mode requires every word; OR mode any word.
+ * File-level prefilter: one lowercase pass, no line split / JSON.parse. Runs
+ * the SAME plan predicate the per-message test uses, so a file can never be
+ * skipped for a requirement the messages inside it would have satisfied.
+ *
+ * Sound as a prefilter because the plan is monotone in the text: whatever a
+ * single message satisfies, the whole-file concatenation satisfies too.
  */
-export function matchesFilePrefilter(lowerContent        , words          , anyMode         )          {
-  if (words.length === 0) return false;
-  return anyMode
-    ? words.some((w) => lowerContent.includes(w))
-    : words.every((w) => lowerContent.includes(w));
+export function matchesFilePrefilter(lowerContent        , plan           )          {
+  if (planIsEmpty(plan)) return false;
+  return planMatches(lowerContent, plan);
 }
 
 /** function_call_output.output: string, {content|text} object, or content array. */

@@ -25,7 +25,7 @@ import {
 const USAGE = [
   "cxc chat search \"<query>\" [--days N] [--cwd PATH] [--role r] [--source main|subagent|all]",
   "                           [--limit N] [--context N] [--any] [--all] [--no-tools]",
-  "                           [--recent] [--scan] [--no-refresh] [--json]",
+  "                           [--recent] [--scan] [--no-refresh] [--synonyms] [--json]",
   "cxc chat index [--rebuild] [--status] [--json]",
   "cxc memory search \"<query>\" [--days N] [--limit N] [--any] [--no-synonyms]",
   "                             [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json]",
@@ -47,6 +47,7 @@ const USAGE = [
   "  --scan       force the raw JSONL scan path (skip the sidecar index)",
   "  --no-refresh skip refresh-on-query ingest (fastest, index may be stale)",
   "  --no-synonyms memory search: raw words only — no ko/en synonyms, no korean stem",
+  "  --synonyms   chat search: expand ko/en synonyms + korean stems (default off)",
   "  --json       machine-readable output (text fields clipped at 500 chars)",
   "  --full       with --json: emit unclipped text fields",
   "  --home PATH  search an alternate Codex home (default $CODEX_HOME ?? ~/.codex)",
@@ -76,6 +77,7 @@ function parseFlags(args: string[]): ParsedFlags {
       scan: { type: "boolean", default: false },
       "no-refresh": { type: "boolean", default: false },
       "no-synonyms": { type: "boolean", default: false },
+      synonyms: { type: "boolean", default: false },
       "no-chat": { type: "boolean", default: false },
       full: { type: "boolean", default: false },
       rebuild: { type: "boolean", default: false },
@@ -114,6 +116,9 @@ function runChatSearch(args: string[]): number {
     limit: numFlag(values, "limit"),
     context: numFlag(values, "context"),
     any: values.any === true,
+    // Default off: chat is the raw corpus, and expanding every word there
+    // widens a multi-GB scan (memory search defaults the other way).
+    synonyms: values.synonyms === true,
     role: typeof values.role === "string" ? values.role : null,
     cwd: typeof values.cwd === "string" ? values.cwd : null,
     source,

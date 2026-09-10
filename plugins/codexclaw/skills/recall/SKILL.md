@@ -36,7 +36,7 @@ and `cxc chat index --rebuild` deletes and re-ingests that index. Pass
 ```
 cxc chat search "<query>" [--days N] [--cwd PATH] [--role r] [--source main|subagent|all]
                           [--limit N] [--context N] [--any] [--all] [--no-tools]
-                          [--recent] [--rank] [--scan] [--no-refresh] [--json] [--full]
+                          [--recent] [--rank] [--scan] [--no-refresh] [--synonyms] [--json] [--full]
                           [--home PATH]
 cxc chat index [--rebuild] [--status] [--json]
 cxc memory search "<query>" [--days N] [--limit N] [--any] [--no-synonyms]
@@ -55,8 +55,13 @@ Flags that live in the CLI USAGE and are easy to miss:
 Defaults that matter:
 
 - Words AND together; pass `--any` for OR. Quote the whole query.
-- After a space split, at most 8 words are kept (`MAX_WORDS`). There is no
-  stopword list, so 그 / 진짜 / 지난번 / 문제 / 방법 stay required AND terms.
+- A space split keeps up to 16 words. Through 8 every word is required. Past 8
+  the AND relaxes: symbols, versions and mixed-case names (`2.49.0`, `npm`,
+  `CI`, `BundledPluginsMarketplace`) stay required, and the rest become a quota
+  — half of them, rounded up. Six fillers (그 / 이 / 저 / 것 / 문제 / 방법) are
+  dropped at any length; 진짜 and 지난번 are not.
+- A relaxed query can therefore answer a whole sentence, but it ranks by word
+  overlap, not by what you meant. The rewrite ladder below still wins.
 - Do not paste a Korean or English sentence as-is. Do not use `--any` on a long
   sentence — it fills the page with common-word noise and is not a relevance rewrite.
 - `--days` defaults to **7 for chat** and **0 (full history) for memory**. They
@@ -75,10 +80,15 @@ Defaults that matter:
 
 Chat (`cxc chat search`, sidecar FTS index):
 
-- Lowercase substring AND (OR with `--any`). No Korean stemming. No synonym table.
-- Drop particles yourself (`코덱스를` → `코덱스` or `codex`).
+- Lowercase substring AND (OR with `--any`). No Korean stemming and no synonym
+  table by default.
+- Drop particles yourself (`코덱스를` → `코덱스` or `codex`), or pass
+  `--synonyms` to borrow memory's ko/en table and Korean stemmer for one query
+  (`코덱스를 재시작하면` then reaches a transcript that says `Codex restart`). It
+  is off by default because expanding every word widens a multi-GB scan.
 - Trigram FTS for words of length >= 3; LIKE fallback below that. This is chat index only.
-- Empty results are possible. There is no substring fallback for a failed AND.
+- Empty results are possible. There is no substring fallback for a failed AND,
+  and past 8 words the required symbols must still all be present.
 
 Memory (`cxc memory search`):
 
@@ -120,12 +130,14 @@ own query (`--days 0`, chat then memory unless the noun is known to live in note
    answer from the excerpt.
 7. Only if the rewritten queries miss, ask the user and list what you searched.
 
-Worked recoveries (eval 2026-09-10): the sentences
-`지난번 로컬 소스를 실제 서비스에 연결하고 정상 동작까지 확인한 방법`,
-`코덱스를 재시작하면 플러그인이 사라지는 문제`,
-`2.49.0 배포하고 npm 패키지가 진짜 그 소스인지 검증한 기록`
-are 0 hits as-is. They recover as `source dogfooding` / `plugin restart` /
-`2.49.0 배포 npm`.
+Worked recoveries (eval 2026-09-10, re-measured after the long-query
+relaxation). `지난번 로컬 소스를 실제 서비스에 연결하고 정상 동작까지 확인한 방법`
+now returns hits as-is, on word overlap alone, so read them before trusting
+them. `코덱스를 재시작하면 플러그인이 사라지는 문제` and
+`2.49.0 배포하고 npm 패키지가 진짜 그 소스인지 검증한 기록` are still 0 as-is on
+this corpus: five words is a strict AND, and the release sentence's required
+`2.49.0` and `npm` never share a message with three of its remaining words.
+All three recover as `source dogfooding` / `plugin restart` / `2.49.0 배포 npm`.
 
 ## Result checks (before treating a hit as the answer)
 

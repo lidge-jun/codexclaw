@@ -58,6 +58,40 @@ test("koreanStem: trims measured endings, refuses everything that would over-tri
   assert.equal(koreanStem("배포2"), null, "mixed tokens are out of scope");
 });
 
+test("koreanStem: 인지 trims (wp5), 한 deliberately does not", () => {
+  assert.equal(koreanStem("소스인지"), "소스");
+  assert.equal(koreanStem("무엇인지"), "무엇");
+  // The ending alone leaves no stem, so the two-syllable guard still rejects it.
+  assert.equal(koreanStem("인지"), null);
+  // 한 is not in the ending list on purpose: it would trim 검증한 → 검증 but
+  // also every noun that merely ends in 한.
+  assert.equal(koreanStem("검증한"), null);
+});
+
+test("wp5 seeds: the evaluation sentences' nouns reach their english family", () => {
+  const texts = (w: string) => groupTexts(expandQueryWords([w])[0]);
+  assert.ok(texts("도그푸딩").includes("dogfooding"));
+  assert.ok(texts("코덱스를").includes("codex"), "코덱스를 → 코덱스 → codex");
+  assert.ok(texts("재시작하면").includes("restart"), "하-verbalizer tail, then the seed");
+  assert.ok(texts("소스인지").includes("source"), "소스인지 → 소스 → source");
+  assert.ok(texts("검증").includes("verify"));
+  assert.ok(texts("검증").includes("provenance"));
+  assert.deepEqual(texts("검증한"), ["검증한"], "no 한 trimming means no seed lookup either");
+});
+
+test("memory search: 기억 recalls an english-only memory (c-5 durable-memory leg)", () => {
+  const home = mkdtempSync(join(tmpdir(), "recall-ko-recall-"));
+  try {
+    const mem = join(home, "memories");
+    mkdirSync(mem, { recursive: true });
+    writeFileSync(join(mem, "MEMORY.md"), "# Notes\n\nThe memory store keeps every decision.\n");
+    assert.ok(searchMemory("기억", { home }).hits.length >= 1, "기억 → memory");
+    assert.equal(searchMemory("기억", { home, synonyms: false }).hits.length, 0, "opt-out drops the bridge");
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test("expandQueryWords: guard 3 keeps the original word leading, stem is additive", () => {
   const [group] = expandQueryWords(["배포를"]);
   const texts = groupTexts(group);
