@@ -9,7 +9,7 @@ every host/model follows the same route. Explicit user and tool contracts win.
 | Work | Preferred path |
 |---|---|
 | One simple tool call, no useful transformation | Direct callable when exposed; use the nested route if the live contract requires it or no direct route is exposed |
-| Independent reads with aggregation or projection | Native Code Mode with a finite, scoped batch |
+| Independent reads with aggregation or projection, after discovery ownership is decided | Native Code Mode with a finite, scoped batch |
 | Computation over JSON/data already in context | Pure JS in native Code Mode; no unnecessary shell or nested calls |
 | A later operation depends on an earlier result | Await and validate the prerequisite before deciding whether to call the dependent operation |
 | Native Code Mode absent, or a tool requires direct invocation | Supported authorized direct/owning-tool path; state a relevant limitation, never bypass a denial |
@@ -28,6 +28,10 @@ an implicit fallback. Read [worked examples](code-mode-examples.md) only when a
 concrete composition, projection, or cache pattern would help.
 
 ## Compose without losing outcomes
+
+Parallel shell reads still return all their context to main. Choose ownership
+using [dev's Discovery delegation](../SKILL.md) before
+composing a broad source-read batch; parallel calls do not replace that decision.
 
 Await every tool promise before the cell ends. Parallelize only independent,
 authorized reads whose tool contracts allow it; a shared working directory or
@@ -62,6 +66,10 @@ a short result. For required instruction reads, [dev's full-read rule](../SKILL.
 still governs. Large original data may remain in scoped memory only when allowed;
 persist necessary evidence through an authorized file tool, not a raw secret dump.
 Return media through the offered media helpers, not stringified binary content.
+
+After truncation, retain the available evidence and request only missing bounded
+regions. Reconsider discovery ownership before repeating broad reads; do not rerun
+the same oversized batch merely to recover its missing tail.
 
 ## Wait for the thing that actually exists
 

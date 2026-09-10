@@ -195,6 +195,10 @@ codexclaw translation:
   (agent-followed); no hook measures delegation quality. Adopted 260711 from the
   fork-debate verdicts plus Tier-2 arXiv evidence (claim-ledger:
   `devlog/_plan/260711_dispatch_economy_docs_site/005_research_claim_ledger.md`).
+  For authorized source/log investigation, [dev's Discovery delegation](../plugins/codexclaw/skills/dev/SKILL.md#discovery-delegation)
+  owns the early ownership decision, concrete local exceptions and reconsideration
+  after scope growth or truncation. Parallel shell reads still consume main context;
+  this guidance adds no runtime enforcement or mandatory spawn count.
   Four clauses:
   - *Three-axis delegability test.* Decide what to delegate by
     **specifiability** (the TASK packet can carry the full spec, including its

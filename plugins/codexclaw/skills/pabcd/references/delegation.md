@@ -18,6 +18,21 @@ topology: `structure/20_pabcd_dispatch_doctrine.md` §3. This is not an installe
 prerequisite; do not assume the path exists inside the plugin payload. An explicitly
 required task source still must be loaded or reported missing before its governed action.
 
+### Discovery packet
+
+Whether to dispatch stays with `dev`'s Discovery delegation. Once dispatched, the
+child packet still includes every DISPATCH-TASK-01 field:
+
+- **TASK:** one independently answerable question.
+- **SCOPE:** the child's bounded read area, plus main's separate work.
+- **MUST DO:** find or trace the answer; stop when it is answered.
+- **MUST NOT:** writes, or work that overlaps main.
+- **PROOF:** source anchors (`path:line` quotations, figures, URLs).
+- **RETURN FORMAT:** compact answer, findings, and uncertainties, not full file dumps.
+- **DECISION BOUNDARY / STOP:** return unresolved judgments and any scope growth to main.
+
+Managed routing, isolation, lifecycle, and fallback in this file are unchanged.
+
 ### Live tool schema and role transport
 
 Apply `dev`'s Discovery delegation guidance before broad source/log reads.
