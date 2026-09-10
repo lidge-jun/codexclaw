@@ -185,7 +185,7 @@ export function validateAttest(from       , to       , att                    ) 
   }
   if (key === "A>B") {
     if (!att.auditOutput) {
-      reasons.push(`A -> B additionally requires "auditOutput": paste the tail of the independent reviewer verdict you actually received. Dispatch a reviewer subagent with agent_type "explorer" (there is no "reviewer" agent_type; the reviewer ROLE maps to the explorer TYPE per DISPATCH-AGENT-TYPE-01) at the A gate; a self-written sentence is not an audit.`);
+      reasons.push(`A -> B additionally requires "auditOutput": paste the tail of the independent reviewer verdict you actually received. Dispatch a reviewer subagent with agent_type "reviewer" if the live schema exposes that native role; otherwise use agent_type "explorer" with CXC-ROLE: reviewer before TASK: (DISPATCH-AGENT-TYPE-01) at the A gate; a self-written sentence is not an audit.`);
     }
     if (!att.auditVerdict || !AUDIT_VERDICTS.has(att.auditVerdict)) {
       reasons.push(`A -> B additionally requires "auditVerdict": "pass" | "near-pass" | "fail" - YOUR OWN judgment of this audit round (AUDIT-LOOP-01). "fail" never advances; "near-pass" means every blocking finding was folded into the plan or explicitly rebutted (also supply "auditResidual").`);

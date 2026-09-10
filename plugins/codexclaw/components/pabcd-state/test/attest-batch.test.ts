@@ -67,5 +67,6 @@ test("#31: the A>B reviewer wording names a real agent_type", () => {
   const r = validateAttest("A", "B", coerceAttest({ from: "A", to: "B", did: "audited the plan" }));
   const auditOutputReason = (r.reasons ?? []).find((x) => x.includes("auditOutput")) ?? "";
   assert.match(auditOutputReason, /agent_type "explorer"/);
-  assert.doesNotMatch(auditOutputReason, /agent_type "reviewer"/);
+  assert.match(auditOutputReason, /agent_type "reviewer"/);
+  assert.match(auditOutputReason, /CXC-ROLE: reviewer before TASK:/);
 });

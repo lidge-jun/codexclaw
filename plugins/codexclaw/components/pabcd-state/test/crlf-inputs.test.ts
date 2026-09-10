@@ -131,7 +131,8 @@ test("review-round-cli reads a CRLF config.toml the same as an LF one", () => {
   const LAUNCH = /^ {2}LAUNCH: \w+-\d{14}$/m;
   const tail = (text: string): string =>
     text.split("\n").slice(1).join("\n").replace(LAUNCH, "  LAUNCH: <id>");
-  assert.match(tail(lf), /agent_type explorer/, "LF baseline detects the v2 surface");
+  assert.match(tail(lf), /agent_type "reviewer"/, "LF baseline emits native reviewer advice");
+  assert.match(tail(lf), /CXC-ROLE: reviewer before TASK:/, "legacy transport preserves reviewer selection");
   assert.match(
     crlf.split("\n").slice(1).join("\n"),
     LAUNCH,
