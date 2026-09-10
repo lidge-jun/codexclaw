@@ -159,6 +159,17 @@ Attach `cxc-search` for search tasks; the same search policy binds delegated age
 Surface-to-owner mappings live in `references/skill-ownership.md`; router trigger
 metadata remains canonical in each skill's `agents/openai.yaml`.
 
+### Discovery delegation
+
+For authorized agent work, consider a bounded explorer before loading a broad
+set of source files or logs into the main context. Delegate an independently
+answerable question when main can progress on another part; request a concise
+answer with source anchors and inspect those anchors instead of repeating the
+whole search. Keep a small, immediately blocking lookup local. Record the reason
+when keeping a substantial discovery task local. Discovery does not replace
+implementation delegation or independent review. Follow the configured role;
+confirm the child model from runtime evidence, not helper-model usage totals.
+
 ### Capability Routing Hub
 
 **Independent peers:** keep work local and use selective read-only evidence when

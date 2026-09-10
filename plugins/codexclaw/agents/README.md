@@ -18,6 +18,11 @@ Built-in `agent_type` values are codex-native (`core/src/agent/role.rs`: `defaul
 registered roles are exposed. Architect requires its own registered native role;
 there is no explorer/reviewer fallback for architect.
 
+When the host exposes a native `reviewer`, use it. On legacy explorer-only
+read-only transport, prepend `CXC-ROLE: reviewer` before `TASK:` to select reviewer
+settings. An explicit explorer without that header keeps explorer settings even
+when its task mentions review or verification. Task vocabulary is not a role choice.
+
 ## Optional native executor registration
 
 Plugin directories are not Codex configuration layers, so installing the plugin alone

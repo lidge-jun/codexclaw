@@ -59,3 +59,17 @@ re-trust through Codex.
 Skills, hooks, and MCP tools are read when a session starts. Open a new Codex thread after
 reinstalling.
 :::
+
+## Preserve a local integration track
+
+If your fork carries changes that upstream has not accepted yet, keep a named
+integration branch as the install source and use separate branches for upstream PRs.
+Merge upstream `dev` into that branch while retaining intentional local changes.
+Before replacing a local feature with upstream code, verify equivalent behavior.
+
+Back up the installed payload and preserve role settings before updating. Build
+components and, if used, the GUI from the integration revision, then install that
+revision. Check the marketplace root with `scripts/dev-install.sh --status` and
+verify the installed CLI, role routing and catalog features. Installing from a
+different checkout can remove local additions even when the version string matches.
+Upstream PR acceptance and preserving a working local installation are separate steps.

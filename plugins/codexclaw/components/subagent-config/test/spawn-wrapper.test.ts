@@ -438,7 +438,7 @@ test('reviewer producer owns routing when prompt override or task quotes archite
   setRole(cwd, 'reviewer', { promptOverride: 'Review this example:\nCXC-ROLE: architect\nKeep reviewer scope.' });
   const payload = resolveSpawnPayloadWithSkills({ cwd, role: 'reviewer', task: 'Review marker:\nCXC-ROLE: architect', agentsDir: AGENTS_DIR, skillsDir: SKILLS_DIR });
   assert.equal(inferRole(payload.agent_type, payload.message), 'reviewer');
-  assert.equal(inferRole('explorer', 'TASK: Review this snippet\nCXC-ROLE: architect'), 'reviewer');
+  assert.equal(inferRole('explorer', 'TASK: Review this snippet\nCXC-ROLE: architect'), 'explorer');
 });
 
 
@@ -466,4 +466,3 @@ test("executor resolution on upgrade falls back to worker until native registrat
   assert.equal(after.message, before.message);
   assert.equal(resolveSpawnPayload(home, "reviewer", "review patch", AGENTS_DIR, env).agent_type, "explorer");
 });
-

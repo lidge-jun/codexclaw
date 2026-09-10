@@ -32,7 +32,8 @@
  *
  * SAFETY: `updatedInput` is a FULL REPLACEMENT of tool_input (registry.rs:122),
  * honored only on permissionDecision "allow" (output_parser.rs:162). We echo the
- * original input and change only `message`, `model`, and/or `reasoning_effort`.
+ * original input and change only task text, `model`, and/or `reasoning_effort`.
+ * V1 items retain their order and non-text attachments; no message is added.
  * The hook never throws: any doubt/error -> emit "" (allow untouched).
  */
 import { existsSync, mkdirSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -414,9 +415,9 @@ const RECURSE_DENY_REASON =
   "including the recursion grant token in the spawn message.";
 
 /**
- * Review-intent keywords (EN + KO) that mark an explorer-typed spawn as a reviewer
- * dispatch. Lowercase substring matching. A false
- * positive only changes which configured model applies (low risk).
+ * Review-intent keywords for legacy callers that omit a native role.
+ * Explicit explorer tasks must not change models because their source paths,
+ * quoted text or negative instructions happen to contain one of these words.
  */
 const REVIEW_KEYWORDS = [
   "review",
@@ -433,13 +434,11 @@ const REVIEW_KEYWORDS = [
 
 /**
  * Map the spawn's agent_type (+ message intent) back to a base RoleName.
- * Architect uses its registered native type; reviewer retains its legacy explorer
- * mapping. Explicit host roles win. Legacy role markers carry no permission authority.
- * The agent_type alone cannot tell reviewer from explorer, so review-intent
- * executor is canonical; worker is its legacy built-in alias (both resolve to the executor role).
- * keywords in the message upgrade the explorer surface to "reviewer" — this is
- * what lets a reviewer-specific model in .codexclaw/subagents.json take effect
- * on hook-path dispatches.
+ * Worker is the executor alias. Explicit write/reviewer/architect types win.
+ * A producer header retains deliberate logical role selection for legacy
+ * read-only explorer transport; otherwise explicit explorer stays explorer.
+ * Keywords are a fallback only when the caller has not selected a native role.
+ * Logical role markers do not change native permission profiles.
  */
 export function inferRole(agentType: unknown, message: string): RoleName {
   if (agentType === "worker" || agentType === "executor") return "executor";
@@ -450,6 +449,7 @@ export function inferRole(agentType: unknown, message: string): RoleName {
   const header = taskStart < 0 ? (message ?? "") : message.slice(0, taskStart);
   const marker = /^CXC-ROLE: (architect|reviewer|explorer)[ \t]*$/m.exec(header);
   if (marker) return marker[1] as RoleName;
+  if (agentType === "explorer") return "explorer";
   const m = (message ?? "").toLowerCase();
   return REVIEW_KEYWORDS.some((k) => m.includes(k)) ? "reviewer" : "explorer";
 }
@@ -782,15 +782,25 @@ export function runSpawnAttachHook(raw: string): string {
     // to BOTH surfaces (260710 parity). This runs before the message-validity no-op
     // below: a token-less recursive spawn is denied even when its message is
     // missing/empty.
-    const outgoing = typeof toolInput.message === "string" ? toolInput.message : "";
+    // Project only caller text. Never inspect attachment metadata or read files.
+    // Separators prevent fragments in different items from becoming one token.
+    const itemInput = !v2Spawn && toolInput.message === undefined && Array.isArray(toolInput.items)
+      ? toolInput.items : null;
+    const validItems = itemInput !== null && itemInput.length > 0 && itemInput.every(item =>
+      isRecord(item) && typeof item.type === "string" && (item.type !== "text" || typeof item.text === "string"));
+    const textItems = validItems ? itemInput.filter(item => item.type === "text") : [];
+    const outgoing = typeof toolInput.message === "string" ? toolInput.message
+      : textItems.map(item => item.text).join("\n\n");
     const spawnedBySubagent = isSubagentSpawner(obj);
     if (spawnedBySubagent && !consumeRecursionGrant(obj, outgoing)) return denyEnvelope(RECURSE_DENY_REASON);
 
-    // Only rewrite a real message; never invent one (schema shape stays untouched).
-    const message = toolInput.message;
-    if (typeof message !== "string" || message.trim().length === 0) return "";
+    // Keep the native one-of shape. Attachment-only requests still need routing.
+    const message = validItems ? outgoing : toolInput.message;
+    if (typeof message !== "string" || (!validItems && message.trim().length === 0)) return "";
     const cwd = typeof obj.cwd === "string" && obj.cwd.length > 0 ? obj.cwd : process.cwd();
-    const dispatchScan = scanInlineSkillBlocks(message).scanSource;
+    const dispatchScan = validItems
+      ? textItems.map(item => scanInlineSkillBlocks(item.text).scanSource).join("\n\n")
+      : scanInlineSkillBlocks(message).scanSource;
     let managed: ReturnType<typeof managedSpawn> = null;
     if (/^\[CXC-DISPATCH:/m.test(dispatchScan)) {
       try {
@@ -801,11 +811,21 @@ export function runSpawnAttachHook(raw: string): string {
     }
     const recursionRequested = !spawnedBySubagent && message.includes(SUBSPAWN_TOKEN);
     const mintedGrant = recursionRequested ? mintRecursionGrant(obj) : null;
-    const controlledMessage = stripControlMarkers(message);
-
     const skillsDir = runtimeSkillsDir();
-    const normalizedMessage = skillsDir ? normalizeSkillMentions(controlledMessage, skillsDir) : controlledMessage;
-    const role = managed?.role ?? inferRole(toolInput.agent_type, normalizedMessage);
+    // Normalize each text item independently: an attachment boundary must not
+    // join fences, links or skill mentions. Preserve every non-text item verbatim.
+    const mappedItems = validItems ? itemInput.map(item => {
+      if (item.type !== "text") return item;
+      const controlled = stripControlMarkers(item.text);
+      const normalized = skillsDir ? normalizeSkillMentions(controlled, skillsDir) : controlled;
+      return { ...item, text: skillsDir ? inlineSkillBodies(normalized, skillsDir) : normalized };
+    }) : null;
+    const firstText = mappedItems?.findIndex(item => item.type === "text") ?? -1;
+    const controlledMessage = mappedItems
+      ? (firstText < 0 ? "" : mappedItems[firstText].text as string)
+      : stripControlMarkers(message);
+    const normalizedMessage = !mappedItems && skillsDir ? normalizeSkillMentions(controlledMessage, skillsDir) : controlledMessage;
+    const role = managed?.role ?? inferRole(toolInput.agent_type, validItems ? dispatchScan : normalizedMessage);
 
     // Skill delivery: inline the recognized cxc SKILL.md bodies (atomic overflow
     // rule inside).
@@ -821,7 +841,7 @@ export function runSpawnAttachHook(raw: string): string {
     // on the surface. The mention is still never invented: `inlineSkillBodies`
     // returns the message untouched when nothing leaf-safe was mentioned, so a
     // spawn that asked for no skills is unchanged on both surfaces.
-    const inlinedMessage = skillsDir
+    const inlinedMessage = !mappedItems && skillsDir
       ? inlineSkillBodies(normalizedMessage, skillsDir)
       : normalizedMessage;
 
@@ -862,8 +882,9 @@ export function runSpawnAttachHook(raw: string): string {
     const guard = `${baseGuard}${grantInstruction}`;
     // A bare public marker cannot suppress the guard. Exact full-block prefix
     // recognition retains idempotence when a host applies the hook twice.
-    const hasExactGuard = affordanceMessage.startsWith(`${guard}\n\n`);
-    const updatedMessage = hasExactGuard ? affordanceMessage : `${guard}\n\n${affordanceMessage}`;
+    const hasExactGuard = affordanceMessage === guard || affordanceMessage.startsWith(`${guard}\n\n`);
+    const updatedMessage = hasExactGuard ? affordanceMessage
+      : mappedItems && affordanceMessage.length === 0 ? guard : `${guard}\n\n${affordanceMessage}`;
 
     let evidenceExemptMessage = updatedMessage;
 
@@ -903,8 +924,10 @@ export function runSpawnAttachHook(raw: string): string {
     // Apply promptOverride to the message: insert after the guard block but before
     // the original task content. This mirrors spawn-wrapper.ts behavior where
     // promptOverride replaces/prepends role instructions.
-    if (injectedPrompt !== null) {
-      if (guard.length > 0) {
+    if (injectedPrompt !== null && !(mappedItems && (evidenceExemptMessage === `${guard}\n\n${injectedPrompt}` || evidenceExemptMessage.startsWith(`${guard}\n\n${injectedPrompt}\n\n`)))) {
+      if (mappedItems && evidenceExemptMessage === guard) {
+        evidenceExemptMessage = `${guard}\n\n${injectedPrompt}`;
+      } else if (guard.length > 0) {
         // Guard is at the start; insert promptOverride between guard and task content.
         evidenceExemptMessage = evidenceExemptMessage.replace(
           `${guard}\n\n`,
@@ -929,13 +952,20 @@ export function runSpawnAttachHook(raw: string): string {
       }
     }
     const promptChanged = injectedPrompt !== null;
-    const messageChanged = evidenceExemptMessage !== message || promptChanged;
+    const updatedItems = mappedItems ? [...mappedItems] : null;
+    if (updatedItems) {
+      if (firstText < 0) updatedItems.unshift({ type: "text", text: evidenceExemptMessage });
+      else updatedItems[firstText] = { ...updatedItems[firstText], text: evidenceExemptMessage };
+    }
+    const messageChanged = updatedItems
+      ? JSON.stringify(updatedItems) !== JSON.stringify(itemInput)
+      : evidenceExemptMessage !== message || promptChanged;
 
     // Final-gate prerequisites: only fires on a packet that marked itself as the
     // final gate, and fails open on every other path. Runs after cwd resolution
     // and before the allow/no-op below so a denial reaches the caller unchanged.
     const gateCheck = checkFinalGatePrereqs(
-      evidenceExemptMessage,
+      updatedItems ? updatedItems.filter(item => item.type === "text").map(item => item.text).join("\n\n") : evidenceExemptMessage,
       typeof obj.session_id === "string" ? obj.session_id : "",
       cwd,
     );
@@ -945,8 +975,10 @@ export function runSpawnAttachHook(raw: string): string {
       ? `[codexclaw] This direct spawn is not managed by first-fallback tracking. For subsequent tasks: ${DISPATCH_GUIDANCE}` : null;
     if (!managed && !fallbackNotice && !messageChanged && injectedModel === null && injectedEffort === null) return "";
 
-    // Full replacement: echo every original key; change only message/model/effort.
-    const updatedInput: Record<string, unknown> = { ...toolInput, message: evidenceExemptMessage };
+    // Full replacement preserves whichever native input form the caller chose.
+    const updatedInput: Record<string, unknown> = updatedItems
+      ? { ...toolInput, items: updatedItems }
+      : { ...toolInput, message: evidenceExemptMessage };
     if (injectedModel !== null) updatedInput.model = injectedModel;
     if (injectedEffort !== null) updatedInput.reasoning_effort = injectedEffort;
     if (managed) {
