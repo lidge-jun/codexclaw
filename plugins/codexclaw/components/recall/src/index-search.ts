@@ -21,8 +21,11 @@
 import type { RwDb } from "./sqlite.ts";
 import type { ChatHit, ChatSearchResult } from "./chat-search.ts";
 import type { RolloutSource } from "./rollout.ts";
+import { FOLD_CWD_CASE } from "./rollout.ts";
 import { loadThreadMeta, type ThreadMetaResult } from "./threads-db.ts";
 import { stateDbPath } from "./paths.ts";
+import { filesHasColumn } from "./index-db.ts";
+import { normalizeRepoKey, repoKeysEqual } from "./repo-key.ts";
 
 /** Result ordering: fused relevance (default) or the original pure recency. */
 export type ChatOrder = "relevance" | "recent";
@@ -40,9 +43,32 @@ export type IndexQueryOptions = {
   includeTools: boolean;
   home: string;
   order?: ChatOrder;
+  /**
+   * Normalized git remote of the requested --cwd. When set, a file recorded
+   * under a DIFFERENT path but the same remote counts as in-scope: a managed
+   * worktree and its main checkout are one project.
+   */
+  repoKey?: string | null;
   /** clock override for deterministic recency scoring in tests. */
   nowMs?: number;
 };
+
+/**
+ * Query options plus the two facts that can only be answered against the open
+ * database: whether this index has the wp4 column at all, and which threads
+ * share the requested remote (the read-only path's substitute for that column).
+ */
+type ResolvedQuery = IndexQueryOptions & {
+  repoThreadIds: string[];
+  hasRepoKeyColumn: boolean;
+};
+
+/**
+ * Bound on the thread-id IN list. SQLite's parameter limit is far higher
+ * (32,766), and this machine's largest project has ~1,500 threads, so the cap
+ * only exists so a pathological state db cannot build an unbounded statement.
+ */
+const MAX_REPO_THREAD_IDS = 5_000;
 
 // ─── Ranking constants ──────────────────────────────────────────────────────
 
@@ -92,6 +118,26 @@ function escapeLike(word: string): string {
   return word.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
+/**
+ * Thread ids whose recorded remote matches `repoKey`.
+ *
+ * This is what makes same-project federation work on a read-only index: the
+ * files table there predates the repo_key column and cannot be altered, but
+ * the Codex state db already stores git_origin_url per thread, and files rows
+ * carry thread_id. Empty when no key was requested or none matched.
+ */
+function sameOriginThreadIds(meta: ThreadMetaResult, repoKey: string | null): string[] {
+  if (!repoKey) return [];
+  const ids: string[] = [];
+  for (const [id, thread] of meta.byId) {
+    if (repoKeysEqual(repoKey, normalizeRepoKey(thread.gitOriginUrl))) {
+      ids.push(id);
+      if (ids.length >= MAX_REPO_THREAD_IDS) break;
+    }
+  }
+  return ids;
+}
+
 /** One per-word id-set condition: trigram MATCH for >=3 chars, LIKE fallback below. */
 function wordCondition(word: string, params: unknown[]): string {
   if ([...word].length >= 3) {
@@ -107,7 +153,7 @@ function wordCondition(word: string, params: unknown[]): string {
  * definition of what "matches", shared by both ordering modes, so ranking can
  * never widen or narrow recall.
  */
-function candidateFilter(opts: IndexQueryOptions, withWords = true): { where: string; params: unknown[] } {
+function candidateFilter(opts: ResolvedQuery, withWords = true): { where: string; params: unknown[] } {
   const params: unknown[] = [];
   const conds: string[] = [];
   if (withWords) {
@@ -131,9 +177,26 @@ function candidateFilter(opts: IndexQueryOptions, withWords = true): { where: st
   if (opts.cwd) {
     // Separator-aware prefix: exact cwd, or a child path under it on either
     // separator style — /repo must never match /repo2.
-    conds.push("(f.cwd = ? OR f.cwd LIKE ? ESCAPE '\\' OR f.cwd LIKE ? ESCAPE '\\')");
+    const parts = [
+      // macOS folds path case (see rollout.ts FOLD_CWD_CASE); elsewhere the
+      // exact comparison stays byte-exact as before.
+      FOLD_CWD_CASE ? "lower(f.cwd) = lower(?)" : "f.cwd = ?",
+      "f.cwd LIKE ? ESCAPE '\\'",
+      "f.cwd LIKE ? ESCAPE '\\'",
+    ];
     // Backslash separator must itself be escaped under ESCAPE '\': pattern "\\%".
     params.push(opts.cwd, `${escapeLike(opts.cwd)}/%`, `${escapeLike(opts.cwd)}\\\\%`);
+    if (opts.repoKey && opts.hasRepoKeyColumn) {
+      parts.push("(f.repo_key IS NOT NULL AND f.repo_key = ?)");
+      params.push(opts.repoKey);
+    }
+    if (opts.repoThreadIds.length > 0) {
+      // The read-only path (--no-refresh) can never have run the ALTER, so the
+      // same-origin thread ids from the state db stand in for the column.
+      parts.push(`f.thread_id IN (${opts.repoThreadIds.map(() => "?").join(",")})`);
+      params.push(...opts.repoThreadIds);
+    }
+    conds.push(`(${parts.join(" OR ")})`);
   }
   return { where: conds.length > 0 ? conds.join(" AND ") : "1", params };
 }
@@ -184,7 +247,7 @@ function laneRanks(db: RwDb, table: "msgs_fts" | "msgs_tri", words: string[], an
  * queries run on LIKE alone and reach this path with both lanes empty, which
  * degenerates cleanly to the old recency order).
  */
-function rankedRows(db: RwDb, opts: IndexQueryOptions): { rows: IndexRow[]; truncated: boolean } {
+function rankedRows(db: RwDb, opts: ResolvedQuery): { rows: IndexRow[]; truncated: boolean } {
   const k = poolSize(opts.limit);
   const nowMs = opts.nowMs ?? Date.now();
   const triWords = opts.words.filter((w) => [...w].length >= 3);
@@ -238,23 +301,30 @@ function rankedRows(db: RwDb, opts: IndexQueryOptions): { rows: IndexRow[]; trun
 export function queryIndex(db: RwDb, opts: IndexQueryOptions): ChatSearchResult {
   const started = Date.now();
   const warnings: string[] = [];
+  // Thread metadata is loaded up front now: it enriches the hits below AND
+  // supplies the same-origin thread ids the cwd filter needs.
+  const threadMeta: ThreadMetaResult = loadThreadMeta(stateDbPath(opts.home));
+  const query: ResolvedQuery = {
+    ...opts,
+    repoKey: opts.repoKey ?? null,
+    hasRepoKeyColumn: filesHasColumn(db, "repo_key"),
+    repoThreadIds: sameOriginThreadIds(threadMeta, opts.repoKey ?? null),
+  };
   let rows: IndexRow[];
   let truncated: boolean;
-  if ((opts.order ?? "relevance") === "recent") {
-    const { where, params } = candidateFilter(opts);
+  if ((query.order ?? "relevance") === "recent") {
+    const { where, params } = candidateFilter(query);
     rows = db
       .prepare(`${ROW_COLUMNS}${where} ORDER BY m.ts DESC LIMIT ?`)
-      .all(...params, opts.limit + 1) as IndexRow[];
-    truncated = rows.length > opts.limit;
-    if (truncated) rows.length = opts.limit;
+      .all(...params, query.limit + 1) as IndexRow[];
+    truncated = rows.length > query.limit;
+    if (truncated) rows.length = query.limit;
   } else {
-    const ranked = rankedRows(db, opts);
+    const ranked = rankedRows(db, query);
     rows = ranked.rows;
     truncated = ranked.truncated;
   }
-  if (truncated) warnings.push(`truncated at limit ${opts.limit} — raise --limit or narrow the query`);
-
-  const threadMeta: ThreadMetaResult = loadThreadMeta(stateDbPath(opts.home));
+  if (truncated) warnings.push(`truncated at limit ${query.limit} — raise --limit or narrow the query`);
   if (threadMeta.warning) warnings.push(threadMeta.warning);
 
   const hits: ChatHit[] = rows.map((r) => {

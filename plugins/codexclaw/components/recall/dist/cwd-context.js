@@ -11,11 +11,19 @@
  * Everything here is best-effort and READ-ONLY. A missing or unreadable index
  * yields null so the caller can fall back to the previous search path.
  */
-import { openIndexReadOnly, indexPath } from "./index-db.js";
-import { isSyntheticUserText } from "./rollout.js";
+import { openIndexReadOnly, indexPath, filesHasColumn } from "./index-db.js";
+import { isSyntheticUserText, FOLD_CWD_CASE } from "./rollout.js";
 import { readdirSync, openSync, readSync, closeSync } from "node:fs";
 import { join } from "node:path";
-import { codexHome, memoriesDir } from "./paths.js";
+import { codexHome, memoriesDir, stateDbPath } from "./paths.js";
+import { loadThreadMeta } from "./threads-db.js";
+import {
+  normalizeRepoKey,
+  repoKeyForCwd,
+  repoKeysEqual,
+  readOriginUrl,
+
+} from "./repo-key.js";
 
 
 
@@ -62,7 +70,18 @@ function flatten(text        )         {
 }
 
 /**
- * List recent main sessions for exactly this cwd, newest first.
+ * Bound on the thread-id IN list; see index-search.ts for the same reasoning.
+ */
+const MAX_REPO_THREAD_IDS = 5_000;
+
+/**
+ * List recent main sessions for this project, newest first.
+ *
+ * "This project" is the exact cwd plus any session recorded against the SAME
+ * git remote — a managed worktree under ~/.codex/worktrees and the main
+ * checkout of one repository share an origin, and a fresh slot has no history
+ * of its own to show. A directory with no origin keeps the exact-cwd behaviour,
+ * so unrelated checkouts still never leak into each other.
  *
  * Returns null when the index cannot be opened, which the caller treats as "use
  * the old path" rather than "no history". Never throws.
@@ -70,7 +89,14 @@ function flatten(text        )         {
 export function listCwdSessions(
   cwd        ,
   topN        ,
-  opts                                                = {},
+  opts
+
+
+
+
+
+
+    = {},
 )                      {
   if (!cwd || topN <= 0) return null;
   const excerptChars = opts.excerptChars ?? 100;
@@ -81,15 +107,35 @@ export function listCwdSessions(
     return null; // no index yet, or unreadable — caller falls back
   }
   try {
-    // Exact cwd only: automatic injection never federates across directories, and
-    // a child path is a different project surface.
+    // Exact cwd, or the same remote. A child path stays a different project
+    // surface; automatic injection still never federates across repositories.
+    const repoKey = repoKeyForCwd(cwd, opts.readOriginUrl ?? readOriginUrl);
+    const conds           = ["cwd = ?"];
+    const params            = [cwd];
+    if (FOLD_CWD_CASE) {
+      conds.push("lower(cwd) = lower(?)");
+      params.push(cwd);
+    }
+    if (repoKey !== null) {
+      if (filesHasColumn(db, "repo_key")) {
+        conds.push("(repo_key IS NOT NULL AND repo_key = ?)");
+        params.push(repoKey);
+      }
+      // An index written before wp4 has no column to read, so the same-origin
+      // thread ids from the Codex state db stand in for it.
+      const ids = sameOriginThreadIds(opts.home ?? codexHome(), repoKey);
+      if (ids.length > 0) {
+        conds.push(`thread_id IN (${ids.map(() => "?").join(",")})`);
+        params.push(...ids);
+      }
+    }
     const rows = db
       .prepare(
         `SELECT path, thread_id, date FROM files
-          WHERE cwd = ? AND source = 'main'
+          WHERE (${conds.join(" OR ")}) AND source = 'main'
           ORDER BY date DESC, path DESC LIMIT ?`,
       )
-      .all(cwd, Math.max(topN * 2, topN))                                  ;
+      .all(...params, Math.max(topN * 2, topN))                                  ;
 
     const sessions               = [];
     for (const row of rows) {
@@ -129,6 +175,23 @@ export function listCwdSessions(
       /* already closed */
     }
   }
+}
+
+/** Thread ids recorded against `repoKey`; empty on any failure (fail-soft). */
+function sameOriginThreadIds(home        , repoKey        )           {
+  const ids           = [];
+  try {
+    const meta = loadThreadMeta(stateDbPath(home));
+    for (const [id, thread] of meta.byId) {
+      if (repoKeysEqual(repoKey, normalizeRepoKey(thread.gitOriginUrl))) {
+        ids.push(id);
+        if (ids.length >= MAX_REPO_THREAD_IDS) break;
+      }
+    }
+  } catch {
+    // No state db, or unreadable: the exact-cwd condition still applies.
+  }
+  return ids;
 }
 
 

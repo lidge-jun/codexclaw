@@ -13,6 +13,12 @@ export const THREAD_SUB = "019f0000-0000-7000-8000-00000000bbbb";
 export const THREAD_OLD = "019f0000-0000-7000-8000-00000000cccc";
 export const THREAD_ARCHIVED = "019f0000-0000-7000-8000-00000000eeee";
 
+/** Origin shared by the /proj/alpha sessions; /proj/beta deliberately differs. */
+export const ORIGIN_ALPHA = "https://github.com/example/alpha.git";
+export const ORIGIN_BETA = "git@github.com:example/beta.git";
+/** Normalized form of ORIGIN_ALPHA (what ingest is expected to store). */
+export const REPO_KEY_ALPHA = "github.com/example/alpha";
+
 export function dateParts(daysAgo: number): { y: string; m: string; d: string; iso: string } {
   const t = new Date(Date.now() - daysAgo * 86_400_000);
   const y = String(t.getUTCFullYear());
@@ -25,7 +31,7 @@ function line(obj: unknown): string {
   return `${JSON.stringify(obj)}\n`;
 }
 
-function sessionMeta(id: string, cwd: string, subagent: boolean, iso: string): string {
+function sessionMeta(id: string, cwd: string, subagent: boolean, iso: string, repositoryUrl?: string): string {
   const payload: Record<string, unknown> = {
     id,
     timestamp: iso,
@@ -36,6 +42,9 @@ function sessionMeta(id: string, cwd: string, subagent: boolean, iso: string): s
     // grow-until-newline head reader is exercised above its initial 32KB buffer.
     instructions: "x".repeat(40_000),
   };
+  // Real session_meta carries a git object when the session ran inside a
+  // repository; recall reads repository_url out of it for the project key.
+  if (repositoryUrl) payload.git = { repository_url: repositoryUrl, branch: "main" };
   if (subagent) {
     payload.thread_source = "subagent";
     payload.source = { subagent: { parent_thread_id: THREAD_MAIN, depth: 1 } };
@@ -75,7 +84,7 @@ export function buildCodexHome(root: string): void {
   mkdirSync(mainDir, { recursive: true });
   writeFileSync(
     join(mainDir, `rollout-${today.y}-${today.m}-${today.d}T01-00-00-${THREAD_MAIN}.jsonl`),
-    sessionMeta(THREAD_MAIN, "/proj/alpha", false, today.iso) +
+    sessionMeta(THREAD_MAIN, "/proj/alpha", false, today.iso, ORIGIN_ALPHA) +
       message("user", "# AGENTS.md instructions injected preamble mentioning zebra", today.iso) +
       message("user", "please deploy the trigram index for korean search", today.iso) +
       message("assistant", "deployed the trigram index; korean 한글 검색 works now", today.iso) +
@@ -88,7 +97,7 @@ export function buildCodexHome(root: string): void {
   const subDir = mainDir;
   writeFileSync(
     join(subDir, `rollout-${today.y}-${today.m}-${today.d}T02-00-00-${THREAD_SUB}.jsonl`),
-    sessionMeta(THREAD_SUB, "/proj/alpha/sub", true, today.iso) +
+    sessionMeta(THREAD_SUB, "/proj/alpha/sub", true, today.iso, ORIGIN_ALPHA) +
       message("user", "subagent task about the trigram index", today.iso) +
       message("assistant", "subagent reply mentioning zebra too", today.iso),
   );
@@ -99,7 +108,7 @@ export function buildCodexHome(root: string): void {
   mkdirSync(oldDir, { recursive: true });
   writeFileSync(
     join(oldDir, `rollout-${old.y}-${old.m}-${old.d}T01-00-00-${THREAD_OLD}.jsonl`),
-    sessionMeta(THREAD_OLD, "/proj/beta", false, old.iso) +
+    sessionMeta(THREAD_OLD, "/proj/beta", false, old.iso, ORIGIN_BETA) +
       message("user", "ancient question about the trigram index", old.iso) +
       message("assistant", "ancient answer", old.iso),
   );
@@ -119,11 +128,13 @@ export function buildCodexHome(root: string): void {
   const stateDb = new DatabaseSync(join(root, "state_2.sqlite"));
   stateDb.exec(
     "CREATE TABLE threads (id TEXT PRIMARY KEY, title TEXT NOT NULL DEFAULT ''," +
-      " cwd TEXT NOT NULL DEFAULT '', git_branch TEXT, updated_at_ms INTEGER)",
+      " cwd TEXT NOT NULL DEFAULT '', git_branch TEXT, git_origin_url TEXT, updated_at_ms INTEGER)",
   );
-  const ins = stateDb.prepare("INSERT INTO threads (id, title, cwd, git_branch, updated_at_ms) VALUES (?, ?, ?, ?, ?)");
-  ins.run(THREAD_MAIN, "deploy trigram index", "/proj/alpha", "main", Date.now());
-  ins.run(THREAD_SUB, "subagent lane", "/proj/alpha/sub", null, Date.now());
+  const ins = stateDb.prepare(
+    "INSERT INTO threads (id, title, cwd, git_branch, git_origin_url, updated_at_ms) VALUES (?, ?, ?, ?, ?, ?)",
+  );
+  ins.run(THREAD_MAIN, "deploy trigram index", "/proj/alpha", "main", ORIGIN_ALPHA, Date.now());
+  ins.run(THREAD_SUB, "subagent lane", "/proj/alpha/sub", null, ORIGIN_ALPHA, Date.now());
   stateDb.close();
   // Decoy older version to prove the resolver prefers state_2.
   const decoy = new DatabaseSync(join(root, "state_1.sqlite"));

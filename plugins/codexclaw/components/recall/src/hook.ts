@@ -28,6 +28,7 @@ import {
   openIndex,
   readHitCounts,
 } from "./index-db.ts";
+import { cwdMatches, FOLD_CWD_CASE } from "./rollout.ts";
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
 // Cross-component dist import (established precedent: messenger-bridge api-compat).
@@ -283,7 +284,7 @@ export function renderCwdBlock(
   latestDate?: string,
 ): string {
   const head = [
-    `[cxc-recall] Recent work — ${cwdName} (this CWD only):`,
+    `[cxc-recall] Recent work — ${cwdName} (this project):`,
   ];
   // Two separate warnings on two separate axes. The delimiter below says the text
   // is untrusted in ORIGIN; this says it is stale in TIME. Recall output describes
@@ -304,7 +305,7 @@ export function renderCwdBlock(
   );
   const tail = [
     "</untrusted-recall-data>",
-    `Scope: CWD-local. Use \`${CXC()} chat search "<q>" --days 0\` explicitly for global recall.`,
+    `Scope: project-local (this cwd, or another checkout of the same git origin). Use \`${CXC()} chat search "<q>" --days 0\` explicitly for global recall.`,
   ];
   const cost = (lines: string[]): number => lines.reduce((n, l) => n + l.length + 1, 0);
   let used = cost(head) + cost(tail);
@@ -388,8 +389,10 @@ function candidatePool(topN: number, deps: RecallContextDeps): number {
 }
 
 /**
- * Build compact, project-scoped context. Automatic hooks never federate across
- * CWDs: global recall remains available only through the explicit CLI command.
+ * Build compact, project-scoped context. Automatic hooks federate only within
+ * one project — this cwd, plus other checkouts of the same git origin (a
+ * managed worktree and its main checkout). Recall across projects remains
+ * available only through the explicit CLI command.
  * Historical text is enclosed as untrusted data so it cannot impersonate hook
  * policy or instructions.
  */
@@ -452,7 +455,12 @@ export function buildCwdContext(
       // what explicit search defaults to.
       order: "recent",
     });
-    const chatHits = localChat.hits.filter((hit) => hit.cwd === cwd);
+    // searchChat already applied the project scope (prefix or same origin);
+    // this second pass only drops rows whose recorded cwd is unrelated, and it
+    // must use the same comparison rule the query did.
+    const chatHits = localChat.hits.filter((hit) =>
+      cwdMatches(hit.cwd ?? "", cwd, { caseInsensitive: FOLD_CWD_CASE }),
+    );
     if (chatHits.length === 0) return "";
 
     // Deduplicate chat by thread, pick most recent per thread

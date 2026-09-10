@@ -12,7 +12,14 @@ import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
 import { join, relative, resolve, sep, posix as posixPath, win32 as win32Path } from "node:path";
 import { codexHome, memoriesDir, memoriesDbPath, stateDbPath } from "./paths.ts";
 import { openReadOnlyDb, loadThreadMeta, type ThreadMeta } from "./threads-db.ts";
-import { cwdMatches, normalizeCwd } from "./rollout.ts";
+import { cwdMatches, normalizeCwd, FOLD_CWD_CASE } from "./rollout.ts";
+import {
+  normalizeRepoKey,
+  repoKeyForCwd,
+  repoKeysEqual,
+  readOriginUrl,
+  type ReadOriginUrl,
+} from "./repo-key.ts";
 import {
   splitQueryWordsRaw,
   termIndexOf,
@@ -46,6 +53,11 @@ export type MemorySearchOptions = {
   cwd?: string | null;
   /** with cwd: drop everything outside the scope instead of only boosting it. */
   cwdOnly?: boolean;
+  /**
+   * How to read the git origin of `cwd` (default: `git -C <cwd> config --get
+   * remote.origin.url`). Injected so tests never depend on a real repository.
+   */
+  readOriginUrl?: ReadOriginUrl;
   /**
    * Chat search used to backfill an empty memory result. Injected rather than
    * imported so this module keeps no edge to chat-search.ts and tests can run
@@ -277,6 +289,12 @@ type CwdScope = {
   lowerPrefixes: string[];
   only: boolean;
   threadCwd: Map<string, ThreadMeta>;
+  /**
+   * Normalized git remote of the requested directory, when it has one. This is
+   * what lets a managed worktree reach the summaries recorded under its main
+   * checkout: the two paths differ, the remote does not.
+   */
+  repoKey: string | null;
 };
 
 function buildCwdScope(home: string, opts: MemorySearchOptions, warnings: string[]): CwdScope | null {
@@ -293,6 +311,9 @@ function buildCwdScope(home: string, opts: MemorySearchOptions, warnings: string
   // thread rows costs ~90ms against a search budget measured in tens of ms.
   const meta = loadThreadMeta(stateDbPath(home));
   if (meta.warning) warnings.push(meta.warning);
+  // One git call per search: the remote of the requested directory cannot
+  // change mid-query, and calling it per hit would dominate the search budget.
+  const repoKey = repoKeyForCwd(prefix, opts.readOriginUrl ?? readOriginUrl);
   // Prose carries whatever separator its author typed, so both spellings count.
   const lower = prefix.toLowerCase();
   return {
@@ -300,6 +321,7 @@ function buildCwdScope(home: string, opts: MemorySearchOptions, warnings: string
     lowerPrefixes: [lower, lower.replace(/\//g, "\\")],
     only: opts.cwdOnly === true,
     threadCwd: meta.byId,
+    repoKey,
   };
 }
 
@@ -311,15 +333,21 @@ function buildCwdScope(home: string, opts: MemorySearchOptions, warnings: string
  * the path in prose — MEMORY.md writes `applies_to: cwd=/...` — counts as a
  * weaker one at half the boost. Without that second signal `--cwd-only` would
  * discard the handbook entirely, which is where project rules actually live.
+ *
+ * A hit recorded under a different path but the SAME git remote is the strong
+ * signal too, at the same boost: a managed worktree and the main checkout of
+ * one repository are one project, not two.
  */
 function scopeAdjust(
   scope: CwdScope | null,
   hitCwd: string | null,
   lowerText: string,
+  hitRepoKey: string | null = null,
 ): { keep: boolean; bonus: number } {
   if (scope === null) return { keep: true, bonus: 0 };
-  const matched = hitCwd !== null && hitCwd !== "" && cwdMatches(hitCwd, scope.prefix);
-  if (matched) return { keep: true, bonus: CWD_BOOST };
+  const cwdHit =
+    hitCwd !== null && hitCwd !== "" && cwdMatches(hitCwd, scope.prefix, { caseInsensitive: FOLD_CWD_CASE });
+  if (cwdHit || repoKeysEqual(scope.repoKey, hitRepoKey)) return { keep: true, bonus: CWD_BOOST };
   const mentioned = scope.lowerPrefixes.some((p) => lowerText.includes(p));
   if (mentioned) return { keep: true, bonus: CWD_BOOST / 2 };
   return { keep: !scope.only, bonus: 0 };
@@ -439,12 +467,15 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
       const kind = kindOfRelpath(relpath, "file");
       // Frontmatter first, then the thread join: a summary states its own cwd,
       // and a file that only carries a thread_id still resolves through state.
-      const fileCwd =
-        frontmatterCwd(content) ?? (threadId ? scope?.threadCwd.get(threadId)?.cwd ?? null : null);
+      const threadMeta = threadId ? scope?.threadCwd.get(threadId) : undefined;
+      const fileCwd = frontmatterCwd(content) ?? threadMeta?.cwd ?? null;
+      // The remote can only come from the thread join: a summary's frontmatter
+      // records cwd, never the origin URL.
+      const fileRepoKey = normalizeRepoKey(threadMeta?.gitOriginUrl);
       for (const chunk of paragraphChunks(content)) {
         const lower = chunk.text.toLowerCase();
         if (!matches(lower, active, anyMode)) continue;
-        const scoped = scopeAdjust(scope, fileCwd, lower);
+        const scoped = scopeAdjust(scope, fileCwd, lower, fileRepoKey);
         if (!scoped.keep) continue;
         candidates.push({
           origin: "file",
@@ -553,6 +584,9 @@ function backfillFromChat(
       includeTools: opts.chatIncludeTools === true,
       source: "main",
       context: 0,
+      // Same injection point, so a hermetic memory test stays hermetic when the
+      // backfill runs.
+      readOriginUrl: opts.readOriginUrl,
       // A hard memory scope stays hard in the backfill; a boost does not filter.
       cwd: scope?.only ? scope.prefix : null,
     });
@@ -664,8 +698,9 @@ function searchStage1(
       if (!matches(lowerBody, groups, anyMode)) continue;
       // stage1_outputs has no cwd column (schema dump, 011 4.3); threads.cwd is
       // the accurate substitute and it covered all 516 rows in the live store.
-      const rowCwd = threadId ? scope?.threadCwd.get(threadId)?.cwd ?? null : null;
-      const scoped = scopeAdjust(scope, rowCwd, lowerBody);
+      const rowThread = threadId ? scope?.threadCwd.get(threadId) : undefined;
+      const rowCwd = rowThread?.cwd ?? null;
+      const scoped = scopeAdjust(scope, rowCwd, lowerBody, normalizeRepoKey(rowThread?.gitOriginUrl));
       if (!scoped.keep) continue;
       const updatedMs = updatedSec !== null ? updatedSec * 1000 : null;
       candidates.push({

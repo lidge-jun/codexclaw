@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { searchMemory, CWD_BOOST } from "../src/memory-search.ts";
-import { normalizeCwd } from "../src/rollout.ts";
+import { normalizeCwd, cwdMatches } from "../src/rollout.ts";
 import { main as cliMain } from "../src/cli.ts";
 
 const HERE = "/proj/here";
@@ -21,6 +21,16 @@ const THREAD_HERE = "019f1111-0000-7000-8000-00000000aaaa";
 const THREAD_THERE = "019f1111-0000-7000-8000-00000000bbbb";
 const STAGE1_HERE = "019f1111-0000-7000-8000-00000000cccc";
 const STAGE1_THERE = "019f1111-0000-7000-8000-00000000dddd";
+
+// --- same-origin federation fixture (260910 wp4) ---
+const MAIN_CHECKOUT = "/proj/codexclaw";
+const WORKTREE = "/hash/worktrees/3412/codexclaw";
+const OTHER_CHECKOUT = "/proj/cli-jaw";
+const ORIGIN = "https://github.com/lidge-jun/codexclaw.git";
+const OTHER_ORIGIN = "git@github.com:lidge-jun/cli-jaw.git";
+const THREAD_MAIN_CO = "019f2222-0000-7000-8000-00000000aaaa";
+const THREAD_OTHER_CO = "019f2222-0000-7000-8000-00000000bbbb";
+const STAGE1_MAIN_CO = "019f2222-0000-7000-8000-00000000cccc";
 
 /**
  * Two projects, one topic. Summaries carry cwd in frontmatter; the stage1 rows
@@ -71,6 +81,138 @@ function scoreOf(hits: Array<{ relpath: string; score: number }>, relpath: strin
   assert.ok(hit, `expected a hit for ${relpath}`);
   return hit.score;
 }
+
+/**
+ * Two repositories, each with a summary recorded under its own MAIN checkout.
+ * Neither cwd is the worktree the query will name, so every federated hit has
+ * to arrive through the git origin rather than a path prefix.
+ *
+ * This threads table has git_origin_url; buildScopedHome's deliberately does
+ * not, which is what pins the older-state-db fallback in threads-db.ts.
+ */
+function buildOriginHome(): string {
+  const home = mkdtempSync(join(tmpdir(), "recall-origin-"));
+  const summaries = join(home, "memories", "rollout_summaries");
+  mkdirSync(summaries, { recursive: true });
+  writeFileSync(
+    join(summaries, "main.md"),
+    `thread_id: ${THREAD_MAIN_CO}\ncwd: ${MAIN_CHECKOUT}\n\n# Rollout\n\nThe quokka release train landed.\n`,
+  );
+  writeFileSync(
+    join(summaries, "other.md"),
+    `thread_id: ${THREAD_OTHER_CO}\ncwd: ${OTHER_CHECKOUT}\n\n# Rollout\n\nThe quokka release train landed.\n`,
+  );
+
+  const state = new DatabaseSync(join(home, "state_1.sqlite"));
+  state.exec(
+    "CREATE TABLE threads (id TEXT PRIMARY KEY, title TEXT NOT NULL DEFAULT ''," +
+      " cwd TEXT NOT NULL DEFAULT '', git_branch TEXT, git_origin_url TEXT, updated_at_ms INTEGER)",
+  );
+  const ins = state.prepare(
+    "INSERT INTO threads (id, title, cwd, git_branch, git_origin_url, updated_at_ms) VALUES (?, ?, ?, ?, ?, ?)",
+  );
+  ins.run(THREAD_MAIN_CO, "main checkout", MAIN_CHECKOUT, "dev", ORIGIN, Date.now());
+  ins.run(THREAD_OTHER_CO, "other repo", OTHER_CHECKOUT, "dev", OTHER_ORIGIN, Date.now());
+  ins.run(STAGE1_MAIN_CO, "stage1 main", MAIN_CHECKOUT, null, ORIGIN, Date.now());
+  state.close();
+
+  const mem = new DatabaseSync(join(home, "memories_1.sqlite"));
+  mem.exec(
+    "CREATE TABLE stage1_outputs (thread_id TEXT PRIMARY KEY, source_updated_at INTEGER NOT NULL," +
+      " raw_memory TEXT NOT NULL, rollout_summary TEXT NOT NULL)",
+  );
+  mem
+    .prepare(
+      "INSERT INTO stage1_outputs (thread_id, source_updated_at, raw_memory, rollout_summary) VALUES (?, ?, ?, ?)",
+    )
+    .run(STAGE1_MAIN_CO, Math.floor(Date.now() / 1000), "numbat notes from the main checkout", "numbat one");
+  mem.close();
+  return home;
+}
+
+test("a worktree query reaches the main checkout of the same git origin", () => {
+  const home = buildOriginHome();
+  try {
+    const nowMs = Date.now();
+    const plain = searchMemory("quokka", { home, nowMs, readOriginUrl: () => null });
+    assert.equal(plain.hits.length, 2, "both repositories match the query");
+
+    // The worktree path is a prefix of nothing here: only the origin connects it.
+    const scoped = searchMemory("quokka", {
+      home,
+      nowMs,
+      cwd: WORKTREE,
+      cwdOnly: true,
+      readOriginUrl: () => ORIGIN,
+    });
+    assert.equal(scoped.hits.length, 1, "the other remote is filtered out");
+    assert.equal(scoped.hits[0].relpath, "rollout_summaries/main.md");
+    assert.equal(scoped.hits[0].cwd, MAIN_CHECKOUT, "the hit keeps its own recorded cwd");
+    const gain = scoped.hits[0].score - scoreOf(plain.hits, "rollout_summaries/main.md");
+    assert.ok(Math.abs(gain - CWD_BOOST) < 1e-9, `same origin earns the full CWD_BOOST, got ${gain}`);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("stage1 rows federate by origin through the same threads join", () => {
+  const home = buildOriginHome();
+  try {
+    const only = searchMemory("numbat", {
+      home,
+      cwd: WORKTREE,
+      cwdOnly: true,
+      readOriginUrl: () => ORIGIN,
+    });
+    assert.equal(only.hits.length, 1);
+    assert.equal(only.hits[0].origin, "stage1");
+    assert.equal(only.hits[0].cwd, MAIN_CHECKOUT);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("a directory with no origin keeps the plain cwd-prefix scope", () => {
+  const home = buildOriginHome();
+  try {
+    // git answers nothing (no repository, no origin, no git): the worktree path
+    // matches no recorded cwd, so the hard filter empties and says so.
+    const nothing = searchMemory("quokka", {
+      home,
+      cwd: WORKTREE,
+      cwdOnly: true,
+      readOriginUrl: () => null,
+    });
+    assert.equal(nothing.hits.length, 0);
+    assert.ok(nothing.warnings.some((w) => w.includes("--cwd-only")));
+
+    // Naming the main checkout directly still works without any origin.
+    const byPath = searchMemory("quokka", {
+      home,
+      cwd: MAIN_CHECKOUT,
+      cwdOnly: true,
+      readOriginUrl: () => null,
+    });
+    assert.equal(byPath.hits.length, 1);
+    assert.equal(byPath.hits[0].cwd, MAIN_CHECKOUT);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("cwdMatches folds path case only when the caller asks", () => {
+  // macOS ships a case-insensitive volume, so /Users/jun/developer/x and
+  // /Users/jun/Developer/x are one directory there. The option is passed by
+  // call sites (FOLD_CWD_CASE), never decided inside the comparison.
+  assert.equal(cwdMatches("/Users/jun/developer/x", "/Users/jun/Developer/x"), false);
+  assert.equal(
+    cwdMatches("/Users/jun/developer/x", "/Users/jun/Developer/x", { caseInsensitive: true }),
+    true,
+  );
+  // Folding case must not fold the separator boundary.
+  assert.equal(cwdMatches("/proj/ALPHABET", "/proj/alpha", { caseInsensitive: true }), false);
+  assert.equal(cwdMatches("/proj/ALPHA/sub", "/proj/alpha", { caseInsensitive: true }), true);
+});
 
 test("--cwd boosts the current project without hiding the rest", () => {
   const home = buildScopedHome();

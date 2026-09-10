@@ -17,10 +17,12 @@ import {
   parseRollout,
   matchesFilePrefilter,
   cwdMatches,
+  FOLD_CWD_CASE,
   type ChatEntry,
   type RolloutSource,
 } from "./rollout.ts";
 import { loadThreadMeta } from "./threads-db.ts";
+import { repoKeyForCwd, repoKeysEqual, readOriginUrl, type ReadOriginUrl } from "./repo-key.ts";
 import { openIndex, openIndexReadOnly, indexPath, indexStatus } from "./index-db.ts";
 import { ingest } from "./ingest.ts";
 import { queryIndex, type ChatOrder } from "./index-search.ts";
@@ -61,6 +63,11 @@ export type ChatSearchOptions = {
   nowMs?: number;
   /** sidecar index location override (tests); defaults to ~/.codexclaw/recall/index.sqlite. */
   indexPath?: string;
+  /**
+   * How to read a directory's git origin (default: `git -C <cwd> config --get
+   * remote.origin.url`). Injected so tests never depend on a real repository.
+   */
+  readOriginUrl?: ReadOriginUrl;
 };
 
 export type ChatHit = {
@@ -117,6 +124,9 @@ export function searchChat(query: string, opts: ChatSearchOptions = {}): ChatSea
   const source = opts.source ?? "main";
   const words = splitQueryWords(query);
   const cutoffIsoShared = days > 0 ? new Date(Date.now() - days * 86_400_000).toISOString() : null;
+  // One git call per search, never one per file: --cwd names a project, and the
+  // remote of that project cannot change while the query runs.
+  const repoKey = opts.cwd ? repoKeyForCwd(opts.cwd, opts.readOriginUrl ?? readOriginUrl) : null;
 
   if (!opts.scan && words.length > 0) {
     try {
@@ -128,16 +138,17 @@ export function searchChat(query: string, opts: ChatSearchOptions = {}): ChatSea
         contextN,
         cutoffIso: cutoffIsoShared,
         source,
+        repoKey,
       });
     } catch (err) {
-      const scan = searchViaScan(query, opts, { home, days, limit, contextN, anyMode, source });
+      const scan = searchViaScan(query, opts, { home, days, limit, contextN, anyMode, source, repoKey });
       scan.warnings.unshift(
         `index unavailable (${err instanceof Error ? err.message : String(err)}) — served by scan`,
       );
       return scan;
     }
   }
-  return searchViaScan(query, opts, { home, days, limit, contextN, anyMode, source });
+  return searchViaScan(query, opts, { home, days, limit, contextN, anyMode, source, repoKey });
 }
 
 function searchViaIndex(
@@ -151,6 +162,7 @@ function searchViaIndex(
     contextN: number;
     cutoffIso: string | null;
     source: RolloutSource | "all";
+    repoKey: string | null;
   },
 ): ChatSearchResult {
   const started = Date.now();
@@ -202,6 +214,7 @@ function searchViaIndex(
       includeTools: opts.includeTools ?? true,
       home: shared.home,
       order: opts.order ?? "relevance",
+      repoKey: shared.repoKey,
       nowMs: opts.nowMs,
     });
     if (roWarning) result.warnings.push(roWarning);
@@ -233,10 +246,11 @@ function searchViaScan(
     contextN: number;
     anyMode: boolean;
     source: RolloutSource | "all";
+    repoKey: string | null;
   },
 ): ChatSearchResult {
   const started = Date.now();
-  const { home, days, limit, contextN, anyMode, source } = shared;
+  const { home, days, limit, contextN, anyMode, source, repoKey } = shared;
   const includeTools = opts.includeTools ?? true;
   const words = splitQueryWords(query);
   const warnings: string[] = [];
@@ -274,7 +288,11 @@ function searchViaScan(
     // Cheap classification first: the head-only meta read costs one small read.
     const meta = readRolloutMeta(file.path);
     if (source !== "all" && meta.source !== source) continue;
-    if (opts.cwd && !cwdMatches(meta.cwd ?? "", opts.cwd)) continue;
+    if (opts.cwd) {
+      // Same rule as the index path: a path prefix hit OR the same git remote.
+      const prefixHit = cwdMatches(meta.cwd ?? "", opts.cwd, { caseInsensitive: FOLD_CWD_CASE });
+      if (!prefixHit && !repoKeysEqual(repoKey, meta.repoKey)) continue;
+    }
 
     result.scannedFiles += 1;
     let content: string;

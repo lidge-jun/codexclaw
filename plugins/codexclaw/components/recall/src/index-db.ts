@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS files (
   source TEXT NOT NULL,
   date TEXT NOT NULL,
   bytes_ingested INTEGER NOT NULL DEFAULT 0,
-  last_ord INTEGER NOT NULL DEFAULT 0
+  last_ord INTEGER NOT NULL DEFAULT 0,
+  repo_key TEXT
 );
 CREATE TABLE IF NOT EXISTS msgs (
   id INTEGER PRIMARY KEY,
@@ -109,10 +110,44 @@ export function openIndex(path: string): RwDb {
     db.exec(SCHEMA);
     db.prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?)").run(INDEX_SCHEMA_VERSION);
   }
+  ensureRepoKeyColumn(db);
   for (const file of [path, `${path}-wal`, `${path}-shm`]) {
     try { chmodSync(file, 0o600); } catch { /* sidecar absent or non-POSIX */ }
   }
   return db;
+}
+
+/** Whether the files table already carries `name` (false on any read failure). */
+export function filesHasColumn(db: RwDb, name: string): boolean {
+  try {
+    const cols = db.prepare("PRAGMA table_info(files)").all() as Array<{ name?: unknown }>;
+    return cols.some((c) => String(c.name) === name);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Add files.repo_key to an index built before wp4, in place.
+ *
+ * Bumping INDEX_SCHEMA_VERSION would drop and re-parse the whole corpus
+ * (measured 12GB / 1.2M messages) to gain one nullable column, so this follows
+ * the recall_hit_counts precedent instead: the version string stays "2" and an
+ * existing index gains the column on its next read-write open.
+ *
+ * SQLite has no `ADD COLUMN IF NOT EXISTS` (3.53.0 answers `near "EXISTS":
+ * syntax error`) and a duplicate ADD COLUMN is a hard error, so the PRAGMA
+ * guard is the migration test. openIndexReadOnly runs no DDL at all, which is
+ * why every reader must tolerate the column being absent.
+ */
+export function ensureRepoKeyColumn(db: RwDb): void {
+  try {
+    if (!filesHasColumn(db, "repo_key")) db.exec("ALTER TABLE files ADD COLUMN repo_key TEXT");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_files_repo_key ON files(repo_key)");
+  } catch {
+    // A read-only or concurrently-migrated index keeps working without the
+    // column: scoping degrades to the cwd prefix, nothing throws.
+  }
 }
 
 /**

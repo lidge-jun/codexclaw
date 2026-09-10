@@ -651,3 +651,9 @@ B6(구버전 CLI 공존): `ingest.ts:74-76`의 `INSERT OR REPLACE INTO files (..
 Low(backfill 트랜잭션): `ingest.ts:145`가 파일별 트랜잭션을 이미 열므로 backfill은 그 루프 밖에서 별도 `BEGIN ... COMMIT`으로 1,000행 단위 배치로 돈다(중첩 트랜잭션 금지). §4.4의 의사코드를 그렇게 읽는다.
 
 행 번호 정정: `readRolloutMeta`는 `rollout.ts:160-178`.
+
+
+## P 재검증 (wp4 사이클, 2026-09-10)
+
+기준 트리 `b60d0ca8`(origin/dev, #126 머지 직후). 계획 이후 recall에서 바뀐 것은 wp2(#125)의 `query-words.ts`(+42)·`memory-search.ts`(+85: groupHit/markGroupPresence/fillStage1Presence, collect 2인자)와 wp3(#126)의 SKILL.md(268줄)다. 이 문서가 인용한 `memory-search.ts` 행 번호(`scopeAdjust`/`buildCwdScope`/`collect` 주변)는 밀렸으므로 B는 행이 아니라 심볼로 찾는다; 의미는 그대로다(`collect`는 이제 `(active, tallyPresence)`이며 repo_key 부스트는 `scopeAdjust` 안에 들어간다). `rollout.ts`, `ingest.ts`, `index-db.ts`, `index-search.ts`, `threads-db.ts`, `cwd-context.ts`, `hook.ts`는 계획 시점과 동일. SKILL.md의 "Until wp4" 문단은 현재 `plugins/codexclaw/skills/recall/SKILL.md:150-159`이고 §3 파일 맵 첫 행대로 교체한다. 브랜치 `codex/memory-l1-wp4-identity`(origin/dev 위).
+

@@ -14,13 +14,30 @@ import { loadSummaryIndex } from "../src/cwd-context.ts";
 let home: string;
 let idx: string;
 const CWD = "/hash/worktrees/1fa9/project";
+/** The same repository, checked out where the user actually works. */
+const MAIN_CHECKOUT = "/Users/someone/dev/project";
+const ORIGIN = "https://github.com/example/project.git";
+const OTHER_ORIGIN = "git@github.com:example/unrelated.git";
 
-function rollout(threadId: string, cwd: string, iso: string, msgs: Array<[string, string]>): string {
+function rollout(
+  threadId: string,
+  cwd: string,
+  iso: string,
+  msgs: Array<[string, string]>,
+  repositoryUrl?: string,
+): string {
   const lines = [
     JSON.stringify({
       timestamp: iso,
       type: "session_meta",
-      payload: { id: threadId, timestamp: iso, cwd, originator: "codex-tui", cli_version: "0.130.0" },
+      payload: {
+        id: threadId,
+        timestamp: iso,
+        cwd,
+        originator: "codex-tui",
+        cli_version: "0.130.0",
+        ...(repositoryUrl ? { git: { repository_url: repositoryUrl, branch: "main" } } : {}),
+      },
     }),
   ];
   for (const [role, text] of msgs) {
@@ -73,6 +90,22 @@ test.before(() => {
     ]),
   );
 
+  // Same repository as the hash slot above, checked out elsewhere. A brand-new
+  // slot has no history of its own, so this is the session the hook needs.
+  writeFileSync(
+    join(dir, `rollout-${today.y}-${today.m}-${today.d}T04-00-00-019f0000-0000-7000-8000-0000000000a4.jsonl`),
+    rollout(
+      "019f0000-0000-7000-8000-0000000000a4",
+      MAIN_CHECKOUT,
+      today.iso,
+      [
+        ["user", "land the parser rewrite on the main checkout"],
+        ["assistant", "ok"],
+      ],
+      ORIGIN,
+    ),
+  );
+
   const db = openIndex(idx);
   try {
     ingest(home, db, 0);
@@ -108,6 +141,31 @@ test("cwd enumeration never returns another directory's sessions", () => {
   assert.equal(other[0].excerpt, "secret from another project");
   // A cwd with no rows is an empty list, not a fallback signal.
   assert.deepEqual(listCwdSessions("/nonexistent/cwd", 5, { indexPath: idx }), []);
+});
+
+test("a fresh worktree slot sees the same repository's other checkout", () => {
+  // Without an origin the slot only has its own two sessions...
+  const local = listCwdSessions(CWD, 5, { indexPath: idx, home, readOriginUrl: () => null }) ?? [];
+  assert.equal(local.length, 2);
+
+  // ...and with one, the main checkout of the same remote joins them.
+  const federated = listCwdSessions(CWD, 5, { indexPath: idx, home, readOriginUrl: () => ORIGIN }) ?? [];
+  assert.equal(federated.length, 3);
+  assert.ok(
+    federated.some((s) => s.excerpt === "land the parser rewrite on the main checkout"),
+    "the same-origin session must be listed",
+  );
+  for (const s of federated) assert.doesNotMatch(s.excerpt, /secret from another project/);
+});
+
+test("a different remote never federates into this project", () => {
+  const sessions =
+    listCwdSessions(CWD, 5, { indexPath: idx, home, readOriginUrl: () => OTHER_ORIGIN }) ?? [];
+  assert.equal(sessions.length, 2, "only this cwd's own sessions");
+  for (const s of sessions) {
+    assert.doesNotMatch(s.excerpt, /main checkout/);
+    assert.doesNotMatch(s.excerpt, /secret from another project/);
+  }
 });
 
 test("a missing index yields null so the caller can fall back", () => {
