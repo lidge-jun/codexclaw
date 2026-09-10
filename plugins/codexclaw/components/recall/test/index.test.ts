@@ -92,6 +92,33 @@ test("index context windows match scan context windows", () => {
   );
 });
 
+test("oracle: a relaxed 9-word query agrees across engines in both orderings (wp5)", () => {
+  // Past MAX_WORDS the WHERE clause stops carrying the whole requirement, so
+  // the JS predicate has to hold three separate places together. The first
+  // query still has required words ("the" and "for" are short-ASCII symbols);
+  // the second has none at all, which is the case where SQL filters nothing and
+  // the lane candidates, the top-up sweep and the recent page are each free to
+  // drift on their own.
+  const key = (h: { ts: string; text: string; source: string }) => `${h.ts}|${h.source}|${h.text}`;
+  const cases: Array<[string, ChatSearchOptions]> = [
+    ["please deploy the trigram index for korean search extra", { source: "all" }],
+    ["please deploy trigram index korean search 확인 완료 없는단어", { source: "all" }],
+  ];
+  for (const [q, o] of cases) {
+    const scan = viaScan(q, o);
+    assert.ok(scan.hits.length > 0, `the relaxed query must match something: ${q}`);
+    for (const order of ["recent", "relevance"] as const) {
+      const a = viaIndex(q, { ...o, noRefresh: true, order });
+      assert.equal(a.mode, "index", `index mode expected for ${q}`);
+      assert.deepEqual(
+        a.hits.map(key).sort(),
+        scan.hits.map(key).sort(),
+        `relaxed oracle mismatch (${order}) for ${JSON.stringify(q)}`,
+      );
+    }
+  }
+});
+
 test("short (<3 char) words fall back to LIKE and still match", () => {
   // "한글" is 2 chars — trigram cannot serve it (verified in the WP2 spike).
   const a = viaIndex("한글", { noRefresh: true });

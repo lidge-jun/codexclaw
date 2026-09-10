@@ -631,3 +631,21 @@ node plugins/codexclaw/scripts/test.mjs "plugins/codexclaw/test/dist-freshness.t
 blocker #3(index/scan 동등성): `index-search.ts:243-249`의 recent 경로에는 JS 술어가 없고, top-up 스윕(:213-221)도 `textMatches`를 적용하지 않는다. 선택 그룹을 SQL WHERE에서 빼면 필수어 0개 질의에서 recent 모드가 "최신 limit+1건"으로 퇴화한다. 수정: `planMatches(plan, text)`를 (1) 관련도 경로의 후보 필터, (2) recent 경로의 행 필터, (3) top-up 스윕의 행 필터 세 곳 모두에 최종 술어로 적용한다. §4.4에 이 세 지점을 path:line으로 적고, §5 테스트 표에 "필수어 0개 9단어 질의를 relevance/recent 두 모드로 돌려 히트 집합이 같다"(index/scan 동등성 확장, `test/index.test.ts:65` 비교 함수 재사용) 케이스를 추가한다. 오라클 문장은 필수어가 최소 1개 있는 것과 0개인 것 두 종류를 둔다.
 
 행 번호 정정: §4 before 인용 `chat-search.ts:116-118`은 117행(`const source = ...`)을 생략 표시 없이 뺐다. 전체 인용으로 읽는다.
+
+
+## P 재검증 (wp5 사이클, 2026-09-10)
+
+기준 트리 `19e2dd5d`(origin/dev, #127 머지 직후). 계획 이후 recall src가 wp2(#125: query-words VERSION/relaxGroupsAt, memory-search groupHit/markGroupPresence/fillStage1Presence/collect(active,tallyPresence))와 wp4(#127: repo-key.ts, rollout readRolloutMeta.repoKey, index-search candidateFilter repo_key/repoThreadIds, memory-search scopeAdjust repoKey, chat-search scan 필터, cli 도움말)로 바뀌었다. 이 문서의 §2 인용 행 번호는 밀렸고 일부 before 블록은 현재 코드와 다르다. B는 심볼로 찾아 patch하며 다음을 지킨다: (1) `planMatches`를 relevance 후보 재검사·recent 행 필터·top-up 스윕 세 지점에 최종 술어로(A3), recent fetch는 `poolSize`로 올린 뒤 술어 적용 후 `limit+1` 절단; (2) `splitQueryWordsRaw`/`MAX_WORDS`는 VERSION 분류·relaxGroupsAt와 공존(자르지 않고 완화 임계로); (3) chat `--synonyms`는 기본 off; (4) 불용어는 `그/이/저/것/문제/방법`만; (5) 골든셋 픽스처는 합성 홈만 쓰고(`--home`·`--index-path` 고정) 실인덱스를 읽지 않는다; (6) index/scan 동등성 테스트에 필수어 0개·1개 이상 오라클을 relevance/recent 두 모드로. 브랜치 `codex/memory-l1-wp5-nl-query`(origin/dev 위).
+
+
+
+## A 감사 반영 (wp5 round 1, 2026-09-10)
+
+리뷰어(grok-4.6) GO-WITH-FIXES(blocker 3, Medium 2). 전부 구현 제약으로 접는다(B가 준수, C가 테스트로 확인).
+
+1. memory-search: `planMatches`를 검색 시작 시 한 번 컴파일한 고정 plan에 묶지 않는다. `collect(active, tallyPresence)` 안에서 `compileMatchPlan(active, raw, anyMode, relax)`를 다시 만들어 #125의 `relaxGroupsAt(groups, miss)` 재시도가 boundary:false 그룹으로 매칭되게 한다. `markGroupPresence`는 원본 groups 기준 유지. `searchStage1`은 필수어 0개면 `WHERE 1`(빈 conds로 잘못된 SQL 금지).
+2. index-search: `candidateFilter`(시그니처 `ResolvedQuery`)는 withWords 분기만 교체한다. #127의 synthetic/tools/role/cutoff/source 조건과 cwd 접두사 OR `f.repo_key` OR `repoThreadIds IN` 꼬리는 원문 유지, 필수어 SQL과 AND로 결합. `laneRanks` 입력은 필수 lead(필수 0이면 선택 ≥3자 lead OR, 상한 6). A3 세 지점(relevance 재검사·top-up 스윕·recent 행 필터) + recent `poolSize` fetch 후 `limit+1` 절단 유지.
+3. 픽스처 G-R2-chat: R2 assistant 문장에 선택 원형을 3개 이상 넣는다(예: `2.49.0 npm 패키지가 진짜 그 소스인지 검증한 기록. 배포하고 provenance`)여야 synonyms-off minOptional=3을 채운다.
+4. Medium: 회귀 범위 문구를 "E 분기(필수/선택)는 8단어 이하에서 꺼진다; 불용어·시드·`인지` 어미는 8단어 이하에도 적용되며 P2(5토큰)는 그 층으로 복구된다"로 정정. `query-words.test.ts:34`의 MAX_WORDS 절단 핀은 새 동작(자르지 않고 완화 임계)에 맞게 갱신.
+5. Medium: `planMatches` 인자 순서는 §4.1 타입대로 `planMatches(lowerText, plan)`로 세 지점 통일.
+

@@ -2,8 +2,10 @@
  * chat-search.ts — cli-jaw-parity chat search over Codex rollout JSONL files.
  *
  * Matching model (superset of cli-jaw's dashboard chat search):
- *   - query splits into <=8 case-insensitive words; AND by default, OR with `any`
- *     (cli-jaw only offers OR over <=5 words);
+ *   - query splits into <=16 case-insensitive words; AND by default, OR with
+ *     `any` (cli-jaw only offers OR over <=5 words). Past MAX_WORDS the AND
+ *     relaxes into required + half-of-optional (see query-words.ts MatchPlan);
+ *   - `synonyms` opts into memory's ko/en table and Korean stemmer (default off);
  *   - content AND tool_log both match (parity with cli-jaw's match_field);
  *   - `days` prunes by the sessions/YYYY/MM/DD directory date (default 7, 0 = all);
  *   - `source` filters main vs subagent rollouts (cli-jaw has no subagent corpus);
@@ -26,7 +28,18 @@ import { repoKeyForCwd, repoKeysEqual, readOriginUrl, type ReadOriginUrl } from 
 import { openIndex, openIndexReadOnly, indexPath, indexStatus } from "./index-db.ts";
 import { ingest } from "./ingest.ts";
 import { queryIndex, type ChatOrder } from "./index-search.ts";
-import { splitQueryWords, MAX_WORDS } from "./query-words.ts";
+import { expandQueryWords } from "./synonyms.ts";
+import {
+  splitQueryWords,
+  splitQueryWordsRaw,
+  dropStopwords,
+  compileMatchPlan,
+  planMatches,
+  planIsEmpty,
+  MAX_WORDS,
+  type MatchPlan,
+  type QueryGroup,
+} from "./query-words.ts";
 
 export type { ChatOrder } from "./index-search.ts";
 
@@ -43,6 +56,12 @@ export type ChatSearchOptions = {
   limit?: number;
   context?: number;
   any?: boolean;
+  /**
+   * ko/en synonym + Korean stem expansion, as memory search does it. Default
+   * OFF: chat is the raw corpus, and widening every word there costs a 12GB
+   * scan. Opt in when a Korean sentence has to reach an English transcript.
+   */
+  synonyms?: boolean;
   role?: string | null;
   cwd?: string | null;
   source?: RolloutSource | "all";
@@ -106,13 +125,27 @@ export type ChatSearchResult = {
 };
 
 /**
- * Chat matching stays substring on raw lowercase words. R1's boundary gating is
- * scoped to memory search on purpose: the index path resolves words through
- * trigram MATCH, and changing chat semantics without changing the index query
- * would break the index/scan equivalence oracle (test/index.test.ts:46).
+ * Chat groups. Boundary gating stays OFF on every chat term, symbol-shaped ones
+ * included: the index path resolves words through trigram MATCH, and a boundary
+ * rule only the JS side knew about would break the index/scan equivalence
+ * oracle (test/index.test.ts). R1 boundary matching stays memory-search's.
  */
-function entryMatches(lowerText: string, words: string[], anyMode: boolean): boolean {
-  return anyMode ? words.some((w) => lowerText.includes(w)) : words.every((w) => lowerText.includes(w));
+function groupsForChat(raw: string[], synonyms: boolean): QueryGroup[] {
+  if (!synonyms) return raw.map((w) => [{ text: w.toLowerCase(), boundary: false }]);
+  return expandQueryWords(raw).map((g) => g.map((t) => ({ text: t.text, boundary: false })));
+}
+
+/**
+ * The match plan for one chat query, compiled once and handed to both engines.
+ *
+ * Relaxation is decided on the ORIGINAL token count: a 9-word query that loses
+ * one stopword still relaxes, because otherwise the threshold would move under
+ * the query depending on how much padding it happened to carry.
+ */
+export function chatMatchPlan(query: string, anyMode: boolean, synonyms: boolean): MatchPlan {
+  const rawAll = splitQueryWordsRaw(query);
+  const raw = dropStopwords(rawAll);
+  return compileMatchPlan(groupsForChat(raw, synonyms), raw, anyMode, rawAll.length > MAX_WORDS);
 }
 
 export function searchChat(query: string, opts: ChatSearchOptions = {}): ChatSearchResult {
@@ -122,18 +155,17 @@ export function searchChat(query: string, opts: ChatSearchOptions = {}): ChatSea
   const contextN = Math.max(opts.context ?? 0, 0);
   const anyMode = opts.any ?? false;
   const source = opts.source ?? "main";
-  const words = splitQueryWords(query);
+  const plan = chatMatchPlan(query, anyMode, opts.synonyms === true);
   const cutoffIsoShared = days > 0 ? new Date(Date.now() - days * 86_400_000).toISOString() : null;
   // One git call per search, never one per file: --cwd names a project, and the
   // remote of that project cannot change while the query runs.
   const repoKey = opts.cwd ? repoKeyForCwd(opts.cwd, opts.readOriginUrl ?? readOriginUrl) : null;
 
-  if (!opts.scan && words.length > 0) {
+  if (!opts.scan && !planIsEmpty(plan)) {
     try {
       return searchViaIndex(query, opts, {
         home,
-        words,
-        anyMode,
+        plan,
         limit,
         contextN,
         cutoffIso: cutoffIsoShared,
@@ -141,14 +173,14 @@ export function searchChat(query: string, opts: ChatSearchOptions = {}): ChatSea
         repoKey,
       });
     } catch (err) {
-      const scan = searchViaScan(query, opts, { home, days, limit, contextN, anyMode, source, repoKey });
+      const scan = searchViaScan(query, opts, { home, days, limit, contextN, plan, source, repoKey });
       scan.warnings.unshift(
         `index unavailable (${err instanceof Error ? err.message : String(err)}) — served by scan`,
       );
       return scan;
     }
   }
-  return searchViaScan(query, opts, { home, days, limit, contextN, anyMode, source, repoKey });
+  return searchViaScan(query, opts, { home, days, limit, contextN, plan, source, repoKey });
 }
 
 function searchViaIndex(
@@ -156,8 +188,7 @@ function searchViaIndex(
   opts: ChatSearchOptions,
   shared: {
     home: string;
-    words: string[];
-    anyMode: boolean;
+    plan: MatchPlan;
     limit: number;
     contextN: number;
     cutoffIso: string | null;
@@ -202,8 +233,7 @@ function searchViaIndex(
       refreshed = r.ingested + r.appended;
     }
     const result = queryIndex(db, {
-      words: shared.words,
-      anyMode: shared.anyMode,
+      plan: shared.plan,
       limit: shared.limit,
       contextN: shared.contextN,
       cutoffIso: shared.cutoffIso,
@@ -244,15 +274,14 @@ function searchViaScan(
     days: number;
     limit: number;
     contextN: number;
-    anyMode: boolean;
+    plan: MatchPlan;
     source: RolloutSource | "all";
     repoKey: string | null;
   },
 ): ChatSearchResult {
   const started = Date.now();
-  const { home, days, limit, contextN, anyMode, source, repoKey } = shared;
+  const { home, days, limit, contextN, plan, source, repoKey } = shared;
   const includeTools = opts.includeTools ?? true;
-  const words = splitQueryWords(query);
   const warnings: string[] = [];
 
   const result: ChatSearchResult = {
@@ -264,7 +293,7 @@ function searchViaScan(
     elapsedMs: 0,
     mode: "scan",
   };
-  if (words.length === 0) {
+  if (planIsEmpty(plan)) {
     warnings.push("empty query");
     result.elapsedMs = Date.now() - started;
     return result;
@@ -302,7 +331,7 @@ function searchViaScan(
       warnings.push(`unreadable rollout: ${file.path} (${err instanceof Error ? err.message : String(err)})`);
       continue;
     }
-    if (!matchesFilePrefilter(content.toLowerCase(), words, anyMode)) continue;
+    if (!matchesFilePrefilter(content.toLowerCase(), plan)) continue;
 
     const entries = parseRollout(content, includeTools);
     const visible = entries.filter(
@@ -317,7 +346,7 @@ function searchViaScan(
       const e = visible[i];
       if (opts.role && e.role !== opts.role) continue;
       if (cutoffIso && e.ts !== "" && e.ts < cutoffIso) continue;
-      if (!entryMatches(e.text.toLowerCase(), words, anyMode)) continue;
+      if (!planMatches(e.text.toLowerCase(), plan)) continue;
       fileMatched = true;
       const tm = meta.threadId ? threadMeta.byId.get(meta.threadId) : undefined;
       result.hits.push({

@@ -17,8 +17,26 @@
  * every symbol rule, which is exactly why they keep the behavior they need.
  */
 
-/** Query words beyond this count are dropped (cli-jaw parity). */
+/**
+ * Relaxation threshold, NOT a truncation cap (260910 wp5). A query longer than
+ * this keeps every token up to MAX_QUERY_TERMS but stops requiring all of them:
+ * compileMatchPlan splits the groups into required (symbols, versions,
+ * mixed-case proper nouns) and optional, and a text matches when it carries
+ * every required group plus half of the optional ones.
+ *
+ * Truncating instead (the pre-wp5 cli-jaw parity behavior) silently discarded
+ * the tail of a sentence query, which is where its symbols usually sit: the
+ * measured 10-word Korean query lost `확인한 방법` and the 9-word release query
+ * lost `기록` before matching even started, and all six evaluation paths
+ * returned zero hits.
+ */
 export const MAX_WORDS = 8;
+
+/**
+ * Hard tokenizer cap. Tokens past this point are dropped for real, because the
+ * per-word SQL conditions and OR-group expansion both grow with the count.
+ */
+export const MAX_QUERY_TERMS = 16;
 
 /**
  * One matchable term: lowercase text plus whether it must land on a token
@@ -35,7 +53,7 @@ export function splitQueryWordsRaw(query        )           {
   return query
     .split(/\s+/)
     .filter((w) => w.length > 0)
-    .slice(0, MAX_WORDS);
+    .slice(0, MAX_QUERY_TERMS);
 }
 
 /** Lowercase query words (the historical tokenizer, unchanged behavior). */
@@ -177,4 +195,107 @@ export function relaxGroupsAt(groups              , indexes                     
 /** Plain member texts of a group — for assertions and diagnostics. */
 export function groupTexts(group            )           {
   return group.map((term) => term.text);
+}
+
+/**
+ * Minimal stopword list (260910 wp5). Six words, all measured on the
+ * evaluation queries as padding the user never meant as a search term:
+ * `진짜 그 소스인지`, `사라지는 문제`, `확인한 방법`. Kept this small on purpose —
+ * a longer list starts deciding which content words matter.
+ */
+export const QUERY_STOPWORDS                      = new Set(["그", "이", "저", "것", "문제", "방법"]);
+
+/**
+ * Must this word be present, rather than merely count toward the optional
+ * quota? Symbol-shaped words (versions, numeric ids, SHAs, filenames,
+ * acronyms, short ASCII) plus mixed-case ASCII proper nouns (`Codex`,
+ * `BundledPluginsMarketplace`) are what make a long query specific; Korean
+ * prose and lowercase English words are the padding around them.
+ *
+ * Judged on the raw word because case is the only signal separating a proper
+ * noun from an ordinary word.
+ */
+export function isRequiredTerm(rawWord        )          {
+  if (isSymbolWord(rawWord)) return true;
+  return /^[A-Za-z][A-Za-z0-9]*$/.test(rawWord) && /[A-Z]/.test(rawWord) && /[a-z]/.test(rawWord);
+}
+
+/**
+ * Drop stopwords, unless that would empty the query. A symbol or otherwise
+ * required-shaped word is never dropped (`CI` is two characters but it is the
+ * whole query), and a query made only of stopwords keeps its original words
+ * instead of degenerating into "match everything".
+ */
+export function dropStopwords(rawWords          )           {
+  const kept = rawWords.filter((w) => !QUERY_STOPWORDS.has(w.toLowerCase()) || isRequiredTerm(w));
+  return kept.length > 0 ? kept : rawWords;
+}
+
+/**
+ * What a text has to carry to count as a match. `required` groups are ANDed,
+ * `optional` groups contribute a quota (`minOptional`), and `anyMode` is the
+ * explicit `--any` OR that overrides both. One plan is compiled per search and
+ * used by every engine, so the index path, the JSONL scan path and the memory
+ * store cannot drift apart.
+ */
+
+
+
+
+
+
+
+/**
+ * Build the plan. `relax` is the caller's decision (chat and memory both derive
+ * it from the ORIGINAL token count against MAX_WORDS, before stopword removal)
+ * so a 9-word query that drops one stopword still relaxes; without that, the
+ * threshold would move under the query.
+ *
+ * `rawWords` is index-aligned with `groups`: the shape judgment needs the word
+ * the user typed, not the lowercased, stemmed, synonym-expanded group.
+ */
+export function compileMatchPlan(
+  groups              ,
+  rawWords          ,
+  anyMode         ,
+  relax         ,
+)            {
+  if (anyMode || !relax) return { required: groups, optional: [], minOptional: 0, anyMode };
+  const required               = [];
+  const optional               = [];
+  for (let i = 0; i < groups.length; i++) {
+    const raw = rawWords[i] ?? groups[i][0]?.text ?? "";
+    if (isRequiredTerm(raw)) required.push(groups[i]);
+    else optional.push(groups[i]);
+  }
+  return { required, optional, minOptional: Math.ceil(optional.length / 2), anyMode: false };
+}
+
+/** Every group in the plan, for scoring and diagnostics (order: required first). */
+export function allGroups(plan           )               {
+  return plan.optional.length === 0 ? plan.required : [...plan.required, ...plan.optional];
+}
+
+/** A plan with no groups at all — an empty query, which must match nothing. */
+export function planIsEmpty(plan           )          {
+  return plan.required.length === 0 && plan.optional.length === 0;
+}
+
+/**
+ * The single match predicate. Every engine ends here, which is what keeps the
+ * index/scan equivalence oracle meaningful once SQL stops carrying the whole
+ * requirement.
+ */
+export function planMatches(lowerText        , plan           )          {
+  const hit = (group            ) => group.some((term) => termIncludes(lowerText, term));
+  if (plan.anyMode) return plan.required.some(hit) || plan.optional.some(hit);
+  if (planIsEmpty(plan)) return false;
+  if (!plan.required.every(hit)) return false;
+  if (plan.optional.length === 0) return true;
+  // Early exit matters: this runs per message over a multi-GB corpus.
+  let seen = 0;
+  for (const group of plan.optional) {
+    if (hit(group) && ++seen >= plan.minOptional) return true;
+  }
+  return seen >= plan.minOptional;
 }

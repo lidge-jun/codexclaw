@@ -27,6 +27,12 @@ import {
   countTermOccurrences,
   hasBoundaryTerm,
   relaxGroupsAt,
+  dropStopwords,
+  compileMatchPlan,
+  planMatches,
+  allGroups,
+  MAX_WORDS,
+  type MatchPlan,
   type QueryGroup,
 } from "./query-words.ts";
 import { expandQueryWords } from "./synonyms.ts";
@@ -380,11 +386,6 @@ function groupHit(lowerText: string, group: QueryGroup): boolean {
   return group.some((term) => termIncludes(lowerText, term));
 }
 
-/** AND across groups, OR within a group; anyMode = any member of any group. */
-function matches(lowerText: string, groups: QueryGroup[], anyMode: boolean): boolean {
-  return anyMode ? groups.some((g) => groupHit(lowerText, g)) : groups.every((g) => groupHit(lowerText, g));
-}
-
 /**
  * Record which groups occur anywhere in this text (independently of the other
  * groups). Drives the per-group relaxed retry: only a boundary group that is
@@ -424,7 +425,12 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
   const cutoffMs = days > 0 ? nowMs - days * 86_400_000 : null;
   // Original case survives to expansion: the uppercase-acronym rule is the only
   // thing separating `CI` from a two-letter fragment (query-words.ts).
-  const words = splitQueryWordsRaw(query);
+  const rawAll = splitQueryWordsRaw(query);
+  // Padding removal and the relaxation threshold are both wp5. The threshold is
+  // judged on the ORIGINAL count so dropping `그` or `문제` cannot move it: the
+  // 9-word release query still relaxes after losing its one stopword.
+  const words = dropStopwords(rawAll);
+  const relax = rawAll.length > MAX_WORDS;
   const groups: QueryGroup[] = (opts.synonyms ?? true)
     ? expandQueryWords(words)
     : expandQueryWords(words).map((group) => [group[0]]);
@@ -443,6 +449,10 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
 
   const present: boolean[] = groups.map(() => false);
   const collect = (active: QueryGroup[], tallyPresence: boolean): MemoryHit[] => {
+    // Recompiled per pass on purpose: the relaxed retry below hands in groups
+    // whose boundary flags were dropped, and a plan captured once before that
+    // retry would still be matching on token boundaries.
+    const plan = compileMatchPlan(active, words, anyMode, relax);
     const candidates: MemoryHit[] = [];
     const matchedThreadIds = new Set<string>();
     scannedFiles = 0;
@@ -460,7 +470,7 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
       scannedFiles += 1;
       const lowerFile = content.toLowerCase();
       if (tallyPresence) markGroupPresence(lowerFile, groups, present);
-      if (!matches(lowerFile, active, anyMode)) continue;
+      if (!planMatches(lowerFile, plan)) continue;
       const threadId = frontmatterThreadId(content);
       if (threadId) matchedThreadIds.add(threadId);
       const relpath = relative(root, file).split(sep).join("/");
@@ -474,7 +484,7 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
       const fileRepoKey = normalizeRepoKey(threadMeta?.gitOriginUrl);
       for (const chunk of paragraphChunks(content)) {
         const lower = chunk.text.toLowerCase();
-        if (!matches(lower, active, anyMode)) continue;
+        if (!planMatches(lower, plan)) continue;
         const scoped = scopeAdjust(scope, fileCwd, lower, fileRepoKey);
         if (!scoped.keep) continue;
         candidates.push({
@@ -493,8 +503,8 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
     }
     searchStage1(
       home,
+      plan,
       active,
-      anyMode,
       cutoffMs,
       lowerPhrase,
       nowMs,
@@ -649,8 +659,8 @@ function fillStage1Presence(
 /** stage1_outputs holds per-thread raw_memory + rollout_summary; read-only, fail-soft. */
 function searchStage1(
   home: string,
+  plan: MatchPlan,
   groups: QueryGroup[],
-  anyMode: boolean,
   cutoffMs: number | null,
   lowerPhrase: string,
   nowMs: number,
@@ -675,15 +685,23 @@ function searchStage1(
     // prefilter, and the row body is re-checked with the same `matches`
     // predicate the file path uses, so boundary semantics hold either way.
     const params: string[] = [];
-    const conds = groups.map((group) => {
+    const groupCond = (group: QueryGroup): string => {
       const members = group.map((w) => {
         params.push(`%${w.text}%`);
         const n = params.length;
         return `(lower(raw_memory) LIKE ?${n} OR lower(rollout_summary) LIKE ?${n})`;
       });
-      return `(${members.join(" OR ")})`;
-    });
-    const where = conds.join(anyMode ? " OR " : " AND ");
+      return members.length > 0 ? `(${members.join(" OR ")})` : "1";
+    };
+    // Required groups only. The optional quota is enforced by planMatches
+    // below; ANDing optional groups here is what kept the long release query at
+    // zero hits, and a plan with no required group prefilters nothing at all —
+    // `WHERE 1`, never an empty condition list that would be invalid SQL.
+    const where = plan.anyMode
+      ? allGroups(plan).map(groupCond).join(" OR ") || "1"
+      : plan.required.length > 0
+        ? plan.required.map(groupCond).join(" AND ")
+        : "1";
     const sql = `SELECT thread_id, raw_memory, rollout_summary, source_updated_at FROM stage1_outputs
       WHERE ${where} ORDER BY source_updated_at DESC`;
     const rows = db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
@@ -694,8 +712,9 @@ function searchStage1(
       if (cutoffMs && updatedSec !== null && updatedSec * 1000 < cutoffMs) continue;
       const body = `${String(r.raw_memory ?? "")}\n${String(r.rollout_summary ?? "")}`;
       const lowerBody = body.toLowerCase();
-      // The LIKE prefilter above ignores boundaries; enforce them here.
-      if (!matches(lowerBody, groups, anyMode)) continue;
+      // The LIKE prefilter above ignores boundaries and skips the optional
+      // groups; the plan predicate enforces both here.
+      if (!planMatches(lowerBody, plan)) continue;
       // stage1_outputs has no cwd column (schema dump, 011 4.3); threads.cwd is
       // the accurate substitute and it covered all 516 rows in the live store.
       const rowThread = threadId ? scope?.threadCwd.get(threadId) : undefined;

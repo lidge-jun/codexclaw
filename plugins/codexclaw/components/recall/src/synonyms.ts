@@ -55,6 +55,14 @@ export const SYNONYM_GROUPS: string[][] = [
   ["commit", "commits", "커밋"],
   ["review", "reviews", "리뷰", "검토"],
   ["branch", "branches", "브랜치"],
+  // 260910 wp5 seeds: the ko/en pairs the evaluation sentences turned on.
+  // `도그 푸딩` (two tokens) is deliberately absent — it already survives as an
+  // ordinary two-word AND, and a seed cannot span a space.
+  ["dogfooding", "도그푸딩"],
+  ["codex", "코덱스"],
+  ["restart", "재시작"],
+  ["verify", "verification", "verified", "검증", "provenance"],
+  ["source", "소스"],
 ];
 
 /** Max members per expanded group (original word + synonyms). */
@@ -89,6 +97,9 @@ const KOREAN_ENDINGS: string[] = [
   "해서",
   "하는",
   "한테",
+  // `소스인지`, `무엇인지` — the interrogative nominalizer. `한` stays out: it
+  // would trim `검증한` to `검증` but also every noun ending in 한.
+  "인지",
   "들을",
   "들이",
   "에게",
