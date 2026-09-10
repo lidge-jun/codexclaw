@@ -14,6 +14,13 @@
 import { readdirSync, existsSync, openSync, readSync, closeSync } from "node:fs";
 import { join, basename } from "node:path";
 import { splitLines } from "./text-lines.js";
+import { normalizeRepoKey } from "./repo-key.js";
+
+
+
+
+
+
 
 
 
@@ -83,12 +90,27 @@ export function normalizeCwd(cwd        )         {
  * Separator-aware cwd prefix test: /repo matches /repo and /repo/x, never
  * /repo2. Both sides are normalized first, so the comparison does not depend on
  * which platform recorded the session or which separator the caller typed.
+ *
+ * `caseInsensitive` is opt-in per call site. The default stays case-sensitive
+ * because Linux paths are, while macOS ships a case-INSENSITIVE volume by
+ * default: /Users/jun/developer/x and /Users/jun/Developer/x are one directory
+ * there, and recall must not split a project in two over how it was typed.
  */
-export function cwdMatches(sessionCwd        , prefix        )          {
-  const s = normalizeCwd(sessionCwd);
-  const p = normalizeCwd(prefix);
+export function cwdMatches(
+  sessionCwd        ,
+  prefix        ,
+  opts                                ,
+)          {
+  const fold = opts?.caseInsensitive === true;
+  const s0 = normalizeCwd(sessionCwd);
+  const p0 = normalizeCwd(prefix);
+  const s = fold ? s0.toLowerCase() : s0;
+  const p = fold ? p0.toLowerCase() : p0;
   return s === p || s.startsWith(`${p}/`);
 }
+
+/** macOS volumes are case-insensitive by default; Linux and Windows are handled as before. */
+export const FOLD_CWD_CASE = process.platform === "darwin";
 
 /** rollout-YYYY-MM-DDTHH-MM-SS-<uuid>.jsonl → YYYY-MM-DD (null when unparseable). */
 export function dateFromRolloutName(name        )                {
@@ -159,18 +181,28 @@ function safeDirs(dir        )           {
 /** Parse only the head of the file to classify it (session_meta is the first line). */
 export function readRolloutMeta(path        )              {
   const firstLine = readFirstLine(path);
-  const fallback              = { threadId: null, cwd: null, source: "main", nickname: null, originator: null };
+  const fallback              = {
+    threadId: null,
+    cwd: null,
+    source: "main",
+    nickname: null,
+    originator: null,
+    repoKey: null,
+  };
   try {
     const j = JSON.parse(firstLine);
     if (j?.type !== "session_meta") return fallback;
     const p = j.payload ?? {};
     const isSub = p.thread_source === "subagent" || p.source?.subagent !== undefined;
+    const git = p.git && typeof p.git === "object" ? (p.git                           ) : null;
+    const repositoryUrl = git && typeof git.repository_url === "string" ? git.repository_url : null;
     return {
       threadId: typeof p.id === "string" ? p.id : null,
       cwd: typeof p.cwd === "string" ? p.cwd : null,
       source: isSub ? "subagent" : "main",
       nickname: typeof p.agent_nickname === "string" ? p.agent_nickname : null,
       originator: typeof p.originator === "string" ? p.originator : null,
+      repoKey: normalizeRepoKey(repositoryUrl),
     };
   } catch {
     return fallback;

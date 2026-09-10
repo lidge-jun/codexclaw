@@ -22,15 +22,31 @@ export const openReadOnlyDb = openDbReadOnly;
 
 
 
+
+
+
+
+
 export function loadThreadMeta(dbPath               )                   {
   const empty = new Map                    ();
   if (!dbPath) return { byId: empty, warning: "state db not found (metadata enrichment off)" };
   let db                                           = null;
   try {
     db = openReadOnlyDb(dbPath);
-    const rows = db
-      .prepare("SELECT id, title, cwd, git_branch, updated_at_ms FROM threads")
-      .all()                                  ;
+    // git_origin_url is present on the live Codex state db but not on older
+    // stores (or hand-built test fixtures), where prepare() throws. Falling
+    // back to the original column list keeps every other field working there
+    // instead of degrading the whole map to empty.
+    let rows                                ;
+    try {
+      rows = db
+        .prepare("SELECT id, title, cwd, git_branch, git_origin_url, updated_at_ms FROM threads")
+        .all()                                  ;
+    } catch {
+      rows = db
+        .prepare("SELECT id, title, cwd, git_branch, updated_at_ms FROM threads")
+        .all()                                  ;
+    }
     const byId = new Map                    ();
     for (const r of rows) {
       if (typeof r.id !== "string") continue;
@@ -38,6 +54,8 @@ export function loadThreadMeta(dbPath               )                   {
         title: typeof r.title === "string" ? r.title : "",
         cwd: typeof r.cwd === "string" ? r.cwd : "",
         gitBranch: typeof r.git_branch === "string" ? r.git_branch : null,
+        gitOriginUrl:
+          typeof r.git_origin_url === "string" && r.git_origin_url.trim() !== "" ? r.git_origin_url : null,
         updatedAtMs: typeof r.updated_at_ms === "number" ? r.updated_at_ms : null,
       });
     }

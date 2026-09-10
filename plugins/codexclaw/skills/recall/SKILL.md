@@ -147,17 +147,10 @@ are 0 hits as-is. They recover as `source dogfooding` / `plugin restart` /
 
 Managed-worktree cwd (Codex app hash-named checkouts under `~/.codex/worktrees`):
 
-- **Until wp4 (project identity key) lands.** `--cwd PATH` only boosts; it does
-  not hide other projects. A worktree path is a different prefix from the main
-  checkout, so `--cwd-only <worktree>` currently returns 0 hits even when the
-  same repo has summaries under the main checkout. Do not start with
-  `--cwd-only`. Pass the main checkout path to `--cwd`, or omit the flag. If
-  `--cwd-only` warns it emptied the result, retry `--cwd`.
-- **After wp4.** `--cwd <worktree>` includes hits that share the same git
-  `repository_url` as that worktree (the main checkout of the same origin).
-  `--cwd-only` still hides other remotes. Sessions with no origin fall back to
-  cwd prefix. When wp4 merges, delete the "Until wp4" paragraph and keep this
-  one.
+- `--cwd` and `--cwd-only` group sessions that share one git origin
+  (the normalized `repo_key`), so `--cwd <worktree>` also reaches the main
+  checkout of that repository. `--cwd-only` still hides other remotes. A
+  directory with no origin falls back to the cwd prefix alone.
 
 ## Native `memories.*` vs `cxc`
 
