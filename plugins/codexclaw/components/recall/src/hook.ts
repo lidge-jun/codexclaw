@@ -29,8 +29,9 @@ import {
   readHitCounts,
 } from "./index-db.ts";
 import { cwdMatches, FOLD_CWD_CASE } from "./rollout.ts";
-import { existsSync } from "node:fs";
-import { basename } from "node:path";
+import { codexHome } from "./paths.ts";
+import { existsSync, readFileSync } from "node:fs";
+import { basename, join } from "node:path";
 // Cross-component dist import (established precedent: messenger-bridge api-compat).
 // Resolves from BOTH src (test-time ../../cxc-ops/dist) and shipped dist layouts.
 // Cross-component dist import, LAZY + FAIL-OPEN (260724 WP1): the entry must keep
@@ -91,6 +92,13 @@ const RECALL_PATTERNS: readonly RegExp[] = [
   /\b(as|we)\s+discussed\s+(earlier|before|previously|last\s+time)\b/i,
   /\bdiscussed\s+previously\b/i,
   /\bearlier\s+(session|conversation|work)\b/i,
+  // wp6: idioms the original set missed. Bare 그때 stays out — it reads as a
+  // plain time reference ("그때 봤어") far more often than as a recall request.
+  /이전에\s*(하|했|만든|작업|얘기|말)/,
+  /그\s*세션/,
+  /그때에(?:는|도)?/,
+  /\bprior\s+(work|session|conversation)\b/i,
+  /\ba\s+while\s+ago\b/i,
 ];
 
 /**
@@ -107,16 +115,63 @@ export function detectRecallIntent(prompt: string): boolean {
   return RECALL_PATTERNS.some((re) => re.test(prompt));
 }
 
+/**
+ * Distinctive tokens worth searching for: versions, filenames, error/rule codes,
+ * CamelCase symbols, and short quoted strings. Regex only — this runs on the
+ * UserPromptSubmit path, which must return in well under its 5s hook budget, so
+ * it must never open an index or touch the corpus.
+ */
+const VERSION_RE = /\b\d+\.\d+(?:\.\d+)?\b/g;
+const FILE_RE = /\b[\w.-]+\.(?:ts|tsx|js|mjs|cjs|json|md|toml|py|rs)\b/g;
+const ERROR_RE = /\b(?:[A-Z]{2,}(?:-[A-Z0-9]+)+|ERR_[A-Z0-9_]+)\b/g;
+const CAMEL_RE = /\b[A-Z][a-zA-Z]*[A-Z][A-Za-z0-9]*\b/g;
+const QUOTED_RE = /["'\`]([^"'\n]{3,60})["'\`]/g;
+
+/** Recall idioms themselves are not search terms — they are why we are here. */
+const TARGET_STOP = new Set([
+  "그때", "지난번", "지난", "저번", "예전", "세션", "작업", "기억", "뭐였지",
+  "last", "time", "session", "previous", "previously", "remember",
+]);
+
+/** Max suggested terms. A long list is noise; the agent still writes the query. */
+const TARGET_CAP = 4;
+
+export function extractRecallTargets(prompt: string, cap = TARGET_CAP): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: string): void => {
+    const term = raw.trim();
+    if (term.length < 2 || term.length > 60) return;
+    const key = term.toLowerCase();
+    if (TARGET_STOP.has(key) || seen.has(key)) return;
+    seen.add(key);
+    out.push(term);
+  };
+  for (const re of [VERSION_RE, FILE_RE, ERROR_RE, CAMEL_RE]) {
+    re.lastIndex = 0;
+    for (const match of prompt.matchAll(re)) push(match[0]);
+  }
+  QUOTED_RE.lastIndex = 0;
+  for (const match of prompt.matchAll(QUOTED_RE)) push(match[1] ?? "");
+  return out.slice(0, cap);
+}
+
 // WHY a builder, not a const: the command prefix must be resolved per emit.
-function buildDirective(): string {
+function buildDirective(targets: readonly string[] = []): string {
   const cxc = CXC();
-  return [
+  const rows = [
     "[cxc-recall] The prompt references past work. Before asking the user to re-explain,",
     "search prior sessions (read-only):",
     `  ${cxc} chat search "<distinctive terms>" --days 0   # full-history FTS over ~/.codex`,
     `  ${cxc} memory search "<topic>"                      # durable per-thread summaries`,
     "Add --context 2 to read around a hit, --cwd <repo> to scope. Details: $cxc-recall.",
-  ].join("\n");
+  ];
+  // The hook suggests, it does not search: running a query here would spend the
+  // prompt's latency budget on a guess the agent may not need.
+  if (targets.length > 0) {
+    rows.push(`Suggested recall terms: ${targets.join(" ")} (search not run by this hook).`);
+  }
+  return rows.join("\n");
 }
 
 const MAX_CTX = 32_768;
@@ -139,7 +194,7 @@ export function handleUserPromptSubmit(payload: UserPromptSubmitPayload): string
     if (payload.hook_event_name !== "UserPromptSubmit") return "";
     const prompt = typeof payload.prompt === "string" ? payload.prompt : "";
     if (!detectRecallIntent(prompt)) return "";
-    return buildContextOutput("UserPromptSubmit", buildDirective());
+    return buildContextOutput("UserPromptSubmit", buildDirective(extractRecallTargets(prompt)));
   } catch {
     return "";
   }
@@ -495,6 +550,91 @@ export function buildCwdContext(
   }
 }
 
+/** Injected by tests so a unit assertion never depends on the operator's config. */
+export interface SessionStartOptions {
+  dedicatedTools?: boolean;
+}
+
+/**
+ * Is the native memories tool surface switched on for this Codex home?
+ *
+ * The recall hook has no other way to know: installation writes the managed key
+ * into config.toml, and nothing hands it to the hook on stdin. Resolution goes
+ * through paths.ts codexHome() (CODEX_HOME ?? ~/.codex) because CODEX_HOME is
+ * normally unset — reading the variable alone would leave this branch dead on
+ * every default install. Any read or parse problem is false: pointing at the
+ * `cxc` commands is correct whether or not the tools exist, while naming a tool
+ * the agent does not have is not.
+ */
+export function dedicatedToolsEnabled(home?: string): boolean {
+  try {
+    const text = readFileSync(join(home ?? codexHome(), "config.toml"), "utf8");
+    const body = memoriesTableBody(text);
+    if (body === null) return false;
+    return /^[ \t]*dedicated_tools[ \t]*=[ \t]*true[ \t]*(?:#.*)?$/m.test(body);
+  } catch {
+    return false;
+  }
+}
+
+/** Body of the `[memories]` table, or null when the table is absent. */
+function memoriesTableBody(text: string): string | null {
+  const rows = text.split(/\r?\n/);
+  const start = rows.findIndex((line) => /^[ \t]*\[memories\][ \t]*(?:#.*)?$/.test(line));
+  if (start === -1) return null;
+  const rest = rows.slice(start + 1);
+  const end = rest.findIndex((line) => /^[ \t]*\[/.test(line));
+  return (end === -1 ? rest : rest.slice(0, end)).join("\n");
+}
+
+/**
+ * One line, hard-capped: a compaction just paid to free context, so the pointer
+ * that follows it must not start refilling the window.
+ */
+const RECOVERY_LINE_BUDGET = 160;
+
+function recoveryLine(cxc: string, dedicatedTools: boolean): string {
+  const line = dedicatedTools
+    ? `Recall: memories.search "<topic>" (native tool). Also: ${cxc} memory search "<topic>"`
+    : `Recall: ${cxc} chat search "<terms>" --days 0  |  ${cxc} memory search "<topic>"`;
+  return line.length <= RECOVERY_LINE_BUDGET ? line : line.slice(0, RECOVERY_LINE_BUDGET);
+}
+
+/**
+ * The notice, shaped by why the session started.
+ *
+ * `compact` is a recovery moment: the detail the agent is missing was just
+ * dropped from a context it already had. `resume` keeps the availability
+ * wording — the agent has not seen this thread's history in this process — and
+ * adds why the gap exists. `startup` and `clear` are the plain availability
+ * form. Every shape ends on the same recall pointer.
+ */
+function sessionNotice(
+  source: string | undefined,
+  cxc: string,
+  status: string,
+  dedicatedTools: boolean,
+): string {
+  const src = source ?? "startup";
+  const rows =
+    src === "compact"
+      ? [
+          "[cxc-recall] Context was just compacted. If any earlier detail is now missing,",
+          "recover it from past sessions before asking the user to repeat themselves.",
+        ]
+      : [
+          "[cxc-recall] Past-session recall is available (read-only). Before asking the user",
+          "about prior work \u2014 unfamiliar terms, lost context, \"\uadf8\ub54c/\uc9c0\ub09c\ubc88/last time\" \u2014 recover it.",
+        ];
+  if (src === "resume") {
+    rows.push("This session was resumed after a pause, so earlier turns may be missing here.");
+  }
+  rows.push(recoveryLine(cxc, dedicatedTools));
+  if (status !== "") rows.push(`Index: ${status}. Details: $cxc-recall.`);
+  else rows.push("Details: $cxc-recall.");
+  return rows.join("\n");
+}
+
 /**
  * SessionStart: inject CWD-scoped recent work context + recall availability notice.
  * The `cwd` comes from the hook JSON payload; `status` is the index status line.
@@ -504,7 +644,12 @@ export function buildCwdContext(
  * after a compaction), which is where the post-compaction recovery directive is
  * delivered — PostCompact output itself cannot carry it (see handlePostCompact).
  */
-export function handleSessionStart(status: string, cwd?: string, source?: string): string {
+export function handleSessionStart(
+  status: string,
+  cwd?: string,
+  source?: string,
+  opts: SessionStartOptions = {},
+): string {
   const parts: string[] = [];
   const compacted = source === "compact";
 
@@ -515,25 +660,10 @@ export function handleSessionStart(status: string, cwd?: string, source?: string
     if (cwdCtx) parts.push(cwdCtx);
   }
 
-  const cxc = CXC();
-  // Recall availability notice (pointer). After a compaction the same pointer is
-  // framed as recovery: the detail the agent is missing was just dropped from the
-  // context window, not never seen.
-  const notice = compacted
-    ? [
-        "[cxc-recall] Context was just compacted. If any earlier detail is now missing,",
-        "recover it from past sessions before asking the user to repeat themselves:",
-        `  ${cxc} chat search "<distinctive terms>" --days 0 --context 2`,
-        `  ${cxc} memory search "<topic>"`,
-      ]
-    : [
-        "[cxc-recall] Past-session recall is available (read-only). Before asking the user",
-        "about prior work \u2014 unfamiliar terms, lost context, \"\uadf8\ub54c/\uc9c0\ub09c\ubc88/last time\" \u2014 run:",
-        `  ${cxc} chat search "<terms>" --days 0   |   ${cxc} memory search "<topic>"`,
-      ];
-  if (status !== "") notice.push(`Index: ${status}. Details: $cxc-recall.`);
-  else notice.push("Details: $cxc-recall.");
-  parts.push(notice.join("\n"));
+  // Absent injection means "ask the machine": the branch must stay reachable on a
+  // default install, where nothing sets CODEX_HOME.
+  const dedicatedTools = opts.dedicatedTools ?? dedicatedToolsEnabled();
+  parts.push(sessionNotice(source, CXC(), status, dedicatedTools));
 
   return buildContextOutput("SessionStart", parts.join("\n\n"));
 }
@@ -557,4 +687,33 @@ export function handleSessionStart(status: string, cwd?: string, source?: string
 export function handlePostCompact(cwd?: string): string {
   void cwd;
   return "";
+}
+
+/** One hook process run, as the runtime sees it. */
+export interface HookResult {
+  stdout: string;
+  stderr: string;
+  code: number;
+}
+
+/**
+ * The whole stdout/stderr/exit contract a Codex hook must satisfy, in one place
+ * so every handler can be held to it.
+ *
+ * claude-mem #621 is the failure this guards: a hook that printed a colored
+ * progress line and exited non-zero broke SessionStart for every session, because
+ * the runtime parses what the process wrote. So the legal shapes are exactly two —
+ * write nothing, or write one JSON object — and the process exits 0 either way.
+ * stderr is checked too: that is where the upstream break actually emitted its
+ * ANSI.
+ */
+export function assertLegalHookResult(result: HookResult): void {
+  if (result.code !== 0) throw new Error(`hook exited ${result.code}`);
+  if (/\x1b\[/.test(result.stderr)) throw new Error("hook wrote ANSI to stderr");
+  if (result.stdout === "") return;
+  if (/\x1b\[/.test(result.stdout)) throw new Error("hook wrote ANSI to stdout");
+  const parsed: unknown = JSON.parse(result.stdout);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("hook stdout is not a JSON object");
+  }
 }

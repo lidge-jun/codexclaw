@@ -48,6 +48,12 @@ export interface HookHandler {
 export interface HookEntry {
   key: string;
   hash: string;
+  /**
+   * sha256 of the hook JSON file's bytes. EVIDENCE ONLY — trust is decided by
+   * `hash` (the canonical event+matcher+handler identity), and this digest is
+   * expected to differ from a recorded trusted_hash even on a healthy install.
+   */
+  fileSha256: string;
 }
 
 export interface HookTrustResult extends HookEntry {
@@ -166,7 +172,9 @@ export function listHookEntries(pluginRoot: string, pluginKey: string): HookEntr
     if (typeof hookRef !== "string") throw new Error("plugin manifest hook references must be strings");
     const relativePath = normalizeHookPath(hookRef);
     assertSafeHeaderValue(relativePath, "hook path");
-    const document = JSON.parse(readFileSync(containedPluginFile(pluginRoot, relativePath), "utf8")) as {
+    const raw = readFileSync(containedPluginFile(pluginRoot, relativePath));
+    const fileSha256 = createHash("sha256").update(raw).digest("hex");
+    const document = JSON.parse(raw.toString("utf8")) as {
       hooks?: Record<string, unknown>;
     };
     for (const [rawEventName, rawGroups] of Object.entries(document.hooks ?? {})) {
@@ -197,6 +205,7 @@ export function listHookEntries(pluginRoot: string, pluginKey: string): HookEntr
           entries.push({
             key: `${pluginKey}:${relativePath}:${EVENT_LABELS[eventName]}:${groupIdx}:${handlerIdx}`,
             hash: identityHash(eventName, group.matcher as string | undefined, handler),
+            fileSha256,
           });
         }
       }
