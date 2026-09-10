@@ -85,7 +85,8 @@ npm run smoke
 ```
 
 New `subagent-config/test/spawn-items-boundaries.test.ts` holds the hook negatives.
-Executor adds `pabcd-state/test/reviewer-producer-routing.test.ts`: execute the public
+The final test is `pabcd-state/test/reviewer-producer-contract.test.ts` (main took
+this disjoint test slice after narrowing executor scope to the two source strings): execute the public
 `runReviewRoundCli` open path using existing review-round fixture setup, and the
 attestation failure path, extract role/header values from emitted instructions and
 pass their packet through `inferRole`/hook with distinct reviewer/explorer configs.
