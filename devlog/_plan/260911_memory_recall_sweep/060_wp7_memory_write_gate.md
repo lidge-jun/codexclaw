@@ -598,3 +598,90 @@ Issue #136's fallback ("document and narrow the matcher to tools only") is **not
 - `c-10`: the four home forms and the five PowerShell cmdlets (plus alias `copy`) plus python/node writes classify as memory writes; `read_text` does not. The three switch-parameter regressions (`Set-Content -Force`, `Out-File -Append`, `New-Item -ItemType File -Force`) and Copy-Item destination-only (named `-Path` is not a dest) pass.
 - `c-11`: `allow-write --help` exits 0 with no grant; `--session=<id>` accepted; unknown flags rejected.
 - `npm run build` and `npm test` green, new test names in the log, dist staged with `-f`.
+
+## Amendment A — wp7 P revalidation and the dev cascade (2026-09-11)
+
+Re-verified by an independent `xai/grok-4.6` explorer, which confirmed **every BEFORE
+fence in this PRD is an exact quote of the current files** and that L1-L5 touched only
+the recall component, leaving this layer's sources untouched. **This amendment
+governs.**
+
+### A.1 The base moved: the whole chain was rebased
+
+While this layer was at P, the peer session merged its entire Windows sweep into
+`dev`. `origin/dev` went from `a267b398` to `d4bef1f2`, seven commits:
+
+```text
+d4bef1f2  fix(pabcd-state): non-git session binds a nested git source (#109) (#152)
+8e73e205  fix(sweep): GUI and serve provider probes through win-exec (#151)
+ed225aec  fix(pabcd-state): refuse a bound cycle with no resolvable source identity (#150)
+34cd7879  fix(config-guard): answer --help before the action and forward full argv (#149)
+8013b625  fix(pabcd-state): canonicalise the native session cwd (#134) (#148)
+291f81d6  fix(provider-bridge): reuse win-exec for PATHEXT and ComSpec (#131) (#153)
+ee03d5bc  docs(plan): diff-level roadmap for the Windows issue sweep stack (#146)
+```
+
+Three of those land in `pabcd-state` and one in `config-guard`, and **`#149` moves
+`bin/cxc.mjs`** — a file this layer edits. Rebasing after implementing L6 would have
+meant resolving that collision inside the largest layer in the stack. It was done
+first instead, at P, with a clean tree:
+
+```text
+git rebase --update-refs --onto origin/dev a267b398 codex/fix-memory-write-gate
+  -> 31 commits replayed, no conflicts, all six layer branches updated
+npm run build   exit 0
+npm test        exit 1, tests 3110, pass 3022, fail 2   (the same two env failures, no third)
+git merge-base --is-ancestor, each layer against the one below -> all 0
+git push --force-with-lease, all six pushed branches
+```
+
+The chain now sits on `d4bef1f2`. **`002_host_verification_baseline.md` still holds:
+exactly `hook-bench` and `cxc map --help`, and nothing else.** The peer's seven
+commits and this chain's twenty-four compose without a third failure.
+
+### A.2 Consequence for this layer
+
+`bin/cxc.mjs`'s `memory allow-write` branch **moved from `:166` to `:171`** because
+`#149` inserted config-guard argv handling above it. The condition text and the
+`HELP` constant at `:90` are unchanged, and every write-gate `.ts` file is byte
+identical to what this PRD quotes. **Re-read `bin/cxc.mjs` and `bin/codexclaw.mjs`
+before editing; every other BEFORE block in this document is still exact.**
+
+`#149` is also prior art worth reading rather than copying: it solved the same
+"`--help` reaches the action" defect for `config-guard`, on the same dispatcher this
+layer must fix for `memory allow-write`. Read how it forwards argv, then decide
+independently — L3 in this stack already rejected the older `isHelpToken` prior art
+for good reasons.
+
+### A.3 Remaining staleness
+
+Only one: §2 paraphrases `sessionsDir` as `join(cwd, ".codexclaw", "sessions")`. The
+actual code is `join(cwd, STATE_DIR, SESSIONS_SUBDIR)` at `state.ts:317`, with
+`STATE_DIR = ".codexclaw"` at `:233`. The behaviour is what the PRD says; the literal
+is not. Do not introduce a hard-coded string.
+
+### A.4 The grant binding, confirmed
+
+`consumeAuthorization(cwd, sessionId, turnId)` -> `readState(cwd, sessionId)`
+(`memory-write-gate.ts:244`, called at `:297`) -> `statePath(cwd, sessionId)`
+(`:320-321`) -> `sessionsDir(cwd)`. The CLI stores the **process** cwd
+(`memory-cli.ts:46`) and writes the grant there (`:56-57`). That is #135 exactly: the
+grant is keyed by a cwd the success message never mentions.
+
+### A.5 The risk, restated because it is the security boundary
+
+POSIX habit says an unknown `-*` flag may consume the next token. **PowerShell switch
+parameters take no value.** If the new verb parser copies the POSIX habit,
+`Set-Content -Force <memory path>`, `Out-File -Append <memory path>` and
+`New-Item -ItemType File -Force <memory path>` all return `[]` and a real memory write
+passes the gate. The existing POSIX helpers already get this right — `tee`, `sed`,
+`cp` skip an unknown flag **without** consuming the next token. Match that behaviour.
+
+### A.6 Existing pins that must not break
+
+`memory-write-gate.test.ts` `:49`, `:64`, `:81`, `:101`, `:121`, `:136`, `:150`,
+`:162`, `:175`, `:186`, `:199`, `:209`, `:250` (python3 `read_text` is a READ and must
+stay allowed), `:263`; `shell-write-destinations.test.ts` `:13`, `:30`, `:40`, `:57`.
+A widening that turns an existing allow into a deny is as much a regression as a
+missed write.
+
