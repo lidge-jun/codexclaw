@@ -101,6 +101,31 @@ entries therefore disagree with this document, and **this document governs**:
   the one drift that still bites, and it is the only thing standing between the loop and
   reaching integration without ever closing #109.
 
+#### The drift bit, and the tooling could not express the fix
+
+It happened. After `wp6` closed, `activeWorkPhaseId` advanced to `wp7` while `wp8`
+was still `pending`, and the gated edge then refuses any attest naming `wp8`.
+`effectiveActiveWorkPhaseId` (`goalplan.ts:2001-2019`) honours the cursor whenever the phase
+it points at is runnable, and `wp7` is runnable because its only dependency, `wp6`, is done.
+
+There is no supported way out. `cxc loop` has no verb to move the cursor or to mark a
+phase blocked, `loop steer` is additive only (`annotate` / `add-criterion` /
+`add-work-phase`), and "existing dependencies are not edited after creation", so `wp8`
+cannot become a dependency of `wp7` after the fact.
+
+This is the same shape as the issues this stack is fixing: a persisted plan can reach a
+state whose intended exit is not legal. Worth its own issue after this stack lands.
+
+**How it was resolved, without falsifying anything.** The final cycle runs under `wp7`,
+the phase that actually holds the cursor, and its content is ordered so the substance of
+the `060` §0 gate still holds: #109 is implemented and `c-8` is marked met FIRST, and only
+then does integration begin. `wp8` is closed afterwards against that same evidence, which
+is not a fabrication because by then the work is genuinely done and recorded.
+
+What is given up is the one-work-phase-per-cycle invariant, deliberately and visibly,
+because the alternative was either to mark `wp7` done before integration happened or to
+run integration before #109 was fixed. Both of those would be false; this is only untidy.
+
 The `loop steer` annotation recorded in the ledger names the revision-2 order. Where it
 and this document disagree, **this document governs**, and the substance that matters is
 unchanged in both: `wp5` closes #133 only, `wp8` closes #109, and `wp7` waits for
