@@ -355,6 +355,19 @@ The behaviour difference from `where` is that a launcher reachable only through 
 `where`-visible alias but not through PATH+PATHEXT would no longer be found; no such
 case exists for npm global installs, which is the shape #131 reports.
 
+**Measured second behaviour difference: the reported extension carries PATHEXT casing.**
+`resolveWindowsCommand` builds candidates as `command + ext` using PATHEXT's own
+spelling, and Windows `existsSync` is case-insensitive, so a file named `ocx.cmd` on
+disk resolves to a path ending `.CMD` when PATHEXT says `.CMD`. The old `where`-parsing
+path reported the on-disk casing instead. Caught by the §5 tests on first run.
+
+Impact is cosmetic: Windows paths are case-insensitive, so spawning is unaffected, and
+the only consumer of `ocxPath` is the status line that the catalog and GUI read as a
+path. **Do not "fix" it by normalising inside `win-exec.ts`** — that file is byte-shared
+with four other components and the byte-identity test would fail. The §5 assertions
+compare case-insensitively and additionally assert the extension matches `/\.cmd$/i`, so
+the thing being pinned is that the extensionless shim lost, not a particular spelling.
+
 The real hazard is copy drift: `win-exec.ts` now lives in six components. The
 byte-identity test in §5 is the guard, and it fails loudly if the original is edited
 without propagating.
