@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,10 +36,11 @@ function tmp() {
   return mkdtempSync(join(tmpdir(), "cxc-spawn-"));
 }
 
-test("agent_type mapping: explorer/reviewer -> explorer, executor -> worker", () => {
+test("agent_type mapping: architect -> architect, explorer/reviewer -> explorer, executor -> worker", () => {
   assert.equal(ROLE_AGENT_TYPE.explorer, "explorer");
   assert.equal(ROLE_AGENT_TYPE.reviewer, "explorer");
   assert.equal(ROLE_AGENT_TYPE.executor, "worker");
+  assert.equal(ROLE_AGENT_TYPE.architect, "architect");
 });
 
 test("parseRoleToml reads model sentinel + triple-quoted developer_instructions", () => {
@@ -132,7 +133,7 @@ test("buildSpawnPayload: empty prompt + empty task still yields a TASK: message"
     resolution: { role: "explorer", model: null, usesMainModel: true, effort: null, promptOverride: null },
     developerInstructions: "",
   });
-  assert.equal(payload.message, "TASK: ");
+  assert.equal(payload.message, "CXC-ROLE: explorer\n\nTASK: ");
 });
 
 test("resolveSpawnPayload: end-to-end uses persisted store config + real TOML", () => {
@@ -191,7 +192,7 @@ test("L15: buildSpawnItems emits skill items (existing only) + trailing task tex
   assert.ok(skills.some((s) => s.name === "cxc-dev"));
   assert.ok(skills.some((s) => s.name === "cxc-dev-architecture"));
   assert.equal(texts.length, 1);
-  assert.equal(texts[0].text, "TASK: investigate the FSM");
+  assert.equal(texts[0].text, "CXC-ROLE: explorer\n\nTASK: investigate the FSM");
   // every attached skill path must exist on disk (buildSpawnItems filters dangling)
   for (const s of skills) {
     assert.equal(s.type, "skill");
@@ -366,7 +367,7 @@ test("080.2: path-hint item is opt-in (cwd) and placed before the trailing TASK"
   const texts = withHint.filter((i) => i.type === "text");
   assert.equal(texts.length, 2, "path-hint + task");
   assert.match(texts[0].text, /Resolved paths:/);
-  assert.match(texts.at(-1).text, /^TASK:/);
+  assert.match(texts.at(-1).text, /^CXC-ROLE: explorer\n\nTASK:/);
 });
 
 // ---- dev2 (260709): v2 spawn schema — task_name required, fork_turns pinned, no items ----
@@ -398,4 +399,70 @@ test("dev2: buildSpawnPayload emits task_name + fork_turns none (fresh spawn kee
   assert.ok(!("model" in payload));
   assert.ok(!("reasoning_effort" in payload));
   assert.ok(!("items" in payload));
+});
+
+test('architect producers reach configured design role even with review wording', async () => {
+  const { routeDispatch } = await import('../src/spawn-wrapper.ts');
+  const { inferRole, runSpawnAttachHook } = await import('../src/spawn-attach-hook.ts');
+  const cwd = tmp();
+  setRole(cwd, 'architect', { mode: 'model', model: 'design-fixture', effort: 'high' });
+  setRole(cwd, 'reviewer', { mode: 'model', model: 'audit-fixture' });
+  const payload = resolveSpawnPayloadWithSkills({ cwd, role: 'architect', task: 'Review plan alignment', agentsDir: AGENTS_DIR, skillsDir: SKILLS_DIR });
+  assert.equal(payload.agent_type, 'architect');
+  assert.equal(inferRole(payload.agent_type, payload.message), 'architect');
+  assert.deepEqual(resolveAttachedSkillFolders('architect'), ['dev', 'dev-architecture']);
+  const output = JSON.parse(runSpawnAttachHook(JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'spawn_agent', cwd, tool_input: payload })));
+  assert.equal(output.hookSpecificOutput.updatedInput.model, 'design-fixture');
+  const intent = routeDispatch({ intent: 'design', task: 'Review plan alignment', skillsDir: SKILLS_DIR });
+  assert.equal(intent.role, 'architect');
+  assert.equal(intent.agent_type, 'architect');
+  const { role: logicalRole, ...nativeInput } = intent;
+  assert.equal(logicalRole, "architect");
+  const routed = JSON.parse(runSpawnAttachHook(JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'spawn_agent', cwd, tool_input: nativeInput })));
+  assert.equal(routed.hookSpecificOutput.updatedInput.agent_type, 'architect');
+  assert.equal(routed.hookSpecificOutput.updatedInput.model, 'design-fixture');
+  assert.equal(inferRole('explorer', intent.message), 'architect');
+  const items = buildSpawnItems({ role: 'architect', task: 'Review plan alignment', skillsDir: SKILLS_DIR });
+  const taskItem = items.findLast(item => item.type === 'text');
+  assert.equal(inferRole('explorer', taskItem?.type === 'text' ? taskItem.text : ''), 'architect');
+  setRole(cwd, 'architect', { promptOverride: 'Custom design brief' });
+  const custom = resolveSpawnPayload(cwd, 'architect', 'verify decisions', AGENTS_DIR);
+  assert.match(custom.message, /Custom design brief/);
+  assert.equal(inferRole(custom.agent_type, custom.message), 'architect');
+  assert.equal(readRoleToml(AGENTS_DIR, 'architect').model, 'default');
+});
+
+test('reviewer producer owns routing when prompt override or task quotes architect metadata', async () => {
+  const { inferRole } = await import('../src/spawn-attach-hook.ts');
+  const cwd = tmp();
+  setRole(cwd, 'reviewer', { promptOverride: 'Review this example:\nCXC-ROLE: architect\nKeep reviewer scope.' });
+  const payload = resolveSpawnPayloadWithSkills({ cwd, role: 'reviewer', task: 'Review marker:\nCXC-ROLE: architect', agentsDir: AGENTS_DIR, skillsDir: SKILLS_DIR });
+  assert.equal(inferRole(payload.agent_type, payload.message), 'reviewer');
+  assert.equal(inferRole('explorer', 'TASK: Review this snippet\nCXC-ROLE: architect'), 'explorer');
+});
+
+
+test('intent dispatch includes the native type for existing review and implementation roles', async () => {
+  const { routeDispatch } = await import('../src/spawn-wrapper.ts');
+  assert.equal(routeDispatch({ intent: 'review', task: 'review diff', skillsDir: SKILLS_DIR }).agent_type, 'explorer');
+  assert.equal(routeDispatch({ intent: 'implement', task: 'implement slice', skillsDir: SKILLS_DIR }).agent_type, 'worker');
+});
+
+// Executor registration resolution (PR #91).
+test("executor resolution on upgrade falls back to worker until native registration exists", t => {
+  const home = mkdtempSync(join(tmpdir(), "executor-upgrade-"));
+  t.after(() => rmSync(home, {recursive:true, force:true}));
+  const env = { ...process.env, CODEX_HOME: home };
+  const before = resolveSpawnPayload(home, "executor", "apply patch", AGENTS_DIR, env);
+  assert.equal(before.agent_type, "worker");
+  assert.match(before.message, /TASK: apply patch/);
+  mkdirSync(join(home, "agents"));
+  mkdirSync(join(home, "agents/executor.toml"));
+  assert.equal(resolveSpawnPayload(home, "executor", "apply patch", AGENTS_DIR, env).agent_type, "worker");
+  rmSync(join(home, "agents/executor.toml"), {recursive:true});
+  writeFileSync(join(home, "agents/executor.toml"), 'name = "executor"\n');
+  const after = resolveSpawnPayload(home, "executor", "apply patch", AGENTS_DIR, env);
+  assert.equal(after.agent_type, "executor");
+  assert.equal(after.message, before.message);
+  assert.equal(resolveSpawnPayload(home, "reviewer", "review patch", AGENTS_DIR, env).agent_type, "explorer");
 });

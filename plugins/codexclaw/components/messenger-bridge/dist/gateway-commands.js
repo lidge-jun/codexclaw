@@ -8,7 +8,7 @@
 import { realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { buildCatalog } from "../../subagent-config/dist/catalog.js";
+import { readCatalog } from "../../subagent-config/dist/live-catalog.js";
 
 
 import { chunkEmbedDescription,                   } from "./discord-api.js";
@@ -16,6 +16,7 @@ import { capDiscordEmbed,                } from "./discord-components.js";
 import { AGENT_EFFORTS, AGENT_THREAD_MODES, AGENT_TOOL_PROGRESS_MODES,                                                            } from "./db.js";
 import { DEFAULT_TOOL_PROGRESS } from "./tool-progress.js";
 import { chunkTelegramMessage } from "./telegram-format.js";
+
 
 
 
@@ -315,7 +316,7 @@ async function handleModel(ctx                       )                          
   if (arg) {
     // Reserved /model subcommands are checked before save-verbatim so model ids
     // named "list" or "reset" cannot be stored accidentally.
-    if (arg === "list") return modelListResult();
+    if (arg === "list") return modelListResult(ctx.readModelCatalog);
     if (arg === "reset") {
       ctx.db.setBindingModel(binding.id, "default");
       const next = effectiveModel(ctx.db.getBinding(binding.id) ?? binding, agent);
@@ -436,8 +437,8 @@ export function validateWorkdir(input        )                {
   }
 }
 
-function modelListResult()                       {
-  const catalog = buildCatalog()                                                                            ;
+async function modelListResult(reader                                                         = readCatalog)                                {
+  const catalog = await reader()                                                                            ;
   const groups = groupCatalogEntries(catalog.entries ?? []);
   const text = groups.length === 0
     ? "No models found."

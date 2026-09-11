@@ -13,9 +13,11 @@
  *   subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort]
  *                        [--prompt <text>|--clear-prompt]
  */
-import { readConfig, setRole, projectConfigTrustToken, ROLES, EFFORTS,                                                 } from "./store.js";
+import { readConfig, setRole, resetRole,                   projectConfigTrustToken, ROLES, EFFORTS,                                                } from "./store.js";
+import { registerRole, resolveNativeRoleHome } from "./role-registration.js";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+
 
 
 
@@ -30,11 +32,29 @@ function isRole(v                    )                {
 
 /** Pure structural parse of the `subagents` argv (excluding the leading verb). */
 export function parseSubagentsArgs(argv          )                      {
+  // Register rejects extra flags, including trailing --global, before scope stripping.
+  if (argv[0] === "register") {
+    return argv.length === 2 && (argv[1] === "executor" || argv[1] === "architect")
+      ? { action: "register", role: argv[1] }
+      : { action: "register", error: "usage: subagents register executor|architect" };
+  }
+  // Scope is an explicit trailing selector, so prompt/model values stay literal.
+  if (argv.at(-1) === "--global" && !["--prompt", "--model", "--fallback-model"].includes(argv.at(-2) ?? "")) {
+    return { ...parseProjectArgs(argv.slice(0, -1)), scope: "global" };
+  }
+  return parseProjectArgs(argv);
+}
+
+function parseProjectArgs(argv          )                      {
   const sub = argv[0];
   if (sub === undefined || sub === "list") return { action: "list" };
   if (sub === "help" || sub === "--help" || sub === "-h") return { action: "help" };
   if (sub === "trust-token") return { action: "trust-token" };
 
+  if (sub === "reset") {
+    if (!isRole(argv[1]) || argv.length !== 2) return { action: "reset", error: "reset requires exactly one valid role" };
+    return { action: "reset", role: argv[1] };
+  }
   if (sub === "get") {
     if (!isRole(argv[1])) return { action: "get", error: `unknown role '${argv[1] ?? ""}' (expected ${ROLES.join("|")})` };
     return { action: "get", role: argv[1] };
@@ -43,7 +63,9 @@ export function parseSubagentsArgs(argv          )                      {
   if (sub === "set") {
     if (!isRole(argv[1])) return { action: "set", error: `unknown role '${argv[1] ?? ""}' (expected ${ROLES.join("|")})` };
     const role = argv[1];
-    const patch                      = {};
+    const patch            = {};
+    let clearFallback = false;
+    let setFallback = false;
     for (let i = 2; i < argv.length; i++) {
       const a = argv[i];
       if (a === "--mode") {
@@ -52,6 +74,16 @@ export function parseSubagentsArgs(argv          )                      {
         patch.mode = v;
       } else if (a === "--model") {
         patch.model = argv[++i] ?? "";
+      } else if (a === "--fallback-model") {
+        const model = argv[++i];
+        if (!model?.trim()) return { action: "set", role, error: "--fallback-model requires a model id" };
+        patch.fallback = { ...patch.fallback, model }; setFallback = true;
+      } else if (a === "--fallback-effort") {
+        const value = argv[++i];
+        if (value !== "inherit" && !(EFFORTS                     ).includes(value ?? "")) return { action: "set", role, error: "invalid --fallback-effort" };
+        patch.fallback = { ...patch.fallback, effort: value === "inherit" ? null : value               }; setFallback = true;
+      } else if (a === "--clear-fallback") {
+        clearFallback = true; patch.fallback = null;
       } else if (a === "--effort") {
         const v = argv[++i];
         if (!(EFFORTS                     ).includes(v ?? "")) {
@@ -68,8 +100,9 @@ export function parseSubagentsArgs(argv          )                      {
         return { action: "set", role, error: `unknown flag '${a}'` };
       }
     }
+    if (clearFallback && setFallback) return { action: "set", role, error: "--clear-fallback cannot be combined with fallback settings" };
     if (Object.keys(patch).length === 0) {
-      return { action: "set", role, error: "set requires at least one of --mode/--model/--effort/--clear-effort/--prompt/--clear-prompt" };
+      return { action: "set", role, error: "set requires at least one of --mode/--model/--effort/--clear-effort/--prompt/--clear-prompt/--fallback-model/--fallback-effort/--clear-fallback" };
     }
     return { action: "set", role, patch };
   }
@@ -83,6 +116,11 @@ const HELP = [
   "  subagents               list all role configs",
   "  subagents get <role>    show one role config",
   "  subagents set <role> --mode default|model [--model <id>] [--effort <level>|--clear-effort] [--prompt <text>|--clear-prompt]",
+  "  --fallback-model <id> [--fallback-effort low|medium|high|xhigh|inherit] | --clear-fallback",
+  "  subagents dispatch      main-owned fallback protocol; JSON stdin (start/claim/report/status)",
+  "  subagents register executor|architect   register or update managed role; restart Codex afterward",
+  "  subagents reset <role>  remove the role override and inherit the next scope",
+  "  Append --global to list/get/set/reset to manage user defaults",
   "  subagents trust-token   print an export bound to this repo and exact config",
   "",
   `  roles: ${ROLES.join(", ")}`,
@@ -95,15 +133,15 @@ const HELP = [
 
 
 /** Execute a parsed `subagents` command against the store at `cwd`. Never throws. */
-export function runSubagents(parsed                     , cwd        )                  {
+export function runSubagents(parsed                     , cwd        , nativeHome         )                  {
   if (parsed.error) return { code: 1, output: `subagents: ${parsed.error}` };
   switch (parsed.action) {
     case "help":
       return { code: 0, output: HELP };
     case "list":
-      return { code: 0, output: JSON.stringify(readConfig(cwd), null, 2) };
+      return { code: 0, output: JSON.stringify(readConfig(cwd, parsed.scope), null, 2) };
     case "get": {
-      const cfg = readConfig(cwd);
+      const cfg = readConfig(cwd, parsed.scope);
       return { code: 0, output: JSON.stringify(cfg.roles[parsed.role            ], null, 2) };
     }
     case "trust-token": {
@@ -111,9 +149,25 @@ export function runSubagents(parsed                     , cwd        )          
       if (!token) return { code: 1, output: "subagents: cannot hash .codexclaw/subagents.json" };
       return { code: 0, output: `export CODEXCLAW_TRUST_PROJECT_SUBAGENTS='${token}'` };
     }
+    case "register": {
+      try {
+        const result = registerRole(parsed.role                            , nativeHome ?? resolveNativeRoleHome());
+        return { code: 0, output: `${result.created ? "Registered" : result.updated ? "Updated" : "Already registered"}: ${result.path}\nStart a new Codex session and verify ${parsed.role} appears in the live spawn schema.` };
+      } catch (err) {
+        return { code: 1, output: `subagents: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
+    case "reset": {
+      try {
+        const cfg = resetRole(cwd, parsed.role            , parsed.scope);
+        return { code: 0, output: JSON.stringify(cfg.roles[parsed.role            ], null, 2) };
+      } catch (err) {
+        return { code: 1, output: `subagents: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
     case "set": {
       try {
-        const cfg = setRole(cwd, parsed.role            , parsed.patch ?? {});
+        const cfg = setRole(cwd, parsed.role            , parsed.patch ?? {}, parsed.scope);
         return { code: 0, output: JSON.stringify(cfg.roles[parsed.role            ], null, 2) };
       } catch (err) {
         return { code: 1, output: `subagents: ${err instanceof Error ? err.message : String(err)}` };

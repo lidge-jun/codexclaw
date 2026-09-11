@@ -13,9 +13,9 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-2%2C670_passing-brightgreen" alt="2,670 tests passing">
-  <img src="https://img.shields.io/badge/skills-28-blue" alt="28 skills">
-  <img src="https://img.shields.io/badge/hooks-23-blue" alt="23 hooks">
+  <img src="https://img.shields.io/badge/tests-3%2C032_passing-brightgreen" alt="3,032 tests passing">
+  <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
+  <img src="https://img.shields.io/badge/hooks-28-blue" alt="28 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
@@ -39,7 +39,19 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
        └────┴────┴──── I (Interview, context preserved)
 ```
 
-**Multi-Model Subagents** — role-based dispatch (explorer / reviewer / executor) with per-role model and prompt overrides. Configuration persists across sessions and applies automatically through the spawn-wrapper hook. A local GUI (Vite + React) provides visual config and, when opencodex is detected, a provider link bar. (Dashboard: build from a repo checkout for now; bundled in a follow-up release.)
+**Multi-Model Subagents** — role-based dispatch (explorer / reviewer / executor / architect) with per-role model and prompt overrides. Configuration persists across sessions and applies automatically through the spawn-wrapper hook. A local GUI (Vite + React) provides visual config and, when opencodex is detected, a provider link bar. (Dashboard: build from a repo checkout for now; bundled in a follow-up release.)
+
+Architect proposes design and checks main's plan for alignment in each formal P plan; main owns the executable plan and decisions, and the independent reviewer retains A audit. It reuses one context per plan and rechecks only recorded design-decision changes. This is agent-followed guidance, not runtime enforcement. See the [planning lifecycle](plugins/codexclaw/skills/pabcd/references/phase-plan.md).
+
+Architect uses its own native `agent_type: "architect"`. Before first use, explicitly run `cxc subagents register architect`, start a fresh Codex session, and verify the role appears in the spawn schema. It uses architect settings and never falls back to explorer/reviewer. Registration is separate from plugin installation and is never performed by dispatch.
+
+Subagent settings resolve **per role: project → global → original session**. Open **Global Settings** to edit user defaults in `$CODEXCLAW_HOME/subagents.json` (default `~/.codexclaw/subagents.json`). The existing **Subagents** page edits `<project>/.codexclaw/subagents.json`: each model dropdown offers **Main model**, **Global settings**, and individual models. Global settings follows the entire role's defaults, including effort and prompt; choose a main/direct model to customize that project role. Existing explicit project entries and `effort: null` retain their meaning. Main model changes only the model source; session effort separately inherits the original session's effort.
+
+The shared catalog reads OCX's enabled models with the non-mutating `ocx models live --json`, refreshes after a short cache lifetime, and supports **Refresh models**. Disabled or pending models are excluded. If OCX is absent it reads the configured Codex catalog (`model_catalog_json`, with `CODEX_MODELS_CACHE_PATH` override). An unavailable source yields an explicit error or labeled last-known list, never a fabricated four-model roster. The dashboard restricts effort choices to the model's advertised supported values; CLI/MCP validation still validates wire values only, not model-specific compatibility.
+
+CLI list/get/set/reset accept trailing `--global`. MCP `subagents_get`/`subagents_set` and GET `/api/subagents?scope=global` / POST `scope: "global"` share the same store. `inherit: true` removes the selected scope's entire role override; `effort: null` only clears effort. The former unpublished `$CODEX_HOME/codexclaw/subagents.json` path is read only if the canonical file is absent and `CODEXCLAW_HOME` is not explicitly set. The first explicit global edit/reset preserves its other roles in the canonical file and leaves the old file untouched.
+
+
 
 **Recall** — searches past Codex conversations and the memory store from disk artifacts before asking the user, so context survives session boundaries and compaction.
 
@@ -56,7 +68,7 @@ codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-Then restart Codex and approve the 23 hooks when prompted (upgrades ask again — content-hash trust). Everything runs from chat, and the terminal surface ships too — the payload includes its own `cxc` dispatcher, so agent-driven `cxc orchestrate` commands work on every install:
+Then restart Codex and approve the 24 hooks when prompted (upgrades ask again — content-hash trust). Everything runs from chat, and the terminal surface ships too — the payload includes its own `cxc` dispatcher, so agent-driven `cxc orchestrate` commands work on every install:
 
 - `orchestrate status` — check the PABCD state machine
 - "Interview me first, then draft a diff-level plan."
@@ -88,6 +100,75 @@ alias cxc='node /path/to/codexclaw/bin/codexclaw.mjs'   # or: npm link
 
 </details>
 
+## Development install (dogfooding)
+
+To change codexclaw while running it inside Codex, install your working checkout as a **real
+plugin copy** from a local marketplace rooted at the repo:
+
+```bash
+scripts/dev-install.sh
+```
+
+That is the whole setup. The script points the `codexclaw` marketplace at your checkout itself,
+including when a published git marketplace already holds that name — adding it by hand would fail
+with `marketplace 'codexclaw' is already added from a different source`.
+
+A git-source marketplace pins a commit, so a checkout under active development has to use the
+local source — otherwise Codex keeps loading the pinned snapshot no matter what you edit.
+
+### Why not symlinks
+
+An earlier `scripts/dev-symlink.sh` replaced each child of the plugin cache version directory with a
+symlink into the repo, so edits were live with no reinstall. Codex does not resolve those
+symlinked entries reliably and the plugin can silently fail to load, so that track is retired.
+When `dev-install.sh` finds any symlink left in the plugin cache it clears the whole cache
+directory and reinstalls from scratch.
+
+### What the install actually does
+
+`codex plugin add codexclaw@codexclaw` copies the payload into
+`~/.codex/plugins/cache/codexclaw/codexclaw/<version>/` and **prunes files that no longer exist in
+the source**. A same-version reinstall is therefore a true resync rather than a no-op, which is why
+re-running the script is the whole update loop and the manifest version never needs bumping.
+
+| Command | Effect |
+|---|---|
+| `scripts/dev-install.sh` | build components, repoint the marketplace if it drifted, clear stale symlinks, reinstall, prune old version dirs, run doctor |
+| `scripts/dev-install.sh --no-build` | the same without `npm run build`, for skill, hook or docs-only edits |
+| `scripts/dev-install.sh --status` | report source, manifest version, marketplace root, cache roots and symlink count; change nothing |
+
+### The update loop
+
+Edit -> `scripts/dev-install.sh` -> **open a new Codex thread**. Skills, hooks and MCP tools are read
+when a session starts, so the thread you are in does not pick up the change.
+
+Hook trust is hashed over the hook **declaration** — the event, matcher, command, timeout, async
+flag and status message — not over the files a hook runs. Editing a matcher or command in
+`hooks/*.json` breaks trust and Codex marks that hook **Modified** until you re-approve it, while
+rebuilding the component `dist/` a hook invokes changes many bytes and keeps its trust.
+`cxc doctor`'s `hook-trust` line tells you which case you are in. codexclaw never writes trust
+state itself.
+
+### Verifying the install
+
+```bash
+VER=$(python3 -c "import json;print(json.load(open('plugins/codexclaw/.codex-plugin/plugin.json'))['version'])")
+CACHE=~/.codex/plugins/cache/codexclaw/codexclaw
+
+diff -rq plugins/codexclaw "$CACHE/$VER"   # installed payload matches the checkout
+find "$CACHE" -type l | wc -l              # expect 0 — no symlinks survived
+node "$CACHE/$VER/bin/cxc.mjs" doctor       # expect: overall: PASS
+                                            # FAIL on hook-trust alone = hooks await re-approval
+```
+
+To go back to the published track, remove the local marketplace and re-add the git URL:
+
+```bash
+codex plugin remove codexclaw@codexclaw
+codex plugin marketplace remove codexclaw
+codex plugin marketplace add https://github.com/lidge-jun/codexclaw
+```
+
 ## Architecture
 
 ```
@@ -105,7 +186,7 @@ plugins/codexclaw/
 │   ├── recall/                  past-session + memory store search
 │   └── repo-map/                tree-sitter + PageRank structure map
 │
-├── hooks/                       23 active hooks across the session lifecycle
+├── hooks/                       24 active hooks across the session lifecycle
 │   ├── session-start-*          provider bridge, PABCD bootstrap, map affordance, recall context
 │   ├── user-prompt-submit-*     PABCD trigger detection, recall intent
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
@@ -177,6 +258,8 @@ codexclaw is the reference implementation. The methodology and skills are ported
 
 Plugin documentation: **[lidge-jun.github.io/codexclaw](https://lidge-jun.github.io/codexclaw/)**
 
+Development install and the dogfood loop: **[Dogfood & Dev Install](https://lidge-jun.github.io/codexclaw/development/dogfood-dev-install/)**
+
 Runtime trust boundaries and resource limits: **[docs/security-hardening.md](docs/security-hardening.md)**
 
 Methodology and research provenance: **[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)** — skill architecture, delegation economy, loop contracts, devlog records, and the arXiv-backed claim ledger.
@@ -184,6 +267,17 @@ Methodology and research provenance: **[lidge-jun.github.io/pabcd_initiative](ht
 ## Contributing
 
 Pull requests target the `dev` integration branch; `main` moves by maintainer promotion and carries releases.
+
+CI on a pull request runs the checks a reviewer needs; the slow installation lanes run when a change lands on an integration line.
+
+| Check | Pull request | Push to `dev` / `preview` / `main` |
+|---|---|---|
+| `ci` (aggregate of `test (ubuntu-latest, false)`, `test (macos-latest, false)`, four Windows shards) | yes | yes |
+| `artifact (…)` / `install (…)` packed-install lifecycle | yes | yes |
+| `enforce-target` | yes | — |
+| `wsl (drvfs /mnt/c)`, `wsl (native ext4 ~)` | no (also `workflow_dispatch`) | yes |
+
+`ci` fails when any leg fails, is cancelled or is skipped; it is the one check to require. The ubuntu lane runs the whole suite in one process and is where the tests badge total is measured; the Windows legs run `scripts/test.mjs --shard i/2`.
 
 ## License
 

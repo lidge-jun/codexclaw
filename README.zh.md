@@ -13,9 +13,9 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-2%2C670_passing-brightgreen" alt="2,670 tests passing">
-  <img src="https://img.shields.io/badge/skills-28-blue" alt="28 skills">
-  <img src="https://img.shields.io/badge/hooks-23-blue" alt="23 hooks">
+  <img src="https://img.shields.io/badge/tests-3%2C032_passing-brightgreen" alt="3,032 tests passing">
+  <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
+  <img src="https://img.shields.io/badge/hooks-28-blue" alt="28 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
@@ -39,7 +39,11 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
        └────┴────┴──── I (Interview, context preserved)
 ```
 
-**Multi-Model Subagents** — 基于角色的调度机制（explorer / reviewer / executor），支持按角色覆盖模型和提示词。配置会跨会话持久保存，并通过 spawn-wrapper hook 自动应用。本地 GUI（Vite + React）提供可视化配置；检测到 opencodex 时，还会显示 provider 快捷链接栏。（仪表盘目前需从仓库检出构建，后续版本将随插件打包。）
+**Multi-Model Subagents** — 基于角色的调度机制（explorer / reviewer / executor / architect），支持按角色覆盖模型和提示词。配置会跨会话持久保存，并通过 spawn-wrapper hook 自动应用。本地 GUI（Vite + React）提供可视化配置；检测到 opencodex 时，还会显示 provider 快捷链接栏。（仪表盘目前需从仓库检出构建，后续版本将随插件打包。）
+
+Architect 在每个正式 P 阶段提出设计，并检查主代理的执行计划是否与设计一致。主代理负责执行计划和最终决策，独立 reviewer 负责 A 审核。同一计划复用上下文，仅在已记录的设计决策发生变化时重新检查。这是代理遵循的指导，不是运行时强制检查。参见[规划流程](plugins/codexclaw/skills/pabcd/references/phase-plan.md)。
+
+Architect 使用独立的 `agent_type: "architect"`。首次使用前，显式运行 `cxc subagents register architect`，启动新的 Codex 会话，并确认生成工具的角色列表中出现 architect。它使用 architect 专属配置，不回退到 explorer/reviewer。角色注册与插件安装分开，调度不会自动执行注册。
 
 **Recall** — 在向用户提问前，先从磁盘产物中搜索历史 Codex 对话和 memory store，使上下文在跨会话及压缩后仍可恢复。
 
@@ -56,7 +60,7 @@ codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-然后重启 Codex，并在弹出的审批中批准 22 个 hooks（升级后需再次批准——内容哈希信任模型）。既可以直接在聊天中使用，终端界面也随包提供——payload 自带 `cxc` 调度器，代理的 `cxc orchestrate` 命令在任何安装方式下都能运行：
+然后重启 Codex，并在弹出的审批中批准 24 个 hooks（升级后需再次批准——内容哈希信任模型）。既可以直接在聊天中使用，终端界面也随包提供——payload 自带 `cxc` 调度器，代理的 `cxc orchestrate` 命令在任何安装方式下都能运行：
 
 - `orchestrate status` — 查看 PABCD 状态机
 - "Interview me first, then draft a diff-level plan."
@@ -88,6 +92,72 @@ alias cxc='node /path/to/codexclaw/bin/codexclaw.mjs'   # 或者：npm link
 
 </details>
 
+## 开发安装（dogfooding）
+
+若要一边在 Codex 中运行 codexclaw 一边修改它，请把当前检出以**真实副本**的方式，从以仓库自身为根的
+本地 marketplace 安装：
+
+```bash
+scripts/dev-install.sh
+```
+
+这就是全部配置。脚本会自行把 `codexclaw` marketplace 指向你的检出，即使已发布的 git marketplace
+已占用同一名称也是如此——手动添加会失败并提示
+`marketplace 'codexclaw' is already added from a different source`。
+
+git 源的 marketplace 会锁定某个提交，因此正在开发中的检出必须使用本地源；否则无论你改动什么，
+Codex 都只会加载那个被锁定的快照。
+
+### 为什么不用 symlink
+
+早期的 `scripts/dev-symlink.sh` 会把插件缓存版本目录下的每个子项替换为指向仓库的 symlink，这样无需
+重装即可让改动生效。但 Codex 无法可靠地解析这些 symlink 条目，插件可能悄无声息地加载失败，因此该
+方式已废弃。当 `dev-install.sh` 在插件缓存中发现任何 symlink 时，会清空整个缓存目录并重新安装。
+
+### 安装实际做了什么
+
+`codex plugin add codexclaw@codexclaw` 会把 payload 复制到
+`~/.codex/plugins/cache/codexclaw/codexclaw/<version>/`，并**删除源中已不存在的文件**。因此以相同
+版本重新安装是一次真正的重新同步，而不是空操作；这也是为什么重跑脚本就是完整的更新循环，无需提升
+manifest 版本号。
+
+| 命令 | 作用 |
+|---|---|
+| `scripts/dev-install.sh` | 构建组件、必要时重新指向 marketplace、清除残留 symlink、重新安装、清理旧版本目录、运行 doctor |
+| `scripts/dev-install.sh --no-build` | 同上但跳过 `npm run build`，适用于仅修改 skills、hooks 或文档 |
+| `scripts/dev-install.sh --status` | 报告源、manifest 版本、marketplace 根、缓存根与 symlink 数量，不做任何改动 |
+
+### 更新循环
+
+修改 -> `scripts/dev-install.sh` -> **打开新的 Codex 线程**。skills、hooks 与 MCP 工具在会话启动时读取，
+因此当前线程不会拾取这些改动。
+
+hook 信任的哈希覆盖的是 hook **声明**——事件、matcher、command、timeout、async 与状态消息——而不是
+hook 所运行的文件。因此修改 `hooks/*.json` 中的 matcher 或 command 会破坏信任，Codex 将其标记为
+**Modified**，在你重新批准之前该 hook 不会运行；而重新构建 hook 所调用的组件 `dist/` 即便改动大量
+字节，信任依然保持。`cxc doctor` 的 `hook-trust` 一行会告诉你属于哪种情况。codexclaw 从不自行
+写入信任状态。
+
+### 验证安装
+
+```bash
+VER=$(python3 -c "import json;print(json.load(open('plugins/codexclaw/.codex-plugin/plugin.json'))['version'])")
+CACHE=~/.codex/plugins/cache/codexclaw/codexclaw
+
+diff -rq plugins/codexclaw "$CACHE/$VER"   # 安装的 payload 与检出一致
+find "$CACHE" -type l | wc -l              # 预期为 0 —— 没有 symlink 残留
+node "$CACHE/$VER/bin/cxc.mjs" doctor       # 预期：overall: PASS
+                                            # 仅 hook-trust 为 FAIL 表示 hooks 待重新批准
+```
+
+若要回到发布轨道，移除本地 marketplace 并重新添加 git URL：
+
+```bash
+codex plugin remove codexclaw@codexclaw
+codex plugin marketplace remove codexclaw
+codex plugin marketplace add https://github.com/lidge-jun/codexclaw
+```
+
 ## 架构
 
 ```
@@ -105,7 +175,7 @@ plugins/codexclaw/
 │   ├── recall/                  past-session + memory store search
 │   └── repo-map/                tree-sitter + PageRank structure map
 │
-├── hooks/                       23 active hooks across the session lifecycle
+├── hooks/                       24 active hooks across the session lifecycle
 │   ├── session-start-*          provider bridge, PABCD bootstrap, map affordance, recall context
 │   ├── user-prompt-submit-*     PABCD trigger detection, recall intent
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
@@ -176,6 +246,8 @@ codexclaw 是参考实现。其方法论和 skills 已移植到以下项目中�
 ## 文档
 
 插件文档：**[lidge-jun.github.io/codexclaw](https://lidge-jun.github.io/codexclaw/)**
+
+开发安装与 dogfooding 循环：**[Dogfood & Dev Install](https://lidge-jun.github.io/codexclaw/development/dogfood-dev-install/)**
 
 方法论与研究来源见 **[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)**，涵盖 skill 架构、委派经济性、循环契约、devlog 记录，以及由 arXiv 论文支持的主张账本。
 

@@ -63,6 +63,10 @@
       "name": "cxc-dev-uiux-design"
     },
     {
+      "folder": "dev-visualizer",
+      "name": "cxc-dev-visualizer"
+    },
+    {
       "folder": "goalplan",
       "name": "cxc-goalplan"
     },
@@ -181,15 +185,33 @@
       "matcher": "^Bash$"
     },
     {
+      "file": "pre-tool-use-guarding-memory-write.json",
+      "event": "PreToolUse",
+      "component": "pabcd-state",
+      "matcher": "^(memories[._]?add_ad_hoc_note|apply_patch|Write|Edit|Bash)$"
+    },
+    {
       "file": "pre-tool-use-linting-apply-patch.json",
       "event": "PreToolUse",
       "component": "pabcd-state",
       "matcher": "^(apply_patch|Write|Edit)$"
     },
     {
+      "file": "session-start-adopting-background-completions.json",
+      "event": "SessionStart",
+      "component": "bg-wake",
+      "matcher": null
+    },
+    {
       "file": "session-start-announcing-map-affordance.json",
       "event": "SessionStart",
       "component": "cxc-ops",
+      "matcher": null
+    },
+    {
+      "file": "session-start-announcing-subagent-fallback.json",
+      "event": "SessionStart",
+      "component": "subagent-config",
       "matcher": null
     },
     {
@@ -229,6 +251,12 @@
       "matcher": null
     },
     {
+      "file": "stop-waking-on-background-completion.json",
+      "event": "Stop",
+      "component": "bg-wake",
+      "matcher": null
+    },
+    {
       "file": "subagent-stop-observing-review.json",
       "event": "SubagentStop",
       "component": "pabcd-state",
@@ -238,12 +266,18 @@
       "file": "subagent-stop-verifying-evidence.json",
       "event": "SubagentStop",
       "component": "pabcd-state",
-      "matcher": "^worker$"
+      "matcher": "^(executor|worker)$"
     },
     {
       "file": "user-prompt-submit-checking-pabcd-trigger.json",
       "event": "UserPromptSubmit",
       "component": "pabcd-state",
+      "matcher": null
+    },
+    {
+      "file": "user-prompt-submit-delivering-background-completions.json",
+      "event": "UserPromptSubmit",
+      "component": "bg-wake",
       "matcher": null
     },
     {
@@ -260,6 +294,12 @@
     }
   ],
   "components": [
+    {
+      "folder": "bg-wake",
+      "packageName": "@codexclaw/bg-wake",
+      "version": "0.2.24",
+      "hasTests": true
+    },
     {
       "folder": "config-guard",
       "packageName": "@codexclaw/config-guard",

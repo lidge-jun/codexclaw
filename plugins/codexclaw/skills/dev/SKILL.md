@@ -18,6 +18,11 @@ User instructions and the actual host's safety/tool contracts take precedence ov
 **Classify every task before choosing process depth** (DEV-CLASS-01). The class selects how much
 planning, reading, and verification the task deserves — never apply maximum process by default.
 
+Classification is provisional. Before broad investigation, decide discovery
+ownership using [Discovery delegation](#discovery-delegation), including for
+read-only work. Revisit that decision when the scope grows; an initial small-task
+label does not justify retaining independent source areas in main.
+
 | Class | Name | Signals | Default Process |
 |-------|------|---------|-----------------|
 | C0 | Trivial Text | Typo, comment, copy, log string — zero behavior change | Direct fix + smallest proof (§0.1) |
@@ -148,7 +153,7 @@ numbered, contiguous, non-overlapping chunks through EOF and verify no gaps.
 | DevOps / deploy / infra | `dev-devops` | `dev-security` for credentials |
 | Scaffolding / docs / setup | `dev-scaffolding` | `dev-architecture` for boundaries |
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
-| Diagrams / charts / visual documents / reports / PDF composition | `dev-diagram-viewer` | Available document-format owner for PDF/DOCX/Slides mechanics; `dev-frontend` and `dev-uiux-design` retain implementation/design ownership |
+| Diagrams / charts / visual documents / reports / PDF composition | `dev-visualizer` | Available document-format owner for PDF/DOCX/Slides mechanics; `dev-frontend` and `dev-uiux-design` retain implementation/design ownership |
 
 ### Subagent Skill Injection (DEV-SKILL-INJECT-01)
 Attach `cxc-dev` and every relevant surface skill explicitly to governed subagents.
@@ -158,6 +163,39 @@ Attach `cxc-search` for search tasks; the same search policy binds delegated age
 
 Surface-to-owner mappings live in `references/skill-ownership.md`; router trigger
 metadata remains canonical in each skill's `agents/openai.yaml`.
+
+### Discovery delegation
+
+For authorized investigation, decide who owns discovery before loading a broad
+set of source files or logs. Read-only feature assessment, debugging and source
+comparison can use explorer without implementation or a full PABCD cycle.
+
+Begin with the smallest orientation needed to name a concrete question and its
+read scope. When that question is independently answerable and main can progress
+on another part, delegate it to explorer before reading its full source locally.
+State the child's question and main's separate work. Use the configured role and
+supported dispatch protocol; no-delegation and host restrictions take priority.
+
+Keep a narrow lookup local when its result immediately determines the next step,
+or when the work cannot be separated without duplicating the investigation.
+Before retaining substantial discovery locally, state that concrete reason.
+Read-only scope, file count alone, or parallel shell calls are not sufficient
+reasons. Do not seek approval for already authorized routine delegation.
+
+Revisit the split when the investigation reaches another independent subsystem,
+requires broad rereading, or produces truncated output. Reclassify when scope
+changes. If delegation is unavailable, record the observed limitation and continue
+with bounded local reads.
+
+Use a bounded [discovery packet](../pabcd/references/delegation.md#discovery-packet)
+with findings, source anchors and uncertainties, not full file dumps. Main checks
+only the spans needed to settle a cited claim, not every returned file by default.
+If a broader read is necessary, name the evidence gap and reassign that question
+before expanding; do not repeat a delegated investigation as routine verification.
+Discovery does not replace implementation delegation or independent review.
+Confirm actual model routing from runtime evidence when reporting identity or cost.
+When comparing cost, use main plus child served-model input/cache/output prices and
+applicable tiers; token totals alone cannot compare differently priced models.
 
 ### Capability Routing Hub
 
@@ -212,6 +250,11 @@ wording (no Codex hook enforces skill text — `structure/00_philosophy.md` §1)
   rationale. Ship no placeholders, TODO-only deliverables, fake fallbacks, speculative wrapper
   layers, or broad defensive clutter without a named boundary reason. Code-smell catalog lives
   in §6 + `dev-code-reviewer` §3; this rule is about not emitting slop in the first place.
+  Prose and document deliverables have their own reflexes (DEFAULT): em dashes and
+  connector openers in Korean text, bold-label bullets and rule-of-three lists where
+  a sentence would do, and stat cards, tinted callouts and box-and-arrow figures in a
+  printed page. `kwrite` owns the Korean sentence tells; `dev-visualizer`
+  REPORT-DESIGN-01 owns the page-design tells.
 - **Reader deliverables (FAMILY-READER-01).** A report, explainer, visual document or summary
   written for a person follows [Reader documents](references/reader-documents.md): answer
   first, evidence separated and anchored, fresh-reader check for delivered reports. Audit
@@ -330,6 +373,7 @@ still governs its named log. Do not create an unrelated record to satisfy this s
 - **Confirm before destructive operations (ESCALATE)** — deleting files, dropping tables, resetting state, or clearing caches require explicit user approval.
 - **Commit incrementally (DEV-GIT-COMMIT-01, DEFAULT)** — commit working progress as you go during implementation. Each logically complete step (passing test, wired feature, fixed bug) gets its own commit so that progress is checkpointed on disk and recoverable after compaction or failure. Do not accumulate an entire feature as uncommitted changes.
 - **Push requires explicit user approval (DEV-GIT-PUSH-01, ESCALATE)** — never `git push` without the user's explicit approval in the current session. Committing locally is autonomous; pushing to a remote is an external state change that the user must authorize. If the user has not approved a push, do not push — even at D/completion. This applies equally to force-push, branch creation on remote, and tag push.
+- **Keep client and personal data out of the repository (DEV-PRIVACY-01, STRICT)** — devlog evidence, fixtures and skill sample assets never carry raw client material or personal data: message transcripts, copies of a client's documents or figures, named private conversations, credentials. Such evidence stays in the task's workspace outside the checkout; the devlog keeps the file name, date and a summary. Before the first push of a branch, the task lists the identifiers that would betray the client or person (company, product, people, distinctive numbers) and greps the push range for them (DEFAULT self-check; the list is the task's, the rule does not fix one). A hit is fixed by rewriting the unpushed commits, not by a follow-up commit, because a public remote keeps history.
 - **Stack dependent work instead of one oversized PR (DEV-STACK-01, DEFAULT)** — when a change splits into 2+ dependency-ordered parts and one PR would be too large to review, publish a bottom-up stack: each branch based on the one below, each PR's base pointing at its parent. Editing a lower layer means cascading the rebase to every layer above before pushing (`DEV-STACK-02`, STRICT). Merging a stack is bottom-up and stays user-authorized (`DEV-STACK-04`, ESCALATE). Canonical rules, depth guidance, anti-patterns, review scope, and tooling: `references/stacked-prs.md`.
 
 ---

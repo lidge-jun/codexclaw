@@ -1,0 +1,5 @@
+interface:
+  display_name: "cxc-dev-visualizer"
+  short_description: "Visual documents, SVG/HTML explainers and PDF delivery."
+policy:
+  allow_implicit_invocation: false

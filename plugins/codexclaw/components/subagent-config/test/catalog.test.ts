@@ -69,9 +69,10 @@ test("ocx error mode -> native-catalog (not ocx-active)", () => {
   assert.equal(cat.state, "native-catalog");
 });
 
-test("native cache absent -> documented fallback set", () => {
+test("native cache absent -> unavailable, no fabricated models", () => {
   const cat = buildCatalog({ readNativeCache: () => null });
-  assert.deepEqual(cat.entries.map((e) => e.id), [...NATIVE_OPENAI_MODELS]);
+  assert.deepEqual(cat.entries, []);
+  assert.equal(cat.state, "unavailable");
 });
 
 test("readNativeCacheDefault: allowlists cache ids, ignores unknowns; missing path -> null", () => {
@@ -83,38 +84,36 @@ test("readNativeCacheDefault: allowlists cache ids, ignores unknowns; missing pa
   const p = join(dir, "models.json");
   writeFileSync(p, JSON.stringify({ models: [{ id: "gpt-5.5" }, { id: "rogue-model" }, "gpt-5.4"] }));
   const ids = readNativeCacheDefault({ CODEX_MODELS_CACHE_PATH: p } as NodeJS.ProcessEnv);
-  assert.deepEqual(ids, ["gpt-5.5", "gpt-5.4"]); // rogue-model filtered by allowlist
+  assert.deepEqual(ids, ["gpt-5.5", "rogue-model", "gpt-5.4"]);
 });
 
-test("L9.2/L20: readNativeCacheDefault reads slugs; natives by allowlist, routed ocx slugs admitted", () => {
+test("L9.2/L20: readNativeCacheDefault reads all configured native and routed slugs", () => {
   const dir = mkdtempSync(join(tmpdir(), "cxc-cat-slug-"));
   const p = join(dir, "models.json");
   // Live Codex catalog keys natives by slug, not id (opencodex codex-catalog.ts:152,183).
-  // L20/WP4: opencodex syncs its routed `provider/model` slugs INTO this codex config
-  // cache, and codexclaw reads them from here (it never calls ocx directly). So routed
-  // slugs (containing "/") are admitted; a non-native BARE id is still filtered.
+  // Configured native and routed IDs are authoritative; no compiled allowlist.
   writeFileSync(
     p,
     JSON.stringify({
       models: [
         { slug: "gpt-5.5", base_instructions: "x" },
         { slug: "gpt-5.4-mini" },
-        { slug: "gpt-5.3-codex" }, // legacy/internal native bare id -> filtered by allowlist
+        { slug: "gpt-5.3-codex" }, // configured bare ID retained
         { slug: "openrouter/grok-4" }, // routed ocx-synced slug -> admitted (L20)
         { slug: "kiro/claude-opus-4.6" }, // routed ocx-synced slug -> admitted (L20)
       ],
     }),
   );
   const ids = readNativeCacheDefault({ CODEX_MODELS_CACHE_PATH: p } as NodeJS.ProcessEnv);
-  assert.deepEqual(ids, ["gpt-5.5", "gpt-5.4-mini", "openrouter/grok-4", "kiro/claude-opus-4.6"]);
+  assert.deepEqual(ids, ["gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex", "openrouter/grok-4", "kiro/claude-opus-4.6"]);
 });
 
-test("L20/WP4: a non-native BARE id is still filtered even with routed slugs present", () => {
+test("L20/WP4: arbitrary bare IDs are retained alongside routed slugs", () => {
   const dir = mkdtempSync(join(tmpdir(), "cxc-cat-mix-"));
   const p = join(dir, "models.json");
   writeFileSync(p, JSON.stringify({ models: [{ id: "gpt-5.5" }, { id: "rogue-model" }, { slug: "kiro/claude" }] }));
   const ids = readNativeCacheDefault({ CODEX_MODELS_CACHE_PATH: p } as NodeJS.ProcessEnv);
-  assert.deepEqual(ids, ["gpt-5.5", "kiro/claude"]); // rogue-model (bare, non-native) dropped; routed slug kept
+  assert.deepEqual(ids, ["gpt-5.5", "rogue-model", "kiro/claude"]);
 });
 
 test("L20/WP4: buildCatalog labels cache-sourced routed slugs as ocx, native bare ids as native", () => {
@@ -153,7 +152,7 @@ test("WP30: CODEX_HOME resolution — cache at $CODEX_HOME/models_cache.json loa
     JSON.stringify({ models: [{ slug: "gpt-5.5" }, { slug: "anthropic/claude-sonnet-5" }, { slug: "rogue" }] }),
   );
   const ids = readNativeCacheDefault({ CODEX_HOME: home } as NodeJS.ProcessEnv);
-  assert.deepEqual(ids, ["gpt-5.5", "anthropic/claude-sonnet-5"]); // rogue filtered, routed slug admitted
+  assert.deepEqual(ids, ["gpt-5.5", "anthropic/claude-sonnet-5", "rogue"]);
 });
 
 test("WP30: explicit CODEX_MODELS_CACHE_PATH still wins over CODEX_HOME", () => {

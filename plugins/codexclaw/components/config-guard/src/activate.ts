@@ -12,6 +12,8 @@ import {
   type CodexRunner,
   type DeclaredFeature,
 } from "./features.ts";
+import { autoEnabledManagedKeys, managedKeyId } from "./managed-keys.ts";
+import { readTableKey, setTableKey } from "./toml-edit.ts";
 
 export const INSTALL_MANIFEST = ".codexclaw-install.json";
 
@@ -146,6 +148,20 @@ function hashOrNull(path: string): string | null {
 }
 
 /**
+ * The manifest from an earlier activation, or null when there is none / it is malformed.
+ * Used only to carry a managed key's ORIGINAL `priorValue` across a re-run.
+ */
+function readPriorManifest(codexHome: string): InstallManifest | null {
+  const path = manifestPath(codexHome);
+  try {
+    if (!existsSync(path)) return null;
+    return parseInstallManifest(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * PURE (260709 dev2 switch, audit blocker 3): `codex features enable multi_agent_v2`
  * rewrites the flag as a SCALAR (`multi_agent_v2 = true` under `[features]`),
  * REPLACING an existing `[features.multi_agent_v2]` table and silently dropping
@@ -192,10 +208,18 @@ export function activate(deps: ActivateDeps): InstallManifest {
 
   // Back up config.toml before any change (timestamped; codexclaw's own safeguard).
   let backupPath: string | null = null;
+  // The file exactly as it was before codexclaw touched anything. Managed-key prior
+  // values are read from HERE, not from the post-`features enable` file, so what the
+  // manifest promises to restore is the user's pre-install state.
+  const preInstallConfig = existsSync(configPath) ? readFileSync(configPath, "utf8") : "";
   if (existsSync(configPath)) {
     backupPath = `${configPath}.codexclaw-${now().replace(/[:.]/g, "-")}.bak`;
     copyFileSync(configPath, backupPath);
   }
+
+  // A re-run of `cxc enable` must not record OUR value as the prior one. Same guard as
+  // config-set.ts:139-141: the first recording of a key wins forever.
+  const priorManifest = readPriorManifest(codexHome);
 
   const flags: Record<string, FlagRecord> = {};
   for (const key of DECLARED_FEATURES) {
@@ -227,6 +251,42 @@ export function activate(deps: ActivateDeps): InstallManifest {
     }
   }
 
+  // --- Auto-enabled managed keys, AFTER the feature pass.
+  //
+  // `codex features enable` rewrites config.toml from its own fresh read, so writing our
+  // key first would race that rewrite. deactivate.ts:14-18 records the mirror-image
+  // ordering for the same reason.
+  //
+  // Only entries that opted in (managed-keys.ts autoEnable) are written; the list itself
+  // is not a licence. Every write is recorded in `tableKeys` with the value from BEFORE
+  // this install, which is what makes deactivate's existing per-key revert exact.
+  const tableKeys: Record<string, TableKeyRecord> = {};
+  for (const entry of autoEnabledManagedKeys()) {
+    const id = managedKeyId(entry);
+    // null = the key did not exist -> deactivate removes the line. "true" = the user had
+    // already turned it on -> deactivate leaves their true in place. The distinction only
+    // survives if it is read from the pre-install content.
+    const priorValue = readTableKey(preInstallConfig, entry.table, entry.key);
+    const carried = priorManifest?.tableKeys?.[id];
+    const content = existsSync(configPath) ? readFileSync(configPath, "utf8") : "";
+    const res = setTableKey(content, entry.table, entry.key, true);
+    if (res.action === "unsupported-value") {
+      // The key holds a value form toml-edit refuses to rewrite. Leave it to its owner
+      // and record nothing: an unrecorded key is one deactivate will not touch either.
+      continue;
+    }
+    if (res.changed) writeFileSync(configPath, res.content, "utf8");
+    tableKeys[id] = {
+      table: entry.table,
+      key: entry.key,
+      priorValue: carried ? carried.priorValue : priorValue,
+      appliedValue: "true",
+      // False when the key already read true: we changed nothing, so we own nothing and
+      // deactivate must not revert it (decideKeyRestore skips !setByCodexclaw).
+      setByCodexclaw: carried ? carried.setByCodexclaw || res.changed : res.changed,
+    };
+  }
+
   const manifest: InstallManifest = {
     version: 2,
     activatedAt: now(),
@@ -234,9 +294,7 @@ export function activate(deps: ActivateDeps): InstallManifest {
     backupPath,
     postActivateHash: hashOrNull(configPath),
     flags,
-    // Installation never writes a managed key: every CONFIG_MANAGED_KEYS entry is
-    // autoEnable:false, so this starts empty and only `cxc config set` adds to it.
-    tableKeys: {},
+    tableKeys,
   };
   writeFileSync(manifestPath(codexHome), `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   return manifest;

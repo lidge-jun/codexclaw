@@ -25,13 +25,14 @@ interface DashboardState {
   statuses: AgentStatus[];
 }
 
-const SUBAGENT_ROLES = ["explorer", "reviewer", "executor"] as const;
+const SUBAGENT_ROLES = ["explorer", "reviewer", "executor", "architect"] as const;
 type SubagentRole = (typeof SUBAGENT_ROLES)[number];
 
 const ROLE_META: Record<SubagentRole, { label: string; desc: string }> = {
   explorer: { label: "Explorer", desc: "Discovery and context gathering" },
   reviewer: { label: "Reviewer", desc: "Audit, review, and verification" },
   executor: { label: "Executor", desc: "Focused implementation work" },
+  architect: { label: "Architect", desc: "Design proposals and plan alignment checks." },
 };
 
 function statusDot(status: string): "ok" | "warn" | "off" | "err" {
@@ -132,10 +133,13 @@ export function DashboardPage() {
     toast(`Fallback models use ${version.toUpperCase()} for new sessions`, "ok");
   };
 
-  const setRoleModel = async (role: SubagentRole, model: string | null) => {
-    if (!config || savingRole) return;
+  const setRoleModel = async (role: SubagentRole, model: string | null, inherit = false) => {
+    if (!config || savingRole || config.trustWarning) return;
+    if (!inherit && model && config.roles[role].effort && !(catalog.find(entry => entry.id === model)?.reasoningEfforts ?? []).includes(config.roles[role].effort!)) {
+      toast("Select session effort in Subagents before choosing this model.", "err"); return;
+    }
     setSavingRole(role);
-    const result = await setSubagentRole(role, { mode: model ? "model" : "default", model }, config);
+    const result = await setSubagentRole(role, inherit ? { inherit: true } : { mode: model ? "model" : "default", model }, config);
     setSavingRole(null);
     if (!result.ok) {
       toast(result.error ?? `${role} model update failed`, "err");
@@ -266,7 +270,7 @@ function DashboardControls({
   savingSurface: boolean;
   savingRole: SubagentRole | null;
   onVersionChange: (version: MultiAgentVersion) => void;
-  onRoleModelChange: (role: SubagentRole, model: string | null) => void;
+  onRoleModelChange: (role: SubagentRole, model: string | null, inherit?: boolean) => void;
 }) {
   const version = surface?.version ?? "v1";
   const controlsReady = config !== null;
@@ -303,6 +307,7 @@ function DashboardControls({
           title="Subagent models"
           desc="Applies to spawns on both V1 and V2 surfaces when the caller does not pick a model; not applied on full-history forks."
         >
+          {config?.trustWarning ? <p role="alert">Project overrides are ignored until trusted. Open Subagents to review or reset them.</p> : null}
           {!controlsReady ? (
             <Loading label="Loading subagent models..." />
           ) : (
@@ -315,8 +320,10 @@ function DashboardControls({
                   </div>
                   <div className="subagent-model-control">
                     <ModelSelect
+                      inherited={config.overrides?.[role] === false}
+                      onInherit={() => onRoleModelChange(role, null, true)}
                       value={config.roles[role].mode === "model" ? config.roles[role].model : null}
-                      disabled={savingRole !== null}
+                      disabled={savingRole !== null || !!config.trustWarning}
                       entries={catalog}
                       onChange={(model) => onRoleModelChange(role, model)}
                     />

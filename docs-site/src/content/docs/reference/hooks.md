@@ -1,9 +1,9 @@
 ---
 title: Hooks
-description: codexclaw's 23 hook files and 24 event handlers — events, matchers, and commands.
+description: codexclaw's 28 hook files and 29 event handlers — events, matchers, and commands.
 ---
 
-codexclaw registers 23 hook files with 24 event handlers in its plugin manifest.
+codexclaw registers 28 hook files with 29 event handlers in its plugin manifest.
 The compact-affordance file handles both PostCompact and UserPromptSubmit. Each handler runs a compiled component CLI
 under `node`. All commands resolve `${PLUGIN_ROOT}` to the installed plugin directory.
 The removed hook JSON files live under `hooks/_deprecated/` from the 2026-07-05 hook diet.
@@ -33,6 +33,7 @@ and is also unaffected.
 | `subagent-stop-verifying-evidence.json` | `SubagentStop` | `^worker$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook subagent-stop` | `(codexclaw) Verifying subagent evidence` | 10 s |
 | `subagent-stop-observing-review.json` | `SubagentStop` | `.*` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook subagent-stop-review` | `(codexclaw) Recording review verdict` | 10 s |
 | `pre-tool-use-attaching-skills.json` | `PreToolUse` | `^(collaboration[._]?)?spawn_agent$` | `node "${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js" hook pre-tool-use` | `(codexclaw) Attaching skills to spawn` | 10 s |
+| `session-start-announcing-subagent-fallback.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/subagent-config/dist/fallback-dispatch-cli.js" hook session-start` | `(codexclaw) Loading subagent fallback protocol` | 10 s |
 | `post-compact-resetting-reinject-cursor.json` | `PostCompact` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-compact` | `(codexclaw) Recovering PABCD state after compaction` | 10 s |
 | `pre-tool-use-linting-apply-patch.json` | `PreToolUse` | `^(apply_patch\|Write\|Edit)$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-edit` | `(codexclaw) Checking structured edit` | 10 s |
 | `post-tool-use-tracking-render-observations.json` | `PostToolUse` | `^(view_image\|browser:control-in-app-browser\|chrome:control-chrome\|computer-use:computer-use\|apply_patch)$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-render-observation` | `(codexclaw) Tracking render observation` | 10 s |
@@ -44,6 +45,10 @@ and is also unaffected.
 | `session-start-detecting-managed-worktree.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | `(codexclaw) Checking managed-worktree identity` | 10 s |
 | `user-prompt-submit-guiding-worktree-rename.json` | `UserPromptSubmit` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | `(codexclaw) Checking worktree rename intent` | 10 s |
 | `pre-tool-use-guarding-managed-worktree-deletion.json` | `PreToolUse` | `^Bash$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard-pretool` | `(codexclaw) Guarding managed worktree` | 10 s |
+| `pre-tool-use-guarding-memory-write.json` | `PreToolUse` | `^(memories[._]?add_ad_hoc_note\|apply_patch\|Write\|Edit\|Bash)$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-memory-write` | `(codexclaw) Guarding memory write` | 10 s |
+| `stop-waking-on-background-completion.json` | `Stop` | — | `node "${PLUGIN_ROOT}/components/bg-wake/dist/cli.js" hook stop` | `(codexclaw) Checking background task completions` | 10 s |
+| `user-prompt-submit-delivering-background-completions.json` | `UserPromptSubmit` | — | `node "${PLUGIN_ROOT}/components/bg-wake/dist/cli.js" hook user-prompt-submit` | `(codexclaw) Delivering background completions` | 10 s |
+| `session-start-adopting-background-completions.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/bg-wake/dist/cli.js" hook session-start` | `(codexclaw) Adopting background completions` | 10 s |
 
 ## What each hook does
 
@@ -55,7 +60,12 @@ and is also unaffected.
 - **map-affordance / session-start** — announces `cxc map` availability through the `cxc-ops`
   CLI at session start.
 - **recall-context / session-start** — injects recent past-session and memory context at
-  session start.
+  session start, scoped to the current working directory. Sessions are listed from
+  the sidecar index by `cwd`, each shown by its opening user message plus a
+  rollout-summary line when one exists. The block is labelled with the date of the
+  newest session and wrapped as untrusted data. When `source` is `compact` the
+  block is capped to fewer sessions and this hook also carries the post-compaction
+  recovery directive, since `PostCompact` itself cannot.
 
 ### Prompt & orchestration
 
@@ -77,6 +87,13 @@ and is also unaffected.
   mentions already present in spawn messages; it never adds omitted role or surface skills.
 - **edit-lint / pre-tool-use (`apply_patch|Write|Edit`)** — lints structured edits before they
   apply.
+- **memory-write / pre-tool-use (`memories[._]?add_ad_hoc_note|apply_patch|Write|Edit|Bash`)** —
+  denies an unauthorized write into the Codex memories directory. The shell leg classifies by
+  write destination (`>`, `>>`, `>|`, `tee`, `sed -i`, `cp`/`mv` target, `perl -i`/`ruby -i`),
+  not by a memories path string in the command body, so `sed -n` reads, `2>/dev/null` stderr
+  redirects, and heredoc bodies that mention the memories path are allowed. Fail-open on crash.
+  Early warning, not enforcement: subshells, variable expansions, and `python -c` writers are
+  residual bypasses.
 
 ### Post-tool capture
 
@@ -96,9 +113,13 @@ and is also unaffected.
   the parent. Read-only lanes should dispatch as `explorer`, which is never gated.
 - **reinject-cursor / post-compact** — recovers PABCD state and re-injection cursor after context
   compaction.
-- **recall-context / post-compact** — invokes the recall recovery handler. On hosts
-  accepting only universal PostCompact output, event-specific context is not proof
-  that the model received the recall text.
+- **recall-context / post-compact** — registered but intentionally silent: it emits
+  no output and has no side effects. The PostCompact output wire accepts only the
+  universal fields, so an event-specific envelope is rejected and the run is
+  recorded as failed. The recovery text is delivered by the SessionStart handler,
+  which the runtime re-fires with `source` `compact` after a compaction.
+  The table's `statusMessage` is the registration string from the hook JSON; the
+  handler's stdout is the empty string.
 - **bg-terminal-affordance / post-compact** — queues a workspace/session-scoped
   recovery marker and emits no event-specific context. PostCompact cannot carry
   this guidance directly on hosts accepting only universal output fields.

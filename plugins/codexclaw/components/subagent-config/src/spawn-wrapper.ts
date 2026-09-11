@@ -6,8 +6,10 @@
  * L9 gap where the resolver existed but nothing consumed it at spawn time.
  *
  * Contract (omo B-opt2 parity, agents/README.md):
- *  - role -> built-in agent_type (explorer/reviewer -> "explorer", executor -> "worker");
- *    the wrapper NEVER invents a role name (codex plugins can't register roles).
+ *  - role -> native agent_type: architect -> "architect" (explicit registration required),
+ *    explorer/reviewer -> "explorer", executor -> "worker". Architect never aliases another role.
+ *    executor resolves to its registered native "executor" type when $CODEX_HOME/agents/executor.toml
+ *    exists (cxc subagents register executor); unregistered installs keep built-in worker.
  *  - the role prompt is injected INLINE in the message ("TASK: ..."), since plugin
  *    install dirs are not a config layer.
  *  - model selection is not emitted by the v2 builder. The durable per-role model in
@@ -16,14 +18,16 @@
  *
  * Zero third-party deps (node:* only) so the build's type-strip stays sound.
  */
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, isAbsolute, resolve as resolvePath } from "node:path";
 import { resolveSpawnConfig, type RoleName, type SpawnResolution } from "./store.ts";
 
-/** Built-in codex agent_type each canonical role maps to (core/src/agent/role.rs). */
-export const ROLE_AGENT_TYPE: Record<RoleName, "explorer" | "worker"> = {
+/** Native agent_type for each role; architect requires explicit registration and a fresh host schema. */
+export const ROLE_AGENT_TYPE: Record<RoleName, "explorer" | "worker" | "architect" | "executor"> = {
   explorer: "explorer",
   reviewer: "explorer",
+  architect: "architect",
   executor: "worker",
 };
 
@@ -81,6 +85,7 @@ export const ROLE_BASE_SKILLS: Record<RoleName, string[]> = {
   explorer: ["dev"],
   reviewer: ["dev", "dev-code-reviewer", "search"],
   executor: ["dev"],
+  architect: ["dev", "dev-architecture"],
 };
 
 /** A `skill` spawn item: codex-rs UserInput::Skill { name, path }. */
@@ -253,7 +258,7 @@ export function buildSpawnItems(input: {
     const hint = pathHintItem(buildPathHints(input.cwd, input.task ?? ""));
     if (hint) items.push(hint);
   }
-  items.push({ type: "text", text: `TASK: ${(input.task ?? "").trim()}` });
+  items.push({ type: "text", text: `CXC-ROLE: ${input.role}\n\nTASK: ${(input.task ?? "").trim()}` });
   return items;
 }
 
@@ -335,7 +340,7 @@ export function taskNameForRole(role: RoleName, task: string): string {
  * full-history fork. `fork_turns: "none"` here keeps that injection legal on V2.
  */
 export interface SpawnPayload {
-  agent_type: "explorer" | "worker";
+  agent_type: "explorer" | "worker" | "architect" | "executor";
   message: string;
   /** v2 spawn schema: required task name, `[a-z0-9_]+`. Present when V2 is active. */
   task_name?: string;
@@ -365,6 +370,8 @@ export interface BuildSpawnPayloadInput {
   resolution: SpawnResolution;
   /** developer_instructions from the role TOML (used unless promptOverride replaces it). */
   developerInstructions: string;
+  /** Registration availability is supplied by the host-facing resolver. */
+  executorRegistered?: boolean;
 }
 
 /**
@@ -374,13 +381,13 @@ export interface BuildSpawnPayloadInput {
  */
 export function buildSpawnPayload(input: BuildSpawnPayloadInput): SpawnPayload {
   const { role, task, resolution, developerInstructions } = input;
-  const agent_type = ROLE_AGENT_TYPE[role];
+  const agent_type = role === "executor" && input.executorRegistered ? "executor" : ROLE_AGENT_TYPE[role];
   const rolePrompt = (resolution.promptOverride ?? developerInstructions ?? "").trim();
   const taskText = (task ?? "").trim();
-  const message = rolePrompt.length > 0 ? `${rolePrompt}\n\nTASK: ${taskText}` : `TASK: ${taskText}`;
+  const body = rolePrompt.length > 0 ? `${rolePrompt}\n\nTASK: ${taskText}` : `TASK: ${taskText}`;
   const payload: SpawnPayload = {
     agent_type,
-    message,
+    message: `CXC-ROLE: ${role}\n\n${body}`,
     task_name: taskNameForRole(role, taskText),
     fork_turns: "none",
   };
@@ -391,10 +398,13 @@ export function buildSpawnPayload(input: BuildSpawnPayloadInput): SpawnPayload {
  * Production entry point: resolve the role config from `.codexclaw/subagents.json`,
  * read the role TOML developer_instructions, and build the spawn payload. Never throws.
  */
-export function resolveSpawnPayload(cwd: string, role: RoleName, task: string, agentsDir: string): SpawnPayload {
-  const resolution = resolveSpawnConfig(cwd, role);
+export function resolveSpawnPayload(cwd: string, role: RoleName, task: string, agentsDir: string, env: NodeJS.ProcessEnv = process.env): SpawnPayload {
+  const resolution = resolveSpawnConfig(cwd, role, env);
   const { developerInstructions } = readRoleToml(agentsDir, role);
-  return buildSpawnPayload({ role, task, resolution, developerInstructions });
+  let executorRegistered = false;
+  try { executorRegistered = statSync(join(env.CODEX_HOME || join(homedir(), ".codex"), "agents", "executor.toml")).isFile(); }
+  catch { /* Missing or inaccessible registration retains the built-in worker. */ }
+  return buildSpawnPayload({ role, task, resolution, developerInstructions, executorRegistered });
 }
 
 /**
@@ -426,10 +436,11 @@ export function resolveSpawnPayloadWithSkills(input: {
 
 /**
  * lazygap_impl 020 — role x intent dispatch map. Specialization travels as a skill
- * attachment to one of the three base roles, never as a new role (the locked steering
- * principle). An intent names WHAT the dispatch is for; the map picks the role.
+ * attachment to the configured base roles. An intent names WHAT the dispatch is
+ * for; the map picks the logical role; architect dispatch requires its registered native type.
  */
 export type Intent =
+  | "design"
   | "red-team"
   | "review"
   | "implement"
@@ -437,8 +448,9 @@ export type Intent =
   | "investigate"
   | "research";
 
-/** Map a dispatch intent to one of the three base roles. */
+/** Map a dispatch intent to a configured base role. */
 export const INTENT_ROLE: Record<Intent, RoleName> = {
+  design: "architect",
   "red-team": "reviewer",
   review: "reviewer",
   implement: "executor",
@@ -463,8 +475,8 @@ export const INTENT_EXTRA_SKILL_FOLDERS: Partial<Record<Intent, string[]>> = {
  * PURE (260709 dev2 switch: v2-legal): turn a dispatch intent into the role and a
  * v2-shaped spawn fragment. This is the one call a dispatcher makes:
  *   routeDispatch({ intent: "red-team", surfaces: ["frontend"], task, skillsDir })
- *   -> role "reviewer", task_name "reviewer_...", fork_turns "none",
- *      message "<skill mentions>\n\n<path hints>\n\nTASK: ..."
+ *   -> role "reviewer", agent_type "explorer", task_name "reviewer_...", fork_turns "none",
+ *      message "CXC-ROLE: <role>\n\n<skill mentions>\n\n<path hints>\n\nTASK: ..."
  * An unknown intent is not representable (TS), but a defensive fallback maps to `explorer`
  * (read-only) so a loosened caller can never escalate privilege via a bad intent string.
  */
@@ -476,7 +488,7 @@ export function routeDispatch(input: {
   explicitSkillFolders?: string[];
   /** 080.2: opt-in workspace path-hint resolution root. */
   cwd?: string;
-}): { role: RoleName; task_name?: string; fork_turns?: "none"; message: string } {
+}): { role: RoleName; agent_type: SpawnPayload["agent_type"]; task_name?: string; fork_turns?: "none"; message: string } {
   const role = INTENT_ROLE[input.intent] ?? "explorer";
   const taskText = (input.task ?? "").trim();
   const extras = INTENT_EXTRA_SKILL_FOLDERS[input.intent] ?? [];
@@ -486,7 +498,8 @@ export function routeDispatch(input: {
     surfaces: input.surfaces,
     explicitSkillFolders: [...(input.explicitSkillFolders ?? []), ...extras],
   });
-  const parts: string[] = skills ? [skills] : [];
+  const parts: string[] = [`CXC-ROLE: ${role}`];
+  if (skills) parts.push(skills);
   if (typeof input.cwd === "string" && input.cwd.length > 0) {
     const hint = pathHintItem(buildPathHints(input.cwd, taskText));
     if (hint) parts.push(hint.text);
@@ -494,6 +507,7 @@ export function routeDispatch(input: {
   parts.push(`TASK: ${taskText}`);
   return {
     role,
+    agent_type: ROLE_AGENT_TYPE[role],
     task_name: taskNameForRole(role, taskText),
     fork_turns: "none",
     message: parts.join("\n\n"),

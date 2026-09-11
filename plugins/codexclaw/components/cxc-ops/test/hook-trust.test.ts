@@ -67,11 +67,11 @@ test("identityHash keeps the matcher in the live SubagentStop hook golden fixtur
   const document = JSON.parse(readFileSync(fixturePath, "utf8")) as {
     hooks: { SubagentStop: Array<{ matcher?: string; hooks: HookHandler[] }> };
   };
-  const group = document.hooks.SubagentStop.find((candidate) => candidate.matcher === "^worker$");
-  assert.ok(group, "the real SubagentStop hook must keep its ^worker$ matcher group");
+  const group = document.hooks.SubagentStop.find((candidate) => candidate.matcher === "^(executor|worker)$");
+  assert.ok(group, "the real SubagentStop hook must keep its executor/worker matcher group");
   assert.equal(
     identityHash("SubagentStop", group.matcher, group.hooks[0]),
-    "sha256:9afd7aeccc4c240163001eec376823a6566ce30572fafcc300ceb1d6bb4c6290",
+    "sha256:84e1bb4945bc1f0c31d20ff1cfd3dc555eb266362cc159182962fc6c71f2e6d8",
   );
 });
 
@@ -237,7 +237,7 @@ test("diagnoseHookTrust reports trusted, drifted, and untrusted independently", 
   assert.equal(diagnosed[2].actual, null);
 });
 
-test("doctor hook-trust check warns on ambiguous keys and fails with per-hook drift evidence", () => {
+test("doctor hook-trust check warns on ambiguous keys and warns with per-hook drift evidence", () => {
   const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo doctor")] }] } });
   const entry = listHookEntries(root, "fixture@one")[0];
   const ambiguousHome = makeCodexHome([
@@ -253,10 +253,16 @@ test("doctor hook-trust check warns on ambiguous keys and fails with per-hook dr
 
   writeFileSync(join(ambiguousHome, "config.toml"), `${trustSection(entry, "sha256:stale")}`);
   const drifted = runHookTrustCheck(root, { codexHome: ambiguousHome, pluginKey: "fixture@one" });
-  assert.equal(drifted.severity, "FAIL");
+  // Drift means the recorded hash is stale, not that the hooks stopped running:
+  // the host decides trust from its own record (PLAN-BYPASS-NAMED-01).
+  assert.equal(drifted.severity, "WARN");
+  assert.match(drifted.evidence, /trusted_hash drift \(reinstall updates it; hooks still run\)/);
   assert.match(drifted.evidence, new RegExp(entry.key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(drifted.evidence, new RegExp(`expected=${entry.hash}`));
   assert.match(drifted.evidence, /actual=sha256:stale/);
+  // The file digest is evidence only — it never equals the identity hash.
+  assert.match(drifted.evidence, new RegExp(`file_sha256=${entry.fileSha256.slice(0, 16)}`));
+  assert.notEqual(`sha256:${entry.fileSha256}`, entry.hash);
 });
 
 test("retrustHooks replaces drift, appends missing sections, preserves unrelated bytes, and creates a backup", () => {
@@ -540,10 +546,27 @@ test("doctor's drift repair omits --bootstrap-ok, which would be the wrong advic
   const entries = listHookEntries(root, PLUGIN_KEY);
   const home = makeCodexHome(trustSection(entries[0], "sha256:stale"));
   const check = runHookTrustCheck(root, { codexHome: home, pluginKey: PLUGIN_KEY });
-  assert.equal(check.severity, "FAIL");
+  assert.equal(check.severity, "WARN");
   assert.match(check.evidence, /drifted/);
   assert.match(check.repair ?? "", /cxc hooks retrust/);
   assert.ok(!(check.repair ?? "").includes("--bootstrap-ok"), "drift is not a bootstrap case");
+});
+
+/**
+ * The WARN downgrade covers drift ALONE. A hook with no trust entry was never
+ * approved, and mixing one into a drifted set must not launder it into a warning.
+ */
+test("drift mixed with a missing trust entry still fails", () => {
+  const root = makePlugin({
+    hooks: { Stop: [{ hooks: [command("echo drifted")] }, { hooks: [command("echo missing")] }] },
+  });
+  const entries = listHookEntries(root, PLUGIN_KEY);
+  const home = makeCodexHome(trustSection(entries[0], "sha256:stale"));
+  const check = runHookTrustCheck(root, { codexHome: home, pluginKey: PLUGIN_KEY });
+  assert.equal(check.severity, "FAIL");
+  assert.match(check.evidence, /drifted/);
+  assert.match(check.evidence, /untrusted/);
+  assert.doesNotMatch(check.evidence, /hooks still run/);
 });
 
 test("a fully trusted install carries no repair line", () => {

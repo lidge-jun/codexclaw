@@ -74,7 +74,7 @@ test("/model reserved subargs list/reset are handled before verbatim model stora
     db.setBindingModel(binding.id, "gpt-custom");
     const base = { bindingId: binding.id, db, agentService: stubAgent(), agentId: agent.id, args: "" };
 
-    const list = await dispatchGatewayCommand("model", { ...base, args: "list" });
+    const list = await dispatchGatewayCommand("model", { ...base, args: "list", readModelCatalog: async () => ({ entries: ["gpt-5.5", "anthropic/claude-sonnet-5"].map(id => ({ id, label: id, source: id.includes("/") ? "ocx" : "native" })) }) });
     assert.match(list?.text ?? "", /Available models/);
     assert.match(list?.telegramHtml ?? "", /anthropic\/claude-sonnet-5/);
     assert.ok((list?.telegramHtmlChunks as string[]).every((chunk) => chunk.length <= 4096));
@@ -108,6 +108,7 @@ test("/model list emits provider continuation fields before Discord cap overflow
       agentService: stubAgent(),
       agentId: null,
       args: "list",
+      readModelCatalog: async () => ({ entries: [...bigProviderIds, ...overflowProviderIds].map(id => ({ id, label: id, source: "ocx" })) }),
     });
     const embed = result?.discordEmbed;
     const serialized = JSON.stringify(embed);

@@ -142,6 +142,19 @@ export interface State {
   // 260714 wp3: gated-edit counter for the IDLE-edit advisory frequency guard
   // (inject on count % 5 === 0). Reset at every cycle close (clearedIdle).
   idleEditNudges: number;
+  // MEMORY-WRITE-GATE-01 (260909 wp1-A): this session's UserPromptSubmit saw an
+  // explicit remember idiom (detectMemoryWriteRequest) that no memory write has
+  // spent yet. Consumed by the PreToolUse gate, so one request authorizes the turn
+  // that asked rather than the whole session.
+  memoryWriteRequested: boolean;
+  // The turn that raised memoryWriteRequested, or null when the payload carried no
+  // turn id. The gate refuses a marker stamped with a DIFFERENT turn: without it a
+  // request made ten turns ago would still be spendable.
+  memoryWriteTurn: string | null;
+  // An operator grant from `cxc memory allow-write`. Outranks the idiom marker and is
+  // spent by the same single write, which is what makes automation reproducible
+  // without leaving the surface permanently open.
+  memoryWriteGrant: boolean;
   /**
    * EVIDENCE-TERMINAL-01 (260826): SubagentStop verifications that exhausted their
    * retry budget without a valid receipt. The child is RELEASED — a gate that keeps
@@ -287,6 +300,9 @@ export function defaultState(sessionId: string, slug = ""): State {
     stopBlockTotal: 0,
     loopArmSeen: false,
     idleEditNudges: 0,
+    memoryWriteRequested: false,
+    memoryWriteTurn: null,
+    memoryWriteGrant: false,
     unverifiedSubagents: [],
     unverifiedCorrupt: false,
     phaseEntrySource: null,
@@ -542,6 +558,15 @@ export function readStateStrict(cwd: string, sessionId: string): { state: State;
         typeof parsed.idleEditNudges === "number" && Number.isFinite(parsed.idleEditNudges) && parsed.idleEditNudges >= 0
           ? Math.floor(parsed.idleEditNudges)
           : 0,
+      // MEMORY-WRITE-GATE-01: strict reconstruction. A state file written before this
+      // field existed reads false — an upgrade must not silently hand an old session a
+      // standing authorization to write memory.
+      memoryWriteRequested: parsed.memoryWriteRequested === true,
+      memoryWriteTurn:
+        typeof parsed.memoryWriteTurn === "string" && parsed.memoryWriteTurn.length > 0
+          ? parsed.memoryWriteTurn
+          : null,
+      memoryWriteGrant: parsed.memoryWriteGrant === true,
       // EVIDENCE-TERMINAL-01: an ABSENT field is an old state file and rebuilds
       // clean; a PRESENT but malformed one is corruption and must not be laundered
       // into an empty (= all resolved) list. `unverifiedCorrupt` is sticky: it is

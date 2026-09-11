@@ -8,7 +8,7 @@
  * subagent actually ends its turn.
  *
  * Never blocks. The existing worker evidence gate does the denying (matcher
- * `^worker$`); this observer excludes exactly that type, so a read-only audit is
+ * `^(executor|worker)$`); this observer excludes both implementation types, so a read-only audit is
  * never held to a receipt it was designed to skip (DISPATCH-AGENT-TYPE-01), and
  * the two hooks cannot race over the same child.
  *
@@ -38,6 +38,7 @@
  * Fail-open on every IO or parse error: a missed recording costs one more audit
  * round, while a thrown observer would break an unrelated subagent's exit.
  */
+import { GATED_AGENT_TYPES } from "./subagent-evidence.ts";
 import { readState } from "./state.ts";
 import {
   appendGoalplanLedger,
@@ -57,9 +58,9 @@ export function handleReviewObserver(raw: string): string {
   try {
     const payload = JSON.parse(raw) as SubagentStopPayload;
     if (payload.hook_event_name !== "SubagentStop") return "";
-    // A worker's exit belongs to the receipt gate; everything else is decided by
+    // An executor/worker exit belongs to the receipt gate; everything else is decided by
     // the sign-off below. Not "=== explorer": a v1 child arrives as "default".
-    if (payload.agent_type === "worker") return "";
+    if (GATED_AGENT_TYPES.has(payload.agent_type ?? "")) return "";
 
     const { cwd, session_id: sessionId } = payload;
     if (!cwd || !sessionId) return "";

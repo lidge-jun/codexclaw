@@ -13,10 +13,16 @@
  */
 import { readFileSync, statSync, openSync, readSync, closeSync } from "node:fs";
 import { listRolloutFiles, readRolloutMeta, parseRollout } from "./rollout.ts";
+import { loadThreadMeta } from "./threads-db.ts";
+import { stateDbPath } from "./paths.ts";
+import { normalizeRepoKey } from "./repo-key.ts";
 import type { RwDb } from "./sqlite.ts";
 
 /** Tool outputs dominate corpus bytes; cap them to bound index size. */
 export const TOOL_TEXT_CAP = 8_192;
+
+/** Backfill batch size: one transaction per 1,000 threads, never one for 13k. */
+const BACKFILL_BATCH = 1_000;
 
 export type IngestResult = {
   scanned: number;
@@ -48,6 +54,11 @@ function readSlice(path: string, from: number, to: number): Buffer {
 
 export function ingest(home: string, db: RwDb, days = 0): IngestResult {
   const started = Date.now();
+  // Before the skip check below: an unchanged file is never re-read, so rows
+  // written by an older CLI would keep repo_key NULL forever otherwise. This
+  // is an UPDATE over ~13k file rows joined to the threads table — it never
+  // touches msgs and never re-parses a JSONL head.
+  backfillRepoKeysFromThreads(home, db);
   const onDisk = listRolloutFiles(home, days);
   const known = new Map<string, KnownFile>();
   for (const row of db
@@ -72,8 +83,8 @@ export function ingest(home: string, db: RwDb, days = 0): IngestResult {
   const delMsgs = db.prepare("DELETE FROM msgs WHERE path = ?");
   const delFile = db.prepare("DELETE FROM files WHERE path = ?");
   const insFile = db.prepare(
-    "INSERT OR REPLACE INTO files (path, mtime_ms, size, thread_id, cwd, source, date, bytes_ingested, last_ord)" +
-      " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT OR REPLACE INTO files (path, mtime_ms, size, thread_id, cwd, source, date, bytes_ingested, last_ord, repo_key)" +
+      " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   );
   const insMsg = db.prepare(
     "INSERT INTO msgs (path, ord, ts, role, match_field, synthetic, text) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -129,6 +140,7 @@ export function ingest(home: string, db: RwDb, days = 0): IngestResult {
           file.date,
           prev.bytes_ingested + boundary,
           lastOrd,
+          meta.repoKey,
         );
         result.appended += 1;
       } else {
@@ -139,7 +151,18 @@ export function ingest(home: string, db: RwDb, days = 0): IngestResult {
         const entries = boundary > 0 ? parseRollout(buf.subarray(0, boundary).toString("utf8"), true) : [];
         delMsgs.run(file.path);
         const lastOrd = insertEntries(file.path, entries, 0);
-        insFile.run(file.path, mtimeMs, st.size, meta.threadId, meta.cwd, meta.source, file.date, boundary, lastOrd);
+        insFile.run(
+          file.path,
+          mtimeMs,
+          st.size,
+          meta.threadId,
+          meta.cwd,
+          meta.source,
+          file.date,
+          boundary,
+          lastOrd,
+          meta.repoKey,
+        );
         result.ingested += 1;
       }
       db.exec("COMMIT");
@@ -172,4 +195,55 @@ export function ingest(home: string, db: RwDb, days = 0): IngestResult {
   );
   result.elapsedMs = Date.now() - started;
   return result;
+}
+
+/**
+ * Fill files.repo_key for rows an older ingest wrote, from threads.git_origin_url.
+ *
+ * Idempotent by construction: only rows with a NULL key and a known cwd are
+ * touched, so re-running costs one COUNT once every row is filled. This also
+ * repairs coexistence with an older installed CLI — its INSERT names an
+ * explicit column list without repo_key, so re-ingesting a file resets that
+ * row's key to NULL, and the next new-code refresh restores it.
+ *
+ * Fail-soft: the state db is owned by the Codex runtime and may be absent,
+ * locked, or column-shy. A failure leaves keys NULL, which is exactly the
+ * cwd-prefix behaviour that predates wp4.
+ */
+function backfillRepoKeysFromThreads(home: string, db: RwDb): void {
+  try {
+    const pending = db
+      .prepare(
+        "SELECT COUNT(*) AS n FROM files WHERE repo_key IS NULL AND cwd IS NOT NULL AND thread_id IS NOT NULL",
+      )
+      .get() as { n: number };
+    if (Number(pending.n) === 0) return;
+    const meta = loadThreadMeta(stateDbPath(home));
+    if (meta.byId.size === 0) return;
+    const pairs: Array<[string, string]> = [];
+    for (const [id, thread] of meta.byId) {
+      const key = normalizeRepoKey(thread.gitOriginUrl);
+      if (key !== null) pairs.push([key, id]);
+    }
+    if (pairs.length === 0) return;
+    const upd = db.prepare(
+      "UPDATE files SET repo_key = ? WHERE thread_id = ? AND repo_key IS NULL AND cwd IS NOT NULL",
+    );
+    // Own transaction, outside the per-file loop below: nesting BEGIN inside the
+    // ingest transaction would be an error, and one transaction for every
+    // thread would be 13k fsyncs.
+    for (let i = 0; i < pairs.length; i += BACKFILL_BATCH) {
+      const batch = pairs.slice(i, i + BACKFILL_BATCH);
+      db.exec("BEGIN");
+      try {
+        for (const [key, id] of batch) upd.run(key, id);
+        db.exec("COMMIT");
+      } catch (err) {
+        db.exec("ROLLBACK");
+        throw err;
+      }
+    }
+  } catch {
+    // Keys stay NULL; scoping falls back to the cwd prefix.
+  }
 }

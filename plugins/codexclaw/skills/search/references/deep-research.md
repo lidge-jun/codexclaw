@@ -126,7 +126,7 @@ sources; record the spot-check in the journal.
 ## SEARCH-DEEP-06 Artifact, verification and delivery
 
 Deliver in the requested format. HTML, SVG and PDF go through
-`dev-diagram-viewer` (reader structure per Reader documents, render verification
+`dev-visualizer` (reader structure per Reader documents, render verification
 per DIAGRAM-RENDER-VERIFY-01); DOCX, Sheets, Slides and Sites go to their
 format-specific owners when exposed. Descriptive hyperlinks near claims; full
 source details in footnotes, notes or source cells. For data-heavy charts add the

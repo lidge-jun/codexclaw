@@ -4,6 +4,59 @@ All notable changes to codexclaw are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `cxc-dev-visualizer` (renamed from `cxc-dev-diagram-viewer`, old folder redirects):
+  `reference/report-writing.md` with the REPORT-* rules for multi-page reports
+  (storyline that reads in sequence, claim headings, a summary page that decides
+  alone, one register, numbered and sourced exhibits, cover/contents/appendix/notice
+  anatomy, issuer naming, polish that keeps numbers), `assets/paged-report.html`
+  (A4 skeleton set as a publication with fictional data) and
+  `scripts/export-paged-report.mjs` (Chromium print, second pass that fills contents
+  page numbers, layout QA, `--qa-only` for any PDF). `document-pdf.md` gains
+  REPORT-PRINT-01/QA-01, the measured Chromium paged-media support table and a
+  klreq/jlreq/clreq CSS recipe; `visual-design.md` gains REPORT-DESIGN-01 and the
+  REPORT-VIZ-01 print legibility floor.
+- `cxc-dev` DEV-PRIVACY-01 (client and personal material stay outside the repository,
+  pre-push identifier self-check) and a FAMILY-SLOP-01 pointer for prose and
+  page-design reflexes; READER-DOC-05 reads rendered pages; `kwrite` CAT-11 and the
+  number/polarity/causation revert rule; `dev-uiux-design` document defaults line;
+  pabcd check lists paged output as a render artifact.
+
+- Agent-swarm repository hygiene in `cxc-dev-devops`: `references/repo-bootstrap.md`
+  (ruleset-first setup, merge settings, PR limits, labels), `references/agent-pr-intake.md`
+  (identity tiers, draft-first, supersede procedure, weak/medium/strong policy options
+  with sources), `references/local-gc.md` (worktree/branch GC conventions and the
+  `cxc worktree gc` contract); rule IDs `DEVOPS-BRANCH-NAMESPACE-01`,
+  `DEVOPS-REPO-BOOTSTRAP-01`, `DEVOPS-AGENT-INTAKE-01`, `DEVOPS-LOCAL-GC-01` and
+  their sub-rules.
+
+### Changed
+
+- Architect now dispatches as the independent native `architect` role, with its
+  own CXC model/effort/prompt settings and read-only role configuration. It no longer
+  uses an explorer alias. Existing installations must explicitly run
+  `cxc subagents register architect`, start a fresh Codex session and verify the
+  role is exposed before first use; otherwise the host rejects the unknown role.
+  Registration preserves custom files, backs up managed updates and pins no model.
+  The shared registrar retains `register executor` compatibility. Installing the
+  plugin alone does not register either role.
+
+### Fixed
+
+- `branch-lifecycle.md` keep rules now match the shipped OpenCodex closed-PR planner
+  (ten keep reasons in evaluation order, including disposable namespace,
+  unknown-head-sha and branch-moved-since-close from lidge-jun/opencodex `59d9bc95f`)
+  and state that PR state, not ancestry, is merge truth under squash merging.
+
+### Changed
+
+- Make executor the canonical implementation dispatch role. Add explicit, non-overwriting
+  `cxc subagents register executor` setup; preserve legacy worker model routing and exit
+  evidence checks. Start a new session after registration and re-approve changed hooks.
+
 ## [0.2.24] - 2026-09-08
 
 ### Added
@@ -836,7 +889,7 @@ carry the runtime hardening merged as `dac77cc7` on 2026-08-09.
 
 First public release. 25 skills, 12 hooks, 801 tests.
 
-[Unreleased]: https://github.com/lidge-jun/codexclaw/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/lidge-jun/codexclaw/compare/v0.2.24...HEAD
 [0.2.0]: https://github.com/lidge-jun/codexclaw/compare/v0.2.0-beta.1...v0.2.0
 [0.2.0-beta.1]: https://github.com/lidge-jun/codexclaw/compare/v0.1.0...v0.2.0-beta.1
 [0.1.0]: https://github.com/lidge-jun/codexclaw/releases/tag/v0.1.0

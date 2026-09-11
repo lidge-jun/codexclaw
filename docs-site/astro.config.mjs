@@ -92,7 +92,7 @@ export default defineConfig({
         {
           label: "Development",
           items: [
-            { label: "Dogfood & Dev Symlink", slug: "development/dogfood-dev-symlink" },
+            { label: "Dogfood & Dev Install", slug: "development/dogfood-dev-install" },
             { label: "Build & Test", slug: "development/build-test" },
             { label: "Cutting a Release", slug: "development/release" },
             { label: "Parity Roadmap", slug: "development/parity-roadmap" },

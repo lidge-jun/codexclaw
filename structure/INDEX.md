@@ -93,7 +93,7 @@ opencodex (`ocx`) is adjacent but optional. opencodex is a local provider proxy 
 | Subagent config | `plugins/codexclaw/components/subagent-config/src/` | role model/prompt config, MCP tools, catalog |
 | Messenger bridge | `plugins/codexclaw/components/messenger-bridge/src/` | loopback GUI/API server, messenger agents, project bridge DB |
 | Skills | `plugins/codexclaw/skills/` | `$cxc-*`, display_name autocomplete, dev routers |
-| Subagent roles | `plugins/codexclaw/agents/` | explorer, reviewer, executor inline prompts |
+| Subagent roles | `plugins/codexclaw/agents/` | explorer, reviewer, executor, architect inline prompts |
 
 ---
 
@@ -101,7 +101,7 @@ opencodex (`ocx`) is adjacent but optional. opencodex is a local provider proxy 
 
 ### `components/config-guard`
 
-Controlled activation for the Codex features codexclaw needs. `src/features.ts` declares `multi_agent`, `goals`, `hooks`, and soft `default_mode_request_user_input`; it parses `codex features list` output by exact feature name. `src/activate.ts` backs up `config.toml`, enables only missing declared flags through the official `codex features enable`, and writes `.codexclaw-install.json` (manifest v2) under Codex home. `src/deactivate.ts` reverts per item: a flag or managed key goes back only when codexclaw set it and that value is still live, and anything an external writer changed or removed is left to its current owner. The whole-file hash is reported as `fileDrifted` rather than obeyed — codexclaw is not the only writer of that file, so the old blind-revert refusal disabled uninstall after any unrelated edit — and it still gates the one destructive case (removing a key that did not exist before install), which additionally requires the activation backup to corroborate. `src/toml-edit.ts` owns the component's TOML table/key grammar and the setter for keys `codex features` cannot reach; `src/managed-keys.ts` holds that whitelist, every entry `autoEnable:false` so installation never writes a key from THAT list on its own. The boundary between the two vocabularies is not the TOML table name but whether the switch means anything without codexclaw: `DECLARED_FEATURES` are flags codexclaw needs to function, and install plus SessionStart self-heal turn those on; `CONFIG_MANAGED_KEYS` holds switches whose effects reach past codexclaw (`memories.dedicated_tools` changes the whole memory pipeline), so those stay an explicit `cxc config set`. `src/self-heal.ts` is the SessionStart call site: it enables a declared SOFT flag that is off, at most once per key (`healedKeys`), records the heal as codexclaw-owned in the manifest so `cxc disable` can revert it, and opts out permanently once the user runs `cxc disable`. `src/cli.ts` is the production binding that resolves `CODEX_HOME` / `~/.codex` and shells out to `codex`.
+Controlled activation for the Codex features codexclaw needs. `src/features.ts` declares `multi_agent`, `goals`, `hooks`, and soft `default_mode_request_user_input`; it parses `codex features list` output by exact feature name. `src/activate.ts` backs up `config.toml`, enables only missing declared flags through the official `codex features enable`, and writes `.codexclaw-install.json` (manifest v2) under Codex home. `src/deactivate.ts` reverts per item: a flag or managed key goes back only when codexclaw set it and that value is still live, and anything an external writer changed or removed is left to its current owner. The whole-file hash is reported as `fileDrifted` rather than obeyed — codexclaw is not the only writer of that file, so the old blind-revert refusal disabled uninstall after any unrelated edit — and it still gates the one destructive case (removing a key that did not exist before install), which additionally requires the activation backup to corroborate. `src/toml-edit.ts` owns the component's TOML table/key grammar and the setter for keys `codex features` cannot reach; `src/managed-keys.ts` holds that whitelist, each entry carrying its own `autoEnable` decision so installation writes only the keys that earned it. The boundary between the two vocabularies is not the TOML table name but whether the switch means anything without codexclaw: `DECLARED_FEATURES` are flags codexclaw needs to function, and install plus SessionStart self-heal turn those on; `CONFIG_MANAGED_KEYS` holds switches whose effects reach past codexclaw (`memories.dedicated_tools` changes the whole memory pipeline), so an entry there is auto-enabled only on its own evidence and otherwise stays an explicit `cxc config set`. `memories.dedicated_tools` is auto-enabled since 260909: the PreToolUse memory write gate (`pabcd-state/src/memory-write-gate.ts`) supplies the precondition its caution named, and `activate.ts` records the pre-install value in `tableKeys` so `cxc disable` restores it exactly. `src/self-heal.ts` is the SessionStart call site: it enables a declared SOFT flag that is off, at most once per key (`healedKeys`), records the heal as codexclaw-owned in the manifest so `cxc disable` can revert it, and opts out permanently once the user runs `cxc disable`. `src/cli.ts` is the production binding that resolves `CODEX_HOME` / `~/.codex` and shells out to `codex`.
 
 ### `components/cxc-ops`
 
@@ -136,7 +136,7 @@ the adapter preamble applies on load and `cxc-dev` discipline wins on conflict.
 
 ### `components/subagent-config`
 
-Per-role subagent model, reasoning-effort, and prompt configuration. `src/store.ts` reads/writes `.codexclaw/subagents.json` atomically for `explorer`, `reviewer`, and `executor`, defaulting each role to the main Codex model with inherited effort (`effort: null`; valid overrides are the catalog-supported values low/medium/high/xhigh). `src/catalog.ts` builds a selectable model catalog from the native Codex cache allowlist plus optional ocx-backed model ids, with native models first. `src/mcp.ts` serves a stdio MCP server with `subagents_get`, `subagents_set`, and `catalog_list` tools.
+Per-role subagent model, reasoning-effort, and prompt configuration. `src/store.ts` reads/writes `.codexclaw/subagents.json` atomically for `explorer`, `reviewer`, `executor`, and `architect`, defaulting each role to the main Codex model with inherited effort (`effort: null`; valid overrides are the catalog-supported values low/medium/high/xhigh). `src/catalog.ts` builds a selectable model catalog from the native Codex cache allowlist plus optional ocx-backed model ids, with native models first. `src/mcp.ts` serves a stdio MCP server with `subagents_get`, `subagents_set`, and `catalog_list` tools.
 
 ---
 
@@ -171,7 +171,7 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-repo-map` | `skills/repo-map/` | ranked repo structure map (vendored RepoMapper: tree-sitter tags + PageRank) |
 | `cxc-lunasearch` | `skills/lunasearch/` | cheap parallel public-web discovery lane that hands proof back to `cxc-search` |
 | `cxc-worktree-guardian` | `skills/worktree-guardian/` | Codex-app managed-worktree identity safety: adopt-in-place renaming, never delete/recreate, WORKTREE-GUARD-01/02/03 hook interplay |
-| `cxc-dev-diagram-viewer` | `skills/dev-diagram-viewer/` | render and inspect Mermaid/diagram artifacts |
+| `cxc-dev-visualizer` | `skills/dev-visualizer/` | render and inspect Mermaid/diagram artifacts |
 | `cxc-kwrite` | `skills/kwrite/` | Korean long-form writing and revision protocol |
 | `cxc-remote` | `skills/remote/` | remote host execution and workload routing |
 
@@ -307,15 +307,23 @@ continuation and does not append ledger spam on every Stop event.
 
 ## Subagents
 
-Subagent role TOMLs live under `plugins/codexclaw/agents/`: `explorer`, `reviewer`, and `executor`. They are canonical prompt sources, not auto-registered plugin roles. Codex plugin manifests expose `skills`, `hooks`, `mcpServers`, and apps; codexclaw therefore uses inline prompt injection when spawning Codex-native `explorer` or `worker` agents.
+Native architect registration is owned by
+`components/subagent-config/src/role-registration.ts`: `cxc subagents register architect`
+explicitly publishes its canonical prompt and read-only sandbox configuration, with
+managed-file preservation. The shared registrar also supports executor. Registration
+omits model/effort pins; architect CXC settings remain independent. Verify a fresh
+session exposes architect before dispatch; no explorer/reviewer alias fallback.
+
+Subagent role TOMLs live under `plugins/codexclaw/agents/`: `explorer`, `reviewer`, `executor`, and `architect`. They are canonical prompt sources, not auto-registered plugin roles. Codex plugin manifests expose `skills`, `hooks`, `mcpServers`, and apps; codexclaw uses inline prompt injection for its existing `explorer`/`worker` mappings and explicit registration for the independent native `architect` role.
 
 | Role | Codex `agent_type` | Writes | Purpose |
 |------|--------------------|--------|---------|
 | `explorer` | `explorer` | no | read-only codebase investigation with file evidence |
 | `reviewer` | `explorer` | no | adversarial plan/diff review with PASS/FAIL blockers |
 | `executor` | `worker` | scoped yes | bounded implementation inside an assigned write scope |
+| `architect` | `architect` | no | design proposals and executable-plan reflection; main owns decisions |
 
-The subagent config component can later select per-role models; default mode inherits the main Codex model.
+The subagent config component selects per-role model, effort and prompt overrides; default mode inherits the main Codex model. Architect attaches the existing `dev` and `dev-architecture` skills. Formal P and changed-decision rechecks follow `skills/pabcd/references/phase-plan.md`, `phase-audit.md` and `delegation.md`; these are agent-followed instructions, not new runtime enforcement.
 
 ---
 

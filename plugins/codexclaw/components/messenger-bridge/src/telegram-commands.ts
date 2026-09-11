@@ -162,7 +162,7 @@ async function handleModel(ctx: CommandContext): Promise<CommandResult> {
   const current = String(result?.data?.model ?? "default");
   return {
     text: result?.text ?? `Current model: ${current}`,
-    keyboard: buildModelPicker(loadModelCatalog(), current, binding.id),
+    keyboard: buildModelPicker(await loadModelCatalog(), current, binding.id),
   };
 }
 

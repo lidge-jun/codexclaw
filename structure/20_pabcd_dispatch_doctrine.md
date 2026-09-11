@@ -110,13 +110,17 @@ codexclaw translation:
 - The main session is the only dispatcher. A spawned subagent should not fan out
   another orchestration layer; it does its scoped task and returns.
 - Role -> built-in agent type: `explorer`/`reviewer` -> `explorer` (read-only),
-  `executor` -> `worker` (scoped write). codexclaw cannot register custom roles, so the
-  role prompt is injected inline (the B-opt2 pattern).
+  `executor` -> `worker` (scoped write). The plugin payload does not auto-register custom roles, so the
+  role prompt is injected inline (the B-opt2 pattern). Architect uses its own
+  registered `architect` type with read-only sandbox settings. Explicit registration
+  and fresh-session schema verification are prerequisites; never alias it to explorer
+  or reviewer when unavailable. Registration is not a dispatch side effect.
 - **DISPATCH-AGENT-TYPE-01 (DEFAULT).** The role-to-agent-type mapping above is the
   canonical dispatch classifier for the SubagentStop evidence gate: only
   `agent_type:"worker"` triggers the evidence-receipt gate (hook matcher `^worker$` +
   runtime `GATED_AGENT_TYPES`). Read-only audit, research, and review dispatches MUST
-  use `agent_type:"explorer"` when that field is exposed. With schema-minimal native
+  use a supported read-only role: a registered role when exposed, otherwise
+  `agent_type:"explorer"` when available. With schema-minimal native
   tools, carry the logical role and read-only scope in the message instead; that
   label is not native role enforcement and cannot evade an actual worker receipt
   requirement. Follow the live-schema/returned-handle owner in installed
@@ -131,6 +135,13 @@ codexclaw translation:
   child could never create a file under the parent's `.codexclaw/evidence/`. If you see
   a subagent repeating the same answer against the same directive, check the dispatch
   lane first — it is almost always a read-only packet on a `worker`.
+- **Architect consultation in formal P.** Main evidence -> architect proposal -> main
+  executable plan -> same architect reflection -> independent A reviewer. Main retains
+  every final decision. Recheck only named module/data/interface/flow decision changes;
+  reuse context within one plan and start fresh for a new plan. Existing installed
+  owners: `pabcd/references/phase-plan.md`, `phase-audit.md` and `delegation.md`.
+  This is E7 guidance, not a new phase or runtime consultation gate. Missing consultation
+  is not complete; architect reflection never substitutes for independent A review.
 - **Audit (A) is never skipped.** Before B, the main session must dispatch an independent
   reviewer subagent via `spawn_agent` for an adversarial review pass. Untested code is
   not "done"; C must run real tsc/tests.
@@ -184,6 +195,10 @@ codexclaw translation:
   (agent-followed); no hook measures delegation quality. Adopted 260711 from the
   fork-debate verdicts plus Tier-2 arXiv evidence (claim-ledger:
   `devlog/_plan/260711_dispatch_economy_docs_site/005_research_claim_ledger.md`).
+  For authorized source/log investigation, [dev's Discovery delegation](../plugins/codexclaw/skills/dev/SKILL.md#discovery-delegation)
+  owns the early ownership decision, concrete local exceptions and reconsideration
+  after scope growth or truncation. Parallelism alone does not reduce returned context;
+  this guidance adds no runtime enforcement or mandatory spawn count.
   Four clauses:
   - *Three-axis delegability test.* Decide what to delegate by
     **specifiability** (the TASK packet can carry the full spec, including its

@@ -121,7 +121,7 @@ function runHookAsync(distAbs, hookEvent, payload, extraEnv = {}) {
 
 function emptyCodexHome() {
   const dir = mkdtempSync(join(tmpdir(), "ccx-home-"));
-  return { dir, env: { CODEX_HOME: dir, CODEX_SQLITE_HOME: dir } };
+  return { dir, env: { CODEX_HOME: dir, CODEXCLAW_HOME: join(dir, "cxc"), CODEX_SQLITE_HOME: dir } };
 }
 
 test("WP7/G19: every manifest hook command resolves to an existing dist entrypoint", () => {
@@ -129,7 +129,12 @@ test("WP7/G19: every manifest hook command resolves to an existing dist entrypoi
   // 260804: 18 -> 21 with the worktree-guard hooks (session-start-detecting-
   // managed-worktree, user-prompt-submit-guiding-worktree-rename,
   // pre-tool-use-guarding-managed-worktree-deletion).
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 23, "expected 23 declared hooks");
+  // 260909 wp1-A: 23 -> 24 with the memory-write gate
+  // (pre-tool-use-guarding-memory-write).
+  // 260910: 25 -> 28 with bg-wake's three hooks. The pin is deliberate — it is the
+  // machine-checked partner of the README badges and inventory.json, so an optional
+  // component removes itself here too (see `cxc bg removal`).
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 28, "expected 28 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
@@ -175,6 +180,9 @@ test("SessionStart state bootstrap: fresh compiled hook creates exact IDLE state
       stopBlockTotal: 0,
       loopArmSeen: false,
       idleEditNudges: 0,
+      memoryWriteRequested: false,
+      memoryWriteTurn: null,
+      memoryWriteGrant: false,
       unverifiedSubagents: [],
       unverifiedCorrupt: false,
       phaseEntrySource: null,
@@ -713,7 +721,7 @@ test("agbrowse: user-prompt-submit hook e2e - natural language agbrowse request 
 // lazygap_impl 010: SubagentStop evidence-receipt gate. A gated worker child with no
 // receipt must be blocked (decision:block); a valid receipt under .codexclaw/evidence/
 // releases. Drives the real dist entrypoint via the manifest command.
-test("L010: subagent-stop hook e2e - worker w/o receipt blocks, valid receipt releases", () => {
+for (const agentType of ["executor", "worker"]) test(`L010: subagent-stop hook e2e - ${agentType} w/o receipt blocks, valid receipt releases`, () => {
   const { event, hookEvent, distAbs } = readHookCommand("./hooks/subagent-stop-verifying-evidence.json");
   assert.equal(event, "SubagentStop");
   const ep = snapshotEntrypoint(distAbs);
@@ -723,7 +731,7 @@ test("L010: subagent-stop hook e2e - worker w/o receipt blocks, valid receipt re
     // 1) worker, no receipt -> block with the EVIDENCE_RECORDED contract.
     const blocked = runHook(ep, hookEvent, {
       hook_event_name: "SubagentStop", session_id: "s1", cwd: tmp,
-      agent_type: "worker", agent_id: "a1", last_assistant_message: "all done!",
+      agent_type: agentType, agent_id: "a1", last_assistant_message: "all done!",
     });
     assert.equal(blocked.status, 0, blocked.stderr);
     const out = JSON.parse(blocked.stdout);
@@ -743,7 +751,7 @@ test("L010: subagent-stop hook e2e - worker w/o receipt blocks, valid receipt re
     writeFileSync(join(tmp, ".codexclaw", "evidence", "p.md"), "tests green");
     const ok = runHook(ep, hookEvent, {
       hook_event_name: "SubagentStop", session_id: "s3", cwd: tmp,
-      agent_type: "worker", agent_id: "a3",
+      agent_type: agentType, agent_id: "a3",
       last_assistant_message: "done.\nEVIDENCE_RECORDED: .codexclaw/evidence/p.md",
     });
     assert.equal(ok.status, 0, ok.stderr);
@@ -1093,7 +1101,7 @@ test("subagent-guard: pre-tool-use interview gate denies root, skips subagent pa
     db.exec("CREATE TABLE thread_goals (thread_id TEXT PRIMARY KEY NOT NULL, goal_id TEXT NOT NULL, objective TEXT NOT NULL, status TEXT NOT NULL);");
     db.prepare("INSERT INTO thread_goals (thread_id, goal_id, objective, status) VALUES (?,?,?,?)").run("s1", "g1", "obj", "active");
     db.close();
-    const env = { CODEX_HOME: home, CODEX_SQLITE_HOME: home };
+    const env = { CODEX_HOME: home, CODEXCLAW_HOME: join(home, "cxc"), CODEX_SQLITE_HOME: home };
     const payload = {
       hook_event_name: "PreToolUse", session_id: "s1", cwd: tmp,
       tool_name: "request_user_input", tool_input: { questions: [] },

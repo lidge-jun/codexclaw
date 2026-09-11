@@ -13,9 +13,9 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-2%2C670_passing-brightgreen" alt="2,670 tests passing">
-  <img src="https://img.shields.io/badge/skills-28-blue" alt="28 skills">
-  <img src="https://img.shields.io/badge/hooks-23-blue" alt="23 hooks">
+  <img src="https://img.shields.io/badge/tests-3%2C032_passing-brightgreen" alt="3,032 tests passing">
+  <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
+  <img src="https://img.shields.io/badge/hooks-28-blue" alt="28 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT"></a>
 </p>
@@ -39,7 +39,11 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
        └────┴────┴──── I (Interview, context preserved)
 ```
 
-**Multi-Model Subagents** — 역할 기반 디스패치(explorer / reviewer / executor)를 제공하며 역할마다 모델과 프롬프트를 따로 지정할 수 있다. 설정은 세션이 끝나도 유지되며 spawn-wrapper 훅이 자동으로 적용한다. 로컬 GUI(Vite + React)에서 설정을 시각적으로 관리할 수 있고, opencodex를 감지하면 프로바이더 링크 바도 표시한다. (대시보드는 지금은 리포 체크아웃에서 빌드해 쓰고, 후속 릴리스에 번들한다.)
+**Multi-Model Subagents** — 역할 기반 디스패치(explorer / reviewer / executor / architect)를 제공하며 역할마다 모델과 프롬프트를 따로 지정할 수 있다. 설정은 세션이 끝나도 유지되며 spawn-wrapper 훅이 자동으로 적용한다. 로컬 GUI(Vite + React)에서 설정을 시각적으로 관리할 수 있고, opencodex를 감지하면 프로바이더 링크 바도 표시한다. (대시보드는 지금은 리포 체크아웃에서 빌드해 쓰고, 후속 릴리스에 번들한다.)
+
+Architect는 정식 P 단계마다 설계를 제안하고 메인의 실행 계획이 설계와 맞는지 확인한다. 메인이 실행 계획과 최종 결정을 맡고, 독립 reviewer가 A 감사를 맡는다. 같은 계획에서는 문맥을 재사용하며, 기록된 설계 결정이 바뀔 때만 다시 확인한다. 이는 에이전트가 따르는 지침이며 런타임 강제 검사가 아니다. [계획 흐름](plugins/codexclaw/skills/pabcd/references/phase-plan.md)을 참고한다.
+
+Architect는 독립 역할인 `agent_type: "architect"`로 호출한다. 처음 쓰기 전에 `cxc subagents register architect`로 명시적으로 등록하고, 새 Codex 세션에서 역할 목록에 architect가 나타나는지 확인한다. architect 전용 설정을 쓰며 explorer/reviewer로 대체하지 않는다. 등록은 플러그인 설치와 별개이며 호출 중 자동으로 실행하지 않는다.
 
 **Recall** — 사용자에게 다시 묻기 전에 디스크 아티팩트에서 과거 Codex 대화와 메모리 저장소를 검색한다. 세션이 바뀌거나 컨텍스트가 압축돼도 이전 맥락을 이어 간다.
 
@@ -56,7 +60,7 @@ codex plugin marketplace add https://github.com/lidge-jun/codexclaw
 codex plugin add codexclaw@codexclaw
 ```
 
-설치 후 Codex를 재시작하고 뜨는 승인 창에서 22개 훅을 승인하면 된다(업그레이드 후에도 다시 승인 — 콘텐츠 해시 신뢰 모델). 채팅에서 바로 쓸 수 있고, 터미널 표면도 같이 배송된다 — 페이로드에 자체 `cxc` 디스패처가 들어 있어 에이전트의 `cxc orchestrate` 명령이 모든 설치에서 동작한다:
+설치 후 Codex를 재시작하고 뜨는 승인 창에서 24개 훅을 승인하면 된다(업그레이드 후에도 다시 승인 — 콘텐츠 해시 신뢰 모델). 채팅에서 바로 쓸 수 있고, 터미널 표면도 같이 배송된다 — 페이로드에 자체 `cxc` 디스패처가 들어 있어 에이전트의 `cxc orchestrate` 명령이 모든 설치에서 동작한다:
 
 - `orchestrate status` — PABCD 상태 머신 확인
 - "Interview me first, then draft a diff-level plan."
@@ -88,6 +92,73 @@ alias cxc='node /path/to/codexclaw/bin/codexclaw.mjs'   # 또는: npm link
 
 </details>
 
+## 개발 설치 (도그푸딩)
+
+codexclaw를 Codex 안에서 돌리면서 고치려면, 작업 중인 체크아웃을 리포 자체를 루트로 삼는 로컬
+마켓플레이스에서 **실제 복사본**으로 설치한다.
+
+```bash
+scripts/dev-install.sh
+```
+
+설정은 이게 전부다. `codexclaw` 마켓플레이스를 체크아웃 쪽으로 돌리는 일은 스크립트가 알아서 한다.
+이미 배포용 git 마켓플레이스가 같은 이름을 쓰고 있어도 마찬가지다. 손으로 등록하면
+`marketplace 'codexclaw' is already added from a different source`로 막힌다.
+
+git 소스 마켓플레이스는 특정 커밋에 고정된다. 그래서 한창 고치는 중인 체크아웃은 로컬 소스로
+잡아야 한다. 안 그러면 뭘 편집하든 Codex는 고정된 스냅샷만 계속 읽는다.
+
+### symlink를 안 쓰는 이유
+
+예전 `scripts/dev-symlink.sh`는 플러그인 캐시 버전 디렉터리의 각 항목을 리포로 향하는 symlink로
+바꿔서 재설치 없이 편집이 바로 반영되게 했다. 그런데 Codex가 그 symlink 항목을 안정적으로 풀지
+못해서 플러그인이 조용히 로드에 실패할 수 있다. 그래서 그 방식은 접었다. `dev-install.sh`는 캐시에
+symlink가 하나라도 남아 있으면 캐시 디렉터리를 통째로 지우고 새로 설치한다.
+
+### 설치가 실제로 하는 일
+
+`codex plugin add codexclaw@codexclaw`는 페이로드를
+`~/.codex/plugins/cache/codexclaw/codexclaw/<version>/`으로 복사하고, **소스에서 사라진 파일은
+캐시에서도 지운다**. 그래서 같은 버전으로 다시 설치해도 아무 일도 안 일어나는 게 아니라 진짜로
+동기화된다. 스크립트를 다시 돌리는 게 업데이트 루프의 전부이고, 매니페스트 버전을 올릴 필요도 없다.
+
+| 명령 | 하는 일 |
+|---|---|
+| `scripts/dev-install.sh` | 컴포넌트 빌드, 마켓플레이스가 어긋났으면 다시 지정, 남은 symlink 제거, 재설치, 옛 버전 디렉터리 정리, doctor 실행 |
+| `scripts/dev-install.sh --no-build` | `npm run build` 없이 나머지만. 스킬·훅·문서만 고쳤을 때 |
+| `scripts/dev-install.sh --status` | 소스, 매니페스트 버전, 마켓플레이스 루트, 캐시 루트, symlink 개수를 보여주고 아무것도 바꾸지 않는다 |
+
+### 업데이트 루프
+
+편집 -> `scripts/dev-install.sh` -> **새 Codex 스레드 열기**. 스킬과 훅, MCP 도구는 세션이 시작할 때
+읽히기 때문에 지금 있는 스레드에는 변경이 반영되지 않는다.
+
+훅 신뢰 해시는 훅이 실행하는 파일이 아니라 훅 **선언**을 대상으로 한다. 이벤트, matcher, command,
+timeout, async, 상태 메시지가 그 대상이다. 그래서 `hooks/*.json`의 matcher나 command를 고치면
+신뢰가 깨져 Codex가 **Modified**로 표시하고 다시 승인할 때까지 그 훅은 돌지 않는다. 반대로 훅이
+호출하는 컴포넌트 `dist/`를 다시 빌드하면 바이트는 많이 바뀌어도 신뢰는 유지된다. 어느 쪽인지는
+`cxc doctor`의 `hook-trust` 줄로 확인한다. codexclaw가 신뢰 상태를 직접 쓰는 일은 없다.
+
+### 설치 검증
+
+```bash
+VER=$(python3 -c "import json;print(json.load(open('plugins/codexclaw/.codex-plugin/plugin.json'))['version'])")
+CACHE=~/.codex/plugins/cache/codexclaw/codexclaw
+
+diff -rq plugins/codexclaw "$CACHE/$VER"   # 설치본이 체크아웃과 같은지
+find "$CACHE" -type l | wc -l              # 0이어야 한다 — symlink가 남지 않았는지
+node "$CACHE/$VER/bin/cxc.mjs" doctor       # overall: PASS 여야 한다
+                                            # hook-trust만 FAIL이면 훅 재승인이 남은 것
+```
+
+배포 트랙으로 돌아가려면 로컬 마켓플레이스를 지우고 git URL을 다시 등록한다.
+
+```bash
+codex plugin remove codexclaw@codexclaw
+codex plugin marketplace remove codexclaw
+codex plugin marketplace add https://github.com/lidge-jun/codexclaw
+```
+
 ## 아키텍처
 
 ```
@@ -105,7 +176,7 @@ plugins/codexclaw/
 │   ├── recall/                  past-session + memory store search
 │   └── repo-map/                tree-sitter + PageRank structure map
 │
-├── hooks/                       23 active hooks across the session lifecycle
+├── hooks/                       24 active hooks across the session lifecycle
 │   ├── session-start-*          provider bridge, PABCD bootstrap, map affordance, recall context
 │   ├── user-prompt-submit-*     PABCD trigger detection, recall intent
 │   ├── pre-tool-use-*           skill attach, goal guards, patch lint, interview guard
@@ -176,6 +247,8 @@ codexclaw는 참조 구현이다. 방법론과 스킬은 에이전트에 종속�
 ## 문서
 
 플러그인 문서: **[lidge-jun.github.io/codexclaw](https://lidge-jun.github.io/codexclaw/)**
+
+개발 설치와 도그푸딩 루프: **[Dogfood & Dev Install](https://lidge-jun.github.io/codexclaw/development/dogfood-dev-install/)**
 
 방법론과 연구 출처는 **[lidge-jun.github.io/pabcd_initiative](https://lidge-jun.github.io/pabcd_initiative/)**에서 다룬다 — 스킬 아키텍처, 위임 비용, 루프 계약, devlog 기록, arXiv 근거가 있는 주장 원장.
 
