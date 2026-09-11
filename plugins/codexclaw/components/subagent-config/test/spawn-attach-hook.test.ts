@@ -606,12 +606,12 @@ test("v1 model routing: default mode injects no model; guard still applies", () 
   assert.ok((noConfig.message as string).startsWith(`${V1_SCOPE_BLOCK}\n\n`));
 });
 
-test("v1 model routing: review keywords route explorer spawns to reviewer config", () => {
+test("v1 model routing: explicit legacy reviewer header selects reviewer config", () => {
   const cwd = workspaceWithConfig({
     explorer: { mode: "default", model: null, promptOverride: null },
     reviewer: { mode: "model", model: "gpt-5.4-mini", promptOverride: null },
   });
-  const out = runSpawnAttachHook(spawnPayloadAt(cwd, { message: "review the backend diff", agent_type: "explorer" }));
+  const out = runSpawnAttachHook(spawnPayloadAt(cwd, { message: "CXC-ROLE: reviewer\n\nTASK: review the backend diff", agent_type: "explorer" }));
   assert.equal(updatedInputOf(out).model, "gpt-5.4-mini");
 });
 
@@ -779,8 +779,8 @@ test("inferRole: worker -> executor; review keywords -> reviewer; default explor
   // honours them too, so "executor"/"reviewer" never fall back to keyword scans.
   assert.equal(inferRole("executor", "map the codebase"), "executor");
   assert.equal(inferRole("reviewer", "map the codebase"), "reviewer");
-  assert.equal(inferRole("explorer", "audit the plan for blockers"), "reviewer");
-  assert.equal(inferRole("explorer", "코드 검증 부탁"), "reviewer");
+  assert.equal(inferRole("explorer", "audit the plan for blockers"), "explorer");
+  assert.equal(inferRole("explorer", "코드 검증 부탁"), "explorer");
   assert.equal(inferRole("explorer", "map the codebase"), "explorer");
   assert.equal(inferRole(undefined, "map the codebase"), "explorer");
 });
@@ -1095,7 +1095,7 @@ test('architect role identity wins review words while explicit write/reviewer ro
   assert.equal(inferRole('executor', message), 'executor');
   assert.equal(inferRole('worker', message), 'executor');
   assert.equal(inferRole('reviewer', message), 'reviewer');
-  assert.equal(inferRole('explorer', 'review the architect proposal'), 'reviewer');
+  assert.equal(inferRole('explorer', 'review the architect proposal'), 'explorer');
   assert.equal(inferRole('explorer', 'map architecture'), 'explorer');
   assert.equal(inferRole('explorer', 'CXC-ROLE: executor\n\nTASK: x'), 'explorer');
 });

@@ -18,6 +18,11 @@ User instructions and the actual host's safety/tool contracts take precedence ov
 **Classify every task before choosing process depth** (DEV-CLASS-01). The class selects how much
 planning, reading, and verification the task deserves — never apply maximum process by default.
 
+Classification is provisional. Before broad investigation, decide discovery
+ownership using [Discovery delegation](#discovery-delegation), including for
+read-only work. Revisit that decision when the scope grows; an initial small-task
+label does not justify retaining independent source areas in main.
+
 | Class | Name | Signals | Default Process |
 |-------|------|---------|-----------------|
 | C0 | Trivial Text | Typo, comment, copy, log string — zero behavior change | Direct fix + smallest proof (§0.1) |
@@ -158,6 +163,39 @@ Attach `cxc-search` for search tasks; the same search policy binds delegated age
 
 Surface-to-owner mappings live in `references/skill-ownership.md`; router trigger
 metadata remains canonical in each skill's `agents/openai.yaml`.
+
+### Discovery delegation
+
+For authorized investigation, decide who owns discovery before loading a broad
+set of source files or logs. Read-only feature assessment, debugging and source
+comparison can use explorer without implementation or a full PABCD cycle.
+
+Begin with the smallest orientation needed to name a concrete question and its
+read scope. When that question is independently answerable and main can progress
+on another part, delegate it to explorer before reading its full source locally.
+State the child's question and main's separate work. Use the configured role and
+supported dispatch protocol; no-delegation and host restrictions take priority.
+
+Keep a narrow lookup local when its result immediately determines the next step,
+or when the work cannot be separated without duplicating the investigation.
+Before retaining substantial discovery locally, state that concrete reason.
+Read-only scope, file count alone, or parallel shell calls are not sufficient
+reasons. Do not seek approval for already authorized routine delegation.
+
+Revisit the split when the investigation reaches another independent subsystem,
+requires broad rereading, or produces truncated output. Reclassify when scope
+changes. If delegation is unavailable, record the observed limitation and continue
+with bounded local reads.
+
+Use a bounded [discovery packet](../pabcd/references/delegation.md#discovery-packet)
+with findings, source anchors and uncertainties, not full file dumps. Main checks
+only the spans needed to settle a cited claim, not every returned file by default.
+If a broader read is necessary, name the evidence gap and reassign that question
+before expanding; do not repeat a delegated investigation as routine verification.
+Discovery does not replace implementation delegation or independent review.
+Confirm actual model routing from runtime evidence when reporting identity or cost.
+When comparing cost, use main plus child served-model input/cache/output prices and
+applicable tiers; token totals alone cannot compare differently priced models.
 
 ### Capability Routing Hub
 

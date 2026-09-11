@@ -18,7 +18,43 @@ topology: `structure/20_pabcd_dispatch_doctrine.md` §3. This is not an installe
 prerequisite; do not assume the path exists inside the plugin payload. An explicitly
 required task source still must be loaded or reported missing before its governed action.
 
+### Discovery packet
+
+Whether to dispatch stays with `dev`'s Discovery delegation. Once dispatched, the
+child packet still includes every DISPATCH-TASK-01 field:
+
+- **TASK:** one independently answerable question.
+- **SCOPE:** the child's bounded read area, plus main's separate work.
+- **MUST DO:** find or trace the answer; stop when it is answered.
+- **MUST NOT:** writes, or work that overlaps main.
+- **PROOF:** source anchors (`path:line` quotations, figures, URLs).
+- **RETURN FORMAT:** direct answer, key source anchors and unresolved points; omit
+  extra candidate lists, exploration narrative and full file dumps.
+- **DECISION BOUNDARY / STOP:** return unresolved judgments and any scope growth to main.
+
+Managed routing, isolation, lifecycle, and fallback in this file are unchanged.
+For a configured fallback, report creation and completion with the wire fields
+below (substitute the actual native IDs). `created` is an outcome, not an action;
+creation is not completion. Omit `observedModel` unless runtime evidence proves it.
+
+```json
+{"action":"report","outcome":"created","sessionId":"<main-id>","dispatchId":"<task-id>","attemptId":"<attempt-id>","agentId":"<child-id>"}
+```
+
+After native completion, use a separate invocation:
+
+```json
+{"action":"report","outcome":"complete","sessionId":"<main-id>","dispatchId":"<task-id>","attemptId":"<attempt-id>","agentId":"<child-id>"}
+```
+
 ### Live tool schema and role transport
+
+Apply `dev`'s Discovery delegation guidance before broad source/log reads.
+Explicit native explorer tasks retain explorer despite review-related words in
+the task. Legacy hosts that transport reviewers as explorer must use a deliberate
+`CXC-ROLE: reviewer` header; keyword inference remains for unspecified roles.
+V1 callers may use `message` or `items`, following the live schema. Preserve item
+attachments and do not supply both fields to work around model routing.
 
 Use the loaded native tool schema, not a version label, to choose arguments.
 `explorer`/`executor` express the intended role; `agent_type` and `task_name` are
@@ -96,10 +132,10 @@ boundary. Pass the role instructions and skill attachments in the supported payl
 
 Use the configured architect model/effort, retaining default inheritance and explicit
 caller overrides; no provider is a universal architect default. For hook-based routing,
-use readable message transport: items-only manual payloads and ciphertext do not prove
+use readable message or text-item transport. Ciphertext does not prove
 configured-model injection. Without readable role metadata, keyword/default inference
 can select another logical role, including explorer on legacy transports. An explicit native architect type retains
-architect routing; items-only/no-message hook paths still do not prove settings
+architect routing. Payload adaptation alone does not prove runtime settings
 injection. Honor full-history fork restrictions. If exact routing
 cannot be observed, report it as unverified; do not infer it from the prompt label.
 
