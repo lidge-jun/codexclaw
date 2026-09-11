@@ -592,3 +592,66 @@ Two other ways to fail this layer: recording `matchedThreadIds` on the file-leve
 AND instead of on a kept hit, and emitting the file-span hit without
 `scopeAdjust`. Either one keeps Test C or Test D.1 red.
 
+
+## Amendment B — wp3 A audit fold (2026-09-11)
+
+Independent `xai/grok-4.6` audit: **NEAR-PASS**, one blocker and four concerns, all
+folded. **Amendment B governs.**
+
+The reviewer traced the thread-id hole end to end and confirmed the plan closes it:
+snapshot `keptBefore`, count `paragraphMatches` on the AND only, run the file span
+iff `paragraphMatches === 0` and put it through `scopeAdjust`, then `add` the thread
+id iff `candidates.length > keptBefore`. Paragraph hits all dropped by scope: no
+file span, no push, no add. File span dropped by scope: no push, no add. And
+`repoKeysEqual(null, null)` is false (`repo-key.ts:94`), so Test C's
+`readOriginUrl: () => null` cannot smuggle the out-of-scope file back in.
+
+### B.1 (blocker) Test B is a lock, not proof
+
+`same-paragraph AND still uses the paragraph start line` is already green on the
+parent. Keep it — it pins the behaviour the file-span fallback must not disturb —
+but it is **not** red-green evidence for this layer, and it must not be counted as
+such in the receipt. The layer's proof is Tests A, C and D.
+**Do not touch `paragraphChunks` to manufacture a red B.**
+
+### B.2 (concern) `dist` is build output, not an edit
+
+`§4`'s "MODIFY `dist/memory-search.js`" must not be read as a hand edit. Patch the
+`.ts`, run `npm run build`, then stage `dist`. `chat-search.ts` and `cli.ts` stay
+read-only in this layer.
+
+### B.3 (concern) Test C will fail for the wrong reason unless sqlite is closed
+
+`§5.1` underspecifies the fixture. Copy the setup from `cwd-scope.test.ts`: the same
+`CREATE TABLE`, and `state.close()` / `mem.close()` **before** calling
+`searchMemory`. On this Windows host an open `DatabaseSync` handle makes stage1
+fail soft and return zero hits, which looks exactly like the bug the test is meant
+to catch — a correct patch would still show red and the implementer would chase it.
+
+### B.4 (concern) `firstMatchStartLine` is untested off line 1
+
+Test A's fixture matches in the first paragraph, so `startLine: 1` passes whether
+the helper works or not. Either add a file-span fixture with a leading
+non-matching paragraph and assert the real line, or drop the helper and document
+that a file-span hit reports `startLine: 1`. Do not ship an untested helper.
+
+### B.5 (concern, accepted as-is) File-span scoring differs in magnitude
+
+`scoreChunk(lowerFile, ...)` sees the whole file, so the heading bonus at
+`memory-search.ts:192` (`startsWith("#")`) does not fire for a file that opens with
+frontmatter, while a heading paragraph would get it. That is a value difference on
+the same field through the same code path, not a new branch. **Accept it. Do not
+special-case file-span scoring** — a scoring branch that exists only for the
+fallback is exactly the kind of divergence this layer is supposed to remove.
+
+### B.6 Red on parent, as audited
+
+| test | on `1e819453` |
+|---|---|
+| A — file-level AND across a blank line | **FAIL**, 0 file hits: `:473` passes, every chunk fails `:487` |
+| B — same-paragraph start line | PASS (lock only) |
+| C — `matchedThreadIds` only after a kept hit | **FAIL**, `hits: []`: the add at `:474-475` makes `:710` skip stage1 |
+| D — fallback forwards `synonyms` and `any` | **FAIL**, both omitted; D.1 also fails the wrong `=== true` expression |
+
+Three reds are the layer's evidence and all three must be observed before the fix.
+
