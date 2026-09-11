@@ -33,7 +33,106 @@ export type IngestResult = {
   elapsedMs: number;
 };
 
+/** Bound for SessionStart / search freshness walks. `--status` passes no budget. */
+export type FreshnessBudget = {
+  maxStats: number;
+  maxMs: number;
+};
+
+/** Newest 512 files or 50ms, whichever comes first. */
+export const BANNER_FRESHNESS_BUDGET: FreshnessBudget = { maxStats: 512, maxMs: 50 };
+
+export type IndexFreshness = {
+  /** `listRolloutFiles(home, days)` entries (path-set; no stat). */
+  sourceFiles: number;
+  /** rows in `files`. */
+  indexedFiles: number;
+  /** on disk, no `files` row. Path-set difference; no stat. */
+  missingFiles: number;
+  /** on disk and in `files`, but `(mtime_ms, size)` differs. */
+  changedFiles: number;
+  /** in `files`, not on disk. Path-set difference; no stat. */
+  extraFiles: number;
+  /** `missingFiles + changedFiles + extraFiles` — what a `days=0` ingest would touch. */
+  staleFiles: number;
+  /** true when the changed-file walk stopped at the budget. */
+  truncated: boolean;
+};
+
 type KnownFile = { mtime_ms: number; size: number; bytes_ingested: number; last_ord: number };
+
+function fingerprintMatches(
+  prev: { mtime_ms: number; size: number },
+  st: { mtimeMs: number; size: number },
+): boolean {
+  return prev.mtime_ms === Math.floor(st.mtimeMs) && prev.size === st.size;
+}
+
+/**
+ * Read-only comparison of the `files` table against source JSONL.
+ * Stats only overlapping paths (changedFiles); missing/extra are path-set diffs.
+ * Never parses JSONL, never writes, never bumps `last_ingest_at`.
+ */
+export function measureIndexFreshness(
+  home: string,
+  db: RwDb,
+  days = 0,
+  opts?: { budget?: FreshnessBudget | null },
+): IndexFreshness {
+  const onDisk = listRolloutFiles(home, days);
+  const known = new Map<string, { mtime_ms: number; size: number }>();
+  for (const row of db
+    .prepare("SELECT path, mtime_ms, size FROM files")
+    .all() as Array<Record<string, unknown>>) {
+    known.set(String(row.path), { mtime_ms: Number(row.mtime_ms), size: Number(row.size) });
+  }
+
+  const diskPaths = new Set<string>();
+  let missingFiles = 0;
+  for (const file of onDisk) {
+    diskPaths.add(file.path);
+    if (!known.has(file.path)) missingFiles += 1;
+  }
+
+  let extraFiles = 0;
+  if (days === 0) {
+    for (const path of known.keys()) {
+      if (!diskPaths.has(path)) extraFiles += 1;
+    }
+  }
+
+  const budget = opts?.budget ?? null;
+  let changedFiles = 0;
+  let truncated = false;
+  let stats = 0;
+  const started = Date.now();
+  for (const file of onDisk) {
+    const prev = known.get(file.path);
+    if (!prev) continue;
+    if (budget !== null && (stats >= budget.maxStats || Date.now() - started >= budget.maxMs)) {
+      truncated = true;
+      break;
+    }
+    stats += 1;
+    let st: { mtimeMs: number; size: number };
+    try {
+      st = statSync(file.path);
+    } catch {
+      continue;
+    }
+    if (!fingerprintMatches(prev, st)) changedFiles += 1;
+  }
+
+  return {
+    sourceFiles: onDisk.length,
+    indexedFiles: known.size,
+    missingFiles,
+    changedFiles,
+    extraFiles,
+    staleFiles: missingFiles + changedFiles + extraFiles,
+    truncated,
+  };
+}
 
 /** Offset just past the last complete line (0 when the buffer has no newline). */
 function completeLineBoundary(buf: Buffer): number {
@@ -113,7 +212,7 @@ export function ingest(home: string, db: RwDb, days = 0): IngestResult {
     }
     const prev = known.get(file.path);
     const mtimeMs = Math.floor(st.mtimeMs);
-    if (prev && prev.mtime_ms === mtimeMs && prev.size === st.size) continue;
+    if (prev && fingerprintMatches(prev, st)) continue;
     // Concurrent-append safety: stat is taken BEFORE the read, so a write landing
     // between them stores a stat older than the content we indexed — the next
     // refresh sees the mismatch and re-ingests (self-healing, never silently stale).
@@ -190,9 +289,11 @@ export function ingest(home: string, db: RwDb, days = 0): IngestResult {
     }
   }
 
-  db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_ingest_at', ?)").run(
-    new Date().toISOString(),
-  );
+  if (result.ingested + result.appended + result.pruned > 0) {
+    db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_ingest_at', ?)").run(
+      new Date().toISOString(),
+    );
+  }
   result.elapsedMs = Date.now() - started;
   return result;
 }

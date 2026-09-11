@@ -502,6 +502,9 @@ export function buildCwdContext(
       cwd,
       days: 7,
       limit: 8,
+      // SessionStart must not ingest. Staleness is reported by indexStatusLine
+      // (cli.ts) on the banner; flipping this to false would parse JSONL during
+      // every session start (issue #144).
       noRefresh: true,
       source: "main",
       includeTools: false,

@@ -13,8 +13,8 @@ import { existsSync, realpathSync } from "node:fs";
 import { searchChat, DEFAULT_DAYS, DEFAULT_LIMIT,                        } from "./chat-search.js";
 import { searchMemory, DEFAULT_MEMORY_LIMIT,                          } from "./memory-search.js";
 import { formatChatResult, formatMemoryResult, clipChatResultForJson } from "./format.js";
-import { openIndex, openIndexReadOnly, indexPath, indexStatus } from "./index-db.js";
-import { ingest } from "./ingest.js";
+import { openIndex, openIndexReadOnly, indexPath, indexStatus,                  } from "./index-db.js";
+import { ingest, measureIndexFreshness, BANNER_FRESHNESS_BUDGET,                     } from "./ingest.js";
 import { codexHome } from "./paths.js";
 import {
   handleUserPromptSubmit,
@@ -213,6 +213,45 @@ function runMemorySearch(args          )         {
   return 0;
 }
 
+function statusReport(
+  db                                      ,
+  path        ,
+  home        ,
+  budget                                             ,
+)
+
+
+
+
+
+
+  {
+  const status = indexStatus(db, path);
+  const fresh                 = measureIndexFreshness(
+    home,
+    db,
+    0,
+    budget ? { budget } : undefined,
+  );
+  return {
+    ...status,
+    sourceFiles: fresh.sourceFiles,
+    staleFiles: fresh.staleFiles,
+    missingFiles: fresh.missingFiles,
+    changedFiles: fresh.changedFiles,
+    extraFiles: fresh.extraFiles,
+    truncated: fresh.truncated,
+  };
+}
+
+function staleCountLabel(n        , truncated         )         {
+  return truncated ? `${n}+` : String(n);
+}
+
+function formatStatusText(report                                 )         {
+  return `index: ${report.path}\nfiles: ${report.files}, messages: ${report.msgs}, source files: ${report.sourceFiles}, stale: ${staleCountLabel(report.staleFiles, report.truncated)}, last ingest: ${report.lastIngestAt ?? "never"}\n`;
+}
+
 function runChatIndex(args          )         {
   const parsed = readFlags(args);
   if (parsed === null) return 1;
@@ -238,11 +277,9 @@ function runChatIndex(args          )         {
           );
         }
       }
-      const status = indexStatus(db, path);
+      const report = statusReport(db, path, home);
       process.stdout.write(
-        values.json === true
-          ? `${JSON.stringify(status, null, 2)}\n`
-          : `index: ${status.path}\nfiles: ${status.files}, messages: ${status.msgs}, last ingest: ${status.lastIngestAt ?? "never"}\n`,
+        values.json === true ? `${JSON.stringify(report, null, 2)}\n` : formatStatusText(report),
       );
       return 0;
     } finally {
@@ -255,13 +292,12 @@ function runChatIndex(args          )         {
 }
 
 /** Read-only one-line index status for hook injection ("" when unavailable). */
-function indexStatusLine()         {
+export function indexStatusLine(home = codexHome(), path = indexPath())         {
   try {
-    const path = indexPath();
     const db = openIndexReadOnly(path);
     try {
-      const s = indexStatus(db, path);
-      return `${s.files} files / ${s.msgs} messages, last ingest ${s.lastIngestAt ?? "never"}`;
+      const report = statusReport(db, path, home, BANNER_FRESHNESS_BUDGET);
+      return `${report.files} files / ${report.msgs} messages, ${report.sourceFiles} source, ${staleCountLabel(report.staleFiles, report.truncated)} stale, last ingest ${report.lastIngestAt ?? "never"}`;
     } finally {
       db.close();
     }

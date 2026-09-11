@@ -26,7 +26,7 @@ import {
 import { loadThreadMeta } from "./threads-db.js";
 import { repoKeyForCwd, repoKeysEqual, readOriginUrl,                    } from "./repo-key.js";
 import { openIndex, openIndexReadOnly, indexPath, indexStatus } from "./index-db.js";
-import { ingest } from "./ingest.js";
+import { ingest, measureIndexFreshness, BANNER_FRESHNESS_BUDGET } from "./ingest.js";
 import { queryIndex,                } from "./index-search.js";
 import { expandQueryWords } from "./synonyms.js";
 import {
@@ -250,12 +250,12 @@ function searchViaIndex(
     if (roWarning) result.warnings.push(roWarning);
     // Freshness metadata (evaluator round-1 gap #7): how stale is what you just read?
     const status = indexStatus(db, path);
-    const sourceFiles = listRolloutFiles(shared.home, 0).length;
+    const fresh = measureIndexFreshness(shared.home, db, 0, { budget: BANNER_FRESHNESS_BUDGET });
     result.index = {
       lastIngestAt: status.lastIngestAt,
       files: status.files,
-      sourceFiles,
-      staleFiles: Math.max(0, sourceFiles - status.files),
+      sourceFiles: fresh.sourceFiles,
+      staleFiles: fresh.staleFiles,
       readOnly,
     };
     result.scannedFiles = refreshed;

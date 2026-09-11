@@ -34,12 +34,15 @@ test("ingest: builds, is incremental, and prunes deleted files", () => {
     const first = ingest(home, db, 0);
     assert.equal(first.ingested, 4, "all fixture rollouts ingested (incl. archived)");
     assert.ok(first.msgs > 0);
+    const SENTINEL = "2000-01-01T00:00:00.000Z";
+    db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_ingest_at', ?)").run(SENTINEL);
     const second = ingest(home, db, 0);
     assert.equal(second.ingested, 0, "unchanged files skipped");
     assert.equal(second.pruned, 0);
     const status = indexStatus(db, idx);
     assert.equal(status.files, 4);
     assert.ok(status.lastIngestAt !== null);
+    assert.equal(status.lastIngestAt, SENTINEL);
   } finally {
     db.close();
   }
@@ -223,6 +226,8 @@ test("cli: chat index --status and --rebuild work against --index-path", () => {
   try {
     assert.equal(cliMain(["chat", "index", "--home", home, "--index-path", idx, "--status"]), 0);
     assert.match(captured.join(""), /files: \d+, messages: \d+/);
+    assert.match(captured.join(""), /source files: \d+/);
+    assert.match(captured.join(""), /stale: \d+/);
     captured.length = 0;
     assert.equal(cliMain(["chat", "index", "--home", home, "--index-path", idx, "--rebuild"]), 0);
     assert.match(captured.join(""), /ingested \d+\/\d+ files/);
