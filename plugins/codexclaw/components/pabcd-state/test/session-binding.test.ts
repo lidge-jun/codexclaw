@@ -2,7 +2,7 @@ import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import fs, { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, toNamespacedPath } from "node:path";
 import { createRequire, syncBuiltinESMExports } from "node:module";
 import { Worker } from "node:worker_threads";
 import { resolveNativeSession } from "../src/session-binding.ts";
@@ -13,7 +13,10 @@ const CHILD = "019a0000-0000-7000-8000-000000000001";
 const PARENT = "019a0000-0000-7000-8000-000000000002";
 
 function fixture(t: TestContext) {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "cxc-session-binding-")));
+  // realpathSync.native, matching the production helper. On windows-latest TEMP can
+  // be an 8.3 short path that the JS implementation leaves intact, which would make
+  // the long-form cwd the production code resolves differ from this fixture value.
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-session-binding-")));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const cwd = join(root, "work");
   const home = join(root, "native");
@@ -164,6 +167,43 @@ test("cwd must match exactly after realpath, not a parent or sibling", t => {
   const f = fixture(t);
   nativeDb(f.home, f.root);
   assert.equal(resolveNativeSession(f.cwd, f.env).ok, false);
+});
+
+// #134. Codex on Windows stores threads.cwd with the extended-length prefix; a
+// desktop install measured 159 of 159 rows in that shape. JS realpathSync throws
+// EISDIR (lstat 'C:') on it, so the stored-cwd comparison fell into its catch and
+// reported "Cannot resolve the native session's working directory." The process cwd
+// is the plain form, which is why only the stored side failed.
+//
+// toNamespacedPath produces the real shape rather than hardcoding a prefix, and it
+// is a no-op off win32, so the assertion below is meaningful on Windows and
+// trivially true elsewhere. This is NOT the 8.3 short-name case: that is a
+// different alias class that merely shares the same fix.
+test("an extended-length stored cwd still matches the native session", t => {
+  const f = fixture(t);
+  const stored = toNamespacedPath(f.cwd);
+  const dbPath = nativeDb(f.home, stored);
+
+  if (process.platform === "win32") {
+    // Pin the premise: the JS implementation cannot read this shape, the native one
+    // can. If this ever stops holding, the fix below is no longer load-bearing.
+    assert.notEqual(stored, f.cwd);
+    assert.throws(() => realpathSync(stored));
+    assert.equal(realpathSync.native(stored), f.cwd);
+  }
+
+  const result = resolveNativeSession(f.cwd, f.env);
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.sessionId, CHILD);
+    assert.equal(result.cwd, f.cwd);   // the plain form, not the prefixed one
+    assert.equal(result.dbPath, dbPath);
+  }
+
+  // And the CLI surface the issue actually reported.
+  const { code, body } = jsonResult(["current"], f);
+  assert.equal(code, 0);
+  assert.equal(body.ok, true);
 });
 
 test("highest numeric database wins and CODEX_SQLITE_HOME takes precedence", t => {
