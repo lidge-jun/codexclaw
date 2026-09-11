@@ -24,7 +24,7 @@
 import type { RwDb } from "./sqlite.ts";
 import type { ChatHit, ChatSearchResult } from "./chat-search.ts";
 import type { RolloutSource } from "./rollout.ts";
-import { FOLD_CWD_CASE } from "./rollout.ts";
+import { FOLD_CWD_CASE, normalizeCwd, canonicalCwdSql } from "./rollout.ts";
 import { loadThreadMeta, type ThreadMetaResult } from "./threads-db.ts";
 import { stateDbPath } from "./paths.ts";
 import { filesHasColumn } from "./index-db.ts";
@@ -235,17 +235,15 @@ function candidateFilter(opts: ResolvedQuery, withWords = true): { where: string
     params.push(opts.source);
   }
   if (opts.cwd) {
-    // Separator-aware prefix: exact cwd, or a child path under it on either
-    // separator style — /repo must never match /repo2.
-    const parts = [
-      // macOS folds path case (see rollout.ts FOLD_CWD_CASE); elsewhere the
-      // exact comparison stays byte-exact as before.
-      FOLD_CWD_CASE ? "lower(f.cwd) = lower(?)" : "f.cwd = ?",
-      "f.cwd LIKE ? ESCAPE '\\'",
-      "f.cwd LIKE ? ESCAPE '\\'",
-    ];
-    // Backslash separator must itself be escaped under ESCAPE '\': pattern "\\%".
-    params.push(opts.cwd, `${escapeLike(opts.cwd)}/%`, `${escapeLike(opts.cwd)}\\\\%`);
+    // Canonical prefix: exact cwd or a child under it. /repo must never match
+    // /repo2. Both sides go through the same normalizeCwd / canonicalCwdSql pair
+    // as the scan path (cwdMatches), including \\?\\ and UNC prefix stripping.
+    const cwd = normalizeCwd(opts.cwd);
+    const col = canonicalCwdSql("f.cwd");
+    const eq = FOLD_CWD_CASE ? `lower(${col}) = lower(?)` : `${col} = ?`;
+    const like = FOLD_CWD_CASE ? `lower(${col}) LIKE ? ESCAPE '\\'` : `${col} LIKE ? ESCAPE '\\'`;
+    const parts = [eq, like];
+    params.push(cwd, `${escapeLike(FOLD_CWD_CASE ? cwd.toLowerCase() : cwd)}/%`);
     if (opts.repoKey && opts.hasRepoKeyColumn) {
       parts.push("(f.repo_key IS NOT NULL AND f.repo_key = ?)");
       params.push(opts.repoKey);

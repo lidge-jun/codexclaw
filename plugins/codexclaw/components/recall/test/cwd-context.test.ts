@@ -7,6 +7,7 @@ import { dateParts } from "./fixtures.ts";
 import { openIndex } from "../src/index-db.ts";
 import { ingest } from "../src/ingest.ts";
 import { listCwdSessions } from "../src/cwd-context.ts";
+import { FOLD_CWD_CASE, foldCwdCaseFor } from "../src/rollout.ts";
 import { loadSummaryIndex } from "../src/cwd-context.ts";
 
 // A real ingested index, not a hand-built table: the cwd column and the synthetic
@@ -245,6 +246,65 @@ test("a machine with no summaries yields an empty map, never a throw", () => {
   const root = mkdtempSync(join(tmpdir(), "recall-nosummaries-"));
   try {
     assert.equal(loadSummaryIndex(root).size, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("listCwdSessions matches a \\\\?\\\\ recorded cwd with repo_key NULL", () => {
+  const root = mkdtempSync(join(tmpdir(), "recall-cwdctx-ext-"));
+  try {
+    const today = dateParts(0);
+    const dir = join(root, "sessions", today.y, today.m, today.d);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, `rollout-${today.y}-${today.m}-${today.d}T01-00-00-019f0000-0000-7000-8000-0000000000e1.jsonl`),
+      rollout("019f0000-0000-7000-8000-0000000000e1", "\\\\?\\C:\\proj\\here", today.iso, [
+        ["user", "wire the hook budget to the compaction source"],
+      ]),
+    );
+    const lidx = join(root, "sidecar", "index.sqlite");
+    const db = openIndex(lidx);
+    try {
+      ingest(root, db, 0);
+    } finally {
+      db.close();
+    }
+    const opts = { indexPath: lidx, home: root, readOriginUrl: () => null };
+    const sessions = listCwdSessions("C:\\proj\\here", 5, opts) ?? [];
+    assert.equal(sessions.length, 1);
+    assert.equal(sessions[0].excerpt, "wire the hook budget to the compaction source");
+    assert.deepEqual(listCwdSessions("C:\\proj\\here2", 5, opts) ?? [], []);
+    assert.equal((listCwdSessions("//?/C:/proj/here", 5, opts) ?? []).length, 1);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("listCwdSessions case-fold follows FOLD_CWD_CASE when repo_key is NULL", () => {
+  const root = mkdtempSync(join(tmpdir(), "recall-cwdctx-case-"));
+  try {
+    const today = dateParts(0);
+    const dir = join(root, "sessions", today.y, today.m, today.d);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, `rollout-${today.y}-${today.m}-${today.d}T01-00-00-019f0000-0000-7000-8000-0000000000e2.jsonl`),
+      rollout("019f0000-0000-7000-8000-0000000000e2", "C:\\proj\\here", today.iso, [
+        ["user", "case fold probe for cwd injection"],
+      ]),
+    );
+    const lidx = join(root, "sidecar", "index.sqlite");
+    const db = openIndex(lidx);
+    try {
+      ingest(root, db, 0);
+    } finally {
+      db.close();
+    }
+    const shouldFold = process.platform === "win32" || process.platform === "darwin";
+    const sessions =
+      listCwdSessions("c:\\proj\\HERE", 5, { indexPath: lidx, home: root, readOriginUrl: () => null }) ?? [];
+    assert.equal(sessions.length, shouldFold ? 1 : 0);
+    assert.equal(FOLD_CWD_CASE, foldCwdCaseFor(process.platform));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

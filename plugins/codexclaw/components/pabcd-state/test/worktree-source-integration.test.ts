@@ -313,3 +313,112 @@ test("receipt command runs without inherited Git routing variables", t => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// #109 split cwd. The FSM directory need not be a repository; the source tree must be.
+// Before this, gitIdentity(cwd) threw for a non-git native cwd and binding was
+// unreachable, so a bound cycle could never obtain a real commit sha.
+// ---------------------------------------------------------------------------
+function splitFixture(t: TestContext) {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-split-cwd-")));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  // The native cwd is deliberately NOT a repository.
+  const cwd = join(root, "fsm"), source = join(cwd, "src"), home = join(root, "home");
+  mkdirSync(cwd); mkdirSync(source); mkdirSync(home);
+  const git = (...args: string[]) => execFileSync("git", args, { cwd: source, stdio: "pipe" });
+  git("init", "-q"); git("config", "user.name", "test"); git("config", "user.email", "test@example.invalid");
+  writeFileSync(join(source, "a.txt"), "x"); git("add", "."); git("commit", "-qm", "init");
+  const db = new DatabaseSync(join(home, "state_5.sqlite"));
+  db.exec("CREATE TABLE threads (id TEXT, cwd TEXT, archived INTEGER, source TEXT)");
+  db.prepare("INSERT INTO threads VALUES (?, ?, 0, 'cli')").run(id, cwd); db.close();
+  const env = { CODEX_THREAD_ID: id, CODEX_HOME: home };
+  writeState(cwd, { ...defaultState(id), phase: "A" });
+  const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: source, encoding: "utf8" }).trim();
+  return { root, cwd, source, home, env, head };
+}
+
+test("#109: a non-git native cwd can bind a nested git source root", t => {
+  const f = splitFixture(t);
+  // Sanity: the premise is that the FSM cwd is NOT inside a repository. Without this the
+  // test would silently exercise the ordinary linked-worktree path instead.
+  assert.throws(() => execFileSync("git", ["rev-parse", "--git-dir"], { cwd: f.cwd, stdio: "pipe" }));
+  assert.equal(runSessionCli(["source", f.source, "--json"], f.cwd, f.env).code, 0);
+  assert.equal(resolveSessionSource(f.cwd, id), f.source);
+});
+
+test("#109: the widened guard still refuses a subdirectory, an ancestor and a second target", t => {
+  const f = splitFixture(t);
+  const child = join(f.source, "child"); mkdirSync(child);
+  // Not a repository ROOT.
+  const sub = runSessionCli(["source", child], f.cwd, f.env);
+  assert.equal(sub.code, 1);
+  assert.match(sub.output, /root of a Git repository/);
+  // The ancestor case gets its own fixture below: initialising a repository at the
+  // ancestor turns the FSM cwd into a git cwd, which would contaminate the immutability
+  // assertions that follow here.
+  // Relative paths stay refused.
+  assert.equal(runSessionCli(["source", "relative"], f.cwd, f.env).code, 1);
+  // Immutability survives the widening.
+  assert.equal(runSessionCli(["source", f.source, "--json"], f.cwd, f.env).code, 0);
+  const other = join(f.cwd, "other"); mkdirSync(other);
+  execFileSync("git", ["init", "-q"], { cwd: other, stdio: "pipe" });
+  assert.equal(runSessionCli(["source", other], f.cwd, f.env).code, 1);
+});
+
+// The discriminator in nativeGitIdentity. A bare `catch` would treat ANY git failure as
+// "not a repository" and then allow binding an unrelated repo, quietly relaxing the
+// linked-worktree guard for a reason unrelated to #109.
+//
+// A BARE repository is the precise case: `rev-parse --git-dir` succeeds, so git does
+// consider this a repository, but `--show-toplevel` fails because there is no work tree,
+// so gitIdentity() throws. The probe must rethrow rather than report non-git.
+//
+// Note the contrast that makes this test meaningful: when `--git-dir` ALSO fails, git
+// itself does not consider the directory a repository, and taking the #109 path is then
+// correct. This case is the other side of that line.
+test("#109: a bare repository is NOT treated as non-git", t => {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), "cxc-bare-native-")));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const cwd = join(root, "bare"), home = join(root, "home");
+  mkdirSync(cwd); mkdirSync(home);
+  execFileSync("git", ["init", "--bare", "-q"], { cwd, stdio: "pipe" });
+  // Premise: git owns this directory, but it has no work tree.
+  assert.doesNotThrow(() => execFileSync("git", ["rev-parse", "--git-dir"], { cwd, stdio: "pipe" }));
+  assert.throws(() => execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd, stdio: "pipe" }));
+
+  const foreign = join(root, "foreign-repo"); mkdirSync(foreign);
+  execFileSync("git", ["init", "-q"], { cwd: foreign, stdio: "pipe" });
+  execFileSync("git", ["config", "user.name", "test"], { cwd: foreign, stdio: "pipe" });
+  execFileSync("git", ["config", "user.email", "t@example.invalid"], { cwd: foreign, stdio: "pipe" });
+  writeFileSync(join(foreign, "a.txt"), "x");
+  execFileSync("git", ["add", "."], { cwd: foreign, stdio: "pipe" });
+  execFileSync("git", ["commit", "-qm", "init"], { cwd: foreign, stdio: "pipe" });
+
+  const db = new DatabaseSync(join(home, "state_5.sqlite"));
+  db.exec("CREATE TABLE threads (id TEXT, cwd TEXT, archived INTEGER, source TEXT)");
+  db.prepare("INSERT INTO threads VALUES (?, ?, 0, 'cli')").run(id, cwd); db.close();
+  const env = { CODEX_THREAD_ID: id, CODEX_HOME: home };
+  writeState(cwd, { ...defaultState(id), phase: "A" });
+
+  // It must NOT fall through to the #109 path and accept an unrelated repository.
+  assert.equal(runSessionCli(["source", foreign], cwd, env).code, 1);
+});
+
+// Why the containment check inside the non-git branch of bindSessionSource is a DEFENSIVE
+// INVARIANT rather than a reachable path, pinned so a future probe change cannot quietly
+// make it reachable. Entering that branch means the FSM cwd is not inside ANY repository.
+// A source root that CONTAINS the FSM cwd necessarily puts that cwd inside the source
+// repository, which makes nativeGitIdentity non-null and routes the call to the `native`
+// linked-worktree branch instead. So the ancestor is refused -- just not by the message
+// the non-git branch would emit. This test documents the real behaviour instead of
+// asserting a string that never appears.
+test("#109: a source root containing the FSM cwd is refused by the native branch", t => {
+  const f = splitFixture(t);
+  // Before: the FSM cwd is not inside any repository.
+  assert.throws(() => execFileSync("git", ["rev-parse", "--git-dir"], { cwd: f.cwd, stdio: "pipe" }));
+  // Making the ancestor a repository also makes the FSM cwd a git cwd.
+  execFileSync("git", ["init", "-q"], { cwd: f.root, stdio: "pipe" });
+  assert.doesNotThrow(() => execFileSync("git", ["rev-parse", "--git-dir"], { cwd: f.cwd, stdio: "pipe" }));
+  const anc = runSessionCli(["source", f.root], f.cwd, f.env);
+  assert.equal(anc.code, 1);
+  assert.match(anc.output, /linked worktree root/);
+});

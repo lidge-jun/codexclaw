@@ -9,6 +9,7 @@ import { searchChat, type ChatSearchOptions } from "../src/chat-search.ts";
 import { openIndex, indexStatus } from "../src/index-db.ts";
 import { ingest, TOOL_TEXT_CAP } from "../src/ingest.ts";
 import { main as cliMain } from "../src/cli.ts";
+import { FOLD_CWD_CASE, foldCwdCaseFor } from "../src/rollout.ts";
 
 let home: string;
 let idx: string;
@@ -33,12 +34,15 @@ test("ingest: builds, is incremental, and prunes deleted files", () => {
     const first = ingest(home, db, 0);
     assert.equal(first.ingested, 4, "all fixture rollouts ingested (incl. archived)");
     assert.ok(first.msgs > 0);
+    const SENTINEL = "2000-01-01T00:00:00.000Z";
+    db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_ingest_at', ?)").run(SENTINEL);
     const second = ingest(home, db, 0);
     assert.equal(second.ingested, 0, "unchanged files skipped");
     assert.equal(second.pruned, 0);
     const status = indexStatus(db, idx);
     assert.equal(status.files, 4);
     assert.ok(status.lastIngestAt !== null);
+    assert.equal(status.lastIngestAt, SENTINEL);
   } finally {
     db.close();
   }
@@ -222,6 +226,8 @@ test("cli: chat index --status and --rebuild work against --index-path", () => {
   try {
     assert.equal(cliMain(["chat", "index", "--home", home, "--index-path", idx, "--status"]), 0);
     assert.match(captured.join(""), /files: \d+, messages: \d+/);
+    assert.match(captured.join(""), /source files: \d+/);
+    assert.match(captured.join(""), /stale: \d+/);
     captured.length = 0;
     assert.equal(cliMain(["chat", "index", "--home", home, "--index-path", idx, "--rebuild"]), 0);
     assert.match(captured.join(""), /ingested \d+\/\d+ files/);
@@ -318,6 +324,120 @@ test("chat --cwd reaches another checkout of the same git origin", () => {
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+function ingestNullRepoSession(recordedCwd: string, token: string): { root: string; idx: string } {
+  const root = mkdtempSync(join(tmpdir(), "recall-cwd-null-"));
+  const today = dateParts(0);
+  const dir = join(root, "sessions", today.y, today.m, today.d);
+  mkdirSync(dir, { recursive: true });
+  const threadId = "019f4444-0000-7000-8000-0000000000c1";
+  const payload: Record<string, unknown> = {
+    id: threadId,
+    timestamp: today.iso,
+    cwd: recordedCwd,
+    originator: "codex-tui",
+  };
+  writeFileSync(
+    join(dir, `rollout-${today.y}-${today.m}-${today.d}T01-00-00-${threadId}.jsonl`),
+    `${JSON.stringify({ timestamp: today.iso, type: "session_meta", payload })}\n` +
+      `${JSON.stringify({
+        timestamp: today.iso,
+        type: "response_item",
+        payload: { type: "message", role: "user", content: [{ type: "input_text", text: token }] },
+      })}\n`,
+  );
+  const idx = join(root, "sidecar", "index.sqlite");
+  const db = openIndex(idx);
+  try {
+    ingest(root, db, 0);
+  } finally {
+    db.close();
+  }
+  return { root, idx };
+}
+
+const nullRepoQuery = (root: string, idx: string, q: string, cwd: string, scan: boolean) =>
+  searchChat(q, {
+    home: root,
+    indexPath: idx,
+    cwd,
+    days: 0,
+    readOriginUrl: () => null,
+    ...(scan ? { scan: true } : { noRefresh: true }),
+  });
+
+test("index and scan agree on an extended-length cwd when repo_key is NULL", () => {
+  const recorded = "\\\\?\\C:\\Users\\super\\Developers";
+  const { root, idx } = ingestNullRepoSession(recorded, "lidgejun");
+  try {
+    for (const cwd of ["C:\\Users\\super\\Developers", "C:/Users/super/Developers"]) {
+      const indexed = nullRepoQuery(root, idx, "lidgejun", cwd, false);
+      const scanned = nullRepoQuery(root, idx, "lidgejun", cwd, true);
+      assert.equal(indexed.hits.length, 1, `index ${cwd}`);
+      assert.equal(scanned.hits.length, 1, `scan ${cwd}`);
+      assert.equal(indexed.hits[0].cwd, recorded);
+      assert.equal(scanned.hits[0].cwd, recorded);
+    }
+    const siblingCwd = "C:\\Users\\super\\Developers2";
+    assert.equal(nullRepoQuery(root, idx, "lidgejun", siblingCwd, false).hits.length, 0);
+    assert.equal(nullRepoQuery(root, idx, "lidgejun", siblingCwd, true).hits.length, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("index and scan agree on separator mismatch when repo_key is NULL", () => {
+  const recorded = "C:\\Users\\super\\Developers";
+  const { root, idx } = ingestNullRepoSession(recorded, "lidgejun");
+  try {
+    for (const cwd of ["C:/Users/super/Developers", "C:\\Users\\super\\Developers"]) {
+      const indexed = nullRepoQuery(root, idx, "lidgejun", cwd, false);
+      const scanned = nullRepoQuery(root, idx, "lidgejun", cwd, true);
+      assert.equal(indexed.hits.length, 1, `index ${cwd}`);
+      assert.equal(scanned.hits.length, 1, `scan ${cwd}`);
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("index and scan agree on a case-differing cwd when repo_key is NULL", () => {
+  const recorded = "C:\\Users\\super\\Developers";
+  const { root, idx } = ingestNullRepoSession(recorded, "lidgejun");
+  try {
+    const cwd = "c:\\users\\super\\developers";
+    const shouldFold = process.platform === "win32" || process.platform === "darwin";
+    const indexed = nullRepoQuery(root, idx, "lidgejun", cwd, false);
+    const scanned = nullRepoQuery(root, idx, "lidgejun", cwd, true);
+    const shape = (h: { ts: string; text: string; cwd: string | null }) => ({ ts: h.ts, text: h.text, cwd: h.cwd });
+    assert.deepEqual(indexed.hits.map(shape), scanned.hits.map(shape));
+    assert.equal(indexed.hits.length, shouldFold ? 1 : 0);
+    assert.equal(scanned.hits.length, shouldFold ? 1 : 0);
+    assert.equal(FOLD_CWD_CASE, foldCwdCaseFor(process.platform));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("index matches a child path under a parent cwd when repo_key is NULL", () => {
+  const cases: Array<{ recorded: string; query: string }> = [
+    { recorded: "C:\\Users\\super\\Developers\\sub", query: "C:\\Users\\super\\Developers" },
+    { recorded: "C:\\Users\\super\\Developers\\sub", query: "C:/Users/super/Developers" },
+    { recorded: "\\\\?\\C:\\Users\\super\\Developers\\sub", query: "C:\\Users\\super\\Developers" },
+  ];
+  for (const c of cases) {
+    const { root, idx } = ingestNullRepoSession(c.recorded, "lidgejun-child");
+    try {
+      const indexed = nullRepoQuery(root, idx, "lidgejun-child", c.query, false);
+      const scanned = nullRepoQuery(root, idx, "lidgejun-child", c.query, true);
+      assert.equal(indexed.hits.length, 1, `index ${c.recorded} vs ${c.query}`);
+      assert.equal(scanned.hits.length, 1, `scan ${c.recorded} vs ${c.query}`);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
 test("an index built before wp4 gains repo_key in place, without re-parsing msgs", () => {
   const root = mkdtempSync(join(tmpdir(), "recall-migrate-"));
   try {

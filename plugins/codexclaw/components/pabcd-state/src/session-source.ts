@@ -2,7 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { closeSync, constants, fstatSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, join, sep } from "node:path";
 import { isCanonicalSessionId, readState } from "./state.ts";
 
 interface SourceBinding {
@@ -25,8 +25,7 @@ function canonical(path: string): string {
 }
 
 function gitIdentity(cwd: string): { root: string; commonDir: string; gitDir: string } {
-  const env = { ...process.env };
-  for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"]) delete env[name];
+  const env = gitProbeEnv();
   const git = (...args: string[]) => execFileSync("git", args, { cwd, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
   try {
     return {
@@ -35,6 +34,41 @@ function gitIdentity(cwd: string): { root: string; commonDir: string; gitDir: st
       gitDir: canonical(git("rev-parse", "--absolute-git-dir")),
     };
   } catch { throw new Error("Cannot resolve source Git worktree identity."); }
+}
+
+/** Routing vars stripped so a stray GIT_DIR cannot redirect any probe below. */
+function gitProbeEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"]) delete env[name];
+  return env;
+}
+
+/**
+ * Native-side git identity, or null ONLY when the native cwd is genuinely not inside a
+ * repository.
+ *
+ * #109: an FSM directory need not be a repository. When it is one, the existing
+ * linked-worktree rule applies unchanged. When it is not, there is no `commonDir` to
+ * compare against and the only meaningful requirement is that the target is a repository
+ * root. `gitIdentity` keeps THROWING for the source side, where a repository is mandatory.
+ *
+ * The discriminator is load-bearing. A bare `catch` here would also swallow a corrupt or
+ * unreadable repository and then let an UNRELATED repo be bound as this session's source,
+ * relaxing the linked-worktree guard for a reason that has nothing to do with #109.
+ * `rev-parse --git-dir` succeeds inside any repository, so a failure there is the
+ * canonical "not a repository" signal; anything else is rethrown.
+ */
+function nativeGitIdentity(cwd: string): { root: string; commonDir: string; gitDir: string } | null {
+  try {
+    return gitIdentity(cwd);
+  } catch (err) {
+    try {
+      execFileSync("git", ["rev-parse", "--git-dir"], { cwd, env: gitProbeEnv(), encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    } catch {
+      return null; // not inside a repository at all
+    }
+    throw err; // inside a repository, but its identity could not be resolved
+  }
 }
 
 function bindingPath(cwd: string, sessionId: string): string {
@@ -85,10 +119,14 @@ export function resolveSessionSource(cwd: string, sessionId: string): string {
     return cwd;
   }
   if (pinned && binding.sourceRoot !== pinned) throw new Error("Source binding differs from the session's pinned worktree.");
-  const native = gitIdentity(cwd);
+  const native = nativeGitIdentity(cwd);
   const source = gitIdentity(binding.sourceRoot);
+  // The three SOURCE clauses are what detect a moved or re-pointed source worktree and
+  // stay UNCONDITIONAL. Only the native clause is conditional, because a non-git native
+  // cwd has no commonDir to compare (#109).
   if (source.root !== binding.sourceRoot || source.commonDir !== binding.commonDir
-      || source.gitDir !== binding.gitDir || native.commonDir !== binding.commonDir) {
+      || source.gitDir !== binding.gitDir
+      || (native !== null && native.commonDir !== binding.commonDir)) {
     throw new Error("Bound source worktree moved or its repository identity changed.");
   }
   return binding.sourceRoot;
@@ -99,9 +137,36 @@ export function bindSessionSource(cwd: string, sessionId: string, target: string
   if (!isAbsolute(target)) throw new Error("Source worktree path must be absolute.");
   const nativeCwd = canonical(cwd);
   const sourceRoot = canonical(target);
-  const native = gitIdentity(cwd), source = gitIdentity(sourceRoot);
-  if (source.root !== sourceRoot || source.commonDir !== native.commonDir || source.gitDir === native.gitDir) {
-    throw new Error("Source must be a linked worktree root in the native session's repository.");
+  const native = nativeGitIdentity(cwd), source = gitIdentity(sourceRoot);
+  if (source.root !== sourceRoot) {
+    throw new Error("Source must be the root of a Git repository or worktree.");
+  }
+  if (native) {
+    // Unchanged contract for a git native cwd: same repository, different worktree.
+    if (source.commonDir !== native.commonDir || source.gitDir === native.gitDir) {
+      throw new Error("Source must be a linked worktree root in the native session's repository.");
+    }
+  } else {
+    // #109: non-git native cwd. There is no repository to be a worktree OF, so the root
+    // check above is the whole requirement.
+    //
+    // The containment test below is a DEFENSIVE INVARIANT, not a reachable branch, and
+    // saying so is the point. Entering this else-branch means nativeGitIdentity returned
+    // null, i.e. the FSM cwd is not inside ANY repository. A source root that CONTAINED
+    // the FSM cwd would put that cwd inside the source repository, which would have made
+    // the probe non-null and sent us down the `native` branch instead. So the condition
+    // cannot fire today. It is kept because the consequence of it ever firing is bad and
+    // silent -- captureSourceIdentity excludes only `.codexclaw/`, so an ancestor binding
+    // would sweep the session's own siblings into the certified tree and widen what the
+    // receipt attests to -- and because a future change to the probe's definition of
+    // "non-git" could make it reachable without anyone noticing.
+    //
+    // Both sides are canonical() output, so Windows extended-length and 8.3 aliases are
+    // already normalised; a raw string prefix test would be unsound on this platform.
+    // A test proving the unreachability lives in worktree-source-integration.test.ts.
+    if (nativeCwd === sourceRoot || nativeCwd.startsWith(sourceRoot + sep)) {
+      throw new Error("Source root must not contain the session's own working directory; bind the repository itself, not an ancestor of it.");
+    }
   }
   const previous = readBinding(cwd, sessionId);
   if (previous) {

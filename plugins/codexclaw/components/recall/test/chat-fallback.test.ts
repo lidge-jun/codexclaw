@@ -211,3 +211,28 @@ test("the real chat engine satisfies the injected type", () => {
   const fn: ChatSearchFn = searchChat;
   assert.equal(typeof fn, "function");
 });
+
+test("the chat fallback forwards synonyms and any", () => {
+  const home = emptyHome("recall-fallback-syn-");
+  try {
+    const def = stubChat([]);
+    searchMemory("기억", { home, searchChat: def.fn });
+    assert.equal(def.calls[0].synonyms, true);
+    assert.equal(def.calls[0].any, false);
+    assert.equal(def.calls[0].includeTools, false, "tool logs are the pollution source");
+    assert.equal(def.calls[0].noRefresh, true, "a backfill must not refresh a multi-GB index");
+    assert.equal(def.calls[0].days, 0, "full history, not chat's 7-day default");
+
+    const orMode = stubChat([]);
+    searchMemory("기억", { home, searchChat: orMode.fn, any: true });
+    assert.equal(orMode.calls[0].any, true);
+    assert.equal(orMode.calls[0].synonyms, true);
+
+    const raw = stubChat([]);
+    searchMemory("기억", { home, searchChat: raw.fn, synonyms: false });
+    assert.equal(raw.calls[0].synonyms, false);
+    assert.equal(raw.calls[0].any, false);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});

@@ -4,9 +4,10 @@ import assert from "node:assert/strict";
 // Pin the cxc-resolve seam (B1): a literal `cxc chat search` assertion below
 // must not depend on whether the test runner's PATH carries a cxc binary.
 process.env.CODEXCLAW_CXC = "cxc";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { buildCodexHome, THREAD_MAIN, THREAD_SUB } from "./fixtures.ts";
 import { searchMemory, paragraphChunks } from "../src/memory-search.ts";
 import { formatChatResult, formatMemoryResult } from "../src/format.ts";
@@ -72,7 +73,8 @@ test("missing memories db degrades with a warning", () => {
   try {
     const r = searchMemory("anything", { home: bare });
     assert.equal(r.hits.length, 0);
-    assert.ok(r.warnings.some((w) => w.includes("memories db")));
+    assert.equal(r.warnings.filter((w) => w.includes("memories db not found")).length, 1);
+    assert.equal(r.warnings.filter((w) => w.includes("memories root not found")).length, 1);
   } finally {
     rmSync(bare, { recursive: true, force: true });
   }
@@ -111,5 +113,111 @@ test("cli main: routes chat/memory search, rejects empty query, prints usage oth
     assert.match(captured.join(""), /cxc chat search/);
   } finally {
     (process.stdout as unknown as { write: typeof orig }).write = orig;
+  }
+});
+
+test("file-level AND still hits when tokens sit on opposite sides of a blank line", () => {
+  const isolated = mkdtempSync(join(tmpdir(), "recall-mem-span-"));
+  try {
+    const mem = join(isolated, "memories");
+    mkdirSync(mem, { recursive: true });
+    writeFileSync(join(mem, "MEMORY.md"), "# Memory Handbook\n\nNo groups consolidated yet.\n");
+    writeFileSync(join(mem, "windows-span.md"), "# Memory Handbook\r\n\r\nNo groups consolidated yet.\r\n");
+    // Amendment B.4: pin file-span startLine on a match that is not line 1.
+    writeFileSync(
+      join(mem, "later-span.md"),
+      "Leading preamble that is not a query token.\n\n# Memory Handbook\n\nNo groups consolidated yet.\n",
+    );
+
+    const r = searchMemory("Handbook consolidated", { home: isolated });
+    assert.ok(r.hits.length >= 1);
+    const fileHit = r.hits.find((h) => h.origin === "file" && h.relpath === "MEMORY.md");
+    assert.ok(fileHit, "MEMORY.md file-span hit expected");
+    assert.equal(fileHit.startLine, 1);
+    assert.match(fileHit.excerpt, /Handbook|consolidated/);
+
+    const crlfHit = r.hits.find((h) => h.origin === "file" && h.relpath === "windows-span.md");
+    assert.ok(crlfHit, "CRLF file-span hit expected");
+    assert.ok(!crlfHit.excerpt.includes("\r"), "excerpt must not carry CR");
+
+    const laterHit = r.hits.find((h) => h.origin === "file" && h.relpath === "later-span.md");
+    assert.ok(laterHit, "later-span.md file-span hit expected");
+    assert.equal(laterHit.startLine, 3, "file-span startLine is the first matching line, not always 1");
+
+    const handbook = searchMemory("Handbook", { home: isolated });
+    assert.ok(handbook.hits.some((h) => h.origin === "file" && h.relpath === "MEMORY.md"));
+    const none = searchMemory("Handbook missingtokenxyz", { home: isolated });
+    assert.equal(none.hits.length, 0);
+  } finally {
+    rmSync(isolated, { recursive: true, force: true });
+  }
+});
+
+test("same-paragraph AND still uses the paragraph start line", () => {
+  const isolated = mkdtempSync(join(tmpdir(), "recall-mem-para-"));
+  try {
+    const mem = join(isolated, "memories");
+    mkdirSync(mem, { recursive: true });
+    writeFileSync(join(mem, "MEMORY.md"), "# Title\n\n## Task 1: ship the trigram sidecar index\n");
+    const r = searchMemory("trigram sidecar", { home: isolated });
+    const fileHit = r.hits.find((h) => h.origin === "file" && h.relpath === "MEMORY.md");
+    assert.ok(fileHit, "MEMORY.md paragraph hit expected");
+    assert.equal(fileHit.startLine, 3);
+  } finally {
+    rmSync(isolated, { recursive: true, force: true });
+  }
+});
+
+test("matchedThreadIds records a thread only after a file hit is kept", () => {
+  const isolated = mkdtempSync(join(tmpdir(), "recall-mem-thread-"));
+  try {
+    const summaries = join(isolated, "memories", "rollout_summaries");
+    mkdirSync(summaries, { recursive: true });
+    const threadId = "019f3333-0000-7000-8000-00000000aaaa";
+    writeFileSync(
+      join(summaries, "other.md"),
+      `thread_id: ${threadId}\ncwd: /proj/other\n\n# Memory Handbook\n\nNo groups consolidated yet.\n`,
+    );
+
+    const state = new DatabaseSync(join(isolated, "state_1.sqlite"));
+    state.exec(
+      "CREATE TABLE threads (id TEXT PRIMARY KEY, title TEXT NOT NULL DEFAULT ''," +
+        " cwd TEXT NOT NULL DEFAULT '', git_branch TEXT, updated_at_ms INTEGER)",
+    );
+    const ins = state.prepare("INSERT INTO threads (id, title, cwd, git_branch, updated_at_ms) VALUES (?, ?, ?, ?, ?)");
+    ins.run(threadId, "other lane", "/proj/here", "main", Date.now());
+    state.close();
+
+    const mem = new DatabaseSync(join(isolated, "memories_1.sqlite"));
+    mem.exec(
+      "CREATE TABLE stage1_outputs (thread_id TEXT PRIMARY KEY, source_updated_at INTEGER NOT NULL," +
+        " raw_memory TEXT NOT NULL, rollout_summary TEXT NOT NULL)",
+    );
+    const mins = mem.prepare(
+      "INSERT INTO stage1_outputs (thread_id, source_updated_at, raw_memory, rollout_summary) VALUES (?, ?, ?, ?)",
+    );
+    mins.run(threadId, Math.floor(Date.now() / 1000), "Handbook consolidated in the scoped project", "span");
+    mem.close();
+
+    const scoped = searchMemory("Handbook consolidated", {
+      home: isolated,
+      cwd: "/proj/here",
+      cwdOnly: true,
+      readOriginUrl: () => null,
+    });
+    assert.equal(scoped.hits.length, 1);
+    assert.equal(scoped.hits[0].origin, "stage1");
+    assert.equal(scoped.hits[0].threadId, threadId);
+    assert.ok(!scoped.hits.some((h) => h.origin === "file" && h.relpath === "rollout_summaries/other.md"));
+
+    const boosted = searchMemory("Handbook consolidated", {
+      home: isolated,
+      cwd: "/proj/here",
+      readOriginUrl: () => null,
+    });
+    assert.ok(boosted.hits.some((h) => h.origin === "file" && h.relpath === "rollout_summaries/other.md"));
+    assert.ok(!boosted.hits.some((h) => h.origin === "stage1" && h.threadId === threadId));
+  } finally {
+    rmSync(isolated, { recursive: true, force: true });
   }
 });

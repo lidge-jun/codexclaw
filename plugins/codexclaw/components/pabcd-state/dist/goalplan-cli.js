@@ -43,6 +43,7 @@ import { resolve } from "node:path";
 import { isCanonicalSessionId, readState, writeState } from "./state.js";
 import { captureSourceIdentity, compareSource } from "./source-identity.js";
 import { captureSessionSourceIdentity } from "./session-source-identity.js";
+import { checkBoundSourceIdentity } from "./source-gate.js";
 import { resolveSessionSource } from "./session-source.js";
 import { parseSourceBoundReceipt } from "./source-receipt.js";
 import { applySteeringBatch } from "./steering.js";
@@ -603,6 +604,18 @@ export function runGoalplanCli(args                 )                    {
     const existing = readGoalplan(args.cwd, slug);
     if (existing) {
       return { output: `loop init: a plan already exists at slug '${slug}' (use show/validate)`, code: 1 };
+    }
+    // #133: a BOUND plan promises a closable cycle. Refuse here when the source
+    // identity cannot be resolved, rather than letting P->A->B->C succeed and then
+    // stranding the session at C with no way to produce a testReceiptPath.
+    // Guarded on --session: `loop init` without one writes the local artifact and
+    // binds nothing, so it keeps its current behaviour. Same condition the slug
+    // binding below uses.
+    if (typeof args.session === "string" && args.session.length > 0) {
+      const gate = checkBoundSourceIdentity(args.cwd, args.session);
+      if (!gate.ok) {
+        return { output: `loop init: ${gate.reason}\nNothing was written.`, code: 1 };
+      }
     }
     const plan = buildGoalplan({
       objective,

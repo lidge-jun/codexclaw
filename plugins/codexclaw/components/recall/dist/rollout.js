@@ -76,15 +76,31 @@ export function localDateString(d      )         {
 /**
  * Canonical form for comparing two working directories.
  *
- * Separators fold to "/" and a trailing one is dropped, so a path stored by a
- * POSIX session and the same path typed with backslashes compare equal. Drive
- * letters upper-case because Windows reports them either way for one directory.
- * Case is otherwise preserved: macOS and Linux both host case-sensitive paths,
- * and folding them would let /Repo match /repo.
+ * Separators fold to "/", a trailing one is dropped, and Windows extended-length
+ * prefixes (`\\?\` / `//?/` and `\\?\UNC\` / `//?/UNC/`) are stripped so a
+ * session recorded as `\\?\C:\\Users\\...` compares equal to a caller-typed
+ * `C:\\Users\\...`. Drive letters upper-case because Windows reports them either
+ * way for one directory. Path case is otherwise preserved: callers that need a
+ * case-insensitive volume (`darwin`, `win32`) pass `FOLD_CWD_CASE` into
+ * `cwdMatches` or wrap the SQL twin in `lower()`.
  */
 export function normalizeCwd(cwd        )         {
-  const unified = cwd.replace(/\\/g, "/").replace(/\/+$/, "");
+  let unified = cwd.replace(/\\/g, "/").replace(/\/+$/, "");
+  if (/^\/\/\?\/unc\//i.test(unified)) {
+    unified = `//${unified.slice(8)}`;
+  } else if (unified.startsWith("//?/")) {
+    unified = unified.slice(4);
+  }
+  unified = unified.replace(/\/+$/, "");
   return /^[a-z]:/.test(unified) ? unified[0].toUpperCase() + unified.slice(1) : unified;
+}
+
+/** SQL expression mirroring `normalizeCwd`. `expr` is a column or SQL expression, never a bind placeholder (`?`). */
+export function canonicalCwdSql(expr        )         {
+  const slashed = `rtrim(replace(${expr}, '\\', '/'), '/')`;
+  const stripped = `(CASE WHEN substr(${slashed}, 1, 8) LIKE '//?/UNC/' THEN '//' || substr(${slashed}, 9) WHEN substr(${slashed}, 1, 4) = '//?/' THEN substr(${slashed}, 5) ELSE ${slashed} END)`;
+  const trimmed = `rtrim(${stripped}, '/')`;
+  return `(CASE WHEN ${trimmed} GLOB '[a-z]:*' THEN upper(substr(${trimmed}, 1, 1)) || substr(${trimmed}, 2) ELSE ${trimmed} END)`;
 }
 
 /**
@@ -93,9 +109,8 @@ export function normalizeCwd(cwd        )         {
  * which platform recorded the session or which separator the caller typed.
  *
  * `caseInsensitive` is opt-in per call site. The default stays case-sensitive
- * because Linux paths are, while macOS ships a case-INSENSITIVE volume by
- * default: /Users/jun/developer/x and /Users/jun/Developer/x are one directory
- * there, and recall must not split a project in two over how it was typed.
+ * because Linux paths are, while macOS and Windows ship case-insensitive volumes
+ * by default.
  */
 export function cwdMatches(
   sessionCwd        ,
@@ -110,8 +125,11 @@ export function cwdMatches(
   return s === p || s.startsWith(`${p}/`);
 }
 
-/** macOS volumes are case-insensitive by default; Linux and Windows are handled as before. */
-export const FOLD_CWD_CASE = process.platform === "darwin";
+/** macOS and Windows volumes are case-insensitive by default; Linux is not. */
+export function foldCwdCaseFor(platform        )          {
+  return platform === "darwin" || platform === "win32";
+}
+export const FOLD_CWD_CASE = foldCwdCaseFor(process.platform);
 
 /** rollout-YYYY-MM-DDTHH-MM-SS-<uuid>.jsonl → YYYY-MM-DD (null when unparseable). */
 export function dateFromRolloutName(name        )                {

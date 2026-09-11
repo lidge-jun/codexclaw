@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   classifyMemoryWrite,
@@ -70,6 +70,11 @@ test("BLOCK: an unauthorized memory-tool write is denied with both remedies", ()
   assert.match(env.hookSpecificOutput.permissionDecisionReason, /MEMORY-WRITE-GATE/);
   assert.match(env.hookSpecificOutput.permissionDecisionReason, /allow-write/);
   assert.match(env.hookSpecificOutput.permissionDecisionReason, /remember this/);
+  assert.match(env.hookSpecificOutput.permissionDecisionReason, /stored per cwd/);
+  assert.ok(
+    env.hookSpecificOutput.permissionDecisionReason.includes(cwd),
+    "deny reason must name the session cwd the grant has to be issued from",
+  );
   // Deny-only envelope: the reason must also reach additionalContext.
   assert.equal(
     env.hookSpecificOutput.additionalContext,
@@ -274,4 +279,114 @@ test("shellWriteDestinations: stderr, arrows in prose, and heredoc bodies are no
   assert.deepEqual(shellWriteDestinations("echo hi>>/h/memories/n.md"), ["/h/memories/n.md"]);
   assert.deepEqual(shellWriteDestinations("echo hi >| /h/memories/n.md"), ["/h/memories/n.md"]);
   assert.deepEqual(shellWriteDestinations("x -> y"), []);
+});
+
+test("Korean memory write: 메모리 forms; 메모리에서 찾 is not a write", () => {
+  assert.equal(detectMemoryWriteRequest("메모리도 기록"), true);
+  assert.equal(detectMemoryWriteRequest("메모리에 기록해줘"), true);
+  assert.equal(detectMemoryWriteRequest("메모리에 남겨둬"), true);
+  assert.equal(detectMemoryWriteRequest("메모리에 저장해"), true);
+  assert.equal(detectMemoryWriteRequest("메모리에서 찾"), false);
+  assert.equal(detectMemoryWriteRequest("메모리를 저장해"), false);
+  assert.equal(detectMemoryWriteRequest("메모리를 기록하는 함수"), false);
+});
+
+test("CLI grant success output names the cwd it recorded", () => {
+  const { cwd } = scratch();
+  const parsed = parseMemoryCliArgs(["allow-write", "--session", SESSION], cwd);
+  assert.ok(!("error" in parsed) && !("help" in parsed));
+  const res = runMemoryCli(parsed as never);
+  assert.equal(res.code, 0);
+  assert.ok(res.output.includes(cwd), "success output must name cwd, got: " + res.output);
+  assert.equal(readState(cwd, SESSION).memoryWriteGrant, true);
+});
+
+test("deny reason names the session cwd", () => {
+  const { cwd } = scratch();
+  const out = handleMemoryWriteGate(ptu({ cwd }));
+  const env = JSON.parse(out.trim());
+  const reason = env.hookSpecificOutput.permissionDecisionReason as string;
+  assert.match(reason, /stored per cwd/);
+  assert.ok(reason.includes(cwd), "deny must name session cwd, got: " + reason);
+});
+
+test("allow-write --help anywhere does not grant", () => {
+  const { cwd } = scratch();
+  for (const argv of [
+    ["allow-write", "--help"],
+    ["allow-write", "-h"],
+    ["allow-write", "--session", SESSION, "--help"],
+  ]) {
+    const parsed = parseMemoryCliArgs(argv, cwd);
+    assert.ok("help" in parsed, "expected help from " + argv.join(" ") + ", got " + JSON.stringify(parsed));
+    assert.equal((parsed as { help: true }).help, true);
+  }
+  assert.equal(readState(cwd, SESSION).memoryWriteGrant, false);
+});
+
+test("allow-write accepts --session=<id>", () => {
+  const { cwd } = scratch();
+  const parsed = parseMemoryCliArgs(["allow-write", "--session=" + SESSION], cwd);
+  assert.ok(!("error" in parsed), JSON.stringify(parsed));
+  assert.ok(!("help" in parsed));
+  assert.equal((parsed as { sessionId: string }).sessionId, SESSION);
+});
+
+test("allow-write rejects unknown flags", () => {
+  const parsed = parseMemoryCliArgs(["allow-write", "--session", SESSION, "--force"], "/tmp");
+  assert.ok("error" in parsed);
+  assert.match((parsed as { error: string }).error, /unknown argument/);
+});
+
+test("home prefixes classify as memory writes", () => {
+  const root = resolve(join(homedir(), ".codex", "memories"));
+  const classify = (command: string) => classifyMemoryWrite("Bash", { command }, "/w", root);
+  assert.equal(classify("echo hi > ~/.codex/memories/n.md").surface, "shell");
+  assert.equal(classify("echo hi > ~\\.codex\\memories\\n.md").surface, "shell");
+  assert.equal(classify("echo hi > %USERPROFILE%\\.codex\\memories\\n.md").surface, "shell");
+  assert.equal(classify("echo hi > $env:USERPROFILE\\.codex\\memories\\n.md").surface, "shell");
+  assert.equal(classify("echo hi > $HOME/.codex/memories/n.md").surface, "shell");
+});
+
+test("apply_patch Add File with backslash-tilde memories path is gated", () => {
+  const root = resolve(join(homedir(), ".codex", "memories"));
+  const attempt = classifyMemoryWrite(
+    "apply_patch",
+    { command: "*** Add File: ~\\.codex\\memories\\x.md\n+hi\n" },
+    "/w",
+    root,
+  );
+  assert.equal(attempt.surface, "edit");
+});
+
+test("Windows write abbreviations, aliases, and interpreters are gated", () => {
+  const root = memoriesRoot({ CODEX_HOME: "/h" });
+  const mem = "/h/memories";
+  const classify = (command: string) => classifyMemoryWrite("Bash", { command }, "/w", root);
+  const denies = [
+    "Set-Content -LP " + mem + "/n.md -Value x",
+    "Set-Content -Fo " + mem + "/n.md",
+    "Out-File -Fi " + mem + "/n.md",
+    "Set-Content -AsByteStream " + mem + "/n.md",
+    "Set-Content /Force " + mem + "/n.md",
+    "Copy-Item /w/a.md -Dest " + mem + "/b.md",
+    "sc " + mem + "/n.md",
+    "ni " + mem + "/n.md",
+    "Add-Content " + mem + "/n.md -Value x",
+    "py -c \"open(r'" + mem + "/n.md','w').write('x')\"",
+    "node --eval \"require('fs').writeFileSync('" + mem + "/n.md','x')\"",
+    "node -erequire('fs').writeFileSync('" + mem + "/n.md','x')",
+    "[IO.File]::WriteAllText('" + mem + "/n.md','x')",
+  ];
+  for (const command of denies) {
+    assert.equal(classify(command).surface, "shell", "must gate: " + command);
+  }
+  assert.equal(classify("Get-Content -LiteralPath " + mem + "/n.md").surface, "");
+  assert.equal(classify("cat " + mem + "/n.md").surface, "");
+  assert.equal(classify("sc query").surface, "");
+  assert.equal(classify("cp " + mem + "/a.md /w/b.md").surface, "");
+  assert.equal(
+    classify("python3 -c \"from pathlib import Path; print(Path('" + mem + "/MEMORY.md').read_text()); print('x -> y')\"").surface,
+    "",
+  );
 });

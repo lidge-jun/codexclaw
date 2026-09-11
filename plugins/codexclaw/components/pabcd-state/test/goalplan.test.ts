@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, existsSync, readFileSync, mkdirSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -39,6 +40,26 @@ function escapeRe(text: string): string {
 
 function tmp(): string {
   return mkdtempSync(join(tmpdir(), "cxc-goalplan-"));
+}
+
+/**
+ * A temp cwd that is a real Git repository.
+ *
+ * #133: `loop init --session` now refuses a workspace with no resolvable git source
+ * identity, because a BOUND plan promises a closable cycle and C->D cannot produce a
+ * testReceiptPath without one. A bare `tmp()` is exactly the trap that issue describes,
+ * so any test that binds a session needs a repository rather than an empty directory.
+ * `loop init` WITHOUT --session is unaffected and keeps using tmp().
+ */
+function tmpRepo(): string {
+  const cwd = tmp();
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: join(cwd, "gitconfig"), GIT_CONFIG_SYSTEM: join(cwd, "gitconfig") };
+  const git = (...args: string[]) => execFileSync("git", args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+  git("init", "-q");
+  writeFileSync(join(cwd, "seed.txt"), "seed\n");
+  git("add", "seed.txt");
+  git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "seed");
+  return cwd;
 }
 
 test("030: schema round-trips (write then read returns an equal Goalplan)", () => {
@@ -601,7 +622,7 @@ test("030.2: unknown verb -> parse error; show/validate need a slug source", () 
 });
 
 test("030.3: init --session persists the derived slug into that session's state", () => {
-  const cwd = tmp();
+  const cwd = tmpRepo(); // #133: binding a session requires a resolvable source identity
   const args = parseGoalplanCliArgs(["init", "--objective", "Bound objective", "--session", "sess-1"], cwd);
   assert.ok(!("error" in args));
   assert.equal((args as any).session, "sess-1");

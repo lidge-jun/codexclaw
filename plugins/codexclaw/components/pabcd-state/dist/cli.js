@@ -281,11 +281,15 @@ async function main()                {
   if (kind === "memory") {
     const { MEMORY_USAGE, parseMemoryCliArgs, runMemoryCli } = await import("./memory-cli.js");
     const argv = process.argv.slice(3);
-    if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
+    if (argv.length === 0) {
       process.stdout.write(`${MEMORY_USAGE}\n`);
       process.exit(0);
     }
     const parsed = parseMemoryCliArgs(argv, process.cwd());
+    if ("help" in parsed) {
+      process.stdout.write(`${MEMORY_USAGE}\n`);
+      process.exit(0);
+    }
     if ("error" in parsed) {
       process.stderr.write(`memory: ${parsed.error}\n${MEMORY_USAGE}\n`);
       process.exit(2);

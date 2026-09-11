@@ -67,7 +67,19 @@ export function gitEnv(base                    = process.env)                   
 }
 
 function git(cwd        , args          )         {
-  return execFileSync("git", args, { cwd, env: gitEnv(), maxBuffer: 64 * 1024 * 1024 });
+  // stdio: stderr is PIPED, not inherited. Absent git is a normal, handled outcome
+  // here — captureSourceIdentity turns the throw into kind:"unavailable" — so its
+  // diagnostics must not be narrated to the user as if a command failed. Before this,
+  // every transition in a non-git workspace leaked `fatal: not a git repository`
+  // straight to the terminal, twice per gated edge (#133). session-source.ts:30 has
+  // always piped; this was the only caller that did not.
+  // stdout must stay "pipe": every caller reads the returned Buffer.
+  return execFileSync("git", args, {
+    cwd,
+    env: gitEnv(),
+    maxBuffer: 64 * 1024 * 1024,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 }
 
 /**

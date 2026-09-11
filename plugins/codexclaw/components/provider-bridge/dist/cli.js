@@ -10,16 +10,34 @@
  * line carries native/provider/error so consumers can react.
  */
 import { spawnSync } from "node:child_process";
+import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { detectOcx, renderStatusLine,                 } from "./detect.js";
+import { commandInvocation, resolveWindowsCommand } from "./win-exec.js";
 
-/** Real PATH resolver via the platform `command -v` / `where`. */
+/**
+ * Resolve `ocx` to a spawnable path.
+ *
+ * #131: on win32 an npm global install lays down BOTH an extensionless sh shim and
+ * a `.cmd` launcher, and `where ocx` lists the extensionless one FIRST. That file is
+ * not an executable image, so spawning it fails with ENOENT and detect reports
+ * `ocx status exited null`. Resolve PATH+PATHEXT directly instead of picking a line
+ * out of `where` stdout: resolveWindowsCommand reads PATH/PATHEXT case-insensitively
+ * (a child can arrive with `Path`, `PATH`, or both), splits PATH on a literal `;`
+ * rather than node:path's host-dependent delimiter, and retries the lowercased
+ * extension for case-sensitive filesystems. POSIX keeps `command -v`.
+ */
 function whichOcx(cmd        )                {
-  const finder = process.platform === "win32" ? "where" : "command";
-  const args = process.platform === "win32" ? [cmd] : ["-v", cmd];
+  if (process.platform === "win32") {
+    const resolved = resolveWindowsCommand(cmd, process.env);
+    // resolveWindowsCommand returns its input unchanged when nothing matched.
+    return resolved === cmd ? null : resolved;
+  }
   try {
-    const res = spawnSync(finder, args, { encoding: "utf8", shell: process.platform !== "win32" });
+    const res = spawnSync("command", ["-v", cmd], { encoding: "utf8", shell: true });
     if (res.status === 0 && typeof res.stdout === "string") {
-      const path = res.stdout.split("\n")[0]?.trim();
+      const path = res.stdout.split(/\r?\n/)[0]?.trim();
       return path && path.length > 0 ? path : null;
     }
     return null;
@@ -28,10 +46,18 @@ function whichOcx(cmd        )                {
   }
 }
 
-/** Real ocx status reader (detect-only — `status --json` is read-only; never
- *  `ensure`/`sync`, which would mutate codex config). */
+/**
+ * Real ocx status reader (detect-only — `status --json` is read-only; never
+ * `ensure`/`sync`, which would mutate codex config).
+ *
+ * #131 second half: after the CVE-2024-27980 hardening (Node 18.20.2 / 20.12.2)
+ * a shell-less `.cmd` spawn fails with EINVAL. commandInvocation routes only
+ * `.cmd`/`.bat` through ComSpec and escapes cmd metacharacters; `shell: true` would
+ * not escape them, so a launcher path containing `&` or `^` would be an injection.
+ */
 function runOcxStatus(ocxPath        )                                            {
-  const res = spawnSync(ocxPath, ["status", "--json"], { encoding: "utf8", timeout: 8000 });
+  const inv = commandInvocation(ocxPath, ["status", "--json"]);
+  const res = spawnSync(inv.file, inv.args, { encoding: "utf8", timeout: 8000, ...inv.options });
   return { status: res.status, stdout: typeof res.stdout === "string" ? res.stdout : "" };
 }
 
@@ -54,12 +80,28 @@ export function runSessionStartHook(deps             = { which: whichOcx, runSta
   return 0; // always 0 — detect-only never fails the session.
 }
 
-const [, , kind, event] = process.argv;
-if (kind === "hook" && event === "session-start") {
-  process.exit(runSessionStartHook());
+function realOrSelf(p        )         {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
 }
-// Allow `provider-bridge detect` for cxc doctor / manual probes.
-if (kind === "detect") {
-  process.exit(runBridge());
+
+function main()         {
+  const [, , kind, event] = process.argv;
+  if (kind === "hook" && event === "session-start") {
+    return runSessionStartHook();
+  }
+  // Allow `provider-bridge detect` for cxc doctor / manual probes.
+  if (kind === "detect") {
+    return runBridge();
+  }
+  return 0;
 }
-process.exit(0);
+
+// Direct-exec guard: importing this module from a test must not exit.
+const invokedPath = process.argv[1] ? realOrSelf(resolve(process.argv[1])) : "";
+if (invokedPath === realOrSelf(fileURLToPath(import.meta.url))) {
+  process.exit(main());
+}

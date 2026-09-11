@@ -2,18 +2,19 @@
  * cli.ts — `recall` entry point. Argv contract from bin/codexclaw.mjs:
  *   [kind, "search", ...queryAndFlags]   kind ∈ chat | memory
  *
- * Read-only over CODEX_HOME (~/.codex); never writes. Unknown subcommands print
+ * Search paths are read-only over CODEX_HOME (~/.codex). chat index without
+ * --status writes the sidecar. --help/-h never writes. Unknown subcommands print
  * usage and exit 0 (informational, matching cxc-ops convention).
  */
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { searchChat, DEFAULT_DAYS, DEFAULT_LIMIT,                        } from "./chat-search.js";
 import { searchMemory, DEFAULT_MEMORY_LIMIT,                          } from "./memory-search.js";
 import { formatChatResult, formatMemoryResult, clipChatResultForJson } from "./format.js";
-import { openIndex, openIndexReadOnly, indexPath, indexStatus } from "./index-db.js";
-import { ingest } from "./ingest.js";
+import { openIndex, openIndexReadOnly, indexPath, indexStatus,                  } from "./index-db.js";
+import { ingest, measureIndexFreshness, BANNER_FRESHNESS_BUDGET,                     } from "./ingest.js";
 import { codexHome } from "./paths.js";
 import {
   handleUserPromptSubmit,
@@ -58,6 +59,44 @@ const USAGE = [
 
 
 
+const PATH_OPTION_KEYS = ["cwd", "cwd-only", "home", "index-path"]         ;
+
+function wantsHelp(args          )          {
+  return args.some((a) => a === "--help" || a === "-h");
+}
+
+function flagLikePathError(values                         )                     {
+  for (const key of PATH_OPTION_KEYS) {
+    const raw = values[key];
+    if (typeof raw === "string" && raw.startsWith("-")) {
+      return `--${key} path must not start with '-': got ${JSON.stringify(raw)}`;
+    }
+  }
+  return undefined;
+}
+
+function readFlags(args          )                     {
+  try {
+    const parsed = parseFlags(args);
+    const dashErr = flagLikePathError(parsed.values);
+    if (dashErr) throw new Error(dashErr);
+    return parsed;
+  } catch (err) {
+    process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
+    return null;
+  }
+}
+
+/** Explicit --home must exist. `false` = error already printed. `undefined` = use default. */
+function explicitHome(values                         )                             {
+  if (typeof values.home !== "string") return undefined;
+  if (!existsSync(values.home)) {
+    process.stderr.write(`--home not found: ${values.home}\n`);
+    return false;
+  }
+  return values.home;
+}
+
 function parseFlags(args          )              {
   const { values, positionals } = parseArgs({
     args,
@@ -86,7 +125,7 @@ function parseFlags(args          )              {
       home: { type: "string" },
       "index-path": { type: "string" },
     },
-    strict: false,
+    strict: true,
     allowPositionals: true,
   });
   return { values: values                           , positionals: positionals.map(String) };
@@ -100,7 +139,11 @@ function numFlag(values                         , key        )                  
 }
 
 function runChatSearch(args          )         {
-  const { values, positionals } = parseFlags(args);
+  const parsed = readFlags(args);
+  if (parsed === null) return 1;
+  const { values, positionals } = parsed;
+  const home = explicitHome(values);
+  if (home === false) return 1;
   const query = positionals.join(" ").trim();
   if (query === "") {
     process.stdout.write(`${USAGE}\n`);
@@ -127,7 +170,7 @@ function runChatSearch(args          )         {
     order: values.recent === true && values.rank !== true ? "recent" : "relevance",
     scan: values.scan === true,
     noRefresh: values["no-refresh"] === true,
-    home: typeof values.home === "string" ? values.home : undefined,
+    home,
     indexPath: typeof values["index-path"] === "string" ? values["index-path"] : undefined,
   };
   const result = searchChat(query, opts);
@@ -139,7 +182,11 @@ function runChatSearch(args          )         {
 }
 
 function runMemorySearch(args          )         {
-  const { values, positionals } = parseFlags(args);
+  const parsed = readFlags(args);
+  if (parsed === null) return 1;
+  const { values, positionals } = parsed;
+  const home = explicitHome(values);
+  if (home === false) return 1;
   const query = positionals.join(" ").trim();
   if (query === "") {
     process.stdout.write(`${USAGE}\n`);
@@ -150,11 +197,11 @@ function runMemorySearch(args          )         {
     limit: numFlag(values, "limit"),
     any: values.any === true,
     synonyms: values["no-synonyms"] !== true,
-    home: typeof values.home === "string" ? values.home : undefined,
-    // --cwd-only carries its own path, so `--cwd-only PATH` needs no second flag.
-    // Bare `--cwd-only` (parsed as a boolean) hardens an accompanying --cwd.
+    home,
+    // --cwd-only PATH is the only hard-filter form. A missing or flag-like
+    // value is rejected by readFlags; there is no boolean-hardener.
     cwd: typeof values["cwd-only"] === "string" ? values["cwd-only"] : typeof values.cwd === "string" ? values.cwd : null,
-    cwdOnly: values["cwd-only"] !== undefined && values["cwd-only"] !== false,
+    cwdOnly: typeof values["cwd-only"] === "string",
     // Injected rather than imported by memory-search: the module keeps no edge
     // to chat-search, and the fallback is one flag away from being off.
     searchChat: values["no-chat"] === true ? undefined : searchChat,
@@ -166,9 +213,52 @@ function runMemorySearch(args          )         {
   return 0;
 }
 
+function statusReport(
+  db                                      ,
+  path        ,
+  home        ,
+  budget                                             ,
+)
+
+
+
+
+
+
+  {
+  const status = indexStatus(db, path);
+  const fresh                 = measureIndexFreshness(
+    home,
+    db,
+    0,
+    budget ? { budget } : undefined,
+  );
+  return {
+    ...status,
+    sourceFiles: fresh.sourceFiles,
+    staleFiles: fresh.staleFiles,
+    missingFiles: fresh.missingFiles,
+    changedFiles: fresh.changedFiles,
+    extraFiles: fresh.extraFiles,
+    truncated: fresh.truncated,
+  };
+}
+
+function staleCountLabel(n        , truncated         )         {
+  return truncated ? `${n}+` : String(n);
+}
+
+function formatStatusText(report                                 )         {
+  return `index: ${report.path}\nfiles: ${report.files}, messages: ${report.msgs}, source files: ${report.sourceFiles}, stale: ${staleCountLabel(report.staleFiles, report.truncated)}, last ingest: ${report.lastIngestAt ?? "never"}\n`;
+}
+
 function runChatIndex(args          )         {
-  const { values } = parseFlags(args);
-  const home = typeof values.home === "string" ? values.home : codexHome();
+  const parsed = readFlags(args);
+  if (parsed === null) return 1;
+  const { values } = parsed;
+  const homeOrErr = explicitHome(values);
+  if (homeOrErr === false) return 1;
+  const home = homeOrErr ?? codexHome();
   const path = typeof values["index-path"] === "string" ? values["index-path"] : indexPath();
   try {
     // --status alone is a pure read: open read-only so it works on read-only
@@ -187,11 +277,9 @@ function runChatIndex(args          )         {
           );
         }
       }
-      const status = indexStatus(db, path);
+      const report = statusReport(db, path, home);
       process.stdout.write(
-        values.json === true
-          ? `${JSON.stringify(status, null, 2)}\n`
-          : `index: ${status.path}\nfiles: ${status.files}, messages: ${status.msgs}, last ingest: ${status.lastIngestAt ?? "never"}\n`,
+        values.json === true ? `${JSON.stringify(report, null, 2)}\n` : formatStatusText(report),
       );
       return 0;
     } finally {
@@ -204,13 +292,12 @@ function runChatIndex(args          )         {
 }
 
 /** Read-only one-line index status for hook injection ("" when unavailable). */
-function indexStatusLine()         {
+export function indexStatusLine(home = codexHome(), path = indexPath())         {
   try {
-    const path = indexPath();
     const db = openIndexReadOnly(path);
     try {
-      const s = indexStatus(db, path);
-      return `${s.files} files / ${s.msgs} messages, last ingest ${s.lastIngestAt ?? "never"}`;
+      const report = statusReport(db, path, home, BANNER_FRESHNESS_BUDGET);
+      return `${report.files} files / ${report.msgs} messages, ${report.sourceFiles} source, ${staleCountLabel(report.staleFiles, report.truncated)} stale, last ingest ${report.lastIngestAt ?? "never"}`;
     } finally {
       db.close();
     }
@@ -245,12 +332,20 @@ async function runHook(event        )                  {
   }
 }
 export function main(argv          )                           {
+  if (wantsHelp(argv)) {
+    process.stdout.write(`${USAGE}\n`);
+    return 0;
+  }
   const kind = argv[0] ?? "help";
   const sub = argv[1] ?? "";
   if ((kind === "chat" || kind === "memory") && sub === "search") {
     return kind === "chat" ? runChatSearch(argv.slice(2)) : runMemorySearch(argv.slice(2));
   }
   if (kind === "chat" && sub === "index") {
+    if (argv.slice(2).some((a) => a === "help" || a === "/?")) {
+      process.stdout.write(`${USAGE}\n`);
+      return 0;
+    }
     return runChatIndex(argv.slice(2));
   }
   if (kind === "hook") {

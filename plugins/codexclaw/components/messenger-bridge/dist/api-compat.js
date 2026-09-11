@@ -19,6 +19,7 @@ import { readCatalog } from "../../subagent-config/dist/live-catalog.js";
 import { detectOcx } from "../../provider-bridge/dist/detect.js";
 
 import { splitLines } from "./text-lines.js";
+import { commandInvocation, resolveWindowsCommand } from "./win-exec.js";
 
 
 
@@ -29,12 +30,15 @@ import { splitLines } from "./text-lines.js";
 function detectDeps()                          {
   return {
     which: (cmd        ) => {
-      const res = spawnSync(
-        process.platform === "win32" ? "where" : "command",
-        process.platform === "win32" ? [cmd] : ["-v", cmd],
-        { encoding: "utf8", shell: process.platform !== "win32" },
-      );
-      // where.exe emits CRLF; the trailing .trim() saved this by accident.
+      if (process.platform === "win32") {
+        // #131: `where ocx` lists the extensionless npm sh shim FIRST, and that file is
+        // not an executable image, so spawning it ENOENTs. Resolve PATH+PATHEXT directly
+        // instead of parsing `where` stdout. Same shape as provider-bridge/src/cli.ts;
+        // this is the `cxc serve` copy of that bug. Returns its input on a miss.
+        const resolved = resolveWindowsCommand(cmd, process.env);
+        return resolved === cmd ? null : resolved;
+      }
+      const res = spawnSync("command", ["-v", cmd], { encoding: "utf8", shell: true });
       const out =
         res.status === 0 && typeof res.stdout === "string"
           ? splitLines(res.stdout)[0]?.trim() ?? ""
@@ -42,9 +46,14 @@ function detectDeps()                          {
       return out && out.length > 0 ? out : null;
     },
     runStatus: (ocxPath        ) => {
-      const res = spawnSync(ocxPath, ["status", "--json"], {
+      // #131 second half: after CVE-2024-27980 a shell-less `.cmd` spawn is EINVAL.
+      // commandInvocation routes only `.cmd`/`.bat` through ComSpec and escapes cmd
+      // metacharacters; `shell: true` would not escape them.
+      const inv = commandInvocation(ocxPath, ["status", "--json"]);
+      const res = spawnSync(inv.file, inv.args, {
         encoding: "utf8",
         timeout: 8000,
+        ...inv.options,
       });
       return { status: res.status, stdout: typeof res.stdout === "string" ? res.stdout : "" };
     },

@@ -88,6 +88,7 @@ const HELP = [
   "",
   "Workspace intelligence:",
   '  chat search "q" | memory search "q"   recall over ~/.codex artifacts',
+  "  memory allow-write --session <id>     grant one cwd-scoped memory write",
   "  skill search|show              dormant-skill discovery",
   "",
   "Operations:",
@@ -152,9 +153,11 @@ if (isMain) {
     process.exit(1);
   }
   // Component CLI argv contracts (mirror root bin):
-  //   config-guard: [subcommand] only, EXCEPT `config`, which forwards its full argv so
-  //     `config set <key> <value>` keeps its arguments; skill-search: [search|show, ...]
-  //     (drop the "skill" verb);
+  //   config-guard feature verbs: [disable-rewritten-verb, ...rest]. `uninstall` is
+  //     rewritten to `disable` because config-guard main() has no uninstall case: a raw
+  //     token hits the switch default and does not disable. `config` still forwards its
+  //     full argv so `config set <key> <value>` keeps its arguments;
+  //     skill-search: [search|show, ...] (drop the "skill" verb);
   //   provider-bridge: ["detect"]; everything else: [cmd, ...rest] verbatim.
   if (component === "config-guard") {
     if (cmd === "config") {
@@ -162,7 +165,10 @@ if (isMain) {
       const target = process.argv[3] === "interview" ? "pabcd-state" : "config-guard";
       process.exit(delegate(target, process.argv.slice(2)));
     }
-    process.exit(delegate(component, [cmd === "uninstall" ? "disable" : cmd]));
+    process.exit(delegate(component, [
+      cmd === "uninstall" ? "disable" : cmd,
+      ...process.argv.slice(3),
+    ]));
   } else if (cmd === "memory" && process.argv[3] === "allow-write") {
     // `memory search` is recall's; `memory allow-write` records the
     // MEMORY-WRITE-GATE-01 grant in the pabcd-state session file that owns it.

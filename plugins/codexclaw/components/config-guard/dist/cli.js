@@ -34,6 +34,16 @@ const CONFIG_USAGE = [
   "self-heal; see cxc doctor's `features` check.)",
 ].join("\n");
 
+const FEATURE_USAGE = [
+  "Usage:",
+  "  cxc enable                         activate declared Codex feature flags",
+  "  cxc disable | uninstall            revert flags codexclaw enabled when safe",
+  "  cxc status                         show declared feature-flag state",
+  "",
+  "  --help / -h / help in any argument position prints this text and writes nothing.",
+  "  enable writes $CODEX_HOME/config.toml and a timestamped .bak; disable/uninstall revert.",
+].join("\n");
+
 function runConfig(argv                   , codexHome        )         {
   const configPath = join(codexHome, "config.toml");
   const action = argv[0];
@@ -139,6 +149,21 @@ export function makeRealRunner()              {
 
 function main(argv                   )         {
   const cmd = argv[0];
+  // Same class of bug as freeze-cli.ts:61-65, where `cxc freeze --help` used to WRITE
+  // freeze.json. Help is position-independent and runs BEFORE the action: once the
+  // dispatcher forwards ["enable", "--help"], argv[0] is "enable" and runConfig's
+  // first-argument help check at :41 never sees the flag.
+  // Do not steal `config --help` (that is CONFIG_USAGE via runConfig) or the
+  // SessionStart `hook` path, which must stay fail-open. Empty argv still falls to the
+  // switch default and exits 2 — unlike freeze, a bare invocation here is not mutating.
+  if (
+    cmd !== "config" &&
+    cmd !== "hook" &&
+    argv.some((a) => a === "help" || a === "--help" || a === "-h")
+  ) {
+    process.stdout.write(`${FEATURE_USAGE}\n`);
+    return 0;
+  }
   const run = makeRealRunner();
   const codexHome = resolveCodexHome();
 
