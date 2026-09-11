@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { detectOcx, parseOcxStatus, renderStatusLine } from "../src/detect.ts";
+import { selectExecutableFromWhereOutput } from "../src/cli.ts";
 
 const STATUS_JSON = JSON.stringify({
   schemaVersion: 1,
@@ -63,4 +64,37 @@ test("parseOcxStatus: valid payload, missing proxy.running, non-json", () => {
   assert.equal(parseOcxStatus('{"listen":{"port":1}}'), null); // no proxy.running
   assert.equal(parseOcxStatus("not json"), null);
   assert.equal(parseOcxStatus(""), null);
+});
+
+test("win32 where: extensionless shim first still selects .cmd", () => {
+  const stdout = "C:\\nvm4w\\nodejs\\ocx\r\nC:\\nvm4w\\nodejs\\ocx.cmd\r\n";
+  assert.equal(
+    selectExecutableFromWhereOutput(stdout, { platform: "win32", pathext: ".COM;.EXE;.BAT;.CMD" }),
+    "C:\\nvm4w\\nodejs\\ocx.cmd",
+  );
+  // PATHEXT unset uses the same default, so the .cmd still wins.
+  assert.equal(
+    selectExecutableFromWhereOutput(stdout, { platform: "win32" }),
+    "C:\\nvm4w\\nodejs\\ocx.cmd",
+  );
+  // No PATHEXT-backed candidate -> historical first-line fallback.
+  assert.equal(
+    selectExecutableFromWhereOutput("C:\\nvm4w\\nodejs\\ocx\n", { platform: "win32" }),
+    "C:\\nvm4w\\nodejs\\ocx",
+  );
+  // Non-win32 keeps the first line even when a .cmd follows.
+  assert.equal(
+    selectExecutableFromWhereOutput(stdout, { platform: "linux" }),
+    "C:\\nvm4w\\nodejs\\ocx",
+  );
+});
+
+test("AC3: .cmd EINVAL (status=null) -> error mode, not native", () => {
+  const s = detectOcx({
+    which: () => "C:\\nvm4w\\nodejs\\ocx.cmd",
+    runStatus: () => ({ status: null, stdout: "" }),
+  });
+  assert.equal(s.mode, "error");
+  assert.match((s as { reason: string }).reason, /exited null/);
+  assert.match(renderStatusLine(s), /"mode":"error"/);
 });
