@@ -626,3 +626,89 @@ option — no SQLite UDF. `INDEX_SCHEMA_VERSION` is still `"2"` (`index-db.ts:18
 query-time canonicalization necessary. All three target test files and their append
 points still exist.
 
+
+## Amendment B — wp2 A audit fold (2026-09-11)
+
+An independent `xai/grok-4.6` reviewer audited this plan at A and returned FAIL with
+two blockers and three concerns. All five are folded below. **Amendment B governs
+over Amendment A and over the body.**
+
+The reviewer also executed the specified SQL against `node:sqlite` and confirmed
+`canonicalCwdSql` reproduces `normalizeCwd` on every required input — extended
+length, extended UNC, mixed separators, trailing separator, lowercase drive, plain
+UNC, empty string. The design is sound; what follows is about proof, not design.
+
+### B.1 (blocker) Two named tests would PASS before the fix
+
+`§6.2 index and scan agree on a case-differing cwd` and
+`§6.3 listCwdSessions case-fold follows FOLD_CWD_CASE` key their Expected off the
+runtime value of `FOLD_CWD_CASE`. On the parent tip that const is still
+`process.platform === "darwin"`, so on this win32 host both tests expect zero hits
+and already get zero hits. They are green before the change and prove nothing about
+`#138(c)`.
+
+Required, both tests:
+
+```ts
+const shouldFold = process.platform === "win32" || process.platform === "darwin";
+// index case-differing cwd:      shouldFold ? 1 : 0
+// listCwdSessions case-differing: shouldFold ? 1 : 0   (length of the returned array)
+assert.equal(FOLD_CWD_CASE, foldCwdCaseFor(process.platform));
+```
+
+The extra assertion is not decoration: without it a patch that adds
+`foldCwdCaseFor` but forgets to rewire the exported const passes every other test in
+this layer.
+
+### B.2 (blocker) The check gate was wrong in §7 and §9.7
+
+Those sections demand `npm test` exit 0. It does not exit 0 on this host and did not
+before this layer existed. The gate is `002_host_verification_baseline.md`:
+
+- `npm run build` — exit 0.
+- `node plugins/codexclaw/scripts/test.mjs "plugins/codexclaw/components/recall/test/*.test.ts"` — exit 0, zero failures.
+- `npm test` — exit 1 with **exactly** the two recorded environmental failures
+  (`hook-bench` `/tmp`, `cxc map --help` needing `py`) and **no third**.
+
+A third failure is this layer's regression.
+
+### B.3 (concern, folded) Add a child-prefix fixture with `repo_key` NULL
+
+Every new index case is an exact-cwd match, so a patch that canonicalises only the
+equality arm and leaves the LIKE arms raw still goes green — which is exactly the
+trap Amendment A.3 named. Add, with `repo_key` NULL:
+
+- recorded cwd `C:\Users\super\Developers\sub`, query `C:\Users\super\Developers` — expect a hit.
+- the same pair with the query in slash form.
+- the same pair with the recorded cwd carrying the `\\?\` prefix.
+
+Run these against both `queryIndex` and `listCwdSessions`.
+
+### B.4 (concern, folded) `normalizeCwd` is not universally idempotent
+
+`\\?\UNC\?\foo` folds to `//?/foo` and a second pass strips again to `/foo`. The SQL
+twin reproduces the JS exactly, so scan and index still agree — the layer's actual
+contract holds. Do NOT loop the strip to chase idempotence: looping changes what a
+single pass returns for adversarial input and widens the blast radius of this layer.
+Instead delete the universal idempotence claim in §4.1 and state the real property:
+**`normalizeCwd` strips at most one prefix per call, and `canonicalCwdSql` matches it
+call for call.**
+
+### B.5 (concern, folded) `hook.ts:517` is widened but not pinned
+
+`hook.ts:517` reads `FOLD_CWD_CASE` and its behaviour changes on win32, but the
+existing hook tests are POSIX-exact, so nothing pins a previously-matching Windows
+case. This layer does not edit `hook.ts` and must not start. Record the exposure
+here and add ONE read-only assertion in `cwd-scope.test.ts` that a
+previously-matching Windows path still matches after the widening. If that cannot be
+expressed without touching `hook.ts`, leave it and say so in the wp2 receipt — an
+unpinned widening that is declared is acceptable; an undeclared one is not.
+
+### B.6 Verdict handling
+
+The reviewer's FAIL is folded, not rebutted. The layer proceeds as **near-pass**: the
+two blockers were test-expectation defects rather than design defects, and B carries
+one residual obligation that makes them checkable — **every new test must be shown
+FAILING on the parent tip `ba305627` before it is shown passing.** A test that cannot
+be made red on the parent is not evidence and must be rewritten until it is.
+
