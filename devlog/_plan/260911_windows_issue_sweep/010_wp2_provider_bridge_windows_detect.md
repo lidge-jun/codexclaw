@@ -16,15 +16,15 @@ criterion: **c-9** (wp2 half: launcher selection + ComSpec spawn, separate tests
 
 | file | NEW/MODIFY/DELETE | change |
 |---|---|---|
-| `plugins/codexclaw/components/provider-bridge/src/win-exec.ts` | NEW | Byte-identical copy of `cxc-ops/src/win-exec.ts`. SHA256 `B7B07DE668F622EA1AC0CD1A82FE04B61C85A41E9390233D22AEBAA4AF175E3D` (same bytes as `pabcd-state` / `cxc-ops` / `skill-search` / `subagent-config`). `build.mjs` allows only `node:*` + relative imports inside a component, so a cross-component import is illegal. |
+| `plugins/codexclaw/components/provider-bridge/src/win-exec.ts` | NEW | Byte-identical copy of `cxc-ops/src/win-exec.ts` (3657 bytes, SHA256 `B7B07DE6…`). Four components already carry these exact bytes: `cxc-ops`, `pabcd-state`, `skill-search`, `subagent-config`. See §4.1 for why a copy rather than the re-export `messenger-bridge` uses. |
 | `plugins/codexclaw/components/provider-bridge/dist/win-exec.js` | NEW | `npm run build` output. `.gitignore:2` ignores `dist/`, so `git add -f plugins/codexclaw/components/provider-bridge/dist/win-exec.js`. |
-| `plugins/codexclaw/components/provider-bridge/src/cli.ts` | MODIFY | Add `selectExecutableFromWhereOutput` for the `where` first-line bug. `runOcxStatus` must call the copied `commandInvocation`, not an inlined ComSpec wrapper. Direct-exec guard so tests can import `cli.ts`. |
+| `plugins/codexclaw/components/provider-bridge/src/cli.ts` | MODIFY | `whichOcx` resolves through `resolveWindowsCommand` on win32, **deleting** the `where`-stdout parsing rather than patching it. `runOcxStatus` routes through `commandInvocation` instead of an inlined ComSpec wrapper. Direct-exec guard so tests can import `cli.ts`. No `selectExecutableFromWhereOutput` helper survives. |
 | `plugins/codexclaw/components/provider-bridge/dist/cli.js` | MODIFY | compileSource of the same commit. Already tracked. |
-| `plugins/codexclaw/components/provider-bridge/test/detect.test.ts` | MODIFY | Launcher-selection test + ComSpec spawn test + SHARED-HELPER-01 byte-identity check. |
+| `plugins/codexclaw/components/provider-bridge/test/detect.test.ts` | MODIFY | Launcher-selection test + ComSpec spawn test + SHARED-HELPER-01 byte-identity check + the §5.1 end-to-end wiring test. |
 
 No DELETE. Do not modify `detect.ts`.
 
-## 3. Current code (L0 `9cd52769`)
+## 3. Current code (L0 `14aa3f21`, based on dev `a267b398`)
 
 `plugins/codexclaw/components/provider-bridge/src/cli.ts:15-36`:
 
@@ -36,7 +36,7 @@ function whichOcx(cmd: string): string | null {
   try {
     const res = spawnSync(finder, args, { encoding: "utf8", shell: process.platform !== "win32" });
     if (res.status === 0 && typeof res.stdout === "string") {
-      const path = res.stdout.split("\\n")[0]?.trim();
+      const path = res.stdout.split("\n")[0]?.trim();
       return path && path.length > 0 ? path : null;
     }
     return null;
@@ -69,7 +69,7 @@ process.exit(0);
 
 `where` prints the extensionless npm sh shim first (`get-command-where-disagree`). Spawning that path or a `.cmd` without a shell is EINVAL (`spawn-npm-enoent-einval`, CVE-2024-27980).
 
-Note: the live source at `:22` is `res.stdout.split("\n")[0]?.trim();` — a JS `"\\n"` split, not a CRLF-aware split. `where.exe` emits CRLF; `.trim()` currently strips the leftover CR by accident.
+Note: `:22` splits on `"\n"`, not on `/\r?\n/`. `where.exe` emits CRLF, so the first element keeps a trailing CR and `.trim()` removes it by accident rather than by design. §4.2 drops this code path on win32 entirely.
 
 ## 4. The committed implementation is correct but is a third ComSpec wrapper
 
@@ -100,10 +100,29 @@ first-line bug stops being something to work around.
 
 ### 4.1 NEW `provider-bridge/src/win-exec.ts`
 
-Byte-identical copy of `cxc-ops/src/win-exec.ts`. `build.mjs` permits only `node:*` and
-relative imports inside a component, so a cross-component import is illegal and a copy
-is the sanctioned form — the same copy already exists in `pabcd-state`, `cxc-ops`,
-`messenger-bridge`, `skill-search` and `subagent-config`.
+Byte-identical copy of `cxc-ops/src/win-exec.ts` — 3657 bytes, SHA256 `B7B07DE6…`.
+
+**Correction to an earlier claim in this document.** A cross-component import is not
+illegal. `build.mjs` lines 6-8 describe the `node:*`-plus-relative convention in a
+**comment**; there is no check enforcing it, and `messenger-bridge` already crosses the
+boundary:
+
+```ts
+// plugins/codexclaw/components/messenger-bridge/src/win-exec.ts — 142 bytes
+/** Compatibility export; subprocess escaping is shared with live model discovery. */
+export * from "../../subagent-config/dist/win-exec.js";
+```
+
+So the repository has both shapes: four byte-identical copies (`cxc-ops`, `pabcd-state`,
+`skill-search`, `subagent-config`) and one re-export.
+
+**Choose the copy here anyway, for a reason specific to this component.** The re-export
+targets another component's `dist/`, which makes the importer's runtime depend on that
+component having been built. `provider-bridge` is invoked by a **SessionStart hook** on
+every session start; a resolution failure there degrades the provider status line for
+reasons that have nothing to do with providers, and the hook is required to always exit
+0, so the failure would be silent. A self-contained copy removes that coupling. The
+cost is drift, which §5's byte-identity test converts into a loud test failure.
 
 ```powershell
 Copy-Item plugins/codexclaw/components/cxc-ops/src/win-exec.ts `
@@ -161,7 +180,7 @@ Keep the direct-exec guard from `f280394b` (`process.argv[1]` realpath compared 
 `import.meta.url`): without it, importing `cli.ts` from a test calls `process.exit(0)`.
 Do not touch `detect.ts`.
 
-## 5. MODIFY `test/detect.test.ts` — two halves, two tests
+## 5. MODIFY `test/detect.test.ts` — two halves, then the wiring
 
 c-9 requires launcher selection and ComSpec spawn to be proven **separately**. A single
 end-to-end test passes when only one half works.
@@ -211,6 +230,80 @@ test("provider-bridge win-exec.ts is byte-identical to the cxc-ops original", ()
 
 Keep the `status: null` → `error` test from `f280394b`: it pins that a failed spawn is
 never silently downgraded to `native`.
+
+### 5.1 The wiring test — NEW, and the one that actually gates c-9
+
+The three tests above exercise `win-exec.ts` directly. That is a real hole: copying
+`win-exec.ts` and **never touching `cli.ts`** would pass all three. The existing AC2 case
+(`detect.test.ts:12-16`) does not close it either, because it injects `which: () => null`
+and so never exercises the new win32 resolution at all.
+
+Close it with an end-to-end test that runs the real `cli.ts` as a subprocess against a
+crafted PATH. This is the only test here that proves launcher selection, ComSpec spawn,
+**and** the `whichOcx`/`runOcxStatus` wiring together.
+
+```ts
+// win32 only: proves the real cli.ts wiring, not just the helpers.
+test("detect resolves the .cmd launcher and reads status through ComSpec end to end", { skip: process.platform !== "win32" }, t => {
+  const dir = mkdtempSync(join(tmpdir(), "cxc-pb-e2e-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  // The npm global-install shape: an extensionless sh shim that `where` lists FIRST
+  // and that Windows cannot execute, beside the .cmd launcher that it can.
+  writeFileSync(join(dir, "ocx"), "#!/bin/sh\nexit 1\n");
+  writeFileSync(
+    join(dir, "ocx.cmd"),
+    // A .cmd that only answers `status --json`. Single-line echo: cmd has no here-doc.
+    "@echo off\r\n" +
+      'echo {"proxy":{"running":true},"defaultProvider":"openai","listen":{"port":10100}}\r\n',
+  );
+
+  const cli = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
+  const res = spawnSync(process.execPath, ["--experimental-strip-types", cli, "detect"], {
+    encoding: "utf8",
+    // dir FIRST so the crafted launcher wins over any real ocx on this machine.
+    env: { ...process.env, PATH: `${dir};${process.env.PATH ?? ""}`, PATHEXT: ".COM;.EXE;.BAT;.CMD" },
+  });
+
+  assert.equal(res.status, 0);
+  const line = JSON.parse(res.stdout.trim().split(/\r?\n/).pop());
+  assert.equal(line.mode, "provider");                 // not "error", not "native"
+  assert.equal(line.ocxPath, join(dir, "ocx.cmd"));    // the launcher, not the shim
+  assert.equal(line.running, true);                    // the payload really came back
+  assert.equal(line.port, 10100);
+});
+```
+
+Why each assertion earns its place:
+
+- `mode === "provider"` fails if either half regresses. Picking the shim gives ENOENT →
+  `status: null` → `error`; spawning the `.cmd` shell-lessly gives EINVAL → the same
+  `error`. This is the assertion the roadmap's original c-2 was missing.
+- `ocxPath` ending in `.cmd` isolates launcher selection.
+- `running` and `port` prove the payload was actually read, so the test cannot pass on
+  a resolved path alone.
+
+Also **fix the AC2 gap** while here: keep the injected-`null` case, and add a real-PATH
+case asserting `mode === "native"` when `PATH` contains no `ocx` at all. Without it,
+`whichOcx` returning something truthy on a miss would silently reclassify absent-ocx as
+`error`.
+
+```ts
+test("no ocx on PATH resolves to native through the real resolver", { skip: process.platform !== "win32" }, t => {
+  const dir = mkdtempSync(join(tmpdir(), "cxc-pb-empty-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const cli = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
+  const res = spawnSync(process.execPath, ["--experimental-strip-types", cli, "detect"], {
+    encoding: "utf8",
+    env: { ...process.env, PATH: dir, PATHEXT: ".COM;.EXE;.BAT;.CMD" },
+  });
+  assert.equal(res.status, 0);
+  assert.equal(JSON.parse(res.stdout.trim().split(/\r?\n/).pop()).mode, "native");
+});
+```
+
+Both tests need `mkdtempSync`, `writeFileSync`, `rmSync`, `tmpdir`, `join`,
+`spawnSync` and `fileURLToPath` imported at the top of the file.
 
 ## 6. Reproduction (parent fails, L1 head passes)
 
