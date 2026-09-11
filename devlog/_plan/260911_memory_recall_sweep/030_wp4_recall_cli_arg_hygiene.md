@@ -817,3 +817,81 @@ word `help` as a help request via `argv.some`. Copying either would make
 | `memory search foo --cwd-only --json` | `--cwd-only` swallows `--json`; `cwd: "--json"`, `cwdOnly: true`, JSON never enabled, **exit 0**, text output |
 | `memory search foo --home <missing>` | no `existsSync` check, **exit 0**, no root warning, db warning **twice** because `foo` is SHORT_ASCII and triggers the relaxed retry |
 
+
+## Amendment B — wp4 A audit fold (2026-09-11)
+
+Independent `xai/grok-4.6` audit: **FAIL**, one blocker and five concerns, all
+folded. **Amendment B governs.** The reviewer traced sixteen argv shapes through
+`main` and confirmed the help check catches every route that reaches `ingest`
+today, and found no in-repo caller that the stricter parsing would break.
+
+### B.1 (blocker) The dash-leading tests would stay red after the fix
+
+Node v24 `parseArgs` with `strict: true` does **not** hand `--cwd-only` the next
+flag as a value. It throws `Option '--cwd-only' argument is ambiguous` first. The
+planned tests assert the plan's own `path must not start with '-'` message, which is
+only reachable through the equals form. **Written as specified, those tests fail
+after a correct implementation.**
+
+Split each into two:
+
+```text
+(a) issue repro:   memory search memory --cwd-only --no-chat --json
+                   -> non-zero exit, stderr matches /cwd-only/
+                      (Node's ambiguous-argument error is acceptable here;
+                       what matters is that the command REFUSES instead of
+                       silently searching the wrong scope with exit 0)
+(b) equals form:   --cwd-only=--no-chat , --cwd=--json , --home=--json
+                   -> non-zero exit, stderr matches the flagLikePathError text
+```
+
+Do the same split for the `--cwd` and `--home` test. Both halves are required: (a)
+is the user-visible bug from #140, (b) is what pins the new guard.
+
+### B.2 `chat index help` and `chat index /?` still ingest — close them
+
+The audit found two argv shapes the plan misses: `["chat","index","help"]` and
+`["chat","index","/?"]` reach `ingest`. Amendment A.3 forbids treating a bare
+`help` as help for `memory search`, because there it is a legitimate QUERY. That
+reasoning does not extend to `chat index`, which takes no positional query at all.
+
+Required: for `chat index` specifically, a bare positional `help` or `/?` prints
+usage and exits 0 without ingesting. `memory search help` and `chat search help`
+keep searching for the word. Pin both behaviours with tests — otherwise a later
+refactor that copies `isHelpToken` goes green while breaking the query
+(audit concern 1).
+
+### B.3 `--Help`, `-help`, `--help=true` — accepted behaviour, documented
+
+These miss `wantsHelp` and then hit `strict: true`, so they exit non-zero with a
+parse error instead of printing usage. That is a worse message than usage but it is
+**not** the #139 defect: they do not ingest. Leave them erroring, and do not widen
+`wantsHelp` to case-insensitive or single-dash spellings — widening it is how
+`help`-as-a-query gets broken. Record the behaviour in the receipt.
+
+### B.4 `dist` is build output; the gate is `002`
+
+`dist/cli.js` and `dist/memory-search.js` change only through `npm run build`.
+§6.4's "`npm test` exits 0" is superseded by `002_host_verification_baseline.md`.
+
+### B.5 Never run the live repro against the real home
+
+§6.5 executes `cxc chat index` against the default home. **Do not run it**, on the
+parent or anywhere: it ingests into the user's real index, which is the exact harm
+#139 describes. Every test points at a temp home. The before/after evidence for
+#139 comes from the temp-home tests, not from a live run.
+
+### B.6 Red on parent, as audited
+
+All eleven named tests are red on `20b42207`. The load-bearing ones:
+
+| test | on the parent |
+|---|---|
+| `chat index --help` prints usage, exits 0, does not ingest | ingests and creates the index; stdout says `ingested` |
+| `--help` anywhere beats `--rebuild` | rebuild deletes and re-ingests |
+| `-h` is help | `values.h = true`, ingests |
+| `memory search --help` exits 0 with no query | usage, exit **1** |
+| unknown flag is rejected | dropped by `strict: false`, ingests |
+| missing `--home` exits non-zero | exit 0 with JSON on stdout |
+| root and db each warn once, including the relaxed retry | no root warning at all; db warning twice |
+
