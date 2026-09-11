@@ -578,3 +578,66 @@ Layer is proven when:
 ## Done when
 
 `--status` and the SessionStart banner, on a read-only open, show source JSONL count and a `stale` count that includes missing, changed-`(mtime,size)`, and extra index rows. A no-op ingest leaves `last_ingest_at` unchanged. SessionStart still searches with `noRefresh: true`. Tests 1, 4, 6, and 8 are the acceptance core for `c-7`.
+
+## Amendment A — wp5 P revalidation (2026-09-11)
+
+Re-verified at `8e877051` by an independent `xai/grok-4.6` explorer.
+**This amendment governs.** Every quoted BEFORE block in this PRD is still a
+byte-exact match — only the line numbers moved, and they moved a long way.
+
+### A.1 Re-measured citations
+
+| PRD says | Now | Note |
+|---|---|---|
+| `cli.ts:169-196` status print | **`:241-246`** | |
+| `cli.ts:174-177` read-only open | **`:225-228`** | |
+| `cli.ts:190-195` `--status` body | **`:241-246`** | **`:190-195` is now inside `runMemorySearch`** |
+| `cli.ts:206-220` `indexStatusLine` | **`:257-271`** | |
+| `cli.ts:213` banner string | **`:264`** | `:213` is now `runMemorySearch`'s `return 0` |
+| `cli.ts:231-235` SessionStart call | **`:286`** | |
+| `cli.ts:17` `codexHome` import | **`:18`** | `:17` is `import { ingest }` |
+| `hook.ts:86` `detectRecallIntent` | **`:112`** | `:86` is a `RECALL_PATTERNS` regex |
+| `rollout.ts:127-170` `listRolloutFiles` | **`:145-188`** | |
+| `ingest.ts:175-176` prune | **`:177`** | |
+| tests: matcher `:224`; four-file `:34`; append+utimes `:151-159`; incremental `:30-44`; cli status `:215-231`; wp4 migration `:356-357` | **`:225`; `:35`; `:158-160`; `:31-46`; `:216-232`; `:436`** | `:356-357` is now `nullRepoQuery` fields |
+
+**The trap:** patching `cli.ts:190-195` edits `runMemorySearch`, not `--status`.
+
+### A.2 Where the freshness report goes
+
+Replace the `--status` body at `:241-246`; put the helpers above `runChatIndex`
+(`:216`); the SessionStart banner consumes the same report at `:263-264`.
+
+`indexStatus` stays a pure sqlite COUNT (`index-db.ts:207-213`). **Compose
+`measureIndexFreshness(home, db, 0)` at the CLI layer, not inside `index-db.ts`** —
+that module imports sqlite only (`:13-16`) and must not learn about the filesystem.
+
+### A.3 The read-only listing is safe, but it does not stat
+
+`listRolloutFiles` (`rollout.ts:145-188`) is `existsSync` + `readdirSync` + sort. It
+returns `{ path, date }` only, performs no `statSync`, no parse and no db access, and
+`chat-search.ts:253` already calls it. Safe to call without triggering an ingest.
+
+Because it does not stat, **the freshness measurement must `statSync` the files
+itself**, comparing `Math.floor(mtimeMs)` and `size` against the stored columns. That
+is the half of #144 that the count-difference approach can never see.
+
+### A.4 The two remaining edits
+
+```text
+chat-search.ts:252-258   sourceFiles = listRolloutFiles(...).length
+                         staleFiles: Math.max(0, sourceFiles - status.files)
+                         -> take staleFiles from the freshness report instead
+ingest.ts:193-195        INSERT OR REPLACE last_ingest_at, unconditionally
+                         -> only when ingested + appended + pruned > 0
+```
+
+### A.5 L3 interaction: do not undo help-first
+
+`wantsHelp` at `main:299` runs before `runChatIndex`, so `--help`/`-h` and the
+positional `help`/`/?` at `:309-312` never reach `--status`. `strict: true`
+(`:128`) does not block `--status`, which is declared at `:123`.
+`["chat","index","--home",X,"--status"]` still reaches `runChatIndex` and
+`statusOnly` (`:227`) still skips the ingest. **Do not revert or weaken help-first
+while editing this function.**
+
