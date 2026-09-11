@@ -12,7 +12,7 @@
  * yields null so the caller can fall back to the previous search path.
  */
 import { openIndexReadOnly, indexPath, filesHasColumn } from "./index-db.ts";
-import { isSyntheticUserText, FOLD_CWD_CASE } from "./rollout.ts";
+import { isSyntheticUserText, FOLD_CWD_CASE, normalizeCwd, canonicalCwdSql } from "./rollout.ts";
 import { readdirSync, openSync, readSync, closeSync } from "node:fs";
 import { join } from "node:path";
 import { codexHome, memoriesDir, stateDbPath } from "./paths.ts";
@@ -110,12 +110,10 @@ export function listCwdSessions(
     // Exact cwd, or the same remote. A child path stays a different project
     // surface; automatic injection still never federates across repositories.
     const repoKey = repoKeyForCwd(cwd, opts.readOriginUrl ?? readOriginUrl);
-    const conds: string[] = ["cwd = ?"];
-    const params: unknown[] = [cwd];
-    if (FOLD_CWD_CASE) {
-      conds.push("lower(cwd) = lower(?)");
-      params.push(cwd);
-    }
+    const canonical = normalizeCwd(cwd);
+    const col = canonicalCwdSql("cwd");
+    const conds: string[] = [FOLD_CWD_CASE ? `lower(${col}) = lower(?)` : `${col} = ?`];
+    const params: unknown[] = [canonical];
     if (repoKey !== null) {
       if (filesHasColumn(db, "repo_key")) {
         conds.push("(repo_key IS NOT NULL AND repo_key = ?)");

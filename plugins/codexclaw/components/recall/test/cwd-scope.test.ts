@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { searchMemory, CWD_BOOST } from "../src/memory-search.ts";
-import { normalizeCwd, cwdMatches } from "../src/rollout.ts";
+import { normalizeCwd, cwdMatches, canonicalCwdSql, foldCwdCaseFor, FOLD_CWD_CASE } from "../src/rollout.ts";
 import { main as cliMain } from "../src/cli.ts";
 
 const HERE = "/proj/here";
@@ -427,4 +427,101 @@ test("normalizeCwd folds separators and drive case without folding path case", (
   assert.equal(normalizeCwd("C:/proj/here/"), "C:/proj/here");
   // Path case is meaningful on the case-sensitive hosts this also runs on.
   assert.notEqual(normalizeCwd("/Proj/Here"), normalizeCwd("/proj/here"));
+});
+
+test("normalizeCwd strips extended-length and extended-UNC prefixes", () => {
+  const rows: Array<[string, string]> = [
+    ["\\\\?\\C:\\Users\\super\\Developers", "C:/Users/super/Developers"],
+    ["//?/C:/Users/super/Developers", "C:/Users/super/Developers"],
+    ["\\\\?\\C:\\Users\\super\\Developers\\", "C:/Users/super/Developers"],
+    ["c:\\Users\\super\\Developers", "C:/Users/super/Developers"],
+    ["C:/Users/super/Developers/", "C:/Users/super/Developers"],
+    ["\\\\?\\UNC\\server\\share\\proj", "//server/share/proj"],
+    ["//?/UNC/server/share/proj", "//server/share/proj"],
+    ["//?/unc/server/share/proj", "//server/share/proj"],
+    ["\\\\server\\share\\proj", "//server/share/proj"],
+    ["/proj/here/", "/proj/here"],
+  ];
+  for (const [input, expected] of rows) {
+    assert.equal(normalizeCwd(input), expected, input);
+    assert.equal(normalizeCwd(normalizeCwd(input)), expected, `idempotent ${input}`);
+  }
+  assert.notEqual(normalizeCwd("/Proj/Here"), normalizeCwd("/proj/here"));
+});
+
+test("canonicalCwdSql matches normalizeCwd on the prefix matrix", () => {
+  const rows = [
+    "\\\\?\\C:\\Users\\super\\Developers",
+    "//?/C:/Users/super/Developers",
+    "\\\\?\\C:\\Users\\super\\Developers\\",
+    "c:\\Users\\super\\Developers",
+    "C:/Users/super/Developers/",
+    "\\\\?\\UNC\\server\\share\\proj",
+    "//?/UNC/server/share/proj",
+    "//?/unc/server/share/proj",
+    "\\\\server\\share\\proj",
+    "/proj/here/",
+    "",
+  ];
+  const db = new DatabaseSync(":memory:");
+  try {
+    const stmt = db.prepare(`SELECT ${canonicalCwdSql("v")} AS n FROM (SELECT ? AS v)`);
+    for (const q of rows) {
+      const row = stmt.get(q) as { n: string };
+      assert.equal(row.n, normalizeCwd(q), q);
+    }
+  } finally {
+    db.close();
+  }
+});
+
+test("foldCwdCaseFor is true on darwin and win32, false on linux", () => {
+  assert.equal(foldCwdCaseFor("darwin"), true);
+  assert.equal(foldCwdCaseFor("win32"), true);
+  assert.equal(foldCwdCaseFor("linux"), false);
+  assert.equal(FOLD_CWD_CASE, foldCwdCaseFor(process.platform));
+});
+
+
+test("cwdMatches treats \\\\?\\\\ recorded cwd as the same directory as a typed C:\\\\ path", () => {
+  assert.equal(cwdMatches("\\\\?\\C:\\proj\\here", "C:\\proj\\here"), true);
+  assert.equal(cwdMatches("\\\\?\\C:\\proj\\here", "C:\\proj\\here2"), false);
+  assert.equal(cwdMatches("\\\\?\\C:\\proj\\here\\sub", "C:\\proj\\here"), true);
+});
+
+test("memory --cwd-only with a \\\\?\\\\ recorded cwd and repo_key NULL keeps the hit", () => {
+  const home = mkdtempSync(join(tmpdir(), "recall-cwd-extlen-"));
+  try {
+    const summaries = join(home, "memories", "rollout_summaries");
+    mkdirSync(summaries, { recursive: true });
+    writeFileSync(
+      join(summaries, "ext.md"),
+      "thread_id: t-ext\ncwd: \\\\?\\C:\\proj\\here\n\n# Notes\n\nThe numbat pipeline shipped.\n",
+    );
+    const hit = searchMemory("numbat", {
+      home,
+      cwd: "C:\\proj\\here",
+      cwdOnly: true,
+      readOriginUrl: () => null,
+    });
+    assert.equal(hit.hits.length, 1);
+    const sibling = searchMemory("numbat", {
+      home,
+      cwd: "C:\\proj\\here2",
+      cwdOnly: true,
+      readOriginUrl: () => null,
+    });
+    assert.equal(sibling.hits.length, 0);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("previously-matching Windows cwd spellings still match after case-fold widening", () => {
+  // Drive-letter case and separator folding already matched before FOLD_CWD_CASE
+  // included win32. The widening must not drop them. hook.ts:517 reads the same
+  // predicate; this layer does not edit hook.ts, so the pin lives here.
+  assert.equal(cwdMatches("C:\\proj\\here", "C:/proj/here"), true);
+  assert.equal(cwdMatches("C:\\proj\\here\\sub", "c:\\proj\\here"), true);
+  assert.equal(cwdMatches("C:\\proj\\here2", "C:\\proj\\here"), false);
 });
