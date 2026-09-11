@@ -598,3 +598,209 @@ Issue #136's fallback ("document and narrow the matcher to tools only") is **not
 - `c-10`: the four home forms and the five PowerShell cmdlets (plus alias `copy`) plus python/node writes classify as memory writes; `read_text` does not. The three switch-parameter regressions (`Set-Content -Force`, `Out-File -Append`, `New-Item -ItemType File -Force`) and Copy-Item destination-only (named `-Path` is not a dest) pass.
 - `c-11`: `allow-write --help` exits 0 with no grant; `--session=<id>` accepted; unknown flags rejected.
 - `npm run build` and `npm test` green, new test names in the log, dist staged with `-f`.
+
+## Amendment A — wp7 P revalidation and the dev cascade (2026-09-11)
+
+Re-verified by an independent `xai/grok-4.6` explorer, which confirmed **every BEFORE
+fence in this PRD is an exact quote of the current files** and that L1-L5 touched only
+the recall component, leaving this layer's sources untouched. **This amendment
+governs.**
+
+### A.1 The base moved: the whole chain was rebased
+
+While this layer was at P, the peer session merged its entire Windows sweep into
+`dev`. `origin/dev` went from `a267b398` to `d4bef1f2`, seven commits:
+
+```text
+d4bef1f2  fix(pabcd-state): non-git session binds a nested git source (#109) (#152)
+8e73e205  fix(sweep): GUI and serve provider probes through win-exec (#151)
+ed225aec  fix(pabcd-state): refuse a bound cycle with no resolvable source identity (#150)
+34cd7879  fix(config-guard): answer --help before the action and forward full argv (#149)
+8013b625  fix(pabcd-state): canonicalise the native session cwd (#134) (#148)
+291f81d6  fix(provider-bridge): reuse win-exec for PATHEXT and ComSpec (#131) (#153)
+ee03d5bc  docs(plan): diff-level roadmap for the Windows issue sweep stack (#146)
+```
+
+Three of those land in `pabcd-state` and one in `config-guard`, and **`#149` moves
+`bin/cxc.mjs`** — a file this layer edits. Rebasing after implementing L6 would have
+meant resolving that collision inside the largest layer in the stack. It was done
+first instead, at P, with a clean tree:
+
+```text
+git rebase --update-refs --onto origin/dev a267b398 codex/fix-memory-write-gate
+  -> 31 commits replayed, no conflicts, all six layer branches updated
+npm run build   exit 0
+npm test        exit 1, tests 3110, pass 3022, fail 2   (the same two env failures, no third)
+git merge-base --is-ancestor, each layer against the one below -> all 0
+git push --force-with-lease, all six pushed branches
+```
+
+The chain now sits on `d4bef1f2`. **`002_host_verification_baseline.md` still holds:
+exactly `hook-bench` and `cxc map --help`, and nothing else.** The peer's seven
+commits and this chain's twenty-four compose without a third failure.
+
+### A.2 Consequence for this layer
+
+`bin/cxc.mjs`'s `memory allow-write` branch **moved from `:166` to `:171`** because
+`#149` inserted config-guard argv handling above it. The condition text and the
+`HELP` constant at `:90` are unchanged, and every write-gate `.ts` file is byte
+identical to what this PRD quotes. **Re-read `bin/cxc.mjs` and `bin/codexclaw.mjs`
+before editing; every other BEFORE block in this document is still exact.**
+
+`#149` is also prior art worth reading rather than copying: it solved the same
+"`--help` reaches the action" defect for `config-guard`, on the same dispatcher this
+layer must fix for `memory allow-write`. Read how it forwards argv, then decide
+independently — L3 in this stack already rejected the older `isHelpToken` prior art
+for good reasons.
+
+### A.3 Remaining staleness
+
+Only one: §2 paraphrases `sessionsDir` as `join(cwd, ".codexclaw", "sessions")`. The
+actual code is `join(cwd, STATE_DIR, SESSIONS_SUBDIR)` at `state.ts:317`, with
+`STATE_DIR = ".codexclaw"` at `:233`. The behaviour is what the PRD says; the literal
+is not. Do not introduce a hard-coded string.
+
+### A.4 The grant binding, confirmed
+
+`consumeAuthorization(cwd, sessionId, turnId)` -> `readState(cwd, sessionId)`
+(`memory-write-gate.ts:244`, called at `:297`) -> `statePath(cwd, sessionId)`
+(`:320-321`) -> `sessionsDir(cwd)`. The CLI stores the **process** cwd
+(`memory-cli.ts:46`) and writes the grant there (`:56-57`). That is #135 exactly: the
+grant is keyed by a cwd the success message never mentions.
+
+### A.5 The risk, restated because it is the security boundary
+
+POSIX habit says an unknown `-*` flag may consume the next token. **PowerShell switch
+parameters take no value.** If the new verb parser copies the POSIX habit,
+`Set-Content -Force <memory path>`, `Out-File -Append <memory path>` and
+`New-Item -ItemType File -Force <memory path>` all return `[]` and a real memory write
+passes the gate. The existing POSIX helpers already get this right — `tee`, `sed`,
+`cp` skip an unknown flag **without** consuming the next token. Match that behaviour.
+
+### A.6 Existing pins that must not break
+
+`memory-write-gate.test.ts` `:49`, `:64`, `:81`, `:101`, `:121`, `:136`, `:150`,
+`:162`, `:175`, `:186`, `:199`, `:209`, `:250` (python3 `read_text` is a READ and must
+stay allowed), `:263`; `shell-write-destinations.test.ts` `:13`, `:30`, `:40`, `:57`.
+A widening that turns an existing allow into a deny is as much a regression as a
+missed write.
+
+
+## Amendment B — wp7 A audit fold (2026-09-11)
+
+Independent `xai/grok-4.6` security audit: **FAIL**, three blockers and four concerns.
+It hunted bypasses rather than reviewing prose and found **twelve command lines that
+would write into the memories directory and pass the gate**. All folded.
+**Amendment B governs.**
+
+### B.1 (blocker 1) The design changes: over-collect candidates, let the path decide
+
+The PRD parses PowerShell like POSIX — identify THE destination operand, return it.
+Every bypass the audit found is a variation of "the parser picked the wrong token":
+
+```text
+Set-Content -LP $mem\n.md -Value x        -LP is an unambiguous prefix of -LiteralPath
+Set-Content -Fo $mem\n.md                 -Fo is a prefix of -Force
+Out-File -Fi $mem\n.md                    -Fi is a prefix of -FilePath
+Set-Content -AsByteStream $mem\n.md       unlisted switch, eats the path
+Set-Content /Force $mem\n.md              slash switch becomes the "destination"
+Copy-Item /w/a.md -Dest $mem\b.md         -Dest is a prefix of -Destination
+```
+
+Chasing these one flag at a time is a losing game: PowerShell accepts **any
+unambiguous prefix of any parameter name**, so the flag surface is unbounded.
+
+**The gate does not need to know which operand is the destination. It only needs to
+know whether ANY operand lands inside the memories directory.** So for a write
+cmdlet, collect EVERY token that is not a flag as a candidate, and let
+`isMemoryPath` do the narrowing. Over-collection is safe here because a candidate
+outside the memories directory changes nothing, and it makes the parser immune to
+the entire class of flag-naming tricks.
+
+Two rules keep it honest:
+
+1. **A flag never consumes the next token** — matching what `tee`, `sed` and `cp`
+   already do. Only an allowlist of genuinely value-taking parameters consumes one:
+   `-Value`, `-ItemType`, `-Encoding`, `-Name`, `-Filter`, `-InputObject`,
+   `-Width`, `-Stream`, matched **by unique prefix**, case-insensitively.
+   Anything else starting with `-` or `/` is a switch and is simply skipped.
+2. **`Copy-Item`, `copy`, `cp`, `mv` and `Move-Item` stay destination-only.** They
+   are the one family where over-collection would be wrong: copying a file OUT of the
+   memories directory must stay allowed, and `memory-write-gate.test.ts` pins exactly
+   that with `cp ${mem}/a.md /w/b.md`. For these verbs the destination is the last
+   positional, or the operand of `-Destination`/`-Dest`/`-t` by prefix.
+
+### B.2 (blocker 2) Aliases and `Add-Content` are in scope, not residual
+
+`Add-Content`, `sc`, `ni` currently return `[]`. The PRD lists them as residual.
+**A residual on a security boundary is a hole with a note attached.** Required:
+
+| token | treat as | caveat |
+|---|---|---|
+| `Add-Content`, `ac` | write, Set-Content rules | |
+| `sc` | `Set-Content` | only when a file-shaped operand is present — `sc query` is the Windows service tool, not a write |
+| `ni` | `New-Item` | |
+| `copy`, `cp` | `Copy-Item` | destination-only |
+| `echo` | `Write-Output` | only matters through a redirect, already covered |
+| `cat`, `gc`, `Get-Content` | READ | must stay allowed; `memory-write-gate.test.ts` pins it |
+
+### B.3 (concern 4, promoted) The interpreter and .NET forms
+
+Also currently `[]` and also required:
+
+```text
+py -c "open(r'<mem>','w').write('x')"          py is the Windows launcher
+node --eval "...writeFileSync..."              long form
+node -e<CODE>                                  glued, no space
+[IO.File]::WriteAllText('<mem>','x')           .NET static, no cmdlet at all
+[System.IO.File]::AppendAllText('<mem>','x')
+```
+
+For `python`/`python3`/`py` and `node` treat `-c`, `-e`, `--eval` and their glued
+forms as code, and scan the code string for quoted paths. For the .NET statics, match
+`[\s\S]*\[(?:System\.)?IO\.File\]::(Write|Append)All` and take the first quoted
+argument. These are pattern matches on a string, not an evaluator — the goal is to
+make the obvious spelling visible to the gate, not to solve the halting problem.
+
+### B.4 (blocker 3) The tests must use the abbreviations
+
+The PRD's fixtures pin full cmdlet names only, so every bypass in B.1 would ship
+green. The new tests must include, as **deny** cases: `-LP`, `-Fo`, `-Fi`,
+`-AsByteStream`, `/Force`, `Copy-Item -Dest`, `sc`, `ni`, `Add-Content`, `py -c`,
+`node --eval`, glued `node -e`, and `[IO.File]::WriteAllText`. And as **allow**
+cases, unchanged: `Get-Content`, `cat`, the python3 `read_text` fixture at
+`memory-write-gate.test.ts:250`, and `cp ${mem}/a.md /w/b.md`.
+
+### B.5 (concern 3) The Korean widening must not swallow object phrases
+
+The audit's requested examples stay false, but the proposed pattern introduces two new
+false positives: `메모리를 기록하는 함수` and `메모리를 저장해`. In both, `메모리` is
+the OBJECT being recorded, not the destination. Restrict the particle set to the
+locative and additive forms — `에`, `에다`, `에도`, `도` — and do not accept `를`/`을`.
+`메모리도 기록` (the #135 case) and `메모리에 기록해줘` still match; `메모리를 저장해`
+does not. The pre-existing `메모리에 저장하는 코드` false positive at `:81` is out of
+this layer's scope and is left as it is.
+
+### B.6 (concern 2) Prove #141 through the real entrypoints
+
+The PRD's proof spawns `dist/cli.js`. The defect in #141(a) is in the **dispatcher**,
+so the test must spawn `bin/cxc.mjs` and `bin/codexclaw.mjs` themselves — otherwise
+it proves the library and leaves the bug. `#149` on the new `dev` did exactly this
+for `config-guard`; match that standard.
+
+### B.7 (concern 1, accepted) `cxc memory --help` stays recall's
+
+`memory` routes to the recall CLI, and adding `allow-write` to that usage text would
+break `recall-skill-synopsis.test.mjs`, which compares the usage against the skill
+doc. So: the **root** `cxc --help` lists `memory allow-write`, and the deny message
+names the full command including the cwd. `cxc memory --help` keeps belonging to
+recall. Recorded rather than silently skipped.
+
+### B.8 What the audit confirms is already right
+
+No existing fixture flips from allow to deny: the python3 `read_text` read at
+`:250` stays allowed, and destination-only `Copy-Item` matches the existing `cp`
+allow. The #141 parse order (`--help` before `--session`, accept `--session=`, never
+record a grant on a help call) is correct as specified. The #135 remedy is one-step:
+the deny names the session cwd and the success message names where it wrote.
+

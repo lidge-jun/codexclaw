@@ -88,6 +88,7 @@ const HELP = [
   "",
   "Workspace intelligence:",
   '  chat search "q" | memory search "q"   recall over ~/.codex artifacts',
+  "  memory allow-write --session <id>     grant one cwd-scoped memory write",
   "  skill search|show              dormant-skill discovery",
   "",
   "Operations:",

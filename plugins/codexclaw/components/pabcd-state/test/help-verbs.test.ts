@@ -137,3 +137,60 @@ test("freeze --help prints usage and writes nothing", () => {
   assert.equal(existsSync(join(cwd, ".codexclaw", "interview", "freeze.json")), false);
 });
 
+import { parseMemoryCliArgs } from "../src/memory-cli.ts";
+import { spawnSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { STATE_DIR, SESSIONS_SUBDIR } from "../src/state.ts";
+
+const MEMORY_SESSION = "019f9d73-4c28-7723-ab52-346aca1d9bcb";
+
+function memoryRepoRoot(): string {
+  return resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "..");
+}
+
+for (const token of ["--help", "-h"]) {
+  test("memory allow-write " + token + " prints usage and does not require --session", () => {
+    const parsed = parseMemoryCliArgs(["allow-write", token], CWD);
+    assert.ok("help" in parsed, token + " must be help, got " + JSON.stringify(parsed));
+  });
+}
+
+test("memory allow-write --session <id> --help is help, not a grant", () => {
+  const parsed = parseMemoryCliArgs(["allow-write", "--session", MEMORY_SESSION, "--help"], CWD);
+  assert.ok("help" in parsed, "expected help, got " + JSON.stringify(parsed));
+});
+
+test("memory allow-write --help on both real entrypoints writes no grant", () => {
+  const root = memoryRepoRoot();
+  const entries = [
+    join(root, "bin", "codexclaw.mjs"),
+    join(root, "plugins", "codexclaw", "bin", "cxc.mjs"),
+  ];
+  for (const entry of entries) {
+    for (const argv of [
+      ["memory", "allow-write", "--help"],
+      ["memory", "allow-write", "-h"],
+      ["memory", "allow-write", "--session", MEMORY_SESSION, "--help"],
+    ]) {
+      const cwd = mkdtempSync(join(tmpdir(), "cxc-mem-help-"));
+      const res = spawnSync(process.execPath, [entry, ...argv], { cwd, encoding: "utf8" });
+      assert.equal(res.status, 0, entry + " " + argv.join(" ") + " exited " + res.status + ": " + res.stderr);
+      assert.match(res.stdout, /Usage:/);
+      assert.equal(existsSync(join(cwd, STATE_DIR, SESSIONS_SUBDIR, MEMORY_SESSION + ".json")), false);
+    }
+  }
+});
+
+test("root --help lists memory allow-write on both entrypoints", () => {
+  const root = memoryRepoRoot();
+  const entries = [
+    join(root, "bin", "codexclaw.mjs"),
+    join(root, "plugins", "codexclaw", "bin", "cxc.mjs"),
+  ];
+  for (const entry of entries) {
+    const res = spawnSync(process.execPath, [entry, "--help"], { encoding: "utf8" });
+    assert.equal(res.status, 0, entry + " --help exited " + res.status + ": " + res.stderr);
+    assert.match(res.stdout, /memory allow-write/);
+  }
+});
