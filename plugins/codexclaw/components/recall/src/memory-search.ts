@@ -382,6 +382,15 @@ export function paragraphChunks(content: string): Array<{ text: string; startLin
   return chunks;
 }
 
+/** 1-based line of the first query-group hit in the file; 1 if none (should not happen after file AND). */
+function firstMatchStartLine(content: string, groups: QueryGroup[]): number {
+  const lines = splitLines(content);
+  for (let i = 0; i < lines.length; i++) {
+    if (groups.some((g) => groupHit(lines[i].toLowerCase(), g))) return i + 1;
+  }
+  return 1;
+}
+
 function groupHit(lowerText: string, group: QueryGroup): boolean {
   return group.some((term) => termIncludes(lowerText, term));
 }
@@ -472,7 +481,6 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
       if (tallyPresence) markGroupPresence(lowerFile, groups, present);
       if (!planMatches(lowerFile, plan)) continue;
       const threadId = frontmatterThreadId(content);
-      if (threadId) matchedThreadIds.add(threadId);
       const relpath = relative(root, file).split(sep).join("/");
       const kind = kindOfRelpath(relpath, "file");
       // Frontmatter first, then the thread join: a summary states its own cwd,
@@ -482,9 +490,12 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
       // The remote can only come from the thread join: a summary's frontmatter
       // records cwd, never the origin URL.
       const fileRepoKey = normalizeRepoKey(threadMeta?.gitOriginUrl);
+      const keptBefore = candidates.length;
+      let paragraphMatches = 0;
       for (const chunk of paragraphChunks(content)) {
         const lower = chunk.text.toLowerCase();
         if (!planMatches(lower, plan)) continue;
+        paragraphMatches += 1;
         const scoped = scopeAdjust(scope, fileCwd, lower, fileRepoKey);
         if (!scoped.keep) continue;
         candidates.push({
@@ -500,6 +511,33 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
           score: finalScore(scoreChunk(lower, active, lowerPhrase), kind, mtimeMs, nowMs) + scoped.bonus,
         });
       }
+      // File AND passed, every blank-separated paragraph failed AND: keep one
+      // file-span hit so split tokens still surface. Do not merge paragraphs
+      // and do not run this when a paragraph matched but cwd-only dropped it.
+      if (paragraphMatches === 0) {
+        const scoped = scopeAdjust(scope, fileCwd, lowerFile, fileRepoKey);
+        if (scoped.keep) {
+          candidates.push({
+            origin: "file",
+            kind,
+            relpath,
+            threadId,
+            updatedAt: new Date(mtimeMs).toISOString(),
+            // excerptAround (memory-search.ts:409-414) slices the original
+            // string, so pass LF-normalized text: a CRLF file would otherwise
+            // keep \r and fail Test A's no-\r assertion (same invariant as
+            // memory-search.test.ts:60). Paragraph chunks already join with
+            // "\n" via splitLines(...).join("\n") in paragraphChunks.
+            excerpt: excerptAround(splitLines(content).join("\n"), firstPresentMember(lowerFile, active), 400),
+            startLine: firstMatchStartLine(content, active),
+            cwd: fileCwd,
+            score: finalScore(scoreChunk(lowerFile, active, lowerPhrase), kind, mtimeMs, nowMs) + scoped.bonus,
+          });
+        }
+      }
+      // Record the thread only if this file actually kept a hit (paragraph or
+      // file-span). Recording on file AND was lying to stage1.
+      if (threadId && candidates.length > keptBefore) matchedThreadIds.add(threadId);
     }
     searchStage1(
       home,
@@ -599,6 +637,10 @@ function backfillFromChat(
       readOriginUrl: opts.readOriginUrl,
       // A hard memory scope stays hard in the backfill; a boost does not filter.
       cwd: scope?.only ? scope.prefix : null,
+      // Memory defaults synonyms on; chat defaults them off. Dropping the flag
+      // here re-zeroes a Korean query the memory path just failed to answer.
+      synonyms: opts.synonyms ?? true,
+      any: opts.any === true,
     });
     const out: MemoryHit[] = result.hits.slice(0, want).map((hit) => {
       const updatedMs = Date.parse(hit.ts);
@@ -707,7 +749,7 @@ function searchStage1(
     const rows = db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
     for (const r of rows) {
       const threadId = typeof r.thread_id === "string" ? r.thread_id : null;
-      if (threadId && matchedThreadIds.has(threadId)) continue; // already hit via its md file
+      if (threadId && matchedThreadIds.has(threadId)) continue; // already kept a file hit for this thread
       const updatedSec = typeof r.source_updated_at === "number" ? r.source_updated_at : null;
       if (cutoffMs && updatedSec !== null && updatedSec * 1000 < cutoffMs) continue;
       const body = `${String(r.raw_memory ?? "")}\n${String(r.rollout_summary ?? "")}`;

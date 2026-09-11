@@ -519,3 +519,139 @@ Above — L3 / wp4 / #139 #140 (`codex/fix-recall-cli-arg-hygiene`): writes `mem
 Above — L4 / wp5 / #144: `cli.ts` `--status` plus `hook.ts` banner. No overlap with section 4 if this layer stays out of those files.
 
 wp8: publishes this branch as PR base L1, title `fix(recall): keep cross-paragraph AND hits and forward synonyms to the chat fallback (#142, #143)`, `Closes #142` and `Closes #143` only on this PR.
+
+## Amendment A — wp3 P revalidation (2026-09-11)
+
+Re-verified against the tree at `1e819453` by an independent `xai/grok-4.6`
+explorer. **This amendment governs where it disagrees with the body.**
+
+### A.1 What is stale
+
+1. **Header.** Written against `6aae1c97` on `codex/memory-recall-roadmap`. This
+   layer is `codex/fix-memory-search-semantics` off `1e819453`. `6aae1c97` is not an
+   ancestor (merge-base `a267b398`). Every memory/chat/test file this layer touches
+   is byte-identical to that SHA, so the content citations hold.
+2. **§2.2 and §2.5 "current" blocks are collages, not quotes.** They drop the
+   comments at `:478-479`, `:482-483`, `:493` and the ingest/injection comments
+   around `:585-602`. **Do not diff against them.** The §4.2 and §4.4 BEFORE blocks
+   DO match byte-for-byte; use those.
+3. **§2.5's receiver collage is wrong about `chat-search.ts`.** The JSDoc is
+   `:59-63` and the field is `:64`; `const source = opts.source ?? "main"` sits at
+   `:157`, between `anyMode` and `chatMatchPlan`.
+4. **§6.3 demands `npm test` exit 0.** It does not and never did on this host. The
+   gate is `002_host_verification_baseline.md`: build exit 0, focused recall suite
+   exit 0, and full `npm test` showing exactly the two recorded environmental
+   failures and no third.
+
+### A.2 L1 changed nothing this layer depends on
+
+L1 (`9d9f1046`) touched `rollout.ts`, `index-search.ts` and `cwd-context.ts` only.
+`normalizeCwd` now strips the extended prefixes (`:87-96`), `canonicalCwdSql`
+(`:99-104`) is not called from `memory-search.ts`, `FOLD_CWD_CASE` (`:129-132`) is
+true on win32, and `cwdMatches` (`:115-126`) still normalises then prefix-matches.
+`scopeAdjust`'s only callers are still `:488` and `:722`. Test C's `/proj/here` vs
+`/proj/other` fixtures are unaffected by the strip or the fold.
+
+### A.3 The two insertion points, quoted from the current file
+
+The file-level AND passes at `:473`, the thread id is recorded at `:474-475`, and the
+per-chunk AND at `:487` is what throws the hit away:
+
+```ts
+      if (!planMatches(lowerFile, plan)) continue;
+      const threadId = frontmatterThreadId(content);
+      if (threadId) matchedThreadIds.add(threadId);
+      for (const chunk of paragraphChunks(content)) {
+        const lower = chunk.text.toLowerCase();
+        if (!planMatches(lower, plan)) continue;
+```
+
+The file-span fallback must push the **same `MemoryHit` shape as `:490-501`** —
+`origin: "file"`, `kind`, `relpath`, `threadId`, `updatedAt`, `excerpt`, `startLine`,
+`cwd`, `score` — with the excerpt taken from
+`excerptAround(splitLines(content).join("\n"), firstPresentMember(lowerFile, active), 400)`,
+`startLine: firstMatchStartLine(content, active)`, and `scoreChunk(lowerFile, ...)`.
+It must go through `scopeAdjust` exactly like a paragraph hit.
+
+The chat fallback is the only such call, `backfillFromChat` at `:585-602`, and it
+currently passes neither option.
+
+### A.4 The mistake that will actually be made
+
+```ts
+synonyms: opts.synonyms === true      // WRONG - that is chat's own defaulting
+synonyms: opts.synonyms ?? true       // RIGHT - memory's default is ON
+```
+
+`chat-search.ts` defaults `synonyms` OFF (`:158` tests `opts.synonyms === true`) and
+`any` to false (`:156`). Memory defaults `synonyms` ON (`:54-55`, `:434-436`).
+Copying chat's expression forwards `undefined` as false and the fallback stays as
+blind as it is today — the bug would survive its own fix.
+
+Two other ways to fail this layer: recording `matchedThreadIds` on the file-level
+AND instead of on a kept hit, and emitting the file-span hit without
+`scopeAdjust`. Either one keeps Test C or Test D.1 red.
+
+
+## Amendment B — wp3 A audit fold (2026-09-11)
+
+Independent `xai/grok-4.6` audit: **NEAR-PASS**, one blocker and four concerns, all
+folded. **Amendment B governs.**
+
+The reviewer traced the thread-id hole end to end and confirmed the plan closes it:
+snapshot `keptBefore`, count `paragraphMatches` on the AND only, run the file span
+iff `paragraphMatches === 0` and put it through `scopeAdjust`, then `add` the thread
+id iff `candidates.length > keptBefore`. Paragraph hits all dropped by scope: no
+file span, no push, no add. File span dropped by scope: no push, no add. And
+`repoKeysEqual(null, null)` is false (`repo-key.ts:94`), so Test C's
+`readOriginUrl: () => null` cannot smuggle the out-of-scope file back in.
+
+### B.1 (blocker) Test B is a lock, not proof
+
+`same-paragraph AND still uses the paragraph start line` is already green on the
+parent. Keep it — it pins the behaviour the file-span fallback must not disturb —
+but it is **not** red-green evidence for this layer, and it must not be counted as
+such in the receipt. The layer's proof is Tests A, C and D.
+**Do not touch `paragraphChunks` to manufacture a red B.**
+
+### B.2 (concern) `dist` is build output, not an edit
+
+`§4`'s "MODIFY `dist/memory-search.js`" must not be read as a hand edit. Patch the
+`.ts`, run `npm run build`, then stage `dist`. `chat-search.ts` and `cli.ts` stay
+read-only in this layer.
+
+### B.3 (concern) Test C will fail for the wrong reason unless sqlite is closed
+
+`§5.1` underspecifies the fixture. Copy the setup from `cwd-scope.test.ts`: the same
+`CREATE TABLE`, and `state.close()` / `mem.close()` **before** calling
+`searchMemory`. On this Windows host an open `DatabaseSync` handle makes stage1
+fail soft and return zero hits, which looks exactly like the bug the test is meant
+to catch — a correct patch would still show red and the implementer would chase it.
+
+### B.4 (concern) `firstMatchStartLine` is untested off line 1
+
+Test A's fixture matches in the first paragraph, so `startLine: 1` passes whether
+the helper works or not. Either add a file-span fixture with a leading
+non-matching paragraph and assert the real line, or drop the helper and document
+that a file-span hit reports `startLine: 1`. Do not ship an untested helper.
+
+### B.5 (concern, accepted as-is) File-span scoring differs in magnitude
+
+`scoreChunk(lowerFile, ...)` sees the whole file, so the heading bonus at
+`memory-search.ts:192` (`startsWith("#")`) does not fire for a file that opens with
+frontmatter, while a heading paragraph would get it. That is a value difference on
+the same field through the same code path, not a new branch. **Accept it. Do not
+special-case file-span scoring** — a scoring branch that exists only for the
+fallback is exactly the kind of divergence this layer is supposed to remove.
+
+### B.6 Red on parent, as audited
+
+| test | on `1e819453` |
+|---|---|
+| A — file-level AND across a blank line | **FAIL**, 0 file hits: `:473` passes, every chunk fails `:487` |
+| B — same-paragraph start line | PASS (lock only) |
+| C — `matchedThreadIds` only after a kept hit | **FAIL**, `hits: []`: the add at `:474-475` makes `:710` skip stage1 |
+| D — fallback forwards `synonyms` and `any` | **FAIL**, both omitted; D.1 also fails the wrong `=== true` expression |
+
+Three reds are the layer's evidence and all three must be observed before the fix.
+
