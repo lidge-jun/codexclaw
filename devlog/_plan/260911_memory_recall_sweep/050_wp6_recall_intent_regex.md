@@ -420,3 +420,181 @@ Done when:
 6. `npm run build` and `npm test` are green at this layer's tip, with dist rebuilt.
 
 Not done if the implementer adds a cross-package helper, edits the write-gate, or leaves `dist/hook.js` stale.
+
+## Amendment A — wp6 P revalidation (2026-09-11)
+
+Re-verified at `97c52684` by an independent `xai/grok-4.6` explorer.
+**This amendment governs.**
+
+### A.1 Stale citations
+
+| PRD says | Now |
+|---|---|
+| `hook.test.ts:431-442` wp6 test | **`:459-471`** (L4 grew the file; `:26-61` and `:45` did not move) |
+| `hook.ts:501-505` `noRefresh: true` | `searchChat(` is still `:501`; L4's comments are `:505-507`; **`noRefresh: true` is `:508`** |
+| header checkout `6aae1c97` | `codex/fix-recall-intent-regex` @ `97c52684` |
+
+§2.1 and §2.3 BEFORE blocks are not byte-for-byte: the source carries no `// L86`-style
+tags and has the `ALREADY_RECALLING` doc comment at `:104-108`. The regexes themselves
+match. **Do not apply either block as a range replace.**
+
+### A.2 Today's verdicts, confirmed against the current patterns
+
+| utterance | today | why |
+|---|---|---|
+| `revert the previous commit` | **true** — false positive | `:89` noun group is optional |
+| `기억해줘` | **true** — false positive | `:86` `해` overlaps the write gate at `memory-write-gate.ts:79` |
+| `이전 작업 이어서` | **false** — false negative | `:97` requires `이전에` |
+| `리콜해줘` | **false** — false negative | no `리콜` pattern |
+| `메모리에서 찾아줘` | **false** — false negative | no `메모리에서 찾` pattern |
+
+`SKILL.md:3` advertises: `recall, 리콜, past session, chat search, memory search,
+지난 세션, 이전 작업, 뭐였지, 어떻게 했었지`. Three of those never matched.
+
+### A.3 The conflict the issue did not see, and how to resolve it
+
+The issue says make `previous`/`prior` require a noun. **An existing pin dies if you do
+that literally.** `hook.test.ts:45` asserts that
+
+```text
+previously we capped tool output — why?
+```
+
+is a recall hit, and it passes today only because the noun group is optional. That
+utterance genuinely IS a recall request — it refers to past work — so the pin is right
+and the issue's wording is too blunt. `round2.test.ts:78`
+(`gap4: hardened hook patterns and suppression`) is a second pin on this behaviour and
+the PRD does not mention it at all.
+
+Resolution — split the adjective from the adverb, because English does:
+
+```text
+previous   (adjective)  -> require a session noun:
+                           /\bprevious\s+(session|work|conversation|discussion|time|chat)\b/i
+                           kills "revert the previous commit"
+previously (adverb)     -> require a past-work subject or verb:
+                           /\bpreviously\s+(we|i|you|the\s+team|discussed|agreed|decided)\b/i
+                           keeps "previously we capped tool output"
+prior      (adjective)  -> require a session noun, as the PRD already specifies
+```
+
+Both existing pins stay green and the reported false positive dies. **Neither pin may
+be edited, weakened or deleted to make this layer pass** — if a proposed pattern cannot
+satisfy both, the pattern is wrong, not the pin.
+
+### A.4 Do not weaken the other pins
+
+`hook.test.ts:26` (Korean idioms including `기억나?`), `:39` (English idioms), `:51`
+and `:55` (neutral prompts and `cxc chat search "..."` silence), `:63` (handler
+envelope for `지난번 세션 이어서`), `:459` (the 260910 widening), `:473` (suggested
+terms), and `round2.test.ts:78`.
+
+`기억나?` at `:26` matters for the `기억` rewrite: the question form must keep firing
+while `기억해줘` stops. That is the whole point — recall is a question, recording is a
+request.
+
+### A.5 Latency
+
+`UserPromptSubmit` must stay "well under its 5s hook budget" and must not open an
+index (`hook.ts:120-122`, `:169-170`). `detectRecallIntent` has no separate numeric
+budget, but it runs on **every** user prompt, so the pattern list stays a flat array of
+cheap regexes — no lookbehind, no catastrophic backtracking, no new I/O.
+
+
+## Amendment B — wp6 A audit fold (2026-09-11)
+
+Independent `xai/grok-4.6` audit: **FAIL**, four blockers and four concerns.
+**Amendment B governs over Amendment A and the body.** The reviewer hand-evaluated
+the proposed list against all nine existing pins (none change under A.3), against the
+five `#137` utterances (all five correct), and against ten invented development
+utterances — where it found **seven false positives**. Those seven are the real
+finding of this audit.
+
+### B.1 The principle the issue got wrong
+
+`#137` says the implementation should match what `SKILL.md:3` advertises. Taken
+literally that is wrong, and the audit proved it:
+
+```text
+리콜 기능 구현해줘            -> would fire   (implement the recall feature)
+recall 훅 테스트 추가해줘      -> would fire   (add a test for the recall hook)
+chat search UX 개선해줘        -> would fire   (improve the chat-search UX)
+memory search 랭킹 고쳐줘      -> would fire   (fix memory-search ranking)
+메모리에서 찾는 코드를 고쳐줘   -> would fire   (fix the code that searches memory)
+I recall seeing this in the Node docs -> would fire
+the previous time CI failed    -> would fire
+```
+
+**`SKILL.md`'s trigger line is advertising for skill SELECTION; the hook detects
+user INTENT.** They are different matchers with different jobs. Every advertised
+trigger here is also a feature name in this repository, so matching the bare noun
+guarantees a false positive on the project's own development speech — and this hook
+fires on every prompt in the repo where that speech is most common.
+
+**Rule for this layer: match the REQUEST FORM, never the feature name.**
+
+### B.2 (blockers 1-3) The corrected patterns
+
+```text
+previous    /\bprevious\s+(session|work|conversation|discussion|chat)\b/i
+            NOTE: "time" is removed - "the previous time CI failed" is not recall
+previously  /\bpreviously\s+(we|i|you|the\s+team|discussed|agreed|decided)\b/i
+            keeps hook.test.ts:45 green
+prior       /\bprior\s+(work|session|conversation|discussion)\b/i
+리콜        /리콜해/ and /^\s*리콜\s*$/     NOT bare /리콜/
+메모리에서   /메모리에서\s*찾아/               NOT /메모리에서\s*찾/ - 찾는 is adnominal,
+            "메모리에서 찾는 코드" is a noun phrase about code, not a request
+recall      DROP the bare /\brecall\b/ entirely
+chat/memory search  DROP /\b(?:chat|memory)\s+search\b/ entirely
+```
+
+The last two deletions are deliberate. English recall requests are already covered by
+`remember when/what`, `what did we ...`, `last time`, `earlier session` and the
+`previously` rule. Adding the command names buys nothing and costs a false positive on
+every sentence about building them. `hook.test.ts:55` already pins that a literal
+`cxc chat search "..."` stays silent; these deletions keep that pin honest instead of
+fighting it.
+
+### B.3 (blocker 1) Delete §6.1, and delete the body's AFTER block
+
+§5's copy-paste AFTER still collapses `previous`/`previously`/`prior` into one
+alternation with a shared noun group, which flips `hook.test.ts:45` from true to
+false — and §6.1 then rewrites that pin to match. **Both are forbidden.** A.3's three
+separate regexes are the only AFTER. A pin is evidence; rewriting it to accommodate a
+regex is how a false negative gets shipped with a green suite.
+
+### B.4 (blocker 4) The new test must pin the negatives
+
+The new fixture carries, as explicit `false` cases, at least:
+`리콜 기능 구현해줘`, `메모리에서 찾는 코드를 고쳐줘`, `recall 훅 테스트 추가해줘`,
+`chat search UX 개선해줘`, `memory search 랭킹 고쳐줘`,
+`the previous time CI failed`, `I recall seeing this in the Node docs`,
+`prior art for this API`, `the previous test failed`.
+It also re-pins `previously we capped tool output — why?` as **true**, so a stray
+edit to §6.1's fixture cannot hide a pin break.
+
+### B.5 (concern 3, accepted) `기억해?` falls between the two matchers
+
+`기억해?` (question form with the `해` ending) will be neither a recall hit nor a
+write-gate hit: the write gate's pattern at `memory-write-gate.ts:79` does not list
+`해?`. That is a pre-existing gap in a different component's regex and widening this
+layer's pattern to cover it would re-introduce the `기억해` collision that #137 is
+about. Leave it, and record it here so it is a known gap rather than a surprise.
+
+The split that matters does hold: `기억나?`, `기억 안 나`, `기억하니` stay recall;
+`기억해줘`, `기억해둬`, `기억해서 둬` stay write-gate. No collision.
+
+### B.6 Cost
+
+The reviewer confirmed no proposed regex can backtrack catastrophically: flat
+alternations, `\s*` only, no lookbehind, no nested quantifiers. The list stays a flat
+array evaluated on every prompt, and the `UserPromptSubmit` budget at
+`hook.ts:120-122` is unaffected.
+
+### B.7 Evidence accounting
+
+Only two named tests are red on the parent: the five-utterance fixture and the
+advertised-triggers-fire-but-feature-talk-does-not fixture. The other seven named
+tests are pins that are already green. The layer's proof is those two; everything
+else is a guard rail.
+

@@ -75,7 +75,9 @@ const CXC = ()         => cxcInvocation(import.meta.url);
 
 
 
-/** Past-work recall idioms. Korean forms cover 그때/지난번/저번/예전에/기억/뭐였지. */
+/** Past-work recall idioms. Korean forms cover 그때/지난번/저번/예전에/기억나/리콜/이전 작업/뭐였지.
+ *  `기억해*` is the write-gate's job (pabcd-state memory-write-gate.ts); recall keeps question forms only.
+ *  `previous`/`prior` require a memory noun — never a git/file noun. */
 const RECALL_PATTERNS                    = [
   /그때\s*(그|한|했|만든|작업)/,
   /지난\s*번/,
@@ -83,22 +85,27 @@ const RECALL_PATTERNS                    = [
   /저번\s*(에|세션|주|것|거)/,
   /예전에\s*(하|했|만든|작업|쓰)/,
   /전에\s*(했|만든|작업했|얘기했|말했)/,
-  /기억\s*(나|안\s*나|하|해)/,
+  /기억\s*(나|안\s*나|하니|하냐)/,
   /뭐였지|뭐\s*였더라|어떻게\s*했었지|어디까지\s*했/,
   /\blast\s+(time|session|week)\b/i,
-  /\bprevious(ly)?\s+(session|work|discussed|conversation)?\b/i,
+  /\bprevious\s+(session|work|conversation|discussion|chat)\b/i,
+  /\bpreviously\s+(we|i|you|the\s+team|discussed|agreed|decided)\b/i,
   /\bwhat\s+did\s+(we|i|you)\s+(do|discuss|decide|build)\b/i,
   /\bremember\s+(when|what|the|that|how)\b/i,
   /\b(as|we)\s+discussed\s+(earlier|before|previously|last\s+time)\b/i,
   /\bdiscussed\s+previously\b/i,
   /\bearlier\s+(session|conversation|work)\b/i,
-  // wp6: idioms the original set missed. Bare 그때 stays out — it reads as a
+  // 260910 widening. Bare 그때 stays out — it reads as a
   // plain time reference ("그때 봤어") far more often than as a recall request.
   /이전에\s*(하|했|만든|작업|얘기|말)/,
   /그\s*세션/,
   /그때에(?:는|도)?/,
-  /\bprior\s+(work|session|conversation)\b/i,
+  /\bprior\s+(work|session|conversation|discussion)\b/i,
   /\ba\s+while\s+ago\b/i,
+  /리콜해/,
+  /^\s*리콜\s*$/,
+  /이전\s*작업/,
+  /메모리에서\s*찾아/,
 ];
 
 /**

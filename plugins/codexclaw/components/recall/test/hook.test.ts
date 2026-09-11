@@ -48,6 +48,72 @@ test("recall intent: english idioms trigger", () => {
   }
 });
 
+test("recall intent: issue #137 five-utterance fixture", () => {
+  assert.equal(detectRecallIntent("revert the previous commit"), false);
+  assert.equal(detectRecallIntent("기억해줘"), false);
+  assert.equal(detectRecallIntent("이전 작업 이어서"), true);
+  assert.equal(detectRecallIntent("리콜해줘"), true);
+  assert.equal(detectRecallIntent("메모리에서 찾아줘"), true);
+
+  assert.equal(
+    handleUserPromptSubmit({ hook_event_name: "UserPromptSubmit", prompt: "기억해줘" }),
+    "",
+  );
+  assert.match(
+    handleUserPromptSubmit({ hook_event_name: "UserPromptSubmit", prompt: "리콜해줘" }),
+    /cxc chat search/,
+  );
+});
+
+test("recall intent: advertised triggers fire; write-gate and git nouns do not", () => {
+  for (const p of [
+    "이전 작업 이어서",
+    "리콜해줘",
+    "메모리에서 찾아줘",
+    "previously we capped tool output — why?",
+    "리콜",
+    "이전작업",
+    "기억나?",
+    "기억 안 나",
+    "기억하니",
+    "기억하냐",
+    "previous session",
+    "previous work",
+    "previous conversation",
+    "previous discussion",
+    "previous chat",
+    "previously discussed the cap",
+    "prior discussion",
+  ]) {
+    assert.ok(detectRecallIntent(p), "should trigger: " + p);
+  }
+  for (const p of [
+    "리콜 기능 구현해줘",
+    "메모리에서 찾는 코드를 고쳐줘",
+    "recall 훅 테스트 추가해줘",
+    "chat search UX 개선해줘",
+    "memory search 랭킹 고쳐줘",
+    "the previous time CI failed",
+    "I recall seeing this in the Node docs",
+    "prior art for this API",
+    "the previous test failed",
+    "previous commit",
+    "bump the previous version",
+    "prior art",
+    "기억해",
+    "기억해둬",
+    "기억해서 둬",
+    "remember this",
+    "메모리에 남겨줘",
+  ]) {
+    assert.equal(detectRecallIntent(p), false, "should NOT trigger: " + p);
+  }
+  assert.equal(
+    detectRecallIntent('run cxc chat search "trigram" --days 0 and summarize'),
+    false,
+  );
+});
+
 test("recall intent: neutral prompts and self-recalling prompts stay silent", () => {
   for (const p of [
     "add a --json flag to the status command",
