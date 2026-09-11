@@ -744,3 +744,76 @@ Peer Windows sweep owns #132 (`cxc enable --help`) — different dispatcher. Do 
 | c-6 | dash-leading tests, `cli: missing --home directory exits non-zero`, once-each warning test |
 | #139 unknown flags | `cli: unknown flag is rejected` |
 | #139 default ingest flip | explicitly not done (§3.7) |
+
+## Amendment A — wp4 P revalidation (2026-09-11)
+
+Re-verified at `20b42207` by an independent `xai/grok-4.6` explorer.
+**This amendment governs.**
+
+### A.1 Every `memory-search.ts` line number in this PRD is wrong
+
+L2 (`c8bb1ff9`) added ~46 lines to that file. The PRD measured it before.
+**Anchor on function and identifier names; never apply a range from the body.**
+
+| PRD says | Actually now | What it is |
+|---|---|---|
+| `:441-448` empty query / root | **`:450-457`** | `:441` is now `dropStopwords` |
+| inner `collect` `:504-515` | `collect` at **`:460`**, `searchStage1(...)` at **`:542-553`** | `:504-515` is now the paragraph-hit `relpath` block |
+| `:519` / `:526` / `:527` / `:532` / `:533` | **`:557`** `collect(groups,true)` / **`:564`** `hasBoundaryTerm` / **`:565`** `fillStage1Presence` / **`:570`** `miss.size` / **`:571`** retry `collect` | |
+| `fillStage1Presence` silent at `:637-638` | **`:679-680`** | |
+| `searchStage1` db warning `:672-675` | **`:714-717`**, push at **`:716`** | **`:672` is now `fillStage1Presence`'s parameter list** |
+
+That last row is the trap: applying the named BEFORE at `:672` **corrupts a different
+function**. It is the single most likely way to break this layer.
+
+Also stale: §4.1's `runMemorySearch` BEFORE is not byte-for-byte — the current
+`:158-159` still carries the `searchChat` injection comments, and the PRD's AFTER
+would silently delete them. §5.2's test range `:70-79` is `:71-79` (`:70` is blank),
+and `index.test.ts:215-231` is `:216-232`. §6.4's "`npm test` exits 0" is replaced by
+the `002` gate.
+
+### A.2 The help check goes at the top of `main`, not inside the sub-commands
+
+```ts
+export function main(argv: string[]): number | Promise<number> {
+  const kind = argv[0] ?? "help";
+  const sub = argv[1] ?? "";
+  if ((kind === "chat" || kind === "memory") && sub === "search") { ... }
+  if (kind === "chat" && sub === "index") {
+    return runChatIndex(argv.slice(2));
+  }
+```
+
+`wantsHelp(argv)` must answer **before** `kind`/`sub` are dispatched. The ingest path,
+read from the code and deliberately NOT executed because running it would ingest:
+`main:253-254` → `runChatIndex` → `--help` silently dropped by `strict: false`
+(`cli.ts:89`, no `help` option declared) → `statusOnly` false (`:176`) → `openIndex`
+(`:177`) → `ingest(home, db, 0)` (`:182-183`).
+
+### A.3 Do not copy the prior art
+
+`orchestrate-cli.ts:168-169` `isHelpToken` and `freeze-cli.ts:65` both treat the bare
+word `help` as a help request via `argv.some`. Copying either would make
+`memory search help` print usage instead of searching for the word "help". The PRD's
+`--help`/`-h`-only `wantsHelp` is the correct shape. Keep it.
+
+### A.4 What the warnings actually look like after L2
+
+- The only db-missing push to move is **`memory-search.ts:716`, inside `searchStage1`
+  (declared at `:702`)**.
+- `fillStage1Presence` (`:671`) is already silent at `:679-680`. `listMarkdownFiles`
+  (`:245`) is already silent at `:246`.
+- There is **no** "memories root not found" warning yet. Add it once, in
+  `searchMemory` after `:453`.
+- The duplicate the issue reports comes from **two `searchStage1` calls** (`:557`
+  then the relaxed retry at `:571`), not from two `listMarkdownFiles` calls. Dedupe
+  at the source of the second call, not by filtering the warnings array.
+
+### A.5 Current behaviour, read from the code
+
+| command | today |
+|---|---|
+| `cxc chat index --help` | full ingest, prints `ingested ...`, creates the default sidecar |
+| `memory search foo --cwd-only --json` | `--cwd-only` swallows `--json`; `cwd: "--json"`, `cwdOnly: true`, JSON never enabled, **exit 0**, text output |
+| `memory search foo --home <missing>` | no `existsSync` check, **exit 0**, no root warning, db warning **twice** because `foo` is SHORT_ASCII and triggers the relaxed retry |
+
