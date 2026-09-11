@@ -291,6 +291,7 @@ const TOP_LEVEL_HELP = [
   "  map [dir]                      generate a ranked repo structure map",
   "  chat search \"query\"             search Codex chat history",
   "  memory search \"query\"           search Codex memories",
+  "  memory allow-write --session <id> grant one cwd-scoped memory write",
   "  skill search|show              search and display dormant skills",
   "",
   "Operations:",

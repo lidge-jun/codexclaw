@@ -16,7 +16,10 @@
  *
  * Counted as writes: stdout redirect `>`/`>>` (fd omitted or 1), `tee`
  * operands, `sed -i`/`--in-place` file operands, `cp`/`mv` destination,
- * `perl -i`/`ruby -i` file operands.
+ * `perl -i`/`ruby -i` file operands, PowerShell write cmdlets (Set-Content,
+ * Out-File, New-Item, Add-Content, Tee-Object and aliases sc/ni/ac), Copy-Item/
+ * copy/Move-Item destination, python/node one-line writes, and .NET
+ * `[IO.File]::WriteAllText` / `AppendAllText`.
  * Not writes: `2>`/`2>>`, `<<` heredoc, `<<<` herestring, `sed -n`.
  */
 export function shellWriteDestinations(command: string): string[] {
@@ -266,6 +269,10 @@ function basename(p: string): string {
   return idx === -1 ? norm : norm.slice(idx + 1);
 }
 
+function normalizeVerb(verb: string): string {
+  return verb.replace(/\.(exe|cmd|bat)$/i, "").toLowerCase();
+}
+
 function stripPrefixes(tokens: string[]): string[] {
   let rest = tokens;
   for (;;) {
@@ -284,14 +291,23 @@ function stripPrefixes(tokens: string[]): string[] {
 }
 
 function verbDestinations(segment: string): string[] {
-  const rest = stripPrefixes(tokenize(segment));
-  const verb = rest[0] ? basename(rest[0]) : "";
+  let rest = stripPrefixes(tokenize(segment));
+  while (rest[0] === "&") rest = rest.slice(1);
+  const verb = rest[0] ? normalizeVerb(basename(rest[0])) : "";
   const args = rest.slice(1);
-  if (verb === "tee") return teeDestinations(args);
-  if (verb === "sed") return sedInPlaceDestinations(args);
-  if (verb === "cp" || verb === "mv") return cpMvDestinations(args);
-  if (verb === "perl" || verb === "ruby") return interpInPlaceDestinations(args);
-  return [];
+  const dests = [...dotnetWriteDestinations(segment)];
+  if (verb === "tee") dests.push(...teeDestinations(args));
+  else if (verb === "sed") dests.push(...sedInPlaceDestinations(args));
+  else if (verb === "cp" || verb === "mv") dests.push(...cpMvDestinations(args));
+  else if (verb === "perl" || verb === "ruby") dests.push(...interpInPlaceDestinations(args));
+  else if (verb === "python" || verb === "python3" || verb === "py" || verb === "node" || verb === "nodejs") {
+    dests.push(...pythonNodeWriteDestinations(verb, args));
+  } else if (verb === "copy-item" || verb === "copy" || verb === "move-item") {
+    dests.push(...powershellWriteDestinations(args, true));
+  } else if (isOvercollectWriteVerb(verb, args)) {
+    dests.push(...powershellWriteDestinations(args, false));
+  }
+  return dests;
 }
 
 function teeDestinations(args: string[]): string[] {
@@ -385,4 +401,158 @@ function interpInPlaceDestinations(args: string[]): string[] {
     positional.push(a);
   }
   return inPlace ? positional : [];
+}
+
+const PS_VALUE_FLAGS = ["value", "itemtype", "encoding", "name", "filter", "inputobject", "width", "stream"];
+const PS_PATHISH_FLAGS = ["path", "literalpath", "filepath", "destination"];
+
+function isFlagToken(token: string): boolean {
+  if (token === "-" || token === "--") return false;
+  if (token.startsWith("-") && !/^-\d/.test(token)) return true;
+  return /^\/[A-Za-z][A-Za-z0-9]*([:].*)?$/.test(token);
+}
+
+function parseFlag(token: string): { name: string; inline: string | undefined } | null {
+  if (!isFlagToken(token)) return null;
+  const body = token.replace(/^[-\/]+/, "");
+  const colon = body.indexOf(":");
+  const eq = body.indexOf("=");
+  let split = -1;
+  if (colon > 0 && (eq === -1 || colon < eq)) split = colon;
+  else if (eq > 0) split = eq;
+  if (split > 0) return { name: body.slice(0, split), inline: body.slice(split + 1) };
+  return { name: body, inline: undefined };
+}
+
+function shouldConsumeValue(name: string): boolean {
+  const n = name.toLowerCase();
+  if (n === "") return false;
+  if (PS_PATHISH_FLAGS.some((p) => p.startsWith(n) || n.startsWith(p))) return false;
+  return PS_VALUE_FLAGS.filter((f) => f.startsWith(n)).length === 1;
+}
+
+function isDestinationFlag(name: string): boolean {
+  const n = name.toLowerCase();
+  if (n === "t" || n === "target-directory") return true;
+  return n.length >= 4 && "destination".startsWith(n);
+}
+
+function isFileShaped(token: string): boolean {
+  if (isFlagToken(token)) return false;
+  return (
+    /[\\/]/.test(token) ||
+    /\.[A-Za-z0-9]{1,8}$/.test(token) ||
+    token.startsWith("~") ||
+    token.startsWith("%") ||
+    /^\$env:/i.test(token) ||
+    /^\$home/i.test(token)
+  );
+}
+
+function isOvercollectWriteVerb(verb: string, args: string[]): boolean {
+  if (
+    verb === "set-content" ||
+    verb === "out-file" ||
+    verb === "new-item" ||
+    verb === "tee-object" ||
+    verb === "add-content" ||
+    verb === "ni" ||
+    verb === "ac"
+  ) {
+    return true;
+  }
+  if (verb !== "sc") return false;
+  return args.some((a) => {
+    const flag = parseFlag(a);
+    if (flag?.inline) return isFileShaped(flag.inline);
+    return isFileShaped(a);
+  });
+}
+
+function powershellWriteDestinations(args: string[], copyLike: boolean): string[] {
+  const namedDests: string[] = [];
+  const candidates: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const flag = parseFlag(args[i]);
+    if (!flag) {
+      candidates.push(args[i]);
+      continue;
+    }
+    if (copyLike && isDestinationFlag(flag.name)) {
+      const val = flag.inline !== undefined ? flag.inline : args[i + 1];
+      if (flag.inline === undefined && val !== undefined && !parseFlag(val)) i++;
+      if (val && !parseFlag(val)) namedDests.push(val);
+      continue;
+    }
+    if (flag.inline !== undefined) {
+      if (!copyLike && !shouldConsumeValue(flag.name)) candidates.push(flag.inline);
+      continue;
+    }
+    if (shouldConsumeValue(flag.name)) {
+      const next = args[i + 1];
+      if (next !== undefined && !parseFlag(next)) i++;
+      continue;
+    }
+  }
+  if (copyLike) {
+    if (namedDests.length) return namedDests;
+    if (candidates.length >= 2) return [candidates[candidates.length - 1]];
+    return [];
+  }
+  return candidates;
+}
+
+function pythonNodeWriteDestinations(verb: string, args: string[]): string[] {
+  const isNode = verb === "node" || verb === "nodejs";
+  const isPy = verb === "python" || verb === "python3" || verb === "py";
+  let script = "";
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (isPy && (a === "-c" || a === "--command")) {
+      script = args[i + 1] ?? "";
+      break;
+    }
+    if (isPy && a.startsWith("-c") && a.length > 2) {
+      script = a.slice(2);
+      break;
+    }
+    if (isNode && (a === "-e" || a === "--eval")) {
+      script = args[i + 1] ?? "";
+      break;
+    }
+    if (isNode && a.startsWith("--eval=")) {
+      script = a.slice("--eval=".length);
+      break;
+    }
+    if (isNode && a.startsWith("-e") && a.length > 2 && !a.startsWith("--")) {
+      script = a.slice(2);
+      break;
+    }
+  }
+  return script === "" ? [] : scriptWriteDestinations(script);
+}
+
+function scriptWriteDestinations(script: string): string[] {
+  const out: string[] = [];
+  const patterns = [
+    /\bopen\s*\(\s*(?:[rRuUbBfF]*)(['"])(.*?)\1\s*,\s*(?:[rRuUbBfF]*)(['"])([wax][^'"]*)\3/g,
+    /\bPath\s*\(\s*(?:[rRuUbBfF]*)(['"])(.*?)\1\s*\)\s*\.write_(?:text|bytes)\s*\(/g,
+    /\b(?:writeFileSync|writeFile|appendFileSync|appendFile|createWriteStream)\s*\(\s*(['"])(.*?)\1/g,
+  ];
+  for (const re of patterns) {
+    re.lastIndex = 0;
+    for (let m = re.exec(script); m !== null; m = re.exec(script)) {
+      if (m[2]) out.push(m[2]);
+    }
+  }
+  return out;
+}
+
+function dotnetWriteDestinations(segment: string): string[] {
+  const re = /\[(?:System\.)?IO\.File\]::(?:Write|Append)All[A-Za-z]*\s*\(\s*(['"])(.*?)\1/gi;
+  const out: string[] = [];
+  for (let m = re.exec(segment); m !== null; m = re.exec(segment)) {
+    if (m[2]) out.push(m[2]);
+  }
+  return out;
 }

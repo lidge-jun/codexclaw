@@ -22,24 +22,49 @@ import { isCanonicalSessionId, readState, withSessionLock, writeState } from "./
 
 
 
+
+
 export const MEMORY_USAGE = [
   "Usage:",
   "  cxc memory allow-write --session <id>",
+  "  cxc memory allow-write --session=<id>",
+  "  cxc memory allow-write --help",
   "",
   "Authorizes exactly ONE memory write (memories.add_ad_hoc_note, or an edit under",
   "~/.codex/memories) for that session. The grant is consumed by the next write.",
+  "",
+  "The grant is stored at <cwd>/.codexclaw/sessions/<id>.json and is keyed by that",
+  "cwd plus the session id. The success line names the cwd it wrote to. Issuing the",
+  "grant from a different working directory will print success and never be seen by",
+  "the hook running in this session.",
   "",
   "The ordinary path needs no command: when the user asks in their own words to",
   "remember something, the session records that request and the next write passes.",
 ].join("\n");
 
-export function parseMemoryCliArgs(argv          , cwd        )                                           {
+export function parseMemoryCliArgs(argv          , cwd        )                 {
   const verb = argv[0];
   if (verb !== "allow-write") {
     return { error: `unknown memory verb '${verb ?? ""}' (expected allow-write)` };
   }
-  const i = argv.indexOf("--session");
-  const sessionId = i >= 0 ? argv[i + 1] : undefined;
+  const rest = argv.slice(1);
+  if (rest.some((tok) => tok === "--help" || tok === "-h")) {
+    return { help: true };
+  }
+  let sessionId                    ;
+  for (let i = 0; i < rest.length; i++) {
+    const tok = rest[i];
+    if (tok === "--session") {
+      sessionId = rest[i + 1];
+      i++;
+      continue;
+    }
+    if (tok.startsWith("--session=")) {
+      sessionId = tok.slice("--session=".length);
+      continue;
+    }
+    return { error: `unknown argument '${tok}'` };
+  }
   if (!sessionId || !isCanonicalSessionId(sessionId)) {
     return { error: "missing required argument: --session <id> (must be a canonical session id)" };
   }
@@ -63,7 +88,7 @@ export function runMemoryCli(args                      )                        
     };
   }
   return {
-    output: `memory allow-write: session ${args.sessionId} may perform ONE memory write; the next write consumes this grant.`,
+    output: `memory allow-write: session ${args.sessionId} may perform ONE memory write; grant recorded for cwd ${args.cwd}; the next write consumes this grant.`,
     code: 0,
   };
 }
