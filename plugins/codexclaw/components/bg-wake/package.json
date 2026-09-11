@@ -1,6 +1,6 @@
 {
   "name": "@codexclaw/bg-wake",
-  "version": "0.2.24",
+  "version": "0.2.25",
   "private": true,
   "type": "module",
   "description": "Background task registry + completion wake for Codex. Registers detached commands, then wakes the agent through the Stop hook when they finish.",
