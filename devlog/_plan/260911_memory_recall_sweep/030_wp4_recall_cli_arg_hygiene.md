@@ -744,3 +744,154 @@ Peer Windows sweep owns #132 (`cxc enable --help`) — different dispatcher. Do 
 | c-6 | dash-leading tests, `cli: missing --home directory exits non-zero`, once-each warning test |
 | #139 unknown flags | `cli: unknown flag is rejected` |
 | #139 default ingest flip | explicitly not done (§3.7) |
+
+## Amendment A — wp4 P revalidation (2026-09-11)
+
+Re-verified at `20b42207` by an independent `xai/grok-4.6` explorer.
+**This amendment governs.**
+
+### A.1 Every `memory-search.ts` line number in this PRD is wrong
+
+L2 (`c8bb1ff9`) added ~46 lines to that file. The PRD measured it before.
+**Anchor on function and identifier names; never apply a range from the body.**
+
+| PRD says | Actually now | What it is |
+|---|---|---|
+| `:441-448` empty query / root | **`:450-457`** | `:441` is now `dropStopwords` |
+| inner `collect` `:504-515` | `collect` at **`:460`**, `searchStage1(...)` at **`:542-553`** | `:504-515` is now the paragraph-hit `relpath` block |
+| `:519` / `:526` / `:527` / `:532` / `:533` | **`:557`** `collect(groups,true)` / **`:564`** `hasBoundaryTerm` / **`:565`** `fillStage1Presence` / **`:570`** `miss.size` / **`:571`** retry `collect` | |
+| `fillStage1Presence` silent at `:637-638` | **`:679-680`** | |
+| `searchStage1` db warning `:672-675` | **`:714-717`**, push at **`:716`** | **`:672` is now `fillStage1Presence`'s parameter list** |
+
+That last row is the trap: applying the named BEFORE at `:672` **corrupts a different
+function**. It is the single most likely way to break this layer.
+
+Also stale: §4.1's `runMemorySearch` BEFORE is not byte-for-byte — the current
+`:158-159` still carries the `searchChat` injection comments, and the PRD's AFTER
+would silently delete them. §5.2's test range `:70-79` is `:71-79` (`:70` is blank),
+and `index.test.ts:215-231` is `:216-232`. §6.4's "`npm test` exits 0" is replaced by
+the `002` gate.
+
+### A.2 The help check goes at the top of `main`, not inside the sub-commands
+
+```ts
+export function main(argv: string[]): number | Promise<number> {
+  const kind = argv[0] ?? "help";
+  const sub = argv[1] ?? "";
+  if ((kind === "chat" || kind === "memory") && sub === "search") { ... }
+  if (kind === "chat" && sub === "index") {
+    return runChatIndex(argv.slice(2));
+  }
+```
+
+`wantsHelp(argv)` must answer **before** `kind`/`sub` are dispatched. The ingest path,
+read from the code and deliberately NOT executed because running it would ingest:
+`main:253-254` → `runChatIndex` → `--help` silently dropped by `strict: false`
+(`cli.ts:89`, no `help` option declared) → `statusOnly` false (`:176`) → `openIndex`
+(`:177`) → `ingest(home, db, 0)` (`:182-183`).
+
+### A.3 Do not copy the prior art
+
+`orchestrate-cli.ts:168-169` `isHelpToken` and `freeze-cli.ts:65` both treat the bare
+word `help` as a help request via `argv.some`. Copying either would make
+`memory search help` print usage instead of searching for the word "help". The PRD's
+`--help`/`-h`-only `wantsHelp` is the correct shape. Keep it.
+
+### A.4 What the warnings actually look like after L2
+
+- The only db-missing push to move is **`memory-search.ts:716`, inside `searchStage1`
+  (declared at `:702`)**.
+- `fillStage1Presence` (`:671`) is already silent at `:679-680`. `listMarkdownFiles`
+  (`:245`) is already silent at `:246`.
+- There is **no** "memories root not found" warning yet. Add it once, in
+  `searchMemory` after `:453`.
+- The duplicate the issue reports comes from **two `searchStage1` calls** (`:557`
+  then the relaxed retry at `:571`), not from two `listMarkdownFiles` calls. Dedupe
+  at the source of the second call, not by filtering the warnings array.
+
+### A.5 Current behaviour, read from the code
+
+| command | today |
+|---|---|
+| `cxc chat index --help` | full ingest, prints `ingested ...`, creates the default sidecar |
+| `memory search foo --cwd-only --json` | `--cwd-only` swallows `--json`; `cwd: "--json"`, `cwdOnly: true`, JSON never enabled, **exit 0**, text output |
+| `memory search foo --home <missing>` | no `existsSync` check, **exit 0**, no root warning, db warning **twice** because `foo` is SHORT_ASCII and triggers the relaxed retry |
+
+
+## Amendment B — wp4 A audit fold (2026-09-11)
+
+Independent `xai/grok-4.6` audit: **FAIL**, one blocker and five concerns, all
+folded. **Amendment B governs.** The reviewer traced sixteen argv shapes through
+`main` and confirmed the help check catches every route that reaches `ingest`
+today, and found no in-repo caller that the stricter parsing would break.
+
+### B.1 (blocker) The dash-leading tests would stay red after the fix
+
+Node v24 `parseArgs` with `strict: true` does **not** hand `--cwd-only` the next
+flag as a value. It throws `Option '--cwd-only' argument is ambiguous` first. The
+planned tests assert the plan's own `path must not start with '-'` message, which is
+only reachable through the equals form. **Written as specified, those tests fail
+after a correct implementation.**
+
+Split each into two:
+
+```text
+(a) issue repro:   memory search memory --cwd-only --no-chat --json
+                   -> non-zero exit, stderr matches /cwd-only/
+                      (Node's ambiguous-argument error is acceptable here;
+                       what matters is that the command REFUSES instead of
+                       silently searching the wrong scope with exit 0)
+(b) equals form:   --cwd-only=--no-chat , --cwd=--json , --home=--json
+                   -> non-zero exit, stderr matches the flagLikePathError text
+```
+
+Do the same split for the `--cwd` and `--home` test. Both halves are required: (a)
+is the user-visible bug from #140, (b) is what pins the new guard.
+
+### B.2 `chat index help` and `chat index /?` still ingest — close them
+
+The audit found two argv shapes the plan misses: `["chat","index","help"]` and
+`["chat","index","/?"]` reach `ingest`. Amendment A.3 forbids treating a bare
+`help` as help for `memory search`, because there it is a legitimate QUERY. That
+reasoning does not extend to `chat index`, which takes no positional query at all.
+
+Required: for `chat index` specifically, a bare positional `help` or `/?` prints
+usage and exits 0 without ingesting. `memory search help` and `chat search help`
+keep searching for the word. Pin both behaviours with tests — otherwise a later
+refactor that copies `isHelpToken` goes green while breaking the query
+(audit concern 1).
+
+### B.3 `--Help`, `-help`, `--help=true` — accepted behaviour, documented
+
+These miss `wantsHelp` and then hit `strict: true`, so they exit non-zero with a
+parse error instead of printing usage. That is a worse message than usage but it is
+**not** the #139 defect: they do not ingest. Leave them erroring, and do not widen
+`wantsHelp` to case-insensitive or single-dash spellings — widening it is how
+`help`-as-a-query gets broken. Record the behaviour in the receipt.
+
+### B.4 `dist` is build output; the gate is `002`
+
+`dist/cli.js` and `dist/memory-search.js` change only through `npm run build`.
+§6.4's "`npm test` exits 0" is superseded by `002_host_verification_baseline.md`.
+
+### B.5 Never run the live repro against the real home
+
+§6.5 executes `cxc chat index` against the default home. **Do not run it**, on the
+parent or anywhere: it ingests into the user's real index, which is the exact harm
+#139 describes. Every test points at a temp home. The before/after evidence for
+#139 comes from the temp-home tests, not from a live run.
+
+### B.6 Red on parent, as audited
+
+All eleven named tests are red on `20b42207`. The load-bearing ones:
+
+| test | on the parent |
+|---|---|
+| `chat index --help` prints usage, exits 0, does not ingest | ingests and creates the index; stdout says `ingested` |
+| `--help` anywhere beats `--rebuild` | rebuild deletes and re-ingests |
+| `-h` is help | `values.h = true`, ingests |
+| `memory search --help` exits 0 with no query | usage, exit **1** |
+| unknown flag is rejected | dropped by `strict: false`, ingests |
+| missing `--home` exits non-zero | exit 0 with JSON on stdout |
+| root and db each warn once, including the relaxed retry | no root warning at all; db warning twice |
+
