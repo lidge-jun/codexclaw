@@ -519,3 +519,76 @@ Above — L3 / wp4 / #139 #140 (`codex/fix-recall-cli-arg-hygiene`): writes `mem
 Above — L4 / wp5 / #144: `cli.ts` `--status` plus `hook.ts` banner. No overlap with section 4 if this layer stays out of those files.
 
 wp8: publishes this branch as PR base L1, title `fix(recall): keep cross-paragraph AND hits and forward synonyms to the chat fallback (#142, #143)`, `Closes #142` and `Closes #143` only on this PR.
+
+## Amendment A — wp3 P revalidation (2026-09-11)
+
+Re-verified against the tree at `1e819453` by an independent `xai/grok-4.6`
+explorer. **This amendment governs where it disagrees with the body.**
+
+### A.1 What is stale
+
+1. **Header.** Written against `6aae1c97` on `codex/memory-recall-roadmap`. This
+   layer is `codex/fix-memory-search-semantics` off `1e819453`. `6aae1c97` is not an
+   ancestor (merge-base `a267b398`). Every memory/chat/test file this layer touches
+   is byte-identical to that SHA, so the content citations hold.
+2. **§2.2 and §2.5 "current" blocks are collages, not quotes.** They drop the
+   comments at `:478-479`, `:482-483`, `:493` and the ingest/injection comments
+   around `:585-602`. **Do not diff against them.** The §4.2 and §4.4 BEFORE blocks
+   DO match byte-for-byte; use those.
+3. **§2.5's receiver collage is wrong about `chat-search.ts`.** The JSDoc is
+   `:59-63` and the field is `:64`; `const source = opts.source ?? "main"` sits at
+   `:157`, between `anyMode` and `chatMatchPlan`.
+4. **§6.3 demands `npm test` exit 0.** It does not and never did on this host. The
+   gate is `002_host_verification_baseline.md`: build exit 0, focused recall suite
+   exit 0, and full `npm test` showing exactly the two recorded environmental
+   failures and no third.
+
+### A.2 L1 changed nothing this layer depends on
+
+L1 (`9d9f1046`) touched `rollout.ts`, `index-search.ts` and `cwd-context.ts` only.
+`normalizeCwd` now strips the extended prefixes (`:87-96`), `canonicalCwdSql`
+(`:99-104`) is not called from `memory-search.ts`, `FOLD_CWD_CASE` (`:129-132`) is
+true on win32, and `cwdMatches` (`:115-126`) still normalises then prefix-matches.
+`scopeAdjust`'s only callers are still `:488` and `:722`. Test C's `/proj/here` vs
+`/proj/other` fixtures are unaffected by the strip or the fold.
+
+### A.3 The two insertion points, quoted from the current file
+
+The file-level AND passes at `:473`, the thread id is recorded at `:474-475`, and the
+per-chunk AND at `:487` is what throws the hit away:
+
+```ts
+      if (!planMatches(lowerFile, plan)) continue;
+      const threadId = frontmatterThreadId(content);
+      if (threadId) matchedThreadIds.add(threadId);
+      for (const chunk of paragraphChunks(content)) {
+        const lower = chunk.text.toLowerCase();
+        if (!planMatches(lower, plan)) continue;
+```
+
+The file-span fallback must push the **same `MemoryHit` shape as `:490-501`** —
+`origin: "file"`, `kind`, `relpath`, `threadId`, `updatedAt`, `excerpt`, `startLine`,
+`cwd`, `score` — with the excerpt taken from
+`excerptAround(splitLines(content).join("\n"), firstPresentMember(lowerFile, active), 400)`,
+`startLine: firstMatchStartLine(content, active)`, and `scoreChunk(lowerFile, ...)`.
+It must go through `scopeAdjust` exactly like a paragraph hit.
+
+The chat fallback is the only such call, `backfillFromChat` at `:585-602`, and it
+currently passes neither option.
+
+### A.4 The mistake that will actually be made
+
+```ts
+synonyms: opts.synonyms === true      // WRONG - that is chat's own defaulting
+synonyms: opts.synonyms ?? true       // RIGHT - memory's default is ON
+```
+
+`chat-search.ts` defaults `synonyms` OFF (`:158` tests `opts.synonyms === true`) and
+`any` to false (`:156`). Memory defaults `synonyms` ON (`:54-55`, `:434-436`).
+Copying chat's expression forwards `undefined` as false and the fallback stays as
+blind as it is today — the bug would survive its own fix.
+
+Two other ways to fail this layer: recording `matchedThreadIds` on the file-level
+AND instead of on a kept hit, and emitting the file-span hit without
+`scopeAdjust`. Either one keeps Test C or Test D.1 red.
+
