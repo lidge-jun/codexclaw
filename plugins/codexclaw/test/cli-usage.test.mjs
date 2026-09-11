@@ -1,12 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { dirname, resolve, join } from "node:path";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..", "..");
 const cli = join(repoRoot, "bin", "codexclaw.mjs");
+const payloadCli = join(repoRoot, "plugins", "codexclaw", "bin", "cxc.mjs");
 
 test("top-level CLI usage advertises disable", () => {
   const out = execFileSync("node", [cli, "help"], { cwd: repoRoot, encoding: "utf8" });
@@ -49,6 +52,66 @@ for (const command of ["loop", "scan", "receipt", "config"]) {
       assert.match(res.stdout, /Usage:/);
       assert.match(res.stdout, new RegExp(`cxc ${command}`));
     }
+  });
+}
+
+// #132: `cxc enable --help` did not print help — it RAN enable, rewrote
+// $CODEX_HOME/config.toml and left a timestamped .bak. Two independent causes: both
+// dispatchers forwarded only the verb, dropping --help entirely, and config-guard
+// main() dispatched on argv[0] before help was ever considered. Fixing one alone
+// leaves the bug, so this drives the REAL binaries on BOTH entry points.
+//
+// CODEX_HOME is a fresh temp dir per invocation. Without that, a regression here
+// rewrites the developer's own ~/.codex/config.toml while the suite runs.
+for (const entry of [cli, payloadCli]) {
+  for (const command of ["enable", "disable", "uninstall", "status"]) {
+    test(`${command} --help on ${basename(entry)} prints usage and writes nothing`, t => {
+      for (const flag of ["--help", "-h"]) {
+        const home = mkdtempSync(join(tmpdir(), "cxc-cli-help-"));
+        t.after(() => rmSync(home, { recursive: true, force: true }));
+        const configPath = join(home, "config.toml");
+        const before = "features = {}\n";
+        writeFileSync(configPath, before);
+
+        const res = spawnSync("node", [entry, command, flag], {
+          cwd: repoRoot,
+          encoding: "utf8",
+          env: { ...process.env, CODEX_HOME: home },
+        });
+
+        assert.equal(res.status, 0, `${command} ${flag} exited ${res.status}: ${res.stderr}`);
+        assert.match(res.stdout, /Usage:/);
+        assert.match(res.stdout, /--help never writes|writes nothing/);
+        // The side effects the bug produced, asserted directly.
+        assert.equal(readFileSync(configPath, "utf8"), before, "config.toml was modified");
+        assert.equal(
+          readdirSync(home).filter(name => name.includes(".bak")).length,
+          0,
+          "a .bak backup was created",
+        );
+        // And it must not have silently done the action instead.
+        assert.doesNotMatch(res.stdout, /codexclaw: enabled|codexclaw: disabled/);
+        assert.doesNotMatch(res.stderr, /usage: config-guard/);
+      }
+    });
+  }
+
+  // The trap in the natural fix: forwarding process.argv.slice(2) verbatim sends a raw
+  // `uninstall` token, and config-guard main() has no case for it, so the switch default
+  // prints a usage error and NOTHING is disabled. The verb must be rewritten to
+  // `disable` with only the remaining argv appended.
+  test(`uninstall without --help still disables on ${basename(entry)}`, t => {
+    const home = mkdtempSync(join(tmpdir(), "cxc-cli-uninstall-"));
+    t.after(() => rmSync(home, { recursive: true, force: true }));
+    const res = spawnSync("node", [entry, "uninstall"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: { ...process.env, CODEX_HOME: home },
+    });
+    assert.equal(res.status, 0, `uninstall exited ${res.status}: ${res.stderr}`);
+    assert.doesNotMatch(res.stderr, /usage: config-guard/);
+    // Reached the real disable path rather than the switch default.
+    assert.match(res.stdout, /nothing to revert|disabled/);
   });
 }
 

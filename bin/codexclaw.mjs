@@ -460,14 +460,18 @@ if (isMain) switch (cmd) {
     break;
   }
   case "enable":
-    process.exit(runConfigGuard(["enable"]));
+    process.exit(runConfigGuard(["enable", ...process.argv.slice(3)]));
     break;
   case "uninstall":
   case "disable":
-    process.exit(runConfigGuard(["disable"]));
+    // The verb is rewritten to `disable`, then the REST of argv is appended.
+    // Forwarding slice(2) verbatim would send a raw `uninstall` token, which
+    // config-guard main() has no case for: it would hit the switch default and
+    // print a usage error instead of disabling.
+    process.exit(runConfigGuard(["disable", ...process.argv.slice(3)]));
     break;
   case "status":
-    process.exit(runConfigGuard(["status"]));
+    process.exit(runConfigGuard(["status", ...process.argv.slice(3)]));
     break;
   case "config":
     // `config interview` is owned by pabcd-state (it owns codexclaw.json); the managed

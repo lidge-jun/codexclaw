@@ -101,6 +101,47 @@ Record these four separately; do not collapse them into "CI green":
 3. the layer's current head sha and the sha each check ran against,
 4. workflow event, ref and concurrency group.
 
+### The published tests badge is the one check you cannot verify locally
+
+`ci.yml` runs, in the **ubuntu** test job only:
+
+```bash
+node plugins/codexclaw/scripts/inventory.mjs --check --tests "${{ steps.suite.outputs.total }}"
+```
+
+That compares the README `tests-N_passing` badge against the total the suite **just
+measured on that runner**. Any layer that adds or removes a test moves the total and
+fails this step. `npm run gate` does not catch it — gate checks inventory drift, not the
+measured suite.
+
+**The counts differ by platform.** Measured on this stack: at L1's head a Windows run
+reported `tests 3037` while the ubuntu job reported `3038`; at L2's head Windows
+reported `3038` and ubuntu `3039`. The repository has many platform-gated test files
+(`provider-bridge`, `bg-wake`, `cxc-ops/hook-trust`, `gui/project-root`,
+`pabcd-state/hook`, `messenger-bridge/db` and others), and some gate **registration**
+rather than using `skip` — a skipped test still counts, an unregistered one does not. The
+badge therefore tracks the **ubuntu** number, not the local one.
+
+Two ways to get it right:
+
+1. **Add the delta.** On this host ubuntu is local + 1. Measure locally, add 1, write it:
+
+```powershell
+npm test 2>&1 | Select-String -Pattern "^. tests [0-9]+$" | Select-Object -Last 1
+node plugins/codexclaw/scripts/inventory.mjs --write --tests <local + 1>
+node plugins/codexclaw/scripts/inventory.mjs --check --tests <local + 1>
+```
+
+   Re-derive the delta whenever a layer adds a test whose *registration* is
+   platform-conditional; a `skip`-ed test does not change it.
+
+2. **Let CI name the number.** The failure message is exact:
+   `published tests=3037 but the measured suite reported 3038 — run inventory.mjs --write --tests 3038`.
+   One push, read the number, write it, push again.
+
+Use option 1 first and option 2 as the check, **before** opening the layer PR so the
+first CI run is the one that counts. Two layers in this stack learned it the other way.
+
 CI runs per layer. That is correct for a manual chain, not duplication — there is no
 native stack to deduplicate. The slowest job on this repository is `wsl (drvfs /mnt/c)`
 at roughly 12-15 minutes; it is the usual reason a PR sits at `UNSTABLE`.
