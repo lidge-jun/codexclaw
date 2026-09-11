@@ -385,7 +385,7 @@ Rest of `main` unchanged. Unknown subcommands still print USAGE and exit 0 (`cli
 
 ### 4.2 MODIFY `plugins/codexclaw/components/recall/src/memory-search.ts`
 
-L1/L2 will also edit this file; re-anchor on the function names if line numbers moved. Do not retouch collect/match/fallback logic.
+L1 does NOT edit this file — its change lands in `rollout.ts`, `index-search.ts` and `cwd-context.ts`. L2 is the previous writer of this file and this layer is the next one, so re-anchor on the function names if L2 moved the line numbers. Do not retouch collect/match/fallback logic.
 
 **`searchMemory` after the empty-query return (today `memory-search.ts:441-448`)**
 
@@ -730,7 +730,7 @@ Do not use inline JSON with `cxc orchestrate attest`. This layer has no attest s
 
 Must not edit: `provider-bridge/`, `session-binding.ts`, `config-guard/`, `source-identity.ts`, `session-source.ts`, `hook.ts` (L4/L5), `ingest.ts`, `index-db.ts` status shape (L4), `query-words.ts`, `synonyms.ts`, `rollout.ts` `normalizeCwd` / `FOLD_CWD_CASE` (L1), `pabcd-state/`, SKILL.md (unless you violate decision 8).
 
-Below: L1/L2 write `memory-search.ts`. This layer only adds the two warning pushes in `searchMemory` and removes the one in `searchStage1`. If L2 moved those functions, follow the names, not the 0.2.24 line numbers. Do not reopen matchedThreadIds, paragraph AND, or chat-fallback `synonyms`/`any` forwarding.
+Below: L2 is the only lower layer that writes `memory-search.ts`; L1 does not touch it. This layer only adds the two warning pushes in `searchMemory` and removes the one in `searchStage1`. If L2 moved those functions, follow the names, not the 0.2.24 line numbers. Do not reopen matchedThreadIds, paragraph AND, or chat-fallback `synonyms`/`any` forwarding.
 
 Above: L4 (#144) adds fields to the same `--status` JSON this layer makes safe to call. Do not add/rename status keys. Do not change `statusOnly` (`cli.ts:176`). L4's `chat index --help` must still be a no-op because help returns in `main` before `runChatIndex`.
 

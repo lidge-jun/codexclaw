@@ -1,4 +1,4 @@
-# wp8 / integration — restore `dev`, publish the chain, prove every layer
+# wp8 / integration — publish the chain on the existing `dev`, prove every layer
 
 This work-phase adds no layer. It turns the seven branches into seven reviewable
 pull requests, each green on its own CI, and stops there: merging belongs to the
@@ -43,11 +43,15 @@ another active session depends on.
 Order matters: a child pushed before its parent opens a PR whose base branch does
 not exist yet.
 
-Rebase onto `origin/dev` before the first push, so every PR shows only its own
-commits:
+The chain is already based on `origin/dev`: L0 was rebased onto `a267b398` at
+revision 2, so `6aae1c97` is no longer an ancestor of any layer and must not be
+used as a rebase base again. Re-run the cascade only if `origin/dev` MOVES:
 
 ```powershell
-git rebase --update-refs --onto origin/dev 6aae1c97 codex/fix-memory-write-gate
+git fetch origin
+git merge-base --is-ancestor origin/dev codex/fix-memory-write-gate; $LASTEXITCODE
+# non-zero means dev moved; only then:
+git rebase --update-refs --onto origin/dev <old-dev-sha> codex/fix-memory-write-gate
 ```
 
 `--update-refs` moves every intermediate layer branch that points inside the

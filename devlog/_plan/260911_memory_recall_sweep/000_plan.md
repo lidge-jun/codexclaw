@@ -89,8 +89,13 @@ Bottom to top. Each layer PR bases on the layer below; merge bottom-up.
 | L5 | `codex/fix-recall-intent-regex` | L4 | wp6 | #137 | recall |
 | L6 | `codex/fix-memory-write-gate` | L5 | wp7 | #135, #136, #141 | pabcd-state |
 
-wp8 adds no layer: it restores `dev`, pushes the chain, opens the seven PRs and
-turns every layer green.
+wp8 adds no layer: it reads `origin/dev` without writing it, pushes the chain,
+opens the seven PRs and turns every layer green.
+
+Every decade doc was written against tree `904bbe09`, which is reachable as both
+`6aae1c97` (main's tip) and `a267b398` (`origin/dev`). Where a layer doc says it
+was written at `6aae1c97`, the tree is identical to the `a267b398` this chain is
+actually based on; the SHAs differ, the content does not.
 
 ### Why a chain, and where it is genuinely required
 
@@ -118,8 +123,9 @@ cascade work. If the user prefers, L6 can be cut loose and opened directly again
 L1 first because `normalizeCwd` is the shared primitive: #142's thread bookkeeping
 and #144's staleness both read scoped results that L1 makes correct, and fixing it
 later would force every layer above to re-verify its fixtures. L2 next because it
-finishes `memory-search.ts` while that file is already open, so L3 and L4 can own
-`cli.ts` without a second writer. L3 before L4 because #144 adds new fields to the
+is the FIRST writer of `memory-search.ts` and L3 is the second, so that file is
+opened and finished low in the stack before L3 and L4 move on to `cli.ts`. L3
+before L4 because #144 adds new fields to the
 same `--status` output path that #139 first makes safe to call. L5 after L4 because
 both write `hook.ts`. L6 last because it is the only layer outside `recall` and
 therefore the only one that can be reordered or detached without a cascade.
