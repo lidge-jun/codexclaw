@@ -13,6 +13,27 @@ const ROOT_SOURCES = new Set(["cli", "vscode", "exec", "mcp"]);
 
 
 
+/**
+ * Canonical absolute path. JS `realpathSync` THROWS on the Windows
+ * extended-length prefix that Codex stores in the native thread DB:
+ * `realpathSync("\\\\?\\C:\\...")` fails with
+ * `EISDIR: illegal operation on a directory, lstat 'C:'` because it parses the
+ * prefix as a path segment. `realpathSync.native` resolves that shape. Measured on
+ * a Windows desktop install: 159 of 159 `threads.cwd` rows carried the prefix, so
+ * this is the normal shape, not an edge case (#134). Native additionally expands
+ * 8.3 short names, which is why `session-source.ts` already keeps its own copy of
+ * this helper.
+ *
+ * Deliberately private and duplicated rather than shared: `session-source.ts`
+ * does not export its copy, and `worktree-guard.ts` `canonicalize()` must NOT be
+ * reused here because it walks a missing path up to its nearest existing ancestor
+ * and RETURNS a string instead of throwing, which would silently reclassify a
+ * missing cwd as a mismatch and break the fail-closed contract below.
+ */
+function canonical(path        )         {
+  return realpathSync.native(path);
+}
+
 /** CLI-only corroboration. Never use as a hook's identity resolver: subagent
  * hook session_id is the root ID, unlike the child's native CODEX_THREAD_ID.
  * Protects accidental cross-session writes, not hostile same-user DB/env edits.
@@ -28,7 +49,7 @@ export function resolveNativeSession(cwd        , env                    = proce
 
   let canonicalCwd        ;
   try {
-    canonicalCwd = realpathSync(cwd);
+    canonicalCwd = canonical(cwd);
     if (!lstatSync(canonicalCwd).isDirectory()) throw new Error();
   } catch {
     return { ok: false, error: "Cannot resolve the working directory. Run from the native session's directory." };
@@ -71,7 +92,7 @@ export function resolveNativeSession(cwd        , env                    = proce
         return { ok: false, error: "Native session has an invalid working directory." };
       }
       try {
-        if (realpathSync(row.cwd) !== canonicalCwd) {
+        if (canonical(row.cwd) !== canonicalCwd) {
           return { ok: false, error: "Working directory does not match the native session. Run from its exact directory." };
         }
       } catch {

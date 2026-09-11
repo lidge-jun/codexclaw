@@ -4,7 +4,7 @@ Layer: L2. Branch: `codex/fix-session-binding-extended-path`. Base: L1 (`codex/f
 Issue: #134. Criterion: **c-3** (`cxc session current` succeeds against an extended-length stored cwd).
 This document is the copy-paste PRD for the implementation cycle. Docs-only now; no production patch in wp1.
 
-Source truth (this checkout, HEAD `9cd52769`): `realpathSync` call sites in `session-binding.ts` are **`:31` and `:74`**, not the `:38`/`:78` pair in `000_plan.md` wp3. Dist matches src. Implement against the file.
+Source truth (L1 head `1f34a30a`): `realpathSync` call sites in `session-binding.ts` are **`:31` and `:74`**, not the `:38`/`:78` pair in `000_plan.md` wp3. Dist matches src. Both were re-verified byte-for-byte at this head by an independent reviewer. Implement against the file.
 
 ## 1. Scope
 
@@ -94,7 +94,7 @@ function canonical(path: string): string {
 }
 ```
 
-Insert the sibling helper in `session-binding.ts` immediately before `export function resolveNativeSession` (after `NativeSessionResult`, currently line 19). The comment names the #134 prefix, not 8.3. `realpathSync` stays imported from `node:fs` (`:1`); `.native` is a property of that function.
+Insert the sibling helper in `session-binding.ts` **after the `NativeSessionResult` type ends at `:14`**, i.e. in the blank line at `:15`, before the `resolveNativeSession` JSDoc. That JSDoc occupies `:16-19` and the `export` is at `:20`, so inserting at `:19` would split the comment. The new comment names the #134 prefix, not 8.3. `realpathSync` stays imported from `node:fs` (`:1`); `.native` is a property of that function.
 
 after (insert at `session-binding.ts:19`, before the `resolveNativeSession` JSDoc):
 
@@ -281,7 +281,7 @@ Skip on non-win32: `toNamespacedPath` is a no-op on POSIX and the extended-lengt
 
 ## 6. Reproduction (parent fails, L2 head passes)
 
-Parent = L1 head (today: this checkout at `9cd52769` still has JS `realpathSync` at both sites). Layer head = L2 after the patch + rebuild.
+Parent = L1 head `1f34a30a`, which still has JS `realpathSync` at both sites. Layer head = L2 after the patch + rebuild.
 
 PowerShell. Check native status with `$LASTEXITCODE`, never `$?`.
 
