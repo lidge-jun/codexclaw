@@ -641,3 +641,81 @@ positional `help`/`/?` at `:309-312` never reach `--status`. `strict: true`
 `statusOnly` (`:227`) still skips the ingest. **Do not revert or weaken help-first
 while editing this function.**
 
+
+## Amendment B — wp5 A audit fold (2026-09-11)
+
+Independent `xai/grok-4.6` audit: **FAIL**, three blockers and three concerns, all
+folded. **Amendment B governs.** The reviewer confirmed all three halves of #144 are
+covered by the design and that the status path never opens the index read-write,
+creates a sidecar, or ingests.
+
+### B.1 (blocker) The banner must be bounded, and must say when it is
+
+`measureIndexFreshness` as specified lists every rollout JSONL and `statSync`s each
+one, and `indexStatusLine` runs at **every SessionStart** (`cli.ts:286`). This host
+has 219 files; the product documents users with roughly 13k files and 12GB. An
+unbounded `statSync` walk on Windows takes seconds and blows the hook's own
+sub-200ms expectation. **A freshness check that makes every session slower is worse
+than the stale number it replaces.**
+
+Required shape:
+
+```text
+measureIndexFreshness(home, db, days, { budget })
+  budget = { maxStats: 512, maxMs: 50 }   // banner
+  budget = null                            // --status: full walk
+```
+
+- `listRolloutFiles` returns newest-first, so the banner stats the newest
+  `maxStats` and stops early if `maxMs` elapses.
+- **`missingFiles` and `extraFiles` come from a path-set difference**, which needs
+  no `statSync` at all. Only `changedFiles` costs a stat, so the bound applies to
+  that term alone.
+- When the walk was truncated the report carries `truncated: true`, and the banner
+  renders the count as a lower bound (`stale: 7+`). **A bounded scan must never be
+  printed as if it were exhaustive** — that would replace one dishonest number with
+  a quieter one.
+- `--status` passes no budget and reports the exact figures.
+
+### B.2 (blocker) One temp home per mutating test
+
+Tests 1-3 mutate a shared `test.before` home and each assert `staleFiles === 1`.
+After test 1 grows a file, test 2 sees stale >= 2 and fails for a reason that has
+nothing to do with the code. Give every mutating test its own `mkdtemp`.
+
+### B.3 (blocker) The stamp test must use a sentinel, not two timestamps
+
+Tests 4 and 10 compare two back-to-back `toISOString()` values. `INSERT OR REPLACE`
+inside the same millisecond writes an identical string, so the test passes while the
+always-stamp bug is fully present. Required instead:
+
+```text
+plant   last_ingest_at = '2000-01-01T00:00:00.000Z'
+run     a no-op ingest (nothing ingested, appended or pruned)
+assert  the sentinel is byte-identical
+```
+
+A sentinel cannot collide with a real stamp, so the test can only pass for the right
+reason.
+
+### B.4 (concern) Do not make every search pay for freshness
+
+`chat-search.ts` would full-stat on every index query including `--no-refresh`.
+Use the bounded budget there too, or reuse the report the caller already computed.
+The search path must not become slower than the ingest it is trying to describe.
+
+### B.5 (concern) The gate, and what not to "fix"
+
+Verification in the body says `npm test` exits 0. It does not. The gate is `002`:
+exactly the two recorded environmental failures and no third. **Do not repair
+`hook-bench` or `cxc map` to make the suite green** — they are out of this layer's
+scope and fixing them here would hide a genuine regression behind a changed baseline.
+
+### B.6 Which tests are evidence and which are pins
+
+Red on the parent, and therefore this layer's proof: tests 1, 2, 3, 4, 6, 7, 8, 9,
+10, 11. Already green and kept as pins, not counted as proof: 5 (a real append does
+stamp), 12 (`staleFiles === 0` after a refresh), 13 (the weak inequality), 14 and its
+canned-string sibling (the hook already interpolates), 15 (`noRefresh: true` is
+already at `hook.ts:505`).
+
