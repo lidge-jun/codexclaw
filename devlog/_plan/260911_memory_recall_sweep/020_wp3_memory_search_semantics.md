@@ -144,7 +144,7 @@ Memory's own default is the opposite (memory-search.ts:54-55, :434-436): `(opts.
 
 - `planMatches` — query-words.ts:289 — file AND and paragraph AND
 - `frontmatterThreadId` — memory-search.ts:260-263 — `^thread_id:\s*(\S+)` in first 2000 chars
-- `scopeAdjust` — memory-search.ts:347-360 — keep/bonus; L1 may rewrite the cwd side
+- `scopeAdjust` — memory-search.ts:347-360 — keep/bonus. L1 does not touch `memory-search.ts`; L2 is this file's first writer and calls `scopeAdjust` as it sits here
 - `excerptAround` / `firstPresentMember` / `scoreChunk` / `finalScore` — memory-search.ts:400-415, :201-218, :192-194 — file-span hit fields
 - `splitLines` — text-lines.ts:16-18 — CRLF-safe line walk for startLine
 - `groupHit` — memory-search.ts:385-387 — first matching line
@@ -158,7 +158,7 @@ No helper exists today that turns a failed paragraph pass into a file-span hit, 
 1. Issue 142 L371-373, L473-475, L487-488, L710, issue 143 L585-601 and chat-search.ts L158 all still sit at those lines on `6aae1c97`. The blank-line `if` is :371; `chunks.push` is :373; the object in issue 143 continues through `cwd` at :601.
 2. Issue 142 labels L710 as chat fallback. It is `searchStage1`. Chat backfill is `backfillFromChat` and does not consult `matchedThreadIds`. The empty chat result in the `Handbook consolidated` repro is a missing memory hit plus a chat corpus that does not contain those two words, not a `matchedThreadIds` skip.
 3. Issue 142's MEMORY.md repro has no `thread_id`. File-span fallback is what restores that hit. Delaying `matchedThreadIds` restores stage1 for a different case: file AND passed, no file hit kept (scope drop), same thread still in stage1.
-4. L1 (wp2 / #138) is allowed to touch `memory-search.ts` around `scopeAdjust` (:347-360) and the `cwdMatches` call at :354-356. If those lines moved at L1 tip, splice the patches in section 4 into the new body. Do not restore HEAD's `scopeAdjust`.
+4. L1 (wp2 / #138) does not touch `memory-search.ts`. `scopeAdjust` stays at :347-360 and `cwdMatches` at :354-356 on this checkout. L2 writes `memory-search.ts` first; L3 writes it after. Do not hedge on an L1 rewrite of `scopeAdjust`, and do not restore a different `scopeAdjust` body.
 
 ## 4. Changes
 
@@ -276,7 +276,12 @@ AFTER:
             relpath,
             threadId,
             updatedAt: new Date(mtimeMs).toISOString(),
-            excerpt: excerptAround(content, firstPresentMember(lowerFile, active), 400),
+            // excerptAround (memory-search.ts:409-414) slices the original
+            // string, so pass LF-normalized text: a CRLF file would otherwise
+            // keep \r and fail Test A's no-\r assertion (same invariant as
+            // memory-search.test.ts:60). Paragraph chunks already join with
+            // "\n" via splitLines(...).join("\n") in paragraphChunks.
+            excerpt: excerptAround(splitLines(content).join("\n"), firstPresentMember(lowerFile, active), 400),
             startLine: firstMatchStartLine(content, active),
             cwd: fileCwd,
             score: finalScore(scoreChunk(lowerFile, active, lowerPhrase), kind, mtimeMs, nowMs) + scoped.bonus,
@@ -293,6 +298,7 @@ Rules the implementer must not weaken:
 - Do not add `threadId` at file AND time.
 - File-span runs only when `paragraphMatches === 0`, not when paragraphs matched and `scopeAdjust` dropped them. cwd-only path-mention stays per-chunk for files that already have a matching paragraph.
 - File-span still goes through `scopeAdjust` on `lowerFile`. Out-of-scope files stay out.
+- File-span excerpt is taken from `splitLines(content).join("\n")`, not raw `content`. Keep Test A's excerpt-without-`\r` assertion; do not relax it.
 - `matchedThreadIds.add` is `candidates.length > keptBefore` (kept hits, after scope), so a scoped-out file does not suppress stage1.
 - No new warning on a successful file-span hit. Issue 142's complaint is a silent empty result; a successful hit needs no apology.
 - `collect` is also the relaxed-retry body (:533). File-span and delayed thread ids apply there automatically. Do not special-case the retry.
@@ -381,7 +387,7 @@ Runner: `plugins/codexclaw/scripts/test.mjs` then `node --test` on `*.test.ts`. 
 
 ### 5.1 MODIFY `plugins/codexclaw/components/recall/test/memory-search.test.ts`
 
-Add `mkdirSync`, `writeFileSync` from `node:fs` and `DatabaseSync` from `node:sqlite` to the existing imports. Append the three tests below after the current last test (:93). Do not change the shared `home` fixture tests.
+Add `mkdirSync`, `writeFileSync` from `node:fs` and `DatabaseSync` from `node:sqlite` to the existing imports. Append the three tests below after the current last test (`cli main: routes chat/memory search, rejects empty query, prints usage otherwise`, memory-search.test.ts:93-115). The append point is after line 115, not after the `test(` opener at :93. Do not change the shared `home` fixture tests.
 
 #### Test A
 
@@ -504,13 +510,12 @@ Layer is proven when:
 
 ## 8. Layer interactions
 
-Below — L1 / wp2 / #138 (`codex/fix-recall-cwd-normalization`): owns `normalizeCwd` extended-length/UNC strip and `FOLD_CWD_CASE` including `win32`. This layer bases on L1. If L1 rewrote `scopeAdjust` or the `cwdMatches` call at memory-search.ts:354-356, keep L1's version and splice section 4.2 into it. Test C uses `cwdOnly`; it must be run on L1's normalized cwd, not against a restored HEAD `normalizeCwd`.
+Below — L1 / wp2 / #138 (`codex/fix-recall-cwd-normalization`): owns `normalizeCwd` extended-length/UNC strip and `FOLD_CWD_CASE` including `win32`. L1 does not touch `memory-search.ts`. This layer bases on L1. Test C uses `cwdOnly`; it must be run on L1's normalized cwd, not against a restored HEAD `normalizeCwd`.
 
-This layer — L2 / wp3 / #142 #143: the only writer of the collect() thread set, the file-span fallback, and the backfill option bag. Closes #142 and #143.
+This layer — L2 / wp3 / #142 #143: first writer of `memory-search.ts`. Owns the collect() thread set, the file-span fallback, and the backfill option bag. Closes #142 and #143.
 
-Above — L3 / wp4 / #139 #140 (`codex/fix-recall-cli-arg-hygiene`): next writer of `cli.ts`. Does not need this layer's helpers. Rebase onto this tip so `cli.ts` is not merged against a second `memory-search.ts` rewrite.
+Above — L3 / wp4 / #139 #140 (`codex/fix-recall-cli-arg-hygiene`): writes `memory-search.ts` after L2, plus `cli.ts`. Rebase onto this tip so L3's `memory-search.ts` edits land after L2's, not against a parallel rewrite. Does not need this layer's private helpers.
 
 Above — L4 / wp5 / #144: `cli.ts` `--status` plus `hook.ts` banner. No overlap with section 4 if this layer stays out of those files.
 
 wp8: publishes this branch as PR base L1, title `fix(recall): keep cross-paragraph AND hits and forward synonyms to the chat fallback (#142, #143)`, `Closes #142` and `Closes #143` only on this PR.
-

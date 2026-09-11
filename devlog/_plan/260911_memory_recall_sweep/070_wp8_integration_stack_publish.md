@@ -4,32 +4,55 @@ This work-phase adds no layer. It turns the seven branches into seven reviewable
 pull requests, each green on its own CI, and stops there: merging belongs to the
 user (DEV-STACK-04, ESCALATE).
 
-## 1. Restore the base branch
+## 1. Resolve the base branch — read it, do not write it
 
-`dev` does not exist on the remote. Verify that before creating it, because a
-second actor may have restored it in the meantime:
+Revision 1 of this document assumed `dev` was still missing and told the
+implementer to create it at `6aae1c97`. That is withdrawn. Peer session
+`01a08fba` restored `dev` at `a267b398` while this unit was being written, and the
+audit caught the stale instruction. Read the remote first, every time:
 
 ```powershell
 git ls-remote --heads origin
+git fetch origin
+git rev-parse "origin/dev^{tree}" "HEAD^{tree}"
 ```
 
-Expected today: exactly `refs/heads/main` at `6aae1c97`.
+Observed at revision 2: `dev` = `a267b398`, `main` = `6aae1c97`, plus the peer's
+`codex/win-sweep-roadmap` and `codex/fix-ocx-windows-detect`. `a267b398` and
+`6aae1c97` share tree `904bbe09`, so the base this chain was written against and
+the restored `dev` are the same tree.
 
-If `refs/heads/dev` is absent, create it at the promotion merge commit, which is
-main's tip and carries the identical tree to the deleted `dev`:
+Decision rule, in order:
 
-```powershell
-git push origin 6aae1c97b5ae1f3dedc8d11856155a7e11c95810:refs/heads/dev
-git ls-remote --heads origin dev
-```
+1. **`origin/dev` exists and its commits are all contained in this chain's base**
+   (`git merge-base --is-ancestor origin/dev HEAD` exits 0): rebase the chain onto
+   `origin/dev` (section 4) and write nothing to `dev`. This is the current case.
+2. **`origin/dev` has commits this chain does not contain**: rebase the chain onto
+   the real `origin/dev` head, re-run every layer's tests, and record the
+   divergence. Still write nothing to `dev`.
+3. **`origin/dev` is absent again**: stop and tell the user. Recreating a deleted
+   trunk-adjacent branch is a repository-level decision, and a peer session is
+   basing its own stack on that branch. Do not race it.
 
-If `refs/heads/dev` is present but at a different commit, do NOT force it. Rebase
-the chain onto the real `dev` head instead (section 4) and record the divergence.
+Never force-update `dev`, and never fast-forward it merely to match this chain's
+base: the tree is identical, so the move would buy nothing and would move a branch
+another active session depends on.
 
 ## 2. Push the chain bottom-up
 
 Order matters: a child pushed before its parent opens a PR whose base branch does
 not exist yet.
+
+Rebase onto `origin/dev` before the first push, so every PR shows only its own
+commits:
+
+```powershell
+git rebase --update-refs --onto origin/dev 6aae1c97 codex/fix-memory-write-gate
+```
+
+`--update-refs` moves every intermediate layer branch that points inside the
+rebased range in one pass. Verify each layer afterwards with the ancestry check
+below before pushing anything.
 
 ```powershell
 git push -u origin codex/memory-recall-roadmap
@@ -56,7 +79,7 @@ would silently target trunk instead of the parent.
 
 | # | head | base | title |
 |---|---|---|---|
-| L0 | `codex/memory-recall-roadmap` | `dev` | docs(plan): 260911 memory/recall sweep roadmap |
+| L0 | `codex/memory-recall-roadmap` | `dev` (`a267b398`) | docs(plan): 260911 memory/recall sweep roadmap |
 | L1 | `codex/fix-recall-cwd-normalization` | `codex/memory-recall-roadmap` | fix(recall): normalize extended-length and case-differing cwd in scan and index alike (#138) |
 | L2 | `codex/fix-memory-search-semantics` | `codex/fix-recall-cwd-normalization` | fix(recall): keep cross-paragraph AND hits and forward synonyms to the chat fallback (#142, #143) |
 | L3 | `codex/fix-recall-cli-arg-hygiene` | `codex/fix-memory-search-semantics` | fix(recall): answer --help before working and validate path flags (#139, #140) |
@@ -90,7 +113,14 @@ ancestry (`git merge-base --is-ancestor`), the layer-only delta
 (`git log --oneline parent..child`), and that the PR's base ref still names the
 branch below. Review state is stale after a force-push; say what changed.
 
-## 5. CI per layer
+## 5. Receipts belong to the layers, not to this phase
+
+Every implementation layer runs `cxc receipt test` at its own C phase and carries
+its own `testReceiptPath` on its own C->D attest. This work-phase produces no
+receipts on their behalf and cannot certify a layer whose receipt is missing. If a
+layer reaches this phase without one, that layer is not done — send it back.
+
+## 6. CI per layer
 
 ```powershell
 gh pr checks <number> --repo lidge-jun/codexclaw
@@ -103,13 +133,12 @@ A missing, skipped or cancelled required check is not a pass. Record event, head
 SHA, run id and conclusion per layer; do not read one green summary as the stack's
 state.
 
-## 6. Completion, and what is explicitly not done
+## 7. Completion, and what is explicitly not done
 
-DONE for this work-phase means: `dev` exists, seven branches are pushed, seven PRs
-are open with the bases in the table above, and each layer has its own green run
-recorded with its head SHA.
+DONE for this work-phase means: `origin/dev` was read and left untouched, seven
+branches are pushed, seven PRs are open with the bases in the table above, and each
+layer has its own green run recorded with its head SHA and its own test receipt.
 
 Not done here, by instruction: merging any PR, enabling auto-merge, deleting any
 branch, cutting a release, deploying docs, or reinstalling the plugin. The user
 merges the stack bottom-up when they choose to.
-

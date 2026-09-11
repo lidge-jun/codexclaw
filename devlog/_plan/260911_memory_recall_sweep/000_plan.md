@@ -31,11 +31,22 @@ That deletion contradicts the repository's own policy in two places:
   every pull request except the `dev` -> `main` promotion. With `dev` absent, no
   compliant PR can be opened at all.
 
-`dev` is therefore restored at `6aae1c97`, which is main's tip and the merge commit
-of the promotion — the tree is byte-identical to the `dev` that was deleted. Every
-layer in this stack bases on that line. Repository setting `delete_branch_on_merge`
-remains a live trap for the next promotion; it is recorded here, not fixed here,
-because changing repository settings is outside this goal's authority.
+**Revision 2 correction.** While this unit was being written, peer session
+`01a08fba` restored `dev` at `a267b398` — the last commit of the deleted branch,
+not the promotion merge. `git ls-remote --heads origin` now returns `dev`,
+`main`, `codex/win-sweep-roadmap` and `codex/fix-ocx-windows-detect`.
+
+`a267b398` and `6aae1c97` carry the SAME tree (`904bbe09` for both), so the base
+this unit was written against is byte-identical to the restored `dev`. The chain is
+therefore rebased onto `origin/dev` and **this unit writes nothing to `dev`**: no
+push, no fast-forward, no force. The earlier plan to restore `dev` at `6aae1c97`
+is withdrawn — it is no longer needed, and fast-forwarding `dev` under a peer
+session that is actively basing its own stack on it would be an unrequested
+external change.
+
+Repository setting `delete_branch_on_merge` remains a live trap for the next
+promotion; it is recorded here, not fixed here, because changing repository
+settings is outside this goal's authority.
 
 ## Constraints
 
@@ -86,11 +97,16 @@ turns every layer green.
 The user asked for a stacked delivery, which is sufficient reason on its own. Two
 couplings are real beyond that:
 
-- **`memory-search.ts` is written by L1 and L2**, and **`cli.ts` by L3 and L4**.
-  Those pairs cannot be parallel PRs without a conflict.
-- **`hook.ts` is touched by L4 (the `noRefresh` banner path, `hook.ts:501`) and by
-  L5 (`detectRecallIntent`, `hook.ts:86`)** — different regions of one file, which
-  is exactly the case where a manual chain is cheaper than two racing PRs.
+- **`memory-search.ts` is written by L2 and then L3.** L1 does NOT touch it: L1's
+  change lands in `rollout.ts`, `index-search.ts` and `cwd-context.ts`, and
+  `memory-search.ts` picks the corrected behaviour up through the helpers it
+  already calls. Revision 1 listed L1 as a writer of that file; the audit rejected
+  that and it is corrected here. `cli.ts` is written by L3 and then L4.
+- **`hook.ts` is touched by L4 and L5 in different regions**: L4 rewrites the
+  `noRefresh` banner path at `hook.ts:501-511`, L5 rewrites `RECALL_PATTERNS`
+  at `hook.ts:78-116` (`detectRecallIntent` itself is `hook.ts:112-116`; the
+  `기억해*` pattern L5 removes is `hook.ts:86`). One file, two writers, which is
+  exactly the case where a manual chain is cheaper than two racing PRs.
 
 L6 is genuinely independent: it lives in `pabcd-state` and shares no file with
 L1-L5. It is chained anyway to honour the requested delivery shape, at the cost of
@@ -169,7 +185,9 @@ Every implementation layer produces, with pasted output:
 2. `npm test` — exit 0, with the layer's new test names visible in the output.
 3. The red-green evidence for at least one new test: the assertion failing on the
    parent tip and passing at this layer's tip.
-4. `cxc receipt test` — the bound session requires `testReceiptPath` on the C->D edge.
+4. `cxc receipt test` — run by EACH implementation layer at its own C phase, because
+   a goalplan-bound session requires `testReceiptPath` on every C->D edge. wp8 does
+   not produce receipts for the layers below it and cannot stand in for them.
 5. For the layers with a live Windows reproduction (#135, #136, #138, #140, #141),
    the observed command output before and after, quoted verbatim.
 
@@ -184,4 +202,3 @@ A layer whose build is green but whose new test never ran red is not proven.
 | `FOLD_CWD_CASE` turning on for win32 changes existing search results | L1 | the change is a widening: previously-missed sessions start matching. Pin the previously-matching cases too, so the widening is proven not to drop anything |
 | A new source file's `dist` output is silently unstaged | any | `git add -f` for that component's `dist` path, verified with `git show --stat` before pushing |
 | Six parallel doc agents disagree about a shared helper | wp1 | the roadmap owns the shared decisions; the audit reads all seven documents as one artifact |
-

@@ -13,7 +13,7 @@ The memory write gate must be honest on Windows.
 1. A `cxc memory allow-write` grant is stored per `(cwd, sessionId)`. Success output must name the cwd it wrote. A deny must say the grant is cwd-scoped. Do not rekey grants to session-only and do not add `--cwd`.
 2. Korean write triggers must match `메모리` forms, including `메모리도 기록`.
 3. `absolutize` must expand `~\`, `%USERPROFILE%`, `$env:USERPROFILE`, and `$HOME` before `isMemoryPath`.
-4. `shellWriteDestinations` must classify `Set-Content` / `Out-File` / `New-Item` / `Copy-Item` / `Tee-Object` and `python`/`node` one-line writes.
+4. `shellWriteDestinations` must classify `Set-Content` / `Out-File` / `New-Item` / `Copy-Item` (and alias `copy`) / `Tee-Object` and `python`/`node` one-line writes. Copy-Item is destination-only, matching POSIX `cp`. PowerShell switch parameters must not consume the next token.
 5. `memory allow-write --help`/`-h` prints usage, exits 0, records no grant, even when `--session` is also present. `--session <id>` and `--session=<id>` both work. Unknown flags are rejected.
 
 ## 2. Issue-body vs this tree
@@ -30,7 +30,7 @@ Line numbers below were read in this checkout, not copied from the 0.2.24 issue 
 | #136: `verbDestinations` is POSIX-only at L286–294 | Exact match: `shell-write-destinations.ts:286`. `tee` / `sed` / `cp`/`mv` / `perl`/`ruby`; else `[]` | Add PowerShell cmdlets and `python`/`node` script writes. 260910 `010_wp1_memory-write-gate.md` listed `python -c` / `node -e` as residual; this layer closes that leftover |
 | #136: `echo hi > ~\.codex\memories\n.md` extracts a dest but allows | Redirect parser already returns the token (`shell-write-destinations.ts:184`). Classification fails in `absolutize` + `isMemoryPath` | Home-expansion test, not a parser test |
 | #141: dispatcher `argv[3] === "allow-write"` at L166–169 | Exact match `cxc.mjs:166`. Root twin `codexclaw.mjs:584` | Leave the split. Help is dead because of `cli.ts`, not because of this condition |
-| #141: cli.ts help is dead at L283–286 | Exact match `cli.ts:283`. Delegated argv is `["allow-write", "--help"]`, so `argv[0] === "--help"` never fires | Detect `--help`/`-h` anywhere after the verb inside `parseMemoryCliArgs` |
+| #141: cli.ts help is dead at L284–286 | Exact match `cli.ts:284-286`: `argv.length === 0 || argv[0] === "--help" || argv[0] === "-h"`. Delegated argv is `["allow-write", "--help"]`, so `argv[0] === "--help"` never fires. `cli.ts:281` is only `if (kind === "memory")`; `cli.ts:283` is `process.argv.slice(3)` | Detect `--help`/`-h` anywhere after the verb inside `parseMemoryCliArgs` |
 | #141: `--session=` dropped at L41–46 | Exact match `memory-cli.ts:41`: `argv.indexOf("--session")` then `argv[i+1]` | Parse `--session=<id>` in the same function. There is no shared `--flag=value` helper in pabcd-state; do not invent one |
 | #141 (c): `parseMemoryCliArgs(['allow-write','--session','<id>','--help'])` returns a grant object | Confirmed: `--help` is ignored, `--session` is taken, `runMemoryCli` would write state | `--help` wins, no grant |
 
@@ -66,7 +66,7 @@ Do not change these.
 | `plugins/codexclaw/components/pabcd-state/test/shell-write-destinations.test.ts` | MODIFY | PowerShell + python/node + `.exe` |
 | `plugins/codexclaw/components/pabcd-state/test/help-verbs.test.ts` | MODIFY | `allow-write --help`/`-h` contract |
 | `docs-site/src/content/docs/reference/commands.md` | MODIFY | Public CLI contract: cwd-scoped grant, `--session=`, `--help` |
-| `docs-site/src/content/docs/reference/hooks.md` | MODIFY | Destination list; drop `python -c` from the residual-bypass sentence |
+| `docs-site/src/content/docs/reference/hooks.md` | MODIFY | Matcher at :90 stays. Destination prose at :91-92. Drop `python -c` from the residual-bypass sentence at :95 |
 | `plugins/codexclaw/components/pabcd-state/dist/memory-write-gate.js` | MODIFY | `npm run build` output, same commit, `git add -f` |
 | `plugins/codexclaw/components/pabcd-state/dist/shell-write-destinations.js` | MODIFY | same |
 | `plugins/codexclaw/components/pabcd-state/dist/memory-cli.js` | MODIFY | same |
@@ -252,6 +252,7 @@ function verbDestinations(segment: string): string[] {
     verb === "out-file" ||
     verb === "new-item" ||
     verb === "copy-item" ||
+    verb === "copy" ||
     verb === "tee-object"
   ) {
     return powershellWriteDestinations(verb, args);
@@ -260,6 +261,25 @@ function verbDestinations(segment: string): string[] {
 }
 
 const PS_PATH_FLAGS = new Set(["-literalpath", "-path", "-filepath", "-destination"]);
+// Valueless switches from the in-scope cmdlets. MUST NOT consume the next token.
+// -Force / -Confirm / -WhatIf: Set-Content, Out-File, New-Item, Copy-Item
+// -Append / -NoClobber / -NoNewline: Out-File (Set-Content also has -NoNewline)
+// -PassThru: Set-Content, Copy-Item
+// -Recurse / -Container: Copy-Item
+// -Verbose / -Debug: common parameters (switch)
+const PS_SWITCH_FLAGS = new Set([
+  "-force",
+  "-append",
+  "-nonewline",
+  "-confirm",
+  "-whatif",
+  "-passthru",
+  "-noclobber",
+  "-recurse",
+  "-container",
+  "-verbose",
+  "-debug",
+]);
 
 function splitPsFlag(token: string): { flag: string; inline: string | undefined } {
   const colon = token.indexOf(":");
@@ -270,11 +290,25 @@ function splitPsFlag(token: string): { flag: string; inline: string | undefined 
 function powershellWriteDestinations(verb: string, args: string[]): string[] {
   const named: string[] = [];
   const positional: string[] = [];
+  const copyLike = verb === "copy-item" || verb === "copy";
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a.startsWith("-")) {
       const { flag, inline } = splitPsFlag(a);
       const f = flag.toLowerCase();
+      if (PS_SWITCH_FLAGS.has(f)) {
+        continue; // valueless: do not consume args[i+1]
+      }
+      if (copyLike) {
+        // Destination-only, matching POSIX cp. -Path / -LiteralPath are sources.
+        if (f === "-destination") {
+          const val = inline !== undefined ? inline : args[++i];
+          if (val) named.push(val);
+          continue;
+        }
+        if (inline === undefined && args[i + 1] !== undefined && !args[i + 1].startsWith("-")) i++;
+        continue;
+      }
       if (PS_PATH_FLAGS.has(f)) {
         const val = inline !== undefined ? inline : args[++i];
         if (val) named.push(val);
@@ -286,7 +320,7 @@ function powershellWriteDestinations(verb: string, args: string[]): string[] {
     positional.push(a);
   }
   if (named.length) return named;
-  if (verb === "copy-item") return positional.length >= 2 ? [positional[positional.length - 1]] : [];
+  if (copyLike) return positional.length >= 2 ? [positional[positional.length - 1]] : [];
   return positional.length ? [positional[0]] : [];
 }
 
@@ -324,11 +358,13 @@ function scriptWriteDestinations(script: string): string[] {
 }
 ```
 
-Skip any unknown `-*` flag plus its following non-flag token so `-Value`, `-ItemType`, `-Name`, `-Force`, `-Encoding` are never destinations.
+Switch parameters are valueless and MUST NOT consume the following token. The set is `-Force`, `-Append`, `-NoNewline`, `-Confirm`, `-WhatIf`, `-PassThru`, `-NoClobber` (from Set-Content / Out-File / New-Item / Copy-Item / Tee-Object) plus `-Recurse` / `-Container` (Copy-Item) and `-Verbose` / `-Debug` (common switch parameters). Treating an unknown `-*` as always consuming the next non-flag token is the security hole: `Set-Content -Force <path>`, `Out-File -Append <path>`, and `New-Item -ItemType File -Force <path>` all return `[]` and a real memory write is allowed through. Value-taking unknown flags (`-Value`, `-ItemType`, `-Name`, `-Encoding`, `-Filter`, and any other non-switch `-*`) still skip the flag plus its following non-flag token so those values are never destinations.
 
-Keep POSIX `tee`/`cp` as they are. `Tee-Object` is a different verb. `cp src dest` already classifies on Windows because `verb === "cp"`; do not regress that control from #136.
+Copy-Item (and alias `copy`) is destination-only, matching POSIX `cp` (`cpMvDestinations` at `shell-write-destinations.ts:338` returns only `-t`/`--target-directory` or the last positional). Named `-Path`/`-LiteralPath` on Copy-Item are sources. `Copy-Item -Path ${mem}/a.md -Destination /w/out.md` must return `["/w/out.md"]`, never the memories source. Returning sources would deny copying a file OUT of the memories directory, which POSIX `cp` does not do.
 
-Do not add `Move-Item`, `Add-Content`, aliases `sc`/`ni`, or a PowerShell AST. Residuals in §9.
+Keep POSIX `tee`/`cp` as they are. `Tee-Object` is a different verb. `cp src dest` already classifies on Windows because `verb === "cp"`; do not regress that control from #136. Cover `copy` as Copy-Item destination-only (the PowerShell spelling of POSIX `cp`).
+
+Do not add `Move-Item`, `Add-Content`, aliases `sc`/`ni`, or a PowerShell AST. Residuals in §9 with reasons.
 
 Preserve existing cases (they must stay green):
 
@@ -426,7 +462,7 @@ export const MEMORY_USAGE = [
 
 ### 5.6 `cli.ts` — help is not dead
 
-MODIFY `cli.ts:281`. Keep the `argv[0] === "--help"` branch. After `parseMemoryCliArgs`, before the error branch, insert:
+MODIFY the `kind === "memory"` block starting at `cli.ts:281`. The dead help branch is `cli.ts:284-286` (`argv.length === 0 || argv[0] === "--help" || argv[0] === "-h"`); keep it. After `parseMemoryCliArgs` (`cli.ts:288`), before the error branch (`cli.ts:289`), insert:
 
 ```ts
     if ("help" in parsed) {
@@ -457,7 +493,7 @@ cxc memory allow-write --help
 
 Add one sentence after `commands.md:178`: the success line names the cwd the grant was recorded for; a grant issued from another cwd will not be found.
 
-MODIFY `docs-site/src/content/docs/reference/hooks.md:90` destination sentence to include `Set-Content` / `Out-File` / `New-Item` / `Copy-Item` / `Tee-Object` and `python`/`node` `-c`/`-e` write operands (`open(..., 'w'|'a'|'x')`, `Path.write_text` / `write_bytes`, `writeFileSync` / `writeFile` / `appendFileSync` / `appendFile` / `createWriteStream`). Replace L95 `python -c` writers are residual bypasses with the residual list in §9.
+Do not change the matcher at `hooks.md:90` (`memories[._]?add_ad_hoc_note|apply_patch|Write|Edit|Bash`). MODIFY the destination prose at `hooks.md:91-92` to include `Set-Content` / `Out-File` / `New-Item` / `Copy-Item` (destination-only, including alias `copy`) / `Tee-Object` and `python`/`node` `-c`/`-e` write operands (`open(..., 'w'|'a'|'x')`, `Path.write_text` / `write_bytes`, `writeFileSync` / `writeFile` / `appendFileSync` / `appendFile` / `createWriteStream`). Replace `hooks.md:95` `python -c` writers are residual bypasses with the residual list in §9.
 
 ## 6. Tests
 
@@ -478,7 +514,7 @@ SESSION fixture already in `memory-write-gate.test.ts:29`: `019f9d73-4c28-7723-a
 | `home prefixes classify as memory writes` | `root = resolve(join(homedir(), ".codex", "memories"))`. `classifyMemoryWrite("Bash", { command }, "/w", root)` for `echo hi > ~/.codex/memories/n.md` (control), `echo hi > ~\\.codex\\memories\\n.md`, `echo hi > %USERPROFILE%\\.codex\\memories\\n.md`, `echo hi > $env:USERPROFILE\\.codex\\memories\\n.md`, `echo hi > $HOME/.codex/memories/n.md` | each `surface === "shell"` | only `~/` expands (`memory-write-gate.ts:136`); the other four return `surface === ""` |
 | `apply_patch Add File with backslash-tilde memories path is gated` | `classifyMemoryWrite("apply_patch", { command: "*** Add File: ~\\.codex\\memories\\x.md\n+hi\n" }, "/w", resolve(join(homedir(), ".codex", "memories")))` | `surface === "edit"` | `patchTargets` extracts the path (`memory-write-gate.ts:148`) but `absolutize` leaves `~\` literal |
 
-In the home-prefix commands, `$env:USERPROFILE` and `$HOME` are the literal seven- and five-character prefixes the gate must expand, not values interpolated by the test runner. Keep every existing test, including `python3 -c read_text` as a non-write.
+In the home-prefix commands, `$env:USERPROFILE` and `$HOME` are the literal prefixes the gate must expand — the strings `$env:USERPROFILE` and `$HOME` themselves, not values interpolated by the test runner. Do not implement a character-count or length check; match the prefix strings `~`, `~/`, `~\`, `%USERPROFILE%`, `$env:USERPROFILE`, and `$HOME` exactly as listed in §5.2. Keep every existing test, including `python3 -c read_text` as a non-write.
 
 ### 6.2 `plugins/codexclaw/components/pabcd-state/test/shell-write-destinations.test.ts`
 
@@ -487,6 +523,11 @@ Add one test file-section. Do not replace the POSIX cases. Use POSIX `const mem 
 | test name | input | expected | why it fails today |
 |---|---|---|---|
 | `PowerShell write cmdlets name their destination` | `Set-Content -LiteralPath '${mem}/n.md' -Value x`; `Out-File -FilePath ${mem}/n.md`; `New-Item -Path ${mem}/n.md -ItemType File`; `Copy-Item /w/a.md ${mem}/b.md`; `Tee-Object -FilePath ${mem}/out.md`; plus case-folded `set-content -path ${mem}/n.md` | dest arrays equal the memories paths (`Copy-Item` dest is `${mem}/b.md`) | `verbDestinations` returns `[]` at L294 for every non-POSIX verb |
+| `Set-Content -Force does not swallow the destination` | `Set-Content -Force ${mem}/n.md` | `[${mem}/n.md]` | today's unknown-flag rule treats `-Force` as value-taking and consumes the path, so the dest array is `[]` and a real memory write is allowed through |
+| `Out-File -Append does not swallow the destination` | `Out-File -Append ${mem}/n.md` | `[${mem}/n.md]` | today's unknown-flag rule treats `-Append` as value-taking and consumes the path, so the dest array is `[]` and a real memory write is allowed through |
+| `New-Item -ItemType File -Force does not swallow the destination` | `New-Item -ItemType File -Force ${mem}/n.md` | `[${mem}/n.md]` | `-ItemType` correctly consumes `File`, but `-Force` then consumes the path, so the dest array is `[]` and a real memory write is allowed through |
+| `Copy-Item is destination-only like POSIX cp` | `Copy-Item -Path ${mem}/a.md -Destination /w/out.md`; `Copy-Item ${mem}/a.md /w/out.md`; `Copy-Item /w/a.md ${mem}/b.md` | first two return `["/w/out.md"]` (the memories source is not returned); third returns `[${mem}/b.md]` | `verbDestinations` returns `[]` at L294 today. A named `-Path`/`-Destination` collector that returned both would deny copying a file OUT of memories; POSIX `cp` is destination-only |
+| `copy is Copy-Item destination-only` | `copy /w/a.md ${mem}/b.md`; `copy -Path ${mem}/a.md -Destination /w/out.md` | `[${mem}/b.md]`; `["/w/out.md"]` | alias `copy` falls through to `return []` at L294 |
 | `python and node one-line writes; reads stay empty` | `python -c "open(r'${mem}/n.md','w').write('x')"`; `python3 -c "from pathlib import Path; Path('${mem}/n.md').write_text('x')"`; `node -e "require('fs').writeFileSync('${mem}/n.md','x')"`; `python.exe -c "open('${mem}/n.md','w').write('x')"`; negative: the existing `read_text` + `'x -> y'` shape | write cases return `[${mem}/n.md]`; read returns `[]` | python/node fall through to `return []`. `.exe` would also miss without `normalizeVerb` |
 | `Get-Content is not a write` | `Get-Content -LiteralPath ${mem}/n.md` | `[]` | would already pass; pin so the new PS parser cannot classify reads |
 
@@ -506,7 +547,7 @@ From the repo root, after the patch, with pasted output:
 1. `npm run build` — exit 0. `dist/memory-write-gate.js`, `dist/shell-write-destinations.js`, `dist/memory-cli.js`, `dist/cli.js` newer than their `src`. Stage with `git add -f` those four paths (`.gitignore:2` ignores `dist/`).
 2. Focused: `node plugins/codexclaw/scripts/test.mjs "plugins/codexclaw/components/pabcd-state/test/memory-write-gate.test.ts" "plugins/codexclaw/components/pabcd-state/test/shell-write-destinations.test.ts" "plugins/codexclaw/components/pabcd-state/test/help-verbs.test.ts"` — exit 0, new names visible.
 3. `npm test` — exit 0.
-4. Red-green: on the parent tip the new tests named in section 6 fail (at least `메모리도 기록`, `--session=`, `~\`, `Set-Content`, `allow-write --help`). At this layer's tip they pass. A green build whose new tests never ran red is not proven (`000_plan.md` verification contract).
+4. Red-green: on the parent tip the new tests named in section 6 fail (at least `메모리도 기록`, `--session=`, `~\`, `Set-Content -Force`, `Out-File -Append`, `New-Item -ItemType File -Force`, `allow-write --help`). At this layer's tip they pass. A green build whose new tests never ran red is not proven (`000_plan.md` verification contract).
 5. Spawn, after build, from a scratch cwd that is **not** the session worktree:
 
 ```powershell
@@ -541,7 +582,9 @@ Layer interactions:
 Document these in `hooks.md`; do not try to parse them here.
 
 - `powershell -Command` / `pwsh -NoProfile -Command` wrapping a write (nested script).
-- `Move-Item`, `Add-Content`, `Set-Content` aliases `sc`/`ni` (and `sc.exe` collision).
+- `Move-Item`: a real move-write cmdlet left out of this layer's verb set (Set-Content / Out-File / New-Item / Copy-Item + `copy` / Tee-Object) so the parser stays bounded. Documented bypass.
+- `Add-Content`: a real append-write cmdlet, same bounding choice as `Move-Item`. Not an alias. Documented bypass until a follow-up widens the verb table; the switch / destination-only rules above still apply if it is added later.
+- Aliases `sc` / `ni`: this parser matches canonical cmdlet names plus `copy` (the Copy-Item spelling parallel to POSIX `cp`). It does not load the PowerShell alias table. `sc` additionally collides with `sc.exe` (Service Control Manager); classifying `sc` as Set-Content would false-positive `sc query` / `sc.exe start` as memory writes. `ni` is New-Item's alias and is residual for the same no-alias-table reason.
 - `open(path, mode='w')` keyword form; `fs.promises.writeFile`; writes whose path is built (`path.join(process.env.USERPROFILE, ...)`).
 - PowerShell `${env:USERPROFILE}`; `%HOMEDRIVE%%HOMEPATH%`; `$env:CODEX_HOME`.
 - Subshells, unexpanded variables, `cmd.exe` redirects of an already-expanded token (those only classify if the expanded token is a memory path).
@@ -552,6 +595,6 @@ Issue #136's fallback ("document and narrow the matcher to tools only") is **not
 ## 10. Done when
 
 - `c-9`: grant stdout contains cwd; `메모리도 기록` and `메모리에 기록해줘` are true; deny text says the grant is per cwd.
-- `c-10`: the four home forms and the five PowerShell cmdlets plus python/node writes classify as memory writes; `read_text` does not.
+- `c-10`: the four home forms and the five PowerShell cmdlets (plus alias `copy`) plus python/node writes classify as memory writes; `read_text` does not. The three switch-parameter regressions (`Set-Content -Force`, `Out-File -Append`, `New-Item -ItemType File -Force`) and Copy-Item destination-only (named `-Path` is not a dest) pass.
 - `c-11`: `allow-write --help` exits 0 with no grant; `--session=<id>` accepted; unknown flags rejected.
 - `npm run build` and `npm test` green, new test names in the log, dist staged with `-f`.
