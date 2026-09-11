@@ -8,7 +8,7 @@ Detect-only: never `ocx ensure`, never `ocx sync`, never write Codex config (Q-P
 
 ## 1. Goal
 
-`provider-bridge` on Windows must (1) pick a PATHEXT launcher from `where` stdout instead of the extensionless npm shim, and (2) run `.cmd`/`.bat` through ComSpec. Each half has its own test. GUI/serve copies are wp6 (`050`). This document owns provider-bridge only.
+`provider-bridge` on Windows must (1) resolve `ocx` to a PATHEXT launcher rather than the extensionless npm shim, and (2) run `.cmd`/`.bat` through ComSpec. Half (1) is achieved by resolving PATH+PATHEXT directly and **deleting** the `where`-stdout parsing, not by picking a better line out of it (§4.2). Each half has its own test, plus §5.1 for the wiring. GUI/serve copies are wp6 (`050`). This document owns provider-bridge only.
 
 criterion: **c-9** (wp2 half: launcher selection + ComSpec spawn, separate tests).
 
@@ -340,8 +340,17 @@ cxc receipt test --session <id> -- node plugins/codexclaw/scripts/test.mjs "plug
 Low, and narrower than `f280394b`. `detect.ts` and the detect-only contract are
 untouched: no `ocx ensure`, no `ocx sync`, no config write.
 
+**Known coverage limit.** §5.1's two wiring tests are `win32`-only. The bug is a Windows
+process-spawn bug and the fixture needs a real `.cmd`, so there is no honest
+cross-platform form of that test. Consequence: **Linux and macOS CI do not gate the
+wiring** — only the Windows matrix jobs do. Do not read a green ubuntu run as proof that
+`cli.ts` is wired. The three helper tests in §5 are platform-neutral and still run
+everywhere, but they are exactly the ones that pass when `cli.ts` is untouched.
+
 `whichOcx` now returns `null` when `resolveWindowsCommand` finds nothing, which keeps the
-absent-ocx path on `mode:"native"` rather than `error` — the existing AC2 test pins that.
+absent-ocx path on `mode:"native"` rather than `error`. The **existing** AC2 test does not
+pin this: it injects `which: () => null` and never reaches the resolver. What pins it is
+the empty-PATH case added in §5.1, which drives the real resolver.
 The behaviour difference from `where` is that a launcher reachable only through a
 `where`-visible alias but not through PATH+PATHEXT would no longer be found; no such
 case exists for npm global installs, which is the shape #131 reports.
