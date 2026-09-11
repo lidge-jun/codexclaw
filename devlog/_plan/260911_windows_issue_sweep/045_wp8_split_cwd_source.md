@@ -170,6 +170,56 @@ native that comparison is meaningless and must be skipped, using the same probe:
 Read the exact surrounding lines before patching; `:91` is the tail of a multi-line
 condition.
 
+### 5.4 Exact anchors, resolved at L4 head `96e9486a`
+
+**Correction to §5.3's naming.** There is no `verifyBinding` function. The re-derivation on
+every resolve lives in `resolveSessionSource` itself, and the comparison to relax is at
+`session-source.ts:91`, the tail of a four-clause condition:
+
+```ts
+// session-source.ts:80-95
+export function resolveSessionSource(cwd: string, sessionId: string): string {
+  const binding = readBinding(cwd, sessionId);
+  const pinned = readState(cwd, sessionId).boundSourceRoot;
+  if (!binding) {
+    if (pinned) throw new Error("Source binding is missing for the pinned worktree; restore the same binding before continuing.");
+    return cwd;
+  }
+  if (pinned && binding.sourceRoot !== pinned) throw new Error("Source binding differs from the session's pinned worktree.");
+  const native = gitIdentity(cwd);
+  const source = gitIdentity(binding.sourceRoot);
+  if (source.root !== binding.sourceRoot || source.commonDir !== binding.commonDir
+      || source.gitDir !== binding.gitDir || native.commonDir !== binding.commonDir) {
+    throw new Error("Bound source worktree moved or its repository identity changed.");
+  }
+  return binding.sourceRoot;
+}
+```
+
+Note `:88`: `gitIdentity(cwd)` **throws** for a non-git native cwd, so resolve fails before
+the comparison is even reached. Both `:88` and the `native.commonDir` clause at `:91` must
+become conditional, and the other three clauses must stay — they are what detect a moved
+or re-pointed source.
+
+**`bindSessionSource`** is `:98`, and the guard to widen is `:102-105`:
+
+```ts
+  const nativeCwd = canonical(cwd);
+  const sourceRoot = canonical(target);
+  const native = gitIdentity(cwd), source = gitIdentity(sourceRoot);
+  if (source.root !== sourceRoot || source.commonDir !== native.commonDir || source.gitDir === native.gitDir) {
+    throw new Error("Source must be a linked worktree root in the native session's repository.");
+  }
+```
+
+`canonical()` already exists at `:22-24` using `realpathSync.native`, so the ancestor
+comparison in §5.2 gets Windows extended-length and 8.3 handling for free. `gitIdentity`
+is `:26` and already pipes stderr and strips `GIT_DIR`/`GIT_WORK_TREE`/`GIT_COMMON_DIR`/
+`GIT_INDEX_FILE`, so the non-throwing probe can wrap it without losing either property.
+
+The immutability path (`:106-110`) and the phase guard are downstream of the widened
+check and need no change.
+
 ## 6. What is deliberately NOT changed
 
 - `check-gate.ts` and `receipt-cli.ts`: untouched. `unavailable` still refuses.

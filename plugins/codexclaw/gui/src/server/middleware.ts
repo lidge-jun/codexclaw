@@ -15,6 +15,8 @@ import {
   postMultiAgentSurface,
 } from "./handlers.ts";
 import { detectOcx } from "../../../components/provider-bridge/src/detect.ts";
+import { commandInvocation, resolveWindowsCommand } from "../../../components/cxc-ops/src/win-exec.ts";
+import { resolveCodexInvocation } from "../../../components/cxc-ops/src/codex-bin.ts";
 import { resolveCodexHome } from "../../../components/config-guard/src/cli.ts";
 import type { CodexRunner } from "../../../components/config-guard/src/features.ts";
 import { spawnSync } from "node:child_process";
@@ -67,16 +69,26 @@ export function resolveProjectRoot(start: string = process.cwd(), env: NodeJS.Pr
 function detectDeps() {
   return {
     which: (cmd: string) => {
-      const res = spawnSync(process.platform === "win32" ? "where" : "command", process.platform === "win32" ? [cmd] : ["-v", cmd], {
-        encoding: "utf8",
-        shell: process.platform !== "win32",
-      });
-      // where.exe emits CRLF; the trailing .trim() saved this by accident.
+      if (process.platform === "win32") {
+        // #131: `where ocx` lists the extensionless npm sh shim FIRST, and that file is
+        // not an executable image, so spawning it ENOENTs. Resolve PATH+PATHEXT directly
+        // instead of parsing `where` stdout — resolveWindowsCommand reads PATH/PATHEXT
+        // case-insensitively and retries lowercased extensions, which a `where` parse
+        // cannot do. Returns its input unchanged on a miss, which maps to null here.
+        // Same shape as provider-bridge/src/cli.ts; this is the GUI copy of that bug.
+        const resolved = resolveWindowsCommand(cmd, process.env);
+        return resolved === cmd ? null : resolved;
+      }
+      const res = spawnSync("command", ["-v", cmd], { encoding: "utf8", shell: true });
       const out = res.status === 0 && typeof res.stdout === "string" ? splitLines(res.stdout)[0]?.trim() ?? "" : null;
       return out && out.length > 0 ? out : null;
     },
     runStatus: (ocxPath: string) => {
-      const res = spawnSync(ocxPath, ["status", "--json"], { encoding: "utf8", timeout: 8000 });
+      // #131 second half: after CVE-2024-27980 a shell-less `.cmd` spawn is EINVAL.
+      // commandInvocation routes only `.cmd`/`.bat` through ComSpec and escapes cmd
+      // metacharacters; `shell: true` would not escape them.
+      const inv = commandInvocation(ocxPath, ["status", "--json"]);
+      const res = spawnSync(inv.file, inv.args, { encoding: "utf8", timeout: 8000, ...inv.options });
       return { status: res.status, stdout: typeof res.stdout === "string" ? res.stdout : "" };
     },
   };
@@ -85,7 +97,12 @@ function detectDeps() {
 function codexFeatureDeps() {
   const run: CodexRunner = (args) => {
     const command = process.env.CODEX_CLI_PATH?.trim() || "codex";
-    const res = spawnSync(command, [...args], { encoding: "utf8", timeout: 15000 });
+    // A bare name skips PATHEXT, and an npm-installed `codex.cmd` is EINVAL shell-less.
+    // resolveCodexInvocation also detects the Microsoft Store WindowsApps alias, which
+    // exits EPERM without running. On a miss it does NOT pass the input through: it
+    // falls back to a cmd-shell invocation (cxc-ops/src/codex-bin.ts:120).
+    const inv = resolveCodexInvocation(command, [...args]);
+    const res = spawnSync(inv.file, inv.args, { encoding: "utf8", timeout: 15000, ...inv.options });
     return {
       stdout: res.stdout ?? "",
       stderr: res.stderr ?? (res.error ? String(res.error.message) : ""),

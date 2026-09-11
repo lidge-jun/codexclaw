@@ -66,11 +66,25 @@ Bottom to top. Each layer PR bases on the layer below; merge bottom-up.
 | L2 | `codex/fix-session-binding-extended-path` | L1 | wp3 | #134 |
 | L3 | `codex/fix-config-guard-help` | L2 | wp4 | #132 |
 | L4 | `codex/fix-nongit-early-refusal` | L3 | wp5 | #133 |
-| L5 | `codex/fix-split-cwd-source` | L4 | wp8 | #109 |
-| L6 | `codex/windows-landmine-sweep` | L5 | wp6 | — (corpus sweep) |
+| L5 | `codex/windows-landmine-sweep` | L4 | wp6 | — (corpus sweep) |
+| L6 | `codex/fix-split-cwd-source` | L5 | wp8 | #109 |
 
 wp7 is integration only: it adds no layer, it turns the chain green and ships it.
-Execution order is wp1, wp2, wp3, wp4, wp5, wp8, wp6, wp7.
+Execution order is wp1, wp2, wp3, wp4, wp5, **wp6, wp8**, wp7.
+
+**Revision 3 swapped wp6 and wp8.** Revision 2 put #109 at L5 and the sweep at L6. The
+bound goalplan disagreed: `wp6` and `wp8` both depend only on `wp5`, so after wp5
+closed, `effectiveActiveWorkPhaseId` selected `wp6` by declaration order and the gated
+edge refused a `wp8` attest outright. Rather than fight the persisted plan, the layer
+order follows it, because the swap is harmless: the sweep writes `gui/src/server`,
+`messenger-bridge/src` and `config-guard/src`, while #109 writes only
+`pabcd-state/src/session-source.ts`, so neither can conflict with the other in either
+order. Revision 2's stated reason for putting the sweep last — that its findings may touch
+files the lower layers moved — is about L1 and L3, both of which sit below either
+arrangement.
+
+What actually protects #109 from being skipped is not the ordering but the wp7 entry
+gate: integration must not start until `c-8` is met. That gate is unchanged.
 
 ### Goalplan drift notice (read before following the bound plan)
 
@@ -79,12 +93,18 @@ titles and dependency edges are append-only — they cannot be rewritten. Three
 entries therefore disagree with this document, and **this document governs**:
 
 - `wp5` is titled `issues 133 and 109`. It covers **#133 only**.
-- `wp6` is titled `Stack L5` and does not depend on `wp8`. It is **L6** and
-  must run after `wp8`.
-- `wp7` does not depend on `wp8`. It must not start until `wp8` is done.
+- `wp6` is titled `Stack L5` and, as of revision 3, that is now correct: the sweep IS
+  L5. Revision 2 had it at L6; see "Revision 3 swapped wp6 and wp8" above for why the
+  layer order follows the persisted plan rather than the other way round.
+- `wp8` is titled `Stack L5b`. It is **L6**.
+- `wp7` does not depend on `wp8`. **It must not start until `wp8` is done.** This is
+  the one drift that still bites, and it is the only thing standing between the loop and
+  reaching integration without ever closing #109.
 
-Following the raw goalplan edges would let the loop reach integration without ever
-closing #109. A `loop steer` annotation records this correction in the ledger.
+The `loop steer` annotation recorded in the ledger names the revision-2 order. Where it
+and this document disagree, **this document governs**, and the substance that matters is
+unchanged in both: `wp5` closes #133 only, `wp8` closes #109, and `wp7` waits for
+`c-8`.
 
 ### Why a chain, and where it is genuinely required
 

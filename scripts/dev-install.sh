@@ -42,11 +42,14 @@ marketplace_root() {
 command -v codex >/dev/null 2>&1 || die "codex CLI not on PATH"
 
 installed_version() {
-  python3 - "$PLUGIN_SRC/.codex-plugin/plugin.json" <<'PY'
-import json, sys
-with open(sys.argv[1], encoding="utf-8") as fh:
-    print(json.load(fh)["version"])
-PY
+  # node, not python3: the toolchain this repo already requires. A Windows host with no
+  # Python otherwise kills the whole dev-install under `set -e` before it builds, and the
+  # Microsoft Store `python3` alias can exit without running at all.
+  #
+  # process.stdout.write, NOT console.log: a trailing newline would enter $VERSION and
+  # break the `[ "$(basename "$dir")" != "$VERSION" ]` prune comparison below, whose
+  # else-branch is `rm -rf "$dir"` — it would delete the cache root just installed.
+  node -e 'process.stdout.write(require(process.argv[1]).version)' "$PLUGIN_SRC/.codex-plugin/plugin.json"
 }
 
 report_status() {
