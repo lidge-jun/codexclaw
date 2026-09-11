@@ -565,3 +565,64 @@ Layer is done when all of the following are true:
 5. Index and scan hit sets are equal for a case-differing query against that NULL-key session; on win32/darwin they are non-empty, on linux they are empty.
 6. Existing `/proj/alpha` oracle and `cwd-scope` Windows separator tests still pass.
 7. `npm run build` and `npm test` exit 0.
+
+## Amendment A — wp2 P revalidation (2026-09-11)
+
+The PRD above was written during wp1 and audited three times. At wp2's P it was
+re-verified against the tree by an independent `xai/grok-4.6` explorer. The tree has
+not moved — `origin/dev` is still `a267b398` — so everything below is the PRD's own
+imprecision, not drift. **Where this amendment disagrees with a section above, this
+amendment governs.**
+
+### A.1 The BEFORE blocks are not byte-for-byte — re-read before replacing
+
+| PRD claim | Reality |
+|---|---|
+| §2.1 `rollout.ts:76-114` quotes `normalizeCwd` followed immediately by `export function cwdMatches` | A 10-line JSDoc sits between them at `rollout.ts:90-99`. The range is right; the quoted text is not complete. |
+| §2.2 / §5.2 `index-search.ts:237-259` is the whole `if (opts.cwd)` block | The block closes at `:260`, and the BEFORE omits two ALTER comments now at `:254-255`. **A literal replace of 237-259 leaves a stray `}`.** |
+| §2.3 / §5.3 "replace `cwd-context.ts:110-118`", starting at `const repoKey` | `:110-111` are comments; `const repoKey` is `:112`. The conditions to replace are `:112-118`; leave `:119-131` alone. The BEFORE also omits the wp4 comments at `:124-125`. |
+| §2.3 "`cwd-context.ts:15` imports `FOLD_CWD_CASE` only" | `:15` is `import { isSyntheticUserText, FOLD_CWD_CASE } from "./rollout.ts";` |
+| §3 "no line-number drift that would mislead an implementer" | False for the two rows above. |
+
+**Rule for this layer: anchor on function and identifier names, re-read the current
+lines, and never apply a range replace from this document without comparing it to
+the file first.**
+
+### A.2 Insertion point in `index-search.ts` — do not wrap the ternary
+
+`index-search.ts:243` currently reads:
+
+```ts
+FOLD_CWD_CASE ? "lower(f.cwd) = lower(?)" : "f.cwd = ?"
+```
+
+Do not wrap or replace that ternary. Compute the canonical column once, then use it
+in BOTH arms:
+
+```ts
+const col = canonicalCwdSql("f.cwd");
+// exact:  FOLD_CWD_CASE ? `lower(${col}) = lower(?)` : `${col} = ?`
+```
+
+The same `col` must also replace the raw `f.cwd` in the LIKE arms at `:244-245`,
+with `lower(...)` when folding. **The LIKE arms bypass the ternary today**, so a fix
+that only touches the equality arm leaves child-path matching broken.
+
+### A.3 The risk that will actually bite
+
+Patching only the false arm (`f.cwd = ?`) because that is the arm win32 runs today.
+The moment `foldCwdCaseFor` includes `win32`, this host starts taking
+`lower(f.cwd) = lower(?)` against the raw stored cwd — so the `\\?\` strip and the
+slash fold still miss and the layer looks fixed while staying broken. Both arms and
+both LIKE patterns must go through `canonicalCwdSql`, and the regression must assert
+a hit on THIS platform's arm as well as the other one.
+
+### A.4 Confirmed unchanged
+
+`canonicalCwdSql` and `foldCwdCaseFor` exist nowhere in `src` or `test`. `RwDb` still
+exposes no `function()` hook (`sqlite.ts:19-23`), so the SQL twin remains the only
+option — no SQLite UDF. `INDEX_SCHEMA_VERSION` is still `"2"` (`index-db.ts:18`).
+`ingest.ts:138` and `:159` still store `meta.cwd` raw, which is what makes
+query-time canonicalization necessary. All three target test files and their append
+points still exist.
+
