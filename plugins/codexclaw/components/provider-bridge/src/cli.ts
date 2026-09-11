@@ -11,70 +11,34 @@
  */
 import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
-import { extname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { detectOcx, renderStatusLine, type DetectDeps } from "./detect.ts";
-
-/** PATHEXT default when the env var is missing or empty (win-exec convention). */
-const DEFAULT_WIN32_PATHEXT = ".COM;.EXE;.BAT;.CMD";
-
-function whereLines(stdout: string): string[] {
-  return stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-}
-
-function pathExt(filePath: string): string {
-  // Normalize slashes so Linux CI can still read a Windows `where` listing.
-  return extname(filePath.replaceAll("\\", "/")).toLowerCase();
-}
-
-function pathextList(pathext: string | undefined): string[] {
-  const raw = pathext && pathext.trim().length > 0 ? pathext : DEFAULT_WIN32_PATHEXT;
-  return raw
-    .split(";")
-    .map((ext) => ext.trim().toLowerCase())
-    .filter((ext) => ext.length > 0);
-}
+import { commandInvocation, resolveWindowsCommand } from "./win-exec.ts";
 
 /**
- * Pick a spawnable path from `where` / `command -v` stdout.
- * On win32, PATHEXT-backed launchers beat the extensionless npm sh shim that
- * `where` prints first. No executable candidate -> first line, matching the
- * historical resolver.
+ * Resolve `ocx` to a spawnable path.
+ *
+ * #131: on win32 an npm global install lays down BOTH an extensionless sh shim and
+ * a `.cmd` launcher, and `where ocx` lists the extensionless one FIRST. That file is
+ * not an executable image, so spawning it fails with ENOENT and detect reports
+ * `ocx status exited null`. Resolve PATH+PATHEXT directly instead of picking a line
+ * out of `where` stdout: resolveWindowsCommand reads PATH/PATHEXT case-insensitively
+ * (a child can arrive with `Path`, `PATH`, or both), splits PATH on a literal `;`
+ * rather than node:path's host-dependent delimiter, and retries the lowercased
+ * extension for case-sensitive filesystems. POSIX keeps `command -v`.
  */
-export function selectExecutableFromWhereOutput(
-  stdout: string,
-  options: { platform: NodeJS.Platform; pathext?: string },
-): string | null {
-  const lines = whereLines(stdout);
-  if (lines.length === 0) return null;
-  if (options.platform !== "win32") return lines[0] ?? null;
-  const allowed = pathextList(options.pathext);
-  const match = lines.find((line) => {
-    const ext = pathExt(line);
-    return ext.length > 0 && allowed.includes(ext);
-  });
-  return match ?? lines[0] ?? null;
-}
-
-function isWindowsBatchLauncher(ocxPath: string): boolean {
-  const ext = pathExt(ocxPath);
-  return ext === ".cmd" || ext === ".bat";
-}
-
-/** Real PATH resolver via the platform `command -v` / `where`. */
 function whichOcx(cmd: string): string | null {
-  const finder = process.platform === "win32" ? "where" : "command";
-  const args = process.platform === "win32" ? [cmd] : ["-v", cmd];
+  if (process.platform === "win32") {
+    const resolved = resolveWindowsCommand(cmd, process.env);
+    // resolveWindowsCommand returns its input unchanged when nothing matched.
+    return resolved === cmd ? null : resolved;
+  }
   try {
-    const res = spawnSync(finder, args, { encoding: "utf8", shell: process.platform !== "win32" });
+    const res = spawnSync("command", ["-v", cmd], { encoding: "utf8", shell: true });
     if (res.status === 0 && typeof res.stdout === "string") {
-      return selectExecutableFromWhereOutput(res.stdout, {
-        platform: process.platform,
-        pathext: process.env.PATHEXT,
-      });
+      const path = res.stdout.split(/\r?\n/)[0]?.trim();
+      return path && path.length > 0 ? path : null;
     }
     return null;
   } catch {
@@ -82,17 +46,18 @@ function whichOcx(cmd: string): string | null {
   }
 }
 
-/** Real ocx status reader (detect-only — `status --json` is read-only; never
- *  `ensure`/`sync`, which would mutate codex config). */
+/**
+ * Real ocx status reader (detect-only — `status --json` is read-only; never
+ * `ensure`/`sync`, which would mutate codex config).
+ *
+ * #131 second half: after the CVE-2024-27980 hardening (Node 18.20.2 / 20.12.2)
+ * a shell-less `.cmd` spawn fails with EINVAL. commandInvocation routes only
+ * `.cmd`/`.bat` through ComSpec and escapes cmd metacharacters; `shell: true` would
+ * not escape them, so a launcher path containing `&` or `^` would be an injection.
+ */
 function runOcxStatus(ocxPath: string): { status: number | null; stdout: string } {
-  const res =
-    process.platform === "win32" && isWindowsBatchLauncher(ocxPath)
-      ? spawnSync(
-          process.env.ComSpec ?? "cmd.exe",
-          ["/d", "/s", "/c", `"${ocxPath}" status --json`],
-          { encoding: "utf8", timeout: 8000, windowsVerbatimArguments: true },
-        )
-      : spawnSync(ocxPath, ["status", "--json"], { encoding: "utf8", timeout: 8000 });
+  const inv = commandInvocation(ocxPath, ["status", "--json"]);
+  const res = spawnSync(inv.file, inv.args, { encoding: "utf8", timeout: 8000, ...inv.options });
   return { status: res.status, stdout: typeof res.stdout === "string" ? res.stdout : "" };
 }
 
