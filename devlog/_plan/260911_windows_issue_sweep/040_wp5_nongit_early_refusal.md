@@ -141,17 +141,30 @@ This is the earliest honest point: `loop init` is what makes the session bound i
 first place (it binds a slug and does not consult git at all today). Refusing here
 means the trap never gets built.
 
-Insert immediately before the goalplan artifact is written:
+**Guard it on the session being present.** `loop init` without `--session` is a supported
+path that writes the local artifact only and binds nothing (`goalplan-cli.ts:70` and the
+`[--session <id>]` form in the help at `:559`). An unguarded gate would reject or throw
+on that call, which is a regression this layer has no business causing — the gate's
+whole justification is that a **bound** plan promises a closable cycle.
+
+Insert after the existing-plan check and before `buildGoalplan`:
 
 ```ts
-// #133: a bound plan promises a closable cycle. Do not create the binding when
+// #133: a BOUND plan promises a closable cycle. Do not create the binding when
 // the source identity cannot be resolved - the failure would otherwise surface at
 // C, after plan/audit/build are spent.
-const gate = checkBoundSourceIdentity(cwd, session);
-if (!gate.ok) {
-  return { output: `loop init: ${gate.reason}\nNothing was written.`, code: 1 };
+// Only when a session is actually being bound: `loop init` without --session writes
+// the local artifact and binds nothing, so it keeps its current behaviour.
+if (session) {
+  const gate = checkBoundSourceIdentity(args.cwd, session);
+  if (!gate.ok) {
+    return { output: `loop init: ${gate.reason}\nNothing was written.`, code: 1 };
+  }
 }
 ```
+
+Use whatever local name the surrounding code already has for the session id; do not
+introduce a second source of truth for it.
 
 ### 5.2 `orchestrate-cli.ts` — IDLE→P on an already-bound session
 
@@ -170,6 +183,65 @@ if (state.slug) {
   }
 }
 ```
+
+### 5.3 Exact anchors, resolved at L3 head `a7e72a46`
+
+§5.1 and §5.2 told the implementer to find the right spot. Here it is.
+
+**`goalplan-cli.ts`** — `runGoalplanCli` is at `:595` and the `init` branch opens at
+`:597`. Order inside it today: objective check, `deriveSlug`, existing-plan check,
+`buildGoalplan`, then the first mutation `writeGoalplan(args.cwd, plan)` at `:612`,
+then `appendGoalplanLedger`, then the session bind. Insert the gate **after the
+existing-plan check and before `buildGoalplan`**, so nothing is constructed or written.
+
+**`orchestrate-cli.ts`** — the agent-gated phase path starts at `:557`. `:559-560` already
+validates `resolveSessionSource` with the comment "Validate before any phase/goalplan
+writes", which is exactly the right neighbourhood. Insert the gate **immediately after
+that try/catch and before the P>A plan-artifact gate at `:568`**.
+
+Guard it on `to === "P" && state.slug`, not on `state.phase === "IDLE"`: `I>P` is also
+an entry edge into a cycle and deserves the same refusal. `state.slug` is the same
+bound-session condition `:579` and `:701` already use, so an unbound HITL cycle is
+untouched by construction.
+
+Both sites return `code: 1` with the gate's reason and the words `Nothing was written`.
+
+### 5.4 Two corrections the existing suite forced during the build
+
+Both were found by running `pabcd-state`'s 1226 tests against the first implementation,
+not by reading. Recorded because each is a real design point, not a fixture nit.
+
+**1. The guard must cover ENTRY edges only, not every `to === "P"`.**
+
+`review-deadlock.test.ts:96` ("a re-plan closes the rounds it just invalidated") broke: an
+`A->P` re-plan also has `to === "P"`, so a `to === "P" && state.slug` guard silently
+blocked it and the round stayed `in_flight` instead of reaching `inconclusive`. A re-plan
+is not an entry into a cycle — the cycle is already in flight and already bound, and
+refusing it **strands** the session rather than protecting it, which is the exact
+opposite of this layer's purpose. The guard is now:
+
+```ts
+if (to === "P" && (state.phase === "IDLE" || state.phase === "I") && state.slug) {
+```
+
+The audit had flagged `I->P` as needing inclusion and it does; it did not consider
+`A->P`, and neither did I. The suite did.
+
+**2. The existing fixtures normalised the #133 trap.**
+
+`goalplan.test.ts:603` ("030.3: init --session persists the derived slug") broke, because
+it binds a session in a bare `mkdtempSync` directory — which is precisely the
+non-git-plus-bound-plan combination this issue is about. The fixture was not wrong about
+slug persistence; it was silently asserting that binding a plan into an unclosable
+workspace is fine.
+
+Fixed with a `tmpRepo()` helper that `git init`s and commits one file, used only by tests
+that actually bind a session. `loop init` **without** `--session` keeps using the bare
+`tmp()`, which is also the regression guard for the guarded-on-session rule in §5.1.
+
+This is worth naming: part of why #133 survived is that the suite's own fixtures treated
+the trap as the normal case. Result after both corrections: `pabcd-state` 1226 tests,
+1224 passed, 0 failed, 2 skipped.
 
 ## 6. Tests
 
@@ -194,6 +266,21 @@ The integration test that would have caught #133. In a non-git temp cwd:
    regression guard that proves the layer did not tighten the unbound contract.
 3. No line matching `/^fatal:/m` appears on stdout or stderr of any transition.
    This is the §3 assertion; before the fix, B→C and C emit two `fatal:` lines each.
+
+**Case 3 must `spawnSync` a real process, not call `run*Cli` in-process.** The leak is
+`execFileSync` inheriting the PARENT's stderr, so in-process it lands on the test
+runner's own stderr and never appears in the returned `output` string — the assertion
+would pass while the bug is fully present. Drive the built CLI and read `res.stderr`:
+
+```ts
+const res = spawnSync(process.execPath, [ORCHESTRATE_CLI, "C", "--session", id, "--attest-file", p], {
+  cwd: probe, encoding: "utf8", env: { ...process.env, CODEX_HOME: home },
+});
+assert.doesNotMatch(res.stderr ?? "", /^fatal:/m);
+assert.doesNotMatch(res.stdout ?? "", /^fatal:/m);
+```
+
+Cases 1 and 2 may stay in-process; only the stderr assertion needs a real child.
 
 ## 7. Reproduction (parent fails, L4 head passes)
 
@@ -228,6 +315,19 @@ Piping git stderr loses diagnostics for genuinely broken repositories (corrupt i
 permission failure). Accepted: those already surface as a thrown `execFileSync` error
 whose message the callers report, and the alternative is the #133 leak on every
 ordinary non-git transition.
+
+### 8.1 Known coverage limit — the human free-pass is outside this gate
+
+Both insertion points are on the **agent-gated CLI** path. A line-anchored chat
+`orchestrate P` is a human free-pass that reaches `applyHumanTransition`
+(`orchestrate-apply.ts:69`) without passing through `runOrchestrateCli`'s gates, so a
+human can still enter P on a bound non-git session and rediscover the stall at C.
+
+Accepted, not overlooked. The human path is deliberately ungated across this whole
+surface — that is what "human free-pass" means in `cxc-pabcd` phase-control — and
+widening it here would be a separate contract change, not a #133 fix. The agent path is
+where the unattended loop lives and where the trap actually cost a cycle. Recorded so a
+later reader does not mistake the gap for an omission.
 
 ## 9. Criterion
 

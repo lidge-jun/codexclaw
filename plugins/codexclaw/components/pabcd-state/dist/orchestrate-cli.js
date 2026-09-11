@@ -22,6 +22,7 @@ import { canEnter, transition, isLegalEdge, VALID_TRANSITIONS } from "./fsm.js";
 import { validatePlanArtifacts } from "./plan-gate.js";
 import { compareSource, describeSource } from "./source-identity.js";
 import { resolveSessionSource } from "./session-source.js";
+import { checkBoundSourceIdentity } from "./source-gate.js";
 import { captureSessionSourceIdentity } from "./session-source-identity.js";
 import { randomBytes } from "node:crypto";
 
@@ -559,6 +560,25 @@ export function runOrchestrateCli(args                                          
   // Validate before any phase/goalplan writes; identity and artifact cwd stay native.
   try { resolveSessionSource(args.cwd, sessionId); }
   catch (err) { return { code: 1, output: `orchestrate ${args.verb}: SOURCE-ROOT: ${err instanceof Error ? err.message : String(err)}` }; }
+  // #133: entry refusal for a goalplan-bound cycle with no resolvable source identity.
+  // Same neighbourhood as the SOURCE-ROOT check above and for the same reason: refuse
+  // before any phase or goalplan write. Without this, a bound non-git session enters P,
+  // passes A and B (B->C is deliberately fail-open), and strands at C because C->D
+  // needs a testReceiptPath that `receipt test` will not write.
+  // Guarded on state.slug — the same bound-session condition the work-phase gate and
+  // the receipt gate below already use — so unbound HITL cycles are untouched.
+  // ENTRY EDGES ONLY: IDLE->P and I->P. Not A->P, which is a re-plan inside a cycle
+  // that is already in flight — refusing that would strand the session rather than
+  // protect it, which is the opposite of the point. (Caught by review-deadlock.test.ts:96,
+  // whose A->P re-plan a `to === "P"`-only guard silently blocked.)
+  // The predicate is an UNRESOLVABLE SOURCE IDENTITY, never a missing `.git`: binding a
+  // git source worktree (#109) clears it, so the two fixes compose instead of fighting.
+  if (to === "P" && (state.phase === "IDLE" || state.phase === "I") && state.slug) {
+    const gate = checkBoundSourceIdentity(args.cwd, sessionId);
+    if (!gate.ok) {
+      return { code: 1, output: `orchestrate ${args.verb}: ${gate.reason}\nNothing was written.` };
+    }
+  }
   // P>A plan-artifact gate (260714 wp2, DIFFLEVEL-ROADMAP-01): the plan must
   // exist as numbered on-disk docs before Audit. Runs even when attest is null
   // so the FIRST error names planUnit. Fail-closed on this edge only.
