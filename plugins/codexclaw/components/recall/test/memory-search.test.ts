@@ -73,7 +73,8 @@ test("missing memories db degrades with a warning", () => {
   try {
     const r = searchMemory("anything", { home: bare });
     assert.equal(r.hits.length, 0);
-    assert.ok(r.warnings.some((w) => w.includes("memories db")));
+    assert.equal(r.warnings.filter((w) => w.includes("memories db not found")).length, 1);
+    assert.equal(r.warnings.filter((w) => w.includes("memories root not found")).length, 1);
   } finally {
     rmSync(bare, { recursive: true, force: true });
   }

@@ -453,6 +453,12 @@ export function searchMemory(query: string, opts: MemorySearchOptions = {}): Mem
   }
 
   const root = memoriesDir(home);
+  if (!existsSync(root)) {
+    warnings.push("memories root not found (file search off)");
+  }
+  if (!memoriesDbPath(home)) {
+    warnings.push("memories db not found (stage1 search off)");
+  }
   const files = listMarkdownFiles(root);
   const scope = buildCwdScope(home, opts, warnings);
 
@@ -713,7 +719,6 @@ function searchStage1(
 ): void {
   const dbPath = memoriesDbPath(home);
   if (!dbPath) {
-    warnings.push("memories db not found (stage1 search off)");
     return;
   }
   let db: ReturnType<typeof openReadOnlyDb> | null = null;
