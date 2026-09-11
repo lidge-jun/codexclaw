@@ -420,3 +420,83 @@ Done when:
 6. `npm run build` and `npm test` are green at this layer's tip, with dist rebuilt.
 
 Not done if the implementer adds a cross-package helper, edits the write-gate, or leaves `dist/hook.js` stale.
+
+## Amendment A — wp6 P revalidation (2026-09-11)
+
+Re-verified at `97c52684` by an independent `xai/grok-4.6` explorer.
+**This amendment governs.**
+
+### A.1 Stale citations
+
+| PRD says | Now |
+|---|---|
+| `hook.test.ts:431-442` wp6 test | **`:459-471`** (L4 grew the file; `:26-61` and `:45` did not move) |
+| `hook.ts:501-505` `noRefresh: true` | `searchChat(` is still `:501`; L4's comments are `:505-507`; **`noRefresh: true` is `:508`** |
+| header checkout `6aae1c97` | `codex/fix-recall-intent-regex` @ `97c52684` |
+
+§2.1 and §2.3 BEFORE blocks are not byte-for-byte: the source carries no `// L86`-style
+tags and has the `ALREADY_RECALLING` doc comment at `:104-108`. The regexes themselves
+match. **Do not apply either block as a range replace.**
+
+### A.2 Today's verdicts, confirmed against the current patterns
+
+| utterance | today | why |
+|---|---|---|
+| `revert the previous commit` | **true** — false positive | `:89` noun group is optional |
+| `기억해줘` | **true** — false positive | `:86` `해` overlaps the write gate at `memory-write-gate.ts:79` |
+| `이전 작업 이어서` | **false** — false negative | `:97` requires `이전에` |
+| `리콜해줘` | **false** — false negative | no `리콜` pattern |
+| `메모리에서 찾아줘` | **false** — false negative | no `메모리에서 찾` pattern |
+
+`SKILL.md:3` advertises: `recall, 리콜, past session, chat search, memory search,
+지난 세션, 이전 작업, 뭐였지, 어떻게 했었지`. Three of those never matched.
+
+### A.3 The conflict the issue did not see, and how to resolve it
+
+The issue says make `previous`/`prior` require a noun. **An existing pin dies if you do
+that literally.** `hook.test.ts:45` asserts that
+
+```text
+previously we capped tool output — why?
+```
+
+is a recall hit, and it passes today only because the noun group is optional. That
+utterance genuinely IS a recall request — it refers to past work — so the pin is right
+and the issue's wording is too blunt. `round2.test.ts:78`
+(`gap4: hardened hook patterns and suppression`) is a second pin on this behaviour and
+the PRD does not mention it at all.
+
+Resolution — split the adjective from the adverb, because English does:
+
+```text
+previous   (adjective)  -> require a session noun:
+                           /\bprevious\s+(session|work|conversation|discussion|time|chat)\b/i
+                           kills "revert the previous commit"
+previously (adverb)     -> require a past-work subject or verb:
+                           /\bpreviously\s+(we|i|you|the\s+team|discussed|agreed|decided)\b/i
+                           keeps "previously we capped tool output"
+prior      (adjective)  -> require a session noun, as the PRD already specifies
+```
+
+Both existing pins stay green and the reported false positive dies. **Neither pin may
+be edited, weakened or deleted to make this layer pass** — if a proposed pattern cannot
+satisfy both, the pattern is wrong, not the pin.
+
+### A.4 Do not weaken the other pins
+
+`hook.test.ts:26` (Korean idioms including `기억나?`), `:39` (English idioms), `:51`
+and `:55` (neutral prompts and `cxc chat search "..."` silence), `:63` (handler
+envelope for `지난번 세션 이어서`), `:459` (the 260910 widening), `:473` (suggested
+terms), and `round2.test.ts:78`.
+
+`기억나?` at `:26` matters for the `기억` rewrite: the question form must keep firing
+while `기억해줘` stops. That is the whole point — recall is a question, recording is a
+request.
+
+### A.5 Latency
+
+`UserPromptSubmit` must stay "well under its 5s hook budget" and must not open an
+index (`hook.ts:120-122`, `:169-170`). `detectRecallIntent` has no separate numeric
+budget, but it runs on **every** user prompt, so the pattern list stays a flat array of
+cheap regexes — no lookbehind, no catastrophic backtracking, no new I/O.
+
