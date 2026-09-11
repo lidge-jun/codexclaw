@@ -156,6 +156,50 @@ gh pr merge <n> --repo lidge-jun/codexclaw --merge
 ```
 
 Do **not** pass `--delete-branch` on the promotion. `dev` is the permanent integration
+
+### 5.1 The promotion deletes `dev` anyway — measured, not theoretical
+
+Omitting `--delete-branch` is **not sufficient**. This repository has
+`delete_branch_on_merge: true`:
+
+```powershell
+gh api repos/lidge-jun/codexclaw --jq .delete_branch_on_merge   # -> true
+```
+
+GitHub applies that setting to the merged PR's **head** branch. On a `dev`→`main`
+promotion the head is `dev`, so merging the promotion PR deletes the permanent
+integration branch. Observed on PR #145: immediately after the merge,
+`git ls-remote --heads origin` listed only `main` and the feature branch, and
+`gh api repos/.../branches/dev` returned `404 Branch not found`.
+
+A local `git fetch origin dev` fails with `couldn't find remote ref dev` while a stale
+`origin/dev` ref still resolves, so `git rev-parse origin/dev` keeps answering the old
+sha and hides the deletion. Check `git ls-remote --heads origin`, not the local ref.
+
+Nothing is lost: the old tip survives as the second parent of the promotion merge
+commit on `main`.
+
+**Preventive (preferred).** Disable the setting for the duration of the promotion:
+
+```powershell
+gh api -X PATCH repos/lidge-jun/codexclaw -f delete_branch_on_merge=false
+gh pr merge <n> --repo lidge-jun/codexclaw --merge
+gh api -X PATCH repos/lidge-jun/codexclaw -f delete_branch_on_merge=true
+```
+
+**Remedial.** If the promotion already merged, restore `dev` at the pre-merge tip. Take
+it from the merge commit's second parent rather than trusting a stale local ref:
+
+```powershell
+git fetch origin main
+$tip = git rev-parse "origin/main^2"
+git push origin ($tip + ":refs/heads/dev")
+git ls-remote --heads origin        # confirm refs/heads/dev is back
+```
+
+Restore before opening any further PR: `enforce-pr-target.yml` requires `dev` as the
+target for every non-promotion PR, so while `dev` is missing the whole stack is
+unmergeable.
 branch.
 
 ## 6. Release deploy
