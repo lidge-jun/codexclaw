@@ -33,7 +33,106 @@ const BACKFILL_BATCH = 1_000;
 
 
 
+/** Bound for SessionStart / search freshness walks. `--status` passes no budget. */
 
+
+
+
+
+/** Newest 512 files or 50ms, whichever comes first. */
+export const BANNER_FRESHNESS_BUDGET                  = { maxStats: 512, maxMs: 50 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function fingerprintMatches(
+  prev                                    ,
+  st                                   ,
+)          {
+  return prev.mtime_ms === Math.floor(st.mtimeMs) && prev.size === st.size;
+}
+
+/**
+ * Read-only comparison of the `files` table against source JSONL.
+ * Stats only overlapping paths (changedFiles); missing/extra are path-set diffs.
+ * Never parses JSONL, never writes, never bumps `last_ingest_at`.
+ */
+export function measureIndexFreshness(
+  home        ,
+  db      ,
+  days = 0,
+  opts                                      ,
+)                 {
+  const onDisk = listRolloutFiles(home, days);
+  const known = new Map                                            ();
+  for (const row of db
+    .prepare("SELECT path, mtime_ms, size FROM files")
+    .all()                                  ) {
+    known.set(String(row.path), { mtime_ms: Number(row.mtime_ms), size: Number(row.size) });
+  }
+
+  const diskPaths = new Set        ();
+  let missingFiles = 0;
+  for (const file of onDisk) {
+    diskPaths.add(file.path);
+    if (!known.has(file.path)) missingFiles += 1;
+  }
+
+  let extraFiles = 0;
+  if (days === 0) {
+    for (const path of known.keys()) {
+      if (!diskPaths.has(path)) extraFiles += 1;
+    }
+  }
+
+  const budget = opts?.budget ?? null;
+  let changedFiles = 0;
+  let truncated = false;
+  let stats = 0;
+  const started = Date.now();
+  for (const file of onDisk) {
+    const prev = known.get(file.path);
+    if (!prev) continue;
+    if (budget !== null && (stats >= budget.maxStats || Date.now() - started >= budget.maxMs)) {
+      truncated = true;
+      break;
+    }
+    stats += 1;
+    let st                                   ;
+    try {
+      st = statSync(file.path);
+    } catch {
+      continue;
+    }
+    if (!fingerprintMatches(prev, st)) changedFiles += 1;
+  }
+
+  return {
+    sourceFiles: onDisk.length,
+    indexedFiles: known.size,
+    missingFiles,
+    changedFiles,
+    extraFiles,
+    staleFiles: missingFiles + changedFiles + extraFiles,
+    truncated,
+  };
+}
 
 /** Offset just past the last complete line (0 when the buffer has no newline). */
 function completeLineBoundary(buf        )         {
@@ -113,7 +212,7 @@ export function ingest(home        , db      , days = 0)               {
     }
     const prev = known.get(file.path);
     const mtimeMs = Math.floor(st.mtimeMs);
-    if (prev && prev.mtime_ms === mtimeMs && prev.size === st.size) continue;
+    if (prev && fingerprintMatches(prev, st)) continue;
     // Concurrent-append safety: stat is taken BEFORE the read, so a write landing
     // between them stores a stat older than the content we indexed — the next
     // refresh sees the mismatch and re-ingests (self-healing, never silently stale).
@@ -190,9 +289,11 @@ export function ingest(home        , db      , days = 0)               {
     }
   }
 
-  db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_ingest_at', ?)").run(
-    new Date().toISOString(),
-  );
+  if (result.ingested + result.appended + result.pruned > 0) {
+    db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_ingest_at', ?)").run(
+      new Date().toISOString(),
+    );
+  }
   result.elapsedMs = Date.now() - started;
   return result;
 }

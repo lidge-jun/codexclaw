@@ -578,3 +578,144 @@ Layer is proven when:
 ## Done when
 
 `--status` and the SessionStart banner, on a read-only open, show source JSONL count and a `stale` count that includes missing, changed-`(mtime,size)`, and extra index rows. A no-op ingest leaves `last_ingest_at` unchanged. SessionStart still searches with `noRefresh: true`. Tests 1, 4, 6, and 8 are the acceptance core for `c-7`.
+
+## Amendment A — wp5 P revalidation (2026-09-11)
+
+Re-verified at `8e877051` by an independent `xai/grok-4.6` explorer.
+**This amendment governs.** Every quoted BEFORE block in this PRD is still a
+byte-exact match — only the line numbers moved, and they moved a long way.
+
+### A.1 Re-measured citations
+
+| PRD says | Now | Note |
+|---|---|---|
+| `cli.ts:169-196` status print | **`:241-246`** | |
+| `cli.ts:174-177` read-only open | **`:225-228`** | |
+| `cli.ts:190-195` `--status` body | **`:241-246`** | **`:190-195` is now inside `runMemorySearch`** |
+| `cli.ts:206-220` `indexStatusLine` | **`:257-271`** | |
+| `cli.ts:213` banner string | **`:264`** | `:213` is now `runMemorySearch`'s `return 0` |
+| `cli.ts:231-235` SessionStart call | **`:286`** | |
+| `cli.ts:17` `codexHome` import | **`:18`** | `:17` is `import { ingest }` |
+| `hook.ts:86` `detectRecallIntent` | **`:112`** | `:86` is a `RECALL_PATTERNS` regex |
+| `rollout.ts:127-170` `listRolloutFiles` | **`:145-188`** | |
+| `ingest.ts:175-176` prune | **`:177`** | |
+| tests: matcher `:224`; four-file `:34`; append+utimes `:151-159`; incremental `:30-44`; cli status `:215-231`; wp4 migration `:356-357` | **`:225`; `:35`; `:158-160`; `:31-46`; `:216-232`; `:436`** | `:356-357` is now `nullRepoQuery` fields |
+
+**The trap:** patching `cli.ts:190-195` edits `runMemorySearch`, not `--status`.
+
+### A.2 Where the freshness report goes
+
+Replace the `--status` body at `:241-246`; put the helpers above `runChatIndex`
+(`:216`); the SessionStart banner consumes the same report at `:263-264`.
+
+`indexStatus` stays a pure sqlite COUNT (`index-db.ts:207-213`). **Compose
+`measureIndexFreshness(home, db, 0)` at the CLI layer, not inside `index-db.ts`** —
+that module imports sqlite only (`:13-16`) and must not learn about the filesystem.
+
+### A.3 The read-only listing is safe, but it does not stat
+
+`listRolloutFiles` (`rollout.ts:145-188`) is `existsSync` + `readdirSync` + sort. It
+returns `{ path, date }` only, performs no `statSync`, no parse and no db access, and
+`chat-search.ts:253` already calls it. Safe to call without triggering an ingest.
+
+Because it does not stat, **the freshness measurement must `statSync` the files
+itself**, comparing `Math.floor(mtimeMs)` and `size` against the stored columns. That
+is the half of #144 that the count-difference approach can never see.
+
+### A.4 The two remaining edits
+
+```text
+chat-search.ts:252-258   sourceFiles = listRolloutFiles(...).length
+                         staleFiles: Math.max(0, sourceFiles - status.files)
+                         -> take staleFiles from the freshness report instead
+ingest.ts:193-195        INSERT OR REPLACE last_ingest_at, unconditionally
+                         -> only when ingested + appended + pruned > 0
+```
+
+### A.5 L3 interaction: do not undo help-first
+
+`wantsHelp` at `main:299` runs before `runChatIndex`, so `--help`/`-h` and the
+positional `help`/`/?` at `:309-312` never reach `--status`. `strict: true`
+(`:128`) does not block `--status`, which is declared at `:123`.
+`["chat","index","--home",X,"--status"]` still reaches `runChatIndex` and
+`statusOnly` (`:227`) still skips the ingest. **Do not revert or weaken help-first
+while editing this function.**
+
+
+## Amendment B — wp5 A audit fold (2026-09-11)
+
+Independent `xai/grok-4.6` audit: **FAIL**, three blockers and three concerns, all
+folded. **Amendment B governs.** The reviewer confirmed all three halves of #144 are
+covered by the design and that the status path never opens the index read-write,
+creates a sidecar, or ingests.
+
+### B.1 (blocker) The banner must be bounded, and must say when it is
+
+`measureIndexFreshness` as specified lists every rollout JSONL and `statSync`s each
+one, and `indexStatusLine` runs at **every SessionStart** (`cli.ts:286`). This host
+has 219 files; the product documents users with roughly 13k files and 12GB. An
+unbounded `statSync` walk on Windows takes seconds and blows the hook's own
+sub-200ms expectation. **A freshness check that makes every session slower is worse
+than the stale number it replaces.**
+
+Required shape:
+
+```text
+measureIndexFreshness(home, db, days, { budget })
+  budget = { maxStats: 512, maxMs: 50 }   // banner
+  budget = null                            // --status: full walk
+```
+
+- `listRolloutFiles` returns newest-first, so the banner stats the newest
+  `maxStats` and stops early if `maxMs` elapses.
+- **`missingFiles` and `extraFiles` come from a path-set difference**, which needs
+  no `statSync` at all. Only `changedFiles` costs a stat, so the bound applies to
+  that term alone.
+- When the walk was truncated the report carries `truncated: true`, and the banner
+  renders the count as a lower bound (`stale: 7+`). **A bounded scan must never be
+  printed as if it were exhaustive** — that would replace one dishonest number with
+  a quieter one.
+- `--status` passes no budget and reports the exact figures.
+
+### B.2 (blocker) One temp home per mutating test
+
+Tests 1-3 mutate a shared `test.before` home and each assert `staleFiles === 1`.
+After test 1 grows a file, test 2 sees stale >= 2 and fails for a reason that has
+nothing to do with the code. Give every mutating test its own `mkdtemp`.
+
+### B.3 (blocker) The stamp test must use a sentinel, not two timestamps
+
+Tests 4 and 10 compare two back-to-back `toISOString()` values. `INSERT OR REPLACE`
+inside the same millisecond writes an identical string, so the test passes while the
+always-stamp bug is fully present. Required instead:
+
+```text
+plant   last_ingest_at = '2000-01-01T00:00:00.000Z'
+run     a no-op ingest (nothing ingested, appended or pruned)
+assert  the sentinel is byte-identical
+```
+
+A sentinel cannot collide with a real stamp, so the test can only pass for the right
+reason.
+
+### B.4 (concern) Do not make every search pay for freshness
+
+`chat-search.ts` would full-stat on every index query including `--no-refresh`.
+Use the bounded budget there too, or reuse the report the caller already computed.
+The search path must not become slower than the ingest it is trying to describe.
+
+### B.5 (concern) The gate, and what not to "fix"
+
+Verification in the body says `npm test` exits 0. It does not. The gate is `002`:
+exactly the two recorded environmental failures and no third. **Do not repair
+`hook-bench` or `cxc map` to make the suite green** — they are out of this layer's
+scope and fixing them here would hide a genuine regression behind a changed baseline.
+
+### B.6 Which tests are evidence and which are pins
+
+Red on the parent, and therefore this layer's proof: tests 1, 2, 3, 4, 6, 7, 8, 9,
+10, 11. Already green and kept as pins, not counted as proof: 5 (a real append does
+stamp), 12 (`staleFiles === 0` after a refresh), 13 (the weak inequality), 14 and its
+canned-string sibling (the hook already interpolates), 15 (`noRefresh: true` is
+already at `hook.ts:505`).
+
