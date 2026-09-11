@@ -4,7 +4,7 @@ Layer: L3. Branch: `codex/fix-config-guard-help`. Base: L2 (`codex/fix-session-b
 Issue: #132. Criterion: **c-10** (both entrypoints, all four verbs, both help flags, config byte-identical and no bak; `cxc uninstall` without help still disables).
 This document is the copy-paste PRD for the implementation cycle. Docs-only now; no production patch in wp1.
 
-Source truth (this checkout, HEAD `9cd52769`): help never reaches config-guard because both dispatchers drop argv after the verb. `uninstall` is already rewritten to `disable` at both dispatchers — that rewrite must survive the passthrough. Dist of `config-guard` is already tracked.
+Source truth (L2 head `701639b6`): help never reaches config-guard because both dispatchers drop argv after the verb. `uninstall` is already rewritten to `disable` at both dispatchers — that rewrite must survive the passthrough. Dist of `config-guard` is already tracked. Anchors re-verified at this head: `bin/codexclaw.mjs` `:463`/`:467`/`:470`, `plugins/codexclaw/bin/cxc.mjs:165`, and in `config-guard/src/cli.ts` `CONFIG_USAGE` `:22-33`, `runConfig` `:37`, `main` `:140`, switch default `:235-237`.
 
 ## 1. Scope
 
@@ -441,4 +441,3 @@ cxc receipt test --session <id> -- node plugins/codexclaw/scripts/test.mjs plugi
 ## 11. Criterion
 
 **c-10**: both entrypoints, all four verbs, both help flags, config byte-identical and no bak; `cxc uninstall` without help still disables. Proved by the three tests in §8.2 plus the live commands in §9.2.
-
