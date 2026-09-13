@@ -232,3 +232,19 @@ and the stop-on-red trunk watch are all recorded.
 
 **B3 residual accepted.** R1 is its fix. After R1 the authority sentence sits on
 the same page as the routing rule everywhere the routing rule appears.
+
+### Build-time deviation from R1
+
+R1 asked for the authority sentence in four places including the SessionStart
+clause. `map-affordance.test.ts:265` caps that injected line at 600 characters —
+"global guidance must remain a bounded pointer" — which is a real design
+constraint on startup injection cost, not an obstacle to route around. The clause
+was compressed to fit rather than the bound raised:
+
+> Parallel branch/PR lanes: one Codex task each, not subagents (same checkout);
+> the lane request authorizes them.
+
+That carries both halves in 111 characters and lands the line at 583. The full
+reasoning stays in DEV-STACK-08, which the same line names, and in the three
+unconstrained locations. Two assertions were added to that test so the clause
+cannot regress silently.
