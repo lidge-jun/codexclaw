@@ -149,7 +149,7 @@ numbered, contiguous, non-overlapping chunks through EOF and verify no gaps.
 | Tests / QA | `dev-testing` | `dev-frontend` for browser QA |
 | Security / auth / secrets | `dev-security` | surface-specific router |
 | Architecture / modules / deps | `dev-architecture` | `dev-scaffolding` for new structure |
-| Debugging / crashes / perf | `dev-debugging` | surface-specific router |
+| Debugging / crashes / perf / comprehending unknown systems | `dev-debugging` | surface-specific router; `references/logic-analysis.md` when no defect |
 | DevOps / deploy / infra | `dev-devops` | `dev-security` for credentials |
 | Scaffolding / docs / setup | `dev-scaffolding` | `dev-architecture` for boundaries |
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
@@ -322,6 +322,10 @@ Before any new abstraction, apply DEV-NECESSITY-01 and owner search in
 ## 2. Systematic Debugging
 
 For non-obvious defects or repeated failed repairs load cxc-dev-debugging.
+For comprehension without a defect — how an unknown app, API, AI tool, or
+codebase works (로직 파악, 뜯어보기) — load cxc-dev-debugging's
+`references/logic-analysis.md`: "I can't analyze this" is a skipped
+observation loop, not a limit.
 DEV-FRICTION-01 and DEV-EDIT-SHAPE-01 remain in
 [Development practice](references/development-practice.md).
 
