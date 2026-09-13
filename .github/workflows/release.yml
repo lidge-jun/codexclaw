@@ -284,7 +284,14 @@ jobs:
           set -euo pipefail
           tag="v${VERSION}"
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            args=(--title "codexclaw $tag" --target "$GITHUB_SHA" --generate-notes)
+            # Curated notes first: extract this version's CHANGELOG.md section
+            # and pass it via --notes-file. GitHub prepends it to the
+            # --generate-notes PR list (the flags compose; the exclusive pair
+            # is --notes-from-tag). Fails closed when the section is missing
+            # or heading-only, so a forgotten CHANGELOG entry blocks publish.
+            notes="$(mktemp)"
+            node .github/scripts/changelog-section.cjs "$VERSION" > "$notes"
+            args=(--title "codexclaw $tag" --target "$GITHUB_SHA" --generate-notes --notes-file "$notes")
             kind="$(node bin/codexclaw.mjs release classify --version "$VERSION")"
             [ "$kind" = prerelease ] && args+=(--prerelease)
             gh release create "$tag" "${args[@]}"
