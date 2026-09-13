@@ -85,9 +85,10 @@ Keep explicit-only skills and leaf-safe delivery restrictions intact.
   (`spawn_agent`) is a leaf that runs in **this session's own working directory**,
   with no session state, no goal and no FSM; its edits land in your checkout as
   your uncommitted changes. A **thread** (`create_thread`) is a separate Codex
-  task with its own worktree, goal and PABCD cycle. Work that needs its own
-  branch, checkout, or merge/CI lane is thread work: N parallel lanes means N
-  threads, one worktree each. Spawning N subagents for N branches puts N writers
+  task with its own goal and PABCD state, and with `environment: worktree` its own
+  checkout — `environment: local` shares the project checkout instead. Work that
+  needs its own branch, checkout, or merge/CI lane is thread work: N parallel lanes
+  means N worktree threads. Spawning N subagents for N branches puts N writers
   on one HEAD. Concurrent subagents need non-overlapping write scopes and must
   never run branch-level git operations at the same time. A request for parallel
   branch or worktree lanes **is** the user request that creating those threads

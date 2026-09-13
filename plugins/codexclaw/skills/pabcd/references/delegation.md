@@ -146,17 +146,19 @@ address an agent by it. A completed agent holds a concurrency slot until closed.
 |---|---|
 | spawn | `spawn_agent({ task_name, message, ... })` — both fields required |
 | handle | the caller-supplied `task_name`, canonical as an agent path |
-| wait | `wait_agent` is a **no-content mailbox**: it reports that updates exist, never the text |
+| wait | `wait_agent` is a **no-content mailbox**: it reports that updates exist, never the text. It is also optional, and takes only `timeout_ms` — there is no `targets` argument |
 | follow-up | `followup_task` starts a turn; `send_message` only queues context |
 | interrupt | `interrupt_agent` stops the current turn; the agent stays available |
 | close/resume | none |
 | listing | `list_agents` |
 | history | `fork_turns: "none" \| "all" \| "<n>"`, not a boolean; a full-history fork inherits the parent model and rejects overrides |
 
-The wait difference is the one that bites. On V1 you read the answer out of
-`wait_agent`; the same code on V2 returns a status summary and no text, which
-looks like a silent failure rather than a schema mismatch. On V2 the final answer
-arrives as a separate message.
+The wait difference is the one that bites, in two ways. On V1 you read the answer
+out of `wait_agent`; the same code on V2 returns a status summary and no text,
+which looks like a silent failure rather than a schema mismatch — on V2 the final
+answer arrives as a separate message. And V1's `wait_agent` waits on named
+`targets` while V2's waits on the whole mailbox, so a V1-shaped call carrying
+`targets` is not a valid V2 call at all.
 
 ### The thread surface is a different schema
 

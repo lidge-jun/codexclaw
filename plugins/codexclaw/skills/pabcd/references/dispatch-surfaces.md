@@ -13,8 +13,14 @@ different mechanisms answer to those words and they are not substitutes:
   `multi_agent_v1` or `collaboration` namespace). It runs **in the parent's own
   working directory**. It has no session state, no host goal and no PABCD FSM.
 - A **thread** is a separate Codex task created with the desktop task tools
-  (`create_thread` and its family). It gets its own worktree, its own session
-  binding, its own host goal and its own PABCD cycle.
+  (`create_thread` and its family). With `environment: worktree` it gets its own
+  checkout; with `environment: local` it shares the project checkout. Either way
+  it is an independent task with its own conversation, its own session binding and
+  its own goal and PABCD state, because codexclaw keys those to the task.
+
+Isolation comes from the environment, not from being a task. A `local` thread is
+an independent owner sharing one checkout; a `worktree` thread is an independent
+owner with its own. Lane work needs the second.
 
 Say which one you are creating, in those words, before you create it.
 
@@ -22,13 +28,13 @@ Say which one you are creating, in those words, before you create it.
 
 | | Subagent (`spawn_agent`) | Thread (`create_thread`) |
 |---|---|---|
-| Working directory | the parent's, unchanged | its own worktree, or the project checkout |
-| Git branch and HEAD | the parent's | its own |
+| Working directory | the parent's, unchanged; never a copy | its own, with `environment: worktree`; the shared project checkout with `local` |
+| Git branch and HEAD | the parent's | its own under `worktree`; shared under `local` |
 | Edits visible to the parent | immediately, as the parent's own uncommitted changes | only through git |
 | Thread id | yes, its own | yes, its own |
 | `.codexclaw` session state | none | its own |
-| Host goal | none; it must not call `create_goal` | its own |
-| PABCD FSM | none; it must not run `cxc orchestrate` | its own |
+| Host goal | none; it must not call `create_goal` | its own, keyed to the task |
+| PABCD FSM | none; it must not run `cxc orchestrate` | its own, keyed to the task |
 | Who owns the result | the parent integrates it | the task owns it, and the user owns the task |
 | Visible in the app sidebar | no | yes |
 | Creation authority | delegation authority | an explicit or clearly implied user request |
@@ -67,7 +73,8 @@ Therefore:
 Route by what the work needs to own, not by how parallel it is:
 
 - Needs its own branch, checkout, or long-running merge/CI lane -> **thread**,
-  one per lane.
+  one per lane, created with `environment: worktree`. A `local` thread does not
+  give the lane a checkout of its own.
 - Needs its own goal or its own PABCD cycle -> **thread**.
 - Is a bounded slice of the tree you are already editing, returning evidence or a
   patch rather than owning a branch -> **subagent**.
@@ -94,14 +101,16 @@ do not treat silence as a refusal of the surface the work requires.
 
 ## Parallel lanes, and the shape that works
 
-N independent lanes means N threads, N worktrees, N FSMs. The parent coordinates
-with `wait_threads` and integrates; it does not advance any child's FSM, and a
-child does not advance the parent's.
+N independent lanes means N `worktree` threads, N checkouts, N FSMs. The parent
+coordinates with `wait_threads` and integrates; it does not advance any child's
+FSM, and a child does not advance the parent's.
 
-Threads and subagents compose. Each lane thread spawns its own subagents inside
-its own worktree. Subagents of different threads cannot collide, because their
-parents' checkouts differ. That is the shape that scales: threads for isolation,
-subagents for concurrency within an isolated tree.
+Threads and subagents then compose. A lane thread spawns its own subagents inside
+its own worktree, and subagents belonging to different lanes cannot collide
+**because those worktrees differ** — not because their parents are different
+tasks. Two `local` threads on one checkout collide exactly like two subagents do.
+The shape that scales is worktrees for isolation and subagents for concurrency
+within an isolated tree.
 
 ## What neither surface grants
 

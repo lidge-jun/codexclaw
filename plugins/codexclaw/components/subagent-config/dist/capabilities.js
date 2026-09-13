@@ -59,12 +59,21 @@
 
 /**
  * Collab tool names arrive either flat (`followup_task`) or with the namespace
- * concatenated, normally without punctuation (`collaborationfollowup_task`).
- * `.` and `_` are accepted defensively, matching the spawn hook; `__` is not a
- * form anything produces.
+ * prefixed. Two different renderings exist and both are real:
+ *
+ *  - hook-facing, concatenated without punctuation — `collaborationspawn_agent`,
+ *    which is the form `spawn-attach-hook.ts` matches;
+ *  - model-facing catalog, double-underscored — `multi_agent_v1__spawn_agent`,
+ *    observed live in a Codex Desktop session on 2026-09-13.
+ *
+ * Single `.` and `_` are accepted defensively. Detection reads a catalog, so it
+ * has to accept every rendering rather than pick one.
  */
 function exposesTool(exposedTools                   , tool        )          {
-  const forms = [tool, `collaboration${tool}`, `collaboration.${tool}`, `collaboration_${tool}`];
+  const forms = [tool];
+  for (const ns of ["collaboration", "multi_agent_v1"]) {
+    forms.push(`${ns}${tool}`, `${ns}.${tool}`, `${ns}_${tool}`, `${ns}__${tool}`);
+  }
   return exposedTools.some((name) => forms.includes(name));
 }
 

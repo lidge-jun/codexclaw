@@ -38,6 +38,12 @@ test("detectSpawnSurface: the V2 namespace is concatenated without punctuation",
   assert.equal(detectSpawnSurface({}, ["collaboration_followup_task"]), "v2");
 });
 
+test("detectSpawnSurface: a namespaced V1 catalog still selects v1", () => {
+  assert.equal(detectSpawnSurface({}, ["multi_agent_v1.send_input", "multi_agent_v1.close_agent"]), "v1");
+  // The model-facing catalog form measured live in Codex Desktop on 2026-09-13.
+  assert.equal(detectSpawnSurface({}, ["multi_agent_v1__spawn_agent", "multi_agent_v1__close_agent"]), "v1");
+});
+
 test("detectSpawnSurface: shared tools prove nothing, so the default stands", () => {
   // spawn_agent and wait_agent are registered by both families.
   assert.equal(detectSpawnSurface({}, ["spawn_agent", "wait_agent"]), "v2");
