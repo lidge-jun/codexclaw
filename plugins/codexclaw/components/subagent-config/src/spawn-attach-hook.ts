@@ -266,7 +266,7 @@ export function normalizeSkillMentions(message: string, skillsDir: string): stri
 // true on V2); 260710 parity extends both defenses to V1 spawns as well (the
 // agent_id/agent_type stamp is surface-neutral). Two deterministic defenses:
 //   D1 SPAWN-RECURSE-DENY — a spawn issued BY a subagent (hook stdin carries
-//      agent_id/agent_type, stamped only for thread-spawn child sessions) is DENIED
+//      agent_id/agent_type, stamped only for collab child sessions) is DENIED
 //      unless the outgoing message carries the explicit CXC-SUBSPAWN-ALLOWED token.
 //   D2 LEAF-GUARD — every allowed spawn message gets a leaf-constraint block
 //      prepended (dedupe on the marker); recursion grants select a coordinator
@@ -295,6 +295,11 @@ export const LEAF_GUARD_BLOCK = [
   `any delegation guidance you may see). A dispatcher can authorize recursion for`,
   `a specific spawn by`,
   `including the recursion grant token in the spawn message.`,
+  `(4) You are NOT in a copy or fork of the workspace: you share the parent's`,
+  `working directory, branch and HEAD, so your edits are the parent's uncommitted`,
+  `changes. Stay inside your write scope and do NOT run branch-level git commands`,
+  `(checkout, switch, branch, stash, reset, rebase, merge, pull) - another agent`,
+  `may be working in the same tree right now.`,
 ].join("\n");
 
 /** D2 coordinator block used when recursion is explicitly authorized (V2). */
@@ -304,6 +309,11 @@ export const LEAF_GUARD_BLOCK_COORDINATOR = [
   `(1) Recursion is authorized for this task. (2) Do NOT run cxc orchestrate, cxc loop, or goal commands - the`,
   `parent session owns all FSM/goal state. (3) Stay inside the task's stated`,
   `file/write scope. All remaining constraints still apply.`,
+  `(4) You share the parent's working directory, branch and HEAD - this is not a`,
+  `copy. Your edits are the parent's uncommitted changes, and so are your own`,
+  `children's. Give every child a non-overlapping write scope and do NOT run`,
+  `branch-level git commands (checkout, switch, branch, stash, reset, rebase,`,
+  `merge, pull) or let a child run them.`,
 ].join("\n");
 
 /** Dedupe marker for the v1 scope guard block. */
@@ -319,6 +329,10 @@ export const V1_SCOPE_BLOCK = [
   `owns cxc orchestration, loop, and goal state; do not invoke those`,
   `commands. Stay within the stated file/write scope and report any`,
   `required expansion.`,
+  `You run in the parent's own working directory, on its branch and HEAD - not a`,
+  `copy - so your edits are the parent's uncommitted changes. Do not run`,
+  `branch-level git commands (checkout, switch, branch, stash, reset, rebase,`,
+  `merge, pull); another agent may be working in the same tree.`,
 ].join("\n");
 
 /** V1 coordinator scope block (recursion-granted, though v1 cannot actually recurse). */
@@ -326,9 +340,13 @@ export const V1_SCOPE_BLOCK_COORDINATOR = [
   `${SCOPE_GUARD_MARKER} This is one bounded delegated task with authorized`,
   `recursion. The parent owns cxc orchestration, loop, and goal state;`,
   `do not invoke those commands. Stay within the stated file/write scope.`,
+  `You and any child you spawn run in the parent's own working directory, on its`,
+  `branch and HEAD - not a copy. Keep every write scope non-overlapping and do not`,
+  `run branch-level git commands (checkout, switch, branch, stash, reset, rebase,`,
+  `merge, pull).`,
 ].join("\n");
 
-/** True when the hook stdin identifies a thread-spawn SUBAGENT session as the spawner. */
+/** True when the hook stdin identifies a collab SUBAGENT session as the spawner. */
 function isSubagentSpawner(obj: Record<string, unknown>): boolean {
   const id = obj.agent_id;
   const type = obj.agent_type;
