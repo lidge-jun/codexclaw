@@ -91,3 +91,31 @@ Do not paste a conflicting upstream mandate into this skill. Recheck live dates
 before describing a source as current; inspect examples before claiming visual
 quality. Dependencies, accounts and host integrations require actual availability
 and task authorization, not just a link in this ledger.
+
+## Publication contract refresh, 2026-09-13
+
+Independent Aside research was followed by direct primary-PDF screenshot review.
+The original CXC template, CSS and prose were authored separately; no reference
+pages, logo, font binary, portrait or long source text are copied into this repo.
+
+- [McKinsey, The State of AI, March 2025](https://www.mckinsey.com/~/media/mckinsey/business%20functions/quantumblack/our%20insights/the%20state%20of%20ai/2025/the-state-of-ai-how-organizations-are-rewiring-to-capture-value_final.pdf):
+  physical page 2 (printed 1) has a multi-line lead and editorial opening; physical
+  page 4 (printed 3) has a prominent statistic and a tinted, explicitly attributed
+  commentary panel. Adopt purposeful hierarchy and attribution. Reject the earlier
+  generalization that consulting publications universally ban large numbers,
+  colored panels or multi-line headings. Font-size estimates from image inspection
+  are not measurements and are not used as a typography specification.
+- [Minto concept](https://www.barbaraminto.com/concept/): the governing point and
+  grouped supporting ideas inform the storyline pass, not an author-intent story.
+- [Playwright page API](https://playwright.dev/docs/api/class-page): explicit
+  print options and one loaded page support the current-state export adapter.
+  Verified locally with an already installed driver; no version is installed by
+  the skill. PDF options alone do not verify glyphs, sources or page composition.
+- [Pretendard](https://github.com/orioncactus/pretendard): official distribution
+  and licensing reference. The runtime binds operator-approved local files and
+  declared provenance to SHA-256; this is not a font redistributor or downloader.
+
+Aside also retrieved a Bain report from a third-party mirror. Those page claims
+are not treated as independently verified primary evidence for this implementation.
+The selected quiet profile is a CXC design choice, not a purported McKinsey/Bain
+standard. Seven hash-bound receipts separate automated export from final review.

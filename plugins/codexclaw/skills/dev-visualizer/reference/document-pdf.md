@@ -1,6 +1,10 @@
 # Document authoring and PDF delivery
 
 Use this reference for reports, proposals and other flowing documents.
+The current executable route is [Publication contract](report-pipeline.md):
+resource readiness, optional local fonts, source/claim bindings, automated output
+checks and a separate final-PDF receipt gate. Its documented exit states take
+precedence over historical command examples below.
 Choose the requested medium before choosing the renderer. A PDF is a fixed
 snapshot; an HTML tool and an editable Word document have different contracts.
 
@@ -50,8 +54,9 @@ Use explicit chapter breaks only at real reading boundaries, not every section.
 ## HTML print baseline
 
 For a multi-page report, start from [paged-report.html](../assets/paged-report.html)
-and export with `scripts/export-paged-report.mjs`; the rules below are what that
-asset implements. Visual style stays adaptable; the furniture does not.
+and its `consulting-ko.css` profile, then export with `scripts/export-paged-report.mjs`.
+The installed Playwright path controls Chromium explicitly; the CLI-only fallback
+is a BLOCKED draft. A brief can combine page roles; preserve the chosen furniture.
 
 ### REPORT-PRINT-01 Page furniture for a paged report (STRICT)
 
@@ -167,12 +172,14 @@ Nanum Gothic/Myeongjo. KoPub (Dotum/Batang/World) is free for print and PDF but 
 serving via `@font-face` needs the publisher's approval. Subset to WOFF2 per
 language when embedding; verify `halt`/`chws` in the build before relying on
 `text-spacing-trim`. The template's stacks name these families and fall back to
-system faces; the skill does not vendor font files.
+system faces. A local manifest pins actual files and used weights; the skill never
+vendors font files. See report-pipeline.md for the sealing and usage checks.
 
 Choose a Korean-capable family deliberately, including the required weights.
 A useful local fallback order is Noto Sans KR, Apple SD Gothic Neo, Malgun Gothic,
 then sans-serif. Availability differs by machine; the family list embeds nothing.
-For reproducible delivery, bundle licensed font files or embed them in the HTML.
+For reproducible delivery, bind approved local files with the private font
+manifest. Keep font binaries and font-bearing HTML out of shared deliverables.
 Retain font notices and verify embedding/redistribution terms for the exact files.
 Do not copy a font from a commercial product merely because the browser loads it.
 Use `lang="ko"`, natural phrase boundaries and comfortable line-height.
@@ -223,10 +230,14 @@ Run `node scripts/export-paged-report.mjs <in.html> <out.pdf>` (or `--qa-only
 numbers, missing page numbers, an orphan fragment at the top of a page, a heading
 stranded at the bottom, and pages with 30% or more of the text area blank. A
 `REVIEW` verdict is read, each finding fixed or justified in the evidence note.
-Then render the pages (`pdftoppm -r 60 -png`) and look at every page for what
+Missing required checks return BLOCKED/3, not PASS; FAIL returns 1 and REVIEW 2.
+Automated PASS/0 does not certify delivery. The final `quality-gate.mjs` command
+requires seven trusted receipts bound to the actual PDF SHA-256.
+Then render the pages (`pdftoppm -r 120 -png`) and look at every page for what
 text extraction cannot see: figure text under 8.5pt, low-contrast labels, a figure
 separated from its heading, a table header row that failed to repeat, missing
-Hangul glyphs, and a summary page that is mostly white. Yesterday's failure mode
+Hangul glyphs, and role-inappropriate empty space. A cover or opener can deliberately use
+white space; judge the page image instead of forcing a density quota. A prior failure mode
 was a PDF whose CSS looked right while page 5 opened with "구간입니다." alone and
 three pages were half empty; the script and the page images are how that is caught.
 

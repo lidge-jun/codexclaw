@@ -6,6 +6,28 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Evidence-led report publication path within `cxc-dev-visualizer`: explicit
+  third-party voice, claim/source contracts, page-role composition, an original
+  Korean report specimen and reusable print CSS. Local font manifests bind exact
+  approved files without shipping font binaries or installing dependencies.
+- Optional installed Playwright export adapter waits for fonts, images and
+  declared chart completion, preserves one page across TOC passes, and records
+  actual PDF faces. A separate seven-check receipt gate binds delivery evidence
+  to the final PDF bytes; automated export never certifies editorial review.
+
+### Fixed
+
+- Missing PDF tools no longer produce PASS/0: required checks not run return
+  BLOCKED/3. Failed extraction, invalid PDF metadata, unresolved/ambiguous TOC
+  targets, absent slots and stale font/receipt hashes fail closed. Prints are
+  staged so a previous PDF cannot masquerade as a fresh successful export.
+- Report/technical-brief routing no longer bypasses report writing by page count.
+  The sample distinguishes nonrandom observations from causal effects and uses
+  one register. Blanket consulting-style bans were replaced with justified
+  profile choices after primary-page review.
+
 ## [0.2.27] - 2026-09-13
 
 ### Added

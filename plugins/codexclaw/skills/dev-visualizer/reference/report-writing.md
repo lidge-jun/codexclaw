@@ -16,6 +16,37 @@ Minto Pyramid Principle and McKinsey/Bain public report PDFs; KOFIA 조사분석
 analyst guidance and 白書 formats; GAO/GOV.UK/World Bank report anatomy; patina
 (`devswha/patina`, MIT) Korean AI-writing signs; textlint/Vale rule packages.
 
+## REPORT-VOICE-01 An analyst describes evidence, not an imagined author (STRICT)
+
+Apply to reports and analytical briefs of every length, including technical
+explainers. The writer does not speak as the project under study or narrate the
+investigation. State observable behavior, then a supported interpretation, then
+the proposed action. Move collection activity and method to the evidence appendix.
+
+Classify substantive claims as observation, inference, hypothesis, recommendation
+or attribution. A claim about a designer's intention is factual: source it to a
+named statement, comment or decision record, or label the motive unconfirmed.
+Code size, file names and missing features do not establish a person's motives.
+A sourced statement establishes what the source says, not that the system works.
+
+Keep the strength of the conclusion within its evidence. Association is not a
+causal effect; a nonrandom comparison is not a randomized trial; a projection is
+not measured value. Important limitations stay next to the affected summary and
+recommendation, not only in the appendix. Third-party voice does not require
+blanket hedging or erasing a named analyst's attributable judgment.
+
+| Draft | Evidence-led revision |
+|---|---|
+| The author intentionally kept the read path small. | The inspected read path only calculates a location. The reason for that scope is not documented in the inspected source. |
+| The author wanted a rigorous verification system. | The verifier checks three fields, but the missing-tool path returns PASS. Block delivery when required checks cannot run. |
+| We carefully read every note. | Remove from the summary; record input coverage and collection date in the method appendix. |
+| The chart shows what the designer intended. | State the chart's measured relationship and its source; identify any interpretation separately. |
+
+Run the voice/evidence pass before `kwrite` freezes meaning. The exporter's phrase
+scan is advisory: phrases such as `의도적으로` may be valid in a sourced quotation.
+Never delete or rewrite them with a regex. Sourced quote/method/notice annotations
+can mark legitimate exceptions, which remain subject to the reader's judgment.
+
 ## REPORT-STORY-01 The document is one argument (STRICT)
 
 Answer-first (두괄식) and a felt storyline are not in tension. The answer opens
@@ -52,9 +83,10 @@ Every H2 (section) and every exhibit title states the finding of that unit as a
 sentence a reader could disagree with. Topic labels ("지금 숫자가 말하는 것",
 "주차별 계획", "Market overview") and questions ("왜 AX팀이 왔는가") are not
 headings. Test the horizontal logic: read only the H2s from top to bottom; they
-must narrate the whole argument and end at the ask. Keep a heading to one line at
-heading size (roughly 15 English words or 30 Korean characters); put the number,
-period and scope in it when the claim depends on them.
+must narrate the whole argument and end at the ask. Keep headings concise but allow two well-balanced lines. Do not shrink type or
+remove qualifications to force a one-line title. Put number, period and scope in
+the heading when the claim depends on them. Contents, appendix labels and formal
+reference sections may use topic titles where navigation needs them.
 
 | Label heading | Claim heading |
 |---|---|
@@ -67,15 +99,16 @@ Sub-headings (H3) may be shorter, but still say what, not merely about what.
 
 ## REPORT-SUMMARY-01 The summary decides alone (STRICT)
 
-Right after the contents page, one page states the whole argument for a reader
+In a long report, right after the contents page, one page states the argument for a reader
 who reads nothing else: situation and complication in one paragraph, the answer
 in one sentence, three to five supporting claims each with its number and period,
 and the decisions requested with the consequence of not deciding. Write it as
 prose or numbered claims, not fragment bullets copied from section titles. No
 jargon the reader did not bring (ACP, BM 로직, CDN): name the effect instead.
 Korean securities reports call this "Investment Summary / What's the story";
-GAO calls it "Highlights"; the function is the same. The summary page is full,
-not four boxes above a half-page of white.
+GAO calls it "Highlights"; the function is the same. A summary must carry the decision, not merely decorative metrics. A short brief
+combines summary and evidence on one page. Intentional space is judged by role,
+not a minimum density quota.
 
 ## REPORT-PARA-01 Paragraphs carry one idea, sentences carry one clause each (DEFAULT)
 
@@ -201,6 +234,9 @@ changed a number, a direction or a cause is rolled back.
 READER-DOC-05 applies with a report-specific script: the fresh reader (a subagent
 with no task context, or a different model) reads the rendered PDF pages, not the
 HTML, and reports the answer, the reason to believe it, the ask, the page where
-they stopped, and every heading that did not state a claim. Fix structure before
+they stopped, and every main heading that did not state a claim. Also identify whose voice
+speaks, every unsourced motive or causal claim, and the limitation that most
+affects the recommendation. Distinguish attributed quotations from analyst
+assertions. Fix structure before
 sentences. Record who read, what they stumbled on and what changed in the
 evidence section.

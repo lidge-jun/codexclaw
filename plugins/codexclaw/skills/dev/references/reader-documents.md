@@ -55,6 +55,10 @@ Small changes get a short document; do not inflate a one-paragraph decision.
 
 ## READER-DOC-04 Evidence separated and anchored (STRICT for factual claims)
 
+A statement about another person's intention is a factual claim, not a free
+interpretation: require a directly attributable source or mark the motive as
+unconfirmed. Apply the report owner's REPORT-VOICE-01 before sentence polishing.
+
 Probes, commands, receipts, screenshots, and logs go to an appendix, an evidence
 section or a linked ledger. The narrative cites them by anchor. Every factual
 claim in the narrative resolves to one of: an evidence anchor, a source URL with

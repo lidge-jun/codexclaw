@@ -48,10 +48,12 @@ Long tables remain complete: split or paginate appropriately rather than droppin
 
 ## Four optional art directions
 
-### REPORT-DESIGN-01 A report is set like a publication, not a dashboard (STRICT for delivered reports)
+### REPORT-DESIGN-01 Choose a publication profile, not dashboard reflexes (DEFAULT)
 
-The parts an agent reaches for by reflex are exactly what makes a page read as
-machine-made. For a printed or PDF report these are not used:
+For the quiet publication profile, prefer the alternatives below. These are
+profile choices, not universal bans or claims that all consultancies use one
+look. A sourced prominent statistic, meaningful tint or attributed commentary
+can earn its place. Evidence, readable labels and coherent hierarchy are mandatory:
 
 | Reflex part | What a reader sees | Use instead |
 |---|---|---|
@@ -68,10 +70,12 @@ weight to rank, one accent color used only for the series that carries the claim
 and for the ask, tables with top and bottom rules and no fills, a narrow text
 measure (about 36 Korean characters) with full-width exhibits. Decide the face
 pair, the accent and the rule weights before writing (pair with
-`dev-uiux-design` when the brief is open) and use nothing else. Real
-McKinsey/MGI, Bain and Korean securities PDFs inspected 2026-09-09 all follow this
-grammar; `assets/paged-report.html` implements it. Brand assets (logo, palette,
-licensed type) replace the token block; they are not invented.
+`dev-uiux-design` when the brief is open) and keep them coherent. The 2026-09-13 public-page recheck found deliberate
+prominent statistics and tinted commentary in McKinsey reports; those observations
+contradict universal bans. `assets/paged-report.html` and `consulting-ko.css` are
+our original quiet profile, not a replica or an industry rule. See the source
+ledger and page-role catalog. Approved brand tokens may replace the profile;
+never invent authority or copy proprietary assets.
 
 Choose one only when it fits the audience. These recipes illustrate decisions;
 their colors, proportions and typefaces are replaceable, not universal bans.

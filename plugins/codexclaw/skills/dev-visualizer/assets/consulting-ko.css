@@ -1,0 +1,73 @@
+/* Original CXC publication profile. Role-based tokens, not consultancy brand assets. */
+:root {
+  --paper:#fff; --ink:#17232d; --secondary:#46535e; --muted:#56636f;
+  --rule:#c5ccd2; --accent:#124d73;
+  --serif:"Noto Serif KR","Nanum Myeongjo",serif;
+  --sans:"Pretendard","Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --body-size:10.5pt; --body-leading:1.65; --source-size:8.5pt;
+}
+@page {
+  size:A4 portrait; margin:20mm 18mm 22mm;
+  @top-left {content:"CodexClaw · 첫 달 지원 검토";font:8.5pt var(--sans);color:var(--muted)}
+  @top-right {content:"2026. 9. 13.";font:8.5pt var(--sans);color:var(--muted)}
+  @bottom-right {content:counter(page) " / " counter(pages);font:8.5pt var(--sans);color:var(--muted)}
+}
+@page :first {@top-left{content:none}@top-right{content:none}@bottom-right{content:none}}
+*{box-sizing:border-box}
+html{font-size:var(--body-size);font-synthesis:none}
+body{margin:0;background:#e8ecef;color:var(--ink);font-family:var(--sans);line-height:var(--body-leading);word-break:keep-all;line-break:strict;overflow-wrap:break-word}
+main{max-width:210mm;margin:24px auto;padding:20mm 18mm 22mm;background:var(--paper)}
+h1,h2,h3{font-family:var(--serif);font-weight:600;line-height:1.32;letter-spacing:-.01em;text-wrap:balance;margin:0}
+h1{font-size:28pt;max-width:155mm}
+h2{font-size:17pt;margin:0 0 5mm;padding-top:3mm;border-top:.65pt solid var(--ink);max-width:160mm}
+h3{font-size:12pt;margin:5mm 0 2mm}
+p{margin:0 0 3.5mm;max-width:132mm}
+p.lead{font-size:11pt;max-width:152mm;margin-bottom:5mm}
+strong,b{font-weight:600}
+a{color:inherit;text-underline-offset:2px}
+.sheet{break-before:page;padding-top:0}
+.sheet:first-child{break-before:auto}
+.role{font-size:9pt;color:var(--accent);margin:0 0 3mm}
+.cover{min-height:249mm;display:flex;flex-direction:column}
+.cover .issuer{border-bottom:.65pt solid var(--ink);padding-bottom:4mm;font-size:10pt}
+.cover .title-block{margin-top:35mm;flex:1}
+.cover .sub{font-size:12pt;color:var(--secondary);margin-top:8mm;max-width:137mm}
+.cover .meta{display:grid;grid-template-columns:1fr 1fr;gap:5mm 12mm;border-top:.65pt solid var(--ink);padding-top:5mm;font-size:9.5pt}
+.cover .meta dt{color:var(--muted);font-size:8.5pt}
+.cover .meta dd{margin:0}
+.cover .notice{margin-top:5mm}
+.contents h2{border:0;padding:0}
+.toc{padding:0;list-style:none;margin:8mm 0}
+.toc li{display:grid;grid-template-columns:12mm 1fr 8mm;gap:3mm;padding:5mm 0;border-bottom:.5pt solid var(--rule);align-items:baseline}
+.toc a{text-decoration:none;font-weight:600}
+.toc .pg{text-align:right;font-variant-numeric:tabular-nums}
+.toc .pg:empty::before{content:"–"}
+.toc .label{color:var(--muted);font-size:9pt}
+.summary .answer{font-size:12pt;line-height:1.6;margin:0 0 6mm;max-width:154mm}
+.summary h3{color:var(--accent)}
+section.body{margin-top:7mm}
+section.body.sheet{margin-top:0}
+figure{margin:5mm 0;break-inside:avoid}
+figcaption,caption{font-size:10.5pt;text-align:left;margin:0 0 3mm;font-weight:600}
+.caption-label{display:block;font-size:8.5pt;color:var(--muted);font-weight:400;margin-bottom:1mm}
+.source,.notice{font-size:var(--source-size);color:var(--muted);line-height:1.6;max-width:none}
+.source{margin-top:2mm}
+.notice{border-top:.5pt solid var(--rule);padding-top:3mm}
+svg{display:block;width:100%;height:auto}
+svg text{font-family:var(--sans);font-size:15px;fill:var(--ink)}
+svg .accent{fill:var(--accent)}
+table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:9.5pt;margin:4mm 0;border-top:.7pt solid var(--ink);border-bottom:.7pt solid var(--ink)}
+th,td{text-align:left;vertical-align:top;padding:2.8mm 2.5mm 2.8mm 0;border-bottom:.4pt solid var(--rule)}
+th{font-weight:600}
+th:last-child,td:last-child{padding-right:0}
+.numeric{text-align:right;font-variant-numeric:tabular-nums}
+thead{display:table-header-group}
+tfoot{display:table-row-group}
+tr,figure,.keep{break-inside:avoid}
+h2,h3,caption,figcaption{break-after:avoid}
+p,li{orphans:3;widows:3}
+.limit{border-top:.5pt solid var(--rule);padding-top:3mm;margin-top:5mm}
+.appendix td{overflow-wrap:anywhere}
+@media print{body{background:#fff}main{max-width:none;padding:0;margin:0}*{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+@media screen{.sheet{margin-bottom:20mm}.cover{min-height:230mm}}
+@media (max-width:736px){main{margin:0;padding:28px 20px}.cover{min-height:85vh}h1{font-size:25pt}h2{font-size:17pt}.cover .title-block{margin-top:24mm}.cover .meta{grid-template-columns:1fr}.toc li{grid-template-columns:32px 1fr 26px;gap:8px}th,td{padding-right:8px}p{max-width:none}}

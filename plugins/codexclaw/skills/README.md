@@ -57,7 +57,10 @@ still ship as compatibility surfaces.
 - `dev-visualizer/` — visual documents, reports and diagrams: composes HTML/SVG
   explainers, report documents with cover and contents pages, charts and
   interactive models, then renders and verifies the delivered artifact (PDF included,
-  via `scripts/export-paged-report.mjs`). Reader-facing structure comes from
+  via `scripts/export-paged-report.mjs`, with final hash-bound receipts checked by
+  `scripts/quality-gate.mjs`). The report path includes third-party voice,
+  source/claim bindings, page-role CSS and private local font manifests. No extra
+  public micro-skills or font binaries are shipped. Reader-facing structure comes from
   `dev/references/reader-documents.md`; report storyline, paragraph, exhibit and
   page-design rules (REPORT-*) live in its `reference/` files. Ships
   `allow_implicit_invocation: false`; activates by description match or explicit

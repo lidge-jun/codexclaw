@@ -1,0 +1,16 @@
+{
+  "schemaVersion":1,
+  "audience":"구독사업 운영 의사결정자",
+  "question":"첫 달 지원 프로그램을 어떤 조건으로 확대해야 하는가?",
+  "answerClaimId":"C1",
+  "sources":[
+    {"id":"S1","locator":"illustrative:paged-report.html#appendix/cohort","observedAt":"2026-09-13","note":"Fictional input: 120/1000 versus 80/1000 cancellations within 30 days, alternating assignment."},
+    {"id":"S2","locator":"illustrative:paged-report.html#appendix/cost","observedAt":"2026-09-13","note":"Fictional input: per-subscriber first-month cost 18400 versus 19800 KRW."}
+  ],
+  "claims":[
+    {"id":"C1","kind":"recommendation","text":"첫 달 지원은 제한된 범위에서 확대하되 장기 유지율과 비용을 함께 검증해야 한다.","sourceRefs":["S1","S2"],"limitations":["가상 자료이며 실제 사업 권고가 아니다.","비무작위 배정과 30일 관측으로 인과 효과와 장기 가치를 확정할 수 없다."]},
+    {"id":"C2","kind":"observation","text":"가상 코호트의 30일 이탈률은 12%와 8%로 4%p 차이다.","sourceRefs":["S1"],"limitations":["실제 측정값이 아니며 무작위 시험이 아니다."]},
+    {"id":"C3","kind":"observation","text":"가상 원가 차이는 가입자당 1400원이다.","sourceRefs":["S2"],"limitations":["장기 비용과 수익은 포함하지 않는다."]},
+    {"id":"C4","kind":"inference","text":"짧고 비무작위인 관측으로 장기 인과 효과를 확정할 수 없다.","sourceRefs":["S1"],"limitations":["90일 결과와 고객 특성을 통제한 비교가 없다."]}
+  ]
+}

@@ -2,7 +2,7 @@
 name: cxc-dev-visualizer
 description: "Create well-composed visual documents, HTML reports, SVG diagrams, charts, interactive explainers and PDF deliverables. Use for visualize, visual explanations, architecture diagrams, comparison reports, infographics, document creation, 시각화, 그려줘, 문서 만들어줘, 보고서, PDF 생성. Preserve explicit formats and templates; text-only requests and ordinary code changes do not need a visual."
 metadata:
-  last-verified: "2026-09-09"
+  last-verified: "2026-09-13"
   short-description: "Visual documents, SVG/HTML explainers and verified PDF delivery."
   keywords: [diagram, visualization, visualize, document, report, SVG, HTML, PDF, interactive, cover, contents, storyline]
 ---
@@ -42,10 +42,10 @@ focused explanation. Neither phrase grants permission to publish or install.
 | In-conversation comparison, simulation or explainer | Current host's exposed `visualize` skill, if available | Its current full SKILL.md; [delivery](reference/environment-detection.md) |
 | Small static structure expressible as labeled nodes/edges | Mermaid if host supports it; otherwise a suitable artifact | [SVG and interaction](reference/svg-and-interaction.md) only for custom output |
 | Editable SVG diagram or infographic | Native SVG with legible geometry and text | [Visual design](reference/visual-design.md), [SVG and interaction](reference/svg-and-interaction.md) |
-| HTML report, technical brief, visual review or document | Semantic HTML with purposeful figures and readable sections | [Reader documents](../dev/references/reader-documents.md), [Visual design](reference/visual-design.md), [documents/PDF](reference/document-pdf.md) |
+| HTML report, technical brief, visual review or document | Evidence and third-party voice before semantic HTML | [Publication contract](reference/report-pipeline.md), [Report writing](reference/report-writing.md), [Reader documents](../dev/references/reader-documents.md), [Visual design](reference/visual-design.md) |
 | Multi-page report for a decision maker (client report, research report, proposal, 보고서) | [Report writing](reference/report-writing.md) storyline first, then [paged-report.html](assets/paged-report.html) exported with `scripts/export-paged-report.mjs` | [Report writing](reference/report-writing.md), [Documents/PDF](reference/document-pdf.md) REPORT-PRINT-01/QA-01 and the CJK recipe, [Visual design](reference/visual-design.md) REPORT-DESIGN-01/VIZ-01 |
 | Interactive HTML model | One useful visual plus requested inputs that change it | [SVG and interaction](reference/svg-and-interaction.md), design reference if styling is open |
-| PDF, print report or handout | Choose an available print/PDF engine; actually export | [Reader documents](../dev/references/reader-documents.md), [Documents/PDF](reference/document-pdf.md); current PDF skill if available |
+| PDF report, print brief or analytical handout | Publication contract, then an available exporter and final-page review | [Publication contract](reference/report-pipeline.md), [Report writing](reference/report-writing.md), [Documents/PDF](reference/document-pdf.md); current PDF skill if available |
 | Word/Google Docs, Slides/PPTX or spreadsheet | Available format-specific owner; use this skill for visual composition | [Documents/PDF](reference/document-pdf.md) for boundaries |
 | Scientific figure intended for export/publication | Standard plotting tools and vector/raster artifact | Design/label principles here; scientific tool's own workflow |
 | Website, app page or existing component change | Frontend owner and project conventions; Sites if required by the project | This skill only for embedded explanatory artifacts |
@@ -74,12 +74,13 @@ Examples of structure that earns its form:
 - Compare alternatives on the same dimensions and scale, with a table for exact values.
 - Reports and explainers follow [Reader documents](../dev/references/reader-documents.md):
   answer first, claim-shaped headings, evidence in an appendix.
-- A report over about four pages follows [Report writing](reference/report-writing.md):
+- Every reader-facing report or brief follows [Report writing](reference/report-writing.md)
+  and [Publication contract](reference/report-pipeline.md), independent of page count:
   write the dot-dash storyline before any HTML, make every section heading a claim
-  that reads in sequence to the ask, give the summary a full page that decides
-  alone, number and source every exhibit, hold one register, and name the issuing
-  organization the way the reader knows it. Cover and contents pages are part of
-  the document, not decoration.
+  that reads in sequence to the ask, make the summary decide alone, number and
+  source every exhibit, hold one register, and preserve uncertainty beside claims.
+  Long reports use cover/contents/summary pages; a one-page brief combines roles
+  without padding. Intent attribution requires direct evidence (REPORT-VOICE-01).
 - For a dense system, use overview plus focused detail rather than shrinking every label.
 
 Keep document narrative in the document. Inline conversation visuals instead obey
@@ -96,14 +97,18 @@ are appropriate, but size/wrap labels from actual text metrics and inspect the r
 dependency-free example for reports with a live scenario and print output. Adapt
 its content and visual direction; it is not a mandatory template or a finished
 report about the user's data. See the document reference for export readiness.
-[paged-report.html](assets/paged-report.html) is the A4 report skeleton set as a
-publication (REPORT-DESIGN-01: hairlines and type, one accent, a data chart, no
-cards or tinted boxes): cover, contents with page numbers, summary page, flowing
-body with claim headings and numbered exhibits, appendix and notice, with a
-house-style token block at the top. Its company and numbers are fictional.
-`scripts/export-paged-report.mjs <in.html> <out.pdf>` prints it with a local
-Chromium, fills the contents page numbers in a second pass and reports layout
-findings; `--qa-only <pdf>` audits a PDF from any engine.
+[paged-report.html](assets/paged-report.html) and [consulting-ko.css](assets/consulting-ko.css)
+form an original A4 publication specimen: cover, contents, decision-ready summary,
+evidence, conditional action and appendix. The data are explicitly fictional.
+[Page roles](reference/page-role-catalog.md) explain how to vary the composition.
+The report model binds claims and sources; the local font manifest pins approved
+faces without shipping font files. Do not create another public skill for each stage.
+`scripts/export-paged-report.mjs` uses an installed Playwright/Chromium adapter to
+check resource readiness and refill TOC in the same loaded page. CLI fallback is
+an unverified draft, not a publication PASS. `--qa-only` checks existing PDF bytes.
+The exporter reports automated checks only; `scripts/quality-gate.mjs` requires
+seven evidence receipts bound to the final PDF. See the publication contract for
+commands, statuses, trusted-review boundaries and precise limitations.
 
 Prefer native HTML/CSS/SVG and existing libraries. For library-dependent visuals,
 verify actual versions and APIs, use authorized pinned assets, and distinguish
@@ -131,7 +136,8 @@ multipage tables, final content, Korean glyphs and selected scenario state.
 Print CSS or a PDF filename alone proves nothing. For a delivered report, run the
 export script's QA (REPORT-QA-01) and the fresh-reader check on the rendered pages
 (REPORT-FRESH-01); an orphan line at the top of a page, a heading stranded at the
-bottom, a half-empty page or a figure whose text prints under 8.5pt is a defect.
+bottom or an unreadable figure is a defect. Evaluate whitespace by page role,
+not a fixed density target; the house profile keeps figure labels at least 8.5pt.
 
 **DIAGRAM-SYNTAX-01:** use an existing supported parser/checker where available.
 XML validation can catch malformed SVG; it cannot catch overlapped labels. Do not
