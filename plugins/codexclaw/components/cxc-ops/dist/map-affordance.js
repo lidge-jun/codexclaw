@@ -190,10 +190,11 @@ export function renderLoopAffordance()         {
 /** Global discovery only; the agent verifies membership and CI on demand. */
 export function renderStackedPrAffordance()         {
   return [
-    "[codexclaw] For PR work or dependent branches, read $codexclaw:cxc-dev references/stacked-prs.md (DEV-STACK-06/07).",
+    "[codexclaw] For PR work or dependent branches, read $codexclaw:cxc-dev references/stacked-prs.md (DEV-STACK-06/07/08).",
     "Use ordinary PRs/manual chains by default.",
     "Do not suggest or create GitHub native stacks unless the user clearly and strongly requests them for this task.",
     "Inspect existing membership and CI separately; a parent base or Can Stack banner is not opt-in.",
+    "Parallel branch/PR lanes: one Codex task each, not subagents (same checkout); the lane request authorizes them.",
     "Per-PR CI is expected. This is guidance, not authorization to register, restack, cancel CI, or merge.",
   ].join(" ");
 }

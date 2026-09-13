@@ -103,11 +103,10 @@ export const DEFAULT_STABLE_LOCK: CapabilityLock = {
     { name: "exec_command", required: true, channel: "stable", usage: "shell execution for build/test/doctor" },
     { name: "apply_patch", required: true, channel: "stable", usage: "file editing" },
     { name: "web_search", required: false, channel: "stable", usage: "search skill discovery" },
-    { name: "spawn_agent", required: false, channel: "stable", usage: "V1 subagent dispatch" },
-    { name: "create_task", required: false, channel: "stable", usage: "V2 subagent dispatch" },
+    { name: "spawn_agent", required: false, channel: "stable", usage: "subagent spawn, registered by both the V1 and V2 collab families" },
+    { name: "followup_task", required: false, channel: "stable", usage: "V2-only follow-up; its presence is how the V2 family is detected" },
     { name: "browser", required: false, channel: "stable", usage: "QA and proof browsing" },
     { name: "plugin_hooks", required: true, channel: "stable", usage: "PABCD state transitions, Stop continuation" },
     { name: "goal_api", required: false, channel: "canary", usage: "HOTL goal creation and management" },
   ],
 };
-

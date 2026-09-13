@@ -176,6 +176,12 @@ on another part, delegate it to explorer before reading its full source locally.
 State the child's question and main's separate work. Use the configured role and
 supported dispatch protocol; no-delegation and host restrictions take priority.
 
+Discovery is subagent work: an explorer is a leaf in this session's own working
+directory, and read-only lanes cannot collide because they write nothing. That is
+not a template for parallel write work. Anything needing its own branch, checkout
+or merge/CI lane is a separate Codex task, one per lane — see
+[Dispatch surfaces](../pabcd/references/dispatch-surfaces.md).
+
 Keep a narrow lookup local when its result immediately determines the next step,
 or when the work cannot be separated without duplicating the investigation.
 Before retaining substantial discovery locally, state that concrete reason.

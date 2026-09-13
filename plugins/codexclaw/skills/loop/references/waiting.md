@@ -20,6 +20,12 @@ external processes inside a loop:
 - Prefer bounded waits (`wait_agent` with `timeout_ms` <= 120000) over one
   long blocking wait; between waits, emit a one-line progress update naming
   what is being waited on and the elapsed time.
+- Know which wait you are calling. V1's `wait_agent` may carry the child's final
+  message in its result; V2's is a no-content mailbox and the answer arrives
+  separately. Reading the answer out of the wait result works on V1 and silently
+  returns nothing on V2, which looks like a stalled agent rather than a schema
+  mismatch. Threads are different again: `wait_threads` takes per-target cursors.
+  See `cxc-pabcd` `references/delegation.md`.
 - Never end the turn just because a wait timed out — re-wait or poll, and keep
   the user informed each cycle.
 - If a reviewer/worker has produced nothing after ~3 wait cycles, treat it as
