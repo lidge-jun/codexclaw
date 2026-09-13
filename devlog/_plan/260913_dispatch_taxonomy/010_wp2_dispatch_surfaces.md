@@ -52,6 +52,18 @@ Contents, in order:
 | `dev/SKILL.md` §Discovery delegation | one sentence: discovery is a subagent, a parallel branch lane is a thread |
 | `worktree-guardian/SKILL.md` | a subagent does not get its own worktree; a thread does. This is where a reader arrives when they ask "누가 워크트리를 갖나" |
 | `dev/references/peer-collaboration.md` | the peer table row for a dispatched child points at the taxonomy |
+| `skills/lunasearch/SKILL.md` | its parallel spawn lanes share one checkout; added by the audit |
+| `structure/20_pabcd_dispatch_doctrine.md` | the Employee row maps to `spawn_agent` only, with no thread row; added by the audit |
+
+DISPATCH-ISOLATION-01 in `delegation.md` is amended in the same pass: it
+currently says "every lane gets explicit read and write access lists" without
+saying the lanes share one working tree, which is the sentence most easily read
+as isolation.
+
+The `spawn-attach-hook.ts` leaf-guard strings and their surrounding comments are
+edited in wp3 rather than here, because they sit next to the V1/V2 surface
+detection that wp3 owns. Splitting them across two cycles would touch the same
+file twice.
 
 ## Acceptance
 
