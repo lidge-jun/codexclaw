@@ -36,3 +36,18 @@ for(const [name,body,expected] of [
 test('declared completion promise supports a rendered canvas',()=>fixture('<p>report</p><canvas></canvas><script>window.__REPORT_READY__=Promise.resolve(true)</script>',async({input})=>{
   const browser=await openReport(chromium,input);try {assert.equal(browser.structure.readiness.declared,'promise');} finally {await browser.close();}
 }));
+
+for(const [name,body] of [
+  ['wrapper with title children','<li data-toc-for="s1"><a>Preserve heading</a><span></span></li>'],
+  ['hidden leaf','<span style="display:none" data-toc-for="s1"></span>'],
+  ['transparent ancestor','<div style="opacity:0"><span data-toc-for="s1"></span></div>']
+]) test('TOC refuses '+name,()=>fixture(body,async({input})=>{
+  const browser=await openReport(chromium,input);
+  try {await assert.rejects(()=>browser.fill([{id:'s1',page:3}]),/Contents slot/);}
+  finally {await browser.close();}
+}));
+test('completion promise really waits for a delayed content update',()=>fixture('<p id="state">PENDING</p><canvas></canvas><script>window.__REPORT_READY__=new Promise(resolve=>setTimeout(()=>{document.querySelector("#state").textContent="READY_AFTER_DELAY";resolve(true)},150))</script>',async({input})=>{
+  const browser=await openReport(chromium,input);
+  try {assert.ok((await browser.html()).includes('id="state">READY_AFTER_DELAY</p>'));}
+  finally {await browser.close();}
+}));

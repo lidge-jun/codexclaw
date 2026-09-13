@@ -74,8 +74,21 @@ export async function openReport(chromium,input,{chrome,fontManifest,timeout=300
       },
       async fill(entries) {
         await page.evaluate(entries=>{
-          for(const entry of entries) for(const e of document.querySelectorAll('[data-toc-for]'))
-            if(e.dataset.tocFor===entry.id) e.textContent=String(entry.page);
+          for(const entry of entries) for(const e of document.querySelectorAll('[data-toc-for]')) {
+            if(e.dataset.tocFor!==entry.id) continue;
+            if(e.children.length) throw new Error('Contents slot must be a leaf text element: '+entry.id);
+            e.textContent=String(entry.page);
+            const bounds=e.getBoundingClientRect();
+            if(!bounds.width||!bounds.height||e.innerText!==String(entry.page))
+              throw new Error('Contents slot is not visibly rendered: '+entry.id);
+            for(let node=e;node;node=node.parentElement) {
+              const css=getComputedStyle(node);
+              if(css.display==='none'||css.visibility!=='visible'||Number(css.opacity)===0)
+                throw new Error('Contents slot is hidden: '+entry.id);
+            }
+            if(parseFloat(getComputedStyle(e).fontSize)<8)
+              throw new Error('Contents slot text is too small: '+entry.id);
+          }
         },entries);
       },
       html:()=>page.content(),close:()=>browser.close()

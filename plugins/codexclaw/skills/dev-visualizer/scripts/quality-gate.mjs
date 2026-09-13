@@ -11,7 +11,7 @@ const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const nonempty=v=>typeof v==='string'&&v.trim().length>0;
 export function evaluateReport(input) {
   const findings=[], add=(level,id,message)=>findings.push({level,id,message});
-  if(!object(input)||!HASH.test(input.artifact_sha256??'')||!Array.isArray(input.checks))
+  if(!object(input)||(!nonempty(input.artifact_sha256)||!HASH.test(input.artifact_sha256))||!Array.isArray(input.checks))
     return {verdict:'FAIL',exitCode:1,findings:[{level:'FAIL',id:'input',message:'Expected artifact_sha256 and checks array.'}]};
   if(input.notRun!==undefined) {
     if(!Array.isArray(input.notRun)) add('FAIL','legacy-notRun','notRun must be an array.');
@@ -23,8 +23,8 @@ export function evaluateReport(input) {
     if(seen.has(check.id)) {add('FAIL',check.id,'Duplicate check IDs are ambiguous.');continue;}
     seen.set(check.id,check);
     if(check.status==='PASS') {
-      if(check.artifact_sha256!==input.artifact_sha256) add('FAIL',check.id,'PASS receipt is not bound to this final artifact.');
-      if(!nonempty(check.evidence)) add('BLOCKED',check.id,'PASS needs an evidence locator from the check producer.');
+      if(!nonempty(check.artifact_sha256)||check.artifact_sha256.toLowerCase()!==input.artifact_sha256.toLowerCase()) add('FAIL',check.id,'PASS receipt is not bound to this final artifact.');
+      if(!nonempty(check.evidence)||/^(?:-|none|n\/a|not run)$/i.test(check.evidence.trim())) add('BLOCKED',check.id,'PASS needs an evidence locator from the check producer.');
     }
     if(check.status==='FAIL') add('FAIL',check.id,'A check reported a defect.');
     else if(check.status==='REVIEW') add('REVIEW',check.id,'A review finding remains unresolved.');
@@ -43,7 +43,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
     const pdf=readFileSync(process.argv[2]);
     if(pdf.subarray(0,5).toString()!=='%PDF-') throw new Error('not a PDF');
     const input=JSON.parse(readFileSync(process.argv[3],'utf8'));
-    if(input?.artifact_sha256!==createHash('sha256').update(pdf).digest('hex')) throw new Error('receipt does not match actual PDF bytes');
+    if(typeof input?.artifact_sha256!=='string'||input.artifact_sha256.toLowerCase()!==createHash('sha256').update(pdf).digest('hex')) throw new Error('receipt does not match actual PDF bytes');
     const result=evaluateReport(input);console.log(JSON.stringify(result,null,2));process.exitCode=result.exitCode;
   } catch(error) {console.error(error.message);process.exitCode=1;}
 }

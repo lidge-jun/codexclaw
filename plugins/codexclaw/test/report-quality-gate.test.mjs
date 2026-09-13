@@ -30,3 +30,6 @@ test('CLI binds the receipt to bytes on disk',()=>{
     const bad=run();assert.equal(bad.status,1);assert.match(bad.stderr,/actual PDF bytes/);
   } finally {rmSync(dir,{recursive:true,force:true});}
 });
+
+test('equivalent uppercase digest is accepted, not treated as a different version',()=>{const r=receipt();r.checks[0].artifact_sha256=hash.toUpperCase();assert.equal(evaluateReport(r).verdict,'PASS');});
+test('placeholder evidence cannot satisfy a completed review',()=>{const r=receipt();r.checks[0].evidence='-';assert.equal(evaluateReport(r).verdict,'BLOCKED');});
