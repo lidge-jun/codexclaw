@@ -6,6 +6,8 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.26] - 2026-09-13
+
 ### Added
 
 - Dispatch-surface taxonomy: `cxc-pabcd` `references/dispatch-surfaces.md` separates
