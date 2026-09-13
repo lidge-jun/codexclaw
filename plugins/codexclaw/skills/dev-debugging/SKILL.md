@@ -1,10 +1,10 @@
 ---
 name: cxc-dev-debugging
-description: "MUST USE for any real runtime debugging in any language — crashes, silent failures, wrong output, build/test failures, flaky tests, performance regressions, integration bugs. A phases 0-4 root-cause method: architecture check → investigate → analyze → hypothesize → implement. Triggers: 'debug this', 'why is X failing', 'this test is flaky', 'fix the crash', 'root cause', '왜 안 돼', '디버깅', '원인 분석'."
+description: "MUST USE for any real runtime debugging in any language — crashes, silent failures, wrong output, build/test failures, flaky tests, performance regressions, integration bugs. A phases 0-4 root-cause method: architecture check → investigate → analyze → hypothesize → implement. Logic analysis of unknown systems (how apps/APIs/AI tools work) via references/logic-analysis.md. Triggers: 'debug this', 'why is X failing', 'this test is flaky', 'fix the crash', 'root cause', '왜 안 돼', '디버깅', '원인 분석', 'how does X work', 'figure out how', '로직 파악', '뜯어봐', 'reverse engineer'."
 metadata:
   last-verified: "2026-07-02"
   short-description: "Phases 0-4 systematic root-cause debugging method (any language)."
-  keywords: [debug, error, stack trace, root cause, flaky, regression, crash, bisect]
+  keywords: [debug, error, stack trace, root cause, flaky, regression, crash, bisect, "logic analysis", "comprehension", "unknown system", "reverse engineering"]
 ---
 
 # dev-debugging — Systematic Root Cause Analysis
@@ -17,7 +17,9 @@ build failures, performance regressions, integration bugs.
 **Boundary**: This skill covers how to reason about bugs. For test harness,
 reproduction frameworks, and verification tooling, see `dev-testing`. For
 domain-specific context (API errors, hydration issues, query performance),
-consult `dev-backend` or `dev-frontend`.
+consult `dev-backend` or `dev-frontend`. Comprehension without a defect —
+understanding how an unknown app, API, AI tool, or codebase works — routes to
+`references/logic-analysis.md`.
 
 > **C0/C1 work (small local patches):** See `dev` §0.0 Work Classifier + §0.1 Patch Fast-Path before reading references.
 
@@ -205,6 +207,19 @@ explaining the causal mechanism before patching.
 
 ---
 
+## Logic Analysis (comprehension without a defect)
+
+When the request is to understand how a system works — closed app, AI tool,
+undocumented API, unfamiliar codebase — rather than to fix a defect, read
+[Logic analysis](references/logic-analysis.md). Core rules: "I can't" is a
+skipped analysis loop, not a limit; missing source/docs is a starting
+condition; hypothesize from names/strings/errors, observe static AND dynamic,
+mutate one variable at a time, keep an incremental model with UNKNOWN fields,
+and prove the model by writing a client that uses it. Honest lab-boundary
+routing (IDA/Procmon/Cuckoo class) beats both refusal and fabrication.
+
+---
+
 ## Red Flags — Return to Phase 1
 
 If you catch yourself doing any of these, pause — root cause investigation
@@ -367,6 +382,7 @@ action item that prevents the same class of bug from recurring.
 | File | When to Read | What It Covers |
 |------|-------------|----------------|
 | `references/methodologies.md` | Choosing a debug approach | Five Whys, bisection, differential diagnosis, subtraction, systematic logging |
+| `references/logic-analysis.md` | Understanding how an unknown system works (no defect) | Logic-analysis loop, controlled mutation, routing table, lab boundary, anti-give-up ladder |
 | `references/async-debugging.md` | Concurrency issues | Race conditions, deadlocks, event loop blocking, promise/callback |
 | `references/tool-guides.md` | Quick cheatsheet | Node inspector basics, pdb basics, Chrome DevTools, git bisect, DB EXPLAIN |
 | `references/postmortem-template.md` | After resolving a significant incident | Blameless postmortem template |
@@ -411,4 +427,5 @@ When context is limited, preserve: (1) Phase 0 — is it a bug or a design probl
 (2) Core principle — RCA before permanent repair; preauthorized reversible incident mitigation may come first,
 (3) phases 0-4 — architecture check → investigate → analyze → hypothesize → implement,
 (4) Repeated Failure Rule — after repeated failures, reassess, (5) one variable at a time,
-(6) evidence over intuition, (7) failing test first.
+(6) evidence over intuition, (7) failing test first, (8) comprehension tasks route to
+`references/logic-analysis.md` — "I can't" is a skipped loop.
