@@ -86,3 +86,43 @@ regress.
 `npm run gate` under `cxc receipt test`, plus `npm test`. The
 `subagent-config` suite is the one that matters here; the expected residual is
 the pre-existing `gui/router.test.ts` react resolution failure.
+
+## Revision 1 — audit fold (NEAR-PASS, residuals 1-5)
+
+**R1 — the separator was wrong, and prefix matching alone is not enough.** The
+live hook-facing V2 name is `collaborationspawn_agent`: the namespace and the
+child name are concatenated with **no punctuation**. `spawn-attach-hook.ts`
+accepts `.` and `_` defensively and does **not** accept `__`. Meanwhile
+`structure/60_native_capabilities.md:41-43` records the V2 catalog as flat, so a
+tool can arrive as plain `followup_task` with no namespace at all. Matching must
+therefore accept the bare name, `collaboration` + empty separator, and
+`collaboration.` / `collaboration_` — matching a prefix only would miss the flat
+catalog, and matching `__` would invent a form nothing produces.
+`000_plan.md` says `collaboration__spawn_agent`; that is wrong and is corrected.
+
+**R2 — thread the list through, and treat an empty list as no evidence.**
+`resolveCapabilities` currently drops `deps.exposedTools` before calling
+`detectSpawnSurface`. It is wired through. The subtle part: `[]` is truthy, and
+an existing test at `capabilities.test.ts:102-110` passes an empty list. An empty
+list means "nothing observed", not "no V2 tools, therefore V1"; reading it the
+second way would silently flip that snapshot.
+
+**R3 — `detectToolCapabilities` needs the same matching.** Its `includes` is an
+exact string compare, so a namespaced catalog would report `followup_task` as
+unavailable and the two functions would disagree about the same list. One shared
+matcher serves both.
+
+**R4 — the lock's usage strings are wrong beyond the name.** `spawn_agent` is
+labelled "V1 subagent dispatch" when both families register it. Renaming the
+entry without fixing that label would leave the file self-contradictory.
+
+**R5 — append to the guard blocks, never rewrite their openings.** Most
+assertions import the constants and track changes automatically, but three do
+not: `hook-e2e.test.mjs:880` hardcodes the opening sentence, and
+`spawn-attach-hook.test.ts:538-540` matches inner clauses by regex. A third,
+`:384-385`, asserts the guard block does not contain the recursion token, so the
+appended sentences must not name it. New text is appended; openings stay.
+
+**Also folded, outside the residual list.** `loop/references/waiting.md:19-27`
+describes `wait_agent` as though content always arrives, which is true on V1 and
+false on V2. It gets one clause, since this cycle owns that distinction.

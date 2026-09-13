@@ -214,7 +214,9 @@ change**, and the D summary must say so rather than implying spawn routing
 improved.
 
 Its constraints are accepted: `spawn_agent` exists in both families and cannot
-discriminate; V2 names arrive namespaced (`collaboration__spawn_agent`), so
-matching must allow a namespace prefix; `wait_agent` is optional on V2 and cannot
-be a signal; `CODEXCLAW_SPAWN_V1` keeps its exact `"1"` comparison; and the
-no-list default stays `v2` so the existing tests keep their meaning.
+discriminate; `wait_agent` is optional on V2 and cannot be a signal;
+`CODEXCLAW_SPAWN_V1` keeps its exact `"1"` comparison; and the no-list default
+stays `v2` so the existing tests keep their meaning. The wp3 audit corrected the
+name form: V2 tools arrive either flat (`followup_task`) or with the namespace
+concatenated without punctuation (`collaborationfollowup_task`), with `.` and
+`_` accepted defensively and `__` accepted nowhere.
