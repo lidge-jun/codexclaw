@@ -1,5 +1,10 @@
 ## Delegation Model (subagents)
 
+This file assumes the surface is already chosen and describes the **subagent**
+packet. [Dispatch surfaces](dispatch-surfaces.md) owns the choice between a
+subagent and a separate Codex task, and the fact that a subagent runs in this
+session's own working directory rather than a copy of it.
+
 The main session owns the plan, host goal, and every PABCD transition.
 At P, consult a read-only architect; at A, dispatch an independent reviewer.
 Use a supported read-only transport for both and a supported write role for bounded
@@ -100,8 +105,14 @@ This route does not authorize an otherwise forbidden dispatch, wait, or mode tra
 
 **Delegation safeguards:**
 
-- **DISPATCH-ISOLATION-01:** every lane gets explicit read and write access lists;
-  never share in-progress output across lanes.
+- **DISPATCH-ISOLATION-01:** subagent lanes are not isolated environments — they
+  all run in this session's working directory, so "isolation" here means scope
+  discipline, not separation. Give every lane explicit read and write access lists
+  with no overlap, and never share in-progress output across lanes. Concurrent
+  lanes must never run branch-level git operations (`checkout`, `switch`,
+  `branch`, `stash`, `reset`, `rebase`, `merge`, `pull`): those act on one shared
+  HEAD and a per-file write scope does not make them safe. Work that genuinely
+  needs its own branch or checkout is thread work, not a subagent lane.
 - **REVIEW-DECORRELATE-01:** prefer an independent context; use a different model family
   only when host policy and user authorization permit the override. Otherwise inherit
   and record that family-level independence was not established.

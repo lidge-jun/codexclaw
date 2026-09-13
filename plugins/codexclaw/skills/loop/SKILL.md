@@ -70,6 +70,7 @@ preflight failure: resolve it or report the limitation before the governed actio
 | Repeated failure, reviewer FAIL, or unclear loop archetype | [Loop engineering](../pabcd/references/loop-engineering.md) |
 | Score optimization, plateau, or mechanism comparison | [Optimization rules](../pabcd/references/optimization.md) and loop engineering |
 | Deliberate divergence/candidate comparison | [Divergence tiers](references/divergence-tiers.md) |
+| Choosing between a thread and a subagent, or planning parallel lanes | [Dispatch surfaces](../pabcd/references/dispatch-surfaces.md) |
 | Dispatch is authorized and needed | [Delegation](../pabcd/references/delegation.md) |
 | Waiting on dispatched work or long external processes, HITL or HOTL | [Waiting on work](references/waiting.md) |
 
@@ -79,6 +80,21 @@ Keep explicit-only skills and leaf-safe delivery restrictions intact.
 
 ## Execution invariants
 
+- DISPATCH-SURFACE-01 (STRICT): name the surface before fanning work out, because
+  two mechanisms answer to "dispatch" and they are not substitutes. A **subagent**
+  (`spawn_agent`) is a leaf that runs in **this session's own working directory**,
+  with no session state, no goal and no FSM; its edits land in your checkout as
+  your uncommitted changes. A **thread** (`create_thread`) is a separate Codex
+  task with its own worktree, goal and PABCD cycle. Work that needs its own
+  branch, checkout, or merge/CI lane is thread work: N parallel lanes means N
+  threads, one worktree each. Spawning N subagents for N branches puts N writers
+  on one HEAD. Concurrent subagents need non-overlapping write scopes and must
+  never run branch-level git operations at the same time. A request for parallel
+  branch or worktree lanes **is** the user request that creating those threads
+  needs — the lanes are the mechanism the work requires, so do not downgrade them
+  onto the shared tree to avoid creating tasks. If the shape is unclear, ask once
+  naming what you would create, then continue.
+  Details and the measured evidence: [Dispatch surfaces](../pabcd/references/dispatch-surfaces.md).
 - ORCH-MANDATE-01 (STRICT): a claimed active loop needs real persisted FSM evidence,
   not narrated phase names. Read actual session state before entry or re-entry.
   SESSION-IDENTITY-01 uses your current SessionStart binding, corroborated with

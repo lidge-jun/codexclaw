@@ -24,6 +24,12 @@ no-content mailbox. Reuse a lane with V1 `send_input(agent_id)` or V2
 `interrupt_agent`. The concurrency limits are V1 `agents.max_threads` (default 6) and
 V2 `max_concurrent_threads_per_session` (default 4, root included).
 
+Those lanes are subagents, not separate Codex tasks: every one of them runs in
+this session's own working directory on this branch. Luna lanes are safe to fan
+out because discovery writes nothing, which is exactly why this shape does not
+transfer to parallel write work. Branch or worktree lanes need one task each —
+see `cxc-pabcd` `references/dispatch-surfaces.md`.
+
 The user of this skill is already running on Luna, so do **not** call
 `catalog_list` or any model-picker probe before spawning. Hardcode the model
 directly on every spawn call:

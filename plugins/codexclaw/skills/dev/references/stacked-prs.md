@@ -44,7 +44,10 @@ plain git). Learn these, not a vendor's flags:
 
 1. **The base ref is the dependency edge.** The chain is your phase map, made reviewable.
 2. **Editing a lower layer invalidates every layer above it** — always cascade.
-3. **Merging is bottom-up.** Out-of-order merges are the pathological case.
+3. **Merging is bottom-up.** Out-of-order merges are the pathological case. One
+   documented exception: a lane whose members are chained children merges
+   top-down, because merging a child lands in its parent's branch rather than in
+   trunk (`DEV-STACK-08`).
 4. **Every layer must stand alone for review**: own thesis, own build, own tests.
 
 ## DEV-STACK-06 — Recognize and register deliberately (DEFAULT)
@@ -114,6 +117,130 @@ branch-protection bypasses, or filters that silently exclude manual child bases 
 because a PR has a stack label or body map. If optimization is requested, specify which
 jobs may be shared/deferred and how every required check gets truthful evidence.
 
+`DEV-STACK-08` is the one owner-authorized form of that optimization: tip-only CI
+inside a cumulative lane. It does not relax this rule — it is the specification
+this paragraph demands, and it still treats a skipped non-tip check as not passing.
+
+## DEV-STACK-08 — Lane-parallel stacks with a tip-only gate (ESCALATE)
+
+A throughput strategy for landing many pull requests in one day, learned from a
+36-PR batch. It relaxes the per-PR merge gate, so it is **owner-authorized only**:
+the repository owner must decide to accept it for a named batch. Without that
+decision, every rule above applies unchanged.
+
+### The shape
+
+Group the open PRs into **lanes** by dominant file domain. Lanes prepare in
+parallel; inside a lane the order is fixed. Each lane is a **cumulative stack**:
+the bottom branch merges trunk, and each branch above merges its parent's
+resulting commit, so every branch contains its ancestors and the diffs shrink as
+the lane lands.
+
+Lanes are prepared by separate Codex tasks, one task per lane, each in its own
+worktree. They are not `spawn_agent` subagents — a subagent runs in the parent's
+own checkout on the parent's branch, so N subagents preparing N lanes means N
+writers on one HEAD. Asking for parallel lane preparation is the user request
+those tasks need. See `cxc-pabcd` `references/dispatch-surfaces.md`.
+
+### Tip-only CI
+
+Push every **non-tip** head with `[skip ci]` in its commit subject so only the
+lane tip runs the expensive suite, and use that tip run as the lane's gate.
+
+This works only where the expensive workflow triggers on `pull_request` plus a
+`push` pinned to trunk branches. A push to a feature branch then produces no run
+of its own, the run comes from the `pull_request` synchronize event, and GitHub
+suppresses `push` and `pull_request` runs whose head commit subject carries
+`[skip ci]`. Verify that trigger shape in the actual workflow files before
+relying on it. Workflows on `pull_request_target` keep running and cannot be
+skipped this way — usually the cheap hygiene, labeling and base-enforcement
+checks, which is fine, because those are what keep PR descriptions honest.
+
+### Mandatory guards
+
+- Per-PR required checks remain the **default**. This rule is an exception for a
+  named, owner-authorized batch, not a new baseline.
+- A missing, skipped or cancelled check is **not** a passing check (`DEV-STACK-07`).
+  The tip run is evidence for the lane only while the tip actually contains every
+  link; record which run covers which PRs.
+- No blanket top-only skip outside this authorization, no branch-protection
+  bypass, no merge-queue bypass (`DEV-STACK-04`).
+- `--admin`, and the choice of merge method, are mechanisms, not authorization.
+- **Never** let `[skip ci]` reach a commit that lands on trunk. It would suppress
+  the trunk regression run, which is the safety net this whole strategy depends on.
+- Watch trunk after each lane lands and stop the lane on red rather than
+  continuing. The gate moves from before-merge to immediately-after-merge; it does
+  not disappear.
+- Merging stays user-authorized under `DEV-STACK-04`. This rule describes an order,
+  never permission to merge.
+
+### Merge with a merge commit, not a squash
+
+For a lane tip, use `--merge`. A squash collapses the branch into one new commit
+and discards the ancestry of the links beneath it, so the forge cannot see that
+those heads are already in trunk; their pull requests stay open and have to be
+closed by hand, reported as closed rather than merged. A merge commit keeps the
+ancestry, and because the lane is cumulative the tip's history contains every
+link's head, so one merge marks the whole lane `MERGED` with the right status.
+An owner running this strategy reported six pull requests closing correctly from
+a single `--merge` on the lane tip.
+
+Use `--squash` for a pull request being landed alone.
+
+### The ancestry invariant
+
+Auto-close holds only while the tip is a descendant of **every** link's current
+remote head. Re-merging a lower link after the chain was built gives that link a
+new head the tip has never seen, and it silently stops working. Check each link
+before merging the tip:
+
+```sh
+git merge-base --is-ancestor origin/<link-branch> <tip-commit>
+```
+
+A non-zero exit means that link will not auto-close. Repair by propagating
+upward: merge the refreshed lower link into the one above it and carry that
+result to the tip. In the live batch, two of five lanes had already broken this
+by absorbing a trunk landing at the bottom without propagating up.
+
+### Chained children merge top-down
+
+Merging a stacked child lands nothing on trunk — it collapses into its parent's
+branch. Only a PR whose base is trunk lands on trunk. So a lane containing a base
+chain merges **deepest child first**, then its parent, up to the trunk-based root
+last. Each merge closes one pull request as `MERGED`.
+
+This inverts the bottom-up rule, which still governs lanes whose members all
+target trunk directly, where each merge is independent.
+
+Doing the child merges top-down first also limits squash damage: when a parent
+squashes to trunk, a child carrying those commits goes dirty immediately, and the
+conflict is mechanical — trunk gained the squashed form of content the child
+already has, so the child's side is a strict superset. Resolve to the child, then
+verify nothing the parent introduced went missing. Top-down keeps this to one
+re-merge per lane instead of one per link.
+
+### Order within a wave
+
+Order by what reduces later rework, not by size or ease:
+
+1. The designated next slot, especially right after review fixes landed — its head
+   is new, so it needs a fresh exact-head check before merging.
+2. Lanes owning the most-contended shared files. Landing them early shrinks every
+   later lane's rebase.
+3. Trunk-based singles with no open review threads; they are independent and can
+   fill gaps while a lane waits on CI.
+4. A single change that touches nearly everything goes **last**, so it rebases
+   once onto a landed trunk instead of being rebased by every lane after it.
+
+Points 2 and 4 are not in conflict: a *lane* that holds contended files goes
+early because landing it helps the others, while a *single sweeping change* goes
+last because nothing helps it.
+
+Lanes merge one at a time. The next lane re-merges trunk at its tip and re-runs
+the tip's CI before it is merged; that re-merge is what absorbs cross-lane file
+overlap, which lane grouping by dominant domain does not eliminate.
+
 ## DEV-STACK-01 — When to stack (DEFAULT)
 
 Stack when **all** of these hold:
@@ -145,6 +272,10 @@ and think hard at 5. Community practice guides suggest each layer be reviewable 
 experience, not a rule. What is certain: every layer is a separate fully gated PR with its
 own review and its own CI, and every layer above an edit has to be re-stacked by hand or
 by tool. If the map is longer, ship the bottom half, land it, then stack the rest.
+
+`DEV-STACK-08` narrows "its own CI" for an owner-authorized lane: the tip's run is
+the gate for the lane, and the non-tip layers are covered by it rather than by
+their own runs. Outside that authorization, every layer keeps its own gate.
 
 **Slice by dependency, never by effort.** "Quick wins first" produces layers whose
 dependency runs opposite to the merge order, so the stack cannot land bottom-up. This is
@@ -184,7 +315,9 @@ delta, and confirm each PR's base ref still names the branch below it.
 Each layer:
 
 - has one thesis, stated in its PR title;
-- builds and passes its own tests at its own tip — do not defer a layer's tests upward;
+- builds and passes its own tests at its own tip — do not defer a layer's tests upward,
+  except under an owner-authorized `DEV-STACK-08` lane, where deferring to the tip is
+  the explicit, recorded trade;
 - carries a stack map in its PR body so reviewers can navigate:
 
 ```markdown
@@ -230,11 +363,14 @@ do not auto-convert, dissolve, or issue native writes to complete an ordinary PR
 
 - **Merge bottom-up.** In a **registered GitHub stack**, merging the top PR brings every PR below it; merging a
   mid-stack PR merges everything below it while the PRs above stay open and re-target the
-  stack's base automatically.
+  stack's base automatically. For a manual chain of children, `DEV-STACK-08` inverts
+  this: merge the deepest child first and the trunk-based root last.
 - **Manual chains are different.** Merging a child PR merges into its named parent base,
   not automatically into trunk. Land the bottom PR, retarget/restack its children, and
   verify new base/head CI before proceeding. Keep parent branches until no open child
-  targets them; deletion can close a dependent PR.
+  targets them; deletion can close a dependent PR. Where the chain is already built and
+  cumulative rather than being landed layer by layer, `DEV-STACK-08` describes the
+  top-down order that preserves each child's `MERGED` status.
 - **Native API merges are asynchronous.** Use the supported async stack merge API, not
   legacy synchronous merge endpoints. Accepted/queued is not merged: poll the result,
   handle later rule/protection failures and verify actual landing before reporting success.
