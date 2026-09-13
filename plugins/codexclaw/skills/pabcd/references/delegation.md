@@ -140,6 +140,16 @@ The schema marks no argument required, but the runtime still rejects a spawn
 carrying neither `message` nor `items`. `nickname` is a display label: never
 address an agent by it. A completed agent holds a concurrency slot until closed.
 
+**DELEGATE-MODEL-LIST-01 (STRICT).** The model-override list in the host tool
+description is a hint, not an allowlist, and is known to be incomplete. When the
+user names a worker model, pass it through as given. Only a real spawn rejection
+is evidence of unavailability; absence from the description is not. If a
+requested model genuinely fails to spawn, say so to the user — do not substitute
+a different model and silently re-plan the ratio. Measured on 2026-09-14:
+`spawn_agent({ model: "devin/swe-2" })` returned `{ agent_id, nickname }` and
+the child ran to a final message on the parent's branch, while the advertised
+list still omitted it; re-confirmed the same day in a second session.
+
 ### V2 — the task-shaped family
 
 | Concern | V2 |

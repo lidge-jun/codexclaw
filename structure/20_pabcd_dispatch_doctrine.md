@@ -28,6 +28,7 @@ move; the machinery does not.
 | Boss agent | the main Codex session (you) |
 | Employee (`cli-jaw dispatch --agent`) | a Codex `spawn_agent` subagent (`explorer`/`worker`) — a leaf in the parent's own working directory, no goal, no FSM |
 | A parallel lane that owns its own branch/checkout | a separate Codex task (`create_thread`) with its own worktree, goal and FSM — not a subagent |
+| A worker inside one of those lanes | a `spawn_agent` subagent of that lane's thread, running in that lane's worktree — workers are not lanes |
 | Employee registry (server) | role TOMLs in `plugins/codexclaw/agents/` (prompt sources only) |
 | `cli-jaw orchestrate I/P/A/B/C/D` (HTTP) | `cxc orchestrate I/P/A/B/C/D` (agent-gated CLI over `.codexclaw/`) |
 | `--attest` gate (`orchestrator/attestation.ts`) | `cxc orchestrate <phase> --attest` (same JSON gate) |

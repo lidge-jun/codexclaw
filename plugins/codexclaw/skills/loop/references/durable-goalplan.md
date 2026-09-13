@@ -57,8 +57,13 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
   Task ids and task dependency references are phase-local: `task.dependsOn` names existing task ids in
   the same work phase, never a task in another phase. A done task carries a non-empty `outcome`; a pending
   task has no outcome.
-- `criteria[]` — each `{ id, scenario, expectedEvidence, capturedEvidence, status: open|met }`.
-  A criterion only reaches `met` when `capturedEvidence` is non-empty (fresh proof, not memory).
+- `criteria[]` — each `{ id, scenario, surface, expectedEvidence, capturedEvidence, status: open|met }`.
+  `scenario` is the `--criterion` text and `surface` comes from `--surface` (default
+  `logic`); `id` is auto-assigned and `status` is derived. `expectedEvidence` has no
+  CLI flag on `add-criterion` — it stays `""` unless set via a steering batch op or a
+  hand edit — so do not plan on passing it. `capturedEvidence` is written by
+  `meet-criterion --evidence`. A criterion only reaches `met` when `capturedEvidence`
+  is non-empty (fresh proof, not memory).
 - `host` — `GoalplanHostLink { armed, armedAt, source: freeze|none }`. `armed` is provenance,
   intended to read true only after a freeze-boundary arm (the MAIN session created a host goal).
   No shipped CLI flips it automatically and codexclaw never writes the goal DB itself; treat it
@@ -66,17 +71,23 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
 
 ### CLI surface
 
-- `cxc loop init --objective "<text>" [--session <id>]` — creates the local
-  artifact and binds it to the session when a session id is supplied; it never
-  writes the host goal DB.
+- `cxc loop init --objective "<text>" [--session <id>] [--criterion <text>]...` —
+  creates the local artifact and binds it to the session when a session id is
+  supplied; it never writes the host goal DB. Repeat `--criterion` once per
+  criterion to register them at init.
 - `cxc loop show --slug "<text>"` — renders the current plan summary.
 - `cxc loop validate --slug "<text>"` — runs the E8 quality gate; it FAILS
   unless the plan is complete and every `met` criterion carries `capturedEvidence`.
 - `cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json]`
 - `cxc loop add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]...`
 - `cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]...`
+- `cxc loop add-criterion --session <id> --criterion <text> [--surface logic|web|tui]` —
+  registers a criterion whose scenario is the `--criterion` text. There is no `--id`:
+  ids are assigned as `c-1`, `c-2`, ... (max existing `c-N` + 1, in registration
+  order). A duplicate scenario text is rejected.
 - `cxc loop complete-task --session <id> --work-phase <id> --id <id> --outcome <text>`
-- `cxc loop meet-criterion --session <id> --id <id> --evidence <text>`
+- `cxc loop meet-criterion --session <id> --id <id> --evidence <text>` — `--id` takes
+  a generated `c-N` id; read it from `cxc loop show` or the goalplan file.
 - `cxc goalplan *` — deprecated alias for the same behavior during migration.
 
 Repeat `--depends-on` once per prerequisite; comma-separated values are one id. Existing dependencies are
