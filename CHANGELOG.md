@@ -8,6 +8,42 @@ All notable changes to codexclaw are documented here. The format follows
 
 ### Added
 
+- Dispatch-surface taxonomy: `cxc-pabcd` `references/dispatch-surfaces.md` separates
+  a **subagent** (`spawn_agent`, a leaf in the parent's own working directory, no
+  goal, no FSM) from a **thread** (`create_thread`, a separate Codex task that gets
+  its own checkout only with `environment: worktree`). DISPATCH-SURFACE-01,
+  DISPATCH-SHARED-TREE-01, DISPATCH-ROUTE-01 and DISPATCH-AUTHORITY-01 carry the
+  measured evidence: a probe subagent reported the parent's `pwd`, branch and HEAD,
+  and its file appeared in the parent's `git status`, while `codex-rs` assigns the
+  parent turn's cwd to the child on both spawn paths and creates no worktree. The
+  routing decision and its authority clause also sit in the always-read bodies of
+  `cxc-loop`, `cxc-pabcd` and the SessionStart PR pointer, because a rule reachable
+  only through a conditional link is never read by the agent that needs it.
+- `cxc-dev` DEV-STACK-08: lane-parallel stacks with an owner-authorized tip-only CI
+  gate — lane grouping by file domain, `[skip ci]` on non-tip heads, merge commits
+  rather than squashes for a lane tip so every link reports `MERGED`, the
+  `git merge-base --is-ancestor` invariant that auto-close depends on, top-down
+  merging for chained children, and wave ordering. DEV-STACK-01/03/04/07 gained
+  cross-references so it cannot silently override them.
+
+### Fixed
+
+- `subagent-config` declared the V2 spawn tool as `create_task`, which exists in
+  neither collab family — both register `spawn_agent`, and V2 differs by namespace
+  (`collaboration`) and by requiring `task_name`. The capability is now
+  `followup_task`, a real V2-only signal, and `detectSpawnSurface` can decide from a
+  live tool list while keeping `v2` as the no-evidence default and the exact
+  `CODEXCLAW_SPAWN_V1` override. This corrects a declaration; live spawn detection
+  remains `isV2SpawnInput`/`isCollaborationToolName`.
+- `delegation.md`'s two-bullet V1/V2 note became a detection rule plus labelled V1,
+  V2 and thread-surface tables, calling out the two silent failure modes of
+  assuming V1 semantics on V2: the no-content mailbox, and `wait_agent` having no
+  `targets` argument there.
+- The leaf-guard and scope blocks injected into every spawned child, and the
+  `explorer`/`reviewer`/`executor`/`architect` role prompts, now state that the
+  child shares the parent's working directory and must not run branch-level git
+  commands.
+
 - `cxc-dev-visualizer` (renamed from `cxc-dev-diagram-viewer`, old folder redirects):
   `reference/report-writing.md` with the REPORT-* rules for multi-page reports
   (storyline that reads in sequence, claim headings, a summary page that decides

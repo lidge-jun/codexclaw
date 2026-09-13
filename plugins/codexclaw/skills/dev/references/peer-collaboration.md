@@ -161,6 +161,7 @@ without such a request; host permissions and wake checks always apply.
 | Explicitly stopped peer or unknown wake eligibility | Do not send automatically; ask only if the dependency blocks progress |
 | Peer acknowledges, stays silent, or send outcome is uncertain | No courtesy reply or nudge; inspect before any justified retry |
 | This task's explicitly dispatched child needs coordination | Use its native subagent tools within the original assignment |
+| Unsure whether the work needs a peer task or a dispatched child | Read [Dispatch surfaces](../../pabcd/references/dispatch-surfaces.md); a child shares this working directory, a task gets its own |
 
 A scenario review proves the wording, not live model compliance. Add runtime
 machinery only for a separately scoped, demonstrated enforcement gap.

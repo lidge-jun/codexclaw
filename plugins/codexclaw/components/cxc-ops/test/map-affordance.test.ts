@@ -257,6 +257,8 @@ test("stack guidance survives SessionStart and deferred compact recovery without
       assert.match(stackLine, /cxc-dev.*references\/stacked-prs\.md/);
       assert.match(stackLine, /ordinary PRs\/manual chains by default/);
       assert.match(stackLine, /parent base or Can Stack banner is not opt-in/);
+      assert.match(stackLine, /one Codex task each, not subagents \(same checkout\)/);
+      assert.match(stackLine, /the lane request authorizes them/);
       assert.match(stackLine, /Per-PR CI is expected/);
       assert.match(stackLine, /Do not suggest or create GitHub native stacks unless the user clearly and strongly requests them for this task/);
       assert.doesNotMatch(stackLine, /Publish GitHub stacks natively/);

@@ -105,7 +105,7 @@ test("checkAgainstLock returns empty when all required are present", () => {
 test("checkAgainstLock skips optional capabilities", () => {
   const available = new Set(["exec_command", "apply_patch", "plugin_hooks"]);
   const missing = checkAgainstLock(DEFAULT_STABLE_LOCK, available);
-  // web_search, browser, spawn_agent, create_task, goal_api are optional
+  // web_search, browser, spawn_agent, followup_task, goal_api are optional
   assert.ok(!missing.some(m => m.name === "web_search"));
   assert.ok(!missing.some(m => m.name === "goal_api"));
 });
@@ -113,4 +113,3 @@ test("checkAgainstLock skips optional capabilities", () => {
 test("LOCK_SCHEMA_VERSION is 1", () => {
   assert.equal(LOCK_SCHEMA_VERSION, 1);
 });
-

@@ -1,5 +1,10 @@
 ## Delegation Model (subagents)
 
+This file assumes the surface is already chosen and describes the **subagent**
+packet. [Dispatch surfaces](dispatch-surfaces.md) owns the choice between a
+subagent and a separate Codex task, and the fact that a subagent runs in this
+session's own working directory rather than a copy of it.
+
 The main session owns the plan, host goal, and every PABCD transition.
 At P, consult a read-only architect; at A, dispatch an independent reviewer.
 Use a supported read-only transport for both and a supported write role for bounded
@@ -93,15 +98,95 @@ Before waiting on dispatched work, read the mode-neutral
 [Waiting on work](../../loop/references/waiting.md) rules in either HITL or HOTL.
 This route does not authorize an otherwise forbidden dispatch, wait, or mode transition.
 
-- **V1:** `wait_agent` returns final status plus content; `send_input` reuses an agent;
-  `close_agent` retires it and `resume_agent` restores it.
-- **V2:** `wait_agent` is a no-content mailbox; `followup_task` triggers more work;
-  `send_message` is context-only, and `interrupt_agent` stops a runaway turn.
+### Detect the family first (DISPATCH-SCHEMA-DETECT-01, STRICT)
+
+Two collab families exist and their follow-up and wait contracts differ. Name the
+exposed one from the live tool catalog before the first dispatch, and record which
+you found — a later reader cannot re-derive it.
+
+`spawn_agent` is registered by **both** families and discriminates nothing. Use
+the tools that exist in only one:
+
+| Signal | Family |
+|---|---|
+| `send_input`, `close_agent`, `resume_agent` | V1 |
+| `followup_task`, `send_message`, `interrupt_agent`, `list_agents` | V2 |
+| `wait_agent` | neither — V1 always has it, V2 optionally |
+
+V1's namespace is `multi_agent_v1`. V2's is configurable and defaults to
+`collaboration`; `multi_agent_v2` is a feature-flag name and never appears as a
+namespace. Names reach you either flat (`followup_task`) or with the namespace
+concatenated, usually without punctuation (`collaborationfollowup_task`), so
+match the bare name and the `collaboration` prefix with an empty, `.` or `_`
+separator.
+
+If neither family is exposed, report the capability gap. Do not substitute the
+thread surface: a separate Codex task is not a bigger subagent. See
+[Dispatch surfaces](dispatch-surfaces.md).
+
+### V1 — `multi_agent_v1`
+
+| Concern | V1 |
+|---|---|
+| spawn | `spawn_agent({ message \| items, model?, reasoning_effort?, fork_context? })` |
+| handle | returns `{ agent_id, nickname }`; address by `agent_id` |
+| wait | `wait_agent({ targets[], timeout_ms })` returns final status that **may carry the final message**; a timeout is a normal outcome |
+| follow-up | `send_input({ target, message \| items, interrupt? })` |
+| stop | `close_agent({ target })`, returning the previous status |
+| restore | `resume_agent({ id })` |
+| history | `fork_context: true` copies the parent's history; default is prompt-only |
+
+The schema marks no argument required, but the runtime still rejects a spawn
+carrying neither `message` nor `items`. `nickname` is a display label: never
+address an agent by it. A completed agent holds a concurrency slot until closed.
+
+### V2 — the task-shaped family
+
+| Concern | V2 |
+|---|---|
+| spawn | `spawn_agent({ task_name, message, ... })` — both fields required |
+| handle | the caller-supplied `task_name`, canonical as an agent path |
+| wait | `wait_agent` is a **no-content mailbox**: it reports that updates exist, never the text. It is also optional, and takes only `timeout_ms` — there is no `targets` argument |
+| follow-up | `followup_task` starts a turn; `send_message` only queues context |
+| interrupt | `interrupt_agent` stops the current turn; the agent stays available |
+| close/resume | none |
+| listing | `list_agents` |
+| history | `fork_turns: "none" \| "all" \| "<n>"`, not a boolean; a full-history fork inherits the parent model and rejects overrides |
+
+The wait difference is the one that bites, in two ways. On V1 you read the answer
+out of `wait_agent`; the same code on V2 returns a status summary and no text,
+which looks like a silent failure rather than a schema mismatch — on V2 the final
+answer arrives as a separate message. And V1's `wait_agent` waits on named
+`targets` while V2's waits on the whole mailbox, so a V1-shaped call carrying
+`targets` is not a valid V2 call at all.
+
+### The thread surface is a different schema
+
+When the work is thread work (see [Dispatch surfaces](dispatch-surfaces.md)),
+none of the above applies. Observed live in Codex Desktop, so confirm the callable
+names in your own session:
+
+| Purpose | Tool |
+|---|---|
+| create | `create_thread({ prompt, target, model?, thinking? })`, where `target.environment` is `local` or `worktree`, and a worktree takes `startingState` of `working-tree` or `branch{branchName, onMissing}` |
+| wait | `wait_threads({ targets: [{ threadId, hostId?, afterCursor? }], timeoutMs? })` |
+| follow up | `send_message_to_thread({ threadId, prompt, ... })` |
+| fork | `fork_thread({ threadId?, environment? })` |
+| move | `handoff_thread({ threadId, destinationHostId?, followUpPrompt? })` |
+
+`worktree` is what gives a lane its own checkout. Creating a thread is
+user-visible; messaging one is not commanding it.
 
 **Delegation safeguards:**
 
-- **DISPATCH-ISOLATION-01:** every lane gets explicit read and write access lists;
-  never share in-progress output across lanes.
+- **DISPATCH-ISOLATION-01:** subagent lanes are not isolated environments — they
+  all run in this session's working directory, so "isolation" here means scope
+  discipline, not separation. Give every lane explicit read and write access lists
+  with no overlap, and never share in-progress output across lanes. Concurrent
+  lanes must never run branch-level git operations (`checkout`, `switch`,
+  `branch`, `stash`, `reset`, `rebase`, `merge`, `pull`): those act on one shared
+  HEAD and a per-file write scope does not make them safe. Work that genuinely
+  needs its own branch or checkout is thread work, not a subagent lane.
 - **REVIEW-DECORRELATE-01:** prefer an independent context; use a different model family
   only when host policy and user authorization permit the override. Otherwise inherit
   and record that family-level independence was not established.
