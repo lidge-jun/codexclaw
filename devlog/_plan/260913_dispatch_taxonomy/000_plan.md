@@ -144,11 +144,15 @@ From `/Users/jun/developer/codex/121_openai-codex` at `095da4b7e`:
 
 - `MULTI_AGENT_V1_NAMESPACE = "multi_agent_v1"`
   (`tools/handlers/multi_agents_spec.rs:14`).
-- `DEFAULT_MULTI_AGENT_V2_TOOL_NAMESPACE = "collaboration"` (`config/mod.rs:238`).
-  There is no `multi_agent_v2` namespace string.
-- V1 spawn requires nothing and returns `{agent_id, nickname}`; V2 spawn requires
-  `task_name` and `message` and returns `task_name`
-  (`multi_agents_spec.rs:65-141`, `386-396`).
+- `DEFAULT_MULTI_AGENT_V2_TOOL_NAMESPACE = "collaboration"` (`core/src/config/mod.rs:238`).
+  It is a configurable default, and `multi_agent_v2` is the feature-flag name
+  rather than a namespace string.
+- V1 spawn declares `required: None` in its JSON schema and returns
+  `{agent_id, nickname}`; V2 spawn declares `required: ["task_name","message"]`
+  and returns `task_name` plus `nickname` unless `hide_agent_metadata`
+  (`multi_agents_spec.rs:94`, `132-136`, `386-401`, `404-433`).
+  Schema-optional is not runtime-optional: `parse_collab_input` rejects a spawn
+  with neither `message` nor `items` (`multi_agents_common.rs:145-147`).
 - V1 wait may carry the final message in `status.completed`; V2 wait is a mailbox
   that returns `{message, timed_out}` and no content
   (`multi_agents_spec.rs:264-292`, `multi_agents_v2/wait.rs:127-160`).
@@ -158,9 +162,11 @@ From `/Users/jun/developer/codex/121_openai-codex` at `095da4b7e`:
   `config.cwd = turn_cwd` in `apply_spawn_agent_runtime_overrides`
   (`multi_agents_common.rs:237-252`), called from both spawn paths. No
   `WorktreeManager` or `create_worktree` call exists on the spawn path.
-- The V2 system prompt states it outright: "All agents share the same directory …
+- The V2 usage hint states it outright: "All agents share the same directory …
   edits made by one agent are immediately visible to all other agents"
-  (`session/multi_agents.rs:53-59`).
+  (`DEFAULT_MULTI_AGENT_V2_SHARED_USAGE_HINT_TEXT`,
+  `session/multi_agents.rs:53-58`). It is a usage hint constant, not a system
+  prompt, so it reaches the model only on V2 — a V1 session is never told this.
 - The "forked workspace" phrase is V1 prompt text at
   `multi_agents_spec.rs:713` and describes nothing in the cwd logic.
   `fork_context` and `fork_turns` fork thread history, not the filesystem.
@@ -170,3 +176,45 @@ than the CLI checkout, so they are recorded as live-observed, not source-cited:
 `create_thread` takes `target.environment` of `local` or `worktree`, and a
 `worktree` takes `startingState` of `working-tree` or `branch{branchName,
 onMissing}`.
+
+### Revision 2 — audit fold
+
+The A-phase reviewer returned NEAR-PASS and five residuals. Four are folded into
+the build scope and one is rebutted in part.
+
+**Folded.** The three source overstatements above are corrected in place: the V2
+namespace is a configurable default, V1 spawn is schema-optional but not
+runtime-optional, and the shared-directory text is a usage hint rather than a
+system prompt. That last correction matters more than it looks — a V1 session is
+never handed the shared-directory sentence, which is exactly why a V1 agent
+invents the isolation. The skills have to supply what the runtime does not.
+
+Three files join the wp2 routing table because they would otherwise keep
+teaching the wrong shape:
+
+- `skills/lunasearch/SKILL.md:15-25` fans search lanes out as parallel
+  `spawn_agent` calls without saying the lanes share one checkout.
+- `structure/20_pabcd_dispatch_doctrine.md:29` maps the cli-jaw "Employee" onto a
+  `spawn_agent` subagent with no thread row at all, and `delegation.md:16` sends
+  readers there.
+- `delegation.md:103` DISPATCH-ISOLATION-01 says "every lane gets explicit read
+  and write access lists" without ever saying the lanes share a working tree,
+  which is precisely the sentence that reads as isolation.
+
+The `spawn-attach-hook.ts` code comments join the prompt strings in scope; the
+Revision 1 amendment covered only the injected text.
+
+**Rebutted in part.** The reviewer is right that `detectSpawnSurface` is
+declarative: `resolveCapabilities` is not wired into the spawn hook, so
+correcting it changes no live dispatch. Live surface detection is already done by
+`isV2SpawnInput` and `isCollaborationToolName` in the hook. The fix stays in
+scope anyway, because a wrong capability declaration is what a future reader
+builds on, but it is recorded as a **declaration correction, not a behavior
+change**, and the D summary must say so rather than implying spawn routing
+improved.
+
+Its constraints are accepted: `spawn_agent` exists in both families and cannot
+discriminate; V2 names arrive namespaced (`collaboration__spawn_agent`), so
+matching must allow a namespace prefix; `wait_agent` is optional on V2 and cannot
+be a signal; `CODEXCLAW_SPAWN_V1` keeps its exact `"1"` comparison; and the
+no-list default stays `v2` so the existing tests keep their meaning.
