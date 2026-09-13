@@ -88,13 +88,14 @@ Keep explicit-only skills and leaf-safe delivery restrictions intact.
   task with its own goal and PABCD state, and with `environment: worktree` its own
   checkout — `environment: local` shares the project checkout instead. Work that
   needs its own branch, checkout, or merge/CI lane is thread work: N parallel lanes
-  means N worktree threads. Spawning N subagents for N branches puts N writers
-  on one HEAD. Concurrent subagents need non-overlapping write scopes and must
-  never run branch-level git operations at the same time. A request for parallel
-  branch or worktree lanes **is** the user request that creating those threads
-  needs — the lanes are the mechanism the work requires, so do not downgrade them
-  onto the shared tree to avoid creating tasks. If the shape is unclear, ask once
-  naming what you would create, then continue.
+  means N worktree threads, and the workers inside each lane are that lane's
+  subagents, not threads of their own. Spawning N subagents for N branches puts
+  N writers on one HEAD. Concurrent subagents need non-overlapping write scopes
+  and must never run branch-level git operations at the same time. A request for
+  parallel branch or worktree lanes **is** the user request that creating those
+  threads needs — the lanes are the mechanism the work requires, so do not
+  downgrade them onto the shared tree to avoid creating tasks. If the shape is
+  unclear, ask once naming what you would create, then continue.
   Details and the measured evidence: [Dispatch surfaces](../pabcd/references/dispatch-surfaces.md).
 - ORCH-MANDATE-01 (STRICT): a claimed active loop needs real persisted FSM evidence,
   not narrated phase names. Read actual session state before entry or re-entry.
