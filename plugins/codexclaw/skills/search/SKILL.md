@@ -200,6 +200,10 @@ When the user says **검색 / 검색해 / 찾아봐 / 찾아줘 / 알아봐 / �
    above; programming library/framework/API docs -> official docs or the active
    documentation retrieval path, then source-open proof; this repository's
    code/logs/config -> file search (`rg`, `rg --files`, local code tools).
+   **"Figure out how this specific system/app/AI tool/API works"** (로직 파악,
+   뜯어봐) is not a web lookup by default — route to `dev-debugging`
+   `references/logic-analysis.md` (the observation loop) and use this ladder
+   only for its external-evidence steps (docs, CVEs, prior writeups).
 2. **Do not send the full natural-language sentence as the only query.** Rewrite
    it into 1-3 focused keyword queries (see `references/query-rewrite.md`).
 3. **Preserve anchors** in the rewrite: entities, source hints (official, Naver,

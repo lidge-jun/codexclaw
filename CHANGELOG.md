@@ -6,6 +6,25 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.27] - 2026-09-13
+
+### Added
+
+- Logic-analysis methodology in `cxc-dev-debugging`: new `references/logic-analysis.md`
+  covers comprehending unknown systems (closed apps, AI tools, undocumented APIs,
+  unfamiliar codebases) when no defect is being fixed — the logic-analysis loop
+  (isolate → inventory the callable surface → hypothesize from names/strings/errors →
+  observe static AND dynamic → mutate one variable → prove the model by writing a
+  client), a technique routing table, the honest human-lab boundary, and an
+  anti-give-up escalation ladder whose core rule is that "I can't analyze this" is a
+  skipped loop, not a limit. Distilled from three reverse-engineering courses with
+  cited evidence in `devlog/_plan/260913_logic_analysis_skill/`. `SKILL.md` gains the
+  trigger metadata, boundary route, a compact Logic Analysis section, and the
+  references-table row (414 → 431 lines). `cxc-dev` §2 and its surface routing table
+  now point comprehension-without-a-defect requests at the same reference, and
+  `cxc-search` Korean Intent Guard rule 1 classifies "figure out how this system
+  works" (로직 파악, 뜯어봐) as logic analysis rather than a web lookup.
+
 ## [0.2.26] - 2026-09-13
 
 ### Added
