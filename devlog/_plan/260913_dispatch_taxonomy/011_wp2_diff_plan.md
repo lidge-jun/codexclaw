@@ -38,8 +38,8 @@ visibility, creation authority, addressing, waiting, and lifecycle end.
 |---|---|---|
 | `pabcd/SKILL.md` | "## Delegation Model (subagents)" | a first paragraph routing to the taxonomy before a surface is chosen |
 | `pabcd/references/delegation.md` | line 1 | a scope line: this file owns the subagent packet, the taxonomy owns surface choice |
-| `pabcd/references/delegation.md` | DISPATCH-ISOLATION-01 | add that lanes share one working tree, so scopes must be disjoint by path |
-| `loop/SKILL.md` | reading table | a row for parallel lanes and surface choice |
+| `pabcd/references/delegation.md` | DISPATCH-ISOLATION-01 | ~~disjoint by path~~ superseded by Revision 1 B5: the shared tree forbids concurrent branch-level git operations |
+| `loop/SKILL.md` | reading table | ~~a row~~ superseded by Revision 1 B1: the decision itself goes in the execution-invariants body, and the table row is added alongside it |
 | `dev/SKILL.md` | "### Discovery delegation" | one sentence separating discovery from a parallel branch lane |
 | `worktree-guardian/SKILL.md` | §2 WG-FACTS-01 | a WG-FACTS-02 note: a spawned child inherits this worktree and does not get one |
 | `lunasearch/SKILL.md` | "## Hardcoded Spawn Path" | the lanes share one checkout; Luna lanes are read-only so they cannot collide |
@@ -168,3 +168,67 @@ merge gate. The per-PR gate stays the default; DEV-STACK-08 requires the
 repository owner's decision, names the risk that a broken non-tip link is only
 discovered at the tip, and pairs it with the stop-on-red trunk watch that makes
 the relaxation survivable.
+
+## Revision 3 — re-audit fold
+
+The re-audit cleared B1, B2, B4 and B5, called B3 partially cleared, and
+returned NEAR-PASS with seven residuals. All seven are accepted and become build
+constraints.
+
+**R1 — the implied-request sentence must travel with the routing rule.** The
+reviewer's point is sharp: telling an agent "parallel lanes are threads" in the
+always-read body while leaving "the user already authorized this" in a skippable
+reference reproduces the bounce one level up. The agent obeys the routing, reads
+the host tool contract demanding an explicit new-task request, and falls back to
+subagents. So every place that carries the routing rule carries the authority
+sentence with it: loop's invariants, pabcd's delegation paragraph,
+`stacked-prs.md`, and the SessionStart clause.
+
+**R2 — name the home.** The dispatch lane rule lands in DEV-STACK-08, and the
+SessionStart affordance names 08 alongside 06/07.
+
+**R3 — strike the superseded rows.** Done above; the pre-fold "disjoint by path"
+and "a row" entries are struck rather than deleted so the change of mind stays
+legible.
+
+**R4 — qualify the rules 08 contradicts.** This is the residual that matters
+most. DEV-STACK-08 as drafted silently contradicts four live rules: "Merging is
+bottom-up. Out-of-order merges are the pathological case." (line 47),
+DEV-STACK-04's "Merge bottom-up" (231) and "Land the bottom PR, retarget/restack
+its children" (234), DEV-STACK-07's "Do not introduce blanket top-only skips"
+(112), DEV-STACK-01's every-layer-fully-gated (145), and DEV-STACK-03's
+do-not-defer-tests-upward (185). A new rule that quietly inverts five older ones
+is worse than no rule. Each of those five gets an explicit pointer saying
+DEV-STACK-08 is the owner-authorized exception and naming its precondition, and
+08 cross-links back. DEV-STACK-02 needs nothing: the ancestry invariant is the
+cascade rule, restated for merge time.
+
+**R5 — attribute the responses-lane result correctly.** The six-PRs-from-one-merge
+result is not in the source plan unit; it is the owner's live report in this
+session. It stays, marked as an owner report of a live run rather than a
+documented outcome, and it is not used as the reason the rule exists — the reason
+is the mechanism.
+
+**R6 — the priority ordering was backwards.** The draft said "a PR sharing the
+most-contended files earlier rather than later". The source says the opposite:
+the global tip that touches the most files (#4334, Spark removal across 34 core
+files) is merged **last**, so it rebases once onto a landed trunk instead of
+being rebased by every lane that lands after it. Corrected ordering: the
+designated next slot first, especially right after review fixes when its head is
+new and needs a fresh exact-head check; then conflict-dense chains, because a
+lane that owns the most-shared domain reduces everyone else's rebase count once
+it lands; then trunk-based singles; and the globally most-colliding change last.
+The distinction is between a *lane* holding contended files, which goes early,
+and a *single change* touching everything, which goes last.
+
+**R7 — the CI guards are mandatory, not optional.** DEV-STACK-08 states in its
+own body: per-PR required checks remain the default and 08 is an owner-authorized
+exception; a skipped, cancelled or missing non-tip check is not a passing check;
+no blanket top-only skip, branch-protection bypass or merge-queue bypass;
+`--admin` and the choice of merge method are not authorization; a commit landing
+on trunk must never carry `[skip ci]` in its subject, or the trunk regression run
+is suppressed too; and the owner authorization, the tip run covering each link,
+and the stop-on-red trunk watch are all recorded.
+
+**B3 residual accepted.** R1 is its fix. After R1 the authority sentence sits on
+the same page as the routing rule everywhere the routing rule appears.
