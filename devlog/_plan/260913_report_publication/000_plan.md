@@ -1,6 +1,6 @@
 # Report publication pipeline
 
-Status: PLANNED
+Status: DONE (implementation and local verification; remote publication verified after commit)
 
 The report route will preserve evidence and third-party voice before typography, and refuse to label skipped PDF checks as passing. Existing report assets and the visualizer entrypoint remain the owners; no extra public skill or dependency is installed.
 
@@ -33,3 +33,10 @@ Rejected: adding many public micro-skills (routing duplication), copying a consu
 - Existing command shape is retained; additional requirements and exit codes are documented.
 - Focused tests, affected suite, build/gate and actual PDF smoke are freshly recorded.
 - Exact committed SHA equals pushed branch SHA. Main is not merged and no release is claimed.
+
+## Closeout
+
+All three scoped units are implemented. Final verification is recorded in
+`040_verification.md`; no source behavior changed after the green full-suite run.
+Publication is to the isolated task branch only. No main merge, release or
+installation into the original checkout is implied.
