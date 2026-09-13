@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "roles": {"body": "Pretendard", "heading": "Pretendard"},
+  "fonts": [
+    {"family":"Pretendard","weight":400,"style":"normal","path":"./approved-local-fonts/Pretendard-Regular.otf","postscriptName":"Pretendard-Regular","version":"SET_TO_VERIFIED_LOCAL_VERSION","license":"SIL Open Font License 1.1","source":"https://github.com/orioncactus/pretendard"},
+    {"family":"Pretendard","weight":600,"style":"normal","path":"./approved-local-fonts/Pretendard-SemiBold.otf","postscriptName":"Pretendard-SemiBold","version":"SET_TO_VERIFIED_LOCAL_VERSION","license":"SIL Open Font License 1.1","source":"https://github.com/orioncactus/pretendard"}
+  ]
+}
