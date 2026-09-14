@@ -116,6 +116,8 @@ test("wp3: phase pointers retain owners and active work-phase boundaries", () =>
   assert.match(phaseDirective("P"), /No implementation yet/);
   assert.match(phaseDirective("A"), /cxc-dev-code-reviewer/);
   assert.match(phaseDirective("C"), /C-RENDER-GROUNDING-01/);
+  assert.match(phaseDirective("P"), /Record implementation ownership/);
+  assert.match(phaseDirective("B"), /recorded implementation ownership/);
   const bound = phaseDirective("B", { activeWorkPhase: { id: "wp3", title: "minimal hooks" } });
   assert.match(bound, /ACTIVE WORK-PHASE: wp3 — minimal hooks/);
   assert.match(bound, /other work-phases are OUT OF SCOPE until D closes/);

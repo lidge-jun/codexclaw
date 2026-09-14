@@ -142,14 +142,19 @@ test("260914: P and B entry echo the implementation-ownership pointer; other ver
 });
 ```
 
-   최소 단언: `orchestrate P` 출력이 `/implementation ownership/`에 match,
-   `orchestrate A` 출력은 doesNotMatch, `orchestrate B` 출력은 match,
-   `orchestrate D`(C→IDLE 종료) 출력도 doesNotMatch.
-   I→P 오버라이드 경로(656행 반환)도 별도로 match를 단언한다. 기존 테스트의
-   `readyInterview()`, `seedPlanUnit()`, `freshCwd()` 헬퍼를 재사용한다.
+   각 단언 전에 먼저 `assert.equal(r.code, 0)`와 전이 후 실제 phase를 확인한다.
+   그러지 않으면 거부 메시지가 음성 단언을 거짓 통과시킨다.
+   양성: `orchestrate P`와 `orchestrate B` 출력이 `/implementation ownership/`에 match.
+   음성: `orchestrate A`, `orchestrate C`, `orchestrate D`(C→IDLE 종료) 출력은 doesNotMatch.
+   `orchestrate status`도 저장된 phase가 P일 때와 B일 때 각각 doesNotMatch를 단언한다
+   (안내는 전이 출력에만 붙고 상태 조회에는 붙지 않는다).
+   I→P 오버라이드 경로(656행 반환)도 별도로 match를 단언하되, 새로 만들지 말고
+   orchestrate-cli.test.ts:615의 기존 unready 픽스처를 재사용한다.
+   그 밖에는 `seedPlanUnit()`, `freshCwd()` 등 기존 헬퍼를 재사용한다.
 
-3. 기존 테스트 중 전이 출력 문자열을 `assert.equal`로 고정한 곳이 있으면 함께 갱신한다.
-   먼저 `rg -n "orchestrate P: current=|orchestrate B: current=|assert.equal\(res.output"`로 찾는다.
+3. 전이 출력 문자열을 `assert.equal`로 고정한 기존 테스트는 두 곳뿐이고 둘 다 D 종료
+   출력이다(orchestrate-cli.test.ts:982, :2401). D에는 포인터를 붙이지 않으므로 그대로 둔다.
+   platform-smoke(거부/상태)와 cli-usage(도움말)도 영향 없음. 새 스냅샷 소비자는 없다.
 
 RED/GREEN: 새 단언을 먼저 추가해 실패(RED)를 확인한 뒤 소스를 고쳐 통과(GREEN)시킨다.
 
@@ -169,3 +174,18 @@ RED/GREEN: 새 단언을 먼저 추가해 실패(RED)를 확인한 뒤 소스를
 ## Out of scope (wp3)
 
 새 CLI 서브커맨드, 새 훅 이벤트, gate/transition 로직 변경, D/status 출력 변경.
+
+## P 재검증 (wp3 사이클, 2026-09-14)
+
+이전 D 결론: wp2가 dev/SKILL.md:206, plan-output.md:29, pabcd/SKILL.md:83, doctrine:202,
+INDEX.md:326에 구현 담당 소유자를 만들었다(커밋 1a063c76). 이제 단계 안내가 그 소유자를
+가리키게 한다. 방향 변경 없음.
+
+이 문서의 BEFORE 앵커(hook.ts P/B 배열, orchestrate-cli.ts 1121/656 반환)는 wp2가 건드리지
+않은 파일이며 `bash /home/jun/tmp/cxc-wp1-doccheck-01a09f4f.sh` exit 0으로 다시 확인했다.
+
+담당: executor. 수정 파일과 문자열과 검증 방법이 확정돼 있어 위임 조건을 충족한다.
+main은 패킷 작성, 반환 diff 검토, 통합을 맡는다(dev/SKILL.md Implementation delegation).
+`Phase` 타입은 orchestrate-cli.ts:139에 이미 import 돼 있다. 새 import를 추가하지 말고
+그것을 재사용한다(순환 import 없음). dist 재빌드는 전체 GREEN 실행 전에 끝낸다 —
+dist 신선도 검사가 소스 변경을 관측하기 때문이다.

@@ -2683,3 +2683,77 @@ test("wp7 preservation: CLI D-close keeps dependsOn and outcome", () => {
   assert.equal(saved.workPhases[1].status, "in_progress");
   assert.deepEqual(taskFields(saved), expectedTaskFields);
 });
+
+test("260914: P and B entry echo the implementation-ownership pointer; other verbs do not", () => {
+  const cwd = freshCwd(); // not a repo: captureSourceIdentity is "unavailable", so B>C is not delta-gated
+  try {
+    const id = "wp3-hint";
+    seedSession(cwd, id, "IDLE");
+
+    // IDLE -> P carries the pointer.
+    const toP = runOrchestrateCli({ verb: "P", attest: null, session: id, cwd, json: false });
+    assert.equal(toP.code, 0, toP.output);
+    assert.equal(readState(cwd, id).phase, "P");
+    assert.match(toP.output, /implementation ownership/);
+
+    // status is read-only and must not echo the pointer while parked at P.
+    const statusAtP = runOrchestrateCli({ verb: "status", attest: null, session: id, cwd, json: false });
+    assert.equal(statusAtP.code, 0, statusAtP.output);
+    assert.equal(readState(cwd, id).phase, "P");
+    assert.doesNotMatch(statusAtP.output, /implementation ownership/);
+
+    // P -> A does not carry the pointer.
+    const planUnit = seedPlanUnit(cwd);
+    const toA = runOrchestrateCli({ verb: "A", attest: { from: "P", to: "A", did: "audited", planUnit }, session: id, cwd, json: false });
+    assert.equal(toA.code, 0, toA.output);
+    assert.equal(readState(cwd, id).phase, "A");
+    assert.doesNotMatch(toA.output, /implementation ownership/);
+
+    // A -> B carries the pointer.
+    const toB = runOrchestrateCli({
+      verb: "B",
+      attest: { from: "A", to: "B", did: "audit folded back", auditOutput: "reviewer: GO; refs verified", auditVerdict: "pass" },
+      session: id, cwd, json: false,
+    });
+    assert.equal(toB.code, 0, toB.output);
+    assert.equal(readState(cwd, id).phase, "B");
+    assert.match(toB.output, /implementation ownership/);
+
+    // status at B stays clean too.
+    const statusAtB = runOrchestrateCli({ verb: "status", attest: null, session: id, cwd, json: false });
+    assert.equal(statusAtB.code, 0, statusAtB.output);
+    assert.equal(readState(cwd, id).phase, "B");
+    assert.doesNotMatch(statusAtB.output, /implementation ownership/);
+
+    // B -> C does not carry the pointer.
+    const toC = runOrchestrateCli({ verb: "C", attest: { from: "B", to: "C", did: "implemented the slice" }, session: id, cwd, json: false });
+    assert.equal(toC.code, 0, toC.output);
+    assert.equal(readState(cwd, id).phase, "C");
+    assert.doesNotMatch(toC.output, /implementation ownership/);
+
+    // C -> D closes to IDLE and does not carry the pointer.
+    const toD = runOrchestrateCli({ verb: "D", attest: { from: "C", to: "D", did: "checks passed", checkOutput: "tests 1 pass 1", exitCode: 0 }, session: id, cwd, json: false });
+    assert.equal(toD.code, 0, toD.output);
+    assert.equal(readState(cwd, id).phase, "IDLE");
+    assert.doesNotMatch(toD.output, /implementation ownership/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("260914: I->P agent override echoes the implementation-ownership pointer", () => {
+  const cwd = freshCwd();
+  try {
+    // Same unready-interview fixture as the override tests above (line ~615).
+    seedSession(cwd, "s1", "I");
+    const r = runOrchestrateCli({
+      verb: "P",
+      attest: { from: "I", to: "P", did: "interview done", override: true },
+      session: "s1",
+      cwd,
+      json: false,
+    });
+    assert.equal(r.code, 0, r.output);
+    assert.equal(readState(cwd, "s1").phase, "P");
+    assert.match(r.output, /agent override/);
+    assert.match(r.output, /implementation ownership/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});

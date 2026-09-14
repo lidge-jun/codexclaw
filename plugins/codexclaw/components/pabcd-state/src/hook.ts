@@ -303,6 +303,7 @@ const PHASE_DIRECTIVES: Partial<Record<Phase, string>> = {
     "[codexclaw: PLAN]",
     "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
     "Load $codexclaw:cxc-pabcd for P and C2+ plan-output; $codexclaw:cxc-dev selects class and relevant surfaces. No implementation yet.",
+    "Record implementation ownership per planned change: a specified slice defaults to the configured executor, main needs a stated reason ($codexclaw:cxc-dev Implementation delegation).",
     "Plan-only ends with the plan. Forbidden checks: NOT RUN; naming an artifact grants no write permission.",
   ].join("\n"),
   A: [
@@ -315,6 +316,7 @@ const PHASE_DIRECTIVES: Partial<Record<Phase, string>> = {
     "[codexclaw: BUILD]",
     "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
     "Use $codexclaw:cxc-dev for class/surfaces; authorized PABCD B uses $codexclaw:cxc-pabcd. Implement only authorized scope.",
+    "Execute the plan's recorded implementation ownership; an unassigned slice needs a P amendment, and main verifies a returned diff rather than the report.",
     "Forbidden checks: NOT RUN; no invented proof.",
   ].join("\n"),
   C: [
