@@ -273,11 +273,15 @@ channel (`buildSpawnItems`/`SpawnPayload.items`). Prefer `[$cxc-<name>](skill://
 plugin-native `$codexclaw:cxc-<name>` when a link is unsafe. The WP2 E3
 spawn PreToolUse hook normalizes known broken/bare cxc mentions and inlines recognized
 skill bodies on V2-shaped spawns only when `message` reaches it as plaintext. Native
-ChatGPT-backend V2 presents ciphertext, so both operations are no-ops there. When no body
-can be inlined, the hook appends a plaintext `[CXC-SKILL-AFFORDANCE]` block telling the
+ChatGPT-backend V2 can present ciphertext. The hook preserves that message byte-for-byte:
+putting plaintext inside the encrypted slot makes the backend reject the child task.
+It reports omitted hook-added instructions to the caller; this is not skill delivery.
+Metadata-based recursion denial and separate model/effort routing still apply.
+On plaintext V2, when no body can be inlined, the hook appends a
+`[CXC-SKILL-AFFORDANCE]` block telling the
 child to self-load any `$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention from
 `<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel. The native
-V2 hook also carries the leaf guard and configured model/effort injection; it does not add
+V2 plaintext hook also carries the leaf guard; it does not add
 role baselines or infer surface skills.
 Dispatchers remain responsible for naming every required skill (DISPATCH-TASK-01).
 

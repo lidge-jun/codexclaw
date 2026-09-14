@@ -3,6 +3,10 @@
 Verified on 2026-09-15 KST. Worktree: `codex/executor-first-delegation`;
 combined base `03541398`, previous executor-only head `14c20791`.
 
+Follow-up: [042](042_runtime_completion.md) identifies and corrects the pre-existing
+encrypted-message corruption, and completes the previously missing formal P and
+design-amendment runtime observations. This receipt preserves the earlier results.
+
 The combined policy/runtime implementation passed independent review. P now
 delivers architect consultation and executor ownership together; A reminds only
 about changed design decisions; B retains executor ownership. Consultation records

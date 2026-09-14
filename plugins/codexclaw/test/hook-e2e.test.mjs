@@ -802,9 +802,11 @@ test("260710: spawn hook e2e - native collaboration name drives the V2 path", ()
   }
 });
 
-// WP2 cr3: an opaque (ciphertext-like) V2 message that inlines nothing gains the
-// plaintext self-load affordance block, after the task text, under the guard.
-test("260710 WP2: spawn hook e2e - opaque V2 message gains the skill affordance", () => {
+// The shipped entrypoint preserves native ciphertext and augments plaintext.
+for (const [name, message, encrypted] of [
+  ["ciphertext stays byte-identical", "gAAAAABopaque-payload", true],
+  ["plaintext gains the skill affordance", "Inspect the catalog module.", false],
+]) test(`spawn hook e2e - V2 ${name}`, () => {
   const { hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-attaching-skills.json");
   const ep = snapshotEntrypoint(distAbs);
   assert.ok(ep, "subagent-config dist entrypoint must settle");
@@ -813,13 +815,21 @@ test("260710 WP2: spawn hook e2e - opaque V2 message gains the skill affordance"
     const res = runHook(ep, hookEvent, {
       hook_event_name: "PreToolUse", session_id: "s1", cwd,
       tool_name: "collaborationspawn_agent",
-      tool_input: { task_name: "t", fork_turns: "none", message: "gAAAAABopaque-payload" },
+      tool_input: { task_name: "t", fork_turns: "none", message },
     }, { CXC_SKILLS_DIR: join(pluginRoot, "skills") });
     assert.equal(res.status, 0, res.stderr);
-    const ui = JSON.parse(res.stdout).hookSpecificOutput.updatedInput;
+    const output = JSON.parse(res.stdout).hookSpecificOutput;
+    const ui = output.updatedInput;
+    if (encrypted) {
+      assert.equal(ui.message, message);
+      assert.equal(ui.task_name, "t");
+      assert.equal(ui.fork_turns, "none");
+      assert.match(output.additionalContext, /prompt overrides were not attached/);
+      return;
+    }
     assert.ok(ui.message.startsWith("[CXC-LEAF-GUARD]"));
     assert.match(ui.message, /\[CXC-SKILL-AFFORDANCE\]/);
-    assert.ok(ui.message.indexOf("gAAAAABopaque-payload") < ui.message.indexOf("[CXC-SKILL-AFFORDANCE]"));
+    assert.ok(ui.message.indexOf(message) < ui.message.indexOf("[CXC-SKILL-AFFORDANCE]"));
     assert.match(ui.message, /skills\/<name>\/SKILL\.md/);
   } finally {
     rmSync(cwd, { recursive: true, force: true });

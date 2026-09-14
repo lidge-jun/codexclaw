@@ -995,17 +995,55 @@ test("v2 affordance: appended only when inlining attached nothing", () => {
   );
   assert.ok((inlined.message as string).includes(`${INLINE_SKILL_OPEN}dev">`));
   assert.ok(!(inlined.message as string).includes(affordanceOpening));
-  // No mentions (ciphertext-like opaque text) -> affordance appended after the task text.
+  // Plaintext without mentions still gets the self-load affordance.
   const opaque = updatedInputOf(
-    runSpawnAttachHook(spawnPayload({ task_name: "t", fork_turns: "none", message: "gAAAAABopaquetoken" })),
+    runSpawnAttachHook(spawnPayload({ task_name: "t", fork_turns: "none", message: "Inspect the catalog module." })),
   );
   assert.ok((opaque.message as string).includes(SKILL_AFFORDANCE_MARKER));
   assert.ok((opaque.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`), "guard stays first");
   assert.ok(
-    (opaque.message as string).indexOf("gAAAAABopaquetoken") <
+    (opaque.message as string).indexOf("Inspect the catalog module.") <
       (opaque.message as string).indexOf(SKILL_AFFORDANCE_MARKER),
     "affordance rides after the task text",
   );
+});
+
+test("native V2 ciphertext survives routing and prompt overrides byte-for-byte", () => {
+  // Synthetic Fernet-shaped input, not a credential or a decryptable task.
+  const message = `gAAAAAB${"aB9_".repeat(30)}==`;
+  const cwd = workspaceWithConfig({
+    architect: { mode: "model", model: "architect-fixture", effort: "high", promptOverride: "Architect-only instructions" },
+  });
+  for (const tool_name of ["spawn_agent", "collaborationspawn_agent"]) {
+    const input = { task_name: "design", agent_type: "architect", fork_turns: "none", message };
+    const payload = { ...JSON.parse(spawnPayloadAt(cwd, input)), tool_name };
+    const output = runSpawnAttachHook(JSON.stringify(payload));
+    const updated = updatedInputOf(output);
+    assert.deepEqual(updated, { ...input, model: "architect-fixture", reasoning_effort: "high" });
+    assert.match(JSON.parse(output).hookSpecificOutput.additionalContext, /prompt overrides were not attached/);
+  }
+});
+
+test("native V2 ciphertext preserves explicit settings and full-history fork restrictions", () => {
+  const message = `gAAAAAB${"aB9_".repeat(30)}==`;
+  const cwd = workspaceWithConfig({
+    architect: { mode: "model", model: "configured-fixture", effort: "high", promptOverride: "Architect-only instructions" },
+  });
+  for (const fields of [
+    { fork_turns: "none", model: "caller-fixture", reasoning_effort: "low" },
+    { fork_turns: "all" },
+  ]) {
+    const input = { task_name: "design", agent_type: "architect", message, ...fields };
+    const out = runSpawnAttachHook(spawnPayloadAt(cwd, input));
+    assert.deepEqual(out ? updatedInputOf(out) : input, input);
+  }
+});
+
+test("native V2 ciphertext cannot bypass the existing recursion denial", () => {
+  const message = `gAAAAAB${"aB9_".repeat(30)}==`;
+  const result = JSON.parse(runSpawnAttachHook(subagentSpawnPayload({ task_name: "nested", message })));
+  assert.equal(result.hookSpecificOutput.permissionDecision, "deny");
+  assert.equal(result.hookSpecificOutput.updatedInput, undefined);
 });
 
 test("v1 spawns never get the affordance (upstream parses mentions there)", () => {
@@ -1174,4 +1212,3 @@ test("explicit executor and reviewer roles take precedence over message keywords
   assert.equal(inferRole("executor", "review the implementation"), "executor");
   assert.equal(inferRole("reviewer", "inspect correctness"), "reviewer");
 });
-

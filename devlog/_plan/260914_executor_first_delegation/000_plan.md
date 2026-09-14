@@ -11,6 +11,8 @@ architect 절차도 P 진입 시 알린다. Architect가 설계를 제안하고,
 근거와 소스 앵커는 [001_source_evidence.md](001_source_evidence.md)에 있다.
 기존 executor 작업의 wp1–wp4와 검증 기록은 아래에 보존한다. 승인된 architect
 후속 변경의 범위·분담·검증은 [040](040_architect_consultation.md)에 기록한다.
+실제 설계·재확인 흐름의 완주 검증과 호출 훅의 암호문 보존 수정은
+[042](042_runtime_completion.md)에 기록한다.
 
 ## Loop spec
 
