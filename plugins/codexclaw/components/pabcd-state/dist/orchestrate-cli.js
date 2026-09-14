@@ -460,7 +460,7 @@ function hasPabcdCloseRow(
  * executed. Advice only — it changes no gate.
  */
 const OWNERSHIP_HINT                                 = {
-  P: "implementation ownership: record an owner per planned change (cxc-dev Implementation delegation)",
+  P: "formal P: architect proposal -> main executable plan -> same-architect reflection before A (cxc-pabcd phase-plan); implementation ownership: record an owner per planned change (cxc-dev Implementation delegation)",
   B: "implementation ownership: execute the plan's recorded owners; a new handoff needs a P amendment",
 };
 

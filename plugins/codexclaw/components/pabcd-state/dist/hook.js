@@ -303,6 +303,7 @@ const PHASE_DIRECTIVES                                 = {
     "[codexclaw: PLAN]",
     "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
     "Load $codexclaw:cxc-pabcd for P and C2+ plan-output; $codexclaw:cxc-dev selects class and relevant surfaces. No implementation yet.",
+    "Formal P, including C2 compact and plan-only P: obtain the configured read-only architect proposal BEFORE the executable plan, send that concrete plan to the SAME architect for reflection BEFORE A, and record the consultation per $codexclaw:cxc-pabcd phase-plan/plan-output. The C0/C1 fast path needs none.",
     "Record implementation ownership per planned change: a specified slice defaults to the configured executor, main needs a stated reason ($codexclaw:cxc-dev Implementation delegation).",
     "Plan-only ends with the plan. Forbidden checks: NOT RUN; naming an artifact grants no write permission.",
   ].join("\n"),
@@ -311,6 +312,7 @@ const PHASE_DIRECTIVES                                 = {
     "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
     "Load $codexclaw:cxc-dev-code-reviewer for review and $codexclaw:cxc-dev for relevant surfaces; authorized PABCD A uses $codexclaw:cxc-pabcd's audit owner. Do not build yet.",
     "Authorized dispatch follows the owner's named-skill, same-reviewer and verdict contracts; main synthesizes. Report unmet independent review; inline review is not its proof. Do not bypass gates.",
+    "An amendment changing a module-responsibility, data-structure, interface or execution-flow decision needs reflection from the SAME architect before A completes ($codexclaw:cxc-pabcd phase-audit); text/test clarification alone does not. The reviewer stays independent.",
   ].join("\n"),
   B: [
     "[codexclaw: BUILD]",

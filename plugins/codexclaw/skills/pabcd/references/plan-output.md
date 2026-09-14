@@ -26,6 +26,27 @@ exit code or treat the plan as implementation proof. Likewise, naming a memory
 artifact or escalation path does not authorize a file write, host goal, dispatch,
 phase transition or external action.
 
+## Architect consultation
+
+Formal P follows the [Plan phase owner](phase-plan.md#architect-consultation-for-formal-p),
+including C2 compact and plan-only P plans. Keep a compact record in the existing
+plan, using summaries and evidence references rather than copying conversation
+transcripts:
+
+- The actual returned architect handle and proposal reference, with its design
+  decision IDs.
+- Main's acceptance, rejection or amendment of each decision, with a short reason.
+- The concrete executable-plan path/revision sent to that same architect.
+- The reflection response reference, `ALIGNED` or `MISALIGNED`, and any remaining
+  gaps with main's dispositions. Resolve material gaps before independent A audit.
+
+An explicit user limit such as no delegation is a disclosed consultation gap.
+A failed call or unavailable required role remains unmet consultation; recording
+the reason does not make it complete. Follow the existing
+[routing and failure owner](delegation.md#architect-context-and-routing).
+C0/C1 fast-path work requires neither consultation nor this record. Main owns
+the executable plan and final decisions; architect reflection is not A review.
+
 ## Implementation ownership
 
 The file change map names an owner for each planned change: the configured

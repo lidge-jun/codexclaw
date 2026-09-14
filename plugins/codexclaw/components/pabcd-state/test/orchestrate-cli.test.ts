@@ -2695,12 +2695,14 @@ test("260914: P and B entry echo the implementation-ownership pointer; other ver
     assert.equal(toP.code, 0, toP.output);
     assert.equal(readState(cwd, id).phase, "P");
     assert.match(toP.output, /implementation ownership/);
+    assert.match(toP.output, /architect proposal -> main executable plan -> same-architect reflection before A/);
 
     // status is read-only and must not echo the pointer while parked at P.
     const statusAtP = runOrchestrateCli({ verb: "status", attest: null, session: id, cwd, json: false });
     assert.equal(statusAtP.code, 0, statusAtP.output);
     assert.equal(readState(cwd, id).phase, "P");
     assert.doesNotMatch(statusAtP.output, /implementation ownership/);
+    assert.doesNotMatch(statusAtP.output, /architect/i);
 
     // P -> A does not carry the pointer.
     const planUnit = seedPlanUnit(cwd);
@@ -2708,6 +2710,7 @@ test("260914: P and B entry echo the implementation-ownership pointer; other ver
     assert.equal(toA.code, 0, toA.output);
     assert.equal(readState(cwd, id).phase, "A");
     assert.doesNotMatch(toA.output, /implementation ownership/);
+    assert.doesNotMatch(toA.output, /architect/i);
 
     // A -> B carries the pointer.
     const toB = runOrchestrateCli({
@@ -2718,24 +2721,28 @@ test("260914: P and B entry echo the implementation-ownership pointer; other ver
     assert.equal(toB.code, 0, toB.output);
     assert.equal(readState(cwd, id).phase, "B");
     assert.match(toB.output, /implementation ownership/);
+    assert.doesNotMatch(toB.output, /architect/i);
 
     // status at B stays clean too.
     const statusAtB = runOrchestrateCli({ verb: "status", attest: null, session: id, cwd, json: false });
     assert.equal(statusAtB.code, 0, statusAtB.output);
     assert.equal(readState(cwd, id).phase, "B");
     assert.doesNotMatch(statusAtB.output, /implementation ownership/);
+    assert.doesNotMatch(statusAtB.output, /architect/i);
 
     // B -> C does not carry the pointer.
     const toC = runOrchestrateCli({ verb: "C", attest: { from: "B", to: "C", did: "implemented the slice" }, session: id, cwd, json: false });
     assert.equal(toC.code, 0, toC.output);
     assert.equal(readState(cwd, id).phase, "C");
     assert.doesNotMatch(toC.output, /implementation ownership/);
+    assert.doesNotMatch(toC.output, /architect/i);
 
     // C -> D closes to IDLE and does not carry the pointer.
     const toD = runOrchestrateCli({ verb: "D", attest: { from: "C", to: "D", did: "checks passed", checkOutput: "tests 1 pass 1", exitCode: 0 }, session: id, cwd, json: false });
     assert.equal(toD.code, 0, toD.output);
     assert.equal(readState(cwd, id).phase, "IDLE");
     assert.doesNotMatch(toD.output, /implementation ownership/);
+    assert.doesNotMatch(toD.output, /architect/i);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
@@ -2755,5 +2762,6 @@ test("260914: I->P agent override echoes the implementation-ownership pointer", 
     assert.equal(readState(cwd, "s1").phase, "P");
     assert.match(r.output, /agent override/);
     assert.match(r.output, /implementation ownership/);
+    assert.match(r.output, /architect proposal -> main executable plan -> same-architect reflection before A/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

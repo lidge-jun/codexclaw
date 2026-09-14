@@ -1,15 +1,16 @@
-# 260914 executor-first implementation delegation
+# 260914 planning consultation and implementation delegation
 
 ## Reader summary
 
-CXC는 지금 "무엇을 탐색에 맡길지"는 안내하지만 "구현을 누가 맡을지"는 안내하지 않는다.
-그래서 메인 모델이 명세가 이미 확정된 구현까지 직접 처리하기 쉽고, 비싼 메인 모델이
-싼 executor가 할 수 있는 작업을 대신하게 된다. 이 유닛은 "명세·수정 범위·검증 방법이
-확정된 구현은 설정된 executor에 우선 배정한다"는 기본값을 CXC 지침에 추가하고,
-P 계획이 담당을 기록하고 B가 그 기록을 실행하도록 연결한다. 바뀌는 대상은 CXC를
-쓰는 모든 세션의 메인 에이전트이며, 런타임 하드 게이트는 새로 만들지 않는다.
+이 변경은 명세·수정 범위·검증 방법이 확정된 구현을 executor에 우선 배정하고,
+P 계획에 담당을 기록해 B에서 그 분담을 실행하도록 안내한다. 후속 변경은 기존
+architect 절차도 P 진입 시 알린다. Architect가 설계를 제안하고, 메인이 실행 계획을
+쓴 뒤, 같은 architect가 반영 상태를 확인하는 순서와 실제 결과를 계획에 남긴다.
+메인이 최종 판단과 통합을 맡으며, 두 규칙 모두 모델이 따르는 지침이다.
 
 근거와 소스 앵커는 [001_source_evidence.md](001_source_evidence.md)에 있다.
+기존 executor 작업의 wp1–wp4와 검증 기록은 아래에 보존한다. 승인된 architect
+후속 변경의 범위·분담·검증은 [040](040_architect_consultation.md)에 기록한다.
 
 ## Loop spec
 

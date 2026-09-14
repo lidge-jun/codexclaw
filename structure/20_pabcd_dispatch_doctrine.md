@@ -139,9 +139,13 @@ codexclaw translation:
   lane first — it is almost always a read-only packet on a `worker`.
 - **Architect consultation in formal P.** Main evidence -> architect proposal -> main
   executable plan -> same architect reflection -> independent A reviewer. Main retains
-  every final decision. Recheck only named module/data/interface/flow decision changes;
+  every final decision. Formal P includes C2 compact and plan-only P plans; C0/C1
+  fast-path work needs neither consultation nor a consultation record. Plan output
+  records the actual handle, proposal, main dispositions and reflection against the
+  submitted plan revision. P hook/CLI hints expose the sequence before planning.
+  Recheck only named module/data/interface/flow decision changes;
   reuse context within one plan and start fresh for a new plan. Existing installed
-  owners: `pabcd/references/phase-plan.md`, `phase-audit.md` and `delegation.md`.
+  owners: `pabcd/references/phase-plan.md`, `plan-output.md`, `phase-audit.md` and `delegation.md`.
   This is E7 guidance, not a new phase or runtime consultation gate. Missing consultation
   is not complete; architect reflection never substitutes for independent A review.
 - **Audit (A) is never skipped.** Before B, the main session must dispatch an independent
