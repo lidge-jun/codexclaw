@@ -33,15 +33,30 @@ tail 출력과 exit code를 증거로 남기고 실패 수를 직접 읽는다.
 
 설치 전후로 재귀 내용 지문을 뜬다. 최상위 `ls`는 버전 디렉터리 안의 덮어쓰기를 못 잡는다.
 
+지문 함수는 실패를 전파해야 한다. 파이프 끝의 `sha256sum`은 `find`가 실패해도 0을
+반환하므로, 실패한 스캔 두 번이 "빈 입력 해시"로 똑같이 나와 무변경으로 보일 수 있다.
+
 ```bash
-find "$CXC_REAL" -type f -exec sha256sum {} + | sort | sha256sum   # BEFORE
+fingerprint() {  # 실패 전파 + 비어 있지 않은 목록 요구
+  (
+    set -o pipefail
+    n=$(find "$CXC_REAL" -type f | wc -l) || exit 1
+    [ "$n" -gt 0 ] || { echo "FAIL: empty inventory"; exit 1; }
+    d=$(find "$CXC_REAL" -type f -exec sha256sum {} + | sort | sha256sum) || exit 1
+    printf 'files=%s digest=%s\n' "$n" "$d"
+  )
+}
+fingerprint > /var/tmp/cxc-real-before-01a09f4f.txt || { echo "BEFORE scan failed"; exit 1; }
 mkdir -p "$CXC_TEST_HOME"
 cd "$CXC_WT" && CODEX_HOME="$CXC_TEST_HOME" scripts/dev-install.sh
 CODEX_HOME="$CXC_TEST_HOME" scripts/dev-install.sh --status
-find "$CXC_REAL" -type f -exec sha256sum {} + | sort | sha256sum   # AFTER, BEFORE와 동일해야 함
+fingerprint > /var/tmp/cxc-real-after-01a09f4f.txt || { echo "AFTER scan failed"; exit 1; }
+diff /var/tmp/cxc-real-before-01a09f4f.txt /var/tmp/cxc-real-after-01a09f4f.txt && echo "REAL INSTALL UNCHANGED"
 ```
 
-두 지문이 다르면 즉시 중단하고 원인을 기록한다(실제 설치본 변경은 범위 밖).
+두 스캔이 모두 성공하고 파일 수가 0이 아니며 서로 같아야 한다. 하나라도 실패하면 비교 자체가
+무효다. 이 지문은 정규 파일 내용의 동일성만 증명하며 권한·타임스탬프나 ~/.codex의 다른 경로는
+다루지 않는다. 두 지문이 다르면 즉시 중단하고 원인을 기록한다(실제 설치본 변경은 범위 밖).
 설치본 루트를 확정한다.
 
 ```bash
@@ -131,11 +146,21 @@ push 하지 않는다(DEV-GIT-PUSH-01). PR은 사용자 승인 후 별도 단계
 ## Accept criteria (wp4)
 
 - build exit 0, `npm test` 0 failures의 실제 tail 출력.
-- 실제 설치본 재귀 지문이 설치 전후 동일.
+- 실제 설치본 재귀 지문이 설치 전후 동일하고, 두 스캔 모두 성공했으며 파일 수가 0이 아니다.
 - 훅 경로에서 P/B 포함, A 미포함이 같은 증거에 기록되고, 세 출력 모두 자기 단계 헤더를 갖는다
   (빈 출력이나 헤더 없는 출력은 음성 증거로 인정하지 않는다).
 - CLI 경로에서 P/B 포함, A 미포함이 exit 0과 함께 기록됨.
 - `git -C "$CXC_WT" log`에 커밋 존재, 원격 push 없음.
+
+## P 재검증 (wp4 사이클, 2026-09-14)
+
+이전 D 결론: wp3이 hook.ts P/B directive와 orchestrate CLI 두 성공 반환에 포인터를 배선했고
+dist까지 재빌드했다(커밋 a99d3b86). RED 3건 재현 후 GREEN 183/183, 전체 3079 pass / 0 fail,
+gate.mjs exit 0. 이제 설치된 payload에서 같은 문자열이 실제로 전달되는지 본다. 방향 변경 없음.
+
+Step 1의 `npm test`는 wp3 C에서 이미 실행했고 리시트로 남았다. wp4에서는 재실행 대신
+`TMPDIR=/var/tmp/cxc-t-01a09f4f`를 계속 쓰고(이 호스트의 `/tmp/.git` 때문에 GUI
+project-root 테스트가 깨진다), 격리 설치 직전에 빌드 산출물이 최신인지만 확인한다.
 
 ## 이 유닛이 증명하지 않는 것
 
