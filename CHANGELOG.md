@@ -6,6 +6,16 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Subagent waiting guidance instructed coordinators to retire workers after
+  about three empty waits, even when analysis could still be progressing.
+  `waiting.md` now requires evidence of progress or stagnation, preserves
+  unavailable observations, and uses non-interrupting checkpoints. Delegation
+  and DISPATCH-RETIRE-01 clarify actual shutdown checks and managed recovery;
+  cancellation or exhausted limits grant no retry or replacement. This changes
+  agent-followed guidance, not runtime enforcement (#178).
+
 ## [0.2.28] - 2026-09-14
 
 ### Fixed

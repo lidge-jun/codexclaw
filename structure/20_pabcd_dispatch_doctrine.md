@@ -179,17 +179,26 @@ codexclaw translation:
   `agents.max_threads` (default 6) and V2 `max_concurrent_threads_per_session`
   (default 4, including the root).
 - **DISPATCH-RETIRE-01 (fresh-spawn fallback).** This is the exception to the reuse
-  default above: an agent id that failed (error, timeout, unresponsive, nonsense
-  output) is retired, not nursed. At most ONE retry against the same task_name; then
+  default above: an agent id that failed is retired, not nursed — where failure
+  means an actual terminal error, nonsense output, or stagnation evidenced per
+  the waiting reference's evidence rule
+  (`plugins/codexclaw/skills/loop/references/waiting.md`). A bare wait timeout is
+  a normal outcome, not a failure. Explicit cancellation or an exhausted
+  user/host bound stops within authority and is reported as such; it is not a
+  failure and grants no retry, replacement, or reclaim. At most ONE retry against the
+  same task_name; then
   abandon it (V2 has only `interrupt_agent`; V1 has `close_agent` and `resume_agent`)
   and fresh-spawn with the failure summary folded into the new
   TASK packet. Repeated `followup_task`/`send_message` against a broken agent is a
   broken-resume loop — the dispatch analogue of LOOP-REPAIR-01's doom loop. When the
   fresh spawn — a SECOND distinct agent — also fails the SAME task packet, stop
   blaming agents: two independent failures on one packet are evidence the packet
-  itself failed the DISPATCH-ECONOMY-01 specifiability bar. The main session
+  itself failed the DISPATCH-ECONOMY-01 specifiability bar. Absent a managed
+  dispatch, the main session
   reclaims that slice and does the work directly instead of dispatching a third
-  copy (packet-failure reclaim, 260711 fork-debate verdict #4). Lineage:
+  copy (packet-failure reclaim, 260711 fork-debate verdict #4); under configured
+  first fallback the protocol result owns that decision — `main-direct` permits
+  reclaim, `reconcile`/`stop` permit neither reclaim nor a replacement spawn. Lineage:
   `../jawcode/devlog/_plan/260616_actor_fresh_fallback/_fin/00_moc.md`
   (implementation-verified). Both rules are E7 doctrine (agent-followed); no hook
   observes agent lifecycles.

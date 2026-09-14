@@ -97,6 +97,12 @@ reuse the same reviewer throughout the A loop.
 Before waiting on dispatched work, read the mode-neutral
 [Waiting on work](../../loop/references/waiting.md) rules in either HITL or HOTL.
 This route does not authorize an otherwise forbidden dispatch, wait, or mode transition.
+A wait timeout is an observation outcome, not a verdict: classify progress,
+suspected stagnation, confirmed failure and unavailable observation per that
+reference before any retirement. A suspected-stall checkpoint uses
+non-interrupting delivery where the family supports it — V1 `send_input`
+without `interrupt`, V2 `send_message` — and a queued message is context the
+child may not have read yet, never proof of a stall.
 
 ### Detect the family first (DISPATCH-SCHEMA-DETECT-01, STRICT)
 
@@ -130,7 +136,7 @@ thread surface: a separate Codex task is not a bigger subagent. See
 |---|---|
 | spawn | `spawn_agent({ message \| items, model?, reasoning_effort?, fork_context? })` |
 | handle | returns `{ agent_id, nickname }`; address by `agent_id` |
-| wait | `wait_agent({ targets[], timeout_ms })` returns final status that **may carry the final message**; a timeout is a normal outcome |
+| wait | `wait_agent({ targets[], timeout_ms })` returns final status that **may carry the final message**; a timeout is a normal outcome, not failure evidence |
 | follow-up | `send_input({ target, message \| items, interrupt? })` |
 | stop | `close_agent({ target })`, returning the previous status |
 | restore | `resume_agent({ id })` |
@@ -275,7 +281,9 @@ protocol. A PreToolUse reminder after a direct call cannot retroactively manage 
    `not_created`, `stopped`, `unknown`, or `running`. Known no-child failures need
    concrete `reconciliation` evidence. A stopped child requires its recorded
    `agentId` and evidence that work/processes stopped and changes were inspected;
-   pass only remaining work to the replacement. Unknown outcomes never authorize
+   a stop call returning previous status `running` is not that evidence — verify
+   the current terminal state and owned processes first. Pass only remaining work
+   to the replacement. Unknown outcomes never authorize
    another child. If native spawn is absent, report `outcome:unavailable` with
    confirmed `not_created` and capability evidence, never a policy denial.
 5. `ready` means claim the next attempt. `main-direct` means main reclaims the
