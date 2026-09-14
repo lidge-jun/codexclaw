@@ -6,6 +6,51 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.28] - 2026-09-14
+
+### Fixed
+
+- `cxc-loop` `references/durable-goalplan.md` documented mandatory goalplan
+  registration without documenting the command that performs it. `add-criterion`
+  was absent from the CLI surface list while the schema advertised `criteria[]`
+  field names, so the natural first call — `--id c1 --scenario ... --expected-evidence ...`
+  — failed with `--criterion "<scenario>" is required`, and `update_goal
+  {status:"complete"}` stayed hook-denied behind GOAL-COMPLETE-GATE-01. The real
+  signature is now listed (`--criterion <text> [--surface logic|web|tui]`), `init`
+  shows its repeatable `[--criterion <text>]...` form, and a duplicate scenario
+  text is documented as a rejection (#170).
+- Criterion ids are generated, not chosen. `meet-criterion --id <id>` read as if
+  the caller picks the id the way `add-work-phase --id wp1` does, so an agent that
+  assumed `c1` at registration would later record no evidence for a criterion it
+  believed it met. The reference now states that ids are assigned as `c-1`,
+  `c-2`, ... (max existing `c-N` + 1, in registration order) and are read back from
+  `cxc loop show` or the goalplan file. `criteria[]` also regains its missing
+  `surface` field, with per-field provenance: `scenario` and `surface` are
+  CLI-settable, `id` and `status` are derived, `expectedEvidence` has no
+  `add-criterion` flag, and `capturedEvidence` comes from `meet-criterion
+  --evidence` (#171).
+- DISPATCH-SURFACE-01 was correct in substance but ordered so that an orchestrator
+  over-rotated to threads for every unit of work. Four STRICT blocks pushed toward
+  threads while the correcting sentence — in-lane subagents cannot collide because
+  the worktrees differ — sat in the last paragraph of
+  `cxc-pabcd` `references/dispatch-surfaces.md`. The composition rule now sits
+  inside the invariant itself: a **lane** is thread work, a **worker inside a lane**
+  is subagent work. DISPATCH-ROUTE-01 gained the matching route line, `cxc-loop`
+  `SKILL.md` mirrors the clause, and `structure/20_pabcd_dispatch_doctrine.md`
+  gains the worker row in its translation table (#172).
+
+### Added
+
+- DELEGATE-MODEL-LIST-01 (STRICT) in `cxc-pabcd` `references/delegation.md`: the
+  model-override list advertised by the host `spawn_agent` description is a hint,
+  not an allowlist, and is known to be incomplete. A user-named model is passed
+  through as given; only a real spawn rejection is evidence of unavailability; a
+  genuine failure is reported rather than silently substituted. Measured
+  2026-09-14: `spawn_agent({ model: "devin/swe-2" })` spawned and ran to a final
+  message while the advertised list omitted that model, which had previously caused
+  a requested worker ratio to be re-planned around threads (#173).
+
+
 ## [0.2.27] - 2026-09-13
 
 ### Added

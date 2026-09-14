@@ -1,6 +1,6 @@
 {
   "name": "@codexclaw/subagent-config",
-  "version": "0.2.27",
+  "version": "0.2.28",
   "private": true,
   "type": "module",
   "description": "Stores subagent model/prompt config; serves it to the GUI and an MCP tool.",

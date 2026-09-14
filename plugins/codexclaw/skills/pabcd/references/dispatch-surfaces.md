@@ -22,6 +22,10 @@ Isolation comes from the environment, not from being a task. A `local` thread is
 an independent owner sharing one checkout; a `worktree` thread is an independent
 owner with its own. Lane work needs the second.
 
+A **lane** is thread work; a **worker inside a lane** is subagent work. N lanes
+means N worktree threads, and the workers inside each lane are that lane's
+subagents — they cannot collide across lanes because the worktrees differ.
+
 Say which one you are creating, in those words, before you create it.
 
 ## What actually differs
@@ -76,6 +80,8 @@ Route by what the work needs to own, not by how parallel it is:
   one per lane, created with `environment: worktree`. A `local` thread does not
   give the lane a checkout of its own.
 - Needs its own goal or its own PABCD cycle -> **thread**.
+- Is a bounded slice inside a lane that already owns its checkout -> **subagent**
+  of that lane's thread.
 - Is a bounded slice of the tree you are already editing, returning evidence or a
   patch rather than owning a branch -> **subagent**.
 - Is read-only research -> **subagent**, by default. It cannot collide because it
