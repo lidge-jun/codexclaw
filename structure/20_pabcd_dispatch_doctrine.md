@@ -199,8 +199,10 @@ codexclaw translation:
   `devlog/_plan/260711_dispatch_economy_docs_site/005_research_claim_ledger.md`).
   For authorized source/log investigation, [dev's Discovery delegation](../plugins/codexclaw/skills/dev/SKILL.md#discovery-delegation)
   owns the early ownership decision, concrete local exceptions and reconsideration
-  after scope growth or truncation. Parallelism alone does not reduce returned context;
-  this guidance adds no runtime enforcement or mandatory spawn count.
+  after scope growth or truncation. For implementation, [dev's Implementation delegation](../plugins/codexclaw/skills/dev/SKILL.md#implementation-delegation)
+  owns the same decision: a specified slice defaults to the configured executor, and
+  the P plan records the owner that B then executes. Parallelism alone does not reduce
+  returned context; this guidance adds no runtime enforcement or mandatory spawn count.
   Four clauses:
   - *Three-axis delegability test.* Decide what to delegate by
     **specifiability** (the TASK packet can carry the full spec, including its

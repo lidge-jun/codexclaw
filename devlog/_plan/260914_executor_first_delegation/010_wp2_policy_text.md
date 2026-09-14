@@ -133,3 +133,14 @@ INDEX가 규칙 ID나 스킬 절 목록을 실제로 들고 있으면 같은 변
 ## Out of scope (wp2)
 
 전역 AGENTS.md, `agents/*.toml`, delegation.md의 전송 규약, 코드 변경.
+
+## P 재검증 (wp2 사이클, 2026-09-14)
+
+이전 D 결론: wp1은 로드맵을 문서로 확정했고 코드는 건드리지 않았다. 방향 변경 없음.
+이 문서의 BEFORE 앵커 4곳은 커밋 e3b22b0b 시점에 `bash /home/jun/tmp/cxc-wp1-doccheck-01a09f4f.sh`
+(exit 0)로 현재 소스에 실재함을 확인했다. 재작성 없이 그대로 실행한다.
+
+Change 5(INDEX.md) 판정: INDEX.md는 파일·컴포넌트·훅·CLI 맵과 역할 표를 들고 있고,
+326행 부근이 "Formal P and changed-decision rechecks follow skills/pabcd/references/..."로
+에이전트 준수 지침의 소재를 요약한다. 구현 담당 기본값도 같은 성격이므로 그 문장에
+한 구절만 덧붙인다. 규칙 ID 목록은 INDEX에 없으므로 새 표를 만들지 않는다.

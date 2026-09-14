@@ -323,7 +323,7 @@ Subagent role TOMLs live under `plugins/codexclaw/agents/`: `explorer`, `reviewe
 | `executor` | `worker` | scoped yes | bounded implementation inside an assigned write scope |
 | `architect` | `architect` | no | design proposals and executable-plan reflection; main owns decisions |
 
-The subagent config component selects per-role model, effort and prompt overrides; default mode inherits the main Codex model. Architect attaches the existing `dev` and `dev-architecture` skills. Formal P and changed-decision rechecks follow `skills/pabcd/references/phase-plan.md`, `phase-audit.md` and `delegation.md`; these are agent-followed instructions, not new runtime enforcement.
+The subagent config component selects per-role model, effort and prompt overrides; default mode inherits the main Codex model. Architect attaches the existing `dev` and `dev-architecture` skills. Formal P and changed-decision rechecks follow `skills/pabcd/references/phase-plan.md`, `phase-audit.md` and `delegation.md`; implementation ownership (a specified slice defaults to the configured executor, recorded in P and executed in B) follows `skills/dev/SKILL.md` Implementation delegation and `skills/pabcd/references/plan-output.md`; these are agent-followed instructions, not new runtime enforcement.
 
 ---
 

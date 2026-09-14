@@ -203,6 +203,31 @@ Confirm actual model routing from runtime evidence when reporting identity or co
 When comparing cost, use main plus child served-model input/cache/output prices and
 applicable tiers; token totals alone cannot compare differently priced models.
 
+### Implementation delegation
+
+Once a slice is specified — goal, editable files, the contract it must preserve
+and the check that proves it — assign it to the configured `executor` by
+default. Sequential work qualifies: a dependency order decides the order of the
+packets, not who types the diff. Main keeps the specification, the load-bearing
+judgment, the review of the returned diff and the integration.
+
+Implementing a specified slice locally needs a stated reason, and only three
+hold by default: the edit is small enough that packaging it costs more than
+making it (§0.1), a load-bearing judgment inside the slice is still open so the
+packet cannot state its decision boundary, or handoff plus re-work measurably
+exceeds the delegated work. "It is sequential", "I already understand it" and
+"typing it is faster" are not reasons; neither is read-only-style parallelism,
+which is a separate question from who implements.
+
+Delegate one verifiable bundle — the slice a single check can prove — rather
+than one packet per file. P records the owner of each planned change and B
+executes that assignment (`../pabcd/references/plan-output.md`); handing a new
+slice to a subagent mid-B still requires a P amendment. Model, effort, fallback
+and receipts stay with the configured dispatch path. Verify a returned
+implementation against the VCS diff, never the report alone (§3). No-delegation
+limits, host restrictions and DISPATCH-ECONOMY-01's specifiability /
+verifiability / judgment axes take precedence.
+
 ### Capability Routing Hub
 
 **Independent peers:** keep work local and use selective read-only evidence when

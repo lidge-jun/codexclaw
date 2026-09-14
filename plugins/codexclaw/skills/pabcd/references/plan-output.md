@@ -26,6 +26,21 @@ exit code or treat the plan as implementation proof. Likewise, naming a memory
 artifact or escalation path does not authorize a file write, host goal, dispatch,
 phase transition or external action.
 
+## Implementation ownership
+
+The file change map names an owner for each planned change: the configured
+`executor` for slices whose scope and check are settled, or main with a
+one-line reason from `cxc-dev`'s Implementation delegation exceptions. A plan
+that assigns nothing has not decided; it has defaulted to main silently. B
+executes the recorded assignment, and a new handoff mid-B remains a P amendment
+(see Escalation condition above). Discovery and review keep their own owners.
+
+```text
+transform helper + its unit test — executor: scope and check are settled
+shared policy wording and integration — main: the judgment is the deliverable
+one-line typo in a file already open — main: packaging costs more than the edit
+```
+
 ## Reader summary
 
 A C2+ unit's `000_plan.md` opens with a reader-facing summary per
