@@ -804,8 +804,10 @@ test("260710: spawn hook e2e - native collaboration name drives the V2 path", ()
 
 // The shipped entrypoint preserves native ciphertext and augments plaintext.
 for (const [name, message, encrypted] of [
-  ["ciphertext stays byte-identical", "gAAAAABopaque-payload", true],
+  // Public Fernet generate.json vector; no live task or key material.
+  ["ciphertext stays byte-identical", "gAAAAAAdwJ6wAAECAwQFBgcICQoLDA0ODy021cpGVWKZ_eEwCGM4BLLF_5CV9dOPmrhuVUPgJobwOz7JcbmrR64jVmpU4IwqDA==", true],
   ["plaintext gains the skill affordance", "Inspect the catalog module.", false],
+  ["short ciphertext lookalike gains the skill affordance", "gAAAAx", false],
 ]) test(`spawn hook e2e - V2 ${name}`, () => {
   const { hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-attaching-skills.json");
   const ep = snapshotEntrypoint(distAbs);
@@ -894,7 +896,7 @@ test("260713: spawn hook e2e - snapshot override composes mention repair with th
     const v2Guard = runHook(ep, hookEvent, {
       hook_event_name: "PreToolUse", session_id: "s1", cwd: configuredCwd,
       tool_name: "spawn_agent",
-      tool_input: { task_name: "child_task", fork_turns: "none", message: "$cxc-dev map the codebase" },
+      tool_input: { task_name: "child_task", agent_type: "explorer", fork_turns: "none", message: "$cxc-dev map the codebase" },
     }, skillsEnv);
     assert.equal(v2Guard.status, 0, v2Guard.stderr);
     const v2Ui = JSON.parse(v2Guard.stdout).hookSpecificOutput.updatedInput;

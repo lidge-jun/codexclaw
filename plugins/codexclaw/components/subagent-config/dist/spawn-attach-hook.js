@@ -535,6 +535,41 @@ export function isV2SpawnInput(toolInput                         )          {
 }
 
 /**
+ * Structural recognition of a native Fernet task envelope. The wire form is
+ * base64url(version || timestamp || IV || ciphertext || HMAC) = 57 + 16n bytes
+ * with n >= 1, version 0x80. This is a SHAPE check, never authentication: the
+ * hook holds no key and cannot verify the HMAC, so it accepts both the
+ * canonical padded and the wholly unpadded base64url encodings of a well-formed
+ * frame. A strict decode/re-encode comparison rejects bad alphabet, embedded
+ * whitespace, impossible encoded lengths, partial or excess padding, and
+ * nonzero unused pad bits — every rejected input is ordinary plaintext and
+ * keeps its guards. No `gAAAA` prefix, timestamp, or MAC requirement: prefix
+ * resemblance alone must never strip plaintext attachment.
+ */
+function isFernetTokenShape(token        )          {
+  const firstPad = token.indexOf("=");
+  const core = firstPad === -1 ? token : token.slice(0, firstPad);
+  // Padding is legal only as a trailing run.
+  if (firstPad !== -1 && !/^=+$/.test(token.slice(firstPad))) return false;
+  const rem = core.length % 4;
+  if (firstPad === -1) {
+    // Entirely unpadded: a %4==1 core is an impossible base64 length.
+    if (rem === 1) return false;
+  } else {
+    // Canonical padding only: exactly the count that rounds the core to a
+    // 4-char block. rem 0 or 1 can never take padding.
+    if (rem < 2 || token.length - core.length !== 4 - rem) return false;
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(core)) return false;
+  const decoded = Buffer.from(core, "base64url");
+  // Re-encode catches nonzero unused pad bits and any lenient-decode drift.
+  if (decoded.toString("base64url") !== core) return false;
+  // version(1) + timestamp(8) + IV(16) + ciphertext(16n, n>=1) + HMAC(32).
+  if (decoded.length < 73 || (decoded.length - 57) % 16 !== 0) return false;
+  return decoded[0] === 0x80;
+}
+
+/**
  * Hook-facing spawn tool names across surfaces: plain/V1 canonicalizes to
  * `spawn_agent`; native V2 rides the `collaboration` namespace and reaches hooks
  * as `collaborationspawn_agent` (no punctuation) — accept a dotted/underscored
@@ -848,7 +883,7 @@ export function runSpawnAttachHook(raw        )         {
     // Keep the native one-of shape. Attachment-only requests still need routing.
     const message = validItems ? outgoing : toolInput.message;
     if (typeof message !== "string" || (!validItems && message.trim().length === 0)) return "";
-    const encryptedV2Message = v2Spawn && /^gAAAA[A-Za-z0-9_-]+={0,2}$/.test(message);
+    const encryptedV2Message = v2Spawn && isFernetTokenShape(message);
     const cwd = typeof obj.cwd === "string" && obj.cwd.length > 0 ? obj.cwd : process.cwd();
     const dispatchScan = validItems
       ? textItems.map(item => scanInlineSkillBlocks(item.text).scanSource).join("\n\n")
