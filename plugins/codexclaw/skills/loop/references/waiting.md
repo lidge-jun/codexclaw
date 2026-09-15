@@ -48,10 +48,13 @@ processes, recent output) and classify what you actually see:
   stated, task-appropriate next review point. That point fixes when you look
   again; it is not a new cancellation budget, and repeated no-op activity does
   not reset it.
-- **Confirmed failure** — an actual terminal error, or stagnation evidenced at
-  the stated review point. A wait timeout alone is a normal outcome, and a
-  healthy long command may emit sparse output — inspect command state before
-  treating silence as failure. Missing edits alone do not prove a stall.
+- **Confirmed failure** — an actual terminal error, final output demonstrably
+  nonsensical or unusable for the task packet, or stagnation evidenced at the
+  stated review point. Record concrete output evidence for an output-failure
+  judgment; interim updates and supported disagreement alone are not failures.
+  A wait timeout alone is a normal outcome, and a healthy long command may emit
+  sparse output — inspect command state before treating silence as failure.
+  Missing edits alone do not prove a stall.
 - **Unobservable** — available observations cannot establish progress or
   failure; for example, child state is inaccessible and the only signals are
   a clean tree and a checkpoint that may still be queued. Report the observation

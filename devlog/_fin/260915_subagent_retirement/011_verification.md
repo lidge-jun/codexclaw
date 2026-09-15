@@ -91,3 +91,16 @@ comparison covered managed `ready`, `main-direct`, `reconcile`, `stop`, unmanage
 recovery, and the unmet-consultation constraint. Fresh `npm run gate`, all 7
 manifest-policy tests, and `git diff --check` passed. These are document checks
 and main's semantic review; the initial independent scenario review is unchanged.
+
+## PR review follow-up: unusable final output
+
+[Review comment](https://github.com/lidge-jun/codexclaw/pull/179#discussion_r4012960563)
+identified another owner mismatch: the doctrine includes nonsense output as a
+failure, but the waiting classification only named terminal errors and stagnation.
+Accepted: a transport-successful final response can still fail the task packet.
+The waiting reference now includes demonstrably nonsensical or unusable final
+output and requires concrete evidence. Interim updates and supported disagreement
+alone do not count as failure. Existing shutdown and managed recovery rules apply.
+
+Fresh `npm run gate`, all 7 manifest-policy tests, and `git diff --check` passed.
+These checks cover document hygiene and routes, not the output-quality judgment.
