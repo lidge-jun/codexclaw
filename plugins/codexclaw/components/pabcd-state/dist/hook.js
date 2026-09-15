@@ -304,7 +304,6 @@ const PHASE_DIRECTIVES                                 = {
     "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
     "Load $codexclaw:cxc-pabcd for P and C2+ plan-output; $codexclaw:cxc-dev selects class and relevant surfaces. No implementation yet.",
     "Formal P, including C2 compact and plan-only P: obtain the configured read-only architect proposal BEFORE the executable plan, send that concrete plan to the SAME architect for reflection BEFORE A, and record the consultation per $codexclaw:cxc-pabcd phase-plan/plan-output. The C0/C1 fast path needs none.",
-    "Implementation ownership: main implements by default; record any optional executor assignment (independent parallel or bounded routine work) with its write scope and check ($codexclaw:cxc-dev Implementation delegation).",
     "Plan-only ends with the plan. Forbidden checks: NOT RUN; naming an artifact grants no write permission.",
   ].join("\n"),
   A: [
@@ -318,7 +317,6 @@ const PHASE_DIRECTIVES                                 = {
     "[codexclaw: BUILD]",
     "Apply this pointer and its owners within exact user limits and permissions. No-delegation means no dispatch.",
     "Use $codexclaw:cxc-dev for class/surfaces; authorized PABCD B uses $codexclaw:cxc-pabcd. Implement only authorized scope.",
-    "Follow the plan's recorded implementation ownership: main implements other in-scope work directly; a new executor assignment needs a P amendment; verify a returned diff rather than the report.",
     "Forbidden checks: NOT RUN; no invented proof.",
   ].join("\n"),
   C: [

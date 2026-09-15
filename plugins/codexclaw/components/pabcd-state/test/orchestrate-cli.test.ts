@@ -2684,7 +2684,7 @@ test("wp7 preservation: CLI D-close keeps dependsOn and outcome", () => {
   assert.deepEqual(taskFields(saved), expectedTaskFields);
 });
 
-test("260914: P and B entry echo the implementation-ownership pointer; other verbs do not", () => {
+test("260914: P entry echoes architect consultation; other verbs do not", () => {
   const cwd = freshCwd(); // not a repo: captureSourceIdentity is "unavailable", so B>C is not delta-gated
   try {
     const id = "wp3-hint";
@@ -2694,11 +2694,8 @@ test("260914: P and B entry echo the implementation-ownership pointer; other ver
     const toP = runOrchestrateCli({ verb: "P", attest: null, session: id, cwd, json: false });
     assert.equal(toP.code, 0, toP.output);
     assert.equal(readState(cwd, id).phase, "P");
-    assert.match(toP.output, /implementation ownership/);
+    assert.doesNotMatch(toP.output, /implementation ownership|main implements by default/);
     assert.match(toP.output, /architect proposal -> main executable plan -> same-architect reflection before A/);
-    assert.match(toP.output, /main implements by default/);
-    assert.match(toP.output, /optional executor assignments/);
-    assert.doesNotMatch(toP.output, /record an owner per planned change/);
 
     // status is read-only and must not echo the pointer while parked at P.
     const statusAtP = runOrchestrateCli({ verb: "status", attest: null, session: id, cwd, json: false });
@@ -2715,7 +2712,7 @@ test("260914: P and B entry echo the implementation-ownership pointer; other ver
     assert.doesNotMatch(toA.output, /implementation ownership/);
     assert.doesNotMatch(toA.output, /architect/i);
 
-    // A -> B carries the pointer.
+    // A -> B keeps the original output without an ownership or architect hint.
     const toB = runOrchestrateCli({
       verb: "B",
       attest: { from: "A", to: "B", did: "audit folded back", auditOutput: "reviewer: GO; refs verified", auditVerdict: "pass" },
@@ -2723,9 +2720,7 @@ test("260914: P and B entry echo the implementation-ownership pointer; other ver
     });
     assert.equal(toB.code, 0, toB.output);
     assert.equal(readState(cwd, id).phase, "B");
-    assert.match(toB.output, /implementation ownership/);
-    assert.match(toB.output, /main implements other in-scope work directly/);
-    assert.match(toB.output, /new executor assignment needs a P amendment/);
+    assert.doesNotMatch(toB.output, /implementation ownership|main implements by default/);
     assert.doesNotMatch(toB.output, /architect/i);
 
     // status at B stays clean too.
@@ -2751,7 +2746,7 @@ test("260914: P and B entry echo the implementation-ownership pointer; other ver
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
 
-test("260914: I->P agent override echoes the implementation-ownership pointer", () => {
+test("260914: I->P agent override echoes architect consultation", () => {
   const cwd = freshCwd();
   try {
     // Same unready-interview fixture as the override tests above (line ~615).
@@ -2766,10 +2761,7 @@ test("260914: I->P agent override echoes the implementation-ownership pointer", 
     assert.equal(r.code, 0, r.output);
     assert.equal(readState(cwd, "s1").phase, "P");
     assert.match(r.output, /agent override/);
-    assert.match(r.output, /implementation ownership/);
+    assert.doesNotMatch(r.output, /implementation ownership|main implements by default/);
     assert.match(r.output, /architect proposal -> main executable plan -> same-architect reflection before A/);
-    assert.match(r.output, /main implements by default/);
-    assert.match(r.output, /optional executor assignments/);
-    assert.doesNotMatch(r.output, /record an owner per planned change/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

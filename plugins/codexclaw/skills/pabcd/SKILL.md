@@ -69,7 +69,7 @@ link is a conditional routing edge, not a command to preload the entire graph.
 | Phase / trigger | Mandatory owner before work |
 |---|---|
 | I | cxc-interview; no active host goal |
-| P, including plan-only | [Plan phase](references/phase-plan.md): architect proposal → main executable plan → same-architect reflection; C2+ plans also read [Plan output](references/plan-output.md) for consultation evidence and any executor assignments |
+| P, including plan-only | [Plan phase](references/phase-plan.md): architect proposal → main executable plan → same-architect reflection; C2+ plans also read [Plan output](references/plan-output.md) for consultation evidence |
 | A, if authorized | [Audit phase](references/phase-audit.md) |
 | C | [Check phase](references/phase-check.md) |
 | P/A specifying render or conditional-path verification | [Check phase](references/phase-check.md), to define reachable activation and observable evidence |
@@ -80,7 +80,7 @@ or justified near-pass exits. C requires fresh relevant proof and SoT sync;
 passing unrelated checks is not evidence. Explicit execution restrictions are not
 overridden by a reference asking to run a verifier or dispatch a reviewer.
 
-3. **B — Build**: Implement the audited plan in small atomic commits (DEV-GIT-COMMIT-01). Verify as you go. Stay inside the plan's scope boundary; surface deviations instead of silently expanding scope. Never push to a remote without explicit user approval (DEV-GIT-PUSH-01, ESCALATE). When P declared a stack, follow `DEV-STACK-02` in `cxc-dev` `references/stacked-prs.md`. Follow the plan's recorded executor assignments and verify returned diffs (`cxc-dev` Implementation delegation). Main implements other in-scope work directly; a new executor assignment needs a P amendment.
+3. **B — Build**: Implement the audited plan in small atomic commits (DEV-GIT-COMMIT-01). Verify as you go. Stay inside the plan's scope boundary; surface deviations instead of silently expanding scope. Never push to a remote without explicit user approval (DEV-GIT-PUSH-01, ESCALATE). When P declared a stack, follow `DEV-STACK-02` in `cxc-dev` `references/stacked-prs.md`.
 5. **D — Done**: Summarize what was checked with evidence, update STATUS/devlog, commit (local only — pushing remains gated by DEV-GIT-PUSH-01), and confirm no pending work remains for this work-phase before returning to idle. The D summary is written for a reader who was not in the loop — conclusion, what changed, evidence pointers — per [Reader documents](../dev/references/reader-documents.md) READER-DOC-02/04. For loop/multi-pass work, **LOOP-PESSIMIST-01 (DEFAULT)** also records what did not improve, which hypothesis died, and what evidence would show the current direction is wrong; D -> IDLE -> P is a context/bias-flush boundary, so the next cycle resumes from disk artifacts rather than transcript momentum.
 
 ## Work-Phase Loop (multi-pass tasks)

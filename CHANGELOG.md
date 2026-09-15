@@ -12,10 +12,6 @@ All notable changes to codexclaw are documented here. The format follows
   reflection by the same architect before independent audit. C0/C1 fast paths and
   explicit user limits keep their existing precedence; this adds guidance, not a
   runtime gate.
-- The owning task's main agent implements directly by default, including inside
-  independently delegated tasks. Executors are optional for independent parallel
-  or bounded routine work. P records selected assignments; P/B hook and CLI hints
-  follow the same policy. Managed reclaim still requires `main-direct`.
 
 ### Fixed
 

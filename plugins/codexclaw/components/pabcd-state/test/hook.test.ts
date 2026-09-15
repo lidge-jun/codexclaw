@@ -114,12 +114,11 @@ test("wp3: phase pointers retain owners and active work-phase boundaries", () =>
   assert.match(interviewDirective(), /\$codexclaw:cxc-interview/);
   assert.match(interviewDirective(), /Mind dispatch/i);
   assert.match(phaseDirective("P"), /No implementation yet/);
+  for (const phase of ["P", "B"] as const) {
+    assert.doesNotMatch(phaseDirective(phase), /implementation ownership|main implements by default|defaults to the configured executor/i);
+  }
   assert.match(phaseDirective("A"), /cxc-dev-code-reviewer/);
   assert.match(phaseDirective("C"), /C-RENDER-GROUNDING-01/);
-  assert.match(phaseDirective("P"), /Implementation ownership: main implements by default/);
-  assert.match(phaseDirective("B"), /recorded implementation ownership/);
-  assert.match(phaseDirective("B"), /main implements other in-scope work directly/);
-  assert.doesNotMatch(phaseDirective("P"), /defaults to the configured executor|main needs a stated reason/);
   const bound = phaseDirective("B", { activeWorkPhase: { id: "wp3", title: "minimal hooks" } });
   assert.match(bound, /ACTIVE WORK-PHASE: wp3 — minimal hooks/);
   assert.match(bound, /other work-phases are OUT OF SCOPE until D closes/);
@@ -129,13 +128,12 @@ test("260914: P and A directives carry the architect consultation contract", () 
   const p = phaseDirective("P");
   // Formal-P sequence: read-only architect proposal before the executable plan,
   // the concrete plan back to the SAME architect for reflection before A, and a
-  // recorded consultation — inside the existing user-limit and implementation wording.
+  // recorded consultation — inside the existing user-limit wording.
   assert.match(p, /read-only architect proposal BEFORE the executable plan/);
   assert.match(p, /SAME architect for reflection BEFORE A/);
   assert.match(p, /phase-plan\/plan-output/);
   assert.match(p, /C0\/C1 fast path needs none/);
   assert.match(p, /No-delegation means no dispatch/);
-  assert.match(p, /Implementation ownership: main implements by default/);
 
   const a = phaseDirective("A");
   // A's reminder is the amendment recheck, distinct from P's initial sequence:
@@ -146,7 +144,7 @@ test("260914: P and A directives carry the architect consultation contract", () 
   assert.match(a, /reviewer stays independent/i);
   assert.doesNotMatch(a, /architect proposal BEFORE/i);
 
-  // No other phase carries an initial-consultation hint; B keeps implementation ownership only.
+  // No other phase carries an initial-consultation hint.
   for (const phase of ["B", "C", "D"] as const) {
     assert.doesNotMatch(phaseDirective(phase), /architect/i, `${phase} directive`);
   }
@@ -161,7 +159,6 @@ test("260914: hook P output carries the architect sequence; A output carries the
     const pCtx = JSON.parse(pOut.trimEnd()).hookSpecificOutput.additionalContext;
     assert.match(pCtx, /read-only architect proposal BEFORE the executable plan/);
     assert.match(pCtx, /SAME architect for reflection BEFORE A/);
-    assert.match(pCtx, /Implementation ownership: main implements by default/);
 
     const aOut = handleUserPromptSubmit(ups("orchestrate a", cwd, "arch-seq", "t2"));
     assert.notEqual(aOut, "");

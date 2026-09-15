@@ -47,20 +47,6 @@ the reason does not make it complete. Follow the existing
 C0/C1 fast-path work requires neither consultation nor this record. Main owns
 the executable plan and final decisions; architect reflection is not A review.
 
-## Implementation ownership
-
-Main implements the plan's in-scope work directly by default, without an exception
-statement. When selecting an executor for independent parallel or bounded routine
-work, record its write scope, contract and check in the file change map. Parallel
-write scopes must be disjoint. B follows recorded executor assignments; main owns
-other in-scope work. A new executor assignment mid-B remains a P amendment (see
-Escalation condition above). Discovery and review keep their own owners.
-
-```text
-feature implementation and integration — main
-independent fixture update — optional executor: named files, expected data, fixture check
-```
-
 ## Reader summary
 
 A C2+ unit's `000_plan.md` opens with a reader-facing summary per

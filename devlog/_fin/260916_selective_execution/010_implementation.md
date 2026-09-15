@@ -1,54 +1,50 @@
-# Selective execution implementation
+# Architect and recovery consolidation
 
-The owning implementation task now works directly by default. Optional executor
-assignments have a scope and check, while formal-P architect consultation and
-independent review retain their existing requirements. Choosing direct work does
-not bypass recovery for a previously dispatched child.
+The final change strengthens formal-P architect consultation while keeping CXC's
+existing delegation-selection rules. It preserves the transport and recovery
+fixes from #177 and #179 without introducing an executor-first or main-direct
+implementation default.
 
 ## Changes and provenance
 
-The consolidated implementation carries the reviewed union of #177 and #179
-(19afc764, upstream base 03541398). Relative to that union, 13 files change:
-implementation policy, P/B hook and CLI hints, their output assertions, the public
-subagent guide, changelog and structure mirrors. The complete subagent-config
-component and the waiting, delegation and formal-P consultation references remain
-byte-identical. This withdraws executor-first wording without dropping ciphertext
-preservation or reconciled task failure recovery. No dependency or runtime gate
-was added.
-
 Credits: thisisjun786, original contributions in #177 and #179.
+
+The canonical dev skill is restored byte-for-byte to upstream 03541398. Added
+implementation ownership sections and P/B ownership hints are removed. Formal P
+retains proposal, main plan and same-architect reflection before independent audit;
+the CLI repeats that sequence only at P entry. Existing fast paths, explicit
+limits, DISPATCH-ECONOMY-01 and B guidance keep their original roles.
+
+The complete subagent-config component and the waiting/delegation recovery
+references retain the reviewed combined implementation. Recovery requires the
+registered stopped child and reconciliation; cancellation and permission failures
+still stop. Ciphertext shape recognition preserves opaque native messages and
+reports omitted prompt instructions without claiming authentication.
 
 ## Verification
 
-- Architect proposal and same-architect reflection: ALIGNED against plan e9c4484d.
-  Separate plan audit: PASS. Fresh implementation review: PASS, no blockers.
-- Phase hook/CLI suite: before hint changes, 185 tests with five expected failures
-  for the old ownership instructions; after changes, 185 pass and zero fail.
-  Existing phase-state and architect checks remain.
+Fresh checks on the corrected revision:
+
+- Independent review: PASS, no blockers. Baseline comparisons confirm the original
+  dev skill, B guidance and DISPATCH-ECONOMY-01; recovery/ciphertext files are unchanged.
+- Phase hook/CLI suite: 185 pass, zero failures.
 - `npm run build`: exit 0, 181 compiled files.
 - `TMPDIR=<isolated directory> CODEXCLAW_SKIP_REPOMAP_SMOKE=1 npm test`:
   exit 0, 3177 total, 3103 pass, 74 conditional skips, zero failures.
-- `npm run gate` and
-  `node plugins/codexclaw/scripts/inventory.mjs --check --tests 3177`: pass.
-- `git diff --check`: pass.
-- Compiled CLI/hook QA: five real invocations on source and five on the updated
-  installation verify P/B output and CLI phase state using isolated fixtures.
-  The first QA fixture tried the illegal IDLE-to-B transition and was corrected
-  to start at A; the rejection was expected product behavior.
-- Installed recovery QA: 35 real CLI invocations pass, including stopped-child
-  recovery, live/unknown-state reconciliation, input limits and stop precedence.
-- Local source receives the 13-file delta; nine changed installed files are
-  replaced after drift checks. Backups and source/install reapplication patches
-  are retained privately. Installed patch reverse/reapply matches original/final
-  bytes. These checks spawn no provider or live worker.
+- `npm run gate`, `inventory.mjs --check --tests 3177` and `git diff --check`: pass.
+- Compiled CLI/hook QA: five real invocations each on source and installation
+  check architect output at P and unchanged B instructions/phase behavior.
+- Installed recovery QA: 35 CLI invocations pass, including stopped-child
+  recovery, live/unknown reconciliation, evidence limits and stop precedence.
+- Nine changed installed files pass pre-write drift checks. The installed dev
+  skill matches upstream bytes. Patch reverse/reapply matches before/after copies.
 
-Raw logs, review receipts and installation manifests are retained in the private
-consolidation backup dated 2026-09-16. Agent-followed policy still needs semantic
-review; automated checks do not prove a model will always follow instructions.
+These checks use isolated fixtures and spawn no live provider or worker.
+Agent-followed policy remains a semantic-review obligation. Raw logs, review
+receipts and patch proofs remain in the private correction backup.
 
 ## Delivery
 
-Publish one ordinary PR targeting dev, superseding #177 and #179. Leave #178 open
-until upstream integration and link its current criteria to the replacement.
-Hosted CI and remote status are checked separately from the local evidence above.
-No upstream merge or release is part of this unit.
+#180 supersedes closed #177 and #179. Original branches are preserved. #178 tracks
+the retained recovery work and stays open until upstream integration. Source and
+installation updates are separate from upstream merge or release.

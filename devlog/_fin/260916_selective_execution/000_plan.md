@@ -1,82 +1,50 @@
-# Architect consultation and selective execution
+# Architect consultation with existing delegation policy
 
-The owning implementation task should be able to develop directly. Executor-first
-wording in PR #177 made this an exception even when another coordination layer
-already delegated the issue to an independent task. Consolidate #177 and #179,
-retain required formal-P architect consultation and independent review, and use
-executors selectively for independent parallel work or bounded routine work.
+Formal-P architect consultation needs a concrete proposal, a main-owned executable
+plan and reflection by the same architect before independent review. Consolidate
+the architect and recovery fixes from #177 and #179 while preserving CXC's
+existing delegation-selection policy. Neither executor-first nor main-direct
+implementation becomes a new default.
 
-## Scope and execution
+## Scope
 
-Class: C3 policy/hint integration; previously reviewed ciphertext and recovery
-implementations are carried unchanged. Compact plan, architect consultation,
-independent audit, main implementation, checks and delivery; no new runtime gate.
-Loop archetype: satisfy-spec. Trigger: explicit request to consolidate both PRs,
-withdraw executor-first policy, and organize related issues. Goal: one replacement
-PR plus matching local source and installed payload. Non-goals: upstream merge,
-release, model-setting changes, or automatic patch reapplication.
-Verifier: existing phase hook/CLI tests observe injected instructions and actual
-phase state; recovery/ciphertext regressions protect the retained behavior; build,
-full root suite, gate and inventory check integration. Baseline phase tests at
-19afc764: 185 pass, 0 fail. Policy semantics require independent source review.
-Stop: replacement PR published and checked, predecessor PRs closed with links,
-issue #178 updated, local/installed state verified and patch backup preserved.
-Memory artifact: this unit; raw receipts remain outside Git. Expected outcomes:
-verified delivery, or a concrete unresolved blocker. Escalation: scope beyond the
-authorized repositories/install paths; no arbitrary time or token budget is set.
+Class: C3 compact policy/hint integration. No new delegation-selection rule,
+runtime gate, dependency or model setting. Preserve reviewed ciphertext handling
+and task failure recovery. Main applies the bounded correction; independent
+review checks the changed instructions and emitted output.
 
-## Decisions and file map
+- Restore `plugins/codexclaw/skills/dev/SKILL.md` exactly to upstream 03541398.
+- Remove added implementation-ownership sections from P plan output, B guidance
+  and structure mirrors. Existing DISPATCH-ECONOMY-01 remains the selection owner.
+- Keep formal-P consultation records and P/A hook reminders. CLI P entry repeats
+  only the architect sequence; B returns to its original instructions/output.
+- Keep ciphertext preservation from #177 and retirement/task-failure recovery
+  from #179. Their existing managed-dispatch bounds and stop precedence remain.
+- Update hook/CLI assertions to cover architect output, unchanged phase state and
+  absence of the added implementation-default instructions.
+- Align PR/issue descriptions, local source, installed files and reapply patches.
 
-Main implements all edits; architect and reviewer are read-only. The user explicitly
-selected direct implementation with optional executors, so this task needs no
-executor. Original branch histories and local edits remain preserved.
+## Acceptance
 
-- D1 accepted: `skills/dev/SKILL.md` Implementation delegation defaults to direct
-  work by the owning task's main, including an independently delegated task.
-  Executor use is optional for disjoint parallel or bounded routine work. No
-  justification is required for direct work. Keep headings/links, scoped packets,
-  diff verification, and dispatch safety. State the child-task rule generically;
-  do not couple CXC to Linear or a model vendor.
-- D1 accepted: `skills/pabcd/references/plan-output.md` records executor assignments
-  only when selected; main owns other in-scope work without a special exception.
-  B follows assigned scopes and new handoffs remain plan amendments. Update the B
-  sentence in `skills/pabcd/SKILL.md` consistently. Architect sections stay intact.
-- D2 accepted: `components/pabcd-state/src/hook.ts` and `orchestrate-cli.ts` P/B
-  hints say main implements by default and executor work is optional. Preserve
-  formal-P architect sequence, A recheck, user limits, and phase state behavior.
-  Build matching `dist/` files. No change to dispatch/permission algorithms.
-- D3 accepted with correction: update existing `test/hook.test.ts` and
-  `test/orchestrate-cli.test.ts` assertions on actual injected output. Preserve
-  all transition, independent-review and architect checks. Assertions do not
-  increase the test inventory; regenerate badges only from the measured total.
-  Synchronize `structure/20_pabcd_dispatch_doctrine.md` and `structure/INDEX.md`.
-- D4 accepted: carry the union at 19afc764 relative to upstream 03541398, excluding
-  old executor-first devlog additions. Preserve ciphertext guards, tests and
-  documentation; preserve `task_failed`, waiting and reconciliation contracts.
-  Add missing architect/optional-executor/ciphertext CHANGELOG entries and a short
-  public-guide explanation. Original author thisisjun786 retains credit in the
-  replacement PR. Old PRs and backup patches retain historical evidence.
+1. No new executor-first or main-direct default remains in active policy.
+2. The canonical dev skill equals upstream bytes; existing delegation criteria
+   and build-phase instructions remain unchanged.
+3. Formal P requires architect proposal, main plan and same-architect reflection
+   before independent audit, subject to existing fast paths and explicit limits.
+4. #179's evidence-based retirement and reconciled task-failure recovery remain.
+5. Source/dist, affected tests, build, full suite, gate/inventory, independent
+   review and installed CLI/hook checks agree.
+6. One ordinary PR targets dev. #177 and #179 are superseded without deleting their
+   branches; #178 stays open until upstream integration.
+7. Local and installed corrections have drift checks, backups and verified patches.
+   No upstream merge, release or model-setting change is authorized here.
 
-## Acceptance and delivery
+## Review context
 
-1. Direct single-task/independent-child implementation needs no executor or excuse.
-2. Optional parallel work has disjoint write scope; routine work has a clear check.
-3. Formal P requires architect proposal, main plan, same-architect reflection, then
-   independent A; C0/C1 and explicit user limits retain their existing precedence.
-4. Choosing optional dispatch never bypasses a live child's reconciliation or a
-   terminal stop; `main-direct` still governs managed reclaim.
-5. All carried runtime files match reviewed 19afc764 bytes. New P/B instructions are
-   exercised through existing hook and real CLI paths; no new automatic spawn.
-6. Publish one ordinary PR to dev. Only then link/close #177 and #179; organize
-   #178 with the replacement and current acceptance criteria, leave it open pending
-   upstream merge. Preserve remote/local predecessor branches.
-7. Apply the policy delta to local dev and the installed plugin with original-file
-   backups, drift checks, regenerated dist and actual installed CLI/hook checks.
-
-## Consultation
-
-Architect proposal D1-D4 received and dispositions recorded above. The same
-architect returned ALIGNED against plan e9c4484d. Independent audit returned PASS
-with no blockers before implementation, retaining the public-guide clarification
-that managed reclaim requires `main-direct`. Proposal, reflection and audit
-receipts remain in private local execution evidence.
+The initial architect proposal and reflection established the retained
+consultation/transport/recovery boundaries. A later clarification withdraws the
+added implementation-default policy and restores the upstream selection rules.
+This correction adds no new architecture decision; it removes the unsupported
+policy extension. The earlier reviews do not certify the corrected diff: a fresh
+independent review and checks cover delivery. Private receipts retain both
+revisions without presenting the withdrawn plan as current behavior.

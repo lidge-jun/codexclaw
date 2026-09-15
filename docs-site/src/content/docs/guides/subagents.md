@@ -15,10 +15,6 @@ Four roles cover the common subagent workflow:
 - **executor** — focused implementation.
 - **architect** — read-only design proposals and checks of main-owned executable plans.
 
-The owning task's main agent implements directly by default, including when it
-receives an issue from another coordinator. Executors are optional for independent
-parallel work or bounded routine tasks with clear write scopes and checks.
-
 Formal P keeps the required design sequence: architect proposal, main's executable
 plan, then reflection by the same architect before independent review. The existing
 C0/C1 fast path and explicit user limits still apply. See the
