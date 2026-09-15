@@ -75,3 +75,19 @@ Manual comparison with `delegation.md` and DISPATCH-RETIRE-01 confirmed the
 `main-direct`, `reconcile`, `stop`, and unmanaged-recovery cases. Fresh checks:
 `npm run gate` passed; manifest-policy tests passed 7/7; `git diff --check`
 was clean. These remain document checks and semantic review, not runtime proof.
+
+## PR review follow-up: architect recovery
+
+[Review comment](https://github.com/lidge-jun/codexclaw/pull/179#discussion_r4012925635)
+found the same incomplete propagation in the architect-specific recovery clause.
+Accepted: a role-specific instruction must not bypass the common recovery owner.
+The clause now defers managed retries and reclaim to the returned action, and
+limits the same-handle/two-context rule to unmanaged dispatch. Prior work must
+be stopped and inspected before unmanaged recovery. Missing architect consultation
+still blocks dependent completion, including when main reclaims planning.
+
+Reviewed recovery references in the active skills and structure doctrine. Manual
+comparison covered managed `ready`, `main-direct`, `reconcile`, `stop`, unmanaged
+recovery, and the unmet-consultation constraint. Fresh `npm run gate`, all 7
+manifest-policy tests, and `git diff --check` passed. These are document checks
+and main's semantic review; the initial independent scenario review is unchanged.

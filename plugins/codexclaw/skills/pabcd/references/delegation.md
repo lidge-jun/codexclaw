@@ -245,13 +245,21 @@ named decision revisions within ONE plan; a separate new plan starts a fresh con
 Do not promise cost savings from reuse. Use the host's supported follow-up and wait
 operations; an empty timed wait alone is not evidence of a failed call.
 
-On an actual failed call, preserve the failure evidence and apply the existing
-retirement rule: at most one retry on the same handle, then a fresh context carrying
-the failure and plan. If a second distinct context also fails, main reclaims the
-planning work under the existing lifecycle rule, but the missing architect consultation
-remains unmet. Report the gap and stop dependent completion; main self-check does not
-replace it. Do not silently switch models, register roles, or bypass host restrictions.
-Explicit user limits still govern dispatch and completion scope.
+On an actual failed call, preserve the failure evidence. With
+[configured first fallback](#configured-first-fallback), the returned action governs
+recovery: `ready` requires a new claim, only `main-direct` permits reclaim, and
+`reconcile`/`stop` permit neither reclaim nor replacement. The unmanaged retry rule
+below does not authorize extra calls on this path.
+
+Without managed dispatch, apply the existing retirement rule: at most one retry
+on the same handle, then a fresh context carrying the failure and plan. If a second
+distinct context also fails, main reclaims the planning work. Confirm prior work
+has stopped and inspect partial results before retry, replacement or reclaim.
+
+In either path, a missing architect consultation remains unmet. Report the gap
+and stop dependent completion; main self-check does not replace it. Do not silently
+switch models, register roles, or bypass host restrictions. Explicit user limits
+still govern dispatch and completion scope.
 
 ## Speculative dispatch (DISPATCH-SPECULATE-01, HEURISTIC)
 
