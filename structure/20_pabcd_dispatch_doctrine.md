@@ -139,9 +139,13 @@ codexclaw translation:
   lane first — it is almost always a read-only packet on a `worker`.
 - **Architect consultation in formal P.** Main evidence -> architect proposal -> main
   executable plan -> same architect reflection -> independent A reviewer. Main retains
-  every final decision. Recheck only named module/data/interface/flow decision changes;
+  every final decision. Formal P includes C2 compact and plan-only P plans; C0/C1
+  fast-path work needs neither consultation nor a consultation record. Plan output
+  records the actual handle, proposal, main dispositions and reflection against the
+  submitted plan revision. P hook/CLI hints expose the sequence before planning.
+  Recheck only named module/data/interface/flow decision changes;
   reuse context within one plan and start fresh for a new plan. Existing installed
-  owners: `pabcd/references/phase-plan.md`, `phase-audit.md` and `delegation.md`.
+  owners: `pabcd/references/phase-plan.md`, `plan-output.md`, `phase-audit.md` and `delegation.md`.
   This is E7 guidance, not a new phase or runtime consultation gate. Missing consultation
   is not complete; architect reflection never substitutes for independent A review.
 - **Audit (A) is never skipped.** Before B, the main session must dispatch an independent
@@ -179,17 +183,26 @@ codexclaw translation:
   `agents.max_threads` (default 6) and V2 `max_concurrent_threads_per_session`
   (default 4, including the root).
 - **DISPATCH-RETIRE-01 (fresh-spawn fallback).** This is the exception to the reuse
-  default above: an agent id that failed (error, timeout, unresponsive, nonsense
-  output) is retired, not nursed. At most ONE retry against the same task_name; then
+  default above: an agent id that failed is retired, not nursed — where failure
+  means an actual terminal error, nonsense output, or stagnation evidenced per
+  the waiting reference's evidence rule
+  (`plugins/codexclaw/skills/loop/references/waiting.md`). A bare wait timeout is
+  a normal outcome, not a failure. Explicit cancellation or an exhausted
+  user/host bound stops within authority and is reported as such; it is not a
+  failure and grants no retry, replacement, or reclaim. At most ONE retry against the
+  same task_name; then
   abandon it (V2 has only `interrupt_agent`; V1 has `close_agent` and `resume_agent`)
   and fresh-spawn with the failure summary folded into the new
   TASK packet. Repeated `followup_task`/`send_message` against a broken agent is a
   broken-resume loop — the dispatch analogue of LOOP-REPAIR-01's doom loop. When the
   fresh spawn — a SECOND distinct agent — also fails the SAME task packet, stop
   blaming agents: two independent failures on one packet are evidence the packet
-  itself failed the DISPATCH-ECONOMY-01 specifiability bar. The main session
+  itself failed the DISPATCH-ECONOMY-01 specifiability bar. Absent a managed
+  dispatch, the main session
   reclaims that slice and does the work directly instead of dispatching a third
-  copy (packet-failure reclaim, 260711 fork-debate verdict #4). Lineage:
+  copy (packet-failure reclaim, 260711 fork-debate verdict #4); under configured
+  first fallback the protocol result owns that decision — `main-direct` permits
+  reclaim, `reconcile`/`stop` permit neither reclaim nor a replacement spawn. Lineage:
   `../jawcode/devlog/_plan/260616_actor_fresh_fallback/_fin/00_moc.md`
   (implementation-verified). Both rules are E7 doctrine (agent-followed); no hook
   observes agent lifecycles.
@@ -199,8 +212,11 @@ codexclaw translation:
   `devlog/_plan/260711_dispatch_economy_docs_site/005_research_claim_ledger.md`).
   For authorized source/log investigation, [dev's Discovery delegation](../plugins/codexclaw/skills/dev/SKILL.md#discovery-delegation)
   owns the early ownership decision, concrete local exceptions and reconsideration
-  after scope growth or truncation. Parallelism alone does not reduce returned context;
-  this guidance adds no runtime enforcement or mandatory spawn count.
+  after scope growth or truncation. For implementation, [dev's Implementation delegation](../plugins/codexclaw/skills/dev/SKILL.md#implementation-delegation)
+  owns the decision: main implements directly by default, with optional executors
+  for independent parallel or bounded routine work. P records selected executor
+  assignments and B follows them. Parallelism alone does not reduce
+  returned context; this guidance adds no runtime enforcement or mandatory spawn count.
   Four clauses:
   - *Three-axis delegability test.* Decide what to delegate by
     **specifiability** (the TASK packet can carry the full spec, including its
@@ -267,11 +283,15 @@ channel (`buildSpawnItems`/`SpawnPayload.items`). Prefer `[$cxc-<name>](skill://
 plugin-native `$codexclaw:cxc-<name>` when a link is unsafe. The WP2 E3
 spawn PreToolUse hook normalizes known broken/bare cxc mentions and inlines recognized
 skill bodies on V2-shaped spawns only when `message` reaches it as plaintext. Native
-ChatGPT-backend V2 presents ciphertext, so both operations are no-ops there. When no body
-can be inlined, the hook appends a plaintext `[CXC-SKILL-AFFORDANCE]` block telling the
+ChatGPT-backend V2 can present ciphertext. The hook preserves that message byte-for-byte:
+putting plaintext inside the encrypted slot makes the backend reject the child task.
+It reports omitted hook-added instructions to the caller; this is not skill delivery.
+Metadata-based recursion denial and separate model/effort routing still apply.
+On plaintext V2, when no body can be inlined, the hook appends a
+`[CXC-SKILL-AFFORDANCE]` block telling the
 child to self-load any `$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention from
 `<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel. The native
-V2 hook also carries the leaf guard and configured model/effort injection; it does not add
+V2 plaintext hook also carries the leaf guard; it does not add
 role baselines or infer surface skills.
 Dispatchers remain responsible for naming every required skill (DISPATCH-TASK-01).
 

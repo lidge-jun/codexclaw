@@ -203,6 +203,28 @@ Confirm actual model routing from runtime evidence when reporting identity or co
 When comparing cost, use main plus child served-model input/cache/output prices and
 applicable tiers; token totals alone cannot compare differently priced models.
 
+### Implementation delegation
+
+The main agent of the owning implementation task implements directly by default.
+This also applies when another coordinator has assigned work to that independent
+task: it does not need to delegate again. Direct implementation needs no special
+justification. Main owns the plan, design decisions, integration and verification.
+
+Use the configured `executor` when delegation helps: independent parallel work
+with disjoint write scopes, or bounded routine work with a clear contract and
+check. Sequential or tightly coupled work can stay with main. Delegate one
+verifiable bundle rather than one packet per file.
+
+When an executor is selected, P records its scope and check; B follows that
+assignment. Main implements other in-scope work directly. A new executor
+assignment mid-B requires a P amendment (`../pabcd/references/plan-output.md`).
+Verify returned implementation against the VCS diff, never the report alone (§3).
+Model, effort, fallback and receipts stay with the configured dispatch path.
+Choosing optional delegation does not authorize reclaiming live work: stop and
+reconciliation requirements still apply, and managed reclaim requires the
+`main-direct` result. No-delegation limits, host restrictions and
+DISPATCH-ECONOMY-01's specifiability / verifiability / judgment axes take precedence.
+
 ### Capability Routing Hub
 
 **Independent peers:** keep work local and use selective read-only evidence when

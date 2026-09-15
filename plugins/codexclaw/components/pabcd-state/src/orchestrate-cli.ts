@@ -453,6 +453,22 @@ function hasPabcdCloseRow(
   );
 }
 
+/**
+ * 260914: the phase directive only reaches a turn through UserPromptSubmit, so a
+ * same-turn CLI progression (P -> ... -> B inside one turn) never sees it. Echo a
+ * one-line pointer on the two edges whose owner decision is about to be made or
+ * executed. Advice only — it changes no gate.
+ */
+const OWNERSHIP_HINT: Partial<Record<Phase, string>> = {
+  P: "formal P: architect proposal -> main executable plan -> same-architect reflection before A (cxc-pabcd phase-plan); implementation ownership: main implements by default; record optional executor assignments for independent parallel or bounded routine work with scope and check (cxc-dev Implementation delegation)",
+  B: "implementation ownership: follow recorded executor assignments; main implements other in-scope work directly; a new executor assignment needs a P amendment",
+};
+
+function withOwnershipHint(phase: Phase, output: string): string {
+  const hint = OWNERSHIP_HINT[phase];
+  return hint ? `${output} [${hint}]` : output;
+}
+
 export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpArgs, commitHooks: OrchestrateCommitHooks = {}, nativeEnv: NodeJS.ProcessEnv = {}): CliResult {
   if ("help" in args) return { code: 0, output: renderOrchestrateHelp() };
 
@@ -653,7 +669,7 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
         scanEvidence: { scanRounds: state.interview?.scanRounds ?? 0, highContradictionCount: gate.highContradictionCount },
         ...(args.attest?.did ? { evidence: args.attest.did } : {}),
       });
-      return { code: 0, output: `orchestrate P: I → P (agent override, session ${sessionId})` };
+      return { code: 0, output: withOwnershipHint("P", `orchestrate P: I → P (agent override, session ${sessionId})`) };
     } else {
       // Not ready and no override: advise-block with gate warnings.
       return {
@@ -1118,7 +1134,7 @@ export function runOrchestrateCli(args: OrchestrateCliArgs | OrchestrateCliHelpA
     reason: "cli",
     ...(args.attest?.did ? { evidence: args.attest.did } : {}),
   });
-  return { code: 0, output: `orchestrate ${args.verb}: current=${state.phase} -> ${result.state.phase} (${state.phase} → ${result.state.phase}, session ${sessionId})` };
+  return { code: 0, output: withOwnershipHint(result.state.phase, `orchestrate ${args.verb}: current=${state.phase} -> ${result.state.phase} (${state.phase} → ${result.state.phase}, session ${sessionId})`) };
 }
 /**
  * #48: candidate trees to check for the SAME session id. Deliberately shallow —

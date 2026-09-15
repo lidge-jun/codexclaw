@@ -116,9 +116,62 @@ test("wp3: phase pointers retain owners and active work-phase boundaries", () =>
   assert.match(phaseDirective("P"), /No implementation yet/);
   assert.match(phaseDirective("A"), /cxc-dev-code-reviewer/);
   assert.match(phaseDirective("C"), /C-RENDER-GROUNDING-01/);
+  assert.match(phaseDirective("P"), /Implementation ownership: main implements by default/);
+  assert.match(phaseDirective("B"), /recorded implementation ownership/);
+  assert.match(phaseDirective("B"), /main implements other in-scope work directly/);
+  assert.doesNotMatch(phaseDirective("P"), /defaults to the configured executor|main needs a stated reason/);
   const bound = phaseDirective("B", { activeWorkPhase: { id: "wp3", title: "minimal hooks" } });
   assert.match(bound, /ACTIVE WORK-PHASE: wp3 — minimal hooks/);
   assert.match(bound, /other work-phases are OUT OF SCOPE until D closes/);
+});
+
+test("260914: P and A directives carry the architect consultation contract", () => {
+  const p = phaseDirective("P");
+  // Formal-P sequence: read-only architect proposal before the executable plan,
+  // the concrete plan back to the SAME architect for reflection before A, and a
+  // recorded consultation — inside the existing user-limit and implementation wording.
+  assert.match(p, /read-only architect proposal BEFORE the executable plan/);
+  assert.match(p, /SAME architect for reflection BEFORE A/);
+  assert.match(p, /phase-plan\/plan-output/);
+  assert.match(p, /C0\/C1 fast path needs none/);
+  assert.match(p, /No-delegation means no dispatch/);
+  assert.match(p, /Implementation ownership: main implements by default/);
+
+  const a = phaseDirective("A");
+  // A's reminder is the amendment recheck, distinct from P's initial sequence:
+  // only design-decision changes go back to the same architect.
+  assert.match(a, /module-responsibility, data-structure, interface or execution-flow/);
+  assert.match(a, /SAME architect before A completes/);
+  assert.match(a, /text\/test clarification alone does not/);
+  assert.match(a, /reviewer stays independent/i);
+  assert.doesNotMatch(a, /architect proposal BEFORE/i);
+
+  // No other phase carries an initial-consultation hint; B keeps implementation ownership only.
+  for (const phase of ["B", "C", "D"] as const) {
+    assert.doesNotMatch(phaseDirective(phase), /architect/i, `${phase} directive`);
+  }
+  assert.doesNotMatch(interviewDirective(), /architect/i);
+});
+
+test("260914: hook P output carries the architect sequence; A output carries the amendment recheck", () => {
+  const cwd = freshCwd();
+  try {
+    const pOut = handleUserPromptSubmit(ups("orchestrate P", cwd, "arch-seq", "t1"));
+    assert.notEqual(pOut, "");
+    const pCtx = JSON.parse(pOut.trimEnd()).hookSpecificOutput.additionalContext;
+    assert.match(pCtx, /read-only architect proposal BEFORE the executable plan/);
+    assert.match(pCtx, /SAME architect for reflection BEFORE A/);
+    assert.match(pCtx, /Implementation ownership: main implements by default/);
+
+    const aOut = handleUserPromptSubmit(ups("orchestrate a", cwd, "arch-seq", "t2"));
+    assert.notEqual(aOut, "");
+    const aCtx = JSON.parse(aOut.trimEnd()).hookSpecificOutput.additionalContext;
+    assert.match(aCtx, /SAME architect before A completes/);
+    assert.match(aCtx, /text\/test clarification alone does not/);
+    assert.doesNotMatch(aCtx, /architect proposal BEFORE/i);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 const WP3_ORIGINAL_C2_PROMPT = "README 계약에 맞게 기존 내부 메모 생성/목록 기능을 완성해줘. 네트워크 서버나 공개 API는 아니고 src/route.mjs와 src/service.mjs의 기존 빈 구현을 채우는 작업이야. src/store.mjs와 test/notes.test.mjs는 수정하지 마. 기존 번호 문서에 결과를 기록하고 node --test test/notes.test.mjs로 실제 검증해줘. 새 의존성/추상화/파일, goal/FSM 변경, 커밋, 서브에이전트 파견은 하지 마.";

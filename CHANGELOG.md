@@ -6,6 +6,37 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Formal P now requires an architect proposal, a main-owned executable plan and
+  reflection by the same architect before independent audit. C0/C1 fast paths and
+  explicit user limits keep their existing precedence; this adds guidance, not a
+  runtime gate.
+- The owning task's main agent implements directly by default, including inside
+  independently delegated tasks. Executors are optional for independent parallel
+  or bounded routine work. P records selected assignments; P/B hook and CLI hints
+  follow the same policy. Managed reclaim still requires `main-direct`.
+
+### Fixed
+
+- Native V2 spawn hooks preserve canonical Fernet-shaped task messages without
+  appending plaintext skill affordances or leaf guards. Structural validation
+  rejects malformed lookalikes; omission notices identify the guards that could
+  not be attached. Ciphertext recognition does not authenticate the message.
+
+- Subagent waiting guidance instructed coordinators to retire workers after
+  about three empty waits, even when analysis could still be progressing.
+  `waiting.md` now requires evidence of progress or stagnation, preserves
+  unavailable observations, and uses non-interrupting checkpoints. Delegation
+  and DISPATCH-RETIRE-01 clarify actual shutdown checks and managed recovery;
+  cancellation or exhausted limits grant no retry or replacement. Progress
+  assessment remains agent-followed (#178).
+- Managed dispatch now accepts explicit `task_failed` reports for confirmed
+  stagnation or unusable final output. A recorded stopped child, task evidence
+  and reconciliation are required before the existing bounded handoff can run.
+  Provider errors keep their existing classification; cancellation and permission
+  denials cannot be overridden by a task-failure label (#178).
+
 ## [0.2.28] - 2026-09-14
 
 ### Fixed

@@ -76,5 +76,7 @@ executor. Original branch histories and local edits remain preserved.
 ## Consultation
 
 Architect proposal D1-D4 received and dispositions recorded above. The same
-architect reviews this concrete file before implementation; independent audit
-follows. Proposal/response handles remain in local execution evidence.
+architect returned ALIGNED against plan e9c4484d. Independent audit returned PASS
+with no blockers before implementation, retaining the public-guide clarification
+that managed reclaim requires `main-direct`. Proposal, reflection and audit
+receipts remain in private local execution evidence.

@@ -23,12 +23,12 @@
  *    recognized cxc mention's SKILL.md body to the message. Atomic overflow rule:
  *    if the normalized message plus ALL candidate bodies would exceed
  *    MAX_NORMALIZE_LENGTH, no bodies are appended (never truncated/partial).
- *    ENCRYPTION LIMIT (live-proven 260710, devlog 260710_v1_v2_parity/080): on
- *    native ChatGPT-backend V2 sessions the hook receives `message` as backend
- *    ciphertext, so normalization/inlining are silent no-ops there — the
- *    hook-borne channels that survive encryption are the plaintext-prepended
- *    leaf guard and the plaintext model/reasoning_effort fields. Inlining works
- *    on plaintext surfaces (v1, non-encrypted provider/proxy paths).
+ *    ENCRYPTION LIMIT: native V2 messages can be backend ciphertext. Preserve
+ *    those bytes: plaintext guards, skill bodies or prompt overrides in that
+ *    encrypted slot make the backend reject the child's task. Metadata-based
+ *    recursion denial and separate model/effort fields still apply. Message
+ *    augmentation is available only on plaintext surfaces; disclose the gap
+ *    to the caller rather than claiming those instructions reached the child.
  *
  * SAFETY: `updatedInput` is a FULL REPLACEMENT of tool_input (registry.rs:122),
  * honored only on permissionDecision "allow" (output_parser.rs:162). We echo the
@@ -535,6 +535,41 @@ export function isV2SpawnInput(toolInput                         )          {
 }
 
 /**
+ * Structural recognition of a native Fernet task envelope. The wire form is
+ * base64url(version || timestamp || IV || ciphertext || HMAC) = 57 + 16n bytes
+ * with n >= 1, version 0x80. This is a SHAPE check, never authentication: the
+ * hook holds no key and cannot verify the HMAC, so it accepts both the
+ * canonical padded and the wholly unpadded base64url encodings of a well-formed
+ * frame. A strict decode/re-encode comparison rejects bad alphabet, embedded
+ * whitespace, impossible encoded lengths, partial or excess padding, and
+ * nonzero unused pad bits — every rejected input is ordinary plaintext and
+ * keeps its guards. No `gAAAA` prefix, timestamp, or MAC requirement: prefix
+ * resemblance alone must never strip plaintext attachment.
+ */
+function isFernetTokenShape(token        )          {
+  const firstPad = token.indexOf("=");
+  const core = firstPad === -1 ? token : token.slice(0, firstPad);
+  // Padding is legal only as a trailing run.
+  if (firstPad !== -1 && !/^=+$/.test(token.slice(firstPad))) return false;
+  const rem = core.length % 4;
+  if (firstPad === -1) {
+    // Entirely unpadded: a %4==1 core is an impossible base64 length.
+    if (rem === 1) return false;
+  } else {
+    // Canonical padding only: exactly the count that rounds the core to a
+    // 4-char block. rem 0 or 1 can never take padding.
+    if (rem < 2 || token.length - core.length !== 4 - rem) return false;
+  }
+  if (!/^[A-Za-z0-9_-]+$/.test(core)) return false;
+  const decoded = Buffer.from(core, "base64url");
+  // Re-encode catches nonzero unused pad bits and any lenient-decode drift.
+  if (decoded.toString("base64url") !== core) return false;
+  // version(1) + timestamp(8) + IV(16) + ciphertext(16n, n>=1) + HMAC(32).
+  if (decoded.length < 73 || (decoded.length - 57) % 16 !== 0) return false;
+  return decoded[0] === 0x80;
+}
+
+/**
  * Hook-facing spawn tool names across surfaces: plain/V1 canonicalizes to
  * `spawn_agent`; native V2 rides the `collaboration` namespace and reaches hooks
  * as `collaborationspawn_agent` (no punctuation) — accept a dotted/underscored
@@ -848,6 +883,7 @@ export function runSpawnAttachHook(raw        )         {
     // Keep the native one-of shape. Attachment-only requests still need routing.
     const message = validItems ? outgoing : toolInput.message;
     if (typeof message !== "string" || (!validItems && message.trim().length === 0)) return "";
+    const encryptedV2Message = v2Spawn && isFernetTokenShape(message);
     const cwd = typeof obj.cwd === "string" && obj.cwd.length > 0 ? obj.cwd : process.cwd();
     const dispatchScan = validItems
       ? textItems.map(item => scanInlineSkillBlocks(item.text).scanSource).join("\n\n")
@@ -913,11 +949,9 @@ export function runSpawnAttachHook(raw        )         {
     // (WP2 live bug: doc-quoted markers poisoned raw includes()).
     const markerScanSource = scanInlineSkillBlocks(inlinedMessage).scanSource;
 
-    // WP2 cr3 — V2 affordance: when inlining attached nothing (encrypted native
-    // path, or no plaintext mentions), append the plaintext self-load instruction
-    // so the child can resolve mentions itself. Marker-deduped; size-guarded;
-    // never on v1 (upstream parses mentions there). Zero-mention plaintext V2
-    // also gets it — deliberate small overhead (090_plan).
+    // V2 plaintext without inlined bodies gets a self-load instruction.
+    // Marker-deduped and size-guarded; the ciphertext boundary below discards
+    // all generated text for encrypted messages and discloses that omission.
     let affordanceMessage = inlinedMessage;
     if (
       v2Spawn &&
@@ -1010,8 +1044,11 @@ export function runSpawnAttachHook(raw        )         {
         }
       }
     }
-    const promptChanged = injectedPrompt !== null;
+    const promptChanged = !encryptedV2Message && injectedPrompt !== null;
     if (trustPrefix) evidenceExemptMessage = `${trustPrefix}${evidenceExemptMessage}`;
+    // The native backend treats this whole value as ciphertext. Keep D1 and
+    // routing above, but never put our plaintext inside its encrypted slot.
+    if (encryptedV2Message) evidenceExemptMessage = message;
     const updatedItems = mappedItems ? [...mappedItems] : null;
     if (updatedItems) {
       if (firstText < 0) updatedItems.unshift({ type: "text", text: evidenceExemptMessage });
@@ -1042,7 +1079,10 @@ export function runSpawnAttachHook(raw        )         {
 
     const fallbackNotice = !managed && readConfig(cwd).roles[role].fallback
       ? `[codexclaw] This direct spawn is not managed by first-fallback tracking. For subsequent tasks: ${DISPATCH_GUIDANCE}` : null;
-    if (!managed && !fallbackNotice && !messageChanged && injectedModel === null && injectedEffort === null) return "";
+    const additionalContext = [fallbackNotice, encryptedV2Message
+      ? `[codexclaw] Native V2 task ciphertext was preserved. Hook-added skill text, scope instructions and prompt overrides were not attached; native recursion checks and separate routing fields still apply.${resolution.trustWarning ? ` ${resolution.trustWarning}` : ""}`
+      : null].filter(Boolean).join("\n");
+    if (!managed && !additionalContext && !messageChanged && injectedModel === null && injectedEffort === null) return "";
 
     // Full replacement preserves whichever native input form the caller chose.
     const updatedInput                          = updatedItems
@@ -1064,7 +1104,7 @@ export function runSpawnAttachHook(raw        )         {
         hookEventName: "PreToolUse",
         permissionDecision: "allow",
         updatedInput,
-        ...(fallbackNotice ? { additionalContext: fallbackNotice } : {}),
+        ...(additionalContext ? { additionalContext } : {}),
       },
     })}\n`;
   } catch {
