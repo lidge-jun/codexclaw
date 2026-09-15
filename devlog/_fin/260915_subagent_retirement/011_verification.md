@@ -57,3 +57,21 @@ Raw native dispatch handles, reviewer responses and check receipts remain in
 untracked session evidence. Public evidence is summarized here; no private
 session transcript or host-specific path is published. The contribution is
 tracked by [issue #178](https://github.com/lidge-jun/codexclaw/issues/178).
+
+## PR review follow-up: plan template recovery
+
+[Review comment](https://github.com/lidge-jun/codexclaw/pull/179#discussion_r4009201474)
+identified an unconditional two-failure reclaim instruction still present in
+`pabcd/references/plan-output.md`. The earlier review treated it as shorthand;
+that was insufficient because coordinators use the template to write plans.
+
+The escalation row now distinguishes unmanaged recovery from configured first
+fallback and links to the existing recovery owner. Main reclaims only on
+`main-direct` under managed dispatch; `reconcile` and `stop` authorize neither
+reclaim nor replacement, even after two failures. Unmanaged reclaim requires
+prior work to have stopped. The P-phase amendment requirement is retained.
+
+Manual comparison with `delegation.md` and DISPATCH-RETIRE-01 confirmed the
+`main-direct`, `reconcile`, `stop`, and unmanaged-recovery cases. Fresh checks:
+`npm run gate` passed; manifest-policy tests passed 7/7; `git diff --check`
+was clean. These remain document checks and semantic review, not runtime proof.
