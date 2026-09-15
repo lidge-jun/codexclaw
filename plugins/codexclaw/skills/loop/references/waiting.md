@@ -84,3 +84,11 @@ reclaims the work, and `reconcile`/`stop` authorize neither a replacement
 spawn nor direct execution. Cancellation or an exhausted bound grants no
 continuation: stop within authority and report the cancellation or bound,
 never as a provider failure.
+
+For managed stagnation or unusable final output, report `outcome:task_failed`
+with the matching `taskFailure.kind`, concrete `taskFailure.evidence`, the
+recorded child ID, `executionState:stopped` and termination/partial-work
+`reconciliation`. Follow the [report contract](../../pabcd/references/delegation.md#configured-first-fallback).
+Provider errors use `outcome:failed`; do not invent a provider code for a task
+failure or label cancellation or exhausted bounds as stagnation. Validate the
+final work before reporting `outcome:complete`, which closes the dispatch.

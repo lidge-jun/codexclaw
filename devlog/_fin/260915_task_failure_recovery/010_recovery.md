@@ -47,9 +47,12 @@ Actual handles and raw consultation outputs stay in local task evidence.
 
 ## File and field chain
 
-Paths below are repository-relative. The configured executor owns this implementation
-bundle after A; main owns planning records, generated build output, measured README
-test badges, verification records, source review and PR publication.
+Paths below are repository-relative. After A, the executor owns the state-machine
+implementation and two test files. During B it explicitly released the untouched
+guidance/documentation files to main; the sequential handoff was delaying integration.
+Main owns that wording, planning records, generated build output, measured README
+test badges, verification records, source review and PR publication. D1-D8 and the
+acceptance criteria are unchanged; this is a successful scope split, not failure recovery.
 
 | File | Change |
 |---|---|
@@ -62,7 +65,7 @@ test badges, verification records, source review and PR publication.
 | `docs-site/src/content/docs/guides/subagents.md` | MODIFY public protocol example and limits. |
 | `CHANGELOG.md`, `structure/INDEX.md` | MODIFY change record and owner description to include runtime recovery. |
 | `plugins/codexclaw/components/subagent-config/dist/fallback-dispatch{,-cli}.js` | REGENERATE from source with the standard build; never hand-edit. |
-| `README.md`, `README.ko.md` | MODIFY test count only if new tests change measured inventory; use normal inventory tool. |
+| `README.md`, `README.ko.md`, `README.zh.md` | MODIFY test count only if new tests change measured inventory; use normal inventory tool. |
 
 Creation is explicit CLI JSON → `runDispatch`/`report`; validation is the task parser
 and stopped-child gate; serialization is `saveState`; deserialization is `readState`;

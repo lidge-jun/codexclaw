@@ -106,6 +106,15 @@ authentication and cancellation failures stop. Ambiguous creation or ongoing wor
 must be reconciled before replacement; stopped executors require a change review
 and cleanup evidence. Unknown error prose does not trigger blind rotation.
 
+Confirmed stagnation or unusable final output uses a separate `outcome:task_failed`
+report with `taskFailure: {kind: "stagnation" | "unusable_output", evidence: "..."}`.
+Include the recorded child ID, `executionState:stopped`, and `reconciliation`
+describing termination and partial-work inspection. Both evidence strings must be
+non-empty and at most 2000 characters. This report has no provider `error`; it uses
+the same bounded handoff and returned actions as provider recovery. Cancellation,
+exhausted limits and a wait timeout alone are not task failures. Validate final
+work before reporting `outcome:complete`, which cannot be reopened for recovery.
+
 OCX retains its own retries and global/per-model fallback. The two-attempt limit
 applies to CXC-issued native attempts, not every downstream provider request.
 Requested and observed models are recorded separately; an unobserved actual model

@@ -265,6 +265,7 @@ though they have no package-local `test` script. This asymmetry is intentional, 
 | `cxc loop` | `components/pabcd-state/dist/cli.js loop` | initializes, shows, or validates the project-local goalplan substrate |
 | `cxc goalplan` | `components/pabcd-state/dist/cli.js goalplan` | deprecated alias for `cxc loop` |
 | `cxc subagents` | `components/subagent-config/dist/cli.js` (list/get/set) | reads/writes the per-role `.codexclaw/subagents.json` model+effort+prompt config |
+| `cxc subagents dispatch` | `components/subagent-config/dist/fallback-dispatch-cli.js` | records main-owned claims and outcomes; provider failures and explicit `task_failed` evidence use bounded handoff after child reconciliation; never invokes a model itself |
 | `cxc provider` | `components/provider-bridge/dist/cli.js` (detect) | read-only ocx provider detect/status; never mutates provider state |
 | `cxc serve` | `components/messenger-bridge/dist/cli.js serve` | runs the loopback bridge server for the GUI, JSON API, and messenger adapters |
 | `cxc service` | `components/messenger-bridge/dist/cli.js service` | installs, uninstalls, or reports the macOS launchd daemon for `cxc serve` |

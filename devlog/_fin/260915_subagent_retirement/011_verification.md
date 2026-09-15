@@ -45,10 +45,10 @@ walks skill references and structure documents for claim hygiene. These checks
 do not execute a model's retirement decisions. The scenario matrix is a semantic
 review, not a deterministic unit test or an instrumented lifecycle replay.
 
-## Limits and retained evidence
+## Initial policy revision: limits and retained evidence
 
-No runtime code, model routing, installed plugin bytes, configuration or tests
-were changed. No phrase-presence test or unused helper was introduced. Source
+At the initial policy revision, no runtime code, model routing, installed plugin
+bytes, configuration or tests were changed. No phrase-presence test or unused helper was introduced. Source
 tests cannot establish cross-model compliance or delivery timing on every host.
 A future coordinator ignoring substantive progress despite reading this policy
 would falsify the assumption that clearer guidance alone is sufficient.
@@ -104,3 +104,16 @@ alone do not count as failure. Existing shutdown and managed recovery rules appl
 
 Fresh `npm run gate`, all 7 manifest-policy tests, and `git diff --check` passed.
 These checks cover document hygiene and routes, not the output-quality judgment.
+
+## Later review: managed recovery reachability
+
+[Review comment](https://github.com/lidge-jun/codexclaw/pull/179#discussion_r4013017929)
+found that recognizing task failures did not make managed recovery executable:
+descriptive stagnation or unusable-output reports remained `reconcile` even after
+termination was confirmed. A source review at `20e50485` correctly verified that
+unknown error prose cannot rotate providers, but missed the need for a separate
+task-failure path. Main reproduced that gap with the real state machine.
+
+The follow-up cycle is recorded in `devlog/_fin/260915_task_failure_recovery/`.
+Its runtime/CLI evidence supersedes the initial policy-only scope above; it must
+not be inferred from the earlier semantic scenario review.
