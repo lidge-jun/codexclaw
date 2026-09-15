@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -43,6 +43,36 @@ test("real CLI refuses corrupt state and invalid JSON rather than resetting it",
   const out = run(JSON.stringify({ ...base, action: "status" }));
   assert.equal(out.status, 1); assert.match(out.stdout, /invalid dispatch identity/);
 });
+test("real CLI recovers confirmed task failures across separate processes", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-dispatch-cli-task-"));
+  const { CODEX_THREAD_ID: _nativeSession, ...inherited } = process.env;
+  const env = { ...inherited, CODEXCLAW_HOME: join(cwd, "global") };
+  setRole(cwd, "executor", { mode: "model", model: "xai/grok-4.6", fallback: { model: "cursor/grok-4.6", effort: "low" } }, "project", env);
+  const call = (input: unknown) => {
+    const child = spawnSync(process.execPath, [cli], { cwd, env, input: JSON.stringify(input), encoding: "utf8" });
+    assert.equal(child.status, 0, child.stdout + child.stderr);
+    return child.stdout ? JSON.parse(child.stdout) : null;
+  };
+  const base = { sessionId: "fixture", dispatchId: "task" };
+  const first = call({ ...base, action: "start", role: "executor" });
+  call({ ...base, action: "claim", attemptId: first.attemptId });
+  call({ ...base, action: "report", attemptId: first.attemptId, outcome: "created", agentId: "child-a" });
+  const second = call({ ...base, action: "report", attemptId: first.attemptId, outcome: "task_failed", agentId: "child-a", executionState: "stopped", reconciliation: "child stopped; diff inspected", taskFailure: { kind: "unusable_output", evidence: "final message unrelated to the packet" } });
+  assert.equal(second.action, "ready");
+  assert.equal(second.attempts[0].taskFailure?.kind, "unusable_output");
+  assert.equal(second.attempts[0].code, null);
+  const claim = call({ ...base, action: "claim", attemptId: second.attemptId });
+  assert.equal(claim.candidate.model, "cursor/grok-4.6");
+  call({ ...base, action: "report", attemptId: second.attemptId, outcome: "created", agentId: "child-b" });
+  const end = call({ ...base, action: "report", attemptId: second.attemptId, outcome: "task_failed", agentId: "child-b", executionState: "stopped", reconciliation: "second child stopped; partial work preserved", taskFailure: { kind: "stagnation", evidence: "no advancement at the stated review point" } });
+  assert.equal(end.action, "main-direct");
+  const status = call({ ...base, action: "status" });
+  assert.equal(status.action, "main-direct");
+  assert.equal(status.attempts[1].taskFailure?.kind, "stagnation");
+  const raw = JSON.parse(readFileSync(join(cwd, ".codexclaw", "dispatches", "fixture", "task.json"), "utf8"));
+  assert.equal(raw.attempts[0].taskFailure.kind, "unusable_output");
+});
+
 test("malformed startup payload is silent, malformed dispatch input is visible", () => {
   const hook = spawnSync(process.execPath, [cli, "hook", "session-start"], { input: "", encoding: "utf8" });
   assert.equal(hook.status, 0); assert.equal(hook.stdout, "");

@@ -971,7 +971,10 @@ test("same-intent v1/v2 spawns produce surface-appropriate effective payloads", 
     runSpawnAttachHook(spawnPayloadAt(cwd, { message: intent, agent_type: "explorer" })),
   );
   const v2 = updatedInputOf(
-    runSpawnAttachHook(spawnPayloadAt(cwd, { task_name: "map_fe", fork_turns: "none", message: intent })),
+    // Explicit agent_type: the normalized mention link carries the checkout path,
+    // and a "delegation-review"-style path would otherwise hit legacy review-keyword
+    // inference. v1 already pins explorer; keep the surfaces comparable.
+    runSpawnAttachHook(spawnPayloadAt(cwd, { task_name: "map_fe", fork_turns: "none", message: intent, agent_type: "explorer" })),
   );
   // Same model + effort routing on both surfaces.
   assert.equal(v1.model, v2.model);
@@ -995,17 +998,159 @@ test("v2 affordance: appended only when inlining attached nothing", () => {
   );
   assert.ok((inlined.message as string).includes(`${INLINE_SKILL_OPEN}dev">`));
   assert.ok(!(inlined.message as string).includes(affordanceOpening));
-  // No mentions (ciphertext-like opaque text) -> affordance appended after the task text.
+  // Plaintext without mentions still gets the self-load affordance.
   const opaque = updatedInputOf(
-    runSpawnAttachHook(spawnPayload({ task_name: "t", fork_turns: "none", message: "gAAAAABopaquetoken" })),
+    runSpawnAttachHook(spawnPayload({ task_name: "t", fork_turns: "none", message: "Inspect the catalog module." })),
   );
   assert.ok((opaque.message as string).includes(SKILL_AFFORDANCE_MARKER));
   assert.ok((opaque.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`), "guard stays first");
   assert.ok(
-    (opaque.message as string).indexOf("gAAAAABopaquetoken") <
+    (opaque.message as string).indexOf("Inspect the catalog module.") <
       (opaque.message as string).indexOf(SKILL_AFFORDANCE_MARKER),
     "affordance rides after the task text",
   );
+});
+
+// Public Fernet generate.json "hello" vector: a real envelope wire form, no key.
+const FERNET_VECTOR = "gAAAAAAdwJ6wAAECAwQFBgcICQoLDA0ODy021cpGVWKZ_eEwCGM4BLLF_5CV9dOPmrhuVUPgJobwOz7JcbmrR64jVmpU4IwqDA==";
+
+// Synthetic Fernet-shaped frame: version(1) || timestamp(8) || IV(16) ||
+// ciphertext(ciphertextBytes) || HMAC(32). Structural fixture only — the bytes
+// are not authenticated and carry no key material.
+function fernetFrame(options: { version?: number; timestamp?: Uint8Array; ciphertextBytes?: number } = {}) {
+  return Buffer.concat([
+    Buffer.from([options.version ?? 0x80]),
+    options.timestamp ?? Buffer.alloc(8, 0),
+    Buffer.alloc(16, 0x11),
+    Buffer.alloc(options.ciphertextBytes ?? 16, 0x22),
+    Buffer.alloc(32, 0x33),
+  ]);
+}
+
+// Canonical padded or wholly unpadded base64url wire form of a frame.
+function fernetToken(frame: Uint8Array, padded = true): string {
+  const unpadded = Buffer.from(frame).toString("base64url");
+  return padded ? `${unpadded}${"=".repeat((4 - (unpadded.length % 4)) % 4)}` : unpadded;
+}
+
+const CIPHERTEXT_NOTICE = /ciphertext was preserved/;
+
+test("native V2 ciphertext survives routing and prompt overrides byte-for-byte", () => {
+  const message = FERNET_VECTOR;
+  const cwd = workspaceWithConfig({
+    architect: { mode: "model", model: "architect-fixture", effort: "high", promptOverride: "Architect-only instructions" },
+  });
+  for (const tool_name of ["spawn_agent", "collaborationspawn_agent"]) {
+    const input = { task_name: "design", agent_type: "architect", fork_turns: "none", message };
+    const payload = { ...JSON.parse(spawnPayloadAt(cwd, input)), tool_name };
+    const output = runSpawnAttachHook(JSON.stringify(payload));
+    const updated = updatedInputOf(output);
+    assert.deepEqual(updated, { ...input, model: "architect-fixture", reasoning_effort: "high" });
+    assert.match(JSON.parse(output).hookSpecificOutput.additionalContext, /prompt overrides were not attached/);
+  }
+});
+
+test("native V2 ciphertext preserves explicit settings and full-history fork restrictions", () => {
+  const message = FERNET_VECTOR;
+  const cwd = workspaceWithConfig({
+    architect: { mode: "model", model: "configured-fixture", effort: "high", promptOverride: "Architect-only instructions" },
+  });
+  for (const fields of [
+    { fork_turns: "none", model: "caller-fixture", reasoning_effort: "low" },
+    { fork_turns: "all" },
+  ]) {
+    const input = { task_name: "design", agent_type: "architect", message, ...fields };
+    const out = runSpawnAttachHook(spawnPayloadAt(cwd, input));
+    assert.deepEqual(out ? updatedInputOf(out) : input, input);
+  }
+});
+
+test("native V2 ciphertext cannot bypass the existing recursion denial", () => {
+  const message = FERNET_VECTOR;
+  const result = JSON.parse(runSpawnAttachHook(subagentSpawnPayload({ task_name: "nested", message })));
+  assert.equal(result.hookSpecificOutput.permissionDecision, "deny");
+  assert.equal(result.hookSpecificOutput.updatedInput, undefined);
+});
+
+test("valid Fernet frames stay byte-identical across padding forms and block counts", () => {
+  const variants: [string, string][] = [
+    ["reference vector (canonical padded)", FERNET_VECTOR],
+    ["reference vector (unpadded)", FERNET_VECTOR.slice(0, -2)],
+  ];
+  // n=3 frames fill a whole base64 group, so their padded and unpadded wire
+  // forms coincide; both entries still exercise the accepted shape.
+  for (const blocks of [1, 2, 3]) {
+    const frame = fernetFrame({ ciphertextBytes: 16 * blocks });
+    variants.push([`n=${blocks} padded`, fernetToken(frame)], [`n=${blocks} unpadded`, fernetToken(frame, false)]);
+  }
+  // A timestamp whose bytes do not encode the old gAAAA prefix must still be
+  // recognized: the classifier checks structure, not the prefix.
+  const noPrefix = fernetToken(fernetFrame({ timestamp: Buffer.alloc(8, 0xff) }));
+  assert.ok(!noPrefix.startsWith("gAAAA"), "fixture must actually lack the legacy prefix");
+  variants.push(["non-gAAAA timestamp", noPrefix]);
+  for (const [label, message] of variants) {
+    const out = runSpawnAttachHook(spawnPayload({ task_name: "t", fork_turns: "none", message }));
+    const parsed = JSON.parse(out);
+    assert.equal(parsed.hookSpecificOutput.permissionDecision, "allow", label);
+    assert.equal(parsed.hookSpecificOutput.updatedInput.message, message, `${label}: byte-identical`);
+    assert.match(parsed.hookSpecificOutput.additionalContext ?? "", CIPHERTEXT_NOTICE, label);
+  }
+});
+
+test("malformed V2 ciphertext lookalikes keep the guard, affordance and configured prompt", () => {
+  const cwd = workspaceWithConfig({
+    architect: { mode: "model", model: "architect-fixture", effort: "high", promptOverride: "Architect-only instructions" },
+  });
+  const core = FERNET_VECTOR.slice(0, -2);
+  const malformed: [string, string][] = [
+    ["short gAAAA prefix", "gAAAAx"],
+    ["old e2e fixture", "gAAAAABopaque-payload"],
+    ["impossible base64 length", "gAAAA"],
+    ["old invalid fixture", `gAAAAAB${"aB9_".repeat(30)}==`],
+    ["wrong version byte", fernetToken(fernetFrame({ version: 0x81 }))],
+    ["truncated frame", FERNET_VECTOR.slice(0, 80)],
+    ["empty ciphertext", fernetToken(fernetFrame({ ciphertextBytes: 0 }))],
+    ["non-16-byte-block ciphertext", fernetToken(fernetFrame({ ciphertextBytes: 24 }))],
+    ["embedded whitespace", `${core.slice(0, 40)} ${core.slice(40)}==`],
+    ["standard-alphabet characters", FERNET_VECTOR.replaceAll("_", "/")],
+    ["partial padding", `${core}=`],
+    ["excess padding", `${FERNET_VECTOR}=`],
+    ["trailing newline", `${FERNET_VECTOR}\n`],
+    ["padding with carriage return", `${core}=\r`],
+    ["mid-string padding", `${core.slice(0, 20)}=${core.slice(20)}==`],
+    ["nonzero unused pad bits", `${core.slice(0, -1)}B==`],
+  ];
+  for (const [label, message] of malformed) {
+    const out = runSpawnAttachHook(spawnPayloadAt(cwd, { task_name: "t", fork_turns: "none", agent_type: "architect", message }));
+    const parsed = JSON.parse(out);
+    assert.equal(parsed.hookSpecificOutput.permissionDecision, "allow", label);
+    const ui = parsed.hookSpecificOutput.updatedInput;
+    assert.ok((ui.message as string).startsWith(`${LEAF_GUARD_BLOCK}\n\n`), `${label}: guard attached`);
+    assert.ok((ui.message as string).includes("Architect-only instructions"), `${label}: prompt override attached`);
+    assert.ok((ui.message as string).includes(SKILL_AFFORDANCE_MARKER), `${label}: plaintext affordance attached`);
+    // Plaintext attachment already trims trailing whitespace; only ciphertext
+    // has the byte-for-byte preservation contract.
+    assert.ok((ui.message as string).includes(message.trimEnd()), `${label}: task text preserved`);
+    assert.doesNotMatch(parsed.hookSpecificOutput.additionalContext ?? "", CIPHERTEXT_NOTICE, label);
+  }
+});
+
+test("v1 items carrying a Fernet-shaped token stay on the normal attachment path", () => {
+  const out = runSpawnAttachHook(spawnPayload({
+    agent_type: "explorer",
+    items: [
+      { type: "text", text: FERNET_VECTOR },
+      { type: "attachment", ref: "fixture-1" },
+    ],
+  }));
+  const parsed = JSON.parse(out);
+  const ui = parsed.hookSpecificOutput.updatedInput;
+  assert.ok(Array.isArray(ui.items));
+  const [first, second] = ui.items as Record<string, unknown>[];
+  assert.ok((first.text as string).startsWith(`${V1_SCOPE_BLOCK}\n\n`));
+  assert.ok((first.text as string).includes(FERNET_VECTOR));
+  assert.deepEqual(second, { type: "attachment", ref: "fixture-1" });
+  assert.doesNotMatch(parsed.hookSpecificOutput.additionalContext ?? "", CIPHERTEXT_NOTICE);
 });
 
 test("v1 spawns never get the affordance (upstream parses mentions there)", () => {
@@ -1174,4 +1319,3 @@ test("explicit executor and reviewer roles take precedence over message keywords
   assert.equal(inferRole("executor", "review the implementation"), "executor");
   assert.equal(inferRole("reviewer", "inspect correctness"), "reviewer");
 });
-

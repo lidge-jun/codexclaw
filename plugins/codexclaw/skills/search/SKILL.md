@@ -145,11 +145,13 @@ The shared payload form is a **link-form mention in the spawn message**. On V1 t
 child's first turn parses the mention and injects the full SKILL.md body. When a
 V2-shaped spawn message reaches the codexclaw hook as plaintext (non-encrypted
 provider/proxy paths), the hook recognizes the same mention and inlines the full body.
-Native ChatGPT-backend V2 sends the hook ciphertext, so mention normalization and body
-inlining are no-ops there; when no body can be inlined, a plaintext
-`[CXC-SKILL-AFFORDANCE]` block tells the child to self-load any `$cxc-<folder>` /
-`$codexclaw:cxc-<folder>` mention from `<skillsDir>/<folder>/SKILL.md`; fork inheritance
-remains a secondary channel. If the path is not link-safe, use the plugin-native
+Plaintext V2 without an inlined body receives a `[CXC-SKILL-AFFORDANCE]` block
+asking the child to self-load mentions from `<skillsDir>/<folder>/SKILL.md`.
+Native ChatGPT-backend V2 sends ciphertext with a Fernet envelope. The hook
+preserves structurally recognized ciphertext byte-for-byte and tells the caller
+that hook-added skill text, scope instructions and prompt overrides were omitted;
+it cannot attach the plaintext affordance to encrypted task bytes. Native recursion
+checks and separate model/effort routing still apply. If the path is not link-safe, use the plugin-native
 `$codexclaw:cxc-search` fallback instead:
 
 ```text
