@@ -6,6 +6,33 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.32] - 2026-09-20
+
+Verification depth becomes a choice, and the visualizer says where it came from.
+
+### Changed
+
+- The report receipt is an assurance level the caller states, not a fixed tax on
+  every document. `scripts/quality-gate.mjs` takes a profile: `draft` requires
+  nothing, `standard` requires `pdf-parse`, `text-integrity` and `pagination`,
+  and `publication` keeps all seven checks. Pass it as `--profile` or as
+  `"profile"` in the receipt; the argument wins. An unnamed profile stays
+  `publication`, and an unknown name fails rather than falling back to something
+  cheaper. A lighter profile reduces what is required and never invents a pass —
+  the result carries its `profile` and an `omitted` list naming every publication
+  check that did not complete, and a FAIL or REVIEW finding still propagates from a
+  check outside the profile (REPORT-ASSURANCE-01, 11 tests).
+
+### Documentation
+
+- `dev-visualizer` records its origin and its limits. The standalone
+  `aside-visualizer` repository stays Aside's own; codexclaw keeps the ported skill
+  rather than running that roadmap or holding a second copy of it. VIZ-SCOPE-01: the
+  skill builds and verifies the artifact its calling task asked for and does not open
+  repositories of its own, install itself, publish or export unasked, or start its own
+  loop. The three READMEs carry the same boundary and stop advertising the retired
+  `dev-diagram-viewer` name.
+
 ## [0.2.31] - 2026-09-19
 
 Closes the last two issues from the 2026-09-19 sweep.
