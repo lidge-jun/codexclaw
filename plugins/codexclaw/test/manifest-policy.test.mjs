@@ -179,6 +179,7 @@ test("selected router references resolve to real owner files", () => {
       "../pabcd/references/loop-engineering.md",
       "../pabcd/references/optimization.md",
       "references/divergence-tiers.md",
+      "references/lane-dispatch.md",
       "../pabcd/references/delegation.md",
     ],
   };
