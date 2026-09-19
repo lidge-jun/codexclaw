@@ -223,6 +223,12 @@ Run `node scripts/export-paged-report.mjs <in.html> <out.pdf>` (or `--qa-only
 numbers, missing page numbers, an orphan fragment at the top of a page, a heading
 stranded at the bottom, and pages with 30% or more of the text area blank. A
 `REVIEW` verdict is read, each finding fixed or justified in the evidence note.
+
+The output directory is created if it does not exist, so `<out.pdf>` may name a path
+that is not there yet. If something other than a directory occupies that parent path,
+the run stops and says so rather than reporting a print failure — the older behaviour
+handed the destination to Chromium and returned `chrome print failed`, which named the
+browser for a filesystem problem. `--qa-only` creates nothing; it reads an existing PDF.
 Then render the pages (`pdftoppm -r 60 -png`) and look at every page for what
 text extraction cannot see: figure text under 8.5pt, low-contrast labels, a figure
 separated from its heading, a table header row that failed to repeat, missing
