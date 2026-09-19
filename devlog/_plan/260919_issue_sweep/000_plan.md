@@ -36,9 +36,14 @@ plans are the decade documents `010`–`070`.
   `78245b47af`. Read the named revision with `git show`, never by switching the checkout.
 - Skill text is agent-followed, not hook-enforced. A prose change is an early warning,
   never enforcement, and its acceptance row is human review (PLAN-BYPASS-NAMED-01).
-- `plugins/codexclaw/skills/dev/SKILL.md` is touched by two phases (wp6, wp7). They land
-  sequentially, never concurrently.
+- `plugins/codexclaw/skills/dev/SKILL.md` is touched by two phases (wp5 §8, wp6 §3). They
+  land sequentially, never concurrently.
 - Components ship compiled `dist/` alongside `src/`; a source edit requires the build.
+- `README.md`, `README.ko.md`, `README.zh.md` and `plugins/codexclaw/inventory.json` are
+  shared by every phase that adds a test, because `.github/workflows/ci.yml:62` runs
+  `inventory.mjs --check --tests` against the published badge. Each such PR regenerates
+  them itself, or its own CI fails. This is the likeliest cause of a red PR in this unit.
+- wp3 produces `cxc-ops/src/doctor.ts`; wp4 consumes it. Serial, never parallel.
 
 ## Work-phase map (dependency-ordered)
 
@@ -49,17 +54,27 @@ the contract and documentation phases sit on top; the release consumes all of th
 | Phase | Doc | Issues | Why it sits here |
 | --- | --- | --- | --- |
 | wp1 | this unit | — | Locks the map before any implementation cycle. |
-| wp2 | `010` | #175, #184 | `dev` must survive the promotion that wp8 performs, and lanes must be mergeable before parallel delivery is trusted. |
-| wp3 | `020` | #186, #196 | Runtime gates. #196 currently denies ordinary Markdown patches, which obstructs every later documentation phase. |
-| wp4 | `030` | #185, #187, #188, #189, #190, #191 | Memory pipeline; independent subsystem with its own CLI surface. |
-| wp5 | `040` | #178, #192, #193, #194, #198 | Delegation and loop contracts. Depends on PR #180 landing first, which already closes #178. |
-| wp6 | `050` | #195, #197 | CI-evidence rules in `dev/SKILL.md` §3. |
-| wp7 | `060` | #181, #182, #183, #199, #200 | Visualizer. Largest slice; touches the same `dev/references/reader-documents.md` owner that wp6 leaves alone. |
+| wp3 | `020` | #196, #186 | **Executes first.** #196 denies ordinary Markdown patches and denied one of this unit's own documents, obstructing every later documentation phase. Also produces `doctor.ts`, which wp4 consumes. |
+| wp2 | `010` | #175 | `dev` deletion protection. A precondition of the wp8 promotion; nothing else depends on it. |
+| wp4 | `030` | #187, #185, #190 | Read-only memory observability: one shared status reader with two consumers. |
+| wp4b | `030` | #188 | Memory requeue, split out because it mutates the host database. C4: its own gates and durable evidence. |
+| wp5 | `040` | #178, #198, #192, #194, #193, #189 | Delegation and loop coordination lifecycle. PR #180 lands first. #189 moved here from wp4 because it edits `delegation.md`. |
+| wp6 | `050` | #195, #197 | Hosted CI-evidence contract in `dev/SKILL.md` §3. Produces the rules wp9 consumes. |
+| wp9 | `010` | #184 | Lane identity and merge handoff. Consumes wp6's evidence contract, so it follows it. |
+| wp7 | `060` | #181 | Publication recovery decision from `60a07328`, with the exporter directory fix riding along. |
+| wp7b | `060` | #199, #200 | Research handoff and genre contract; both extend the recovered `report-pipeline.md`. |
+| wp7c | `060` | #182, #183 | Standalone packaging. Follows wp7b because #183's portable copy synchronizes **after** #200's canonical edits. |
 | wp8 | `070` | — | Promotion and release. |
+
+These splits were required by the A-phase architect reflection and are recorded in
+`002_audit_dispositions.md`. The original grouping mixed independent changes — deletion
+protection with lane coordination, read-only observability with a database mutation, and
+three unrelated visualizer concerns — so its subsystem labels were useful but its phase
+boundaries were not dependency edges.
 
 ### Sequencing facts that changed the naive order
 
-- **PR #180 lands before wp5.** It is `MERGEABLE`/`CLEAN` with all 14 checks passing, it
+- **PR #180 lands before wp5.** Verified head `7c328045`, `MERGEABLE`/`CLEAN`, checks green. It
   already `Closes #178`, and it edits `pabcd/references/delegation.md`,
   `pabcd/references/phase-plan.md`, `pabcd/references/plan-output.md` and
   `loop/references/waiting.md` — the exact files wp5 must edit. Landing it first avoids a
