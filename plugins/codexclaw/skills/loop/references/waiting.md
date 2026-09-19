@@ -17,6 +17,11 @@ kill the work-phase (019f4456: a 6-minute silent `wait_agent` stretch looked
 like "stopped after one work-phase"). While waiting on subagents or long
 external processes inside a loop:
 
+- `wait_threads` watches **1-8 targets** with `timeoutMs` **0-120000** (default 120000),
+  so more than eight lanes means deliberate batching: watch the batch whose result changes
+  your next decision, carry each target's `afterCursor`, and never read an unwatched lane
+  as idle. A wait that times out returns progress for every target and is a normal
+  outcome. See [Lane dispatch](lane-dispatch.md).
 - Prefer bounded waits (`wait_agent` with `timeout_ms` <= 120000) over one
   long blocking wait; between waits, emit a one-line progress update naming
   what is being waited on and the elapsed time. Keep the two cadences separate:

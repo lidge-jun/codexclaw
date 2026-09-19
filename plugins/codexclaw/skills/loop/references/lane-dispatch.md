@@ -26,16 +26,28 @@ A lane cannot read the coordinator's goalplan, ledger or context. Whatever is no
 | Field | Why it is required |
 |---|---|
 | `lane` | The lane id used in the manifest, so two records can be matched later |
-| `address.threadId`, `address.hostId` | How anyone addresses this lane afterwards |
+| `address.threadId`, `address.hostId` | How anyone addresses this lane afterwards. Present only once creation has returned them |
 | `work.objective`, `work.criteria[]` | Required when the lane is told to loop; a loop without them is an instruction to invent a goal |
 | `work.writeScope[]` | What this lane may write. Overlapping scopes are how two lanes silently fight |
 | `work.base`, `work.branch` | The ref it starts from and the branch it owns |
 | `authority.loop` | Default false. False means work and report |
+| `authority.push`, `authority.openPr` | Default false. A pull request needs a pushed branch, and merge needs both |
 | `authority.merge`, `authority.mergeTarget` | Default false. See below |
 | `reporting.evidence[]`, `reporting.onBlocked` | What must come back, and what to do instead of guessing |
 
-Validate a packet with `node plugins/codexclaw/scripts/check-lane-packet.mjs <packet.json>`,
-and a set of them together so overlapping write scopes are caught before dispatch.
+A packet has two lives, and conflating them is how a lane ends up addressed by an id that
+does not exist yet. Before dispatch it is a `dispatch` packet: everything except the
+address. After creation returns a canonical id it becomes a `bound` packet, and only then
+is the address required. Declare the mode; do not let it be inferred from a missing field.
+
+Validate with `node plugins/codexclaw/scripts/check-lane-packet.mjs <packet.json>
+[--mode dispatch|bound]`, and validate a set together — it also rejects two lanes sharing
+a lane id or a branch, and compares write scopes after normalizing `.` and `..` so an
+aliased path cannot hide an overlap.
+
+What it cannot do: tell a provisional id from a canonical one by shape, because they have
+none. It can only refuse an `address.clientThreadId` and refuse a `threadId` that repeats
+a `provisionalId` the caller recorded. Keep the provisional id in that field.
 
 ## LANE-MERGE-GRANT-01 (STRICT) — merge is a separate sentence
 
@@ -50,16 +62,18 @@ permission to rewrite, retarget or merge another lane's branch.
 A lane is a canonical `threadId` plus a `hostId`. The user-facing mention the app builds
 is `[@Title](thread://<threadId>?hostId=<encoded hostId>)`; the thread id accepts only
 `[A-Za-z0-9_-]` and the host id is percent-encoded and must decode to `[A-Za-z0-9._:-]`.
-Several tasks can be referenced in one turn — there is no cap, duplicates collapse by
-`(hostId, threadId)`, and the turn carries the resolved list as JSON under
-`## Referenced chats with Codex:`. A reference is a pointer, not content: read the task
-before relying on it.
+Several tasks can be referenced in one turn: duplicates collapse by `(hostId, threadId)`
+and the turn carries the resolved list as JSON under `## Referenced chats with Codex:`.
+No cap was found on that path when it was read — collection, resolution and injection all
+pass the whole array — which is a measured absence rather than a guarantee. A reference is
+a pointer, not content: read the task before relying on it.
 
 Creation is asynchronous. A ready task returns `threadId` and `hostId`; a task whose
 worktree is still being set up returns a provisional `clientThreadId`, which no tool
-accepts and which no exposed API resolves to the canonical id. Record it in a separate
-field, never as the address, and recover the canonical id by reading the task listing —
-not by creating the lane again.
+accepts. The binding to the canonical id exists internally, but no model-visible resolver
+was found when the bundle was searched, so treat it as unavailable rather than hidden.
+Record the provisional id in its own field, never as the address, and recover the
+canonical id by reading the task listing — not by creating the lane again.
 
 ## Watching lanes, and the wave that is actually capped
 
@@ -70,8 +84,10 @@ a failure. More than eight lanes means deliberate batching: watch the batch whos
 changes your next decision, carry each target's `afterCursor`, and do not read an
 unwatched lane as idle.
 
-Fan-out width belongs to lanes, not to subagents. No host-wide cap on concurrently running
-tasks was found, and per-thread turns queue instead. Subagents are the capped resource:
+Fan-out **across branches** belongs to lanes, not to subagents; concurrency *inside* one
+lane's tree is still subagent work. No host-wide cap on concurrently running tasks was
+found in the searched paths, and per-thread turns queue instead. Subagents are the capped
+resource:
 spawning past the limit fails outright with `agent thread limit reached`, and the limit is
 six per session by default (`agents.max_threads`; on V2,
 `features.multi_agent_v2.max_concurrent_threads_per_session` minus one for the session
@@ -90,3 +106,12 @@ thread, so a second monitor is not a second safety net.
 Managed worktrees are retained to the latest 15 by default and archive cleanup can delete
 or transfer one, so a lane's checkout is not permanent storage. Land or push work; do not
 leave the only copy in a worktree nobody owns.
+
+## Known limitation
+
+`check-lane-packet.mjs` decides packets; it does not police this document. The
+authorization in [cxc-loop](../SKILL.md) is prose, and no test fails when prose is
+deleted — an independent reviewer raised exactly that, and closing it properly means
+enforcing the packet at the orchestration boundary, which is a runtime change this
+contract does not make. Treat the validator as the enforceable half and the skill text as
+the readable half.

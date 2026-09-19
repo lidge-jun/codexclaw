@@ -22,7 +22,37 @@ const base = () => ({
 test("a minimal non-looping packet is accepted and its defaults are explicit", () => {
   const r = validateLanePacket(base());
   assert.ok(r.ok, r.errors.join("; "));
-  assert.deepEqual(r.resolved, { lane: "lane-1", loop: false, merge: false, mergeTarget: null });
+  assert.deepEqual(r.resolved, { lane: "lane-1", mode: "bound", loop: false, push: false, openPr: false, merge: false, mergeTarget: null });
+});
+
+test("a dispatch packet carries no address, because creation has not returned one", () => {
+  const p = base();
+  delete p.address;
+  const r = validateLanePacket(p, { mode: "dispatch" });
+  assert.ok(r.ok, r.errors.join("; "));
+  assert.equal(r.resolved.mode, "dispatch");
+});
+
+test("a dispatch packet that already claims an address is refused", () => {
+  const r = validateLanePacket(base(), { mode: "dispatch" });
+  assert.equal(r.ok, false);
+  assert.match(r.errors.join(" "), /creation has not returned one yet/);
+});
+
+test("a bound packet missing its address is refused", () => {
+  const p = base();
+  delete p.address;
+  const r = validateLanePacket(p, { mode: "bound" });
+  assert.equal(r.ok, false);
+  assert.match(r.errors.join(" "), /bound packet requires address/);
+});
+
+test("a recorded provisional id copied into threadId is refused", () => {
+  const p = base();
+  p.address.provisionalId = p.address.threadId;
+  const r = validateLanePacket(p);
+  assert.equal(r.ok, false);
+  assert.match(r.errors.join(" "), /repeats the recorded provisionalId/);
 });
 
 test("a lane told to loop without an objective is told to invent a goal", () => {
@@ -71,10 +101,26 @@ test("a granted merge must name this lane's own branch", () => {
 
 test("a granted merge on its own branch resolves to an explicit target", () => {
   const p = base();
-  p.authority = { merge: true, mergeTarget: "codex/lane-1" };
+  p.authority = { merge: true, push: true, mergeTarget: "codex/lane-1" };
   const r = validateLanePacket(p);
   assert.ok(r.ok, r.errors.join("; "));
   assert.equal(r.resolved.mergeTarget, "codex/lane-1");
+});
+
+test("merge without push is refused: a lane that cannot push cannot land", () => {
+  const p = base();
+  p.authority = { merge: true, mergeTarget: "codex/lane-1" };
+  const r = validateLanePacket(p);
+  assert.equal(r.ok, false);
+  assert.match(r.errors.join(" "), /cannot push cannot land/);
+});
+
+test("opening a pull request needs a pushed branch", () => {
+  const p = base();
+  p.authority = { openPr: true };
+  const r = validateLanePacket(p);
+  assert.equal(r.ok, false);
+  assert.match(r.errors.join(" "), /needs a pushed branch/);
 });
 
 test("a provisional clientThreadId is refused as an address", () => {
@@ -96,6 +142,16 @@ test("overlapping write scopes across two lanes are caught before dispatch", () 
   b.lane = "lane-2";
   b.work.branch = "codex/lane-2";
   b.work.writeScope = ["plugins/codexclaw/skills/loop/references"];
+  const r = validateLanePacketSet({ lanes: [a, b] });
+  assert.equal(r.ok, false);
+  assert.match(r.errors.join(" "), /write scopes overlap/);
+});
+
+test("an aliased path cannot hide an overlap", () => {
+  const a = base(), b = base();
+  b.lane = "lane-2";
+  b.work.branch = "codex/lane-2";
+  b.work.writeScope = ["plugins/codexclaw/skills/pabcd/../loop/references"];
   const r = validateLanePacketSet({ lanes: [a, b] });
   assert.equal(r.ok, false);
   assert.match(r.errors.join(" "), /write scopes overlap/);
@@ -163,6 +219,34 @@ test("the subagent cap and its failure string are recorded together", () => {
   assert.equal(cap.value, 6);
   assert.equal(err.value, "agent thread limit reached");
   assert.ok(laneDoc.includes(err.value), "the document must name the failure a caller will actually see");
+});
+
+// Anchored drift checks. "The number appears somewhere in the file" is too weak: these
+// require the bound to appear on the line that actually describes the call.
+const skills = join(pluginRoot, "skills");
+const lineWith = (file, needle) =>
+  readFileSync(file, "utf8").split(/\r?\n/).filter((l) => l.includes(needle));
+const boundValue = (id) => String(fixture.bounds.find((b) => b.id === id).value);
+
+test("waiting.md states the wait bounds on the line that describes wait_threads", () => {
+  const lines = lineWith(join(skills, "loop", "references", "waiting.md"), "wait_threads");
+  const stated = lines.filter((l) => l.includes(boundValue("wait_threads.targets.max")));
+  assert.ok(stated.length > 0, "waiting.md does not state the target bound where it describes the wait");
+  const doc = readFileSync(join(skills, "loop", "references", "waiting.md"), "utf8");
+  assert.ok(doc.includes(boundValue("wait_threads.timeoutMs.max")), "the timeout bound drifted out of waiting.md");
+});
+
+test("the delegation thread-surface table carries the measured bounds", () => {
+  const table = readFileSync(join(skills, "pabcd", "references", "delegation.md"), "utf8");
+  for (const id of ["wait_threads.targets.max", "wait_threads.timeoutMs.max", "read_thread.turnLimit.max", "read_thread.maxOutputCharsPerItem.max", "list_threads.limit.max", "get_handoff_status.waitMs.max"])
+    assert.ok(table.includes(boundValue(id)), id + " is missing from the delegation table");
+});
+
+test("dispatch-surfaces states the subagent cap and routes to the lane contract", () => {
+  const doc = readFileSync(join(skills, "pabcd", "references", "dispatch-surfaces.md"), "utf8");
+  assert.ok(doc.includes("DISPATCH-FANOUT-CAP-01"), "the fan-out rule is missing");
+  assert.ok(doc.includes(boundValue("subagents.maxThreads.defaultV1")), "the subagent cap drifted");
+  assert.ok(doc.includes("](../../loop/references/lane-dispatch.md)"), "dispatch-surfaces does not route to the lane contract");
 });
 
 test("a missing artifact is NOT RUN, never a pass", () => {
