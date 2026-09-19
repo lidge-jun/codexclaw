@@ -8,6 +8,8 @@ import { renameWithRetry } from "./atomic-write.ts";
 import { decodeDispatchFailure } from "./fallback-errors.ts";
 
 export interface Candidate { model: string | null; effort: EffortName | null; }
+/** Confirmed task failure is main's judgment with bounded observational evidence, never a provider code. */
+interface TaskFailure { kind: "stagnation" | "unusable_output"; evidence: string; }
 interface Attempt {
   id: string;
   candidate: Candidate;
@@ -15,6 +17,7 @@ interface Attempt {
   agentId: string | null;
   observedModel: string | null;
   code: string | null;
+  taskFailure: TaskFailure | null;
   status: "ready" | "claimed" | "running" | "reconcile" | "failed" | "complete";
   reconciliation: string | null;
   spawnIssued: boolean;
@@ -57,6 +60,13 @@ function smallText(value: unknown, field: string): string {
   if (typeof value !== "string" || !value.trim() || value.length > 2000) throw new Error(`invalid ${field}`);
   return value.trim();
 }
+const TASK_FAILURE_KINDS = new Set(["stagnation", "unusable_output"]);
+function taskFailure(raw: unknown): TaskFailure {
+  const t = record(raw);
+  for (const key of Object.keys(t)) if (key !== "kind" && key !== "evidence") throw new Error("invalid taskFailure key");
+  if (!TASK_FAILURE_KINDS.has(t.kind as string)) throw new Error("invalid taskFailure kind");
+  return { kind: t.kind as TaskFailure["kind"], evidence: smallText(t.evidence, "taskFailure evidence") };
+}
 function directory(cwd: string, sessionId: string): string {
   let dir = cwd;
   for (const part of [".codexclaw", "dispatches", sessionId]) {
@@ -89,6 +99,8 @@ function readState(path: string, sessionId: string, dispatchId: string): Dispatc
     for (const field of ["agentId", "observedModel", "code", "reconciliation", "toolUseId"]) {
       if (a[field] !== null && typeof a[field] !== "string") throw new Error(`invalid attempt ${field}`);
     }
+    // Version-1 records predate taskFailure; absent normalizes to null, malformed fails closed.
+    a.taskFailure = a.taskFailure === undefined || a.taskFailure === null ? null : taskFailure(a.taskFailure);
   }
   return d as unknown as Dispatch;
 }
@@ -100,7 +112,7 @@ function saveState(path: string, state: Dispatch): void {
   } finally { rmSync(temp, { force: true }); }
 }
 function attempt(c: Candidate): Attempt {
-  return { id: randomUUID(), candidate: c, claimed: false, agentId: null, observedModel: null, code: null, status: "ready", reconciliation: null, spawnIssued: false, toolUseId: null };
+  return { id: randomUUID(), candidate: c, claimed: false, agentId: null, observedModel: null, code: null, taskFailure: null, status: "ready", reconciliation: null, spawnIssued: false, toolUseId: null };
 }
 function result(d: Dispatch, action?: DispatchResult["action"], reason?: string): DispatchResult {
   const a = d.attempts.at(-1)!;
@@ -165,6 +177,7 @@ function report(d: Dispatch, b: Record<string, unknown>): DispatchResult {
     if (!a.agentId || b.agentId !== a.agentId) throw new Error("complete requires the recorded agentId");
     a.status = "complete"; d.status = "complete"; return result(d);
   }
+  if (b.outcome === "task_failed") return taskFailed(d, b);
   if (b.outcome !== "failed" && b.outcome !== "unavailable") throw new Error("invalid report outcome");
   const failure = b.outcome === "unavailable" ? null : decodeDispatchFailure(b.error);
   a.code = failure?.code ?? null;
@@ -182,10 +195,40 @@ function report(d: Dispatch, b: Record<string, unknown>): DispatchResult {
     a.status = "failed"; d.status = "main-direct"; return result(d);
   }
   if (b.executionState === "stopped" && !a.agentId) throw new Error("record created agent before stopped handoff");
+  return handoff(d);
+}
+
+/** Bounded rotation shared by provider and task failures: next candidate, else main reclaims. */
+function handoff(d: Dispatch): DispatchResult {
+  const a = d.attempts.at(-1)!;
   a.status = "failed";
   if (d.attempts.length === d.candidates.length) { d.status = "main-direct"; return result(d); }
   d.attempts.push(attempt(d.candidates[d.attempts.length]));
   return result(d);
+}
+
+/** A supplied provider error keeps its own decoding; without one the task-failure path runs. */
+function taskFailed(d: Dispatch, b: Record<string, unknown>): DispatchResult {
+  const a = d.attempts.at(-1)!;
+  if (b.error !== undefined) {
+    const failure = decodeDispatchFailure(b.error);
+    a.code = failure.code;
+    if (failure.action === "stop") { d.status = "stopped"; return result(d, "stop", "failure does not permit model fallback"); }
+    if (failure.action === "unknown") { a.status = "reconcile"; return result(d, "reconcile", "error is unclassified; obtain structured OCX evidence, do not guess a code"); }
+    throw new Error("fallback-eligible provider error must report outcome failed, not task_failed");
+  }
+  const failure = taskFailure(b.taskFailure);
+  if (b.executionState === "not_created") throw new Error("task failure requires a recorded stopped child");
+  if (b.executionState !== "stopped") {
+    a.status = "reconcile"; return result(d, "reconcile", "confirm the child is stopped before task handoff");
+  }
+  if (!a.agentId) throw new Error("record created agent before stopped handoff");
+  if (b.agentId !== a.agentId) throw new Error("recorded child must be stopped and identified");
+  a.reconciliation = smallText(b.reconciliation, "reconciliation evidence");
+  // An accepted task failure supersedes any provider code parked by an earlier reconciled report.
+  a.code = null;
+  a.taskFailure = failure;
+  return handoff(d);
 }
 
 /** Marker resolution never creates a dispatch. The hook uses it to avoid primary effort reinjection. */

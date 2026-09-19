@@ -19,7 +19,7 @@
  * PDF is still written and those steps report NOT RUN.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, unlinkSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -96,7 +96,31 @@ for (const m of html.matchAll(/<(section|h[1-6]|div)[^>]*\bid="([^"]+)"[^>]*\bda
 for (const m of html.matchAll(/<(section|h[1-6]|div)[^>]*\bdata-toc="([^"]+)"[^>]*\bid="([^"]+)"/g)) if (!targets.some(t => t.id === m[3])) targets.push({ id: m[3], text: m[2] });
 
 // ---- pass 1 ----
-if (!flags.qaOnly) printPdf(input, output);
+// Chromium's --print-to-pdf does not create the destination directory, and its failure
+// for a missing one is a generic print error that names Chrome rather than the real
+// cause (issue #181). Prepare the directory first so the diagnostic is about the thing
+// that is actually wrong. Never in --qa-only: that mode reads an existing PDF and must
+// not create anything.
+if (!flags.qaOnly) {
+  const outDir = dirname(output);
+  // existsSync alone is not enough: a regular FILE sitting at the parent path also
+  // "exists", and skipping the check there just defers the same failure to Chromium
+  // with a worse message.
+  let dirOk = false;
+  try {
+    dirOk = statSync(outDir).isDirectory();
+  } catch {
+    dirOk = false;
+  }
+  if (!dirOk) {
+    try {
+      mkdirSync(outDir, { recursive: true });
+    } catch (err) {
+      fail("cannot create output directory " + outDir + ": " + (err && err.code ? err.code : err));
+    }
+  }
+  printPdf(input, output);
+}
 const report = { input, output, chrome, passes: flags.qaOnly ? 0 : 1, toc: [], qa: [], notRun: [] };
 if (!pdftotext || !pdfinfo) {
   report.notRun.push("pdftotext/pdfinfo missing: contents page numbers and layout QA NOT RUN");

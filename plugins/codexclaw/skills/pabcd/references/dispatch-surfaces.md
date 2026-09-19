@@ -42,7 +42,7 @@ Say which one you are creating, in those words, before you create it.
 | Who owns the result | the parent integrates it | the task owns it, and the user owns the task |
 | Visible in the app sidebar | no | yes |
 | Creation authority | delegation authority | an explicit or clearly implied user request |
-| Addressing | the returned handle | `threadId` plus `hostId` |
+| Addressing | the returned handle | canonical `threadId` plus `hostId`; a creation still settling is not yet addressable |
 | Waiting | `wait_agent` | `wait_threads` |
 
 A distinct thread id is the trap. A subagent has one, which is why "thread" feels
@@ -110,6 +110,55 @@ do not treat silence as a refusal of the surface the work requires.
 N independent lanes means N `worktree` threads, N checkouts, N FSMs. The parent
 coordinates with `wait_threads` and integrates; it does not advance any child's
 FSM, and a child does not advance the parent's.
+
+### Record the lane before you need it (DISPATCH-LANE-ID-01, DEFAULT)
+
+Thread creation can return a canonical id, or a provisional handle while the checkout is
+still being set up. Record the canonical id and host the moment they exist, keep any
+provisional handle in a separate field, and never pass a provisional handle to a tool
+that wants a canonical id.
+
+The trap is the inverse: a lane missing from a listing is not a lane that does not
+exist. Listings are filtered and paginated, and a started thread is addressable from the
+moment it starts. So if you already hold the canonical id, use it — do not make presence
+in a listing a precondition for addressing a lane you created.
+
+When the id really is lost, recovery is bounded and host-specific: identify the same
+host, worktree and branch, then inspect candidate session metadata — matching cwd,
+creation time, parent identity — and read the recorded session id rather than guessing
+one from a filename. A shared cwd alone cannot separate a lane from its own subagents,
+because a subagent runs in its parent's directory. Confirm a candidate through a
+read-only task read before steering it, and leave ambiguity unresolved. Do not recreate
+a lane because discovery failed; that is how one task becomes two writers.
+
+### Arm the wake before you yield the turn (DISPATCH-WAKE-01, DEFAULT)
+
+Lane work outlives a turn, and nothing resumes a parent automatically. Stop-continuation
+is bounded on purpose: it releases under context pressure and at the stagnation cap. A
+parent that dispatches lanes, yields, and expects to wake up later has arranged nothing,
+and every lane then sits finished and unmerged.
+
+Before yielding a turn with work still running, name the continuation owner and the
+mechanism, verify the wake is actually active, and keep its identifier. With no wake
+mechanism available, either keep handling the work inside the turn or report the
+limitation — do not yield and hope. Deleting a wake removes the trigger and nothing else:
+it does not complete the goal, and it is not permission to reinstate one later. Muting
+notifications is not the same as stopping monitoring, and a scheduled run is not merge
+authority.
+
+### The observer shares the lanes' quota (DISPATCH-POLL-BUDGET-01, DEFAULT)
+
+Lanes and the parent watching them usually draw on the same credentials and the same
+API budget, so observation competes with the work it is observing. The parent owns that
+aggregate: one coordination observer, deduplicated snapshots, one fetch per PR per
+scheduled observation by default, and intervals of minutes rather than seconds for long
+hosted jobs. Communication cadence is a separate decision from API cadence — telling the
+user what is happening does not require asking the API again.
+
+Before sustained polling, read the relevant budget (for example `gh api rate_limit`) and
+reserve headroom for the workers. Back off on evidenced limit responses. Do not assume
+every 403 is exhaustion, that every account has the same allowance, or that rate-limit
+categories are interchangeable. This is guidance for the coordinator, not a limiter.
 
 Threads and subagents then compose. A lane thread spawns its own subagents inside
 its own worktree, and subagents belonging to different lanes cannot collide

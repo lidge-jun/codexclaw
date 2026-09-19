@@ -18,6 +18,16 @@ Pass the concrete plan and scope; never let a subagent reconstruct the plan.
 Subagents return evidence and unresolved judgments; the main session decides and
 integrates. Dispatch only specifiable work whose coordination cost is justified
 (DISPATCH-ECONOMY-01).
+
+**DISPATCH-PROMOTE-01 (DEFAULT).** After checking a child's evidence, main records a
+short synthesis of what it accepted: the reusable result, the failure cause or
+procedure worth keeping, its provenance, and any claim still unresolved. This is not
+ceremony. A child session is excluded from the host's memory extraction candidates, so
+anything learned only inside a lane is learned only once — but main's own assistant
+messages and inter-agent communication are retained, which makes main's synthesis the
+available promotion route. Child completion is not verification; write what you
+verified, not what the child claimed. Durable memory writes keep using the existing
+explicit-request gate; do not add an automatic writer.
 Repository-only provenance for lifecycle, economy, isolation, skill transport and
 topology: `structure/20_pabcd_dispatch_doctrine.md` §3. This is not an installed
 prerequisite; do not assume the path exists inside the plugin payload. An explicitly
@@ -97,6 +107,12 @@ reuse the same reviewer throughout the A loop.
 Before waiting on dispatched work, read the mode-neutral
 [Waiting on work](../../loop/references/waiting.md) rules in either HITL or HOTL.
 This route does not authorize an otherwise forbidden dispatch, wait, or mode transition.
+A wait timeout is an observation outcome, not a verdict: classify progress,
+suspected stagnation, confirmed failure and unavailable observation per that
+reference before any retirement. A suspected-stall checkpoint uses
+non-interrupting delivery where the family supports it — V1 `send_input`
+without `interrupt`, V2 `send_message` — and a queued message is context the
+child may not have read yet, never proof of a stall.
 
 ### Detect the family first (DISPATCH-SCHEMA-DETECT-01, STRICT)
 
@@ -130,9 +146,9 @@ thread surface: a separate Codex task is not a bigger subagent. See
 |---|---|
 | spawn | `spawn_agent({ message \| items, model?, reasoning_effort?, fork_context? })` |
 | handle | returns `{ agent_id, nickname }`; address by `agent_id` |
-| wait | `wait_agent({ targets[], timeout_ms })` returns final status that **may carry the final message**; a timeout is a normal outcome |
+| wait | `wait_agent({ targets[], timeout_ms })` returns final status that **may carry the final message**; a timeout is a normal outcome, not failure evidence |
 | follow-up | `send_input({ target, message \| items, interrupt? })` |
-| stop | `close_agent({ target })`, returning the previous status |
+| stop | `close_agent({ target })`, returning the previous status — which, for a completed child, can contain the ENTIRE report |
 | restore | `resume_agent({ id })` |
 | history | `fork_context: true` copies the parent's history; default is prompt-only |
 
@@ -163,12 +179,28 @@ list still omitted it; re-confirmed the same day in a second session.
 | listing | `list_agents` |
 | history | `fork_turns: "none" \| "all" \| "<n>"`, not a boolean; a full-history fork inherits the parent model and rejects overrides |
 
-The wait difference is the one that bites, in two ways. On V1 you read the answer
-out of `wait_agent`; the same code on V2 returns a status summary and no text,
-which looks like a silent failure rather than a schema mismatch — on V2 the final
-answer arrives as a separate message. And V1's `wait_agent` waits on named
-`targets` while V2's waits on the whole mailbox, so a V1-shaped call carrying
-`targets` is not a valid V2 call at all.
+The wait difference is the one that bites, in two ways. On V1 the first complete report
+may arrive through the host notification OR through `wait_agent`; the same code on V2
+returns a status summary and no text, which looks like a silent failure rather than a
+schema mismatch — on V2 the final answer arrives as a separate message. And V1's
+`wait_agent` waits on named `targets` while V2's waits on the whole mailbox, so a
+V1-shaped call carrying `targets` is not a valid V2 call at all.
+
+**DISPATCH-CONSUME-ONCE-01 (DEFAULT).** On V1, consume a child's report once per child
+task per turn, from whichever surface delivered it first. Three surfaces can carry the
+same completed text and none of them can be told to stay quiet: the spawn-time watcher
+injects the completed status independently, `wait_agent` returns terminal statuses that
+may include the final message, and `close_agent` returns the status it captured before
+closing. There is no content-suppression argument on the wait.
+
+So: a wait already in flight can still hand you a duplicate of something you have
+already read — do not issue an extra wait solely to fetch a report you have. Do not skip
+`close_agent` to avoid the third copy either; a completed child holds a concurrency slot
+until closed, and running out of slots costs more than a repeated paragraph. Where the
+execution surface lets you project a result, emit only the status and error metadata for
+something already consumed. Deduplicating by agent id alone is wrong when an agent is
+reused for a second task, and the last copy you see may be the only one carrying an
+error, so never discard unread content.
 
 ### The thread surface is a different schema
 
@@ -239,13 +271,21 @@ named decision revisions within ONE plan; a separate new plan starts a fresh con
 Do not promise cost savings from reuse. Use the host's supported follow-up and wait
 operations; an empty timed wait alone is not evidence of a failed call.
 
-On an actual failed call, preserve the failure evidence and apply the existing
-retirement rule: at most one retry on the same handle, then a fresh context carrying
-the failure and plan. If a second distinct context also fails, main reclaims the
-planning work under the existing lifecycle rule, but the missing architect consultation
-remains unmet. Report the gap and stop dependent completion; main self-check does not
-replace it. Do not silently switch models, register roles, or bypass host restrictions.
-Explicit user limits still govern dispatch and completion scope.
+On an actual failed call, preserve the failure evidence. With
+[configured first fallback](#configured-first-fallback), the returned action governs
+recovery: `ready` requires a new claim, only `main-direct` permits reclaim, and
+`reconcile`/`stop` permit neither reclaim nor replacement. The unmanaged retry rule
+below does not authorize extra calls on this path.
+
+Without managed dispatch, apply the existing retirement rule: at most one retry
+on the same handle, then a fresh context carrying the failure and plan. If a second
+distinct context also fails, main reclaims the planning work. Confirm prior work
+has stopped and inspect partial results before retry, replacement or reclaim.
+
+In either path, a missing architect consultation remains unmet. Report the gap
+and stop dependent completion; main self-check does not replace it. Do not silently
+switch models, register roles, or bypass host restrictions. Explicit user limits
+still govern dispatch and completion scope.
 
 ## Speculative dispatch (DISPATCH-SPECULATE-01, HEURISTIC)
 
@@ -269,19 +309,40 @@ protocol. A PreToolUse reminder after a direct call cannot retroactively manage 
    candidate's model/effort (null inherits the original session). Preserve the role.
 3. Every report includes `sessionId`, `dispatchId`, and the current `attemptId`.
    Report `outcome:created` and the actual `agentId`, then use native wait. Report
-   `outcome:complete` with that ID on successful completion. Do not confuse a
-   successful spawn with successful work.
-4. On failure report `outcome:failed`, the original `error`, and `executionState`:
+   `outcome:complete` with that ID only after validating the final work. A native
+   completed status does not prove the task succeeded; terminal reports cannot be reopened.
+4. On provider failure report `outcome:failed`, the original `error`, and `executionState`:
    `not_created`, `stopped`, `unknown`, or `running`. Known no-child failures need
    concrete `reconciliation` evidence. A stopped child requires its recorded
    `agentId` and evidence that work/processes stopped and changes were inspected;
-   pass only remaining work to the replacement. Unknown outcomes never authorize
+   a stop call returning previous status `running` is not that evidence — verify
+   the current terminal state and owned processes first. Pass only remaining work
+   to the replacement. Unknown outcomes never authorize
    another child. If native spawn is absent, report `outcome:unavailable` with
    confirmed `not_created` and capability evidence, never a policy denial.
+   For confirmed stagnation or unusable final output, use `outcome:task_failed`
+   with `taskFailure: {kind: "stagnation" | "unusable_output", evidence: "..."}`.
+   This requires a recorded child, `executionState:stopped`, matching `agentId`
+   and `reconciliation`; running or unknown work must be reconciled first.
+   Task evidence explains the failure; reconciliation explains termination and
+   partial-work inspection. Both are non-empty text of at most 2000 characters.
+   No other task kinds or taskFailure keys are accepted. Never label cancellation,
+   exhausted bounds, a wait timeout alone or a supported disagreement as task failure.
 5. `ready` means claim the next attempt. `main-direct` means main reclaims the
    remaining work; `independentReviewRequired` stays true for reviewer tasks.
    Main implementation is never independent review. `stop` or `reconcile` means
    no model switch or direct-execution permission. Inspect the reason and state.
+
+A task-failure report has no provider `error`; for example:
+
+```json
+{"action":"report","outcome":"task_failed","sessionId":"<main-id>","dispatchId":"<task-id>","attemptId":"<attempt-id>","agentId":"<child-id>","executionState":"stopped","taskFailure":{"kind":"unusable_output","evidence":"Final answer addresses a different task; the required result is absent."},"reconciliation":"Verified terminal child, no owned processes, and inspected partial edits."}
+```
+
+A supplied provider error retains precedence: stop errors stop and unknown errors
+reconcile; next-eligible provider errors must use `outcome:failed` instead of a mixed
+report. Accepted task failures record `taskFailure` and clear the attempt's provider
+`code`. These observations are main's assertions, not authenticated native receipts.
 
 Use `action:status` to recover after interruption. It never reissues an executable
 spawn. A claimed attempt with a lost response must be reconciled, not claimed

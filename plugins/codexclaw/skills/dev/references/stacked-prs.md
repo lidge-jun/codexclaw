@@ -109,6 +109,8 @@ heads and cancelled/superseded runs. Record the event, head SHA, ref/group, run 
 conclusion. A PR-ref concurrency key cancels within that PR, not across the stack;
 unknown cancellation causes stay unknown. Inspect required checks, not only a green
 summary or check count. Missing, skipped or cancelled tests are not passing tests.
+Apply the hosted-CI evidence procedure in `cxc-dev` §3 (DEV-CI-EVIDENCE-01) to tell
+those states apart before acting on them.
 
 CI cost reduction is a separate, authorized workflow change. Preserve each mergeable
 layer's required evidence and final integration checks; reverify after a cascade or
