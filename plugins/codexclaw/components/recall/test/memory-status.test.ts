@@ -11,6 +11,7 @@ import {
   memoryStatusNotice,
 } from "../src/memory-status.ts";
 import { handleSessionStart } from "../src/hook.ts";
+import { buildCwdContextResult } from "../src/hook.ts";
 import { memoryPipelineNotice } from "../src/cli.ts";
 
 function makeHome(rows: Array<Record<string, unknown>> | null, opts: { columns?: string[] } = {}): string {
@@ -163,4 +164,25 @@ test("#185: memoryPipelineNotice is fail-soft on a home with no store", () => {
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
+});
+
+test("#190: an empty project and a broken index are different outcomes", () => {
+  const empty = buildCwdContextResult("/nonexistent/project/path", {
+    searchChat: () => ({ hits: [], scanned: 0, truncated: false }) as never,
+    listCwdSessions: () => [],
+  } as never);
+  assert.equal(empty.outcome, "empty");
+  assert.equal(empty.text, "");
+
+  const broken = buildCwdContextResult("/nonexistent/project/path", {
+    searchChat: () => {
+      throw new Error("index is corrupt");
+    },
+    listCwdSessions: () => {
+      throw new Error("index is corrupt");
+    },
+  } as never);
+  assert.equal(broken.outcome, "unavailable");
+  assert.match(broken.detail, /index is corrupt/);
+  assert.equal(broken.text, "", "an unavailable index still injects no recall block");
 });
