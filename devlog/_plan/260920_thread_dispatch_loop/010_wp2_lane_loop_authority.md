@@ -45,17 +45,35 @@ the fact that finishing a lane wakes nobody.
 
 Add: `| Dispatching tasks that will run their own loop | [Lane dispatch](references/lane-dispatch.md) |`
 
-## NEW `plugins/codexclaw/test/lane-dispatch.test.mjs`
+## NEW `plugins/codexclaw/scripts/check-lane-packet.mjs` — the behavioural seam
 
-Assertions that fail if the authorising text is removed or weakened:
+Replaces the prose assertions the A-phase reviewer rejected (`002` B2). Same shape as the
+existing `check-lane-manifest.mjs`: a pure `validateLanePacket(packet)` plus a CLI.
 
-1. `loop/SKILL.md` no longer contains the unscoped "A delegated task follows its packet"
-   sentence, and does contain a leaf-scoped replacement.
-2. `lane-dispatch.md` exists, defines LANE-LOOP-AUTH-01, LANE-PACKET-01 and
-   LANE-MERGE-GRANT-01, and is linked from `loop/SKILL.md`.
-3. The measured bounds appear verbatim where a reader would look for them: 8 targets,
-   120000 ms, the `thread://` shape, `clientThreadId`, and the six-subagent cap.
-4. Every local markdown link in the new reference resolves on disk.
+A packet is `{ lane, address, work, authority, reporting }`:
+
+| Field | Rule the validator enforces |
+|---|---|
+| `address.threadId` + `address.hostId` | Canonical only. A `clientThreadId` anywhere in `address` is rejected: no tool accepts one and nothing resolves it |
+| `work.objective`, `work.criteria[]` | Required when `authority.loop` is true — a lane told to loop without them was told to invent a goal |
+| `work.writeScope[]`, `work.base`, `work.branch` | Required; write scopes are compared across a packet set and overlap is rejected |
+| `authority.loop` | Default false. False means do the stated work and report; it is not permission to open a goal |
+| `authority.merge` | Default false. A packet asserting `merge` must also carry `mergeTarget` naming its OWN branch; naming another lane's branch is rejected |
+| `reporting.evidence[]`, `reporting.onBlocked` | Required; an empty evidence list is a claim that nothing must come back |
+
+## NEW `plugins/codexclaw/test/lane-packet.test.mjs`
+
+Decision tests, not phrase tests: loop-without-criteria rejected; merge-without-grant
+rejected; merge naming a foreign branch rejected; `clientThreadId` rejected; overlapping
+write scopes across two packets rejected; a minimal non-looping packet accepted; an
+accepted packet's defaults are explicit (`loop:false`, `merge:false`) rather than absent.
+
+## NEW `plugins/codexclaw/test/fixtures/host-thread-bounds.json` + `scripts/check-host-bounds.mjs`
+
+The measured bounds as data with their evidence locators. The test asserts the numbers in
+`lane-dispatch.md` equal the fixture. The script re-derives them from `app.asar` and the
+`codex-rs` checkout when those artifacts exist locally, and reports NOT RUN — never PASS —
+when they do not, which is how CI sees it.
 
 ## MODIFY `plugins/codexclaw/test/manifest-policy.test.mjs`
 

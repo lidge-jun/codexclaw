@@ -30,8 +30,10 @@ Annotate the rows with the measured bounds: `wait_threads` 1-8 targets / 0-12000
 `get_handoff_status` waitMs 0-60000, and create returning `clientThreadId` while a worktree
 is still being set up.
 
-## MODIFY `plugins/codexclaw/test/lane-dispatch.test.mjs`
+## MODIFY `plugins/codexclaw/test/lane-packet.test.mjs` (created in wp2)
 
-Extend with: DISPATCH-FANOUT-CAP-01 is defined, the eight-target bound appears in
-`waiting.md`, and the delegation table carries the numeric bounds. The test reads the
-documents rather than restating them, so a silent edit that drops a bound fails.
+Extend the bounds check to cover the documents this phase touches: every numeric bound
+printed in `waiting.md` and the `delegation.md` thread-surface table must equal the
+`host-thread-bounds.json` fixture, which is itself checked against the artifacts by
+`check-host-bounds.mjs`. A number that drifts in one document and not the fixture fails;
+a number that drifts in the host is caught by the script where the artifact exists.

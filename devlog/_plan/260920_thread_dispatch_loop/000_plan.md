@@ -3,8 +3,9 @@
 ## Objective
 
 A user asking for a dispatched-thread loop should get lanes that actually loop. Today one
-session loops and the lanes it creates do not, and the cause is a sentence in our own
-skill rather than anything the host forbids.
+session loops and the lanes it creates do not. The host is not what stops them: it caps
+neither referenced tasks nor running tasks. What is missing is on our side — the skill
+never states the positive case, so a lane finds no permission to run its own cycle.
 
 ## What the host actually allows (measured 2026-09-20, evidence in 001)
 
@@ -25,24 +26,30 @@ of the assumption that "unlimited parallel subagents" is the cheap path.
 
 `plugins/codexclaw/skills/loop/SKILL.md:28-29` says: "Only the main session owns host
 goals and PABCD transitions. A delegated task follows its packet; loading loop never
-authorizes a leaf to start a goal or spawn." Written for subagents, it reads as covering
-every dispatched task, and it contradicts the same file's statement that a thread has its
-own goal and PABCD state. A lane that reads it concludes it may not run a loop, so the
-coordinator is the only looping session.
+authorizes a leaf to start a goal or spawn." The prohibition names a *leaf*, so it does
+not literally forbid a lane — the A-phase reviewer was right to push back on that framing
+(`002`). The real gap is that the first clause reads as universal, the second says
+"delegated task", and nothing anywhere states that a dispatched worktree task may run its
+own cycle when its packet grants one. Absence of permission produces the observed
+behaviour just as reliably as a prohibition would.
 
 ## Constraints
 
-- Documentation and tests only; no runtime component changes.
+- Documentation plus two small validator scripts; no runtime component changes.
+- Verification is behavioural, not phrase matching: the packet validator decides real
+  cases and the bounds fixture is compared against the artifacts it was read from (`002`).
 - Nothing here grants new authority. A lane still loops only when its packet says so, and
   merge authority stays a separate, explicit grant.
 - Commits land on `dev` directly; release promotes `dev` to `main` and dispatches
-  `release.yml` with the full promoted SHA.
+  `release.yml` with the full promoted SHA. The authority for push, merge, release and
+  remote reinstall is quoted in `002`.
 
 ## Work phases
 
 | Phase | Unit | Doc | Depends on |
 |---|---|---|---|
 | wp1 | This roadmap | `000`, `001` | — |
+| wp1b | A-phase corrections | `002` | wp1 |
 | wp2 | Lane-loop authority: fix the blocking sentence, add the packet contract | `010` | wp1 |
 | wp3 | Addressing, wave batching and fan-out caps wired into the dispatch references | `020` | wp2 |
 | wp4 | Release 0.2.33 | `030` | wp3 |

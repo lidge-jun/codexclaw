@@ -11,7 +11,8 @@ reader can re-derive rather than trust this file.
   `mcp-resource://`, `sites-project://` (`@30016031`).
 - `thread://` parses against `^([a-zA-Z0-9_-]+)(?:\?hostId=([^?#&/]+))?$`. The host id is
   percent-decoded and must then match `^[a-zA-Z0-9._:-]+$`; any extra path, query or
-  fragment rejects the whole reference (`@30013343`). The builder percent-encodes the host
+  fragment rejects the whole reference (regex at `@30013400`, inside the function starting
+  `@30013343`). The builder percent-encodes the host
   id (`@30012212`).
 - A chip becomes prompt text as `[@<displayName>](thread://<threadId>?hostId=<host>)`
   (`@32879830`, `@32878148`, `@29289084`).
@@ -65,9 +66,10 @@ No app-side host-wide task concurrency limit was found; searched `maxConcurrentT
 (`121_openai-codex/codex-rs/core/src/tools/handlers/agent_jobs.rs:122`), and the limit is
 `DEFAULT_AGENT_MAX_THREADS = Some(6)` for V1 or
 `features.multi_agent_v2.max_concurrent_threads_per_session - 1` for V2
-(`codex-rs/core/src/config/mod.rs:207,1438-1452`). Observed live in this session: five
-concurrent agents held, the next `spawn_agent` returned
-`collab spawn failed: agent thread limit reached`.
+(`codex-rs/core/src/config/mod.rs:207,1438-1452`). Observed live in this session: with
+agents already open, the next `spawn_agent` returned exactly
+`collab spawn failed: agent thread limit reached`. The error string is the durable part;
+the concurrent count at that moment was not captured and is not claimed.
 
 A spawned child inherits the parent's approval policy, permission profile and **cwd**
 (`codex-rs/core/src/tools/handlers/multi_agents_common.rs:210-232`), which is the runtime
