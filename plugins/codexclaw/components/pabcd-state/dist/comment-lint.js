@@ -46,19 +46,68 @@ function isJustified(line        )          {
 }
 
 /**
+ * Document targets whose ADDED lines are prose, not code. The pattern set above is a
+ * CODE lint; applied to English sentences it fires on ordinary word adjacency, which is
+ * how this linter came to reject its own bug report and, later, the plan document
+ * describing the fix (issue #196). Extension-based on purpose: a source file stays
+ * linted wherever it lives, including under /tmp.
+ */
+const PROSE_TARGET_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt", ".rst", ".adoc"]);
+
+function isProseTarget(target               )          {
+  if (!target) return false;
+  const dot = target.lastIndexOf(".");
+  if (dot < 0) return false;
+  return PROSE_TARGET_EXTENSIONS.has(target.slice(dot).toLowerCase());
+}
+
+/** An added line together with the file it is being added to, or null if unknown. */
+
+
+
+
+
+const NATIVE_FILE_DIRECTIVE = /^\*\*\*\s+(?:Add|Update|Delete)\s+File:\s*(.+?)\s*$/;
+const NATIVE_MOVE_DIRECTIVE = /^\*\*\*\s+Move\s+to:\s*(.+?)\s*$/;
+const UNIFIED_FILE_HEADER = /^\+\+\+\s+(?:b\/)?(.+?)\s*$/;
+
+/**
+ * Extract ADDED lines WITH the file each one lands in. `addedLines()` discards that
+ * association, which is why every pattern was applied to every added line regardless of
+ * where it was going. Native `*** Add/Update/Delete File:` and `*** Move to:`
+ * directives and unified `+++ b/...` headers both set the target, and the target
+ * resets at each boundary so a source hunk later in a mixed patch is still scanned.
+ */
+export function addedRecords(patchText        )                {
+  const out                = [];
+  let target                = null;
+  for (const raw of splitLines(patchText)) {
+    const native = NATIVE_FILE_DIRECTIVE.exec(raw) ?? NATIVE_MOVE_DIRECTIVE.exec(raw);
+    if (native) {
+      target = native[1];
+      continue;
+    }
+    if (raw.startsWith("+++")) {
+      const unified = UNIFIED_FILE_HEADER.exec(raw);
+      target = unified && unified[1] !== "/dev/null" ? unified[1] : null;
+      continue;
+    }
+    if (raw.startsWith("+ +")) continue; // diff file header
+    if (raw.startsWith("+")) out.push({ line: raw.slice(1), target });
+  }
+  return out;
+}
+
+/**
  * Extract ADDED content lines from apply_patch text. The apply_patch envelope uses
  * `+`-prefixed lines for additions; we ignore the `+++ ` file header and the
  * `*** Add/Update/Delete File:` directives. Returns the added line bodies (without `+`).
  */
 export function addedLines(patchText        )           {
-  const out           = [];
   // A CRLF patch leaves \r on every added line, which would leak into the linted
-  // content and into reported findings (002 B9).
-  for (const raw of splitLines(patchText)) {
-    if (raw.startsWith("+++") || raw.startsWith("+ +")) continue; // diff file header
-    if (raw.startsWith("+")) out.push(raw.slice(1));
-  }
-  return out;
+  // content and into reported findings (002 B9). Kept as a thin projection of
+  // `addedRecords` so its existing consumers see unchanged behaviour.
+  return addedRecords(patchText).map((record) => record.line);
 }
 
 
@@ -66,7 +115,8 @@ export function addedLines(patchText        )           {
 /** Scan the added lines of an apply_patch command for the first forbidden match. */
 export function lintApplyPatch(toolInputCommand         )             {
   if (typeof toolInputCommand !== "string" || toolInputCommand.length === 0) return { ok: true };
-  for (const line of addedLines(toolInputCommand)) {
+  for (const { line, target } of addedRecords(toolInputCommand)) {
+    if (isProseTarget(target)) continue;
     if (isJustified(line)) continue;
     for (const p of FORBIDDEN_PATTERNS) {
       if (p.re.test(line)) {
