@@ -19,15 +19,27 @@ external processes inside a loop:
 
 - Prefer bounded waits (`wait_agent` with `timeout_ms` <= 120000) over one
   long blocking wait; between waits, emit a one-line progress update naming
-  what is being waited on and the elapsed time.
+  what is being waited on and the elapsed time. Keep the two cadences separate:
+  how often you tell the user something is not how often you may ask an external
+  API. When lanes and the observer share one quota, the polling budget belongs to
+  the coordinator — see `cxc-pabcd` `references/dispatch-surfaces.md`
+  (DISPATCH-POLL-BUDGET-01).
 - Know which wait you are calling. V1's `wait_agent` may carry the child's final
   message in its result; V2's is a no-content mailbox and the answer arrives
   separately. Reading the answer out of the wait result works on V1 and silently
   returns nothing on V2, which looks like a stalled agent rather than a schema
   mismatch. Threads are different again: `wait_threads` takes per-target cursors.
   See `cxc-pabcd` `references/delegation.md`.
-- Never end the turn just because a wait timed out — re-wait or poll, and keep
-  the user informed each cycle.
+- On V1 the same completed report can reach you through the notification, the wait
+  result and the close result. Consume it once per child task per turn and do not
+  issue an extra wait to re-fetch something you already have
+  (DISPATCH-CONSUME-ONCE-01 in `references/delegation.md`). Closing is still
+  required: a completed child holds a concurrency slot until it is closed.
+- A timed-out wait is not a reason to end the turn — but it is also not a licence to
+  poll forever. Either keep waiting within this turn, or yield with a verified,
+  authorized wake already armed for the work that will outlive it
+  (DISPATCH-WAKE-01). If no wake mechanism is available, say so instead of yielding
+  and assuming something will resume you.
 
 ## Progress, stagnation, failure, unobservable (LOOP-WAIT-EVIDENCE-01, DEFAULT)
 

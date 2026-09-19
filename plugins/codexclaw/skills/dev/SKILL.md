@@ -412,12 +412,19 @@ rules live in `references/static-analysis-gate.md`.
 
 ---
 
-## 8. Token Budget Awareness
+## 8. Resource Budget Awareness
 
 When multiple skills are active, token consumption grows quickly. Always read
 active `SKILL.md` files, read `references/` only when the task touches that
 topic, and do not preload unrelated references (HEURISTIC). Each subagent gets
 its own active-skill context, so load only what the sub-task needs.
+
+Tokens are not the only shared resource. Parallel lanes and the task watching them
+typically use the same credentials and the same external API allowance, so polling
+competes with the work being polled. Before sustained observation, read the actual
+budget and reserve headroom for the workers; the coordinator owns that aggregate.
+Rules: `cxc-pabcd` `references/dispatch-surfaces.md` (DISPATCH-POLL-BUDGET-01) and
+`cxc-loop` `references/waiting.md`.
 
 ---
 

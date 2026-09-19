@@ -66,6 +66,9 @@ Do not shrink the goalplan to pass the gate (LOOP-CONTINUE-01).
 
 Before waiting on dispatched work or long external processes, read
 [Waiting on work](waiting.md), the mode-neutral owner of wait and retirement rules.
+It also owns the cross-turn preflight: the Stop-continuation bounds below mean a
+dispatch expected to outlive this turn needs a verified wake arranged BEFORE the turn
+yields, not an assumption that something will resume the coordinator.
 
 ## Stop-continuation (shipped, L6)
 
