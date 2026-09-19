@@ -565,6 +565,13 @@ export function buildCwdContext(
 
 
 
+
+
+
+
+
+
+
 /**
  * Is the native memories tool surface switched on for this Codex home?
  *
@@ -672,6 +679,16 @@ export function handleSessionStart(
 
   // Absent injection means "ask the machine": the branch must stay reachable on a
   // default install, where nothing sets CODEX_HOME.
+  // Issue #185: the recall index status describes codexclaw's OWN sidecar index, not
+  // the host's memory extraction pipeline. They are different systems, and the pipeline
+  // had been silently stopped for days while that status looked healthy. Emit one
+  // bounded line ONLY when something is actually wrong; a banner that always fires is a
+  // banner nobody reads, and an unreadable store stays silent rather than claiming the
+  // project has no memories. It goes BEFORE the session notice so the briefing still
+  // ends on the recall pointer, which the SessionStart contract requires.
+  const memoryNotice = opts.memoryNotice ?? "";
+  if (memoryNotice) parts.push(memoryNotice);
+
   const dedicatedTools = opts.dedicatedTools ?? dedicatedToolsEnabled();
   parts.push(sessionNotice(source, CXC(), status, dedicatedTools));
 
