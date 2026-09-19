@@ -453,6 +453,16 @@ function hasPabcdCloseRow(
   );
 }
 
+/**
+ * CLI entry can reach P without a UserPromptSubmit turn. Repeat the formal-P
+ * architect consultation pointer there. Advice only; no new phase gate.
+ */
+function withArchitectHint(phase       , output        )         {
+  return phase === "P"
+    ? `${output} [formal P: architect proposal -> main executable plan -> same-architect reflection before A (cxc-pabcd phase-plan)]`
+    : output;
+}
+
 export function runOrchestrateCli(args                                             , commitHooks                         = {}, nativeEnv                    = {})            {
   if ("help" in args) return { code: 0, output: renderOrchestrateHelp() };
 
@@ -653,7 +663,7 @@ export function runOrchestrateCli(args                                          
         scanEvidence: { scanRounds: state.interview?.scanRounds ?? 0, highContradictionCount: gate.highContradictionCount },
         ...(args.attest?.did ? { evidence: args.attest.did } : {}),
       });
-      return { code: 0, output: `orchestrate P: I → P (agent override, session ${sessionId})` };
+      return { code: 0, output: withArchitectHint("P", `orchestrate P: I → P (agent override, session ${sessionId})`) };
     } else {
       // Not ready and no override: advise-block with gate warnings.
       return {
@@ -1118,7 +1128,7 @@ export function runOrchestrateCli(args                                          
     reason: "cli",
     ...(args.attest?.did ? { evidence: args.attest.did } : {}),
   });
-  return { code: 0, output: `orchestrate ${args.verb}: current=${state.phase} -> ${result.state.phase} (${state.phase} → ${result.state.phase}, session ${sessionId})` };
+  return { code: 0, output: withArchitectHint(result.state.phase, `orchestrate ${args.verb}: current=${state.phase} -> ${result.state.phase} (${state.phase} → ${result.state.phase}, session ${sessionId})`) };
 }
 /**
  * #48: candidate trees to check for the SAME session id. Deliberately shallow —
