@@ -237,7 +237,7 @@ test("diagnoseHookTrust reports trusted, drifted, and untrusted independently", 
   assert.equal(diagnosed[2].actual, null);
 });
 
-test("doctor hook-trust check warns on ambiguous keys and warns with per-hook drift evidence", () => {
+test("doctor hook-trust check warns on ambiguous keys and FAILS with per-hook drift evidence", () => {
   const root = makePlugin({ hooks: { Stop: [{ hooks: [command("echo doctor")] }] } });
   const entry = listHookEntries(root, "fixture@one")[0];
   const ambiguousHome = makeCodexHome([
@@ -253,10 +253,15 @@ test("doctor hook-trust check warns on ambiguous keys and warns with per-hook dr
 
   writeFileSync(join(ambiguousHome, "config.toml"), `${trustSection(entry, "sha256:stale")}`);
   const drifted = runHookTrustCheck(root, { codexHome: ambiguousHome, pluginKey: "fixture@one" });
-  // Drift means the recorded hash is stale, not that the hooks stopped running:
-  // the host decides trust from its own record (PLAN-BYPASS-NAMED-01).
-  assert.equal(drifted.severity, "WARN");
-  assert.match(drifted.evidence, /trusted_hash drift \(reinstall updates it; hooks still run\)/);
+  // A stale recorded hash is Modified to the host, and the host excludes Modified
+  // hooks from execution exactly as it excludes Untrusted ones. Reporting that as a
+  // warning told operators the hooks were still running (issue #186).
+  assert.equal(drifted.severity, "FAIL");
+  assert.match(drifted.evidence, /1 of 1 hook\(s\) not trusted/);
+  assert.match(drifted.evidence, /0 with no trust record, 1 whose recorded hash no longer matches/);
+  assert.match(drifted.evidence, /excludes both from execution unless hook trust is bypassed/);
+  assert.match(drifted.evidence, /Execution itself was not verified here/);
+  assert.doesNotMatch(drifted.evidence, /hooks still run/);
   assert.match(drifted.evidence, new RegExp(entry.key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(drifted.evidence, new RegExp(`expected=${entry.hash}`));
   assert.match(drifted.evidence, /actual=sha256:stale/);
@@ -546,15 +551,18 @@ test("doctor's drift repair omits --bootstrap-ok, which would be the wrong advic
   const entries = listHookEntries(root, PLUGIN_KEY);
   const home = makeCodexHome(trustSection(entries[0], "sha256:stale"));
   const check = runHookTrustCheck(root, { codexHome: home, pluginKey: PLUGIN_KEY });
-  assert.equal(check.severity, "WARN");
+  // Drift is a FAIL, not a WARN: the host treats a mismatched hash as Modified and
+  // excludes it from execution just like an absent one (issue #186). The repair is
+  // still different from the never-trusted case, which is why this test exists.
+  assert.equal(check.severity, "FAIL");
   assert.match(check.evidence, /drifted/);
   assert.match(check.repair ?? "", /cxc hooks retrust/);
   assert.ok(!(check.repair ?? "").includes("--bootstrap-ok"), "drift is not a bootstrap case");
 });
 
 /**
- * The WARN downgrade covers drift ALONE. A hook with no trust entry was never
- * approved, and mixing one into a drifted set must not launder it into a warning.
+ * Drift and a missing trust entry are reported with distinct counts and distinct
+ * repairs, but neither is downgraded: both stop the host from running the hook.
  */
 test("drift mixed with a missing trust entry still fails", () => {
   const root = makePlugin({
