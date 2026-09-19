@@ -34,14 +34,23 @@ Mixing types in one document degrades all of them; split instead.
 ## READER-DOC-02 Answer first (DEFAULT)
 
 Open with the situation, the complication, the question and the answer (SCQA) in
-one short paragraph; the governing conclusion appears before any evidence. Every
-heading below it states a claim, not a topic ("Cost drops 12% under the selected
-scenario", not "Analysis"). Korean documents use 두괄식: 결론·전망·요약을 맨 앞에.
-Answer-first does not mean the sections may be a flat list of findings: after the
-answer, the sections still walk the reader from the situation they accept to the
-decision being asked (the storyline in `dev-visualizer/reference/report-writing.md`
-REPORT-STORY-01). What reports avoid is the narrative 기승전결 that withholds the
-conclusion until the end, not the progression itself.
+one short paragraph; the governing conclusion appears before any evidence. Korean
+documents use 두괄식: 결론·전망·요약을 맨 앞에.
+
+Every heading below it carries what that section establishes, never a bare topic label
+("Cost drops 12% under the selected scenario", not "Analysis"). In a decision document
+or an explanation that is a claim, and the sections walk the reader from the situation
+they accept to the decision being asked (the storyline in
+`dev-visualizer/reference/report-writing.md` REPORT-STORY-01). What those documents
+avoid is the narrative 기승전결 that withholds the conclusion until the end, not the
+progression itself.
+
+**The genre decides whether there is an ask at all.** A research synthesis opens with
+its direct answer and then ends at what remains unresolved; a history ends at what is
+contested; a reference ends at the definitions, where a topic label is correct rather
+than a defect. Forcing any of them to close on a requested decision spends uncertainty
+the evidence did not earn (READER-DOC-01 selects the type; the genre table in
+`report-writing.md` REPORT-STORY-00 expands it).
 
 ## READER-DOC-03 Descending structure (DEFAULT)
 

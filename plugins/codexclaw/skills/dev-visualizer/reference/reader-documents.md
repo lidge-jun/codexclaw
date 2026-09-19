@@ -23,10 +23,18 @@ Mixing types in one document degrades all of them; split instead.
 ## READER-DOC-02 Answer first (DEFAULT)
 
 Open with the situation, complication, question and answer in one short paragraph; the
-governing conclusion appears before any evidence. Korean documents use 두괄식. Answer
-first does not license a flat list of findings: after the answer the sections still walk
-the reader from what they accept to what is being asked. What reports avoid is the
+governing conclusion appears before any evidence. Korean documents use 두괄식.
+
+Every heading carries what its section establishes, never a bare topic label. In a
+decision document or an explanation that is a claim, and the sections walk the reader
+from what they accept to what is being asked; what those documents avoid is the
 narrative that withholds the conclusion until the end, not the progression itself.
+
+**The genre decides whether there is an ask at all.** A research synthesis ends at what
+remains unresolved, a history at what is contested, a reference at the definitions —
+where a topic label is correct rather than a defect. Forcing any of them to close on a
+requested decision spends uncertainty the evidence did not earn. The genre table lives
+in `report-writing.md` REPORT-STORY-00.
 
 ## READER-DOC-03 Descending structure (DEFAULT)
 

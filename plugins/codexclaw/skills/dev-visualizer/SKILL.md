@@ -72,14 +72,17 @@ Examples of structure that earns its form:
 
 - Explain a mechanism with actions on connectors and a caption stating what changes.
 - Compare alternatives on the same dimensions and scale, with a table for exact values.
-- Reports and explainers follow [Reader documents](reference/reader-documents.md):
-  answer first, claim-shaped headings, evidence in an appendix.
+- Pick the genre first: decision memo, research synthesis, explanation or history,
+  how-to or reference. It selects the structure and the review questions
+  (REPORT-STORY-00). Evidence goes in an appendix in every genre.
+- Decision documents and explanations follow [Reader documents](reference/reader-documents.md):
+  answer first, headings that state findings. A research synthesis instead ends at what
+  is unresolved, and a reference ends at the definitions — neither owes the reader an ask.
 - A report over about four pages follows [Report writing](reference/report-writing.md):
-  write the dot-dash storyline before any HTML, make every section heading a claim
-  that reads in sequence to the ask, give the summary a full page that decides
-  alone, number and source every exhibit, hold one register, and name the issuing
-  organization the way the reader knows it. Cover and contents pages are part of
-  the document, not decoration.
+  write the storyline before any HTML, make every section heading carry that unit's
+  content, give the summary a full page that stands alone, number and source every
+  exhibit, hold one register, and name the issuing organization the way the reader knows
+  it. Cover and contents pages are part of the document, not decoration.
 - For a dense system, use overview plus focused detail rather than shrinking every label.
 
 Keep document narrative in the document. Inline conversation visuals instead obey
