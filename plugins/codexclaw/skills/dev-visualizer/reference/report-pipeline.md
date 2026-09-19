@@ -12,6 +12,9 @@ its own format route. A one-page brief does not need a cover and contents page.
    `assets/report-model.example.json` shape. Every claim is an observation,
    inference, hypothesis, recommendation or attributed statement. Bind sources by
    stable IDs, locators and observation dates; preserve important limitations.
+   When the report answers a question rather than reformatting supplied material,
+   record the research handoff too (below). Composition begins after intake, not
+   instead of it.
 2. Write a dot-dash storyline: answer first, then situation, complication,
    supporting reasoning, alternatives, action and limits. Each main heading must
    summarize its evidence. Read only those headings to test the argument.
@@ -27,6 +30,45 @@ its own format route. A one-page brief does not need a cover and contents page.
    Rerendering invalidates every old PASS receipt. Run the final receipt gate.
 
 The model and annotations are a structural contract, not semantic verification.
+
+## Research handoff (REPORT-RESEARCH-01)
+
+Choosing an output format does not record what was asked or how far the answer was
+allowed to reach, so the publication step used to rediscover both from the prose. An
+optional `research` section on the model carries it instead. It **extends** the model
+above; it is not a second model, and a report without it stays exactly as valid as before.
+
+| Field | Records |
+|---|---|
+| `contractVersion` | `1`. An unreadable version is refused, never treated as an upgrade. |
+| `route` | `source-only`, `bounded-lookup` or `deep-research`. |
+| `sourceBoundary` | What the answer was allowed to read. |
+| `languages` | `source` and `output` separately — a translated citation is not the original. |
+| `questions[]` | `id`, `text`, and `answeredBy` claim ids. |
+| `gaps[]` | What is still unresolved. |
+| `budget`, `stopReason` | Optional: how much was spent and why it stopped. |
+
+Three rules the validator enforces, each because its absence lets a document look
+finished while hiding something:
+
+- **A `source-only` route may not carry a discovered source.** If the answer went
+  looking, it took a different route and should say so.
+- **Snippets are leads.** A load-bearing claim — an inference or a recommendation —
+  supported *only* by snippet-derived sources (`via: "snippet"`) has not been checked.
+  One actually-read source alongside the snippet satisfies it; the rule is about sole
+  support. An observation reporting what a snippet said is fine.
+- **An unanswered question must appear in `gaps`.** A question with no answering claim
+  is legitimate; a question that quietly disappears is not.
+
+`researchReceipt(model, { skillVersion, checks })` produces the record: route, contract
+and skill versions, question and gap counts, and which checks ran versus were omitted.
+An omitted check is reported omitted — it never renders as a pass. A model with no
+`research` section produces `supplied: false` and a null route, because silence means
+unknown rather than clean.
+
+Validate with `validateResearchHandoff(model)`. As with the rest of this contract, it
+proves a handoff is well formed and that a route's own constraints hold. It cannot prove
+a source supports the claim attached to it; that remains a reader's judgement.
 The exporter can reject dangling IDs; it cannot prove that prose faithfully
 represents a source. A fresh reader must inspect claims, caveats and final pages.
 
