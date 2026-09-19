@@ -6,6 +6,42 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.30] - 2026-09-19
+
+Ships the work that landed after the 0.2.29 promotion. No new code beyond what those
+pull requests already merged.
+
+### Added
+
+- `cxc memory requeue` returns dead-lettered extraction jobs to the host's retry queue.
+  Dry run unless `--apply`, restricted to rows still matching `status='error'` with no
+  retries left, re-checked inside the write transaction so a job the host has picked up
+  is never clobbered, and preserving `last_error` and both watermarks. Transient causes
+  are the default selection; context-window failures need `--include-context-window`,
+  because an input that did not fit will not fit on a retry either (#188).
+- A lane manifest and a cross-task merge handoff for parallel worktree lanes, with
+  `scripts/check-lane-manifest.mjs` to validate one. Issue references must name their
+  repository, and two active lanes may share an issue only when each names a different
+  scope. The manifest is coordination evidence, not a lock (#184).
+- `dev-visualizer/reference/reader-documents.md`, a portable restatement of the reader
+  contract that names its canonical owner, and
+  `dev-visualizer/reference/print-provenance.md`, dated and scoped summaries replacing
+  three unshipped ledger pointers (#182, #183).
+
+### Fixed
+
+- `dev-visualizer` resolved nine references outside its own directory, so the skill
+  worked in this repository and broke the moment it was copied on its own. All nine now
+  resolve in-root, enforced by a test that runs against an isolated single-skill copy
+  (#183, #182).
+
+### Known limitations
+
+- #199, #200 remain open. See
+  `devlog/_plan/260919_issue_sweep/062_wp7b_recovery_matrix.md` for the selection table
+  and acceptance matrix the recovery needs.
+- #191 remains open. The host quota guard's authentication/routing mismatch is untouched.
+
 ## [0.2.29] - 2026-09-19
 
 ### Added
