@@ -6,6 +6,49 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.31] - 2026-09-19
+
+Closes the last two issues from the 2026-09-19 sweep.
+
+### Added
+
+- The publication contract foundation is back in the skill:
+  `reference/report-pipeline.md`, `reference/page-role-catalog.md`,
+  `scripts/report-contract.mjs`, `scripts/quality-gate.mjs` and
+  `assets/report-model.example.json`, with 41 tests. Recovered as a purely additive
+  change: the exporter imports none of it, so no runtime path moved. The exporter
+  migration stays separate, with its selection table and acceptance matrix in
+  `devlog/_plan/260919_issue_sweep/062_wp7b_recovery_matrix.md`.
+- A versioned research handoff on that model (`REPORT-RESEARCH-01`): route, source
+  boundary, source and output languages kept separate, questions mapped to claim ids,
+  and gaps. Validated only when supplied, so a legacy document stays valid and is never
+  reported research-complete. Three rules earn their place — a `source-only` route may
+  not carry a discovered source, a load-bearing claim may not rest only on
+  snippet-derived sources because snippets are leads, and an unanswered question must
+  appear in `gaps` rather than vanish. `researchReceipt` records route, contract and
+  skill versions, and completed versus omitted checks; an omitted check never renders as
+  a pass (#199).
+- `REPORT-STORY-00`: genre selects the report structure. A decision memo ends at the
+  decision, a research synthesis at what is unresolved, a history at what is contested,
+  a reference at the definitions — where a topic label is correct rather than a defect.
+  Review criteria are about content rather than length, and a document with no numbers
+  in it can pass all of them (#200).
+
+### Changed
+
+- The universal one-argument, claim-heading and closing-ask mandates are scoped to the
+  genres that want them, across `report-writing.md`, `SKILL.md`,
+  `report-pipeline.md` and its `editorial-review` receipt row. The canonical
+  `cxc-dev` `references/reader-documents.md` was edited alongside the visualizer's
+  portable copy so the two stay synchronized (#200).
+
+### Known limitations
+
+- #191 remains open. The host quota guard gates on authentication while extraction is
+  routed by provider; closing it needs a host-supported control that does not exist.
+- The visualizer exporter migration is not done. It changes exit semantics and has its
+  own acceptance matrix; see `062_wp7b_recovery_matrix.md`.
+
 ## [0.2.30] - 2026-09-19
 
 Ships the work that landed after the 0.2.29 promotion. No new code beyond what those
