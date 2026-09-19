@@ -136,6 +136,13 @@ export script's QA (REPORT-QA-01) and the fresh-reader check on the rendered pag
 (REPORT-FRESH-01); an orphan line at the top of a page, a heading stranded at the
 bottom, a half-empty page or a figure whose text prints under 8.5pt is a defect.
 
+How much of that verification a report owes is a **choice stated up front**, not a
+fixed tax. Reading every rendered page is expensive, and a draft does not earn it.
+Pick a receipt profile — `draft`, `standard` or `publication` — per
+[report pipeline](reference/report-pipeline.md) REPORT-ASSURANCE-01, and report the
+verdict with the profile and the checks it omitted. A lighter profile is honest; a
+draft presented as a verified publication is not.
+
 **DIAGRAM-SYNTAX-01:** use an existing supported parser/checker where available.
 XML validation can catch malformed SVG; it cannot catch overlapped labels. Do not
 invent a Mermaid CLI parse command or install a runner just for incidental proof.
