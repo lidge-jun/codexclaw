@@ -25,10 +25,15 @@ Apply the current request's authority before choosing a mode:
   If missing intent or authority prevents progress, report it; do not silently
   enlarge the scope. Do not enter Interview while a host goal is active.
 
-Only the main session owns host goals and PABCD transitions. A delegated task
-follows its packet; loading loop never authorizes a leaf to start a goal or spawn.
-Follow the live host tool contracts, including goal creation and blocked-status
-conditions. A plugin hook accepting a call is not proof that the call is authorized.
+A **leaf** — a spawned subagent — never opens a host goal, runs `cxc orchestrate`, or
+spawns; it follows its packet and reports. A dispatched **task** is not a leaf: it owns
+its own goal and PABCD state, and it runs a loop when its packet grants the objective,
+the criteria and the completion condition. Absent that grant it does the stated work and
+reports rather than inventing a goal. Neither the coordinator nor a lane advances the
+other's FSM. See [Lane dispatch](references/lane-dispatch.md) for the packet and the
+measured host envelope. Follow the live host tool contracts, including goal creation and
+blocked-status conditions. A plugin hook accepting a call is not proof that the call is
+authorized.
 
 Keep this goal's work local; do not send unsolicited progress or completion notices
 to other tasks. Peer contact is limited to explicit user requests or necessary confirmed
@@ -71,6 +76,7 @@ preflight failure: resolve it or report the limitation before the governed actio
 | Score optimization, plateau, or mechanism comparison | [Optimization rules](../pabcd/references/optimization.md) and loop engineering |
 | Deliberate divergence/candidate comparison | [Divergence tiers](references/divergence-tiers.md) |
 | Choosing between a thread and a subagent, or planning parallel lanes | [Dispatch surfaces](../pabcd/references/dispatch-surfaces.md) |
+| Dispatching tasks that will run their own loop, or watching more than a few lanes | [Lane dispatch](references/lane-dispatch.md) |
 | Dispatch is authorized and needed | [Delegation](../pabcd/references/delegation.md) |
 | Waiting on dispatched work or long external processes, HITL or HOTL | [Waiting on work](references/waiting.md) |
 

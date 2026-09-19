@@ -1,0 +1,86 @@
+{
+  "_": "Measured 2026-09-20 from the Codex desktop bundle and the codex-rs checkout. Numbers here are data, not prose: the documents are asserted against this file, and check-host-bounds.mjs re-derives it from the artifacts where they exist.",
+  "artifacts": {
+    "appAsar": "/Applications/ChatGPT.app/Contents/Resources/app.asar",
+    "codexSource": "/Users/jun/Developer/codex/121_openai-codex"
+  },
+  "bounds": [
+    {
+      "id": "wait_threads.targets.max",
+      "value": 8,
+      "evidence": "app.asar@29657396 (i9n=8, schema .min(1).max(i9n))"
+    },
+    {
+      "id": "wait_threads.targets.min",
+      "value": 1,
+      "evidence": "app.asar@29668809"
+    },
+    {
+      "id": "wait_threads.timeoutMs.max",
+      "value": 120000,
+      "evidence": "app.asar@29657396 (r9n=12e4)"
+    },
+    {
+      "id": "wait_threads.timeoutMs.default",
+      "value": 120000,
+      "evidence": "app.asar@29669315"
+    },
+    {
+      "id": "read_thread.turnLimit.max",
+      "value": 10,
+      "evidence": "app.asar@29668001"
+    },
+    {
+      "id": "read_thread.maxOutputCharsPerItem.max",
+      "value": 20000,
+      "evidence": "app.asar@29668210"
+    },
+    {
+      "id": "list_threads.limit.max",
+      "value": 50,
+      "evidence": "app.asar@29666618"
+    },
+    {
+      "id": "get_handoff_status.waitMs.max",
+      "value": 60000,
+      "evidence": "app.asar@29656267"
+    },
+    {
+      "id": "worktree.retention.keepCount",
+      "value": 15,
+      "evidence": "app.asar@10160564"
+    },
+    {
+      "id": "subagents.maxThreads.defaultV1",
+      "value": 6,
+      "evidence": "codex-rs/core/src/config/mod.rs:207 DEFAULT_AGENT_MAX_THREADS"
+    }
+  ],
+  "shapes": [
+    {
+      "id": "thread.mention.query",
+      "value": "?hostId=",
+      "evidence": "app.asar@30013400 (parser regex; builder at @30012212)"
+    },
+    {
+      "id": "thread.id.charset",
+      "value": "a-zA-Z0-9_-",
+      "evidence": "app.asar@30013400 (literal character class in the parser)"
+    },
+    {
+      "id": "host.id.charset",
+      "value": "a-zA-Z0-9._:-",
+      "evidence": "app.asar@30013400 (literal character class applied after decoding)"
+    },
+    {
+      "id": "create_thread.pending",
+      "value": "clientThreadId",
+      "evidence": "app.asar@29662466"
+    },
+    {
+      "id": "subagents.limit.error",
+      "value": "agent thread limit reached",
+      "evidence": "codex-rs/core/src/tools/handlers/agent_jobs.rs:122"
+    }
+  ]
+}

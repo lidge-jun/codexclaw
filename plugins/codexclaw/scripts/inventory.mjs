@@ -194,9 +194,11 @@ export function checkSets(pluginRoot = PLUGIN_ROOT, repoRoot = REPO_ROOT) {
  * tautological.
  */
 export const PUBLISHED_SURFACES = [
-  { file: "README.md", kind: "tests", re: /badge\/tests-([\d%C,]+)_passing/ },
-  { file: "README.ko.md", kind: "tests", re: /badge\/tests-([\d%C,]+)_passing/ },
-  { file: "README.zh.md", kind: "tests", re: /badge\/tests-([\d%C,]+)_passing/ },
+  // The badge publishes the measured suite TOTAL. Some of those tests are skipped on a
+  // given platform, so calling the total "passing" was a small lie the badge repeated.
+  { file: "README.md", kind: "tests", re: /badge\/tests-([\d%C,]+)-/ },
+  { file: "README.ko.md", kind: "tests", re: /badge\/tests-([\d%C,]+)-/ },
+  { file: "README.zh.md", kind: "tests", re: /badge\/tests-([\d%C,]+)-/ },
   { file: "README.md", kind: "skills", re: /badge\/skills-(\d+)-/ },
   { file: "README.ko.md", kind: "skills", re: /badge\/skills-(\d+)-/ },
   { file: "README.zh.md", kind: "skills", re: /badge\/skills-(\d+)-/ },
@@ -256,10 +258,10 @@ function replaceBadges(body, values) {
   if (tests != null) {
     const pretty = tests.toLocaleString("en-US");
     out = out.replace(
-      /(badge\/tests-)([\d%C,]+)(_passing)/g,
+      /(badge\/tests-)([\d%C,]+)(-)/g,
       (_m, a, _b, c) => a + pretty.replace(/,/g, "%2C") + c,
     );
-    out = out.replace(/(alt=")(\d[\d,]*)( tests passing)/g, (_m, a, _b, c) => a + pretty + c);
+    out = out.replace(/(alt=")(\d[\d,]*)( tests)/g, (_m, a, _b, c) => a + pretty + c);
   }
   return out;
 }

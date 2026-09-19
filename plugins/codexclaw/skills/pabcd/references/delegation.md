@@ -211,7 +211,10 @@ names in your own session:
 | Purpose | Tool |
 |---|---|
 | create | `create_thread({ prompt, target, model?, thinking? })`, where `target.environment` is `local` or `worktree`, and a worktree takes `startingState` of `working-tree` or `branch{branchName, onMissing}` |
-| wait | `wait_threads({ targets: [{ threadId, hostId?, afterCursor? }], timeoutMs? })` |
+| wait | `wait_threads({ targets: [{ threadId, hostId?, afterCursor? }], timeoutMs? })` — 1-8 targets, `timeoutMs` 0-120000 (default 120000) |
+| read | `read_thread({ threadId, hostId?, cursor?, turnLimit?, includeOutputs?, maxOutputCharsPerItem? })` — `turnLimit` 1-10, `maxOutputCharsPerItem` 0-20000 |
+| list | `list_threads({ limit? })` — `limit` 1-50, applied to non-pinned results only |
+| handoff status | `get_handoff_status({ operationId, afterRevision?, waitMs? })` — `waitMs` 0-60000 |
 | follow up | `send_message_to_thread({ threadId, prompt, ... })` |
 | fork | `fork_thread({ threadId?, environment? })` |
 | move | `handoff_thread({ threadId, destinationHostId?, followUpPrompt? })` |

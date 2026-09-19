@@ -6,6 +6,47 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.33] - 2026-09-20
+
+A dispatched lane may now run its own loop, and the packet that says so is checkable.
+
+### Added
+
+- `cxc-loop` gains `references/lane-dispatch.md`: the packet a coordinator hands a lane,
+  the separate merge grant, and the measured host envelope. LANE-LOOP-AUTH-01 — a leaf
+  never opens a goal, a dispatched task owns one and loops when its packet grants the
+  objective, criteria and completion condition. LANE-PACKET-01 — the `create_thread`
+  prompt is the entire channel, so a packet carries scope, base, branch, authority and
+  reporting. LANE-MERGE-GRANT-01 — merge is a separate sentence and may only land the
+  lane's own branch.
+- `scripts/check-lane-packet.mjs` decides those cases instead of asserting prose: a loop
+  without criteria, a merge without its grant, a merge naming another lane's branch, a
+  provisional id used as an address, push/PR authority, and write scopes that overlap
+  across a packet set after `.` and `..` are normalized. Packets have declared
+  `dispatch` and `bound` modes, because a packet cannot carry an address that creation
+  has not returned yet.
+- `scripts/check-host-bounds.mjs` plus `test/fixtures/host-thread-bounds.json` record the
+  measured surface — `wait_threads` 1-8 targets and 0-120000 ms, `read_thread` 1-10 turns
+  and 0-20000 chars, `list_threads` 1-50, `get_handoff_status` 0-60000 ms, worktree
+  retention 15, the default six-subagent session cap — and re-derive each from `app.asar`
+  and the `codex-rs` sources. An absent artifact reports NOT RUN and never PASS.
+- `dispatch-surfaces.md` gains DISPATCH-FANOUT-CAP-01: branches are the cheap axis — no
+  host-wide task cap was found — while subagents fail outright past six per session.
+
+### Changed
+
+- `cxc-loop` scopes its leaf rule to leaves and states the lane case positively. The old
+  wording read as universal and left a dispatched task with no permission to run its own
+  cycle, which is why one session did all the looping.
+
+### Known limitations
+
+- The validator enforces packets; it does not police the skill text. Deleting the prose
+  authorization fails no test, and closing that would mean enforcing the packet at the
+  orchestration boundary.
+- Measured absences are recorded as absences: no cap was found on referenced tasks and no
+  model-visible resolver was found for a queued lane's `clientThreadId` (#209).
+
 ## [0.2.32] - 2026-09-20
 
 Verification depth becomes a choice, and the visualizer says where it came from.

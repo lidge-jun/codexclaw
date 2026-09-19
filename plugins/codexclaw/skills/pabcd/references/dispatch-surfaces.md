@@ -123,6 +123,13 @@ exist. Listings are filtered and paginated, and a started thread is addressable 
 moment it starts. So if you already hold the canonical id, use it — do not make presence
 in a listing a precondition for addressing a lane you created.
 
+Addressing has one canonical form: `threadId` plus `hostId`. The user-facing mention the
+app builds is `[@Title](thread://<threadId>?hostId=<encoded hostId>)`, and several lanes
+can be referenced in one turn. A queued worktree instead returns a provisional
+`clientThreadId` that no tool accepts; keep it in its own field.
+[Lane dispatch](../../loop/references/lane-dispatch.md) carries the packet contract and
+the measured bounds.
+
 When the id really is lost, recovery is bounded and host-specific: identify the same
 host, worktree and branch, then inspect candidate session metadata — matching cwd,
 creation time, parent identity — and read the recorded session id rather than guessing
@@ -147,6 +154,20 @@ notifications is not the same as stopping monitoring, and a scheduled run is not
 authority.
 
 ### The observer shares the lanes' quota (DISPATCH-POLL-BUDGET-01, DEFAULT)
+
+### Fan-out width is a lane property (DISPATCH-FANOUT-CAP-01, DEFAULT)
+
+The intuition is usually backwards. Parallel *branches* are cheap to the host: no
+host-wide cap on concurrently running tasks was found in the searched paths, and turns
+queue per thread. Subagents are the capped resource — spawning past the session limit
+fails outright with `agent thread limit reached`, at six per session by default
+(`agents.max_threads`; on V2 `max_concurrent_threads_per_session` minus one for the
+session itself).
+
+So cross-branch fan-out belongs to lanes, and concurrency inside one lane's tree belongs
+to that lane's subagents — run them in waves, say the wave size, and close finished
+agents, because a completed agent holds its slot until it is closed. "Unlimited parallel
+subagents" is not a shape the host offers.
 
 Lanes and the parent watching them usually draw on the same credentials and the same
 API budget, so observation competes with the work it is observing. The parent owns that
