@@ -17,6 +17,7 @@ import { openIndex, openIndexReadOnly, indexPath, indexStatus, type IndexStatus 
 import { ingest, measureIndexFreshness, BANNER_FRESHNESS_BUDGET, type IndexFreshness } from "./ingest.ts";
 import { codexHome } from "./paths.ts";
 import { collectMemoryStatus, formatMemoryStatus, memoryStatusNotice } from "./memory-status.ts";
+import { requeueExhaustedMemoryJobs, formatRequeue } from "./memory-requeue.ts";
 import {
   handleUserPromptSubmit,
   handleSessionStart,
@@ -32,6 +33,8 @@ const USAGE = [
   "cxc memory search \"<query>\" [--days N] [--limit N] [--any] [--no-synonyms]",
   "                             [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json]",
   "cxc memory status [--json] [--home PATH]",
+  "cxc memory requeue [--apply] [--include-context-window] [--kind K] [--limit N]",
+  "                   [--retries N] [--json] [--home PATH]",
   "",
   `  --days N     restrict to the last N days (chat default ${DEFAULT_DAYS}, 0 = full history)`,
   "  --cwd PATH   scope to PATH and to other checkouts of the same git origin",
@@ -317,6 +320,44 @@ export function runMemoryStatus(argv: string[]): number {
 }
 
 /**
+ * `cxc memory requeue` — return dead-lettered extraction jobs to the host's retry queue
+ * (issue #188). Dry run unless `--apply`, because this writes to the operator's live
+ * memory database. Exit 1 only when the store cannot be read or written; selecting
+ * nothing is a legitimate 0.
+ */
+export function runMemoryRequeue(argv: string[]): number {
+  const { values } = parseArgs({
+    args: argv,
+    options: {
+      apply: { type: "boolean" },
+      "include-context-window": { type: "boolean" },
+      kind: { type: "string" },
+      limit: { type: "string" },
+      retries: { type: "string" },
+      json: { type: "boolean" },
+      home: { type: "string" },
+    },
+    allowPositionals: true,
+    strict: false,
+  });
+  const home = typeof values.home === "string" && values.home ? resolve(values.home) : codexHome();
+  const toInt = (raw: unknown): number | undefined => {
+    const n = Number.parseInt(String(raw ?? ""), 10);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const result = requeueExhaustedMemoryJobs(home, {
+    apply: values.apply === true,
+    includeContextWindow: values["include-context-window"] === true,
+    kind: typeof values.kind === "string" && values.kind ? values.kind : undefined,
+    limit: toInt(values.limit),
+    retries: toInt(values.retries),
+  });
+  if (values.json === true) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  else process.stdout.write(formatRequeue(result));
+  return result.state === "ok" ? 0 : 1;
+}
+
+/**
  * One bounded line about the HOST memory pipeline for SessionStart, or "" (issue #185).
  * Read here rather than inside the hook so SessionStart rendering stays pure and
  * hermetic under test, mirroring how `indexStatusLine()` is injected. Fail-soft: any
@@ -384,6 +425,9 @@ export function main(argv: string[]): number | Promise<number> {
   }
   if (kind === "memory" && sub === "status") {
     return runMemoryStatus(argv.slice(2));
+  }
+  if (kind === "memory" && sub === "requeue") {
+    return runMemoryRequeue(argv.slice(2));
   }
   if (kind === "chat" && sub === "index") {
     if (argv.slice(2).some((a) => a === "help" || a === "/?")) {
