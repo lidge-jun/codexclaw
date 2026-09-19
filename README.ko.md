@@ -28,7 +28,7 @@ codexclaw는 Codex 런타임을 체계적인 개발 환경으로 바꾼다. 별�
 
 ## 주요 기능
 
-**Dev Skill Family** — 표준 부모 스킬(`dev`)이 관리하는 12개 작업 영역별 라우터(`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-diagram-viewer`, `dev-uiux-design`)로 구성된다. 모든 라우터는 부모 스킬의 규칙 등급, 검증 게이트, 안전 규칙을 물려받는다. 고유 규칙 ID는 155개다.
+**Dev Skill Family** — 표준 부모 스킬(`dev`)이 관리하는 12개 작업 영역별 라우터(`dev-architecture`, `dev-backend`, `dev-frontend`, `dev-testing`, `dev-security`, `dev-debugging`, `dev-data`, `dev-devops`, `dev-code-reviewer`, `dev-scaffolding`, `dev-visualizer`, `dev-uiux-design`)로 구성된다. 모든 라우터는 부모 스킬의 규칙 등급, 검증 게이트, 안전 규칙을 물려받는다. 고유 규칙 ID는 155개다.
 
 **PABCD Workflow** — Plan / Audit / Build / Check / Done을 증명 기반 전환 게이트가 있는 파일 기반 FSM으로 구현했다. `cxc orchestrate` 명령으로 단계를 진행하며, 각 전환에는 구조화된 근거가 붙는다. 영속적인 goalplan 원장이 여러 사이클에 걸쳐 작업 단계, 성공 기준, 수집한 증거를 추적한다.
 
@@ -216,9 +216,11 @@ _PATH 수준 `cxc` 진입점(`bin/codexclaw.mjs` + `cli/` 워크스페이스)은
 | DevOps / infra | `dev-devops` | `dev-security` for credentials |
 | Scaffolding | `dev-scaffolding` | `dev-architecture` for boundaries |
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
-| Diagrams | `dev-diagram-viewer` | — |
+| 다이어그램, 시각 문서, HTML/SVG 보고서, PDF | `dev-visualizer` | 내보내기에 필요한 문서 포맷 담당 스킬 |
 
 각 라우터는 필요할 때만 불러오는 자체 모듈형 참고 자료를 갖추고 있으며, 부모 스킬의 검증 게이트, 규칙 등급, 안전 규칙을 물려받는다.
+
+**비주얼라이저 범위 — 독립 행동 금지.** `dev-visualizer`는 Aside 쪽 비주얼라이저 작업을 codexclaw로 이식한 스킬이다. 독립 저장소 `aside-visualizer`는 Aside 전용으로 남고, codexclaw는 그 로드맵을 따로 굴리지도, 사본을 하나 더 두지도 않는다. 이 스킬에는 독자 권한이 없다. 요청받은 산출물을 만들고 검증할 뿐, 스스로 저장소를 열거나 자신을 설치하거나 요청 없이 배포·공개·내보내기를 하거나 별도 루프를 시작하지 않는다. 검증 깊이도 선택이다. 모든 문서에 페이지 전수 검토를 물리지 말고 `draft`, `standard`, `publication` 중에서 영수증 프로파일을 골라 쓴다.
 
 ## CLI
 
