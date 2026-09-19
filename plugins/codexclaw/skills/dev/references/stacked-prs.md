@@ -110,7 +110,12 @@ conclusion. A PR-ref concurrency key cancels within that PR, not across the stac
 unknown cancellation causes stay unknown. Inspect required checks, not only a green
 summary or check count. Missing, skipped or cancelled tests are not passing tests.
 Apply the hosted-CI evidence procedure in `cxc-dev` §3 (DEV-CI-EVIDENCE-01) to tell
-those states apart before acting on them.
+those states apart before acting on them. When the work is split across parallel Codex
+tasks rather than one stack, the lane manifest and merge handoff in `cxc-pabcd`
+`references/dispatch-surfaces.md` (DISPATCH-LANE-MANIFEST-01, DISPATCH-LANE-MERGE-01)
+own duplicate-ownership detection and landing order. Note also that a `[WRONG BRANCH]`
+verdict can be a repository enforcer rejecting a legitimate parent base: inspect that
+policy and preserve the dependency topology instead of retargeting children.
 
 CI cost reduction is a separate, authorized workflow change. Preserve each mergeable
 layer's required evidence and final integration checks; reverify after a cascade or

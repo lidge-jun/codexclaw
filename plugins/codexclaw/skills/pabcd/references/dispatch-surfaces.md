@@ -167,6 +167,62 @@ tasks. Two `local` threads on one checkout collide exactly like two subagents do
 The shape that scales is worktrees for isolation and subagents for concurrency
 within an isolated tree.
 
+### The lane manifest (DISPATCH-LANE-MANIFEST-01, DEFAULT)
+
+Lanes are independent tasks, so nothing in the system knows two of them were handed the
+same issue until their pull requests collide. One shared record makes that visible before
+the branches diverge. Per lane: repository, lane id, task and host id, worktree, branch,
+base ref and sha, head sha, issue, owner, scope and status.
+
+```json
+{
+  "repository": "owner/repo",
+  "lanes": [
+    {
+      "id": "lane-1", "taskId": "<threadId>", "hostId": "local",
+      "worktree": "/path/to/worktree", "branch": "codex/one",
+      "owner": "task:<threadId>", "scope": "validator",
+      "base": { "ref": "dev", "sha": "abc1234" }, "head": "def5678",
+      "issue": "owner/repo#184", "status": "running"
+    }
+  ]
+}
+```
+
+Validate it with `node plugins/codexclaw/scripts/check-lane-manifest.mjs <manifest.json>`.
+
+Two rules the validator enforces because they are the ones people get wrong. An issue
+reference must name its repository — a bare number is ambiguous the moment lanes span
+repositories. And two ACTIVE lanes may share an issue only if each names a **different**
+scope; silence means both believe they own all of it, which is precisely the collision
+worth catching. A finished lane never blocks a new one.
+
+**A manifest is evidence, not a lock.** It is a file. It cannot know whether a lane is
+still running, whether a recorded head is current, or whether CI evidence is fresh, and
+recording an owner authorizes nobody to rewrite that lane's branch or message its task.
+A pass means the records are coherent, never that merging is safe.
+
+### Merge handoff across tasks (DISPATCH-LANE-MERGE-01, DEFAULT)
+
+The coordinating task decides sequencing; each lane executes only inside its own
+checkout; no subagent ever manages another lane's branch. Before landing a lane:
+
+1. Refresh the integration ref and re-read the manifest. A lane based on a stale ref is
+   the usual source of a conflict that looks like a code disagreement.
+2. Compare open PRs, worktrees and manifest entries for a duplicate issue, a duplicate
+   branch, or overlapping scope. Resolve by giving one lane the issue or by partitioning
+   it explicitly — not by merging and hoping.
+3. Carry hosted evidence for the lane's PR: head sha, the sha actually tested, workflow
+   event, run and check ids, attempt, conclusion, and required-shard coverage. Apply
+   `cxc-dev` §3 DEV-CI-EVIDENCE-01; a green summary is not the same as the expected jobs
+   having run.
+4. Land lanes serially. Shared surfaces — published counts, generated inventories, lock
+   files — conflict in every lane at once, so parallel landing turns one rebase into N.
+
+After a timeout or a compaction, recover from the manifest: reopen the recorded task and
+worktree, refresh git and PR state, reconcile drift, and resume. A timeout alone never
+authorizes replacing a lane and never proves one finished.
+
 ## What neither surface grants
 
 A subagent may not create a goal, run `cxc orchestrate`, or bind a session; the
