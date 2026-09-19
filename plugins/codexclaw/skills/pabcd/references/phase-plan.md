@@ -2,9 +2,12 @@
 
 ## Architect consultation for formal P
 
-Every formal P plan follows this sequence, including plan-only work that enters P.
-The dev-owned C0/C1 fast path remains unchanged. Explicit user limits (such as
-no delegation) take precedence; record any resulting consultation gap honestly.
+Every formal P plan follows this sequence, including C2 compact plans and plan-only
+P work; it is not limited to large or full plans. Applicability follows the planning
+work, not whether the agent happened to write the required plan header. Explanation
+or read-only assessment alone does not enter P. The dev-owned C0/C1 fast path needs
+neither consultation nor a consultation record. Explicit user limits (such as no
+delegation) take precedence; record any resulting consultation gap honestly.
 
 1. Main gathers requirements and source evidence, identifies scope and existing owners.
 2. Dispatch a read-only `architect` with `dev` and `dev-architecture` attached.
@@ -17,7 +20,9 @@ no delegation) take precedence; record any resulting consultation gap honestly.
 4. Send that concrete plan to the SAME architect for a reflection check. Require
    `ALIGNED` or `MISALIGNED`, a decision-ID-to-plan mapping and exact gaps. Resolve
    material gaps with recorded main dispositions before independent A audit. A missing
-   proposal or reflection check is not completed consultation.
+   proposal or reflection check is not completed consultation. Keep the actual
+   handle, proposal, main dispositions and reflection tied to the submitted plan
+   revision in the [Plan output consultation record](plan-output.md#architect-consultation).
 5. Dispatch the independent A reviewer. Architect reflection never replaces A.
 
 Use the [delegation owner](delegation.md#architect-context-and-routing) for supported

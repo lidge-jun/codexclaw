@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runDispatch, managedSpawn } from "../src/fallback-dispatch.ts";
@@ -169,4 +169,178 @@ test("candidate snapshot remains stable if role settings change after start", ()
   call({ action: "claim", attemptId: start.attemptId });
   const next = call({ action: "report", attemptId: start.attemptId, outcome: "failed", error: "rate_limit_exceeded", executionState: "not_created", reconciliation: "native creation returned no child" });
   assert.equal(call({ action: "claim", attemptId: next.attemptId }).candidate?.model, "cursor/grok-4.6");
+});
+
+test("confirmed task failure recovers through the next candidate, then main-direct", () => {
+  const { call, start } = fixture();
+  call({ action: "claim", attemptId: start.attemptId });
+  call({ action: "report", attemptId: start.attemptId, outcome: "created", agentId: "child-a" });
+  const next = call({
+    action: "report", attemptId: start.attemptId, outcome: "task_failed",
+    agentId: "child-a", executionState: "stopped",
+    reconciliation: "child stopped; inspected diff and preserved edits",
+    taskFailure: { kind: "unusable_output", evidence: "final message contained no findings or diff for the packet" },
+  });
+  assert.equal(next.action, "ready");
+  assert.equal(next.attempts[0].taskFailure?.kind, "unusable_output");
+  assert.equal(next.attempts[0].code, null);
+  const claim = call({ action: "claim", attemptId: next.attemptId });
+  assert.equal(claim.candidate?.model, "cursor/grok-4.6");
+  call({ action: "report", attemptId: next.attemptId, outcome: "created", agentId: "child-b" });
+  const end = call({
+    action: "report", attemptId: next.attemptId, outcome: "task_failed",
+    agentId: "child-b", executionState: "stopped",
+    reconciliation: "second child stopped; partial work inspected",
+    taskFailure: { kind: "stagnation", evidence: "no new edits or output at the stated review point" },
+  });
+  assert.equal(end.action, "main-direct");
+  assert.equal(end.attempts.length, 2);
+  assert.equal(end.attempts[1].taskFailure?.kind, "stagnation");
+});
+
+for (const role of ROLES) test(`${role}: task failure on the last candidate returns main-direct`, () => {
+  const { call, start } = fixture(role);
+  call({ action: "claim", attemptId: start.attemptId });
+  call({ action: "report", attemptId: start.attemptId, outcome: "created", agentId: "child-a" });
+  const next = call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", agentId: "child-a", executionState: "stopped", reconciliation: "child stopped; partial edits inspected", taskFailure: { kind: "stagnation", evidence: "no advancement at the stated review point" } });
+  const second = call({ action: "claim", attemptId: next.attemptId });
+  call({ action: "report", attemptId: second.attemptId, outcome: "created", agentId: "child-b" });
+  const end = call({ action: "report", attemptId: second.attemptId, outcome: "task_failed", agentId: "child-b", executionState: "stopped", reconciliation: "second child stopped; output unusable", taskFailure: { kind: "unusable_output", evidence: "final message unrelated to the packet" } });
+  assert.equal(end.action, "main-direct");
+  assert.equal(end.attempts.length, 2);
+  assert.equal(end.independentReviewRequired, role === "reviewer");
+});
+
+test("dispatch state without taskFailure stays readable and recovers; malformed metadata fails closed", () => {
+  const { call, start, cwd, base } = fixture();
+  call({ action: "claim", attemptId: start.attemptId });
+  call({ action: "report", attemptId: start.attemptId, outcome: "created", agentId: "child-a" });
+  const path = join(cwd, ".codexclaw", "dispatches", base.sessionId, base.dispatchId + ".json");
+  const legacy = JSON.parse(readFileSync(path, "utf8"));
+  delete legacy.attempts[0].taskFailure;
+  writeFileSync(path, JSON.stringify(legacy));
+  assert.equal(call({ action: "status" }).attempts[0].taskFailure, null);
+  const next = call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", agentId: "child-a", executionState: "stopped", reconciliation: "child stopped; inspected", taskFailure: { kind: "stagnation", evidence: "no advancement at the stated review point" } });
+  assert.equal(next.action, "ready");
+  const corrupt = JSON.parse(readFileSync(path, "utf8"));
+  corrupt.attempts[0].taskFailure = { kind: "timeout", evidence: "x" };
+  writeFileSync(path, JSON.stringify(corrupt));
+  assert.throws(() => call({ action: "status" }), /taskFailure kind/);
+});
+
+test("task failure needs a recorded stopped child before any handoff", () => {
+  const { call, start } = fixture();
+  call({ action: "claim", attemptId: start.attemptId });
+  call({ action: "report", attemptId: start.attemptId, outcome: "created", agentId: "child-a" });
+  const taskFailure = { kind: "unusable_output", evidence: "final message unusable" };
+  for (const executionState of ["running", "unknown"]) {
+    const out = call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", agentId: "child-a", executionState, reconciliation: "still checking", taskFailure });
+    assert.equal(out.action, "reconcile");
+    assert.equal(out.attempts.length, 1);
+  }
+  assert.throws(() => call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", executionState: "not_created", reconciliation: "x", taskFailure }), /recorded stopped child/);
+  assert.throws(() => call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", agentId: "child-b", executionState: "stopped", reconciliation: "x", taskFailure }), /stopped and identified/);
+  assert.throws(() => call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", agentId: "child-a", executionState: "stopped", taskFailure }), /reconciliation/);
+  const next = call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", agentId: "child-a", executionState: "stopped", reconciliation: "child stopped; inspected", taskFailure });
+  assert.equal(next.action, "ready");
+});
+
+test("task failure without a recorded child is rejected", () => {
+  const { call, start } = fixture();
+  call({ action: "claim", attemptId: start.attemptId });
+  assert.throws(() => call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", agentId: "ghost", executionState: "stopped", reconciliation: "claimed child stopped", taskFailure: { kind: "stagnation", evidence: "no output" } }), /record created agent/);
+});
+
+test("invalid taskFailure payloads are rejected without state advancement", () => {
+  const { call, start } = fixture();
+  call({ action: "claim", attemptId: start.attemptId });
+  call({ action: "report", attemptId: start.attemptId, outcome: "created", agentId: "child-a" });
+  const report = { action: "report", attemptId: start.attemptId, outcome: "task_failed", agentId: "child-a", executionState: "stopped", reconciliation: "child stopped; inspected" };
+  assert.throws(() => call({ ...report }), /JSON object/);
+  assert.throws(() => call({ ...report, taskFailure: "stagnation" }), /JSON object/);
+  assert.throws(() => call({ ...report, taskFailure: { kind: "stagnation", evidence: "x", extra: 1 } }), /taskFailure key/);
+  assert.throws(() => call({ ...report, taskFailure: { kind: "timeout", evidence: "x" } }), /taskFailure kind/);
+  assert.throws(() => call({ ...report, taskFailure: { kind: "stagnation", evidence: "  " } }), /evidence/);
+  assert.throws(() => call({ ...report, taskFailure: { kind: "stagnation", evidence: 42 } }), /evidence/);
+  assert.throws(() => call({ ...report, taskFailure: { kind: "stagnation", evidence: "x".repeat(2001) } }), /evidence/);
+  const status = call({ action: "status" });
+  assert.equal(status.attempts.length, 1);
+  assert.equal(status.attempts[0].status, "running");
+  assert.equal(status.attempts[0].taskFailure, null);
+});
+
+test("provider error decoding wins over the task_failed label", () => {
+  // A decoded stop wins before the child-state gate, even while the child is live.
+  for (const [error, code, executionState] of [
+    [{ code: "permission_denied" }, "permission_denied", "running"],
+    ["client_cancelled", "client_cancelled", "unknown"],
+    [{ code: "cyber_policy" }, "cyber_policy", "running"],
+  ] as const) {
+    const { call, start } = fixture();
+    call({ action: "claim", attemptId: start.attemptId });
+    call({ action: "report", attemptId: start.attemptId, outcome: "created", agentId: "child-a" });
+    const stop = call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", error, agentId: "child-a", executionState, reconciliation: "still live", taskFailure: { kind: "stagnation", evidence: "x" } });
+    assert.equal(stop.action, "stop");
+    assert.equal(stop.attempts[0].code, code);
+    const again = call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", agentId: "child-a", executionState: "stopped", reconciliation: "x", taskFailure: { kind: "stagnation", evidence: "x" } });
+    assert.equal(again.action, "stop");
+    assert.equal(again.attempts.length, 1);
+  }
+
+  const unknown = fixture();
+  unknown.call({ action: "claim", attemptId: unknown.start.attemptId });
+  unknown.call({ action: "report", attemptId: unknown.start.attemptId, outcome: "created", agentId: "child-a" });
+  const rec = unknown.call({ action: "report", attemptId: unknown.start.attemptId, outcome: "task_failed", error: "vague prose", agentId: "child-a", executionState: "stopped", reconciliation: "x", taskFailure: { kind: "stagnation", evidence: "x" } });
+  assert.equal(rec.action, "reconcile");
+  assert.equal(rec.attempts.length, 1);
+
+  const mixed = fixture();
+  mixed.call({ action: "claim", attemptId: mixed.start.attemptId });
+  mixed.call({ action: "report", attemptId: mixed.start.attemptId, outcome: "created", agentId: "child-a" });
+  assert.throws(() => mixed.call({ action: "report", attemptId: mixed.start.attemptId, outcome: "task_failed", error: "insufficient_quota", agentId: "child-a", executionState: "stopped", reconciliation: "x", taskFailure: { kind: "stagnation", evidence: "x" } }), /outcome failed/);
+  const next = mixed.call({ action: "report", attemptId: mixed.start.attemptId, outcome: "failed", error: "insufficient_quota", agentId: "child-a", executionState: "stopped", reconciliation: "child stopped; inspected" });
+  assert.equal(next.action, "ready");
+  assert.equal(next.attempts[0].code, "insufficient_quota");
+});
+
+test("a plain failed report with task metadata never implies task recovery", () => {
+  const { call, start } = fixture();
+  call({ action: "claim", attemptId: start.attemptId });
+  call({ action: "report", attemptId: start.attemptId, outcome: "created", agentId: "child-a" });
+  const out = call({ action: "report", attemptId: start.attemptId, outcome: "failed", agentId: "child-a", executionState: "stopped", reconciliation: "child stopped; inspected", taskFailure: { kind: "unusable_output", evidence: "no usable output" } });
+  assert.equal(out.action, "reconcile");
+  assert.equal(out.attempts.length, 1);
+  assert.equal(out.attempts[0].taskFailure, null);
+});
+
+test("terminal dispatch states never reopen for a task report", () => {
+  const { call, start } = fixture();
+  call({ action: "claim", attemptId: start.attemptId });
+  call({ action: "report", attemptId: start.attemptId, outcome: "created", agentId: "child-a" });
+  call({ action: "report", attemptId: start.attemptId, outcome: "complete", agentId: "child-a" });
+  const out = call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", agentId: "child-a", executionState: "stopped", reconciliation: "x", taskFailure: { kind: "stagnation", evidence: "x" } });
+  assert.equal(out.action, "complete");
+  assert.equal(out.attempts.length, 1);
+});
+
+test("task failure before claim or on a stale attempt is rejected", () => {
+  const { call, start } = fixture();
+  assert.throws(() => call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", executionState: "stopped", reconciliation: "x", taskFailure: { kind: "stagnation", evidence: "x" } }), /claim the attempt/);
+  call({ action: "claim", attemptId: start.attemptId });
+  call({ action: "report", attemptId: start.attemptId, outcome: "created", agentId: "child-a" });
+  const next = call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", agentId: "child-a", executionState: "stopped", reconciliation: "child stopped; inspected", taskFailure: { kind: "stagnation", evidence: "no advancement at the stated review point" } });
+  assert.equal(next.action, "ready");
+  assert.throws(() => call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", agentId: "child-a", executionState: "stopped", reconciliation: "x", taskFailure: { kind: "stagnation", evidence: "x" } }), /stale/);
+});
+test("a reconciled provider report followed by task failure clears the stale code", () => {
+  const { call, start } = fixture();
+  call({ action: "claim", attemptId: start.attemptId });
+  call({ action: "report", attemptId: start.attemptId, outcome: "created", agentId: "child-a" });
+  const rec = call({ action: "report", attemptId: start.attemptId, outcome: "failed", error: "insufficient_quota", agentId: "child-a", executionState: "running" });
+  assert.equal(rec.action, "reconcile");
+  assert.equal(rec.attempts[0].code, "insufficient_quota");
+  const next = call({ action: "report", attemptId: start.attemptId, outcome: "task_failed", agentId: "child-a", executionState: "stopped", reconciliation: "child stopped; inspected", taskFailure: { kind: "unusable_output", evidence: "final message unusable" } });
+  assert.equal(next.action, "ready");
+  assert.equal(next.attempts[0].code, null);
+  assert.equal(next.attempts[0].taskFailure?.kind, "unusable_output");
 });

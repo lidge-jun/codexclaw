@@ -15,6 +15,11 @@ Four roles cover the common subagent workflow:
 - **executor** — focused implementation.
 - **architect** — read-only design proposals and checks of main-owned executable plans.
 
+Formal P keeps the required design sequence: architect proposal, main's executable
+plan, then reflection by the same architect before independent review. The existing
+C0/C1 fast path and explicit user limits still apply. See the
+[workflow guide](/codexclaw/guides/pabcd/) for phase requirements.
+
 ## Native architect setup
 
 Architect uses `agent_type: "architect"`, its own model/effort/prompt settings and
@@ -56,14 +61,15 @@ surfaces, but it does not choose skills. Dispatchers explicitly name each requir
 skill with preferred `[$cxc-<name>](skill://<abs SKILL.md>)` links or the plugin-native
 `$codexclaw:cxc-<name>` fallback. When the spawn message is plaintext, the hook normalizes
 known broken/bare mentions and inlines recognized SKILL.md bodies on V2-shaped spawns.
-Native ChatGPT-backend V2 gives the hook ciphertext, so both operations are no-ops there;
-when no body can be inlined, it appends a plaintext `[CXC-SKILL-AFFORDANCE]` block telling
-the child to self-load any `$cxc-<folder>` / `$codexclaw:cxc-<folder>` mention from
-`<skillsDir>/<folder>/SKILL.md`; fork inheritance remains a secondary channel. Its other
-reliable native V2 channels are the leaf guard and omitted configured
-`model`/`reasoning_effort` injection for non-full-history spawns. It never invents role
-baselines or inferred surface skills. Role config, resolver, and spawn-wrapper are all
-shipped (L9).
+Native ChatGPT-backend V2 can give the hook ciphertext. Recognized canonical
+Fernet-shaped messages are preserved byte-for-byte: no skill text, affordance or
+leaf guard is appended to them. The hook reports the omitted prompt guards;
+structural checks identify an opaque frame but do not authenticate or decrypt it.
+For plaintext messages where no skill body can be inlined, the hook appends a
+`[CXC-SKILL-AFFORDANCE]` telling the child to self-load named skills. Configured
+omitted `model`/`reasoning_effort` injection remains available for non-full-history
+spawns. It never invents role baselines or inferred surface skills. Role config,
+resolver, and spawn-wrapper are all shipped (L9).
 
 ## First fallback
 
@@ -82,9 +88,11 @@ cxc subagents set executor --fallback-model cursor/grok-4.6 --fallback-effort hi
 cxc subagents set executor --clear-fallback
 ```
 
-The same flags apply to explorer and reviewer. When both attempts fail, the main
-agent takes over remaining work. An independent review requirement remains
-outstanding; main-agent work does not satisfy it.
+The same flags apply to explorer, reviewer and architect. Only a returned
+`main-direct` action permits main to reclaim remaining work from a managed dispatch.
+A `ready` action requires a fresh claim; `stop` or `reconcile` permits neither a
+replacement nor direct takeover. Independent review remains outstanding when
+required; main-agent work does not satisfy it.
 
 ### Execution and evidence
 
@@ -105,6 +113,15 @@ Quota/model availability failures can select the fallback. Policy, permission,
 authentication and cancellation failures stop. Ambiguous creation or ongoing work
 must be reconciled before replacement; stopped executors require a change review
 and cleanup evidence. Unknown error prose does not trigger blind rotation.
+
+Confirmed stagnation or unusable final output uses a separate `outcome:task_failed`
+report with `taskFailure: {kind: "stagnation" | "unusable_output", evidence: "..."}`.
+Include the recorded child ID, `executionState:stopped`, and `reconciliation`
+describing termination and partial-work inspection. Both evidence strings must be
+non-empty and at most 2000 characters. This report has no provider `error`; it uses
+the same bounded handoff and returned actions as provider recovery. Cancellation,
+exhausted limits and a wait timeout alone are not task failures. Validate final
+work before reporting `outcome:complete`, which cannot be reopened for recovery.
 
 OCX retains its own retries and global/per-model fallback. The two-attempt limit
 applies to CXC-issued native attempts, not every downstream provider request.
