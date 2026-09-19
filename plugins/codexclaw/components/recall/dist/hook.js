@@ -458,12 +458,41 @@ function candidatePool(topN        , deps                   )         {
  * Historical text is enclosed as untrusted data so it cannot impersonate hook
  * policy or instructions.
  */
+/**
+ * Why a cwd produced no recall block. Issue #190: the string-returning API collapses
+ * three different situations into "", so a broken index is indistinguishable from a
+ * project with no history, and the operator is told the second when the truth is the
+ * first.
+ *
+ * Note what does NOT change: `empty` still injects nothing. A project with no recorded
+ * work should leave no trace, and announcing its emptiness every session would be noise.
+ * Only `unavailable` is new information, because today it is silently swallowed.
+ */
+
+
+
+
+
+
+
+
+
+
+/** String-returning wrapper, unchanged for every existing consumer. */
 export function buildCwdContext(
   cwd        ,
   deps                    = DEFAULT_RECALL_DEPS,
   budget               = FULL_BUDGET,
 )         {
-  if (!cwd) return "";
+  return buildCwdContextResult(cwd, deps, budget).text;
+}
+
+export function buildCwdContextResult(
+  cwd        ,
+  deps                    = DEFAULT_RECALL_DEPS,
+  budget               = FULL_BUDGET,
+)                   {
+  if (!cwd) return { outcome: "empty", text: "", detail: "" };
   try {
     const cwdName = basename(cwd);
     const topN = budget.topN;
@@ -501,8 +530,8 @@ export function buildCwdContext(
       }
       // Collect, THEN check for emptiness, THEN render: an empty result must stay
       // an empty string rather than a header with no content.
-      if (sessions.length === 0) return "";
-      return renderCwdBlock(cwdName, sessions, budget.chars, latestDate);
+      if (sessions.length === 0) return { outcome: "empty", text: "", detail: "" };
+      return { outcome: "hits", text: renderCwdBlock(cwdName, sessions, budget.chars, latestDate), detail: "" };
     }
 
     const localChat = deps.searchChat(cwdName, {
@@ -526,7 +555,7 @@ export function buildCwdContext(
     const chatHits = localChat.hits.filter((hit) =>
       cwdMatches(hit.cwd ?? "", cwd, { caseInsensitive: FOLD_CWD_CASE }),
     );
-    if (chatHits.length === 0) return "";
+    if (chatHits.length === 0) return { outcome: "empty", text: "", detail: "" };
 
     // Deduplicate chat by thread, pick most recent per thread
     const seenThreads = new Map                 ();
@@ -552,15 +581,28 @@ export function buildCwdContext(
       sessions.push([`  \u2022 [${date}] ${quoteUntrusted(clip(raw, 60))}`]);
       if (date > latestDate) latestDate = date;
     }
-    if (sessions.length === 0) return "";
+    if (sessions.length === 0) return { outcome: "empty", text: "", detail: "" };
 
-    return renderCwdBlock(cwdName, sessions, budget.chars, latestDate);
-  } catch {
-    return "";
+    return { outcome: "hits", text: renderCwdBlock(cwdName, sessions, budget.chars, latestDate), detail: "" };
+  } catch (err) {
+    // This used to swallow the failure and return "", which the session then read as
+    // "this project has no history". It is the opposite: recall could not answer.
+    return {
+      outcome: "unavailable",
+      text: "",
+      detail: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
 /** Injected by tests so a unit assertion never depends on the operator's config. */
+
+
+
+
+
+
+
 
 
 
@@ -666,12 +708,29 @@ export function handleSessionStart(
   // Auto-inject CWD context (the actual memory recovery)
   if (cwd) {
     // A compacted session just paid to free context, so it gets the smaller block.
-    const cwdCtx = buildCwdContext(cwd, DEFAULT_RECALL_DEPS, compacted ? COMPACTED_BUDGET : FULL_BUDGET);
-    if (cwdCtx) parts.push(cwdCtx);
+    const cwdCtx = buildCwdContextResult(cwd, DEFAULT_RECALL_DEPS, compacted ? COMPACTED_BUDGET : FULL_BUDGET);
+    if (cwdCtx.outcome === "hits") {
+      parts.push(cwdCtx.text);
+    } else if (cwdCtx.outcome === "unavailable") {
+      // Issue #190: say recall could not answer. Never render this as "no history",
+      // which is what silently returning "" used to imply. An `empty` outcome still
+      // injects nothing, so an unused project keeps leaving no trace.
+      parts.push("Recall unavailable for this project — the index could not be read. Run `cxc chat index --status` to inspect it.");
+    }
   }
 
   // Absent injection means "ask the machine": the branch must stay reachable on a
   // default install, where nothing sets CODEX_HOME.
+  // Issue #185: the recall index status describes codexclaw's OWN sidecar index, not
+  // the host's memory extraction pipeline. They are different systems, and the pipeline
+  // had been silently stopped for days while that status looked healthy. Emit one
+  // bounded line ONLY when something is actually wrong; a banner that always fires is a
+  // banner nobody reads, and an unreadable store stays silent rather than claiming the
+  // project has no memories. It goes BEFORE the session notice so the briefing still
+  // ends on the recall pointer, which the SessionStart contract requires.
+  const memoryNotice = opts.memoryNotice ?? "";
+  if (memoryNotice) parts.push(memoryNotice);
+
   const dedicatedTools = opts.dedicatedTools ?? dedicatedToolsEnabled();
   parts.push(sessionNotice(source, CXC(), status, dedicatedTools));
 
