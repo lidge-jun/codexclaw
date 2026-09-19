@@ -461,13 +461,18 @@ export function runHookTrustCheck(pluginRoot        , options                = {
     // Distinguish "never trusted" from "drifted" so the repair line is the one
     // the operator actually needs (issue #33).
     const neverTrusted = failed.filter((result) => result.actual === null);
-    // Drift and absence are different facts. A recorded hash that no longer
-    // matches means the manifest moved on while the hooks kept running — the
-    // host decides trust from its own record, so codexclaw reporting this as a
-    // failure would paint every post-update machine red for a condition that
-    // blocks nothing (PLAN-BYPASS-NAMED-01). A MISSING entry is different: the
-    // hooks were never approved, and that stays a failure.
-    const driftedOnly = failed.length > 0 && neverTrusted.length === 0;
+    // Drift and absence are different facts, but they have the SAME consequence.
+    // This check previously reported drift as harmless and downgraded it to WARN.
+    // That was wrong: the host classifies an absent hash as Untrusted and a
+    // mismatched one as Modified, and excludes BOTH from execution unless hook trust
+    // is explicitly bypassed. Reporting drift as benign told operators their memory
+    // write guard was live when the host had stopped running it (issue #186). Keep the
+    // two categories distinct in the evidence — they need different repairs — but do
+    // not downgrade either one.
+    //
+    // What this check still cannot see: whether the host actually executed a hook, and
+    // whether hook-trust bypass is enabled. It reports the stored trust record only.
+    const modified = failed.filter((result) => result.actual !== null);
     const repair =
       failed.length === 0
         ? undefined
@@ -485,17 +490,17 @@ export function runHookTrustCheck(pluginRoot        , options                = {
       // An EMPTY result set is not a pass. `diagnoseHookTrust` skips a handler it
       // cannot hash (invalid matcher, empty command, async), so "0 failed" can also
       // mean "0 examined" — a green check over hooks nobody verified.
-      severity:
-        results.length === 0 ? "WARN" : failed.length === 0 ? "PASS" : driftedOnly ? "WARN" : "FAIL",
+      severity: results.length === 0 ? "WARN" : failed.length === 0 ? "PASS" : "FAIL",
       repair,
       evidence:
         results.length === 0
           ? `no hook handler could be hashed for ${pluginKey}; nothing was verified`
           : failed.length === 0
           ? `${results.length} hook hash(es) trusted for ${pluginKey}`
-          : driftedOnly
-          ? `trusted_hash drift (reinstall updates it; hooks still run): ${failureDetail}`
-          : failureDetail,
+          : `${failed.length} of ${results.length} hook(s) not trusted for ${pluginKey}: ` +
+            `${neverTrusted.length} with no trust record, ${modified.length} whose recorded hash no longer matches. ` +
+            `The host excludes both from execution unless hook trust is bypassed, so these need approval. ` +
+            `Execution itself was not verified here. ${failureDetail}`,
     };
   } catch (error) {
     return { name: "hook-trust", severity: "FAIL", evidence: error instanceof Error ? error.message : String(error) };
@@ -614,8 +619,10 @@ export function runAstGrepCheck(
 /** Render a report as aligned PASS/WARN/FAIL lines for CLI stdout. */
 export function renderDoctor(report              )         {
   const lines = report.checks.map((c) => {
-    let line = `[${c.severity}] ${c.name}: ${c.evidence}`;
-    if (c.repair && c.severity !== "PASS") line += ` (repair: ${c.repair})`;
+    const line = `[${c.severity}] ${c.name}: ${c.evidence}`;
+    // The repair used to be appended inline, which buried a long shell command at the
+    // end of an already long evidence string. Give it its own indented line.
+    if (c.repair && c.severity !== "PASS") return `${line}\n    repair: ${c.repair}`;
     return line;
   });
   if (report.pluginVersion) lines.unshift(`codexclaw v${report.pluginVersion}`);
