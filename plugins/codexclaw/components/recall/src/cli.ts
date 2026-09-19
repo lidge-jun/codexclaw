@@ -16,6 +16,7 @@ import { formatChatResult, formatMemoryResult, clipChatResultForJson } from "./f
 import { openIndex, openIndexReadOnly, indexPath, indexStatus, type IndexStatus } from "./index-db.ts";
 import { ingest, measureIndexFreshness, BANNER_FRESHNESS_BUDGET, type IndexFreshness } from "./ingest.ts";
 import { codexHome } from "./paths.ts";
+import { collectMemoryStatus, formatMemoryStatus, memoryStatusNotice } from "./memory-status.ts";
 import {
   handleUserPromptSubmit,
   handleSessionStart,
@@ -30,6 +31,7 @@ const USAGE = [
   "cxc chat index [--rebuild] [--status] [--json]",
   "cxc memory search \"<query>\" [--days N] [--limit N] [--any] [--no-synonyms]",
   "                             [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json]",
+  "cxc memory status [--json] [--home PATH]",
   "",
   `  --days N     restrict to the last N days (chat default ${DEFAULT_DAYS}, 0 = full history)`,
   "  --cwd PATH   scope to PATH and to other checkouts of the same git origin",
@@ -291,6 +293,43 @@ function runChatIndex(args: string[]): number {
   }
 }
 
+/**
+ * `cxc memory status` — read-only snapshot of the native memory pipeline (issue #187).
+ * Before this, an unknown memory verb fell through to usage and exited 0, so a stalled
+ * pipeline was indistinguishable from a healthy one. Exit 1 only when the store cannot
+ * be read at all; an empty-but-readable store is a legitimate 0.
+ */
+export function runMemoryStatus(argv: string[]): number {
+  const { values } = parseArgs({
+    args: argv,
+    options: { json: { type: "boolean" }, home: { type: "string" } },
+    allowPositionals: true,
+    strict: false,
+  });
+  const home = typeof values.home === "string" && values.home ? resolve(values.home) : codexHome();
+  const status = collectMemoryStatus(home);
+  if (values.json === true) {
+    process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+  } else {
+    process.stdout.write(formatMemoryStatus(status));
+  }
+  return status.state === "unavailable" ? 1 : 0;
+}
+
+/**
+ * One bounded line about the HOST memory pipeline for SessionStart, or "" (issue #185).
+ * Read here rather than inside the hook so SessionStart rendering stays pure and
+ * hermetic under test, mirroring how `indexStatusLine()` is injected. Fail-soft: any
+ * problem yields "" and the session starts unchanged.
+ */
+export function memoryPipelineNotice(home = codexHome()): string {
+  try {
+    return memoryStatusNotice(collectMemoryStatus(home));
+  } catch {
+    return "";
+  }
+}
+
 /** Read-only one-line index status for hook injection ("" when unavailable). */
 export function indexStatusLine(home = codexHome(), path = indexPath()): string {
   try {
@@ -319,7 +358,9 @@ async function runHook(event: string): Promise<number> {
       // `source` distinguishes a fresh start from a post-compaction restart; the
       // runtime re-fires SessionStart with source "compact" after compacting.
       const payload = raw.trim() ? JSON.parse(raw) as { cwd?: string; source?: string } : {};
-      out = handleSessionStart(indexStatusLine(), payload.cwd ?? process.cwd(), payload.source);
+      out = handleSessionStart(indexStatusLine(), payload.cwd ?? process.cwd(), payload.source, {
+        memoryNotice: memoryPipelineNotice(),
+      });
     } else if (event === "post-compact") {
       const payload = raw.trim() ? JSON.parse(raw) as { cwd?: string } : {};
       // Always "" — PostCompact output is universal-only (see handlePostCompact).
@@ -340,6 +381,9 @@ export function main(argv: string[]): number | Promise<number> {
   const sub = argv[1] ?? "";
   if ((kind === "chat" || kind === "memory") && sub === "search") {
     return kind === "chat" ? runChatSearch(argv.slice(2)) : runMemorySearch(argv.slice(2));
+  }
+  if (kind === "memory" && sub === "status") {
+    return runMemoryStatus(argv.slice(2));
   }
   if (kind === "chat" && sub === "index") {
     if (argv.slice(2).some((a) => a === "help" || a === "/?")) {
