@@ -33,3 +33,74 @@ test('CLI binds the receipt to bytes on disk',()=>{
 
 test('equivalent uppercase digest is accepted, not treated as a different version',()=>{const r=receipt();r.checks[0].artifact_sha256=hash.toUpperCase();assert.equal(evaluateReport(r).verdict,'PASS');});
 test('placeholder evidence cannot satisfy a completed review',()=>{const r=receipt();r.checks[0].evidence='-';assert.equal(evaluateReport(r).verdict,'BLOCKED');});
+
+// Assurance profiles. Reading rendered pages is the expensive half of this gate, so the
+// caller states how much assurance the artifact is being given. The oracle below is the
+// contract that a cheaper profile may reduce what is REQUIRED and may never turn an
+// unexecuted check into a pass, hide an observed defect, or let a draft read as published.
+const only=ids=>({artifact_sha256:hash,checks:ids.map(id=>({id,status:'PASS',artifact_sha256:hash,evidence:'review://'+id}))});
+const structural=['pdf-parse','text-integrity','pagination'];
+
+test('an unnamed profile is still the full publication receipt',()=>{
+  const r=evaluateReport(receipt());
+  assert.equal(r.profile,'publication');
+  assert.deepEqual(r.omitted,[]);
+});
+test('draft certifies what it ran without requiring the visual checks',()=>{
+  const r=evaluateReport(only(['pdf-parse']),{profile:'draft'});
+  assert.equal(r.verdict,'PASS');
+  assert.equal(r.exitCode,0);
+  assert.equal(r.profile,'draft');
+});
+test('a draft pass names every publication check it did not run',()=>{
+  const r=evaluateReport(only(['pdf-parse']),{profile:'draft'});
+  assert.deepEqual(r.omitted,ids.filter(id=>id!=='pdf-parse'));
+});
+test('standard requires the structural checks and no more',()=>{
+  assert.equal(evaluateReport(only(structural),{profile:'standard'}).verdict,'PASS');
+  assert.deepEqual(evaluateReport(only(structural),{profile:'standard'}).omitted,ids.filter(id=>!structural.includes(id)));
+});
+test('standard still blocks when a structural check is absent',()=>{
+  const r=evaluateReport(only(structural.filter(id=>id!=='pagination')),{profile:'standard'});
+  assert.equal(r.exitCode,3);
+});
+test('a lighter profile cannot hide an observed defect',()=>{
+  const r=only(['pdf-parse']);r.checks.push({id:'visual-pages',status:'FAIL',artifact_sha256:hash,evidence:'review://clipped'});
+  assert.equal(evaluateReport(r,{profile:'draft'}).verdict,'FAIL');
+});
+test('a NOT_RUN check outside the profile is reported omitted, never passed',()=>{
+  const r=only(['pdf-parse']);r.checks.push({id:'visual-pages',status:'NOT_RUN'});
+  const out=evaluateReport(r,{profile:'draft'});
+  assert.equal(out.verdict,'PASS');
+  assert.ok(out.omitted.includes('visual-pages'));
+});
+test('an unknown profile fails instead of falling back to a lighter one',()=>{
+  const r=evaluateReport(receipt(),{profile:'quick'});
+  assert.equal(r.exitCode,1);
+  assert.equal(r.profile,null);
+  assert.match(r.findings[0].message,/Unknown assurance profile/);
+});
+test('the receipt may declare its own profile',()=>{
+  const r=only(['pdf-parse']);r.profile='draft';
+  assert.equal(evaluateReport(r).verdict,'PASS');
+});
+test('an explicit argument outranks the profile written into the receipt',()=>{
+  const r=only(['pdf-parse']);r.profile='draft';
+  assert.equal(evaluateReport(r,{profile:'publication'}).exitCode,3);
+});
+test('CLI --profile selects the assurance level and rejects an unknown one',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'report-profile-'));
+  try {
+    const pdf=join(dir,'report.pdf'),json=join(dir,'qa.json'),bytes=Buffer.from('%PDF-1.7\n%%EOF\n');
+    writeFileSync(pdf,bytes);
+    const actual=createHash('sha256').update(bytes).digest('hex');
+    const r=only(['pdf-parse']);r.artifact_sha256=actual;r.checks.forEach(c=>c.artifact_sha256=actual);
+    writeFileSync(json,JSON.stringify(r));
+    const run=(...extra)=>spawnSync(process.execPath,[resolve('plugins/codexclaw/skills/dev-visualizer/scripts/quality-gate.mjs'),pdf,json,...extra],{encoding:'utf8',timeout:10000});
+    assert.equal(run().status,3,'the default profile still wants the full receipt');
+    const draft=run('--profile','draft');
+    assert.equal(draft.status,0);
+    assert.equal(JSON.parse(draft.stdout).profile,'draft');
+    assert.match(run('--profile','quick').stdout,/Unknown assurance profile/);
+  } finally {rmSync(dir,{recursive:true,force:true});}
+});

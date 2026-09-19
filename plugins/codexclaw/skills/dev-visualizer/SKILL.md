@@ -17,6 +17,16 @@ require a development loop. This skill owns artifact composition and delivery.
 `dev-uiux-design` owns broader design judgment, `dev-frontend` owns frontend
 implementation, and available format-specific skills own document mechanics.
 
+**VIZ-SCOPE-01 — ported here, and not independent.** This skill is codexclaw's port of
+the Aside visualizer work. The standalone `aside-visualizer` repository is Aside's own:
+do not work in it, mirror its roadmap, or treat its issues as work for this repository.
+Within codexclaw the skill has no independent mandate either. It composes and verifies
+the artifact the calling task asked for, under that task's plan and verification gate.
+It does not open a repository of its own, install itself or its scripts as a
+prerequisite, publish, deploy, upload or open an artifact nobody requested, or start a
+loop of its own. When something beyond the requested artifact looks necessary, say so
+and let the caller decide.
+
 ## Start with the requested outcome
 
 Infer the audience, question to answer, source material and output format from
@@ -135,6 +145,13 @@ Print CSS or a PDF filename alone proves nothing. For a delivered report, run th
 export script's QA (REPORT-QA-01) and the fresh-reader check on the rendered pages
 (REPORT-FRESH-01); an orphan line at the top of a page, a heading stranded at the
 bottom, a half-empty page or a figure whose text prints under 8.5pt is a defect.
+
+How much of that verification a report owes is a **choice stated up front**, not a
+fixed tax. Reading every rendered page is expensive, and a draft does not earn it.
+Pick a receipt profile — `draft`, `standard` or `publication` — per
+[report pipeline](reference/report-pipeline.md) REPORT-ASSURANCE-01, and report the
+verdict with the profile and the checks it omitted. A lighter profile is honest; a
+draft presented as a verified publication is not.
 
 **DIAGRAM-SYNTAX-01:** use an existing supported parser/checker where available.
 XML validation can catch malformed SVG; it cannot catch overlapped labels. Do not

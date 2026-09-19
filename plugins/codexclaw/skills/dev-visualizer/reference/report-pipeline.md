@@ -29,8 +29,10 @@ its own format route. A one-page brief does not need a cover and contents page.
    `page-role-catalog.md`. A role is not permission to invent data or shrink text.
 5. Resolve approved local font files, their exact weights and provenance into a
    private manifest. Export and inspect the final PDF, not only the source HTML.
-6. Collect the seven completed checks below against the final PDF's SHA-256.
-   Rerendering invalidates every old PASS receipt. Run the final receipt gate.
+6. Choose the assurance profile for what this artifact actually is
+   (REPORT-ASSURANCE-01), then collect that profile's completed checks against the
+   final PDF's SHA-256. Rerendering invalidates every old PASS receipt. Run the
+   receipt gate and report the verdict together with its profile.
 
 The model and annotations are a structural contract, not semantic verification.
 
@@ -145,8 +147,31 @@ nonempty `evidence` locator. Required IDs:
 | `claim-evidence` | Sources support claims; comparisons and causal strength are justified |
 | `editorial-review` | Fresh reader recovers the answer, the reason, the limitations, and — where the genre calls for one — the action, without author-intent narration |
 
+### Choose the assurance profile first (REPORT-ASSURANCE-01)
+
+Rendering and reading every page is the expensive half of this gate. A published
+deliverable earns that cost; a draft shared for comment usually does not. So the
+profile is a stated choice, not something the gate infers:
+
+| Profile | Requires | Use for |
+|---|---|---|
+| `draft` | nothing | Work in progress, internal preview, an artifact nobody will cite yet |
+| `standard` | `pdf-parse`, `text-integrity`, `pagination` | A shared document whose text and pagination must be right, without full page-image review |
+| `publication` (default) | all seven | Anything published, sent to a client, or presented as verified |
+
+Pass it as `--profile <name>` or as `"profile"` in the receipt; the argument wins
+when both are present. An unnamed profile stays `publication`, and an unknown name
+fails rather than falling back to something cheaper.
+
+A lighter profile reduces what is *required*. It never turns an unexecuted check into
+a pass: the result carries `profile` and an `omitted` list naming every publication
+check that did not complete, and a FAIL or REVIEW finding still propagates from a check
+outside the profile. Report a draft verdict as what it is — "PASS at profile draft,
+five checks omitted" — never as a verified publication.
+
 ```sh
 node scripts/quality-gate.mjs /private/report.pdf /private/qa.json
+node scripts/quality-gate.mjs /private/draft.pdf /private/qa.json --profile draft
 ```
 
 FAIL wins over BLOCKED, which wins over REVIEW, which wins over PASS. Missing
