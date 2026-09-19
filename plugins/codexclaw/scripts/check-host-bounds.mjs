@@ -14,7 +14,7 @@
  */
 import { existsSync, openSync, readSync, closeSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = resolve(here, "..", "test", "fixtures", "host-thread-bounds.json");
@@ -99,7 +99,8 @@ export function checkBounds(fixture, { appAsar, codexSource } = {}) {
   };
 }
 
-const invoked = process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop());
+// Same Windows trap as check-lane-packet.mjs: compare file URLs, not "/"-split basenames.
+const invoked = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 if (invoked) {
   const args = process.argv.slice(2);
   const fixture = JSON.parse(readFileSync(FIXTURE, "utf8"));

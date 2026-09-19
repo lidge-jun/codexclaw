@@ -22,6 +22,8 @@
  * overlapping write scopes. Exit 0 = valid, 1 = invalid or unreadable.
  */
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const text = (v) => typeof v === "string" && v.trim().length > 0;
 const list = (v) => Array.isArray(v) && v.length > 0 && v.every(text);
@@ -166,7 +168,9 @@ export function validateLanePacketSet(set, options = {}) {
   return { ok: errors.length === 0, errors, lanes: set.lanes.length };
 }
 
-const invoked = process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop());
+// Windows argv carries backslashes, so comparing basenames split on "/" silently decides
+// the CLI was never invoked and the process exits 0 with no output. Compare URLs instead.
+const invoked = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 if (invoked) {
   const args = process.argv.slice(2);
   const json = args.includes("--json");

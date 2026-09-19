@@ -189,6 +189,10 @@ test("the CLI exits 1 on an invalid packet and 0 on a valid one", () => {
     const fail = spawnSync(process.execPath, [script, bad], { encoding: "utf8", timeout: 20000 });
     assert.equal(fail.status, 1);
     assert.match(fail.stderr, /reporting is required/);
+    // The entrypoint check must not depend on path separators: a "/"-split basename
+    // comparison decides the CLI was never invoked on Windows and exits 0 silently.
+    const ok = spawnSync(process.execPath, [script, good], { encoding: "utf8", timeout: 20000 });
+    assert.match(ok.stdout, /lane-packet\] OK/, "the CLI produced no output, so its entrypoint check did not fire");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
