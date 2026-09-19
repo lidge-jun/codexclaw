@@ -15,9 +15,12 @@ its own format route. A one-page brief does not need a cover and contents page.
    When the report answers a question rather than reformatting supplied material,
    record the research handoff too (below). Composition begins after intake, not
    instead of it.
-2. Write a dot-dash storyline: answer first, then situation, complication,
-   supporting reasoning, alternatives, action and limits. Each main heading must
-   summarize its evidence. Read only those headings to test the argument.
+2. Write the storyline in the shape the genre asks for (REPORT-STORY-00 in
+   `report-writing.md`). A decision document opens with the answer, then situation,
+   complication, supporting reasoning, alternatives, action and limits. A research
+   synthesis runs question, method, evidence, conflict and what is unresolved; it does
+   not close on an action it has not earned. Each main heading summarizes its own unit.
+   Read only those headings to test the sequence.
 3. Apply REPORT-VOICE-01 before `kwrite`. Do not infer the designer's mind from
    line counts or architecture. Distinguish the observed mechanism, its likely
    consequence and a proposed change. Sentence polish must preserve that distinction.
@@ -140,7 +143,7 @@ nonempty `evidence` locator. Required IDs:
 | `pagination` | TOC, page furniture, table continuations, breaks and role-appropriate whitespace |
 | `visual-pages` | Render and inspect every final PDF page |
 | `claim-evidence` | Sources support claims; comparisons and causal strength are justified |
-| `editorial-review` | Fresh reader recovers answer, reason, action and limitations without author-intent narration |
+| `editorial-review` | Fresh reader recovers the answer, the reason, the limitations, and — where the genre calls for one — the action, without author-intent narration |
 
 ```sh
 node scripts/quality-gate.mjs /private/report.pdf /private/qa.json

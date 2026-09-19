@@ -16,7 +16,27 @@ Minto Pyramid Principle and McKinsey/Bain public report PDFs; KOFIA 조사분석
 analyst guidance and 白書 formats; GAO/GOV.UK/World Bank report anatomy; patina
 (`devswha/patina`, MIT) Korean AI-writing signs; textlint/Vale rule packages.
 
-## REPORT-STORY-01 The document is one argument (STRICT)
+## REPORT-STORY-00 Genre selects the structure (STRICT)
+
+Pick the genre before the structure, and let it decide the shape. These rules were
+written for a decision memo and were applied to everything, which pushed research
+syntheses, histories and reference material into a decisive headline and a closing ask
+they had not earned (issue #200).
+
+| Genre | Reader leaves with | Ends at |
+|---|---|---|
+| Decision memo | Status quo, alternatives, tradeoffs, triggers | The decision being asked |
+| Research synthesis | Questions, method, conflicting evidence, what is unresolved | What remains open |
+| Explanation / history | Mechanism or chronology, and the competing readings of it | Understanding, not an action |
+| How-to / reference | Steps or definitions | Task completion |
+
+Genre changes both the table of contents and the review questions. A research synthesis
+whose sections are claims ending at an ask has been converted into a decision memo, and
+its uncertainty has been spent.
+
+**REPORT-STORY-01 applies to decision memos and explanations; it is not universal.**
+
+## REPORT-STORY-01 A decision document is one argument (DEFAULT for decision genres)
 
 Answer-first (두괄식) and a felt storyline are not in tension. The answer opens
 the document; the sections then walk the reader from the situation they already
@@ -46,15 +66,26 @@ each heading summarizes what is under it, siblings are the same kind of idea, an
 their order is deductive, chronological, structural or by importance, chosen on
 purpose. Fix the outline until the dots alone persuade; only then write prose.
 
-## REPORT-STORY-02 Headings are claims that read in sequence (STRICT)
+## REPORT-STORY-02 Headings carry the unit's content (STRICT)
 
-Every H2 (section) and every exhibit title states the finding of that unit as a
-sentence a reader could disagree with. Topic labels ("지금 숫자가 말하는 것",
-"주차별 계획", "Market overview") and questions ("왜 AX팀이 왔는가") are not
-headings. Test the horizontal logic: read only the H2s from top to bottom; they
-must narrate the whole argument and end at the ask. Keep a heading to one line at
+Every H2 (section) and every exhibit title states what that unit establishes. In a
+decision document that is a finding: a sentence a reader could disagree with, and the
+H2s read top to bottom must narrate the argument and end at the ask.
+
+In a research synthesis the heading states the question or the finding, and the sequence
+ends at what is unresolved rather than at an ask. In a history it states what happened or
+what is contested. In a reference it names the thing being defined — and there a topic
+label is correct, not a defect.
+
+What no genre permits is a heading that carries nothing: a section called "Analysis" or
+"Overview" tells the reader only that words follow. Keep a heading to one line at
 heading size (roughly 15 English words or 30 Korean characters); put the number,
 period and scope in it when the claim depends on them.
+
+**Review the content, not the length.** Ask whether each section answers a question the
+others do not, whether the evidence supports what the heading asserts, and whether
+alternatives and uncertainty survive where they matter. A document with no numbers in it
+can pass all three; section count and page count answer none of them.
 
 | Label heading | Claim heading |
 |---|---|
