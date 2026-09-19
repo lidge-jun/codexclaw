@@ -18,6 +18,16 @@ Pass the concrete plan and scope; never let a subagent reconstruct the plan.
 Subagents return evidence and unresolved judgments; the main session decides and
 integrates. Dispatch only specifiable work whose coordination cost is justified
 (DISPATCH-ECONOMY-01).
+
+**DISPATCH-PROMOTE-01 (DEFAULT).** After checking a child's evidence, main records a
+short synthesis of what it accepted: the reusable result, the failure cause or
+procedure worth keeping, its provenance, and any claim still unresolved. This is not
+ceremony. A child session is excluded from the host's memory extraction candidates, so
+anything learned only inside a lane is learned only once — but main's own assistant
+messages and inter-agent communication are retained, which makes main's synthesis the
+available promotion route. Child completion is not verification; write what you
+verified, not what the child claimed. Durable memory writes keep using the existing
+explicit-request gate; do not add an automatic writer.
 Repository-only provenance for lifecycle, economy, isolation, skill transport and
 topology: `structure/20_pabcd_dispatch_doctrine.md` §3. This is not an installed
 prerequisite; do not assume the path exists inside the plugin payload. An explicitly
@@ -138,7 +148,7 @@ thread surface: a separate Codex task is not a bigger subagent. See
 | handle | returns `{ agent_id, nickname }`; address by `agent_id` |
 | wait | `wait_agent({ targets[], timeout_ms })` returns final status that **may carry the final message**; a timeout is a normal outcome, not failure evidence |
 | follow-up | `send_input({ target, message \| items, interrupt? })` |
-| stop | `close_agent({ target })`, returning the previous status |
+| stop | `close_agent({ target })`, returning the previous status — which, for a completed child, can contain the ENTIRE report |
 | restore | `resume_agent({ id })` |
 | history | `fork_context: true` copies the parent's history; default is prompt-only |
 
@@ -169,12 +179,28 @@ list still omitted it; re-confirmed the same day in a second session.
 | listing | `list_agents` |
 | history | `fork_turns: "none" \| "all" \| "<n>"`, not a boolean; a full-history fork inherits the parent model and rejects overrides |
 
-The wait difference is the one that bites, in two ways. On V1 you read the answer
-out of `wait_agent`; the same code on V2 returns a status summary and no text,
-which looks like a silent failure rather than a schema mismatch — on V2 the final
-answer arrives as a separate message. And V1's `wait_agent` waits on named
-`targets` while V2's waits on the whole mailbox, so a V1-shaped call carrying
-`targets` is not a valid V2 call at all.
+The wait difference is the one that bites, in two ways. On V1 the first complete report
+may arrive through the host notification OR through `wait_agent`; the same code on V2
+returns a status summary and no text, which looks like a silent failure rather than a
+schema mismatch — on V2 the final answer arrives as a separate message. And V1's
+`wait_agent` waits on named `targets` while V2's waits on the whole mailbox, so a
+V1-shaped call carrying `targets` is not a valid V2 call at all.
+
+**DISPATCH-CONSUME-ONCE-01 (DEFAULT).** On V1, consume a child's report once per child
+task per turn, from whichever surface delivered it first. Three surfaces can carry the
+same completed text and none of them can be told to stay quiet: the spawn-time watcher
+injects the completed status independently, `wait_agent` returns terminal statuses that
+may include the final message, and `close_agent` returns the status it captured before
+closing. There is no content-suppression argument on the wait.
+
+So: a wait already in flight can still hand you a duplicate of something you have
+already read — do not issue an extra wait solely to fetch a report you have. Do not skip
+`close_agent` to avoid the third copy either; a completed child holds a concurrency slot
+until closed, and running out of slots costs more than a repeated paragraph. Where the
+execution surface lets you project a result, emit only the status and error metadata for
+something already consumed. Deduplicating by agent id alone is wrong when an agent is
+reused for a second task, and the last copy you see may be the only one carrying an
+error, so never discard unread content.
 
 ### The thread surface is a different schema
 
