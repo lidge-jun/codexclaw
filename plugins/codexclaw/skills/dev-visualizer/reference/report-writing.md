@@ -2,14 +2,14 @@
 
 Use this reference for any multi-page report a person will read to decide
 something: client progress reports, research reports, proposals, review
-documents. `dev/references/reader-documents.md` (READER-DOC-01..05) owns the
+documents. [reader-documents.md](reader-documents.md) (READER-DOC-01..05) owns the
 reader contract and answer-first structure; this file owns what a report needs
 on top of that so it reads like a professional publication rather than a
 transcript of the work. Rule IDs are REPORT-*. STRICT rules are checked before
 delivery; DEFAULT rules are followed unless the user or a supplied template says
 otherwise.
 
-Sources inspected 2026-09-09 (ledger: `devlog/_plan/260909_visualizer_report_quality/`):
+Sources inspected 2026-09-09 (summary: [print-provenance.md](print-provenance.md#report-writing)):
 Minto Pyramid Principle and McKinsey/Bain public report PDFs; KOFIA 조사분석자료
 규정 and Samsung/SK/Kyobo Securities research PDFs; KDI, Bank of Korea issue notes;
 행정안전부 행정업무운영 편람 and 대통령비서실 보고서 작성 매뉴얼; Japanese securities

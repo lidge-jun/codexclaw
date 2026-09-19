@@ -38,7 +38,7 @@ A browser screenshot, successful open command or HTML file is not a PDF export.
 
 ## Build the reading order
 
-Structure follows [Reader documents](../../dev/references/reader-documents.md);
+Structure follows [Reader documents](reader-documents.md);
 the rest of this section is print-specific.
 
 Use a bounded text measure and a clear heading scale; avoid a cover that pushes
@@ -91,7 +91,7 @@ Measured engine support (2026-09-09, HeadlessChrome 152, `--print-to-pdf`):
 | `break-*`, `orphans`, `widows` | yes | yes | yes |
 | JavaScript charts before print | yes | yes | no |
 
-Probe: `devlog/_plan/260909_visualizer_report_quality/evidence/chrome-paged-probe.md`.
+Probe: [print-provenance.md](print-provenance.md#chromium-probe).
 
 The generic fragment below remains for single documents that are not reports:
 
@@ -129,7 +129,7 @@ Margin boxes, named pages and running headers differ across rendering engines.
 
 ### CJK print recipe (klreq / jlreq / clreq, Chromium print, 2026-09-09)
 
-Findings with sources are in `devlog/_plan/260909_visualizer_loop_merge/evidence/aside-G_cjk_typography.md`.
+Findings are summarised in [print-provenance.md](print-provenance.md#cjk-typography).
 What they settle for an A4 report rendered by Chromium:
 
 - Korean: word-based breaking (`word-break: keep-all`) for body text per klreq's

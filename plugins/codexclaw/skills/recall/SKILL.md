@@ -42,6 +42,9 @@ cxc chat index [--rebuild] [--status] [--json]
 cxc memory search "<query>" [--days N] [--limit N] [--any] [--no-synonyms]
                             [--cwd PATH] [--cwd-only PATH] [--no-chat] [--json]
                             [--home PATH]
+cxc memory status [--json] [--home PATH]
+cxc memory requeue [--apply] [--include-context-window] [--kind K] [--limit N]
+                   [--retries N] [--json] [--home PATH]
 ```
 
 Flags that live in the CLI USAGE and are easy to miss:
@@ -50,6 +53,17 @@ Flags that live in the CLI USAGE and are easy to miss:
   is newest-first.
 - `--full` — with `--json`, skip the 500-char clip.
 - `--home PATH` — search an alternate Codex home (default `$CODEX_HOME` ?? `~/.codex`).
+
+`cxc memory status` reports the HOST extraction pipeline, which is a different system
+from the recall index above: per-kind job counts, jobs that exhausted their retries
+bucketed by cause, and the newest success. It names the store it read, because the host
+supports more than one memories schema, and reports `unsupported` rather than guessing.
+
+`cxc memory requeue` returns dead-lettered jobs to that pipeline's retry queue. It is a
+**dry run unless you pass `--apply`**, because it writes to the live memory database.
+By default it selects only transient causes; `--include-context-window` is opt-in and
+usually a bad idea, since an input that did not fit the context window will not fit on a
+retry either — it just spends quota failing again.
 - `--json` on `cxc chat index` prints index status as JSON.
 
 Defaults that matter:
