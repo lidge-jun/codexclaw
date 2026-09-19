@@ -6,14 +6,86 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.29] - 2026-09-19
+
+### Added
+
+- `cxc memory status` reports the host memory extraction pipeline: per-kind job
+  counts, jobs that exhausted their retries bucketed by cause, and the newest
+  success. It names the store it read, because the host supports more than one
+  memories schema and can dual-write, and reports `unsupported` on an unfamiliar
+  schema rather than guessing. It deliberately publishes no eligible-backlog
+  number: host eligibility depends on source, age, idle time, memory mode and
+  current-thread exclusion, none of which are visible to a reader (#187).
+- SessionStart emits one bounded line when extraction is stale or jobs have
+  exhausted their retries, and stays silent otherwise. An unreadable store also
+  stays silent rather than implying the project has no memories (#185).
+- `cxc-dev` §3 gains DEV-CI-EVIDENCE-01: five ways hosted CI reports nothing
+  while looking green, the identifying facts required before claiming it passed,
+  and the route for reading a completed job's log while its workflow is still
+  running. The escape-sequence flag is documented as version-conditional
+  (#195, #197).
+- `cxc-pabcd` `references/dispatch-surfaces.md` gains DISPATCH-LANE-ID-01,
+  DISPATCH-WAKE-01 and DISPATCH-POLL-BUDGET-01; `references/delegation.md` gains
+  DISPATCH-CONSUME-ONCE-01 and DISPATCH-PROMOTE-01 (#189, #192, #193, #194, #198).
+
 ### Changed
+
+- `dev` is protected from deletion by a repository ruleset. The cleanup script
+  already listed `dev` among protected branches; the exposure was configuration,
+  since `delete_branch_on_merge` was enabled with no rule covering the branch, so
+  GitHub deleted it whenever a promotion merged. The release guide now states the
+  pre-merge check, the post-merge recheck, and that merging does not start a
+  release — `release.yml` triggers only on `workflow_dispatch` with `version` and
+  `expected_sha`, or a `v*` tag (#175).
+- `cxc-dev` §8 widens from token budget to resource budget: parallel lanes and
+  the task observing them share one external allowance, so polling competes with
+  the work being polled (#194).
+
+### Fixed
+
+- The `apply_patch` comment lint applied its code patterns to every added line
+  without knowing the target file, so ordinary English matched the cast pattern
+  and prose was denied — including the bug report describing it. Added lines now
+  carry their target, set by the native file directives and unified headers and
+  reset at each boundary, and prose targets skip the code patterns. Source files
+  stay linted wherever they live, and all three patterns were fixed rather than
+  only the reported one (#196).
+- The `hook-trust` doctor check downgraded a stale recorded hash to a warning and
+  reported that hooks still run. The host excludes both untrusted and modified
+  hooks from execution unless trust is bypassed, so operators were told a guard
+  was live when it was not. Both now fail, with separate counts and repairs
+  preserved, and the evidence states that execution itself was not verified (#186).
+- `buildCwdContext` returned an empty string for a project with no history and for
+  an index that could not be read, so a broken index presented as an empty
+  project. The outcome is now distinguished; an empty project still injects
+  nothing (#190).
+- `export-paged-report.mjs` handed a destination inside a missing directory to
+  Chromium, whose failure named the browser for a filesystem problem. The output
+  directory is prepared first, and a regular file occupying that path fails
+  naming the directory. `--qa-only` creates nothing (#181).
+
+### Known limitations
+
+- #199, #200 remain open. They must extend the publication report model that
+  exists on an unmerged branch, and recovering it is a runtime migration of
+  roughly 1,150 lines that changes exporter exit semantics. Deferred deliberately
+  rather than rushed; see `devlog/_plan/260919_issue_sweep/061_wp7_recovery_decision.md`.
+- #188 remains open. 35 of the 52 retry-exhausted memory jobs failed on context
+  window, and a plain requeue repeats that failure unchanged.
+- #191 remains open. The authentication/routing mismatch in the host quota guard
+  is real and untouched here; the bypass proposed in the issue does not work,
+  because the guard rejects a reached limit before the threshold arithmetic.
+- #182, #183, #184 remain open.
+
+### Changed (phase control)
 
 - Formal P now requires an architect proposal, a main-owned executable plan and
   reflection by the same architect before independent audit. C0/C1 fast paths and
   explicit user limits keep their existing precedence; this adds guidance, not a
   runtime gate.
 
-### Fixed
+### Fixed (dispatch and retirement)
 
 - Native V2 spawn hooks preserve canonical Fernet-shaped task messages without
   appending plaintext skill affordances or leaf guards. Structural validation
