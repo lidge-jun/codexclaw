@@ -20,8 +20,35 @@ Release workflow.
    `node plugins/codexclaw/scripts/inventory.mjs --write --tests <n>`. Take `<n>`
    from the `tests` line of a real run, not `pass` - CI skips the repo-map live
    smoke, so `pass` is environment-dependent while `tests` is not.
-4. Open the promotion PR from `dev` to `main` and merge it once checks are green.
-5. Run the Release workflow against `main`.
+4. Confirm `dev` is protected from deletion **before** merging the promotion PR:
+
+   ```sh
+   gh api repos/lidge-jun/codexclaw/rules/branches/dev
+   ```
+
+   It must list an enforced `deletion` rule. The repository has
+   `delete_branch_on_merge` enabled, so an unprotected `dev` is deleted by GitHub the
+   moment the promotion merges, and the next cycle has no integration branch to target.
+   The `protect-dev` ruleset exists for exactly this and is deliberately narrow: it
+   carries the deletion rule only, so ordinary merged-feature cleanup keeps working and
+   `protect-main`'s unrelated status-check requirements are not imposed on `dev`.
+5. Open the promotion PR from `dev` to `main` and merge it once checks are green.
+   Then immediately re-read `gh api repos/lidge-jun/codexclaw/branches/dev`. The merge
+   is the only moment the protection is actually exercised, so this is the one check
+   that cannot be done in advance.
+6. Run the Release workflow against `main`. **Merging does not start it.** The workflow
+   triggers only on `workflow_dispatch` or a `v*` tag push, and the dispatch inputs
+   `version` and `expected_sha` are both required — `expected_sha` fails the run if
+   `main` moved after you audited it:
+
+   ```sh
+   gh workflow run release.yml --repo lidge-jun/codexclaw --ref main \
+     -f version=<version> -f expected_sha=<main SHA> -f prerelease=false -f dry_run=true
+   ```
+
+   Dispatch with `dry_run=true` first. The gate runs without publishing, which is the
+   cheapest way to find a missing receipt. Then repeat with `dry_run=false` and read
+   that dispatch's own run conclusion — not the newest run in the list.
 
 ## What the gate actually checks
 
