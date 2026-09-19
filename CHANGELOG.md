@@ -28,8 +28,8 @@ A dispatched lane may now run its own loop, and the packet that says so is check
 - `scripts/check-host-bounds.mjs` plus `test/fixtures/host-thread-bounds.json` record the
   measured surface — `wait_threads` 1-8 targets and 0-120000 ms, `read_thread` 1-10 turns
   and 0-20000 chars, `list_threads` 1-50, `get_handoff_status` 0-60000 ms, worktree
-  retention 15, the six-subagent session cap — and re-derive each from `app.asar` and the
-  `codex-rs` sources. An absent artifact reports NOT RUN and never PASS.
+  retention 15, the default six-subagent session cap — and re-derive each from `app.asar`
+  and the `codex-rs` sources. An absent artifact reports NOT RUN and never PASS.
 - `dispatch-surfaces.md` gains DISPATCH-FANOUT-CAP-01: branches are the cheap axis — no
   host-wide task cap was found — while subagents fail outright past six per session.
 

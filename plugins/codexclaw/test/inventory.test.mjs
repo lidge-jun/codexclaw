@@ -181,7 +181,7 @@ function rewriteTestsBadge(dir, count) {
   for (const f of ["README.md", "README.ko.md", "README.zh.md"]) {
     const p = join(dir, f);
     const body = readFileSync(p, "utf8").replace(
-      /(badge\/tests-)([\d%C,]+)(_passing)/g,
+      /(badge\/tests-)([\d%C,]+)(-)/g,
       (_m, a, _b, c) => a + pretty + c,
     );
     writeFileSync(p, body);
