@@ -15,3 +15,15 @@ Same procedure as 0.2.32, recorded here so the phase does not re-derive it.
 6. Wait for CI, Packed install lifecycle and WSL to be green on the exact merge SHA.
 7. `gh workflow run release.yml --ref main -f version=0.2.33 -f expected_sha=<FULL 40-char SHA>`.
    A short SHA fails the dispatch guard — that is measured, not theoretical.
+
+## Two traps this release paid for
+
+- **The dispatch guard compares strings, not commits.** `release.yml:91-93` tests
+  `"$EXPECTED_SHA" != "$GITHUB_SHA"`, so an abbreviated SHA fails with "main moved after
+  the release audit" even when `main` did not move. Measured on run `35456348666` during
+  the 0.2.32 dispatch.
+- **A CLI entrypoint check must not split `argv` on `/`.** Windows argv uses backslashes,
+  so `import.meta.url.endsWith(argv[1].split("/").pop())` is false, the CLI body never
+  runs, and the process exits 0 with no output — which reads as a passing script. Compare
+  file URLs instead. Two reviewer rounds missed this; the Windows CI shards caught it
+  (`39409c8d`). Any new script with a CLI needs a test that asserts it actually printed.
