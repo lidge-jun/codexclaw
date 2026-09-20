@@ -18,6 +18,13 @@ unreachable, never as done.
 
 ## Procedure per host
 
+Use `plugins/codexclaw/scripts/remote-dev-install.sh <host> [--shell zsh|bash] [--check]`,
+which performs the steps below and refuses rather than repairing: it stops on a missing
+checkout, a branch that is not `dev`, or any uncommitted change, and it compares the
+version the host reports afterwards with the version its checkout declares. `--check` runs
+only the read-only half. It cannot see doctor failures, because `dev-install.sh` does not
+propagate them.
+
 1. Ensure a checkout. Where one exists, `git fetch origin && git switch dev && git pull
    --ff-only`; never reset, never force. Where none exists, clone to
    `~/Developer/codexclaw` and check out `dev`. Preserve any dirty tree: if the pull is not

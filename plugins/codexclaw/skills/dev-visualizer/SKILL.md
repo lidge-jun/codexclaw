@@ -1,9 +1,9 @@
 ---
 name: cxc-dev-visualizer
-description: "Create well-composed visual documents, HTML reports, SVG diagrams, charts, interactive explainers and PDF deliverables. Use for visualize, visual explanations, architecture diagrams, comparison reports, infographics, document creation, 시각화, 그려줘, 문서 만들어줘, 보고서, PDF 생성. Preserve explicit formats and templates; text-only requests and ordinary code changes do not need a visual."
+description: "Create well-composed visual documents, HTML reports, SVG diagrams, charts, interactive explainers and PDF deliverables. Use for visualize, visual explanations, architecture diagrams, comparison reports, infographics, document creation, 시각화, 그려줘, 문서 만들어줘, 보고서, PDF 생성. Preserve explicit formats and templates; text-only requests and ordinary code changes do not need a visual. A simple inline or static artifact ships without a render round trip; rendered proof is for computed and exported output."
 metadata:
-  last-verified: "2026-09-09"
-  short-description: "Visual documents, SVG/HTML explainers and verified PDF delivery."
+  last-verified: "2026-09-20"
+  short-description: "Visual documents, SVG/HTML explainers and PDF delivery, verified in proportion."
   keywords: [diagram, visualization, visualize, document, report, SVG, HTML, PDF, interactive, cover, contents, storyline]
 ---
 
@@ -129,13 +129,33 @@ CDN and environment defaults are not requirements. The shell helper wraps truste
 local content, is not a sanitizer or inline-fragment generator, and needs an explicit
 authorized output path for durable delivery. Do not install it as a prerequisite.
 
-## Verify what the reader receives
+## Verify in proportion to what can break
 
-**DIAGRAM-RENDER-VERIFY-01:** render the final artifact, read the screenshot/page,
-fix clipping, collisions, empty charts and runtime errors. Inspect the longest
-labels at narrow and wide widths appropriate to the artifact; for responsive
-HTML include 320/736px and the intended desktop size. SVG text must remain legible
-at its intended display/export sizes, not merely within a valid viewBox.
+**VIZ-VERIFY-SCALE-01 — the proof matches the failure it would catch.** Rendering an
+artifact and reading the result costs a round trip, and much of what this skill
+produces cannot fail out of sight: the reader sees an inline visual before a
+screenshot could reach you, and a static page in normal flow shows its own text.
+Spend the round trip where the visible result is computed rather than written.
+
+| Delivering | Before delivery |
+|---|---|
+| An inline visual in this conversation, or a fenced diagram the host renders | Reread the source once and send it. The reader's screen is the render. |
+| A small static HTML/SVG page in ordinary flow — prose, tables, hand-placed shapes, no runtime data, no library, no export | Reread the source, save it, return the link. |
+| Anything whose visible result is computed — marks drawn from data, connector geometry derived from rendered bounds, a runtime library or webfont, an input that changes the output | DIAGRAM-RENDER-VERIFY-01 in full. |
+| Anything that leaves the conversation to be read elsewhere — PDF, print output, a multi-page report, a published or forwarded document | DIAGRAM-RENDER-VERIFY-01 and a stated assurance profile. |
+
+Two rules hold in every tier. An unrun check is never written up as a passed one:
+"not rendered — static HTML in normal flow" is honest, "verified" is not. And a
+defect promotes the artifact: once the reader reports something wrong, or a first
+render shows it, render each further fix before sending it. Nothing here is enforced
+by a hook, and the calling task's own verification gate still governs its work.
+
+**DIAGRAM-RENDER-VERIFY-01 — for the computed and exported tiers, and for any
+artifact you have reason to doubt:** render the final artifact, read the
+screenshot/page, fix clipping, collisions, empty charts and runtime errors. Inspect
+the longest labels at narrow and wide widths appropriate to the artifact; for
+responsive HTML include 320/736px and the intended desktop size. SVG text must remain
+legible at its intended display/export sizes, not merely within a valid viewBox.
 
 For interaction, change the primary input and observe the resulting marks/values;
 exercise keyboard access and reset when provided. A static screenshot is not
@@ -159,8 +179,10 @@ invent a Mermaid CLI parse command or install a runner just for incidental proof
 
 **DIAGRAM-A11Y-01:** provide names/descriptions, meaningful heading order, data/text
 alternatives, visible keyboard focus, non-color meaning, readable contrast and
-reduced motion where applicable. Inspect actual contrast and reading order;
-adding ARIA does not establish accessibility conformance.
+reduced motion where applicable. These are composition decisions and apply to the
+smallest inline visual. The separate inspection pass — reading actual contrast and
+reading order in the rendered result — belongs to the tiers that already render;
+adding ARIA does not establish accessibility conformance either way.
 
 ## Deliver and retain provenance
 
