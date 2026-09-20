@@ -6,6 +6,28 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.34] - 2026-09-20
+
+Visual verification now costs what the artifact can actually lose.
+
+### Changed
+
+- `cxc-dev-visualizer` replaces the flat render obligation with VIZ-VERIFY-SCALE-01,
+  four tiers keyed to how the artifact can fail. An inline visual or a host-rendered
+  diagram ships after rereading its source, and so does a small static HTML/SVG page in
+  ordinary flow with no runtime data, library or export. A computed result — marks drawn
+  from data, connector geometry derived from rendered bounds, a runtime library or
+  webfont, an input that changes the output — still earns the full pass, and so does
+  anything that leaves the conversation as a file. `DIAGRAM-RENDER-VERIFY-01` keeps its
+  ID and procedure and now names the tiers that call for it.
+- Two invariants keep the relief honest: an unrun check is never written up as a passed
+  one, and a reported or observed defect promotes the artifact to the rendered tier for
+  every further fix.
+- `DIAGRAM-A11Y-01` splits the same way. The composition decisions — names, heading
+  order, text alternatives, non-color meaning, contrast, reduced motion — still apply to
+  the smallest inline visual; only the separate inspection pass moves to the tiers that
+  already render.
+
 ## [0.2.33] - 2026-09-20
 
 A dispatched lane may now run its own loop, and the packet that says so is checkable.
