@@ -1,5 +1,8 @@
 # 001 — Reinstall evidence
 
+Superseded by `002_release_0_2_34.md` for the published build. This section records the
+pre-release dev install of `aa58601e`; every host was reinstalled again at 0.2.34.
+
 Commit `aa58601e` on `dev`, manifest `0.2.33+codex.20260920193715`. Each host pulled
 `dev` fast-forward only and ran `scripts/dev-install.sh` through a login shell via
 `plugins/codexclaw/scripts/remote-dev-install.sh`, then reported its own installed
