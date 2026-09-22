@@ -9,7 +9,7 @@ they do not establish that the conversation supports a renderer.
 | Host explicitly supports the needed Mermaid type | Normal fenced Mermaid |
 | Current `visualize` skill is exposed and the request is in-conversation | Read it fully; follow its current fragment/path/resource/reference contract |
 | User asks for a standalone HTML/SVG/PDF file | Create that file in an authorized durable output directory |
-| Browser is available, inline rendering is not established | Inspect the standalone artifact in that browser and return its file link |
+| Browser is available, inline rendering is not established | Return the standalone file; inspect in-browser only for computed/exported output or a reported defect (VIZ-VERIFY-SCALE-01) |
 | No renderer/exporter is available | Provide useful editable source/text and state which verification/output is unavailable |
 
 An exposed host contract takes priority over `reference/visualize-contract.md`.
@@ -17,7 +17,11 @@ Do not emit historical directives, assume an app version, or use a local server'
 health response as proof that the user is reading its UI. The embedded contract
 and its extractor are maintenance provenance, not an alternative renderer owner.
 
-## Files and browser inspection
+## Files and conditional browser inspection
+
+Simple static HTML/SVG in normal flow needs source review only. Browser availability
+does not add a mandatory visual check. The inspection instructions below apply when
+the entrypoint selects computed/exported verification or the user asks for it.
 
 - Use an absolute path on the executor that writes the file. A writable file is
   not automatically conversation-readable; follow the host's declared artifact path.

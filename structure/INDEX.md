@@ -93,6 +93,7 @@ opencodex (`ocx`) is adjacent but optional. opencodex is a local provider proxy 
 | Subagent config | `plugins/codexclaw/components/subagent-config/src/` | role model/prompt config, MCP tools, catalog |
 | Messenger bridge | `plugins/codexclaw/components/messenger-bridge/src/` | loopback GUI/API server, messenger agents, project bridge DB |
 | Skills | `plugins/codexclaw/skills/` | `$cxc-*`, display_name autocomplete, dev routers |
+| Visualizer maintenance | [Port workflow](../plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md) | Shared fixes in codexclaw first; Aside port and downstream verification before issue closure |
 | Subagent roles | `plugins/codexclaw/agents/` | explorer, reviewer, executor, architect inline prompts |
 
 ---
@@ -313,9 +314,14 @@ Native architect registration is owned by
 explicitly publishes its canonical prompt and read-only sandbox configuration, with
 managed-file preservation. The shared registrar also supports executor. Registration
 omits model/effort pins; architect CXC settings remain independent. Verify a fresh
-session exposes architect before dispatch; no explorer/reviewer alias fallback.
+session exposes architect before native typed dispatch; no explorer/reviewer alias fallback.
+When the live schema has no `agent_type`, V1 instead carries `CXC-ROLE: architect`
+in its supported message/text-items, with dev/dev-architecture attachments and
+explicit read-only, no-child and no-goal/FSM constraints. This supported logical
+role needs no exception approval or registration and does not claim native sandbox
+isolation. A typed schema missing architect still has an unmet native setup requirement.
 
-Subagent role TOMLs live under `plugins/codexclaw/agents/`: `explorer`, `reviewer`, `executor`, and `architect`. They are canonical prompt sources, not auto-registered plugin roles. Codex plugin manifests expose `skills`, `hooks`, `mcpServers`, and apps; codexclaw uses inline prompt injection for its existing `explorer`/`worker` mappings and explicit registration for the independent native `architect` role.
+Subagent role TOMLs live under `plugins/codexclaw/agents/`: `explorer`, `reviewer`, `executor`, and `architect`. They are canonical prompt sources, not auto-registered plugin roles. Codex plugin manifests expose `skills`, `hooks`, `mcpServers`, and apps; codexclaw uses inline prompt injection for logical roles and explicit registration for the independent native `architect` role. The native mappings below apply only when the live schema exposes them; write scopes remain task constraints on untyped V1.
 
 | Role | Codex `agent_type` | Writes | Purpose |
 |------|--------------------|--------|---------|

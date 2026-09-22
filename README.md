@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C323-brightgreen" alt="3,323 tests">
+  <img src="https://img.shields.io/badge/tests-3%2C480-brightgreen" alt="3,480 tests">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
   <img src="https://img.shields.io/badge/hooks-28-blue" alt="28 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -43,7 +43,7 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 Architect proposes design and checks main's plan for alignment in each formal P plan; main owns the executable plan and decisions, and the independent reviewer retains A audit. It reuses one context per plan and rechecks only recorded design-decision changes. This is agent-followed guidance, not runtime enforcement. See the [planning lifecycle](plugins/codexclaw/skills/pabcd/references/phase-plan.md).
 
-Architect uses its own native `agent_type: "architect"`. Before first use, explicitly run `cxc subagents register architect`, start a fresh Codex session, and verify the role appears in the spawn schema. It uses architect settings and never falls back to explorer/reviewer. Registration is separate from plugin installation and is never performed by dispatch.
+Architect follows the live spawn schema. When native `agent_type: "architect"` is exposed, use it. On V1 without an `agent_type` field, use `CXC-ROLE: architect` in the supported message or text item, attach `dev` and `dev-architecture`, and state the read-only task constraints. This logical role needs no exception approval or registration; it does not claim a native read-only sandbox. A typed schema missing architect still needs authorized `cxc subagents register architect`, a fresh session and a live-schema check, without aliasing explorer/reviewer. Registration is never performed by dispatch. Design consultation and independent audit remain separate.
 
 Subagent settings resolve **per role: project → global → original session**. Open **Global Settings** to edit user defaults in `$CODEXCLAW_HOME/subagents.json` (default `~/.codexclaw/subagents.json`). The existing **Subagents** page edits `<project>/.codexclaw/subagents.json`: each model dropdown offers **Main model**, **Global settings**, and individual models. Global settings follows the entire role's defaults, including effort and prompt; choose a main/direct model to customize that project role. Existing explicit project entries and `effort: null` retain their meaning. Main model changes only the model source; session effort separately inherits the original session's effort.
 
@@ -230,7 +230,7 @@ Every coding task is classified (C0-C5) before process depth is chosen. The pare
 
 Each router carries its own modular references (loaded on demand, never preloaded) and inherits the parent's verification gate, rule classes, and safety rules.
 
-**Visualizer scope — no independent action.** `dev-visualizer` is codexclaw's port of the Aside visualizer work; the standalone `aside-visualizer` repository stays Aside's own, and codexclaw neither runs its roadmap nor keeps a second copy of it. The skill has no independent mandate: it composes and verifies the artifact the calling task asked for, and it does not open repositories of its own, install itself, publish, export or deploy anything unasked, or start its own loop. Verification depth is a stated choice too — pick a `draft`, `standard` or `publication` receipt profile instead of charging every document the full page-by-page review.
+**Visualizer maintenance — codexclaw first, Aside follows.** Shared fixes are implemented and verified here before they are ported to `aside-visualizer`; an Aside issue closes only after the downstream port is merged and its acceptance criteria are verified. Preserve Aside’s host adapters and standalone/no-Chrome paths. See the [port workflow](plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md). This is a maintenance direction, not permission for independent action: ordinary artifact requests do not authorize repository work, installation, publication or a separate loop. Pick a `draft`, `standard` or `publication` assurance profile for the requested artifact.
 
 ## CLI
 

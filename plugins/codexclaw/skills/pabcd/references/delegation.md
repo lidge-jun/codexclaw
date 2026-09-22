@@ -246,14 +246,36 @@ Architect is a configurable logical role, with `dev` and `dev-architecture` as i
 base skills. It proposes design and checks reflection; it cannot write, own the goal
 or FSM, spawn children, or replace the main's judgment or independent reviewer.
 
-Architect dispatch requires `agent_type: "architect"` in the live schema. If it is
-missing, report the unmet setup requirement: explicitly register with
-`cxc subagents register architect`, start a fresh session, and verify the exposed
-role. Registration is a separate authorized installation action; never perform it
-as a hidden dispatch side effect or substitute explorer/reviewer. A schema without
-an architect role cannot satisfy this dispatch contract. Include the structured
-packet and existing skill attachments; the message may retain `CXC-ROLE: architect`
-for provenance, but native type owns architect routing even without that marker.
+Select architect transport from the live spawn schema:
+
+- If `agent_type: "architect"` is exposed, use it. Native type owns architect
+  routing even without a message marker.
+- If the schema has no `agent_type` field, as on V1, use the supported `message`
+  or text-`items` channel with a leading `CXC-ROLE: architect` before `TASK:`.
+  Attach `dev` and `dev-architecture` and include the read-only, no-child and
+  no-goal/FSM constraints in the task packet. This is supported logical architect
+  dispatch, not an exception requiring user approval, registration or restart.
+- If the schema supports `agent_type` but does not expose architect, report the
+  unmet native setup requirement. With installation authorization, run
+  `cxc subagents register architect`, start a fresh session and verify the role.
+  Never register as a hidden dispatch side effect or substitute explorer/reviewer.
+
+Logical read-only scope is an instruction, not a native sandbox permission profile.
+If the user or host requires native isolation that this transport cannot provide,
+report that concrete gap; do not claim equivalent protection. Include the structured
+packet and existing skill attachments on either supported route. Real consultation,
+same-architect reflection and independent audit remain required; a prompt label
+alone does not complete them.
+
+Before reporting a blocker, distinguish missing transport fields from missing work
+or protection. A supported no-`agent_type` dispatch with the actual proposal,
+same-agent reflection and independent review satisfies those consultation steps.
+Do not discard that evidence, ask for a native-role exception, or mark a loop
+blocked solely because the tool has no role field. Transport adaptation within
+the already authorized task is not a new permission request; preserve applicable
+user approvals across continuations. Missing consultation output, failed calls,
+or an explicitly required protection that cannot be provided remain real gaps.
+
 The same header supports read-only `reviewer` and `explorer` routing. Explicit native
 write/reviewer roles take precedence; a message marker cannot select a write role.
 Keep `CXC-ROLE:` lines out of role prompt overrides: injected override text can shift

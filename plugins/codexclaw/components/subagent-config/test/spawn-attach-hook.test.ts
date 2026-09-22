@@ -1250,11 +1250,22 @@ test('architect hook routing preserves explicit overrides, full forks, and repea
     architect: { mode: 'model', model: 'architect-fixture', effort: 'high', promptOverride: null },
     reviewer: { mode: 'model', model: 'reviewer-fixture', effort: 'low', promptOverride: null },
   });
-  for (const shape of [{}, { task_name: 'architect_plan', fork_turns: 'none' }]) {
-    const input = { ...shape, agent_type: 'explorer', message: 'CXC-ROLE: architect\n\nReview interface decisions' };
+  const message = 'CXC-ROLE: architect\n\nReview interface decisions';
+  const inputs = [
+    { message },
+    { items: [{ type: 'text', text: message }] },
+    { agent_type: 'explorer', message },
+    { task_name: 'architect_plan', fork_turns: 'none', agent_type: 'explorer', message },
+  ];
+  for (const input of inputs) {
     const first = updatedInputOf(runSpawnAttachHook(spawnPayloadAt(cwd, input)));
     assert.equal(first.model, 'architect-fixture');
     assert.equal(first.reasoning_effort, 'high');
+    if (!('agent_type' in input)) {
+      for (const field of ['agent_type', 'task_name', 'fork_turns']) assert.ok(!(field in first));
+      assert.equal('items' in first, 'items' in input, 'preserve the supported input channel');
+      assert.equal('message' in first, 'message' in input, 'do not mix message and items');
+    }
     const repeated = runSpawnAttachHook(spawnPayloadAt(cwd, first));
     assert.equal(repeated, '', 'unchanged input produces no replacement envelope');
     const explicit = updatedInputOf(runSpawnAttachHook(spawnPayloadAt(cwd, { ...input, model: 'caller-fixture', reasoning_effort: 'medium' })));

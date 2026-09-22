@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "id": "research-ko",
+  "genre": "research",
+  "language": "ko",
+  "localeConfig": {
+    "sourceLanguages": ["ko"], "outputLanguage": "ko", "locale": "ko-KR", "paperSize": "A4",
+    "formats": {
+      "date": { "dateStyle": "long", "timeZone": "UTC" },
+      "number": { "maximumFractionDigits": 1, "useGrouping": true },
+      "currency": { "currencyDisplay": "symbol", "minimumFractionDigits": 0, "maximumFractionDigits": 0, "useGrouping": true },
+      "unit": { "maximumFractionDigits": 1, "useGrouping": true, "separator": " " }
+    }
+  },
+  "title": "두 가상 코호트의 근거는 아직 한 방향으로 모이지 않는다",
+  "summary": "가상 연구 A는 200명 중 74명, 연구 B는 200명 중 62명에게서 목표 행동을 관찰했다. 표본 구성과 관측 기간이 달라 비교가 제한되며, 이 종합은 무엇이 미해결인지까지만 확인할 수 있다.",
+  "sections": [{
+    "id": "evidence",
+    "title": "두 코호트 모두 목표 행동을 관찰했지만 설계 차이가 비교를 제한한다",
+    "paragraphs": [
+      "연구 A와 B 모두 목표 행동을 관찰했지만 표본 구성과 관측 기간이 달랐다. 두 수치를 단순 합산하면 서로 다른 질문을 하나의 추정치처럼 보이게 한다.",
+      "현재 자료는 후속 비교의 우선순위를 정할 수 있지만 개입의 인과 효과나 전체 모집단의 효과 크기를 확정하지 못한다."
+    ],
+    "claimIds": ["C1", "C2"], "factIds": ["F1", "F2"]
+  }],
+  "sourceNotes": [
+    { "id": "S1", "locator": "illustrative:research/cohort-a", "text": "가상 14일 관찰 코호트 A" },
+    { "id": "S2", "locator": "illustrative:research/cohort-b", "text": "가상 30일 관찰 코호트 B" }
+  ],
+  "figures": [{
+    "id": "research-evidence", "sectionId": "evidence",
+    "caption": "그림 1. 두 코호트는 목표 행동을 관찰했지만 관측 기간이 달라 합산할 수 없다.",
+    "accessibleDescription": "표본 구성과 관측 기간이 다른 가상 코호트에서 A는 14일 동안 200명 중 74명, B는 30일 동안 200명 중 62명에게서 목표 행동을 관찰했다. 두 값은 통합하지 않았다.",
+    "factIds": ["F1", "F2"], "sourceRefs": ["S1", "S2"]
+  }],
+  "quotations": [{
+    "id": "QTE1", "sectionId": "evidence", "text": "두 코호트는 같은 효과를 추정하지 않는다.",
+    "originalText": "두 코호트는 같은 효과를 추정하지 않는다.", "sourceLanguage": "ko", "sourceRef": "S2",
+    "translated": false, "translationMarker": "한국어 원문"
+  }],
+  "limitations": [
+    "모든 수치는 형식 검증을 위한 가상 자료다.",
+    "관측 기간과 표본 구성이 달라 통합 효과를 계산하지 않았다.",
+    "미측정 교란 때문에 인과 강도를 판단할 수 없다."
+  ],
+  "semantics": {
+    "questionIds": ["Q1", "Q2"], "sourceIds": ["S1", "S2"],
+    "claims": [
+      { "id": "C1", "text": "두 코호트에서 목표 행동이 관찰됐다.", "strength": "observation", "strengthLabel": "관찰", "qualification": "heterogeneous-illustrative", "qualificationText": "가상 코호트이며 설계와 기간이 다름" },
+      { "id": "C2", "text": "현재 근거로 통합 인과 효과를 확정할 수 없다.", "strength": "inference", "strengthLabel": "제한적 해석", "qualification": "no-pooling-no-causality", "qualificationText": "통합 추정과 인과 해석을 하지 않음" }
+    ],
+    "facts": [
+      { "id": "F1", "claimId": "C1", "label": "코호트 A 목표 행동", "raw": 74, "kind": "unit", "unit": "participant", "displayUnit": "명", "denominator": "200-participants-cohort-a", "denominatorText": "코호트 A 200명 기준", "qualification": "illustrative-14-day-observational", "qualificationText": "가상 14일 관찰 코호트" },
+      { "id": "F2", "claimId": "C1", "label": "코호트 B 목표 행동", "raw": 62, "kind": "unit", "unit": "participant", "displayUnit": "명", "denominator": "200-participants-cohort-b", "denominatorText": "코호트 B 200명 기준", "qualification": "illustrative-30-day-observational", "qualificationText": "가상 30일 관찰 코호트" }
+    ]
+  }
+}

@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C323-brightgreen" alt="3,323 tests">
+  <img src="https://img.shields.io/badge/tests-3%2C480-brightgreen" alt="3,480 tests">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
   <img src="https://img.shields.io/badge/hooks-28-blue" alt="28 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -43,7 +43,7 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 Architect는 정식 P 단계마다 설계를 제안하고 메인의 실행 계획이 설계와 맞는지 확인한다. 메인이 실행 계획과 최종 결정을 맡고, 독립 reviewer가 A 감사를 맡는다. 같은 계획에서는 문맥을 재사용하며, 기록된 설계 결정이 바뀔 때만 다시 확인한다. 이는 에이전트가 따르는 지침이며 런타임 강제 검사가 아니다. [계획 흐름](plugins/codexclaw/skills/pabcd/references/phase-plan.md)을 참고한다.
 
-Architect는 독립 역할인 `agent_type: "architect"`로 호출한다. 처음 쓰기 전에 `cxc subagents register architect`로 명시적으로 등록하고, 새 Codex 세션에서 역할 목록에 architect가 나타나는지 확인한다. architect 전용 설정을 쓰며 explorer/reviewer로 대체하지 않는다. 등록은 플러그인 설치와 별개이며 호출 중 자동으로 실행하지 않는다.
+Architect는 현재 호출 도구가 지원하는 형식에 맞춰 사용한다. `agent_type: "architect"`가 있으면 해당 네이티브 역할을 쓴다. `agent_type` 필드가 없는 V1에서는 message나 텍스트 item에 `CXC-ROLE: architect`를 넣고 `dev`·`dev-architecture` 스킬과 읽기 전용 작업 범위를 명시한다. 이 논리 역할은 예외 승인이나 등록이 필요 없으며, 네이티브 읽기 전용 샌드박스를 선택했다는 뜻은 아니다. `agent_type`은 있지만 architect가 없는 도구에서는 승인된 `cxc subagents register architect` 실행 후 새 세션에서 역할을 확인한다. explorer/reviewer로 바꾸거나 호출 중 자동 등록하지 않는다. 설계 검토와 독립 감사는 별도로 수행한다.
 
 **Recall** — 사용자에게 다시 묻기 전에 디스크 아티팩트에서 과거 Codex 대화와 메모리 저장소를 검색한다. 세션이 바뀌거나 컨텍스트가 압축돼도 이전 맥락을 이어 간다.
 
@@ -220,7 +220,7 @@ _PATH 수준 `cxc` 진입점(`bin/codexclaw.mjs` + `cli/` 워크스페이스)은
 
 각 라우터는 필요할 때만 불러오는 자체 모듈형 참고 자료를 갖추고 있으며, 부모 스킬의 검증 게이트, 규칙 등급, 안전 규칙을 물려받는다.
 
-**비주얼라이저 범위 — 독립 행동 금지.** `dev-visualizer`는 Aside 쪽 비주얼라이저 작업을 codexclaw로 이식한 스킬이다. 독립 저장소 `aside-visualizer`는 Aside 전용으로 남고, codexclaw는 그 로드맵을 따로 굴리지도, 사본을 하나 더 두지도 않는다. 이 스킬에는 독자 권한이 없다. 요청받은 산출물을 만들고 검증할 뿐, 스스로 저장소를 열거나 자신을 설치하거나 요청 없이 배포·공개·내보내기를 하거나 별도 루프를 시작하지 않는다. 검증 깊이도 선택이다. 모든 문서에 페이지 전수 검토를 물리지 말고 `draft`, `standard`, `publication` 중에서 영수증 프로파일을 골라 쓴다.
+**비주얼라이저 유지보수 — codexclaw 수정 후 Aside 이식.** 공통 기능은 codexclaw에서 먼저 수정하고 검증한다. 이후 `aside-visualizer`에 이식하고, 그 저장소의 납품 브랜치에 병합한 뒤 완료 조건을 검증해야 Aside 이슈를 닫는다. Aside 전용 어댑터와 독립 설치·Chrome 없는 PDF 경로는 보존한다. 자세한 순서는 [이식 절차](plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md)에 적었다. 일반 산출물 요청이 저장소 수정·설치·공개·별도 루프까지 허용하는 것은 아니다. 산출물의 검증 깊이는 `draft`, `standard`, `publication` 중에서 고른다.
 
 ## CLI
 

@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C323-brightgreen" alt="3,323 tests">
+  <img src="https://img.shields.io/badge/tests-3%2C480-brightgreen" alt="3,480 tests">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
   <img src="https://img.shields.io/badge/hooks-28-blue" alt="28 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -43,7 +43,7 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 Architect 在每个正式 P 阶段提出设计，并检查主代理的执行计划是否与设计一致。主代理负责执行计划和最终决策，独立 reviewer 负责 A 审核。同一计划复用上下文，仅在已记录的设计决策发生变化时重新检查。这是代理遵循的指导，不是运行时强制检查。参见[规划流程](plugins/codexclaw/skills/pabcd/references/phase-plan.md)。
 
-Architect 使用独立的 `agent_type: "architect"`。首次使用前，显式运行 `cxc subagents register architect`，启动新的 Codex 会话，并确认生成工具的角色列表中出现 architect。它使用 architect 专属配置，不回退到 explorer/reviewer。角色注册与插件安装分开，调度不会自动执行注册。
+Architect 按当前调度工具的实际参数选择调用方式。若工具暴露 `agent_type: "architect"`，就使用该原生角色。若 V1 没有 `agent_type` 字段，则在 message 或文本 item 中使用 `CXC-ROLE: architect`，附加 `dev`、`dev-architecture` 技能并明确只读任务范围。此逻辑角色无需例外审批或注册，也不代表启用了原生只读沙箱。若工具支持 `agent_type` 但缺少 architect，则须在获得安装授权后运行 `cxc subagents register architect`，并在新会话中确认角色可用；不得改用 explorer/reviewer，也不得在调度时自动注册。设计检查与独立审核仍由不同代理承担。
 
 **Recall** — 在向用户提问前，先从磁盘产物中搜索历史 Codex 对话和 memory store，使上下文在跨会话及压缩后仍可恢复。
 
@@ -219,7 +219,7 @@ _PATH 级 `cxc` 入口（`bin/codexclaw.mjs` + `cli/` 工作区）位于仓库�
 
 每个路由器都有独立的模块化参考资料，仅在需要时加载，不会预加载；同时继承父级的验证门、规则分类和安全规则。
 
-**Visualizer 范围 — 禁止独立行动。** `dev-visualizer` 是把 Aside 的 visualizer 工作移植到 codexclaw 的 skill。独立仓库 `aside-visualizer` 仍归 Aside 所有，codexclaw 既不推进它的路线图，也不另留一份副本。该 skill 没有独立授权：它只为提出请求的任务构建并验证产物，不会自行开设仓库、自我安装、在未被要求时发布或导出，也不会启动自己的循环。验证深度同样是一种选择——在 `draft`、`standard`、`publication` 中挑选回执档位，而不是让每份文档都承担逐页审阅。
+**Visualizer 维护 — 先修复 codexclaw，再移植到 Aside。** 共享功能先在 codexclaw 中修复并验证，再移植到 `aside-visualizer`。只有下游移植合并到交付分支且验收条件得到验证后，才能关闭 Aside issue；保留 Aside 适配器、独立安装和无系统 Chrome 的 PDF 路径。详见[移植流程](plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md)。普通产物请求不授权仓库维护、安装、发布或独立循环；按产物选择 `draft`、`standard` 或 `publication` 验证档位。
 
 ## CLI
 
