@@ -58,3 +58,25 @@ be updated and verified or have a concrete unresolved failure; unknown/unreachab
 hosts never become PASS. Product-not-installed is an observed NOOP. DONE requires
 all recorded criteria, not merely SSH reachability. If an external blocker persists,
 follow host goal status rules rather than fabricate completion or provision a host.
+
+## Locked transaction safeguards (plan review)
+
+Before any approval, compare the actual selected revision and installed payload
+against wp3's release evidence. Marketplace latest/dev tip is only a discovery
+candidate, never the authority. Prefer the exact release tag/snapshot; allow a
+source checkout with a different merge commit only when the shipped payload subtree
+and approved file hashes are identical. A version string alone is insufficient.
+Any unexplained file/hash difference stops before hooks retrust. Do not approve a
+newer upstream change merely because upgrade returned success.
+
+Main coordinates one writer per resolved host/account/real installation root.
+Aliases, symlinks, and separate tool handles that resolve to that root share the
+same transaction; no concurrent update/retrust or rollback on one root.
+
+Before mutation, establish a supported rollback using the retained previous payload
+and matching plugin trust entries. On failed update, approval, hash check or smoke,
+preserve evidence and restore the previous verified payload/trust where supported;
+verify restored hashes and installed command behavior. Do not restore a whole config
+file over concurrent unrelated changes. If supported restoration is unavailable or
+fails, leave the transaction unresolved and do not grant trust to mismatched bytes.
+Never claim rollback succeeded from a backup's existence.
