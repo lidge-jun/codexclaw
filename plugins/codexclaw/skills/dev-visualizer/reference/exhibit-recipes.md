@@ -26,9 +26,12 @@ designed, or that an unstated causal implication is justified. Those remain evid
 review tasks.
 
 `renderExhibit` throws `TypeError` when either contract is invalid. It never fills missing
-data with plausible marks. The returned HTML is dependency-free semantic HTML with native
-SVG for quantitative marks, an exact-value table, a caption, sources, uncertainty, and
-typed relationship lists. Every caller-provided string is escaped before entering markup.
+data with plausible marks. The returned HTML uses an explicit exact-table fallback
+(`data-rendering="exact-table"`) for every encoding, plus a caption, sources,
+uncertainty, assumptions, declared analysis metadata, and typed relationship lists.
+There are no approximate or substitute charts. Every supplied row field has a separate
+column: descriptions never hide dates, and point estimates never hide interval bounds.
+Every caller-provided string is escaped before entering markup.
 `accessibleText` is plain text for the caller to insert through a text-safe API.
 
 ## Recipe and instance stay separate
@@ -43,8 +46,8 @@ A recipe records analytical requirements. It is reusable and contains no bound v
 | `prerequisites` | Conditions that must be true before this representation is valid. |
 | `requiredFields` | Instance fields whose omission invalidates this recipe. |
 | `allowedEvidence` | Evidence types this recipe can bind. |
-| `calculation` or `method` | Exactly one quantitative calculation or qualitative method. |
-| `encoding` | Native representation and label/value field names. |
+| `calculation` or `method` | Exactly one descriptor object with `kind` and `description`; the unused descriptor may be omitted or `null`. |
+| `encoding` | Analytical family, `labelField:"label"`, and a numeric `valueField` for calculations only. |
 | `misleadingAlternatives` | Tempting representations that would distort the evidence. |
 | `failureCases` | Conditions that invalidate the exhibit. |
 | `staticStrategy` | Honest static fallback for print and low-capability contexts. |
@@ -74,13 +77,13 @@ The validator rejects these high-consequence analytical failures:
 
 - Pie values that do not sum to the stated denominator.
 - A qualitative row with an invented `score`, `rating`, or `weight`.
-- A pooled result when `poolingCompatibility` is declared `incompatible`.
+- A pooled result unless `poolingCompatibility` is explicitly `compatible`.
 - A causal claim on descriptive, observational, historical, or modeled data. The compact
   contract permits causal labeling only for a declared randomized design; it still does
   not certify the design or analysis.
 - A required uncertainty statement that is absent.
 - Missing, unknown, or row-level source references.
-- An interval whose estimate falls outside its lower and upper bounds.
+- Missing or non-finite interval bounds, or an estimate outside them.
 - Sensitivity output without explicit assumptions.
 - Unknown fields, non-finite numbers, unsupported versions, or mixed calculation and
   qualitative-method ownership.
@@ -88,6 +91,39 @@ The validator rejects these high-consequence analytical failures:
 These checks depend on declared metadata. A renderer cannot detect an unstated causal
 implication or determine whether two real studies should be pooled. Review the evidence
 and visible prose separately.
+
+## Executable per-encoding invariants
+
+These rules apply even if a recipe removes fields from `requiredFields`.
+All rows require unique IDs, labels, and resolving source references. Optional text
+fields must contain text; supplied numeric fields must be finite. Numeric value fields
+are `value`, `estimate`, `duration`, `start`, `end`, `lower`, `upper`, or
+`percentile`; the chosen field is checked consistently in every calculation.
+
+| Encoding | Required data and checks |
+|---|---|
+| `waterfall` | At least three rows: first `role:"baseline"`, middle `role:"delta"`, last `role:"total"`. Baseline plus signed deltas must equal the independently supplied total within max(1e-9, abs(total) × 1e-9). Overflow is rejected. The renderer never invents a missing total. |
+| `cohort` | This compact contract represents outcome counts with one common eligible population per cohort. Counts are safe integers from zero through the denominator; the denominator is a positive safe integer. Different denominators require separate instances. Uncertainty is mandatory. |
+| `interval` | Each row has finite `lower`, selected estimate, and `upper`, in that order numerically. Uncertainty is mandatory; the interval level remains a sourced statement for human review. |
+| `latency` | Each row has numeric `percentile` in [0,100], canonical label `P<number>` (for example P95), and nonnegative latency. Percentiles strictly increase; corresponding latencies never decrease. A positive safe-integer request denominator and uncertainty are mandatory. The denominator label records the observation population/window. |
+| `pie` | Nonnegative values sum to a positive denominator using the same tolerance as the bridge. Denominator and values have identical units. An exact category/whole table is emitted, not a pie graphic. |
+| `sensitivity` | Each row has a finite modeled result and a `scenario` describing its inputs. Nonempty assumptions and uncertainty are required. Formulas are plain text; no arbitrary formula is executed or certified. |
+| `heterogeneity` | Each row has a finite estimate and a study `description`. Uncertainty is mandatory. Pooling requires declared compatibility; metadata and study definitions remain visible. |
+| `timeline` | Each row has a `date` string preserving source precision and a `description`. Uncertainty is mandatory. Dates are never normalized or silently reordered; chronology and interpretation require source review. |
+| `journey` | Each row has a `stage` and `description`; uncertainty is mandatory. |
+| `assumption-map`, `process` | Each row has a `description`; uncertainty is mandatory. |
+| `table` | A calculation requires a finite selected value in every row; a method requires a sourced text detail. All other supplied fields remain visible. There is no claim of a specialized chart or domain validation for a generic table. |
+
+Qualitative methods reject all numeric row fields, including numbers smuggled in as
+`value`, and reject `score`, `rating`, and `weight`. Qualitative encodings require
+a method; quantitative encodings require a calculation. Generic tables permit either.
+Unknown options to `renderExhibit` are rejected; version 1 defines no rendering options.
+
+Every validator bounds input before processing: at most 1,000 entries in any array
+(including rows and edges), 16,000 UTF-16 code units per string, 1,000,000 total string
+code units, 50 fields per object, 100 code units per field name, depth 12, and 50,000
+visited values. Oversized input returns a P0 issue at the offending path; rendering
+throws TypeError. The renderer contains no spread-based extrema or chart allocation.
 
 ## Curated recipes
 
@@ -122,10 +158,11 @@ hypotheses in both visible and accessible text.
 
 ## Rendering and fallback
 
-Quantitative recipes render a compact native SVG and an exact semantic table. The SVG is
-an overview; the table is the value and accessibility authority. Qualitative recipes use
-semantic rows and typed relationship lists because fixed geometry would add little and
-could overstate weak relationships. There is no chart quota.
+Every recipe renders an exact semantic table in normal HTML flow. Visible columns and
+generated accessible text preserve supplied values, bounds, date precision, stages,
+scenario inputs, row roles, percentiles, and row source references. Missing optional
+cells say "Not supplied" rather than implying zero. Qualitative relationships use typed
+lists. There is no chart quota and no fabricated chart fallback.
 
 The returned `staticStrategy` states the intended print or low-capability fallback. A
 consumer may use that table/prose strategy directly. Rendering a valid contract does not

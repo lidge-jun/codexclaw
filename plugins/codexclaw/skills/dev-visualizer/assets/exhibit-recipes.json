@@ -302,10 +302,11 @@
       "evidenceType": "management-accounting-record",
       "data": {
         "rows": [
-          {"id": "baseline", "label": "Baseline operating result", "value": 420, "sourceRefs": ["BIZ-LEDGER-1"]},
-          {"id": "volume", "label": "Volume contribution", "value": 70, "sourceRefs": ["BIZ-LEDGER-1"]},
-          {"id": "price", "label": "Price contribution", "value": 25, "sourceRefs": ["BIZ-LEDGER-1"]},
-          {"id": "service", "label": "Service cost contribution", "value": -35, "sourceRefs": ["BIZ-LEDGER-1"]}
+          {"id": "baseline", "label": "Baseline operating result", "value": 420, "role": "baseline", "sourceRefs": ["BIZ-LEDGER-1"]},
+          {"id": "volume", "label": "Volume contribution", "value": 70, "role": "delta", "sourceRefs": ["BIZ-LEDGER-1"]},
+          {"id": "price", "label": "Price contribution", "value": 25, "role": "delta", "sourceRefs": ["BIZ-LEDGER-1"]},
+          {"id": "service", "label": "Service cost contribution", "value": -35, "role": "delta", "sourceRefs": ["BIZ-LEDGER-1"]},
+          {"id": "outcome", "label": "Outcome operating result", "value": 480, "role": "total", "sourceRefs": ["BIZ-LEDGER-1"]}
         ],
         "analysis": {"claimType": "descriptive", "design": "descriptive", "pooled": false, "poolingCompatibility": "not-applicable"},
         "assumptions": []
@@ -323,12 +324,12 @@
       "evidenceType": "modeled-scenario",
       "data": {
         "rows": [
-          {"id": "low", "label": "Lower demand", "value": 310, "sourceRefs": ["BIZ-MODEL-1"]},
-          {"id": "base", "label": "Baseline demand", "value": 360, "sourceRefs": ["BIZ-MODEL-1"]},
-          {"id": "high", "label": "Higher demand", "value": 415, "sourceRefs": ["BIZ-MODEL-1"]}
+          {"id": "low", "label": "Lower demand", "value": 310, "scenario": "620 thousand units at USD 0.50 margin", "sourceRefs": ["BIZ-MODEL-1"]},
+          {"id": "base", "label": "Baseline demand", "value": 360, "scenario": "720 thousand units at USD 0.50 margin", "sourceRefs": ["BIZ-MODEL-1"]},
+          {"id": "high", "label": "Higher demand", "value": 415, "scenario": "830 thousand units at USD 0.50 margin", "sourceRefs": ["BIZ-MODEL-1"]}
         ],
         "analysis": {"claimType": "hypothesis", "design": "modeled", "pooled": false, "poolingCompatibility": "not-applicable"},
-        "assumptions": ["Fictional unit margin is held constant.", "Only demand changes across the three scenarios."]
+        "assumptions": ["Result in USD thousands = demand in thousands of units multiplied by USD 0.50 margin per unit.", "Only demand changes across the three illustrative scenarios; fixed costs are excluded."]
       },
       "units": "illustrative USD thousands",
       "denominator": null,
@@ -404,8 +405,8 @@
       "evidenceType": "systematic-review-record",
       "data": {
         "rows": [
-          {"id": "trial-one", "label": "Illustrative trial one", "value": 1.2, "sourceRefs": ["SCI-REVIEW-1"]},
-          {"id": "trial-two", "label": "Illustrative trial two", "value": 2.1, "sourceRefs": ["SCI-REVIEW-2"]}
+          {"id": "trial-one", "label": "Illustrative trial one", "value": 1.2, "description": "Fictional adult population, outcome measured after four weeks.", "sourceRefs": ["SCI-REVIEW-1"]},
+          {"id": "trial-two", "label": "Illustrative trial two", "value": 2.1, "description": "Fictional adult population, outcome measured after twelve weeks.", "sourceRefs": ["SCI-REVIEW-2"]}
         ],
         "analysis": {"claimType": "associational", "design": "randomized", "pooled": false, "poolingCompatibility": "incompatible"},
         "assumptions": ["The fictional outcomes use materially different follow-up windows, so no pooled estimate is shown."]
@@ -469,9 +470,9 @@
       "evidenceType": "monitoring-export",
       "data": {
         "rows": [
-          {"id": "p50", "label": "P50", "value": 180, "sourceRefs": ["OPS-LAT-1"]},
-          {"id": "p95", "label": "P95", "value": 620, "sourceRefs": ["OPS-LAT-1"]},
-          {"id": "p99", "label": "P99", "value": 1100, "sourceRefs": ["OPS-LAT-1"]}
+          {"id": "p50", "label": "P50", "value": 180, "percentile": 50, "sourceRefs": ["OPS-LAT-1"]},
+          {"id": "p95", "label": "P95", "value": 620, "percentile": 95, "sourceRefs": ["OPS-LAT-1"]},
+          {"id": "p99", "label": "P99", "value": 1100, "percentile": 99, "sourceRefs": ["OPS-LAT-1"]}
         ],
         "analysis": {"claimType": "descriptive", "design": "descriptive", "pooled": false, "poolingCompatibility": "not-applicable"},
         "assumptions": ["All fictional percentiles use the same seven-day request population."]
