@@ -173,7 +173,15 @@ export function validateResearchHandoff(model) {
         if (!claims.has(ref)) fail(question.id, `Question answered by an unknown claim: ${String(ref)}`);
       }
       if (!question.answeredBy.length) {
-        if (!Array.isArray(research.gaps) || !research.gaps.some((gap) => String(gap).includes(question.id))) {
+        // Gap prefix grammar: optional whitespace, literal full question ID, then
+        // end, whitespace, or a colon followed by whitespace/end. IDs are not regexes.
+        if (!Array.isArray(research.gaps) || !research.gaps.some((gap) => {
+          if (!text(gap)) return false;
+          const prefix = gap.trimStart();
+          if (!prefix.startsWith(question.id)) return false;
+          const suffix = prefix.slice(question.id.length);
+          return suffix === "" || /^(?:\s|:(?:\s|$))/u.test(suffix);
+        })) {
           fail(question.id, "Unanswered question must be listed in research.gaps");
         }
       }

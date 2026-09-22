@@ -216,3 +216,10 @@ POSIX descendant cleanup verified; Windows awaits hosted CI. Main real QA-only
 recheck now records both pages' A4/Letter geometry and PASS. L final repair51pass;
 valid six JSON/HTML examples unchanged, so recorded PDF glyph/layout proof remains
 applicable to the actual output bytes. Same locale reviewer rechecks boundary delta.
+
+User scope extension: after both releases, update codexclaw/Aside visualizer on ALL
+SSH hosts where already installed, including hook approval. No provisioning new
+hosts/accounts or installing missing products. Add wp4/c-6 at next P amendment,
+with040 fleet discovery/update/runtime/hook verification plan. Discover read-only
+now if useful; perform deployment only after release proof. Record unreachable hosts
+and actual missing permissions honestly, never infer success from SSH/service status.

@@ -113,6 +113,30 @@ test("#199: an unanswered question must surface as a gap rather than vanish", ()
     research: research({ questions: [{ id: "q9", text: "unresolved", answeredBy: [] }], gaps: ["q9 was not answered"] }),
   });
   assert.deepEqual(validateResearchHandoff(declared), []);
+  for (const [id, gap, accepted] of [
+    ["q1", "q10 is unresolved", false],
+    ["q1", "q1.1 is unresolved", false],
+    ["q1.1", "q1.10 is unresolved", false],
+    ["q1.1", "q1x1 is unresolved", false],
+    ["q[1]+?", "q[1]+?extra is unresolved", false],
+    ["q[1]+?", "q111 is unresolved", false],
+    ["q1", "Notes about q1 remain unresolved", false],
+    ["q1", "q1:unresolved", false],
+    ["q1", "q1", true],
+    ["q1", "  q1 was not answered", true],
+    ["q1", "q1: unresolved", true],
+    ["q1", "q1:", true],
+    ["q1.1", "q1.1 is unresolved", true],
+    ["q[1]+?", "q[1]+?: unresolved", true],
+    ["q[1]+?", "q[1]+?", true],
+  ]) {
+    const input = model({ research: research({
+      questions: [{ id, text: "unresolved", answeredBy: [] }], gaps: [gap],
+    }) });
+    const issues = validateResearchHandoff(input);
+    assert.equal(issues.length, accepted ? 0 : 1, JSON.stringify({ id, gap, issues }));
+    if (!accepted) assert.equal(issues[0].id, id);
+  }
 });
 
 test("#199: a question cannot point at a claim that does not exist", () => {

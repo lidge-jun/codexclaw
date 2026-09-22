@@ -66,7 +66,9 @@ finished while hiding something:
   One actually-read source alongside the snippet satisfies it; the rule is about sole
   support. An observation reporting what a snippet said is fine.
 - **An unanswered question must appear in `gaps`.** A question with no answering claim
-  is legitimate; a question that quietly disappears is not.
+  is legitimate; a question that quietly disappears is not. Begin its gap with
+  the complete literal question ID, followed by whitespace or `: ` (for example
+  `q1: source unavailable`). `q10` never stands in for `q1`.
 
 `scripts/report-intake.mjs <model.json> [--metadata <metadata.json>]` validates
 source input and emits a generation receipt without network access. The optional
