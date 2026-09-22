@@ -213,3 +213,19 @@ subprocess lifetime (--timeout-ms or fixed documented bound), hard timeout kill,
 FAIL evidence on timeout even if a useful PDF exists, deterministic hanging process
 fixture and cleanup. This is the already-planned subprocess-failure boundary, not
 new browser engine scope. No passing claim from a timed-out command.
+
+C-review repair amendment: validate geometry of EVERY page, not pdfinfo first-page
+summary; mixed A4/Letter cannot PASS requested homogeneous paper size. Export to
+sibling staging PDF and promote atomically only after successful print; failed,
+timed-out or partial generation preserves pre-existing output bytes. Terminate the
+owned process group/tree on timeout; deterministic descendant fixture checks no
+orphan survives. This repairs existing output/process boundary promises, does not
+add a renderer. E may use an async process runner inside the same exporter file
+if safe group ownership cannot be expressed with spawnSync; no global pkill.
+
+Locale C-boundary repair: reject orphan figure/quotation sectionId and duplicate
+section IDs before render, never silently omit supplied facts. Parse serialized
+dates strictly without JS rollover (2026-02-30 cannot display March2); validate raw
+values on every semantic fact before comparing equality, including unreferenced
+facts. Same L module/test scope; do not alter valid example text/layout. Add
+constructible negatives and preserve byte-identical valid output when possible.

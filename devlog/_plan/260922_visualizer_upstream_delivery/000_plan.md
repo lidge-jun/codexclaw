@@ -198,3 +198,21 @@ main-inspected final CLI-produced raster pages. Independent PDF oracles Hilbert
 01a0c838-15bc-72f0-81d1-c2cc89aecc6f both PASS: metric mapping, glyphs, long labels,
 2x2 grids, margins/folios and page-break containment. No arbitrary semantic or
 accessibility-conformance claim. Bilingual content recheck PASS separately.
+
+C exporter review found3High: first-page-only geometry, destructive old-output
+unlink, timeout only kills parent. All accepted; FSM returned C->B and E resumed
+same scope with every-page parsing, staged atomic output and owned descendant
+cleanup. Source revision for previous184pass was pre-repair; rerun relevant/final
+suite after fixes. Exhibit same-reviewer48tests +11 independent probes PASS.
+Peer dev postmerge CI35702498985, WSL35702498954, Packed35702498961 reported green;
+main merged0943bec3 and independently matches both delegated policy SHA256 values.
+
+Integrated full suite after peer merge at5c9f13f: 3429 total,3425pass,4skip,0fail.
+This predates the final exporter three-boundary repair; retain as integration
+baseline, rerun full suite after final code before measuring published counts.
+
+Final E same-reviewer PASS: all3 reproduced issues resolved,72 focused pass,
+POSIX descendant cleanup verified; Windows awaits hosted CI. Main real QA-only
+recheck now records both pages' A4/Letter geometry and PASS. L final repair51pass;
+valid six JSON/HTML examples unchanged, so recorded PDF glyph/layout proof remains
+applicable to the actual output bytes. Same locale reviewer rechecks boundary delta.
