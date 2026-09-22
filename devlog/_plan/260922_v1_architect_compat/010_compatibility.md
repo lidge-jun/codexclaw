@@ -25,3 +25,7 @@ NEW this unit's three numbered documents and final evidence record. MODIFY `plug
 7. Verify merged commit belongs to release ancestry and download published payload; inspect corrected delegation owner. Preserve artifact checksum and release run URL.
 
 Field-chain: N/A, no new runtime fields/types. Enforcement: E7 instructions only; executing surface is the main agent; bypass is an agent ignoring instructions; residual risk is absent native sandbox on V1; wording explicitly calls this logical scope, not enforced protection. Runtime guards are unchanged.
+
+## User clarification during B
+
+The reported failure continues across loop resumes: completed consultation is treated as unusable solely because V1 has no native role field, then escalated to an exception question and blocked goal. Clarify the same D1 decision in delegation.md: distinguish absent fields from absent work/protection; preserve real proposal/reflection/review evidence and applicable prior approvals; never block solely on absent agent_type in a supported route. Actual missing consultation, failed calls and required isolation remain gaps. This is wording within the audited design, not a new permission or runtime contract.

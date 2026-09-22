@@ -31,8 +31,9 @@ so the subagent actually loads the discipline instead of being told about it in 
 
 - Surface skills are split out and on-demand: `cxc-search`, `cxc-dev-architecture`,
   `cxc-dev-backend`, etc. (`plugins/codexclaw/skills/*/`). Step 1 is done.
-- `spawn-wrapper.ts` builds resolvable message mentions for the production path on both
-  surfaces. V1 callers may manually use `buildSpawnItems`/`SpawnPayload.items` as the
+- `spawn-wrapper.ts` builds V2-shaped payloads with resolvable message mentions. Only
+  the message channel is portable; the full object is not a V1 payload. V1 callers
+  use their live schema and may use `buildSpawnItems` as the
   strongest v1-only channel. `SURFACE_SKILL` and `ROLE_BASE_SKILLS` resolve the exact
   folders the dispatcher requested.
 - The builder (`resolveSpawnPayloadWithSkills`/`routeDispatch`) is the E5 dispatch path:
@@ -81,13 +82,13 @@ The skill-attachment builder is implemented in
   deduped folder set; an explicit folder the caller names (e.g. `search`) wins.
 - `buildSpawnItems(...)` emits one `{type:"skill",name:"cxc-<folder>",path}` per folder
   that exists on disk, then `{type:"text",text:"TASK: ..."}`. Dangling folders are dropped.
-- `resolveSpawnPayloadWithSkills(...)` is the production entry: role prompt, resolvable
+- `resolveSpawnPayloadWithSkills(...)` is the V2-shaped entry: role prompt, resolvable
   skill mentions, and task all ride in `message`; it does not emit `items`.
 
 So the builder can turn "dispatch per `cxc-search`" into a real skill attachment, verified
 by tests (`test/spawn-wrapper.test.ts`, the `L15:` cases). This is **E5** strength and only
-takes effect when the dispatcher routes through the builder: production V1 and V2 payloads
-use the explicit message mention block; a manual V1 caller may choose `items`. The hook can
+takes effect when the dispatcher routes through the builder. V1 callers compose supported
+fields with the message mention block or `buildSpawnItems`; they do not copy the V2 object. The hook can
 repair an emitted mention but cannot replace this routing decision.
 
 ### Hard runtime constraint (codex-rs verified) — REVISED by WP2
@@ -118,9 +119,10 @@ only as legacy detection/dedupe input, never as an emitted or taught attachment 
 
 ## Design 14.A — Skill attachment in the spawn payload
 
-The shipped `SpawnPayload` retains an optional manual V1 `items` channel mirroring the
-V1 `spawn_agent` structured input (`type: "skill"` with `name` + `path`,
-`type: "mention"`, or `type: "text"`).
+The shipped `SpawnPayload` is a V2-shaped helper type, with an optional legacy
+`items` slot. It is not the live V1 wire schema. `buildSpawnItems` separately mirrors
+V1 structured input (`type: "skill"` with `name` + `path`, `type: "mention"`, or
+`type: "text"`); V1 callers submit only fields their live schema supports.
 
 ```ts
 export interface SpawnSkillRef {
@@ -129,18 +131,30 @@ export interface SpawnSkillRef {
 }
 
 export interface SpawnPayload {
-  agent_type: "explorer" | "worker" | "architect";
+  agent_type: "explorer" | "worker" | "architect" | "executor";
   message: string;
+  task_name?: string;
+  fork_turns?: "none";
   model?: string;
-  items?: SpawnItem[];   // skill attachments + the task text, when used
+  reasoning_effort?: string;
+  items?: SpawnItem[];   // legacy slot; builders do not emit it
 }
 ```
 
 `buildSpawnItems` composes the strongest manual V1 form: one `skill` item per attached
 `cxc-*` skill, then a trailing `text` item carrying the concrete task. The production
 `resolveSpawnPayloadWithSkills`/`routeDispatch` path instead emits resolvable mentions and
-the task in `message`, which is valid on both surfaces and enables hook inlining on
-plaintext V2 provider/proxy paths.
+the task in `message`. That text channel is portable, but the accompanying
+`agent_type`, `task_name` and `fork_turns` fields require live-schema support.
+
+For architect, an exposed native type remains authoritative. A schema without
+`agent_type` uses a leading `CXC-ROLE: architect` in message/text-items plus the
+dev/dev-architecture skills and explicit read-only constraints. It needs no
+exception approval or registration and makes no native sandbox claim. A typed
+schema missing architect still requires authorized native setup; no explorer or
+reviewer alias is substituted. Both routes retain same-architect plan reflection
+and an independent reviewer. The canonical rules live in
+`plugins/codexclaw/skills/pabcd/references/delegation.md`.
 
 Resolved: the production role prompt, skill mentions, and task stay in `message` as one
 source. Manual V1 `items` remains a separate helper for callers that deliberately choose
