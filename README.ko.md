@@ -43,7 +43,7 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 Architect는 정식 P 단계마다 설계를 제안하고 메인의 실행 계획이 설계와 맞는지 확인한다. 메인이 실행 계획과 최종 결정을 맡고, 독립 reviewer가 A 감사를 맡는다. 같은 계획에서는 문맥을 재사용하며, 기록된 설계 결정이 바뀔 때만 다시 확인한다. 이는 에이전트가 따르는 지침이며 런타임 강제 검사가 아니다. [계획 흐름](plugins/codexclaw/skills/pabcd/references/phase-plan.md)을 참고한다.
 
-Architect는 독립 역할인 `agent_type: "architect"`로 호출한다. 처음 쓰기 전에 `cxc subagents register architect`로 명시적으로 등록하고, 새 Codex 세션에서 역할 목록에 architect가 나타나는지 확인한다. architect 전용 설정을 쓰며 explorer/reviewer로 대체하지 않는다. 등록은 플러그인 설치와 별개이며 호출 중 자동으로 실행하지 않는다.
+Architect는 현재 호출 도구가 지원하는 형식에 맞춰 사용한다. `agent_type: "architect"`가 있으면 해당 네이티브 역할을 쓴다. `agent_type` 필드가 없는 V1에서는 message나 텍스트 item에 `CXC-ROLE: architect`를 넣고 `dev`·`dev-architecture` 스킬과 읽기 전용 작업 범위를 명시한다. 이 논리 역할은 예외 승인이나 등록이 필요 없으며, 네이티브 읽기 전용 샌드박스를 선택했다는 뜻은 아니다. `agent_type`은 있지만 architect가 없는 도구에서는 승인된 `cxc subagents register architect` 실행 후 새 세션에서 역할을 확인한다. explorer/reviewer로 바꾸거나 호출 중 자동 등록하지 않는다. 설계 검토와 독립 감사는 별도로 수행한다.
 
 **Recall** — 사용자에게 다시 묻기 전에 디스크 아티팩트에서 과거 Codex 대화와 메모리 저장소를 검색한다. 세션이 바뀌거나 컨텍스트가 압축돼도 이전 맥락을 이어 간다.
 

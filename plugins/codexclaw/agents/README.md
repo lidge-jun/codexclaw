@@ -1,8 +1,9 @@
 # codexclaw subagent roles
 
 These `.toml` files define codexclaw's subagent roles — the Codex equivalent of orchestrated
-"employees". Each role pairs a native Codex `agent_type` with a developer prompt that routes
-through the `dev-*` skills for its surface.
+"employees". Each role has a developer prompt that routes through the `dev-*` skills
+for its surface. Native types apply only when exposed by the live spawn schema;
+V1 without `agent_type` carries the logical role in its supported message/items.
 
 ## Roles
 
@@ -15,8 +16,12 @@ through the `dev-*` skills for its surface.
 
 Built-in `agent_type` values are codex-native (`core/src/agent/role.rs`: `default`, `explorer`,
 `worker`). `explorer` is read-only; `worker` may write. Follow the live schema when
-registered roles are exposed. Architect requires its own registered native role;
-there is no explorer/reviewer fallback for architect.
+registered roles are exposed. On typed schemas architect uses its own registered
+native role; there is no explorer/reviewer alias fallback. When the schema has no
+`agent_type`, a leading `CXC-ROLE: architect` plus its skills and explicit read-only
+constraints is supported logical dispatch and requires no exception approval.
+The table's write scopes are task constraints; the logical V1 route does not
+select a native sandbox. Report a gap if native isolation is explicitly required.
 
 When the host exposes a native `reviewer`, use it. On legacy explorer-only
 read-only transport, prepend `CXC-ROLE: reviewer` before `TASK:` to select reviewer
@@ -79,7 +84,17 @@ spawn_agent({ agent_type: "worker",   task_name: "executor_<slug>", fork_turns: 
               message: "TASK: <executor instructions + scoped task>" })
 ```
 
-This is omo's proven pattern. The `.toml` files are the canonical SOURCE of those prompts and
+V1 without `agent_type` uses a message or text items, without `task_name` or
+`fork_turns`. Attach the skills explicitly; for example:
+
+```js
+spawn_agent({ message: "CXC-ROLE: architect\n\n$codexclaw:cxc-dev $codexclaw:cxc-dev-architecture\n\nTASK: Propose the design from the supplied sources. Read-only: no writes, child spawns or goal/FSM changes. Return decision IDs and file:line evidence." })
+```
+
+Reuse the returned handle for plan reflection, and use a separate reviewer for
+independent audit. This example carries logical scope, not native sandbox proof.
+
+The `.toml` files are the canonical SOURCE of those prompts and
 stay B-opt1-ready: if a future codex build supports plugin- or config-layer role registration,
 the same files can be copied into a config-layer `agents/` dir with no rewrite.
 
@@ -110,6 +125,10 @@ per-role store config plus this file's `developer_instructions`, then builds the
 model/effort fields under the non-full-fork rule above. Model selection is owned by the
 store resolver, not the TOML `model` sentinel.
 
+These helpers emit a V2-shaped payload; do not pass the entire object to V1.
+V1 callers compose only fields supported by their live tool, using message mentions
+or the existing `buildSpawnItems` helper for the structured channel.
+
 Architect inherits the same per-role settings rules; no provider model is hardcoded.
 Its prompt source does not install a native role. Formal P consultation, same-plan
 context reuse, changed-decision rechecks and failure handling are owned by
@@ -119,7 +138,7 @@ context reuse, changed-decision rechecks and failure handling are owned by
 
 ## Explicit native role registration
 
-Run `cxc subagents register architect` only when installation is authorized. It
+For native typed dispatch, run `cxc subagents register architect` only when installation is authorized. It
 publishes the canonical role to `$CODEX_HOME/agents/architect.toml` (default
 `~/.codex/agents/architect.toml`), removes the `model = "default"` sentinel, and
 retains read-only sandbox settings. Models and effort stay owned by architect's
@@ -130,5 +149,7 @@ Registration preserves custom/conflicting files and symlinks, updates only intac
 managed or identical legacy content, and backs up the previous bytes. An abandoned
 update lock fails closed for inspection. Start a fresh Codex session and verify
 `architect` appears in the live spawn schema before calling it. A file on disk is
-not proof of role discovery. Unsupported/missing roles must be reported; never
-substitute explorer or reviewer. Builders and hooks never register roles themselves.
+not proof of role discovery. A typed schema missing architect must be reported;
+never substitute explorer or reviewer. V1 schemas without `agent_type` use the
+logical route above and do not need registration. Builders and hooks never
+register roles themselves.
