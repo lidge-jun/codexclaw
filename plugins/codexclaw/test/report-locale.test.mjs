@@ -108,6 +108,94 @@ test("formatValue rejects invalid value contracts and never normalizes units", (
   assert.equal(formatValue({ raw: 7, kind: "unit", unit: "%p" }, config).display, "7 %p");
 });
 
+for (const raw of [
+  "2026-02-30", "2025-02-29", "1900-02-29", "2026-04-31", "2026-00-10",
+  "2026-13-01", "2026-01-00", "2026-01-32", "2026-2-03", "09/22/2026",
+  "2026", "2026-09-22T00:00:00", "2026-09-22T24:00:00Z",
+  "2026-02-30T12:00:00Z", "2026-09-22T12:60:00Z", "2026-09-22T12:00:60Z",
+  "2026-09-22T12:00:00+09:00", "2026-09-22T12:00:00.1234Z", " 2026-09-22 ",
+]) test(`BUG-L2: reject invalid or unsupported serialized date ${raw}`, () => {
+  assert.throws(() => formatValue({ raw, kind: "date" }, validConfig()), /Invalid value:.*raw/);
+});
+
+test("BUG-L2: accept real calendar dates and explicit UTC timestamps without altering raw", () => {
+  for (const [raw, display] of [
+    ["2024-02-29", "February 29, 2024"],
+    ["2000-02-29", "February 29, 2000"],
+    ["2026-02-28", "February 28, 2026"],
+    ["2026-09-22T23:59:59Z", "September 22, 2026"],
+    ["2026-09-22T00:00:00.123Z", "September 22, 2026"],
+  ]) {
+    assert.deepEqual(formatValue({ raw, kind: "date" }, validConfig()), { raw, display });
+  }
+});
+
+const invalidFactValues = [
+  ["impossible date", { kind: "date", raw: "2026-02-30" }],
+  ["ambiguous date", { kind: "date", raw: "09/22/2026" }],
+  ["numeric date", { kind: "date", raw: 20260922 }],
+  ["missing raw", { kind: "number" }],
+  ["null raw", { kind: "number", raw: null }],
+  ["string number", { kind: "number", raw: "180" }],
+  ["nonfinite number", { kind: "number", raw: Infinity }],
+  ["NaN number", { kind: "number", raw: NaN }],
+  ["string quantity", { kind: "unit", raw: "180", unit: "millisecond" }],
+  ["missing currency", { kind: "currency", raw: 180 }],
+  ["invalid currency", { kind: "currency", raw: 180, currency: "US" }],
+  ["currency type", { kind: "currency", raw: 180, currency: 123 }],
+  ["unit type", { kind: "unit", raw: 180, unit: 123 }],
+  ["unknown kind", { kind: "ratio", raw: 180 }],
+];
+
+for (const [name, value] of invalidFactValues) {
+  test(`BUG-L3: shared value contract rejects ${name}, even when both unreferenced facts agree`, () => {
+    const source = fixture("reference", "ko");
+    const target = fixture("reference", "en");
+    // Keep each invalid fact outside section and figure references to exercise full validation.
+    for (const example of [source, target]) {
+      const fact = { ...example.semantics.facts[0], id: "F-unreferenced", ...value };
+      if (!("raw" in value)) delete fact.raw;
+      example.semantics.facts.push(fact);
+    }
+    assert.throws(() => formatValue(value, validConfig()), /Invalid value:/);
+    const issues = compareSemanticPair(source, target);
+    for (const side of ["source", "target"]) {
+      assert.ok(issues.some((entry) => entry.id.startsWith(`${side}.semantic.facts.F-unreferenced.`)), side);
+    }
+    assert.throws(() => renderLocalizedExample(target, target.localeConfig), /Invalid example:.*F-unreferenced/);
+  });
+}
+
+for (const collection of ["figures", "quotations"]) {
+  test(`BUG-L1: reject orphan ${collection} before content can be silently filtered out`, () => {
+    const example = fixture("decision", "en");
+    example[collection][0].sectionId = "missing-section";
+    assert.throws(() => renderLocalizedExample(example, example.localeConfig),
+      new RegExp(`Invalid example:.*example\\.${collection}\\..*\\.sectionId`));
+  });
+}
+
+test("BUG-L1: reject duplicate section IDs", () => {
+  const example = fixture("decision", "en");
+  example.sections.push(structuredClone(example.sections[0]));
+  assert.throws(() => renderLocalizedExample(example, example.localeConfig), /Invalid example:.*example.sections.decision/);
+});
+
+test("BUG-L1: distinct valid sections retain their assigned figures and quotations", () => {
+  const example = fixture("decision", "en");
+  example.sections.push({ id: "second", title: "Second section", paragraphs: ["Second body"] });
+  example.figures[0].sectionId = "second";
+  example.quotations[0].sectionId = "second";
+  const { html } = renderLocalizedExample(example, example.localeConfig);
+  const sections = [...html.matchAll(/<section id="([^"]+)">([\s\S]*?)<\/section>/g)];
+  const first = sections.find((match) => match[1] === "decision")[2];
+  const second = sections.find((match) => match[1] === "second")[2];
+  assert.doesNotMatch(first, /<figure/);
+  assert.equal([...second.matchAll(/<figure\b/g)].length, 2);
+  assert.match(second, /id="figure-decision-outcomes"/);
+  assert.match(second, /class="quotation"/);
+});
+
 test("compareSemanticPair detects each declared invariant without judging prose", () => {
   const source = fixture("decision", "ko");
   const mutations = [

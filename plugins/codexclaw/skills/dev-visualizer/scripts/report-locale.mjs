@@ -142,22 +142,52 @@ function valueError(message) {
   throw new TypeError(`Invalid value: ${message}`);
 }
 
+/** Accept YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss[.sss]Z; no implicit timezone or date rollover. */
+function validSerializedDate(raw) {
+  if (typeof raw !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z)?$/.test(raw)) return false;
+  const canonical = raw.length === 10 ? `${raw}T00:00:00.000Z`
+    : raw.length === 20 ? `${raw.slice(0, -1)}.000Z` : raw;
+  const date = new Date(canonical);
+  // Round-trip every supplied calendar/time component so February 30 and hour 24 cannot roll forward.
+  return Number.isFinite(date.getTime()) && date.toISOString() === canonical;
+}
+
+/** Shared boundary for formatting and semantic facts, including facts not used by a figure. */
+function validateValue(value) {
+  if (!isObject(value)) return [issue("value", "expected a value object")];
+  const issues = [];
+  if (!VALUE_KINDS.has(value.kind)) issues.push(issue("kind", "expected a supported kind"));
+  if (!Object.hasOwn(value, "raw")) issues.push(issue("raw", "raw is required"));
+  else if (value.kind === "date") {
+    if (!validSerializedDate(value.raw)) issues.push(issue("raw", "raw must be a real YYYY-MM-DD date or UTC YYYY-MM-DDTHH:mm:ss[.sss]Z timestamp"));
+  } else if (VALUE_KINDS.has(value.kind) && (typeof value.raw !== "number" || !Number.isFinite(value.raw))) {
+    issues.push(issue("raw", `${value.kind} raw must be a finite number`));
+  }
+  if ((value.kind === "currency" || value.currency !== undefined) &&
+      (typeof value.currency !== "string" || !/^[A-Za-z]{3}$/.test(value.currency))) {
+    issues.push(issue("currency", "currency must be a three-letter currency code"));
+  }
+  if ((value.kind === "unit" || value.unit !== undefined) && !isText(value.unit)) {
+    issues.push(issue("unit", "unit must be nonempty text"));
+  }
+  return issues;
+}
+
 export function formatValue(value, config) {
   const configIssues = validateLocale(config);
   if (configIssues.length) throw new TypeError(`Invalid locale config: ${configIssues.map((item) => item.id).join(", ")}`);
-  if (!isObject(value) || !VALUE_KINDS.has(value.kind) || !("raw" in value)) valueError("expected raw and a supported kind");
+  const valueIssues = validateValue(value);
+  if (valueIssues.length) valueError(valueIssues.map((item) => item.msg).join(", "));
 
   const { raw, kind } = value;
   let display;
   if (kind === "date") {
     const date = new Date(raw);
-    if (!isText(raw) || Number.isNaN(date.getTime())) valueError("date raw must be a valid serialized date string");
     display = new Intl.DateTimeFormat(config.locale, config.formats.date).format(date);
   } else {
-    if (typeof raw !== "number" || !Number.isFinite(raw)) valueError(`${kind} raw must be a finite number`);
     if (kind === "number") display = new Intl.NumberFormat(config.locale, config.formats.number).format(raw);
     if (kind === "currency") {
-      if (!isText(value.currency)) valueError("currency values require an explicit currency code");
       try {
         display = new Intl.NumberFormat(config.locale, {
           ...config.formats.currency,
@@ -169,7 +199,6 @@ export function formatValue(value, config) {
       }
     }
     if (kind === "unit") {
-      if (!isText(value.unit)) valueError("unit values require an explicit unit");
       const { separator, ...numberOptions } = config.formats.unit;
       display = `${new Intl.NumberFormat(config.locale, numberOptions).format(raw)}${separator}${value.unit}`;
     }
@@ -223,6 +252,9 @@ function validateSemantics(example, side) {
     }
   }
   for (const fact of facts.values()) {
+    for (const failure of validateValue(fact)) {
+      issues.push(issue(`${side}.semantic.facts.${fact.id}.${failure.id}`, failure.msg));
+    }
     if (!isText(fact.claimId) || !claims.has(fact.claimId) || !VALUE_KINDS.has(fact.kind) || !isText(fact.unit) ||
         !isText(fact.denominator) || !isText(fact.qualification)) {
       issues.push(issue(`${side}.semantic.facts.${fact.id}`, "fact requires a known claim, kind, unit, denominator, and qualification"));
@@ -319,6 +351,7 @@ function exampleIssues(example, config) {
   const figures = Array.isArray(example.figures) ? example.figures : [];
   const quotations = Array.isArray(example.quotations) ? example.quotations : [];
   const limitations = Array.isArray(example.limitations) ? example.limitations : [];
+  const sectionById = indexById(sections, "example.sections", issues);
   const sources = new Set(semanticSources);
   const facts = new Set(semanticFacts.map((item) => item?.id));
   const claims = new Set(semanticClaims.map((item) => item?.id));
@@ -343,6 +376,9 @@ function exampleIssues(example, config) {
     if (!isObject(note) || !sources.has(note.id) || !isText(note.locator) || !isText(note.text)) issues.push(issue("example.sourceNotes", "source note must resolve and include locator and text"));
   }
   for (const figure of figures) {
+    if (!sectionById.has(figure?.sectionId)) {
+      issues.push(issue(`example.figures.${figure?.id ?? "unknown"}.sectionId`, "figure sectionId must resolve to a unique section"));
+    }
     if (!isObject(figure) || !isText(figure.id) || !isText(figure.sectionId) || !isText(figure.caption) || !isText(figure.accessibleDescription) ||
         !Array.isArray(figure.factIds) || !figure.factIds.length || !figure.factIds.every((id) => facts.has(id)) ||
         !Array.isArray(figure.sourceRefs) || !figure.sourceRefs.length || !figure.sourceRefs.every((id) => sources.has(id))) {
@@ -350,6 +386,9 @@ function exampleIssues(example, config) {
     }
   }
   for (const quote of quotations) {
+    if (!sectionById.has(quote?.sectionId)) {
+      issues.push(issue(`example.quotations.${quote?.id ?? "unknown"}.sectionId`, "quotation sectionId must resolve to a unique section"));
+    }
     if (!isObject(quote) || !isText(quote.id) || !isText(quote.sectionId) || !isText(quote.text) || !isText(quote.originalText) ||
         !isText(quote.sourceLanguage) || !config.sourceLanguages.includes(quote.sourceLanguage) || !sources.has(quote.sourceRef) || !isText(quote.translationMarker)) {
       issues.push(issue("example.quotations", "quotation requires visible text, original text, source, language, and marker"));
