@@ -1,7 +1,9 @@
 # Report publication contract
 
-Use this path for reader-facing reports, technical briefs and analytical PDFs,
-regardless of length. Keep `cxc-dev-visualizer` as the entrypoint. Do not create
+Use this path for new or substantively revised analytical reports/briefs, or
+explicitly selected publication work. Bounded edits to an existing static HTML
+report skip steps 1–4 below: preserve the supplied structure and review the source
+without rebuilding its report model or forcing a render. Keep `cxc-dev-visualizer` as the entrypoint. Do not create
 separate public skills for voice, typography or captions: they are stages of one
 report. A single diagram, native spreadsheet, form or conversational visual keeps
 its own format route. A one-page brief does not need a cover and contents page.
@@ -27,9 +29,10 @@ its own format route. A one-page brief does not need a cover and contents page.
 4. Compose semantic HTML. Use `data-claim="C1"` on the governed claim and
    `data-source="S1"` on its visible source note. Choose page roles from
    `page-role-catalog.md`. A role is not permission to invent data or shrink text.
-5. Resolve approved local font files, their exact weights and provenance into a
-   private manifest. Export and inspect the final PDF, not only the source HTML.
-6. Choose the assurance profile for what this artifact actually is
+5. For requested PDF output, choose available approved fonts and record provenance
+   without redistributing font files. Export and inspect the actual PDF at the
+   chosen assurance depth; ordinary HTML authoring does not trigger this step.
+6. For PDF delivery, choose the assurance profile for what this artifact actually is
    (REPORT-ASSURANCE-01), then collect that profile's completed checks against the
    final PDF's SHA-256. Rerendering invalidates every old PASS receipt. Run the
    receipt gate and report the verdict together with its profile.
@@ -48,7 +51,7 @@ above; it is not a second model, and a report without it stays exactly as valid 
 | `contractVersion` | `1`. An unreadable version is refused, never treated as an upgrade. |
 | `route` | `source-only`, `bounded-lookup` or `deep-research`. |
 | `sourceBoundary` | What the answer was allowed to read. |
-| `languages` | `source` and `output` separately — a translated citation is not the original. |
+| `sourceLanguages`, `outputLanguage` | Source languages separately from output — translated quotations retain their original source and are labeled. |
 | `questions[]` | `id`, `text`, and `answeredBy` claim ids. |
 | `gaps[]` | What is still unresolved. |
 | `budget`, `stopReason` | Optional: how much was spent and why it stopped. |
@@ -63,67 +66,64 @@ finished while hiding something:
   One actually-read source alongside the snippet satisfies it; the rule is about sole
   support. An observation reporting what a snippet said is fine.
 - **An unanswered question must appear in `gaps`.** A question with no answering claim
-  is legitimate; a question that quietly disappears is not.
+  is legitimate; a question that quietly disappears is not. Begin its gap with
+  the complete literal question ID, followed by whitespace or `: ` (for example
+  `q1: source unavailable`). `q10` never stands in for `q1`.
 
-`researchReceipt(model, { skillVersion, checks })` produces the record: route, contract
-and skill versions, question and gap counts, and which checks ran versus were omitted.
-An omitted check is reported omitted — it never renders as a pass. A model with no
-`research` section produces `supplied: false` and a null route, because silence means
-unknown rather than clean.
+`scripts/report-intake.mjs <model.json> [--metadata <metadata.json>]` validates
+source input and emits a generation receipt without network access. The optional
+`prepareResearch` adapter accepts an explicitly provided retrieval function for
+bounded/deep routes; absence is an issue, never an invitation to invent facts.
+Source-only never calls that function. See `assets/research-handoff.example.json`.
 
-Validate with `validateResearchHandoff(model)`. As with the rest of this contract, it
-proves a handoff is well formed and that a route's own constraints hold. It cannot prove
-a source supports the claim attached to it; that remains a reader's judgement.
-The exporter can reject dangling IDs; it cannot prove that prose faithfully
-represents a source. A fresh reader must inspect claims, caveats and final pages.
+Canonical research language fields are `sourceLanguages` and `outputLanguage`.
+Legacy `languages.source/output` remains accepted with `legacyInput:true` in the
+receipt; conflicting representations are invalid. Sources may provide spans
+`{id,locator,language,excerpt?}`, claims may bind `{sourceId,spanId}`, and
+`counterEvidence` preserves opposing source references and qualifications.
 
-## Local font binding
+`generationReceipt` records skill/package versions, source SHA, host adapter,
+genre, route/contract, template/recipe IDs, and executed versus omitted checks.
+Unknown stays unknown. `researchReceipt` preserves the older boolean-check API.
+Caller-provided check assertions are not authenticated review evidence. Validation
+proves structure and reference integrity, not that a source supports a claim.
 
-`assets/font-spec.example.json` is an operator-filled specification, not a usable
-font bundle. Use approved files already available locally; no download/install is
-implicit. Keep private paths and font binaries outside the repository.
+For bilingual output use [English authoring](english-authoring.md), with paired
+examples and locale helpers that preserve raw values. Select paper size explicitly,
+not from language. Review visible prose against source facts separately from layout.
+[Exhibit recipes](exhibit-recipes.md) separate analytical prerequisites from a
+bound data instance; page roles specify composition, not analytical validity.
+
+## Export only when requested
+
+Ordinary static HTML/SVG authoring follows VIZ-VERIFY-SCALE-01: reread source,
+save it and deliver it without a mandatory browser/render round trip. The model,
+intake helpers and PDF receipt are not prerequisites for a small static edit.
+Computed visuals require actual execution; exported PDFs require actual export
+and checks appropriate to the stated assurance profile.
+
+The exporter uses an existing local Chromium executable. It does not install a
+browser, select Playwright, or promise font/resource readiness from a fixed wait.
+For dynamic charts, first settle the state using the available browser owner and
+verify that the actual printed values match. The separate `--qa-only` path accepts
+a PDF from any engine, including Aside's own Chromium, and needs no system Chrome.
 
 ```sh
-node scripts/report-fonts.mjs /private/local-font-spec.json /private/font-manifest.json
-node scripts/export-paged-report.mjs assets/paged-report.html /private/report.pdf \
-  --engine playwright --font-manifest /private/font-manifest.json \
-  --contract assets/report-model.example.json --json > /private/export.json
+node scripts/export-paged-report.mjs report.html report.pdf --paper-size A4 --json
+node scripts/export-paged-report.mjs --qa-only report.pdf --paper-size Letter --json
 ```
 
-Run commands from this skill directory. The sealing command refuses to overwrite
-an existing manifest. Record truthful version, license, source and PostScript
-names; hashing binds selected bytes but does not authenticate those metadata.
-All declared faces must actually occur in the PDF, and all emitted font names
-must belong to the manifest. Include required symbols/weights, not unused faces.
-`roles.body` and `roles.heading` select the CSS `--sans` and `--serif` families.
-Font bytes remain in memory and the rendered PDF; never publish raw font files,
-base64 font data or a portable HTML bundle containing those bytes.
+Select available Poppler tools with `--pdfinfo` and `--pdftotext` when they are not
+on PATH. Each tool has a 30-second deadline; `--timeout-ms` accepts 100–300000.
+A timed-out tool fails even when a useful draft PDF exists; verify that file
+separately with `--qa-only` and record which engine actually completed the export.
+The output records per-check status and reasons. Missing tools block
+verification; a process failure or empty extraction fails it. A4/Letter is an
+explicit choice independent of output language.
 
-## Export engines and readiness
-
-`--engine auto` uses an already installed Playwright/Playwright-core adapter and
-local Chromium. `--engine playwright` fails closed when unavailable. No package
-or browser is installed by the exporter. `--chrome` selects an existing executable.
-The fallback `chromium-cli` produces a draft with BLOCKED/3 because it cannot
-prove resource readiness or inspect the DOM/contents. It does not satisfy final
-publication. Its network behavior is not an offline certification.
-
-The Playwright route uses a fresh isolated browser context, print media, reduced
-motion, `preferCSSPageSize`, background printing and explicit font/image waits.
-HTTP(S) resources are denied unless `--allow-network` is explicitly supplied.
-Dynamic content must set `window.__REPORT_READY__` to a completion promise (or
-true after completion), or start with `data-report-ready="pending"` and set it
-to `true` only when final marks and values exist. Rejection, false, invalid state,
-timeout, page error and failed resources stop the export. A canvas without an
-explicit completion signal fails. A promise itself does not prove chart semantics.
-
-The same loaded page is used for both TOC passes, preserving selected state.
-Full heading text must uniquely identify its page after the contents page. No
-prefix guessing: unresolved, ambiguous, duplicate and missing targets/slots fail.
-Repeated running-header titles or multi-page contents may need disambiguation;
-inspect any failure instead of inventing page numbers. `--keep-html` writes a
-non-overwriting diagnostic snapshot, not a portable/re-exportable font or canvas
-bundle. `--qa-only <pdf>` runs only the automated PDF checks, not HTML readiness.
+Use approved local fonts, inspect required glyphs for exported output, and retain
+license provenance. This package does not ship font binaries or a font-manifest
+binding tool. Missing font evidence cannot become a publication PASS.
 
 ## Automated export is not final delivery
 
@@ -132,6 +132,10 @@ findings; **3** required checks not run. Its JSON always says `deliveryReady:fal
 Whitespace, apparent orphan fragments and density are review heuristics. Read
 page images and justify intentional space by the page's role; never fill it with
 unnecessary content to make a heuristic disappear.
+
+Exporter check IDs reuse the receipt vocabulary, but its evidence states only
+the automated scope. Nonempty extraction is not proof that every source record
+or qualification survived. Review those items before claiming final delivery.
 
 For final delivery, supply a receipt with `artifact_sha256` and `checks`. Each
 check has `id`, `status`, and, for PASS, the exact same `artifact_sha256` plus a
@@ -185,9 +189,10 @@ referenced evidence. This gate is an explicit command, not a hook-enforced skill
 
 ```sh
 node --test plugins/codexclaw/test/report-*.test.mjs
-node --test plugins/codexclaw/test/report-browser.smoke.mjs
+node --test plugins/codexclaw/test/exhibit-contract.test.mjs plugins/codexclaw/test/visualizer-packaging.test.mjs
 ```
 
-These commands run from the repository root. The first is dependency-free; the
-second explicitly needs an available browser/driver and fails instead of skipping
-when missing. Keep real Korean PDF generation and page-image review in addition.
+These commands run from the repository root and use isolated fixtures. They do not
+certify arbitrary prose or installed consumer behavior. When export/layout changes,
+add one real mixed-script PDF smoke and inspect the output. Do not render simple
+static HTML merely because these maintenance tests exist.

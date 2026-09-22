@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "id": "reference-en",
+  "genre": "reference",
+  "language": "en",
+  "localeConfig": {
+    "sourceLanguages": ["ko"], "outputLanguage": "en", "locale": "en-US", "paperSize": "Letter",
+    "formats": {
+      "date": { "dateStyle": "long", "timeZone": "UTC" },
+      "number": { "maximumFractionDigits": 1, "useGrouping": true },
+      "currency": { "currencyDisplay": "symbol", "minimumFractionDigits": 0, "maximumFractionDigits": 0, "useGrouping": true },
+      "unit": { "maximumFractionDigits": 1, "useGrouping": true, "separator": " " }
+    }
+  },
+  "title": "Latency and error rate use different denominators",
+  "summary": "This reference defines latency over 12,000 completed requests and error rate over 12,500 attempted requests. The snapshot date is September 22, 2026; metrics with different denominators must remain separate.",
+  "sections": [{
+    "id": "definitions",
+    "title": "Definitions for completed-request latency and attempted-request error rate",
+    "paragraphs": [
+      "Median and 95th-percentile latency include completed requests only. Requests that end in error are excluded from the latency distribution but remain in the error-rate denominator.",
+      "Error rate is the share of all attempted requests that end in error. The two metrics therefore use different denominators even when they cover the same period."
+    ],
+    "claimIds": ["C1", "C2"], "factIds": ["F1", "F2", "F3", "F4"]
+  }],
+  "sourceNotes": [
+    { "id": "S1", "locator": "illustrative:reference/latency", "text": "Illustrative completed-request latency aggregate" },
+    { "id": "S2", "locator": "illustrative:reference/errors", "text": "Illustrative attempted-request error aggregate" }
+  ],
+  "figures": [{
+    "id": "reference-metrics", "sectionId": "definitions",
+    "caption": "Figure 1. Latency uses completed requests; error rate uses all attempted requests.",
+    "accessibleDescription": "In the illustrative September 22, 2026 snapshot, median latency was 180 milliseconds and 95th-percentile latency was 420 milliseconds across 12,000 completed requests. Error rate was 1.8 percent across 12,500 attempted requests.",
+    "factIds": ["F1", "F2", "F3", "F4"], "sourceRefs": ["S1", "S2"]
+  }],
+  "quotations": [{
+    "id": "QTE1", "sectionId": "definitions", "text": "Do not read latency calculated without failed requests and error rate across all attempted requests as if they shared one denominator.",
+    "originalText": "오류 요청을 빼고 계산한 지연 시간과 전체 요청 오류율을 같은 분모처럼 읽지 않는다.",
+    "sourceLanguage": "ko", "sourceRef": "S2", "translated": true, "translationMarker": "Translated from Korean"
+  }],
+  "limitations": [
+    "All numbers are illustrative and exist only to exercise the report contract.",
+    "This example defines metrics; it does not assess the performance of a real service.",
+    "Comparability changes when the percentile method or reporting window changes."
+  ],
+  "semantics": {
+    "questionIds": ["Q1"], "sourceIds": ["S1", "S2"],
+    "claims": [
+      { "id": "C1", "text": "Latency uses completed requests as its denominator.", "strength": "definition", "strengthLabel": "Definition", "qualification": "completed-requests-only", "qualificationText": "Completed requests only" },
+      { "id": "C2", "text": "Error rate uses all attempted requests as its denominator.", "strength": "definition", "strengthLabel": "Definition", "qualification": "all-attempted-requests", "qualificationText": "All attempted requests included" }
+    ],
+    "facts": [
+      { "id": "F1", "claimId": "C1", "label": "Median latency across completed requests", "raw": 180, "kind": "unit", "unit": "millisecond", "displayUnit": "ms", "denominator": "12000-completed-requests", "denominatorText": "12,000 completed requests", "qualification": "illustrative-snapshot", "qualificationText": "Illustrative single-day snapshot" },
+      { "id": "F2", "claimId": "C1", "label": "95th-percentile end-to-end processing latency across completed requests", "raw": 420, "kind": "unit", "unit": "millisecond", "displayUnit": "ms", "denominator": "12000-completed-requests", "denominatorText": "12,000 completed requests", "qualification": "illustrative-snapshot", "qualificationText": "Illustrative single-day snapshot" },
+      { "id": "F3", "claimId": "C2", "label": "Error rate across all attempted requests", "raw": 1.8, "kind": "unit", "unit": "percent", "displayUnit": "%", "denominator": "12500-attempted-requests", "denominatorText": "12,500 attempted requests", "qualification": "illustrative-snapshot", "qualificationText": "Illustrative single-day snapshot" },
+      { "id": "F4", "claimId": "C2", "label": "Snapshot date", "raw": "2026-09-22", "kind": "date", "unit": "date", "denominator": "single-snapshot-date", "denominatorText": "single snapshot date", "qualification": "utc-calendar-date", "qualificationText": "UTC calendar date" }
+    ]
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "id": "reference-ko",
+  "genre": "reference",
+  "language": "ko",
+  "localeConfig": {
+    "sourceLanguages": ["ko"], "outputLanguage": "ko", "locale": "ko-KR", "paperSize": "A4",
+    "formats": {
+      "date": { "dateStyle": "long", "timeZone": "UTC" },
+      "number": { "maximumFractionDigits": 1, "useGrouping": true },
+      "currency": { "currencyDisplay": "symbol", "minimumFractionDigits": 0, "maximumFractionDigits": 0, "useGrouping": true },
+      "unit": { "maximumFractionDigits": 1, "useGrouping": true, "separator": " " }
+    }
+  },
+  "title": "지연 시간과 오류율은 서로 다른 분모를 사용한다",
+  "summary": "이 참조 예시는 지연 시간은 완료 요청 12,000건, 오류율은 전체 시도 요청 12,500건을 기준으로 읽도록 정의한다. 측정일은 2026년 9월 22일이며, 분모가 다른 지표를 직접 합산하지 않는다.",
+  "sections": [{
+    "id": "definitions",
+    "title": "완료 요청 지연 시간과 전체 시도 오류율의 정의",
+    "paragraphs": [
+      "중앙값과 95백분위 지연 시간은 완료된 요청만 포함한다. 오류로 끝난 요청은 지연 시간 분포에서 제외되지만 오류율 분모에는 포함된다.",
+      "오류율은 전체 시도 요청 가운데 오류로 끝난 비율이다. 따라서 지연 시간과 오류율은 같은 기간을 보더라도 분모가 다르다."
+    ],
+    "claimIds": ["C1", "C2"], "factIds": ["F1", "F2", "F3", "F4"]
+  }],
+  "sourceNotes": [
+    { "id": "S1", "locator": "illustrative:reference/latency", "text": "가상 완료 요청 지연 시간 집계" },
+    { "id": "S2", "locator": "illustrative:reference/errors", "text": "가상 전체 시도 요청 오류 집계" }
+  ],
+  "figures": [{
+    "id": "reference-metrics", "sectionId": "definitions",
+    "caption": "그림 1. 지연 시간은 완료 요청, 오류율은 전체 시도 요청을 분모로 한다.",
+    "accessibleDescription": "2026년 9월 22일 가상 스냅샷에서 완료 요청 12,000건의 중앙값 지연 시간은 180밀리초, 95백분위는 420밀리초다. 전체 시도 요청 12,500건의 오류율은 1.8퍼센트다.",
+    "factIds": ["F1", "F2", "F3", "F4"], "sourceRefs": ["S1", "S2"]
+  }],
+  "quotations": [{
+    "id": "QTE1", "sectionId": "definitions", "text": "오류 요청을 빼고 계산한 지연 시간과 전체 요청 오류율을 같은 분모처럼 읽지 않는다.",
+    "originalText": "오류 요청을 빼고 계산한 지연 시간과 전체 요청 오류율을 같은 분모처럼 읽지 않는다.",
+    "sourceLanguage": "ko", "sourceRef": "S2", "translated": false, "translationMarker": "한국어 원문"
+  }],
+  "limitations": [
+    "모든 수치는 형식 검증을 위한 가상 자료다.",
+    "이 예시는 지표 정의를 설명하며 서비스 성능을 평가하지 않는다.",
+    "백분위 계산 방식과 시간 범위가 달라지면 값의 비교 가능성도 달라진다."
+  ],
+  "semantics": {
+    "questionIds": ["Q1"], "sourceIds": ["S1", "S2"],
+    "claims": [
+      { "id": "C1", "text": "지연 시간은 완료 요청을 분모로 한다.", "strength": "definition", "strengthLabel": "정의", "qualification": "completed-requests-only", "qualificationText": "완료 요청만 포함" },
+      { "id": "C2", "text": "오류율은 전체 시도 요청을 분모로 한다.", "strength": "definition", "strengthLabel": "정의", "qualification": "all-attempted-requests", "qualificationText": "전체 시도 요청 포함" }
+    ],
+    "facts": [
+      { "id": "F1", "claimId": "C1", "label": "완료 요청 중앙값 지연 시간", "raw": 180, "kind": "unit", "unit": "millisecond", "displayUnit": "ms", "denominator": "12000-completed-requests", "denominatorText": "완료 요청 12,000건", "qualification": "illustrative-snapshot", "qualificationText": "가상 단일일 스냅샷" },
+      { "id": "F2", "claimId": "C1", "label": "완료 요청 95백분위 종단 간 처리 지연 시간", "raw": 420, "kind": "unit", "unit": "millisecond", "displayUnit": "ms", "denominator": "12000-completed-requests", "denominatorText": "완료 요청 12,000건", "qualification": "illustrative-snapshot", "qualificationText": "가상 단일일 스냅샷" },
+      { "id": "F3", "claimId": "C2", "label": "전체 시도 요청 오류율", "raw": 1.8, "kind": "unit", "unit": "percent", "displayUnit": "%", "denominator": "12500-attempted-requests", "denominatorText": "전체 시도 요청 12,500건", "qualification": "illustrative-snapshot", "qualificationText": "가상 단일일 스냅샷" },
+      { "id": "F4", "claimId": "C2", "label": "측정일", "raw": "2026-09-22", "kind": "date", "unit": "date", "denominator": "single-snapshot-date", "denominatorText": "단일 측정일", "qualification": "utc-calendar-date", "qualificationText": "UTC 달력 날짜" }
+    ]
+  }
+}

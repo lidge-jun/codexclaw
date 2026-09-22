@@ -17,9 +17,12 @@ require a development loop. This skill owns artifact composition and delivery.
 `dev-uiux-design` owns broader design judgment, `dev-frontend` owns frontend
 implementation, and available format-specific skills own document mechanics.
 
-**VIZ-SCOPE-01 — ported here, and not independent.** This skill is codexclaw's port of
-the Aside visualizer work. The standalone `aside-visualizer` repository is Aside's own:
-do not work in it, mirror its roadmap, or treat its issues as work for this repository.
+**VIZ-SCOPE-01 — caller-scoped artifacts, upstream-first maintenance.** Shared
+visualizer fixes are implemented and verified in codexclaw first, then adapted to
+the standalone `aside-visualizer` repository. For explicitly requested maintenance,
+follow [the port workflow](reference/port-maintenance.md); an upstream merge alone
+does not close a downstream issue. This direction does not authorize maintenance
+while answering an ordinary artifact request or duplicate Aside's roadmap here.
 Within codexclaw the skill has no independent mandate either. It composes and verifies
 the artifact the calling task asked for, under that task's plan and verification gate.
 It does not open a repository of its own, install itself or its scripts as a
@@ -63,6 +66,16 @@ focused explanation. Neither phrase grants permission to publish or install.
 No tool or companion skill is assumed installed. Inspect available capabilities;
 if a required exporter is absent, deliver the useful editable source and identify
 the missing requested output. Never call print-ready HTML a generated PDF.
+
+## Report evidence, language and analytical exhibits
+
+For a report that answers research questions, use the existing model and
+[research handoff](reference/report-pipeline.md); source-only intake performs no
+retrieval. Preserve unknown provenance and unanswered questions. For English or
+bilingual output, use [English authoring](reference/english-authoring.md), choose
+source/output languages separately, and preserve values and qualifications. Choose
+[exhibit recipes](reference/exhibit-recipes.md) by question and evidence; a table
+or prose is valid. These are report tools, not prerequisites for a simple HTML edit.
 
 ## Compose before styling
 
@@ -142,7 +155,7 @@ Spend the round trip where the visible result is computed rather than written.
 | An inline visual in this conversation, or a fenced diagram the host renders | Reread the source once and send it. The reader's screen is the render. |
 | A small static HTML/SVG page in ordinary flow — prose, tables, hand-placed shapes, no runtime data, no library, no export | Reread the source, save it, return the link. |
 | Anything whose visible result is computed — marks drawn from data, connector geometry derived from rendered bounds, a runtime library or webfont, an input that changes the output | DIAGRAM-RENDER-VERIFY-01 in full. |
-| Anything that leaves the conversation to be read elsewhere — PDF, print output, a multi-page report, a published or forwarded document | DIAGRAM-RENDER-VERIFY-01 and a stated assurance profile. |
+| PDF, print output, or a multi-page paged report | DIAGRAM-RENDER-VERIFY-01 with a stated assurance profile. Merely saving or sharing a simple static HTML/SVG file does not promote it to this tier. |
 
 Two rules hold in every tier. An unrun check is never written up as a passed one:
 "not rendered — static HTML in normal flow" is honest, "verified" is not. And a
@@ -161,12 +174,12 @@ For interaction, change the primary input and observe the resulting marks/values
 exercise keyboard access and reset when provided. A static screenshot is not
 interaction proof. For PDF, inspect the **actual exported pages**, including
 multipage tables, final content, Korean glyphs and selected scenario state.
-Print CSS or a PDF filename alone proves nothing. For a delivered report, run the
+Print CSS or a PDF filename alone proves nothing. For a delivered PDF/print/paged report, run the
 export script's QA (REPORT-QA-01) and the fresh-reader check on the rendered pages
 (REPORT-FRESH-01); an orphan line at the top of a page, a heading stranded at the
 bottom, a half-empty page or a figure whose text prints under 8.5pt is a defect.
 
-How much of that verification a report owes is a **choice stated up front**, not a
+How much of that verification a PDF/print/paged report owes is a **choice stated up front**, not a
 fixed tax. Reading every rendered page is expensive, and a draft does not earn it.
 Pick a receipt profile — `draft`, `standard` or `publication` — per
 [report pipeline](reference/report-pipeline.md) REPORT-ASSURANCE-01, and report the

@@ -1,0 +1,488 @@
+{
+  "schemaVersion": 1,
+  "recipes": [
+    {
+      "version": 1,
+      "id": "policy-assumption-map",
+      "domain": "policy",
+      "readerQuestion": "Which policy assumptions are evidenced, and which remain hypotheses?",
+      "prerequisites": [
+        "Each proposition is quoted or paraphrased from a named evidence source.",
+        "Evidence edges and hypothesis edges are classified separately."
+      ],
+      "requiredFields": ["sourceRefs", "data", "uncertainty", "caption", "accessibleText", "edges"],
+      "allowedEvidence": ["policy-text", "administrative-record", "expert-interview"],
+      "calculation": null,
+      "method": {
+        "kind": "evidence-tracing",
+        "description": "Trace each assumption to evidence and mark unsupported links as hypotheses without assigning scores."
+      },
+      "encoding": {"kind": "assumption-map", "labelField": "label"},
+      "misleadingAlternatives": [
+        "Scoring interview themes without a measured scale.",
+        "Drawing every relationship as equally evidenced."
+      ],
+      "failureCases": [
+        "An evidence edge has no source reference.",
+        "A hypothesis is described as an established mechanism."
+      ],
+      "staticStrategy": "Use a proposition table followed by separate evidence and hypothesis edge lists."
+    },
+    {
+      "version": 1,
+      "id": "business-waterfall",
+      "domain": "business",
+      "readerQuestion": "Which measured components explain the change from baseline to outcome?",
+      "prerequisites": [
+        "Components use one unit and reconcile to the stated outcome.",
+        "Positive and negative contributions are independently sourced."
+      ],
+      "requiredFields": ["sourceRefs", "data", "caption", "accessibleText"],
+      "allowedEvidence": ["audited-financial-record", "management-accounting-record"],
+      "calculation": {
+        "kind": "additive-bridge",
+        "description": "Add signed component changes to the baseline using unrounded values."
+      },
+      "method": null,
+      "encoding": {"kind": "waterfall", "labelField": "label", "valueField": "value"},
+      "misleadingAlternatives": [
+        "Mixing percentages and currency in one bridge.",
+        "Using a waterfall when components overlap."
+      ],
+      "failureCases": [
+        "Components do not reconcile.",
+        "A residual is hidden by rounding."
+      ],
+      "staticStrategy": "Use a signed contribution table with baseline, components, outcome, unit, and sources."
+    },
+    {
+      "version": 1,
+      "id": "business-sensitivity",
+      "domain": "business",
+      "readerQuestion": "How does a modeled result change under explicit input assumptions?",
+      "prerequisites": [
+        "The formula and baseline assumptions are visible.",
+        "Scenarios change one declared input at a time or disclose combined changes."
+      ],
+      "requiredFields": ["sourceRefs", "data", "uncertainty", "caption", "accessibleText"],
+      "allowedEvidence": ["modeled-scenario", "management-accounting-record"],
+      "calculation": {
+        "kind": "scenario-model",
+        "description": "Apply each declared scenario to the same transparent baseline model."
+      },
+      "method": null,
+      "encoding": {"kind": "sensitivity", "labelField": "label", "valueField": "value"},
+      "misleadingAlternatives": [
+        "Presenting scenarios as forecasts.",
+        "Changing several hidden assumptions between scenarios."
+      ],
+      "failureCases": [
+        "Assumptions are omitted.",
+        "Scenario values use different formulas."
+      ],
+      "staticStrategy": "Use a scenario table with baseline, changed assumption, modeled result, and limitation."
+    },
+    {
+      "version": 1,
+      "id": "ux-journey-evidence",
+      "domain": "ux",
+      "readerQuestion": "Where does observed user friction occur in the journey?",
+      "prerequisites": [
+        "Journey stages come from observed sessions or transcripts.",
+        "Each friction statement points to evidence rather than a severity score invented by the author."
+      ],
+      "requiredFields": ["sourceRefs", "data", "uncertainty", "caption", "accessibleText", "edges"],
+      "allowedEvidence": ["usability-session", "support-transcript", "field-observation"],
+      "calculation": null,
+      "method": {
+        "kind": "journey-evidence-synthesis",
+        "description": "Order sourced observations by task stage and distinguish observed handoffs from hypotheses."
+      },
+      "encoding": {"kind": "journey", "labelField": "label"},
+      "misleadingAlternatives": [
+        "Converting a small interview sample into a numerical severity ranking.",
+        "Inferring dropout from a single quote."
+      ],
+      "failureCases": [
+        "A stage has no evidence anchor.",
+        "Researcher interpretation is shown as direct observation."
+      ],
+      "staticStrategy": "Use an ordered journey table with evidence references and a separate hypothesis note."
+    },
+    {
+      "version": 1,
+      "id": "ux-cohort-comparison",
+      "domain": "ux",
+      "readerQuestion": "How do measured outcomes differ between comparable cohorts?",
+      "prerequisites": [
+        "Cohorts use the same inclusion window and outcome definition.",
+        "The denominator for each comparison is explicit."
+      ],
+      "requiredFields": ["sourceRefs", "data", "denominator", "uncertainty", "caption", "accessibleText"],
+      "allowedEvidence": ["product-analytics-export", "experiment-record"],
+      "calculation": {
+        "kind": "cohort-rate",
+        "description": "Compare measured cohort outcomes against the declared eligible population."
+      },
+      "method": null,
+      "encoding": {"kind": "cohort", "labelField": "label", "valueField": "value"},
+      "misleadingAlternatives": [
+        "Comparing cohorts with different windows.",
+        "Calling an observational difference causal."
+      ],
+      "failureCases": [
+        "The denominator is absent.",
+        "Assignment or selection differences are hidden."
+      ],
+      "staticStrategy": "Use an aligned cohort table with counts, common outcome definition, denominator, and uncertainty."
+    },
+    {
+      "version": 1,
+      "id": "science-intervals",
+      "domain": "science",
+      "readerQuestion": "What estimates and uncertainty intervals did the studies report?",
+      "prerequisites": [
+        "Every interval uses the same confidence or credible level.",
+        "Estimate, lower bound, upper bound, unit, and source are available."
+      ],
+      "requiredFields": ["sourceRefs", "data", "uncertainty", "caption", "accessibleText"],
+      "allowedEvidence": ["peer-reviewed-study", "registered-analysis"],
+      "calculation": {
+        "kind": "interval-comparison",
+        "description": "Display reported point estimates with their reported lower and upper bounds without recomputing missing intervals."
+      },
+      "method": null,
+      "encoding": {"kind": "interval", "labelField": "label", "valueField": "value"},
+      "misleadingAlternatives": [
+        "Showing point estimates without uncertainty.",
+        "Treating overlapping intervals as a significance test."
+      ],
+      "failureCases": [
+        "An interval does not contain its estimate.",
+        "Interval levels differ without disclosure."
+      ],
+      "staticStrategy": "Use a study table with estimate, interval bounds, interval level, unit, and source."
+    },
+    {
+      "version": 1,
+      "id": "science-heterogeneity",
+      "domain": "science",
+      "readerQuestion": "Are the estimates compatible enough to summarize together?",
+      "prerequisites": [
+        "Population, intervention, outcome, and time window compatibility are assessed.",
+        "A pooled estimate is shown only when compatibility is declared."
+      ],
+      "requiredFields": ["sourceRefs", "data", "uncertainty", "caption", "accessibleText"],
+      "allowedEvidence": ["peer-reviewed-study", "systematic-review-record"],
+      "calculation": {
+        "kind": "heterogeneity-review",
+        "description": "Compare estimates and compatibility metadata before any pooled summary."
+      },
+      "method": null,
+      "encoding": {"kind": "heterogeneity", "labelField": "label", "valueField": "value"},
+      "misleadingAlternatives": [
+        "Pooling incompatible outcomes.",
+        "Hiding study-level differences behind one mean."
+      ],
+      "failureCases": [
+        "Compatibility is declared incompatible while pooled is true.",
+        "Study definitions are absent."
+      ],
+      "staticStrategy": "Use a study comparison table and state whether pooling was performed and why."
+    },
+    {
+      "version": 1,
+      "id": "history-chronology-provenance",
+      "domain": "history",
+      "readerQuestion": "What happened in sequence, and which source supports each event?",
+      "prerequisites": [
+        "Dates retain their original precision.",
+        "Conflicting accounts remain visible instead of being silently reconciled."
+      ],
+      "requiredFields": ["sourceRefs", "data", "uncertainty", "caption", "accessibleText", "edges"],
+      "allowedEvidence": ["primary-document", "archival-catalog", "scholarly-secondary-source"],
+      "calculation": null,
+      "method": {
+        "kind": "chronology-with-provenance",
+        "description": "Order sourced events while preserving date precision, provenance, and disputed interpretation."
+      },
+      "encoding": {"kind": "timeline", "labelField": "label"},
+      "misleadingAlternatives": [
+        "Converting an approximate date into an exact day.",
+        "Drawing temporal sequence as proof of causation."
+      ],
+      "failureCases": [
+        "An event has no source reference.",
+        "A disputed interpretation is presented as settled fact."
+      ],
+      "staticStrategy": "Use a chronology table with date precision, event, provenance, and dispute note."
+    },
+    {
+      "version": 1,
+      "id": "operations-process-evidence",
+      "domain": "operations",
+      "readerQuestion": "Where do observed process handoffs create delay or rework?",
+      "prerequisites": [
+        "Steps and handoffs are observed or documented.",
+        "Proposed causes are marked as hypotheses until tested."
+      ],
+      "requiredFields": ["sourceRefs", "data", "uncertainty", "caption", "accessibleText", "edges"],
+      "allowedEvidence": ["process-observation", "workflow-log", "standard-operating-procedure"],
+      "calculation": null,
+      "method": {
+        "kind": "process-tracing",
+        "description": "Trace documented steps and classify each connection as evidence or hypothesis."
+      },
+      "encoding": {"kind": "process", "labelField": "label"},
+      "misleadingAlternatives": [
+        "Treating the designed process as the observed process.",
+        "Assigning numerical efficiency scores without a measured scale."
+      ],
+      "failureCases": [
+        "An observed handoff lacks a source.",
+        "A suspected cause is encoded as evidence."
+      ],
+      "staticStrategy": "Use a step table and separate observed handoffs from causal hypotheses."
+    },
+    {
+      "version": 1,
+      "id": "operations-latency",
+      "domain": "operations",
+      "readerQuestion": "How does service latency vary across reported percentiles?",
+      "prerequisites": [
+        "Percentiles use one population, window, and unit.",
+        "The request count and observation period are stated."
+      ],
+      "requiredFields": ["sourceRefs", "data", "denominator", "uncertainty", "caption", "accessibleText"],
+      "allowedEvidence": ["workflow-log", "monitoring-export"],
+      "calculation": {
+        "kind": "percentile-summary",
+        "description": "Report observed percentile values from the same request population without averaging percentiles."
+      },
+      "method": null,
+      "encoding": {"kind": "latency", "labelField": "label", "valueField": "value"},
+      "misleadingAlternatives": [
+        "Reporting only the mean for a skewed latency distribution.",
+        "Comparing percentiles from different time windows."
+      ],
+      "failureCases": [
+        "The request denominator is missing.",
+        "Percentile labels and values come from different populations."
+      ],
+      "staticStrategy": "Use a percentile table with value, unit, request count, observation window, and source."
+    }
+  ],
+  "instances": [
+    {
+      "recipeId": "policy-assumption-map",
+      "sourceRefs": ["POL-TEXT-1", "POL-ADMIN-1"],
+      "evidenceType": "policy-text",
+      "data": {
+        "rows": [
+          {"id": "eligibility", "label": "Eligibility rule", "description": "The illustrative policy text limits eligibility to registered sites.", "sourceRefs": ["POL-TEXT-1"]},
+          {"id": "uptake", "label": "Expected uptake", "description": "The illustrative administrative record reports prior enrollment, not future uptake.", "sourceRefs": ["POL-ADMIN-1"]},
+          {"id": "capacity", "label": "Delivery capacity", "description": "No direct capacity measurement is supplied in this illustrative example.", "sourceRefs": ["POL-TEXT-1"]}
+        ],
+        "analysis": {"claimType": "hypothesis", "design": "descriptive", "pooled": false, "poolingCompatibility": "not-applicable"},
+        "assumptions": ["The fictional records are used only to demonstrate evidence and hypothesis labels."]
+      },
+      "units": "not-applicable",
+      "denominator": null,
+      "uncertainty": {"kind": "qualitative-limit", "description": "Future uptake and operational capacity are not measured."},
+      "caption": "Illustrative policy assumption map; evidence edges and hypotheses are intentionally distinct.",
+      "accessibleText": "The eligibility rule is documented. Prior enrollment informs but does not establish future uptake. Capacity remains unmeasured.",
+      "edges": [
+        {"from": "eligibility", "to": "uptake", "type": "evidence", "label": "The rule defines the population eligible to enroll.", "sourceRefs": ["POL-TEXT-1"]},
+        {"from": "uptake", "to": "capacity", "type": "hypothesis", "label": "Higher uptake may require additional delivery capacity.", "sourceRefs": []}
+      ]
+    },
+    {
+      "recipeId": "business-waterfall",
+      "sourceRefs": ["BIZ-LEDGER-1"],
+      "evidenceType": "management-accounting-record",
+      "data": {
+        "rows": [
+          {"id": "baseline", "label": "Baseline operating result", "value": 420, "role": "baseline", "sourceRefs": ["BIZ-LEDGER-1"]},
+          {"id": "volume", "label": "Volume contribution", "value": 70, "role": "delta", "sourceRefs": ["BIZ-LEDGER-1"]},
+          {"id": "price", "label": "Price contribution", "value": 25, "role": "delta", "sourceRefs": ["BIZ-LEDGER-1"]},
+          {"id": "service", "label": "Service cost contribution", "value": -35, "role": "delta", "sourceRefs": ["BIZ-LEDGER-1"]},
+          {"id": "outcome", "label": "Outcome operating result", "value": 480, "role": "total", "sourceRefs": ["BIZ-LEDGER-1"]}
+        ],
+        "analysis": {"claimType": "descriptive", "design": "descriptive", "pooled": false, "poolingCompatibility": "not-applicable"},
+        "assumptions": []
+      },
+      "units": "illustrative USD thousands",
+      "denominator": null,
+      "uncertainty": null,
+      "caption": "Illustrative operating-result bridge using fictional management-accounting values.",
+      "accessibleText": "A baseline of 420 increases by 70 and 25, then decreases by 35, all in illustrative thousands of US dollars.",
+      "edges": []
+    },
+    {
+      "recipeId": "business-sensitivity",
+      "sourceRefs": ["BIZ-MODEL-1"],
+      "evidenceType": "modeled-scenario",
+      "data": {
+        "rows": [
+          {"id": "low", "label": "Lower demand", "value": 310, "scenario": "620 thousand units at USD 0.50 margin", "sourceRefs": ["BIZ-MODEL-1"]},
+          {"id": "base", "label": "Baseline demand", "value": 360, "scenario": "720 thousand units at USD 0.50 margin", "sourceRefs": ["BIZ-MODEL-1"]},
+          {"id": "high", "label": "Higher demand", "value": 415, "scenario": "830 thousand units at USD 0.50 margin", "sourceRefs": ["BIZ-MODEL-1"]}
+        ],
+        "analysis": {"claimType": "hypothesis", "design": "modeled", "pooled": false, "poolingCompatibility": "not-applicable"},
+        "assumptions": ["Result in USD thousands = demand in thousands of units multiplied by USD 0.50 margin per unit.", "Only demand changes across the three illustrative scenarios; fixed costs are excluded."]
+      },
+      "units": "illustrative USD thousands",
+      "denominator": null,
+      "uncertainty": {"kind": "assumption", "description": "Scenario outputs are model results, not forecasts or observations."},
+      "caption": "Illustrative demand sensitivity under a fixed fictional margin assumption.",
+      "accessibleText": "Modeled operating results are 310, 360, and 415 illustrative thousands of US dollars as demand moves from lower to baseline to higher.",
+      "edges": []
+    },
+    {
+      "recipeId": "ux-journey-evidence",
+      "sourceRefs": ["UX-SESSION-1", "UX-SUPPORT-1"],
+      "evidenceType": "usability-session",
+      "data": {
+        "rows": [
+          {"id": "discover", "label": "Discover eligibility", "stage": "Entry", "description": "Illustrative participants looked for eligibility before starting.", "sourceRefs": ["UX-SESSION-1"]},
+          {"id": "prepare", "label": "Prepare documents", "stage": "Preparation", "description": "Illustrative support records mention uncertainty about accepted documents.", "sourceRefs": ["UX-SUPPORT-1"]},
+          {"id": "submit", "label": "Submit application", "stage": "Submission", "description": "The supplied fictional sessions do not measure completion rate.", "sourceRefs": ["UX-SESSION-1"]}
+        ],
+        "analysis": {"claimType": "hypothesis", "design": "observational", "pooled": false, "poolingCompatibility": "not-applicable"},
+        "assumptions": []
+      },
+      "units": "not-applicable",
+      "denominator": null,
+      "uncertainty": {"kind": "qualitative-limit", "description": "The small fictional session set does not estimate prevalence."},
+      "caption": "Illustrative journey evidence from fictional usability and support records.",
+      "accessibleText": "Observed evidence concerns eligibility discovery and document preparation. A link to submission completion remains a hypothesis.",
+      "edges": [
+        {"from": "discover", "to": "prepare", "type": "evidence", "label": "Participants moved from checking eligibility to gathering documents.", "sourceRefs": ["UX-SESSION-1"]},
+        {"from": "prepare", "to": "submit", "type": "hypothesis", "label": "Document uncertainty may reduce successful submission.", "sourceRefs": []}
+      ]
+    },
+    {
+      "recipeId": "ux-cohort-comparison",
+      "sourceRefs": ["UX-ANALYTICS-1"],
+      "evidenceType": "product-analytics-export",
+      "data": {
+        "rows": [
+          {"id": "guided", "label": "Guided flow completions", "value": 62, "sourceRefs": ["UX-ANALYTICS-1"]},
+          {"id": "standard", "label": "Standard flow completions", "value": 48, "sourceRefs": ["UX-ANALYTICS-1"]}
+        ],
+        "analysis": {"claimType": "associational", "design": "observational", "pooled": false, "poolingCompatibility": "compatible"},
+        "assumptions": ["Both fictional cohorts use the same seven-day completion window."]
+      },
+      "units": "completed accounts",
+      "denominator": {"value": 80, "unit": "eligible accounts per cohort", "label": "Illustrative eligible population in each cohort"},
+      "uncertainty": {"kind": "sampling-error", "description": "No random assignment is claimed; selection differences may explain part of the association."},
+      "caption": "Illustrative observational cohort comparison; the difference is not labeled causal.",
+      "accessibleText": "In fictional cohorts of 80 eligible accounts each, 62 guided-flow accounts and 48 standard-flow accounts completed within seven days.",
+      "edges": []
+    },
+    {
+      "recipeId": "science-intervals",
+      "sourceRefs": ["SCI-STUDY-A", "SCI-STUDY-B"],
+      "evidenceType": "peer-reviewed-study",
+      "data": {
+        "rows": [
+          {"id": "study-a", "label": "Illustrative Study A", "value": 1.4, "lower": 0.8, "upper": 2.0, "sourceRefs": ["SCI-STUDY-A"]},
+          {"id": "study-b", "label": "Illustrative Study B", "value": 0.9, "lower": 0.3, "upper": 1.5, "sourceRefs": ["SCI-STUDY-B"]}
+        ],
+        "analysis": {"claimType": "associational", "design": "randomized", "pooled": false, "poolingCompatibility": "unknown"},
+        "assumptions": []
+      },
+      "units": "illustrative outcome points",
+      "denominator": null,
+      "uncertainty": {"kind": "confidence-interval", "description": "Both fictional intervals are shown as reported 95 percent confidence intervals.", "lower": 0.3, "upper": 2.0},
+      "caption": "Illustrative study estimates with fictional 95 percent confidence intervals.",
+      "accessibleText": "Study A estimates 1.4 with interval 0.8 to 2.0. Study B estimates 0.9 with interval 0.3 to 1.5. Values are illustrative.",
+      "edges": []
+    },
+    {
+      "recipeId": "science-heterogeneity",
+      "sourceRefs": ["SCI-REVIEW-1", "SCI-REVIEW-2"],
+      "evidenceType": "systematic-review-record",
+      "data": {
+        "rows": [
+          {"id": "trial-one", "label": "Illustrative trial one", "value": 1.2, "description": "Fictional adult population, outcome measured after four weeks.", "sourceRefs": ["SCI-REVIEW-1"]},
+          {"id": "trial-two", "label": "Illustrative trial two", "value": 2.1, "description": "Fictional adult population, outcome measured after twelve weeks.", "sourceRefs": ["SCI-REVIEW-2"]}
+        ],
+        "analysis": {"claimType": "associational", "design": "randomized", "pooled": false, "poolingCompatibility": "incompatible"},
+        "assumptions": ["The fictional outcomes use materially different follow-up windows, so no pooled estimate is shown."]
+      },
+      "units": "illustrative standardized effect",
+      "denominator": null,
+      "uncertainty": {"kind": "qualitative-limit", "description": "Outcome timing differs; the estimates are displayed separately and not pooled."},
+      "caption": "Illustrative heterogeneous estimates shown separately because declared compatibility is insufficient.",
+      "accessibleText": "Two fictional trial estimates are 1.2 and 2.1. They are not pooled because the outcome windows differ.",
+      "edges": []
+    },
+    {
+      "recipeId": "history-chronology-provenance",
+      "sourceRefs": ["HIST-LETTER-1", "HIST-CATALOG-1"],
+      "evidenceType": "primary-document",
+      "data": {
+        "rows": [
+          {"id": "proposal", "label": "Proposal recorded", "date": "Spring 1912 (illustrative)", "description": "A fictional letter proposes a regional archive.", "sourceRefs": ["HIST-LETTER-1"]},
+          {"id": "catalog", "label": "Catalog entry created", "date": "1913 (illustrative)", "description": "A fictional catalog entry records the archive collection.", "sourceRefs": ["HIST-CATALOG-1"]},
+          {"id": "influence", "label": "Influence on later practice", "date": "After 1913 (illustrative)", "description": "The supplied fictional sources do not establish later influence.", "sourceRefs": ["HIST-CATALOG-1"]}
+        ],
+        "analysis": {"claimType": "hypothesis", "design": "historical", "pooled": false, "poolingCompatibility": "not-applicable"},
+        "assumptions": []
+      },
+      "units": "calendar date with preserved precision",
+      "denominator": null,
+      "uncertainty": {"kind": "qualitative-limit", "description": "The proposal date is season-level, and later influence is not established."},
+      "caption": "Illustrative chronology preserving fictional date precision and provenance.",
+      "accessibleText": "A fictional proposal appears in spring 1912 and a fictional catalog entry in 1913. Later influence remains a hypothesis.",
+      "edges": [
+        {"from": "proposal", "to": "catalog", "type": "evidence", "label": "The catalog entry follows the proposal in the fictional record.", "sourceRefs": ["HIST-LETTER-1", "HIST-CATALOG-1"]},
+        {"from": "catalog", "to": "influence", "type": "hypothesis", "label": "The collection may have influenced later archival practice.", "sourceRefs": []}
+      ]
+    },
+    {
+      "recipeId": "operations-process-evidence",
+      "sourceRefs": ["OPS-OBS-1", "OPS-LOG-1"],
+      "evidenceType": "process-observation",
+      "data": {
+        "rows": [
+          {"id": "intake", "label": "Request intake", "description": "Illustrative requests enter one queue.", "sourceRefs": ["OPS-OBS-1"]},
+          {"id": "review", "label": "Manual review", "description": "The fictional workflow log records returns for missing fields.", "sourceRefs": ["OPS-LOG-1"]},
+          {"id": "approve", "label": "Approval", "description": "The supplied fictional records do not isolate the cause of review delay.", "sourceRefs": ["OPS-LOG-1"]}
+        ],
+        "analysis": {"claimType": "hypothesis", "design": "observational", "pooled": false, "poolingCompatibility": "not-applicable"},
+        "assumptions": []
+      },
+      "units": "not-applicable",
+      "denominator": null,
+      "uncertainty": {"kind": "qualitative-limit", "description": "Observed rework is documented, but its cause is not isolated."},
+      "caption": "Illustrative operations process with observed and hypothetical links separated.",
+      "accessibleText": "Requests move from intake to manual review and approval. Returns for missing fields are observed; their role in approval delay remains a hypothesis.",
+      "edges": [
+        {"from": "intake", "to": "review", "type": "evidence", "label": "Requests enter manual review after intake.", "sourceRefs": ["OPS-OBS-1"]},
+        {"from": "review", "to": "approve", "type": "hypothesis", "label": "Missing-field rework may contribute to approval delay.", "sourceRefs": []}
+      ]
+    },
+    {
+      "recipeId": "operations-latency",
+      "sourceRefs": ["OPS-LAT-1"],
+      "evidenceType": "monitoring-export",
+      "data": {
+        "rows": [
+          {"id": "p50", "label": "P50", "value": 180, "percentile": 50, "sourceRefs": ["OPS-LAT-1"]},
+          {"id": "p95", "label": "P95", "value": 620, "percentile": 95, "sourceRefs": ["OPS-LAT-1"]},
+          {"id": "p99", "label": "P99", "value": 1100, "percentile": 99, "sourceRefs": ["OPS-LAT-1"]}
+        ],
+        "analysis": {"claimType": "descriptive", "design": "descriptive", "pooled": false, "poolingCompatibility": "not-applicable"},
+        "assumptions": ["All fictional percentiles use the same seven-day request population."]
+      },
+      "units": "milliseconds",
+      "denominator": {"value": 24000, "unit": "requests", "label": "Illustrative seven-day request population"},
+      "uncertainty": {"kind": "qualitative-limit", "description": "The fictional export summarizes one seven-day window and does not establish future performance."},
+      "caption": "Illustrative service-latency percentiles from one fictional seven-day monitoring export.",
+      "accessibleText": "For 24,000 fictional requests, latency is 180 milliseconds at P50, 620 at P95, and 1,100 at P99.",
+      "edges": []
+    }
+  ]
+}

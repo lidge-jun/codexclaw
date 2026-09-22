@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C323-brightgreen" alt="3,323 tests">
+  <img src="https://img.shields.io/badge/tests-3%2C480-brightgreen" alt="3,480 tests">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
   <img src="https://img.shields.io/badge/hooks-28-blue" alt="28 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -220,7 +220,7 @@ _PATH 수준 `cxc` 진입점(`bin/codexclaw.mjs` + `cli/` 워크스페이스)은
 
 각 라우터는 필요할 때만 불러오는 자체 모듈형 참고 자료를 갖추고 있으며, 부모 스킬의 검증 게이트, 규칙 등급, 안전 규칙을 물려받는다.
 
-**비주얼라이저 범위 — 독립 행동 금지.** `dev-visualizer`는 Aside 쪽 비주얼라이저 작업을 codexclaw로 이식한 스킬이다. 독립 저장소 `aside-visualizer`는 Aside 전용으로 남고, codexclaw는 그 로드맵을 따로 굴리지도, 사본을 하나 더 두지도 않는다. 이 스킬에는 독자 권한이 없다. 요청받은 산출물을 만들고 검증할 뿐, 스스로 저장소를 열거나 자신을 설치하거나 요청 없이 배포·공개·내보내기를 하거나 별도 루프를 시작하지 않는다. 검증 깊이도 선택이다. 모든 문서에 페이지 전수 검토를 물리지 말고 `draft`, `standard`, `publication` 중에서 영수증 프로파일을 골라 쓴다.
+**비주얼라이저 유지보수 — codexclaw 수정 후 Aside 이식.** 공통 기능은 codexclaw에서 먼저 수정하고 검증한다. 이후 `aside-visualizer`에 이식하고, 그 저장소의 납품 브랜치에 병합한 뒤 완료 조건을 검증해야 Aside 이슈를 닫는다. Aside 전용 어댑터와 독립 설치·Chrome 없는 PDF 경로는 보존한다. 자세한 순서는 [이식 절차](plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md)에 적었다. 일반 산출물 요청이 저장소 수정·설치·공개·별도 루프까지 허용하는 것은 아니다. 산출물의 검증 깊이는 `draft`, `standard`, `publication` 중에서 고른다.
 
 ## CLI
 

@@ -4,6 +4,11 @@ Use after [visual design](visual-design.md). This reference guides authoring;
 it does not establish host capabilities or add runtime enforcement.
 The current host contract governs inline output; requested files retain their format.
 
+Apply VIZ-VERIFY-SCALE-01 before the measurement recipes below. Simple hand-authored
+static SVG/HTML without computed geometry, runtime fonts, data marks or export keeps
+source-only review. Rendering/measurement instructions apply when geometry is computed,
+font metrics affect layout, output is exported, or a known defect needs verification.
+
 ## Choose the layout authority
 
 | Deliverable | Text layout | Appropriate export |
@@ -75,7 +80,8 @@ Keep `<defs>`/markers self-contained; define export styles inside the SVG rather
 depending on an HTML ancestor's CSS variables. Preserve text for editing and selection.
 Converting text to paths sacrifices that property; offer it only as an explicitly chosen variant.
 Check font embedding permissions if embedding fonts; otherwise disclose required fonts/fallbacks.
-Reopen the saved SVG itself, XML-parse it and inspect a render at 320/736px and export size.
+For the computed/exported tier, reopen the saved SVG, XML-parse it and inspect a render
+at 320/736px and export size. Source-only static edits do not require this round trip.
 Check labels against node edges, other labels, connectors and the outer viewport.
 
 ## Interaction should answer a question

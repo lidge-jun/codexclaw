@@ -93,6 +93,7 @@ opencodex (`ocx`) is adjacent but optional. opencodex is a local provider proxy 
 | Subagent config | `plugins/codexclaw/components/subagent-config/src/` | role model/prompt config, MCP tools, catalog |
 | Messenger bridge | `plugins/codexclaw/components/messenger-bridge/src/` | loopback GUI/API server, messenger agents, project bridge DB |
 | Skills | `plugins/codexclaw/skills/` | `$cxc-*`, display_name autocomplete, dev routers |
+| Visualizer maintenance | [Port workflow](../plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md) | Shared fixes in codexclaw first; Aside port and downstream verification before issue closure |
 | Subagent roles | `plugins/codexclaw/agents/` | explorer, reviewer, executor, architect inline prompts |
 
 ---
