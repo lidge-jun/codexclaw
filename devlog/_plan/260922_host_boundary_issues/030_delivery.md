@@ -1,0 +1,15 @@
+# wp3 — release and install the reviewed payload
+
+Depends on wp2. Existing release workflow and dev-install script are reused. No new CI policy or protection weakening. Release version is the next unused patch after the already-owned 0.2.35; refresh tags/releases before assigning 0.2.36.
+
+MODIFY package.json, package-lock.json, cli/package.json, plugins/codexclaw/gui/package.json, components/*/package.json, plugin manifest and inventory versions consistently. Preserve cachebuster convention and generate inventory with the full test runner's measured tests count (not pass). MODIFY CHANGELOG.md with shipped outcomes and explicit native residuals. Regenerate inventory/docs using existing script; no hand-edited badges. Verify check-versions plus explicit CLI/GUI/lockfile equality.
+
+Run focused regressions then full npm test, npm run build, gate, inventory --check, check-versions. Capture actual results and independent final staged-diff review. Privacy scan the actual push range for any copied user material; evidence docs contain synthetic identifiers only and source anchors, not automation prompts or transcripts.
+
+Push ordinary branch and create PR to dev with exact change scope, validation and issue outcomes. Attach every PR to this task. Read current head/base/diff/review threads and native stack membership independently. Wait for actual expected hosted jobs at exact head; queued/cancelled/skipped does not prove success. Merge reviewed head with supported method, verify resulting dev SHA and CI/WSL/Packed install.
+
+Before main promotion, confirm prior 0.2.35 release owner is finished or explicit handoff exists, and dev has enforced deletion protection. User's merge/release/deploy authorization persists. Open dev->main PR, attach it, verify and merge. Re-read dev existence and main SHA. Require CI, WSL and Packed install on that exact main SHA. Dispatch release.yml dry_run=true with version and expected_sha, inspect that run; only then publish with dry_run=false. Verify tag SHA, release assets, checksums and provenance.
+
+Local deployment preserves the existing stable marketplace checkout and user changes. Inspect that checkout, update only by a safe fast-forward if clean and appropriate; otherwise stage an immutable release payload without repointing marketplace to the disposable worktree. Back up existing installed payload outside the repository before install. Use the standard installation path; independently run installed doctor, verify installed version and changed file digests. Do not treat dev-install's swallowed doctor failure as success. New hook declarations require legitimate host trust/approval; never claim live guard activation from unit tests or manufactured hook events. Record any remaining activation requirement explicitly.
+
+Rollback is the retained prior immutable payload/release; restore via supported plugin installation. No native state migration means no DB rollback. Completion proof records PRs, SHAs, run IDs, payload digest, install root, smoke output and native residuals; archive the finished unit only after its final evidence is durable.
