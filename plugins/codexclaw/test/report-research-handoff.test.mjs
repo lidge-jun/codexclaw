@@ -5,9 +5,13 @@
 // where a document could otherwise look finished while hiding one of those.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   validateClaims,
   validateResearchHandoff,
+  generationReceipt,
   researchReceipt,
   RESEARCH_ROUTES,
 } from "../skills/dev-visualizer/scripts/report-contract.mjs";
@@ -32,6 +36,7 @@ const research = (over = {}) => ({
   gaps: [],
   ...over,
 });
+const here = dirname(fileURLToPath(import.meta.url));
 
 test("#199: a document with no research section stays valid and is never called research-complete", () => {
   const m = model();
@@ -123,4 +128,87 @@ test("#199: source and output language are recorded separately", () => {
 test("#199: the source boundary and the gap list are both required", () => {
   assert.ok(validateResearchHandoff(model({ research: research({ sourceBoundary: "" }) })).some((i) => /sourceBoundary/.test(i.msg)));
   assert.ok(validateResearchHandoff(model({ research: research({ gaps: "none" }) })).some((i) => /gaps/.test(i.msg)));
+});
+
+test("canonical languages, source spans, and counter-evidence retain their reference integrity", () => {
+  const m = model({
+    sources: [source({ spans: [{ id: "p1", locator: "#page=2", language: "ko", excerpt: "반대 결과" }] })],
+    claims: [claim({ sourceSpans: [{ sourceId: "s1", spanId: "p1" }] })],
+    research: research({
+      languages: undefined,
+      sourceLanguages: ["ko"],
+      outputLanguage: "en",
+      counterEvidence: [{ claimId: "c1", sourceRefs: ["s1"], note: "The source also reports a contrary result." }],
+    }),
+  });
+  assert.deepEqual(validateClaims(m), []);
+  assert.deepEqual(validateResearchHandoff(m), []);
+  assert.equal(researchReceipt(m).legacyInput, false);
+});
+
+test("malformed spans and dangling counter-evidence return issues instead of throwing", () => {
+  const m = model({
+    sources: [source({ spans: [{ id: "p1", locator: "", language: "ko" }] })],
+    claims: [claim({ sourceSpans: [{ sourceId: "s1", spanId: "missing" }] })],
+    research: research({
+      counterEvidence: [{ claimId: "missing", sourceRefs: ["absent"], note: "Contrary evidence." }],
+    }),
+  });
+  assert.doesNotThrow(() => validateClaims(m));
+  assert.ok(validateClaims(m).some((i) => /span/i.test(i.msg)), JSON.stringify(validateClaims(m)));
+  assert.ok(validateResearchHandoff(m).some((i) => /counterEvidence|unknown/i.test(i.msg)));
+});
+
+test("legacy languages remain accepted and conflicting dual language representations are rejected", () => {
+  const legacy = model({ research: research() });
+  assert.deepEqual(validateResearchHandoff(legacy), []);
+  assert.equal(researchReceipt(legacy).legacyInput, true);
+
+  const conflict = model({
+    research: research({ sourceLanguages: ["ja"], outputLanguage: "ko" }),
+  });
+  assert.ok(validateResearchHandoff(conflict).some((i) => /conflict/i.test(i.msg)));
+});
+
+test("generation receipt preserves distinct explicit provenance and labels caller checks as assertions", () => {
+  const m = model({ research: research() });
+  const receipt = generationReceipt(m, {
+    skillVersion: "visualizer-3",
+    packageVersion: "package-9",
+    sourceSha: "a".repeat(40),
+    hostAdapter: "aside",
+    genre: "research-synthesis",
+    templateIds: ["paged-report"],
+    recipeIds: ["evidence-table"],
+    checks: [{ id: "claim-evidence", status: "PASS", reason: "reviewed by caller" }],
+  });
+  assert.equal(receipt.skillVersion, "visualizer-3");
+  assert.equal(receipt.packageVersion, "package-9");
+  assert.equal(receipt.sourceSha, "a".repeat(40));
+  assert.equal(receipt.checks[0].basis, "caller-assertion");
+  assert.equal(receipt.authenticatedProof, false);
+  assert.deepEqual(receipt.validationIssues, []);
+});
+
+test("generation receipt leaves provenance unknown and reports malformed metadata explicitly", () => {
+  const defaults = generationReceipt(model());
+  assert.equal(defaults.skillVersion, "unknown");
+  assert.equal(defaults.packageVersion, "unknown");
+  assert.equal(defaults.sourceSha, "unknown");
+
+  const malformed = generationReceipt(model(), {
+    sourceSha: "../checkout/HEAD",
+    hostAdapter: "/Users/example/account",
+    templateIds: ["ok", 7],
+    checks: [{ id: "claim-evidence", status: "MAGIC" }],
+  });
+  assert.ok(malformed.validationIssues.length >= 4, JSON.stringify(malformed));
+  assert.equal(malformed.sourceSha, "unknown", "invalid provenance must not be copied into a receipt");
+});
+
+test("the shipped research handoff example satisfies the executable contract", () => {
+  const fixture = JSON.parse(readFileSync(join(here, "..", "skills", "dev-visualizer", "assets", "research-handoff.example.json"), "utf8"));
+  assert.deepEqual(validateClaims(fixture), []);
+  assert.deepEqual(validateResearchHandoff(fixture), []);
+  assert.equal(generationReceipt(fixture).legacyInput, false);
 });

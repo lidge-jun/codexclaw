@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "audience": "Research synthesis reader",
+  "question": "What does the supplied evidence establish, and what remains unresolved?",
+  "answerClaimId": "C1",
+  "sources": [
+    {
+      "id": "S1",
+      "locator": "illustrative:research-brief.md",
+      "observedAt": "2026-09-22",
+      "spans": [
+        {
+          "id": "methods",
+          "locator": "#methods",
+          "language": "en",
+          "excerpt": "This illustrative source covers one bounded observation."
+        }
+      ],
+      "note": "Illustrative source only; no external retrieval is implied."
+    }
+  ],
+  "claims": [
+    {
+      "id": "C1",
+      "kind": "observation",
+      "text": "The supplied brief supports one bounded observation.",
+      "sourceRefs": ["S1"],
+      "sourceSpans": [{ "sourceId": "S1", "spanId": "methods" }],
+      "limitations": ["This fixture is illustrative and does not establish a real-world conclusion."]
+    }
+  ],
+  "research": {
+    "contractVersion": 1,
+    "route": "source-only",
+    "sourceBoundary": "Only the supplied illustrative brief",
+    "sourceLanguages": ["en"],
+    "outputLanguage": "en",
+    "questions": [
+      { "id": "Q1", "text": "What does the brief establish?", "answeredBy": ["C1"] },
+      { "id": "Q2", "text": "Does the observation generalize?", "answeredBy": [] }
+    ],
+    "gaps": ["Q2 requires additional authorized research."],
+    "counterEvidence": [
+      {
+        "claimId": "C1",
+        "sourceRefs": ["S1"],
+        "note": "The source's stated scope limits any broader interpretation."
+      }
+    ],
+    "stopReason": "The source-only boundary was reached."
+  }
+}
