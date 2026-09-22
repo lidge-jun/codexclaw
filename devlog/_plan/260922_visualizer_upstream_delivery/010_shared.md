@@ -205,3 +205,11 @@ PDF smoke. This is a bounded example/fixture producer, not mandatory HTML pipeli
 Split L into disjoint worker L (report-locale + six examples + English authoring/tests)
 and worker X (exhibit-contract + recipe JSON + exhibit reference/tests). They share
 no writable file. Main still owns SKILL/pipeline and integration/real PDF smoke.
+
+B runtime amendment from real smoke: Chrome153 produced both PDFs but did not
+terminate normally within >80s; one parent kept waiting on inherited pipe handles
+when Chrome was manually terminated. E same-scope repair adds validated bounded
+subprocess lifetime (--timeout-ms or fixed documented bound), hard timeout kill,
+FAIL evidence on timeout even if a useful PDF exists, deterministic hanging process
+fixture and cleanup. This is the already-planned subprocess-failure boundary, not
+new browser engine scope. No passing claim from a timed-out command.

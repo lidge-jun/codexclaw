@@ -112,7 +112,10 @@ node scripts/export-paged-report.mjs --qa-only report.pdf --paper-size Letter --
 ```
 
 Select available Poppler tools with `--pdfinfo` and `--pdftotext` when they are not
-on PATH. The output records per-check status and reasons. Missing tools block
+on PATH. Each tool has a 30-second deadline; `--timeout-ms` accepts 100–300000.
+A timed-out tool fails even when a useful draft PDF exists; verify that file
+separately with `--qa-only` and record which engine actually completed the export.
+The output records per-check status and reasons. Missing tools block
 verification; a process failure or empty extraction fails it. A4/Letter is an
 explicit choice independent of output language.
 

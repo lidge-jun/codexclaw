@@ -139,3 +139,62 @@ Policy-only independent review: four medium ambiguities (delivered report scope,
 PDF-only assurance selection, standard-profile image review, bounded static-edit
 pipeline scope) accepted and corrected. Same reviewer interdiff VERDICT PASS; no
 mandatory render or model rebuilding remains for bounded static HTML/SVG edits.
+
+Peer update: PR228 head advanced to 2bb3e8a3 for KO/ZH README parity after review;
+review thread resolved by actual fix. Peer full suite reports 3323 total/3319 pass/
+4 skip/0 fail after npm ci. README.ko.md/.zh.md also overlap at distinct architect
+paragraphs; preserve alongside this task's visualizer paragraphs. Hosted latest-head
+CI still pending. No version/count change on peer branch.
+
+Peer #228 MERGED verified live: merge 0943bec3c07f4a921f3fb18a608cfd08ba632964,
+reviewed head 2bb3e8a3928fe9d1e7388b40ccac3360341f97ea. Peer reports CI
+35701748645 and Packed install 35701748719 success, resolved threads. origin/dev
+fetched; do not merge while shared-tree workers write. Main takes existing local
+plugin update after release (no new installation/account); distinguish installed
+bytes from already-injected session context. Verify actual supported updater first.
+
+wp1 integration first run: 134 report/exhibit/packaging tests pass. Independent
+research review found nested non-cloneable retrieval data escaping DataCloneError
+and duplicate refs accepted; accepted both, R resumed with regression repair.
+Bilingual review found attrition/cancellation metric drift, unsupported directional
+wording, sample/population overstatement and missing accessible qualifications;
+accepted all, L correcting actual visible prose while preserving invariant values.
+Real PDF smoke produced A4/Letter PDFs, QA-only passes both (2 pages each), but
+Chrome153 process nontermination exposed missing timeout; E resumed same boundary.
+No final C success is claimed from these intermediate greens.
+
+Current reviewer handles: exhibit correctness 01a0c828-db64-7b02-91d4-ead312327966;
+exporter 01a0c82b-11a1-7133-a04c-fcd93ca312a5; bilingual content
+01a0c828-0df9-7be2-a926-0c2d252d8f5e; research reviewer
+01a0c829-3a2d-7411-a73c-97499453082c closed after FAIL and can be resumed for
+interdiff after R repairs. R/E authors resumed same handles; L still active.
+CLI smoke artifacts: .codexclaw/evidence/01a0c7e9-f184-7913-a61e-9b216d85c15a/visualizer-smoke.
+Main opened all four PNGs: 2-page KO A4 and EN Letter, long labels/Hangul legible,
+actual geometry correct. Requested print 2-column metric grid (old 3+1 leaves gray
+empty area) and quote/source grouping; re-export after L's semantic/layout fixes.
+Original Chrome PIDs 76919/76943 and waiting exporter 76941 terminated individually;
+ps confirms absent. Useful PDFs retained; timeout is not successful export proof.
+
+Independent exhibit review found two High defects: generic rendering discarded
+interval bounds/chronology dates and disguised all quantitative encodings as bars;
+recipe-specific invariants (waterfall/cohort/interval/date/percentile) not validated.
+Also row count overflow and null/undefined method inconsistency. Accepted all after
+source inspection; X resumed same scope with faithful exact-table fallback allowed,
+per-encoding invariants and actual output/negative tests. No new renderer dependency.
+R fixed two findings with 9 observed red regressions, 52 focused pass; same reviewer
+resumed to confirm interdiff. Final C remains pending.
+
+Real PDF smoke: Chrome CLI minimal/virtual-time/stages isolated probes all wrote a
+PDF but failed to exit within8s. This disproves one bad flag as sole cause; bounded
+exporter correctly reports FAIL1 on timeout (files retained). Existing bundled
+Playwright controlling same Chrome153 completed both KO-A4/EN-Letter exports and
+closed browser, page errors empty. Both actual PDFs pass patched --qa-only with2
+pages, A4 594.96x841.92 / Letter612x792. Local CLI lifecycle limitation is retained,
+not relabeled success; no renderer dependency added to shipped package.
+
+Final locale output: both actual Playwright PDFs' raster bytes are identical to
+main-inspected final CLI-produced raster pages. Independent PDF oracles Hilbert
+01a0c838-14e0-77a0-9cd4-5639793766f6 and Dalton
+01a0c838-15bc-72f0-81d1-c2cc89aecc6f both PASS: metric mapping, glyphs, long labels,
+2x2 grids, margins/folios and page-break containment. No arbitrary semantic or
+accessibility-conformance claim. Bilingual content recheck PASS separately.
