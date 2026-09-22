@@ -141,6 +141,31 @@ test("hostile retrieval shapes return explicit issues instead of throwing", asyn
   }
 });
 
+for (const field of ["sources", "claims", "counterEvidence"]) {
+  for (const [kind, value] of [["function", () => {}], ["Symbol", Symbol("private detail")]]) {
+    test(`nested noncloneable ${kind} in retrieval ${field} returns an atomic failure`, async () => {
+      const original = model("bounded-lookup");
+      const before = structuredClone(original);
+      const payload = {
+        sources: [source({ id: "s2" })],
+        claims: [claim({ id: "c2", sourceRefs: ["s2"] })],
+        answers: [{ questionId: "q2", claimIds: ["c2"] }],
+        gaps: ["unaccepted retrieval gap"],
+        counterEvidence: [{ claimId: "c2", sourceRefs: ["s2"], note: "Contrary finding." }],
+      };
+      payload[field][0].extra = { nested: [value] };
+      const result = await prepareResearch(original, { retrieve: async () => payload });
+      assert.deepEqual(result.issues, [{ level: "P0", id: "research.result",
+        msg: "Retrieval result could not be cloned or validated; no answers were added" }]);
+      assert.deepEqual(original, before, "the caller's model is unchanged");
+      const expected = structuredClone(before);
+      expected.research.gaps.push("bounded-lookup: retrieval result failed validation; no answers were added");
+      assert.deepEqual(result.model, expected, "no partial sources, claims, answers or counter-evidence escape");
+      assert.equal(result.receipt.gaps, 2);
+    });
+  }
+}
+
 test("malformed adapter options return issues instead of throwing", async () => {
   await assert.doesNotReject(async () => {
     const result = await prepareResearch(model(), null);

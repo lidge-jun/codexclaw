@@ -204,7 +204,15 @@ export async function prepareResearch(model, options = {}) {
     return { model: prepared, receipt: generationReceipt(prepared, metadata), issues };
   }
 
-  const merged = candidateFrom(prepared, result);
+  let merged;
+  try {
+    merged = candidateFrom(prepared, result);
+  } catch {
+    // Candidate construction clones untrusted nested data; discard all partial merges.
+    issues.push(issue("research.result", "Retrieval result could not be cloned or validated; no answers were added"));
+    appendFailureGap(prepared, route, "retrieval result failed validation; no answers were added");
+    return { model: prepared, receipt: generationReceipt(prepared, metadata), issues };
+  }
   if (merged.issues.length) {
     issues.push(...merged.issues);
     appendFailureGap(prepared, route, "retrieval result failed validation; no answers were added");

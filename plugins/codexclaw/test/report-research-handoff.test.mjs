@@ -206,6 +206,23 @@ test("generation receipt leaves provenance unknown and reports malformed metadat
   assert.equal(malformed.sourceSha, "unknown", "invalid provenance must not be copied into a receipt");
 });
 
+for (const [field, mutate, validate, expectedId] of [
+  ["claim.sourceRefs", (m) => { m.claims[0].sourceRefs.push("s1"); }, validateClaims, "c1"],
+  ["question.answeredBy", (m) => { m.research.questions[0].answeredBy.push("c1"); }, validateResearchHandoff, "q1"],
+  ["counterEvidence.sourceRefs", (m) => { m.research.counterEvidence[0].sourceRefs.push("s1"); }, validateResearchHandoff, "c1"],
+]) {
+  test(`reject repeated valid IDs in ${field} without changing the input`, () => {
+    const m = model({ research: research({
+      counterEvidence: [{ claimId: "c1", sourceRefs: ["s1"], note: "Contrary finding." }],
+    }) });
+    assert.deepEqual(validate(m), []);
+    mutate(m);
+    const before = structuredClone(m);
+    assert.deepEqual(validate(m), [{ level: "P0", id: expectedId, msg: `${field} must contain unique IDs` }]);
+    assert.deepEqual(m, before);
+  });
+}
+
 test("the shipped research handoff example satisfies the executable contract", () => {
   const fixture = JSON.parse(readFileSync(join(here, "..", "skills", "dev-visualizer", "assets", "research-handoff.example.json"), "utf8"));
   assert.deepEqual(validateClaims(fixture), []);

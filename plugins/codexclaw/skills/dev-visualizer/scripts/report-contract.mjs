@@ -54,6 +54,9 @@ export function validateClaims(model) {
     }
     if (ids.has(claim.id)) fail(claim.id, "Duplicate claim id");
     ids.add(claim.id);
+    if (new Set(claim.sourceRefs).size !== claim.sourceRefs.length) {
+      fail(claim.id, "claim.sourceRefs must contain unique IDs");
+    }
     if (!claim.sourceRefs.length && claim.kind !== "hypothesis") fail(claim.id, "Claim requires evidence references");
     if (claim.kind === "hypothesis" && !claim.limitations.length) fail(claim.id, "Hypothesis requires a visible limitation");
     for (const ref of claim.sourceRefs) {
@@ -163,6 +166,9 @@ export function validateResearchHandoff(model) {
       }
       if (questionIds.has(question.id)) fail(question.id, "Duplicate research question id");
       questionIds.add(question.id);
+      if (new Set(question.answeredBy).size !== question.answeredBy.length) {
+        fail(question.id, "question.answeredBy must contain unique IDs");
+      }
       for (const ref of question.answeredBy) {
         if (!claims.has(ref)) fail(question.id, `Question answered by an unknown claim: ${String(ref)}`);
       }
@@ -183,6 +189,9 @@ export function validateResearchHandoff(model) {
             || !counter.sourceRefs.length || !counter.sourceRefs.every(text) || !text(counter.note)) {
           fail("research", "counterEvidence requires claimId, nonempty sourceRefs and note");
           continue;
+        }
+        if (new Set(counter.sourceRefs).size !== counter.sourceRefs.length) {
+          fail(counter.claimId, "counterEvidence.sourceRefs must contain unique IDs");
         }
         if (!claims.has(counter.claimId)) fail("research", `counterEvidence references an unknown claim: ${counter.claimId}`);
         for (const ref of counter.sourceRefs) {
