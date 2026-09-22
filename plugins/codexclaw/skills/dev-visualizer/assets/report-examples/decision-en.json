@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "id": "decision-en",
+  "genre": "decision",
+  "language": "en",
+  "localeConfig": {
+    "sourceLanguages": ["ko"],
+    "outputLanguage": "en",
+    "locale": "en-US",
+    "paperSize": "Letter",
+    "formats": {
+      "date": { "dateStyle": "long", "timeZone": "UTC" },
+      "number": { "maximumFractionDigits": 1, "useGrouping": true },
+      "currency": { "currencyDisplay": "symbol", "minimumFractionDigits": 0, "maximumFractionDigits": 0, "useGrouping": true },
+      "unit": { "maximumFractionDigits": 1, "useGrouping": true, "separator": " " }
+    }
+  },
+  "title": "Expand first-month support only within a measured cohort",
+  "summary": "Thirty-day attrition was lower in the illustrative support cohort, at 80 versus 120 of every 1,000 subscribers, but assignment was not randomized. The operating decision is a limited expansion that tracks 90-day retention alongside cost per subscriber.",
+  "sections": [
+    {
+      "id": "decision",
+      "title": "A limited expansion fits the evidence available today",
+      "paragraphs": [
+        "In the support cohort, 80 of every 1,000 enrolled subscribers left within 30 days, compared with 120 in the comparison cohort. That is an observed attrition difference, not a causal estimate, because assignment was not randomized.",
+        "First-month cost per subscriber rose from KRW 18,400 to KRW 19,800. Expansion should therefore remain conditional on both 90-day retention and a defined cost ceiling."
+      ],
+      "claimIds": ["C1", "C2"],
+      "factIds": ["F1", "F2", "F3", "F4"]
+    }
+  ],
+  "sourceNotes": [
+    { "id": "S1", "locator": "illustrative:decision/cohort", "text": "Illustrative 30-day cohort record with alternating assignment" },
+    { "id": "S2", "locator": "illustrative:decision/cost", "text": "Illustrative first-month cost record per enrolled subscriber" }
+  ],
+  "figures": [
+    {
+      "id": "decision-outcomes",
+      "sectionId": "decision",
+      "caption": "Figure 1. Thirty-day attrition was lower in the support cohort while cost per subscriber was higher.",
+      "accessibleDescription": "In the illustrative, nonrandomized 30-day cohorts, 120 of every 1,000 comparison-cohort subscribers and 80 of every 1,000 support-cohort subscribers left. Illustrative first-month cost was KRW 18,400 per comparison-cohort subscriber and KRW 19,800 per support-cohort subscriber.",
+      "factIds": ["F1", "F2", "F3", "F4"],
+      "sourceRefs": ["S1", "S2"]
+    }
+  ],
+  "quotations": [
+    {
+      "id": "QTE1",
+      "sectionId": "decision",
+      "text": "Do not approve a full rollout before the 90-day result is available.",
+      "originalText": "90일 결과를 보기 전에는 전면 확대를 승인하지 않는다.",
+      "sourceLanguage": "ko",
+      "sourceRef": "S1",
+      "translated": true,
+      "translationMarker": "Translated from Korean"
+    }
+  ],
+  "limitations": [
+    "All numbers are illustrative and exist only to exercise the report contract.",
+    "Assignment was not randomized, so the attrition difference is not a causal estimate of support.",
+    "Thirty-day observation cannot establish long-term retention or lifetime value."
+  ],
+  "semantics": {
+    "questionIds": ["Q1"],
+    "sourceIds": ["S1", "S2"],
+    "claims": [
+      { "id": "C1", "text": "Expand support only within a measured cohort.", "strength": "recommendation", "strengthLabel": "Recommendation", "qualification": "conditional", "qualificationText": "Expansion depends on 90-day retention and the cost ceiling" },
+      { "id": "C2", "text": "Thirty-day attrition was lower in the support cohort.", "strength": "observation", "strengthLabel": "Observation", "qualification": "non-randomized-illustrative", "qualificationText": "Illustrative 30-day cohort; assignment was not randomized." }
+    ],
+    "facts": [
+      { "id": "F1", "claimId": "C2", "label": "Comparison-cohort 30-day attrition", "raw": 120, "kind": "unit", "unit": "subscriber", "displayUnit": "subscribers", "denominator": "1000-enrolled-subscribers", "denominatorText": "1,000 enrolled subscribers", "qualification": "illustrative-non-randomized-30-day", "qualificationText": "Illustrative 30-day cohort; assignment was not randomized." },
+      { "id": "F2", "claimId": "C2", "label": "Support-cohort 30-day attrition", "raw": 80, "kind": "unit", "unit": "subscriber", "displayUnit": "subscribers", "denominator": "1000-enrolled-subscribers", "denominatorText": "1,000 enrolled subscribers", "qualification": "illustrative-non-randomized-30-day", "qualificationText": "Illustrative 30-day cohort; assignment was not randomized." },
+      { "id": "F3", "claimId": "C1", "label": "Comparison-cohort first-month cost", "raw": 18400, "kind": "currency", "currency": "KRW", "unit": "KRW", "denominator": "per-enrolled-subscriber-first-month", "denominatorText": "per enrolled subscriber, first month", "qualification": "illustrative-cost", "qualificationText": "Illustrative direct cost" },
+      { "id": "F4", "claimId": "C1", "label": "Support-cohort first-month cost", "raw": 19800, "kind": "currency", "currency": "KRW", "unit": "KRW", "denominator": "per-enrolled-subscriber-first-month", "denominatorText": "per enrolled subscriber, first month", "qualification": "illustrative-cost", "qualificationText": "Illustrative direct cost" }
+    ]
+  }
+}

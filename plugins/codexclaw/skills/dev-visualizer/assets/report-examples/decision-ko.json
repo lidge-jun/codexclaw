@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "id": "decision-ko",
+  "genre": "decision",
+  "language": "ko",
+  "localeConfig": {
+    "sourceLanguages": ["ko"],
+    "outputLanguage": "ko",
+    "locale": "ko-KR",
+    "paperSize": "A4",
+    "formats": {
+      "date": { "dateStyle": "long", "timeZone": "UTC" },
+      "number": { "maximumFractionDigits": 1, "useGrouping": true },
+      "currency": { "currencyDisplay": "symbol", "minimumFractionDigits": 0, "maximumFractionDigits": 0, "useGrouping": true },
+      "unit": { "maximumFractionDigits": 1, "useGrouping": true, "separator": " " }
+    }
+  },
+  "title": "첫 달 지원은 측정 가능한 코호트에서만 확대한다",
+  "summary": "가상 코호트에서 30일 이탈은 1,000명 중 120명에서 80명으로 낮았지만 무작위 배정이 아니었다. 운영진은 전면 확대 대신 90일 유지율과 가입자당 비용을 함께 측정하는 제한된 확대를 결정해야 한다.",
+  "sections": [
+    {
+      "id": "decision",
+      "title": "제한된 확대가 현재 근거에 맞는 결정이다",
+      "paragraphs": [
+        "지원 코호트의 30일 이탈은 가입자 1,000명 중 80명, 비교 코호트는 120명이었다. 차이는 관찰됐지만 배정 방식 때문에 지원의 인과 효과로 확정할 수 없다.",
+        "가입자당 첫 달 비용은 18,400원에서 19,800원으로 늘었다. 확대 조건에는 90일 유지율과 비용 한도를 함께 둬야 한다."
+      ],
+      "claimIds": ["C1", "C2"],
+      "factIds": ["F1", "F2", "F3", "F4"]
+    }
+  ],
+  "sourceNotes": [
+    { "id": "S1", "locator": "illustrative:decision/cohort", "text": "교대 배정한 가상 30일 코호트 기록" },
+    { "id": "S2", "locator": "illustrative:decision/cost", "text": "가상 첫 달 가입자당 원가 기록" }
+  ],
+  "figures": [
+    {
+      "id": "decision-outcomes",
+      "sectionId": "decision",
+      "caption": "그림 1. 지원 코호트의 30일 이탈은 낮았지만 가입자당 비용은 높았다.",
+      "accessibleDescription": "가상의 비무작위 30일 코호트에서 비교 코호트는 가입자 1,000명 중 120명, 지원 코호트는 80명이 이탈했다. 가상 첫 달 비용은 비교 코호트 가입자당 18,400원, 지원 코호트 가입자당 19,800원이었다.",
+      "factIds": ["F1", "F2", "F3", "F4"],
+      "sourceRefs": ["S1", "S2"]
+    }
+  ],
+  "quotations": [
+    {
+      "id": "QTE1",
+      "sectionId": "decision",
+      "text": "90일 결과를 보기 전에는 전면 확대를 승인하지 않는다.",
+      "originalText": "90일 결과를 보기 전에는 전면 확대를 승인하지 않는다.",
+      "sourceLanguage": "ko",
+      "sourceRef": "S1",
+      "translated": false,
+      "translationMarker": "한국어 원문"
+    }
+  ],
+  "limitations": [
+    "모든 수치는 형식 검증을 위한 가상 자료다.",
+    "배정이 무작위가 아니므로 이탈 차이를 지원의 인과 효과로 확정할 수 없다.",
+    "30일 관측만으로 장기 유지율과 생애가치를 판단할 수 없다."
+  ],
+  "semantics": {
+    "questionIds": ["Q1"],
+    "sourceIds": ["S1", "S2"],
+    "claims": [
+      { "id": "C1", "text": "측정 가능한 코호트에서만 지원을 확대한다.", "strength": "recommendation", "strengthLabel": "권고", "qualification": "conditional", "qualificationText": "90일 유지율과 비용 한도를 충족할 때만 확대" },
+      { "id": "C2", "text": "지원 코호트의 30일 이탈률이 비교 코호트보다 낮았다.", "strength": "observation", "strengthLabel": "관찰", "qualification": "non-randomized-illustrative", "qualificationText": "가상 비무작위 30일 코호트" }
+    ],
+    "facts": [
+      { "id": "F1", "claimId": "C2", "label": "비교 코호트 30일 이탈", "raw": 120, "kind": "unit", "unit": "subscriber", "displayUnit": "명", "denominator": "1000-enrolled-subscribers", "denominatorText": "가입자 1,000명 기준", "qualification": "illustrative-non-randomized-30-day", "qualificationText": "가상 30일 코호트, 비무작위" },
+      { "id": "F2", "claimId": "C2", "label": "지원 코호트 30일 이탈", "raw": 80, "kind": "unit", "unit": "subscriber", "displayUnit": "명", "denominator": "1000-enrolled-subscribers", "denominatorText": "가입자 1,000명 기준", "qualification": "illustrative-non-randomized-30-day", "qualificationText": "가상 30일 코호트, 비무작위" },
+      { "id": "F3", "claimId": "C1", "label": "비교 코호트 첫 달 비용", "raw": 18400, "kind": "currency", "currency": "KRW", "unit": "KRW", "denominator": "per-enrolled-subscriber-first-month", "denominatorText": "가입자 1명당 첫 달", "qualification": "illustrative-cost", "qualificationText": "가상 직접 비용" },
+      { "id": "F4", "claimId": "C1", "label": "지원 코호트 첫 달 비용", "raw": 19800, "kind": "currency", "currency": "KRW", "unit": "KRW", "denominator": "per-enrolled-subscriber-first-month", "denominatorText": "가입자 1명당 첫 달", "qualification": "illustrative-cost", "qualificationText": "가상 직접 비용" }
+    ]
+  }
+}

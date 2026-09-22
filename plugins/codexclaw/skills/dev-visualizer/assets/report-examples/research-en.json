@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "id": "research-en",
+  "genre": "research",
+  "language": "en",
+  "localeConfig": {
+    "sourceLanguages": ["ko"], "outputLanguage": "en", "locale": "en-US", "paperSize": "Letter",
+    "formats": {
+      "date": { "dateStyle": "long", "timeZone": "UTC" },
+      "number": { "maximumFractionDigits": 1, "useGrouping": true },
+      "currency": { "currencyDisplay": "symbol", "minimumFractionDigits": 0, "maximumFractionDigits": 0, "useGrouping": true },
+      "unit": { "maximumFractionDigits": 1, "useGrouping": true, "separator": " " }
+    }
+  },
+  "title": "Evidence remains mixed across the two illustrative cohorts",
+  "summary": "Cohort A observed the target behavior in 74 of 200 participants; cohort B observed it in 62 of 200. Because sample composition and observation windows differed, comparison is limited and the synthesis can only identify what remains unresolved.",
+  "sections": [{
+    "id": "evidence",
+    "title": "Both cohorts observed the behavior, but design differences limit comparison",
+    "paragraphs": [
+      "Both studies observed the target behavior, yet their sample composition and observation windows differed. Adding the counts would make distinct research questions look like one estimate.",
+      "The evidence can prioritize the next comparison, but it cannot establish a causal intervention effect or a population-wide effect size."
+    ],
+    "claimIds": ["C1", "C2"], "factIds": ["F1", "F2"]
+  }],
+  "sourceNotes": [
+    { "id": "S1", "locator": "illustrative:research/cohort-a", "text": "Illustrative 14-day observational cohort A" },
+    { "id": "S2", "locator": "illustrative:research/cohort-b", "text": "Illustrative 30-day observational cohort B" }
+  ],
+  "figures": [{
+    "id": "research-evidence", "sectionId": "evidence",
+    "caption": "Figure 1. Both cohorts observed the target behavior, but their different windows prevent pooling.",
+    "accessibleDescription": "In illustrative cohorts with different sample composition and observation windows, cohort A observed the target behavior in 74 of 200 participants over 14 days, while cohort B observed it in 62 of 200 participants over 30 days. The values are not pooled.",
+    "factIds": ["F1", "F2"], "sourceRefs": ["S1", "S2"]
+  }],
+  "quotations": [{
+    "id": "QTE1", "sectionId": "evidence", "text": "The two cohorts do not estimate the same effect.",
+    "originalText": "두 코호트는 같은 효과를 추정하지 않는다.", "sourceLanguage": "ko", "sourceRef": "S2",
+    "translated": true, "translationMarker": "Translated from Korean"
+  }],
+  "limitations": [
+    "All numbers are illustrative and exist only to exercise the report contract.",
+    "Observation windows and sample composition differ, so no pooled effect was calculated.",
+    "Unmeasured confounding prevents a causal-strength judgment."
+  ],
+  "semantics": {
+    "questionIds": ["Q1", "Q2"], "sourceIds": ["S1", "S2"],
+    "claims": [
+      { "id": "C1", "text": "The target behavior was observed in both cohorts.", "strength": "observation", "strengthLabel": "Observation", "qualification": "heterogeneous-illustrative", "qualificationText": "Illustrative cohorts with different designs and windows" },
+      { "id": "C2", "text": "The current evidence cannot establish a pooled causal effect.", "strength": "inference", "strengthLabel": "Bounded inference", "qualification": "no-pooling-no-causality", "qualificationText": "No pooled estimate and no causal interpretation" }
+    ],
+    "facts": [
+      { "id": "F1", "claimId": "C1", "label": "Target behavior in cohort A", "raw": 74, "kind": "unit", "unit": "participant", "displayUnit": "participants", "denominator": "200-participants-cohort-a", "denominatorText": "200 participants in cohort A", "qualification": "illustrative-14-day-observational", "qualificationText": "Illustrative 14-day observational cohort" },
+      { "id": "F2", "claimId": "C1", "label": "Target behavior in cohort B", "raw": 62, "kind": "unit", "unit": "participant", "displayUnit": "participants", "denominator": "200-participants-cohort-b", "denominatorText": "200 participants in cohort B", "qualification": "illustrative-30-day-observational", "qualificationText": "Illustrative 30-day observational cohort" }
+    ]
+  }
+}
