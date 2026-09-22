@@ -119,3 +119,23 @@ wp0 audit round 2: VERDICT PASS, blocking_issues none. Same-advisor design-delta
 reflection ALIGNED. Roadmap finalized with no production code changes. Planned D
 conclusion: proceed to wp1 shared implementation under the locked interfaces,
 then port verified source to Aside before any closure/release claim.
+
+Peer PR created: https://github.com/lidge-jun/codexclaw/pull/228, head 2cab4597,
+base dev. Peer reports focused 124 pass, build 183 files/no drift, gate and two
+independent reviews PASS. Local full suite and hosted CI pending; main has not yet
+independently verified merge/release readiness. Peer owns dev merge then SHA handoff.
+
+wp1 B: Sol disjoint workers E=01a0c811-c533-7fd2-9278-462ce6687666,
+R=01a0c811-c5fd-78a0-828a-23c9316ad53f,
+L=01a0c811-c6c6-7522-bd74-4332246fb789,
+X=01a0c811-c792-7263-b237-85d3ffc7740f. Main edits only shared doc integration.
+Additional policy-only reviewer 01a0c814-d0af-7ec3-ad3b-e73f21fb9aa9 checks that
+static HTML relief survives all references. No worker controls branches or state.
+Full baseline: 3322 tests, 3317 pass, 1 fail, 4 skipped. Sole failure: GUI router
+could not import uninstalled react. npm ci completed (84 installed, audit 0 issues);
+focused GUI router then passed 2/2. Full release suite will run after implementation.
+
+Policy-only independent review: four medium ambiguities (delivered report scope,
+PDF-only assurance selection, standard-profile image review, bounded static-edit
+pipeline scope) accepted and corrected. Same reviewer interdiff VERDICT PASS; no
+mandatory render or model rebuilding remains for bounded static HTML/SVG edits.

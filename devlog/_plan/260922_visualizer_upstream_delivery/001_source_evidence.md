@@ -60,3 +60,10 @@ escaping, shell-free argv arrays, source-only no-network guarantee, input/output
 alias guard, private temporary test homes and explicit non-success states. Tests
 exercise injection labels, malformed JSON/types, conflicting IDs, command failures
 and unavailable tools. No secrets/real account data in fixtures or artifacts.
+
+Main integration finding: VIZ-VERIFY-SCALE-01's small-static row conflicted with a
+later 'anything that leaves the conversation' row and the environment reference's
+browser-available=>inspect rule. Narrowed the former to PDF/print/paged reports and
+the latter to computed/exported or defect verification. Merely saving/sharing static
+HTML is not an escalation. SVG measurement recipes now inherit the same boundary.
+This is user-requested policy preservation, not an exception to PDF truthfulness.

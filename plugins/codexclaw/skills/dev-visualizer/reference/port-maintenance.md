@@ -37,13 +37,12 @@ This workflow applies when maintenance is requested. It grants no implicit
 cross-repository push, publication, installation, issue closure or independent
 loop. Artifact requests retain VIZ-SCOPE-01 and proportionate assurance profiles.
 
-## Known boundary at the 2026-09-22 audit
+## Historical boundary before the 2026-09-22 fixes
 
 At codexclaw `main` 1914fb679b2f625989be5af2322eec8a749663d4 and `dev`
-d9d8a086a1da586008d88c8c9328b781f43e4ca0, the visualizer sources are identical.
-The report model, research handoff and standalone receipt gate are present, but
-the publication exporter migration is pending. `report-pipeline.md` describes
-some target behavior that the current exporter does not implement: Playwright,
-font binding, the `--contract` option, and BLOCKED/3 on skipped PDF checks.
-The separate `quality-gate.mjs` can reject NOT RUN; it is not wired into the
-exporter. Do not treat those documentation sections as runtime proof.
+d9d8a086a1da586008d88c8c9328b781f43e4ca0, the visualizer sources were identical.
+The report model, research handoff and standalone receipt gate existed, but the
+exporter still ignored NOT RUN. The pipeline described an unshipped Playwright/font
+migration. This is the pre-fix baseline, not current capability documentation.
+Current commands and limitations belong in report-pipeline.md; downstream acceptance
+and the exact ported revision belong in the Aside README and provenance manifest.
