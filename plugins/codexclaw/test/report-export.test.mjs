@@ -249,7 +249,7 @@ test("layout findings produce REVIEW/2", () => {
   }
 });
 
-test("stale output is removed and cannot satisfy a browser that creates nothing", () => {
+test("stale output cannot satisfy a browser that creates nothing and remains intact", () => {
   const { root } = sandbox();
   try {
     const input = writeInput(root);
@@ -258,9 +258,12 @@ test("stale output is removed and cannot satisfy a browser that creates nothing"
     const result = run(root, exportArgs(input, output), { mode: "chrome-no-output" });
     const report = parseReport(result);
     assert.equal(result.status, 1);
-    assert.equal(report.artifactExists, false);
+    assert.equal(report.artifactExists, true);
     assert.equal(check(report, "artifact-created").status, "FAIL");
-    assert.equal(existsSync(output), false);
+    assert.equal(report.verdict, "FAIL");
+    assert.equal(readFileSync(output, "utf8"), "%PDF-1.4 stale");
+    assert.equal(report.artifact_sha256, createHash("sha256").update("%PDF-1.4 stale").digest("hex"));
+    assert.equal(evaluateReport(report, { profile: "standard" }).verdict, "FAIL");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -376,6 +379,7 @@ for (const [mode, id] of [["chrome-hang", "artifact-created"], ["pdfinfo-hang", 
     const { root, home } = sandbox();
     try {
       const output = join(root, "report.pdf");
+      writeFileSync(output, "%PDF-1.4 previous artifact");
       const result = run(root, [...exportArgs(writeInput(root), output), "--timeout-ms", "1000", "--keep-html"], { mode });
       assert.equal(result.error, undefined, "exporter must finish before the outer test watchdog");
       const report = parseReport(result);
@@ -418,6 +422,100 @@ test("an exited tool's inherited output descriptors do not hold the exporter ope
     }
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+for (const mode of ["mixed-paper", "missing-page-geometry"]) {
+  test(`${mode}: every page must have valid requested geometry`, () => {
+    const { root } = sandbox();
+    try {
+      const pdf = join(root, "report.pdf");
+      writeFileSync(pdf, "%PDF-1.4\nfixture-paper=A4\n");
+      const result = run(root, ["--qa-only", pdf, "--pdfinfo", TOOLS, "--pdftotext", TOOLS, "--json"], { mode });
+      const report = parseReport(result);
+      assert.notEqual(result.status, 0);
+      assert.notEqual(evaluateReport(report, { profile: "standard" }).verdict, "PASS");
+      if (mode === "mixed-paper") assert.ok(report.qa.some((finding) => finding.page === 2 && /Letter|612/.test(finding.msg)));
+      else assert.equal(check(report, "pdf-parse").status, "FAIL");
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+}
+
+for (const mode of ["chrome-nonzero", "chrome-partial", "chrome-hang", "chrome-partial-zero", "second-pass-nonzero", "second-pass-partial", "second-pass-hang", "second-pass-partial-zero"]) {
+  test(`${mode}: failed generation preserves the last good destination bytes`, () => {
+    const { root } = sandbox();
+    try {
+      const output = join(root, "report.pdf");
+      const original = "%PDF-1.4 last known good document";
+      writeFileSync(output, original);
+      const input = writeInput(root);
+      if (mode.startsWith("second-pass")) writeFileSync(input, '<html><head></head><body><span data-toc-for="section">?</span><h2 id="section" data-toc="Section heading">Section heading</h2></body></html>');
+      const result = run(root, [...exportArgs(input, output), "--timeout-ms", "1000"], { mode });
+      const report = parseReport(result);
+      assert.equal(result.status, 1);
+      assert.equal(check(report, "artifact-created").status, "FAIL");
+      assert.equal(readFileSync(output, "utf8"), original);
+      assert.equal(report.artifact_sha256, createHash("sha256").update(original).digest("hex"));
+      if (mode.startsWith("second-pass")) assert.equal(readFileSync(join(root, "home", "print-count"), "utf8"), "2");
+      assert.deepEqual(readdirSync(root).filter((name) => /export-stage|export-pass|cxc-report-/.test(name)), []);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+}
+
+test("timeout kills the owned descendant as well as the browser", () => {
+  const { root, home } = sandbox();
+  try {
+    const result = run(root, [...exportArgs(writeInput(root), join(root, "report.pdf")), "--timeout-ms", "1000"], { mode: "chrome-tree-hang" });
+    assert.equal(result.error, undefined);
+    assert.equal(result.status, 1);
+    const report = parseReport(result);
+    assert.match(check(report, "artifact-created").reason, /timed out/);
+    const { pid } = JSON.parse(readFileSync(join(home, "descendant.json"), "utf8"));
+    assert.throws(() => process.kill(pid, 0), { code: "ESRCH" });
+    assert.deepEqual(readdirSync(root).filter((name) => /export-stage|export-pass|cxc-report-/.test(name)), []);
+  } finally {
+    for (const name of ["descendant.json", "hanging-tool.json"]) {
+      if (existsSync(join(home, name))) {
+        try { process.kill(JSON.parse(readFileSync(join(home, name), "utf8")).pid, "SIGKILL"); }
+        catch (error) { if (error.code !== "ESRCH") throw error; }
+      }
+    }
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("successful two-pass generation promotes only the final candidate over the old destination", () => {
+  const { root, home } = sandbox();
+  try {
+    const output = join(root, "report.pdf");
+    const original = "%PDF-1.4 last known good document";
+    writeFileSync(output, original);
+    const input = writeInput(root);
+    writeFileSync(input, '<html><head></head><body><span data-toc-for="section">?</span><h2 id="section" data-toc="Section heading">Section heading</h2></body></html>');
+    const result = run(root, exportArgs(input, output), { mode: "second-pass-success" });
+    const report = parseReport(result);
+    assert.equal(result.status, 0, result.stdout);
+    assert.equal(report.passes, 2);
+    assert.equal(readFileSync(join(home, "destination-at-pass-1"), "utf8"), original);
+    assert.equal(readFileSync(join(home, "destination-at-pass-2"), "utf8"), original);
+    assert.match(readFileSync(output, "utf8"), /fixture-pass=2/);
+    assert.equal(report.artifact_sha256, createHash("sha256").update(readFileSync(output)).digest("hex"));
+    assert.equal(evaluateReport(report, { profile: "standard" }).verdict, "PASS");
+    assert.deepEqual(readdirSync(root).filter((name) => /export-stage|export-pass|cxc-report-/.test(name)), []);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("no generated file and no previous destination remain FAIL without an artifact", () => {
+  const { root } = sandbox();
+  try {
+    const output = join(root, "report.pdf");
+    const result = run(root, exportArgs(writeInput(root), output), { mode: "chrome-no-output" });
+    const report = parseReport(result);
+    assert.equal(result.status, 1);
+    assert.equal(check(report, "artifact-created").status, "FAIL");
+    assert.equal(report.artifactExists, false);
+    assert.equal(report.artifact_sha256, null);
+    assert.equal(existsSync(output), false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("--timeout-ms rejects missing, nonfinite, fractional and out-of-bounds values before spawning", () => {

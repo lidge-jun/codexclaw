@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -18,11 +18,16 @@ async function hang() {
 }
 
 if (printArg) {
+  const countPath = join(process.env.HOME, "print-count");
+  const count = existsSync(countPath) ? Number(readFileSync(countPath, "utf8")) + 1 : 1;
+  writeFileSync(countPath, String(count));
+  const destination = join(process.env.HOME, "..", "report.pdf");
+  writeFileSync(join(process.env.HOME, `destination-at-pass-${count}`), existsSync(destination) ? readFileSync(destination) : "absent");
   if (!args.some((arg) => arg.startsWith("--user-data-dir="))) {
     console.error("fixture chrome requires an isolated profile");
     process.exit(7);
   }
-  if (mode === "chrome-nonzero") {
+  if (mode === "chrome-nonzero" || (mode === "second-pass-nonzero" && count === 2)) {
     console.error("fixture chrome failed");
     process.exit(8);
   }
@@ -30,8 +35,24 @@ if (printArg) {
   const htmlPath = fileURLToPath(args.at(-1));
   const html = readFileSync(htmlPath, "utf8");
   const paperSize = /@page\s*\{[^}]*\bsize:\s*Letter\b/is.test(html) ? "Letter" : "A4";
-  writeFileSync(printArg.slice("--print-to-pdf=".length), `%PDF-1.4\nfixture-paper=${paperSize}\n`);
-  if (mode === "chrome-hang") await hang();
+  writeFileSync(printArg.slice("--print-to-pdf=".length), `%PDF-1.4\nfixture-paper=${paperSize}\nfixture-pass=${count}\n`);
+  if (mode === "chrome-partial-zero" || (mode === "second-pass-partial-zero" && count === 2)) {
+    writeFileSync(printArg.slice("--print-to-pdf=".length), "%PDF-1.4 truncated");
+    process.exit(0);
+  }
+  if (mode === "chrome-partial" || (mode === "second-pass-partial" && count === 2)) {
+    writeFileSync(printArg.slice("--print-to-pdf=".length), "partial output");
+    process.exit(8);
+  }
+  if (mode === "chrome-hang" || (mode === "second-pass-hang" && count === 2)) await hang();
+  if (mode === "chrome-tree-hang") {
+    const child = spawn(process.execPath, ["-e", "process.on('SIGTERM', () => {}); process.send('ready'); setInterval(() => {}, 1000)"], {
+      stdio: ["ignore", "inherit", "inherit", "ipc"],
+    });
+    await new Promise((resolve, reject) => { child.once("message", resolve); child.once("error", reject); });
+    writeFileSync(join(process.env.HOME, "descendant.json"), JSON.stringify({ pid: child.pid }));
+    await hang();
+  }
   if (mode === "inherited-output") {
     const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: ["ignore", "inherit", "inherit"] });
     writeFileSync(join(process.env.HOME, "inherited-output.json"), JSON.stringify({ pid: child.pid }));
@@ -40,11 +61,13 @@ if (printArg) {
   process.exit(0);
 }
 
-const pdfPath = args.includes("-f") ? args.at(-2) : args.at(-1);
+const textCommand = args.includes("-layout") || args.includes("-bbox");
+const pdfPath = textCommand ? args.at(-2) : args.at(-1);
 const pdf = readFileSync(pdfPath, "utf8");
 const paperSize = /fixture-paper=Letter/.test(pdf) ? "Letter" : "A4";
 
-if (!args.includes("-f")) {
+if (!textCommand) {
+  if (pdf.includes("truncated")) { console.error("truncated PDF"); process.exit(1); }
   if (mode === "pdfinfo-hang") await hang();
   if (mode === "pdfinfo-nonzero") {
     console.error("fixture pdfinfo failed");
@@ -59,6 +82,13 @@ if (!args.includes("-f")) {
     process.exit(0);
   }
   const geometry = paperSize === "Letter" ? "612 x 792" : "595.28 x 841.89";
+  if (args.includes("-f")) {
+    console.log(`Pages: 2\nPage 1 size: ${geometry} pts (${paperSize})`);
+    if (mode !== "missing-page-geometry") {
+      console.log(mode === "mixed-paper" ? "Page 2 size: 612 x 792 pts (Letter)" : `Page 2 size: ${geometry} pts (${paperSize})`);
+    }
+    process.exit(0);
+  }
   console.log(`Pages: 2\nPage size: ${geometry} pts (${paperSize})`);
   process.exit(0);
 }
@@ -79,7 +109,7 @@ if (mode === "empty-text") {
 }
 const page = Number(args[args.indexOf("-f") + 1]);
 if (page === 1) {
-  console.log("Fixture cover");
+  console.log(mode.startsWith("second-pass") ? "Contents" : "Fixture cover");
   process.exit(0);
 }
 const lines = ["Section heading", "alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa"];

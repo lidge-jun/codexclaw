@@ -5,11 +5,11 @@
  * Exit 0 PASS, 1 FAIL, 2 REVIEW, 3 BLOCKED.
  * Each tool has a 30s deadline; --timeout-ms accepts 100..300000 milliseconds.
  */
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
   accessSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync,
-  realpathSync, rmSync, statSync, unlinkSync, writeFileSync, openSync, closeSync,
+  realpathSync, rmSync, statSync, renameSync, writeFileSync, openSync, closeSync,
 } from "node:fs";
 import { basename, delimiter, dirname, extname, isAbsolute, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -86,17 +86,48 @@ function discover(command) {
   return null;
 }
 
-function runTool(tool, args, timeoutMs) {
+function killToolTree(child) {
+  if (process.platform === "win32") {
+    // Kill descendants while their parent still exists; no shell/PATH lookup or
+    // image-name matching. taskkill's /F is the Windows hard-kill equivalent.
+    const taskkill = join(process.env.SystemRoot || process.env.WINDIR || "C:\\Windows", "System32", "taskkill.exe");
+    const result = spawnSync(taskkill, ["/PID", String(child.pid), "/T", "/F"], {
+      timeout: 5000, killSignal: "SIGKILL", windowsHide: true, encoding: "utf8",
+    });
+    if (result.error || result.status !== 0) {
+      child.kill("SIGKILL");
+      return `tree cleanup failed: ${result.error?.message || result.stderr || result.status}`;
+    }
+  } else {
+    try { process.kill(-child.pid, "SIGKILL"); }
+    catch (error) { if (error.code !== "ESRCH") { child.kill("SIGKILL"); return `tree cleanup failed: ${error.message}`; } }
+  }
+  return null;
+}
+
+async function runTool(tool, args, timeoutMs) {
   const nodeModule = /[.](?:[cm]?js)$/i.test(tool);
   // Regular files avoid waiting for pipe EOF when an exited tool's descendants
-  // retain stdout/stderr. The timeout bounds the direct process, even if it ignores TERM.
+  // retain stdout/stderr. A dedicated group owns the POSIX process tree.
   const captureDir = mkdtempSync(join(tmpdir(), "cxc-report-tool-"));
   const descriptors = [];
   let result;
   try {
     for (const name of ["stdout", "stderr"]) descriptors.push(openSync(join(captureDir, name), "w+"));
-    result = spawnSync(nodeModule ? process.execPath : tool, nodeModule ? [tool, ...args] : args, {
-      stdio: ["ignore", ...descriptors], timeout: timeoutMs, killSignal: "SIGKILL",
+    result = await new Promise((resolveResult) => {
+      const child = spawn(nodeModule ? process.execPath : tool, nodeModule ? [tool, ...args] : args, {
+        stdio: ["ignore", ...descriptors], detached: process.platform !== "win32", windowsHide: true,
+      });
+      let timedOut = false, cleanupError = null;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        if (child.pid) cleanupError = killToolTree(child);
+      }, timeoutMs);
+      child.once("error", (error) => { clearTimeout(timer); resolveResult({ error }); });
+      child.once("exit", (status, signal) => {
+        clearTimeout(timer);
+        resolveResult({ status, signal, timedOut, cleanupError });
+      });
     });
     result.stdout = readFileSync(join(captureDir, "stdout"), "utf8");
     result.stderr = readFileSync(join(captureDir, "stderr"), "utf8");
@@ -104,7 +135,7 @@ function runTool(tool, args, timeoutMs) {
     for (const descriptor of descriptors) closeSync(descriptor);
     rmSync(captureDir, { recursive: true, force: true });
   }
-  if (result.error?.code === "ETIMEDOUT") return { ok: false, reason: `timed out after ${timeoutMs} ms; killSignal SIGKILL` };
+  if (result.timedOut) return { ok: false, reason: `timed out after ${timeoutMs} ms; killSignal SIGKILL (owned process tree)${result.cleanupError ? `; ${result.cleanupError}` : ""}` };
   if (result.error) return { ok: false, reason: `could not start: ${result.error.code || result.error.message}` };
   if (result.signal) return { ok: false, reason: `terminated by signal ${result.signal}` };
   if (result.status !== 0) {
@@ -149,39 +180,42 @@ function writeTempHtml(input, html, tempFiles) {
   return path;
 }
 
-function printPdf(chrome, htmlPath, pdfPath, profilePath, timeoutMs) {
-  if (existsSync(pdfPath)) unlinkSync(pdfPath);
-  const result = runTool(chrome, [
+async function printPdf(chrome, htmlPath, pdfPath, profilePath, timeoutMs, tempFiles) {
+  const stage = join(dirname(pdfPath), `.${basename(pdfPath)}.${randomUUID()}.export-stage.pdf`);
+  tempFiles.add(stage);
+  const result = await runTool(chrome, [
     "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
     `--user-data-dir=${profilePath}`, "--no-pdf-header-footer",
     "--run-all-compositor-stages-before-draw", "--virtual-time-budget=10000",
-    `--print-to-pdf=${pdfPath}`, pathToFileURL(htmlPath).href,
+    `--print-to-pdf=${stage}`, pathToFileURL(htmlPath).href,
   ], timeoutMs);
   if (!result.ok) return result;
   try {
-    if (statSync(pdfPath).isFile() && statSync(pdfPath).size > 0) return { ok: true };
+    if (statSync(stage).isFile() && readFileSync(stage).subarray(0, 5).toString() === "%PDF-") return { ok: true, path: stage };
   } catch { /* report below */ }
   return { ok: false, reason: "browser exited successfully but produced no nonempty PDF" };
 }
 
-function parsePdfInfo(tool, pdfPath, timeoutMs) {
-  const result = runTool(tool, [pdfPath], timeoutMs);
+async function parsePdfInfo(tool, pdfPath, timeoutMs) {
+  const result = await runTool(tool, [pdfPath], timeoutMs);
   if (!result.ok) return result;
   const pageMatch = /^Pages:\s+(\d+)\s*$/im.exec(result.stdout);
-  const sizeMatch = /^Page size:\s+([\d.]+)\s+x\s+([\d.]+)\s+pts(?:\s+\(([^)]+)\))?\s*$/im.exec(result.stdout);
   const pages = pageMatch ? Number(pageMatch[1]) : Number.NaN;
-  const size = sizeMatch ? { w: Number(sizeMatch[1]), h: Number(sizeMatch[2]), name: sizeMatch[3] || null } : null;
-  if (!Number.isInteger(pages) || pages <= 0) return { ok: false, reason: "returned no positive finite page count" };
-  if (!size || !Number.isFinite(size.w) || !Number.isFinite(size.h) || size.w <= 0 || size.h <= 0) {
-    return { ok: false, reason: "returned no positive finite page geometry" };
+  if (!Number.isSafeInteger(pages) || pages <= 0) return { ok: false, reason: "returned no positive finite page count" };
+  const geometry = await runTool(tool, ["-f", "1", "-l", String(pages), pdfPath], timeoutMs);
+  if (!geometry.ok) return geometry;
+  const pageSizes = [...geometry.stdout.matchAll(/^Page\s+(\d+)\s+size:\s+([\d.]+)\s+x\s+([\d.]+)\s+pts(?:\s+\(([^)]+)\))?\s*$/gim)]
+    .map((match) => ({ page: Number(match[1]), w: Number(match[2]), h: Number(match[3]), name: match[4] || null }));
+  if (pageSizes.length !== pages || pageSizes.some((size, index) => size.page !== index + 1 || !Number.isFinite(size.w) || !Number.isFinite(size.h) || size.w <= 0 || size.h <= 0)) {
+    return { ok: false, reason: "returned incomplete or invalid per-page geometry" };
   }
-  return { ok: true, pages, size };
+  return { ok: true, pages, size: pageSizes[0], pageSizes };
 }
 
-function extractPageTexts(tool, pdfPath, pageCount, timeoutMs) {
+async function extractPageTexts(tool, pdfPath, pageCount, timeoutMs) {
   const texts = [];
   for (let page = 1; page <= pageCount; page += 1) {
-    const result = runTool(tool, ["-f", String(page), "-l", String(page), "-layout", pdfPath, "-"], timeoutMs);
+    const result = await runTool(tool, ["-f", String(page), "-l", String(page), "-layout", pdfPath, "-"], timeoutMs);
     if (!result.ok) return { ok: false, reason: `pdftotext page ${page} ${result.reason}` };
     if (!result.stdout.trim()) return { ok: false, reason: `pdftotext returned empty text for page ${page}` };
     texts.push(result.stdout);
@@ -189,8 +223,8 @@ function extractPageTexts(tool, pdfPath, pageCount, timeoutMs) {
   return { ok: true, texts };
 }
 
-function extractBlankFraction(tool, pdfPath, page, timeoutMs) {
-  const result = runTool(tool, ["-f", String(page), "-l", String(page), "-bbox", pdfPath, "-"], timeoutMs);
+async function extractBlankFraction(tool, pdfPath, page, timeoutMs) {
+  const result = await runTool(tool, ["-f", String(page), "-l", String(page), "-bbox", pdfPath, "-"], timeoutMs);
   if (!result.ok) return { ok: false, reason: `pdftotext bbox page ${page} ${result.reason}` };
   if (!result.stdout.trim()) return { ok: false, reason: `pdftotext bbox returned empty output for page ${page}` };
   const pageMatch = /<page width="([\d.]+)" height="([\d.]+)"/.exec(result.stdout);
@@ -237,10 +271,10 @@ function paperMatches(size, paperSize) {
   return Math.abs(size.w - expected.width) < 2 && Math.abs(size.h - expected.height) < 2;
 }
 
-function analyzeLayout(report, texts, pdftotext, pdfPath) {
+async function analyzeLayout(report, texts, pdftotext, pdfPath) {
   const headingLike = (line) => /^\s*(\d+|부록|요약|Appendix|Summary)\b/.test(line) || line.trim().length > 40;
-  if (!paperMatches(report.pageSize, report.paperSize)) {
-    report.qa.push({ level: "P2", page: null, msg: `page size is ${report.pageSize.name || `${report.pageSize.w}x${report.pageSize.h}`}, not requested ${report.paperSize}` });
+  for (const size of report.pageSizes) {
+    if (!paperMatches(size, report.paperSize)) report.qa.push({ level: "P2", page: size.page, msg: `page size is ${size.name || `${size.w}x${size.h}`}, not requested ${report.paperSize}` });
   }
   for (let index = 0; index < texts.length; index += 1) {
     const page = index + 1;
@@ -255,7 +289,7 @@ function analyzeLayout(report, texts, pdftotext, pdfPath) {
     if (page > 3 && nonEmpty.length < 10) report.qa.push({ level: "P2", page, msg: `low density (${nonEmpty.length} text lines); check for a stranded figure or excess white space` });
     const isContents = nonEmpty.slice(0, 3).some((line) => /^\s*(목차|contents|table of contents)\s*$/i.test(line));
     if (page >= 2 && page < texts.length && !isContents) {
-      const blank = extractBlankFraction(pdftotext, pdfPath, page, report.timeoutMs);
+      const blank = await extractBlankFraction(pdftotext, pdfPath, page, report.timeoutMs);
       if (!blank.ok) return blank;
       if (blank.blank >= 0.3) report.qa.push({ level: "P2", page, msg: `${Math.round(blank.blank * 100)}% of the text area is blank below the content; let the next section flow or move a figure` });
     }
@@ -266,6 +300,18 @@ function analyzeLayout(report, texts, pdftotext, pdfPath) {
 function artifactDigest(path) { return createHash("sha256").update(readFileSync(path)).digest("hex"); }
 
 function finish(report, flags, tempFiles, profilePath, retainedHtml = null) {
+  if (report.pendingPdf && report.generationComplete && report.checks[1].status !== "FAIL") {
+    // Same-directory rename preserves the old destination until ALL print passes
+    // succeed. A failed rename never unlinks the last good PDF.
+    renameSync(report.pendingPdf, report.output);
+  } else if (report.pendingPdf) {
+    for (const item of report.checks) {
+      if (item.status === "PASS") Object.assign(item, { status: "NOT_RUN", reason: "Candidate checks do not certify the preserved destination." });
+    }
+    if (report.checks[0].status !== "FAIL") setCheck(report, "artifact-created", "FAIL", "Generation did not complete; previous destination preserved.");
+  }
+  delete report.pendingPdf;
+  delete report.generationComplete;
   report.artifactExists = !report.artifactInvalid && existsSync(report.output);
   if (report.artifactExists) {
     try { report.artifact_sha256 = artifactDigest(report.output); }
@@ -300,7 +346,7 @@ function finish(report, flags, tempFiles, profilePath, retainedHtml = null) {
   return report.exitCode;
 }
 
-function main() {
+async function main() {
   const { flags, positional } = parseArgs(process.argv.slice(2));
   const input = resolve(positional[0]);
   const output = flags.qaOnly ? input : resolve(positional[1]);
@@ -315,6 +361,7 @@ function main() {
   const tempFiles = new Set();
   let profilePath = null;
   let retainedHtml = null;
+  let pdfPath = output;
 
   try {
   if (!flags.qaOnly && sameFile(input, output)) {
@@ -343,19 +390,22 @@ function main() {
     profilePath = mkdtempSync(join(tmpdir(), "cxc-report-chrome-"));
     const printHtml = writeTempHtml(input, injectPaperSize(sourceHtml, flags.paperSize), tempFiles);
     retainedHtml = printHtml;
-    const printed = printPdf(chrome, printHtml, output, profilePath, flags.timeoutMs);
+    const printed = await printPdf(chrome, printHtml, output, profilePath, flags.timeoutMs, tempFiles);
     if (!printed.ok) {
       setCheck(report, "artifact-created", "FAIL", `Chromium ${printed.reason}`);
       return finish(report, flags, tempFiles, profilePath);
     }
+    pdfPath = printed.path;
+    report.pendingPdf = pdfPath;
+    report.generationComplete = true;
   }
 
-  if (!existsSync(output) || statSync(output).size <= 0) {
+  if (!existsSync(pdfPath) || statSync(pdfPath).size <= 0) {
     setCheck(report, "artifact-created", "FAIL", "No nonempty PDF artifact exists at the QA boundary.");
     return finish(report, flags, tempFiles, profilePath, retainedHtml);
   }
   setCheck(report, "artifact-created", "PASS",
-    flags.qaOnly ? "Existing nonempty PDF found at the QA boundary." : "Chromium produced a fresh nonempty PDF after stale output removal.",
+    flags.qaOnly ? "Existing nonempty PDF found at the QA boundary." : "Chromium produced a fresh staged PDF; all print passes must succeed before atomic promotion.",
     `artifact:${output}`);
 
   if (!pdfinfo) {
@@ -367,7 +417,7 @@ function main() {
     return finish(report, flags, tempFiles, profilePath, retainedHtml);
   }
 
-  let info = parsePdfInfo(pdfinfo, output, flags.timeoutMs);
+  let info = await parsePdfInfo(pdfinfo, pdfPath, flags.timeoutMs);
   if (!info.ok) {
     setCheck(report, "pdf-parse", "FAIL", `pdfinfo ${info.reason}`);
     return finish(report, flags, tempFiles, profilePath, retainedHtml);
@@ -380,7 +430,7 @@ function main() {
     setCheck(report, "pagination", "NOT_RUN", reason);
     return finish(report, flags, tempFiles, profilePath, retainedHtml);
   }
-  let extracted = extractPageTexts(pdftotext, output, info.pages, flags.timeoutMs);
+  let extracted = await extractPageTexts(pdftotext, pdfPath, info.pages, flags.timeoutMs);
   if (!extracted.ok) {
     setCheck(report, "pdf-parse", "PASS", `pdfinfo parsed ${info.pages} pages with positive geometry.`, `pdfinfo:${output}`);
     setCheck(report, "text-integrity", "FAIL", extracted.reason);
@@ -402,18 +452,22 @@ function main() {
     if (filled !== paperHtml) {
       const filledPath = writeTempHtml(input, filled, tempFiles);
       retainedHtml = filledPath;
-      const printed = printPdf(chrome, filledPath, output, profilePath, flags.timeoutMs);
+      const printed = await printPdf(chrome, filledPath, output, profilePath, flags.timeoutMs, tempFiles);
       if (!printed.ok) {
+        report.generationComplete = false;
         setCheck(report, "artifact-created", "FAIL", `Chromium second pass ${printed.reason}`);
         return finish(report, flags, tempFiles, profilePath);
       }
+      pdfPath = printed.path;
+      report.pendingPdf = pdfPath;
+      report.generationComplete = true;
       report.passes = 2;
-      info = parsePdfInfo(pdfinfo, output, flags.timeoutMs);
+      info = await parsePdfInfo(pdfinfo, pdfPath, flags.timeoutMs);
       if (!info.ok) {
         setCheck(report, "pdf-parse", "FAIL", `pdfinfo after second pass ${info.reason}`);
         return finish(report, flags, tempFiles, profilePath, retainedHtml);
       }
-      extracted = extractPageTexts(pdftotext, output, info.pages, flags.timeoutMs);
+      extracted = await extractPageTexts(pdftotext, pdfPath, info.pages, flags.timeoutMs);
       if (!extracted.ok) {
         setCheck(report, "pdf-parse", "PASS", `pdfinfo parsed ${info.pages} pages with positive geometry.`, `pdfinfo:${output}`);
         setCheck(report, "text-integrity", "FAIL", extracted.reason);
@@ -424,16 +478,18 @@ function main() {
         if (actual !== target.page) report.qa.push({ level: "P0", page: actual, msg: `contents page number drifted after refill for ${target.id}: wrote ${target.page}, now on ${actual}` });
       }
     }
+    report.generationComplete = true;
   }
 
   report.pages = info.pages;
   report.pageSize = info.size;
+  report.pageSizes = info.pageSizes;
   setCheck(report, "pdf-parse", "PASS", `pdfinfo parsed ${info.pages} pages with positive geometry.`, `pdfinfo:${output}`);
   setCheck(report, "text-integrity", "PASS",
     `Nonempty extracted text only was confirmed on ${info.pages} pages; record reconciliation and semantic correctness remain outside this automated check.`,
     `pdftotext:${output}#pages=1-${info.pages}`);
 
-  const layout = analyzeLayout(report, extracted.texts, pdftotext, output);
+  const layout = await analyzeLayout(report, extracted.texts, pdftotext, pdfPath);
   if (!layout.ok) {
     setCheck(report, "pagination", "FAIL", layout.reason);
     return finish(report, flags, tempFiles, profilePath, retainedHtml);
@@ -452,5 +508,5 @@ function main() {
   }
 }
 
-try { process.exitCode = main(); }
+try { process.exitCode = await main(); }
 catch (error) { console.error(`export-paged-report: ${error.message}`); process.exitCode = 1; }
