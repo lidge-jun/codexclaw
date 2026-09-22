@@ -29,3 +29,7 @@ Field-chain: N/A, no new runtime fields/types. Enforcement: E7 instructions only
 ## User clarification during B
 
 The reported failure continues across loop resumes: completed consultation is treated as unusable solely because V1 has no native role field, then escalated to an exception question and blocked goal. Clarify the same D1 decision in delegation.md: distinguish absent fields from absent work/protection; preserve real proposal/reflection/review evidence and applicable prior approvals; never block solely on absent agent_type in a supported route. Actual missing consultation, failed calls and required isolation remain gaps. This is wording within the audited design, not a new permission or runtime contract.
+
+## C review correction
+
+GitHub review found the same native-only prerequisite in README.ko.md:46 and README.zh.md:46. Include those two localized reader surfaces in the existing D1 documentation decision and synchronize them with README.md. No new behavior, type or decision; focused prior runtime proof remains applicable. Review thread: PR #228 discussion_r4069463216.
