@@ -1,235 +1,456 @@
 #!/usr/bin/env node
 /**
- * export-paged-report.mjs — print an HTML report to PDF with a headless Chromium,
- * fill contents-page page numbers in a second pass, and run a layout QA over the
- * rendered pages.
- *
- * Why two passes: HeadlessChrome (measured on 152) honours @page margin boxes and
- * counter(page)/counter(pages) but ignores string-set and target-counter(), so a
- * table of contents cannot reference page numbers in CSS. This script prints once,
- * finds each [data-toc] heading in the PDF text, writes the page number into the
- * matching [data-toc-for] element, and prints again. A third text extraction
- * verifies the numbers still hold.
- *
- * Usage:
- *   node export-paged-report.mjs <input.html> <output.pdf> [--chrome <path>] [--keep-html] [--json]
- *   node export-paged-report.mjs --qa-only <existing.pdf> [--json]      (layout QA on a PDF from any engine)
- * Exit code 0 = exported and QA passed; 2 = exported with QA findings; 1 = failure.
- * Requires pdftotext/pdfinfo (poppler) for TOC numbers and QA; without them the
- * PDF is still written and those steps report NOT RUN.
+ * Print an HTML report with an isolated Chromium profile, fill contents-page
+ * numbers in a second pass, and emit bounded automated PDF evidence.
+ * Exit 0 PASS, 1 FAIL, 2 REVIEW, 3 BLOCKED.
+ * Each tool has a 30s deadline; --timeout-ms accepts 100..300000 milliseconds.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, unlinkSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
+import {
+  accessSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync,
+  realpathSync, rmSync, statSync, unlinkSync, writeFileSync, openSync, closeSync,
+} from "node:fs";
+import { basename, delimiter, dirname, extname, isAbsolute, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 
-const args = process.argv.slice(2);
-const flags = { chrome: process.env.CHROME_PATH || "", keepHtml: false, json: false, qaOnly: false };
-const positional = [];
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === "--chrome") flags.chrome = args[++i];
-  else if (args[i] === "--keep-html") flags.keepHtml = true;
-  else if (args[i] === "--json") flags.json = true;
-  else if (args[i] === "--qa-only") flags.qaOnly = true;
-  else positional.push(args[i]);
-}
-if (positional.length < (flags.qaOnly ? 1 : 2)) {
-  console.error("usage: export-paged-report.mjs <input.html> <output.pdf> [--chrome <path>] [--keep-html] [--json]\n       export-paged-report.mjs --qa-only <existing.pdf> [--json]");
-  process.exit(1);
-}
-const input = resolve(positional[0]);
-const output = flags.qaOnly ? input : resolve(positional[1]);
-if (!existsSync(input)) fail("input not found: " + input);
+import { evaluateReport } from "./quality-gate.mjs";
 
-const CHROME_CANDIDATES = [
-  flags.chrome,
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/Applications/Chromium.app/Contents/MacOS/Chromium",
-  "google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome",
-].filter(Boolean);
+const PAPER_SIZES = Object.freeze({
+  A4: Object.freeze({ width: 595.28, height: 841.89 }),
+  Letter: Object.freeze({ width: 612, height: 792 }),
+});
+const CHECK_IDS = ["artifact-created", "pdf-parse", "text-integrity", "pagination"];
+const DEFAULT_TIMEOUT_MS = 30_000;
+const MAX_TIMEOUT_MS = 300_000;
+const usage = "usage: export-paged-report.mjs <input.html> <output.pdf> [--chrome <path>] [--pdfinfo <path>] [--pdftotext <path>] [--paper-size A4|Letter] [--timeout-ms <100..300000>] [--keep-html] [--json]\n       export-paged-report.mjs --qa-only <existing.pdf> [--pdfinfo <path>] [--pdftotext <path>] [--paper-size A4|Letter] [--timeout-ms <100..300000>] [--json]";
 
-function which(cmd) {
-  if (cmd.includes("/")) return existsSync(cmd) ? cmd : null;
-  const r = spawnSync("which", [cmd], { encoding: "utf8" });
-  return r.status === 0 ? r.stdout.trim() : null;
-}
-const chrome = flags.qaOnly ? null : CHROME_CANDIDATES.map(which).find(Boolean);
-if (!chrome && !flags.qaOnly) fail("no Chromium binary found; pass --chrome <path> or set CHROME_PATH");
-const pdftotext = which("pdftotext");
-const pdfinfo = which("pdfinfo");
+function fail(message) { throw new Error(message); }
 
-function fail(msg) { console.error("export-paged-report: " + msg); process.exit(1); }
-
-function printPdf(htmlPath, pdfPath) {
-  const r = spawnSync(chrome, [
-    "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
-    "--run-all-compositor-stages-before-draw", "--virtual-time-budget=10000",
-    "--print-to-pdf=" + pdfPath, pathToFileURL(htmlPath).href,
-  ], { encoding: "utf8" });
-  if (r.status !== 0 || !existsSync(pdfPath)) fail("chrome print failed: " + (r.stderr || "").slice(-400));
-}
-
-function pageCount(pdfPath) {
-  if (!pdfinfo) return null;
-  const r = spawnSync(pdfinfo, [pdfPath], { encoding: "utf8" });
-  const m = /Pages:\s+(\d+)/.exec(r.stdout || "");
-  const s = /Page size:\s+([\d.]+) x ([\d.]+) pts(?: \(([^)]+)\))?/.exec(r.stdout || "");
-  return { pages: m ? Number(m[1]) : null, size: s ? { w: Number(s[1]), h: Number(s[2]), name: s[3] || null } : null };
-}
-
-function pageTexts(pdfPath, n) {
-  const out = [];
-  for (let p = 1; p <= n; p++) {
-    const r = spawnSync(pdftotext, ["-f", String(p), "-l", String(p), "-layout", pdfPath, "-"], { encoding: "utf8" });
-    out.push(r.stdout || "");
+function parseArgs(argv) {
+  const flags = {
+    chrome: process.env.CHROME_PATH || "", pdfinfo: "", pdftotext: "",
+    paperSize: "A4", keepHtml: false, json: false, qaOnly: false, timeoutMs: DEFAULT_TIMEOUT_MS,
+  };
+  const positional = [];
+  const valueFlags = new Map([
+    ["--chrome", "chrome"], ["--pdfinfo", "pdfinfo"],
+    ["--pdftotext", "pdftotext"], ["--paper-size", "paperSize"],
+    ["--timeout-ms", "timeoutMs"],
+  ]);
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (valueFlags.has(arg)) {
+      const value = argv[index + 1];
+      if (!value || value.startsWith("--")) fail(`${arg} needs a value`);
+      flags[valueFlags.get(arg)] = value;
+      index += 1;
+    } else if (arg === "--keep-html") flags.keepHtml = true;
+    else if (arg === "--json") flags.json = true;
+    else if (arg === "--qa-only") flags.qaOnly = true;
+    else if (arg.startsWith("--")) fail(`unknown option: ${arg}`);
+    else positional.push(arg);
   }
-  return out;
+  if (!Object.hasOwn(PAPER_SIZES, flags.paperSize)) fail("--paper-size must be A4|Letter");
+  flags.timeoutMs = Number(flags.timeoutMs);
+  if (!Number.isInteger(flags.timeoutMs) || flags.timeoutMs < 100 || flags.timeoutMs > MAX_TIMEOUT_MS) {
+    fail("--timeout-ms must be an integer from 100 to 300000 milliseconds (default 30000)");
+  }
+  if (positional.length !== (flags.qaOnly ? 1 : 2)) fail(usage);
+  return { flags, positional };
 }
 
-const norm = (s) => s.replace(/\s+/g, "").replace(/[–—-]/g, "-");
-const escapeRe = (s) => s.replace(/[.*+?^$\{\}()|[\]\\]/g, "\\$&");
-
-// ---- collect TOC targets from the HTML ----
-const html = flags.qaOnly ? "" : readFileSync(input, "utf8");
-const targets = [];
-for (const m of html.matchAll(/<(section|h[1-6]|div)[^>]*\bid="([^"]+)"[^>]*\bdata-toc="([^"]+)"/g)) targets.push({ id: m[2], text: m[3] });
-for (const m of html.matchAll(/<(section|h[1-6]|div)[^>]*\bdata-toc="([^"]+)"[^>]*\bid="([^"]+)"/g)) if (!targets.some(t => t.id === m[3])) targets.push({ id: m[3], text: m[2] });
-
-// ---- pass 1 ----
-// Chromium's --print-to-pdf does not create the destination directory, and its failure
-// for a missing one is a generic print error that names Chrome rather than the real
-// cause (issue #181). Prepare the directory first so the diagnostic is about the thing
-// that is actually wrong. Never in --qa-only: that mode reads an existing PDF and must
-// not create anything.
-if (!flags.qaOnly) {
-  const outDir = dirname(output);
-  // existsSync alone is not enough: a regular FILE sitting at the parent path also
-  // "exists", and skipping the check there just defers the same failure to Chromium
-  // with a worse message.
-  let dirOk = false;
+function executableFile(path) {
   try {
-    dirOk = statSync(outDir).isDirectory();
-  } catch {
-    dirOk = false;
+    if (!statSync(path).isFile()) return false;
+    if (process.platform !== "win32" && !/[.](?:[cm]?js)$/i.test(path)) accessSync(path, constants.X_OK);
+    return true;
+  } catch { return false; }
+}
+
+function discover(command) {
+  if (!command) return null;
+  if (command.includes("/") || command.includes("\\") || isAbsolute(command)) {
+    const candidate = resolve(command);
+    return executableFile(candidate) ? candidate : null;
   }
-  if (!dirOk) {
-    try {
-      mkdirSync(outDir, { recursive: true });
-    } catch (err) {
-      fail("cannot create output directory " + outDir + ": " + (err && err.code ? err.code : err));
+  const extensions = process.platform === "win32"
+    ? (process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM").split(";") : [""];
+  for (const directory of (process.env.PATH || "").split(delimiter).filter(Boolean)) {
+    for (const extension of extensions) {
+      const candidate = join(directory, command + extension);
+      if (executableFile(candidate)) return candidate;
     }
   }
-  printPdf(input, output);
-}
-const report = { input, output, chrome, passes: flags.qaOnly ? 0 : 1, toc: [], qa: [], notRun: [] };
-if (!pdftotext || !pdfinfo) {
-  report.notRun.push("pdftotext/pdfinfo missing: contents page numbers and layout QA NOT RUN");
-  finish(report);
-}
-let info = pageCount(output);
-let texts = pageTexts(output, info.pages);
-
-function locate(texts, text, fromPage = 1) {
-  const key = norm(text);
-  for (let i = fromPage - 1; i < texts.length; i++) if (norm(texts[i]).includes(key)) return i + 1;
-  const short = key.slice(0, 24);
-  for (let i = fromPage - 1; i < texts.length; i++) if (norm(texts[i]).includes(short)) return i + 1;
   return null;
 }
 
-// ---- fill contents page numbers (search after the contents page itself) ----
-if (targets.length) {
-  const tocPage = locate(texts, "목차") || locate(texts, "Contents") || 2;
-  let filled = html;
-  for (const t of targets) {
-    const page = locate(texts, t.text, tocPage + 1);
-    report.toc.push({ id: t.id, text: t.text, page });
-    if (page) {
-      const re = new RegExp('(<[^>]*\\bdata-toc-for="' + escapeRe(t.id) + '"[^>]*>)([^<]*)(</)', "g");
-      filled = filled.replace(re, "$1" + page + "$3");
-    }
+function runTool(tool, args, timeoutMs) {
+  const nodeModule = /[.](?:[cm]?js)$/i.test(tool);
+  // Regular files avoid waiting for pipe EOF when an exited tool's descendants
+  // retain stdout/stderr. The timeout bounds the direct process, even if it ignores TERM.
+  const captureDir = mkdtempSync(join(tmpdir(), "cxc-report-tool-"));
+  const descriptors = [];
+  let result;
+  try {
+    for (const name of ["stdout", "stderr"]) descriptors.push(openSync(join(captureDir, name), "w+"));
+    result = spawnSync(nodeModule ? process.execPath : tool, nodeModule ? [tool, ...args] : args, {
+      stdio: ["ignore", ...descriptors], timeout: timeoutMs, killSignal: "SIGKILL",
+    });
+    result.stdout = readFileSync(join(captureDir, "stdout"), "utf8");
+    result.stderr = readFileSync(join(captureDir, "stderr"), "utf8");
+  } finally {
+    for (const descriptor of descriptors) closeSync(descriptor);
+    rmSync(captureDir, { recursive: true, force: true });
   }
-  if (filled !== html) {
-    const tmp = join(dirname(input), "." + basename(input, ".html") + ".toc-pass.html");
-    writeFileSync(tmp, filled);
-    printPdf(tmp, output);
-    report.passes = 2;
-    info = pageCount(output);
-    texts = pageTexts(output, info.pages);
-    for (const t of report.toc) {
-      const again = locate(texts, t.text, tocPage + 1);
-      if (again !== t.page) report.qa.push({ level: "P0", page: again, msg: "contents page number drifted after refill for " + t.id + ": wrote " + t.page + ", now on " + again });
-    }
-    if (flags.keepHtml) report.filledHtml = tmp; else unlinkSync(tmp);
+  if (result.error?.code === "ETIMEDOUT") return { ok: false, reason: `timed out after ${timeoutMs} ms; killSignal SIGKILL` };
+  if (result.error) return { ok: false, reason: `could not start: ${result.error.code || result.error.message}` };
+  if (result.signal) return { ok: false, reason: `terminated by signal ${result.signal}` };
+  if (result.status !== 0) {
+    const detail = (result.stderr || result.stdout || "").trim().slice(-400);
+    return { ok: false, reason: `exited with status ${String(result.status)}${detail ? `: ${detail}` : ""}` };
   }
+  return { ok: true, stdout: result.stdout || "" };
 }
 
-// ---- layout QA over rendered text ----
-report.pages = info.pages;
-report.pageSize = info.size;
-if (info.size && info.size.name !== "A4" && !(Math.abs(info.size.w - 595) < 2 && Math.abs(info.size.h - 842) < 2)) {
-  report.qa.push({ level: "P2", page: null, msg: "page size is " + (info.size.name || info.size.w + "x" + info.size.h) + ", not A4; confirm the recipient's standard" });
+function check(id, status, reason, evidence = null) {
+  const item = { id, required: true, status, reason };
+  if (evidence) item.evidence = evidence;
+  return item;
 }
-const headingLike = (line) => /^\s*(\d+|부록|요약|Appendix|Summary)\b/.test(line) || line.trim().length > 40;
-texts.forEach((t, i) => {
-  const page = i + 1;
-  const lines = t.split("\n").map(l => l.replace(/\s+$/, ""));
-  const nonEmpty = lines.filter(l => l.trim());
-  if (page === 1) return; // cover
-  const last = (nonEmpty[nonEmpty.length - 1] || "").trim();
-  if (!/^\d+(\s*\/\s*\d+)?$/.test(last) && !/\b\d+\s*\/\s*\d+\s*$/.test(last)) {
-    report.qa.push({ level: "P1", page, msg: "no page number detected in the bottom line" });
-  }
-  const first = (nonEmpty[0] || "").trim();
-  if (first && first.length <= 30 && /[.。!?]$/.test(first) && !headingLike(first) && !/^\d/.test(first)) {
-    report.qa.push({ level: "P1", page, msg: 'page starts with an orphan fragment: "' + first + '"' });
-  }
-  const tail = nonEmpty.slice(-3, -1).map(l => l.trim()).filter(Boolean);
-  if (tail.length && /^\d+\s+\S/.test(tail[tail.length - 1]) && tail[tail.length - 1].length < 60 && nonEmpty.length > 3) {
-    report.qa.push({ level: "P2", page, msg: 'possible heading at page bottom: "' + tail[tail.length - 1] + '"' });
-  }
-  if (page > 3 && nonEmpty.length < 10) {
-    report.qa.push({ level: "P2", page, msg: "low density (" + nonEmpty.length + " text lines); check for a stranded figure or excess white space" });
-  }
-  // white space below the content, measured from word boxes (layout text collapses gaps)
-  const isContents = nonEmpty.slice(0, 3).some(l => /^\s*(목차|contents|table of contents)\s*$/i.test(l));
-  if (page >= 2 && page < texts.length && !isContents) {
-    const blank = blankBelowContent(output, page);
-    if (blank !== null && blank >= 0.3) {
-      report.qa.push({ level: "P2", page, msg: Math.round(blank * 100) + "% of the text area is blank below the content; let the next section flow or move a figure" });
-    }
-  }
-});
-finish(report);
 
-/** Fraction of the text area (between the margins) left blank under the last content word. */
-function blankBelowContent(pdfPath, page) {
-  const r = spawnSync(pdftotext, ["-f", String(page), "-l", String(page), "-bbox", pdfPath, "-"], { encoding: "utf8" });
-  const pg = /<page width="([\d.]+)" height="([\d.]+)"/.exec(r.stdout || "");
-  if (!pg) return null;
-  const H = Number(pg[2]);
-  const words = [...(r.stdout || "").matchAll(/<word xMin="[\d.]+" yMin="([\d.]+)" xMax="[\d.]+" yMax="([\d.]+)">/g)].map(m => ({ y0: Number(m[1]), y1: Number(m[2]) }));
-  if (!words.length) return null;
-  const top = Math.min(...words.map(w => w.y0));
-  const footer = H - 46; // margin-box footer sits inside the bottom 22mm margin
-  const body = words.filter(w => w.y1 < footer);
-  if (!body.length) return null;
-  const bottom = Math.max(...body.map(w => w.y1));
-  const areaBottom = H - 62; // 22mm bottom margin in pt
+function setCheck(report, id, status, reason, evidence = null) {
+  report.checks[CHECK_IDS.indexOf(id)] = check(id, status, reason, evidence);
+}
+
+function sameFile(input, output) {
+  if (resolve(input) === resolve(output)) return true;
+  if (!existsSync(output)) return false;
+  try { return realpathSync(input) === realpathSync(output); } catch { return false; }
+}
+
+function ensureOutputDirectory(output) {
+  const outDir = dirname(output);
+  try { if (statSync(outDir).isDirectory()) return; } catch { /* create below */ }
+  try { mkdirSync(outDir, { recursive: true }); }
+  catch (error) { fail(`cannot create output directory ${outDir}: ${error?.code || error}`); }
+}
+
+function injectPaperSize(html, paperSize) {
+  const style = `<style data-cxc-paper-size>@page { size: ${paperSize}; }</style>`;
+  return /<\/head\s*>/i.test(html) ? html.replace(/<\/head\s*>/i, `${style}</head>`) : `${style}${html}`;
+}
+
+function writeTempHtml(input, html, tempFiles) {
+  const path = join(dirname(input), `.${basename(input, extname(input))}.${randomUUID()}.export-pass.html`);
+  writeFileSync(path, html);
+  tempFiles.add(path);
+  return path;
+}
+
+function printPdf(chrome, htmlPath, pdfPath, profilePath, timeoutMs) {
+  if (existsSync(pdfPath)) unlinkSync(pdfPath);
+  const result = runTool(chrome, [
+    "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+    `--user-data-dir=${profilePath}`, "--no-pdf-header-footer",
+    "--run-all-compositor-stages-before-draw", "--virtual-time-budget=10000",
+    `--print-to-pdf=${pdfPath}`, pathToFileURL(htmlPath).href,
+  ], timeoutMs);
+  if (!result.ok) return result;
+  try {
+    if (statSync(pdfPath).isFile() && statSync(pdfPath).size > 0) return { ok: true };
+  } catch { /* report below */ }
+  return { ok: false, reason: "browser exited successfully but produced no nonempty PDF" };
+}
+
+function parsePdfInfo(tool, pdfPath, timeoutMs) {
+  const result = runTool(tool, [pdfPath], timeoutMs);
+  if (!result.ok) return result;
+  const pageMatch = /^Pages:\s+(\d+)\s*$/im.exec(result.stdout);
+  const sizeMatch = /^Page size:\s+([\d.]+)\s+x\s+([\d.]+)\s+pts(?:\s+\(([^)]+)\))?\s*$/im.exec(result.stdout);
+  const pages = pageMatch ? Number(pageMatch[1]) : Number.NaN;
+  const size = sizeMatch ? { w: Number(sizeMatch[1]), h: Number(sizeMatch[2]), name: sizeMatch[3] || null } : null;
+  if (!Number.isInteger(pages) || pages <= 0) return { ok: false, reason: "returned no positive finite page count" };
+  if (!size || !Number.isFinite(size.w) || !Number.isFinite(size.h) || size.w <= 0 || size.h <= 0) {
+    return { ok: false, reason: "returned no positive finite page geometry" };
+  }
+  return { ok: true, pages, size };
+}
+
+function extractPageTexts(tool, pdfPath, pageCount, timeoutMs) {
+  const texts = [];
+  for (let page = 1; page <= pageCount; page += 1) {
+    const result = runTool(tool, ["-f", String(page), "-l", String(page), "-layout", pdfPath, "-"], timeoutMs);
+    if (!result.ok) return { ok: false, reason: `pdftotext page ${page} ${result.reason}` };
+    if (!result.stdout.trim()) return { ok: false, reason: `pdftotext returned empty text for page ${page}` };
+    texts.push(result.stdout);
+  }
+  return { ok: true, texts };
+}
+
+function extractBlankFraction(tool, pdfPath, page, timeoutMs) {
+  const result = runTool(tool, ["-f", String(page), "-l", String(page), "-bbox", pdfPath, "-"], timeoutMs);
+  if (!result.ok) return { ok: false, reason: `pdftotext bbox page ${page} ${result.reason}` };
+  if (!result.stdout.trim()) return { ok: false, reason: `pdftotext bbox returned empty output for page ${page}` };
+  const pageMatch = /<page width="([\d.]+)" height="([\d.]+)"/.exec(result.stdout);
+  const words = [...result.stdout.matchAll(/<word xMin="[\d.]+" yMin="([\d.]+)" xMax="[\d.]+" yMax="([\d.]+)">/g)]
+    .map((match) => ({ y0: Number(match[1]), y1: Number(match[2]) }));
+  if (!pageMatch || !words.length) return { ok: false, reason: `pdftotext bbox returned invalid geometry for page ${page}` };
+  const height = Number(pageMatch[2]);
+  const top = Math.min(...words.map((word) => word.y0));
+  const body = words.filter((word) => word.y1 < height - 46);
+  if (!Number.isFinite(height) || !Number.isFinite(top) || !body.length) {
+    return { ok: false, reason: `pdftotext bbox returned invalid text bounds for page ${page}` };
+  }
+  const areaBottom = height - 62;
   const usable = areaBottom - top;
-  return usable > 0 ? Math.max(0, (areaBottom - bottom) / usable) : null;
+  if (!(usable > 0)) return { ok: false, reason: `pdftotext bbox returned unusable text area for page ${page}` };
+  const bottom = Math.max(...body.map((word) => word.y1));
+  return { ok: true, blank: Math.max(0, (areaBottom - bottom) / usable) };
 }
 
-function finish(r) {
-  const p0 = r.qa.filter(q => q.level === "P0").length, p1 = r.qa.filter(q => q.level === "P1").length;
-  r.verdict = p0 ? "FAIL" : (p1 || r.qa.length ? "REVIEW" : "PASS");
-  if (flags.json) console.log(JSON.stringify(r, null, 2));
-  else {
-    console.log("export-paged-report: " + r.output + " (" + (r.pages ?? "?") + " pages, " + (r.pageSize?.name || "size ?") + ", " + r.passes + " pass" + (r.passes > 1 ? "es" : "") + ")");
-    for (const t of r.toc) console.log("  toc  " + String(t.page ?? "?").padStart(3) + "  " + t.text);
-    for (const q of r.qa) console.log("  " + q.level + "  p" + (q.page ?? "-") + "  " + q.msg);
-    for (const n of r.notRun) console.log("  NOT RUN  " + n);
-    console.log("  verdict: " + r.verdict);
-  }
-  process.exit(r.verdict === "FAIL" ? 1 : (r.qa.length ? 2 : 0));
+const normalize = (value) => value.replace(/\s+/g, "").replace(/[–—-]/g, "-");
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+function locate(texts, text, fromPage = 1) {
+  const key = normalize(text);
+  for (let index = fromPage - 1; index < texts.length; index += 1) if (normalize(texts[index]).includes(key)) return index + 1;
+  const short = key.slice(0, 24);
+  for (let index = fromPage - 1; index < texts.length; index += 1) if (normalize(texts[index]).includes(short)) return index + 1;
+  return null;
 }
+
+function collectTargets(html) {
+  const targets = [];
+  for (const match of html.matchAll(/<(section|h[1-6]|div)[^>]*\bid="([^"]+)"[^>]*\bdata-toc="([^"]+)"/g)) {
+    targets.push({ id: match[2], text: match[3] });
+  }
+  for (const match of html.matchAll(/<(section|h[1-6]|div)[^>]*\bdata-toc="([^"]+)"[^>]*\bid="([^"]+)"/g)) {
+    if (!targets.some((target) => target.id === match[3])) targets.push({ id: match[3], text: match[2] });
+  }
+  return targets;
+}
+
+function paperMatches(size, paperSize) {
+  const expected = PAPER_SIZES[paperSize];
+  return Math.abs(size.w - expected.width) < 2 && Math.abs(size.h - expected.height) < 2;
+}
+
+function analyzeLayout(report, texts, pdftotext, pdfPath) {
+  const headingLike = (line) => /^\s*(\d+|부록|요약|Appendix|Summary)\b/.test(line) || line.trim().length > 40;
+  if (!paperMatches(report.pageSize, report.paperSize)) {
+    report.qa.push({ level: "P2", page: null, msg: `page size is ${report.pageSize.name || `${report.pageSize.w}x${report.pageSize.h}`}, not requested ${report.paperSize}` });
+  }
+  for (let index = 0; index < texts.length; index += 1) {
+    const page = index + 1;
+    const nonEmpty = texts[index].split("\n").map((line) => line.replace(/\s+$/, "")).filter((line) => line.trim());
+    if (page === 1) continue;
+    const last = (nonEmpty.at(-1) || "").trim();
+    if (!/^\d+(\s*\/\s*\d+)?$/.test(last) && !/\b\d+\s*\/\s*\d+\s*$/.test(last)) report.qa.push({ level: "P1", page, msg: "no page number detected in the bottom line" });
+    const first = (nonEmpty[0] || "").trim();
+    if (first && first.length <= 30 && /[.。!?]$/.test(first) && !headingLike(first) && !/^\d/.test(first)) report.qa.push({ level: "P1", page, msg: `page starts with an orphan fragment: "${first}"` });
+    const tail = nonEmpty.slice(-3, -1).map((line) => line.trim()).filter(Boolean);
+    if (tail.length && /^\d+\s+\S/.test(tail.at(-1)) && tail.at(-1).length < 60 && nonEmpty.length > 3) report.qa.push({ level: "P2", page, msg: `possible heading at page bottom: "${tail.at(-1)}"` });
+    if (page > 3 && nonEmpty.length < 10) report.qa.push({ level: "P2", page, msg: `low density (${nonEmpty.length} text lines); check for a stranded figure or excess white space` });
+    const isContents = nonEmpty.slice(0, 3).some((line) => /^\s*(목차|contents|table of contents)\s*$/i.test(line));
+    if (page >= 2 && page < texts.length && !isContents) {
+      const blank = extractBlankFraction(pdftotext, pdfPath, page, report.timeoutMs);
+      if (!blank.ok) return blank;
+      if (blank.blank >= 0.3) report.qa.push({ level: "P2", page, msg: `${Math.round(blank.blank * 100)}% of the text area is blank below the content; let the next section flow or move a figure` });
+    }
+  }
+  return { ok: true };
+}
+
+function artifactDigest(path) { return createHash("sha256").update(readFileSync(path)).digest("hex"); }
+
+function finish(report, flags, tempFiles, profilePath, retainedHtml = null) {
+  report.artifactExists = !report.artifactInvalid && existsSync(report.output);
+  if (report.artifactExists) {
+    try { report.artifact_sha256 = artifactDigest(report.output); }
+    catch { report.artifactExists = false; report.artifact_sha256 = null; }
+  }
+  for (const item of report.checks) if (item.status === "PASS") item.artifact_sha256 = report.artifact_sha256;
+
+  if (!report.artifactExists || !report.artifact_sha256) {
+    report.verdict = "FAIL";
+    report.exitCode = 1;
+    report.findings = [{ level: "FAIL", id: "artifact-created", message: "No readable final PDF artifact exists." }];
+  } else {
+    const gate = evaluateReport(report, { profile: "standard" });
+    Object.assign(report, { verdict: gate.verdict, exitCode: gate.exitCode, profile: gate.profile, omitted: gate.omitted, findings: gate.findings });
+  }
+  report.deliveryReady = false;
+  delete report.artifactInvalid;
+
+  const keep = flags.keepHtml && report.exitCode !== 1 ? retainedHtml : null;
+  for (const path of tempFiles) if (path !== keep) rmSync(path, { force: true });
+  if (keep) report.filledHtml = keep;
+  if (profilePath) rmSync(profilePath, { recursive: true, force: true });
+
+  if (flags.json) console.log(JSON.stringify(report, null, 2));
+  else {
+    console.log(`export-paged-report: ${report.output} (${report.pages ?? "?"} pages, ${report.pageSize?.name || "size ?"}, ${report.passes} pass${report.passes === 1 ? "" : "es"})`);
+    for (const target of report.toc) console.log(`  toc  ${String(target.page ?? "?").padStart(3)}  ${target.text}`);
+    for (const finding of report.qa) console.log(`  ${finding.level}  p${finding.page ?? "-"}  ${finding.msg}`);
+    for (const reason of report.notRun) console.log(`  NOT RUN  ${reason}`);
+    console.log(`  verdict: ${report.verdict}; deliveryReady: false`);
+  }
+  return report.exitCode;
+}
+
+function main() {
+  const { flags, positional } = parseArgs(process.argv.slice(2));
+  const input = resolve(positional[0]);
+  const output = flags.qaOnly ? input : resolve(positional[1]);
+  if (!existsSync(input)) fail(`input not found: ${input}`);
+  const report = {
+    schemaVersion: 1, input, output, paperSize: flags.paperSize, timeoutMs: flags.timeoutMs,
+    artifact_sha256: null, artifactExists: false, deliveryReady: false,
+    chrome: null, passes: flags.qaOnly ? 0 : 1, pages: null, pageSize: null,
+    toc: [], qa: [], notRun: [],
+    checks: CHECK_IDS.map((id) => check(id, "NOT_RUN", "Check has not run.")),
+  };
+  const tempFiles = new Set();
+  let profilePath = null;
+  let retainedHtml = null;
+
+  try {
+  if (!flags.qaOnly && sameFile(input, output)) {
+    report.artifactInvalid = true;
+    setCheck(report, "artifact-created", "FAIL", "Input and output resolve to the same file; refusing to overwrite input.");
+    return finish(report, flags, tempFiles, profilePath);
+  }
+
+  const chromeCandidates = flags.chrome ? [flags.chrome] : [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium", "google-chrome",
+    "google-chrome-stable", "chromium", "chromium-browser", "chrome",
+  ];
+  const chrome = flags.qaOnly ? null : chromeCandidates.map(discover).find(Boolean);
+  const pdfinfo = discover(flags.pdfinfo || "pdfinfo");
+  const pdftotext = discover(flags.pdftotext || "pdftotext");
+  report.chrome = chrome;
+  if (!flags.qaOnly && !chrome) fail("no Chromium binary found; pass --chrome <path> or set CHROME_PATH");
+
+  let sourceHtml = "";
+  const targets = [];
+  if (!flags.qaOnly) {
+    ensureOutputDirectory(output);
+    sourceHtml = readFileSync(input, "utf8");
+    targets.push(...collectTargets(sourceHtml));
+    profilePath = mkdtempSync(join(tmpdir(), "cxc-report-chrome-"));
+    const printHtml = writeTempHtml(input, injectPaperSize(sourceHtml, flags.paperSize), tempFiles);
+    retainedHtml = printHtml;
+    const printed = printPdf(chrome, printHtml, output, profilePath, flags.timeoutMs);
+    if (!printed.ok) {
+      setCheck(report, "artifact-created", "FAIL", `Chromium ${printed.reason}`);
+      return finish(report, flags, tempFiles, profilePath);
+    }
+  }
+
+  if (!existsSync(output) || statSync(output).size <= 0) {
+    setCheck(report, "artifact-created", "FAIL", "No nonempty PDF artifact exists at the QA boundary.");
+    return finish(report, flags, tempFiles, profilePath, retainedHtml);
+  }
+  setCheck(report, "artifact-created", "PASS",
+    flags.qaOnly ? "Existing nonempty PDF found at the QA boundary." : "Chromium produced a fresh nonempty PDF after stale output removal.",
+    `artifact:${output}`);
+
+  if (!pdfinfo) {
+    const reason = "Required executable missing: pdfinfo. Automated PDF checks did not run.";
+    report.notRun.push(reason);
+    setCheck(report, "pdf-parse", "NOT_RUN", reason);
+    setCheck(report, "text-integrity", "NOT_RUN", reason);
+    setCheck(report, "pagination", "NOT_RUN", reason);
+    return finish(report, flags, tempFiles, profilePath, retainedHtml);
+  }
+
+  let info = parsePdfInfo(pdfinfo, output, flags.timeoutMs);
+  if (!info.ok) {
+    setCheck(report, "pdf-parse", "FAIL", `pdfinfo ${info.reason}`);
+    return finish(report, flags, tempFiles, profilePath, retainedHtml);
+  }
+  if (!pdftotext) {
+    const reason = "Required executable missing: pdftotext. Text and pagination checks did not run.";
+    report.notRun.push(reason);
+    setCheck(report, "pdf-parse", "PASS", `pdfinfo parsed ${info.pages} pages with positive geometry.`, `pdfinfo:${output}`);
+    setCheck(report, "text-integrity", "NOT_RUN", reason);
+    setCheck(report, "pagination", "NOT_RUN", reason);
+    return finish(report, flags, tempFiles, profilePath, retainedHtml);
+  }
+  let extracted = extractPageTexts(pdftotext, output, info.pages, flags.timeoutMs);
+  if (!extracted.ok) {
+    setCheck(report, "pdf-parse", "PASS", `pdfinfo parsed ${info.pages} pages with positive geometry.`, `pdfinfo:${output}`);
+    setCheck(report, "text-integrity", "FAIL", extracted.reason);
+    return finish(report, flags, tempFiles, profilePath, retainedHtml);
+  }
+
+  if (!flags.qaOnly && targets.length) {
+    const tocPage = locate(extracted.texts, "목차") || locate(extracted.texts, "Contents") || 2;
+    const paperHtml = injectPaperSize(sourceHtml, flags.paperSize);
+    let filled = paperHtml;
+    for (const target of targets) {
+      const page = locate(extracted.texts, target.text, tocPage + 1);
+      report.toc.push({ ...target, page });
+      if (page) {
+        const pattern = new RegExp(`(<[^>]*\\bdata-toc-for="${escapeRegExp(target.id)}"[^>]*>)([^<]*)(</)`, "g");
+        filled = filled.replace(pattern, `$1${page}$3`);
+      }
+    }
+    if (filled !== paperHtml) {
+      const filledPath = writeTempHtml(input, filled, tempFiles);
+      retainedHtml = filledPath;
+      const printed = printPdf(chrome, filledPath, output, profilePath, flags.timeoutMs);
+      if (!printed.ok) {
+        setCheck(report, "artifact-created", "FAIL", `Chromium second pass ${printed.reason}`);
+        return finish(report, flags, tempFiles, profilePath);
+      }
+      report.passes = 2;
+      info = parsePdfInfo(pdfinfo, output, flags.timeoutMs);
+      if (!info.ok) {
+        setCheck(report, "pdf-parse", "FAIL", `pdfinfo after second pass ${info.reason}`);
+        return finish(report, flags, tempFiles, profilePath, retainedHtml);
+      }
+      extracted = extractPageTexts(pdftotext, output, info.pages, flags.timeoutMs);
+      if (!extracted.ok) {
+        setCheck(report, "pdf-parse", "PASS", `pdfinfo parsed ${info.pages} pages with positive geometry.`, `pdfinfo:${output}`);
+        setCheck(report, "text-integrity", "FAIL", extracted.reason);
+        return finish(report, flags, tempFiles, profilePath, retainedHtml);
+      }
+      for (const target of report.toc) {
+        const actual = locate(extracted.texts, target.text, tocPage + 1);
+        if (actual !== target.page) report.qa.push({ level: "P0", page: actual, msg: `contents page number drifted after refill for ${target.id}: wrote ${target.page}, now on ${actual}` });
+      }
+    }
+  }
+
+  report.pages = info.pages;
+  report.pageSize = info.size;
+  setCheck(report, "pdf-parse", "PASS", `pdfinfo parsed ${info.pages} pages with positive geometry.`, `pdfinfo:${output}`);
+  setCheck(report, "text-integrity", "PASS",
+    `Nonempty extracted text only was confirmed on ${info.pages} pages; record reconciliation and semantic correctness remain outside this automated check.`,
+    `pdftotext:${output}#pages=1-${info.pages}`);
+
+  const layout = analyzeLayout(report, extracted.texts, pdftotext, output);
+  if (!layout.ok) {
+    setCheck(report, "pagination", "FAIL", layout.reason);
+    return finish(report, flags, tempFiles, profilePath, retainedHtml);
+  }
+  const layoutStatus = report.qa.length ? (report.qa.some((item) => item.level === "P0") ? "FAIL" : "REVIEW") : "PASS";
+  setCheck(report, "pagination", layoutStatus,
+    report.qa.length
+      ? `${report.qa.length} automated layout heuristic finding(s) require review; rendered-page inspection remains separate.`
+      : "Automated layout heuristics only found no text-level pagination findings; rendered-page inspection remains separate.",
+    layoutStatus === "PASS" ? `pagination:${output}#automated-text-layout` : null);
+  return finish(report, flags, tempFiles, profilePath, retainedHtml);
+  } catch (error) {
+    for (const path of tempFiles) rmSync(path, { force: true });
+    if (profilePath) rmSync(profilePath, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+try { process.exitCode = main(); }
+catch (error) { console.error(`export-paged-report: ${error.message}`); process.exitCode = 1; }
