@@ -20,14 +20,25 @@ plan, then reflection by the same architect before independent review. The exist
 C0/C1 fast path and explicit user limits still apply. See the
 [workflow guide](/codexclaw/guides/pabcd/) for phase requirements.
 
-## Native architect setup
+## Architect on V1 and native-role hosts
 
-Architect uses `agent_type: "architect"`, its own model/effort/prompt settings and
-read-only sandbox configuration. Run `cxc subagents register architect` as an explicit
-installation action, start a fresh Codex session and verify the live spawn schema
-exposes architect. Registration preserves user edits and does not pin a model.
-An unavailable architect is an unmet setup requirement, not permission to use an
-explorer or reviewer alias. The registrar also supports `register executor`.
+Choose from the live spawn schema, not the model name or a version setting:
+
+- If `agent_type: "architect"` is exposed, use that native role.
+- If there is no `agent_type` field, use the supported `message` or text-`items`
+  channel with `CXC-ROLE: architect` before `TASK:`. Attach `dev` and
+  `dev-architecture` and explicitly prohibit writes, child spawns and goal/FSM
+  changes. This V1 logical role needs no exception approval, registration or restart.
+- If `agent_type` exists but architect is missing, the native setup is incomplete.
+  With installation authorization, run `cxc subagents register architect`, start a
+  fresh session and verify the role appears. Do not substitute explorer or reviewer.
+
+The logical V1 role describes task scope; it does not select a native read-only
+sandbox. If native isolation is explicitly required, report its absence. Architect
+model/effort/prompt settings and explicit caller overrides retain their existing
+rules on both routes. Registration preserves user edits and does not pin a model.
+The architect still supplies a proposal and checks the same plan; a separate
+reviewer performs the independent audit. The registrar also supports `register executor`.
 
 ## MCP tools
 

@@ -43,7 +43,7 @@ IDLE ── P ── A ── B ── C ── D ── IDLE
 
 Architect 在每个正式 P 阶段提出设计，并检查主代理的执行计划是否与设计一致。主代理负责执行计划和最终决策，独立 reviewer 负责 A 审核。同一计划复用上下文，仅在已记录的设计决策发生变化时重新检查。这是代理遵循的指导，不是运行时强制检查。参见[规划流程](plugins/codexclaw/skills/pabcd/references/phase-plan.md)。
 
-Architect 使用独立的 `agent_type: "architect"`。首次使用前，显式运行 `cxc subagents register architect`，启动新的 Codex 会话，并确认生成工具的角色列表中出现 architect。它使用 architect 专属配置，不回退到 explorer/reviewer。角色注册与插件安装分开，调度不会自动执行注册。
+Architect 按当前调度工具的实际参数选择调用方式。若工具暴露 `agent_type: "architect"`，就使用该原生角色。若 V1 没有 `agent_type` 字段，则在 message 或文本 item 中使用 `CXC-ROLE: architect`，附加 `dev`、`dev-architecture` 技能并明确只读任务范围。此逻辑角色无需例外审批或注册，也不代表启用了原生只读沙箱。若工具支持 `agent_type` 但缺少 architect，则须在获得安装授权后运行 `cxc subagents register architect`，并在新会话中确认角色可用；不得改用 explorer/reviewer，也不得在调度时自动注册。设计检查与独立审核仍由不同代理承担。
 
 **Recall** — 在向用户提问前，先从磁盘产物中搜索历史 Codex 对话和 memory store，使上下文在跨会话及压缩后仍可恢复。
 
