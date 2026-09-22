@@ -230,7 +230,7 @@ Every coding task is classified (C0-C5) before process depth is chosen. The pare
 
 Each router carries its own modular references (loaded on demand, never preloaded) and inherits the parent's verification gate, rule classes, and safety rules.
 
-**Visualizer scope — no independent action.** `dev-visualizer` is codexclaw's port of the Aside visualizer work; the standalone `aside-visualizer` repository stays Aside's own, and codexclaw neither runs its roadmap nor keeps a second copy of it. The skill has no independent mandate: it composes and verifies the artifact the calling task asked for, and it does not open repositories of its own, install itself, publish, export or deploy anything unasked, or start its own loop. Verification depth is a stated choice too — pick a `draft`, `standard` or `publication` receipt profile instead of charging every document the full page-by-page review.
+**Visualizer maintenance — codexclaw first, Aside follows.** Shared fixes are implemented and verified here before they are ported to `aside-visualizer`; an Aside issue closes only after the downstream port is merged and its acceptance criteria are verified. Preserve Aside’s host adapters and standalone/no-Chrome paths. See the [port workflow](plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md). This is a maintenance direction, not permission for independent action: ordinary artifact requests do not authorize repository work, installation, publication or a separate loop. Pick a `draft`, `standard` or `publication` assurance profile for the requested artifact.
 
 ## CLI
 

@@ -219,7 +219,7 @@ _PATH 级 `cxc` 入口（`bin/codexclaw.mjs` + `cli/` 工作区）位于仓库�
 
 每个路由器都有独立的模块化参考资料，仅在需要时加载，不会预加载；同时继承父级的验证门、规则分类和安全规则。
 
-**Visualizer 范围 — 禁止独立行动。** `dev-visualizer` 是把 Aside 的 visualizer 工作移植到 codexclaw 的 skill。独立仓库 `aside-visualizer` 仍归 Aside 所有，codexclaw 既不推进它的路线图，也不另留一份副本。该 skill 没有独立授权：它只为提出请求的任务构建并验证产物，不会自行开设仓库、自我安装、在未被要求时发布或导出，也不会启动自己的循环。验证深度同样是一种选择——在 `draft`、`standard`、`publication` 中挑选回执档位，而不是让每份文档都承担逐页审阅。
+**Visualizer 维护 — 先修复 codexclaw，再移植到 Aside。** 共享功能先在 codexclaw 中修复并验证，再移植到 `aside-visualizer`。只有下游移植合并到交付分支且验收条件得到验证后，才能关闭 Aside issue；保留 Aside 适配器、独立安装和无系统 Chrome 的 PDF 路径。详见[移植流程](plugins/codexclaw/skills/dev-visualizer/reference/port-maintenance.md)。普通产物请求不授权仓库维护、安装、发布或独立循环；按产物选择 `draft`、`standard` 或 `publication` 验证档位。
 
 ## CLI
 

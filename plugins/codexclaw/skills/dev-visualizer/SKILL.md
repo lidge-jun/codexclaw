@@ -17,9 +17,12 @@ require a development loop. This skill owns artifact composition and delivery.
 `dev-uiux-design` owns broader design judgment, `dev-frontend` owns frontend
 implementation, and available format-specific skills own document mechanics.
 
-**VIZ-SCOPE-01 — ported here, and not independent.** This skill is codexclaw's port of
-the Aside visualizer work. The standalone `aside-visualizer` repository is Aside's own:
-do not work in it, mirror its roadmap, or treat its issues as work for this repository.
+**VIZ-SCOPE-01 — caller-scoped artifacts, upstream-first maintenance.** Shared
+visualizer fixes are implemented and verified in codexclaw first, then adapted to
+the standalone `aside-visualizer` repository. For explicitly requested maintenance,
+follow [the port workflow](reference/port-maintenance.md); an upstream merge alone
+does not close a downstream issue. This direction does not authorize maintenance
+while answering an ordinary artifact request or duplicate Aside's roadmap here.
 Within codexclaw the skill has no independent mandate either. It composes and verifies
 the artifact the calling task asked for, under that task's plan and verification gate.
 It does not open a repository of its own, install itself or its scripts as a

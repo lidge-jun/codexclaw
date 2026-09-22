@@ -1,5 +1,11 @@
 # Report publication contract
 
+**Implementation status (2026-09-22):** the report model, research handoff and
+separate receipt gate below are implemented. The exporter migration, Playwright
+adapter and font-binding helpers are pending; their commands and exit semantics
+below describe the target contract, not current exporter capabilities. See
+[maintenance status](port-maintenance.md#known-boundary-at-the-2026-09-22-audit).
+
 Use this path for reader-facing reports, technical briefs and analytical PDFs,
 regardless of length. Keep `cxc-dev-visualizer` as the entrypoint. Do not create
 separate public skills for voice, typography or captions: they are stages of one
