@@ -130,6 +130,23 @@ can be referenced in one turn. A queued worktree instead returns a provisional
 [Lane dispatch](../../loop/references/lane-dispatch.md) carries the packet contract and
 the measured bounds.
 
+Use the packet's three states to preserve this distinction: `dispatch` before requesting
+creation, explicit `pending` after receiving only a provisional id, and `bound` once the
+canonical address is confirmed. A pending packet carries `creation.provisionalId`,
+`creation.hostId`, and `creation.requestedAt`, with optional nonempty `creation.worktree`;
+it must have no `address` property. The timestamp is canonical UTC
+`YYYY-MM-DDTHH:mm:ss[.sss]Z` with a real calendar date and exactly three fractional digits
+when present. Dispatch rejects creation evidence and provisional address fields. Bound
+may retain validated creation evidence but must not copy either recorded provisional id
+into `address.threadId`.
+
+Legacy packets with neither mode nor creation retain their address-based dispatch/bound
+default. Creation evidence requires an explicit mode in the packet or CLI; conflicting or
+malformed modes fail. `check-lane-packet.mjs` validates this record, including mixed-state
+sets and their write-scope collisions. It does not provide a resolver, intercept native
+calls, or retry creation. A pending record remains pending when the mapping is ambiguous;
+title, cwd and elapsed time alone never justify promoting it to bound.
+
 When the id really is lost, recovery is bounded and host-specific: identify the same
 host, worktree and branch, then inspect candidate session metadata — matching cwd,
 creation time, parent identity — and read the recorded session id rather than guessing

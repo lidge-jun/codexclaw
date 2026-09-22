@@ -11,13 +11,12 @@
  * What this is not: authority. A packet that validates has not been approved by anyone,
  * and recording merge authority here does not grant it.
  *
- * A packet has two lives. Before dispatch it has no address, because creation has not
- * happened yet; after creation it is bound to a canonical threadId and hostId. Both are
- * validated, and the mode is explicit rather than inferred from what happens to be
- * missing.
+ * A packet is dispatch before creation, pending while only a provisional id exists,
+ * and bound once a canonical threadId and hostId are observed. Creation evidence needs
+ * an explicit mode; legacy packets without it retain their address-based default.
  *
  * Usage:
- *   node check-lane-packet.mjs <packet.json|packet-set.json> [--mode dispatch|bound] [--json]
+ *   node check-lane-packet.mjs <packet.json|packet-set.json> [--mode dispatch|pending|bound] [--json]
  * A packet set is { "lanes": [ <packet>, ... ] } and is additionally checked for
  * overlapping write scopes. Exit 0 = valid, 1 = invalid or unreadable.
  */
@@ -32,6 +31,26 @@ const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 /** Canonical thread ids are what every thread tool accepts; a provisional id is not one. */
 const THREAD_ID = /^[A-Za-z0-9_-]+$/;
 const HOST_ID = /^[A-Za-z0-9._:-]+$/;
+const MODES = ["dispatch", "pending", "bound"];
+
+function validateCreation(creation, errors) {
+  if (!object(creation)) {
+    errors.push("creation must be {provisionalId, hostId, requestedAt, worktree?}");
+    return;
+  }
+  if (!text(creation.provisionalId)) errors.push("creation.provisionalId must be a nonempty string");
+  if (!text(creation.hostId) || !HOST_ID.test(creation.hostId.trim()))
+    errors.push("creation.hostId must match [A-Za-z0-9._:-]");
+  const stamp = creation.requestedAt;
+  // Date.parse normalizes some impossible dates. Round-trip against the input, after
+  // requiring UTC and either seconds or exactly three fractional digits.
+  const syntax = typeof stamp === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(stamp);
+  const millis = syntax ? Date.parse(stamp) : NaN;
+  if (!Number.isFinite(millis) || new Date(millis).toISOString() !== (stamp.length === 20 ? stamp.slice(0, -1) + ".000Z" : stamp))
+    errors.push("creation.requestedAt must be a real UTC calendar timestamp YYYY-MM-DDTHH:mm:ss[.sss]Z");
+  if ("worktree" in creation && !text(creation.worktree))
+    errors.push("creation.worktree must be a nonempty string when present");
+}
 
 /**
  * Normalize a scope so "src", "src/" and "a/../src" compare as the same path. Lexical
@@ -62,20 +81,31 @@ export function validateLanePacket(packet, { mode } = {}) {
 
   if (!text(packet.lane)) errors.push("lane is required: a packet with no lane id cannot be matched to a manifest entry");
 
-  // Mode is declared, never inferred: "the address is missing" and "this packet has not
-  // been dispatched yet" are different facts and must not be confused.
-  const declared = text(packet.mode) ? packet.mode.trim() : null;
+  const declared = text(packet.mode) ? packet.mode.trim() : undefined;
+  if ("mode" in packet && !MODES.includes(declared))
+    errors.push('packet.mode must be "dispatch", "pending" or "bound"');
+  if (mode !== undefined && !MODES.includes(mode))
+    errors.push('mode option must be "dispatch", "pending" or "bound"');
+  if (mode !== undefined && declared !== undefined && mode !== declared)
+    errors.push("mode option conflicts with packet.mode");
+  if ("creation" in packet && mode === undefined && declared === undefined)
+    errors.push("creation evidence requires an explicit pending or bound mode");
+  // Only legacy packets without creation may rely on this default.
   const effective = mode ?? declared ?? (object(packet.address) ? "bound" : "dispatch");
-  if (effective !== "dispatch" && effective !== "bound")
-    errors.push('mode must be "dispatch" (pre-creation) or "bound" (after creation returned a canonical id)');
 
   const address = packet.address;
   if (effective === "dispatch") {
-    if (object(address) && (text(address.threadId) || text(address.hostId)))
+    if ("creation" in packet) errors.push("a dispatch packet cannot carry creation evidence: a request already happened");
+    if (object(address) && (text(address.threadId) || text(address.hostId) || "provisionalId" in address || "clientThreadId" in address))
       errors.push("a dispatch packet carries no address: creation has not returned one yet");
-  } else if (!object(address)) {
-    errors.push("a bound packet requires address: {threadId, hostId}");
-  } else {
+  } else if (effective === "pending") {
+    if ("address" in packet) errors.push("a pending packet forbids address: the canonical id is unconfirmed");
+    validateCreation(packet.creation, errors);
+  } else if (effective === "bound") {
+    if ("creation" in packet) validateCreation(packet.creation, errors);
+    if (!object(address)) errors.push("a bound packet requires address: {threadId, hostId}");
+  }
+  if (effective === "bound" && object(address)) {
     if ("clientThreadId" in address)
       errors.push("address.clientThreadId is not an address: no tool accepts a provisional id");
     if (!text(address.threadId) || !THREAD_ID.test(address.threadId.trim()))
@@ -84,9 +114,9 @@ export function validateLanePacket(packet, { mode } = {}) {
       errors.push("address.hostId must match [A-Za-z0-9._:-]");
     // A provisional id has no distinguishing shape, so the only reliable signal is the
     // one the caller recorded. If it was kept, it must not also be the address.
-    if (text(address.provisionalId) && text(address.threadId) &&
-        address.provisionalId.trim() === address.threadId.trim())
-      errors.push("address.threadId repeats the recorded provisionalId: a queued id never becomes the canonical one by being copied");
+    for (const provisionalId of [address.provisionalId, packet.creation?.provisionalId])
+      if (text(provisionalId) && text(address.threadId) && provisionalId.trim() === address.threadId.trim())
+        errors.push("address.threadId repeats the recorded provisionalId: a queued id never becomes the canonical one by being copied");
   }
 
   const work = packet.work;
@@ -173,16 +203,29 @@ export function validateLanePacketSet(set, options = {}) {
 const invoked = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
 if (invoked) {
   const args = process.argv.slice(2);
-  const json = args.includes("--json");
-  const file = args.find((a) => !a.startsWith("--"));
   try {
-    if (!file) throw new Error("usage: node check-lane-packet.mjs <packet.json> [--mode dispatch|bound] [--json]");
-    const modeIndex = args.indexOf("--mode");
-    const mode = modeIndex === -1 ? undefined : args[modeIndex + 1];
+    let file, mode, json = false;
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i];
+      if (arg === "--mode") {
+        if (mode !== undefined) throw new Error("duplicate --mode option");
+        mode = args[++i];
+        if (!MODES.includes(mode)) throw new Error("--mode requires dispatch, pending or bound");
+      } else if (arg === "--json") {
+        if (json) throw new Error("duplicate --json option");
+        json = true;
+      } else if (arg.startsWith("-")) {
+        throw new Error("unknown option: " + arg);
+      } else {
+        if (file !== undefined) throw new Error("expected exactly one packet file");
+        file = arg;
+      }
+    }
+    if (!file) throw new Error("usage: node check-lane-packet.mjs <packet.json> [--mode dispatch|pending|bound] [--json]");
     const parsed = JSON.parse(readFileSync(file, "utf8"));
     const result = Array.isArray(parsed?.lanes) ? validateLanePacketSet(parsed, { mode }) : validateLanePacket(parsed, { mode });
     if (json) console.log(JSON.stringify(result, null, 2));
-    else if (result.ok) console.log("[codexclaw lane-packet] OK");
+    else if (result.ok) console.log("[codexclaw lane-packet] OK" + (result.resolved ? " mode=" + result.resolved.mode : ""));
     else console.error("[codexclaw lane-packet] FAIL\n" + result.errors.map((e) => "  - " + e).join("\n"));
     process.exitCode = result.ok ? 0 : 1;
   } catch (error) {

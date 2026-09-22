@@ -261,6 +261,7 @@ though they have no package-local `test` script. This asymmetry is intentional, 
 | `cxc reset` | `components/cxc-ops/dist/cli.js reset` | scoped `.codexclaw/` cleanup |
 | `cxc chat-search` | RETIRED (D1', L13/WP1) | removed; native `thread/search` has no CLI/agent surface = non-goal; use `cxc-search` |
 | `cxc chat search` | `components/recall/dist/cli.js chat search` | read-only recall over `~/.codex` rollout JSONL (owner re-scope 2026-07-02; not the retired app-server wrapper) |
+| `cxc memory status` | `components/recall/dist/cli.js memory status` | read-only jobs snapshot; effective extraction route and startup guard remain explicitly unknown |
 | `cxc memory search` | `components/recall/dist/cli.js memory search` | read-only search over `~/.codex/memories` + `stage1_outputs` |
 | `cxc gui` | `plugins/codexclaw/gui` via `npm run dev` | starts the Vite dashboard when deps exist |
 | `cxc orchestrate` | `components/pabcd-state/dist/cli.js orchestrate` | agent-gated terminal phase control over the same `.codexclaw/` session files; supports `help`/`--help`/`-h`; explicit-session text output includes current phase context |
@@ -368,3 +369,9 @@ the L1-L19 full-span gap-remediation loop (`devlog/_fin/mvp_hard/200_L20_gap_reg
 ---
 
 *Last updated: 2026-07-05. Grounded in `README.md`, `plugins/codexclaw/.codex-plugin/plugin.json`, `plugins/codexclaw/hooks/*.json`, component `src/` files, skill metadata, subagent TOMLs, `devlog/_fin/mvp_res/000_INDEX.md`, `devlog/_fin/mvp_hard/000_INDEX.md`, `devlog/_fin/mvp_hard/141_L14_L19_contradiction_patch_plan.md`, `structure/00_philosophy.md`, `structure/10_subagent_skill_routing.md`, `structure/20_pabcd_dispatch_doctrine.md`, `structure/30_contradiction_register.md`, `structure/40_enforcement_methods.md`, and opencodex + cli-jaw `structure/` files.*
+
+
+The lane packet validator distinguishes pre-creation `dispatch`, observed creation
+with unresolved canonical ID (`pending`), and canonical `bound` addresses. Pending
+records retain creation metadata but cannot supply a tool address or authorize a
+second creation. The validator is a local contract check, not a host ID resolver.

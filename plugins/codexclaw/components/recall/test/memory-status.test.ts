@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { openDbReadWrite } from "../src/sqlite.ts";
@@ -9,6 +11,7 @@ import {
   classifyMemoryError,
   formatMemoryStatus,
   memoryStatusNotice,
+  type MemoryStatus,
 } from "../src/memory-status.ts";
 import { handleSessionStart } from "../src/hook.ts";
 import { buildCwdContextResult } from "../src/hook.ts";
@@ -35,6 +38,76 @@ function makeHome(rows: Array<Record<string, unknown>> | null, opts: { columns?:
   }
   db.close();
   return home;
+}
+
+function assertObservationLimits(status: MemoryStatus): void {
+  assert.equal(status.observationSource, "jobs-db");
+  assert.equal(status.effectiveExtractionRoute, "unknown");
+  assert.equal(status.startupGuardDecision, "unknown");
+}
+
+const observationCases = [
+  { name: "empty", state: "ok", exit: 0 },
+  { name: "success", state: "ok", exit: 0 },
+  { name: "quota", state: "ok", exit: 0 },
+  { name: "missing", state: "unavailable", exit: 1 },
+  { name: "unsupported", state: "unsupported", exit: 0 },
+  { name: "corrupt", state: "unsupported", exit: 0 },
+  { name: "open-failure", state: "unavailable", exit: 1 },
+] as const;
+
+for (const scenario of observationCases) {
+  test(`#191: ${scenario.name} jobs-db snapshot preserves unknown route/guard through the source CLI`, () => {
+    const rows = scenario.name === "success"
+      ? [{ kind: "memory_stage1", job_key: "a", status: "done", finished_at: 2000, retry_remaining: 3, last_error: null }]
+      : scenario.name === "quota"
+        ? [{ kind: "memory_stage1", job_key: "a", status: "error", finished_at: 2000, retry_remaining: 0, last_error: "429 quota exceeded" }]
+        : [];
+    const noDatabase = scenario.name === "missing" || scenario.name === "corrupt" || scenario.name === "open-failure";
+    const home = makeHome(noDatabase ? null : rows,
+      scenario.name === "unsupported" ? { columns: ["kind TEXT", "status TEXT"] } : {});
+    try {
+      const store = join(home, "memories_1.sqlite");
+      if (scenario.name === "corrupt") writeFileSync(store, "this is not a database");
+      if (scenario.name === "open-failure") mkdirSync(store);
+      const beforeFiles = readdirSync(home).sort();
+      const beforeStore = scenario.name === "missing" || scenario.name === "open-failure" ? null : readFileSync(store);
+      const status = collectMemoryStatus(home);
+      assert.equal(status.state, scenario.state);
+      assertObservationLimits(status);
+      if (scenario.name === "success" || scenario.name === "empty") {
+        assert.equal(memoryStatusNotice(status, 2100), "", "unknown observations must not create a startup warning");
+      }
+      if (scenario.name === "quota") assert.deepEqual(status.exhaustedByCause, { capacity: 1 });
+
+      const cli = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
+      for (const json of [true, false]) {
+        const child = spawnSync(process.execPath, [cli, "memory", "status", "--home", home, ...(json ? ["--json"] : [])], {
+          cwd: home,
+          env: { ...process.env, CODEX_HOME: home },
+          encoding: "utf8",
+          timeout: 10_000,
+        });
+        assert.ifError(child.error);
+        assert.equal(child.status, scenario.exit, child.stderr);
+        if (json) {
+          const output = JSON.parse(child.stdout);
+          assert.equal(output.state, scenario.state);
+          assertObservationLimits(output);
+          assert.deepEqual(output, status);
+        } else {
+          assert.match(child.stdout, /observation: jobs-db; effective extraction route: unknown; startup guard decision: unknown/);
+          assert.match(child.stdout, /job history does not establish the current route or guard decision/);
+          if (scenario.state !== "ok") assert.match(child.stdout, new RegExp(`memory pipeline: ${scenario.state}`));
+          if (scenario.name === "empty") assert.match(child.stdout, /jobs: none recorded/);
+        }
+      }
+      assert.deepEqual(readdirSync(home).sort(), beforeFiles, "status must not create files");
+      if (beforeStore) assert.deepEqual(readFileSync(store), beforeStore, "status must not modify the store");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
 }
 
 test("#187: a healthy store reports per-kind counts and the newest success", () => {
