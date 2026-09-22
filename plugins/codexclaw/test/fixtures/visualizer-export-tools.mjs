@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, fstatSync, readFileSync, writeFileSync, writeSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -7,6 +7,25 @@ import { spawn } from "node:child_process";
 const args = process.argv.slice(2);
 const mode = process.env.CXC_VISUALIZER_FIXTURE_MODE || "happy";
 const printArg = args.find((arg) => arg.startsWith("--print-to-pdf="));
+
+function inheritedDescriptors() {
+  return [1, 2].map((fd) => {
+    const { dev, ino } = fstatSync(fd, { bigint: true });
+    return { fd, dev: String(dev), ino: String(ino) };
+  });
+}
+
+if (args[0] === "--hold-inherited-output") {
+  // This handle keeps the child alive after IPC disconnect and parent exit.
+  // It is a lifetime fixture, not a readiness delay; the test explicitly kills it.
+  setInterval(() => {}, 1000);
+  process.send({
+    type: "ready", pid: process.pid, descriptors: inheritedDescriptors(),
+    stdoutWritten: writeSync(1, "inherited stdout ready\n") > 0,
+    stderrWritten: writeSync(2, "inherited stderr ready\n") > 0,
+  });
+  await new Promise(() => {});
+}
 
 async function hang() {
   process.on("SIGTERM", () => {});
@@ -54,8 +73,29 @@ if (printArg) {
     await hang();
   }
   if (mode === "inherited-output") {
-    const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: ["ignore", "inherit", "inherit"] });
-    writeFileSync(join(process.env.HOME, "inherited-output.json"), JSON.stringify({ pid: child.pid }));
+    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), "--hold-inherited-output"], {
+      // unref only detaches the parent's event loop. Windows also needs an
+      // independent process lifetime; explicit stdio still inherits both handles.
+      detached: process.platform === "win32",
+      stdio: ["ignore", "inherit", "inherit", "ipc"],
+    });
+    const metadata = join(process.env.HOME, "inherited-output.json");
+    // Record ownership immediately so the test can clean up even a failed handshake.
+    writeFileSync(metadata, JSON.stringify({ pid: child.pid }));
+    const ready = await new Promise((resolve, reject) => {
+      const failed = (error) => reject(error);
+      const exited = (code, signal) => reject(new Error(`inherited-output child exited before readiness: ${code}/${signal}`));
+      child.once("error", failed);
+      child.once("exit", exited);
+      child.once("message", (message) => {
+        child.off("error", failed);
+        child.off("exit", exited);
+        if (message?.type !== "ready" || message.pid !== child.pid) reject(new Error("invalid inherited-output readiness acknowledgement"));
+        else resolve(message);
+      });
+    });
+    writeFileSync(metadata, JSON.stringify({ pid: child.pid, ready, parentDescriptors: inheritedDescriptors() }));
+    child.disconnect();
     child.unref();
   }
   process.exit(0);

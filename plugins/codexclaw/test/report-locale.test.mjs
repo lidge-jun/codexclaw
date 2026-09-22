@@ -241,6 +241,18 @@ test("translated quotations retain the original source and a visible marker", ()
   const missingMarker = fixture("research", "en");
   missingMarker.quotations[0].translationMarker = "";
   assert.ok(compareSemanticPair(source, missingMarker).some((issue) => issue.id.endsWith(".translationMarker")));
+
+  for (const translated of [false, undefined, "true", 1]) {
+    const foreignQuote = fixture("research", "en");
+    foreignQuote.quotations[0].translated = translated;
+    assert.throws(() => renderLocalizedExample(foreignQuote, foreignQuote.localeConfig),
+      /Invalid example:.*example.quotations.QTE1.translated/, `foreign quotation flag: ${translated}`);
+  }
+  const translatedExample = fixture("research", "en");
+  const { html } = renderLocalizedExample(translatedExample, translatedExample.localeConfig);
+  const original = html.match(/<p class="quote-original" lang="ko"><strong>[^<]*<\/strong> ([^<]*)<\/p>/);
+  assert.ok(original, "the translated quotation retains its original-language paragraph");
+  assert.equal(original[1], "두 코호트는 같은 효과를 추정하지 않는다.");
 });
 
 test("renderLocalizedExample emits localized static HTML, furniture, captions, and accessibility text", () => {
@@ -287,6 +299,20 @@ test("the long English reference label remains visible and linked to its exact d
 
 test("renderLocalizedExample rejects missing localized fields and config-language mismatch", () => {
   const example = fixture("reference", "en");
+  for (const [name, mutate, expected] of [
+    ["missing cited S2", (copy) => { copy.sourceNotes = copy.sourceNotes.filter((note) => note.id !== "S2"); }, /example.sourceNotes.S2/],
+    ["duplicate S2", (copy) => { copy.sourceNotes.push(structuredClone(copy.sourceNotes[1])); }, /example.sourceNotes.S2/],
+    ["semantic source without note", (copy) => { copy.semantics.sourceIds.push("S3"); }, /example.sourceNotes.S3/],
+  ]) {
+    const copy = structuredClone(example);
+    mutate(copy);
+    assert.throws(() => renderLocalizedExample(copy, copy.localeConfig), expected, name);
+  }
+  // Input ordering is immaterial; each declared source still gets exactly one visible note.
+  const reordered = structuredClone(example);
+  reordered.sourceNotes.reverse();
+  const { html } = renderLocalizedExample(reordered, reordered.localeConfig);
+  assert.deepEqual([...html.matchAll(/<li id="source-([^"]+)"/g)].map((match) => match[1]), ["S2", "S1"]);
   for (const mutate of [
     (copy) => { copy.title = ""; },
     (copy) => { copy.sections = []; },

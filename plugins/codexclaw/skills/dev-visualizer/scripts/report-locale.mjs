@@ -352,7 +352,13 @@ function exampleIssues(example, config) {
   const quotations = Array.isArray(example.quotations) ? example.quotations : [];
   const limitations = Array.isArray(example.limitations) ? example.limitations : [];
   const sectionById = indexById(sections, "example.sections", issues);
+  const sourceNoteById = indexById(sourceNotes, "example.sourceNotes", issues);
   const sources = new Set(semanticSources);
+  for (const sourceId of sources) {
+    if (!sourceNoteById.has(sourceId)) {
+      issues.push(issue(`example.sourceNotes.${sourceId}`, "each declared source requires exactly one visible source note"));
+    }
+  }
   const facts = new Set(semanticFacts.map((item) => item?.id));
   const claims = new Set(semanticClaims.map((item) => item?.id));
   for (const claim of semanticClaims) {
@@ -386,6 +392,9 @@ function exampleIssues(example, config) {
     }
   }
   for (const quote of quotations) {
+    if (isObject(quote) && quote.sourceLanguage !== config.outputLanguage && quote.translated !== true) {
+      issues.push(issue(`example.quotations.${quote.id ?? "unknown"}.translated`, "foreign-language quotation requires translated:true to retain its original text"));
+    }
     if (!sectionById.has(quote?.sectionId)) {
       issues.push(issue(`example.quotations.${quote?.id ?? "unknown"}.sectionId`, "quotation sectionId must resolve to a unique section"));
     }

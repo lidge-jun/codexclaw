@@ -413,7 +413,11 @@ test("an exited tool's inherited output descriptors do not hold the exporter ope
     const report = parseReport(result);
     assert.equal(result.status, 0);
     assert.equal(report.verdict, "PASS");
-    const { pid } = JSON.parse(readFileSync(join(home, "inherited-output.json"), "utf8"));
+    const { pid, ready, parentDescriptors } = JSON.parse(readFileSync(join(home, "inherited-output.json"), "utf8"));
+    assert.equal(ready?.pid, pid, "fixture parent must receive the child's readiness acknowledgement before exiting");
+    assert.deepEqual(ready.descriptors, parentDescriptors, "the child must hold the parent's actual stdout/stderr descriptors");
+    assert.equal(ready.stdoutWritten, true, "the child must successfully write to inherited stdout before acknowledging readiness");
+    assert.equal(ready.stderrWritten, true, "the child must successfully write to inherited stderr before acknowledging readiness");
     assert.doesNotThrow(() => process.kill(pid, 0), "fixture descendant must still hold the inherited descriptors");
   } finally {
     const metadata = join(home, "inherited-output.json");

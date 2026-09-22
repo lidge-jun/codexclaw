@@ -50,3 +50,10 @@ MIT statement. Add A/LICENSE with the upstream MIT notice/copyright preserved af
 reading codexclaw/LICENSE; this is license retention for copied code, not a relicensing
 claim. port-manifest.json is created in this phase before the release archive names
 it. The new archive allowlist is validated against tracked paths before publication.
+
+Hosted Windows repair during wp2: upstream PR229 inherited-output fixture assumes
+its unref child remains alive after parent exit; Windows returned ESRCH, while
+all product checks in that job passed. E owns fixture/test-only repair with a real
+ready handshake and lifetime guarantee, no skipped assertion. Main will copy the
+verified test fixture downstream, update source pin if payload changes, and re-run
+both CI matrices. wp1 baseline stays historical; release requires latest-head green.
