@@ -6,6 +6,34 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.35] - 2026-09-22
+
+### Fixed
+
+- V1 subagents can carry logical architect roles without an unsupported native
+  agent_type field or repeated exception approvals; supported native roles keep
+  their own validation. Includes the independently verified #228 compatibility fix.
+- PDF checks fail closed on absent tools, process failure and timeout. Every page
+  geometry is checked; failed generation preserves previous output and cleans the
+  owned process tree. Automated checks remain separate from publication readiness.
+- Research gaps bind exact question IDs, source citations resolve to visible notes,
+  and translated quotations retain their original wording.
+
+### Added
+
+- Portable research intake and explicit skill/package/source provenance, with
+  optional injected retrieval and a network-free source-only route.
+- Paired Korean/English genre examples, locale/semantic validation and explicit
+  A4/Letter output, plus analytical recipe/instance validation and exact tables.
+- Codexclaw-first maintenance and verified Aside downstream port/closure workflow.
+
+### Changed
+
+- Simple static HTML/SVG edits retain source-only review throughout the references;
+  saving a file does not trigger a mandatory render or report pipeline.
+- Verification: 3,480 tests measured, including 235 focused visualizer checks.
+  Hosted platform CI and packed-install checks verify the release revision.
+
 ## [0.2.34] - 2026-09-20
 
 Visual verification now costs what the artifact can actually lose.

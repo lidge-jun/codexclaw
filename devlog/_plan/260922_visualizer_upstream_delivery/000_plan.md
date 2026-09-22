@@ -13,7 +13,8 @@ exhibit recipes. Ship both repositories through dev and prove their releases.
 - Goal/stop: issues #1–#4 fully satisfied downstream, verified dev integrations and
   published releases; then close the issues with evidence. No partial completion.
 - Non-goals: unrelated codexclaw issues, renderer migration for its own sake, new
-  research services, user-account tests, system-wide installs or remote fleet rollout.
+  research services, user-account tests, new product/account installations. Existing SSH installations are in scope under
+  the later explicit user request, only after both releases.
 - Verifier: isolated report/export/contract/locale/exhibit fixtures, relevant repo
   gate/build/suite, independent review, fresh per-PR CI and published archive hashes.
   Never count a skip, missing tool or mere version string as runtime proof.
@@ -34,6 +35,7 @@ exhibit recipes. Ship both repositories through dev and prove their releases.
 | wp1 | 010_shared.md | Shared contracts/export behavior and isolated fixtures |
 | wp2 | 020_aside.md | Verified port on dev preserving Aside-specific adapters |
 | wp3 | 030_delivery.md | Dev/main integrations, exact-SHA release proof, issue closure |
+| wp4 | 040_existing_ssh_rollout.md | Existing SSH installs updated, smoke and hook approval |
 
 Main owns branch operations sequentially. Parallel workers are V1 subagents sharing
 one codexclaw checkout with disjoint write scopes, not independent branch lanes.

@@ -76,3 +76,10 @@ requires it although release.yml queries CI and Packed install only. Run existin
 workflow dry_run=true before actual dispatch; dry-run success is not publication.
 Aside's rollback target is the archived 03b7794 source snapshot, not a nonexistent
 previous published release. No tag protection setting is changed in this unit.
+
+Promotion preflight: immediately before dev->main, require
+`gh api repos/lidge-jun/codexclaw/rules/branches/dev` to include an enforced deletion
+rule; after merge immediately verify `branches/dev` still exists. This protects dev
+from the repository's automatic merged-head deletion. Missing protection blocks
+promotion and does not authorize silently changing repository settings. Main already
+observed the deletion rule in this session, but must refresh at promotion time.
