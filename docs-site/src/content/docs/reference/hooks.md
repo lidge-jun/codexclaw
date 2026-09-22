@@ -1,9 +1,9 @@
 ---
 title: Hooks
-description: codexclaw's 28 hook files and 29 event handlers — events, matchers, and commands.
+description: codexclaw's 29 hook files and 30 event handlers — events, matchers, and commands.
 ---
 
-codexclaw registers 28 hook files with 29 event handlers in its plugin manifest.
+codexclaw registers 29 hook files with 30 event handlers in its plugin manifest.
 The compact-affordance file handles both PostCompact and UserPromptSubmit. Each handler runs a compiled component CLI
 under `node`. All commands resolve `${PLUGIN_ROOT}` to the installed plugin directory.
 The removed hook JSON files live under `hooks/_deprecated/` from the 2026-07-05 hook diet.
@@ -13,7 +13,7 @@ stdin payload carries `agent_id`/`agent_type` — codex-rs stamps these into hoo
 thread-spawned subagent turns and reuses the parent session id, so without the guard a child
 turn would read/write the parent's PABCD state and receive root-only directives
 (`request_user_input` is root-thread-only in codex-rs). `SubagentStop` is the intentional
-child-scoped surface and stays exempt; the spawn-attach hook only enriches spawn messages
+child-scoped surface and stays exempt; the automation ownership guard also runs before the child early exit; the spawn-attach hook only enriches spawn messages
 and is also unaffected.
 
 ## Hook table
@@ -45,6 +45,7 @@ and is also unaffected.
 | `session-start-detecting-managed-worktree.json` | `SessionStart` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | `(codexclaw) Checking managed-worktree identity` | 10 s |
 | `user-prompt-submit-guiding-worktree-rename.json` | `UserPromptSubmit` | — | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | `(codexclaw) Checking worktree rename intent` | 10 s |
 | `pre-tool-use-guarding-managed-worktree-deletion.json` | `PreToolUse` | `^Bash$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard-pretool` | `(codexclaw) Guarding managed worktree` | 10 s |
+| `pre-tool-use-guarding-automation-ownership.json` | `PreToolUse` | automation_update native aliases | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-automation-ownership` | `(codexclaw) Checking automation ownership` | 10 s |
 | `pre-tool-use-guarding-memory-write.json` | `PreToolUse` | `^(memories[._]?add_ad_hoc_note\|apply_patch\|Write\|Edit\|Bash)$` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-memory-write` | `(codexclaw) Guarding memory write` | 10 s |
 | `stop-waking-on-background-completion.json` | `Stop` | — | `node "${PLUGIN_ROOT}/components/bg-wake/dist/cli.js" hook stop` | `(codexclaw) Checking background task completions` | 10 s |
 | `user-prompt-submit-delivering-background-completions.json` | `UserPromptSubmit` | — | `node "${PLUGIN_ROOT}/components/bg-wake/dist/cli.js" hook user-prompt-submit` | `(codexclaw) Delivering background completions` | 10 s |
@@ -114,7 +115,7 @@ and is also unaffected.
 - **reinject-cursor / post-compact** — recovers PABCD state and re-injection cursor after context
   compaction.
 - **recall-context / post-compact** — registered but intentionally silent: it emits
-  no output and has no side effects. The PostCompact output wire accepts only the
+  no output and changes no recall context; the CLI may record invocation metadata. The PostCompact output wire accepts only the
   universal fields, so an event-specific envelope is rejected and the run is
   recorded as failed. The recovery text is delivered by the SessionStart handler,
   which the runtime re-fires with `source` `compact` after a compaction.
@@ -163,3 +164,12 @@ so an old development `cxc` on PATH cannot capture new recovery commands. Repo-o
 `map`/`gui` keep their PATH routing; explicit `CODEXCLAW_CXC` overrides still win.
 For direct commands from static docs, use `node "<pluginRoot>/bin/cxc.mjs"` when
 the PATH CLI is older than the installed plugin.
+
+
+## Invocation evidence and automation ownership
+
+`cxc doctor` reports hook invocation observations separately from stored trust. Instrumented entrypoints record bounded metadata per session, actor and component/event, with payload digests. Missing, stale or mismatched records remain unverified. A record means the entrypoint ran, not that every registered hook fired or a policy succeeded. Direct CLI replay and same-user file edits can produce records, so these are diagnostics rather than authenticated host attestations.
+
+`pre-tool-use-guarding-automation-ownership.json` invokes the PABCD CLI's `pre-tool-use-automation-ownership` handler (10 second timeout) for matching `automation_update` tools. It permits read-only views. Heartbeat mutation requires the stored `target_thread_id` to match the calling task; children, unknown owners and foreign retargets are denied. Creation can target the current task. Standalone cron ownership is not inferred.
+
+This safeguard depends on actual hook delivery and trust. Code Mode inner calls without hooks, app UI, direct file writes and an ownership change after inspection remain outside its protection. Native atomic ownership checks are still required to close that host defect. Before changing an automation, read its exact `automation.toml`, confirm the task association and use a task-specific name. Prefer a supported in-place update; never treat a numeric suffix as proof of a duplicate.

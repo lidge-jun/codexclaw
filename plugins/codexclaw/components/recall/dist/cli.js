@@ -6,6 +6,7 @@
  * --status writes the sidecar. --help/-h never writes. Unknown subcommands print
  * usage and exit 0 (informational, matching cxc-ops convention).
  */
+import { recordHookInvocation } from "../../../scripts/hook-observation.mjs";
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -392,6 +393,7 @@ async function runHook(event        )                  {
   try {
     let raw = "";
     for await (const chunk of process.stdin) raw += chunk;
+    recordHookInvocation(raw, "recall", event, import.meta.url);
     let out = "";
     if (event === "user-prompt-submit") {
       out = handleUserPromptSubmit(JSON.parse(raw)                           );

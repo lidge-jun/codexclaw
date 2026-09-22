@@ -6,6 +6,32 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.36] - 2026-09-22
+
+### Added
+
+- Metadata-only hook invocation observations, separated from stored trust in doctor,
+  with session/actor and payload freshness checks. Invocation does not imply handler success.
+- A scoped heartbeat ownership guard for native automation tool calls. Foreign,
+  ambiguous and child mutations are denied; views remain available. Host-wide
+  atomic ownership enforcement remains outside this plugin's coverage (#213).
+- Explicit pending lane packets retain provisional creation evidence and refuse
+  guessed canonical addresses. Native clientThreadId resolution remains open (#209).
+
+### Fixed
+
+- Lane packet CLI option ordering, missing values and conflicting modes are rejected
+  consistently. Legacy dispatch/bound packets remain supported.
+- Memory status identifies its jobs-DB observation scope and leaves effective extraction
+  routing and startup guard decisions explicitly unknown (#191). No quota bypass is applied.
+- Integration tests isolate native Codex homes as well as Codexclaw state.
+
+### Verification
+
+- 3,522 tests measured locally, 3,519 passed, three platform/environment skips,
+  zero failures. Independent design and implementation reviews completed.
+- Installed hook activation and host-boundary fixes remain separate from unit-test proof.
+
 ## [0.2.35] - 2026-09-22
 
 ### Fixed

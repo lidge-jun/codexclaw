@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { recordHookInvocation } from "../../../scripts/hook-observation.mjs";
 import { readSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { runDispatch } from "./fallback-dispatch.ts";
@@ -25,6 +26,7 @@ function main(): void {
     }
     const raw = buffer.subarray(0, size).toString("utf8");
     if (sessionStart) {
+      recordHookInvocation(raw, "subagent-config", "session-start", import.meta.url);
       const payload = JSON.parse(raw) as { cwd?: unknown; agent_id?: unknown };
       if (typeof payload.agent_id === "string" && payload.agent_id) return;
       process.stdout.write(sessionFallbackNotice(typeof payload.cwd === "string" ? payload.cwd : process.cwd()));

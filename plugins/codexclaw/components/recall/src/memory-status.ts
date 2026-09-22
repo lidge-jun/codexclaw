@@ -30,6 +30,11 @@ export interface MemoryJobCounts {
 
 export interface MemoryStatus {
   state: MemoryStatusState;
+  /** Collector identity, including when the store could not be read. */
+  observationSource: "jobs-db";
+  /** Job history cannot establish the current extraction route or startup guard. */
+  effectiveExtractionRoute: "unknown";
+  startupGuardDecision: "unknown";
   /** Why the snapshot is not `ok`. Empty when it is. */
   detail: string;
   /** The file actually read, so a reader can tell which schema version answered. */
@@ -66,9 +71,15 @@ export function classifyMemoryError(raw: string | null | undefined): string {
 }
 
 const REQUIRED_COLUMNS = ["kind", "status", "retry_remaining", "last_error", "finished_at"];
+const OBSERVATION_LIMITS = {
+  observationSource: "jobs-db",
+  effectiveExtractionRoute: "unknown",
+  startupGuardDecision: "unknown",
+} as const;
 
 function unsupported(storePath: string | null, detail: string): MemoryStatus {
   return {
+    ...OBSERVATION_LIMITS,
     state: "unsupported",
     detail,
     storePath,
@@ -90,6 +101,7 @@ export function collectMemoryStatus(home: string): MemoryStatus {
   }
   if (!storePath || !existsSync(storePath)) {
     return {
+      ...OBSERVATION_LIMITS,
       state: "unavailable",
       detail: "no memories store found under " + home,
       storePath: null,
@@ -106,6 +118,7 @@ export function collectMemoryStatus(home: string): MemoryStatus {
     db = openDbReadOnly(storePath);
   } catch (err) {
     return {
+      ...OBSERVATION_LIMITS,
       state: "unavailable",
       detail: "could not open " + storePath + ": " + (err instanceof Error ? err.message : String(err)),
       storePath,
@@ -144,6 +157,7 @@ export function collectMemoryStatus(home: string): MemoryStatus {
     const num = (value: unknown): number | null => (value === null || value === undefined ? null : Number(value));
 
     return {
+      ...OBSERVATION_LIMITS,
       state: "ok",
       detail: "",
       storePath,
@@ -174,11 +188,13 @@ function ageLabel(at: number | null, now: number): string {
 
 /** Human-readable rendering for `cxc memory status`. */
 export function formatMemoryStatus(status: MemoryStatus, now = Math.floor(Date.now() / 1000)): string {
+  const scope = `  observation: ${status.observationSource}; effective extraction route: ${status.effectiveExtractionRoute}; startup guard decision: ${status.startupGuardDecision} (job history does not establish the current route or guard decision)`;
   if (status.state !== "ok") {
-    return "memory pipeline: " + status.state + " — " + status.detail + "\n";
+    return "memory pipeline: " + status.state + " — " + status.detail + "\n" + scope + "\n";
   }
   const lines: string[] = [];
   lines.push("memory pipeline: " + status.storePath);
+  lines.push(scope);
   if (status.jobs.length === 0) lines.push("  jobs: none recorded");
   for (const job of status.jobs) lines.push("  " + job.kind + " " + job.status + ": " + job.count);
   lines.push("  last success: " + ageLabel(status.lastSuccessAt, now));

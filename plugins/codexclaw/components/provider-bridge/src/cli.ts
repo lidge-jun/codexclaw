@@ -9,8 +9,9 @@
  * Always exits 0 — a missing or broken ocx must not fail the session; the status
  * line carries native/provider/error so consumers can react.
  */
+import { recordHookInvocation } from "../../../scripts/hook-observation.mjs";
 import { spawnSync } from "node:child_process";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { detectOcx, renderStatusLine, type DetectDeps } from "./detect.ts";
@@ -91,6 +92,9 @@ function realOrSelf(p: string): string {
 function main(): number {
   const [, , kind, event] = process.argv;
   if (kind === "hook" && event === "session-start") {
+    try {
+      recordHookInvocation(readFileSync(0, "utf8"), "provider-bridge", event, import.meta.url);
+    } catch { /* unreadable stdin must not change detect-only output */ }
     return runSessionStartHook();
   }
   // Allow `provider-bridge detect` for cxc doctor / manual probes.

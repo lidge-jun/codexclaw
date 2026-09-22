@@ -7,6 +7,7 @@
  *                   non-zero: exit 2 with stderr is read by Codex as a Stop block.
  *   everything else — an ordinary CLI for the human and the model.
  */
+import { recordHookInvocation } from "../../../scripts/hook-observation.mjs";
 import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,7 +59,9 @@ function parsePayload(raw        )              {
 function runHook(event        )         {
   let out = "";
   try {
-    const payload = parsePayload(readStdin());
+    const raw = readStdin();
+    recordHookInvocation(raw, "bg-wake", event, import.meta.url);
+    const payload = parsePayload(raw);
     const cwd = process.cwd();
     if (event === "stop") out = handleStop(payload, cwd);
     else if (event === "user-prompt-submit") out = handleUserPromptSubmit(payload, cwd);

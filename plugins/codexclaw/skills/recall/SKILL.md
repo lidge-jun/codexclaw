@@ -59,6 +59,16 @@ from the recall index above: per-kind job counts, jobs that exhausted their retr
 bucketed by cause, and the newest success. It names the store it read, because the host
 supports more than one memories schema, and reports `unsupported` rather than guessing.
 
+Every snapshot carries `observationSource: "jobs-db"`, identifying the collector even
+when the store is missing or unreadable. `effectiveExtractionRoute` and
+`startupGuardDecision` are always `"unknown"`: job history, including a recent success
+or a quota-classified error, cannot establish the current extraction route or startup
+guard decision. Text output states this limit too; healthy SessionStart notices stay
+silent. This diagnostic improvement does not resolve #191's native routing/guard
+mismatch. Provider-bridge status is not extraction-route evidence, and setting the
+threshold to zero is not a universal bypass: a present `rate_limit_reached_type` still
+blocks startup, while an absent flag permits a numeric 100% window at threshold zero.
+
 `cxc memory requeue` returns dead-lettered jobs to that pipeline's retry queue. It is a
 **dry run unless you pass `--apply`**, because it writes to the live memory database.
 By default it selects only transient causes; `--include-context-window` is opt-in and

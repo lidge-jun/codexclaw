@@ -109,3 +109,18 @@ recorded child ID, `executionState:stopped` and termination/partial-work
 Provider errors use `outcome:failed`; do not invent a provider code for a task
 failure or label cancellation or exhausted bounds as stagnation. Validate the
 final work before reporting `outcome:complete`, which closes the dispatch.
+
+## Automation ownership before mutation
+
+Automation IDs are host-global. Before updating or deleting one, read its exact
+`automation.toml` and verify the heartbeat's `target_thread_id` matches the task
+being operated on. A shared repository name, numeric suffix, nearby timestamp or
+list position does not establish ownership or a duplicate. Use a task-specific
+name and retain the confirmed ID. Prefer supported in-place updates; do not
+assume an older delete-and-recreate workaround is still necessary.
+
+Codexclaw's automation hook can deny foreign or unknown ownership on matching
+native tool calls when the hook is loaded and trusted. Inner Code Mode calls
+without hook delivery, app UI, direct file writes and host-side races remain
+outside that safeguard. Read-only views stay available. An observation record
+shows invocation only; it does not prove the mutation guard was effective.

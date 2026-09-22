@@ -92,7 +92,7 @@ test("rollup: FAIL > WARN > PASS", () => {
   assert.equal(rollup([{ name: "a", severity: "PASS", evidence: "" }]), "PASS");
 });
 
-test("doctor: healthy plugin root -> PASS with evidence on every check", () => {
+test("doctor: trusted healthy payload still WARNs when invocation is unverified", () => {
   const root = makePluginRoot();
   const codexHome = mkdtempSync(join(tmpdir(), "cxc-doctor-home-"));
   // The fixture hook must be TRUSTED for a healthy report: hook-trust hashes real
@@ -126,15 +126,18 @@ test("doctor: healthy plugin root -> PASS with evidence on every check", () => {
   const report = runDoctor(root, agRunner, {
     codexHome,
     pluginKey: "test@fixture",
+    sessionId: "doctor-fixture-unobserved",
     wslDeps: { platform: "linux", env: {}, procVersion: null },
   });
   assert.equal(
     report.overall,
-    "PASS",
+    "WARN",
     report.checks.filter((c) => c.severity !== "PASS").map((c) => `${c.severity} ${c.name}: ${c.evidence}`).join(" | "),
   );
   for (const c of report.checks) assert.ok(c.evidence.length > 0, `check ${c.name} has no evidence`);
-  assert.match(renderDoctor(report), /overall: PASS/);
+  assert.equal(report.checks.find(c => c.name === "hook-execution")?.severity, "WARN");
+  assert.equal(rollup(report.checks.filter(c => c.name !== "hook-execution")), "PASS");
+  assert.match(renderDoctor(report), /overall: WARN/);
 });
 
 test("doctor: missing hook file -> FAIL on hooks", () => {
