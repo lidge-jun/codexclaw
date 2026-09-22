@@ -13,7 +13,7 @@ not a claim about which project historically originated every part of the skill.
    a second evidence or quality-gate engine.
 2. Fix shared behavior in codexclaw and verify the exact changed revision. Record
    the upstream commit/PR and check results. Distinguish a work branch, merged
-   `dev`, released `main`, and the version actually loaded by a consumer.
+   `dev`, merged `main`, a published release, and the actually loaded consumer version.
 3. Port the verified changes into Aside. Preserve its bundled reader references,
    source-only authoring and no-system-Chrome PDF path. Adapt host-specific work
    there instead of adding an Aside runtime dependency to codexclaw.
