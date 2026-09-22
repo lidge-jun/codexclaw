@@ -161,6 +161,12 @@
       "matcher": "^(collaboration[._]?)?spawn_agent$"
     },
     {
+      "file": "pre-tool-use-guarding-automation-ownership.json",
+      "event": "PreToolUse",
+      "component": "pabcd-state",
+      "matcher": "^(mcp__codex_app__|mcp__codex_app[._]|codex_app[._])?automation_update$"
+    },
+    {
       "file": "pre-tool-use-guarding-goal-budget.json",
       "event": "PreToolUse",
       "component": "pabcd-state",

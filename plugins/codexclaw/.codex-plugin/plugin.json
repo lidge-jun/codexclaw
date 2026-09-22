@@ -47,7 +47,8 @@
     "./hooks/pre-tool-use-guarding-memory-write.json",
     "./hooks/stop-waking-on-background-completion.json",
     "./hooks/user-prompt-submit-delivering-background-completions.json",
-    "./hooks/session-start-adopting-background-completions.json"
+    "./hooks/session-start-adopting-background-completions.json",
+    "./hooks/pre-tool-use-guarding-automation-ownership.json"
   ],
   "mcpServers": "./.mcp.json",
   "interface": {

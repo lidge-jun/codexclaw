@@ -36,6 +36,7 @@
  * V1 items retain their order and non-text attachments; no message is added.
  * The hook never throws: any doubt/error -> emit "" (allow untouched).
  */
+import { recordHookInvocation } from "../../../scripts/hook-observation.mjs";
 import { existsSync, mkdirSync, readFileSync, readSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -1137,6 +1138,7 @@ function main(): void {
     process.exit(0);
   }
   const stdin = readStdin();
+  if (!stdin.overflow) recordHookInvocation(stdin.raw, "subagent-config", process.argv[3], import.meta.url);
   const out = stdin.overflow
     ? denyEnvelope("codexclaw spawn policy input exceeded 4 MiB; refusing to bypass the recursion and trust boundary")
     : runSpawnAttachHook(stdin.raw);

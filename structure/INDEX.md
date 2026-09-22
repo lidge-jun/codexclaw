@@ -188,7 +188,7 @@ register stacks or change checks. DevOps remains on-demand and points to the sam
 
 ## Hooks
 
-The manifest wires 22 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` are both authoritative and locked by `checkCounts`. Seven earlier advisory hooks were retired to `hooks/_deprecated/` in the 2026-07-05 hook diet (their rules were absorbed into the `dev` skill family).
+The manifest wires 29 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` are both authoritative and locked by `checkCounts`. Seven earlier advisory hooks were retired to `hooks/_deprecated/` in the 2026-07-05 hook diet (their rules were absorbed into the `dev` skill family).
 
 | Hook event | Hook file | Command | Live behavior |
 |------------|-----------|---------|---------------|
@@ -213,6 +213,10 @@ The manifest wires 22 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` 
 | `SessionStart` | `hooks/session-start-detecting-managed-worktree.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook worktree-guard` | injects the WORKTREE-GUARD-01 identity block when the session cwd is inside an app-managed worktree ($CODEX_HOME/worktrees or CODEXCLAW_WORKTREE_ROOTS) |
 | `UserPromptSubmit` | `hooks/user-prompt-submit-guiding-worktree-rename.json` | same pabcd-state CLI, `hook worktree-guard` | on worktree rename intent inside a managed worktree, injects the adopt-in-place guidance once per session (WORKTREE-GUARD-02) |
 | `PreToolUse` `^Bash$` | `hooks/pre-tool-use-guarding-managed-worktree-deletion.json` | same pabcd-state CLI, `hook worktree-guard-pretool` | denies commands that delete the session's own managed worktree (git worktree remove / rm -r of slot, checkout, cwd, or ancestors) — enforced for subagent turns too (WORKTREE-GUARD-03) |
+
+The automation ownership hook (`pre-tool-use-guarding-automation-ownership.json`) checks matching `automation_update` calls before the subagent early exit. Heartbeat updates/deletes require the stored `target_thread_id` to match the native caller. Views pass; unknown ownership, child mutations and foreign retargeting are denied. This is a scoped safeguard: disabled hooks, nested calls without inner hook delivery, UI/file writes and host-side races remain outside its coverage.
+
+Hook CLI ingress records bounded metadata using `scripts/hook-observation.mjs`. Doctor reports invocation evidence separately from stored trust, filtered by session, actor and payload identity. These same-user writable records prove only that the instrumented entrypoint was invoked; they do not authenticate host delivery or prove handler success.
 
 Hook processes are intentionally short: read stdin JSON, reconstruct state, optionally write `.codexclaw/`, then print either nothing or one JSON hook envelope. `UserPromptSubmit` outputs `hookSpecificOutput.additionalContext`; `PreToolUse` can output `permissionDecision: "deny"` with a reason. Non-PreToolUse errors fail open to avoid blocking Codex; the goal-mode `request_user_input` guard is fail-closed.
 
