@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js\" hook pre-tool-use-automation-ownership",
+            "timeout": 10,
+            "statusMessage": "(codexclaw) Checking automation ownership"
+          }
+        ],
+        "matcher": "^(mcp__codex_app__|mcp__codex_app[._]|codex_app[._])?automation_update$"
+      }
+    ]
+  }
+}

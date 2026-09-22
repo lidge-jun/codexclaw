@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Test runner wrapper. Keeps integration tests from writing operator CXC settings
- * or catalog caches by pointing CODEXCLAW_HOME at a scratch directory, and
+ * or catalog/observation caches by pointing CXC and Codex homes at scratch directories, and
  * optionally runs one shard of the file list:
  *
  *   node plugins/codexclaw/scripts/test.mjs [--shard i/n] <glob>...
@@ -74,7 +74,8 @@ function main() {
   const home = mkdtempSync(join(tmpdir(), 'cxc-test-home-'));
   try {
     const result = spawnSync(process.execPath, ['--test', '--test-concurrency=1', ...targets], {
-      stdio: 'inherit', env: { ...process.env, CODEXCLAW_HOME: home },
+      stdio: 'inherit', env: { ...process.env, CODEXCLAW_HOME: home,
+        CODEX_HOME: join(home, 'codex'), CODEX_SQLITE_HOME: join(home, 'codex') },
     });
     if (result.error) throw result.error;
     process.exitCode = result.status ?? 1;

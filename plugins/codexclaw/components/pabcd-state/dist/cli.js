@@ -20,6 +20,7 @@
  *
  * argv: [node, cli.ts, kind, event] e.g. ["...", "...", "hook", "user-prompt-submit"].
  */
+import { recordHookInvocation } from "../../../scripts/hook-observation.mjs";
 import { readSync } from "node:fs";
 import {
   handlePostToolUse,
@@ -48,6 +49,7 @@ import { handleWorktreeGuard, handleWorktreeGuardPreTool } from "./worktree-guar
 import { runSubagentStopGate } from "./subagent-evidence.js";
 import { handleIdleEditAdvisory } from "./idle-edit.js";
 import { handleMemoryWriteGate } from "./memory-write-gate.js";
+import { handleAutomationOwnershipGate } from "./automation-ownership-gate.js";
 import { handleReviewObserver } from "./review-observer.js";
 
 // wp10 (090 trim 4c): the ten terminal-only verb modules below are loaded with
@@ -335,6 +337,7 @@ async function main()                {
     process.exit(denied ? 0 : 1);
   }
   const raw = stdin.raw;
+  recordHookInvocation(raw, "pabcd-state", event, import.meta.url);
   let output = "";
 
   // Subagent turn guard (260709): codexclaw governs the ROOT session only.
@@ -374,6 +377,12 @@ async function main()                {
     } catch {
       // fail-open: never block on a gate crash
     }
+    process.exit(0);
+  }
+
+  // Dedicated fail-closed ownership check also applies to child calls.
+  if (event === "pre-tool-use-automation-ownership") {
+    process.stdout.write(handleAutomationOwnershipGate(raw));
     process.exit(0);
   }
 

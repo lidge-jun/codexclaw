@@ -6,6 +6,7 @@
  * FAIL and hooks errors -> 1; reset and successful operations -> 0. Unknown
  * subcommands print the usage line and exit 0 (informational, not an error).
  */
+import { recordHookInvocation } from "../../../scripts/hook-observation.mjs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFileSync, realpathSync } from "node:fs";
@@ -113,19 +114,21 @@ export async function main(argv          , metaUrl        )                  {
       }
     }
     case "hook": {
+      const raw = readStdinSync();
+      recordHookInvocation(raw, "cxc-ops", rest[0], import.meta.url);
       // SessionStart discovery and deferred PostCompact -> UserPromptSubmit recovery.
       if (rest[0] === "session-start") {
-        const out = runMapAffordanceSessionStart(readStdinSync(), process.cwd());
+        const out = runMapAffordanceSessionStart(raw, process.cwd());
         if (out) process.stdout.write(out);
         return 0; // read-only affordance never fails the session
       }
       if (rest[0] === "post-compact") {
-        const out = runPostCompactAffordance(readStdinSync());
+        const out = runPostCompactAffordance(raw);
         if (out) process.stdout.write(out);
         return 0;
       }
       if (rest[0] === "user-prompt-submit") {
-        const out = runUserPromptAffordance(readStdinSync());
+        const out = runUserPromptAffordance(raw);
         if (out) process.stdout.write(out);
         return 0;
       }

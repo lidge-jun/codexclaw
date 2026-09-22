@@ -41,6 +41,7 @@ directives use it. A PATH-level `cxc` / `codexclaw` binary remains a repo-checko
 | `cxc provider` | provider-bridge | Show read-only opencodex (`ocx`) provider status (detect mode). |
 | `cxc chat search` / `cxc chat index` | recall | Search or index read-only Codex rollout history under `CODEX_HOME` / `~/.codex`. |
 | `cxc memory search` | recall | Search read-only Codex memory artifacts under `CODEX_HOME` / `~/.codex`. |
+| `cxc memory status [--json] [--home PATH]` | recall | Read job-history counts and explicitly unknown extraction route/startup guard; no quota bypass or backlog inference. |
 | `cxc memory allow-write` | pabcd-state | Record a one-shot grant so the next memory write in that session passes the PreToolUse memory-write gate (`cxc memory allow-write --session <id>`). |
 | `cxc skill search` / `cxc skill show` | skill-search | Search or show remote dormant skills from jaw, hermes, clawhub, or GitHub sources. |
 | `cxc serve` | messenger-bridge | Start the opt-in loopback dashboard/API/messenger bridge on `127.0.0.1`. |
@@ -206,3 +207,14 @@ cxc service status
 `serve` / `service` are the messenger bridge's opt-in loopback surface: a local
 `127.0.0.1` dashboard/API server plus messenger adapters that relay to stock `codex exec`.
 They are not an external orchestrator server.
+
+
+## Memory status observation scope
+
+`cxc memory status` reads the native jobs database without changing it. The JSON
+fields `effectiveExtractionRoute` and `startupGuardDecision` remain `unknown`:
+a successful job or a quota-like error cannot prove the current startup guard.
+`observationSource: "jobs-db"` names the collector, not successful database access;
+read `state` and `detail` for availability. Existing recall/chat fallback remains
+independent of native memory generation. Provider-bridge's default provider does
+not establish the provider or account used for a memory extraction.

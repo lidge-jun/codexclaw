@@ -10,6 +10,7 @@
  * answer for it authoritatively. It WARNs rather than FAILs when the call cannot be made,
  * so an unreadable probe never manufactures a verdict about state it did not see.
  */
+import { readHookObservations } from "../../../scripts/hook-observation.mjs";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, posix as posixPath, sep } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -46,6 +47,11 @@ export interface DoctorReport {
 export interface DoctorOptions {
   codexHome?: string;
   pluginKey?: string;
+  /** Native session filter; null explicitly requests an unverified report. */
+  sessionId?: string | null;
+  agentId?: string | null;
+  observationNow?: number;
+  observationMaxAgeMs?: number;
   /**
    * Filesystem probes for the WSL check. Injected so a test asserting a fully
    * healthy report does not depend on where the checkout happens to live: the
@@ -321,6 +327,7 @@ export function runDoctor(
 
   // 6. installed hook trust state.
   checks.push(runHookTrustCheck(pluginRoot, options));
+  checks.push(runHookExecutionCheck(pluginRoot, options));
 
   // 7. ast-grep runtime status (L22).
   checks.push(runAstGrepCheck(pluginRoot, agRunner));
@@ -435,6 +442,27 @@ export function runInstalledRootCheck(pluginRoot: string, options: DoctorOptions
   } catch (error) {
     return { name: "install-root", severity: "WARN", evidence: error instanceof Error ? error.message : String(error) };
   }
+}
+
+/** Invocation is a diagnostic fact; neither trust nor enforcement success follows. */
+export function runHookExecutionCheck(pluginRoot: string, options: DoctorOptions = {}): CheckResult {
+  const sessionId = options.sessionId === undefined ? process.env.CODEX_THREAD_ID : options.sessionId;
+  const agentId = options.agentId ?? null;
+  const result = readHookObservations({
+    pluginRoot, codexHome: options.codexHome, sessionId, agentId,
+    now: options.observationNow, maxAgeMs: options.observationMaxAgeMs,
+  });
+  const observed = result.observations.map(record =>
+    `${record.component}/${record.event} (${record.entrypoint}, ${record.observedAt})`);
+  const identity = sessionId ? `session=${sessionId} actor=${agentId ?? "root"}` : "native session unavailable";
+  return {
+    name: "hook-execution",
+    severity: observed.length ? "PASS" : "WARN",
+    evidence: `${identity}: ${observed.length} current invocation(s)` +
+      (observed.length ? `: ${observed.join("; ")}` : `; unverified (${result.reason ?? "no matching fresh evidence"})`) +
+      `; ${result.ignored} ignored record(s). Declaration coverage and handler results remain unknown. ` +
+      "Same-user writable/replayable diagnostics, not host attestations or proof of enforcement.",
+  };
 }
 
 export function runHookTrustCheck(pluginRoot: string, options: DoctorOptions = {}): CheckResult {

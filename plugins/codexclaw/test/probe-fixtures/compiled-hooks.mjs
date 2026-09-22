@@ -31,6 +31,9 @@ export function compiledHookFixture(t, hookFile) {
   mkdirSync(dirname(destination), { recursive: true });
   // Missing/partial dist is a hard failure, not a skip, retry or rebuild.
   cpSync(source, destination, { recursive: true });
+  mkdirSync(join(installed, "scripts"), { recursive: true });
+  cpSync(join(pluginRoot, "scripts/hook-observation.mjs"), join(installed, "scripts/hook-observation.mjs"));
+  putJson(installed, ".codex-plugin/plugin.json", manifest);
   const entrypoint = join(installed, match[1]);
   assert.ok(existsSync(entrypoint), "compiled manifest entrypoint required");
   const skillBody = "# Installed synthetic dev skill\n\nFixture-specific instruction body 8317.\n";

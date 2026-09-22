@@ -2,10 +2,11 @@
 // codexHome — the lib layers (features/activate/deactivate) take everything injected so tests
 // can never reach ~/.codex.
 
+import { recordHookInvocation } from "../../../scripts/hook-observation.mjs";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { readDeclaredState, SOFT_FEATURE_IMPACT, type CodexRunner } from "./features.ts";
 import { activate, type FlagRecord } from "./activate.ts";
@@ -172,6 +173,9 @@ function main(argv: readonly string[]): number {
       // SessionStart self-heal. FAIL-OPEN without exception: a config-guard problem must
       // never stop a session from starting, so every failure path is a silent exit 0.
       if (argv[1] !== "session-start") return 0;
+      try {
+        recordHookInvocation(readFileSync(0, "utf8"), "config-guard", "session-start", import.meta.url);
+      } catch { /* unreadable stdin must not prevent existing self-heal */ }
       try {
         const outcomes = selfHealDeclaredFeatures(makeRealSelfHealDeps(codexHome, run));
         const context = renderSelfHealContext(outcomes);

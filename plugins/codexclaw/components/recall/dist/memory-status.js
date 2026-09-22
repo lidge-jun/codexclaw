@@ -45,6 +45,11 @@ import { openDbReadOnly } from "./sqlite.js";
 
 
 
+
+
+
+
+
 /**
  * Bucket a host error string. The host's wording is not a stable contract, so these are
  * deliberately coarse and fall through to "other" rather than asserting a cause we
@@ -66,9 +71,15 @@ export function classifyMemoryError(raw                           )         {
 }
 
 const REQUIRED_COLUMNS = ["kind", "status", "retry_remaining", "last_error", "finished_at"];
+const OBSERVATION_LIMITS = {
+  observationSource: "jobs-db",
+  effectiveExtractionRoute: "unknown",
+  startupGuardDecision: "unknown",
+}         ;
 
 function unsupported(storePath               , detail        )               {
   return {
+    ...OBSERVATION_LIMITS,
     state: "unsupported",
     detail,
     storePath,
@@ -90,6 +101,7 @@ export function collectMemoryStatus(home        )               {
   }
   if (!storePath || !existsSync(storePath)) {
     return {
+      ...OBSERVATION_LIMITS,
       state: "unavailable",
       detail: "no memories store found under " + home,
       storePath: null,
@@ -106,6 +118,7 @@ export function collectMemoryStatus(home        )               {
     db = openDbReadOnly(storePath);
   } catch (err) {
     return {
+      ...OBSERVATION_LIMITS,
       state: "unavailable",
       detail: "could not open " + storePath + ": " + (err instanceof Error ? err.message : String(err)),
       storePath,
@@ -144,6 +157,7 @@ export function collectMemoryStatus(home        )               {
     const num = (value         )                => (value === null || value === undefined ? null : Number(value));
 
     return {
+      ...OBSERVATION_LIMITS,
       state: "ok",
       detail: "",
       storePath,
@@ -174,11 +188,13 @@ function ageLabel(at               , now        )         {
 
 /** Human-readable rendering for `cxc memory status`. */
 export function formatMemoryStatus(status              , now = Math.floor(Date.now() / 1000))         {
+  const scope = `  observation: ${status.observationSource}; effective extraction route: ${status.effectiveExtractionRoute}; startup guard decision: ${status.startupGuardDecision} (job history does not establish the current route or guard decision)`;
   if (status.state !== "ok") {
-    return "memory pipeline: " + status.state + " — " + status.detail + "\n";
+    return "memory pipeline: " + status.state + " — " + status.detail + "\n" + scope + "\n";
   }
   const lines           = [];
   lines.push("memory pipeline: " + status.storePath);
+  lines.push(scope);
   if (status.jobs.length === 0) lines.push("  jobs: none recorded");
   for (const job of status.jobs) lines.push("  " + job.kind + " " + job.status + ": " + job.count);
   lines.push("  last success: " + ageLabel(status.lastSuccessAt, now));

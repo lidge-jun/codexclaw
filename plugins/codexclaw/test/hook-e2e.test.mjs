@@ -32,7 +32,9 @@ const manifestPath = join(pluginRoot, ".codex-plugin", "plugin.json");
 // rebuild of the source tree cannot then race the spawned process. If dist is absent, each
 // test skips gracefully (matching mcp.test.ts).
 const snapshots = new Map();
+const hookTestHome = mkdtempSync(join(tmpdir(), "ccx-hook-home-"));
 process.on("exit", () => {
+  try { rmSync(hookTestHome, { recursive: true, force: true }); } catch { /* best-effort */ }
   for (const dir of snapshots.values()) {
     try { rmSync(dir, { recursive: true, force: true }); } catch { /* best-effort */ }
   }
@@ -50,13 +52,19 @@ function sleepSync(ms) {
 function snapshotEntrypoint(distAbs) {
   const srcDir = dirname(distAbs); // cli.js imports siblings -> copy the dir
   const existing = snapshots.get(srcDir);
-  if (existing) return join(existing, basename(distAbs));
+  const component = basename(dirname(srcDir));
+  if (existing) return join(existing, "components", component, "dist", basename(distAbs));
   if (!existsSync(distAbs)) return null;
   for (let attempt = 0; attempt < 40; attempt++) {
     const snapDir = mkdtempSync(join(tmpdir(), "ccx-dist-"));
     try {
-      cpSync(srcDir, snapDir, { recursive: true });
-      const ep = join(snapDir, basename(distAbs));
+      const targetDir = join(snapDir, "components", component, "dist");
+      mkdirSync(dirname(targetDir), { recursive: true });
+      cpSync(srcDir, targetDir, { recursive: true });
+      mkdirSync(join(snapDir, "scripts"));
+      cpSync(join(pluginRoot, "scripts/hook-observation.mjs"), join(snapDir, "scripts/hook-observation.mjs"));
+      cpSync(join(pluginRoot, ".codex-plugin"), join(snapDir, ".codex-plugin"), { recursive: true });
+      const ep = join(targetDir, basename(distAbs));
       const body = readFileSync(ep, "utf8");
       // smoke-check: a fully-written entrypoint ends with the main() invocation — either
       // bare (`main();`) or wrapped in an import-guard block (`main();\n}`), not mid-write.
@@ -89,7 +97,7 @@ function readHookCommand(hookFileRel) {
 }
 
 function runHook(distAbs, hookEvent, payload, extraEnv = {}) {
-  const env = { ...process.env, ...extraEnv };
+  const env = { ...process.env, CODEX_HOME: hookTestHome, CODEX_SQLITE_HOME: hookTestHome, CODEXCLAW_HOME: join(hookTestHome, "cxc"), ...extraEnv };
   for (const [key, value] of Object.entries(extraEnv)) {
     if (value === undefined) delete env[key];
   }
@@ -101,7 +109,7 @@ function runHook(distAbs, hookEvent, payload, extraEnv = {}) {
 }
 
 function runHookAsync(distAbs, hookEvent, payload, extraEnv = {}) {
-  const env = { ...process.env, ...extraEnv };
+  const env = { ...process.env, CODEX_HOME: hookTestHome, CODEX_SQLITE_HOME: hookTestHome, CODEXCLAW_HOME: join(hookTestHome, "cxc"), ...extraEnv };
   for (const [key, value] of Object.entries(extraEnv)) {
     if (value === undefined) delete env[key];
   }
@@ -134,7 +142,7 @@ test("WP7/G19: every manifest hook command resolves to an existing dist entrypoi
   // 260910: 25 -> 28 with bg-wake's three hooks. The pin is deliberate — it is the
   // machine-checked partner of the README badges and inventory.json, so an optional
   // component removes itself here too (see `cxc bg removal`).
-  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 28, "expected 28 declared hooks");
+  assert.ok(Array.isArray(manifest.hooks) && manifest.hooks.length === 29, "expected 29 declared hooks");
   for (const rel of manifest.hooks) {
     const { distAbs } = readHookCommand(rel);
     // Settle-retry: a concurrent rebuild (C10) may briefly unlink dist mid-run.
@@ -930,6 +938,9 @@ test("260713: spawn hook e2e - cache-shaped fixture uses script-relative skills"
     const cacheDist = join(fixture, "plugin", "components", "subagent-config", "dist");
     mkdirSync(dirname(cacheDist), { recursive: true });
     cpSync(dirname(distAbs), cacheDist, { recursive: true });
+    mkdirSync(join(fixture, "plugin", "scripts"));
+    cpSync(join(pluginRoot, "scripts/hook-observation.mjs"), join(fixture, "plugin", "scripts/hook-observation.mjs"));
+    cpSync(join(pluginRoot, ".codex-plugin"), join(fixture, "plugin", ".codex-plugin"), { recursive: true });
     const cacheSkill = join(fixture, "plugin", "skills", "dev", "SKILL.md");
     mkdirSync(dirname(cacheSkill), { recursive: true });
     writeFileSync(cacheSkill, "# dev fixture\n");
@@ -1129,4 +1140,27 @@ test("subagent-guard: pre-tool-use interview gate denies root, skips subagent pa
     rmSync(tmp, { recursive: true, force: true });
     rmSync(home, { recursive: true, force: true });
   }
+});
+
+
+test("automation ownership: registered compiled hook denies foreign and permits own heartbeat", (t) => {
+  const { hookEvent, distAbs } = readHookCommand("./hooks/pre-tool-use-guarding-automation-ownership.json");
+  const ep = snapshotEntrypoint(distAbs);
+  assert.ok(ep, "compiled automation gate is required");
+  const home = emptyCodexHome();
+  t.after(() => rmSync(home.dir, { recursive: true, force: true }));
+  const dir = join(home.dir, "automations", "fixture-heartbeat");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "automation.toml"), 'version = 1\nid = "fixture-heartbeat"\nkind = "heartbeat"\ntarget_thread_id = "owner-task"\nprompt = "fixture"\n');
+  const input = { hook_event_name: "PreToolUse", session_id: "other-task", cwd: home.dir,
+    tool_name: "mcp__codex_app__automation_update", tool_input: { mode: "delete", id: "fixture-heartbeat" } };
+  const denied = runHook(ep, hookEvent, input, home.env);
+  assert.equal(denied.status, 0, denied.stderr);
+  assert.equal(JSON.parse(denied.stdout).hookSpecificOutput.permissionDecision, "deny");
+  const allowed = runHook(ep, hookEvent, { ...input, session_id: "owner-task" }, home.env);
+  assert.equal(allowed.status, 0, allowed.stderr);
+  assert.equal(allowed.stdout.trim(), "");
+  const child = runHook(ep, hookEvent, { ...input, session_id: "owner-task", agent_id: "child-task", agent_type: "worker" }, home.env);
+  assert.equal(JSON.parse(child.stdout).hookSpecificOutput.permissionDecision, "deny");
+  assert.ok(existsSync(join(dir, "automation.toml")), "guard must never perform the mutation");
 });

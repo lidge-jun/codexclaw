@@ -18,6 +18,148 @@ const base = () => ({
   work: { writeScope: ["plugins/codexclaw/skills/loop"], base: "dev", branch: "codex/lane-1" },
   reporting: { evidence: ["branch head sha", "CI run id"], onBlocked: "report and stop" },
 });
+const creation = () => ({ provisionalId: "pending-xyz", hostId: "local", requestedAt: "2026-09-22T12:00:00Z" });
+const pending = () => {
+  const p = base();
+  delete p.address;
+  return { ...p, mode: "pending", creation: creation() };
+};
+
+test("legacy no-mode dispatch and bound defaults remain address-based", () => {
+  const p = base();
+  assert.equal(validateLanePacket(p).resolved.mode, "bound");
+  delete p.address;
+  assert.equal(validateLanePacket(p).resolved.mode, "dispatch");
+});
+
+test("pending records creation without inventing an address", () => {
+  const p = pending();
+  p.creation.worktree = "/worktrees/lane-1";
+  const r = validateLanePacket(p);
+  assert.equal(r.ok, true, r.errors.join("; "));
+  assert.equal(r.resolved.mode, "pending");
+  assert.equal("address" in p, false);
+  delete p.mode;
+  assert.equal(validateLanePacket(p).ok, false, "creation must not infer a mode");
+  assert.equal(validateLanePacket(p, { mode: "pending" }).ok, true);
+});
+
+test("present malformed modes cannot fall back or be hidden by CLI options", () => {
+  for (const mode of [null, false, 1, {}, "", " ", "unknown"]) {
+    for (const options of [{}, { mode: "bound" }])
+      assert.equal(validateLanePacket({ ...base(), mode }, options).ok, false, JSON.stringify({ mode, options }));
+    assert.equal(validateLanePacket(base(), { mode }).ok, false);
+  }
+  for (const declared of ["dispatch", "pending", "bound"])
+    for (const forced of ["dispatch", "pending", "bound"]) {
+      if (declared === forced) continue;
+      const r = validateLanePacket({ ...pending(), mode: declared }, { mode: forced });
+      assert.equal(r.ok, false);
+      assert.match(r.errors.join(" "), /conflict/);
+    }
+});
+
+test("pending forbids any address property and dispatch forbids creation or provisional addresses", () => {
+  for (const address of [undefined, null, {}, "", { provisionalId: "queued" }, { clientThreadId: "queued" }, base().address])
+    assert.equal(validateLanePacket({ ...pending(), address }).ok, false);
+  for (const value of [undefined, null, {}, creation()]) {
+    const p = { ...pending(), mode: "dispatch", creation: value };
+    assert.equal(validateLanePacket(p).ok, false);
+  }
+  for (const key of ["clientThreadId", "provisionalId"])
+    for (const value of ["queued", "", null])
+      assert.equal(validateLanePacket({ ...base(), mode: "dispatch", address: { [key]: value } }).ok, false);
+});
+
+test("pending requires creation and bound validates it whenever present", () => {
+  const p = pending();
+  delete p.creation;
+  assert.equal(validateLanePacket(p).ok, false);
+  for (const mode of ["pending", "bound"]) {
+    const packet = mode === "pending" ? pending() : { ...base(), mode, creation: creation() };
+    assert.equal(validateLanePacket(packet).ok, true);
+    for (const invalid of [undefined, null, [], {}, "queued"])
+      assert.equal(validateLanePacket({ ...packet, creation: invalid }).ok, false);
+    for (const key of ["provisionalId", "hostId", "requestedAt"])
+      for (const value of [undefined, null, "", " ", 123])
+        assert.equal(validateLanePacket({ ...packet, creation: { ...creation(), [key]: value } }).ok, false, key);
+    for (const worktree of [undefined, null, "", " ", 123])
+      assert.equal(validateLanePacket({ ...packet, creation: { ...creation(), worktree } }).ok, false);
+    assert.equal(validateLanePacket({ ...packet, creation: { ...creation(), hostId: "remote ssh/host" } }).ok, false);
+  }
+});
+
+test("creation timestamps use canonical UTC syntax and real calendar dates", () => {
+  for (const requestedAt of ["2024-02-29T23:59:59Z", "2026-09-22T12:00:00.123Z", "2000-02-29T00:00:00.000Z"])
+    assert.equal(validateLanePacket({ ...pending(), creation: { ...creation(), requestedAt } }).ok, true, requestedAt);
+  for (const requestedAt of ["2026-02-29T00:00:00Z", "2026-04-31T00:00:00Z", "1900-02-29T00:00:00Z", "2026-09-22T24:00:00Z", "2026-09-22T12:60:00Z", "2026-09-22T12:00:60Z", "2026-13-01T00:00:00Z", "2026-00-01T00:00:00Z", "2026-01-00T00:00:00Z", "2026-09-22", "2026-09-22T12:00:00", "2026-09-22T12:00:00+00:00", "2026-09-22T12:00:00.1Z", "2026-09-22T12:00:00.1234Z", "2026-09-22t12:00:00z", " 2026-09-22T12:00:00Z"])
+    assert.equal(validateLanePacket({ ...pending(), creation: { ...creation(), requestedAt } }).ok, false, requestedAt);
+});
+
+test("bound refuses provisional copies from either recorded location", () => {
+  for (const location of ["address", "creation"]) {
+    const p = { ...base(), mode: "bound", creation: creation() };
+    p[location].provisionalId = " " + p.address.threadId + " ";
+    const r = validateLanePacket(p);
+    assert.equal(r.ok, false);
+    assert.match(r.errors.join(" "), /repeats the recorded provisionalId/);
+  }
+});
+
+test("mixed packet sets retain their response shape and collision checks", () => {
+  const a = pending(), b = base(), c = base();
+  b.lane = "lane-2"; b.work.branch = "codex/lane-2"; b.work.writeScope = ["docs"];
+  c.lane = "lane-3"; c.work.branch = "codex/lane-3"; c.work.writeScope = ["src"];
+  delete c.address;
+  assert.deepEqual(validateLanePacketSet({ lanes: [a, b, c] }), { ok: true, errors: [], lanes: 3 });
+  b.work.writeScope = ["plugins/codexclaw/skills/pabcd/../loop/references"];
+  assert.match(validateLanePacketSet({ lanes: [a, b] }).errors.join(" "), /write scopes overlap/);
+  b.work.writeScope = ["docs"]; b.work.branch = a.work.branch;
+  assert.match(validateLanePacketSet({ lanes: [a, b] }).errors.join(" "), /same branch/);
+  b.work.branch = "codex/lane-2"; b.lane = a.lane;
+  assert.match(validateLanePacketSet({ lanes: [a, b] }).errors.join(" "), /duplicate lane/);
+});
+
+test("CLI parses ordered options, reports mode, and rejects ambiguous arguments", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lane-pending-cli-"));
+  try {
+    const script = join(pluginRoot, "scripts", "check-lane-packet.mjs");
+    const file = join(dir, "packet.json"), setFile = join(dir, "set.json");
+    writeFileSync(file, JSON.stringify(pending()));
+    const invoke = (args) => spawnSync(process.execPath, [script, ...args], { encoding: "utf8", timeout: 20000 });
+    for (const args of [["--mode", "pending", file, "--json"], [file, "--json", "--mode", "pending"], ["--json", file]]) {
+      const r = invoke(args);
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(JSON.parse(r.stdout).resolved.mode, "pending");
+    }
+    assert.match(invoke([file]).stdout, /OK.*mode=pending/);
+    for (const mode of ["dispatch", "bound"]) {
+      const r = invoke([file, "--mode", mode]);
+      assert.equal(r.status, 1);
+      assert.match(r.stderr, /conflict/);
+    }
+    for (const args of [[file, "--mode"], ["--mode", "--json", file], [file, "--mode", "pending", "--mode", "pending"], [file, "--json", "--json"], [file, "--mode", "unknown"], [file, "--unknown"], [file, file], ["--json"]]) {
+      const r = invoke(args);
+      assert.equal(r.status, 1, JSON.stringify(args));
+      assert.ok(r.stderr.length > 0);
+    }
+    const p = pending(); delete p.mode;
+    writeFileSync(file, JSON.stringify(p));
+    assert.equal(invoke([file]).status, 1);
+    assert.equal(invoke(["--mode", "pending", file]).status, 0);
+    for (const mode of ["dispatch", "bound"]) {
+      const packet = base(); packet.mode = mode;
+      if (mode === "dispatch") delete packet.address;
+      writeFileSync(file, JSON.stringify(packet));
+      assert.match(invoke([file]).stdout, new RegExp("OK.*mode=" + mode));
+      assert.equal(JSON.parse(invoke([file, "--json"]).stdout).resolved.mode, mode);
+    }
+    const b = base(); b.lane = "lane-2"; b.work.branch = "codex/lane-2"; b.work.writeScope = ["docs"];
+    writeFileSync(setFile, JSON.stringify({ lanes: [pending(), b] }));
+    assert.deepEqual(JSON.parse(invoke([setFile, "--json"]).stdout), { ok: true, errors: [], lanes: 2 });
+    assert.equal(invoke([setFile, "--mode", "bound"]).status, 1);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 
 test("a minimal non-looping packet is accepted and its defaults are explicit", () => {
   const r = validateLanePacket(base());

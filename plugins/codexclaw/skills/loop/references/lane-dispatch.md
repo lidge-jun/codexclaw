@@ -26,7 +26,10 @@ A lane cannot read the coordinator's goalplan, ledger or context. Whatever is no
 | Field | Why it is required |
 |---|---|
 | `lane` | The lane id used in the manifest, so two records can be matched later |
+| `mode` | `dispatch`, `pending`, or `bound`; creation evidence requires an explicit mode in the packet or CLI |
 | `address.threadId`, `address.hostId` | How anyone addresses this lane afterwards. Present only once creation has returned them |
+| `creation.provisionalId`, `creation.hostId`, `creation.requestedAt` | Required in pending; records the requested creation without claiming a canonical address |
+| `creation.worktree` | Optional nonempty string when the worktree is known |
 | `work.objective`, `work.criteria[]` | Required when the lane is told to loop; a loop without them is an instruction to invent a goal |
 | `work.writeScope[]` | What this lane may write. Overlapping scopes are how two lanes silently fight |
 | `work.base`, `work.branch` | The ref it starts from and the branch it owns |
@@ -35,19 +38,47 @@ A lane cannot read the coordinator's goalplan, ledger or context. Whatever is no
 | `authority.merge`, `authority.mergeTarget` | Default false. See below |
 | `reporting.evidence[]`, `reporting.onBlocked` | What must come back, and what to do instead of guessing |
 
-A packet has two lives, and conflating them is how a lane ends up addressed by an id that
-does not exist yet. Before dispatch it is a `dispatch` packet: everything except the
-address. After creation returns a canonical id it becomes a `bound` packet, and only then
-is the address required. Declare the mode; do not let it be inferred from a missing field.
+A packet has three states. `dispatch` is before creation and cannot carry creation
+evidence or provisional address fields. `pending` means creation was requested but the
+canonical id is unconfirmed: it requires `creation` and forbids the `address` property
+entirely, even an empty or null value. `bound` requires a canonical address and may retain
+validated creation evidence. These records do not resolve ids or replay creation requests.
+
+For compatibility, a packet without `mode` or `creation` defaults to `bound` when its
+address is an object and `dispatch` otherwise. A present malformed or empty mode fails;
+creation evidence requires an explicit pending/bound mode in the packet or CLI. A CLI
+mode that conflicts with the declared mode fails rather than relabeling the record.
+
+`creation.provisionalId` is a nonempty string, and `creation.hostId` uses the same charset
+as `address.hostId`. `creation.requestedAt` must be a real calendar timestamp in canonical
+UTC form `YYYY-MM-DDTHH:mm:ss[.sss]Z`, with exactly three fractional digits if supplied.
+Offsets, normalized impossible dates and local timestamps are rejected. For example:
+
+```json
+{
+  "mode": "pending",
+  "creation": {
+    "provisionalId": "<clientThreadId>",
+    "hostId": "local",
+    "requestedAt": "2026-09-22T12:00:00Z"
+  }
+}
+```
+
+This fragment accompanies the packet's required lane, work and reporting fields.
 
 Validate with `node plugins/codexclaw/scripts/check-lane-packet.mjs <packet.json>
-[--mode dispatch|bound]`, and validate a set together — it also rejects two lanes sharing
+[--mode dispatch|pending|bound] [--json]`. Options may precede or follow the single file;
+missing values, duplicate options, unknown flags/modes and extra files are rejected.
+Single-packet JSON includes `resolved.mode`, and successful text output prints `mode=...`.
+Validate a mixed-state set together — it also rejects two lanes sharing
 a lane id or a branch, and compares write scopes after normalizing `.` and `..` so an
 aliased path cannot hide an overlap.
 
 What it cannot do: tell a provisional id from a canonical one by shape, because they have
 none. It can only refuse an `address.clientThreadId` and refuse a `threadId` that repeats
-a `provisionalId` the caller recorded. Keep the provisional id in that field.
+either `creation.provisionalId` or the legacy `address.provisionalId`. Keep new provisional
+records in `creation.provisionalId`; copying a value never establishes canonical identity.
 
 ## LANE-MERGE-GRANT-01 (STRICT) — merge is a separate sentence
 
@@ -72,8 +103,10 @@ Creation is asynchronous. A ready task returns `threadId` and `hostId`; a task w
 worktree is still being set up returns a provisional `clientThreadId`, which no tool
 accepts. The binding to the canonical id exists internally, but no model-visible resolver
 was found when the bundle was searched, so treat it as unavailable rather than hidden.
-Record the provisional id in its own field, never as the address, and recover the
-canonical id by reading the task listing — not by creating the lane again.
+Record it as `creation.provisionalId` in a pending packet. A listing can supply candidates,
+but title, cwd or elapsed time alone cannot establish the mapping. Confirm canonical
+identity through host evidence and read-only inspection; otherwise leave the packet
+pending. An absent listing, failure or long delay never authorizes recreating the lane.
 
 ## Watching lanes, and the wave that is actually capped
 
