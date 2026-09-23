@@ -26,3 +26,7 @@ Sent revision 00f3cf0a to the same handle. Verdict ALIGNED, with every decision 
 5. mobile-native stub phrased as a need: 020.
 6. Three claims not backed by 001 (status item geometry, WidgetKit build details, hidden status items): reworded or cited to #232 in 020.
 7. docs-site skills guide line: added to 030.
+
+## Recheck after audit round 1
+
+New interface decision D8 (`loop init` refuses `--surface`) and reworded D4 sent to the same handle at 5a3240f0. Verdict ALIGNED for both. Gaps folded: a valueless trailing `--surface` (parser records presence), other verbs still ignore the flag (residual in the bypass record), the spawn guard enforces on any plan with a recorded finalGate regardless of schemaVersion (010, 020 wording), anchors goalplan.ts:1551 and goalplan-cli.ts:619-623, and add-criterion needs a session-bound plan (error text and durable-goalplan wording).
