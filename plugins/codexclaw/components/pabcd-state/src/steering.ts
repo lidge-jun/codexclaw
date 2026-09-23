@@ -24,6 +24,7 @@ import {
   withGoalplanWriteLock,
   writeGoalplan,
   type Goalplan,
+  type CriterionSurface,
   type GoalplanCriterion,
   type GoalplanWorkPhase,
   type GoalplanWriteLockOptions,
@@ -41,7 +42,7 @@ export type SteerOp =
       kind: "add-criterion";
       scenario: string;
       /** schemaVersion 2 requires this. Defaulted to "logic" at parse time. */
-      surface?: "logic" | "web" | "tui";
+      surface?: CriterionSurface;
       expectedEvidence?: string;
     }
   | { kind: "add-work-phase"; id: string; title: string; dependsOn?: string[] };
@@ -83,7 +84,7 @@ function validateBatch(batch: unknown): SteerBatch | { error: string } {
     return { error: "ops must be a non-empty array — a batch with nothing to do has nothing to record" };
   }
   const ops: SteerOp[] = [];
-  const SURFACES: ReadonlySet<string> = new Set(["logic", "web", "tui"]);
+  const SURFACES: ReadonlySet<string> = new Set(["logic", "web", "tui", "desktop"]);
   for (const [i, raw] of (b.ops as unknown[]).entries()) {
     if (typeof raw !== "object" || raw === null) return { error: `ops[${i}] must be an object` };
     const op = raw as Record<string, unknown>;
@@ -105,12 +106,12 @@ function validateBatch(batch: unknown): SteerBatch | { error: string } {
         return { error: `ops[${i}] is an add-criterion without a scenario` };
       }
       if (op.surface !== undefined && (typeof op.surface !== "string" || !SURFACES.has(op.surface))) {
-        return { error: `ops[${i}].surface must be "logic", "web", or "tui"` };
+        return { error: `ops[${i}].surface must be "logic", "web", "tui", or "desktop"` };
       }
       ops.push({
         kind: "add-criterion",
         scenario: op.scenario.trim(),
-        surface: (op.surface as "logic" | "web" | "tui" | undefined) ?? "logic",
+        surface: (op.surface as CriterionSurface | undefined) ?? "logic",
         expectedEvidence: typeof op.expectedEvidence === "string" ? op.expectedEvidence.trim() : "",
       });
       continue;

@@ -363,7 +363,7 @@ test("schema v3: pre-change baseline records a private-data-free manifest and pa
       "pending", "in_progress", "done", "blocked", "superseded", "open", "met",
       "launching", "in_flight", "approved", "changes_requested", "inconclusive",
     ])],
-    ["surface", new Set(["logic", "web", "tui"])],
+    ["surface", new Set(["logic", "web", "tui", "desktop"])],
     ["source", new Set(["freeze", "none"])],
     ["purpose", new Set(["plan_audit", "final_gate"])],
     ["verdict", new Set(["pass", "near-pass", "fail"])],

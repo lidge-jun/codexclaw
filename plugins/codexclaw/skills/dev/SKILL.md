@@ -151,6 +151,7 @@ numbered, contiguous, non-overlapping chunks through EOF and verify no gaps.
 | Architecture / modules / deps | `dev-architecture` | `dev-scaffolding` for new structure |
 | Debugging / crashes / perf / comprehending unknown systems | `dev-debugging` | surface-specific router; `references/logic-analysis.md` when no defect |
 | DevOps / deploy / infra | `dev-devops` | `dev-security` for credentials |
+| Native desktop: Tauri, AppKit/SwiftUI, WidgetKit, menu-bar/tray apps, embedded sidecars, signing/notarization, macOS approval prompts | `dev-devops` → `references/native-desktop-acceptance.md` and `references/macos-system-approvals.md` | `dev-testing` for suites and CI matrix; `cxc-qa` for gui/cli verdicts; `dev-frontend` for web-view UI; `dev-security` for entitlements and credentials; `dev-debugging` runtimes/swift.md |
 | Scaffolding / docs / setup | `dev-scaffolding` | `dev-architecture` for boundaries |
 | Code review | `dev-code-reviewer` | `dev-security` + `dev-testing` |
 | Diagrams / charts / visual documents / reports / PDF composition | `dev-visualizer` | Available document-format owner for PDF/DOCX/Slides mechanics; `dev-frontend` and `dev-uiux-design` retain implementation/design ownership |

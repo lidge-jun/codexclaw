@@ -130,7 +130,7 @@ export function checkFinalGatePrereqs(
     // Whole plan, not the active work phase: the last D-close nulls the cursor
     // right when the gate matters, which would dissolve the QA requirement.
     const criteria = Array.isArray(plan.criteria) ? (plan.criteria                             ) : [];
-    const qaRequired = criteria.some((c) => c?.surface === "web" || c?.surface === "tui");
+    const qaRequired = criteria.some((c) => c?.surface === "web" || c?.surface === "tui" || c?.surface === "desktop");
 
     const slots                = [{ label: "test", path: gate.testReceiptPath }];
     if (qaRequired) slots.push({ label: "QA", path: gate.qaReceiptPath });

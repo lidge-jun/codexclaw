@@ -412,3 +412,23 @@ test("wp7 preservation: steering RMW keeps dependsOn and outcome", () => {
   assert.equal(saved.steeringLog?.length, 1);
   assert.deepEqual(taskFields(saved), expectedTaskFields);
 });
+
+test("add-criterion accepts the desktop surface and rejects an unknown one", () => {
+  const cwd = workspace();
+  const ok = applySteeringBatch(cwd, SLUG, {
+    idempotencyKey: "k-desktop",
+    rationale: "test",
+    evidence: "native tray",
+    ops: [{ kind: "add-criterion", scenario: "tray popup matrix", surface: "desktop" }],
+  });
+  assert.equal(ok.kind, "applied");
+  assert.equal(readGoalplan(cwd, SLUG)?.criteria.find((c) => c.scenario === "tray popup matrix")?.surface, "desktop");
+  const bad = applySteeringBatch(cwd, SLUG, {
+    idempotencyKey: "k-native",
+    rationale: "test",
+    evidence: "unknown surface",
+    ops: [{ kind: "add-criterion", scenario: "other", surface: "native" }],
+  });
+  assert.equal(bad.kind, "rejected");
+  assert.match((bad as { reason: string }).reason, /"logic", "web", "tui", or "desktop"/);
+});

@@ -70,7 +70,7 @@ function fixture(opts: Fixture = {}): string {
           : {
               finalGate: {
                 status: "in_flight",
-                qaRequired: opts.surface === "web" || opts.surface === "tui",
+                qaRequired: opts.surface === "web" || opts.surface === "tui" || opts.surface === "desktop",
                 ...(testPath ? { testReceiptPath: testPath } : {}),
                 ...(qaPath ? { qaReceiptPath: qaPath } : {}),
               },
@@ -119,6 +119,21 @@ test("a web criterion demands a QA receipt", () => {
 test("a tui criterion demands a QA receipt", () => {
   const cwd = fixture({ surface: "tui", testReceipt: HERE });
   assert.equal(check(cwd).ok, false);
+});
+
+test("a desktop criterion demands a QA receipt even on a plan without schemaVersion", () => {
+  const cwd = fixture({ surface: "desktop", testReceipt: HERE });
+  const r = check(cwd);
+  assert.equal(r.ok, false);
+  assert.match(r.reason ?? "", /QA receipt path is not recorded/);
+});
+
+test("the guard demands QA exactly for web, tui and desktop", () => {
+  const table: Array<[string, boolean]> = [["logic", false], ["web", true], ["tui", true], ["desktop", true], ["api", false]];
+  for (const [surface, want] of table) {
+    const cwd = fixture({ surface, testReceipt: HERE });
+    assert.equal(check(cwd).ok, !want, surface);
+  }
 });
 
 test("a web criterion with both receipts fresh is allowed", () => {

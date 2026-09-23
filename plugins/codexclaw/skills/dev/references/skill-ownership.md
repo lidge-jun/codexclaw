@@ -34,6 +34,8 @@ Each rule area has exactly one canonical owner. Other skills may contain stubs b
 | Repository bootstrap (rulesets, merge settings, PR limits) | `dev-devops` `references/repo-bootstrap.md` | `dev-devops` §2.9 |
 | Agent PR intake and supersede (`DEVOPS-AGENT-*`, `DEVOPS-PR-SUPERSEDE-01`) | `dev-devops` `references/agent-pr-intake.md` | `dev` stacked-prs, `dev-devops` agent-infra-safety, ci-cd-deploy |
 | Local worktree/branch GC (`DEVOPS-LOCAL-GC-*`) | `dev-devops` `references/local-gc.md` | `worktree-guardian` §4, `dev-devops` ci-cd-deploy |
+| Native desktop acceptance matrix (`DESKTOP-*`) | `dev-devops` `references/native-desktop-acceptance.md` | `dev` routing table, `dev-testing`, `qa`, `cross-platform-release.md`, `mobile-native.md`, `dev-debugging` runtimes/swift.md |
+| macOS system approval prompts (`MACOS-APPROVAL-*`) | `dev-devops` `references/macos-system-approvals.md` | `cross-platform-release.md` §2/§3, `qa` Desktop GUI row |
 | Project scaffolding / docs | `dev-scaffolding` | `pabcd` |
 | C0/C1 classification and record exemption | dev §0.0/§0.1 | pabcd, dev-scaffolding |
 | Unit residence and numbered roadmap contents | pabcd references/implementation-units.md, subject to dev §0.1 | loop, dev-scaffolding |
