@@ -16,7 +16,7 @@ Adds one value to the goalplan criterion surface so a native desktop criterion c
 | Consumer: v2 validation text | goalplan.ts:1567 | list four values |
 | Consumer: gate mismatch | goalplan.ts:1590 | N/A: calls computeQaRequired |
 | Consumer: inlined guard | components/subagent-config/src/final-gate-guard.ts:133 | include `desktop` |
-| Consumer: docs | skills/loop/references/durable-goalplan.md:84 | `--surface logic|web|tui|desktop` |
+| Consumer: docs | skills/loop/references/durable-goalplan.md:60-62 and :84 | list allowed values and the QA rule; `--surface logic|web|tui|desktop` |
 | Build output | components/pabcd-state/dist/*, components/subagent-config/dist/final-gate-guard.js | regenerate with `npm run build` |
 
 ## Diffs
@@ -70,7 +70,7 @@ steering.ts:
 +        surface: (op.surface as CriterionSurface | undefined) ?? "logic",
 ```
 
-(steering.ts imports `CriterionSurface` as a type from ./goalplan.ts if it does not already; verify at B.)
+steering.ts:20-31 does not import `CriterionSurface` today; add `type CriterionSurface` to its existing import from ./goalplan.ts.
 
 final-gate-guard.ts:
 
@@ -79,18 +79,19 @@ final-gate-guard.ts:
 +    const qaRequired = criteria.some((c) => c?.surface === "web" || c?.surface === "tui" || c?.surface === "desktop");
 ```
 
-durable-goalplan.md:84: `[--surface logic|web|tui]` becomes `[--surface logic|web|tui|desktop]`, and the `criteria[]` bullet notes that `web`, `tui` and `desktop` make the final gate require a QA receipt.
+durable-goalplan.md:60-62: the `criteria[]` bullet names the allowed values (`logic` default, `web`, `tui`, `desktop`) and says `web`, `tui` and `desktop` make the final gate require a QA receipt. :84: `[--surface logic|web|tui]` becomes `[--surface logic|web|tui|desktop]`.
 
 ## Tests
 
 | File | Change | Activation and observable effect |
 |---|---|---|
 | pabcd-state/test/final-gate.test.ts (computeQaRequired case ≈313) | add a `desktop` criterion plan asserting `true` | computeQaRequired returns true for desktop |
-| pabcd-state/test/final-gate.test.ts (round trip ≈318) | new test: write a plan whose criterion surface is `desktop`, read it back, assert `desktop`; write `native`, read back, assert undefined | revive keeps known, drops unknown |
+| pabcd-state/test/final-gate.test.ts (round trip ≈318) | new test: write a plan whose criterion surface is `desktop`, read it back, assert `desktop`; write `native`, read back, assert undefined; a schemaVersion 2 plan with that dropped value fails validation with the four-value message from goalplan.ts:1567 | revive keeps known, drops unknown; v2 refuses the silent QA exemption (the D4 downgrade hazard on the reader side) |
+| pabcd-state/test/final-gate.test.ts | table test over logic/web/tui/desktop/api: computeQaRequired is true exactly for web, tui, desktop | pins the QA set that final-gate-guard mirrors |
 | pabcd-state/test/goalplan.test.ts:366 and test/fixtures/capture-goalplan-baseline.mjs:31 | add `desktop` to both preserved surface sets | the two sets stay equal |
 | pabcd-state/test/steering.test.ts (after ≈126) | add-criterion with `surface: "desktop"` applies and persists; `surface: "native"` is rejected with the four-value message | steering allowed set |
-| pabcd-state/test/goalplan-public-surface.test.ts | `cli add-criterion --surface desktop` succeeds and persists; `--surface native` exits 1 with `logic|web|tui|desktop`; help line lists desktop | CLI allowed set and usage |
-| subagent-config/test/final-gate-guard.test.ts (≈73, ≈120) | fixture qaRequired includes desktop; new test "a desktop criterion demands a QA receipt" | inlined guard |
+| pabcd-state/test/goalplan-public-surface.test.ts | new test with its own fixture: a plan bound to a canonical session id through writeState, then `runGoalplanCli` add-criterion `--surface desktop` exits 0 and the stored criterion has surface desktop; `--surface native` exits 1 naming `logic|web|tui|desktop`; the existing help test also asserts the usage line lists desktop | CLI allowed set and usage, executed through runGoalplanCli |
+| subagent-config/test/final-gate-guard.test.ts (≈73, ≈120) | fixture qaRequired includes desktop; new test "a desktop criterion demands a QA receipt"; table test over logic/web/tui/desktop/api asserting the guard demands QA exactly for web, tui, desktop | the inlined guard matches computeQaRequired's table |
 
 ## Verification
 

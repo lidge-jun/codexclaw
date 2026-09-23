@@ -17,4 +17,12 @@ Amendments by main: no unverified macOS 26 menu-bar claims (001 "Not verified");
 
 ## Reflection
 
-Pending until the concrete plan revision (000/010/020/030 at this unit's first commit) is sent back to the same handle.
+Sent revision 00f3cf0a to the same handle. Verdict ALIGNED, with every decision mapped to plan lines. Seven gaps, all folded into the next revision:
+
+1. durable-goalplan.md:60-62 also describes surface: added to 010.
+2. INDEX anchor named as the skill inventory row; runtimes/swift.md gets one scope line: added to 020 and 000.
+3. steering.ts import of CriterionSurface: stated in 010.
+4. CLI test needs its own fixture; v2 message and guard/computeQaRequired table tests: added to 010.
+5. mobile-native stub phrased as a need: 020.
+6. Three claims not backed by 001 (status item geometry, WidgetKit build details, hidden status items): reworded or cited to #232 in 020.
+7. docs-site skills guide line: added to 030.

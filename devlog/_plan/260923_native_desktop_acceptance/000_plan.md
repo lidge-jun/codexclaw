@@ -64,4 +64,4 @@ One branch (codex/native-desktop-acceptance), ordered commits, one ordinary PR t
 
 ## Source of truth sync
 
-C of wp3 patches structure/INDEX.md if it lists dev-devops references; C of wp4 patches CHANGELOG and README badges. skill-ownership.md is updated in wp3.
+C of wp3 patches the cxc-dev-devops skill inventory row in structure/INDEX.md:166 (one-cell description change) and skill-ownership.md; C of wp4 patches CHANGELOG, README badges and the docs-site skills guide line.

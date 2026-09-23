@@ -11,6 +11,7 @@
 | README.md, README.ko.md, README.zh.md | tests badge = measured total from the final `npm test` |
 | CHANGELOG.md | 0.2.37 section: Added (native desktop owner, approvals reference, desktop surface), Changed (routing), Compatibility (plans using `desktop` need 0.2.37+ readers), Verification |
 | structure/INDEX.md | only if 020 did not already cover it |
+| docs-site/src/content/docs/guides/skills.md:102 | cxc-qa description adds desktop GUI next to web, TUI, CLI and API |
 
 Order: bump with a search for every "0.2.36" occurrence outside CHANGELOG history and devlog; run `npm install --package-lock-only` only if the lock does not follow by hand edits (verify with `npm ls` returning no invalid). Then `npm run build`, `npm test`, `npm run gate`, `node plugins/codexclaw/scripts/inventory.mjs --check --tests <total>`, `node plugins/codexclaw/scripts/check-versions.mjs 0.2.37`.
 
