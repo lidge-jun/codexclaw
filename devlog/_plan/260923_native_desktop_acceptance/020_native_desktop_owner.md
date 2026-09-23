@@ -103,3 +103,9 @@ Prose correctness is human review against 001.
 ## C findings folded (reviewer 01a0ccb2, GO-WITH-FIXES blockers=0)
 
 Nine findings accepted. Medium: extensions are separate executables with their own entitlements (only in-process plug-ins, libraries and frameworks inherit); MACOS-APPROVAL-READ-01 applies only where local execution is permitted; every matrix row is one cxc-qa scenario, distribution rows map to `cli` (dialogs to `gui`), hosted evidence enters with run id, attempt and head SHA; the evidence column splits into required and achieved levels with a six-row tray popup example. Low: universal sidecar name cited to #232, helper prompt labelled engineering practice, UI scripting and configuration profiles added as bypasses, a path from needs_human to PASS, Apple's notarization testing advice quoted accurately.
+
+## wp3 D
+
+Shipped at f305e346, 8eaef276 and 2cb736b3: two dev-devops references (232 and about 110 lines), the cxc-dev routing row, ownership rows and eleven stubs. Checks: description budget (dev-devops 971, qa 552), zero broken links, gate OK, full suite 3528 tests with 0 failures at 2cb736b3. The content reviewer's second pass added two Lows (example required level, hosted head SHA binding), folded at 2cb736b3.
+
+What did not improve: nothing enforces the matrix; it is guidance an agent follows, with the `desktop` surface as the only enforced hook. The lipo tool-usage oracle, native render observation and artifact identity inside receipts remain for the follow-up issue. Next: wp4 from 030.
