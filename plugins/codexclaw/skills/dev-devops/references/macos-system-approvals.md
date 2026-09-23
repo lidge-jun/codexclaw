@@ -36,11 +36,20 @@ one. A tool or script that claims to grant privacy access is a bypass (§2).
   artifact under test. It also voids the Gatekeeper row being tested.
 - Disabling System Integrity Protection.
 - Ad-hoc re-signing a Developer ID artifact so that it launches.
+- UI scripting that clicks an approval for the person (`osascript`, System
+  Events, or any automation driving an "Allow" or "Open" control).
+- Installing a configuration profile that pre-grants privacy permissions, unless
+  the user explicitly asked for that managed-device setup on a test host.
 
 A row that could only pass through one of these stays `fail` or
 `needs_human`; it never becomes `pass`.
 
 ## §3 Allowed without extra approval (MACOS-APPROVAL-READ-01)
+
+Only on a host where local execution is permitted. Under DESKTOP-NOLOCAL-01
+these run on a hosted runner or an authorized native session, or the row stays
+`hosted_required`. Launching can change state (a login item may register), so
+record what the launch did.
 
 Read-only inspection of the artifact and its effects:
 
@@ -69,9 +78,9 @@ decisions.
 - Capture a prompt triggered from a popup together with the popup's state.
 - Never drive Codex itself or the terminal running the agent (cxc-qa Desktop
   GUI rule).
-- Record which app or process the prompt text names. When a popup runs in a
-  helper, that name can differ from the app the person thinks of; the approval
-  goes to the one the prompt names.
+- Record which app or process the prompt text names (engineering practice).
+  When a popup runs in a helper, that name can differ from the app the person
+  thinks of.
 
 ## §6 Recording needs_human rows (MACOS-APPROVAL-RECORD-01)
 
@@ -86,6 +95,11 @@ A `needs_human` row carries:
 Until that confirmation exists the row stays `needs_human` and the cxc-qa
 verdict is `FAIL` with that blocker. Ask with the environment prompt shape in
 `cross-platform-release.md` §3 when the person is not at the Mac.
+
+To turn a confirmed row into `PASS`, store the confirmation (the person's
+message or a screenshot they took) in the scenario directory, then re-capture
+the state after the approval yourself: the setting now on, or the app now doing
+what the prompt blocked. Both files go into `artifactRefs`.
 
 ## Sources
 

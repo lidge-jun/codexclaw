@@ -99,3 +99,7 @@ node -e 'const fs=require("fs"),p=require("path");let bad=0;for(const f of proce
 ```
 
 Prose correctness is human review against 001.
+
+## C findings folded (reviewer 01a0ccb2, GO-WITH-FIXES blockers=0)
+
+Nine findings accepted. Medium: extensions are separate executables with their own entitlements (only in-process plug-ins, libraries and frameworks inherit); MACOS-APPROVAL-READ-01 applies only where local execution is permitted; every matrix row is one cxc-qa scenario, distribution rows map to `cli` (dialogs to `gui`), hosted evidence enters with run id, attempt and head SHA; the evidence column splits into required and achieved levels with a six-row tray popup example. Low: universal sidecar name cited to #232, helper prompt labelled engineering practice, UI scripting and configuration profiles added as bypasses, a path from needs_human to PASS, Apple's notarization testing advice quoted accurately.

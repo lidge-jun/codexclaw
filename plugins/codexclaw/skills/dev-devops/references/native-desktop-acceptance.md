@@ -41,20 +41,37 @@ One row per boundary, never one "desktop OK" row.
 | Boundary | What joins what: popup ↔ status item, Rust ↔ Swift ABI, app ↔ sidecar |
 | Scenario | The exact situation exercised |
 | Verdict class | UI, runtime, packaging or distribution |
-| Evidence level | See the ladder below |
+| Required level | The weakest evidence level that can prove this row (ladder below) |
+| Achieved level | The level the evidence actually reached |
 | State | pass, fail, not_verified, needs_human, hosted_required, na |
 | Artifact id | Which artifact the evidence came from (§6) |
 | Baseline class | §5 |
 
 Evidence levels, weakest to strongest: source review → host-only build → signed
 bundle inspection → bundled runtime launch → native interaction → publication.
-A weaker level never satisfies a row that names a stronger one.
+A row can pass only when the achieved level is at least the required level.
 
-Mapping to cxc-qa verdicts: UI rows are `gui` verdicts with `captureChecks`;
-runtime and packaging rows are `cli` verdicts. `not_verified`, `needs_human` and
-`hosted_required` roll up as QA `FAIL` with the blocker named, because cxc-qa has
-no skip. `na` maps to `NA` and needs the recorded structural reason cxc-qa
-requires.
+Mapping to cxc-qa: each row is one cxc-qa scenario whose scenario id is the row
+id; `note` carries the state, required and achieved levels. UI rows are `gui`
+verdicts with `captureChecks`. Runtime, packaging and distribution rows are
+`cli` verdicts, except a distribution row observed as a dialog (Gatekeeper),
+which is `gui`. `not_verified`, `needs_human` and `hosted_required` roll up as
+QA `FAIL` with the blocker named, because cxc-qa has no skip. `na` maps to
+`NA` and needs the recorded structural reason cxc-qa requires. Evidence from a
+hosted runner enters the scenario directory as the downloaded job log or
+artifact, with the run id, attempt and head SHA recorded (cxc-dev
+DEV-CI-EVIDENCE-01).
+
+Example rows for a change to a Tauri tray popup rendered by a native panel:
+
+| Row | Boundary and scenario | Class | Required | Achieved | State |
+|---|---|---|---|---|---|
+| D-UI-01 | Popup opened over another app's window, dark appearance | UI | native interaction | native interaction | pass |
+| D-UI-02 | Popup content longer than the panel: scroll bounded, footer visible | UI | native interaction | source review | not_verified |
+| D-RT-01 | Bundled CLI runs from the signed app with final entitlements | runtime | bundled runtime launch | bundled runtime launch | pass |
+| D-PK-01 | `lipo -archs` on app executable and sidecar equals `x86_64 arm64` | packaging | signed bundle inspection | host-only build | not_verified |
+| D-DS-01 | `xcrun stapler validate` on the DMG | distribution | publication | — | hosted_required |
+| D-DS-02 | First launch of the downloaded DMG app shows the expected Gatekeeper dialog | distribution | native interaction | — | needs_human |
 
 ## §3 Downstream rows (DESKTOP-DOWNSTREAM-01)
 
@@ -140,8 +157,10 @@ under `Contents/PlugIns` and signature (the OpenCodex case in codexclaw issue
 ## §9 Sidecars and universal binaries (DESKTOP-UNIVERSAL-01)
 
 - Tauri `bundle.externalBin` needs a file with a `-<target-triple>` suffix for
-  every supported architecture; a universal build needs the universal name the
-  bundler expects.
+  every supported architecture. A universal build also needs a universal
+  sidecar under the name the bundler looks for (in the #232 case,
+  `ocx-universal-apple-darwin`); confirm the expected name from the failing or
+  succeeding bundler run, not from memory.
 - Each embedded executable reports exactly the expected architectures.
 - The bundled CLI runs from the **final signed bundle** with its final
   entitlements. JIT runtimes under Hardened Runtime need
@@ -178,15 +197,20 @@ Scenarios that need a person, or a prompt only a person may answer, are
 ## §11 Signing, notarization and distribution (DESKTOP-DIST-01)
 
 - Notarization needs a Developer ID certificate, Hardened Runtime, a secure
-  timestamp and no `get-task-allow` entitlement. Plug-ins inherit the host's
-  entitlements.
+  timestamp and no `get-task-allow` entitlement.
+- Entitlements attach to executables. Shared libraries, frameworks and
+  in-process plug-ins inherit the host's; app extensions, widgets included, are
+  separate executables with their own signature and entitlements. Check each
+  with `codesign -d --entitlements -`.
 - `codesign -vvv --deep --strict` checks nested code at notarization
   strictness. Changing any file in a bundle after signing invalidates it.
 - `spctl --assess -vv` and `xcrun stapler validate` on the distributed
   artifact (engineering practice).
 - Tauri updater signatures cannot be disabled; `createUpdaterArtifacts` produces
   the `.app.tar.gz` and `.sig`; `pubkey` must be the key content, not a path.
-- Notarized is not launch-tested. Apple advises testing after notarization.
+- Notarized is not launch-tested. Apple notes that some software fails to run
+  after notarization because Gatekeeper enforces checks a relaxed notarization
+  did not, and advises testing before distribution.
 
 ## §12 When local execution is not allowed (DESKTOP-NOLOCAL-01)
 
