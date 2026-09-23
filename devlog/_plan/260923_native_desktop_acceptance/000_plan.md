@@ -1,6 +1,6 @@
 # Native desktop acceptance for Tauri, Swift and menu-bar work
 
-Agents that touched OpenCodex's Tauri tray app checked source, host-only CI and screenshots of the wrong surface, and the gaps surfaced one by one at user acceptance and in release dry-runs (issue #232). This unit gives codexclaw a native-desktop acceptance owner: a matrix that separates UI, runtime, packaging and distribution verdicts, binds evidence to the final artifact, and says which macOS approval prompts only a person may answer. It also lets a goalplan criterion declare a `desktop` surface so the final gate asks for QA evidence. Nothing here builds a desktop app. Release 0.2.37 ships it, and #208 closes on evidence already observed.
+Agents that touched OpenCodex's Tauri tray app checked source, host-only CI and screenshots of the wrong surface, and the gaps surfaced one by one at user acceptance and in release dry-runs (issue #232). This unit gives codexclaw a native-desktop acceptance owner: a matrix that separates UI, runtime, packaging and distribution verdicts, binds evidence to the final artifact, and says which macOS approval prompts only a person may answer. It also lets a goalplan criterion declare a `desktop` surface. On default (schemaVersion 1) plans that is a classification; on schemaVersion 2+ plans that record a final gate it makes the QA receipt mandatory, like `web` and `tui`. Nothing here builds a desktop app. Release 0.2.37 ships it, and #208 closes on recorded evidence.
 
 Reader: a maintainer deciding whether to merge and release; familiarity with codexclaw's dev skills and goalplan is assumed.
 
@@ -10,7 +10,7 @@ Reader: a maintainer deciding whether to merge and release; familiarity with cod
 - Trigger: user request on 2026-09-23 to strengthen the skills for Tauri/Swift work, add menu-bar approval handling, research with Aside, close the finished issue and publish a new GitHub release via cxc-loop.
 - Goal: codexclaw 0.2.37 with the owner references, routing, `desktop` criterion surface, published release, #208 closed and #232 resolved or split honestly.
 - Non-goals: building or modifying any desktop app; OpenCodex changes; SSH/local installation and hook retrust (not authorized this turn); render-observation and receipt-schema changes (D5, split to a follow-up issue); native Codex host changes.
-- Verifier: `npm test` (repo root, full suite through plugins/codexclaw/scripts/test.mjs; reads every test glob listed in package.json:24 including pabcd-state and subagent-config tests), `npm run build` (regenerates committed dist; test/dist-freshness.test.mjs fails on drift), `npm run gate`, `node plugins/codexclaw/scripts/inventory.mjs --check --tests <total>` (ci.yml:62), `node plugins/codexclaw/scripts/check-versions.mjs 0.2.37` (release.yml:178), hosted CI on dev and main at exact SHAs, release.yml dry-run then publish, local SHA256SUMS verification. Skill prose has no automated reader beyond link/inventory checks; its rows are human review (PLAN-VERIFIER-REAL-01).
+- Verifier: `npm test` (repo root, full suite through plugins/codexclaw/scripts/test.mjs; reads every test glob listed in package.json:24 including pabcd-state and subagent-config tests), `npm run build` (regenerates committed dist; test/dist-freshness.test.mjs fails on drift), `npm run gate` (scans for false-enforcement wording only, gate.mjs:124-127), `node plugins/codexclaw/scripts/inventory.mjs --check --tests <total>` (ci.yml:62; counts skills/hooks/components, does not read references), `node plugins/codexclaw/scripts/check-versions.mjs 0.2.37` (release.yml:178), the link-check and description-length commands in 020, hosted CI on dev and main at exact SHAs, release.yml dry-run then publish, local SHA256SUMS verification. No repository test reads skill prose; its content is human review against 001 (PLAN-VERIFIER-REAL-01).
 - Stop condition: all six goalplan criteria met with fresh evidence, or a real blocker after root-cause work.
 - Memory artifact: this unit plus .codexclaw/evidence/01a0cadc-5dcb-7541-89bc-ab381777b661/.
 - Expected terminal outcomes: DONE (release published, issues updated); BLOCKED (CI or release infrastructure outside scope); NEEDS_HUMAN (missing permission); UNSAFE (a step would expose signing or other secrets).
@@ -26,8 +26,9 @@ plugins/codexclaw/components/pabcd-state/{src,dist,test}   desktop surface (010)
 plugins/codexclaw/components/subagent-config/{src,dist,test} final-gate guard copy (010)
 plugins/codexclaw/skills/loop/references/durable-goalplan.md CLI doc line (010)
 plugins/codexclaw/skills/dev-devops/references/            two new owner references (020)
-plugins/codexclaw/skills/{dev,dev-devops,dev-testing,qa,dev-frontend,dev-debugging}  routing rows and stubs (020)
-version metadata, READMEs, CHANGELOG, inventory, structure/INDEX.md (030)
+plugins/codexclaw/skills/{dev,dev-devops,dev-testing,qa,dev-frontend,dev-debugging,pabcd,skill-hub}  routing rows, stubs and QA surface wording (020)
+structure/INDEX.md:166 (020)
+version metadata, READMEs, CHANGELOG, inventory, docs-site/src/content/docs/guides/skills.md (030)
 ```
 
 OUT: see non-goals.
@@ -56,12 +57,16 @@ One branch (codex/native-desktop-acceptance), ordered commits, one ordinary PR t
 | Ad-hoc arm64 .app receipt cannot satisfy a universal Developer ID/DMG/updater row | 020 artifact identity rule |
 | CLI digest/source or signing change invalidates only affected rows | 020 invalidation rule |
 | Failure before launch leaves downstream rows unverified | 020 downstream rule |
-| Wrong `lipo` argument order rejected by an independent behavioral oracle | 020 states the rule with the man-page grammar; an automated oracle is residual (follow-up issue) |
+| Wrong `lipo` usage rejected by an independent behavioral oracle | 020 prescribes `lipo -archs` exact-set comparison or per-architecture calls, proven by execution on the runner (001 records that multi-arch `-verify_arch` differs by toolchain); an automated oracle in codexclaw is residual (follow-up issue) |
 | No-local-tests yields hosted-only or not-verified | 020 no-local-execution path |
 | Baseline with no desktop surface yields new-feature obligations | 020 baseline rule |
-| Native desktop can be expressed as its own criterion surface | 010 |
+| Native desktop can be expressed as its own criterion surface | 010 (classification on v1 plans; QA receipt enforced on v2+ final gates) |
 | Render observation for native changes; artifact identity inside receipts | Residual, follow-up issue (D5) |
 
 ## Source of truth sync
 
 C of wp3 patches the cxc-dev-devops skill inventory row in structure/INDEX.md:166 (one-cell description change) and skill-ownership.md; C of wp4 patches CHANGELOG, README badges and the docs-site skills guide line.
+
+## Audit round 1 synthesis
+
+Reviewer 01a0cc93-947c-76f1-ab63-3bd998375031, VERDICT FAIL (3 High). Root causes: a prescription taken from a manual without running it (lipo), activation claimed beyond what the gate enforces, and a missing bypass record for new enforcement. All fifteen findings accepted; 010, 020, 030 and 001 amended. Finding 4 changes the `loop init` interface (it now rejects `--surface`), so the architect rechecks that decision before re-audit.

@@ -34,9 +34,21 @@ Collected 2026-09-23 with aside-codemode 0.9.2 (`/Users/jun/Developer/aside-code
 
 ## Local manual pages (this Mac)
 
-- `man lipo`: `-verify_arch arch_type ...` takes one input file, and "all of the input files must appear before the -verify_arch flag". So `lipo <file> -verify_arch arm64 x86_64` is valid and the #5535 form `lipo -verify_arch ... <file>` is not.
+- `man lipo` documents `-verify_arch arch_type ...` with one input file placed before the flag. The manual is not the behavior. Executed on this Mac (macOS 27.0, Command Line Tools 27.0.0.0.1783020602, `lipo -archs /bin/ls` = `x86_64 arm64e`), with bash so arguments split:
+
+  | Command | Exit | Output |
+  |---|---|---|
+  | `lipo /bin/ls -verify_arch x86_64 arm64e` | 1 | `-verify_arch requires exactly one input file` |
+  | `lipo -verify_arch x86_64 arm64e /bin/ls` | 1 | same |
+  | `lipo /bin/ls -verify_arch x86_64` | 0 | |
+  | `lipo -verify_arch arm64e /bin/ls` | 0 | |
+  | `lipo /bin/ls -verify_arch arm64` | 1 | (arm64e binary; arm64 is a different name) |
+
+  The audit reviewer reproduced the same results on /bin/ls, /bin/zsh and /usr/bin/git, and read OpenCodex dry-run 35720315462 where Xcode 26.6's lipo rejected the file-last form as an unknown architecture flag. Multi-architecture `-verify_arch` behavior therefore varies by toolchain. Durable forms: `lipo -archs <file>` compared as an exact set, or one `-verify_arch <arch>` call per architecture, with the toolchain version recorded.
 - `man tccutil`: the only command is `reset`. There is no supported command that grants a privacy permission, which is why grants are human gestures.
 
 ## Not verified
 
 - macOS 26 menu-bar item visibility settings and any new "allow in menu bar" flow: no primary page was read. The owner reference must not state them.
+- AppKit main-thread use, keychain "Always Allow", `spctl`/`stapler` usage, the full list of privacy categories, and `sfltool dumpbtm` privileges were not read from a primary page this cycle. The references label them as engineering practice or cite #232 instead of Apple.
+- NSGlassEffectView availability (macOS 26.0) was confirmed by the audit reviewer from Apple's documentation JSON, not by this batch.
