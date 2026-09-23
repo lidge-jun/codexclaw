@@ -109,6 +109,8 @@ import { applySteeringBatch } from "./steering.js";
 
 
 
+
+
 const VERBS                      = new Set              ([
   "init",
   "show",
@@ -147,7 +149,10 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
     } else if (a === "--cwd") out.cwd = argv[++i] ?? cwd;
     else if (a === "--session") out.session = argv[++i];
     else if (a === "--batch-json") out.batchJson = argv[++i];
-    else if (a === "--surface") out.surface = argv[++i];
+    else if (a === "--surface") {
+      out.surfaceGiven = true;
+      out.surface = argv[++i];
+    }
     else if (a === "--id") out.id = argv[++i];
     else if (a === "--title") out.title = argv[++i];
     else if (a === "--work-phase") out.workPhaseId = argv[++i];
@@ -284,7 +289,7 @@ function runSteer(args                 )                    {
  * that path already owns the lock, the idempotency key and the ledger entry, so a
  * second write path would be a second chance to corrupt the plan.
  */
-const SURFACES                      = new Set(["logic", "web", "tui"]);
+const SURFACES                      = new Set(["logic", "web", "tui", "desktop"]);
 function runAddOp(args                 )                    {
   const session = (args.session ?? "").trim();
   if (session.length === 0) return { output: `loop ${args.verb}: --session <id> is required`, code: 1 };
@@ -309,9 +314,12 @@ function runAddOp(args                 )                    {
     if (scenario.length === 0) {
       return { output: 'loop add-criterion: --criterion "<scenario>" is required', code: 1 };
     }
+    if (args.surfaceGiven && args.surface === undefined) {
+      return { output: "loop add-criterion: --surface needs a value (logic|web|tui|desktop)", code: 1 };
+    }
     const surface = args.surface ?? "logic";
     if (!SURFACES.has(surface)) {
-      return { output: `loop add-criterion: --surface must be logic|web|tui (got '${args.surface}')`, code: 1 };
+      return { output: `loop add-criterion: --surface must be logic|web|tui|desktop (got '${args.surface}')`, code: 1 };
     }
     op = { kind: "add-criterion", scenario, surface };
     summary = scenario;
@@ -566,7 +574,7 @@ export function renderGoalplanHelp()         {
     // `resolveSlug()` actually consumes the argument.
     "  cxc loop steer --session <id> --batch-json <path-or-json> [--cwd <path>]",
     "  cxc loop add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]... [--cwd <path>]",
-    "  cxc loop add-criterion --session <id> --criterion <text> [--surface logic|web|tui] [--cwd <path>]",
+    "  cxc loop add-criterion --session <id> --criterion <text> [--surface logic|web|tui|desktop] [--cwd <path>]",
     "  cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]",
     "  cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]",
     "  cxc loop complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]",
@@ -599,6 +607,12 @@ export function runGoalplanCli(args                 )                    {
     const objective = (args.objective ?? "").trim();
     if (objective.length === 0) {
       return { output: "loop init: --objective \"<text>\" is required", code: 1 };
+    }
+    if (args.surfaceGiven) {
+      return {
+        output: "loop init: --surface is not applied at init; bind the plan with --session and register each surfaced criterion with cxc loop add-criterion --session <id> --criterion <text> --surface <logic|web|tui|desktop>\nNothing was written.",
+        code: 1,
+      };
     }
     const slug = deriveSlug(objective);
     const existing = readGoalplan(args.cwd, slug);

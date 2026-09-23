@@ -388,6 +388,7 @@ test("help lists repeated dependency syntax and required outcome", () => {
   assert.match(help, /cxc loop steer --session <id> --batch-json/);
   assert.match(help, /cxc loop add-work-phase --session <id> --id <id>/);
   assert.match(help, /cxc loop add-criterion --session <id> --criterion <text>/);
+  assert.match(help, /add-criterion .*\[--surface logic\|web\|tui\|desktop\]/);
   assert.match(help, /\[--depends-on <id>\]\.\.\./);
   assert.match(help, /ready .*--json/);
   assert.match(help, /add-task .*\[--depends-on <task-id>\]\.\.\./);
@@ -409,6 +410,35 @@ test("help lists repeated dependency syntax and required outcome", () => {
   assert.deepEqual(parseGoalplanCliArgs(["redy"], "/tmp"), {
     error: "unknown loop verb 'redy' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion); run cxc loop --help",
   });
+});
+
+test("add-criterion takes --surface desktop, refuses unknown or valueless surfaces, and init refuses --surface", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  const ok = cli(cwd, ["add-criterion", "--session", session, "--criterion", "tray popup matrix", "--surface", "desktop"]);
+  assert.equal(ok.code, 0, ok.output);
+  assert.equal(readGoalplan(cwd, plan.slug)?.criteria.find((c) => c.scenario === "tray popup matrix")?.surface, "desktop");
+
+  const before = planText(cwd, plan.slug);
+  const unknown = cli(cwd, ["add-criterion", "--session", session, "--criterion", "x", "--surface", "native"]);
+  assert.equal(unknown.code, 1);
+  assert.match(unknown.output, /logic\|web\|tui\|desktop/);
+  const valueless = cli(cwd, ["add-criterion", "--session", session, "--criterion", "x", "--surface"]);
+  assert.equal(valueless.code, 1);
+  assert.match(valueless.output, /--surface needs a value/);
+  assert.equal(planText(cwd, plan.slug), before);
+
+  const fresh = mkdtempSync(join(tmpdir(), "cxc-init-surface-"));
+  const attempts = [
+    ["init", "--objective", "surface refusal", "--criterion", "c", "--surface", "desktop"],
+    ["init", "--objective", "surface refusal", "--surface"],
+  ];
+  for (const argv of attempts) {
+    const r = cli(fresh, argv);
+    assert.equal(r.code, 1, r.output);
+    assert.match(r.output, /--surface is not applied at init/);
+    assert.equal(existsSync(join(fresh, ".codexclaw", "goalplans")), false);
+  }
 });
 
 test("comma dependency is rejected while repeated flags persist dependencies", () => {
