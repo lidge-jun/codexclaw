@@ -70,3 +70,11 @@ C of wp3 patches the cxc-dev-devops skill inventory row in structure/INDEX.md:16
 ## Audit round 1 synthesis
 
 Reviewer 01a0cc93-947c-76f1-ab63-3bd998375031, VERDICT FAIL (3 High). Root causes: a prescription taken from a manual without running it (lipo), activation claimed beyond what the gate enforces, and a missing bypass record for new enforcement. All fifteen findings accepted; 010, 020, 030 and 001 amended. Finding 4 changes the `loop init` interface (it now rejects `--surface`), so the architect rechecks that decision before re-audit.
+
+Round 2, same reviewer: GO-WITH-FIXES (blockers=0), five Low findings folded at 98a6ed3f.
+
+## wp1 D: roadmap locked
+
+The roadmap is locked at 98a6ed3f. Check ran the unit document check under `cxc receipt test` (filenames, decade docs, relative links, stale phrases, `npm run gate`): exit 0, receipt at .codexclaw/evidence/01a0cadc-5dcb-7541-89bc-ab381777b661/test-receipt.json. Next cycle is wp2 from 010.
+
+What did not improve: the enforcement added by `desktop` stays bypassable (final layer none), and `--surface` on steer/add-work-phase/add-task/meet-criterion is still ignored. Hypothesis that died: that `man lipo` was a sufficient source for a prescription. What would show the direction is wrong: if wp3's references cannot be written without Apple claims that 001 does not back, or if the description budget cannot hold the new triggers, the owner placement (D1) should be revisited.
