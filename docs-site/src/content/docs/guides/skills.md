@@ -99,10 +99,10 @@ codexclaw currently ships 28 skill directories:
 | `cxc-dev-frontend` | `dev-frontend` | Frontend/UI implementation and responsive layout. |
 | `cxc-dev-uiux-design` | `dev-uiux-design` | UX direction, states, visual judgment, logos, and typography. |
 | `cxc-dev-testing` | `dev-testing` | Test strategy, QA, Playwright, contracts, CI, and coverage. |
-| `cxc-qa` | `qa` | Manual surface-driving QA evidence for web, TUI, CLI, and API surfaces. |
+| `cxc-qa` | `qa` | Manual surface-driving QA evidence for web, TUI, CLI, API, and desktop GUI surfaces. |
 | `cxc-dev-code-reviewer` | `dev-code-reviewer` | Review verdicts, findings, and risk assessment. |
 | `cxc-dev-security` | `dev-security` | Auth, secrets, validation, supply chain, and threat-model work. |
-| `cxc-dev-devops` | `dev-devops` | Containers, deploy pipelines, IaC, SRE, and release surfaces. |
+| `cxc-dev-devops` | `dev-devops` | Containers, deploy pipelines, IaC, SRE, release surfaces, and native desktop acceptance. |
 | `cxc-dev-scaffolding` | `dev-scaffolding` | Project/module scaffolding and source-of-truth docs. |
 | `cxc-search` | `search` | Current/public lookup ladder and source-proof discipline. |
 | `cxc-recall` | `recall` | Read-only past chat and memory recall before asking the user. |

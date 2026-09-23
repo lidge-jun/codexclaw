@@ -6,6 +6,42 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.37] - 2026-09-23
+
+### Added
+
+- A native desktop acceptance reference under dev-devops, reached from the cxc-dev
+  routing table: separate UI, runtime, packaging and distribution verdicts, required
+  versus achieved evidence levels, ordinary CI versus the release path, baseline
+  classes, artifact identity, Tauri/Rust/Swift boundary, WidgetKit, sidecar and
+  universal binary checks, menu-bar popup scenarios and a no-local-execution path (#232).
+- A macOS system approvals reference: which privacy, Gatekeeper, login item and keychain
+  approvals only a person may give, forbidden bypasses, allowed checks, and how to record
+  and later close needs_human rows.
+- A `desktop` goalplan criterion surface, set with `cxc loop add-criterion --surface desktop`.
+
+### Changed
+
+- `cxc loop init` refuses `--surface` instead of silently storing the default; the
+  `--surface=<value>` form is parsed, and a following flag is no longer taken as the value.
+- cxc-qa, visual QA, the Check phase and the skill catalog name desktop GUI alongside web,
+  TUI, CLI and API.
+
+### Compatibility
+
+- `desktop` is a classification unless a final gate is recorded. Validation on
+  schemaVersion 2+ plans with a final gate, and the final-gate spawn guard on any plan with
+  a recorded finalGate, make the QA receipt mandatory, as for `web` and `tui`.
+- Builds older than 0.2.37 drop `desktop` on read and erase it on their next write. Every
+  host that edits such a plan needs 0.2.37 or newer.
+
+### Verification
+
+- 3,528 tests measured locally, 3,525 passed, three platform/environment skips, zero
+  failures. Independent plan audit, implementation review and content review completed.
+- Render observation for native changes, artifact identity inside receipts and an
+  automated tool-usage oracle for `lipo` remain open follow-up work.
+
 ## [0.2.36] - 2026-09-22
 
 ### Added
