@@ -60,7 +60,9 @@ QA `FAIL` with the blocker named, because cxc-qa has no skip. `na` maps to
 `NA` and needs the recorded structural reason cxc-qa requires. Evidence from a
 hosted runner enters the scenario directory as the downloaded job log or
 artifact, with the run id, attempt and head SHA recorded (cxc-dev
-DEV-CI-EVIDENCE-01).
+DEV-CI-EVIDENCE-01). The hosted head SHA must equal the verdict's
+`sourceSnapshotAt.commitSha` on a clean tree; otherwise the row stays
+`not_verified`, because nothing else checks that the run built this tree.
 
 Example rows for a change to a Tauri tray popup rendered by a native panel:
 
@@ -70,7 +72,7 @@ Example rows for a change to a Tauri tray popup rendered by a native panel:
 | D-UI-02 | Popup content longer than the panel: scroll bounded, footer visible | UI | native interaction | source review | not_verified |
 | D-RT-01 | Bundled CLI runs from the signed app with final entitlements | runtime | bundled runtime launch | bundled runtime launch | pass |
 | D-PK-01 | `lipo -archs` on app executable and sidecar equals `x86_64 arm64` | packaging | signed bundle inspection | host-only build | not_verified |
-| D-DS-01 | `xcrun stapler validate` on the DMG | distribution | publication | — | hosted_required |
+| D-DS-01 | `xcrun stapler validate` on the notarized DMG | distribution | signed bundle inspection | — | hosted_required |
 | D-DS-02 | First launch of the downloaded DMG app shows the expected Gatekeeper dialog | distribution | native interaction | — | needs_human |
 
 ## §3 Downstream rows (DESKTOP-DOWNSTREAM-01)
