@@ -141,4 +141,8 @@ durable-goalplan.md:60-62: the `criteria[]` bullet names the allowed values (`lo
 
 ## Verification
 
+## C finding folded (reviewer 01a0cca9, GO-WITH-FIXES blockers=1)
+
+The parser skipped unknown tokens, so `--surface=desktop` escaped both the init refusal and add-criterion classification. Fix: `--surface=<value>` is parsed as the same flag (empty value counts as missing), and a following token that starts with `--` is not consumed as the value, so `--surface --cwd x` reports a missing surface instead of the surface "--cwd". Tests in goalplan-public-surface cover the equals form on add-criterion (stored desktop) and init (refused), `--surface=` and `--surface --criterion y` (needs a value, plan unchanged).
+
 `npm run build` exit 0, then `npm test` with 0 failures (skips only the three pre-existing platform skips), and `git diff --stat` limited to the files above plus regenerated dist.

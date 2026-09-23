@@ -150,8 +150,21 @@ export function parseGoalplanCliArgs(argv: string[], cwd: string): GoalplanCliAr
     else if (a === "--session") out.session = argv[++i];
     else if (a === "--batch-json") out.batchJson = argv[++i];
     else if (a === "--surface") {
+      // A following flag is not a value: `--surface --cwd x` must read as a
+      // missing surface, not as the surface "--cwd" with the directory dropped.
+      const next = argv[i + 1];
       out.surfaceGiven = true;
-      out.surface = argv[++i];
+      if (next !== undefined && !next.startsWith("--")) {
+        out.surface = next;
+        i++;
+      }
+    }
+    else if (a.startsWith("--surface=")) {
+      // The equals form must not slip past as an unknown token: that would store
+      // the default surface and silently escape classification.
+      const value = a.slice("--surface=".length);
+      out.surfaceGiven = true;
+      if (value.length > 0) out.surface = value;
     }
     else if (a === "--id") out.id = argv[++i];
     else if (a === "--title") out.title = argv[++i];

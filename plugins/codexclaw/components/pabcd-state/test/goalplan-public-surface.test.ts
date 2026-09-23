@@ -428,10 +428,25 @@ test("add-criterion takes --surface desktop, refuses unknown or valueless surfac
   assert.match(valueless.output, /--surface needs a value/);
   assert.equal(planText(cwd, plan.slug), before);
 
+  const eq = cli(cwd, ["add-criterion", "--session", session, "--criterion", "equals form", "--surface=desktop"]);
+  assert.equal(eq.code, 0, eq.output);
+  assert.equal(readGoalplan(cwd, plan.slug)?.criteria.find((c) => c.scenario === "equals form")?.surface, "desktop");
+  const afterEq = planText(cwd, plan.slug);
+  for (const argv of [
+    ["add-criterion", "--session", session, "--criterion", "y", "--surface="],
+    ["add-criterion", "--session", session, "--surface", "--criterion", "y"],
+  ]) {
+    const r = cli(cwd, argv);
+    assert.equal(r.code, 1, r.output);
+    assert.match(r.output, /--surface needs a value/);
+  }
+  assert.equal(planText(cwd, plan.slug), afterEq);
+
   const fresh = mkdtempSync(join(tmpdir(), "cxc-init-surface-"));
   const attempts = [
     ["init", "--objective", "surface refusal", "--criterion", "c", "--surface", "desktop"],
     ["init", "--objective", "surface refusal", "--surface"],
+    ["init", "--objective", "surface refusal", "--surface=desktop", "--criterion", "c"],
   ];
   for (const argv of attempts) {
     const r = cli(fresh, argv);
