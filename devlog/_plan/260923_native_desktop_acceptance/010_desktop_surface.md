@@ -10,9 +10,9 @@ New plans default to schemaVersion 1 (goalplan.ts:67) and `finalGateReasons` ret
 
 | Field | Value |
 |---|---|
-| Tier | E8 plan validation plus E5 PreToolUse spawn guard for the final gate; nothing new at E1-E4 |
-| Executing surface | `validateGoalplan`/`cxc loop validate` (goalplan.ts) and the subagent-config final-gate guard hook |
-| Known bypass | classify the criterion `logic`; stay on schemaVersion 1 without a recorded finalGate; delete the schema marker; edit goalplan.json by hand; write the plan with a ≤0.2.36 build, which drops the unknown value on read and saves the plan without it; final-gate reviews started without the `[CXC-FINAL-GATE]` marker; `--surface` passed to verbs other than add-criterion and init is still parsed and ignored (steer, add-work-phase, add-task, meet-criterion; residual) |
+| Tier | E1 PreToolUse denies: the final-gate spawn guard (spawn-attach-hook.ts:1074-1079) and the update_goal completion gate (goal-gate.ts:280-292), plus E8 CLI validation (`cxc loop validate`) |
+| Executing surface | `validateGoalplan` via `cxc loop validate` and the goal-gate completion hook; the subagent-config final-gate spawn guard |
+| Known bypass | classify the criterion `logic`; stay on schemaVersion 1 without a recorded finalGate; delete the schema marker; edit goalplan.json by hand; write the plan with a ≤0.2.36 build, which drops the unknown value on read and saves the plan without it; final-gate reviews started without the `[CXC-FINAL-GATE]` marker; `--surface` passed to verbs other than add-criterion and init is still parsed and ignored (steer, add-work-phase, add-task, meet-criterion; residual); both hooks fail open: goal-gate returns no denial on errors and final-gate-guard.ts:116-128 allows when session, slug, plan or gate is missing |
 | Residual risk | a desktop criterion can still close without QA on v1 plans or through the bypasses above; mixed-version hosts silently erase the value |
 | Wording downgrade | yes: docs say "QA receipt enforced by validation on v2+ plans with a final gate, and by the spawn guard on any plan with a recorded finalGate; otherwise a classification", never "desktop enforces QA" |
 | Final enforcement layer | none; the v2+ final gate is the strongest layer and remains bypassable |
@@ -43,7 +43,9 @@ New plans default to schemaVersion 1 (goalplan.ts:67) and `finalGateReasons` ret
 +    }
 ```
 
-Activation: `cli(["init", "--objective", "o", "--criterion", "c", "--surface", "desktop"])` and `cli(["init", "--objective", "o", "--surface"])` both exit 1 and no goalplan directory exists afterwards.
+Activation: `cli(cwd, ["init", "--objective", "o", "--criterion", "c", "--surface", "desktop"])` and `cli(cwd, ["init", "--objective", "o", "--surface"])` both exit 1 and no goalplan directory exists afterwards.
+
+`add-criterion` gets the same presence check: in `runAddOp`, `args.surfaceGiven && args.surface === undefined` returns exit 1 (`loop add-criterion: --surface needs a value (logic|web|tui|desktop)`) instead of storing the default. Activation: `cli(cwd, ["add-criterion", "--session", <canonical id>, "--criterion", "x", "--surface"])` exits 1 and the plan is unchanged; the goalplan-public-surface test covers it.
 
 ## Field chain (PLAN-FIELD-CHAIN-01)
 

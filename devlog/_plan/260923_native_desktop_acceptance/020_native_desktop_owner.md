@@ -95,7 +95,7 @@ Header block as above; target 90-140 lines.
 No repository test reads these references. C runs `npm test` and `npm run gate` for regressions, the description budget command above, `rg -n` proving the routing row, two reference rows and two ownership rows exist, and this link check over every edited markdown file:
 
 ```sh
-node -e 'const fs=require("fs"),p=require("path");let bad=0;for(const f of process.argv.slice(1)){for(const m of fs.readFileSync(f,"utf8").matchAll(/\]\(([^)\s#]+)(#[^)]*)?\)/g)){const u=m[1];if(/^[a-z]+:/i.test(u))continue;if(!fs.existsSync(p.resolve(p.dirname(f),u))){console.log(f+": missing "+u);bad++}}}process.exit(bad?1:0)' <edited .md files>
+node -e 'const fs=require("fs"),p=require("path");let bad=0;for(const f of process.argv.slice(1)){for(const m of fs.readFileSync(f,"utf8").matchAll(/\]\(([^)\s#]+)(#[^)]*)?\)/g)){const u=m[1];if(/^[a-z]+:/i.test(u)||u.startsWith("/"))continue;if(!fs.existsSync(p.resolve(p.dirname(f),u))){console.log(f+": missing "+u);bad++}}}process.exit(bad?1:0)' <edited .md files>
 ```
 
 Prose correctness is human review against 001.
