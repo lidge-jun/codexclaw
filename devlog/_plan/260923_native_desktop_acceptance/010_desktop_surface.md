@@ -139,10 +139,16 @@ durable-goalplan.md:60-62: the `criteria[]` bullet names the allowed values (`lo
 | subagent-config/test/final-gate-guard.test.ts | the fixture has no schemaVersion (v1) and a recorded finalGate; the desktop test therefore also pins that the guard enforces regardless of version | guard layer independent of schemaVersion |
 | subagent-config/test/final-gate-guard.test.ts (≈73, ≈120) | fixture qaRequired includes desktop; new test "a desktop criterion demands a QA receipt"; table test over logic/web/tui/desktop/api asserting the guard demands QA exactly for web, tui, desktop | the inlined guard matches computeQaRequired's table |
 
-## Verification
-
 ## C finding folded (reviewer 01a0cca9, GO-WITH-FIXES blockers=1)
 
 The parser skipped unknown tokens, so `--surface=desktop` escaped both the init refusal and add-criterion classification. Fix: `--surface=<value>` is parsed as the same flag (empty value counts as missing), and a following token that starts with `--` is not consumed as the value, so `--surface --cwd x` reports a missing surface instead of the surface "--cwd". Tests in goalplan-public-surface cover the equals form on add-criterion (stored desktop) and init (refused), `--surface=` and `--surface --criterion y` (needs a value, plan unchanged).
 
+## Verification
+
 `npm run build` exit 0, then `npm test` with 0 failures (skips only the three pre-existing platform skips), and `git diff --stat` limited to the files above plus regenerated dist.
+
+## wp2 D
+
+Shipped at d0c09a79 and dd7f6e25. Full suite under `cxc receipt test` at dd7f6e25: 3528 tests, 3525 pass, 0 fail, 3 pre-existing skips (was 3522 at 0.2.36). Real CLI invocations in a temporary git repository: init with `--surface` refused and wrote nothing, add-criterion stored `desktop`, `native` and a valueless flag were refused, help lists desktop. The adversarial reviewer found the equals-form escape; after dd7f6e25 it returned PASS. The worktree had no node_modules, so the first full run failed only in gui/test/router.test.ts on a missing `react`; `npm ci` in this worktree fixed the environment.
+
+What did not improve: `--surface` stays ignored on steer, add-work-phase, add-task and meet-criterion, and misspelled flags such as `--surfaces=` are still skipped silently by the parser. The QA evidence schema still has no `desktop` surface; wp3 maps desktop UI rows to `gui` and runtime/packaging rows to `cli`. Next: wp3 from 020.
