@@ -3,6 +3,8 @@
 Covers Xcode CLT, LLDB, Instruments, Swift concurrency (async/await + actors),
 iOS simulator from CLI, crash log symbolication.
 Lineage: gpt-5.5 Tier-2 research (2026-07-07).
+macOS AppKit and Swift/C interop acceptance (Swift linked into a Rust or Tauri host)
+live in `dev-devops/references/native-desktop-acceptance.md` §7.
 
 ## Phase 0 — Environment Detection
 

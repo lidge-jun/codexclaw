@@ -1,6 +1,6 @@
 # Visual QA — grounding, metrics-first, oracle limits
 
-Deep rules for any VISUAL surface verdict (web UI, TUI). Everything here is E7
+Deep rules for any VISUAL surface verdict (web UI, TUI, desktop GUI). Everything here is E7
 discipline. The tool ladder itself (QA-TOOL-LADDER-01) is canonically owned by
 `dev-testing` §4.6; this file owns the evidence workflow AROUND those tools.
 

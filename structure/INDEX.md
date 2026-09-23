@@ -163,7 +163,7 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-qa` | `skills/qa/` | manual surface-driving QA gate: evidence matrix, adversarial classes, teardown receipts |
 | `cxc-dev-code-reviewer` | `skills/dev-code-reviewer/` | review verdicts, findings, risk assessment |
 | `cxc-dev-security` | `skills/dev-security/` | auth, secrets, validation, supply-chain/security review |
-| `cxc-dev-devops` | `skills/dev-devops/` | containers, deploy, IaC, SRE/release surfaces |
+| `cxc-dev-devops` | `skills/dev-devops/` | containers, deploy, IaC, SRE/release surfaces, native desktop acceptance |
 | `cxc-dev-scaffolding` | `skills/dev-scaffolding/` | project/module scaffolding and structure audits |
 | `cxc-search` | `skills/search/` | current/public lookup ladder and Korean search intent guard |
 | `cxc-recall` | `skills/recall/` | past-session chat/memory recall before asking the user to repeat context |

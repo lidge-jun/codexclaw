@@ -18,6 +18,7 @@
 | Mobile web responsive layout | `dev-frontend/references/core/responsive-viewport.md` |
 | Mobile web UX (thumb zone, sticky CTA) | `dev-frontend/references/core/mobile-ux.md` |
 | App store screenshots, icon specs | `dev-uiux-design/references/mobile-native-ux.md` §5 |
+| macOS desktop app acceptance (Tauri, AppKit, menu-bar) | `dev-devops/references/native-desktop-acceptance.md` |
 
 ---
 

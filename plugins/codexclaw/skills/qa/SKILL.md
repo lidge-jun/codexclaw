@@ -1,6 +1,6 @@
 ---
 name: cxc-qa
-description: "MUST USE after building or changing any user-facing surface (web UI, TUI, CLI, HTTP API) before claiming done — manual, surface-driving QA: real invocations on real surfaces, captured artifacts, adversarial classes, and teardown receipts feeding the PABCD C gate. Automated suites are dev-testing's job; this skill proves the surface actually works when driven. Triggers: manual QA, QA this, does it actually work, drive the UI, smoke test, visual QA, screenshot check, TUI alignment, CJK clipping, 수동 QA, 실제로 되는지 확인, 동작 확인, 직접 돌려봐."
+description: "MUST USE after building or changing any user-facing surface (web UI, TUI, CLI, HTTP API, native desktop GUI) before claiming done — manual, surface-driving QA: real invocations on real surfaces, captured artifacts, adversarial classes, and teardown receipts feeding the PABCD C gate. Automated suites are dev-testing's job; this skill proves the surface actually works when driven. Triggers: manual QA, QA this, does it actually work, drive the UI, smoke test, visual QA, screenshot check, TUI alignment, CJK clipping, 수동 QA, 실제로 되는지 확인, 동작 확인, 직접 돌려봐."
 metadata:
   short-description: "Manual surface-driving QA gate: faithful channels, evidence matrix, adversarial classes, teardown receipts."
 ---
@@ -19,7 +19,7 @@ codexclaw's no-server, Codex-native-tool model.
 
 | File | When to Read | What It Covers |
 | --- | --- | --- |
-| `references/visual-qa.md` | ANY visual surface verdict (web UI, TUI) | Visual artifact rubric: companion-skill grounding (QA-VISUAL-COMPANION-01), objective-metrics-first (QA-VISUAL-METRIC-01), oracle judge limits, extended adversarial classes, TUI harness options |
+| `references/visual-qa.md` | ANY visual surface verdict (web UI, TUI, desktop GUI) | Visual artifact rubric: companion-skill grounding (QA-VISUAL-COMPANION-01), objective-metrics-first (QA-VISUAL-METRIC-01), oracle judge limits, extended adversarial classes, TUI harness options |
 | `references/http-api-qa.md` | HTTP API surface scenarios | Wire-driving procedure (QA-HTTP-01): curl capture discipline, auth-state/contract/idempotency/boundary/content-negotiation/CORS axes, status-code truth table |
 | `references/cli-tui-qa.md` | CLI or TUI surface scenarios | Session mechanics (QA-CLI-01): stdout/stderr separation, TTY-vs-pipe, env/config precedence, signal cleanup, tmux lifecycle + wait-for-marker driving |
 
@@ -59,7 +59,7 @@ not evidence of the layer you changed:
 | CLI | real invocation, stdout/stderr split + exit code — discipline in `references/cli-tui-qa.md` | terminal capture |
 | TUI | tmux session at FIXED dims — mechanics in `references/cli-tui-qa.md`, visual rubric in `references/visual-qa.md` | plain + ANSI captures |
 | Web UI | browser screenshot at a STATED viewport, read via `view_image` — workflow in `references/visual-qa.md` | screenshot(s) |
-| Desktop GUI | computer-use + screenshots (per-app approval; never drive terminals/Codex itself) | screenshots + action log |
+| Desktop GUI | computer-use + screenshots (per-app approval; never drive terminals/Codex itself) | screenshots + action log; native panels, menu-bar popups and approval prompts follow `dev-devops` `native-desktop-acceptance.md` §10 and `macos-system-approvals.md` |
 
 Tool choice for the browser/CU rows follows the shared portable browser policy; the inspect -> act -> re-inspect protocol applies. Data-shaped behavior
 may use parsed CLI/data output as its channel.
