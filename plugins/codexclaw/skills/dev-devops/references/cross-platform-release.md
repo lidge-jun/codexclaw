@@ -24,9 +24,9 @@ when the release claim depends on OS-local behavior beyond CI's visibility.
 | Pure library package | Usually yes | No | Test/import matrix |
 | CLI binary wrapper/shim | Yes for core command behavior | Maybe for PATH/shell integration | Install, bin resolve, `--version`, `--help`, safe command |
 | Browser automation/profile paths | Partial | Yes when local profile/app behavior matters | Runner smoke plus visible browser/profile proof |
-| Desktop app or installer | No | Yes | Launch, permission prompt, install/uninstall evidence |
+| Desktop app or installer | No | Yes | Launch, permission prompt, install/uninstall evidence; full matrix in `native-desktop-acceptance.md` |
 | Windows PATH/PowerShell/shim | Partial | Yes if release claim depends on Windows user behavior | Windows runner plus Windows App/RDP verification |
-| macOS TCC/Keychain/app bundle | Partial | Yes | macOS runner plus visible macOS app/session proof |
+| macOS TCC/Keychain/app bundle | Partial | Yes | macOS runner plus visible macOS app/session proof; prompts in `macos-system-approvals.md` |
 | YAML/cloud-only pipeline change | Yes | No | Static validation, CI dry run, API/provider check |
 
 ## §3 Mandatory Environment Prompt

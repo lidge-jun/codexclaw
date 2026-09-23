@@ -316,6 +316,28 @@ test("computeQaRequired scans the whole plan", () => {
   assert.equal(computeQaRequired(web), true);
 });
 
+test("computeQaRequired is true exactly for web, tui and desktop", () => {
+  const table: Array<[string, boolean]> = [["logic", false], ["web", true], ["tui", true], ["desktop", true], ["api", false]];
+  for (const [surface, want] of table) {
+    const p = plan({ criteria: [{ id: "c-1", scenario: "s", expectedEvidence: "e", capturedEvidence: "d", status: "met", surface: surface as never }] });
+    assert.equal(computeQaRequired(p), want, surface);
+  }
+});
+
+test("desktop survives a round trip; an unknown surface is dropped and a v2 plan names all four values", () => {
+  const dir = cwd();
+  const p = plan({ criteria: [{ id: "c-1", scenario: "s", expectedEvidence: "e", capturedEvidence: "d", status: "met", surface: "desktop" }] });
+  writeGoalplan(dir, p);
+  assert.equal(readGoalplan(dir, p.slug)?.criteria[0]?.surface, "desktop");
+
+  const unknown = plan({ slug: "unknown-surface", criteria: [{ id: "c-1", scenario: "s", expectedEvidence: "e", capturedEvidence: "d", status: "met", surface: "native" as never }] });
+  writeGoalplan(dir, unknown);
+  const back = readGoalplan(dir, "unknown-surface");
+  assert.equal(back?.criteria[0]?.surface, undefined);
+  const v2 = { ...back!, schemaVersion: 2, finalGate: gate(), reviewRounds: [round()] };
+  assert.match(reasons(v2, ctx(dir)), /no valid surface \("logic" \| "web" \| "tui" \| "desktop"\)/);
+});
+
 test("finalGate, schemaVersion and surface survive a write/read round trip", () => {
   const dir = cwd();
   const p = plan({ schemaVersion: 2, finalGate: gate({ qaRequired: true, qaReceiptPath: ".codexclaw/evidence/qa.json" }), reviewRounds: [round()] });

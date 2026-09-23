@@ -28,6 +28,7 @@ import {
 
 
 
+
 } from "./goalplan.js";
 
 /**
@@ -83,7 +84,7 @@ function validateBatch(batch         )                                 {
     return { error: "ops must be a non-empty array — a batch with nothing to do has nothing to record" };
   }
   const ops            = [];
-  const SURFACES                      = new Set(["logic", "web", "tui"]);
+  const SURFACES                      = new Set(["logic", "web", "tui", "desktop"]);
   for (const [i, raw] of (b.ops             ).entries()) {
     if (typeof raw !== "object" || raw === null) return { error: `ops[${i}] must be an object` };
     const op = raw                           ;
@@ -105,12 +106,12 @@ function validateBatch(batch         )                                 {
         return { error: `ops[${i}] is an add-criterion without a scenario` };
       }
       if (op.surface !== undefined && (typeof op.surface !== "string" || !SURFACES.has(op.surface))) {
-        return { error: `ops[${i}].surface must be "logic", "web", or "tui"` };
+        return { error: `ops[${i}].surface must be "logic", "web", "tui", or "desktop"` };
       }
       ops.push({
         kind: "add-criterion",
         scenario: op.scenario.trim(),
-        surface: (op.surface                                       ) ?? "logic",
+        surface: (op.surface                                ) ?? "logic",
         expectedEvidence: typeof op.expectedEvidence === "string" ? op.expectedEvidence.trim() : "",
       });
       continue;

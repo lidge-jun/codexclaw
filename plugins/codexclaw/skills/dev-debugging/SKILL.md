@@ -395,7 +395,7 @@ action item that prevents the same class of bug from recurring.
 | `references/runtimes/go.md` | Go | Delve launch/attach, goroutine patterns, race detector, pprof, GODEBUG, silent-failures |
 | `references/runtimes/c-cpp.md` | C/C++ | Sanitizers (ASan/TSan/MSan/UBSan), GDB/LLDB, Valgrind, CMake debug builds, UB silent-failures |
 | `references/runtimes/jvm.md` | Java/Kotlin (JVM) | jcmd live diagnostics, JFR profiling, JDWP/JDB, Kotlin coroutines, GraalVM native-image |
-| `references/runtimes/swift.md` | Swift / iOS | LLDB, Instruments, Swift concurrency, simulator CLI, crash symbolication |
+| `references/runtimes/swift.md` | Swift / iOS / macOS AppKit | LLDB, Instruments, Swift concurrency, simulator CLI, crash symbolication |
 | `references/runtimes/ruby.md` | Ruby (3.2+) | debug gem/rdbg, binding.irb, pry, Rails tools, nil-propagation silent-failures |
 | `references/runtimes/beam.md` | Elixir/Erlang (BEAM) | IEx.pry, Observer, :dbg/recon, supervision hiding, mailbox/atom/binary leaks |
 | `references/tools/playwright.md` | Browser/web-surface bugs | codegen repro, PWDEBUG, trace viewer, console/network listeners, viewport gotchas |

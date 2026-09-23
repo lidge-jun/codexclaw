@@ -58,8 +58,13 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
   the same work phase, never a task in another phase. A done task carries a non-empty `outcome`; a pending
   task has no outcome.
 - `criteria[]` — each `{ id, scenario, surface, expectedEvidence, capturedEvidence, status: open|met }`.
-  `scenario` is the `--criterion` text and `surface` comes from `--surface` (default
-  `logic`); `id` is auto-assigned and `status` is derived. `expectedEvidence` has no
+  `scenario` is the `--criterion` text and `surface` is one of `logic` (default),
+  `web`, `tui` or `desktop`, set by `add-criterion --surface` on a session-bound plan
+  (`init` refuses `--surface`). `web`, `tui` and `desktop` make the QA receipt
+  mandatory through validation on schemaVersion 2+ plans with a final gate and through
+  the final-gate spawn guard on any plan with a recorded finalGate; otherwise the value
+  is a classification. Builds older than 0.2.37 drop `desktop` on read and erase it on
+  their next write. `id` is auto-assigned and `status` is derived. `expectedEvidence` has no
   CLI flag on `add-criterion` — it stays `""` unless set via a steering batch op or a
   hand edit — so do not plan on passing it. `capturedEvidence` is written by
   `meet-criterion --evidence`. A criterion only reaches `met` when `capturedEvidence`
@@ -81,7 +86,7 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
 - `cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json]`
 - `cxc loop add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]...`
 - `cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]...`
-- `cxc loop add-criterion --session <id> --criterion <text> [--surface logic|web|tui]` —
+- `cxc loop add-criterion --session <id> --criterion <text> [--surface logic|web|tui|desktop]` —
   registers a criterion whose scenario is the `--criterion` text. There is no `--id`:
   ids are assigned as `c-1`, `c-2`, ... (max existing `c-N` + 1, in registration
   order). A duplicate scenario text is rejected.

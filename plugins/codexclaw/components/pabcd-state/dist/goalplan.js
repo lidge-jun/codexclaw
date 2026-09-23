@@ -561,7 +561,7 @@ function reviveGoalplan(parsed         , expectedSlug         )                 
       capturedEvidence: typeof cc.capturedEvidence === "string" ? cc.capturedEvidence : null,
       status: cc.status === "met" ? "met" : "open",
       // preserve only a known surface; missing and unknown both stay undefined
-      ...(cc.surface === "logic" || cc.surface === "web" || cc.surface === "tui"
+      ...(cc.surface === "logic" || cc.surface === "web" || cc.surface === "tui" || cc.surface === "desktop"
         ? { surface: cc.surface }
         : {}),
     });
@@ -1434,9 +1434,13 @@ export function effectiveSchemaVersion(plan          , markerPresent         )  
   return markerPresent ? Math.max(declared, 2) : declared;
 }
 
-/** True when any criterion in the WHOLE plan exercises a visual surface. */
+/**
+ * True when any criterion in the WHOLE plan needs QA evidence: a visual surface
+ * (web, tui) or a native desktop surface, whose UI, bundled-runtime and packaging
+ * rows are QA verdicts rather than unit tests.
+ */
 export function computeQaRequired(plan          )          {
-  return plan.criteria.some((c) => c.surface === "web" || c.surface === "tui");
+  return plan.criteria.some((c) => c.surface === "web" || c.surface === "tui" || c.surface === "desktop");
 }
 
 /**
@@ -1564,7 +1568,7 @@ function finalGateReasons(plan          , ctx                        )          
   const out           = [];
   for (const c of plan.criteria) {
     if (c.surface === undefined) {
-      out.push(`criterion ${c.id} has no valid surface ("logic" | "web" | "tui") — schemaVersion 2 requires it, since an unclassified criterion would silently escape the QA requirement`);
+      out.push(`criterion ${c.id} has no valid surface ("logic" | "web" | "tui" | "desktop") — schemaVersion 2 requires it, since an unclassified criterion would silently escape the QA requirement`);
     }
   }
   const gate = plan.finalGate;

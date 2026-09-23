@@ -29,6 +29,7 @@ This skill activates by change-surface when work needs verification depth, regre
 | `references/ci-pipeline.md` | CI configuration | GitHub Actions, gates, caching, parallelism |
 | `references/load-testing.md` | Performance/load testing, C3+ production readiness | k6/Locust, test types, measure→profile→verify, CI gates |
 | `references/ml-evaluation.md` | ML model/LLM evaluation, quality gates | LLM-as-judge, RAGAS, DeepEval, CI eval gate, regression detection |
+| `../dev-devops/references/native-desktop-acceptance.md` | Desktop app suites and CI matrix | Owned by dev-devops; test suites plug into its rows |
 
 When tests depend on current external API behavior, provider docs, CI service
 behavior, test-environment versions, dependency audit evidence, or recorded
