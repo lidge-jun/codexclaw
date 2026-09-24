@@ -538,3 +538,8 @@ Stale check: since d66dfcf2, wp2 changed export-paged-report.mjs, report-pipelin
 Builder write scope: paged-report.html, SKILL.md (DIAGRAM-LAYOUT-01 and DIAGRAM-RENDER-VERIFY-01 sentences), reference/report-pipeline.md, reference/english-authoring.md only if this document edits it, scripts/export-paged-report.mjs, test/report-export.test.mjs, test/fixtures/visualizer-export-tools.mjs, and a new test file only if this document names one.
 
 Scope amendment after architect reflection: reference/print-provenance.md is also in the builder write scope (this document edits it at the SoT section).
+
+## wp3 A round 1 folds (override earlier text)
+
+- Finding 1: in `finish`, insert only the `notes:` block (the `if (report.notes.length) { console.log("  notes:"); for (...) console.log("  " + note.id + ": " + note.message); }` lines) after wp2's existing check-reason loop and `report.notRun` loop, immediately before the verdict line. Do not copy the check loop from the snippet above; wp2 already prints each check reason once.
+- Finding 2: add fixture behavior for the `--dump-dom` branch: when `CXC_VISUALIZER_DOM_CAPTURE` is set, the fixture copies the HTML file named by its file-URL argument to that path before emitting its normal clean result. New test `the SVG probe reads the final filled HTML after a contents refill` uses the existing two-pass contents input (the shape used by "successful two-pass generation promotes only the final candidate"), sets `CXC_VISUALIZER_DOM_CAPTURE`, and asserts that the captured HTML contains the refilled page number that the second pass wrote into the contents entry and the injected measurement script id `cxc-svg-geometry-result-v1`'s producer script, and that `report.passes === 2`.
