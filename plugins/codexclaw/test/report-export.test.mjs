@@ -803,6 +803,7 @@ test("locale QA reads only source-owned @page literals", () => {
     { name: "missing language", lang: "", content: '"가온리테일"', body: "한국어", p2: false, note: true },
     { name: "commented declaration", lang: ' lang="en"', content: 'counter(page); /* content: "가온리테일"; */', body: "English", p2: false, note: false },
     { name: "commented rule", lang: ' lang="en"', style: '/* @page { @top-left { content: "가온리테일"; } } */', body: "English", p2: false, note: false },
+    { name: "comment marker inside a string", lang: ' lang="en"', content: '"Acme /* 가온 */"', body: "English", p2: true, note: false },
   ];
   for (const fixture of cases) {
     const { root } = sandbox();

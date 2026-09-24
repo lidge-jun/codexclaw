@@ -430,8 +430,9 @@ function extractBalancedBlocks(source, marker) {
 function pageContentLiterals(html) {
   const styles = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)]
     .map((match) => match[1]).join("\n")
-    // Commented-out rules and declarations are not page furniture.
-    .replace(/\/\*[\s\S]*?\*\//g, "");
+    // Commented-out rules and declarations are not page furniture; a comment
+    // marker inside a quoted string is content and stays.
+    .replace(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|\/\*[\s\S]*?\*\//g, (match, quoted) => quoted ?? "");
   const pages = extractBalancedBlocks(styles, /@page\b[^{]*/gi);
   return pages.flatMap((page) => [...page.matchAll(
     /content\s*:\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/gi,
