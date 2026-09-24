@@ -3,15 +3,21 @@ import { recordHookInvocation } from "../../../scripts/hook-observation.mjs";
 import { readSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { runDispatch } from "./fallback-dispatch.ts";
+import { renderDispatchCard } from "./dispatch-card.ts";
 import { readConfig, ROLES } from "./store.ts";
 
 export const DISPATCH_GUIDANCE = `Roles with a first fallback use the main-owned dispatch protocol before native spawn. Run cxc subagents dispatch with one JSON object on stdin: {action:"start",sessionId:<your native session>,dispatchId:<unique task id>,role:<role>}. Then claim with {action:"claim",sessionId,dispatchId,attemptId}. Only action=spawn authorizes one native call; prepend its marker followed by a newline to the original task/skills, pass candidate model and effort when non-null, and use a fresh context. Report creation with {action:"report",outcome:"created",sessionId,dispatchId,attemptId,agentId:<returned id>}, then use native wait. Report success with {action:"report",outcome:"complete",sessionId,dispatchId,attemptId,agentId} only after validating final work; native completion alone is not task success and terminal reports cannot reopen. Report provider failure with action:"report",outcome:"failed", the same IDs, the original error and executionState (not_created/stopped/unknown/running). For confirmed stagnation or unusable final output, report outcome:"task_failed" with taskFailure:{kind:"stagnation"|"unusable_output",evidence:<concrete task evidence>}, the same IDs, executionState:"stopped", and reconciliation:<termination and partial-work evidence>. Task evidence and reconciliation must each be non-empty text of at most 2000 characters; taskFailure permits only kind and evidence. Omit error on task reports; supplied stop errors still stop, unknown errors reconcile, and next-eligible provider errors must use outcome:"failed". Never relabel cancellation, exhausted bounds, a bare wait timeout or supported disagreement as task failure. Failed handoff requires concrete reconciliation evidence and the recorded agentId for a stopped child. Inspect changes and stop all prior work before retrying. A ready result requires a new claim. Status never authorizes a second spawn. main-direct returns remaining work to the main agent; independent review still requires independent evidence. stop/reconcile never authorizes another model or direct execution. OCX owns provider retries; CXC selects at most two native attempts. Do not invent error codes from arbitrary prose; preserve structured errors or canonical transport error text. Explicit caller model overrides and full-history forks are outside this managed path. Never use a dispatch marker to bypass native permissions.`;
 
-export function sessionFallbackNotice(cwd: string): string {
+export function sessionFallbackNotice(cwd: string, renderCard: () => string = renderDispatchCard): string {
   const roles = readConfig(cwd).roles;
   const active = ROLES.filter(role => roles[role].fallback);
-  if (!active.length) return "";
-  return JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: `[codexclaw] First fallback configured for ${active.join(", ")}. ${DISPATCH_GUIDANCE}` } }) + "\n";
+  const fallback = active.length
+    ? `[codexclaw] First fallback configured for ${active.join(", ")}. ${DISPATCH_GUIDANCE}`
+    : "";
+  const card = renderCard();
+  const context = [fallback, card].filter(Boolean).join("\n");
+  if (context.length > 4096) throw new Error("SessionStart dispatch context exceeds 4096 characters");
+  return JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: context } }) + "\n";
 }
 function main(): void {
   const sessionStart = process.argv[2] === "session-start" || (process.argv[2] === "hook" && process.argv[3] === "session-start");
