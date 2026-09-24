@@ -5,11 +5,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, writeFileSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ROLES } from "../src/store.ts";
+import { ROLES, setRole } from "../src/store.ts";
+import { handleToolCall } from "../src/mcp.ts";
+import type { CatalogOptions, LiveCatalog } from "../src/live-catalog.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const serverJs = resolve(here, "..", "dist", "mcp.js");
@@ -148,4 +150,99 @@ test('MCP advertises and persists architect with independent reviewer settings',
   assert.equal(settings.roles.architect.model, 'design-fixture');
   assert.equal(settings.roles.architect.effort, 'high');
   assert.equal(settings.roles.reviewer.model, null);
+});
+
+async function directGet(cwd: string, read: (options?: CatalogOptions) => Promise<LiveCatalog>): Promise<Record<string, any>> {
+  const previousCwd = process.cwd();
+  const previousWrite = process.stdout.write;
+  let output = "";
+  process.chdir(cwd);
+  process.stdout.write = ((chunk: string | Uint8Array) => {
+    const value = chunk.toString();
+    if (value.startsWith('{"jsonrpc":"2.0","id":243,')) { output += value; return true; }
+    return previousWrite.call(process.stdout, chunk);
+  }) as typeof process.stdout.write;
+  try {
+    await handleToolCall(243, { name: "subagents_get", arguments: {} }, read);
+  } finally {
+    process.stdout.write = previousWrite;
+    process.chdir(previousCwd);
+  }
+  const envelope = JSON.parse(output.trim());
+  assert.equal(envelope.jsonrpc, "2.0");
+  assert.equal(envelope.id, 243);
+  assert.equal(envelope.result.content[0].type, "text");
+  return JSON.parse(envelope.result.content[0].text);
+}
+
+function fixtureCatalog(source: LiveCatalog["source"], ids: string[], status: LiveCatalog["status"] = "fresh"): LiveCatalog {
+  return { state: source === "ocx" ? "ocx-active" : "native-catalog", source, status,
+    fetchedAt: new Date().toISOString(), entries: ids.map(id => ({ id, label: id, source })) };
+}
+
+test("get provides four role spawnArgs and three-state staleModel with unchanged envelope", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-mcp-card-"));
+  setRole(cwd, "explorer", { mode: "model", model: "provider/present", effort: "low" }, "project");
+  setRole(cwd, "reviewer", { mode: "model", model: "provider/missing", effort: null }, "project");
+  setRole(cwd, "architect", { effort: "high" }, "project");
+  let forceRefresh = false;
+  const result = await directGet(cwd, async (options) => { forceRefresh = options?.forceRefresh === true; return fixtureCatalog("ocx", ["provider/present"]); });
+  assert.equal(forceRefresh, true);
+  assert.deepEqual(Object.keys(result.roles).sort(), [...ROLES].sort());
+  assert.deepEqual(result.roles.explorer.spawnArgs, { model: "provider/present", reasoning_effort: "low" });
+  assert.equal(result.roles.explorer.staleModel, false);
+  assert.equal("staleReason" in result.roles.explorer, false);
+  assert.deepEqual(result.roles.reviewer.spawnArgs, { model: "provider/missing" });
+  assert.equal(result.roles.reviewer.staleModel, true);
+  assert.equal("staleReason" in result.roles.reviewer, false);
+  assert.deepEqual(result.roles.executor.spawnArgs, {});
+  assert.deepEqual(result.roles.architect.spawnArgs, { reasoning_effort: "high" });
+  assert.equal(result.roles.executor.staleModel, null);
+  assert.equal(result.roles.executor.staleReason, "role uses the default model");
+  assert.equal(result.roles.explorer.model, "provider/present");
+  assert.ok(result.sources && result.overrides && result.scope);
+});
+
+test("failed live refresh never marks stale", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-mcp-stale-"));
+  setRole(cwd, "reviewer", { mode: "model", model: "provider/missing" }, "project");
+  const stale = await directGet(cwd, async () => fixtureCatalog("ocx", ["provider/present"], "stale"));
+  assert.equal(stale.roles.reviewer.staleModel, null);
+  assert.equal(stale.roles.reviewer.staleReason, "catalog is last-success cache");
+  const unavailable = await directGet(cwd, async () => fixtureCatalog("ocx", [], "unavailable"));
+  assert.equal(unavailable.roles.reviewer.staleModel, null);
+  assert.equal(unavailable.roles.reviewer.staleReason, "catalog unavailable");
+  const rejected = await directGet(cwd, async () => { throw new Error("OCX failed"); });
+  assert.equal(rejected.roles.reviewer.staleReason, "catalog unavailable");
+});
+
+test("native catalog age gates absence", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-mcp-native-"));
+  const path = join(cwd, "models.json");
+  writeFileSync(path, JSON.stringify({ models: [{ id: "provider/present" }] }));
+  setRole(cwd, "reviewer", { mode: "model", model: "provider/missing" }, "project");
+  const previous = process.env.CODEX_MODELS_CACHE_PATH;
+  process.env.CODEX_MODELS_CACHE_PATH = path;
+  try {
+    const fresh = await directGet(cwd, async () => fixtureCatalog("native", ["provider/present"]));
+    assert.equal(fresh.roles.reviewer.staleModel, true);
+    const old = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    utimesSync(path, old, old);
+    const aged = await directGet(cwd, async () => fixtureCatalog("native", ["provider/present"]));
+    assert.equal(aged.roles.reviewer.staleModel, null);
+    assert.equal(aged.roles.reviewer.staleReason, "catalog unavailable");
+  } finally {
+    if (previous === undefined) delete process.env.CODEX_MODELS_CACHE_PATH;
+    else process.env.CODEX_MODELS_CACHE_PATH = previous;
+  }
+});
+
+test("timeout yields staleModel null with staleReason", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-mcp-timeout-"));
+  setRole(cwd, "reviewer", { mode: "model", model: "provider/model" }, "project");
+  const started = Date.now();
+  const result = await directGet(cwd, () => new Promise<LiveCatalog>(() => {}));
+  assert.ok(Date.now() - started < 5500);
+  assert.equal(result.roles.reviewer.staleModel, null);
+  assert.equal(result.roles.reviewer.staleReason, "catalog read timed out after 5000 ms");
 });

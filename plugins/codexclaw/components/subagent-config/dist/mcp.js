@@ -14,9 +14,12 @@
  * Zero third-party deps: newline-delimited JSON-RPC over stdin/stdout (node:* only).
  */
 import { createInterface } from "node:readline";
-import { ROLES, EFFORTS } from "./store.js";
+import { realpathSync, statSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { ROLES, EFFORTS,                                                       } from "./store.js";
 import { getSettings, updateSettings } from "./settings-api.js";
-import { readCatalog } from "./live-catalog.js";
+import { nativeCatalogPath } from "./catalog.js";
+import { readCatalog,                                       } from "./live-catalog.js";
 
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_INFO = { name: "codexclaw-subagent-config", version: "0.1.1" };
@@ -75,12 +78,68 @@ function toolError(id         , message        )       {
   reply(id, { content: [{ type: "text", text: JSON.stringify({ error: message }) }], isError: true });
 }
 
-async function callTool(id         , params                                                        )                {
+const NATIVE_CATALOG_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const STALE_PROBE_MS = 5_000;
+
+function catalogIsAuthoritative(catalog             , now        , env                   )          {
+  if (catalog.status !== "fresh") return false;
+  if (catalog.source === "ocx") return true;
+  const path = nativeCatalogPath(env);
+  if (!path) return false;
+  try {
+    const age = now - statSync(path).mtimeMs;
+    return age >= 0 && age <= NATIVE_CATALOG_MAX_AGE_MS;
+  } catch { return false; }
+}
+
+
+
+
+
+
+
+function decorateSubagentsGet(settings                  , catalog                    , now = Date.now(), env                    = process.env) {
+  const authoritative = catalog !== null && catalogIsAuthoritative(catalog, now, env);
+  const roles = {}                                   ;
+  for (const role of ROLES) {
+    const config = settings.roles[role];
+    const spawnArgs                             = {};
+    if (config.mode === "model" && config.model) spawnArgs.model = config.model;
+    if (config.effort !== null) spawnArgs.reasoning_effort = config.effort;
+    const staleModel = config.mode === "model" && config.model && authoritative
+      ? !catalog .entries.some(entry => entry.id === config.model)
+      : null;
+    let staleReason                    ;
+    if (staleModel === null) {
+      staleReason = config.mode !== "model" ? "role uses the default model"
+        : catalog === null ? "catalog read timed out after 5000 ms"
+        : catalog.status === "stale" ? "catalog is last-success cache"
+        : "catalog unavailable";
+    }
+    roles[role] = { ...config, spawnArgs, staleModel, ...(staleReason ? { staleReason } : {}) };
+  }
+  return { ...settings, roles };
+}
+
+export async function handleToolCall(
+  id         ,
+  params                                                        ,
+  readCatalogImpl                                                     = readCatalog,
+)                {
   const cwd = process.cwd();
   const args = params.arguments ?? {};
   if (params.name === "subagents_get" || params.name === "subagents_set") {
     try {
-      toolResult(id, params.name === "subagents_get" ? getSettings(cwd, args.scope) : updateSettings(cwd, args));
+      if (params.name === "subagents_get") {
+        const settings = getSettings(cwd, args.scope);
+        const catalog = await Promise.race([
+          readCatalogImpl({ forceRefresh: true }).catch(()              => ({ state: "unavailable", entries: [], status: "unavailable", source: "ocx", fetchedAt: null })),
+          new Promise      ((resolve) => { const timer = setTimeout(() => resolve(null), STALE_PROBE_MS); timer.unref?.(); }),
+        ]);
+        toolResult(id, decorateSubagentsGet(settings, catalog));
+      } else {
+        toolResult(id, updateSettings(cwd, args));
+      }
     } catch (err) {
       toolError(id, err instanceof Error ? err.message : String(err));
     }
@@ -109,7 +168,7 @@ async function handle(msg                                   )                {
       reply(id, { tools: TOOLS });
       return;
     case "tools/call":
-      await callTool(id, (msg                                                                       ).params ?? {});
+      await handleToolCall(id, (msg                                                                       ).params ?? {});
       return;
     case "ping":
       reply(id, {});
@@ -122,14 +181,21 @@ async function handle(msg                                   )                {
   }
 }
 
-const rl = createInterface({ input: process.stdin });
-rl.on("line", (line        ) => {
-  const trimmed = line.trim();
-  if (!trimmed) return;
-  try {
-    void handle(JSON.parse(trimmed)                                     ).catch(() => { /* malformed requests do not crash stdio */ });
-  } catch {
-    // Malformed line: ignore rather than crash the long-lived server.
-  }
-});
-rl.on("close", () => process.exit(0));
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const rl = createInterface({ input: process.stdin });
+  // Requests run one at a time so replies keep request order now that
+  // subagents_get awaits a catalog read, and stdin EOF waits for them to finish.
+  let queue                = Promise.resolve();
+  rl.on("line", (line        ) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    let msg                                   ;
+    try {
+      msg = JSON.parse(trimmed)                                     ;
+    } catch {
+      return; // Malformed line: ignore rather than crash the long-lived server.
+    }
+    queue = queue.then(() => handle(msg)).catch(() => { /* malformed requests do not crash stdio */ });
+  });
+  rl.on("close", () => { void queue.then(() => process.exit(0)); });
+}

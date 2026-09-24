@@ -6,6 +6,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { setRole } from "../src/store.ts";
+import { DISPATCH_GUIDANCE, sessionFallbackNotice } from "../src/fallback-dispatch-cli.ts";
+import { renderDispatchCard } from "../src/dispatch-card.ts";
 const cli = resolve(dirname(fileURLToPath(import.meta.url)), "../src/fallback-dispatch-cli.ts");
 
 test("real CLI persists route, survives separate processes, and emits startup protocol", () => {
@@ -78,4 +80,28 @@ test("malformed startup payload is silent, malformed dispatch input is visible",
   assert.equal(hook.status, 0); assert.equal(hook.stdout, "");
   const command = spawnSync(process.execPath, [cli], { input: "", encoding: "utf8" });
   assert.equal(command.status, 1); assert.ok(JSON.parse(command.stdout).error);
+});
+
+test("session card appears without fallback and repeats for each startup", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-card-no-fallback-"));
+  const first = JSON.parse(sessionFallbackNotice(cwd)).hookSpecificOutput;
+  const second = JSON.parse(sessionFallbackNotice(cwd)).hookSpecificOutput;
+  assert.equal(first.hookEventName, "SessionStart");
+  assert.equal(first.additionalContext, renderDispatchCard());
+  assert.deepEqual(second, first);
+  const child = spawnSync(process.execPath, [cli, "hook", "session-start"], { cwd, input: JSON.stringify({ cwd, agent_id: "child" }), encoding: "utf8" });
+  assert.equal(child.status, 0);
+  assert.equal(child.stdout, "");
+});
+
+test("managed protocol precedes card and combined context is bounded", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "cxc-card-fallback-"));
+  setRole(cwd, "executor", { fallback: { model: "provider/fallback", effort: "low" } }, "project");
+  const context: string = JSON.parse(sessionFallbackNotice(cwd)).hookSpecificOutput.additionalContext;
+  const prefix = `[codexclaw] First fallback configured for executor. ${DISPATCH_GUIDANCE}`;
+  assert.ok(context.startsWith(prefix + "\n"));
+  assert.equal(context.slice(prefix.length + 1), renderDispatchCard());
+  assert.ok(context.length <= 4096);
+  assert.ok(renderDispatchCard().length <= 1200);
+  assert.throws(() => sessionFallbackNotice(cwd, () => "x".repeat(4097)), /SessionStart dispatch context exceeds 4096 characters/);
 });

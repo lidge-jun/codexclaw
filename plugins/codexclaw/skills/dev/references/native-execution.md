@@ -23,6 +23,7 @@ If `ALL_TOOLS` is offered, filter its metadata to discover candidates, then read
 the matching description/schema before calling the exact supported tool. A search
 match is not permission, and no match does not prove a plugin is uninstalled.
 Never guess `tools.tool_search` or treat a shell tool named `exec` as JS execution.
+For codexclaw subagent dispatch, use the SessionStart card from `fallback-dispatch-cli.ts`: a `CODEXCLAW_SPAWN_V1=1` override prints the exact V1 Code Mode call, while an unresolved family uses the card's single-cell resolver and spawn. Recheck the live schema when a card call fails or the toolset changes; the card is not evidence for an exact V2 helper spelling.
 Do not change code_mode_only/prewarm/interrupt settings or install a runtime as
 an implicit fallback. Read [worked examples](code-mode-examples.md) only when a
 concrete composition, projection, or cache pattern would help.
