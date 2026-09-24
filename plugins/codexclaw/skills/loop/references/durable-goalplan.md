@@ -57,10 +57,12 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
   Task ids and task dependency references are phase-local: `task.dependsOn` names existing task ids in
   the same work phase, never a task in another phase. A done task carries a non-empty `outcome`; a pending
   task has no outcome.
-- `criteria[]` — each `{ id, scenario, surface, expectedEvidence, capturedEvidence, status: open|met }`.
+- `criteria[]` — each `{ id, scenario, surface, presented?, expectedEvidence, capturedEvidence, status: open|met }`.
   `scenario` is the `--criterion` text and `surface` is one of `logic` (default),
   `web`, `tui` or `desktop`, set by `add-criterion --surface` on a session-bound plan
-  (`init` refuses `--surface`). `web`, `tui` and `desktop` make the QA receipt
+  (`init` refuses `--surface`). `presented: "native"` is legal only with
+  `surface: "desktop"` and activates the soft native observation advisory.
+  `web`, `tui` and `desktop` make the QA receipt
   mandatory through validation on schemaVersion 2+ plans with a final gate and through
   the final-gate spawn guard on any plan with a recorded finalGate; otherwise the value
   is a classification. Builds older than 0.2.37 drop `desktop` on read and erase it on
@@ -84,10 +86,10 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
 - `cxc loop validate (--slug <slug> | --objective <text> | --session <id>) [--cwd <path>]` — runs the E8 quality gate; it FAILS
   unless the plan is complete and every `met` criterion carries `capturedEvidence`.
 - `cxc loop steer --session <id> --batch-json <path-or-json> [--cwd <path>]`
-- `cxc loop add-criterion --session <id> --criterion <text> [--surface logic|web|tui|desktop] [--cwd <path>]` —
+- `cxc loop add-criterion --session <id> --criterion <text> [--surface logic|web|tui|desktop] [--presented native] [--cwd <path>]` —
   registers a criterion whose scenario is the `--criterion` text. There is no `--id`:
   ids are assigned as `c-1`, `c-2`, ... (max existing `c-N` + 1, in registration
-  order). A duplicate scenario text is rejected.
+  order). A duplicate scenario text is rejected. `--presented native` requires `--surface desktop`.
 - `cxc loop add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]... [--cwd <path>]`
 - `cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]`
 - `cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]`
@@ -96,7 +98,7 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
   a generated `c-N` id; read it from `cxc loop show` or the goalplan file.
 - `cxc goalplan *` — deprecated alias for the same behavior during migration.
 
-The parser rejects unknown flags, stray positionals, missing values, and flags belonging to another verb before dispatch. Every value flag also accepts `--flag=value`, which is the way to pass a value that starts with `--`; `--presented` is reserved for the follow-up wp5 change.
+The parser rejects unknown flags, stray positionals, missing values, and flags belonging to another verb before dispatch. Every value flag also accepts `--flag=value`, which is the way to pass a value that starts with `--`.
 
 Repeat `--depends-on` once per prerequisite; comma-separated values are one id. Existing dependencies are
 not edited after creation. `complete-task` and `meet-criterion` require non-empty proof text.

@@ -1,7 +1,7 @@
 // wp6 신규 파일 import 전체; 선행 wp 추가 이름 없음
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -136,7 +136,7 @@ test("unknown flags are rejected for the selected verb before dispatch", () => {
     ["complete-task", "--session", session, "--work-phase", "wp-live", "--id", "ready-task", "--outcome", "Done", "--surface", "desktop"],
     ["meet-criterion", "--session", session, "--id", "c-1", "--evidence", "Proof", "--surface", "desktop"],
     ["show", "--slug", plan.slug, "--json"],
-    ["add-criterion", "--session", session, "--criterion", "New", "--presented", "native"],
+    ["add-criterion", "--session", session, "--criterion", "New", "--bogus", "native"],
   ];
   for (const argv of cases) {
     const parsed = parseGoalplanCliArgs(argv, cwd);
@@ -474,7 +474,7 @@ test("help lists repeated dependency syntax and required outcome", () => {
   assert.match(help, /meet-criterion .*--evidence <text>/);
   assert.match(help, /Repeat --depends-on once per prerequisite/);
   assert.match(help, /Unknown flags, stray positionals, missing values, and flags on the wrong verb are rejected before dispatch/);
-  assert.doesNotMatch(help, /--presented/);
+  assert.match(help, /add-criterion .*\[--presented native\]/);
   for (const verb of ["init", "show", "validate", "steer", "add-criterion", "add-work-phase", "ready", "add-task", "complete-task", "meet-criterion"]) {
     const line = help.split("\n").find((row) => row.startsWith(`  cxc loop ${verb} `));
     assert.ok(line?.includes("[--cwd <path>]"), verb);
@@ -539,6 +539,75 @@ test("add-criterion takes --surface desktop, refuses unknown or valueless surfac
     assert.match(r.error, /Nothing was written/);
     assert.equal(existsSync(join(fresh, ".codexclaw", "goalplans")), false);
   }
+});
+
+test("add-criterion stores presented native only for desktop in both value forms", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  for (const [scenario, flag] of [["native app", "--presented"], ["native dialog", "--presented=native"]]) {
+    const argv = flag.includes("=")
+      ? ["add-criterion", "--session", session, "--criterion", scenario, "--surface=desktop", flag]
+      : ["add-criterion", "--session", session, "--criterion", scenario, "--surface", "desktop", flag, "native"];
+    const result = cli(cwd, argv);
+    assert.equal(result.code, 0, result.output);
+    const criterion = readGoalplan(cwd, plan.slug)?.criteria.find((c) => c.scenario === scenario);
+    assert.equal(criterion?.surface, "desktop");
+    assert.equal(criterion?.presented, "native");
+  }
+});
+
+test("goalplan reviver retains native presentation and drops unknown values", () => {
+  const plan = buildGoalplan({
+    objective: "presentation round trip",
+    criteria: [{ scenario: "native", surface: "desktop", presented: "native" }],
+  });
+  const { cwd } = workspace(plan);
+  assert.equal(readGoalplan(cwd, plan.slug)?.criteria[0]?.presented, "native");
+  const path = join(goalplanDir(cwd, plan.slug), "goalplan.json");
+  const raw = JSON.parse(readFileSync(path, "utf8"));
+  raw.criteria[0].presented = "web";
+  writeFileSync(path, JSON.stringify(raw));
+  assert.equal(readGoalplan(cwd, plan.slug)?.criteria[0]?.presented, undefined);
+});
+
+test("add-criterion rejects presented without desktop or with an unknown value without writing", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  const beforePlan = planText(cwd, plan.slug);
+  const beforeLedger = ledgerText(cwd, plan.slug);
+  for (const argv of [
+    ["add-criterion", "--session", session, "--criterion", "native", "--presented", "native"],
+    ["add-criterion", "--session", session, "--criterion", "web", "--surface", "web", "--presented", "native"],
+    ["add-criterion", "--session", session, "--criterion", "unknown", "--surface", "desktop", "--presented=web"],
+  ]) {
+    const result = cli(cwd, argv);
+    assert.equal(result.code, 1);
+    assert.match(result.output, /--presented native requires --surface desktop/);
+    assert.equal(planText(cwd, plan.slug), beforePlan);
+    assert.equal(ledgerText(cwd, plan.slug), beforeLedger);
+  }
+});
+
+test("parser rejects missing presented values and presented on other verbs before dispatch", () => {
+  const plan = fixture();
+  const { cwd, session } = workspace(plan);
+  const beforePlan = planText(cwd, plan.slug);
+  const beforeLedger = ledgerText(cwd, plan.slug);
+  for (const argv of [
+    ["add-criterion", "--session", session, "--criterion", "x", "--surface", "desktop", "--presented"],
+    ["add-criterion", "--session", session, "--criterion", "x", "--surface", "desktop", "--presented="],
+  ]) {
+    const parsed = parseGoalplanCliArgs(argv, cwd);
+    assert.ok("error" in parsed);
+    assert.match(parsed.error, /--presented requires a value/);
+  }
+  for (const verb of ["init", "show", "validate", "steer", "add-work-phase", "ready", "add-task", "complete-task", "meet-criterion"]) {
+    const parsed = parseGoalplanCliArgs([verb, "--presented", "native"], cwd);
+    assert.ok("error" in parsed, verb);
+    assert.match(parsed.error, /unknown flag/);
+  }
+  assert.equal(planText(cwd, plan.slug), beforePlan);
+  assert.equal(ledgerText(cwd, plan.slug), beforeLedger);
 });
 
 test("comma dependency is rejected while repeated flags persist dependencies", () => {
@@ -611,4 +680,3 @@ test("the built CLI rejects a misplaced or misspelled flag before any write", ()
     }
   }
 });
-

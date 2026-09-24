@@ -79,6 +79,8 @@ export interface GoalplanCliArgs {
   surface?: string;
   /** True when --surface appeared at all, even without a value; init refuses it. */
   surfaceGiven?: boolean;
+  /** `add-criterion` only; valid only with --surface desktop. */
+  presented?: string;
   /**
    * `init` only: the schemaVersion the new plan DECLARES. Absent means
    * `DEFAULT_NEW_SCHEMA_VERSION` (1). 2 and 3 add a final-gate requirement that
@@ -126,7 +128,7 @@ const VERBS: ReadonlySet<string> = new Set<GoalplanVerb>([
 
 type GoalplanFlag =
   | "--objective" | "--slug" | "--criterion" | "--cwd" | "--session"
-  | "--batch-json" | "--surface" | "--id" | "--title" | "--work-phase"
+  | "--batch-json" | "--surface" | "--presented" | "--id" | "--title" | "--work-phase"
   | "--outcome" | "--schema-version" | "--evidence" | "--json" | "--depends-on";
 
 type VerbRule = {
@@ -140,7 +142,7 @@ const VERB_RULES: Readonly<Record<GoalplanVerb, VerbRule>> = {
   show: { allowed: new Set(["--slug", "--objective", "--session", "--cwd"]), repeatable: new Set(), usage: "show (--slug <slug> | --objective <text> | --session <id>) [--cwd <path>]" },
   validate: { allowed: new Set(["--slug", "--objective", "--session", "--cwd"]), repeatable: new Set(), usage: "validate (--slug <slug> | --objective <text> | --session <id>) [--cwd <path>]" },
   steer: { allowed: new Set(["--session", "--batch-json", "--cwd"]), repeatable: new Set(), usage: "steer --session <id> --batch-json <path-or-json> [--cwd <path>]" },
-  "add-criterion": { allowed: new Set(["--session", "--criterion", "--surface", "--cwd"]), repeatable: new Set(), usage: "add-criterion --session <id> --criterion <text> [--surface logic|web|tui|desktop] [--cwd <path>]" },
+  "add-criterion": { allowed: new Set(["--session", "--criterion", "--surface", "--presented", "--cwd"]), repeatable: new Set(), usage: "add-criterion --session <id> --criterion <text> [--surface logic|web|tui|desktop] [--presented native] [--cwd <path>]" },
   "add-work-phase": { allowed: new Set(["--session", "--id", "--title", "--depends-on", "--cwd"]), repeatable: new Set(["--depends-on"]), usage: "add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]... [--cwd <path>]" },
   ready: { allowed: new Set(["--slug", "--objective", "--session", "--json", "--cwd"]), repeatable: new Set(), usage: "ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]" },
   "add-task": { allowed: new Set(["--session", "--work-phase", "--id", "--title", "--depends-on", "--cwd"]), repeatable: new Set(["--depends-on"]), usage: "add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]" },
@@ -208,6 +210,7 @@ export function parseGoalplanCliArgs(argv: string[], cwd: string): GoalplanCliAr
       case "--session": out.session = value; break;
       case "--batch-json": out.batchJson = value; break;
       case "--surface": out.surfaceGiven = true; out.surface = value; break;
+      case "--presented": out.presented = value; break;
       case "--id": out.id = value; break;
       case "--title": out.title = value; break;
       case "--work-phase": out.workPhaseId = value; break;
@@ -373,7 +376,10 @@ function runAddOp(args: GoalplanCliArgs): GoalplanCliResult {
     if (!SURFACES.has(surface)) {
       return { output: `loop add-criterion: --surface must be logic|web|tui|desktop (got '${args.surface}')`, code: 1 };
     }
-    op = { kind: "add-criterion", scenario, surface };
+    if (args.presented !== undefined && (surface !== "desktop" || args.presented !== "native")) {
+      return { output: "loop add-criterion: --presented native requires --surface desktop", code: 1 };
+    }
+    op = { kind: "add-criterion", scenario, surface, ...(args.presented === "native" ? { presented: "native" } : {}) };
     summary = scenario;
   } else {
     const id = (args.id ?? "").trim();

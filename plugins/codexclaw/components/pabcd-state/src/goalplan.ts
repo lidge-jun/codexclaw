@@ -73,6 +73,7 @@ export type CriterionStatus = "open" | "met";
  * QA receipt on top of a test receipt.
  */
 export type CriterionSurface = "logic" | "web" | "tui" | "desktop";
+export type PresentedSurface = "native";
 export type TaskStatus = "pending" | "done";
 /**
  * `blocked` and `superseded` are both "not done" and neither counts as success.
@@ -95,6 +96,7 @@ export interface GoalplanCriterion {
    * quietly buy a QA exemption.
    */
   surface?: CriterionSurface;
+  presented?: PresentedSurface;
 }
 
 export interface GoalplanTask {
@@ -564,6 +566,7 @@ function reviveGoalplan(parsed: unknown, expectedSlug?: string): Goalplan | null
       ...(cc.surface === "logic" || cc.surface === "web" || cc.surface === "tui" || cc.surface === "desktop"
         ? { surface: cc.surface }
         : {}),
+      ...(cc.presented === "native" ? { presented: "native" } : {}),
     });
   }
 
@@ -890,7 +893,7 @@ export function appendGoalplanLedger(cwd: string, slug: string, entry: GoalplanL
 export interface NewGoalplanInput {
   objective: string;
   /** seeded acceptance criteria (e.g. from the freeze EvidenceBundle). */
-  criteria?: Array<{ scenario: string; expectedEvidence?: string; surface?: CriterionSurface }>;
+  criteria?: Array<{ scenario: string; expectedEvidence?: string; surface?: CriterionSurface; presented?: PresentedSurface }>;
   host?: Partial<GoalplanHostLink>;
   /**
    * The schemaVersion the new plan DECLARES. Absent means
@@ -926,6 +929,7 @@ export function buildGoalplan(input: NewGoalplanInput): Goalplan {
     // schemaVersion 2 refuses an unclassified criterion. Defaulting to "logic"
     // is what makes init-time criteria constructible under v2 at all.
     surface: c.surface ?? "logic",
+    ...(c.presented === "native" ? { presented: "native" as const } : {}),
     expectedEvidence: c.expectedEvidence ?? "",
     capturedEvidence: null,
     status: "open",

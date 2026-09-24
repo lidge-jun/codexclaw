@@ -18,8 +18,8 @@
  * All IO is project-local under `cwd`. Every reader FAILS-OPEN (missing file or
  * parse error yields []).
  */
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { extname, join } from "node:path";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { dirname, extname, join, resolve } from "node:path";
 import type { PostToolUsePayload } from "./hook.ts";
 import { fileEditShapes } from "./edit-shape.ts";
 import { splitLines } from "./text-lines.ts";
@@ -50,7 +50,7 @@ export const RENDER_OBSERVATION_TOOLS: ReadonlySet<string> = new Set([
   "computer-use:computer-use",
 ]);
 
-export type RenderObsKind = "observation" | "artifact-modified";
+export type RenderObsKind = "observation" | "artifact-modified" | "native-observation";
 
 export interface RenderObsRow {
   ts: string;
@@ -58,6 +58,9 @@ export interface RenderObsRow {
   /** Tool name for observation rows; file path for artifact-modified rows. */
   detail: string;
   sessionId: string;
+  nativeApp?: string;
+  screenshotPath?: string;
+  criterionId?: string;
 }
 
 function ledgerPath(cwd: string): string {
@@ -90,14 +93,20 @@ export function readRenderObsRows(cwd: string): RenderObsRow[] {
       if (
         o &&
         typeof o.kind === "string" &&
-        (o.kind === "observation" || o.kind === "artifact-modified") &&
+        (o.kind === "observation" || o.kind === "artifact-modified" || o.kind === "native-observation") &&
         typeof o.detail === "string"
       ) {
+        if (o.kind === "native-observation"
+          && !(typeof o.nativeApp === "string" && o.nativeApp.trim())
+          && !(typeof o.screenshotPath === "string" && o.screenshotPath.trim())) continue;
         out.push({
           ts: typeof o.ts === "string" ? o.ts : "",
           kind: o.kind,
           detail: o.detail,
           sessionId: typeof o.sessionId === "string" ? o.sessionId : "",
+          ...(typeof o.nativeApp === "string" && o.nativeApp.trim() ? { nativeApp: o.nativeApp } : {}),
+          ...(typeof o.screenshotPath === "string" && o.screenshotPath.trim() ? { screenshotPath: o.screenshotPath } : {}),
+          ...(typeof o.criterionId === "string" && o.criterionId.trim() ? { criterionId: o.criterionId } : {}),
         });
       }
     } catch {
@@ -136,6 +145,69 @@ export function hasRenderArtifactModified(cwd: string, sessionId?: string): bool
   );
 }
 
+/** Native observation signals are session-scoped, just like ordinary render rows. */
+export function nativeObservationRows(cwd: string, sessionId?: string): RenderObsRow[] {
+  return readRenderObsRows(cwd).filter(
+    (r) => r.kind === "native-observation" && (sessionId === undefined || r.sessionId === sessionId),
+  );
+}
+
+export function hasNativeObservation(cwd: string, sessionId?: string): boolean {
+  return nativeObservationRows(cwd, sessionId).length > 0;
+}
+
+/** Malformed ledger bytes cannot establish whether a native observation was recorded. */
+export function nativeObservationLedgerMalformed(cwd: string): boolean {
+  let raw: string;
+  try {
+    raw = readFileSync(ledgerPath(cwd), "utf8");
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== "ENOENT";
+  }
+  for (const line of splitLines(raw)) {
+    if (!line.trim()) continue;
+    try {
+      const row = JSON.parse(line) as unknown;
+      if (typeof row !== "object" || row === null || Array.isArray(row)) return true;
+    } catch {
+      return true;
+    }
+  }
+  return false;
+}
+
+function structuredField(value: unknown, names: string[]): string | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const fields = value as Record<string, unknown>;
+  for (const name of names) {
+    const field = fields[name];
+    if (typeof field === "string" && field.trim()) return field.trim();
+  }
+  return null;
+}
+
+/** A viewed screenshot counts only when a verdict in this session declared its exact path. */
+function declaredScreenshot(cwd: string, sessionId: string, path: string): string | null {
+  if (!/^[A-Za-z0-9._-]+$/.test(sessionId) || sessionId === "." || sessionId === "..") return null;
+  const qaRoot = join(cwd, STATE_DIR, "evidence", sessionId, "qa");
+  const viewed = resolve(cwd, path);
+  const visit = (dir: string): boolean => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const file = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (visit(file)) return true;
+      } else if (entry.isFile() && entry.name === "verdict.json") {
+        const verdict = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+        if (Array.isArray(verdict.artifactRefs) && verdict.artifactRefs.some(
+          (ref) => typeof ref === "string" && resolve(dirname(file), ref) === viewed,
+        )) return true;
+      }
+    }
+    return false;
+  };
+  return visit(qaRoot) ? viewed : null;
+}
+
 /**
  * Check whether a file path has a render-artifact extension.
  */
@@ -161,6 +233,25 @@ export function handleRenderObservationCapture(payload: PostToolUsePayload): str
       detail: payload.tool_name,
       sessionId: payload.session_id,
     });
+    const criterionId = structuredField(payload.tool_input, ["criterionId"])
+      ?? structuredField(payload.tool_response, ["criterionId"]);
+    if (payload.tool_name === "computer-use:computer-use") {
+      const nativeApp = structuredField(payload.tool_input, ["appName", "application", "app"])
+        ?? structuredField(payload.tool_response, ["appName", "application", "app"]);
+      if (nativeApp) appendRow(payload.cwd, {
+        ts: new Date().toISOString(), kind: "native-observation", detail: payload.tool_name,
+        sessionId: payload.session_id, nativeApp,
+        ...(criterionId ? { criterionId } : {}),
+      });
+    } else if (payload.tool_name === "view_image") {
+      const path = structuredField(payload.tool_input, ["path"]);
+      const screenshotPath = path ? declaredScreenshot(payload.cwd, payload.session_id, path) : null;
+      if (screenshotPath) appendRow(payload.cwd, {
+        ts: new Date().toISOString(), kind: "native-observation", detail: payload.tool_name,
+        sessionId: payload.session_id, screenshotPath,
+        ...(criterionId ? { criterionId } : {}),
+      });
+    }
   } catch {
     // FAIL-OPEN
   }
