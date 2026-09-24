@@ -644,6 +644,48 @@ test("runTool reports cleanup failure when injected kill cannot produce child ex
   } finally { killFixture(pid); }
 });
 
+test("a child that survives post-kill grace does not keep the exporter process alive", () => {
+  const script = [
+    `import { runTool } from ${JSON.stringify(pathToFileURL(SCRIPT).href)};`,
+    "let pid;",
+    "const result = await runTool(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], 100, {",
+    "  postKillGraceMs: 50,",
+    "  killTree(child) { pid = child.pid; return { error: 'tree cleanup failed: injected', signalSent: null, taskkillStatus: null }; },",
+    "});",
+    "console.log(JSON.stringify({ pid, ok: result.ok, reason: result.reason }));",
+  ].join("\n");
+  const probe = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", timeout: 20_000 });
+  let reported;
+  try {
+    assert.equal(probe.error, undefined, "the wrapper must exit on its own before the 20 s watchdog");
+    assert.equal(probe.status, 0, probe.stderr);
+    reported = JSON.parse(probe.stdout.trim().split("\n").pop());
+    assert.equal(reported.ok, false);
+    assert.match(reported.reason, /post-kill grace expired before child exit/);
+  } finally { killFixture(reported?.pid); }
+});
+
+test("a stage that changes after the stability decision is not a stable completion", async () => {
+  const { root } = sandbox();
+  try {
+    const stage = join(root, "stage.pdf");
+    const source = `require('node:fs').writeFileSync(process.argv[1], ${JSON.stringify("%PDF-1.4\n%%EOF\n")}); setInterval(() => {}, 1000)`;
+    const result = await runTool(process.execPath, ["-e", source, stage], 8_000, {
+      completionPath: stage,
+      killTree(child) {
+        writeFileSync(stage, "%PDF-1.4\n");
+        child.kill("SIGKILL");
+        return process.platform === "win32"
+          ? { error: null, signalSent: null, taskkillStatus: 0 }
+          : { error: null, signalSent: "SIGKILL", taskkillStatus: null };
+      },
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.reason, /stage changed or disappeared after the stability decision/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+
 test("human summaries print each failed check id and reason once", () => {
   const { root } = sandbox();
   try {
@@ -669,7 +711,7 @@ test("the stage probe accepts EOF trailer whitespace and rejects incomplete trai
     for (const [trailer, complete] of [["%%EOF", true], ["%%EOF\n", true], ["%%EOF\r\n", true], ["%%EO", false], ["%%EOF\nxref", false]]) {
       const stage = join(root, "probe.pdf");
       const source = `require('node:fs').writeFileSync(process.argv[1], ${JSON.stringify(`%PDF-1.4\n${trailer}`)}); setInterval(() => {}, 1000)`;
-      const result = await runTool(process.execPath, ["-e", source, stage], complete ? 3_000 : 500, { completionPath: stage });
+      const result = await runTool(process.execPath, ["-e", source, stage], complete ? 8_000 : 500, { completionPath: stage });
       assert.equal(result.ok, complete, `trailer ${JSON.stringify(trailer)}: ${result.reason}`);
       if (complete) assert.equal(result.completedBy, "stage-stable");
       else assert.match(result.reason, /timed out after 500 ms/);

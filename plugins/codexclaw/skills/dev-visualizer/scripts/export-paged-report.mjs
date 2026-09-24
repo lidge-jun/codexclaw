@@ -139,6 +139,7 @@ async function runTool(tool, args, timeoutMs, {
       let killRequestedAt = null;
       let killOutcome = { error: null, signalSent: null, taskkillStatus: null };
       let previousStage = null;
+      let acceptedStage = null;
       let stableSince = null;
       let deadlineTimer;
       let probeTimer;
@@ -165,12 +166,17 @@ async function runTool(tool, args, timeoutMs, {
         } else {
           killOutcome = { error: "tree cleanup failed: child has no PID", signalSent: null, taskkillStatus: null };
         }
-        graceTimer = setTimeout(() => finishResult({
-          timedOut,
-          completionRequested,
-          cleanupError: killOutcome.error,
-          postKillTimedOut: true,
-        }), postKillGraceMs);
+        graceTimer = setTimeout(() => {
+          // A child that survived cleanup must not keep this exporter alive:
+          // the failure is reported and the owned handle is released.
+          child.unref();
+          finishResult({
+            timedOut,
+            completionRequested,
+            cleanupError: killOutcome.error,
+            postKillTimedOut: true,
+          });
+        }, postKillGraceMs);
       };
       child.once("error", (error) => finishResult({ error }));
       child.once("exit", (status, signal) => {
@@ -179,10 +185,16 @@ async function runTool(tool, args, timeoutMs, {
           && (process.platform === "win32"
             ? killOutcome.taskkillStatus === 0
             : status === null && signal !== null && signal === killOutcome.signalSent);
+        // The stage must still be the snapshot that was judged stable: a write or
+        // truncation racing the kill voids the stable-stage completion.
+        const after = killedByUs ? readPdfStageSnapshot(completionPath) : null;
+        const stageChanged = killedByUs && (!after || !acceptedStage
+          || after.size !== acceptedStage.size || after.mtimeMs !== acceptedStage.mtimeMs);
         finishResult({
           status, signal, timedOut, completionRequested,
           cleanupError: killOutcome.error,
-          completedBy: killedByUs ? "stage-stable" : "exit",
+          completedBy: killedByUs && !stageChanged ? "stage-stable" : "exit",
+          stageChanged,
         });
       });
       deadlineTimer = setTimeout(() => {
@@ -203,6 +215,7 @@ async function runTool(tool, args, timeoutMs, {
           if (!unchanged) stableSince = Date.now();
           previousStage = current;
           if (stableSince !== null && Date.now() - stableSince >= STAGE_STABILITY_MS) {
+            acceptedStage = current;
             requestKill("stage-stable");
           }
         }, STAGE_POLL_MS);
@@ -221,6 +234,7 @@ async function runTool(tool, args, timeoutMs, {
   }
   if (result.timedOut) return { ok: false, reason: `timed out after ${timeoutMs} ms; killSignal SIGKILL (owned process tree)` };
   if (result.error) return { ok: false, reason: `could not start: ${result.error.code || result.error.message}` };
+  if (result.stageChanged) return { ok: false, reason: "stable PDF stage changed or disappeared after the stability decision" };
   if (result.completedBy === "stage-stable") return { ok: true, stdout: result.stdout || "", completedBy: "stage-stable" };
   if (result.signal) return { ok: false, reason: `terminated by signal ${result.signal}` };
   if (result.status !== 0) {
