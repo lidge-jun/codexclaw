@@ -21,7 +21,7 @@ const SIGNING_MODES = new Set(["ad-hoc", "Developer ID"]);
 const COMPONENT_KINDS = new Set(["app", "executable", "sidecar", "extension", "archive", "dmg", "updater"]);
 const REQUIRED_COMPONENT_KINDS = new Set(["app", "executable", "archive", "dmg", "updater"]);
 const ARCHITECTURE_KINDS = new Set(["executable", "sidecar", "extension"]);
-const DIGEST_KINDS = new Set(["executable", "archive", "sidecar", "extension", "dmg", "updater"]);
+const DIGEST_KINDS = new Set(["app", "executable", "archive", "sidecar", "extension", "dmg", "updater"]);
 
 function sha256File(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
@@ -223,6 +223,8 @@ function artifactErrors(baseDir, verdict, notes) {
         try { plistIsFile = statSync(plist).isFile(); } catch { /* reported below */ }
         if (!component.path.endsWith(".app") || !componentStat.isDirectory() || !plistIsFile) {
           errors.push(`${ref}: app must be a directory containing Contents/Info.plist: ${component.path}`);
+        } else if (sha256Tree(componentPath) !== component.sha256) {
+          errors.push(`${ref}: app bundle tree digest does not match: ${component.path}`);
         }
         continue;
       }
@@ -836,3 +838,39 @@ Material risks are the unverified host payload shape for native app names and sc
 - Finding 7: `artifactErrors()` traverses `identity.components` only when it is an array. An object-valued components fixture must yield validation errors without a thrown exception or receipt.
 - Finding 8: manifest parsing mirrors the existing `lstat` and `realpath` evidence-root containment guard and returns `{ error }` on symlink or read failures. A direct symlink and a symlinked parent escaping the evidence root are negative tests.
 - Finding 9: main treated the native advisory as a soft session-level reminder, so one observation still clears it for all active native criteria. The bypass table names that residual; any cleared-state diagnostic names the observed app or screenshot. Per-criterion artifact proof remains in 5A.
+
+## Audit round 2 folds
+
+- Finding 2: the `app` component is byte-bound again. It carries `sha256`, the bundle tree digest computed by `sha256Tree` below, and the validator recomputes it (the app branch in `artifactErrors` above now compares it). `app` joins `DIGEST_KINDS`, and `artifactIdentityErrors` requires a lowercase 64-hex `sha256` on an applicable `app` like the other digest kinds. The tree digest covers every file's bytes, every symlink's target and every directory, so editing `Info.plist` or a resource changes it. The archive and executable digests stay as separate bindings. The same function is exported from validate-evidence.mjs so a QA author can compute the value (`node plugins/codexclaw/skills/qa/scripts/validate-evidence.mjs --bundle-digest <path.app>` prints it); the CLI branch is added next to the existing argument parsing at validate-evidence.mjs:235-249.
+
+```js
+export function sha256Tree(root) {
+  const hash = createHash("sha256");
+  const walk = (dir, rel) => {
+    const names = readdirSync(dir).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    for (const name of names) {
+      const abs = join(dir, name);
+      const relPath = rel ? rel + "/" + name : name;
+      const st = lstatSync(abs);
+      if (st.isSymbolicLink()) {
+        hash.update("L\0" + relPath + "\0" + readlinkSync(abs) + "\n");
+      } else if (st.isDirectory()) {
+        hash.update("D\0" + relPath + "\n");
+        walk(abs, relPath);
+      } else if (st.isFile()) {
+        hash.update("F\0" + relPath + "\0" + sha256File(abs) + "\n");
+      } else {
+        hash.update("O\0" + relPath + "\n");
+      }
+    }
+  };
+  walk(root, "");
+  return hash.digest("hex");
+}
+```
+
+Imports: add `readdirSync`, `lstatSync`, `readlinkSync` to the existing `node:fs` import and `join` to the `node:path` import. Symlinks are hashed by target and never followed, so a link out of the bundle cannot pull outside bytes into the digest.
+
+New tests in plugins/codexclaw/test/qa-validate-evidence.test.mjs: `app bundle digest matches a directory fixture` (a temp `Demo.app/Contents/{Info.plist,MacOS/Demo,Resources/a.txt}` passes with the digest from `sha256Tree`), `changing a bundle resource invalidates the identity` (rewrite `Resources/a.txt` after computing the digest and assert the named error), and `bundle digest is order and path sensitive` (renaming a resource changes the digest).
+
+- Auditor note on finding 9: narrowed. 5A's per-criterion manifest proof applies to non-native desktop criteria; a `presented: "native"` criterion has only the soft advisory from 5B and the QA verdict the author writes. The bypass table row for 5B states this.

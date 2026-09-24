@@ -43,7 +43,7 @@ function readPdfStageSnapshot(path) {
     const tail = Buffer.alloc(tailLength);
     if (readSync(descriptor, tail, 0, tailLength, stat.size - tailLength) !== tailLength) return null;
     if (header.toString("latin1") !== "%PDF-") return null;
-    if (!/%%EOF[\\t\\n\\f\\r ]*$/.test(tail.toString("latin1"))) return null;
+    if (!/%%EOF[\t\n\f\r ]*$/.test(tail.toString("latin1"))) return null;
     return { size: stat.size, mtimeMs: stat.mtimeMs };
   } catch {
     return null;
@@ -378,3 +378,7 @@ Open decisions: none. D2.1, D2.2, and D2.3 settle the intended behavior; the uni
 - Finding 3: `killToolTree` now returns a signal/taskkill receipt, and `runTool` records `killRequestedAt` before requesting cleanup. It marks `stage-stable` only after a matching POSIX signal exit or a zero-status Windows `taskkill` followed by child exit. Natural nonzero exits, including code 3 after the stability request, remain failures. The new marker-controlled fixture and named test make that race reproducible.
 - Finding 12 counterpart: the wp2 `report-pipeline.md` replacement above is the canonical timeout/stability wording. Wp3 must extend this replacement when adding DOM guidance, rather than retain the obsolete sentence that every timed-out tool fails.
 - Syntax proof for changed executable blocks: extracted `killToolTree` to `/tmp/010_export_completion_killToolTree.mjs` and `runTool` to `/tmp/010_export_completion_runTool.mjs`; `node --check` exited 0 for each on 2026-09-24. The proposed reference replacement is prose, shown as a Markdown quote rather than an executable code block. No implementation or new tests were run in this docs-only phase.
+
+## Audit round 2 folds
+
+- Finding 1: the trailer test in `readPdfStageSnapshot` uses single escapes, `/%%EOF[\t\n\f\r ]*$/`, so `%%EOF\n` and `%%EOF\r\n` both match. The fixture test for complete-then-hang writes `%%EOF\n`, and a unit case in report-export.test.mjs asserts the probe accepts `%%EOF`, `%%EOF\n` and `%%EOF\r\n` and rejects `%%EO` and `%%EOF\nxref`.
