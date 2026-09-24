@@ -904,3 +904,9 @@ Build split (disjoint write scopes, three parallel gpt-6-sol builders, then one 
 - B4, after B1 and B2: the 5A final gate in components/pabcd-state/src/goalplan.ts (`desktopArtifactCriterionIds`, `identityReasons`) and test/final-gate.test.ts.
 
 native-desktop-acceptance.md is shared by B1-B3 in disjoint line ranges. Each builder edits only its range, with a single apply_patch per hunk and no whole-file rewrites. Builders never run `npm run build`; main builds once after B4, then regenerates inventory for the new script. Main runs git.
+
+Ownership amendment after architect reflection (supersedes the split above where they differ):
+
+- B3 also owns plugins/codexclaw/scripts/inventory.mjs and plugins/codexclaw/test/inventory.test.mjs, the script-list change 5C requires.
+- B4 owns every edit to skills/dev-devops/references/native-desktop-acceptance.md (the 5A, 5B and 5C ranges, applied serially after B1-B3 report), skills/qa/SKILL.md, structure/INDEX.md, and all of test/final-gate.test.ts, including the `presented` cases 5B lists for it.
+- B1, B2 and B3 do not touch those files.
