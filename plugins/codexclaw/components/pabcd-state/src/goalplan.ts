@@ -36,6 +36,7 @@ import { renameWithRetry } from "./atomic-write.ts";
 import { STATE_DIR } from "./state.ts";
 import { deriveSlug, type PlanFileHash } from "./freeze.ts";
 import type { SourceIdentity } from "./source-identity.ts";
+import type { ArtifactDigest } from "./source-receipt.ts";
 
 export const GOALPLANS_SUBDIR = "goalplans";
 export const GOALPLAN_FILE = "goalplan.json";
@@ -73,6 +74,7 @@ export type CriterionStatus = "open" | "met";
  * QA receipt on top of a test receipt.
  */
 export type CriterionSurface = "logic" | "web" | "tui" | "desktop";
+export type PresentedSurface = "native";
 export type TaskStatus = "pending" | "done";
 /**
  * `blocked` and `superseded` are both "not done" and neither counts as success.
@@ -95,6 +97,7 @@ export interface GoalplanCriterion {
    * quietly buy a QA exemption.
    */
   surface?: CriterionSurface;
+  presented?: PresentedSurface;
 }
 
 export interface GoalplanTask {
@@ -564,6 +567,7 @@ function reviveGoalplan(parsed: unknown, expectedSlug?: string): Goalplan | null
       ...(cc.surface === "logic" || cc.surface === "web" || cc.surface === "tui" || cc.surface === "desktop"
         ? { surface: cc.surface }
         : {}),
+      ...(cc.presented === "native" ? { presented: "native" } : {}),
     });
   }
 
@@ -890,7 +894,7 @@ export function appendGoalplanLedger(cwd: string, slug: string, entry: GoalplanL
 export interface NewGoalplanInput {
   objective: string;
   /** seeded acceptance criteria (e.g. from the freeze EvidenceBundle). */
-  criteria?: Array<{ scenario: string; expectedEvidence?: string; surface?: CriterionSurface }>;
+  criteria?: Array<{ scenario: string; expectedEvidence?: string; surface?: CriterionSurface; presented?: PresentedSurface }>;
   host?: Partial<GoalplanHostLink>;
   /**
    * The schemaVersion the new plan DECLARES. Absent means
@@ -926,6 +930,7 @@ export function buildGoalplan(input: NewGoalplanInput): Goalplan {
     // schemaVersion 2 refuses an unclassified criterion. Defaulting to "logic"
     // is what makes init-time criteria constructible under v2 at all.
     surface: c.surface ?? "logic",
+    ...(c.presented === "native" ? { presented: "native" as const } : {}),
     expectedEvidence: c.expectedEvidence ?? "",
     capturedEvidence: null,
     status: "open",
@@ -1425,7 +1430,9 @@ export interface GoalplanValidationCtx {
   cwd: string;
   captureSourceIdentity: (cwd: string) => SourceIdentity;
   compareSource: (a: SourceIdentity, b: SourceIdentity) => { kind: "same" | "different" | "unavailable"; detail?: string; reason?: string };
-  readReceipt: (path: string, expectedKind: "test" | "qa") => { sourceIdentity: SourceIdentity } | { error: string };
+  readReceipt: (path: string, expectedKind: "test" | "qa") =>
+    | { sourceIdentity: SourceIdentity; artifactManifest?: ArtifactDigest[] }
+    | { error: string };
 }
 
 /** Absent schemaVersion means 1; the marker can only raise the answer. */
@@ -1622,6 +1629,20 @@ function roundReasons(plan: Goalplan, gate: FinalGateState): string[] {
   return out;
 }
 
+function desktopArtifactCriterionIds(plan: Goalplan): string[] {
+  return plan.criteria
+    .filter((criterion) => criterion.surface === "desktop" && criterion.presented !== "native")
+    .map((criterion) => criterion.id);
+}
+
+function hasArtifactIdentityForCriterion(manifest: ArtifactDigest[] | undefined, criterionId: string): boolean {
+  return Array.isArray(manifest) && manifest.some((entry) =>
+    entry.kind === "artifact-identity"
+      && entry.path.split(/[\\/]/).pop() === "artifact-identity.json"
+      && entry.criterionIds?.includes(criterionId) === true,
+  );
+}
+
 /**
  * Every identity in play must describe the same tree: the tree right now, the
  * one the gate recorded, the one each receipt was produced against, and the one
@@ -1651,7 +1672,7 @@ function identityReasons(plan: Goalplan, gate: FinalGateState, ctx: GoalplanVali
       out.push(`${label} path is missing`);
       continue;
     }
-    let receipt: { sourceIdentity: SourceIdentity } | { error: string };
+    let receipt: { sourceIdentity: SourceIdentity; artifactManifest?: ArtifactDigest[] } | { error: string };
     try {
       receipt = ctx.readReceipt(path, kind);
     } catch (err) {
@@ -1661,6 +1682,13 @@ function identityReasons(plan: Goalplan, gate: FinalGateState, ctx: GoalplanVali
     if ("error" in receipt) {
       out.push(`${label} is not usable: ${receipt.error}`);
       continue;
+    }
+    if (kind === "qa") {
+      for (const criterionId of desktopArtifactCriterionIds(plan)) {
+        if (!hasArtifactIdentityForCriterion(receipt.artifactManifest, criterionId)) {
+          out.push(`the QA receipt artifactManifest has no artifact-identity.json entry for desktop criterion ${criterionId}`);
+        }
+      }
     }
     named.push([label, receipt.sourceIdentity]);
   }

@@ -75,7 +75,7 @@ const HELP = [
   "  session current|bind|source   verify native identity / bind a source worktree",
   "  orchestrate <verb>             drive IPABCD state (try: orchestrate --help)",
   "  freeze | metric | divergence   interview freeze / metrics / divergence state",
-  "  loop init|show|validate        manage the project-local goalplan substrate",
+  "  loop <verb>                    manage the project-local goalplan; run loop --help for the exact flag table",
   "  plan init <slug>               scaffold the devlog/_plan unit for the P>A gate",
   "  scan record --session <id>     record an interview contradiction-scan round",
   "  review-round open|show|abort   manage the plan-audit round the A>B gate reads",

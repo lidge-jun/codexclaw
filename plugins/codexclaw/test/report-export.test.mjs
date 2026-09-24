@@ -13,9 +13,10 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { evaluateReport } from "../skills/dev-visualizer/scripts/quality-gate.mjs";
+import { runTool } from "../skills/dev-visualizer/scripts/export-paged-report.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SCRIPT = join(here, "..", "skills", "dev-visualizer", "scripts", "export-paged-report.mjs");
@@ -30,7 +31,7 @@ function sandbox() {
   return { root, home, emptyPath };
 }
 
-function run(root, args, { mode = "happy", path } = {}) {
+function run(root, args, { mode = "happy", path, env = {} } = {}) {
   const home = join(root, "home");
   return spawnSync(process.execPath, [SCRIPT, ...args], {
     encoding: "utf8",
@@ -44,6 +45,7 @@ function run(root, args, { mode = "happy", path } = {}) {
       TMP: root,
       TEMP: root,
       CXC_VISUALIZER_FIXTURE_MODE: mode,
+      ...env,
     },
   });
 }
@@ -75,6 +77,16 @@ function parseReport(result) {
 
 function check(report, id) {
   return report.checks.find((item) => item.id === id);
+}
+
+function scratch(root) {
+  return readdirSync(root).filter((name) => /export-stage|export-pass|cxc-report-/.test(name));
+}
+
+function killFixture(pid) {
+  if (!pid) return;
+  try { process.kill(process.platform === "win32" ? pid : -pid, "SIGKILL"); }
+  catch (error) { if (error.code !== "ESRCH") throw error; }
 }
 
 for (const paperSize of ["A4", "Letter"]) {
@@ -247,6 +259,54 @@ test("layout findings produce REVIEW/2", () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("dump-dom crossing becomes a P2 pagination REVIEW", () => {
+  const { root } = sandbox();
+  try {
+    const report = parseReport(run(root, exportArgs(writeInput(root), join(root, "report.pdf")), { mode: "dump-dom-crossing" }));
+    assert.equal(report.svgGeometry.status, "REVIEW");
+    assert.equal(report.svgGeometry.findings, 1);
+    assert.equal(report.verdict, "REVIEW");
+    assert.ok(report.qa.some((finding) => finding.level === "P2" && /later-painted line/.test(finding.msg)));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("dump-dom failure is named NOT_RUN and does not block the PDF", () => {
+  const { root } = sandbox();
+  try {
+    const report = parseReport(run(root, exportArgs(writeInput(root), join(root, "report.pdf")), { mode: "dump-dom-fail" }));
+    assert.equal(report.svgGeometry.status, "NOT_RUN");
+    assert.equal(report.verdict, "PASS");
+    assert.ok(report.notes.some((note) => note.id === "svg-geometry" && /DOM probe exited with status 11/.test(note.message)));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("malformed, invalid-entry, or absent dump-dom results become notes without P2 findings", () => {
+  const { root } = sandbox();
+  try {
+    for (const mode of ["dump-dom-malformed", "dump-dom-no-marker",
+      "dump-dom-null-finding", "dump-dom-bad-geometry-type"]) {
+      const report = parseReport(run(root, exportArgs(writeInput(root), join(root, "report.pdf")), { mode }));
+      assert.equal(report.svgGeometry.status, "NOT_RUN");
+      assert.equal(report.verdict, "PASS");
+      assert.ok(report.notes.some((note) => note.id === "svg-geometry"
+        && /DOM result was not valid JSON|stdout did not contain cxc-svg-geometry-result-v1|DOM result has an invalid schema/.test(note.message)));
+      assert.equal(report.qa.filter((finding) => finding.level === "P2").length, 0);
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("--qa-only names DOM geometry as NOT_RUN", () => {
+  const { root } = sandbox();
+  try {
+    const pdf = join(root, "existing.pdf");
+    writeFileSync(pdf, "%PDF-1.4\nfixture-paper=A4\n");
+    const report = parseReport(run(root, ["--qa-only", pdf, "--pdfinfo", TOOLS, "--pdftotext", TOOLS, "--json"]));
+    assert.equal(report.svgGeometry.status, "NOT_RUN");
+    assert.equal(report.verdict, "PASS");
+    assert.ok(report.notes.some((note) => note.id === "svg-geometry" && /--qa-only has no HTML source/.test(note.message)));
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("stale output cannot satisfy a browser that creates nothing and remains intact", () => {
@@ -508,6 +568,206 @@ test("successful two-pass generation promotes only the final candidate over the 
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+test("complete-then-hang accepts a stable staged PDF on the first print pass", () => {
+  const { root } = sandbox();
+  try {
+    const output = join(root, "report.pdf");
+    writeFileSync(output, "previous destination");
+    const result = run(root, exportArgs(writeInput(root), output), { mode: "complete-then-hang" });
+    const report = parseReport(result);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(report.verdict, "PASS");
+    assert.equal(report.passes, 1);
+    assert.deepEqual(report.printPasses, [{ pass: 1, completedBy: "stage-stable" }]);
+    assert.match(readFileSync(output, "utf8"), /fixture-pass=1/);
+    assert.deepEqual(scratch(root), []);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("complete-then-hang accepts stable staged PDFs on both print passes", () => {
+  const { root, home } = sandbox();
+  try {
+    const output = join(root, "report.pdf");
+    const original = "previous destination";
+    writeFileSync(output, original);
+    const input = writeInput(root);
+    writeFileSync(input, '<html><head></head><body><span data-toc-for="section">?</span><h2 id="section" data-toc="Section heading">Section heading</h2></body></html>');
+    const result = run(root, exportArgs(input, output), { mode: "complete-then-hang" });
+    const report = parseReport(result);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(report.passes, 2);
+    assert.deepEqual(report.printPasses, [
+      { pass: 1, completedBy: "stage-stable" },
+      { pass: 2, completedBy: "stage-stable" },
+    ]);
+    assert.equal(readFileSync(join(home, "print-count"), "utf8"), "2");
+    assert.equal(readFileSync(join(home, "destination-at-pass-1"), "utf8"), original);
+    assert.equal(readFileSync(join(home, "destination-at-pass-2"), "utf8"), original);
+    assert.match(readFileSync(output, "utf8"), /fixture-pass=2/);
+    assert.deepEqual(scratch(root), []);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("changing-content-same-size cannot satisfy the stability window before the deadline", () => {
+  const { root } = sandbox();
+  try {
+    const output = join(root, "report.pdf");
+    const original = "previous destination";
+    writeFileSync(output, original);
+    const input = writeInput(root);
+    const args = [...exportArgs(input, output), "--timeout-ms", "4000"];
+    const changing = run(root, args, { mode: "changing-content-same-size" });
+    const report = parseReport(changing);
+    assert.equal(changing.status, 1, changing.stderr);
+    assert.equal(check(report, "artifact-created").status, "FAIL");
+    assert.match(check(report, "artifact-created").reason, /timed out after 4000 ms/);
+    assert.equal(readFileSync(output, "utf8"), original);
+    assert.equal(report.artifact_sha256, createHash("sha256").update(original).digest("hex"));
+    assert.deepEqual(scratch(root), []);
+    const control = run(root, args, { mode: "complete-then-hang" });
+    assert.equal(control.status, 0, control.stderr);
+    assert.deepEqual(parseReport(control).printPasses, [{ pass: 1, completedBy: "stage-stable" }]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("a complete staged PDF followed by a nonzero exit remains FAIL", () => {
+  const { root } = sandbox();
+  try {
+    const output = join(root, "report.pdf");
+    const original = "previous destination";
+    writeFileSync(output, original);
+    const result = run(root, exportArgs(writeInput(root), output), { mode: "complete-then-nonzero" });
+    const report = parseReport(result);
+    assert.equal(result.status, 1);
+    assert.equal(check(report, "artifact-created").status, "FAIL");
+    assert.match(check(report, "artifact-created").reason, /status 8/);
+    assert.equal(readFileSync(output, "utf8"), original);
+    assert.deepEqual(report.printPasses, []);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("nonzero exit after stability request is not success", async () => {
+  const { root, home } = sandbox();
+  let pid;
+  try {
+    const input = writeInput(root);
+    const stage = join(root, "stage.pdf");
+    const marker = join(root, "release");
+    let calls = 0;
+    const result = await runTool(TOOLS, [
+      "--user-data-dir=" + root, "--print-to-pdf=" + stage, pathToFileURL(input).href,
+    ], 5_000, {
+      completionPath: stage,
+      env: { ...process.env, HOME: home, CXC_VISUALIZER_FIXTURE_MODE: "complete-then-nonzero-after-stable-request", CXC_VISUALIZER_RACE_RELEASE: marker },
+      killTree(child) {
+        calls += 1;
+        pid = child.pid;
+        writeFileSync(marker, "release");
+        return { error: null, signalSent: null, taskkillStatus: null };
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(existsSync(marker), true);
+    assert.equal(result.ok, false);
+    assert.match(result.reason, /status 3/);
+    assert.notEqual(result.completedBy, "stage-stable");
+  } finally {
+    killFixture(pid);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("runTool reports cleanup failure when injected kill cannot produce child exit", async () => {
+  let pid;
+  try {
+    const result = await runTool(process.execPath, ["-e", "setInterval(() => {}, 1000)"], 100, {
+      postKillGraceMs: 20,
+      killTree(child) {
+        pid = child.pid;
+        return { error: "tree cleanup failed: injected", signalSent: null, taskkillStatus: null };
+      },
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.reason, /tree cleanup failed: injected/);
+    assert.match(result.reason, /post-kill grace expired before child exit/);
+  } finally { killFixture(pid); }
+});
+
+test("a child that survives post-kill grace does not keep the exporter process alive", () => {
+  const script = [
+    `import { runTool } from ${JSON.stringify(pathToFileURL(SCRIPT).href)};`,
+    "let pid;",
+    "const result = await runTool(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], 100, {",
+    "  postKillGraceMs: 50,",
+    "  killTree(child) { pid = child.pid; return { error: 'tree cleanup failed: injected', signalSent: null, taskkillStatus: null }; },",
+    "});",
+    "console.log(JSON.stringify({ pid, ok: result.ok, reason: result.reason }));",
+  ].join("\n");
+  const probe = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", timeout: 20_000 });
+  let reported;
+  try {
+    assert.equal(probe.error, undefined, "the wrapper must exit on its own before the 20 s watchdog");
+    assert.equal(probe.status, 0, probe.stderr);
+    reported = JSON.parse(probe.stdout.trim().split("\n").pop());
+    assert.equal(reported.ok, false);
+    assert.match(reported.reason, /post-kill grace expired before child exit/);
+  } finally { killFixture(reported?.pid); }
+});
+
+test("a stage that changes after the stability decision is not a stable completion", async () => {
+  const { root } = sandbox();
+  try {
+    const stage = join(root, "stage.pdf");
+    const source = `require('node:fs').writeFileSync(process.argv[1], ${JSON.stringify("%PDF-1.4\n%%EOF\n")}); setInterval(() => {}, 1000)`;
+    const result = await runTool(process.execPath, ["-e", source, stage], 8_000, {
+      completionPath: stage,
+      killTree(child) {
+        writeFileSync(stage, "%PDF-1.4\n");
+        child.kill("SIGKILL");
+        return process.platform === "win32"
+          ? { error: null, signalSent: null, taskkillStatus: 0 }
+          : { error: null, signalSent: "SIGKILL", taskkillStatus: null };
+      },
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.reason, /stage changed or disappeared after the stability decision/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+
+test("human summaries print each failed check id and reason once", () => {
+  const { root } = sandbox();
+  try {
+    const input = writeInput(root);
+    const output = join(root, "report.pdf");
+    const timeoutArgs = [...exportArgs(input, output).filter((arg) => arg !== "--json"), "--timeout-ms", "1000"];
+    const failed = run(root, timeoutArgs, { mode: "chrome-hang" });
+    assert.equal(failed.status, 1);
+    assert.equal((failed.stdout.match(/FAIL artifact-created:/g) || []).length, 1);
+    assert.match(failed.stdout, /FAIL artifact-created:.*timed out after 1000 ms/);
+    const missing = run(root, [input, output, "--chrome", TOOLS], { path: join(root, "empty-path") });
+    assert.equal(missing.status, 3);
+    for (const id of ["pdf-parse", "text-integrity", "pagination"]) {
+      assert.equal((missing.stdout.match(new RegExp(`NOT_RUN ${id}:`, "g")) || []).length, 1);
+    }
+    assert.equal((missing.stdout.match(/Required executable missing: pdfinfo/g) || []).length, 3);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("the stage probe accepts EOF trailer whitespace and rejects incomplete trailers", async () => {
+  const { root } = sandbox();
+  try {
+    for (const [trailer, complete] of [["%%EOF", true], ["%%EOF\n", true], ["%%EOF\r\n", true], ["%%EO", false], ["%%EOF\nxref", false]]) {
+      const stage = join(root, "probe.pdf");
+      const source = `require('node:fs').writeFileSync(process.argv[1], ${JSON.stringify(`%PDF-1.4\n${trailer}`)}); setInterval(() => {}, 1000)`;
+      const result = await runTool(process.execPath, ["-e", source, stage], complete ? 8_000 : 500, { completionPath: stage });
+      assert.equal(result.ok, complete, `trailer ${JSON.stringify(trailer)}: ${result.reason}`);
+      if (complete) assert.equal(result.completedBy, "stage-stable");
+      else assert.match(result.reason, /timed out after 500 ms/);
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test("no generated file and no previous destination remain FAIL without an artifact", () => {
   const { root } = sandbox();
   try {
@@ -530,6 +790,84 @@ test("--timeout-ms rejects missing, nonfinite, fractional and out-of-bounds valu
       assert.equal(result.status, 1);
       assert.match(result.stderr, /--timeout-ms/);
       assert.equal(existsSync(join(root, "report.pdf")), false);
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("locale QA reads only source-owned @page literals", () => {
+  const cases = [
+    { name: "Korean language", lang: ' lang="ko"', content: '"가온리테일"', body: "한국어", p2: false, note: false },
+    { name: "English with Korean furniture", lang: ' lang="en"', content: '"가온리테일"', body: "English", p2: true, note: false },
+    { name: "English with dotted date", lang: ' lang="en-US"', content: '"2026. 9. 9."', body: "English", p2: true, note: false },
+    { name: "English with page counter", lang: ' lang="en"', content: 'counter(page)', body: "한국어 body only", p2: false, note: false },
+    { name: "missing language", lang: "", content: '"가온리테일"', body: "한국어", p2: false, note: true },
+    { name: "commented declaration", lang: ' lang="en"', content: 'counter(page); /* content: "가온리테일"; */', body: "English", p2: false, note: false },
+    { name: "commented rule", lang: ' lang="en"', style: '/* @page { @top-left { content: "가온리테일"; } } */', body: "English", p2: false, note: false },
+    { name: "comment marker inside a string", lang: ' lang="en"', content: '"Acme /* 가온 */"', body: "English", p2: true, note: false },
+  ];
+  for (const fixture of cases) {
+    const { root } = sandbox();
+    try {
+      const input = writeInput(root);
+      writeFileSync(input, `<!doctype html><html${fixture.lang}><head><style>${fixture.style ?? `@page { @top-left { content: ${fixture.content}; } }`}</style></head><body>${fixture.body}</body></html>`);
+      const report = parseReport(run(root, exportArgs(input, join(root, "report.pdf"))));
+      assert.equal(report.qa.some((finding) => finding.level === "P2" && /@page content/.test(finding.msg)), fixture.p2, fixture.name);
+      assert.equal(report.notes.some((note) => note.id === "page-locale"), fixture.note, fixture.name);
+      assert.equal(report.verdict, fixture.p2 ? "REVIEW" : "PASS", fixture.name);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }
+});
+
+test("dump-dom sampling cap is a nonblocking note", () => {
+  const { root } = sandbox();
+  try {
+    const report = parseReport(run(root, exportArgs(writeInput(root), join(root, "report.pdf")), { mode: "dump-dom-cap" }));
+    assert.equal(report.svgGeometry.status, "NOT_RUN");
+    assert.equal(report.verdict, "PASS");
+    assert.equal(report.svgGeometry.findings, 0);
+    assert.ok(report.notes.some((note) => note.id === "svg-geometry" && /sampling budget was exhausted/.test(note.message)));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("the SVG probe reads the final filled HTML after a contents refill", () => {
+  const { root } = sandbox();
+  try {
+    const input = writeInput(root);
+    writeFileSync(input, '<html lang="en"><head></head><body><span data-toc-for="section">?</span><h2 id="section" data-toc="Section heading">Section heading</h2></body></html>');
+    const capture = join(root, "dom-capture.html");
+    const report = parseReport(run(root, exportArgs(input, join(root, "report.pdf")), {
+      mode: "second-pass-success", env: { CXC_VISUALIZER_DOM_CAPTURE: capture },
+    }));
+    assert.equal(report.passes, 2);
+    assert.equal(report.svgGeometry.status, "PASS");
+    const html = readFileSync(capture, "utf8");
+    assert.match(html, /<span data-toc-for="section">2<\/span>/);
+    assert.match(html, /out\.id="cxc-svg-geometry-result-v1"/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("real Chrome SVG crossing smoke", { skip: process.env.CXC_REAL_CHROME !== "1" && "set CXC_REAL_CHROME=1 for installed Chrome/Poppler" }, () => {
+  const { root } = sandbox();
+  try {
+    const input = writeInput(root);
+    writeFileSync(input, '<!doctype html><html lang="en"><body><h1>Geometry</h1><svg viewBox="0 0 300 100" width="300"><text x="50" y="55" font-size="25">LABEL</text><line x1="0" y1="47" x2="280" y2="47" stroke="black" stroke-width="2"/></svg></body></html>');
+    const chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+    const result = spawnSync(process.execPath, [SCRIPT, input, join(root, "report.pdf"), "--chrome", chrome, "--json"], { encoding: "utf8", timeout: 60_000 });
+    const report = parseReport(result);
+    assert.equal(report.svgGeometry.status, "REVIEW", result.stderr);
+    assert.ok(report.qa.some((finding) => /SVG text box is crossed/.test(finding.msg)));
+    const variants = [
+      // A connector moved onto the label by a group transform still crosses it.
+      { name: "transformed", svg: '<text x="50" y="55" font-size="25">LABEL</text><g transform="translate(0 40)"><line x1="0" y1="7" x2="280" y2="7" stroke="black" stroke-width="2"/></g>', crossed: true },
+      // Connectors inside hidden or transparent groups are not painted.
+      { name: "display none", svg: '<text x="50" y="55" font-size="25">LABEL</text><g style="display:none"><line x1="0" y1="47" x2="280" y2="47" stroke="black" stroke-width="2"/></g>', crossed: false },
+      { name: "opacity zero", svg: '<text x="50" y="55" font-size="25">LABEL</text><g opacity="0"><line x1="0" y1="47" x2="280" y2="47" stroke="black" stroke-width="2"/></g>', crossed: false },
+    ];
+    for (const variant of variants) {
+      writeFileSync(input, `<!doctype html><html lang="en"><body><h1>Geometry</h1><svg viewBox="0 0 300 100" width="300">${variant.svg}</svg></body></html>`);
+      const run2 = spawnSync(process.execPath, [SCRIPT, input, join(root, variant.name.replace(/ /g, "-") + ".pdf"), "--chrome", chrome, "--json"], { encoding: "utf8", timeout: 60_000 });
+      const found = parseReport(run2).qa.some((finding) => /SVG text box is crossed/.test(finding.msg));
+      assert.equal(found, variant.crossed, variant.name);
     }
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

@@ -79,6 +79,11 @@ Artifacts live under `.codexclaw/evidence/<sessionId>/qa/<scenario-id>/`:
   On `web` and `gui` only, also `"captureChecks": { "signature": <bool>,
   "nonEmpty": <bool>, "dimensionsMatch": <bool>, "composited": <bool> }` —
   all four keys (QA-CAPTURE-INTEGRITY-01 in `references/visual-qa.md`).
+  A desktop row that depends on a built artifact also sets
+  `"desktopArtifact": true` and `"criterionIds": ["c-3"]` (its goalplan
+  criteria) and lists exactly one `artifact-identity.json` in `artifactRefs`.
+  The identity schema is DESKTOP-ARTIFACT-01 in cxc-dev-devops
+  `references/native-desktop-acceptance.md`.
 
 Rules:
 
@@ -109,7 +114,12 @@ node plugins/codexclaw/skills/qa/scripts/validate-evidence.mjs \
 ```
 
 It validates every `verdict.json`, confirms they all describe the same tree,
-and writes `.codexclaw/evidence/<sessionId>/qa-receipt.json`. Any failure
+and writes `.codexclaw/evidence/<sessionId>/qa-receipt.json`. Validated verdict
+and identity files are hashed into typed `artifactManifest` entries
+(`path`, `sha256`, `kind`, optional `criterionIds`), rechecked whenever the
+receipt is read. A schemaVersion 2+ plan with a recorded final gate needs an
+identity entry for each non-native desktop criterion; default v1 plans rely on
+this ingress validation only. Any failure
 leaves no receipt behind, including deleting one an earlier run produced —
 a receipt that outlives the QA it attests to is worse than none.
 

@@ -1,5 +1,5 @@
 /**
- * goalplan-cli.ts — `cxc goalplan <init|show|validate>` terminal surface (lazygap_impl 030.2).
+ * goalplan-cli.ts — `cxc loop <verb>` terminal surface (also `cxc goalplan`).
  *
  * The no-interview local-loop entry: `init --objective "<text>"` captures a REAL objective
  * directly (not a slug placeholder) and seeds a project-local goalplan under
@@ -111,6 +111,8 @@ import { applySteeringBatch } from "./steering.js";
 
 
 
+
+
 const VERBS                      = new Set              ([
   "init",
   "show",
@@ -124,6 +126,31 @@ const VERBS                      = new Set              ([
   "meet-criterion",
 ]);
 
+
+
+
+
+
+
+
+
+
+
+
+const VERB_RULES                                           = {
+  init: { allowed: new Set(["--objective", "--session", "--criterion", "--schema-version", "--cwd"]), repeatable: new Set(["--criterion"]), usage: "init --objective <text> [--session <id>] [--criterion <text>]... [--schema-version <n>] [--cwd <path>]" },
+  show: { allowed: new Set(["--slug", "--objective", "--session", "--cwd"]), repeatable: new Set(), usage: "show (--slug <slug> | --objective <text> | --session <id>) [--cwd <path>]" },
+  validate: { allowed: new Set(["--slug", "--objective", "--session", "--cwd"]), repeatable: new Set(), usage: "validate (--slug <slug> | --objective <text> | --session <id>) [--cwd <path>]" },
+  steer: { allowed: new Set(["--session", "--batch-json", "--cwd"]), repeatable: new Set(), usage: "steer --session <id> --batch-json <path-or-json> [--cwd <path>]" },
+  "add-criterion": { allowed: new Set(["--session", "--criterion", "--surface", "--presented", "--cwd"]), repeatable: new Set(), usage: "add-criterion --session <id> --criterion <text> [--surface logic|web|tui|desktop] [--presented native] [--cwd <path>]" },
+  "add-work-phase": { allowed: new Set(["--session", "--id", "--title", "--depends-on", "--cwd"]), repeatable: new Set(["--depends-on"]), usage: "add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]... [--cwd <path>]" },
+  ready: { allowed: new Set(["--slug", "--objective", "--session", "--json", "--cwd"]), repeatable: new Set(), usage: "ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]" },
+  "add-task": { allowed: new Set(["--session", "--work-phase", "--id", "--title", "--depends-on", "--cwd"]), repeatable: new Set(["--depends-on"]), usage: "add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]" },
+  "complete-task": { allowed: new Set(["--session", "--work-phase", "--id", "--outcome", "--cwd"]), repeatable: new Set(), usage: "complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]" },
+  "meet-criterion": { allowed: new Set(["--session", "--id", "--evidence", "--cwd"]), repeatable: new Set(), usage: "meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]" },
+  help: { allowed: new Set(), repeatable: new Set(), usage: "--help" },
+};
+
 /** Structural argv parse. argv excludes the `goalplan` kind token. */
 export function parseGoalplanCliArgs(argv          , cwd        )                                          {
   const verb = (argv[0] ?? "").toLowerCase();
@@ -131,6 +158,7 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
   // agent that followed `cxc --help`'s own pointer hit a non-zero exit and had to
   // discover every flag one rejection at a time. Same contract as orchestrate.
   if (verb === "help" || verb === "--help" || verb === "-h") {
+    if (argv.length > 1) return { error: `help: unexpected argument '${argv[1]}'` };
     return { verb: "help", cwd, criteria: [] };
   }
   if (!VERBS.has(verb)) {
@@ -138,56 +166,70 @@ export function parseGoalplanCliArgs(argv          , cwd        )               
       error: `unknown loop verb '${argv[0] ?? ""}' (expected init|show|validate|steer|add-criterion|add-work-phase|ready|add-task|complete-task|meet-criterion); run cxc loop --help`,
     };
   }
-  const out                  = { verb: verb                , cwd, criteria: [], dependsOn: [] };
+  const selected = verb                ;
+  const rule = VERB_RULES[selected];
+  const out                  = { verb: selected, cwd, criteria: [], dependsOn: [] };
+  const seen = new Set              ();
+  const reject = (message        )                        => ({ error: `${selected}: ${message}` });
   for (let i = 1; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--objective") out.objective = argv[++i];
-    else if (a === "--slug") out.slug = argv[++i];
-    else if (a === "--criterion") {
-      const v = argv[++i];
-      if (typeof v === "string" && v.length > 0) out.criteria.push(v);
-    } else if (a === "--cwd") out.cwd = argv[++i] ?? cwd;
-    else if (a === "--session") out.session = argv[++i];
-    else if (a === "--batch-json") out.batchJson = argv[++i];
-    else if (a === "--surface") {
-      // A following flag is not a value: `--surface --cwd x` must read as a
-      // missing surface, not as the surface "--cwd" with the directory dropped.
-      const next = argv[i + 1];
-      out.surfaceGiven = true;
-      if (next !== undefined && !next.startsWith("--")) {
-        out.surface = next;
-        i++;
+    const token = argv[i];
+    if (!token.startsWith("--")) return reject(`unexpected positional argument '${token}'`);
+    // Every value flag also takes `--flag=value`, the only way to pass a value
+    // that itself starts with `--` (the space form treats that as a missing value).
+    const eq = token.indexOf("=");
+    const flag = (eq > 0 ? token.slice(0, eq) : token)                ;
+    const inlineValue = eq > 0 ? token.slice(eq + 1) : undefined;
+    if (!rule.allowed.has(flag)) {
+      if (selected === "init" && flag === "--surface") {
+        return reject("--surface is not applied at init; use add-criterion --surface <logic|web|tui|desktop>. Nothing was written.");
       }
+      return reject(`unknown flag '${token}'`);
     }
-    else if (a.startsWith("--surface=")) {
-      // The equals form must not slip past as an unknown token: that would store
-      // the default surface and silently escape classification.
-      const value = a.slice("--surface=".length);
-      out.surfaceGiven = true;
-      if (value.length > 0) out.surface = value;
+    if (seen.has(flag) && !rule.repeatable.has(flag)) return reject(`${flag} may be provided only once`);
+    seen.add(flag);
+    if (flag === "--json") {
+      if (inlineValue !== undefined) return reject("--json takes no value");
+      out.json = true;
+      continue;
     }
-    else if (a === "--id") out.id = argv[++i];
-    else if (a === "--title") out.title = argv[++i];
-    else if (a === "--work-phase") out.workPhaseId = argv[++i];
-    else if (a === "--outcome") out.outcome = argv[++i];
-    else if (a === "--schema-version") {
-      const parsed = Number(argv[++i]);
-      if (Number.isFinite(parsed)) out.schemaVersion = parsed;
+    const value = inlineValue !== undefined ? inlineValue : argv[++i];
+    const missing = inlineValue !== undefined
+      ? inlineValue.length === 0
+      : value === undefined || value.startsWith("--");
+    if (missing) {
+      if (flag === "--surface") return reject("--surface needs a value (logic|web|tui|desktop)");
+      return reject(inlineValue !== undefined
+        ? `${flag} requires a value`
+        : `${flag} requires a value (use ${flag}=<value> for a value that starts with --)`);
     }
-    else if (a === "--evidence") out.evidence = argv[++i];
-    else if (a === "--json") out.json = true;
-    else if (a === "--depends-on") {
-      // Repeated, never split: `--depends-on a,b` is ONE id. A comma-splitting parser
-      // would silently invent ids, and the dangling-reference check would then blame
-      // the plan for something the parser did.
-      const raw = argv[++i];
-      const v = typeof raw === "string" ? raw.trim() : "";
-      // Both malformed cases are REJECTIONS, not silent drops. Dropping a blank would
-      // register a phase with fewer prerequisites than the caller typed, and dropping a
-      // repeat would hide a typo that meant a different id.
-      if (v.length === 0) return { error: "--depends-on requires one non-empty prerequisite id" };
-      if (out.dependsOn .includes(v)) return { error: `--depends-on must not repeat prerequisite id '${v}'` };
-      out.dependsOn .push(v);
+    switch (flag) {
+      case "--objective": out.objective = value; break;
+      case "--slug": out.slug = value; break;
+      case "--criterion": out.criteria.push(value); break;
+      case "--cwd": out.cwd = value; break;
+      case "--session": out.session = value; break;
+      case "--batch-json": out.batchJson = value; break;
+      case "--surface": out.surfaceGiven = true; out.surface = value; break;
+      case "--presented": out.presented = value; break;
+      case "--id": out.id = value; break;
+      case "--title": out.title = value; break;
+      case "--work-phase": out.workPhaseId = value; break;
+      case "--outcome": out.outcome = value; break;
+      case "--schema-version": {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) return reject("--schema-version requires a finite number");
+        out.schemaVersion = parsed;
+        break;
+      }
+      case "--evidence": out.evidence = value; break;
+      case "--depends-on": {
+        const dependency = value.trim();
+        if (!dependency) return reject("--depends-on requires one non-empty prerequisite id");
+        if (out.dependsOn .includes(dependency)) return reject(`--depends-on must not repeat prerequisite id '${dependency}'`);
+        out.dependsOn .push(dependency);
+        break;
+      }
+      default: return reject(`unknown flag '${flag}'`);
     }
   }
   return out;
@@ -334,7 +376,10 @@ function runAddOp(args                 )                    {
     if (!SURFACES.has(surface)) {
       return { output: `loop add-criterion: --surface must be logic|web|tui|desktop (got '${args.surface}')`, code: 1 };
     }
-    op = { kind: "add-criterion", scenario, surface };
+    if (args.presented !== undefined && (surface !== "desktop" || args.presented !== "native")) {
+      return { output: "loop add-criterion: --presented native requires --surface desktop", code: 1 };
+    }
+    op = { kind: "add-criterion", scenario, surface, ...(args.presented === "native" ? { presented: "native" } : {}) };
     summary = scenario;
   } else {
     const id = (args.id ?? "").trim();
@@ -578,24 +623,13 @@ export function renderGoalplanHelp()         {
     "cxc loop — durable goalplan for a multi-cycle PABCD loop",
     "",
     "Usage:",
-    "  cxc loop init --objective <text> --session <id> [--criterion <text>]... [--schema-version <n>] [--cwd <path>]",
-    "  cxc loop show (--slug <slug> | --objective <text>) [--cwd <path>]",
-    "  cxc loop validate --slug <slug> [--cwd <path>]",
-    // 060 wp6: --slug is GONE from the three mutating usage lines. `runSteer()` and
-    // `runAddOp()` read `readState(cwd, session).slug` and ignore `args.slug`, so those
-    // lines advertised syntax that never ran. The read-only verbs keep it because
-    // `resolveSlug()` actually consumes the argument.
-    "  cxc loop steer --session <id> --batch-json <path-or-json> [--cwd <path>]",
-    "  cxc loop add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]... [--cwd <path>]",
-    "  cxc loop add-criterion --session <id> --criterion <text> [--surface logic|web|tui|desktop] [--cwd <path>]",
-    "  cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]",
-    "  cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]",
-    "  cxc loop complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]",
-    "  cxc loop meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]",
-    "  cxc loop --help",
+    ...(["init", "show", "validate", "steer", "add-criterion", "add-work-phase", "ready", "add-task", "complete-task", "meet-criterion", "help"]         )
+      .map((verb) => `  cxc loop ${VERB_RULES[verb].usage}`),
     "",
     "Notes:",
     "  Mutating verbs require --session <id>; show, validate, and ready are read-only.",
+    "  Unknown flags, stray positionals, missing values, and flags on the wrong verb are rejected before dispatch.",
+    "  Every value flag also accepts --flag=value; use it for a value that starts with --.",
     "  The goalplan lives at <cwd>/.codexclaw/goalplans/<slug>/goalplan.json, so --cwd",
     "  matters when the process cwd is not the workspace you are planning in.",
     "  Repeat --depends-on once per prerequisite; add-task accepts only existing task ids",

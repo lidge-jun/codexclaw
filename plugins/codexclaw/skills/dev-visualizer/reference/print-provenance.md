@@ -15,6 +15,13 @@ that behaved a certain way on one version may not on the next.
 - `@page` margin boxes are honoured, and `counter(page)` / `counter(pages)` resolve.
 - `string-set` and `target-counter()` are **not** supported.
 
+**Measured 2026-09-24, installed Google Chrome on macOS.** `--headless=new
+--dump-dom --virtual-time-budget=5000` on temporary HTML whose script appends
+an `application/json` script exited 0 in approximately 1,283 ms; stdout contained
+the serialized element. Chromium emitted repeated `CVDisplayLinkCreateWithCGDisplay`
+errors on stderr, but DOM output was produced. This is feasibility evidence for
+the bounded diagnostic, not a guarantee for other versions or hosts.
+
 The second point is the reason `export-paged-report.mjs` prints twice: a table of
 contents cannot reference page numbers in CSS, so the script prints once, locates each
 `[data-toc]` heading in the extracted text, writes the number into the matching

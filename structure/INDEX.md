@@ -163,7 +163,7 @@ codexclaw skills live under `plugins/codexclaw/skills/`. Their `agents/openai.ya
 | `cxc-qa` | `skills/qa/` | manual surface-driving QA gate: evidence matrix, adversarial classes, teardown receipts |
 | `cxc-dev-code-reviewer` | `skills/dev-code-reviewer/` | review verdicts, findings, risk assessment |
 | `cxc-dev-security` | `skills/dev-security/` | auth, secrets, validation, supply-chain/security review |
-| `cxc-dev-devops` | `skills/dev-devops/` | containers, deploy, IaC, SRE/release surfaces, native desktop acceptance |
+| `cxc-dev-devops` | `skills/dev-devops/` | containers, deploy, IaC, SRE/release surfaces, native desktop acceptance; `scripts/verify-lipo-command.mjs` is the behavioral lipo oracle (inventory.mjs counts shipped skill scripts) |
 | `cxc-dev-scaffolding` | `skills/dev-scaffolding/` | project/module scaffolding and structure audits |
 | `cxc-search` | `skills/search/` | current/public lookup ladder and Korean search intent guard |
 | `cxc-recall` | `skills/recall/` | past-session chat/memory recall before asking the user to repeat context |
@@ -203,7 +203,7 @@ The manifest wires 29 hook JSON files; `plugin.json` `hooks` and `hooks/*.json` 
 | `PreToolUse` spawn/collaboration variants | `hooks/pre-tool-use-attaching-skills.json` | `node "${PLUGIN_ROOT}/components/subagent-config/dist/spawn-attach-hook.js" hook pre-tool-use` | normalizes mentions, inlines recognized skills and adds scope instructions on plaintext; plaintext V2 without inlined bodies gets a self-load affordance. Native V2 ciphertext stays byte-identical and omitted hook text is disclosed to the caller. Metadata-based recursion denial and separate model+effort routing remain active |
 | `PostCompact` | `hooks/post-compact-resetting-reinject-cursor.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-compact` | resets reinjection cursor/stage context after compaction |
 | `PreToolUse` `^(apply_patch|Write|Edit)$` | `hooks/pre-tool-use-linting-apply-patch.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook pre-tool-use-edit` | combined edit path: comment lint (deny-capable) then IDLE-edit arming advisory |
-| `PostToolUse` `^(view_image|browser:control-in-app-browser|chrome:control-chrome|computer-use:computer-use|apply_patch)$` | `hooks/post-tool-use-tracking-render-observations.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-render-observation` | tracks render/visual observation events for QA evidence |
+| `PostToolUse` `^(view_image|browser:control-in-app-browser|chrome:control-chrome|computer-use:computer-use|apply_patch)$` | `hooks/post-tool-use-tracking-render-observations.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook post-tool-use-render-observation` | tracks ordinary render observations and explicit native-observation rows; the native presented-surface check remains a soft Stop advisory |
 | `SessionStart` | `hooks/session-start-bootstrapping-pabcd-state.json` | `node "${PLUGIN_ROOT}/components/pabcd-state/dist/cli.js" hook session-start` | materializes the bound session's default IDLE FSM state; side-effect only, silent |
 | `PreToolUse` `^update_goal$` | `hooks/pre-tool-use-guarding-goal-complete.json` | same pabcd-state CLI | denies `update_goal complete` while a cycle is in flight or the bound goalplan fails E8 |
 | `SessionStart` | `hooks/session-start-injecting-recall-context.json` | `node "${PLUGIN_ROOT}/components/recall/dist/cli.js" hook session-start` | injects CWD-scoped recent-work recall context |
@@ -268,8 +268,8 @@ though they have no package-local `test` script. This asymmetry is intentional, 
 | `cxc freeze` | `components/pabcd-state/dist/cli.js freeze` | freezes the interview plan + writes the goal-activation handoff manifest at `.codexclaw/interview/freeze.json` |
 | `cxc metric` | `components/pabcd-state/dist/cli.js metric` | records/shows objective metrics for emergence-harness loops |
 | `cxc divergence` | `components/pabcd-state/dist/cli.js divergence` | records divergence mode and candidate archive state |
-| `cxc loop` | `components/pabcd-state/dist/cli.js loop` | initializes, shows, or validates the project-local goalplan substrate |
-| `cxc goalplan` | `components/pabcd-state/dist/cli.js goalplan` | deprecated alias for `cxc loop` |
+| `cxc loop` | `components/pabcd-state/dist/cli.js loop` | dispatches the full project-local goalplan verb set |
+| `cxc goalplan` | `components/pabcd-state/dist/cli.js goalplan` | deprecated alias dispatching the same full verb set as `cxc loop` |
 | `cxc subagents` | `components/subagent-config/dist/cli.js` (list/get/set) | reads/writes the per-role `.codexclaw/subagents.json` model+effort+prompt config |
 | `cxc subagents dispatch` | `components/subagent-config/dist/fallback-dispatch-cli.js` | records main-owned claims and outcomes; provider failures and explicit `task_failed` evidence use bounded handoff after child reconciliation; never invokes a model itself |
 | `cxc provider` | `components/provider-bridge/dist/cli.js` (detect) | read-only ocx provider detect/status; never mutates provider state |

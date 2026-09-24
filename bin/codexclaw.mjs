@@ -12,7 +12,7 @@
  *   codexclaw freeze              freeze the interview plan + surface the goal-activation handoff
  *   codexclaw metric              record/show objective metrics for emergence-harness loops
  *   codexclaw divergence          record divergence mode + candidate archive state
- *   codexclaw loop                init/show/validate the project-local loop/goalplan substrate
+ *   codexclaw loop                full project-local goalplan verb set
  *   codexclaw goalplan            (deprecated alias for loop)
  *   codexclaw serve               run the bridge server (GUI static + API + messenger bots)
  *   codexclaw service             install/uninstall/status the serve daemon (launchd)
@@ -277,8 +277,8 @@ const TOP_LEVEL_HELP = [
   "  session current|bind           verify native identity or recover missing FSM state",
   "  orchestrate <verb>             drive IPABCD state (try: cxc orchestrate --help)",
   "  freeze                         freeze the interview plan and show goal handoff",
-  "  loop init|show|validate         manage the project-local goalplan substrate",
-  "  goalplan init|show|validate     deprecated alias for loop",
+  "  loop <verb>                     manage the full project-local goalplan verb set",
+  "  goalplan <verb>                 deprecated alias for loop <verb>",
   "  plan init <slug> [--phases N]   scaffold the devlog/_plan unit the P>A gate verifies",
   "  receipt test -- <command>       produce the test receipt a bound C>D requires",
   "  evidence resolve               settle an unverified subagent verdict (needs --receipt)",
@@ -511,7 +511,7 @@ if (isMain) switch (cmd) {
   case "loop":
   case "goalplan":
     // pabcd-state CLI expects argv as [kind, ...rest]; kind === "loop" or "goalplan".
-    // Project-local loop/goalplan substrate (init/show/validate); never writes the host goal DB.
+    // Full project-local goalplan verb set; never writes the host goal DB.
     process.exit(runPabcdState(process.argv.slice(2)));
     break;
   case "plan":

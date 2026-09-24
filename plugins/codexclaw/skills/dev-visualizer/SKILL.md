@@ -115,8 +115,11 @@ the host's narrower composition contract; do not paste a whole report into a fra
 
 Use semantic, editable source. Keep text-bearing HTML in normal responsive Grid/Flex
 flow; derive SVG connector endpoints from rendered bounds if needed
-(**DIAGRAM-LAYOUT-01**). Standalone SVG is a vector document: geometric coordinates
-are appropriate, but size/wrap labels from actual text metrics and inspect the result.
+(**DIAGRAM-LAYOUT-01**). Paint connectors before labels they pass behind. A label
+placed on a connector needs a paper-coloured halo with `paint-order: stroke`, or
+it must move clear; a halo cannot cover a connector painted later. Standalone SVG
+is a vector document: geometric coordinates are appropriate, but size/wrap labels
+from actual text metrics and inspect the result.
 
 [editorial-report.html](assets/editorial-report.html) is an optional original,
 dependency-free example for reports with a live scenario and print output. Adapt
@@ -169,6 +172,12 @@ screenshot/page, fix clipping, collisions, empty charts and runtime errors. Insp
 the longest labels at narrow and wide widths appropriate to the artifact; for
 responsive HTML include 320/736px and the intended desktop size. SVG text must remain
 legible at its intended display/export sizes, not merely within a valid viewBox.
+
+The paged-report exporter may run a bounded `--dump-dom` SVG crossing diagnostic
+on the final filled HTML. It is supplementary P2 review evidence: a crossing is
+a review finding, while a timeout, malformed result, or sampling cap is recorded
+in `report.notes` and does not change the PDF verdict; the PDF page remains the
+authority for print inspection.
 
 For interaction, change the primary input and observe the resulting marks/values;
 exercise keyboard access and reset when provided. A static screenshot is not

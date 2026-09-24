@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml"><img src="https://github.com/lidge-jun/codexclaw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/tests-3%2C528-brightgreen" alt="3,528 tests">
+  <img src="https://img.shields.io/badge/tests-3%2C599-brightgreen" alt="3,599 tests">
   <img src="https://img.shields.io/badge/skills-29-blue" alt="29 skills">
   <img src="https://img.shields.io/badge/hooks-29-blue" alt="29 hooks">
   <a href="https://lidge-jun.github.io/codexclaw/"><img src="https://img.shields.io/badge/docs-codexclaw-black" alt="Documentation"></a>
@@ -226,7 +226,7 @@ _PATH 수준 `cxc` 진입점(`bin/codexclaw.mjs` + `cli/` 워크스페이스)은
 
 ```bash
 cxc orchestrate P|A|B|C|D|status|reset   # PABCD phase control
-cxc loop init|show|validate               # durable goalplan management
+cxc loop <verb>                            # durable goalplan: init/show/validate/steer/ready and lifecycle verbs
 cxc scan record --session <id>            # record an interview contradiction-scan round
 cxc map <dir>                             # tree-sitter structure map (repo checkout only)
 cxc skill search <query>                  # remote skill discovery

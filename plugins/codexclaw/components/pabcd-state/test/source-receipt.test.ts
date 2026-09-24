@@ -6,7 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { supportsSymlinks, symlinkDirSync } from "../test-support/symlink-support.ts";
@@ -25,6 +26,87 @@ function writeReceipt(cwd: string, name: string, body: unknown): string {
   writeFileSync(join(cwd, rel), typeof body === "string" ? body : JSON.stringify(body));
   return rel;
 }
+
+function manifestFixture(cwd: string): { rel: string; dir: string; receipt: Record<string, unknown> } {
+  const dir = join(cwd, ".codexclaw", "evidence", "qa", "D-PACKAGE");
+  mkdirSync(dir, { recursive: true });
+  const verdict = { scenario: "D-PACKAGE", desktopArtifact: true, criterionIds: ["c-3"], artifactRefs: ["artifact-identity.json"] };
+  writeFileSync(join(dir, "verdict.json"), JSON.stringify(verdict));
+  writeFileSync(join(dir, "artifact-identity.json"), JSON.stringify({ version: 1 }));
+  const digest = (name: string) => createHash("sha256").update(readFileSync(join(dir, name))).digest("hex");
+  const receipt: Record<string, unknown> = { kind: "qa", sourceIdentity: IDENTITY, createdAt: IDENTITY.capturedAt,
+    artifactManifest: [
+      { path: "qa/D-PACKAGE/verdict.json", kind: "verdict", sha256: digest("verdict.json"), criterionIds: ["c-3"] },
+      { path: "qa/D-PACKAGE/artifact-identity.json", kind: "artifact-identity", sha256: digest("artifact-identity.json"), criterionIds: ["c-3"] },
+    ] };
+  const rel = writeReceipt(cwd, "qa-receipt.json", receipt);
+  return { rel, dir, receipt };
+}
+
+test("validated manifest rechecks linked verdict and identity bytes", () => {
+  const cwd = workspace();
+  const { rel, dir } = manifestFixture(cwd);
+  const parsed = parseSourceBoundReceipt(rel, cwd, "qa");
+  assert.ok(!isReceiptError(parsed), JSON.stringify(parsed));
+  assert.deepEqual(parsed.artifactManifest?.[1].criterionIds, ["c-3"]);
+  writeFileSync(join(dir, "artifact-identity.json"), "changed");
+  const changed = parseSourceBoundReceipt(rel, cwd, "qa");
+  assert.ok(isReceiptError(changed));
+  assert.match(changed.error, /digest does not match/);
+});
+
+test("legacy QA receipt without manifest remains readable", () => {
+  const cwd = workspace();
+  const rel = writeReceipt(cwd, "legacy.json", { kind: "qa", sourceIdentity: IDENTITY, createdAt: IDENTITY.capturedAt });
+  const parsed = parseSourceBoundReceipt(rel, cwd, "qa");
+  assert.ok(!isReceiptError(parsed));
+  assert.equal(parsed.artifactManifest, undefined);
+});
+
+test("manifest rejects malformed paths, hashes, kinds and criterion metadata", () => {
+  const changes: Array<(receipt: Record<string, unknown>) => void> = [
+    (r) => { (r.artifactManifest as Record<string, unknown>[])[0].path = "../outside/verdict.json"; },
+    (r) => { (r.artifactManifest as Record<string, unknown>[])[0].sha256 = "BAD"; },
+    (r) => { (r.artifactManifest as Record<string, unknown>[])[0].kind = "artifact-identity"; },
+    (r) => { (r.artifactManifest as Record<string, unknown>[])[1].criterionIds = ["c-4"]; },
+    (r) => { (r.artifactManifest as Record<string, unknown>[])[1].criterionIds = ["c-3", "c-3"]; },
+    (r) => { (r.artifactManifest as Record<string, unknown>[])[1].path = "qa/D-PACKAGE/missing/artifact-identity.json"; },
+    (r) => { (r.artifactManifest as Record<string, unknown>[]).pop(); },
+  ];
+  for (const change of changes) {
+    const cwd = workspace();
+    const { rel, receipt } = manifestFixture(cwd);
+    change(receipt);
+    writeFileSync(join(cwd, rel), JSON.stringify(receipt));
+    assert.ok(isReceiptError(parseSourceBoundReceipt(rel, cwd, "qa")), String(change));
+  }
+});
+
+test("manifest refuses a direct symlink and an escaping parent", (t) => {
+  if (!supportsSymlinks().file || !supportsSymlinks().dir) { t.skip("symlinks unavailable"); return; }
+  const cwd = workspace();
+  const { rel, dir } = manifestFixture(cwd);
+  const outside = mkdtempSync(join(tmpdir(), "cxc-manifest-outside-"));
+  const identity = join(dir, "artifact-identity.json");
+  writeFileSync(join(outside, "artifact-identity.json"), readFileSync(identity));
+  unlinkSync(identity);
+  symlinkSync(join(outside, "artifact-identity.json"), identity);
+  const direct = parseSourceBoundReceipt(rel, cwd, "qa");
+  assert.ok(isReceiptError(direct));
+  assert.match(direct.error, /symlink/);
+  const cwd2 = workspace();
+  const fixture = manifestFixture(cwd2);
+  const parentOutside = mkdtempSync(join(tmpdir(), "cxc-manifest-parent-"));
+  writeFileSync(join(parentOutside, "artifact-identity.json"), readFileSync(join(fixture.dir, "artifact-identity.json")));
+  const linked = join(fixture.dir, "linked");
+  symlinkDirSync(parentOutside, linked);
+  const data = fixture.receipt.artifactManifest as Record<string, unknown>[];
+  data[1].path = "qa/D-PACKAGE/linked/artifact-identity.json";
+  writeFileSync(join(cwd2, fixture.rel), JSON.stringify(fixture.receipt));
+  const escaped = parseSourceBoundReceipt(fixture.rel, cwd2, "qa");
+  assert.ok(isReceiptError(escaped));
+  assert.match(escaped.error, /outside the evidence root/);
+});
 
 test("a well-formed test receipt parses", () => {
   const cwd = workspace();

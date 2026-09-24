@@ -43,6 +43,7 @@ export type SteerOp =
       scenario: string;
       /** schemaVersion 2 requires this. Defaulted to "logic" at parse time. */
       surface?: CriterionSurface;
+      presented?: "native";
       expectedEvidence?: string;
     }
   | { kind: "add-work-phase"; id: string; title: string; dependsOn?: string[] };
@@ -108,10 +109,17 @@ function validateBatch(batch: unknown): SteerBatch | { error: string } {
       if (op.surface !== undefined && (typeof op.surface !== "string" || !SURFACES.has(op.surface))) {
         return { error: `ops[${i}].surface must be "logic", "web", "tui", or "desktop"` };
       }
+      if (op.presented !== undefined && op.presented !== "native") {
+        return { error: `ops[${i}].presented must be "native"` };
+      }
+      if (op.presented === "native" && op.surface !== "desktop") {
+        return { error: `ops[${i}].presented "native" requires surface "desktop"` };
+      }
       ops.push({
         kind: "add-criterion",
         scenario: op.scenario.trim(),
         surface: (op.surface as CriterionSurface | undefined) ?? "logic",
+        ...(op.presented === "native" ? { presented: "native" as const } : {}),
         expectedEvidence: typeof op.expectedEvidence === "string" ? op.expectedEvidence.trim() : "",
       });
       continue;
@@ -200,6 +208,7 @@ function applyOps(plan: Goalplan, ops: SteerOp[]): { plan: Goalplan } | { error:
           id: `c-${maxId + 1}`,
           scenario,
           surface: op.surface ?? "logic",
+          ...(op.presented === "native" ? { presented: "native" as const } : {}),
           expectedEvidence: op.expectedEvidence ?? "",
           capturedEvidence: null,
           status: "open",

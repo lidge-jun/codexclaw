@@ -158,7 +158,7 @@ async function main()                {
     process.exit(result.code);
   }
 
-  // `loop` command path: project-local loop/goalplan init/show/validate.
+  // `loop` command path: the full project-local goalplan verb set.
   // `goalplan` is a deprecated alias for `loop`.
   if (kind === "loop" || kind === "goalplan") {
     const label = kind === "goalplan" ? "goalplan (deprecated, use 'loop')" : "loop";
