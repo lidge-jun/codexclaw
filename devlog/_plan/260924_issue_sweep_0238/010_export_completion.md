@@ -390,3 +390,11 @@ Continuity: wp1 D locked this roadmap at d6f83c7a and named wp2 from this docume
 Stale check: `git diff --stat d66dfcf2..HEAD -- plugins/` is empty, so every source anchor above still holds. The architect confirmed D2.1-D2.3 as amended (002, recheck after audit round 1: ALIGNED). The plan auditor passed this document in round 4. Build uses one gpt-6-sol builder whose write scope is export-paged-report.mjs, quality-gate.mjs (read-only unless the summary change needs it), reference/report-pipeline.md, test/report-export.test.mjs and test/fixtures/visualizer-export-tools.mjs.
 
 - wp2 A round 1 fold: the changing-content test uses a 4,000 ms deadline and an unchanged same-size control under the same deadline (auditor finding 1).
+
+## wp2 D (2026-09-24)
+
+The exporter now accepts a complete staged PDF from a Chrome that never exits. It kills the owned tree only after the stage has kept a `%PDF-` head, a `%%EOF` trailer, and an unchanged size and mtime for 1.5 s. It counts the result as `stage-stable` only when the exit is attributable to that kill and the stage is still the accepted snapshot. A child that survives the 5 s post-kill grace fails the pass and no longer holds the exporter open. The text summary now prints each FAIL, BLOCKED and NOT_RUN reason once. Commits: bf675984 and 61e4d077. Evidence: report-export 47/47, plus quality and genre suites, 89/89 under the wp2 receipt. Independent reviewer 01a0d1bf returned FAIL (a grace path that did not bound the process, and a stage that could change after the decision), then PASS after the fixes. Both regression tests were red on bf675984.
+
+What did not improve: Windows behavior rests on code review of the `taskkill` branch; no Windows-native run happened here, so hosted CI is the first real Windows evidence. Hypothesis that died: the plan assumed resolving `runTool` after the grace period bounded the exporter, but a live child keeps Node's event loop open. What would show this direction is wrong: a Chrome build that keeps rewriting the stage file after a complete trailer. It would never reach stability and would still hit the deadline; the fix for that case would be CDP printing, which is the alternative D2.1 rejected.
+
+Next: wp3 from 020_paged_report_layout.md, which builds on the reworked `runTool`.
