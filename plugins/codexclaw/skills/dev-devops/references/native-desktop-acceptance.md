@@ -1,6 +1,6 @@
 # Native Desktop Acceptance — Tauri, AppKit/SwiftUI, WidgetKit, Menu-bar Apps
 
-Last reviewed: 2026-09-23
+Last reviewed: 2026-09-24
 Applies to: Tauri apps, AppKit/SwiftUI code linked into another host (Swift static library + C ABI), WidgetKit extensions, menu-bar/tray apps, native window materials, embedded runtimes and sidecars, macOS desktop release paths
 When to read: A change touches one of those surfaces, or you are asked for a desktop regression audit or release readiness
 Canonical owner: dev-devops native desktop acceptance
@@ -22,14 +22,17 @@ claiming anything.
 - A signing, entitlement, bundle-layout, architecture or updater change triggers
   packaging and distribution rows even when no code changed.
 
-When a goalplan tracks this work, register each such criterion on a
-session-bound plan with `cxc loop add-criterion --session <id> --criterion <text>
---surface desktop` (codexclaw 0.2.37+; `init` refuses `--surface`). Without a
-recorded final gate that is a classification you must honor by producing this
-matrix. Validation on schemaVersion 2+ plans with a final gate, and the final-gate
-spawn guard on any plan with a recorded `finalGate`, also make the QA receipt
-mandatory. Builds older than 0.2.37 drop `desktop` on read and erase it on their
-next write, so every host that edits the plan needs 0.2.37 or newer.
+When a goalplan tracks this work, register each criterion on a session-bound
+plan with `cxc loop add-criterion --session <id> --criterion <text> --surface
+desktop [--presented native]` (`init` refuses `--surface`). Use `--presented
+native` only when the criterion needs inspection of a presented native surface.
+It activates a soft, fail-open C-phase Stop advisory requesting an explicit
+native observation; it does not block completion. Without a recorded final gate,
+the desktop classification still calls for this matrix. A schemaVersion 2+
+plan with a recorded final gate requires a QA receipt, and each non-native
+desktop criterion needs a matching artifact-identity entry in that receipt.
+Default v1 plans rely on QA ingress validation. Hosts editing plans need a
+build that preserves `desktop` and `presented` on read and write.
 
 ## §2 Acceptance matrix (DESKTOP-MATRIX-01)
 
@@ -114,21 +117,50 @@ regressions" is not a finding when there was no desktop to regress.
 
 ## §6 Artifact identity (DESKTOP-ARTIFACT-01)
 
-Bind evidence to the artifact it came from. Record `artifact-identity.json` in
-the QA `artifactRefs`:
+When a desktop row depends on a built artifact, set `desktopArtifact: true` in
+its `verdict.json`, list its goalplan IDs in `criterionIds` (for example
+`["c-3"]`), and include exactly one `artifact-identity.json` in `artifactRefs`.
+The identity file uses `version: 1` and these fields:
 
-- bundle path and `CFBundleExecutable` read from the bundle's `Info.plist`;
-  derive executable paths from it, never from a hardcoded name
-- `lipo -archs` output for the host executable, each sidecar and each extension
-- SHA-256 of the app archive, sidecars, DMG and updater archive
-- signing mode (ad-hoc or Developer ID), team id, and the entitlements the
-  signature carries (`codesign -d --entitlements -`)
-- `xcode-select -p`, SDK, `swiftc --version`, and the Rust/Bun versions used
-- the row ids this artifact covers
+- Required `bundlePath` (the `.app` path) and `bundleExecutable` (the
+  `CFBundleExecutable` value); optional non-empty `bundleIdentifier`. The
+  executable component path must derive from
+  `<bundlePath>/Contents/MacOS/<bundleExecutable>`. The validator checks path
+  consistency; it does not read `Info.plist` to verify that value.
+- `components` contains exactly one record each for `app`, `executable`,
+  `archive`, `dmg`, and `updater`, plus any `sidecar` and `extension` records.
+  Each has a unique non-empty `id` and a `kind`. An applicable `app` has a path
+  to a `.app` directory containing `Contents/Info.plist` and a lowercase
+  `sha256` bundle tree digest. Compute it with
+  `node plugins/codexclaw/skills/qa/scripts/validate-evidence.mjs --bundle-digest <path.app>`.
+  The tree digest covers file bytes, paths, directories and symlink targets;
+  bundle symlinks must resolve inside the bundle. Applicable executable and
+  archive records carry file SHA-256 digests; every other applicable file
+  component also carries a lowercase SHA-256 digest. Applicable executable,
+  sidecar and extension records additionally carry non-empty `architectures`.
+  An unavailable component uses `{ "applicable": false, "reason": "..." }`
+  and needs no path, digest or architectures. An applicable app requires an
+  applicable executable and archive.
+- `signing.mode` is `ad-hoc` or `Developer ID`. A Developer ID identity needs
+  non-empty `signing.teamId`; ad-hoc requires it absent or null.
+  `signing.entitlements` is a normalized object of boolean, string, finite
+  number or string-array values. Record values from the signature inspection.
+- `toolchain.xcodeSelectPath`, `toolchain.sdk` and
+  `toolchain.swiftcVersion` are required non-empty strings; `rustVersion` and
+  `bunVersion` are optional when those tools were used. `coveredRowIds` must
+  include the verdict's desktop scenario ID.
 
-A changed digest or signing configuration invalidates only the rows bound to
-that component. An ad-hoc single-architecture `.app` never satisfies a
-universal Developer ID, DMG or updater row.
+`validate-evidence.mjs --emit-receipt` validates referenced identities and
+hashes each verdict and identity file into typed QA receipt `artifactManifest`
+entries (`path`, `sha256`, `kind`, optional `criterionIds`). It copies the
+validated verdict's IDs to its identity entry; receipt parsing rechecks bytes
+and that binding. A schemaVersion 2+ recorded final gate requires a matching
+identity entry for every non-native desktop criterion. Default v1 plans use QA
+ingress validation only. A `presented: "native"` criterion uses the soft native
+observation advisory and has no artifact-manifest requirement from this gate.
+An ad-hoc single-architecture `.app` does not satisfy a universal Developer
+ID, DMG or updater row. The archive hash binds its bytes but the validator
+does not unpack it to prove the app is inside.
 
 ## §7 Tauri, Rust and Swift boundary (DESKTOP-FFI-01)
 
@@ -167,16 +199,17 @@ under `Contents/PlugIns` and signature (the OpenCodex case in codexclaw issue
 - The bundled CLI runs from the **final signed bundle** with its final
   entitlements. JIT runtimes under Hardened Runtime need
   `com.apple.security.cs.allow-jit`, or they may fall back or crash.
-- Check architectures with `lipo -archs <file>` compared to the expected set
-  exactly (`arm64` and `arm64e` are different names), or one
-  `lipo <file> -verify_arch <arch>` call per architecture. Passing several
-  architectures to one `-verify_arch` behaves differently across toolchains:
-  Command Line Tools 27.0 refused it in either argument order, and Xcode 26.6
-  rejected the file-last form. Never prescribe a form from the manual alone;
-  record `xcode-select -p` and the tool version with the result.
-- Proof comes from a runner executing the command against the artifact. A test
-  that string-matches the command line repeats the author's assumption and is
-  not an oracle.
+- Use the shipped behavioral oracle:
+  `node plugins/codexclaw/skills/dev-devops/scripts/verify-lipo-command.mjs --artifact <file> --arch <a> --arch <b> --candidate-json '<argv-json>'`.
+  It compares the reported architecture set exactly (`arm64` and `arm64e`
+  differ), runs the candidate argv against the good artifact, creates a thin
+  negative control and requires the candidate to fail on it. The candidate
+  JSON must contain one `{artifact}` placeholder. No shell string is evaluated.
+  Record the lipo executable/toolchain identity and fixture with the result.
+  This proves only that candidate's behavior on that toolchain and fixture;
+  it does not prove packaging, signing, notarization or native interaction.
+  Multi-architecture `-verify_arch` forms observed on this Mac failed with
+  `requires exactly one input file`, so do not prescribe them.
 
 ## §10 Menu-bar and popup scenarios (DESKTOP-POPUP-01)
 

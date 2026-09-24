@@ -123,6 +123,17 @@
       "name": "cxc-worktree-guardian"
     }
   ],
+  "scripts": [
+    "skills/dev-devops/scripts/verify-lipo-command.mjs",
+    "skills/dev-visualizer/scripts/exhibit-contract.mjs",
+    "skills/dev-visualizer/scripts/export-paged-report.mjs",
+    "skills/dev-visualizer/scripts/quality-gate.mjs",
+    "skills/dev-visualizer/scripts/report-contract.mjs",
+    "skills/dev-visualizer/scripts/report-intake.mjs",
+    "skills/dev-visualizer/scripts/report-locale.mjs",
+    "skills/dev-visualizer/scripts/research-adapter.mjs",
+    "skills/qa/scripts/validate-evidence.mjs"
+  ],
   "hooks": [
     {
       "file": "post-compact-injecting-bg-terminal-affordance.json",

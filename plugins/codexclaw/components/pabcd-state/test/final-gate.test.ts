@@ -30,6 +30,7 @@ import {
   type ReviewRoundState,
 } from "../src/goalplan.ts";
 import type { SourceIdentity } from "../src/source-identity.ts";
+import type { ArtifactDigest } from "../src/source-receipt.ts";
 
 const HERE: SourceIdentity = { kind: "resolved", commitSha: "aaaaaaa", dirty: false, capturedAt: "2026-01-01T00:00:00.000Z" };
 const ELSEWHERE: SourceIdentity = { kind: "resolved", commitSha: "bbbbbbb", dirty: false, capturedAt: "2026-01-01T00:00:00.000Z" };
@@ -76,7 +77,9 @@ function plan(over: Partial<Goalplan> = {}): Goalplan {
   };
 }
 
-function ctx(cwd: string, current: SourceIdentity = HERE, receipts: Record<string, SourceIdentity | string> = {}): GoalplanValidationCtx {
+type ReceiptFixture = SourceIdentity | { sourceIdentity: SourceIdentity; artifactManifest?: ArtifactDigest[] } | string;
+
+function ctx(cwd: string, current: SourceIdentity = HERE, receipts: Record<string, ReceiptFixture> = {}): GoalplanValidationCtx {
   return {
     cwd,
     captureSourceIdentity: () => current,
@@ -88,6 +91,7 @@ function ctx(cwd: string, current: SourceIdentity = HERE, receipts: Record<strin
       const hit = receipts[`${expectedKind}:${path}`] ?? receipts[path];
       if (hit === undefined) return { sourceIdentity: HERE };
       if (typeof hit === "string") return { error: hit };
+      if ("sourceIdentity" in hit) return hit;
       return { sourceIdentity: hit };
     },
   };
@@ -99,6 +103,35 @@ function cwd(): string {
 
 function reasons(p: Goalplan, c?: GoalplanValidationCtx): string {
   return validateGoalplan(p, c).reasons.join(" | ");
+}
+
+function desktopCriteria(ids: string[], presented?: "native"): Goalplan["criteria"] {
+  return ids.map((id) => ({
+    id, scenario: `D-PK-${id}`, expectedEvidence: "bundle evidence", capturedEvidence: "recorded",
+    status: "met", surface: "desktop", ...(presented ? { presented } : {}),
+  }));
+}
+
+function desktopGate(ids: string[], presented?: "native"): Goalplan {
+  return plan({
+    schemaVersion: 2,
+    workPhases: [{ id: "wp1", title: "t", status: "done", tasks: [], criteriaIds: ids }],
+    criteria: desktopCriteria(ids, presented),
+    finalGate: gate({ qaRequired: true, qaReceiptPath: "qa-receipt.json" }),
+    reviewRounds: [round()],
+  });
+}
+
+const DIGEST = "a".repeat(64);
+function manifest(ids: string[]): ArtifactDigest[] {
+  return [
+    { path: "D-PK-01/verdict.json", sha256: DIGEST, kind: "verdict", criterionIds: ids },
+    { path: "D-PK-01/artifact-identity.json", sha256: DIGEST, kind: "artifact-identity", criterionIds: ids },
+  ];
+}
+
+function qaCtx(dir: string, receipt: ReceiptFixture): GoalplanValidationCtx {
+  return ctx(dir, HERE, { "qa:qa-receipt.json": receipt });
 }
 
 test("v1: a finished plan with no final gate still passes", () => {
@@ -257,6 +290,50 @@ test("a logic-only plan needs no QA receipt", () => {
   assert.equal(validateGoalplan(p, ctx(cwd())).ok, true);
 });
 
+test("artifact-dependent desktop criteria reject a legacy QA receipt", () => {
+  assert.match(reasons(desktopGate(["c-3"]), qaCtx(cwd(), { sourceIdentity: HERE })), /artifact-identity\.json entry for desktop criterion c-3/);
+});
+
+test("artifact-dependent desktop criteria reject a verdict-only manifest", () => {
+  const receipt = { sourceIdentity: HERE, artifactManifest: [manifest(["c-3"])[0]!] };
+  assert.match(reasons(desktopGate(["c-3"]), qaCtx(cwd(), receipt)), /artifact-identity\.json entry for desktop criterion c-3/);
+});
+
+test("artifact-dependent desktop criteria accept a matching identity manifest entry", () => {
+  const result = validateGoalplan(desktopGate(["c-3"]), qaCtx(cwd(), { sourceIdentity: HERE, artifactManifest: manifest(["c-3"]) }));
+  assert.equal(result.ok, true, result.reasons.join("; "));
+});
+
+test("presented native desktop criteria do not require an artifact manifest", () => {
+  const result = validateGoalplan(desktopGate(["c-3"], "native"), qaCtx(cwd(), { sourceIdentity: HERE }));
+  assert.equal(result.ok, true, result.reasons.join("; "));
+});
+
+test("changed artifact manifest fails before the desktop final gate", () => {
+  const why = reasons(desktopGate(["c-3"]), qaCtx(cwd(), "artifactManifest digest mismatch"));
+  assert.match(why, /QA receipt is not usable: artifactManifest digest mismatch/);
+  assert.doesNotMatch(why, /no artifact-identity\.json entry/);
+});
+
+test("unrelated identity cannot satisfy another desktop criterion", () => {
+  const why = reasons(desktopGate(["c-3", "c-4"]), qaCtx(cwd(), { sourceIdentity: HERE, artifactManifest: manifest(["c-3"]) }));
+  assert.match(why, /desktop criterion c-4/);
+  assert.doesNotMatch(why, /desktop criterion c-3/);
+});
+
+test("every desktop criterion can be covered by one bound identity", () => {
+  const result = validateGoalplan(desktopGate(["c-3", "c-4"]), qaCtx(cwd(), {
+    sourceIdentity: HERE, artifactManifest: manifest(["c-3", "c-4"]),
+  }));
+  assert.equal(result.ok, true, result.reasons.join("; "));
+});
+
+test("default v1 desktop plan does not activate the final-gate manifest requirement", () => {
+  const p = plan({ criteria: desktopCriteria(["c-3"]), workPhases: [{ id: "wp1", title: "t", status: "done", tasks: [], criteriaIds: ["c-3"] }] });
+  const result = validateGoalplan(p, ctx(cwd()));
+  assert.equal(result.ok, true, result.reasons.join("; "));
+});
+
 test("adding a web criterion after the gate opened forces a re-open", () => {
   const p = plan({
     schemaVersion: 2,
@@ -336,6 +413,19 @@ test("desktop survives a round trip; an unknown surface is dropped and a v2 plan
   assert.equal(back?.criteria[0]?.surface, undefined);
   const v2 = { ...back!, schemaVersion: 2, finalGate: gate(), reviewRounds: [round()] };
   assert.match(reasons(v2, ctx(dir)), /no valid surface \("logic" \| "web" \| "tui" \| "desktop"\)/);
+});
+
+test("presented native survives a round trip and unknown presented values are dropped", () => {
+  const dir = cwd();
+  const p = plan({ criteria: desktopCriteria(["c-3"], "native"), workPhases: [{ id: "wp1", title: "t", status: "done", tasks: [], criteriaIds: ["c-3"] }] });
+  writeGoalplan(dir, p);
+  assert.equal(readGoalplan(dir, p.slug)?.criteria[0]?.presented, "native");
+
+  const file = join(goalplanDir(dir, p.slug), "goalplan.json");
+  const raw = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+  (raw.criteria as Record<string, unknown>[])[0].presented = "web";
+  writeFileSync(file, JSON.stringify(raw));
+  assert.equal(readGoalplan(dir, p.slug)?.criteria[0]?.presented, undefined);
 });
 
 test("finalGate, schemaVersion and surface survive a write/read round trip", () => {
