@@ -336,3 +336,19 @@ After B, run `node --test plugins/codexclaw/components/subagent-config/test/disp
 - Alias coverage: an alias whose id is missing from the local catalog prints as `unverified (map <verifiedAt>)`, so a host without some routes still gets a truthful card; no alias is dropped silently.
 - OCX refresh cost in `subagents_get`: the freshness probe calls the existing live-catalog reader with a 5,000 ms bound for this call only. A timeout or error yields `staleModel: null` with a `staleReason`, never `true`. The MCP call therefore waits at most about 5 s beyond today.
 - V2 spelling: out of scope until a V2 host is available. The card's unresolved snippet resolves V2 by suffix and claims no exact V2 name, and the #243 closing comment says so.
+
+## Reflection round 1 folds (override earlier text)
+
+- E1: `CODEXCLAW_SPAWN_V1=1` is an override, not proof. The V1 card's first line reads `[codexclaw] Subagent dispatch: V1 requested by CODEXCLAW_SPAWN_V1=1 (override, not host evidence).`, and the plan text no longer calls it proven.
+- E3: an unverified alias renders as `<alias> -> <id> (unverified, map <ALIAS_MAP_DATE>)`; a verified one as `<alias> -> <id> (verified in local catalog)`. The field stays `mapDate`, and the heading keeps the map date.
+- E4: `mcp.ts` bounds the freshness read itself, leaving live-catalog.ts unchanged:
+  ```ts
+  const STALE_PROBE_MS = 5_000;
+  const catalog = await Promise.race([
+    readCatalog({ forceRefresh: true }),
+    new Promise<null>((resolve) => { const t = setTimeout(() => resolve(null), STALE_PROBE_MS); t.unref?.(); }),
+  ]);
+  toolResult(id, decorateSubagentsGet(settings, catalog));
+  ```
+  `decorateSubagentsGet(settings, catalog: LiveCatalog | null)` sets `staleModel: null` with `staleReason: "catalog read timed out after 5000 ms"` when `catalog` is null, `staleReason: "catalog is last-success cache"` when it is stale, and `staleReason: "catalog unavailable"` when it failed. `staleReason` is absent when `staleModel` is true or false. An abandoned OCX subprocess finishes under its own 12 s bound and is ignored.
+- E6: the MCP tests add `timeout yields staleModel null with staleReason`, which injects a never-resolving catalog reader through a test seam: `handleToolCall` takes an optional `readCatalogImpl` parameter defaulting to `readCatalog`. They assert the result arrives in under 5.5 s, plus `staleReason is absent when staleModel is true or false`. The dispatch-card tests assert the exact V1 override wording and the `(unverified, map 2026-09-24)` form.
