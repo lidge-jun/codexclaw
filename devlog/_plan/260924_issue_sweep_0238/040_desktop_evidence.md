@@ -12,7 +12,7 @@ The amended decisions are binding: D5.1 validates identity whenever an identity 
 
 Current anchors: imports at `:11-13`; artifact existence checks in `artifactErrors()` at `:80-120`; verdict parsing at `checkVerdictFile()` `:123-145`; receipt aggregation at `validateEvidence()` `:167-228`.
 
-Add `createHash` to the node imports and add these constants and helpers after `CAPTURE_CHECK_KEYS`. The existing `identityErrors(id, label)` at `:29-41` validates `sourceSnapshotAt`; keep it unchanged and use the distinct `artifactIdentityErrors` name below. The reference currently lists the facts to record but does not define JSON keys or whether an absent packaging item means “not applicable”. Use this strict shape: `components` is an array with exactly one applicable-or-inapplicable record for each of `app`, `executable`, `archive`, `dmg` and `updater`; it may also contain zero or more `sidecar` and `extension` records. An applicable `app` has a path to a `.app` directory containing `Contents/Info.plist` and no digest; an applicable `executable` has a file path, lowercase `sha256` and non-empty `architectures`; applicable `archive`, `sidecar`, `extension`, `dmg` and `updater` records have file paths and lowercase `sha256`, with architectures additionally required for sidecars and extensions. The app's byte binding comes from its archive and executable component digests. An inapplicable record has `applicable: false` and a non-empty `reason`, and does not need a path, digest or architecture list. `bundlePath` and `bundleExecutable` are required strings; `bundleIdentifier` is optional and validated when present. Signing mode is exactly `"ad-hoc" | "Developer ID"`, as the reference states; `teamId` is a non-empty string only for `Developer ID` and must be absent or `null` for ad-hoc. `entitlements` is a normalized object whose values are booleans, strings, finite numbers, or arrays of strings. The required toolchain keys are `xcodeSelectPath`, `sdk` and `swiftcVersion`; `rustVersion` and `bunVersion` are optional because the reference asks for them only when used, and are validated when present.
+Add `createHash` to the node imports and add these constants and helpers after `CAPTURE_CHECK_KEYS`. The existing `identityErrors(id, label)` at `:29-41` validates `sourceSnapshotAt`; keep it unchanged and use the distinct `artifactIdentityErrors` name below. The reference currently lists the facts to record but does not define JSON keys or whether an absent packaging item means “not applicable”. Use this strict shape: `components` is an array with exactly one applicable-or-inapplicable record for each of `app`, `executable`, `archive`, `dmg` and `updater`; it may also contain zero or more `sidecar` and `extension` records. An applicable `app` has a path to a `.app` directory containing `Contents/Info.plist` and a lowercase `sha256` bundle tree digest computed by `sha256Tree` (see Audit round 2 and 3 folds); an applicable `executable` has a file path, lowercase `sha256` and non-empty `architectures`; applicable `archive`, `sidecar`, `extension`, `dmg` and `updater` records have file paths and lowercase `sha256`, with architectures additionally required for sidecars and extensions. The app's bytes are bound by its tree digest; the archive and executable digests are separate bindings. An inapplicable record has `applicable: false` and a non-empty `reason`, and does not need a path, digest or architecture list. `bundlePath` and `bundleExecutable` are required strings; `bundleIdentifier` is optional and validated when present. Signing mode is exactly `"ad-hoc" | "Developer ID"`, as the reference states; `teamId` is a non-empty string only for `Developer ID` and must be absent or `null` for ad-hoc. `entitlements` is a normalized object whose values are booleans, strings, finite numbers, or arrays of strings. The required toolchain keys are `xcodeSelectPath`, `sdk` and `swiftcVersion`; `rustVersion` and `bunVersion` are optional because the reference asks for them only when used, and are validated when present.
 
 ```js
 const ARTIFACT_IDENTITY_FILE = "artifact-identity.json";
@@ -86,7 +86,6 @@ function artifactIdentityErrors(identity, label, scenario) {
       }
       if (component.applicable !== undefined && component.applicable !== true) out.push(`${p}.applicable must be true or false`);
       if (!nonEmptyString(component.path)) out.push(`${p}.path is required`);
-      if (component.kind === "app" && component.sha256 !== undefined) out.push(`${p}.sha256 must be absent for an app directory`);
       if (ARCHITECTURE_KINDS.has(component.kind)
         && (!Array.isArray(component.architectures) || component.architectures.length === 0
           || component.architectures.some((arch) => !nonEmptyString(arch)))) {
@@ -223,8 +222,13 @@ function artifactErrors(baseDir, verdict, notes) {
         try { plistIsFile = statSync(plist).isFile(); } catch { /* reported below */ }
         if (!component.path.endsWith(".app") || !componentStat.isDirectory() || !plistIsFile) {
           errors.push(`${ref}: app must be a directory containing Contents/Info.plist: ${component.path}`);
-        } else if (sha256Tree(componentPath) !== component.sha256) {
-          errors.push(`${ref}: app bundle tree digest does not match: ${component.path}`);
+        } else {
+          let treeDigest = null;
+          try { treeDigest = sha256Tree(componentPath); }
+          catch (err) { errors.push(`${ref}: app bundle could not be digested: ${err.message}`); }
+          if (treeDigest !== null && treeDigest !== component.sha256) {
+            errors.push(`${ref}: app bundle tree digest does not match: ${component.path}`);
+          }
         }
         continue;
       }
@@ -346,7 +350,7 @@ Add a fixture helper that writes a real directory-shaped `Fixture.app/Contents/I
 7. `legacy UI receipt without artifactManifest remains parseable`: the existing web fixture receipt has no manifest and still parses as a QA receipt.
 8. `desktop artifact verdict requires criterionIds`: missing, empty, duplicate, or malformed IDs fail at ingress; a valid ID survives into the identity manifest entry.
 9. `malformed components are errors, not a crash`: an otherwise well-formed identity with `components: {}` returns a validation error and writes no receipt.
-10. `app requires a bundle directory and binding files`: a plain file at an `app` path, a bundle without `Contents/Info.plist`, a `bundlePath` or executable path inconsistent with the app, or an applicable app with inapplicable archive/executable fails; a directory-shaped bundle fixture passes without an `app.sha256`.
+10. `app requires a bundle directory and binding files`: a plain file at an `app` path, a bundle without `Contents/Info.plist`, a `bundlePath` or executable path inconsistent with the app, or an applicable app with inapplicable archive/executable fails; a directory-shaped bundle fixture passes with the `app.sha256` that `sha256Tree` computes, and fails with any other value or without one.
 11. `manifest symlink escape fails closed`: after emitting a receipt, replace a manifest target inside evidence with a symlink to an outside file containing identical bytes; parsing returns `{ error }`, not a valid receipt or an exception. Also test a symlinked parent directory resolving outside the evidence root.
 12. `receipt-only criterionId edit cannot expand coverage`: emit a valid receipt, change only its identity entry's `criterionIds` to another criterion, and assert parsing rejects the mismatch against the hashed same-directory verdict.
 
@@ -790,7 +794,7 @@ The following commands all exited 0: `lipo -thin x86_64 /bin/ls -output /tmp/cod
 These are implementation-phase edits, with exact current text and replacement text:
 
 - `plugins/codexclaw/skills/qa/SKILL.md:73-81`: current verdict shape begins `"surface": "http|cli|tui|web|gui"` and ends with the `captureChecks` object. Add `"desktopArtifact": <bool>` and `"criterionIds": ["c-3"]` to the contract, explain that `desktopArtifact: true` requires both criterion IDs and one `artifact-identity.json` in `artifactRefs`, and add typed `{ path, sha256, kind, criterionIds? }` manifest entries to the emitted QA receipt paragraph at `:104-118`. State the v2+ recorded-final-gate scope and v1 QA-ingress behavior.
-- `plugins/codexclaw/skills/dev-devops/references/native-desktop-acceptance.md:25-32`: replace the registration command with the optional `--presented native` form shown in 5B. At `:115-131`, replace the current prose with the exact `artifact-identity.json` schema in 5A: `version: 1`, required `bundlePath` and `bundleExecutable`, optional `bundleIdentifier`, required component kinds `app|executable|archive|dmg|updater`, optional `sidecar|extension` records, an applicable `app` path to a `.app` directory with `Contents/Info.plist` and no `app.sha256`, applicable `archive` and `executable` components binding that app with file SHA-256, `sha256` for other applicable file components, `architectures` for applicable executable/sidecar/extension records, and `{ applicable: false, reason }` for unavailable components. Define `signing.mode` as `ad-hoc|Developer ID`; require `signing.teamId` only for Developer ID and require absent/null for ad-hoc; require `signing.entitlements` as a normalized scalar/string-array object; require `toolchain.xcodeSelectPath`, `sdk` and `swiftcVersion`, with optional `rustVersion` and `bunVersion`; and require `coveredRowIds` to include the verdict scenario. Explain the verdict `criterionIds` to typed manifest to v2+ final-gate chain and the v1 limit. At `:170-179`, replace the multi-architecture prescription with the oracle command and behavioral limitation shown in 5C.
+- `plugins/codexclaw/skills/dev-devops/references/native-desktop-acceptance.md:25-32`: replace the registration command with the optional `--presented native` form shown in 5B. At `:115-131`, replace the current prose with the exact `artifact-identity.json` schema in 5A: `version: 1`, required `bundlePath` and `bundleExecutable`, optional `bundleIdentifier`, required component kinds `app|executable|archive|dmg|updater`, optional `sidecar|extension` records, an applicable `app` path to a `.app` directory with `Contents/Info.plist` and an `app.sha256` bundle tree digest (printed by `validate-evidence.mjs --bundle-digest <path.app>`; bundle symlinks must stay inside the bundle), applicable `archive` and `executable` components with file SHA-256, `sha256` for other applicable file components, `architectures` for applicable executable/sidecar/extension records, and `{ applicable: false, reason }` for unavailable components. Define `signing.mode` as `ad-hoc|Developer ID`; require `signing.teamId` only for Developer ID and require absent/null for ad-hoc; require `signing.entitlements` as a normalized scalar/string-array object; require `toolchain.xcodeSelectPath`, `sdk` and `swiftcVersion`, with optional `rustVersion` and `bunVersion`; and require `coveredRowIds` to include the verdict scenario. Explain the verdict `criterionIds` to typed manifest to v2+ final-gate chain and the v1 limit. At `:170-179`, replace the multi-architecture prescription with the oracle command and behavioral limitation shown in 5C.
 - `plugins/codexclaw/skills/loop/references/durable-goalplan.md:60-71`: change the current criterion shape from `{ id, scenario, surface, expectedEvidence, capturedEvidence, status }` to `{ id, scenario, surface, presented?, expectedEvidence, capturedEvidence, status }`; add “`presented: "native"` is legal only with `surface: "desktop"` and activates the soft native observation advisory” after the surface sentence. At `:89-92`, append `[--presented native]` and state that it is valid only with desktop.
 - `structure/INDEX.md:206`: replace `tracks render/visual observation events for QA evidence` with `tracks ordinary render observations and explicit native-observation rows; the native presented-surface check remains a soft Stop advisory`. Add a row in the nearby component/utility map for `skills/dev-devops/scripts/verify-lipo-command.mjs` as the behavioral lipo oracle and state that `inventory.mjs` counts shipped skill scripts.
 - `structure/40_enforcement_methods.md:18-32`: no text change is required. The new native advisory is E4 and the validator/oracle checks are E8; cite this catalog rather than changing its ladder.
@@ -845,6 +849,7 @@ Material risks are the unverified host payload shape for native app names and sc
 
 ```js
 export function sha256Tree(root) {
+  const rootReal = realpathSync(root);
   const hash = createHash("sha256");
   const walk = (dir, rel) => {
     const names = readdirSync(dir).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
@@ -853,7 +858,12 @@ export function sha256Tree(root) {
       const relPath = rel ? rel + "/" + name : name;
       const st = lstatSync(abs);
       if (st.isSymbolicLink()) {
-        hash.update("L\0" + relPath + "\0" + readlinkSync(abs) + "\n");
+        const target = readlinkSync(abs);
+        const resolved = realpathSync(abs);
+        if (resolved !== rootReal && !resolved.startsWith(rootReal + sep)) {
+          throw new Error("bundle symlink escapes the bundle: " + relPath);
+        }
+        hash.update("L\0" + relPath + "\0" + target + "\n");
       } else if (st.isDirectory()) {
         hash.update("D\0" + relPath + "\n");
         walk(abs, relPath);
@@ -874,3 +884,8 @@ Imports: add `readdirSync`, `lstatSync`, `readlinkSync` to the existing `node:fs
 New tests in plugins/codexclaw/test/qa-validate-evidence.test.mjs: `app bundle digest matches a directory fixture` (a temp `Demo.app/Contents/{Info.plist,MacOS/Demo,Resources/a.txt}` passes with the digest from `sha256Tree`), `changing a bundle resource invalidates the identity` (rewrite `Resources/a.txt` after computing the digest and assert the named error), and `bundle digest is order and path sensitive` (renaming a resource changes the digest).
 
 - Auditor note on finding 9: narrowed. 5A's per-criterion manifest proof applies to non-native desktop criteria; a `presented: "native"` criterion has only the soft advisory from 5B and the QA verdict the author writes. The bypass table row for 5B states this.
+
+## Audit round 3 folds
+
+- Finding 1: the obsolete "sha256 must be absent" check on `app` is removed; the schema prose, the app test (item 10) and the SoT text now require the tree digest.
+- Finding 2: `sha256Tree` resolves every symlink with `realpathSync` and throws when it leaves the bundle; the validator turns that into `app bundle could not be digested: bundle symlink escapes the bundle: <path>`. Internal symlinks are still hashed by their target string. Imports add `realpathSync` from `node:fs` and `sep` from `node:path`. New test: `bundle symlink escaping the app is rejected` (a `Resources/link` pointing at a temp file outside the bundle fails; a link to `../MacOS/Demo` inside it passes).
