@@ -9,7 +9,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
   accessSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync,
-  realpathSync, rmSync, statSync, renameSync, writeFileSync, openSync, closeSync,
+  realpathSync, rmSync, statSync, renameSync, writeFileSync, openSync, closeSync, readSync,
 } from "node:fs";
 import { basename, delimiter, dirname, extname, isAbsolute, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -24,6 +24,9 @@ const PAPER_SIZES = Object.freeze({
 const CHECK_IDS = ["artifact-created", "pdf-parse", "text-integrity", "pagination"];
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_TIMEOUT_MS = 300_000;
+const STAGE_POLL_MS = 250;
+const STAGE_STABILITY_MS = 1_500;
+const POST_KILL_GRACE_MS = 5_000;
 const usage = "usage: export-paged-report.mjs <input.html> <output.pdf> [--chrome <path>] [--pdfinfo <path>] [--pdftotext <path>] [--paper-size A4|Letter] [--timeout-ms <100..300000>] [--keep-html] [--json]\n       export-paged-report.mjs --qa-only <existing.pdf> [--pdfinfo <path>] [--pdftotext <path>] [--paper-size A4|Letter] [--timeout-ms <100..300000>] [--json]";
 
 function fail(message) { throw new Error(message); }
@@ -96,16 +99,27 @@ function killToolTree(child) {
     });
     if (result.error || result.status !== 0) {
       child.kill("SIGKILL");
-      return `tree cleanup failed: ${result.error?.message || result.stderr || result.status}`;
+      return { error: `tree cleanup failed: ${result.error?.message || result.stderr || result.status}`, signalSent: null, taskkillStatus: result.status };
     }
+    return { error: null, signalSent: null, taskkillStatus: 0 };
   } else {
-    try { process.kill(-child.pid, "SIGKILL"); }
-    catch (error) { if (error.code !== "ESRCH") { child.kill("SIGKILL"); return `tree cleanup failed: ${error.message}`; } }
+    try {
+      process.kill(-child.pid, "SIGKILL");
+      return { error: null, signalSent: "SIGKILL", taskkillStatus: null };
+    } catch (error) {
+      if (error.code === "ESRCH") return { error: null, signalSent: null, taskkillStatus: null };
+      child.kill("SIGKILL");
+      return { error: `tree cleanup failed: ${error.message}`, signalSent: null, taskkillStatus: null };
+    }
   }
-  return null;
 }
 
-async function runTool(tool, args, timeoutMs) {
+async function runTool(tool, args, timeoutMs, {
+  completionPath = null,
+  killTree = killToolTree,
+  postKillGraceMs = POST_KILL_GRACE_MS,
+  env,
+} = {}) {
   const nodeModule = /[.](?:[cm]?js)$/i.test(tool);
   // Regular files avoid waiting for pipe EOF when an exited tool's descendants
   // retain stdout/stderr. A dedicated group owns the POSIX process tree.
@@ -117,17 +131,82 @@ async function runTool(tool, args, timeoutMs) {
     result = await new Promise((resolveResult) => {
       const child = spawn(nodeModule ? process.execPath : tool, nodeModule ? [tool, ...args] : args, {
         stdio: ["ignore", ...descriptors], detached: process.platform !== "win32", windowsHide: true,
+        env,
       });
-      let timedOut = false, cleanupError = null;
-      const timer = setTimeout(() => {
-        timedOut = true;
-        if (child.pid) cleanupError = killToolTree(child);
-      }, timeoutMs);
-      child.once("error", (error) => { clearTimeout(timer); resolveResult({ error }); });
+      let settled = false;
+      let timedOut = false;
+      let completionRequested = false;
+      let killRequestedAt = null;
+      let killOutcome = { error: null, signalSent: null, taskkillStatus: null };
+      let previousStage = null;
+      let stableSince = null;
+      let deadlineTimer;
+      let probeTimer;
+      let graceTimer;
+      const clearTimers = () => {
+        clearTimeout(deadlineTimer);
+        clearTimeout(graceTimer);
+        clearInterval(probeTimer);
+      };
+      const finishResult = (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimers();
+        resolveResult(value);
+      };
+      const requestKill = (reason) => {
+        if (completionRequested || settled) return;
+        completionRequested = reason;
+        killRequestedAt = Date.now();
+        if (reason === "stage-stable") clearTimeout(deadlineTimer);
+        if (child.pid) {
+          try { killOutcome = killTree(child); }
+          catch (error) { killOutcome = { error: `tree cleanup failed: ${error.message}`, signalSent: null, taskkillStatus: null }; }
+        } else {
+          killOutcome = { error: "tree cleanup failed: child has no PID", signalSent: null, taskkillStatus: null };
+        }
+        graceTimer = setTimeout(() => finishResult({
+          timedOut,
+          completionRequested,
+          cleanupError: killOutcome.error,
+          postKillTimedOut: true,
+        }), postKillGraceMs);
+      };
+      child.once("error", (error) => finishResult({ error }));
       child.once("exit", (status, signal) => {
-        clearTimeout(timer);
-        resolveResult({ status, signal, timedOut, cleanupError });
+        const killedByUs = completionRequested === "stage-stable"
+          && killRequestedAt !== null && !killOutcome.error
+          && (process.platform === "win32"
+            ? killOutcome.taskkillStatus === 0
+            : status === null && signal !== null && signal === killOutcome.signalSent);
+        finishResult({
+          status, signal, timedOut, completionRequested,
+          cleanupError: killOutcome.error,
+          completedBy: killedByUs ? "stage-stable" : "exit",
+        });
       });
+      deadlineTimer = setTimeout(() => {
+        timedOut = true;
+        requestKill("deadline");
+      }, timeoutMs);
+      if (completionPath) {
+        probeTimer = setInterval(() => {
+          const current = readPdfStageSnapshot(completionPath);
+          const unchanged = current && previousStage
+            && current.size === previousStage.size
+            && current.mtimeMs === previousStage.mtimeMs;
+          if (!current) {
+            previousStage = null;
+            stableSince = null;
+            return;
+          }
+          if (!unchanged) stableSince = Date.now();
+          previousStage = current;
+          if (stableSince !== null && Date.now() - stableSince >= STAGE_STABILITY_MS) {
+            requestKill("stage-stable");
+          }
+        }, STAGE_POLL_MS);
+      }
     });
     result.stdout = readFileSync(join(captureDir, "stdout"), "utf8");
     result.stderr = readFileSync(join(captureDir, "stderr"), "utf8");
@@ -135,14 +214,20 @@ async function runTool(tool, args, timeoutMs) {
     for (const descriptor of descriptors) closeSync(descriptor);
     rmSync(captureDir, { recursive: true, force: true });
   }
-  if (result.timedOut) return { ok: false, reason: `timed out after ${timeoutMs} ms; killSignal SIGKILL (owned process tree)${result.cleanupError ? `; ${result.cleanupError}` : ""}` };
+  if (result.postKillTimedOut || result.cleanupError) {
+    const phase = result.completionRequested === "stage-stable" ? "stable PDF stage cleanup" : `timed out after ${timeoutMs} ms`;
+    const grace = result.postKillTimedOut ? "; post-kill grace expired before child exit" : "";
+    return { ok: false, reason: `${phase}${grace}${result.cleanupError ? `; ${result.cleanupError}` : ""}` };
+  }
+  if (result.timedOut) return { ok: false, reason: `timed out after ${timeoutMs} ms; killSignal SIGKILL (owned process tree)` };
   if (result.error) return { ok: false, reason: `could not start: ${result.error.code || result.error.message}` };
+  if (result.completedBy === "stage-stable") return { ok: true, stdout: result.stdout || "", completedBy: "stage-stable" };
   if (result.signal) return { ok: false, reason: `terminated by signal ${result.signal}` };
   if (result.status !== 0) {
     const detail = (result.stderr || result.stdout || "").trim().slice(-400);
     return { ok: false, reason: `exited with status ${String(result.status)}${detail ? `: ${detail}` : ""}` };
   }
-  return { ok: true, stdout: result.stdout || "" };
+  return { ok: true, stdout: result.stdout || "", completedBy: "exit" };
 }
 
 function check(id, status, reason, evidence = null) {
@@ -180,6 +265,27 @@ function writeTempHtml(input, html, tempFiles) {
   return path;
 }
 
+function readPdfStageSnapshot(path) {
+  let descriptor;
+  try {
+    const stat = statSync(path);
+    if (!stat.isFile() || stat.size < 5) return null;
+    descriptor = openSync(path, "r");
+    const header = Buffer.alloc(5);
+    if (readSync(descriptor, header, 0, header.length, 0) !== header.length) return null;
+    const tailLength = Math.min(stat.size, 1024);
+    const tail = Buffer.alloc(tailLength);
+    if (readSync(descriptor, tail, 0, tailLength, stat.size - tailLength) !== tailLength) return null;
+    if (header.toString("latin1") !== "%PDF-") return null;
+    if (!/%%EOF[\t\n\f\r ]*$/.test(tail.toString("latin1"))) return null;
+    return { size: stat.size, mtimeMs: stat.mtimeMs };
+  } catch {
+    return null;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
 async function printPdf(chrome, htmlPath, pdfPath, profilePath, timeoutMs, tempFiles) {
   const stage = join(dirname(pdfPath), `.${basename(pdfPath)}.${randomUUID()}.export-stage.pdf`);
   tempFiles.add(stage);
@@ -188,10 +294,12 @@ async function printPdf(chrome, htmlPath, pdfPath, profilePath, timeoutMs, tempF
     `--user-data-dir=${profilePath}`, "--no-pdf-header-footer",
     "--run-all-compositor-stages-before-draw", "--virtual-time-budget=10000",
     `--print-to-pdf=${stage}`, pathToFileURL(htmlPath).href,
-  ], timeoutMs);
+  ], timeoutMs, { completionPath: stage });
   if (!result.ok) return result;
   try {
-    if (statSync(stage).isFile() && readFileSync(stage).subarray(0, 5).toString() === "%PDF-") return { ok: true, path: stage };
+    if (statSync(stage).isFile() && readFileSync(stage).subarray(0, 5).toString() === "%PDF-") {
+      return { ok: true, path: stage, completedBy: result.completedBy };
+    }
   } catch { /* report below */ }
   return { ok: false, reason: "browser exited successfully but produced no nonempty PDF" };
 }
@@ -340,7 +448,17 @@ function finish(report, flags, tempFiles, profilePath, retainedHtml = null) {
     console.log(`export-paged-report: ${report.output} (${report.pages ?? "?"} pages, ${report.pageSize?.name || "size ?"}, ${report.passes} pass${report.passes === 1 ? "" : "es"})`);
     for (const target of report.toc) console.log(`  toc  ${String(target.page ?? "?").padStart(3)}  ${target.text}`);
     for (const finding of report.qa) console.log(`  ${finding.level}  p${finding.page ?? "-"}  ${finding.msg}`);
-    for (const reason of report.notRun) console.log(`  NOT RUN  ${reason}`);
+    const printed = new Set();
+    for (const item of report.checks) {
+      if (!["FAIL", "BLOCKED", "NOT_RUN"].includes(item.status)) continue;
+      const line = `${item.status} ${item.id}: ${item.reason}`;
+      if (!printed.has(line)) { console.log(`  ${line}`); printed.add(line); }
+    }
+    for (const reason of report.notRun) {
+      if (!report.checks.some((item) => printed.has(`${item.status} ${item.id}: ${reason}`))) {
+        console.log(`  NOT_RUN: ${reason}`);
+      }
+    }
     console.log(`  verdict: ${report.verdict}; deliveryReady: false`);
   }
   return report.exitCode;
@@ -354,7 +472,7 @@ async function main() {
   const report = {
     schemaVersion: 1, input, output, paperSize: flags.paperSize, timeoutMs: flags.timeoutMs,
     artifact_sha256: null, artifactExists: false, deliveryReady: false,
-    chrome: null, passes: flags.qaOnly ? 0 : 1, pages: null, pageSize: null,
+    chrome: null, passes: flags.qaOnly ? 0 : 1, printPasses: [], pages: null, pageSize: null,
     toc: [], qa: [], notRun: [],
     checks: CHECK_IDS.map((id) => check(id, "NOT_RUN", "Check has not run.")),
   };
@@ -395,6 +513,7 @@ async function main() {
       setCheck(report, "artifact-created", "FAIL", `Chromium ${printed.reason}`);
       return finish(report, flags, tempFiles, profilePath);
     }
+    report.printPasses.push({ pass: 1, completedBy: printed.completedBy });
     pdfPath = printed.path;
     report.pendingPdf = pdfPath;
     report.generationComplete = true;
@@ -458,6 +577,7 @@ async function main() {
         setCheck(report, "artifact-created", "FAIL", `Chromium second pass ${printed.reason}`);
         return finish(report, flags, tempFiles, profilePath);
       }
+      report.printPasses.push({ pass: 2, completedBy: printed.completedBy });
       pdfPath = printed.path;
       report.pendingPdf = pdfPath;
       report.generationComplete = true;
@@ -508,5 +628,8 @@ async function main() {
   }
 }
 
-try { process.exitCode = await main(); }
-catch (error) { console.error(`export-paged-report: ${error.message}`); process.exitCode = 1; }
+export { runTool };
+if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
+  try { process.exitCode = await main(); }
+  catch (error) { console.error(`export-paged-report: ${error.message}`); process.exitCode = 1; }
+}

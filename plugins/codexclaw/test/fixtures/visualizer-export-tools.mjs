@@ -8,6 +8,10 @@ const args = process.argv.slice(2);
 const mode = process.env.CXC_VISUALIZER_FIXTURE_MODE || "happy";
 const printArg = args.find((arg) => arg.startsWith("--print-to-pdf="));
 
+function writeCompletePdf(path, paperSize, count) {
+  writeFileSync(path, `%PDF-1.4\nfixture-paper=${paperSize}\nfixture-pass=${count}\n%%EOF\n`);
+}
+
 function inheritedDescriptors() {
   return [1, 2].map((fd) => {
     const { dev, ino } = fstatSync(fd, { bigint: true });
@@ -54,7 +58,31 @@ if (printArg) {
   const htmlPath = fileURLToPath(args.at(-1));
   const html = readFileSync(htmlPath, "utf8");
   const paperSize = /@page\s*\{[^}]*\bsize:\s*Letter\b/is.test(html) ? "Letter" : "A4";
-  writeFileSync(printArg.slice("--print-to-pdf=".length), `%PDF-1.4\nfixture-paper=${paperSize}\nfixture-pass=${count}\n`);
+  const stage = printArg.slice("--print-to-pdf=".length);
+  writeCompletePdf(stage, paperSize, count);
+  if (mode === "complete-then-hang") await hang();
+  if (mode === "complete-then-nonzero") {
+    console.error("fixture complete PDF followed by nonzero exit");
+    process.exit(8);
+  }
+  if (mode === "complete-then-nonzero-after-stable-request") {
+    const release = process.env.CXC_VISUALIZER_RACE_RELEASE;
+    if (!release) process.exit(12);
+    const poll = setInterval(() => {
+      if (existsSync(release)) process.exit(3);
+    }, 20);
+    setTimeout(() => { clearInterval(poll); process.exit(13); }, 8_000);
+    await new Promise(() => {});
+  }
+  if (mode === "changing-content-same-size") {
+    let value = 0;
+    setInterval(() => {
+      const bytes = readFileSync(stage);
+      bytes[20] = value++ % 2 ? 0x58 : 0x59;
+      writeFileSync(stage, bytes);
+    }, 100);
+    await hang();
+  }
   if (mode === "chrome-partial-zero" || (mode === "second-pass-partial-zero" && count === 2)) {
     writeFileSync(printArg.slice("--print-to-pdf=".length), "%PDF-1.4 truncated");
     process.exit(0);
@@ -149,7 +177,7 @@ if (mode === "empty-text") {
 }
 const page = Number(args[args.indexOf("-f") + 1]);
 if (page === 1) {
-  console.log(mode.startsWith("second-pass") ? "Contents" : "Fixture cover");
+  console.log(mode.startsWith("second-pass") || mode === "complete-then-hang" ? "Contents" : "Fixture cover");
   process.exit(0);
 }
 const lines = ["Section heading", "alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta", "iota", "kappa"];

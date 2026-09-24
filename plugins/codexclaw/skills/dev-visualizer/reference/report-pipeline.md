@@ -115,9 +115,18 @@ node scripts/export-paged-report.mjs --qa-only report.pdf --paper-size Letter --
 
 Select available Poppler tools with `--pdfinfo` and `--pdftotext` when they are not
 on PATH. Each tool has a 30-second deadline; `--timeout-ms` accepts 100–300000.
-A timed-out tool fails even when a useful draft PDF exists; verify that file
-separately with `--qa-only` and record which engine actually completed the export.
-The output records per-check status and reasons. Missing tools block
+An incomplete or changing stage fails at the deadline even when it has a useful
+draft PDF or a `%PDF-` prefix. During Chromium export, a stage with a `%PDF-`
+header and a final `%%EOF` trailer whose size and modification time remain
+unchanged for 1.5 seconds may complete through the bounded stability probe. The
+exporter then kills the owned Chromium tree and requires the child to exit within
+5 seconds before promoting the stage. Stable-stage completion is accepted only
+when the exit matches that kill request: SIGKILL on POSIX, or a zero-status
+taskkill followed by child exit on Windows. A natural nonzero exit still fails,
+even after the stage looks complete; cleanup failure also fails. Verify
+any preserved or independently completed file separately with `--qa-only` and
+record which engine completed the export. The output records per-check status,
+reasons, and the completion method for each print pass. Missing tools block
 verification; a process failure or empty extraction fails it. A4/Letter is an
 explicit choice independent of output language.
 
