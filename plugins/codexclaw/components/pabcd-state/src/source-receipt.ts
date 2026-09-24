@@ -14,12 +14,20 @@
  * detects "the tree moved since the evidence was produced", not "the evidence
  * was really produced".
  */
-import { readFileSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { hasValidReceipt } from "./subagent-evidence.ts";
 import type { SourceIdentity } from "./source-identity.ts";
 
 export type ReceiptKind = "test" | "qa";
+
+export interface ArtifactDigest {
+  path: string;
+  sha256: string;
+  kind: "verdict" | "artifact-identity";
+  criterionIds?: string[];
+}
 
 export interface SourceBoundReceipt {
   kind: ReceiptKind;
@@ -45,6 +53,7 @@ export interface SourceBoundReceipt {
    * Preserved, never required — a receipt without it behaves exactly as before.
    */
   generatedPaths?: string[];
+  artifactManifest?: ArtifactDigest[];
   /**
    * Whether the file actually carried a usable createdAt. Without this the epoch
    * fallback below is indistinguishable from a real 1970 timestamp, and a receipt
@@ -79,6 +88,82 @@ function parseIdentity(raw: unknown): SourceIdentity | null {
     id.sourceRoot = s.sourceRoot;
   }
   return id;
+}
+
+function criterionIdsValid(ids: unknown): ids is string[] {
+  return Array.isArray(ids) && ids.length > 0
+    && ids.every((id) => typeof id === "string" && /^c-[1-9]\d*$/.test(id))
+    && new Set(ids).size === ids.length;
+}
+
+function parseArtifactManifest(raw: unknown, receiptPath: string, cwd: string): ArtifactDigest[] | ReceiptError {
+  if (!Array.isArray(raw) || raw.length === 0) return { error: "artifactManifest must be a non-empty array" };
+  const root = resolve(cwd, ".codexclaw", "evidence");
+  let rootReal: string;
+  try { rootReal = realpathSync(root); }
+  catch (err) { return { error: `artifactManifest evidence root cannot be read: ${String(err)}` }; }
+  const entries: ArtifactDigest[] = [];
+  const absolutePaths = new Set<string>();
+  for (const [i, item] of raw.entries()) {
+    const label = `artifactManifest[${i}]`;
+    if (typeof item !== "object" || item === null || Array.isArray(item)) return { error: `${label} must be an object` };
+    const entry = item as Record<string, unknown>;
+    if (typeof entry.path !== "string" || entry.path.length === 0 || isAbsolute(entry.path)
+      || entry.path.split(/[\\/]/).includes("..")) return { error: `${label}.path must be a relative path without ..` };
+    if (entry.kind !== "verdict" && entry.kind !== "artifact-identity") return { error: `${label}.kind is invalid` };
+    if (basename(entry.path) !== `${entry.kind}.json`) return { error: `${label}.kind does not match path basename` };
+    if (typeof entry.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(entry.sha256)) return { error: `${label}.sha256 must be a lowercase SHA-256 digest` };
+    if (entry.criterionIds !== undefined && !criterionIdsValid(entry.criterionIds)) return { error: `${label}.criterionIds must be unique c-N IDs` };
+    const abs = resolve(dirname(receiptPath), entry.path);
+    const lexRel = relative(root, abs);
+    if (!lexRel || lexRel.startsWith(`..${sep}`) || lexRel === ".." || isAbsolute(lexRel)) return { error: `${label} escapes the evidence root` };
+    if (absolutePaths.has(abs)) return { error: `${label} duplicates a manifest path` };
+    absolutePaths.add(abs);
+    try {
+      if (lstatSync(abs).isSymbolicLink()) return { error: `${label} is a symlink` };
+      const real = realpathSync(abs);
+      const realRel = relative(rootReal, real);
+      if (!realRel || realRel.startsWith(`..${sep}`) || realRel === ".." || isAbsolute(realRel)) return { error: `${label} resolves outside the evidence root` };
+      const st = statSync(abs);
+      if (!st.isFile() || st.size === 0) return { error: `${label} is empty or not a regular file` };
+      const actual = createHash("sha256").update(readFileSync(abs)).digest("hex");
+      if (actual !== entry.sha256) return { error: `${label} digest does not match` };
+    } catch (err) { return { error: `${label} cannot be read: ${err instanceof Error ? err.message : String(err)}` }; }
+    entries.push({ path: entry.path, sha256: entry.sha256, kind: entry.kind,
+      ...(entry.criterionIds === undefined ? {} : { criterionIds: entry.criterionIds as string[] }) });
+  }
+  for (const entry of entries.filter((item) => item.kind === "artifact-identity")) {
+    const identityAbs = resolve(dirname(receiptPath), entry.path);
+    const matching = entries.filter((item) => item.kind === "verdict"
+      && dirname(resolve(dirname(receiptPath), item.path)) === dirname(identityAbs));
+    if (matching.length !== 1) return { error: `artifactManifest identity ${entry.path} needs one same-directory verdict` };
+    const verdictEntry = matching[0];
+    let verdict: unknown;
+    try { verdict = JSON.parse(readFileSync(resolve(dirname(receiptPath), verdictEntry.path), "utf8")); }
+    catch (err) { return { error: `artifactManifest verdict cannot be parsed: ${String(err)}` }; }
+    if (typeof verdict !== "object" || verdict === null || Array.isArray(verdict)) return { error: "artifactManifest verdict must be an object" };
+    const data = verdict as Record<string, unknown>;
+    if (!Array.isArray(data.artifactRefs) || !data.artifactRefs.some((ref) => typeof ref === "string"
+      && resolve(dirname(identityAbs), ref) === identityAbs)) return { error: `artifactManifest verdict does not reference ${entry.path}` };
+    const ids = data.desktopArtifact === true ? data.criterionIds : undefined;
+    if (data.desktopArtifact === true && !criterionIdsValid(ids)) return { error: "artifactManifest desktop verdict has invalid criterionIds" };
+    if (JSON.stringify(entry.criterionIds) !== JSON.stringify(ids)
+      || JSON.stringify(verdictEntry.criterionIds) !== JSON.stringify(ids)) return { error: `artifactManifest criterionIds do not match verdict ${verdictEntry.path}` };
+  }
+  for (const entry of entries.filter((item) => item.kind === "verdict")) {
+    let verdict: unknown;
+    try { verdict = JSON.parse(readFileSync(resolve(dirname(receiptPath), entry.path), "utf8")); }
+    catch (err) { return { error: `artifactManifest verdict cannot be parsed: ${String(err)}` }; }
+    if (typeof verdict !== "object" || verdict === null || Array.isArray(verdict)) return { error: `artifactManifest verdict ${entry.path} must be an object` };
+    const data = verdict as Record<string, unknown>;
+    const declaredIds = data.desktopArtifact === true ? data.criterionIds : undefined;
+    if (data.desktopArtifact === true && !criterionIdsValid(declaredIds)) return { error: `artifactManifest verdict ${entry.path} has invalid criterionIds` };
+    if (JSON.stringify(entry.criterionIds) !== JSON.stringify(declaredIds)) return { error: `artifactManifest verdict ${entry.path} criterionIds do not match` };
+    if (data.desktopArtifact === true && !entries.some((item) => item.kind === "artifact-identity" && dirname(item.path) === dirname(entry.path))) {
+      return { error: `artifactManifest desktop verdict ${entry.path} has no identity` };
+    }
+  }
+  return entries;
 }
 
 /**
@@ -126,6 +211,13 @@ export function parseSourceBoundReceipt(
   if (!sourceIdentity) {
     return { error: `receipt is missing a well-formed sourceIdentity: ${path}` };
   }
+  let artifactManifest: ArtifactDigest[] | undefined;
+  if (r.artifactManifest !== undefined) {
+    if (r.kind !== "qa") return { error: "artifactManifest is only valid on a QA receipt" };
+    const result = parseArtifactManifest(r.artifactManifest, abs, cwd);
+    if ("error" in result) return result;
+    artifactManifest = result;
+  }
   const createdAtProvided = typeof r.createdAt === "string" && !Number.isNaN(Date.parse(r.createdAt));
   const receipt: SourceBoundReceipt = {
     kind: r.kind,
@@ -133,6 +225,7 @@ export function parseSourceBoundReceipt(
     createdAt: createdAtProvided ? (r.createdAt as string) : new Date(0).toISOString(),
     createdAtProvided,
   };
+  if (artifactManifest) receipt.artifactManifest = artifactManifest;
   if (typeof r.command === "string") receipt.command = r.command;
   if (typeof r.exitCode === "number") receipt.exitCode = r.exitCode;
   // Preserved, never required: the C>D gate decides what to do about them.

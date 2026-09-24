@@ -8,13 +8,132 @@
 // tui, web and gui, and only the last two produce raster captures. Demanding PNG
 // integrity from a curl transcript would fail three surfaces that are working
 // correctly.
-import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { isAbsolute, basename, dirname, join, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { isAbsolute, basename, dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const VISUAL_SURFACES = new Set(["web", "gui"]);
 const CAPTURE_CHECK_KEYS = ["signature", "nonEmpty", "dimensionsMatch", "composited"];
+const ARTIFACT_IDENTITY_FILE = "artifact-identity.json";
+const SHA256 = /^[0-9a-f]{64}$/;
+const SIGNING_MODES = new Set(["ad-hoc", "Developer ID"]);
+const COMPONENT_KINDS = new Set(["app", "executable", "sidecar", "extension", "archive", "dmg", "updater"]);
+const REQUIRED_COMPONENT_KINDS = new Set(["app", "executable", "archive", "dmg", "updater"]);
+const ARCHITECTURE_KINDS = new Set(["executable", "sidecar", "extension"]);
+const DIGEST_KINDS = COMPONENT_KINDS;
+
+function sha256File(path) {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+export function sha256Tree(root) {
+  const rootReal = realpathSync(root);
+  const hash = createHash("sha256");
+  const walk = (dir, rel) => {
+    const names = readdirSync(dir).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    for (const name of names) {
+      const abs = join(dir, name);
+      const relPath = rel ? `${rel}/${name}` : name;
+      const st = lstatSync(abs);
+      if (st.isSymbolicLink()) {
+        const target = readlinkSync(abs);
+        const resolved = realpathSync(abs);
+        if (resolved !== rootReal && !resolved.startsWith(rootReal + sep)) {
+          throw new Error(`bundle symlink escapes the bundle: ${relPath}`);
+        }
+        hash.update(`L\0${relPath}\0${target}\n`);
+      } else if (st.isDirectory()) {
+        hash.update(`D\0${relPath}\n`);
+        walk(abs, relPath);
+      } else if (st.isFile()) {
+        hash.update(`F\0${relPath}\0${sha256File(abs)}\n`);
+      } else {
+        hash.update(`O\0${relPath}\n`);
+      }
+    }
+  };
+  walk(root, "");
+  return hash.digest("hex");
+}
+
+function validCriterionIds(ids) {
+  return Array.isArray(ids) && ids.length > 0
+    && ids.every((id) => typeof id === "string" && /^c-[1-9]\d*$/.test(id))
+    && new Set(ids).size === ids.length;
+}
+
+function artifactIdentityErrors(identity, label, scenario) {
+  const out = [];
+  const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+  const nonEmpty = (value) => typeof value === "string" && value.trim().length > 0;
+  if (!record(identity)) return [`${label} must be an object`];
+  if (identity.version !== 1) out.push(`${label}.version must be 1`);
+  if (identity.bundleIdentifier !== undefined && !nonEmpty(identity.bundleIdentifier)) out.push(`${label}.bundleIdentifier must be a non-empty string when present`);
+  if (!nonEmpty(identity.bundlePath)) out.push(`${label}.bundlePath must be a non-empty path`);
+  if (!nonEmpty(identity.bundleExecutable)) out.push(`${label}.bundleExecutable must be the CFBundleExecutable value`);
+  if (!Array.isArray(identity.coveredRowIds) || identity.coveredRowIds.length === 0) {
+    out.push(`${label}.coveredRowIds must be a non-empty array`);
+  } else {
+    if (!/^D-[A-Z0-9-]+$/.test(scenario)) out.push(`${label}: scenario must be a desktop row id`);
+    if (!identity.coveredRowIds.includes(scenario)) out.push(`${label}.coveredRowIds must include scenario ${scenario}`);
+    if (identity.coveredRowIds.some((id) => typeof id !== "string" || !/^D-[A-Z0-9-]+$/.test(id))) out.push(`${label}.coveredRowIds contains an invalid desktop row id`);
+  }
+  if (!Array.isArray(identity.components) || identity.components.length === 0) {
+    out.push(`${label}.components must be a non-empty array`);
+  } else {
+    const seenKinds = new Set();
+    const seenIds = new Set();
+    for (const [i, component] of identity.components.entries()) {
+      const p = `${label}.components[${i}]`;
+      if (!record(component)) { out.push(`${p} must be an object`); continue; }
+      if (!nonEmpty(component.id)) out.push(`${p}.id is required`);
+      else if (seenIds.has(component.id)) out.push(`${p}.id is duplicated`);
+      else seenIds.add(component.id);
+      if (!COMPONENT_KINDS.has(component.kind)) out.push(`${p}.kind is invalid`);
+      else {
+        if (REQUIRED_COMPONENT_KINDS.has(component.kind) && seenKinds.has(component.kind)) out.push(`${label}.components must contain exactly one ${component.kind} record`);
+        seenKinds.add(component.kind);
+      }
+      if (component.applicable === false) {
+        if (!nonEmpty(component.reason)) out.push(`${p}.reason is required when applicable is false`);
+        continue;
+      }
+      if (component.applicable !== undefined && component.applicable !== true) out.push(`${p}.applicable must be true or false`);
+      if (!nonEmpty(component.path)) out.push(`${p}.path is required`);
+      if (ARCHITECTURE_KINDS.has(component.kind)
+        && (!Array.isArray(component.architectures) || component.architectures.length === 0 || component.architectures.some((arch) => !nonEmpty(arch)))) {
+        out.push(`${p}.architectures must be a non-empty string array`);
+      }
+      if (DIGEST_KINDS.has(component.kind) && (typeof component.sha256 !== "string" || !SHA256.test(component.sha256))) {
+        out.push(`${p}.sha256 must be a lowercase SHA-256 digest`);
+      }
+    }
+    for (const kind of REQUIRED_COMPONENT_KINDS) if (!seenKinds.has(kind)) out.push(`${label}.components must include ${kind}`);
+    const app = identity.components.find((component) => component?.kind === "app");
+    if (app?.applicable !== false) {
+      for (const kind of ["archive", "executable"]) {
+        if (!identity.components.some((component) => component?.kind === kind && component.applicable !== false)) out.push(`${label}.components requires an applicable ${kind} to bind the app`);
+      }
+    }
+  }
+  if (!record(identity.signing) || !SIGNING_MODES.has(identity.signing.mode)) out.push(`${label}.signing.mode must be ad-hoc or Developer ID`);
+  else if (identity.signing.mode === "Developer ID") {
+    if (!nonEmpty(identity.signing.teamId)) out.push(`${label}.signing.teamId is required for Developer ID`);
+  } else if (identity.signing.teamId !== undefined && identity.signing.teamId !== null) out.push(`${label}.signing.teamId must be absent or null for ad-hoc signing`);
+  if (!record(identity.signing?.entitlements)) out.push(`${label}.signing.entitlements must be an object`);
+  else for (const [key, value] of Object.entries(identity.signing.entitlements)) {
+    const valid = typeof value === "boolean" || typeof value === "string" || (typeof value === "number" && Number.isFinite(value)) || (Array.isArray(value) && value.every((item) => typeof item === "string"));
+    if (!nonEmpty(key) || !valid) out.push(`${label}.signing.entitlements has an invalid value for ${key}`);
+  }
+  if (!record(identity.toolchain)) out.push(`${label}.toolchain is required`);
+  else {
+    for (const key of ["xcodeSelectPath", "sdk", "swiftcVersion"]) if (!nonEmpty(identity.toolchain[key])) out.push(`${label}.toolchain.${key} is required`);
+    for (const key of ["rustVersion", "bunVersion"]) if (identity.toolchain[key] !== undefined && !nonEmpty(identity.toolchain[key])) out.push(`${label}.toolchain.${key} must be a non-empty string when present`);
+  }
+  return out;
+}
 
 /**
  * `new Date("2026")` parses fine, so the shape is checked too — a bare year is
@@ -78,46 +197,95 @@ function pngDimensions(buf) {
 }
 
 function artifactErrors(baseDir, verdict, notes) {
-  const out = [];
+  const errors = [];
+  const identityPaths = [];
   const refs = Array.isArray(verdict.artifactRefs) ? verdict.artifactRefs : [];
   const visual = VISUAL_SURFACES.has(verdict.surface);
+  let identityCount = 0;
   for (const ref of refs) {
     if (typeof ref !== "string" || ref.length === 0) {
-      out.push("artifactRefs contains a non-string entry");
+      errors.push("artifactRefs contains a non-string entry");
       continue;
     }
     const abs = resolve(baseDir, ref);
     if (!existsSync(abs)) {
-      out.push(`artifact is missing: ${ref}`);
+      errors.push(`artifact is missing: ${ref}`);
       continue;
     }
     let st;
     try {
       st = statSync(abs);
     } catch (err) {
-      out.push(`artifact could not be read: ${ref} (${err.message})`);
+      errors.push(`artifact could not be read: ${ref} (${err.message})`);
       continue;
     }
     if (!st.isFile() || st.size === 0) {
-      out.push(`artifact is empty or not a regular file: ${ref}`);
+      errors.push(`artifact is empty or not a regular file: ${ref}`);
       continue;
     }
-    // PNG integrity applies to raster captures only, and only to files that
-    // claim to be PNGs — a web run may also attach a HAR or a console log.
-    if (!visual || !ref.toLowerCase().endsWith(".png")) continue;
-    const head = readFileSync(abs);
-    if (!head.subarray(0, 8).equals(PNG_MAGIC)) {
-      out.push(`artifact is named .png but does not carry the PNG signature: ${ref}`);
-      continue;
+    if (visual && ref.toLowerCase().endsWith(".png")) {
+      let head;
+      try { head = readFileSync(abs); }
+      catch (err) { errors.push(`artifact could not be read: ${ref} (${err.message})`); continue; }
+      if (!head.subarray(0, 8).equals(PNG_MAGIC)) errors.push(`artifact is named .png but does not carry the PNG signature: ${ref}`);
+      else {
+        const dims = pngDimensions(head);
+        if (dims) notes.push(`${ref}: ${dims.width}x${dims.height}`);
+      }
     }
-    const dims = pngDimensions(head);
-    if (dims) {
-      // Reported, not judged: the requested viewport is not in the schema, so
-      // this script cannot decide whether the size is the intended one.
-      notes.push(`${ref}: ${dims.width}x${dims.height}`);
+    if (basename(ref) !== ARTIFACT_IDENTITY_FILE) continue;
+    identityCount++;
+    identityPaths.push({ path: abs, criterionIds: verdict.desktopArtifact === true ? verdict.criterionIds : undefined });
+    let identity;
+    try { identity = JSON.parse(readFileSync(abs, "utf8")); }
+    catch (err) { errors.push(`${ref}: artifact identity is not valid JSON (${err.message})`); continue; }
+    errors.push(...artifactIdentityErrors(identity, ref, verdict.scenario));
+    const components = Array.isArray(identity?.components) ? identity.components : [];
+    const app = components.find((component) => component?.kind === "app" && component.applicable !== false);
+    const executable = components.find((component) => component?.kind === "executable" && component.applicable !== false);
+    if (app && app.path !== identity.bundlePath) errors.push(`${ref}: app path must equal bundlePath`);
+    if (app && executable && typeof app.path === "string" && typeof executable.path === "string"
+      && typeof identity.bundleExecutable === "string"
+      && resolve(baseDir, executable.path) !== resolve(baseDir, app.path, "Contents/MacOS", identity.bundleExecutable)) {
+      errors.push(`${ref}: executable path must be derived from bundlePath and bundleExecutable`);
+    }
+    for (const component of components) {
+      if (component?.applicable === false || typeof component?.path !== "string") continue;
+      const componentPath = resolve(baseDir, component.path);
+      if (!existsSync(componentPath)) { errors.push(`${ref}: component is missing: ${component.path}`); continue; }
+      let componentStat;
+      try { componentStat = statSync(componentPath); }
+      catch (err) { errors.push(`${ref}: component could not be read: ${component.path} (${err.message})`); continue; }
+      if (component.kind === "app") {
+        const plist = resolve(componentPath, "Contents/Info.plist");
+        let plistIsFile = false;
+        let appIsLink = true;
+        try { plistIsFile = statSync(plist).isFile(); } catch { /* reported below */ }
+        try { appIsLink = lstatSync(componentPath).isSymbolicLink(); } catch { /* reported below */ }
+        if (!component.path.endsWith(".app") || !componentStat.isDirectory() || appIsLink || !plistIsFile) {
+          errors.push(`${ref}: app must be a directory containing Contents/Info.plist: ${component.path}`);
+        } else {
+          try {
+            if (sha256Tree(componentPath) !== component.sha256) errors.push(`${ref}: app bundle tree digest does not match: ${component.path}`);
+          } catch (err) { errors.push(`${ref}: app bundle could not be digested: ${err.message}`); }
+        }
+        continue;
+      }
+      if (!componentStat.isFile() || componentStat.size === 0) {
+        errors.push(`${ref}: component is empty or not a regular file: ${component.path}`);
+        continue;
+      }
+      try {
+        if (DIGEST_KINDS.has(component.kind) && sha256File(componentPath) !== component.sha256) errors.push(`${ref}: component digest does not match: ${component.path}`);
+      } catch (err) { errors.push(`${ref}: component could not be digested: ${component.path} (${err.message})`); }
     }
   }
-  return out;
+  const desktopArtifact = verdict.desktopArtifact === true;
+  if (desktopArtifact && (!/^D-[A-Z0-9-]+$/.test(verdict.scenario) || identityCount !== 1)) {
+    errors.push(`${verdict.scenario}: desktop artifact verdict requires exactly one artifact-identity.json reference and a desktop row id`);
+  }
+  if (desktopArtifact && !validCriterionIds(verdict.criterionIds)) errors.push(`${verdict.scenario}: desktop artifact verdict requires unique criterionIds such as c-3`);
+  return { errors, notes, identityPaths, desktopArtifact };
 }
 
 function checkVerdictFile(path) {
@@ -127,21 +295,25 @@ function checkVerdictFile(path) {
   try {
     verdict = JSON.parse(readFileSync(path, "utf8"));
   } catch (err) {
-    return { errors: [`${path}: not valid JSON (${err.message})`], notes, identity: null };
+    return { errors: [`${path}: not valid JSON (${err.message})`], notes, identity: null, identityPaths: [], criterionIds: undefined };
   }
   if (typeof verdict !== "object" || verdict === null || Array.isArray(verdict)) {
-    return { errors: [`${path}: must be a JSON object`], notes, identity: null };
+    return { errors: [`${path}: must be a JSON object`], notes, identity: null, identityPaths: [], criterionIds: undefined };
   }
 
   if (!isRfc3339(verdict.capturedAt)) errors.push("capturedAt must be an RFC3339 timestamp");
   errors.push(...identityErrors(verdict.sourceSnapshotAt, "sourceSnapshotAt"));
   if (VISUAL_SURFACES.has(verdict.surface)) errors.push(...captureCheckErrors(verdict.captureChecks));
-  errors.push(...artifactErrors(dirname(path), verdict, notes));
+  const artifacts = artifactErrors(dirname(path), verdict, notes);
+  errors.push(...artifacts.errors);
 
   return {
     errors: errors.map((e) => `${path}: ${e}`),
     notes: notes.map((n) => `${path}: ${n}`),
     identity: errors.length === 0 ? verdict.sourceSnapshotAt : null,
+    identityPaths: errors.length === 0 ? artifacts.identityPaths : [],
+    desktopArtifact: artifacts.desktopArtifact,
+    criterionIds: errors.length === 0 && artifacts.desktopArtifact ? verdict.criterionIds : undefined,
   };
 }
 
@@ -189,11 +361,16 @@ export function validateEvidence(qaDir, { emitReceipt = false, now = () => new D
   }
 
   const identities = [];
+  const manifestFiles = [];
   for (const file of files) {
     const result = checkVerdictFile(file);
     errors.push(...result.errors);
     notes.push(...result.notes);
-    if (result.identity) identities.push({ file, identity: result.identity });
+    if (result.identity) {
+      identities.push({ file, identity: result.identity });
+      manifestFiles.push({ path: file, kind: "verdict", criterionIds: result.criterionIds });
+      for (const entry of result.identityPaths) manifestFiles.push({ ...entry, kind: "artifact-identity" });
+    }
   }
 
   if (identities.length > 1) {
@@ -211,6 +388,18 @@ export function validateEvidence(qaDir, { emitReceipt = false, now = () => new D
 
   if (!emitReceipt) return { ok: true, errors, notes, receiptPath: null };
 
+  let artifactManifest;
+  try {
+    artifactManifest = manifestFiles.map(({ path, kind, criterionIds }) => ({
+      path: relative(dirname(receiptPath), path),
+      sha256: sha256File(path),
+      kind,
+      ...(criterionIds === undefined ? {} : { criterionIds }),
+    }));
+  } catch (err) {
+    return { ok: false, errors: [`could not digest QA manifest: ${err.message}`], notes, receiptPath: null };
+  }
+
   writeFileSync(
     receiptPath,
     `${JSON.stringify(
@@ -220,6 +409,7 @@ export function validateEvidence(qaDir, { emitReceipt = false, now = () => new D
         command: "validate-evidence.mjs --emit-receipt",
         exitCode: 0,
         createdAt: now(),
+        artifactManifest,
       },
       null,
       2,
@@ -234,6 +424,12 @@ export function validateEvidence(qaDir, { emitReceipt = false, now = () => new D
 const isDirect = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isDirect) {
   const args = process.argv.slice(2);
+  if (args[0] === "--bundle-digest") {
+    if (args.length !== 2) { console.error("usage: validate-evidence.mjs --bundle-digest <path.app>"); process.exit(2); }
+    try { console.log(sha256Tree(args[1])); }
+    catch (err) { console.error(`[qa evidence] bundle digest failed: ${err.message}`); process.exit(1); }
+    process.exit(0);
+  }
   const dir = args.find((a) => !a.startsWith("--"));
   if (!dir) {
     console.error("usage: validate-evidence.mjs <.codexclaw/evidence/<sessionId>/qa/> [--emit-receipt]");
