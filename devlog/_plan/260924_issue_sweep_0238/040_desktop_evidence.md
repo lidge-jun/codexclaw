@@ -910,3 +910,9 @@ Ownership amendment after architect reflection (supersedes the split above where
 - B3 also owns plugins/codexclaw/scripts/inventory.mjs and plugins/codexclaw/test/inventory.test.mjs, the script-list change 5C requires.
 - B4 owns every edit to skills/dev-devops/references/native-desktop-acceptance.md (the 5A, 5B and 5C ranges, applied serially after B1-B3 report), skills/qa/SKILL.md, structure/INDEX.md, and all of test/final-gate.test.ts, including the `presented` cases 5B lists for it.
 - B1, B2 and B3 do not touch those files.
+
+## wp5 A round 1 folds (override earlier text)
+
+- Finding 1: the oracle launches a `--lipo` path ending in `.mjs`, `.cjs` or `.js` through `process.execPath`, as the exporter's `runTool` already does for its fixtures (export-paged-report.mjs, `nodeModule` detection). Every other path is spawned directly with no shell. The test fake is `plugins/codexclaw/test/fixtures/fake-lipo.mjs`, so the fake-lipo tests run unchanged on Linux, macOS and Windows. Only the real-toolchain case is skipped off macOS (`process.platform !== "darwin"` or no `xcrun --find lipo`).
+- Finding 2: test 5 splits in two. (a) `malformed candidate argv is a usage error`: a candidate that is not a JSON array of strings, is empty, or lacks the `{artifact}` placeholder exits 2. (b) `shell tokens are passed as data, not expanded`: the candidate is `["<fake-lipo>", ";", "-verify_arch", "x86_64", "{artifact}"]`. The fake records its argv to a capture file named by `CXC_FAKE_LIPO_CAPTURE`, and the test asserts that the capture contains the literal `;` and that the oracle exits 1 (not discriminating), never 0.
+- Finding 3: the runner-level `presentedGiven && presented === undefined` branch is removed, because wp4's parser already rejects a missing `--presented` value before dispatch. The public missing-value test covers that path through the parser.
