@@ -28,25 +28,34 @@ test("unresolved card resolves and calls in one cell", async () => {
   const cell = card.split("First Code Mode cell (resolves and calls):\n", 2)[1]?.split("\nAliases (", 1)[0];
   assert.ok(cell);
   const execute = new Function("ALL_TOOLS", "tools", "text", `return (async () => { ${cell} })();`);
-  for (const name of ["multi_agent_v1__spawn_agent", "collaboration_spawn_agent"]) {
+  const families: Record<string, string[]> = {
+    multi_agent_v1__spawn_agent: ["multi_agent_v1__send_input", "multi_agent_v1__close_agent"],
+    collaboration_spawn_agent: ["collaboration_followup_task", "collaboration_send_message"],
+    spawn_agent: ["followup_task", "interrupt_agent"],
+  };
+  for (const [name, companions] of Object.entries(families)) {
     const calls: unknown[] = [];
     const tools = { [name]: async (args: unknown) => { calls.push(args); return { ok: true }; } };
     const output: unknown[] = [];
-    await execute([{ name }], tools, (value: unknown) => output.push(value));
+    await execute([{ name }, ...companions.map((c) => ({ name: c }))], tools, (value: unknown) => output.push(value));
     assert.equal(calls.length, 1);
     assert.deepEqual(output, [{ ok: true }]);
     const args = calls[0] as Record<string, unknown>;
     assert.equal(args.model, MODEL_ALIASES.deepseek);
     assert.equal(args.reasoning_effort, "low");
     assert.equal(typeof args.message, "string");
-    assert.equal("task_name" in args, name !== "multi_agent_v1__spawn_agent");
+    const v2 = name !== "multi_agent_v1__spawn_agent";
+    assert.equal("task_name" in args, v2);
+    // A V2 spawn without fork_turns is a full-history fork, which rejects model overrides.
+    assert.equal(args.fork_turns, v2 ? "none" : undefined);
   }
   for (const names of [[], [{ name: "multi_agent_v1__spawn_agent" }, { name: "collaboration_spawn_agent" }]]) {
     const calls: unknown[] = [];
     await assert.rejects(execute(names, { multi_agent_v1__spawn_agent: () => calls.push(1) }, () => {}), /expected one spawn_agent helper/);
     assert.equal(calls.length, 0);
   }
-  await assert.rejects(execute([{ name: "other_spawn_agent" }], {}, () => {}), /unknown spawn family/);
+  await assert.rejects(execute([{ name: "other_spawn_agent" }], {}, () => {}), /collab family unresolved/);
+  await assert.rejects(execute([{ name: "spawn_agent" }, { name: "send_input" }, { name: "followup_task" }], {}, () => {}), /collab family unresolved/);
 });
 
 test("alias catalog membership and full ID passthrough", () => {

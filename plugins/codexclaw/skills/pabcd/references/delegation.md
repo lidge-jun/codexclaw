@@ -152,7 +152,7 @@ thread surface: a separate Codex task is not a bigger subagent. See
 | restore | `resume_agent({ id })` |
 | history | `fork_context: true` copies the parent's history; default is prompt-only |
 
-In native Code Mode on a proven V1 host, the spawn callable is `tools.multi_agent_v1__spawn_agent`; `wait_agent`, `close_agent`, `send_input`, and `resume_agent` use the same `multi_agent_v1__` prefix. The SessionStart dispatch card supplies the exact V1 call and dated model aliases. If the card says family unresolved, run its one-cell helper resolver and spawn in that same cell; do not treat the generic V2 default as detection. Follow the managed fallback protocol before native spawn when a role has a first fallback.
+In native Code Mode on a V1 host (observed in this host's catalog), the spawn callable is `tools.multi_agent_v1__spawn_agent`; `wait_agent`, `close_agent`, `send_input`, and `resume_agent` use the same `multi_agent_v1__` prefix. The SessionStart dispatch card prints that exact call only under the `CODEXCLAW_SPAWN_V1=1` override, and always lists dated model aliases. Its resolver identifies the family from companion tools (`send_input`/`close_agent` for V1, `followup_task`/`interrupt_agent` for V2) and spawns V2 with `fork_turns: "none"` so model overrides are accepted. If the card says family unresolved, run its one-cell helper resolver and spawn in that same cell; do not treat the generic V2 default as detection. Follow the managed fallback protocol before native spawn when a role has a first fallback.
 
 The schema marks no argument required, but the runtime still rejects a spawn
 carrying neither `message` nor `items`. `nickname` is a display label: never

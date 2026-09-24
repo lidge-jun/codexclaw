@@ -1,4 +1,4 @@
-import { readNativeCatalog } from "./catalog.ts";
+import { readNativeCatalog } from "./catalog.js";
 
 export const ALIAS_MAP_DATE = "2026-09-24";
 export const MODEL_ALIASES = {
@@ -7,15 +7,15 @@ export const MODEL_ALIASES = {
   kimi: "kimi/kimi-for-coding-highspeed",
   sol: "gpt-6-sol",
   luna: "gpt-6-luna",
-} as const;
-export type ModelAlias = keyof typeof MODEL_ALIASES;
-export interface ResolvedAlias { id: string; verified: boolean; mapDate: string }
+}         ;
 
-export function resolveDispatchAlias(nameOrId: string, env: NodeJS.ProcessEnv = process.env): ResolvedAlias {
+
+
+export function resolveDispatchAlias(nameOrId        , env                    = process.env)                {
   if (!Object.prototype.hasOwnProperty.call(MODEL_ALIASES, nameOrId)) {
     return { id: nameOrId, verified: false, mapDate: ALIAS_MAP_DATE };
   }
-  const id = MODEL_ALIASES[nameOrId as ModelAlias];
+  const id = MODEL_ALIASES[nameOrId              ];
   const entries = readNativeCatalog(env);
   return { id, verified: entries?.some(entry => entry.id === id) ?? false, mapDate: ALIAS_MAP_DATE };
 }
@@ -33,11 +33,11 @@ if (v1 === v2) throw new Error("collab family unresolved: v1=" + v1 + " v2=" + v
 const a = {message:"Report your model and say OK; do not edit files.",model:"command-code/deepseek-deepseek-v4.1-flash",reasoning_effort:"low"};
 text(await tools[s[0]](v1 ? a : {...a, task_name:"model_probe", fork_turns:"none"}));`;
 
-export function renderDispatchCard(env: NodeJS.ProcessEnv = process.env): string {
+export function renderDispatchCard(env                    = process.env)         {
   const core = env.CODEXCLAW_SPAWN_V1 === "1" ? V1_CARD : UNRESOLVED_CARD;
   if (core.length > 1200) throw new Error("dispatch card core exceeds 1200 characters");
   let card = core + `\nAliases (map ${ALIAS_MAP_DATE}; local Codex catalog membership only):`;
-  for (const alias of Object.keys(MODEL_ALIASES) as ModelAlias[]) {
+  for (const alias of Object.keys(MODEL_ALIASES)                ) {
     const item = resolveDispatchAlias(alias, env);
     const line = `\n${alias} -> ${item.id} (${item.verified ? "verified in local catalog" : `unverified, map ${ALIAS_MAP_DATE}`})`;
     if (card.length + line.length > 1200) break;

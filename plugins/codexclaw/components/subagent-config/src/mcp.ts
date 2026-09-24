@@ -183,14 +183,19 @@ async function handle(msg: { id?: unknown; method?: string }): Promise<void> {
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const rl = createInterface({ input: process.stdin });
+  // Requests run one at a time so replies keep request order now that
+  // subagents_get awaits a catalog read, and stdin EOF waits for them to finish.
+  let queue: Promise<void> = Promise.resolve();
   rl.on("line", (line: string) => {
     const trimmed = line.trim();
     if (!trimmed) return;
+    let msg: { id?: unknown; method?: string };
     try {
-      void handle(JSON.parse(trimmed) as { id?: unknown; method?: string }).catch(() => { /* malformed requests do not crash stdio */ });
+      msg = JSON.parse(trimmed) as { id?: unknown; method?: string };
     } catch {
-      // Malformed line: ignore rather than crash the long-lived server.
+      return; // Malformed line: ignore rather than crash the long-lived server.
     }
+    queue = queue.then(() => handle(msg)).catch(() => { /* malformed requests do not crash stdio */ });
   });
-  rl.on("close", () => process.exit(0));
+  rl.on("close", () => { void queue.then(() => process.exit(0)); });
 }
