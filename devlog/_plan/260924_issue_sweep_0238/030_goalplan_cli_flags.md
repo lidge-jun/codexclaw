@@ -316,3 +316,11 @@ Stale check: `git diff --stat d66dfcf2..HEAD` over plugins/codexclaw/components,
 Scope amendment after architect reflection: the builder scope also covers every file this document already maps: components/pabcd-state/src/cli.ts, README.md, README.ko.md, README.zh.md (the CLI snippet line only), plugins/codexclaw/bin/cxc.mjs, bin/codexclaw.mjs (help lines and comments only), structure/INDEX.md:271-272, and docs-site/src/content/docs/reference/commands.md:31-32 as well as :131-140.
 
 wp4 A round 1 fold: test 3 also covers an extra token after each help form (`help extra`, `--help extra`, `-h extra`, and `show --help extra` if the parser treats per-verb help the same way), asserting a parse error and no goalplan or ledger write.
+
+## wp4 D (2026-09-24)
+
+`cxc loop` and its `cxc goalplan` alias now validate flags per verb. Unknown and misspelled flags, stray positionals, missing values, duplicate singleton flags, and flags that belong to another verb (including `--surface` outside add-criterion) fail before any write. Every value flag also accepts `--flag=value`, which is now the way to pass a value that starts with `--`. Help, the loop reference, the docs-site command reference, the READMEs and structure/INDEX.md describe the full verb set. Commits: c36eb838 and 6d6e528d. Evidence: pabcd-state, dist-freshness and payload suites 1299/1299 (1 skip) under the wp4 receipt. Independent reviewer 01a0d1e0 returned GO-WITH-FIXES (`--`-prefixed values had become impossible to pass, and the no-write tests bypassed the router), then PASS.
+
+What did not improve: this is a deliberate compatibility break. A script that passed an ignored flag, or a space-separated value starting with `--`, now fails; the CHANGELOG must say so. Hypothesis that died: that rejecting `--`-prefixed values cost nothing; before the equals form was generalized it made some evidence text impossible to record. What would show this direction is wrong: installed hooks or agents in the field that rely on a now-rejected combination. The caller search found none in the repository, but copies outside it were not searched.
+
+Next: wp5 from 040_desktop_evidence.md.
