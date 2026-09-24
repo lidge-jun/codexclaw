@@ -14,6 +14,11 @@ Pass an explicit config to `validateLocale`, `formatValue`, and `renderLocalized
 
 The six JSON examples under `assets/report-examples/` carry these fields in `localeConfig`. Korean examples use A4 and English examples use Letter to exercise both paths; this is fixture coverage, not a rule tying paper size to language.
 
+The paged-report exporter checks `@page` content literals against explicit
+`<html lang>`. Korean or dotted date literals in a non-Korean document are P2
+review findings. Missing `lang` records an unresolved assumption; language is
+not inferred from body text.
+
 ## Semantic pairing
 
 Paired examples keep the same question, source, claim, fact, and quotation IDs. The `semantics` block keeps raw values, canonical units, denominators, qualification markers, and claim-strength markers. Localized labels and prose may differ. `compareSemanticPair(source, target)` checks the declared fields only; it does not determine whether arbitrary prose is a faithful translation or whether a source supports a claim.

@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "plugin": {
     "name": "codexclaw",
-    "manifestVersion": "0.2.37+codex.20260923052558",
-    "packageVersion": "0.2.37"
+    "manifestVersion": "0.2.38+codex.20260924063016",
+    "packageVersion": "0.2.38"
   },
   "skills": [
     {
@@ -122,6 +122,17 @@
       "folder": "worktree-guardian",
       "name": "cxc-worktree-guardian"
     }
+  ],
+  "scripts": [
+    "skills/dev-devops/scripts/verify-lipo-command.mjs",
+    "skills/dev-visualizer/scripts/exhibit-contract.mjs",
+    "skills/dev-visualizer/scripts/export-paged-report.mjs",
+    "skills/dev-visualizer/scripts/quality-gate.mjs",
+    "skills/dev-visualizer/scripts/report-contract.mjs",
+    "skills/dev-visualizer/scripts/report-intake.mjs",
+    "skills/dev-visualizer/scripts/report-locale.mjs",
+    "skills/dev-visualizer/scripts/research-adapter.mjs",
+    "skills/qa/scripts/validate-evidence.mjs"
   ],
   "hooks": [
     {
@@ -303,55 +314,55 @@
     {
       "folder": "bg-wake",
       "packageName": "@codexclaw/bg-wake",
-      "version": "0.2.37",
+      "version": "0.2.38",
       "hasTests": true
     },
     {
       "folder": "config-guard",
       "packageName": "@codexclaw/config-guard",
-      "version": "0.2.37",
+      "version": "0.2.38",
       "hasTests": true
     },
     {
       "folder": "cxc-ops",
       "packageName": "@codexclaw/cxc-ops",
-      "version": "0.2.37",
+      "version": "0.2.38",
       "hasTests": true
     },
     {
       "folder": "messenger-bridge",
       "packageName": "@codexclaw/messenger-bridge",
-      "version": "0.2.37",
+      "version": "0.2.38",
       "hasTests": true
     },
     {
       "folder": "pabcd-state",
       "packageName": "@codexclaw/pabcd-state",
-      "version": "0.2.37",
+      "version": "0.2.38",
       "hasTests": true
     },
     {
       "folder": "provider-bridge",
       "packageName": "@codexclaw/provider-bridge",
-      "version": "0.2.37",
+      "version": "0.2.38",
       "hasTests": true
     },
     {
       "folder": "recall",
       "packageName": "@codexclaw/recall",
-      "version": "0.2.37",
+      "version": "0.2.38",
       "hasTests": true
     },
     {
       "folder": "skill-search",
       "packageName": "@codexclaw/skill-search",
-      "version": "0.2.37",
+      "version": "0.2.38",
       "hasTests": true
     },
     {
       "folder": "subagent-config",
       "packageName": "@codexclaw/subagent-config",
-      "version": "0.2.37",
+      "version": "0.2.38",
       "hasTests": true
     }
   ]

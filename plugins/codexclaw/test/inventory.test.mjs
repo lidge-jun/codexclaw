@@ -5,7 +5,7 @@
 // specific violation text, so a check that silently stops observing fails here.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +16,7 @@ import {
   check,
   checkSets,
   collectInventory,
+  collectScripts,
   inventoryHash,
   readPublished,
 } from "../scripts/inventory.mjs";
@@ -32,6 +33,7 @@ function scratch() {
   for (const f of ["README.md", "README.ko.md", "README.zh.md", "package.json"]) {
     cpSync(join(repoRoot, f), join(dir, f));
   }
+  writeFileSync(join(plugin, "inventory.json"), canonicalJson(collectInventory(plugin, dir)));
   return { dir, plugin };
 }
 
@@ -64,6 +66,34 @@ test("inventory stores identities, never a commit sha or test count", () => {
   assert.equal(inv.skillCount, undefined);
   assert.equal(inv.hookCount, undefined);
   assert.ok(inv.skills.length > 0 && inv.hooks.length > 0 && inv.components.length > 0);
+});
+
+test("inventory lists every shipped skill script exactly once", () => {
+  const scripts = collectScripts(pluginRoot);
+  const inventory = collectInventory(pluginRoot, repoRoot);
+  assert.deepEqual(inventory.scripts, scripts);
+  assert.equal(new Set(scripts).size, scripts.length);
+  assert.deepEqual(scripts, [...scripts].sort());
+  assert.ok(scripts.includes("skills/dev-devops/scripts/verify-lipo-command.mjs"));
+
+  const { dir, plugin } = scratch();
+  try {
+    const nested = join(plugin, "skills", "dev-devops", "scripts", "nested");
+    mkdirSync(nested, { recursive: true });
+    writeFileSync(join(nested, "new.mjs"), "export {};\n");
+    assert.ok(collectScripts(plugin).includes("skills/dev-devops/scripts/nested/new.mjs"));
+    const path = join(plugin, "inventory.json");
+    const declared = JSON.parse(readFileSync(path, "utf8"));
+    declared.scripts = declared.scripts.filter((entry) => entry !== "skills/dev-devops/scripts/verify-lipo-command.mjs");
+    declared.scripts.push(declared.scripts[0]);
+    writeFileSync(path, canonicalJson(declared));
+    const { violations } = checkSets(plugin, dir);
+    assert.ok(violations.some((v) => v.includes("duplicate inventory script entries:")));
+    assert.ok(violations.some((v) => v.includes("skill script on disk but absent from inventory: skills/dev-devops/scripts/verify-lipo-command.mjs")));
+    assert.ok(violations.some((v) => v.includes("skill script on disk but absent from inventory: skills/dev-devops/scripts/nested/new.mjs")));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("hook file on disk but absent from the manifest is a violation", () => {

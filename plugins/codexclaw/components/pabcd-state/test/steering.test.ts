@@ -432,3 +432,23 @@ test("add-criterion accepts the desktop surface and rejects an unknown one", () 
   assert.equal(bad.kind, "rejected");
   assert.match((bad as { reason: string }).reason, /"logic", "web", "tui", or "desktop"/);
 });
+
+test("steering preserves presented native only on desktop criteria", () => {
+  const cwd = workspace();
+  const accepted = applySteeringBatch(cwd, SLUG, {
+    idempotencyKey: "k-presented",
+    rationale: "test",
+    evidence: "native screenshot",
+    ops: [{ kind: "add-criterion", scenario: "native tray", surface: "desktop", presented: "native" }],
+  });
+  assert.equal(accepted.kind, "applied");
+  assert.equal(readGoalplan(cwd, SLUG)?.criteria.find((c) => c.scenario === "native tray")?.presented, "native");
+  for (const [key, surface, presented] of [["k-logic", "logic", "native"], ["k-unknown", "desktop", "web"]]) {
+    const rejected = applySteeringBatch(cwd, SLUG, {
+      idempotencyKey: key, rationale: "test", evidence: "invalid", ops: [{ kind: "add-criterion", scenario: key, surface, presented }],
+    });
+    assert.equal(rejected.kind, "rejected");
+    assert.match((rejected as { reason: string }).reason, /presented/);
+    assert.equal(readGoalplan(cwd, SLUG)?.criteria.some((c) => c.scenario === key), false);
+  }
+});

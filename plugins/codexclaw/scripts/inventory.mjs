@@ -25,7 +25,7 @@
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -51,6 +51,27 @@ export function collectSkills(pluginRoot = PLUGIN_ROOT) {
       const name = /^name:\s*(\S+)/m.exec(body)?.[1] ?? folder;
       return { folder, name };
     });
+}
+
+/** Shipped skill scripts, including scripts nested below a skill's scripts directory. */
+export function collectScripts(pluginRoot = PLUGIN_ROOT) {
+  const skillsDir = join(pluginRoot, "skills");
+  const paths = [];
+  const visit = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) visit(path);
+      else if (entry.isFile() && entry.name.endsWith(".mjs")) {
+        paths.push(relative(pluginRoot, path).split(sep).join("/"));
+      }
+    }
+  };
+  for (const skill of readdirSync(skillsDir, { withFileTypes: true })) {
+    if (!skill.isDirectory()) continue;
+    const scripts = join(skillsDir, skill.name, "scripts");
+    if (existsSync(scripts) && statSync(scripts).isDirectory()) visit(scripts);
+  }
+  return paths.sort();
 }
 
 export function collectHooks(pluginRoot = PLUGIN_ROOT) {
@@ -97,6 +118,7 @@ export function collectInventory(pluginRoot = PLUGIN_ROOT, repoRoot = REPO_ROOT)
       packageVersion: pkg.version,
     },
     skills: collectSkills(pluginRoot),
+    scripts: collectScripts(pluginRoot),
     hooks: collectHooks(pluginRoot),
     components: collectComponents(pluginRoot),
   };
@@ -145,6 +167,18 @@ function readTestedComponents(repoRoot = REPO_ROOT) {
 export function checkSets(pluginRoot = PLUGIN_ROOT, repoRoot = REPO_ROOT) {
   const violations = [];
   const manifest = readManifest(pluginRoot);
+
+  const inventoryPath = join(pluginRoot, "inventory.json");
+  if (existsSync(inventoryPath)) {
+    const declared = JSON.parse(readFileSync(inventoryPath, "utf8")).scripts ?? [];
+    const duplicateScripts = duplicates(declared);
+    if (duplicateScripts.length) {
+      violations.push("duplicate inventory script entries: " + duplicateScripts.join(", "));
+    }
+    const scriptDiff = symmetricDifference(declared, collectScripts(pluginRoot));
+    for (const path of scriptDiff.onlyInA) violations.push("script listed in inventory but missing on disk: " + path);
+    for (const path of scriptDiff.onlyInB) violations.push("skill script on disk but absent from inventory: " + path);
+  }
 
   const manifestHooks = manifest.hooks.map((h) => h.replace(/^\.\/hooks\//, ""));
   const dupeHooks = duplicates(manifestHooks);

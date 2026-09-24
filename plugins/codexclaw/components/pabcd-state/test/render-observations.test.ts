@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +11,8 @@ import {
   resetRenderLedger,
   hasRenderObservation,
   hasRenderArtifactModified,
+  hasNativeObservation,
+  nativeObservationRows,
   isRenderArtifact,
   renderGroundingAdvisory,
   RENDER_ARTIFACT_EXTENSIONS,
@@ -23,6 +25,7 @@ import {
   type StopPayload,
 } from "../src/hook.ts";
 import { defaultState, writeState } from "../src/state.ts";
+import { buildGoalplan, writeGoalplan } from "../src/goalplan.ts";
 import { GOALS_DB_FILENAME } from "../src/goal-active.ts";
 import type { PostToolUsePayload } from "../src/hook.ts";
 
@@ -210,7 +213,7 @@ test("readRenderObsRows: missing ledger returns []", () => {
 test("advisory fires: phase C + artifact modified + no observation", () => {
   const cwd = tmp();
   handleRenderArtifactCapture(patchPayload(cwd, "index.html"));
-  const result = renderGroundingAdvisoryForStop(cwd, "C");
+  const result = renderGroundingAdvisoryForStop(cwd, "C", "s1", "");
   assert.notEqual(result, null);
   assert.ok(result!.includes("C-RENDER-GROUNDING-01"));
   assert.ok(result!.includes("Render-artifact"));
@@ -220,21 +223,150 @@ test("advisory does NOT fire: phase C + artifact modified + observation present"
   const cwd = tmp();
   handleRenderArtifactCapture(patchPayload(cwd, "index.html"));
   handleRenderObservationCapture(obsPayload(cwd, "view_image"));
-  assert.equal(renderGroundingAdvisoryForStop(cwd, "C"), null);
+  assert.equal(renderGroundingAdvisoryForStop(cwd, "C", "s1", ""), null);
 });
 
 test("advisory does NOT fire: phase C + no artifact modified", () => {
   const cwd = tmp();
-  assert.equal(renderGroundingAdvisoryForStop(cwd, "C"), null);
+  assert.equal(renderGroundingAdvisoryForStop(cwd, "C", "s1", ""), null);
 });
 
 test("advisory does NOT fire: non-C phase + artifact modified", () => {
   const cwd = tmp();
   handleRenderArtifactCapture(patchPayload(cwd, "index.html"));
-  assert.equal(renderGroundingAdvisoryForStop(cwd, "B"), null);
-  assert.equal(renderGroundingAdvisoryForStop(cwd, "D"), null);
-  assert.equal(renderGroundingAdvisoryForStop(cwd, "P"), null);
-  assert.equal(renderGroundingAdvisoryForStop(cwd, "IDLE"), null);
+  assert.equal(renderGroundingAdvisoryForStop(cwd, "B", "s1", ""), null);
+  assert.equal(renderGroundingAdvisoryForStop(cwd, "D", "s1", ""), null);
+  assert.equal(renderGroundingAdvisoryForStop(cwd, "P", "s1", ""), null);
+  assert.equal(renderGroundingAdvisoryForStop(cwd, "IDLE", "s1", ""), null);
+});
+
+function nativePlan(cwd: string, linked = true): string {
+  const plan = buildGoalplan({
+    objective: "native observation fixture",
+    criteria: [{ scenario: "tray", surface: "desktop", presented: "native" }],
+  });
+  plan.activeWorkPhaseId = "wp-live";
+  plan.workPhases = [{ id: "wp-live", title: "live", status: "in_progress", tasks: [], criteriaIds: linked ? ["c-1"] : [] }];
+  writeGoalplan(cwd, plan);
+  return plan.slug;
+}
+
+test("explicit computer-use app records a native row with structured metadata", () => {
+  const cwd = tmp();
+  const payload = obsPayload(cwd, "computer-use:computer-use");
+  payload.tool_input = { appName: "Finder", criterionId: "c-1" };
+  handleRenderObservationCapture(payload);
+  assert.equal(hasNativeObservation(cwd, "s1"), true);
+  assert.deepEqual(nativeObservationRows(cwd, "s1").map((r) => [r.nativeApp, r.criterionId]), [["Finder", "c-1"]]);
+  assert.equal(hasNativeObservation(cwd, "other"), false);
+});
+
+test("view_image records only a declared QA screenshot", () => {
+  const cwd = tmp();
+  const scenario = join(cwd, ".codexclaw", "evidence", "s1", "qa", "D-TRAY");
+  mkdirSync(scenario, { recursive: true });
+  writeFileSync(join(scenario, "verdict.json"), JSON.stringify({ artifactRefs: ["tray.png"] }));
+  writeFileSync(join(scenario, "tray.png"), "png-bytes");
+  const payload = obsPayload(cwd, "view_image");
+  payload.tool_input = { path: join(scenario, "other.png") };
+  handleRenderObservationCapture(payload);
+  assert.equal(hasNativeObservation(cwd, "s1"), false);
+  payload.tool_input = { path: join(scenario, "tray.png"), criterionId: "c-1" };
+  handleRenderObservationCapture(payload);
+  assert.equal(nativeObservationRows(cwd, "s1")[0]?.screenshotPath, join(scenario, "tray.png"));
+  assert.equal(nativeObservationRows(cwd, "s1")[0]?.criterionId, "c-1");
+});
+
+test("a declared screenshot that is missing or failed to open is not an observation", () => {
+  const cwd = tmp();
+  const scenario = join(cwd, ".codexclaw", "evidence", "s1", "qa", "D-TRAY");
+  mkdirSync(scenario, { recursive: true });
+  writeFileSync(join(scenario, "verdict.json"), JSON.stringify({ artifactRefs: ["tray.png", "empty.png"] }));
+  writeFileSync(join(scenario, "empty.png"), "");
+  const payload = obsPayload(cwd, "view_image");
+  payload.tool_input = { path: join(scenario, "tray.png") };
+  payload.tool_response = "Error: ENOENT: no such file or directory";
+  handleRenderObservationCapture(payload);
+  payload.tool_input = { path: join(scenario, "empty.png") };
+  payload.tool_response = { ok: true };
+  handleRenderObservationCapture(payload);
+  writeFileSync(join(scenario, "tray.png"), "png-bytes");
+  payload.tool_input = { path: join(scenario, "tray.png") };
+  payload.tool_response = { error: "image could not be decoded" };
+  handleRenderObservationCapture(payload);
+  assert.equal(hasNativeObservation(cwd, "s1"), false);
+});
+
+test("browser, shell and unstructured CUA payloads do not create native rows", () => {
+  const cwd = tmp();
+  handleRenderObservationCapture(obsPayload(cwd, "browser:control-in-app-browser"));
+  handleRenderObservationCapture(obsPayload(cwd, "Bash"));
+  const cua = obsPayload(cwd, "computer-use:computer-use");
+  cua.tool_response = "Finder app shown";
+  handleRenderObservationCapture(cua);
+  assert.equal(hasNativeObservation(cwd, "s1"), false);
+});
+
+test("native advisory fires without artifact edit and clears with an observed app", () => {
+  const cwd = tmp();
+  const slug = nativePlan(cwd);
+  const advisory = renderGroundingAdvisoryForStop(cwd, "C", "s1", slug);
+  assert.match(advisory ?? "", /D5\.2.*c-1/);
+  assert.equal(hasRenderArtifactModified(cwd, "s1"), false);
+  const payload = obsPayload(cwd, "computer-use:computer-use");
+  payload.tool_response = { application: "Finder" };
+  handleRenderObservationCapture(payload);
+  assert.equal(renderGroundingAdvisoryForStop(cwd, "C", "s1", slug), null,
+    `criterion c-1 cleared by ${nativeObservationRows(cwd, "s1")[0]?.nativeApp}`);
+});
+
+test("native and ordinary render advisories can appear together", () => {
+  const cwd = tmp();
+  const slug = nativePlan(cwd);
+  handleRenderArtifactCapture(patchPayload(cwd, "window.tsx"));
+  const advisory = renderGroundingAdvisoryForStop(cwd, "C", "s1", slug);
+  assert.match(advisory ?? "", /D5\.2.*c-1/);
+  assert.match(advisory ?? "", /C-RENDER-GROUNDING-01/);
+});
+
+test("native advisory ignores package-only criteria and future linked criteria", () => {
+  const cwd = tmp();
+  const slug = nativePlan(cwd);
+  const path = join(cwd, ".codexclaw", "goalplans", slug, "goalplan.json");
+  const plan = JSON.parse(readFileSync(path, "utf8"));
+  plan.criteria.push({ id: "c-2", scenario: "package", surface: "desktop", status: "open", expectedEvidence: "", capturedEvidence: null });
+  plan.workPhases[0].criteriaIds = ["c-2"];
+  writeFileSync(path, JSON.stringify(plan));
+  assert.equal(renderGroundingAdvisoryForStop(cwd, "C", "s1", slug), null);
+  plan.workPhases[0].criteriaIds = [];
+  writeFileSync(path, JSON.stringify(plan));
+  assert.match(renderGroundingAdvisoryForStop(cwd, "C", "s1", slug) ?? "", /c-1/);
+  plan.criteria[0].status = "met";
+  plan.criteria[0].capturedEvidence = "observed";
+  writeFileSync(path, JSON.stringify(plan));
+  assert.equal(renderGroundingAdvisoryForStop(cwd, "C", "s1", slug), null);
+  plan.workPhases = [];
+  plan.activeWorkPhaseId = null;
+  plan.criteria[0].status = "open";
+  plan.criteria[0].capturedEvidence = null;
+  writeFileSync(path, JSON.stringify(plan));
+  assert.match(renderGroundingAdvisoryForStop(cwd, "C", "s1", slug) ?? "", /c-1/);
+});
+
+test("native advisory fails open for absent or malformed bound plan", () => {
+  const cwd = tmp();
+  assert.equal(renderGroundingAdvisoryForStop(cwd, "C", "s1", "missing"), null);
+  assert.equal(renderGroundingAdvisoryForStop(cwd, "C", "s1", "../bad"), null);
+  const slug = nativePlan(cwd);
+  writeFileSync(join(cwd, ".codexclaw", "goalplans", slug, "goalplan.json"), "{bad");
+  assert.equal(renderGroundingAdvisoryForStop(cwd, "C", "s1", slug), null);
+  writeFileSync(join(cwd, ".codexclaw", "render-observations.jsonl"), "{bad\n");
+  assert.equal(hasNativeObservation(cwd, "s1"), false);
+  const restored = nativePlan(cwd);
+  assert.equal(renderGroundingAdvisoryForStop(cwd, "C", "s1", restored), null);
+  writeFileSync(join(cwd, ".codexclaw", "render-observations.jsonl"),
+    JSON.stringify({ kind: "native-observation", detail: "view_image", sessionId: "s1", nativeApp: "" }) + "\n");
+  assert.equal(hasNativeObservation(cwd, "s1"), false);
 });
 
 // --- handleStop integration: interactive session advisory -----------------------
@@ -245,7 +377,7 @@ test("handleStop: interactive session at C with render artifacts emits advisory 
     // Set up: active orchestration at phase C, no goal
     writeState(cwd, { ...defaultState("s-int"), phase: "C", orchestrationActive: true });
     // Record a render-artifact modification
-    handleRenderArtifactCapture(patchPayload(cwd, "dashboard.html"));
+    handleRenderArtifactCapture(patchPayload(cwd, "dashboard.html", "s-int"));
     const payload: StopPayload = {
       hook_event_name: "Stop",
       session_id: "s-int",
@@ -290,8 +422,8 @@ test("handleStop: interactive session at C with observation present emits nothin
   const cwd = tmp();
   try {
     writeState(cwd, { ...defaultState("s-obs"), phase: "C", orchestrationActive: true });
-    handleRenderArtifactCapture(patchPayload(cwd, "page.html"));
-    handleRenderObservationCapture(obsPayload(cwd, "view_image"));
+    handleRenderArtifactCapture(patchPayload(cwd, "page.html", "s-obs"));
+    handleRenderObservationCapture(obsPayload(cwd, "view_image", "s-obs"));
     const payload: StopPayload = {
       hook_event_name: "Stop",
       session_id: "s-obs",
@@ -313,7 +445,7 @@ test("handleStop: goal session at C with render artifacts appends advisory to bl
   const cwd = tmp();
   try {
     writeState(cwd, { ...defaultState("s-goal"), phase: "C", orchestrationActive: true });
-    handleRenderArtifactCapture(patchPayload(cwd, "app.tsx"));
+    handleRenderArtifactCapture(patchPayload(cwd, "app.tsx", "s-goal"));
     withGoalsDb([{ thread_id: "s-goal", status: "active" }], () => {
       const payload: StopPayload = {
         hook_event_name: "Stop",

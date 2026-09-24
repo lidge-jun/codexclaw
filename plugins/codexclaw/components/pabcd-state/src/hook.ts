@@ -128,7 +128,7 @@ function mintCheckEpoch(): string {
 }
 import { peakFrictionVerdict, looksLikeFailure, recordFriction } from "./friction.ts";
 import { discardStreak, readDivergenceCandidates } from "./divergence.ts";
-import { hasRenderArtifactModified, hasRenderObservation, renderGroundingAdvisory } from "./render-observations.ts";
+import { hasNativeObservation, hasRenderArtifactModified, hasRenderObservation, nativeObservationLedgerMalformed, renderGroundingAdvisory } from "./render-observations.ts";
 import { detectMemoryWriteRequest } from "./memory-write-gate.ts";
 
 export interface UserPromptSubmitPayload {
@@ -1796,7 +1796,7 @@ export function handleStop(
   // modified this cycle but no render-observation tool was recorded, emit a SOFT WARNING.
   // This fires for BOTH interactive and goal sessions — it is an advisory, NOT a block.
   // FAIL-OPEN: any read error in the render ledger yields false (no advisory, never blocks).
-  const renderAdvisory = renderGroundingAdvisoryForStop(payload.cwd, state.phase);
+  const renderAdvisory = renderGroundingAdvisoryForStop(payload.cwd, state.phase, payload.session_id, state.slug);
 
   // guard 2b: only an ACTIVE goal arms the autonomous loop (interactive sessions pause).
   if (!goalActive) {
@@ -1829,17 +1829,47 @@ export function handleStop(
   return block;
 }
 
-/**
- * C-RENDER-GROUNDING-01 advisory check for Stop handler. Returns the advisory text
- * when ALL conditions hold: (1) phase === C, (2) render-artifact files modified,
- * (3) no render-observation recorded. Returns null otherwise. FAIL-OPEN.
- */
-export function renderGroundingAdvisoryForStop(cwd: string, phase: Phase): string | null {
+function relevantPresentedNativeCriteria(plan: Goalplan): Goalplan["criteria"] {
+  const activeId = effectiveActiveWorkPhaseId(plan);
+  const active = activeId ? plan.workPhases.find((workPhase) => workPhase.id === activeId) : undefined;
+  const linked = active && active.criteriaIds.length > 0 ? new Set(active.criteriaIds) : null;
+  return plan.criteria.filter((criterion) =>
+    (linked === null || linked.has(criterion.id))
+      && criterion.status === "open"
+      && criterion.surface === "desktop"
+      && criterion.presented === "native",
+  );
+}
+
+function nativeSurfaceGroundingAdvisory(criterionIds: string[]): string {
+  return [
+    "[codexclaw advisory — D5.2] The active desktop criteria",
+    criterionIds.join(", "),
+    'declare presented: "native", but no native-observation row was recorded for this session.',
+    "Before C->D, inspect the native app with computer-use or record a declared QA screenshot",
+    "so the native surface has an explicit observation signal. This is a soft advisory and does not block the turn.",
+  ].join(" ");
+}
+
+/** Combine independent native and ordinary render advisories. Both fail open. */
+export function renderGroundingAdvisoryForStop(
+  cwd: string,
+  phase: Phase,
+  sessionId: string,
+  boundSlug: string | null,
+): string | null {
   try {
     if (phase !== "C") return null;
-    if (!hasRenderArtifactModified(cwd)) return null;
-    if (hasRenderObservation(cwd)) return null;
-    return renderGroundingAdvisory();
+    const advisories: string[] = [];
+    const plan = boundSlug ? safeReadBoundGoalplan(cwd, boundSlug) : null;
+    const nativeCriteria = plan ? relevantPresentedNativeCriteria(plan) : [];
+    if (nativeCriteria.length > 0 && !nativeObservationLedgerMalformed(cwd) && !hasNativeObservation(cwd, sessionId)) {
+      advisories.push(nativeSurfaceGroundingAdvisory(nativeCriteria.map((criterion) => criterion.id)));
+    }
+    if (hasRenderArtifactModified(cwd, sessionId) && !hasRenderObservation(cwd, sessionId)) {
+      advisories.push(renderGroundingAdvisory());
+    }
+    return advisories.length > 0 ? advisories.join("\n\n") : null;
   } catch {
     return null; // FAIL-OPEN
   }

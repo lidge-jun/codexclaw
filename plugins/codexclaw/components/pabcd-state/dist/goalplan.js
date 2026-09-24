@@ -37,6 +37,7 @@ import { STATE_DIR } from "./state.js";
 import { deriveSlug,                   } from "./freeze.js";
 
 
+
 export const GOALPLANS_SUBDIR = "goalplans";
 export const GOALPLAN_FILE = "goalplan.json";
 export const GOALPLAN_LEDGER_FILE = "ledger.jsonl";
@@ -74,12 +75,14 @@ export const DEFAULT_NEW_SCHEMA_VERSION = 1;
  */
 
 
+
 /**
  * `blocked` and `superseded` are both "not done" and neither counts as success.
  * They differ in what they mean for completion: a blocked phase still holds the
  * goal open (something must happen), while a superseded one does not (something
  * else covers it).
  */
+
 
 
 
@@ -564,6 +567,7 @@ function reviveGoalplan(parsed         , expectedSlug         )                 
       ...(cc.surface === "logic" || cc.surface === "web" || cc.surface === "tui" || cc.surface === "desktop"
         ? { surface: cc.surface }
         : {}),
+      ...(cc.presented === "native" ? { presented: "native" } : {}),
     });
   }
 
@@ -926,6 +930,7 @@ export function buildGoalplan(input                  )           {
     // schemaVersion 2 refuses an unclassified criterion. Defaulting to "logic"
     // is what makes init-time criteria constructible under v2 at all.
     surface: c.surface ?? "logic",
+    ...(c.presented === "native" ? { presented: "native"          } : {}),
     expectedEvidence: c.expectedEvidence ?? "",
     capturedEvidence: null,
     status: "open",
@@ -1428,6 +1433,8 @@ export function goalplanDependencyCompletionReasons(plan          )           {
 
 
 
+
+
 /** Absent schemaVersion means 1; the marker can only raise the answer. */
 export function effectiveSchemaVersion(plan          , markerPresent         )         {
   const declared = typeof plan.schemaVersion === "number" ? plan.schemaVersion : 1;
@@ -1622,6 +1629,20 @@ function roundReasons(plan          , gate                )           {
   return out;
 }
 
+function desktopArtifactCriterionIds(plan          )           {
+  return plan.criteria
+    .filter((criterion) => criterion.surface === "desktop" && criterion.presented !== "native")
+    .map((criterion) => criterion.id);
+}
+
+function hasArtifactIdentityForCriterion(manifest                              , criterionId        )          {
+  return Array.isArray(manifest) && manifest.some((entry) =>
+    entry.kind === "artifact-identity"
+      && entry.path.split(/[\\/]/).pop() === "artifact-identity.json"
+      && entry.criterionIds?.includes(criterionId) === true,
+  );
+}
+
 /**
  * Every identity in play must describe the same tree: the tree right now, the
  * one the gate recorded, the one each receipt was produced against, and the one
@@ -1651,7 +1672,7 @@ function identityReasons(plan          , gate                , ctx              
       out.push(`${label} path is missing`);
       continue;
     }
-    let receipt                                                        ;
+    let receipt                                                                                             ;
     try {
       receipt = ctx.readReceipt(path, kind);
     } catch (err) {
@@ -1661,6 +1682,13 @@ function identityReasons(plan          , gate                , ctx              
     if ("error" in receipt) {
       out.push(`${label} is not usable: ${receipt.error}`);
       continue;
+    }
+    if (kind === "qa") {
+      for (const criterionId of desktopArtifactCriterionIds(plan)) {
+        if (!hasArtifactIdentityForCriterion(receipt.artifactManifest, criterionId)) {
+          out.push(`the QA receipt artifactManifest has no artifact-identity.json entry for desktop criterion ${criterionId}`);
+        }
+      }
     }
     named.push([label, receipt.sourceIdentity]);
   }

@@ -4,11 +4,12 @@
 // test/*.test.mjs — a test the suite never runs guards nothing.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { validateEvidence } from "../skills/qa/scripts/validate-evidence.mjs";
+import { validateEvidence, sha256Tree } from "../skills/qa/scripts/validate-evidence.mjs";
 import { buildGoalplan, writeGoalplan, readGoalplan, validateGoalplan } from "../components/pabcd-state/src/goalplan.ts";
 import { compareSource } from "../components/pabcd-state/src/source-identity.ts";
 import { parseSourceBoundReceipt } from "../components/pabcd-state/src/source-receipt.ts";
@@ -71,6 +72,163 @@ function webVerdict(over = {}) {
     ...over,
   };
 }
+
+const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+function desktopFixture(root, id = "desktop", identityChange = (value) => value) {
+  const dir = join(qaDir(root), id);
+  const app = join(dir, "Demo.app");
+  mkdirSync(join(app, "Contents", "MacOS"), { recursive: true });
+  mkdirSync(join(app, "Contents", "Resources"), { recursive: true });
+  writeFileSync(join(app, "Contents", "Info.plist"), "<plist>Demo</plist>");
+  writeFileSync(join(app, "Contents", "MacOS", "Demo"), "demo executable\n");
+  writeFileSync(join(app, "Contents", "Resources", "a.txt"), "resource A\n");
+  writeFileSync(join(dir, "Demo.zip"), "archive bytes\n");
+  const identityRecord = identityChange({
+    version: 1,
+    bundlePath: "Demo.app",
+    bundleExecutable: "Demo",
+    bundleIdentifier: "com.example.demo",
+    coveredRowIds: ["D-PACKAGE"],
+    components: [
+      { id: "app", kind: "app", path: "Demo.app", sha256: sha256Tree(app) },
+      { id: "exe", kind: "executable", path: "Demo.app/Contents/MacOS/Demo", sha256: hash("demo executable\n"), architectures: ["arm64", "x86_64"] },
+      { id: "archive", kind: "archive", path: "Demo.zip", sha256: hash("archive bytes\n") },
+      { id: "dmg", kind: "dmg", applicable: false, reason: "not packaged" },
+      { id: "updater", kind: "updater", applicable: false, reason: "not packaged" },
+    ],
+    signing: { mode: "ad-hoc", entitlements: { "com.apple.security.app-sandbox": false } },
+    toolchain: { xcodeSelectPath: "/Applications/Xcode.app", sdk: "macosx", swiftcVersion: "6.0" },
+  });
+  writeFileSync(join(dir, "artifact-identity.json"), JSON.stringify(identityRecord));
+  writeFileSync(join(dir, "verdict.json"), JSON.stringify(webVerdict({
+    scenario: "D-PACKAGE", surface: "cli", artifactRefs: ["artifact-identity.json"],
+    desktopArtifact: true, criterionIds: ["c-3"],
+  })));
+  return { dir, app, identity: identityRecord };
+}
+
+test("desktop artifact identity binds a real app, verdict and criterion", () => {
+  const root = workspace();
+  desktopFixture(root);
+  const result = validateEvidence(qaDir(root), { emitReceipt: true });
+  assert.equal(result.ok, true, result.errors.join("; "));
+  const parsed = parseSourceBoundReceipt(result.receiptPath, root, "qa");
+  assert.ok(!("error" in parsed), JSON.stringify(parsed));
+  assert.deepEqual(parsed.artifactManifest.map((entry) => entry.kind), ["verdict", "artifact-identity"]);
+  assert.deepEqual(parsed.artifactManifest[1].criterionIds, ["c-3"]);
+});
+
+test("referenced identity without desktopArtifact is validated and bound without criterion IDs", () => {
+  const root = workspace();
+  const { dir } = desktopFixture(root);
+  const verdict = JSON.parse(readFileSync(join(dir, "verdict.json"), "utf8"));
+  delete verdict.desktopArtifact;
+  delete verdict.criterionIds;
+  writeFileSync(join(dir, "verdict.json"), JSON.stringify(verdict));
+  const result = validateEvidence(qaDir(root), { emitReceipt: true });
+  assert.equal(result.ok, true, result.errors.join("; "));
+  const parsed = parseSourceBoundReceipt(result.receiptPath, root, "qa");
+  assert.ok(!("error" in parsed), JSON.stringify(parsed));
+  assert.equal(parsed.artifactManifest[1].criterionIds, undefined);
+});
+
+test("desktop verdict requires identity and unique criterion IDs", () => {
+  for (const ids of [undefined, [], ["c-3", "c-3"], ["bad"]]) {
+    const root = workspace();
+    const { dir } = desktopFixture(root);
+    const verdict = JSON.parse(readFileSync(join(dir, "verdict.json"), "utf8"));
+    verdict.criterionIds = ids;
+    writeFileSync(join(dir, "verdict.json"), JSON.stringify(verdict));
+    const result = validateEvidence(qaDir(root), { emitReceipt: true });
+    assert.equal(result.ok, false);
+    assert.match(result.errors.join(" "), /criterionIds/);
+    assert.equal(result.receiptPath, null);
+  }
+  const root = workspace();
+  const { dir } = desktopFixture(root);
+  const verdict = JSON.parse(readFileSync(join(dir, "verdict.json"), "utf8"));
+  verdict.artifactRefs = ["Demo.zip"];
+  writeFileSync(join(dir, "verdict.json"), JSON.stringify(verdict));
+  assert.match(validateEvidence(qaDir(root)).errors.join(" "), /exactly one artifact-identity/);
+});
+
+test("identity schema and component bytes fail before receipt creation", () => {
+  for (const change of [
+    (i) => { i.coveredRowIds = ["D-OTHER"]; },
+    (i) => { i.components[1].sha256 = "BAD"; },
+    (i) => { i.components = {}; },
+    (i) => { i.signing = { mode: "Developer ID", entitlements: {} }; },
+    (i) => { i.signing.entitlements.bad = { nested: true }; },
+    (i) => { delete i.toolchain.sdk; },
+    (i) => { i.components[2] = { id: "archive", kind: "archive", applicable: false, reason: "none" }; },
+  ]) {
+    const root = workspace();
+    desktopFixture(root, "desktop", (identityRecord) => { change(identityRecord); return identityRecord; });
+    const result = validateEvidence(qaDir(root), { emitReceipt: true });
+    assert.equal(result.ok, false, `invalid identity passed: ${change}`);
+    assert.equal(result.receiptPath, null);
+  }
+});
+
+test("bundle tree digest changes with bytes and resource path", () => {
+  const root = workspace();
+  const { app } = desktopFixture(root);
+  const first = sha256Tree(app);
+  writeFileSync(join(app, "Contents", "Resources", "a.txt"), "changed");
+  assert.notEqual(sha256Tree(app), first);
+  assert.match(validateEvidence(qaDir(root)).errors.join(" "), /tree digest does not match/);
+  writeFileSync(join(app, "Contents", "Resources", "a.txt"), "resource A\n");
+  renameSync(join(app, "Contents", "Resources", "a.txt"), join(app, "Contents", "Resources", "b.txt"));
+  assert.notEqual(sha256Tree(app), first);
+});
+
+test("app requires a directory, plist, consistent paths and digest", () => {
+  for (const breakBundle of [
+    ({ app }) => { rmSync(app, { recursive: true }); writeFileSync(app, "plain file"); },
+    ({ app }) => { unlinkSync(join(app, "Contents", "Info.plist")); },
+    ({ dir, identity: record }) => { record.bundlePath = "Other.app"; writeFileSync(join(dir, "artifact-identity.json"), JSON.stringify(record)); },
+    ({ dir, identity: record }) => { record.components[1].path = "Demo.zip"; writeFileSync(join(dir, "artifact-identity.json"), JSON.stringify(record)); },
+    ({ dir, identity: record }) => { delete record.components[0].sha256; writeFileSync(join(dir, "artifact-identity.json"), JSON.stringify(record)); },
+  ]) {
+    const root = workspace();
+    const fixture = desktopFixture(root);
+    breakBundle(fixture);
+    assert.equal(validateEvidence(qaDir(root)).ok, false, String(breakBundle));
+  }
+});
+
+test("bundle escaping symlink is rejected; internal symlink is hashed", (t) => {
+  const root = workspace();
+  const { app } = desktopFixture(root);
+  try { symlinkSync("../MacOS/Demo", join(app, "Contents", "Resources", "link")); }
+  catch { t.skip("file symlinks unavailable"); return; }
+  const internal = sha256Tree(app);
+  assert.match(internal, /^[0-9a-f]{64}$/);
+  const outside = join(root, "outside.txt");
+  writeFileSync(outside, "outside");
+  unlinkSync(join(app, "Contents", "Resources", "link"));
+  symlinkSync(outside, join(app, "Contents", "Resources", "link"));
+  assert.match(validateEvidence(qaDir(root)).errors.join(" "), /bundle symlink escapes the bundle/);
+});
+
+test("manifest detects changed verdict, identity and receipt-only criterion edits", () => {
+  for (const target of ["verdict.json", "artifact-identity.json"]) {
+    const root = workspace();
+    const { dir } = desktopFixture(root);
+    const result = validateEvidence(qaDir(root), { emitReceipt: true });
+    assert.equal(result.ok, true, result.errors.join("; "));
+    writeFileSync(join(dir, target), readFileSync(join(dir, target), "utf8") + " ");
+    assert.match(parseSourceBoundReceipt(result.receiptPath, root, "qa").error, /digest does not match/);
+  }
+  const root = workspace();
+  desktopFixture(root);
+  const result = validateEvidence(qaDir(root), { emitReceipt: true });
+  const receipt = JSON.parse(readFileSync(result.receiptPath, "utf8"));
+  receipt.artifactManifest[1].criterionIds = ["c-4"];
+  writeFileSync(result.receiptPath, JSON.stringify(receipt));
+  assert.match(parseSourceBoundReceipt(result.receiptPath, root, "qa").error, /criterionIds do not match/);
+});
 
 test("V1: a valid web verdict with a real PNG passes", () => {
   const root = workspace();
