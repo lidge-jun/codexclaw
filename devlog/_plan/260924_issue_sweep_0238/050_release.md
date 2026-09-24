@@ -51,3 +51,13 @@ The release workflow's own `cxc release verify` fails closed on missing exact-SH
 
 - Finding 11: every version file, README line, docs-site page and CHANGELOG anchor is resolved above with its before/after text.
 - Audit round 2, finding 3: inventory regeneration uses `--write --tests <total>`; the `--check` gate runs after it.
+
+## wp6 P revalidation (2026-09-24)
+
+Continuity: wp5 D (dc27c660) closed the last implementation phase and named this release. The direction is unchanged.
+
+Fresh state: origin/dev is still d66dfcf2 and this branch contains it (33 commits ahead). origin/main is 8b266161, the 0.2.37 promotion. The latest published release is v0.2.36. Release run 35826473652 for 8b266161 was a dry run (`DRY_RUN: true`), and no v0.2.37 tag or release exists, so 0.2.37 was never published. Following the 0.2.36 precedent (publish the next unused patch rather than backfill an unpublished one), this phase publishes 0.2.38. Its payload also carries the 0.2.37 changes, and the CHANGELOG keeps the existing 0.2.37 section. The release notes and the closing comments say that v0.2.38 is the first published release containing the 0.2.37 native desktop guidance.
+
+The version file list above still holds (`rg -l '0\.2\.37'` returns the same files). durable-goalplan.md:66 and native-desktop-acceptance.md keep their compatibility statements. The measured test total is 3,599 at 43372970; the release commit remeasures it. The docs-site commands.md edit already landed in wp4.
+
+Build: main does the version bump, CHANGELOG, inventory regeneration and badge. Check: build, full npm test under the receipt, gate, inventory --check, check-versions 0.2.38. Delivery follows steps 1-7 above.
