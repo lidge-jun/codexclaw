@@ -12,6 +12,11 @@ if (args[0] === "-archs") {
   process.stdout.write(readFileSync(args[1], "utf8").trim() + "\n");
 } else if (args[0] === "-thin" || args[0] === "-remove") {
   if (mode === "thin-fail") process.exit(3);
+  if (mode === "thin-noop") process.exit(0);
+  if (mode === "thin-wrong") {
+    writeFileSync(args[args.indexOf("-output") + 1], "x86_64 arm64e");
+    process.exit(0);
+  }
   const outputIndex = args.indexOf("-output");
   if (outputIndex < 0 || !args[outputIndex + 1]) process.exit(3);
   writeFileSync(args[outputIndex + 1], args[1]);

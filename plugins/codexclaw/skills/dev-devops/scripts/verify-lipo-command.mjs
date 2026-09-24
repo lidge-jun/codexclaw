@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -67,6 +67,14 @@ export function runOracle(options, { removeTree = rmSync } = {}) {
     const missing = expected[0];
     const thin = run([options.lipo, "-thin", retained, options.artifact, "-output", negative]);
     if (thin.status !== 0) throw new Error(`could not create negative control: ${failure(thin)}`);
+    // A zero exit is not proof: the negative control must exist and hold exactly
+    // the retained architecture, or a candidate failing on a missing file would pass.
+    if (!existsSync(negative)) throw new Error("could not create negative control: thin command wrote no file");
+    const thinArchs = run([options.lipo, "-archs", negative]);
+    const thinActual = thinArchs.stdout.trim().split(/\s+/).filter(Boolean);
+    if (thinArchs.status !== 0 || thinActual.length !== 1 || thinActual[0] !== retained) {
+      throw new Error(`could not create negative control: expected only ${retained}, got ${thinActual.join(" ") || failure(thinArchs)}`);
+    }
     const candidate = (artifact) => options.candidate.map((x) => x === "{artifact}" ? artifact : x);
     const good = run(candidate(options.artifact));
     const bad = run(candidate(negative));

@@ -90,6 +90,18 @@ test("thin-slice creation failure is exit 2", () => fixture(({ invoke }) => {
   assert.match(result.stderr, /could not create negative control/);
 }, { env: { CXC_FAKE_LIPO_MODE: "thin-fail" } }));
 
+test("a thin command that writes nothing is exit 2, not a pass", () => fixture(({ invoke }) => {
+  const result = invoke([fake, "-verify_arch", "arm64e", "{artifact}"]);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /thin command wrote no file/);
+}, { env: { CXC_FAKE_LIPO_MODE: "thin-noop" } }));
+
+test("a negative control that still holds every architecture is exit 2", () => fixture(({ invoke }) => {
+  const result = invoke([fake, "-verify_arch", "arm64e", "{artifact}"]);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /could not create negative control: expected only/);
+}, { env: { CXC_FAKE_LIPO_MODE: "thin-wrong" } }));
+
 test("duplicate --arch is a usage error", () => fixture(({ invoke }) => {
   const result = invoke([fake, "-verify_arch", "arm64e", "{artifact}"], ["--arch", "x86_64"]);
   assert.equal(result.status, 2);

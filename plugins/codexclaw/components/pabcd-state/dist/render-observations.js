@@ -18,7 +18,7 @@
  * All IO is project-local under `cwd`. Every reader FAILS-OPEN (missing file or
  * parse error yields []).
  */
-import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, join, resolve } from "node:path";
 
 import { fileEditShapes } from "./edit-shape.js";
@@ -208,6 +208,25 @@ function declaredScreenshot(cwd        , sessionId        , path        )       
   return visit(qaRoot) ? viewed : null;
 }
 
+function nonEmptyFile(path        )          {
+  try {
+    const stat = statSync(path);
+    return stat.isFile() && stat.size > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** True when a tool response reports an error rather than a result. */
+function toolResponseFailed(response         )          {
+  if (typeof response === "string") return /^\s*(error\b|failed\b)|\bENOENT\b/i.test(response);
+  if (!response || typeof response !== "object") return false;
+  const record = response                           ;
+  if (record.isError === true || record.success === false) return true;
+  const error = record.error;
+  return error !== undefined && error !== null && error !== false && error !== "";
+}
+
 /**
  * Check whether a file path has a render-artifact extension.
  */
@@ -246,7 +265,9 @@ export function handleRenderObservationCapture(payload                    )     
     } else if (payload.tool_name === "view_image") {
       const path = structuredField(payload.tool_input, ["path"]);
       const screenshotPath = path ? declaredScreenshot(payload.cwd, payload.session_id, path) : null;
-      if (screenshotPath) appendRow(payload.cwd, {
+      // A declared path is not an observation unless the image exists and the
+      // view itself did not fail.
+      if (screenshotPath && nonEmptyFile(screenshotPath) && !toolResponseFailed(payload.tool_response)) appendRow(payload.cwd, {
         ts: new Date().toISOString(), kind: "native-observation", detail: payload.tool_name,
         sessionId: payload.session_id, screenshotPath,
         ...(criterionId ? { criterionId } : {}),

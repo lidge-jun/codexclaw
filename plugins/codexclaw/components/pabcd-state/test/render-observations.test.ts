@@ -266,6 +266,7 @@ test("view_image records only a declared QA screenshot", () => {
   const scenario = join(cwd, ".codexclaw", "evidence", "s1", "qa", "D-TRAY");
   mkdirSync(scenario, { recursive: true });
   writeFileSync(join(scenario, "verdict.json"), JSON.stringify({ artifactRefs: ["tray.png"] }));
+  writeFileSync(join(scenario, "tray.png"), "png-bytes");
   const payload = obsPayload(cwd, "view_image");
   payload.tool_input = { path: join(scenario, "other.png") };
   handleRenderObservationCapture(payload);
@@ -274,6 +275,26 @@ test("view_image records only a declared QA screenshot", () => {
   handleRenderObservationCapture(payload);
   assert.equal(nativeObservationRows(cwd, "s1")[0]?.screenshotPath, join(scenario, "tray.png"));
   assert.equal(nativeObservationRows(cwd, "s1")[0]?.criterionId, "c-1");
+});
+
+test("a declared screenshot that is missing or failed to open is not an observation", () => {
+  const cwd = tmp();
+  const scenario = join(cwd, ".codexclaw", "evidence", "s1", "qa", "D-TRAY");
+  mkdirSync(scenario, { recursive: true });
+  writeFileSync(join(scenario, "verdict.json"), JSON.stringify({ artifactRefs: ["tray.png", "empty.png"] }));
+  writeFileSync(join(scenario, "empty.png"), "");
+  const payload = obsPayload(cwd, "view_image");
+  payload.tool_input = { path: join(scenario, "tray.png") };
+  payload.tool_response = "Error: ENOENT: no such file or directory";
+  handleRenderObservationCapture(payload);
+  payload.tool_input = { path: join(scenario, "empty.png") };
+  payload.tool_response = { ok: true };
+  handleRenderObservationCapture(payload);
+  writeFileSync(join(scenario, "tray.png"), "png-bytes");
+  payload.tool_input = { path: join(scenario, "tray.png") };
+  payload.tool_response = { error: "image could not be decoded" };
+  handleRenderObservationCapture(payload);
+  assert.equal(hasNativeObservation(cwd, "s1"), false);
 });
 
 test("browser, shell and unstructured CUA payloads do not create native rows", () => {
