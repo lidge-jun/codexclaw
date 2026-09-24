@@ -67,3 +67,9 @@ Build: main does the version bump, CHANGELOG, inventory regeneration and badge. 
 - #232 comment: its guidance landed on main in 0.2.37 and first ships in the published v0.2.38; the comment says exactly that.
 - CHANGELOG: the 0.2.38 section opens with a line stating that it is the first published release containing the 0.2.37 changes (native desktop acceptance guidance, macOS approvals reference, `desktop` criterion surface) and points to the 0.2.37 section, because release.yml curates notes from the 0.2.38 section only (release.yml:287, .github/scripts/changelog-section.cjs:42).
 - Version check: check-versions.mjs does not read cli/package.json, plugins/codexclaw/gui/package.json or package-lock.json. The local gate adds `rg -n '"version": "0\.2\.37"' package.json package-lock.json cli/package.json plugins/codexclaw/gui/package.json plugins/codexclaw/components/*/package.json`, which must print nothing, and `npm ls --workspaces --depth=0`, which must exit 0.
+
+## wp6 A round 1 folds
+
+- Finding 1 is covered by the architect folds above: the #232 comment and the 0.2.38 CHANGELOG say the guidance landed in the 0.2.37 train and was first published in 0.2.38.
+- Finding 2: step 5 compares the extracted assets with `git archive <expected_sha> plugins/codexclaw`, the exact commit passed to release.yml, rather than with the working checkout.
+- Finding 3: the version search is `rg --hidden -l '0\.2\.37' --glob '!.git' --glob '!CHANGELOG.md' --glob '!devlog/**' --glob '!node_modules/**'`, which includes `.codex-plugin/plugin.json`.
