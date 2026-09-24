@@ -268,8 +268,8 @@ though they have no package-local `test` script. This asymmetry is intentional, 
 | `cxc freeze` | `components/pabcd-state/dist/cli.js freeze` | freezes the interview plan + writes the goal-activation handoff manifest at `.codexclaw/interview/freeze.json` |
 | `cxc metric` | `components/pabcd-state/dist/cli.js metric` | records/shows objective metrics for emergence-harness loops |
 | `cxc divergence` | `components/pabcd-state/dist/cli.js divergence` | records divergence mode and candidate archive state |
-| `cxc loop` | `components/pabcd-state/dist/cli.js loop` | initializes, shows, or validates the project-local goalplan substrate |
-| `cxc goalplan` | `components/pabcd-state/dist/cli.js goalplan` | deprecated alias for `cxc loop` |
+| `cxc loop` | `components/pabcd-state/dist/cli.js loop` | dispatches the full project-local goalplan verb set |
+| `cxc goalplan` | `components/pabcd-state/dist/cli.js goalplan` | deprecated alias dispatching the same full verb set as `cxc loop` |
 | `cxc subagents` | `components/subagent-config/dist/cli.js` (list/get/set) | reads/writes the per-role `.codexclaw/subagents.json` model+effort+prompt config |
 | `cxc subagents dispatch` | `components/subagent-config/dist/fallback-dispatch-cli.js` | records main-owned claims and outcomes; provider failures and explicit `task_failed` evidence use bounded handoff after child reconciliation; never invokes a model itself |
 | `cxc provider` | `components/provider-bridge/dist/cli.js` (detect) | read-only ocx provider detect/status; never mutates provider state |

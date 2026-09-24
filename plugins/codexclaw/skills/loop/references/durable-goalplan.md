@@ -76,24 +76,27 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
 
 ### CLI surface
 
-- `cxc loop init --objective "<text>" [--session <id>] [--criterion <text>]...` —
+- `cxc loop init --objective <text> [--session <id>] [--criterion <text>]... [--schema-version <n>] [--cwd <path>]` —
   creates the local artifact and binds it to the session when a session id is
   supplied; it never writes the host goal DB. Repeat `--criterion` once per
   criterion to register them at init.
-- `cxc loop show --slug "<text>"` — renders the current plan summary.
-- `cxc loop validate --slug "<text>"` — runs the E8 quality gate; it FAILS
+- `cxc loop show (--slug <slug> | --objective <text> | --session <id>) [--cwd <path>]` — renders the current plan summary.
+- `cxc loop validate (--slug <slug> | --objective <text> | --session <id>) [--cwd <path>]` — runs the E8 quality gate; it FAILS
   unless the plan is complete and every `met` criterion carries `capturedEvidence`.
-- `cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json]`
-- `cxc loop add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]...`
-- `cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]...`
-- `cxc loop add-criterion --session <id> --criterion <text> [--surface logic|web|tui|desktop]` —
+- `cxc loop steer --session <id> --batch-json <path-or-json> [--cwd <path>]`
+- `cxc loop add-criterion --session <id> --criterion <text> [--surface logic|web|tui|desktop] [--cwd <path>]` —
   registers a criterion whose scenario is the `--criterion` text. There is no `--id`:
   ids are assigned as `c-1`, `c-2`, ... (max existing `c-N` + 1, in registration
   order). A duplicate scenario text is rejected.
-- `cxc loop complete-task --session <id> --work-phase <id> --id <id> --outcome <text>`
-- `cxc loop meet-criterion --session <id> --id <id> --evidence <text>` — `--id` takes
+- `cxc loop add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]... [--cwd <path>]`
+- `cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]`
+- `cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]`
+- `cxc loop complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]`
+- `cxc loop meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]` — `--id` takes
   a generated `c-N` id; read it from `cxc loop show` or the goalplan file.
 - `cxc goalplan *` — deprecated alias for the same behavior during migration.
+
+The parser rejects unknown flags, stray positionals, missing values, and flags belonging to another verb before dispatch; `--presented` is reserved for the follow-up wp5 change.
 
 Repeat `--depends-on` once per prerequisite; comma-separated values are one id. Existing dependencies are
 not edited after creation. `complete-task` and `meet-criterion` require non-empty proof text.

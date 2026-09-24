@@ -225,7 +225,7 @@ _PATH 级 `cxc` 入口（`bin/codexclaw.mjs` + `cli/` 工作区）位于仓库�
 
 ```bash
 cxc orchestrate P|A|B|C|D|status|reset   # PABCD phase control
-cxc loop init|show|validate               # durable goalplan management
+cxc loop <verb>                            # durable goalplan: init/show/validate/steer/ready and lifecycle verbs
 cxc scan record --session <id>            # record an interview contradiction-scan round
 cxc map <dir>                             # tree-sitter structure map (repo checkout only)
 cxc skill search <query>                  # remote skill discovery

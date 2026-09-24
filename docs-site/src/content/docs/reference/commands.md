@@ -28,7 +28,7 @@ directives use it. A PATH-level `cxc` / `codexclaw` binary remains a repo-checko
 | `cxc freeze` | pabcd-state | Freeze the interview plan and surface the goal-activation handoff. |
 | `cxc metric <verb>` | pabcd-state | Record/show true-objective metrics for emergence-harness loops. |
 | `cxc divergence <verb>` | pabcd-state | Record divergence mode and grounded candidate archive entries. |
-| `cxc loop <verb>` | pabcd-state | Init, show, or validate the project-local loop/goalplan substrate. |
+| `cxc loop <verb>` | pabcd-state | Manage the project-local durable goalplan: init, show, validate, steer, ready, add-criterion, add-work-phase, add-task, complete-task, and meet-criterion. |
 | `cxc goalplan <verb>` | pabcd-state | Deprecated alias for `cxc loop <verb>`. |
 | `cxc plan init <slug>` | pabcd-state | Scaffold the `devlog/_plan` unit the P→A plan gate verifies. |
 | `cxc scan record` | pabcd-state | Record an interview contradiction-scan round (see below). |
@@ -131,13 +131,21 @@ latest-session fallback for mutating commands.
 ## loop / goalplan sub-grammar
 
 ```
-cxc loop init --objective "<text>" [--criterion "<text>"...] [--session <id>] [--cwd <path>]
-cxc loop show --slug "<text>" [--cwd <path>]
-cxc loop validate --slug "<text>" [--cwd <path>]
+cxc loop init --objective <text> [--session <id>] [--criterion <text>]... [--schema-version <n>] [--cwd <path>]
+cxc loop show (--slug <slug> | --objective <text> | --session <id>) [--cwd <path>]
+cxc loop validate (--slug <slug> | --objective <text> | --session <id>) [--cwd <path>]
+cxc loop steer --session <id> --batch-json <path-or-json> [--cwd <path>]
+cxc loop add-criterion --session <id> --criterion <text> [--surface logic|web|tui|desktop] [--cwd <path>]
+cxc loop add-work-phase --session <id> --id <id> --title <text> [--depends-on <id>]... [--cwd <path>]
+cxc loop ready (--slug <slug> | --objective <text> | --session <id>) [--json] [--cwd <path>]
+cxc loop add-task --session <id> --work-phase <id> --id <id> --title <text> [--depends-on <task-id>]... [--cwd <path>]
+cxc loop complete-task --session <id> --work-phase <id> --id <id> --outcome <text> [--cwd <path>]
+cxc loop meet-criterion --session <id> --id <id> --evidence <text> [--cwd <path>]
+cxc loop --help
 ```
 
-`show` and `validate` also accept `--objective "<text>"` instead of `--slug`.
-`cxc goalplan ...` is a deprecated alias for the same sub-grammar.
+Unknown flags, stray positionals, missing values, and flags on the wrong verb are rejected before dispatch.
+`cxc goalplan <verb>` is a deprecated alias that dispatches to the same component and parser.
 
 ## map sub-grammar
 
