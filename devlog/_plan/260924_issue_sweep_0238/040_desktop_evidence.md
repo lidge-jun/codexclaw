@@ -920,3 +920,13 @@ Ownership amendment after architect reflection (supersedes the split above where
 ## wp5 A round 2 fold
 
 - The fake lipo takes a failure mode from `CXC_FAKE_LIPO_MODE`: `archs-fail` (non-zero exit on `-archs`), `thin-fail` (non-zero exit on `-thin`/`-remove`), or unset (normal). New tests: `lipo inspection failure is exit 2`, `thin-slice creation failure is exit 2` and `duplicate --arch is a usage error (exit 2)`. Cleanup failure is exercised through an exported `runOracle(options, { removeTree })` seam with an injected `removeTree` that throws; test `cleanup failure is exit 2 and names the temp path` asserts exit 2 and the path in the message. The CLI calls `runOracle` with the real `rmSync`.
+
+## wp5 D (2026-09-24)
+
+Desktop evidence is now checked at three points. QA ingress validates `artifact-identity.json`: bundle tree digest, executable, archive, signing, toolchain, and a binding to goalplan `criterionIds`. It writes a typed `artifactManifest` into the QA receipt, and the manifest is rechecked whenever the receipt is read. A schemaVersion 2+ final gate requires a matching identity entry for each non-native desktop criterion. `add-criterion --presented native` marks criteria whose proof is inspection of a native surface. Those criteria get a soft C-phase Stop advisory that clears on an explicit CUA observation of a native app or on a viewed declared screenshot, never on a file extension. `verify-lipo-command.mjs` judges a candidate lipo command by running it against the artifact and a verified thin negative control.
+
+Commits: 570b2764, 8449ebff, 1ddf2459, 0f180c56, 43372970. Evidence: full npm test 3595/3599 (0 fail, 4 skips) with the real lipo test under the wp5 receipt. Independent reviewer 01a0d20a returned GO-WITH-FIXES: the oracle accepted a missing negative file, and a failed image view counted as an observation. It returned PASS after the fixes; both regressions were red before them. The B4 builder was interrupted by the user's pause, so main finished qa/SKILL.md and structure/INDEX.md and verified the builder's partial edits.
+
+What did not improve: one native observation still clears the advisory for every native criterion (a disclosed soft-tier residual). The validator does not read `Info.plist` to confirm `bundleExecutable`, and it does not unpack the archive to prove it contains the app. On Linux and Windows the oracle is proven only against the fake lipo. What would show this direction is wrong: QA authors who cannot produce identity files in practice, which would show up as v2 final gates blocked on missing manifests.
+
+Next: wp6 release from 050_release.md.
