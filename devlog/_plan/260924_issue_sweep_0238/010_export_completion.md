@@ -382,3 +382,9 @@ Open decisions: none. D2.1, D2.2, and D2.3 settle the intended behavior; the uni
 ## Audit round 2 folds
 
 - Finding 1: the trailer test in `readPdfStageSnapshot` uses single escapes, `/%%EOF[\t\n\f\r ]*$/`, so `%%EOF\n` and `%%EOF\r\n` both match. The fixture test for complete-then-hang writes `%%EOF\n`, and a unit case in report-export.test.mjs asserts the probe accepts `%%EOF`, `%%EOF\n` and `%%EOF\r\n` and rejects `%%EO` and `%%EOF\nxref`.
+
+## wp2 P revalidation (2026-09-24)
+
+Continuity: wp1 D locked this roadmap at d6f83c7a and named wp2 from this document as the next cycle. The direction is unchanged.
+
+Stale check: `git diff --stat d66dfcf2..HEAD -- plugins/` is empty, so every source anchor above still holds. The architect confirmed D2.1-D2.3 as amended (002, recheck after audit round 1: ALIGNED). The plan auditor passed this document in round 4. Build uses one gpt-6-sol builder whose write scope is export-paged-report.mjs, quality-gate.mjs (read-only unless the summary change needs it), reference/report-pipeline.md, test/report-export.test.mjs and test/fixtures/visualizer-export-tools.mjs.
