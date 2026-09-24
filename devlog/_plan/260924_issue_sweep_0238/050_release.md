@@ -61,3 +61,9 @@ Fresh state: origin/dev is still d66dfcf2 and this branch contains it (33 commit
 The version file list above still holds (`rg -l '0\.2\.37'` returns the same files). durable-goalplan.md:66 and native-desktop-acceptance.md keep their compatibility statements. The measured test total is 3,599 at 43372970; the release commit remeasures it. The docs-site commands.md edit already landed in wp4.
 
 Build: main does the version bump, CHANGELOG, inventory regeneration and badge. Check: build, full npm test under the receipt, gate, inventory --check, check-versions 0.2.38. Delivery follows steps 1-7 above.
+
+## wp6 architect reflection folds
+
+- #232 comment: its guidance landed on main in 0.2.37 and first ships in the published v0.2.38; the comment says exactly that.
+- CHANGELOG: the 0.2.38 section opens with a line stating that it is the first published release containing the 0.2.37 changes (native desktop acceptance guidance, macOS approvals reference, `desktop` criterion surface) and points to the 0.2.37 section, because release.yml curates notes from the 0.2.38 section only (release.yml:287, .github/scripts/changelog-section.cjs:42).
+- Version check: check-versions.mjs does not read cli/package.json, plugins/codexclaw/gui/package.json or package-lock.json. The local gate adds `rg -n '"version": "0\.2\.37"' package.json package-lock.json cli/package.json plugins/codexclaw/gui/package.json plugins/codexclaw/components/*/package.json`, which must print nothing, and `npm ls --workspaces --depth=0`, which must exit 0.
