@@ -40,6 +40,41 @@ async function hang() {
   await new Promise(() => setInterval(() => {}, 1000));
 }
 
+if (args.includes("--dump-dom")) {
+  if (process.env.CXC_VISUALIZER_DOM_CAPTURE) {
+    writeFileSync(process.env.CXC_VISUALIZER_DOM_CAPTURE, readFileSync(fileURLToPath(args.at(-1))));
+  }
+  if (mode === "dump-dom-fail") { console.error("fixture dump-dom failed"); process.exit(11); }
+  if (mode === "dump-dom-malformed") {
+    console.log('<!doctype html><script type="application/json" id="cxc-svg-geometry-result-v1">{invalid-json</script>');
+    process.exit(0);
+  }
+  if (mode === "dump-dom-no-marker") {
+    console.log("<!doctype html><p>fixture dump-dom result marker absent</p>");
+    process.exit(0);
+  }
+  if (mode === "dump-dom-null-finding" || mode === "dump-dom-bad-geometry-type") {
+    const invalidFinding = mode === "dump-dom-null-finding" ? null
+      : { svg: "fixture-svg", text: "fixture-label", geometry: "fixture-line", geometryType: "circle" };
+    const validFinding = { svg: "fixture-svg", text: "valid-label", geometry: "valid-line", geometryType: "line" };
+    const result = { schemaVersion: 1, kind: "svg-text-crossings",
+      findings: [validFinding, invalidFinding], capped: false };
+    console.log("<!doctype html><script type=\"application/json\" id=\"cxc-svg-geometry-result-v1\">"
+      + JSON.stringify(result) + "</script>");
+    process.exit(0);
+  }
+  const result = mode === "dump-dom-crossing"
+    ? { schemaVersion: 1, kind: "svg-text-crossings",
+        findings: [{ svg: "fixture-svg", text: "fixture-label",
+          geometry: "fixture-line", geometryType: "line" }], capped: false }
+    : mode === "dump-dom-cap"
+      ? { schemaVersion: 1, kind: "svg-text-crossings", findings: [], capped: true }
+      : { schemaVersion: 1, kind: "svg-text-crossings", findings: [], capped: false };
+  console.log("<!doctype html><script type=\"application/json\" id=\"cxc-svg-geometry-result-v1\">"
+    + JSON.stringify(result) + "</script>");
+  process.exit(0);
+}
+
 if (printArg) {
   const countPath = join(process.env.HOME, "print-count");
   const count = existsSync(countPath) ? Number(readFileSync(countPath, "utf8")) + 1 : 1;

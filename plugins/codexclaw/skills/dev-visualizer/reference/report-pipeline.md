@@ -130,6 +130,12 @@ reasons, and the completion method for each print pass. Missing tools block
 verification; a process failure or empty extraction fails it. A4/Letter is an
 explicit choice independent of output language.
 
+When HTML is available, export also attempts the bounded SVG text/connector
+diagnostic on final filled print HTML. `--qa-only` records it as a `report.notes`
+entry because it has no HTML source; DOM process failure does not invalidate an
+otherwise passing PDF receipt, and the note remains visible in JSON and under
+`notes:` in human output.
+
 Use approved local fonts, inspect required glyphs for exported output, and retain
 license provenance. This package does not ship font binaries or a font-manifest
 binding tool. Missing font evidence cannot become a publication PASS.

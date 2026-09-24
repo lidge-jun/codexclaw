@@ -19,6 +19,9 @@
    boxes and counter(page)/counter(pages) work; string-set and target-counter do
    not, so the running header is static text and contents page numbers are filled
    by scripts/export-paged-report.mjs in a second pass. ===== */
+/* TRANSLATOR: keep the running-header title/date and matching cover date
+   synchronized when this template is localized. Chromium lacks
+   string-set/string(), so these values remain source-owned literals. */
 @page {
   size: A4 portrait;
   margin: 20mm 18mm 22mm 18mm;
@@ -68,7 +71,7 @@ section.body.chapter { break-before: page; margin-top: 0 }
 /* ===== Contents ===== */
 .contents h2 { border: 0; padding: 0; margin-bottom: 7mm }
 .toc { list-style: none; margin: 0; padding: 0; max-width: 150mm }
-.toc li { display: grid; grid-template-columns: 10mm 1fr 8mm; column-gap: 3mm; align-items: baseline; padding: 2.4mm 0; border-bottom: 0.4pt solid var(--rule) }
+.toc li { display: grid; grid-template-columns: max-content minmax(0, 1fr) 8mm; column-gap: 3mm; align-items: baseline; padding: 2.4mm 0; border-bottom: 0.4pt solid var(--rule) }
 .toc .n { color: var(--muted); font-size: 9pt }
 .toc a { text-decoration: none; color: inherit }
 .toc .t { font-family: var(--serif); font-weight: 600 }
@@ -192,12 +195,15 @@ p, li { orphans: 3; widows: 3 }
     <figcaption id="fig1"><span class="lbl">그림 1.</span>가입 후 경과 월별 이탈률: 첫 달이 12.4%로 둘째 달 이후의 세 배입니다</figcaption>
     <svg viewBox="0 0 720 230" width="100%" role="img" aria-label="막대 차트. 가입 후 1개월 12.4%, 2개월 4.3%, 3개월 3.9%, 4개월 3.6%, 5개월 3.4%, 6개월 3.5%. 첫 달 막대만 강조색.">
       <g font-size="14" fill="#444">
-        <line x1="60" y1="190" x2="700" y2="190" stroke="#1a1a1a" stroke-width="1"/>
+        <!-- Connectors and grid lines are painted before labels. -->
+        <g aria-hidden="true">
+          <line x1="60" y1="190" x2="700" y2="190" stroke="#1a1a1a" stroke-width="1"/>
+          <line x1="60" y1="130" x2="700" y2="130" stroke="#c9c9c9" stroke-width="0.6"/>
+          <line x1="60" y1="70" x2="700" y2="70" stroke="#c9c9c9" stroke-width="0.6"/>
+        </g>
         <g font-size="13" fill="#6b6b6b" text-anchor="end">
           <text x="52" y="194">0%</text><text x="52" y="134">5%</text><text x="52" y="74">10%</text>
         </g>
-        <line x1="60" y1="130" x2="700" y2="130" stroke="#c9c9c9" stroke-width="0.6"/>
-        <line x1="60" y1="70" x2="700" y2="70" stroke="#c9c9c9" stroke-width="0.6"/>
         <rect x="90" y="41.2" width="70" height="148.8" fill="#0b3d5c"/>
         <rect x="192" y="138.4" width="70" height="51.6" fill="#b8b8b8"/>
         <rect x="294" y="143.2" width="70" height="46.8" fill="#b8b8b8"/>
@@ -299,4 +305,3 @@ p, li { orphans: 3; widows: 3 }
 </main>
 </body>
 </html>
-

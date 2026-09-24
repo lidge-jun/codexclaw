@@ -31,7 +31,7 @@ function sandbox() {
   return { root, home, emptyPath };
 }
 
-function run(root, args, { mode = "happy", path } = {}) {
+function run(root, args, { mode = "happy", path, env = {} } = {}) {
   const home = join(root, "home");
   return spawnSync(process.execPath, [SCRIPT, ...args], {
     encoding: "utf8",
@@ -45,6 +45,7 @@ function run(root, args, { mode = "happy", path } = {}) {
       TMP: root,
       TEMP: root,
       CXC_VISUALIZER_FIXTURE_MODE: mode,
+      ...env,
     },
   });
 }
@@ -258,6 +259,54 @@ test("layout findings produce REVIEW/2", () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("dump-dom crossing becomes a P2 pagination REVIEW", () => {
+  const { root } = sandbox();
+  try {
+    const report = parseReport(run(root, exportArgs(writeInput(root), join(root, "report.pdf")), { mode: "dump-dom-crossing" }));
+    assert.equal(report.svgGeometry.status, "REVIEW");
+    assert.equal(report.svgGeometry.findings, 1);
+    assert.equal(report.verdict, "REVIEW");
+    assert.ok(report.qa.some((finding) => finding.level === "P2" && /later-painted line/.test(finding.msg)));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("dump-dom failure is named NOT_RUN and does not block the PDF", () => {
+  const { root } = sandbox();
+  try {
+    const report = parseReport(run(root, exportArgs(writeInput(root), join(root, "report.pdf")), { mode: "dump-dom-fail" }));
+    assert.equal(report.svgGeometry.status, "NOT_RUN");
+    assert.equal(report.verdict, "PASS");
+    assert.ok(report.notes.some((note) => note.id === "svg-geometry" && /DOM probe exited with status 11/.test(note.message)));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("malformed, invalid-entry, or absent dump-dom results become notes without P2 findings", () => {
+  const { root } = sandbox();
+  try {
+    for (const mode of ["dump-dom-malformed", "dump-dom-no-marker",
+      "dump-dom-null-finding", "dump-dom-bad-geometry-type"]) {
+      const report = parseReport(run(root, exportArgs(writeInput(root), join(root, "report.pdf")), { mode }));
+      assert.equal(report.svgGeometry.status, "NOT_RUN");
+      assert.equal(report.verdict, "PASS");
+      assert.ok(report.notes.some((note) => note.id === "svg-geometry"
+        && /DOM result was not valid JSON|stdout did not contain cxc-svg-geometry-result-v1|DOM result has an invalid schema/.test(note.message)));
+      assert.equal(report.qa.filter((finding) => finding.level === "P2").length, 0);
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("--qa-only names DOM geometry as NOT_RUN", () => {
+  const { root } = sandbox();
+  try {
+    const pdf = join(root, "existing.pdf");
+    writeFileSync(pdf, "%PDF-1.4\nfixture-paper=A4\n");
+    const report = parseReport(run(root, ["--qa-only", pdf, "--pdfinfo", TOOLS, "--pdftotext", TOOLS, "--json"]));
+    assert.equal(report.svgGeometry.status, "NOT_RUN");
+    assert.equal(report.verdict, "PASS");
+    assert.ok(report.notes.some((note) => note.id === "svg-geometry" && /--qa-only has no HTML source/.test(note.message)));
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("stale output cannot satisfy a browser that creates nothing and remains intact", () => {
@@ -742,5 +791,67 @@ test("--timeout-ms rejects missing, nonfinite, fractional and out-of-bounds valu
       assert.match(result.stderr, /--timeout-ms/);
       assert.equal(existsSync(join(root, "report.pdf")), false);
     }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("locale QA reads only source-owned @page literals", () => {
+  const cases = [
+    { name: "Korean language", lang: ' lang="ko"', content: '"가온리테일"', body: "한국어", p2: false, note: false },
+    { name: "English with Korean furniture", lang: ' lang="en"', content: '"가온리테일"', body: "English", p2: true, note: false },
+    { name: "English with dotted date", lang: ' lang="en-US"', content: '"2026. 9. 9."', body: "English", p2: true, note: false },
+    { name: "English with page counter", lang: ' lang="en"', content: 'counter(page)', body: "한국어 body only", p2: false, note: false },
+    { name: "missing language", lang: "", content: '"가온리테일"', body: "한국어", p2: false, note: true },
+  ];
+  for (const fixture of cases) {
+    const { root } = sandbox();
+    try {
+      const input = writeInput(root);
+      writeFileSync(input, `<!doctype html><html${fixture.lang}><head><style>@page { @top-left { content: ${fixture.content}; } }</style></head><body>${fixture.body}</body></html>`);
+      const report = parseReport(run(root, exportArgs(input, join(root, "report.pdf"))));
+      assert.equal(report.qa.some((finding) => finding.level === "P2" && /@page content/.test(finding.msg)), fixture.p2, fixture.name);
+      assert.equal(report.notes.some((note) => note.id === "page-locale"), fixture.note, fixture.name);
+      assert.equal(report.verdict, fixture.p2 ? "REVIEW" : "PASS", fixture.name);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  }
+});
+
+test("dump-dom sampling cap is a nonblocking note", () => {
+  const { root } = sandbox();
+  try {
+    const report = parseReport(run(root, exportArgs(writeInput(root), join(root, "report.pdf")), { mode: "dump-dom-cap" }));
+    assert.equal(report.svgGeometry.status, "NOT_RUN");
+    assert.equal(report.verdict, "PASS");
+    assert.equal(report.svgGeometry.findings, 0);
+    assert.ok(report.notes.some((note) => note.id === "svg-geometry" && /sampling budget was exhausted/.test(note.message)));
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("the SVG probe reads the final filled HTML after a contents refill", () => {
+  const { root } = sandbox();
+  try {
+    const input = writeInput(root);
+    writeFileSync(input, '<html lang="en"><head></head><body><span data-toc-for="section">?</span><h2 id="section" data-toc="Section heading">Section heading</h2></body></html>');
+    const capture = join(root, "dom-capture.html");
+    const report = parseReport(run(root, exportArgs(input, join(root, "report.pdf")), {
+      mode: "second-pass-success", env: { CXC_VISUALIZER_DOM_CAPTURE: capture },
+    }));
+    assert.equal(report.passes, 2);
+    assert.equal(report.svgGeometry.status, "PASS");
+    const html = readFileSync(capture, "utf8");
+    assert.match(html, /<span data-toc-for="section">2<\/span>/);
+    assert.match(html, /out\.id="cxc-svg-geometry-result-v1"/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("real Chrome SVG crossing smoke", { skip: process.env.CXC_REAL_CHROME !== "1" && "set CXC_REAL_CHROME=1 for installed Chrome/Poppler" }, () => {
+  const { root } = sandbox();
+  try {
+    const input = writeInput(root);
+    writeFileSync(input, '<!doctype html><html lang="en"><body><h1>Geometry</h1><svg viewBox="0 0 300 100" width="300"><text x="50" y="55" font-size="25">LABEL</text><line x1="0" y1="47" x2="280" y2="47" stroke="black" stroke-width="2"/></svg></body></html>');
+    const chrome = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+    const result = spawnSync(process.execPath, [SCRIPT, input, join(root, "report.pdf"), "--chrome", chrome, "--json"], { encoding: "utf8", timeout: 60_000 });
+    const report = parseReport(result);
+    assert.equal(report.svgGeometry.status, "REVIEW", result.stderr);
+    assert.ok(report.qa.some((finding) => /SVG text box is crossed/.test(finding.msg)));
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

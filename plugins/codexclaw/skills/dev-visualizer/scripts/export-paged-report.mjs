@@ -22,6 +22,9 @@ const PAPER_SIZES = Object.freeze({
   Letter: Object.freeze({ width: 612, height: 792 }),
 });
 const CHECK_IDS = ["artifact-created", "pdf-parse", "text-integrity", "pagination"];
+const DOM_QA_SCRIPT_ID = "cxc-svg-geometry-result-v1";
+const DOM_QA_SCHEMA_VERSION = 1;
+const DOM_QA_TIMEOUT_MS = 10_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_TIMEOUT_MS = 300_000;
 const STAGE_POLL_MS = 250;
@@ -388,6 +391,147 @@ function collectTargets(html) {
   return targets;
 }
 
+function extractBalancedBlocks(source, marker) {
+  const blocks = [];
+  let from = 0;
+  while (from < source.length) {
+    marker.lastIndex = 0;
+    const found = marker.exec(source.slice(from));
+    if (!found) break;
+    const start = from + found.index;
+    const open = source.indexOf("{", start);
+    if (open < 0) break;
+    let depth = 0;
+    let quote = null;
+    let closed = false;
+    for (let index = open; index < source.length; index += 1) {
+      const character = source[index];
+      if (quote) {
+        if (character === quote && source[index - 1] !== "\\") quote = null;
+        continue;
+      }
+      if (character === "'" || character === '"') { quote = character; continue; }
+      if (character === "{") depth += 1;
+      if (character === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          blocks.push(source.slice(open + 1, index));
+          from = index + 1;
+          closed = true;
+          break;
+        }
+      }
+    }
+    if (!closed) break;
+  }
+  return blocks;
+}
+
+function pageContentLiterals(html) {
+  const styles = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)]
+    .map((match) => match[1]).join("\n");
+  const pages = extractBalancedBlocks(styles, /@page\b[^{]*/gi);
+  return pages.flatMap((page) => [...page.matchAll(
+    /content\s*:\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/gi,
+  )].map((match) => match[1].slice(1, -1)));
+}
+
+function analyzePageLocale(report, html) {
+  const language = /<html\b[^>]*\blang\s*=\s*["']([^"']+)["']/i.exec(html)?.[1]?.toLowerCase();
+  if (!language) {
+    report.notes.push({
+      id: "page-locale",
+      message: "<html lang> is missing; language was not inferred.",
+    });
+    return;
+  }
+  if (language === "ko" || language.startsWith("ko-")) return;
+  const suspect = pageContentLiterals(html).find(
+    (literal) => /[\uAC00-\uD7A3]/u.test(literal)
+      || /\b\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\./u.test(literal),
+  );
+  if (suspect) report.qa.push({
+    level: "P2", page: null,
+    msg: "@page content contains Korean/date literal for lang=" + language
+      + ': "' + suspect + '"; translate source-owned page furniture and cover date',
+  });
+}
+
+function domMeasurementScript() {
+  return "<script>\n" +
+    "(() => {\n" +
+    "const result = {schemaVersion:" + DOM_QA_SCHEMA_VERSION +
+      ",kind:'svg-text-crossings',findings:[],capped:false};\n" +
+    "const visible = n => { const s=getComputedStyle(n); return s.display!=='none' && s.visibility!=='hidden' && Number(s.opacity||1)>0; };\n" +
+    "const cross=(p,q,r)=>(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);\n" +
+    "const hit=(p,q,r,s)=>{const a=cross(p,q,r),b=cross(p,q,s),c=cross(r,s,p),d=cross(r,s,q);return ((a>0&&b<0)||(a<0&&b>0))&&((c>0&&d<0)||(c<0&&d>0));};\n" +
+    "const crossed=(a,b,x)=>{if(a.x>x.left&&a.x<x.right&&a.y>x.top&&a.y<x.bottom)return true;if(b.x>x.left&&b.x<x.right&&b.y>x.top&&b.y<x.bottom)return true;const e=[[[x.left,x.top],[x.right,x.top]],[[x.right,x.top],[x.right,x.bottom]],[[x.right,x.bottom],[x.left,x.bottom]],[[x.left,x.bottom],[x.left,x.top]]];return e.some(v=>hit(a,b,{x:v[0][0],y:v[0][1]},{x:v[1][0],y:v[1][1]}));};\n" +
+    "const point=(s,x,y)=>{const p=s.createSVGPoint();p.x=x;p.y=y;return p.matrixTransform(s.getScreenCTM());};\n" +
+    "const points=(s,n,b)=>{if(n.localName==='line')return[point(s,n.x1.baseVal.value,n.y1.baseVal.value),point(s,n.x2.baseVal.value,n.y2.baseVal.value)];if(n.localName==='polyline')return[...n.points].map(v=>point(s,v.x,v.y));const l=n.getTotalLength(),c=Math.max(1,Math.min(256,Math.ceil(l/4),b));return Array.from({length:c+1},(_,i)=>{const p=n.getPointAtLength(l*i/c);return point(s,p.x,p.y);});};\n" +
+    "for(const svg of document.querySelectorAll('svg')){const nodes=[...svg.querySelectorAll('text,line,polyline,path')];let budget=5000;for(let ti=0;ti<nodes.length;ti+=1){const text=nodes[ti];if(text.localName!=='text'||!visible(text))continue;const r=text.getBoundingClientRect(),box={left:r.left+1,right:r.right-1,top:r.top+1,bottom:r.bottom-1};if(box.right<=box.left||box.bottom<=box.top)continue;for(let gi=ti+1;gi<nodes.length;gi+=1){const g=nodes[gi];if(!visible(g)||!['line','polyline','path'].includes(g.localName))continue;const st=getComputedStyle(g);if(st.stroke==='none'||Number.parseFloat(st.strokeWidth||'0')<=0)continue;let ps;try{ps=points(svg,g,budget);}catch{continue;}budget-=ps.length;if(budget<0){result.capped=true;break;}for(let i=1;i<ps.length;i+=1)if(crossed(ps[i-1],ps[i],box)){result.findings.push({svg:svg.id||null,text:text.id||null,geometry:g.id||null,geometryType:g.localName});break;}}if(result.capped)break;}if(result.capped)break;}\n" +
+    "const out=document.createElement('script');out.id=" + JSON.stringify(DOM_QA_SCRIPT_ID) + ";out.type='application/json';out.textContent=JSON.stringify(result);document.documentElement.appendChild(out);\n" +
+    "})();</script>";
+}
+
+function injectDomMeasurement(html) {
+  const script = domMeasurementScript();
+  return /<\/body\s*>/i.test(html)
+    ? html.replace(/<\/body\s*>/i, script + "</body>") : html + script;
+}
+
+function parseDomMeasurement(stdout) {
+  const escapedId = DOM_QA_SCRIPT_ID.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    "<script[^>]*\\bid=[\"']" + escapedId
+      + "[\"'][^>]*>([\\s\\S]*?)<\\/script>", "i",
+  );
+  const match = pattern.exec(stdout);
+  if (!match) return { ok: false, reason: "stdout did not contain " + DOM_QA_SCRIPT_ID };
+  try {
+    const value = JSON.parse(match[1]);
+    if (value?.schemaVersion !== DOM_QA_SCHEMA_VERSION
+      || value.kind !== "svg-text-crossings"
+      || !Array.isArray(value.findings) || typeof value.capped !== "boolean"
+      || !value.findings.every((finding) => finding !== null
+        && typeof finding === "object" && !Array.isArray(finding)
+        && ["svg", "text", "geometry"].every((key) => finding[key] === null
+          || typeof finding[key] === "string")
+        && ["line", "polyline", "path"].includes(finding.geometryType))) {
+      return { ok: false, reason: "DOM result has an invalid schema" };
+    }
+    return { ok: true, value };
+  } catch (error) {
+    return { ok: false, reason: "DOM result was not valid JSON: " + error.message };
+  }
+}
+
+async function runSvgCrossingProbe(chrome, htmlPath, report, timeoutMs, tempFiles) {
+  try {
+    const html = readFileSync(htmlPath, "utf8");
+    const probePath = writeTempHtml(htmlPath, injectDomMeasurement(html), tempFiles);
+    const result = await runTool(chrome, [
+      "--headless=new", "--disable-gpu", "--no-first-run",
+      "--no-default-browser-check", "--dump-dom",
+      "--virtual-time-budget=" + DOM_QA_TIMEOUT_MS,
+      pathToFileURL(probePath).href,
+    ], timeoutMs);
+    if (!result.ok) return { ok: false, reason: "DOM probe " + result.reason };
+    const parsed = parseDomMeasurement(result.stdout || "");
+    if (!parsed.ok) return parsed;
+    if (parsed.value.capped) return { ok: false, reason: "DOM probe sampling budget was exhausted" };
+    const findings = parsed.value.findings.map((finding) => ({
+      level: "P2", page: null,
+      msg: "SVG text box is crossed by later-painted " + finding.geometryType
+        + " (svg=" + (finding.svg || "anonymous") + ", text="
+        + (finding.text || "anonymous") + ", geometry=" + (finding.geometry || "anonymous") + ")",
+    }));
+    report.qa.push(...findings);
+    return { ok: true, findings: findings.length };
+  } catch (error) {
+    return { ok: false, reason: "DOM probe failed: " + (error?.message || String(error)) };
+  }
+}
+
 function paperMatches(size, paperSize) {
   const expected = PAPER_SIZES[paperSize];
   return Math.abs(size.w - expected.width) < 2 && Math.abs(size.h - expected.height) < 2;
@@ -473,6 +617,10 @@ function finish(report, flags, tempFiles, profilePath, retainedHtml = null) {
         console.log(`  NOT_RUN: ${reason}`);
       }
     }
+    if (report.notes.length) {
+      console.log("  notes:");
+      for (const note of report.notes) console.log("  " + note.id + ": " + note.message);
+    }
     console.log(`  verdict: ${report.verdict}; deliveryReady: false`);
   }
   return report.exitCode;
@@ -487,7 +635,8 @@ async function main() {
     schemaVersion: 1, input, output, paperSize: flags.paperSize, timeoutMs: flags.timeoutMs,
     artifact_sha256: null, artifactExists: false, deliveryReady: false,
     chrome: null, passes: flags.qaOnly ? 0 : 1, printPasses: [], pages: null, pageSize: null,
-    toc: [], qa: [], notRun: [],
+    toc: [], qa: [], notRun: [], notes: [],
+    svgGeometry: { schemaVersion: DOM_QA_SCHEMA_VERSION, status: "NOT_RUN", findings: 0 },
     checks: CHECK_IDS.map((id) => check(id, "NOT_RUN", "Check has not run.")),
   };
   const tempFiles = new Set();
@@ -518,6 +667,7 @@ async function main() {
   if (!flags.qaOnly) {
     ensureOutputDirectory(output);
     sourceHtml = readFileSync(input, "utf8");
+    analyzePageLocale(report, sourceHtml);
     targets.push(...collectTargets(sourceHtml));
     profilePath = mkdtempSync(join(tmpdir(), "cxc-report-chrome-"));
     const printHtml = writeTempHtml(input, injectPaperSize(sourceHtml, flags.paperSize), tempFiles);
@@ -613,6 +763,24 @@ async function main() {
       }
     }
     report.generationComplete = true;
+  }
+
+  if (flags.qaOnly) {
+    report.notes.push({
+      id: "svg-geometry",
+      message: "--qa-only has no HTML source for DOM geometry.",
+    });
+  } else if (retainedHtml) {
+    const dom = await runSvgCrossingProbe(chrome, retainedHtml, report, flags.timeoutMs, tempFiles);
+    if (dom.ok) report.svgGeometry.status = dom.findings ? "REVIEW" : "PASS";
+    else {
+      report.svgGeometry.status = "NOT_RUN";
+      report.notes.push({
+        id: "svg-geometry",
+        message: dom.reason + "; rendered-page inspection remains required.",
+      });
+    }
+    report.svgGeometry.findings = report.qa.filter((item) => item.msg.startsWith("SVG text box is crossed")).length;
   }
 
   report.pages = info.pages;
