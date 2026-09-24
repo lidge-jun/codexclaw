@@ -306,3 +306,9 @@ Risks are limited to rejecting an undocumented combination that previously happe
 ### Open decisions
 
 No unresolved implementation decision remains from D4.1. The only deferred decision is outside this phase: the exact `--presented` value set and persistence path belong to wp5, which must extend the `add-criterion` allowed set after this phase lands. Do not invent or preview that flag here.
+
+## wp4 P revalidation (2026-09-24)
+
+Continuity: wp3 D (2242de88) closed the visualizer work and named wp4 from this document. The direction is unchanged.
+
+Stale check: `git diff --stat d66dfcf2..HEAD` over plugins/codexclaw/components, skills/loop and docs-site is empty, so every anchor in this document still holds. Builder write scope: components/pabcd-state/src/goalplan-cli.ts, the regenerated components/pabcd-state/dist (via `npm run build` only), components/pabcd-state/test/goalplan-public-surface.test.ts plus any test file this document names, skills/loop/references/durable-goalplan.md, and docs-site/src/content/docs/reference/commands.md:131-140 (the flag grammar that 050 assigned; moved here because it describes this phase's behavior). wp5 later adds `--presented` to add-criterion's allowed set.
