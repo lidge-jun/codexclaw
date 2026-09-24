@@ -66,3 +66,16 @@ Dependency order follows the build order: exporter process handling before the e
 ## Source of truth sync
 
 Each implementation C patches the skill text that describes the changed behavior (report-pipeline.md, SKILL.md DIAGRAM-LAYOUT-01, durable-goalplan.md, native-desktop-acceptance.md) and, when a component contract changes, the matching structure/INDEX.md row. wp6 patches CHANGELOG, README badges and docs-site lines.
+
+## Audit synthesis
+
+Reviewer 01a0d197-6cfe-7d82-af8f-eda6a8f8fceb (gpt-6-sol) audited this roadmap in four rounds with the same handle.
+
+- Round 1, FAIL, seven blockers. Main accepted eleven of twelve findings and rebutted one: a single native observation clearing the advisory for every criterion stays a disclosed soft-advisory residual. The design changes (attributable kill for `stage-stable`, whole-result rejection of malformed DOM data, a directory-shaped `.app`, criterion-bound identities, v2+ scope of the final-gate check, symlink containment) went back to the architect, who returned ALIGNED. Folds are at 6bdddb33.
+- Round 2, FAIL, three blockers: a double-escaped trailer regex, an `.app` without byte binding, and an inventory command that only checks. Folded at 9c579026.
+- Round 3, FAIL, two blockers: a stale "sha256 must be absent" check, and bundle symlinks escaping the tree digest. Folded at 7aef6798.
+- Round 4, PASS.
+
+Each round found different and smaller defects, so the loop was converging rather than repeating. LOOP-REPAIR-01's replan trigger (the same failure repeated) did not apply.
+
+The roadmap is locked here. Implementation starts with wp2 from 010_export_completion.md, and each later cycle rechecks its decade doc against the tree at its own P.
