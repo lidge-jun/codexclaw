@@ -179,6 +179,11 @@ test("cwd must match exactly after realpath, not a parent or sibling", t => {
 // is a no-op off win32, so the assertion below is meaningful on Windows and
 // trivially true elsewhere. This is NOT the 8.3 short-name case: that is a
 // different alias class that merely shares the same fix.
+//
+// Node 24.21.0 taught the JS realpathSync to read this shape too (observed on the
+// windows-2025 runner image 20260922; 24.20.0 still threw). The native call and the
+// session match are what the fix relies on, so those stay asserted; whether the JS
+// implementation throws is recorded as a diagnostic, not required.
 test("an extended-length stored cwd still matches the native session", t => {
   const f = fixture(t);
   const stored = toNamespacedPath(f.cwd);
@@ -188,7 +193,9 @@ test("an extended-length stored cwd still matches the native session", t => {
     // Pin the premise: the JS implementation cannot read this shape, the native one
     // can. If this ever stops holding, the fix below is no longer load-bearing.
     assert.notEqual(stored, f.cwd);
-    assert.throws(() => realpathSync(stored));
+    let jsReads = true;
+    try { realpathSync(stored); } catch { jsReads = false; }
+    t.diagnostic("JS realpathSync " + (jsReads ? "reads" : "rejects") + " the extended-length cwd on " + process.version);
     assert.equal(realpathSync.native(stored), f.cwd);
   }
 
