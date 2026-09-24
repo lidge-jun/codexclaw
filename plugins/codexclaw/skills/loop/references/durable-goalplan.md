@@ -66,7 +66,7 @@ This is the on-disk shape under `.codexclaw/goalplans/<slug>/goalplan.json`
   mandatory through validation on schemaVersion 2+ plans with a final gate and through
   the final-gate spawn guard on any plan with a recorded finalGate; otherwise the value
   is a classification. Builds older than 0.2.37 drop `desktop` on read and erase it on
-  their next write. `id` is auto-assigned and `status` is derived. `expectedEvidence` has no
+  their next write; builds older than 0.2.38 do the same to `presented`. `id` is auto-assigned and `status` is derived. `expectedEvidence` has no
   CLI flag on `add-criterion` — it stays `""` unless set via a steering batch op or a
   hand edit — so do not plan on passing it. `capturedEvidence` is written by
   `meet-criterion --evidence`. A criterion only reaches `met` when `capturedEvidence`

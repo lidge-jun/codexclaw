@@ -6,6 +6,69 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.38] - 2026-09-24
+
+This is the first published release that contains the 0.2.37 changes: the native
+desktop acceptance guidance, the macOS system approvals reference and the `desktop`
+criterion surface. 0.2.37 was prepared on main but never published; its section below
+still describes those changes.
+
+### Fixed
+
+- The paged-report exporter accepts a complete staged PDF from a headless Chrome that
+  writes the file but never exits. It waits until the stage keeps a `%PDF-` header, a
+  `%%EOF` trailer and an unchanged size and mtime for 1.5 s, kills the owned process
+  tree, and counts the pass only when that kill caused the exit and the stage did not
+  change. A child that survives the post-kill grace fails the pass without keeping the
+  exporter alive. The text summary now prints each FAIL, BLOCKED and NOT_RUN reason (#240).
+
+### Added
+
+- Paged-report QA warns (P2) when a non-Korean document keeps Hangul or a Korean-format
+  date in `@page` content, and reports an SVG label crossed by a connector painted
+  after it (P2), using a bounded DOM pass on the final HTML. A failure of that pass is a
+  nonblocking note (#241).
+- QA validates `artifact-identity.json` for desktop artifact verdicts (bundle tree
+  digest, executable, archive, signing, toolchain and goalplan `criterionIds`) and binds
+  those files into a typed `artifactManifest` in the QA receipt. A schemaVersion 2+
+  final gate requires an identity entry for each non-native desktop criterion (#239).
+- `cxc loop add-criterion --surface desktop --presented native` marks a criterion
+  proven by inspecting a native surface. At Check it gets a soft, fail-open advisory
+  that clears on an explicit native app observation or a viewed declared screenshot (#239).
+- `skills/dev-devops/scripts/verify-lipo-command.mjs` judges a candidate lipo command
+  by running it against the artifact and a verified thin negative control (#239).
+
+### Changed
+
+- `cxc loop` and `cxc goalplan` validate flags per verb. Unknown, misspelled and
+  misplaced flags (including `--surface` outside `add-criterion`), stray positionals,
+  missing values and repeated singleton flags fail before anything is written. Every
+  value flag also accepts `--flag=value` (#239).
+- The paged-report template sizes its contents label column from content, marks the
+  running-header literals for translation, and draws chart grid lines before labels.
+  DIAGRAM-LAYOUT-01 states that labels paint after the lines they sit on (#241).
+
+### Compatibility
+
+- Scripts that passed a flag a verb ignored, or a space-separated value starting with
+  `--`, now fail; use the verb's own flags and `--flag=value`.
+- On schemaVersion 2+ plans with a recorded final gate, a QA receipt from 0.2.37 or
+  older has no `artifactManifest` and fails the gate while a non-native desktop
+  criterion exists. Default v1 plans are unaffected.
+- Builds older than 0.2.38 drop `presented` on read and erase it on their next write.
+
+### Decided
+
+- #191: codexclaw does not override the native memory quota guard from a detect-only
+  routing signal. The decision and the upstream boundary are recorded in
+  `devlog/_plan/260924_issue_sweep_0238/003_issue_191_decision.md`.
+
+### Verification
+
+- 3,599 tests measured locally on macOS; the release run and hosted CI remeasure them.
+- Independent plan audits and implementation reviews for every work phase; real
+  Chrome and real macOS lipo smoke runs locally.
+
 ## [0.2.37] - 2026-09-23
 
 ### Added
