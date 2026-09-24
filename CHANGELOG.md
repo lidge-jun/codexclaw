@@ -6,6 +6,36 @@ All notable changes to codexclaw are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.39] - 2026-09-24
+
+### Added
+
+- SessionStart injects a subagent dispatch card. When the collab family is unresolved,
+  it gives one Code Mode cell that finds the unique `spawn_agent` helper, identifies V1
+  or V2 from companion tools and spawns (V2 with `task_name` and `fork_turns: "none"`),
+  stopping before any call if the helper or family is ambiguous. `CODEXCLAW_SPAWN_V1=1`
+  prints the exact `tools.multi_agent_v1__*` calls as an override. A dated alias map
+  (deepseek, swe2, kimi, sol, luna) is marked verified or unverified against the local
+  Codex catalog; full model ids pass through unchanged (#243).
+- `subagents_get` returns `spawnArgs` per role and `staleModel` (true, false or null
+  with a `staleReason`) from a catalog read bounded to 5 s (#243).
+
+### Fixed
+
+- The subagent-config MCP stdio server handles requests in order and finishes queued
+  replies before exiting at stdin EOF.
+
+### Compatibility
+
+- `subagents_get` may take up to 5 s longer while it probes the catalog. The response
+  envelope is unchanged; it only gains fields.
+
+### Verification
+
+- 3,609 tests measured locally on macOS; the release run and hosted CI remeasure them.
+- The card's resolver cell, run verbatim in a V1 Code Mode session, spawned the
+  DeepSeek alias in one cell. V2 is covered by a tool harness only.
+
 ## [0.2.38] - 2026-09-24
 
 This is the first published release that contains the 0.2.37 changes: the native
