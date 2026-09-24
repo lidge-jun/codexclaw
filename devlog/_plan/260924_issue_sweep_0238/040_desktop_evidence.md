@@ -889,3 +889,18 @@ New tests in plugins/codexclaw/test/qa-validate-evidence.test.mjs: `app bundle d
 
 - Finding 1: the obsolete "sha256 must be absent" check on `app` is removed; the schema prose, the app test (item 10) and the SoT text now require the tree digest.
 - Finding 2: `sha256Tree` resolves every symlink with `realpathSync` and throws when it leaves the bundle; the validator turns that into `app bundle could not be digested: bundle symlink escapes the bundle: <path>`. Internal symlinks are still hashed by their target string. Imports add `realpathSync` from `node:fs` and `sep` from `node:path`. New test: `bundle symlink escaping the app is rejected` (a `Resources/link` pointing at a temp file outside the bundle fails; a link to `../MacOS/Demo` inside it passes).
+
+## wp5 P revalidation (2026-09-24)
+
+Continuity: wp4 D (34536106) landed per-verb flag tables in goalplan-cli.ts (`VERB_RULES`, generic `--flag=value`) and named wp5 from this document. The direction is unchanged.
+
+Stale check: since d66dfcf2, wp4 changed goalplan-cli.ts, cli.ts, their dist, goalplan-public-surface.test.ts and durable-goalplan.md. No file under skills/qa, skills/dev-devops, render-observations.ts, hook.ts, source-receipt.ts or goalplan.ts changed. 5B therefore adds `--presented` to add-criterion's entry in `VERB_RULES` (the per-verb table wp4 created), not to a global parser. durable-goalplan.md:99 currently says `--presented` is "reserved for the follow-up wp5 change"; 5B replaces that clause with the real flag. The later fold sections override earlier body text. In particular, the native advisory filter follows "Reflection round 2 dispositions": it is limited to the active phase's linked criteria only when that phase links any, so the sentence at line 558 is superseded.
+
+Build split (disjoint write scopes, three parallel gpt-6-sol builders, then one sequential builder):
+
+- B1 (5B): components/pabcd-state/src/{goalplan.ts (criterion `presented` type, builder, reviver, steering op only), goalplan-cli.ts, steering.ts if the op lives there, render-observations.ts, hook.ts}, their tests, hooks/post-tool-use-tracking-render-observations.json if the matcher changes, skills/loop/references/durable-goalplan.md, and the 5B lines of native-desktop-acceptance.md (:25-32).
+- B2 (5A validator and receipt): skills/qa/scripts/validate-evidence.mjs, components/pabcd-state/src/source-receipt.ts (manifest parsing and the exported `ArtifactDigest` type), test/qa-validate-evidence.test.mjs, components/pabcd-state/test/source-receipt.test.ts, and the 5A schema text in native-desktop-acceptance.md (:115-131).
+- B3 (5C): the new skills/dev-devops/scripts oracle, its tests and fixture fake lipo, and the 5C text in native-desktop-acceptance.md (:170-179).
+- B4, after B1 and B2: the 5A final gate in components/pabcd-state/src/goalplan.ts (`desktopArtifactCriterionIds`, `identityReasons`) and test/final-gate.test.ts.
+
+native-desktop-acceptance.md is shared by B1-B3 in disjoint line ranges. Each builder edits only its range, with a single apply_patch per hunk and no whole-file rewrites. Builders never run `npm run build`; main builds once after B4, then regenerates inventory for the new script. Main runs git.
