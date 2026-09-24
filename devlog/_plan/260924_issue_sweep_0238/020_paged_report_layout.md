@@ -2,7 +2,7 @@
 
 This phase fixes the paged report template's narrow contents-number column and adds bounded checks for locale literals and SVG text crossed by later-painted connectors. It is for cxc-dev-visualizer maintainers and report authors. wp2 lands first: D3.4 reuses wp2's runTool stdout capture and timeout/process ownership.
 
-This document implements accepted decisions D3.1, D3.2, D3.3, and D3.4 for issue #241. Locale and SVG checks are P2 review heuristics. Missing `lang`, DOM failure, malformed output, timeout, or sampling cap is recorded as a nonblocking `report.notes` object and never as `report.notRun` or `FAIL`. `--qa-only` has no HTML and records the DOM check as a note. The DOM pass runs against the final filled print HTML. `report.notRun` remains reserved for the existing receipt checks because `quality-gate.mjs:31-34` treats any nonempty array as `BLOCKED`; the same current source ignores unknown fields, so `report.notes` stays in JSON without changing the quality-gate verdict. D2.1-D2.3 remain wp2.
+This document implements accepted decisions D3.1, D3.2, D3.3, and D3.4 for issue #241. Locale and SVG checks are P2 review heuristics. Missing `lang`, DOM failure, malformed output (including any invalid finding entry), timeout, or sampling cap is recorded as a nonblocking `report.notes` object and never as `report.notRun` or `FAIL`. `--qa-only` has no HTML and records the DOM check as a note. The DOM pass runs against the final filled print HTML. `report.notRun` remains reserved for the existing receipt checks because `quality-gate.mjs:31-34` treats any nonempty array as `BLOCKED`; the same current source ignores unknown fields, so `report.notes` stays in JSON without changing the quality-gate verdict. D2.1-D2.3 remain wp2.
 
 ## File change map
 
@@ -143,7 +143,7 @@ function analyzePageLocale(report, html) {
 
 Call analyzePageLocale(report, sourceHtml) immediately after sourceHtml is read at current main :388.
 
-Add this complete bounded DOM implementation after analyzePageLocale. It injects one versioned JSON script, compares text boxes only with later-painted stroked line/polyline/path nodes, transforms samples through getScreenCTM, shrinks text boxes by one pixel, and caps samples. A sampled point must be strictly inside the shrunk box; touching an edge is not a crossing:
+Add this complete bounded DOM implementation after analyzePageLocale. It injects one versioned JSON script, compares text boxes only with later-painted stroked line/polyline/path nodes, transforms samples through getScreenCTM, shrinks text boxes by one pixel, and caps samples. A sampled point must be strictly inside the shrunk box; touching an edge is not a crossing. Validate the entire envelope, including every finding, before emitting any P2 finding. Any unexpected probe error returns a nonblocking reason to the caller:
 
 ~~~js
 function domMeasurementScript() {
@@ -169,9 +169,10 @@ function injectDomMeasurement(html) {
 }
 
 function parseDomMeasurement(stdout) {
+  const escapedId = DOM_QA_SCRIPT_ID.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const pattern = new RegExp(
-    "<script[^>]*\\bid=["']" + DOM_QA_SCRIPT_ID
-      + "["'][^>]*>([\\s\\S]*?)<\\/script>", "i",
+    "<script[^>]*\\bid=[\"']" + escapedId
+      + "[\"'][^>]*>([\\s\\S]*?)<\\/script>", "i",
   );
   const match = pattern.exec(stdout);
   if (!match) return { ok: false, reason: "stdout did not contain " + DOM_QA_SCRIPT_ID };
@@ -179,7 +180,12 @@ function parseDomMeasurement(stdout) {
     const value = JSON.parse(match[1]);
     if (value?.schemaVersion !== DOM_QA_SCHEMA_VERSION
       || value.kind !== "svg-text-crossings"
-      || !Array.isArray(value.findings) || typeof value.capped !== "boolean") {
+      || !Array.isArray(value.findings) || typeof value.capped !== "boolean"
+      || !value.findings.every((finding) => finding !== null
+        && typeof finding === "object" && !Array.isArray(finding)
+        && ["svg", "text", "geometry"].every((key) => finding[key] === null
+          || typeof finding[key] === "string")
+        && ["line", "polyline", "path"].includes(finding.geometryType))) {
       return { ok: false, reason: "DOM result has an invalid schema" };
     }
     return { ok: true, value };
@@ -189,25 +195,30 @@ function parseDomMeasurement(stdout) {
 }
 
 async function runSvgCrossingProbe(chrome, htmlPath, report, timeoutMs, tempFiles) {
-  const html = readFileSync(htmlPath, "utf8");
-  const probePath = writeTempHtml(htmlPath, injectDomMeasurement(html), tempFiles);
-  const result = await runTool(chrome, [
-    "--headless=new", "--disable-gpu", "--no-first-run",
-    "--no-default-browser-check", "--dump-dom",
-    "--virtual-time-budget=" + DOM_QA_TIMEOUT_MS,
-    pathToFileURL(probePath).href,
-  ], timeoutMs);
-  if (!result.ok) return { ok: false, reason: "DOM probe " + result.reason };
-  const parsed = parseDomMeasurement(result.stdout || "");
-  if (!parsed.ok) return parsed;
-  if (parsed.value.capped) return { ok: false, reason: "DOM probe sampling budget was exhausted" };
-  for (const finding of parsed.value.findings) report.qa.push({
-    level: "P2", page: null,
-    msg: "SVG text box is crossed by later-painted " + finding.geometryType
-      + " (svg=" + (finding.svg || "anonymous") + ", text="
-      + (finding.text || "anonymous") + ", geometry=" + (finding.geometry || "anonymous") + ")",
-  });
-  return { ok: true, findings: parsed.value.findings.length };
+  try {
+    const html = readFileSync(htmlPath, "utf8");
+    const probePath = writeTempHtml(htmlPath, injectDomMeasurement(html), tempFiles);
+    const result = await runTool(chrome, [
+      "--headless=new", "--disable-gpu", "--no-first-run",
+      "--no-default-browser-check", "--dump-dom",
+      "--virtual-time-budget=" + DOM_QA_TIMEOUT_MS,
+      pathToFileURL(probePath).href,
+    ], timeoutMs);
+    if (!result.ok) return { ok: false, reason: "DOM probe " + result.reason };
+    const parsed = parseDomMeasurement(result.stdout || "");
+    if (!parsed.ok) return parsed;
+    if (parsed.value.capped) return { ok: false, reason: "DOM probe sampling budget was exhausted" };
+    const findings = parsed.value.findings.map((finding) => ({
+      level: "P2", page: null,
+      msg: "SVG text box is crossed by later-painted " + finding.geometryType
+        + " (svg=" + (finding.svg || "anonymous") + ", text="
+        + (finding.text || "anonymous") + ", geometry=" + (finding.geometry || "anonymous") + ")",
+    }));
+    report.qa.push(...findings);
+    return { ok: true, findings: findings.length };
+  } catch (error) {
+    return { ok: false, reason: "DOM probe failed: " + (error?.message || String(error)) };
+  }
 }
 ~~~
 
@@ -266,6 +277,16 @@ if (args.includes("--dump-dom")) {
     console.log("<!doctype html><p>fixture dump-dom result marker absent</p>");
     process.exit(0);
   }
+  if (mode === "dump-dom-null-finding" || mode === "dump-dom-bad-geometry-type") {
+    const invalidFinding = mode === "dump-dom-null-finding" ? null
+      : { svg: "fixture-svg", text: "fixture-label", geometry: "fixture-line", geometryType: "circle" };
+    const validFinding = { svg: "fixture-svg", text: "valid-label", geometry: "valid-line", geometryType: "line" };
+    const result = { schemaVersion: 1, kind: "svg-text-crossings",
+      findings: [validFinding, invalidFinding], capped: false };
+    console.log("<!doctype html><script type=\"application/json\" id=\"cxc-svg-geometry-result-v1\">"
+      + JSON.stringify(result) + "</script>");
+    process.exit(0);
+  }
   const result = mode === "dump-dom-crossing"
     ? { schemaVersion: 1, kind: "svg-text-crossings",
         findings: [{ svg: "fixture-svg", text: "fixture-label",
@@ -307,14 +328,16 @@ test("dump-dom failure is named NOT_RUN and does not block the PDF", () => {
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test("malformed or absent dump-dom results become notes without P2 findings", () => {
+test("malformed, invalid-entry, or absent dump-dom results become notes without P2 findings", () => {
   const { root } = sandbox();
   try {
-    for (const mode of ["dump-dom-malformed", "dump-dom-no-marker"]) {
+    for (const mode of ["dump-dom-malformed", "dump-dom-no-marker",
+      "dump-dom-null-finding", "dump-dom-bad-geometry-type"]) {
       const report = parseReport(run(root, exportArgs(writeInput(root), join(root, "report.pdf")), { mode }));
       assert.equal(report.svgGeometry.status, "NOT_RUN");
+      assert.equal(report.verdict, "PASS");
       assert.ok(report.notes.some((note) => note.id === "svg-geometry"
-        && /DOM result was not valid JSON|stdout did not contain cxc-svg-geometry-result-v1/.test(note.message)));
+        && /DOM result was not valid JSON|stdout did not contain cxc-svg-geometry-result-v1|DOM result has an invalid schema/.test(note.message)));
       assert.equal(report.qa.filter((finding) => finding.level === "P2").length, 0);
     }
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -333,7 +356,7 @@ test("--qa-only names DOM geometry as NOT_RUN", () => {
 });
 ~~~
 
-Add locale tests with minimal HTML fixtures: Korean lang; English lang plus Korean @page content; English dotted date; counter(page); and missing lang. Assert exact P2/notes behavior and that body Korean text alone does not trigger a finding. Add dump-dom-cap, malformed-marker, and absent-marker tests. Each diagnostic failure asserts a note, an unchanged `report.verdict` of PASS when the PDF checks pass, and zero P2 findings. Add one opt-in real-Chrome smoke, skipped with an explicit reason unless CXC_REAL_CHROME=1, using the installed Chrome path and tiny SVG HTML. The default suite stays fixture-backed.
+Add locale tests with minimal HTML fixtures: Korean lang; English lang plus Korean @page content; English dotted date; counter(page); and missing lang. Assert exact P2/notes behavior and that body Korean text alone does not trigger a finding. Add dump-dom-cap coverage; the matrix above covers malformed JSON, absent marker, an envelope containing a valid finding followed by null, and one containing a valid finding followed by invalid geometryType. The latter two prove no partial P2 output. Each diagnostic failure asserts a note, an unchanged `report.verdict` of PASS when the PDF checks pass, and zero P2 findings. Add one opt-in real-Chrome smoke, skipped with an explicit reason unless CXC_REAL_CHROME=1, using the installed Chrome path and tiny SVG HTML. The default suite stays fixture-backed.
 
 ### MODIFY plugins/codexclaw/skills/dev-visualizer/SKILL.md
 
@@ -361,7 +384,7 @@ After :16 add:
 
 ### MODIFY plugins/codexclaw/skills/dev-visualizer/reference/report-pipeline.md
 
-After :119 add:
+After wp2 replaces the current :116-121 paragraph as specified in `010_export_completion.md:285-300`, append this text immediately after its final `explicit choice independent of output language.` sentence:
 
 > When HTML is available, export also attempts the bounded SVG text/connector diagnostic on final filled print HTML. `--qa-only` records it as a `report.notes` entry because it has no HTML source; DOM process failure does not invalidate an otherwise passing PDF receipt, and the note remains visible in JSON and under `notes:` in human output.
 
@@ -374,7 +397,7 @@ No architecture boundary, hook surface, or enforcement catalog entry changes in 
 | Field/value | Creation | Serialization | Deserialization | Consumers |
 |---|---|---|---|---|
 | report.svgGeometry | Exporter report initializer :354-360; schemaVersion 1, status NOT_RUN/PASS/REVIEW, findings number | Existing JSON output in finish :338 | Existing test parseReport :69-74; additive field needs no migration | Focused tests and human readers; quality-gate does not consume it |
-| DOM result fields | Injected browser and fixture | application/json script id cxc-svg-geometry-result-v1 in stdout | parseDomMeasurement validates schemaVersion, kind, findings, capped | runSvgCrossingProbe; malformed or absent values become `report.notes`, never P2 findings |
+| DOM result fields | Injected browser and fixture | application/json script id cxc-svg-geometry-result-v1 in stdout | parseDomMeasurement validates schemaVersion, kind, capped, and every finding's object shape, nullable string identifiers, and line/polyline/path geometryType before any finding is consumed | runSvgCrossingProbe; malformed or absent values become `report.notes`, never P2 findings |
 | report.notes | Exporter report initializer :358; locale/DOM branches append `{id, message}` | Existing JSON branch and wp2 human summary under `notes:` | No revival or migration; absent in older reports is treated as an empty optional array by consumers | Human output and tests; `quality-gate.mjs:31-34` does not read it and ignores this unknown field |
 | notRun reasons | Existing `report.notRun` :358; existing receipt branches only | Existing JSON and summary | Existing quality-gate behavior at quality-gate.mjs:31-34 | Existing receipt gate; D3.4 does not append here |
 | public flag/enum | N/A: internal Chrome --dump-dom only; public exporter invocation unchanged | N/A | N/A | runSvgCrossingProbe owns internal argument |
@@ -392,7 +415,8 @@ No architecture boundary, hook surface, or enforcement catalog entry changes in 
 | Hidden/unstroked/zero-width geometry | CSS hidden, stroke none, or width zero | Ignored |
 | Sampling cap | dump-dom-cap or pathological SVG | svgGeometry NOT_RUN; `report.notes` reason; no FAIL or P2 |
 | Chrome nonzero/timeout/no marker | dump-dom-fail, timeout, or absent marker | `report.notes`; PDF checks continue with no P2 |
-| Invalid or malformed schema | Wrong version/kind/field types or invalid JSON | `report.notes`; no findings trusted and no P2 |
+| Invalid or malformed schema | Wrong version/kind/field types, invalid JSON, a null finding, or geometryType=circle inside an otherwise valid envelope | Entire DOM result is rejected into `report.notes`; no findings trusted and no P2 |
+| Unexpected probe exception | Read/inject/run/parse/mapping error | `runSvgCrossingProbe` returns a reason caught by the caller; `report.notes` records it without entering the fatal exporter catch |
 | qa-only | Existing PDF with no HTML | `report.notes` names unavailable HTML; PDF verdict is unchanged |
 | Boundary contact | Sampled segment only touches the one-pixel-shrunk box edge | Ignored; strict point-in-box comparisons do not report a crossing |
 | Final filled HTML | TOC input requiring second pass | Probe uses retained final HTML after refill |
@@ -402,7 +426,7 @@ No architecture boundary, hook surface, or enforcement catalog entry changes in 
 | Check | Tier | Executing surface | Known bypass | Residual risk | Wording |
 |---|---|---|---|---|---|
 | @page locale lint | E8 | Exporter and focused Node tests | Omit/change lang, use CSS outside scan, or use unrecognized locale/date | Checks selected literals, not translation quality, prose, fonts, or semantics | P2 review finding; never “enforced” |
-| SVG crossing diagnostic | E8 | Local Chrome dump-dom, fixture, opt-in smoke | Narrow sampled crossing, glyph whitespace, unsupported SVG, omitted probe | May miss geometry or report harmless box intersection | Supplementary P2 evidence; failure is a `report.notes` entry |
+| SVG crossing diagnostic | E8 | Local Chrome dump-dom, fixture, opt-in smoke | Narrow sampled crossing, glyph whitespace, unsupported SVG, omitted probe, malformed result or unexpected probe exception | May miss geometry or report harmless box intersection; whole-result validation prevents partially trusted findings | Supplementary P2 evidence; every probe failure is a `report.notes` entry |
 | Paint-order guidance | E7 | Skill prose and template comment | Future author paints connector after label or omits halo | No runtime enforcement | Guidance/review/inspect wording |
 | Tests | E8 | Focused runner | Real smoke skipped without opt-in; fixture does not prove Chrome | Host/version compatibility remains open | Skipped smoke is NOT RUN |
 
@@ -467,7 +491,7 @@ The first command is a current pass above but the new cases do not exist yet; th
 | skills/dev-visualizer/SKILL.md:166-180 | Page render/collision guidance | Add bounded DOM diagnostic paragraph above |
 | skills/dev-visualizer/reference/english-authoring.md:15 | Explicit locale config | Add lang/@page lint and missing-language behavior above |
 | skills/dev-visualizer/reference/print-provenance.md:13-16 | Chromium margin-box/counter measurement | Add 2026-09-24 dump-dom measurement above |
-| skills/dev-visualizer/reference/report-pipeline.md:116-121 | Timeout/output guidance | Add final-HTML diagnostic and qa-only `report.notes` behavior above |
+| skills/dev-visualizer/reference/report-pipeline.md:116-121 | wp2 replaces the timeout/output paragraph per `010_export_completion.md:285-300` | Append final-HTML diagnostic and qa-only `report.notes` behavior after wp2's replacement; do not restore the old timeout sentence |
 | structure/40_enforcement_methods.md:18-32 | E1-E8 ladder | No edit; used to classify E8/E7 and wording |
 | structure/INDEX.md:21-35 | Structure map | No edit; no boundary change |
 
@@ -477,7 +501,7 @@ Exact reference sync text:
 * `SKILL.md:166-180` before: `DIAGRAM-RENDER-VERIFY-01 — for the computed and exported tiers, and for any artifact you have reason to doubt: render the final artifact, read the screenshot/page, fix clipping, collisions, empty charts and runtime errors.` After: retain that paragraph and append `The paged-report exporter may run a bounded --dump-dom SVG crossing diagnostic on the final filled HTML. It is supplementary P2 review evidence: a crossing is a review finding, while a timeout, malformed result, or sampling cap is recorded in report.notes and does not change the PDF verdict; the PDF page remains the authority for print inspection.`
 * `reference/english-authoring.md:15` before: `The six JSON examples under assets/report-examples/ carry these fields in localeConfig. Korean examples use A4 and English examples use Letter to exercise both paths; this is fixture coverage, not a rule tying paper size to language.` After: retain it and append `The paged-report exporter checks @page content literals against explicit <html lang>. Korean or dotted date literals in a non-Korean document are P2 review findings. Missing lang records an unresolved assumption; language is not inferred from body text.`
 * `reference/print-provenance.md:13-16` before: `- string-set and target-counter() are not supported.` After: retain the bullet and append `Measured 2026-09-24, installed Google Chrome on macOS: --headless=new --dump-dom --virtual-time-budget=5000 on temporary HTML whose script appends an application/json script exited 0 in approximately 1,283 ms and stdout contained the serialized element. Repeated CVDisplayLinkCreateWithCGDisplay stderr errors did not prevent DOM output; this is host/version-specific feasibility evidence.`
-* `reference/report-pipeline.md:116-121` before: `A timed-out tool fails even when a useful draft PDF exists; verify that file separately with --qa-only and record which engine actually completed the export.` After: retain it and append `When HTML is available, export also attempts the bounded SVG text/connector diagnostic on final filled print HTML. --qa-only records it as a report.notes entry because it has no HTML source; DOM process failure does not invalidate an otherwise passing PDF receipt, and the note remains visible in JSON and under notes: in human output.`
+* `reference/report-pipeline.md:116-121` before wp2: `A timed-out tool fails even when a useful draft PDF exists; verify that file separately with --qa-only and record which engine actually completed the export.` After wp2: use the replacement beginning `An incomplete or changing stage fails at the deadline` and ending `an explicit choice independent of output language.` from `010_export_completion.md:285-300`. After wp3: retain that entire wp2 paragraph and append `When HTML is available, export also attempts the bounded SVG text/connector diagnostic on final filled print HTML. --qa-only records it as a report.notes entry because it has no HTML source; DOM process failure does not invalidate an otherwise passing PDF receipt, and the note remains visible in JSON and under notes: in human output.`
 
 ## Scope and risks
 
@@ -496,3 +520,11 @@ Main decision on the writer's open question: no `--no-svg-geometry` opt-out in t
 - Gap 3: fixture modes `dump-dom-malformed` and `dump-dom-no-marker` exist, and their test asserts a note and no P2 finding.
 
 The fold writer (01a0d174-8b96-7530-8632-e6f2b652649a) stopped on a model-capacity error after editing the body; main verified the three folds in the text above and wrote this section.
+
+## Audit round 1 folds
+
+- Finding 1: `parseDomMeasurement` now escapes the marker ID and builds its quote-matching regex with valid JavaScript string quoting. The complete proposed exporter helper block (constants, locale functions, DOM functions) was extracted to `/tmp/cxc-wp3-exporter-helpers.mjs`; `node --check` exited 0.
+- Finding 2: envelope validation now rejects every non-object finding, non-string/non-null `svg`, `text`, or `geometry`, and every geometry type outside `line`, `polyline`, or `path` before emitting any P2. `runSvgCrossingProbe` catches unexpected errors and returns a reason for `report.notes`. The fixture and test matrix include a valid finding followed by `null` and a valid finding followed by `geometryType: "circle"`; both must yield `NOT_RUN`, a note, PASS PDF verdict, and zero P2. A temporary harness against the extracted helpers passed those envelope cases and an unexpected read error; proposed repository tests are still NOT RUN until implementation.
+- Finding 12: the `report-pipeline.md` edit now appends the DOM guidance to wp2's replacement paragraph from `010_export_completion.md:285-300`. It does not reinstate the old `A timed-out tool fails even when...` sentence.
+
+Syntax checks after the final snippet edit: `node --check /tmp/cxc-wp3-exporter-helpers.mjs`, `node --check /tmp/cxc-wp3-fixture.mjs`, and `node --check /tmp/cxc-wp3-tests.mjs` all exited 0. These files were extracted from the three changed JavaScript blocks in this plan. `node /tmp/cxc-wp3-parser-harness.mjs` exited 0 with `parser valid/invalid envelopes and unexpected probe error: PASS`. Current source anchors were rechecked: exporter helpers and `analyzeLayout` at `export-paged-report.mjs:258,274,492`, fixture Chrome dispatch at `visualizer-export-tools.mjs:39`, focused test insertion at `report-export.test.mjs:237`, template grid at `paged-report.html:71`, and existing timeout paragraph at `report-pipeline.md:116-121`. The repository implementation and its new tests remain future wp3 work.
